@@ -47,11 +47,21 @@ async fn download(app: AppHandle, uri: String) -> Result<(), String> {
     Ok(())
 }
 
+use most_box::metadata::MetadataPayload;
+
+#[tauri::command]
+async fn get_metadata(uri: String) -> Result<MetadataPayload, String> {
+    match Downloader::resolve_metadata(&uri).await {
+        Ok(metadata) => Ok(metadata),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![publish, download])
+        .invoke_handler(tauri::generate_handler![publish, download, get_metadata])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

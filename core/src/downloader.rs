@@ -25,25 +25,7 @@ impl Downloader {
         metadata_uri: &str, 
         progress_tx: mpsc::Sender<DownloadProgress>
     ) -> Result<()> {
-        // 1. Phase 1: Connect to Metadata Core (Synchronous Wait)
-        // Parse URI to get Metadata Public Key
-        let _metadata_pk = metadata_uri.trim_start_matches("most://");
-        println!("Connecting to Metadata Core: {}", _metadata_pk);
-
-        // Mock: Retrieve Metadata Payload
-        // In reality, we connect to swarm, find peers, sync metadata core, read latest block.
-        // For this example, we'll assume we got the payload.
-        let payload_json = r#"{
-            "v": 1,
-            "name": "example.mp4",
-            "size": 1048576,
-            "data_pk": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
-            "root_hash": "cafebabe",
-            "ts": 1234567890
-        }"#;
-        // Note: Using a valid length hex string for mock data_pk (64 chars = 32 bytes)
-        
-        let metadata = MetadataPayload::from_json(payload_json)?;
+        let metadata = Self::resolve_metadata(metadata_uri).await?;
         
         println!("Resolved Metadata: {} ({} bytes)", metadata.name, metadata.size);
 
@@ -58,6 +40,58 @@ impl Downloader {
         });
 
         Ok(())
+    }
+
+    /// Resolve metadata from a Most.Box URI
+    pub async fn resolve_metadata(metadata_uri: &str) -> Result<MetadataPayload> {
+        // 1. Phase 1: Connect to Metadata Core (Synchronous Wait)
+        // Parse URI to get Metadata Public Key
+        let metadata_pk_hex = metadata_uri.trim_start_matches("most://");
+        println!("Connecting to Metadata Core: {}", metadata_pk_hex);
+
+        let metadata_pk_bytes = hex::decode(metadata_pk_hex)?;
+        let metadata_pk_array: [u8; 32] = metadata_pk_bytes.try_into().unwrap_or([0; 32]);
+        let metadata_pk = VerifyingKey::from_bytes(&metadata_pk_array)?;
+
+        // Initialize Metadata Core in Read-Only mode
+        let mut metadata_storage_path = std::env::temp_dir().join("most-box").join("cores").join(&metadata_pk_hex);
+        
+        // If the path doesn't exist, we can't find it locally (since we don't have P2P yet)
+        if !metadata_storage_path.exists() {
+             return Err(anyhow!("Metadata Core not found locally (P2P syncing not implemented yet)"));
+        }
+
+        let storage = Storage::new_disk(&metadata_storage_path, false).await?;
+        let key_pair = PartialKeypair {
+            public: metadata_pk,
+            secret: None,
+        };
+        
+        let mut metadata_core = HypercoreBuilder::new(storage)
+            .key_pair(key_pair)
+            .build()
+            .await?;
+
+        // Read the latest block (MetadataPayload)
+        // Since it's append-only, the last block should be the latest metadata
+        let info = metadata_core.info();
+        if info.length == 0 {
+             return Err(anyhow!("Metadata Core is empty"));
+        }
+
+        // Get the last block
+        let last_index = info.length - 1;
+        let block_option = metadata_core.get(last_index).await?;
+        
+        if let Some(block) = block_option {
+             let payload_json = String::from_utf8(block)?;
+             let mut metadata = MetadataPayload::from_json(&payload_json)?;
+             // Inject the resolved metadata PK so it can be displayed in UI
+             metadata.metadata_pk = Some(metadata_pk_hex.to_string());
+             Ok(metadata)
+        } else {
+             Err(anyhow!("Failed to read metadata block"))
+        }
     }
 
     async fn download_task(

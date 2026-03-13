@@ -36,7 +36,10 @@ impl Publisher {
         let data_pk_hex = hex::encode(data_public_key.to_bytes());
 
         // 3. Initialize Data Core (Immutable, Content-addressed)
-        let data_storage = Storage::new_memory().await?;
+        // Store in a local directory based on the Public Key
+        let mut data_storage_path = std::env::temp_dir().join("most-box").join("cores").join(&data_pk_hex);
+        tokio::fs::create_dir_all(&data_storage_path).await?;
+        let data_storage = Storage::new_disk(&data_storage_path, false).await?;
         
         let data_key_pair = PartialKeypair {
             public: data_public_key,
@@ -63,14 +66,17 @@ impl Publisher {
         let metadata_json = metadata.to_json()?;
 
         // 6. Initialize Metadata Core (Mutable)
-        // This one uses a random key or a persistent identity key
-        let metadata_storage = Storage::new_memory().await?;
+        // Store in a local directory based on the Public Key
         
         // Generate random keypair for metadata core
         let mut csprng = rand::rngs::OsRng;
         let metadata_secret_key = SigningKey::generate(&mut csprng);
         let metadata_public_key = metadata_secret_key.verifying_key();
         let metadata_pk = hex::encode(metadata_public_key.to_bytes());
+
+        let mut metadata_storage_path = std::env::temp_dir().join("most-box").join("cores").join(&metadata_pk);
+        tokio::fs::create_dir_all(&metadata_storage_path).await?;
+        let metadata_storage = Storage::new_disk(&metadata_storage_path, false).await?;
 
         let metadata_key_pair = PartialKeypair {
             public: metadata_public_key,

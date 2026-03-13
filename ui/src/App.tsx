@@ -11,7 +11,9 @@ interface DownloadProgress {
 }
 
 function App() {
-  const [tab, setTab] = useState<"publish" | "download">("publish");
+  const [tab, setTab] = useState<"publish" | "download" | "metadata">(
+    "publish",
+  );
   const [filePath, setFilePath] = useState("");
   const [publishResult, setPublishResult] = useState("");
   const [publishing, setPublishing] = useState(false);
@@ -21,6 +23,11 @@ function App() {
     useState<DownloadProgress | null>(null);
   const [downloadStatus, setDownloadStatus] = useState("");
   const [downloading, setDownloading] = useState(false);
+
+  const [metadataUri, setMetadataUri] = useState("");
+  const [metadataInfo, setMetadataInfo] = useState<any>(null);
+  const [fetchingMetadata, setFetchingMetadata] = useState(false);
+
   const [theme, setTheme] = useState<"light" | "dark" | "system">("system");
 
   useEffect(() => {
@@ -50,6 +57,7 @@ function App() {
       }
     };
     mediaQuery.addEventListener("change", handleChange);
+
     return () => mediaQuery.removeEventListener("change", handleChange);
   }, [theme]);
 
@@ -128,6 +136,19 @@ function App() {
     }
   }
 
+  async function handleGetMetadata() {
+    if (!metadataUri) return;
+    setFetchingMetadata(true);
+    setMetadataInfo(null);
+    try {
+      const result = await invoke<any>("get_metadata", { uri: metadataUri });
+      setMetadataInfo(result);
+    } catch (error) {
+      setMetadataInfo({ error: `Error: ${error}` });
+    }
+    setFetchingMetadata(false);
+  }
+
   return (
     <div className="container">
       <div className="theme-switch">
@@ -152,6 +173,12 @@ function App() {
           className={tab === "download" ? "active" : ""}
         >
           下载
+        </button>
+        <button
+          onClick={() => setTab("metadata")}
+          className={tab === "metadata" ? "active" : ""}
+        >
+          元数据
         </button>
       </div>
 
@@ -236,6 +263,73 @@ function App() {
                   % ({(downloadProgress.downloaded_bytes / 1024).toFixed(2)} KB
                   / {(downloadProgress.total_bytes / 1024).toFixed(2)} KB)
                 </p>
+              </div>
+            )}
+          </div>
+        )}
+        {tab === "metadata" && (
+          <div className="card">
+            <h2>获取元数据</h2>
+            <div className="input-group">
+              <input
+                id="metadata-input"
+                onChange={(e) => setMetadataUri(e.currentTarget.value)}
+                placeholder="输入 most:// 链接..."
+                value={metadataUri}
+              />
+              <button
+                type="button"
+                onClick={handleGetMetadata}
+                disabled={fetchingMetadata}
+              >
+                {fetchingMetadata ? "查询中..." : "查询"}
+              </button>
+            </div>
+
+            {metadataInfo && (
+              <div className="result" style={{ textAlign: "left" }}>
+                {metadataInfo.error ? (
+                  <p style={{ color: "red" }}>{metadataInfo.error}</p>
+                ) : (
+                  <>
+                    <p>
+                      <strong>文件名:</strong> {metadataInfo.name}
+                    </p>
+                    <p>
+                      <strong>大小:</strong>{" "}
+                      {(metadataInfo.size / 1024 / 1024).toFixed(2)} MB (
+                      {metadataInfo.size} bytes)
+                    </p>
+                    {metadataInfo.metadata_pk && (
+                      <>
+                        <p>
+                          <strong>Metadata Core PK:</strong>
+                        </p>
+                        <code
+                          style={{ fontSize: "0.8em", wordBreak: "break-all" }}
+                        >
+                          {metadataInfo.metadata_pk}
+                        </code>
+                      </>
+                    )}
+                    <p>
+                      <strong>Data Core PK:</strong>
+                    </p>
+                    <code style={{ fontSize: "0.8em", wordBreak: "break-all" }}>
+                      {metadataInfo.data_pk}
+                    </code>
+                    <p>
+                      <strong>Root Hash:</strong>
+                    </p>
+                    <code style={{ fontSize: "0.8em", wordBreak: "break-all" }}>
+                      {metadataInfo.root_hash}
+                    </code>
+                    <p>
+                      <strong>时间戳:</strong>{" "}
+                      {new Date(metadataInfo.ts * 1000).toLocaleString()}
+                    </p>
+                  </>
+                )}
               </div>
             )}
           </div>
