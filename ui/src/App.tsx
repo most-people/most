@@ -17,9 +17,41 @@ function App() {
   const [publishing, setPublishing] = useState(false);
 
   const [uri, setUri] = useState("");
-  const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null);
+  const [downloadProgress, setDownloadProgress] =
+    useState<DownloadProgress | null>(null);
   const [downloadStatus, setDownloadStatus] = useState("");
   const [downloading, setDownloading] = useState(false);
+  const [theme, setTheme] = useState<"light" | "dark" | "system">("system");
+
+  useEffect(() => {
+    // Theme handling
+    const root = window.document.body;
+    root.classList.remove("light", "dark");
+
+    if (theme === "system") {
+      const systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
+        .matches
+        ? "dark"
+        : "light";
+      root.classList.add(systemTheme);
+    } else {
+      root.classList.add(theme);
+    }
+  }, [theme]);
+
+  useEffect(() => {
+    // Listen for system theme changes
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const handleChange = () => {
+      if (theme === "system") {
+        const root = window.document.body;
+        root.classList.remove("light", "dark");
+        root.classList.add(mediaQuery.matches ? "dark" : "light");
+      }
+    };
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, [theme]);
 
   useEffect(() => {
     let unlistenProgress: () => void;
@@ -27,11 +59,14 @@ function App() {
     let unlistenError: () => void;
 
     async function setupListeners() {
-      unlistenProgress = await listen<DownloadProgress>("download-progress", (event) => {
-        setDownloadProgress(event.payload);
-        setDownloadStatus(`下载中...`);
-      });
-      
+      unlistenProgress = await listen<DownloadProgress>(
+        "download-progress",
+        (event) => {
+          setDownloadProgress(event.payload);
+          setDownloadStatus(`下载中...`);
+        },
+      );
+
       unlistenComplete = await listen("download-complete", () => {
         setDownloadStatus("✅ 下载完成！");
         setDownloading(false);
@@ -95,17 +130,25 @@ function App() {
 
   return (
     <div className="container">
+      <div className="theme-switch">
+        <select value={theme} onChange={(e) => setTheme(e.target.value as any)}>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+          <option value="system">System</option>
+        </select>
+      </div>
+
       <h1>Most.Box</h1>
-      
+
       <div className="tabs">
-        <button 
-          onClick={() => setTab("publish")} 
+        <button
+          onClick={() => setTab("publish")}
           className={tab === "publish" ? "active" : ""}
         >
           发布
         </button>
-        <button 
-          onClick={() => setTab("download")} 
+        <button
+          onClick={() => setTab("download")}
           className={tab === "download" ? "active" : ""}
         >
           下载
@@ -125,16 +168,28 @@ function App() {
                 onClick={handleSelectFile}
                 style={{ cursor: "pointer" }}
               />
-              <button type="button" onClick={handleSelectFile} disabled={publishing}>
+              <button
+                type="button"
+                onClick={handleSelectFile}
+                disabled={publishing}
+              >
                 选择
               </button>
-              <button type="button" onClick={handlePublish} disabled={publishing || !filePath}>
+              <button
+                type="button"
+                onClick={handlePublish}
+                disabled={publishing || !filePath}
+              >
                 {publishing ? "发布中..." : "发布"}
               </button>
             </div>
             {publishResult && (
               <div className="result">
-                <p>{publishResult.startsWith("most://") ? "✅ 发布成功！请分享此链接：" : "❌ 发布失败："}</p>
+                <p>
+                  {publishResult.startsWith("most://")
+                    ? "✅ 发布成功！请分享此链接："
+                    : "❌ 发布失败："}
+                </p>
                 <code>{publishResult}</code>
               </div>
             )}
@@ -151,22 +206,35 @@ function App() {
                 placeholder="输入 most:// 链接..."
                 value={uri}
               />
-              <button type="button" onClick={handleDownload} disabled={downloading}>
+              <button
+                type="button"
+                onClick={handleDownload}
+                disabled={downloading}
+              >
                 {downloading ? "下载中..." : "下载"}
               </button>
             </div>
-            
+
             {downloadStatus && <p className="status">{downloadStatus}</p>}
-            
+
             {downloadProgress && (
               <div className="progress-container">
-                <progress 
-                  value={downloadProgress.downloaded_bytes} 
-                  max={downloadProgress.total_bytes > 0 ? downloadProgress.total_bytes : 100} 
+                <progress
+                  value={downloadProgress.downloaded_bytes}
+                  max={
+                    downloadProgress.total_bytes > 0
+                      ? downloadProgress.total_bytes
+                      : 100
+                  }
                 />
                 <p>
-                  {Math.round((downloadProgress.downloaded_bytes / (downloadProgress.total_bytes || 1)) * 100)}% 
-                  ({(downloadProgress.downloaded_bytes / 1024).toFixed(2)} KB / {(downloadProgress.total_bytes / 1024).toFixed(2)} KB)
+                  {Math.round(
+                    (downloadProgress.downloaded_bytes /
+                      (downloadProgress.total_bytes || 1)) *
+                      100,
+                  )}
+                  % ({(downloadProgress.downloaded_bytes / 1024).toFixed(2)} KB
+                  / {(downloadProgress.total_bytes / 1024).toFixed(2)} KB)
                 </p>
               </div>
             )}
