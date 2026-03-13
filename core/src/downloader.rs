@@ -1,12 +1,14 @@
-use anyhow::{anyhow, Context, Result};
-use hypercore::Hypercore;
+use anyhow::{anyhow, Result};
+use ed25519_dalek::VerifyingKey;
+use hypercore::{HypercoreBuilder, Storage, PartialKeypair};
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::time::{self, Duration, Instant};
 use crate::metadata::MetadataPayload;
 
 // Progress structure for UI updates
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DownloadProgress {
     pub downloaded_bytes: u64,
     pub total_bytes: u64,
@@ -35,10 +37,12 @@ impl Downloader {
             "v": 1,
             "name": "example.mp4",
             "size": 1048576,
-            "data_pk": "deadbeef",
+            "data_pk": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
             "root_hash": "cafebabe",
             "ts": 1234567890
         }"#;
+        // Note: Using a valid length hex string for mock data_pk (64 chars = 32 bytes)
+        
         let metadata = MetadataPayload::from_json(payload_json)?;
         
         println!("Resolved Metadata: {} ({} bytes)", metadata.name, metadata.size);
@@ -62,9 +66,23 @@ impl Downloader {
     ) -> Result<()> {
         // 3. Permission Downgrade: Initialize Data Core in Read-Only mode
         // We use the Public Key from metadata, NOT generating a keypair.
-        // This ensures we cannot write to the core even if we wanted to.
-        let storage = random_access_memory::RandomAccessMemory::new(1024);
-        let mut data_core = Hypercore::new(storage).await?; // In reality: open with public key
+        
+        // Convert hex string back to VerifyingKey
+        // In a real scenario, handle errors properly if hex is invalid
+        let data_pk_bytes = hex::decode(&metadata.data_pk).unwrap_or(vec![0; 32]); 
+        let data_pk_array: [u8; 32] = data_pk_bytes.try_into().unwrap_or([0; 32]);
+        let data_pk = VerifyingKey::from_bytes(&data_pk_array).unwrap_or(VerifyingKey::from_bytes(&[0; 32]).unwrap());
+
+        let data_key_pair = PartialKeypair {
+            public: data_pk,
+            secret: None, // Read-only!
+        };
+
+        let storage = Storage::new_memory().await?;
+        let mut _data_core = HypercoreBuilder::new(storage)
+            .key_pair(data_key_pair)
+            .build()
+            .await?;
         
         // 4. Swarm Join (Mock)
         println!("Joining Swarm for Data Core: {}", metadata.data_pk);
@@ -77,8 +95,6 @@ impl Downloader {
 
         for i in 0..total_blocks {
             // Security Check: If index is out of bounds, stop immediately.
-            // (The loop condition `i < total_blocks` handles this naturally, 
-            // but explicit check is good if we were processing a stream of block indices)
             if i >= total_blocks {
                 eprintln!("Security Warning: Received block index {} >= limit {}", i, total_blocks);
                 break;

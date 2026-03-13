@@ -1,18 +1,17 @@
 use anyhow::{Context, Result};
-use blake3::Hasher;
 use ed25519_dalek::{SigningKey, VerifyingKey};
-use hypercore::{Hypercore, Storage};
+use hypercore::{Hypercore, HypercoreBuilder, Storage, PartialKeypair};
 use std::path::Path;
 use tokio::fs::File;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::AsyncReadExt;
 use crate::metadata::MetadataPayload;
 
 // Constant for chunk size to ensure global deduplication
 pub const CHUNK_SIZE: usize = 64 * 1024; // 64KB
 
 pub struct Publisher {
-    pub metadata_core: Hypercore<random_access_memory::RandomAccessMemory>,
-    pub data_core: Hypercore<random_access_memory::RandomAccessMemory>,
+    pub metadata_core: Hypercore,
+    pub data_core: Hypercore,
     pub metadata_pk: String,
     pub data_pk: String,
 }
@@ -37,14 +36,17 @@ impl Publisher {
         let data_pk_hex = hex::encode(data_public_key.to_bytes());
 
         // 3. Initialize Data Core (Immutable, Content-addressed)
-        // We use in-memory storage for demonstration, but in production this would be disk-backed
-        let data_storage = random_access_memory::RandomAccessMemory::new(1024);
+        let data_storage = Storage::new_memory().await?;
         
-        // Note: Real Hypercore setup requires passing the key pair. 
-        // This is a simplified instantiation assuming the crate's API.
-        // In reality, you'd use `Hypercore::new_with_key_pair(...)`.
-        // Since we are mocking the exact API surface:
-        let mut data_core = Hypercore::new(data_storage).await?;
+        let data_key_pair = PartialKeypair {
+            public: data_public_key,
+            secret: Some(data_secret_key),
+        };
+
+        let mut data_core = HypercoreBuilder::new(data_storage)
+            .key_pair(data_key_pair)
+            .build()
+            .await?;
         
         // 4. Import data into Data Core with fixed chunking
         for chunk in content.chunks(CHUNK_SIZE) {
@@ -62,25 +64,32 @@ impl Publisher {
 
         // 6. Initialize Metadata Core (Mutable)
         // This one uses a random key or a persistent identity key
-        let metadata_storage = random_access_memory::RandomAccessMemory::new(1024);
-        let mut metadata_core = Hypercore::new(metadata_storage).await?;
+        let metadata_storage = Storage::new_memory().await?;
+        
+        // Generate random keypair for metadata core
+        let mut csprng = rand::rngs::OsRng;
+        let metadata_secret_key = SigningKey::generate(&mut csprng);
+        let metadata_public_key = metadata_secret_key.verifying_key();
+        let metadata_pk = hex::encode(metadata_public_key.to_bytes());
+
+        let metadata_key_pair = PartialKeypair {
+            public: metadata_public_key,
+            secret: Some(metadata_secret_key),
+        };
+
+        let mut metadata_core = HypercoreBuilder::new(metadata_storage)
+            .key_pair(metadata_key_pair)
+            .build()
+            .await?;
         
         // 7. Append Metadata
-        metadata_core.append(metadata_json.as_bytes()).await?;
-
-        // Get Metadata Public Key (this is the most:// link)
-        // In a real implementation, we'd get this from the core.
-        // For now, we mock it or assume it's available.
-        let metadata_pk = "mock_metadata_pk".to_string(); 
+        metadata_core.append(metadata_json.as_bytes()).await?; 
 
         println!("Published successfully!");
         println!("Metadata Core PK: {}", metadata_pk);
         println!("Data Core PK: {}", data_pk_hex);
         println!("File Size: {} bytes", file_size);
         println!("Chunks: {}", (file_size as f64 / CHUNK_SIZE as f64).ceil());
-
-        // 8. Swarm / Seeding would happen here
-        // In a real app, we would hand these cores to Hyperswarm.
 
         Ok(Self {
             metadata_core,

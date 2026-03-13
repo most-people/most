@@ -2,7 +2,47 @@
 
 **Context (背景说明):**
 我们正在使用 Rust 开发一个名为 **Most.Box** 的 Web3 去中心化内容分发网络（CDN）和热门资源共享协议。该协议基于 Holepunch 技术栈（底层核心为 `hypercore` 和 `hyperswarm`）。
-请仔细阅读以下架构设计原则和约束，并根据这些指导方针为我生成后续的 Rust 代码。
+
+## 项目结构 (Project Structure)
+
+本项目已重构为 Workspace，包含核心库和 UI 前端。
+
+- `core/`: **Most.Box** 核心 P2P 引擎库和 CLI 工具。
+- `ui/`: 基于 **Tauri (v2)** + **React** + **Vite** 的桌面端用户界面。
+
+## 快速开始 (Quick Start)
+
+### 1. 运行 CLI 工具 (Command Line Interface)
+
+在根目录下运行：
+
+```bash
+# 发布文件
+cargo run -p most-box -- publish <path/to/file>
+
+# 下载文件
+cargo run -p most-box -- download most://<metadata_pubkey>
+```
+
+### 2. 运行 UI 界面 (Desktop GUI)
+
+UI 基于 Tauri 构建。请确保已安装 Node.js 和 Rust 环境。
+
+**前置要求 (Prerequisite):**
+由于 Tauri 构建过程需要应用图标，请务必在运行前添加以下图标文件：
+- `ui/src-tauri/icons/icon.ico` (Windows 图标)
+- `ui/src-tauri/icons/icon.png` (Linux/Mac 图标, 可选)
+*(您可以从 `ui/public/favicon.svg` 转换或使用任意 `.ico` 文件)*
+
+**启动步骤:**
+
+```bash
+cd ui
+npm install
+npm run tauri dev
+```
+
+---
 
 ## 1. 核心架构：双 Core 设计 (Dual-Core Architecture)
 
@@ -61,11 +101,3 @@ pub struct MetadataPayload {
 - 请在 `tokio` 任务中使用 `tokio::sync::mpsc::channel` 将进度回传。
 - **节流机制：** 在循环内部使用 `tokio::time::Instant`，限制进度事件发送频率（例如每 200ms 发送一次）。
 - **防阻塞：** 必须使用 `try_send()`，如果通道满则丢弃该帧进度，绝对不能让 UI 卡顿拖慢底层的 P2P 极速下载。
-
----
-
-**请确认你已理解上述 Most.Box 的架构逻辑。如果理解，请帮我生成项目的 `Cargo.toml` 依赖清单，以及 `src/metadata.rs` 中 `MetadataPayload` 序列化和解析的基础代码。**
-
-**发布端（读取本地文件，计算 Hash，生成双 Core 并做种）**
-
-**下载端（解析链接，挂载安全拦截锁并拉取数据）**

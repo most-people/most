@@ -6,7 +6,6 @@ use tokio::sync::mpsc;
 // Use modules from the library crate
 use most_box::publisher::Publisher;
 use most_box::downloader::Downloader;
-use most_box::downloader::DownloadProgress;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -50,7 +49,7 @@ async fn main() -> Result<()> {
                 print_usage();
                 return Ok(());
             }
-            let uri = &args[2];
+            let uri = args[2].clone();
             println!("Starting download for: {}", uri);
             
             let (tx, mut rx) = mpsc::channel(100);
@@ -58,7 +57,7 @@ async fn main() -> Result<()> {
             // Spawn the download task
             // Note: In a real app, we'd keep the handle to await completion or errors
             tokio::spawn(async move {
-                if let Err(e) = Downloader::start_download(uri, tx).await {
+                if let Err(e) = Downloader::start_download(&uri, tx).await {
                     eprintln!("❌ Download error: {}", e);
                 }
             });
