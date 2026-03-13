@@ -28,39 +28,6 @@ function App() {
   const [metadataInfo, setMetadataInfo] = useState<any>(null);
   const [fetchingMetadata, setFetchingMetadata] = useState(false);
 
-  const [theme, setTheme] = useState<"light" | "dark" | "system">("system");
-
-  useEffect(() => {
-    // Theme handling
-    const root = window.document.body;
-    root.classList.remove("light", "dark");
-
-    if (theme === "system") {
-      const systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
-        .matches
-        ? "dark"
-        : "light";
-      root.classList.add(systemTheme);
-    } else {
-      root.classList.add(theme);
-    }
-  }, [theme]);
-
-  useEffect(() => {
-    // Listen for system theme changes
-    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-    const handleChange = () => {
-      if (theme === "system") {
-        const root = window.document.body;
-        root.classList.remove("light", "dark");
-        root.classList.add(mediaQuery.matches ? "dark" : "light");
-      }
-    };
-    mediaQuery.addEventListener("change", handleChange);
-
-    return () => mediaQuery.removeEventListener("change", handleChange);
-  }, [theme]);
-
   useEffect(() => {
     let unlistenProgress: () => void;
     let unlistenComplete: () => void;
@@ -151,14 +118,6 @@ function App() {
 
   return (
     <div className="container">
-      <div className="theme-switch">
-        <select value={theme} onChange={(e) => setTheme(e.target.value as any)}>
-          <option value="light">Light</option>
-          <option value="dark">Dark</option>
-          <option value="system">System</option>
-        </select>
-      </div>
-
       <h1>Most.Box</h1>
 
       <div className="tabs">

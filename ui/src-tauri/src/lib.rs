@@ -48,11 +48,25 @@ async fn download(app: AppHandle, uri: String) -> Result<(), String> {
 }
 
 use most_box::metadata::MetadataPayload;
+use serde::Serialize;
+
+#[derive(Serialize)]
+struct MetadataResponse {
+    #[serde(flatten)]
+    metadata: MetadataPayload,
+    metadata_pk: String,
+}
 
 #[tauri::command]
-async fn get_metadata(uri: String) -> Result<MetadataPayload, String> {
+async fn get_metadata(uri: String) -> Result<MetadataResponse, String> {
     match Downloader::resolve_metadata(&uri).await {
-        Ok(metadata) => Ok(metadata),
+        Ok(metadata) => {
+            let metadata_pk = uri.trim_start_matches("most://").to_string();
+            Ok(MetadataResponse {
+                metadata,
+                metadata_pk,
+            })
+        },
         Err(e) => Err(e.to_string()),
     }
 }
