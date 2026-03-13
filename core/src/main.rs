@@ -59,9 +59,10 @@ async fn main() -> Result<()> {
             // Spawn the download task
             // Note: In a real app, we'd keep the handle to await completion or errors
             tokio::spawn(async move {
-                if let Err(e) = Downloader::start_download(&uri, tx).await {
-                    eprintln!("❌ Download error: {}", e);
-                }
+                match Downloader::start_download(&uri, tx).await {
+                    Ok(path) => println!("\n✅ Saved to: {}", path),
+                    Err(e) => eprintln!("❌ Download error: {}", e),
+                };
             });
 
             // UI Loop: Receive progress updates

@@ -24,7 +24,7 @@ random-access-memory = "3.0"
 random-access-disk = { version = "3.0", default-features = false, features = ["tokio"] }
 
 # P2P Networking (libp2p stack as replacement for hyperswarm)
-libp2p = { version = "0.56.0", features = ["tcp", "dns", "noise", "yamux", "mdns", "kad", "macros", "tokio"] }
+libp2p = { version = "0.56.0", features = ["tcp", "dns", "noise", "yamux", "mdns", "kad", "macros", "tokio", "identify", "autonat", "relay", "dcutr", "upnp"] }
 libp2p-stream = "0.4.0-alpha"
 
 [dev-dependencies]

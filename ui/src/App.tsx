@@ -42,8 +42,8 @@ function App() {
         },
       );
 
-      unlistenComplete = await listen("download-complete", () => {
-        setDownloadStatus("✅ 下载完成！");
+      unlistenComplete = await listen<string>("download-complete", (event) => {
+        setDownloadStatus(`✅ 下载完成！保存到：${event.payload}`);
         setDownloading(false);
       });
 

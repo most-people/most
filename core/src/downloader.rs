@@ -5,6 +5,7 @@ use ed25519_dalek::VerifyingKey;
 use hypercore::{Hypercore, HypercoreBuilder, PartialKeypair, Storage};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use tokio::io::AsyncWriteExt;
 use tokio::sync::{mpsc, Mutex, Notify};
 use tokio::time::{self, Duration, Instant};
 
@@ -23,7 +24,7 @@ impl Downloader {
     pub async fn start_download(
         metadata_uri: &str,
         progress_tx: mpsc::Sender<DownloadProgress>,
-    ) -> Result<()> {
+    ) -> Result<String> {
         // 0. 启动 P2P 节点
         let (cmd_tx, cmd_rx) = mpsc::channel(10);
         let (event_tx, mut event_rx) = mpsc::channel(10);
@@ -50,15 +51,9 @@ impl Downloader {
             metadata.name, metadata.size
         );
 
-        // 2. 启动后台下载任务
         let metadata = Arc::new(metadata);
-        tokio::spawn(async move {
-            if let Err(e) = Self::download_task(metadata, progress_tx, cmd_tx).await {
-                eprintln!("下载任务失败: {}", e);
-            }
-        });
-
-        Ok(())
+        let path = Self::download_task(metadata, progress_tx, cmd_tx).await?;
+        Ok(path)
     }
 
     /// 解析 Most.Box URI 获取元数据
@@ -140,7 +135,7 @@ impl Downloader {
         metadata: Arc<MetadataPayload>,
         progress_tx: mpsc::Sender<DownloadProgress>,
         p2p_tx: mpsc::Sender<P2PCommand>,
-    ) -> Result<()> {
+    ) -> Result<String> {
         // 1. 初始化 Data Core (只读)
         let data_pk_bytes = hex::decode(&metadata.data_pk).unwrap_or(vec![0; 32]);
         let data_pk_array: [u8; 32] = data_pk_bytes.try_into().unwrap_or([0; 32]);
@@ -179,6 +174,17 @@ impl Downloader {
 
         println!("连接 Data Core Swarm: {}", metadata.data_pk);
 
+        let downloads_dir = std::env::temp_dir().join("most-box").join("downloads");
+        tokio::fs::create_dir_all(&downloads_dir).await?;
+        let file_name = sanitize_filename(&metadata.name);
+        let suffix = metadata
+            .data_pk
+            .chars()
+            .take(8)
+            .collect::<String>();
+        let output_path = downloads_dir.join(format!("{}-{}", file_name, suffix));
+        let mut out = tokio::fs::File::create(&output_path).await?;
+
         // 2. 下载循环 (模拟 + 真实)
         let chunk_size = 64 * 1024; // 64KB
         let total_blocks = (metadata.size as f64 / chunk_size as f64).ceil() as u64;
@@ -190,7 +196,7 @@ impl Downloader {
 
         for i in 0..total_blocks {
             let start = Instant::now();
-            let _block = loop {
+            let block = loop {
                 let mut core = data_core_shared.lock().await;
                 if let Ok(Some(b)) = core.get(i).await {
                     break b;
@@ -208,9 +214,9 @@ impl Downloader {
                     .map_err(|_| anyhow!("下载块 {} 超时", i))?;
             };
 
-            // drop(core); // block scope ends
+            out.write_all(&block).await?;
 
-            downloaded_bytes += chunk_size as u64;
+            downloaded_bytes += block.len() as u64;
             if downloaded_bytes > metadata.size {
                 downloaded_bytes = metadata.size;
             }
@@ -226,7 +232,33 @@ impl Downloader {
             }
         }
 
-        println!("下载完成!");
-        Ok(())
+        let _ = progress_tx.try_send(DownloadProgress {
+            downloaded_bytes: metadata.size,
+            total_bytes: metadata.size,
+            speed: 0.0,
+        });
+        out.flush().await?;
+
+        println!("下载完成! 保存到: {}", output_path.display());
+        Ok(output_path.to_string_lossy().to_string())
+    }
+}
+
+fn sanitize_filename(name: &str) -> String {
+    let mut out = String::with_capacity(name.len());
+    for ch in name.chars() {
+        let invalid = matches!(ch, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*' )
+            || ch.is_control();
+        if invalid {
+            out.push('_');
+        } else {
+            out.push(ch);
+        }
+    }
+    let out = out.trim().trim_matches('.').to_string();
+    if out.is_empty() {
+        "download".to_string()
+    } else {
+        out
     }
 }

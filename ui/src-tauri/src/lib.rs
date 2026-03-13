@@ -38,10 +38,15 @@ async fn download(app: AppHandle, uri: String) -> Result<(), String> {
     let app_handle = app.clone();
 
     tokio::spawn(async move {
-        if let Err(e) = Downloader::start_download(&uri_clone, tx).await {
-            eprintln!("Download error: {}", e);
-            let _ = app_handle.emit("download-error", e.to_string());
-        }
+        match Downloader::start_download(&uri_clone, tx).await {
+            Ok(path) => {
+                let _ = app_handle.emit("download-complete", path);
+            }
+            Err(e) => {
+                eprintln!("Download error: {}", e);
+                let _ = app_handle.emit("download-error", e.to_string());
+            }
+        };
     });
 
     // Listen to progress and forward to UI
@@ -50,7 +55,6 @@ async fn download(app: AppHandle, uri: String) -> Result<(), String> {
         while let Some(progress) = rx.recv().await {
             let _ = app_clone.emit("download-progress", progress);
         }
-        let _ = app_clone.emit("download-complete", ());
     });
 
     Ok(())
