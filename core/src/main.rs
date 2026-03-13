@@ -4,8 +4,8 @@ use std::path::Path;
 use tokio::sync::mpsc;
 
 // Use modules from the library crate
-use most_box::publisher::Publisher;
 use most_box::downloader::Downloader;
+use most_box::publisher::Publisher;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -39,7 +39,9 @@ async fn main() -> Result<()> {
                     println!("Data Core Public Key: {}", pub_info.data_pk);
                     println!("Metadata Core Link: most://{}", pub_info.metadata_pk);
                     println!("--------------------------------------------------");
-                },
+                    println!("Seeding... Press Ctrl-C to exit.");
+                    tokio::signal::ctrl_c().await?;
+                }
                 Err(e) => eprintln!("❌ Error publishing: {}", e),
             }
         }
@@ -51,9 +53,9 @@ async fn main() -> Result<()> {
             }
             let uri = args[2].clone();
             println!("Starting download for: {}", uri);
-            
+
             let (tx, mut rx) = mpsc::channel(100);
-            
+
             // Spawn the download task
             // Note: In a real app, we'd keep the handle to await completion or errors
             tokio::spawn(async move {
@@ -72,13 +74,14 @@ async fn main() -> Result<()> {
                 };
 
                 // Clear line and print progress (simple animation)
-                print!("\rDownloading: [{:<50}] {:.2}% ({}/{} bytes)", 
-                    "=".repeat((percent / 2.0) as usize), 
+                print!(
+                    "\rDownloading: [{:<50}] {:.2}% ({}/{} bytes)",
+                    "=".repeat((percent / 2.0) as usize),
                     percent,
                     progress.downloaded_bytes,
                     progress.total_bytes
                 );
-                
+
                 if progress.downloaded_bytes >= progress.total_bytes {
                     println!("\n✅ Download complete!");
                     break;

@@ -1,11 +1,12 @@
+use crate::metadata::MetadataPayload;
+use crate::p2p::{Command as P2PCommand, P2PNode};
 use anyhow::{anyhow, Result};
 use ed25519_dalek::VerifyingKey;
-use hypercore::{HypercoreBuilder, Storage, PartialKeypair};
+use hypercore::{Hypercore, HypercoreBuilder, PartialKeypair, Storage};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Mutex, Notify};
 use tokio::time::{self, Duration, Instant};
-use crate::metadata::MetadataPayload;
 
 /// 下载进度结构体
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -20,17 +21,39 @@ pub struct Downloader;
 impl Downloader {
     /// 开始下载任务
     pub async fn start_download(
-        metadata_uri: &str, 
-        progress_tx: mpsc::Sender<DownloadProgress>
+        metadata_uri: &str,
+        progress_tx: mpsc::Sender<DownloadProgress>,
     ) -> Result<()> {
-        // 1. 解析元数据
-        let metadata = Self::resolve_metadata(metadata_uri).await?;
-        println!("解析元数据成功: {} ({} bytes)", metadata.name, metadata.size);
+        // 0. 启动 P2P 节点
+        let (cmd_tx, cmd_rx) = mpsc::channel(10);
+        let (event_tx, mut event_rx) = mpsc::channel(10);
+
+        let p2p_node = P2PNode::new(cmd_rx, event_tx)?;
+        tokio::spawn(async move {
+            if let Err(e) = p2p_node.run().await {
+                eprintln!("P2P Node Error: {}", e);
+            }
+        });
+
+        // 监听 P2P 事件 (可选)
+        tokio::spawn(async move {
+            while let Some(event) = event_rx.recv().await {
+                println!("(Downloader) P2P Event: {:?}", event);
+            }
+        });
+
+        // 1. 解析元数据 (集成 P2P 注册)
+        let (metadata, _metadata_core, _metadata_pk_hex) =
+            Self::resolve_metadata(metadata_uri, cmd_tx.clone()).await?;
+        println!(
+            "解析元数据成功: {} ({} bytes)",
+            metadata.name, metadata.size
+        );
 
         // 2. 启动后台下载任务
         let metadata = Arc::new(metadata);
         tokio::spawn(async move {
-            if let Err(e) = Self::download_task(metadata, progress_tx).await {
+            if let Err(e) = Self::download_task(metadata, progress_tx, cmd_tx).await {
                 eprintln!("下载任务失败: {}", e);
             }
         });
@@ -39,78 +62,154 @@ impl Downloader {
     }
 
     /// 解析 Most.Box URI 获取元数据
-    pub async fn resolve_metadata(metadata_uri: &str) -> Result<MetadataPayload> {
+    pub async fn resolve_metadata(
+        metadata_uri: &str,
+        p2p_tx: mpsc::Sender<P2PCommand>,
+    ) -> Result<(MetadataPayload, Arc<Mutex<Hypercore>>, String)> {
         // 解析 URI 中的 Metadata PK
-        let metadata_pk_hex = metadata_uri.trim_start_matches("most://");
-        let metadata_pk_bytes = hex::decode(metadata_pk_hex)?;
+        let metadata_pk_hex = metadata_uri.trim_start_matches("most://").to_string();
+        let metadata_pk_bytes = hex::decode(&metadata_pk_hex)?;
         let metadata_pk_array: [u8; 32] = metadata_pk_bytes.try_into().unwrap_or([0; 32]);
         let metadata_pk = VerifyingKey::from_bytes(&metadata_pk_array)?;
 
         // 初始化 Metadata Core (只读模式)
-        // 目前仅支持读取本地已存在的 Core (模拟网络传输)
-        let metadata_storage_path = std::env::temp_dir().join("most-box").join("cores").join(&metadata_pk_hex);
-        
-        if !metadata_storage_path.exists() {
-             return Err(anyhow!("本地未找到 Metadata Core (P2P 同步功能尚未实现)"));
-        }
+        let metadata_storage_path = std::env::temp_dir()
+            .join("most-box")
+            .join("cores")
+            .join(&metadata_pk_hex);
+        tokio::fs::create_dir_all(&metadata_storage_path).await?;
 
-        let mut metadata_core = HypercoreBuilder::new(Storage::new_disk(&metadata_storage_path, false).await?)
-            .key_pair(PartialKeypair {
-                public: metadata_pk,
-                secret: None, // 只有公钥，无法写入
-            })
-            .build()
+        let metadata_core =
+            HypercoreBuilder::new(Storage::new_disk(&metadata_storage_path, false).await?)
+                .key_pair(PartialKeypair {
+                    public: metadata_pk,
+                    secret: None, // 只有公钥，无法写入
+                })
+                .build()
+                .await?;
+
+        // 注册到 P2P 网络进行同步
+        let metadata_core_shared = Arc::new(Mutex::new(metadata_core));
+        let metadata_notify = Arc::new(Notify::new());
+        p2p_tx
+            .send(P2PCommand::Replicate(
+                metadata_pk_hex.clone(),
+                metadata_core_shared.clone(),
+                Some(metadata_notify.clone()),
+            ))
+            .await?;
+        p2p_tx
+            .send(P2PCommand::Lookup(metadata_pk_hex.clone()))
             .await?;
 
-        // 读取最新块 (元数据)
-        let info = metadata_core.info();
-        if info.length == 0 {
-             return Err(anyhow!("Metadata Core 为空"));
-        }
+        let shared_for_wait = metadata_core_shared.clone();
+        let notify_for_wait = metadata_notify.clone();
+        let (last_index, block) = time::timeout(Duration::from_secs(10), async move {
+            loop {
+                let mut core = shared_for_wait.lock().await;
+                let info = core.info();
+                if info.length == 0 {
+                    drop(core);
+                    notify_for_wait.notified().await;
+                    continue;
+                }
 
-        let last_index = info.length - 1;
-        let block = metadata_core.get(last_index).await?.ok_or(anyhow!("无法读取元数据块"))?;
-        
-        let payload_json = String::from_utf8(block)?;
+                let last_index = info.length - 1;
+                if core.has(last_index) {
+                    if let Some(block) = core.get(last_index).await? {
+                        return Ok::<(u64, Vec<u8>), anyhow::Error>((last_index, block));
+                    }
+                }
+
+                drop(core);
+                notify_for_wait.notified().await;
+            }
+        })
+        .await
+        .map_err(|_| anyhow!("Metadata Core 同步超时 (10s)"))??;
+
+        let payload_json = String::from_utf8(block)
+            .map_err(|_| anyhow!("无法解析元数据块 (index={})", last_index))?;
         let metadata = MetadataPayload::from_json(&payload_json)?;
-        
-        Ok(metadata)
+
+        Ok((metadata, metadata_core_shared, metadata_pk_hex))
     }
 
     /// 执行具体的数据下载逻辑
     async fn download_task(
         metadata: Arc<MetadataPayload>,
-        progress_tx: mpsc::Sender<DownloadProgress>
+        progress_tx: mpsc::Sender<DownloadProgress>,
+        p2p_tx: mpsc::Sender<P2PCommand>,
     ) -> Result<()> {
         // 1. 初始化 Data Core (只读)
-        let data_pk_bytes = hex::decode(&metadata.data_pk).unwrap_or(vec![0; 32]); 
+        let data_pk_bytes = hex::decode(&metadata.data_pk).unwrap_or(vec![0; 32]);
         let data_pk_array: [u8; 32] = data_pk_bytes.try_into().unwrap_or([0; 32]);
-        let data_pk = VerifyingKey::from_bytes(&data_pk_array).unwrap_or(VerifyingKey::from_bytes(&[0; 32]).unwrap());
+        let data_pk = VerifyingKey::from_bytes(&data_pk_array)
+            .unwrap_or(VerifyingKey::from_bytes(&[0; 32]).unwrap());
 
-        // 使用内存存储模拟下载缓存 (实际应使用磁盘)
-        // TODO: 改为磁盘存储以支持断点续传
-        let storage = Storage::new_memory().await?;
-        let _data_core = HypercoreBuilder::new(storage)
-            .key_pair(PartialKeypair { public: data_pk, secret: None })
+        // 使用磁盘存储
+        let data_storage_path = std::env::temp_dir()
+            .join("most-box")
+            .join("cores")
+            .join(&metadata.data_pk);
+        tokio::fs::create_dir_all(&data_storage_path).await?;
+
+        let data_core = HypercoreBuilder::new(Storage::new_disk(&data_storage_path, false).await?)
+            .key_pair(PartialKeypair {
+                public: data_pk,
+                secret: None,
+            })
             .build()
             .await?;
-        
+
+        let data_core_shared = Arc::new(Mutex::new(data_core));
+        let data_notify = Arc::new(Notify::new());
+
+        // 注册到 P2P 网络
+        p2p_tx
+            .send(P2PCommand::Replicate(
+                metadata.data_pk.clone(),
+                data_core_shared.clone(),
+                Some(data_notify.clone()),
+            ))
+            .await?;
+        p2p_tx
+            .send(P2PCommand::Lookup(metadata.data_pk.clone()))
+            .await?;
+
         println!("连接 Data Core Swarm: {}", metadata.data_pk);
 
-        // 2. 下载循环 (模拟)
+        // 2. 下载循环 (模拟 + 真实)
         let chunk_size = 64 * 1024; // 64KB
         let total_blocks = (metadata.size as f64 / chunk_size as f64).ceil() as u64;
         let mut downloaded_bytes = 0;
         let mut last_update = Instant::now();
 
-        for i in 0..total_blocks {
-            if i >= total_blocks { break; }
+        // 检查本地已有的块
+        // TODO: 使用 bitfield
 
-            // 模拟网络延迟
-            time::sleep(Duration::from_millis(50)).await; 
-            
-            // 实际逻辑应为: data_core.get(i).await? 触发 P2P 请求
-            
+        for i in 0..total_blocks {
+            let start = Instant::now();
+            let _block = loop {
+                let mut core = data_core_shared.lock().await;
+                if let Ok(Some(b)) = core.get(i).await {
+                    break b;
+                }
+                drop(core);
+
+                let remaining = Duration::from_secs(60)
+                    .checked_sub(start.elapsed())
+                    .unwrap_or(Duration::from_secs(0));
+                if remaining == Duration::from_secs(0) {
+                    return Err(anyhow!("下载块 {} 超时", i));
+                }
+                time::timeout(remaining, data_notify.notified())
+                    .await
+                    .map_err(|_| anyhow!("下载块 {} 超时", i))?;
+            };
+
+            // drop(core); // block scope ends
+
             downloaded_bytes += chunk_size as u64;
             if downloaded_bytes > metadata.size {
                 downloaded_bytes = metadata.size;
@@ -127,7 +226,7 @@ impl Downloader {
             }
         }
 
-        println!("下载完成并校验通过!");
+        println!("下载完成!");
         Ok(())
     }
 }

@@ -12,17 +12,20 @@ blake3 = "1.0"
 ed25519-dalek = { version = "2.0", features = ["rand_core"] }
 hex = "0.4"
 rand = "0.8"
+futures = "0.3"
+bytes = "1.0"
+tokio-util = { version = "0.7", features = ["compat"] }
 
 # Hypercore ecosystem
-hypercore = "0.13" # Using a known stable version, or 0.15 if available
-# hyperswarm = "0.1" # Commenting out for now as it might not be stable. 
-# Using a mock/stub approach for the swarm if real crate is missing/broken.
-# But I will try to include a dht crate if possible.
-# Actually, for this exercise, I will assume the user has a valid environment or I will mock the network part if crates are missing.
-# Let's try to include `hypercore` and standard async tools. 
-# I will use `random-access-memory` for storage backend for easier testing.
+# Explicitly use tokio and disable default features to avoid async-std conflict
+hypercore = { version = "0.14", default-features = false, features = ["tokio", "sparse"] }
+hypercore-protocol = { version = "0.6", default-features = false, features = ["tokio", "sparse"] }
 random-access-memory = "3.0"
-random-access-disk = "3.0"
+random-access-disk = { version = "3.0", default-features = false, features = ["tokio"] }
+
+# P2P Networking (libp2p stack as replacement for hyperswarm)
+libp2p = { version = "0.56.0", features = ["tcp", "dns", "noise", "yamux", "mdns", "kad", "macros", "tokio"] }
+libp2p-stream = "0.4.0-alpha"
 
 [dev-dependencies]
 tempfile = "3.0"

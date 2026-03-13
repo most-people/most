@@ -2,18 +2,22 @@ use anyhow::{Context, Result};
 use ed25519_dalek::{SigningKey, VerifyingKey};
 use hypercore::{Hypercore, HypercoreBuilder, Storage, PartialKeypair};
 use std::path::Path;
+use std::sync::Arc;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
+use tokio::sync::{mpsc, Mutex};
 use crate::metadata::MetadataPayload;
+use crate::p2p::{P2PNode, Command as P2PCommand};
 
 // 定义分块大小为 64KB，确保全局去重的一致性
 pub const CHUNK_SIZE: usize = 64 * 1024;
 
 pub struct Publisher {
-    pub metadata_core: Hypercore,
-    pub data_core: Hypercore,
+    pub metadata_core: Arc<Mutex<Hypercore>>,
+    pub data_core: Arc<Mutex<Hypercore>>,
     pub metadata_pk: String,
     pub data_pk: String,
+    pub p2p_tx: mpsc::Sender<P2PCommand>, // 用于控制 P2P 节点
 }
 
 impl Publisher {
@@ -95,11 +99,45 @@ impl Publisher {
         println!("Metadata Core PK: {}", metadata_pk);
         println!("Data Core PK: {}", data_pk_hex);
 
+        // 7. 启动 P2P 节点并注册 Cores
+        let (cmd_tx, cmd_rx) = mpsc::channel(10);
+        let (event_tx, mut event_rx) = mpsc::channel(10);
+        
+        let p2p_node = P2PNode::new(cmd_rx, event_tx)?;
+        tokio::spawn(async move {
+            if let Err(e) = p2p_node.run().await {
+                eprintln!("P2P Node Error: {}", e);
+            }
+        });
+
+        // 包装 Cores 以便共享
+        let metadata_core = Arc::new(Mutex::new(metadata_core));
+        let data_core = Arc::new(Mutex::new(data_core));
+
+        // 注册到 P2P 网络
+        cmd_tx
+            .send(P2PCommand::Replicate(metadata_pk.clone(), metadata_core.clone(), None))
+            .await?;
+        cmd_tx
+            .send(P2PCommand::Replicate(data_pk_hex.clone(), data_core.clone(), None))
+            .await?;
+        
+        // 广播 Metadata PK (让其他人可以发现)
+        cmd_tx.send(P2PCommand::Announce(metadata_pk.clone())).await?;
+
+        // 监听 P2P 事件 (可选，仅用于调试)
+        let _event_rx_loop = tokio::spawn(async move {
+            while let Some(event) = event_rx.recv().await {
+                println!("(Publisher) P2P Event: {:?}", event);
+            }
+        });
+
         Ok(Self {
             metadata_core,
             data_core,
             metadata_pk,
             data_pk: data_pk_hex,
+            p2p_tx: cmd_tx,
         })
     }
 }
