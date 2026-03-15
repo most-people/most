@@ -1,15 +1,15 @@
 use crate::metadata::MetadataPayload;
-use crate::p2p::{Command as P2PCommand, P2PNode, P2PConfig};
+use crate::p2p::{Command as P2PCommand, P2PConfig, P2PNode};
 use anyhow::{anyhow, Result};
 use ed25519_dalek::VerifyingKey;
 use hypercore::{Hypercore, HypercoreBuilder, PartialKeypair, Storage};
+use libp2p::Multiaddr;
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 use std::sync::Arc;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::{mpsc, Mutex, Notify};
 use tokio::time::{self, Duration, Instant};
-use libp2p::Multiaddr;
-use std::str::FromStr;
 
 /// 下载进度结构体
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,8 +38,7 @@ impl Downloader {
         // 解析 URI 中的 bootnodes
         // 格式: most://<pk>?bootnodes=/ip4/1.2.3.4/tcp/12345/p2p/Qm...,/ip4/...
         let parts: Vec<&str> = metadata_uri.split('?').collect();
-        let metadata_key_part = parts[0];
-        
+
         if parts.len() > 1 {
             let query = parts[1];
             for param in query.split('&') {
@@ -48,8 +47,8 @@ impl Downloader {
                         // URL decode might be needed if complex chars used, but multiaddr usually safe
                         // Simple replace for common encoding if any (e.g. %2F -> /) - keeping it simple for now
                         if let Ok(addr) = Multiaddr::from_str(node_str) {
-                             println!("(Downloader) 添加 Bootnode: {}", addr);
-                             config.bootnodes.push(addr);
+                            println!("(Downloader) 添加 Bootnode: {}", addr);
+                            config.bootnodes.push(addr);
                         }
                     }
                 }
@@ -95,7 +94,7 @@ impl Downloader {
         // 解析 URI 中的 Metadata PK (忽略 ? 后面的参数)
         let parts: Vec<&str> = metadata_uri.split('?').collect();
         let metadata_pk_hex = parts[0].trim_start_matches("most://").to_string();
-        
+
         let metadata_pk_bytes = hex::decode(&metadata_pk_hex)?;
         let metadata_pk_array: [u8; 32] = metadata_pk_bytes.try_into().unwrap_or([0; 32]);
         let metadata_pk = VerifyingKey::from_bytes(&metadata_pk_array)?;
@@ -210,11 +209,7 @@ impl Downloader {
         let downloads_dir = std::env::temp_dir().join("most-box").join("downloads");
         tokio::fs::create_dir_all(&downloads_dir).await?;
         let file_name = sanitize_filename(&metadata.name);
-        let suffix = metadata
-            .data_pk
-            .chars()
-            .take(8)
-            .collect::<String>();
+        let suffix = metadata.data_pk.chars().take(8).collect::<String>();
         let output_path = downloads_dir.join(format!("{}-{}", file_name, suffix));
         let mut out = tokio::fs::File::create(&output_path).await?;
 
@@ -280,8 +275,8 @@ impl Downloader {
 fn sanitize_filename(name: &str) -> String {
     let mut out = String::with_capacity(name.len());
     for ch in name.chars() {
-        let invalid = matches!(ch, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*' )
-            || ch.is_control();
+        let invalid =
+            matches!(ch, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*') || ch.is_control();
         if invalid {
             out.push('_');
         } else {

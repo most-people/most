@@ -8,9 +8,9 @@ use hypercore_protocol::{
     discovery_key, Channel, Event as ProtocolEvent, Message, ProtocolBuilder,
 };
 use libp2p::{
-    autonat, identify, kad, mdns, noise, upnp,
-    swarm::{NetworkBehaviour, SwarmEvent, behaviour::toggle::Toggle},
-    tcp, yamux, Multiaddr, PeerId, StreamProtocol, Swarm,
+    autonat, identify, kad, mdns, noise,
+    swarm::{behaviour::toggle::Toggle, NetworkBehaviour, SwarmEvent},
+    tcp, upnp, yamux, Multiaddr, PeerId, StreamProtocol, Swarm,
 };
 use libp2p_stream as stream;
 use std::{collections::HashMap, sync::Arc, time::Duration};
@@ -102,10 +102,11 @@ impl P2PNode {
                 noise::Config::new,
                 yamux::Config::default,
             )?
-            // .with_quic() // QUIC feature not enabled
+            .with_quic()
             .with_dns()?
             // .with_relay_client(noise::Config::new, yamux::Config::default)?
-            .with_behaviour(|key| { // Ignored relay_client
+            .with_behaviour(|key| {
+                // Ignored relay_client
                 // MDNS 发现
                 let mdns = mdns::tokio::Behaviour::new(
                     mdns::Config::default(),
@@ -113,10 +114,11 @@ impl P2PNode {
                 )?;
 
                 // Kademlia DHT
-                let mut kad_config = kad::Config::default();
+                let kad_config = kad::Config::default();
                 // kad_config.set_protocol_names(vec![StreamProtocol::new("/most-box/kad/1.0.0")]); // API changed or method removed
                 let store = kad::store::MemoryStore::new(key.public().to_peer_id());
-                let mut kad = kad::Behaviour::with_config(key.public().to_peer_id(), store, kad_config);
+                let mut kad =
+                    kad::Behaviour::with_config(key.public().to_peer_id(), store, kad_config);
 
                 // 添加 Bootnodes
                 for addr in &config.bootnodes {
@@ -124,7 +126,7 @@ impl P2PNode {
                         kad.add_address(&peer_id, addr.clone());
                     }
                 }
-                
+
                 // Identify
                 let identify = identify::Behaviour::new(identify::Config::new(
                     "/most-box/1.0.0".into(),
@@ -132,10 +134,8 @@ impl P2PNode {
                 ));
 
                 // AutoNAT
-                let autonat = autonat::Behaviour::new(
-                    key.public().to_peer_id(),
-                    autonat::Config::default(),
-                );
+                let autonat =
+                    autonat::Behaviour::new(key.public().to_peer_id(), autonat::Config::default());
 
                 // Relay Client
                 // libp2p 0.52+ relay::client::Behaviour::new signature change?
@@ -149,7 +149,7 @@ impl P2PNode {
 
                 // DCUtR (Direct Connection Upgrade through Relay)
                 // let dcutr = dcutr::Behaviour::new(key.public().to_peer_id());
-                
+
                 // UPnP
                 let upnp = if config.enable_upnp {
                     Some(upnp::tokio::Behaviour::default())
@@ -159,16 +159,16 @@ impl P2PNode {
 
                 // Stream 行为
                 let stream = stream::Behaviour::new();
-                
-                Ok(MyBehaviour { 
-                    mdns, 
+
+                Ok(MyBehaviour {
+                    mdns,
                     kad,
                     identify,
                     autonat,
                     // relay,
                     // dcutr,
                     upnp: Toggle::from(upnp),
-                    stream 
+                    stream,
                 })
             })?
             .with_swarm_config(|c| c.with_idle_connection_timeout(Duration::from_secs(60)))
@@ -184,7 +184,8 @@ impl P2PNode {
 
     pub async fn run(mut self) -> Result<()> {
         // 监听所有接口的随机端口
-        self.swarm.listen_on("/ip4/0.0.0.0/udp/0/quic-v1".parse()?)?;
+        self.swarm
+            .listen_on("/ip4/0.0.0.0/udp/0/quic-v1".parse()?)?;
         self.swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
 
         let mut incoming_streams = self
@@ -203,13 +204,6 @@ impl P2PNode {
                             println!("(P2P) Announcing topic: {}", topic);
                             // 在 Kademlia DHT 中广播
                             if let Ok(key_bytes) = hex::decode(&topic) {
-                                let key = kad::RecordKey::new(&key_bytes);
-                                let record = kad::Record {
-                                    key,
-                                    value: vec![], // Provider record 不需要 value，或者可以放 metadata
-                                    publisher: None,
-                                    expires: None,
-                                };
                                 // self.swarm.behaviour_mut().kad.put_record(record, kad::Quorum::One)?;
                                 // 更适合的语义是 StartProviding
                                 let key = kad::RecordKey::new(&key_bytes);
