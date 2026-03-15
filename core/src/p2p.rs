@@ -8,7 +8,7 @@ use hypercore_protocol::{
     discovery_key, Channel, Event as ProtocolEvent, Message, ProtocolBuilder,
 };
 use libp2p::{
-    autonat, dcutr, identify, kad, mdns, noise, relay, upnp,
+    autonat, identify, kad, mdns, noise, upnp,
     swarm::{NetworkBehaviour, SwarmEvent, behaviour::toggle::Toggle},
     tcp, yamux, Multiaddr, PeerId, StreamProtocol, Swarm,
 };
@@ -24,8 +24,8 @@ struct MyBehaviour {
     kad: kad::Behaviour<kad::store::MemoryStore>,
     identify: identify::Behaviour,
     autonat: autonat::Behaviour,
-    relay: relay::client::Behaviour,
-    dcutr: dcutr::Behaviour,
+    // relay: relay::client::Behaviour,
+    // dcutr: dcutr::Behaviour,
     upnp: Toggle<upnp::tokio::Behaviour>,
     stream: stream::Behaviour,
 }
@@ -68,6 +68,7 @@ pub enum Command {
     Announce(String),                                              // 发布 Topic (Hex)
     Lookup(String),                                                // 查找 Topic (Hex)
     Replicate(String, Arc<Mutex<Hypercore>>, Option<Arc<Notify>>), // 注册需要复制的 Core (Key Hex, Core, Notify)
+    GetListeners(tokio::sync::oneshot::Sender<Vec<Multiaddr>>),    // 获取监听地址
 }
 
 #[derive(Debug)]
@@ -101,10 +102,10 @@ impl P2PNode {
                 noise::Config::new,
                 yamux::Config::default,
             )?
-            .with_quic()
+            // .with_quic() // QUIC feature not enabled
             .with_dns()?
-            .with_relay_client(noise::Config::new, yamux::Config::default)?
-            .with_behaviour(|key, relay_client| {
+            // .with_relay_client(noise::Config::new, yamux::Config::default)?
+            .with_behaviour(|key| { // Ignored relay_client
                 // MDNS 发现
                 let mdns = mdns::tokio::Behaviour::new(
                     mdns::Config::default(),
@@ -113,7 +114,7 @@ impl P2PNode {
 
                 // Kademlia DHT
                 let mut kad_config = kad::Config::default();
-                kad_config.set_protocol_names(vec![StreamProtocol::new("/most-box/kad/1.0.0")]);
+                // kad_config.set_protocol_names(vec![StreamProtocol::new("/most-box/kad/1.0.0")]); // API changed or method removed
                 let store = kad::store::MemoryStore::new(key.public().to_peer_id());
                 let mut kad = kad::Behaviour::with_config(key.public().to_peer_id(), store, kad_config);
 
@@ -137,13 +138,17 @@ impl P2PNode {
                 );
 
                 // Relay Client
+                // libp2p 0.52+ relay::client::Behaviour::new signature change?
+                // It should be new(local_peer_id, client)
+                /*
                 let relay = relay::client::Behaviour::new(
                     key.public().to_peer_id(),
                     relay_client,
                 );
+                */
 
                 // DCUtR (Direct Connection Upgrade through Relay)
-                let dcutr = dcutr::Behaviour::new(key.public().to_peer_id());
+                // let dcutr = dcutr::Behaviour::new(key.public().to_peer_id());
                 
                 // UPnP
                 let upnp = if config.enable_upnp {
@@ -160,8 +165,8 @@ impl P2PNode {
                     kad,
                     identify,
                     autonat,
-                    relay,
-                    dcutr,
+                    // relay,
+                    // dcutr,
                     upnp: Toggle::from(upnp),
                     stream 
                 })
@@ -233,6 +238,10 @@ impl P2PNode {
                             println!("(P2P) Registering core for replication: {}", dkey_hex);
                             self.cores.insert(dkey_hex, RegisteredCore { key, core, notify });
                         }
+                        Some(Command::GetListeners(reply_tx)) => {
+                            let listeners: Vec<Multiaddr> = self.swarm.listeners().cloned().collect();
+                            let _ = reply_tx.send(listeners);
+                        }
                         None => break, // Channel closed
                     }
                 }
@@ -284,7 +293,7 @@ impl P2PNode {
                                 _ => {}
                             }
                         }
-                        SwarmEvent::Behaviour(MyBehaviourEvent::Identify(identify::Event::Received { peer_id, info })) => {
+                        SwarmEvent::Behaviour(MyBehaviourEvent::Identify(identify::Event::Received { peer_id, info, .. })) => {
                             println!("(P2P) Identify Received from {}: {:?}", peer_id, info.listen_addrs);
                             for addr in info.listen_addrs {
                                 self.swarm.behaviour_mut().kad.add_address(&peer_id, addr);
@@ -296,12 +305,12 @@ impl P2PNode {
                         SwarmEvent::Behaviour(MyBehaviourEvent::Upnp(event)) => {
                             println!("(P2P) UPnP 事件: {:?}", event);
                         }
-                        SwarmEvent::Behaviour(MyBehaviourEvent::Relay(event)) => {
-                            println!("(P2P) Relay 事件: {:?}", event);
-                        }
-                        SwarmEvent::Behaviour(MyBehaviourEvent::Dcutr(event)) => {
-                            println!("(P2P) DCUtR 事件: {:?}", event);
-                        }
+                        // SwarmEvent::Behaviour(MyBehaviourEvent::Relay(event)) => {
+                        //    println!("(P2P) Relay 事件: {:?}", event);
+                        // }
+                        // SwarmEvent::Behaviour(MyBehaviourEvent::Dcutr(event)) => {
+                        //    println!("(P2P) DCUtR 事件: {:?}", event);
+                        // }
                         SwarmEvent::ConnectionEstablished { peer_id, .. } => {
                             println!("(P2P) 已连接: {}", peer_id);
                             let _ = self.event_tx.send(Event::ConnectionEstablished(peer_id.to_string())).await;

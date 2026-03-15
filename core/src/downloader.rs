@@ -1,5 +1,5 @@
 use crate::metadata::MetadataPayload;
-use crate::p2p::{Command as P2PCommand, P2PNode};
+use crate::p2p::{Command as P2PCommand, P2PNode, P2PConfig};
 use anyhow::{anyhow, Result};
 use ed25519_dalek::VerifyingKey;
 use hypercore::{Hypercore, HypercoreBuilder, PartialKeypair, Storage};
@@ -8,6 +8,8 @@ use std::sync::Arc;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::{mpsc, Mutex, Notify};
 use tokio::time::{self, Duration, Instant};
+use libp2p::Multiaddr;
+use std::str::FromStr;
 
 /// 下载进度结构体
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -25,11 +27,40 @@ impl Downloader {
         metadata_uri: &str,
         progress_tx: mpsc::Sender<DownloadProgress>,
     ) -> Result<String> {
+        Self::start_download_with_config(metadata_uri, progress_tx, P2PConfig::default()).await
+    }
+
+    pub async fn start_download_with_config(
+        metadata_uri: &str,
+        progress_tx: mpsc::Sender<DownloadProgress>,
+        mut config: P2PConfig,
+    ) -> Result<String> {
+        // 解析 URI 中的 bootnodes
+        // 格式: most://<pk>?bootnodes=/ip4/1.2.3.4/tcp/12345/p2p/Qm...,/ip4/...
+        let parts: Vec<&str> = metadata_uri.split('?').collect();
+        let metadata_key_part = parts[0];
+        
+        if parts.len() > 1 {
+            let query = parts[1];
+            for param in query.split('&') {
+                if let Some(nodes_str) = param.strip_prefix("bootnodes=") {
+                    for node_str in nodes_str.split(',') {
+                        // URL decode might be needed if complex chars used, but multiaddr usually safe
+                        // Simple replace for common encoding if any (e.g. %2F -> /) - keeping it simple for now
+                        if let Ok(addr) = Multiaddr::from_str(node_str) {
+                             println!("(Downloader) 添加 Bootnode: {}", addr);
+                             config.bootnodes.push(addr);
+                        }
+                    }
+                }
+            }
+        }
+
         // 0. 启动 P2P 节点
         let (cmd_tx, cmd_rx) = mpsc::channel(10);
         let (event_tx, mut event_rx) = mpsc::channel(10);
 
-        let p2p_node = P2PNode::new(cmd_rx, event_tx)?;
+        let p2p_node = P2PNode::new_with_config(cmd_rx, event_tx, config)?;
         tokio::spawn(async move {
             if let Err(e) = p2p_node.run().await {
                 eprintln!("P2P Node Error: {}", e);
@@ -61,8 +92,10 @@ impl Downloader {
         metadata_uri: &str,
         p2p_tx: mpsc::Sender<P2PCommand>,
     ) -> Result<(MetadataPayload, Arc<Mutex<Hypercore>>, String)> {
-        // 解析 URI 中的 Metadata PK
-        let metadata_pk_hex = metadata_uri.trim_start_matches("most://").to_string();
+        // 解析 URI 中的 Metadata PK (忽略 ? 后面的参数)
+        let parts: Vec<&str> = metadata_uri.split('?').collect();
+        let metadata_pk_hex = parts[0].trim_start_matches("most://").to_string();
+        
         let metadata_pk_bytes = hex::decode(&metadata_pk_hex)?;
         let metadata_pk_array: [u8; 32] = metadata_pk_bytes.try_into().unwrap_or([0; 32]);
         let metadata_pk = VerifyingKey::from_bytes(&metadata_pk_array)?;

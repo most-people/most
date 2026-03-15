@@ -7,7 +7,8 @@ use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 use tokio::sync::{mpsc, Mutex};
 use crate::metadata::MetadataPayload;
-use crate::p2p::{P2PNode, Command as P2PCommand};
+use crate::p2p::{P2PNode, Command as P2PCommand, P2PConfig};
+use libp2p::Multiaddr;
 
 // 定义分块大小为 64KB，确保全局去重的一致性
 pub const CHUNK_SIZE: usize = 64 * 1024;
@@ -18,15 +19,20 @@ pub struct Publisher {
     pub metadata_pk: String,
     pub data_pk: String,
     pub p2p_tx: mpsc::Sender<P2PCommand>, // 用于控制 P2P 节点
+    pub listen_addrs: Vec<Multiaddr>,     // 本机监听地址
 }
 
 impl Publisher {
+    pub async fn publish(file_path: &Path) -> Result<Self> {
+        Self::publish_with_config(file_path, P2PConfig::default()).await
+    }
+
     /// 发布文件到 Most.Box 网络
     /// 
     /// 采用双核心架构 (Dual-Core Architecture):
     /// 1. Data Core: 存储文件内容分块，使用文件内容的 Hash 作为密钥 (Deterministic)，实现去重。
     /// 2. Metadata Core: 存储文件元数据 (文件名、大小、Data Core PK)，使用随机密钥 (Identity)，每次发布都不同。
-    pub async fn publish(file_path: &Path) -> Result<Self> {
+    pub async fn publish_with_config(file_path: &Path, config: P2PConfig) -> Result<Self> {
         // 1. 读取文件并计算 BLAKE3 哈希
         let mut file = File::open(file_path).await.context("无法打开文件")?;
         let mut content = Vec::new();
@@ -103,7 +109,7 @@ impl Publisher {
         let (cmd_tx, cmd_rx) = mpsc::channel(10);
         let (event_tx, mut event_rx) = mpsc::channel(10);
         
-        let p2p_node = P2PNode::new(cmd_rx, event_tx)?;
+        let p2p_node = P2PNode::new_with_config(cmd_rx, event_tx, config)?;
         tokio::spawn(async move {
             if let Err(e) = p2p_node.run().await {
                 eprintln!("P2P Node Error: {}", e);
@@ -125,6 +131,11 @@ impl Publisher {
         // 广播 Metadata PK (让其他人可以发现)
         cmd_tx.send(P2PCommand::Announce(metadata_pk.clone())).await?;
 
+        // 获取本机监听地址
+        let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
+        cmd_tx.send(P2PCommand::GetListeners(reply_tx)).await?;
+        let listen_addrs = reply_rx.await.unwrap_or_default();
+
         // 监听 P2P 事件 (可选，仅用于调试)
         let _event_rx_loop = tokio::spawn(async move {
             while let Some(event) = event_rx.recv().await {
@@ -138,6 +149,7 @@ impl Publisher {
             metadata_pk,
             data_pk: data_pk_hex,
             p2p_tx: cmd_tx,
+            listen_addrs,
         })
     }
 }
