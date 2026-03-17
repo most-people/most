@@ -78,6 +78,9 @@ swarm.on('connection', (conn) => {
   store.replicate(conn)
 })
 
+// 缓存已创建的 Drive 实例，避免同一节点重复创建
+const drives = new Map()
+
 console.log('P2P 核心在主进程中已初始化')
 
 // --- 辅助函数 ---
@@ -151,13 +154,21 @@ Pear.messages(async (msg) => {
       // 为每个文件创建一个新的独立 Hyperdrive
       // 使用文件内容哈希 (Root CID 的 hash 部分) 作为命名空间
       const name = `drive-${hashHex}`
-      const drive = new Hyperdrive(store.namespace(name))
-      await drive.ready()
-      const keyHex = b4a.toString(drive.key, 'hex')
-
-      // 加入 P2P 网络并宣布此 Drive
-      const discovery = swarm.join(drive.discoveryKey)
-      await discovery.flushed()
+      
+      // 检查是否已存在该 Drive（避免重复创建）
+      let drive = drives.get(name)
+      if (!drive) {
+        drive = new Hyperdrive(store.namespace(name))
+        await drive.ready()
+        drives.set(name, drive)
+        
+        // 加入 P2P 网络并宣布此 Drive
+        const discovery = swarm.join(drive.discoveryKey)
+        await discovery.flushed()
+        
+        // 保持 Drive 打开以供服务，但在应用退出时关闭
+        goodbye(() => drive.close())
+      }
 
       // 将文件流式写入 Drive (支持 GB 级别大文件)
       // 注意：Hyperdrive.createWriteStream 在处理绝对路径时，
@@ -190,9 +201,6 @@ Pear.messages(async (msg) => {
         ws.on('error', reject)
         rs.on('error', reject)
       })
-
-      // 保持 Drive 打开以供服务，但在应用退出时关闭
-      goodbye(() => drive.close())
 
       // 发送成功消息回前端，将 key 替换为 CID
       Pear.message({ type: 'publish-success', key: cidString, fileName: payload.name })
@@ -230,12 +238,20 @@ Pear.messages(async (msg) => {
 
       // 使用 Hash 作为命名空间重建相同的 Drive Key
       const name = `drive-${hashHex}`
-      const drive = new Hyperdrive(store.namespace(name))
-      await drive.ready()
-
-      const discovery = swarm.join(drive.discoveryKey)
-      Pear.message({ type: 'download-status', status: '正在连接 P2P 网络...' })
-      await discovery.flushed()
+      
+      // 检查是否已存在该 Drive（本地已发布）
+      let drive = drives.get(name)
+      if (!drive) {
+        drive = new Hyperdrive(store.namespace(name))
+        await drive.ready()
+        drives.set(name, drive)
+        
+        Pear.message({ type: 'download-status', status: '正在连接 P2P 网络...' })
+        const discovery = swarm.join(drive.discoveryKey)
+        await discovery.flushed()
+      } else {
+        Pear.message({ type: 'download-status', status: '从本地 Drive 读取...' })
+      }
 
       Pear.message({ type: 'download-status', status: '正在获取文件列表...' })
 
