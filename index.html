@@ -98,6 +98,89 @@
         display: flex;
         gap: 10px;
       }
+      /* 已发布文件列表样式 */
+      .published-list {
+        list-style: none;
+        padding: 0;
+        margin: 16px 0 0 0;
+      }
+      .published-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px;
+        background: #f9f9fb;
+        border-radius: 8px;
+        margin-bottom: 8px;
+        gap: 12px;
+      }
+      .published-item:hover {
+        background: #f2f2f7;
+      }
+      .published-item-info {
+        flex: 1;
+        min-width: 0;
+      }
+      .published-item-name {
+        font-weight: 600;
+        font-size: 14px;
+        color: #1d1d1f;
+        margin-bottom: 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .published-item-link {
+        font-family: monospace;
+        font-size: 12px;
+        color: #86868b;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .published-item-time {
+        font-size: 11px;
+        color: #aeaeb2;
+        margin-top: 2px;
+      }
+      .published-item-actions {
+        display: flex;
+        gap: 6px;
+        flex-shrink: 0;
+      }
+      .published-item-actions button {
+        padding: 6px 12px;
+        font-size: 12px;
+        border-radius: 6px;
+      }
+      .btn-copy {
+        background: #0071e3;
+      }
+      .btn-delete {
+        background: #ff3b30;
+      }
+      .btn-delete:hover {
+        background: #ff453a;
+      }
+      .empty-state {
+        text-align: center;
+        color: #86868b;
+        padding: 24px;
+        font-size: 14px;
+      }
+      .btn-refresh {
+        background: #34c759;
+        font-size: 13px;
+        padding: 8px 16px;
+      }
+      .btn-refresh:hover {
+        background: #30d158;
+      }
+      .card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
     </style>
   </head>
   <body>
@@ -114,6 +197,16 @@
         </div>
         <div id="selectedFileInfo"></div>
         <div id="publishResult"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h2>已发布文件</h2>
+        <button class="btn-refresh" id="refreshPublishedBtn">刷新列表</button>
+      </div>
+      <div id="publishedFilesList">
+        <div class="empty-state">暂无已发布的文件</div>
       </div>
     </div>
 

@@ -4,8 +4,19 @@
   "description": "P2P File Box powered by Pear",
   "type": "module",
   "main": "index.js",
+  "imports": {
+    "crypto": {
+      "bare": "bare-crypto",
+      "default": "crypto"
+    },
+    "node:crypto": {
+      "bare": "bare-crypto",
+      "default": "crypto"
+    }
+  },
   "scripts": {
-    "start": "chcp 65001 && pear run --dev ."
+    "start": "chcp 65001 && pear run --dev .",
+    "postinstall": "patch-package"
   },
   "keywords": [],
   "author": "",
@@ -27,9 +38,12 @@
     "multiformats": "^13.4.2",
     "pear-bridge": "^1.2.5",
     "pear-electron": "^1.7.28",
+    "pear-message": "^1.0.0",
+    "pear-messages": "^1.0.5",
     "text-encoding": "^0.7.0"
   },
   "devDependencies": {
+    "patch-package": "^8.0.1",
     "pear": "latest"
   },
   "pear": {
