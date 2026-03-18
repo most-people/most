@@ -1,5 +1,5 @@
-import path from 'bare-path'
-import fs from 'bare-fs'
+import path from 'node:path'
+import fs from 'node:fs'
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024 * 1024 // 100 GB
 

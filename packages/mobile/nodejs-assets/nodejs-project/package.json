@@ -1,0 +1,9 @@
+{
+  "name": "most-box-mobile-nodejs",
+  "version": "1.0.0",
+  "description": "Node.js backend for Most Box Mobile",
+  "main": "main.js",
+  "dependencies": {
+    "@most-box/core": "file:../../.."
+  }
+}

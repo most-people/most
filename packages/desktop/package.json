@@ -1,0 +1,30 @@
+{
+  "name": "@most-box/desktop",
+  "version": "1.0.0",
+  "description": "Most Box Desktop - P2P file sharing application",
+  "type": "module",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "package": "electron-forge package",
+    "make": "electron-forge make"
+  },
+  "keywords": ["p2p", "file-sharing", "electron", "hyperswarm"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@most-box/core": "*",
+    "b4a": "^1.8.0"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "@electron-forge/cli": "^7.4.0",
+    "@electron-forge/maker-dmg": "^7.4.0",
+    "@electron-forge/maker-squirrel": "^7.4.0",
+    "@electron-forge/maker-zip": "^7.4.0",
+    "electron-forge": "^7.4.0"
+  },
+  "config": {
+    "forge": "./forge.config.js"
+  }
+}

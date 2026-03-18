@@ -3,7 +3,7 @@
  * Handles IPFS UnixFS CID computation for files
  */
 
-import fs from 'bare-fs'
+import fs from 'node:fs'
 import { importer } from 'ipfs-unixfs-importer'
 
 /**

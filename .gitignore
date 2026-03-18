@@ -1,2 +1,35 @@
+# Project
 most-box-storage
-node_modules
+*.log
+
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+out/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Electron
+packages/desktop/out/
+
+# React Native
+packages/mobile/android/app/build/
+packages/mobile/ios/build/
+packages/mobile/ios/Pods/
+packages/mobile/android/.gradle/
+
+# Node.js mobile
+packages/mobile/nodejs-assets/nodejs-project/node_modules/

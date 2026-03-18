@@ -68,6 +68,13 @@ export class PermissionError extends AppError {
   }
 }
 
+export class EngineNotInitializedError extends AppError {
+  constructor(message = 'Engine not initialized. Call start() first.') {
+    super(message, 'ENGINE_NOT_INITIALIZED')
+    this.name = 'EngineNotInitializedError'
+  }
+}
+
 export function isErrorWithCode(err, code) {
   return err && err.code === code
 }
