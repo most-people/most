@@ -17,19 +17,14 @@ async function createWindow() {
     height: 600,
     frame: false,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false
     }
   });
 
-  if (isDev) {
-    mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
-    mainWindow.webContents.openDevTools();
-  } else {
-    mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
-  }
+  mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -86,6 +81,10 @@ async function initializeEngine() {
 
   await engine.start();
   console.log('MostBox Engine initialized');
+  
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('engine:ready');
+  }
 }
 
 // IPC Handlers
@@ -151,8 +150,8 @@ ipcMain.on('window-close', () => {
 // App lifecycle
 app.whenReady().then(async () => {
   try {
-    await initializeEngine();
     await createWindow();
+    await initializeEngine();
     
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {

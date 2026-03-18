@@ -38,6 +38,9 @@ contextBridge.exposeInMainWorld('mostBox', {
   onNetworkStatus: (callback) => {
     ipcRenderer.on('network:status', (_, data) => callback(data));
   },
+  onEngineReady: (callback) => {
+    ipcRenderer.on('engine:ready', () => callback());
+  },
 
   // Remove listeners
   removeAllListeners: (channel) => {

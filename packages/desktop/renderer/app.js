@@ -94,6 +94,79 @@ const ToastManager = {
   info(msg) { this.show(msg, 'info') }
 }
 
+// --- 主题管理 ---
+const ThemeManager = {
+  currentTheme: 'system',
+  
+  init() {
+    const saved = localStorage.getItem('theme')
+    if (saved) {
+      this.currentTheme = saved
+    }
+    
+    this.applyTheme(this.currentTheme)
+    this.bindButtons()
+    
+    if (this.currentTheme === 'system') {
+      this.watchSystemTheme()
+    }
+  },
+  
+  bindButtons() {
+    const themeSystem = document.getElementById('themeSystem')
+    const themeLight = document.getElementById('themeLight')
+    const themeDark = document.getElementById('themeDark')
+    
+    if (themeSystem) {
+      themeSystem.addEventListener('click', () => this.setTheme('system'))
+    }
+    if (themeLight) {
+      themeLight.addEventListener('click', () => this.setTheme('light'))
+    }
+    if (themeDark) {
+      themeDark.addEventListener('click', () => this.setTheme('dark'))
+    }
+  },
+  
+  setTheme(theme) {
+    this.currentTheme = theme
+    localStorage.setItem('theme', theme)
+    this.applyTheme(theme)
+    this.updateButtonStates()
+  },
+  
+  applyTheme(theme) {
+    let effectiveTheme = theme
+    
+    if (theme === 'system') {
+      effectiveTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    }
+    
+    document.documentElement.setAttribute('data-theme', effectiveTheme)
+    this.updateButtonStates()
+  },
+  
+  updateButtonStates() {
+    const themeSystem = document.getElementById('themeSystem')
+    const themeLight = document.getElementById('themeLight')
+    const themeDark = document.getElementById('themeDark')
+    
+    if (themeSystem) themeSystem.classList.toggle('active', this.currentTheme === 'system')
+    if (themeLight) themeLight.classList.toggle('active', this.currentTheme === 'light')
+    if (themeDark) themeDark.classList.toggle('active', this.currentTheme === 'dark')
+  },
+  
+  watchSystemTheme() {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+      if (this.currentTheme === 'system') {
+        this.applyTheme('system')
+      }
+    })
+  }
+}
+
+ThemeManager.init()
+
 // --- 窗口控制 ---
 const WindowControls = {
   init() {
@@ -102,13 +175,25 @@ const WindowControls = {
     const maximizeBtn = document.getElementById('maximizeBtn')
     
     if (closeBtn) {
-      closeBtn.addEventListener('click', () => this.close())
+      closeBtn.addEventListener('click', (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        this.close()
+      })
     }
     if (minimizeBtn) {
-      minimizeBtn.addEventListener('click', () => this.minimize())
+      minimizeBtn.addEventListener('click', (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        this.minimize()
+      })
     }
     if (maximizeBtn) {
-      maximizeBtn.addEventListener('click', () => this.toggleMaximize())
+      maximizeBtn.addEventListener('click', (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        this.toggleMaximize()
+      })
     }
   },
   
@@ -125,10 +210,25 @@ const WindowControls = {
   }
 }
 
+// 监听 engine 初始化完成事件
+let initCalled = false
+window.mostBox.onEngineReady(() => {
+  if (!initCalled) {
+    initCalled = true
+    init()
+  }
+})
+
 // 初始化窗口控制
 WindowControls.init()
 
-console.log('Most Box Desktop - UI 逻辑加载中...')
+// 延迟检查，以防事件已经发送过了
+setTimeout(() => {
+  if (!initCalled) {
+    initCalled = true
+    init()
+  }
+}, 1000)
 
 const nodeIdEl = document.getElementById('nodeId')
 const fileInput = document.getElementById('fileInput')
@@ -219,8 +319,6 @@ async function init() {
   refreshNetworkStatus()
   setInterval(refreshNetworkStatus, 10000)
 }
-
-init()
 
 // --- 网络状态刷新 ---
 
