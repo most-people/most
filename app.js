@@ -2,7 +2,100 @@ import ui from 'pear-electron'
 import message from 'pear-message'
 import messages from 'pear-messages'
 
+// IPC 消息类型常量
+const IPC = {
+  GET_NODE_ID: 'get-node-id',
+  NODE_ID: 'node-id',
+  PUBLISH_FILE: 'publish-file',
+  PUBLISH_SUCCESS: 'publish-success',
+  DOWNLOAD_FILE: 'download-file',
+  DOWNLOAD_STATUS: 'download-status',
+  DOWNLOAD_PROGRESS: 'download-progress',
+  DOWNLOAD_FILE_RECEIVED: 'download-file-received',
+  DOWNLOAD_SUCCESS: 'download-success',
+  LIST_PUBLISHED_FILES: 'list-published-files',
+  DELETE_PUBLISHED_FILE: 'delete-published-file',
+  GET_NETWORK_STATUS: 'get-network-status',
+  PUBLISHED_FILES_LIST: 'published-files-list',
+  NETWORK_STATUS: 'network-status',
+  ERROR: 'error'
+}
+
 console.log('App.js UI 逻辑加载中 (IPC 模式)...')
+
+// --- Toast 通知组件 ---
+const ToastManager = {
+  container: null,
+  
+  init() {
+    if (this.container) return
+    this.container = document.createElement('div')
+    this.container.id = 'toast-container'
+    this.container.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    `
+    document.body.appendChild(this.container)
+  },
+  
+  show(message, type = 'info', duration = 4000) {
+    this.init()
+    
+    const toast = document.createElement('div')
+    const colors = {
+      success: '#34c759',
+      error: '#ff3b30',
+      warning: '#ff9500',
+      info: '#0071e3'
+    }
+    
+    toast.style.cssText = `
+      background: ${colors[type] || colors.info};
+      color: white;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      animation: slideIn 0.3s ease;
+      max-width: 350px;
+    `
+    toast.textContent = message
+    
+    // Add animation keyframes
+    if (!document.getElementById('toast-styles')) {
+      const style = document.createElement('style')
+      style.id = 'toast-styles'
+      style.textContent = `
+        @keyframes slideIn {
+          from { transform: translateX(100%); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes slideOut {
+          from { transform: translateX(0); opacity: 1; }
+          to { transform: translateX(100%); opacity: 0; }
+        }
+      `
+      document.head.appendChild(style)
+    }
+    
+    this.container.appendChild(toast)
+    
+    setTimeout(() => {
+      toast.style.animation = 'slideOut 0.3s ease forwards'
+      setTimeout(() => toast.remove(), 300)
+    }, duration)
+  },
+  
+  success(msg) { this.show(msg, 'success') },
+  error(msg) { this.show(msg, 'error', 6000) },
+  warning(msg) { this.show(msg, 'warning') },
+  info(msg) { this.show(msg, 'info') }
+}
 
 const nodeIdEl = document.getElementById('nodeId')
 const fileInput = document.getElementById('fileInput')
@@ -16,67 +109,178 @@ const downloadResult = document.getElementById('downloadResult')
 const taskStatus = document.getElementById('taskStatus')
 const publishedFilesList = document.getElementById('publishedFilesList')
 const refreshPublishedBtn = document.getElementById('refreshPublishedBtn')
+const networkStatusEl = document.getElementById('networkStatus')
 
 let currentFile = null
 
 // --- 使用 pear-messages 基于模式匹配监听来自主进程的消息 ---
 
-messages({ type: 'node-id' }, (msg) => {
+messages({ type: IPC.NODE_ID }, (msg) => {
     if (nodeIdEl) nodeIdEl.innerText = `P2P 节点 ID: ${msg.id}`
 })
 
-messages({ type: 'publish-success' }, (msg) => {
+messages({ type: IPC.PUBLISH_SUCCESS }, (msg) => {
     publishBtn.disabled = false
     const link = `most://${msg.key}`
     publishResult.innerHTML = `
         <p class="success">发布成功！</p>
-        <p>文件: ${msg.fileName}</p>
-        <p>链接: <code>${link}</code></p>
+        <p>文件: ${escapeHtml(msg.fileName)}</p>
+        <p>链接: <code>${escapeHtml(link)}</code></p>
         <button onclick="navigator.clipboard.writeText('${link}')">复制链接</button>
     `
-    // 发布成功后自动刷新已发布文件列表
+    ToastManager.success('文件发布成功!')
     refreshPublishedFilesList()
 })
 
-messages({ type: 'download-status' }, (msg) => {
+messages({ type: IPC.DOWNLOAD_STATUS }, (msg) => {
     const statusDiv = document.getElementById('taskStatus')
     if (statusDiv) {
         statusDiv.style.display = 'block'
         statusDiv.innerText = msg.status
     }
+    // 更新进度条为 0
+    updateProgressBar(0)
 })
 
-messages({ type: 'download-file-received' }, (msg) => {
-    downloadResult.innerHTML += `<p class="success">已接收文件: ${msg.fileName}</p>`
-    downloadResult.innerHTML += `<p class="success">保存路径: ${msg.savedPath}</p>`
+messages({ type: IPC.DOWNLOAD_PROGRESS }, (msg) => {
+    const statusDiv = document.getElementById('taskStatus')
+    if (statusDiv) {
+        statusDiv.style.display = 'block'
+        statusDiv.innerText = `正在下载... ${msg.percent}%`
+    }
+    updateProgressBar(msg.percent)
 })
 
-messages({ type: 'download-success' }, () => {
+// --- 进度条工具函数 ---
+
+const ProgressBar = {
+    element: null,
+    
+    getOrCreate() {
+        if (this.element) return this.element
+        
+        let progressContainer = document.getElementById('progress-container')
+        if (!progressContainer) {
+            progressContainer = document.createElement('div')
+            progressContainer.id = 'progress-container'
+            progressContainer.style.cssText = `
+                margin-top: 12px;
+                width: 100%;
+            `
+            
+            const progressBar = document.createElement('div')
+            progressBar.id = 'progress-bar'
+            progressBar.style.cssText = `
+                height: 8px;
+                background: #e5e5ea;
+                border-radius: 4px;
+                overflow: hidden;
+            `
+            
+            const progressFill = document.createElement('div')
+            progressFill.id = 'progress-fill'
+            progressFill.style.cssText = `
+                height: 100%;
+                width: 0%;
+                background: #0071e3;
+                border-radius: 4px;
+                transition: width 0.3s ease;
+            `
+            
+            progressBar.appendChild(progressFill)
+            progressContainer.appendChild(progressBar)
+            
+            const downloadResult = document.getElementById('downloadResult')
+            if (downloadResult && downloadResult.parentNode) {
+                downloadResult.parentNode.insertBefore(progressContainer, downloadResult.nextSibling)
+            }
+        }
+        
+        this.element = document.getElementById('progress-fill')
+        return this.element
+    },
+    
+    setPercent(percent) {
+        const el = this.getOrCreate()
+        if (el) {
+            el.style.width = Math.min(100, Math.max(0, percent)) + '%'
+        }
+    },
+    
+    reset() {
+        this.setPercent(0)
+    },
+    
+    hide() {
+        const container = document.getElementById('progress-container')
+        if (container) container.style.display = 'none'
+    },
+    
+    show() {
+        const container = document.getElementById('progress-container')
+        if (container) container.style.display = 'block'
+    }
+}
+
+function updateProgressBar(percent) {
+    ProgressBar.setPercent(percent)
+}
+
+messages({ type: IPC.DOWNLOAD_PROGRESS }, (msg) => {
+    // 进度显示 (如需要可添加进度条)
+    console.log(`下载进度: ${msg.loaded}/${msg.total} bytes`)
+})
+
+messages({ type: IPC.DOWNLOAD_FILE_RECEIVED }, (msg) => {
+    downloadResult.innerHTML += `<p class="success">已接收文件: ${escapeHtml(msg.fileName)}</p>`
+    downloadResult.innerHTML += `<p class="success">保存路径: ${escapeHtml(msg.savedPath)}</p>`
+    ProgressBar.setPercent(100)
+})
+
+messages({ type: IPC.DOWNLOAD_SUCCESS }, () => {
     downloadBtn.disabled = false
     downloadResult.innerHTML += `<p class="success">所有文件下载完成！</p>`
     if (taskStatus) taskStatus.innerText = '下载任务完成'
+    ToastManager.success('文件下载完成!')
+    // 保持进度条显示完成状态
 })
 
-messages({ type: 'published-files-list' }, (msg) => {
+messages({ type: IPC.PUBLISHED_FILES_LIST }, (msg) => {
     renderPublishedFiles(msg.files || [])
 })
 
-messages({ type: 'error' }, (msg) => {
+messages({ type: IPC.NETWORK_STATUS }, (msg) => {
+    if (networkStatusEl) {
+        const statusText = msg.status === 'connected' ? `已连接 ${msg.peers} 个节点` : '等待连接中...'
+        networkStatusEl.innerText = statusText
+        networkStatusEl.style.color = msg.status === 'connected' ? '#34c759' : '#ff9500'
+    }
+})
+
+messages({ type: IPC.ERROR }, (msg) => {
     publishBtn.disabled = false
     downloadBtn.disabled = false
-    alert('主进程错误: ' + (msg.message || msg.error))
-    publishResult.innerHTML = `<p class="error">操作失败</p>`
+    ToastManager.error(`操作失败: ${msg.message || msg.code}`)
+    publishResult.innerHTML = `<p class="error">操作失败: ${escapeHtml(msg.message || '未知错误')}</p>`
 })
 
 // --- 初始化 ---
 
 async function init() {
-    await message({ type: 'get-node-id' })
-    // 初始化时自动加载已发布文件列表
+    await message({ type: IPC.GET_NODE_ID })
     refreshPublishedFilesList()
+    // 定期更新网络状态
+    refreshNetworkStatus()
+    setInterval(refreshNetworkStatus, 10000)
 }
 
 init()
+
+// --- 网络状态刷新 ---
+
+function refreshNetworkStatus() {
+    message({ type: IPC.GET_NETWORK_STATUS })
+}
 
 // --- 文件选择与发布 ---
 
@@ -104,14 +308,18 @@ async function handleFileSelection(event) {
 }
 
 async function publish() {
-    if (!currentFile) return alert('请先选择文件')
+    if (!currentFile) {
+        ToastManager.warning('请先选择文件')
+        return
+    }
 
     publishBtn.disabled = true
     publishResult.innerHTML = '正在发布...'
+    ToastManager.info('正在计算文件哈希并发布...')
 
     try {
         await message({
-            type: 'publish-file',
+            type: IPC.PUBLISH_FILE,
             payload: {
                 name: currentFile.name,
                 filePath: currentFile.path
@@ -120,7 +328,7 @@ async function publish() {
     } catch (err) {
         console.error('UI 发布错误:', err)
         publishBtn.disabled = false
-        publishResult.innerHTML = `<p class="error">发布失败: ${err.message}</p>`
+        publishResult.innerHTML = `<p class="error">发布失败: ${escapeHtml(err.message)}</p>`
     }
 }
 
@@ -128,31 +336,43 @@ async function publish() {
 
 async function download() {
     const link = linkInput.value.trim()
-    if (!link) return alert('请输入 most:// 链接')
+    if (!link) {
+        ToastManager.warning('请输入 most:// 链接')
+        return
+    }
+    
+    if (!link.startsWith('most://')) {
+        ToastManager.warning('链接格式应为 most://<cid>')
+        return
+    }
 
     downloadBtn.disabled = true
     downloadResult.innerHTML = '正在请求下载...'
+    ProgressBar.reset()
+    ProgressBar.show()
     if (taskStatus) {
         taskStatus.style.display = 'block'
         taskStatus.innerText = '准备开始...'
     }
+    ToastManager.info('正在连接 P2P 网络...')
 
     try {
         await message({
-            type: 'download-file',
+            type: IPC.DOWNLOAD_FILE,
             payload: { link }
         })
     } catch (err) {
         console.error('UI 下载错误:', err)
         downloadBtn.disabled = false
-        downloadResult.innerHTML = `<p class="error">请求失败: ${err.message}</p>`
+        downloadResult.innerHTML = `<p class="error">请求失败: ${escapeHtml(err.message)}</p>`
+        ProgressBar.hide()
     }
 }
 
 // --- 已发布文件列表功能 ---
 
 async function refreshPublishedFilesList() {
-    await message({ type: 'list-published-files' })
+    await message({ type: IPC.LIST_PUBLISHED_FILES })
 }
 
 function renderPublishedFiles(files) {
@@ -166,7 +386,6 @@ function renderPublishedFiles(files) {
     let html = '<ul class="published-list">'
     for (const file of files) {
         const timeStr = file.publishedAt ? new Date(file.publishedAt).toLocaleString('zh-CN') : ''
-        // 使用 data 属性存储 link 和 cid，避免 XSS
         html += `
             <li class="published-item">
                 <div class="published-item-info">
@@ -189,13 +408,9 @@ function renderPublishedFiles(files) {
         btn.addEventListener('click', () => {
             const link = btn.getAttribute('data-link')
             navigator.clipboard.writeText(link).then(() => {
-                const originalText = btn.innerText
-                btn.innerText = '已复制!'
-                btn.style.background = '#34c759'
-                setTimeout(() => {
-                    btn.innerText = originalText
-                    btn.style.background = ''
-                }, 1500)
+                ToastManager.success('链接已复制!')
+            }).catch(() => {
+                ToastManager.error('复制失败')
             })
         })
     })
@@ -205,13 +420,17 @@ function renderPublishedFiles(files) {
         btn.addEventListener('click', async () => {
             const cid = btn.getAttribute('data-cid')
             if (confirm('确定要从列表中删除该发布记录吗？')) {
-                await message({ type: 'delete-published-file', payload: { cid } })
+                await message({ type: IPC.DELETE_PUBLISHED_FILE, payload: { cid } })
+                ToastManager.info('已删除发布记录')
             }
         })
     })
 }
 
+// --- 工具函数 ---
+
 function escapeHtml(str) {
+    if (typeof str !== 'string') return ''
     const div = document.createElement('div')
     div.textContent = str
     return div.innerHTML
