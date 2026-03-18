@@ -3,25 +3,6 @@ import message from 'pear-message'
 import messages from 'pear-messages'
 
 // IPC 消息类型常量
-const IPC = {
-  GET_NODE_ID: 'get-node-id',
-  NODE_ID: 'node-id',
-  PUBLISH_FILE: 'publish-file',
-  PUBLISH_SUCCESS: 'publish-success',
-  DOWNLOAD_FILE: 'download-file',
-  DOWNLOAD_STATUS: 'download-status',
-  DOWNLOAD_PROGRESS: 'download-progress',
-  DOWNLOAD_FILE_RECEIVED: 'download-file-received',
-  DOWNLOAD_SUCCESS: 'download-success',
-  LIST_PUBLISHED_FILES: 'list-published-files',
-  DELETE_PUBLISHED_FILE: 'delete-published-file',
-  GET_NETWORK_STATUS: 'get-network-status',
-  PUBLISHED_FILES_LIST: 'published-files-list',
-  NETWORK_STATUS: 'network-status',
-  ERROR: 'error'
-}
-
-console.log('App.js UI 逻辑加载中 (IPC 模式)...')
 
 // --- Toast 通知组件 ---
 const ToastManager = {
@@ -33,7 +14,7 @@ const ToastManager = {
     this.container.id = 'toast-container'
     this.container.style.cssText = `
       position: fixed;
-      top: 20px;
+      top: 52px;
       right: 20px;
       z-index: 9999;
       display: flex;
@@ -96,6 +77,58 @@ const ToastManager = {
   warning(msg) { this.show(msg, 'warning') },
   info(msg) { this.show(msg, 'info') }
 }
+
+// --- 窗口控制 ---
+const WindowControls = {
+  async init() {
+    const closeBtn = document.getElementById('closeBtn')
+    const minimizeBtn = document.getElementById('minimizeBtn')
+    const maximizeBtn = document.getElementById('maximizeBtn')
+    
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => this.close())
+    }
+    if (minimizeBtn) {
+      minimizeBtn.addEventListener('click', () => this.minimize())
+    }
+    if (maximizeBtn) {
+      maximizeBtn.addEventListener('click', () => this.maximize())
+    }
+  },
+  
+  async close() {
+    try {
+      await ui.window.close()
+    } catch (err) {
+      console.error('关闭窗口失败:', err)
+      window.close()
+    }
+  },
+  
+  async minimize() {
+    try {
+      await ui.window.minimize()
+    } catch (err) {
+      console.error('最小化失败:', err)
+    }
+  },
+  
+  async maximize() {
+    try {
+      const isMaximized = await ui.window.isMaximized()
+      if (isMaximized) {
+        await ui.window.unmaximize()
+      } else {
+        await ui.window.maximize()
+      }
+    } catch (err) {
+      console.error('最大化失败:', err)
+    }
+  }
+}
+
+// 初始化窗口控制
+WindowControls.init()
 
 const nodeIdEl = document.getElementById('nodeId')
 const fileInput = document.getElementById('fileInput')
