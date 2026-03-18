@@ -3,6 +3,23 @@ import message from 'pear-message'
 import messages from 'pear-messages'
 
 // IPC 消息类型常量
+const IPC = {
+  GET_NODE_ID: 'get-node-id',
+  NODE_ID: 'node-id',
+  PUBLISH_FILE: 'publish-file',
+  PUBLISH_SUCCESS: 'publish-success',
+  DOWNLOAD_FILE: 'download-file',
+  DOWNLOAD_STATUS: 'download-status',
+  DOWNLOAD_PROGRESS: 'download-progress',
+  DOWNLOAD_FILE_RECEIVED: 'download-file-received',
+  DOWNLOAD_SUCCESS: 'download-success',
+  LIST_PUBLISHED_FILES: 'list-published-files',
+  DELETE_PUBLISHED_FILE: 'delete-published-file',
+  GET_NETWORK_STATUS: 'get-network-status',
+  PUBLISHED_FILES_LIST: 'published-files-list',
+  NETWORK_STATUS: 'network-status',
+  ERROR: 'error'
+}
 
 // --- Toast 通知组件 ---
 const ToastManager = {
@@ -129,6 +146,8 @@ const WindowControls = {
 
 // 初始化窗口控制
 WindowControls.init()
+
+console.log('App.js UI 逻辑加载中 (IPC 模式)...')
 
 const nodeIdEl = document.getElementById('nodeId')
 const fileInput = document.getElementById('fileInput')
@@ -258,11 +277,6 @@ const ProgressBar = {
 function updateProgressBar(percent) {
     ProgressBar.setPercent(percent)
 }
-
-messages({ type: IPC.DOWNLOAD_PROGRESS }, (msg) => {
-    // 进度显示 (如需要可添加进度条)
-    console.log(`下载进度: ${msg.loaded}/${msg.total} bytes`)
-})
 
 messages({ type: IPC.DOWNLOAD_FILE_RECEIVED }, (msg) => {
     downloadResult.innerHTML += `<p class="success">已接收文件: ${escapeHtml(msg.fileName)}</p>`
