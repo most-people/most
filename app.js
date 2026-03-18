@@ -109,34 +109,33 @@ const WindowControls = {
       minimizeBtn.addEventListener('click', () => this.minimize())
     }
     if (maximizeBtn) {
-      maximizeBtn.addEventListener('click', () => this.maximize())
+      maximizeBtn.addEventListener('click', () => this.toggleMaximize())
     }
   },
   
   async close() {
     try {
-      await ui.window.close()
+      await ui.app.close()
     } catch (err) {
       console.error('关闭窗口失败:', err)
-      window.close()
     }
   },
   
   async minimize() {
     try {
-      await ui.window.minimize()
+      await ui.app.minimize()
     } catch (err) {
       console.error('最小化失败:', err)
     }
   },
   
-  async maximize() {
+  async toggleMaximize() {
     try {
-      const isMaximized = await ui.window.isMaximized()
+      const isMaximized = await ui.app.isMaximized()
       if (isMaximized) {
-        await ui.window.unmaximize()
+        await ui.app.restore()
       } else {
-        await ui.window.maximize()
+        await ui.app.maximize()
       }
     } catch (err) {
       console.error('最大化失败:', err)
