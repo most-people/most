@@ -33,3 +33,7 @@ packages/mobile/android/.gradle/
 
 # Node.js mobile
 packages/mobile/nodejs-assets/nodejs-project/node_modules/
+nodejs-assets/
+
+# npm config (local mirrors)
+.npmrc
