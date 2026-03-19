@@ -16,6 +16,9 @@ contextBridge.exposeInMainWorld('mostBox', {
   deletePublishedFile: (cid) => 
     ipcRenderer.invoke('delete-published-file', { cid }),
 
+  // Network diagnostics
+  diagnoseNetwork: () => ipcRenderer.invoke('diagnose-network'),
+
   // Window controls
   minimizeWindow: () => ipcRenderer.send('window-minimize'),
   maximizeWindow: () => ipcRenderer.send('window-maximize'),

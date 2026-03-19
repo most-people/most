@@ -3,7 +3,7 @@ const path = require('path');
 module.exports = {
   packagerConfig: {
     name: 'Most Box',
-    icon: path.join(__dirname, 'assets', 'icon'),
+    // icon: path.join(__dirname, 'assets', 'icon'),
     asar: true,
     // macOS signing (uncomment and configure for production)
     // osxSign: {},
@@ -27,7 +27,9 @@ module.exports = {
       platforms: ['win32'],
       config: {
         name: 'MostBox',
-        setupIcon: path.join(__dirname, 'assets', 'icon.ico')
+        authors: 'Most Box',
+        description: 'Most Box - Cross-platform P2P file sharing application',
+        // setupIcon: path.join(__dirname, 'assets', 'icon.ico')
       }
     },
     {

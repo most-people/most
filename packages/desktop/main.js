@@ -2,7 +2,11 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import os from 'node:os';
-import { MostBoxEngine, IPC_GET_NODE_ID, IPC_GET_NETWORK_STATUS, IPC_PUBLISH_FILE, IPC_DOWNLOAD_FILE, IPC_LIST_PUBLISHED_FILES, IPC_DELETE_PUBLISHED_FILE } from '@most-box/core';
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
+import { MostBoxEngine } from '@most-box/core';
+
+const execAsync = promisify(exec);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -126,6 +130,51 @@ ipcMain.handle('list-published-files', async () => {
 ipcMain.handle('delete-published-file', async (event, { cid }) => {
   if (!engine) throw new Error('Engine not initialized');
   return engine.deletePublishedFile(cid);
+});
+
+// Network diagnostics
+ipcMain.handle('diagnose-network', async () => {
+  const results = {
+    basicConnectivity: null,
+    dnsResolution: null,
+    peerCount: 0
+  };
+
+  // Check basic connectivity
+  try {
+    const { stdout } = await execAsync('ping -n 2 8.8.8.8');
+    results.basicConnectivity = {
+      success: stdout.includes('TTL'),
+      output: stdout.trim()
+    };
+  } catch (err) {
+    results.basicConnectivity = {
+      success: false,
+      output: err.message
+    };
+  }
+
+  // Check DNS resolution
+  try {
+    const { stdout } = await execAsync('nslookup bootstrap1.hyperswarm.org');
+    results.dnsResolution = {
+      success: !stdout.includes('Non-existent domain'),
+      output: stdout.trim()
+    };
+  } catch (err) {
+    results.dnsResolution = {
+      success: false,
+      output: err.message
+    };
+  }
+
+  // Get current peer count
+  if (engine) {
+    const status = engine.getNetworkStatus();
+    results.peerCount = status.peers;
+  }
+
+  return results;
 });
 
 // Window controls

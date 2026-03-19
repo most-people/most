@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Most Box - P2P 文件分享</title>
+    <title>网络诊断 - Most Box</title>
     <style>
       :root {
         --bg-primary: #f5f5f7;
@@ -20,6 +20,7 @@
         --accent: #0071e3;
         --accent-hover: #0077ed;
         --success: #34c759;
+        --warning: #ff9500;
         --error: #ff3b30;
         --shadow: rgba(0, 0, 0, 0.05);
       }
@@ -135,8 +136,19 @@
       h1 {
         text-align: center;
         color: var(--text-primary);
-        margin-bottom: 40px;
+        margin-bottom: 24px;
         margin-top: 0;
+        font-size: 1.5rem;
+      }
+      .back-link {
+        display: inline-block;
+        color: var(--accent);
+        text-decoration: none;
+        font-size: 14px;
+        margin-bottom: 20px;
+      }
+      .back-link:hover {
+        text-decoration: underline;
       }
       .card {
         background: var(--bg-secondary);
@@ -148,30 +160,51 @@
       }
       h2 {
         margin-top: 0;
-        font-size: 1.2rem;
+        font-size: 1.1rem;
         color: var(--text-secondary);
+        margin-bottom: 16px;
       }
-      .input-group {
+      .diagnostic-item {
         display: flex;
-        flex-direction: column;
-        gap: 12px;
-        margin-top: 16px;
+        align-items: flex-start;
+        justify-content: space-between;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--border-color);
       }
-      input[type="text"] {
-        padding: 12px;
-        border: 1px solid var(--border-color);
-        border-radius: 8px;
-        font-size: 14px;
-        background: var(--bg-tertiary);
+      .diagnostic-item:last-child {
+        border-bottom: none;
+      }
+      .diagnostic-label {
+        font-weight: 500;
         color: var(--text-primary);
-        transition: background 0.2s, border-color 0.2s, color 0.2s;
+        flex: 1;
       }
-      input[type="text"]::placeholder {
-        color: var(--text-tertiary);
+      .diagnostic-value {
+        display: flex;
+        align-items: center;
+        gap: 8px;
       }
-      input[type="text"]:focus {
-        outline: none;
-        border-color: var(--accent);
+      .status-badge {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .status-success {
+        background: rgba(52, 199, 89, 0.1);
+        color: var(--success);
+      }
+      .status-warning {
+        background: rgba(255, 149, 0, 0.1);
+        color: var(--warning);
+      }
+      .status-error {
+        background: rgba(255, 59, 48, 0.1);
+        color: var(--error);
+      }
+      .status-info {
+        background: rgba(0, 113, 227, 0.1);
+        color: var(--accent);
       }
       button {
         background: var(--accent);
@@ -190,133 +223,51 @@
         background: var(--text-muted);
         cursor: not-allowed;
       }
-      .success {
-        color: var(--success);
-        font-weight: 600;
-      }
-      .error {
-        color: var(--error);
-        font-weight: 600;
-      }
-      #taskStatus {
+      .btn-secondary {
         background: var(--bg-tertiary);
-        padding: 12px;
-        border-radius: 8px;
-        font-family: monospace;
-        font-size: 12px;
-        white-space: pre-wrap;
-        margin-top: 16px;
-        display: none;
         color: var(--text-secondary);
+        border: 1px solid var(--border-color);
       }
-      .peer-info {
-        font-size: 12px;
-        color: var(--text-tertiary);
-        margin-bottom: 8px;
-        text-align: center;
-      }
-      .network-status {
-        font-size: 12px;
-        color: var(--text-tertiary);
-        margin-bottom: 20px;
-        text-align: center;
-      }
-      #selectedFileInfo {
-        background: var(--bg-tertiary);
-        padding: 12px;
-        border-radius: 8px;
-        font-size: 14px;
-        color: var(--text-secondary);
-        white-space: pre-wrap;
-        display: none;
+      .btn-secondary:hover {
+        background: var(--border-color);
       }
       .btn-group {
         display: flex;
         gap: 10px;
+        margin-top: 16px;
       }
-      /* 已发布文件列表样式 */
-      .published-list {
-        list-style: none;
-        padding: 0;
-        margin: 16px 0 0 0;
-      }
-      .published-item {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 12px;
-        background: var(--bg-item);
-        border-radius: 8px;
-        margin-bottom: 8px;
-        gap: 12px;
-        transition: background 0.2s;
-      }
-      .published-item:hover {
+      .log-area {
         background: var(--bg-tertiary);
-      }
-      .published-item-info {
-        flex: 1;
-        min-width: 0;
-      }
-      .published-item-name {
-        font-weight: 600;
-        font-size: 14px;
-        color: var(--text-primary);
-        margin-bottom: 4px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-      .published-item-link {
+        border-radius: 8px;
+        padding: 12px;
         font-family: monospace;
         font-size: 12px;
-        color: var(--text-tertiary);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        max-height: 200px;
+        overflow-y: auto;
+        margin-top: 16px;
+        white-space: pre-wrap;
+        word-break: break-all;
+        color: var(--text-secondary);
       }
-      .published-item-time {
-        font-size: 11px;
-        color: var(--text-muted);
-        margin-top: 2px;
+      .solution-card {
+        background: rgba(0, 113, 227, 0.05);
+        border: 1px solid var(--accent);
+        border-radius: 8px;
+        padding: 16px;
+        margin-top: 16px;
       }
-      .published-item-actions {
-        display: flex;
-        gap: 6px;
-        flex-shrink: 0;
+      .solution-title {
+        font-weight: 600;
+        color: var(--accent);
+        margin-bottom: 8px;
       }
-      .published-item-actions button {
-        padding: 6px 12px;
-        font-size: 12px;
-        border-radius: 6px;
+      .solution-list {
+        margin: 0;
+        padding-left: 20px;
+        color: var(--text-secondary);
       }
-      .btn-copy {
-        background: var(--accent);
-      }
-      .btn-delete {
-        background: var(--error);
-      }
-      .btn-delete:hover {
-        background: #ff453a;
-      }
-      .empty-state {
-        text-align: center;
-        color: var(--text-tertiary);
-        padding: 24px;
-        font-size: 14px;
-      }
-      .btn-refresh {
-        background: var(--success);
-        font-size: 13px;
-        padding: 8px 16px;
-      }
-      .btn-refresh:hover {
-        background: #30d158;
-      }
-      .card-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
+      .solution-list li {
+        margin-bottom: 6px;
       }
       .theme-controls {
         display: flex;
@@ -347,12 +298,34 @@
         color: #fff;
         border-color: var(--accent);
       }
+      .loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 40px;
+        color: var(--text-tertiary);
+      }
+      .spinner {
+        width: 20px;
+        height: 20px;
+        border: 2px solid var(--border-color);
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-right: 10px;
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+      .hidden {
+        display: none;
+      }
     </style>
   </head>
   <body>
     <div class="titlebar">
       <div class="titlebar-drag-area">
-        <span class="titlebar-title">Most Box</span>
+        <span class="titlebar-title">Most Box - 网络诊断</span>
       </div>
       <div class="titlebar-controls">
         <button class="titlebar-btn minimize" id="minimizeBtn" title="最小化">
@@ -367,60 +340,48 @@
       </div>
     </div>
     <div class="content">
-    <div class="peer-info" id="nodeId">正在初始化 P2P 节点...</div>
-    <div class="network-status" id="networkStatus">网络状态: 等待连接...</div>
-    
-    <div class="theme-controls">
-      <span>主题：</span>
-      <button class="theme-btn-page" id="themeSystem">跟随系统</button>
-      <button class="theme-btn-page" id="themeLight">浅色</button>
-      <button class="theme-btn-page" id="themeDark">深色</button>
-    </div>
+      <a href="./index.html" class="back-link">← 返回主页面</a>
+      <h1>网络诊断</h1>
+      
+      <div class="theme-controls">
+        <span>主题：</span>
+        <button class="theme-btn-page" id="themeSystem">跟随系统</button>
+        <button class="theme-btn-page" id="themeLight">浅色</button>
+        <button class="theme-btn-page" id="themeDark">深色</button>
+      </div>
 
-    <div class="card">
-      <h2>发布文件</h2>
-      <div class="input-group">
-        <input type="file" id="fileInput" style="display: none;" />
-        <div class="btn-group">
-          <button id="selectFileBtn">选择文件</button>
-          <button id="publishBtn" disabled>发布到 P2P 网络</button>
+      <div class="card">
+        <h2>当前状态</h2>
+        <div class="diagnostic-item">
+          <div class="diagnostic-label">P2P 节点连接数</div>
+          <div class="diagnostic-value">
+            <span id="peerCount">-</span>
+            <span id="peerStatus" class="status-badge status-info">检查中...</span>
+          </div>
         </div>
-        <div id="selectedFileInfo"></div>
-        <div id="publishResult"></div>
       </div>
-    </div>
 
-    <div class="card">
-      <div class="card-header">
-        <h2>已发布文件</h2>
-        <button class="btn-refresh" id="refreshPublishedBtn">刷新列表</button>
+      <div class="card">
+        <h2>网络诊断</h2>
+        <div id="diagnosticResults">
+          <div class="loading" id="loadingIndicator">
+            <div class="spinner"></div>
+            <span>正在诊断网络...</span>
+          </div>
+          <div id="resultsContent" class="hidden"></div>
+        </div>
+        <div class="btn-group">
+          <button id="runDiagnosis">开始诊断</button>
+        </div>
+        <div id="logArea" class="log-area hidden"></div>
       </div>
-      <div id="publishedFilesList">
-        <div class="empty-state">暂无已发布的文件</div>
+
+      <div class="card" id="solutionsCard" style="display: none;">
+        <h2>解决方案</h2>
+        <div id="solutionsContent"></div>
       </div>
-    </div>
 
-    <div class="card">
-      <h2>下载文件</h2>
-      <div class="input-group">
-        <input type="text" id="linkInput" placeholder="请输入 most://<cid> 链接" />
-        <button id="downloadBtn">开始 P2P 下载</button>
-        <div id="downloadResult"></div>
-        <div id="taskStatus"></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>网络诊断</h2>
-      <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 14px;">
-        如果下载一直卡在"正在寻找发布者节点..."，请运行网络诊断工具检查连接问题。
-      </p>
-      <a href="./diagnose.html" style="display: inline-block;">
-        <button style="background: var(--success);">打开网络诊断</button>
-      </a>
-    </div>
-
-    <script type="module" src="./app.js"></script>
+      <script type="module" src="./diagnose.js"></script>
     </div>
   </body>
 </html>

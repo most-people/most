@@ -56,6 +56,9 @@ export class MostBoxEngine extends EventEmitter {
 
     const { storagePath } = this.#options
     
+    console.log(`[MostBox] Initializing engine...`)
+    console.log(`[MostBox] Storage path: ${storagePath}`)
+    
     // Create storage directory if not exists
     if (!fs.existsSync(storagePath)) {
       fs.mkdirSync(storagePath, { recursive: true })
@@ -67,24 +70,29 @@ export class MostBoxEngine extends EventEmitter {
     
     try {
       await this.#store.ready()
+      console.log(`[MostBox] Corestore ready`)
     } catch (err) {
       if (err.message && err.message.includes('Another corestore is stored here')) {
+        console.log(`[MostBox] Resetting corrupt storage...`)
         // Reset corrupt storage
         fs.rmSync(storagePath, { recursive: true, force: true })
         fs.mkdirSync(storagePath, { recursive: true })
         this.#store = new Corestore(storagePath, { primaryKey: GLOBAL_SHARED_SEED, unsafe: true })
         await this.#store.ready()
+        console.log(`[MostBox] Corestore reset and ready`)
       } else {
         throw err
       }
     }
 
-    // Initialize Hyperswarm with optimized settings
+    // Initialize Hyperswarm with NAT traversal enabled
+    console.log(`[MostBox] Initializing Hyperswarm with ${SWARM_BOOTSTRAP.length} bootstrap nodes...`)
     this.#swarm = new Hyperswarm({
       bootstrap: SWARM_BOOTSTRAP,
       // Connection settings for better stability
       maxPeers: 64,
-      firewalled: true,
+      // Enable NAT traversal (hole punching) - same as Keet.io
+      firewalled: false,
       // Increase timeouts for unstable networks
       handshakeTimeout: CONNECTION_TIMEOUT
     })
@@ -102,6 +110,7 @@ export class MostBoxEngine extends EventEmitter {
 
     // Replicate store on new connections
     this.#swarm.on('connection', (conn, info) => {
+      console.log(`[MostBox] New peer connection established`)
       // Handle connection errors gracefully
       conn.on('error', (err) => {
         if (err.code === 'SSL_ERROR' || err.message?.includes('handshake')) {
@@ -117,8 +126,10 @@ export class MostBoxEngine extends EventEmitter {
 
     // Load published files metadata
     this.#publishedFiles = this.#loadPublishedMetadata()
+    console.log(`[MostBox] Loaded ${this.#publishedFiles.length} published files`)
     
     this.#initialized = true
+    console.log(`[MostBox] Engine initialized successfully`)
     this.emit('ready')
     
     return this
@@ -272,12 +283,15 @@ export class MostBoxEngine extends EventEmitter {
 
     const targetDir = downloadPath || this.#options.downloadPath
 
+    console.log(`[MostBox] Starting download for link: ${link}`)
+
     // Parse link
     const parsed = parseMostLink(link)
     if (parsed.error) {
       throw new ValidationError(parsed.error)
     }
     const cidString = parsed.cid
+    console.log(`[MostBox] Parsed CID: ${cidString}`)
 
     // Parse CID
     const parsedCid = CID.parse(cidString)
@@ -289,6 +303,7 @@ export class MostBoxEngine extends EventEmitter {
     let drive = this.#drives.get(name)
     
     if (!drive) {
+      console.log(`[MostBox] Creating new drive: ${name}`)
       drive = new Hyperdrive(this.#store.namespace(name))
       await drive.ready()
       this.#drives.set(name, drive)
@@ -296,18 +311,37 @@ export class MostBoxEngine extends EventEmitter {
       this.emit('download:status', { status: 'connecting' })
       if (callbacks.onStatus) callbacks.onStatus('connecting')
       
+      console.log(`[MostBox] Joining swarm for drive discovery...`)
       await this.#swarm.join(drive.discoveryKey).flushed()
+      console.log(`[MostBox] Swarm join flushed`)
+    } else {
+      console.log(`[MostBox] Using existing drive: ${name}`)
     }
 
     this.emit('download:status', { status: 'finding-peers' })
     if (callbacks.onStatus) callbacks.onStatus('finding-peers')
 
     // Wait for peers and data to sync
+    console.log(`[MostBox] Waiting for drive content (timeout: ${DOWNLOAD_TIMEOUT/1000}s)...`)
     const entries = await this.#waitForDriveContent(drive, DOWNLOAD_TIMEOUT)
 
     if (entries.length === 0) {
-      throw new PeerNotFoundError('No files found in drive. Please ensure publisher is online.')
+      console.log(`[MostBox] No entries found after timeout`)
+      
+      // 提供更详细的错误信息
+      const peerCount = this.#swarm.connections.size
+      let errorMessage = 'No files found in drive. '
+      
+      if (peerCount === 0) {
+        errorMessage += 'Could not connect to any peers. Please check your network connection and firewall settings.'
+      } else {
+        errorMessage += `Connected to ${peerCount} peers but no file data was found. The publisher may be offline or the file may have been removed.`
+      }
+      
+      throw new PeerNotFoundError(errorMessage)
     }
+
+    console.log(`[MostBox] Found ${entries.length} entries, starting download...`)
 
     // Check download directory
     const writableCheck = await checkDirectoryWritable(targetDir)
@@ -455,7 +489,7 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   /**
-   * Wait for drive content to be available from peers
+   * Wait for drive content to be available from peers or local
    * @param {Hyperdrive} drive - The drive to check
    * @param {number} timeout - Maximum wait time in ms
    * @returns {Promise<Array>} - List of entries
@@ -463,26 +497,71 @@ export class MostBoxEngine extends EventEmitter {
   async #waitForDriveContent(drive, timeout) {
     const startTime = Date.now()
     const checkInterval = 1000 // Check every second
+    let lastPeerCount = 0
+    let lastStatus = ''
+
+    // First, check if content is already available locally (for self-published files)
+    const localEntries = []
+    try {
+      for await (const entry of drive.list()) {
+        localEntries.push(entry)
+      }
+      if (localEntries.length > 0) {
+        console.log(`[MostBox] Found ${localEntries.length} entries locally`)
+        this.emit('download:status', { status: 'syncing' })
+        return localEntries
+      }
+    } catch (err) {
+      // Continue to peer discovery
+    }
 
     while (Date.now() - startTime < timeout) {
+      const currentTime = Date.now()
+      const elapsed = Math.round((currentTime - startTime) / 1000)
+      
       // Check if we have peers
-      const hasPeers = this.#swarm.connections.size > 0
+      const currentPeerCount = this.#swarm.connections.size
+      const hasPeers = currentPeerCount > 0
 
-      if (hasPeers) {
-        this.emit('download:status', { status: 'syncing' })
-        
-        // Try to list entries
-        const entries = []
-        try {
-          for await (const entry of drive.list()) {
-            entries.push(entry)
-          }
-        } catch (err) {
-          // Drive might not be ready yet, continue waiting
+      // Log peer count changes
+      if (currentPeerCount !== lastPeerCount) {
+        console.log(`[MostBox] Peer count changed: ${lastPeerCount} -> ${currentPeerCount} (elapsed: ${elapsed}s)`)
+        lastPeerCount = currentPeerCount
+      }
+
+      // Try to list entries (works for both local and synced data)
+      const entries = []
+      try {
+        for await (const entry of drive.list()) {
+          entries.push(entry)
         }
+      } catch (err) {
+        // Drive might not be ready yet
+      }
 
-        if (entries.length > 0) {
-          return entries
+      if (entries.length > 0) {
+        console.log(`[MostBox] Found ${entries.length} entries after ${elapsed}s`)
+        this.emit('download:status', { status: 'syncing' })
+        return entries
+      }
+
+      // Update status based on peer connection
+      if (hasPeers) {
+        const newStatus = 'syncing'
+        if (lastStatus !== newStatus) {
+          this.emit('download:status', { status: newStatus })
+          lastStatus = newStatus
+        }
+      } else {
+        const newStatus = 'finding-peers'
+        if (lastStatus !== newStatus) {
+          this.emit('download:status', { status: newStatus })
+          lastStatus = newStatus
+        }
+        
+        // Log progress every 30 seconds
+        if (elapsed % 30 === 0 && elapsed > 0) {
+          console.log(`[MostBox] Still waiting for peers... (${elapsed}s elapsed, timeout: ${timeout/1000}s)`)
         }
       }
 
@@ -490,15 +569,19 @@ export class MostBoxEngine extends EventEmitter {
       await new Promise(resolve => setTimeout(resolve, checkInterval))
     }
 
+    console.log(`[MostBox] Timeout reached after ${timeout/1000}s, making final attempt...`)
+
     // Final attempt - return whatever we have (might be empty)
     const entries = []
     try {
       for await (const entry of drive.list()) {
         entries.push(entry)
       }
-    } catch {
-      // Ignore
+    } catch (err) {
+      console.log(`[MostBox] Final attempt failed: ${err.message}`)
     }
+    
+    console.log(`[MostBox] Final entry count: ${entries.length}`)
     return entries
   }
 }

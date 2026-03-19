@@ -6,8 +6,8 @@
 export const MAX_FILE_SIZE = 100 * 1024 * 1024 * 1024 // 100 GB
 
 // Network timeouts (ms)
-export const CONNECTION_TIMEOUT = 30000
-export const DOWNLOAD_TIMEOUT = 300000
+export const CONNECTION_TIMEOUT = 60000
+export const DOWNLOAD_TIMEOUT = 600000
 
 // P2P settings
 export const GLOBAL_SHARED_SEED_STRING = 'most-box-global-shared-seed-v1'
@@ -22,5 +22,8 @@ export const SWARM_BOOTSTRAP = [
   // Additional public DHT nodes for better global coverage
   { host: 'router.bittorrent.com', port: 6881 },
   { host: 'router.utorrent.com', port: 6881 },
-  { host: 'dht.transmissionbt.com', port: 6881 }
+  { host: 'dht.transmissionbt.com', port: 6881 },
+  // Fallback nodes
+  { host: 'dht.libtorrent.org', port: 25401 },
+  { host: 'dht.aelitis.com', port: 6881 }
 ]
