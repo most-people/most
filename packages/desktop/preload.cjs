@@ -1,7 +1,9 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 // Expose protected methods to renderer process
 contextBridge.exposeInMainWorld('mostBox', {
+  // Get file path from File object (Electron 33+ API)
+  getFilePath: (file) => webUtils.getPathForFile(file),
   // P2P Operations
   getNodeId: () => ipcRenderer.invoke('get-node-id'),
   getNetworkStatus: () => ipcRenderer.invoke('get-network-status'),

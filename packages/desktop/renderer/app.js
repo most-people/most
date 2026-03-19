@@ -260,7 +260,14 @@ window.mostBox.onDownloadStatus((data) => {
   const statusDiv = document.getElementById('taskStatus')
   if (statusDiv) {
     statusDiv.style.display = 'block'
-    statusDiv.innerText = data.status
+    const statusMessages = {
+      'connecting': '正在连接 P2P 网络...',
+      'finding-peers': '正在寻找发布者节点...',
+      'syncing': '正在同步文件数据...',
+      'downloading': `正在下载: ${data.file || ''} ${data.size ? `(${data.size})` : ''}`,
+      'verifying': '正在验证文件完整性...'
+    }
+    statusDiv.innerText = statusMessages[data.status] || data.status
   }
   updateProgressBar(0)
 })
@@ -345,14 +352,9 @@ async function handleFileSelection(event) {
   const file = event.target.files[0]
   if (!file) return
 
-  // 在 Electron 中，可以通过 file.path 直接获取路径（启用了 nodeIntegration）
-  // 或者使用 webUtils.getPathForFile
-  // 由于我们设置了 contextIsolation: true，需要通过 preload 暴露的方法
-  // 但 File 对象的 path 属性在 Electron 中是可用的
-  
   try {
-    // Electron 提供的 File.path 属性
-    const filePath = file.path || file.filePath || file.name
+    // 使用 Electron 33+ 的 webUtils.getPathForFile 获取文件路径
+    const filePath = window.mostBox.getFilePath(file)
     
     currentFile = { path: filePath, name: file.name }
     

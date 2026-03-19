@@ -15,7 +15,7 @@ import path from 'node:path'
 import { calculateCid, parseMostLink } from './src/core/cid.js'
 import { sanitizeFilename, validateAndSanitizePath, validateFileSize, checkDirectoryWritable, formatFileSize } from './src/utils/security.js'
 import { ValidationError, PathSecurityError, FileSizeError, PeerNotFoundError, IntegrityError, PermissionError, EngineNotInitializedError, toPlainError } from './src/utils/errors.js'
-import { GLOBAL_SHARED_SEED_STRING, MAX_FILE_SIZE } from './src/config.js'
+import { GLOBAL_SHARED_SEED_STRING, MAX_FILE_SIZE, CONNECTION_TIMEOUT, DOWNLOAD_TIMEOUT, SWARM_BOOTSTRAP } from './src/config.js'
 
 export class MostBoxEngine extends EventEmitter {
   #store = null
@@ -79,11 +79,38 @@ export class MostBoxEngine extends EventEmitter {
       }
     }
 
-    // Initialize Hyperswarm
-    this.#swarm = new Hyperswarm()
-    
+    // Initialize Hyperswarm with optimized settings
+    this.#swarm = new Hyperswarm({
+      bootstrap: SWARM_BOOTSTRAP,
+      // Connection settings for better stability
+      maxPeers: 64,
+      firewalled: true,
+      // Increase timeouts for unstable networks
+      handshakeTimeout: CONNECTION_TIMEOUT
+    })
+
+    // Handle swarm-level errors
+    this.#swarm.on('error', (err) => {
+      // Silently handle SSL/network errors - they're non-critical for DHT discovery
+      if (err.code === 'SSL_ERROR' || err.message?.includes('handshake') || err.message?.includes('ECONNRESET')) {
+        console.warn('[MostBox] Network warning (non-critical):', err.message)
+        return
+      }
+      console.error('[MostBox] Swarm error:', err.message)
+      this.emit('error', err)
+    })
+
     // Replicate store on new connections
-    this.#swarm.on('connection', (conn) => {
+    this.#swarm.on('connection', (conn, info) => {
+      // Handle connection errors gracefully
+      conn.on('error', (err) => {
+        if (err.code === 'SSL_ERROR' || err.message?.includes('handshake')) {
+          console.warn('[MostBox] Connection warning:', err.message)
+          return
+        }
+        console.error('[MostBox] Connection error:', err.message)
+      })
+
       this.#store.replicate(conn)
       this.emit('connection', conn)
     })
@@ -275,11 +302,8 @@ export class MostBoxEngine extends EventEmitter {
     this.emit('download:status', { status: 'finding-peers' })
     if (callbacks.onStatus) callbacks.onStatus('finding-peers')
 
-    // Get file list
-    const entries = []
-    for await (const entry of drive.list()) {
-      entries.push(entry)
-    }
+    // Wait for peers and data to sync
+    const entries = await this.#waitForDriveContent(drive, DOWNLOAD_TIMEOUT)
 
     if (entries.length === 0) {
       throw new PeerNotFoundError('No files found in drive. Please ensure publisher is online.')
@@ -428,6 +452,54 @@ export class MostBoxEngine extends EventEmitter {
     } catch (err) {
       console.error('Failed to save published metadata:', err.message)
     }
+  }
+
+  /**
+   * Wait for drive content to be available from peers
+   * @param {Hyperdrive} drive - The drive to check
+   * @param {number} timeout - Maximum wait time in ms
+   * @returns {Promise<Array>} - List of entries
+   */
+  async #waitForDriveContent(drive, timeout) {
+    const startTime = Date.now()
+    const checkInterval = 1000 // Check every second
+
+    while (Date.now() - startTime < timeout) {
+      // Check if we have peers
+      const hasPeers = this.#swarm.connections.size > 0
+
+      if (hasPeers) {
+        this.emit('download:status', { status: 'syncing' })
+        
+        // Try to list entries
+        const entries = []
+        try {
+          for await (const entry of drive.list()) {
+            entries.push(entry)
+          }
+        } catch (err) {
+          // Drive might not be ready yet, continue waiting
+        }
+
+        if (entries.length > 0) {
+          return entries
+        }
+      }
+
+      // Wait before next check
+      await new Promise(resolve => setTimeout(resolve, checkInterval))
+    }
+
+    // Final attempt - return whatever we have (might be empty)
+    const entries = []
+    try {
+      for await (const entry of drive.list()) {
+        entries.push(entry)
+      }
+    } catch {
+      // Ignore
+    }
+    return entries
   }
 }
 
