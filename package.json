@@ -16,7 +16,15 @@
     "build:desktop": "npm run make --workspace=packages/desktop",
     "test": "npm run test --workspaces --if-present"
   },
-  "keywords": ["p2p", "file-sharing", "hyperswarm", "hyperdrive"],
+  "keywords": [
+    "p2p",
+    "file-sharing",
+    "hyperswarm",
+    "hyperdrive"
+  ],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "electron": "^41.0.3"
+  }
 }
