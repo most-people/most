@@ -183,6 +183,29 @@ const Diagnostics = {
       this.results.dnsResolution?.success ? '正常' : '失败'
     );
     
+    // DHT bootstrap nodes
+    html += this.createDiagnosticItem(
+      'DHT 引导节点',
+      this.results.dhtBootstrap?.success,
+      this.results.dhtBootstrap?.success ? 
+        `${this.results.dhtBootstrap.reachableNodes.length}/${this.results.dhtBootstrap.totalNodes} 可达` : 
+        '全部不可达'
+    );
+    
+    // Show suggestions if any
+    if (this.results.suggestions && this.results.suggestions.length > 0) {
+      html += `
+        <div class="diagnostic-item">
+          <div class="diagnostic-label">建议</div>
+          <div class="diagnostic-value">
+            <ul class="suggestion-list">
+              ${this.results.suggestions.map(s => `<li>${s}</li>`).join('')}
+            </ul>
+          </div>
+        </div>
+      `;
+    }
+    
     resultsContent.innerHTML = html;
   },
   
@@ -226,13 +249,26 @@ const Diagnostics = {
       });
     }
     
+    if (!this.results.dhtBootstrap?.success) {
+      solutions.push({
+        title: 'DHT 引导节点不可达',
+        items: [
+          '检查防火墙设置，允许 MostBox 通过',
+          '在防火墙中添加端口 49737 和 6881 的入站规则',
+          '尝试暂时禁用防火墙测试连接',
+          '如果使用公司网络，联系网络管理员'
+        ]
+      });
+    }
+    
     if (this.results.peerCount === 0) {
       solutions.push({
         title: '未找到发布者节点',
         items: [
           '确保文件发布者在线',
           '等待几分钟后重试（节点发现需要时间）',
-          '检查链接是否正确'
+          '检查链接是否正确',
+          '尝试使用其他网络（如手机热点）'
         ]
       });
     }
@@ -283,8 +319,22 @@ const Diagnostics = {
           logArea.textContent += '- 需要允许端口 6881 (DHT)\n';
         }
       }
+      
+      // Add general firewall advice
+      logArea.textContent += '\n=== 防火墙配置建议 ===\n\n';
+      logArea.textContent += '1. 打开 Windows 防火墙高级设置\n';
+      logArea.textContent += '2. 创建入站规则允许以下端口:\n';
+      logArea.textContent += '   - TCP 49737 (Hyperswarm)\n';
+      logArea.textContent += '   - UDP 6881 (DHT)\n';
+      logArea.textContent += '3. 创建出站规则允许相同端口\n';
+      logArea.textContent += '4. 允许 Node.js 应用程序通过防火墙\n';
+      
     } catch (err) {
       logArea.textContent += `\n检查失败: ${err.message}\n`;
+      logArea.textContent += '\n手动检查防火墙:\n';
+      logArea.textContent += '1. 打开控制面板 -> 系统和安全 -> Windows Defender 防火墙\n';
+      logArea.textContent += '2. 点击"允许应用或功能通过 Windows Defender 防火墙"\n';
+      logArea.textContent += '3. 确保 MostBox 或 Node.js 在允许列表中\n';
     }
   },
   
@@ -292,6 +342,7 @@ const Diagnostics = {
 
 // --- Event Bindings ---
 document.getElementById('runDiagnosis').addEventListener('click', () => Diagnostics.run());
+document.getElementById('checkFirewall').addEventListener('click', () => Diagnostics.checkFirewall());
 
 // --- Initialization ---
 async function init() {

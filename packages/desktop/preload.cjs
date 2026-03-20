@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('mostBox', {
 
   // Network diagnostics
   diagnoseNetwork: () => ipcRenderer.invoke('diagnose-network'),
+  checkFirewall: () => ipcRenderer.invoke('check-firewall'),
 
   // Window controls
   minimizeWindow: () => ipcRenderer.send('window-minimize'),

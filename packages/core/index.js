@@ -333,9 +333,16 @@ export class MostBoxEngine extends EventEmitter {
       let errorMessage = 'No files found in drive. '
       
       if (peerCount === 0) {
-        errorMessage += 'Could not connect to any peers. Please check your network connection and firewall settings.'
+        errorMessage += 'Could not connect to any peers. This may be due to:\n'
+        errorMessage += '1. Network firewall blocking P2P connections\n'
+        errorMessage += '2. DHT bootstrap nodes unreachable\n'
+        errorMessage += '3. NAT traversal failed (try port forwarding)\n'
+        errorMessage += '4. No peers are currently sharing this file'
       } else {
-        errorMessage += `Connected to ${peerCount} peers but no file data was found. The publisher may be offline or the file may have been removed.`
+        errorMessage += `Connected to ${peerCount} peers but no file data was found. This may be due to:\n`
+        errorMessage += '1. Publisher node offline\n'
+        errorMessage += '2. File may have been removed by publisher\n'
+        errorMessage += '3. File link may be invalid or corrupted'
       }
       
       throw new PeerNotFoundError(errorMessage)
@@ -499,6 +506,7 @@ export class MostBoxEngine extends EventEmitter {
     const checkInterval = 1000 // Check every second
     let lastPeerCount = 0
     let lastStatus = ''
+    let bootstrapNodesChecked = false
 
     // First, check if content is already available locally (for self-published files)
     const localEntries = []
@@ -562,6 +570,16 @@ export class MostBoxEngine extends EventEmitter {
         // Log progress every 30 seconds
         if (elapsed % 30 === 0 && elapsed > 0) {
           console.log(`[MostBox] Still waiting for peers... (${elapsed}s elapsed, timeout: ${timeout/1000}s)`)
+          
+          // Check if bootstrap nodes are reachable (only once)
+          if (!bootstrapNodesChecked && elapsed >= 60) {
+            bootstrapNodesChecked = true
+            console.log(`[MostBox] No peers found after 60s. This may indicate:`)
+            console.log(`[MostBox] 1. Network/firewall blocking P2P connections`)
+            console.log(`[MostBox] 2. DHT bootstrap nodes unreachable`)
+            console.log(`[MostBox] 3. Publisher node offline`)
+            console.log(`[MostBox] 4. NAT traversal failed`)
+          }
         }
       }
 
@@ -582,6 +600,22 @@ export class MostBoxEngine extends EventEmitter {
     }
     
     console.log(`[MostBox] Final entry count: ${entries.length}`)
+    
+    // Provide detailed error information
+    if (entries.length === 0) {
+      const peerCount = this.#swarm.connections.size
+      console.log(`[MostBox] Diagnostic information:`)
+      console.log(`[MostBox] - Peer count: ${peerCount}`)
+      console.log(`[MostBox] - Bootstrap nodes: ${SWARM_BOOTSTRAP.length}`)
+      console.log(`[MostBox] - Timeout: ${timeout/1000}s`)
+      
+      if (peerCount === 0) {
+        console.log(`[MostBox] Suggestion: Check network connectivity and firewall settings`)
+      } else {
+        console.log(`[MostBox] Suggestion: Publisher may be offline or file may have been removed`)
+      }
+    }
+    
     return entries
   }
 }

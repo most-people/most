@@ -137,7 +137,9 @@ ipcMain.handle('diagnose-network', async () => {
   const results = {
     basicConnectivity: null,
     dnsResolution: null,
-    peerCount: 0
+    dhtBootstrap: null,
+    peerCount: 0,
+    suggestions: []
   };
 
   // Check basic connectivity
@@ -168,10 +170,56 @@ ipcMain.handle('diagnose-network', async () => {
     };
   }
 
+  // Check DHT bootstrap nodes
+  const bootstrapNodes = [
+    'bootstrap1.hyperswarm.org',
+    'bootstrap2.hyperswarm.org',
+    'bootstrap3.hyperswarm.org',
+    'dht.transmissionbt.com'
+  ];
+  
+  const reachableNodes = [];
+  for (const node of bootstrapNodes) {
+    try {
+      const { stdout } = await execAsync(`ping -n 1 ${node}`);
+      if (stdout.includes('TTL') || stdout.includes('时间=')) {
+        reachableNodes.push(node);
+      }
+    } catch (err) {
+      // Node unreachable
+    }
+  }
+  
+  results.dhtBootstrap = {
+    success: reachableNodes.length > 0,
+    reachableNodes: reachableNodes,
+    totalNodes: bootstrapNodes.length,
+    output: `Reachable: ${reachableNodes.length}/${bootstrapNodes.length}`
+  };
+
   // Get current peer count
   if (engine) {
     const status = engine.getNetworkStatus();
     results.peerCount = status.peers;
+  }
+
+  // Generate suggestions
+  if (!results.basicConnectivity?.success) {
+    results.suggestions.push('Check your internet connection');
+  }
+  
+  if (!results.dnsResolution?.success) {
+    results.suggestions.push('DNS resolution failed - try changing DNS servers');
+  }
+  
+  if (!results.dhtBootstrap?.success) {
+    results.suggestions.push('DHT bootstrap nodes unreachable - firewall may be blocking P2P');
+    results.suggestions.push('Try disabling firewall or adding MostBox to exceptions');
+  }
+  
+  if (results.peerCount === 0) {
+    results.suggestions.push('No peers connected - publisher may be offline');
+    results.suggestions.push('Wait a few minutes and try again');
   }
 
   return results;
@@ -194,6 +242,47 @@ ipcMain.on('window-maximize', () => {
 
 ipcMain.on('window-close', () => {
   if (mainWindow) mainWindow.close();
+});
+
+// Check firewall rules
+ipcMain.handle('check-firewall', async () => {
+  const results = {
+    nodeJsRule: false,
+    port49737Rule: false,
+    port6881Rule: false
+  };
+
+  try {
+    // Check if Node.js is allowed through firewall
+    const { stdout: nodeOutput } = await execAsync(
+      'netsh advfirewall firewall show rule name=all | findstr /i "Node"'
+    );
+    results.nodeJsRule = nodeOutput.includes('Node') || nodeOutput.includes('node');
+  } catch (err) {
+    // Rule not found
+  }
+
+  try {
+    // Check if port 49737 is allowed
+    const { stdout: port49737Output } = await execAsync(
+      'netsh advfirewall firewall show rule name=all | findstr "49737"'
+    );
+    results.port49737Rule = port49737Output.includes('49737');
+  } catch (err) {
+    // Rule not found
+  }
+
+  try {
+    // Check if port 6881 is allowed
+    const { stdout: port6881Output } = await execAsync(
+      'netsh advfirewall firewall show rule name=all | findstr "6881"'
+    );
+    results.port6881Rule = port6881Output.includes('6881');
+  } catch (err) {
+    // Rule not found
+  }
+
+  return results;
 });
 
 // App lifecycle
