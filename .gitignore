@@ -1,5 +1,5 @@
-# Project
-most-box-storage
+# Runtime data
+*-storage/
 *.log
 
 # Dependencies
@@ -25,11 +25,22 @@ build/
 # Electron
 packages/desktop/out/
 
-# React Native
+# React Native - Android
 packages/mobile/android/app/build/
+packages/mobile/android/build/
+packages/mobile/android/.gradle/
+packages/mobile/android/local.properties
+packages/mobile/android/app/debug.keystore
+*.apk
+*.aab
+
+# React Native - iOS
 packages/mobile/ios/build/
 packages/mobile/ios/Pods/
-packages/mobile/android/.gradle/
+packages/mobile/ios/*.xcworkspace
+packages/mobile/ios/xcuserdata/
+packages/mobile/ios/DerivedData/
+*.xcuserstate
 
 # Node.js mobile
 packages/mobile/nodejs-assets/nodejs-project/node_modules/
@@ -37,3 +48,7 @@ nodejs-assets/
 
 # npm config (local mirrors)
 .npmrc
+
+# Empty directories
+shims/
+patches/

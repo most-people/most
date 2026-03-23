@@ -5,7 +5,7 @@
   "type": "module",
   "main": "main.js",
   "scripts": {
-    "start": "chcp 65001 && electron .",
+    "start": "chcp 65001 >nul && set PYTHONIOENCODING=utf-8 && set NODE_OPTIONS=--max-old-space-size=4096 && electron .",
     "package": "electron-forge package",
     "make": "electron-forge make"
   },

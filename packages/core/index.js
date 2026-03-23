@@ -86,13 +86,19 @@ export class MostBoxEngine extends EventEmitter {
     }
 
     // Initialize Hyperswarm with NAT traversal enabled
-    console.log(`[MostBox] Initializing Hyperswarm with ${SWARM_BOOTSTRAP.length} bootstrap nodes...`)
+    console.log(`[MostBox] Initializing Hyperswarm...`)
     this.#swarm = new Hyperswarm({
-      bootstrap: SWARM_BOOTSTRAP,
       // Connection settings for better stability
       maxPeers: 64,
-      // Enable NAT traversal (hole punching) - same as Keet.io
-      firewalled: false,
+      // DHT bootstrap nodes (same as Keet.io/HyperDHT)
+      bootstrap: SWARM_BOOTSTRAP,
+      // Enable NAT traversal (hole punching)
+      // firewall function: allow all connections (default behavior)
+      firewall: () => false,
+      // Connection keep-alive timeout (5 seconds)
+      connectionKeepAlive: 5000,
+      // Random punch interval for NAT traversal (20 seconds)
+      randomPunchInterval: 20000,
       // Increase timeouts for unstable networks
       handshakeTimeout: CONNECTION_TIMEOUT
     })
@@ -228,8 +234,8 @@ export class MostBoxEngine extends EventEmitter {
       await drive.ready()
       this.#drives.set(name, drive)
       
-      // Join P2P network
-      const discovery = this.#swarm.join(drive.discoveryKey)
+      // Join P2P network as server (we're publishing/sharing the file)
+      const discovery = this.#swarm.join(drive.discoveryKey, { server: true, client: false })
       await discovery.flushed()
     }
 
@@ -274,14 +280,11 @@ export class MostBoxEngine extends EventEmitter {
   /**
    * Download a file from the P2P network
    * @param {string} link - most:// link
-   * @param {string} [downloadPath] - Path to save the file (defaults to configured downloadPath)
    * @param {object} [callbacks] - Progress callbacks
-   * @returns {Promise<{ fileName: string, savedPath: string }>}
+   * @returns {Promise<{ fileName: string, savedPath: string, alreadyExists?: boolean }>}
    */
-  async downloadFile(link, downloadPath, callbacks = {}) {
+  async downloadFile(link, callbacks = {}) {
     this.#ensureInitialized()
-
-    const targetDir = downloadPath || this.#options.downloadPath
 
     console.log(`[MostBox] Starting download for link: ${link}`)
 
@@ -292,6 +295,17 @@ export class MostBoxEngine extends EventEmitter {
     }
     const cidString = parsed.cid
     console.log(`[MostBox] Parsed CID: ${cidString}`)
+
+    // Check if file already exists in published files
+    const existingFile = this.#publishedFiles.find(f => f.cid === cidString)
+    if (existingFile) {
+      console.log(`[MostBox] File already exists: ${existingFile.fileName}`)
+      return {
+        fileName: existingFile.fileName,
+        savedPath: existingFile.originalPath,
+        alreadyExists: true
+      }
+    }
 
     // Parse CID
     const parsedCid = CID.parse(cidString)
@@ -312,7 +326,8 @@ export class MostBoxEngine extends EventEmitter {
       if (callbacks.onStatus) callbacks.onStatus('connecting')
       
       console.log(`[MostBox] Joining swarm for drive discovery...`)
-      await this.#swarm.join(drive.discoveryKey).flushed()
+      // Join as client only (we're downloading, not serving)
+      await this.#swarm.join(drive.discoveryKey, { server: false, client: true }).flushed()
       console.log(`[MostBox] Swarm join flushed`)
     } else {
       console.log(`[MostBox] Using existing drive: ${name}`)
@@ -350,7 +365,10 @@ export class MostBoxEngine extends EventEmitter {
 
     console.log(`[MostBox] Found ${entries.length} entries, starting download...`)
 
-    // Check download directory
+    // Save to storage directory (not Downloads folder)
+    const targetDir = this.#options.storagePath
+
+    // Check storage directory
     const writableCheck = await checkDirectoryWritable(targetDir)
     if (!writableCheck.writable) {
       throw new PermissionError(writableCheck.error)
@@ -427,6 +445,22 @@ export class MostBoxEngine extends EventEmitter {
         savedPath: savePath
       }
 
+      // 将下载的文件添加到已发布文件列表
+      const existingIndex = this.#publishedFiles.findIndex(f => f.cid === cidString)
+      if (existingIndex === -1) {
+        this.#publishedFiles.push({
+          fileName: sanitizedFileName,
+          cid: cidString,
+          publishedAt: new Date().toISOString(),
+          originalPath: savePath
+        })
+      } else {
+        this.#publishedFiles[existingIndex].publishedAt = new Date().toISOString()
+        this.#publishedFiles[existingIndex].fileName = sanitizedFileName
+        this.#publishedFiles[existingIndex].originalPath = savePath
+      }
+      this.#savePublishedMetadata()
+
       this.emit('download:success', result)
       return result
     }
@@ -442,7 +476,8 @@ export class MostBoxEngine extends EventEmitter {
       fileName: f.fileName,
       cid: f.cid,
       link: `most://${f.cid}`,
-      publishedAt: f.publishedAt
+      publishedAt: f.publishedAt,
+      originalPath: f.originalPath
     }))
   }
 

@@ -12,27 +12,11 @@ export const DOWNLOAD_TIMEOUT = 900000
 // P2P settings
 export const GLOBAL_SHARED_SEED_STRING = 'most-box-global-shared-seed-v1'
 
-// DHT Bootstrap nodes for Hyperswarm
-// Using multiple bootstrap nodes improves connection reliability
+// DHT Bootstrap nodes for Hyperswarm/HyperDHT
+// Using the same bootstrap nodes as Keet.io/HyperDHT for compatibility
+// Format: [suggested-IP@]<host>:<port> to avoid DNS calls
 export const SWARM_BOOTSTRAP = [
-  // Default Hyperswarm bootstrap nodes
-  { host: 'bootstrap1.hyperswarm.org', port: 49737 },
-  { host: 'bootstrap2.hyperswarm.org', port: 49737 },
-  { host: 'bootstrap3.hyperswarm.org', port: 49737 },
-  // Additional public DHT nodes for better global coverage
-  { host: 'router.bittorrent.com', port: 6881 },
-  { host: 'router.utorrent.com', port: 6881 },
-  { host: 'dht.transmissionbt.com', port: 6881 },
-  // Fallback nodes
-  { host: 'dht.libtorrent.org', port: 25401 },
-  { host: 'dht.aelitis.com', port: 6881 },
-  // Additional nodes for better global coverage (including China)
-  { host: 'dht.acgnx.com', port: 6881 },
-  { host: 'dht.acgnx.se', port: 6881 },
-  // IPv6 nodes
-  { host: '2400:8902::f03c:93ff:fe74:1683', port: 6881 },
-  { host: '2a01:4f8:212:1b24::3', port: 6881 },
-  // Additional nodes from qBittorrent list
-  { host: 'router.silotis.us', port: 6881 },
-  { host: 'dht.anacrolix.link', port: 42069 }
+  '88.99.3.86@node1.hyperdht.org:49737',
+  '142.93.90.113@node2.hyperdht.org:49737',
+  '138.68.147.8@node3.hyperdht.org:49737'
 ]

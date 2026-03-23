@@ -323,8 +323,46 @@ async function init() {
   }
   
   refreshPublishedFilesList()
-  refreshNetworkStatus()
+  
+  // 启动网络诊断
+  await checkNetworkOnStartup()
+  
+  // 定期刷新网络状态
   setInterval(refreshNetworkStatus, 10000)
+}
+
+// --- 启动时网络检测 ---
+
+async function checkNetworkOnStartup() {
+  if (networkStatusEl) {
+    networkStatusEl.innerText = '正在初始化 P2P 网络...'
+    networkStatusEl.style.color = '#ff9500'
+  }
+  
+  try {
+    // 等待一下让引擎初始化
+    await new Promise(resolve => setTimeout(resolve, 2000))
+    
+    const status = await window.mostBox.getNetworkStatus()
+    
+    if (status.peers > 0) {
+      networkStatusEl.innerText = `已连接 ${status.peers} 个节点`
+      networkStatusEl.style.color = '#34c759'
+    } else {
+      networkStatusEl.innerText = 'P2P 网络已启动，等待连接...'
+      networkStatusEl.style.color = '#ff9500'
+      ToastManager.info('P2P 网络已启动，发布或下载文件后将自动连接')
+    }
+  } catch (err) {
+    console.error('网络检测失败:', err)
+    if (networkStatusEl) {
+      networkStatusEl.innerText = '网络检测失败'
+      networkStatusEl.style.color = '#ff3b30'
+    }
+  }
+  
+  // 继续刷新状态
+  refreshNetworkStatus()
 }
 
 // --- 网络状态刷新 ---
@@ -333,9 +371,13 @@ async function refreshNetworkStatus() {
   try {
     const status = await window.mostBox.getNetworkStatus()
     if (networkStatusEl) {
-      const statusText = status.peers > 0 ? `已连接 ${status.peers} 个节点` : '等待连接中...'
-      networkStatusEl.innerText = statusText
-      networkStatusEl.style.color = status.peers > 0 ? '#34c759' : '#ff9500'
+      if (status.peers > 0) {
+        networkStatusEl.innerText = `已连接 ${status.peers} 个节点`
+        networkStatusEl.style.color = '#34c759'
+      } else {
+        networkStatusEl.innerText = 'P2P 网络已启动，等待节点发现...'
+        networkStatusEl.style.color = '#ff9500'
+      }
     }
   } catch (err) {
     console.error('获取网络状态失败:', err)
@@ -433,12 +475,22 @@ async function download() {
     const result = await window.mostBox.downloadFile(link)
     
     if (result.success) {
-      downloadResult.innerHTML = `
-        <p class="success">下载成功！</p>
-        <p>文件: ${escapeHtml(result.fileName)}</p>
-        <p>保存到: ${escapeHtml(result.savedPath)}</p>
-      `
-      ToastManager.success('文件下载完成!')
+      if (result.alreadyExists) {
+        downloadResult.innerHTML = `
+          <p class="success">文件已存在！</p>
+          <p>文件: ${escapeHtml(result.fileName)}</p>
+          <p>该文件已在已发布文件列表中</p>
+        `
+        ToastManager.info('文件已存在，无需重复下载')
+      } else {
+        downloadResult.innerHTML = `
+          <p class="success">下载成功！</p>
+          <p>文件: ${escapeHtml(result.fileName)}</p>
+          <p>已添加到已发布文件列表</p>
+        `
+        ToastManager.success('文件下载完成!')
+        refreshPublishedFilesList()
+      }
     } else {
       throw new Error(result.error || result.code || '下载失败')
     }
@@ -483,6 +535,7 @@ function renderPublishedFiles(files) {
         </div>
         <div class="published-item-actions">
           <button class="btn-copy" data-link="${escapeHtml(file.link)}">复制链接</button>
+          <button class="btn-save-as" data-cid="${escapeHtml(file.cid)}">另存为</button>
           <button class="btn-delete" data-cid="${escapeHtml(file.cid)}">删除</button>
         </div>
       </li>
@@ -500,6 +553,23 @@ function renderPublishedFiles(files) {
       }).catch(() => {
         ToastManager.error('复制失败')
       })
+    })
+  })
+
+  // 绑定另存为按钮事件
+  publishedFilesList.querySelectorAll('.btn-save-as').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const cid = btn.getAttribute('data-cid')
+      try {
+        const result = await window.mostBox.saveAsFile(cid)
+        if (result.success) {
+          ToastManager.success('文件已保存到: ' + result.savedPath)
+        } else {
+          ToastManager.error('保存失败: ' + result.error)
+        }
+      } catch (err) {
+        ToastManager.error('保存失败: ' + err.message)
+      }
     })
   })
 

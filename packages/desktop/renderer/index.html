@@ -293,6 +293,12 @@
       .btn-copy {
         background: var(--accent);
       }
+      .btn-save-as {
+        background: var(--success);
+      }
+      .btn-save-as:hover {
+        background: #30d158;
+      }
       .btn-delete {
         background: var(--error);
       }
@@ -408,16 +414,6 @@
         <div id="downloadResult"></div>
         <div id="taskStatus"></div>
       </div>
-    </div>
-
-    <div class="card">
-      <h2>网络诊断</h2>
-      <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 14px;">
-        如果下载一直卡在"正在寻找发布者节点..."，请运行网络诊断工具检查连接问题。
-      </p>
-      <a href="./diagnose.html" style="display: inline-block;">
-        <button style="background: var(--success);">打开网络诊断</button>
-      </a>
     </div>
 
     <script type="module" src="./app.js"></script>

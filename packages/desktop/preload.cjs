@@ -1,10 +1,7 @@
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
-// Expose protected methods to renderer process
 contextBridge.exposeInMainWorld('mostBox', {
-  // Get file path from File object (Electron 33+ API)
   getFilePath: (file) => webUtils.getPathForFile(file),
-  // P2P Operations
   getNodeId: () => ipcRenderer.invoke('get-node-id'),
   getNetworkStatus: () => ipcRenderer.invoke('get-network-status'),
   publishFile: (filePath, fileName) => 
@@ -15,17 +12,11 @@ contextBridge.exposeInMainWorld('mostBox', {
     ipcRenderer.invoke('list-published-files'),
   deletePublishedFile: (cid) => 
     ipcRenderer.invoke('delete-published-file', { cid }),
-
-  // Network diagnostics
-  diagnoseNetwork: () => ipcRenderer.invoke('diagnose-network'),
-  checkFirewall: () => ipcRenderer.invoke('check-firewall'),
-
-  // Window controls
+  saveAsFile: (cid) => 
+    ipcRenderer.invoke('save-as-file', { cid }),
   minimizeWindow: () => ipcRenderer.send('window-minimize'),
   maximizeWindow: () => ipcRenderer.send('window-maximize'),
   closeWindow: () => ipcRenderer.send('window-close'),
-
-  // Event listeners (progress, status updates)
   onDownloadProgress: (callback) => {
     ipcRenderer.on('download:progress', (_, data) => callback(data));
   },
@@ -47,8 +38,6 @@ contextBridge.exposeInMainWorld('mostBox', {
   onEngineReady: (callback) => {
     ipcRenderer.on('engine:ready', () => callback());
   },
-
-  // Remove listeners
   removeAllListeners: (channel) => {
     ipcRenderer.removeAllListeners(channel);
   }
