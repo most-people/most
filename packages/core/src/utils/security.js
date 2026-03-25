@@ -1,7 +1,7 @@
 import path from 'node:path'
 import fs from 'node:fs'
 
-const MAX_FILE_SIZE = 100 * 1024 * 1024 * 1024 // 100 GB
+import { MAX_FILE_SIZE } from '../config.js'
 
 const DANGEROUS_CHARS = /[<>:"|?*\x00-\x1f]/g
 const DANGEROUS_PREFIXES = /^[\s.]+|[\s.]+$/
@@ -148,4 +148,3 @@ export function formatFileSize(bytes) {
   return `${size.toFixed(2)} ${units[unitIndex]}`
 }
 
-export { MAX_FILE_SIZE }

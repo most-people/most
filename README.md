@@ -32,9 +32,8 @@ most-box/
 ### packages/desktop
 
 Electron 桌面应用，提供：
-- Windows: `.exe` 安装包 (Squirrel)
-- macOS: `.dmg` 安装包
-- 独立运行，无需预装任何运行时
+- Windows/macOS: 便携版 zip 压缩包
+- 独立运行，无需安装
 
 ### packages/mobile
 
@@ -83,8 +82,11 @@ npm test                # 运行测试
 ```bash
 cd packages/desktop
 npm run start           # 启动 Electron 开发模式
-npm run make            # 打包桌面应用
+npm run package         # 打包为便携版文件夹
+npm run zip             # 生成便携版 zip 压缩包
 ```
+
+分发时使用 `out/Most-Box-1.0.0-portable.zip`（或解压后的文件夹）。
 
 #### 移动端
 
@@ -127,7 +129,7 @@ npm run android
 | 平台 | 状态 |
 |------|------|
 | packages/core | ✅ 完成 |
-| packages/desktop | 🚧 开发中 |
+| packages/desktop | 🧪 测试中 |
 | packages/mobile | 🚧 开发中 |
 
 ## 从 Pear 迁移

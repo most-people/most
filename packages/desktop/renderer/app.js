@@ -1,7 +1,7 @@
 // Most Box Desktop - Renderer Process
 // Uses Electron's preload IPC bridge (window.mostBox)
 
-// IPC 消息类型常量 (与核心模块保持一致)
+// IPC message type constants (must match main process)
 const IPC = {
   GET_NODE_ID: 'get-node-id',
   NODE_ID: 'node-id',

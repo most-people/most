@@ -22,9 +22,5 @@
     "hyperswarm",
     "hyperdrive"
   ],
-  "author": "",
-  "license": "MIT",
-  "dependencies": {
-    "electron": "^41.0.3"
-  }
+  "license": "MIT"
 }
