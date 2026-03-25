@@ -6,7 +6,7 @@
   "main": "main.js",
   "scripts": {
     "start": "chcp 65001 >nul && set PYTHONIOENCODING=utf-8 && set NODE_OPTIONS=--max-old-space-size=4096 && electron .",
-    "build": "esbuild main.js --bundle --platform=node --outfile=dist/main.js --external:electron --external:@most-box/core --format=esm",
+    "build": "esbuild main.js --bundle --platform=node --outfile=dist/main.js --external:electron --external:@most-people/core --format=esm",
     "package": "npm run build && electron-forge package",
     "package:dev": "electron-forge package",
     "zip": "cd out && powershell -Command \"Compress-Archive -Path 'Most Box-win32-x64' -DestinationPath 'Most-Box-1.0.0-portable.zip' -Force\""
@@ -20,12 +20,13 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@most-box/core": "*",
+    "@most-people/core": "^1.0.0",
     "b4a": "^1.8.0"
   },
   "devDependencies": {
     "@electron-forge/cli": "^7.4.0",
     "@electron/packager": "^18.4.4",
+    "asar": "^3.2.0",
     "electron": "^33.0.0",
     "esbuild": "^0.27.4"
   },

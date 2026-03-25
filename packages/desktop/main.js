@@ -2,9 +2,11 @@ import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { MostBoxEngine } from '@most-box/core';
+import { MostBoxEngine } from '@most-people/core';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const __dirname = typeof __dirname !== 'undefined' 
+  ? __dirname 
+  : path.dirname(fileURLToPath(import.meta.url));
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 

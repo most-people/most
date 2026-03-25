@@ -10,7 +10,7 @@
     "test": "jest"
   },
   "dependencies": {
-    "@most-box/core": "*",
+    "@most-people/core": "^1.0.0",
     "react": "^18.2.0",
     "react-native": "^0.74.0",
     "nodejs-mobile-react-native": "^0.8.0",

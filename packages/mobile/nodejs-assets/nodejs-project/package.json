@@ -4,6 +4,6 @@
   "description": "Node.js backend for Most Box Mobile",
   "main": "main.js",
   "dependencies": {
-    "@most-box/core": "file:../../.."
+    "@most-people/core": "^1.0.0"
   }
 }

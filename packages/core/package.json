@@ -1,5 +1,5 @@
 {
-  "name": "@most-box/core",
+  "name": "@most-people/core",
   "version": "1.0.0",
   "description": "Core P2P engine for Most Box - platform-agnostic Hyperswarm/Hyperdrive based file sharing",
   "type": "module",

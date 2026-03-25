@@ -2,7 +2,7 @@
 // This runs inside nodejs-mobile-react-native's embedded Node.js runtime
 
 const bridge = require('rn-bridge');
-const { MostBoxEngine } = require('@most-box/core');
+const { MostBoxEngine } = require('@most-people/core');
 
 let engine = null;
 
