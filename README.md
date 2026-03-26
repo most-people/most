@@ -10,11 +10,17 @@
 most-box/
 ├── packages/
 │   ├── core/              # 平台无关的 P2P 核心逻辑
+│   │   └── (已发布为 @most-people/core on npm)
 │   ├── desktop/           # Electron 桌面端 (Windows/macOS)
 │   └── mobile/            # React Native 移动端 (iOS/Android)
 ├── package.json           # 根 package.json (workspaces 配置)
 └── README.md
 ```
+
+**依赖关系：**
+- `core` 已发布到 npm (@most-people/core)
+- `desktop` 和 `mobile` 通过 npm 依赖 @most-people/core
+- 本地开发时通过 workspace 链接到 packages/core
 
 ### packages/core
 
@@ -25,9 +31,16 @@ most-box/
 - 文件发布/下载逻辑
 - 安全校验（路径遍历防护、文件大小限制、完整性校验）
 
+**发布到 npm：**
+```bash
+cd packages/core
+npm publish --access public
+```
+
 **特性：**
 - 纯 Node.js 实现，无平台依赖
 - 可在任何 Node.js 环境（Electron、React Native nodejs-mobile）中运行
+- 已发布到 npm: [@most-people/core](https://www.npmjs.com/package/@most-people/core)
 
 ### packages/desktop
 
@@ -86,7 +99,7 @@ npm run package         # 打包为便携版文件夹
 npm run zip             # 生成便携版 zip 压缩包
 ```
 
-分发时使用 `out/Most-Box-1.0.0-portable.zip`（或解压后的文件夹）。
+> 注意：@most-people/core 依赖通过 npm 安装，发布新版本时需先执行 `npm publish`
 
 #### 移动端
 
@@ -126,11 +139,11 @@ npm run android
 
 ## 开发状态
 
-| 平台 | 状态 |
-|------|------|
-| packages/core | ✅ 完成 |
-| packages/desktop | 🧪 测试中 |
-| packages/mobile | 🚧 开发中 |
+| 平台 | 状态 | 备注 |
+|------|------|------|
+| packages/core | ✅ 完成 | 已发布 npm (@most-people/core) |
+| packages/desktop | 🧪 测试中 | 便携版 zip 可用 |
+| packages/mobile | 🚧 开发中 | - |
 
 ## 从 Pear 迁移
 
