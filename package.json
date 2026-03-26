@@ -2,17 +2,15 @@
   "name": "most-box-monorepo",
   "version": "1.0.0",
   "private": true,
-  "description": "Most Box - Cross-platform P2P file sharing application",
+  "description": "MostBox - Cross-platform P2P file sharing application",
   "type": "module",
   "workspaces": [
     "packages/core",
-    "packages/desktop",
-    "packages/mobile"
+    "packages/desktop"
   ],
   "scripts": {
     "core": "npm run start --workspace=packages/core",
     "desktop": "npm run start --workspace=packages/desktop",
-    "mobile": "npm run start --workspace=packages/mobile",
     "build:desktop": "npm run make --workspace=packages/desktop",
     "test": "npm run test --workspaces --if-present"
   },

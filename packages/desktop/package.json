@@ -1,7 +1,7 @@
 {
   "name": "@most-box/desktop",
   "version": "1.0.0",
-  "description": "Most Box Desktop - P2P file sharing application",
+  "description": "MostBox Desktop - P2P file sharing application",
   "type": "module",
   "main": "main.js",
   "scripts": {
@@ -9,7 +9,7 @@
     "build": "esbuild main.js --bundle --platform=node --outfile=dist/main.js --external:electron --external:@most-people/core --format=esm",
     "package": "npm run build && electron-forge package",
     "package:dev": "electron-forge package",
-    "zip": "cd out && powershell -Command \"Compress-Archive -Path 'Most Box-win32-x64' -DestinationPath 'Most-Box-1.0.0-portable.zip' -Force\""
+    "zip": "cd out && powershell -Command \"Compress-Archive -Path 'MostBox-win32-x64' -DestinationPath 'MostBox-1.0.0-portable.zip' -Force\""
   },
   "keywords": [
     "p2p",

@@ -1,4 +1,4 @@
-// Most Box Desktop - Renderer Process
+// MostBox Desktop - Renderer Process
 // Uses Electron's preload IPC bridge (window.mostBox)
 
 // IPC message type constants (must match main process)
