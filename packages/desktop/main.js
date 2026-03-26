@@ -16,7 +16,7 @@ process.on('unhandledRejection', (reason, promise) => {
 
 const getAppPath = () => {
   if (app.isPackaged) {
-    return path.dirname(app.getAppPath());
+    return app.getAppPath();
   }
   return process.cwd();
 };
