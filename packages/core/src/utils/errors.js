@@ -18,13 +18,6 @@ export class ValidationError extends AppError {
   }
 }
 
-export class FileNotFoundError extends AppError {
-  constructor(message = 'File not found') {
-    super(message, 'FILE_NOT_FOUND')
-    this.name = 'FileNotFoundError'
-  }
-}
-
 export class FileSizeError extends AppError {
   constructor(message, size) {
     super(message, 'FILE_SIZE_ERROR')
@@ -37,13 +30,6 @@ export class PathSecurityError extends AppError {
   constructor(message = 'Path validation failed') {
     super(message, 'PATH_SECURITY_ERROR')
     this.name = 'PathSecurityError'
-  }
-}
-
-export class NetworkError extends AppError {
-  constructor(message = 'Network error') {
-    super(message, 'NETWORK_ERROR')
-    this.name = 'NetworkError'
   }
 }
 
@@ -77,12 +63,4 @@ export class EngineNotInitializedError extends AppError {
 
 export function isErrorWithCode(err, code) {
   return err && err.code === code
-}
-
-export function toPlainError(err) {
-  return {
-    message: err.message || 'Unknown error',
-    code: err.code || 'UNKNOWN',
-    name: err.name || 'Error'
-  }
 }

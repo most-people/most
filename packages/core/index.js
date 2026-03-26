@@ -14,7 +14,7 @@ import path from 'node:path'
 
 import { calculateCid, parseMostLink } from './src/core/cid.js'
 import { sanitizeFilename, validateAndSanitizePath, validateFileSize, checkDirectoryWritable, formatFileSize } from './src/utils/security.js'
-import { ValidationError, PathSecurityError, FileSizeError, PeerNotFoundError, IntegrityError, PermissionError, EngineNotInitializedError, toPlainError } from './src/utils/errors.js'
+import { ValidationError, PathSecurityError, FileSizeError, PeerNotFoundError, IntegrityError, PermissionError, EngineNotInitializedError } from './src/utils/errors.js'
 import { GLOBAL_SHARED_SEED_STRING, MAX_FILE_SIZE, CONNECTION_TIMEOUT, DOWNLOAD_TIMEOUT, SWARM_BOOTSTRAP } from './src/config.js'
 
 export class MostBoxEngine extends EventEmitter {
@@ -655,9 +655,8 @@ export class MostBoxEngine extends EventEmitter {
   }
 }
 
-// Re-export utilities and constants
+// Re-export utilities
 export * from './src/config.js'
-export * from './src/constants.js'
 export * from './src/core/cid.js'
 export * from './src/utils/errors.js'
 export * from './src/utils/security.js'
