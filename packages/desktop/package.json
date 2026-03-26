@@ -1,13 +1,14 @@
 {
-  "name": "@most-box/desktop",
+  "name": "mostbox",
   "version": "1.0.0",
   "description": "MostBox Desktop - P2P file sharing application",
   "type": "module",
   "main": "main.js",
   "scripts": {
-    "start": "chcp 65001 >nul && set PYTHONIOENCODING=utf-8 && set NODE_OPTIONS=--max-old-space-size=4096 && electron .",
-    "build": "esbuild main.js --bundle --platform=node --outfile=dist/main.js --external:electron --format=esm",
-    "package": "npm run build && electron-forge package",
+    "start": "chcp 65001 >nul && set PYTHONIOENCODING=utf-8 && set NODE_OPTIONS=--max-old-space-size=4096 && electron main.js",
+    "package": "electron-forge package",
+    "make": "electron-forge make",
+    "build": "electron-builder --win",
     "package:dev": "electron-forge package",
     "zip": "cd out && powershell -Command \"Compress-Archive -Path 'MostBox-win32-x64' -DestinationPath 'MostBox-1.0.0-portable.zip' -Force\""
   },
@@ -20,15 +21,23 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "b4a": "^1.8.0"
+    "b4a": "^1.8.0",
+    "corestore": "^7.9.2",
+    "eventemitter3": "^5.0.4",
+    "hyperdrive": "^13.3.1",
+    "hyperswarm": "^4.17.0",
+    "ipfs-unixfs-importer": "^16.1.4",
+    "multiformats": "^13.4.2"
   },
   "devDependencies": {
     "@electron-forge/cli": "^7.4.0",
+    "@electron-forge/maker-squirrel": "^7.11.1",
+    "@electron-forge/maker-zip": "^7.11.1",
     "@electron/packager": "^18.4.4",
     "asar": "^3.2.0",
     "cross-env": "^10.1.0",
     "electron": "^33.0.0",
-    "esbuild": "^0.27.4"
+    "electron-builder": "^26.8.1"
   },
   "config": {
     "forge": "./forge.config.cjs"

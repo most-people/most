@@ -4,18 +4,15 @@ module.exports = {
   packagerConfig: {
     name: 'MostBox',
     asar: true,
-    out: path.join(__dirname, '..', 'desktop-build'),
-    prune: false
+    out: path.join(__dirname, 'build-output'),
+    prune: false,
+    overwrite: true
   },
   rebuildConfig: {},
   makers: [
     {
-      name: '@electron-forge/maker-squirrel',
-      config: {}
-    },
-    {
       name: '@electron-forge/maker-zip',
-      platforms: ['darwin', 'win32']
+      platforms: ['win32']
     }
   ]
 };

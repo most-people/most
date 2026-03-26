@@ -2,12 +2,24 @@ import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { MostBoxEngine } from '@most-people/core';
+import { MostBoxEngine } from './src/index.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+  process.exit(1);
+});
 
-const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
+
+const getAppPath = () => {
+  if (app.isPackaged) {
+    return path.dirname(app.getAppPath());
+  }
+  return process.cwd();
+};
 
 let mainWindow = null;
 let engine = null;
@@ -18,14 +30,14 @@ async function createWindow() {
     height: 600,
     frame: false,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.cjs'),
+      preload: path.join(getAppPath(), 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false
     }
   });
 
-  mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  mainWindow.loadFile(path.join(getAppPath(), 'renderer', 'index.html'));
 
   mainWindow.on('closed', () => {
     mainWindow = null;

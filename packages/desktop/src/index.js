@@ -12,10 +12,10 @@ import { CID } from 'multiformats/cid'
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { calculateCid, parseMostLink } from './src/core/cid.js'
-import { sanitizeFilename, validateAndSanitizePath, validateFileSize, checkDirectoryWritable, formatFileSize } from './src/utils/security.js'
-import { ValidationError, PathSecurityError, FileSizeError, PeerNotFoundError, IntegrityError, PermissionError, EngineNotInitializedError } from './src/utils/errors.js'
-import { GLOBAL_SHARED_SEED_STRING, MAX_FILE_SIZE, CONNECTION_TIMEOUT, DOWNLOAD_TIMEOUT, SWARM_BOOTSTRAP } from './src/config.js'
+import { calculateCid, parseMostLink } from './core/cid.js'
+import { sanitizeFilename, validateAndSanitizePath, validateFileSize, checkDirectoryWritable, formatFileSize } from './utils/security.js'
+import { ValidationError, PathSecurityError, FileSizeError, PeerNotFoundError, IntegrityError, PermissionError, EngineNotInitializedError } from './utils/errors.js'
+import { GLOBAL_SHARED_SEED_STRING, MAX_FILE_SIZE, CONNECTION_TIMEOUT, DOWNLOAD_TIMEOUT, SWARM_BOOTSTRAP } from './config.js'
 
 export class MostBoxEngine extends EventEmitter {
   #store = null
@@ -656,7 +656,7 @@ export class MostBoxEngine extends EventEmitter {
 }
 
 // Re-export utilities
-export * from './src/config.js'
-export * from './src/core/cid.js'
-export * from './src/utils/errors.js'
-export * from './src/utils/security.js'
+export * from './config.js'
+export * from './core/cid.js'
+export * from './utils/errors.js'
+export * from './utils/security.js'

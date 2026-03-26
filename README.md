@@ -7,29 +7,9 @@ P2P 文件分享应用 for Windows.
 ```
 most-box/
 ├── packages/
-│   ├── core/              # P2P 核心引擎
-│   └── desktop/           # Electron 桌面端
+│   └── desktop/           # Electron 桌面端 (包含核心引擎)
 └── package.json
 ```
-
-### packages/core
-
-核心 P2P 引擎，包含：
-- Hyperswarm 网络发现
-- Hyperdrive 文件存储
-- IPFS UnixFS CID 计算
-- 文件发布/下载逻辑
-- 安全校验（路径遍历防护、文件大小限制、完整性校验）
-
-**特性：**
-- 纯 Node.js 实现，无平台依赖
-- 已发布到 npm: [@most-people/core](https://www.npmjs.com/package/@most-people/core)
-
-### packages/desktop
-
-Electron 桌面应用，提供：
-- Windows 便携版 zip 压缩包
-- 独立运行，无需安装
 
 ## 核心功能
 
