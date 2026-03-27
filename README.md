@@ -1,28 +1,33 @@
 # MostBox
 
-P2P 文件分享应用 for Windows.
+P2P 文件分享应用。基于 Hyperswarm/Hyperdrive 的去中心化文件分发。
 
 ## 架构
 
 ```
 most-box/
 ├── packages/
-│   └── desktop/           # Electron 桌面端 (包含核心引擎)
+│   └── core/              # 守护进程 (HTTP API + P2P 引擎)
+│       ├── server.js      # 入口：HTTP + WebSocket + 静态文件服务
+│       ├── src/           # MostBoxEngine 核心引擎
+│       └── public/        # 前端 UI
 └── package.json
 ```
 
+运行方式：`守护进程 (Core) + 浏览器客户端`。启动 Core 后自动打开浏览器访问 `http://127.0.0.1:3939`。
+
 ## 核心功能
 
-1. **确定性 P2P 文件发布**：
-   - 采用标准 IPFS UnixFS Chunking 算法对文件进行哈希计算，生成全球唯一的 **CID v1**。
-   - 相同的文件无论谁发布，都会生成完全一致的 CID 链接（如：`most://bafybeig...`）。
+1. **确定性 P2P 文件发布**
+   - 采用标准 IPFS UnixFS Chunking 算法计算 CID v1
+   - 相同文件生成一致的 CID 链接（如：`most://bafybeig...`）
 
-2. **大文件流式传输**：
-   - 支持 GB 级别超大文件的发布与下载，通过流式处理避免内存限制。
+2. **大文件流式传输**
+   - 支持 GB 级别超大文件的发布与下载
 
-3. **完整性与安全校验**：
-   - 下载完成后自动重新计算本地文件的 CID 并与链接比对，防止数据篡改。
-   - 路径遍历防护、文件名清理、文件大小限制等安全措施。
+3. **完整性校验**
+   - 下载完成后自动验证 CID，防止数据篡改
+   - 路径遍历防护、文件名清理、文件大小限制
 
 ## 快速开始
 
@@ -31,28 +36,26 @@ most-box/
 - Node.js >= 18
 - npm >= 9
 
-### 安装依赖
+### 安装 & 运行
 
 ```bash
 npm install
+npm start
 ```
 
-### 开发
+### 开发模式
 
 ```bash
-cd packages/desktop
-npm run start           # 启动 Electron 开发模式
-npm run package         # 打包为便携版文件夹
-npm run zip             # 生成便携版 zip 压缩包
+npm run dev
 ```
 
 ## 技术栈
 
-- **Hyperswarm** - P2P 网络发现
-- **Hyperdrive** - 分布式文件存储
-- **Corestore** - Hypercore 存储管理
-- **IPFS UnixFS Importer** - CID 计算
-- **Electron** - 桌面应用框架
+- **Hyperswarm** — P2P 网络发现与连接
+- **Hyperdrive** — 分布式文件存储
+- **Corestore** — Hypercore 存储管理
+- **IPFS UnixFS Importer** — CID 计算
+- **Node.js HTTP** — 零依赖的 HTTP + WebSocket 服务
 
 ## 许可证
 

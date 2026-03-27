@@ -5,11 +5,11 @@
   "description": "MostBox - P2P file sharing application",
   "type": "module",
   "workspaces": [
-    "packages/desktop"
+    "packages/core"
   ],
   "scripts": {
-    "desktop": "npm run start --workspace=packages/desktop",
-    "build:desktop": "npm run make --workspace=packages/desktop"
+    "start": "npm run start --workspace=packages/core",
+    "dev": "npm run dev --workspace=packages/core"
   },
   "keywords": [
     "p2p",

@@ -1,0 +1,28 @@
+{
+  "name": "mostbox-core",
+  "version": "1.0.0",
+  "description": "MostBox Core - P2P file sharing daemon",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [
+    "p2p",
+    "file-sharing",
+    "hyperswarm",
+    "hyperdrive"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "b4a": "^1.8.0",
+    "corestore": "^7.9.2",
+    "eventemitter3": "^5.0.4",
+    "hyperdrive": "^13.3.1",
+    "hyperswarm": "^4.17.0",
+    "ipfs-unixfs-importer": "^16.1.4",
+    "multiformats": "^13.4.2"
+  }
+}
