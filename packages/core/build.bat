@@ -1,19 +1,23 @@
 @echo off
 echo Building MostBox distribution...
 
-if exist dist rmdir /s /q dist
-mkdir dist
+if exist build rmdir /s /q build
+mkdir build
 
-copy package.json dist\
-copy server.js dist\
-xcopy src dist\src /E /I /Y
-xcopy public dist\public /E /I /Y
-copy start.bat dist\
+copy package.json build\
+copy server.js build\
+xcopy src build\src /E /I /Y
+xcopy public build\public /E /I /Y
+copy start.bat build\
 
-cd dist
+cd build
 call npm install --production
+cd ..
 
 echo.
-echo Build complete! Distribution folder: dist\
-echo Users need Node.js installed to run start.bat
+echo Creating zip archive...
+powershell -Command "Compress-Archive -Path 'build\*' -DestinationPath 'most-box.zip' -Force"
+
+echo.
+echo Build complete! Output: most-box.zip
 pause

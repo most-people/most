@@ -53,21 +53,13 @@ npm run dev
 
 ## 打包分发
 
-生成可分发的文件夹（需要用户安装 Node.js）：
-
 ```bash
-cd packages/core
-npm run dist
+npm run build
 ```
 
-打包完成后，`dist/` 目录包含所有运行所需文件：
-- `server.js` — 主程序
-- `src/` — 核心引擎
-- `public/` — Web 界面
-- `node_modules/` — 依赖
-- `start.bat` — 启动脚本
+生成 `packages/core/most-box.zip`，发给用户即可。
 
-将 `dist/` 文件夹打包成 zip 发给用户即可。
+用户解压后运行 `start.bat` 启动（需要安装 Node.js）。
 
 ## 技术栈
 

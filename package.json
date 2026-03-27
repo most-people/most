@@ -9,7 +9,8 @@
   ],
   "scripts": {
     "start": "npm run start --workspace=packages/core",
-    "dev": "npm run dev --workspace=packages/core"
+    "dev": "npm run dev --workspace=packages/core",
+    "build": "npm run build --workspace=packages/core"
   },
   "keywords": [
     "p2p",

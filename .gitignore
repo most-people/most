@@ -1,24 +1,13 @@
-# Runtime data
-*-storage/
-*.log
-packages/core/most-data/
-
 # Dependencies
 node_modules/
 
-# opencode
-.opencode/
-
 # Build outputs
-dist/
-out/
 build/
+*.zip
+out/
 
-# Temporary files
-packages/core/bundle.js
-packages/core/bundle.mjs
-packages/core/stress-test.js
-packages/core/concurrent-test.js
+# Runtime data
+packages/core/most-data/
 
 # IDE
 .idea/
@@ -32,9 +21,8 @@ packages/core/concurrent-test.js
 .env.local
 .env.*.local
 
-# Empty directories
-shims/
-patches/
+# opencode
+.opencode/
 
 # Windows artifacts
 nul

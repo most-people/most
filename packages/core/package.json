@@ -1,5 +1,5 @@
 {
-  "name": "mostbox-core",
+  "name": "most-core",
   "version": "1.0.0",
   "description": "MostBox Core - P2P file sharing daemon",
   "type": "module",
@@ -7,8 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "build": "pkg server.js --targets node18-win-x64 --output dist/mostbox.exe",
-    "dist": "build.bat"
+    "build": "build.bat"
   },
   "keywords": [
     "p2p",
