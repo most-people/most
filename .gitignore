@@ -1,6 +1,7 @@
 # Runtime data
 *-storage/
 *.log
+packages/core/most-data/
 
 # Dependencies
 node_modules/
@@ -12,6 +13,12 @@ node_modules/
 dist/
 out/
 build/
+
+# Temporary files
+packages/core/bundle.js
+packages/core/bundle.mjs
+packages/core/stress-test.js
+packages/core/concurrent-test.js
 
 # IDE
 .idea/
