@@ -51,6 +51,24 @@ npm start
 npm run dev
 ```
 
+## 打包分发
+
+生成可分发的文件夹（需要用户安装 Node.js）：
+
+```bash
+cd packages/core
+npm run dist
+```
+
+打包完成后，`dist/` 目录包含所有运行所需文件：
+- `server.js` — 主程序
+- `src/` — 核心引擎
+- `public/` — Web 界面
+- `node_modules/` — 依赖
+- `start.bat` — 启动脚本
+
+将 `dist/` 文件夹打包成 zip 发给用户即可。
+
 ## 技术栈
 
 - **Hyperswarm** — P2P 网络发现与连接
