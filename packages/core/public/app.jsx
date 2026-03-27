@@ -258,6 +258,8 @@ export default function App() {
   const containerRef = useRef(null)
   const [draggedItemId, setDraggedItemId] = useState(null)
   const [copied, setCopied] = useState(false)
+  const [nodeId, setNodeId] = useState('正在初始化 P2P 节点...')
+  const [peerCount, setPeerCount] = useState(0)
 
   // S3-style path system
   const currentPath = currentFolderId || ''
@@ -460,8 +462,7 @@ export default function App() {
         if (event === 'publish:success') { addToast('文件发布成功!', 'success'); refreshFiles() }
         if (event === 'download:success') { addToast('文件下载完成!', 'success'); refreshFiles() }
         if (event === 'network:status') {
-          const el = document.getElementById('networkStatus')
-          if (el) el.textContent = data.peers > 0 ? `已连接 ${data.peers} 个节点` : '等待连接中...'
+          setPeerCount(data.peers || 0)
         }
       } catch {}
     }
@@ -475,6 +476,19 @@ export default function App() {
       setIsDarkMode(true)
       document.documentElement.setAttribute('data-theme', 'dark')
     }
+
+    // Fetch node ID
+    API.getNodeId().then(result => {
+      if (result.id) setNodeId(`P2P 节点 ID: ${result.id}`)
+      else setNodeId('P2P 节点初始化失败')
+    }).catch(() => setNodeId('P2P 节点初始化失败'))
+
+    // Check network status on startup
+    setPeerCount(-1) // indicate loading
+    API.getNetworkStatus().then(status => {
+      setPeerCount(status.peers || 0)
+    }).catch(() => setPeerCount(0))
+
     refreshFiles()
   }, [])
 
@@ -541,8 +555,10 @@ export default function App() {
         </header>
 
         {/* Peer info */}
-        <div id="nodeId" style={{ textAlign: 'center', fontSize: 12, color: textMuted, marginBottom: 8 }}>正在初始化 P2P 节点...</div>
-        <div id="networkStatus" style={{ textAlign: 'center', fontSize: 12, color: textMuted, marginBottom: 16 }}>网络状态: 等待连接...</div>
+        <div style={{ textAlign: 'center', fontSize: 12, color: textMuted, marginBottom: 8 }}>{nodeId}</div>
+        <div style={{ textAlign: 'center', fontSize: 12, color: textMuted, marginBottom: 16 }}>
+          {peerCount === -1 ? '网络状态: 检测中...' : peerCount > 0 ? `已连接 ${peerCount} 个节点` : '等待连接中...'}
+        </div>
 
         {/* Upload / Download Zones */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 32 }}>
