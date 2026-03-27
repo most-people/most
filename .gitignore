@@ -5,6 +5,9 @@
 # Dependencies
 node_modules/
 
+# opencode
+.opencode/
+
 # Build outputs
 dist/
 out/
@@ -22,12 +25,9 @@ build/
 .env.local
 .env.*.local
 
-# Electron
-packages/desktop/out/
-
-# npm config (local mirrors)
-.npmrc
-
 # Empty directories
 shims/
 patches/
+
+# Windows artifacts
+nul
