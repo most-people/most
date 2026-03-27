@@ -149,7 +149,7 @@ async function handleAPI(req, res) {
 
     // POST /api/publish — multipart file upload
     if (pathname === '/api/publish' && method === 'POST') {
-      const tempDir = path.join(getStoragePath(), 'uploads')
+      const tempDir = path.join(getStoragePath(), 'temp')
       if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true })
 
       const parts = await parseMultipart(req, tempDir)
@@ -164,7 +164,7 @@ async function handleAPI(req, res) {
 
       const result = await engine.publishFile(savedPath, filePart.filename)
       
-      // 发布成功后删除 uploads 中的临时文件
+      // 发布成功后删除临时文件
       try { fs.unlinkSync(savedPath) } catch {}
       
       json({ success: true, ...result })

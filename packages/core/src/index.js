@@ -492,7 +492,7 @@ export class MostBoxEngine extends EventEmitter {
     if (index !== -1) {
       const fileRecord = this.#publishedFiles[index]
       
-      // Delete original file from uploads directory
+      // Delete temp file
       if (fileRecord.originalPath && fs.existsSync(fileRecord.originalPath)) {
         try {
           fs.unlinkSync(fileRecord.originalPath)
