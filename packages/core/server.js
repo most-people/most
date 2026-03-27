@@ -7,11 +7,12 @@ import { exec } from 'node:child_process'
 import { MostBoxEngine } from './src/index.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const PORT = Number(process.env.MOSTBOX_PORT) || 3939
+const PORT = Number(process.env.MOSTBOX_PORT) || 1976
 const HOST = '127.0.0.1'
 
 const wsClients = new Set()
 let engine = null
+let serverInstance = null
 
 // --- Storage path ---
 function getStoragePath() {
@@ -212,6 +213,19 @@ async function handleAPI(req, res) {
       return
     }
 
+    // POST /api/shutdown — graceful server shutdown
+    if (pathname === '/api/shutdown' && method === 'POST') {
+      json({ success: true })
+      console.log('[MostBox] Shutdown requested via API...')
+      setTimeout(async () => {
+        await engine.stop()
+        serverInstance.close()
+        console.log('[MostBox] Server stopped.')
+        process.exit(0)
+      }, 100)
+      return
+    }
+
     json({ error: 'Not found' }, 404)
   } catch (err) {
     console.error('[API Error]', err)
@@ -306,7 +320,7 @@ async function main() {
   await engine.start()
   console.log('[MostBox] Engine ready')
 
-  const server = http.createServer((req, res) => {
+  serverInstance = http.createServer((req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*')
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
@@ -324,7 +338,7 @@ async function main() {
     }
   })
 
-  server.on('upgrade', (req, socket) => {
+  serverInstance.on('upgrade', (req, socket) => {
     if (req.url.startsWith('/ws')) {
       upgradeToWebSocket(req, socket)
     } else {
@@ -332,7 +346,7 @@ async function main() {
     }
   })
 
-  server.listen(PORT, HOST, () => {
+  serverInstance.listen(PORT, HOST, () => {
     const url = `http://${HOST}:${PORT}`
     console.log(`[MostBox] Server running at ${url}`)
 

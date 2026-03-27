@@ -19,20 +19,36 @@ export function sanitizeFilename(filename) {
   
   let sanitized = filename
   
-  sanitized = sanitized.replace(DANGEROUS_CHARS, '_')
+  // Normalize backslashes to forward slashes (S3-style folder paths)
+  sanitized = sanitized.replace(/\\/g, '/')
   
-  sanitized = sanitized.replace(/[\/\\]/g, '_')
+  // Remove dangerous characters but preserve / for folder paths
+  sanitized = sanitized.replace(/[<>:"|?*\x00-\x1f]/g, '_')
   
+  // Remove dangerous prefixes/suffixes
   sanitized = sanitized.replace(DANGEROUS_PREFIXES, '')
   
-  sanitized = sanitized.replace(/[<>:"|?*]/g, '_')
+  // Prevent path traversal
+  sanitized = sanitized.replace(/\.\./g, '_')
   
-  const baseName = sanitized.replace(/\.[^.]+$/, '')
-  if (RESERVED_NAMES.test(baseName)) {
-    sanitized = '_' + sanitized
-  }
+  // Normalize multiple consecutive slashes
+  sanitized = sanitized.replace(/\/{2,}/g, '/')
   
-  sanitized = sanitized.substring(0, 255)
+  // Remove leading/trailing slashes
+  sanitized = sanitized.replace(/^\/+|\/+$/g, '')
+  
+  // Sanitize each path segment individually
+  const segments = sanitized.split('/')
+  const safeSegments = segments.map(seg => {
+    let safe = seg.replace(/[<>:"|?*]/g, '_')
+    const baseName = safe.replace(/\.[^.]+$/, '')
+    if (RESERVED_NAMES.test(baseName)) {
+      safe = '_' + safe
+    }
+    return safe.substring(0, 255) || 'unnamed'
+  })
+  
+  sanitized = safeSegments.join('/')
   
   return sanitized || 'unnamed_file'
 }
