@@ -163,6 +163,10 @@ async function handleAPI(req, res) {
       fs.writeFileSync(savedPath, filePart.data)
 
       const result = await engine.publishFile(savedPath, filePart.filename)
+      
+      // 发布成功后删除 uploads 中的临时文件
+      try { fs.unlinkSync(savedPath) } catch {}
+      
       json({ success: true, ...result })
       return
     }
@@ -182,7 +186,7 @@ async function handleAPI(req, res) {
     // DELETE /api/files/:cid
     if (pathname.startsWith('/api/files/') && method === 'DELETE') {
       const cid = pathname.replace('/api/files/', '').replace(/\/$/, '')
-      const result = engine.deletePublishedFile(cid)
+      const result = await engine.deletePublishedFile(cid)
       json(result)
       return
     }

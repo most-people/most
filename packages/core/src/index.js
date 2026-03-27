@@ -482,14 +482,48 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   /**
-   * Delete a published file record
+   * Delete a published file record and remove the file from Hyperdrive
    * @param {string} cid - CID of the file to delete
-   * @returns {Array} Updated list of published files
+   * @returns {Promise<Array>} Updated list of published files
    */
-  deletePublishedFile(cid) {
+  async deletePublishedFile(cid) {
     this.#ensureInitialized()
     const index = this.#publishedFiles.findIndex(f => f.cid === cid)
     if (index !== -1) {
+      const fileRecord = this.#publishedFiles[index]
+      
+      // Delete original file from uploads directory
+      if (fileRecord.originalPath && fs.existsSync(fileRecord.originalPath)) {
+        try {
+          fs.unlinkSync(fileRecord.originalPath)
+        } catch (err) {
+          // File may be locked or already deleted
+        }
+      }
+      
+      // Reconstruct drive name from CID
+      const parsedCid = CID.parse(cid)
+      const hashHex = b4a.toString(parsedCid.multihash.digest, 'hex')
+      const driveName = `drive-${hashHex}`
+      
+      // Delete file from Hyperdrive and cleanup drive
+      const drive = this.#drives.get(driveName)
+      if (drive) {
+        try {
+          await drive.del(fileRecord.fileName)
+        } catch (err) {
+          // File may not exist in drive, continue with cleanup
+        }
+        
+        // Leave swarm for this drive
+        this.#swarm.leave(drive.discoveryKey)
+        
+        // Close and remove drive
+        await drive.close()
+        this.#drives.delete(driveName)
+      }
+      
+      // Remove metadata record
       this.#publishedFiles.splice(index, 1)
       this.#savePublishedMetadata()
     }
