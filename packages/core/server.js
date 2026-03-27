@@ -358,13 +358,13 @@ async function main() {
   process.on('SIGINT', async () => {
     console.log('\n[MostBox] Shutting down...')
     await engine.stop()
-    server.close()
+    serverInstance.close()
     process.exit(0)
   })
 
   process.on('SIGTERM', async () => {
     await engine.stop()
-    server.close()
+    serverInstance.close()
     process.exit(0)
   })
 }
