@@ -6,7 +6,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "build": "pkg server.js --targets node18-win-x64 --output dist/mostbox.exe",
+    "dist": "build.bat"
   },
   "keywords": [
     "p2p",
@@ -24,5 +26,8 @@
     "hyperswarm": "^4.17.0",
     "ipfs-unixfs-importer": "^16.1.4",
     "multiformats": "^13.4.2"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.4"
   }
 }

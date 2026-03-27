@@ -31,12 +31,14 @@ most-box/
 
 ## 快速开始
 
-### 环境要求
+### 下载安装
 
-- Node.js >= 18
-- npm >= 9
+1. 安装 [Node.js](https://nodejs.org/)（>= 18）
+2. 从 [Releases](../../releases) 下载最新版本
+3. 解压后双击 `start.bat` 启动
+4. 浏览器自动打开 `http://127.0.0.1:3939`
 
-### 安装 & 运行
+### 从源码运行
 
 ```bash
 npm install

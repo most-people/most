@@ -15,8 +15,7 @@ let engine = null
 
 // --- Storage path ---
 function getStoragePath() {
-  const base = process.env.APPDATA || process.env.HOME || process.cwd()
-  return path.join(base, 'mostbox-data')
+  return path.join(__dirname, 'most-data')
 }
 
 // --- Static file serving ---
