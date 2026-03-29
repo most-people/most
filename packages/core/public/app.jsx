@@ -319,7 +319,7 @@ export default function App() {
           body: JSON.stringify({ taskId: transfer.taskId })
         })
       } catch {}
-      addToast('已取消下载', 'info')
+      addToast('已取消', 'info')
     }
   }
 
@@ -536,7 +536,7 @@ export default function App() {
 
       setDownloadLink('')
       setIsDownloadModalOpen(false)
-      addToast('下载任务已开始', 'info')
+      addToast('下载已开始', 'info')
     } catch (err) {
       addToast('下载失败: ' + err.message, 'error')
     }
@@ -780,7 +780,7 @@ export default function App() {
         {/* Peer info */}
         <div style={{ textAlign: 'center', fontSize: 12, color: textMuted, marginBottom: 8 }}>{nodeId}</div>
         <div style={{ textAlign: 'center', fontSize: 12, color: textMuted, marginBottom: 16 }}>
-          {peerCount === -1 ? '网络状态: 检测中...' : peerCount > 0 ? `已连接 ${peerCount} 个节点` : '等待连接中...'}
+          {peerCount === -1 ? '检测中...' : peerCount > 0 ? `已连接 ${peerCount} 个节点` : '等待连接...'}
         </div>
 
         {/* Upload / Download Zones */}
@@ -807,7 +807,7 @@ export default function App() {
               <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(59,130,246,0.25)' }}>
                 <Upload size={16} color="#fff" />
               </div>
-              <span style={{ fontSize: 13, fontWeight: 500, color: accentBlue }}>点击或拖拽上传</span>
+              <span style={{ fontSize: 13, fontWeight: 500, color: accentBlue }}>上传文件</span>
             </div>
           </div>
 
@@ -824,7 +824,7 @@ export default function App() {
               <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(99,102,241,0.25)' }}>
                 <Download size={16} color="#fff" />
               </div>
-              <span style={{ fontSize: 13, fontWeight: 500, color: '#6366f1' }}>下载提取分享</span>
+              <span style={{ fontSize: 13, fontWeight: 500, color: '#6366f1' }}>提取分享</span>
             </div>
           </div>
         </div>
@@ -946,7 +946,7 @@ export default function App() {
                 <div style={{ width: 10, height: 10, borderRadius: '50%', background: accentBlue, boxShadow: '0 0 12px rgba(59,130,246,0.6)', animation: 'pulse 2s infinite' }} />
                 <h3 style={{ fontSize: 18, fontWeight: 600 }}>分享链接已生成</h3>
               </div>
-              <p style={{ fontSize: 13, color: textSecondary, lineHeight: 1.6 }}>复制下方链接，发送给好友。对方在网盘中使用"提取分享"功能即可一键转存。</p>
+              <p style={{ fontSize: 13, color: textSecondary, lineHeight: 1.6 }}>复制链接发给好友，使用"提取分享"即可转存。</p>
             </div>
 
             <div style={{ display: 'flex', gap: 12 }}>
@@ -998,8 +998,8 @@ export default function App() {
               }}>
                 <Link size={28} color="#6366f1" />
               </div>
-              <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>下载提取分享</h3>
-              <p style={{ fontSize: 13, color: textSecondary }}>粘贴收到的分享链接，一键转存至当前目录</p>
+              <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>提取分享</h3>
+              <p style={{ fontSize: 13, color: textSecondary }}>粘贴分享链接，一键转存</p>
             </div>
 
             <input
@@ -1025,7 +1025,7 @@ export default function App() {
                 transition: 'all 0.2s'
               }}
             >
-              下载到此
+              转存
             </button>
           </div>
         </div>
@@ -1134,7 +1134,7 @@ export default function App() {
             animation: 'slideUp 0.25s ease', display: 'flex', flexDirection: 'column'
           }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h3 style={{ fontSize: 18, fontWeight: 600 }}>传输列表</h3>
+              <h3 style={{ fontSize: 18, fontWeight: 600 }}>传输</h3>
               <button onClick={() => setIsTransferPanelOpen(false)} style={{
                 width: 32, height: 32, borderRadius: '50%', border: 'none',
                 background: bgTertiary, display: 'flex', alignItems: 'center',
@@ -1145,7 +1145,7 @@ export default function App() {
             <div style={{ flex: 1, overflow: 'auto' }}>
               {transfers.length === 0 ? (
                 <div style={{ textAlign: 'center', color: textMuted, padding: '40px 0', fontSize: 14 }}>
-                  当前没有传输任务
+                  暂无传输
                 </div>
               ) : (
                 transfers.map(t => {
@@ -1153,12 +1153,12 @@ export default function App() {
                   const sizeStr = t.total > 0 ? `${formatSize(t.loaded)} / ${formatSize(t.total)}` : ''
                   const statusText =
                     t.status === 'uploading' ? '上传中' :
-                    t.status === 'processing' ? '服务器处理中...' :
+                    t.status === 'processing' ? '处理中...' :
                     t.status === 'connecting' ? '连接中...' :
-                    t.status === 'finding-peers' ? '正在搜索节点...' :
-                    t.status === 'syncing' ? '正在同步...' :
+                    t.status === 'finding-peers' ? '搜索中...' :
+                    t.status === 'syncing' ? '同步中...' :
                     t.status === 'downloading' ? '下载中' :
-                    t.status === 'verifying' ? '验证完整性...' : ''
+                    t.status === 'verifying' ? '验证中...' : ''
                   return (
                     <div key={t.id} style={{
                       padding: '14px 0', borderBottom: `1px solid ${borderColor}`,
