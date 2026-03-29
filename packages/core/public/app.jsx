@@ -318,7 +318,7 @@ export default function App() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ taskId: transfer.taskId })
         })
-      } catch {}
+      } catch { }
       addToast('已取消', 'info')
     }
   }
@@ -341,7 +341,7 @@ export default function App() {
     if (!confirm('确定要关闭服务吗？')) return
     try {
       await fetch('/api/shutdown', { method: 'POST' })
-    } catch {}
+    } catch { }
     window.close()
   }
 
@@ -491,7 +491,7 @@ export default function App() {
     const idsToRemove = [...selectedIds]
     for (const id of idsToRemove) {
       if (!id.startsWith('__')) {
-        try { await API.deletePublishedFile(id) } catch {}
+        try { await API.deletePublishedFile(id) } catch { }
       }
     }
     setItems(prev => prev.filter(i => !idsToRemove.includes(i.cid || i.id)))
@@ -572,7 +572,7 @@ export default function App() {
         await API.deletePublishedFile(cid)
         const blob = await fetch(API.getFileDownloadUrl(cid)).then(r => r.blob())
         await API.publishFile(new File([blob], newFileName), newFileName)
-      } catch {}
+      } catch { }
     })
 
     Promise.all(renamePromises).then(() => {
@@ -668,7 +668,7 @@ export default function App() {
         if (event === 'network:status') {
           setPeerCount(data.peers || 0)
         }
-      } catch {}
+      } catch { }
     }
     return () => ws.close()
   }, [])
@@ -729,7 +729,25 @@ export default function App() {
       <div style={{ maxWidth: 1280, margin: '0 auto', padding: '32px 24px' }}>
         {/* Header */}
         <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
-          <h1 style={{ fontSize: 28, fontWeight: 600, letterSpacing: '-0.02em' }}>文件</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <h1 style={{ fontSize: 28, fontWeight: 600, letterSpacing: '-0.02em' }}>Most.Box 文件管理</h1>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '5px 12px', borderRadius: 20,
+              background: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+              fontSize: 12, fontWeight: 500, color: textSecondary
+            }}>
+              <div style={{
+                width: 8, height: 8, borderRadius: '50%',
+                background: peerCount > 0 ? '#10b981' : peerCount === -1 ? textMuted : '#f59e0b',
+                boxShadow: peerCount > 0 ? '0 0 8px rgba(16,185,129,0.6)' : 'none',
+                animation: peerCount === -1 ? 'pulse 2s infinite' : 'none',
+                transition: 'all 0.3s', flexShrink: 0
+              }} />
+              {peerCount === -1 ? '检测中' : peerCount > 0 ? `${peerCount} 个节点` : '等待连接'}
+            </div>
+          </div>
+
           <div style={{ display: 'flex', gap: 8 }}>
             {transfers.length > 0 && (
               <button onClick={() => setIsTransferPanelOpen(true)} style={{
@@ -776,12 +794,6 @@ export default function App() {
             </button>
           </div>
         </header>
-
-        {/* Peer info */}
-        <div style={{ textAlign: 'center', fontSize: 12, color: textMuted, marginBottom: 8 }}>{nodeId}</div>
-        <div style={{ textAlign: 'center', fontSize: 12, color: textMuted, marginBottom: 16 }}>
-          {peerCount === -1 ? '检测中...' : peerCount > 0 ? `已连接 ${peerCount} 个节点` : '等待连接...'}
-        </div>
 
         {/* Upload / Download Zones */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 32 }}>
@@ -867,7 +879,7 @@ export default function App() {
                     onRemove={() => {
                       const toDelete = items.filter(i => parseName(i.fileName).folder.toLowerCase() === folder.path.toLowerCase())
                       if (toDelete.length > 0 && !confirm(`确定要删除文件夹中的 ${toDelete.length} 个文件吗？`)) return
-                      toDelete.forEach(async (f) => { if (f.cid) try { await API.deletePublishedFile(f.cid) } catch {} })
+                      toDelete.forEach(async (f) => { if (f.cid) try { await API.deletePublishedFile(f.cid) } catch { } })
                       setItems(prev => prev.filter(i => !toDelete.includes(i)))
                       addToast('已删除', 'success')
                     }}
@@ -910,7 +922,7 @@ export default function App() {
                     }).catch(err => addToast('删除失败', 'error'))
                   }}
                   onRename={handleRename}
-                  onOpen={() => {}}
+                  onOpen={() => { }}
                   onPreview={() => setPreviewItem({ ...f, subtype: getFileSubtype(f.fileName) })}
                   onDragStart={(e, id) => onDragStart(e, id)}
                   onDropInto={(e, id) => onDropIntoFolder(e, id)}
@@ -1153,12 +1165,12 @@ export default function App() {
                   const sizeStr = t.total > 0 ? `${formatSize(t.loaded)} / ${formatSize(t.total)}` : ''
                   const statusText =
                     t.status === 'uploading' ? '上传中' :
-                    t.status === 'processing' ? '处理中...' :
-                    t.status === 'connecting' ? '连接中...' :
-                    t.status === 'finding-peers' ? '搜索中...' :
-                    t.status === 'syncing' ? '同步中...' :
-                    t.status === 'downloading' ? '下载中' :
-                    t.status === 'verifying' ? '验证中...' : ''
+                      t.status === 'processing' ? '处理中...' :
+                        t.status === 'connecting' ? '连接中...' :
+                          t.status === 'finding-peers' ? '搜索中...' :
+                            t.status === 'syncing' ? '同步中...' :
+                              t.status === 'downloading' ? '下载中' :
+                                t.status === 'verifying' ? '验证中...' : ''
                   return (
                     <div key={t.id} style={{
                       padding: '14px 0', borderBottom: `1px solid ${borderColor}`,
@@ -1230,9 +1242,9 @@ export default function App() {
 
 function getFileSubtype(fileName) {
   const ext = fileName.split('.').pop().toLowerCase()
-  const imgExts = ['jpg','jpeg','png','gif','webp','svg','bmp','ico','tiff','heic','heif']
-  const vidExts = ['mp4','webm','mov','avi','mkv','flv','wmv','m4v','mpeg','3gp']
-  const audExts = ['mp3','wav','ogg','flac','aac','m4a','wma','opus']
+  const imgExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'tiff', 'heic', 'heif']
+  const vidExts = ['mp4', 'webm', 'mov', 'avi', 'mkv', 'flv', 'wmv', 'm4v', 'mpeg', '3gp']
+  const audExts = ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma', 'opus']
   if (imgExts.includes(ext)) return 'image'
   if (vidExts.includes(ext)) return 'video'
   if (audExts.includes(ext)) return 'audio'
