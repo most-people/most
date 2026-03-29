@@ -53,13 +53,41 @@ npm run dev
 
 ## 打包分发
 
+### 桌面应用（Windows / macOS）
+
+```bash
+# 安装依赖
+npm install
+
+# 构建 Windows 安装包
+npm run desktop:build:win
+
+# 构建 macOS 安装包（仅在 macOS 上运行）
+npm run desktop:build:mac
+```
+
+构建产物位于 `packages/desktop/dist/`：
+- `MostBox-1.0.0-win.exe` — Windows NSIS 安装包
+- `MostBox-1.0.0-mac.dmg` — macOS DMG 安装包
+
+### 自动更新
+
+桌面应用支持自动更新。发布新版本只需：
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+GitHub Actions 会自动构建并发布到 Releases。用户启动应用后会自动检测并下载更新。
+
+### 传统打包（Node.js 运行时）
+
 ```bash
 npm run build
 ```
 
-生成 `packages/core/most-box.zip`，发给用户即可。
-
-用户解压后运行 `start.bat` 启动（需要安装 Node.js）。
+生成 `packages/core/most-box.zip`，用户需安装 Node.js 环境。
 
 ## 技术栈
 
