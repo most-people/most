@@ -33,7 +33,7 @@ function createWindow() {
     height: 800,
     minWidth: 800,
     minHeight: 600,
-    icon: path.join(__dirname, '../icons/favicon.ico'),
+    icon: path.join(__dirname, '../../core/public/icons/favicon.ico'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
       contextIsolation: true,

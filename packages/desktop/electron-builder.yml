@@ -31,7 +31,7 @@ win:
     - target: nsis
       arch:
         - x64
-  icon: ../icons/favicon.ico
+  icon: ../../core/public/icons/favicon.ico
   artifactName: ${productName}-${version}-win.${ext}
   signAndEditExecutable: false
 
@@ -40,7 +40,7 @@ nsis:
   perMachine: false
   allowToChangeInstallationDirectory: true
   deleteAppDataOnUninstall: true
-  installerHeaderIcon: ../icons/favicon.ico
+  installerHeaderIcon: ../../core/public/icons/favicon.ico
   createDesktopShortcut: true
   createStartMenuShortcut: true
 
@@ -50,7 +50,7 @@ mac:
       arch:
         - x64
         - arm64
-  icon: ../icons/pwa-512x512.png
+  icon: ../../core/public/icons/pwa-512x512.png
   category: public.app-category.productivity
   artifactName: ${productName}-${version}-mac.${ext}
   hardenedRuntime: true
