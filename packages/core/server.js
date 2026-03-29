@@ -153,7 +153,17 @@ async function handleAPI(req, res) {
       const tempDir = path.join(getStoragePath(), 'temp')
       if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true })
 
+      let aborted = false
+      req.on('close', () => {
+        if (req.aborted) aborted = true
+      })
+
       const parts = await parseMultipart(req, tempDir)
+
+      if (aborted) {
+        return
+      }
+
       const filePart = parts.find(p => p.name === 'file')
       if (!filePart || !filePart.filename) {
         json({ error: 'No file provided' }, 400)
@@ -163,24 +173,54 @@ async function handleAPI(req, res) {
       const savedPath = path.join(tempDir, filePart.filename)
       fs.writeFileSync(savedPath, filePart.data)
 
+      if (aborted) {
+        try { fs.unlinkSync(savedPath) } catch {}
+        return
+      }
+
       const result = await engine.publishFile(savedPath, filePart.filename)
-      
+
       // 发布成功后删除临时文件
       try { fs.unlinkSync(savedPath) } catch {}
-      
+
       json({ success: true, ...result })
       return
     }
 
-    // POST /api/download — download from P2P
+    // POST /api/download — start async download from P2P
     if (pathname === '/api/download' && method === 'POST') {
       const body = await parseJSON(req)
       if (!body.link) {
         json({ error: 'link is required' }, 400)
         return
       }
-      const result = await engine.downloadFile(body.link)
-      json({ success: true, ...result })
+
+      const taskId = `dl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+
+      // Async download — do not block HTTP response
+      engine.downloadFile(body.link, taskId).then(result => {
+        wsBroadcast('download:success', { taskId, ...result })
+      }).catch(err => {
+        if (err.message === 'Download cancelled') {
+          wsBroadcast('download:cancelled', { taskId })
+        } else {
+          wsBroadcast('download:error', { taskId, error: err.message })
+        }
+      })
+
+      json({ success: true, taskId })
+      return
+    }
+
+    // POST /api/download/cancel — cancel an active download
+    if (pathname === '/api/download/cancel' && method === 'POST') {
+      const body = await parseJSON(req)
+      if (!body.taskId) {
+        json({ error: 'taskId is required' }, 400)
+        return
+      }
+      engine.cancelDownload(body.taskId)
+      json({ success: true })
       return
     }
 
@@ -311,6 +351,7 @@ async function main() {
   engine.on('download:progress', (data) => wsBroadcast('download:progress', data))
   engine.on('download:status', (data) => wsBroadcast('download:status', data))
   engine.on('download:success', (data) => wsBroadcast('download:success', data))
+  engine.on('download:cancelled', (data) => wsBroadcast('download:cancelled', data))
   engine.on('publish:progress', (data) => wsBroadcast('publish:progress', data))
   engine.on('publish:success', (data) => wsBroadcast('publish:success', data))
   engine.on('connection', () => {

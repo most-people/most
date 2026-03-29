@@ -24,6 +24,7 @@ export class MostBoxEngine extends EventEmitter {
   #publishedFiles = []
   #initialized = false
   #options = null
+  #activeDownloads = new Map() // taskId -> { aborted, readStream, writeStream }
 
   /**
    * Create a new MostBoxEngine instance
@@ -235,8 +236,10 @@ export class MostBoxEngine extends EventEmitter {
       this.#drives.set(name, drive)
       
       // Join P2P network as server (we're publishing/sharing the file)
+      // Don't await flushed() — it blocks HTTP response for 10s+ while waiting for DHT
+      // The join still completes in background, file is already stored in Hyperdrive
       const discovery = this.#swarm.join(drive.discoveryKey, { server: true, client: false })
-      await discovery.flushed()
+      discovery.flushed().catch(() => {})
     }
 
     this.emit('publish:progress', { stage: 'uploading', file: safeFileName })
@@ -280,189 +283,216 @@ export class MostBoxEngine extends EventEmitter {
   /**
    * Download a file from the P2P network
    * @param {string} link - most:// link
-   * @param {object} [callbacks] - Progress callbacks
-   * @returns {Promise<{ fileName: string, savedPath: string, alreadyExists?: boolean }>}
+   * @param {string} [taskId] - Task ID for cancellation
+   * @returns {Promise<{ taskId: string, fileName: string, savedPath: string, alreadyExists?: boolean }>}
    */
-  async downloadFile(link, callbacks = {}) {
+  async downloadFile(link, taskId = null) {
     this.#ensureInitialized()
 
-    console.log(`[MostBox] Starting download for link: ${link}`)
+    // Generate taskId if not provided
+    taskId = taskId || `dl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 
-    // Parse link
-    const parsed = parseMostLink(link)
-    if (parsed.error) {
-      throw new ValidationError(parsed.error)
-    }
-    const cidString = parsed.cid
-    console.log(`[MostBox] Parsed CID: ${cidString}`)
+    console.log(`[MostBox] Starting download for link: ${link} (taskId: ${taskId})`)
 
-    // Check if file already exists in published files
-    const existingFile = this.#publishedFiles.find(f => f.cid === cidString)
-    if (existingFile) {
-      console.log(`[MostBox] File already exists: ${existingFile.fileName}`)
-      return {
-        fileName: existingFile.fileName,
-        savedPath: existingFile.originalPath,
-        alreadyExists: true
+    // Register in active downloads
+    const taskState = { aborted: false, readStream: null, writeStream: null }
+    this.#activeDownloads.set(taskId, taskState)
+
+    try {
+      // Parse link
+      const parsed = parseMostLink(link)
+      if (parsed.error) {
+        throw new ValidationError(parsed.error)
       }
-    }
+      const cidString = parsed.cid
+      console.log(`[MostBox] Parsed CID: ${cidString}`)
 
-    // Parse CID
-    const parsedCid = CID.parse(cidString)
-    const hashBytes = parsedCid.multihash.digest
-    const hashHex = b4a.toString(hashBytes, 'hex')
-
-    // Get/Create drive
-    const name = `drive-${hashHex}`
-    let drive = this.#drives.get(name)
-    
-    if (!drive) {
-      console.log(`[MostBox] Creating new drive: ${name}`)
-      drive = new Hyperdrive(this.#store.namespace(name))
-      await drive.ready()
-      this.#drives.set(name, drive)
-      
-      this.emit('download:status', { status: 'connecting' })
-      if (callbacks.onStatus) callbacks.onStatus('connecting')
-      
-      console.log(`[MostBox] Joining swarm for drive discovery...`)
-      // Join as client only (we're downloading, not serving)
-      await this.#swarm.join(drive.discoveryKey, { server: false, client: true }).flushed()
-      console.log(`[MostBox] Swarm join flushed`)
-    } else {
-      console.log(`[MostBox] Using existing drive: ${name}`)
-    }
-
-    this.emit('download:status', { status: 'finding-peers' })
-    if (callbacks.onStatus) callbacks.onStatus('finding-peers')
-
-    // Wait for peers and data to sync
-    console.log(`[MostBox] Waiting for drive content (timeout: ${DOWNLOAD_TIMEOUT/1000}s)...`)
-    const entries = await this.#waitForDriveContent(drive, DOWNLOAD_TIMEOUT)
-
-    if (entries.length === 0) {
-      console.log(`[MostBox] No entries found after timeout`)
-      
-      // 提供更详细的错误信息
-      const peerCount = this.#swarm.connections.size
-      let errorMessage = 'No files found in drive. '
-      
-      if (peerCount === 0) {
-        errorMessage += 'Could not connect to any peers. This may be due to:\n'
-        errorMessage += '1. Network firewall blocking P2P connections\n'
-        errorMessage += '2. DHT bootstrap nodes unreachable\n'
-        errorMessage += '3. NAT traversal failed (try port forwarding)\n'
-        errorMessage += '4. No peers are currently sharing this file'
-      } else {
-        errorMessage += `Connected to ${peerCount} peers but no file data was found. This may be due to:\n`
-        errorMessage += '1. Publisher node offline\n'
-        errorMessage += '2. File may have been removed by publisher\n'
-        errorMessage += '3. File link may be invalid or corrupted'
-      }
-      
-      throw new PeerNotFoundError(errorMessage)
-    }
-
-    console.log(`[MostBox] Found ${entries.length} entries, starting download...`)
-
-    // Save to storage directory (not Downloads folder)
-    const targetDir = this.#options.storagePath
-
-    // Check storage directory
-    const writableCheck = await checkDirectoryWritable(targetDir)
-    if (!writableCheck.writable) {
-      throw new PermissionError(writableCheck.error)
-    }
-
-    // Download files
-    for (const entry of entries) {
-      const sanitizedFileName = sanitizeFilename(entry.key.replace(/^[\/\\]/, ''))
-      
-      // Get file size
-      let totalBytes = 0
-      try {
-        const stat = await drive.entry(entry.key)
-        if (stat && stat.value && stat.value.blob) {
-          totalBytes = stat.value.blob.byteLength || 0
+      // Check if file already exists in published files
+      const existingFile = this.#publishedFiles.find(f => f.cid === cidString)
+      if (existingFile) {
+        console.log(`[MostBox] File already exists: ${existingFile.fileName}`)
+        return {
+          taskId,
+          fileName: existingFile.fileName,
+          savedPath: existingFile.originalPath,
+          alreadyExists: true
         }
-      } catch {
-        // Ignore
       }
 
-      const savePath = path.join(targetDir, sanitizedFileName)
-      
-      this.emit('download:status', { 
-        status: 'downloading', 
-        file: sanitizedFileName, 
-        size: totalBytes ? formatFileSize(totalBytes) : null 
-      })
-      if (callbacks.onStatus) {
-        callbacks.onStatus(`Downloading: ${sanitizedFileName}${totalBytes ? ` (${formatFileSize(totalBytes)})` : ''}`)
-      }
+      // Parse CID
+      const parsedCid = CID.parse(cidString)
+      const hashBytes = parsedCid.multihash.digest
+      const hashHex = b4a.toString(hashBytes, 'hex')
 
-      // Download with progress
-      const rs = drive.createReadStream(entry.key)
-      const ws = fs.createWriteStream(savePath)
+      // Check cancellation
+      if (taskState.aborted) throw new Error('Download cancelled')
+
+      // Get/Create drive
+      const name = `drive-${hashHex}`
+      let drive = this.#drives.get(name)
       
-      let loadedBytes = 0
-      let lastProgressUpdate = 0
-      
-      await new Promise((resolve, reject) => {
-        rs.on('data', (chunk) => {
-          loadedBytes += chunk.length
-          const now = Date.now()
-          if (totalBytes > 0 && now - lastProgressUpdate > 500) {
-            lastProgressUpdate = now
-            const percent = Math.round((loadedBytes / totalBytes) * 100)
-            this.emit('download:progress', { loaded: loadedBytes, total: totalBytes, percent })
-            if (callbacks.onProgress) {
-              callbacks.onProgress({ loadedBytes, totalBytes, percent })
-            }
-          }
-        })
+      if (!drive) {
+        console.log(`[MostBox] Creating new drive: ${name}`)
+        drive = new Hyperdrive(this.#store.namespace(name))
+        await drive.ready()
+        this.#drives.set(name, drive)
         
-        rs.pipe(ws)
-        ws.on('finish', resolve)
-        ws.on('error', reject)
-        rs.on('error', reject)
-      })
-
-      // Verify integrity
-      this.emit('download:status', { status: 'verifying' })
-      if (callbacks.onStatus) callbacks.onStatus('verifying')
-
-      const { cid: downloadedCid } = await calculateCid(savePath)
-      const expectedHash = b4a.toString(parsedCid.multihash.digest, 'hex')
-      const actualHash = b4a.toString(downloadedCid.multihash.digest, 'hex')
-
-      if (expectedHash !== actualHash) {
-        fs.unlinkSync(savePath)
-        throw new IntegrityError(`File content CID mismatch. File may be corrupted or tampered.`)
-      }
-
-      const result = {
-        fileName: sanitizedFileName,
-        savedPath: savePath
-      }
-
-      // 将下载的文件添加到已发布文件列表
-      const existingIndex = this.#publishedFiles.findIndex(f => f.cid === cidString)
-      if (existingIndex === -1) {
-        this.#publishedFiles.push({
-          fileName: sanitizedFileName,
-          cid: cidString,
-          publishedAt: new Date().toISOString(),
-          originalPath: savePath
-        })
+        this.emit('download:status', { taskId, status: 'connecting' })
+        
+        console.log(`[MostBox] Joining swarm for drive discovery...`)
+        // Join as client only (we're downloading, not serving)
+        await this.#swarm.join(drive.discoveryKey, { server: false, client: true }).flushed()
+        console.log(`[MostBox] Swarm join flushed`)
       } else {
-        this.#publishedFiles[existingIndex].publishedAt = new Date().toISOString()
-        this.#publishedFiles[existingIndex].fileName = sanitizedFileName
-        this.#publishedFiles[existingIndex].originalPath = savePath
+        console.log(`[MostBox] Using existing drive: ${name}`)
       }
-      this.#savePublishedMetadata()
 
-      this.emit('download:success', result)
-      return result
+      // Check cancellation
+      if (taskState.aborted) throw new Error('Download cancelled')
+
+      this.emit('download:status', { taskId, status: 'finding-peers' })
+
+      // Wait for peers and data to sync
+      console.log(`[MostBox] Waiting for drive content (timeout: ${DOWNLOAD_TIMEOUT/1000}s)...`)
+      const entries = await this.#waitForDriveContent(drive, DOWNLOAD_TIMEOUT, taskId, taskState)
+
+      if (entries.length === 0) {
+        console.log(`[MostBox] No entries found after timeout`)
+        
+        // 提供更详细的错误信息
+        const peerCount = this.#swarm.connections.size
+        let errorMessage = 'No files found in drive. '
+        
+        if (peerCount === 0) {
+          errorMessage += 'Could not connect to any peers. This may be due to:\n'
+          errorMessage += '1. Network firewall blocking P2P connections\n'
+          errorMessage += '2. DHT bootstrap nodes unreachable\n'
+          errorMessage += '3. NAT traversal failed (try port forwarding)\n'
+          errorMessage += '4. No peers are currently sharing this file'
+        } else {
+          errorMessage += `Connected to ${peerCount} peers but no file data was found. This may be due to:\n`
+          errorMessage += '1. Publisher node offline\n'
+          errorMessage += '2. File may have been removed by publisher\n'
+          errorMessage += '3. File link may be invalid or corrupted'
+        }
+        
+        throw new PeerNotFoundError(errorMessage)
+      }
+
+      // Check cancellation
+      if (taskState.aborted) throw new Error('Download cancelled')
+
+      console.log(`[MostBox] Found ${entries.length} entries, starting download...`)
+
+      // Save to storage directory (not Downloads folder)
+      const targetDir = this.#options.storagePath
+
+      // Check storage directory
+      const writableCheck = await checkDirectoryWritable(targetDir)
+      if (!writableCheck.writable) {
+        throw new PermissionError(writableCheck.error)
+      }
+
+      // Download files
+      for (const entry of entries) {
+        const sanitizedFileName = sanitizeFilename(entry.key.replace(/^[\/\\]/, ''))
+        
+        // Get file size
+        let totalBytes = 0
+        try {
+          const stat = await drive.entry(entry.key)
+          if (stat && stat.value && stat.value.blob) {
+            totalBytes = stat.value.blob.byteLength || 0
+          }
+        } catch {
+          // Ignore
+        }
+
+        const savePath = path.join(targetDir, sanitizedFileName)
+        
+        this.emit('download:status', { 
+          taskId,
+          status: 'downloading', 
+          file: sanitizedFileName, 
+          size: totalBytes ? formatFileSize(totalBytes) : null 
+        })
+
+        // Download with progress
+        const rs = drive.createReadStream(entry.key)
+        const ws = fs.createWriteStream(savePath)
+        
+        taskState.readStream = rs
+        taskState.writeStream = ws
+
+        let loadedBytes = 0
+        let lastProgressUpdate = 0
+        
+        await new Promise((resolve, reject) => {
+          rs.on('data', (chunk) => {
+            // Check cancellation
+            if (taskState.aborted) {
+              rs.destroy()
+              ws.destroy()
+              reject(new Error('Download cancelled'))
+              return
+            }
+            loadedBytes += chunk.length
+            const now = Date.now()
+            if (totalBytes > 0 && now - lastProgressUpdate > 500) {
+              lastProgressUpdate = now
+              const percent = Math.round((loadedBytes / totalBytes) * 100)
+              this.emit('download:progress', { taskId, loaded: loadedBytes, total: totalBytes, percent })
+            }
+          })
+          
+          rs.pipe(ws)
+          ws.on('finish', resolve)
+          ws.on('error', reject)
+          rs.on('error', reject)
+        })
+
+        // Check cancellation before verification
+        if (taskState.aborted) throw new Error('Download cancelled')
+
+        // Verify integrity
+        this.emit('download:status', { taskId, status: 'verifying' })
+
+        const { cid: downloadedCid } = await calculateCid(savePath)
+        const expectedHash = b4a.toString(parsedCid.multihash.digest, 'hex')
+        const actualHash = b4a.toString(downloadedCid.multihash.digest, 'hex')
+
+        if (expectedHash !== actualHash) {
+          fs.unlinkSync(savePath)
+          throw new IntegrityError(`File content CID mismatch. File may be corrupted or tampered.`)
+        }
+
+        const result = {
+          taskId,
+          fileName: sanitizedFileName,
+          savedPath: savePath
+        }
+
+        // 将下载的文件添加到已发布文件列表
+        const existingIndex = this.#publishedFiles.findIndex(f => f.cid === cidString)
+        if (existingIndex === -1) {
+          this.#publishedFiles.push({
+            fileName: sanitizedFileName,
+            cid: cidString,
+            publishedAt: new Date().toISOString(),
+            originalPath: savePath
+          })
+        } else {
+          this.#publishedFiles[existingIndex].publishedAt = new Date().toISOString()
+          this.#publishedFiles[existingIndex].fileName = sanitizedFileName
+          this.#publishedFiles[existingIndex].originalPath = savePath
+        }
+        this.#savePublishedMetadata()
+
+        this.emit('download:success', result)
+        return result
+      }
+    } finally {
+      this.#activeDownloads.delete(taskId)
     }
   }
 
@@ -530,6 +560,19 @@ export class MostBoxEngine extends EventEmitter {
     return this.listPublishedFiles()
   }
 
+  /**
+   * Cancel an active download
+   * @param {string} taskId - The task ID of the download to cancel
+   */
+  cancelDownload(taskId) {
+    const task = this.#activeDownloads.get(taskId)
+    if (task) {
+      task.aborted = true
+      if (task.readStream) task.readStream.destroy()
+      if (task.writeStream) task.writeStream.destroy()
+    }
+  }
+
   // --- Private methods ---
 
   #ensureInitialized() {
@@ -568,9 +611,11 @@ export class MostBoxEngine extends EventEmitter {
    * Wait for drive content to be available from peers or local
    * @param {Hyperdrive} drive - The drive to check
    * @param {number} timeout - Maximum wait time in ms
+   * @param {string} [taskId] - Task ID for cancellation
+   * @param {object} [taskState] - Task state object
    * @returns {Promise<Array>} - List of entries
    */
-  async #waitForDriveContent(drive, timeout) {
+  async #waitForDriveContent(drive, timeout, taskId = null, taskState = null) {
     const startTime = Date.now()
     const checkInterval = 1000 // Check every second
     let lastPeerCount = 0
@@ -585,7 +630,7 @@ export class MostBoxEngine extends EventEmitter {
       }
       if (localEntries.length > 0) {
         console.log(`[MostBox] Found ${localEntries.length} entries locally`)
-        this.emit('download:status', { status: 'syncing' })
+        this.emit('download:status', { taskId, status: 'syncing' })
         return localEntries
       }
     } catch (err) {
@@ -593,6 +638,11 @@ export class MostBoxEngine extends EventEmitter {
     }
 
     while (Date.now() - startTime < timeout) {
+      // Check cancellation
+      if (taskState && taskState.aborted) {
+        throw new Error('Download cancelled')
+      }
+
       const currentTime = Date.now()
       const elapsed = Math.round((currentTime - startTime) / 1000)
       
@@ -618,7 +668,7 @@ export class MostBoxEngine extends EventEmitter {
 
       if (entries.length > 0) {
         console.log(`[MostBox] Found ${entries.length} entries after ${elapsed}s`)
-        this.emit('download:status', { status: 'syncing' })
+        this.emit('download:status', { taskId, status: 'syncing' })
         return entries
       }
 
@@ -626,13 +676,13 @@ export class MostBoxEngine extends EventEmitter {
       if (hasPeers) {
         const newStatus = 'syncing'
         if (lastStatus !== newStatus) {
-          this.emit('download:status', { status: newStatus })
+          this.emit('download:status', { taskId, status: newStatus })
           lastStatus = newStatus
         }
       } else {
         const newStatus = 'finding-peers'
         if (lastStatus !== newStatus) {
-          this.emit('download:status', { status: newStatus })
+          this.emit('download:status', { taskId, status: newStatus })
           lastStatus = newStatus
         }
         

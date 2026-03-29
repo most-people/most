@@ -3,7 +3,8 @@ import {
   Upload, Sun, Moon, Image as ImageIcon, Trash2, Folder,
   FolderPlus, Film, Music, ChevronRight, FileText,
   MousePointer2, X, Play, Maximize2, MoreHorizontal,
-  Edit2, Info, Share2, Check, Copy, Download, Link, Power
+  Edit2, Info, Share2, Check, Copy, Download, Link, Power,
+  ArrowUpDown
 } from 'lucide-react'
 
 // === API ===
@@ -36,6 +37,22 @@ const API = {
     body: JSON.stringify({ link })
   }),
   getFileDownloadUrl: (cid) => `/api/files/${cid}/download`
+}
+
+// === Transfer helpers ===
+function formatSpeed(bytesPerSecond) {
+  if (!bytesPerSecond || bytesPerSecond <= 0) return ''
+  if (bytesPerSecond < 1024) return `${bytesPerSecond.toFixed(0)} B/s`
+  if (bytesPerSecond < 1024 * 1024) return `${(bytesPerSecond / 1024).toFixed(1)} KB/s`
+  return `${(bytesPerSecond / (1024 * 1024)).toFixed(1)} MB/s`
+}
+
+function formatSize(bytes) {
+  if (!bytes || bytes <= 0) return '0 B'
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
 }
 
 // === Folder Manager (S3-style) ===
@@ -255,6 +272,8 @@ export default function App() {
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false)
   const [downloadLink, setDownloadLink] = useState('')
   const [toasts, setToasts] = useState([])
+  const [transfers, setTransfers] = useState([])
+  const [isTransferPanelOpen, setIsTransferPanelOpen] = useState(false)
   const containerRef = useRef(null)
   const [draggedItemId, setDraggedItemId] = useState(null)
   const [copied, setCopied] = useState(false)
@@ -273,6 +292,35 @@ export default function App() {
 
   const removeToast = (id) => {
     setToasts(prev => prev.filter(t => t.id !== id))
+  }
+
+  const addTransfer = (transfer) => {
+    setTransfers(prev => [...prev, transfer])
+  }
+
+  const updateTransfer = (id, updates) => {
+    setTransfers(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t))
+  }
+
+  const removeTransfer = (id) => {
+    setTransfers(prev => prev.filter(t => t.id !== id))
+  }
+
+  const cancelTransfer = async (transfer) => {
+    if (transfer.type === 'upload') {
+      if (transfer.xhr) transfer.xhr.abort()
+      removeTransfer(transfer.id)
+    } else if (transfer.type === 'download') {
+      removeTransfer(transfer.id)
+      try {
+        await fetch('/api/download/cancel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ taskId: transfer.taskId })
+        })
+      } catch {}
+      addToast('已取消下载', 'info')
+    }
   }
 
   const getBreadcrumbs = () => {
@@ -299,19 +347,93 @@ export default function App() {
 
   const processFiles = async (files) => {
     const prefix = currentPath ? currentPath + '/' : ''
-    let success = 0, failed = 0
+
     for (const file of Array.from(files)) {
       const fileName = prefix + file.name
+      const transferId = `up_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+
+      const transfer = {
+        id: transferId,
+        type: 'upload',
+        fileName: file.name,
+        status: 'uploading',
+        progress: 0,
+        loaded: 0,
+        total: file.size,
+        speed: 0,
+        startTime: Date.now(),
+        lastLoaded: 0,
+        lastTime: Date.now(),
+        xhr: null,
+        taskId: null,
+        error: null
+      }
+      addTransfer(transfer)
+      if (file.size > 100 * 1024 * 1024) setIsTransferPanelOpen(true)
+
       try {
-        await API.publishFile(file, fileName)
-        success++
+        await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest()
+          const formData = new FormData()
+          formData.append('file', file, fileName)
+
+          updateTransfer(transferId, { xhr })
+
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) {
+              const now = Date.now()
+              const percent = Math.round((e.loaded / e.total) * 100)
+              setTransfers(prev => {
+                const t = prev.find(x => x.id === transferId)
+                if (!t) return prev
+                const timeDiff = (now - t.lastTime) / 1000
+                const bytesDiff = e.loaded - t.lastLoaded
+                const speed = timeDiff > 0.3 ? bytesDiff / timeDiff : t.speed
+                return prev.map(x => x.id === transferId ? {
+                  ...x,
+                  progress: percent,
+                  loaded: e.loaded,
+                  total: e.total,
+                  speed: percent >= 100 ? 0 : speed,
+                  lastLoaded: timeDiff > 0.3 ? e.loaded : x.lastLoaded,
+                  lastTime: timeDiff > 0.3 ? now : x.lastTime,
+                  status: percent >= 100 ? 'processing' : 'uploading'
+                } : x)
+              })
+            }
+          }
+
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve()
+            } else {
+              try {
+                const err = JSON.parse(xhr.responseText)
+                reject(new Error(err.error || 'Upload failed'))
+              } catch {
+                reject(new Error('Upload failed'))
+              }
+            }
+          }
+
+          xhr.onerror = () => reject(new Error('Network error'))
+          xhr.onabort = () => reject(new Error('Upload cancelled'))
+
+          xhr.open('POST', '/api/publish')
+          xhr.send(formData)
+        })
+
+        // Transfer removed by WebSocket publish:success event
+        // If WS event arrived before XHR onload, transfer is already gone
       } catch (err) {
-        failed++
-        addToast(`上传失败: ${file.name}`, 'error')
+        removeTransfer(transferId)
+        if (err.message === 'Upload cancelled') {
+          addToast(`已取消上传: ${file.name}`, 'info')
+        } else {
+          addToast(`上传失败: ${file.name} - ${err.message}`, 'error')
+        }
       }
     }
-    if (success > 0) addToast(`成功上传 ${success} 个文件`, 'success')
-    refreshFiles()
   }
 
   const refreshFiles = async () => {
@@ -385,14 +507,36 @@ export default function App() {
     }
     try {
       const result = await API.downloadFile(downloadLink)
-      if (result.success) {
-        addToast(result.alreadyExists ? '文件已存在' : '下载成功!', 'success')
-        refreshFiles()
-      } else {
-        throw new Error(result.error)
+
+      if (result.alreadyExists) {
+        addToast('文件已存在', 'success')
+        setDownloadLink('')
+        setIsDownloadModalOpen(false)
+        return
       }
+
+      // Create download transfer record
+      const transfer = {
+        id: result.taskId,
+        type: 'download',
+        fileName: '等待连接...',
+        status: 'connecting',
+        progress: 0,
+        loaded: 0,
+        total: 0,
+        speed: 0,
+        startTime: Date.now(),
+        lastLoaded: 0,
+        lastTime: Date.now(),
+        xhr: null,
+        taskId: result.taskId,
+        error: null
+      }
+      addTransfer(transfer)
+
       setDownloadLink('')
       setIsDownloadModalOpen(false)
+      addToast('下载任务已开始', 'info')
     } catch (err) {
       addToast('下载失败: ' + err.message, 'error')
     }
@@ -459,8 +603,68 @@ export default function App() {
     ws.onmessage = (e) => {
       try {
         const { event, data } = JSON.parse(e.data)
-        if (event === 'publish:success') { addToast('文件发布成功!', 'success'); refreshFiles() }
-        if (event === 'download:success') { addToast('文件下载完成!', 'success'); refreshFiles() }
+
+        if (event === 'publish:success') {
+          // Remove any upload transfer (matched by fileName prefix since publish doesn't carry taskId)
+          setTransfers(prev => prev.filter(t => {
+            if (t.type === 'upload') {
+              // Remove the first upload transfer that's processing or uploading
+              return t.status !== 'processing' && t.status !== 'uploading' ? true : false
+            }
+            return true
+          }))
+          addToast('文件发布成功!', 'success')
+          refreshFiles()
+        }
+
+        if (event === 'download:progress') {
+          const { taskId, loaded, total, percent } = data
+          setTransfers(prev => {
+            const t = prev.find(x => x.id === taskId)
+            if (!t) return prev
+            const now = Date.now()
+            const timeDiff = (now - t.lastTime) / 1000
+            const bytesDiff = loaded - t.lastLoaded
+            const speed = timeDiff > 0.3 ? bytesDiff / timeDiff : t.speed
+            return prev.map(x => x.id === taskId ? {
+              ...x,
+              progress: percent || 0,
+              loaded: loaded || 0,
+              total: total || 0,
+              speed: timeDiff > 0.3 ? speed : x.speed,
+              lastLoaded: timeDiff > 0.3 ? loaded : x.lastLoaded,
+              lastTime: timeDiff > 0.3 ? now : x.lastTime
+            } : x)
+          })
+        }
+
+        if (event === 'download:status') {
+          const { taskId, status, file } = data
+          setTransfers(prev => prev.map(x => x.id === taskId ? {
+            ...x,
+            status: status || x.status,
+            fileName: file || x.fileName
+          } : x))
+        }
+
+        if (event === 'download:success') {
+          const { taskId } = data
+          removeTransfer(taskId)
+          addToast('文件下载完成!', 'success')
+          refreshFiles()
+        }
+
+        if (event === 'download:error') {
+          const { taskId, error } = data
+          removeTransfer(taskId)
+          addToast('下载失败: ' + (error || '未知错误'), 'error')
+        }
+
+        if (event === 'download:cancelled') {
+          const { taskId } = data
+          removeTransfer(taskId)
+        }
+
         if (event === 'network:status') {
           setPeerCount(data.peers || 0)
         }
@@ -527,6 +731,25 @@ export default function App() {
         <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
           <h1 style={{ fontSize: 28, fontWeight: 600, letterSpacing: '-0.02em' }}>文件</h1>
           <div style={{ display: 'flex', gap: 8 }}>
+            {transfers.length > 0 && (
+              <button onClick={() => setIsTransferPanelOpen(true)} style={{
+                width: 40, height: 40, borderRadius: '50%', border: 'none',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', background: bgSecondary, position: 'relative',
+                color: '#f59e0b', boxShadow: '0 1px 2px rgba(0,0,0,0.06)', transition: 'all 0.2s'
+              }}>
+                <ArrowUpDown size={20} style={{ animation: 'pulse 2s infinite' }} />
+                <span style={{
+                  position: 'absolute', top: -2, right: -2,
+                  width: 18, height: 18, borderRadius: '50%',
+                  background: '#ef4444', color: '#fff',
+                  fontSize: 10, fontWeight: 700,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                  {transfers.length}
+                </span>
+              </button>
+            )}
             <button onClick={createNewFolder} style={{
               width: 40, height: 40, borderRadius: '50%', border: 'none',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -892,6 +1115,101 @@ export default function App() {
                 padding: '8px 24px', borderRadius: 10, border: 'none',
                 background: accentBlue, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer'
               }}>确定</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Transfer Panel Modal */}
+      {isTransferPanelOpen && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 150, background: 'rgba(0,0,0,0.5)',
+          backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+          animation: 'fadeIn 0.2s ease'
+        }} onClick={() => setIsTransferPanelOpen(false)}>
+          <div style={{
+            width: 520, maxWidth: '100%', maxHeight: '70vh', padding: 28, borderRadius: 24,
+            background: isDarkMode ? '#111827' : '#fff',
+            border: `1px solid ${borderColor}`, position: 'relative',
+            animation: 'slideUp 0.25s ease', display: 'flex', flexDirection: 'column'
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 600 }}>传输列表</h3>
+              <button onClick={() => setIsTransferPanelOpen(false)} style={{
+                width: 32, height: 32, borderRadius: '50%', border: 'none',
+                background: bgTertiary, display: 'flex', alignItems: 'center',
+                justifyContent: 'center', cursor: 'pointer', color: textMuted
+              }}><X size={18} /></button>
+            </div>
+
+            <div style={{ flex: 1, overflow: 'auto' }}>
+              {transfers.length === 0 ? (
+                <div style={{ textAlign: 'center', color: textMuted, padding: '40px 0', fontSize: 14 }}>
+                  当前没有传输任务
+                </div>
+              ) : (
+                transfers.map(t => {
+                  const speedStr = formatSpeed(t.speed)
+                  const sizeStr = t.total > 0 ? `${formatSize(t.loaded)} / ${formatSize(t.total)}` : ''
+                  const statusText =
+                    t.status === 'uploading' ? '上传中' :
+                    t.status === 'processing' ? '服务器处理中...' :
+                    t.status === 'connecting' ? '连接中...' :
+                    t.status === 'finding-peers' ? '正在搜索节点...' :
+                    t.status === 'syncing' ? '正在同步...' :
+                    t.status === 'downloading' ? '下载中' :
+                    t.status === 'verifying' ? '验证完整性...' : ''
+                  return (
+                    <div key={t.id} style={{
+                      padding: '14px 0', borderBottom: `1px solid ${borderColor}`,
+                      display: 'flex', flexDirection: 'column', gap: 8
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+                          {t.type === 'upload'
+                            ? <Upload size={16} color={accentBlue} />
+                            : <Download size={16} color="#6366f1" />}
+                          <span style={{
+                            fontSize: 13, fontWeight: 500, flex: 1, minWidth: 0,
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                          }}>
+                            {t.fileName}
+                          </span>
+                        </div>
+                        <button onClick={() => cancelTransfer(t)} title="取消" style={{
+                          width: 28, height: 28, borderRadius: '50%', border: 'none',
+                          background: 'rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center',
+                          justifyContent: 'center', cursor: 'pointer', color: '#ef4444',
+                          flexShrink: 0, marginLeft: 8, transition: 'all 0.15s'
+                        }}>
+                          <X size={14} />
+                        </button>
+                      </div>
+                      <div style={{
+                        width: '100%', height: 6, borderRadius: 3,
+                        background: isDarkMode ? '#374151' : '#e5e7eb', overflow: 'hidden'
+                      }}>
+                        <div style={{
+                          width: `${t.progress}%`, height: '100%', borderRadius: 3,
+                          background: t.type === 'upload'
+                            ? 'linear-gradient(90deg, #3b82f6, #60a5fa)'
+                            : 'linear-gradient(90deg, #6366f1, #818cf8)',
+                          transition: 'width 0.3s ease'
+                        }} />
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: textMuted }}>
+                        <span>
+                          {statusText}
+                          {t.progress > 0 && ` ${t.progress}%`}
+                        </span>
+                        <span>
+                          {[speedStr, sizeStr].filter(Boolean).join(' · ')}
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
             </div>
           </div>
         </div>
