@@ -1044,7 +1044,7 @@ export default function App() {
           }}><X size={24} /></button>
           <div onClick={e => e.stopPropagation()} style={{ maxWidth: '100%', maxHeight: '85vh' }}>
             {previewItem.subtype === 'image' && (
-              <img src={previewItem.originalPath || API.getFileDownloadUrl(previewItem.cid)}
+              <img src={API.getFileDownloadUrl(previewItem.cid)}
                 alt={previewItem.name} style={{ maxWidth: '100%', maxHeight: '85vh', objectFit: 'contain', borderRadius: 20, boxShadow: '0 24px 64px rgba(0,0,0,0.5)' }} />
             )}
             {previewItem.subtype === 'video' && (

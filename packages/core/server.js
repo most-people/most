@@ -26,8 +26,21 @@ const MIME_TYPES = {
   '.css': 'text/css; charset=utf-8',
   '.json': 'application/json',
   '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.ogg': 'video/ogg',
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+  '.flac': 'audio/flac',
+  '.aac': 'audio/aac',
+  '.m4a': 'audio/mp4',
+  '.opus': 'audio/opus',
   '.woff2': 'font/woff2',
   '.woff': 'font/woff'
 }
@@ -150,15 +163,15 @@ async function handleAPI(req, res) {
 
     // POST /api/publish — multipart file upload
     if (pathname === '/api/publish' && method === 'POST') {
-      const tempDir = path.join(getStoragePath(), 'temp')
-      if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true })
+      const saveDir = getStoragePath()
+      if (!fs.existsSync(saveDir)) fs.mkdirSync(saveDir, { recursive: true })
 
       let aborted = false
       req.on('close', () => {
         if (req.aborted) aborted = true
       })
 
-      const parts = await parseMultipart(req, tempDir)
+      const parts = await parseMultipart(req, saveDir)
 
       if (aborted) {
         return
@@ -170,7 +183,7 @@ async function handleAPI(req, res) {
         return
       }
 
-      const savedPath = path.join(tempDir, filePart.filename)
+      const savedPath = path.join(saveDir, filePart.filename)
       fs.writeFileSync(savedPath, filePart.data)
 
       if (aborted) {
@@ -179,9 +192,6 @@ async function handleAPI(req, res) {
       }
 
       const result = await engine.publishFile(savedPath, filePart.filename)
-
-      // 发布成功后删除临时文件
-      try { fs.unlinkSync(savedPath) } catch {}
 
       json({ success: true, ...result })
       return
@@ -232,7 +242,7 @@ async function handleAPI(req, res) {
       return
     }
 
-    // GET /api/files/:cid/download — browser file download
+    // GET /api/files/:cid/download — serve file inline for preview / download
     if (pathname.match(/^\/api\/files\/[^/]+\/download$/) && method === 'GET') {
       const cid = pathname.split('/')[3]
       const files = engine.listPublishedFiles()
@@ -244,10 +254,14 @@ async function handleAPI(req, res) {
       }
 
       const stat = fs.statSync(file.originalPath)
+      const ext = path.extname(file.fileName).toLowerCase()
+      const contentType = MIME_TYPES[ext] || 'application/octet-stream'
+
       res.writeHead(200, {
-        'Content-Type': 'application/octet-stream',
-        'Content-Disposition': `attachment; filename="${encodeURIComponent(file.fileName)}"`,
-        'Content-Length': stat.size
+        'Content-Type': contentType,
+        'Content-Disposition': 'inline',
+        'Content-Length': stat.size,
+        'Accept-Ranges': 'bytes'
       })
       fs.createReadStream(file.originalPath).pipe(res)
       return
