@@ -1,0 +1,75 @@
+appId: com.mostbox.app
+productName: MostBox
+copyright: Copyright © 2024 MostBox
+
+directories:
+  output: dist
+  buildResources: ../build
+
+files:
+  - ../core/**/*
+  - ./*.mjs
+  - "!node_modules/**/*"
+  - node_modules/electron-updater/**/*
+  - node_modules/electron-log/**/*
+  - node_modules/electron-log/**/*
+  - node_modules/builder-util/**/*
+  - node_modules/dmg-builder/**/*
+  - "!**/node_modules/*/{CHANGELOG.md,README.md,readme.md,test,__tests__,tests,powered-test,example,examples}"
+  - "!**/node_modules/.bin"
+  - "!**/*.ts"
+  - "!**/*.map"
+
+asar: true
+asarUnpack:
+  - ../core/node_modules/udx-native/**/*
+  - ../core/node_modules/simdle-native/**/*
+  - ../core/node_modules/rocksdb-native/**/*
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: ../icons/favicon.ico
+  artifactName: ${productName}-${version}-win.${ext}
+  signAndEditExecutable: false
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: true
+  installerHeaderIcon: ../icons/favicon.ico
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  icon: ../icons/pwa-512x512.png
+  category: public.app-category.productivity
+  artifactName: ${productName}-${version}-mac.${ext}
+  hardenedRuntime: true
+  gatekeeperAssess: false
+
+dmg:
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+
+publish:
+  provider: github
+  owner: most-people
+  repo: most
+  releaseType: release
+
+electronDownload:
+  mirror: https://npmmirror.com/mirrors/electron/
