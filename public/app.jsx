@@ -2,8 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import {
   Upload, Sun, Moon, Image as ImageIcon, Trash2, Folder,
   FolderPlus, Film, Music, ChevronRight, FileText,
-  X, Share2, Check, Copy, Download, ArrowRight, Power,
-  ArrowUpDown, Star, Files, HardDrive, Search
+  X, Check, Copy, Download, ArrowUpDown, Star, Files, HardDrive, Search
 } from 'lucide-react'
 
 // === API ===
@@ -44,6 +43,11 @@ const API = {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ cid, newFileName })
+  }),
+  renameFolder: (oldPath, newPath) => API.fetch('/api/folder/rename', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ oldPath, newPath })
   })
 }
 
@@ -109,16 +113,17 @@ function getFileSubtype(fileName) {
 }
 
 // === Toast ===
+const TOAST_COLORS = { success: '#22c55e', error: '#ef4444', warning: '#f59e0b', info: '#3b82f6' }
+
 function Toast({ message, type, onDone }) {
   useEffect(() => {
     const t = setTimeout(onDone, 3000)
     return () => clearTimeout(t)
   }, [])
-  const colors = { success: '#22c55e', error: '#ef4444', warning: '#f59e0b', info: '#3b82f6' }
   return (
     <div style={{
       position: 'fixed', bottom: 24, right: 24, zIndex: 9999,
-      background: colors[type] || colors.info, color: '#fff',
+      background: TOAST_COLORS[type] || TOAST_COLORS.info, color: '#fff',
       padding: '12px 20px', borderRadius: 12, fontSize: 13, fontWeight: 500,
       boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
       animation: 'toastSlideIn 0.2s ease'
@@ -128,11 +133,51 @@ function Toast({ message, type, onDone }) {
   )
 }
 
+// === Modal Overlay ===
+function ModalOverlay({ children, onClose }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
+      {children}
+    </div>
+  )
+}
+
+// === Shared Styles ===
+const iconContainerStyle = {
+  width: 56, height: 56, borderRadius: 12, marginBottom: 10,
+  display: 'flex', alignItems: 'center', justifyContent: 'center'
+}
+
+const textEllipsisStyle = {
+  fontSize: 12, fontWeight: 500, textAlign: 'center', maxWidth: '100%',
+  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+}
+
+// === Breadcrumb Generator ===
+function generateBreadcrumbs(currentPath) {
+  if (!currentPath) return []
+  return [
+    { path: '', name: '全部内容' },
+    ...currentPath.split('/').filter(Boolean).map((part, i, arr) => ({
+      path: arr.slice(0, i + 1).join('/'),
+      name: part
+    }))
+  ]
+}
+
+// === Refresh Handler Factory ===
+const createRefreshHandler = (setter, apiMethod) => async () => {
+  try { setter(await apiMethod()) }
+  catch (err) { console.error(err) }
+}
+
 // === File Card ===
 function FileCard({ file, isSelected, isDarkMode, onSelect, onPreview }) {
   const bgSecondary = isDarkMode ? '#1e293b' : '#ffffff'
   const accentBlue = isDarkMode ? '#60a5fa' : '#3b82f6'
   const borderColor = isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'
+  const textColor = isDarkMode ? '#e5e7eb' : '#111827'
+  const subtype = getFileSubtype(file.fileName)
 
   return (
     <div
@@ -148,20 +193,15 @@ function FileCard({ file, isSelected, isDarkMode, onSelect, onPreview }) {
       }}
     >
       <div style={{
-        width: 56, height: 56, borderRadius: 12, marginBottom: 10,
-        background: file.starred ? 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)' : 'linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center'
+        ...iconContainerStyle,
+        background: file.starred ? 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)' : 'linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%)'
       }}>
-        {getFileSubtype(file.fileName) === 'image' && <ImageIcon size={24} color="#fff" />}
-        {getFileSubtype(file.fileName) === 'video' && <Film size={24} color="#fff" />}
-        {getFileSubtype(file.fileName) === 'audio' && <Music size={24} color="#fff" />}
-        {!['image', 'video', 'audio'].includes(getFileSubtype(file.fileName)) && <FileText size={24} color="#fff" />}
+        {subtype === 'image' && <ImageIcon size={24} color="#fff" />}
+        {subtype === 'video' && <Film size={24} color="#fff" />}
+        {subtype === 'audio' && <Music size={24} color="#fff" />}
+        {subtype === 'file' && <FileText size={24} color="#fff" />}
       </div>
-      <p style={{
-        fontSize: 12, fontWeight: 500, textAlign: 'center', maxWidth: '100%',
-        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        color: isDarkMode ? '#e5e7eb' : '#111827'
-      }}>
+      <p style={{ ...textEllipsisStyle, color: textColor }}>
         {parseName(file.fileName).name}
       </p>
     </div>
@@ -172,6 +212,7 @@ function FileCard({ file, isSelected, isDarkMode, onSelect, onPreview }) {
 function FolderCard({ folder, isDarkMode, onClick }) {
   const bgSecondary = isDarkMode ? '#1e293b' : '#ffffff'
   const borderColor = isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'
+  const textColor = isDarkMode ? '#e5e7eb' : '#111827'
 
   return (
     <div
@@ -184,21 +225,65 @@ function FolderCard({ folder, isDarkMode, onClick }) {
         transition: 'all 0.15s'
       }}
     >
-      <div style={{
-        width: 56, height: 56, borderRadius: 12, marginBottom: 10,
-        background: 'linear-gradient(135deg, #818cf8 0%, #6366f1 100%)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center'
-      }}>
+      <div style={{ ...iconContainerStyle, background: 'linear-gradient(135deg, #818cf8 0%, #6366f1 100%)' }}>
         <Folder size={28} color="#fff" />
       </div>
-      <p style={{
-        fontSize: 12, fontWeight: 500, textAlign: 'center', maxWidth: '100%',
-        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        color: isDarkMode ? '#e5e7eb' : '#111827'
-      }}>
+      <p style={{ ...textEllipsisStyle, color: textColor }}>
         {folder.name}
       </p>
     </div>
+  )
+}
+
+// === Confirm Modal ===
+function ConfirmModal({ title, message, confirmText, onConfirm, onClose, danger }) {
+  const isDarkMode = false
+  const bgSecondary = '#ffffff'
+  const bgTertiary = '#f1f5f9'
+  const textPrimary = '#0f172a'
+  const textSecondary = '#64748b'
+  const borderColor = 'rgba(0,0,0,0.06)'
+  return (
+    <ModalOverlay onClose={onClose}>
+      <div style={{ width: 360, padding: 24, borderRadius: 16, background: bgSecondary, border: `1px solid ${borderColor}` }} onClick={e => e.stopPropagation()}>
+        <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>{title}</h3>
+        <p style={{ fontSize: 13, color: textSecondary, marginBottom: 20 }}>{message}</p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: 10, borderRadius: 8, border: `1px solid ${borderColor}`, background: 'transparent', cursor: 'pointer', fontSize: 13 }}>取消</button>
+          <button onClick={onConfirm} style={{ flex: 1, padding: 10, borderRadius: 8, border: 'none', background: danger ? '#ef4444' : '#3b82f6', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>{confirmText}</button>
+        </div>
+      </div>
+    </ModalOverlay>
+  )
+}
+
+// === Input Modal ===
+function InputModal({ title, placeholder, defaultValue, confirmText, onConfirm, onClose }) {
+  const [value, setValue] = useState(defaultValue || '')
+  const bgSecondary = '#ffffff'
+  const bgTertiary = '#f1f5f9'
+  const textPrimary = '#0f172a'
+  const textSecondary = '#64748b'
+  const borderColor = 'rgba(0,0,0,0.06)'
+  return (
+    <ModalOverlay onClose={onClose}>
+      <div style={{ width: 360, padding: 24, borderRadius: 16, background: bgSecondary, border: `1px solid ${borderColor}` }} onClick={e => e.stopPropagation()}>
+        <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>{title}</h3>
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder={placeholder}
+          autoFocus
+          onKeyDown={(e) => { if (e.key === 'Enter' && value.trim()) onConfirm(value.trim()) }}
+          style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: `1.5px solid ${borderColor}`, fontSize: 13, outline: 'none', background: bgTertiary, color: textPrimary, marginBottom: 16 }}
+        />
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: 10, borderRadius: 8, border: `1px solid ${borderColor}`, background: 'transparent', cursor: 'pointer', fontSize: 13 }}>取消</button>
+          <button onClick={() => value.trim() && onConfirm(value.trim())} disabled={!value.trim()} style={{ flex: 1, padding: 10, borderRadius: 8, border: 'none', background: value.trim() ? '#3b82f6' : bgTertiary, color: value.trim() ? '#fff' : textSecondary, cursor: value.trim() ? 'pointer' : 'not-allowed', fontSize: 13, fontWeight: 500 }}>{confirmText}</button>
+        </div>
+      </div>
+    </ModalOverlay>
   )
 }
 
@@ -212,16 +297,10 @@ function MoveModal({ items, allFolders, currentPath, isDarkMode, onMove, onClose
   const borderColor = isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'
   const accentBlue = isDarkMode ? '#60a5fa' : '#3b82f6'
 
-  const breadcrumbParts = targetPath ? [
-    { path: '', name: '全部内容' },
-    ...targetPath.split('/').filter(Boolean).map((part, i, arr) => ({
-      path: arr.slice(0, i + 1).join('/'),
-      name: part
-    }))
-  ] : [{ path: '', name: '全部内容' }]
+  const breadcrumbParts = generateBreadcrumbs(targetPath)
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
+    <ModalOverlay onClose={onClose}>
       <div style={{ width: 400, padding: 24, borderRadius: 16, background: bgSecondary, border: `1px solid ${borderColor}` }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h3 style={{ fontSize: 16, fontWeight: 600 }}>移动到</h3>
@@ -283,7 +362,7 @@ function MoveModal({ items, allFolders, currentPath, isDarkMode, onMove, onClose
           </button>
         </div>
       </div>
-    </div>
+    </ModalOverlay>
   )
 }
 
@@ -308,6 +387,9 @@ export default function App() {
   const [peerCount, setPeerCount] = useState(0)
   const [storageStats, setStorageStats] = useState({ total: 0, used: 0, free: 0 })
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false)
+  const [confirmModal, setConfirmModal] = useState(null)
+  const [inputModal, setInputModal] = useState(null)
+  const [renameTarget, setRenameTarget] = useState(null)
 
   const currentPath = currentFolderId || ''
   const allFolders = getUniqueFolders(items)
@@ -320,55 +402,70 @@ export default function App() {
   const addToast = (message, type = 'info') => setToasts(prev => [...prev, { id: Date.now(), message, type }])
   const removeToast = (id) => setToasts(prev => prev.filter(t => t.id !== id))
 
-  const refreshFiles = async () => {
-    try { setItems(await API.listPublishedFiles() || []) }
-    catch (err) { console.error(err) }
-  }
-  const refreshTrash = async () => {
-    try { setTrashItems(await API.listTrashFiles() || []) }
-    catch (err) { console.error(err) }
-  }
-  const refreshStorageStats = async () => {
-    try { setStorageStats(await API.getStorageStats()) }
-    catch (err) { console.error(err) }
-  }
+  const refreshFiles = createRefreshHandler(setItems, () => API.listPublishedFiles().then(r => r || []))
+  const refreshTrash = createRefreshHandler(setTrashItems, () => API.listTrashFiles().then(r => r || []))
+  const refreshStorageStats = createRefreshHandler(setStorageStats, API.getStorageStats)
 
   const handleSelect = (id) => {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])
   }
 
   const handleDelete = async (id) => {
-    if (!confirm('确定要删除吗？')) return
-    try {
-      await API.deletePublishedFile(id)
-      setSelectedIds(prev => prev.filter(i => i !== id))
-      addToast('已删除', 'success')
-      refreshFiles()
-      refreshTrash()
-      refreshStorageStats()
-    } catch { addToast('删除失败', 'error') }
+    setConfirmModal({
+      title: '确认删除',
+      message: '确定要删除吗？',
+      confirmText: '删除',
+      danger: true,
+      onConfirm: async () => {
+        setConfirmModal(null)
+        try {
+          await API.deletePublishedFile(id)
+          setSelectedIds(prev => prev.filter(i => i !== id))
+          addToast('已删除', 'success')
+          refreshFiles()
+          refreshTrash()
+          refreshStorageStats()
+        } catch { addToast('删除失败', 'error') }
+      }
+    })
   }
 
   const handleFolderDelete = async (folder) => {
     const toDelete = items.filter(i => parseName(i.fileName).folder.toLowerCase() === folder.path.toLowerCase())
-    if (toDelete.length > 0 && !confirm(`确定要删除文件夹中的 ${toDelete.length} 个文件吗？`)) return
-    try {
-      for (const f of toDelete) { if (f.cid) await API.deletePublishedFile(f.cid) }
-      addToast('已删除', 'success')
-      refreshFiles()
-      refreshTrash()
-      refreshStorageStats()
-    } catch { addToast('删除失败', 'error') }
+    setConfirmModal({
+      title: '确认删除',
+      message: toDelete.length > 0 ? `确定要删除文件夹中的 ${toDelete.length} 个文件吗？` : '确定要删除此文件夹吗？',
+      confirmText: '删除',
+      danger: true,
+      onConfirm: async () => {
+        setConfirmModal(null)
+        try {
+          for (const f of toDelete) { if (f.cid) await API.deletePublishedFile(f.cid) }
+          addToast('已删除', 'success')
+          refreshFiles()
+          refreshTrash()
+          refreshStorageStats()
+        } catch { addToast('删除失败', 'error') }
+      }
+    })
   }
 
   const handlePermanentDelete = async (cid) => {
-    if (!confirm('确定要永久删除吗？此操作不可恢复！')) return
-    try {
-      await API.permanentDeleteTrashFile(cid)
-      addToast('已永久删除', 'success')
-      refreshTrash()
-      refreshStorageStats()
-    } catch { addToast('删除失败', 'error') }
+    setConfirmModal({
+      title: '永久删除',
+      message: '确定要永久删除吗？此操作不可恢复！',
+      confirmText: '永久删除',
+      danger: true,
+      onConfirm: async () => {
+        setConfirmModal(null)
+        try {
+          await API.permanentDeleteTrashFile(cid)
+          addToast('已永久删除', 'success')
+          refreshTrash()
+          refreshStorageStats()
+        } catch { addToast('删除失败', 'error') }
+      }
+    })
   }
 
   const handleRestore = async (cid) => {
@@ -382,13 +479,21 @@ export default function App() {
   }
 
   const handleEmptyTrash = async () => {
-    if (!confirm('确定要清空回收站吗？此操作不可恢复！')) return
-    try {
-      await API.emptyTrash()
-      addToast('回收站已清空', 'success')
-      refreshTrash()
-      refreshStorageStats()
-    } catch { addToast('清空失败', 'error') }
+    setConfirmModal({
+      title: '清空回收站',
+      message: '确定要清空回收站吗？此操作不可恢复！',
+      confirmText: '清空',
+      danger: true,
+      onConfirm: async () => {
+        setConfirmModal(null)
+        try {
+          await API.emptyTrash()
+          addToast('回收站已清空', 'success')
+          refreshTrash()
+          refreshStorageStats()
+        } catch { addToast('清空失败', 'error') }
+      }
+    })
   }
 
   const handleToggleStar = async (cid) => {
@@ -400,15 +505,30 @@ export default function App() {
   }
 
   const handleBatchDelete = async () => {
-    if (!confirm(`确定要删除选中的 ${selectedIds.length} 个项目吗？`)) return
-    try {
-      for (const id of selectedIds) { if (!id.startsWith('__')) await API.deletePublishedFile(id) }
-      setSelectedIds([])
-      addToast('已删除', 'success')
-      refreshFiles()
-      refreshTrash()
-      refreshStorageStats()
-    } catch { addToast('删除失败', 'error') }
+    const isTrash = currentView === 'trash'
+    setConfirmModal({
+      title: isTrash ? '永久删除' : '批量删除',
+      message: isTrash ? `确定要永久删除选中的 ${selectedIds.length} 个项目吗？此操作不可恢复！` : `确定要删除选中的 ${selectedIds.length} 个项目吗？`,
+      confirmText: isTrash ? '永久删除' : '删除',
+      danger: true,
+      onConfirm: async () => {
+        setConfirmModal(null)
+        try {
+          for (const id of selectedIds) {
+            if (isTrash) {
+              await API.permanentDeleteTrashFile(id)
+            } else {
+              if (!id.startsWith('__')) await API.deletePublishedFile(id)
+            }
+          }
+          setSelectedIds([])
+          addToast(isTrash ? '已永久删除' : '已删除', 'success')
+          refreshFiles()
+          refreshTrash()
+          refreshStorageStats()
+        } catch { addToast('删除失败', 'error') }
+      }
+    })
   }
 
   const handleMove = async (targetPath) => {
@@ -429,6 +549,32 @@ export default function App() {
     } catch { addToast('移动失败', 'error') }
   }
 
+  const openRenameModal = (target) => {
+    const isFolder = !!target.path
+    const currentName = isFolder ? target.name : parseName(target.fileName).name
+    setInputModal({
+      title: isFolder ? '重命名文件夹' : '重命名文件',
+      placeholder: '请输入新名称',
+      defaultValue: currentName,
+      confirmText: '重命名',
+      onConfirm: async (newName) => {
+        setInputModal(null)
+        if (newName === currentName) return
+        try {
+          if (isFolder) {
+            await API.renameFolder(target.path, newName)
+          } else {
+            const { folder } = parseName(target.fileName)
+            const newFileName = folder ? `${folder}/${newName}` : newName
+            await API.moveFile(target.cid, newFileName)
+          }
+          addToast('已重命名', 'success')
+          refreshFiles()
+        } catch { addToast('重命名失败', 'error') }
+      }
+    })
+  }
+
   const processFiles = async (files) => {
     const prefix = currentPath ? currentPath + '/' : ''
     for (const file of Array.from(files)) {
@@ -446,27 +592,30 @@ export default function App() {
     refreshStorageStats()
   }
 
-  const createNewFolder = async () => {
-    const name = prompt('请输入文件夹名称：')
-    if (!name?.trim()) return
-
-    const folderPath = name.trim()
-    const exists = items.some(f =>
-      f.fileName === folderPath ||
-      f.fileName.startsWith(folderPath + '/')
-    )
-    if (exists) {
-      addToast('文件夹已存在', 'warning')
-      return
-    }
-
-    try {
-      const randomContent = Math.random().toString(36).substring(2, 10)
-      const content = new File([randomContent], 'hello.txt', { type: 'text/plain' })
-      await API.publishFile(content, `${folderPath}/hello.txt`)
-      addToast('文件夹已创建', 'success')
-      refreshFiles()
-    } catch { addToast('创建失败', 'error') }
+  const createNewFolder = () => {
+    setInputModal({
+      title: '新建文件夹',
+      placeholder: '请输入文件夹名称',
+      confirmText: '创建',
+      onConfirm: async (folderPath) => {
+        setInputModal(null)
+        const exists = items.some(f =>
+          f.fileName === folderPath ||
+          f.fileName.startsWith(folderPath + '/')
+        )
+        if (exists) {
+          addToast('文件夹已存在', 'warning')
+          return
+        }
+        try {
+          const randomContent = Math.random().toString(36).substring(2, 10)
+          const content = new File([randomContent], 'hello.txt', { type: 'text/plain' })
+          await API.publishFile(content, `${folderPath}/hello.txt`)
+          addToast('文件夹已创建', 'success')
+          refreshFiles()
+        } catch { addToast('创建失败', 'error') }
+      }
+    })
   }
 
   const handleCopyLink = () => {
@@ -535,15 +684,10 @@ export default function App() {
 
   const viewTitle = currentView === 'all' ? '全部内容' : currentView === 'starred' ? '收藏' : '回收站'
   const displayFiles = currentView === 'all' ? filteredFiles : currentView === 'starred' ? items.filter(i => i.starred) : []
+  const displayFolders = currentView === 'starred' ? [] : folders
 
   // Breadcrumb parts
-  const breadcrumbParts = currentPath ? [
-    { path: '', name: '全部内容' },
-    ...currentPath.split('/').filter(Boolean).map((part, i, arr) => ({
-      path: arr.slice(0, i + 1).join('/'),
-      name: part
-    }))
-  ] : []
+  const breadcrumbParts = generateBreadcrumbs(currentPath)
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: bgPrimary, color: textPrimary }}>
@@ -667,16 +811,23 @@ export default function App() {
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 16 }}>
                 {trashItems.map(f => (
-                  <div key={f.cid} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 16, borderRadius: 12, background: bgSecondary, border: `1px solid ${borderColor}`, position: 'relative' }}>
-                    <div style={{ width: 56, height: 56, borderRadius: 12, marginBottom: 10, background: 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div
+                    key={f.cid}
+                    onClick={() => setSelectedIds(prev => prev.includes(f.cid) ? prev.filter(id => id !== f.cid) : [...prev, f.cid])}
+                    onDoubleClick={() => handleRestore(f.cid)}
+                    style={{
+                      display: 'flex', flexDirection: 'column', alignItems: 'center',
+                      padding: 16, borderRadius: 12,
+                      background: selectedIds.includes(f.cid) ? accentBlue + '15' : bgSecondary,
+                      border: `1px solid ${selectedIds.includes(f.cid) ? accentBlue : borderColor}`,
+                      transition: 'all 0.15s', cursor: 'pointer'
+                    }}
+                  >
+                    <div style={{ ...iconContainerStyle, background: 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)' }}>
                       <FileText size={24} color="#fff" />
                     </div>
-                    <p style={{ fontSize: 12, fontWeight: 500, textAlign: 'center', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{parseName(f.fileName).name}</p>
+                    <p style={textEllipsisStyle}>{parseName(f.fileName).name}</p>
                     <p style={{ fontSize: 10, color: textMuted, marginTop: 2 }}>删除于 {formatDate(f.deletedAt)}</p>
-                    <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
-                      <button onClick={() => handleRestore(f.cid)} style={{ padding: '4px 10px', borderRadius: 6, border: 'none', background: '#22c55e', color: '#fff', fontSize: 11, cursor: 'pointer' }}>恢复</button>
-                      <button onClick={() => handlePermanentDelete(f.cid)} style={{ padding: '4px 10px', borderRadius: 6, border: 'none', background: '#ef4444', color: '#fff', fontSize: 11, cursor: 'pointer' }}>删除</button>
-                    </div>
                   </div>
                 ))}
               </div>
@@ -685,13 +836,13 @@ export default function App() {
 
           {/* All/Starred View */}
           {currentView !== 'trash' && (
-            displayFiles.length === 0 && folders.length === 0 ? (
+            displayFiles.length === 0 && displayFolders.length === 0 ? (
               <div style={{ textAlign: 'center', color: textMuted, padding: 48, fontSize: 13 }}>
                 {searchQuery ? '未找到相关文件' : (currentView === 'starred' ? '暂无收藏' : '暂无文件')}
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 16 }}>
-                {folders.map(folder => (
+                {displayFolders.map(folder => (
                   <FolderCard key={folder.path} folder={folder} isDarkMode={isDarkMode} onClick={() => handleNavigate(folder.path)} />
                 ))}
                 {displayFiles.map(f => (
@@ -704,6 +855,29 @@ export default function App() {
       </div>
 
 
+
+      {/* Confirm Modal */}
+      {confirmModal && (
+        <ConfirmModal
+          title={confirmModal.title}
+          message={confirmModal.message}
+          confirmText={confirmModal.confirmText}
+          danger={confirmModal.danger}
+          onConfirm={confirmModal.onConfirm}
+          onClose={() => setConfirmModal(null)}
+        />
+      )}
+
+      {/* Input Modal */}
+      {inputModal && (
+        <InputModal
+          title={inputModal.title}
+          placeholder={inputModal.placeholder}
+          confirmText={inputModal.confirmText}
+          onConfirm={inputModal.onConfirm}
+          onClose={() => setInputModal(null)}
+        />
+      )}
 
       {/* Move Modal */}
       {isMoveModalOpen && (
@@ -719,7 +893,7 @@ export default function App() {
 
       {/* Share Modal */}
       {shareItem && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShareItem(null)}>
+        <ModalOverlay onClose={() => setShareItem(null)}>
           <div style={{ width: 440, padding: 28, borderRadius: 16, background: bgSecondary, border: `1px solid ${borderColor}` }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <h3 style={{ fontSize: 16, fontWeight: 600 }}>分享链接</h3>
@@ -732,12 +906,12 @@ export default function App() {
               </button>
             </div>
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
       {/* Download Modal */}
       {isDownloadModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setIsDownloadModalOpen(false)}>
+        <ModalOverlay onClose={() => setIsDownloadModalOpen(false)}>
           <div style={{ width: 400, padding: 28, borderRadius: 16, background: bgSecondary, border: `1px solid ${borderColor}` }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <h3 style={{ fontSize: 16, fontWeight: 600 }}>提取分享</h3>
@@ -748,7 +922,7 @@ export default function App() {
               转存
             </button>
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
       {/* Preview Modal */}
@@ -764,36 +938,55 @@ export default function App() {
       )}
 
       {/* Batch Actions Bar */}
-      {selectedIds.length > 0 && currentView !== 'trash' && (
+      {selectedIds.length > 0 && (
         <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', borderRadius: 12, background: bgSecondary, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', border: `1px solid ${borderColor}`, zIndex: 100 }}>
           <span style={{ fontSize: 12, color: textSecondary }}>已选 {selectedIds.length} 项</span>
           <button onClick={() => setSelectedIds([])} style={{ background: 'none', border: 'none', cursor: 'pointer', color: textMuted, padding: 4 }}><X size={16} /></button>
           <div style={{ width: 1, height: 20, background: borderColor }} />
-          <button onClick={() => {
-            const hasUnstarred = selectedIds.some(id => {
-              const item = items.find(i => i.cid === id)
-              return item && !item.starred
-            })
-            selectedIds.forEach(id => {
-              const item = items.find(i => i.cid === id)
-              if (item && (hasUnstarred ? !item.starred : item.starred)) {
-                handleToggleStar(id)
-              }
-            })
-          }} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 8, border: 'none', background: '#f59e0b', color: '#fff', fontSize: 12, cursor: 'pointer' }}>
-            收藏
-          </button>
-          <button onClick={() => setIsMoveModalOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 8, border: 'none', background: accentBlue, color: '#fff', fontSize: 12, cursor: 'pointer' }}>
-            移动
-          </button>
-          <button onClick={handleBatchDelete} style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: '#ef4444', color: '#fff', fontSize: 12, cursor: 'pointer' }}>删除</button>
-          <button onClick={() => setShareItem(items.find(i => i.cid === selectedIds[0]))} style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: bgTertiary, color: textPrimary, fontSize: 12, cursor: 'pointer' }}>分享</button>
+          {currentView === 'trash' ? (
+            <>
+              <button onClick={() => selectedIds.forEach(cid => handleRestore(cid))} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 8, border: 'none', background: '#22c55e', color: '#fff', fontSize: 12, cursor: 'pointer' }}>
+                恢复
+              </button>
+              <button onClick={handleBatchDelete} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 8, border: 'none', background: '#ef4444', color: '#fff', fontSize: 12, cursor: 'pointer' }}>
+                永久删除
+              </button>
+            </>
+          ) : (
+            <>
+              <button onClick={() => {
+                const hasUnstarred = selectedIds.some(id => {
+                  const item = items.find(i => i.cid === id)
+                  return item && !item.starred
+                })
+                selectedIds.forEach(id => {
+                  const item = items.find(i => i.cid === id)
+                  if (item && (hasUnstarred ? !item.starred : item.starred)) {
+                    handleToggleStar(id)
+                  }
+                })
+              }} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 8, border: 'none', background: '#f59e0b', color: '#fff', fontSize: 12, cursor: 'pointer' }}>
+                收藏
+              </button>
+              <button onClick={() => {
+                const firstSelected = items.find(i => i.cid === selectedIds[0])
+                if (firstSelected) openRenameModal(firstSelected)
+              }} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 8, border: 'none', background: bgTertiary, color: textPrimary, fontSize: 12, cursor: 'pointer' }}>
+                重命名
+              </button>
+              <button onClick={() => setIsMoveModalOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 8, border: 'none', background: accentBlue, color: '#fff', fontSize: 12, cursor: 'pointer' }}>
+                移动
+              </button>
+              <button onClick={handleBatchDelete} style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: '#ef4444', color: '#fff', fontSize: 12, cursor: 'pointer' }}>删除</button>
+              <button onClick={() => setShareItem(items.find(i => i.cid === selectedIds[0]))} style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: bgTertiary, color: textPrimary, fontSize: 12, cursor: 'pointer' }}>分享</button>
+            </>
+          )}
         </div>
       )}
 
       {/* Transfer Panel */}
       {isTransferPanelOpen && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setIsTransferPanelOpen(false)}>
+        <ModalOverlay onClose={() => setIsTransferPanelOpen(false)}>
           <div style={{ width: 400, maxHeight: '70vh', padding: 24, borderRadius: 16, background: bgSecondary, border: `1px solid ${borderColor}`, overflow: 'auto' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h3 style={{ fontSize: 16, fontWeight: 600 }}>传输</h3>
@@ -816,7 +1009,7 @@ export default function App() {
               ))
             )}
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
       {/* Toasts */}

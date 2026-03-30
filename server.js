@@ -260,6 +260,22 @@ async function handleAPI(req, res) {
       return
     }
 
+    // POST /api/folder/rename — rename a folder (renames all files within)
+    if (pathname === '/api/folder/rename' && method === 'POST') {
+      const body = await parseJSON(req)
+      if (!body.oldPath || !body.newPath) {
+        json({ error: 'oldPath and newPath are required' }, 400)
+        return
+      }
+      try {
+        const result = engine.renameFolder(body.oldPath, body.newPath)
+        json({ success: true, ...result })
+      } catch (err) {
+        json({ error: err.message }, 400)
+      }
+      return
+    }
+
     // GET /api/files/:cid/download — serve file inline for preview / download
     if (pathname.match(/^\/api\/files\/[^/]+\/download$/) && method === 'GET') {
       const cid = pathname.split('/')[3]

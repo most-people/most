@@ -812,6 +812,37 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   /**
+   * Rename a folder (renames all files within the folder)
+   * @param {string} oldPath - Current folder path
+   * @param {string} newPath - New folder path
+   * @returns {object} Updated files info
+   */
+  renameFolder(oldPath, newPath) {
+    this.#ensureInitialized()
+    const prefix = oldPath + '/'
+    const updatedFiles = []
+    
+    for (const file of this.#publishedFiles) {
+      if (file.fileName.startsWith(prefix)) {
+        const newFileName = newPath + file.fileName.substring(prefix.length)
+        file.fileName = sanitizeFilename(newFileName)
+        file.publishedAt = new Date().toISOString()
+        updatedFiles.push({
+          cid: file.cid,
+          fileName: file.fileName,
+          link: `most://${file.cid}`
+        })
+      }
+    }
+    
+    if (updatedFiles.length > 0) {
+      this.#savePublishedMetadata()
+    }
+    
+    return { files: updatedFiles }
+  }
+
+  /**
    * Cancel an active download
    * @param {string} taskId - The task ID of the download to cancel
    */
