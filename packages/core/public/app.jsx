@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import {
   Upload, Sun, Moon, Image as ImageIcon, Trash2, Folder,
   FolderPlus, Film, Music, ChevronRight, FileText,
-  MousePointer2, X, Play, Maximize2, MoreHorizontal,
+  X, MoreHorizontal,
   Edit2, Info, Share2, Check, Copy, Download, Link, Power,
   ArrowUpDown
 } from 'lucide-react'
