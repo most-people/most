@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import {
   Upload, Sun, Moon, Image as ImageIcon, Trash2, Folder,
   FolderPlus, Film, Music, ChevronRight, FileText,
-  X, Check, Copy, Download, ArrowUpDown, Star, Files, HardDrive, Search
+  X, Check, Copy, Download, ArrowUpDown, Star, Files, HardDrive, Search, Info
 } from 'lucide-react'
 
 // === API ===
@@ -110,6 +110,57 @@ function getFileSubtype(fileName) {
   if (vidExts.includes(ext)) return 'video'
   if (audExts.includes(ext)) return 'audio'
   return 'file'
+}
+
+// === Welcome Guide ===
+function WelcomeGuide({ onClose }) {
+  const [step, setStep] = useState(0)
+  const steps = [
+    { title: '欢迎使用', content: '拖拽文件到上传区，或点击选择文件。上传后复制链接发给朋友即可。' },
+    { title: '提取分享', content: '点击「提取分享」，粘贴链接即可从 P2P 网络下载文件。' }
+  ]
+  const current = steps[step]
+
+  return (
+    <ModalOverlay onClose={onClose}>
+      <div style={{ width: 360, padding: 28, borderRadius: 16, background: '#fff', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+        <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 12 }}>{current.title}</h2>
+        <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.6, marginBottom: 20 }}>{current.content}</p>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 20 }}>
+          {steps.map((_, i) => (
+            <div key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: i === step ? '#3b82f6' : '#e2e8f0' }} />
+          ))}
+        </div>
+        <button onClick={step === steps.length - 1 ? onClose : () => setStep(step + 1)} style={{ padding: '10px 32px', borderRadius: 10, border: 'none', background: '#3b82f6', color: '#fff', cursor: 'pointer', fontSize: 14 }}>
+          {step === steps.length - 1 ? '开始使用' : '下一步'}
+        </button>
+      </div>
+    </ModalOverlay>
+  )
+}
+
+// === About Modal ===
+function AboutModal({ onClose }) {
+  return (
+    <ModalOverlay onClose={onClose}>
+      <div style={{ width: 380, padding: 28, borderRadius: 16, background: '#fff' }} onClick={e => e.stopPropagation()}>
+        <div style={{ textAlign: 'center', marginBottom: 20 }}>
+          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>MostBox</h2>
+          <p style={{ fontSize: 12, color: '#94a3b8' }}>版本 0.0.1</p>
+        </div>
+        <div style={{ background: '#f8fafc', borderRadius: 10, padding: 16, marginBottom: 16, fontSize: 13, color: '#475569', lineHeight: 1.7 }}>
+          <p style={{ marginBottom: 12 }}>MostBox 是一个去中心化的 P2P 文件管理工具。</p>
+        </div>
+        <div style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.6 }}>
+          <p style={{ marginBottom: 8 }}><strong>技术栈</strong></p>
+          <p>Hyperswarm · Hyperdrive · IPFS</p>
+        </div>
+        <button onClick={onClose} style={{ width: '100%', marginTop: 20, padding: 10, borderRadius: 10, border: 'none', background: '#3b82f6', color: '#fff', cursor: 'pointer', fontSize: 14 }}>
+          关闭
+        </button>
+      </div>
+    </ModalOverlay>
+  )
 }
 
 // === Toast ===
@@ -390,6 +441,8 @@ export default function App() {
   const [confirmModal, setConfirmModal] = useState(null)
   const [inputModal, setInputModal] = useState(null)
   const [renameTarget, setRenameTarget] = useState(null)
+  const [showWelcome, setShowWelcome] = useState(() => !localStorage.getItem('mostbox_welcomed'))
+  const [showAbout, setShowAbout] = useState(false)
 
   const currentPath = currentFolderId || ''
   const allFolders = getUniqueFolders(items)
@@ -643,6 +696,11 @@ export default function App() {
     setSelectedIds([])
   }
 
+  const handleCloseWelcome = () => {
+    setShowWelcome(false)
+    localStorage.setItem('mostbox_welcomed', 'true')
+  }
+
   // WebSocket
   useEffect(() => {
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -771,6 +829,9 @@ export default function App() {
             <button onClick={() => setIsDarkMode(!isDarkMode)} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: bgTertiary, cursor: 'pointer', color: '#6366f1' }}>
               {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
             </button>
+            <button onClick={() => setShowAbout(true)} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: bgTertiary, cursor: 'pointer', color: textSecondary }}>
+              <Info size={16} />
+            </button>
           </div>
         </header>
 
@@ -894,13 +955,13 @@ export default function App() {
       {/* Share Modal */}
       {shareItem && (
         <ModalOverlay onClose={() => setShareItem(null)}>
-          <div style={{ width: 440, padding: 28, borderRadius: 16, background: bgSecondary, border: `1px solid ${borderColor}` }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <div style={{ width: 420, padding: 24, borderRadius: 16, background: bgSecondary, border: `1px solid ${borderColor}` }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h3 style={{ fontSize: 16, fontWeight: 600 }}>分享链接</h3>
               <button onClick={() => setShareItem(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: textMuted }}><X size={18} /></button>
             </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <div style={{ flex: 1, padding: '12px 14px', borderRadius: 10, background: bgTertiary, fontSize: 13, fontFamily: 'monospace', color: textPrimary }}>most://{shareItem.cid}</div>
+            <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+              <div style={{ flex: 1, padding: '12px 14px', borderRadius: 10, background: bgTertiary, fontSize: 13, fontFamily: 'monospace', color: textPrimary, wordBreak: 'break-all' }}>most://{shareItem.cid}</div>
               <button onClick={handleCopyLink} style={{ width: 44, borderRadius: 10, border: 'none', background: copied ? '#22c55e' : accentBlue, color: '#fff', cursor: 'pointer' }}>
                 {copied ? <Check size={18} /> : <Copy size={18} />}
               </button>
@@ -912,14 +973,14 @@ export default function App() {
       {/* Download Modal */}
       {isDownloadModalOpen && (
         <ModalOverlay onClose={() => setIsDownloadModalOpen(false)}>
-          <div style={{ width: 400, padding: 28, borderRadius: 16, background: bgSecondary, border: `1px solid ${borderColor}` }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <div style={{ width: 400, padding: 24, borderRadius: 16, background: bgSecondary, border: `1px solid ${borderColor}` }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h3 style={{ fontSize: 16, fontWeight: 600 }}>提取分享</h3>
               <button onClick={() => setIsDownloadModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: textMuted }}><X size={18} /></button>
             </div>
-            <input type="text" value={downloadLink} onChange={(e) => setDownloadLink(e.target.value)} placeholder="most://..." onKeyDown={(e) => e.key === 'Enter' && handleDownloadSharedFile()} style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: `1.5px solid ${borderColor}`, fontSize: 13, fontFamily: 'monospace', outline: 'none', background: bgTertiary, color: textPrimary, marginBottom: 12 }} />
+            <input type="text" value={downloadLink} onChange={(e) => setDownloadLink(e.target.value)} placeholder="most://..." onKeyDown={(e) => e.key === 'Enter' && handleDownloadSharedFile()} style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: `1.5px solid ${borderColor}`, fontSize: 13, fontFamily: 'monospace', outline: 'none', background: bgTertiary, color: textPrimary, marginBottom: 16 }} />
             <button onClick={handleDownloadSharedFile} disabled={!downloadLink.trim()} style={{ width: '100%', padding: 12, borderRadius: 10, border: 'none', background: downloadLink.trim() ? '#6366f1' : bgTertiary, color: downloadLink.trim() ? '#fff' : textMuted, fontSize: 13, fontWeight: 600, cursor: downloadLink.trim() ? 'pointer' : 'not-allowed' }}>
-              转存
+              开始提取
             </button>
           </div>
         </ModalOverlay>
@@ -945,7 +1006,7 @@ export default function App() {
           <div style={{ width: 1, height: 20, background: borderColor }} />
           {currentView === 'trash' ? (
             <>
-              <button onClick={() => selectedIds.forEach(cid => handleRestore(cid))} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 8, border: 'none', background: '#22c55e', color: '#fff', fontSize: 12, cursor: 'pointer' }}>
+              <button onClick={() => selectedIds.forEach(cid => handleRestore(cid))} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 8, border: 'none', fontSize: 12, cursor: 'pointer' }}>
                 恢复
               </button>
               <button onClick={handleBatchDelete} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 8, border: 'none', background: '#ef4444', color: '#fff', fontSize: 12, cursor: 'pointer' }}>
@@ -987,13 +1048,15 @@ export default function App() {
       {/* Transfer Panel */}
       {isTransferPanelOpen && (
         <ModalOverlay onClose={() => setIsTransferPanelOpen(false)}>
-          <div style={{ width: 400, maxHeight: '70vh', padding: 24, borderRadius: 16, background: bgSecondary, border: `1px solid ${borderColor}`, overflow: 'auto' }} onClick={e => e.stopPropagation()}>
+          <div style={{ width: 380, maxHeight: '70vh', padding: 24, borderRadius: 16, background: bgSecondary, border: `1px solid ${borderColor}`, overflow: 'auto' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h3 style={{ fontSize: 16, fontWeight: 600 }}>传输</h3>
               <button onClick={() => setIsTransferPanelOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: textMuted }}><X size={18} /></button>
             </div>
             {transfers.length === 0 ? (
-              <div style={{ textAlign: 'center', color: textMuted, padding: 24 }}>暂无传输</div>
+              <div style={{ textAlign: 'center', color: textMuted, padding: 24, fontSize: 13 }}>
+                暂无传输
+              </div>
             ) : (
               transfers.map(t => (
                 <div key={t.id} style={{ padding: '10px 0', borderBottom: `1px solid ${borderColor}` }}>
@@ -1014,6 +1077,12 @@ export default function App() {
 
       {/* Toasts */}
       {toasts.map(t => <Toast key={t.id} message={t.message} type={t.type} onDone={() => removeToast(t.id)} />)}
+
+      {/* Welcome Guide */}
+      {showWelcome && <WelcomeGuide onClose={handleCloseWelcome} />}
+
+      {/* About Modal */}
+      {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
     </div>
   )
 }
