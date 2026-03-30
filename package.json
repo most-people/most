@@ -1,15 +1,23 @@
 {
   "name": "most-box",
-  "version": "1.0.0",
-  "private": true,
+  "version": "1.0.2",
   "description": "MostBox - P2P file sharing application",
   "type": "module",
   "main": "server.js",
+  "bin": {
+    "most-box": "./cli.js"
+  },
+  "files": [
+    "public",
+    "src",
+    "server.js",
+    "build.mjs",
+    "cli.js"
+  ],
   "scripts": {
     "start": "npm run build && node server.js",
     "dev": "npm run build -- --dev --watch & node --watch server.js",
-    "build": "node build.mjs",
-    "build:prod": "node build.mjs"
+    "build": "node build.mjs"
   },
   "keywords": [
     "p2p",
