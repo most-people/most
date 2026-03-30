@@ -184,6 +184,8 @@ async function handleAPI(req, res) {
       }
 
       const savedPath = path.join(saveDir, filePart.filename)
+      const fileDir = path.dirname(savedPath)
+      if (!fs.existsSync(fileDir)) fs.mkdirSync(fileDir, { recursive: true })
       fs.writeFileSync(savedPath, filePart.data)
 
       if (aborted) {
@@ -242,6 +244,22 @@ async function handleAPI(req, res) {
       return
     }
 
+    // POST /api/move — rename/move a published file (changes path without re-uploading)
+    if (pathname === '/api/move' && method === 'POST') {
+      const body = await parseJSON(req)
+      if (!body.cid || !body.newFileName) {
+        json({ error: 'cid and newFileName are required' }, 400)
+        return
+      }
+      try {
+        const result = await engine.moveFile(body.cid, body.newFileName)
+        json({ success: true, ...result })
+      } catch (err) {
+        json({ error: err.message }, 400)
+      }
+      return
+    }
+
     // GET /api/files/:cid/download — serve file inline for preview / download
     if (pathname.match(/^\/api\/files\/[^/]+\/download$/) && method === 'GET') {
       const cid = pathname.split('/')[3]
@@ -277,6 +295,58 @@ async function handleAPI(req, res) {
         console.log('[MostBox] Server stopped.')
         process.exit(0)
       }, 100)
+      return
+    }
+
+    // GET /api/trash — list trash files
+    if (pathname === '/api/trash' && method === 'GET') {
+      json(engine.listTrashFiles())
+      return
+    }
+
+    // POST /api/trash/:cid/restore — restore file from trash
+    if (pathname.match(/^\/api\/trash\/[^/]+\/restore$/) && method === 'POST') {
+      const cid = pathname.split('/')[3]
+      try {
+        const result = engine.restoreTrashFile(cid)
+        json({ success: true, files: result })
+      } catch (err) {
+        json({ error: err.message }, 400)
+      }
+      return
+    }
+
+    // DELETE /api/trash/:cid — permanently delete a trash file
+    if (pathname.match(/^\/api\/trash\/[^/]+$/) && method === 'DELETE') {
+      const cid = pathname.split('/')[3]
+      const result = await engine.permanentDeleteTrashFile(cid)
+      json({ success: true, trashFiles: result })
+      return
+    }
+
+    // DELETE /api/trash — empty trash
+    if (pathname === '/api/trash' && method === 'DELETE') {
+      const result = await engine.emptyTrash()
+      json({ success: true, trashFiles: result })
+      return
+    }
+
+    // POST /api/files/:cid/star — toggle starred status
+    if (pathname.match(/^\/api\/files\/[^/]+\/star$/) && method === 'POST') {
+      const cid = pathname.split('/')[3]
+      try {
+        const result = engine.toggleStarred(cid)
+        json({ success: true, ...result })
+      } catch (err) {
+        json({ error: err.message }, 400)
+      }
+      return
+    }
+
+    // GET /api/storage — get storage statistics
+    if (pathname === '/api/storage' && method === 'GET') {
+      const result = await engine.getStorageStats()
+      json(result)
       return
     }
 

@@ -22,6 +22,7 @@ export class MostBoxEngine extends EventEmitter {
   #swarm = null
   #drives = new Map()
   #publishedFiles = []
+  #trashFiles = []
   #initialized = false
   #options = null
   #activeDownloads = new Map() // taskId -> { aborted, readStream, writeStream }
@@ -134,6 +135,10 @@ export class MostBoxEngine extends EventEmitter {
     // Load published files metadata
     this.#publishedFiles = this.#loadPublishedMetadata()
     console.log(`[MostBox] Loaded ${this.#publishedFiles.length} published files`)
+    
+    // Load trash files metadata
+    this.#trashFiles = this.#loadTrashMetadata()
+    console.log(`[MostBox] Loaded ${this.#trashFiles.length} trash files`)
     
     this.#initialized = true
     console.log(`[MostBox] Engine initialized successfully`)
@@ -257,16 +262,20 @@ export class MostBoxEngine extends EventEmitter {
 
     // Update published files list
     const existingIndex = this.#publishedFiles.findIndex(f => f.cid === cidString)
-    if (existingIndex === -1) {
+    if (existingIndex !== -1) {
+      const existing = this.#publishedFiles[existingIndex]
+      if (existing.fileName !== safeFileName) {
+        throw new Error(`文件已存在: ${existing.fileName}`)
+      }
+      existing.publishedAt = new Date().toISOString()
+    } else {
       this.#publishedFiles.push({
         fileName: safeFileName,
         cid: cidString,
         publishedAt: new Date().toISOString(),
-        originalPath: cleanPath
+        originalPath: cleanPath,
+        starred: false
       })
-    } else {
-      this.#publishedFiles[existingIndex].publishedAt = new Date().toISOString()
-      this.#publishedFiles[existingIndex].fileName = safeFileName
     }
     this.#savePublishedMetadata()
 
@@ -474,17 +483,21 @@ export class MostBoxEngine extends EventEmitter {
 
         // 将下载的文件添加到已发布文件列表
         const existingIndex = this.#publishedFiles.findIndex(f => f.cid === cidString)
-        if (existingIndex === -1) {
+        if (existingIndex !== -1) {
+          const existing = this.#publishedFiles[existingIndex]
+          if (existing.fileName !== sanitizedFileName) {
+            throw new Error(`文件已存在: ${existing.fileName}`)
+          }
+          existing.publishedAt = new Date().toISOString()
+          existing.originalPath = savePath
+        } else {
           this.#publishedFiles.push({
             fileName: sanitizedFileName,
             cid: cidString,
             publishedAt: new Date().toISOString(),
-            originalPath: savePath
+            originalPath: savePath,
+            starred: false
           })
-        } else {
-          this.#publishedFiles[existingIndex].publishedAt = new Date().toISOString()
-          this.#publishedFiles[existingIndex].fileName = sanitizedFileName
-          this.#publishedFiles[existingIndex].originalPath = savePath
         }
         this.#savePublishedMetadata()
 
@@ -498,21 +511,49 @@ export class MostBoxEngine extends EventEmitter {
 
   /**
    * List all published files
-   * @returns {Array<{ fileName: string, cid: string, link: string, publishedAt: string }>}
+   * @param {object} [options] - Filter options
+   * @param {boolean} [options.starred] - Filter by starred status
+   * @returns {Array<{ fileName: string, cid: string, link: string, publishedAt: string, starred: boolean }>}
    */
-  listPublishedFiles() {
+  listPublishedFiles(options = {}) {
     this.#ensureInitialized()
-    return this.#publishedFiles.map(f => ({
+    let files = this.#publishedFiles
+    
+    if (options.starred === true) {
+      files = files.filter(f => f.starred === true)
+    }
+    
+    return files.map(f => ({
       fileName: f.fileName,
       cid: f.cid,
       link: `most://${f.cid}`,
       publishedAt: f.publishedAt,
-      originalPath: f.originalPath
+      originalPath: f.originalPath,
+      starred: f.starred || false
     }))
+  }
+  
+  /**
+   * Toggle starred status of a file
+   * @param {string} cid - CID of the file
+   * @returns {object} Updated file info
+   */
+  toggleStarred(cid) {
+    this.#ensureInitialized()
+    const index = this.#publishedFiles.findIndex(f => f.cid === cid)
+    if (index === -1) {
+      throw new Error('File not found')
+    }
+    this.#publishedFiles[index].starred = !this.#publishedFiles[index].starred
+    this.#savePublishedMetadata()
+    return {
+      cid,
+      starred: this.#publishedFiles[index].starred
+    }
   }
 
   /**
-   * Delete a published file record and remove the file from Hyperdrive
+   * Delete a published file - moves to trash instead of permanent deletion
    * @param {string} cid - CID of the file to delete
    * @returns {Promise<Array>} Updated list of published files
    */
@@ -521,6 +562,83 @@ export class MostBoxEngine extends EventEmitter {
     const index = this.#publishedFiles.findIndex(f => f.cid === cid)
     if (index !== -1) {
       const fileRecord = this.#publishedFiles[index]
+      
+      // Move to trash instead of permanent deletion
+      this.#trashFiles.push({
+        fileName: fileRecord.fileName,
+        cid: fileRecord.cid,
+        publishedAt: fileRecord.publishedAt,
+        originalPath: fileRecord.originalPath,
+        starred: fileRecord.starred || false,
+        deletedAt: new Date().toISOString()
+      })
+      this.#saveTrashMetadata()
+      
+      // Remove from published files
+      this.#publishedFiles.splice(index, 1)
+      this.#savePublishedMetadata()
+    }
+    return this.listPublishedFiles()
+  }
+  
+  /**
+   * List all files in trash
+   * @returns {Array} Trash files
+   */
+  listTrashFiles() {
+    this.#ensureInitialized()
+    return this.#trashFiles.map(f => ({
+      fileName: f.fileName,
+      cid: f.cid,
+      link: `most://${f.cid}`,
+      publishedAt: f.publishedAt,
+      originalPath: f.originalPath,
+      starred: f.starred || false,
+      deletedAt: f.deletedAt
+    }))
+  }
+  
+  /**
+   * Restore a file from trash
+   * @param {string} cid - CID of the file to restore
+   * @returns {Array} Updated list of published files
+   */
+  restoreTrashFile(cid) {
+    this.#ensureInitialized()
+    const index = this.#trashFiles.findIndex(f => f.cid === cid)
+    if (index === -1) {
+      throw new Error('File not found in trash')
+    }
+    
+    const fileRecord = this.#trashFiles[index]
+    
+    // Restore to published files
+    this.#publishedFiles.push({
+      fileName: fileRecord.fileName,
+      cid: fileRecord.cid,
+      publishedAt: fileRecord.publishedAt,
+      originalPath: fileRecord.originalPath,
+      starred: fileRecord.starred || false
+    })
+    this.#savePublishedMetadata()
+    
+    // Remove from trash
+    this.#trashFiles.splice(index, 1)
+    this.#saveTrashMetadata()
+    
+    return this.listPublishedFiles()
+  }
+  
+  /**
+   * Permanently delete a file from trash
+   * @param {string} cid - CID of the file to permanently delete
+   * @returns {Promise<Array>} Updated trash list
+   */
+  async permanentDeleteTrashFile(cid) {
+    this.#ensureInitialized()
+    const index = this.#trashFiles.findIndex(f => f.cid === cid)
+    if (index !== -1) {
+      const fileRecord = this.#trashFiles[index]
       
       // Delete temp file
       if (fileRecord.originalPath && fs.existsSync(fileRecord.originalPath)) {
@@ -553,11 +671,144 @@ export class MostBoxEngine extends EventEmitter {
         this.#drives.delete(driveName)
       }
       
-      // Remove metadata record
-      this.#publishedFiles.splice(index, 1)
-      this.#savePublishedMetadata()
+      // Remove from trash
+      this.#trashFiles.splice(index, 1)
+      this.#saveTrashMetadata()
     }
-    return this.listPublishedFiles()
+    return this.listTrashFiles()
+  }
+  
+  /**
+   * Empty the trash - permanently delete all trash files
+   * @returns {Promise<Array>} Empty trash list
+   */
+  async emptyTrash() {
+    this.#ensureInitialized()
+    
+    for (const fileRecord of this.#trashFiles) {
+      // Delete temp file
+      if (fileRecord.originalPath && fs.existsSync(fileRecord.originalPath)) {
+        try {
+          fs.unlinkSync(fileRecord.originalPath)
+        } catch (err) {
+          // File may be locked or already deleted
+        }
+      }
+      
+      // Reconstruct drive name from CID
+      const parsedCid = CID.parse(fileRecord.cid)
+      const hashHex = b4a.toString(parsedCid.multihash.digest, 'hex')
+      const driveName = `drive-${hashHex}`
+      
+      // Delete file from Hyperdrive and cleanup drive
+      const drive = this.#drives.get(driveName)
+      if (drive) {
+        try {
+          await drive.del(fileRecord.fileName)
+        } catch (err) {
+          // File may not exist in drive, continue with cleanup
+        }
+        
+        // Leave swarm for this drive
+        this.#swarm.leave(drive.discoveryKey)
+        
+        // Close and remove drive
+        await drive.close()
+        this.#drives.delete(driveName)
+      }
+    }
+    
+    // Clear trash
+    this.#trashFiles = []
+    this.#saveTrashMetadata()
+    
+    return []
+  }
+  
+  /**
+   * Get storage statistics
+   * @returns {Promise<{ total: number, used: number, free: number, fileCount: number, trashCount: number }>}
+   */
+  async getStorageStats() {
+    this.#ensureInitialized()
+    
+    let totalSize = 0
+    let freeSize = 0
+    const { storagePath } = this.#options
+    
+    try {
+      const stats = fs.statfsSync(storagePath)
+      totalSize = stats.bsize * stats.blocks
+      freeSize = stats.bsize * stats.bfree
+    } catch (err) {
+      // Fallback if statfs is not available
+      try {
+        const stats = fs.statSync(storagePath)
+        totalSize = 0
+        freeSize = 0
+      } catch {
+        totalSize = 0
+        freeSize = 0
+      }
+    }
+    
+    // Calculate used space by files
+    let usedSize = 0
+    const calculateDirSize = (dirPath) => {
+      try {
+        const entries = fs.readdirSync(dirPath, { withFileTypes: true })
+        for (const entry of entries) {
+          const fullPath = path.join(dirPath, entry.name)
+          if (entry.isDirectory()) {
+            if (entry.name !== 'db') {
+              calculateDirSize(fullPath)
+            }
+          } else {
+            try {
+              const stat = fs.statSync(fullPath)
+              usedSize += stat.size
+            } catch {
+              // Skip files we can't access
+            }
+          }
+        }
+      } catch {
+        // Skip directories we can't access
+      }
+    }
+    
+    calculateDirSize(storagePath)
+    
+    return {
+      total: totalSize,
+      used: usedSize,
+      free: freeSize,
+      fileCount: this.#publishedFiles.length,
+      trashCount: this.#trashFiles.length
+    }
+  }
+
+  /**
+   * Move/rename a published file (changes path without re-uploading)
+   * @param {string} cid - CID of the file to move
+   * @param {string} newFileName - New file path
+   * @returns {object} Updated file info
+   */
+  moveFile(cid, newFileName) {
+    this.#ensureInitialized()
+    const index = this.#publishedFiles.findIndex(f => f.cid === cid)
+    if (index === -1) {
+      throw new Error('File not found')
+    }
+    const safeFileName = sanitizeFilename(newFileName)
+    this.#publishedFiles[index].fileName = safeFileName
+    this.#publishedFiles[index].publishedAt = new Date().toISOString()
+    this.#savePublishedMetadata()
+    return {
+      cid,
+      fileName: safeFileName,
+      link: `most://${cid}`
+    }
   }
 
   /**
@@ -584,13 +835,19 @@ export class MostBoxEngine extends EventEmitter {
   #getMetadataPath() {
     return path.join(this.#options.storagePath, 'published-files.json')
   }
+  
+  #getTrashMetadataPath() {
+    return path.join(this.#options.storagePath, 'trash-files.json')
+  }
 
   #loadPublishedMetadata() {
     try {
       const metadataPath = this.#getMetadataPath()
       if (fs.existsSync(metadataPath)) {
         const data = fs.readFileSync(metadataPath, 'utf-8')
-        return JSON.parse(data)
+        const parsed = JSON.parse(data)
+        // Ensure starred field exists for older data
+        return parsed.map(f => ({ ...f, starred: f.starred || false }))
       }
     } catch (err) {
       console.warn('Failed to load published metadata, using empty list:', err.message)
@@ -604,6 +861,28 @@ export class MostBoxEngine extends EventEmitter {
       fs.writeFileSync(metadataPath, JSON.stringify(this.#publishedFiles, null, 2), 'utf-8')
     } catch (err) {
       console.error('Failed to save published metadata:', err.message)
+    }
+  }
+  
+  #loadTrashMetadata() {
+    try {
+      const metadataPath = this.#getTrashMetadataPath()
+      if (fs.existsSync(metadataPath)) {
+        const data = fs.readFileSync(metadataPath, 'utf-8')
+        return JSON.parse(data)
+      }
+    } catch (err) {
+      console.warn('Failed to load trash metadata, using empty list:', err.message)
+    }
+    return []
+  }
+  
+  #saveTrashMetadata() {
+    try {
+      const metadataPath = this.#getTrashMetadataPath()
+      fs.writeFileSync(metadataPath, JSON.stringify(this.#trashFiles, null, 2), 'utf-8')
+    } catch (err) {
+      console.error('Failed to save trash metadata:', err.message)
     }
   }
 
