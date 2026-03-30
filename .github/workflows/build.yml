@@ -53,7 +53,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mostbox-${{ matrix.platform }}-${{ matrix.architecture }}-${{ github.ref_name }}
-          path: packages/core/public/bundle.js
+          path: public/bundle.js
           retention-days: 30
 
   release:
