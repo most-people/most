@@ -46,26 +46,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build desktop app
-        run: |
-          npm run build:${{ matrix.platform }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build core
+        run: npm run build
 
-      - name: Upload Windows artifact
-        if: matrix.platform == 'win'
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: mostbox-win-${{ github.ref_name }}
-          path: packages/desktop/dist/MostBox-*.exe
-          retention-days: 30
-
-      - name: Upload macOS artifact
-        if: matrix.platform == 'mac'
-        uses: actions/upload-artifact@v4
-        with:
-          name: mostbox-mac-${{ matrix.architecture }}-${{ github.ref_name }}
-          path: packages/desktop/dist/MostBox-*.dmg
+          name: mostbox-${{ matrix.platform }}-${{ matrix.architecture }}-${{ github.ref_name }}
+          path: packages/core/public/bundle.js
           retention-days: 30
 
   release:
@@ -74,23 +62,10 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
 
     steps:
-      - name: Download Windows artifact
+      - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          name: mostbox-win-${{ github.ref_name }}
-          path: dist/win
-
-      - name: Download macOS x64 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: mostbox-mac-x64-${{ github.ref_name }}
-          path: dist/mac-x64
-
-      - name: Download macOS arm64 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: mostbox-mac-arm64-${{ github.ref_name }}
-          path: dist/mac-arm64
+          path: dist
 
       - name: List downloaded files
         run: ls -laR dist/
@@ -103,9 +78,6 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: true
-          files: |
-            dist/win/MostBox-*.exe
-            dist/mac-x64/MostBox-*.dmg
-            dist/mac-arm64/MostBox-*.dmg
+          files: dist/**/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

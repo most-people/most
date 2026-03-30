@@ -8,7 +8,8 @@
     "start": "npm run build && node server.js",
     "dev": "npm run build -- --dev --watch & node --watch server.js",
     "build": "node build.mjs",
-    "build:prod": "NODE_ENV=production node build.mjs"
+    "build:prod": "node build.mjs",
+    "package": "npm run build && pkg server.js --targets node16-win-x64 --output ../dist/MostBox.exe"
   },
   "keywords": [
     "p2p",
@@ -27,6 +28,7 @@
     "ipfs-unixfs-importer": "^16.1.4",
     "lucide-react": "^1.7.0",
     "multiformats": "^13.4.2",
+    "pkg": "^5.8.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },

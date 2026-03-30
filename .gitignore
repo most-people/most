@@ -18,6 +18,10 @@ packages/core/most-data/
 packages/desktop/dist/
 packages/desktop/out/
 
+# Dist outputs
+dist/
+packages/dist/
+
 # IDE
 .idea/
 .vscode/
