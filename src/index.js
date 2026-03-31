@@ -263,7 +263,22 @@ export class MostBoxEngine extends EventEmitter {
     const ws = drive.createWriteStream(safeFileName)
 
     if (Buffer.isBuffer(content)) {
-      ws.write(content)
+      // Stream buffer in chunks to avoid exceeding Hyperdrive block size limit
+      const CHUNK_SIZE = 64 * 1024 // 64KB chunks
+      let offset = 0
+
+      const waitForDrain = () => new Promise(resolve => ws.once('drain', resolve))
+
+      while (offset < content.length) {
+        const chunk = content.slice(offset, offset + CHUNK_SIZE)
+        const canContinue = ws.write(chunk)
+        offset += chunk.length
+
+        if (!canContinue && offset < content.length) {
+          await waitForDrain()
+        }
+      }
+
       ws.end()
       await new Promise((resolve, reject) => {
         ws.on('finish', resolve)
@@ -282,10 +297,13 @@ export class MostBoxEngine extends EventEmitter {
     const existingIndex = this.#publishedFiles.findIndex(f => f.cid === cidString)
     if (existingIndex !== -1) {
       const existing = this.#publishedFiles[existingIndex]
-      if (existing.fileName !== safeFileName) {
-        throw new Error(`文件已存在: ${existing.fileName}`)
+      // Same content already exists - return "already exists" regardless of filename
+      return {
+        cid: cidString,
+        link: `most://${cidString}`,
+        fileName: existing.fileName,
+        alreadyExists: true
       }
-      existing.publishedAt = new Date().toISOString()
     } else {
       this.#publishedFiles.push({
         fileName: safeFileName,

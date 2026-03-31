@@ -125,7 +125,7 @@ function WelcomeGuide({ onClose }) {
   const [step, setStep] = useState(0)
   const steps = [
     { title: '欢迎使用', content: '拖拽文件到上传区，或点击选择文件。上传后复制链接发给朋友即可。' },
-    { title: '提取分享', content: '点击「提取分享」，粘贴链接即可从 P2P 网络下载文件。' }
+    { title: '下载文件', content: '点击「下载文件」，粘贴分享链接即可从 P2P 网络下载文件。' }
   ]
   const current = steps[step]
 
@@ -708,17 +708,56 @@ export default function App() {
 
   const processFiles = async (files) => {
     const prefix = currentPath ? currentPath + '/' : ''
+    const newTransfers = []
+
     for (const file of Array.from(files)) {
       const fileName = prefix + file.name
-      if (items.some(i => i.fileName === fileName)) {
-        addToast(`${file.name} 已存在`, 'warning')
-        continue
+
+      // Create transfer entry for progress tracking
+      const transferId = `upload_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+      const transfer = {
+        id: transferId,
+        fileName: file.name,
+        progress: 0,
+        type: 'upload',
+        status: 'uploading'
       }
+      newTransfers.push(transfer)
+      setTransfers(prev => [...prev, transfer])
+
+      // Open transfer panel if there are new transfers
+      if (newTransfers.length > 0) {
+        setIsTransferPanelOpen(true)
+      }
+
       try {
-        await API.publishFile(file, fileName)
-        addToast(`${file.name} 上传成功`, 'success')
-      } catch { addToast(`上传失败: ${file.name}`, 'error') }
+        const result = await API.publishFile(file, fileName)
+        if (result.alreadyExists) {
+          // Update transfer status
+          setTransfers(prev => prev.map(t =>
+            t.id === transferId ? { ...t, status: 'completed' } : t
+          ))
+          addToast(`${file.name} 已存在`, 'warning')
+        } else {
+          // Update transfer status
+          setTransfers(prev => prev.map(t =>
+            t.id === transferId ? { ...t, progress: 100, status: 'completed' } : t
+          ))
+          addToast(`${file.name} 上传成功`, 'success')
+        }
+      } catch (err) {
+        setTransfers(prev => prev.map(t =>
+          t.id === transferId ? { ...t, status: 'error' } : t
+        ))
+        addToast(`上传失败: ${file.name}`, 'error')
+      }
     }
+
+    // Remove completed transfers after a delay
+    setTimeout(() => {
+      setTransfers(prev => prev.filter(t => t.status === 'uploading'))
+    }, 3000)
+
     refreshFiles()
     refreshStorageStats()
   }
@@ -801,11 +840,21 @@ export default function App() {
     const ws = new WebSocket(`${protocol}//${location.host}/ws`)
     ws.onmessage = (e) => {
       try {
-        const { event } = JSON.parse(e.data)
+        const { event, data } = JSON.parse(e.data)
         if (event === 'publish:success' || event === 'download:success') {
           refreshFiles()
           refreshStorageStats()
           if (event === 'download:success') addToast('下载完成', 'success')
+        }
+        // Handle publish progress
+        if (event === 'publish:progress') {
+          // Update transfer progress if we have matching transfer
+          setTransfers(prev => prev.map(t => {
+            if (data.file && t.fileName === data.file) {
+              return { ...t, progress: data.percent || 50 } // intermediate progress
+            }
+            return t
+          }))
         }
       } catch { }
     }
@@ -938,11 +987,11 @@ export default function App() {
             <div onDragOver={(e) => { e.preventDefault(); setIsDraggingOverUpload(true) }} onDragLeave={() => setIsDraggingOverUpload(false)} onDrop={(e) => { e.preventDefault(); setIsDraggingOverUpload(false); processFiles(e.dataTransfer.files) }} style={{ border: `2px dashed ${isDraggingOverUpload ? '#3b82f6' : 'rgba(59,130,246,0.2)'}`, borderRadius: 12, padding: 20, textAlign: 'center', cursor: 'pointer', background: isDraggingOverUpload ? 'rgba(59,130,246,0.05)' : 'transparent', position: 'relative' }}>
               <input type="file" multiple onChange={(e) => processFiles(e.target.files)} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', zIndex: 1 }} />
               <Upload size={20} color={accentBlue} style={{ marginBottom: 8 }} />
-              <p style={{ fontSize: 12, color: accentBlue, fontWeight: 500 }}>拖拽文件到此处上传</p>
+              <p style={{ fontSize: 12, color: accentBlue, fontWeight: 500 }}>上传文件</p>
             </div>
             <div onClick={() => setIsDownloadModalOpen(true)} style={{ border: '2px dashed rgba(99,102,241,0.2)', borderRadius: 12, padding: 20, textAlign: 'center', cursor: 'pointer' }}>
               <Download size={20} color="#6366f1" style={{ marginBottom: 8 }} />
-              <p style={{ fontSize: 12, color: '#6366f1', fontWeight: 500 }}>提取分享链接</p>
+              <p style={{ fontSize: 12, color: '#6366f1', fontWeight: 500 }}>下载文件</p>
             </div>
           </div>
         )}
@@ -1072,12 +1121,12 @@ export default function App() {
         <ModalOverlay onClose={() => setIsDownloadModalOpen(false)}>
           <div style={{ width: 400, padding: 24, borderRadius: 16, background: bgSecondary, border: `1px solid ${borderColor}` }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h3 style={{ fontSize: 16, fontWeight: 600 }}>提取分享</h3>
+              <h3 style={{ fontSize: 16, fontWeight: 600 }}>下载文件</h3>
               <button onClick={() => setIsDownloadModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: textMuted }}><X size={18} /></button>
             </div>
             <input type="text" value={downloadLink} onChange={(e) => setDownloadLink(e.target.value)} placeholder="most://..." onKeyDown={(e) => e.key === 'Enter' && handleDownloadSharedFile()} style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: `1.5px solid ${borderColor}`, fontSize: 13, fontFamily: 'monospace', outline: 'none', background: bgTertiary, color: textPrimary, marginBottom: 16 }} />
             <button onClick={handleDownloadSharedFile} disabled={!downloadLink.trim()} style={{ width: '100%', padding: 12, borderRadius: 10, border: 'none', background: downloadLink.trim() ? '#6366f1' : bgTertiary, color: downloadLink.trim() ? '#fff' : textMuted, fontSize: 13, fontWeight: 600, cursor: downloadLink.trim() ? 'pointer' : 'not-allowed' }}>
-              开始提取
+              开始下载
             </button>
           </div>
         </ModalOverlay>

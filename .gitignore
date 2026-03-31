@@ -25,6 +25,7 @@ most-data/
 
 # opencode
 .opencode/
+opencode.jsonc
 
 # Windows artifacts
 nul

@@ -108,9 +108,9 @@ function serveStatic(req, res) {
 
 // --- Streaming multipart parser for large files ---
 async function parseMultipart(req) {
-  const boundaryMatch = req.headers['content-type']?.match(/boundary=(.+)/)
+  const boundaryMatch = req.headers['content-type']?.match(/boundary=(?:"([^"]+)"|([^\s;]+))/)
   if (!boundaryMatch) throw new Error('No boundary in content-type')
-  const boundary = boundaryMatch[1]
+  const boundary = boundaryMatch[1] || boundaryMatch[2]
 
   const chunks = []
   for await (const chunk of req) {
@@ -127,11 +127,42 @@ async function parseMultipart(req) {
     if (idx === -1) break
 
     if (start > 0) {
-      const partData = buffer.slice(start, idx - 2) // -2 for \r\n before boundary
+      // Handle both \r\n and \n line endings
+      let partStart = start
+      if (buffer[partStart] === 0x0d && buffer[partStart + 1] === 0x0a) {
+        partStart += 2
+      } else if (buffer[partStart] === 0x0a) {
+        partStart += 1
+      }
+
+      let partEnd = idx - 1
+      if (buffer[partEnd] === 0x0a) {
+        partEnd--
+        if (buffer[partEnd] === 0x0d) {
+          partEnd--
+        }
+      }
+
+      const partData = buffer.slice(partStart, partEnd + 1)
+
       const headerEnd = partData.indexOf('\r\n\r\n')
+      const headerEndAlt = partData.indexOf('\n\n')
+
+      let headerEndIdx = -1
+      let bodyStart = -1
+
       if (headerEnd !== -1) {
-        const headers = partData.slice(0, headerEnd).toString()
-        const body = partData.slice(headerEnd + 4)
+        headerEndIdx = headerEnd
+        bodyStart = headerEnd + 4
+      } else if (headerEndAlt !== -1) {
+        headerEndIdx = headerEndAlt
+        bodyStart = headerEndAlt + 2
+      }
+
+      if (headerEndIdx !== -1) {
+        const headers = partData.slice(0, headerEndIdx).toString()
+        const body = partData.slice(bodyStart)
+
         const nameMatch = headers.match(/name="([^"]+)"/)
         const filenameMatch = headers.match(/filename="([^"]+)"/)
         parts.push({
@@ -142,7 +173,20 @@ async function parseMultipart(req) {
         })
       }
     }
-    start = idx + boundaryBuf.length + 2
+
+    // Move to after the boundary
+    start = idx + boundaryBuf.length
+    // Skip optional whitespace after boundary
+    while (start < buffer.length && (buffer[start] === 0x20 || buffer[start] === 0x09)) {
+      start++
+    }
+    // Skip line ending
+    if (start < buffer.length && buffer[start] === 0x0d) {
+      start++
+    }
+    if (start < buffer.length && buffer[start] === 0x0a) {
+      start++
+    }
   }
 
   return parts
@@ -242,16 +286,7 @@ async function handleAPI(req, res) {
 
     // POST /api/publish — multipart file upload
     if (pathname === '/api/publish' && method === 'POST') {
-      let aborted = false
-      req.on('close', () => {
-        aborted = true
-      })
-
       const parts = await parseMultipart(req)
-
-      if (aborted) {
-        return
-      }
 
       const filePart = parts.find(p => p.name === 'file')
       if (!filePart || !filePart.filename) {
