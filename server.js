@@ -1,6 +1,7 @@
 import http from 'node:http'
 import fs from 'node:fs'
 import path from 'node:path'
+import os from 'node:os'
 import { fileURLToPath } from 'node:url'
 import crypto from 'node:crypto'
 import { exec } from 'node:child_process'
@@ -14,9 +15,38 @@ const wsClients = new Set()
 let engine = null
 let serverInstance = null
 
+// --- Config ---
+const CONFIG_DIR = path.join(os.homedir(), '.most-box')
+const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json')
+
+function loadConfig() {
+  try {
+    if (fs.existsSync(CONFIG_FILE)) {
+      return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'))
+    }
+  } catch (err) {
+    console.error('[Config] Load error:', err.message)
+  }
+  return {}
+}
+
+function saveConfig(config) {
+  try {
+    if (!fs.existsSync(CONFIG_DIR)) {
+      fs.mkdirSync(CONFIG_DIR, { recursive: true })
+    }
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf-8')
+    return true
+  } catch (err) {
+    console.error('[Config] Save error:', err.message)
+    return false
+  }
+}
+
 // --- Storage path ---
 function getStoragePath() {
-  return path.join(__dirname, 'most-data')
+  const config = loadConfig()
+  return config.storagePath || path.join(os.homedir(), 'most-data')
 }
 
 // --- Static file serving ---
@@ -146,6 +176,31 @@ async function handleAPI(req, res) {
     // GET /api/node-id
     if (pathname === '/api/node-id' && method === 'GET') {
       json({ id: engine.getNodeId() })
+      return
+    }
+
+    // GET /api/config
+    if (pathname === '/api/config' && method === 'GET') {
+      const config = loadConfig()
+      json({ storagePath: config.storagePath || '' })
+      return
+    }
+
+    // POST /api/config
+    if (pathname === '/api/config' && method === 'POST') {
+      const body = await parseJSON(req)
+      const config = loadConfig()
+      if (body.storagePath !== undefined) {
+        config.storagePath = body.storagePath
+      }
+      const success = saveConfig(config)
+      json({ success, storagePath: getStoragePath() })
+      return
+    }
+
+    // GET /api/config/storage-path
+    if (pathname === '/api/config/storage-path' && method === 'GET') {
+      json({ storagePath: getStoragePath() })
       return
     }
 

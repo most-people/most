@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react'
 import {
   Upload, Sun, Moon, Image as ImageIcon, Trash2, Folder,
   FolderPlus, Film, Music, ChevronRight, FileText,
-  X, Check, Copy, Download, ArrowUpDown, Star, Files, HardDrive, Search, Info
+  X, Check, Copy, Download, ArrowUpDown, Star, Files, HardDrive, Search, Info,
+  FolderOpen
 } from 'lucide-react'
 
 // === API ===
@@ -23,6 +24,12 @@ const API = {
   emptyTrash: () => API.fetch('/api/trash', { method: 'DELETE' }),
   toggleStar: (cid) => API.fetch(`/api/files/${cid}/star`, { method: 'POST' }),
   getStorageStats: () => API.fetch('/api/storage'),
+  getConfig: () => API.fetch('/api/config'),
+  saveConfig: (config) => API.fetch('/api/config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config)
+  }),
   async publishFile(file, customName) {
     const formData = new FormData()
     formData.append('file', file, customName || file.name)
@@ -140,21 +147,64 @@ function WelcomeGuide({ onClose }) {
 }
 
 // === About Modal ===
-function AboutModal({ onClose }) {
+function SettingsModal({ onClose }) {
+  const [storagePath, setStoragePath] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    API.getConfig().then(config => {
+      setStoragePath(config.storagePath || '')
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [])
+
+  const handleChangePath = async () => {
+    try {
+      const dirHandle = await window.showDirectoryPicker()
+      const path = dirHandle.name
+      setSaving(true)
+      await API.saveConfig({ storagePath: path })
+      setStoragePath(path)
+      setSaving(false)
+      alert('存储位置已更改，重启应用后生效')
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        console.error(err)
+      }
+      setSaving(false)
+    }
+  }
+
   return (
     <ModalOverlay onClose={onClose}>
-      <div style={{ width: 380, padding: 28, borderRadius: 16, background: '#fff' }} onClick={e => e.stopPropagation()}>
-        <div style={{ textAlign: 'center', marginBottom: 20 }}>
-          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>MostBox</h2>
-          <p style={{ fontSize: 12, color: '#94a3b8' }}>版本 0.0.1</p>
+      <div style={{ width: 420, padding: 28, borderRadius: 16, background: '#fff' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 600 }}>设置</h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><X size={18} /></button>
         </div>
-        <div style={{ background: '#f8fafc', borderRadius: 10, padding: 16, marginBottom: 16, fontSize: 13, color: '#475569', lineHeight: 1.7 }}>
-          <p style={{ marginBottom: 12 }}>MostBox 是一个去中心化的 P2P 文件管理工具。</p>
+
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 8, color: '#374151' }}>存储位置</label>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ flex: 1, padding: '10px 12px', borderRadius: 8, background: '#f8fafc', border: '1px solid #e5e7eb', fontSize: 13, color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {loading ? '加载中...' : (storagePath || '默认位置 (~/.most-box/most-data)')}
+            </div>
+            <button onClick={handleChangePath} disabled={saving} style={{ padding: '10px 16px', borderRadius: 8, border: 'none', background: '#3b82f6', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>
+              {saving ? '保存中...' : '更改'}
+            </button>
+          </div>
+          <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 8 }}>更改存储位置后需要重启应用</p>
         </div>
-        <div style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.6 }}>
-          <p style={{ marginBottom: 8 }}><strong>技术栈</strong></p>
-          <p>Hyperswarm · Hyperdrive · IPFS</p>
+
+        <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 16 }}>
+          <div style={{ textAlign: 'center', marginBottom: 16 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>MostBox</h3>
+            <p style={{ fontSize: 12, color: '#9ca3af' }}>版本 0.0.1</p>
+          </div>
+          <p style={{ fontSize: 12, color: '#6b7280', textAlign: 'center' }}>Hyperswarm · Hyperdrive · IPFS</p>
         </div>
+
         <button onClick={onClose} style={{ width: '100%', marginTop: 20, padding: 10, borderRadius: 10, border: 'none', background: '#3b82f6', color: '#fff', cursor: 'pointer', fontSize: 14 }}>
           关闭
         </button>
@@ -442,7 +492,7 @@ export default function App() {
   const [inputModal, setInputModal] = useState(null)
   const [renameTarget, setRenameTarget] = useState(null)
   const [showWelcome, setShowWelcome] = useState(() => !localStorage.getItem('mostbox_welcomed'))
-  const [showAbout, setShowAbout] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
 
   const currentPath = currentFolderId || ''
   const allFolders = getUniqueFolders(items)
@@ -829,7 +879,7 @@ export default function App() {
             <button onClick={() => setIsDarkMode(!isDarkMode)} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: bgTertiary, cursor: 'pointer', color: '#6366f1' }}>
               {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
             </button>
-            <button onClick={() => setShowAbout(true)} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: bgTertiary, cursor: 'pointer', color: textSecondary }}>
+            <button onClick={() => setShowSettings(true)} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: bgTertiary, cursor: 'pointer', color: textSecondary }}>
               <Info size={16} />
             </button>
           </div>
@@ -1081,8 +1131,8 @@ export default function App() {
       {/* Welcome Guide */}
       {showWelcome && <WelcomeGuide onClose={handleCloseWelcome} />}
 
-      {/* About Modal */}
-      {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
+      {/* Settings Modal */}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
     </div>
   )
 }
