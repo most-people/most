@@ -30,20 +30,20 @@ export class MostBoxEngine extends EventEmitter {
   /**
    * Create a new MostBoxEngine instance
    * @param {object} options - Configuration options
-   * @param {string} options.storagePath - Path to store P2P data (required)
-   * @param {string} [options.downloadPath] - Default download path (optional, defaults to storagePath/downloads)
+   * @param {string} options.dataPath - Path to store P2P data (required)
+   * @param {string} [options.downloadPath] - Default download path (optional, defaults to dataPath/downloads)
    * @param {number} [options.maxFileSize] - Maximum file size in bytes (default: 100GB)
    */
   constructor(options) {
     super()
     
-    if (!options || !options.storagePath) {
-      throw new Error('storagePath is required')
+    if (!options || !options.dataPath) {
+      throw new Error('dataPath is required')
     }
     
     this.#options = {
-      storagePath: options.storagePath,
-      downloadPath: options.downloadPath || path.join(options.storagePath, 'downloads'),
+      dataPath: options.dataPath,
+      downloadPath: options.downloadPath || path.join(options.dataPath, 'downloads'),
       maxFileSize: options.maxFileSize || MAX_FILE_SIZE
     }
   }
@@ -56,19 +56,19 @@ export class MostBoxEngine extends EventEmitter {
       return
     }
 
-    const { storagePath } = this.#options
+    const { dataPath } = this.#options
     
     console.log(`[MostBox] Initializing engine...`)
-    console.log(`[MostBox] Storage path: ${storagePath}`)
+    console.log(`[MostBox] Storage path: ${dataPath}`)
     
     // Create storage directory if not exists
-    if (!fs.existsSync(storagePath)) {
-      fs.mkdirSync(storagePath, { recursive: true })
+    if (!fs.existsSync(dataPath)) {
+      fs.mkdirSync(dataPath, { recursive: true })
     }
 
     // Initialize Corestore with global shared seed
     const GLOBAL_SHARED_SEED = b4a.alloc(32).fill(GLOBAL_SHARED_SEED_STRING)
-    this.#store = new Corestore(storagePath, { primaryKey: GLOBAL_SHARED_SEED, unsafe: true })
+    this.#store = new Corestore(dataPath, { primaryKey: GLOBAL_SHARED_SEED, unsafe: true })
     
     try {
       await this.#store.ready()
@@ -77,9 +77,9 @@ export class MostBoxEngine extends EventEmitter {
       if (err.message && err.message.includes('Another corestore is stored here')) {
         console.log(`[MostBox] Resetting corrupt storage...`)
         // Reset corrupt storage
-        fs.rmSync(storagePath, { recursive: true, force: true })
-        fs.mkdirSync(storagePath, { recursive: true })
-        this.#store = new Corestore(storagePath, { primaryKey: GLOBAL_SHARED_SEED, unsafe: true })
+        fs.rmSync(dataPath, { recursive: true, force: true })
+        fs.mkdirSync(dataPath, { recursive: true })
+        this.#store = new Corestore(dataPath, { primaryKey: GLOBAL_SHARED_SEED, unsafe: true })
         await this.#store.ready()
         console.log(`[MostBox] Corestore reset and ready`)
       } else {
@@ -200,38 +200,52 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   /**
-   * Publish a file to the P2P network
-   * @param {string} filePath - Absolute path to the file
-   * @param {string} [fileName] - Name for the file (defaults to basename)
+   * Publish content to the P2P network
+   * @param {string|Buffer} content - File path (string) or content (Buffer)
+   * @param {string} [fileName] - Name for the file (required for Buffer input)
    * @returns {Promise<{ cid: string, link: string, fileName: string }>}
    */
-  async publishFile(filePath, fileName) {
+  async publishFile(content, fileName) {
     this.#ensureInitialized()
 
-    // Validate path
-    const pathValidation = validateAndSanitizePath(filePath)
-    if (pathValidation.error) {
-      throw new PathSecurityError(pathValidation.error)
-    }
-    const cleanPath = pathValidation.cleanPath
+    let cleanPath = null
+    let safeFileName
+    let fileSize
 
-    // Validate file size
-    const sizeValidation = await validateFileSize(cleanPath, this.#options.maxFileSize)
-    if (!sizeValidation.valid) {
-      throw new FileSizeError(sizeValidation.error, sizeValidation.size)
+    if (Buffer.isBuffer(content)) {
+      if (!fileName) {
+        throw new Error('fileName is required when publishing Buffer content')
+      }
+      safeFileName = sanitizeFilename(fileName)
+      fileSize = content.length
+    } else {
+      cleanPath = content
+      const pathValidation = validateAndSanitizePath(cleanPath)
+      if (pathValidation.error) {
+        throw new PathSecurityError(pathValidation.error)
+      }
+      cleanPath = pathValidation.cleanPath
+
+      const sizeValidation = await validateFileSize(cleanPath, this.#options.maxFileSize)
+      if (!sizeValidation.valid) {
+        throw new FileSizeError(sizeValidation.error, sizeValidation.size)
+      }
+      fileSize = sizeValidation.size
+
+      safeFileName = sanitizeFilename(fileName || path.basename(cleanPath))
     }
 
-    // Sanitize filename
-    const safeFileName = sanitizeFilename(fileName || path.basename(cleanPath))
+    if (fileSize > this.#options.maxFileSize) {
+      const maxGB = Math.round(this.#options.maxFileSize / (1024 * 1024 * 1024))
+      throw new FileSizeError(`File size exceeds limit of ${maxGB} GB`, fileSize)
+    }
 
     this.emit('publish:progress', { stage: 'calculating-cid', file: safeFileName })
 
-    // Calculate CID
-    const { cid: rootCid } = await calculateCid(cleanPath)
+    const { cid: rootCid } = await calculateCid(content)
     const hashHex = b4a.toString(rootCid.multihash.digest, 'hex')
     const cidString = rootCid.toString()
 
-    // Create/Get Hyperdrive
     const name = `drive-${hashHex}`
     let drive = this.#drives.get(name)
     
@@ -240,27 +254,31 @@ export class MostBoxEngine extends EventEmitter {
       await drive.ready()
       this.#drives.set(name, drive)
       
-      // Join P2P network as server (we're publishing/sharing the file)
-      // Don't await flushed() — it blocks HTTP response for 10s+ while waiting for DHT
-      // The join still completes in background, file is already stored in Hyperdrive
       const discovery = this.#swarm.join(drive.discoveryKey, { server: true, client: false })
       discovery.flushed().catch(() => {})
     }
 
     this.emit('publish:progress', { stage: 'uploading', file: safeFileName })
 
-    // Stream file into drive
-    const rs = fs.createReadStream(cleanPath)
     const ws = drive.createWriteStream(safeFileName)
 
-    await new Promise((resolve, reject) => {
-      rs.pipe(ws)
-      ws.on('finish', resolve)
-      ws.on('error', reject)
-      rs.on('error', reject)
-    })
+    if (Buffer.isBuffer(content)) {
+      ws.write(content)
+      ws.end()
+      await new Promise((resolve, reject) => {
+        ws.on('finish', resolve)
+        ws.on('error', reject)
+      })
+    } else {
+      const rs = fs.createReadStream(cleanPath)
+      await new Promise((resolve, reject) => {
+        rs.pipe(ws)
+        ws.on('finish', resolve)
+        ws.on('error', reject)
+        rs.on('error', reject)
+      })
+    }
 
-    // Update published files list
     const existingIndex = this.#publishedFiles.findIndex(f => f.cid === cidString)
     if (existingIndex !== -1) {
       const existing = this.#publishedFiles[existingIndex]
@@ -273,7 +291,6 @@ export class MostBoxEngine extends EventEmitter {
         fileName: safeFileName,
         cid: cidString,
         publishedAt: new Date().toISOString(),
-        originalPath: cleanPath,
         starred: false
       })
     }
@@ -323,7 +340,6 @@ export class MostBoxEngine extends EventEmitter {
         return {
           taskId,
           fileName: existingFile.fileName,
-          savedPath: existingFile.originalPath,
           alreadyExists: true
         }
       }
@@ -394,7 +410,7 @@ export class MostBoxEngine extends EventEmitter {
       console.log(`[MostBox] Found ${entries.length} entries, starting download...`)
 
       // Save to storage directory (not Downloads folder)
-      const targetDir = this.#options.storagePath
+      const targetDir = this.#options.dataPath
 
       // Check storage directory
       const writableCheck = await checkDirectoryWritable(targetDir)
@@ -489,13 +505,11 @@ export class MostBoxEngine extends EventEmitter {
             throw new Error(`文件已存在: ${existing.fileName}`)
           }
           existing.publishedAt = new Date().toISOString()
-          existing.originalPath = savePath
         } else {
           this.#publishedFiles.push({
             fileName: sanitizedFileName,
             cid: cidString,
             publishedAt: new Date().toISOString(),
-            originalPath: savePath,
             starred: false
           })
         }
@@ -528,7 +542,6 @@ export class MostBoxEngine extends EventEmitter {
       cid: f.cid,
       link: `most://${f.cid}`,
       publishedAt: f.publishedAt,
-      originalPath: f.originalPath,
       starred: f.starred || false
     }))
   }
@@ -568,7 +581,6 @@ export class MostBoxEngine extends EventEmitter {
         fileName: fileRecord.fileName,
         cid: fileRecord.cid,
         publishedAt: fileRecord.publishedAt,
-        originalPath: fileRecord.originalPath,
         starred: fileRecord.starred || false,
         deletedAt: new Date().toISOString()
       })
@@ -592,7 +604,6 @@ export class MostBoxEngine extends EventEmitter {
       cid: f.cid,
       link: `most://${f.cid}`,
       publishedAt: f.publishedAt,
-      originalPath: f.originalPath,
       starred: f.starred || false,
       deletedAt: f.deletedAt
     }))
@@ -617,7 +628,6 @@ export class MostBoxEngine extends EventEmitter {
       fileName: fileRecord.fileName,
       cid: fileRecord.cid,
       publishedAt: fileRecord.publishedAt,
-      originalPath: fileRecord.originalPath,
       starred: fileRecord.starred || false
     })
     this.#savePublishedMetadata()
@@ -639,15 +649,6 @@ export class MostBoxEngine extends EventEmitter {
     const index = this.#trashFiles.findIndex(f => f.cid === cid)
     if (index !== -1) {
       const fileRecord = this.#trashFiles[index]
-      
-      // Delete temp file
-      if (fileRecord.originalPath && fs.existsSync(fileRecord.originalPath)) {
-        try {
-          fs.unlinkSync(fileRecord.originalPath)
-        } catch (err) {
-          // File may be locked or already deleted
-        }
-      }
       
       // Reconstruct drive name from CID
       const parsedCid = CID.parse(cid)
@@ -686,15 +687,6 @@ export class MostBoxEngine extends EventEmitter {
     this.#ensureInitialized()
     
     for (const fileRecord of this.#trashFiles) {
-      // Delete temp file
-      if (fileRecord.originalPath && fs.existsSync(fileRecord.originalPath)) {
-        try {
-          fs.unlinkSync(fileRecord.originalPath)
-        } catch (err) {
-          // File may be locked or already deleted
-        }
-      }
-      
       // Reconstruct drive name from CID
       const parsedCid = CID.parse(fileRecord.cid)
       const hashHex = b4a.toString(parsedCid.multihash.digest, 'hex')
@@ -734,16 +726,16 @@ export class MostBoxEngine extends EventEmitter {
     
     let totalSize = 0
     let freeSize = 0
-    const { storagePath } = this.#options
+    const { dataPath } = this.#options
     
     try {
-      const stats = fs.statfsSync(storagePath)
+      const stats = fs.statfsSync(dataPath)
       totalSize = stats.bsize * stats.blocks
       freeSize = stats.bsize * stats.bfree
     } catch (err) {
       // Fallback if statfs is not available
       try {
-        const stats = fs.statSync(storagePath)
+        const stats = fs.statSync(dataPath)
         totalSize = 0
         freeSize = 0
       } catch {
@@ -777,7 +769,7 @@ export class MostBoxEngine extends EventEmitter {
       }
     }
     
-    calculateDirSize(storagePath)
+    calculateDirSize(dataPath)
     
     return {
       total: totalSize,
@@ -864,11 +856,11 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #getMetadataPath() {
-    return path.join(this.#options.storagePath, 'published-files.json')
+    return path.join(this.#options.dataPath, 'published-files.json')
   }
   
   #getTrashMetadataPath() {
-    return path.join(this.#options.storagePath, 'trash-files.json')
+    return path.join(this.#options.dataPath, 'trash-files.json')
   }
 
   #loadPublishedMetadata() {

@@ -3,7 +3,7 @@ import {
   Upload, Sun, Moon, Image as ImageIcon, Trash2, Folder,
   FolderPlus, Film, Music, ChevronRight, FileText,
   X, Check, Copy, Download, ArrowUpDown, Star, Files, HardDrive, Search, Info,
-  FolderOpen
+  FolderOpen, Power
 } from 'lucide-react'
 
 // === API ===
@@ -25,6 +25,7 @@ const API = {
   toggleStar: (cid) => API.fetch(`/api/files/${cid}/star`, { method: 'POST' }),
   getStorageStats: () => API.fetch('/api/storage'),
   getConfig: () => API.fetch('/api/config'),
+  getDataPath: () => API.fetch('/api/config/data-path'),
   saveConfig: (config) => API.fetch('/api/config', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -147,34 +148,51 @@ function WelcomeGuide({ onClose }) {
 }
 
 // === About Modal ===
-function SettingsModal({ onClose }) {
-  const [storagePath, setStoragePath] = useState('')
+function SettingsModal({ onClose, addToast }) {
+  const [dataPath, setStoragePath] = useState('')
+  const [originalPath, setOriginalPath] = useState('')
+  const [isDefault, setIsDefault] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    API.getConfig().then(config => {
-      setStoragePath(config.storagePath || '')
+    API.getDataPath().then(config => {
+      const path = config.dataPath || ''
+      setStoragePath(path)
+      setOriginalPath(path)
+      setIsDefault(config.isDefault || false)
       setLoading(false)
     }).catch(() => setLoading(false))
   }, [])
 
-  const handleChangePath = async () => {
+  const handleSavePath = async () => {
+    if (!dataPath.trim()) return
+    if (dataPath.trim() === originalPath) return
+    setSaving(true)
     try {
-      const dirHandle = await window.showDirectoryPicker()
-      const path = dirHandle.name
-      setSaving(true)
-      await API.saveConfig({ storagePath: path })
-      setStoragePath(path)
-      setSaving(false)
-      alert('存储位置已更改，重启应用后生效')
+      await API.saveConfig({ dataPath: dataPath.trim() })
+      await fetch('/api/shutdown', { method: 'POST' })
+      window.close()
     } catch (err) {
-      if (err.name !== 'AbortError') {
-        console.error(err)
-      }
+      addToast(err.message || '保存失败', 'error')
       setSaving(false)
     }
   }
+
+  const handleResetPath = async () => {
+    if (originalPath === '') return
+    setSaving(true)
+    try {
+      await API.saveConfig({ resetStorage: true })
+      await fetch('/api/shutdown', { method: 'POST' })
+      window.close()
+    } catch (err) {
+      addToast(err.message || '操作失败', 'error')
+      setSaving(false)
+    }
+  }
+
+  const isPathChanged = dataPath.trim() !== originalPath
 
   return (
     <ModalOverlay onClose={onClose}>
@@ -187,14 +205,24 @@ function SettingsModal({ onClose }) {
         <div style={{ marginBottom: 20 }}>
           <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 8, color: '#374151' }}>存储位置</label>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <div style={{ flex: 1, padding: '10px 12px', borderRadius: 8, background: '#f8fafc', border: '1px solid #e5e7eb', fontSize: 13, color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {loading ? '加载中...' : (storagePath || '默认位置 (~/.most-box/most-data)')}
-            </div>
-            <button onClick={handleChangePath} disabled={saving} style={{ padding: '10px 16px', borderRadius: 8, border: 'none', background: '#3b82f6', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>
-              {saving ? '保存中...' : '更改'}
+            <input
+              type="text"
+              value={dataPath}
+              onChange={(e) => setStoragePath(e.target.value)}
+              placeholder="输入完整路径，如 D:\most-data"
+              disabled={loading}
+              style={{ flex: 1, padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e5e7eb', fontSize: 13, outline: 'none' }}
+            />
+            <button onClick={handleSavePath} disabled={saving || loading || !isPathChanged} style={{ padding: '10px 16px', borderRadius: 8, border: 'none', background: '#3b82f6', color: '#fff', cursor: saving || loading || !isPathChanged ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', opacity: saving || loading || !isPathChanged ? 0.5 : 1 }}>
+              {saving ? '保存中...' : '保存'}
             </button>
+            {!isDefault && (
+              <button onClick={handleResetPath} disabled={saving || loading} style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #e5e7eb', background: '#fff', color: '#6b7280', cursor: saving || loading ? 'not-allowed' : 'pointer', fontSize: 13, whiteSpace: 'nowrap', opacity: saving || loading ? 0.5 : 1 }}>
+                恢复默认
+              </button>
+            )}
           </div>
-          <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 8 }}>更改存储位置后需要重启应用</p>
+          <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 8 }}>重启后生效</p>
         </div>
 
         <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 16 }}>
@@ -751,6 +779,22 @@ export default function App() {
     localStorage.setItem('mostbox_welcomed', 'true')
   }
 
+  const handleShutdown = () => {
+    setConfirmModal({
+      title: '关闭服务',
+      message: '确定要关闭服务吗？',
+      confirmText: '关闭',
+      danger: true,
+      onConfirm: async () => {
+        setConfirmModal(null)
+        try {
+          await fetch('/api/shutdown', { method: 'POST' })
+        } catch { }
+        window.close()
+      }
+    })
+  }
+
   // WebSocket
   useEffect(() => {
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -878,6 +922,9 @@ export default function App() {
             </button>
             <button onClick={() => setIsDarkMode(!isDarkMode)} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: bgTertiary, cursor: 'pointer', color: '#6366f1' }}>
               {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
+            <button onClick={handleShutdown} title="关闭服务" style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: bgTertiary, cursor: 'pointer', color: '#ef4444' }}>
+              <Power size={16} />
             </button>
             <button onClick={() => setShowSettings(true)} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: bgTertiary, cursor: 'pointer', color: textSecondary }}>
               <Info size={16} />
@@ -1132,7 +1179,7 @@ export default function App() {
       {showWelcome && <WelcomeGuide onClose={handleCloseWelcome} />}
 
       {/* Settings Modal */}
-      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} addToast={addToast} />}
     </div>
   )
 }

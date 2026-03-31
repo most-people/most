@@ -44,9 +44,9 @@ function saveConfig(config) {
 }
 
 // --- Storage path ---
-function getStoragePath() {
+function getDataPath() {
   const config = loadConfig()
-  return config.storagePath || path.join(os.homedir(), 'most-data')
+  return config.dataPath || path.join(os.homedir(), 'most-data')
 }
 
 // --- Static file serving ---
@@ -107,7 +107,7 @@ function serveStatic(req, res) {
 }
 
 // --- Streaming multipart parser for large files ---
-async function parseMultipart(req, tempDir) {
+async function parseMultipart(req) {
   const boundaryMatch = req.headers['content-type']?.match(/boundary=(.+)/)
   if (!boundaryMatch) throw new Error('No boundary in content-type')
   const boundary = boundaryMatch[1]
@@ -182,7 +182,7 @@ async function handleAPI(req, res) {
     // GET /api/config
     if (pathname === '/api/config' && method === 'GET') {
       const config = loadConfig()
-      json({ storagePath: config.storagePath || '' })
+      json({ dataPath: config.dataPath || '' })
       return
     }
 
@@ -190,17 +190,41 @@ async function handleAPI(req, res) {
     if (pathname === '/api/config' && method === 'POST') {
       const body = await parseJSON(req)
       const config = loadConfig()
-      if (body.storagePath !== undefined) {
-        config.storagePath = body.storagePath
+      
+      if (body.resetStorage) {
+        config.dataPath = ''
+      } else if (body.dataPath !== undefined) {
+        let dataPath = body.dataPath.trim()
+        let basePath = dataPath
+        
+        if (dataPath.match(/^[A-Za-z]:\\$/)) {
+          basePath = dataPath
+          dataPath = path.join(dataPath, 'most-data')
+        }
+        
+        if (!fs.existsSync(basePath)) {
+          json({ error: '目录不存在' }, 400)
+          return
+        }
+        
+        if (!fs.existsSync(dataPath)) {
+          fs.mkdirSync(dataPath, { recursive: true })
+        }
+        
+        config.dataPath = dataPath
       }
+      
       const success = saveConfig(config)
-      json({ success, storagePath: getStoragePath() })
+      json({ success, dataPath: getDataPath() })
       return
     }
 
-    // GET /api/config/storage-path
-    if (pathname === '/api/config/storage-path' && method === 'GET') {
-      json({ storagePath: getStoragePath() })
+    // GET /api/config/data-path
+    if (pathname === '/api/config/data-path' && method === 'GET') {
+      const config = loadConfig()
+      const isDefault = !config.dataPath
+      const dataPath = getDataPath()
+      json({ dataPath, isDefault })
       return
     }
 
@@ -218,15 +242,12 @@ async function handleAPI(req, res) {
 
     // POST /api/publish — multipart file upload
     if (pathname === '/api/publish' && method === 'POST') {
-      const saveDir = getStoragePath()
-      if (!fs.existsSync(saveDir)) fs.mkdirSync(saveDir, { recursive: true })
-
       let aborted = false
       req.on('close', () => {
         if (req.aborted) aborted = true
       })
 
-      const parts = await parseMultipart(req, saveDir)
+      const parts = await parseMultipart(req)
 
       if (aborted) {
         return
@@ -238,17 +259,7 @@ async function handleAPI(req, res) {
         return
       }
 
-      const savedPath = path.join(saveDir, filePart.filename)
-      const fileDir = path.dirname(savedPath)
-      if (!fs.existsSync(fileDir)) fs.mkdirSync(fileDir, { recursive: true })
-      fs.writeFileSync(savedPath, filePart.data)
-
-      if (aborted) {
-        try { fs.unlinkSync(savedPath) } catch {}
-        return
-      }
-
-      const result = await engine.publishFile(savedPath, filePart.filename)
+      const result = await engine.publishFile(filePart.data, filePart.filename)
 
       json({ success: true, ...result })
       return
@@ -333,26 +344,7 @@ async function handleAPI(req, res) {
 
     // GET /api/files/:cid/download — serve file inline for preview / download
     if (pathname.match(/^\/api\/files\/[^/]+\/download$/) && method === 'GET') {
-      const cid = pathname.split('/')[3]
-      const files = engine.listPublishedFiles()
-      const file = files.find(f => f.cid === cid)
-
-      if (!file || !file.originalPath || !fs.existsSync(file.originalPath)) {
-        json({ error: 'File not found' }, 404)
-        return
-      }
-
-      const stat = fs.statSync(file.originalPath)
-      const ext = path.extname(file.fileName).toLowerCase()
-      const contentType = MIME_TYPES[ext] || 'application/octet-stream'
-
-      res.writeHead(200, {
-        'Content-Type': contentType,
-        'Content-Disposition': 'inline',
-        'Content-Length': stat.size,
-        'Accept-Ranges': 'bytes'
-      })
-      fs.createReadStream(file.originalPath).pipe(res)
+      json({ error: 'Use P2P network to download this file' }, 400)
       return
     }
 
@@ -498,10 +490,10 @@ function wsBroadcast(event, data) {
 async function main() {
   console.log('[MostBox] Starting core daemon...')
 
-  const storagePath = getStoragePath()
-  console.log(`[MostBox] Storage: ${storagePath}`)
+  const dataPath = getDataPath()
+  console.log(`[MostBox] Storage: ${dataPath}`)
 
-  engine = new MostBoxEngine({ storagePath })
+  engine = new MostBoxEngine({ dataPath })
 
   engine.on('download:progress', (data) => wsBroadcast('download:progress', data))
   engine.on('download:status', (data) => wsBroadcast('download:status', data))

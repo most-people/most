@@ -4,6 +4,7 @@
  */
 
 import fs from 'node:fs'
+import { Readable } from 'node:stream'
 import { importer } from 'ipfs-unixfs-importer'
 
 /**
@@ -19,37 +20,54 @@ function createDummyBlockstore() {
 }
 
 /**
- * Calculate IPFS UnixFS CID v1 for a file
+ * Calculate IPFS UnixFS CID v1 for content
  * Uses streaming approach to handle large files efficiently
  * 
- * @param {string} filePath - Absolute path to the file
+ * @param {string|Buffer|AsyncIterable} content - File path (string), Buffer, or async iterable
  * @param {object} options - Calculation options
  * @param {boolean} [options.rawLeaves=true] - Use raw leaves for modern CID
  * @param {number} [options.cidVersion=1] - CID version (0 or 1)
+ * @param {number} [options.size] - Total size in bytes (optional, auto-detected for files)
  * @returns {Promise<{cid: import('multiformats/cid').CID, size: number}>}
  */
-export async function calculateCid(filePath, options = {}) {
+export async function calculateCid(content, options = {}) {
   const {
     rawLeaves = true,
-    cidVersion = 1
+    cidVersion = 1,
+    size: providedSize
   } = options
 
   const blockstore = createDummyBlockstore()
   
   let rootCid = null
-  let totalSize = 0
+  let totalSize = providedSize || 0
   
-  try {
-    const stat = await fs.promises.stat(filePath)
-    totalSize = stat.size
-  } catch {
-    // Ignore stat errors, size will be 0
-  }
+  let source
 
-  const source = [{
-    path: 'file',
-    content: fs.createReadStream(filePath)
-  }]
+  if (typeof content === 'string') {
+    const filePath = content
+    try {
+      const stat = await fs.promises.stat(filePath)
+      totalSize = stat.size
+    } catch {
+      // Ignore stat errors, size will be 0
+    }
+    source = [{
+      path: 'file',
+      content: fs.createReadStream(filePath)
+    }]
+  } else if (Buffer.isBuffer(content)) {
+    totalSize = content.length
+    source = [{
+      path: 'file',
+      content: Readable.from(content)
+    }]
+  } else {
+    source = [{
+      path: 'file',
+      content
+    }]
+  }
 
   try {
     for await (const entry of importer(source, blockstore, {
