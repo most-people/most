@@ -327,9 +327,7 @@ async function handleAPI(req, res) {
       }
 
       // Async download — do not block HTTP response
-      engine.downloadFile(body.link, taskId).then(result => {
-        wsBroadcast('download:success', { taskId, ...result })
-      }).catch(err => {
+      engine.downloadFile(body.link, taskId).catch(err => {
         if (err.message === 'Download cancelled') {
           wsBroadcast('download:cancelled', { taskId })
         } else {
