@@ -46,6 +46,11 @@ const API = {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ link })
   }),
+  cancelDownload: (taskId) => API.fetch('/api/download/cancel', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ taskId })
+  }),
   getFileDownloadUrl: (cid) => `/api/files/${cid}/download`,
   moveFile: (cid, newFileName) => API.fetch('/api/move', {
     method: 'POST',
@@ -801,11 +806,36 @@ export default function App() {
       return
     }
     try {
-      await API.downloadFile(downloadLink)
+      const result = await API.downloadFile(downloadLink)
       setDownloadLink('')
       setIsDownloadModalOpen(false)
+      
+      // Create transfer entry for tracking
+      const transfer = {
+        id: result.taskId,
+        fileName: '下载文件', // Will be updated when download completes
+        progress: 0,
+        type: 'download',
+        status: 'uploading'
+      }
+      setTransfers(prev => [...prev, transfer])
+      setIsTransferPanelOpen(true)
+      
       addToast('下载已开始', 'info')
-    } catch { addToast('下载失败', 'error') }
+    } catch (err) {
+      addToast('下载失败', 'error')
+    }
+  }
+  
+  const handleCancelTransfer = async (transfer) => {
+    if (transfer.type === 'download' && transfer.status === 'uploading') {
+      try {
+        await API.cancelDownload(transfer.id)
+        // The WebSocket will handle the 'download:cancelled' event
+      } catch (err) {
+        addToast('取消失败', 'error')
+      }
+    }
   }
 
   const handleNavigate = (path) => {
@@ -844,17 +874,52 @@ export default function App() {
         if (event === 'publish:success' || event === 'download:success') {
           refreshFiles()
           refreshStorageStats()
-          if (event === 'download:success') addToast('下载完成', 'success')
+          // Update transfer as completed
+          const taskId = data.taskId || data.fileName
+          setTransfers(prev => prev.map(t =>
+            (t.id === taskId || t.fileName === data.fileName) ? { ...t, progress: 100, status: 'completed' } : t
+          ))
+          if (event === 'download:success') addToast(`${data.fileName} 下载完成`, 'success')
         }
-        // Handle publish progress
+        // Handle publish/upload progress
         if (event === 'publish:progress') {
-          // Update transfer progress if we have matching transfer
           setTransfers(prev => prev.map(t => {
-            if (data.file && t.fileName === data.file) {
-              return { ...t, progress: data.percent || 50 } // intermediate progress
+            if (data.file && t.fileName === data.file && t.type === 'upload') {
+              // Calculate percent based on stage
+              let progress = 50
+              if (data.stage === 'calculating-cid') progress = 25
+              else if (data.stage === 'uploading') progress = 75
+              else if (data.stage === 'complete') progress = 100
+              return { ...t, progress }
             }
             return t
           }))
+        }
+        // Handle download progress
+        if (event === 'download:progress') {
+          setTransfers(prev => prev.map(t =>
+            t.id === data.taskId ? { ...t, progress: data.percent || 0, loaded: data.loaded, total: data.total } : t
+          ))
+        }
+        // Handle download error
+        if (event === 'download:error') {
+          setTransfers(prev => prev.map(t =>
+            t.id === data.taskId ? { ...t, status: 'error' } : t
+          ))
+          addToast(`下载失败: ${data.error}`, 'error')
+        }
+        // Handle download status (includes filename when known)
+        if (event === 'download:status') {
+          setTransfers(prev => prev.map(t =>
+            t.id === data.taskId ? { ...t, fileName: data.file || t.fileName } : t
+          ))
+        }
+        // Handle download cancelled
+        if (event === 'download:cancelled') {
+          setTransfers(prev => prev.map(t =>
+            t.id === data.taskId ? { ...t, status: 'cancelled' } : t
+          ))
+          addToast('下载已取消', 'warning')
         }
       } catch { }
     }
@@ -1206,13 +1271,32 @@ export default function App() {
             ) : (
               transfers.map(t => (
                 <div key={t.id} style={{ padding: '10px 0', borderBottom: `1px solid ${borderColor}` }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                     {t.type === 'upload' ? <Upload size={14} color={accentBlue} /> : <Download size={14} color="#6366f1" />}
                     <span style={{ fontSize: 12, fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.fileName}</span>
-                    <span style={{ fontSize: 11, color: textMuted }}>{t.progress}%</span>
+                    {t.status === 'uploading' && t.type === 'download' && (
+                      <button onClick={() => handleCancelTransfer(t)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 2 }}>
+                        <X size={14} />
+                      </button>
+                    )}
                   </div>
-                  <div style={{ height: 4, borderRadius: 2, background: bgTertiary }}>
-                    <div style={{ width: `${t.progress}%`, height: '100%', borderRadius: 2, background: t.type === 'upload' ? accentBlue : '#6366f1' }} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ flex: 1, height: 4, borderRadius: 2, background: bgTertiary }}>
+                      <div style={{ 
+                        width: `${t.progress}%`, 
+                        height: '100%', 
+                        borderRadius: 2, 
+                        background: t.status === 'error' ? '#ef4444' : t.status === 'cancelled' ? '#f59e0b' : t.type === 'upload' ? accentBlue : '#6366f1',
+                        transition: 'width 0.2s'
+                      }} />
+                    </div>
+                    <span style={{ fontSize: 10, color: textMuted, minWidth: 32, textAlign: 'right' }}>
+                      {t.status === 'completed' ? '完成' : 
+                       t.status === 'error' ? '失败' : 
+                       t.status === 'cancelled' ? '已取消' : 
+                       t.loaded && t.total ? `${formatSize(t.loaded)}/${formatSize(t.total)}` : 
+                       `${t.progress}%`}
+                    </span>
                   </div>
                 </div>
               ))
