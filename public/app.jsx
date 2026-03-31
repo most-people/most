@@ -249,14 +249,14 @@ function SettingsModal({ onClose, addToast }) {
 // === Toast ===
 const TOAST_COLORS = { success: '#22c55e', error: '#ef4444', warning: '#f59e0b', info: '#3b82f6' }
 
-function Toast({ message, type, onDone }) {
+function Toast({ message, type, onDone, index }) {
   useEffect(() => {
     const t = setTimeout(onDone, 3000)
     return () => clearTimeout(t)
   }, [])
   return (
     <div style={{
-      position: 'fixed', bottom: 24, right: 24, zIndex: 9999,
+      position: 'fixed', bottom: 24 + index * 60, right: 24, zIndex: 9999,
       background: TOAST_COLORS[type] || TOAST_COLORS.info, color: '#fff',
       padding: '12px 20px', borderRadius: 12, fontSize: 13, fontWeight: 500,
       boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
@@ -800,30 +800,38 @@ export default function App() {
     })
   }
 
+  const [isDownloading, setIsDownloading] = useState(false)
+
   const handleDownloadSharedFile = async () => {
     if (!downloadLink.trim() || !downloadLink.startsWith('most://')) {
       addToast('链接格式应为 most://<cid>', 'warning')
       return
     }
+    if (isDownloading) return
+    setIsDownloading(true)
     try {
       const result = await API.downloadFile(downloadLink)
       setDownloadLink('')
       setIsDownloadModalOpen(false)
       
-      // Create transfer entry for tracking
-      const transfer = {
-        id: result.taskId,
-        fileName: '下载文件', // Will be updated when download completes
-        progress: 0,
-        type: 'download',
-        status: 'uploading'
+      if (result.alreadyExists) {
+        addToast(`${result.fileName} 已存在`, 'warning')
+      } else {
+        const transfer = {
+          id: result.taskId,
+          fileName: '下载文件',
+          progress: 0,
+          type: 'download',
+          status: 'uploading'
+        }
+        setTransfers(prev => [...prev, transfer])
+        setIsTransferPanelOpen(true)
+        addToast('下载已开始', 'info')
       }
-      setTransfers(prev => [...prev, transfer])
-      setIsTransferPanelOpen(true)
-      
-      addToast('下载已开始', 'info')
     } catch (err) {
       addToast('下载失败', 'error')
+    } finally {
+      setIsDownloading(false)
     }
   }
   
@@ -874,12 +882,21 @@ export default function App() {
         if (event === 'publish:success' || event === 'download:success') {
           refreshFiles()
           refreshStorageStats()
-          // Update transfer as completed
           const taskId = data.taskId || data.fileName
           setTransfers(prev => prev.map(t =>
             (t.id === taskId || t.fileName === data.fileName) ? { ...t, progress: 100, status: 'completed' } : t
           ))
-          if (event === 'download:success') addToast(`${data.fileName} 下载完成`, 'success')
+          if (event === 'download:success') {
+            if (data.alreadyExists) {
+              addToast(`${data.fileName} 已存在`, 'warning')
+            } else {
+              addToast(`${data.fileName} 下载完成`, 'success')
+            }
+            // Remove completed downloads after delay
+            setTimeout(() => {
+              setTransfers(prev => prev.filter(t => !(t.id === taskId && t.status === 'completed')))
+            }, 3000)
+          }
         }
         // Handle publish/upload progress
         if (event === 'publish:progress') {
@@ -1190,8 +1207,8 @@ export default function App() {
               <button onClick={() => setIsDownloadModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: textMuted }}><X size={18} /></button>
             </div>
             <input type="text" value={downloadLink} onChange={(e) => setDownloadLink(e.target.value)} placeholder="most://..." onKeyDown={(e) => e.key === 'Enter' && handleDownloadSharedFile()} style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: `1.5px solid ${borderColor}`, fontSize: 13, fontFamily: 'monospace', outline: 'none', background: bgTertiary, color: textPrimary, marginBottom: 16 }} />
-            <button onClick={handleDownloadSharedFile} disabled={!downloadLink.trim()} style={{ width: '100%', padding: 12, borderRadius: 10, border: 'none', background: downloadLink.trim() ? '#6366f1' : bgTertiary, color: downloadLink.trim() ? '#fff' : textMuted, fontSize: 13, fontWeight: 600, cursor: downloadLink.trim() ? 'pointer' : 'not-allowed' }}>
-              开始下载
+            <button onClick={handleDownloadSharedFile} disabled={!downloadLink.trim() || isDownloading} style={{ width: '100%', padding: 12, borderRadius: 10, border: 'none', background: (downloadLink.trim() && !isDownloading) ? '#6366f1' : bgTertiary, color: (downloadLink.trim() && !isDownloading) ? '#fff' : textMuted, fontSize: 13, fontWeight: 600, cursor: (downloadLink.trim() && !isDownloading) ? 'pointer' : 'not-allowed' }}>
+              {isDownloading ? '下载中...' : '开始下载'}
             </button>
           </div>
         </ModalOverlay>
@@ -1306,7 +1323,7 @@ export default function App() {
       )}
 
       {/* Toasts */}
-      {toasts.map(t => <Toast key={t.id} message={t.message} type={t.type} onDone={() => removeToast(t.id)} />)}
+      {toasts.map((t, i) => <Toast key={t.id} message={t.message} type={t.type} onDone={() => removeToast(t.id)} index={i} />)}
 
       {/* Welcome Guide */}
       {showWelcome && <WelcomeGuide onClose={handleCloseWelcome} />}

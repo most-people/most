@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import crypto from 'node:crypto'
 import { exec } from 'node:child_process'
 import { MostBoxEngine } from './src/index.js'
+import { parseMostLink } from './src/core/cid.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = Number(process.env.MOSTBOX_PORT) || 1976
@@ -309,6 +310,21 @@ async function handleAPI(req, res) {
       }
 
       const taskId = `dl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+
+      // Parse link to check if file already exists
+      const parsed = parseMostLink(body.link)
+      if (parsed.error) {
+        json({ error: parsed.error }, 400)
+        return
+      }
+
+      // Check if file already exists in published files
+      const existingFile = engine.getPublishedFiles().find(f => f.cid === parsed.cid)
+      if (existingFile) {
+        console.log(`[MostBox] File already exists: ${existingFile.fileName}`)
+        json({ success: true, taskId, alreadyExists: true, fileName: existingFile.fileName })
+        return
+      }
 
       // Async download — do not block HTTP response
       engine.downloadFile(body.link, taskId).then(result => {

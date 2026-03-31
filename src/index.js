@@ -383,8 +383,8 @@ export class MostBoxEngine extends EventEmitter {
         this.emit('download:status', { taskId, status: 'connecting' })
         
         console.log(`[MostBox] Joining swarm for drive discovery...`)
-        // Join as client only (we're downloading, not serving)
-        await this.#swarm.join(drive.discoveryKey, { server: false, client: true }).flushed()
+        // Join as both server and client to allow self-downloads
+        await this.#swarm.join(drive.discoveryKey, { server: true, client: true }).flushed()
         console.log(`[MostBox] Swarm join flushed`)
       } else {
         console.log(`[MostBox] Using existing drive: ${name}`)
@@ -856,13 +856,17 @@ export class MostBoxEngine extends EventEmitter {
    * Cancel an active download
    * @param {string} taskId - The task ID of the download to cancel
    */
-  cancelDownload(taskId) {
+   cancelDownload(taskId) {
     const task = this.#activeDownloads.get(taskId)
     if (task) {
       task.aborted = true
       if (task.readStream) task.readStream.destroy()
       if (task.writeStream) task.writeStream.destroy()
     }
+  }
+
+  getPublishedFiles() {
+    return this.#publishedFiles
   }
 
   // --- Private methods ---
