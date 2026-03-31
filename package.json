@@ -17,7 +17,9 @@
   "scripts": {
     "start": "npm run build && node server.js",
     "dev": "npm run build -- --dev --watch & node --watch server.js",
-    "build": "node build.mjs"
+    "build": "node build.mjs",
+    "test": "node --test tests/**/*.test.js",
+    "test:unit": "node --test tests/unit/*.test.js"
   },
   "keywords": [
     "p2p",
@@ -39,6 +41,7 @@
     "react-dom": "^19.2.4"
   },
   "devDependencies": {
-    "esbuild": "^0.27.4"
+    "esbuild": "^0.27.4",
+    "supertest": "^7.0.0"
   }
 }
