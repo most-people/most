@@ -214,7 +214,7 @@ function SettingsModal({ onClose, addToast }) {
               type="text"
               value={dataPath}
               onChange={(e) => setStoragePath(e.target.value)}
-              placeholder="输入完整路径，如 D:\most-data"
+              placeholder="输入完整路径，如 D:\"
               disabled={loading}
               style={{ flex: 1, padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e5e7eb', fontSize: 13, outline: 'none' }}
             />
@@ -813,7 +813,7 @@ export default function App() {
       const result = await API.downloadFile(downloadLink)
       setDownloadLink('')
       setIsDownloadModalOpen(false)
-      
+
       if (result.alreadyExists) {
         addToast(`${result.fileName} 已存在`, 'warning')
       } else {
@@ -834,7 +834,7 @@ export default function App() {
       setIsDownloading(false)
     }
   }
-  
+
   const handleCancelTransfer = async (transfer) => {
     if (transfer.type === 'download' && transfer.status === 'uploading') {
       try {
@@ -1299,20 +1299,20 @@ export default function App() {
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <div style={{ flex: 1, height: 4, borderRadius: 2, background: bgTertiary }}>
-                      <div style={{ 
-                        width: `${t.progress}%`, 
-                        height: '100%', 
-                        borderRadius: 2, 
+                      <div style={{
+                        width: `${t.progress}%`,
+                        height: '100%',
+                        borderRadius: 2,
                         background: t.status === 'error' ? '#ef4444' : t.status === 'cancelled' ? '#f59e0b' : t.type === 'upload' ? accentBlue : '#6366f1',
                         transition: 'width 0.2s'
                       }} />
                     </div>
                     <span style={{ fontSize: 10, color: textMuted, minWidth: 32, textAlign: 'right' }}>
-                      {t.status === 'completed' ? '完成' : 
-                       t.status === 'error' ? '失败' : 
-                       t.status === 'cancelled' ? '已取消' : 
-                       t.loaded && t.total ? `${formatSize(t.loaded)}/${formatSize(t.total)}` : 
-                       `${t.progress}%`}
+                      {t.status === 'completed' ? '完成' :
+                        t.status === 'error' ? '失败' :
+                          t.status === 'cancelled' ? '已取消' :
+                            t.loaded && t.total ? `${formatSize(t.loaded)}/${formatSize(t.total)}` :
+                              `${t.progress}%`}
                     </span>
                   </div>
                 </div>
