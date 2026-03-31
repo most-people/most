@@ -665,7 +665,7 @@ export class MostBoxEngine extends EventEmitter {
         }
         
         // Leave swarm for this drive
-        this.#swarm.leave(drive.discoveryKey)
+        await this.#swarm.leave(drive.discoveryKey)
         
         // Close and remove drive
         await drive.close()

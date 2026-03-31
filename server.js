@@ -244,7 +244,7 @@ async function handleAPI(req, res) {
     if (pathname === '/api/publish' && method === 'POST') {
       let aborted = false
       req.on('close', () => {
-        if (req.aborted) aborted = true
+        aborted = true
       })
 
       const parts = await parseMultipart(req)
@@ -453,6 +453,9 @@ function upgradeToWebSocket(req, socket) {
       const pong = Buffer.from(buf)
       pong[0] = (pong[0] & 0xf0) | 0xa
       socket.write(pong)
+    }
+    if (opcode === 0x1 || opcode === 0x2) {
+      // Text or binary message - could broadcast to other clients if needed
     }
   })
 }
