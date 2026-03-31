@@ -126,27 +126,118 @@ function getFileSubtype(fileName) {
 }
 
 // === Welcome Guide ===
-function WelcomeGuide({ onClose }) {
+function WelcomeGuide({ onClose, onShutdown }) {
   const [step, setStep] = useState(0)
+  const [customPath, setCustomPath] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [defaultPath, setDefaultPath] = useState('')
+
+  useEffect(() => {
+    API.getDataPath().then(config => {
+      setDefaultPath(config.dataPath || '')
+    }).catch(() => {})
+  }, [])
+
   const steps = [
     { title: '欢迎使用', content: '拖拽文件到上传区，或点击选择文件。上传后复制链接发给朋友即可。' },
-    { title: '下载文件', content: '点击「下载文件」，粘贴分享链接即可从 P2P 网络下载文件。' }
+    { title: '下载文件', content: '点击「下载文件」，粘贴分享链接即可从 P2P 网络下载文件。' },
+    { title: '设置存储位置', content: '选择文件存储的文件夹位置（可选，默认使用系统盘）', isOptional: true }
   ]
   const current = steps[step]
 
+  const handleSavePath = async () => {
+    if (!customPath.trim()) return
+    setSaving(true)
+    try {
+      await API.saveConfig({ dataPath: customPath.trim() })
+    } catch (err) {
+      console.error('Save path error:', err)
+      setSaving(false)
+      return
+    }
+    setSaving(false)
+    setSaved(true)
+  }
+
+  const isLastStep = step === steps.length - 1
+  const isPathStep = step === 2
+
   return (
-    <ModalOverlay onClose={onClose}>
-      <div style={{ width: 360, padding: 28, borderRadius: 16, background: '#fff', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
-        <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 12 }}>{current.title}</h2>
-        <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.6, marginBottom: 20 }}>{current.content}</p>
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 20 }}>
-          {steps.map((_, i) => (
-            <div key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: i === step ? '#3b82f6' : '#e2e8f0' }} />
-          ))}
-        </div>
-        <button onClick={step === steps.length - 1 ? onClose : () => setStep(step + 1)} style={{ padding: '10px 32px', borderRadius: 10, border: 'none', background: '#3b82f6', color: '#fff', cursor: 'pointer', fontSize: 14 }}>
-          {step === steps.length - 1 ? '开始使用' : '下一步'}
-        </button>
+    <ModalOverlay onClose={onClose} closeOnOverlayClick={false}>
+      <div style={{ width: 380, padding: 28, borderRadius: 16, background: '#fff', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+        {saved ? (
+          <>
+            <div style={{ width: 48, height: 48, borderRadius: '50%', background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+              <Check size={24} color="#22c55e" />
+            </div>
+            <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 12 }}>设置已保存</h2>
+            <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.6, marginBottom: 24 }}>存储位置已更改，需要重启应用生效。</p>
+            <button
+              onClick={onShutdown}
+              style={{ padding: '10px 32px', borderRadius: 10, border: 'none', background: '#3b82f6', color: '#fff', cursor: 'pointer', fontSize: 14 }}
+            >
+              好的
+            </button>
+          </>
+        ) : (
+          <>
+            <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 12 }}>{current.title}</h2>
+            <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.6, marginBottom: 20 }}>{current.content}</p>
+            
+            {isPathStep && (
+              <div style={{ textAlign: 'left', marginBottom: 20 }}>
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 4 }}>默认存储位置</div>
+                  <div style={{ fontSize: 12, color: '#374151', fontFamily: 'monospace', background: '#f3f4f6', padding: '8px 10px', borderRadius: 6, wordBreak: 'break-all' }}>{defaultPath || '未设置'}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 4 }}>自定义位置（可选）</div>
+                  <input
+                    type="text"
+                    value={customPath}
+                    onChange={(e) => setCustomPath(e.target.value)}
+                    placeholder="如 D:\most-data"
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e5e7eb', fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
+                  />
+                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>不填则使用默认位置，修改后需重启应用</div>
+                </div>
+              </div>
+            )}
+            
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 20 }}>
+              {steps.map((_, i) => (
+                <div key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: i === step ? '#3b82f6' : '#e2e8f0' }} />
+              ))}
+            </div>
+            
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+              {isPathStep && (
+                <button
+                  onClick={onClose}
+                  style={{ padding: '10px 20px', borderRadius: 10, border: '1px solid #e5e7eb', background: '#fff', color: '#6b7280', cursor: 'pointer', fontSize: 14 }}
+                >
+                  跳过
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  if (isPathStep && customPath) {
+                    handleSavePath()
+                  } else if (isLastStep) {
+                    onClose()
+                  } else {
+                    setStep(step + 1)
+                  }
+                }}
+                disabled={isPathStep && saving}
+                style={{ padding: '10px 20px', borderRadius: 10, border: 'none', background: '#3b82f6', color: '#fff', cursor: isPathStep && saving ? 'not-allowed' : 'pointer', fontSize: 14, opacity: isPathStep && saving ? 0.6 : 1 }}
+              >
+                {isPathStep ? (saving ? '保存中...' : '保存并完成') : (isLastStep ? '开始使用' : '下一步')}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </ModalOverlay>
   )
@@ -214,7 +305,7 @@ function SettingsModal({ onClose, addToast }) {
               type="text"
               value={dataPath}
               onChange={(e) => setStoragePath(e.target.value)}
-              placeholder="输入完整路径，如 D:\"
+              placeholder="如 D:\most-data"
               disabled={loading}
               style={{ flex: 1, padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e5e7eb', fontSize: 13, outline: 'none' }}
             />
@@ -227,7 +318,7 @@ function SettingsModal({ onClose, addToast }) {
               </button>
             )}
           </div>
-          <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 8 }}>重启后生效</p>
+          <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 8 }}>修改后需重启应用</p>
         </div>
 
         <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 16 }}>
@@ -268,9 +359,14 @@ function Toast({ message, type, onDone, index }) {
 }
 
 // === Modal Overlay ===
-function ModalOverlay({ children, onClose }) {
+function ModalOverlay({ children, onClose, closeOnOverlayClick = true }) {
+  const handleOverlayClick = (e) => {
+    if (closeOnOverlayClick && e.target === e.currentTarget) {
+      onClose?.()
+    }
+  }
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={handleOverlayClick}>
       {children}
     </div>
   )
@@ -1326,7 +1422,11 @@ export default function App() {
       {toasts.map((t, i) => <Toast key={t.id} message={t.message} type={t.type} onDone={() => removeToast(t.id)} index={i} />)}
 
       {/* Welcome Guide */}
-      {showWelcome && <WelcomeGuide onClose={handleCloseWelcome} />}
+      {showWelcome && <WelcomeGuide onClose={handleCloseWelcome} onShutdown={() => {
+        fetch('/api/shutdown', { method: 'POST' })
+        addToast('服务已关闭，请重新启动应用', 'info')
+        handleCloseWelcome()
+      }} />}
 
       {/* Settings Modal */}
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} addToast={addToast} />}
