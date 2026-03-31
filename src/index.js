@@ -76,12 +76,15 @@ export class MostBoxEngine extends EventEmitter {
     } catch (err) {
       if (err.message && err.message.includes('Another corestore is stored here')) {
         console.log(`[MostBox] Resetting corrupt storage...`)
-        // Reset corrupt storage
         fs.rmSync(dataPath, { recursive: true, force: true })
         fs.mkdirSync(dataPath, { recursive: true })
         this.#store = new Corestore(dataPath, { primaryKey: GLOBAL_SHARED_SEED, unsafe: true })
         await this.#store.ready()
         console.log(`[MostBox] Corestore reset and ready`)
+      } else if (err.message && err.message.includes('Invalid device file')) {
+        throw new Error(`存储文件损坏，请关闭其他访问 ${dataPath} 的程序后重试`)
+      } else if (err.message && err.message.includes('File descriptor could not be locked')) {
+        throw new Error(`存储文件被锁定，请关闭其他访问 ${dataPath} 的程序后重试`)
       } else {
         throw err
       }
@@ -255,7 +258,7 @@ export class MostBoxEngine extends EventEmitter {
       this.#drives.set(name, drive)
       
       const discovery = this.#swarm.join(drive.discoveryKey, { server: true, client: false })
-      discovery.flushed().catch(() => {})
+      await discovery.flushed()
     }
 
     this.emit('publish:progress', { stage: 'uploading', file: safeFileName })
