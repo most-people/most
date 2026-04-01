@@ -837,7 +837,8 @@ export class MostBoxEngine extends EventEmitter {
     
     for (const file of this.#publishedFiles) {
       if (file.fileName.startsWith(prefix)) {
-        const newFileName = newPath + file.fileName.substring(prefix.length)
+        const remainder = file.fileName.substring(prefix.length)
+        const newFileName = remainder ? newPath + '/' + remainder : newPath
         file.fileName = sanitizeFilename(newFileName)
         file.publishedAt = new Date().toISOString()
         updatedFiles.push({

@@ -3,7 +3,7 @@ import {
   Upload, Sun, Moon, Image as ImageIcon, Trash2, Folder,
   FolderPlus, Film, Music, ChevronRight, FileText,
   X, Check, Copy, Download, ArrowUpDown, Star, Files, HardDrive, Search, Info,
-  FolderOpen, Power
+  FolderOpen, Power, Edit2
 } from 'lucide-react'
 
 // === API ===
@@ -136,7 +136,7 @@ function WelcomeGuide({ onClose, onShutdown }) {
   useEffect(() => {
     API.getDataPath().then(config => {
       setDefaultPath(config.dataPath || '')
-    }).catch(() => {})
+    }).catch(() => { })
   }, [])
 
   const steps = [
@@ -184,33 +184,33 @@ function WelcomeGuide({ onClose, onShutdown }) {
           <>
             <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 12 }}>{current.title}</h2>
             <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.6, marginBottom: 20 }}>{current.content}</p>
-            
+
             {isPathStep && (
               <div style={{ textAlign: 'left', marginBottom: 20 }}>
                 <div style={{ marginBottom: 12 }}>
-                  <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 4 }}>默认存储位置</div>
+                  <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 4 }}>当前存储位置</div>
                   <div style={{ fontSize: 12, color: '#374151', fontFamily: 'monospace', background: '#f3f4f6', padding: '8px 10px', borderRadius: 6, wordBreak: 'break-all' }}>{defaultPath || '未设置'}</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 4 }}>自定义位置（可选）</div>
+                  <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 4 }}>自定义位置</div>
                   <input
                     type="text"
                     value={customPath}
                     onChange={(e) => setCustomPath(e.target.value)}
-                    placeholder="如 D:\most-data"
+                    placeholder="如 D:\"
                     style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e5e7eb', fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
                   />
-                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>不填则使用默认位置，修改后需重启应用</div>
+                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>不填则使用当前位置，修改后需重启应用</div>
                 </div>
               </div>
             )}
-            
+
             <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 20 }}>
               {steps.map((_, i) => (
                 <div key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: i === step ? '#3b82f6' : '#e2e8f0' }} />
               ))}
             </div>
-            
+
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
               {isPathStep && (
                 <button
@@ -244,12 +244,21 @@ function WelcomeGuide({ onClose, onShutdown }) {
 }
 
 // === About Modal ===
-function SettingsModal({ onClose, addToast }) {
+function SettingsModal({ onClose, addToast, isDarkMode }) {
   const [dataPath, setStoragePath] = useState('')
   const [originalPath, setOriginalPath] = useState('')
   const [isDefault, setIsDefault] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+
+  const bgSecondary = isDarkMode ? '#1e293b' : '#ffffff'
+  const bgTertiary = isDarkMode ? '#334155' : '#f1f5f9'
+  const textPrimary = isDarkMode ? '#f8fafc' : '#0f172a'
+  const textSecondary = isDarkMode ? '#94a3b8' : '#64748b'
+  const textMuted = isDarkMode ? '#64748b' : '#9ca3af'
+  const borderColor = isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'
+  const accentBg = isDarkMode ? '#60a5fa' : '#3b82f6'
+  const inputBorder = isDarkMode ? '#475569' : '#e5e7eb'
 
   useEffect(() => {
     API.getDataPath().then(config => {
@@ -292,14 +301,14 @@ function SettingsModal({ onClose, addToast }) {
 
   return (
     <ModalOverlay onClose={onClose}>
-      <div style={{ width: 420, padding: 28, borderRadius: 16, background: '#fff' }} onClick={e => e.stopPropagation()}>
+      <div style={{ width: 420, padding: 28, borderRadius: 16, background: bgSecondary, border: `1px solid ${borderColor}` }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 600 }}>设置</h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><X size={18} /></button>
+          <h2 style={{ fontSize: 18, fontWeight: 600, color: textPrimary }}>设置</h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: textSecondary }}><X size={18} /></button>
         </div>
 
         <div style={{ marginBottom: 20 }}>
-          <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 8, color: '#374151' }}>存储位置</label>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 8, color: textPrimary }}>存储位置</label>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <input
               type="text"
@@ -307,29 +316,29 @@ function SettingsModal({ onClose, addToast }) {
               onChange={(e) => setStoragePath(e.target.value)}
               placeholder="如 D:\most-data"
               disabled={loading}
-              style={{ flex: 1, padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e5e7eb', fontSize: 13, outline: 'none' }}
+              style={{ flex: 1, padding: '10px 12px', borderRadius: 8, border: `1.5px solid ${inputBorder}`, fontSize: 13, outline: 'none', background: bgTertiary, color: textPrimary }}
             />
-            <button onClick={handleSavePath} disabled={saving || loading || !isPathChanged} style={{ padding: '10px 16px', borderRadius: 8, border: 'none', background: '#3b82f6', color: '#fff', cursor: saving || loading || !isPathChanged ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', opacity: saving || loading || !isPathChanged ? 0.5 : 1 }}>
+            <button onClick={handleSavePath} disabled={saving || loading || !isPathChanged} style={{ padding: '10px 16px', borderRadius: 8, border: 'none', background: accentBg, color: '#fff', cursor: saving || loading || !isPathChanged ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', opacity: saving || loading || !isPathChanged ? 0.5 : 1 }}>
               {saving ? '保存中...' : '保存'}
             </button>
             {!isDefault && (
-              <button onClick={handleResetPath} disabled={saving || loading} style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #e5e7eb', background: '#fff', color: '#6b7280', cursor: saving || loading ? 'not-allowed' : 'pointer', fontSize: 13, whiteSpace: 'nowrap', opacity: saving || loading ? 0.5 : 1 }}>
+              <button onClick={handleResetPath} disabled={saving || loading} style={{ padding: '10px 12px', borderRadius: 8, border: `1px solid ${borderColor}`, background: 'transparent', color: textSecondary, cursor: saving || loading ? 'not-allowed' : 'pointer', fontSize: 13, whiteSpace: 'nowrap', opacity: saving || loading ? 0.5 : 1 }}>
                 恢复默认
               </button>
             )}
           </div>
-          <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 8 }}>修改后需重启应用</p>
+          <p style={{ fontSize: 11, color: textMuted, marginTop: 8 }}>修改后需重启应用</p>
         </div>
 
-        <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 16 }}>
+        <div style={{ borderTop: `1px solid ${borderColor}`, paddingTop: 16 }}>
           <div style={{ textAlign: 'center', marginBottom: 16 }}>
-            <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>MostBox</h3>
-            <p style={{ fontSize: 12, color: '#9ca3af' }}>版本 0.0.1</p>
+            <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 4, color: textPrimary }}>MostBox</h3>
+            <p style={{ fontSize: 12, color: textMuted }}>版本 0.0.1</p>
           </div>
-          <p style={{ fontSize: 12, color: '#6b7280', textAlign: 'center' }}>Hyperswarm · Hyperdrive · IPFS</p>
+          <p style={{ fontSize: 12, color: textSecondary, textAlign: 'center' }}>Hyperswarm · Hyperdrive · IPFS</p>
         </div>
 
-        <button onClick={onClose} style={{ width: '100%', marginTop: 20, padding: 10, borderRadius: 10, border: 'none', background: '#3b82f6', color: '#fff', cursor: 'pointer', fontSize: 14 }}>
+        <button onClick={onClose} style={{ width: '100%', marginTop: 20, padding: 10, borderRadius: 10, border: 'none', background: accentBg, color: '#fff', cursor: 'pointer', fontSize: 14 }}>
           关闭
         </button>
       </div>
@@ -359,7 +368,7 @@ function Toast({ message, type, onDone, index }) {
 }
 
 // === Modal Overlay ===
-function ModalOverlay({ children, onClose, closeOnOverlayClick = true }) {
+function ModalOverlay({ children, onClose, closeOnOverlayClick = false }) {
   const handleOverlayClick = (e) => {
     if (closeOnOverlayClick && e.target === e.currentTarget) {
       onClose?.()
@@ -466,21 +475,22 @@ function FolderCard({ folder, isDarkMode, onClick }) {
 }
 
 // === Confirm Modal ===
-function ConfirmModal({ title, message, confirmText, onConfirm, onClose, danger }) {
-  const isDarkMode = false
-  const bgSecondary = '#ffffff'
-  const bgTertiary = '#f1f5f9'
-  const textPrimary = '#0f172a'
-  const textSecondary = '#64748b'
-  const borderColor = 'rgba(0,0,0,0.06)'
+function ConfirmModal({ title, message, confirmText, onConfirm, onClose, danger, isDarkMode, closeOnOverlayClick }) {
+  const bgSecondary = isDarkMode ? '#1e293b' : '#ffffff'
+  const bgTertiary = isDarkMode ? '#334155' : '#f1f5f9'
+  const textPrimary = isDarkMode ? '#f8fafc' : '#0f172a'
+  const textSecondary = isDarkMode ? '#94a3b8' : '#64748b'
+  const borderColor = isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'
+  const dangerBg = isDarkMode ? '#f87171' : '#ef4444'
+  const normalBg = isDarkMode ? '#60a5fa' : '#3b82f6'
   return (
-    <ModalOverlay onClose={onClose}>
+    <ModalOverlay onClose={onClose} closeOnOverlayClick={closeOnOverlayClick}>
       <div style={{ width: 360, padding: 24, borderRadius: 16, background: bgSecondary, border: `1px solid ${borderColor}` }} onClick={e => e.stopPropagation()}>
-        <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>{title}</h3>
+        <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12, color: textPrimary }}>{title}</h3>
         <p style={{ fontSize: 13, color: textSecondary, marginBottom: 20 }}>{message}</p>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: 10, borderRadius: 8, border: `1px solid ${borderColor}`, background: 'transparent', cursor: 'pointer', fontSize: 13 }}>取消</button>
-          <button onClick={onConfirm} style={{ flex: 1, padding: 10, borderRadius: 8, border: 'none', background: danger ? '#ef4444' : '#3b82f6', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>{confirmText}</button>
+          <button onClick={onClose} style={{ flex: 1, padding: 10, borderRadius: 8, border: `1px solid ${borderColor}`, background: 'transparent', cursor: 'pointer', fontSize: 13, color: textPrimary }}>取消</button>
+          <button onClick={onConfirm} style={{ flex: 1, padding: 10, borderRadius: 8, border: 'none', background: danger ? dangerBg : normalBg, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>{confirmText}</button>
         </div>
       </div>
     </ModalOverlay>
@@ -488,29 +498,30 @@ function ConfirmModal({ title, message, confirmText, onConfirm, onClose, danger 
 }
 
 // === Input Modal ===
-function InputModal({ title, placeholder, defaultValue, confirmText, onConfirm, onClose }) {
+function InputModal({ title, placeholder, defaultValue, confirmText, onConfirm, onClose, isDarkMode, isLoading, loadingText }) {
   const [value, setValue] = useState(defaultValue || '')
-  const bgSecondary = '#ffffff'
-  const bgTertiary = '#f1f5f9'
-  const textPrimary = '#0f172a'
-  const textSecondary = '#64748b'
-  const borderColor = 'rgba(0,0,0,0.06)'
+  const bgSecondary = isDarkMode ? '#1e293b' : '#ffffff'
+  const bgTertiary = isDarkMode ? '#334155' : '#f1f5f9'
+  const textPrimary = isDarkMode ? '#f8fafc' : '#0f172a'
+  const textSecondary = isDarkMode ? '#94a3b8' : '#64748b'
+  const borderColor = isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'
+  const accentBg = isDarkMode ? '#60a5fa' : '#3b82f6'
   return (
     <ModalOverlay onClose={onClose}>
       <div style={{ width: 360, padding: 24, borderRadius: 16, background: bgSecondary, border: `1px solid ${borderColor}` }} onClick={e => e.stopPropagation()}>
-        <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>{title}</h3>
+        <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16, color: textPrimary }}>{title}</h3>
         <input
           type="text"
           value={value}
           onChange={(e) => setValue(e.target.value)}
           placeholder={placeholder}
           autoFocus
-          onKeyDown={(e) => { if (e.key === 'Enter' && value.trim()) onConfirm(value.trim()) }}
+          onKeyDown={(e) => { if (e.key === 'Enter' && value.trim() && !isLoading) onConfirm(value.trim()) }}
           style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: `1.5px solid ${borderColor}`, fontSize: 13, outline: 'none', background: bgTertiary, color: textPrimary, marginBottom: 16 }}
         />
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: 10, borderRadius: 8, border: `1px solid ${borderColor}`, background: 'transparent', cursor: 'pointer', fontSize: 13 }}>取消</button>
-          <button onClick={() => value.trim() && onConfirm(value.trim())} disabled={!value.trim()} style={{ flex: 1, padding: 10, borderRadius: 8, border: 'none', background: value.trim() ? '#3b82f6' : bgTertiary, color: value.trim() ? '#fff' : textSecondary, cursor: value.trim() ? 'pointer' : 'not-allowed', fontSize: 13, fontWeight: 500 }}>{confirmText}</button>
+          <button onClick={onClose} disabled={isLoading} style={{ flex: 1, padding: 10, borderRadius: 8, border: `1px solid ${borderColor}`, background: 'transparent', cursor: isLoading ? 'not-allowed' : 'pointer', fontSize: 13, color: textPrimary, opacity: isLoading ? 0.5 : 1 }}>取消</button>
+          <button onClick={() => value.trim() && onConfirm(value.trim())} disabled={!value.trim() || isLoading} style={{ flex: 1, padding: 10, borderRadius: 8, border: 'none', background: value.trim() && !isLoading ? accentBg : bgTertiary, color: value.trim() && !isLoading ? '#fff' : textSecondary, cursor: value.trim() && !isLoading ? 'pointer' : 'not-allowed', fontSize: 13, fontWeight: 500, opacity: isLoading ? 0.7 : 1 }}>{isLoading ? (loadingText || '处理中...') : confirmText}</button>
         </div>
       </div>
     </ModalOverlay>
@@ -526,6 +537,7 @@ function MoveModal({ items, allFolders, currentPath, isDarkMode, onMove, onClose
   const textSecondary = isDarkMode ? '#94a3b8' : '#64748b'
   const borderColor = isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'
   const accentBlue = isDarkMode ? '#60a5fa' : '#3b82f6'
+  const folderColor = isDarkMode ? '#818cf8' : '#6366f1'
 
   const breadcrumbParts = generateBreadcrumbs(targetPath)
 
@@ -533,7 +545,7 @@ function MoveModal({ items, allFolders, currentPath, isDarkMode, onMove, onClose
     <ModalOverlay onClose={onClose}>
       <div style={{ width: 400, padding: 24, borderRadius: 16, background: bgSecondary, border: `1px solid ${borderColor}` }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 600 }}>移动到</h3>
+          <h3 style={{ fontSize: 16, fontWeight: 600, color: textPrimary }}>移动到</h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: textSecondary }}><X size={18} /></button>
         </div>
         <p style={{ fontSize: 12, color: textSecondary, marginBottom: 12 }}>已选 {items.length} 个项目</p>
@@ -570,13 +582,13 @@ function MoveModal({ items, allFolders, currentPath, isDarkMode, onMove, onClose
                 cursor: 'pointer', color: textPrimary, fontSize: 13
               }}
             >
-              <Folder size={16} color="#6366f1" />
+              <Folder size={16} color={folderColor} />
               <span>{folder.name}</span>
             </button>
           ))}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: 10, borderRadius: 8, border: `1px solid ${borderColor}`, background: 'transparent', cursor: 'pointer', fontSize: 13 }}>取消</button>
+          <button onClick={onClose} style={{ flex: 1, padding: 10, borderRadius: 8, border: `1px solid ${borderColor}`, background: 'transparent', cursor: 'pointer', fontSize: 13, color: textPrimary }}>取消</button>
           <button
             onClick={() => onMove(targetPath)}
             disabled={targetPath === currentPath}
@@ -619,6 +631,7 @@ export default function App() {
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false)
   const [confirmModal, setConfirmModal] = useState(null)
   const [inputModal, setInputModal] = useState(null)
+  const [inputLoading, setInputLoading] = useState(false)
   const [renameTarget, setRenameTarget] = useState(null)
   const [showWelcome, setShowWelcome] = useState(() => !localStorage.getItem('mostbox_welcomed'))
   const [showSettings, setShowSettings] = useState(false)
@@ -790,19 +803,30 @@ export default function App() {
       defaultValue: currentName,
       confirmText: '重命名',
       onConfirm: async (newName) => {
-        setInputModal(null)
         if (newName === currentName) return
+        setInputLoading(true)
         try {
           if (isFolder) {
-            await API.renameFolder(target.path, newName)
+            const lastSlash = target.path.lastIndexOf('/')
+            const parentPath = lastSlash !== -1 ? target.path.substring(0, lastSlash) : ''
+            const newPath = parentPath ? `${parentPath}/${newName}` : newName
+            await API.renameFolder(target.path, newPath)
+            addToast('已重命名', 'success')
+            refreshFiles()
+            handleNavigate(newPath)
           } else {
             const { folder } = parseName(target.fileName)
             const newFileName = folder ? `${folder}/${newName}` : newName
             await API.moveFile(target.cid, newFileName)
+            addToast('已重命名', 'success')
+            refreshFiles()
           }
-          addToast('已重命名', 'success')
-          refreshFiles()
-        } catch { addToast('重命名失败', 'error') }
+          setInputModal(null)
+        } catch {
+          addToast('重命名失败', 'error')
+        } finally {
+          setInputLoading(false)
+        }
       }
     })
   }
@@ -869,22 +893,28 @@ export default function App() {
       placeholder: '请输入文件夹名称',
       confirmText: '创建',
       onConfirm: async (folderPath) => {
-        setInputModal(null)
-        const exists = items.some(f =>
-          f.fileName === folderPath ||
-          f.fileName.startsWith(folderPath + '/')
-        )
-        if (exists) {
-          addToast('文件夹已存在', 'warning')
-          return
-        }
+        setInputLoading(true)
         try {
+          const exists = items.some(f =>
+            f.fileName === folderPath ||
+            f.fileName.startsWith(folderPath + '/')
+          )
+          if (exists) {
+            addToast('文件夹已存在', 'warning')
+            setInputLoading(false)
+            return
+          }
           const randomContent = Math.random().toString(36).substring(2, 10)
           const content = new File([randomContent], 'hello.txt', { type: 'text/plain' })
           await API.publishFile(content, `${folderPath}/hello.txt`)
           addToast('文件夹已创建', 'success')
           refreshFiles()
-        } catch { addToast('创建失败', 'error') }
+          setInputModal(null)
+        } catch {
+          addToast('创建失败', 'error')
+        } finally {
+          setInputLoading(false)
+        }
       }
     })
   }
@@ -1175,20 +1205,31 @@ export default function App() {
         )}
 
         {/* Breadcrumb */}
-        {currentView === 'all' && currentPath && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0 24px 12px', fontSize: 12 }}>
-            <button onClick={() => handleNavigate('')} style={{ background: 'none', border: 'none', color: textMuted, cursor: 'pointer' }}>全部内容</button>
-            {breadcrumbParts.slice(1).map((part, i) => (
-              <React.Fragment key={part.path}>
-                <ChevronRight size={12} color={textMuted} />
-                <button onClick={() => handleNavigate(part.path)} style={{ background: 'none', border: 'none', color: i === breadcrumbParts.length - 2 ? textSecondary : textMuted, cursor: 'pointer' }}>{part.name}</button>
-              </React.Fragment>
-            ))}
+        {currentView === 'all' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0 24px', fontSize: 12 }}>
+            {currentPath ? (
+              <>
+                <button onClick={() => handleNavigate('')} style={{ background: 'none', border: 'none', color: textMuted, cursor: 'pointer' }}>全部内容</button>
+                {breadcrumbParts.slice(1).map((part, i) => (
+                  <React.Fragment key={part.path}>
+                    <ChevronRight size={12} color={textMuted} />
+                    <button onClick={() => handleNavigate(part.path)} style={{ background: 'none', border: 'none', color: i === breadcrumbParts.length - 2 ? textSecondary : textMuted, cursor: 'pointer' }}>{part.name}</button>
+                    {i === breadcrumbParts.length - 2 && (
+                      <button onClick={() => openRenameModal(part)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: textSecondary, padding: '2px', display: 'flex', alignItems: 'center' }}>
+                        <Edit2 size={12} />
+                      </button>
+                    )}
+                  </React.Fragment>
+                ))}
+              </>
+            ) : (
+              null
+            )}
           </div>
         )}
 
         {/* Content Grid */}
-        <div style={{ flex: 1, padding: '0 24px 24px', overflow: 'auto' }}>
+        <div style={{ flex: 1, padding: '12px 24px', overflow: 'auto' }}>
           {/* Trash View */}
           {currentView === 'trash' && (
             trashItems.length === 0 ? (
@@ -1248,6 +1289,8 @@ export default function App() {
           message={confirmModal.message}
           confirmText={confirmModal.confirmText}
           danger={confirmModal.danger}
+          isDarkMode={isDarkMode}
+          closeOnOverlayClick={confirmModal.danger}
           onConfirm={confirmModal.onConfirm}
           onClose={() => setConfirmModal(null)}
         />
@@ -1259,6 +1302,8 @@ export default function App() {
           title={inputModal.title}
           placeholder={inputModal.placeholder}
           confirmText={inputModal.confirmText}
+          isDarkMode={isDarkMode}
+          isLoading={inputLoading}
           onConfirm={inputModal.onConfirm}
           onClose={() => setInputModal(null)}
         />
@@ -1429,7 +1474,7 @@ export default function App() {
       }} />}
 
       {/* Settings Modal */}
-      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} addToast={addToast} />}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} addToast={addToast} isDarkMode={isDarkMode} />}
     </div>
   )
 }
