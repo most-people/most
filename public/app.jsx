@@ -3,7 +3,7 @@ import {
   Upload, Sun, Moon, Image as ImageIcon, Trash2, Folder,
   FolderPlus, Film, Music, ChevronRight, FileText,
   X, Check, Copy, Download, ArrowUpDown, Star, Files, HardDrive, Search, Info,
-  FolderOpen, Power, Edit2, Menu
+  FolderOpen, Power, Edit2, Menu, Eye
 } from 'lucide-react'
 
 // === 接口 ===
@@ -119,9 +119,11 @@ function getFileSubtype(fileName) {
   const imgExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'tiff', 'heic', 'heif']
   const vidExts = ['mp4', 'webm', 'mov', 'avi', 'mkv', 'flv', 'wmv', 'm4v', 'mpeg', '3gp']
   const audExts = ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma', 'opus']
+  const txtExts = ['txt', 'md', 'js', 'ts', 'jsx', 'tsx', 'css', 'scss', 'less', 'json', 'xml', 'html', 'htm', 'yaml', 'yml', 'toml', 'ini', 'cfg', 'conf', 'log', 'sh', 'bash', 'py', 'rb', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'hpp', 'cs', 'php', 'sql', 'graphql', 'env', 'gitignore', 'dockerfile', 'readme']
   if (imgExts.includes(ext)) return 'image'
   if (vidExts.includes(ext)) return 'video'
   if (audExts.includes(ext)) return 'audio'
+  if (txtExts.includes(ext)) return 'text'
   return 'file'
 }
 
@@ -553,6 +555,52 @@ export default function App() {
   const [showWelcome, setShowWelcome] = useState(() => !localStorage.getItem('mostbox_welcomed'))
   const [showSettings, setShowSettings] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [previewText, setPreviewText] = useState('')
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewOffset, setPreviewOffset] = useState(0)
+  const [previewHasMore, setPreviewHasMore] = useState(true)
+  const [previewMediaLoading, setPreviewMediaLoading] = useState(false)
+  const [previewLoaded, setPreviewLoaded] = useState(false)
+  const previewMediaRef = useRef(null)
+
+  useEffect(() => {
+    if (previewItem && (previewItem.subtype === 'image' || previewItem.subtype === 'video')) {
+      setPreviewMediaLoading(true)
+      setPreviewLoaded(false)
+    }
+    if (previewItem && previewItem.subtype === 'text') {
+      setPreviewText('')
+      setPreviewOffset(0)
+      setPreviewHasMore(true)
+      loadPreviewText(previewItem.cid)
+    }
+  }, [previewItem?.cid])
+
+  useEffect(() => {
+    const media = previewMediaRef.current
+    if (!media) return
+
+    const handleLoad = () => setPreviewMediaLoading(false)
+    const handleError = () => setPreviewMediaLoading(false)
+
+    if (previewItem?.subtype === 'image') {
+      if (media.complete) {
+        setPreviewMediaLoading(false)
+      } else {
+        media.addEventListener('load', handleLoad)
+        media.addEventListener('error', handleError)
+      }
+    } else if (previewItem?.subtype === 'video') {
+      media.addEventListener('canplay', handleLoad)
+      media.addEventListener('error', handleError)
+    }
+
+    return () => {
+      media.removeEventListener('load', handleLoad)
+      media.removeEventListener('error', handleError)
+      media.removeEventListener('canplay', handleLoad)
+    }
+  }, [previewItem])
 
   const currentPath = currentFolderId || ''
   const allFolders = getUniqueFolders(items)
@@ -803,6 +851,20 @@ export default function App() {
 
     refreshFiles()
     refreshStorageStats()
+  }
+
+  const loadPreviewText = async (cid, offset = 0, append = false) => {
+    setPreviewLoading(true)
+    try {
+      const res = await fetch(`/api/files/${cid}/content?offset=${offset}&limit=1000`)
+      const text = await res.text()
+      setPreviewText(prev => append ? prev + text : text)
+      setPreviewHasMore(text.length === 1000)
+      setPreviewOffset(offset + text.length)
+    } catch {
+      setPreviewText(prev => append ? prev : '加载失败')
+    }
+    setPreviewLoading(false)
   }
 
   const createNewFolder = () => {
@@ -1256,12 +1318,46 @@ export default function App() {
 
       {/* 预览弹窗 */}
       {previewItem && (
-        <div className="preview-overlay" onClick={() => setPreviewItem(null)}>
+        <div className="preview-overlay" onClick={() => { setPreviewItem(null); setPreviewText(''); setPreviewMediaLoading(false) }}>
           <button className="preview-close"><X size={20} /></button>
           <div onClick={e => e.stopPropagation()}>
-            {previewItem.subtype === 'image' && <img src={API.getFileDownloadUrl(previewItem.cid)} alt="" />}
-            {previewItem.subtype === 'video' && <video src={API.getFileDownloadUrl(previewItem.cid)} controls />}
+            {previewItem.subtype === 'image' && (
+              <div className="preview-media-wrapper">
+                {previewMediaLoading && <div className="preview-loading"><div className="preview-loading-spinner" /></div>}
+                <img ref={previewMediaRef} src={API.getFileDownloadUrl(previewItem.cid)} alt="" />
+              </div>
+            )}
+            {previewItem.subtype === 'video' && (
+              <div className="preview-media-wrapper">
+                {previewMediaLoading && <div className="preview-loading"><div className="preview-loading-spinner" /></div>}
+                <video ref={previewMediaRef} src={API.getFileDownloadUrl(previewItem.cid)} controls />
+              </div>
+            )}
             {previewItem.subtype === 'audio' && <div className="preview-audio"><Music size={48} color="#fff" style={{ marginBottom: 12 }} /><audio src={API.getFileDownloadUrl(previewItem.cid)} controls /></div>}
+            {previewItem.subtype === 'file' && (
+              <div className="preview-unsupported">
+                <FileText size={48} color="#fff" style={{ marginBottom: 12, opacity: 0.5 }} />
+                <p>{previewItem.fileName}</p>
+                <p style={{ fontSize: 12, marginTop: 8, opacity: 0.7 }}>无法预览</p>
+              </div>
+            )}
+            {previewItem.subtype === 'text' && (
+              <div className="preview-text-container">
+                <div className="preview-text-header">
+                  <span>{previewItem.fileName}</span>
+                  {previewHasMore && (
+                    <button
+                      onClick={() => loadPreviewText(previewItem.cid, previewOffset, true)}
+                      disabled={previewLoading}
+                      className="btn small"
+                    >
+                      {previewLoading ? '加载中...' : '加载更多'}
+                    </button>
+                  )}
+                </div>
+                <pre className="preview-text">{previewLoading && !previewText ? '加载中...' : previewText}</pre>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1283,6 +1379,20 @@ export default function App() {
             </>
           ) : (
             <>
+              {selectedIds.length === 1 && (
+                <button onClick={() => {
+                  const file = items.find(i => i.cid === selectedIds[0])
+                  if (file) {
+                    const subtype = getFileSubtype(file.fileName)
+                    setPreviewItem({ ...file, subtype })
+                    setPreviewText('')
+                    setPreviewOffset(0)
+                    if (subtype === 'text') loadPreviewText(file.cid)
+                  }
+                }} className="btn small">
+                  <Eye size={14} /> 预览
+                </button>
+              )}
               <button onClick={() => {
                 const hasUnstarred = selectedIds.some(id => {
                   const item = items.find(i => i.cid === id)

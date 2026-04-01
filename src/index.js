@@ -873,6 +873,132 @@ export class MostBoxEngine extends EventEmitter {
     return this.#publishedFiles
   }
 
+  /**
+   * 读取已发布文件的内容（用于预览）
+   * @param {string} cid - 文件的 CID
+   * @param {number} [offset=0] - 读取起始位置
+   * @param {number} [limit=1000] - 最大读取字节数
+   * @returns {Promise<{content: string, hasMore: boolean}>}
+   */
+  async readFileContent(cid, offset = 0, limit = 1000) {
+    this.#ensureInitialized()
+
+    const fileRecord = this.#publishedFiles.find(f => f.cid === cid)
+    if (!fileRecord) {
+      throw new Error('File not found')
+    }
+
+    const safeFileName = fileRecord.fileName
+
+    let rootCid
+    try {
+      rootCid = CID.parse(cid)
+    } catch {
+      throw new Error('Invalid CID')
+    }
+    const hashHex = b4a.toString(rootCid.multihash.digest, 'hex')
+    const name = `drive-${hashHex}`
+
+    let drive = this.#drives.get(name)
+    if (!drive) {
+      drive = new Hyperdrive(this.#store.namespace(name))
+      await drive.ready()
+      this.#drives.set(name, drive)
+      await this.#swarm.join(drive.discoveryKey, { server: true, client: true }).flushed()
+    }
+
+    let hasLocalContent = false
+    try {
+      for await (const entry of drive.list()) {
+        if (entry.key === safeFileName || entry.key === '/' + safeFileName) {
+          hasLocalContent = true
+          break
+        }
+      }
+    } catch {}
+
+    if (!hasLocalContent) {
+      try {
+        await this.#waitForDriveContent(drive, 5000)
+      } catch {
+        throw new Error('File content not available')
+      }
+    }
+
+    const chunks = []
+    const stream = drive.createReadStream(safeFileName, { start: offset, end: offset + limit - 1 })
+
+    for await (const chunk of stream) {
+      chunks.push(chunk)
+    }
+
+    const content = Buffer.concat(chunks).toString('utf8')
+    const hasMore = chunks.length > 0 && chunks[chunks.length - 1].length === limit
+
+    return { content, hasMore }
+  }
+
+  /**
+   * 读取已发布文件的原始内容（用于预览/下载）
+   * @param {string} cid - 文件的 CID
+   * @returns {Promise<{buffer: Buffer, fileName: string}>}
+   */
+  async readFileRaw(cid) {
+    this.#ensureInitialized()
+
+    const fileRecord = this.#publishedFiles.find(f => f.cid === cid)
+    if (!fileRecord) {
+      throw new Error('File not found')
+    }
+
+    const safeFileName = fileRecord.fileName
+
+    let rootCid
+    try {
+      rootCid = CID.parse(cid)
+    } catch {
+      throw new Error('Invalid CID')
+    }
+    const hashHex = b4a.toString(rootCid.multihash.digest, 'hex')
+    const name = `drive-${hashHex}`
+
+    let drive = this.#drives.get(name)
+    if (!drive) {
+      drive = new Hyperdrive(this.#store.namespace(name))
+      await drive.ready()
+      this.#drives.set(name, drive)
+      await this.#swarm.join(drive.discoveryKey, { server: true, client: true }).flushed()
+    }
+
+    let hasLocalContent = false
+    try {
+      for await (const entry of drive.list()) {
+        if (entry.key === safeFileName || entry.key === '/' + safeFileName) {
+          hasLocalContent = true
+          break
+        }
+      }
+    } catch {}
+
+    if (!hasLocalContent) {
+      try {
+        await this.#waitForDriveContent(drive, 5000)
+      } catch {
+        throw new Error('File content not available')
+      }
+    }
+
+    const chunks = []
+    const stream = drive.createReadStream(safeFileName)
+
+    for await (const chunk of stream) {
+      chunks.push(chunk)
+    }
+
+    const buffer = Buffer.concat(chunks)
+    return { buffer, fileName: safeFileName }
+  }
+
   // --- 私有方法 ---
 
   #ensureInitialized() {

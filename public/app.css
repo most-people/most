@@ -1367,3 +1367,91 @@ body {
     }
   }
 }
+
+/* Preview Text Container */
+.preview-text-container {
+  width: 90vw;
+  max-width: 900px;
+  max-height: 80vh;
+  overflow: auto;
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.preview-text-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.preview-text {
+  color: #0f172a;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+}
+
+.preview-media-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 100px;
+  min-height: 100px;
+}
+
+.preview-media-wrapper .preview-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+.preview-loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.preview-media-wrapper img,
+.preview-media-wrapper video {
+  max-width: 100%;
+  max-height: 80vh;
+  border-radius: 12px;
+}
+
+.preview-unsupported {
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  padding: 40px;
+  text-align: center;
+  color: var(--text-primary);
+}
+
+.preview-unsupported p:first-of-type {
+  font-size: 14px;
+  font-weight: 500;
+  word-break: break-all;
+}
+
+[data-theme="dark"] .preview-text {
+  color: #e2e8f0;
+}

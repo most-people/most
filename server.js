@@ -76,6 +76,11 @@ const MIME_TYPES = {
   '.woff': 'font/woff'
 }
 
+function getMimeType(fileName) {
+  const ext = path.extname(fileName).toLowerCase()
+  return MIME_TYPES[ext] || 'application/octet-stream'
+}
+
 function serveStatic(req, res) {
   let filePath = req.url === '/' ? '/index.html' : req.url
   filePath = filePath.split('?')[0]
@@ -393,7 +398,19 @@ async function handleAPI(req, res) {
 
     // GET /api/files/:cid/download — 内联服务文件以供预览/下载
     if (pathname.match(/^\/api\/files\/[^/]+\/download$/) && method === 'GET') {
-      json({ error: 'Use P2P network to download this file' }, 400)
+      const cid = pathname.split('/')[3]
+      try {
+        const result = await engine.readFileRaw(cid)
+        const contentType = getMimeType(result.fileName)
+        res.writeHead(200, {
+          'Content-Type': contentType,
+          'Content-Length': result.buffer.length,
+          'Content-Disposition': `inline; filename="${encodeURIComponent(result.fileName)}"`
+        })
+        res.end(result.buffer)
+      } catch (err) {
+        json({ error: err.message }, 400)
+      }
       return
     }
 
@@ -459,6 +476,21 @@ async function handleAPI(req, res) {
     if (pathname === '/api/storage' && method === 'GET') {
       const result = await engine.getStorageStats()
       json(result)
+      return
+    }
+
+    // GET /api/files/:cid/content — 读取文件内容（用于预览）
+    if (pathname.match(/^\/api\/files\/[^/]+\/content$/) && method === 'GET') {
+      const cid = pathname.split('/')[3]
+      const offset = parseInt(url.searchParams.get('offset')) || 0
+      const limit = parseInt(url.searchParams.get('limit')) || 1000
+      try {
+        const result = await engine.readFileContent(cid, offset, limit)
+        res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' })
+        res.end(result.content)
+      } catch (err) {
+        json({ error: err.message }, 400)
+      }
       return
     }
 
