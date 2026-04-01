@@ -1,34 +1,34 @@
-## Pull Request Description
+## 描述
 
-Please include a summary of the changes and the related issue. Please also include relevant motivation and context.
+<!-- 简要说明本次修改的内容和相关的 Issue。请同时提供相关的动机和上下文。-->
 
-## Type of Change
+## 修改类型
 
-- [ ] Bug fix (non-breaking change which fixes an issue)
-- [ ] New feature (non-breaking change which adds functionality)
-- [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
-- [ ] Documentation update
-- [ ] Refactoring (no functional changes)
-- [ ] CI/CD update
+- [ ] Bug 修复（修复现有问题）
+- [ ] 新功能（添加新功能）
+- [ ] 破坏性更改（导致现有功能无法正常工作的更改）
+- [ ] 文档更新
+- [ ] 重构（无功能变化）
+- [ ] CI/CD 更新
 
-## Testing
+## 测试
 
-Please describe the tests that you ran to verify your changes. Provide instructions so we can reproduce.
+请描述你为验证更改而运行的测试。提供说明以便我们复现。
 
-- [ ] Unit tests pass
-- [ ] Integration tests pass
-- [ ] Manual testing performed
+- [ ] 单元测试通过
+- [ ] 集成测试通过
+- [ ] 已执行手动测试
 
-## Checklist
+## 检查清单
 
-- [ ] My code follows the style guidelines of this project
-- [ ] I have performed a self-review of my own code
-- [ ] I have commented my code, particularly in hard-to-understand areas
-- [ ] I have made corresponding changes to the documentation
-- [ ] My changes generate no new warnings
-- [ ] I have added tests that prove my fix is effective or that my feature works
-- [ ] New and existing unit tests pass locally with my changes
+- [ ] 我的代码遵循本项目的代码风格规范
+- [ ] 我已进行自我代码审查
+- [ ] 我已在难以理解的区域添加注释
+- [ ] 我已对文档进行相应更改
+- [ ] 我的更改没有生成新的警告
+- [ ] 我已添加证明我的修复有效或功能正常的测试
+- [ ] 新旧单元测试均在我的更改下本地通过
 
-## Additional Context
+## 其他上下文
 
-Add any other context or screenshots about the pull request here.
+在此添加有关 Pull Request 的任何其他上下文或截图。

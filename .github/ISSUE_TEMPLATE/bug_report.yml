@@ -1,72 +1,72 @@
-name: Bug Report
+name: Bug 报告
 
-description: Report a bug to help us improve
+description: 报告 Bug 帮助我们改进
 
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to fill out this bug report!
+        感谢你花时间填写此 Bug 报告！
 
   - type: textarea
     id: description
     attributes:
-      label: Bug Description
-      description: A clear and concise description of what the bug is.
-      placeholder: Describe the bug here...
+      label: Bug 描述
+      description: 清晰简洁地描述 Bug 是什么。
+      placeholder: 在此描述 Bug...
     validations:
       required: true
 
   - type: textarea
     id: steps
     attributes:
-      label: Steps to Reproduce
-      description: Steps to reproduce the behavior.
+      label: 复现步骤
+      description: 复现 Bug 的步骤。
       placeholder: |
-        1. Go to '...'
-        2. Click on '....'
-        3. See error
+        1. 进入 '...'
+        2. 点击 '....'
+        3. 出现错误
     validations:
       required: true
 
   - type: textarea
     id: expected
     attributes:
-      label: Expected Behavior
-      description: What you expected to happen.
-      placeholder: Describe what you expected...
+      label: 预期行为
+      description: 你期望发生什么。
+      placeholder: 描述你期望的行为...
 
   - type: textarea
     id: actual
     attributes:
-      label: Actual Behavior
-      description: What actually happened.
-      placeholder: Describe what actually happened...
+      label: 实际行为
+      description: 实际发生了什么。
+      placeholder: 描述实际发生的行为...
 
   - type: dropdown
     id: version
     attributes:
-      label: Version
-      description: Which version of MostBox are you using?
+      label: 版本
+      description: 你使用的是哪个版本的 MostBox？
       options:
         - latest (npm)
-        - master (development)
+        - master (开发版)
     validations:
       required: true
 
   - type: dropdown
     id: os
     attributes:
-      label: Operating System
+      label: 操作系统
       options:
         - Windows
         - macOS
         - Linux
-        - Other
+        - 其他
 
   - type: textarea
     id: logs
     attributes:
-      label: Relevant Logs
-      description: Please include any relevant error messages or logs.
-      placeholder: Paste your logs here...
+      label: 相关日志
+      description: 请包含任何相关的错误消息或日志。
+      placeholder: 在此粘贴你的日志...
