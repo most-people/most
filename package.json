@@ -16,7 +16,6 @@
   ],
   "scripts": {
     "start": "npm run build && node server.js",
-    "dev": "npm run build -- --dev --watch & node --watch server.js",
     "build": "node build.mjs",
     "test": "node --test tests/**/*.test.js",
     "test:unit": "node --test tests/unit/*.test.js"

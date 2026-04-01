@@ -244,7 +244,7 @@ function WelcomeGuide({ onClose, onShutdown }) {
 }
 
 // === About Modal ===
-function SettingsModal({ onClose, addToast, isDarkMode }) {
+function SettingsModal({ onClose, addToast, isDarkMode, handleShutdown }) {
   const [dataPath, setStoragePath] = useState('')
   const [originalPath, setOriginalPath] = useState('')
   const [isDefault, setIsDefault] = useState(false)
@@ -338,8 +338,8 @@ function SettingsModal({ onClose, addToast, isDarkMode }) {
           <p style={{ fontSize: 12, color: textSecondary, textAlign: 'center' }}>Hyperswarm · Hyperdrive · IPFS</p>
         </div>
 
-        <button onClick={onClose} style={{ width: '100%', marginTop: 20, padding: 10, borderRadius: 10, border: 'none', background: accentBg, color: '#fff', cursor: 'pointer', fontSize: 14 }}>
-          关闭
+        <button onClick={() => { onClose(); handleShutdown(); }} style={{ width: '100%', marginTop: 20, padding: 10, borderRadius: 10, border: 'none', background: '#ef4444', color: '#fff', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+          <Power size={16} /> 关闭服务
         </button>
       </div>
     </ModalOverlay>
@@ -481,7 +481,7 @@ function ConfirmModal({ title, message, confirmText, onConfirm, onClose, danger,
   const textPrimary = isDarkMode ? '#f8fafc' : '#0f172a'
   const textSecondary = isDarkMode ? '#94a3b8' : '#64748b'
   const borderColor = isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'
-  const dangerBg = isDarkMode ? '#f87171' : '#ef4444'
+  const dangerBg = isDarkMode ? '#ef4444' : '#ef4444'
   const normalBg = isDarkMode ? '#60a5fa' : '#3b82f6'
   return (
     <ModalOverlay onClose={onClose} closeOnOverlayClick={closeOnOverlayClick}>
@@ -1180,9 +1180,6 @@ export default function App() {
             <button onClick={() => setIsDarkMode(!isDarkMode)} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: bgTertiary, cursor: 'pointer', color: '#6366f1' }}>
               {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
             </button>
-            <button onClick={handleShutdown} title="关闭服务" style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: bgTertiary, cursor: 'pointer', color: '#ef4444' }}>
-              <Power size={16} />
-            </button>
             <button onClick={() => setShowSettings(true)} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: bgTertiary, cursor: 'pointer', color: textSecondary }}>
               <Info size={16} />
             </button>
@@ -1474,7 +1471,7 @@ export default function App() {
       }} />}
 
       {/* Settings Modal */}
-      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} addToast={addToast} isDarkMode={isDarkMode} />}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} addToast={addToast} isDarkMode={isDarkMode} handleShutdown={handleShutdown} />}
     </div>
   )
 }
