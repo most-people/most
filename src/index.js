@@ -941,9 +941,12 @@ export class MostBoxEngine extends EventEmitter {
   /**
    * 读取已发布文件的原始内容（用于预览/下载）
    * @param {string} cid - 文件的 CID
-   * @returns {Promise<{buffer: Buffer, fileName: string}>}
+   * @param {object} [options] - 选项
+   * @param {number} [options.offset=0] - 读取起始位置
+   * @param {number} [options.limit] - 最大读取字节数，不指定则读取到末尾
+   * @returns {Promise<{buffer: Buffer, fileName: string, totalSize: number}>}
    */
-  async readFileRaw(cid) {
+  async readFileRaw(cid, options = {}) {
     this.#ensureInitialized()
 
     const fileRecord = this.#publishedFiles.find(f => f.cid === cid)
@@ -988,15 +991,35 @@ export class MostBoxEngine extends EventEmitter {
       }
     }
 
-    const chunks = []
-    const stream = drive.createReadStream(safeFileName)
+    // 获取文件总大小
+    let totalSize = 0
+    try {
+      const stat = await drive.entry(safeFileName)
+      if (stat && stat.value && stat.value.blob) {
+        totalSize = stat.value.blob.byteLength || 0
+      }
+    } catch {}
 
-    for await (const chunk of stream) {
-      chunks.push(chunk)
+    // 读取指定范围
+    const { offset = 0, limit } = options
+    const chunks = []
+    
+    if (limit !== undefined && limit !== null) {
+      // 读取指定范围
+      const stream = drive.createReadStream(safeFileName, { start: offset, end: offset + limit - 1 })
+      for await (const chunk of stream) {
+        chunks.push(chunk)
+      }
+    } else {
+      // 读取从 offset 到末尾的所有数据
+      const stream = drive.createReadStream(safeFileName, { start: offset })
+      for await (const chunk of stream) {
+        chunks.push(chunk)
+      }
     }
 
     const buffer = Buffer.concat(chunks)
-    return { buffer, fileName: safeFileName }
+    return { buffer, fileName: safeFileName, totalSize }
   }
 
   // --- 私有方法 ---

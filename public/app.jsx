@@ -856,7 +856,10 @@ export default function App() {
   const loadPreviewText = async (cid, offset = 0, append = false) => {
     setPreviewLoading(true)
     try {
-      const res = await fetch(`/api/files/${cid}/content?offset=${offset}&limit=1000`)
+      const res = await fetch(`/api/files/${cid}/download`, {
+        headers: { 'Range': `bytes=${offset}-${offset + 999}` }
+      })
+      if (!res.ok) throw new Error('加载失败')
       const text = await res.text()
       setPreviewText(prev => append ? prev + text : text)
       setPreviewHasMore(text.length === 1000)

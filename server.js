@@ -396,20 +396,52 @@ async function handleAPI(req, res) {
       return
     }
 
-    // GET /api/files/:cid/download — 内联服务文件以供预览/下载
+    // GET /api/files/:cid/download — 内联服务文件以供预览/下载，支持 Range
     if (pathname.match(/^\/api\/files\/[^/]+\/download$/) && method === 'GET') {
       const cid = pathname.split('/')[3]
+      const rangeHeader = req.headers['range']
+      
       try {
+        if (rangeHeader) {
+          // 解析 Range 头，如 "bytes=0-1023" 或 "bytes=0-"
+          const rangeMatch = rangeHeader.match(/bytes=(\d+)-(\d*)/)
+          if (rangeMatch) {
+            const start = parseInt(rangeMatch[1], 10)
+            const end = rangeMatch[2] ? parseInt(rangeMatch[2], 10) : undefined
+            
+            const offset = start
+            const limit = end !== undefined ? end - start + 1 : undefined
+            
+            const result = await engine.readFileRaw(cid, { offset, limit })
+            const contentType = getMimeType(result.fileName)
+            
+            res.writeHead(206, {
+              'Content-Type': contentType,
+              'Content-Length': result.buffer.length,
+              'Content-Range': `bytes ${offset}-${offset + result.buffer.length - 1}/${result.totalSize}`,
+              'Accept-Ranges': 'bytes'
+            })
+            res.end(result.buffer)
+            return
+          }
+        }
+        
+        // 无 Range 请求或无效 Range，返回完整文件
         const result = await engine.readFileRaw(cid)
         const contentType = getMimeType(result.fileName)
         res.writeHead(200, {
           'Content-Type': contentType,
-          'Content-Length': result.buffer.length,
+          'Content-Length': result.totalSize,
+          'Accept-Ranges': 'bytes',
           'Content-Disposition': `inline; filename="${encodeURIComponent(result.fileName)}"`
         })
         res.end(result.buffer)
       } catch (err) {
-        json({ error: err.message }, 400)
+        if (err.message === 'File not found') {
+          json({ error: err.message }, 404)
+        } else {
+          json({ error: err.message }, 400)
+        }
       }
       return
     }
@@ -476,21 +508,6 @@ async function handleAPI(req, res) {
     if (pathname === '/api/storage' && method === 'GET') {
       const result = await engine.getStorageStats()
       json(result)
-      return
-    }
-
-    // GET /api/files/:cid/content — 读取文件内容（用于预览）
-    if (pathname.match(/^\/api\/files\/[^/]+\/content$/) && method === 'GET') {
-      const cid = pathname.split('/')[3]
-      const offset = parseInt(url.searchParams.get('offset')) || 0
-      const limit = parseInt(url.searchParams.get('limit')) || 1000
-      try {
-        const result = await engine.readFileContent(cid, offset, limit)
-        res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' })
-        res.end(result.content)
-      } catch (err) {
-        json({ error: err.message }, 400)
-      }
       return
     }
 
