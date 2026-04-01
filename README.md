@@ -1,36 +1,31 @@
-# MostBox 魔盒
+# MostBox 文件管理
 
 [![npm version](https://img.shields.io/npm/v/most-box)](https://npmjs.com/package/most-box)
 [![Node.js version](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+> P2P 文件分享应用。基于 Hyperswarm/Hyperdrive 的去中心化文件分发。
 
-P2P 文件分享应用。基于 Hyperswarm/Hyperdrive 的去中心化文件分发。
+## 🚀 立即使用
+
+打开终端，运行：
+
+```bash
+npx most-box
+```
+
+浏览器自动访问 **http://127.0.0.1:1976**
 
 ## 需求
 
-- Node.js >= 18
-
-## 安装
-
-```bash
-npm i -g most-box
-```
-
-## 快速开始
-
-```bash
-most-box
-```
-
-浏览器访问 `http://127.0.0.1:1976`
+- Node.js >= 18 ([下载地址](https://nodejs.org))
 
 ## 开发
 
 ```bash
 git clone <your-repo-url>
 cd most
-npm install
-npm run dev    # 开发模式（热重载）
+npm i
+npm start
 ```
 
 ## 测试
@@ -42,17 +37,17 @@ npm run test:unit # 只运行单元测试
 
 ## 访问场景
 
-| 场景 | 启动方式 | 访问地址 |
-|------|----------|----------|
-| 本地 | `most-box` | `http://127.0.0.1:1976` |
-| 内网 | `set MOSTBOX_HOST=0.0.0.0 && most-box` | `http://<IP>:1976` |
+| 场景 | 命令 | 访问地址 |
+|------|------|----------|
+| 本地 | `npx most-box` | `http://127.0.0.1:1976` |
+| 内网 | `set MOSTBOX_HOST=0.0.0.0 && npx most-box` | `http://<IP>:1976` |
 | 外网 | Caddy 反向代理 | `https://your-domain.com` |
 
 ### 内网访问
 
 ```bash
 set MOSTBOX_HOST=0.0.0.0
-most-box
+npx most-box
 ```
 
 ### 外网访问（Caddy）
@@ -90,9 +85,9 @@ mostbox.example.com {
 
 ## 社区
 
-- **微信群**：添加微信号 `most-box`（自动通过好友申请，请备注 "MostBox"）
-- **GitHub Discussions**：[功能请求 & 技术讨论](../../discussions)
-- **问题反馈**：[Issues](../../issues)
+- **微信**：微信号 `most-box`（自动通过好友申请）
+- **GitHub Discussions**：[提出需求 & 技术讨论](../../discussions)
+- **问题反馈**：[Github issues](../../issues)
 
 ## 许可证
 

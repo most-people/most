@@ -1,4 +1,4 @@
-# Contributing to MostBox 魔盒
+# Contributing to MostBox
 
 Thank you for your interest in contributing to MostBox!
 
