@@ -332,7 +332,7 @@ function SettingsModal({ onClose, addToast, isDarkMode, handleShutdown }) {
 
         <div style={{ borderTop: `1px solid ${borderColor}`, paddingTop: 16 }}>
           <div style={{ textAlign: 'center', marginBottom: 16 }}>
-            <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 4, color: textPrimary }}>MostBox</h3>
+            <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 4, color: textPrimary }}>MostBox 魔盒</h3>
             <p style={{ fontSize: 12, color: textMuted }}>版本 0.0.1</p>
           </div>
           <p style={{ fontSize: 12, color: textSecondary, textAlign: 'center' }}>Hyperswarm · Hyperdrive · IPFS</p>

@@ -1,4 +1,4 @@
-# MostBox
+# MostBox 魔盒
 
 [![npm version](https://img.shields.io/npm/v/most-box)](https://npmjs.com/package/most-box)
 [![Node.js version](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org)
@@ -87,6 +87,12 @@ mostbox.example.com {
 - **IPFS UnixFS Importer** — CID 计算
 - **Node.js HTTP** — 零依赖的 HTTP + WebSocket 服务
 - **React** — Web UI
+
+## 社区
+
+- **微信群**：添加微信号 `most-box`（自动通过好友申请，请备注 "MostBox"）
+- **GitHub Discussions**：[功能请求 & 技术讨论](../../discussions)
+- **问题反馈**：[Issues](../../issues)
 
 ## 许可证
 

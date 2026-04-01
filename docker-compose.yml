@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  mostbox:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "1976:1976"
+    environment:
+      - NODE_ENV=development
+      - MOSTBOX_HOST=0.0.0.0
+      - PORT=1976
+    volumes:
+      - mostbox-data:/app/most-data
+    restart: unless-stopped
+    networks:
+      - mostbox-network
+
+volumes:
+  mostbox-data:
+    driver: local
+
+networks:
+  mostbox-network:
+    driver: bridge
