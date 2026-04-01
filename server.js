@@ -16,7 +16,7 @@ const wsClients = new Set()
 let engine = null
 let serverInstance = null
 
-// --- Config ---
+// --- 配置 ---
 const CONFIG_DIR = path.join(os.homedir(), '.most-box')
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json')
 
@@ -44,13 +44,13 @@ function saveConfig(config) {
   }
 }
 
-// --- Storage path ---
+// --- 存储路径 ---
 function getDataPath() {
   const config = loadConfig()
   return config.dataPath || path.join(os.homedir(), 'most-data')
 }
 
-// --- Static file serving ---
+// --- 静态文件服务 ---
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'application/javascript; charset=utf-8',
@@ -107,7 +107,7 @@ function serveStatic(req, res) {
   })
 }
 
-// --- Streaming multipart parser for large files ---
+// --- 流式 multipart 解析器，用于大文件上传 ---
 async function parseMultipart(req) {
   const boundaryMatch = req.headers['content-type']?.match(/boundary=(?:"([^"]+)"|([^\s;]+))/)
   if (!boundaryMatch) throw new Error('No boundary in content-type')
@@ -128,7 +128,7 @@ async function parseMultipart(req) {
     if (idx === -1) break
 
     if (start > 0) {
-      // Handle both \r\n and \n line endings
+      // 同时处理 \r\n 和 \n 换行符
       let partStart = start
       if (buffer[partStart] === 0x0d && buffer[partStart + 1] === 0x0a) {
         partStart += 2
@@ -175,13 +175,13 @@ async function parseMultipart(req) {
       }
     }
 
-    // Move to after the boundary
+    // 移动到 boundary 之后
     start = idx + boundaryBuf.length
-    // Skip optional whitespace after boundary
+    // 跳过 boundary 后的可选空白
     while (start < buffer.length && (buffer[start] === 0x20 || buffer[start] === 0x09)) {
       start++
     }
-    // Skip line ending
+    // 跳过换行符
     if (start < buffer.length && buffer[start] === 0x0d) {
       start++
     }
@@ -193,7 +193,7 @@ async function parseMultipart(req) {
   return parts
 }
 
-// --- JSON body parser ---
+// --- JSON 请求体解析器 ---
 async function parseJSON(req) {
   const chunks = []
   for await (const chunk of req) {
@@ -206,7 +206,7 @@ async function parseJSON(req) {
   }
 }
 
-// --- API Routes ---
+// --- API 路由 ---
 async function handleAPI(req, res) {
   const url = new URL(req.url, `http://${HOST}:${PORT}`)
   const pathname = url.pathname
@@ -231,7 +231,7 @@ async function handleAPI(req, res) {
       return
     }
 
-    // POST /api/config
+    // POST /api/config — 更新配置
     if (pathname === '/api/config' && method === 'POST') {
       const body = await parseJSON(req)
       const config = loadConfig()
@@ -285,7 +285,7 @@ async function handleAPI(req, res) {
       return
     }
 
-    // POST /api/publish — multipart file upload
+    // POST /api/publish — multipart 文件上传
     if (pathname === '/api/publish' && method === 'POST') {
       const parts = await parseMultipart(req)
 
@@ -301,7 +301,7 @@ async function handleAPI(req, res) {
       return
     }
 
-    // POST /api/download — start async download from P2P
+    // POST /api/download — 从 P2P 开始异步下载
     if (pathname === '/api/download' && method === 'POST') {
       const body = await parseJSON(req)
       if (!body.link) {
@@ -311,14 +311,14 @@ async function handleAPI(req, res) {
 
       const taskId = `dl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 
-      // Parse link to check if file already exists
+      // 解析链接以检查文件是否已存在
       const parsed = parseMostLink(body.link)
       if (parsed.error) {
         json({ error: parsed.error }, 400)
         return
       }
 
-      // Check if file already exists in published files
+      // 检查文件是否已存在于已发布文件中
       const existingFile = engine.getPublishedFiles().find(f => f.cid === parsed.cid)
       if (existingFile) {
         console.log(`[MostBox] File already exists: ${existingFile.fileName}`)
@@ -326,7 +326,7 @@ async function handleAPI(req, res) {
         return
       }
 
-      // Async download — do not block HTTP response
+      // 异步下载 — 不阻塞 HTTP 响应
       engine.downloadFile(body.link, taskId).catch(err => {
         if (err.message === 'Download cancelled') {
           wsBroadcast('download:cancelled', { taskId })
@@ -339,7 +339,7 @@ async function handleAPI(req, res) {
       return
     }
 
-    // POST /api/download/cancel — cancel an active download
+    // POST /api/download/cancel — 取消活动下载
     if (pathname === '/api/download/cancel' && method === 'POST') {
       const body = await parseJSON(req)
       if (!body.taskId) {
@@ -359,7 +359,7 @@ async function handleAPI(req, res) {
       return
     }
 
-    // POST /api/move — rename/move a published file (changes path without re-uploading)
+    // POST /api/move — 重命名/移动已发布文件（更改路径而不重新上传）
     if (pathname === '/api/move' && method === 'POST') {
       const body = await parseJSON(req)
       if (!body.cid || !body.newFileName) {
@@ -375,7 +375,7 @@ async function handleAPI(req, res) {
       return
     }
 
-    // POST /api/folder/rename — rename a folder (renames all files within)
+    // POST /api/folder/rename — 重命名文件夹（重命名其中的所有文件）
     if (pathname === '/api/folder/rename' && method === 'POST') {
       const body = await parseJSON(req)
       if (!body.oldPath || !body.newPath) {
@@ -391,13 +391,13 @@ async function handleAPI(req, res) {
       return
     }
 
-    // GET /api/files/:cid/download — serve file inline for preview / download
+    // GET /api/files/:cid/download — 内联服务文件以供预览/下载
     if (pathname.match(/^\/api\/files\/[^/]+\/download$/) && method === 'GET') {
       json({ error: 'Use P2P network to download this file' }, 400)
       return
     }
 
-    // POST /api/shutdown — graceful server shutdown
+    // POST /api/shutdown — 优雅关闭服务器
     if (pathname === '/api/shutdown' && method === 'POST') {
       json({ success: true })
       console.log('[MostBox] Shutdown requested via API...')
@@ -410,13 +410,13 @@ async function handleAPI(req, res) {
       return
     }
 
-    // GET /api/trash — list trash files
+    // GET /api/trash — 列出回收站文件
     if (pathname === '/api/trash' && method === 'GET') {
       json(engine.listTrashFiles())
       return
     }
 
-    // POST /api/trash/:cid/restore — restore file from trash
+    // POST /api/trash/:cid/restore — 从回收站恢复文件
     if (pathname.match(/^\/api\/trash\/[^/]+\/restore$/) && method === 'POST') {
       const cid = pathname.split('/')[3]
       try {
@@ -428,7 +428,7 @@ async function handleAPI(req, res) {
       return
     }
 
-    // DELETE /api/trash/:cid — permanently delete a trash file
+    // DELETE /api/trash/:cid — 永久删除回收站文件
     if (pathname.match(/^\/api\/trash\/[^/]+$/) && method === 'DELETE') {
       const cid = pathname.split('/')[3]
       const result = await engine.permanentDeleteTrashFile(cid)
@@ -436,14 +436,14 @@ async function handleAPI(req, res) {
       return
     }
 
-    // DELETE /api/trash — empty trash
+    // DELETE /api/trash — 清空回收站
     if (pathname === '/api/trash' && method === 'DELETE') {
       const result = await engine.emptyTrash()
       json({ success: true, trashFiles: result })
       return
     }
 
-    // POST /api/files/:cid/star — toggle starred status
+    // POST /api/files/:cid/star — 切换星标状态
     if (pathname.match(/^\/api\/files\/[^/]+\/star$/) && method === 'POST') {
       const cid = pathname.split('/')[3]
       try {
@@ -455,7 +455,7 @@ async function handleAPI(req, res) {
       return
     }
 
-    // GET /api/storage — get storage statistics
+    // GET /api/storage — 获取存储统计信息
     if (pathname === '/api/storage' && method === 'GET') {
       const result = await engine.getStorageStats()
       json(result)
@@ -469,7 +469,7 @@ async function handleAPI(req, res) {
   }
 }
 
-// --- Minimal WebSocket (RFC 6455) ---
+// --- 简易 WebSocket (RFC 6455) ---
 function upgradeToWebSocket(req, socket) {
   const key = req.headers['sec-websocket-key']
   if (!key) { socket.destroy(); return }
@@ -504,7 +504,7 @@ function upgradeToWebSocket(req, socket) {
       socket.write(pong)
     }
     if (opcode === 0x1 || opcode === 0x2) {
-      // Text or binary message - could broadcast to other clients if needed
+      // 文本或二进制消息 - 如需要可广播给其他客户端
     }
   })
 }
@@ -538,7 +538,7 @@ function wsBroadcast(event, data) {
   }
 }
 
-// --- Main ---
+// --- 主函数 ---
 async function main() {
   console.log('[MostBox] Starting core daemon...')
 

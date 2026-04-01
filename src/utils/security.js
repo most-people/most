@@ -8,9 +8,9 @@ const DANGEROUS_PREFIXES = /^[\s.]+|[\s.]+$/
 const RESERVED_NAMES = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i
 
 /**
- * Sanitize filename to prevent security issues
- * @param {string} filename - Original filename
- * @returns {string} - Sanitized filename
+ * 清理文件名以防止安全问题
+ * @param {string} filename - 原始文件名
+ * @returns {string} - 清理后的文件名
  */
 export function sanitizeFilename(filename) {
   if (typeof filename !== 'string') {
@@ -19,25 +19,25 @@ export function sanitizeFilename(filename) {
   
   let sanitized = filename
   
-  // Normalize backslashes to forward slashes (S3-style folder paths)
+  // 将反斜杠规范化为正斜杠（S3 风格路径）
   sanitized = sanitized.replace(/\\/g, '/')
   
-  // Remove dangerous characters but preserve / for folder paths
+  // 移除危险字符但保留 / 以支持文件夹路径
   sanitized = sanitized.replace(/[<>:"|?*\x00-\x1f]/g, '_')
   
-  // Remove dangerous prefixes/suffixes
+  // 移除危险前缀/后缀
   sanitized = sanitized.replace(DANGEROUS_PREFIXES, '')
   
-  // Prevent path traversal
+  // 防止路径遍历
   sanitized = sanitized.replace(/\.\./g, '_')
   
-  // Normalize multiple consecutive slashes
+  // 规范多个连续斜杠
   sanitized = sanitized.replace(/\/{2,}/g, '/')
   
-  // Remove leading/trailing slashes
+  // 移除首尾斜杠
   sanitized = sanitized.replace(/^\/+|\/+$/g, '')
   
-  // Sanitize each path segment individually
+  // 单独清理每个路径段
   const segments = sanitized.split('/')
   const safeSegments = segments.map(seg => {
     let safe = seg.replace(/[<>:"|?*]/g, '_')
@@ -54,10 +54,10 @@ export function sanitizeFilename(filename) {
 }
 
 /**
- * Validate and sanitize file path to prevent path traversal attacks
- * @param {string} inputPath - User input path
- * @param {object} options - Validation options
- * @param {string} [options.allowedBase] - Base directory that paths must be within (optional)
+ * 验证并清理文件路径以防止路径遍历攻击
+ * @param {string} inputPath - 用户输入路径
+ * @param {object} options - 验证选项
+ * @param {string} [options.allowedBase] - 路径必须在的基础目录（可选）
  * @returns {{ cleanPath: string, error?: string }}
  */
 export function validateAndSanitizePath(inputPath, options = {}) {
@@ -90,9 +90,9 @@ export function validateAndSanitizePath(inputPath, options = {}) {
 }
 
 /**
- * Check if file size is within limits
- * @param {string} filePath - Path to file
- * @param {number} [maxSize] - Maximum allowed size in bytes (default: 100GB)
+ * 检查文件大小是否在限制内
+ * @param {string} filePath - 文件路径
+ * @param {number} [maxSize] - 最大允许大小（字节，默认 100GB）
  * @returns {{ valid: boolean, size?: number, error?: string }}
  */
 export async function validateFileSize(filePath, maxSize = MAX_FILE_SIZE) {
@@ -123,8 +123,8 @@ export async function validateFileSize(filePath, maxSize = MAX_FILE_SIZE) {
 }
 
 /**
- * Check if directory is writable
- * @param {string} dirPath - Directory path to check
+ * 检查目录是否可写
+ * @param {string} dirPath - 要检查的目录路径
  * @returns {{ writable: boolean, error?: string }}
  */
 export async function checkDirectoryWritable(dirPath) {
@@ -147,8 +147,8 @@ export async function checkDirectoryWritable(dirPath) {
 }
 
 /**
- * Get human-readable file size string
- * @param {number} bytes - Size in bytes
+ * 获取人类可读的文件大小字符串
+ * @param {number} bytes - 字节大小
  * @returns {string}
  */
 export function formatFileSize(bytes) {

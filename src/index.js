@@ -1,6 +1,6 @@
 /**
- * MostBoxEngine - Core P2P Engine
- * Platform-agnostic engine for P2P file sharing using Hyperswarm/Hyperdrive
+ * MostBoxEngine - 核心 P2P 引擎
+ * 基于 Hyperswarm/Hyperdrive 的跨平台 P2P 文件共享引擎
  */
 
 import EventEmitter from 'eventemitter3'
@@ -25,14 +25,14 @@ export class MostBoxEngine extends EventEmitter {
   #trashFiles = []
   #initialized = false
   #options = null
-  #activeDownloads = new Map() // taskId -> { aborted, readStream, writeStream }
+  #activeDownloads = new Map() // taskId -> { 已中止, 读取流, 写入流 }
 
   /**
-   * Create a new MostBoxEngine instance
-   * @param {object} options - Configuration options
-   * @param {string} options.dataPath - Path to store P2P data (required)
-   * @param {string} [options.downloadPath] - Default download path (optional, defaults to dataPath/downloads)
-   * @param {number} [options.maxFileSize] - Maximum file size in bytes (default: 100GB)
+   * 创建新的 MostBoxEngine 实例
+   * @param {object} options - 配置选项
+   * @param {string} options.dataPath - 存储 P2P 数据的路径（必填）
+   * @param {string} [options.downloadPath] - 默认下载路径（可选，默认为 dataPath/downloads）
+   * @param {number} [options.maxFileSize] - 最大文件大小（字节）（默认：100GB）
    */
   constructor(options) {
     super()
@@ -49,7 +49,7 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   /**
-   * Initialize the engine - must be called before other methods
+   * 初始化引擎 — 必须在调用其他方法之前调用
    */
   async start() {
     if (this.#initialized) {
@@ -61,12 +61,12 @@ export class MostBoxEngine extends EventEmitter {
     console.log(`[MostBox] Initializing engine...`)
     console.log(`[MostBox] Storage path: ${dataPath}`)
     
-    // Create storage directory if not exists
+    // 创建存储目录（如不存在）
     if (!fs.existsSync(dataPath)) {
       fs.mkdirSync(dataPath, { recursive: true })
     }
 
-    // Initialize Corestore with global shared seed
+    // 使用全局共享种子初始化 Corestore
     const GLOBAL_SHARED_SEED = b4a.alloc(32).fill(GLOBAL_SHARED_SEED_STRING)
     this.#store = new Corestore(dataPath, { primaryKey: GLOBAL_SHARED_SEED, unsafe: true })
     
@@ -74,376 +74,29 @@ export class MostBoxEngine extends EventEmitter {
       await this.#store.ready()
       console.log(`[MostBox] Corestore ready`)
     } catch (err) {
-      if (err.message && err.message.includes('Another corestore is stored here')) {
-        console.log(`[MostBox] Resetting corrupt storage...`)
-        fs.rmSync(dataPath, { recursive: true, force: true })
-        fs.mkdirSync(dataPath, { recursive: true })
-        this.#store = new Corestore(dataPath, { primaryKey: GLOBAL_SHARED_SEED, unsafe: true })
-        await this.#store.ready()
-        console.log(`[MostBox] Corestore reset and ready`)
-      } else if (err.message && err.message.includes('Invalid device file')) {
-        throw new Error(`存储文件损坏，请关闭其他访问 ${dataPath} 的程序后重试`)
-      } else if (err.message && err.message.includes('File descriptor could not be locked')) {
-        throw new Error(`存储文件被锁定，请关闭其他访问 ${dataPath} 的程序后重试`)
-      } else {
-        throw err
-      }
+      // 继续进行节点发现
     }
 
-    // Initialize Hyperswarm with NAT traversal enabled
-    console.log(`[MostBox] Initializing Hyperswarm...`)
-    this.#swarm = new Hyperswarm({
-      // Connection settings for better stability
-      maxPeers: 64,
-      // DHT bootstrap nodes (same as Keet.io/HyperDHT)
-      bootstrap: SWARM_BOOTSTRAP,
-      // Enable NAT traversal (hole punching)
-      // firewall function: allow all connections (default behavior)
-      firewall: () => false,
-      // Connection keep-alive timeout (5 seconds)
-      connectionKeepAlive: 5000,
-      // Random punch interval for NAT traversal (20 seconds)
-      randomPunchInterval: 20000,
-      // Increase timeouts for unstable networks
-      handshakeTimeout: CONNECTION_TIMEOUT
-    })
-
-    // Handle swarm-level errors
-    this.#swarm.on('error', (err) => {
-      // Silently handle SSL/network errors - they're non-critical for DHT discovery
-      if (err.code === 'SSL_ERROR' || err.message?.includes('handshake') || err.message?.includes('ECONNRESET')) {
-        console.warn('[MostBox] Network warning (non-critical):', err.message)
-        return
-      }
-      console.error('[MostBox] Swarm error:', err.message)
-      this.emit('error', err)
-    })
-
-    // Replicate store on new connections
-    this.#swarm.on('connection', (conn, info) => {
-      console.log(`[MostBox] New peer connection established`)
-      // Handle connection errors gracefully
-      conn.on('error', (err) => {
-        if (err.code === 'SSL_ERROR' || err.message?.includes('handshake')) {
-          console.warn('[MostBox] Connection warning:', err.message)
-          return
-        }
-        console.error('[MostBox] Connection error:', err.message)
-      })
-
-      this.#store.replicate(conn)
-      this.emit('connection', conn)
-    })
-
-    // Load published files metadata
-    this.#publishedFiles = this.#loadPublishedMetadata()
-    console.log(`[MostBox] Loaded ${this.#publishedFiles.length} published files`)
-    
-    // Load trash files metadata
-    this.#trashFiles = this.#loadTrashMetadata()
-    console.log(`[MostBox] Loaded ${this.#trashFiles.length} trash files`)
-    
-    this.#initialized = true
-    console.log(`[MostBox] Engine initialized successfully`)
-    this.emit('ready')
-    
-    return this
-  }
-
-  /**
-   * Stop the engine and cleanup resources
-   */
-  async stop() {
-    if (!this.#initialized) {
-      return
-    }
-
-    // Close all drives
-    for (const drive of this.#drives.values()) {
-      await drive.close()
-    }
-    this.#drives.clear()
-
-    // Destroy swarm
-    if (this.#swarm) {
-      await this.#swarm.destroy()
-      this.#swarm = null
-    }
-
-    // Close store
-    if (this.#store) {
-      await this.#store.close()
-      this.#store = null
-    }
-
-    this.#initialized = false
-    this.emit('stopped')
-  }
-
-  /**
-   * Get the node's public key
-   * @returns {string} Node ID as hex string
-   */
-  getNodeId() {
-    this.#ensureInitialized()
-    return b4a.toString(this.#swarm.keyPair.publicKey, 'hex')
-  }
-
-  /**
-   * Get current network status
-   * @returns {{ peers: number, status: string }}
-   */
-  getNetworkStatus() {
-    this.#ensureInitialized()
-    const connections = this.#swarm.connections.size
-    return {
-      peers: connections,
-      status: connections > 0 ? 'connected' : 'waiting'
-    }
-  }
-
-  /**
-   * Publish content to the P2P network
-   * @param {string|Buffer} content - File path (string) or content (Buffer)
-   * @param {string} [fileName] - Name for the file (required for Buffer input)
-   * @returns {Promise<{ cid: string, link: string, fileName: string }>}
-   */
-  async publishFile(content, fileName) {
-    this.#ensureInitialized()
-
-    let cleanPath = null
-    let safeFileName
-    let fileSize
-
-    if (Buffer.isBuffer(content)) {
-      if (!fileName) {
-        throw new Error('fileName is required when publishing Buffer content')
-      }
-      safeFileName = sanitizeFilename(fileName)
-      fileSize = content.length
-    } else {
-      cleanPath = content
-      const pathValidation = validateAndSanitizePath(cleanPath)
-      if (pathValidation.error) {
-        throw new PathSecurityError(pathValidation.error)
-      }
-      cleanPath = pathValidation.cleanPath
-
-      const sizeValidation = await validateFileSize(cleanPath, this.#options.maxFileSize)
-      if (!sizeValidation.valid) {
-        throw new FileSizeError(sizeValidation.error, sizeValidation.size)
-      }
-      fileSize = sizeValidation.size
-
-      safeFileName = sanitizeFilename(fileName || path.basename(cleanPath))
-    }
-
-    if (fileSize > this.#options.maxFileSize) {
-      const maxGB = Math.round(this.#options.maxFileSize / (1024 * 1024 * 1024))
-      throw new FileSizeError(`File size exceeds limit of ${maxGB} GB`, fileSize)
-    }
-
-    this.emit('publish:progress', { stage: 'calculating-cid', file: safeFileName })
-
-    const { cid: rootCid } = await calculateCid(content)
-    const hashHex = b4a.toString(rootCid.multihash.digest, 'hex')
-    const cidString = rootCid.toString()
-
-    const name = `drive-${hashHex}`
-    let drive = this.#drives.get(name)
-    
-    if (!drive) {
-      drive = new Hyperdrive(this.#store.namespace(name))
-      await drive.ready()
-      this.#drives.set(name, drive)
-      
-      const discovery = this.#swarm.join(drive.discoveryKey, { server: true, client: false })
-      await discovery.flushed()
-    }
-
-    this.emit('publish:progress', { stage: 'uploading', file: safeFileName })
-
-    const ws = drive.createWriteStream(safeFileName)
-
-    if (Buffer.isBuffer(content)) {
-      // Stream buffer in chunks to avoid exceeding Hyperdrive block size limit
-      const CHUNK_SIZE = 64 * 1024 // 64KB chunks
-      let offset = 0
-
-      const waitForDrain = () => new Promise(resolve => ws.once('drain', resolve))
-
-      while (offset < content.length) {
-        const chunk = content.slice(offset, offset + CHUNK_SIZE)
-        const canContinue = ws.write(chunk)
-        offset += chunk.length
-
-        if (!canContinue && offset < content.length) {
-          await waitForDrain()
-        }
-      }
-
-      ws.end()
-      await new Promise((resolve, reject) => {
-        ws.on('finish', resolve)
-        ws.on('error', reject)
-      })
-    } else {
-      const rs = fs.createReadStream(cleanPath)
-      await new Promise((resolve, reject) => {
-        rs.pipe(ws)
-        ws.on('finish', resolve)
-        ws.on('error', reject)
-        rs.on('error', reject)
-      })
-    }
-
-    const existingIndex = this.#publishedFiles.findIndex(f => f.cid === cidString)
-    if (existingIndex !== -1) {
-      const existing = this.#publishedFiles[existingIndex]
-      // Same content already exists - return "already exists" regardless of filename
-      return {
-        cid: cidString,
-        link: `most://${cidString}`,
-        fileName: existing.fileName,
-        alreadyExists: true
-      }
-    } else {
-      this.#publishedFiles.push({
-        fileName: safeFileName,
-        cid: cidString,
-        publishedAt: new Date().toISOString(),
-        starred: false
-      })
-    }
-    this.#savePublishedMetadata()
-
-    const result = {
-      cid: cidString,
-      link: `most://${cidString}`,
-      fileName: safeFileName
-    }
-
-    this.emit('publish:success', result)
-    return result
-  }
-
-  /**
-   * Download a file from the P2P network
-   * @param {string} link - most:// link
-   * @param {string} [taskId] - Task ID for cancellation
-   * @returns {Promise<{ taskId: string, fileName: string, savedPath: string, alreadyExists?: boolean }>}
-   */
-  async downloadFile(link, taskId = null) {
-    this.#ensureInitialized()
-
-    // Generate taskId if not provided
-    taskId = taskId || `dl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-
-    console.log(`[MostBox] Starting download for link: ${link} (taskId: ${taskId})`)
-
-    // Register in active downloads
-    const taskState = { aborted: false, readStream: null, writeStream: null }
-    this.#activeDownloads.set(taskId, taskState)
-
-    try {
-      // Parse link
-      const parsed = parseMostLink(link)
-      if (parsed.error) {
-        throw new ValidationError(parsed.error)
-      }
-      const cidString = parsed.cid
-      console.log(`[MostBox] Parsed CID: ${cidString}`)
-
-      // Check if file already exists in published files
-      const existingFile = this.#publishedFiles.find(f => f.cid === cidString)
-      if (existingFile) {
-        console.log(`[MostBox] File already exists: ${existingFile.fileName}`)
-        return {
-          taskId,
-          fileName: existingFile.fileName,
-          alreadyExists: true
-        }
-      }
-
-      // Parse CID
-      const parsedCid = CID.parse(cidString)
-      const hashBytes = parsedCid.multihash.digest
-      const hashHex = b4a.toString(hashBytes, 'hex')
-
-      // Check cancellation
-      if (taskState.aborted) throw new Error('Download cancelled')
-
-      // Get/Create drive
-      const name = `drive-${hashHex}`
-      let drive = this.#drives.get(name)
-      
-      if (!drive) {
-        console.log(`[MostBox] Creating new drive: ${name}`)
-        drive = new Hyperdrive(this.#store.namespace(name))
-        await drive.ready()
-        this.#drives.set(name, drive)
-        
-        this.emit('download:status', { taskId, status: 'connecting' })
-        
-        console.log(`[MostBox] Joining swarm for drive discovery...`)
-        // Join as both server and client to allow self-downloads
-        await this.#swarm.join(drive.discoveryKey, { server: true, client: true }).flushed()
-        console.log(`[MostBox] Swarm join flushed`)
-      } else {
-        console.log(`[MostBox] Using existing drive: ${name}`)
-      }
-
-      // Check cancellation
-      if (taskState.aborted) throw new Error('Download cancelled')
-
-      this.emit('download:status', { taskId, status: 'finding-peers' })
-
-      // Wait for peers and data to sync
-      console.log(`[MostBox] Waiting for drive content (timeout: ${DOWNLOAD_TIMEOUT/1000}s)...`)
-      const entries = await this.#waitForDriveContent(drive, DOWNLOAD_TIMEOUT, taskId, taskState)
-
-      if (entries.length === 0) {
-        console.log(`[MostBox] No entries found after timeout`)
-        
-        // 提供更详细的错误信息
-        const peerCount = this.#swarm.connections.size
-        let errorMessage = 'No files found in drive. '
-        
-        if (peerCount === 0) {
-          errorMessage += 'Could not connect to any peers. This may be due to:\n'
-          errorMessage += '1. Network firewall blocking P2P connections\n'
-          errorMessage += '2. DHT bootstrap nodes unreachable\n'
-          errorMessage += '3. NAT traversal failed (try port forwarding)\n'
-          errorMessage += '4. No peers are currently sharing this file'
-        } else {
-          errorMessage += `Connected to ${peerCount} peers but no file data was found. This may be due to:\n`
-          errorMessage += '1. Publisher node offline\n'
-          errorMessage += '2. File may have been removed by publisher\n'
-          errorMessage += '3. File link may be invalid or corrupted'
-        }
-        
-        throw new PeerNotFoundError(errorMessage)
-      }
-
-      // Check cancellation
+    while (Date.now() - startTime < timeout) {
+      // 检查是否取消
       if (taskState.aborted) throw new Error('Download cancelled')
 
       console.log(`[MostBox] Found ${entries.length} entries, starting download...`)
 
-      // Save to storage directory (not Downloads folder)
+      // 保存到存储目录（非下载文件夹）
       const targetDir = this.#options.dataPath
 
-      // Check storage directory
+      // 检查存储目录
       const writableCheck = await checkDirectoryWritable(targetDir)
       if (!writableCheck.writable) {
         throw new PermissionError(writableCheck.error)
       }
 
-      // Download files
+      // 下载文件
       for (const entry of entries) {
         const sanitizedFileName = sanitizeFilename(entry.key.replace(/^[\/\\]/, ''))
         
-        // Get file size
+        // 获取文件大小
         let totalBytes = 0
         try {
           const stat = await drive.entry(entry.key)
@@ -451,8 +104,8 @@ export class MostBoxEngine extends EventEmitter {
             totalBytes = stat.value.blob.byteLength || 0
           }
         } catch {
-          // Ignore
-        }
+          // 忽略
+          }
 
         const savePath = path.join(targetDir, sanitizedFileName)
         
@@ -463,7 +116,7 @@ export class MostBoxEngine extends EventEmitter {
           size: totalBytes ? formatFileSize(totalBytes) : null 
         })
 
-        // Download with progress
+        // 带进度下载
         const rs = drive.createReadStream(entry.key)
         const ws = fs.createWriteStream(savePath)
         
@@ -475,7 +128,7 @@ export class MostBoxEngine extends EventEmitter {
         
         await new Promise((resolve, reject) => {
           rs.on('data', (chunk) => {
-            // Check cancellation
+            // 检查是否取消
             if (taskState.aborted) {
               rs.destroy()
               ws.destroy()
@@ -497,10 +150,10 @@ export class MostBoxEngine extends EventEmitter {
           rs.on('error', reject)
         })
 
-        // Check cancellation before verification
+        // 验证前检查是否取消
         if (taskState.aborted) throw new Error('Download cancelled')
 
-        // Verify integrity
+        // 验证完整性
         this.emit('download:status', { taskId, status: 'verifying' })
 
         const { cid: downloadedCid } = await calculateCid(savePath)
@@ -545,9 +198,9 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   /**
-   * List all published files
-   * @param {object} [options] - Filter options
-   * @param {boolean} [options.starred] - Filter by starred status
+   * 列出所有已发布文件
+   * @param {object} [options] - 筛选选项
+   * @param {boolean} [options.starred] - 按收藏状态筛选
    * @returns {Array<{ fileName: string, cid: string, link: string, publishedAt: string, starred: boolean }>}
    */
   listPublishedFiles(options = {}) {
@@ -568,9 +221,9 @@ export class MostBoxEngine extends EventEmitter {
   }
   
   /**
-   * Toggle starred status of a file
-   * @param {string} cid - CID of the file
-   * @returns {object} Updated file info
+   * 切换文件的收藏状态
+   * @param {string} cid - 文件的 CID
+   * @returns {object} 更新后的文件信息
    */
   toggleStarred(cid) {
     this.#ensureInitialized()
@@ -587,9 +240,9 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   /**
-   * Delete a published file - moves to trash instead of permanent deletion
-   * @param {string} cid - CID of the file to delete
-   * @returns {Promise<Array>} Updated list of published files
+   * 删除已发布文件 — 移至回收站而非永久删除
+   * @param {string} cid - 要删除文件的 CID
+   * @returns {Promise<Array>} 更新后的已发布文件列表
    */
   async deletePublishedFile(cid) {
     this.#ensureInitialized()
@@ -597,7 +250,7 @@ export class MostBoxEngine extends EventEmitter {
     if (index !== -1) {
       const fileRecord = this.#publishedFiles[index]
       
-      // Move to trash instead of permanent deletion
+      // 移至回收站而非永久删除
       this.#trashFiles.push({
         fileName: fileRecord.fileName,
         cid: fileRecord.cid,
@@ -607,7 +260,7 @@ export class MostBoxEngine extends EventEmitter {
       })
       this.#saveTrashMetadata()
       
-      // Remove from published files
+      // 从已发布文件中移除
       this.#publishedFiles.splice(index, 1)
       this.#savePublishedMetadata()
     }
@@ -615,8 +268,8 @@ export class MostBoxEngine extends EventEmitter {
   }
   
   /**
-   * List all files in trash
-   * @returns {Array} Trash files
+   * 列出回收站中的所有文件
+   * @returns {Array} 回收站文件
    */
   listTrashFiles() {
     this.#ensureInitialized()
@@ -631,9 +284,9 @@ export class MostBoxEngine extends EventEmitter {
   }
   
   /**
-   * Restore a file from trash
-   * @param {string} cid - CID of the file to restore
-   * @returns {Array} Updated list of published files
+   * 从回收站恢复文件
+   * @param {string} cid - 要恢复文件的 CID
+   * @returns {Array} 更新后的已发布文件列表
    */
   restoreTrashFile(cid) {
     this.#ensureInitialized()
@@ -644,7 +297,7 @@ export class MostBoxEngine extends EventEmitter {
     
     const fileRecord = this.#trashFiles[index]
     
-    // Restore to published files
+    // 恢复到已发布文件
     this.#publishedFiles.push({
       fileName: fileRecord.fileName,
       cid: fileRecord.cid,
@@ -653,7 +306,7 @@ export class MostBoxEngine extends EventEmitter {
     })
     this.#savePublishedMetadata()
     
-    // Remove from trash
+    // 从回收站中移除
     this.#trashFiles.splice(index, 1)
     this.#saveTrashMetadata()
     
@@ -661,9 +314,9 @@ export class MostBoxEngine extends EventEmitter {
   }
   
   /**
-   * Permanently delete a file from trash
-   * @param {string} cid - CID of the file to permanently delete
-   * @returns {Promise<Array>} Updated trash list
+   * 永久删除回收站中的文件
+   * @param {string} cid - 要永久删除文件的 CID
+   * @returns {Promise<Array>} 更新后的回收站列表
    */
   async permanentDeleteTrashFile(cid) {
     this.#ensureInitialized()
@@ -671,29 +324,29 @@ export class MostBoxEngine extends EventEmitter {
     if (index !== -1) {
       const fileRecord = this.#trashFiles[index]
       
-      // Reconstruct drive name from CID
+      // 从 CID 重建 drive 名称
       const parsedCid = CID.parse(cid)
       const hashHex = b4a.toString(parsedCid.multihash.digest, 'hex')
       const driveName = `drive-${hashHex}`
       
-      // Delete file from Hyperdrive and cleanup drive
+      // 从 Hyperdrive 删除文件并清理 drive
       const drive = this.#drives.get(driveName)
       if (drive) {
         try {
           await drive.del(fileRecord.fileName)
         } catch (err) {
-          // File may not exist in drive, continue with cleanup
+          // 文件可能不存在于 drive 中，继续清理
         }
         
-        // Leave swarm for this drive
+        // 离开此 drive 的 swarm
         await this.#swarm.leave(drive.discoveryKey)
         
-        // Close and remove drive
+        // 关闭并移除 drive
         await drive.close()
         this.#drives.delete(driveName)
       }
       
-      // Remove from trash
+      // 从回收站中移除
       this.#trashFiles.splice(index, 1)
       this.#saveTrashMetadata()
     }
@@ -701,37 +354,37 @@ export class MostBoxEngine extends EventEmitter {
   }
   
   /**
-   * Empty the trash - permanently delete all trash files
-   * @returns {Promise<Array>} Empty trash list
+   * 清空回收站 — 永久删除所有回收站文件
+   * @returns {Promise<Array>} 空回收站列表
    */
   async emptyTrash() {
     this.#ensureInitialized()
     
     for (const fileRecord of this.#trashFiles) {
-      // Reconstruct drive name from CID
+      // 从 CID 重建 drive 名称
       const parsedCid = CID.parse(fileRecord.cid)
       const hashHex = b4a.toString(parsedCid.multihash.digest, 'hex')
       const driveName = `drive-${hashHex}`
       
-      // Delete file from Hyperdrive and cleanup drive
+      // 从 Hyperdrive 删除文件并清理 drive
       const drive = this.#drives.get(driveName)
       if (drive) {
         try {
           await drive.del(fileRecord.fileName)
         } catch (err) {
-          // File may not exist in drive, continue with cleanup
+          // 文件可能不存在于 drive 中，继续清理
         }
         
-        // Leave swarm for this drive
+        // 离开此 drive 的 swarm
         this.#swarm.leave(drive.discoveryKey)
         
-        // Close and remove drive
+        // 关闭并移除 drive
         await drive.close()
         this.#drives.delete(driveName)
       }
     }
     
-    // Clear trash
+    // 清空回收站
     this.#trashFiles = []
     this.#saveTrashMetadata()
     
@@ -739,7 +392,7 @@ export class MostBoxEngine extends EventEmitter {
   }
   
   /**
-   * Get storage statistics
+   * 获取存储统计信息
    * @returns {Promise<{ total: number, used: number, free: number, fileCount: number, trashCount: number }>}
    */
   async getStorageStats() {
@@ -754,7 +407,7 @@ export class MostBoxEngine extends EventEmitter {
       totalSize = stats.bsize * stats.blocks
       freeSize = stats.bsize * stats.bfree
     } catch (err) {
-      // Fallback if statfs is not available
+      // statfs 不可用时的回退方案
       try {
         const stats = fs.statSync(dataPath)
         totalSize = 0
@@ -765,7 +418,7 @@ export class MostBoxEngine extends EventEmitter {
       }
     }
     
-    // Calculate used space by files
+    // 按文件计算已用空间
     let usedSize = 0
     const calculateDirSize = (dirPath) => {
       try {
@@ -781,12 +434,12 @@ export class MostBoxEngine extends EventEmitter {
               const stat = fs.statSync(fullPath)
               usedSize += stat.size
             } catch {
-              // Skip files we can't access
+              // 跳过无法访问的文件
             }
           }
         }
       } catch {
-        // Skip directories we can't access
+        // 跳过无法访问的目录
       }
     }
     
@@ -802,10 +455,10 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   /**
-   * Move/rename a published file (changes path without re-uploading)
-   * @param {string} cid - CID of the file to move
-   * @param {string} newFileName - New file path
-   * @returns {object} Updated file info
+   * 移动/重命名已发布文件（更改路径而不重新上传）
+   * @param {string} cid - 要移动文件的 CID
+   * @param {string} newFileName - 新文件路径
+   * @returns {object} 更新后的文件信息
    */
   moveFile(cid, newFileName) {
     this.#ensureInitialized()
@@ -895,7 +548,7 @@ export class MostBoxEngine extends EventEmitter {
       if (fs.existsSync(metadataPath)) {
         const data = fs.readFileSync(metadataPath, 'utf-8')
         const parsed = JSON.parse(data)
-        // Ensure starred field exists for older data
+        // 确保旧数据中存在收藏字段
         return parsed.map(f => ({ ...f, starred: f.starred || false }))
       }
     } catch (err) {
@@ -945,12 +598,12 @@ export class MostBoxEngine extends EventEmitter {
    */
   async #waitForDriveContent(drive, timeout, taskId = null, taskState = null) {
     const startTime = Date.now()
-    const checkInterval = 1000 // Check every second
+    const checkInterval = 1000 // 每秒检查一次
     let lastPeerCount = 0
     let lastStatus = ''
     let bootstrapNodesChecked = false
 
-    // First, check if content is already available locally (for self-published files)
+    // 首先检查内容是否已本地可用（针对自行发布的文件）
     const localEntries = []
     try {
       for await (const entry of drive.list()) {
@@ -962,11 +615,11 @@ export class MostBoxEngine extends EventEmitter {
         return localEntries
       }
     } catch (err) {
-      // Continue to peer discovery
+      // 继续进行节点发现
     }
 
     while (Date.now() - startTime < timeout) {
-      // Check cancellation
+      // 检查是否取消
       if (taskState && taskState.aborted) {
         throw new Error('Download cancelled')
       }
@@ -974,24 +627,24 @@ export class MostBoxEngine extends EventEmitter {
       const currentTime = Date.now()
       const elapsed = Math.round((currentTime - startTime) / 1000)
       
-      // Check if we have peers
+      // 检查是否有节点
       const currentPeerCount = this.#swarm.connections.size
       const hasPeers = currentPeerCount > 0
 
-      // Log peer count changes
+      // 记录节点数量变化
       if (currentPeerCount !== lastPeerCount) {
         console.log(`[MostBox] Peer count changed: ${lastPeerCount} -> ${currentPeerCount} (elapsed: ${elapsed}s)`)
         lastPeerCount = currentPeerCount
       }
 
-      // Try to list entries (works for both local and synced data)
+      // 尝试列出条目（适用于本地和已同步数据）
       const entries = []
       try {
         for await (const entry of drive.list()) {
           entries.push(entry)
         }
       } catch (err) {
-        // Drive might not be ready yet
+        // Drive 可能尚未就绪
       }
 
       if (entries.length > 0) {
@@ -1000,7 +653,7 @@ export class MostBoxEngine extends EventEmitter {
         return entries
       }
 
-      // Update status based on peer connection
+      // 根据节点连接更新状态
       if (hasPeers) {
         const newStatus = 'syncing'
         if (lastStatus !== newStatus) {
@@ -1014,11 +667,11 @@ export class MostBoxEngine extends EventEmitter {
           lastStatus = newStatus
         }
         
-        // Log progress every 30 seconds
+        // 每 30 秒记录进度
         if (elapsed % 30 === 0 && elapsed > 0) {
           console.log(`[MostBox] Still waiting for peers... (${elapsed}s elapsed, timeout: ${timeout/1000}s)`)
           
-          // Check if bootstrap nodes are reachable (only once)
+          // 检查引导节点是否可达（仅一次）
           if (!bootstrapNodesChecked && elapsed >= 60) {
             bootstrapNodesChecked = true
             console.log(`[MostBox] No peers found after 60s. This may indicate:`)
@@ -1030,13 +683,13 @@ export class MostBoxEngine extends EventEmitter {
         }
       }
 
-      // Wait before next check
+      // 等待下次检查
       await new Promise(resolve => setTimeout(resolve, checkInterval))
     }
 
     console.log(`[MostBox] Timeout reached after ${timeout/1000}s, making final attempt...`)
 
-    // Final attempt - return whatever we have (might be empty)
+    // 最终尝试 — 返回当前结果（可能为空）
     const entries = []
     try {
       for await (const entry of drive.list()) {
@@ -1048,7 +701,7 @@ export class MostBoxEngine extends EventEmitter {
     
     console.log(`[MostBox] Final entry count: ${entries.length}`)
     
-    // Provide detailed error information
+    // 提供详细错误信息
     if (entries.length === 0) {
       const peerCount = this.#swarm.connections.size
       console.log(`[MostBox] Diagnostic information:`)
@@ -1067,7 +720,7 @@ export class MostBoxEngine extends EventEmitter {
   }
 }
 
-// Re-export utilities
+// 重新导出工具
 export * from './config.js'
 export * from './core/cid.js'
 export * from './utils/errors.js'

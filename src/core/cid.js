@@ -1,6 +1,6 @@
 /**
- * CID (Content Identifier) Calculation Module
- * Handles IPFS UnixFS CID computation for files
+ * CID（内容标识符）计算模块
+ * 处理文件的 IPFS UnixFS CID 计算
  */
 
 import fs from 'node:fs'
@@ -8,8 +8,8 @@ import { Readable } from 'node:stream'
 import { importer } from 'ipfs-unixfs-importer'
 
 /**
- * Dummy Blockstore for CID calculation
- * Does not store any data, only used for streaming CID computation
+ * 用于 CID 计算的虚拟 Blockstore
+ * 不存储任何数据，仅用于流式 CID 计算
  */
 function createDummyBlockstore() {
   return {
@@ -20,14 +20,14 @@ function createDummyBlockstore() {
 }
 
 /**
- * Calculate IPFS UnixFS CID v1 for content
- * Uses streaming approach to handle large files efficiently
+ * 计算内容的 IPFS UnixFS CID v1
+ * 使用流式方法高效处理大文件
  * 
- * @param {string|Buffer|AsyncIterable} content - File path (string), Buffer, or async iterable
- * @param {object} options - Calculation options
- * @param {boolean} [options.rawLeaves=true] - Use raw leaves for modern CID
- * @param {number} [options.cidVersion=1] - CID version (0 or 1)
- * @param {number} [options.size] - Total size in bytes (optional, auto-detected for files)
+ * @param {string|Buffer|AsyncIterable} content - 文件路径（字符串）、Buffer 或异步迭代器
+ * @param {object} options - 计算选项
+ * @param {boolean} [options.rawLeaves=true] - 使用原始叶子节点以支持现代 CID
+ * @param {number} [options.cidVersion=1] - CID 版本（0 或 1）
+ * @param {number} [options.size] - 总字节数（可选，自动检测）
  * @returns {Promise<{cid: import('multiformats/cid').CID, size: number}>}
  */
 export async function calculateCid(content, options = {}) {
@@ -50,7 +50,7 @@ export async function calculateCid(content, options = {}) {
       const stat = await fs.promises.stat(filePath)
       totalSize = stat.size
     } catch {
-      // Ignore stat errors, size will be 0
+      // 忽略 stat 错误，大小将为 0
     }
     source = [{
       path: 'file',
@@ -92,8 +92,8 @@ export async function calculateCid(content, options = {}) {
 }
 
 /**
- * Validate a CID string
- * @param {string} cidString - CID string to validate
+ * 验证 CID 字符串
+ * @param {string} cidString - 要验证的 CID 字符串
  * @returns {{ valid: boolean, error?: string }}
  */
 export function validateCidString(cidString) {
@@ -109,8 +109,8 @@ export function validateCidString(cidString) {
 }
 
 /**
- * Parse a most:// link and extract the CID
- * @param {string} link - most://<cid> format link
+ * 解析 most:// 链接并提取 CID
+ * @param {string} link - most://<cid> 格式的链接
  * @returns {{ cid: string, error?: string }}
  */
 export function parseMostLink(link) {
@@ -124,10 +124,10 @@ export function parseMostLink(link) {
     cidString = link.replace('most://', '')
   }
 
-  // Remove any trailing slashes or whitespace
+  // 移除尾部斜杠和空白
   cidString = cidString.trim().replace(/\/+$/, '')
   
-  // Handle URL-like parsing for potential extra paths
+  // 处理可能的额外路径的 URL 解析
   if (cidString.includes('/')) {
     cidString = cidString.split('/')[0]
   }

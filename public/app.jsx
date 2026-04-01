@@ -6,7 +6,7 @@ import {
   FolderOpen, Power, Edit2
 } from 'lucide-react'
 
-// === API ===
+// === 接口 ===
 const API = {
   async fetch(url, options = {}) {
     const res = await fetch(url, options)
@@ -64,7 +64,7 @@ const API = {
   })
 }
 
-// === Helpers ===
+// === 工具函数 ===
 function formatSize(bytes) {
   if (!bytes || bytes <= 0) return '0 B'
   if (bytes < 1024) return `${bytes} B`
@@ -125,7 +125,7 @@ function getFileSubtype(fileName) {
   return 'file'
 }
 
-// === Welcome Guide ===
+// === 引导页 ===
 function WelcomeGuide({ onClose, onShutdown }) {
   const [step, setStep] = useState(0)
   const [customPath, setCustomPath] = useState('')
@@ -243,7 +243,7 @@ function WelcomeGuide({ onClose, onShutdown }) {
   )
 }
 
-// === About Modal ===
+// === 设置弹窗 ===
 function SettingsModal({ onClose, addToast, isDarkMode, handleShutdown }) {
   const [dataPath, setStoragePath] = useState('')
   const [originalPath, setOriginalPath] = useState('')
@@ -346,7 +346,7 @@ function SettingsModal({ onClose, addToast, isDarkMode, handleShutdown }) {
   )
 }
 
-// === Toast ===
+// === 通知 ===
 const TOAST_COLORS = { success: '#22c55e', error: '#ef4444', warning: '#f59e0b', info: '#3b82f6' }
 
 function Toast({ message, type, onDone, index }) {
@@ -367,7 +367,7 @@ function Toast({ message, type, onDone, index }) {
   )
 }
 
-// === Modal Overlay ===
+// === 遮罩层 ===
 function ModalOverlay({ children, onClose, closeOnOverlayClick = false }) {
   const handleOverlayClick = (e) => {
     if (closeOnOverlayClick && e.target === e.currentTarget) {
@@ -381,7 +381,7 @@ function ModalOverlay({ children, onClose, closeOnOverlayClick = false }) {
   )
 }
 
-// === Shared Styles ===
+// === 共享样式 ===
 const iconContainerStyle = {
   width: 56, height: 56, borderRadius: 12, marginBottom: 10,
   display: 'flex', alignItems: 'center', justifyContent: 'center'
@@ -392,7 +392,7 @@ const textEllipsisStyle = {
   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
 }
 
-// === Breadcrumb Generator ===
+// === 面包屑生成器 ===
 function generateBreadcrumbs(currentPath) {
   if (!currentPath) return []
   return [
@@ -404,13 +404,13 @@ function generateBreadcrumbs(currentPath) {
   ]
 }
 
-// === Refresh Handler Factory ===
+// === 刷新处理器工厂 ===
 const createRefreshHandler = (setter, apiMethod) => async () => {
   try { setter(await apiMethod()) }
   catch (err) { console.error(err) }
 }
 
-// === File Card ===
+// === 文件卡片 ===
 function FileCard({ file, isSelected, isDarkMode, onSelect, onPreview }) {
   const bgSecondary = isDarkMode ? '#1e293b' : '#ffffff'
   const accentBlue = isDarkMode ? '#60a5fa' : '#3b82f6'
@@ -447,7 +447,7 @@ function FileCard({ file, isSelected, isDarkMode, onSelect, onPreview }) {
   )
 }
 
-// === Folder Card ===
+// === 文件夹卡片 ===
 function FolderCard({ folder, isDarkMode, onClick }) {
   const bgSecondary = isDarkMode ? '#1e293b' : '#ffffff'
   const borderColor = isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'
@@ -474,7 +474,7 @@ function FolderCard({ folder, isDarkMode, onClick }) {
   )
 }
 
-// === Confirm Modal ===
+// === 确认弹窗 ===
 function ConfirmModal({ title, message, confirmText, onConfirm, onClose, danger, isDarkMode, closeOnOverlayClick }) {
   const bgSecondary = isDarkMode ? '#1e293b' : '#ffffff'
   const bgTertiary = isDarkMode ? '#334155' : '#f1f5f9'
@@ -497,7 +497,7 @@ function ConfirmModal({ title, message, confirmText, onConfirm, onClose, danger,
   )
 }
 
-// === Input Modal ===
+// === 输入弹窗 ===
 function InputModal({ title, placeholder, defaultValue, confirmText, onConfirm, onClose, isDarkMode, isLoading, loadingText }) {
   const [value, setValue] = useState(defaultValue || '')
   const bgSecondary = isDarkMode ? '#1e293b' : '#ffffff'
@@ -528,7 +528,7 @@ function InputModal({ title, placeholder, defaultValue, confirmText, onConfirm, 
   )
 }
 
-// === Move Modal ===
+// === 移动弹窗 ===
 function MoveModal({ items, allFolders, currentPath, isDarkMode, onMove, onClose }) {
   const [targetPath, setTargetPath] = useState('')
   const bgSecondary = isDarkMode ? '#1e293b' : '#ffffff'
@@ -608,7 +608,7 @@ function MoveModal({ items, allFolders, currentPath, isDarkMode, onMove, onClose
   )
 }
 
-// === Main App ===
+// === 主应用 ===
 export default function App() {
   const [items, setItems] = useState([])
   const [trashItems, setTrashItems] = useState([])
@@ -838,7 +838,7 @@ export default function App() {
     for (const file of Array.from(files)) {
       const fileName = prefix + file.name
 
-      // Create transfer entry for progress tracking
+      // 创建传输条目用于进度跟踪
       const transferId = `upload_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
       const transfer = {
         id: transferId,
@@ -850,7 +850,7 @@ export default function App() {
       newTransfers.push(transfer)
       setTransfers(prev => [...prev, transfer])
 
-      // Open transfer panel if there are new transfers
+      // 有新传输时打开传输面板
       if (newTransfers.length > 0) {
         setIsTransferPanelOpen(true)
       }
@@ -858,13 +858,13 @@ export default function App() {
       try {
         const result = await API.publishFile(file, fileName)
         if (result.alreadyExists) {
-          // Update transfer status
+          // 更新传输状态
           setTransfers(prev => prev.map(t =>
             t.id === transferId ? { ...t, status: 'completed' } : t
           ))
           addToast(`${file.name} 已存在`, 'warning')
         } else {
-          // Update transfer status
+          // 更新传输状态
           setTransfers(prev => prev.map(t =>
             t.id === transferId ? { ...t, progress: 100, status: 'completed' } : t
           ))
@@ -878,7 +878,7 @@ export default function App() {
       }
     }
 
-    // Remove completed transfers after a delay
+    // 延迟移除已完成的传输
     setTimeout(() => {
       setTransfers(prev => prev.filter(t => t.status === 'uploading'))
     }, 3000)
@@ -965,7 +965,7 @@ export default function App() {
     if (transfer.type === 'download' && transfer.status === 'uploading') {
       try {
         await API.cancelDownload(transfer.id)
-        // The WebSocket will handle the 'download:cancelled' event
+        // WebSocket 会处理 'download:cancelled' 事件
       } catch (err) {
         addToast('取消失败', 'error')
       }
@@ -998,7 +998,7 @@ export default function App() {
     })
   }
 
-  // WebSocket
+  // WebSocket 连接
   useEffect(() => {
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
     const ws = new WebSocket(`${protocol}//${location.host}/ws`)
@@ -1018,17 +1018,17 @@ export default function App() {
             } else {
               addToast(`${data.fileName} 下载完成`, 'success')
             }
-            // Remove completed downloads after delay
+            // 延迟移除已完成的下载
             setTimeout(() => {
               setTransfers(prev => prev.filter(t => !(t.id === taskId && t.status === 'completed')))
             }, 3000)
           }
         }
-        // Handle publish/upload progress
+        // 处理发布/上传进度
         if (event === 'publish:progress') {
           setTransfers(prev => prev.map(t => {
             if (data.file && t.fileName === data.file && t.type === 'upload') {
-              // Calculate percent based on stage
+              // 根据阶段计算百分比
               let progress = 50
               if (data.stage === 'calculating-cid') progress = 25
               else if (data.stage === 'uploading') progress = 75
@@ -1038,26 +1038,26 @@ export default function App() {
             return t
           }))
         }
-        // Handle download progress
+        // 处理下载进度
         if (event === 'download:progress') {
           setTransfers(prev => prev.map(t =>
             t.id === data.taskId ? { ...t, progress: data.percent || 0, loaded: data.loaded, total: data.total } : t
           ))
         }
-        // Handle download error
+        // 处理下载错误
         if (event === 'download:error') {
           setTransfers(prev => prev.map(t =>
             t.id === data.taskId ? { ...t, status: 'error' } : t
           ))
           addToast(`下载失败: ${data.error}`, 'error')
         }
-        // Handle download status (includes filename when known)
+        // 处理下载状态（包含文件名）
         if (event === 'download:status') {
           setTransfers(prev => prev.map(t =>
             t.id === data.taskId ? { ...t, fileName: data.file || t.fileName } : t
           ))
         }
-        // Handle download cancelled
+        // 处理下载取消
         if (event === 'download:cancelled') {
           setTransfers(prev => prev.map(t =>
             t.id === data.taskId ? { ...t, status: 'cancelled' } : t
@@ -1069,7 +1069,7 @@ export default function App() {
     return () => ws.close()
   }, [])
 
-  // Init
+  // 初始化
   useEffect(() => {
     const saved = localStorage.getItem('theme')
     if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
@@ -1081,7 +1081,7 @@ export default function App() {
     API.getStorageStats().then(s => setStorageStats(s)).catch(() => { })
   }, [])
 
-  // Theme colors
+  // 主题颜色
   const bgPrimary = isDarkMode ? '#0f172a' : '#f8fafc'
   const bgSecondary = isDarkMode ? '#1e293b' : '#ffffff'
   const bgTertiary = isDarkMode ? '#334155' : '#f1f5f9'
@@ -1095,7 +1095,7 @@ export default function App() {
   const displayFiles = currentView === 'all' ? filteredFiles : currentView === 'starred' ? items.filter(i => i.starred) : []
   const displayFolders = currentView === 'starred' ? [] : folders
 
-  // Breadcrumb parts
+  // 面包屑部分
   const breadcrumbParts = generateBreadcrumbs(currentPath)
 
   return (
@@ -1108,7 +1108,7 @@ export default function App() {
         @keyframes toastSlideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
       `}</style>
 
-      {/* Sidebar */}
+      {/* 侧边栏 */}
       <div style={{ width: 200, background: bgTertiary, display: 'flex', flexDirection: 'column', borderRight: `1px solid ${borderColor}`, flexShrink: 0 }}>
         <div style={{ padding: '20px 16px', borderBottom: `1px solid ${borderColor}` }}>
           <h1 style={{ fontSize: 18, fontWeight: 700, color: accentBlue }}>Most.Box</h1>
@@ -1146,9 +1146,9 @@ export default function App() {
         </div>
       </div>
 
-      {/* Main Content */}
+      {/* 主内容区 */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        {/* Header */}
+        {/* 头部 */}
         <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', borderBottom: `1px solid ${borderColor}`, background: bgSecondary, gap: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <h2 style={{ fontSize: 16, fontWeight: 600 }}>{viewTitle}</h2>
@@ -1186,7 +1186,7 @@ export default function App() {
           </div>
         </header>
 
-        {/* Upload/Download */}
+        {/* 上传/下载 */}
         {currentView === 'all' && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: '16px 24px', position: 'relative' }}>
             <div onDragOver={(e) => { e.preventDefault(); setIsDraggingOverUpload(true) }} onDragLeave={() => setIsDraggingOverUpload(false)} onDrop={(e) => { e.preventDefault(); setIsDraggingOverUpload(false); processFiles(e.dataTransfer.files) }} style={{ border: `2px dashed ${isDraggingOverUpload ? '#3b82f6' : 'rgba(59,130,246,0.2)'}`, borderRadius: 12, padding: 20, textAlign: 'center', cursor: 'pointer', background: isDraggingOverUpload ? 'rgba(59,130,246,0.05)' : 'transparent', position: 'relative' }}>
@@ -1201,7 +1201,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Breadcrumb */}
+        {/* 面包屑 */}
         {currentView === 'all' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0 24px', fontSize: 12 }}>
             {currentPath ? (
@@ -1225,9 +1225,9 @@ export default function App() {
           </div>
         )}
 
-        {/* Content Grid */}
+        {/* 内容网格 */}
         <div style={{ flex: 1, padding: '12px 24px', overflow: 'auto' }}>
-          {/* Trash View */}
+          {/* 回收站视图 */}
           {currentView === 'trash' && (
             trashItems.length === 0 ? (
               <div style={{ textAlign: 'center', color: textMuted, padding: 48, fontSize: 13 }}>回收站是空的</div>
@@ -1257,7 +1257,7 @@ export default function App() {
             )
           )}
 
-          {/* All/Starred View */}
+          {/* 全部/收藏视图 */}
           {currentView !== 'trash' && (
             displayFiles.length === 0 && displayFolders.length === 0 ? (
               <div style={{ textAlign: 'center', color: textMuted, padding: 48, fontSize: 13 }}>
@@ -1279,7 +1279,7 @@ export default function App() {
 
 
 
-      {/* Confirm Modal */}
+      {/* 确认弹窗 */}
       {confirmModal && (
         <ConfirmModal
           title={confirmModal.title}
@@ -1293,7 +1293,7 @@ export default function App() {
         />
       )}
 
-      {/* Input Modal */}
+      {/* 输入弹窗 */}
       {inputModal && (
         <InputModal
           title={inputModal.title}
@@ -1306,7 +1306,7 @@ export default function App() {
         />
       )}
 
-      {/* Move Modal */}
+      {/* 移动弹窗 */}
       {isMoveModalOpen && (
         <MoveModal
           items={selectedIds.map(id => items.find(i => i.cid === id)).filter(Boolean)}
@@ -1318,7 +1318,7 @@ export default function App() {
         />
       )}
 
-      {/* Share Modal */}
+      {/* 分享弹窗 */}
       {shareItem && (
         <ModalOverlay onClose={() => setShareItem(null)}>
           <div style={{ width: 420, padding: 24, borderRadius: 16, background: bgSecondary, border: `1px solid ${borderColor}` }} onClick={e => e.stopPropagation()}>
@@ -1336,7 +1336,7 @@ export default function App() {
         </ModalOverlay>
       )}
 
-      {/* Download Modal */}
+      {/* 下载弹窗 */}
       {isDownloadModalOpen && (
         <ModalOverlay onClose={() => setIsDownloadModalOpen(false)}>
           <div style={{ width: 400, padding: 24, borderRadius: 16, background: bgSecondary, border: `1px solid ${borderColor}` }} onClick={e => e.stopPropagation()}>
@@ -1352,7 +1352,7 @@ export default function App() {
         </ModalOverlay>
       )}
 
-      {/* Preview Modal */}
+      {/* 预览弹窗 */}
       {previewItem && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }} onClick={() => setPreviewItem(null)}>
           <button onClick={() => setPreviewItem(null)} style={{ position: 'absolute', top: 20, right: 20, width: 36, height: 36, borderRadius: 10, border: 'none', background: 'rgba(255,255,255,0.1)', cursor: 'pointer', color: '#fff' }}><X size={20} /></button>
@@ -1364,7 +1364,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Batch Actions Bar */}
+      {/* 批量操作栏 */}
       {selectedIds.length > 0 && (
         <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', borderRadius: 12, background: bgSecondary, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', border: `1px solid ${borderColor}`, zIndex: 100 }}>
           <span style={{ fontSize: 12, color: textSecondary }}>已选 {selectedIds.length} 项</span>
@@ -1411,7 +1411,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Transfer Panel */}
+      {/* 传输面板 */}
       {isTransferPanelOpen && (
         <ModalOverlay onClose={() => setIsTransferPanelOpen(false)}>
           <div style={{ width: 380, maxHeight: '70vh', padding: 24, borderRadius: 16, background: bgSecondary, border: `1px solid ${borderColor}`, overflow: 'auto' }} onClick={e => e.stopPropagation()}>
@@ -1460,17 +1460,17 @@ export default function App() {
         </ModalOverlay>
       )}
 
-      {/* Toasts */}
+      {/* 通知列表 */}
       {toasts.map((t, i) => <Toast key={t.id} message={t.message} type={t.type} onDone={() => removeToast(t.id)} index={i} />)}
 
-      {/* Welcome Guide */}
+      {/* 引导页 */}
       {showWelcome && <WelcomeGuide onClose={handleCloseWelcome} onShutdown={() => {
         fetch('/api/shutdown', { method: 'POST' })
         addToast('服务已关闭，请重新启动应用', 'info')
         handleCloseWelcome()
       }} />}
 
-      {/* Settings Modal */}
+      {/* 设置弹窗 */}
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} addToast={addToast} isDarkMode={isDarkMode} handleShutdown={handleShutdown} />}
     </div>
   )
