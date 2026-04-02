@@ -25,7 +25,8 @@ export class MostBoxEngine extends EventEmitter {
   #trashFiles = []
   #initialized = false
   #options = null
-  #activeDownloads = new Map() // taskId -> { 已中止, 读取流, 写入流 }
+  #activeDownloads = new Map()
+  #drivePromises = new Map()
 
   /**
    * 创建新的 MostBoxEngine 实例
@@ -159,9 +160,7 @@ export class MostBoxEngine extends EventEmitter {
     }
 
     // 关闭所有驱动器
-    for (const drive of this.#drives.values()) {
-      await drive.close()
-    }
+    await Promise.allSettled([...this.#drives.values()].map(d => d.close()))
     this.#drives.clear()
 
     // 销毁 swarm
@@ -251,12 +250,9 @@ export class MostBoxEngine extends EventEmitter {
 
     const name = `drive-${hashHex}`
     let drive = this.#drives.get(name)
-    
+
     if (!drive) {
-      drive = new Hyperdrive(this.#store.namespace(name))
-      await drive.ready()
-      this.#drives.set(name, drive)
-      
+      drive = await this.#getOrCreateDrive(name, { server: true, client: false })
       const discovery = this.#swarm.join(drive.discoveryKey, { server: true, client: false })
       await discovery.flushed()
     }
@@ -266,27 +262,28 @@ export class MostBoxEngine extends EventEmitter {
     const ws = drive.createWriteStream(safeFileName)
 
     if (Buffer.isBuffer(content)) {
-      // 分块流式传输 Buffer 以避免超过 Hyperdrive 块大小限制
-      const CHUNK_SIZE = 64 * 1024 // 64KB 块
+      const CHUNK_SIZE = 64 * 1024
       let offset = 0
-
       const waitForDrain = () => new Promise(resolve => ws.once('drain', resolve))
 
-      while (offset < content.length) {
-        const chunk = content.slice(offset, offset + CHUNK_SIZE)
-        const canContinue = ws.write(chunk)
-        offset += chunk.length
-
-        if (!canContinue && offset < content.length) {
-          await waitForDrain()
+      try {
+        while (offset < content.length) {
+          const chunk = content.slice(offset, offset + CHUNK_SIZE)
+          const canContinue = ws.write(chunk)
+          offset += chunk.length
+          if (!canContinue && offset < content.length) {
+            await waitForDrain()
+          }
         }
+        ws.end()
+        await new Promise((resolve, reject) => {
+          ws.on('finish', resolve)
+          ws.on('error', reject)
+        })
+      } catch (err) {
+        ws.destroy()
+        throw err
       }
-
-      ws.end()
-      await new Promise((resolve, reject) => {
-        ws.on('finish', resolve)
-        ws.on('error', reject)
-      })
     } else {
       const rs = fs.createReadStream(cleanPath)
       await new Promise((resolve, reject) => {
@@ -376,17 +373,14 @@ export class MostBoxEngine extends EventEmitter {
       // 获取/创建驱动器
       const name = `drive-${hashHex}`
       let drive = this.#drives.get(name)
-      
+
       if (!drive) {
         console.log(`[MostBox] Creating new drive: ${name}`)
-        drive = new Hyperdrive(this.#store.namespace(name))
-        await drive.ready()
-        this.#drives.set(name, drive)
-        
+        drive = await this.#getOrCreateDrive(name, { server: true, client: true })
+
         this.emit('download:status', { taskId, status: 'connecting' })
-        
+
         console.log(`[MostBox] Joining swarm for drive discovery...`)
-        // 作为服务器和客户端加入以允许自我下载
         await this.#swarm.join(drive.discoveryKey, { server: true, client: true }).flushed()
         console.log(`[MostBox] Swarm join flushed`)
       } else {
@@ -475,10 +469,10 @@ export class MostBoxEngine extends EventEmitter {
         
         await new Promise((resolve, reject) => {
           rs.on('data', (chunk) => {
-            // 检查是否取消
             if (taskState.aborted) {
               rs.destroy()
               ws.destroy()
+              fs.unlink(savePath, () => {})
               reject(new Error('Download cancelled'))
               return
             }
@@ -723,7 +717,7 @@ export class MostBoxEngine extends EventEmitter {
         }
         
         // 离开此驱动器的 swarm
-        this.#swarm.leave(drive.discoveryKey)
+        await this.#swarm.leave(drive.discoveryKey)
         
         // 关闭并移除驱动器
         await drive.close()
@@ -901,9 +895,7 @@ export class MostBoxEngine extends EventEmitter {
 
     let drive = this.#drives.get(name)
     if (!drive) {
-      drive = new Hyperdrive(this.#store.namespace(name))
-      await drive.ready()
-      this.#drives.set(name, drive)
+      drive = await this.#getOrCreateDrive(name, { server: true, client: true })
       await this.#swarm.join(drive.discoveryKey, { server: true, client: true }).flushed()
     }
 
@@ -967,9 +959,7 @@ export class MostBoxEngine extends EventEmitter {
 
     let drive = this.#drives.get(name)
     if (!drive) {
-      drive = new Hyperdrive(this.#store.namespace(name))
-      await drive.ready()
-      this.#drives.set(name, drive)
+      drive = await this.#getOrCreateDrive(name, { server: true, client: true })
       await this.#swarm.join(drive.discoveryKey, { server: true, client: true }).flushed()
     }
 
@@ -1027,6 +1017,27 @@ export class MostBoxEngine extends EventEmitter {
   #ensureInitialized() {
     if (!this.#initialized) {
       throw new EngineNotInitializedError()
+    }
+  }
+
+  async #getOrCreateDrive(name, options = { server: true, client: false }) {
+    if (this.#drives.has(name)) return this.#drives.get(name)
+    if (this.#drivePromises.has(name)) return this.#drivePromises.get(name)
+
+    const promise = (async () => {
+      const drive = new Hyperdrive(this.#store.namespace(name))
+      await drive.ready()
+      this.#drives.set(name, drive)
+      return drive
+    })()
+
+    this.#drivePromises.set(name, promise)
+
+    try {
+      const drive = await promise
+      return drive
+    } finally {
+      this.#drivePromises.delete(name)
     }
   }
 

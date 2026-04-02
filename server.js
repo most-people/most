@@ -3,8 +3,9 @@ import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
 import { fileURLToPath } from 'node:url'
-import crypto from 'node:crypto'
-import { exec } from 'node:child_process'
+import { spawn } from 'node:child_process'
+import Busboy from 'busboy'
+import { WebSocketServer } from 'ws'
 import { MostBoxEngine } from './src/index.js'
 import { parseMostLink } from './src/core/cid.js'
 
@@ -12,9 +13,16 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = Number(process.env.MOSTBOX_PORT) || 1976
 const HOST = '127.0.0.1'
 
-const wsClients = new Set()
+const MAX_JSON_BODY_SIZE = 10 * 1024 * 1024 // 10MB
+const MAX_UPLOAD_SIZE = 100 * 1024 * 1024 * 1024 // 100GB
+
+const rateLimitMap = new Map()
+const RATE_LIMIT_WINDOW = 60 * 1000
+const RATE_LIMIT_MAX_REQUESTS = 120
+
 let engine = null
 let serverInstance = null
+let wss = null
 
 // --- 配置 ---
 const CONFIG_DIR = path.join(os.homedir(), '.most-box')
@@ -48,6 +56,23 @@ function saveConfig(config) {
 function getDataPath() {
   const config = loadConfig()
   return config.dataPath || path.join(os.homedir(), 'most-data')
+}
+
+// --- 速率限制 ---
+function checkRateLimit(clientIp) {
+  const now = Date.now()
+  if (!rateLimitMap.has(clientIp)) {
+    rateLimitMap.set(clientIp, [])
+  }
+  const requests = rateLimitMap.get(clientIp)
+  while (requests.length > 0 && requests[0] < now - RATE_LIMIT_WINDOW) {
+    requests.shift()
+  }
+  if (requests.length >= RATE_LIMIT_MAX_REQUESTS) {
+    return false
+  }
+  requests.push(now)
+  return true
 }
 
 // --- 静态文件服务 ---
@@ -102,113 +127,75 @@ function serveStatic(req, res) {
       return
     }
 
-    let content = data
-    if (ext === '.html') {
-      content = data.toString()
-    }
-
     res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' })
-    res.end(content)
+    res.end(data)
   })
 }
 
-// --- 流式 multipart 解析器，用于大文件上传 ---
-async function parseMultipart(req) {
-  const boundaryMatch = req.headers['content-type']?.match(/boundary=(?:"([^"]+)"|([^\s;]+))/)
-  if (!boundaryMatch) throw new Error('No boundary in content-type')
-  const boundary = boundaryMatch[1] || boundaryMatch[2]
-
-  const chunks = []
-  for await (const chunk of req) {
-    chunks.push(chunk)
-  }
-  const buffer = Buffer.concat(chunks)
-
-  const parts = []
-  const boundaryBuf = Buffer.from('--' + boundary)
-  let start = 0
-
-  while (true) {
-    const idx = buffer.indexOf(boundaryBuf, start)
-    if (idx === -1) break
-
-    if (start > 0) {
-      // 同时处理 \r\n 和 \n 换行符
-      let partStart = start
-      if (buffer[partStart] === 0x0d && buffer[partStart + 1] === 0x0a) {
-        partStart += 2
-      } else if (buffer[partStart] === 0x0a) {
-        partStart += 1
+// --- 用 busboy 解析 multipart ---
+function parseMultipartBusboy(req) {
+  return new Promise((resolve, reject) => {
+    const busboy = Busboy({
+      headers: req.headers,
+      limits: {
+        fileSize: MAX_UPLOAD_SIZE,
+        files: 1,
+        fields: 0
       }
+    })
 
-      let partEnd = idx - 1
-      if (buffer[partEnd] === 0x0a) {
-        partEnd--
-        if (buffer[partEnd] === 0x0d) {
-          partEnd--
+    const result = { file: null, filename: null, data: null }
+    let fileSize = 0
+
+    busboy.on('file', (name, stream, info) => {
+      result.file = stream
+      result.filename = info.filename
+      const chunks = []
+      stream.on('data', (chunk) => {
+        fileSize += chunk.length
+        if (fileSize > MAX_UPLOAD_SIZE) {
+          stream.destroy()
+          reject(new Error('File too large'))
+          return
         }
+        chunks.push(chunk)
+      })
+      stream.on('end', () => {
+        result.data = Buffer.concat(chunks)
+      })
+    })
+
+    busboy.on('error', (err) => reject(err))
+
+    busboy.on('close', () => {
+      if (result.file && result.filename && result.data !== null) {
+        resolve(result)
+      } else {
+        resolve(null)
       }
+    })
 
-      const partData = buffer.slice(partStart, partEnd + 1)
-
-      const headerEnd = partData.indexOf('\r\n\r\n')
-      const headerEndAlt = partData.indexOf('\n\n')
-
-      let headerEndIdx = -1
-      let bodyStart = -1
-
-      if (headerEnd !== -1) {
-        headerEndIdx = headerEnd
-        bodyStart = headerEnd + 4
-      } else if (headerEndAlt !== -1) {
-        headerEndIdx = headerEndAlt
-        bodyStart = headerEndAlt + 2
-      }
-
-      if (headerEndIdx !== -1) {
-        const headers = partData.slice(0, headerEndIdx).toString()
-        const body = partData.slice(bodyStart)
-
-        const nameMatch = headers.match(/name="([^"]+)"/)
-        const filenameMatch = headers.match(/filename="([^"]+)"/)
-        parts.push({
-          name: nameMatch?.[1],
-          filename: filenameMatch?.[1],
-          data: body,
-          headers
-        })
-      }
-    }
-
-    // 移动到 boundary 之后
-    start = idx + boundaryBuf.length
-    // 跳过 boundary 后的可选空白
-    while (start < buffer.length && (buffer[start] === 0x20 || buffer[start] === 0x09)) {
-      start++
-    }
-    // 跳过换行符
-    if (start < buffer.length && buffer[start] === 0x0d) {
-      start++
-    }
-    if (start < buffer.length && buffer[start] === 0x0a) {
-      start++
-    }
-  }
-
-  return parts
+    req.on('error', reject)
+    req.pipe(busboy)
+  })
 }
 
-// --- JSON 请求体解析器 ---
+// --- JSON 请求体解析器（带大小限制） ---
 async function parseJSON(req) {
   const chunks = []
+  let totalSize = 0
   for await (const chunk of req) {
+    totalSize += chunk.length
+    if (totalSize > MAX_JSON_BODY_SIZE) {
+      throw new Error('Request body too large')
+    }
     chunks.push(chunk)
   }
-  try {
-    return JSON.parse(Buffer.concat(chunks).toString())
-  } catch {
-    return {}
+  const text = Buffer.concat(chunks).toString()
+  if (!text.trim()) {
+    throw new Error('Empty request body')
   }
+  return JSON.parse(text)
 }
 
 // --- API 路由 ---
@@ -240,30 +227,30 @@ async function handleAPI(req, res) {
     if (pathname === '/api/config' && method === 'POST') {
       const body = await parseJSON(req)
       const config = loadConfig()
-      
+
       if (body.resetStorage) {
         config.dataPath = ''
       } else if (body.dataPath !== undefined) {
         let dataPath = body.dataPath.trim()
         let basePath = dataPath
-        
+
         if (dataPath.match(/^[A-Za-z]:\\$/)) {
           basePath = dataPath
           dataPath = path.join(dataPath, 'most-data')
         }
-        
+
         if (!fs.existsSync(basePath)) {
           json({ error: '目录不存在' }, 400)
           return
         }
-        
+
         if (!fs.existsSync(dataPath)) {
           fs.mkdirSync(dataPath, { recursive: true })
         }
-        
+
         config.dataPath = dataPath
       }
-      
+
       const success = saveConfig(config)
       json({ success, dataPath: getDataPath() })
       return
@@ -292,17 +279,16 @@ async function handleAPI(req, res) {
 
     // POST /api/publish — multipart 文件上传
     if (pathname === '/api/publish' && method === 'POST') {
-      const parts = await parseMultipart(req)
+      const result = await parseMultipartBusboy(req)
 
-      const filePart = parts.find(p => p.name === 'file')
-      if (!filePart || !filePart.filename) {
+      if (!result || !result.filename) {
         json({ error: 'No file provided' }, 400)
         return
       }
 
-      const result = await engine.publishFile(filePart.data, filePart.filename)
+      const publishResult = await engine.publishFile(result.data, result.filename)
 
-      json({ success: true, ...result })
+      json({ success: true, ...publishResult })
       return
     }
 
@@ -316,14 +302,12 @@ async function handleAPI(req, res) {
 
       const taskId = `dl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 
-      // 解析链接以检查文件是否已存在
       const parsed = parseMostLink(body.link)
       if (parsed.error) {
         json({ error: parsed.error }, 400)
         return
       }
 
-      // 检查文件是否已存在于已发布文件中
       const existingFile = engine.getPublishedFiles().find(f => f.cid === parsed.cid)
       if (existingFile) {
         console.log(`[MostBox] File already exists: ${existingFile.fileName}`)
@@ -331,7 +315,6 @@ async function handleAPI(req, res) {
         return
       }
 
-      // 异步下载 — 不阻塞 HTTP 响应
       engine.downloadFile(body.link, taskId).catch(err => {
         if (err.message === 'Download cancelled') {
           wsBroadcast('download:cancelled', { taskId })
@@ -364,7 +347,7 @@ async function handleAPI(req, res) {
       return
     }
 
-    // POST /api/move — 重命名/移动已发布文件（更改路径而不重新上传）
+    // POST /api/move — 重命名/移动已发布文件
     if (pathname === '/api/move' && method === 'POST') {
       const body = await parseJSON(req)
       if (!body.cid || !body.newFileName) {
@@ -380,7 +363,7 @@ async function handleAPI(req, res) {
       return
     }
 
-    // POST /api/folder/rename — 重命名文件夹（重命名其中的所有文件）
+    // POST /api/folder/rename — 重命名文件夹
     if (pathname === '/api/folder/rename' && method === 'POST') {
       const body = await parseJSON(req)
       if (!body.oldPath || !body.newPath) {
@@ -396,25 +379,24 @@ async function handleAPI(req, res) {
       return
     }
 
-    // GET /api/files/:cid/download — 内联服务文件以供预览/下载，支持 Range
+    // GET /api/files/:cid/download — 内联服务文件，支持 Range
     if (pathname.match(/^\/api\/files\/[^/]+\/download$/) && method === 'GET') {
       const cid = pathname.split('/')[3]
       const rangeHeader = req.headers['range']
-      
+
       try {
         if (rangeHeader) {
-          // 解析 Range 头，如 "bytes=0-1023" 或 "bytes=0-"
           const rangeMatch = rangeHeader.match(/bytes=(\d+)-(\d*)/)
           if (rangeMatch) {
             const start = parseInt(rangeMatch[1], 10)
             const end = rangeMatch[2] ? parseInt(rangeMatch[2], 10) : undefined
-            
+
             const offset = start
             const limit = end !== undefined ? end - start + 1 : undefined
-            
+
             const result = await engine.readFileRaw(cid, { offset, limit })
             const contentType = getMimeType(result.fileName)
-            
+
             res.writeHead(206, {
               'Content-Type': contentType,
               'Content-Length': result.buffer.length,
@@ -425,8 +407,7 @@ async function handleAPI(req, res) {
             return
           }
         }
-        
-        // 无 Range 请求或无效 Range，返回完整文件
+
         const result = await engine.readFileRaw(cid)
         const contentType = getMimeType(result.fileName)
         res.writeHead(200, {
@@ -446,8 +427,15 @@ async function handleAPI(req, res) {
       return
     }
 
-    // POST /api/shutdown — 优雅关闭服务器
+    // POST /api/shutdown — 优雅关闭服务器（仅允许 localhost Origin）
     if (pathname === '/api/shutdown' && method === 'POST') {
+      const origin = req.headers['origin'] || ''
+      const referer = req.headers['referer'] || ''
+      const allowedOrigin = `http://${HOST}:${PORT}`
+      if (origin && origin !== allowedOrigin && !referer.startsWith(allowedOrigin)) {
+        json({ error: 'Forbidden' }, 403)
+        return
+      }
       json({ success: true })
       console.log('[MostBox] Shutdown requested via API...')
       setTimeout(async () => {
@@ -518,72 +506,14 @@ async function handleAPI(req, res) {
   }
 }
 
-// --- 简易 WebSocket (RFC 6455) ---
-function upgradeToWebSocket(req, socket) {
-  const key = req.headers['sec-websocket-key']
-  if (!key) { socket.destroy(); return }
-
-  const MAGIC = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
-  const accept = crypto.createHash('sha1')
-    .update(key + MAGIC)
-    .digest('base64')
-
-  socket.write(
-    'HTTP/1.1 101 Switching Protocols\r\n' +
-    'Upgrade: websocket\r\n' +
-    'Connection: Upgrade\r\n' +
-    `Sec-WebSocket-Accept: ${accept}\r\n` +
-    '\r\n'
-  )
-
-  wsClients.add(socket)
-  socket.on('close', () => wsClients.delete(socket))
-  socket.on('error', () => wsClients.delete(socket))
-
-  socket.on('data', (buf) => {
-    if (buf.length < 2) return
-    const opcode = buf[0] & 0x0f
-    if (opcode === 0x8) {
-      wsClients.delete(socket)
-      socket.end()
-    }
-    if (opcode === 0x9) {
-      const pong = Buffer.from(buf)
-      pong[0] = (pong[0] & 0xf0) | 0xa
-      socket.write(pong)
-    }
-    if (opcode === 0x1 || opcode === 0x2) {
-      // 文本或二进制消息 - 如需要可广播给其他客户端
-    }
-  })
-}
-
 function wsBroadcast(event, data) {
   const payload = JSON.stringify({ event, data })
-  const buf = Buffer.from(payload)
-
-  let frame
-  if (buf.length < 126) {
-    frame = Buffer.alloc(2 + buf.length)
-    frame[0] = 0x81
-    frame[1] = buf.length
-    buf.copy(frame, 2)
-  } else if (buf.length < 65536) {
-    frame = Buffer.alloc(4 + buf.length)
-    frame[0] = 0x81
-    frame[1] = 126
-    frame.writeUInt16BE(buf.length, 2)
-    buf.copy(frame, 4)
-  } else {
-    frame = Buffer.alloc(10 + buf.length)
-    frame[0] = 0x81
-    frame[1] = 127
-    frame.writeBigUInt64BE(BigInt(buf.length), 2)
-    buf.copy(frame, 10)
-  }
-
-  for (const client of wsClients) {
-    try { client.write(frame) } catch {}
+  if (wss) {
+    wss.clients.forEach((client) => {
+      if (client.readyState === 1) {
+        try { client.send(payload) } catch {}
+      }
+    })
   }
 }
 
@@ -610,7 +540,16 @@ async function main() {
   console.log('[MostBox] Engine ready')
 
   serverInstance = http.createServer((req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*')
+    const clientIp = req.socket.remoteAddress || 'unknown'
+
+    if (!checkRateLimit(clientIp)) {
+      res.writeHead(429, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'Too many requests' }))
+      return
+    }
+
+    const allowedOrigin = `http://${HOST}:${PORT}`
+    res.setHeader('Access-Control-Allow-Origin', allowedOrigin)
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
 
@@ -621,15 +560,28 @@ async function main() {
     }
 
     if (req.url.startsWith('/api/')) {
-      handleAPI(req, res)
+      handleAPI(req, res).catch(err => {
+        console.error('[Unhandled API Error]', err)
+        if (!res.headersSent) {
+          res.writeHead(500, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ error: 'Internal server error' }))
+        }
+      })
     } else {
       serveStatic(req, res)
     }
   })
 
-  serverInstance.on('upgrade', (req, socket) => {
+  wss = new WebSocketServer({ noServer: true })
+  wss.on('connection', (ws) => {
+    ws.on('error', () => {})
+  })
+
+  serverInstance.on('upgrade', (req, socket, head) => {
     if (req.url.startsWith('/ws')) {
-      upgradeToWebSocket(req, socket)
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        wss.emit('connection', ws, req)
+      })
     } else {
       socket.destroy()
     }
@@ -639,20 +591,27 @@ async function main() {
     const url = `http://${HOST}:${PORT}`
     console.log(`[MostBox] Server running at ${url}`)
 
-    const cmd = process.platform === 'win32' ? 'start ""'
+    const cmd = process.platform === 'win32' ? 'start'
       : process.platform === 'darwin' ? 'open' : 'xdg-open'
-    exec(`${cmd} "${url}"`)
+    const args = process.platform === 'win32' ? ['""', url] : [url]
+    spawn(cmd, args, {
+      detached: true,
+      stdio: 'ignore',
+      shell: process.platform === 'win32'
+    }).unref()
   })
 
   process.on('SIGINT', async () => {
     console.log('\n[MostBox] Shutting down...')
     await engine.stop()
+    if (wss) wss.close()
     serverInstance.close()
     process.exit(0)
   })
 
   process.on('SIGTERM', async () => {
     await engine.stop()
+    if (wss) wss.close()
     serverInstance.close()
     process.exit(0)
   })

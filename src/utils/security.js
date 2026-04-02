@@ -29,7 +29,9 @@ export function sanitizeFilename(filename) {
   sanitized = sanitized.replace(DANGEROUS_PREFIXES, '')
   
   // 防止路径遍历
-  sanitized = sanitized.replace(/\.\./g, '_')
+  while (sanitized.includes('..')) {
+    sanitized = sanitized.replace(/\.\./g, '_')
+  }
   
   // 规范多个连续斜杠
   sanitized = sanitized.replace(/\/{2,}/g, '/')
