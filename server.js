@@ -132,12 +132,40 @@ function serveStatic(req, res) {
   })
 }
 
-// --- 用 busboy 解析 multipart ---
+function decodeFilenameFromHeader(headerStr) {
+  if (!headerStr) return null
+
+  const filenameStarMatch = headerStr.match(/filename\*=(?:UTF-8''|utf-8'')([^;\r\n]+)/i)
+  if (filenameStarMatch) {
+    return decodeURIComponent(filenameStarMatch[1])
+  }
+
+  const filenameMatch = headerStr.match(/filename="([^"]+)"/)
+  if (filenameMatch) {
+    const rawFilename = filenameMatch[1]
+    try {
+      const buf = Buffer.from(rawFilename, 'latin1')
+      const decoded = buf.toString('utf8')
+      if (decoded.includes('\ufffd')) {
+        return rawFilename
+      }
+      return decoded
+    } catch {
+      return rawFilename
+    }
+  }
+
+  const filenamePlainMatch = headerStr.match(/filename=([^;\r\n]+)/)
+  if (filenamePlainMatch) {
+    return filenamePlainMatch[1].trim()
+  }
+  return null
+}
+
 function parseMultipartBusboy(req) {
   return new Promise((resolve, reject) => {
     const busboy = Busboy({
       headers: req.headers,
-      defCharset: 'utf-8',
       limits: {
         fileSize: MAX_UPLOAD_SIZE,
         files: 1,
@@ -147,10 +175,28 @@ function parseMultipartBusboy(req) {
 
     const result = { file: null, filename: null, data: null }
     let fileSize = 0
+    let fileStream = null
+
+    busboy.on('part', (name, stream, info) => {
+      if (name === 'file') {
+        fileStream = stream
+        result.filename = decodeFilenameFromHeader(info)
+        result.file = stream
+
+        stream.on('data', (chunk) => {
+          fileSize += chunk.length
+          if (fileSize > MAX_UPLOAD_SIZE) {
+            stream.destroy()
+            reject(new Error('File too large'))
+            return
+          }
+        })
+      }
+    })
 
     busboy.on('file', (name, stream, info) => {
       result.file = stream
-      result.filename = info.filename
+      result.filename = decodeFilenameFromHeader(`filename="${info.filename}"`)
       const chunks = []
       stream.on('data', (chunk) => {
         fileSize += chunk.length
@@ -206,7 +252,7 @@ async function handleAPI(req, res) {
   const method = req.method
 
   const json = (data, status = 200) => {
-    res.writeHead(status, { 'Content-Type': 'application/json' })
+    res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' })
     res.end(JSON.stringify(data))
   }
 
