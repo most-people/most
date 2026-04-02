@@ -308,6 +308,7 @@ export class MostBoxEngine extends EventEmitter {
       this.#publishedFiles.push({
         fileName: safeFileName,
         cid: cidString,
+        driveName: name,
         publishedAt: new Date().toISOString(),
         starred: false
       })
@@ -524,6 +525,7 @@ export class MostBoxEngine extends EventEmitter {
           this.#publishedFiles.push({
             fileName: sanitizedFileName,
             cid: cidString,
+            driveName: name,
             publishedAt: new Date().toISOString(),
             starred: false
           })
@@ -595,6 +597,7 @@ export class MostBoxEngine extends EventEmitter {
       this.#trashFiles.push({
         fileName: fileRecord.fileName,
         cid: fileRecord.cid,
+        driveName: fileRecord.driveName,
         publishedAt: fileRecord.publishedAt,
         starred: fileRecord.starred || false,
         deletedAt: new Date().toISOString()
@@ -638,10 +641,15 @@ export class MostBoxEngine extends EventEmitter {
     
     const fileRecord = this.#trashFiles[index]
     
+    const parsedCid = CID.parse(fileRecord.cid)
+    const hashHex = b4a.toString(parsedCid.multihash.digest, 'hex')
+    const driveName = `drive-${hashHex}`
+    
     // 恢复到已发布文件列表
     this.#publishedFiles.push({
       fileName: fileRecord.fileName,
       cid: fileRecord.cid,
+      driveName,
       publishedAt: fileRecord.publishedAt,
       starred: fileRecord.starred || false
     })
@@ -665,10 +673,7 @@ export class MostBoxEngine extends EventEmitter {
     if (index !== -1) {
       const fileRecord = this.#trashFiles[index]
       
-      // 从 CID 重建驱动器名称
-      const parsedCid = CID.parse(cid)
-      const hashHex = b4a.toString(parsedCid.multihash.digest, 'hex')
-      const driveName = `drive-${hashHex}`
+      const driveName = fileRecord.driveName
       
       // 从 HyperDrive 删除文件并清理驱动器
       const drive = this.#drives.get(driveName)
@@ -702,10 +707,7 @@ export class MostBoxEngine extends EventEmitter {
     this.#ensureInitialized()
     
     for (const fileRecord of this.#trashFiles) {
-      // 从 CID 重建驱动器名称
-      const parsedCid = CID.parse(fileRecord.cid)
-      const hashHex = b4a.toString(parsedCid.multihash.digest, 'hex')
-      const driveName = `drive-${hashHex}`
+      const driveName = fileRecord.driveName
       
       // 从 HyperDrive 删除文件并清理驱动器
       const drive = this.#drives.get(driveName)
@@ -871,10 +873,9 @@ export class MostBoxEngine extends EventEmitter {
    * 读取已发布文件的内容（用于预览）
    * @param {string} cid - 文件的 CID
    * @param {number} [offset=0] - 读取起始位置
-   * @param {number} [limit=1000] - 最大读取字节数
-   * @returns {Promise<{content: string, hasMore: boolean}>}
+* @param {number} [limit=10000] - 最大读取字节数
    */
-  async readFileContent(cid, offset = 0, limit = 1000) {
+  async readFileContent(cid, offset = 0, limit = 10000) {
     this.#ensureInitialized()
 
     const fileRecord = this.#publishedFiles.find(f => f.cid === cid)
@@ -883,15 +884,7 @@ export class MostBoxEngine extends EventEmitter {
     }
 
     const safeFileName = fileRecord.fileName
-
-    let rootCid
-    try {
-      rootCid = CID.parse(cid)
-    } catch {
-      throw new Error('Invalid CID')
-    }
-    const hashHex = b4a.toString(rootCid.multihash.digest, 'hex')
-    const name = `drive-${hashHex}`
+    const name = fileRecord.driveName
 
     let drive = this.#drives.get(name)
     if (!drive) {
@@ -901,12 +894,8 @@ export class MostBoxEngine extends EventEmitter {
 
     let hasLocalContent = false
     try {
-      for await (const entry of drive.list()) {
-        if (entry.key === safeFileName || entry.key === '/' + safeFileName) {
-          hasLocalContent = true
-          break
-        }
-      }
+      const entry = await drive.entry(safeFileName)
+      hasLocalContent = !!(entry && entry.value)
     } catch {}
 
     if (!hasLocalContent) {
@@ -936,6 +925,7 @@ export class MostBoxEngine extends EventEmitter {
    * @param {object} [options] - 选项
    * @param {number} [options.offset=0] - 读取起始位置
    * @param {number} [options.limit] - 最大读取字节数，不指定则读取到末尾
+   * @param {number} [options.timeout=10000] - 流读取超时（毫秒）
    * @returns {Promise<{buffer: Buffer, fileName: string, totalSize: number}>}
    */
   async readFileRaw(cid, options = {}) {
@@ -947,15 +937,7 @@ export class MostBoxEngine extends EventEmitter {
     }
 
     const safeFileName = fileRecord.fileName
-
-    let rootCid
-    try {
-      rootCid = CID.parse(cid)
-    } catch {
-      throw new Error('Invalid CID')
-    }
-    const hashHex = b4a.toString(rootCid.multihash.digest, 'hex')
-    const name = `drive-${hashHex}`
+    const name = fileRecord.driveName
 
     let drive = this.#drives.get(name)
     if (!drive) {
@@ -965,12 +947,8 @@ export class MostBoxEngine extends EventEmitter {
 
     let hasLocalContent = false
     try {
-      for await (const entry of drive.list()) {
-        if (entry.key === safeFileName || entry.key === '/' + safeFileName) {
-          hasLocalContent = true
-          break
-        }
-      }
+      const entry = await drive.entry(safeFileName)
+      hasLocalContent = !!(entry && entry.value)
     } catch {}
 
     if (!hasLocalContent) {
@@ -981,7 +959,6 @@ export class MostBoxEngine extends EventEmitter {
       }
     }
 
-    // 获取文件总大小
     let totalSize = 0
     try {
       const stat = await drive.entry(safeFileName)
@@ -990,23 +967,39 @@ export class MostBoxEngine extends EventEmitter {
       }
     } catch {}
 
-    // 读取指定范围
-    const { offset = 0, limit } = options
-    const chunks = []
-    
-    if (limit !== undefined && limit !== null) {
-      // 读取指定范围
-      const stream = drive.createReadStream(safeFileName, { start: offset, end: offset + limit - 1 })
-      for await (const chunk of stream) {
-        chunks.push(chunk)
-      }
-    } else {
-      // 读取从 offset 到末尾的所有数据
-      const stream = drive.createReadStream(safeFileName, { start: offset })
-      for await (const chunk of stream) {
-        chunks.push(chunk)
-      }
+    const { offset = 0, limit, timeout = 10000 } = options
+    const effectiveLimit = (limit === undefined || limit === null)
+      ? totalSize - offset
+      : Math.min(limit, totalSize - offset)
+
+    if (effectiveLimit <= 0) {
+      return { buffer: Buffer.alloc(0), fileName: safeFileName, totalSize }
     }
+
+    const chunks = []
+    const stream = drive.createReadStream(safeFileName, {
+      start: offset,
+      end: offset + effectiveLimit - 1
+    })
+
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Stream read timeout')), timeout)
+    })
+
+    const readPromise = (async () => {
+      try {
+        for await (const chunk of stream) {
+          chunks.push(chunk)
+        }
+      } catch (err) {
+        if (err.message !== 'Stream read timeout') {
+          throw err
+        }
+      }
+    })()
+
+    await Promise.race([readPromise, timeoutPromise])
+    await readPromise.catch(() => {})
 
     const buffer = Buffer.concat(chunks)
     return { buffer, fileName: safeFileName, totalSize }

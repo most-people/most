@@ -591,14 +591,18 @@ async function main() {
     const url = `http://${HOST}:${PORT}`
     console.log(`[MostBox] Server running at ${url}`)
 
-    const cmd = process.platform === 'win32' ? 'start'
-      : process.platform === 'darwin' ? 'open' : 'xdg-open'
-    const args = process.platform === 'win32' ? ['""', url] : [url]
-    spawn(cmd, args, {
-      detached: true,
-      stdio: 'ignore',
-      shell: process.platform === 'win32'
-    }).unref()
+    if (process.platform === 'win32') {
+      spawn('cmd.exe', ['/c', 'start', '', url], {
+        detached: true,
+        stdio: 'ignore'
+      }).unref()
+    } else {
+      const cmd = process.platform === 'darwin' ? 'open' : 'xdg-open'
+      spawn(cmd, [url], {
+        detached: true,
+        stdio: 'ignore'
+      }).unref()
+    }
   })
 
   process.on('SIGINT', async () => {

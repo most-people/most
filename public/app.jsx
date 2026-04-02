@@ -3,7 +3,7 @@ import {
   Upload, Sun, Moon, Image as ImageIcon, Trash2, Folder,
   Film, Music, ChevronRight, FileText,
   X, Check, Copy, Download, ArrowUpDown, Star, Files, HardDrive, Search, Info,
-  FolderOpen, Power, Edit2, Menu, Eye
+  FolderOpen, Power, Edit2, Menu, Eye, Loader
 } from 'lucide-react'
 
 // === 接口 ===
@@ -525,8 +525,8 @@ function MoveModal({ items, allFolders, currentPath, isDarkMode, onMove, onClose
             const relativePath = f.path.substring(prefix.length)
             return !relativePath.includes('/')
           }).length === 0 && (
-            <p style={{ fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center', padding: 16 }}>该目录下没有子文件夹</p>
-          )}
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center', padding: 16 }}>该目录下没有子文件夹</p>
+            )}
           {allFolders.filter(f => {
             if (targetPath === '') {
               return !f.path.includes('/')
@@ -590,11 +590,10 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [previewText, setPreviewText] = useState('')
   const [previewLoading, setPreviewLoading] = useState(false)
-  const [previewOffset, setPreviewOffset] = useState(0)
-  const [previewHasMore, setPreviewHasMore] = useState(true)
   const [previewMediaLoading, setPreviewMediaLoading] = useState(false)
   const [previewLoaded, setPreviewLoaded] = useState(false)
   const previewMediaRef = useRef(null)
+  const previewTextRef = useRef(null)
 
   useEffect(() => {
     if (previewItem && (previewItem.subtype === 'image' || previewItem.subtype === 'video')) {
@@ -603,8 +602,6 @@ export default function App() {
     }
     if (previewItem && previewItem.subtype === 'text') {
       setPreviewText('')
-      setPreviewOffset(0)
-      setPreviewHasMore(true)
       loadPreviewText(previewItem.cid)
     }
   }, [previewItem?.cid])
@@ -893,19 +890,17 @@ export default function App() {
     refreshStorageStats()
   }
 
-  const loadPreviewText = async (cid, offset = 0, append = false) => {
+  const loadPreviewText = async (cid) => {
     setPreviewLoading(true)
     try {
       const res = await fetch(`/api/files/${cid}/download`, {
-        headers: { 'Range': `bytes=${offset}-${offset + 999}` }
+        headers: { 'Range': 'bytes=0-9999' }
       })
       if (!res.ok) throw new Error('加载失败')
       const text = await res.text()
-      setPreviewText(prev => append ? prev + text : text)
-      setPreviewHasMore(text.length === 1000)
-      setPreviewOffset(offset + text.length)
+      setPreviewText(text || '（文件为空）')
     } catch {
-      setPreviewText(prev => append ? prev : '加载失败')
+      setPreviewText('加载失败')
     }
     setPreviewLoading(false)
   }
@@ -1331,17 +1326,23 @@ export default function App() {
           <div onClick={e => e.stopPropagation()}>
             {previewItem.subtype === 'image' && (
               <div className="preview-media-wrapper">
-                {previewMediaLoading && <div className="preview-loading"><div className="preview-loading-spinner" /></div>}
                 <img ref={previewMediaRef} src={API.getFileDownloadUrl(previewItem.cid)} alt="" />
               </div>
             )}
             {previewItem.subtype === 'video' && (
               <div className="preview-media-wrapper">
-                {previewMediaLoading && <div className="preview-loading"><div className="preview-loading-spinner" /></div>}
                 <video ref={previewMediaRef} src={API.getFileDownloadUrl(previewItem.cid)} controls />
               </div>
             )}
-            {previewItem.subtype === 'audio' && <div className="preview-audio"><Music size={48} color="#fff" style={{ marginBottom: 12 }} /><audio src={API.getFileDownloadUrl(previewItem.cid)} controls /></div>}
+            {previewItem.subtype === 'audio' && (
+              <div className="preview-audio">
+                <div className="preview-audio-icon">
+                  <Music size={36} color="var(--accent-blue)" />
+                </div>
+                <p className="preview-audio-filename">{previewItem.fileName}</p>
+                <audio className="preview-audio-player" src={API.getFileDownloadUrl(previewItem.cid)} controls />
+              </div>
+            )}
             {previewItem.subtype === 'file' && (
               <div className="preview-unsupported">
                 <FileText size={48} color="#fff" style={{ marginBottom: 12, opacity: 0.5 }} />
@@ -1353,17 +1354,16 @@ export default function App() {
               <div className="preview-text-container">
                 <div className="preview-text-header">
                   <span>{previewItem.fileName}</span>
-                  {previewHasMore && (
-                    <button
-                      onClick={() => loadPreviewText(previewItem.cid, previewOffset, true)}
-                      disabled={previewLoading}
-                      className="btn small"
-                    >
-                      {previewLoading ? '加载中...' : '加载更多'}
-                    </button>
-                  )}
                 </div>
-                <pre className="preview-text">{previewLoading && !previewText ? '加载中...' : previewText}</pre>
+                {previewLoading ? (
+                  <div className="preview-text-loading">
+                    <Loader size={24} className="preview-text-spinner" />
+                    <p>正在加载文本预览...</p>
+                    <p className="preview-text-loading-hint">如果是首次预览，可能需要等待 P2P 网络同步</p>
+                  </div>
+                ) : (
+                  <pre className="preview-text">{previewText || '（文件为空）'}</pre>
+                )}
               </div>
             )}
           </div>
@@ -1394,7 +1394,10 @@ export default function App() {
             </>
           ) : (
             <>
-              {selectedIds.length === 1 && (
+              {selectedIds.length === 1 && (() => {
+                const file = items.find(i => i.cid === selectedIds[0])
+                return file && getFileSubtype(file.fileName) !== 'file'
+              })() && (
                 <button onClick={() => {
                   const file = items.find(i => i.cid === selectedIds[0])
                   if (file) {
@@ -1405,7 +1408,7 @@ export default function App() {
                     if (subtype === 'text') loadPreviewText(file.cid)
                   }
                 }} className="btn small">
-                  <Eye size={14} /> 预览
+                  预览
                 </button>
               )}
               <button onClick={() => {
