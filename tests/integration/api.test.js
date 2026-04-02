@@ -339,6 +339,31 @@ describe('HTTP API (integration)', { timeout: 60000 }, () => {
 
       assert.strictEqual(res.status, 400)
     })
+
+    it('handles Chinese filename in multipart form', async () => {
+      const boundary = '----TestBoundary456'
+      const body = [
+        `--${boundary}`,
+        'Content-Disposition: form-data; name="file"; filename="测试文件.txt"',
+        'Content-Type: text/plain',
+        '',
+        'hello world from Chinese filename test',
+        `--${boundary}--`
+      ].join('\r\n')
+
+      const res = await fetch(`${baseUrl}/api/publish`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': `multipart/form-data; boundary=${boundary}`
+        },
+        body
+      })
+
+      const data = await res.json()
+      assert.strictEqual(res.status, 200)
+      assert.ok(data.success)
+      assert.strictEqual(data.fileName, '测试文件.txt')
+    })
   })
 
   describe('POST /api/download', () => {
