@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import {
   Upload, Sun, Moon, Image as ImageIcon, Trash2, Folder,
-  FolderPlus, Film, Music, ChevronRight, FileText,
+  Film, Music, ChevronRight, FileText,
   X, Check, Copy, Download, ArrowUpDown, Star, Files, HardDrive, Search, Info,
   FolderOpen, Power, Edit2, Menu, Eye
 } from 'lucide-react'
@@ -472,8 +472,14 @@ function InputModal({ title, placeholder, defaultValue, confirmText, onConfirm, 
 // === 移动弹窗 ===
 function MoveModal({ items, allFolders, currentPath, isDarkMode, onMove, onClose }) {
   const [targetPath, setTargetPath] = useState('')
+  const [customPath, setCustomPath] = useState(currentPath)
 
   const breadcrumbParts = generateBreadcrumbs(targetPath)
+
+  const handleConfirm = () => {
+    const finalPath = targetPath || customPath.trim()
+    onMove(finalPath)
+  }
 
   return (
     <ModalOverlay onClose={onClose}>
@@ -483,14 +489,26 @@ function MoveModal({ items, allFolders, currentPath, isDarkMode, onMove, onClose
           <button onClick={onClose} className="modal-close-btn"><X size={18} /></button>
         </div>
         <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>已选 {items.length} 个项目</p>
+        <div className="move-new-folder">
+          <input
+            type="text"
+            value={customPath}
+            onChange={(e) => setCustomPath(e.target.value)}
+            placeholder="输入路径创建嵌套文件夹"
+          />
+        </div>
+        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>如 folder/subfolder</p>
         <div className="move-breadcrumb">
           {breadcrumbParts.map((part, i) => (
             <React.Fragment key={part.path}>
               {i > 0 && <span style={{ color: 'var(--text-secondary)' }}>/</span>}
               <button
                 key={part.path}
-                onClick={() => setTargetPath(part.path)}
-                className={`move-breadcrumb-btn ${targetPath === part.path ? 'active' : ''}`}
+                onClick={() => {
+                  setTargetPath(part.path)
+                  setCustomPath(part.path)
+                }}
+                className={`move-breadcrumb-btn ${targetPath === part.path && !customPath ? 'active' : ''}`}
               >
                 {part.name}
               </button>
@@ -498,14 +516,30 @@ function MoveModal({ items, allFolders, currentPath, isDarkMode, onMove, onClose
           ))}
         </div>
         <div className="move-folder-list">
-          {allFolders.filter(f => f.path.startsWith(targetPath + (targetPath ? '/' : ''))).length === 0 && targetPath !== '' && (
+          {allFolders.filter(f => {
+            if (targetPath === '') {
+              return !f.path.includes('/')
+            }
+            const prefix = targetPath + '/'
+            if (!f.path.startsWith(prefix)) return false
+            const relativePath = f.path.substring(prefix.length)
+            return !relativePath.includes('/')
+          }).length === 0 && (
             <p style={{ fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center', padding: 16 }}>该目录下没有子文件夹</p>
           )}
-          {allFolders.filter(f => f.path.startsWith(targetPath + (targetPath ? '/' : ''))).map(folder => (
+          {allFolders.filter(f => {
+            if (targetPath === '') {
+              return !f.path.includes('/')
+            }
+            const prefix = targetPath + '/'
+            if (!f.path.startsWith(prefix)) return false
+            const relativePath = f.path.substring(prefix.length)
+            return !relativePath.includes('/')
+          }).map(folder => (
             <button
               key={folder.path}
               onClick={() => setTargetPath(folder.path)}
-              className={`move-folder-item ${targetPath === folder.path ? 'selected' : ''}`}
+              className={`move-folder-item ${targetPath === folder.path && !customPath ? 'selected' : ''}`}
             >
               <Folder size={16} />
               <span>{folder.name}</span>
@@ -515,8 +549,7 @@ function MoveModal({ items, allFolders, currentPath, isDarkMode, onMove, onClose
         <div className="modal-actions">
           <button onClick={onClose} className="btn secondary">取消</button>
           <button
-            onClick={() => onMove(targetPath)}
-            disabled={targetPath === currentPath}
+            onClick={handleConfirm}
             className="btn primary"
           >
             移动
@@ -804,6 +837,13 @@ export default function App() {
     for (const file of Array.from(files)) {
       const fileName = prefix + file.name
 
+      // 检查完整路径是否已存在
+      const nameExists = items.some(item => item.fileName === fileName)
+      if (nameExists) {
+        addToast(`${file.name} 已存在`, 'warning')
+        continue
+      }
+
       // 创建传输条目用于进度跟踪
       const transferId = `upload_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
       const transfer = {
@@ -846,7 +886,7 @@ export default function App() {
 
     // 延迟移除已完成的传输
     setTimeout(() => {
-      setTransfers(prev => prev.filter(t => t.status === 'uploading'))
+      setTransfers(prev => prev.filter(t => t.status !== 'completed' && t.status !== 'error' && t.status !== 'cancelled'))
     }, 3000)
 
     refreshFiles()
@@ -868,38 +908,6 @@ export default function App() {
       setPreviewText(prev => append ? prev : '加载失败')
     }
     setPreviewLoading(false)
-  }
-
-  const createNewFolder = () => {
-    setInputModal({
-      title: '新建文件夹',
-      placeholder: '请输入文件夹名称',
-      confirmText: '创建',
-      onConfirm: async (folderPath) => {
-        setInputLoading(true)
-        try {
-          const exists = items.some(f =>
-            f.fileName === folderPath ||
-            f.fileName.startsWith(folderPath + '/')
-          )
-          if (exists) {
-            addToast('文件夹已存在', 'warning')
-            setInputLoading(false)
-            return
-          }
-          const randomContent = Math.random().toString(36).substring(2, 10)
-          const content = new File([randomContent], 'hello.txt', { type: 'text/plain' })
-          await API.publishFile(content, `${folderPath}/hello.txt`)
-          addToast('文件夹已创建', 'success')
-          refreshFiles()
-          setInputModal(null)
-        } catch {
-          addToast('创建失败', 'error')
-        } finally {
-          setInputLoading(false)
-        }
-      }
-    })
   }
 
   const handleCopyLink = () => {
@@ -1149,9 +1157,6 @@ export default function App() {
               <ArrowUpDown size={16} />
               {transfers.length > 0 && <span className="icon-btn-badge">{transfers.length}</span>}
             </button>
-            <button onClick={createNewFolder} className="icon-btn accent">
-              <FolderPlus size={16} />
-            </button>
             <button onClick={() => setIsDarkMode(!isDarkMode)} className="icon-btn theme-toggle">
               {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
             </button>
@@ -1373,7 +1378,14 @@ export default function App() {
           <div className="batch-divider" />
           {currentView === 'trash' ? (
             <>
-              <button onClick={() => selectedIds.forEach(cid => handleRestore(cid))} className="btn small">
+              <button onClick={async () => {
+                await Promise.all(selectedIds.map(cid => API.restoreTrashFile(cid)))
+                setSelectedIds([])
+                addToast('已恢复', 'success')
+                refreshFiles()
+                refreshTrash()
+                refreshStorageStats()
+              }} className="btn small">
                 恢复
               </button>
               <button onClick={handleBatchDelete} className="btn small danger">
