@@ -1,37 +1,37 @@
-# Changelog
+# 更新日志
 
-All notable changes to this project will be documented in this file.
+本项目所有重要变更将记录在此文件中。
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+格式遵循 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)，
+版本遵循 [语义化版本](https://semver.org/spec/v2.0.0.html)。
 
-## [Unreleased]
+## [未发布]
 
-### Added
-- GitHub Actions CI/CD workflows for automated testing and building
-- GitHub Actions Release workflow for npm auto-publishing on tags
-- GitHub Issue templates (Bug Report, Feature Request)
-- GitHub Pull Request template
-- CONTRIBUTING.md with contribution guidelines
-- CODE_OF_CONDUCT.md based on Contributor Covenant v2.0
-- Dockerfile for containerized deployment
-- docker-compose.yml for local development environment
+### 新增
+- GitHub Actions CI/CD 工作流，用于自动化测试和构建
+- GitHub Actions Release 工作流，支持标签触发 npm 自动发布
+- GitHub Issue 模板（Bug 报告、功能请求）
+- GitHub Pull Request 模板
+- CONTRIBUTING.md 贡献指南
+- CODE_OF_CONDUCT.md，基于贡献者公约 v2.0
+- Dockerfile 用于容器化部署
+- docker-compose.yml 用于本地开发环境
 
-### Changed
-- Updated Node.js version support in CI (now tests on 18, 20, 22)
+### 变更
+- 更新 CI 中的 Node.js 版本支持（现测试 18、20、22）
 
 ## [0.0.1] - 2026-01-01
 
-### Added
-- Initial release
-- P2P file sharing using Hyperswarm/Hyperdrive
-- Deterministic CID v1 file publishing
-- Large file streaming support (GB+ files)
-- CID integrity verification
-- Custom `most://` link format for sharing
-- Web UI built with React
-- Command-line interface
-- Unit and integration tests
+### 新增
+- 首次发布
+- 基于 Hyperswarm/Hyperdrive 的 P2P 文件分享
+- 确定性 CID v1 文件发布
+- 大文件流式传输支持（GB 级以上）
+- CID 完整性验证
+- 自定义 `most://` 链接格式用于分享
+- 基于 React 的 Web UI
+- 命令行界面
+- 单元测试与集成测试
 
-[unreleased]: https://github.com/most-people/most/compare/v0.0.1...HEAD
+[未发布]: https://github.com/most-people/most/compare/v0.0.1...HEAD
 [0.0.1]: https://github.com/most-people/most/releases/tag/v0.0.1
