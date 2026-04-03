@@ -332,16 +332,13 @@ function SettingsModal({ onClose, addToast, isDarkMode, handleShutdown }) {
           <p style={{ fontSize: 12, textAlign: 'center', color: 'var(--text-secondary)' }}>Hyperswarm · Hyperdrive · IPFS</p>
         </div>
 
-        <button onClick={() => { onClose(); handleShutdown(); }} className="btn danger" style={{ marginTop: 20 }}>
+        <button onClick={() => { onClose(); handleShutdown(); }} className="btn danger full" style={{ marginTop: 20 }}>
           <Power size={16} /> 关闭服务
         </button>
       </div>
     </ModalOverlay>
   )
 }
-
-// === 通知 ===
-const TOAST_COLORS = { success: '#22c55e', error: '#ef4444', warning: '#f59e0b', info: '#3b82f6' }
 
 function Toast({ message, type, onDone, index }) {
   useEffect(() => {
@@ -958,6 +955,37 @@ export default function App() {
     }
   }
 
+  const handleSaveAs = async (file) => {
+    try {
+      const res = await fetch(API.getFileDownloadUrl(file.cid))
+      if (!res.ok) throw new Error('获取文件失败')
+      const blob = await res.blob()
+      if (window.showSaveFilePicker) {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: file.fileName
+        })
+        const writable = await handle.createWritable()
+        await writable.write(blob)
+        await writable.close()
+        addToast('文件已保存', 'success')
+      } else {
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = file.fileName
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+        addToast('文件已下载', 'success')
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        addToast('保存失败: ' + err.message, 'error')
+      }
+    }
+  }
+
   const handleNavigate = (path) => {
     setCurrentFolderId(path || null)
     setSelectedIds([])
@@ -1440,6 +1468,12 @@ export default function App() {
               <button onClick={handleBatchDelete} className="btn small danger">删除</button>
               {selectedIds.length === 1 && (
                 <button onClick={() => setShareItem(items.find(i => i.cid === selectedIds[0]))} className="btn small">分享</button>
+              )}
+              {selectedIds.length === 1 && (
+                <button onClick={() => {
+                  const file = items.find(i => i.cid === selectedIds[0])
+                  if (file) handleSaveAs(file)
+                }} className="btn small">另存为</button>
               )}
             </>
           )}
