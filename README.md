@@ -3,7 +3,22 @@
 [![npm version](https://img.shields.io/npm/v/most-box)](https://npmjs.com/package/most-box)
 [![Node.js version](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 > P2P 文件分享应用。基于 Hyperswarm/Hyperdrive 的去中心化文件分发。
+
+## 为什么用 MostBox？
+
+| 特性                | MostBox | 微信/QQ | 网盘 |
+| ------------------- | ------- | ------- | ---- |
+| 🔒 无需注册         | ✅      | ❌      | ❌   |
+| 🚀 P2P直连，不限速  | ✅      | ❌      | 限流 |
+| 💾 去中心化存储     | ✅      | ❌      | ❌   |
+| 🌐 开源免费，自托管 | ✅      | ❌      | ❌   |
+| 📦 无限文件大小     | ✅      | ❌      | 限流 |
+
+## 演示
+
+[Most.Box](https://Most.Box)
 
 ## 🚀 立即使用
 
@@ -37,11 +52,11 @@ npm run test:unit # 只运行单元测试
 
 ## 访问场景
 
-| 场景 | 命令 | 访问地址 |
-|------|------|----------|
-| 本地 | `npx most-box` | `http://127.0.0.1:1976` |
-| 内网 | `set MOSTBOX_HOST=0.0.0.0 && npx most-box` | `http://<IP>:1976` |
-| 外网 | Caddy 反向代理 | `https://your-domain.com` |
+| 场景 | 命令                                       | 访问地址                  |
+| ---- | ------------------------------------------ | ------------------------- |
+| 本地 | `npx most-box`                             | `http://127.0.0.1:1976`   |
+| 内网 | `set MOSTBOX_HOST=0.0.0.0 && npx most-box` | `http://<IP>:1976`        |
+| 外网 | Caddy 反向代理                             | `https://your-domain.com` |
 
 ### 内网访问
 
@@ -78,13 +93,13 @@ mostbox.example.com {
 
 ### MostBox 和传统的文件分享方式有什么区别？
 
-| 特性 | MostBox | 微信/QQ | 网盘 |
-|------|---------|---------|------|
-| 无需注册 | ✅ | ❌ | ❌ |
-| 无服务器依赖 | ✅ | ❌ | ❌ |
-| 去中心化 | ✅ | ❌ | ❌ |
-| 端到端加密 | 规划中 | ❌ | ❌ |
-| 无限文件大小 | ✅ | ❌ | 限流 |
+| 特性                | MostBox | 微信/QQ | 网盘 |
+| ------------------- | ------- | ------- | ---- |
+| 🔒 无需注册         | ✅      | ❌      | ❌   |
+| 🚀 P2P直连，不限速  | ✅      | ❌      | 限流 |
+| 💾 去中心化存储     | ✅      | ❌      | ❌   |
+| 🌐 开源免费，自托管 | ✅      | ❌      | ❌   |
+| 📦 无限文件大小     | ✅      | ❌      | 限流 |
 
 ### 文件存储在哪里？
 
@@ -118,6 +133,7 @@ npx most-box
 ## 路线图
 
 ### v1.0（当前版本）
+
 - ✅ P2P 文件上传与下载
 - ✅ 确定性 CID 生成
 - ✅ 大文件流式传输
@@ -125,6 +141,7 @@ npx most-box
 - ✅ Web UI 界面
 
 ### 长期规划
+
 - [ ] 浏览器扩展
 - [ ] 移动端支持（iOS/Android）
 - [ ] 桌面客户端
