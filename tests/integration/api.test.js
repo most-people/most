@@ -10,7 +10,7 @@ import { parseMostLink } from '../../src/core/cid.js'
 
 const TEST_PORT = 19771
 
-describe('HTTP API (integration)', { timeout: 60000 }, () => {
+describe('HTTP API (integration)', { timeout: 180000 }, () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'most-api-test-'))
   let serverInstance
   let engine

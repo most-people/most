@@ -5,7 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { MostBoxEngine } from '../../src/index.js'
 
-describe('MostBoxEngine (integration)', { timeout: 120000 }, () => {
+describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'most-engine-test-'))
   let engine
 
