@@ -11,6 +11,23 @@ export const DOWNLOAD_TIMEOUT = 900000
 
 // P2P 设置
 export const GLOBAL_SHARED_SEED_STRING = 'most-box-global-shared-seed-v1'
+export const MAX_PEERS = 64
+export const SWARM_KEEP_ALIVE_INTERVAL = 5000
+export const SWARM_RANDOM_PUNCH_INTERVAL = 20000
+
+// 驱动器超时（毫秒）
+export const DRIVE_ENTRY_TIMEOUT = 10000
+export const DRIVE_SYNC_TIMEOUT = 10000
+export const STREAM_READ_TIMEOUT = 10000
+
+// 下载轮询间隔（毫秒）
+export const DOWNLOAD_POLL_INTERVAL = 1000
+
+// 进度更新节流间隔（毫秒）
+export const PROGRESS_THROTTLE = 500
+
+// 默认读取限制
+export const DEFAULT_READ_LIMIT = 10000
 
 // DHT 引导节点，用于 Hyperswarm/HyperDHT
 // 使用与 Keet.io/HyperDHT 相同的引导节点以保证兼容性

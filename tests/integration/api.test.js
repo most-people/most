@@ -70,6 +70,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     engine.on('download:progress', (data) => wsBroadcast('download:progress', data))
     engine.on('download:status', (data) => wsBroadcast('download:status', data))
     engine.on('download:success', (data) => wsBroadcast('download:success', data))
+    engine.on('download:cancelled', (data) => wsBroadcast('download:cancelled', data))
     engine.on('publish:progress', (data) => wsBroadcast('publish:progress', data))
     engine.on('publish:success', (data) => wsBroadcast('publish:success', data))
 
@@ -188,10 +189,82 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
           return
         }
 
+        if (pathname === '/api/download/cancel' && req.method === 'POST') {
+          const body = await parseJSON(req)
+          if (!body.taskId) {
+            json({ error: 'taskId is required' }, 400)
+            return
+          }
+          engine.cancelDownload(body.taskId)
+          json({ success: true })
+          return
+        }
+
+        if (pathname.startsWith('/api/files/') && req.method === 'DELETE') {
+          const cid = pathname.replace('/api/files/', '').replace(/\/$/, '')
+          const result = await engine.deletePublishedFile(cid)
+          json(result)
+          return
+        }
+
+        if (pathname === '/api/move' && req.method === 'POST') {
+          const body = await parseJSON(req)
+          if (!body.cid || !body.newFileName) {
+            json({ error: 'cid and newFileName are required' }, 400)
+            return
+          }
+          try {
+            const result = await engine.moveFile(body.cid, body.newFileName)
+            json({ success: true, ...result })
+          } catch (err) {
+            json({ error: err.message }, 400)
+          }
+          return
+        }
+
+        if (pathname === '/api/folder/rename' && req.method === 'POST') {
+          const body = await parseJSON(req)
+          if (!body.oldPath || !body.newPath) {
+            json({ error: 'oldPath and newPath are required' }, 400)
+            return
+          }
+          try {
+            const result = engine.renameFolder(body.oldPath, body.newPath)
+            json({ success: true, ...result })
+          } catch (err) {
+            json({ error: err.message }, 400)
+          }
+          return
+        }
+
+        if (pathname.match(/^\/api\/files\/[^/]+\/download$/) && req.method === 'GET') {
+          const cid = pathname.split('/')[3]
+          try {
+            const result = await engine.readFileRaw(cid)
+            res.writeHead(200, {
+              'Content-Type': 'application/octet-stream',
+              'Content-Length': result.totalSize,
+              'Content-Disposition': `inline; filename="${encodeURIComponent(result.fileName)}"`
+            })
+            res.end(result.buffer)
+          } catch (err) {
+            if (err.message === 'File not found') {
+              json({ error: err.message }, 404)
+            } else {
+              json({ error: err.message }, 400)
+            }
+          }
+          return
+        }
+
         if (pathname.match(/^\/api\/files\/[^/]+\/star$/) && req.method === 'POST') {
           const cid = pathname.split('/')[3]
-          const result = engine.toggleStarred(cid)
-          json({ success: true, ...result })
+          try {
+            const result = engine.toggleStarred(cid)
+            json({ success: true, ...result })
+          } catch (err) {
+            json({ error: err.message }, 400)
+          }
           return
         }
 
@@ -204,6 +277,19 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
           const cid = pathname.split('/')[3]
           const result = engine.restoreTrashFile(cid)
           json({ success: true, files: result })
+          return
+        }
+
+        if (pathname.match(/^\/api\/trash\/[^/]+$/) && req.method === 'DELETE') {
+          const cid = pathname.split('/')[3]
+          const result = await engine.permanentDeleteTrashFile(cid)
+          json({ success: true, trashFiles: result })
+          return
+        }
+
+        if (pathname === '/api/trash' && req.method === 'DELETE') {
+          const result = await engine.emptyTrash()
+          json({ success: true, trashFiles: result })
           return
         }
 
@@ -408,6 +494,107 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     })
   })
 
+  describe('POST /api/download/cancel', () => {
+    it('cancels a download by taskId', async () => {
+      const res = await fetch(`${baseUrl}/api/download/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId: 'fake-task-id' })
+      })
+
+      assert.strictEqual(res.status, 200)
+      const data = await res.json()
+      assert.ok(data.success)
+    })
+
+    it('returns 400 for missing taskId', async () => {
+      const res = await fetch(`${baseUrl}/api/download/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      })
+
+      assert.strictEqual(res.status, 400)
+    })
+  })
+
+  describe('DELETE /api/files/:cid', () => {
+    it('moves file to trash', async () => {
+      const pub = await engine.publishFile(Buffer.from('delete-test'), 'delete.txt')
+      const cid = pub.cid
+
+      const res = await fetch(`${baseUrl}/api/files/${cid}`, { method: 'DELETE' })
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 200)
+      assert.ok(Array.isArray(data))
+      assert.ok(!data.some(f => f.cid === cid))
+    })
+  })
+
+  describe('POST /api/move', () => {
+    it('renames a file', async () => {
+      const pub = await engine.publishFile(Buffer.from('move-test'), 'old.txt')
+      const cid = pub.cid
+
+      const res = await fetch(`${baseUrl}/api/move`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cid, newFileName: 'new.txt' })
+      })
+
+      const data = await res.json()
+      assert.strictEqual(res.status, 200)
+      assert.ok(data.success)
+      assert.strictEqual(data.fileName, 'new.txt')
+    })
+
+    it('returns 400 for missing params', async () => {
+      const res = await fetch(`${baseUrl}/api/move`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cid: 'abc' })
+      })
+
+      assert.strictEqual(res.status, 400)
+    })
+  })
+
+  describe('POST /api/folder/rename', () => {
+    it('renames a folder', async () => {
+      await engine.publishFile(Buffer.from('f1'), 'folder/file1.txt')
+      await engine.publishFile(Buffer.from('f2'), 'folder/file2.txt')
+
+      const res = await fetch(`${baseUrl}/api/folder/rename`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ oldPath: 'folder', newPath: 'new-folder' })
+      })
+
+      const data = await res.json()
+      assert.strictEqual(res.status, 200)
+      assert.ok(data.success)
+      assert.strictEqual(data.files.length, 2)
+    })
+  })
+
+  describe('GET /api/files/:cid/download', () => {
+    it('serves file content', async () => {
+      const pub = await engine.publishFile(Buffer.from('download-content'), 'serve.txt')
+      const cid = pub.cid
+
+      const res = await fetch(`${baseUrl}/api/files/${cid}/download`)
+      assert.strictEqual(res.status, 200)
+      const text = await res.text()
+      assert.strictEqual(text, 'download-content')
+    })
+
+    it('returns 404 for non-existent CID', async () => {
+      const res = await fetch(`${baseUrl}/api/files/bafkreidontexist/download`)
+      assert.strictEqual(res.status, 404)
+    })
+  })
+
   describe('POST /api/files/:cid/star', () => {
     it('toggles starred status', async () => {
       await engine.publishFile(Buffer.from('test'), 'star-test.txt')
@@ -451,6 +638,37 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       })
 
       const data = await res.json()
+      assert.strictEqual(res.status, 200)
+      assert.ok(data.success)
+      assert.strictEqual(engine.listTrashFiles().length, 0)
+    })
+  })
+
+  describe('DELETE /api/trash/:cid', () => {
+    it('permanently deletes a trash file', async () => {
+      await engine.publishFile(Buffer.from('perm-delete'), 'perm.txt')
+      const cid = engine.listPublishedFiles()[0].cid
+      await engine.deletePublishedFile(cid)
+
+      const res = await fetch(`${baseUrl}/api/trash/${cid}`, { method: 'DELETE' })
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 200)
+      assert.ok(data.success)
+      assert.strictEqual(engine.listTrashFiles().length, 0)
+    })
+  })
+
+  describe('DELETE /api/trash', () => {
+    it('empties the trash', async () => {
+      await engine.publishFile(Buffer.from('empty1'), 'empty1.txt')
+      await engine.publishFile(Buffer.from('empty2'), 'empty2.txt')
+      await engine.deletePublishedFile(engine.listPublishedFiles()[0].cid)
+      await engine.deletePublishedFile(engine.listPublishedFiles()[0].cid)
+
+      const res = await fetch(`${baseUrl}/api/trash`, { method: 'DELETE' })
+      const data = await res.json()
+
       assert.strictEqual(res.status, 200)
       assert.ok(data.success)
       assert.strictEqual(engine.listTrashFiles().length, 0)

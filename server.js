@@ -8,13 +8,14 @@ import Busboy from 'busboy'
 import { WebSocketServer } from 'ws'
 import { MostBoxEngine } from './src/index.js'
 import { parseMostLink } from './src/core/cid.js'
+import { MAX_FILE_SIZE } from './src/config.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = Number(process.env.MOSTBOX_PORT) || 1976
 const HOST = '127.0.0.1'
 
 const MAX_JSON_BODY_SIZE = 10 * 1024 * 1024 // 10MB
-const MAX_UPLOAD_SIZE = 100 * 1024 * 1024 * 1024 // 100GB
+const MAX_UPLOAD_SIZE = MAX_FILE_SIZE
 
 const rateLimitMap = new Map()
 const RATE_LIMIT_WINDOW = 60 * 1000
@@ -67,6 +68,9 @@ function checkRateLimit(clientIp) {
   const requests = rateLimitMap.get(clientIp)
   while (requests.length > 0 && requests[0] < now - RATE_LIMIT_WINDOW) {
     requests.shift()
+  }
+  if (requests.length === 0) {
+    rateLimitMap.delete(clientIp)
   }
   if (requests.length >= RATE_LIMIT_MAX_REQUESTS) {
     return false
@@ -474,12 +478,11 @@ async function handleAPI(req, res) {
       return
     }
 
-    // POST /api/shutdown — 优雅关闭服务器（仅允许 localhost Origin）
+    // POST /api/shutdown — 优雅关闭服务器（仅允许 localhost 连接）
     if (pathname === '/api/shutdown' && method === 'POST') {
-      const origin = req.headers['origin'] || ''
-      const referer = req.headers['referer'] || ''
-      const allowedOrigin = `http://${HOST}:${PORT}`
-      if (origin && origin !== allowedOrigin && !referer.startsWith(allowedOrigin)) {
+      const clientIp = req.socket.remoteAddress
+      const isLocalhost = clientIp === '127.0.0.1' || clientIp === '::1' || clientIp === '::ffff:127.0.0.1'
+      if (!isLocalhost) {
         json({ error: 'Forbidden' }, 403)
         return
       }

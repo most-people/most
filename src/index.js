@@ -20,7 +20,7 @@ import path from 'node:path'
 import { calculateCid, parseMostLink } from './core/cid.js'
 import { sanitizeFilename, validateAndSanitizePath, validateFileSize, checkDirectoryWritable, formatFileSize } from './utils/security.js'
 import { ValidationError, PathSecurityError, FileSizeError, PeerNotFoundError, IntegrityError, PermissionError, EngineNotInitializedError } from './utils/errors.js'
-import { GLOBAL_SHARED_SEED_STRING, MAX_FILE_SIZE, CONNECTION_TIMEOUT, DOWNLOAD_TIMEOUT, SWARM_BOOTSTRAP } from './config.js'
+import { GLOBAL_SHARED_SEED_STRING, MAX_FILE_SIZE, CONNECTION_TIMEOUT, DOWNLOAD_TIMEOUT, SWARM_BOOTSTRAP, MAX_PEERS, SWARM_KEEP_ALIVE_INTERVAL, SWARM_RANDOM_PUNCH_INTERVAL, DRIVE_ENTRY_TIMEOUT, DRIVE_SYNC_TIMEOUT, STREAM_READ_TIMEOUT, DOWNLOAD_POLL_INTERVAL, PROGRESS_THROTTLE, DEFAULT_READ_LIMIT } from './config.js'
 
 export class MostBoxEngine extends EventEmitter {
   #store = null
@@ -96,11 +96,11 @@ export class MostBoxEngine extends EventEmitter {
 
     console.log(`[MostBox] Initializing Hyperswarm...`)
     this.#swarm = new Hyperswarm({
-      maxPeers: 64,
+      maxPeers: MAX_PEERS,
       bootstrap: SWARM_BOOTSTRAP,
       firewall: () => false,
-      connectionKeepAlive: 5000,
-      randomPunchInterval: 20000,
+      connectionKeepAlive: SWARM_KEEP_ALIVE_INTERVAL,
+      randomPunchInterval: SWARM_RANDOM_PUNCH_INTERVAL,
       handshakeTimeout: CONNECTION_TIMEOUT
     })
 
@@ -457,7 +457,7 @@ export class MostBoxEngine extends EventEmitter {
             }
             loadedBytes += chunk.length
             const now = Date.now()
-            if (totalBytes > 0 && now - lastProgressUpdate > 500) {
+            if (totalBytes > 0 && now - lastProgressUpdate > PROGRESS_THROTTLE) {
               lastProgressUpdate = now
               const percent = Math.round((loadedBytes / totalBytes) * 100)
               this.emit('download:progress', { taskId, loaded: loadedBytes, total: totalBytes, percent })
@@ -848,7 +848,7 @@ export class MostBoxEngine extends EventEmitter {
    * @param {number} [offset=0] - 读取起始位置
    * @param {number} [limit=10000] - 最大读取字节数
    */
-  async readFileContent(cid, offset = 0, limit = 10000) {
+  async readFileContent(cid, offset = 0, limit = DEFAULT_READ_LIMIT) {
     this.#ensureInitialized()
 
     const fileRecord = this.#publishedFiles.find(f => f.cid === cid)
@@ -860,7 +860,7 @@ export class MostBoxEngine extends EventEmitter {
 
     // Hyperdrive 中 key 为 '/' + cid
     const driveKey = '/' + cid
-    const entry = await drive.entry(driveKey, { wait: true, timeout: 10000 })
+    const entry = await drive.entry(driveKey, { wait: true, timeout: DRIVE_ENTRY_TIMEOUT })
     if (!entry || !entry.value) {
       throw new Error('File content not available')
     }
@@ -868,9 +868,17 @@ export class MostBoxEngine extends EventEmitter {
     const chunks = []
     const stream = drive.createReadStream(driveKey, { start: offset, end: offset + limit - 1 })
 
-    for await (const chunk of stream) {
-      chunks.push(chunk)
-    }
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Stream read timeout')), STREAM_READ_TIMEOUT)
+    })
+
+    const readPromise = (async () => {
+      for await (const chunk of stream) {
+        chunks.push(chunk)
+      }
+    })()
+
+    await Promise.race([readPromise, timeoutPromise])
 
     const content = Buffer.concat(chunks).toString('utf8')
     const hasMore = chunks.length > 0 && chunks[chunks.length - 1].length === limit
@@ -899,14 +907,14 @@ export class MostBoxEngine extends EventEmitter {
     const drive = await this.#getDriveForFile(fileRecord)
 
     const driveKey = '/' + cid
-    const entry = await drive.entry(driveKey, { wait: true, timeout: 10000 })
+    const entry = await drive.entry(driveKey, { wait: true, timeout: DRIVE_ENTRY_TIMEOUT })
     if (!entry || !entry.value || !entry.value.blob) {
       throw new Error('File content not available')
     }
 
     const totalSize = entry.value.blob.byteLength || 0
 
-    const { offset = 0, limit, timeout = 10000 } = options
+    const { offset = 0, limit, timeout = STREAM_READ_TIMEOUT } = options
     const effectiveLimit = (limit === undefined || limit === null)
       ? totalSize - offset
       : Math.min(limit, totalSize - offset)
@@ -985,7 +993,7 @@ export class MostBoxEngine extends EventEmitter {
     }
   }
 
-  async #syncDrive(drive, timeout = 10000) {
+  async #syncDrive(drive, timeout = DRIVE_SYNC_TIMEOUT) {
     const done = drive.findingPeers()
     this.#swarm.join(drive.discoveryKey, { server: true, client: true }).flushed().then(done, done)
     try {
@@ -1062,7 +1070,7 @@ export class MostBoxEngine extends EventEmitter {
    */
   async #waitForDriveContent(drive, timeout, taskId = null, taskState = null) {
     const startTime = Date.now()
-    const checkInterval = 1000
+    const checkInterval = DOWNLOAD_POLL_INTERVAL
     let lastPeerCount = 0
     let lastStatus = ''
     let bootstrapNodesChecked = false

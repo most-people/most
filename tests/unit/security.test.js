@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert'
-import { sanitizeFilename, formatFileSize, validateAndSanitizePath } from '../../src/utils/security.js'
+import { sanitizeFilename, formatFileSize, validateAndSanitizePath, validateFileSize, checkDirectoryWritable } from '../../src/utils/security.js'
 
 describe('sanitizeFilename', () => {
   it('throws for non-string input', () => {
@@ -157,5 +157,64 @@ describe('validateAndSanitizePath', () => {
   it('rejects path traversal before allowedBase check', () => {
     const result = validateAndSanitizePath('/home/user/../etc/passwd', { allowedBase: '/home/user' })
     assert.strictEqual(result.error, 'Path traversal detected: path cannot contain ".."')
+  })
+
+  it('rejects path that escapes allowedBase via sibling directory', () => {
+    const result = validateAndSanitizePath('/home/user2/file.txt', { allowedBase: '/home/user' })
+    assert.strictEqual(result.error, 'Path must be within allowed directory')
+  })
+
+  it('allows exact match of allowedBase', () => {
+    const result = validateAndSanitizePath('/home/user', { allowedBase: '/home/user' })
+    assert.strictEqual(result.error, undefined)
+  })
+})
+
+describe('validateFileSize', () => {
+  it('returns valid for existing file within limit', async () => {
+    const result = await validateFileSize('package.json', 1024 * 1024)
+    assert.strictEqual(result.valid, true)
+    assert.ok(result.size > 0)
+  })
+
+  it('returns invalid for non-existent file', async () => {
+    const result = await validateFileSize('/nonexistent/file.txt')
+    assert.strictEqual(result.valid, false)
+    assert.strictEqual(result.error, 'File does not exist')
+  })
+
+  it('returns invalid for directory', async () => {
+    const result = await validateFileSize('tests')
+    assert.strictEqual(result.valid, false)
+    assert.strictEqual(result.error, 'Path is not a file')
+  })
+
+  it('returns invalid for oversized file', async () => {
+    const result = await validateFileSize('package.json', 1)
+    assert.strictEqual(result.valid, false)
+    assert.ok(result.error.includes('exceeds limit'))
+  })
+
+  it('uses custom max size', async () => {
+    const result = await validateFileSize('package.json', 100)
+    assert.strictEqual(result.valid, false)
+    assert.ok(result.size > 100)
+  })
+})
+
+describe('checkDirectoryWritable', () => {
+  it('returns writable for existing directory', async () => {
+    const result = await checkDirectoryWritable('tests')
+    assert.strictEqual(result.writable, true)
+  })
+
+  it('creates and returns writable for non-existent directory', async () => {
+    const testDir = 'tests/temp-write-test-' + Date.now()
+    try {
+      const result = await checkDirectoryWritable(testDir)
+      assert.strictEqual(result.writable, true)
+    } finally {
+      try { await require('fs').promises.rm(testDir, { recursive: true, force: true }) } catch {}
+    }
   })
 })

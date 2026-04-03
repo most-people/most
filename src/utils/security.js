@@ -83,7 +83,7 @@ export function validateAndSanitizePath(inputPath, options = {}) {
   if (options.allowedBase) {
     const resolvedPath = path.resolve(cleanPath)
     const allowedBase = path.resolve(options.allowedBase)
-    if (!resolvedPath.startsWith(allowedBase)) {
+    if (resolvedPath !== allowedBase && !resolvedPath.startsWith(allowedBase + path.sep)) {
       return { cleanPath: '', error: 'Path must be within allowed directory' }
     }
   }

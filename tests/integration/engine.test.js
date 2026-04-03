@@ -208,6 +208,60 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
     })
   })
 
+  describe('emptyTrash()', () => {
+    it('permanently deletes all trash files', async () => {
+      const result = await engine.publishFile(Buffer.from('trash-test'), 'empty-trash.txt')
+      const cid = result.cid
+
+      await engine.deletePublishedFile(cid)
+      const trashBefore = engine.listTrashFiles()
+      assert.ok(trashBefore.some(f => f.cid === cid))
+
+      await engine.emptyTrash()
+
+      const trashAfter = engine.listTrashFiles()
+      assert.strictEqual(trashAfter.length, 0)
+    })
+
+    it('returns empty array after emptying', async () => {
+      const result = await engine.emptyTrash()
+      assert.deepStrictEqual(result, [])
+    })
+  })
+
+  describe('readFileContent()', () => {
+    it('throws for non-existent CID', async () => {
+      await assert.rejects(
+        engine.readFileContent('bafkreidontexist'),
+        /File not found/
+      )
+    })
+  })
+
+  describe('readFileRaw()', () => {
+    it('throws for non-existent CID', async () => {
+      await assert.rejects(
+        engine.readFileRaw('bafkreidontexist'),
+        /File not found/
+      )
+    })
+  })
+
+  describe('renameFolder()', () => {
+    it('returns empty files array when no matching files', () => {
+      const result = engine.renameFolder('nonexistent', 'new-name')
+      assert.deepStrictEqual(result.files, [])
+    })
+  })
+
+  describe('permanentDeleteTrashFile()', () => {
+    it('does not throw for non-existent CID', async () => {
+      await assert.doesNotReject(
+        engine.permanentDeleteTrashFile('bafkreidontexist')
+      )
+    })
+  })
+
   describe('error handling', () => {
     it('throws EngineNotInitializedError before start', async () => {
       const newEngine = new MostBoxEngine({
