@@ -1,5 +1,6 @@
 import path from 'node:path'
 import fs from 'node:fs'
+import crypto from 'node:crypto'
 
 import { MAX_FILE_SIZE } from '../config.js'
 
@@ -135,7 +136,7 @@ export async function checkDirectoryWritable(dirPath) {
       fs.mkdirSync(dirPath, { recursive: true })
     }
     
-    const testFile = path.join(dirPath, '.write-test-' + Date.now())
+    const testFile = path.join(dirPath, `.write-test-${crypto.randomUUID()}`)
     await fs.promises.writeFile(testFile, 'test')
     await fs.promises.unlink(testFile)
     

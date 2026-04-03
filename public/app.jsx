@@ -756,6 +756,7 @@ export default function App() {
             if (isTrash) {
               await API.permanentDeleteTrashFile(id)
             } else {
+              // 跳过文件夹 ID（以 '__' 前缀标识），只删除文件
               if (!id.startsWith('__')) await API.deletePublishedFile(id)
             }
           }
@@ -931,7 +932,7 @@ export default function App() {
           fileName: '下载文件',
           progress: 0,
           type: 'download',
-          status: 'uploading'
+          status: 'downloading'
         }
         setTransfers(prev => [...prev, transfer])
         setIsTransferPanelOpen(true)
@@ -945,7 +946,7 @@ export default function App() {
   }
 
   const handleCancelTransfer = async (transfer) => {
-    if (transfer.type === 'download' && transfer.status === 'uploading') {
+    if (transfer.type === 'download' && transfer.status === 'downloading') {
       try {
         await API.cancelDownload(transfer.id)
         // WebSocket 会处理 'download:cancelled' 事件
@@ -1433,7 +1434,6 @@ export default function App() {
                     const subtype = getFileSubtype(file.fileName)
                     setPreviewItem({ ...file, subtype })
                     setPreviewText('')
-                    setPreviewOffset(0)
                     if (subtype === 'text') loadPreviewText(file.cid)
                   }
                 }} className="btn small">
@@ -1498,7 +1498,7 @@ export default function App() {
                   <div className="transfer-item-header">
                     {t.type === 'upload' ? <Upload size={14} /> : <Download size={14} />}
                     <span className="transfer-item-name">{t.fileName}</span>
-                    {t.status === 'uploading' && t.type === 'download' && (
+                    {t.status === 'downloading' && t.type === 'download' && (
                       <button onClick={() => handleCancelTransfer(t)} className="transfer-item-cancel">
                         <X size={14} />
                       </button>

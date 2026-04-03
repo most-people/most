@@ -127,6 +127,11 @@ export function parseMostLink(link) {
   // 移除尾部斜杠和空白
   cidString = cidString.trim().replace(/\/+$/, '')
   
+  // 移除 query string
+  if (cidString.includes('?')) {
+    cidString = cidString.split('?')[0]
+  }
+
   // 处理可能的额外路径的 URL 解析
   if (cidString.includes('/')) {
     cidString = cidString.split('/')[0]

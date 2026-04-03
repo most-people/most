@@ -11,8 +11,8 @@ import { parseMostLink } from './src/core/cid.js'
 import { MAX_FILE_SIZE } from './src/config.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const PORT = Number(process.env.MOSTBOX_PORT) || 1976
-const HOST = '127.0.0.1'
+const PORT = Number(process.env.MOSTBOX_PORT || process.env.PORT) || 1976
+const HOST = process.env.MOSTBOX_HOST || '127.0.0.1'
 
 const MAX_JSON_BODY_SIZE = 10 * 1024 * 1024 // 10MB
 const MAX_UPLOAD_SIZE = MAX_FILE_SIZE
@@ -179,24 +179,6 @@ function parseMultipartBusboy(req) {
 
     const result = { file: null, filename: null, data: null }
     let fileSize = 0
-    let fileStream = null
-
-    busboy.on('part', (name, stream, info) => {
-      if (name === 'file') {
-        fileStream = stream
-        result.filename = decodeFilenameFromHeader(info)
-        result.file = stream
-
-        stream.on('data', (chunk) => {
-          fileSize += chunk.length
-          if (fileSize > MAX_UPLOAD_SIZE) {
-            stream.destroy()
-            reject(new Error('File too large'))
-            return
-          }
-        })
-      }
-    })
 
     busboy.on('file', (name, stream, info) => {
       result.file = stream
@@ -406,7 +388,7 @@ async function handleAPI(req, res) {
         return
       }
       try {
-        const result = await engine.moveFile(body.cid, body.newFileName)
+        const result = engine.moveFile(body.cid, body.newFileName)
         json({ success: true, ...result })
       } catch (err) {
         json({ error: err.message }, 400)
@@ -590,14 +572,6 @@ async function main() {
   console.log('[MostBox] Engine ready')
 
   serverInstance = http.createServer((req, res) => {
-    const clientIp = req.socket.remoteAddress || 'unknown'
-
-    if (!checkRateLimit(clientIp)) {
-      res.writeHead(429, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ error: 'Too many requests' }))
-      return
-    }
-
     const allowedOrigin = `http://${HOST}:${PORT}`
     res.setHeader('Access-Control-Allow-Origin', allowedOrigin)
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
@@ -606,6 +580,14 @@ async function main() {
     if (req.method === 'OPTIONS') {
       res.writeHead(204)
       res.end()
+      return
+    }
+
+    const clientIp = req.socket.remoteAddress || 'unknown'
+
+    if (!checkRateLimit(clientIp)) {
+      res.writeHead(429, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'Too many requests' }))
       return
     }
 

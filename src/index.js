@@ -148,6 +148,13 @@ export class MostBoxEngine extends EventEmitter {
       return
     }
 
+    for (const task of this.#activeDownloads.values()) {
+      task.aborted = true
+      if (task.readStream) task.readStream.destroy()
+      if (task.writeStream) task.writeStream.destroy()
+    }
+    this.#activeDownloads.clear()
+
     await Promise.allSettled([...this.#drives.values()].map(d => d.close()))
     this.#drives.clear()
 

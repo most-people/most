@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert'
+import fs from 'node:fs'
 import { sanitizeFilename, formatFileSize, validateAndSanitizePath, validateFileSize, checkDirectoryWritable } from '../../src/utils/security.js'
 
 describe('sanitizeFilename', () => {
@@ -214,7 +215,7 @@ describe('checkDirectoryWritable', () => {
       const result = await checkDirectoryWritable(testDir)
       assert.strictEqual(result.writable, true)
     } finally {
-      try { await require('fs').promises.rm(testDir, { recursive: true, force: true }) } catch {}
+      try { await fs.promises.rm(testDir, { recursive: true, force: true }) } catch {}
     }
   })
 })

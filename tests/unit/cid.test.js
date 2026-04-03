@@ -74,9 +74,9 @@ describe('parseMostLink', () => {
     assert.strictEqual(result.cid, 'bafkreidye2j2fjw4kj3wlJNN4k3qQ')
   })
 
-  it('does not strip query string (kept as part of CID)', () => {
+  it('strips query string', () => {
     const result = parseMostLink('most://bafkreidye2j2fjw4kj3wlJNN4k3qQ?foo=bar')
-    assert.strictEqual(result.cid, 'bafkreidye2j2fjw4kj3wlJNN4k3qQ?foo=bar')
+    assert.strictEqual(result.cid, 'bafkreidye2j2fjw4kj3wlJNN4k3qQ')
   })
 
   it('rejects invalid CID format', () => {
