@@ -483,6 +483,17 @@ export class MostBoxEngine extends EventEmitter {
           throw new IntegrityError(`File content CID mismatch. File may be corrupted or tampered.`)
         }
 
+        // Write file content to Hyperdrive so it can be served for preview
+        const driveKey = '/' + cidString
+        const readStream = fs.createReadStream(savePath)
+        const writeStream = drive.createWriteStream(driveKey)
+        await new Promise((resolve, reject) => {
+          readStream.pipe(writeStream)
+          writeStream.on('finish', resolve)
+          writeStream.on('error', reject)
+          readStream.on('error', reject)
+        })
+
         const result = {
           taskId,
           fileName: sanitizedFileName,
