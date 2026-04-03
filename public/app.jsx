@@ -332,7 +332,7 @@ function SettingsModal({ onClose, addToast, isDarkMode, handleShutdown }) {
           <p style={{ fontSize: 12, textAlign: 'center', color: 'var(--text-secondary)' }}>Hyperswarm · Hyperdrive · IPFS</p>
         </div>
 
-        <button onClick={() => { onClose(); handleShutdown(); }} className="btn danger full" style={{ marginTop: 20 }}>
+        <button onClick={() => { onClose(); handleShutdown(); }} className="btn danger" style={{ marginTop: 20 }}>
           <Power size={16} /> 关闭服务
         </button>
       </div>
@@ -497,7 +497,7 @@ function MoveModal({ items, allFolders, currentPath, isDarkMode, onMove, onClose
             placeholder="输入路径创建嵌套文件夹"
           />
         </div>
-        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>如 folder/subfolder</p>
+        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>如 图片/壁纸</p>
         <div className="move-breadcrumb">
           {breadcrumbParts.map((part, i) => (
             <React.Fragment key={part.path}>
@@ -1265,6 +1265,7 @@ export default function App() {
         <InputModal
           title={inputModal.title}
           placeholder={inputModal.placeholder}
+          defaultValue={inputModal.defaultValue}
           confirmText={inputModal.confirmText}
           isDarkMode={isDarkMode}
           isLoading={inputLoading}
@@ -1425,17 +1426,21 @@ export default function App() {
               }} className="btn small" style={{ background: '#f59e0b', color: '#fff' }}>
                 收藏
               </button>
-              <button onClick={() => {
-                const firstSelected = items.find(i => i.cid === selectedIds[0])
-                if (firstSelected) openRenameModal(firstSelected)
-              }} className="btn small">
-                重命名
-              </button>
+              {selectedIds.length === 1 && (
+                <button onClick={() => {
+                  const firstSelected = items.find(i => i.cid === selectedIds[0])
+                  if (firstSelected) openRenameModal(firstSelected)
+                }} className="btn small">
+                  重命名
+                </button>
+              )}
               <button onClick={() => setIsMoveModalOpen(true)} className="btn small" style={{ background: 'var(--accent-blue)', color: '#fff' }}>
                 移动
               </button>
               <button onClick={handleBatchDelete} className="btn small danger">删除</button>
-              <button onClick={() => setShareItem(items.find(i => i.cid === selectedIds[0]))} className="btn small">分享</button>
+              {selectedIds.length === 1 && (
+                <button onClick={() => setShareItem(items.find(i => i.cid === selectedIds[0]))} className="btn small">分享</button>
+              )}
             </>
           )}
         </div>
