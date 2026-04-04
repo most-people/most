@@ -1,6 +1,6 @@
 {
   "name": "most-box",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "MostBox - P2P file sharing application",
   "type": "module",
   "main": "server.js",
