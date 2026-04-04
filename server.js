@@ -16,6 +16,7 @@ const HOST = process.env.MOSTBOX_HOST || '127.0.0.1'
 
 const MAX_JSON_BODY_SIZE = 10 * 1024 * 1024 // 10MB
 const MAX_UPLOAD_SIZE = MAX_FILE_SIZE
+const UPLOAD_TMP_DIR = path.join(os.tmpdir(), 'most-box-uploads')
 
 const rateLimitMap = new Map()
 const RATE_LIMIT_WINDOW = 60 * 1000
@@ -168,6 +169,10 @@ function decodeFilenameFromHeader(headerStr) {
 
 function parseMultipartBusboy(req) {
   return new Promise((resolve, reject) => {
+    if (!fs.existsSync(UPLOAD_TMP_DIR)) {
+      fs.mkdirSync(UPLOAD_TMP_DIR, { recursive: true })
+    }
+
     const busboy = Busboy({
       headers: req.headers,
       limits: {
@@ -177,38 +182,56 @@ function parseMultipartBusboy(req) {
       }
     })
 
-    const result = { file: null, filename: null, data: null }
+    const result = { filePath: null, filename: null }
     let fileSize = 0
+    let writeStream = null
+    let tempPath = null
 
     busboy.on('file', (name, stream, info) => {
-      result.file = stream
       result.filename = decodeFilenameFromHeader(`filename="${info.filename}"`)
-      const chunks = []
+      tempPath = path.join(UPLOAD_TMP_DIR, `upload_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`)
+      writeStream = fs.createWriteStream(tempPath)
+
       stream.on('data', (chunk) => {
         fileSize += chunk.length
         if (fileSize > MAX_UPLOAD_SIZE) {
           stream.destroy()
+          writeStream.destroy()
+          fs.unlink(tempPath, () => {})
           reject(new Error('File too large'))
           return
         }
-        chunks.push(chunk)
       })
-      stream.on('end', () => {
-        result.data = Buffer.concat(chunks)
+
+      stream.pipe(writeStream)
+
+      writeStream.on('finish', () => {
+        result.filePath = tempPath
+      })
+
+      writeStream.on('error', (err) => {
+        if (tempPath) fs.unlink(tempPath, () => {})
+        reject(err)
       })
     })
 
-    busboy.on('error', (err) => reject(err))
+    busboy.on('error', (err) => {
+      if (tempPath) fs.unlink(tempPath, () => {})
+      reject(err)
+    })
 
     busboy.on('close', () => {
-      if (result.file && result.filename && result.data !== null) {
+      if (result.filePath && result.filename) {
         resolve(result)
-      } else {
+      } else if (!result.filePath) {
         resolve(null)
       }
     })
 
-    req.on('error', reject)
+    req.on('error', (err) => {
+      if (tempPath) fs.unlink(tempPath, () => {})
+      reject(err)
+    })
     req.pipe(busboy)
   })
 }
@@ -319,9 +342,12 @@ async function handleAPI(req, res) {
         return
       }
 
-      const publishResult = await engine.publishFile(result.data, result.filename)
-
-      json({ success: true, ...publishResult })
+      try {
+        const publishResult = await engine.publishFile(result.filePath, result.filename)
+        json({ success: true, ...publishResult })
+      } finally {
+        fs.unlink(result.filePath, () => {})
+      }
       return
     }
 
@@ -552,6 +578,14 @@ function wsBroadcast(event, data) {
 // --- 主函数 ---
 async function main() {
   console.log('[MostBox] Starting core daemon...')
+
+  if (fs.existsSync(UPLOAD_TMP_DIR)) {
+    const staleFiles = fs.readdirSync(UPLOAD_TMP_DIR)
+    for (const file of staleFiles) {
+      try { fs.unlinkSync(path.join(UPLOAD_TMP_DIR, file)) } catch {}
+    }
+    console.log(`[MostBox] Cleaned ${staleFiles.length} stale upload temp files`)
+  }
 
   const dataPath = getDataPath()
   console.log(`[MostBox] Storage: ${dataPath}`)

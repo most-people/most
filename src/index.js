@@ -1022,6 +1022,12 @@ export class MostBoxEngine extends EventEmitter {
     return path.join(this.#options.dataPath, 'trash-files.json')
   }
 
+  #atomicWrite(filePath, data) {
+    const tmpPath = filePath + '.tmp'
+    fs.writeFileSync(tmpPath, data, 'utf-8')
+    fs.renameSync(tmpPath, filePath)
+  }
+
   #loadPublishedMetadata() {
     try {
       const metadataPath = this.#getMetadataPath()
@@ -1039,7 +1045,7 @@ export class MostBoxEngine extends EventEmitter {
   #savePublishedMetadata() {
     try {
       const metadataPath = this.#getMetadataPath()
-      fs.writeFileSync(metadataPath, JSON.stringify(this.#publishedFiles, null, 2), 'utf-8')
+      this.#atomicWrite(metadataPath, JSON.stringify(this.#publishedFiles, null, 2))
     } catch (err) {
       console.error('Failed to save published metadata:', err.message)
     }
@@ -1061,7 +1067,7 @@ export class MostBoxEngine extends EventEmitter {
   #saveTrashMetadata() {
     try {
       const metadataPath = this.#getTrashMetadataPath()
-      fs.writeFileSync(metadataPath, JSON.stringify(this.#trashFiles, null, 2), 'utf-8')
+      this.#atomicWrite(metadataPath, JSON.stringify(this.#trashFiles, null, 2))
     } catch (err) {
       console.error('Failed to save trash metadata:', err.message)
     }
