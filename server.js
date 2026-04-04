@@ -26,6 +26,95 @@ let engine = null
 let serverInstance = null
 let wss = null
 
+// --- Call signaling state ---
+const callClients = new Map()
+const activeCalls = new Map()
+
+function registerCallClient(ws, peerId) {
+  if (!callClients.has(ws)) {
+    callClients.set(ws, { peerId, calls: new Map() })
+    ws.on('close', () => cleanupCallClient(ws))
+  } else {
+    callClients.get(ws).peerId = peerId
+  }
+}
+
+function cleanupCallClient(ws) {
+  const client = callClients.get(ws)
+  if (!client) return
+  callClients.delete(ws)
+  for (const [callId] of client.calls) {
+    const call = activeCalls.get(callId)
+    if (call) {
+      const otherWs = call.callerWs === ws ? call.calleeWs : call.callerWs
+      if (otherWs && otherWs.readyState === 1) {
+        try { otherWs.send(JSON.stringify({ event: 'call:ended', data: { callId, reason: 'peer_disconnected' } })) } catch {}
+      }
+      activeCalls.delete(callId)
+    }
+  }
+}
+
+function sendToWs(ws, event, data) {
+  if (ws && ws.readyState === 1) {
+    try { ws.send(JSON.stringify({ event, data })) } catch {}
+  }
+}
+
+function handleCallSignal(ws, { callId, signalData }) {
+  const call = activeCalls.get(callId)
+  if (!call) return
+  const targetWs = call.callerWs === ws ? call.calleeWs : call.callerWs
+  sendToWs(targetWs, 'signal', { callId, signalData })
+}
+
+function handleCallStart(ws, { targetPeerId, type }) {
+  const callerInfo = callClients.get(ws)
+  if (!callerInfo) return { error: 'not_registered' }
+  if (targetPeerId === callerInfo.peerId) return { error: 'cannot_call_self' }
+
+  let targetWs = null
+  for (const [clientWs, info] of callClients) {
+    if (info.peerId === targetPeerId) { targetWs = clientWs; break }
+  }
+  if (!targetWs) return { error: 'peer_not_found' }
+
+  const callId = `call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+  activeCalls.set(callId, { callerWs: ws, calleeWs: targetWs, type, createdAt: Date.now() })
+  sendToWs(targetWs, 'call:incoming', { callId, callerId: callerInfo.peerId, callerName: callerInfo.peerId, type })
+  return { callId }
+}
+
+function handleCallAccept(ws, { callId }) {
+  const call = activeCalls.get(callId)
+  if (!call || call.calleeWs !== ws) return
+  sendToWs(call.callerWs, 'call:accepted', { callId })
+}
+
+function handleCallReject(ws, { callId }) {
+  const call = activeCalls.get(callId)
+  if (!call) return
+  const otherWs = call.callerWs === ws ? call.calleeWs : call.callerWs
+  sendToWs(otherWs, 'call:rejected', { callId })
+  activeCalls.delete(callId)
+}
+
+function handleCallHangup(ws, { callId }) {
+  const call = activeCalls.get(callId)
+  if (!call) return
+  const otherWs = call.callerWs === ws ? call.calleeWs : call.callerWs
+  sendToWs(otherWs, 'call:ended', { callId, reason: 'remote_hangup' })
+  activeCalls.delete(callId)
+}
+
+function handleCallChat(ws, { callId, message }) {
+  const call = activeCalls.get(callId)
+  if (!call) return
+  const client = callClients.get(ws)
+  const otherWs = call.callerWs === ws ? call.calleeWs : call.callerWs
+  sendToWs(otherWs, 'call:chat', { callId, from: client?.peerId || 'unknown', message })
+}
+
 // --- 配置 ---
 const CONFIG_DIR = path.join(os.homedir(), '.most-box')
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json')
@@ -129,8 +218,16 @@ function serveStatic(req, res) {
 
   fs.readFile(fullPath, (err, data) => {
     if (err) {
-      res.writeHead(404)
-      res.end('Not found')
+      const indexPath = path.join(publicDir, 'index.html')
+      fs.readFile(indexPath, (err2, indexData) => {
+        if (err2) {
+          res.writeHead(404)
+          res.end('Not found')
+          return
+        }
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+        res.end(indexData)
+      })
       return
     }
 
@@ -274,6 +371,12 @@ async function handleAPI(req, res) {
     // GET /api/node-id
     if (pathname === '/api/node-id' && method === 'GET') {
       json({ id: engine.getNodeId() })
+      return
+    }
+
+    // GET /api/peer-id
+    if (pathname === '/api/peer-id' && method === 'GET') {
+      json({ peerId: engine.getNodeId() })
       return
     }
 
@@ -646,6 +749,40 @@ async function main() {
   wss = new WebSocketServer({ noServer: true })
   wss.on('connection', (ws) => {
     ws.on('error', () => {})
+    ws.on('message', (raw) => {
+      try {
+        const msg = JSON.parse(raw)
+        const { event, data } = msg
+
+        switch (event) {
+          case 'register':
+            registerCallClient(ws, data.peerId)
+            break
+          case 'call:start': {
+            const result = handleCallStart(ws, data)
+            sendToWs(ws, 'call:started', result)
+            break
+          }
+          case 'signal':
+            handleCallSignal(ws, data)
+            break
+          case 'call:accept':
+            handleCallAccept(ws, data)
+            break
+          case 'call:reject':
+            handleCallReject(ws, data)
+            break
+          case 'call:hangup':
+            handleCallHangup(ws, data)
+            break
+          case 'call:chat':
+            handleCallChat(ws, data)
+            break
+        }
+      } catch (err) {
+        console.error('[WS Message Error]', err.message)
+      }
+    })
   })
 
   serverInstance.on('upgrade', (req, socket, head) => {

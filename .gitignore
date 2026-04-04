@@ -8,6 +8,10 @@ build/
 public/bundle.js
 public/bundle.css
 public/bundle.js.map
+public/index.js
+public/index.css
+public/chat-page.js
+public/chat-page.css
 
 # Runtime data
 most-data/

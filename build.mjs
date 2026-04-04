@@ -1,19 +1,20 @@
 import * as esbuild from 'esbuild'
-import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const publicDir = path.join(__dirname, 'public')
-const outFile = path.join(publicDir, 'bundle.js')
 
 const isWatch = process.argv.includes('--watch')
 const isDev = process.argv.includes('--dev')
 
 const buildOptions = {
-  entryPoints: [path.join(publicDir, 'index.jsx')],
+  entryPoints: [
+    path.join(publicDir, 'index.jsx'),
+    path.join(publicDir, 'chat-page.jsx'),
+  ],
   bundle: true,
-  outfile: outFile,
+  outdir: publicDir,
   format: 'esm',
   jsx: 'automatic',
   jsxImportSource: 'react',
