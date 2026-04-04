@@ -46,7 +46,9 @@ function saveConfig(config) {
     if (!fs.existsSync(CONFIG_DIR)) {
       fs.mkdirSync(CONFIG_DIR, { recursive: true })
     }
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf-8')
+    const tmpPath = CONFIG_FILE + '.tmp'
+    fs.writeFileSync(tmpPath, JSON.stringify(config, null, 2), 'utf-8')
+    fs.renameSync(tmpPath, CONFIG_FILE)
     return true
   } catch (err) {
     console.error('[Config] Save error:', err.message)
