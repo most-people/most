@@ -7,18 +7,40 @@
 
 ## [未发布]
 
-### 新增
-- GitHub Actions CI/CD 工作流，用于自动化测试和构建
-- GitHub Actions Release 工作流，支持标签触发 npm 自动发布
-- GitHub Issue 模板（Bug 报告、功能请求）
-- GitHub Pull Request 模板
-- CONTRIBUTING.md 贡献指南
-- CODE_OF_CONDUCT.md，基于贡献者公约 v2.0
-- Dockerfile 用于容器化部署
-- docker-compose.yml 用于本地开发环境
+## [0.0.2] - 2026-04-04
 
-### 变更
-- 更新 CI 中的 Node.js 版本支持（现测试 18、20、22）
+### 新增
+- busboy multipart 解析，支持文件上传
+- WebSocket 重构，支持实时事件广播
+- API 速率限制（120 请求/分钟）
+- 文件 Range 请求支持，优化预览体验
+- 文件预览功能和移动端交互改进
+- 移动端响应式布局（≤768px / ≤480px 断点）
+
+### 修复
+- 大文件上传 OOM（改为 stream 写入临时文件）
+- 上传文件流写入竞态条件
+- 元数据写入损坏（原子写入 tmp + renameSync）
+- config 文件原子写入防止崩溃损坏
+- 启动时自动清理残留临时上传文件
+- busboy 中文文件名乱码
+- 文件夹重命名路径拼接问题
+- 重启后文件预览失败（Hyperdrive 存储解耦）
+- 下载完成后无法预览
+- 环境变量解析、CORS 预检、下载状态、busboy 重复监听
+- 安全漏洞修复、魔法常量提取
+
+### 重构
+- 解耦 Hyperdrive 存储与目录结构
+- 文件夹创建改为移动弹窗路径输入
+- 关闭服务按钮移入设置弹窗
+
+### 测试
+- 集成测试超时修复，减少误报
+
+### 文档
+- 添加 AGENTS.md 项目概要
+- 更新 README（npx 使用说明）
 
 ## [0.0.1] - 2026-01-01
 
@@ -33,5 +55,6 @@
 - 命令行界面
 - 单元测试与集成测试
 
-[未发布]: https://github.com/most-people/most/compare/v0.0.1...HEAD
+[未发布]: https://github.com/most-people/most/compare/v0.0.2...HEAD
+[0.0.2]: https://github.com/most-people/most/releases/tag/v0.0.2
 [0.0.1]: https://github.com/most-people/most/releases/tag/v0.0.1
