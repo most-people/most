@@ -203,10 +203,15 @@ function parseMultipartBusboy(req) {
         }
       })
 
+      stream.on('error', () => {
+        if (tempPath) fs.unlink(tempPath, () => {})
+      })
+
       stream.pipe(writeStream)
 
       writeStream.on('finish', () => {
         result.filePath = tempPath
+        resolve(result)
       })
 
       writeStream.on('error', (err) => {
@@ -221,9 +226,7 @@ function parseMultipartBusboy(req) {
     })
 
     busboy.on('close', () => {
-      if (result.filePath && result.filename) {
-        resolve(result)
-      } else if (!result.filePath) {
+      if (!result.filename) {
         resolve(null)
       }
     })
