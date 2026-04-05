@@ -203,16 +203,16 @@ function getMimeType(fileName) {
 }
 
 function serveStatic(req, res) {
+  const publicDir = path.join(__dirname, 'out')
   let filePath = req.url === '/' ? '/index.html' : req.url
   filePath = filePath.split('?')[0]
 
-  if (filePath === '/chat') {
-    filePath = '/chat.html'
+  if (filePath === '/chat' || filePath === '/chat/') {
+    filePath = '/chat/index.html'
   }
 
-  const fullPath = path.join(__dirname, 'public', filePath)
+  const fullPath = path.join(publicDir, filePath)
   const ext = path.extname(fullPath)
-  const publicDir = path.join(__dirname, 'public')
 
   if (!fullPath.startsWith(publicDir)) {
     res.writeHead(403)

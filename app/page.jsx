@@ -1,3 +1,5 @@
+'use client'
+
 import React, { useState, useEffect, useRef } from 'react'
 import {
   Upload, Sun, Moon, Image as ImageIcon, Trash2, Folder,
@@ -6,7 +8,6 @@ import {
   FolderOpen, Power, Edit2, Menu, Eye, Loader, Phone
 } from 'lucide-react'
 
-// === 接口 ===
 const API = {
   async fetch(url, options = {}) {
     const res = await fetch(url, options)
@@ -64,7 +65,6 @@ const API = {
   })
 }
 
-// === 工具函数 ===
 function formatSize(bytes) {
   if (!bytes || bytes <= 0) return '0 B'
   if (bytes < 1024) return `${bytes} B`
@@ -127,7 +127,6 @@ function getFileSubtype(fileName) {
   return 'file'
 }
 
-// === 引导页 ===
 function WelcomeGuide({ onClose, onShutdown }) {
   const [step, setStep] = useState(0)
   const [customPath, setCustomPath] = useState('')
@@ -246,7 +245,6 @@ function WelcomeGuide({ onClose, onShutdown }) {
   )
 }
 
-// === 设置弹窗 ===
 function SettingsModal({ onClose, addToast, isDarkMode, handleShutdown }) {
   const [dataPath, setStoragePath] = useState('')
   const [originalPath, setOriginalPath] = useState('')
@@ -352,7 +350,6 @@ function Toast({ message, type, onDone, index }) {
   )
 }
 
-// === 遮罩层 ===
 function ModalOverlay({ children, onClose, closeOnOverlayClick = false }) {
   const handleOverlayClick = (e) => {
     if (closeOnOverlayClick && e.target === e.currentTarget) {
@@ -366,7 +363,6 @@ function ModalOverlay({ children, onClose, closeOnOverlayClick = false }) {
   )
 }
 
-// === 面包屑生成器 ===
 function generateBreadcrumbs(currentPath) {
   if (!currentPath) return []
   return [
@@ -378,13 +374,11 @@ function generateBreadcrumbs(currentPath) {
   ]
 }
 
-// === 刷新处理器工厂 ===
 const createRefreshHandler = (setter, apiMethod) => async () => {
   try { setter(await apiMethod()) }
   catch (err) { console.error(err) }
 }
 
-// === 文件卡片 ===
 function FileCard({ file, isSelected, isDarkMode, onSelect, onPreview }) {
   const subtype = getFileSubtype(file.fileName)
 
@@ -408,7 +402,6 @@ function FileCard({ file, isSelected, isDarkMode, onSelect, onPreview }) {
   )
 }
 
-// === 文件夹卡片 ===
 function FolderCard({ folder, isDarkMode, onClick }) {
   return (
     <div
@@ -425,7 +418,6 @@ function FolderCard({ folder, isDarkMode, onClick }) {
   )
 }
 
-// === 确认弹窗 ===
 function ConfirmModal({ title, message, confirmText, onConfirm, onClose, danger, isDarkMode, closeOnOverlayClick }) {
   return (
     <ModalOverlay onClose={onClose} closeOnOverlayClick={closeOnOverlayClick}>
@@ -441,7 +433,6 @@ function ConfirmModal({ title, message, confirmText, onConfirm, onClose, danger,
   )
 }
 
-// === 输入弹窗 ===
 function InputModal({ title, placeholder, defaultValue, confirmText, onConfirm, onClose, isDarkMode, isLoading, loadingText }) {
   const [value, setValue] = useState(defaultValue || '')
   return (
@@ -466,7 +457,6 @@ function InputModal({ title, placeholder, defaultValue, confirmText, onConfirm, 
   )
 }
 
-// === 移动弹窗 ===
 function MoveModal({ items, allFolders, currentPath, isDarkMode, onMove, onClose }) {
   const [targetPath, setTargetPath] = useState('')
   const [customPath, setCustomPath] = useState(currentPath)
@@ -557,7 +547,6 @@ function MoveModal({ items, allFolders, currentPath, isDarkMode, onMove, onClose
   )
 }
 
-// === 主应用 ===
 export default function App() {
   const [items, setItems] = useState([])
   const [trashItems, setTrashItems] = useState([])
@@ -582,7 +571,7 @@ export default function App() {
   const [inputModal, setInputModal] = useState(null)
   const [inputLoading, setInputLoading] = useState(false)
   const [renameTarget, setRenameTarget] = useState(null)
-  const [showWelcome, setShowWelcome] = useState(() => !localStorage.getItem('mostbox_welcomed'))
+  const [showWelcome, setShowWelcome] = useState(() => typeof window !== 'undefined' && !localStorage.getItem('mostbox_welcomed'))
   const [showSettings, setShowSettings] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [previewText, setPreviewText] = useState('')
@@ -756,7 +745,6 @@ export default function App() {
             if (isTrash) {
               await API.permanentDeleteTrashFile(id)
             } else {
-              // 跳过文件夹 ID（以 '__' 前缀标识），只删除文件
               if (!id.startsWith('__')) await API.deletePublishedFile(id)
             }
           }
@@ -832,14 +820,12 @@ export default function App() {
     for (const file of Array.from(files)) {
       const fileName = prefix + file.name
 
-      // 检查完整路径是否已存在
       const nameExists = items.some(item => item.fileName === fileName)
       if (nameExists) {
         addToast(`${file.name} 已存在`, 'warning')
         continue
       }
 
-      // 创建传输条目用于进度跟踪
       const transferId = `upload_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
       const transfer = {
         id: transferId,
@@ -851,7 +837,6 @@ export default function App() {
       newTransfers.push(transfer)
       setTransfers(prev => [...prev, transfer])
 
-      // 有新传输时打开传输面板
       if (newTransfers.length > 0) {
         setIsTransferPanelOpen(true)
       }
@@ -859,13 +844,11 @@ export default function App() {
       try {
         const result = await API.publishFile(file, fileName)
         if (result.alreadyExists) {
-          // 更新传输状态
           setTransfers(prev => prev.map(t =>
             t.id === transferId ? { ...t, status: 'completed' } : t
           ))
           addToast(`${file.name} 已存在`, 'warning')
         } else {
-          // 更新传输状态
           setTransfers(prev => prev.map(t =>
             t.id === transferId ? { ...t, progress: 100, status: 'completed' } : t
           ))
@@ -879,7 +862,6 @@ export default function App() {
       }
     }
 
-    // 延迟移除已完成的传输
     setTimeout(() => {
       setTransfers(prev => prev.filter(t => t.status !== 'completed' && t.status !== 'error' && t.status !== 'cancelled'))
     }, 3000)
@@ -949,7 +931,6 @@ export default function App() {
     if (transfer.type === 'download' && transfer.status === 'downloading') {
       try {
         await API.cancelDownload(transfer.id)
-        // WebSocket 会处理 'download:cancelled' 事件
       } catch (err) {
         addToast('取消失败', 'error')
       }
@@ -994,7 +975,9 @@ export default function App() {
 
   const handleCloseWelcome = () => {
     setShowWelcome(false)
-    localStorage.setItem('mostbox_welcomed', 'true')
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('mostbox_welcomed', 'true')
+    }
   }
 
   const handleShutdown = () => {
@@ -1013,7 +996,6 @@ export default function App() {
     })
   }
 
-  // WebSocket 连接
   useEffect(() => {
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
     const ws = new WebSocket(`${protocol}//${location.host}/ws`)
@@ -1033,17 +1015,14 @@ export default function App() {
             } else {
               addToast(`${data.fileName} 下载完成`, 'success')
             }
-            // 延迟移除已完成的下载
             setTimeout(() => {
               setTransfers(prev => prev.filter(t => !(t.id === taskId && t.status === 'completed')))
             }, 3000)
           }
         }
-        // 处理发布/上传进度
         if (event === 'publish:progress') {
           setTransfers(prev => prev.map(t => {
             if (data.file && t.fileName === data.file && t.type === 'upload') {
-              // 根据阶段计算百分比
               let progress = 50
               if (data.stage === 'calculating-cid') progress = 25
               else if (data.stage === 'uploading') progress = 75
@@ -1053,26 +1032,22 @@ export default function App() {
             return t
           }))
         }
-        // 处理下载进度
         if (event === 'download:progress') {
           setTransfers(prev => prev.map(t =>
             t.id === data.taskId ? { ...t, progress: data.percent || 0, loaded: data.loaded, total: data.total } : t
           ))
         }
-        // 处理下载错误
         if (event === 'download:error') {
           setTransfers(prev => prev.map(t =>
             t.id === data.taskId ? { ...t, status: 'error' } : t
           ))
           addToast(`下载失败: ${data.error}`, 'error')
         }
-        // 处理下载状态（包含文件名）
         if (event === 'download:status') {
           setTransfers(prev => prev.map(t =>
             t.id === data.taskId ? { ...t, fileName: data.file || t.fileName } : t
           ))
         }
-        // 处理下载取消
         if (event === 'download:cancelled') {
           setTransfers(prev => prev.map(t =>
             t.id === data.taskId ? { ...t, status: 'cancelled' } : t
@@ -1084,10 +1059,9 @@ export default function App() {
     return () => ws.close()
   }, [])
 
-  // 初始化
   useEffect(() => {
-    const saved = localStorage.getItem('theme')
-    if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('theme') : null
+    if (saved === 'dark' || (!saved && typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
       setIsDarkMode(true)
     }
     refreshFiles()
@@ -1096,12 +1070,10 @@ export default function App() {
     API.getStorageStats().then(s => setStorageStats(s)).catch(() => { })
   }, [])
 
-  // 同步 data-theme 属性
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light')
   }, [isDarkMode])
 
-  // 主题颜色
   const viewTitle = currentView === 'all' ? '全部内容' : currentView === 'starred' ? '收藏' : '回收站'
   const displayFiles = currentView === 'all'
     ? filteredFiles
@@ -1112,15 +1084,12 @@ export default function App() {
     ? []
     : folders.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()))
 
-  // 面包屑部分
   const breadcrumbParts = generateBreadcrumbs(currentPath)
 
   return (
     <div className="app-layout">
-      {/* 侧边栏遮罩 */}
       <div className={`sidebar-overlay ${isSidebarOpen ? 'visible' : ''}`} onClick={() => setIsSidebarOpen(false)} />
 
-      {/* 侧边栏 */}
       <div className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
           <h1>Most.Box</h1>
@@ -1152,9 +1121,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* 主内容区 */}
       <div className="main-content">
-        {/* 头部 */}
         <header className="app-header">
           <div className="header-left">
             <button onClick={() => setIsSidebarOpen(true)} className="icon-btn mobile-menu-btn">
@@ -1193,7 +1160,6 @@ export default function App() {
           </div>
         </header>
 
-        {/* 上传/下载 */}
         {currentView === 'all' && (
           <div className="action-grid">
             <div className={`action-card upload ${isDraggingOverUpload ? 'drag-over' : ''}`} onDragOver={(e) => { e.preventDefault(); setIsDraggingOverUpload(true) }} onDragLeave={() => setIsDraggingOverUpload(false)} onDrop={(e) => { e.preventDefault(); setIsDraggingOverUpload(false); processFiles(e.dataTransfer.files) }}>
@@ -1208,7 +1174,6 @@ export default function App() {
           </div>
         )}
 
-        {/* 面包屑 */}
         {currentView === 'all' && (
           <div className="breadcrumb">
             {currentPath ? (
@@ -1230,9 +1195,7 @@ export default function App() {
           </div>
         )}
 
-        {/* 内容网格 */}
         <div className="content-grid">
-          {/* 回收站视图 */}
           {currentView === 'trash' && (
             displayFiles.length === 0 ? (
               <div className="empty-state">{searchQuery ? '未找到相关文件' : '回收站是空的'}</div>
@@ -1256,11 +1219,10 @@ export default function App() {
             )
           )}
 
-          {/* 全部/收藏视图 */}
           {currentView !== 'trash' && (
             displayFiles.length === 0 && displayFolders.length === 0 ? (
               <div className="empty-state">
-                {searchQuery ? '未找到相关文件' : (currentView === 'starred' ? '暂无收藏' : '暂无文件')}
+                {searchQuery ? '未找到相关文件' : (currentView === 'starred' ? '暂无的收藏' : '暂无文件')}
               </div>
             ) : (
               <div className="file-grid">
@@ -1276,9 +1238,6 @@ export default function App() {
         </div>
       </div>
 
-
-
-      {/* 确认弹窗 */}
       {confirmModal && (
         <ConfirmModal
           title={confirmModal.title}
@@ -1292,7 +1251,6 @@ export default function App() {
         />
       )}
 
-      {/* 输入弹窗 */}
       {inputModal && (
         <InputModal
           title={inputModal.title}
@@ -1306,7 +1264,6 @@ export default function App() {
         />
       )}
 
-      {/* 移动弹窗 */}
       {isMoveModalOpen && (
         <MoveModal
           items={selectedIds.map(id => items.find(i => i.cid === id)).filter(Boolean)}
@@ -1318,7 +1275,6 @@ export default function App() {
         />
       )}
 
-      {/* 分享弹窗 */}
       {shareItem && (
         <ModalOverlay onClose={() => setShareItem(null)}>
           <div className="share-modal" onClick={e => e.stopPropagation()}>
@@ -1336,7 +1292,6 @@ export default function App() {
         </ModalOverlay>
       )}
 
-      {/* 下载弹窗 */}
       {isDownloadModalOpen && (
         <ModalOverlay onClose={() => setIsDownloadModalOpen(false)}>
           <div className="download-modal" onClick={e => e.stopPropagation()}>
@@ -1352,7 +1307,6 @@ export default function App() {
         </ModalOverlay>
       )}
 
-      {/* 预览弹窗 */}
       {previewItem && (
         <div className="preview-overlay" onClick={() => { setPreviewItem(null); setPreviewText(''); setPreviewMediaLoading(false) }}>
           <button className="preview-close"><X size={20} /></button>
@@ -1392,7 +1346,7 @@ export default function App() {
                   <div className="preview-text-loading">
                     <Loader size={24} className="preview-text-spinner" />
                     <p>正在加载文本预览...</p>
-                    <p className="preview-text-loading-hint">如果是首次预览，可能需要等待 P2P 网络同步</p>
+                    <p className="preview-text-loading-hint">如果是初次预览，可能需要等待 P2P 网络同步</p>
                   </div>
                 ) : (
                   <pre className="preview-text">{previewText || '（文件为空）'}</pre>
@@ -1403,7 +1357,6 @@ export default function App() {
         </div>
       )}
 
-      {/* 批量操作栏 */}
       {selectedIds.length > 0 && (
         <div className="batch-bar">
           <span className="batch-info">已选 {selectedIds.length} 项</span>
@@ -1483,7 +1436,6 @@ export default function App() {
         </div>
       )}
 
-      {/* 传输面板 */}
       {isTransferPanelOpen && (
         <ModalOverlay onClose={() => setIsTransferPanelOpen(false)} closeOnOverlayClick={true}>
           <div className="transfer-modal" onClick={e => e.stopPropagation()}>
@@ -1529,17 +1481,14 @@ export default function App() {
         </ModalOverlay>
       )}
 
-      {/* 通知列表 */}
       {toasts.map((t, i) => <Toast key={t.id} message={t.message} type={t.type} onDone={() => removeToast(t.id)} index={i} />)}
 
-      {/* 引导页 */}
       {showWelcome && <WelcomeGuide onClose={handleCloseWelcome} onShutdown={() => {
         fetch('/api/shutdown', { method: 'POST' })
         addToast('服务已关闭，请重新启动应用', 'info')
         handleCloseWelcome()
       }} />}
 
-      {/* 设置弹窗 */}
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} addToast={addToast} isDarkMode={isDarkMode} handleShutdown={handleShutdown} />}
     </div>
   )

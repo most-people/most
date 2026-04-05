@@ -8,15 +8,16 @@
     "most-box": "./cli.js"
   },
   "files": [
+    "out",
     "public",
     "src",
     "server.js",
-    "build.mjs",
     "cli.js"
   ],
   "scripts": {
     "start": "npm run build && node server.js",
-    "build": "node build.mjs",
+    "build": "next build",
+    "dev": "next dev",
     "test": "node --test tests/**/*.test.js",
     "test:unit": "node --test tests/unit/*.test.js"
   },
@@ -38,6 +39,7 @@
     "ipfs-unixfs-importer": "^16.1.4",
     "lucide-react": "^1.7.0",
     "multiformats": "^13.4.2",
+    "next": "^16.2.2",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.14.0",

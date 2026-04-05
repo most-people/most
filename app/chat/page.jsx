@@ -1,5 +1,6 @@
+'use client'
+
 import React, { useState, useRef, useEffect } from 'react'
-import { createRoot } from 'react-dom/client'
 import Peer from 'simple-peer/simplepeer.min.js'
 import { Phone, PhoneOff, Video, VideoOff, Mic, MicOff, MessageSquare, X, Send, Monitor, MonitorOff, ArrowLeft, Copy, Check, Users, Plus } from 'lucide-react'
 
@@ -44,7 +45,6 @@ const API = {
 function ChatPage() {
   const [activeTab, setActiveTab] = useState('call')
 
-  // Call state
   const [peerId, setPeerId] = useState('')
   const [callState, setCallState] = useState('idle')
   const [incomingCall, setIncomingCall] = useState(null)
@@ -61,7 +61,6 @@ function ChatPage() {
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
 
-  // Channel state
   const [channels, setChannels] = useState([])
   const [activeChannel, setActiveChannel] = useState(null)
   const [channelMessages, setChannelMessages] = useState([])
@@ -94,7 +93,6 @@ function ChatPage() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatMessages])
 
-  // WebSocket
   useEffect(() => {
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
     const ws = new WebSocket(`${protocol}//${location.host}/ws`)
@@ -168,7 +166,6 @@ function ChatPage() {
     }
   }, [callState, isCameraOff])
 
-  // Load channels on mount
   useEffect(() => {
     refreshChannels()
   }, [])
@@ -505,7 +502,6 @@ function ChatPage() {
     window.location.href = '/'
   }
 
-  // Channel handlers
   async function handleOpenChannel(channel) {
     setActiveChannel(channel)
     try {
@@ -566,7 +562,6 @@ function ChatPage() {
     setChannelPeers([])
   }
 
-  // === Tab Navigation ===
   function renderTabNav() {
     return (
       <div className="chat-tab-nav">
@@ -591,7 +586,6 @@ function ChatPage() {
     )
   }
 
-  // === Call Views ===
   if (activeTab === 'call') {
     if (callState === 'idle' || callState === 'ended') {
       return (
@@ -859,7 +853,6 @@ function ChatPage() {
     }
   }
 
-  // === Channel Views ===
   if (activeTab === 'channels') {
     if (activeChannel) {
       return (
@@ -1005,12 +998,3 @@ function ChatPage() {
 }
 
 export default ChatPage
-
-if (typeof document !== 'undefined') {
-  const existing = document.getElementById('root')
-  if (existing && !existing.hasChildNodes()) {
-    import('./chat.css')
-    const root = createRoot(existing)
-    root.render(<ChatPage />)
-  }
-}
