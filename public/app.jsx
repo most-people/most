@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef } from 'react'
 import {
   Upload, Sun, Moon, Image as ImageIcon, Trash2, Folder,
   Film, Music, ChevronRight, FileText,
-  X, Check, Copy, Download, ArrowUpDown, Star, Files, HardDrive, Search, Info, Phone,
-  FolderOpen, Power, Edit2, Menu, Eye, Loader
+  X, Check, Copy, Download, ArrowUpDown, Star, Files, HardDrive, Search, Info,
+  FolderOpen, Power, Edit2, Menu, Eye, Loader, MessageSquare, Phone, Video
 } from 'lucide-react'
 
 // === 接口 ===
@@ -61,6 +61,26 @@ const API = {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ oldPath, newPath })
+  }),
+  getChannels: () => API.fetch('/api/channels'),
+  createChannel: (name, type) => API.fetch('/api/channels', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, type })
+  }),
+  leaveChannel: (name) => API.fetch(`/api/channels/${encodeURIComponent(name)}`, { method: 'DELETE' }),
+  getChannelMessages: (name, limit = 100, offset = 0) => API.fetch(`/api/channels/${encodeURIComponent(name)}/messages?limit=${limit}&offset=${offset}`),
+  sendChannelMessage: (name, content) => API.fetch(`/api/channels/${encodeURIComponent(name)}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content })
+  }),
+  getChannelPeers: (name) => API.fetch(`/api/channels/${encodeURIComponent(name)}/peers`),
+  getDisplayName: () => API.fetch('/api/display-name'),
+  setDisplayName: (name) => API.fetch('/api/display-name', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name })
   })
 }
 
@@ -576,6 +596,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const [copied, setCopied] = useState(false)
   const [peerCount, setPeerCount] = useState(0)
+  const [myPeerId, setMyPeerId] = useState('')
   const [storageStats, setStorageStats] = useState({ total: 0, used: 0, free: 0 })
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false)
   const [confirmModal, setConfirmModal] = useState(null)
@@ -591,6 +612,20 @@ export default function App() {
   const [previewLoaded, setPreviewLoaded] = useState(false)
   const previewMediaRef = useRef(null)
   const previewTextRef = useRef(null)
+
+  const [channels, setChannels] = useState([])
+  const [activeChannel, setActiveChannel] = useState(null)
+  const [channelMessages, setChannelMessages] = useState([])
+  const [channelPeers, setChannelPeers] = useState([])
+  const [channelInput, setChannelInput] = useState('')
+  const [showCreateChannel, setShowCreateChannel] = useState(false)
+  const [newChannelName, setNewChannelName] = useState('')
+  const [newChannelType, setNewChannelType] = useState('personal')
+  const messagesEndRef = useRef(null)
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [channelMessages])
 
   useEffect(() => {
     if (previewItem && (previewItem.subtype === 'image' || previewItem.subtype === 'video')) {
@@ -1013,6 +1048,74 @@ export default function App() {
     })
   }
 
+  const refreshChannels = createRefreshHandler(setChannels, API.getChannels)
+
+  const handleOpenChannel = async (channel) => {
+    setActiveChannel(channel)
+    try {
+      const messages = await API.getChannelMessages(channel.name)
+      setChannelMessages(messages)
+      const peers = await API.getChannelPeers(channel.name)
+      setChannelPeers(peers)
+    } catch (err) {
+      addToast('加载频道失败', 'error')
+    }
+  }
+
+  const handleLeaveChannel = async (name) => {
+    setConfirmModal({
+      title: '离开频道',
+      message: `确定要离开频道 "${name}" 吗？`,
+      confirmText: '离开',
+      danger: true,
+      onConfirm: async () => {
+        setConfirmModal(null)
+        try {
+          await API.leaveChannel(name)
+          if (activeChannel?.name === name) {
+            setActiveChannel(null)
+            setChannelMessages([])
+            setChannelPeers([])
+          }
+          refreshChannels()
+          addToast('已离开频道', 'success')
+        } catch { addToast('离开频道失败', 'error') }
+      }
+    })
+  }
+
+  const handleCreateChannel = async () => {
+    if (!newChannelName.trim()) return
+    try {
+      await API.createChannel(newChannelName.trim(), newChannelType)
+      setNewChannelName('')
+      setNewChannelType('personal')
+      setShowCreateChannel(false)
+      refreshChannels()
+      addToast('频道已创建', 'success')
+    } catch (err) {
+      addToast(err.message || '创建频道失败', 'error')
+    }
+  }
+
+  const handleSendChannelMessage = async () => {
+    if (!channelInput.trim() || !activeChannel) return
+    const content = channelInput.trim()
+    setChannelInput('')
+    try {
+      await API.sendChannelMessage(activeChannel.name, content)
+    } catch (err) {
+      addToast('发送消息失败', 'error')
+      return
+    }
+  }
+
+  const handleBackToChannels = () => {
+    setActiveChannel(null)
+    setChannelMessages([])
+    setChannelPeers([])
+  }
+
   // WebSocket 连接
   useEffect(() => {
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -1079,6 +1182,25 @@ export default function App() {
           ))
           addToast('下载已取消', 'warning')
         }
+        // 处理频道消息
+        if (event === 'channel:message') {
+          if (activeChannel && data.channel === activeChannel.name) {
+            setChannelMessages(prev => {
+              const exists = prev.some(m => m.timestamp === data.message.timestamp && m.content === data.message.content && m.author === data.message.author)
+              if (exists) return prev
+              return [...prev, data.message]
+            })
+          }
+        }
+        // 处理频道 peers
+        if (event === 'channel:peer:online' || event === 'channel:peer:offline') {
+          if (activeChannel) {
+            API.getChannelPeers(activeChannel.name).then(setChannelPeers).catch(() => { })
+          }
+        }
+        if (event === 'channel:joined' || event === 'channel:left') {
+          refreshChannels()
+        }
       } catch { }
     }
     return () => ws.close()
@@ -1093,7 +1215,9 @@ export default function App() {
     refreshFiles()
     refreshTrash()
     refreshStorageStats()
+    refreshChannels()
     API.getStorageStats().then(s => setStorageStats(s)).catch(() => { })
+    fetch('/api/node-id').then(r => r.json()).then(d => setMyPeerId(d.id)).catch(() => { })
   }, [])
 
   // 同步 data-theme 属性
@@ -1126,7 +1250,7 @@ export default function App() {
           <h1>Most.Box</h1>
         </div>
         <nav className="sidebar-nav">
-          {[{ id: 'all', icon: <Files size={18} />, label: '全部内容' }, { id: 'starred', icon: <Star size={18} />, label: '收藏' }, { id: 'trash', icon: <Trash2 size={18} />, label: '回收站' }].map(item => (
+          {[{ id: 'all', icon: <Files size={18} />, label: '全部内容' }, { id: 'starred', icon: <Star size={18} />, label: '收藏' }, { id: 'channels', icon: <MessageSquare size={18} />, label: '频道' }, { id: 'trash', icon: <Trash2 size={18} />, label: '回收站' }].map(item => (
             <button
               key={item.id}
               onClick={() => { setCurrentView(item.id); setCurrentFolderId(null); setSelectedIds([]); setSearchQuery(''); setIsSidebarOpen(false) }}
@@ -1231,49 +1355,133 @@ export default function App() {
         )}
 
         {/* 内容网格 */}
-        <div className="content-grid">
-          {/* 回收站视图 */}
-          {currentView === 'trash' && (
-            displayFiles.length === 0 ? (
-              <div className="empty-state">{searchQuery ? '未找到相关文件' : '回收站是空的'}</div>
-            ) : (
-              <div className="file-grid">
-                {displayFiles.map(f => (
-                  <div
-                    key={f.cid}
-                    onClick={() => setSelectedIds(prev => prev.includes(f.cid) ? prev.filter(id => id !== f.cid) : [...prev, f.cid])}
-                    onDoubleClick={() => handleRestore(f.cid)}
-                    className={`card ${selectedIds.includes(f.cid) ? 'selected' : ''}`}
-                  >
-                    <div className="card-icon trash">
-                      <FileText size={24} color="#fff" />
-                    </div>
-                    <p className="card-name">{parseName(f.fileName).name}</p>
-                    <p className="card-date">删除于 {formatDate(f.deletedAt)}</p>
-                  </div>
-                ))}
+        {currentView === 'channels' ? (
+          activeChannel ? (
+            <div className="chat-view">
+              <div className="chat-view-header">
+                <button className="chat-view-back" onClick={handleBackToChannels}>
+                  <ChevronRight size={18} style={{ transform: 'rotate(180deg)' }} />
+                </button>
+                <h3 className="chat-view-title">{activeChannel.name}</h3>
+                <div className="chat-view-peers">
+                  <div className="chat-view-peer-dot" />
+                  {channelPeers.length} 在线
+                </div>
               </div>
-            )
-          )}
 
-          {/* 全部/收藏视图 */}
-          {currentView !== 'trash' && (
-            displayFiles.length === 0 && displayFolders.length === 0 ? (
-              <div className="empty-state">
-                {searchQuery ? '未找到相关文件' : (currentView === 'starred' ? '暂无收藏' : '暂无文件')}
+              <div className="chat-messages">
+                {channelMessages.length === 0 ? (
+                  <div className="chat-empty">暂无消息，开始聊天吧！</div>
+                ) : (
+                  channelMessages.map((msg, i) => (
+                    <div key={i} className={`chat-message ${msg.author === myPeerId ? 'self' : 'other'}`}>
+                      {msg.author !== myPeerId && <span className="chat-msg-author">{msg.authorName}</span>}
+                      <div className="chat-msg-bubble">{msg.content}</div>
+                      <span className="chat-msg-time">{new Date(msg.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                  ))
+                )}
+                <div ref={messagesEndRef} />
               </div>
-            ) : (
-              <div className="file-grid">
-                {displayFolders.map(folder => (
-                  <FolderCard key={folder.path} folder={folder} isDarkMode={isDarkMode} onClick={() => handleNavigate(folder.path)} />
-                ))}
-                {displayFiles.map(f => (
-                  <FileCard key={f.cid} file={f} isSelected={selectedIds.includes(f.cid)} isDarkMode={isDarkMode} onSelect={handleSelect} onPreview={(file) => setPreviewItem({ ...file, subtype: getFileSubtype(file.fileName) })} />
-                ))}
+
+              <div className="chat-input-area">
+                <input
+                  type="text"
+                  className="chat-input"
+                  placeholder="输入消息..."
+                  value={channelInput}
+                  onChange={e => setChannelInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && channelInput.trim()) handleSendChannelMessage() }}
+                />
+                <button className="chat-send-btn" onClick={handleSendChannelMessage} disabled={!channelInput.trim()}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                </button>
               </div>
-            )
-          )}
-        </div>
+            </div>
+          ) : (
+            <div className="channels-panel">
+              <div className="channels-header">
+                <h3>频道</h3>
+                <button className="btn primary" style={{ padding: '6px 12px', fontSize: 13 }} onClick={() => setShowCreateChannel(true)}>
+                  + 创建
+                </button>
+              </div>
+
+              <div className="channels-list">
+                {channels.length === 0 ? (
+                  <div className="empty-state" style={{ padding: 40 }}>
+                    暂无频道，创建一个开始聊天吧
+                  </div>
+                ) : (
+                  channels.map(channel => (
+                    <div key={channel.name} className="channel-item" onClick={() => handleOpenChannel(channel)}>
+                      <div className="channel-icon">
+                        <MessageSquare size={20} />
+                      </div>
+                      <div className="channel-info">
+                        <div className="channel-name">{channel.name}</div>
+                        <div className="channel-meta">
+                          <span>{channel.type === 'personal' ? '个人' : '群组'}</span>
+                          <span>·</span>
+                          <span>{channel.peerCount} 在线</span>
+                        </div>
+                      </div>
+                      <div className="channel-actions" onClick={e => e.stopPropagation()}>
+                        <button className="channel-action-btn" onClick={() => handleLeaveChannel(channel.name)} title="离开频道">
+                          <X size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )
+        ) : (
+          <div className="content-grid">
+            {/* 回收站视图 */}
+            {currentView === 'trash' && (
+              displayFiles.length === 0 ? (
+                <div className="empty-state">{searchQuery ? '未找到相关文件' : '回收站是空的'}</div>
+              ) : (
+                <div className="file-grid">
+                  {displayFiles.map(f => (
+                    <div
+                      key={f.cid}
+                      onClick={() => setSelectedIds(prev => prev.includes(f.cid) ? prev.filter(id => id !== f.cid) : [...prev, f.cid])}
+                      onDoubleClick={() => handleRestore(f.cid)}
+                      className={`card ${selectedIds.includes(f.cid) ? 'selected' : ''}`}
+                    >
+                      <div className="card-icon trash">
+                        <FileText size={24} color="#fff" />
+                      </div>
+                      <p className="card-name">{parseName(f.fileName).name}</p>
+                      <p className="card-date">删除于 {formatDate(f.deletedAt)}</p>
+                    </div>
+                  ))}
+                </div>
+              )
+            )}
+
+            {/* 全部/收藏视图 */}
+            {currentView !== 'trash' && (
+              displayFiles.length === 0 && displayFolders.length === 0 ? (
+                <div className="empty-state">
+                  {searchQuery ? '未找到相关文件' : (currentView === 'starred' ? '暂无收藏' : '暂无文件')}
+                </div>
+              ) : (
+                <div className="file-grid">
+                  {displayFolders.map(folder => (
+                    <FolderCard key={folder.path} folder={folder} isDarkMode={isDarkMode} onClick={() => handleNavigate(folder.path)} />
+                  ))}
+                  {displayFiles.map(f => (
+                    <FileCard key={f.cid} file={f} isSelected={selectedIds.includes(f.cid)} isDarkMode={isDarkMode} onSelect={handleSelect} onPreview={(file) => setPreviewItem({ ...file, subtype: getFileSubtype(file.fileName) })} />
+                  ))}
+                </div>
+              )
+            )}
+          </div>
+        )}
       </div>
 
 
@@ -1348,6 +1556,44 @@ export default function App() {
             <button onClick={handleDownloadSharedFile} disabled={!downloadLink.trim() || isDownloading} className="download-btn">
               {isDownloading ? '下载中...' : '开始下载'}
             </button>
+          </div>
+        </ModalOverlay>
+      )}
+
+      {/* 创建频道弹窗 */}
+      {showCreateChannel && (
+        <ModalOverlay onClose={() => { setShowCreateChannel(false); setNewChannelName('') }}>
+          <div className="create-channel-modal" onClick={e => e.stopPropagation()}>
+            <h3>创建频道</h3>
+            <p>创建一个频道，朋友加入后可以聊天和通话</p>
+            <input
+              type="text"
+              className="create-channel-input"
+              placeholder="频道名，如 alice 或 team-project"
+              value={newChannelName}
+              onChange={e => setNewChannelName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && newChannelName.trim()) handleCreateChannel() }}
+              autoFocus
+            />
+            <div className="channel-type-selector">
+              <button
+                className={`channel-type-btn ${newChannelType === 'personal' ? 'active' : ''}`}
+                onClick={() => setNewChannelType('personal')}
+              >
+                个人
+              </button>
+              <button
+                className={`channel-type-btn ${newChannelType === 'group' ? 'active' : ''}`}
+                onClick={() => setNewChannelType('group')}
+              >
+                群组
+              </button>
+            </div>
+            <div className="create-channel-hint">3-20位，字母、数字、下划线、连字符</div>
+            <div className="modal-actions">
+              <button onClick={() => { setShowCreateChannel(false); setNewChannelName('') }} className="btn secondary">取消</button>
+              <button onClick={handleCreateChannel} disabled={!newChannelName.trim()} className="btn primary">创建</button>
+            </div>
           </div>
         </ModalOverlay>
       )}

@@ -12,7 +12,9 @@ import EventEmitter from 'eventemitter3'
 import Hyperswarm from 'hyperswarm'
 import Corestore from 'corestore'
 import Hyperdrive from 'hyperdrive'
+import Hypercore from 'hypercore'
 import b4a from 'b4a'
+import crypto from 'node:crypto'
 import { CID } from 'multiformats/cid'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -20,7 +22,7 @@ import path from 'node:path'
 import { calculateCid, parseMostLink } from './core/cid.js'
 import { sanitizeFilename, validateAndSanitizePath, validateFileSize, checkDirectoryWritable, formatFileSize } from './utils/security.js'
 import { ValidationError, PathSecurityError, FileSizeError, PeerNotFoundError, IntegrityError, PermissionError, EngineNotInitializedError } from './utils/errors.js'
-import { GLOBAL_SHARED_SEED_STRING, MAX_FILE_SIZE, CONNECTION_TIMEOUT, DOWNLOAD_TIMEOUT, SWARM_BOOTSTRAP, MAX_PEERS, SWARM_KEEP_ALIVE_INTERVAL, SWARM_RANDOM_PUNCH_INTERVAL, DRIVE_ENTRY_TIMEOUT, DRIVE_SYNC_TIMEOUT, STREAM_READ_TIMEOUT, DOWNLOAD_POLL_INTERVAL, PROGRESS_THROTTLE, DEFAULT_READ_LIMIT } from './config.js'
+import { GLOBAL_SHARED_SEED_STRING, MAX_FILE_SIZE, CONNECTION_TIMEOUT, DOWNLOAD_TIMEOUT, SWARM_BOOTSTRAP, MAX_PEERS, SWARM_KEEP_ALIVE_INTERVAL, SWARM_RANDOM_PUNCH_INTERVAL, DRIVE_ENTRY_TIMEOUT, DRIVE_SYNC_TIMEOUT, STREAM_READ_TIMEOUT, DOWNLOAD_POLL_INTERVAL, PROGRESS_THROTTLE, DEFAULT_READ_LIMIT, CHANNEL_NAME_MIN_LENGTH, CHANNEL_NAME_MAX_LENGTH, CHANNEL_NAME_REGEX, CHANNEL_NAME_PREFIX, CHANNEL_TOPIC_STRING, CHANNEL_MESSAGE_LIMIT, MAX_MESSAGE_LENGTH } from './config.js'
 
 export class MostBoxEngine extends EventEmitter {
   #store = null
@@ -32,6 +34,11 @@ export class MostBoxEngine extends EventEmitter {
   #options = null
   #activeDownloads = new Map()
   #drivePromises = new Map()
+
+  #channels = []
+  #channelCores = new Map()
+  #channelDiscoveries = new Map()
+  #channelPeers = new Map()
 
   /**
    * 创建新的 MostBoxEngine 实例
@@ -124,6 +131,9 @@ export class MostBoxEngine extends EventEmitter {
       })
 
       this.#store.replicate(conn)
+      this.#handleChannelConnection(conn).catch(err => {
+        console.warn('[MostBox] Channel connection handler error:', err.message)
+      })
       this.emit('connection', conn)
     })
 
@@ -132,6 +142,26 @@ export class MostBoxEngine extends EventEmitter {
 
     this.#trashFiles = this.#loadTrashMetadata()
     console.log(`[MostBox] Loaded ${this.#trashFiles.length} trash files`)
+
+    this.#channels = this.#loadChannelsMetadata()
+    console.log(`[MostBox] Loaded ${this.#channels.length} channels`)
+
+    for (const channel of this.#channels) {
+      try {
+        const ns = this.#store.namespace(`channel-${channel.name}`)
+        const core = ns.get({ key: b4a.from(channel.coreKey, 'hex'), valueEncoding: 'json' })
+        await core.ready()
+        this.#channelCores.set(channel.name, core)
+        this.#channelPeers.set(channel.name, new Map())
+
+        const discoveryKey = b4a.from(channel.discoveryKey, 'hex')
+        const discovery = this.#swarm.join(discoveryKey, { server: true, client: true })
+        this.#channelDiscoveries.set(channel.name, discovery)
+        console.log(`[MostBox] Rejoined channel: ${channel.name}`)
+      } catch (err) {
+        console.warn(`[MostBox] Failed to rejoin channel ${channel.name}:`, err.message)
+      }
+    }
 
     this.#initialized = true
     console.log(`[MostBox] Engine initialized successfully`)
@@ -157,6 +187,14 @@ export class MostBoxEngine extends EventEmitter {
 
     await Promise.allSettled([...this.#drives.values()].map(d => d.close()))
     this.#drives.clear()
+
+    for (const core of this.#channelCores.values()) {
+      try { await core.close() } catch {}
+    }
+    this.#channelCores.clear()
+    this.#channelDiscoveries.clear()
+    this.#channelPeers.clear()
+    this.#channels = []
 
     if (this.#swarm) {
       await this.#swarm.destroy()
@@ -971,6 +1009,290 @@ export class MostBoxEngine extends EventEmitter {
     return drive
   }
 
+  // --- 频道管理 ---
+
+  /**
+   * 创建或加入频道
+   * @param {string} name - 频道名
+   * @param {string} [type='personal'] - 频道类型
+   * @returns {Promise<{ name: string, key: string }>}
+   */
+  async createChannel(name, type = 'personal') {
+    this.#ensureInitialized()
+
+    if (!CHANNEL_NAME_REGEX.test(name)) {
+      throw new Error('频道名只能包含字母、数字、下划线和连字符')
+    }
+    if (name.length < CHANNEL_NAME_MIN_LENGTH) {
+      throw new Error(`频道名至少 ${CHANNEL_NAME_MIN_LENGTH} 个字符`)
+    }
+    if (name.length > CHANNEL_NAME_MAX_LENGTH) {
+      throw new Error(`频道名最多 ${CHANNEL_NAME_MAX_LENGTH} 个字符`)
+    }
+
+    const existing = this.#channels.find(c => c.name === name)
+    if (existing) {
+      return { name: existing.name, key: existing.coreKey }
+    }
+
+    const ns = this.#store.namespace(`channel-${name}`)
+    const core = ns.get({ name: 'messages', valueEncoding: 'json' })
+    await core.ready()
+
+    const discoveryKey = this.#generateChannelDiscoveryKey(name)
+    const discovery = this.#swarm.join(discoveryKey, { server: true, client: true })
+    await discovery.flushed()
+
+    const channelInfo = {
+      name,
+      discoveryKey: b4a.toString(discoveryKey, 'hex'),
+      coreKey: b4a.toString(core.key, 'hex'),
+      createdAt: new Date().toISOString(),
+      type
+    }
+
+    this.#channels.push(channelInfo)
+    this.#channelCores.set(name, core)
+    this.#channelPeers.set(name, new Map())
+    this.#saveChannelsMetadata()
+
+    console.log(`[MostBox] Channel created: ${name}`)
+    this.emit('channel:joined', { name, key: channelInfo.coreKey })
+
+    return { name, key: channelInfo.coreKey }
+  }
+
+  /**
+   * 加入已有频道（通过频道名和 coreKey）
+   * @param {string} name - 频道名
+   * @param {string} [coreKey] - 频道的 coreKey（加入他人创建的频道时必填）
+   * @returns {Promise<{ name: string, key: string }>}
+   */
+  async joinChannel(name, coreKey = null) {
+    this.#ensureInitialized()
+
+    const existing = this.#channels.find(c => c.name === name)
+    if (existing) {
+      return { name: existing.name, key: existing.coreKey }
+    }
+
+    if (!coreKey) {
+      throw new Error('加入已有频道需要提供 coreKey')
+    }
+
+    const ns = this.#store.namespace(`channel-${name}`)
+    const core = ns.get({ key: b4a.from(coreKey, 'hex'), valueEncoding: 'json' })
+    await core.ready()
+
+    const discoveryKey = this.#generateChannelDiscoveryKey(name)
+    const discovery = this.#swarm.join(discoveryKey, { server: true, client: true })
+    await discovery.flushed()
+
+    const channelInfo = {
+      name,
+      discoveryKey: b4a.toString(discoveryKey, 'hex'),
+      coreKey,
+      createdAt: new Date().toISOString(),
+      type: 'group'
+    }
+
+    this.#channels.push(channelInfo)
+    this.#channelCores.set(name, core)
+    this.#channelPeers.set(name, new Map())
+    this.#saveChannelsMetadata()
+
+    console.log(`[MostBox] Joined channel: ${name}`)
+    this.emit('channel:joined', { name, key: coreKey })
+
+    return { name, key: coreKey }
+  }
+
+  /**
+   * 离开频道
+   * @param {string} name - 频道名
+   * @returns {Promise<string[]>} 剩余频道列表
+   */
+  async leaveChannel(name) {
+    this.#ensureInitialized()
+
+    const index = this.#channels.findIndex(c => c.name === name)
+    if (index === -1) {
+      throw new Error('频道不存在')
+    }
+
+    const channel = this.#channels[index]
+
+    const discovery = this.#channelDiscoveries.get(name)
+    if (discovery) {
+      try {
+        await this.#swarm.leave(b4a.from(channel.discoveryKey, 'hex'))
+      } catch {}
+      this.#channelDiscoveries.delete(name)
+    }
+
+    const core = this.#channelCores.get(name)
+    if (core) {
+      try {
+        await core.close()
+      } catch {}
+      this.#channelCores.delete(name)
+    }
+
+    this.#channelPeers.delete(name)
+    this.#channels.splice(index, 1)
+    this.#saveChannelsMetadata()
+
+    console.log(`[MostBox] Left channel: ${name}`)
+    this.emit('channel:left', { name })
+
+    return this.listChannels()
+  }
+
+  /**
+   * 列出所有频道
+   * @returns {Array<{ name: string, coreKey: string, createdAt: string, type: string, peerCount: number }>}
+   */
+  listChannels() {
+    this.#ensureInitialized()
+
+    return this.#channels.map(c => ({
+      name: c.name,
+      coreKey: c.coreKey,
+      createdAt: c.createdAt,
+      type: c.type,
+      peerCount: (this.#channelPeers.get(c.name) || new Map()).size
+    }))
+  }
+
+  /**
+   * 获取频道消息
+   * @param {string} name - 频道名
+   * @param {object} [options] - 选项
+   * @param {number} [options.limit=100] - 消息数量
+   * @param {number} [options.offset=0] - 偏移量
+   * @returns {Promise<Array>}
+   */
+  async getChannelMessages(name, options = {}) {
+    this.#ensureInitialized()
+
+    const { limit = CHANNEL_MESSAGE_LIMIT, offset = 0 } = options
+
+    const core = this.#channelCores.get(name)
+    if (!core) {
+      throw new Error('频道未初始化')
+    }
+
+    const messages = []
+    const total = core.length
+    const start = Math.max(0, total - offset - limit)
+    const end = total - offset
+
+    for (let i = start; i < end; i++) {
+      try {
+        const entry = await core.get(i)
+        messages.push(entry)
+      } catch {
+        break
+      }
+    }
+
+    return messages
+  }
+
+  /**
+   * 发送消息到频道
+   * @param {string} name - 频道名
+   * @param {string} content - 消息内容
+   * @param {string} [authorName] - 作者名（可选，默认使用 displayName）
+   * @returns {Promise<object>}
+   */
+  async sendMessage(name, content, authorName = null) {
+    this.#ensureInitialized()
+
+    const core = this.#channelCores.get(name)
+    if (!core) {
+      throw new Error('频道未初始化')
+    }
+
+    if (!content || !content.trim()) {
+      throw new Error('消息内容不能为空')
+    }
+
+    const trimmed = content.trim()
+    if (trimmed.length > MAX_MESSAGE_LENGTH) {
+      throw new Error(`消息内容不能超过 ${MAX_MESSAGE_LENGTH} 字符`)
+    }
+
+    const displayName = authorName || this.getDisplayName() || 'Anonymous'
+
+    const message = {
+      type: 'message',
+      author: this.getNodeId(),
+      authorName: displayName,
+      content: trimmed,
+      timestamp: Date.now()
+    }
+
+    await core.append(message)
+
+    this.emit('channel:message', { channel: name, message })
+
+    return message
+  }
+
+  /**
+   * 获取频道内在线用户
+   * @param {string} name - 频道名
+   * @returns {Array<{ peerId: string, authorName: string, lastSeen: number }>}
+   */
+  getChannelPeers(name) {
+    this.#ensureInitialized()
+
+    const peers = this.#channelPeers.get(name)
+    if (!peers) {
+      throw new Error('频道未初始化')
+    }
+
+    return [...peers.values()].map(p => ({
+      peerId: p.peerId,
+      authorName: p.authorName,
+      lastSeen: p.lastSeen
+    }))
+  }
+
+  /**
+   * 获取显示名
+   * @returns {string|null}
+   */
+  getDisplayName() {
+    try {
+      const configPath = this.#getConfigPath()
+      if (fs.existsSync(configPath)) {
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+        return config.displayName || null
+      }
+    } catch {}
+    return null
+  }
+
+  /**
+   * 设置显示名
+   * @param {string} name - 显示名
+   */
+  setDisplayName(name) {
+    try {
+      const configPath = this.#getConfigPath()
+      const config = fs.existsSync(configPath) ? JSON.parse(fs.readFileSync(configPath, 'utf-8')) : {}
+      config.displayName = name.trim()
+      const tmpPath = configPath + '.tmp'
+      fs.writeFileSync(tmpPath, JSON.stringify(config, null, 2), 'utf-8')
+      fs.renameSync(tmpPath, configPath)
+      return true
+    } catch {
+      return false
+    }
+  }
+
   // --- 私有方法 ---
 
   #ensureInitialized() {
@@ -1071,6 +1393,98 @@ export class MostBoxEngine extends EventEmitter {
     } catch (err) {
       console.error('Failed to save trash metadata:', err.message)
     }
+  }
+
+  #getChannelsMetadataPath() {
+    return path.join(this.#options.dataPath, 'channels.json')
+  }
+
+  #getConfigPath() {
+    return path.join(this.#options.dataPath, 'channel-config.json')
+  }
+
+  #loadChannelsMetadata() {
+    try {
+      const metadataPath = this.#getChannelsMetadataPath()
+      if (fs.existsSync(metadataPath)) {
+        const data = fs.readFileSync(metadataPath, 'utf-8')
+        return JSON.parse(data)
+      }
+    } catch (err) {
+      console.warn('Failed to load channels metadata, using empty list:', err.message)
+    }
+    return []
+  }
+
+  #saveChannelsMetadata() {
+    try {
+      const metadataPath = this.#getChannelsMetadataPath()
+      this.#atomicWrite(metadataPath, JSON.stringify(this.#channels, null, 2))
+    } catch (err) {
+      console.error('Failed to save channels metadata:', err.message)
+    }
+  }
+
+  #generateChannelDiscoveryKey(name) {
+    const hash = crypto.createHash('sha256')
+      .update(`${CHANNEL_NAME_PREFIX}${name}`)
+      .digest()
+    return hash
+  }
+
+  async #handleChannelConnection(conn) {
+    const stream = conn.openStream()
+    if (!stream) return
+
+    let connectedPeerId = null
+    let connectedAuthorName = null
+
+    const helloMessage = JSON.stringify({
+      type: 'channel-hello',
+      peerId: this.getNodeId(),
+      authorName: this.getDisplayName() || 'Anonymous',
+      channels: this.#channels.map(c => c.name)
+    })
+
+    try {
+      stream.write(helloMessage)
+    } catch {
+      return
+    }
+
+    stream.on('data', async (data) => {
+      try {
+        const msg = JSON.parse(data.toString())
+        if (msg.type === 'channel-hello') {
+          connectedPeerId = msg.peerId
+          connectedAuthorName = msg.authorName
+
+          const theirChannels = new Set(msg.channels || [])
+          for (const [name, peers] of this.#channelPeers) {
+            if (theirChannels.has(name)) {
+              peers.set(msg.peerId, {
+                peerId: msg.peerId,
+                authorName: msg.authorName,
+                lastSeen: Date.now()
+              })
+            }
+          }
+          this.emit('channel:peer:online', { peerId: msg.peerId, authorName: msg.authorName })
+        }
+      } catch {}
+    })
+
+    stream.on('close', () => {
+      if (connectedPeerId) {
+        for (const [name, peers] of this.#channelPeers) {
+          if (peers.has(connectedPeerId)) {
+            const peer = peers.get(connectedPeerId)
+            peers.delete(connectedPeerId)
+            this.emit('channel:peer:offline', { peerId: connectedPeerId, authorName: peer?.authorName })
+          }
+        }
+      }
+    })
   }
 
   /**
