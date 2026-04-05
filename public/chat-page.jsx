@@ -1,7 +1,7 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import Peer from 'simple-peer/simplepeer.min.js'
-import { Phone, PhoneOff, Video, VideoOff, Mic, MicOff, MessageSquare, X, Send, Monitor, MonitorOff, ArrowLeft, Copy, Check } from 'lucide-react'
+import { Phone, PhoneOff, Video, VideoOff, Mic, MicOff, MessageSquare, X, Send, Monitor, MonitorOff, ArrowLeft, Copy, Check, Users, Plus } from 'lucide-react'
 
 const ICE_CONFIG = {
   iceServers: [
@@ -16,7 +16,35 @@ function formatDuration(seconds) {
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
 }
 
+const API = {
+  async fetch(url, options = {}) {
+    const res = await fetch(url, options)
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: res.statusText }))
+      throw new Error(err.error || 'Request failed')
+    }
+    return res.json()
+  },
+  getChannels: () => API.fetch('/api/channels'),
+  createChannel: (name, type) => API.fetch('/api/channels', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, type })
+  }),
+  leaveChannel: (name) => API.fetch(`/api/channels/${encodeURIComponent(name)}`, { method: 'DELETE' }),
+  getChannelMessages: (name, limit = 100, offset = 0) => API.fetch(`/api/channels/${encodeURIComponent(name)}/messages?limit=${limit}&offset=${offset}`),
+  sendChannelMessage: (name, content) => API.fetch(`/api/channels/${encodeURIComponent(name)}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content })
+  }),
+  getChannelPeers: (name) => API.fetch(`/api/channels/${encodeURIComponent(name)}/peers`)
+}
+
 function ChatPage() {
+  const [activeTab, setActiveTab] = useState('call')
+
+  // Call state
   const [peerId, setPeerId] = useState('')
   const [callState, setCallState] = useState('idle')
   const [incomingCall, setIncomingCall] = useState(null)
@@ -33,6 +61,16 @@ function ChatPage() {
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
 
+  // Channel state
+  const [channels, setChannels] = useState([])
+  const [activeChannel, setActiveChannel] = useState(null)
+  const [channelMessages, setChannelMessages] = useState([])
+  const [channelPeers, setChannelPeers] = useState([])
+  const [channelInput, setChannelInput] = useState('')
+  const [showCreateChannel, setShowCreateChannel] = useState(false)
+  const [newChannelName, setNewChannelName] = useState('')
+  const [newChannelType, setNewChannelType] = useState('personal')
+
   const wsRef = useRef(null)
   const peerRef = useRef(null)
   const localStreamRef = useRef(null)
@@ -42,11 +80,21 @@ function ChatPage() {
   const chatEndRef = useRef(null)
   const screenStreamRef = useRef(null)
   const activeCallRef = useRef(null)
+  const channelMessagesEndRef = useRef(null)
 
   useEffect(() => {
     activeCallRef.current = activeCall
   }, [activeCall])
 
+  useEffect(() => {
+    channelMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [channelMessages])
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [chatMessages])
+
+  // WebSocket
   useEffect(() => {
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
     const ws = new WebSocket(`${protocol}//${location.host}/ws`)
@@ -98,10 +146,6 @@ function ChatPage() {
   }, [])
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [chatMessages])
-
-  useEffect(() => {
     if (callState === 'connected') {
       setCallDuration(0)
       callTimerRef.current = setInterval(() => {
@@ -123,6 +167,15 @@ function ChatPage() {
       localVideoRef.current.srcObject = localStreamRef.current
     }
   }, [callState, isCameraOff])
+
+  // Load channels on mount
+  useEffect(() => {
+    refreshChannels()
+  }, [])
+
+  function refreshChannels() {
+    API.getChannels().then(setChannels).catch(() => { })
+  }
 
   function handleWsEvent(event, data) {
     switch (event) {
@@ -165,6 +218,28 @@ function ChatPage() {
 
       case 'call:chat':
         setChatMessages(prev => [...prev, { id: Date.now(), from: data.from, text: data.message, ts: new Date(), self: false }])
+        break
+
+      case 'channel:message':
+        if (activeChannel && data.channel === activeChannel.name) {
+          setChannelMessages(prev => {
+            const exists = prev.some(m => m.timestamp === data.message.timestamp && m.content === data.message.content && m.author === data.message.author)
+            if (exists) return prev
+            return [...prev, data.message]
+          })
+        }
+        break
+
+      case 'channel:peer:online':
+      case 'channel:peer:offline':
+        if (activeChannel) {
+          API.getChannelPeers(activeChannel.name).then(setChannelPeers).catch(() => { })
+        }
+        break
+
+      case 'channel:joined':
+      case 'channel:left':
+        refreshChannels()
         break
     }
   }
@@ -430,260 +505,498 @@ function ChatPage() {
     window.location.href = '/'
   }
 
-  if (callState === 'idle' || callState === 'ended') {
+  // Channel handlers
+  async function handleOpenChannel(channel) {
+    setActiveChannel(channel)
+    try {
+      const messages = await API.getChannelMessages(channel.name)
+      setChannelMessages(messages)
+      const peers = await API.getChannelPeers(channel.name)
+      setChannelPeers(peers)
+    } catch {
+      setError('加载频道失败')
+      setTimeout(() => setError(''), 3000)
+    }
+  }
+
+  async function handleLeaveChannel(name) {
+    try {
+      await API.leaveChannel(name)
+      if (activeChannel?.name === name) {
+        setActiveChannel(null)
+        setChannelMessages([])
+        setChannelPeers([])
+      }
+      refreshChannels()
+    } catch (err) {
+      setError(err.message)
+      setTimeout(() => setError(''), 3000)
+    }
+  }
+
+  async function handleCreateChannel() {
+    if (!newChannelName.trim()) return
+    try {
+      await API.createChannel(newChannelName.trim(), newChannelType)
+      setNewChannelName('')
+      setNewChannelType('personal')
+      setShowCreateChannel(false)
+      refreshChannels()
+    } catch (err) {
+      setError(err.message)
+      setTimeout(() => setError(''), 3000)
+    }
+  }
+
+  async function handleSendChannelMessage() {
+    if (!channelInput.trim() || !activeChannel) return
+    const content = channelInput.trim()
+    setChannelInput('')
+    try {
+      await API.sendChannelMessage(activeChannel.name, content)
+    } catch (err) {
+      setError(err.message)
+      setTimeout(() => setError(''), 3000)
+    }
+  }
+
+  function handleBackToChannels() {
+    setActiveChannel(null)
+    setChannelMessages([])
+    setChannelPeers([])
+  }
+
+  // === Tab Navigation ===
+  function renderTabNav() {
+    return (
+      <div className="chat-tab-nav">
+        <button
+          className={`chat-tab-btn ${activeTab === 'call' ? 'active' : ''}`}
+          onClick={() => setActiveTab('call')}
+        >
+          <Phone size={16} />
+          <span>通话</span>
+        </button>
+        <button
+          className={`chat-tab-btn ${activeTab === 'channels' ? 'active' : ''}`}
+          onClick={() => {
+            setActiveTab('channels')
+            refreshChannels()
+          }}
+        >
+          <MessageSquare size={16} />
+          <span>频道</span>
+        </button>
+      </div>
+    )
+  }
+
+  // === Call Views ===
+  if (activeTab === 'call') {
+    if (callState === 'idle' || callState === 'ended') {
+      return (
+        <div className="chat-page">
+          <header className="chat-header">
+            <button className="chat-back-btn" onClick={goBack} aria-label="返回">
+              <ArrowLeft size={20} />
+            </button>
+            <h1>P2P 通话</h1>
+            <div className="chat-spacer" />
+            <div className="chat-peer-id-badge">
+              ID: {peerId || '加载中...'}
+            </div>
+          </header>
+
+          {renderTabNav()}
+
+          <div className="chat-dial-container">
+            <div className="chat-dial-icon">
+              <Phone size={48} />
+            </div>
+
+            <p className="chat-dial-description">
+              输入对方 Peer ID 发起语音或视频通话
+            </p>
+
+            <div className="chat-dial-input-group">
+              <input
+                type="text"
+                className="chat-dial-input"
+                placeholder="输入对方 Peer ID"
+                value={targetPeerId}
+                onChange={e => setTargetPeerId(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleStartCall()}
+              />
+
+              <div className="chat-type-selector">
+                <button
+                  className={`chat-type-btn ${callType === 'audio' ? 'active' : ''}`}
+                  onClick={() => setCallType('audio')}
+                >
+                  <Phone size={18} />
+                  <span>语音</span>
+                </button>
+                <button
+                  className={`chat-type-btn ${callType === 'video' ? 'active' : ''}`}
+                  onClick={() => setCallType('video')}
+                >
+                  <Video size={18} />
+                  <span>视频</span>
+                </button>
+              </div>
+
+              <button className="chat-start-btn" onClick={handleStartCall}>
+                {callType === 'audio' ? <Phone size={20} /> : <Video size={20} />}
+                <span>发起通话</span>
+              </button>
+            </div>
+
+            {error && <div className="chat-error">{error}</div>}
+
+            <div className="chat-copy-id">
+              <button
+                className="chat-copy-btn"
+                onClick={() => {
+                  navigator.clipboard.writeText(peerId)
+                  setCopied(true)
+                  setTimeout(() => setCopied(false), 2000)
+                }}
+              >
+                {copied ? <Check size={14} /> : <Copy size={14} />}
+                {copied ? '已复制' : '复制我的 ID'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    if (callState === 'incoming' && incomingCall) {
+      return (
+        <div className="chat-page">
+          <header className="chat-header">
+            <button className="chat-back-btn" onClick={handleRejectCall} aria-label="返回">
+              <ArrowLeft size={20} />
+            </button>
+            <h1>来电</h1>
+            <div className="chat-spacer" />
+          </header>
+
+          {renderTabNav()}
+
+          <div className="chat-incoming-container">
+            <div className="chat-incoming-avatar">
+              <Phone size={48} />
+            </div>
+            <h2 className="chat-incoming-caller">{incomingCall.callerName || incomingCall.callerId}</h2>
+            <p className="chat-incoming-type">
+              {incomingCall.type === 'video' ? '视频通话' : '语音通话'}
+            </p>
+
+            <div className="chat-incoming-actions">
+              <button className="chat-accept-btn" onClick={handleAcceptCall}>
+                <Phone size={24} />
+                <span>接听</span>
+              </button>
+              <button className="chat-reject-btn" onClick={handleRejectCall}>
+                <PhoneOff size={24} />
+                <span>拒绝</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    if (callState === 'connecting') {
+      return (
+        <div className="chat-page">
+          <header className="chat-header">
+            <button className="chat-back-btn" onClick={handleHangup} aria-label="取消">
+              <ArrowLeft size={20} />
+            </button>
+            <h1>连接中...</h1>
+            <div className="chat-spacer" />
+          </header>
+
+          {renderTabNav()}
+
+          <div className="chat-connecting-container">
+            <div className="chat-connecting-spinner" />
+            <p>正在建立 P2P 连接...</p>
+            <p className="chat-connecting-peer">对方: {activeCall?.peerId}</p>
+            <button className="chat-cancel-btn" onClick={handleHangup}>
+              取消
+            </button>
+          </div>
+        </div>
+      )
+    }
+
+    if (callState === 'connected' && activeCall) {
+      return (
+        <div className={`chat-page ${showChat ? 'with-chat' : ''}`}>
+          {renderTabNav()}
+          <div className="chat-active-layout">
+            <div className="chat-video-area">
+              <video
+                ref={remoteVideoRef}
+                className="chat-remote-video"
+                autoPlay
+                playsInline
+              />
+
+              {activeCall.type === 'video' && (
+                <video
+                  ref={localVideoRef}
+                  className="chat-local-video"
+                  autoPlay
+                  playsInline
+                  muted
+                />
+              )}
+
+              {activeCall.type === 'audio' && (
+                <div className="chat-audio-display">
+                  <div className="chat-audio-avatar">
+                    <Phone size={64} />
+                  </div>
+                  <p className="chat-audio-name">{activeCall.peerId}</p>
+                </div>
+              )}
+
+              <div className="chat-duration-badge">
+                {formatDuration(callDuration)}
+              </div>
+            </div>
+
+            <div className="chat-controls">
+              <button
+                className={`chat-control-btn ${isMuted ? 'active' : ''}`}
+                onClick={toggleMute}
+                title={isMuted ? '取消静音' : '静音'}
+              >
+                {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
+              </button>
+
+              {activeCall.type === 'video' && (
+                <button
+                  className={`chat-control-btn ${isCameraOff ? 'active' : ''}`}
+                  onClick={toggleCamera}
+                  title={isCameraOff ? '开启摄像头' : '关闭摄像头'}
+                >
+                  {isCameraOff ? <VideoOff size={20} /> : <Video size={20} />}
+                </button>
+              )}
+
+              <button
+                className={`chat-control-btn ${isScreenSharing ? 'active' : ''}`}
+                onClick={toggleScreenShare}
+                title={isScreenSharing ? '停止共享' : '共享屏幕'}
+              >
+                {isScreenSharing ? <MonitorOff size={20} /> : <Monitor size={20} />}
+              </button>
+
+              <button
+                className={`chat-control-btn ${showChat ? 'active' : ''}`}
+                onClick={() => setShowChat(!showChat)}
+                title="文字聊天"
+              >
+                <MessageSquare size={20} />
+              </button>
+
+              <button
+                className="chat-control-btn hangup"
+                onClick={handleHangup}
+                title="挂断"
+              >
+                <PhoneOff size={24} />
+              </button>
+            </div>
+
+            {showChat && (
+              <div className="chat-chat-panel">
+                <div className="chat-chat-header">
+                  <h3>文字聊天</h3>
+                  <button className="chat-chat-close" onClick={() => setShowChat(false)}>
+                    <X size={18} />
+                  </button>
+                </div>
+
+                <div className="chat-chat-messages">
+                  {chatMessages.length === 0 && (
+                    <p className="chat-chat-empty">暂无消息</p>
+                  )}
+                  {chatMessages.map(msg => (
+                    <div key={msg.id} className={`chat-chat-msg ${msg.self ? 'self' : ''}`}>
+                      {!msg.self && <span className="chat-chat-msg-from">{msg.from}</span>}
+                      <div className="chat-chat-msg-bubble">
+                        {msg.text}
+                      </div>
+                    </div>
+                  ))}
+                  <div ref={chatEndRef} />
+                </div>
+
+                <div className="chat-chat-input-area">
+                  <input
+                    type="text"
+                    className="chat-chat-input"
+                    placeholder="输入消息..."
+                    value={newMessage}
+                    onChange={e => setNewMessage(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && sendChatMessage()}
+                  />
+                  <button className="chat-chat-send" onClick={sendChatMessage}>
+                    <Send size={18} />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )
+    }
+  }
+
+  // === Channel Views ===
+  if (activeTab === 'channels') {
+    if (activeChannel) {
+      return (
+        <div className="chat-page">
+          <header className="chat-header">
+            <button className="chat-back-btn" onClick={handleBackToChannels} aria-label="返回频道列表">
+              <ArrowLeft size={20} />
+            </button>
+            <h1>{activeChannel.name}</h1>
+            <div className="chat-spacer" />
+            <div className="chat-peer-id-badge">
+              <Users size={12} /> {channelPeers.length} 在线
+            </div>
+          </header>
+
+          {renderTabNav()}
+
+          <div className="chat-channel-view">
+            <div className="chat-channel-messages">
+              {channelMessages.length === 0 ? (
+                <div className="chat-channel-empty">暂无消息，开始聊天吧！</div>
+              ) : (
+                channelMessages.map((msg, i) => (
+                  <div key={i} className={`chat-channel-msg ${msg.author === peerId ? 'self' : 'other'}`}>
+                    {msg.author !== peerId && <span className="chat-channel-msg-author">{msg.authorName}</span>}
+                    <div className="chat-channel-msg-bubble">{msg.content}</div>
+                    <span className="chat-channel-msg-time">{new Date(msg.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
+                ))
+              )}
+              <div ref={channelMessagesEndRef} />
+            </div>
+
+            <div className="chat-channel-input-area">
+              <input
+                type="text"
+                className="chat-channel-input"
+                placeholder="输入消息..."
+                value={channelInput}
+                onChange={e => setChannelInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && channelInput.trim()) handleSendChannelMessage() }}
+              />
+              <button className="chat-channel-send-btn" onClick={handleSendChannelMessage} disabled={!channelInput.trim()}>
+                <Send size={18} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
     return (
       <div className="chat-page">
         <header className="chat-header">
           <button className="chat-back-btn" onClick={goBack} aria-label="返回">
             <ArrowLeft size={20} />
           </button>
-          <h1>P2P 通话</h1>
+          <h1>频道</h1>
           <div className="chat-spacer" />
-          <div className="chat-peer-id-badge">
-            ID: {peerId || '加载中...'}
-          </div>
+          <button className="chat-create-channel-btn" onClick={() => setShowCreateChannel(true)}>
+            <Plus size={18} />
+            <span>创建</span>
+          </button>
         </header>
 
-        <div className="chat-dial-container">
-          <div className="chat-dial-icon">
-            <Phone size={48} />
-          </div>
+        {renderTabNav()}
 
-          <p className="chat-dial-description">
-            输入对方 Peer ID 发起语音或视频通话
-          </p>
-
-          <div className="chat-dial-input-group">
-            <input
-              type="text"
-              className="chat-dial-input"
-              placeholder="输入对方 Peer ID"
-              value={targetPeerId}
-              onChange={e => setTargetPeerId(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleStartCall()}
-            />
-
-            <div className="chat-type-selector">
-              <button
-                className={`chat-type-btn ${callType === 'audio' ? 'active' : ''}`}
-                onClick={() => setCallType('audio')}
-              >
-                <Phone size={18} />
-                <span>语音</span>
-              </button>
-              <button
-                className={`chat-type-btn ${callType === 'video' ? 'active' : ''}`}
-                onClick={() => setCallType('video')}
-              >
-                <Video size={18} />
-                <span>视频</span>
-              </button>
+        <div className="chat-channels-list">
+          {channels.length === 0 ? (
+            <div className="chat-channels-empty">
+              <MessageSquare size={48} />
+              <p>暂无频道，创建一个开始聊天吧</p>
             </div>
-
-            <button className="chat-start-btn" onClick={handleStartCall}>
-              {callType === 'audio' ? <Phone size={20} /> : <Video size={20} />}
-              <span>发起通话</span>
-            </button>
-          </div>
-
-          {error && <div className="chat-error">{error}</div>}
-
-          <div className="chat-copy-id">
-            <button
-              className="chat-copy-btn"
-              onClick={() => {
-                navigator.clipboard.writeText(peerId)
-                setCopied(true)
-                setTimeout(() => setCopied(false), 2000)
-              }}
-            >
-              {copied ? <Check size={14} /> : <Copy size={14} />}
-              {copied ? '已复制' : '复制我的 ID'}
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  if (callState === 'incoming' && incomingCall) {
-    return (
-      <div className="chat-page">
-        <header className="chat-header">
-          <button className="chat-back-btn" onClick={handleRejectCall} aria-label="返回">
-            <ArrowLeft size={20} />
-          </button>
-          <h1>来电</h1>
-          <div className="chat-spacer" />
-        </header>
-
-        <div className="chat-incoming-container">
-          <div className="chat-incoming-avatar">
-            <Phone size={48} />
-          </div>
-          <h2 className="chat-incoming-caller">{incomingCall.callerName || incomingCall.callerId}</h2>
-          <p className="chat-incoming-type">
-            {incomingCall.type === 'video' ? '视频通话' : '语音通话'}
-          </p>
-
-          <div className="chat-incoming-actions">
-            <button className="chat-accept-btn" onClick={handleAcceptCall}>
-              <Phone size={24} />
-              <span>接听</span>
-            </button>
-            <button className="chat-reject-btn" onClick={handleRejectCall}>
-              <PhoneOff size={24} />
-              <span>拒绝</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  if (callState === 'connecting') {
-    return (
-      <div className="chat-page">
-        <header className="chat-header">
-          <button className="chat-back-btn" onClick={handleHangup} aria-label="取消">
-            <ArrowLeft size={20} />
-          </button>
-          <h1>连接中...</h1>
-          <div className="chat-spacer" />
-        </header>
-
-        <div className="chat-connecting-container">
-          <div className="chat-connecting-spinner" />
-          <p>正在建立 P2P 连接...</p>
-          <p className="chat-connecting-peer">对方: {activeCall?.peerId}</p>
-          <button className="chat-cancel-btn" onClick={handleHangup}>
-            取消
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  if (callState === 'connected' && activeCall) {
-    return (
-      <div className={`chat-page ${showChat ? 'with-chat' : ''}`}>
-        <div className="chat-active-layout">
-          <div className="chat-video-area">
-            <video
-              ref={remoteVideoRef}
-              className="chat-remote-video"
-              autoPlay
-              playsInline
-            />
-
-            {activeCall.type === 'video' && (
-              <video
-                ref={localVideoRef}
-                className="chat-local-video"
-                autoPlay
-                playsInline
-                muted
-              />
-            )}
-
-            {activeCall.type === 'audio' && (
-              <div className="chat-audio-display">
-                <div className="chat-audio-avatar">
-                  <Phone size={64} />
+          ) : (
+            channels.map(channel => (
+              <div key={channel.name} className="chat-channel-item" onClick={() => handleOpenChannel(channel)}>
+                <div className="chat-channel-item-icon">
+                  <MessageSquare size={20} />
                 </div>
-                <p className="chat-audio-name">{activeCall.peerId}</p>
-              </div>
-            )}
-
-            <div className="chat-duration-badge">
-              {formatDuration(callDuration)}
-            </div>
-          </div>
-
-          <div className="chat-controls">
-            <button
-              className={`chat-control-btn ${isMuted ? 'active' : ''}`}
-              onClick={toggleMute}
-              title={isMuted ? '取消静音' : '静音'}
-            >
-              {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
-            </button>
-
-            {activeCall.type === 'video' && (
-              <button
-                className={`chat-control-btn ${isCameraOff ? 'active' : ''}`}
-                onClick={toggleCamera}
-                title={isCameraOff ? '开启摄像头' : '关闭摄像头'}
-              >
-                {isCameraOff ? <VideoOff size={20} /> : <Video size={20} />}
-              </button>
-            )}
-
-            <button
-              className={`chat-control-btn ${isScreenSharing ? 'active' : ''}`}
-              onClick={toggleScreenShare}
-              title={isScreenSharing ? '停止共享' : '共享屏幕'}
-            >
-              {isScreenSharing ? <MonitorOff size={20} /> : <Monitor size={20} />}
-            </button>
-
-            <button
-              className={`chat-control-btn ${showChat ? 'active' : ''}`}
-              onClick={() => setShowChat(!showChat)}
-              title="文字聊天"
-            >
-              <MessageSquare size={20} />
-            </button>
-
-            <button
-              className="chat-control-btn hangup"
-              onClick={handleHangup}
-              title="挂断"
-            >
-              <PhoneOff size={24} />
-            </button>
-          </div>
-
-          {showChat && (
-            <div className="chat-chat-panel">
-              <div className="chat-chat-header">
-                <h3>文字聊天</h3>
-                <button className="chat-chat-close" onClick={() => setShowChat(false)}>
-                  <X size={18} />
-                </button>
-              </div>
-
-              <div className="chat-chat-messages">
-                {chatMessages.length === 0 && (
-                  <p className="chat-chat-empty">暂无消息</p>
-                )}
-                {chatMessages.map(msg => (
-                  <div key={msg.id} className={`chat-chat-msg ${msg.self ? 'self' : ''}`}>
-                    {!msg.self && <span className="chat-chat-msg-from">{msg.from}</span>}
-                    <div className="chat-chat-msg-bubble">
-                      {msg.text}
-                    </div>
+                <div className="chat-channel-item-info">
+                  <div className="chat-channel-item-name">{channel.name}</div>
+                  <div className="chat-channel-item-meta">
+                    <span>{channel.type === 'personal' ? '个人' : '群组'}</span>
+                    <span>·</span>
+                    <span>{channel.peerCount} 在线</span>
                   </div>
-                ))}
-                <div ref={chatEndRef} />
-              </div>
-
-              <div className="chat-chat-input-area">
-                <input
-                  type="text"
-                  className="chat-chat-input"
-                  placeholder="输入消息..."
-                  value={newMessage}
-                  onChange={e => setNewMessage(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && sendChatMessage()}
-                />
-                <button className="chat-chat-send" onClick={sendChatMessage}>
-                  <Send size={18} />
+                </div>
+                <button
+                  className="chat-channel-item-leave"
+                  onClick={e => { e.stopPropagation(); handleLeaveChannel(channel.name) }}
+                  title="离开频道"
+                >
+                  <X size={14} />
                 </button>
               </div>
-            </div>
+            ))
           )}
         </div>
+
+        {showCreateChannel && (
+          <div className="chat-create-channel-overlay" onClick={() => setShowCreateChannel(false)}>
+            <div className="chat-create-channel-modal" onClick={e => e.stopPropagation()}>
+              <h3>创建频道</h3>
+              <p>创建一个频道，朋友加入后可以聊天</p>
+              <input
+                type="text"
+                className="chat-create-channel-input"
+                placeholder="频道名，如 alice 或 team-project"
+                value={newChannelName}
+                onChange={e => setNewChannelName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && newChannelName.trim()) handleCreateChannel() }}
+                autoFocus
+              />
+              <div className="chat-channel-type-selector">
+                <button
+                  className={`chat-channel-type-btn ${newChannelType === 'personal' ? 'active' : ''}`}
+                  onClick={() => setNewChannelType('personal')}
+                >
+                  个人
+                </button>
+                <button
+                  className={`chat-channel-type-btn ${newChannelType === 'group' ? 'active' : ''}`}
+                  onClick={() => setNewChannelType('group')}
+                >
+                  群组
+                </button>
+              </div>
+              <div className="chat-create-channel-hint">3-20位，字母、数字、下划线、连字符</div>
+              <div className="chat-create-channel-actions">
+                <button className="chat-create-channel-cancel" onClick={() => setShowCreateChannel(false)}>取消</button>
+                <button className="chat-create-channel-submit" onClick={handleCreateChannel} disabled={!newChannelName.trim()}>创建</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {error && <div className="chat-error toast">{error}</div>}
       </div>
     )
   }
