@@ -206,6 +206,10 @@ function serveStatic(req, res) {
   let filePath = req.url === '/' ? '/index.html' : req.url
   filePath = filePath.split('?')[0]
 
+  if (filePath === '/chat') {
+    filePath = '/chat.html'
+  }
+
   const fullPath = path.join(__dirname, 'public', filePath)
   const ext = path.extname(fullPath)
   const publicDir = path.join(__dirname, 'public')
@@ -665,6 +669,97 @@ async function handleAPI(req, res) {
       return
     }
 
+    // GET /api/display-name — 获取显示名
+    if (pathname === '/api/display-name' && method === 'GET') {
+      json({ displayName: engine.getDisplayName() })
+      return
+    }
+
+    // POST /api/display-name — 设置显示名
+    if (pathname === '/api/display-name' && method === 'POST') {
+      const body = await parseJSON(req)
+      if (!body.name || !body.name.trim()) {
+        json({ error: 'name is required' }, 400)
+        return
+      }
+      const success = engine.setDisplayName(body.name)
+      json({ success, displayName: engine.getDisplayName() })
+      return
+    }
+
+    // POST /api/channels — 创建/加入频道
+    if (pathname === '/api/channels' && method === 'POST') {
+      const body = await parseJSON(req)
+      if (!body.name || !body.name.trim()) {
+        json({ error: 'name is required' }, 400)
+        return
+      }
+      try {
+        const result = await engine.createChannel(body.name.trim(), body.type || 'personal')
+        json({ success: true, ...result })
+      } catch (err) {
+        json({ error: err.message }, 400)
+      }
+      return
+    }
+
+    // GET /api/channels — 获取频道列表
+    if (pathname === '/api/channels' && method === 'GET') {
+      json(engine.listChannels())
+      return
+    }
+
+    // DELETE /api/channels/:name — 离开频道
+    if (pathname.startsWith('/api/channels/') && method === 'DELETE') {
+      const name = pathname.split('/')[3]
+      try {
+        const result = await engine.leaveChannel(name)
+        json({ success: true, channels: result })
+      } catch (err) {
+        json({ error: err.message }, 400)
+      }
+      return
+    }
+
+    // GET /api/channels/:name/messages — 获取频道消息
+    if (pathname.match(/^\/api\/channels\/[^/]+\/messages$/) && method === 'GET') {
+      const name = pathname.split('/')[3]
+      const urlObj = new URL(req.url, `http://${HOST}:${PORT}`)
+      const limit = parseInt(urlObj.searchParams.get('limit') || '100', 10)
+      const offset = parseInt(urlObj.searchParams.get('offset') || '0', 10)
+      try {
+        const messages = await engine.getChannelMessages(name, { limit, offset })
+        json(messages)
+      } catch (err) {
+        json({ error: err.message }, 400)
+      }
+      return
+    }
+
+    // POST /api/channels/:name/messages — 发送消息
+    if (pathname.match(/^\/api\/channels\/[^/]+\/messages$/) && method === 'POST') {
+      const name = pathname.split('/')[3]
+      const body = await parseJSON(req)
+      if (!body.content || !body.content.trim()) {
+        json({ error: 'content is required' }, 400)
+        return
+      }
+      try {
+        const message = await engine.sendMessage(name, body.content, body.authorName)
+        json({ success: true, message })
+      } catch (err) {
+        json({ error: err.message }, 400)
+      }
+      return
+    }
+
+    // GET /api/channels/:name/peers — 获取频道内在线用户
+    if (pathname.match(/^\/api\/channels\/[^/]+\/peers$/) && method === 'GET') {
+      const name = pathname.split('/')[3]
+      json(engine.getChannelPeers(name))
+      return
+    }
+
     json({ error: 'Not found' }, 404)
   } catch (err) {
     console.error('[API Error]', err)
@@ -709,6 +804,11 @@ async function main() {
   engine.on('connection', () => {
     wsBroadcast('network:status', engine.getNetworkStatus())
   })
+  engine.on('channel:message', (data) => wsBroadcast('channel:message', data))
+  engine.on('channel:peer:online', (data) => wsBroadcast('channel:peer:online', data))
+  engine.on('channel:peer:offline', (data) => wsBroadcast('channel:peer:offline', data))
+  engine.on('channel:joined', (data) => wsBroadcast('channel:joined', data))
+  engine.on('channel:left', (data) => wsBroadcast('channel:left', data))
 
   await engine.start()
   console.log('[MostBox] Engine ready')

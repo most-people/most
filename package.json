@@ -32,6 +32,7 @@
     "busboy": "^1.6.0",
     "corestore": "^7.9.2",
     "eventemitter3": "^5.0.4",
+    "hypercore": "^11.20.1",
     "hyperdrive": "^13.3.1",
     "hyperswarm": "^4.17.0",
     "ipfs-unixfs-importer": "^16.1.4",

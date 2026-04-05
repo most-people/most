@@ -281,4 +281,169 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
       )
     })
   })
+
+  describe('createChannel()', () => {
+    it('creates a channel with valid name', async () => {
+      const result = await engine.createChannel('test-channel')
+      assert.strictEqual(result.name, 'test-channel')
+      assert.ok(result.key)
+    })
+
+    it('creates a channel with type', async () => {
+      const result = await engine.createChannel('group-channel', 'group')
+      assert.strictEqual(result.name, 'group-channel')
+      assert.ok(result.key)
+    })
+
+    it('returns existing channel if already created', async () => {
+      const first = await engine.createChannel('dup-engine-channel')
+      const second = await engine.createChannel('dup-engine-channel')
+      assert.strictEqual(first.key, second.key)
+    })
+
+    it('rejects invalid channel names', async () => {
+      await assert.rejects(
+        engine.createChannel('ab'),
+        /至少 3 个字符/
+      )
+    })
+
+    it('rejects channel names with invalid characters', async () => {
+      await assert.rejects(
+        engine.createChannel('invalid name!'),
+        /只能包含字母/
+      )
+    })
+
+    it('rejects channel names that are too long', async () => {
+      await assert.rejects(
+        engine.createChannel('a'.repeat(21)),
+        /最多 20 个字符/
+      )
+    })
+  })
+
+  describe('listChannels()', () => {
+    it('returns empty array initially', () => {
+      const channels = engine.listChannels()
+      assert.ok(Array.isArray(channels))
+    })
+
+    it('lists created channels', async () => {
+      await engine.createChannel('list-test-engine')
+      const channels = engine.listChannels()
+      assert.ok(channels.some(c => c.name === 'list-test-engine'))
+      assert.strictEqual(typeof channels[0].peerCount, 'number')
+    })
+  })
+
+  describe('sendMessage() and getChannelMessages()', () => {
+    it('sends and retrieves messages', async () => {
+      await engine.createChannel('msg-test-engine')
+      const msg = await engine.sendMessage('msg-test-engine', 'Hello World')
+      assert.strictEqual(msg.content, 'Hello World')
+      assert.strictEqual(msg.type, 'message')
+      assert.ok(msg.timestamp)
+
+      const messages = await engine.getChannelMessages('msg-test-engine')
+      assert.ok(Array.isArray(messages))
+      assert.strictEqual(messages.length, 1)
+      assert.strictEqual(messages[0].content, 'Hello World')
+    })
+
+    it('retrieves messages in order', async () => {
+      await engine.createChannel('order-test')
+      await engine.sendMessage('order-test', 'first')
+      await engine.sendMessage('order-test', 'second')
+      await engine.sendMessage('order-test', 'third')
+
+      const messages = await engine.getChannelMessages('order-test')
+      assert.strictEqual(messages.length, 3)
+      assert.strictEqual(messages[0].content, 'first')
+      assert.strictEqual(messages[2].content, 'third')
+    })
+
+    it('supports pagination with limit', async () => {
+      await engine.createChannel('limit-test')
+      for (let i = 0; i < 5; i++) {
+        await engine.sendMessage('limit-test', `msg${i}`)
+      }
+
+      const messages = await engine.getChannelMessages('limit-test', { limit: 2 })
+      assert.strictEqual(messages.length, 2)
+      assert.strictEqual(messages[0].content, 'msg3')
+      assert.strictEqual(messages[1].content, 'msg4')
+    })
+
+    it('supports pagination with offset', async () => {
+      await engine.createChannel('offset-test')
+      for (let i = 0; i < 5; i++) {
+        await engine.sendMessage('offset-test', `msg${i}`)
+      }
+
+      const messages = await engine.getChannelMessages('offset-test', { limit: 2, offset: 2 })
+      assert.strictEqual(messages.length, 2)
+      assert.strictEqual(messages[0].content, 'msg1')
+      assert.strictEqual(messages[1].content, 'msg2')
+    })
+
+    it('throws for empty message content', async () => {
+      await engine.createChannel('empty-msg-engine')
+      await assert.rejects(
+        engine.sendMessage('empty-msg-engine', ''),
+        /消息内容不能为空/
+      )
+    })
+
+    it('throws for non-existent channel', async () => {
+      await assert.rejects(
+        engine.sendMessage('nonexistent', 'test'),
+        /频道未初始化/
+      )
+    })
+  })
+
+  describe('leaveChannel()', () => {
+    it('leaves a channel', async () => {
+      await engine.createChannel('leave-test-engine')
+      const result = await engine.leaveChannel('leave-test-engine')
+      assert.ok(Array.isArray(result))
+      assert.ok(!result.some(c => c.name === 'leave-test-engine'))
+    })
+
+    it('throws for non-existent channel', async () => {
+      await assert.rejects(
+        engine.leaveChannel('does-not-exist'),
+        /频道不存在/
+      )
+    })
+  })
+
+  describe('getChannelPeers()', () => {
+    it('returns empty array for new channel', async () => {
+      await engine.createChannel('peers-test-engine')
+      const peers = engine.getChannelPeers('peers-test-engine')
+      assert.ok(Array.isArray(peers))
+      assert.strictEqual(peers.length, 0)
+    })
+
+    it('returns empty array for non-existent channel', () => {
+      const peers = engine.getChannelPeers('nonexistent')
+      assert.ok(Array.isArray(peers))
+      assert.strictEqual(peers.length, 0)
+    })
+  })
+
+  describe('getDisplayName() and setDisplayName()', () => {
+    it('returns null initially', () => {
+      const name = engine.getDisplayName()
+      assert.strictEqual(name, null)
+    })
+
+    it('sets and gets display name', () => {
+      const result = engine.setDisplayName('TestUser')
+      assert.strictEqual(result, true)
+      assert.strictEqual(engine.getDisplayName(), 'TestUser')
+    })
+  })
 })

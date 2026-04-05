@@ -299,6 +299,85 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
           return
         }
 
+        if (pathname === '/api/display-name' && req.method === 'GET') {
+          json({ displayName: engine.getDisplayName() })
+          return
+        }
+
+        if (pathname === '/api/display-name' && req.method === 'POST') {
+          const body = await parseJSON(req)
+          const success = engine.setDisplayName(body.name)
+          json({ success, displayName: engine.getDisplayName() })
+          return
+        }
+
+        if (pathname === '/api/channels' && req.method === 'POST') {
+          const body = await parseJSON(req)
+          if (!body.name || !body.name.trim()) {
+            json({ error: 'name is required' }, 400)
+            return
+          }
+          try {
+            const result = await engine.createChannel(body.name.trim(), body.type || 'personal')
+            json({ success: true, ...result })
+          } catch (err) {
+            json({ error: err.message }, 400)
+          }
+          return
+        }
+
+        if (pathname === '/api/channels' && req.method === 'GET') {
+          json(engine.listChannels())
+          return
+        }
+
+        if (pathname.startsWith('/api/channels/') && req.method === 'DELETE') {
+          const name = pathname.split('/')[3]
+          try {
+            const result = await engine.leaveChannel(name)
+            json({ success: true, channels: result })
+          } catch (err) {
+            json({ error: err.message }, 400)
+          }
+          return
+        }
+
+        if (pathname.match(/^\/api\/channels\/[^/]+\/messages$/) && req.method === 'GET') {
+          const name = pathname.split('/')[3]
+          const urlObj = new URL(req.url, `http://127.0.0.1:${TEST_PORT}`)
+          const limit = parseInt(urlObj.searchParams.get('limit') || '100', 10)
+          const offset = parseInt(urlObj.searchParams.get('offset') || '0', 10)
+          try {
+            const messages = await engine.getChannelMessages(name, { limit, offset })
+            json(messages)
+          } catch (err) {
+            json({ error: err.message }, 400)
+          }
+          return
+        }
+
+        if (pathname.match(/^\/api\/channels\/[^/]+\/messages$/) && req.method === 'POST') {
+          const name = pathname.split('/')[3]
+          const body = await parseJSON(req)
+          if (!body.content || !body.content.trim()) {
+            json({ error: 'content is required' }, 400)
+            return
+          }
+          try {
+            const message = await engine.sendMessage(name, body.content, body.authorName)
+            json({ success: true, message })
+          } catch (err) {
+            json({ error: err.message }, 400)
+          }
+          return
+        }
+
+        if (pathname.match(/^\/api\/channels\/[^/]+\/peers$/) && req.method === 'GET') {
+          const name = pathname.split('/')[3]
+          json(engine.getChannelPeers(name))
+          return
+        }
+
         if (pathname.startsWith('/api/')) {
           json({ error: 'Not found' }, 404)
           return
@@ -354,6 +433,9 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     }
     for (const file of engine.listTrashFiles()) {
       await engine.permanentDeleteTrashFile(file.cid)
+    }
+    for (const channel of engine.listChannels()) {
+      await engine.leaveChannel(channel.name)
     }
   })
 
@@ -694,6 +776,182 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     it('returns 404 for unknown API endpoints', async () => {
       const res = await fetch(`${baseUrl}/api/unknown`)
       assert.strictEqual(res.status, 404)
+    })
+  })
+
+  describe('GET /api/display-name', () => {
+    it('returns null displayName initially', async () => {
+      const res = await fetch(`${baseUrl}/api/display-name`)
+      const data = await res.json()
+      assert.strictEqual(res.status, 200)
+      assert.strictEqual(data.displayName, null)
+    })
+  })
+
+  describe('POST /api/display-name', () => {
+    it('sets display name', async () => {
+      const res = await fetch(`${baseUrl}/api/display-name`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'TestUser' })
+      })
+      const data = await res.json()
+      assert.strictEqual(res.status, 200)
+      assert.ok(data.success)
+      assert.strictEqual(data.displayName, 'TestUser')
+    })
+  })
+
+  describe('POST /api/channels', () => {
+    it('creates a channel', async () => {
+      const res = await fetch(`${baseUrl}/api/channels`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'test-channel' })
+      })
+      const data = await res.json()
+      assert.strictEqual(res.status, 200)
+      assert.ok(data.success)
+      assert.strictEqual(data.name, 'test-channel')
+      assert.ok(data.key)
+    })
+
+    it('returns existing channel if already created', async () => {
+      await engine.createChannel('dup-channel')
+      const res = await fetch(`${baseUrl}/api/channels`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'dup-channel' })
+      })
+      const data = await res.json()
+      assert.strictEqual(res.status, 200)
+      assert.strictEqual(data.name, 'dup-channel')
+    })
+
+    it('returns 400 for missing name', async () => {
+      const res = await fetch(`${baseUrl}/api/channels`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      })
+      assert.strictEqual(res.status, 400)
+    })
+
+    it('returns 400 for invalid channel name', async () => {
+      const res = await fetch(`${baseUrl}/api/channels`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'ab' })
+      })
+      assert.strictEqual(res.status, 400)
+    })
+  })
+
+  describe('GET /api/channels', () => {
+    it('returns empty array initially', async () => {
+      const res = await fetch(`${baseUrl}/api/channels`)
+      const data = await res.json()
+      assert.strictEqual(res.status, 200)
+      assert.ok(Array.isArray(data))
+      assert.strictEqual(data.length, 0)
+    })
+
+    it('returns created channels', async () => {
+      await engine.createChannel('list-test')
+      const res = await fetch(`${baseUrl}/api/channels`)
+      const data = await res.json()
+      assert.strictEqual(res.status, 200)
+      assert.ok(data.length >= 1)
+      assert.ok(data.some(c => c.name === 'list-test'))
+    })
+  })
+
+  describe('POST /api/channels/:name/messages', () => {
+    it('sends a message to a channel', async () => {
+      await engine.createChannel('msg-channel')
+      const res = await fetch(`${baseUrl}/api/channels/msg-channel/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: 'Hello!' })
+      })
+      const data = await res.json()
+      assert.strictEqual(res.status, 200)
+      assert.ok(data.success)
+      assert.strictEqual(data.message.content, 'Hello!')
+    })
+
+    it('returns 400 for empty content', async () => {
+      await engine.createChannel('empty-msg')
+      const res = await fetch(`${baseUrl}/api/channels/empty-msg/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: '' })
+      })
+      assert.strictEqual(res.status, 400)
+    })
+  })
+
+  describe('GET /api/channels/:name/messages', () => {
+    it('returns messages from a channel', async () => {
+      await engine.createChannel('read-channel')
+      await engine.sendMessage('read-channel', 'msg1')
+      await engine.sendMessage('read-channel', 'msg2')
+
+      const res = await fetch(`${baseUrl}/api/channels/read-channel/messages`)
+      const data = await res.json()
+      assert.strictEqual(res.status, 200)
+      assert.ok(Array.isArray(data))
+      assert.strictEqual(data.length, 2)
+      assert.strictEqual(data[0].content, 'msg1')
+      assert.strictEqual(data[1].content, 'msg2')
+    })
+
+    it('returns empty array for channel with no messages', async () => {
+      await engine.createChannel('empty-channel')
+      const res = await fetch(`${baseUrl}/api/channels/empty-channel/messages`)
+      const data = await res.json()
+      assert.strictEqual(res.status, 200)
+      assert.ok(Array.isArray(data))
+      assert.strictEqual(data.length, 0)
+    })
+
+    it('supports pagination with limit and offset', async () => {
+      await engine.createChannel('page-channel')
+      for (let i = 0; i < 5; i++) {
+        await engine.sendMessage('page-channel', `msg${i}`)
+      }
+
+      const res = await fetch(`${baseUrl}/api/channels/page-channel/messages?limit=2&offset=0`)
+      const data = await res.json()
+      assert.strictEqual(res.status, 200)
+      assert.strictEqual(data.length, 2)
+    })
+  })
+
+  describe('GET /api/channels/:name/peers', () => {
+    it('returns empty peers list for new channel', async () => {
+      await engine.createChannel('peers-channel')
+      const res = await fetch(`${baseUrl}/api/channels/peers-channel/peers`)
+      const data = await res.json()
+      assert.strictEqual(res.status, 200)
+      assert.ok(Array.isArray(data))
+      assert.strictEqual(data.length, 0)
+    })
+  })
+
+  describe('DELETE /api/channels/:name', () => {
+    it('leaves a channel', async () => {
+      await engine.createChannel('leave-channel')
+      const res = await fetch(`${baseUrl}/api/channels/leave-channel`, { method: 'DELETE' })
+      const data = await res.json()
+      assert.strictEqual(res.status, 200)
+      assert.ok(data.success)
+      assert.ok(!data.channels.some(c => c.name === 'leave-channel'))
+    })
+
+    it('returns 400 for non-existent channel', async () => {
+      const res = await fetch(`${baseUrl}/api/channels/nonexistent`, { method: 'DELETE' })
+      assert.strictEqual(res.status, 400)
     })
   })
 })

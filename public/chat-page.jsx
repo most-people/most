@@ -74,6 +74,18 @@ function ChatPage() {
   }, [])
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const peerIdFromUrl = params.get('peerId')
+    const typeFromUrl = params.get('type')
+    if (peerIdFromUrl) {
+      setTargetPeerId(peerIdFromUrl)
+    }
+    if (typeFromUrl === 'audio' || typeFromUrl === 'video') {
+      setCallType(typeFromUrl)
+    }
+  }, [])
+
+  useEffect(() => {
     fetch('/api/peer-id')
       .then(r => r.json())
       .then(d => {
