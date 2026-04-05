@@ -29,6 +29,7 @@ let wss = null
 // --- Call signaling state ---
 const callClients = new Map()
 const activeCalls = new Map()
+const channelCalls = new Map()
 
 function registerCallClient(ws, peerId) {
   if (!callClients.has(ws)) {
@@ -53,6 +54,27 @@ function cleanupCallClient(ws) {
       activeCalls.delete(callId)
     }
   }
+  for (const [channelName, callData] of channelCalls) {
+    if (callData.peers.has(ws)) {
+      callData.peers.delete(ws)
+      const clientInfo = callClients.get(ws)
+      broadcastToChannelCall(channelName, 'call:peer-left', { peerId: clientInfo?.peerId, channel: channelName })
+      if (callData.peers.size === 0) {
+        channelCalls.delete(channelName)
+      }
+    }
+  }
+}
+
+function broadcastToChannelCall(channelName, event, data) {
+  const callData = channelCalls.get(channelName)
+  if (!callData) return
+  const payload = JSON.stringify({ event, data })
+  for (const ws of callData.peers) {
+    if (ws.readyState === 1) {
+      try { ws.send(payload) } catch {}
+    }
+  }
 }
 
 function sendToWs(ws, event, data) {
@@ -66,6 +88,58 @@ function handleCallSignal(ws, { callId, signalData }) {
   if (!call) return
   const targetWs = call.callerWs === ws ? call.calleeWs : call.callerWs
   sendToWs(targetWs, 'signal', { callId, signalData })
+}
+
+function handleChannelCallJoin(ws, { channel }) {
+  const clientInfo = callClients.get(ws)
+  if (!clientInfo) return { error: 'not_registered' }
+  if (!channelCalls.has(channel)) {
+    channelCalls.set(channel, { peers: new Set(), createdAt: Date.now() })
+  }
+  const callData = channelCalls.get(channel)
+  callData.peers.add(ws)
+  const peerList = []
+  for (const peerWs of callData.peers) {
+    const info = callClients.get(peerWs)
+    if (info && peerWs !== ws) {
+      peerList.push({ peerId: info.peerId })
+      sendToWs(peerWs, 'call:peer-joined', { peerId: clientInfo.peerId, channel })
+    }
+  }
+  broadcastToChannelCall(channel, 'call:peer-joined', { peerId: clientInfo.peerId, channel })
+  return { channel, peers: peerList }
+}
+
+function handleChannelCallLeave(ws, { channel }) {
+  const callData = channelCalls.get(channel)
+  if (!callData) return
+  callData.peers.delete(ws)
+  const clientInfo = callClients.get(ws)
+  broadcastToChannelCall(channel, 'call:peer-left', { peerId: clientInfo?.peerId, channel })
+  if (callData.peers.size === 0) {
+    channelCalls.delete(channel)
+  }
+}
+
+function handleChannelCallSignal(ws, { channel, signalData, targetPeerId }) {
+  const callData = channelCalls.get(channel)
+  if (!callData) return
+  for (const peerWs of callData.peers) {
+    const info = callClients.get(peerWs)
+    if (info && info.peerId === targetPeerId) {
+      sendToWs(peerWs, 'signal', { channel, signalData, fromPeerId: callClients.get(ws)?.peerId })
+      break
+    }
+  }
+}
+
+function handleChannelCallChat(ws, { channel, message }) {
+  const clientInfo = callClients.get(ws)
+  broadcastToChannelCall(channel, 'call:chat', { from: clientInfo?.peerId || 'unknown', message, channel })
+}
+
+function handleChannelCallPresenterChange(ws, { channel, presenterPeerId }) {
+  broadcastToChannelCall(channel, 'call:presenter-change', { presenterPeerId, channel })
 }
 
 function handleCallStart(ws, { targetPeerId, type }) {
@@ -864,7 +938,11 @@ async function main() {
             break
           }
           case 'signal':
-            handleCallSignal(ws, data)
+            if (data.channel) {
+              handleChannelCallSignal(ws, data)
+            } else {
+              handleCallSignal(ws, data)
+            }
             break
           case 'call:accept':
             handleCallAccept(ws, data)
@@ -873,10 +951,29 @@ async function main() {
             handleCallReject(ws, data)
             break
           case 'call:hangup':
-            handleCallHangup(ws, data)
+            if (data.channel) {
+              handleChannelCallLeave(ws, data)
+            } else {
+              handleCallHangup(ws, data)
+            }
             break
           case 'call:chat':
-            handleCallChat(ws, data)
+            if (data.channel) {
+              handleChannelCallChat(ws, data)
+            } else {
+              handleCallChat(ws, data)
+            }
+            break
+          case 'call:join': {
+            const result = handleChannelCallJoin(ws, data)
+            sendToWs(ws, 'call:joined', result)
+            break
+          }
+          case 'call:leave':
+            handleChannelCallLeave(ws, data)
+            break
+          case 'call:presenter-change':
+            handleChannelCallPresenterChange(ws, data)
             break
         }
       } catch (err) {
