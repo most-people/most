@@ -281,10 +281,6 @@ function serveStatic(req, res) {
   let filePath = req.url === '/' ? '/index.html' : req.url
   filePath = filePath.split('?')[0]
 
-  if (filePath === '/chat' || filePath === '/chat/') {
-    filePath = '/chat/index.html'
-  }
-
   const fullPath = path.join(publicDir, filePath)
   const ext = path.extname(fullPath)
 
@@ -296,19 +292,33 @@ function serveStatic(req, res) {
 
   fs.readFile(fullPath, (err, data) => {
     if (err) {
-      const indexPath = path.join(publicDir, 'index.html')
-      fs.readFile(indexPath, (err2, indexData) => {
-        if (err2) {
-          res.writeHead(404)
-          res.end('Not found')
-          return
-        }
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
-        res.end(indexData)
-      })
+      if (err.code === 'EISDIR') {
+        const indexPath = path.join(fullPath, 'index.html')
+        fs.readFile(indexPath, (err2, indexData) => {
+          if (err2) {
+            res.writeHead(404)
+            res.end('Not found')
+            return
+          }
+          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+          res.end(indexData)
+        })
+      } else {
+        const indexPath = path.join(publicDir, 'index.html')
+        fs.readFile(indexPath, (err2, indexData) => {
+          if (err2) {
+            res.writeHead(404)
+            res.end('Not found')
+            return
+          }
+          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+          res.end(indexData)
+        })
+      }
       return
     }
 
+    const ext = path.extname(fullPath)
     res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' })
     res.end(data)
   })
