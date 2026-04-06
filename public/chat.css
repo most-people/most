@@ -1,304 +1,13 @@
 /* =============================================
    Chat Page Styles
-   Sidebar layout with channels
+   Chat-specific components (reuses app.css for layout)
    ============================================= */
 
-/* === Layout === */
-.chat-layout {
-  display: flex;
-  height: 100vh;
-  overflow: hidden;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-}
-
-/* === Sidebar === */
-.chat-sidebar {
-  width: 240px;
-  height: 100vh;
-  overflow-y: auto;
-  background: var(--bg-secondary);
-  display: flex;
-  flex-direction: column;
-  border-right: 1px solid var(--border-color);
-  flex-shrink: 0;
-
-  .chat-sidebar-header {
-    padding: 20px 16px;
-    border-bottom: 1px solid var(--border-color);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-
-    h1 {
-      font-size: 18px;
-      font-weight: 700;
-      color: var(--accent-blue);
-    }
-
-    .back-btn {
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
-      border: none;
-      background: transparent;
-      cursor: pointer;
-      color: var(--text-secondary);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: background 0.15s;
-
-      &:hover {
-        background: var(--bg-tertiary);
-      }
-    }
-  }
-
-  .chat-sidebar-nav {
-    padding: 12px 8px;
-    flex: 1;
-    overflow-y: auto;
-  }
-
-  .chat-sidebar-section {
-    padding: 8px 8px 4px;
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-
-  .chat-channel-btn {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 12px;
-    border-radius: 8px;
-    border: none;
-    cursor: pointer;
-    margin-bottom: 2px;
-    background: transparent;
-    color: var(--text-secondary);
-    font-weight: 500;
-    font-size: 13px;
-    transition: background 0.15s;
-    text-align: left;
-
-    .channel-icon {
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
-      background: var(--bg-tertiary);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--text-muted);
-      flex-shrink: 0;
-      transition: all 0.15s;
-    }
-
-    .channel-info {
-      flex: 1;
-      min-width: 0;
-
-      .channel-name {
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        font-weight: 500;
-      }
-
-      .channel-meta {
-        font-size: 11px;
-        color: var(--text-muted);
-        margin-top: 2px;
-      }
-    }
-
-    .leave-btn {
-      width: 24px;
-      height: 24px;
-      border-radius: 6px;
-      border: none;
-      background: transparent;
-      color: var(--text-muted);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.15s;
-      opacity: 0;
-      flex-shrink: 0;
-
-      &:hover {
-        background: var(--danger);
-        color: #fff;
-      }
-    }
-
-    &:hover {
-      background: var(--bg-tertiary);
-
-      .leave-btn {
-        opacity: 1;
-      }
-
-      .channel-icon {
-        background: color-mix(in srgb, var(--accent-blue) 12%, var(--bg-tertiary));
-        color: var(--accent-blue);
-      }
-    }
-
-    &.active {
-      background: color-mix(in srgb, var(--accent-blue) 12%, transparent);
-
-      .channel-icon {
-        background: color-mix(in srgb, var(--accent-blue) 15%, var(--bg-tertiary));
-        color: var(--accent-blue);
-      }
-
-      .channel-info {
-        .channel-name {
-          color: var(--accent-blue);
-          font-weight: 600;
-        }
-      }
-    }
-  }
-
-  .chat-sidebar-footer {
-    padding: 12px 16px;
-    border-top: 1px solid var(--border-color);
-
-    .peer-info {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 11px;
-      color: var(--text-secondary);
-
-      .peer-dot {
-        width: 6px;
-        height: 6px;
-        border-radius: 50%;
-        background: var(--success);
-      }
-
-      .peer-id {
-        font-family: monospace;
-        flex: 1;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-    }
-  }
-
-  .create-channel-btn {
-    margin: 8px;
-    padding: 10px;
-    border-radius: 8px;
-    border: 1.5px dashed var(--border-color);
-    background: transparent;
-    color: var(--text-secondary);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    font-size: 13px;
-    font-weight: 500;
-    transition: all 0.15s;
-
-    &:hover {
-      border-color: var(--accent-blue);
-      color: var(--accent-blue);
-      background: color-mix(in srgb, var(--accent-blue) 5%, transparent);
-    }
-  }
-}
-
-/* === Main Content === */
-.chat-main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  overflow: hidden;
-}
-
-/* === Chat Header === */
-.chat-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 24px;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--bg-secondary);
-
-  .chat-header-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
-    background: color-mix(in srgb, var(--accent-blue) 12%, var(--bg-tertiary));
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--accent-blue);
-  }
-
-  .chat-header-info {
-    flex: 1;
-
-    h2 {
-      font-size: 15px;
-      font-weight: 600;
-    }
-
-    .chat-header-meta {
-      font-size: 12px;
-      color: var(--text-muted);
-      margin-top: 2px;
-
-      .online-users {
-        color: var(--success);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        max-width: 300px;
-        display: inline-block;
-        vertical-align: middle;
-      }
-    }
-  }
-
-  .header-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .header-btn {
-    width: 36px;
-    height: 36px;
-    border-radius: 8px;
-    border: none;
-    background: var(--bg-tertiary);
-    color: var(--text-secondary);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.15s;
-
-    &:hover {
-      background: color-mix(in srgb, var(--accent-blue) 10%, var(--bg-tertiary));
-      color: var(--accent-blue);
-    }
-  }
+/* === Dark Theme Support === */
+[data-theme="dark"] {
+  --chat-bg-secondary: #1e293b;
+  --chat-bg-tertiary: #334155;
+  --chat-border-color: rgba(255, 255, 255, 0.08);
 }
 
 /* === Messages Area === */
@@ -519,6 +228,73 @@
     color: var(--text-secondary);
     max-width: 320px;
     line-height: 1.6;
+  }
+}
+
+/* === Create Channel Button === */
+.create-channel-btn {
+  margin: 8px;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1.5px dashed var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.15s;
+
+  &:hover {
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+    background: color-mix(in srgb, var(--accent-blue) 5%, transparent);
+  }
+}
+
+/* === Peer Info === */
+.peer-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+
+  .peer-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--success);
+  }
+
+  .peer-id {
+    font-family: monospace;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+/* === Back Button (for chat sidebar) === */
+.back-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+
+  &:hover {
+    background: var(--bg-tertiary);
   }
 }
 

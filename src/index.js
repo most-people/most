@@ -1271,7 +1271,7 @@ export class MostBoxEngine extends EventEmitter {
       throw new Error(`消息内容不能超过 ${MAX_MESSAGE_LENGTH} 字符`)
     }
 
-    const displayName = authorName || this.getDisplayName() || 'Anonymous'
+    const displayName = this.getNodeId().slice(0, 4)
 
     const message = {
       type: 'message',
@@ -1488,7 +1488,7 @@ export class MostBoxEngine extends EventEmitter {
       const helloMessage = JSON.stringify({
       type: 'channel-hello',
       peerId: this.getNodeId(),
-      authorName: this.getDisplayName() || 'Anonymous',
+      authorName: this.getNodeId().slice(0, 4),
       channels: this.#channels.map(c => c.name)
     })
 

@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
-import { MessageSquare, X, Send, Plus, Users, ArrowLeft } from 'lucide-react'
+import { MessageSquare, Send, Plus, ArrowLeft, Sun, Moon } from 'lucide-react'
 import { InputModal } from '../../components/ui'
 import { apiFetch } from '../../src/utils/api'
 
@@ -33,6 +33,19 @@ function ChatPage() {
   const [myPeerId, setMyPeerId] = useState('')
   const [error, setError] = useState('')
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [isDarkMode, setIsDarkMode] = useState(false)
+
+  useEffect(() => {
+    const saved = localStorage.getItem('theme')
+    if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      setIsDarkMode(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light')
+    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light')
+  }, [isDarkMode])
 
   const wsRef = useRef(null)
   const channelMessagesEndRef = useRef(null)
@@ -196,6 +209,7 @@ function ChatPage() {
             if (exists) return prev
             return [...prev, { ...data.message, id: messageId }]
           })
+          API.getChannelPeers(currentChannel.name).then(setChannelPeers).catch(() => {})
         }
         break
 
@@ -291,48 +305,33 @@ function ChatPage() {
   }
 
   return (
-    <div className="chat-layout">
-      <div className={`chat-sidebar-overlay ${isSidebarOpen ? 'visible' : ''}`} onClick={() => setIsSidebarOpen(false)} />
+    <div className="app-layout">
+      <div className={`sidebar-overlay ${isSidebarOpen ? 'visible' : ''}`} onClick={() => setIsSidebarOpen(false)} />
 
-      <aside className={`chat-sidebar ${isSidebarOpen ? 'open' : ''}`}>
-        <div className="chat-sidebar-header">
+      <div className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
+        <div className="sidebar-header">
           <button className="back-btn" onClick={() => window.location.href = '/'} title="返回首页">
             <ArrowLeft size={18} />
           </button>
-          <h1>频道</h1>
         </div>
 
-        <nav className="chat-sidebar-nav">
+        <nav className="sidebar-nav">
           {channels.length === 0 ? (
-            <div className="chat-messages-empty" style={{ padding: '40px 20px' }}>
+            <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
               <p>暂无频道</p>
             </div>
           ) : (
             channels.map(channel => (
               <div
                 key={channel.name}
-                className={`chat-channel-btn ${activeChannel?.name === channel.name ? 'active' : ''}`}
+                className={`sidebar-nav-btn ${activeChannel?.name === channel.name ? 'active' : ''}`}
                 onClick={() => handleOpenChannel(channel)}
                 role="button"
                 tabIndex={0}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleOpenChannel(channel) }}
               >
-                <div className="channel-icon">
-                  <MessageSquare size={16} />
-                </div>
-                <div className="channel-info">
-                  <div className="channel-name">{channel.name}</div>
-                  <div className="channel-meta">
-                    {channel.type === 'personal' ? '个人' : '群组'} · {channel.peerCount} 在线
-                  </div>
-                </div>
-                <button
-                  className="leave-btn"
-                  onClick={(e) => handleLeaveChannel(channel.name, e)}
-                  title="离开频道"
-                >
-                  <X size={14} />
-                </button>
+                <MessageSquare size={16} />
+                <span>{channel.name}</span>
               </div>
             ))
           )}
@@ -343,36 +342,27 @@ function ChatPage() {
           加入频道
         </button>
 
-        <div className="chat-sidebar-footer">
+        <div className="sidebar-footer">
           <div className="peer-info">
             <div className="peer-dot" />
             <span className="peer-id" title={myPeerId}>{myPeerId ? `${myPeerId.slice(0, 12)}...` : '连接中...'}</span>
           </div>
         </div>
-      </aside>
+      </div>
 
-      <main className="chat-main">
+      <div className="main-content">
         {activeChannel ? (
           <>
-            <header className="chat-header">
-              <div className="chat-header-icon">
-                <MessageSquare size={20} />
+            <header className="app-header">
+              <div className="header-left">
+                <button onClick={() => setIsSidebarOpen(true)} className="icon-btn mobile-menu-btn" style={{ display: 'none' }}>
+                  <Menu size={18} />
+                </button>
+                <h2 className="header-title">{activeChannel.name}</h2>
               </div>
-              <div className="chat-header-info">
-                <h2>{activeChannel.name}</h2>
-                <div className="chat-header-meta">
-                  {channelPeers.length > 0 ? (
-                    <span className="online-users">
-                      在线: {channelPeers.map(p => p.authorName || p.peerId?.slice(0, 8) || '?').join(', ')}
-                    </span>
-                  ) : (
-                    <span>暂无其他用户</span>
-                  )}
-                </div>
-              </div>
-              <div className="header-actions">
-                <button className="header-btn" onClick={() => setIsSidebarOpen(true)}>
-                  <Users size={18} />
+              <div className="header-right">
+                <button className="icon-btn" onClick={() => setIsDarkMode(!isDarkMode)} title="切换主题">
+                  {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
                 </button>
               </div>
             </header>
@@ -427,7 +417,7 @@ function ChatPage() {
             <p>从左侧边栏选择一个频道开始聊天，或创建一个新频道</p>
           </div>
         )}
-      </main>
+      </div>
 
       {showJoinChannel && (
         <InputModal

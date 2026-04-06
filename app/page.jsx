@@ -1003,6 +1003,7 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light')
+    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light')
   }, [isDarkMode])
 
   const viewTitle = currentView === 'all' ? '全部内容' : currentView === 'starred' ? '收藏' : '回收站'

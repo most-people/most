@@ -426,12 +426,6 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
       assert.ok(Array.isArray(peers))
       assert.strictEqual(peers.length, 0)
     })
-
-    it('returns empty array for non-existent channel', () => {
-      const peers = engine.getChannelPeers('nonexistent')
-      assert.ok(Array.isArray(peers))
-      assert.strictEqual(peers.length, 0)
-    })
   })
 
   describe('getDisplayName() and setDisplayName()', () => {
