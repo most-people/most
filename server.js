@@ -26,169 +26,6 @@ let engine = null
 let serverInstance = null
 let wss = null
 
-// --- Call signaling state ---
-const callClients = new Map()
-const activeCalls = new Map()
-const channelCalls = new Map()
-
-function registerCallClient(ws, peerId) {
-  if (!callClients.has(ws)) {
-    callClients.set(ws, { peerId, calls: new Map() })
-    ws.on('close', () => cleanupCallClient(ws))
-  } else {
-    callClients.get(ws).peerId = peerId
-  }
-}
-
-function cleanupCallClient(ws) {
-  const client = callClients.get(ws)
-  if (!client) return
-  callClients.delete(ws)
-  for (const [callId] of client.calls) {
-    const call = activeCalls.get(callId)
-    if (call) {
-      const otherWs = call.callerWs === ws ? call.calleeWs : call.callerWs
-      if (otherWs && otherWs.readyState === 1) {
-        try { otherWs.send(JSON.stringify({ event: 'call:ended', data: { callId, reason: 'peer_disconnected' } })) } catch {}
-      }
-      activeCalls.delete(callId)
-    }
-  }
-  for (const [channelName, callData] of channelCalls) {
-    if (callData.peers.has(ws)) {
-      callData.peers.delete(ws)
-      const clientInfo = callClients.get(ws)
-      broadcastToChannelCall(channelName, 'call:peer-left', { peerId: clientInfo?.peerId, channel: channelName })
-      if (callData.peers.size === 0) {
-        channelCalls.delete(channelName)
-      }
-    }
-  }
-}
-
-function broadcastToChannelCall(channelName, event, data) {
-  const callData = channelCalls.get(channelName)
-  if (!callData) return
-  const payload = JSON.stringify({ event, data })
-  for (const ws of callData.peers) {
-    if (ws.readyState === 1) {
-      try { ws.send(payload) } catch {}
-    }
-  }
-}
-
-function sendToWs(ws, event, data) {
-  if (ws && ws.readyState === 1) {
-    try { ws.send(JSON.stringify({ event, data })) } catch {}
-  }
-}
-
-function handleCallSignal(ws, { callId, signalData }) {
-  const call = activeCalls.get(callId)
-  if (!call) return
-  const targetWs = call.callerWs === ws ? call.calleeWs : call.callerWs
-  sendToWs(targetWs, 'signal', { callId, signalData })
-}
-
-function handleChannelCallJoin(ws, { channel }) {
-  const clientInfo = callClients.get(ws)
-  if (!clientInfo) return { error: 'not_registered' }
-  if (!channelCalls.has(channel)) {
-    channelCalls.set(channel, { peers: new Set(), createdAt: Date.now() })
-  }
-  const callData = channelCalls.get(channel)
-  callData.peers.add(ws)
-  const peerList = []
-  for (const peerWs of callData.peers) {
-    const info = callClients.get(peerWs)
-    if (info && peerWs !== ws) {
-      peerList.push({ peerId: info.peerId })
-      sendToWs(peerWs, 'call:peer-joined', { peerId: clientInfo.peerId, channel })
-    }
-  }
-  broadcastToChannelCall(channel, 'call:peer-joined', { peerId: clientInfo.peerId, channel })
-  return { channel, peers: peerList }
-}
-
-function handleChannelCallLeave(ws, { channel }) {
-  const callData = channelCalls.get(channel)
-  if (!callData) return
-  callData.peers.delete(ws)
-  const clientInfo = callClients.get(ws)
-  broadcastToChannelCall(channel, 'call:peer-left', { peerId: clientInfo?.peerId, channel })
-  if (callData.peers.size === 0) {
-    channelCalls.delete(channel)
-  }
-}
-
-function handleChannelCallSignal(ws, { channel, signalData, targetPeerId }) {
-  const callData = channelCalls.get(channel)
-  if (!callData) return
-  for (const peerWs of callData.peers) {
-    const info = callClients.get(peerWs)
-    if (info && info.peerId === targetPeerId) {
-      sendToWs(peerWs, 'signal', { channel, signalData, fromPeerId: callClients.get(ws)?.peerId })
-      break
-    }
-  }
-}
-
-function handleChannelCallChat(ws, { channel, message }) {
-  const clientInfo = callClients.get(ws)
-  broadcastToChannelCall(channel, 'call:chat', { from: clientInfo?.peerId || 'unknown', message, channel })
-}
-
-function handleChannelCallPresenterChange(ws, { channel, presenterPeerId }) {
-  broadcastToChannelCall(channel, 'call:presenter-change', { presenterPeerId, channel })
-}
-
-function handleCallStart(ws, { targetPeerId, type }) {
-  const callerInfo = callClients.get(ws)
-  if (!callerInfo) return { error: 'not_registered' }
-  if (targetPeerId === callerInfo.peerId) return { error: 'cannot_call_self' }
-
-  let targetWs = null
-  for (const [clientWs, info] of callClients) {
-    if (info.peerId === targetPeerId) { targetWs = clientWs; break }
-  }
-  if (!targetWs) return { error: 'peer_not_found' }
-
-  const callId = `call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-  activeCalls.set(callId, { callerWs: ws, calleeWs: targetWs, type, createdAt: Date.now() })
-  sendToWs(targetWs, 'call:incoming', { callId, callerId: callerInfo.peerId, callerName: callerInfo.peerId, type })
-  return { callId }
-}
-
-function handleCallAccept(ws, { callId }) {
-  const call = activeCalls.get(callId)
-  if (!call || call.calleeWs !== ws) return
-  sendToWs(call.callerWs, 'call:accepted', { callId })
-}
-
-function handleCallReject(ws, { callId }) {
-  const call = activeCalls.get(callId)
-  if (!call) return
-  const otherWs = call.callerWs === ws ? call.calleeWs : call.callerWs
-  sendToWs(otherWs, 'call:rejected', { callId })
-  activeCalls.delete(callId)
-}
-
-function handleCallHangup(ws, { callId }) {
-  const call = activeCalls.get(callId)
-  if (!call) return
-  const otherWs = call.callerWs === ws ? call.calleeWs : call.callerWs
-  sendToWs(otherWs, 'call:ended', { callId, reason: 'remote_hangup' })
-  activeCalls.delete(callId)
-}
-
-function handleCallChat(ws, { callId, message }) {
-  const call = activeCalls.get(callId)
-  if (!call) return
-  const client = callClients.get(ws)
-  const otherWs = call.callerWs === ws ? call.calleeWs : call.callerWs
-  sendToWs(otherWs, 'call:chat', { callId, from: client?.peerId || 'unknown', message })
-}
-
 // --- 配置 ---
 const CONFIG_DIR = path.join(os.homedir(), '.most-box')
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json')
@@ -862,6 +699,20 @@ function wsBroadcast(event, data) {
   }
 }
 
+const channelSubscriptions = new Map()
+
+function wsSendToChannel(channelName, event, data) {
+  const payload = JSON.stringify({ event, data })
+  const subscribers = channelSubscriptions.get(channelName)
+  if (subscribers) {
+    subscribers.forEach((ws) => {
+      if (ws.readyState === 1) {
+        try { ws.send(payload) } catch {}
+      }
+    })
+  }
+}
+
 // --- 主函数 ---
 async function main() {
   console.log('[MostBox] Starting core daemon...')
@@ -888,7 +739,7 @@ async function main() {
   engine.on('connection', () => {
     wsBroadcast('network:status', engine.getNetworkStatus())
   })
-  engine.on('channel:message', (data) => wsBroadcast('channel:message', data))
+  engine.on('channel:message', (data) => wsSendToChannel(data.channel, 'channel:message', data))
   engine.on('channel:peer:online', (data) => wsBroadcast('channel:peer:online', data))
   engine.on('channel:peer:offline', (data) => wsBroadcast('channel:peer:offline', data))
   engine.on('channel:joined', (data) => wsBroadcast('channel:joined', data))
@@ -933,6 +784,16 @@ async function main() {
   wss = new WebSocketServer({ noServer: true })
   wss.on('connection', (ws) => {
     ws.on('error', () => {})
+    ws.on('close', () => {
+      for (const [channelName, subscribers] of channelSubscriptions) {
+        if (subscribers.has(ws)) {
+          subscribers.delete(ws)
+          if (subscribers.size === 0) {
+            channelSubscriptions.delete(channelName)
+          }
+        }
+      }
+    })
     ws.on('message', (raw) => {
       try {
         const msg = JSON.parse(raw)
@@ -940,50 +801,28 @@ async function main() {
 
         switch (event) {
           case 'register':
-            registerCallClient(ws, data.peerId)
+            ws.peerId = data.peerId
             break
-          case 'call:start': {
-            const result = handleCallStart(ws, data)
-            sendToWs(ws, 'call:started', result)
-            break
-          }
-          case 'signal':
+          case 'channel:subscribe':
             if (data.channel) {
-              handleChannelCallSignal(ws, data)
-            } else {
-              handleCallSignal(ws, data)
+              const channelName = data.channel
+              if (!channelSubscriptions.has(channelName)) {
+                channelSubscriptions.set(channelName, new Set())
+              }
+              channelSubscriptions.get(channelName).add(ws)
             }
             break
-          case 'call:accept':
-            handleCallAccept(ws, data)
-            break
-          case 'call:reject':
-            handleCallReject(ws, data)
-            break
-          case 'call:hangup':
+          case 'channel:unsubscribe':
             if (data.channel) {
-              handleChannelCallLeave(ws, data)
-            } else {
-              handleCallHangup(ws, data)
+              const channelName = data.channel
+              const subscribers = channelSubscriptions.get(channelName)
+              if (subscribers) {
+                subscribers.delete(ws)
+                if (subscribers.size === 0) {
+                  channelSubscriptions.delete(channelName)
+                }
+              }
             }
-            break
-          case 'call:chat':
-            if (data.channel) {
-              handleChannelCallChat(ws, data)
-            } else {
-              handleCallChat(ws, data)
-            }
-            break
-          case 'call:join': {
-            const result = handleChannelCallJoin(ws, data)
-            sendToWs(ws, 'call:joined', result)
-            break
-          }
-          case 'call:leave':
-            handleChannelCallLeave(ws, data)
-            break
-          case 'call:presenter-change':
-            handleChannelCallPresenterChange(ws, data)
             break
         }
       } catch (err) {

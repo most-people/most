@@ -121,19 +121,14 @@ export class MostBoxEngine extends EventEmitter {
     })
 
     this.#swarm.on('connection', (conn, info) => {
-      console.log(`[MostBox] New peer connection established`)
       conn.on('error', (err) => {
         if (err.code === 'SSL_ERROR' || err.message?.includes('handshake')) {
-          console.warn('[MostBox] Connection warning:', err.message)
           return
         }
-        console.error('[MostBox] Connection error:', err.message)
       })
 
       this.#store.replicate(conn)
-      this.#handleChannelConnection(conn).catch(err => {
-        console.warn('[MostBox] Channel connection handler error:', err.message)
-      })
+      this.#handleChannelConnection(conn).catch(() => {})
       this.emit('connection', conn)
     })
 
@@ -153,6 +148,21 @@ export class MostBoxEngine extends EventEmitter {
         await core.ready()
         this.#channelCores.set(channel.name, core)
         this.#channelPeers.set(channel.name, new Map())
+
+        let lastCoreLength = core.length
+        core.on('append', async () => {
+          if (core.length > lastCoreLength) {
+            for (let i = lastCoreLength; i < core.length; i++) {
+              try {
+                const entry = await core.get(i)
+                if (entry && entry.type === 'message') {
+                  this.emit('channel:message', { channel: channel.name, message: entry })
+                }
+              } catch {}
+            }
+            lastCoreLength = core.length
+          }
+        })
 
         const discoveryKey = b4a.from(channel.discoveryKey, 'hex')
         const discovery = this.#swarm.join(discoveryKey, { server: true, client: true })
@@ -1043,6 +1053,25 @@ export class MostBoxEngine extends EventEmitter {
     const discovery = this.#swarm.join(discoveryKey, { server: true, client: true })
     await discovery.flushed()
 
+    let lastCoreLength = core.length
+    core.on('append', async () => {
+      if (core.length > lastCoreLength) {
+        
+        for (let i = lastCoreLength; i < core.length; i++) {
+          try {
+            const entry = await core.get(i)
+            if (entry && entry.type === 'message') {
+              
+              this.emit('channel:message', { channel: name, message: entry })
+            }
+          } catch (err) {
+            
+          }
+        }
+        lastCoreLength = core.length
+      }
+    })
+
     const channelInfo = {
       name,
       discoveryKey: b4a.toString(discoveryKey, 'hex'),
@@ -1087,6 +1116,25 @@ export class MostBoxEngine extends EventEmitter {
     const discoveryKey = this.#generateChannelDiscoveryKey(name)
     const discovery = this.#swarm.join(discoveryKey, { server: true, client: true })
     await discovery.flushed()
+
+    let lastCoreLength = core.length
+    core.on('append', async () => {
+      if (core.length > lastCoreLength) {
+        
+        for (let i = lastCoreLength; i < core.length; i++) {
+          try {
+            const entry = await core.get(i)
+            if (entry && entry.type === 'message') {
+              
+              this.emit('channel:message', { channel: name, message: entry })
+            }
+          } catch (err) {
+            
+          }
+        }
+        lastCoreLength = core.length
+      }
+    })
 
     const channelInfo = {
       name,
@@ -1433,13 +1481,11 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   async #handleChannelConnection(conn) {
-    const stream = conn.openStream()
-    if (!stream) return
-
+    const stream = conn
     let connectedPeerId = null
     let connectedAuthorName = null
 
-    const helloMessage = JSON.stringify({
+      const helloMessage = JSON.stringify({
       type: 'channel-hello',
       peerId: this.getNodeId(),
       authorName: this.getDisplayName() || 'Anonymous',
@@ -1467,6 +1513,11 @@ export class MostBoxEngine extends EventEmitter {
                 authorName: msg.authorName,
                 lastSeen: Date.now()
               })
+              const core = this.#channelCores.get(name)
+              if (core) {
+                const ns = this.#store.namespace(`channel-${name}`)
+                ns.replicate(conn).catch(() => {})
+              }
             }
           }
           this.emit('channel:peer:online', { peerId: msg.peerId, authorName: msg.authorName })

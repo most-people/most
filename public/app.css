@@ -53,7 +53,8 @@ body {
 /* === Layout === */
 .app-layout {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   background: var(--bg-primary);
   color: var(--text-primary);
 }
@@ -61,6 +62,8 @@ body {
 /* === Sidebar === */
 .sidebar {
   width: 200px;
+  height: 100vh;
+  overflow-y: auto;
   background: var(--bg-tertiary);
   display: flex;
   flex-direction: column;
@@ -161,6 +164,7 @@ body {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  overflow: hidden;
 }
 
 /* === Header === */

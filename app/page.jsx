@@ -5,7 +5,7 @@ import {
   Upload, Sun, Moon, Image as ImageIcon, Trash2, Folder,
   Film, Music, ChevronRight, FileText,
   X, Check, Copy, Download, ArrowUpDown, Star, Files, HardDrive, Search, Info,
-  FolderOpen, Power, Edit2, Menu, Eye, Loader, Phone
+  FolderOpen, Power, Edit2, Menu, Eye, Loader
 } from 'lucide-react'
 
 const API = {
@@ -1148,9 +1148,6 @@ export default function App() {
               <ArrowUpDown size={16} />
               {transfers.length > 0 && <span className="icon-btn-badge">{transfers.length}</span>}
             </button>
-            <a href="/chat" className="icon-btn accent" title="P2P 通话" style={{ textDecoration: 'none' }}>
-              <Phone size={16} />
-            </a>
             <button onClick={() => setIsDarkMode(!isDarkMode)} className="icon-btn theme-toggle">
               {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
             </button>

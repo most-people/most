@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
-import { MessageSquare, X, Send, Plus, Users, Phone } from 'lucide-react'
+import { MessageSquare, X, Send, Plus, Users, ArrowLeft } from 'lucide-react'
 
 const API = {
   async fetch(url, options = {}) {
@@ -38,10 +38,13 @@ function ChatPage() {
   const [newChannelName, setNewChannelName] = useState('')
   const [myPeerId, setMyPeerId] = useState('')
   const [error, setError] = useState('')
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
 
   const wsRef = useRef(null)
   const channelMessagesEndRef = useRef(null)
   const activeChannelRef = useRef(null)
+  const reconnectTimeoutRef = useRef(null)
+  const isWsConnectedRef = useRef(false)
 
   useEffect(() => {
     activeChannelRef.current = activeChannel
@@ -55,27 +58,67 @@ function ChatPage() {
     fetch('/api/peer-id').then(r => r.json()).then(d => setMyPeerId(d.peerId)).catch(() => {})
   }, [])
 
-  useEffect(() => {
-    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const ws = new WebSocket(`${protocol}//${location.host}/ws`)
+  const pendingSubscriptionRef = useRef(null)
 
-    ws.onopen = () => {
-      if (myPeerId && ws.readyState === 1) {
-        ws.send(JSON.stringify({ event: 'register', data: { peerId: myPeerId } }))
+  useEffect(() => {
+    if (myPeerId && pendingSubscriptionRef.current) {
+      const channelName = pendingSubscriptionRef.current
+      pendingSubscriptionRef.current = null
+      subscribeToChannel(channelName)
+    }
+  }, [myPeerId])
+
+  useEffect(() => {
+    function connectWs() {
+      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
+      const ws = new WebSocket(`${protocol}//${location.host}/ws`)
+
+      ws.onopen = () => {
+        isWsConnectedRef.current = true
+        if (myPeerId && ws.readyState === 1) {
+          ws.send(JSON.stringify({ event: 'register', data: { peerId: myPeerId } }))
+        }
+        if (activeChannelRef.current) {
+          subscribeToChannel(activeChannelRef.current.name)
+          syncChannelMessages(activeChannelRef.current.name)
+        }
+      }
+
+      ws.onmessage = (e) => {
+        try {
+          const { event, data } = JSON.parse(e.data)
+          handleWsEvent(event, data)
+        } catch {}
+      }
+
+      ws.onclose = () => {
+        isWsConnectedRef.current = false
+        reconnectTimeoutRef.current = setTimeout(connectWs, 3000)
+      }
+
+      ws.onerror = () => {
+        ws.close()
+      }
+
+      wsRef.current = ws
+    }
+
+    connectWs()
+
+    return () => {
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current)
+      }
+      if (wsRef.current) {
+        wsRef.current.close()
       }
     }
+  }, [])
 
-    ws.onmessage = (e) => {
-      try {
-        const { event, data } = JSON.parse(e.data)
-        handleWsEvent(event, data)
-      } catch {}
+  useEffect(() => {
+    if (myPeerId && wsRef.current && isWsConnectedRef.current) {
+      wsRef.current.send(JSON.stringify({ event: 'register', data: { peerId: myPeerId } }))
     }
-
-    ws.onclose = () => {}
-    wsRef.current = ws
-
-    return () => { ws.close() }
   }, [myPeerId])
 
   useEffect(() => {
@@ -86,14 +129,60 @@ function ChatPage() {
     const channelParam = new URLSearchParams(window.location.search).get('channel')
     if (channelParam && channels.length > 0) {
       const found = channels.find(c => c.name === channelParam)
-      if (found) {
+      if (found && activeChannel?.name !== found.name) {
         handleOpenChannel(found)
       }
     }
   }, [channels])
 
+  useEffect(() => {
+    if (!activeChannel && channels.length > 0) {
+      const channelParam = new URLSearchParams(window.location.search).get('channel')
+      if (channelParam) {
+        const found = channels.find(c => c.name === channelParam)
+        if (found) {
+          handleOpenChannel(found)
+        }
+      }
+    }
+  }, [activeChannel, channels])
+
+  async function syncChannelMessages(channelName) {
+    try {
+      const messages = await API.getChannelMessages(channelName)
+      setChannelMessages(prev => {
+        const newMsgs = messages.filter(m => {
+          const id = m.id || `${m.author}-${m.timestamp}`
+          return !prev.some(p => (p.id || `${p.author}-${p.timestamp}`) === id)
+        })
+        if (newMsgs.length === 0) return prev
+        return [...prev, ...newMsgs]
+      })
+      const peers = await API.getChannelPeers(channelName)
+      setChannelPeers(peers)
+    } catch {}
+  }
+
   function refreshChannels() {
     API.getChannels().then(setChannels).catch(() => {})
+  }
+
+  function wsSend(event, data) {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ event, data }))
+    }
+  }
+
+  function subscribeToChannel(channelName) {
+    if (!myPeerId) {
+      pendingSubscriptionRef.current = channelName
+      return
+    }
+    wsSend('channel:subscribe', { channel: channelName })
+  }
+
+  function unsubscribeFromChannel(channelName) {
+    wsSend('channel:unsubscribe', { channel: channelName })
   }
 
   function handleWsEvent(event, data) {
@@ -102,15 +191,16 @@ function ChatPage() {
       case 'channel:message':
         if (currentChannel && data.channel === currentChannel.name) {
           setChannelMessages(prev => {
+            const messageId = data.message.id || `${data.message.author}-${data.message.timestamp}`
             const pendingIdx = prev.findIndex(m => m.pending && m.content === data.message.content && m.author === data.message.author)
             if (pendingIdx !== -1) {
               const updated = [...prev]
-              updated[pendingIdx] = data.message
+              updated[pendingIdx] = { ...data.message, id: messageId }
               return updated
             }
-            const exists = prev.some(m => m.timestamp === data.message.timestamp && m.content === data.message.content && m.author === data.message.author)
+            const exists = prev.some(m => m.id === messageId || (m.timestamp === data.message.timestamp && m.content === data.message.content && m.author === data.message.author))
             if (exists) return prev
-            return [...prev, data.message]
+            return [...prev, { ...data.message, id: messageId }]
           })
         }
         break
@@ -130,7 +220,12 @@ function ChatPage() {
   }
 
   async function handleOpenChannel(channel) {
+    if (activeChannelRef.current) {
+      unsubscribeFromChannel(activeChannelRef.current.name)
+    }
     setActiveChannel(channel)
+    setIsSidebarOpen(false)
+    subscribeToChannel(channel.name)
     window.history.pushState({}, '', `?channel=${encodeURIComponent(channel.name)}`)
     try {
       const messages = await API.getChannelMessages(channel.name)
@@ -143,13 +238,18 @@ function ChatPage() {
     }
   }
 
-  async function handleLeaveChannel(name) {
+  async function handleLeaveChannel(name, e) {
+    if (e) e.stopPropagation()
+    unsubscribeFromChannel(name)
     try {
       await API.leaveChannel(name)
       if (activeChannel?.name === name) {
         setActiveChannel(null)
         setChannelMessages([])
         setChannelPeers([])
+        const url = new URL(window.location.href)
+        url.searchParams.delete('channel')
+        window.history.pushState({}, '', url.pathname)
       }
       refreshChannels()
     } catch (err) {
@@ -176,7 +276,9 @@ function ChatPage() {
     const content = channelInput.trim()
     setChannelInput('')
 
+    const optimisticId = `${myPeerId}-${Date.now()}-${Math.random().toString(36).slice(2)}`
     const optimisticMsg = {
+      id: optimisticId,
       author: myPeerId,
       authorName: 'Me',
       content,
@@ -186,147 +288,178 @@ function ChatPage() {
     setChannelMessages(prev => [...prev, optimisticMsg])
 
     try {
-      await API.sendChannelMessage(activeChannel.name, content)
+      const result = await API.sendChannelMessage(activeChannel.name, content)
+      setChannelMessages(prev => prev.map(m => m.id === optimisticId ? { ...result.message, id: result.message.id || result.message.timestamp } : m))
     } catch (err) {
+      setChannelMessages(prev => prev.filter(m => m.id !== optimisticId))
       setError(err.message)
       setTimeout(() => setError(''), 3000)
     }
   }
 
-  function handleBackToChannels() {
-    setActiveChannel(null)
-    setChannelMessages([])
-    setChannelPeers([])
-    window.history.pushState({}, '', window.location.pathname)
-  }
+  return (
+    <div className="chat-layout">
+      <div className={`chat-sidebar-overlay ${isSidebarOpen ? 'visible' : ''}`} onClick={() => setIsSidebarOpen(false)} />
 
-  function handleStartCall() {
-    if (!activeChannel) return
-    window.location.href = `/call?channel=${encodeURIComponent(activeChannel.name)}`
-  }
-
-  if (activeChannel) {
-    return (
-      <div className="chat-page">
-        <header className="chat-header">
-          <button className="chat-back-btn" onClick={handleBackToChannels} aria-label="返回频道列表">
-            <MessageSquare size={18} />
+      <aside className={`chat-sidebar ${isSidebarOpen ? 'open' : ''}`}>
+        <div className="chat-sidebar-header">
+          <button className="back-btn" onClick={() => window.location.href = '/'} title="返回首页">
+            <ArrowLeft size={18} />
           </button>
-          <h1>{activeChannel.name}</h1>
-          <div className="chat-spacer" />
-          <div className="chat-peer-count">
-            <Users size={12} /> {channelPeers.length}
-          </div>
-          <button className="chat-call-btn" onClick={handleStartCall} title="发起通话">
-            <Phone size={16} />
-          </button>
-        </header>
-
-        <div className="chat-channel-view">
-          <div className="chat-channel-messages">
-            {channelMessages.length === 0 ? (
-              <div className="chat-channel-empty">暂无消息，开始聊天吧！</div>
-            ) : (
-              channelMessages.map((msg, i) => (
-                <div key={i} className={`chat-channel-msg ${msg.author === myPeerId ? 'self' : 'other'}`}>
-                  {msg.author !== myPeerId && <span className="chat-channel-msg-author">{msg.authorName || msg.author.slice(0, 8)}</span>}
-                  <div className="chat-channel-msg-bubble">{msg.content}</div>
-                  <span className="chat-channel-msg-time">{new Date(msg.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
-                </div>
-              ))
-            )}
-            <div ref={channelMessagesEndRef} />
-          </div>
-
-          <div className="chat-channel-input-area">
-            <input
-              type="text"
-              className="chat-channel-input"
-              placeholder="输入消息..."
-              value={channelInput}
-              onChange={e => setChannelInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && channelInput.trim()) handleSendChannelMessage() }}
-            />
-            <button className="chat-channel-send-btn" onClick={handleSendChannelMessage} disabled={!channelInput.trim()}>
-              <Send size={18} />
-            </button>
-          </div>
+          <h1>频道</h1>
         </div>
 
-        {error && <div className="chat-error toast">{error}</div>}
-      </div>
-    )
-  }
-
-  return (
-    <div className="chat-page">
-      <header className="chat-header">
-        <button className="chat-back-btn" onClick={() => window.location.href = '/'} aria-label="返回">
-          <MessageSquare size={18} />
-        </button>
-        <h1>频道</h1>
-        <div className="chat-spacer" />
-        <button className="chat-create-channel-btn" onClick={() => setShowCreateChannel(true)}>
-          <Plus size={16} />
-        </button>
-      </header>
-
-      <div className="chat-channels-list">
-        {channels.length === 0 ? (
-          <div className="chat-channels-empty">
-            <MessageSquare size={32} />
-            <p>暂无频道</p>
-          </div>
-        ) : (
-          channels.map(channel => (
-            <div key={channel.name} className="chat-channel-item" onClick={() => handleOpenChannel(channel)}>
-              <div className="chat-channel-item-icon">
-                <MessageSquare size={18} />
+        <nav className="chat-sidebar-nav">
+          {channels.length === 0 ? (
+            <div className="chat-messages-empty" style={{ padding: '40px 20px' }}>
+              <p>暂无频道</p>
+            </div>
+          ) : (
+            channels.map(channel => (
+              <div
+                key={channel.name}
+                className={`chat-channel-btn ${activeChannel?.name === channel.name ? 'active' : ''}`}
+                onClick={() => handleOpenChannel(channel)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleOpenChannel(channel) }}
+              >
+                <div className="channel-icon">
+                  <MessageSquare size={16} />
+                </div>
+                <div className="channel-info">
+                  <div className="channel-name">{channel.name}</div>
+                  <div className="channel-meta">
+                    {channel.type === 'personal' ? '个人' : '群组'} · {channel.peerCount} 在线
+                  </div>
+                </div>
+                <button
+                  className="leave-btn"
+                  onClick={(e) => handleLeaveChannel(channel.name, e)}
+                  title="离开频道"
+                >
+                  <X size={14} />
+                </button>
               </div>
-              <div className="chat-channel-item-info">
-                <div className="chat-channel-item-name">{channel.name}</div>
-                <div className="chat-channel-item-meta">
-                  <span>{channel.type === 'personal' ? '个人' : '群组'}</span>
-                  <span>·</span>
-                  <span>{channel.peerCount} 在线</span>
+            ))
+          )}
+        </nav>
+
+        <button className="create-channel-btn" onClick={() => setShowCreateChannel(true)}>
+          <Plus size={16} />
+          创建频道
+        </button>
+
+        <div className="chat-sidebar-footer">
+          <div className="peer-info">
+            <div className="peer-dot" />
+            <span className="peer-id" title={myPeerId}>{myPeerId ? `${myPeerId.slice(0, 12)}...` : '连接中...'}</span>
+          </div>
+        </div>
+      </aside>
+
+      <main className="chat-main">
+        {activeChannel ? (
+          <>
+            <header className="chat-header">
+              <div className="chat-header-icon">
+                <MessageSquare size={20} />
+              </div>
+              <div className="chat-header-info">
+                <h2>{activeChannel.name}</h2>
+                <div className="chat-header-meta">
+                  {channelPeers.length > 0 ? (
+                    <span className="online-users">
+                      在线: {channelPeers.map(p => p.authorName || p.peerId?.slice(0, 8) || '?').join(', ')}
+                    </span>
+                  ) : (
+                    <span>暂无其他用户</span>
+                  )}
                 </div>
               </div>
-              <button
-                className="chat-channel-item-leave"
-                onClick={e => { e.stopPropagation(); handleLeaveChannel(channel.name) }}
-                title="离开频道"
-              >
-                <X size={14} />
+              <div className="header-actions">
+                <button className="header-btn" onClick={() => setIsSidebarOpen(true)}>
+                  <Users size={18} />
+                </button>
+              </div>
+            </header>
+
+            <div className="chat-messages">
+              {channelMessages.length === 0 ? (
+                <div className="chat-messages-empty">
+                  <div className="empty-icon">
+                    <MessageSquare size={28} />
+                  </div>
+                  <p>暂无消息，开始聊天吧！</p>
+                </div>
+              ) : (
+                channelMessages.map((msg) => (
+                  <div
+                    key={msg.id || `${msg.author}-${msg.timestamp}`}
+                    className={`chat-message ${msg.author === myPeerId ? 'self' : 'other'} ${msg.pending ? 'pending' : ''}`}
+                  >
+                    {msg.author !== myPeerId && (
+                      <span className="message-author">{msg.authorName || msg.author?.slice(0, 8) || 'Unknown'}</span>
+                    )}
+                    <div className="message-bubble">{msg.content}</div>
+                    <span className="message-time">
+                      {new Date(msg.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                ))
+              )}
+              <div ref={channelMessagesEndRef} />
+            </div>
+
+            <div className="chat-input-area">
+              <input
+                type="text"
+                className="chat-input"
+                placeholder="输入消息..."
+                value={channelInput}
+                onChange={e => setChannelInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && channelInput.trim()) handleSendChannelMessage() }}
+              />
+              <button className="send-btn" onClick={handleSendChannelMessage} disabled={!channelInput.trim()}>
+                <Send size={18} />
               </button>
             </div>
-          ))
+          </>
+        ) : (
+          <div className="chat-welcome">
+            <div className="welcome-icon">
+              <MessageSquare size={36} />
+            </div>
+            <h2>选择频道</h2>
+            <p>从左侧边栏选择一个频道开始聊天，或创建一个新频道</p>
+          </div>
         )}
-      </div>
+      </main>
 
       {showCreateChannel && (
-        <div className="chat-create-channel-overlay" onClick={() => setShowCreateChannel(false)}>
-          <div className="chat-create-channel-modal" onClick={e => e.stopPropagation()}>
+        <div className="chat-modal-overlay" onClick={() => setShowCreateChannel(false)}>
+          <div className="chat-modal" onClick={e => e.stopPropagation()}>
             <h3>创建频道</h3>
             <p>创建一个频道，朋友加入后可以聊天</p>
             <input
               type="text"
-              className="chat-create-channel-input"
+              className="modal-input"
               placeholder="频道名，如 alice 或 team-project"
               value={newChannelName}
               onChange={e => setNewChannelName(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && newChannelName.trim()) handleCreateChannel() }}
               autoFocus
             />
-            <div className="chat-create-channel-hint">3-20位，字母、数字、下划线、连字符</div>
-            <div className="chat-create-channel-actions">
-              <button className="chat-create-channel-cancel" onClick={() => setShowCreateChannel(false)}>取消</button>
-              <button className="chat-create-channel-submit" onClick={handleCreateChannel} disabled={!newChannelName.trim()}>创建</button>
+            <div className="modal-hint">3-20位，字母、数字、下划线、连字符</div>
+            <div className="modal-actions">
+              <button className="btn secondary" onClick={() => setShowCreateChannel(false)}>取消</button>
+              <button className="btn primary" onClick={handleCreateChannel} disabled={!newChannelName.trim()}>创建</button>
             </div>
           </div>
         </div>
       )}
 
-      {error && <div className="chat-error toast">{error}</div>}
+      {error && <div className="chat-toast">{error}</div>}
     </div>
   )
 }

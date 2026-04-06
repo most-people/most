@@ -106,3 +106,94 @@ node build.mjs --watch
 - 目录结构：`tests/unit/` 和 `tests/integration/`
 - 使用 `describe`/`it` 组织测试用例
 - 集成测试避免使用真实网络，使用 mock 或本地环境
+
+## 频道聊天架构
+
+### 架构概述
+
+每个用户运行独立的 MostBox 服务器实例，通过 P2P (Hyperswarm) 网络复制数据。WebSocket 用于实时事件通知。
+
+```
+用户 A (server) ←──P2P复制──→ 用户 B (server)
+     ↑                                ↑
+  WebSocket ←─── 事件推送 ───→ WebSocket
+```
+
+### 关键组件
+
+| 组件 | 职责 |
+|------|------|
+| `MostBoxEngine` | 核心引擎，管理频道、消息、P2P 连接 |
+| `Corestore` | 存储管理，每个频道有独立的 namespace |
+| `Hypercore` | 单条 append-only 日志，存储消息 |
+| `Hyperswarm` | P2P 网络发现与连接 |
+| `WebSocket` | 服务器→客户端实时事件推送 |
+
+### 消息流程
+
+1. 客户端 POST 消息 → `core.append()` 写入本地
+2. P2P 复制到远程节点 → `core.on('append')` 收到
+3. `emit('channel:message')` → WebSocket 推送给订阅者
+
+### 重要实现细节
+
+#### 1. Channel Core Append 监听
+
+```javascript
+let lastCoreLength = core.length
+core.on('append', async () => {
+  if (core.length > lastCoreLength) {
+    for (let i = lastCoreLength; i < core.length; i++) {
+      const entry = await core.get(i)
+      if (entry?.type === 'message') {
+        this.emit('channel:message', { channel: name, message: entry })
+      }
+    }
+    lastCoreLength = core.length
+  }
+})
+```
+
+#### 2. Channel Replication
+
+```javascript
+if (theirChannels.has(name)) {
+  const ns = this.#store.namespace(`channel-${name}`)
+  ns.replicate(conn)
+}
+```
+
+#### 3. WebSocket 订阅时机
+
+`peerId` 异步获取，需等待就绪：
+
+```javascript
+const pendingSubscriptionRef = useRef(null)
+
+function subscribeToChannel(channelName) {
+  if (!myPeerId) { pendingSubscriptionRef.current = channelName; return }
+  wsSend('channel:subscribe', { channel: channelName })
+}
+
+useEffect(() => {
+  if (myPeerId && pendingSubscriptionRef.current) {
+    subscribeToChannel(pendingSubscriptionRef.current)
+    pendingSubscriptionRef.current = null
+  }
+}, [myPeerId])
+```
+
+#### 4. Hyperswarm 4.x API
+
+`conn` 直接使用，无需 `openStream()`：
+
+```javascript
+const stream = conn  // 正确
+// const stream = conn.openStream()  // 错误
+```
+
+### 常见问题
+
+- **消息收不到**：检查 `core.on('append')` 是否触发、`subscribers` 数量
+- **P2P 连接失败**：检查 `conn.openStream` 错误（H队套 4.x 问题）
+- **订阅者 unknown**：`peerId` 未就绪就发送订阅
