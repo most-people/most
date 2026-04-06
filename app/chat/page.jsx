@@ -2,16 +2,11 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { MessageSquare, X, Send, Plus, Users, ArrowLeft } from 'lucide-react'
+import { InputModal } from '../../components/ui'
+import { apiFetch } from '../../src/utils/api'
 
 const API = {
-  async fetch(url, options = {}) {
-    const res = await fetch(url, options)
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: res.statusText }))
-      throw new Error(err.error || 'Request failed')
-    }
-    return res.json()
-  },
+  fetch: apiFetch,
   getChannels: () => API.fetch('/api/channels'),
   createChannel: (name, type) => API.fetch('/api/channels', {
     method: 'POST',
@@ -34,8 +29,7 @@ function ChatPage() {
   const [channelMessages, setChannelMessages] = useState([])
   const [channelPeers, setChannelPeers] = useState([])
   const [channelInput, setChannelInput] = useState('')
-  const [showCreateChannel, setShowCreateChannel] = useState(false)
-  const [newChannelName, setNewChannelName] = useState('')
+  const [showJoinChannel, setShowJoinChannel] = useState(false)
   const [myPeerId, setMyPeerId] = useState('')
   const [error, setError] = useState('')
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
@@ -258,12 +252,11 @@ function ChatPage() {
     }
   }
 
-  async function handleCreateChannel() {
-    if (!newChannelName.trim()) return
+  async function handleJoinChannel(channelName) {
+    if (!channelName.trim()) return
     try {
-      await API.createChannel(newChannelName.trim())
-      setNewChannelName('')
-      setShowCreateChannel(false)
+      await API.createChannel(channelName.trim())
+      setShowJoinChannel(false)
       refreshChannels()
     } catch (err) {
       setError(err.message)
@@ -345,9 +338,9 @@ function ChatPage() {
           )}
         </nav>
 
-        <button className="create-channel-btn" onClick={() => setShowCreateChannel(true)}>
+        <button className="create-channel-btn" onClick={() => setShowJoinChannel(true)}>
           <Plus size={16} />
-          创建频道
+          加入频道
         </button>
 
         <div className="chat-sidebar-footer">
@@ -436,27 +429,14 @@ function ChatPage() {
         )}
       </main>
 
-      {showCreateChannel && (
-        <div className="chat-modal-overlay" onClick={() => setShowCreateChannel(false)}>
-          <div className="chat-modal" onClick={e => e.stopPropagation()}>
-            <h3>创建频道</h3>
-            <p>创建一个频道，朋友加入后可以聊天</p>
-            <input
-              type="text"
-              className="modal-input"
-              placeholder="频道名，如 alice 或 team-project"
-              value={newChannelName}
-              onChange={e => setNewChannelName(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && newChannelName.trim()) handleCreateChannel() }}
-              autoFocus
-            />
-            <div className="modal-hint">3-20位，字母、数字、下划线、连字符</div>
-            <div className="modal-actions">
-              <button className="btn secondary" onClick={() => setShowCreateChannel(false)}>取消</button>
-              <button className="btn primary" onClick={handleCreateChannel} disabled={!newChannelName.trim()}>创建</button>
-            </div>
-          </div>
-        </div>
+      {showJoinChannel && (
+        <InputModal
+          title="加入频道"
+          placeholder="频道名"
+          confirmText="加入"
+          onConfirm={handleJoinChannel}
+          onClose={() => setShowJoinChannel(false)}
+        />
       )}
 
       {error && <div className="chat-toast">{error}</div>}

@@ -3,20 +3,15 @@
 import React, { useState, useEffect, useRef } from 'react'
 import {
   Upload, Sun, Moon, Image as ImageIcon, Trash2, Folder,
-  Film, Music, ChevronRight, FileText,
+  Film, Music, ChevronRight, FileText, MessageSquare,
   X, Check, Copy, Download, ArrowUpDown, Star, Files, HardDrive, Search, Info,
-  FolderOpen, Power, Edit2, Menu, Eye, Loader
+  Power, Edit2, Menu, Loader
 } from 'lucide-react'
+import { ModalOverlay, Toast, ConfirmModal, InputModal } from '../components/ui'
+import { apiFetch } from '../src/utils/api'
 
 const API = {
-  async fetch(url, options = {}) {
-    const res = await fetch(url, options)
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: res.statusText }))
-      throw new Error(err.error || 'Request failed')
-    }
-    return res.json()
-  },
+  fetch: apiFetch,
   listPublishedFiles: () => API.fetch('/api/files'),
   listTrashFiles: () => API.fetch('/api/trash'),
   deletePublishedFile: (cid) => API.fetch(`/api/files/${cid}`, { method: 'DELETE' }),
@@ -338,31 +333,6 @@ function SettingsModal({ onClose, addToast, isDarkMode, handleShutdown }) {
   )
 }
 
-function Toast({ message, type, onDone, index }) {
-  useEffect(() => {
-    const t = setTimeout(onDone, 3000)
-    return () => clearTimeout(t)
-  }, [])
-  return (
-    <div className={`toast ${type}`} style={{ bottom: 24 + index * 60 }}>
-      {message}
-    </div>
-  )
-}
-
-function ModalOverlay({ children, onClose, closeOnOverlayClick = false }) {
-  const handleOverlayClick = (e) => {
-    if (closeOnOverlayClick && e.target === e.currentTarget) {
-      onClose?.()
-    }
-  }
-  return (
-    <div className="modal-overlay" onClick={handleOverlayClick}>
-      {children}
-    </div>
-  )
-}
-
 function generateBreadcrumbs(currentPath) {
   if (!currentPath) return []
   return [
@@ -415,45 +385,6 @@ function FolderCard({ folder, isDarkMode, onClick }) {
         {folder.name}
       </p>
     </div>
-  )
-}
-
-function ConfirmModal({ title, message, confirmText, onConfirm, onClose, danger, isDarkMode, closeOnOverlayClick }) {
-  return (
-    <ModalOverlay onClose={onClose} closeOnOverlayClick={closeOnOverlayClick}>
-      <div className="confirm-modal" onClick={e => e.stopPropagation()}>
-        <h3>{title}</h3>
-        <p>{message}</p>
-        <div className="modal-actions">
-          <button onClick={onClose} className="btn secondary">取消</button>
-          <button onClick={onConfirm} className={`btn ${danger ? 'danger' : 'primary'}`}>{confirmText}</button>
-        </div>
-      </div>
-    </ModalOverlay>
-  )
-}
-
-function InputModal({ title, placeholder, defaultValue, confirmText, onConfirm, onClose, isDarkMode, isLoading, loadingText }) {
-  const [value, setValue] = useState(defaultValue || '')
-  return (
-    <ModalOverlay onClose={onClose}>
-      <div className="input-modal" onClick={e => e.stopPropagation()}>
-        <h3>{title}</h3>
-        <input
-          type="text"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder={placeholder}
-          autoFocus
-          onKeyDown={(e) => { if (e.key === 'Enter' && value.trim() && !isLoading) onConfirm(value.trim()) }}
-          className="modal-input"
-        />
-        <div className="modal-actions">
-          <button onClick={onClose} disabled={isLoading} className="btn secondary">取消</button>
-          <button onClick={() => value.trim() && onConfirm(value.trim())} disabled={!value.trim() || isLoading} className="btn primary" style={{ opacity: isLoading ? 0.7 : 1 }}>{isLoading ? (loadingText || '处理中...') : confirmText}</button>
-        </div>
-      </div>
-    </ModalOverlay>
   )
 }
 
@@ -1095,11 +1026,21 @@ export default function App() {
           <h1>Most.Box</h1>
         </div>
         <nav className="sidebar-nav">
-          {[{ id: 'all', icon: <Files size={18} />, label: '全部内容' }, { id: 'starred', icon: <Star size={18} />, label: '收藏' }, { id: 'trash', icon: <Trash2 size={18} />, label: '回收站' }].map(item => (
+          {[{ id: 'all', icon: <Files size={18} />, label: '全部内容' }, { id: 'starred', icon: <Star size={18} />, label: '收藏' }, { id: 'trash', icon: <Trash2 size={18} />, label: '回收站' }, { id: 'chat', icon: <MessageSquare size={18} />, label: '聊天', href: '/chat' }].map(item => (
             <button
               key={item.id}
-              onClick={() => { setCurrentView(item.id); setCurrentFolderId(null); setSelectedIds([]); setSearchQuery(''); setIsSidebarOpen(false) }}
-              className={`sidebar-nav-btn ${currentView === item.id ? 'active' : ''}`}
+              onClick={() => {
+                if (item.href) {
+                  window.location.href = item.href
+                } else {
+                  setCurrentView(item.id)
+                  setCurrentFolderId(null)
+                  setSelectedIds([])
+                  setSearchQuery('')
+                  setIsSidebarOpen(false)
+                }
+              }}
+              className={`sidebar-nav-btn ${currentView === item.id && !item.href ? 'active' : ''}`}
             >
               {item.icon}
               <span>{item.label}</span>
