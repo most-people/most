@@ -36,12 +36,16 @@ function ChatPage() {
   const [channelInput, setChannelInput] = useState('')
   const [showCreateChannel, setShowCreateChannel] = useState(false)
   const [newChannelName, setNewChannelName] = useState('')
-  const [newChannelType, setNewChannelType] = useState('personal')
   const [myPeerId, setMyPeerId] = useState('')
   const [error, setError] = useState('')
 
   const wsRef = useRef(null)
   const channelMessagesEndRef = useRef(null)
+  const activeChannelRef = useRef(null)
+
+  useEffect(() => {
+    activeChannelRef.current = activeChannel
+  }, [activeChannel])
 
   useEffect(() => {
     channelMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -78,15 +82,32 @@ function ChatPage() {
     refreshChannels()
   }, [])
 
+  useEffect(() => {
+    const channelParam = new URLSearchParams(window.location.search).get('channel')
+    if (channelParam && channels.length > 0) {
+      const found = channels.find(c => c.name === channelParam)
+      if (found) {
+        handleOpenChannel(found)
+      }
+    }
+  }, [channels])
+
   function refreshChannels() {
     API.getChannels().then(setChannels).catch(() => {})
   }
 
   function handleWsEvent(event, data) {
+    const currentChannel = activeChannelRef.current
     switch (event) {
       case 'channel:message':
-        if (activeChannel && data.channel === activeChannel.name) {
+        if (currentChannel && data.channel === currentChannel.name) {
           setChannelMessages(prev => {
+            const pendingIdx = prev.findIndex(m => m.pending && m.content === data.message.content && m.author === data.message.author)
+            if (pendingIdx !== -1) {
+              const updated = [...prev]
+              updated[pendingIdx] = data.message
+              return updated
+            }
             const exists = prev.some(m => m.timestamp === data.message.timestamp && m.content === data.message.content && m.author === data.message.author)
             if (exists) return prev
             return [...prev, data.message]
@@ -96,8 +117,8 @@ function ChatPage() {
 
       case 'channel:peer:online':
       case 'channel:peer:offline':
-        if (activeChannel) {
-          API.getChannelPeers(activeChannel.name).then(setChannelPeers).catch(() => {})
+        if (currentChannel) {
+          API.getChannelPeers(currentChannel.name).then(setChannelPeers).catch(() => {})
         }
         break
 
@@ -110,6 +131,7 @@ function ChatPage() {
 
   async function handleOpenChannel(channel) {
     setActiveChannel(channel)
+    window.history.pushState({}, '', `?channel=${encodeURIComponent(channel.name)}`)
     try {
       const messages = await API.getChannelMessages(channel.name)
       setChannelMessages(messages)
@@ -139,9 +161,8 @@ function ChatPage() {
   async function handleCreateChannel() {
     if (!newChannelName.trim()) return
     try {
-      await API.createChannel(newChannelName.trim(), newChannelType)
+      await API.createChannel(newChannelName.trim())
       setNewChannelName('')
-      setNewChannelType('personal')
       setShowCreateChannel(false)
       refreshChannels()
     } catch (err) {
@@ -154,6 +175,16 @@ function ChatPage() {
     if (!channelInput.trim() || !activeChannel) return
     const content = channelInput.trim()
     setChannelInput('')
+
+    const optimisticMsg = {
+      author: myPeerId,
+      authorName: 'Me',
+      content,
+      timestamp: Date.now(),
+      pending: true
+    }
+    setChannelMessages(prev => [...prev, optimisticMsg])
+
     try {
       await API.sendChannelMessage(activeChannel.name, content)
     } catch (err) {
@@ -166,6 +197,7 @@ function ChatPage() {
     setActiveChannel(null)
     setChannelMessages([])
     setChannelPeers([])
+    window.history.pushState({}, '', window.location.pathname)
   }
 
   function handleStartCall() {
@@ -285,20 +317,6 @@ function ChatPage() {
               onKeyDown={e => { if (e.key === 'Enter' && newChannelName.trim()) handleCreateChannel() }}
               autoFocus
             />
-            <div className="chat-channel-type-selector">
-              <button
-                className={`chat-channel-type-btn ${newChannelType === 'personal' ? 'active' : ''}`}
-                onClick={() => setNewChannelType('personal')}
-              >
-                个人
-              </button>
-              <button
-                className={`chat-channel-type-btn ${newChannelType === 'group' ? 'active' : ''}`}
-                onClick={() => setNewChannelType('group')}
-              >
-                群组
-              </button>
-            </div>
             <div className="chat-create-channel-hint">3-20位，字母、数字、下划线、连字符</div>
             <div className="chat-create-channel-actions">
               <button className="chat-create-channel-cancel" onClick={() => setShowCreateChannel(false)}>取消</button>
