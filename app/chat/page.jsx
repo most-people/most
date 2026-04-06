@@ -355,9 +355,6 @@ function ChatPage() {
           <>
             <header className="app-header">
               <div className="header-left">
-                <button onClick={() => setIsSidebarOpen(true)} className="icon-btn mobile-menu-btn" style={{ display: 'none' }}>
-                  <Menu size={18} />
-                </button>
                 <h2 className="header-title">{activeChannel.name}</h2>
               </div>
               <div className="header-right">
