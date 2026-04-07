@@ -665,8 +665,12 @@ async function handleAPI(req, res) {
         json({ error: 'content is required' }, 400)
         return
       }
+      if (!body.author || !body.authorName) {
+        json({ error: 'author and authorName are required' }, 400)
+        return
+      }
       try {
-        const message = await engine.sendMessage(name, body.content, body.authorName)
+        const message = await engine.sendMessage(name, body.content, body.author, body.authorName)
         json({ success: true, message })
       } catch (err) {
         json({ error: err.message }, 400)

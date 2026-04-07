@@ -32,6 +32,7 @@
     "b4a": "^1.8.0",
     "busboy": "^1.6.0",
     "corestore": "^7.9.2",
+    "ethers": "^6.16.0",
     "eventemitter3": "^5.0.4",
     "hypercore": "^11.28.1",
     "hyperdrive": "^13.3.2",

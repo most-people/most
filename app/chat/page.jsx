@@ -1,16 +1,17 @@
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
-import { MessageSquare, Send, Plus, ArrowLeft, Sun, Moon, X, Menu } from 'lucide-react'
+import { MessageSquare, Send, Plus, ArrowLeft, Sun, Moon, X, Menu, User } from 'lucide-react'
 import { InputModal, ConfirmModal } from '../../components/ui'
 import { api } from '../../src/utils/api'
+import { loadIdentity, saveIdentity, saveGuestIdentity, loadGuestIdentity, createGuestIdentity, createLoginIdentity, generateGuestPassword } from '../../src/utils/userIdentity.js'
 
 const API = {
   getChannels: () => api.get('api/channels').json(),
   createChannel: (name, type) => api.post('api/channels', { json: { name, type } }).json(),
   leaveChannel: (name) => api.delete(`api/channels/${encodeURIComponent(name)}`).json(),
   getChannelMessages: (name, limit = 100, offset = 0) => api.get(`api/channels/${encodeURIComponent(name)}/messages?limit=${limit}&offset=${offset}`).json(),
-  sendChannelMessage: (name, content) => api.post(`api/channels/${encodeURIComponent(name)}/messages`, { json: { content } }).json(),
+  sendChannelMessage: (name, content, author, authorName) => api.post(`api/channels/${encodeURIComponent(name)}/messages`, { json: { content, author, authorName } }).json(),
   getChannelPeers: (name) => api.get(`api/channels/${encodeURIComponent(name)}/peers`).json()
 }
 
@@ -29,6 +30,11 @@ function ChatPage() {
   const [isLeavingChannel, setIsLeavingChannel] = useState(false)
   const [showLeaveChannelConfirm, setShowLeaveChannelConfirm] = useState(false)
   const [channelToLeave, setChannelToLeave] = useState(null)
+  const [userIdentity, setUserIdentity] = useState(null)
+  const [showLogin, setShowLogin] = useState(false)
+  const [loginUsername, setLoginUsername] = useState('')
+  const [loginPassword, setLoginPassword] = useState('')
+  const [isLoggingIn, setIsLoggingIn] = useState(false)
 
   useEffect(() => {
     const saved = localStorage.getItem('theme')
@@ -58,6 +64,15 @@ function ChatPage() {
 
   useEffect(() => {
     api.get('api/peer-id').json().then(d => setMyPeerId(d.peerId)).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    let identity = loadIdentity()
+    if (!identity) {
+      identity = createGuestIdentity(generateGuestPassword())
+      saveIdentity(identity)
+    }
+    setUserIdentity(identity)
   }, [])
 
   const pendingSubscriptionRef = useRef(null)
@@ -282,16 +297,42 @@ function ChatPage() {
     }
   }
 
+  function handleLogin() {
+    if (!loginUsername.trim() || !loginPassword.trim()) {
+      setError('请输入用户名和密码')
+      setTimeout(() => setError(''), 3000)
+      return
+    }
+    const identity = createLoginIdentity(loginUsername.trim(), loginPassword)
+    if (userIdentity && userIdentity.username === '匿名') {
+      saveGuestIdentity(userIdentity)
+    }
+    saveIdentity(identity)
+    setUserIdentity(identity)
+    setShowLogin(false)
+    setLoginUsername('')
+    setLoginPassword('')
+  }
+
+  function handleLogout() {
+    let guestIdentity = loadGuestIdentity()
+    if (!guestIdentity) {
+      guestIdentity = createGuestIdentity(generateGuestPassword())
+    }
+    saveIdentity(guestIdentity)
+    setUserIdentity(guestIdentity)
+  }
+
   async function handleSendChannelMessage() {
-    if (!channelInput.trim() || !activeChannel) return
+    if (!channelInput.trim() || !activeChannel || !userIdentity) return
     const content = channelInput.trim()
     setChannelInput('')
 
-    const optimisticId = `${myPeerId}-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    const optimisticId = `${userIdentity.address}-${Date.now()}-${Math.random().toString(36).slice(2)}`
     const optimisticMsg = {
       id: optimisticId,
-      author: myPeerId,
-      authorName: 'Me',
+      author: userIdentity.address,
+      authorName: userIdentity.displayName,
       content,
       timestamp: Date.now(),
       pending: true
@@ -299,7 +340,7 @@ function ChatPage() {
     setChannelMessages(prev => [...prev, optimisticMsg])
 
     try {
-      const result = await API.sendChannelMessage(activeChannel.name, content)
+      const result = await API.sendChannelMessage(activeChannel.name, content, userIdentity.address, userIdentity.displayName)
       setChannelMessages(prev => prev.map(m => m.id === optimisticId ? { ...result.message, id: result.message.id || result.message.timestamp } : m))
     } catch (err) {
       setChannelMessages(prev => prev.filter(m => m.id !== optimisticId))
@@ -358,10 +399,17 @@ function ChatPage() {
         </button>
 
         <div className="sidebar-footer">
-          <div className="peer-info">
-            <div className="peer-dot" />
-            <span className="peer-id" title={myPeerId}>{myPeerId ? `${myPeerId.slice(0, 12)}...` : '连接中...'}</span>
+          <div className="user-info">
+            <div className="user-avatar">
+              <User size={14} />
+            </div>
+            <span className="user-name" title={userIdentity?.address}>{userIdentity?.displayName || '加载中...'}</span>
           </div>
+          {userIdentity && userIdentity.username === '匿名' ? (
+            <button className="login-btn" onClick={() => setShowLogin(true)}>登录</button>
+          ) : (
+            <button className="logout-btn" onClick={handleLogout}>退出</button>
+          )}
         </div>
       </div>
 
@@ -394,9 +442,9 @@ function ChatPage() {
                 channelMessages.map((msg) => (
                   <div
                     key={msg.id || `${msg.author}-${msg.timestamp}`}
-                    className={`chat-message ${msg.author === myPeerId ? 'self' : 'other'} ${msg.pending ? 'pending' : ''}`}
+                    className={`chat-message ${msg.author === userIdentity?.address ? 'self' : 'other'} ${msg.pending ? 'pending' : ''}`}
                   >
-                    {msg.author !== myPeerId && (
+                    {msg.author !== userIdentity?.address && (
                       <span className="message-author">{msg.authorName || msg.author?.slice(0, 8) || 'Unknown'}</span>
                     )}
                     <div className="message-bubble">{msg.content}</div>
@@ -473,6 +521,42 @@ function ChatPage() {
           }}
           danger
         />
+      )}
+
+      {showLogin && (
+        <div className="login-modal-overlay" onClick={() => setShowLogin(false)}>
+          <div className="login-modal" onClick={e => e.stopPropagation()}>
+            <div className="login-modal-header">
+              <h3>登录 / 注册</h3>
+              <button className="login-modal-close" onClick={() => setShowLogin(false)}>
+                <X size={18} />
+              </button>
+            </div>
+            <div className="login-modal-body">
+              <p className="login-tip">创建或认领你的身份</p>
+              <input
+                type="text"
+                className="login-input"
+                placeholder="用户名"
+                value={loginUsername}
+                onChange={e => setLoginUsername(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleLogin() }}
+                autoFocus
+              />
+              <input
+                type="password"
+                className="login-input"
+                placeholder="密码"
+                value={loginPassword}
+                onChange={e => setLoginPassword(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleLogin() }}
+              />
+              <button className="login-submit" onClick={handleLogin} disabled={isLoggingIn}>
+                {isLoggingIn ? '登录中...' : '登录 / 注册'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {error && <div className="chat-toast">{error}</div>}

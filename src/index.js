@@ -1254,10 +1254,11 @@ export class MostBoxEngine extends EventEmitter {
    * 发送消息到频道
    * @param {string} name - 频道名
    * @param {string} content - 消息内容
-   * @param {string} [authorName] - 作者名（可选，默认使用 displayName）
+   * @param {string} author - 作者 address
+   * @param {string} authorName - 作者显示名
    * @returns {Promise<object>}
    */
-  async sendMessage(name, content, authorName = null) {
+  async sendMessage(name, content, author, authorName) {
     this.#ensureInitialized()
 
     const core = this.#channelCores.get(name)
@@ -1274,12 +1275,10 @@ export class MostBoxEngine extends EventEmitter {
       throw new Error(`消息内容不能超过 ${MAX_MESSAGE_LENGTH} 字符`)
     }
 
-    const displayName = this.getNodeId().slice(0, 4)
-
     const message = {
       type: 'message',
-      author: this.getNodeId(),
-      authorName: displayName,
+      author,
+      authorName,
       content: trimmed,
       timestamp: Date.now()
     }
