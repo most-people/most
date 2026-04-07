@@ -8,56 +8,37 @@ import {
   Power, Edit2, Menu, Loader
 } from 'lucide-react'
 import { ModalOverlay, Toast, ConfirmModal, InputModal } from '../components/ui'
-import { apiFetch } from '../src/utils/api'
+import { api } from '../src/utils/api'
 
 const API = {
-  fetch: apiFetch,
-  listPublishedFiles: () => API.fetch('/api/files'),
-  listTrashFiles: () => API.fetch('/api/trash'),
-  deletePublishedFile: (cid) => API.fetch(`/api/files/${cid}`, { method: 'DELETE' }),
-  restoreTrashFile: (cid) => API.fetch(`/api/trash/${cid}/restore`, { method: 'POST' }),
-  permanentDeleteTrashFile: (cid) => API.fetch(`/api/trash/${cid}`, { method: 'DELETE' }),
-  emptyTrash: () => API.fetch('/api/trash', { method: 'DELETE' }),
-  toggleStar: (cid) => API.fetch(`/api/files/${cid}/star`, { method: 'POST' }),
-  getStorageStats: () => API.fetch('/api/storage'),
-  getConfig: () => API.fetch('/api/config'),
-  getDataPath: () => API.fetch('/api/config/data-path'),
-  saveConfig: (config) => API.fetch('/api/config', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(config)
-  }),
+  listPublishedFiles: () => api.get('api/files').json(),
+  listTrashFiles: () => api.get('api/trash').json(),
+  deletePublishedFile: (cid) => api.delete(`api/files/${cid}`).json(),
+  restoreTrashFile: (cid) => api.post(`api/trash/${cid}/restore`).json(),
+  permanentDeleteTrashFile: (cid) => api.delete(`api/trash/${cid}`).json(),
+  emptyTrash: () => api.delete('api/trash').json(),
+  toggleStar: (cid) => api.post(`api/files/${cid}/star`).json(),
+  getStorageStats: () => api.get('api/storage').json(),
+  getConfig: () => api.get('api/config').json(),
+  getDataPath: () => api.get('api/config/data-path').json(),
+  saveConfig: (config) => api.post('api/config', {
+    json: config
+  }).json(),
   async publishFile(file, customName) {
     const formData = new FormData()
     formData.append('file', file, customName || file.name)
-    const res = await fetch('/api/publish', { method: 'POST', body: formData })
+    const res = await api.post('api/publish', { body: formData })
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: res.statusText }))
       throw new Error(err.error || 'Request failed')
     }
     return res.json()
   },
-  downloadFile: (link) => API.fetch('/api/download', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ link })
-  }),
-  cancelDownload: (taskId) => API.fetch('/api/download/cancel', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ taskId })
-  }),
-  getFileDownloadUrl: (cid) => `/api/files/${cid}/download`,
-  moveFile: (cid, newFileName) => API.fetch('/api/move', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ cid, newFileName })
-  }),
-  renameFolder: (oldPath, newPath) => API.fetch('/api/folder/rename', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ oldPath, newPath })
-  })
+  downloadFile: (link) => api.post('api/download', { json: { link } }).json(),
+  cancelDownload: (taskId) => api.post('api/download/cancel', { json: { taskId } }).json(),
+  getFileDownloadUrl: (cid) => `http://localhost:1976/api/files/${cid}/download`,
+  moveFile: (cid, newFileName) => api.post('api/move', { json: { cid, newFileName } }).json(),
+  renameFolder: (oldPath, newPath) => api.post('api/folder/rename', { json: { oldPath, newPath } }).json()
 }
 
 function formatSize(bytes) {
@@ -263,7 +244,7 @@ function SettingsModal({ onClose, addToast, isDarkMode, handleShutdown }) {
     setSaving(true)
     try {
       await API.saveConfig({ dataPath: dataPath.trim() })
-      await fetch('/api/shutdown', { method: 'POST' })
+      api.post('api/shutdown')
       window.close()
     } catch (err) {
       addToast(err.message || '保存失败', 'error')
@@ -276,7 +257,7 @@ function SettingsModal({ onClose, addToast, isDarkMode, handleShutdown }) {
     setSaving(true)
     try {
       await API.saveConfig({ resetStorage: true })
-      await fetch('/api/shutdown', { method: 'POST' })
+      api.post('api/shutdown')
       window.close()
     } catch (err) {
       addToast(err.message || '操作失败', 'error')
@@ -804,7 +785,7 @@ export default function App() {
   const loadPreviewText = async (cid) => {
     setPreviewLoading(true)
     try {
-      const res = await fetch(`/api/files/${cid}/download`, {
+      const res = await fetch(`http://localhost:1976/api/files/${cid}/download`, {
         headers: { 'Range': 'bytes=0-9999' }
       })
       if (!res.ok) throw new Error('加载失败')
@@ -920,7 +901,7 @@ export default function App() {
       onConfirm: async () => {
         setConfirmModal(null)
         try {
-          await fetch('/api/shutdown', { method: 'POST' })
+          api.post('api/shutdown')
         } catch { }
         window.close()
       }
@@ -929,7 +910,7 @@ export default function App() {
 
   useEffect(() => {
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const ws = new WebSocket(`${protocol}//${location.host}/ws`)
+    const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws`)
     ws.onmessage = (e) => {
       try {
         const { event, data } = JSON.parse(e.data)
@@ -1423,7 +1404,7 @@ export default function App() {
       {toasts.map((t, i) => <Toast key={t.id} message={t.message} type={t.type} onDone={() => removeToast(t.id)} index={i} />)}
 
       {showWelcome && <WelcomeGuide onClose={handleCloseWelcome} onShutdown={() => {
-        fetch('/api/shutdown', { method: 'POST' })
+        api.post('api/shutdown')
         addToast('服务已关闭，请重新启动应用', 'info')
         handleCloseWelcome()
       }} />}

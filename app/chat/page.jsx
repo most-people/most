@@ -3,24 +3,15 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { MessageSquare, Send, Plus, ArrowLeft, Sun, Moon, X, Menu } from 'lucide-react'
 import { InputModal, ConfirmModal } from '../../components/ui'
-import { apiFetch } from '../../src/utils/api'
+import { api } from '../../src/utils/api'
 
 const API = {
-  fetch: apiFetch,
-  getChannels: () => API.fetch('/api/channels'),
-  createChannel: (name, type) => API.fetch('/api/channels', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, type })
-  }),
-  leaveChannel: (name) => API.fetch(`/api/channels/${encodeURIComponent(name)}`, { method: 'DELETE' }),
-  getChannelMessages: (name, limit = 100, offset = 0) => API.fetch(`/api/channels/${encodeURIComponent(name)}/messages?limit=${limit}&offset=${offset}`),
-  sendChannelMessage: (name, content) => API.fetch(`/api/channels/${encodeURIComponent(name)}/messages`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content })
-  }),
-  getChannelPeers: (name) => API.fetch(`/api/channels/${encodeURIComponent(name)}/peers`)
+  getChannels: () => api.get('api/channels').json(),
+  createChannel: (name, type) => api.post('api/channels', { json: { name, type } }).json(),
+  leaveChannel: (name) => api.delete(`api/channels/${encodeURIComponent(name)}`).json(),
+  getChannelMessages: (name, limit = 100, offset = 0) => api.get(`api/channels/${encodeURIComponent(name)}/messages?limit=${limit}&offset=${offset}`).json(),
+  sendChannelMessage: (name, content) => api.post(`api/channels/${encodeURIComponent(name)}/messages`, { json: { content } }).json(),
+  getChannelPeers: (name) => api.get(`api/channels/${encodeURIComponent(name)}/peers`).json()
 }
 
 function ChatPage() {
@@ -66,7 +57,7 @@ function ChatPage() {
   }, [channelMessages])
 
   useEffect(() => {
-    fetch('/api/peer-id').then(r => r.json()).then(d => setMyPeerId(d.peerId)).catch(() => {})
+    api.get('api/peer-id').json().then(d => setMyPeerId(d.peerId)).catch(() => {})
   }, [])
 
   const pendingSubscriptionRef = useRef(null)
@@ -82,7 +73,7 @@ function ChatPage() {
   useEffect(() => {
     function connectWs() {
       const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const ws = new WebSocket(`${protocol}//${location.host}/ws`)
+      const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws`)
 
       ws.onopen = () => {
         isWsConnectedRef.current = true

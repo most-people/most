@@ -749,8 +749,7 @@ async function main() {
   console.log('[MostBox] Engine ready')
 
   serverInstance = http.createServer((req, res) => {
-    const allowedOrigin = `http://${HOST}:${PORT}`
-    res.setHeader('Access-Control-Allow-Origin', allowedOrigin)
+    res.setHeader('Access-Control-Allow-Origin', `http://${HOST}:${PORT}`)
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
 
