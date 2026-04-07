@@ -1300,7 +1300,7 @@ export class MostBoxEngine extends EventEmitter {
 
     const peers = this.#channelPeers.get(name)
     if (!peers) {
-      throw new Error('频道未初始化')
+      return []
     }
 
     return [...peers.values()].map(p => ({

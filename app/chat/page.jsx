@@ -1,10 +1,11 @@
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
-import { MessageSquare, Send, Plus, ArrowLeft, Sun, Moon, X, Menu, User } from 'lucide-react'
+import { MessageSquare, Send, Plus, ArrowLeft, Sun, Moon, X, Menu, Eye, EyeOff } from 'lucide-react'
 import { InputModal, ConfirmModal } from '../../components/ui'
 import { api } from '../../src/utils/api'
 import { loadIdentity, saveIdentity, saveGuestIdentity, loadGuestIdentity, createGuestIdentity, createLoginIdentity, generateGuestPassword } from '../../src/utils/userIdentity.js'
+import { generateAvatar } from '../../src/utils/avatar.js'
 
 const API = {
   getChannels: () => api.get('api/channels').json(),
@@ -34,6 +35,8 @@ function ChatPage() {
   const [showLogin, setShowLogin] = useState(false)
   const [loginUsername, setLoginUsername] = useState('')
   const [loginPassword, setLoginPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [loginPreviewAvatar, setLoginPreviewAvatar] = useState(null)
   const [isLoggingIn, setIsLoggingIn] = useState(false)
 
   useEffect(() => {
@@ -74,6 +77,15 @@ function ChatPage() {
     }
     setUserIdentity(identity)
   }, [])
+
+  useEffect(() => {
+    if (loginUsername.trim() && loginPassword.trim()) {
+      const identity = createLoginIdentity(loginUsername.trim(), loginPassword)
+      setLoginPreviewAvatar(generateAvatar(identity.address))
+    } else {
+      setLoginPreviewAvatar(null)
+    }
+  }, [loginUsername, loginPassword])
 
   const pendingSubscriptionRef = useRef(null)
 
@@ -398,11 +410,9 @@ function ChatPage() {
           加入频道
         </button>
 
-        <div className="sidebar-footer">
+        <div className="chat-sidebar-footer">
           <div className="user-info">
-            <div className="user-avatar">
-              <User size={14} />
-            </div>
+            <img className="user-avatar-img" src={generateAvatar(userIdentity?.address)} alt="avatar" />
             <span className="user-name" title={userIdentity?.address}>{userIdentity?.displayName || '加载中...'}</span>
           </div>
           {userIdentity && userIdentity.username === '匿名' ? (
@@ -444,13 +454,14 @@ function ChatPage() {
                     key={msg.id || `${msg.author}-${msg.timestamp}`}
                     className={`chat-message ${msg.author === userIdentity?.address ? 'self' : 'other'} ${msg.pending ? 'pending' : ''}`}
                   >
-                    {msg.author !== userIdentity?.address && (
+                    <img className="msg-avatar" src={generateAvatar(msg.author)} alt="avatar" />
+                    <div className="msg-content">
                       <span className="message-author">{msg.authorName || msg.author?.slice(0, 8) || 'Unknown'}</span>
-                    )}
-                    <div className="message-bubble">{msg.content}</div>
-                    <span className="message-time">
-                      {new Date(msg.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
-                    </span>
+                      <div className="message-bubble">{msg.content}</div>
+                      <span className="message-time">
+                        {new Date(msg.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
                   </div>
                 ))
               )}
@@ -524,8 +535,8 @@ function ChatPage() {
       )}
 
       {showLogin && (
-        <div className="login-modal-overlay" onClick={() => setShowLogin(false)}>
-          <div className="login-modal" onClick={e => e.stopPropagation()}>
+        <div className="login-modal-overlay">
+          <div className="login-modal">
             <div className="login-modal-header">
               <h3>登录 / 注册</h3>
               <button className="login-modal-close" onClick={() => setShowLogin(false)}>
@@ -533,7 +544,8 @@ function ChatPage() {
               </button>
             </div>
             <div className="login-modal-body">
-              <p className="login-tip">创建或认领你的身份</p>
+              <img className="login-avatar-preview" src={loginPreviewAvatar || '/pwa-512x512.png'} alt="avatar" />
+              <p className="login-tip">Most People</p>
               <input
                 type="text"
                 className="login-input"
@@ -543,14 +555,19 @@ function ChatPage() {
                 onKeyDown={e => { if (e.key === 'Enter') handleLogin() }}
                 autoFocus
               />
-              <input
-                type="password"
-                className="login-input"
-                placeholder="密码"
-                value={loginPassword}
-                onChange={e => setLoginPassword(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') handleLogin() }}
-              />
+              <div className="login-password-wrapper">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  className="login-input"
+                  placeholder="密码"
+                  value={loginPassword}
+                  onChange={e => setLoginPassword(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleLogin() }}
+                />
+                <button className="login-password-toggle" type="button" onClick={() => setShowPassword(!showPassword)}>
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
               <button className="login-submit" onClick={handleLogin} disabled={isLoggingIn}>
                 {isLoggingIn ? '登录中...' : '登录 / 注册'}
               </button>
