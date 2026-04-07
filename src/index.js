@@ -364,7 +364,7 @@ export class MostBoxEngine extends EventEmitter {
 
     const result = {
       cid: cidString,
-      link: `most://${cidString}`,
+      link: `most://${cidString}?filename=${encodeURIComponent(safeFileName)}`,
       fileName: safeFileName
     }
 
@@ -405,6 +405,8 @@ export class MostBoxEngine extends EventEmitter {
           alreadyExists: true
         }
       }
+
+      const linkFileName = parsed.fileName
 
       const parsedCid = CID.parse(cidString)
       const hashHex = b4a.toString(parsedCid.multihash.digest, 'hex')
@@ -470,8 +472,9 @@ export class MostBoxEngine extends EventEmitter {
       // 下载文件
       for (const entry of entries) {
         const cleanKey = entry.key.replace(/^[\/\\]/, '')
-        // 用原始文件名作为 displayName
-        const sanitizedFileName = sanitizeFilename(cleanKey)
+        const sanitizedFileName = linkFileName
+          ? sanitizeFilename(linkFileName)
+          : sanitizeFilename(cleanKey)
 
         let totalBytes = 0
         try {

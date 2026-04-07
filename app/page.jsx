@@ -798,7 +798,7 @@ export default function App() {
   }
 
   const handleCopyLink = () => {
-    navigator.clipboard.writeText(`most://${shareItem.cid}`).then(() => {
+    navigator.clipboard.writeText(`most://${shareItem.cid}?filename=${shareItem.fileName}`).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     })
@@ -1203,7 +1203,7 @@ export default function App() {
               <button onClick={() => setShareItem(null)} className="modal-close-btn"><X size={18} /></button>
             </div>
             <div className="share-link-box">
-              <div className="share-link-text">most://{shareItem.cid}</div>
+              <div className="share-link-text">most://{shareItem.cid}?filename={shareItem.fileName}</div>
               <button onClick={handleCopyLink} className={`share-copy-btn ${copied ? 'copied' : ''}`}>
                 {copied ? <Check size={18} /> : <Copy size={18} />}
               </button>

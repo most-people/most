@@ -54,7 +54,7 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
       assert.ok(result.cid)
       assert.ok(result.cid.startsWith('bafkrei'))
       assert.strictEqual(result.fileName, 'test.txt')
-      assert.strictEqual(result.link, `most://${result.cid}`)
+      assert.strictEqual(result.link, `most://${result.cid}?filename=test.txt`)
     })
 
     it('publishes a file from path and returns CID', async () => {

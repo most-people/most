@@ -127,9 +127,13 @@ export function parseMostLink(link) {
   // 移除尾部斜杠和空白
   cidString = cidString.trim().replace(/\/+$/, '')
   
-  // 移除 query string
+  // 移除 query string，提取 filename
+  let fileName = null
   if (cidString.includes('?')) {
-    cidString = cidString.split('?')[0]
+    const [cidPart, queryPart] = cidString.split('?')
+    cidString = cidPart
+    const params = new URLSearchParams(queryPart)
+    fileName = params.get('filename')
   }
 
   // 处理可能的额外路径的 URL 解析
@@ -142,5 +146,5 @@ export function parseMostLink(link) {
     return { cid: '', error: validation.error }
   }
 
-  return { cid: cidString }
+  return { cid: cidString, fileName }
 }
