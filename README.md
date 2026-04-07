@@ -25,8 +25,10 @@
 打开终端，运行：
 
 ```bash
-npx most-box
+npx most-box@latest
 ```
+
+> 注意：使用 `@latest` 确保每次运行最新版本。
 
 浏览器自动访问 **http://127.0.0.1:1976**
 
