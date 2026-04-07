@@ -1211,6 +1211,10 @@ body {
     }
   }
 
+  .modal-overlay {
+    z-index: 301;
+  }
+
   .mobile-menu-btn {
     display: flex;
   }

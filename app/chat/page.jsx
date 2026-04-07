@@ -1,8 +1,8 @@
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
-import { MessageSquare, Send, Plus, ArrowLeft, Sun, Moon } from 'lucide-react'
-import { InputModal } from '../../components/ui'
+import { MessageSquare, Send, Plus, ArrowLeft, Sun, Moon, X, Menu } from 'lucide-react'
+import { InputModal, ConfirmModal } from '../../components/ui'
 import { apiFetch } from '../../src/utils/api'
 
 const API = {
@@ -34,6 +34,10 @@ function ChatPage() {
   const [error, setError] = useState('')
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isDarkMode, setIsDarkMode] = useState(false)
+  const [isJoiningChannel, setIsJoiningChannel] = useState(false)
+  const [isLeavingChannel, setIsLeavingChannel] = useState(false)
+  const [showLeaveChannelConfirm, setShowLeaveChannelConfirm] = useState(false)
+  const [channelToLeave, setChannelToLeave] = useState(null)
 
   useEffect(() => {
     const saved = localStorage.getItem('theme')
@@ -248,6 +252,8 @@ function ChatPage() {
 
   async function handleLeaveChannel(name, e) {
     if (e) e.stopPropagation()
+    if (isLeavingChannel) return
+    setIsLeavingChannel(true)
     unsubscribeFromChannel(name)
     try {
       await API.leaveChannel(name)
@@ -260,14 +266,19 @@ function ChatPage() {
         window.history.pushState({}, '', url.pathname)
       }
       refreshChannels()
+      setShowLeaveChannelConfirm(false)
+      setChannelToLeave(null)
     } catch (err) {
       setError(err.message)
       setTimeout(() => setError(''), 3000)
+    } finally {
+      setIsLeavingChannel(false)
     }
   }
 
   async function handleJoinChannel(channelName) {
-    if (!channelName.trim()) return
+    if (!channelName.trim() || isJoiningChannel) return
+    setIsJoiningChannel(true)
     try {
       await API.createChannel(channelName.trim())
       setShowJoinChannel(false)
@@ -275,6 +286,8 @@ function ChatPage() {
     } catch (err) {
       setError(err.message)
       setTimeout(() => setError(''), 3000)
+    } finally {
+      setIsJoiningChannel(false)
     }
   }
 
@@ -332,6 +345,17 @@ function ChatPage() {
               >
                 <MessageSquare size={16} />
                 <span>{channel.name}</span>
+                <button
+                  className="leave-channel-btn"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setChannelToLeave(channel)
+                    setShowLeaveChannelConfirm(true)
+                  }}
+                  title="退出频道"
+                >
+                  <X size={14} />
+                </button>
               </div>
             ))
           )}
@@ -355,6 +379,9 @@ function ChatPage() {
           <>
             <header className="app-header">
               <div className="header-left">
+                <button onClick={() => setIsSidebarOpen(true)} className="icon-btn mobile-menu-btn">
+                  <Menu size={18} />
+                </button>
                 <h2 className="header-title">{activeChannel.name}</h2>
               </div>
               <div className="header-right">
@@ -406,13 +433,28 @@ function ChatPage() {
             </div>
           </>
         ) : (
-          <div className="chat-welcome">
-            <div className="welcome-icon">
-              <MessageSquare size={36} />
+          <>
+            <header className="app-header">
+              <div className="header-left">
+                <button onClick={() => setIsSidebarOpen(true)} className="icon-btn mobile-menu-btn">
+                  <Menu size={18} />
+                </button>
+                <h2 className="header-title">聊天</h2>
+              </div>
+              <div className="header-right">
+                <button className="icon-btn" onClick={() => setIsDarkMode(!isDarkMode)} title="切换主题">
+                  {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
+                </button>
+              </div>
+            </header>
+            <div className="chat-welcome">
+              <div className="welcome-icon">
+                <MessageSquare size={36} />
+              </div>
+              <h2>选择频道</h2>
+              <p>从左侧边栏选择一个频道开始聊天，或创建一个新频道</p>
             </div>
-            <h2>选择频道</h2>
-            <p>从左侧边栏选择一个频道开始聊天，或创建一个新频道</p>
-          </div>
+          </>
         )}
       </div>
 
@@ -423,6 +465,22 @@ function ChatPage() {
           confirmText="加入"
           onConfirm={handleJoinChannel}
           onClose={() => setShowJoinChannel(false)}
+          isLoading={isJoiningChannel}
+          loadingText="加入中..."
+        />
+      )}
+
+      {showLeaveChannelConfirm && channelToLeave && (
+        <ConfirmModal
+          title="退出频道"
+          message={`确定要退出频道 "${channelToLeave.name}" 吗？`}
+          confirmText={isLeavingChannel ? '退出中...' : '退出'}
+          onConfirm={() => handleLeaveChannel(channelToLeave.name)}
+          onClose={() => {
+            setShowLeaveChannelConfirm(false)
+            setChannelToLeave(null)
+          }}
+          danger
         />
       )}
 

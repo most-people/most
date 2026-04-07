@@ -1,4 +1,4 @@
-/* =============================================
+﻿/* =============================================
    Chat Page Styles
    Chat-specific components (reuses app.css for layout)
    ============================================= */
@@ -344,4 +344,35 @@
   .chat-input-area {
     padding: 12px 16px;
   }
+
+  .sidebar-nav-btn .leave-channel-btn {
+    opacity: 1;
+  }
 }
+
+/* === Leave Channel Button === */
+.leave-channel-btn {
+  margin-left: auto;
+  opacity: 0;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: opacity 0.15s, color 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-nav-btn:hover .leave-channel-btn {
+  opacity: 1;
+}
+
+.leave-channel-btn:hover {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+
+
