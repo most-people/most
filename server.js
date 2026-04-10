@@ -12,7 +12,7 @@ import { MAX_FILE_SIZE } from './src/config.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = Number(process.env.MOSTBOX_PORT || process.env.PORT) || 1976
-const HOST = process.env.MOSTBOX_HOST || '127.0.0.1'
+const HOST = process.env.MOSTBOX_HOST || '0.0.0.0'
 
 const MAX_JSON_BODY_SIZE = 10 * 1024 * 1024 // 10MB
 const MAX_UPLOAD_SIZE = MAX_FILE_SIZE
@@ -283,7 +283,7 @@ async function parseJSON(req) {
 
 // --- API 路由 ---
 async function handleAPI(req, res) {
-  const url = new URL(req.url, `http://${HOST}:${PORT}`)
+  const url = new URL(req.url, `http://127.0.0.1:${PORT}`)
   const pathname = url.pathname
   const method = req.method
 
@@ -357,6 +357,42 @@ async function handleAPI(req, res) {
     // GET /api/network-status
     if (pathname === '/api/network-status' && method === 'GET') {
       json(engine.getNetworkStatus())
+      return
+    }
+
+    // GET /api/network — 返回所有网络接口地址
+    if (pathname === '/api/network' && method === 'GET') {
+      const interfaces = os.networkInterfaces()
+      const addresses = []
+
+      const seen = new Set()
+      for (const [name, nets] of Object.entries(interfaces)) {
+        for (const net of nets) {
+          if (net.family !== 'IPv4' || net.internal) continue
+          if (seen.has(net.address)) continue
+          seen.add(net.address)
+
+          let type = 'lan'
+          let label = '局域网'
+          if (net.address.startsWith('100.')) {
+            if (name.toLowerCase().includes('tailscale') || name.toLowerCase().includes('ts')) {
+              type = 'tailscale'
+              label = 'Tailscale'
+            } else {
+              type = 'tailscale'
+              label = 'Tailscale'
+            }
+          } else if (name.toLowerCase().includes('zt') || name.toLowerCase().includes('zerotier')) {
+            type = 'zerotier'
+            label = 'ZeroTier'
+          }
+
+          addresses.push({ type, ip: net.address, label, iface: name })
+        }
+      }
+
+      const localEntry = { type: 'local', ip: '127.0.0.1', label: '本机', iface: 'loopback' }
+      json({ port: PORT, addresses: [localEntry, ...addresses] })
       return
     }
 
@@ -645,7 +681,7 @@ async function handleAPI(req, res) {
     // GET /api/channels/:name/messages — 获取频道消息
     if (pathname.match(/^\/api\/channels\/[^/]+\/messages$/) && method === 'GET') {
       const name = pathname.split('/')[3]
-      const urlObj = new URL(req.url, `http://${HOST}:${PORT}`)
+      const urlObj = new URL(req.url, `http://127.0.0.1:${PORT}`)
       const limit = parseInt(urlObj.searchParams.get('limit') || '100', 10)
       const offset = parseInt(urlObj.searchParams.get('offset') || '0', 10)
       try {
@@ -753,9 +789,16 @@ async function main() {
   console.log('[MostBox] Engine ready')
 
   serverInstance = http.createServer((req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', `http://${HOST}:${PORT}`)
+    const origin = req.headers.origin
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin)
+      res.setHeader('Vary', 'Origin')
+    } else {
+      res.setHeader('Access-Control-Allow-Origin', `http://127.0.0.1:${PORT}`)
+    }
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+    res.setHeader('Access-Control-Allow-Credentials', 'true')
 
     if (req.method === 'OPTIONS') {
       res.writeHead(204)
@@ -845,17 +888,17 @@ async function main() {
   })
 
   serverInstance.listen(PORT, HOST, () => {
-    const url = `http://${HOST}:${PORT}`
-    console.log(`[MostBox] Server running at ${url}`)
+    const displayUrl = `http://127.0.0.1:${PORT}`
+    console.log(`[MostBox] Server running at ${displayUrl}`)
 
     if (process.platform === 'win32') {
-      spawn('cmd.exe', ['/c', 'start', '', url], {
+      spawn('cmd.exe', ['/c', 'start', '', displayUrl], {
         detached: true,
         stdio: 'ignore'
       }).unref()
     } else {
       const cmd = process.platform === 'darwin' ? 'open' : 'xdg-open'
-      spawn(cmd, [url], {
+      spawn(cmd, [displayUrl], {
         detached: true,
         stdio: 'ignore'
       }).unref()

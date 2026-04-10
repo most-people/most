@@ -739,6 +739,142 @@ body {
     padding-top: 16px;
   }
 
+  .network-addresses {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .address-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+    font-size: 13px;
+  }
+
+  .address-type {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .address-type-local {
+    background: rgba(100, 116, 139, 0.15);
+    color: var(--text-secondary);
+  }
+
+  .address-type-lan {
+    background: rgba(59, 130, 246, 0.12);
+    color: var(--accent-blue);
+  }
+
+  .address-type-tailscale {
+    background: rgba(34, 197, 94, 0.12);
+    color: var(--success);
+  }
+
+  .address-type-zerotier {
+    background: rgba(99, 102, 241, 0.12);
+    color: var(--info);
+  }
+
+  .address-url {
+    flex: 1;
+    font-size: 12px;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .copy-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    transition: all 0.15s;
+
+    &:hover {
+      color: var(--accent-blue);
+      background: rgba(59, 130, 246, 0.08);
+    }
+  }
+
+  .guide-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 12px;
+    cursor: pointer;
+    padding: 8px 0;
+    margin-top: 4px;
+
+    &:hover {
+      color: var(--text-primary);
+    }
+  }
+
+  .guide-content {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 8px;
+    padding: 12px;
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+  }
+
+  .guide-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 12px;
+
+    strong {
+      color: var(--text-primary);
+      font-size: 13px;
+    }
+
+    span {
+      color: var(--text-secondary);
+    }
+
+    a {
+      color: var(--accent-blue);
+      text-decoration: none;
+      font-size: 11px;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+
+    code {
+      font-size: 11px;
+      background: var(--bg-primary);
+      padding: 4px 8px;
+      border-radius: 4px;
+      margin-top: 2px;
+      color: var(--text-secondary);
+      word-break: break-all;
+    }
+  }
+
   .settings-about {
     text-align: center;
     margin-bottom: 16px;

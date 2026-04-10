@@ -5,7 +5,7 @@ import {
   Upload, Sun, Moon, Image as ImageIcon, Trash2, Folder,
   Film, Music, ChevronRight, FileText, MessageSquare,
   X, Check, Copy, Download, ArrowUpDown, Star, Files, HardDrive, Search, Info,
-  Power, Edit2, Menu, Loader
+  Power, Edit2, Menu, Loader, Globe, Link, ChevronDown
 } from 'lucide-react'
 import { ModalOverlay, Toast, ConfirmModal, InputModal } from '../components/ui'
 import { api } from '../src/utils/api'
@@ -21,6 +21,7 @@ const API = {
   getStorageStats: () => api.get('api/storage').json(),
   getConfig: () => api.get('api/config').json(),
   getDataPath: () => api.get('api/config/data-path').json(),
+  getNetworkAddresses: () => api.get('api/network').json(),
   saveConfig: (config) => api.post('api/config', {
     json: config
   }).json(),
@@ -36,7 +37,7 @@ const API = {
   },
   downloadFile: (link) => api.post('api/download', { json: { link } }).json(),
   cancelDownload: (taskId) => api.post('api/download/cancel', { json: { taskId } }).json(),
-  getFileDownloadUrl: (cid) => `http://localhost:1976/api/files/${cid}/download`,
+  getFileDownloadUrl: (cid) => `/api/files/${cid}/download`,
   moveFile: (cid, newFileName) => api.post('api/move', { json: { cid, newFileName } }).json(),
   renameFolder: (oldPath, newPath) => api.post('api/folder/rename', { json: { oldPath, newPath } }).json()
 }
@@ -103,130 +104,15 @@ function getFileSubtype(fileName) {
   return 'file'
 }
 
-function WelcomeGuide({ onClose, onShutdown }) {
-  const [step, setStep] = useState(0)
-  const [customPath, setCustomPath] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [defaultPath, setDefaultPath] = useState('')
-
-  useEffect(() => {
-    API.getDataPath().then(config => {
-      setDefaultPath(config.dataPath || '')
-    }).catch(() => { })
-  }, [])
-
-  const steps = [
-    { title: '欢迎使用', content: '拖拽文件到上传区，或点击选择文件。上传后复制链接发给朋友即可。' },
-    { title: '下载文件', content: '点击「下载文件」，粘贴分享链接即可从 P2P 网络下载文件。' },
-    { title: '设置存储位置', content: '选择文件存储的文件夹位置（可选，默认使用系统盘）', isOptional: true }
-  ]
-  const current = steps[step]
-
-  const handleSavePath = async () => {
-    if (!customPath.trim()) return
-    setSaving(true)
-    try {
-      await API.saveConfig({ dataPath: customPath.trim() })
-    } catch (err) {
-      console.error('Save path error:', err)
-      setSaving(false)
-      return
-    }
-    setSaving(false)
-    setSaved(true)
-  }
-
-  const isLastStep = step === steps.length - 1
-  const isPathStep = step === 2
-
-  return (
-    <ModalOverlay onClose={onClose} closeOnOverlayClick={false}>
-      <div className="welcome-modal" onClick={e => e.stopPropagation()}>
-        {saved ? (
-          <>
-            <div className="welcome-success-icon">
-              <Check size={24} color="#22c55e" />
-            </div>
-            <h2>设置已保存</h2>
-            <p>存储位置已更改，需要重启应用生效。</p>
-            <button
-              onClick={onShutdown}
-              className="btn primary"
-            >
-              好的
-            </button>
-          </>
-        ) : (
-          <>
-            <h2>{current.title}</h2>
-            <p>{current.content}</p>
-
-            {isPathStep && (
-              <div className="welcome-path-section">
-                <div>
-                  <div className="path-label">当前存储位置</div>
-                  <div className="path-value">{defaultPath || '未设置'}</div>
-                </div>
-                <div>
-                  <div className="path-label">自定义位置</div>
-                  <input
-                    type="text"
-                    value={customPath}
-                    onChange={(e) => setCustomPath(e.target.value)}
-                    placeholder="如 D:\"
-                    className="path-input"
-                  />
-                  <div className="path-hint">不填则使用当前位置，修改后需重启应用</div>
-                </div>
-              </div>
-            )}
-
-            <div className="welcome-steps">
-              {steps.map((_, i) => (
-                <div key={i} className={`welcome-step-dot ${i === step ? 'active' : ''}`} />
-              ))}
-            </div>
-
-            <div className="welcome-actions">
-              {isPathStep && (
-                <button
-                  onClick={onClose}
-                  className="btn secondary"
-                >
-                  跳过
-                </button>
-              )}
-              <button
-                onClick={() => {
-                  if (isPathStep && customPath) {
-                    handleSavePath()
-                  } else if (isLastStep) {
-                    onClose()
-                  } else {
-                    setStep(step + 1)
-                  }
-                }}
-                disabled={isPathStep && saving}
-                className="btn primary"
-                style={{ opacity: isPathStep && saving ? 0.6 : 1, cursor: isPathStep && saving ? 'not-allowed' : 'pointer' }}
-              >
-                {isPathStep ? (saving ? '保存中...' : '保存并完成') : (isLastStep ? '开始使用' : '下一步')}
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </ModalOverlay>
-  )
-}
-
 function SettingsModal({ onClose, addToast, isDarkMode, handleShutdown }) {
   const [dataPath, setStoragePath] = useState('')
   const [originalPath, setOriginalPath] = useState('')
   const [isDefault, setIsDefault] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [networkAddresses, setNetworkAddresses] = useState([])
+  const [networkPort, setNetworkPort] = useState(1976)
+  const [showGuide, setShowGuide] = useState(false)
 
   useEffect(() => {
     API.getDataPath().then(config => {
@@ -236,6 +122,11 @@ function SettingsModal({ onClose, addToast, isDarkMode, handleShutdown }) {
       setIsDefault(config.isDefault || false)
       setLoading(false)
     }).catch(() => setLoading(false))
+
+    API.getNetworkAddresses().then(data => {
+      setNetworkAddresses(data.addresses || [])
+      setNetworkPort(data.port || 1976)
+    }).catch(() => {})
   }, [])
 
   const handleSavePath = async () => {
@@ -296,6 +187,52 @@ function SettingsModal({ onClose, addToast, isDarkMode, handleShutdown }) {
             )}
           </div>
           <p className="settings-hint">修改后需重启应用</p>
+        </div>
+
+        <div className="settings-divider" style={{ marginTop: 20 }}>
+          <label className="settings-label"><Globe size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />远程访问</label>
+          <div className="network-addresses">
+            {networkAddresses.map((addr, i) => (
+              <div key={i} className="address-item">
+                <span className={`address-type address-type-${addr.type}`}>{addr.label}</span>
+                <code className="address-url">{addr.type === 'local' ? 'http' : 'http'}://{addr.ip}:{networkPort}</code>
+                <button className="copy-btn" onClick={() => {
+                  navigator.clipboard.writeText(`http://${addr.ip}:${networkPort}`)
+                  addToast('已复制', 'success')
+                }}><Copy size={13} /></button>
+              </div>
+            ))}
+          </div>
+          <p className="settings-hint">同一网络下可直接访问局域网地址</p>
+
+          <button className="guide-toggle" onClick={() => setShowGuide(!showGuide)}>
+            <span>如何从外网访问？</span>
+            <ChevronDown size={14} style={{ transform: showGuide ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+          </button>
+          {showGuide && (
+            <div className="guide-content">
+              <div className="guide-item">
+                <strong>Tailscale</strong>
+                <span>安装后自动组虚拟局域网，手机也能用</span>
+                <a href="https://tailscale.com" target="_blank" rel="noopener noreferrer">tailscale.com</a>
+              </div>
+              <div className="guide-item">
+                <strong>ZeroTier</strong>
+                <span>类似 Tailscale 的虚拟局域网工具</span>
+                <a href="https://www.zerotier.com" target="_blank" rel="noopener noreferrer">zerotier.com</a>
+              </div>
+              <div className="guide-item">
+                <strong>Cloudflare Tunnel</strong>
+                <span>免费HTTPS，无需公网IP</span>
+                <code>cloudflared tunnel --url http://localhost:{networkPort}</code>
+              </div>
+              <div className="guide-item">
+                <strong>Caddy 反向代理</strong>
+                <span>自有VPS + 域名，自动HTTPS</span>
+                <code>reverse_proxy localhost:{networkPort}</code>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="settings-divider">
@@ -483,7 +420,6 @@ export default function App() {
   const [inputModal, setInputModal] = useState(null)
   const [inputLoading, setInputLoading] = useState(false)
   const [renameTarget, setRenameTarget] = useState(null)
-  const [showWelcome, setShowWelcome] = useState(() => typeof window !== 'undefined' && !localStorage.getItem('mostbox_welcomed'))
   const [showSettings, setShowSettings] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [previewText, setPreviewText] = useState('')
@@ -785,7 +721,7 @@ export default function App() {
   const loadPreviewText = async (cid) => {
     setPreviewLoading(true)
     try {
-      const res = await fetch(`http://localhost:1976/api/files/${cid}/download`, {
+      const res = await fetch(`/api/files/${cid}/download`, {
         headers: { 'Range': 'bytes=0-9999' }
       })
       if (!res.ok) throw new Error('加载失败')
@@ -883,13 +819,6 @@ export default function App() {
   const handleNavigate = (path) => {
     setCurrentFolderId(path || null)
     setSelectedIds([])
-  }
-
-  const handleCloseWelcome = () => {
-    setShowWelcome(false)
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('mostbox_welcomed', 'true')
-    }
   }
 
   const handleShutdown = () => {
@@ -1402,12 +1331,6 @@ export default function App() {
       )}
 
       {toasts.map((t, i) => <Toast key={t.id} message={t.message} type={t.type} onDone={() => removeToast(t.id)} index={i} />)}
-
-      {showWelcome && <WelcomeGuide onClose={handleCloseWelcome} onShutdown={() => {
-        api.post('api/shutdown')
-        addToast('服务已关闭，请重新启动应用', 'info')
-        handleCloseWelcome()
-      }} />}
 
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} addToast={addToast} isDarkMode={isDarkMode} handleShutdown={handleShutdown} />}
     </div>
