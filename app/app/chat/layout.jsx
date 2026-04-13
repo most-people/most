@@ -1,4 +1,4 @@
-import '../../styles/chat.css'
+import '../../../styles/chat.css'
 
 export const metadata = {
   title: 'MostBox - 频道',

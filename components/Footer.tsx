@@ -1,7 +1,7 @@
 import Link from 'next/link'
 
 const footerLinks = [
-  { href: '/about/', label: '关于' },
+  { href: '/', label: '关于' },
   { href: '/docs/getting-started/', label: '文档' },
   { href: '/changelog/', label: '更新日志' },
   { href: 'https://github.com/most-people/most', label: 'GitHub', external: true },

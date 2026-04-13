@@ -7,8 +7,8 @@ import {
   X, Check, Copy, Download, ArrowUpDown, Star, Files, HardDrive, Search, Info,
   Power, Edit2, Menu, Loader, Globe, Link, ChevronDown
 } from 'lucide-react'
-import { ModalOverlay, Toast, ConfirmModal, InputModal } from '../components/ui'
-import { api } from '../src/utils/api'
+import { ModalOverlay, Toast, ConfirmModal, InputModal } from '../../components/ui'
+import { api } from '../../src/utils/api'
 
 const API = {
   listPublishedFiles: () => api.get('api/files').json(),
@@ -937,7 +937,7 @@ export default function App() {
           <h1>Most.Box</h1>
         </div>
         <nav className="sidebar-nav">
-          {[{ id: 'all', icon: <Files size={18} />, label: '全部内容' }, { id: 'starred', icon: <Star size={18} />, label: '收藏' }, { id: 'trash', icon: <Trash2 size={18} />, label: '回收站' }, { id: 'chat', icon: <MessageSquare size={18} />, label: '聊天', href: '/chat' }].map(item => (
+          {[{ id: 'all', icon: <Files size={18} />, label: '全部内容' }, { id: 'starred', icon: <Star size={18} />, label: '收藏' }, { id: 'trash', icon: <Trash2 size={18} />, label: '回收站' }, { id: 'chat', icon: <MessageSquare size={18} />, label: '聊天', href: '/app/chat/' }].map(item => (
             <button
               key={item.id}
               onClick={() => {

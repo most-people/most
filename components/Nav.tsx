@@ -72,7 +72,7 @@ export function Nav() {
   return (
     <nav className="mkt-nav">
       <div className="mkt-nav-inner">
-        <Link href="/about/" className="mkt-nav-logo">
+        <Link href="/" className="mkt-nav-logo">
           <LogoIcon />
           MostBox
         </Link>

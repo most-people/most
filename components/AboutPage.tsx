@@ -241,7 +241,7 @@ export default function AboutPage() {
           <p style={{ fontSize: 18, color: 'var(--color-text-secondary)', lineHeight: 1.6, margin: '0 auto 24px', maxWidth: '40ch' }}>
             一行命令，即刻开始分享文件。
           </p>
-          <Link href="/" style={{
+          <Link href="/app/" style={{
             display: 'inline-flex', alignItems: 'center', gap: 8,
             padding: '12px 24px', fontSize: 15, fontWeight: 500,
             color: '#fff', background: 'var(--color-accent)',

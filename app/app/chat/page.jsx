@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { MessageSquare, Send, Plus, ArrowLeft, Sun, Moon, X, Menu, Eye, EyeOff } from 'lucide-react'
-import { InputModal, ConfirmModal } from '../../components/ui'
-import { api } from '../../src/utils/api'
-import { loadIdentity, saveIdentity, saveGuestIdentity, loadGuestIdentity, createGuestIdentity, createLoginIdentity, generateGuestPassword } from '../../src/utils/userIdentity.js'
-import { generateAvatar } from '../../src/utils/avatar.js'
+import { InputModal, ConfirmModal } from '../../../components/ui'
+import { api } from '../../../src/utils/api'
+import { loadIdentity, saveIdentity, saveGuestIdentity, loadGuestIdentity, createGuestIdentity, createLoginIdentity, generateGuestPassword } from '../../../src/utils/userIdentity.js'
+import { generateAvatar } from '../../../src/utils/avatar.js'
 
 const API = {
   getChannels: () => api.get('api/channels').json(),
@@ -367,7 +367,7 @@ function ChatPage() {
 
       <div className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
-          <button className="back-btn" onClick={() => window.location.href = '/'} title="返回首页">
+          <button className="back-btn" onClick={() => window.location.href = '/app/'} title="返回首页">
             <ArrowLeft size={18} />
           </button>
         </div>
