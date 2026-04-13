@@ -1,14 +1,15 @@
+import './globals.css'
+import '../styles/app.css'
 import { ErrorBoundary } from './error-boundary'
-import '../public/app.css'
 
 export const metadata = {
-  title: 'MostBox 文件管理',
-  description: 'MostBox P2P 文件管理',
+  title: 'MostBox',
+  description: 'P2P 文件分享，无需注册',
 }
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="zh-CN" suppressHydrationWarning>
+    <html lang="zh-CN" suppressHydrationWarning data-scroll-behavior="smooth">
       <head>
         <meta charSet="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />

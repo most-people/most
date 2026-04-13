@@ -48,7 +48,4 @@ nul
 # Test temp directories
 tests/temp-write-test-*/
 
-# Website
-website/node_modules/
-website/.next/
-website/out/
+# Website (deprecated - merged into main project)

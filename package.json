@@ -50,7 +50,9 @@
     "ws": "^8.20.0"
   },
   "devDependencies": {
+    "@types/react": "19.2.14",
     "esbuild": "^0.28.0",
-    "supertest": "^7.2.2"
+    "supertest": "^7.2.2",
+    "typescript": "6.0.2"
   }
 }
