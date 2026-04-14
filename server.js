@@ -300,12 +300,6 @@ async function handleAPI(req, res) {
       return
     }
 
-    // GET /api/peer-id
-    if (pathname === '/api/peer-id' && method === 'GET') {
-      json({ peerId: engine.getNodeId() })
-      return
-    }
-
     // GET /api/config
     if (pathname === '/api/config' && method === 'GET') {
       const config = loadConfig()

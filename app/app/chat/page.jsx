@@ -66,7 +66,7 @@ function ChatPage() {
   }, [channelMessages])
 
   useEffect(() => {
-    api.get('api/peer-id').json().then(d => setMyPeerId(d.peerId)).catch(() => {})
+    api.get('api/node-id').json().then(d => setMyPeerId(d.id)).catch(() => {})
   }, [])
 
   useEffect(() => {
