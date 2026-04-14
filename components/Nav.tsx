@@ -93,6 +93,9 @@ export function Nav() {
           <button className="mkt-theme-toggle mkt-desktop-only" onClick={() => setIsDarkMode(!isDarkMode)} aria-label="切换主题">
             {isDarkMode ? <SunIcon /> : <MoonIcon />}
           </button>
+          <Link href="/app/" className="mkt-btn-primary">
+            打开文件管理
+          </Link>
           <a
             href="https://github.com/most-people/most"
             target="_blank"

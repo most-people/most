@@ -1,6 +1,6 @@
 import Link from 'next/link'
-import { InstallTabs } from './InstallTabs'
 import { FAQ } from './FAQ'
+import { InstallTabs } from './InstallTabs'
 
 const features = [
   { title: '无需注册', desc: '打开浏览器即用，没有账号、没有登录、没有隐私收集' },
@@ -34,10 +34,9 @@ const steps = [
   { num: '3', title: '开始分享', desc: '上传文件，复制链接，发给朋友即可。' },
 ]
 
-export default function AboutPage() {
+export default function MarketingLanding() {
   return (
     <div style={{ fontFamily: 'var(--font-mono)' }}>
-      {/* Hero */}
       <section style={{ textAlign: 'center', padding: '80px 24px 48px', background: 'var(--color-bg)' }}>
         <div style={{ maxWidth: 960, margin: '0 auto' }}>
           <div style={{
@@ -82,7 +81,6 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Screenshot placeholder */}
       <div style={{ maxWidth: 960, margin: '0 auto', padding: '0 24px 48px' }}>
         <div style={{
           background: 'var(--color-bg-tertiary)', border: '1px dashed var(--color-border)',
@@ -93,7 +91,6 @@ export default function AboutPage() {
         </div>
       </div>
 
-      {/* Features */}
       <section style={{ padding: '80px 0' }}>
         <div style={{ maxWidth: 960, margin: '0 auto', padding: '0 24px' }}>
           <h2 style={{ fontFamily: 'var(--font-mono)', fontSize: 24, fontWeight: 600, marginBottom: 24 }}>
@@ -123,7 +120,6 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Compare table */}
       <section style={{ padding: '80px 0', background: 'var(--color-bg-secondary)' }}>
         <div style={{ maxWidth: 960, margin: '0 auto', padding: '0 24px' }}>
           <h2 style={{ fontFamily: 'var(--font-mono)', fontSize: 24, fontWeight: 600, marginBottom: 24 }}>
@@ -154,7 +150,6 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Quick start */}
       <section style={{ padding: '80px 0', background: 'var(--color-bg-secondary)' }}>
         <div style={{ maxWidth: 960, margin: '0 auto', padding: '0 24px' }}>
           <h2 style={{ fontFamily: 'var(--font-mono)', fontSize: 24, fontWeight: 600, marginBottom: 24 }}>
@@ -201,7 +196,6 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Remote access */}
       <section style={{ padding: '80px 0' }}>
         <div style={{ maxWidth: 960, margin: '0 auto', padding: '0 24px' }}>
           <h2 style={{ fontFamily: 'var(--font-mono)', fontSize: 24, fontWeight: 600, marginBottom: 24 }}>
@@ -232,23 +226,17 @@ export default function AboutPage() {
 
       <FAQ />
 
-      {/* CTA */}
       <section style={{ padding: '80px 0', background: 'var(--color-bg-secondary)', textAlign: 'center' }}>
         <div style={{ maxWidth: 960, margin: '0 auto', padding: '0 24px' }}>
           <h2 style={{ fontFamily: 'var(--font-mono)', fontSize: 24, fontWeight: 600, marginBottom: 16 }}>
             开始使用 MostBox
           </h2>
-          <p style={{ fontSize: 18, color: 'var(--color-text-secondary)', lineHeight: 1.6, margin: '0 auto 24px', maxWidth: '40ch' }}>
+          <p style={{ fontSize: 18, color: 'var(--color-text-secondary)', lineHeight: 1.6, margin: '0 auto 32px', maxWidth: '40ch' }}>
             一行命令，即刻开始分享文件。
           </p>
-          <Link href="/app/" style={{
-            display: 'inline-flex', alignItems: 'center', gap: 8,
-            padding: '12px 24px', fontSize: 15, fontWeight: 500,
-            color: '#fff', background: 'var(--color-accent)',
-            borderRadius: 12, textDecoration: 'none', fontFamily: 'var(--font-mono)',
-          }}>
-            打开 MostBox →
-          </Link>
+          <div style={{ maxWidth: 520, margin: '0 auto' }}>
+            <InstallTabs />
+          </div>
         </div>
       </section>
     </div>
