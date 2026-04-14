@@ -7,7 +7,8 @@ import { spawn } from 'node:child_process'
 import Busboy from 'busboy'
 import { WebSocketServer } from 'ws'
 import { MostBoxEngine } from './src/index.js'
-import { parseMostLink } from './src/core/cid.js'
+import { parseMostLink, validateCidString } from './src/core/cid.js'
+import { sanitizeFilename } from './src/utils/security.js'
 import { MAX_FILE_SIZE } from './src/config.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -470,6 +471,11 @@ async function handleAPI(req, res) {
     // DELETE /api/files/:cid
     if (pathname.startsWith('/api/files/') && method === 'DELETE') {
       const cid = pathname.replace('/api/files/', '').replace(/\/$/, '')
+      const cidValidation = validateCidString(cid)
+      if (!cidValidation.valid) {
+        json({ error: cidValidation.error }, 400)
+        return
+      }
       const result = await engine.deletePublishedFile(cid)
       json(result)
       return
@@ -482,8 +488,18 @@ async function handleAPI(req, res) {
         json({ error: 'cid and newFileName are required' }, 400)
         return
       }
+      const cidValidation = validateCidString(body.cid)
+      if (!cidValidation.valid) {
+        json({ error: cidValidation.error }, 400)
+        return
+      }
+      const cleanFileName = sanitizeFilename(body.newFileName)
+      if (!cleanFileName || cleanFileName === 'unnamed' || body.newFileName.length > 255) {
+        json({ error: 'Invalid filename' }, 400)
+        return
+      }
       try {
-        const result = engine.moveFile(body.cid, body.newFileName)
+        const result = engine.moveFile(body.cid, cleanFileName)
         json({ success: true, ...result })
       } catch (err) {
         json({ error: err.message }, 400)
@@ -498,6 +514,14 @@ async function handleAPI(req, res) {
         json({ error: 'oldPath and newPath are required' }, 400)
         return
       }
+      if (body.oldPath.length > 500 || body.newPath.length > 500) {
+        json({ error: 'Path too long' }, 400)
+        return
+      }
+      if (body.oldPath.includes('..') || body.newPath.includes('..')) {
+        json({ error: 'Path traversal not allowed' }, 400)
+        return
+      }
       try {
         const result = engine.renameFolder(body.oldPath, body.newPath)
         json({ success: true, ...result })
@@ -510,6 +534,11 @@ async function handleAPI(req, res) {
     // GET /api/files/:cid/download — 内联服务文件，支持 Range
     if (pathname.match(/^\/api\/files\/[^/]+\/download$/) && method === 'GET') {
       const cid = pathname.split('/')[3]
+      const cidValidation = validateCidString(cid)
+      if (!cidValidation.valid) {
+        json({ error: cidValidation.error }, 400)
+        return
+      }
       const rangeHeader = req.headers['range']
 
       try {
@@ -583,6 +612,11 @@ async function handleAPI(req, res) {
     // POST /api/trash/:cid/restore — 从回收站恢复文件
     if (pathname.match(/^\/api\/trash\/[^/]+\/restore$/) && method === 'POST') {
       const cid = pathname.split('/')[3]
+      const cidValidation = validateCidString(cid)
+      if (!cidValidation.valid) {
+        json({ error: cidValidation.error }, 400)
+        return
+      }
       try {
         const result = engine.restoreTrashFile(cid)
         json({ success: true, files: result })
@@ -595,6 +629,11 @@ async function handleAPI(req, res) {
     // DELETE /api/trash/:cid — 永久删除回收站文件
     if (pathname.match(/^\/api\/trash\/[^/]+$/) && method === 'DELETE') {
       const cid = pathname.split('/')[3]
+      const cidValidation = validateCidString(cid)
+      if (!cidValidation.valid) {
+        json({ error: cidValidation.error }, 400)
+        return
+      }
       const result = await engine.permanentDeleteTrashFile(cid)
       json({ success: true, trashFiles: result })
       return
@@ -610,6 +649,11 @@ async function handleAPI(req, res) {
     // POST /api/files/:cid/star — 切换星标状态
     if (pathname.match(/^\/api\/files\/[^/]+\/star$/) && method === 'POST') {
       const cid = pathname.split('/')[3]
+      const cidValidation = validateCidString(cid)
+      if (!cidValidation.valid) {
+        json({ error: cidValidation.error }, 400)
+        return
+      }
       try {
         const result = engine.toggleStarred(cid)
         json({ success: true, ...result })

@@ -20,8 +20,13 @@ export const DRIVE_ENTRY_TIMEOUT = 10000
 export const DRIVE_SYNC_TIMEOUT = 10000
 export const STREAM_READ_TIMEOUT = 10000
 
+// 文件写入块大小（字节）
+export const FILE_WRITE_CHUNK_SIZE = 64 * 1024
+
 // 下载轮询间隔（毫秒）
-export const DOWNLOAD_POLL_INTERVAL = 1000
+export const DOWNLOAD_POLL_INTERVAL_MIN = 500
+export const DOWNLOAD_POLL_INTERVAL_MAX = 2000
+export const DRIVE_UPDATE_INTERVAL = 2000
 
 // 进度更新节流间隔（毫秒）
 export const PROGRESS_THROTTLE = 500

@@ -22,7 +22,7 @@ import path from 'node:path'
 import { calculateCid, parseMostLink } from './core/cid.js'
 import { sanitizeFilename, validateAndSanitizePath, validateFileSize, checkDirectoryWritable, formatFileSize } from './utils/security.js'
 import { ValidationError, PathSecurityError, FileSizeError, PeerNotFoundError, IntegrityError, PermissionError, EngineNotInitializedError } from './utils/errors.js'
-import { GLOBAL_SHARED_SEED_STRING, MAX_FILE_SIZE, CONNECTION_TIMEOUT, DOWNLOAD_TIMEOUT, SWARM_BOOTSTRAP, MAX_PEERS, SWARM_KEEP_ALIVE_INTERVAL, SWARM_RANDOM_PUNCH_INTERVAL, DRIVE_ENTRY_TIMEOUT, DRIVE_SYNC_TIMEOUT, STREAM_READ_TIMEOUT, DOWNLOAD_POLL_INTERVAL, PROGRESS_THROTTLE, DEFAULT_READ_LIMIT, CHANNEL_NAME_MIN_LENGTH, CHANNEL_NAME_MAX_LENGTH, CHANNEL_NAME_REGEX, CHANNEL_NAME_PREFIX, CHANNEL_TOPIC_STRING, CHANNEL_MESSAGE_LIMIT, MAX_MESSAGE_LENGTH } from './config.js'
+import { GLOBAL_SHARED_SEED_STRING, MAX_FILE_SIZE, CONNECTION_TIMEOUT, DOWNLOAD_TIMEOUT, SWARM_BOOTSTRAP, MAX_PEERS, SWARM_KEEP_ALIVE_INTERVAL, SWARM_RANDOM_PUNCH_INTERVAL, DRIVE_ENTRY_TIMEOUT, DRIVE_SYNC_TIMEOUT, STREAM_READ_TIMEOUT, FILE_WRITE_CHUNK_SIZE, DOWNLOAD_POLL_INTERVAL_MIN, DOWNLOAD_POLL_INTERVAL_MAX, DRIVE_UPDATE_INTERVAL, PROGRESS_THROTTLE, DEFAULT_READ_LIMIT, CHANNEL_NAME_MIN_LENGTH, CHANNEL_NAME_MAX_LENGTH, CHANNEL_NAME_REGEX, CHANNEL_NAME_PREFIX, CHANNEL_TOPIC_STRING, CHANNEL_MESSAGE_LIMIT, MAX_MESSAGE_LENGTH } from './config.js'
 
 export class MostBoxEngine extends EventEmitter {
   #store = null
@@ -148,21 +148,7 @@ export class MostBoxEngine extends EventEmitter {
         await core.ready()
         this.#channelCores.set(channel.name, core)
         this.#channelPeers.set(channel.name, new Map())
-
-        let lastCoreLength = core.length
-        core.on('append', async () => {
-          if (core.length > lastCoreLength) {
-            for (let i = lastCoreLength; i < core.length; i++) {
-              try {
-                const entry = await core.get(i)
-                if (entry && entry.type === 'message') {
-                  this.emit('channel:message', { channel: channel.name, message: entry })
-                }
-              } catch {}
-            }
-            lastCoreLength = core.length
-          }
-        })
+        this.#setupChannelAppendListener(core, channel.name)
 
         const discoveryKey = b4a.from(channel.discoveryKey, 'hex')
         const discovery = this.#swarm.join(discoveryKey, { server: true, client: true })
@@ -320,13 +306,12 @@ export class MostBoxEngine extends EventEmitter {
     const ws = drive.createWriteStream(driveKey)
 
     if (Buffer.isBuffer(content)) {
-      const CHUNK_SIZE = 64 * 1024
       let offset = 0
       const waitForDrain = () => new Promise(resolve => ws.once('drain', resolve))
 
       try {
         while (offset < content.length) {
-          const chunk = content.slice(offset, offset + CHUNK_SIZE)
+          const chunk = content.slice(offset, offset + FILE_WRITE_CHUNK_SIZE)
           const canContinue = ws.write(chunk)
           offset += chunk.length
           if (!canContinue && offset < content.length) {
@@ -1056,24 +1041,7 @@ export class MostBoxEngine extends EventEmitter {
     const discovery = this.#swarm.join(discoveryKey, { server: true, client: true })
     await discovery.flushed()
 
-    let lastCoreLength = core.length
-    core.on('append', async () => {
-      if (core.length > lastCoreLength) {
-        
-        for (let i = lastCoreLength; i < core.length; i++) {
-          try {
-            const entry = await core.get(i)
-            if (entry && entry.type === 'message') {
-              
-              this.emit('channel:message', { channel: name, message: entry })
-            }
-          } catch (err) {
-            
-          }
-        }
-        lastCoreLength = core.length
-      }
-    })
+    this.#setupChannelAppendListener(core, name)
 
     const channelInfo = {
       name,
@@ -1120,24 +1088,7 @@ export class MostBoxEngine extends EventEmitter {
     const discovery = this.#swarm.join(discoveryKey, { server: true, client: true })
     await discovery.flushed()
 
-    let lastCoreLength = core.length
-    core.on('append', async () => {
-      if (core.length > lastCoreLength) {
-        
-        for (let i = lastCoreLength; i < core.length; i++) {
-          try {
-            const entry = await core.get(i)
-            if (entry && entry.type === 'message') {
-              
-              this.emit('channel:message', { channel: name, message: entry })
-            }
-          } catch (err) {
-            
-          }
-        }
-        lastCoreLength = core.length
-      }
-    })
+    this.#setupChannelAppendListener(core, name)
 
     const channelInfo = {
       name,
@@ -1177,7 +1128,9 @@ export class MostBoxEngine extends EventEmitter {
     if (discovery) {
       try {
         await this.#swarm.leave(b4a.from(channel.discoveryKey, 'hex'))
-      } catch {}
+      } catch (err) {
+        console.warn(`[MostBox] Failed to leave channel discovery for ${name}:`, err.message)
+      }
       this.#channelDiscoveries.delete(name)
     }
 
@@ -1185,7 +1138,9 @@ export class MostBoxEngine extends EventEmitter {
     if (core) {
       try {
         await core.close()
-      } catch {}
+      } catch (err) {
+        console.warn(`[MostBox] Failed to close channel core for ${name}:`, err.message)
+      }
       this.#channelCores.delete(name)
     }
 
@@ -1482,6 +1437,25 @@ export class MostBoxEngine extends EventEmitter {
     return hash
   }
 
+  #setupChannelAppendListener(core, channelName) {
+    let lastCoreLength = core.length
+    core.on('append', async () => {
+      if (core.length > lastCoreLength) {
+        for (let i = lastCoreLength; i < core.length; i++) {
+          try {
+            const entry = await core.get(i)
+            if (entry && entry.type === 'message') {
+              this.emit('channel:message', { channel: channelName, message: entry })
+            }
+          } catch (err) {
+            console.error(`[MostBox] Failed to read channel message from ${channelName}:`, err.message)
+          }
+        }
+        lastCoreLength = core.length
+      }
+    })
+  }
+
   async #handleChannelConnection(conn) {
     const stream = conn
     let connectedPeerId = null
@@ -1524,7 +1498,9 @@ export class MostBoxEngine extends EventEmitter {
           }
           this.emit('channel:peer:online', { peerId: msg.peerId, authorName: msg.authorName })
         }
-      } catch {}
+      } catch (err) {
+        console.warn(`[MostBox] Failed to process channel data:`, err.message)
+      }
     })
 
     stream.on('close', () => {
@@ -1550,10 +1526,11 @@ export class MostBoxEngine extends EventEmitter {
    */
   async #waitForDriveContent(drive, timeout, taskId = null, taskState = null) {
     const startTime = Date.now()
-    const checkInterval = DOWNLOAD_POLL_INTERVAL
+    let pollInterval = DOWNLOAD_POLL_INTERVAL_MIN
     let lastPeerCount = 0
     let lastStatus = ''
     let bootstrapNodesChecked = false
+    let lastUpdateTime = 0
 
     const localEntries = []
     try {
@@ -1566,7 +1543,17 @@ export class MostBoxEngine extends EventEmitter {
         return localEntries
       }
     } catch (err) {
-      // 继续进行节点发现
+    }
+
+    const tryUpdateDrive = async () => {
+      const now = Date.now()
+      if (now - lastUpdateTime > DRIVE_UPDATE_INTERVAL) {
+        lastUpdateTime = now
+        try {
+          await drive.update()
+        } catch {
+        }
+      }
     }
 
     while (Date.now() - startTime < timeout) {
@@ -1585,13 +1572,14 @@ export class MostBoxEngine extends EventEmitter {
         lastPeerCount = currentPeerCount
       }
 
+      await tryUpdateDrive()
+
       const entries = []
       try {
         for await (const entry of drive.list()) {
           entries.push(entry)
         }
       } catch (err) {
-        // 驱动器可能尚未就绪
       }
 
       if (entries.length > 0) {
@@ -1606,15 +1594,17 @@ export class MostBoxEngine extends EventEmitter {
           this.emit('download:status', { taskId, status: newStatus })
           lastStatus = newStatus
         }
+        pollInterval = Math.min(pollInterval + 200, DOWNLOAD_POLL_INTERVAL_MAX)
       } else {
         const newStatus = 'finding-peers'
         if (lastStatus !== newStatus) {
           this.emit('download:status', { taskId, status: newStatus })
           lastStatus = newStatus
         }
+        pollInterval = DOWNLOAD_POLL_INTERVAL_MIN
 
         if (elapsed % 30 === 0 && elapsed > 0) {
-          console.log(`[MostBox] Still waiting for peers... (${elapsed}s elapsed, timeout: ${timeout / 1000}s)`)
+          console.log(`[MostBox] Still waiting for peers... (elapsed: ${elapsed}s, timeout: ${timeout / 1000}s)`)
 
           if (!bootstrapNodesChecked && elapsed >= 60) {
             bootstrapNodesChecked = true
@@ -1627,10 +1617,12 @@ export class MostBoxEngine extends EventEmitter {
         }
       }
 
-      await new Promise(resolve => setTimeout(resolve, checkInterval))
+      await new Promise(resolve => setTimeout(resolve, pollInterval))
     }
 
     console.log(`[MostBox] Timeout reached after ${timeout / 1000}s, making final attempt...`)
+
+    await tryUpdateDrive()
 
     const entries = []
     try {
