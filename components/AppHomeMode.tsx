@@ -3,10 +3,10 @@ import Link from 'next/link'
 function LogoIcon({ size = 48 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect x="2" y="2" width="8" height="8" rx="2" fill="var(--color-accent)" opacity="0.4" />
-      <rect x="14" y="2" width="8" height="8" rx="2" fill="var(--color-accent)" opacity="0.7" />
-      <rect x="2" y="14" width="8" height="8" rx="2" fill="var(--color-accent)" opacity="0.7" />
-      <rect x="14" y="14" width="8" height="8" rx="2" fill="var(--color-accent)" />
+      <rect x="2" y="2" width="8" height="8" rx="2" fill="var(--accent)" opacity="0.4" />
+      <rect x="14" y="2" width="8" height="8" rx="2" fill="var(--accent)" opacity="0.7" />
+      <rect x="2" y="14" width="8" height="8" rx="2" fill="var(--accent)" opacity="0.7" />
+      <rect x="14" y="14" width="8" height="8" rx="2" fill="var(--accent)" />
     </svg>
   )
 }
@@ -43,9 +43,9 @@ export default function AppHomeMode({ nodeId }: { nodeId: string }) {
         fontSize: 12,
         fontWeight: 500,
         borderRadius: 9999,
-        background: 'var(--color-bg-tertiary)',
-        color: 'var(--color-text-secondary)',
-        border: '1px solid var(--color-border)',
+        background: 'var(--bg-tertiary)',
+        color: 'var(--text-secondary)',
+        border: '1px solid var(--border-color)',
         marginBottom: 24,
       }}>
         <span style={{
@@ -53,14 +53,14 @@ export default function AppHomeMode({ nodeId }: { nodeId: string }) {
           width: 6,
           height: 6,
           borderRadius: '50%',
-          background: 'var(--color-success)',
+          background: 'var(--success)',
           flexShrink: 0,
         }} />
         节点在线{shortId ? ` · ${shortId}` : ''}
       </div>
       <p style={{
         fontSize: 16,
-        color: 'var(--color-text-secondary)',
+        color: 'var(--text-secondary)',
         maxWidth: '40ch',
         lineHeight: 1.6,
         marginBottom: 32,
@@ -77,7 +77,7 @@ export default function AppHomeMode({ nodeId }: { nodeId: string }) {
           fontSize: 16,
           fontWeight: 600,
           color: '#fff',
-          background: 'var(--color-accent)',
+          background: 'var(--accent)',
           borderRadius: 12,
           textDecoration: 'none',
           fontFamily: 'var(--font-mono)',
@@ -95,9 +95,9 @@ export default function AppHomeMode({ nodeId }: { nodeId: string }) {
           padding: '10px 24px',
           fontSize: 14,
           fontWeight: 500,
-          color: 'var(--color-text-secondary)',
-          background: 'var(--color-bg-tertiary)',
-          border: '1px solid var(--color-border)',
+          color: 'var(--text-secondary)',
+          background: 'var(--bg-tertiary)',
+          border: '1px solid var(--border-color)',
           borderRadius: 12,
           textDecoration: 'none',
           fontFamily: 'var(--font-mono)',

@@ -13,7 +13,7 @@ function CopyIcon() {
 
 function CheckIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--color-success)" strokeWidth="1.5" strokeLinecap="square">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--success)" strokeWidth="1.5" strokeLinecap="square">
       <path d="M3 8.5L6.5 12L13 4.5" />
     </svg>
   )

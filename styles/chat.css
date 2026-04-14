@@ -5,9 +5,9 @@
 
 /* === Dark Theme Support === */
 [data-theme="dark"] {
-  --color-chat-bg-secondary: #1e293b;
-  --color-chat-bg-tertiary: #334155;
-  --color-chat-border: rgba(255, 255, 255, 0.08);
+  --chat-bg-secondary: #1e293b;
+  --chat-bg-tertiary: #334155;
+  --chat-border: rgba(255, 255, 255, 0.08);
 }
 
 /* === Messages Area === */
@@ -26,18 +26,18 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: var(--color-text-muted);
+  color: var(--text-primary-muted);
   gap: 12px;
 
   .empty-icon {
     width: 64px;
     height: 64px;
     border-radius: 16px;
-    background: var(--color-bg-tertiary);
+    background: var(--bg-primary-tertiary);
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--color-text-muted);
+    color: var(--text-primary-muted);
   }
 
   p {
@@ -61,18 +61,18 @@
     }
 
     .message-bubble {
-      background: linear-gradient(135deg, var(--color-accent), color-mix(in srgb, var(--color-accent) 80%, black));
+      background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 80%, black));
       color: #fff;
       border-radius: 18px 4px 18px 18px;
-      box-shadow: 0 2px 8px color-mix(in srgb, var(--color-accent) 30%, transparent);
+      box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 30%, transparent);
     }
 
     .message-author {
-      color: var(--color-accent);
+      color: var(--accent);
     }
 
     .message-time {
-      color: var(--color-text-muted);
+      color: var(--text-primary-muted);
     }
   }
 
@@ -84,8 +84,8 @@
     }
 
     .message-bubble {
-      background: var(--color-bg-secondary);
-      border: 1px solid var(--color-border);
+      background: var(--bg-primary-secondary);
+      border: 1px solid var(--border-color);
       border-radius: 4px 18px 18px 18px;
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
     }
@@ -105,7 +105,7 @@
   .message-author {
     font-size: 11px;
     font-weight: 500;
-    color: var(--color-text-muted);
+    color: var(--text-primary-muted);
   }
 
   .message-bubble {
@@ -117,7 +117,7 @@
 
   .message-time {
     font-size: 10px;
-    color: var(--color-text-muted);
+    color: var(--text-primary-muted);
     opacity: 0.7;
   }
 
@@ -142,26 +142,26 @@
   display: flex;
   gap: 12px;
   padding: 16px 24px;
-  border-top: 1px solid var(--color-border);
-  background: var(--color-bg-secondary);
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-primary-secondary);
 
   .chat-input {
     flex: 1;
     padding: 12px 18px;
     border-radius: 24px;
-    border: 1.5px solid var(--color-border);
-    background: var(--color-bg);
-    color: var(--color-text);
+    border: 1.5px solid var(--border-color);
+    background: var(--bg-primary);
+    color: var(--text-primary);
     font-size: 14px;
     outline: none;
     transition: border-color 0.15s;
 
     &::placeholder {
-      color: var(--color-text-muted);
+      color: var(--text-primary-muted);
     }
 
     &:focus {
-      border-color: var(--color-accent);
+      border-color: var(--accent);
     }
   }
 
@@ -170,7 +170,7 @@
     height: 44px;
     border-radius: 50%;
     border: none;
-    background: var(--color-accent);
+    background: var(--accent);
     color: #fff;
     cursor: pointer;
     display: flex;
@@ -180,7 +180,7 @@
     flex-shrink: 0;
 
     &:hover:not(:disabled) {
-      background: color-mix(in srgb, var(--color-accent) 85%, black);
+      background: color-mix(in srgb, var(--accent) 85%, black);
       transform: scale(1.05);
     }
 
@@ -200,12 +200,12 @@
   z-index: 200;
   padding: 12px 24px;
   border-radius: 12px;
-  background: var(--color-bg-secondary);
-  color: var(--color-text);
+  background: var(--bg-primary-secondary);
+  color: var(--text-primary);
   font-size: 13px;
   font-weight: 500;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border-color);
   animation: toastIn 0.3s ease;
 }
 
@@ -229,19 +229,19 @@
   justify-content: center;
   padding: 40px;
   text-align: center;
-  background: var(--color-bg);
+  background: var(--bg-primary);
 
   .welcome-icon {
     width: 80px;
     height: 80px;
     border-radius: 20px;
-    background: linear-gradient(135deg, color-mix(in srgb, var(--color-accent) 15%, var(--color-bg-secondary)), color-mix(in srgb, var(--color-accent) 5%, var(--color-bg-tertiary)));
+    background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 15%, var(--bg-primary-secondary)), color-mix(in srgb, var(--accent) 5%, var(--bg-primary-tertiary)));
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--color-accent);
+    color: var(--accent);
     margin-bottom: 20px;
-    box-shadow: 0 10px 40px color-mix(in srgb, var(--color-accent) 20%, transparent);
+    box-shadow: 0 10px 40px color-mix(in srgb, var(--accent) 20%, transparent);
   }
 
   h2 {
@@ -252,7 +252,7 @@
 
   p {
     font-size: 14px;
-    color: var(--color-text-secondary);
+    color: var(--text-primary-secondary);
     max-width: 320px;
     line-height: 1.6;
   }
@@ -263,9 +263,9 @@
   margin: 8px;
   padding: 10px;
   border-radius: 8px;
-  border: 1.5px dashed var(--color-border);
+  border: 1.5px dashed var(--border-color);
   background: transparent;
-  color: var(--color-text-secondary);
+  color: var(--text-primary-secondary);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -276,9 +276,9 @@
   transition: all 0.15s;
 
   &:hover {
-    border-color: var(--color-accent);
-    color: var(--color-accent);
-    background: color-mix(in srgb, var(--color-accent) 5%, transparent);
+    border-color: var(--accent);
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 5%, transparent);
   }
 }
 
@@ -288,7 +288,7 @@
   align-items: center;
   gap: 8px;
   font-size: 11px;
-  color: var(--color-text-secondary);
+  color: var(--text-primary-secondary);
 
   .peer-dot {
     width: 6px;
@@ -314,14 +314,14 @@
   border: none;
   background: transparent;
   cursor: pointer;
-  color: var(--color-text-secondary);
+  color: var(--text-primary-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
   transition: background 0.15s;
 
   &:hover {
-    background: var(--color-bg-tertiary);
+    background: var(--bg-primary-tertiary);
   }
 }
 
@@ -383,7 +383,7 @@
   opacity: 0;
   background: none;
   border: none;
-  color: var(--color-text-muted);
+  color: var(--text-primary-muted);
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;

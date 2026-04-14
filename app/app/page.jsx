@@ -240,7 +240,7 @@ function SettingsModal({ onClose, addToast, isDarkMode, handleShutdown }) {
             <h3>MostBox</h3>
             <p>版本 0.0.1</p>
           </div>
-          <p style={{ fontSize: 12, textAlign: 'center', color: 'var(--color-text-secondary)' }}>Hyperswarm · Hyperdrive · IPFS</p>
+          <p style={{ fontSize: 12, textAlign: 'center', color: 'var(--text-secondary)' }}>Hyperswarm · Hyperdrive · IPFS</p>
         </div>
 
         <button onClick={() => { onClose(); handleShutdown(); }} className="btn danger full" style={{ marginTop: 20 }}>
@@ -324,7 +324,7 @@ function MoveModal({ items, allFolders, currentPath, isDarkMode, onMove, onClose
           <h3>移动到</h3>
           <button onClick={onClose} className="modal-close-btn"><X size={18} /></button>
         </div>
-        <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 12 }}>已选 {items.length} 个项目</p>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>已选 {items.length} 个项目</p>
         <div className="move-new-folder">
           <input
             type="text"
@@ -333,11 +333,11 @@ function MoveModal({ items, allFolders, currentPath, isDarkMode, onMove, onClose
             placeholder="输入路径创建嵌套文件夹"
           />
         </div>
-        <p style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 12 }}>如 图片/壁纸</p>
+        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>如 图片/壁纸</p>
         <div className="move-breadcrumb">
           {breadcrumbParts.map((part, i) => (
             <React.Fragment key={part.path}>
-              {i > 0 && <span style={{ color: 'var(--color-text-secondary)' }}>/</span>}
+              {i > 0 && <span style={{ color: 'var(--text-secondary)' }}>/</span>}
               <button
                 key={part.path}
                 onClick={() => {
@@ -361,7 +361,7 @@ function MoveModal({ items, allFolders, currentPath, isDarkMode, onMove, onClose
             const relativePath = f.path.substring(prefix.length)
             return !relativePath.includes('/')
           }).length === 0 && (
-              <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', textAlign: 'center', padding: 16 }}>该目录下没有子文件夹</p>
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center', padding: 16 }}>该目录下没有子文件夹</p>
             )}
           {allFolders.filter(f => {
             if (targetPath === '') {
@@ -1173,7 +1173,7 @@ export default function App() {
             {previewItem.subtype === 'audio' && (
               <div className="preview-audio">
                 <div className="preview-audio-icon">
-                  <Music size={36} color="var(--color-accent)" />
+                  <Music size={36} color="var(--accent)" />
                 </div>
                 <p className="preview-audio-filename">{previewItem.fileName}</p>
                 <audio className="preview-audio-player" src={API.getFileDownloadUrl(previewItem.cid)} controls />
@@ -1267,7 +1267,7 @@ export default function App() {
                   重命名
                 </button>
               )}
-              <button onClick={() => setIsMoveModalOpen(true)} className="btn small" style={{ background: 'var(--color-accent)', color: '#fff' }}>
+              <button onClick={() => setIsMoveModalOpen(true)} className="btn small" style={{ background: 'var(--accent)', color: '#fff' }}>
                 移动
               </button>
               <button onClick={handleBatchDelete} className="btn small danger">删除</button>
@@ -1293,7 +1293,7 @@ export default function App() {
               <button onClick={() => setIsTransferPanelOpen(false)} className="modal-close-btn"><X size={18} /></button>
             </div>
             {transfers.length === 0 ? (
-              <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', padding: 24, fontSize: 13 }}>
+              <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24, fontSize: 13 }}>
                 暂无传输
               </div>
             ) : (

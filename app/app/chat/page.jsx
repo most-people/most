@@ -374,7 +374,7 @@ function ChatPage() {
 
         <nav className="sidebar-nav">
           {channels.length === 0 ? (
-            <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+            <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
               <p>暂无频道</p>
             </div>
           ) : (

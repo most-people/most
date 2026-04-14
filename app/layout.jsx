@@ -1,5 +1,6 @@
 import './globals.css'
 import '../styles/app.css'
+import '../styles/marketing.css'
 import { ErrorBoundary } from './error-boundary'
 
 export const metadata = {
