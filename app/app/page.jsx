@@ -11,35 +11,35 @@ import { ModalOverlay, Toast, ConfirmModal, InputModal } from '../../components/
 import { api } from '../../src/utils/api'
 
 const API = {
-  listPublishedFiles: () => api.get('api/files').json(),
-  listTrashFiles: () => api.get('api/trash').json(),
-  deletePublishedFile: (cid) => api.delete(`api/files/${cid}`).json(),
-  restoreTrashFile: (cid) => api.post(`api/trash/${cid}/restore`).json(),
-  permanentDeleteTrashFile: (cid) => api.delete(`api/trash/${cid}`).json(),
-  emptyTrash: () => api.delete('api/trash').json(),
-  toggleStar: (cid) => api.post(`api/files/${cid}/star`).json(),
-  getStorageStats: () => api.get('api/storage').json(),
-  getConfig: () => api.get('api/config').json(),
-  getDataPath: () => api.get('api/config/data-path').json(),
-  getNetworkAddresses: () => api.get('api/network').json(),
-  saveConfig: (config) => api.post('api/config', {
+  listPublishedFiles: () => api.get('/api/files').json(),
+  listTrashFiles: () => api.get('/api/trash').json(),
+  deletePublishedFile: (cid) => api.delete(`/api/files/${cid}`).json(),
+  restoreTrashFile: (cid) => api.post(`/api/trash/${cid}/restore`).json(),
+  permanentDeleteTrashFile: (cid) => api.delete(`/api/trash/${cid}`).json(),
+  emptyTrash: () => api.delete('/api/trash').json(),
+  toggleStar: (cid) => api.post(`/api/files/${cid}/star`).json(),
+  getStorageStats: () => api.get('/api/storage').json(),
+  getConfig: () => api.get('/api/config').json(),
+  getDataPath: () => api.get('/api/config/data-path').json(),
+  getNetworkAddresses: () => api.get('/api/network').json(),
+  saveConfig: (config) => api.post('/api/config', {
     json: config
   }).json(),
   async publishFile(file, customName) {
     const formData = new FormData()
     formData.append('file', file, customName || file.name)
-    const res = await api.post('api/publish', { body: formData })
+    const res = await api.post('/api/publish', { body: formData })
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: res.statusText }))
       throw new Error(err.error || 'Request failed')
     }
     return res.json()
   },
-  downloadFile: (link) => api.post('api/download', { json: { link } }).json(),
-  cancelDownload: (taskId) => api.post('api/download/cancel', { json: { taskId } }).json(),
+  downloadFile: (link) => api.post('/api/download', { json: { link } }).json(),
+  cancelDownload: (taskId) => api.post('/api/download/cancel', { json: { taskId } }).json(),
   getFileDownloadUrl: (cid) => `/api/files/${cid}/download`,
-  moveFile: (cid, newFileName) => api.post('api/move', { json: { cid, newFileName } }).json(),
-  renameFolder: (oldPath, newPath) => api.post('api/folder/rename', { json: { oldPath, newPath } }).json()
+  moveFile: (cid, newFileName) => api.post('/api/move', { json: { cid, newFileName } }).json(),
+  renameFolder: (oldPath, newPath) => api.post('/api/folder/rename', { json: { oldPath, newPath } }).json()
 }
 
 function formatSize(bytes) {
@@ -884,6 +884,9 @@ export default function App() {
           ))
           addToast(`下载失败: ${data.error}`, 'error')
         }
+        if (event === 'network:status') {
+          setPeerCount(data.peers || 0)
+        }
         if (event === 'download:status') {
           setTransfers(prev => prev.map(t =>
             t.id === data.taskId ? { ...t, fileName: data.file || t.fileName } : t
@@ -933,7 +936,7 @@ export default function App() {
       <div className={`sidebar-overlay ${isSidebarOpen ? 'visible' : ''}`} onClick={() => setIsSidebarOpen(false)} />
 
       <div className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
-        <div className="sidebar-header">
+        <div className="sidebar-header" onClick={() => window.location.href = '/'} style={{ cursor: 'pointer' }}>
           <h1>Most.Box</h1>
         </div>
         <nav className="sidebar-nav">
@@ -980,10 +983,6 @@ export default function App() {
               <Menu size={18} />
             </button>
             <h2 className="header-title">{viewTitle}</h2>
-            <div className="header-badge">
-              <div className={`header-badge-dot ${peerCount > 0 ? 'connected' : ''}`} />
-              {peerCount > 0 ? `${peerCount} 节点` : '等待连接'}
-            </div>
           </div>
           <div className="header-right">
             <div className="search-box">
