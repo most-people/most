@@ -4,7 +4,17 @@ import React from 'react'
 import { X } from 'lucide-react'
 import { ModalOverlay } from './ModalOverlay'
 
-export function ConfirmModal({ title, message, confirmText, onConfirm, onClose, danger, closeOnOverlayClick }) {
+interface ConfirmModalProps {
+  title: string
+  message?: string
+  confirmText?: string
+  onConfirm: () => void | Promise<void>
+  onClose: () => void
+  danger?: boolean
+  closeOnOverlayClick?: boolean
+}
+
+export function ConfirmModal({ title, message, confirmText, onConfirm, onClose, danger, closeOnOverlayClick }: ConfirmModalProps) {
   return (
     <ModalOverlay onClose={onClose} closeOnOverlayClick={closeOnOverlayClick}>
       <div className="confirm-modal" onClick={e => e.stopPropagation()}>

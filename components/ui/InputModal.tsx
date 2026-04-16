@@ -4,7 +4,18 @@ import React, { useState } from 'react'
 import { X } from 'lucide-react'
 import { ModalOverlay } from './ModalOverlay'
 
-export function InputModal({ title, placeholder, defaultValue, confirmText, onConfirm, onClose, isLoading, loadingText }) {
+interface InputModalProps {
+  title: string
+  placeholder?: string
+  defaultValue?: string
+  confirmText?: string
+  onConfirm: (value: string) => void | Promise<void>
+  onClose: () => void
+  isLoading?: boolean
+  loadingText?: string
+}
+
+export function InputModal({ title, placeholder, defaultValue, confirmText, onConfirm, onClose, isLoading, loadingText }: InputModalProps) {
   const [value, setValue] = useState(defaultValue || '')
   return (
     <ModalOverlay onClose={onClose}>

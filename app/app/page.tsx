@@ -10,18 +10,49 @@ import {
 import { ModalOverlay, Toast, ConfirmModal, InputModal } from '../../components/ui'
 import { api } from '../../src/utils/api'
 
+interface NetworkAddress {
+  type: string
+  ip: string
+  label: string
+  iface: string
+}
+
+interface DataPathResponse {
+  dataPath: string
+  isDefault: boolean
+}
+
+interface NetworkResponse {
+  port: number
+  addresses: NetworkAddress[]
+}
+
+interface ToggleStarResponse {
+  success: boolean
+  cid: string
+  starred: boolean
+}
+
+interface StorageStats {
+  total: number
+  used: number
+  free: number
+  fileCount: number
+  trashCount: number
+}
+
 const API = {
-  listPublishedFiles: () => api.get('/api/files').json(),
-  listTrashFiles: () => api.get('/api/trash').json(),
+  listPublishedFiles: () => api.get('/api/files').json<any[]>(),
+  listTrashFiles: () => api.get('/api/trash').json<any[]>(),
   deletePublishedFile: (cid) => api.delete(`/api/files/${cid}`).json(),
   restoreTrashFile: (cid) => api.post(`/api/trash/${cid}/restore`).json(),
   permanentDeleteTrashFile: (cid) => api.delete(`/api/trash/${cid}`).json(),
   emptyTrash: () => api.delete('/api/trash').json(),
-  toggleStar: (cid) => api.post(`/api/files/${cid}/star`).json(),
-  getStorageStats: () => api.get('/api/storage').json(),
-  getConfig: () => api.get('/api/config').json(),
-  getDataPath: () => api.get('/api/config/data-path').json(),
-  getNetworkAddresses: () => api.get('/api/network').json(),
+  toggleStar: (cid) => api.post<ToggleStarResponse>(`/api/files/${cid}/star`).json(),
+  getStorageStats: () => api.get<StorageStats>('/api/storage').json(),
+  getConfig: () => api.get('/api/config').json<any>(),
+  getDataPath: () => api.get<DataPathResponse>('/api/config/data-path').json(),
+  getNetworkAddresses: () => api.get<NetworkResponse>('/api/network').json(),
   saveConfig: (config) => api.post('/api/config', {
     json: config
   }).json(),
@@ -30,16 +61,16 @@ const API = {
     formData.append('file', file, customName || file.name)
     const res = await api.post('/api/publish', { body: formData })
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: res.statusText }))
+      const err = await res.json<{ error: string }>().catch(() => ({ error: res.statusText }))
       throw new Error(err.error || 'Request failed')
     }
-    return res.json()
+    return res.json<any>()
   },
-  downloadFile: (link) => api.post('/api/download', { json: { link } }).json(),
-  cancelDownload: (taskId) => api.post('/api/download/cancel', { json: { taskId } }).json(),
+  downloadFile: (link) => api.post('/api/download', { json: { link } }).json<any>(),
+  cancelDownload: (taskId) => api.post('/api/download/cancel', { json: { taskId } }).json<any>(),
   getFileDownloadUrl: (cid) => `/api/files/${cid}/download`,
-  moveFile: (cid, newFileName) => api.post('/api/move', { json: { cid, newFileName } }).json(),
-  renameFolder: (oldPath, newPath) => api.post('/api/folder/rename', { json: { oldPath, newPath } }).json()
+  moveFile: (cid, newFileName) => api.post('/api/move', { json: { cid, newFileName } }).json<any>(),
+  renameFolder: (oldPath, newPath) => api.post('/api/folder/rename', { json: { oldPath, newPath } }).json<any>()
 }
 
 function formatSize(bytes) {
@@ -61,8 +92,8 @@ function parseName(fullPath) {
   return { folder: fullPath.substring(0, lastSlash), name: fullPath.substring(lastSlash + 1) }
 }
 
-function getUniqueFolders(files) {
-  const folders = new Set()
+function getUniqueFolders(files: { fileName: string }[]): string[] {
+  const folders = new Set<string>()
   files.forEach(f => {
     const { folder } = parseName(f.fileName)
     let parts = folder.split('/').filter(Boolean)
@@ -306,7 +337,7 @@ function FolderCard({ folder, isDarkMode, onClick }) {
   )
 }
 
-function MoveModal({ items, allFolders, currentPath, isDarkMode, onMove, onClose }) {
+function MoveModal({ items, allFolders, currentPath, onMove, onClose }) {
   const [targetPath, setTargetPath] = useState('')
   const [customPath, setCustomPath] = useState(currentPath)
 
@@ -661,7 +692,7 @@ export default function App() {
     })
   }
 
-  const processFiles = async (files) => {
+  const processFiles = async (files: FileList) => {
     const prefix = currentPath ? currentPath + '/' : ''
     const newTransfers = []
 
@@ -790,8 +821,9 @@ export default function App() {
       const res = await fetch(API.getFileDownloadUrl(file.cid))
       if (!res.ok) throw new Error('获取文件失败')
       const blob = await res.blob()
-      if (window.showSaveFilePicker) {
-        const handle = await window.showSaveFilePicker({
+      const showSaveFilePicker = (window as any).showSaveFilePicker
+      if (showSaveFilePicker) {
+        const handle = await showSaveFilePicker({
           suggestedName: file.fileName
         })
         const writable = await handle.createWritable()
@@ -1092,7 +1124,6 @@ export default function App() {
           message={confirmModal.message}
           confirmText={confirmModal.confirmText}
           danger={confirmModal.danger}
-          isDarkMode={isDarkMode}
           closeOnOverlayClick={confirmModal.danger}
           onConfirm={confirmModal.onConfirm}
           onClose={() => setConfirmModal(null)}
@@ -1105,7 +1136,6 @@ export default function App() {
           placeholder={inputModal.placeholder}
           defaultValue={inputModal.defaultValue}
           confirmText={inputModal.confirmText}
-          isDarkMode={isDarkMode}
           isLoading={inputLoading}
           onConfirm={inputModal.onConfirm}
           onClose={() => setInputModal(null)}
@@ -1117,7 +1147,6 @@ export default function App() {
           items={selectedIds.map(id => items.find(i => i.cid === id)).filter(Boolean)}
           allFolders={allFolders.map(path => ({ path, name: path.split('/').pop() }))}
           currentPath={currentPath}
-          isDarkMode={isDarkMode}
           onMove={handleMove}
           onClose={() => setIsMoveModalOpen(false)}
         />

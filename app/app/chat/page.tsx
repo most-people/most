@@ -7,13 +7,30 @@ import { api } from '../../../src/utils/api'
 import { loadIdentity, saveIdentity, saveGuestIdentity, loadGuestIdentity, createGuestIdentity, createLoginIdentity, generateGuestPassword } from '../../../src/utils/userIdentity.js'
 import { generateAvatar } from '../../../src/utils/avatar.js'
 
+interface ChannelMessage {
+  id?: string
+  author: string
+  authorName?: string
+  content: string
+  timestamp: number
+  pending?: boolean
+}
+
+interface Channel {
+  name: string
+}
+
+interface SendMessageResult {
+  message: ChannelMessage
+}
+
 const API = {
-  getChannels: () => api.get('/api/channels').json(),
-  createChannel: (name, type) => api.post('/api/channels', { json: { name, type } }).json(),
-  leaveChannel: (name) => api.delete(`/api/channels/${encodeURIComponent(name)}`).json(),
-  getChannelMessages: (name, limit = 100, offset = 0) => api.get(`/api/channels/${encodeURIComponent(name)}/messages?limit=${limit}&offset=${offset}`).json(),
-  sendChannelMessage: (name, content, author, authorName) => api.post(`/api/channels/${encodeURIComponent(name)}/messages`, { json: { content, author, authorName } }).json(),
-  getChannelPeers: (name) => api.get(`/api/channels/${encodeURIComponent(name)}/peers`).json()
+  getChannels: () => api.get<Channel[]>('/api/channels').json(),
+  createChannel: (name: string, type: string) => api.post(`/api/channels`, { json: { name, type } }).json(),
+  leaveChannel: (name: string) => api.delete(`/api/channels/${encodeURIComponent(name)}`).json(),
+  getChannelMessages: (name: string, limit = 100, offset = 0) => api.get<ChannelMessage[]>(`/api/channels/${encodeURIComponent(name)}/messages?limit=${limit}&offset=${offset}`).json(),
+  sendChannelMessage: (name: string, content: string, author: string, authorName: string) => api.post<SendMessageResult>(`/api/channels/${encodeURIComponent(name)}/messages`, { json: { content, author, authorName } }).json(),
+  getChannelPeers: (name: string) => api.get<string[]>(`/api/channels/${encodeURIComponent(name)}/peers`).json()
 }
 
 function ChatPage() {
@@ -66,7 +83,7 @@ function ChatPage() {
   }, [channelMessages])
 
   useEffect(() => {
-    api.get('/api/node-id').json().then(d => setMyPeerId(d.id)).catch(() => {})
+    api.get('/api/node-id').json<{ id: string }>().then(d => setMyPeerId(d.id)).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -298,7 +315,7 @@ function ChatPage() {
     if (!channelName.trim() || isJoiningChannel) return
     setIsJoiningChannel(true)
     try {
-      await API.createChannel(channelName.trim())
+      await API.createChannel(channelName.trim(), 'public')
       setShowJoinChannel(false)
       refreshChannels()
     } catch (err) {
@@ -525,7 +542,7 @@ function ChatPage() {
           title="退出频道"
           message={`确定要退出频道 "${channelToLeave.name}" 吗？`}
           confirmText={isLeavingChannel ? '退出中...' : '退出'}
-          onConfirm={() => handleLeaveChannel(channelToLeave.name)}
+          onConfirm={() => handleLeaveChannel(channelToLeave.name, undefined)}
           onClose={() => {
             setShowLeaveChannelConfirm(false)
             setChannelToLeave(null)
