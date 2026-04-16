@@ -8,12 +8,12 @@ import { loadIdentity, saveIdentity, saveGuestIdentity, loadGuestIdentity, creat
 import { generateAvatar } from '../../../src/utils/avatar.js'
 
 const API = {
-  getChannels: () => api.get('api/channels').json(),
-  createChannel: (name, type) => api.post('api/channels', { json: { name, type } }).json(),
-  leaveChannel: (name) => api.delete(`api/channels/${encodeURIComponent(name)}`).json(),
-  getChannelMessages: (name, limit = 100, offset = 0) => api.get(`api/channels/${encodeURIComponent(name)}/messages?limit=${limit}&offset=${offset}`).json(),
-  sendChannelMessage: (name, content, author, authorName) => api.post(`api/channels/${encodeURIComponent(name)}/messages`, { json: { content, author, authorName } }).json(),
-  getChannelPeers: (name) => api.get(`api/channels/${encodeURIComponent(name)}/peers`).json()
+  getChannels: () => api.get('/api/channels').json(),
+  createChannel: (name, type) => api.post('/api/channels', { json: { name, type } }).json(),
+  leaveChannel: (name) => api.delete(`/api/channels/${encodeURIComponent(name)}`).json(),
+  getChannelMessages: (name, limit = 100, offset = 0) => api.get(`/api/channels/${encodeURIComponent(name)}/messages?limit=${limit}&offset=${offset}`).json(),
+  sendChannelMessage: (name, content, author, authorName) => api.post(`/api/channels/${encodeURIComponent(name)}/messages`, { json: { content, author, authorName } }).json(),
+  getChannelPeers: (name) => api.get(`/api/channels/${encodeURIComponent(name)}/peers`).json()
 }
 
 function ChatPage() {
@@ -66,7 +66,7 @@ function ChatPage() {
   }, [channelMessages])
 
   useEffect(() => {
-    api.get('api/node-id').json().then(d => setMyPeerId(d.id)).catch(() => {})
+    api.get('/api/node-id').json().then(d => setMyPeerId(d.id)).catch(() => {})
   }, [])
 
   useEffect(() => {

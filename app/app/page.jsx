@@ -135,7 +135,7 @@ function SettingsModal({ onClose, addToast, isDarkMode, handleShutdown }) {
     setSaving(true)
     try {
       await API.saveConfig({ dataPath: dataPath.trim() })
-      api.post('api/shutdown')
+      api.post('/api/shutdown')
       window.close()
     } catch (err) {
       addToast(err.message || '保存失败', 'error')
@@ -148,7 +148,7 @@ function SettingsModal({ onClose, addToast, isDarkMode, handleShutdown }) {
     setSaving(true)
     try {
       await API.saveConfig({ resetStorage: true })
-      api.post('api/shutdown')
+      api.post('/api/shutdown')
       window.close()
     } catch (err) {
       addToast(err.message || '操作失败', 'error')
@@ -830,7 +830,7 @@ export default function App() {
       onConfirm: async () => {
         setConfirmModal(null)
         try {
-          api.post('api/shutdown')
+          api.post('/api/shutdown')
         } catch { }
         window.close()
       }
