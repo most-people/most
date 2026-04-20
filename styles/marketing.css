@@ -587,3 +587,141 @@
   0%, 100% { opacity: 0.3; transform: scale(0.95); }
   50% { opacity: 0.7; transform: scale(1); }
 }
+
+/* === Nav Settings Button === */
+.mkt-nav-settings-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm, 8px);
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mkt-nav-settings-btn:hover {
+  color: var(--text-primary);
+  background: var(--glass-bg-subtle);
+}
+
+/* === Settings Modal === */
+.mkt-settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: var(--blur-xl);
+  -webkit-backdrop-filter: var(--blur-xl);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.mkt-settings-modal {
+  background: var(--glass-bg-heavy);
+  backdrop-filter: var(--blur-2xl);
+  -webkit-backdrop-filter: var(--blur-2xl);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-8);
+  max-width: 420px;
+  width: 90%;
+  box-shadow: var(--glass-shadow-lg);
+  animation: scaleIn 0.25s ease-out;
+}
+
+.mkt-settings-modal h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: var(--space-2);
+}
+
+.mkt-settings-desc {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-5);
+  line-height: 1.5;
+}
+
+.mkt-settings-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: var(--glass-bg-subtle);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-family: var(--font-sans);
+  outline: none;
+  transition: border-color var(--transition-fast);
+  margin-bottom: var(--space-4);
+}
+
+.mkt-settings-input:focus {
+  border-color: var(--accent);
+}
+
+.mkt-settings-input::placeholder {
+  color: var(--text-muted);
+}
+
+.mkt-settings-actions {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.mkt-settings-btn {
+  flex: 1;
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 500;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.mkt-settings-btn.primary {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+}
+
+.mkt-settings-btn.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.mkt-settings-btn.primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mkt-settings-btn.secondary {
+  color: var(--text-secondary);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg-subtle);
+}
+
+.mkt-settings-btn.secondary:hover {
+  color: var(--text-primary);
+  background: var(--glass-bg);
+}
+
+.mkt-settings-status {
+  margin-top: var(--space-3);
+  font-size: 13px;
+  text-align: center;
+}
+
+.mkt-settings-status.success {
+  color: var(--success);
+}
+
+.mkt-settings-status.error {
+  color: var(--danger);
+}

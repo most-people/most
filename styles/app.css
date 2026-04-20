@@ -12,6 +12,38 @@
   color: var(--text-primary);
 }
 
+/* === Backend Warning Bar === */
+.backend-warning-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: var(--warning);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.backend-warning-bar button {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.app-layout.with-warning-bar {
+  padding-top: 36px;
+}
+
 /* === Sidebar === */
 .sidebar {
   width: 200px;

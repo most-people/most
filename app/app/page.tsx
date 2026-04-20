@@ -8,7 +8,7 @@ import {
   Power, Edit2, Menu, Loader, Globe, Link, ChevronDown
 } from 'lucide-react'
 import { ModalOverlay, Toast, ConfirmModal, InputModal } from '../../components/ui'
-import { api } from '../../src/utils/api'
+import { api, getBackendUrlExport } from '../../src/utils/api'
 
 interface NetworkAddress {
   type: string
@@ -295,7 +295,7 @@ function generateBreadcrumbs(currentPath) {
 
 const createRefreshHandler = (setter, apiMethod) => async () => {
   try { setter(await apiMethod()) }
-  catch (err) { console.error(err) }
+  catch (err) { console.info(err) }
 }
 
 function FileCard({ file, isSelected, isDarkMode, onSelect, onPreview }) {
@@ -457,6 +457,7 @@ export default function App() {
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewMediaLoading, setPreviewMediaLoading] = useState(false)
   const [previewLoaded, setPreviewLoaded] = useState(false)
+  const [showBackendWarning, setShowBackendWarning] = useState(false)
   const previewMediaRef = useRef(null)
   const previewTextRef = useRef(null)
 
@@ -940,6 +941,10 @@ export default function App() {
     if (saved === 'dark' || (!saved && typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
       setIsDarkMode(true)
     }
+    if (!getBackendUrlExport()) {
+      setShowBackendWarning(true)
+      return
+    }
     refreshFiles()
     refreshTrash()
     refreshStorageStats()
@@ -964,7 +969,13 @@ export default function App() {
   const breadcrumbParts = generateBreadcrumbs(currentPath)
 
   return (
-    <div className="app-layout">
+    <div className={`app-layout${showBackendWarning ? ' with-warning-bar' : ''}`}>
+      {showBackendWarning && (
+        <div className="backend-warning-bar">
+          <span>未设置后端地址，请在导航栏设置后端地址后使用</span>
+          <button onClick={() => setShowBackendWarning(false)}>×</button>
+        </div>
+      )}
       <div className={`sidebar-overlay ${isSidebarOpen ? 'visible' : ''}`} onClick={() => setIsSidebarOpen(false)} />
 
       <div className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>

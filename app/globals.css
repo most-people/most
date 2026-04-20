@@ -299,3 +299,119 @@ button {
     transform: rotate(360deg);
   }
 }
+
+/* === Backend Error Page === */
+.backend-error-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  padding: var(--space-8);
+}
+
+.backend-error-card {
+  background: var(--glass-bg);
+  backdrop-filter: var(--blur-lg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-12);
+  max-width: 480px;
+  width: 100%;
+  text-align: center;
+  box-shadow: var(--glass-shadow-lg);
+  animation: scaleIn 0.3s ease-out;
+}
+
+.backend-error-icon {
+  font-size: 48px;
+  margin-bottom: var(--space-4);
+}
+
+.backend-error-card h2 {
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: var(--space-3);
+}
+
+.backend-error-url {
+  margin-bottom: var(--space-2);
+}
+
+.backend-error-url code {
+  background: var(--glass-bg-solid);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  word-break: break-all;
+}
+
+.backend-error-desc {
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin-bottom: var(--space-6);
+}
+
+.backend-error-form {
+  display: flex;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.backend-error-input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: var(--glass-bg-subtle);
+  backdrop-filter: var(--blur-sm);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-family: var(--font-sans);
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+
+.backend-error-input:focus {
+  border-color: var(--accent);
+}
+
+.backend-error-input::placeholder {
+  color: var(--text-muted);
+}
+
+.backend-error-btn {
+  padding: 10px 20px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 500;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.backend-error-btn.primary {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+}
+
+.backend-error-btn.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.backend-error-btn.primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.backend-error-btn.secondary {
+  color: var(--accent);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg-subtle);
+}
+
+.backend-error-btn.secondary:hover {
+  background: var(--accent-soft);
+}
