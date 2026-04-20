@@ -477,7 +477,9 @@
   &.selected {
     background: var(--accent-soft);
     border-color: var(--accent);
-    box-shadow: 0 0 0 1px var(--accent), var(--glass-shadow);
+    box-shadow:
+      0 0 0 1px var(--accent),
+      var(--glass-shadow);
   }
 }
 
@@ -556,9 +558,7 @@
   backdrop-filter: var(--blur-2xl);
   -webkit-backdrop-filter: var(--blur-2xl);
   border: 1px solid var(--glass-border);
-  box-shadow:
-    var(--glass-shadow-lg),
-    var(--glass-shadow-inset);
+  box-shadow: var(--glass-shadow-lg), var(--glass-shadow-inset);
   animation: scaleIn 0.25s ease;
 }
 
@@ -733,7 +733,6 @@
 
 /* === Settings Modal === */
 .settings-modal {
-  width: 420px;
   max-width: calc(100vw - 32px);
   padding: 28px;
   border-radius: var(--radius-lg);
@@ -742,6 +741,7 @@
   -webkit-backdrop-filter: var(--blur-2xl);
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shadow-lg), var(--glass-shadow-inset);
+  z-index: 1;
 
   .settings-title {
     font-size: 18px;
@@ -759,6 +759,7 @@
 
   .settings-row {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     align-items: center;
   }
@@ -955,6 +956,7 @@
   max-width: calc(100vw - 32px);
   padding: 24px;
   border-radius: var(--radius-lg);
+  z-index: 1;
 
   h3 {
     font-size: 16px;
@@ -1800,7 +1802,7 @@
   border: 1px solid var(--glass-border);
 }
 
-  .preview-unsupported p:first-of-type {
+.preview-unsupported p:first-of-type {
   font-size: 14px;
   font-weight: 500;
   word-break: break-all;
@@ -1906,7 +1908,6 @@
    Responsive Design
    ============================================= */
 @media (max-width: 768px) {
-
   /* Sidebar: drawer mode */
   .sidebar {
     position: fixed;

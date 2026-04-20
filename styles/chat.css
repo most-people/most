@@ -65,7 +65,11 @@
     }
 
     .message-bubble {
-      background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 75%, var(--info)));
+      background: linear-gradient(
+        135deg,
+        var(--accent),
+        color-mix(in srgb, var(--accent) 75%, var(--info))
+      );
       color: #fff;
       border-radius: 18px 4px 18px 18px;
       box-shadow: 0 4px 16px rgba(94, 106, 210, 0.25);

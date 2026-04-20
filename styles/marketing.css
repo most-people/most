@@ -65,7 +65,7 @@
 
 .mkt-nav-links a:hover { color: var(--text-primary); }
 
-.mkt-nav-cta { display: flex; align-items: center; gap: var(--space-3); }
+.mkt-nav-cta { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap;justify-content: flex-end; }
 .mkt-theme-toggle { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: var(--radius-sm, 8px); color: var(--text-secondary); background: transparent; border: none; cursor: pointer; transition: all 0.15s ease; }
 .mkt-theme-toggle:hover { color: var(--text-primary); background: var(--glass-bg-subtle); }
 .mkt-desktop-only { display: flex; }
