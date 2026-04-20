@@ -828,10 +828,11 @@ async function main() {
 
   serverInstance = http.createServer((req, res) => {
     const origin = req.headers.origin
-    if (origin) {
+    const allowedOrigins = [`http://127.0.0.1:${PORT}`, `http://localhost:${PORT}`]
+    if (origin && allowedOrigins.includes(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin)
       res.setHeader('Vary', 'Origin')
-    } else {
+    } else if (!origin) {
       res.setHeader('Access-Control-Allow-Origin', `http://127.0.0.1:${PORT}`)
     }
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')

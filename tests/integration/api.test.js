@@ -363,8 +363,10 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
             json({ error: 'content is required' }, 400)
             return
           }
+          const author = body.author || 'test-author'
+          const authorName = body.authorName || 'TestUser'
           try {
-            const message = await engine.sendMessage(name, body.content, body.authorName)
+            const message = await engine.sendMessage(name, body.content, author, authorName)
             json({ success: true, message })
           } catch (err) {
             json({ error: err.message }, 400)
@@ -375,6 +377,32 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         if (pathname.match(/^\/api\/channels\/[^/]+\/peers$/) && req.method === 'GET') {
           const name = pathname.split('/')[3]
           json(engine.getChannelPeers(name))
+          return
+        }
+
+        if (pathname === '/api/config' && req.method === 'GET') {
+          json({ dataPath: '' })
+          return
+        }
+
+        if (pathname === '/api/network-status' && req.method === 'GET') {
+          json(engine.getNetworkStatus())
+          return
+        }
+
+        if (pathname === '/api/network' && req.method === 'GET') {
+          json({ port: TEST_PORT, addresses: [{ type: 'local', ip: '127.0.0.1', label: '本机', iface: 'loopback' }] })
+          return
+        }
+
+        if (pathname === '/api/shutdown' && req.method === 'POST') {
+          const clientIp = req.socket.remoteAddress
+          const isLocalhost = clientIp === '127.0.0.1' || clientIp === '::1' || clientIp === '::ffff:127.0.0.1'
+          if (!isLocalhost) {
+            json({ error: 'Forbidden' }, 403)
+            return
+          }
+          json({ success: true })
           return
         }
 
@@ -872,7 +900,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const res = await fetch(`${baseUrl}/api/channels/msg-channel/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: 'Hello!' })
+        body: JSON.stringify({ content: 'Hello!', author: '0x1234', authorName: 'TestUser' })
       })
       const data = await res.json()
       assert.strictEqual(res.status, 200)
@@ -894,8 +922,8 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
   describe('GET /api/channels/:name/messages', () => {
     it('returns messages from a channel', async () => {
       await engine.createChannel('read-channel')
-      await engine.sendMessage('read-channel', 'msg1')
-      await engine.sendMessage('read-channel', 'msg2')
+      await engine.sendMessage('read-channel', 'msg1', '0x1234', 'TestUser')
+      await engine.sendMessage('read-channel', 'msg2', '0x1234', 'TestUser')
 
       const res = await fetch(`${baseUrl}/api/channels/read-channel/messages`)
       const data = await res.json()
@@ -918,7 +946,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     it('supports pagination with limit and offset', async () => {
       await engine.createChannel('page-channel')
       for (let i = 0; i < 5; i++) {
-        await engine.sendMessage('page-channel', `msg${i}`)
+        await engine.sendMessage('page-channel', `msg${i}`, '0x1234', 'TestUser')
       }
 
       const res = await fetch(`${baseUrl}/api/channels/page-channel/messages?limit=2&offset=0`)
@@ -952,6 +980,45 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     it('returns 400 for non-existent channel', async () => {
       const res = await fetch(`${baseUrl}/api/channels/nonexistent`, { method: 'DELETE' })
       assert.strictEqual(res.status, 400)
+    })
+  })
+
+  describe('GET /api/config', () => {
+    it('returns config with dataPath', async () => {
+      const res = await fetch(`${baseUrl}/api/config`)
+      const data = await res.json()
+      assert.strictEqual(res.status, 200)
+      assert.ok('dataPath' in data)
+    })
+  })
+
+  describe('GET /api/network-status', () => {
+    it('returns network status', async () => {
+      const res = await fetch(`${baseUrl}/api/network-status`)
+      const data = await res.json()
+      assert.strictEqual(res.status, 200)
+      assert.ok('peers' in data)
+      assert.ok('status' in data)
+    })
+  })
+
+  describe('GET /api/network', () => {
+    it('returns network addresses', async () => {
+      const res = await fetch(`${baseUrl}/api/network`)
+      const data = await res.json()
+      assert.strictEqual(res.status, 200)
+      assert.ok('port' in data)
+      assert.ok(Array.isArray(data.addresses))
+      assert.ok(data.addresses.some(a => a.type === 'local'))
+    })
+  })
+
+  describe('POST /api/shutdown', () => {
+    it('allows localhost connection', async () => {
+      const res = await fetch(`${baseUrl}/api/shutdown`, {
+        method: 'POST'
+      })
+      assert.strictEqual(res.status, 200)
     })
   })
 })

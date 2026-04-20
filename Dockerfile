@@ -23,7 +23,6 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/server.js ./
 COPY --from=builder /app/cli.js ./
-COPY --from=builder /app/build.mjs ./
 COPY --from=builder /app/src ./src
 
 RUN chown -R mostbox:nodejs /app

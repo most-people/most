@@ -43,13 +43,9 @@ export const SWARM_BOOTSTRAP = [
   '138.68.147.8@node3.hyperdht.org:49737'
 ]
 
-export const FRIEND_CODE_LENGTH = 16
-export const FRIEND_CODE_PREFIX = 'MOST'
-
 export const CHANNEL_NAME_MIN_LENGTH = 3
 export const CHANNEL_NAME_MAX_LENGTH = 20
 export const CHANNEL_NAME_REGEX = /^[a-zA-Z0-9_-]+$/
 export const CHANNEL_NAME_PREFIX = 'most-box-room-'
-export const CHANNEL_TOPIC_STRING = 'most-box-channels-v1'
 export const CHANNEL_MESSAGE_LIMIT = 100
 export const MAX_MESSAGE_LENGTH = 10000

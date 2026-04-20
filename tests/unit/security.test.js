@@ -218,4 +218,10 @@ describe('checkDirectoryWritable', () => {
       try { await fs.promises.rm(testDir, { recursive: true, force: true }) } catch {}
     }
   })
+
+  it('returns not writable for file path', async () => {
+    const result = await checkDirectoryWritable('package.json')
+    assert.strictEqual(result.writable, false)
+    assert.ok(result.error)
+  })
 })

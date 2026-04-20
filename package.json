@@ -19,7 +19,8 @@
     "build": "next build",
     "dev": "next dev",
     "test": "node --test tests/**/*.test.js",
-    "test:unit": "node --test tests/unit/*.test.js"
+    "test:unit": "node --test tests/unit/*.test.js",
+    "lint": "eslint ."
   },
   "keywords": [
     "p2p",
@@ -46,13 +47,14 @@
     "next": "^16.2.2",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "react-router-dom": "^7.14.0",
     "ws": "^8.20.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/react": "19.2.14",
     "esbuild": "^0.28.0",
-    "supertest": "^7.2.2",
+    "eslint": "^10.2.1",
+    "globals": "^17.5.0",
     "typescript": "6.0.2"
   }
 }

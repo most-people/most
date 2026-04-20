@@ -1,4 +1,4 @@
-import { randomBytes } from 'crypto'
+import { randomBytes } from 'node:crypto'
 import { pbkdf2, sha256, getBytes, Mnemonic, HDNodeWallet, toUtf8Bytes } from 'ethers'
 
 const SALT_PREFIX = '/most.box/'

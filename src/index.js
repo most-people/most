@@ -21,7 +21,7 @@ import path from 'node:path'
 import { calculateCid, parseMostLink } from './core/cid.js'
 import { sanitizeFilename, validateAndSanitizePath, validateFileSize, checkDirectoryWritable, formatFileSize } from './utils/security.js'
 import { ValidationError, PathSecurityError, FileSizeError, PeerNotFoundError, IntegrityError, PermissionError, EngineNotInitializedError } from './utils/errors.js'
-import { GLOBAL_SHARED_SEED_STRING, MAX_FILE_SIZE, CONNECTION_TIMEOUT, DOWNLOAD_TIMEOUT, SWARM_BOOTSTRAP, MAX_PEERS, SWARM_KEEP_ALIVE_INTERVAL, SWARM_RANDOM_PUNCH_INTERVAL, DRIVE_ENTRY_TIMEOUT, DRIVE_SYNC_TIMEOUT, STREAM_READ_TIMEOUT, FILE_WRITE_CHUNK_SIZE, DOWNLOAD_POLL_INTERVAL_MIN, DOWNLOAD_POLL_INTERVAL_MAX, DRIVE_UPDATE_INTERVAL, PROGRESS_THROTTLE, DEFAULT_READ_LIMIT, CHANNEL_NAME_MIN_LENGTH, CHANNEL_NAME_MAX_LENGTH, CHANNEL_NAME_REGEX, CHANNEL_NAME_PREFIX, CHANNEL_TOPIC_STRING, CHANNEL_MESSAGE_LIMIT, MAX_MESSAGE_LENGTH } from './config.js'
+import { GLOBAL_SHARED_SEED_STRING, MAX_FILE_SIZE, CONNECTION_TIMEOUT, DOWNLOAD_TIMEOUT, SWARM_BOOTSTRAP, MAX_PEERS, SWARM_KEEP_ALIVE_INTERVAL, SWARM_RANDOM_PUNCH_INTERVAL, DRIVE_ENTRY_TIMEOUT, DRIVE_SYNC_TIMEOUT, STREAM_READ_TIMEOUT, FILE_WRITE_CHUNK_SIZE, DOWNLOAD_POLL_INTERVAL_MIN, DOWNLOAD_POLL_INTERVAL_MAX, DRIVE_UPDATE_INTERVAL, PROGRESS_THROTTLE, DEFAULT_READ_LIMIT, CHANNEL_NAME_MIN_LENGTH, CHANNEL_NAME_MAX_LENGTH, CHANNEL_NAME_REGEX, CHANNEL_NAME_PREFIX, CHANNEL_MESSAGE_LIMIT, MAX_MESSAGE_LENGTH } from './config.js'
 
 export class MostBoxEngine extends EventEmitter {
   #store = null
@@ -525,16 +525,19 @@ export class MostBoxEngine extends EventEmitter {
           throw new IntegrityError(`File content CID mismatch. File may be corrupted or tampered.`)
         }
 
-        // Write file content to Hyperdrive so it can be served for preview
+        // Write file content to Hyperdrive for seeding to other peers
         const driveKey = '/' + cidString
-        const readStream = fs.createReadStream(savePath)
-        const writeStream = drive.createWriteStream(driveKey)
-        await new Promise((resolve, reject) => {
-          readStream.pipe(writeStream)
-          writeStream.on('finish', resolve)
-          writeStream.on('error', reject)
-          readStream.on('error', reject)
-        })
+        const existingEntry = await drive.entry(driveKey)
+        if (!existingEntry) {
+          const readStream = fs.createReadStream(savePath)
+          const writeStream = drive.createWriteStream(driveKey)
+          await new Promise((resolve, reject) => {
+            readStream.pipe(writeStream)
+            writeStream.on('finish', resolve)
+            writeStream.on('error', reject)
+            readStream.on('error', reject)
+          })
+        }
 
         const result = {
           taskId,
@@ -1448,6 +1451,7 @@ export class MostBoxEngine extends EventEmitter {
             }
           } catch (err) {
             console.error(`[MostBox] Failed to read channel message from ${channelName}:`, err.message)
+            continue
           }
         }
         lastCoreLength = core.length

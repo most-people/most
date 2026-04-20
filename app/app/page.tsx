@@ -166,7 +166,7 @@ function SettingsModal({ onClose, addToast, isDarkMode, handleShutdown }) {
     setSaving(true)
     try {
       await API.saveConfig({ dataPath: dataPath.trim() })
-      api.post('/api/shutdown')
+      await api.post('/api/shutdown')
       window.close()
     } catch (err) {
       addToast(err.message || '保存失败', 'error')
@@ -179,7 +179,7 @@ function SettingsModal({ onClose, addToast, isDarkMode, handleShutdown }) {
     setSaving(true)
     try {
       await API.saveConfig({ resetStorage: true })
-      api.post('/api/shutdown')
+      await api.post('/api/shutdown')
       window.close()
     } catch (err) {
       addToast(err.message || '操作失败', 'error')
@@ -269,7 +269,7 @@ function SettingsModal({ onClose, addToast, isDarkMode, handleShutdown }) {
         <div className="settings-divider">
           <div className="settings-about">
             <h3>MostBox</h3>
-            <p>版本 0.0.1</p>
+            <p>版本 0.0.4</p>
           </div>
           <p style={{ fontSize: 12, textAlign: 'center', color: 'var(--text-secondary)' }}>Hyperswarm · Hyperdrive · IPFS</p>
         </div>
@@ -862,7 +862,7 @@ export default function App() {
       onConfirm: async () => {
         setConfirmModal(null)
         try {
-          api.post('/api/shutdown')
+          await api.post('/api/shutdown')
         } catch { }
         window.close()
       }
