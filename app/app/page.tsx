@@ -197,7 +197,7 @@ function SettingsModal({ onClose, addToast, isDarkMode, handleShutdown }) {
           <button onClick={onClose} className="modal-close-btn"><X size={18} /></button>
         </div>
 
-        <div style={{ marginBottom: 20 }}>
+        <div className="settings-section">
           <label className="settings-label">存储位置</label>
           <div className="settings-row">
             <input
@@ -208,11 +208,11 @@ function SettingsModal({ onClose, addToast, isDarkMode, handleShutdown }) {
               disabled={loading}
               className="settings-input"
             />
-            <button onClick={handleSavePath} disabled={saving || loading || !isPathChanged} className="btn primary" style={{ whiteSpace: 'nowrap', opacity: saving || loading || !isPathChanged ? 0.5 : 1 }}>
+            <button onClick={handleSavePath} disabled={saving || loading || !isPathChanged} className="btn primary btn-nowrap">
               {saving ? '保存中...' : '保存'}
             </button>
             {!isDefault && (
-              <button onClick={handleResetPath} disabled={saving || loading} className="btn secondary" style={{ whiteSpace: 'nowrap', opacity: saving || loading ? 0.5 : 1 }}>
+              <button onClick={handleResetPath} disabled={saving || loading} className="btn secondary btn-nowrap">
                 恢复默认
               </button>
             )}
@@ -220,8 +220,8 @@ function SettingsModal({ onClose, addToast, isDarkMode, handleShutdown }) {
           <p className="settings-hint">修改后需重启应用</p>
         </div>
 
-        <div className="settings-divider" style={{ marginTop: 20 }}>
-          <label className="settings-label"><Globe size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />远程访问</label>
+        <div className="settings-divider settings-divider-top">
+          <label className="settings-label"><Globe size={14} className="icon-inline" />远程访问</label>
           <div className="network-addresses">
             {networkAddresses.map((addr, i) => (
               <div key={i} className="address-item">
@@ -238,7 +238,7 @@ function SettingsModal({ onClose, addToast, isDarkMode, handleShutdown }) {
 
           <button className="guide-toggle" onClick={() => setShowGuide(!showGuide)}>
             <span>如何从外网访问？</span>
-            <ChevronDown size={14} style={{ transform: showGuide ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+            <ChevronDown size={14} className={`guide-toggle-icon ${showGuide ? 'rotated' : ''}`} />
           </button>
           {showGuide && (
             <div className="guide-content">
@@ -271,10 +271,10 @@ function SettingsModal({ onClose, addToast, isDarkMode, handleShutdown }) {
             <h3>MostBox</h3>
             <p>版本 0.0.4</p>
           </div>
-          <p style={{ fontSize: 12, textAlign: 'center', color: 'var(--text-secondary)' }}>Hyperswarm · Hyperdrive · IPFS</p>
+          <p className="settings-subtitle">Hyperswarm · Hyperdrive · IPFS</p>
         </div>
 
-        <button onClick={() => { onClose(); handleShutdown(); }} className="btn danger full" style={{ marginTop: 20 }}>
+        <button onClick={() => { onClose(); handleShutdown(); }} className="btn danger full btn-shutdown">
           <Power size={16} /> 关闭服务
         </button>
       </div>
@@ -355,7 +355,7 @@ function MoveModal({ items, allFolders, currentPath, onMove, onClose }) {
           <h3>移动到</h3>
           <button onClick={onClose} className="modal-close-btn"><X size={18} /></button>
         </div>
-        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>已选 {items.length} 个项目</p>
+        <p className="move-modal-desc">已选 {items.length} 个项目</p>
         <div className="move-new-folder">
           <input
             type="text"
@@ -364,11 +364,11 @@ function MoveModal({ items, allFolders, currentPath, onMove, onClose }) {
             placeholder="输入路径创建嵌套文件夹"
           />
         </div>
-        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>如 图片/壁纸</p>
+        <p className="move-modal-hint">如 图片/壁纸</p>
         <div className="move-breadcrumb">
           {breadcrumbParts.map((part, i) => (
             <React.Fragment key={part.path}>
-              {i > 0 && <span style={{ color: 'var(--text-secondary)' }}>/</span>}
+              {i > 0 && <span className="breadcrumb-separator">/</span>}
               <button
                 key={part.path}
                 onClick={() => {
@@ -392,7 +392,7 @@ function MoveModal({ items, allFolders, currentPath, onMove, onClose }) {
             const relativePath = f.path.substring(prefix.length)
             return !relativePath.includes('/')
           }).length === 0 && (
-              <p style={{ fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center', padding: 16 }}>该目录下没有子文件夹</p>
+              <p className="move-modal-empty">该目录下没有子文件夹</p>
             )}
           {allFolders.filter(f => {
             if (targetPath === '') {
@@ -1023,7 +1023,7 @@ export default function App() {
               {searchQuery && <button onClick={() => setSearchQuery('')}><X size={12} /></button>}
             </div>
             {currentView === 'trash' && trashItems.length > 0 && (
-              <button onClick={handleEmptyTrash} className="btn small" style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>
+              <button onClick={handleEmptyTrash} className="btn small btn-empty-trash">
                 清空回收站
               </button>
             )}
@@ -1044,11 +1044,11 @@ export default function App() {
           <div className="action-grid">
             <div className={`action-card upload ${isDraggingOverUpload ? 'drag-over' : ''}`} onDragOver={(e) => { e.preventDefault(); setIsDraggingOverUpload(true) }} onDragLeave={() => setIsDraggingOverUpload(false)} onDrop={(e) => { e.preventDefault(); setIsDraggingOverUpload(false); processFiles(e.dataTransfer.files) }}>
               <input type="file" multiple onChange={(e) => processFiles(e.target.files)} className="action-card-input" />
-              <Upload size={20} style={{ marginBottom: 8 }} />
+              <Upload size={20} className="action-grid-icon" />
               <p>上传文件</p>
             </div>
             <div className="action-card action-card-download" onClick={() => setIsDownloadModalOpen(true)}>
-              <Download size={20} style={{ marginBottom: 8 }} />
+              <Download size={20} className="action-grid-icon" />
               <p>下载文件</p>
             </div>
           </div>
@@ -1209,9 +1209,9 @@ export default function App() {
             )}
             {previewItem.subtype === 'file' && (
               <div className="preview-unsupported">
-                <FileText size={48} color="#fff" style={{ marginBottom: 12, opacity: 0.5 }} />
+                <FileText size={48} className="preview-file-icon" />
                 <p>{previewItem.fileName}</p>
-                <p style={{ fontSize: 12, marginTop: 8, opacity: 0.7 }}>无法预览</p>
+                <p className="preview-unsupported-hint">无法预览</p>
               </div>
             )}
             {previewItem.subtype === 'text' && (
@@ -1284,7 +1284,7 @@ export default function App() {
                     handleToggleStar(id)
                   }
                 })
-              }} className="btn small" style={{ background: '#f59e0b', color: '#fff' }}>
+              }} className="btn small btn-star">
                 收藏
               </button>
               {selectedIds.length === 1 && (
@@ -1295,7 +1295,7 @@ export default function App() {
                   重命名
                 </button>
               )}
-              <button onClick={() => setIsMoveModalOpen(true)} className="btn small" style={{ background: 'var(--accent)', color: '#fff' }}>
+              <button onClick={() => setIsMoveModalOpen(true)} className="btn small btn-move">
                 移动
               </button>
               <button onClick={handleBatchDelete} className="btn small danger">删除</button>
@@ -1321,7 +1321,7 @@ export default function App() {
               <button onClick={() => setIsTransferPanelOpen(false)} className="modal-close-btn"><X size={18} /></button>
             </div>
             {transfers.length === 0 ? (
-              <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24, fontSize: 13 }}>
+              <div className="empty-transfer">
                 暂无传输
               </div>
             ) : (

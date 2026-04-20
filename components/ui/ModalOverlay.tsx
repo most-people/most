@@ -10,6 +10,7 @@ export function ModalOverlay({ children, onClose, closeOnOverlayClick = false })
   }
   return (
     <div className="modal-overlay" onClick={handleOverlayClick}>
+      <div className="modal-overlay-backdrop" />
       {children}
     </div>
   )

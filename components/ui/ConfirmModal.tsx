@@ -17,8 +17,11 @@ interface ConfirmModalProps {
 export function ConfirmModal({ title, message, confirmText, onConfirm, onClose, danger, closeOnOverlayClick }: ConfirmModalProps) {
   return (
     <ModalOverlay onClose={onClose} closeOnOverlayClick={closeOnOverlayClick}>
-      <div className="confirm-modal" onClick={e => e.stopPropagation()}>
-        <h3>{title}</h3>
+      <div className="confirm-modal modal-glass" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>{title}</h3>
+          <button onClick={onClose} className="modal-close-btn"><X size={18} /></button>
+        </div>
         <p>{message}</p>
         <div className="modal-actions">
           <button onClick={onClose} className="btn secondary">取消</button>
