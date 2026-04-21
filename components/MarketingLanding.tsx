@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { Check } from 'lucide-react'
 import { FAQ } from './FAQ'
 import { InstallTabs } from './InstallTabs'
 
@@ -96,17 +97,7 @@ export default function MarketingLanding() {
             {features.map(f => (
               <div key={f.title} className="mkt-feature">
                 <span className="mkt-feature-icon">
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="square"
-                  >
-                    <path d="M3 8.5L6.5 12L13 4.5" />
-                  </svg>
+                  <Check size={16} strokeWidth={2} />
                 </span>
                 <div>
                   <strong>{f.title}</strong>

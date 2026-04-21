@@ -29,7 +29,7 @@ export function InputModal({
   return (
     <ModalOverlay onClose={onClose}>
       <div
-        className="input-modal modal-glass"
+        className="input-modal"
         onClick={e => e.stopPropagation()}
       >
         <div className="modal-header">

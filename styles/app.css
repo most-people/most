@@ -590,8 +590,7 @@
 }
 
 /* === Glass Modal Base === */
-.modal-glass,
-.modal-container {
+.modal-glass {
   position: relative;
   z-index: 1;
   width: 380px;
@@ -645,17 +644,7 @@
 
 /* === Welcome Guide === */
 .welcome-modal {
-  width: 380px;
-  max-width: calc(100vw - 32px);
-  padding: 28px;
-  border-radius: var(--radius-lg);
-  background: var(--glass-bg-heavy);
-  backdrop-filter: var(--blur-2xl);
-  -webkit-backdrop-filter: var(--blur-2xl);
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow-lg), var(--glass-shadow-inset);
   text-align: center;
-  animation: scaleIn 0.25s ease;
 
   h2 {
     font-size: 18px;
@@ -777,16 +766,6 @@
 
 /* === Settings Modal === */
 .settings-modal {
-  max-width: calc(100vw - 32px);
-  padding: 28px;
-  border-radius: var(--radius-lg);
-  background: var(--glass-bg-heavy);
-  backdrop-filter: var(--blur-2xl);
-  -webkit-backdrop-filter: var(--blur-2xl);
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow-lg), var(--glass-shadow-inset);
-  z-index: 1;
-
   .settings-title {
     font-size: 18px;
     font-weight: 600;
@@ -837,79 +816,6 @@
     padding-top: 16px;
   }
 
-  .network-addresses {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-top: 8px;
-  }
-
-  .address-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
-    background: var(--glass-bg-subtle);
-    border-radius: var(--radius-md);
-    border: 1px solid var(--glass-border);
-    font-size: 13px;
-  }
-
-  .address-type {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: var(--radius-sm);
-    font-size: 11px;
-    font-weight: 600;
-    white-space: nowrap;
-  }
-
-  .address-type-local {
-    background: rgba(100, 116, 139, 0.15);
-    color: var(--text-secondary);
-  }
-
-  .address-type-lan {
-    background: var(--accent-soft);
-    color: var(--accent);
-  }
-
-  .address-type-tailscale {
-    background: rgba(52, 199, 89, 0.12);
-    color: var(--success);
-  }
-
-  .address-type-zerotier {
-    background: rgba(90, 200, 250, 0.12);
-    color: var(--info);
-  }
-
-  .address-url {
-    flex: 1;
-    font-size: 12px;
-    color: var(--text-primary);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .copy-btn {
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    cursor: pointer;
-    padding: 4px;
-    border-radius: var(--radius-sm);
-    display: flex;
-    align-items: center;
-    transition: all var(--transition-fast);
-
-    &:hover {
-      color: var(--accent);
-      background: var(--accent-soft);
-    }
-  }
-
   .settings-about {
     text-align: center;
     margin-bottom: 16px;
@@ -925,6 +831,80 @@
       font-size: 12px;
       color: var(--text-muted);
     }
+  }
+}
+
+/* === Network addresses (shared between modal and drawer) === */
+.network-addresses {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.address-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--glass-bg-subtle);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--glass-border);
+  font-size: 13px;
+}
+
+.address-type {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.address-type-local {
+  background: rgba(100, 116, 139, 0.15);
+  color: var(--text-secondary);
+}
+
+.address-type-lan {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.address-type-tailscale {
+  background: rgba(52, 199, 89, 0.12);
+  color: var(--success);
+}
+
+.address-type-zerotier {
+  background: rgba(90, 200, 250, 0.12);
+  color: var(--info);
+}
+
+.address-url {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.copy-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  transition: all var(--transition-fast);
+
+  &:hover {
+    color: var(--accent);
+    background: var(--accent-soft);
   }
 }
 
@@ -1005,12 +985,6 @@
 
 /* === Input Modal === */
 .input-modal {
-  width: 360px;
-  max-width: calc(100vw - 32px);
-  padding: 24px;
-  border-radius: var(--radius-lg);
-  z-index: 1;
-
   h3 {
     font-size: 16px;
     font-weight: 600;
@@ -1052,11 +1026,6 @@
 
 /* === Confirm Modal === */
 .confirm-modal {
-  width: 360px;
-  max-width: calc(100vw - 32px);
-  padding: 24px;
-  border-radius: var(--radius-lg);
-
   h3 {
     font-size: 16px;
     font-weight: 600;
@@ -1073,16 +1042,6 @@
 
 /* === Move Modal === */
 .move-modal {
-  width: 400px;
-  max-width: calc(100vw - 32px);
-  padding: 24px;
-  border-radius: var(--radius-lg);
-  background: var(--glass-bg-heavy);
-  backdrop-filter: var(--blur-2xl);
-  -webkit-backdrop-filter: var(--blur-2xl);
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow-lg), var(--glass-shadow-inset);
-
   .move-breadcrumb {
     display: flex;
     gap: 6px;
@@ -1167,16 +1126,6 @@
 
 /* === Share Modal === */
 .share-modal {
-  width: 420px;
-  max-width: calc(100vw - 32px);
-  padding: 24px;
-  border-radius: var(--radius-lg);
-  background: var(--glass-bg-heavy);
-  backdrop-filter: var(--blur-2xl);
-  -webkit-backdrop-filter: var(--blur-2xl);
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow-lg), var(--glass-shadow-inset);
-
   .share-link-box {
     display: flex;
     gap: 10px;
@@ -1217,16 +1166,6 @@
 
 /* === Download Modal === */
 .download-modal {
-  width: 400px;
-  max-width: calc(100vw - 32px);
-  padding: 24px;
-  border-radius: var(--radius-lg);
-  background: var(--glass-bg-heavy);
-  backdrop-filter: var(--blur-2xl);
-  -webkit-backdrop-filter: var(--blur-2xl);
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow-lg), var(--glass-shadow-inset);
-
   .download-input {
     width: 100%;
     padding: 12px 14px;
@@ -1401,18 +1340,8 @@
 
 /* === Transfer Panel === */
 .transfer-modal {
-  width: 380px;
-  max-width: calc(100vw - 32px);
   max-height: 70vh;
-  padding: 24px;
-  border-radius: var(--radius-lg);
-  background: var(--glass-bg-heavy);
-  backdrop-filter: var(--blur-2xl);
-  -webkit-backdrop-filter: var(--blur-2xl);
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow-lg), var(--glass-shadow-inset);
   overflow: auto;
-  animation: scaleIn 0.25s ease;
 
   .transfer-item {
     padding: 10px 0;
@@ -2004,8 +1933,7 @@
     -webkit-backdrop-filter: var(--blur-lg);
   }
 
-  .modal-glass,
-  .modal-container {
+  .modal-glass {
     width: 100%;
     max-width: 100%;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;

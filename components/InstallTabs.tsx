@@ -1,40 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { Copy, Check } from 'lucide-react'
 import { useClipboard } from '../hooks'
-
-function CopyIcon() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="square"
-    >
-      <rect x="5" y="5" width="9" height="9" rx="1.5" />
-      <path d="M3 11V3a1.5 1.5 0 0 1 1.5-1.5H11" />
-    </svg>
-  )
-}
-
-function CheckIcon() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="var(--success)"
-      strokeWidth="1.5"
-      strokeLinecap="square"
-    >
-      <path d="M3 8.5L6.5 12L13 4.5" />
-    </svg>
-  )
-}
 
 const tabs = [
   { id: 'npx', label: 'npx', command: 'npx most-box@latest' },
@@ -82,7 +50,7 @@ export function InstallTabs() {
           onClick={handleCopy}
           aria-label="复制命令"
         >
-          {copied ? <CheckIcon /> : <CopyIcon />}
+          {copied ? <Check size={16} /> : <Copy size={16} />}
         </button>
       </div>
     </div>

@@ -26,7 +26,7 @@ export function ConfirmModal({
   return (
     <ModalOverlay onClose={onClose} closeOnOverlayClick={closeOnOverlayClick}>
       <div
-        className="confirm-modal modal-container"
+        className="confirm-modal"
         onClick={e => e.stopPropagation()}
       >
         <div className="modal-header">

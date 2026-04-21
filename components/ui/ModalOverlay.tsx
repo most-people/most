@@ -18,7 +18,7 @@ export function ModalOverlay({
   return (
     <div className="modal-overlay" onClick={handleOverlayClick}>
       <div className="modal-overlay-backdrop" />
-      {children}
+      <div className="modal-glass">{children}</div>
     </div>
   )
 }

@@ -34,7 +34,7 @@ function SettingsDrawer({ onClose, addToast, isDarkMode, handleShutdown }) {
     setBackendInput(saved)
 
     api
-      .get('/api/data-path')
+      .get('/api/config/data-path')
       .json<{ dataPath?: string; isDefault?: boolean }>()
       .then(config => {
         const path = config.dataPath || ''

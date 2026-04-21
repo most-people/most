@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Plus } from 'lucide-react'
 
 const faqItems = [
   {
@@ -29,23 +30,6 @@ const faqItems = [
   },
 ]
 
-function PlusIcon() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="square"
-    >
-      <line x1="8" y1="3" x2="8" y2="13" />
-      <line x1="3" y1="8" x2="13" y2="8" />
-    </svg>
-  )
-}
-
 export function FAQ() {
   const [openIndex, setOpenIndex] = useState<number | null>(null)
 
@@ -65,7 +49,7 @@ export function FAQ() {
               >
                 <span>{item.q}</span>
                 <span className="mkt-faq-icon">
-                  <PlusIcon />
+                  <Plus size={16} />
                 </span>
               </button>
               {openIndex === i && (
