@@ -37,6 +37,7 @@
     "b4a": "^1.8.0",
     "busboy": "^1.6.0",
     "corestore": "^7.9.2",
+    "dayjs": "^1.11.20",
     "ethers": "^6.16.0",
     "eventemitter3": "^5.0.4",
     "hypercore": "^11.28.1",
@@ -47,9 +48,12 @@
     "lucide-react": "^1.7.0",
     "multiformats": "^13.4.2",
     "next": "^16.2.2",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "ws": "^8.20.0"
+    "tweetnacl": "^1.0.3",
+    "ws": "^8.20.0",
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -16,6 +16,8 @@ describe('userIdentity', () => {
       assert.ok(identity.address)
       assert.ok(identity.address.startsWith('0x'))
       assert.ok(identity.displayName.startsWith('匿名#'))
+      assert.ok(identity.danger)
+      assert.ok(identity.danger.startsWith('0x'))
     })
 
     it('produces consistent identity for same password', () => {
@@ -23,6 +25,7 @@ describe('userIdentity', () => {
       const id2 = createGuestIdentity('same-password')
       assert.strictEqual(id1.address, id2.address)
       assert.strictEqual(id1.displayName, id2.displayName)
+      assert.strictEqual(id1.danger, id2.danger)
     })
 
     it('produces different identities for different passwords', () => {
@@ -40,6 +43,8 @@ describe('userIdentity', () => {
       assert.ok(identity.address)
       assert.ok(identity.address.startsWith('0x'))
       assert.ok(identity.displayName.includes('alice'))
+      assert.ok(identity.danger)
+      assert.ok(identity.danger.startsWith('0x'))
     })
 
     it('produces consistent identity for same credentials', () => {
@@ -47,6 +52,7 @@ describe('userIdentity', () => {
       const id2 = createLoginIdentity('bob', 'pass123')
       assert.strictEqual(id1.address, id2.address)
       assert.strictEqual(id1.displayName, id2.displayName)
+      assert.strictEqual(id1.danger, id2.danger)
     })
 
     it('produces different identities for different usernames', () => {
