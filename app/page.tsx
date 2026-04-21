@@ -1,5 +1,7 @@
 'use client'
 
+import '../styles/marketing.css'
+
 import { useState, useEffect, useCallback } from 'react'
 import AppHomeMode from '../components/AppHomeMode'
 import MarketingLanding from '../components/MarketingLanding'
