@@ -132,7 +132,10 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
 
   describe('moveFile()', () => {
     it('renames a file', async () => {
-      const result = await engine.publishFile(Buffer.from('test'), 'old-name.txt')
+      const result = await engine.publishFile(
+        Buffer.from('test'),
+        'old-name.txt'
+      )
       const cid = result.cid
 
       const moved = engine.moveFile(cid, 'new-name.txt')
@@ -142,7 +145,10 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
 
   describe('deletePublishedFile() and trash', () => {
     it('moves file to trash', async () => {
-      const result = await engine.publishFile(Buffer.from('test'), 'to-delete.txt')
+      const result = await engine.publishFile(
+        Buffer.from('test'),
+        'to-delete.txt'
+      )
       const cid = result.cid
 
       await engine.deletePublishedFile(cid)
@@ -152,7 +158,10 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
     })
 
     it('restores file from trash', async () => {
-      const result = await engine.publishFile(Buffer.from('test'), 'to-restore.txt')
+      const result = await engine.publishFile(
+        Buffer.from('test'),
+        'to-restore.txt'
+      )
       const cid = result.cid
 
       await engine.deletePublishedFile(cid)
@@ -210,7 +219,10 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
 
   describe('emptyTrash()', () => {
     it('permanently deletes all trash files', async () => {
-      const result = await engine.publishFile(Buffer.from('trash-test'), 'empty-trash.txt')
+      const result = await engine.publishFile(
+        Buffer.from('trash-test'),
+        'empty-trash.txt'
+      )
       const cid = result.cid
 
       await engine.deletePublishedFile(cid)
@@ -265,20 +277,14 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
   describe('error handling', () => {
     it('throws EngineNotInitializedError before start', async () => {
       const newEngine = new MostBoxEngine({
-        dataPath: path.join(tmpDir, 'unstarted')
+        dataPath: path.join(tmpDir, 'unstarted'),
       })
 
-      assert.throws(
-        () => newEngine.getNodeId(),
-        /Engine not initialized/
-      )
+      assert.throws(() => newEngine.getNodeId(), /Engine not initialized/)
     })
 
     it('throws when creating engine without dataPath', () => {
-      assert.throws(
-        () => new MostBoxEngine({}),
-        /dataPath is required/
-      )
+      assert.throws(() => new MostBoxEngine({}), /dataPath is required/)
     })
   })
 
@@ -302,10 +308,7 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
     })
 
     it('rejects invalid channel names', async () => {
-      await assert.rejects(
-        engine.createChannel('ab'),
-        /至少 3 个字符/
-      )
+      await assert.rejects(engine.createChannel('ab'), /至少 3 个字符/)
     })
 
     it('rejects channel names with invalid characters', async () => {
@@ -369,7 +372,9 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
         await engine.sendMessage('limit-test', `msg${i}`)
       }
 
-      const messages = await engine.getChannelMessages('limit-test', { limit: 2 })
+      const messages = await engine.getChannelMessages('limit-test', {
+        limit: 2,
+      })
       assert.strictEqual(messages.length, 2)
       assert.strictEqual(messages[0].content, 'msg3')
       assert.strictEqual(messages[1].content, 'msg4')
@@ -381,7 +386,10 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
         await engine.sendMessage('offset-test', `msg${i}`)
       }
 
-      const messages = await engine.getChannelMessages('offset-test', { limit: 2, offset: 2 })
+      const messages = await engine.getChannelMessages('offset-test', {
+        limit: 2,
+        offset: 2,
+      })
       assert.strictEqual(messages.length, 2)
       assert.strictEqual(messages[0].content, 'msg1')
       assert.strictEqual(messages[1].content, 'msg2')
@@ -412,10 +420,7 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
     })
 
     it('throws for non-existent channel', async () => {
-      await assert.rejects(
-        engine.leaveChannel('does-not-exist'),
-        /频道不存在/
-      )
+      await assert.rejects(engine.leaveChannel('does-not-exist'), /频道不存在/)
     })
   })
 

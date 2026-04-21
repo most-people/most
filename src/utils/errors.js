@@ -34,14 +34,18 @@ export class PathSecurityError extends AppError {
 }
 
 export class PeerNotFoundError extends AppError {
-  constructor(message = 'No peers found. Please ensure the publisher is online.') {
+  constructor(
+    message = 'No peers found. Please ensure the publisher is online.'
+  ) {
     super(message, 'PEER_NOT_FOUND')
     this.name = 'PeerNotFoundError'
   }
 }
 
 export class IntegrityError extends AppError {
-  constructor(message = 'File integrity check failed. File may be corrupted or tampered.') {
+  constructor(
+    message = 'File integrity check failed. File may be corrupted or tampered.'
+  ) {
     super(message, 'INTEGRITY_ERROR')
     this.name = 'IntegrityError'
   }

@@ -28,9 +28,14 @@ describe('validateCidString', () => {
   })
 
   it('rejects CID v0 (does not start with b)', () => {
-    const result = validateCidString('QmT5NvUtoM5nWFfrQdVrFtvGfKFmG7AHE8P34isapyhCxX')
+    const result = validateCidString(
+      'QmT5NvUtoM5nWFfrQdVrFtvGfKFmG7AHE8P34isapyhCxX'
+    )
     assert.strictEqual(result.valid, false)
-    assert.strictEqual(result.error, 'Invalid CID format: CID v1 must start with "b"')
+    assert.strictEqual(
+      result.error,
+      'Invalid CID format: CID v1 must start with "b"'
+    )
   })
 
   it('accepts valid CID v1 with bafkreid prefix', () => {
@@ -38,11 +43,19 @@ describe('validateCidString', () => {
   })
 
   it('accepts valid CID v1 with longer hash', () => {
-    assert.strictEqual(validateCidString('bafkreidye2j2fjw4kj3wlJNN4k3qQ').valid, true)
+    assert.strictEqual(
+      validateCidString('bafkreidye2j2fjw4kj3wlJNN4k3qQ').valid,
+      true
+    )
   })
 
   it('accepts CID with numbers', () => {
-    assert.strictEqual(validateCidString('bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi').valid, true)
+    assert.strictEqual(
+      validateCidString(
+        'bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi'
+      ).valid,
+      true
+    )
   })
 })
 
@@ -70,24 +83,37 @@ describe('parseMostLink', () => {
   })
 
   it('strips extra path components', () => {
-    const result = parseMostLink('most://bafkreidye2j2fjw4kj3wlJNN4k3qQ/some/path')
+    const result = parseMostLink(
+      'most://bafkreidye2j2fjw4kj3wlJNN4k3qQ/some/path'
+    )
     assert.strictEqual(result.cid, 'bafkreidye2j2fjw4kj3wlJNN4k3qQ')
   })
 
   it('strips query string', () => {
-    const result = parseMostLink('most://bafkreidye2j2fjw4kj3wlJNN4k3qQ?foo=bar')
+    const result = parseMostLink(
+      'most://bafkreidye2j2fjw4kj3wlJNN4k3qQ?foo=bar'
+    )
     assert.strictEqual(result.cid, 'bafkreidye2j2fjw4kj3wlJNN4k3qQ')
   })
 
   it('rejects invalid CID format', () => {
     const result = parseMostLink('most://invalid')
     assert.strictEqual(result.cid, '')
-    assert.strictEqual(result.error, 'Invalid CID format: CID v1 must start with "b"')
+    assert.strictEqual(
+      result.error,
+      'Invalid CID format: CID v1 must start with "b"'
+    )
   })
 
   it('rejects null/undefined', () => {
-    assert.strictEqual(parseMostLink(null).error, 'Link must be a non-empty string')
-    assert.strictEqual(parseMostLink(undefined).error, 'Link must be a non-empty string')
+    assert.strictEqual(
+      parseMostLink(null).error,
+      'Link must be a non-empty string'
+    )
+    assert.strictEqual(
+      parseMostLink(undefined).error,
+      'Link must be a non-empty string'
+    )
   })
 
   it('trims whitespace inside CID', () => {
@@ -96,7 +122,12 @@ describe('parseMostLink', () => {
   })
 
   it('handles CID v0 with conversion attempt', () => {
-    const result = parseMostLink('most://QmT5NvUtoM5nWFfrQdVrFtvGfKFmG7AHE8P34isapyhCxX')
-    assert.strictEqual(result.error, 'Invalid CID format: CID v1 must start with "b"')
+    const result = parseMostLink(
+      'most://QmT5NvUtoM5nWFfrQdVrFtvGfKFmG7AHE8P34isapyhCxX'
+    )
+    assert.strictEqual(
+      result.error,
+      'Invalid CID format: CID v1 must start with "b"'
+    )
   })
 })

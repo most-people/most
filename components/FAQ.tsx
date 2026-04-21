@@ -31,7 +31,15 @@ const faqItems = [
 
 function PlusIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="square">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="square"
+    >
       <line x1="8" y1="3" x2="8" y2="13" />
       <line x1="3" y1="8" x2="13" y2="8" />
     </svg>
@@ -47,10 +55,18 @@ export function FAQ() {
         <h2 className="mkt-heading">常见问题</h2>
         <div className="mkt-faq-list">
           {faqItems.map((item, i) => (
-            <div key={i} className={`mkt-faq-item ${openIndex === i ? 'open' : ''}`}>
-              <button className="mkt-faq-question" onClick={() => setOpenIndex(openIndex === i ? null : i)}>
+            <div
+              key={i}
+              className={`mkt-faq-item ${openIndex === i ? 'open' : ''}`}
+            >
+              <button
+                className="mkt-faq-question"
+                onClick={() => setOpenIndex(openIndex === i ? null : i)}
+              >
                 <span>{item.q}</span>
-                <span className="mkt-faq-icon"><PlusIcon /></span>
+                <span className="mkt-faq-icon">
+                  <PlusIcon />
+                </span>
               </button>
               {openIndex === i && (
                 <div className="mkt-faq-answer">{item.a}</div>

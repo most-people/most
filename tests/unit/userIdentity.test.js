@@ -1,6 +1,11 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert'
-import { createGuestIdentity, createLoginIdentity, generateGuestPassword, getDisplayName } from '../../src/utils/userIdentity.js'
+import {
+  createGuestIdentity,
+  createLoginIdentity,
+  generateGuestPassword,
+  getDisplayName,
+} from '../../src/utils/userIdentity.js'
 
 describe('userIdentity', () => {
   describe('createGuestIdentity', () => {

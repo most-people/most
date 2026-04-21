@@ -20,7 +20,8 @@
     "dev": "next dev",
     "test": "node --test tests/**/*.test.js",
     "test:unit": "node --test tests/unit/*.test.js",
-    "lint": "eslint ."
+    "format": "npx prettier --write .",
+    "lint": "npx eslint ."
   },
   "keywords": [
     "p2p",
@@ -56,6 +57,7 @@
     "esbuild": "^0.28.0",
     "eslint": "^10.2.1",
     "globals": "^17.5.0",
+    "prettier": "^3.8.3",
     "typescript": "6.0.2"
   }
 }

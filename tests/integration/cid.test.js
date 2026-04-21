@@ -1,4 +1,4 @@
-import { describe, it, before, after } from 'node:test'
+import { describe, it, after } from 'node:test'
 import assert from 'node:assert'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -65,7 +65,7 @@ describe('calculateCid (real file I/O)', () => {
 
   it('handles large file content', async () => {
     const filePath = path.join(tmpDir, 'large-test.bin')
-    const testData = Buffer.alloc(1024 * 100, 0xAB) // 100KB
+    const testData = Buffer.alloc(1024 * 100, 0xab) // 100KB
     fs.writeFileSync(filePath, testData)
 
     const result = await calculateCid(filePath)
@@ -83,13 +83,12 @@ describe('calculateCid (real file I/O)', () => {
 
   it('throws error for non-existent file', async () => {
     const nonExistentPath = path.join(tmpDir, 'does-not-exist.txt')
-    await assert.rejects(
-      calculateCid(nonExistentPath),
-      (err) => {
-        assert.ok(err.message.includes('ENOENT') || err.message.includes('calculate CID'))
-        return true
-      }
-    )
+    await assert.rejects(calculateCid(nonExistentPath), err => {
+      assert.ok(
+        err.message.includes('ENOENT') || err.message.includes('calculate CID')
+      )
+      return true
+    })
   })
 
   it('handles empty file', async () => {
@@ -113,8 +112,12 @@ describe('calculateCid (real file I/O)', () => {
     const filePath = path.join(tmpDir, 'raw-leaves.txt')
     fs.writeFileSync(filePath, 'test')
 
-    const resultWithRawLeaves = await calculateCid(filePath, { rawLeaves: true })
-    const resultWithoutRawLeaves = await calculateCid(filePath, { rawLeaves: false })
+    const resultWithRawLeaves = await calculateCid(filePath, {
+      rawLeaves: true,
+    })
+    const resultWithoutRawLeaves = await calculateCid(filePath, {
+      rawLeaves: false,
+    })
 
     assert.ok(resultWithRawLeaves.cid)
     assert.ok(resultWithoutRawLeaves.cid)

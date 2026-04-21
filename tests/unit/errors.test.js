@@ -9,7 +9,7 @@ import {
   IntegrityError,
   PermissionError,
   EngineNotInitializedError,
-  isErrorWithCode
+  isErrorWithCode,
 } from '../../src/utils/errors.js'
 
 describe('AppError', () => {
@@ -97,7 +97,9 @@ describe('IntegrityError', () => {
 
   it('has default message about corruption', () => {
     const err = new IntegrityError()
-    assert.ok(err.message.includes('corrupted') || err.message.includes('tampered'))
+    assert.ok(
+      err.message.includes('corrupted') || err.message.includes('tampered')
+    )
   })
 })
 

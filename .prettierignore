@@ -1,0 +1,8 @@
+out
+.next
+node_modules
+package-lock.json
+public/bundle.js
+public/bundle.js.map
+public/index.js
+public/chat-page.js

@@ -4,7 +4,7 @@
    ============================================= */
 
 /* === Dark Theme Support === */
-[data-theme="dark"] {
+[data-theme='dark'] {
   --chat-bg-secondary: rgba(28, 28, 30, 0.6);
   --chat-bg-tertiary: rgba(44, 44, 46, 0.4);
   --chat-border: rgba(255, 255, 255, 0.08);

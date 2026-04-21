@@ -30,7 +30,7 @@ npx most-box@latest
 
 > 注意：使用 `@latest` 确保每次运行最新版本。
 
-浏览器自动访问 **http://127.0.0.1:1976**
+浏览器自动访问 **http://localhost:1976**
 
 ## 需求
 
@@ -56,7 +56,7 @@ npm run test:unit # 只运行单元测试
 
 | 场景 | 命令                                       | 访问地址                  |
 | ---- | ------------------------------------------ | ------------------------- |
-| 本地 | `npx most-box`                             | `http://127.0.0.1:1976`   |
+| 本地 | `npx most-box`                             | `http://localhost:1976`   |
 | 内网 | `set MOSTBOX_HOST=0.0.0.0 && npx most-box` | `http://<IP>:1976`        |
 | 外网 | Caddy 反向代理                             | `https://your-domain.com` |
 
@@ -120,6 +120,7 @@ mostbox.example.com {
 ### 频道聊天是什么？
 
 频道聊天是 MostBox 的 P2P 即时通讯功能：
+
 - 创建一个频道（如 `alice` 或 `team-project`）
 - 将频道名称分享给朋友
 - 朋友加入后即可实时聊天
@@ -141,7 +142,7 @@ mostbox.example.com {
 npx most-box
 ```
 
-浏览器访问 `http://127.0.0.1:1976`，输入链接即可下载。
+浏览器访问 `http://localhost:1976`，输入链接即可下载。
 
 ## 路线图
 

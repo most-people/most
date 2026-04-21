@@ -1,8 +1,8 @@
-"use client";
+'use client'
 
-import { useState, useEffect } from "react";
-import { useMediaQuery } from "@mantine/hooks";
-import Link from "next/link";
+import { useState, useEffect } from 'react'
+import { useMediaQuery } from '@mantine/hooks'
+import Link from 'next/link'
 
 function LogoIcon() {
   return (
@@ -42,7 +42,7 @@ function LogoIcon() {
       />
       <rect x="14" y="14" width="8" height="8" rx="2" fill="var(--accent)" />
     </svg>
-  );
+  )
 }
 
 function SunIcon() {
@@ -66,7 +66,7 @@ function SunIcon() {
       <line x1="3" y1="13" x2="4.5" y2="11.5" />
       <line x1="11.5" y1="4.5" x2="13" y2="3" />
     </svg>
-  );
+  )
 }
 
 function MoonIcon() {
@@ -82,7 +82,7 @@ function MoonIcon() {
     >
       <path d="M6 1.5A6.5 6.5 0 1 0 14.5 10 5 5 0 0 1 6 1.5z" />
     </svg>
-  );
+  )
 }
 
 function MenuIcon() {
@@ -100,7 +100,7 @@ function MenuIcon() {
       <line x1="3" y1="12" x2="21" y2="12" />
       <line x1="3" y1="18" x2="21" y2="18" />
     </svg>
-  );
+  )
 }
 
 function GearIcon() {
@@ -117,35 +117,35 @@ function GearIcon() {
       <circle cx="8" cy="8" r="3" />
       <path d="M13.5 8c0-.5-.1-1-.2-1.4l1.2-1-1.2-2-1.5.6c-.4-.3-.9-.6-1.4-.8L10 2H8L7.6 3.4c-.5.2-1 .5-1.4.8L4.7 3.6 3.5 5.6l1.2 1c-.1.4-.2.9-.2 1.4s.1 1 .2 1.4l-1.2 1 1.2 2 1.5-.6c.4.3.9.6 1.4.8L8 14h2l.4-1.4c.5-.2 1-.5 1.4-.8l1.5.6 1.2-2-1.2-1c.1-.4.2-.9.2-1.4z" />
     </svg>
-  );
+  )
 }
 
 const navItems = [
-  { href: "/docs/getting-started/", label: "文档" },
-  { href: "/changelog/", label: "更新日志" },
-];
+  { href: '/docs/getting-started/', label: '文档' },
+  { href: '/changelog/', label: '更新日志' },
+]
 
 export function Nav() {
-  const [open, setOpen] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [open, setOpen] = useState(false)
+  const [isDarkMode, setIsDarkMode] = useState(false)
 
   useEffect(() => {
-    const saved = localStorage.getItem("theme");
+    const saved = localStorage.getItem('theme')
     const prefersDark = window.matchMedia(
-      "(prefers-color-scheme: dark)",
-    ).matches;
-    if (saved === "dark" || (!saved && prefersDark)) {
-      setIsDarkMode(true);
+      '(prefers-color-scheme: dark)'
+    ).matches
+    if (saved === 'dark' || (!saved && prefersDark)) {
+      setIsDarkMode(true)
     }
-  }, []);
+  }, [])
 
   useEffect(() => {
     document.documentElement.setAttribute(
-      "data-theme",
-      isDarkMode ? "dark" : "light",
-    );
-    localStorage.setItem("theme", isDarkMode ? "dark" : "light");
-  }, [isDarkMode]);
+      'data-theme',
+      isDarkMode ? 'dark' : 'light'
+    )
+    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light')
+  }, [isDarkMode])
 
   return (
     <>
@@ -156,8 +156,8 @@ export function Nav() {
             MostBox
           </Link>
 
-          <div className={`mkt-nav-links ${open ? "open" : ""}`}>
-            {navItems.map((item) => (
+          <div className={`mkt-nav-links ${open ? 'open' : ''}`}>
+            {navItems.map(item => (
               <Link
                 key={item.href}
                 href={item.href}
@@ -169,13 +169,13 @@ export function Nav() {
             <button
               className="mkt-theme-toggle mkt-mobile-only"
               onClick={() => {
-                setIsDarkMode(!isDarkMode);
-                setOpen(false);
+                setIsDarkMode(!isDarkMode)
+                setOpen(false)
               }}
               aria-label="切换主题"
             >
               {isDarkMode ? <SunIcon /> : <MoonIcon />}
-              {isDarkMode ? " 亮色模式" : " 暗色模式"}
+              {isDarkMode ? ' 亮色模式' : ' 暗色模式'}
             </button>
           </div>
 
@@ -202,5 +202,5 @@ export function Nav() {
         </div>
       </nav>
     </>
-  );
+  )
 }

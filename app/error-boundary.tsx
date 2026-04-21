@@ -11,7 +11,10 @@ interface ErrorBoundaryProps {
   children: React.ReactNode
 }
 
-export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+export class ErrorBoundary extends React.Component<
+  ErrorBoundaryProps,
+  ErrorBoundaryState
+> {
   constructor(props: ErrorBoundaryProps) {
     super(props)
     this.state = { hasError: false, error: null }
@@ -32,23 +35,48 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{
-          display: 'flex', flexDirection: 'column', alignItems: 'center',
-          justifyContent: 'center', minHeight: '100vh', padding: 32,
-          background: '#f8fafc', fontFamily: 'system-ui'
-        }}>
-          <h1 style={{ fontSize: 20, fontWeight: 600, marginBottom: 8, color: '#1e293b' }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: '100vh',
+            padding: 32,
+            background: '#f8fafc',
+            fontFamily: 'system-ui',
+          }}
+        >
+          <h1
+            style={{
+              fontSize: 20,
+              fontWeight: 600,
+              marginBottom: 8,
+              color: '#1e293b',
+            }}
+          >
             出错了
           </h1>
-          <p style={{ color: '#64748b', marginBottom: 24, textAlign: 'center', maxWidth: 400 }}>
+          <p
+            style={{
+              color: '#64748b',
+              marginBottom: 24,
+              textAlign: 'center',
+              maxWidth: 400,
+            }}
+          >
             发生了意外错误，请尝试重新加载页面
           </p>
           <button
             onClick={this.handleReload}
             style={{
-              padding: '10px 24px', borderRadius: 8, border: 'none',
-              background: '#3b82f6', color: '#fff', fontSize: 14,
-              cursor: 'pointer'
+              padding: '10px 24px',
+              borderRadius: 8,
+              border: 'none',
+              background: '#3b82f6',
+              color: '#fff',
+              fontSize: 14,
+              cursor: 'pointer',
             }}
           >
             重新加载

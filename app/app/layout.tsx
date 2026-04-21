@@ -5,6 +5,10 @@ export const metadata = {
   description: 'MostBox P2P 文件分享',
 }
 
-export default function AppRootLayout({ children }: { children: React.ReactNode }) {
+export default function AppRootLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
   return <AppProvider>{children}</AppProvider>
 }

@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "1976:1976"
+      - '1976:1976'
     environment:
       - NODE_ENV=development
       - MOSTBOX_HOST=0.0.0.0

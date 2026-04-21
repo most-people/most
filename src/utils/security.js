@@ -4,7 +4,6 @@ import crypto from 'node:crypto'
 
 import { MAX_FILE_SIZE } from '../config.js'
 
-const DANGEROUS_CHARS = /[<>:"|?*\x00-\x1f]/g
 const DANGEROUS_PREFIXES = /^[\s.]+|[\s.]+$/
 const RESERVED_NAMES = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i
 
@@ -17,29 +16,29 @@ export function sanitizeFilename(filename) {
   if (typeof filename !== 'string') {
     throw new Error('Filename must be a string')
   }
-  
+
   let sanitized = filename
-  
+
   // 将反斜杠规范化为正斜杠（S3 风格路径）
   sanitized = sanitized.replace(/\\/g, '/')
-  
+
   // 移除危险字符但保留 / 以支持文件夹路径
   sanitized = sanitized.replace(/[<>:"|?*\x00-\x1f]/g, '_')
-  
+
   // 移除危险前缀/后缀
   sanitized = sanitized.replace(DANGEROUS_PREFIXES, '')
-  
+
   // 防止路径遍历
   while (sanitized.includes('..')) {
     sanitized = sanitized.replace(/\.\./g, '_')
   }
-  
+
   // 规范多个连续斜杠
   sanitized = sanitized.replace(/\/{2,}/g, '/')
-  
+
   // 移除首尾斜杠
   sanitized = sanitized.replace(/^\/+|\/+$/g, '')
-  
+
   // 单独清理每个路径段
   const segments = sanitized.split('/')
   const safeSegments = segments.map(seg => {
@@ -50,9 +49,9 @@ export function sanitizeFilename(filename) {
     }
     return safe.substring(0, 255) || 'unnamed'
   })
-  
+
   sanitized = safeSegments.join('/')
-  
+
   return sanitized || 'unnamed_file'
 }
 
@@ -67,28 +66,34 @@ export function validateAndSanitizePath(inputPath, options = {}) {
   if (typeof inputPath !== 'string') {
     return { cleanPath: '', error: 'Path must be a string' }
   }
-  
+
   let cleanPath = inputPath
-  
+
   cleanPath = cleanPath.replace(/[\u200B-\u200D\uFEFF\u202A-\u202E]/g, '')
-  
+
   cleanPath = cleanPath.replace(/"/g, '').trim()
-  
+
   const pathTraversalPattern = /\.\./
   if (pathTraversalPattern.test(cleanPath)) {
-    return { cleanPath: '', error: 'Path traversal detected: path cannot contain ".."' }
+    return {
+      cleanPath: '',
+      error: 'Path traversal detected: path cannot contain ".."',
+    }
   }
-  
+
   cleanPath = path.normalize(cleanPath)
-  
+
   if (options.allowedBase) {
     const resolvedPath = path.resolve(cleanPath)
     const allowedBase = path.resolve(options.allowedBase)
-    if (resolvedPath !== allowedBase && !resolvedPath.startsWith(allowedBase + path.sep)) {
+    if (
+      resolvedPath !== allowedBase &&
+      !resolvedPath.startsWith(allowedBase + path.sep)
+    ) {
       return { cleanPath: '', error: 'Path must be within allowed directory' }
     }
   }
-  
+
   return { cleanPath }
 }
 
@@ -102,20 +107,20 @@ export async function validateFileSize(filePath, maxSize = MAX_FILE_SIZE) {
   try {
     const stats = await fs.promises.stat(filePath)
     const size = stats.size
-    
+
     if (!stats.isFile()) {
       return { valid: false, error: 'Path is not a file' }
     }
-    
+
     if (size > maxSize) {
       const maxGB = Math.round(maxSize / (1024 * 1024 * 1024))
-      return { 
-        valid: false, 
-        size, 
-        error: `File size exceeds limit of ${maxGB} GB` 
+      return {
+        valid: false,
+        size,
+        error: `File size exceeds limit of ${maxGB} GB`,
       }
     }
-    
+
     return { valid: true, size }
   } catch (err) {
     if (err.code === 'ENOENT') {
@@ -135,16 +140,16 @@ export async function checkDirectoryWritable(dirPath) {
     if (!fs.existsSync(dirPath)) {
       fs.mkdirSync(dirPath, { recursive: true })
     }
-    
+
     const testFile = path.join(dirPath, `.write-test-${crypto.randomUUID()}`)
     await fs.promises.writeFile(testFile, 'test')
     await fs.promises.unlink(testFile)
-    
+
     return { writable: true }
   } catch (err) {
-    return { 
-      writable: false, 
-      error: `Cannot write to directory: ${err.message}` 
+    return {
+      writable: false,
+      error: `Cannot write to directory: ${err.message}`,
     }
   }
 }
@@ -158,12 +163,11 @@ export function formatFileSize(bytes) {
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
   let unitIndex = 0
   let size = bytes
-  
+
   while (size >= 1024 && unitIndex < units.length - 1) {
     size /= 1024
     unitIndex++
   }
-  
+
   return `${size.toFixed(2)} ${units[unitIndex]}`
 }
-

@@ -43,8 +43,8 @@
 
   /* === Typography === */
   --font-sans:
-    -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
-    "PingFang SC", "Microsoft YaHei", sans-serif;
+    -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text',
+    'PingFang SC', 'Microsoft YaHei', sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
   /* === Radii === */
@@ -80,7 +80,7 @@
   --transition-spring: 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-[data-theme="dark"] {
+[data-theme='dark'] {
   --bg-primary: #000000;
   --bg-secondary: #0a0a0a;
   --bg-tertiary: #141416;
@@ -134,7 +134,7 @@ body {
 
 /* === Dynamic Background === */
 body::before {
-  content: "";
+  content: '';
   position: fixed;
   inset: 0;
   z-index: -1;
@@ -157,7 +157,7 @@ body::before {
   pointer-events: none;
 }
 
-[data-theme="dark"] body::before {
+[data-theme='dark'] body::before {
   background:
     radial-gradient(
       ellipse 80% 60% at 20% 10%,

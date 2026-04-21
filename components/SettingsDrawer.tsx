@@ -1,124 +1,124 @@
-"use client";
+'use client'
 
-import React, { useState, useEffect, useRef } from "react";
-import { X, Copy, Globe, ChevronDown, Power, Link } from "lucide-react";
-import { api } from "../src/utils/api";
-import { useClipboard } from "../hooks";
+import React, { useState, useEffect, useRef } from 'react'
+import { X, Copy, Globe, ChevronDown, Power, Link } from 'lucide-react'
+import { api } from '../src/utils/api'
+import { useClipboard } from '../hooks'
 import {
   setBackendUrl,
   getBackendUrlExport,
   checkBackendConnection,
   detectSameOriginBackend,
   detectLocalhostBackend,
-} from "../src/utils/api";
+} from '../src/utils/api'
 
 function SettingsDrawer({ onClose, addToast, isDarkMode, handleShutdown }) {
-  const { copy } = useClipboard();
-  const [dataPath, setStoragePath] = useState("");
-  const [originalPath, setOriginalPath] = useState("");
-  const [isDefault, setIsDefault] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [networkAddresses, setNetworkAddresses] = useState([]);
-  const [networkPort, setNetworkPort] = useState(1976);
-  const [showGuide, setShowGuide] = useState(false);
-  const [backendUrl, setBackendUrlState] = useState("");
-  const [backendInput, setBackendInput] = useState("");
-  const [backendConnecting, setBackendConnecting] = useState(false);
-  const [backendStatus, setBackendStatus] = useState("");
-  const drawerRef = useRef(null);
+  const { copy } = useClipboard()
+  const [dataPath, setStoragePath] = useState('')
+  const [originalPath, setOriginalPath] = useState('')
+  const [isDefault, setIsDefault] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [networkAddresses, setNetworkAddresses] = useState([])
+  const [networkPort, setNetworkPort] = useState(1976)
+  const [showGuide, setShowGuide] = useState(false)
+  const [backendUrl, setBackendUrlState] = useState('')
+  const [backendInput, setBackendInput] = useState('')
+  const [backendConnecting, setBackendConnecting] = useState(false)
+  const [backendStatus, setBackendStatus] = useState('')
+  const drawerRef = useRef(null)
 
   useEffect(() => {
-    const saved = getBackendUrlExport();
-    setBackendUrlState(saved);
-    setBackendInput(saved);
+    const saved = getBackendUrlExport()
+    setBackendUrlState(saved)
+    setBackendInput(saved)
 
     api
-      .get("/api/data-path")
+      .get('/api/data-path')
       .json<{ dataPath?: string; isDefault?: boolean }>()
-      .then((config) => {
-        const path = config.dataPath || "";
-        setStoragePath(path);
-        setOriginalPath(path);
-        setIsDefault(config.isDefault || false);
-        setLoading(false);
+      .then(config => {
+        const path = config.dataPath || ''
+        setStoragePath(path)
+        setOriginalPath(path)
+        setIsDefault(config.isDefault || false)
+        setLoading(false)
       })
-      .catch(() => setLoading(false));
+      .catch(() => setLoading(false))
 
     api
-      .get("/api/network")
+      .get('/api/network')
       .json<{
-        addresses?: { type: string; ip: string; label: string }[];
-        port?: number;
+        addresses?: { type: string; ip: string; label: string }[]
+        port?: number
       }>()
-      .then((data) => {
-        setNetworkAddresses(data.addresses || []);
-        setNetworkPort(data.port || 1976);
+      .then(data => {
+        setNetworkAddresses(data.addresses || [])
+        setNetworkPort(data.port || 1976)
       })
-      .catch(() => {});
-  }, []);
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (!backendUrl) {
-      detectSameOriginBackend().then((detected) => {
+      detectSameOriginBackend().then(detected => {
         if (detected) {
-          setBackendStatus("检测到同域名后端");
-          return;
+          setBackendStatus('检测到同域名后端')
+          return
         }
-        detectLocalhostBackend().then((localDetected) => {
+        detectLocalhostBackend().then(localDetected => {
           if (localDetected) {
-            setBackendInput("http://localhost:1976");
-            setBackendStatus("检测到本地后端 localhost:1976");
+            setBackendInput('http://localhost:1976')
+            setBackendStatus('检测到本地后端 localhost:1976')
           }
-        });
-      });
+        })
+      })
     }
-  }, [backendUrl]);
+  }, [backendUrl])
 
   const handleSavePath = async () => {
-    if (!dataPath.trim()) return;
-    if (dataPath.trim() === originalPath) return;
-    setSaving(true);
+    if (!dataPath.trim()) return
+    if (dataPath.trim() === originalPath) return
+    setSaving(true)
     try {
-      await api.post("/api/config", { json: { dataPath: dataPath.trim() } });
-      await api.post("/api/shutdown");
-      window.close();
+      await api.post('/api/config', { json: { dataPath: dataPath.trim() } })
+      await api.post('/api/shutdown')
+      window.close()
     } catch (err) {
-      addToast(err.message || "保存失败", "error");
-      setSaving(false);
+      addToast(err.message || '保存失败', 'error')
+      setSaving(false)
     }
-  };
+  }
 
   const handleResetPath = async () => {
-    if (originalPath === "") return;
-    setSaving(true);
+    if (originalPath === '') return
+    setSaving(true)
     try {
-      await api.post("/api/config", { json: { resetStorage: true } });
-      await api.post("/api/shutdown");
-      window.close();
+      await api.post('/api/config', { json: { resetStorage: true } })
+      await api.post('/api/shutdown')
+      window.close()
     } catch (err) {
-      addToast(err.message || "操作失败", "error");
-      setSaving(false);
+      addToast(err.message || '操作失败', 'error')
+      setSaving(false)
     }
-  };
+  }
 
-  const handleSaveBackend = async (e) => {
-    e.preventDefault();
-    const url = backendInput.trim();
-    setBackendConnecting(true);
-    setBackendStatus("连接中...");
-    setBackendUrl(url);
-    const ok = await checkBackendConnection();
-    setBackendConnecting(false);
+  const handleSaveBackend = async e => {
+    e.preventDefault()
+    const url = backendInput.trim()
+    setBackendConnecting(true)
+    setBackendStatus('连接中...')
+    setBackendUrl(url)
+    const ok = await checkBackendConnection()
+    setBackendConnecting(false)
     if (ok) {
-      setBackendStatus("连接成功，刷新中...");
-      setTimeout(() => window.location.reload(), 500);
+      setBackendStatus('连接成功，刷新中...')
+      setTimeout(() => window.location.reload(), 500)
     } else {
-      setBackendStatus("连接失败，请检查地址是否正确");
+      setBackendStatus('连接失败，请检查地址是否正确')
     }
-  };
+  }
 
-  const isPathChanged = dataPath.trim() !== originalPath;
+  const isPathChanged = dataPath.trim() !== originalPath
 
   return (
     <>
@@ -126,7 +126,7 @@ function SettingsDrawer({ onClose, addToast, isDarkMode, handleShutdown }) {
       <div
         className="settings-drawer"
         ref={drawerRef}
-        onClick={(e) => e.stopPropagation()}
+        onClick={e => e.stopPropagation()}
       >
         <div className="drawer-header">
           <h2 className="drawer-title">设置</h2>
@@ -142,7 +142,7 @@ function SettingsDrawer({ onClose, addToast, isDarkMode, handleShutdown }) {
               <input
                 type="text"
                 value={backendInput}
-                onChange={(e) => setBackendInput(e.target.value)}
+                onChange={e => setBackendInput(e.target.value)}
                 placeholder="留空使用同域名后端"
                 className="drawer-input"
               />
@@ -151,12 +151,12 @@ function SettingsDrawer({ onClose, addToast, isDarkMode, handleShutdown }) {
                 disabled={backendConnecting}
                 className="btn primary btn-nowrap"
               >
-                {backendConnecting ? "连接中..." : "保存"}
+                {backendConnecting ? '连接中...' : '保存'}
               </button>
             </form>
             {backendStatus && (
               <p
-                className={`drawer-status ${backendStatus.includes("成功") ? "status-success" : backendStatus.includes("失败") ? "status-error" : ""}`}
+                className={`drawer-status ${backendStatus.includes('成功') ? 'status-success' : backendStatus.includes('失败') ? 'status-error' : ''}`}
               >
                 {backendStatus}
               </p>
@@ -171,7 +171,7 @@ function SettingsDrawer({ onClose, addToast, isDarkMode, handleShutdown }) {
               <input
                 type="text"
                 value={dataPath}
-                onChange={(e) => setStoragePath(e.target.value)}
+                onChange={e => setStoragePath(e.target.value)}
                 placeholder="如 D:\"
                 disabled={loading}
                 className="drawer-input"
@@ -181,7 +181,7 @@ function SettingsDrawer({ onClose, addToast, isDarkMode, handleShutdown }) {
                 disabled={saving || loading || !isPathChanged}
                 className="btn primary btn-nowrap"
               >
-                {saving ? "保存中..." : "保存"}
+                {saving ? '保存中...' : '保存'}
               </button>
               {!isDefault && (
                 <button
@@ -210,14 +210,14 @@ function SettingsDrawer({ onClose, addToast, isDarkMode, handleShutdown }) {
                     {addr.label}
                   </span>
                   <code className="address-url">
-                    {addr.type === "local" ? "http" : "http"}://{addr.ip}:
+                    {addr.type === 'local' ? 'http' : 'http'}://{addr.ip}:
                     {networkPort}
                   </code>
                   <button
                     className="copy-btn"
                     onClick={() => {
-                      copy(`http://${addr.ip}:${networkPort}`);
-                      addToast("已复制", "success");
+                      copy(`http://${addr.ip}:${networkPort}`)
+                      addToast('已复制', 'success')
                     }}
                   >
                     <Copy size={13} />
@@ -234,7 +234,7 @@ function SettingsDrawer({ onClose, addToast, isDarkMode, handleShutdown }) {
               <span>如何从外网访问？</span>
               <ChevronDown
                 size={14}
-                className={`guide-toggle-icon ${showGuide ? "rotated" : ""}`}
+                className={`guide-toggle-icon ${showGuide ? 'rotated' : ''}`}
               />
             </button>
             {showGuide && (
@@ -289,8 +289,8 @@ function SettingsDrawer({ onClose, addToast, isDarkMode, handleShutdown }) {
         <div className="drawer-footer">
           <button
             onClick={() => {
-              onClose();
-              handleShutdown();
+              onClose()
+              handleShutdown()
             }}
             className="btn danger full btn-shutdown"
           >
@@ -299,7 +299,7 @@ function SettingsDrawer({ onClose, addToast, isDarkMode, handleShutdown }) {
         </div>
       </div>
     </>
-  );
+  )
 }
 
-export default SettingsDrawer;
+export default SettingsDrawer

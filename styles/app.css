@@ -582,6 +582,7 @@
 .modal-overlay-backdrop {
   position: absolute;
   inset: 0;
+  z-index: 0;
   background: rgba(0, 0, 0, 0.3);
   backdrop-filter: var(--blur-xl);
   -webkit-backdrop-filter: var(--blur-xl);
@@ -591,6 +592,8 @@
 /* === Glass Modal Base === */
 .modal-glass,
 .modal-container {
+  position: relative;
+  z-index: 1;
   width: 380px;
   max-width: calc(100vw - 32px);
   padding: 24px;

@@ -12,8 +12,8 @@ export default [
       'public/bundle.js.map',
       'public/index.js',
       'public/chat-page.js',
-      'node_modules/**'
-    ]
+      'node_modules/**',
+    ],
   },
   {
     rules: {
@@ -33,7 +33,7 @@ export default [
       'no-func-assign': 'off',
       'getter-return': 'off',
       'no-unreachable': 'off',
-      'no-undef': 'warn'
-    }
-  }
+      'no-undef': 'warn',
+    },
+  },
 ]

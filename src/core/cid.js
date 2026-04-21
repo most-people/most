@@ -13,16 +13,18 @@ import { importer } from 'ipfs-unixfs-importer'
  */
 function createDummyBlockstore() {
   return {
-    put: async (key, val) => key,
-    get: async () => { throw new Error('Not implemented') },
-    has: async () => false
+    put: async (key, _val) => key,
+    get: async () => {
+      throw new Error('Not implemented')
+    },
+    has: async () => false,
   }
 }
 
 /**
  * 计算内容的 IPFS UnixFS CID v1
  * 使用流式方法高效处理大文件
- * 
+ *
  * @param {string|Buffer|AsyncIterable} content - 文件路径（字符串）、Buffer 或异步迭代器
  * @param {object} options - 计算选项
  * @param {boolean} [options.rawLeaves=true] - 使用原始叶子节点以支持现代 CID
@@ -31,17 +33,13 @@ function createDummyBlockstore() {
  * @returns {Promise<{cid: import('multiformats/cid').CID, size: number}>}
  */
 export async function calculateCid(content, options = {}) {
-  const {
-    rawLeaves = true,
-    cidVersion = 1,
-    size: providedSize
-  } = options
+  const { rawLeaves = true, cidVersion = 1, size: providedSize } = options
 
   const blockstore = createDummyBlockstore()
-  
+
   let rootCid = null
   let totalSize = providedSize || 0
-  
+
   let source
 
   if (typeof content === 'string') {
@@ -52,28 +50,34 @@ export async function calculateCid(content, options = {}) {
     } catch {
       // 忽略 stat 错误，大小将为 0
     }
-    source = [{
-      path: 'file',
-      content: fs.createReadStream(filePath)
-    }]
+    source = [
+      {
+        path: 'file',
+        content: fs.createReadStream(filePath),
+      },
+    ]
   } else if (Buffer.isBuffer(content)) {
     totalSize = content.length
-    source = [{
-      path: 'file',
-      content: Readable.from(content)
-    }]
+    source = [
+      {
+        path: 'file',
+        content: Readable.from(content),
+      },
+    ]
   } else {
-    source = [{
-      path: 'file',
-      content
-    }]
+    source = [
+      {
+        path: 'file',
+        content,
+      },
+    ]
   }
 
   try {
     for await (const entry of importer(source, blockstore, {
       cidVersion,
       rawLeaves,
-      wrapWithDirectory: false
+      wrapWithDirectory: false,
     })) {
       rootCid = entry.cid
     }
@@ -87,7 +91,7 @@ export async function calculateCid(content, options = {}) {
 
   return {
     cid: rootCid,
-    size: totalSize
+    size: totalSize,
   }
 }
 
@@ -102,7 +106,10 @@ export function validateCidString(cidString) {
   }
 
   if (!cidString.startsWith('b')) {
-    return { valid: false, error: 'Invalid CID format: CID v1 must start with "b"' }
+    return {
+      valid: false,
+      error: 'Invalid CID format: CID v1 must start with "b"',
+    }
   }
 
   return { valid: true }
@@ -119,14 +126,14 @@ export function parseMostLink(link) {
   }
 
   let cidString = link
-  
+
   if (link.startsWith('most://')) {
     cidString = link.replace('most://', '')
   }
 
   // 移除尾部斜杠和空白
   cidString = cidString.trim().replace(/\/+$/, '')
-  
+
   // 移除 query string，提取 filename
   let fileName = null
   if (cidString.includes('?')) {

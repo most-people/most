@@ -1,5 +1,12 @@
 import { randomBytes } from 'node:crypto'
-import { pbkdf2, sha256, getBytes, Mnemonic, HDNodeWallet, toUtf8Bytes } from 'ethers'
+import {
+  pbkdf2,
+  sha256,
+  getBytes,
+  Mnemonic,
+  HDNodeWallet,
+  toUtf8Bytes,
+} from 'ethers'
 
 const SALT_PREFIX = '/most.box/'
 const PBKDF2_ITERATIONS = 3
@@ -22,7 +29,7 @@ export function createGuestIdentity(password) {
     username,
     password,
     address,
-    displayName: `匿名#${address.slice(2, 8)}`
+    displayName: `匿名#${address.slice(2, 8)}`,
   }
 }
 
@@ -32,7 +39,7 @@ export function createLoginIdentity(username, password) {
     username,
     password,
     address,
-    displayName: `${username}#${address.slice(-4).toUpperCase()}`
+    displayName: `${username}#${address.slice(-4).toUpperCase()}`,
   }
 }
 

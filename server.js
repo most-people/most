@@ -106,7 +106,7 @@ const MIME_TYPES = {
   '.m4a': 'audio/mp4',
   '.opus': 'audio/opus',
   '.woff2': 'font/woff2',
-  '.woff': 'font/woff'
+  '.woff': 'font/woff',
 }
 
 function getMimeType(fileName) {
@@ -120,7 +120,6 @@ function serveStatic(req, res) {
   filePath = filePath.split('?')[0]
 
   const fullPath = path.join(publicDir, filePath)
-  const ext = path.extname(fullPath)
 
   if (!fullPath.startsWith(publicDir)) {
     res.writeHead(403)
@@ -157,7 +156,9 @@ function serveStatic(req, res) {
     }
 
     const ext = path.extname(fullPath)
-    res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' })
+    res.writeHead(200, {
+      'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
+    })
     res.end(data)
   })
 }
@@ -165,7 +166,9 @@ function serveStatic(req, res) {
 function decodeFilenameFromHeader(headerStr) {
   if (!headerStr) return null
 
-  const filenameStarMatch = headerStr.match(/filename\*=(?:UTF-8''|utf-8'')([^;\r\n]+)/i)
+  const filenameStarMatch = headerStr.match(
+    /filename\*=(?:UTF-8''|utf-8'')([^;\r\n]+)/i
+  )
   if (filenameStarMatch) {
     return decodeURIComponent(filenameStarMatch[1])
   }
@@ -203,8 +206,8 @@ function parseMultipartBusboy(req) {
       limits: {
         fileSize: MAX_UPLOAD_SIZE,
         files: 1,
-        fields: 0
-      }
+        fields: 0,
+      },
     })
 
     const result = { filePath: null, filename: null }
@@ -214,10 +217,13 @@ function parseMultipartBusboy(req) {
 
     busboy.on('file', (name, stream, info) => {
       result.filename = decodeFilenameFromHeader(`filename="${info.filename}"`)
-      tempPath = path.join(UPLOAD_TMP_DIR, `upload_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`)
+      tempPath = path.join(
+        UPLOAD_TMP_DIR,
+        `upload_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+      )
       writeStream = fs.createWriteStream(tempPath)
 
-      stream.on('data', (chunk) => {
+      stream.on('data', chunk => {
         fileSize += chunk.length
         if (fileSize > MAX_UPLOAD_SIZE) {
           stream.destroy()
@@ -239,13 +245,13 @@ function parseMultipartBusboy(req) {
         resolve(result)
       })
 
-      writeStream.on('error', (err) => {
+      writeStream.on('error', err => {
         if (tempPath) fs.unlink(tempPath, () => {})
         reject(err)
       })
     })
 
-    busboy.on('error', (err) => {
+    busboy.on('error', err => {
       if (tempPath) fs.unlink(tempPath, () => {})
       reject(err)
     })
@@ -256,7 +262,7 @@ function parseMultipartBusboy(req) {
       }
     })
 
-    req.on('error', (err) => {
+    req.on('error', err => {
       if (tempPath) fs.unlink(tempPath, () => {})
       reject(err)
     })
@@ -284,7 +290,7 @@ async function parseJSON(req) {
 
 // --- API 路由 ---
 async function handleAPI(req, res) {
-  const url = new URL(req.url, `http://127.0.0.1:${PORT}`)
+  const url = new URL(req.url, `http://localhost:${PORT}`)
   const pathname = url.pathname
   const method = req.method
 
@@ -370,14 +376,20 @@ async function handleAPI(req, res) {
           let type = 'lan'
           let label = '局域网'
           if (net.address.startsWith('100.')) {
-            if (name.toLowerCase().includes('tailscale') || name.toLowerCase().includes('ts')) {
+            if (
+              name.toLowerCase().includes('tailscale') ||
+              name.toLowerCase().includes('ts')
+            ) {
               type = 'tailscale'
               label = 'Tailscale'
             } else {
               type = 'tailscale'
               label = 'Tailscale'
             }
-          } else if (name.toLowerCase().includes('zt') || name.toLowerCase().includes('zerotier')) {
+          } else if (
+            name.toLowerCase().includes('zt') ||
+            name.toLowerCase().includes('zerotier')
+          ) {
             type = 'zerotier'
             label = 'ZeroTier'
           }
@@ -386,7 +398,12 @@ async function handleAPI(req, res) {
         }
       }
 
-      const localEntry = { type: 'local', ip: '127.0.0.1', label: '本机', iface: 'loopback' }
+      const localEntry = {
+        type: 'local',
+        ip: 'localhost',
+        label: '本机',
+        iface: 'loopback',
+      }
       json({ port: PORT, addresses: [localEntry, ...addresses] })
       return
     }
@@ -407,7 +424,10 @@ async function handleAPI(req, res) {
       }
 
       try {
-        const publishResult = await engine.publishFile(result.filePath, result.filename)
+        const publishResult = await engine.publishFile(
+          result.filePath,
+          result.filename
+        )
         json({ success: true, ...publishResult })
       } finally {
         fs.unlink(result.filePath, () => {})
@@ -431,10 +451,17 @@ async function handleAPI(req, res) {
         return
       }
 
-      const existingFile = engine.getPublishedFiles().find(f => f.cid === parsed.cid)
+      const existingFile = engine
+        .getPublishedFiles()
+        .find(f => f.cid === parsed.cid)
       if (existingFile) {
         console.log(`[MostBox] File already exists: ${existingFile.fileName}`)
-        json({ success: true, taskId, alreadyExists: true, fileName: existingFile.fileName })
+        json({
+          success: true,
+          taskId,
+          alreadyExists: true,
+          fileName: existingFile.fileName,
+        })
         return
       }
 
@@ -488,7 +515,11 @@ async function handleAPI(req, res) {
         return
       }
       const cleanFileName = sanitizeFilename(body.newFileName)
-      if (!cleanFileName || cleanFileName === 'unnamed' || body.newFileName.length > 255) {
+      if (
+        !cleanFileName ||
+        cleanFileName === 'unnamed' ||
+        body.newFileName.length > 255
+      ) {
         json({ error: 'Invalid filename' }, 400)
         return
       }
@@ -552,7 +583,7 @@ async function handleAPI(req, res) {
               'Content-Type': contentType,
               'Content-Length': result.buffer.length,
               'Content-Range': `bytes ${offset}-${offset + result.buffer.length - 1}/${result.totalSize}`,
-              'Accept-Ranges': 'bytes'
+              'Accept-Ranges': 'bytes',
             })
             res.end(result.buffer)
             return
@@ -565,7 +596,7 @@ async function handleAPI(req, res) {
           'Content-Type': contentType,
           'Content-Length': result.totalSize,
           'Accept-Ranges': 'bytes',
-          'Content-Disposition': `inline; filename="${encodeURIComponent(result.fileName)}"`
+          'Content-Disposition': `inline; filename="${encodeURIComponent(result.fileName)}"`,
         })
         res.end(result.buffer)
       } catch (err) {
@@ -581,7 +612,10 @@ async function handleAPI(req, res) {
     // POST /api/shutdown — 优雅关闭服务器（仅允许 localhost 连接）
     if (pathname === '/api/shutdown' && method === 'POST') {
       const clientIp = req.socket.remoteAddress
-      const isLocalhost = clientIp === '127.0.0.1' || clientIp === '::1' || clientIp === '::ffff:127.0.0.1'
+      const isLocalhost =
+        clientIp === 'localhost' ||
+        clientIp === '::1' ||
+        clientIp === '::ffff:localhost'
       if (!isLocalhost) {
         json({ error: 'Forbidden' }, 403)
         return
@@ -690,7 +724,10 @@ async function handleAPI(req, res) {
         return
       }
       try {
-        const result = await engine.createChannel(body.name.trim(), body.type || 'personal')
+        const result = await engine.createChannel(
+          body.name.trim(),
+          body.type || 'personal'
+        )
         json({ success: true, ...result })
       } catch (err) {
         json({ error: err.message }, 400)
@@ -717,13 +754,19 @@ async function handleAPI(req, res) {
     }
 
     // GET /api/channels/:name/messages — 获取频道消息
-    if (pathname.match(/^\/api\/channels\/[^/]+\/messages$/) && method === 'GET') {
+    if (
+      pathname.match(/^\/api\/channels\/[^/]+\/messages$/) &&
+      method === 'GET'
+    ) {
       const name = pathname.split('/')[3]
-      const urlObj = new URL(req.url, `http://127.0.0.1:${PORT}`)
+      const urlObj = new URL(req.url, `http://localhost:${PORT}`)
       const limit = parseInt(urlObj.searchParams.get('limit') || '100', 10)
       const offset = parseInt(urlObj.searchParams.get('offset') || '0', 10)
       try {
-        const messages = await engine.getChannelMessages(name, { limit, offset })
+        const messages = await engine.getChannelMessages(name, {
+          limit,
+          offset,
+        })
         json(messages)
       } catch (err) {
         json({ error: err.message }, 400)
@@ -732,7 +775,10 @@ async function handleAPI(req, res) {
     }
 
     // POST /api/channels/:name/messages — 发送消息
-    if (pathname.match(/^\/api\/channels\/[^/]+\/messages$/) && method === 'POST') {
+    if (
+      pathname.match(/^\/api\/channels\/[^/]+\/messages$/) &&
+      method === 'POST'
+    ) {
       const name = pathname.split('/')[3]
       const body = await parseJSON(req)
       if (!body.content || !body.content.trim()) {
@@ -744,7 +790,12 @@ async function handleAPI(req, res) {
         return
       }
       try {
-        const message = await engine.sendMessage(name, body.content, body.author, body.authorName)
+        const message = await engine.sendMessage(
+          name,
+          body.content,
+          body.author,
+          body.authorName
+        )
         json({ success: true, message })
       } catch (err) {
         json({ error: err.message }, 400)
@@ -769,9 +820,11 @@ async function handleAPI(req, res) {
 function wsBroadcast(event, data) {
   const payload = JSON.stringify({ event, data })
   if (wss) {
-    wss.clients.forEach((client) => {
+    wss.clients.forEach(client => {
       if (client.readyState === 1) {
-        try { client.send(payload) } catch {}
+        try {
+          client.send(payload)
+        } catch {}
       }
     })
   }
@@ -783,9 +836,11 @@ function wsSendToChannel(channelName, event, data) {
   const payload = JSON.stringify({ event, data })
   const subscribers = channelSubscriptions.get(channelName)
   if (subscribers) {
-    subscribers.forEach((ws) => {
+    subscribers.forEach(ws => {
       if (ws.readyState === 1) {
-        try { ws.send(payload) } catch {}
+        try {
+          ws.send(payload)
+        } catch {}
       }
     })
   }
@@ -798,9 +853,13 @@ async function main() {
   if (fs.existsSync(UPLOAD_TMP_DIR)) {
     const staleFiles = fs.readdirSync(UPLOAD_TMP_DIR)
     for (const file of staleFiles) {
-      try { fs.unlinkSync(path.join(UPLOAD_TMP_DIR, file)) } catch {}
+      try {
+        fs.unlinkSync(path.join(UPLOAD_TMP_DIR, file))
+      } catch {}
     }
-    console.log(`[MostBox] Cleaned ${staleFiles.length} stale upload temp files`)
+    console.log(
+      `[MostBox] Cleaned ${staleFiles.length} stale upload temp files`
+    )
   }
 
   const dataPath = getDataPath()
@@ -808,20 +867,28 @@ async function main() {
 
   engine = new MostBoxEngine({ dataPath })
 
-  engine.on('download:progress', (data) => wsBroadcast('download:progress', data))
-  engine.on('download:status', (data) => wsBroadcast('download:status', data))
-  engine.on('download:success', (data) => wsBroadcast('download:success', data))
-  engine.on('download:cancelled', (data) => wsBroadcast('download:cancelled', data))
-  engine.on('publish:progress', (data) => wsBroadcast('publish:progress', data))
-  engine.on('publish:success', (data) => wsBroadcast('publish:success', data))
+  engine.on('download:progress', data => wsBroadcast('download:progress', data))
+  engine.on('download:status', data => wsBroadcast('download:status', data))
+  engine.on('download:success', data => wsBroadcast('download:success', data))
+  engine.on('download:cancelled', data =>
+    wsBroadcast('download:cancelled', data)
+  )
+  engine.on('publish:progress', data => wsBroadcast('publish:progress', data))
+  engine.on('publish:success', data => wsBroadcast('publish:success', data))
   engine.on('connection', () => {
     wsBroadcast('network:status', engine.getNetworkStatus())
   })
-  engine.on('channel:message', (data) => wsSendToChannel(data.channel, 'channel:message', data))
-  engine.on('channel:peer:online', (data) => wsBroadcast('channel:peer:online', data))
-  engine.on('channel:peer:offline', (data) => wsBroadcast('channel:peer:offline', data))
-  engine.on('channel:joined', (data) => wsBroadcast('channel:joined', data))
-  engine.on('channel:left', (data) => wsBroadcast('channel:left', data))
+  engine.on('channel:message', data =>
+    wsSendToChannel(data.channel, 'channel:message', data)
+  )
+  engine.on('channel:peer:online', data =>
+    wsBroadcast('channel:peer:online', data)
+  )
+  engine.on('channel:peer:offline', data =>
+    wsBroadcast('channel:peer:offline', data)
+  )
+  engine.on('channel:joined', data => wsBroadcast('channel:joined', data))
+  engine.on('channel:left', data => wsBroadcast('channel:left', data))
 
   await engine.start()
   console.log('[MostBox] Engine ready')
@@ -829,7 +896,6 @@ async function main() {
   serverInstance = http.createServer((req, res) => {
     const origin = req.headers.origin
     const allowedOrigins = [
-      `http://127.0.0.1:${PORT}`,
       `http://localhost:${PORT}`,
       'https://most.box',
       'http://localhost:3000',
@@ -838,7 +904,7 @@ async function main() {
       res.setHeader('Access-Control-Allow-Origin', origin)
       res.setHeader('Vary', 'Origin')
     } else if (!origin) {
-      res.setHeader('Access-Control-Allow-Origin', `http://127.0.0.1:${PORT}`)
+      res.setHeader('Access-Control-Allow-Origin', `http://localhost:${PORT}`)
     }
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
@@ -872,7 +938,7 @@ async function main() {
   })
 
   wss = new WebSocketServer({ noServer: true })
-  wss.on('connection', (ws) => {
+  wss.on('connection', ws => {
     ws.on('error', () => {})
     ws.on('close', () => {
       for (const [channelName, subscribers] of channelSubscriptions) {
@@ -884,7 +950,7 @@ async function main() {
         }
       }
     })
-    ws.on('message', (raw) => {
+    ws.on('message', raw => {
       try {
         const msg = JSON.parse(raw)
         const { event, data } = msg
@@ -923,7 +989,7 @@ async function main() {
 
   serverInstance.on('upgrade', (req, socket, head) => {
     if (req.url.startsWith('/ws')) {
-      wss.handleUpgrade(req, socket, head, (ws) => {
+      wss.handleUpgrade(req, socket, head, ws => {
         wss.emit('connection', ws, req)
       })
     } else {
@@ -932,19 +998,19 @@ async function main() {
   })
 
   serverInstance.listen(PORT, HOST, () => {
-    const displayUrl = `http://127.0.0.1:${PORT}`
+    const displayUrl = `http://localhost:${PORT}`
     console.log(`[MostBox] Server running at ${displayUrl}`)
 
     if (process.platform === 'win32') {
       spawn('cmd.exe', ['/c', 'start', '', displayUrl], {
         detached: true,
-        stdio: 'ignore'
+        stdio: 'ignore',
       }).unref()
     } else {
       const cmd = process.platform === 'darwin' ? 'open' : 'xdg-open'
       spawn(cmd, [displayUrl], {
         detached: true,
-        stdio: 'ignore'
+        stdio: 'ignore',
       }).unref()
     }
   })

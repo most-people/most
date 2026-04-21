@@ -13,7 +13,10 @@ export default function RootLayout({ children }) {
     <html lang="zh-CN" suppressHydrationWarning data-scroll-behavior="smooth">
       <head>
         <meta charSet="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+        />
         <link rel="icon" href="/favicon.ico" />
         <script
           dangerouslySetInnerHTML={{

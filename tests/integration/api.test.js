@@ -14,7 +14,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'most-api-test-'))
   let serverInstance
   let engine
-  let baseUrl = `http://127.0.0.1:${TEST_PORT}`
+  let baseUrl = `http://localhost:${TEST_PORT}`
 
   before(async () => {
     const dataPath = path.join(tmpDir, 'api')
@@ -26,19 +26,23 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
 
     function upgradeToWebSocket(req, socket) {
       const key = req.headers['sec-websocket-key']
-      if (!key) { socket.destroy(); return }
+      if (!key) {
+        socket.destroy()
+        return
+      }
 
       const MAGIC = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
-      const accept = crypto.createHash('sha1')
+      const accept = crypto
+        .createHash('sha1')
         .update(key + MAGIC)
         .digest('base64')
 
       socket.write(
         'HTTP/1.1 101 Switching Protocols\r\n' +
-        'Upgrade: websocket\r\n' +
-        'Connection: Upgrade\r\n' +
-        `Sec-WebSocket-Accept: ${accept}\r\n` +
-        '\r\n'
+          'Upgrade: websocket\r\n' +
+          'Connection: Upgrade\r\n' +
+          `Sec-WebSocket-Accept: ${accept}\r\n` +
+          '\r\n'
       )
 
       wsClients.add(socket)
@@ -63,26 +67,35 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         buf.copy(frame, 4)
       }
       for (const client of wsClients) {
-        try { client.write(frame) } catch {}
+        try {
+          client.write(frame)
+        } catch {}
       }
     }
 
-    engine.on('download:progress', (data) => wsBroadcast('download:progress', data))
-    engine.on('download:status', (data) => wsBroadcast('download:status', data))
-    engine.on('download:success', (data) => wsBroadcast('download:success', data))
-    engine.on('download:cancelled', (data) => wsBroadcast('download:cancelled', data))
-    engine.on('publish:progress', (data) => wsBroadcast('publish:progress', data))
-    engine.on('publish:success', (data) => wsBroadcast('publish:success', data))
+    engine.on('download:progress', data =>
+      wsBroadcast('download:progress', data)
+    )
+    engine.on('download:status', data => wsBroadcast('download:status', data))
+    engine.on('download:success', data => wsBroadcast('download:success', data))
+    engine.on('download:cancelled', data =>
+      wsBroadcast('download:cancelled', data)
+    )
+    engine.on('publish:progress', data => wsBroadcast('publish:progress', data))
+    engine.on('publish:success', data => wsBroadcast('publish:success', data))
 
     const MIME_TYPES = {
       '.html': 'text/html',
       '.js': 'application/javascript',
-      '.json': 'application/json'
+      '.json': 'application/json',
     }
 
     serverInstance = http.createServer(async (req, res) => {
       res.setHeader('Access-Control-Allow-Origin', '*')
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
+      res.setHeader(
+        'Access-Control-Allow-Methods',
+        'GET, POST, DELETE, OPTIONS'
+      )
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
 
       if (req.method === 'OPTIONS') {
@@ -91,7 +104,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         return
       }
 
-      const url = new URL(req.url, `http://127.0.0.1:${TEST_PORT}`)
+      const url = new URL(req.url, `http://localhost:${TEST_PORT}`)
       const pathname = url.pathname
 
       async function parseJSON(req) {
@@ -103,11 +116,15 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       }
 
       async function parseMultipart(req) {
-        const boundaryMatch = req.headers['content-type']?.match(/boundary=(?:"([^"]+)"|([^\s;]+))/)
+        const boundaryMatch = req.headers['content-type']?.match(
+          /boundary=(?:"([^"]+)"|([^\s;]+))/
+        )
         if (!boundaryMatch) throw new Error('No boundary')
         const boundary = boundaryMatch[1] || boundaryMatch[2]
         const chunks = []
-        for await (const chunk of req) { chunks.push(chunk) }
+        for await (const chunk of req) {
+          chunks.push(chunk)
+        }
         const buffer = Buffer.concat(chunks)
         const parts = []
         const boundaryBuf = Buffer.from('--' + boundary)
@@ -127,7 +144,11 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
               const body = partData.slice(headerEnd + 4)
               const nameMatch = headers.match(/name="([^"]+)"/)
               const filenameMatch = headers.match(/filename="([^"]+)"/)
-              parts.push({ name: nameMatch?.[1], filename: filenameMatch?.[1], data: body })
+              parts.push({
+                name: nameMatch?.[1],
+                filename: filenameMatch?.[1],
+                data: body,
+              })
             }
           }
           start = idx + boundaryBuf.length
@@ -160,7 +181,10 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
             json({ error: 'No file provided' }, 400)
             return
           }
-          const result = await engine.publishFile(filePart.data, filePart.filename)
+          const result = await engine.publishFile(
+            filePart.data,
+            filePart.filename
+          )
           json({ success: true, ...result })
           return
         }
@@ -177,9 +201,16 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
             return
           }
           const taskId = `dl_${Date.now()}`
-          const existingFile = engine.listPublishedFiles().find(f => f.cid === parsed.cid)
+          const existingFile = engine
+            .listPublishedFiles()
+            .find(f => f.cid === parsed.cid)
           if (existingFile) {
-            json({ success: true, taskId, alreadyExists: true, fileName: existingFile.fileName })
+            json({
+              success: true,
+              taskId,
+              alreadyExists: true,
+              fileName: existingFile.fileName,
+            })
             return
           }
           engine.downloadFile(body.link, taskId).catch(err => {
@@ -237,14 +268,17 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
           return
         }
 
-        if (pathname.match(/^\/api\/files\/[^/]+\/download$/) && req.method === 'GET') {
+        if (
+          pathname.match(/^\/api\/files\/[^/]+\/download$/) &&
+          req.method === 'GET'
+        ) {
           const cid = pathname.split('/')[3]
           try {
             const result = await engine.readFileRaw(cid)
             res.writeHead(200, {
               'Content-Type': 'application/octet-stream',
               'Content-Length': result.totalSize,
-              'Content-Disposition': `inline; filename="${encodeURIComponent(result.fileName)}"`
+              'Content-Disposition': `inline; filename="${encodeURIComponent(result.fileName)}"`,
             })
             res.end(result.buffer)
           } catch (err) {
@@ -257,7 +291,10 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
           return
         }
 
-        if (pathname.match(/^\/api\/files\/[^/]+\/star$/) && req.method === 'POST') {
+        if (
+          pathname.match(/^\/api\/files\/[^/]+\/star$/) &&
+          req.method === 'POST'
+        ) {
           const cid = pathname.split('/')[3]
           try {
             const result = engine.toggleStarred(cid)
@@ -273,14 +310,20 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
           return
         }
 
-        if (pathname.match(/^\/api\/trash\/[^/]+\/restore$/) && req.method === 'POST') {
+        if (
+          pathname.match(/^\/api\/trash\/[^/]+\/restore$/) &&
+          req.method === 'POST'
+        ) {
           const cid = pathname.split('/')[3]
           const result = engine.restoreTrashFile(cid)
           json({ success: true, files: result })
           return
         }
 
-        if (pathname.match(/^\/api\/trash\/[^/]+$/) && req.method === 'DELETE') {
+        if (
+          pathname.match(/^\/api\/trash\/[^/]+$/) &&
+          req.method === 'DELETE'
+        ) {
           const cid = pathname.split('/')[3]
           const result = await engine.permanentDeleteTrashFile(cid)
           json({ success: true, trashFiles: result })
@@ -318,7 +361,10 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
             return
           }
           try {
-            const result = await engine.createChannel(body.name.trim(), body.type || 'personal')
+            const result = await engine.createChannel(
+              body.name.trim(),
+              body.type || 'personal'
+            )
             json({ success: true, ...result })
           } catch (err) {
             json({ error: err.message }, 400)
@@ -342,13 +388,19 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
           return
         }
 
-        if (pathname.match(/^\/api\/channels\/[^/]+\/messages$/) && req.method === 'GET') {
+        if (
+          pathname.match(/^\/api\/channels\/[^/]+\/messages$/) &&
+          req.method === 'GET'
+        ) {
           const name = pathname.split('/')[3]
-          const urlObj = new URL(req.url, `http://127.0.0.1:${TEST_PORT}`)
+          const urlObj = new URL(req.url, `http://localhost:${TEST_PORT}`)
           const limit = parseInt(urlObj.searchParams.get('limit') || '100', 10)
           const offset = parseInt(urlObj.searchParams.get('offset') || '0', 10)
           try {
-            const messages = await engine.getChannelMessages(name, { limit, offset })
+            const messages = await engine.getChannelMessages(name, {
+              limit,
+              offset,
+            })
             json(messages)
           } catch (err) {
             json({ error: err.message }, 400)
@@ -356,7 +408,10 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
           return
         }
 
-        if (pathname.match(/^\/api\/channels\/[^/]+\/messages$/) && req.method === 'POST') {
+        if (
+          pathname.match(/^\/api\/channels\/[^/]+\/messages$/) &&
+          req.method === 'POST'
+        ) {
           const name = pathname.split('/')[3]
           const body = await parseJSON(req)
           if (!body.content || !body.content.trim()) {
@@ -366,7 +421,12 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
           const author = body.author || 'test-author'
           const authorName = body.authorName || 'TestUser'
           try {
-            const message = await engine.sendMessage(name, body.content, author, authorName)
+            const message = await engine.sendMessage(
+              name,
+              body.content,
+              author,
+              authorName
+            )
             json({ success: true, message })
           } catch (err) {
             json({ error: err.message }, 400)
@@ -374,7 +434,10 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
           return
         }
 
-        if (pathname.match(/^\/api\/channels\/[^/]+\/peers$/) && req.method === 'GET') {
+        if (
+          pathname.match(/^\/api\/channels\/[^/]+\/peers$/) &&
+          req.method === 'GET'
+        ) {
           const name = pathname.split('/')[3]
           json(engine.getChannelPeers(name))
           return
@@ -391,13 +454,26 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         }
 
         if (pathname === '/api/network' && req.method === 'GET') {
-          json({ port: TEST_PORT, addresses: [{ type: 'local', ip: '127.0.0.1', label: '本机', iface: 'loopback' }] })
+          json({
+            port: TEST_PORT,
+            addresses: [
+              {
+                type: 'local',
+                ip: 'localhost',
+                label: '本机',
+                iface: 'loopback',
+              },
+            ],
+          })
           return
         }
 
         if (pathname === '/api/shutdown' && req.method === 'POST') {
           const clientIp = req.socket.remoteAddress
-          const isLocalhost = clientIp === '127.0.0.1' || clientIp === '::1' || clientIp === '::ffff:127.0.0.1'
+          const isLocalhost =
+            clientIp === 'localhost' ||
+            clientIp === '::1' ||
+            clientIp === '::ffff:localhost'
           if (!isLocalhost) {
             json({ error: 'Forbidden' }, 403)
             return
@@ -412,7 +488,11 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         }
 
         const filePath = req.url === '/' ? '/index.html' : req.url
-        const fullPath = path.join(process.cwd(), 'public', filePath.split('?')[0])
+        const fullPath = path.join(
+          process.cwd(),
+          'public',
+          filePath.split('?')[0]
+        )
         if (!fullPath.startsWith(path.join(process.cwd(), 'public'))) {
           res.writeHead(403)
           res.end('Forbidden')
@@ -421,7 +501,9 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         try {
           const data = fs.readFileSync(fullPath)
           const ext = path.extname(fullPath)
-          res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' })
+          res.writeHead(200, {
+            'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
+          })
           res.end(data)
         } catch {
           res.writeHead(404)
@@ -442,7 +524,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     })
 
     await new Promise((resolve, reject) => {
-      serverInstance.listen(TEST_PORT, '127.0.0.1', () => resolve())
+      serverInstance.listen(TEST_PORT, 'localhost', () => resolve())
       serverInstance.on('error', reject)
     })
   })
@@ -496,15 +578,15 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         'Content-Type: text/plain',
         '',
         'hello world from API test',
-        `--${boundary}--`
+        `--${boundary}--`,
       ].join('\r\n')
 
       const res = await fetch(`${baseUrl}/api/publish`, {
         method: 'POST',
         headers: {
-          'Content-Type': `multipart/form-data; boundary=${boundary}`
+          'Content-Type': `multipart/form-data; boundary=${boundary}`,
         },
-        body
+        body,
       })
 
       const data = await res.json()
@@ -522,15 +604,15 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         'Content-Disposition: form-data; name="notfile"',
         '',
         'test',
-        `--${boundary}--`
+        `--${boundary}--`,
       ].join('\r\n')
 
       const res = await fetch(`${baseUrl}/api/publish`, {
         method: 'POST',
         headers: {
-          'Content-Type': `multipart/form-data; boundary=${boundary}`
+          'Content-Type': `multipart/form-data; boundary=${boundary}`,
         },
-        body
+        body,
       })
 
       assert.strictEqual(res.status, 400)
@@ -544,15 +626,15 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         'Content-Type: text/plain',
         '',
         'hello world from Chinese filename test',
-        `--${boundary}--`
+        `--${boundary}--`,
       ].join('\r\n')
 
       const res = await fetch(`${baseUrl}/api/publish`, {
         method: 'POST',
         headers: {
-          'Content-Type': `multipart/form-data; boundary=${boundary}`
+          'Content-Type': `multipart/form-data; boundary=${boundary}`,
         },
-        body
+        body,
       })
 
       const data = await res.json()
@@ -571,7 +653,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const res = await fetch(`${baseUrl}/api/download`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ link })
+        body: JSON.stringify({ link }),
       })
 
       const data = await res.json()
@@ -585,7 +667,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const res = await fetch(`${baseUrl}/api/download`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
+        body: JSON.stringify({}),
       })
 
       assert.strictEqual(res.status, 400)
@@ -597,7 +679,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const res = await fetch(`${baseUrl}/api/download`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ link: 'most://invalid-cid' })
+        body: JSON.stringify({ link: 'most://invalid-cid' }),
       })
 
       assert.strictEqual(res.status, 400)
@@ -609,7 +691,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const res = await fetch(`${baseUrl}/api/download/cancel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ taskId: 'fake-task-id' })
+        body: JSON.stringify({ taskId: 'fake-task-id' }),
       })
 
       assert.strictEqual(res.status, 200)
@@ -621,7 +703,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const res = await fetch(`${baseUrl}/api/download/cancel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
+        body: JSON.stringify({}),
       })
 
       assert.strictEqual(res.status, 400)
@@ -630,10 +712,15 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
 
   describe('DELETE /api/files/:cid', () => {
     it('moves file to trash', async () => {
-      const pub = await engine.publishFile(Buffer.from('delete-test'), 'delete.txt')
+      const pub = await engine.publishFile(
+        Buffer.from('delete-test'),
+        'delete.txt'
+      )
       const cid = pub.cid
 
-      const res = await fetch(`${baseUrl}/api/files/${cid}`, { method: 'DELETE' })
+      const res = await fetch(`${baseUrl}/api/files/${cid}`, {
+        method: 'DELETE',
+      })
       const data = await res.json()
 
       assert.strictEqual(res.status, 200)
@@ -650,7 +737,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const res = await fetch(`${baseUrl}/api/move`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cid, newFileName: 'new.txt' })
+        body: JSON.stringify({ cid, newFileName: 'new.txt' }),
       })
 
       const data = await res.json()
@@ -663,7 +750,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const res = await fetch(`${baseUrl}/api/move`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cid: 'abc' })
+        body: JSON.stringify({ cid: 'abc' }),
       })
 
       assert.strictEqual(res.status, 400)
@@ -678,7 +765,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const res = await fetch(`${baseUrl}/api/folder/rename`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ oldPath: 'folder', newPath: 'new-folder' })
+        body: JSON.stringify({ oldPath: 'folder', newPath: 'new-folder' }),
       })
 
       const data = await res.json()
@@ -690,7 +777,10 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
 
   describe('GET /api/files/:cid/download', () => {
     it('serves file content', async () => {
-      const pub = await engine.publishFile(Buffer.from('download-content'), 'serve.txt')
+      const pub = await engine.publishFile(
+        Buffer.from('download-content'),
+        'serve.txt'
+      )
       const cid = pub.cid
 
       const res = await fetch(`${baseUrl}/api/files/${cid}/download`)
@@ -712,7 +802,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const cid = files[0].cid
 
       const res = await fetch(`${baseUrl}/api/files/${cid}/star`, {
-        method: 'POST'
+        method: 'POST',
       })
 
       const data = await res.json()
@@ -744,7 +834,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       await engine.deletePublishedFile(cid)
 
       const res = await fetch(`${baseUrl}/api/trash/${cid}/restore`, {
-        method: 'POST'
+        method: 'POST',
       })
 
       const data = await res.json()
@@ -760,7 +850,9 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const cid = engine.listPublishedFiles()[0].cid
       await engine.deletePublishedFile(cid)
 
-      const res = await fetch(`${baseUrl}/api/trash/${cid}`, { method: 'DELETE' })
+      const res = await fetch(`${baseUrl}/api/trash/${cid}`, {
+        method: 'DELETE',
+      })
       const data = await res.json()
 
       assert.strictEqual(res.status, 200)
@@ -821,7 +913,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const res = await fetch(`${baseUrl}/api/display-name`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: 'TestUser' })
+        body: JSON.stringify({ name: 'TestUser' }),
       })
       const data = await res.json()
       assert.strictEqual(res.status, 200)
@@ -835,7 +927,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const res = await fetch(`${baseUrl}/api/channels`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: 'test-channel' })
+        body: JSON.stringify({ name: 'test-channel' }),
       })
       const data = await res.json()
       assert.strictEqual(res.status, 200)
@@ -849,7 +941,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const res = await fetch(`${baseUrl}/api/channels`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: 'dup-channel' })
+        body: JSON.stringify({ name: 'dup-channel' }),
       })
       const data = await res.json()
       assert.strictEqual(res.status, 200)
@@ -860,7 +952,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const res = await fetch(`${baseUrl}/api/channels`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
+        body: JSON.stringify({}),
       })
       assert.strictEqual(res.status, 400)
     })
@@ -869,7 +961,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const res = await fetch(`${baseUrl}/api/channels`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: 'ab' })
+        body: JSON.stringify({ name: 'ab' }),
       })
       assert.strictEqual(res.status, 400)
     })
@@ -900,7 +992,11 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const res = await fetch(`${baseUrl}/api/channels/msg-channel/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: 'Hello!', author: '0x1234', authorName: 'TestUser' })
+        body: JSON.stringify({
+          content: 'Hello!',
+          author: '0x1234',
+          authorName: 'TestUser',
+        }),
       })
       const data = await res.json()
       assert.strictEqual(res.status, 200)
@@ -913,7 +1009,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const res = await fetch(`${baseUrl}/api/channels/empty-msg/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: '' })
+        body: JSON.stringify({ content: '' }),
       })
       assert.strictEqual(res.status, 400)
     })
@@ -946,10 +1042,17 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     it('supports pagination with limit and offset', async () => {
       await engine.createChannel('page-channel')
       for (let i = 0; i < 5; i++) {
-        await engine.sendMessage('page-channel', `msg${i}`, '0x1234', 'TestUser')
+        await engine.sendMessage(
+          'page-channel',
+          `msg${i}`,
+          '0x1234',
+          'TestUser'
+        )
       }
 
-      const res = await fetch(`${baseUrl}/api/channels/page-channel/messages?limit=2&offset=0`)
+      const res = await fetch(
+        `${baseUrl}/api/channels/page-channel/messages?limit=2&offset=0`
+      )
       const data = await res.json()
       assert.strictEqual(res.status, 200)
       assert.strictEqual(data.length, 2)
@@ -970,7 +1073,9 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
   describe('DELETE /api/channels/:name', () => {
     it('leaves a channel', async () => {
       await engine.createChannel('leave-channel')
-      const res = await fetch(`${baseUrl}/api/channels/leave-channel`, { method: 'DELETE' })
+      const res = await fetch(`${baseUrl}/api/channels/leave-channel`, {
+        method: 'DELETE',
+      })
       const data = await res.json()
       assert.strictEqual(res.status, 200)
       assert.ok(data.success)
@@ -978,7 +1083,9 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     })
 
     it('returns 400 for non-existent channel', async () => {
-      const res = await fetch(`${baseUrl}/api/channels/nonexistent`, { method: 'DELETE' })
+      const res = await fetch(`${baseUrl}/api/channels/nonexistent`, {
+        method: 'DELETE',
+      })
       assert.strictEqual(res.status, 400)
     })
   })
@@ -1016,7 +1123,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
   describe('POST /api/shutdown', () => {
     it('allows localhost connection', async () => {
       const res = await fetch(`${baseUrl}/api/shutdown`, {
-        method: 'POST'
+        method: 'POST',
       })
       assert.strictEqual(res.status, 200)
     })

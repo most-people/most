@@ -1,12 +1,21 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert'
 import fs from 'node:fs'
-import { sanitizeFilename, formatFileSize, validateAndSanitizePath, validateFileSize, checkDirectoryWritable } from '../../src/utils/security.js'
+import {
+  sanitizeFilename,
+  formatFileSize,
+  validateAndSanitizePath,
+  validateFileSize,
+  checkDirectoryWritable,
+} from '../../src/utils/security.js'
 
 describe('sanitizeFilename', () => {
   it('throws for non-string input', () => {
     assert.throws(() => sanitizeFilename(null), /Filename must be a string/)
-    assert.throws(() => sanitizeFilename(undefined), /Filename must be a string/)
+    assert.throws(
+      () => sanitizeFilename(undefined),
+      /Filename must be a string/
+    )
     assert.throws(() => sanitizeFilename(123), /Filename must be a string/)
   })
 
@@ -18,7 +27,10 @@ describe('sanitizeFilename', () => {
 
   it('blocks absolute path traversal', () => {
     assert.strictEqual(sanitizeFilename('/etc/passwd'), 'etc/passwd')
-    assert.strictEqual(sanitizeFilename('C:\\Windows\\System32'), 'C_/Windows/System32')
+    assert.strictEqual(
+      sanitizeFilename('C:\\Windows\\System32'),
+      'C_/Windows/System32'
+    )
   })
 
   it('blocks Windows reserved names', () => {
@@ -125,13 +137,22 @@ describe('formatFileSize', () => {
 
 describe('validateAndSanitizePath', () => {
   it('rejects non-string input', () => {
-    assert.strictEqual(validateAndSanitizePath(null).error, 'Path must be a string')
-    assert.strictEqual(validateAndSanitizePath(123).error, 'Path must be a string')
+    assert.strictEqual(
+      validateAndSanitizePath(null).error,
+      'Path must be a string'
+    )
+    assert.strictEqual(
+      validateAndSanitizePath(123).error,
+      'Path must be a string'
+    )
   })
 
   it('blocks path traversal', () => {
     const result = validateAndSanitizePath('../etc/passwd')
-    assert.strictEqual(result.error, 'Path traversal detected: path cannot contain ".."')
+    assert.strictEqual(
+      result.error,
+      'Path traversal detected: path cannot contain ".."'
+    )
   })
 
   it('allows normal paths', () => {
@@ -151,22 +172,33 @@ describe('validateAndSanitizePath', () => {
   })
 
   it('respects allowedBase option', () => {
-    const result = validateAndSanitizePath('/home/user/file.txt', { allowedBase: '/home/user' })
+    const result = validateAndSanitizePath('/home/user/file.txt', {
+      allowedBase: '/home/user',
+    })
     assert.strictEqual(result.error, undefined)
   })
 
   it('rejects path traversal before allowedBase check', () => {
-    const result = validateAndSanitizePath('/home/user/../etc/passwd', { allowedBase: '/home/user' })
-    assert.strictEqual(result.error, 'Path traversal detected: path cannot contain ".."')
+    const result = validateAndSanitizePath('/home/user/../etc/passwd', {
+      allowedBase: '/home/user',
+    })
+    assert.strictEqual(
+      result.error,
+      'Path traversal detected: path cannot contain ".."'
+    )
   })
 
   it('rejects path that escapes allowedBase via sibling directory', () => {
-    const result = validateAndSanitizePath('/home/user2/file.txt', { allowedBase: '/home/user' })
+    const result = validateAndSanitizePath('/home/user2/file.txt', {
+      allowedBase: '/home/user',
+    })
     assert.strictEqual(result.error, 'Path must be within allowed directory')
   })
 
   it('allows exact match of allowedBase', () => {
-    const result = validateAndSanitizePath('/home/user', { allowedBase: '/home/user' })
+    const result = validateAndSanitizePath('/home/user', {
+      allowedBase: '/home/user',
+    })
     assert.strictEqual(result.error, undefined)
   })
 })
@@ -215,7 +247,9 @@ describe('checkDirectoryWritable', () => {
       const result = await checkDirectoryWritable(testDir)
       assert.strictEqual(result.writable, true)
     } finally {
-      try { await fs.promises.rm(testDir, { recursive: true, force: true }) } catch {}
+      try {
+        await fs.promises.rm(testDir, { recursive: true, force: true })
+      } catch {}
     }
   })
 

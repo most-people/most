@@ -40,7 +40,7 @@ export const DEFAULT_READ_LIMIT = 10000
 export const SWARM_BOOTSTRAP = [
   '88.99.3.86@node1.hyperdht.org:49737',
   '142.93.90.113@node2.hyperdht.org:49737',
-  '138.68.147.8@node3.hyperdht.org:49737'
+  '138.68.147.8@node3.hyperdht.org:49737',
 ]
 
 export const CHANNEL_NAME_MIN_LENGTH = 3

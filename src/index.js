@@ -19,9 +19,47 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { calculateCid, parseMostLink } from './core/cid.js'
-import { sanitizeFilename, validateAndSanitizePath, validateFileSize, checkDirectoryWritable, formatFileSize } from './utils/security.js'
-import { ValidationError, PathSecurityError, FileSizeError, PeerNotFoundError, IntegrityError, PermissionError, EngineNotInitializedError } from './utils/errors.js'
-import { GLOBAL_SHARED_SEED_STRING, MAX_FILE_SIZE, CONNECTION_TIMEOUT, DOWNLOAD_TIMEOUT, SWARM_BOOTSTRAP, MAX_PEERS, SWARM_KEEP_ALIVE_INTERVAL, SWARM_RANDOM_PUNCH_INTERVAL, DRIVE_ENTRY_TIMEOUT, DRIVE_SYNC_TIMEOUT, STREAM_READ_TIMEOUT, FILE_WRITE_CHUNK_SIZE, DOWNLOAD_POLL_INTERVAL_MIN, DOWNLOAD_POLL_INTERVAL_MAX, DRIVE_UPDATE_INTERVAL, PROGRESS_THROTTLE, DEFAULT_READ_LIMIT, CHANNEL_NAME_MIN_LENGTH, CHANNEL_NAME_MAX_LENGTH, CHANNEL_NAME_REGEX, CHANNEL_NAME_PREFIX, CHANNEL_MESSAGE_LIMIT, MAX_MESSAGE_LENGTH } from './config.js'
+import {
+  sanitizeFilename,
+  validateAndSanitizePath,
+  validateFileSize,
+  checkDirectoryWritable,
+  formatFileSize,
+} from './utils/security.js'
+import {
+  ValidationError,
+  PathSecurityError,
+  FileSizeError,
+  PeerNotFoundError,
+  IntegrityError,
+  PermissionError,
+  EngineNotInitializedError,
+} from './utils/errors.js'
+import {
+  GLOBAL_SHARED_SEED_STRING,
+  MAX_FILE_SIZE,
+  CONNECTION_TIMEOUT,
+  DOWNLOAD_TIMEOUT,
+  SWARM_BOOTSTRAP,
+  MAX_PEERS,
+  SWARM_KEEP_ALIVE_INTERVAL,
+  SWARM_RANDOM_PUNCH_INTERVAL,
+  DRIVE_ENTRY_TIMEOUT,
+  DRIVE_SYNC_TIMEOUT,
+  STREAM_READ_TIMEOUT,
+  FILE_WRITE_CHUNK_SIZE,
+  DOWNLOAD_POLL_INTERVAL_MIN,
+  DOWNLOAD_POLL_INTERVAL_MAX,
+  DRIVE_UPDATE_INTERVAL,
+  PROGRESS_THROTTLE,
+  DEFAULT_READ_LIMIT,
+  CHANNEL_NAME_MIN_LENGTH,
+  CHANNEL_NAME_MAX_LENGTH,
+  CHANNEL_NAME_REGEX,
+  CHANNEL_NAME_PREFIX,
+  CHANNEL_MESSAGE_LIMIT,
+  MAX_MESSAGE_LENGTH,
+} from './config.js'
 
 export class MostBoxEngine extends EventEmitter {
   #store = null
@@ -55,8 +93,9 @@ export class MostBoxEngine extends EventEmitter {
 
     this.#options = {
       dataPath: options.dataPath,
-      downloadPath: options.downloadPath || path.join(options.dataPath, 'downloads'),
-      maxFileSize: options.maxFileSize || MAX_FILE_SIZE
+      downloadPath:
+        options.downloadPath || path.join(options.dataPath, 'downloads'),
+      maxFileSize: options.maxFileSize || MAX_FILE_SIZE,
     }
   }
 
@@ -78,23 +117,37 @@ export class MostBoxEngine extends EventEmitter {
     }
 
     const GLOBAL_SHARED_SEED = b4a.alloc(32).fill(GLOBAL_SHARED_SEED_STRING)
-    this.#store = new Corestore(dataPath, { primaryKey: GLOBAL_SHARED_SEED, unsafe: true })
+    this.#store = new Corestore(dataPath, {
+      primaryKey: GLOBAL_SHARED_SEED,
+      unsafe: true,
+    })
 
     try {
       await this.#store.ready()
       console.log(`[MostBox] Corestore ready`)
     } catch (err) {
-      if (err.message && err.message.includes('Another corestore is stored here')) {
+      if (
+        err.message &&
+        err.message.includes('Another corestore is stored here')
+      ) {
         console.log(`[MostBox] Resetting corrupt storage...`)
         fs.rmSync(dataPath, { recursive: true, force: true })
         fs.mkdirSync(dataPath, { recursive: true })
-        this.#store = new Corestore(dataPath, { primaryKey: GLOBAL_SHARED_SEED, unsafe: true })
+        this.#store = new Corestore(dataPath, {
+          primaryKey: GLOBAL_SHARED_SEED,
+          unsafe: true,
+        })
         await this.#store.ready()
         console.log(`[MostBox] Corestore reset and ready`)
       } else if (err.message && err.message.includes('Invalid device file')) {
         throw new Error(`存储文件损坏，请关闭其他访问 ${dataPath} 的程序后重试`)
-      } else if (err.message && err.message.includes('File descriptor could not be locked')) {
-        throw new Error(`存储文件被锁定，请关闭其他访问 ${dataPath} 的程序后重试`)
+      } else if (
+        err.message &&
+        err.message.includes('File descriptor could not be locked')
+      ) {
+        throw new Error(
+          `存储文件被锁定，请关闭其他访问 ${dataPath} 的程序后重试`
+        )
       } else {
         throw err
       }
@@ -107,11 +160,15 @@ export class MostBoxEngine extends EventEmitter {
       firewall: () => false,
       connectionKeepAlive: SWARM_KEEP_ALIVE_INTERVAL,
       randomPunchInterval: SWARM_RANDOM_PUNCH_INTERVAL,
-      handshakeTimeout: CONNECTION_TIMEOUT
+      handshakeTimeout: CONNECTION_TIMEOUT,
     })
 
-    this.#swarm.on('error', (err) => {
-      if (err.code === 'SSL_ERROR' || err.message?.includes('handshake') || err.message?.includes('ECONNRESET')) {
+    this.#swarm.on('error', err => {
+      if (
+        err.code === 'SSL_ERROR' ||
+        err.message?.includes('handshake') ||
+        err.message?.includes('ECONNRESET')
+      ) {
         console.warn('[MostBox] Network warning (non-critical):', err.message)
         return
       }
@@ -119,8 +176,8 @@ export class MostBoxEngine extends EventEmitter {
       this.emit('error', err)
     })
 
-    this.#swarm.on('connection', (conn, info) => {
-      conn.on('error', (err) => {
+    this.#swarm.on('connection', (conn, _info) => {
+      conn.on('error', err => {
         if (err.code === 'SSL_ERROR' || err.message?.includes('handshake')) {
           return
         }
@@ -132,7 +189,9 @@ export class MostBoxEngine extends EventEmitter {
     })
 
     this.#publishedFiles = this.#loadPublishedMetadata()
-    console.log(`[MostBox] Loaded ${this.#publishedFiles.length} published files`)
+    console.log(
+      `[MostBox] Loaded ${this.#publishedFiles.length} published files`
+    )
 
     this.#trashFiles = this.#loadTrashMetadata()
     console.log(`[MostBox] Loaded ${this.#trashFiles.length} trash files`)
@@ -143,18 +202,27 @@ export class MostBoxEngine extends EventEmitter {
     for (const channel of this.#channels) {
       try {
         const ns = this.#store.namespace(`channel-${channel.name}`)
-        const core = ns.get({ key: b4a.from(channel.coreKey, 'hex'), valueEncoding: 'json' })
+        const core = ns.get({
+          key: b4a.from(channel.coreKey, 'hex'),
+          valueEncoding: 'json',
+        })
         await core.ready()
         this.#channelCores.set(channel.name, core)
         this.#channelPeers.set(channel.name, new Map())
         this.#setupChannelAppendListener(core, channel.name)
 
         const discoveryKey = b4a.from(channel.discoveryKey, 'hex')
-        const discovery = this.#swarm.join(discoveryKey, { server: true, client: true })
+        const discovery = this.#swarm.join(discoveryKey, {
+          server: true,
+          client: true,
+        })
         this.#channelDiscoveries.set(channel.name, discovery)
         console.log(`[MostBox] Rejoined channel: ${channel.name}`)
       } catch (err) {
-        console.warn(`[MostBox] Failed to rejoin channel ${channel.name}:`, err.message)
+        console.warn(
+          `[MostBox] Failed to rejoin channel ${channel.name}:`,
+          err.message
+        )
       }
     }
 
@@ -184,7 +252,9 @@ export class MostBoxEngine extends EventEmitter {
     this.#drives.clear()
 
     for (const core of this.#channelCores.values()) {
-      try { await core.close() } catch {}
+      try {
+        await core.close()
+      } catch {}
     }
     this.#channelCores.clear()
     this.#channelDiscoveries.clear()
@@ -223,7 +293,7 @@ export class MostBoxEngine extends EventEmitter {
     const connections = this.#swarm.connections.size
     return {
       peers: connections,
-      status: connections > 0 ? 'connected' : 'waiting'
+      status: connections > 0 ? 'connected' : 'waiting',
     }
   }
 
@@ -255,7 +325,10 @@ export class MostBoxEngine extends EventEmitter {
       }
       cleanPath = pathValidation.cleanPath
 
-      const sizeValidation = await validateFileSize(cleanPath, this.#options.maxFileSize)
+      const sizeValidation = await validateFileSize(
+        cleanPath,
+        this.#options.maxFileSize
+      )
       if (!sizeValidation.valid) {
         throw new FileSizeError(sizeValidation.error, sizeValidation.size)
       }
@@ -266,23 +339,31 @@ export class MostBoxEngine extends EventEmitter {
 
     if (fileSize > this.#options.maxFileSize) {
       const maxGB = Math.round(this.#options.maxFileSize / (1024 * 1024 * 1024))
-      throw new FileSizeError(`File size exceeds limit of ${maxGB} GB`, fileSize)
+      throw new FileSizeError(
+        `File size exceeds limit of ${maxGB} GB`,
+        fileSize
+      )
     }
 
-    this.emit('publish:progress', { stage: 'calculating-cid', file: safeFileName })
+    this.emit('publish:progress', {
+      stage: 'calculating-cid',
+      file: safeFileName,
+    })
 
     const { cid: rootCid } = await calculateCid(content)
     const cidString = rootCid.toString()
 
     // 检查相同内容是否已存在
-    const existingIndex = this.#publishedFiles.findIndex(f => f.cid === cidString)
+    const existingIndex = this.#publishedFiles.findIndex(
+      f => f.cid === cidString
+    )
     if (existingIndex !== -1) {
       const existing = this.#publishedFiles[existingIndex]
       return {
         cid: cidString,
         link: `most://${cidString}`,
         fileName: existing.fileName,
-        alreadyExists: true
+        alreadyExists: true,
       }
     }
 
@@ -292,8 +373,14 @@ export class MostBoxEngine extends EventEmitter {
     let drive = this.#drives.get(name)
 
     if (!drive) {
-      drive = await this.#getOrCreateDrive(name, { server: true, client: false })
-      const discovery = this.#swarm.join(drive.discoveryKey, { server: true, client: false })
+      drive = await this.#getOrCreateDrive(name, {
+        server: true,
+        client: false,
+      })
+      const discovery = this.#swarm.join(drive.discoveryKey, {
+        server: true,
+        client: false,
+      })
       await discovery.flushed()
     }
 
@@ -306,7 +393,8 @@ export class MostBoxEngine extends EventEmitter {
 
     if (Buffer.isBuffer(content)) {
       let offset = 0
-      const waitForDrain = () => new Promise(resolve => ws.once('drain', resolve))
+      const waitForDrain = () =>
+        new Promise(resolve => ws.once('drain', resolve))
 
       try {
         while (offset < content.length) {
@@ -342,14 +430,14 @@ export class MostBoxEngine extends EventEmitter {
       cid: cidString,
       driveName: name,
       publishedAt: new Date().toISOString(),
-      starred: false
+      starred: false,
     })
     this.#savePublishedMetadata()
 
     const result = {
       cid: cidString,
       link: `most://${cidString}?filename=${encodeURIComponent(safeFileName)}`,
-      fileName: safeFileName
+      fileName: safeFileName,
     }
 
     this.emit('publish:success', result)
@@ -365,9 +453,12 @@ export class MostBoxEngine extends EventEmitter {
   async downloadFile(link, taskId = null) {
     this.#ensureInitialized()
 
-    taskId = taskId || `dl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+    taskId =
+      taskId || `dl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 
-    console.log(`[MostBox] Starting download for link: ${link} (taskId: ${taskId})`)
+    console.log(
+      `[MostBox] Starting download for link: ${link} (taskId: ${taskId})`
+    )
 
     const taskState = { aborted: false, readStream: null, writeStream: null }
     this.#activeDownloads.set(taskId, taskState)
@@ -386,7 +477,7 @@ export class MostBoxEngine extends EventEmitter {
         return {
           taskId,
           fileName: existingFile.fileName,
-          alreadyExists: true
+          alreadyExists: true,
         }
       }
 
@@ -402,12 +493,17 @@ export class MostBoxEngine extends EventEmitter {
 
       if (!drive) {
         console.log(`[MostBox] Creating new drive: ${name}`)
-        drive = await this.#getOrCreateDrive(name, { server: true, client: true })
+        drive = await this.#getOrCreateDrive(name, {
+          server: true,
+          client: true,
+        })
 
         this.emit('download:status', { taskId, status: 'connecting' })
 
         console.log(`[MostBox] Joining swarm for drive discovery...`)
-        await this.#swarm.join(drive.discoveryKey, { server: true, client: true }).flushed()
+        await this.#swarm
+          .join(drive.discoveryKey, { server: true, client: true })
+          .flushed()
         console.log(`[MostBox] Swarm join flushed`)
       } else {
         console.log(`[MostBox] Using existing drive: ${name}`)
@@ -417,8 +513,15 @@ export class MostBoxEngine extends EventEmitter {
 
       this.emit('download:status', { taskId, status: 'finding-peers' })
 
-      console.log(`[MostBox] Waiting for drive content (timeout: ${DOWNLOAD_TIMEOUT / 1000}s)...`)
-      const entries = await this.#waitForDriveContent(drive, DOWNLOAD_TIMEOUT, taskId, taskState)
+      console.log(
+        `[MostBox] Waiting for drive content (timeout: ${DOWNLOAD_TIMEOUT / 1000}s)...`
+      )
+      const entries = await this.#waitForDriveContent(
+        drive,
+        DOWNLOAD_TIMEOUT,
+        taskId,
+        taskState
+      )
 
       if (entries.length === 0) {
         console.log(`[MostBox] No entries found after timeout`)
@@ -427,7 +530,8 @@ export class MostBoxEngine extends EventEmitter {
         let errorMessage = 'No files found in drive. '
 
         if (peerCount === 0) {
-          errorMessage += 'Could not connect to any peers. This may be due to:\n'
+          errorMessage +=
+            'Could not connect to any peers. This may be due to:\n'
           errorMessage += '1. Network firewall blocking P2P connections\n'
           errorMessage += '2. DHT bootstrap nodes unreachable\n'
           errorMessage += '3. NAT traversal failed (try port forwarding)\n'
@@ -444,7 +548,9 @@ export class MostBoxEngine extends EventEmitter {
 
       if (taskState.aborted) throw new Error('Download cancelled')
 
-      console.log(`[MostBox] Found ${entries.length} entries, starting download...`)
+      console.log(
+        `[MostBox] Found ${entries.length} entries, starting download...`
+      )
 
       const targetDir = this.#options.dataPath
 
@@ -476,7 +582,7 @@ export class MostBoxEngine extends EventEmitter {
           taskId,
           status: 'downloading',
           file: sanitizedFileName,
-          size: totalBytes ? formatFileSize(totalBytes) : null
+          size: totalBytes ? formatFileSize(totalBytes) : null,
         })
 
         const rs = drive.createReadStream(entry.key)
@@ -489,20 +595,28 @@ export class MostBoxEngine extends EventEmitter {
         let lastProgressUpdate = 0
 
         await new Promise((resolve, reject) => {
-          rs.on('data', (chunk) => {
+          rs.on('data', chunk => {
             if (taskState.aborted) {
               rs.destroy()
               ws.destroy()
-              fs.unlink(savePath, () => { })
+              fs.unlink(savePath, () => {})
               reject(new Error('Download cancelled'))
               return
             }
             loadedBytes += chunk.length
             const now = Date.now()
-            if (totalBytes > 0 && now - lastProgressUpdate > PROGRESS_THROTTLE) {
+            if (
+              totalBytes > 0 &&
+              now - lastProgressUpdate > PROGRESS_THROTTLE
+            ) {
               lastProgressUpdate = now
               const percent = Math.round((loadedBytes / totalBytes) * 100)
-              this.emit('download:progress', { taskId, loaded: loadedBytes, total: totalBytes, percent })
+              this.emit('download:progress', {
+                taskId,
+                loaded: loadedBytes,
+                total: totalBytes,
+                percent,
+              })
             }
           })
 
@@ -522,7 +636,9 @@ export class MostBoxEngine extends EventEmitter {
 
         if (expectedHash !== actualHash) {
           fs.unlinkSync(savePath)
-          throw new IntegrityError(`File content CID mismatch. File may be corrupted or tampered.`)
+          throw new IntegrityError(
+            `File content CID mismatch. File may be corrupted or tampered.`
+          )
         }
 
         // Write file content to Hyperdrive for seeding to other peers
@@ -542,11 +658,13 @@ export class MostBoxEngine extends EventEmitter {
         const result = {
           taskId,
           fileName: sanitizedFileName,
-          savedPath: savePath
+          savedPath: savePath,
         }
 
         // 将下载的文件添加到已发布文件列表（displayName 用原始文件名）
-        const existingIndex = this.#publishedFiles.findIndex(f => f.cid === cidString)
+        const existingIndex = this.#publishedFiles.findIndex(
+          f => f.cid === cidString
+        )
         if (existingIndex !== -1) {
           const existing = this.#publishedFiles[existingIndex]
           if (existing.fileName !== sanitizedFileName) {
@@ -559,7 +677,7 @@ export class MostBoxEngine extends EventEmitter {
             cid: cidString,
             driveName: name,
             publishedAt: new Date().toISOString(),
-            starred: false
+            starred: false,
           })
         }
         this.#savePublishedMetadata()
@@ -591,7 +709,7 @@ export class MostBoxEngine extends EventEmitter {
       cid: f.cid,
       link: `most://${f.cid}`,
       publishedAt: f.publishedAt,
-      starred: f.starred || false
+      starred: f.starred || false,
     }))
   }
 
@@ -610,7 +728,7 @@ export class MostBoxEngine extends EventEmitter {
     this.#savePublishedMetadata()
     return {
       cid,
-      starred: this.#publishedFiles[index].starred
+      starred: this.#publishedFiles[index].starred,
     }
   }
 
@@ -631,7 +749,7 @@ export class MostBoxEngine extends EventEmitter {
         driveName: fileRecord.driveName,
         publishedAt: fileRecord.publishedAt,
         starred: fileRecord.starred || false,
-        deletedAt: new Date().toISOString()
+        deletedAt: new Date().toISOString(),
       })
       this.#saveTrashMetadata()
 
@@ -653,7 +771,7 @@ export class MostBoxEngine extends EventEmitter {
       link: `most://${f.cid}`,
       publishedAt: f.publishedAt,
       starred: f.starred || false,
-      deletedAt: f.deletedAt
+      deletedAt: f.deletedAt,
     }))
   }
 
@@ -680,7 +798,7 @@ export class MostBoxEngine extends EventEmitter {
       cid: fileRecord.cid,
       driveName,
       publishedAt: fileRecord.publishedAt,
-      starred: fileRecord.starred || false
+      starred: fileRecord.starred || false,
     })
     this.#savePublishedMetadata()
 
@@ -706,7 +824,7 @@ export class MostBoxEngine extends EventEmitter {
       if (drive) {
         try {
           await drive.del('/' + fileRecord.cid)
-        } catch (err) {
+        } catch {
           // 文件可能不存在于驱动器中
         }
 
@@ -735,7 +853,7 @@ export class MostBoxEngine extends EventEmitter {
       if (drive) {
         try {
           await drive.del('/' + fileRecord.cid)
-        } catch (err) {
+        } catch {
           // 文件可能不存在
         }
 
@@ -766,9 +884,9 @@ export class MostBoxEngine extends EventEmitter {
       const stats = fs.statfsSync(dataPath)
       totalSize = stats.bsize * stats.blocks
       freeSize = stats.bsize * stats.bfree
-    } catch (err) {
+    } catch {
       try {
-        const stats = fs.statSync(dataPath)
+        fs.statSync(dataPath)
         totalSize = 0
         freeSize = 0
       } catch {
@@ -778,7 +896,7 @@ export class MostBoxEngine extends EventEmitter {
     }
 
     let usedSize = 0
-    const calculateDirSize = (dirPath) => {
+    const calculateDirSize = dirPath => {
       try {
         const entries = fs.readdirSync(dirPath, { withFileTypes: true })
         for (const entry of entries) {
@@ -808,7 +926,7 @@ export class MostBoxEngine extends EventEmitter {
       used: usedSize,
       free: freeSize,
       fileCount: this.#publishedFiles.length,
-      trashCount: this.#trashFiles.length
+      trashCount: this.#trashFiles.length,
     }
   }
 
@@ -832,7 +950,7 @@ export class MostBoxEngine extends EventEmitter {
     return {
       cid,
       fileName: safeFileName,
-      link: `most://${cid}`
+      link: `most://${cid}`,
     }
   }
 
@@ -851,13 +969,15 @@ export class MostBoxEngine extends EventEmitter {
     for (const file of this.#publishedFiles) {
       if (file.fileName.startsWith(prefix)) {
         const remainder = file.fileName.substring(prefix.length)
-        const newFileName = sanitizeFilename(remainder ? newPath + '/' + remainder : newPath)
+        const newFileName = sanitizeFilename(
+          remainder ? newPath + '/' + remainder : newPath
+        )
         file.fileName = newFileName
         file.publishedAt = new Date().toISOString()
         updatedFiles.push({
           cid: file.cid,
           fileName: file.fileName,
-          link: `most://${file.cid}`
+          link: `most://${file.cid}`,
         })
       }
     }
@@ -905,16 +1025,25 @@ export class MostBoxEngine extends EventEmitter {
 
     // Hyperdrive 中 key 为 '/' + cid
     const driveKey = '/' + cid
-    const entry = await drive.entry(driveKey, { wait: true, timeout: DRIVE_ENTRY_TIMEOUT })
+    const entry = await drive.entry(driveKey, {
+      wait: true,
+      timeout: DRIVE_ENTRY_TIMEOUT,
+    })
     if (!entry || !entry.value) {
       throw new Error('File content not available')
     }
 
     const chunks = []
-    const stream = drive.createReadStream(driveKey, { start: offset, end: offset + limit - 1 })
+    const stream = drive.createReadStream(driveKey, {
+      start: offset,
+      end: offset + limit - 1,
+    })
 
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Stream read timeout')), STREAM_READ_TIMEOUT)
+      setTimeout(
+        () => reject(new Error('Stream read timeout')),
+        STREAM_READ_TIMEOUT
+      )
     })
 
     const readPromise = (async () => {
@@ -926,7 +1055,8 @@ export class MostBoxEngine extends EventEmitter {
     await Promise.race([readPromise, timeoutPromise])
 
     const content = Buffer.concat(chunks).toString('utf8')
-    const hasMore = chunks.length > 0 && chunks[chunks.length - 1].length === limit
+    const hasMore =
+      chunks.length > 0 && chunks[chunks.length - 1].length === limit
 
     return { content, hasMore }
   }
@@ -952,7 +1082,10 @@ export class MostBoxEngine extends EventEmitter {
     const drive = await this.#getDriveForFile(fileRecord)
 
     const driveKey = '/' + cid
-    const entry = await drive.entry(driveKey, { wait: true, timeout: DRIVE_ENTRY_TIMEOUT })
+    const entry = await drive.entry(driveKey, {
+      wait: true,
+      timeout: DRIVE_ENTRY_TIMEOUT,
+    })
     if (!entry || !entry.value || !entry.value.blob) {
       throw new Error('File content not available')
     }
@@ -960,18 +1093,23 @@ export class MostBoxEngine extends EventEmitter {
     const totalSize = entry.value.blob.byteLength || 0
 
     const { offset = 0, limit, timeout = STREAM_READ_TIMEOUT } = options
-    const effectiveLimit = (limit === undefined || limit === null)
-      ? totalSize - offset
-      : Math.min(limit, totalSize - offset)
+    const effectiveLimit =
+      limit === undefined || limit === null
+        ? totalSize - offset
+        : Math.min(limit, totalSize - offset)
 
     if (effectiveLimit <= 0) {
-      return { buffer: Buffer.alloc(0), fileName: fileRecord.fileName, totalSize }
+      return {
+        buffer: Buffer.alloc(0),
+        fileName: fileRecord.fileName,
+        totalSize,
+      }
     }
 
     const chunks = []
     const stream = drive.createReadStream(driveKey, {
       start: offset,
-      end: offset + effectiveLimit - 1
+      end: offset + effectiveLimit - 1,
     })
 
     const timeoutPromise = new Promise((_, reject) => {
@@ -991,7 +1129,7 @@ export class MostBoxEngine extends EventEmitter {
     })()
 
     await Promise.race([readPromise, timeoutPromise])
-    await readPromise.catch(() => { })
+    await readPromise.catch(() => {})
 
     const buffer = Buffer.concat(chunks)
     return { buffer, fileName: fileRecord.fileName, totalSize }
@@ -1003,7 +1141,10 @@ export class MostBoxEngine extends EventEmitter {
   async #getDriveForFile(fileRecord) {
     let drive = this.#drives.get(fileRecord.driveName)
     if (!drive) {
-      drive = await this.#getOrCreateDrive(fileRecord.driveName, { server: true, client: true })
+      drive = await this.#getOrCreateDrive(fileRecord.driveName, {
+        server: true,
+        client: true,
+      })
     }
     await this.#syncDrive(drive)
     return drive
@@ -1040,7 +1181,10 @@ export class MostBoxEngine extends EventEmitter {
     await core.ready()
 
     const discoveryKey = this.#generateChannelDiscoveryKey(name)
-    const discovery = this.#swarm.join(discoveryKey, { server: true, client: true })
+    const discovery = this.#swarm.join(discoveryKey, {
+      server: true,
+      client: true,
+    })
     await discovery.flushed()
 
     this.#setupChannelAppendListener(core, name)
@@ -1050,7 +1194,7 @@ export class MostBoxEngine extends EventEmitter {
       discoveryKey: b4a.toString(discoveryKey, 'hex'),
       coreKey: b4a.toString(core.key, 'hex'),
       createdAt: new Date().toISOString(),
-      type
+      type,
     }
 
     this.#channels.push(channelInfo)
@@ -1083,11 +1227,17 @@ export class MostBoxEngine extends EventEmitter {
     }
 
     const ns = this.#store.namespace(`channel-${name}`)
-    const core = ns.get({ key: b4a.from(coreKey, 'hex'), valueEncoding: 'json' })
+    const core = ns.get({
+      key: b4a.from(coreKey, 'hex'),
+      valueEncoding: 'json',
+    })
     await core.ready()
 
     const discoveryKey = this.#generateChannelDiscoveryKey(name)
-    const discovery = this.#swarm.join(discoveryKey, { server: true, client: true })
+    const discovery = this.#swarm.join(discoveryKey, {
+      server: true,
+      client: true,
+    })
     await discovery.flushed()
 
     this.#setupChannelAppendListener(core, name)
@@ -1097,7 +1247,7 @@ export class MostBoxEngine extends EventEmitter {
       discoveryKey: b4a.toString(discoveryKey, 'hex'),
       coreKey,
       createdAt: new Date().toISOString(),
-      type: 'group'
+      type: 'group',
     }
 
     this.#channels.push(channelInfo)
@@ -1131,7 +1281,10 @@ export class MostBoxEngine extends EventEmitter {
       try {
         await this.#swarm.leave(b4a.from(channel.discoveryKey, 'hex'))
       } catch (err) {
-        console.warn(`[MostBox] Failed to leave channel discovery for ${name}:`, err.message)
+        console.warn(
+          `[MostBox] Failed to leave channel discovery for ${name}:`,
+          err.message
+        )
       }
       this.#channelDiscoveries.delete(name)
     }
@@ -1141,7 +1294,10 @@ export class MostBoxEngine extends EventEmitter {
       try {
         await core.close()
       } catch (err) {
-        console.warn(`[MostBox] Failed to close channel core for ${name}:`, err.message)
+        console.warn(
+          `[MostBox] Failed to close channel core for ${name}:`,
+          err.message
+        )
       }
       this.#channelCores.delete(name)
     }
@@ -1168,7 +1324,7 @@ export class MostBoxEngine extends EventEmitter {
       coreKey: c.coreKey,
       createdAt: c.createdAt,
       type: c.type,
-      peerCount: (this.#channelPeers.get(c.name) || new Map()).size
+      peerCount: (this.#channelPeers.get(c.name) || new Map()).size,
     }))
   }
 
@@ -1237,7 +1393,7 @@ export class MostBoxEngine extends EventEmitter {
       author,
       authorName,
       content: trimmed,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     }
 
     await core.append(message)
@@ -1263,7 +1419,7 @@ export class MostBoxEngine extends EventEmitter {
     return [...peers.values()].map(p => ({
       peerId: p.peerId,
       authorName: p.authorName,
-      lastSeen: p.lastSeen
+      lastSeen: p.lastSeen,
     }))
   }
 
@@ -1289,7 +1445,9 @@ export class MostBoxEngine extends EventEmitter {
   setDisplayName(name) {
     try {
       const configPath = this.#getConfigPath()
-      const config = fs.existsSync(configPath) ? JSON.parse(fs.readFileSync(configPath, 'utf-8')) : {}
+      const config = fs.existsSync(configPath)
+        ? JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+        : {}
       config.displayName = name.trim()
       const tmpPath = configPath + '.tmp'
       fs.writeFileSync(tmpPath, JSON.stringify(config, null, 2), 'utf-8')
@@ -1308,7 +1466,7 @@ export class MostBoxEngine extends EventEmitter {
     }
   }
 
-  async #getOrCreateDrive(name, options = { server: true, client: false }) {
+  async #getOrCreateDrive(name, _options = { server: true, client: false }) {
     if (this.#drives.has(name)) return this.#drives.get(name)
     if (this.#drivePromises.has(name)) return this.#drivePromises.get(name)
 
@@ -1331,11 +1489,16 @@ export class MostBoxEngine extends EventEmitter {
 
   async #syncDrive(drive, timeout = DRIVE_SYNC_TIMEOUT) {
     const done = drive.findingPeers()
-    this.#swarm.join(drive.discoveryKey, { server: true, client: true }).flushed().then(done, done)
+    this.#swarm
+      .join(drive.discoveryKey, { server: true, client: true })
+      .flushed()
+      .then(done, done)
     try {
       const updated = await Promise.race([
         drive.update(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Sync timeout')), timeout))
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Sync timeout')), timeout)
+        ),
       ])
       return updated
     } catch {
@@ -1366,7 +1529,10 @@ export class MostBoxEngine extends EventEmitter {
         return parsed.map(f => ({ ...f, starred: f.starred || false }))
       }
     } catch (err) {
-      console.warn('Failed to load published metadata, using empty list:', err.message)
+      console.warn(
+        'Failed to load published metadata, using empty list:',
+        err.message
+      )
     }
     return []
   }
@@ -1374,7 +1540,10 @@ export class MostBoxEngine extends EventEmitter {
   #savePublishedMetadata() {
     try {
       const metadataPath = this.#getMetadataPath()
-      this.#atomicWrite(metadataPath, JSON.stringify(this.#publishedFiles, null, 2))
+      this.#atomicWrite(
+        metadataPath,
+        JSON.stringify(this.#publishedFiles, null, 2)
+      )
     } catch (err) {
       console.error('Failed to save published metadata:', err.message)
     }
@@ -1388,7 +1557,10 @@ export class MostBoxEngine extends EventEmitter {
         return JSON.parse(data)
       }
     } catch (err) {
-      console.warn('Failed to load trash metadata, using empty list:', err.message)
+      console.warn(
+        'Failed to load trash metadata, using empty list:',
+        err.message
+      )
     }
     return []
   }
@@ -1418,7 +1590,10 @@ export class MostBoxEngine extends EventEmitter {
         return JSON.parse(data)
       }
     } catch (err) {
-      console.warn('Failed to load channels metadata, using empty list:', err.message)
+      console.warn(
+        'Failed to load channels metadata, using empty list:',
+        err.message
+      )
     }
     return []
   }
@@ -1433,7 +1608,8 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #generateChannelDiscoveryKey(name) {
-    const hash = crypto.createHash('sha256')
+    const hash = crypto
+      .createHash('sha256')
       .update(`${CHANNEL_NAME_PREFIX}${name}`)
       .digest()
     return hash
@@ -1447,10 +1623,16 @@ export class MostBoxEngine extends EventEmitter {
           try {
             const entry = await core.get(i)
             if (entry && entry.type === 'message') {
-              this.emit('channel:message', { channel: channelName, message: entry })
+              this.emit('channel:message', {
+                channel: channelName,
+                message: entry,
+              })
             }
           } catch (err) {
-            console.error(`[MostBox] Failed to read channel message from ${channelName}:`, err.message)
+            console.error(
+              `[MostBox] Failed to read channel message from ${channelName}:`,
+              err.message
+            )
             continue
           }
         }
@@ -1462,13 +1644,12 @@ export class MostBoxEngine extends EventEmitter {
   async #handleChannelConnection(conn) {
     const stream = conn
     let connectedPeerId = null
-    let connectedAuthorName = null
 
-      const helloMessage = JSON.stringify({
+    const helloMessage = JSON.stringify({
       type: 'channel-hello',
       peerId: this.getNodeId(),
       authorName: this.getNodeId().slice(0, 4),
-      channels: this.#channels.map(c => c.name)
+      channels: this.#channels.map(c => c.name),
     })
 
     try {
@@ -1477,12 +1658,11 @@ export class MostBoxEngine extends EventEmitter {
       return
     }
 
-    stream.on('data', async (data) => {
+    stream.on('data', async data => {
       try {
         const msg = JSON.parse(data.toString())
         if (msg.type === 'channel-hello') {
           connectedPeerId = msg.peerId
-          connectedAuthorName = msg.authorName
 
           const theirChannels = new Set(msg.channels || [])
           for (const [name, peers] of this.#channelPeers) {
@@ -1490,7 +1670,7 @@ export class MostBoxEngine extends EventEmitter {
               peers.set(msg.peerId, {
                 peerId: msg.peerId,
                 authorName: msg.authorName,
-                lastSeen: Date.now()
+                lastSeen: Date.now(),
               })
               const core = this.#channelCores.get(name)
               if (core) {
@@ -1499,7 +1679,10 @@ export class MostBoxEngine extends EventEmitter {
               }
             }
           }
-          this.emit('channel:peer:online', { peerId: msg.peerId, authorName: msg.authorName })
+          this.emit('channel:peer:online', {
+            peerId: msg.peerId,
+            authorName: msg.authorName,
+          })
         }
       } catch (err) {
         console.warn(`[MostBox] Failed to process channel data:`, err.message)
@@ -1508,11 +1691,14 @@ export class MostBoxEngine extends EventEmitter {
 
     stream.on('close', () => {
       if (connectedPeerId) {
-        for (const [name, peers] of this.#channelPeers) {
+        for (const [, peers] of this.#channelPeers) {
           if (peers.has(connectedPeerId)) {
             const peer = peers.get(connectedPeerId)
             peers.delete(connectedPeerId)
-            this.emit('channel:peer:offline', { peerId: connectedPeerId, authorName: peer?.authorName })
+            this.emit('channel:peer:offline', {
+              peerId: connectedPeerId,
+              authorName: peer?.authorName,
+            })
           }
         }
       }
@@ -1545,8 +1731,7 @@ export class MostBoxEngine extends EventEmitter {
         this.emit('download:status', { taskId, status: 'syncing' })
         return localEntries
       }
-    } catch (err) {
-    }
+    } catch {}
 
     const tryUpdateDrive = async () => {
       const now = Date.now()
@@ -1554,8 +1739,7 @@ export class MostBoxEngine extends EventEmitter {
         lastUpdateTime = now
         try {
           await drive.update()
-        } catch {
-        }
+        } catch {}
       }
     }
 
@@ -1571,7 +1755,9 @@ export class MostBoxEngine extends EventEmitter {
       const hasPeers = currentPeerCount > 0
 
       if (currentPeerCount !== lastPeerCount) {
-        console.log(`[MostBox] Peer count changed: ${lastPeerCount} -> ${currentPeerCount} (elapsed: ${elapsed}s)`)
+        console.log(
+          `[MostBox] Peer count changed: ${lastPeerCount} -> ${currentPeerCount} (elapsed: ${elapsed}s)`
+        )
         lastPeerCount = currentPeerCount
       }
 
@@ -1582,11 +1768,12 @@ export class MostBoxEngine extends EventEmitter {
         for await (const entry of drive.list()) {
           entries.push(entry)
         }
-      } catch (err) {
-      }
+      } catch {}
 
       if (entries.length > 0) {
-        console.log(`[MostBox] Found ${entries.length} entries after ${elapsed}s`)
+        console.log(
+          `[MostBox] Found ${entries.length} entries after ${elapsed}s`
+        )
         this.emit('download:status', { taskId, status: 'syncing' })
         return entries
       }
@@ -1607,12 +1794,18 @@ export class MostBoxEngine extends EventEmitter {
         pollInterval = DOWNLOAD_POLL_INTERVAL_MIN
 
         if (elapsed % 30 === 0 && elapsed > 0) {
-          console.log(`[MostBox] Still waiting for peers... (elapsed: ${elapsed}s, timeout: ${timeout / 1000}s)`)
+          console.log(
+            `[MostBox] Still waiting for peers... (elapsed: ${elapsed}s, timeout: ${timeout / 1000}s)`
+          )
 
           if (!bootstrapNodesChecked && elapsed >= 60) {
             bootstrapNodesChecked = true
-            console.log(`[MostBox] No peers found after 60s. This may indicate:`)
-            console.log(`[MostBox] 1. Network/firewall blocking P2P connections`)
+            console.log(
+              `[MostBox] No peers found after 60s. This may indicate:`
+            )
+            console.log(
+              `[MostBox] 1. Network/firewall blocking P2P connections`
+            )
             console.log(`[MostBox] 2. DHT bootstrap nodes unreachable`)
             console.log(`[MostBox] 3. Publisher node offline`)
             console.log(`[MostBox] 4. NAT traversal failed`)
@@ -1623,7 +1816,9 @@ export class MostBoxEngine extends EventEmitter {
       await new Promise(resolve => setTimeout(resolve, pollInterval))
     }
 
-    console.log(`[MostBox] Timeout reached after ${timeout / 1000}s, making final attempt...`)
+    console.log(
+      `[MostBox] Timeout reached after ${timeout / 1000}s, making final attempt...`
+    )
 
     await tryUpdateDrive()
 
@@ -1646,9 +1841,13 @@ export class MostBoxEngine extends EventEmitter {
       console.log(`[MostBox] - Timeout: ${timeout / 1000}s`)
 
       if (peerCount === 0) {
-        console.log(`[MostBox] Suggestion: Check network connectivity and firewall settings`)
+        console.log(
+          `[MostBox] Suggestion: Check network connectivity and firewall settings`
+        )
       } else {
-        console.log(`[MostBox] Suggestion: Publisher may be offline or file may have been removed`)
+        console.log(
+          `[MostBox] Suggestion: Publisher may be offline or file may have been removed`
+        )
       }
     }
 
