@@ -5,7 +5,7 @@ import AppHomeMode from "../components/AppHomeMode";
 import MarketingLanding from "../components/MarketingLanding";
 import { Nav } from "../components/Nav";
 import { Footer } from "../components/Footer";
-import { api, setBackendUrl, getBackendUrlExport, checkBackendConnection } from "../src/utils/api";
+import { api, setBackendUrl, getBackendUrlExport, checkBackendConnection, detectSameOriginBackend, detectLocalhostBackend } from "../src/utils/api";
 
 export default function HomePage() {
   const [mode, setMode] = useState<"loading" | "app" | "marketing" | "error">("loading");
@@ -20,7 +20,7 @@ export default function HomePage() {
       setBackendUrlState(url);
     }
     const currentUrl = url ?? getBackendUrlExport();
-    if (!currentUrl) {
+    if (currentUrl === undefined && !getBackendUrlExport()) {
       setMode("marketing");
       return;
     }
@@ -47,7 +47,21 @@ export default function HomePage() {
     if (savedUrl) {
       tryConnect(savedUrl);
     } else {
-      setMode("marketing");
+      detectSameOriginBackend().then((detected) => {
+        if (detected) {
+          setBackendUrl('');
+          tryConnect('');
+          return;
+        }
+        detectLocalhostBackend().then((localDetected) => {
+          if (localDetected) {
+            setBackendUrl('http://localhost:1976');
+            tryConnect('http://localhost:1976');
+          } else {
+            setMode("marketing");
+          }
+        });
+      });
     }
   }, [tryConnect]);
 
@@ -78,20 +92,8 @@ export default function HomePage() {
               当前地址：<code>{backendUrl || "未设置"}</code>
             </p>
             <p className="backend-error-desc">
-              请检查后端服务是否运行，或输入新的后端地址。
+              请检查后端服务是否运行，或点击导航栏设置图标修改地址。
             </p>
-            <form onSubmit={handleSaveUrl} className="backend-error-form">
-              <input
-                type="text"
-                value={inputUrl}
-                onChange={(e) => setInputUrl(e.target.value)}
-                placeholder="如 http://192.168.1.100:1976"
-                className="backend-error-input"
-              />
-              <button type="submit" disabled={connecting || !inputUrl.trim()} className="backend-error-btn primary">
-                {connecting ? "连接中..." : "连接"}
-              </button>
-            </form>
             <button onClick={() => { setBackendUrl(""); setBackendUrlState(""); setMode("marketing"); }} className="backend-error-btn secondary">
               返回首页
             </button>

@@ -42,3 +42,27 @@ export async function checkBackendConnection() {
     return false
   }
 }
+
+export async function detectSameOriginBackend() {
+  try {
+    const res = await fetch('/api/node-id', {
+      method: 'GET',
+      signal: AbortSignal.timeout(2000),
+    })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
+export async function detectLocalhostBackend() {
+  try {
+    const res = await fetch('http://localhost:1976/api/node-id', {
+      method: 'GET',
+      signal: AbortSignal.timeout(2000),
+    })
+    return res.ok
+  } catch {
+    return false
+  }
+}

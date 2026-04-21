@@ -32,6 +32,7 @@
   "dependencies": {
     "@dicebear/collection": "^9.4.2",
     "@dicebear/core": "^9.4.2",
+    "@mantine/hooks": "^9.0.2",
     "b4a": "^1.8.0",
     "busboy": "^1.6.0",
     "corestore": "^7.9.2",
