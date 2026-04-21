@@ -1316,7 +1316,7 @@
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shadow-lg), var(--glass-shadow-inset);
   z-index: 100;
-  animation: fadeInUp 0.3s ease;
+  /* animation: fadeInUp 0.3s ease; */
 
   .batch-info {
     font-size: 12px;
