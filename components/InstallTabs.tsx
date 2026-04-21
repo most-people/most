@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useClipboard } from '../hooks'
 
 function CopyIcon() {
   return (
@@ -27,14 +28,12 @@ const tabs = [
 
 export function InstallTabs() {
   const [activeTab, setActiveTab] = useState('npx')
-  const [copied, setCopied] = useState(false)
+  const { copy, copied } = useClipboard({ timeout: 1500 })
 
   const activeCommand = tabs.find(t => t.id === activeTab)!.command
 
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(activeCommand)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
+  const handleCopy = () => {
+    copy(activeCommand)
   }
 
   return (
@@ -46,7 +45,7 @@ export function InstallTabs() {
             role="tab"
             aria-selected={activeTab === tab.id}
             className={activeTab === tab.id ? 'active' : ''}
-            onClick={() => { setActiveTab(tab.id); setCopied(false) }}
+            onClick={() => setActiveTab(tab.id)}
           >
             {tab.label}
           </button>

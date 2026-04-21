@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { X, Copy, Globe, ChevronDown, Power, Link } from "lucide-react";
 import { api } from "../src/utils/api";
+import { useClipboard } from "../hooks";
 import {
   setBackendUrl,
   getBackendUrlExport,
@@ -12,6 +13,7 @@ import {
 } from "../src/utils/api";
 
 function SettingsDrawer({ onClose, addToast, isDarkMode, handleShutdown }) {
+  const { copy } = useClipboard();
   const [dataPath, setStoragePath] = useState("");
   const [originalPath, setOriginalPath] = useState("");
   const [isDefault, setIsDefault] = useState(false);
@@ -214,9 +216,7 @@ function SettingsDrawer({ onClose, addToast, isDarkMode, handleShutdown }) {
                   <button
                     className="copy-btn"
                     onClick={() => {
-                      navigator.clipboard.writeText(
-                        `http://${addr.ip}:${networkPort}`,
-                      );
+                      copy(`http://${addr.ip}:${networkPort}`);
                       addToast("已复制", "success");
                     }}
                   >

@@ -39,6 +39,7 @@ import {
 } from "../../components/ui";
 import { api } from "../../src/utils/api";
 import { useApp } from "./AppProvider";
+import { useDisclosure, useClipboard } from "../../hooks";
 
 interface NetworkAddress {
   type: string;
@@ -392,7 +393,7 @@ function MoveModal({ items, allFolders, currentPath, onMove, onClose }) {
 }
 
 export default function App() {
-  const { isDarkMode, setIsDarkMode, addToast, openSettings } = useApp();
+  const { isDarkMode, setIsDarkMode, addToast, openSettings, showBackendWarning } = useApp();
   const [items, setItems] = useState([]);
   const [trashItems, setTrashItems] = useState([]);
   const [currentFolderId, setCurrentFolderId] = useState(null);
@@ -401,24 +402,24 @@ export default function App() {
   const [selectedIds, setSelectedIds] = useState([]);
   const [previewItem, setPreviewItem] = useState(null);
   const [shareItem, setShareItem] = useState(null);
-  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
+  const [isDownloadModalOpen, downloadModal] = useDisclosure(false);
   const [downloadLink, setDownloadLink] = useState("");
   const [transfers, setTransfers] = useState([]);
-  const [isTransferPanelOpen, setIsTransferPanelOpen] = useState(false);
+  const [isTransferPanelOpen, transferPanel] = useDisclosure(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [copied, setCopied] = useState(false);
+  const { copy: copyLink, copied: linkCopied } = useClipboard({ timeout: 2000 });
   const [peerCount, setPeerCount] = useState(0);
   const [storageStats, setStorageStats] = useState({
     total: 0,
     used: 0,
     free: 0,
   });
-  const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
+  const [isMoveModalOpen, moveModal] = useDisclosure(false);
   const [confirmModal, setConfirmModal] = useState(null);
   const [inputModal, setInputModal] = useState(null);
   const [inputLoading, setInputLoading] = useState(false);
   const [renameTarget, setRenameTarget] = useState(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, sidebar] = useDisclosure(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const isMobile = useMediaQuery("(max-width: 768px)");
   const [previewText, setPreviewText] = useState("");
@@ -659,7 +660,7 @@ export default function App() {
         }
       }
       setSelectedIds([]);
-      setIsMoveModalOpen(false);
+      moveModal.close();
       addToast("已移动", "success");
       refreshFiles();
     } catch {
@@ -732,7 +733,7 @@ export default function App() {
       setTransfers((prev) => [...prev, transfer]);
 
       if (newTransfers.length > 0) {
-        setIsTransferPanelOpen(true);
+        transferPanel.open();
       }
 
       try {
@@ -795,12 +796,7 @@ export default function App() {
   };
 
   const handleCopyLink = () => {
-    navigator.clipboard
-      .writeText(`most://${shareItem.cid}?filename=${shareItem.fileName}`)
-      .then(() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      });
+    copyLink(`most://${shareItem.cid}?filename=${shareItem.fileName}`);
   };
 
   const [isDownloading, setIsDownloading] = useState(false);
@@ -815,7 +811,7 @@ export default function App() {
     try {
       const result = await API.downloadFile(downloadLink);
       setDownloadLink("");
-      setIsDownloadModalOpen(false);
+      downloadModal.close();
 
       if (result.alreadyExists) {
         addToast(`${result.fileName} 已存在`, "warning");
@@ -828,7 +824,7 @@ export default function App() {
           status: "downloading",
         };
         setTransfers((prev) => [...prev, transfer]);
-        setIsTransferPanelOpen(true);
+        transferPanel.open();
         addToast("下载已开始", "info");
       }
     } catch (err) {
@@ -1028,7 +1024,7 @@ export default function App() {
     <div className="app-layout">
       <div
         className={`sidebar-overlay ${isSidebarOpen ? "visible" : ""}`}
-        onClick={() => setIsSidebarOpen(false)}
+        onClick={() => sidebar.close()}
       />
 
       <div className={`sidebar ${isSidebarOpen ? "open" : ""} ${isSidebarCollapsed ? "collapsed" : ""}`}>
@@ -1061,7 +1057,7 @@ export default function App() {
                   setCurrentFolderId(null);
                   setSelectedIds([]);
                   setSearchQuery("");
-                  setIsSidebarOpen(false);
+                  sidebar.close();
                 }
               }}
               className={`sidebar-nav-btn ${currentView === item.id && !item.href ? "active" : ""}`}
@@ -1095,11 +1091,32 @@ export default function App() {
 
       <div className="main-content">
         <header className="app-header">
+          {showBackendWarning && (
+            <div className="backend-warning-bar">
+              <span>未设置后端地址，请设置后端地址后使用</span>
+              <button onClick={() => openSettings()} aria-label="设置">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              </button>
+            </div>
+          )}
           <div className="header-left">
             <button
               onClick={() => {
                 if (isMobile) {
-                  setIsSidebarOpen(true);
+                  sidebar.open();
                 } else {
                   setIsSidebarCollapsed(!isSidebarCollapsed);
                 }
@@ -1135,7 +1152,7 @@ export default function App() {
               </button>
             )}
             <button
-              onClick={() => setIsTransferPanelOpen(true)}
+              onClick={() => transferPanel.open()}
               className="icon-btn"
             >
               <ArrowUpDown size={16} />
@@ -1181,7 +1198,7 @@ export default function App() {
             </div>
             <div
               className="action-card action-card-download"
-              onClick={() => setIsDownloadModalOpen(true)}
+              onClick={() => downloadModal.open()}
             >
               <Download size={20} className="action-grid-icon" />
               <p>下载文件</p>
@@ -1327,7 +1344,7 @@ export default function App() {
           }))}
           currentPath={currentPath}
           onMove={handleMove}
-          onClose={() => setIsMoveModalOpen(false)}
+          onClose={() => moveModal.close()}
         />
       )}
 
@@ -1349,9 +1366,9 @@ export default function App() {
               </div>
               <button
                 onClick={handleCopyLink}
-                className={`share-copy-btn ${copied ? "copied" : ""}`}
+                className={`share-copy-btn ${linkCopied ? "copied" : ""}`}
               >
-                {copied ? <Check size={18} /> : <Copy size={18} />}
+                {linkCopied ? <Check size={18} /> : <Copy size={18} />}
               </button>
             </div>
           </div>
@@ -1359,12 +1376,12 @@ export default function App() {
       )}
 
       {isDownloadModalOpen && (
-        <ModalOverlay onClose={() => setIsDownloadModalOpen(false)}>
+        <ModalOverlay onClose={() => downloadModal.close()}>
           <div className="download-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>下载文件</h3>
               <button
-                onClick={() => setIsDownloadModalOpen(false)}
+                onClick={() => downloadModal.close()}
                 className="modal-close-btn"
               >
                 <X size={18} />
@@ -1545,7 +1562,7 @@ export default function App() {
                 </button>
               )}
               <button
-                onClick={() => setIsMoveModalOpen(true)}
+                onClick={() => moveModal.open()}
                 className="btn small btn-move"
               >
                 移动
@@ -1581,14 +1598,14 @@ export default function App() {
 
       {isTransferPanelOpen && (
         <ModalOverlay
-          onClose={() => setIsTransferPanelOpen(false)}
+          onClose={() => transferPanel.close()}
           closeOnOverlayClick={true}
         >
           <div className="transfer-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>传输</h3>
               <button
-                onClick={() => setIsTransferPanelOpen(false)}
+                onClick={() => transferPanel.close()}
                 className="modal-close-btn"
               >
                 <X size={18} />

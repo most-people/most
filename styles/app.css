@@ -14,22 +14,18 @@
 
 /* === Backend Warning Bar === */
 .backend-warning-bar {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 300;
+  width: 100%;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
-  padding: 10px 16px;
+  padding: 8px 16px;
   background: var(--warning);
   color: #fff;
   font-size: 13px;
   font-weight: 500;
-  border-radius: var(--radius-md);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-  max-width: 360px;
+  border-radius: var(--radius-sm);
+  box-sizing: border-box;
 }
 
 .backend-warning-bar button {

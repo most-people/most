@@ -27,6 +27,7 @@ import {
 } from "../../../src/utils/userIdentity.js";
 import { generateAvatar } from "../../../src/utils/avatar.js";
 import { useApp } from "../AppProvider";
+import { useDisclosure, useToggle } from "../../../hooks";
 
 interface ChannelMessage {
   id?: string;
@@ -74,27 +75,27 @@ const API = {
 };
 
 function ChatPage() {
-  const { isDarkMode, setIsDarkMode } = useApp();
+  const { isDarkMode, setIsDarkMode, showBackendWarning, openSettings } = useApp();
   const [channels, setChannels] = useState([]);
   const [activeChannel, setActiveChannel] = useState(null);
   const [channelMessages, setChannelMessages] = useState([]);
   const [channelPeers, setChannelPeers] = useState([]);
   const [channelInput, setChannelInput] = useState("");
-  const [showJoinChannel, setShowJoinChannel] = useState(false);
+  const [showJoinChannel, joinChannelModal] = useDisclosure(false);
   const [myPeerId, setMyPeerId] = useState("");
   const [error, setError] = useState("");
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarOpen, sidebar] = useDisclosure(false);
+  const [isSidebarCollapsed, toggleSidebarCollapsed] = useToggle();
   const isMobile = useMediaQuery("(max-width: 768px)");
   const [isJoiningChannel, setIsJoiningChannel] = useState(false);
   const [isLeavingChannel, setIsLeavingChannel] = useState(false);
-  const [showLeaveChannelConfirm, setShowLeaveChannelConfirm] = useState(false);
+  const [showLeaveChannelConfirm, leaveChannelModal] = useDisclosure(false);
   const [channelToLeave, setChannelToLeave] = useState(null);
   const [userIdentity, setUserIdentity] = useState(null);
-  const [showLogin, setShowLogin] = useState(false);
+  const [showLogin, loginModal] = useDisclosure(false);
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
+  const [showPassword, togglePassword] = useToggle();
   const [loginPreviewAvatar, setLoginPreviewAvatar] = useState(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
@@ -336,7 +337,7 @@ function ChatPage() {
       unsubscribeFromChannel(activeChannelRef.current.name);
     }
     setActiveChannel(channel);
-    setIsSidebarOpen(false);
+    sidebar.close();
     subscribeToChannel(channel.name);
     window.history.pushState(
       {},
@@ -370,7 +371,7 @@ function ChatPage() {
         window.history.pushState({}, "", url.pathname);
       }
       refreshChannels();
-      setShowLeaveChannelConfirm(false);
+      leaveChannelModal.close();
       setChannelToLeave(null);
     } catch (err) {
       setError(err.message);
@@ -385,7 +386,7 @@ function ChatPage() {
     setIsJoiningChannel(true);
     try {
       await API.createChannel(channelName.trim(), "public");
-      setShowJoinChannel(false);
+      joinChannelModal.close();
       refreshChannels();
     } catch (err) {
       setError(err.message);
@@ -407,7 +408,7 @@ function ChatPage() {
     }
     saveIdentity(identity);
     setUserIdentity(identity);
-    setShowLogin(false);
+    loginModal.close();
     setLoginUsername("");
     setLoginPassword("");
   }
@@ -465,7 +466,7 @@ function ChatPage() {
     <div className="app-layout">
       <div
         className={`sidebar-overlay ${isSidebarOpen ? "visible" : ""}`}
-        onClick={() => setIsSidebarOpen(false)}
+        onClick={() => sidebar.close()}
       />
 
       <div className={`sidebar ${isSidebarOpen ? "open" : ""} ${isSidebarCollapsed ? "collapsed" : ""}`}>
@@ -509,7 +510,7 @@ function ChatPage() {
                   onClick={(e) => {
                     e.stopPropagation();
                     setChannelToLeave(channel);
-                    setShowLeaveChannelConfirm(true);
+                    leaveChannelModal.open();
                   }}
                   title="退出频道"
                 >
@@ -522,7 +523,7 @@ function ChatPage() {
 
         <button
           className="create-channel-btn"
-          onClick={() => setShowJoinChannel(true)}
+          onClick={() => joinChannelModal.open()}
         >
           <Plus size={16} />
           加入频道
@@ -540,7 +541,7 @@ function ChatPage() {
             </span>
           </div>
           {userIdentity && userIdentity.username === "匿名" ? (
-            <button className="login-btn" onClick={() => setShowLogin(true)}>
+            <button className="login-btn" onClick={() => loginModal.open()}>
               登录
             </button>
           ) : (
@@ -555,13 +556,34 @@ function ChatPage() {
         {activeChannel ? (
           <>
             <header className="app-header">
+              {showBackendWarning && (
+                <div className="backend-warning-bar">
+                  <span>未设置后端地址，请设置后端地址后使用</span>
+                  <button onClick={() => openSettings()} aria-label="设置">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  </button>
+                </div>
+              )}
               <div className="header-left">
                 <button
                   onClick={() => {
                     if (isMobile) {
-                      setIsSidebarOpen(true);
+                      sidebar.open();
                     } else {
-                      setIsSidebarCollapsed(!isSidebarCollapsed);
+                      toggleSidebarCollapsed();
                     }
                   }}
                   className="icon-btn sidebar-toggle-btn"
@@ -643,13 +665,34 @@ function ChatPage() {
         ) : (
           <>
             <header className="app-header">
+              {showBackendWarning && (
+                <div className="backend-warning-bar">
+                  <span>未设置后端地址，请设置后端地址后使用</span>
+                  <button onClick={() => openSettings()} aria-label="设置">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  </button>
+                </div>
+              )}
               <div className="header-left">
                 <button
                   onClick={() => {
                     if (isMobile) {
-                      setIsSidebarOpen(true);
+                      sidebar.open();
                     } else {
-                      setIsSidebarCollapsed(!isSidebarCollapsed);
+                      toggleSidebarCollapsed();
                     }
                   }}
                   className="icon-btn sidebar-toggle-btn"
@@ -686,7 +729,7 @@ function ChatPage() {
           placeholder="频道名"
           confirmText="加入"
           onConfirm={handleJoinChannel}
-          onClose={() => setShowJoinChannel(false)}
+          onClose={() => joinChannelModal.close()}
           isLoading={isJoiningChannel}
           loadingText="加入中..."
         />
@@ -699,7 +742,7 @@ function ChatPage() {
           confirmText={isLeavingChannel ? "退出中..." : "退出"}
           onConfirm={() => handleLeaveChannel(channelToLeave.name, undefined)}
           onClose={() => {
-            setShowLeaveChannelConfirm(false);
+            leaveChannelModal.close();
             setChannelToLeave(null);
           }}
           danger
@@ -713,7 +756,7 @@ function ChatPage() {
               <h3>登录 / 注册</h3>
               <button
                 className="login-modal-close"
-                onClick={() => setShowLogin(false)}
+                onClick={() => loginModal.close()}
               >
                 <X size={18} />
               </button>
@@ -750,7 +793,7 @@ function ChatPage() {
                 <button
                   className="login-password-toggle"
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
+                  onClick={() => togglePassword()}
                 >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
