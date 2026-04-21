@@ -828,7 +828,12 @@ async function main() {
 
   serverInstance = http.createServer((req, res) => {
     const origin = req.headers.origin
-    const allowedOrigins = [`http://127.0.0.1:${PORT}`, `http://localhost:${PORT}`]
+    const allowedOrigins = [
+      `http://127.0.0.1:${PORT}`,
+      `http://localhost:${PORT}`,
+      'https://most.box',
+      'http://localhost:3000',
+    ]
     if (origin && allowedOrigins.includes(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin)
       res.setHeader('Vary', 'Origin')
