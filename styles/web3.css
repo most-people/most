@@ -3,7 +3,8 @@
    ============================================= */
 
 .web3-page {
-  min-height: 100vh;
+  flex: 1;
+  overflow: auto;
   padding: var(--space-8) var(--space-4);
   display: flex;
   flex-direction: column;
@@ -178,7 +179,7 @@
 .web3-identity-avatar {
   width: 88px;
   height: 88px;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-lg);
   object-fit: cover;
   margin-bottom: var(--space-4);
   box-shadow: var(--shadow-md);
@@ -838,6 +839,50 @@
 
 .web3-derive-th {
   white-space: nowrap;
+}
+
+/* === Input Panel (shared top area) === */
+.web3-input-panel {
+  background: var(--glass-bg);
+  backdrop-filter: var(--blur-md);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  margin-bottom: var(--space-6);
+  box-shadow: var(--glass-shadow);
+}
+
+/* === Empty State === */
+.web3-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  padding: var(--space-12) var(--space-6);
+  text-align: center;
+  color: var(--text-muted);
+  background: var(--glass-bg-subtle);
+  border: 1px dashed var(--glass-border);
+  border-radius: var(--radius-lg);
+  backdrop-filter: var(--blur-sm);
+}
+
+.web3-empty-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-full);
+  background: var(--glass-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+.web3-empty-state p {
+  font-size: 14px;
+  max-width: 320px;
+  line-height: 1.6;
 }
 
 /* === Danger Utilities === */

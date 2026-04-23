@@ -1,7 +1,6 @@
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
-import { useMediaQuery } from '@mantine/hooks'
 import {
   MessageSquare,
   Send,
@@ -10,11 +9,11 @@ import {
   Sun,
   Moon,
   X,
-  Menu,
   Eye,
   EyeOff,
   Settings,
 } from 'lucide-react'
+import AppShell from '../../../components/AppShell'
 import { InputModal, ConfirmModal } from '../../../components/ui'
 import { api } from '../../../src/utils/api'
 import {
@@ -86,9 +85,6 @@ function ChatPage() {
   const [showJoinChannel, joinChannelModal] = useDisclosure(false)
   const [myPeerId, setMyPeerId] = useState('')
   const [error, setError] = useState('')
-  const [isSidebarOpen, sidebar] = useDisclosure(false)
-  const [isSidebarCollapsed, toggleSidebarCollapsed] = useToggle()
-  const isMobile = useMediaQuery('(max-width: 768px)')
   const [isJoiningChannel, setIsJoiningChannel] = useState(false)
   const [isLeavingChannel, setIsLeavingChannel] = useState(false)
   const [showLeaveChannelConfirm, leaveChannelModal] = useDisclosure(false)
@@ -337,7 +333,6 @@ function ChatPage() {
       unsubscribeFromChannel(activeChannelRef.current.name)
     }
     setActiveChannel(channel)
-    sidebar.close()
     subscribeToChannel(channel.name)
     window.history.pushState(
       {},
@@ -462,144 +457,118 @@ function ChatPage() {
     }
   }
 
+  const chatHeaderTitle = activeChannel ? (
+    <h2 className="header-title">{activeChannel.name}</h2>
+  ) : (
+    <h2 className="header-title">聊天</h2>
+  )
+
   return (
-    <div className="app-layout">
-      <div
-        className={`sidebar-overlay ${isSidebarOpen ? 'visible' : ''}`}
-        onClick={() => sidebar.close()}
-      />
-
-      <div
-        className={`sidebar ${isSidebarOpen ? 'open' : ''} ${isSidebarCollapsed ? 'collapsed' : ''}`}
-      >
-        <div className="sidebar-header">
-          <button
-            className="back-btn"
-            onClick={() => (window.location.href = '/app/')}
-            title="返回首页"
-          >
-            <ArrowLeft size={18} />
-          </button>
-        </div>
-
-        <nav className="sidebar-nav">
-          {channels.length === 0 ? (
-            <div
-              style={{
-                padding: '40px 20px',
-                textAlign: 'center',
-                color: 'var(--text-muted)',
-              }}
+    <AppShell
+      sidebar={({ closeSidebar }) => (
+        <>
+          <div className="sidebar-header">
+            <button
+              className="back-btn"
+              onClick={() => (window.location.href = '/app/')}
+              title="返回首页"
             >
-              <p>暂无频道</p>
-            </div>
-          ) : (
-            channels.map(channel => (
+              <ArrowLeft size={18} />
+            </button>
+          </div>
+
+          <nav className="sidebar-nav">
+            {channels.length === 0 ? (
               <div
-                key={channel.name}
-                className={`sidebar-nav-btn ${activeChannel?.name === channel.name ? 'active' : ''}`}
-                onClick={() => handleOpenChannel(channel)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') handleOpenChannel(channel)
+                style={{
+                  padding: '40px 20px',
+                  textAlign: 'center',
+                  color: 'var(--text-muted)',
                 }}
               >
-                <MessageSquare size={16} />
-                <span>{channel.name}</span>
-                <button
-                  className="leave-channel-btn"
-                  onClick={e => {
-                    e.stopPropagation()
-                    setChannelToLeave(channel)
-                    leaveChannelModal.open()
-                  }}
-                  title="退出频道"
-                >
-                  <X size={14} />
-                </button>
+                <p>暂无频道</p>
               </div>
-            ))
-          )}
-        </nav>
-
-        <button
-          className="create-channel-btn"
-          onClick={() => joinChannelModal.open()}
-        >
-          <Plus size={16} />
-          加入频道
-        </button>
-
-        <div className="chat-sidebar-footer">
-          <div className="user-info">
-            <img
-              className="user-avatar-img"
-              src={generateAvatar(userIdentity?.address)}
-              alt="avatar"
-            />
-            <span className="user-name" title={userIdentity?.address}>
-              {userIdentity?.displayName || '加载中...'}
-            </span>
-          </div>
-          {userIdentity && userIdentity.username === '匿名' ? (
-            <button className="login-btn" onClick={() => loginModal.open()}>
-              登录
-            </button>
-          ) : (
-            <button className="logout-btn" onClick={handleLogout}>
-              退出
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div className="main-content">
-        {activeChannel ? (
-          <>
-            <header className="app-header">
-              {showBackendWarning && (
-                <div className="backend-warning-bar">
-                  <span>未设置后端地址，请设置后端地址后使用</span>
-                  <button onClick={() => openSettings()} aria-label="设置">
-                    <Settings size={16} />
-                  </button>
-                </div>
-              )}
-              <div className="header-left">
-                <button
+            ) : (
+              channels.map(channel => (
+                <div
+                  key={channel.name}
+                  className={`sidebar-nav-btn ${activeChannel?.name === channel.name ? 'active' : ''}`}
                   onClick={() => {
-                    if (isMobile) {
-                      sidebar.open()
-                    } else {
-                      toggleSidebarCollapsed()
+                    handleOpenChannel(channel)
+                    closeSidebar()
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      handleOpenChannel(channel)
+                      closeSidebar()
                     }
                   }}
-                  className="icon-btn sidebar-toggle-btn"
-                  aria-label={
-                    isMobile
-                      ? '打开菜单'
-                      : isSidebarCollapsed
-                        ? '展开侧边栏'
-                        : '收起侧边栏'
-                  }
                 >
-                  <Menu size={18} />
-                </button>
-                <h2 className="header-title">{activeChannel.name}</h2>
-              </div>
-              <div className="header-right">
-                <button
-                  className="icon-btn"
-                  onClick={() => setIsDarkMode(!isDarkMode)}
-                  title="切换主题"
-                >
-                  {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
-                </button>
-              </div>
-            </header>
+                  <MessageSquare size={16} />
+                  <span>{channel.name}</span>
+                  <button
+                    className="leave-channel-btn"
+                    onClick={e => {
+                      e.stopPropagation()
+                      setChannelToLeave(channel)
+                      leaveChannelModal.open()
+                    }}
+                    title="退出频道"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ))
+            )}
+          </nav>
 
-            <div className="chat-messages">
+          <button
+            className="create-channel-btn"
+            onClick={() => joinChannelModal.open()}
+          >
+            <Plus size={16} />
+            加入频道
+          </button>
+
+          <div className="chat-sidebar-footer">
+            <div className="user-info">
+              <img
+                className="user-avatar-img"
+                src={generateAvatar(userIdentity?.address)}
+                alt="avatar"
+              />
+              <span className="user-name" title={userIdentity?.address}>
+                {userIdentity?.displayName || '加载中...'}
+              </span>
+            </div>
+            {userIdentity && userIdentity.username === '匿名' ? (
+              <button className="login-btn" onClick={() => loginModal.open()}>
+                登录
+              </button>
+            ) : (
+              <button className="logout-btn" onClick={handleLogout}>
+                退出
+              </button>
+            )}
+          </div>
+        </>
+      )}
+      headerTitle={chatHeaderTitle}
+      headerRight={
+        <button
+          className="icon-btn"
+          onClick={() => setIsDarkMode(!isDarkMode)}
+          title="切换主题"
+        >
+          {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
+        </button>
+      }
+    >
+      {activeChannel ? (
+        <>
+          <div className="chat-messages">
               {channelMessages.length === 0 ? (
                 <div className="chat-messages-empty">
                   <div className="empty-icon">
@@ -659,47 +628,6 @@ function ChatPage() {
           </>
         ) : (
           <>
-            <header className="app-header">
-              {showBackendWarning && (
-                <div className="backend-warning-bar">
-                  <span>未设置后端地址，请设置后端地址后使用</span>
-                  <button onClick={() => openSettings()} aria-label="设置">
-                    <Settings size={16} />
-                  </button>
-                </div>
-              )}
-              <div className="header-left">
-                <button
-                  onClick={() => {
-                    if (isMobile) {
-                      sidebar.open()
-                    } else {
-                      toggleSidebarCollapsed()
-                    }
-                  }}
-                  className="icon-btn sidebar-toggle-btn"
-                  aria-label={
-                    isMobile
-                      ? '打开菜单'
-                      : isSidebarCollapsed
-                        ? '展开侧边栏'
-                        : '收起侧边栏'
-                  }
-                >
-                  <Menu size={16} />
-                </button>
-                <h2 className="header-title">聊天</h2>
-              </div>
-              <div className="header-right">
-                <button
-                  className="icon-btn"
-                  onClick={() => setIsDarkMode(!isDarkMode)}
-                  title="切换主题"
-                >
-                  {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
-                </button>
-              </div>
-            </header>
             <div className="chat-welcome">
               <div className="welcome-icon">
                 <MessageSquare size={36} />
@@ -709,7 +637,6 @@ function ChatPage() {
             </div>
           </>
         )}
-      </div>
 
       {showJoinChannel && (
         <InputModal
@@ -799,7 +726,7 @@ function ChatPage() {
       )}
 
       {error && <div className="chat-toast">{error}</div>}
-    </div>
+    </AppShell>
   )
 }
 

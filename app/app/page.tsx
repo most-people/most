@@ -1,7 +1,6 @@
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
-import { useMediaQuery } from '@mantine/hooks'
 import {
   Upload,
   Sun,
@@ -26,7 +25,6 @@ import {
   Info,
   Power,
   Edit2,
-  Menu,
   Loader,
   Globe,
   Link,
@@ -34,6 +32,7 @@ import {
   Settings,
   Wallet,
 } from 'lucide-react'
+import AppShell, { useAppShell } from '../../components/AppShell'
 import { ModalOverlay, ConfirmModal, InputModal } from '../../components/ui'
 import { api } from '../../src/utils/api'
 import { useApp } from './AppProvider'
@@ -423,9 +422,6 @@ export default function App() {
   const [inputModal, setInputModal] = useState(null)
   const [inputLoading, setInputLoading] = useState(false)
   const [renameTarget, setRenameTarget] = useState(null)
-  const [isSidebarOpen, sidebar] = useDisclosure(false)
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
-  const isMobile = useMediaQuery('(max-width: 768px)')
   const [previewText, setPreviewText] = useState('')
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewMediaLoading, setPreviewMediaLoading] = useState(false)
@@ -1016,117 +1012,81 @@ export default function App() {
   const breadcrumbParts = generateBreadcrumbs(currentPath)
 
   return (
-    <div className="app-layout">
-      <div
-        className={`sidebar-overlay ${isSidebarOpen ? 'visible' : ''}`}
-        onClick={() => sidebar.close()}
-      />
-
-      <div
-        className={`sidebar ${isSidebarOpen ? 'open' : ''} ${isSidebarCollapsed ? 'collapsed' : ''}`}
-      >
-        <div
-          className="sidebar-header"
-          onClick={() => (window.location.href = '/')}
-          style={{ cursor: 'pointer' }}
-        >
-          <h1>Most.Box</h1>
-        </div>
-        <nav className="sidebar-nav">
-          {[
-            { id: 'all', icon: <Files size={18} />, label: '全部内容' },
-            { id: 'starred', icon: <Star size={18} />, label: '收藏' },
-            { id: 'trash', icon: <Trash2 size={18} />, label: '回收站' },
-          ].map(item => (
-            <button
-              key={item.id}
-              onClick={() => {
-                setCurrentView(item.id)
-                setCurrentFolderId(null)
-                setSelectedIds([])
-                setSearchQuery('')
-                sidebar.close()
-              }}
-              className={`sidebar-nav-btn ${currentView === item.id ? 'active' : ''}`}
-            >
-              {item.icon}
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </nav>
-
-        <div className="sidebar-tools">
-          <div className="sidebar-tools-label">工具</div>
-          <button
-            onClick={() => (window.location.href = '/app/chat/')}
-            className="sidebar-nav-btn"
+    <AppShell
+      sidebar={({ closeSidebar }) => (
+        <>
+          <div
+            className="sidebar-header"
+            onClick={() => (window.location.href = '/')}
+            style={{ cursor: 'pointer' }}
           >
-            <MessageSquare size={18} />
-            <span>聊天</span>
-          </button>
-          <button
-            onClick={() => (window.location.href = '/web3/')}
-            className="sidebar-nav-btn"
-          >
-            <Wallet size={18} />
-            <span>Web3</span>
-          </button>
-        </div>
-        <div className="sidebar-footer">
-          <div className="sidebar-footer-label">
-            <HardDrive size={14} />
-            <span>存储空间</span>
+            <h1>Most.Box</h1>
           </div>
-          <div className="storage-bar">
-            <div
-              className="storage-bar-fill"
-              style={{
-                width: `${storageStats.total > 0 ? (storageStats.used / storageStats.total) * 100 : 0}%`,
-              }}
-            />
-          </div>
-          <div className="storage-info">
-            <span>{formatSize(storageStats.used)}</span>
-            <span>
-              {storageStats.total > 0 ? formatSize(storageStats.total) : '-'}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div className="main-content">
-        <header className="app-header">
-          {showBackendWarning && (
-            <div className="backend-warning-bar">
-              <span>未设置后端地址，请设置后端地址后使用</span>
-              <button onClick={() => openSettings()} aria-label="设置">
-                <Settings size={16} />
+          <nav className="sidebar-nav">
+            {[
+              { id: 'all', icon: <Files size={18} />, label: '全部内容' },
+              { id: 'starred', icon: <Star size={18} />, label: '收藏' },
+              { id: 'trash', icon: <Trash2 size={18} />, label: '回收站' },
+            ].map(item => (
+              <button
+                key={item.id}
+                onClick={() => {
+                  setCurrentView(item.id)
+                  setCurrentFolderId(null)
+                  setSelectedIds([])
+                  setSearchQuery('')
+                  closeSidebar()
+                }}
+                className={`sidebar-nav-btn ${currentView === item.id ? 'active' : ''}`}
+              >
+                {item.icon}
+                <span>{item.label}</span>
               </button>
-            </div>
-          )}
-          <div className="header-left">
+            ))}
+          </nav>
+
+          <div className="sidebar-tools">
+            <div className="sidebar-tools-label">工具</div>
             <button
-              onClick={() => {
-                if (isMobile) {
-                  sidebar.open()
-                } else {
-                  setIsSidebarCollapsed(!isSidebarCollapsed)
-                }
-              }}
-              className="icon-btn sidebar-toggle-btn"
-              aria-label={
-                isMobile
-                  ? '打开菜单'
-                  : isSidebarCollapsed
-                    ? '展开侧边栏'
-                    : '收起侧边栏'
-              }
+              onClick={() => (window.location.href = '/app/chat/')}
+              className="sidebar-nav-btn"
             >
-              <Menu size={16} />
+              <MessageSquare size={18} />
+              <span>聊天</span>
             </button>
-            <h2 className="header-title">{viewTitle}</h2>
+            <button
+              onClick={() => (window.location.href = '/web3/')}
+              className="sidebar-nav-btn"
+            >
+              <Wallet size={18} />
+              <span>Web3</span>
+            </button>
           </div>
-          <div className="header-right">
+          <div className="sidebar-footer">
+            <div className="sidebar-footer-label">
+              <HardDrive size={14} />
+              <span>存储空间</span>
+            </div>
+            <div className="storage-bar">
+              <div
+                className="storage-bar-fill"
+                style={{
+                  width: `${storageStats.total > 0 ? (storageStats.used / storageStats.total) * 100 : 0}%`,
+                }}
+              />
+            </div>
+            <div className="storage-info">
+              <span>{formatSize(storageStats.used)}</span>
+              <span>
+                {storageStats.total > 0 ? formatSize(storageStats.total) : '-'}
+              </span>
+            </div>
+          </div>
+        </>
+      )}
+      headerTitle={<h2 className="header-title">{viewTitle}</h2>}
+      headerRight={
+        <>
             <div className="search-box">
               <Search size={14} />
               <input
@@ -1164,10 +1124,10 @@ export default function App() {
             <button onClick={() => openSettings()} className="icon-btn">
               <Info size={16} />
             </button>
-          </div>
-        </header>
-
-        {currentView === 'all' && (
+        </>
+      }
+    >
+      {currentView === 'all' && (
           <div className="action-grid">
             <div
               className={`action-card upload ${isDraggingOverUpload ? 'drag-over' : ''}`}
@@ -1302,7 +1262,6 @@ export default function App() {
               </div>
             ))}
         </div>
-      </div>
 
       {confirmModal && (
         <ConfirmModal
@@ -1652,6 +1611,6 @@ export default function App() {
           </div>
         </ModalOverlay>
       )}
-    </div>
+    </AppShell>
   )
 }

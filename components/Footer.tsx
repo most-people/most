@@ -30,7 +30,7 @@ export function Footer() {
             ))}
           </div>
           <span className="mkt-footer-copy">
-            © {new Date().getFullYear()} MostBox · MIT License
+            © {new Date().getFullYear()} MOST PEOPLE · MIT License
           </span>
         </div>
       </div>
