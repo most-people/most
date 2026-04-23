@@ -47,12 +47,12 @@ function CopyButton({ text }) {
   }
   return (
     <button
-      className="web3-copy-btn"
+      className="copy-btn"
       onClick={handleCopy}
       title={copied ? '已复制' : '复制'}
     >
       <Copy size={14} />
-      {copied && <span className="web3-copy-hint">已复制</span>}
+      {copied && <span className="copy-hint">已复制</span>}
     </button>
   )
 }
@@ -71,8 +71,8 @@ function KeyCard({ title, icon, children, accent = false }) {
 
 function EmptyState({ icon, message }) {
   return (
-    <div className="web3-empty-state">
-      <div className="web3-empty-icon">{icon}</div>
+    <div className="empty-state glass">
+      <div className="empty-state-icon">{icon}</div>
       <p>{message}</p>
     </div>
   )
@@ -151,7 +151,7 @@ function PemBlock({ label, pem, filename }) {
         <span className="web3-pem-label">{label}</span>
         <div className="web3-pem-actions">
           <button
-            className="web3-pem-btn"
+            className="btn small"
             onClick={handleCopy}
             title={copied ? '已复制' : '复制'}
           >
@@ -159,7 +159,7 @@ function PemBlock({ label, pem, filename }) {
             {copied ? '已复制' : '复制'}
           </button>
           <button
-            className="web3-pem-btn primary"
+            className="btn small primary"
             onClick={handleDownload}
             title="下载"
           >
@@ -168,7 +168,7 @@ function PemBlock({ label, pem, filename }) {
           </button>
         </div>
       </div>
-      <textarea className="web3-pem-textarea" value={pem} readOnly rows={6} />
+      <textarea className="textarea mono" value={pem} readOnly rows={6} />
     </div>
   )
 }
@@ -320,31 +320,31 @@ export default function Web3Page() {
       <div className="web3-page">
         <div className="web3-container">
           {/* ── Shared Input Area ── */}
-          <div className="web3-input-panel">
+          <div className="input-panel">
             <div className="web3-tools-inputs">
               <input
                 type="text"
                 placeholder="用户名"
                 value={username}
                 onChange={e => setUsername(e.target.value)}
-                className="web3-input"
+                className="input"
                 autoCapitalize="off"
                 autoCorrect="off"
                 spellCheck="false"
               />
-              <div className="web3-input-wrap">
+              <div className="input-wrap">
                 <input
                   type={showPassword ? 'text' : 'password'}
                   placeholder="密码（可选）"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  className="web3-input"
+                  className="input"
                   autoCapitalize="off"
                   autoCorrect="off"
                   spellCheck="false"
                 />
                 <button
-                  className="web3-input-eye"
+                  className="input-eye"
                   onClick={() => setShowPassword(!showPassword)}
                   type="button"
                 >
@@ -376,7 +376,7 @@ export default function Web3Page() {
                           href={`https://web3.okx.com/zh-hans/portfolio/${effectiveAddress}`}
                           target="_blank"
                           rel="noreferrer"
-                          className="web3-link"
+                          className="link"
                         >
                           <ExternalLink size={14} />
                           查看
@@ -391,8 +391,8 @@ export default function Web3Page() {
                         title="Ed25519 公钥"
                         icon={<Fingerprint size={18} />}
                       >
-                        <div className="web3-mono-row">
-                          <code className="web3-mono">{keys.ed_public_key}</code>
+                        <div className="mono-row">
+                          <code className="mono">{keys.ed_public_key}</code>
                           <CopyButton text={keys.ed_public_key} />
                         </div>
                       </KeyCard>
@@ -401,8 +401,8 @@ export default function Web3Page() {
                         title="x25519 公钥"
                         icon={<KeyRound size={18} />}
                       >
-                        <div className="web3-mono-row">
-                          <code className="web3-mono">{keys.public_key}</code>
+                        <div className="mono-row">
+                          <code className="mono">{keys.public_key}</code>
                           <CopyButton text={keys.public_key} />
                         </div>
                       </KeyCard>
@@ -413,11 +413,11 @@ export default function Web3Page() {
                         accent
                       >
                         <div className="web3-private-toggle">
-                          <span className="web3-private-hint">
+                          <span className="hint-text">
                             点击眼睛图标查看私钥
                           </span>
                           <button
-                            className="web3-eye-btn"
+                            className="input-eye"
                             onClick={() =>
                               setShowX25519Private(!showX25519Private)
                             }
@@ -429,8 +429,8 @@ export default function Web3Page() {
                             )}
                           </button>
                         </div>
-                        <div className="web3-mono-row danger">
-                          <code className="web3-mono">
+                        <div className="mono-row danger">
+                          <code className="mono">
                             {showX25519Private
                               ? keys.private_key
                               : mask(keys.private_key)}
@@ -442,8 +442,8 @@ export default function Web3Page() {
                       </KeyCard>
 
                       <KeyCard title="IPNS ID" icon={<Globe size={18} />}>
-                        <div className="web3-mono-row">
-                          <code className="web3-mono">{ipns}</code>
+                        <div className="mono-row">
+                          <code className="mono">{ipns}</code>
                           <CopyButton text={ipns} />
                         </div>
                       </KeyCard>
@@ -504,8 +504,16 @@ export default function Web3Page() {
                       )}
                     </button>
                     {showAddressQr && (
-                      <div className="web3-qr-wrap">
-                        <QRCodeSVG value={effectiveAddress} size={200} />
+                      <div className="web3-mnemonic-reveal">
+                        <div className="web3-mnemonic-card">
+                          <p className="web3-mnemonic-text">
+                            {effectiveAddress}
+                          </p>
+                          <CopyButton text={effectiveAddress} />
+                        </div>
+                        <div className="qr-wrap">
+                          <QRCodeSVG value={effectiveAddress} size={200} />
+                        </div>
                       </div>
                     )}
                   </div>
@@ -548,7 +556,7 @@ export default function Web3Page() {
                               : '显示助记词二维码'}
                           </button>
                           {showMnemonicQr && (
-                            <div className="web3-qr-wrap">
+                            <div className="qr-wrap">
                               <QRCodeSVG value={mnemonicPhrase} size={260} />
                             </div>
                           )}
@@ -559,13 +567,13 @@ export default function Web3Page() {
 
                   {/* Derive Addresses */}
                   {mnemonicPhrase && (
-                    <div className="web3-tools-section">
-                      <button
-                        className="web3-btn primary"
-                        onClick={handleDerive}
-                      >
-                        派生 {deriveBatch} 个地址
-                      </button>
+                    <div className="web3-mnemonic-reveal">
+                      <div>
+                        <button className="btn primary" onClick={handleDerive}>
+                          派生 {deriveBatch} 个地址
+                        </button>
+                      </div>
+
                       <p className="web3-tools-danger">
                         <ShieldAlert size={14} />
                         任何拥有您私钥的人都可以窃取您地址中的任何资产，切勿泄露！！！

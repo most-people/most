@@ -8,7 +8,7 @@ export default function AppHomeMode({ nodeId }: { nodeId: string }) {
     <div className="app-home">
       <div className="app-home-card">
         <LogoIcon size={56} />
-        <h1>MostBox</h1>
+        <h1>Most.Box</h1>
         <div className="app-home-badge">
           <span className="badge-dot" />
           节点在线{shortId ? ` · ${shortId}` : ''}

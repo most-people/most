@@ -316,26 +316,6 @@
   }
 }
 
-/* === Back Button === */
-.back-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--glass-border);
-  background: var(--glass-bg-subtle);
-  cursor: pointer;
-  color: var(--text-secondary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all var(--transition-fast);
-
-  &:hover {
-    background: var(--glass-bg);
-    color: var(--text-primary);
-  }
-}
-
 /* === Leave Channel Button === */
 .leave-channel-btn {
   margin-left: auto;
