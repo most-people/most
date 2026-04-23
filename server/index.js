@@ -203,8 +203,8 @@ async function parseMultipartBusboy(req) {
 // --- Hono 应用工厂 ---
 export function createApp(engine, options = {}) {
   const appPort = options.port || PORT
-  const wss = options.wss || null
-  const serverInstance = options.serverInstance || null
+  const wssRef = options.wssRef || { current: null }
+  const serverInstanceRef = options.serverInstanceRef || { current: null }
 
   // 速率限制（每个 app 实例独立）
   const rateLimitMap = new Map()
@@ -245,6 +245,7 @@ export function createApp(engine, options = {}) {
 
   function wsBroadcast(event, data) {
     const payload = JSON.stringify({ event, data })
+    const wss = wssRef.current
     if (wss) {
       wss.clients.forEach(client => {
         if (client.readyState === 1) {
@@ -267,6 +268,32 @@ export function createApp(engine, options = {}) {
           } catch {}
         }
       })
+    }
+  }
+
+  function subscribeToChannel(ws, channelName) {
+    if (!channelSubscriptions.has(channelName)) {
+      channelSubscriptions.set(channelName, new Set())
+    }
+    channelSubscriptions.get(channelName).add(ws)
+  }
+
+  function unsubscribeFromChannel(ws, channelName) {
+    const subscribers = channelSubscriptions.get(channelName)
+    if (subscribers) {
+      subscribers.delete(ws)
+      if (subscribers.size === 0) {
+        channelSubscriptions.delete(channelName)
+      }
+    }
+  }
+
+  function cleanupWsSubscriptions(ws) {
+    for (const [channel, subscribers] of channelSubscriptions) {
+      subscribers.delete(ws)
+      if (subscribers.size === 0) {
+        channelSubscriptions.delete(channel)
+      }
     }
   }
 
@@ -722,7 +749,7 @@ export function createApp(engine, options = {}) {
     console.log('[MostBox] Shutdown requested via API...')
     setTimeout(async () => {
       await engine.stop()
-      if (serverInstance) serverInstance.close()
+      if (serverInstanceRef.current) serverInstanceRef.current.close()
       console.log('[MostBox] Server stopped.')
       process.exit(0)
     }, 100)
@@ -768,7 +795,7 @@ export function createApp(engine, options = {}) {
     return c.json({ error: 'Not found' }, 404)
   })
 
-  return { app, wsBroadcast, wsSendToChannel }
+  return { app, wsBroadcast, wsSendToChannel, subscribeToChannel, unsubscribeFromChannel, cleanupWsSubscriptions }
 }
 
 // --- 主函数 ---
@@ -792,13 +819,13 @@ export async function main() {
 
   const engine = new MostBoxEngine({ dataPath })
 
-  let serverInstance = null
-  let wss = null
+  const wssRef = { current: null }
+  const serverInstanceRef = { current: null }
 
-  const { app, wsBroadcast, wsSendToChannel } = createApp(engine, {
+  const { app, wsBroadcast, wsSendToChannel, subscribeToChannel, unsubscribeFromChannel, cleanupWsSubscriptions } = createApp(engine, {
     port: PORT,
-    wss,
-    serverInstance,
+    wssRef,
+    serverInstanceRef,
   })
 
   engine.on('download:progress', data =>
@@ -841,7 +868,7 @@ export async function main() {
   await engine.start()
   console.log('[MostBox] Engine ready')
 
-  serverInstance = serve(
+  serverInstanceRef.current = serve(
     { fetch: app.fetch, port: PORT, hostname: HOST },
     () => {
       const displayUrl = `http://localhost:${PORT}`
@@ -862,11 +889,11 @@ export async function main() {
     }
   )
 
-  wss = new WebSocketServer({ noServer: true })
-  wss.on('connection', ws => {
+  wssRef.current = new WebSocketServer({ noServer: true })
+  wssRef.current.on('connection', ws => {
     ws.on('error', () => {})
     ws.on('close', () => {
-      // channelSubscriptions cleanup handled by createApp internals
+      cleanupWsSubscriptions(ws)
     })
     ws.on('message', raw => {
       try {
@@ -879,12 +906,12 @@ export async function main() {
             break
           case 'channel:subscribe':
             if (data.channel) {
-              // Handled by createApp internals if needed
+              subscribeToChannel(ws, data.channel)
             }
             break
           case 'channel:unsubscribe':
             if (data.channel) {
-              // Handled by createApp internals if needed
+              unsubscribeFromChannel(ws, data.channel)
             }
             break
         }
@@ -894,10 +921,10 @@ export async function main() {
     })
   })
 
-  serverInstance.on('upgrade', (req, socket, head) => {
+  serverInstanceRef.current.on('upgrade', (req, socket, head) => {
     if (req.url.startsWith('/ws')) {
-      wss.handleUpgrade(req, socket, head, ws => {
-        wss.emit('connection', ws, req)
+      wssRef.current.handleUpgrade(req, socket, head, ws => {
+        wssRef.current.emit('connection', ws, req)
       })
     } else {
       socket.destroy()
@@ -907,15 +934,15 @@ export async function main() {
   process.on('SIGINT', async () => {
     console.log('\n[MostBox] Shutting down...')
     await engine.stop()
-    if (wss) wss.close()
-    serverInstance.close()
+    if (wssRef.current) wssRef.current.close()
+    serverInstanceRef.current.close()
     process.exit(0)
   })
 
   process.on('SIGTERM', async () => {
     await engine.stop()
-    if (wss) wss.close()
-    serverInstance.close()
+    if (wssRef.current) wssRef.current.close()
+    serverInstanceRef.current.close()
     process.exit(0)
   })
 }
