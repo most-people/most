@@ -32,6 +32,7 @@ import {
   Link,
   ChevronDown,
   Settings,
+  Wallet,
 } from 'lucide-react'
 import { ModalOverlay, ConfirmModal, InputModal } from '../../components/ui'
 import { api } from '../../src/utils/api'
@@ -1036,33 +1037,41 @@ export default function App() {
             { id: 'all', icon: <Files size={18} />, label: '全部内容' },
             { id: 'starred', icon: <Star size={18} />, label: '收藏' },
             { id: 'trash', icon: <Trash2 size={18} />, label: '回收站' },
-            {
-              id: 'chat',
-              icon: <MessageSquare size={18} />,
-              label: '聊天',
-              href: '/app/chat/',
-            },
           ].map(item => (
             <button
               key={item.id}
               onClick={() => {
-                if (item.href) {
-                  window.location.href = item.href
-                } else {
-                  setCurrentView(item.id)
-                  setCurrentFolderId(null)
-                  setSelectedIds([])
-                  setSearchQuery('')
-                  sidebar.close()
-                }
+                setCurrentView(item.id)
+                setCurrentFolderId(null)
+                setSelectedIds([])
+                setSearchQuery('')
+                sidebar.close()
               }}
-              className={`sidebar-nav-btn ${currentView === item.id && !item.href ? 'active' : ''}`}
+              className={`sidebar-nav-btn ${currentView === item.id ? 'active' : ''}`}
             >
               {item.icon}
               <span>{item.label}</span>
             </button>
           ))}
         </nav>
+
+        <div className="sidebar-tools">
+          <div className="sidebar-tools-label">工具</div>
+          <button
+            onClick={() => (window.location.href = '/app/chat/')}
+            className="sidebar-nav-btn"
+          >
+            <MessageSquare size={18} />
+            <span>聊天</span>
+          </button>
+          <button
+            onClick={() => (window.location.href = '/web3/')}
+            className="sidebar-nav-btn"
+          >
+            <Wallet size={18} />
+            <span>Web3</span>
+          </button>
+        </div>
         <div className="sidebar-footer">
           <div className="sidebar-footer-label">
             <HardDrive size={14} />

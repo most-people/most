@@ -8,6 +8,7 @@ import {
   Copy,
   ExternalLink,
   ArrowRight,
+  ArrowLeft,
   KeyRound,
   Fingerprint,
   Shield,
@@ -104,54 +105,62 @@ export default function Web3Page() {
   if (!identity || !identity.danger) {
     return (
       <div className="web3-page">
-        <div className="web3-login-card">
-          <div className="web3-login-avatar">
-            <KeyRound size={40} />
+        <div className="web3-container narrow">
+          <div className="web3-page-header">
+            <Link href="/app" className="web3-back-btn">
+              <ArrowLeft size={18} />
+            </Link>
+            <h1 className="web3-page-title">Web3 身份</h1>
           </div>
-          <h2>Web3 身份验证</h2>
-          <p className="web3-login-desc">
-            登录以查看您的密钥、地址和派生工具
-          </p>
+          <div className="web3-login-card">
+            <div className="web3-login-avatar">
+              <KeyRound size={40} />
+            </div>
+            <h2>Web3 身份验证</h2>
+            <p className="web3-login-desc">
+              登录以查看您的密钥、地址和派生工具
+            </p>
 
-          <div className="web3-login-form">
-            <input
-              type="text"
-              placeholder="用户名"
-              value={loginUsername}
-              onChange={(e) => setLoginUsername(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-              className="web3-input"
-              autoCapitalize="off"
-              autoCorrect="off"
-              spellCheck="false"
-            />
-            <div className="web3-input-wrap">
+            <div className="web3-login-form">
               <input
-                type={showPassword ? 'text' : 'password'}
-                placeholder="密码"
-                value={loginPassword}
-                onChange={(e) => setLoginPassword(e.target.value)}
+                type="text"
+                placeholder="用户名"
+                value={loginUsername}
+                onChange={(e) => setLoginUsername(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
                 className="web3-input"
                 autoCapitalize="off"
                 autoCorrect="off"
                 spellCheck="false"
               />
-              <button
-                className="web3-input-eye"
-                onClick={() => setShowPassword(!showPassword)}
-                type="button"
-              >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              <div className="web3-input-wrap">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="密码"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                  className="web3-input"
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  spellCheck="false"
+                />
+                <button
+                  className="web3-input-eye"
+                  onClick={() => setShowPassword(!showPassword)}
+                  type="button"
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+              {loginError && (
+                <p className="web3-login-error">{loginError}</p>
+              )}
+              <button className="web3-btn primary" onClick={handleLogin}>
+                <LogIn size={16} />
+                登录
               </button>
             </div>
-            {loginError && (
-              <p className="web3-login-error">{loginError}</p>
-            )}
-            <button className="web3-btn primary" onClick={handleLogin}>
-              <LogIn size={16} />
-              登录
-            </button>
           </div>
         </div>
       </div>
@@ -166,6 +175,13 @@ export default function Web3Page() {
   return (
     <div className="web3-page">
       <div className="web3-container">
+        <div className="web3-page-header">
+          <Link href="/app" className="web3-back-btn">
+            <ArrowLeft size={18} />
+          </Link>
+          <h1 className="web3-page-title">Web3 身份</h1>
+        </div>
+
         {/* Identity Card */}
         <div className="web3-identity-card">
           <img

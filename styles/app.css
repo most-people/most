@@ -221,6 +221,24 @@
       color: var(--text-primary);
     }
   }
+
+  .sidebar-tools {
+    padding: 12px 8px;
+    border-top: 1px solid var(--glass-border);
+  }
+
+  .sidebar-tools-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+    padding-left: 12px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
 }
 
 /* === Mobile sidebar overlay === */
