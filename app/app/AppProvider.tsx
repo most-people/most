@@ -16,7 +16,7 @@ import {
   detectSameOriginBackend,
   detectLocalhostBackend,
   setBackendUrl,
-} from '../../src/utils/api'
+} from '../../server/src/utils/api'
 
 interface ToastItem {
   id: number

@@ -308,7 +308,7 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
     })
 
     it('rejects invalid channel names', async () => {
-      await assert.rejects(engine.createChannel('ab'), /至少 3 个字符/)
+      await assert.rejects(engine.createChannel('ab'), /至少 3 个字/)
     })
 
     it('rejects channel names with invalid characters', async () => {
@@ -321,7 +321,7 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
     it('rejects channel names that are too long', async () => {
       await assert.rejects(
         engine.createChannel('a'.repeat(21)),
-        /最多 20 个字符/
+        /最多 20 个字/
       )
     })
   })

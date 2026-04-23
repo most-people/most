@@ -14,7 +14,7 @@ import {
   checkBackendConnection,
   detectSameOriginBackend,
   detectLocalhostBackend,
-} from '../src/utils/api'
+} from '../server/src/utils/api'
 
 export default function HomePage() {
   const [mode, setMode] = useState<'loading' | 'app' | 'marketing' | 'error'>(

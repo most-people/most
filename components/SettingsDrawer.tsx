@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { X, Copy, Globe, ChevronDown, Power, Link } from 'lucide-react'
-import { api } from '../src/utils/api'
+import { api } from '../server/src/utils/api'
 import { useClipboard } from '../hooks'
 import {
   setBackendUrl,
@@ -10,7 +10,7 @@ import {
   checkBackendConnection,
   detectSameOriginBackend,
   detectLocalhostBackend,
-} from '../src/utils/api'
+} from '../server/src/utils/api'
 
 function SettingsDrawer({ onClose, addToast, isDarkMode, handleShutdown }) {
   const { copy } = useClipboard()

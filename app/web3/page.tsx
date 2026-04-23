@@ -30,9 +30,9 @@ import {
   mostWallet,
   mostMnemonic,
   most25519,
-} from '../../src/utils/mostWallet.js'
-import { getEdKeyPair, getIPNS } from '../../src/utils/mp.js'
-import { generateAvatar } from '../../src/utils/avatar.js'
+} from '../../server/src/utils/mostWallet.js'
+import { getEdKeyPair, getIPNS } from '../../server/src/utils/mp.js'
+import { generateAvatar } from '../../server/src/utils/avatar.js'
 
 /* ─── Helpers ─── */
 
@@ -373,7 +373,7 @@ export default function Web3Page() {
                         <code>{effectiveAddress.toLowerCase()}</code>
                         <CopyButton text={effectiveAddress.toLowerCase()} />
                         <a
-                          href={`https://web3.okx.com/zh-hans/portfolio/${effectiveAddress}`}
+                          href={`https://debank.com/profile/${effectiveAddress}`}
                           target="_blank"
                           rel="noreferrer"
                           className="link"

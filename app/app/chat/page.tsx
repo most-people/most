@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import AppShell from '../../../components/AppShell'
 import { InputModal, ConfirmModal } from '../../../components/ui'
-import { api } from '../../../src/utils/api'
+import { api } from '../../../server/src/utils/api'
 import {
   loadIdentity,
   saveIdentity,
@@ -24,8 +24,8 @@ import {
   createGuestIdentity,
   createLoginIdentity,
   generateGuestPassword,
-} from '../../../src/utils/userIdentity.js'
-import { generateAvatar } from '../../../src/utils/avatar.js'
+} from '../../../server/src/utils/userIdentity.js'
+import { generateAvatar } from '../../../server/src/utils/avatar.js'
 import { useApp } from '../AppProvider'
 import { useDisclosure, useToggle } from '../../../hooks'
 

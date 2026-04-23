@@ -39,7 +39,7 @@ export function Nav() {
         <div className="mkt-nav-inner">
           <Link href="/" className="mkt-nav-logo">
             <LogoIcon />
-            Most.Box
+            MOST PEOPLE
           </Link>
 
           <div className={`mkt-nav-links ${open ? 'open' : ''}`}>

@@ -34,7 +34,7 @@ import {
 } from 'lucide-react'
 import AppShell, { useAppShell } from '../../components/AppShell'
 import { ModalOverlay, ConfirmModal, InputModal } from '../../components/ui'
-import { api } from '../../src/utils/api'
+import { api } from '../../server/src/utils/api'
 import { useApp } from './AppProvider'
 import { useDisclosure, useClipboard } from '../../hooks'
 
@@ -1020,7 +1020,7 @@ export default function App() {
             onClick={() => (window.location.href = '/')}
             style={{ cursor: 'pointer' }}
           >
-            <h1>Most.Box</h1>
+            <h1>MOST PEOPLE</h1>
           </div>
           <nav className="sidebar-nav">
             {[
@@ -1087,181 +1087,179 @@ export default function App() {
       headerTitle={<h2 className="header-title">{viewTitle}</h2>}
       headerRight={
         <>
-            <div className="search-box">
-              <Search size={14} />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                placeholder="搜索..."
-              />
-              {searchQuery && (
-                <button onClick={() => setSearchQuery('')}>
-                  <X size={12} />
-                </button>
-              )}
-            </div>
-            {currentView === 'trash' && trashItems.length > 0 && (
-              <button
-                onClick={handleEmptyTrash}
-                className="btn small btn-empty-trash"
-              >
-                清空回收站
+          <div className="search-box">
+            <Search size={14} />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="搜索..."
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')}>
+                <X size={12} />
               </button>
             )}
-            <button onClick={() => transferPanel.open()} className="icon-btn">
-              <ArrowUpDown size={16} />
-              {transfers.length > 0 && (
-                <span className="icon-btn-badge">{transfers.length}</span>
-              )}
-            </button>
+          </div>
+          {currentView === 'trash' && trashItems.length > 0 && (
             <button
-              onClick={() => setIsDarkMode(!isDarkMode)}
-              className="icon-btn theme-toggle"
+              onClick={handleEmptyTrash}
+              className="btn small btn-empty-trash"
             >
-              {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
+              清空回收站
             </button>
-            <button onClick={() => openSettings()} className="icon-btn">
-              <Info size={16} />
-            </button>
+          )}
+          <button onClick={() => transferPanel.open()} className="icon-btn">
+            <ArrowUpDown size={16} />
+            {transfers.length > 0 && (
+              <span className="icon-btn-badge">{transfers.length}</span>
+            )}
+          </button>
+          <button
+            onClick={() => setIsDarkMode(!isDarkMode)}
+            className="icon-btn theme-toggle"
+          >
+            {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+          <button onClick={() => openSettings()} className="icon-btn">
+            <Info size={16} />
+          </button>
         </>
       }
     >
       {currentView === 'all' && (
-          <div className="action-grid">
-            <div
-              className={`action-card upload ${isDraggingOverUpload ? 'drag-over' : ''}`}
-              onDragOver={e => {
-                e.preventDefault()
-                setIsDraggingOverUpload(true)
-              }}
-              onDragLeave={() => setIsDraggingOverUpload(false)}
-              onDrop={e => {
-                e.preventDefault()
-                setIsDraggingOverUpload(false)
-                processFiles(e.dataTransfer.files)
-              }}
-            >
-              <input
-                type="file"
-                multiple
-                onChange={e => processFiles(e.target.files)}
-                className="action-card-input"
-              />
-              <Upload size={20} className="action-grid-icon" />
-              <p>上传文件</p>
-            </div>
-            <div
-              className="action-card action-card-download"
-              onClick={() => downloadModal.open()}
-            >
-              <Download size={20} className="action-grid-icon" />
-              <p>下载文件</p>
-            </div>
+        <div className="action-grid">
+          <div
+            className={`action-card upload ${isDraggingOverUpload ? 'drag-over' : ''}`}
+            onDragOver={e => {
+              e.preventDefault()
+              setIsDraggingOverUpload(true)
+            }}
+            onDragLeave={() => setIsDraggingOverUpload(false)}
+            onDrop={e => {
+              e.preventDefault()
+              setIsDraggingOverUpload(false)
+              processFiles(e.dataTransfer.files)
+            }}
+          >
+            <input
+              type="file"
+              multiple
+              onChange={e => processFiles(e.target.files)}
+              className="action-card-input"
+            />
+            <Upload size={20} className="action-grid-icon" />
+            <p>上传文件</p>
           </div>
-        )}
-
-        {currentView === 'all' && (
-          <div className="breadcrumb">
-            {currentPath ? (
-              <>
-                <button onClick={() => handleNavigate('')}>全部内容</button>
-                {breadcrumbParts.slice(1).map((part, i) => (
-                  <React.Fragment key={part.path}>
-                    <ChevronRight size={12} />
-                    <button
-                      onClick={() => handleNavigate(part.path)}
-                      className={
-                        i === breadcrumbParts.length - 2 ? 'current' : ''
-                      }
-                    >
-                      {part.name}
-                    </button>
-                    {i === breadcrumbParts.length - 2 && (
-                      <button
-                        onClick={() => openRenameModal(part)}
-                        className="breadcrumb-edit-btn"
-                      >
-                        <Edit2 size={12} />
-                      </button>
-                    )}
-                  </React.Fragment>
-                ))}
-              </>
-            ) : null}
+          <div
+            className="action-card action-card-download"
+            onClick={() => downloadModal.open()}
+          >
+            <Download size={20} className="action-grid-icon" />
+            <p>下载文件</p>
           </div>
-        )}
-
-        <div className="content-grid">
-          {currentView === 'trash' &&
-            (displayFiles.length === 0 ? (
-              <div className="empty-state">
-                {searchQuery ? '未找到相关文件' : '回收站是空的'}
-              </div>
-            ) : (
-              <div className="file-grid">
-                {displayFiles.map(f => (
-                  <div
-                    key={f.cid}
-                    onClick={() =>
-                      setSelectedIds(prev =>
-                        prev.includes(f.cid)
-                          ? prev.filter(id => id !== f.cid)
-                          : [...prev, f.cid]
-                      )
-                    }
-                    onDoubleClick={() => handleRestore(f.cid)}
-                    className={`card ${selectedIds.includes(f.cid) ? 'selected' : ''}`}
-                  >
-                    <div className="card-icon trash">
-                      <FileText size={24} color="#fff" />
-                    </div>
-                    <p className="card-name">{parseName(f.fileName).name}</p>
-                    <p className="card-date">
-                      删除于 {formatDate(f.deletedAt)}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            ))}
-
-          {currentView !== 'trash' &&
-            (displayFiles.length === 0 && displayFolders.length === 0 ? (
-              <div className="empty-state">
-                {searchQuery
-                  ? '未找到相关文件'
-                  : currentView === 'starred'
-                    ? '暂无的收藏'
-                    : '暂无文件'}
-              </div>
-            ) : (
-              <div className="file-grid">
-                {displayFolders.map(folder => (
-                  <FolderCard
-                    key={folder.path}
-                    folder={folder}
-                    isDarkMode={isDarkMode}
-                    onClick={() => handleNavigate(folder.path)}
-                  />
-                ))}
-                {displayFiles.map(f => (
-                  <FileCard
-                    key={f.cid}
-                    file={f}
-                    isSelected={selectedIds.includes(f.cid)}
-                    isDarkMode={isDarkMode}
-                    onSelect={handleSelect}
-                    onPreview={file =>
-                      setPreviewItem({
-                        ...file,
-                        subtype: getFileSubtype(file.fileName),
-                      })
-                    }
-                  />
-                ))}
-              </div>
-            ))}
         </div>
+      )}
+
+      {currentView === 'all' && (
+        <div className="breadcrumb">
+          {currentPath ? (
+            <>
+              <button onClick={() => handleNavigate('')}>全部内容</button>
+              {breadcrumbParts.slice(1).map((part, i) => (
+                <React.Fragment key={part.path}>
+                  <ChevronRight size={12} />
+                  <button
+                    onClick={() => handleNavigate(part.path)}
+                    className={
+                      i === breadcrumbParts.length - 2 ? 'current' : ''
+                    }
+                  >
+                    {part.name}
+                  </button>
+                  {i === breadcrumbParts.length - 2 && (
+                    <button
+                      onClick={() => openRenameModal(part)}
+                      className="breadcrumb-edit-btn"
+                    >
+                      <Edit2 size={12} />
+                    </button>
+                  )}
+                </React.Fragment>
+              ))}
+            </>
+          ) : null}
+        </div>
+      )}
+
+      <div className="content-grid">
+        {currentView === 'trash' &&
+          (displayFiles.length === 0 ? (
+            <div className="empty-state">
+              {searchQuery ? '未找到相关文件' : '回收站是空的'}
+            </div>
+          ) : (
+            <div className="file-grid">
+              {displayFiles.map(f => (
+                <div
+                  key={f.cid}
+                  onClick={() =>
+                    setSelectedIds(prev =>
+                      prev.includes(f.cid)
+                        ? prev.filter(id => id !== f.cid)
+                        : [...prev, f.cid]
+                    )
+                  }
+                  onDoubleClick={() => handleRestore(f.cid)}
+                  className={`card ${selectedIds.includes(f.cid) ? 'selected' : ''}`}
+                >
+                  <div className="card-icon trash">
+                    <FileText size={24} color="#fff" />
+                  </div>
+                  <p className="card-name">{parseName(f.fileName).name}</p>
+                  <p className="card-date">删除于 {formatDate(f.deletedAt)}</p>
+                </div>
+              ))}
+            </div>
+          ))}
+
+        {currentView !== 'trash' &&
+          (displayFiles.length === 0 && displayFolders.length === 0 ? (
+            <div className="empty-state">
+              {searchQuery
+                ? '未找到相关文件'
+                : currentView === 'starred'
+                  ? '暂无的收藏'
+                  : '暂无文件'}
+            </div>
+          ) : (
+            <div className="file-grid">
+              {displayFolders.map(folder => (
+                <FolderCard
+                  key={folder.path}
+                  folder={folder}
+                  isDarkMode={isDarkMode}
+                  onClick={() => handleNavigate(folder.path)}
+                />
+              ))}
+              {displayFiles.map(f => (
+                <FileCard
+                  key={f.cid}
+                  file={f}
+                  isSelected={selectedIds.includes(f.cid)}
+                  isDarkMode={isDarkMode}
+                  onSelect={handleSelect}
+                  onPreview={file =>
+                    setPreviewItem({
+                      ...file,
+                      subtype: getFileSubtype(file.fileName),
+                    })
+                  }
+                />
+              ))}
+            </div>
+          ))}
+      </div>
 
       {confirmModal && (
         <ConfirmModal

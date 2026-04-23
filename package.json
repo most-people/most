@@ -3,23 +3,23 @@
   "version": "0.0.5",
   "description": "MostBox - P2P file sharing application",
   "type": "module",
-  "main": "server.js",
+  "main": "server/index.js",
   "bin": {
-    "most-box": "./cli.js"
+    "most-box": "./server/cli.js"
   },
-  "files": [
+    "files": [
     "out",
     "public",
-    "src",
-    "server.js",
-    "cli.js"
+    "server/src",
+    "server/index.js",
+    "server/cli.js"
   ],
   "scripts": {
-    "start": "npm run build && node server.js",
+    "start": "npm run build && node server/index.js",
     "build": "next build",
     "dev": "next dev",
-    "test": "node --test tests/**/*.test.js",
-    "test:unit": "node --test tests/unit/*.test.js",
+    "test": "node --test server/tests/**/*.test.js",
+    "test:unit": "node --test server/tests/unit/*.test.js",
     "format": "npx prettier --write .",
     "lint": "npx eslint ."
   },
@@ -33,6 +33,7 @@
   "dependencies": {
     "@dicebear/collection": "^9.4.2",
     "@dicebear/core": "^9.4.2",
+    "@hono/node-server": "^2.0.0",
     "@mantine/hooks": "^9.0.2",
     "b4a": "^1.8.0",
     "busboy": "^1.6.0",
@@ -40,6 +41,7 @@
     "dayjs": "^1.11.20",
     "ethers": "^6.16.0",
     "eventemitter3": "^5.0.4",
+    "hono": "^4.12.14",
     "hypercore": "^11.28.1",
     "hyperdrive": "^13.3.2",
     "hyperswarm": "^4.17.0",

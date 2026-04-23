@@ -171,7 +171,7 @@ npx most-box
 - **Hyperdrive** — 分布式文件存储
 - **Corestore** — Hypercore 存储管理
 - **IPFS UnixFS Importer** — CID 计算
-- **Node.js HTTP** — 零依赖的 HTTP + WebSocket 服务
+- **Hono** — 轻量 Web 框架 + @hono/node-server 适配器 + WebSocket
 - **React** — Web UI
 
 ## 社区

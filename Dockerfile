@@ -20,10 +20,8 @@ RUN addgroup -g 1001 -S nodejs && \
 COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/server.js ./
-COPY --from=builder /app/cli.js ./
-COPY --from=builder /app/src ./src
+COPY --from=builder /app/out ./out
+COPY --from=builder /app/server ./server
 
 RUN chown -R mostbox:nodejs /app
 
@@ -34,4 +32,4 @@ EXPOSE 1976
 ENV MOSTBOX_HOST=0.0.0.0
 ENV PORT=1976
 
-CMD ["node", "server.js"]
+CMD ["node", "server/index.js"]
