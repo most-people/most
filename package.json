@@ -34,7 +34,7 @@
     "@dicebear/collection": "^9.4.2",
     "@dicebear/core": "^9.4.2",
     "@hono/node-server": "^2.0.0",
-    "@mantine/hooks": "^9.0.2",
+    "@mantine/hooks": "^9.1.0",
     "b4a": "^1.8.0",
     "busboy": "^1.6.0",
     "corestore": "^7.9.2",
@@ -45,14 +45,14 @@
     "hypercore": "^11.28.1",
     "hyperdrive": "^13.3.2",
     "hyperswarm": "^4.17.0",
-    "ipfs-unixfs-importer": "^16.1.4",
-    "ky": "^2.0.0",
-    "lucide-react": "^1.7.0",
+    "ipfs-unixfs-importer": "^16.1.5",
+    "ky": "^2.0.2",
+    "lucide-react": "^1.9.0",
     "multiformats": "^13.4.2",
-    "next": "^16.2.2",
+    "next": "^16.2.4",
     "qrcode.react": "^4.2.0",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
     "tweetnacl": "^1.0.3",
     "ws": "^8.20.0",
     "zustand": "^5.0.12"
@@ -64,6 +64,6 @@
     "eslint": "^10.2.1",
     "globals": "^17.5.0",
     "prettier": "^3.8.3",
-    "typescript": "6.0.2"
+    "typescript": "6.0.3"
   }
 }
