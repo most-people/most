@@ -28,10 +28,7 @@ export function InputModal({
   const [value, setValue] = useState(defaultValue || '')
   return (
     <ModalOverlay onClose={onClose}>
-      <div
-        className="input-modal"
-        onClick={e => e.stopPropagation()}
-      >
+      <div className="input-modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <h3>{title}</h3>
           <button onClick={onClose} className="modal-close-btn">
@@ -48,7 +45,7 @@ export function InputModal({
             if (e.key === 'Enter' && value.trim() && !isLoading)
               onConfirm(value.trim())
           }}
-          className="modal-input modal-input-glass"
+          className="modal-input"
         />
         <div className="modal-actions">
           <button

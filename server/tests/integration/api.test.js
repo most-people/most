@@ -6,7 +6,6 @@ import path from 'node:path'
 import { serve } from '@hono/node-server'
 import { createApp } from '../../index.js'
 import { MostBoxEngine } from '../../src/index.js'
-import { parseMostLink } from '../../src/core/cid.js'
 
 const TEST_PORT = 19771
 const baseUrl = 'http://localhost:' + TEST_PORT

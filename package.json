@@ -7,7 +7,7 @@
   "bin": {
     "most-box": "./server/cli.js"
   },
-    "files": [
+  "files": [
     "out",
     "public",
     "server/src",

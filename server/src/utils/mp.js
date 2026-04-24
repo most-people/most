@@ -6,7 +6,7 @@ import { generateAvatar } from './avatar.js'
 const BASE36_ALPHABET = '0123456789abcdefghijklmnopqrstuvwxyz'
 
 // Ed25519 变长整型编码（protobuf varint）
-const encodeVarint = (value) => {
+const encodeVarint = value => {
   const bytes = []
   while (value >= 0x80) {
     bytes.push((value & 0x7f) | 0x80)
@@ -17,7 +17,7 @@ const encodeVarint = (value) => {
 }
 
 // Ed25519 libp2p-protobuf-cleartext 公钥
-const marshalLibp2pPublicKeyEd25519 = (publicKey) => {
+const marshalLibp2pPublicKeyEd25519 = publicKey => {
   const header = new Uint8Array([
     0x08,
     0x01,
@@ -77,7 +77,7 @@ export const getIPNS = (private_key, ed_public_key) => {
   return 'k' + baseXEncode(cidBytes, BASE36_ALPHABET)
 }
 
-export const formatTime = (time) => {
+export const formatTime = time => {
   if (!time) return ''
   const date = dayjs(Number(time))
   const hour = date.hour()

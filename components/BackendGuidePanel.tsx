@@ -1,11 +1,14 @@
 'use client'
 
 import React, { useState, useCallback } from 'react'
-import { ArrowLeft, Loader, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
 import {
-  setBackendUrl,
-  checkBackendConnection,
-} from '../server/src/utils/api'
+  ArrowLeft,
+  Loader,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+} from 'lucide-react'
+import { setBackendUrl, checkBackendConnection } from '../server/src/utils/api'
 
 interface BackendGuidePanelProps {
   featureName: string
@@ -43,8 +46,12 @@ export default function BackendGuidePanel({
     <div className="backend-guide">
       <div className="backend-guide-card">
         <div className="backend-guide-header">
-          {status === 'idle' && <AlertCircle size={32} color="var(--warning)" />}
-          {status === 'success' && <CheckCircle size={32} color="var(--success)" />}
+          {status === 'idle' && (
+            <AlertCircle size={32} color="var(--warning)" />
+          )}
+          {status === 'success' && (
+            <CheckCircle size={32} color="var(--success)" />
+          )}
           {status === 'error' && <XCircle size={32} color="var(--danger)" />}
           <h2>需要后端服务</h2>
         </div>
@@ -89,9 +96,7 @@ export default function BackendGuidePanel({
             <span className="step-num">2</span>
             <div>
               <strong>运行 MostBox</strong>
-              <code className="backend-guide-code">
-                npx most-box@latest
-              </code>
+              <code className="backend-guide-code">npx most-box@latest</code>
             </div>
           </div>
           <div className="backend-guide-step">

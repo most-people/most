@@ -32,7 +32,11 @@ describe('WebSocket (integration)', { timeout: 30000 }, () => {
     const wssRef = { current: null }
     const serverInstanceRef = { current: null }
 
-    const result = createApp(engine, { port: TEST_PORT, wssRef, serverInstanceRef })
+    const result = createApp(engine, {
+      port: TEST_PORT,
+      wssRef,
+      serverInstanceRef,
+    })
     const { app } = result
     wsBroadcast = result.wsBroadcast
     wsSendToChannel = result.wsSendToChannel
@@ -83,16 +87,28 @@ describe('WebSocket (integration)', { timeout: 30000 }, () => {
 
     wssRef.current = wss
 
-    engine.on('download:progress', data => wsBroadcast('download:progress', data))
+    engine.on('download:progress', data =>
+      wsBroadcast('download:progress', data)
+    )
     engine.on('download:status', data => wsBroadcast('download:status', data))
     engine.on('download:success', data => wsBroadcast('download:success', data))
-    engine.on('download:cancelled', data => wsBroadcast('download:cancelled', data))
+    engine.on('download:cancelled', data =>
+      wsBroadcast('download:cancelled', data)
+    )
     engine.on('publish:progress', data => wsBroadcast('publish:progress', data))
     engine.on('publish:success', data => wsBroadcast('publish:success', data))
-    engine.on('connection', () => wsBroadcast('network:status', engine.getNetworkStatus()))
-    engine.on('channel:message', data => wsSendToChannel(data.channel, 'channel:message', data))
-    engine.on('channel:peer:online', data => wsBroadcast('channel:peer:online', data))
-    engine.on('channel:peer:offline', data => wsBroadcast('channel:peer:offline', data))
+    engine.on('connection', () =>
+      wsBroadcast('network:status', engine.getNetworkStatus())
+    )
+    engine.on('channel:message', data =>
+      wsSendToChannel(data.channel, 'channel:message', data)
+    )
+    engine.on('channel:peer:online', data =>
+      wsBroadcast('channel:peer:online', data)
+    )
+    engine.on('channel:peer:offline', data =>
+      wsBroadcast('channel:peer:offline', data)
+    )
     engine.on('channel:joined', data => wsBroadcast('channel:joined', data))
     engine.on('channel:left', data => wsBroadcast('channel:left', data))
 
@@ -127,7 +143,10 @@ describe('WebSocket (integration)', { timeout: 30000 }, () => {
 
   function waitForMessage(ws, timeout = 3000) {
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('Timeout waiting for message')), timeout)
+      const timer = setTimeout(
+        () => reject(new Error('Timeout waiting for message')),
+        timeout
+      )
       ws.once('message', data => {
         clearTimeout(timer)
         resolve(JSON.parse(data.toString()))
@@ -179,9 +198,15 @@ describe('WebSocket (integration)', { timeout: 30000 }, () => {
       const wsB = await connectClient()
       const wsC = await connectClient()
 
-      wsA.send(JSON.stringify({ event: 'channel:subscribe', data: { channel: 'ch1' } }))
-      wsB.send(JSON.stringify({ event: 'channel:subscribe', data: { channel: 'ch1' } }))
-      wsC.send(JSON.stringify({ event: 'channel:subscribe', data: { channel: 'ch2' } }))
+      wsA.send(
+        JSON.stringify({ event: 'channel:subscribe', data: { channel: 'ch1' } })
+      )
+      wsB.send(
+        JSON.stringify({ event: 'channel:subscribe', data: { channel: 'ch1' } })
+      )
+      wsC.send(
+        JSON.stringify({ event: 'channel:subscribe', data: { channel: 'ch2' } })
+      )
 
       await new Promise(r => setTimeout(r, 50))
 
@@ -197,7 +222,9 @@ describe('WebSocket (integration)', { timeout: 30000 }, () => {
       assert.strictEqual(msgB.data.content, 'hello')
 
       let msgCReceived = false
-      wsC.once('message', () => { msgCReceived = true })
+      wsC.once('message', () => {
+        msgCReceived = true
+      })
       await new Promise(r => setTimeout(r, 200))
       assert.strictEqual(msgCReceived, false)
 
@@ -209,16 +236,30 @@ describe('WebSocket (integration)', { timeout: 30000 }, () => {
     it('unsubscribes from channel', async () => {
       const ws = await connectClient()
 
-      ws.send(JSON.stringify({ event: 'channel:subscribe', data: { channel: 'ch-unsub' } }))
+      ws.send(
+        JSON.stringify({
+          event: 'channel:subscribe',
+          data: { channel: 'ch-unsub' },
+        })
+      )
       await new Promise(r => setTimeout(r, 50))
 
-      ws.send(JSON.stringify({ event: 'channel:unsubscribe', data: { channel: 'ch-unsub' } }))
+      ws.send(
+        JSON.stringify({
+          event: 'channel:unsubscribe',
+          data: { channel: 'ch-unsub' },
+        })
+      )
       await new Promise(r => setTimeout(r, 50))
 
       let received = false
-      ws.once('message', () => { received = true })
+      ws.once('message', () => {
+        received = true
+      })
 
-      wsSendToChannel('ch-unsub', 'channel:message', { content: 'should not arrive' })
+      wsSendToChannel('ch-unsub', 'channel:message', {
+        content: 'should not arrive',
+      })
 
       await new Promise(r => setTimeout(r, 200))
       assert.strictEqual(received, false)
@@ -229,13 +270,20 @@ describe('WebSocket (integration)', { timeout: 30000 }, () => {
     it('cleans up subscriptions on disconnect', async () => {
       const ws = await connectClient()
 
-      ws.send(JSON.stringify({ event: 'channel:subscribe', data: { channel: 'ch-cleanup' } }))
+      ws.send(
+        JSON.stringify({
+          event: 'channel:subscribe',
+          data: { channel: 'ch-cleanup' },
+        })
+      )
       await new Promise(r => setTimeout(r, 50))
 
       ws.close()
       await new Promise(r => setTimeout(r, 100))
 
-      wsSendToChannel('ch-cleanup', 'channel:message', { content: 'no one should get this' })
+      wsSendToChannel('ch-cleanup', 'channel:message', {
+        content: 'no one should get this',
+      })
 
       await new Promise(r => setTimeout(r, 200))
     })

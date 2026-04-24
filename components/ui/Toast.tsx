@@ -9,7 +9,7 @@ export function Toast({ message, type, onDone, index }) {
   }, [])
   return (
     <div
-      className={`toast toast-glass toast-${type}`}
+      className={`toast ${type}`}
       style={{ bottom: 24 + index * 60 }}
     >
       {message}

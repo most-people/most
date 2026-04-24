@@ -7,6 +7,7 @@ import {
   MessageSquare,
   Wallet,
   ArrowRight,
+  ArrowUpRight,
   Zap,
   Check,
   ExternalLink,
@@ -31,7 +32,14 @@ interface FeatureDef {
   hero: string
   desc: string
   features: string[]
-  steps: { num: string; title: string; desc: string; code?: string; link?: string; linkText?: string }[]
+  steps: {
+    num: string
+    title: string
+    desc: string
+    code?: string
+    link?: string
+    linkText?: string
+  }[]
   extra?: React.ReactNode
 }
 
@@ -55,9 +63,24 @@ const features: FeatureDef[] = [
       'MIT 开源，数据完全自主掌控',
     ],
     steps: [
-      { num: '1', title: '安装 Node.js', desc: '需要 Node.js 18 或更高版本。', link: 'https://nodejs.org', linkText: '下载 Node.js' },
-      { num: '2', title: '运行 MostBox', desc: '一行命令启动，浏览器自动打开。', code: 'npx most-box@latest' },
-      { num: '3', title: '开始分享', desc: '上传文件，复制链接，发给朋友即可。' },
+      {
+        num: '1',
+        title: '安装 Node.js',
+        desc: '需要 Node.js 18 或更高版本。',
+        link: 'https://nodejs.org',
+        linkText: '下载 Node.js',
+      },
+      {
+        num: '2',
+        title: '运行 MostBox',
+        desc: '一行命令启动，浏览器自动打开。',
+        code: 'npx most-box@latest',
+      },
+      {
+        num: '3',
+        title: '开始分享',
+        desc: '上传文件，复制链接，发给朋友即可。',
+      },
     ],
   },
   {
@@ -77,9 +100,18 @@ const features: FeatureDef[] = [
       '无需注册即可使用',
     ],
     steps: [
-      { num: '1', title: '启动 MostBox', desc: '运行后端服务', code: 'npx most-box@latest' },
+      {
+        num: '1',
+        title: '启动 MostBox',
+        desc: '运行后端服务',
+        code: 'npx most-box@latest',
+      },
       { num: '2', title: '创建频道', desc: '输入任意频道名即可加入或创建。' },
-      { num: '3', title: '开始聊天', desc: '发送消息，P2P 网络自动同步给所有在线节点。' },
+      {
+        num: '3',
+        title: '开始聊天',
+        desc: '发送消息，P2P 网络自动同步给所有在线节点。',
+      },
     ],
   },
   {
@@ -100,8 +132,16 @@ const features: FeatureDef[] = [
       '二维码展示地址与助记词',
     ],
     steps: [
-      { num: '1', title: '输入用户名', desc: '用户名 + 密码（可选）作为种子。' },
-      { num: '2', title: '查看密钥', desc: '即时生成 Ed25519、x25519 公钥与 IPNS ID。' },
+      {
+        num: '1',
+        title: '输入用户名',
+        desc: '用户名 + 密码（可选）作为种子。',
+      },
+      {
+        num: '2',
+        title: '查看密钥',
+        desc: '即时生成 Ed25519、x25519 公钥与 IPNS ID。',
+      },
       { num: '3', title: '导出使用', desc: '复制地址、导出 PEM、派生子地址。' },
     ],
   },
@@ -137,7 +177,8 @@ export default function FeaturePortal() {
   }, [])
 
   const activeFeature = features.find(f => f.id === selected) || features[0]
-  const needsBackendAndDisconnected = activeFeature.requiresBackend && backendConnected === false
+  const needsBackendAndDisconnected =
+    activeFeature.requiresBackend && backendConnected === false
 
   return (
     <div className="portal-page">
@@ -173,6 +214,14 @@ export default function FeaturePortal() {
                     setShowGuide(false)
                   }}
                 >
+                  <Link
+                    href={f.path}
+                    className="portal-card-open-btn"
+                    onClick={e => e.stopPropagation()}
+                    title={`打开${f.title}`}
+                  >
+                    <ArrowUpRight size={16} />
+                  </Link>
                   <div className="portal-card-icon">{f.icon}</div>
                   <div className="portal-card-title">{f.title}</div>
                   <div className="portal-card-subtitle">{f.subtitle}</div>
@@ -239,10 +288,16 @@ export default function FeaturePortal() {
                       <div className="portal-step-content">
                         <strong>{step.title}</strong>
                         <p>{step.desc}</p>
-                        {step.code && <code className="portal-step-code">{step.code}</code>}
+                        {step.code && (
+                          <code className="portal-step-code">{step.code}</code>
+                        )}
                         {step.link && (
                           <p className="portal-step-link">
-                            <a href={step.link} target="_blank" rel="noopener noreferrer">
+                            <a
+                              href={step.link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
                               {step.linkText} <ExternalLink size={12} />
                             </a>
                           </p>
@@ -254,18 +309,19 @@ export default function FeaturePortal() {
 
                 <div className="portal-actions">
                   <Link href={activeFeature.path} className="mkt-btn-primary">
-                    进入{activeFeature.title}
+                    进入 {activeFeature.title}
                     <ArrowRight size={16} />
                   </Link>
-                  {activeFeature.requiresBackend && backendConnected === false && (
-                    <button
-                      className="mkt-btn-secondary"
-                      onClick={() => setShowGuide(true)}
-                    >
-                      <Zap size={16} />
-                      连接后端
-                    </button>
-                  )}
+                  {activeFeature.requiresBackend &&
+                    backendConnected === false && (
+                      <button
+                        className="mkt-btn-secondary"
+                        onClick={() => setShowGuide(true)}
+                      >
+                        <Zap size={16} />
+                        连接后端
+                      </button>
+                    )}
                 </div>
               </>
             )}

@@ -736,8 +736,7 @@ export function createApp(engine, options = {}) {
 
   // --- 关机路由 ---
   app.post('/api/shutdown', c => {
-    const clientIp =
-      c.env.incoming?.socket?.remoteAddress || 'unknown'
+    const clientIp = c.env.incoming?.socket?.remoteAddress || 'unknown'
     const isLocalhost =
       clientIp === 'localhost' ||
       clientIp === '::1' ||
@@ -795,7 +794,14 @@ export function createApp(engine, options = {}) {
     return c.json({ error: 'Not found' }, 404)
   })
 
-  return { app, wsBroadcast, wsSendToChannel, subscribeToChannel, unsubscribeFromChannel, cleanupWsSubscriptions }
+  return {
+    app,
+    wsBroadcast,
+    wsSendToChannel,
+    subscribeToChannel,
+    unsubscribeFromChannel,
+    cleanupWsSubscriptions,
+  }
 }
 
 // --- 主函数 ---
@@ -822,30 +828,27 @@ export async function main() {
   const wssRef = { current: null }
   const serverInstanceRef = { current: null }
 
-  const { app, wsBroadcast, wsSendToChannel, subscribeToChannel, unsubscribeFromChannel, cleanupWsSubscriptions } = createApp(engine, {
+  const {
+    app,
+    wsBroadcast,
+    wsSendToChannel,
+    subscribeToChannel,
+    unsubscribeFromChannel,
+    cleanupWsSubscriptions,
+  } = createApp(engine, {
     port: PORT,
     wssRef,
     serverInstanceRef,
   })
 
-  engine.on('download:progress', data =>
-    wsBroadcast('download:progress', data)
-  )
-  engine.on('download:status', data =>
-    wsBroadcast('download:status', data)
-  )
-  engine.on('download:success', data =>
-    wsBroadcast('download:success', data)
-  )
+  engine.on('download:progress', data => wsBroadcast('download:progress', data))
+  engine.on('download:status', data => wsBroadcast('download:status', data))
+  engine.on('download:success', data => wsBroadcast('download:success', data))
   engine.on('download:cancelled', data =>
     wsBroadcast('download:cancelled', data)
   )
-  engine.on('publish:progress', data =>
-    wsBroadcast('publish:progress', data)
-  )
-  engine.on('publish:success', data =>
-    wsBroadcast('publish:success', data)
-  )
+  engine.on('publish:progress', data => wsBroadcast('publish:progress', data))
+  engine.on('publish:success', data => wsBroadcast('publish:success', data))
   engine.on('connection', () => {
     wsBroadcast('network:status', engine.getNetworkStatus())
   })
@@ -858,12 +861,8 @@ export async function main() {
   engine.on('channel:peer:offline', data =>
     wsBroadcast('channel:peer:offline', data)
   )
-  engine.on('channel:joined', data =>
-    wsBroadcast('channel:joined', data)
-  )
-  engine.on('channel:left', data =>
-    wsBroadcast('channel:left', data)
-  )
+  engine.on('channel:joined', data => wsBroadcast('channel:joined', data))
+  engine.on('channel:left', data => wsBroadcast('channel:left', data))
 
   await engine.start()
   console.log('[MostBox] Engine ready')
@@ -948,10 +947,10 @@ export async function main() {
 }
 
 // 仅在直接运行时执行 main（通过 node server/index.js 或 CLI）
-const isMain = process.argv[1] && (
-  import.meta.url === new URL(process.argv[1], 'file://').href ||
-  fileURLToPath(import.meta.url) === path.resolve(process.argv[1])
-)
+const isMain =
+  process.argv[1] &&
+  (import.meta.url === new URL(process.argv[1], 'file://').href ||
+    fileURLToPath(import.meta.url) === path.resolve(process.argv[1]))
 if (isMain) {
   main().catch(err => {
     console.error('[MostBox] Fatal error:', err)

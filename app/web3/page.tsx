@@ -365,7 +365,7 @@ export default function Web3Page() {
                       alt="avatar"
                       className="web3-identity-avatar"
                     />
-                    <div className="web3-identity-info">
+                    <div>
                       <h1 className="web3-identity-name">
                         {walletResult?.username || '匿名'}
                       </h1>
