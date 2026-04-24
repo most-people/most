@@ -1,0 +1,18 @@
+{
+  "name": "MostBox",
+  "short_name": "MostBox",
+  "description": "P2P 文件分享，无需注册",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#5e6ad2",
+  "background_color": "#f5f5f7",
+  "icons": [
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
