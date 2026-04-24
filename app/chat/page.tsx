@@ -12,10 +12,11 @@ import {
   Eye,
   EyeOff,
 } from 'lucide-react'
-import AppShell from '../../components/AppShell'
-import { InputModal, ConfirmModal } from '../../components/ui'
-import { api } from '../../server/src/utils/api'
+import AppShell from '~/components/AppShell'
+import { InputModal, ConfirmModal } from '~/components/ui'
+import { api } from '~/server/src/utils/api'
 import {
+  getDisplayName,
   loadIdentity,
   saveIdentity,
   saveGuestIdentity,
@@ -23,11 +24,11 @@ import {
   createGuestIdentity,
   createLoginIdentity,
   generateGuestPassword,
-} from '../../server/src/utils/userIdentity.js'
-import { generateAvatar } from '../../server/src/utils/avatar.js'
-import { useApp } from '../app/AppProvider'
-import { useDisclosure, useToggle } from '../../hooks'
-import BackendGuidePanel from '../../components/BackendGuidePanel'
+} from '~/server/src/utils/userIdentity.js'
+import { generateAvatar } from '~/server/src/utils/avatar.js'
+import { useApp } from '~/app/app/AppProvider'
+import { useDisclosure, useToggle } from '~/hooks'
+import BackendGuidePanel from '~/components/BackendGuidePanel'
 
 interface ChannelMessage {
   id?: string

@@ -2,9 +2,10 @@
 
 import React, { useState, createContext, useContext } from 'react'
 import { useMediaQuery } from '@mantine/hooks'
-import { useDisclosure } from '../hooks'
 import { Settings, Menu } from 'lucide-react'
-import { useApp } from '../app/app/AppProvider'
+import { useDisclosure } from '~/hooks'
+
+import { useApp } from '~/app/app/AppProvider'
 
 interface AppShellContextValue {
   closeSidebar: () => void

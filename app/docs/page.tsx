@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { Check } from 'lucide-react'
-import { MarketingLayout } from '../../components/MarketingLayout'
+import { MarketingLayout } from '~/components/MarketingLayout'
 
 const features = [
   {

@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { useHotkeys } from '../../hooks'
+import { useHotkeys } from '~/hooks'
 
 export function ModalOverlay({
   children,

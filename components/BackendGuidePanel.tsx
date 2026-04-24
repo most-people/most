@@ -8,7 +8,7 @@ import {
   XCircle,
   AlertCircle,
 } from 'lucide-react'
-import { setBackendUrl, checkBackendConnection } from '../server/src/utils/api'
+import { setBackendUrl, checkBackendConnection } from '~/server/src/utils/api'
 
 interface BackendGuidePanelProps {
   featureName: string

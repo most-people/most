@@ -1,5 +1,5 @@
-import '../../styles/chat.css'
-import AppProvider from '../app/AppProvider'
+import '~/styles/chat.css'
+import AppProvider from '~/app/app/AppProvider'
 
 export const metadata = {
   title: 'MostBox - 频道',

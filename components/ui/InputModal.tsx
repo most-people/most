@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react'
 import { X } from 'lucide-react'
-import { ModalOverlay } from './ModalOverlay'
+import { ModalOverlay } from '~/components/ui/ModalOverlay'
 
 interface InputModalProps {
   title: string

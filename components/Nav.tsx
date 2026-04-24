@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useMediaQuery } from '@mantine/hooks'
 import Link from 'next/link'
 import { Sun, Moon, Menu } from 'lucide-react'
-import { LogoIcon } from './icons/LogoIcon'
+import { LogoIcon } from '~/components/icons/LogoIcon'
 
 const navItems = [
   { href: '/docs/getting-started/', label: '文档' },

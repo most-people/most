@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { MarketingLayout } from '../../../components/MarketingLayout'
+import { MarketingLayout } from '~/components/MarketingLayout'
 
 export default function GettingStartedPage() {
   return (

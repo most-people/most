@@ -24,15 +24,15 @@ import {
   Lock,
   Wallet,
 } from 'lucide-react'
-import AppShell from '../../components/AppShell'
-import { useApp } from '../app/AppProvider'
+import AppShell from '~/components/AppShell'
+import { useApp } from '~/app/app/AppProvider'
 import {
   mostWallet,
   mostMnemonic,
   most25519,
-} from '../../server/src/utils/mostWallet.js'
-import { getEdKeyPair, getIPNS } from '../../server/src/utils/mp.js'
-import { generateAvatar } from '../../server/src/utils/avatar.js'
+} from '~/server/src/utils/mostWallet.js'
+import { getEdKeyPair, getIPNS } from '~/server/src/utils/mp.js'
+import { generateAvatar } from '~/server/src/utils/avatar.js'
 
 /* ─── Helpers ─── */
 

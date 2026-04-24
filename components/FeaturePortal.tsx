@@ -13,13 +13,14 @@ import {
   ExternalLink,
   ArrowLeft,
 } from 'lucide-react'
-import BackendGuidePanel from './BackendGuidePanel'
+import BackendGuidePanel from '~/components/BackendGuidePanel'
 import {
+  setBackendUrl,
   checkBackendConnection,
+  getBackendUrlExport,
   detectSameOriginBackend,
   detectLocalhostBackend,
-  setBackendUrl,
-} from '../server/src/utils/api'
+} from '~/server/src/utils/api'
 
 /* ─── Types ─── */
 interface FeatureDef {

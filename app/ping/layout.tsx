@@ -1,4 +1,4 @@
-import '../../styles/ping.css'
+import '~/styles/ping.css'
 
 export const metadata = {
   title: 'MostBox - 网络连通性',

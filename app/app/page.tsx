@@ -30,12 +30,12 @@ import {
   ChevronDown,
   Settings,
 } from 'lucide-react'
-import AppShell, { useAppShell } from '../../components/AppShell'
-import { ModalOverlay, ConfirmModal, InputModal } from '../../components/ui'
-import { api } from '../../server/src/utils/api'
-import { useApp } from './AppProvider'
-import { useDisclosure, useClipboard } from '../../hooks'
-import BackendGuidePanel from '../../components/BackendGuidePanel'
+import AppShell, { useAppShell } from '~/components/AppShell'
+import { ModalOverlay, ConfirmModal, InputModal } from '~/components/ui'
+import { api } from '~/server/src/utils/api'
+import { useApp } from '~/app/app/AppProvider'
+import { useDisclosure, useClipboard } from '~/hooks'
+import BackendGuidePanel from '~/components/BackendGuidePanel'
 
 interface NetworkAddress {
   type: string

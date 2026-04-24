@@ -1,7 +1,7 @@
-import './globals.css'
-import '../styles/app.css'
-import { ErrorBoundary } from './error-boundary'
-import { PwaInstallPrompt } from '../components/PwaInstallPrompt'
+import '~/app/globals.css'
+import '~/styles/app.css'
+import { ErrorBoundary } from '~/app/error-boundary'
+import { PwaInstallPrompt } from '~/components/PwaInstallPrompt'
 
 export const metadata = {
   title: 'MostBox',

@@ -1,8 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { changelog } from '../../content/changelog'
-import { MarketingLayout } from '../../components/MarketingLayout'
+import { changelog } from '~/content/changelog'
+import { MarketingLayout } from '~/components/MarketingLayout'
 
 function transformCategories(
   categories: Record<string, string[]>

@@ -7,16 +7,16 @@ import React, {
   useEffect,
   useCallback,
 } from 'react'
-import SettingsDrawer from '../../components/SettingsDrawer'
-import { Toast } from '../../components/ui'
-import { useDisclosure } from '../../hooks'
+import SettingsDrawer from '~/components/SettingsDrawer'
+import { Toast } from '~/components/ui'
+import { useDisclosure } from '~/hooks'
 import {
   api,
   getBackendUrlExport,
   detectSameOriginBackend,
   detectLocalhostBackend,
   setBackendUrl,
-} from '../../server/src/utils/api'
+} from '~/server/src/utils/api'
 
 interface ToastItem {
   id: number

@@ -1,9 +1,9 @@
 'use client'
 
-import '../styles/portal.css'
+import '~/styles/portal.css'
 
-import FeaturePortal from '../components/FeaturePortal'
-import { MarketingLayout } from '../components/MarketingLayout'
+import FeaturePortal from '~/components/FeaturePortal'
+import { MarketingLayout } from '~/components/MarketingLayout'
 
 export default function HomePage() {
   return (

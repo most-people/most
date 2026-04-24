@@ -1,4 +1,4 @@
-import AppProvider from './AppProvider'
+import AppProvider from '~/app/app/AppProvider'
 
 export const metadata = {
   title: 'MostBox',
