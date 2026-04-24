@@ -283,8 +283,8 @@ export default function Web3Page() {
           <div className="sidebar-header">
             <button
               className="back-btn"
-              onClick={() => (window.location.href = '/app/')}
-              title="返回文件管理"
+              onClick={() => (window.location.href = '/')}
+              title="返回首页"
             >
               <ArrowLeft size={18} />
             </button>

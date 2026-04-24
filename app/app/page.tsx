@@ -12,7 +12,6 @@ import {
   Music,
   ChevronRight,
   FileText,
-  MessageSquare,
   X,
   Check,
   Copy,
@@ -30,13 +29,13 @@ import {
   Link,
   ChevronDown,
   Settings,
-  Wallet,
 } from 'lucide-react'
 import AppShell, { useAppShell } from '../../components/AppShell'
 import { ModalOverlay, ConfirmModal, InputModal } from '../../components/ui'
 import { api } from '../../server/src/utils/api'
 import { useApp } from './AppProvider'
 import { useDisclosure, useClipboard } from '../../hooks'
+import BackendGuidePanel from '../../components/BackendGuidePanel'
 
 interface NetworkAddress {
   type: string
@@ -1011,6 +1010,31 @@ export default function App() {
 
   const breadcrumbParts = generateBreadcrumbs(currentPath)
 
+  if (showBackendWarning) {
+    return (
+      <AppShell
+        sidebar={() => (
+          <>
+            <div
+              className="sidebar-header"
+              onClick={() => (window.location.href = '/')}
+              style={{ cursor: 'pointer' }}
+            >
+              <h1>MOST PEOPLE</h1>
+            </div>
+            <nav className="sidebar-nav" />
+          </>
+        )}
+        headerTitle={<h2 className="header-title">文件管理</h2>}
+      >
+        <BackendGuidePanel
+          featureName="MostBox P2P 文件分享"
+          onBack={() => (window.location.href = '/')}
+        />
+      </AppShell>
+    )
+  }
+
   return (
     <AppShell
       sidebar={({ closeSidebar }) => (
@@ -1045,23 +1069,6 @@ export default function App() {
             ))}
           </nav>
 
-          <div className="sidebar-tools">
-            <div className="sidebar-tools-label">工具</div>
-            <button
-              onClick={() => (window.location.href = '/app/chat/')}
-              className="sidebar-nav-btn"
-            >
-              <MessageSquare size={18} />
-              <span>聊天</span>
-            </button>
-            <button
-              onClick={() => (window.location.href = '/web3/')}
-              className="sidebar-nav-btn"
-            >
-              <Wallet size={18} />
-              <span>Web3</span>
-            </button>
-          </div>
           <div className="sidebar-footer">
             <div className="sidebar-footer-label">
               <HardDrive size={14} />

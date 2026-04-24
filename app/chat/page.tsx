@@ -11,11 +11,10 @@ import {
   X,
   Eye,
   EyeOff,
-  Settings,
 } from 'lucide-react'
-import AppShell from '../../../components/AppShell'
-import { InputModal, ConfirmModal } from '../../../components/ui'
-import { api } from '../../../server/src/utils/api'
+import AppShell from '../../components/AppShell'
+import { InputModal, ConfirmModal } from '../../components/ui'
+import { api } from '../../server/src/utils/api'
 import {
   loadIdentity,
   saveIdentity,
@@ -24,10 +23,11 @@ import {
   createGuestIdentity,
   createLoginIdentity,
   generateGuestPassword,
-} from '../../../server/src/utils/userIdentity.js'
-import { generateAvatar } from '../../../server/src/utils/avatar.js'
-import { useApp } from '../AppProvider'
-import { useDisclosure, useToggle } from '../../../hooks'
+} from '../../server/src/utils/userIdentity.js'
+import { generateAvatar } from '../../server/src/utils/avatar.js'
+import { useApp } from '../app/AppProvider'
+import { useDisclosure, useToggle } from '../../hooks'
+import BackendGuidePanel from '../../components/BackendGuidePanel'
 
 interface ChannelMessage {
   id?: string
@@ -463,6 +463,30 @@ function ChatPage() {
     <h2 className="header-title">聊天</h2>
   )
 
+  if (showBackendWarning) {
+    return (
+      <AppShell
+        sidebar={() => (
+          <div className="sidebar-header">
+            <button
+              className="back-btn"
+              onClick={() => (window.location.href = '/')}
+              title="返回首页"
+            >
+              <ArrowLeft size={18} />
+            </button>
+          </div>
+        )}
+        headerTitle={<h2 className="header-title">聊天</h2>}
+      >
+        <BackendGuidePanel
+          featureName="P2P 聊天"
+          onBack={() => (window.location.href = '/')}
+        />
+      </AppShell>
+    )
+  }
+
   return (
     <AppShell
       sidebar={({ closeSidebar }) => (
@@ -470,7 +494,7 @@ function ChatPage() {
           <div className="sidebar-header">
             <button
               className="back-btn"
-              onClick={() => (window.location.href = '/app/')}
+              onClick={() => (window.location.href = '/')}
               title="返回首页"
             >
               <ArrowLeft size={18} />
@@ -569,74 +593,74 @@ function ChatPage() {
       {activeChannel ? (
         <>
           <div className="chat-messages">
-              {channelMessages.length === 0 ? (
-                <div className="chat-messages-empty">
-                  <div className="empty-icon">
-                    <MessageSquare size={28} />
-                  </div>
-                  <p>暂无消息，开始聊天吧！</p>
+            {channelMessages.length === 0 ? (
+              <div className="chat-messages-empty">
+                <div className="empty-icon">
+                  <MessageSquare size={28} />
                 </div>
-              ) : (
-                channelMessages.map(msg => (
-                  <div
-                    key={msg.id || `${msg.author}-${msg.timestamp}`}
-                    className={`chat-message ${msg.author === userIdentity?.address ? 'self' : 'other'} ${msg.pending ? 'pending' : ''}`}
-                  >
-                    <img
-                      className="msg-avatar"
-                      src={generateAvatar(msg.author)}
-                      alt="avatar"
-                    />
-                    <div className="msg-content">
-                      <span className="message-author">
-                        {msg.authorName || msg.author?.slice(0, 8) || 'Unknown'}
-                      </span>
-                      <div className="message-bubble">{msg.content}</div>
-                      <span className="message-time">
-                        {new Date(msg.timestamp).toLocaleTimeString('zh-CN', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </span>
-                    </div>
-                  </div>
-                ))
-              )}
-              <div ref={channelMessagesEndRef} />
-            </div>
-
-            <div className="chat-input-area">
-              <input
-                type="text"
-                className="chat-input"
-                placeholder="输入消息..."
-                value={channelInput}
-                onChange={e => setChannelInput(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && channelInput.trim())
-                    handleSendChannelMessage()
-                }}
-              />
-              <button
-                className="send-btn"
-                onClick={handleSendChannelMessage}
-                disabled={!channelInput.trim()}
-              >
-                <Send size={18} />
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="chat-welcome">
-              <div className="welcome-icon">
-                <MessageSquare size={36} />
+                <p>暂无消息，开始聊天吧！</p>
               </div>
-              <h2>选择频道</h2>
-              <p>从左侧边栏选择一个频道开始聊天，或创建一个新频道</p>
+            ) : (
+              channelMessages.map(msg => (
+                <div
+                  key={msg.id || `${msg.author}-${msg.timestamp}`}
+                  className={`chat-message ${msg.author === userIdentity?.address ? 'self' : 'other'} ${msg.pending ? 'pending' : ''}`}
+                >
+                  <img
+                    className="msg-avatar"
+                    src={generateAvatar(msg.author)}
+                    alt="avatar"
+                  />
+                  <div className="msg-content">
+                    <span className="message-author">
+                      {msg.authorName || msg.author?.slice(0, 8) || 'Unknown'}
+                    </span>
+                    <div className="message-bubble">{msg.content}</div>
+                    <span className="message-time">
+                      {new Date(msg.timestamp).toLocaleTimeString('zh-CN', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
+            <div ref={channelMessagesEndRef} />
+          </div>
+
+          <div className="chat-input-area">
+            <input
+              type="text"
+              className="chat-input"
+              placeholder="输入消息..."
+              value={channelInput}
+              onChange={e => setChannelInput(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && channelInput.trim())
+                  handleSendChannelMessage()
+              }}
+            />
+            <button
+              className="send-btn"
+              onClick={handleSendChannelMessage}
+              disabled={!channelInput.trim()}
+            >
+              <Send size={18} />
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="chat-welcome">
+            <div className="welcome-icon">
+              <MessageSquare size={36} />
             </div>
-          </>
-        )}
+            <h2>选择频道</h2>
+            <p>从左侧边栏选择一个频道开始聊天，或创建一个新频道</p>
+          </div>
+        </>
+      )}
 
       {showJoinChannel && (
         <InputModal

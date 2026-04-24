@@ -1,4 +1,5 @@
-import '../../../styles/chat.css'
+import '../../styles/chat.css'
+import AppProvider from '../app/AppProvider'
 
 export const metadata = {
   title: 'MostBox - 频道',
@@ -6,5 +7,5 @@ export const metadata = {
 }
 
 export default function ChatLayout({ children }) {
-  return children
+  return <AppProvider>{children}</AppProvider>
 }
