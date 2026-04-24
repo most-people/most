@@ -1,15 +1,11 @@
 'use client'
 
-import '../../../styles/marketing.css'
-
-import { Nav } from '../../../components/Nav'
-import { Footer } from '../../../components/Footer'
 import Link from 'next/link'
+import { MarketingLayout } from '../../../components/MarketingLayout'
 
 export default function GettingStartedPage() {
   return (
-    <>
-      <Nav />
+    <MarketingLayout>
       <main style={{ paddingTop: 64 }}>
         <div
           style={{ maxWidth: 720, margin: '0 auto', padding: '48px 24px 80px' }}
@@ -245,7 +241,6 @@ export default function GettingStartedPage() {
           </div>
         </div>
       </main>
-      <Footer />
-    </>
+    </MarketingLayout>
   )
 }

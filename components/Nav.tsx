@@ -8,6 +8,7 @@ import { LogoIcon } from './icons/LogoIcon'
 
 const navItems = [
   { href: '/docs/getting-started/', label: '文档' },
+  { href: '/ping/', label: '网络' },
   { href: '/changelog/', label: '更新日志' },
 ]
 

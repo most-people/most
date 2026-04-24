@@ -1,0 +1,261 @@
+/* =============================================
+   MostBox - Ping Page Styles
+   ============================================= */
+
+.ping-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+}
+
+.ping-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.ping-title-wrap {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.ping-title-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.ping-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+  margin-bottom: 8px;
+}
+
+.ping-subtitle {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  max-width: 600px;
+}
+
+.ping-refresh-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  background: var(--glass-bg);
+  backdrop-filter: var(--blur-md);
+  -webkit-backdrop-filter: var(--blur-md);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.ping-refresh-btn:hover {
+  background: var(--glass-bg-solid);
+  transform: rotate(30deg);
+}
+
+.ping-refresh-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.ping-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* === Grid === */
+
+.ping-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+/* === Card === */
+
+.ping-card {
+  background: var(--glass-bg);
+  backdrop-filter: var(--blur-lg);
+  -webkit-backdrop-filter: var(--blur-lg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  box-shadow: var(--glass-shadow);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.ping-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--glass-shadow-lg);
+}
+
+.ping-card-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ping-card-icon {
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ping-card-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color var(--transition-fast);
+}
+
+.ping-card-name:hover {
+  color: var(--accent);
+}
+
+.ping-card-refresh {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-full);
+  background: var(--glass-bg-subtle);
+  border: 1px solid var(--glass-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.ping-card-refresh:hover {
+  background: var(--glass-bg-solid);
+  color: var(--text-primary);
+}
+
+.ping-card-refresh:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ping-card-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 20px;
+}
+
+.ping-status-label {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.ping-latency {
+  font-size: 14px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* === Brand Icon === */
+
+.brand-icon-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+}
+
+.brand-icon-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.2s ease;
+}
+
+.brand-icon-fallback.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.brand-icon-real {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.brand-icon-real.visible {
+  opacity: 1;
+}
+
+.brand-icon-real svg {
+  fill: currentColor;
+}
+
+/* === Pending Animation === */
+
+.ping-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.ping-card.pending .ping-card-icon {
+  opacity: 0.5;
+}
+
+/* === Responsive === */
+
+@media (max-width: 1024px) {
+  .ping-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .ping-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .ping-title {
+    font-size: 22px;
+  }
+}
+
+@media (max-width: 480px) {
+  .ping-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ping-page {
+    padding: 24px 16px 60px;
+  }
+}

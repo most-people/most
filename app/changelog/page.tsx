@@ -1,11 +1,8 @@
 'use client'
 
-import '../../styles/marketing.css'
-
-import { Nav } from '../../components/Nav'
-import { Footer } from '../../components/Footer'
 import Link from 'next/link'
 import { changelog } from '../../content/changelog'
+import { MarketingLayout } from '../../components/MarketingLayout'
 
 function transformCategories(
   categories: Record<string, string[]>
@@ -15,8 +12,7 @@ function transformCategories(
 
 export default function ChangelogPage() {
   return (
-    <>
-      <Nav />
+    <MarketingLayout>
       <main style={{ paddingTop: 64 }}>
         <div
           style={{ maxWidth: 720, margin: '0 auto', padding: '48px 24px 80px' }}
@@ -103,7 +99,6 @@ export default function ChangelogPage() {
           </div>
         </div>
       </main>
-      <Footer />
-    </>
+    </MarketingLayout>
   )
 }
