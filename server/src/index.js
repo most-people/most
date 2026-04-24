@@ -75,7 +75,10 @@ export class MostBoxEngine extends EventEmitter {
   #channels = []
   #channelCores = new Map()
   #channelDiscoveries = new Map()
+  #channelChatDiscoveries = new Map()
   #channelPeers = new Map()
+
+  #chatSwarm = null
 
   /**
    * 创建新的 MostBoxEngine 实例
@@ -184,8 +187,39 @@ export class MostBoxEngine extends EventEmitter {
       })
 
       this.#store.replicate(conn)
-      this.#handleChannelConnection(conn).catch(() => {})
       this.emit('connection', conn)
+    })
+
+    this.#chatSwarm = new Hyperswarm({
+      maxPeers: MAX_PEERS,
+      bootstrap: SWARM_BOOTSTRAP,
+      firewall: () => false,
+      connectionKeepAlive: SWARM_KEEP_ALIVE_INTERVAL,
+      randomPunchInterval: SWARM_RANDOM_PUNCH_INTERVAL,
+      handshakeTimeout: CONNECTION_TIMEOUT,
+    })
+
+    this.#chatSwarm.on('error', err => {
+      if (
+        err.code === 'SSL_ERROR' ||
+        err.message?.includes('handshake') ||
+        err.message?.includes('ECONNRESET')
+      ) {
+        console.warn('[MostBox] Chat swarm warning (non-critical):', err.message)
+        return
+      }
+      console.error('[MostBox] Chat swarm error:', err.message)
+      this.emit('error', err)
+    })
+
+    this.#chatSwarm.on('connection', (conn, _info) => {
+      conn.on('error', err => {
+        if (err.code === 'SSL_ERROR' || err.message?.includes('handshake')) {
+          return
+        }
+      })
+
+      this.#handleChannelConnection(conn).catch(() => {})
     })
 
     this.#publishedFiles = this.#loadPublishedMetadata()
@@ -212,11 +246,17 @@ export class MostBoxEngine extends EventEmitter {
         this.#setupChannelAppendListener(core, channel.name)
 
         const discoveryKey = b4a.from(channel.discoveryKey, 'hex')
-        const discovery = this.#swarm.join(discoveryKey, {
+        const chatDiscoveryKey = this.#generateChannelChatDiscoveryKey(channel.name)
+        const appDiscovery = this.#swarm.join(discoveryKey, {
           server: true,
           client: true,
         })
-        this.#channelDiscoveries.set(channel.name, discovery)
+        this.#channelDiscoveries.set(channel.name, appDiscovery)
+        const chatDiscovery = this.#chatSwarm.join(chatDiscoveryKey, {
+          server: true,
+          client: true,
+        })
+        this.#channelChatDiscoveries.set(channel.name, chatDiscovery)
         console.log(`[MostBox] Rejoined channel: ${channel.name}`)
       } catch (err) {
         console.warn(
@@ -258,12 +298,18 @@ export class MostBoxEngine extends EventEmitter {
     }
     this.#channelCores.clear()
     this.#channelDiscoveries.clear()
+    this.#channelChatDiscoveries.clear()
     this.#channelPeers.clear()
     this.#channels = []
 
     if (this.#swarm) {
       await this.#swarm.destroy()
       this.#swarm = null
+    }
+
+    if (this.#chatSwarm) {
+      await this.#chatSwarm.destroy()
+      this.#chatSwarm = null
     }
 
     if (this.#store) {
@@ -290,10 +336,14 @@ export class MostBoxEngine extends EventEmitter {
    */
   getNetworkStatus() {
     this.#ensureInitialized()
-    const connections = this.#swarm.connections.size
+    const appConnections = this.#swarm.connections.size
+    const chatConnections = this.#chatSwarm.connections.size
+    const total = appConnections + chatConnections
     return {
-      peers: connections,
-      status: connections > 0 ? 'connected' : 'waiting',
+      peers: total,
+      appPeers: appConnections,
+      chatPeers: chatConnections,
+      status: total > 0 ? 'connected' : 'waiting',
     }
   }
 
@@ -1181,11 +1231,17 @@ export class MostBoxEngine extends EventEmitter {
     await core.ready()
 
     const discoveryKey = this.#generateChannelDiscoveryKey(name)
-    const discovery = this.#swarm.join(discoveryKey, {
+    const chatDiscoveryKey = this.#generateChannelChatDiscoveryKey(name)
+    const appDiscovery = this.#swarm.join(discoveryKey, {
       server: true,
       client: true,
     })
-    await discovery.flushed()
+    await appDiscovery.flushed()
+    const chatDiscovery = this.#chatSwarm.join(chatDiscoveryKey, {
+      server: true,
+      client: true,
+    })
+    await chatDiscovery.flushed()
 
     this.#setupChannelAppendListener(core, name)
 
@@ -1200,6 +1256,8 @@ export class MostBoxEngine extends EventEmitter {
     this.#channels.push(channelInfo)
     this.#channelCores.set(name, core)
     this.#channelPeers.set(name, new Map())
+    this.#channelDiscoveries.set(name, appDiscovery)
+    this.#channelChatDiscoveries.set(name, chatDiscovery)
     this.#saveChannelsMetadata()
 
     console.log(`[MostBox] Channel created: ${name}`)
@@ -1234,11 +1292,17 @@ export class MostBoxEngine extends EventEmitter {
     await core.ready()
 
     const discoveryKey = this.#generateChannelDiscoveryKey(name)
-    const discovery = this.#swarm.join(discoveryKey, {
+    const chatDiscoveryKey = this.#generateChannelChatDiscoveryKey(name)
+    const appDiscovery = this.#swarm.join(discoveryKey, {
       server: true,
       client: true,
     })
-    await discovery.flushed()
+    await appDiscovery.flushed()
+    const chatDiscovery = this.#chatSwarm.join(chatDiscoveryKey, {
+      server: true,
+      client: true,
+    })
+    await chatDiscovery.flushed()
 
     this.#setupChannelAppendListener(core, name)
 
@@ -1253,6 +1317,8 @@ export class MostBoxEngine extends EventEmitter {
     this.#channels.push(channelInfo)
     this.#channelCores.set(name, core)
     this.#channelPeers.set(name, new Map())
+    this.#channelDiscoveries.set(name, appDiscovery)
+    this.#channelChatDiscoveries.set(name, chatDiscovery)
     this.#saveChannelsMetadata()
 
     console.log(`[MostBox] Joined channel: ${name}`)
@@ -1276,17 +1342,31 @@ export class MostBoxEngine extends EventEmitter {
 
     const channel = this.#channels[index]
 
-    const discovery = this.#channelDiscoveries.get(name)
-    if (discovery) {
+    const appDiscovery = this.#channelDiscoveries.get(name)
+    if (appDiscovery) {
       try {
         await this.#swarm.leave(b4a.from(channel.discoveryKey, 'hex'))
       } catch (err) {
         console.warn(
-          `[MostBox] Failed to leave channel discovery for ${name}:`,
+          `[MostBox] Failed to leave app swarm for ${name}:`,
           err.message
         )
       }
       this.#channelDiscoveries.delete(name)
+    }
+
+    const chatDiscovery = this.#channelChatDiscoveries.get(name)
+    if (chatDiscovery) {
+      try {
+        const chatDiscoveryKey = this.#generateChannelChatDiscoveryKey(name)
+        await this.#chatSwarm.leave(chatDiscoveryKey)
+      } catch (err) {
+        console.warn(
+          `[MostBox] Failed to leave chat swarm for ${name}:`,
+          err.message
+        )
+      }
+      this.#channelChatDiscoveries.delete(name)
     }
 
     const core = this.#channelCores.get(name)
@@ -1615,6 +1695,14 @@ export class MostBoxEngine extends EventEmitter {
     return hash
   }
 
+  #generateChannelChatDiscoveryKey(name) {
+    const hash = crypto
+      .createHash('sha256')
+      .update(`${CHANNEL_NAME_PREFIX}${name}:chat`)
+      .digest()
+    return hash
+  }
+
   #setupChannelAppendListener(core, channelName) {
     let lastCoreLength = core.length
     core.on('append', async () => {
@@ -1672,11 +1760,6 @@ export class MostBoxEngine extends EventEmitter {
                 authorName: msg.authorName,
                 lastSeen: Date.now(),
               })
-              const core = this.#channelCores.get(name)
-              if (core) {
-                const ns = this.#store.namespace(`channel-${name}`)
-                ns.replicate(conn).catch(() => {})
-              }
             }
           }
           this.emit('channel:peer:online', {
