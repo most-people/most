@@ -12,6 +12,7 @@ import {
   Check,
   ExternalLink,
   ArrowLeft,
+  Ticket,
 } from 'lucide-react'
 import BackendGuidePanel from '~/components/BackendGuidePanel'
 import {
@@ -144,6 +145,41 @@ const features: FeatureDef[] = [
         desc: '即时生成 Ed25519、x25519 公钥与 IPNS ID。',
       },
       { num: '3', title: '导出使用', desc: '复制地址、导出 PEM、派生子地址。' },
+    ],
+  },
+  {
+    id: 'lottery',
+    title: '彩票',
+    subtitle: '去中心化彩票协议',
+    icon: <Ticket size={28} />,
+    path: '/lottery/',
+    requiresBackend: false,
+    hero: '完全链上、可验证、公平的彩票协议',
+    desc: '基于智能合约的去中心化彩票系统。固定票价 1 USDC，多奖项分级，开奖结果完全由链上随机数决定，无人可操控。',
+    features: [
+      '固定票价 1 USDC，简单透明',
+      '多奖项分级：一等奖 50%、二等奖 10%、三等奖 5%、参与奖 35%',
+      'Chainlink VRF 提供可验证随机数',
+      '完全链上执行，无托管风险',
+      '所有结果公开可验证',
+      '部署在 Base 链，低 gas 成本',
+    ],
+    steps: [
+      {
+        num: '1',
+        title: '连接钱包',
+        desc: '使用 MetaMask 或其他兼容钱包连接。',
+      },
+      {
+        num: '2',
+        title: '购买彩票',
+        desc: '选择数量，确认购买，每张 1 USDC。',
+      },
+      {
+        num: '3',
+        title: '等待开奖',
+        desc: '倒计时结束后自动开奖，奖金自动发放。',
+      },
     ],
   },
 ]
