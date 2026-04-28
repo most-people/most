@@ -3,7 +3,7 @@
   "version": "0.0.5",
   "description": "MostBox - P2P file sharing application",
   "type": "module",
-  "main": "server/index.js",
+  "main": "electron/main.js",
   "bin": {
     "most-box": "./server/cli.js"
   },
@@ -21,7 +21,12 @@
     "test": "node --test server/tests/**/*.test.js",
     "test:unit": "node --test server/tests/unit/*.test.js",
     "format": "npx prettier --write .",
-    "lint": "npx eslint ."
+    "lint": "npx eslint .",
+    "electron:dev": "concurrently \"npm run build\" \"wait-on out/index.html && electron .\"",
+    "electron:rebuild": "electron-rebuild -f -w sodium-native",
+    "electron:build": "npm run build && npm run electron:rebuild && electron-builder",
+    "electron:build:win": "npm run build && npm run electron:rebuild && electron-builder --win",
+    "electron:build:mac": "npm run build && npm run electron:rebuild && electron-builder --mac"
   },
   "keywords": [
     "p2p",
@@ -59,12 +64,80 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.4",
     "@eslint/js": "^10.0.1",
     "@types/react": "19.2.14",
+    "concurrently": "^9.2.1",
+    "electron": "^41.3.0",
+    "electron-builder": "^26.8.1",
     "esbuild": "^0.28.0",
     "eslint": "^10.2.1",
     "globals": "^17.5.0",
     "prettier": "^3.8.3",
-    "typescript": "6.0.3"
+    "typescript": "6.0.3",
+    "wait-on": "^9.0.5"
+  },
+  "build": {
+    "appId": "com.mostbox.app",
+    "productName": "MostBox",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "out/**/*",
+      "server/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "out",
+        "to": "app/out"
+      }
+    ],
+    "asarUnpack": [
+      "**/*.node",
+      "**/sodium-native/**"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "icon": "public/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "MostBox"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "icon": "public/icon.icns",
+      "category": "public.app-category.utilities"
+    },
+    "dmg": {
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    }
   }
 }

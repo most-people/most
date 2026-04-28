@@ -873,6 +873,8 @@ export async function main() {
       const displayUrl = `http://localhost:${PORT}`
       console.log(`[MostBox] Server running at ${displayUrl}`)
 
+      if (process.env.ELECTRON_APP) return
+
       if (process.platform === 'win32') {
         spawn('cmd.exe', ['/c', 'start', '', displayUrl], {
           detached: true,
@@ -944,6 +946,8 @@ export async function main() {
     serverInstanceRef.current.close()
     process.exit(0)
   })
+
+  return engine
 }
 
 // 仅在直接运行时执行 main（通过 node server/index.js 或 CLI）
