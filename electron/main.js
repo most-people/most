@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, Menu } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -15,6 +15,7 @@ function createWindow() {
     minWidth: 800,
     minHeight: 600,
     title: 'MostBox',
+    autoHideMenuBar: true,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -40,6 +41,7 @@ app.whenReady().then(async () => {
   try {
     await startServer()
     createWindow()
+    Menu.setApplicationMenu(null)
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {
