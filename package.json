@@ -26,7 +26,8 @@
     "electron:rebuild": "electron-rebuild -f -w sodium-native",
     "electron:build": "npm run build && npm run electron:rebuild && electron-builder",
     "electron:build:win": "npm run build && npm run electron:rebuild && electron-builder --win",
-    "electron:build:mac": "npm run build && npm run electron:rebuild && electron-builder --mac"
+    "electron:build:mac": "npm run build && npm run electron:rebuild && electron-builder --mac",
+    "electron:build:linux": "npm run build && npm run electron:rebuild && electron-builder --linux"
   },
   "keywords": [
     "p2p",
@@ -144,6 +145,18 @@
           "path": "/Applications"
         }
       ]
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "category": "Utility"
     }
   }
 }

@@ -14,21 +14,21 @@ const platforms = [
     icon: <Monitor size={32} />,
     ext: '.exe',
     desc: 'Windows 10 或更高版本',
-    link: '#',
+    link: 'https://github.com/most-box/most/releases',
   },
   {
     name: 'macOS',
     icon: <Apple size={32} />,
     ext: '.dmg',
     desc: 'macOS 12 Monterey 或更高版本',
-    link: '#',
+    link: 'https://github.com/most-box/most/releases',
   },
   {
     name: 'Linux',
     icon: <Laptop size={32} />,
     ext: '.AppImage',
     desc: 'Ubuntu 20.04+ / Debian 11+ / 其他主流发行版',
-    link: '#',
+    link: 'https://github.com/most-box/most/releases',
   },
 ]
 
@@ -128,7 +128,7 @@ export default function DownloadPage() {
               <Link href="/docs">文档</Link>
               <Link href="/changelog">更新日志</Link>
             </div>
-            <p className="mkt-footer-copy">MostBox 0.0.5</p>
+            <p className="mkt-footer-copy">MostBox 0.0.6</p>
           </div>
         </div>
       </footer>
