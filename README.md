@@ -199,10 +199,11 @@ git push origin v0.0.7
 
 触发后自动执行：
 1. **npm 包发布** — 发布 `most-box` 到 npm registry
-2. **Windows 打包** — 构建 `.exe` 安装包（x64 + arm64）
-3. **macOS 打包** — 构建 `.dmg` 安装包（x64 + arm64）
-4. **Linux 打包** — 构建 `.AppImage` 安装包（x64 + arm64）
-5. **GitHub Release** — 创建 Release 并上传所有安装包
+2. **Windows 打包** — 构建 `.exe` 安装包（x64 + arm64）并上传 Release
+3. **macOS 打包** — 构建 `.dmg` 安装包（x64 + arm64）并上传 Release
+4. **Linux 打包** — 构建 `.AppImage` 安装包（x64 + arm64）并上传 Release
+
+electron-builder 自动创建 GitHub Release 并附加所有平台安装包。
 
 ### 配置 Secrets
 

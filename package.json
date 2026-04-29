@@ -25,9 +25,9 @@
     "electron:dev": "concurrently \"npm run build\" \"wait-on out/index.html && electron .\"",
     "electron:rebuild": "electron-rebuild -f -w sodium-native",
     "electron:build": "npm run build && npm run electron:rebuild && electron-builder",
-    "electron:build:win": "npm run build && npm run electron:rebuild && electron-builder --win --publish never",
-    "electron:build:mac": "npm run build && npm run electron:rebuild && electron-builder --mac --publish never",
-    "electron:build:linux": "npm run build && npm run electron:rebuild && electron-builder --linux --publish never"
+    "electron:build:win": "npm run build && npm run electron:rebuild && electron-builder --win",
+    "electron:build:mac": "npm run build && npm run electron:rebuild && electron-builder --mac",
+    "electron:build:linux": "npm run build && npm run electron:rebuild && electron-builder --linux"
   },
   "keywords": [
     "p2p",
