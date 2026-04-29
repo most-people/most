@@ -1,4 +1,4 @@
-# MostBox 文件管理
+# MostBox：你的数字魔盒
 
 [![npm version](https://img.shields.io/npm/v/most-box)](https://npmjs.com/package/most-box)
 [![Node.js version](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org)
@@ -28,7 +28,7 @@
 npx most-box@latest
 ```
 
-> 注意：使用 `@latest` 确保每次运行最新版本。
+> 使用 `@latest` 确保每次运行最新版本。
 
 浏览器自动访问 **http://localhost:1976**
 
@@ -96,6 +96,13 @@ mostbox.example.com {
    - 消息通过 P2P 网络复制，服务器只是中转
    - 无需中心化服务器，去中心化聊天
 
+6. **PWA 离线支持**
+   - 支持安装为桌面/移动应用
+   - 离线缓存关键资源
+
+7. **网络连通性测试**
+   - 内置 Ping 工具检测 P2P 网络状态
+
 ## 常见问题
 
 ### 文件存储在哪里？
@@ -154,32 +161,34 @@ npx most-box
 - ✅ most:// 链接分享
 - ✅ Web UI 界面
 - ✅ P2P 频道聊天
+- ✅ PWA 支持
+- ✅ 去中心化彩票
+- ✅ 网络连通性测试
+- ✅ Electron 桌面客户端
 
 ### 长期规划
 
-- [ ] 透明彩票
 - [ ] 下载体验优化 - 检测是否可下载
-
 - [ ] P2P 多人视频/语音通话
   - 基于 WebRTC 的端到端加密通话
   - 频道内一键发起通话
   - 屏幕共享与文字聊天
 - [ ] 浏览器扩展
 - [ ] 移动端支持（iOS/Android）
-- [ ] 桌面客户端
 
 ## 技术栈
 
-- **Hyperswarm** — P2P 网络发现与连接
-- **Hyperdrive** — 分布式文件存储
-- **Corestore** — Hypercore 存储管理
-- **IPFS UnixFS Importer** — CID 计算
-- **Hono** — 轻量 Web 框架 + @hono/node-server 适配器 + WebSocket
-- **React** — Web UI
+- **前端**: React 19, Next.js 16, TypeScript, Zustand, Lucide React
+- **后端**: Hono + @hono/node-server + WebSocket
+- **P2P**: Hyperswarm 4.x, Hyperdrive 13.x, Corestore 7.x
+- **Web3**: ethers.js, Hardhat, Solidity, EIP-712
+- **桌面**: Electron 41, electron-builder
+- **PWA**: manifest.json, Service Worker
+- **测试**: Node.js built-in test runner
 
 ## 社区
 
-- **微信**：微信号 `most-box`（自动通过好友申请）
+
 - **GitHub Discussions**：[提出需求 & 技术讨论](../../discussions)
 - **问题反馈**：[Github issues](../../issues)
 
