@@ -27,10 +27,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run unit tests
-        run: npm run test:unit
-
-      - name: Run all tests
+      - name: Run tests
         run: npm test
 
   build:
@@ -53,13 +50,6 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: bundle
-          path: public/bundle.js
-          retention-days: 7
-
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -76,9 +66,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Install ESLint
-        run: npm install --save-dev eslint
 
       - name: Check formatting
         run: npm run lint

@@ -29,10 +29,99 @@ jobs:
       - name: Build
         run: npm run build
 
+  publish-npm:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Publish to npm
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  build-win:
+    name: Build Windows
+    runs-on: windows-latest
+    needs: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Build Electron
+        run: npm run electron:build:win
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mostbox-win
+          path: dist/*.exe
+          retention-days: 7
+
+  build-mac:
+    name: Build macOS
+    runs-on: macos-latest
+    needs: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Build Electron
+        run: npm run electron:build:mac
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mostbox-mac
+          path: dist/*.dmg
+          retention-days: 7
+
   github-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
-    needs: test
+    needs: [publish-npm, build-win, build-mac]
 
     steps:
       - name: Checkout
@@ -42,9 +131,24 @@ jobs:
         id: tag
         run: echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: mostbox-win
+          path: dist-win
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: mostbox-mac
+          path: dist-mac
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: public/bundle.js public/bundle.js.map
+          files: |
+            dist-win/*.exe
+            dist-mac/*.dmg
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -188,6 +188,29 @@ npx most-box
 - **桌面**: Electron 41, electron-builder
 - **测试**: Node.js built-in test runner
 
+## CI/CD
+
+发布新版本时，推送 tag 即可自动构建：
+
+```bash
+git tag v0.0.7
+git push origin v0.0.7
+```
+
+触发后自动执行：
+1. **npm 包发布** — 发布 `most-box` 到 npm registry
+2. **Windows 打包** — 构建 `.exe` 安装包（x64 + arm64）
+3. **macOS 打包** — 构建 `.dmg` 安装包（x64 + arm64）
+4. **GitHub Release** — 创建 Release 并上传所有安装包
+
+### 配置 Secrets
+
+在仓库 Settings → Secrets and variables → Actions 中添加：
+
+| Secret | 说明 |
+|--------|------|
+| `NPM_TOKEN` | npm 发布令牌（`npm token create` 生成） |
+
 ## 社区
 
 - **GitHub Discussions**：[提出需求 & 技术讨论](../../discussions)
