@@ -8,10 +8,7 @@ export function Toast({ message, type, onDone, index }) {
     return () => clearTimeout(t)
   }, [])
   return (
-    <div
-      className={`toast ${type}`}
-      style={{ bottom: 24 + index * 60 }}
-    >
+    <div className={`toast ${type}`} style={{ bottom: 24 + index * 60 }}>
       {message}
     </div>
   )

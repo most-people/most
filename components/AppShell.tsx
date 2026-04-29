@@ -2,10 +2,8 @@
 
 import React, { useState, createContext, useContext } from 'react'
 import { useMediaQuery } from '@mantine/hooks'
-import { Settings, Menu } from 'lucide-react'
+import { Menu } from 'lucide-react'
 import { useDisclosure } from '~/hooks'
-
-import { useApp } from '~/app/app/AppProvider'
 
 interface AppShellContextValue {
   closeSidebar: () => void
@@ -23,7 +21,6 @@ interface AppShellProps {
   sidebar: (helpers: { closeSidebar: () => void }) => React.ReactNode
   headerTitle?: React.ReactNode
   headerRight?: React.ReactNode
-  showBackendWarning?: boolean
   children: React.ReactNode
 }
 
@@ -31,11 +28,8 @@ export default function AppShell({
   sidebar,
   headerTitle,
   headerRight,
-  showBackendWarning: showBackendWarningProp = true,
   children,
 }: AppShellProps) {
-  const { showBackendWarning: appShowBackendWarning, openSettings } = useApp()
-  const showBackendWarning = showBackendWarningProp && appShowBackendWarning
   const [isSidebarOpen, sidebarCtl] = useDisclosure(false)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const isMobile = useMediaQuery('(max-width: 768px)')
@@ -64,14 +58,6 @@ export default function AppShell({
 
         <div className="main-content">
           <header className="app-header">
-            {showBackendWarning && (
-              <div className="backend-warning-bar">
-                <span>未设置后端地址，请设置后端地址后使用</span>
-                <button onClick={() => openSettings()} aria-label="设置">
-                  <Settings size={16} />
-                </button>
-              </div>
-            )}
             <div className="header-left">
               <button
                 onClick={handleToggleSidebar}

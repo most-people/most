@@ -28,7 +28,8 @@ import {
 import { generateAvatar } from '~/server/src/utils/avatar.js'
 import { useApp } from '~/app/app/AppProvider'
 import { useDisclosure, useToggle } from '~/hooks'
-import BackendGuidePanel from '~/components/BackendGuidePanel'
+import Link from 'next/link'
+import { Download, ArrowRight } from 'lucide-react'
 
 interface ChannelMessage {
   id?: string
@@ -75,9 +76,38 @@ const API = {
     api.get<string[]>(`/api/channels/${encodeURIComponent(name)}/peers`).json(),
 }
 
+const MOCK_CHANNELS: Channel[] = [
+  { name: 'general' },
+  { name: 'random' },
+  { name: 'tech' },
+]
+
+const MOCK_MESSAGES: ChannelMessage[] = [
+  {
+    id: 'm1',
+    author: 'user1',
+    authorName: 'Alice',
+    content: '大家好！欢迎使用 P2P 聊天',
+    timestamp: Date.now() - 3600000,
+  },
+  {
+    id: 'm2',
+    author: 'user2',
+    authorName: 'Bob',
+    content: '这个聊天是基于 Hyperswarm 的，完全去中心化',
+    timestamp: Date.now() - 3500000,
+  },
+  {
+    id: 'm3',
+    author: 'user3',
+    authorName: 'Charlie',
+    content: '消息通过 P2P 网络同步，无需服务器',
+    timestamp: Date.now() - 3400000,
+  },
+]
+
 function ChatPage() {
-  const { isDarkMode, setIsDarkMode, showBackendWarning, openSettings } =
-    useApp()
+  const { isDarkMode, setIsDarkMode } = useApp()
   const [channels, setChannels] = useState([])
   const [activeChannel, setActiveChannel] = useState(null)
   const [channelMessages, setChannelMessages] = useState([])
@@ -212,6 +242,17 @@ function ChatPage() {
   }, [])
 
   useEffect(() => {
+    if (activeChannel) {
+      API.getChannelMessages(activeChannel.name)
+        .then(setChannelMessages)
+        .catch(() => setChannelMessages(MOCK_MESSAGES))
+      API.getChannelPeers(activeChannel.name)
+        .then(setChannelPeers)
+        .catch(() => setChannelPeers([]))
+    }
+  }, [activeChannel])
+
+  useEffect(() => {
     const channelParam = new URLSearchParams(window.location.search).get(
       'channel'
     )
@@ -250,13 +291,15 @@ function ChatPage() {
       })
       const peers = await API.getChannelPeers(channelName)
       setChannelPeers(peers)
-    } catch {}
+    } catch {
+      setChannelPeers([])
+    }
   }
 
   function refreshChannels() {
     API.getChannels()
       .then(setChannels)
-      .catch(() => {})
+      .catch(() => setChannels(MOCK_CHANNELS))
   }
 
   function wsSend(event, data) {
@@ -346,8 +389,8 @@ function ChatPage() {
       const peers = await API.getChannelPeers(channel.name)
       setChannelPeers(peers)
     } catch {
-      setError('加载频道失败')
-      setTimeout(() => setError(''), 3000)
+      setChannelMessages(MOCK_MESSAGES)
+      setChannelPeers([])
     }
   }
 
@@ -464,30 +507,6 @@ function ChatPage() {
     <h2 className="header-title">聊天</h2>
   )
 
-  if (showBackendWarning) {
-    return (
-      <AppShell
-        sidebar={() => (
-          <div className="sidebar-header">
-            <button
-              className="back-btn"
-              onClick={() => (window.location.href = '/')}
-              title="返回首页"
-            >
-              <ArrowLeft size={18} />
-            </button>
-          </div>
-        )}
-        headerTitle={<h2 className="header-title">聊天</h2>}
-      >
-        <BackendGuidePanel
-          featureName="P2P 聊天"
-          onBack={() => (window.location.href = '/')}
-        />
-      </AppShell>
-    )
-  }
-
   return (
     <AppShell
       sidebar={({ closeSidebar }) => (
@@ -591,6 +610,15 @@ function ChatPage() {
         </button>
       }
     >
+      <div className="download-banner">
+        <span>Web 端仅用于界面展示，下载桌面客户端获得完整功能</span>
+        <Link href="/download" className="download-banner-btn">
+          <Download size={14} />
+          下载客户端
+          <ArrowRight size={12} />
+        </Link>
+      </div>
+
       {activeChannel ? (
         <>
           <div className="chat-messages">

@@ -24,7 +24,6 @@ export default function LotteryPage() {
 
   return (
     <AppShell
-      showBackendWarning={false}
       sidebar={({ closeSidebar }) => (
         <>
           <div className="sidebar-header">

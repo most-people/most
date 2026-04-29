@@ -1,5 +1,24 @@
 export const changelog = [
   {
+    version: '0.0.6',
+    date: '2026-04-30',
+    categories: {
+      新增: [
+        '桌面客户端下载页 (/download)',
+        'Web 端 Mock 数据展示（文件管理器、聊天）',
+      ],
+      重构: [
+        'Web 端与桌面端职责分离：Web 端仅用于功能展示，完整功能引导至桌面客户端',
+        '移除后端连接引导面板 (BackendGuidePanel)，改为下载引导',
+        '移除 PWA 支持 (PwaInstallPrompt、manifest.json)',
+        'SettingsDrawer 改为关于页面，展示下载入口',
+        '文档页 (docs/getting-started) 更新为桌面客户端下载引导',
+        '功能门户 (FeaturePortal) 步骤更新为下载客户端引导',
+        '移除远程访问配置和后端地址设置 UI',
+      ],
+    },
+  },
+  {
     version: '0.0.5',
     date: '2026-04-21',
     categories: {

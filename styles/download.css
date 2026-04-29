@@ -1,0 +1,213 @@
+/* =============================================
+   MostBox - Download Page Styles
+   ============================================= */
+
+.download-page {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Hero */
+.download-hero {
+  text-align: center;
+  padding: 64px 24px 48px;
+}
+
+.download-hero-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius-lg);
+  background: var(--accent-soft);
+  color: var(--accent);
+  margin-bottom: 24px;
+}
+
+.download-hero-title {
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: -0.02;
+  line-height: 1.1;
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, var(--text-primary), var(--accent));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.download-hero-desc {
+  font-size: 16px;
+  color: var(--text-secondary);
+  max-width: 48ch;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+/* Platforms */
+.download-platforms {
+  padding: 48px 24px;
+}
+
+.download-section-title {
+  font-size: 24px;
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 32px;
+  color: var(--text-primary);
+}
+
+.download-platform-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.download-platform-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 32px 24px;
+  background: var(--glass-bg);
+  backdrop-filter: var(--blur-md);
+  -webkit-backdrop-filter: var(--blur-md);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  text-decoration: none;
+  color: var(--text-primary);
+  transition: all var(--transition);
+}
+
+.download-platform-card:hover {
+  background: var(--glass-bg-heavy);
+  transform: translateY(-2px);
+  box-shadow: var(--glass-shadow);
+  border-color: var(--accent);
+}
+
+.download-platform-icon {
+  color: var(--accent);
+  margin-bottom: 16px;
+}
+
+.download-platform-card h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.download-platform-card p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+}
+
+.download-platform-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 500;
+  transition: all var(--transition-fast);
+}
+
+.download-platform-card:hover .download-platform-btn {
+  background: var(--accent-hover);
+}
+
+/* Comparison Table */
+.download-comparison {
+  padding: 48px 24px;
+  background: var(--glass-bg-subtle);
+  border-top: 1px solid var(--glass-border);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.download-table-wrap {
+  overflow-x: auto;
+}
+
+.download-table {
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  border-collapse: collapse;
+}
+
+.download-table th,
+.download-table td {
+  padding: 14px 20px;
+  text-align: left;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.download-table th {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.download-table td {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.download-table td.col-web {
+  color: var(--warning);
+}
+
+.download-table td.col-desktop {
+  color: var(--success);
+  font-weight: 500;
+}
+
+/* CTA */
+.download-cta {
+  text-align: center;
+  padding: 64px 24px;
+}
+
+.download-cta-desc {
+  font-size: 16px;
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+  line-height: 1.6;
+}
+
+@media (max-width: 768px) {
+  .download-hero-title {
+    font-size: 32px;
+  }
+
+  .download-platform-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .download-platform-card {
+    flex-direction: row;
+    text-align: left;
+    gap: 16px;
+    padding: 20px;
+  }
+
+  .download-platform-icon {
+    margin-bottom: 0;
+    flex-shrink: 0;
+  }
+
+  .download-platform-card p {
+    margin-bottom: 12px;
+  }
+
+  .download-platform-btn {
+    margin-top: auto;
+  }
+}

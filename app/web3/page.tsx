@@ -277,7 +277,6 @@ export default function Web3Page() {
 
   return (
     <AppShell
-      showBackendWarning={false}
       sidebar={({ closeSidebar }) => (
         <>
           <div className="sidebar-header">

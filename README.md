@@ -13,7 +13,7 @@
 | 🔒 无需注册         | ✅      | ❌      | ❌   |
 | 🚀 P2P直连，不限速  | ✅      | ❌      | 限流 |
 | 💾 去中心化存储     | ✅      | ❌      | ❌   |
-| 🌐 开源免费，自托管 | ✅      | ❌      | ❌   |
+| 🌐 开源免费，自托管 | ✅      | ❌      |      |
 | 📦 无限文件大小     | ✅      | ❌      | 限流 |
 
 ## 演示
@@ -21,6 +21,8 @@
 在线体验：[Most.Box](https://Most.Box)
 
 ## 🚀 立即使用
+
+### 方式一：npm 包（推荐）
 
 打开终端，运行：
 
@@ -31,6 +33,10 @@ npx most-box@latest
 > 使用 `@latest` 确保每次运行最新版本。
 
 浏览器自动访问 **http://localhost:1976**
+
+### 方式二：桌面客户端
+
+前往 [Most.Box](https://Most.Box/download) 下载桌面客户端，支持 Windows、macOS 和 Linux。
 
 ## 需求
 
@@ -96,11 +102,7 @@ mostbox.example.com {
    - 消息通过 P2P 网络复制，服务器只是中转
    - 无需中心化服务器，去中心化聊天
 
-6. **PWA 离线支持**
-   - 支持安装为桌面/移动应用
-   - 离线缓存关键资源
-
-7. **网络连通性测试**
+6. **网络连通性测试**
    - 内置 Ping 工具检测 P2P 网络状态
 
 ## 常见问题
@@ -151,6 +153,8 @@ npx most-box
 
 浏览器访问 `http://localhost:1976`，输入链接即可下载。
 
+或者前往 [Most.Box](https://Most.Box/download) 下载桌面客户端。
+
 ## 路线图
 
 ### v1.0（当前版本）
@@ -161,7 +165,6 @@ npx most-box
 - ✅ most:// 链接分享
 - ✅ Web UI 界面
 - ✅ P2P 频道聊天
-- ✅ PWA 支持
 - ✅ 去中心化彩票
 - ✅ 网络连通性测试
 - ✅ Electron 桌面客户端
@@ -183,11 +186,9 @@ npx most-box
 - **P2P**: Hyperswarm 4.x, Hyperdrive 13.x, Corestore 7.x
 - **Web3**: ethers.js, Hardhat, Solidity, EIP-712
 - **桌面**: Electron 41, electron-builder
-- **PWA**: manifest.json, Service Worker
 - **测试**: Node.js built-in test runner
 
 ## 社区
-
 
 - **GitHub Discussions**：[提出需求 & 技术讨论](../../discussions)
 - **问题反馈**：[Github issues](../../issues)

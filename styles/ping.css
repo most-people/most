@@ -94,7 +94,9 @@
   border-radius: var(--radius-lg);
   padding: 16px;
   box-shadow: var(--glass-shadow);
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast);
   display: flex;
   flex-direction: column;
   gap: 20px;

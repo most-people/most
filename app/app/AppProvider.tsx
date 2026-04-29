@@ -10,13 +10,6 @@ import React, {
 import SettingsDrawer from '~/components/SettingsDrawer'
 import { Toast } from '~/components/ui'
 import { useDisclosure } from '~/hooks'
-import {
-  api,
-  getBackendUrlExport,
-  detectSameOriginBackend,
-  detectLocalhostBackend,
-  setBackendUrl,
-} from '~/server/src/utils/api'
 
 interface ToastItem {
   id: number
@@ -30,7 +23,6 @@ interface AppContextValue {
   openSettings: () => void
   closeSettings: () => void
   addToast: (message: string, type?: string) => void
-  showBackendWarning: boolean
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
@@ -49,7 +41,6 @@ export default function AppProvider({
   const [isDarkMode, setIsDarkMode] = useState(false)
   const [showSettings, { open: openSettings, close: closeSettings }] =
     useDisclosure(false)
-  const [showBackendWarning, setShowBackendWarning] = useState(false)
   const [toasts, setToasts] = useState<ToastItem[]>([])
 
   const addToast = useCallback((message: string, type = 'info') => {
@@ -58,15 +49,6 @@ export default function AppProvider({
 
   const removeToast = useCallback((id: number) => {
     setToasts(prev => prev.filter(t => t.id !== id))
-  }, [])
-
-  const handleShutdown = useCallback(() => {
-    if (typeof window === 'undefined') return
-    const confirmed = window.confirm('确定要关闭服务吗？')
-    if (confirmed) {
-      api.post('/api/shutdown').catch(() => {})
-      window.close()
-    }
   }, [])
 
   // Theme initialization
@@ -90,40 +72,6 @@ export default function AppProvider({
     localStorage.setItem('theme', isDarkMode ? 'dark' : 'light')
   }, [isDarkMode])
 
-  // Backend warning detection (initial)
-  useEffect(() => {
-    if (!getBackendUrlExport()) {
-      detectSameOriginBackend().then(detected => {
-        if (!detected) {
-          detectLocalhostBackend().then(localDetected => {
-            if (!localDetected) setShowBackendWarning(true)
-          })
-        }
-      })
-    }
-  }, [])
-
-  // Backend warning polling
-  useEffect(() => {
-    if (!showBackendWarning) return
-    const interval = setInterval(() => {
-      detectSameOriginBackend().then(detected => {
-        if (detected) {
-          setBackendUrl('')
-          setShowBackendWarning(false)
-          return
-        }
-        detectLocalhostBackend().then(localDetected => {
-          if (localDetected) {
-            setBackendUrl('http://localhost:1976')
-            setShowBackendWarning(false)
-          }
-        })
-      })
-    }, 5000)
-    return () => clearInterval(interval)
-  }, [showBackendWarning])
-
   return (
     <AppContext.Provider
       value={{
@@ -132,7 +80,6 @@ export default function AppProvider({
         openSettings,
         closeSettings,
         addToast,
-        showBackendWarning,
       }}
     >
       {children}
@@ -152,7 +99,6 @@ export default function AppProvider({
           onClose={closeSettings}
           addToast={addToast}
           isDarkMode={isDarkMode}
-          handleShutdown={handleShutdown}
         />
       )}
     </AppContext.Provider>

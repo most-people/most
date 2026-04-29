@@ -1,6 +1,6 @@
 {
   "name": "most-box",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "MostBox - P2P file sharing application",
   "type": "module",
   "main": "electron/main.js",
@@ -103,7 +103,10 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ],
       "icon": "public/icon.ico"
@@ -119,7 +122,10 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ],
       "icon": "public/icon.icns",

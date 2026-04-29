@@ -26,16 +26,16 @@ import {
   Edit2,
   Loader,
   Globe,
-  Link,
   ChevronDown,
   Settings,
+  ArrowRight,
 } from 'lucide-react'
 import AppShell, { useAppShell } from '~/components/AppShell'
 import { ModalOverlay, ConfirmModal, InputModal } from '~/components/ui'
 import { api } from '~/server/src/utils/api'
 import { useApp } from '~/app/app/AppProvider'
 import { useDisclosure, useClipboard } from '~/hooks'
-import BackendGuidePanel from '~/components/BackendGuidePanel'
+import Link from 'next/link'
 
 interface NetworkAddress {
   type: string
@@ -108,6 +108,66 @@ const API = {
     api.post('/api/move', { json: { cid, newFileName } }).json<any>(),
   renameFolder: (oldPath, newPath) =>
     api.post('/api/folder/rename', { json: { oldPath, newPath } }).json<any>(),
+}
+
+const MOCK_FILES = [
+  {
+    cid: 'mock1',
+    fileName: '示例文档.pdf',
+    size: 2048576,
+    createdAt: '2024-01-15',
+    starred: false,
+  },
+  {
+    cid: 'mock2',
+    fileName: '项目截图.png',
+    size: 1536000,
+    createdAt: '2024-01-20',
+    starred: true,
+  },
+  {
+    cid: 'mock3',
+    fileName: '会议录音.mp3',
+    size: 5120000,
+    createdAt: '2024-02-01',
+    starred: false,
+  },
+  {
+    cid: 'mock4',
+    fileName: '演示视频.mp4',
+    size: 52428800,
+    createdAt: '2024-02-10',
+    starred: false,
+  },
+  {
+    cid: 'mock5',
+    fileName: '代码备份.zip',
+    size: 10485760,
+    createdAt: '2024-02-15',
+    starred: false,
+  },
+  {
+    cid: 'mock6',
+    fileName: '设计稿/首页设计.fig',
+    size: 8388608,
+    createdAt: '2024-02-20',
+    starred: true,
+  },
+  {
+    cid: 'mock7',
+    fileName: '设计稿/图标集.svg',
+    size: 512000,
+    createdAt: '2024-02-22',
+    starred: false,
+  },
+]
+
+const MOCK_STORAGE = {
+  total: 107374182400,
+  used: 8053063680,
+  free: 99321118720,
+  fileCount: 42,
+  trashCount: 3,
 }
 
 function formatSize(bytes) {
@@ -389,13 +449,7 @@ function MoveModal({ items, allFolders, currentPath, onMove, onClose }) {
 }
 
 export default function App() {
-  const {
-    isDarkMode,
-    setIsDarkMode,
-    addToast,
-    openSettings,
-    showBackendWarning,
-  } = useApp()
+  const { isDarkMode, setIsDarkMode, addToast, openSettings } = useApp()
   const [items, setItems] = useState([])
   const [trashItems, setTrashItems] = useState([])
   const [currentFolderId, setCurrentFolderId] = useState(null)
@@ -481,14 +535,17 @@ export default function App() {
     : files
 
   const refreshFiles = createRefreshHandler(setItems, () =>
-    API.listPublishedFiles().then(r => r || [])
+    API.listPublishedFiles()
+      .then(r => r || [])
+      .catch(() => MOCK_FILES)
   )
   const refreshTrash = createRefreshHandler(setTrashItems, () =>
-    API.listTrashFiles().then(r => r || [])
+    API.listTrashFiles()
+      .then(r => r || [])
+      .catch(() => [])
   )
-  const refreshStorageStats = createRefreshHandler(
-    setStorageStats,
-    API.getStorageStats
+  const refreshStorageStats = createRefreshHandler(setStorageStats, () =>
+    API.getStorageStats().catch(() => MOCK_STORAGE)
   )
 
   const handleSelect = id => {
@@ -976,7 +1033,7 @@ export default function App() {
     refreshStorageStats()
     API.getStorageStats()
       .then(s => setStorageStats(s))
-      .catch(() => {})
+      .catch(() => setStorageStats(MOCK_STORAGE))
   }, [])
 
   const viewTitle =
@@ -1009,31 +1066,6 @@ export default function App() {
         )
 
   const breadcrumbParts = generateBreadcrumbs(currentPath)
-
-  if (showBackendWarning) {
-    return (
-      <AppShell
-        sidebar={() => (
-          <>
-            <div
-              className="sidebar-header"
-              onClick={() => (window.location.href = '/')}
-              style={{ cursor: 'pointer' }}
-            >
-              <h1>MOST PEOPLE</h1>
-            </div>
-            <nav className="sidebar-nav" />
-          </>
-        )}
-        headerTitle={<h2 className="header-title">文件管理</h2>}
-      >
-        <BackendGuidePanel
-          featureName="MostBox P2P 文件分享"
-          onBack={() => (window.location.href = '/')}
-        />
-      </AppShell>
-    )
-  }
 
   return (
     <AppShell
@@ -1134,6 +1166,15 @@ export default function App() {
         </>
       }
     >
+      <div className="download-banner">
+        <span>Web 端仅用于界面展示，下载桌面客户端获得完整功能</span>
+        <Link href="/download" className="download-banner-btn">
+          <Download size={14} />
+          下载客户端
+          <ArrowRight size={12} />
+        </Link>
+      </div>
+
       {currentView === 'all' && (
         <div className="action-grid">
           <div

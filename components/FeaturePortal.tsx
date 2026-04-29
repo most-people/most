@@ -13,8 +13,8 @@ import {
   ExternalLink,
   ArrowLeft,
   Ticket,
+  Download,
 } from 'lucide-react'
-import BackendGuidePanel from '~/components/BackendGuidePanel'
 import {
   setBackendUrl,
   checkBackendConnection,
@@ -67,16 +67,15 @@ const features: FeatureDef[] = [
     steps: [
       {
         num: '1',
-        title: '安装 Node.js',
-        desc: '需要 Node.js 18 或更高版本。',
-        link: 'https://nodejs.org',
-        linkText: '下载 Node.js',
+        title: '下载桌面客户端',
+        desc: '支持 Windows、macOS 和 Linux。',
+        link: '/download',
+        linkText: '前往下载页',
       },
       {
         num: '2',
-        title: '运行 MostBox',
-        desc: '一行命令启动，浏览器自动打开。',
-        code: 'npx most-box@latest',
+        title: '安装并运行',
+        desc: '安装后打开应用，即可使用。',
       },
       {
         num: '3',
@@ -104,9 +103,10 @@ const features: FeatureDef[] = [
     steps: [
       {
         num: '1',
-        title: '启动 MostBox',
-        desc: '运行后端服务',
-        code: 'npx most-box@latest',
+        title: '下载桌面客户端',
+        desc: '支持 Windows、macOS 和 Linux。',
+        link: '/download',
+        linkText: '前往下载页',
       },
       { num: '2', title: '创建频道', desc: '输入任意频道名即可加入或创建。' },
       {
@@ -189,7 +189,6 @@ export default function FeaturePortal() {
   const [selected, setSelected] = useState<string>('app')
   const [backendConnected, setBackendConnected] = useState<boolean | null>(null)
   const [checking, setChecking] = useState(true)
-  const [showGuide, setShowGuide] = useState(false)
 
   useEffect(() => {
     async function detect() {
@@ -214,8 +213,6 @@ export default function FeaturePortal() {
   }, [])
 
   const activeFeature = features.find(f => f.id === selected) || features[0]
-  const needsBackendAndDisconnected =
-    activeFeature.requiresBackend && backendConnected === false
 
   return (
     <div className="portal-page">
@@ -246,10 +243,7 @@ export default function FeaturePortal() {
                 <button
                   key={f.id}
                   className={`portal-card ${isActive ? 'active' : ''}`}
-                  onClick={() => {
-                    setSelected(f.id)
-                    setShowGuide(false)
-                  }}
+                  onClick={() => setSelected(f.id)}
                 >
                   <Link
                     href={f.path}
@@ -279,7 +273,7 @@ export default function FeaturePortal() {
                       {backendStatus === 'disconnected' && (
                         <>
                           <span className="status-dot disconnected" />
-                          需后端
+                          桌面端可用
                         </>
                       )}
                     </div>
@@ -295,73 +289,63 @@ export default function FeaturePortal() {
       <section className="portal-marketing">
         <div className="mkt-container">
           <div className="portal-marketing-inner">
-            {showGuide && needsBackendAndDisconnected ? (
-              <BackendGuidePanel
-                featureName={activeFeature.title}
-                onBack={() => setShowGuide(false)}
-              />
-            ) : (
-              <>
-                <div className="portal-marketing-header">
-                  <h2>{activeFeature.hero}</h2>
-                  <p>{activeFeature.desc}</p>
-                </div>
+            <>
+              <div className="portal-marketing-header">
+                <h2>{activeFeature.hero}</h2>
+                <p>{activeFeature.desc}</p>
+              </div>
 
-                <div className="portal-marketing-features">
-                  {activeFeature.features.map((feat, i) => (
-                    <div key={i} className="portal-feature-item">
-                      <span className="portal-feature-icon">
-                        <Check size={14} strokeWidth={3} />
-                      </span>
-                      <span>{feat}</span>
+              <div className="portal-marketing-features">
+                {activeFeature.features.map((feat, i) => (
+                  <div key={i} className="portal-feature-item">
+                    <span className="portal-feature-icon">
+                      <Check size={14} strokeWidth={3} />
+                    </span>
+                    <span>{feat}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="portal-marketing-steps">
+                {activeFeature.steps.map(step => (
+                  <div key={step.num} className="portal-step">
+                    <span className="portal-step-num">{step.num}</span>
+                    <div className="portal-step-content">
+                      <strong>{step.title}</strong>
+                      <p>{step.desc}</p>
+                      {step.code && (
+                        <code className="portal-step-code">{step.code}</code>
+                      )}
+                      {step.link && (
+                        <p className="portal-step-link">
+                          <a
+                            href={step.link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            {step.linkText} <ExternalLink size={12} />
+                          </a>
+                        </p>
+                      )}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
+              </div>
 
-                <div className="portal-marketing-steps">
-                  {activeFeature.steps.map(step => (
-                    <div key={step.num} className="portal-step">
-                      <span className="portal-step-num">{step.num}</span>
-                      <div className="portal-step-content">
-                        <strong>{step.title}</strong>
-                        <p>{step.desc}</p>
-                        {step.code && (
-                          <code className="portal-step-code">{step.code}</code>
-                        )}
-                        {step.link && (
-                          <p className="portal-step-link">
-                            <a
-                              href={step.link}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              {step.linkText} <ExternalLink size={12} />
-                            </a>
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="portal-actions">
-                  <Link href={activeFeature.path} className="mkt-btn-primary">
-                    进入 {activeFeature.title}
-                    <ArrowRight size={16} />
-                  </Link>
-                  {activeFeature.requiresBackend &&
-                    backendConnected === false && (
-                      <button
-                        className="mkt-btn-secondary"
-                        onClick={() => setShowGuide(true)}
-                      >
-                        <Zap size={16} />
-                        连接后端
-                      </button>
-                    )}
-                </div>
-              </>
-            )}
+              <div className="portal-actions">
+                <Link href={activeFeature.path} className="mkt-btn-primary">
+                  进入 {activeFeature.title}
+                  <ArrowRight size={16} />
+                </Link>
+                {activeFeature.requiresBackend &&
+                  backendConnected === false && (
+                    <Link href="/download" className="mkt-btn-secondary">
+                      <Download size={16} />
+                      下载桌面客户端
+                    </Link>
+                  )}
+              </div>
+            </>
           </div>
         </div>
       </section>

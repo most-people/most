@@ -205,7 +205,10 @@ export class MostBoxEngine extends EventEmitter {
         err.message?.includes('handshake') ||
         err.message?.includes('ECONNRESET')
       ) {
-        console.warn('[MostBox] Chat swarm warning (non-critical):', err.message)
+        console.warn(
+          '[MostBox] Chat swarm warning (non-critical):',
+          err.message
+        )
         return
       }
       console.error('[MostBox] Chat swarm error:', err.message)
@@ -246,7 +249,9 @@ export class MostBoxEngine extends EventEmitter {
         this.#setupChannelAppendListener(core, channel.name)
 
         const discoveryKey = b4a.from(channel.discoveryKey, 'hex')
-        const chatDiscoveryKey = this.#generateChannelChatDiscoveryKey(channel.name)
+        const chatDiscoveryKey = this.#generateChannelChatDiscoveryKey(
+          channel.name
+        )
         const appDiscovery = this.#swarm.join(discoveryKey, {
           server: true,
           client: true,

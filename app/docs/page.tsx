@@ -19,33 +19,21 @@ const features = [
 const steps = [
   {
     num: '1',
-    title: '安装 Node.js',
-    desc: '需要 Node.js 18 或更高版本。',
-    link: 'https://nodejs.org',
-    linkText: '下载 Node.js',
+    title: '下载桌面客户端',
+    desc: '支持 Windows、macOS 和 Linux。',
+    link: '/download',
+    linkText: '前往下载页',
   },
   {
     num: '2',
-    title: '运行 MostBox',
-    desc: '一行命令启动，浏览器自动打开。',
-    code: 'npx most-box@latest',
-  },
-  { num: '3', title: '开始分享', desc: '上传文件，复制链接，发给朋友即可。' },
-]
-
-const remoteMethods = [
-  { title: '局域网', desc: '同一 WiFi 下直接访问，零配置。', tag: '最简单' },
-  {
-    title: 'Tailscale',
-    desc: '虚拟局域网，手机也能用，自动组网。',
-    tag: '推荐',
+    title: '安装并运行',
+    desc: '安装后打开应用，即可使用 P2P 文件分享和加密聊天。',
   },
   {
-    title: 'Cloudflare Tunnel',
-    desc: '免费 HTTPS，无需公网 IP，一行命令。',
-    tag: '外网',
+    num: '3',
+    title: '开始分享',
+    desc: '上传文件生成链接，或创建频道与朋友聊天。',
   },
-  { title: 'Caddy 反代', desc: '自有 VPS + 域名，自动 HTTPS。', tag: '进阶' },
 ]
 
 const compareRows = [
@@ -123,23 +111,6 @@ export default function DocsPage() {
                     <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
                       {step.desc}
                     </p>
-                    {step.code && (
-                      <code
-                        style={{
-                          display: 'block',
-                          background: 'var(--bg-tertiary)',
-                          border: '1px solid var(--border-color)',
-                          borderRadius: 8,
-                          padding: '12px 16px',
-                          marginTop: 8,
-                          fontSize: 13,
-                          fontFamily: 'var(--font-mono)',
-                          overflowX: 'auto',
-                        }}
-                      >
-                        {step.code}
-                      </code>
-                    )}
                     {step.link && (
                       <p style={{ marginTop: 8 }}>
                         <a
@@ -304,69 +275,6 @@ export default function DocsPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
-          </section>
-
-          <section style={{ marginBottom: 64 }}>
-            <h2 style={{ fontSize: 20, fontWeight: 600, marginBottom: 16 }}>
-              远程访问
-            </h2>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>
-              MostBox 不只在本机运行。多种方式从任何设备访问你的文件。
-            </p>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(2, 1fr)',
-                gap: 16,
-              }}
-            >
-              {remoteMethods.map(m => (
-                <div
-                  key={m.title}
-                  style={{
-                    background: 'var(--bg-secondary)',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: 16,
-                    padding: 20,
-                  }}
-                >
-                  <h4
-                    style={{
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: 15,
-                      fontWeight: 600,
-                      marginBottom: 4,
-                    }}
-                  >
-                    {m.title}
-                  </h4>
-                  <p
-                    style={{
-                      fontSize: 13,
-                      color: 'var(--text-secondary)',
-                      lineHeight: 1.5,
-                    }}
-                  >
-                    {m.desc}
-                  </p>
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: 11,
-                      fontWeight: 500,
-                      color: 'var(--accent)',
-                      background: 'rgba(59,130,246,0.1)',
-                      padding: '4px 8px',
-                      borderRadius: 3,
-                      marginTop: 8,
-                    }}
-                  >
-                    {m.tag}
-                  </span>
-                </div>
-              ))}
             </div>
           </section>
 
