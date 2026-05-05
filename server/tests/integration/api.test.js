@@ -649,4 +649,51 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(res.status, 200)
     })
   })
+
+  describe('POST /api/config', () => {
+    it('sets dataPath successfully', async () => {
+      const testPath = path.join(os.tmpdir(), `mostbox-config-test-${Date.now()}`)
+      fs.mkdirSync(testPath, { recursive: true })
+
+      const res = await fetch(`${baseUrl}/api/config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dataPath: testPath }),
+      })
+      const data = await res.json()
+      assert.strictEqual(data.success, true)
+      assert.ok(data.dataPath.includes(testPath))
+
+      fs.rmSync(testPath, { recursive: true, force: true })
+    })
+
+    it('rejects invalid path', async () => {
+      const res = await fetch(`${baseUrl}/api/config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dataPath: '/nonexistent/path/xyz123' }),
+      })
+      assert.strictEqual(res.status, 400)
+    })
+
+    it('resetStorage clears dataPath', async () => {
+      const res = await fetch(`${baseUrl}/api/config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resetStorage: true }),
+      })
+      const data = await res.json()
+      assert.strictEqual(data.success, true)
+    })
+  })
+
+  describe('GET /api/config/data-path', () => {
+    it('returns dataPath with isDefault flag', async () => {
+      const res = await fetch(`${baseUrl}/api/config/data-path`)
+      const data = await res.json()
+      assert.ok('dataPath' in data)
+      assert.ok('isDefault' in data)
+      assert.strictEqual(typeof data.isDefault, 'boolean')
+    })
+  })
 })

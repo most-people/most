@@ -8,7 +8,6 @@ import {
   EyeOff,
   Copy,
   ExternalLink,
-  ArrowLeft,
   KeyRound,
   Fingerprint,
   Shield,
@@ -279,14 +278,12 @@ export default function Web3Page() {
     <AppShell
       sidebar={({ closeSidebar }) => (
         <>
-          <div className="sidebar-header">
-            <button
-              className="back-btn"
-              onClick={() => (window.location.href = '/')}
-              title="返回首页"
-            >
-              <ArrowLeft size={18} />
-            </button>
+          <div
+            className="sidebar-header"
+            onClick={() => (window.location.href = '/')}
+            style={{ cursor: 'pointer' }}
+          >
+            <h1>MOST PEOPLE</h1>
           </div>
           <nav className="sidebar-nav">
             {sidebarNavItems.map(item => (
@@ -374,7 +371,7 @@ export default function Web3Page() {
                         <a
                           href={`https://debank.com/profile/${effectiveAddress}`}
                           target="_blank"
-                          rel="noreferrer"
+                          rel="noopener noreferrer"
                           className="link"
                         >
                           <ExternalLink size={14} />

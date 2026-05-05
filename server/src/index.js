@@ -299,7 +299,9 @@ export class MostBoxEngine extends EventEmitter {
     for (const core of this.#channelCores.values()) {
       try {
         await core.close()
-      } catch {}
+      } catch (err) {
+        console.warn('[MostBox] Failed to close channel core:', err.message)
+      }
     }
     this.#channelCores.clear()
     this.#channelDiscoveries.clear()

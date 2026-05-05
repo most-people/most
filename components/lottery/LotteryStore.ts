@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { LOTTERY_CONFIG, getRoundEndTime } from './lottery.config'
 
 export interface RoundParticipation {
   roundId: number
@@ -42,69 +43,16 @@ interface LotteryState {
   buyTickets: (usdtAmount: number) => void
 }
 
-function generateMockHistory(): HistoryEntry[] {
-  return [
-    {
-      roundId: 42,
-      date: '2026-04-24T20:00:00Z',
-      prizePool: 1250,
-      totalTickets: 1250,
-      winners: [
-        { tier: '一等奖', address: '0x1a2b...3c4d', amount: 625 },
-        { tier: '二等奖', address: '0x5e6f...7g8h', amount: 125 },
-        { tier: '三等奖', address: '0x9i0j...1k2l', amount: 62.5 },
-        { tier: '参与奖', amount: 0.35, tickets: 1247 },
-      ],
-      myResult: 'loser',
-      myPrize: 0,
-    },
-    {
-      roundId: 41,
-      date: '2026-04-23T20:00:00Z',
-      prizePool: 980,
-      totalTickets: 980,
-      winners: [
-        { tier: '一等奖', address: '0x7q8r...9s0t', amount: 490 },
-        { tier: '二等奖', address: '0x1u2v...3w4x', amount: 98 },
-        { tier: '三等奖', address: '0x5y6z...7a8b', amount: 49 },
-        { tier: '参与奖', amount: 0.35, tickets: 977 },
-      ],
-      myResult: 'participation',
-      myPrize: 0.35,
-    },
-    {
-      roundId: 40,
-      date: '2026-04-22T20:00:00Z',
-      prizePool: 1500,
-      totalTickets: 1500,
-      winners: [
-        { tier: '一等奖', address: '0x3g4h...5i6j', amount: 750 },
-        { tier: '二等奖', address: '0x7k8l...9m0n', amount: 150 },
-        { tier: '三等奖', address: '0x1o2p...3q4r', amount: 75 },
-        { tier: '参与奖', amount: 0.35, tickets: 1497 },
-      ],
-      myResult: 'winner',
-      myPrize: 75,
-    },
-  ]
-}
-
-function generateMockRounds(): RoundParticipation[] {
-  return [
-    { roundId: 43, count: 5, status: 'pending' },
-  ]
-}
-
 export const useLotteryStore = create<LotteryState>(set => ({
-  currentRound: 43,
+  currentRound: LOTTERY_CONFIG.initialRound,
   status: 'buying',
-  endTime: new Date(Date.now() + 2 * 60 * 60 * 1000 + 30 * 60 * 1000),
-  totalTickets: 1250,
-  prizePool: 1250,
-  myRounds: generateMockRounds(),
-  history: generateMockHistory(),
+  endTime: getRoundEndTime(),
+  totalTickets: 0,
+  prizePool: 0,
+  myRounds: [],
+  history: [],
   walletAddress: null,
-  usdtBalance: 45.2,
+  usdtBalance: 0,
   isConnected: false,
   isConnecting: false,
 

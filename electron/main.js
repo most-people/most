@@ -60,8 +60,8 @@ app.on('window-all-closed', () => {
   }
 })
 
-app.on('before-quit', async () => {
+app.on('before-quit', () => {
   if (engine && engine.stop) {
-    await engine.stop()
+    engine.stop().catch(() => {})
   }
 })

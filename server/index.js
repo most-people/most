@@ -251,7 +251,9 @@ export function createApp(engine, options = {}) {
         if (client.readyState === 1) {
           try {
             client.send(payload)
-          } catch {}
+          } catch (err) {
+            console.warn('[WS] Failed to send to client:', err.message)
+          }
         }
       })
     }
@@ -265,7 +267,9 @@ export function createApp(engine, options = {}) {
         if (ws.readyState === 1) {
           try {
             ws.send(payload)
-          } catch {}
+          } catch (err) {
+            console.warn('[WS] Failed to send to channel subscriber:', err.message)
+          }
         }
       })
     }
@@ -323,8 +327,12 @@ export function createApp(engine, options = {}) {
   app.onError((err, c) => {
     console.error('[API Error]', err)
     try {
+      const errorLogPath = path.join(CONFIG_DIR, 'server-error.log')
+      if (!fs.existsSync(CONFIG_DIR)) {
+        fs.mkdirSync(CONFIG_DIR, { recursive: true })
+      }
       fs.appendFileSync(
-        'server-error.log',
+        errorLogPath,
         `[${new Date().toISOString()}] ${err.stack}\n`
       )
     } catch {}
@@ -641,7 +649,14 @@ export function createApp(engine, options = {}) {
     if (!body.name || !body.name.trim()) {
       return c.json({ error: 'name is required' }, 400)
     }
-    const success = engine.setDisplayName(body.name)
+    const trimmed = body.name.trim()
+    if (trimmed.length > 100) {
+      return c.json({ error: 'Name too long (max 100 chars)' }, 400)
+    }
+    if (/[<>]/.test(trimmed)) {
+      return c.json({ error: 'Name contains invalid characters' }, 400)
+    }
+    const success = engine.setDisplayName(trimmed)
     return c.json({ success, displayName: engine.getDisplayName() })
   })
 
@@ -697,6 +712,12 @@ export function createApp(engine, options = {}) {
     if (!body.author || !body.authorName) {
       return c.json({ error: 'author and authorName are required' }, 400)
     }
+    if (!/^0x[a-fA-F0-9]{40}$/.test(body.author)) {
+      return c.json({ error: 'Invalid author format' }, 400)
+    }
+    if (body.authorName.length > 50) {
+      return c.json({ error: 'authorName too long' }, 400)
+    }
     try {
       const message = await engine.sendMessage(
         name,
@@ -740,7 +761,10 @@ export function createApp(engine, options = {}) {
     const isLocalhost =
       clientIp === 'localhost' ||
       clientIp === '::1' ||
-      clientIp === '::ffff:localhost'
+      clientIp === '::ffff:localhost' ||
+      clientIp === '127.0.0.1' ||
+      clientIp === '::ffff:127.0.0.1' ||
+      clientIp.startsWith('::ffff:127.')
     if (!isLocalhost) {
       return c.json({ error: 'Forbidden' }, 403)
     }
@@ -768,6 +792,12 @@ export function createApp(engine, options = {}) {
   app.get('*', async c => {
     const pathname = c.req.path
     const filePath = path.join(publicDir, pathname)
+    const resolved = path.resolve(filePath)
+    const resolvedPublic = path.resolve(publicDir)
+
+    if (!resolved.startsWith(resolvedPublic + path.sep) && resolved !== resolvedPublic) {
+      return c.json({ error: 'Not found' }, 404)
+    }
 
     if (fs.existsSync(filePath)) {
       const stat = fs.statSync(filePath)
@@ -813,7 +843,9 @@ export async function main() {
     for (const file of staleFiles) {
       try {
         fs.unlinkSync(path.join(UPLOAD_TMP_DIR, file))
-      } catch {}
+      } catch (err) {
+        console.warn('[MostBox] Failed to clean upload temp file:', err.message)
+      }
     }
     console.log(
       `[MostBox] Cleaned ${staleFiles.length} stale upload temp files`

@@ -5,12 +5,13 @@ import {
   MessageSquare,
   Send,
   Plus,
-  ArrowLeft,
   Sun,
   Moon,
   X,
   Eye,
   EyeOff,
+  Download,
+  ArrowRight,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import { InputModal, ConfirmModal } from '~/components/ui'
@@ -29,7 +30,6 @@ import { generateAvatar } from '~/server/src/utils/avatar.js'
 import { useApp } from '~/app/app/AppProvider'
 import { useDisclosure, useToggle } from '~/hooks'
 import Link from 'next/link'
-import { Download, ArrowRight } from 'lucide-react'
 
 interface ChannelMessage {
   id?: string
@@ -147,7 +147,9 @@ function ChatPage() {
       .get('/api/node-id')
       .json<{ id: string }>()
       .then(d => setMyPeerId(d.id))
-      .catch(() => {})
+      .catch(err => {
+        console.warn('[Chat] Failed to fetch node ID:', err.message)
+      })
   }, [])
 
   useEffect(() => {
@@ -169,6 +171,14 @@ function ChatPage() {
   }, [loginUsername, loginPassword])
 
   const pendingSubscriptionRef = useRef(null)
+  const isMountedRef = useRef(true)
+
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
 
   useEffect(() => {
     if (myPeerId && pendingSubscriptionRef.current) {
@@ -202,12 +212,16 @@ function ChatPage() {
         try {
           const { event, data } = JSON.parse(e.data)
           handleWsEvent(event, data)
-        } catch {}
+        } catch (err) {
+          console.warn('[Chat WS] Failed to parse message:', err.message)
+        }
       }
 
       ws.onclose = () => {
         isWsConnectedRef.current = false
-        reconnectTimeoutRef.current = setTimeout(connectWs, 3000)
+        if (isMountedRef.current) {
+          reconnectTimeoutRef.current = setTimeout(connectWs, 3000)
+        }
       }
 
       ws.onerror = () => {
@@ -352,7 +366,9 @@ function ChatPage() {
           })
           API.getChannelPeers(currentChannel.name)
             .then(setChannelPeers)
-            .catch(() => {})
+            .catch(err => {
+              console.warn('[Chat] Failed to fetch peers:', err.message)
+            })
         }
         break
 
@@ -361,7 +377,9 @@ function ChatPage() {
         if (currentChannel) {
           API.getChannelPeers(currentChannel.name)
             .then(setChannelPeers)
-            .catch(() => {})
+            .catch(err => {
+              console.warn('[Chat] Failed to fetch peers on event:', err.message)
+            })
         }
         break
 
@@ -511,14 +529,12 @@ function ChatPage() {
     <AppShell
       sidebar={({ closeSidebar }) => (
         <>
-          <div className="sidebar-header">
-            <button
-              className="back-btn"
-              onClick={() => (window.location.href = '/')}
-              title="返回首页"
-            >
-              <ArrowLeft size={18} />
-            </button>
+          <div
+            className="sidebar-header"
+            onClick={() => (window.location.href = '/')}
+            style={{ cursor: 'pointer' }}
+          >
+            <h1>MOST PEOPLE</h1>
           </div>
 
           <nav className="sidebar-nav">

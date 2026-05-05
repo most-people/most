@@ -1,4 +1,4 @@
-import { getBytes, ZeroAddress } from 'ethers'
+import { getBytes } from 'ethers'
 import dayjs from 'dayjs'
 import nacl from 'tweetnacl'
 import { generateAvatar } from './avatar.js'
@@ -103,15 +103,3 @@ export const formatTime = time => {
 }
 
 export const avatar = generateAvatar
-
-export { ZeroAddress }
-
-const mp = {
-  avatar: generateAvatar,
-  formatTime,
-  getEdKeyPair,
-  getIPNS,
-  ZeroAddress,
-}
-
-export default mp

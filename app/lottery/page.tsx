@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { ArrowLeft, Sun, Moon, Wallet } from 'lucide-react'
+import { Sun, Moon, Wallet } from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import { useApp } from '~/app/app/AppProvider'
 import { LotteryDashboard } from '~/components/lottery/LotteryDashboard'
@@ -33,14 +33,12 @@ export default function LotteryPage() {
     <AppShell
       sidebar={({ closeSidebar }) => (
         <>
-          <div className="sidebar-header">
-            <button
-              className="back-btn"
-              onClick={() => (window.location.href = '/')}
-              title="返回首页"
-            >
-              <ArrowLeft size={18} />
-            </button>
+          <div
+            className="sidebar-header"
+            onClick={() => (window.location.href = '/')}
+            style={{ cursor: 'pointer' }}
+          >
+            <h1>MOST PEOPLE</h1>
           </div>
           <nav className="sidebar-nav">
             {tabs.map(tab => (

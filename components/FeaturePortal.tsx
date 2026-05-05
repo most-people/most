@@ -256,7 +256,7 @@ export default function FeaturePortal() {
                   <div className="portal-card-icon">{f.icon}</div>
                   <div className="portal-card-title">{f.title}</div>
                   <div className="portal-card-subtitle">{f.subtitle}</div>
-                  {needsBackend && (
+                  {needsBackend ? (
                     <div className={`portal-card-status ${backendStatus}`}>
                       {backendStatus === 'checking' && (
                         <>
@@ -273,9 +273,14 @@ export default function FeaturePortal() {
                       {backendStatus === 'disconnected' && (
                         <>
                           <span className="status-dot disconnected" />
-                          桌面端可用
+                          需下载
                         </>
                       )}
+                    </div>
+                  ) : (
+                    <div className="portal-card-status ready">
+                      <span className="status-dot ready" />
+                      已就绪
                     </div>
                   )}
                 </button>

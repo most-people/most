@@ -1,6 +1,8 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert'
 import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
   sanitizeFilename,
   formatFileSize,
@@ -8,6 +10,9 @@ import {
   validateFileSize,
   checkDirectoryWritable,
 } from '../../src/utils/security.js'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const projectRoot = path.resolve(__dirname, '../../..')
 
 describe('sanitizeFilename', () => {
   it('throws for non-string input', () => {
@@ -205,7 +210,10 @@ describe('validateAndSanitizePath', () => {
 
 describe('validateFileSize', () => {
   it('returns valid for existing file within limit', async () => {
-    const result = await validateFileSize('package.json', 1024 * 1024)
+    const result = await validateFileSize(
+      path.join(projectRoot, 'package.json'),
+      1024 * 1024
+    )
     assert.strictEqual(result.valid, true)
     assert.ok(result.size > 0)
   })
@@ -217,19 +225,25 @@ describe('validateFileSize', () => {
   })
 
   it('returns invalid for directory', async () => {
-    const result = await validateFileSize('server/tests')
+    const result = await validateFileSize(path.join(projectRoot, 'server/tests'))
     assert.strictEqual(result.valid, false)
     assert.strictEqual(result.error, 'Path is not a file')
   })
 
   it('returns invalid for oversized file', async () => {
-    const result = await validateFileSize('package.json', 1)
+    const result = await validateFileSize(
+      path.join(projectRoot, 'package.json'),
+      1
+    )
     assert.strictEqual(result.valid, false)
     assert.ok(result.error.includes('exceeds limit'))
   })
 
   it('uses custom max size', async () => {
-    const result = await validateFileSize('package.json', 100)
+    const result = await validateFileSize(
+      path.join(projectRoot, 'package.json'),
+      100
+    )
     assert.strictEqual(result.valid, false)
     assert.ok(result.size > 100)
   })
@@ -237,12 +251,18 @@ describe('validateFileSize', () => {
 
 describe('checkDirectoryWritable', () => {
   it('returns writable for existing directory', async () => {
-    const result = await checkDirectoryWritable('tests')
+    const result = await checkDirectoryWritable(
+      path.join(projectRoot, 'server/tests')
+    )
     assert.strictEqual(result.writable, true)
   })
 
   it('creates and returns writable for non-existent directory', async () => {
-    const testDir = 'tests/temp-write-test-' + Date.now()
+    const testDir = path.join(
+      projectRoot,
+      'server/tests',
+      `temp-write-test-${Date.now()}`
+    )
     try {
       const result = await checkDirectoryWritable(testDir)
       assert.strictEqual(result.writable, true)
@@ -254,7 +274,9 @@ describe('checkDirectoryWritable', () => {
   })
 
   it('returns not writable for file path', async () => {
-    const result = await checkDirectoryWritable('package.json')
+    const result = await checkDirectoryWritable(
+      path.join(projectRoot, 'package.json')
+    )
     assert.strictEqual(result.writable, false)
     assert.ok(result.error)
   })

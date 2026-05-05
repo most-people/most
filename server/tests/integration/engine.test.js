@@ -442,4 +442,30 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
       assert.strictEqual(engine.getDisplayName(), 'TestUser')
     })
   })
+
+  describe('joinChannel()', () => {
+    it('joins an existing channel by coreKey', async () => {
+      const created = await engine.createChannel('join-test', 'group')
+      const joined = await engine.joinChannel('join-test', created.key)
+      assert.strictEqual(joined.name, 'join-test')
+      assert.strictEqual(joined.key, created.key)
+
+      const channels = engine.listChannels()
+      assert.ok(channels.find(c => c.name === 'join-test'))
+    })
+
+    it('throws without coreKey for unknown channel', async () => {
+      await assert.rejects(
+        () => engine.joinChannel('nonexistent-channel'),
+        /加入已有频道需要提供 coreKey/
+      )
+    })
+
+    it('returns existing if already joined', async () => {
+      await engine.createChannel('existing-join-test')
+      const r1 = await engine.joinChannel('existing-join-test')
+      const r2 = await engine.joinChannel('existing-join-test')
+      assert.strictEqual(r1.key, r2.key)
+    })
+  })
 })

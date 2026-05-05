@@ -3,6 +3,17 @@
    Apple Liquid Glass Design System
    ============================================= */
 
+/* === Layout === */
+.mkt-layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.mkt-layout-main {
+  flex: 1;
+}
+
 .mkt-container {
   width: 100%;
   max-width: 960px;

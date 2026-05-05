@@ -537,7 +537,13 @@ export default function App() {
   const refreshFiles = createRefreshHandler(setItems, () =>
     API.listPublishedFiles()
       .then(r => r || [])
-      .catch(() => MOCK_FILES)
+      .catch(err => {
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('API fallback to mock data:', err.message)
+          return MOCK_FILES
+        }
+        return []
+      })
   )
   const refreshTrash = createRefreshHandler(setTrashItems, () =>
     API.listTrashFiles()
@@ -545,7 +551,12 @@ export default function App() {
       .catch(() => [])
   )
   const refreshStorageStats = createRefreshHandler(setStorageStats, () =>
-    API.getStorageStats().catch(() => MOCK_STORAGE)
+    API.getStorageStats().catch(err => {
+      if (process.env.NODE_ENV === 'development') {
+        return MOCK_STORAGE
+      }
+      return { total: 0, used: 0, free: 0, fileCount: 0, trashCount: 0 }
+    })
   )
 
   const handleSelect = id => {
@@ -1022,7 +1033,9 @@ export default function App() {
           )
           addToast('下载已取消', 'warning')
         }
-      } catch {}
+      } catch (err) {
+        console.warn('[App WS] Failed to parse message:', err.message)
+      }
     }
     return () => ws.close()
   }, [])

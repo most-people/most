@@ -170,6 +170,10 @@
   background: var(--danger);
 }
 
+.status-dot.ready {
+  background: var(--info);
+}
+
 @keyframes pulse-dot {
   0%,
   100% {

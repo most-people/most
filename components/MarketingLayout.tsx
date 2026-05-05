@@ -5,10 +5,10 @@ import { Footer } from '~/components/Footer'
 
 export function MarketingLayout({ children }: { children: React.ReactNode }) {
   return (
-    <>
+    <div className="mkt-layout">
       <Nav />
-      {children}
+      <main className="mkt-layout-main">{children}</main>
       <Footer />
-    </>
+    </div>
   )
 }
