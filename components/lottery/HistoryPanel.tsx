@@ -24,10 +24,15 @@ export function HistoryPanel() {
               {new Date(entry.date).toLocaleString('zh-CN')}
             </span>
           </div>
-          <div className="lottery-history-pool">
-            奖池:{' '}
-            <span className="lottery-history-pool-amount">
-              {entry.prizePool} USDC
+          <div className="lottery-history-meta">
+            <span className="lottery-history-pool">
+              奖池:{" "}
+              <span className="lottery-history-pool-amount">
+                {entry.prizePool} USDT
+              </span>
+            </span>
+            <span className="lottery-history-total">
+              总票数: {entry.totalTickets}
             </span>
           </div>
           <div className="lottery-history-winners">
@@ -35,14 +40,25 @@ export function HistoryPanel() {
               <div key={idx} className="lottery-history-winner">
                 <div>
                   <div className="lottery-winner-tier">{winner.tier}</div>
-                  <div className="lottery-winner-address">{winner.address}</div>
+                  <div className="lottery-winner-address">
+                    {winner.address}
+                  </div>
                 </div>
                 <div className="lottery-winner-amount">
-                  {`+${winner.amount}`} USDC
+                  {`+${winner.amount}`} USDT
                 </div>
               </div>
             ))}
           </div>
+          {entry.myResult && (
+            <div className={`lottery-my-result ${entry.myResult}`}>
+              你在本轮:
+              {entry.myResult === 'winner' && ` 中奖 +${entry.myPrize} USDT`}
+              {entry.myResult === 'participation' &&
+                ` 参与奖 +${entry.myPrize} USDT`}
+              {entry.myResult === 'loser' && ' 未中奖'}
+            </div>
+          )}
         </div>
       ))}
     </div>

@@ -4,9 +4,16 @@ import React, { useState, useEffect } from 'react'
 import { useLotteryStore } from './LotteryStore'
 
 export function LotteryDashboard() {
-  const { currentRound, prizePool, totalTickets, endTime, status } =
+  const { currentRound, prizePool, totalTickets, endTime, status, myRounds } =
     useLotteryStore()
-  const [timeLeft, setTimeLeft] = useState({ hours: 0, minutes: 0, seconds: 0 })
+  const [timeLeft, setTimeLeft] = useState({
+    hours: 0,
+    minutes: 0,
+    seconds: 0,
+  })
+
+  const myCurrentRound = myRounds.find(r => r.roundId === currentRound)
+  const myCount = myCurrentRound ? myCurrentRound.count : 0
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -34,10 +41,10 @@ export function LotteryDashboard() {
         </div>
         <div className="lottery-stat-card">
           <div className="lottery-stat-label">奖池金额</div>
-          <div className="lottery-stat-value gold">{prizePool} USDC</div>
+          <div className="lottery-stat-value gold">{prizePool} USDT</div>
         </div>
         <div className="lottery-stat-card">
-          <div className="lottery-stat-label">已售票数</div>
+          <div className="lottery-stat-label">总票数</div>
           <div className="lottery-stat-value">{totalTickets}</div>
         </div>
         <div className="lottery-stat-card">
@@ -51,6 +58,16 @@ export function LotteryDashboard() {
           </div>
         </div>
       </div>
+
+      {/* My Participation */}
+      {myCount > 0 && (
+        <div className="lottery-my-participation">
+          <div className="lottery-my-part-label">你的参与</div>
+          <div className="lottery-my-part-value">
+            本轮 {myCount} 张票 · {myCount} USDT
+          </div>
+        </div>
+      )}
 
       {/* Countdown */}
       <div className="lottery-countdown">

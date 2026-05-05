@@ -1,9 +1,8 @@
 import { create } from 'zustand'
 
-export interface Ticket {
-  id: string
+export interface RoundParticipation {
   roundId: number
-  number: string
+  count: number
   status: 'pending' | 'winner' | 'loser'
   prizeTier?: string
   prizeAmount?: number
@@ -20,7 +19,10 @@ export interface HistoryEntry {
   roundId: number
   date: string
   prizePool: number
+  totalTickets: number
   winners: Winner[]
+  myResult?: 'winner' | 'loser' | 'participation'
+  myPrize?: number
 }
 
 interface LotteryState {
@@ -29,13 +31,15 @@ interface LotteryState {
   endTime: Date
   totalTickets: number
   prizePool: number
-  myTickets: Ticket[]
+  myRounds: RoundParticipation[]
   history: HistoryEntry[]
-  buyTickets: (quantity: number) => void
-}
-
-function generateTicketNumber(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString()
+  walletAddress: string | null
+  usdtBalance: number
+  isConnected: boolean
+  isConnecting: boolean
+  connectWallet: () => void
+  disconnectWallet: () => void
+  buyTickets: (usdtAmount: number) => void
 }
 
 function generateMockHistory(): HistoryEntry[] {
@@ -44,43 +48,50 @@ function generateMockHistory(): HistoryEntry[] {
       roundId: 42,
       date: '2026-04-24T20:00:00Z',
       prizePool: 1250,
+      totalTickets: 1250,
       winners: [
         { tier: '一等奖', address: '0x1a2b...3c4d', amount: 625 },
         { tier: '二等奖', address: '0x5e6f...7g8h', amount: 125 },
         { tier: '三等奖', address: '0x9i0j...1k2l', amount: 62.5 },
         { tier: '参与奖', amount: 0.35, tickets: 1247 },
       ],
+      myResult: 'loser',
+      myPrize: 0,
     },
     {
       roundId: 41,
       date: '2026-04-23T20:00:00Z',
       prizePool: 980,
+      totalTickets: 980,
       winners: [
         { tier: '一等奖', address: '0x7q8r...9s0t', amount: 490 },
         { tier: '二等奖', address: '0x1u2v...3w4x', amount: 98 },
         { tier: '三等奖', address: '0x5y6z...7a8b', amount: 49 },
         { tier: '参与奖', amount: 0.35, tickets: 977 },
       ],
+      myResult: 'participation',
+      myPrize: 0.35,
     },
     {
       roundId: 40,
       date: '2026-04-22T20:00:00Z',
       prizePool: 1500,
+      totalTickets: 1500,
       winners: [
         { tier: '一等奖', address: '0x3g4h...5i6j', amount: 750 },
         { tier: '二等奖', address: '0x7k8l...9m0n', amount: 150 },
         { tier: '三等奖', address: '0x1o2p...3q4r', amount: 75 },
         { tier: '参与奖', amount: 0.35, tickets: 1497 },
       ],
+      myResult: 'winner',
+      myPrize: 75,
     },
   ]
 }
 
-function generateMockTickets(): Ticket[] {
+function generateMockRounds(): RoundParticipation[] {
   return [
-    { id: 'ticket-001', roundId: 43, number: '123456', status: 'pending' },
-    { id: 'ticket-002', roundId: 43, number: '789012', status: 'pending' },
-    { id: 'ticket-003', roundId: 43, number: '345678', status: 'pending' },
+    { roundId: 43, count: 5, status: 'pending' },
   ]
 }
 
@@ -90,24 +101,56 @@ export const useLotteryStore = create<LotteryState>(set => ({
   endTime: new Date(Date.now() + 2 * 60 * 60 * 1000 + 30 * 60 * 1000),
   totalTickets: 1250,
   prizePool: 1250,
-  myTickets: generateMockTickets(),
+  myRounds: generateMockRounds(),
   history: generateMockHistory(),
+  walletAddress: null,
+  usdtBalance: 45.2,
+  isConnected: false,
+  isConnecting: false,
 
-  buyTickets: (quantity: number) =>
+  connectWallet: () => {
+    set({ isConnecting: true })
+    setTimeout(() => {
+      set({
+        isConnected: true,
+        isConnecting: false,
+        walletAddress: '0xAbCd...Ef12',
+      })
+    }, 800)
+  },
+
+  disconnectWallet: () =>
+    set({
+      isConnected: false,
+      walletAddress: null,
+    }),
+
+  buyTickets: (usdtAmount: number) =>
     set(state => {
-      const newTickets: Ticket[] = []
-      for (let i = 0; i < quantity; i++) {
-        newTickets.push({
-          id: `ticket-${Date.now()}-${i}`,
-          roundId: state.currentRound,
-          number: generateTicketNumber(),
-          status: 'pending',
-        })
+      const existing = state.myRounds.find(
+        r => r.roundId === state.currentRound
+      )
+      let newRounds: RoundParticipation[]
+      if (existing) {
+        newRounds = state.myRounds.map(r =>
+          r.roundId === state.currentRound
+            ? { ...r, count: r.count + usdtAmount }
+            : r
+        )
+      } else {
+        newRounds = [
+          ...state.myRounds,
+          {
+            roundId: state.currentRound,
+            count: usdtAmount,
+            status: 'pending',
+          },
+        ]
       }
       return {
-        myTickets: [...state.myTickets, ...newTickets],
-        totalTickets: state.totalTickets + quantity,
-        prizePool: state.prizePool + quantity,
+        myRounds: newRounds,
+        totalTickets: state.totalTickets + usdtAmount,
+        prizePool: state.prizePool + usdtAmount,
       }
     }),
 }))

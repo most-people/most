@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { ArrowLeft, Sun, Moon } from 'lucide-react'
+import { ArrowLeft, Sun, Moon, Wallet } from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import { useApp } from '~/app/app/AppProvider'
 import { LotteryDashboard } from '~/components/lottery/LotteryDashboard'
@@ -9,11 +9,18 @@ import { BuyTickets } from '~/components/lottery/BuyTickets'
 import { TicketCard } from '~/components/lottery/TicketCard'
 import { PrizeTier } from '~/components/lottery/PrizeTier'
 import { HistoryPanel } from '~/components/lottery/HistoryPanel'
+import { useLotteryStore } from '~/components/lottery/LotteryStore'
 
 type TabId = 'dashboard' | 'tickets' | 'history'
 
 export default function LotteryPage() {
   const { isDarkMode, setIsDarkMode } = useApp()
+  const {
+    isConnected,
+    walletAddress,
+    connectWallet,
+    disconnectWallet,
+  } = useLotteryStore()
   const [activeTab, setActiveTab] = useState<TabId>('dashboard')
 
   const tabs = [
@@ -53,13 +60,30 @@ export default function LotteryPage() {
       )}
       headerTitle={<h2 className="header-title">去中心化彩票</h2>}
       headerRight={
-        <button
-          className="icon-btn"
-          onClick={() => setIsDarkMode(!isDarkMode)}
-          title="切换主题"
-        >
-          {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
-        </button>
+        <div className="lottery-header-actions">
+          {isConnected ? (
+            <button
+              className="lottery-wallet-btn connected"
+              onClick={disconnectWallet}
+              title={walletAddress || ''}
+            >
+              <Wallet size={14} />
+              <span>{walletAddress}</span>
+            </button>
+          ) : (
+            <button className="lottery-wallet-btn" onClick={connectWallet}>
+              <Wallet size={14} />
+              <span>连接钱包</span>
+            </button>
+          )}
+          <button
+            className="icon-btn"
+            onClick={() => setIsDarkMode(!isDarkMode)}
+            title="切换主题"
+          >
+            {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+        </div>
       }
     >
       <div className="lottery-page">
