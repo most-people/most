@@ -4,6 +4,7 @@ const footerLinks = [
   { href: '/', label: '关于' },
   { href: '/docs/getting-started/', label: '文档' },
   { href: '/changelog/', label: '更新日志' },
+  { href: '/ping/', label: '网络' },
   {
     href: 'https://github.com/most-people/most',
     label: 'GitHub',
