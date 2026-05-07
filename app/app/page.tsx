@@ -379,6 +379,7 @@ function MoveModal({ items, allFolders, currentPath, onMove, onClose }) {
         <div className="move-new-folder">
           <input
             type="text"
+            className="input"
             value={customPath}
             onChange={e => setCustomPath(e.target.value)}
             placeholder="输入路径创建嵌套文件夹"
@@ -1414,7 +1415,7 @@ export default function App() {
             </div>
             <input
               type="text"
-              className="download-input"
+              className="input"
               value={downloadLink}
               onChange={e => setDownloadLink(e.target.value)}
               placeholder="输入 most:// 链接"

@@ -569,28 +569,6 @@
   line-height: 1.5;
 }
 
-.mkt-settings-input {
-  width: 100%;
-  padding: 10px 14px;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md);
-  background: var(--glass-bg-subtle);
-  color: var(--text-primary);
-  font-size: 14px;
-  font-family: var(--font-sans);
-  outline: none;
-  transition: border-color var(--transition-fast);
-  margin-bottom: var(--space-4);
-}
-
-.mkt-settings-input:focus {
-  border-color: var(--accent);
-}
-
-.mkt-settings-input::placeholder {
-  color: var(--text-muted);
-}
-
 .mkt-settings-actions {
   display: flex;
   gap: var(--space-3);

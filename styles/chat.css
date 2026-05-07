@@ -147,28 +147,6 @@
   backdrop-filter: var(--blur-xl);
   -webkit-backdrop-filter: var(--blur-xl);
 
-  .chat-input {
-    flex: 1;
-    padding: 12px 18px;
-    border-radius: var(--radius-full);
-    border: 1px solid var(--glass-border);
-    background: var(--glass-bg-subtle);
-    color: var(--text-primary);
-    font-size: 14px;
-    outline: none;
-    transition: all var(--transition-fast);
-
-    &::placeholder {
-      color: var(--text-muted);
-    }
-
-    &:focus {
-      border-color: var(--accent);
-      background: var(--glass-bg);
-      box-shadow: 0 0 0 3px var(--accent-soft);
-    }
-  }
-
   .send-btn {
     width: 44px;
     height: 44px;

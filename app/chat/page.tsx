@@ -730,7 +730,7 @@ function ChatPage() {
           <div className="chat-input-area">
             <input
               type="text"
-              className="chat-input"
+              className="input input-pill"
               placeholder="输入消息..."
               value={channelInput}
               onChange={e => setChannelInput(e.target.value)}
@@ -811,7 +811,7 @@ function ChatPage() {
               </p>
               <input
                 type="text"
-                className="login-input"
+                className="input input-compact"
                 placeholder="用户名"
                 value={loginUsername}
                 onChange={handleLoginUsernameChange}
@@ -823,7 +823,7 @@ function ChatPage() {
               <div className="login-password-wrapper">
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  className="login-input"
+                  className="input input-compact"
                   placeholder="密码"
                   value={loginPassword}
                   onChange={handleLoginPasswordChange}

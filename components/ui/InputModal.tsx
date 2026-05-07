@@ -45,7 +45,7 @@ export function InputModal({
             if (e.key === 'Enter' && value.trim() && !isLoading)
               onConfirm(value.trim())
           }}
-          className="modal-input"
+          className="input input-compact"
         />
         <div className="modal-actions">
           <button
