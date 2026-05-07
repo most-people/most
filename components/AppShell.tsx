@@ -61,7 +61,7 @@ export default function AppShell({
             <div className="header-left">
               <button
                 onClick={handleToggleSidebar}
-                className="icon-btn sidebar-toggle-btn"
+                className="btn btn-icon sidebar-toggle-btn"
                 aria-label={
                   isMobile
                     ? '打开菜单'

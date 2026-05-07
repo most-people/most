@@ -60,7 +60,6 @@
 
 # Most.Box
 
-
 ## 项目概述
 
 P2P 文件分享应用，基于 Hyperswarm/Hyperdrive 网络。用户上传文件后生成分享链接，接收方通过 P2P 网络下载。

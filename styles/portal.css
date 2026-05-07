@@ -94,30 +94,12 @@
   position: absolute;
   top: 12px;
   right: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-sm);
-  color: var(--text-muted);
-  background: var(--glass-bg-subtle);
-  border: 1px solid var(--glass-border);
-  cursor: pointer;
-  text-decoration: none;
-  transition: all var(--transition-fast);
   opacity: 0.5;
 }
 
 .portal-card:hover .portal-card-open-btn,
 .portal-card.active .portal-card-open-btn {
   opacity: 1;
-}
-
-.portal-card-open-btn:hover {
-  color: var(--accent);
-  background: var(--glass-bg);
-  border-color: var(--accent);
 }
 
 .portal-card-icon {

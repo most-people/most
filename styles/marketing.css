@@ -196,55 +196,6 @@
   }
 }
 
-/* === Buttons === */
-.mkt-btn-primary {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-6);
-  font-size: var(--font-size-md, 0.9375rem);
-  font-weight: 500;
-  color: #fff;
-  background: var(--accent);
-  border-radius: var(--radius-md, 12px);
-  border: none;
-  cursor: pointer;
-  transition: all var(--transition);
-  text-decoration: none;
-
-  &:hover {
-    background: var(--accent-hover);
-    color: #fff;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 16px rgba(94, 106, 210, 0.3);
-  }
-}
-
-.mkt-btn-secondary {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-6);
-  font-size: var(--font-size-md, 0.9375rem);
-  font-weight: 500;
-  color: var(--text-primary);
-  background: var(--glass-bg-subtle);
-  backdrop-filter: var(--blur-sm);
-  -webkit-backdrop-filter: var(--blur-sm);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md, 12px);
-  cursor: pointer;
-  transition: all var(--transition);
-  text-decoration: none;
-
-  &:hover {
-    border-color: var(--accent);
-    color: var(--accent);
-    background: var(--glass-bg);
-    transform: translateY(-1px);
-  }
-}
-
 /* === Landing Page === */
 .mkt-landing {
   font-family: var(--font-sans);
@@ -643,43 +594,6 @@
 .mkt-settings-actions {
   display: flex;
   gap: var(--space-3);
-}
-
-.mkt-settings-btn {
-  flex: 1;
-  padding: 10px 16px;
-  border-radius: var(--radius-md);
-  font-size: 14px;
-  font-weight: 500;
-  font-family: var(--font-sans);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.mkt-settings-btn.primary {
-  background: var(--accent);
-  color: #fff;
-  border: none;
-}
-
-.mkt-settings-btn.primary:hover:not(:disabled) {
-  background: var(--accent-hover);
-}
-
-.mkt-settings-btn.primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.mkt-settings-btn.secondary {
-  color: var(--text-secondary);
-  border: 1px solid var(--glass-border);
-  background: var(--glass-bg-subtle);
-}
-
-.mkt-settings-btn.secondary:hover {
-  color: var(--text-primary);
-  background: var(--glass-bg);
 }
 
 .mkt-settings-status {

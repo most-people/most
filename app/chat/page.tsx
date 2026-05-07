@@ -649,11 +649,17 @@ function ChatPage() {
               </span>
             </div>
             {userIdentity && userIdentity.username === '匿名' ? (
-              <button className="login-btn" onClick={() => loginModal.open()}>
+              <button
+                className="btn btn-primary login-btn"
+                onClick={() => loginModal.open()}
+              >
                 登录
               </button>
             ) : (
-              <button className="logout-btn" onClick={handleLogout}>
+              <button
+                className="btn btn-ghost logout-btn"
+                onClick={handleLogout}
+              >
                 退出
               </button>
             )}
@@ -663,7 +669,7 @@ function ChatPage() {
       headerTitle={chatHeaderTitle}
       headerRight={
         <button
-          className="icon-btn"
+          className="btn btn-icon"
           onClick={() => setIsDarkMode(!isDarkMode)}
           title="切换主题"
         >
@@ -835,14 +841,14 @@ function ChatPage() {
               </div>
               <div className="login-buttons-row">
                 <button
-                  className="btn-secondary"
+                  className="btn btn-secondary"
                   onClick={handlePreviewAvatar}
                   disabled={hasPreviewedAvatar}
                 >
                   {hasPreviewedAvatar ? '已预览' : '预览头像'}
                 </button>
                 <button
-                  className="btn-primary"
+                  className="btn btn-primary"
                   onClick={handleLogin}
                   disabled={isLoggingIn || !hasPreviewedAvatar}
                 >

@@ -1,6 +1,10 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert'
-import { mostWallet, mostMnemonic, most25519 } from '../../src/utils/mostWallet.js'
+import {
+  mostWallet,
+  mostMnemonic,
+  most25519,
+} from '../../src/utils/mostWallet.js'
 
 describe('mostWallet', () => {
   it('derives consistent address from same credentials', () => {

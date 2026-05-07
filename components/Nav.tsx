@@ -73,7 +73,7 @@ export function Nav() {
             >
               {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
             </button>
-            <Link href="/app/" className="mkt-btn-primary">
+            <Link href="/app/" className="btn btn-primary">
               开始使用
             </Link>
 

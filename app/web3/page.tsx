@@ -46,7 +46,7 @@ function CopyButton({ text }) {
   }
   return (
     <button
-      className="copy-btn"
+      className="btn btn-icon"
       onClick={handleCopy}
       title={copied ? '已复制' : '复制'}
     >
@@ -150,7 +150,7 @@ function PemBlock({ label, pem, filename }) {
         <span className="web3-pem-label">{label}</span>
         <div className="web3-pem-actions">
           <button
-            className="btn small"
+            className="btn btn-sm"
             onClick={handleCopy}
             title={copied ? '已复制' : '复制'}
           >
@@ -158,7 +158,7 @@ function PemBlock({ label, pem, filename }) {
             {copied ? '已复制' : '复制'}
           </button>
           <button
-            className="btn small primary"
+            className="btn btn-sm btn-primary"
             onClick={handleDownload}
             title="下载"
           >
@@ -305,7 +305,7 @@ export default function Web3Page() {
       headerTitle={<h2 className="header-title">{viewTitle}</h2>}
       headerRight={
         <button
-          className="icon-btn"
+          className="btn btn-icon"
           onClick={() => setIsDarkMode(!isDarkMode)}
           title="切换主题"
         >
@@ -349,7 +349,7 @@ export default function Web3Page() {
               </div>
             </div>
             <button
-              className="btn primary full"
+              className="btn btn-primary btn-full"
               onClick={handleGenerate}
               disabled={!username.trim() || generating}
               type="button"
@@ -583,7 +583,10 @@ export default function Web3Page() {
                   {mnemonicPhrase && (
                     <div className="web3-mnemonic-reveal">
                       <div>
-                        <button className="btn primary" onClick={handleDerive}>
+                        <button
+                          className="btn btn-primary"
+                          onClick={handleDerive}
+                        >
                           派生 {deriveBatch} 个地址
                         </button>
                       </div>

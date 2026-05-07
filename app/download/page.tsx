@@ -115,7 +115,7 @@ export default function DownloadPage() {
           <p className="download-cta-desc">
             数据完全本地存储，无需上传到任何服务器。
           </p>
-          <Link href="/" className="mkt-btn-primary">
+          <Link href="/" className="btn btn-primary">
             返回首页
           </Link>
         </div>

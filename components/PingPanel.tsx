@@ -282,7 +282,7 @@ export function PingPanel() {
           </div>
         </div>
         <button
-          className="ping-refresh-btn"
+          className="btn btn-icon"
           onClick={runAllTests}
           disabled={runningAll}
           aria-label="重新测试全部"

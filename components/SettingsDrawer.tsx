@@ -19,7 +19,7 @@ function SettingsDrawer({ onClose, addToast, isDarkMode }) {
       <div className="settings-drawer" onClick={e => e.stopPropagation()}>
         <div className="drawer-header">
           <h2 className="drawer-title">关于</h2>
-          <button onClick={onClose} className="drawer-close-btn">
+          <button onClick={onClose} className="btn btn-icon">
             <X size={18} />
           </button>
         </div>

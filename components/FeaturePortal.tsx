@@ -182,7 +182,7 @@ export default function FeaturePortal() {
                 >
                   <Link
                     href={f.path}
-                    className="portal-card-open-btn"
+                    className="btn btn-icon portal-card-open-btn"
                     onClick={e => e.stopPropagation()}
                     title={`打开${f.title}`}
                   >
@@ -273,12 +273,12 @@ export default function FeaturePortal() {
               </div>
 
               <div className="portal-actions">
-                <Link href={activeFeature.path} className="mkt-btn-primary">
+                <Link href={activeFeature.path} className="btn btn-primary">
                   进入 {activeFeature.title}
                   <ArrowRight size={16} />
                 </Link>
                 {activeFeature.requiresBackend && hasBackend === false && (
-                  <Link href="/download" className="mkt-btn-secondary">
+                  <Link href="/download" className="btn btn-secondary">
                     <Download size={16} />
                     下载桌面客户端
                   </Link>

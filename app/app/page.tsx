@@ -371,7 +371,7 @@ function MoveModal({ items, allFolders, currentPath, onMove, onClose }) {
       <div className="move-modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <h3>移动到</h3>
-          <button onClick={onClose} className="modal-close-btn">
+          <button onClick={onClose} className="btn btn-icon">
             <X size={18} />
           </button>
         </div>
@@ -436,10 +436,10 @@ function MoveModal({ items, allFolders, currentPath, onMove, onClose }) {
             ))}
         </div>
         <div className="modal-actions">
-          <button onClick={onClose} className="btn secondary">
+          <button onClick={onClose} className="btn btn-secondary">
             取消
           </button>
-          <button onClick={handleConfirm} className="btn primary">
+          <button onClick={handleConfirm} className="btn btn-primary">
             移动
           </button>
         </div>
@@ -1169,24 +1169,21 @@ export default function App() {
           {currentView === 'trash' && trashItems.length > 0 && (
             <button
               onClick={handleEmptyTrash}
-              className="btn small btn-empty-trash"
+              className="btn btn-sm btn-empty-trash"
             >
               清空回收站
             </button>
           )}
-          <button onClick={() => transferPanel.open()} className="icon-btn">
+          <button onClick={() => transferPanel.open()} className="btn btn-icon">
             <ArrowUpDown size={16} />
-            {transfers.length > 0 && (
-              <span className="icon-btn-badge">{transfers.length}</span>
-            )}
           </button>
           <button
             onClick={() => setIsDarkMode(!isDarkMode)}
-            className="icon-btn theme-toggle"
+            className="btn btn-icon"
           >
             {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
           </button>
-          <button onClick={() => openSettings()} className="icon-btn">
+          <button onClick={() => openSettings()} className="btn btn-icon">
             <Info size={16} />
           </button>
         </>
@@ -1383,7 +1380,7 @@ export default function App() {
               <h3>分享链接</h3>
               <button
                 onClick={() => setShareItem(null)}
-                className="modal-close-btn"
+                className="btn btn-icon"
               >
                 <X size={18} />
               </button>
@@ -1394,7 +1391,7 @@ export default function App() {
               </div>
               <button
                 onClick={handleCopyLink}
-                className={`share-copy-btn ${linkCopied ? 'copied' : ''}`}
+                className={`btn btn-circle btn-primary ${linkCopied ? 'copied' : ''}`}
               >
                 {linkCopied ? <Check size={18} /> : <Copy size={18} />}
               </button>
@@ -1410,23 +1407,22 @@ export default function App() {
               <h3>下载文件</h3>
               <button
                 onClick={() => downloadModal.close()}
-                className="modal-close-btn"
+                className="btn btn-icon"
               >
                 <X size={18} />
               </button>
             </div>
             <input
               type="text"
+              className="download-input"
               value={downloadLink}
               onChange={e => setDownloadLink(e.target.value)}
-              placeholder="most://..."
-              onKeyDown={e => e.key === 'Enter' && handleDownloadSharedFile()}
-              className="download-input"
+              placeholder="输入 most:// 链接"
             />
             <button
               onClick={handleDownloadSharedFile}
               disabled={!downloadLink.trim() || isDownloading}
-              className="download-btn"
+              className="btn btn-info btn-full"
             >
               {isDownloading ? '下载中...' : '开始下载'}
             </button>
@@ -1529,11 +1525,14 @@ export default function App() {
                   refreshTrash()
                   refreshStorageStats()
                 }}
-                className="btn small"
+                className="btn btn-sm"
               >
                 恢复
               </button>
-              <button onClick={handleBatchDelete} className="btn small danger">
+              <button
+                onClick={handleBatchDelete}
+                className="btn btn-sm btn-danger"
+              >
                 永久删除
               </button>
             </>
@@ -1554,7 +1553,7 @@ export default function App() {
                         if (subtype === 'text') loadPreviewText(file.cid)
                       }
                     }}
-                    className="btn small"
+                    className="btn btn-sm"
                   >
                     预览
                   </button>
@@ -1572,7 +1571,7 @@ export default function App() {
                     }
                   })
                 }}
-                className="btn small btn-star"
+                className="btn btn-sm btn-star"
               >
                 收藏
               </button>
@@ -1584,18 +1583,21 @@ export default function App() {
                     )
                     if (firstSelected) openRenameModal(firstSelected)
                   }}
-                  className="btn small"
+                  className="btn btn-sm"
                 >
                   重命名
                 </button>
               )}
               <button
                 onClick={() => moveModal.open()}
-                className="btn small btn-move"
+                className="btn btn-sm btn-move"
               >
                 移动
               </button>
-              <button onClick={handleBatchDelete} className="btn small danger">
+              <button
+                onClick={handleBatchDelete}
+                className="btn btn-sm btn-danger"
+              >
                 删除
               </button>
               {selectedIds.length === 1 && (
@@ -1603,7 +1605,7 @@ export default function App() {
                   onClick={() =>
                     setShareItem(items.find(i => i.cid === selectedIds[0]))
                   }
-                  className="btn small"
+                  className="btn btn-sm"
                 >
                   分享
                 </button>
@@ -1614,7 +1616,7 @@ export default function App() {
                     const file = items.find(i => i.cid === selectedIds[0])
                     if (file) handleSaveAs(file)
                   }}
-                  className="btn small"
+                  className="btn btn-sm"
                 >
                   另存为
                 </button>
@@ -1634,7 +1636,7 @@ export default function App() {
               <h3>传输</h3>
               <button
                 onClick={() => transferPanel.close()}
-                className="modal-close-btn"
+                className="btn btn-icon"
               >
                 <X size={18} />
               </button>

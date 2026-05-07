@@ -419,10 +419,7 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
     it('throws for empty message content', async () => {
       const ch = `empty-${uid}`
       await msgEngine.createChannel(ch)
-      await assert.rejects(
-        msgEngine.sendMessage(ch, ''),
-        /消息内容不能为空/
-      )
+      await assert.rejects(msgEngine.sendMessage(ch, ''), /消息内容不能为空/)
     })
 
     it('throws for non-existent channel', async () => {

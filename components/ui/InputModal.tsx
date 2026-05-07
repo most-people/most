@@ -31,7 +31,7 @@ export function InputModal({
       <div className="input-modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <h3>{title}</h3>
-          <button onClick={onClose} className="modal-close-btn">
+          <button onClick={onClose} className="btn btn-icon">
             <X size={18} />
           </button>
         </div>
@@ -51,14 +51,14 @@ export function InputModal({
           <button
             onClick={onClose}
             disabled={isLoading}
-            className="btn secondary"
+            className="btn btn-secondary"
           >
             取消
           </button>
           <button
             onClick={() => value.trim() && onConfirm(value.trim())}
             disabled={!value.trim() || isLoading}
-            className="btn primary"
+            className="btn btn-primary"
             style={{ opacity: isLoading ? 0.7 : 1 }}
           >
             {isLoading ? loadingText || '处理中...' : confirmText}

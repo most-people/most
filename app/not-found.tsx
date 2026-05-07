@@ -18,14 +18,11 @@ export default function NotFound() {
           你访问的页面似乎已经迷失在 P2P 网络中了
         </p>
         <div className="not-found-actions">
-          <button
-            onClick={() => router.back()}
-            className="not-found-btn-secondary"
-          >
+          <button onClick={() => router.back()} className="btn btn-secondary">
             <ArrowLeft size={16} />
             上一页
           </button>
-          <Link href="/" className="not-found-btn-primary">
+          <Link href="/" className="btn btn-primary">
             <Home size={16} />
             回首页
           </Link>

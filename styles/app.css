@@ -350,52 +350,6 @@
   }
 }
 
-/* === Icon Button === */
-.icon-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--glass-border);
-  background: var(--glass-bg-subtle);
-  cursor: pointer;
-  color: var(--text-secondary);
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all var(--transition-fast);
-
-  &:hover {
-    background: var(--glass-bg);
-    color: var(--text-primary);
-    border-color: var(--glass-border-strong);
-  }
-
-  &.accent {
-    color: var(--accent);
-  }
-
-  &.theme-toggle {
-    color: var(--accent);
-  }
-}
-
-.icon-btn-badge {
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--danger);
-  color: #fff;
-  font-size: 9px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
 /* === Upload / Download Grid === */
 .action-grid {
   display: grid;
@@ -672,24 +626,6 @@
   }
 }
 
-.modal-close-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--text-muted);
-  padding: 4px;
-  border-radius: var(--radius-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all var(--transition-fast);
-
-  &:hover {
-    background: var(--glass-bg-subtle);
-    color: var(--text-primary);
-  }
-}
-
 /* === Welcome Guide === */
 .welcome-modal {
   text-align: center;
@@ -744,94 +680,6 @@
   align-items: center;
   justify-content: center;
   margin: 0 auto 16px;
-}
-
-/* === Buttons === */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 10px 20px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--glass-border);
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all var(--transition);
-  background: var(--glass-bg-subtle);
-  backdrop-filter: var(--blur-sm);
-  -webkit-backdrop-filter: var(--blur-sm);
-
-  &.primary {
-    background: var(--accent);
-    color: #fff;
-    border-color: transparent;
-
-    &:hover:not(:disabled) {
-      background: var(--accent-hover);
-      box-shadow: 0 4px 16px rgba(94, 106, 210, 0.3);
-      transform: translateY(-1px);
-    }
-  }
-
-  &.secondary {
-    color: var(--text-secondary);
-
-    &:hover:not(:disabled) {
-      background: var(--glass-bg);
-      color: var(--text-primary);
-      border-color: var(--glass-border-strong);
-    }
-  }
-
-  &.danger {
-    background: var(--danger);
-    color: #fff;
-    border-color: transparent;
-
-    &:hover:not(:disabled) {
-      box-shadow: 0 4px 16px rgba(255, 59, 48, 0.3);
-      transform: translateY(-1px);
-    }
-  }
-
-  &.danger-hover {
-    color: var(--text-muted);
-
-    &:hover:not(:disabled) {
-      color: var(--danger);
-      background: rgba(255, 59, 48, 0.08);
-      border-color: rgba(255, 59, 48, 0.2);
-    }
-  }
-
-  &.small {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    padding: 6px 12px;
-    border-radius: var(--radius-sm);
-    font-size: 13px;
-
-    &:hover:not(:disabled) {
-      background: var(--glass-bg);
-    }
-  }
-
-  &.full {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-  }
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
 }
 
 /* === Spinner Animation === */
@@ -1020,59 +868,6 @@
   padding: var(--space-5);
   margin-bottom: var(--space-6);
   box-shadow: var(--glass-shadow);
-}
-
-.copy-btn {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: var(--radius-sm);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  position: relative;
-  transition: all var(--transition-fast);
-
-  &:hover {
-    color: var(--accent);
-    background: var(--accent-soft);
-  }
-}
-
-.copy-hint {
-  position: absolute;
-  top: -22px;
-  right: 0;
-  background: var(--glass-bg-heavy);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-sm);
-  padding: 2px 8px;
-  font-size: 11px;
-  white-space: nowrap;
-  pointer-events: none;
-  animation: fadeIn 0.15s ease;
-}
-
-/* ── Back Button ── */
-.back-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--glass-border);
-  background: var(--glass-bg-subtle);
-  cursor: pointer;
-  color: var(--text-secondary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all var(--transition-fast);
-
-  &:hover {
-    background: var(--glass-bg);
-    color: var(--text-primary);
-  }
 }
 
 /* ── Inputs ── */
@@ -1474,52 +1269,6 @@
   }
 }
 
-/* === Download Modal === */
-.download-modal {
-  .download-input {
-    width: 100%;
-    padding: 12px 14px;
-    border-radius: var(--radius-md);
-    border: 1px solid var(--glass-border);
-    font-size: 13px;
-    font-family: var(--font-mono);
-    outline: none;
-    background: var(--glass-bg-subtle);
-    color: var(--text-primary);
-    margin-bottom: 16px;
-    transition: all var(--transition-fast);
-
-    &:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px var(--accent-soft);
-    }
-  }
-
-  .download-btn {
-    width: 100%;
-    padding: 12px;
-    border-radius: var(--radius-md);
-    border: none;
-    background: var(--info);
-    color: #fff;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all var(--transition-fast);
-
-    &:hover:not(:disabled) {
-      transform: translateY(-1px);
-      box-shadow: 0 4px 16px rgba(90, 200, 250, 0.3);
-    }
-
-    &:disabled {
-      background: var(--glass-bg-subtle);
-      color: var(--text-muted);
-      cursor: not-allowed;
-    }
-  }
-}
-
 /* === Preview === */
 .preview-overlay {
   position: fixed;
@@ -1630,10 +1379,12 @@
 
   .batch-info {
     font-size: 12px;
+    white-space: nowrap;
     color: var(--text-secondary);
   }
 
   .batch-dismiss {
+    display: flex;
     background: none;
     border: none;
     cursor: pointer;
@@ -2143,16 +1894,31 @@
 .btn-empty-trash {
   background: rgba(255, 59, 48, 0.1);
   color: var(--danger);
+
+  &:hover:not(:disabled) {
+    background: rgba(255, 59, 48, 0.15);
+  }
 }
 
 .btn-star {
   background: var(--warning);
   color: #fff;
+
+  &:hover:not(:disabled) {
+    box-shadow: 0 4px 16px rgba(255, 149, 0, 0.3);
+    transform: translateY(-1px);
+  }
 }
 
 .btn-move {
   background: var(--accent);
   color: #fff;
+
+  &:hover:not(:disabled) {
+    background: var(--accent-hover);
+    box-shadow: 0 4px 16px rgba(94, 106, 210, 0.3);
+    transform: translateY(-1px);
+  }
 }
 
 .move-modal-empty {
@@ -2342,7 +2108,7 @@
       display: none;
     }
 
-    .btn.small {
+    .btn-sm {
       padding: 8px 14px;
       font-size: 13px;
       min-width: 64px;
@@ -2411,7 +2177,7 @@
       font-size: 12px;
     }
 
-    .btn.small {
+    .btn-sm {
       padding: 7px 12px;
       font-size: 12px;
       min-width: 56px;
@@ -2490,44 +2256,15 @@
 }
 
 .app-home-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
+  padding: 14px 32px;
+  font-size: 16px;
   font-weight: 600;
-  text-decoration: none;
-  border-radius: var(--radius-md);
-  transition: all var(--transition);
-  cursor: pointer;
+}
 
-  &.primary {
-    padding: 14px 32px;
-    font-size: 16px;
-    color: #fff;
-    background: var(--accent);
-
-    &:hover {
-      background: var(--accent-hover);
-      transform: translateY(-1px);
-      box-shadow: 0 4px 16px rgba(94, 106, 210, 0.3);
-    }
-  }
-
-  &.secondary {
-    padding: 10px 24px;
-    font-size: 14px;
-    color: var(--text-secondary);
-    background: var(--glass-bg-subtle);
-    border: 1px solid var(--glass-border);
-    margin-top: 12px;
-
-    &:hover {
-      border-color: var(--accent);
-      color: var(--accent);
-      background: var(--glass-bg);
-      transform: translateY(-1px);
-    }
-  }
+.app-home-btn-secondary {
+  padding: 10px 24px;
+  font-size: 14px;
+  margin-top: 12px;
 }
 
 /* === Settings Drawer === */
@@ -2822,27 +2559,14 @@
 
 .backend-guide-connect-btn {
   padding: 10px 18px;
-  border-radius: var(--radius-md);
   font-size: 14px;
-  font-weight: 500;
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
   white-space: nowrap;
 }
 
-.backend-guide-connect-btn:hover:not(:disabled) {
-  background: var(--accent-hover);
-}
-
-.backend-guide-connect-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.backend-guide-back-btn {
+  padding: 8px 16px;
+  font-size: 13px;
+  margin-top: 20px;
 }
 
 .backend-guide-status {
@@ -2920,26 +2644,6 @@
   color: var(--text-primary);
 }
 
-.backend-guide-back-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 20px;
-  padding: 8px 16px;
-  font-size: 13px;
-  color: var(--text-secondary);
-  background: transparent;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.backend-guide-back-btn:hover {
-  color: var(--text-primary);
-  background: var(--glass-bg);
-}
-
 /* spin animation for loader */
 .spin {
   animation: spin 1s linear infinite;
@@ -2972,22 +2676,9 @@
 }
 
 .download-banner-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
   padding: 6px 12px;
-  background: var(--accent);
-  color: #fff;
-  border-radius: var(--radius-sm);
   font-size: 12px;
-  font-weight: 500;
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.download-banner-btn:hover {
-  color: #fff;
-  background: var(--accent-hover);
+  border-radius: var(--radius-sm);
 }
 
 @media (max-width: 768px) {

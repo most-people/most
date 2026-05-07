@@ -81,10 +81,12 @@
   "build": {
     "appId": "com.mostbox.app",
     "productName": "MostBox",
-    "publish": [{
-      "provider": "github",
-      "releaseType": "release"
-    }],
+    "publish": [
+      {
+        "provider": "github",
+        "releaseType": "release"
+      }
+    ],
     "directories": {
       "output": "dist"
     },

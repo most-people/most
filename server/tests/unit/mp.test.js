@@ -1,6 +1,11 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert'
-import { avatar, formatTime, getEdKeyPair, getIPNS } from '../../src/utils/mp.js'
+import {
+  avatar,
+  formatTime,
+  getEdKeyPair,
+  getIPNS,
+} from '../../src/utils/mp.js'
 
 describe('avatar', () => {
   it('returns avatar URL for valid address', () => {

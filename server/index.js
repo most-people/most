@@ -268,7 +268,10 @@ export function createApp(engine, options = {}) {
           try {
             ws.send(payload)
           } catch (err) {
-            console.warn('[WS] Failed to send to channel subscriber:', err.message)
+            console.warn(
+              '[WS] Failed to send to channel subscriber:',
+              err.message
+            )
           }
         }
       })
@@ -795,7 +798,10 @@ export function createApp(engine, options = {}) {
     const resolved = path.resolve(filePath)
     const resolvedPublic = path.resolve(publicDir)
 
-    if (!resolved.startsWith(resolvedPublic + path.sep) && resolved !== resolvedPublic) {
+    if (
+      !resolved.startsWith(resolvedPublic + path.sep) &&
+      resolved !== resolvedPublic
+    ) {
       return c.json({ error: 'Not found' }, 404)
     }
 

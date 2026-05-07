@@ -117,8 +117,8 @@
   box-sizing: border-box;
 }
 
-/* === Global Buttons === */
-.btn-primary {
+/* === Buttons === */
+.btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -126,53 +126,116 @@
   padding: 10px 20px;
   font-size: 14px;
   font-weight: 500;
-  color: #fff;
-  background: var(--accent);
-  border-radius: var(--radius-md);
-  border: none;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  text-decoration: none;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: var(--accent-hover);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(94, 106, 210, 0.3);
-}
-
-.btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-secondary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  padding: 10px 20px;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  color: var(--text-primary);
   background: var(--glass-bg-subtle);
-  backdrop-filter: var(--blur-sm);
-  -webkit-backdrop-filter: var(--blur-sm);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   cursor: pointer;
   transition: all var(--transition-fast);
+  text-decoration: none;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+
+  &:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 }
 
-.btn-secondary:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--accent-soft);
+.btn-primary {
+  color: #fff;
+  background: var(--accent);
+
+  &:hover:not(:disabled) {
+    background: var(--accent-hover);
+    box-shadow: 0 4px 16px rgba(94, 106, 210, 0.3);
+  }
 }
 
-.btn-secondary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.btn-secondary {
+  color: var(--text-primary);
+  background: var(--glass-bg-subtle);
+  backdrop-filter: var(--blur-sm);
+  -webkit-backdrop-filter: var(--blur-sm);
+  border: 1px solid var(--glass-border);
+
+  &:hover:not(:disabled) {
+    transform: translateY(-1px);
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-soft);
+  }
+}
+
+.btn-danger {
+  color: #fff;
+  background: var(--danger);
+
+  &:hover:not(:disabled) {
+    box-shadow: 0 4px 16px rgba(255, 59, 48, 0.3);
+  }
+}
+
+.btn-ghost {
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--glass-border);
+
+  &:hover:not(:disabled) {
+    background: var(--glass-bg-subtle);
+    color: var(--text-primary);
+    border-color: var(--glass-border-strong);
+  }
+}
+
+.btn-info {
+  color: #fff;
+  background: var(--info);
+
+  &:hover:not(:disabled) {
+    box-shadow: 0 4px 16px rgba(90, 200, 250, 0.3);
+  }
+}
+
+.btn-warning {
+  color: #fff;
+  background: var(--warning);
+
+  &:hover:not(:disabled) {
+    box-shadow: 0 4px 16px rgba(255, 149, 0, 0.3);
+  }
+}
+
+.btn-icon {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: var(--radius-md);
+  background: var(--glass-bg-subtle);
+  border: 1px solid var(--glass-border);
+  color: var(--text-secondary);
+
+  &:hover:not(:disabled) {
+    background: var(--glass-bg);
+    color: var(--text-primary);
+    border-color: var(--glass-border-strong);
+  }
+}
+
+.btn-circle {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 50%;
+}
+
+.btn-full {
+  width: 100%;
 }
 
 html {
@@ -261,16 +324,10 @@ a {
   transition: color var(--transition-fast);
 }
 
-a:hover {
-  color: var(--accent-hover);
-}
-
 /* === Buttons === */
 button {
   font-family: var(--font-sans);
   cursor: pointer;
-  border: none;
-  background: none;
   color: inherit;
   -webkit-tap-highlight-color: transparent;
 }
@@ -438,42 +495,6 @@ button {
   color: var(--text-muted);
 }
 
-.backend-error-btn {
-  padding: 10px 20px;
-  border-radius: var(--radius-md);
-  font-size: 14px;
-  font-weight: 500;
-  font-family: var(--font-sans);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  white-space: nowrap;
-}
-
-.backend-error-btn.primary {
-  background: var(--accent);
-  color: #fff;
-  border: none;
-}
-
-.backend-error-btn.primary:hover:not(:disabled) {
-  background: var(--accent-hover);
-}
-
-.backend-error-btn.primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.backend-error-btn.secondary {
-  color: var(--accent);
-  border: 1px solid var(--glass-border);
-  background: var(--glass-bg-subtle);
-}
-
-.backend-error-btn.secondary:hover {
-  background: var(--accent-soft);
-}
-
 /* === Not Found Page === */
 .not-found-page {
   display: flex;
@@ -530,55 +551,6 @@ button {
   gap: var(--space-3);
 }
 
-.not-found-btn-primary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  padding: 10px 20px;
-  font-size: 14px;
-  font-weight: 500;
-  color: #fff;
-  background: var(--accent);
-  border-radius: var(--radius-md);
-  border: none;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  text-decoration: none;
-}
-
-.not-found-btn-primary:hover {
-  background: var(--accent-hover);
-  color: #fff;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(189, 66, 69, 0.3);
-}
-
-.not-found-btn-secondary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  padding: 10px 20px;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-primary);
-  background: var(--glass-bg-subtle);
-  backdrop-filter: var(--blur-sm);
-  -webkit-backdrop-filter: var(--blur-sm);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.not-found-btn-secondary:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--glass-bg);
-  transform: translateY(-1px);
-}
-
 @media (max-width: 480px) {
   .not-found-card {
     padding: var(--space-8) var(--space-5);
@@ -589,8 +561,7 @@ button {
     width: 100%;
   }
 
-  .not-found-btn-primary,
-  .not-found-btn-secondary {
+  .not-found-actions .btn {
     width: 100%;
   }
 }

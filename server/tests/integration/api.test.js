@@ -528,11 +528,14 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
 
     it('returns 400 for empty content', async () => {
       await engine.createChannel(`empty-msg-${uid}`)
-      const res = await fetch(`${baseUrl}/api/channels/empty-msg-${uid}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: '' }),
-      })
+      const res = await fetch(
+        `${baseUrl}/api/channels/empty-msg-${uid}/messages`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: '' }),
+        }
+      )
       assert.strictEqual(res.status, 400)
     })
   })
@@ -540,8 +543,18 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
   describe('GET /api/channels/:name/messages', () => {
     it('returns messages from a channel', async () => {
       await engine.createChannel(`read-${uid}`)
-      await engine.sendMessage(`read-${uid}`, 'msg1', '0x1234567890abcdef1234567890abcdef12345678', 'TestUser')
-      await engine.sendMessage(`read-${uid}`, 'msg2', '0x1234567890abcdef1234567890abcdef12345678', 'TestUser')
+      await engine.sendMessage(
+        `read-${uid}`,
+        'msg1',
+        '0x1234567890abcdef1234567890abcdef12345678',
+        'TestUser'
+      )
+      await engine.sendMessage(
+        `read-${uid}`,
+        'msg2',
+        '0x1234567890abcdef1234567890abcdef12345678',
+        'TestUser'
+      )
 
       const res = await fetch(`${baseUrl}/api/channels/read-${uid}/messages`)
       const data = await res.json()
@@ -653,7 +666,10 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
 
   describe('POST /api/config', () => {
     it('sets dataPath successfully', async () => {
-      const testPath = path.join(os.tmpdir(), `mostbox-config-test-${Date.now()}`)
+      const testPath = path.join(
+        os.tmpdir(),
+        `mostbox-config-test-${Date.now()}`
+      )
       fs.mkdirSync(testPath, { recursive: true })
 
       const res = await fetch(`${baseUrl}/api/config`, {

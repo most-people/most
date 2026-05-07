@@ -225,7 +225,9 @@ describe('validateFileSize', () => {
   })
 
   it('returns invalid for directory', async () => {
-    const result = await validateFileSize(path.join(projectRoot, 'server/tests'))
+    const result = await validateFileSize(
+      path.join(projectRoot, 'server/tests')
+    )
     assert.strictEqual(result.valid, false)
     assert.strictEqual(result.error, 'Path is not a file')
   })
