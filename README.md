@@ -165,7 +165,6 @@ npx most-box
 - ✅ most:// 链接分享
 - ✅ Web UI 界面
 - ✅ P2P 频道聊天
-- ✅ 去中心化彩票
 - ✅ 网络连通性测试
 - ✅ Electron 桌面客户端
 
