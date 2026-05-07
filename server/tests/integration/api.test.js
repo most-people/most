@@ -515,7 +515,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           content: 'Hello!',
-          author: '0x1234',
+          author: '0x1234567890abcdef1234567890abcdef12345678',
           authorName: 'TestUser',
         }),
       })
@@ -539,8 +539,8 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
   describe('GET /api/channels/:name/messages', () => {
     it('returns messages from a channel', async () => {
       await engine.createChannel('read-channel')
-      await engine.sendMessage('read-channel', 'msg1', '0x1234', 'TestUser')
-      await engine.sendMessage('read-channel', 'msg2', '0x1234', 'TestUser')
+      await engine.sendMessage('read-channel', 'msg1', '0x1234567890abcdef1234567890abcdef12345678', 'TestUser')
+      await engine.sendMessage('read-channel', 'msg2', '0x1234567890abcdef1234567890abcdef12345678', 'TestUser')
 
       const res = await fetch(`${baseUrl}/api/channels/read-channel/messages`)
       const data = await res.json()
@@ -566,7 +566,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         await engine.sendMessage(
           'page-channel',
           `msg${i}`,
-          '0x1234',
+          '0x1234567890abcdef1234567890abcdef12345678',
           'TestUser'
         )
       }
