@@ -33,7 +33,7 @@ import {
 import AppShell, { useAppShell } from '~/components/AppShell'
 import { ModalOverlay, ConfirmModal, InputModal } from '~/components/ui'
 import { api } from '~/server/src/utils/api'
-import { useApp } from '~/app/app/AppProvider'
+import { useAppStore } from '~/app/app/useAppStore'
 import { useDisclosure, useClipboard } from '~/hooks'
 import Link from 'next/link'
 
@@ -449,7 +449,11 @@ function MoveModal({ items, allFolders, currentPath, onMove, onClose }) {
 }
 
 export default function App() {
-  const { isDarkMode, setIsDarkMode, addToast, openSettings } = useApp()
+  const isDarkMode = useAppStore(s => s.isDarkMode)
+  const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
+  const addToast = useAppStore(s => s.addToast)
+  const openSettings = useAppStore(s => s.openSettings)
+  const hasBackend = useAppStore(s => s.hasBackend)
   const [items, setItems] = useState([])
   const [trashItems, setTrashItems] = useState([])
   const [currentFolderId, setCurrentFolderId] = useState(null)
@@ -534,30 +538,39 @@ export default function App() {
       )
     : files
 
-  const refreshFiles = createRefreshHandler(setItems, () =>
-    API.listPublishedFiles()
-      .then(r => r || [])
-      .catch(err => {
-        if (process.env.NODE_ENV === 'development') {
-          console.warn('API fallback to mock data:', err.message)
-          return MOCK_FILES
-        }
-        return []
-      })
-  )
-  const refreshTrash = createRefreshHandler(setTrashItems, () =>
-    API.listTrashFiles()
-      .then(r => r || [])
-      .catch(() => [])
-  )
-  const refreshStorageStats = createRefreshHandler(setStorageStats, () =>
-    API.getStorageStats().catch(err => {
+  const refreshFiles = async () => {
+    try {
+      const result = await API.listPublishedFiles()
+      setItems(result || [])
+    } catch (err) {
       if (process.env.NODE_ENV === 'development') {
-        return MOCK_STORAGE
+        console.warn('API fallback to mock data:', err.message)
+        setItems(MOCK_FILES)
+      } else {
+        setItems([])
       }
-      return { total: 0, used: 0, free: 0, fileCount: 0, trashCount: 0 }
-    })
-  )
+    }
+  }
+  const refreshTrash = async () => {
+    try {
+      const result = await API.listTrashFiles()
+      setTrashItems(result || [])
+    } catch {
+      setTrashItems([])
+    }
+  }
+  const refreshStorageStats = async () => {
+    try {
+      const result = await API.getStorageStats()
+      setStorageStats(result)
+    } catch (err) {
+      if (process.env.NODE_ENV === 'development') {
+        setStorageStats(MOCK_STORAGE)
+      } else {
+        setStorageStats({ total: 0, used: 0, free: 0 })
+      }
+    }
+  }
 
   const handleSelect = id => {
     setSelectedIds(prev =>
@@ -1179,14 +1192,16 @@ export default function App() {
         </>
       }
     >
-      <div className="download-banner">
-        <span>Web 端仅用于界面展示，下载桌面客户端获得完整功能</span>
-        <Link href="/download" className="download-banner-btn">
-          <Download size={14} />
-          下载客户端
-          <ArrowRight size={12} />
-        </Link>
-      </div>
+      {hasBackend === false && (
+        <div className="download-banner">
+          <span>Web 端仅用于界面展示，下载桌面客户端获得完整功能</span>
+          <Link href="/download" className="download-banner-btn">
+            <Download size={14} />
+            下载客户端
+            <ArrowRight size={12} />
+          </Link>
+        </div>
+      )}
 
       {currentView === 'all' && (
         <div className="action-grid">

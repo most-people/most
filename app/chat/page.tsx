@@ -27,7 +27,7 @@ import {
   generateGuestPassword,
 } from '~/server/src/utils/userIdentity.js'
 import { generateAvatar } from '~/server/src/utils/avatar.js'
-import { useApp } from '~/app/app/AppProvider'
+import { useAppStore } from '~/app/app/useAppStore'
 import { useDisclosure, useToggle } from '~/hooks'
 import Link from 'next/link'
 
@@ -107,7 +107,9 @@ const MOCK_MESSAGES: ChannelMessage[] = [
 ]
 
 function ChatPage() {
-  const { isDarkMode, setIsDarkMode } = useApp()
+  const isDarkMode = useAppStore(s => s.isDarkMode)
+  const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
+  const hasBackend = useAppStore(s => s.hasBackend)
   const [channels, setChannels] = useState([])
   const [activeChannel, setActiveChannel] = useState(null)
   const [channelMessages, setChannelMessages] = useState([])
@@ -378,7 +380,10 @@ function ChatPage() {
           API.getChannelPeers(currentChannel.name)
             .then(setChannelPeers)
             .catch(err => {
-              console.warn('[Chat] Failed to fetch peers on event:', err.message)
+              console.warn(
+                '[Chat] Failed to fetch peers on event:',
+                err.message
+              )
             })
         }
         break
@@ -626,14 +631,16 @@ function ChatPage() {
         </button>
       }
     >
-      <div className="download-banner">
-        <span>Web 端仅用于界面展示，下载桌面客户端获得完整功能</span>
-        <Link href="/download" className="download-banner-btn">
-          <Download size={14} />
-          下载客户端
-          <ArrowRight size={12} />
-        </Link>
-      </div>
+      {hasBackend === false && (
+        <div className="download-banner">
+          <span>Web 端仅用于界面展示，下载桌面客户端获得完整功能</span>
+          <Link href="/download" className="download-banner-btn">
+            <Download size={14} />
+            下载客户端
+            <ArrowRight size={12} />
+          </Link>
+        </div>
+      )}
 
       {activeChannel ? (
         <>

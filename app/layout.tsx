@@ -1,6 +1,7 @@
 import '~/app/globals.css'
 import '~/styles/app.css'
 import { ErrorBoundary } from '~/app/error-boundary'
+import AppGlobals from '~/components/AppGlobals'
 
 export const metadata = {
   title: 'MostBox',
@@ -33,6 +34,7 @@ export default function RootLayout({ children }) {
       </head>
       <body>
         <ErrorBoundary>
+          <AppGlobals />
           <GlobalErrorHandler />
           {children}
         </ErrorBoundary>

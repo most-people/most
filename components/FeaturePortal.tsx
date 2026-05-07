@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import Link from 'next/link'
 import {
   FolderOpen,
@@ -14,13 +14,7 @@ import {
   ArrowLeft,
   Download,
 } from 'lucide-react'
-import {
-  setBackendUrl,
-  checkBackendConnection,
-  getBackendUrlExport,
-  detectSameOriginBackend,
-  detectLocalhostBackend,
-} from '~/server/src/utils/api'
+import { useAppStore } from '~/app/app/useAppStore'
 
 /* ─── Types ─── */
 interface FeatureDef {
@@ -150,31 +144,8 @@ const features: FeatureDef[] = [
 
 /* ─── Component ─── */
 export default function FeaturePortal() {
+  const hasBackend = useAppStore(s => s.hasBackend)
   const [selected, setSelected] = useState<string>('app')
-  const [backendConnected, setBackendConnected] = useState<boolean | null>(null)
-  const [checking, setChecking] = useState(true)
-
-  useEffect(() => {
-    async function detect() {
-      const sameOrigin = await detectSameOriginBackend()
-      if (sameOrigin) {
-        setBackendUrl('')
-        setBackendConnected(true)
-        setChecking(false)
-        return
-      }
-      const localhost = await detectLocalhostBackend()
-      if (localhost) {
-        setBackendUrl('http://localhost:1976')
-        setBackendConnected(true)
-        setChecking(false)
-        return
-      }
-      setBackendConnected(false)
-      setChecking(false)
-    }
-    detect()
-  }, [])
 
   const activeFeature = features.find(f => f.id === selected) || features[0]
 
@@ -195,13 +166,13 @@ export default function FeaturePortal() {
             {features.map(f => {
               const isActive = selected === f.id
               const needsBackend = f.requiresBackend
-              const backendStatus = checking
-                ? 'checking'
-                : needsBackend
-                  ? backendConnected
-                    ? 'connected'
-                    : 'disconnected'
-                  : 'none'
+              const backendStatus = needsBackend
+                ? hasBackend === true
+                  ? 'connected'
+                  : hasBackend === false
+                    ? 'disconnected'
+                    : 'checking'
+                : 'none'
 
               return (
                 <button
@@ -306,13 +277,12 @@ export default function FeaturePortal() {
                   进入 {activeFeature.title}
                   <ArrowRight size={16} />
                 </Link>
-                {activeFeature.requiresBackend &&
-                  backendConnected === false && (
-                    <Link href="/download" className="mkt-btn-secondary">
-                      <Download size={16} />
-                      下载桌面客户端
-                    </Link>
-                  )}
+                {activeFeature.requiresBackend && hasBackend === false && (
+                  <Link href="/download" className="mkt-btn-secondary">
+                    <Download size={16} />
+                    下载桌面客户端
+                  </Link>
+                )}
               </div>
             </>
           </div>

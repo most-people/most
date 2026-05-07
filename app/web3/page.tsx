@@ -24,7 +24,7 @@ import {
   Wallet,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
-import { useApp } from '~/app/app/AppProvider'
+import { useAppStore } from '~/app/app/useAppStore'
 import {
   mostWallet,
   mostMnemonic,
@@ -175,7 +175,8 @@ function PemBlock({ label, pem, filename }) {
 /* ─── Main Page ─── */
 
 export default function Web3Page() {
-  const { isDarkMode, setIsDarkMode } = useApp()
+  const isDarkMode = useAppStore(s => s.isDarkMode)
+  const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
 
   /* view */
   const [currentView, setCurrentView] = useState('identity')
