@@ -11,7 +11,7 @@
 ### 1. 克隆仓库
 
 ```bash
-git clone https://github.com/most-box/most.git
+git clone https://github.com/most-people/most.git
 cd most
 ```
 

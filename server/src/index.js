@@ -1350,7 +1350,7 @@ export class MostBoxEngine extends EventEmitter {
     const channel = this.#channels[index]
 
     const appDiscovery = this.#channelDiscoveries.get(name)
-    if (appDiscovery) {
+    if (appDiscovery && this.#swarm) {
       try {
         await this.#swarm.leave(b4a.from(channel.discoveryKey, 'hex'))
       } catch (err) {
@@ -1363,7 +1363,7 @@ export class MostBoxEngine extends EventEmitter {
     }
 
     const chatDiscovery = this.#channelChatDiscoveries.get(name)
-    if (chatDiscovery) {
+    if (chatDiscovery && this.#chatSwarm) {
       try {
         const chatDiscoveryKey = this.#generateChannelChatDiscoveryKey(name)
         await this.#chatSwarm.leave(chatDiscoveryKey)

@@ -1,6 +1,6 @@
 {
   "name": "most-box",
-  "version": "0.0.6",
+  "version": "0.0.8",
   "description": "MostBox - P2P file sharing application",
   "type": "module",
   "main": "electron/main.js",
@@ -81,6 +81,7 @@
   "build": {
     "appId": "com.mostbox.app",
     "productName": "MostBox",
+    "publish": "onTag",
     "directories": {
       "output": "dist"
     },

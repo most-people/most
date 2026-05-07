@@ -12,6 +12,7 @@ const baseUrl = 'http://localhost:' + TEST_PORT
 
 describe('HTTP API (integration)', { timeout: 180000 }, () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'most-api-test-'))
+  const uid = Math.random().toString(36).slice(2, 8)
   let serverInstance
   let engine
   let originalProcessExit
@@ -458,15 +459,15 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     })
 
     it('returns existing channel if already created', async () => {
-      await engine.createChannel('dup-channel')
+      await engine.createChannel(`dup-${uid}`)
       const res = await fetch(`${baseUrl}/api/channels`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: 'dup-channel' }),
+        body: JSON.stringify({ name: `dup-${uid}` }),
       })
       const data = await res.json()
       assert.strictEqual(res.status, 200)
-      assert.strictEqual(data.name, 'dup-channel')
+      assert.strictEqual(data.name, `dup-${uid}`)
     })
 
     it('returns 400 for missing name', async () => {
@@ -498,19 +499,19 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     })
 
     it('returns created channels', async () => {
-      await engine.createChannel('list-test')
+      await engine.createChannel(`list-${uid}`)
       const res = await fetch(`${baseUrl}/api/channels`)
       const data = await res.json()
       assert.strictEqual(res.status, 200)
       assert.ok(data.length >= 1)
-      assert.ok(data.some(c => c.name === 'list-test'))
+      assert.ok(data.some(c => c.name === `list-${uid}`))
     })
   })
 
   describe('POST /api/channels/:name/messages', () => {
     it('sends a message to a channel', async () => {
-      await engine.createChannel('msg-channel')
-      const res = await fetch(`${baseUrl}/api/channels/msg-channel/messages`, {
+      await engine.createChannel(`msg-${uid}`)
+      const res = await fetch(`${baseUrl}/api/channels/msg-${uid}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -526,8 +527,8 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     })
 
     it('returns 400 for empty content', async () => {
-      await engine.createChannel('empty-msg')
-      const res = await fetch(`${baseUrl}/api/channels/empty-msg/messages`, {
+      await engine.createChannel(`empty-msg-${uid}`)
+      const res = await fetch(`${baseUrl}/api/channels/empty-msg-${uid}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: '' }),
@@ -538,11 +539,11 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
 
   describe('GET /api/channels/:name/messages', () => {
     it('returns messages from a channel', async () => {
-      await engine.createChannel('read-channel')
-      await engine.sendMessage('read-channel', 'msg1', '0x1234567890abcdef1234567890abcdef12345678', 'TestUser')
-      await engine.sendMessage('read-channel', 'msg2', '0x1234567890abcdef1234567890abcdef12345678', 'TestUser')
+      await engine.createChannel(`read-${uid}`)
+      await engine.sendMessage(`read-${uid}`, 'msg1', '0x1234567890abcdef1234567890abcdef12345678', 'TestUser')
+      await engine.sendMessage(`read-${uid}`, 'msg2', '0x1234567890abcdef1234567890abcdef12345678', 'TestUser')
 
-      const res = await fetch(`${baseUrl}/api/channels/read-channel/messages`)
+      const res = await fetch(`${baseUrl}/api/channels/read-${uid}/messages`)
       const data = await res.json()
       assert.strictEqual(res.status, 200)
       assert.ok(Array.isArray(data))
@@ -552,8 +553,8 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     })
 
     it('returns empty array for channel with no messages', async () => {
-      await engine.createChannel('empty-channel')
-      const res = await fetch(`${baseUrl}/api/channels/empty-channel/messages`)
+      await engine.createChannel(`empty-${uid}`)
+      const res = await fetch(`${baseUrl}/api/channels/empty-${uid}/messages`)
       const data = await res.json()
       assert.strictEqual(res.status, 200)
       assert.ok(Array.isArray(data))
@@ -561,10 +562,10 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     })
 
     it('supports pagination with limit and offset', async () => {
-      await engine.createChannel('page-channel')
+      await engine.createChannel(`page-${uid}`)
       for (let i = 0; i < 5; i++) {
         await engine.sendMessage(
-          'page-channel',
+          `page-${uid}`,
           `msg${i}`,
           '0x1234567890abcdef1234567890abcdef12345678',
           'TestUser'
@@ -572,7 +573,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       }
 
       const res = await fetch(
-        `${baseUrl}/api/channels/page-channel/messages?limit=2&offset=0`
+        `${baseUrl}/api/channels/page-${uid}/messages?limit=2&offset=0`
       )
       const data = await res.json()
       assert.strictEqual(res.status, 200)
@@ -582,8 +583,8 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
 
   describe('GET /api/channels/:name/peers', () => {
     it('returns empty peers list for new channel', async () => {
-      await engine.createChannel('peers-channel')
-      const res = await fetch(`${baseUrl}/api/channels/peers-channel/peers`)
+      await engine.createChannel(`peers-${uid}`)
+      const res = await fetch(`${baseUrl}/api/channels/peers-${uid}/peers`)
       const data = await res.json()
       assert.strictEqual(res.status, 200)
       assert.ok(Array.isArray(data))
@@ -593,14 +594,14 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
 
   describe('DELETE /api/channels/:name', () => {
     it('leaves a channel', async () => {
-      await engine.createChannel('leave-channel')
-      const res = await fetch(`${baseUrl}/api/channels/leave-channel`, {
+      await engine.createChannel(`leave-${uid}`)
+      const res = await fetch(`${baseUrl}/api/channels/leave-${uid}`, {
         method: 'DELETE',
       })
       const data = await res.json()
       assert.strictEqual(res.status, 200)
       assert.ok(data.success)
-      assert.ok(!data.channels.some(c => c.name === 'leave-channel'))
+      assert.ok(!data.channels.some(c => c.name === `leave-${uid}`))
     })
 
     it('returns 400 for non-existent channel', async () => {

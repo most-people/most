@@ -14,21 +14,21 @@ const platforms = [
     icon: <Monitor size={32} />,
     ext: '.exe',
     desc: 'Windows 10 或更高版本',
-    link: 'https://github.com/most-box/most/releases',
+    link: 'https://github.com/most-people/most/releases/latest',
   },
   {
     name: 'macOS',
     icon: <Apple size={32} />,
     ext: '.dmg',
     desc: 'macOS 12 Monterey 或更高版本',
-    link: 'https://github.com/most-box/most/releases',
+    link: 'https://github.com/most-people/most/releases/latest',
   },
   {
     name: 'Linux',
     icon: <Laptop size={32} />,
     ext: '.AppImage',
     desc: 'Ubuntu 20.04+ / Debian 11+ / 其他主流发行版',
-    link: 'https://github.com/most-box/most/releases',
+    link: 'https://github.com/most-people/most/releases/latest',
   },
 ]
 

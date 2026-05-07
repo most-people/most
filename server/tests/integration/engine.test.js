@@ -7,6 +7,7 @@ import { MostBoxEngine } from '../../src/index.js'
 
 describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'most-engine-test-'))
+  const uid = Math.random().toString(36).slice(2, 8)
   let engine
 
   before(async () => {
@@ -290,20 +291,20 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
 
   describe('createChannel()', () => {
     it('creates a channel with valid name', async () => {
-      const result = await engine.createChannel('test-channel')
-      assert.strictEqual(result.name, 'test-channel')
+      const result = await engine.createChannel(`test-${uid}`)
+      assert.strictEqual(result.name, `test-${uid}`)
       assert.ok(result.key)
     })
 
     it('creates a channel with type', async () => {
-      const result = await engine.createChannel('group-channel', 'group')
-      assert.strictEqual(result.name, 'group-channel')
+      const result = await engine.createChannel(`group-${uid}`, 'group')
+      assert.strictEqual(result.name, `group-${uid}`)
       assert.ok(result.key)
     })
 
     it('returns existing channel if already created', async () => {
-      const first = await engine.createChannel('dup-engine-channel')
-      const second = await engine.createChannel('dup-engine-channel')
+      const first = await engine.createChannel(`dup-${uid}`)
+      const second = await engine.createChannel(`dup-${uid}`)
       assert.strictEqual(first.key, second.key)
     })
 
@@ -330,46 +331,68 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
     })
 
     it('lists created channels', async () => {
-      await engine.createChannel('list-test-engine')
+      await engine.createChannel(`list-${uid}`)
       const channels = engine.listChannels()
-      assert.ok(channels.some(c => c.name === 'list-test-engine'))
+      assert.ok(channels.some(c => c.name === `list-${uid}`))
       assert.strictEqual(typeof channels[0].peerCount, 'number')
     })
   })
 
   describe('sendMessage() and getChannelMessages()', () => {
+    let msgEngine
+    let msgTmpDir
+    const uid = Math.random().toString(36).slice(2, 8)
+
+    before(async () => {
+      msgTmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'most-msg-test-'))
+      const dataPath = path.join(msgTmpDir, 'data')
+      fs.mkdirSync(dataPath, { recursive: true })
+      msgEngine = new MostBoxEngine({ dataPath })
+      await msgEngine.start()
+    })
+
+    after(async () => {
+      if (msgEngine) {
+        await msgEngine.stop().catch(() => {})
+      }
+      fs.rmSync(msgTmpDir, { recursive: true, force: true })
+    })
+
     it('sends and retrieves messages', async () => {
-      await engine.createChannel('msg-test-engine')
-      const msg = await engine.sendMessage('msg-test-engine', 'Hello World')
+      const ch = `msg-${uid}`
+      await msgEngine.createChannel(ch)
+      const msg = await msgEngine.sendMessage(ch, 'Hello World')
       assert.strictEqual(msg.content, 'Hello World')
       assert.strictEqual(msg.type, 'message')
       assert.ok(msg.timestamp)
 
-      const messages = await engine.getChannelMessages('msg-test-engine')
+      const messages = await msgEngine.getChannelMessages(ch)
       assert.ok(Array.isArray(messages))
       assert.strictEqual(messages.length, 1)
       assert.strictEqual(messages[0].content, 'Hello World')
     })
 
     it('retrieves messages in order', async () => {
-      await engine.createChannel('order-test')
-      await engine.sendMessage('order-test', 'first')
-      await engine.sendMessage('order-test', 'second')
-      await engine.sendMessage('order-test', 'third')
+      const ch = `order-${uid}`
+      await msgEngine.createChannel(ch)
+      await msgEngine.sendMessage(ch, 'first')
+      await msgEngine.sendMessage(ch, 'second')
+      await msgEngine.sendMessage(ch, 'third')
 
-      const messages = await engine.getChannelMessages('order-test')
+      const messages = await msgEngine.getChannelMessages(ch)
       assert.strictEqual(messages.length, 3)
       assert.strictEqual(messages[0].content, 'first')
       assert.strictEqual(messages[2].content, 'third')
     })
 
     it('supports pagination with limit', async () => {
-      await engine.createChannel('limit-test')
+      const ch = `limit-${uid}`
+      await msgEngine.createChannel(ch)
       for (let i = 0; i < 5; i++) {
-        await engine.sendMessage('limit-test', `msg${i}`)
+        await msgEngine.sendMessage(ch, `msg${i}`)
       }
 
-      const messages = await engine.getChannelMessages('limit-test', {
+      const messages = await msgEngine.getChannelMessages(ch, {
         limit: 2,
       })
       assert.strictEqual(messages.length, 2)
@@ -378,12 +401,13 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
     })
 
     it('supports pagination with offset', async () => {
-      await engine.createChannel('offset-test')
+      const ch = `offset-${uid}`
+      await msgEngine.createChannel(ch)
       for (let i = 0; i < 5; i++) {
-        await engine.sendMessage('offset-test', `msg${i}`)
+        await msgEngine.sendMessage(ch, `msg${i}`)
       }
 
-      const messages = await engine.getChannelMessages('offset-test', {
+      const messages = await msgEngine.getChannelMessages(ch, {
         limit: 2,
         offset: 2,
       })
@@ -393,16 +417,17 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
     })
 
     it('throws for empty message content', async () => {
-      await engine.createChannel('empty-msg-engine')
+      const ch = `empty-${uid}`
+      await msgEngine.createChannel(ch)
       await assert.rejects(
-        engine.sendMessage('empty-msg-engine', ''),
+        msgEngine.sendMessage(ch, ''),
         /消息内容不能为空/
       )
     })
 
     it('throws for non-existent channel', async () => {
       await assert.rejects(
-        engine.sendMessage('nonexistent', 'test'),
+        msgEngine.sendMessage('nonexistent', 'test'),
         /频道未初始化/
       )
     })
@@ -410,10 +435,10 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
 
   describe('leaveChannel()', () => {
     it('leaves a channel', async () => {
-      await engine.createChannel('leave-test-engine')
-      const result = await engine.leaveChannel('leave-test-engine')
+      await engine.createChannel(`leave-${uid}`)
+      const result = await engine.leaveChannel(`leave-${uid}`)
       assert.ok(Array.isArray(result))
-      assert.ok(!result.some(c => c.name === 'leave-test-engine'))
+      assert.ok(!result.some(c => c.name === `leave-${uid}`))
     })
 
     it('throws for non-existent channel', async () => {
@@ -423,8 +448,8 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
 
   describe('getChannelPeers()', () => {
     it('returns empty array for new channel', async () => {
-      await engine.createChannel('peers-test-engine')
-      const peers = engine.getChannelPeers('peers-test-engine')
+      await engine.createChannel(`peers-${uid}`)
+      const peers = engine.getChannelPeers(`peers-${uid}`)
       assert.ok(Array.isArray(peers))
       assert.strictEqual(peers.length, 0)
     })
@@ -445,13 +470,13 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
 
   describe('joinChannel()', () => {
     it('joins an existing channel by coreKey', async () => {
-      const created = await engine.createChannel('join-test', 'group')
-      const joined = await engine.joinChannel('join-test', created.key)
-      assert.strictEqual(joined.name, 'join-test')
+      const created = await engine.createChannel(`join-${uid}`, 'group')
+      const joined = await engine.joinChannel(`join-${uid}`, created.key)
+      assert.strictEqual(joined.name, `join-${uid}`)
       assert.strictEqual(joined.key, created.key)
 
       const channels = engine.listChannels()
-      assert.ok(channels.find(c => c.name === 'join-test'))
+      assert.ok(channels.find(c => c.name === `join-${uid}`))
     })
 
     it('throws without coreKey for unknown channel', async () => {
@@ -462,9 +487,9 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
     })
 
     it('returns existing if already joined', async () => {
-      await engine.createChannel('existing-join-test')
-      const r1 = await engine.joinChannel('existing-join-test')
-      const r2 = await engine.joinChannel('existing-join-test')
+      await engine.createChannel(`existing-join-${uid}`)
+      const r1 = await engine.joinChannel(`existing-join-${uid}`)
+      const r2 = await engine.joinChannel(`existing-join-${uid}`)
       assert.strictEqual(r1.key, r2.key)
     })
   })
