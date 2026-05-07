@@ -81,7 +81,7 @@
   "build": {
     "appId": "com.mostbox.app",
     "productName": "MostBox",
-    "publish": "onTag",
+    "publish": ["github"],
     "directories": {
       "output": "dist"
     },
