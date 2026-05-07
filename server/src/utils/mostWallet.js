@@ -10,7 +10,7 @@ import {
 import nacl from 'tweetnacl'
 
 const SALT_PREFIX = '/most.box/'
-const PBKDF2_ITERATIONS = 3
+const PBKDF2_ITERATIONS = 50_000
 const PBKDF2_KEY_LENGTH = 32
 
 export function mostWallet(username, password) {

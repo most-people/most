@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useCallback } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { HDNodeWallet } from 'ethers'
 import {
@@ -207,32 +207,31 @@ export default function Web3Page() {
   const [showMnemonicQr, setShowMnemonicQr] = useState(false)
   const [showX25519Private, setShowX25519Private] = useState(false)
 
-  /* compute results */
-  useEffect(() => {
-    if (username.trim()) {
-      const result = mostWallet(username.trim(), password)
-      setWalletResult(result)
-      setMnemonicPhrase(mostMnemonic(result.danger))
-      const k = most25519(result.danger)
-      setKeys(k)
-      setIpns(getIPNS(k.private_key, k.ed_public_key))
-      const pair = getEdKeyPair(k.private_key, k.ed_public_key)
-      setPrivatePem(ed25519ToPKCS8PEM(pair.secretKey))
-      setPublicPem(ed25519PublicKeyToPEM(pair.publicKey))
-    } else {
-      setWalletResult(null)
-      setKeys(null)
-      setIpns('')
-      setPrivatePem('')
-      setPublicPem('')
-      setMnemonicPhrase('')
-    }
+  /* generate state */
+  const [generating, setGenerating] = useState(false)
+
+  /* compute results on button click */
+  const handleGenerate = useCallback(async () => {
+    if (!username.trim()) return
+    setGenerating(true)
+    // Yield to the event loop so the loading state renders before blocking
+    await new Promise(r => setTimeout(r, 0))
+    const result = mostWallet(username.trim(), password)
+    setWalletResult(result)
+    setMnemonicPhrase(mostMnemonic(result.danger))
+    const k = most25519(result.danger)
+    setKeys(k)
+    setIpns(getIPNS(k.private_key, k.ed_public_key))
+    const pair = getEdKeyPair(k.private_key, k.ed_public_key)
+    setPrivatePem(ed25519ToPKCS8PEM(pair.secretKey))
+    setPublicPem(ed25519PublicKeyToPEM(pair.publicKey))
     setDeriveList([])
     setDeriveIndex(0)
     setShowAddressQr(false)
     setShowMnemonicReveal(false)
     setShowMnemonicQr(false)
     setShowX25519Private(false)
+    setGenerating(false)
   }, [username, password])
 
   const deriveBatch = 10
@@ -349,6 +348,24 @@ export default function Web3Page() {
                 </button>
               </div>
             </div>
+            <button
+              className="btn primary full"
+              onClick={handleGenerate}
+              disabled={!username.trim() || generating}
+              type="button"
+            >
+              {generating ? (
+                <>
+                  <span className="spinner" />
+                  生成中...
+                </>
+              ) : (
+                <>
+                  <Wallet size={16} />
+                  生成账户
+                </>
+              )}
+            </button>
           </div>
 
           {/* ── View: Identity & Keys ── */}
