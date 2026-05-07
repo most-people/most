@@ -392,3 +392,16 @@
     opacity: 1;
   }
 }
+
+/* === Login Modal === */
+.login-buttons-row {
+  display: flex;
+  gap: 8px;
+}
+
+.login-buttons-row .btn-primary,
+.login-buttons-row .btn-secondary {
+  flex: 1;
+  padding: 10px;
+  font-size: 13px;
+}

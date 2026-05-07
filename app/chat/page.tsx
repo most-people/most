@@ -128,7 +128,9 @@ function ChatPage() {
   const [loginPassword, setLoginPassword] = useState('')
   const [showPassword, togglePassword] = useToggle()
   const [loginPreviewAvatar, setLoginPreviewAvatar] = useState(null)
+  const [loginPreviewAddress, setLoginPreviewAddress] = useState('')
   const [isLoggingIn, setIsLoggingIn] = useState(false)
+  const [hasPreviewedAvatar, setHasPreviewedAvatar] = useState(false)
 
   const wsRef = useRef(null)
   const channelMessagesEndRef = useRef(null)
@@ -162,15 +164,6 @@ function ChatPage() {
     }
     setUserIdentity(identity)
   }, [])
-
-  useEffect(() => {
-    if (loginUsername.trim() && loginPassword.trim()) {
-      const identity = createLoginIdentity(loginUsername.trim(), loginPassword)
-      setLoginPreviewAvatar(generateAvatar(identity.address))
-    } else {
-      setLoginPreviewAvatar(null)
-    }
-  }, [loginUsername, loginPassword])
 
   const pendingSubscriptionRef = useRef(null)
   const isMountedRef = useRef(true)
@@ -254,19 +247,28 @@ function ChatPage() {
   }, [myPeerId])
 
   useEffect(() => {
-    refreshChannels()
-  }, [])
+    if (hasBackend === true) {
+      refreshChannels()
+    } else {
+      setChannels(MOCK_CHANNELS)
+    }
+  }, [hasBackend])
 
   useEffect(() => {
     if (activeChannel) {
-      API.getChannelMessages(activeChannel.name)
-        .then(setChannelMessages)
-        .catch(() => setChannelMessages(MOCK_MESSAGES))
-      API.getChannelPeers(activeChannel.name)
-        .then(setChannelPeers)
-        .catch(() => setChannelPeers([]))
+      if (hasBackend === true) {
+        API.getChannelMessages(activeChannel.name)
+          .then(setChannelMessages)
+          .catch(() => setChannelMessages([]))
+        API.getChannelPeers(activeChannel.name)
+          .then(setChannelPeers)
+          .catch(() => setChannelPeers([]))
+      } else {
+        setChannelMessages(MOCK_MESSAGES)
+        setChannelPeers([])
+      }
     }
-  }, [activeChannel])
+  }, [activeChannel, hasBackend])
 
   useEffect(() => {
     const channelParam = new URLSearchParams(window.location.search).get(
@@ -295,6 +297,7 @@ function ChatPage() {
   }, [activeChannel, channels])
 
   async function syncChannelMessages(channelName) {
+    if (hasBackend !== true) return
     try {
       const messages = await API.getChannelMessages(channelName)
       setChannelMessages(prev => {
@@ -315,7 +318,7 @@ function ChatPage() {
   function refreshChannels() {
     API.getChannels()
       .then(setChannels)
-      .catch(() => setChannels(MOCK_CHANNELS))
+      .catch(() => setChannels([]))
   }
 
   function wsSend(event, data) {
@@ -407,12 +410,17 @@ function ChatPage() {
       `?channel=${encodeURIComponent(channel.name)}`
     )
     try {
-      const messages = await API.getChannelMessages(channel.name)
-      setChannelMessages(messages)
-      const peers = await API.getChannelPeers(channel.name)
-      setChannelPeers(peers)
+      if (hasBackend === true) {
+        const messages = await API.getChannelMessages(channel.name)
+        setChannelMessages(messages)
+        const peers = await API.getChannelPeers(channel.name)
+        setChannelPeers(peers)
+      } else {
+        setChannelMessages(MOCK_MESSAGES)
+        setChannelPeers([])
+      }
     } catch {
-      setChannelMessages(MOCK_MESSAGES)
+      setChannelMessages([])
       setChannelPeers([])
     }
   }
@@ -458,9 +466,40 @@ function ChatPage() {
     }
   }
 
+  function handlePreviewAvatar() {
+    if (!loginUsername.trim() || !loginPassword.trim()) {
+      setError('请输入用户名和密码')
+      setTimeout(() => setError(''), 3000)
+      return
+    }
+    const identity = createLoginIdentity(loginUsername.trim(), loginPassword)
+    setLoginPreviewAvatar(generateAvatar(identity.address))
+    setLoginPreviewAddress(identity.address)
+    setHasPreviewedAvatar(true)
+  }
+
+  function handleLoginUsernameChange(e) {
+    setLoginUsername(e.target.value)
+    setHasPreviewedAvatar(false)
+    setLoginPreviewAvatar(null)
+    setLoginPreviewAddress('')
+  }
+
+  function handleLoginPasswordChange(e) {
+    setLoginPassword(e.target.value)
+    setHasPreviewedAvatar(false)
+    setLoginPreviewAvatar(null)
+    setLoginPreviewAddress('')
+  }
+
   function handleLogin() {
     if (!loginUsername.trim() || !loginPassword.trim()) {
       setError('请输入用户名和密码')
+      setTimeout(() => setError(''), 3000)
+      return
+    }
+    if (!hasPreviewedAvatar) {
+      setError('请先预览并确认头像')
       setTimeout(() => setError(''), 3000)
       return
     }
@@ -473,6 +512,7 @@ function ChatPage() {
     loginModal.close()
     setLoginUsername('')
     setLoginPassword('')
+    setHasPreviewedAvatar(false)
   }
 
   function handleLogout() {
@@ -744,7 +784,7 @@ function ChatPage() {
         <div className="login-modal-overlay">
           <div className="login-modal">
             <div className="login-modal-header">
-              <h3>登录 / 注册</h3>
+              <h3>登录</h3>
               <button
                 className="login-modal-close"
                 onClick={() => loginModal.close()}
@@ -758,13 +798,17 @@ function ChatPage() {
                 src={loginPreviewAvatar || '/pwa-512x512.png'}
                 alt="avatar"
               />
-              <p className="login-tip">Most People</p>
+              <p className="login-tip">
+                {loginPreviewAddress
+                  ? `${loginPreviewAddress.slice(0, 6)}...${loginPreviewAddress.slice(-4)}`
+                  : 'Most People'}
+              </p>
               <input
                 type="text"
                 className="login-input"
                 placeholder="用户名"
                 value={loginUsername}
-                onChange={e => setLoginUsername(e.target.value)}
+                onChange={handleLoginUsernameChange}
                 onKeyDown={e => {
                   if (e.key === 'Enter') handleLogin()
                 }}
@@ -776,7 +820,7 @@ function ChatPage() {
                   className="login-input"
                   placeholder="密码"
                   value={loginPassword}
-                  onChange={e => setLoginPassword(e.target.value)}
+                  onChange={handleLoginPasswordChange}
                   onKeyDown={e => {
                     if (e.key === 'Enter') handleLogin()
                   }}
@@ -789,13 +833,22 @@ function ChatPage() {
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
-              <button
-                className="login-submit"
-                onClick={handleLogin}
-                disabled={isLoggingIn}
-              >
-                {isLoggingIn ? '登录中...' : '登录 / 注册'}
-              </button>
+              <div className="login-buttons-row">
+                <button
+                  className="btn-secondary"
+                  onClick={handlePreviewAvatar}
+                  disabled={hasPreviewedAvatar}
+                >
+                  {hasPreviewedAvatar ? '已预览' : '预览头像'}
+                </button>
+                <button
+                  className="btn-primary"
+                  onClick={handleLogin}
+                  disabled={isLoggingIn || !hasPreviewedAvatar}
+                >
+                  {isLoggingIn ? '登录中...' : '登录'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

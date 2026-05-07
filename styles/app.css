@@ -1965,30 +1965,6 @@
   }
 }
 
-.login-submit {
-  width: 100%;
-  padding: 10px;
-  border-radius: var(--radius-md);
-  border: none;
-  background: var(--accent);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-
-  &:hover:not(:disabled) {
-    background: var(--accent-hover);
-    box-shadow: 0 4px 16px rgba(94, 106, 210, 0.3);
-    transform: translateY(-1px);
-  }
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-}
-
 /* === Preview Text Container === */
 .preview-text-container {
   width: 90vw;

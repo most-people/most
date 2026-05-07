@@ -27,7 +27,7 @@ function SettingsDrawer({ onClose, addToast, isDarkMode }) {
         <div className="drawer-content">
           <div className="drawer-section drawer-about">
             <h3>MostBox</h3>
-            <p>版本 0.0.6</p>
+            <p>版本 0.1.0</p>
             <p className="drawer-subtitle">Hyperswarm · Hyperdrive · IPFS</p>
           </div>
 
@@ -54,7 +54,9 @@ function SettingsDrawer({ onClose, addToast, isDarkMode }) {
                     >
                       {p.icon}
                       <span>{p.name}</span>
-                      <span className="download-platform-mini-ext">{p.ext}</span>
+                      <span className="download-platform-mini-ext">
+                        {p.ext}
+                      </span>
                     </Link>
                   ))}
                 </div>
