@@ -3,6 +3,8 @@ import {
   checkBackendConnection,
   detectSameOriginBackend,
   detectLocalhostBackend,
+  setBackendUrl,
+  getBackendUrlExport,
 } from '~/server/src/utils/api'
 
 interface ToastItem {
@@ -35,18 +37,23 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Backend
   hasBackend: null,
   checkBackend: async () => {
-    const connected = await checkBackendConnection()
-    if (connected) {
-      set({ hasBackend: true })
-      return
+    const existing = getBackendUrlExport()
+    if (existing) {
+      const connected = await checkBackendConnection()
+      if (connected) {
+        set({ hasBackend: true })
+        return
+      }
     }
     const sameOrigin = await detectSameOriginBackend()
     if (sameOrigin) {
+      setBackendUrl('')
       set({ hasBackend: true })
       return
     }
     const localhost = await detectLocalhostBackend()
     if (localhost) {
+      setBackendUrl('http://localhost:1976')
       set({ hasBackend: true })
     } else {
       set({ hasBackend: false })
