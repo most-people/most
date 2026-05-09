@@ -81,6 +81,32 @@ describe('calculateCid (real file I/O)', () => {
     assert.ok(result.cid.toString().startsWith('b'), 'CID should be v1 format')
   })
 
+  it('matches golden CID samples for protocol stability', async () => {
+    const samples = [
+      {
+        name: 'empty',
+        content: Buffer.alloc(0),
+        expected:
+          'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku',
+      },
+      {
+        name: 'hello-world',
+        content: Buffer.from('hello world'),
+        expected:
+          'bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e',
+      }
+    ]
+
+    for (const sample of samples) {
+      const result = await calculateCid(sample.content)
+      assert.strictEqual(
+        result.cid.toString(),
+        sample.expected,
+        `${sample.name} CID changed`
+      )
+    }
+  })
+
   it('throws error for non-existent file', async () => {
     const nonExistentPath = path.join(tmpDir, 'does-not-exist.txt')
     await assert.rejects(calculateCid(nonExistentPath), err => {
