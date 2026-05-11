@@ -19,6 +19,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { calculateCid, parseMostLink } from './core/cid.js'
+import { calculateChunkMerkleRoot } from './core/merkle.js'
 import {
   sanitizeFilename,
   validateAndSanitizePath,
@@ -409,6 +410,7 @@ export class MostBoxEngine extends EventEmitter {
 
     const { cid: rootCid } = await calculateCid(content)
     const cidString = rootCid.toString()
+    const merkle = await calculateChunkMerkleRoot(content)
 
     // 检查相同内容是否已存在
     const existingIndex = this.#publishedFiles.findIndex(
@@ -418,8 +420,11 @@ export class MostBoxEngine extends EventEmitter {
       const existing = this.#publishedFiles[existingIndex]
       return {
         cid: cidString,
-        link: `most://${cidString}`,
+        link: `most://${cidString}?filename=${encodeURIComponent(existing.fileName)}&r=${existing.chunkMerkleRoot}`,
         fileName: existing.fileName,
+        chunkMerkleRoot: existing.chunkMerkleRoot,
+        chunkSize: existing.chunkSize,
+        chunkCount: existing.chunkCount,
         alreadyExists: true,
       }
     }
@@ -486,6 +491,9 @@ export class MostBoxEngine extends EventEmitter {
       fileName: safeFileName,
       cid: cidString,
       driveName: name,
+      chunkMerkleRoot: merkle.chunkMerkleRoot,
+      chunkSize: merkle.chunkSize,
+      chunkCount: merkle.chunkCount,
       publishedAt: new Date().toISOString(),
       starred: false,
     })
@@ -493,8 +501,11 @@ export class MostBoxEngine extends EventEmitter {
 
     const result = {
       cid: cidString,
-      link: `most://${cidString}?filename=${encodeURIComponent(safeFileName)}`,
+      link: `most://${cidString}?filename=${encodeURIComponent(safeFileName)}&r=${merkle.chunkMerkleRoot}`,
       fileName: safeFileName,
+      chunkMerkleRoot: merkle.chunkMerkleRoot,
+      chunkSize: merkle.chunkSize,
+      chunkCount: merkle.chunkCount,
     }
 
     this.emit('publish:success', result)
@@ -698,6 +709,14 @@ export class MostBoxEngine extends EventEmitter {
           )
         }
 
+        const merkle = await calculateChunkMerkleRoot(savePath)
+        if (parsed.chunkMerkleRoot !== merkle.chunkMerkleRoot) {
+          fs.unlinkSync(savePath)
+          throw new IntegrityError(
+            `File content Merkle root mismatch. File may be corrupted or tampered.`
+          )
+        }
+
         // Write file content to Hyperdrive for seeding to other peers
         const driveKey = '/' + cidString
         const existingEntry = await drive.entry(driveKey)
@@ -733,6 +752,9 @@ export class MostBoxEngine extends EventEmitter {
             fileName: sanitizedFileName,
             cid: cidString,
             driveName: name,
+            chunkMerkleRoot: merkle.chunkMerkleRoot,
+            chunkSize: merkle.chunkSize,
+            chunkCount: merkle.chunkCount,
             publishedAt: new Date().toISOString(),
             starred: false,
           })
@@ -764,8 +786,11 @@ export class MostBoxEngine extends EventEmitter {
     return files.map(f => ({
       fileName: f.fileName,
       cid: f.cid,
-      link: `most://${f.cid}`,
+      link: `most://${f.cid}?filename=${encodeURIComponent(f.fileName)}&r=${f.chunkMerkleRoot}`,
       publishedAt: f.publishedAt,
+      chunkMerkleRoot: f.chunkMerkleRoot,
+      chunkSize: f.chunkSize,
+      chunkCount: f.chunkCount,
       starred: f.starred || false,
     }))
   }
@@ -804,6 +829,9 @@ export class MostBoxEngine extends EventEmitter {
         fileName: fileRecord.fileName,
         cid: fileRecord.cid,
         driveName: fileRecord.driveName,
+        chunkMerkleRoot: fileRecord.chunkMerkleRoot,
+        chunkSize: fileRecord.chunkSize,
+        chunkCount: fileRecord.chunkCount,
         publishedAt: fileRecord.publishedAt,
         starred: fileRecord.starred || false,
         deletedAt: new Date().toISOString(),
@@ -825,8 +853,11 @@ export class MostBoxEngine extends EventEmitter {
     return this.#trashFiles.map(f => ({
       fileName: f.fileName,
       cid: f.cid,
-      link: `most://${f.cid}`,
+      link: `most://${f.cid}?filename=${encodeURIComponent(f.fileName)}&r=${f.chunkMerkleRoot}`,
       publishedAt: f.publishedAt,
+      chunkMerkleRoot: f.chunkMerkleRoot,
+      chunkSize: f.chunkSize,
+      chunkCount: f.chunkCount,
       starred: f.starred || false,
       deletedAt: f.deletedAt,
     }))
@@ -854,6 +885,9 @@ export class MostBoxEngine extends EventEmitter {
       fileName: fileRecord.fileName,
       cid: fileRecord.cid,
       driveName,
+      chunkMerkleRoot: fileRecord.chunkMerkleRoot,
+      chunkSize: fileRecord.chunkSize,
+      chunkCount: fileRecord.chunkCount,
       publishedAt: fileRecord.publishedAt,
       starred: fileRecord.starred || false,
     })
@@ -1007,7 +1041,7 @@ export class MostBoxEngine extends EventEmitter {
     return {
       cid,
       fileName: safeFileName,
-      link: `most://${cid}`,
+      link: `most://${cid}?filename=${encodeURIComponent(safeFileName)}&r=${this.#publishedFiles[index].chunkMerkleRoot}`,
     }
   }
 
@@ -1034,7 +1068,7 @@ export class MostBoxEngine extends EventEmitter {
         updatedFiles.push({
           cid: file.cid,
           fileName: file.fileName,
-          link: `most://${file.cid}`,
+          link: `most://${file.cid}?filename=${encodeURIComponent(file.fileName)}&r=${file.chunkMerkleRoot}`,
         })
       }
     }

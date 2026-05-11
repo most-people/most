@@ -5,7 +5,7 @@ import { X, Download, Monitor, Apple, Laptop } from 'lucide-react'
 import Link from 'next/link'
 import { useAppStore } from '~/app/app/useAppStore'
 
-function SettingsDrawer({ onClose, addToast, isDarkMode }) {
+function SettingsDrawer({ onClose }) {
   const hasBackend = useAppStore(s => s.hasBackend)
   const platforms = [
     { name: 'Windows', icon: <Monitor size={16} />, ext: '.exe' },

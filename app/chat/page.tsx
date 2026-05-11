@@ -17,7 +17,6 @@ import AppShell from '~/components/AppShell'
 import { InputModal, ConfirmModal } from '~/components/ui'
 import { api } from '~/server/src/utils/api'
 import {
-  getDisplayName,
   loadIdentity,
   saveIdentity,
   saveGuestIdentity,
@@ -76,13 +75,14 @@ const API = {
     api.get<string[]>(`/api/channels/${encodeURIComponent(name)}/peers`).json(),
 }
 
-const MOCK_CHANNELS: Channel[] = [
+// Demo data for no-backend marketing preview. Not compatibility code.
+const DEMO_CHANNELS: Channel[] = [
   { name: 'general' },
   { name: 'random' },
   { name: 'tech' },
 ]
 
-const MOCK_MESSAGES: ChannelMessage[] = [
+const DEMO_MESSAGES: ChannelMessage[] = [
   {
     id: 'm1',
     author: 'user1',
@@ -113,7 +113,6 @@ function ChatPage() {
   const [channels, setChannels] = useState([])
   const [activeChannel, setActiveChannel] = useState(null)
   const [channelMessages, setChannelMessages] = useState([])
-  const [channelPeers, setChannelPeers] = useState([])
   const [channelInput, setChannelInput] = useState('')
   const [showJoinChannel, joinChannelModal] = useDisclosure(false)
   const [myPeerId, setMyPeerId] = useState('')
@@ -129,7 +128,6 @@ function ChatPage() {
   const [showPassword, togglePassword] = useToggle()
   const [loginPreviewAvatar, setLoginPreviewAvatar] = useState(null)
   const [loginPreviewAddress, setLoginPreviewAddress] = useState('')
-  const [isLoggingIn, setIsLoggingIn] = useState(false)
   const [hasPreviewedAvatar, setHasPreviewedAvatar] = useState(false)
 
   const wsRef = useRef(null)
@@ -185,7 +183,6 @@ function ChatPage() {
 
   useEffect(() => {
     function connectWs() {
-      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
       const ws = new WebSocket(
         `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws`
       )
@@ -250,7 +247,7 @@ function ChatPage() {
     if (hasBackend === true) {
       refreshChannels()
     } else {
-      setChannels(MOCK_CHANNELS)
+      setChannels(DEMO_CHANNELS)
     }
   }, [hasBackend])
 
@@ -260,12 +257,8 @@ function ChatPage() {
         API.getChannelMessages(activeChannel.name)
           .then(setChannelMessages)
           .catch(() => setChannelMessages([]))
-        API.getChannelPeers(activeChannel.name)
-          .then(setChannelPeers)
-          .catch(() => setChannelPeers([]))
       } else {
-        setChannelMessages(MOCK_MESSAGES)
-        setChannelPeers([])
+        setChannelMessages(DEMO_MESSAGES)
       }
     }
   }, [activeChannel, hasBackend])
@@ -308,11 +301,8 @@ function ChatPage() {
         if (newMsgs.length === 0) return prev
         return [...prev, ...newMsgs]
       })
-      const peers = await API.getChannelPeers(channelName)
-      setChannelPeers(peers)
-    } catch {
-      setChannelPeers([])
-    }
+      await API.getChannelPeers(channelName)
+    } catch {}
   }
 
   function refreshChannels() {
@@ -369,25 +359,18 @@ function ChatPage() {
             if (exists) return prev
             return [...prev, { ...data.message, id: messageId }]
           })
-          API.getChannelPeers(currentChannel.name)
-            .then(setChannelPeers)
-            .catch(err => {
-              console.warn('[Chat] Failed to fetch peers:', err.message)
-            })
+          API.getChannelPeers(currentChannel.name).catch(err => {
+            console.warn('[Chat] Failed to fetch peers:', err.message)
+          })
         }
         break
 
       case 'channel:peer:online':
       case 'channel:peer:offline':
         if (currentChannel) {
-          API.getChannelPeers(currentChannel.name)
-            .then(setChannelPeers)
-            .catch(err => {
-              console.warn(
-                '[Chat] Failed to fetch peers on event:',
-                err.message
-              )
-            })
+          API.getChannelPeers(currentChannel.name).catch(err => {
+            console.warn('[Chat] Failed to fetch peers on event:', err.message)
+          })
         }
         break
 
@@ -413,15 +396,12 @@ function ChatPage() {
       if (hasBackend === true) {
         const messages = await API.getChannelMessages(channel.name)
         setChannelMessages(messages)
-        const peers = await API.getChannelPeers(channel.name)
-        setChannelPeers(peers)
+        await API.getChannelPeers(channel.name)
       } else {
-        setChannelMessages(MOCK_MESSAGES)
-        setChannelPeers([])
+        setChannelMessages(DEMO_MESSAGES)
       }
     } catch {
       setChannelMessages([])
-      setChannelPeers([])
     }
   }
 
@@ -435,7 +415,6 @@ function ChatPage() {
       if (activeChannel?.name === name) {
         setActiveChannel(null)
         setChannelMessages([])
-        setChannelPeers([])
         const url = new URL(window.location.href)
         url.searchParams.delete('channel')
         window.history.pushState({}, '', url.pathname)
@@ -850,9 +829,9 @@ function ChatPage() {
                 <button
                   className="btn btn-primary"
                   onClick={handleLogin}
-                  disabled={isLoggingIn || !hasPreviewedAvatar}
+                  disabled={!hasPreviewedAvatar}
                 >
-                  {isLoggingIn ? '登录中...' : '登录'}
+                  登录
                 </button>
               </div>
             </div>

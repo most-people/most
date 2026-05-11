@@ -60,40 +60,56 @@ describe('validateCidString', () => {
 })
 
 describe('parseMostLink', () => {
-  it('extracts CID from most:// link', () => {
-    const result = parseMostLink('most://bafkreidye2j2fjw4kj3wlJNN4k3qQ')
+  it('extracts CID, filename and r from most:// link', () => {
+    const result = parseMostLink(
+      'most://bafkreidye2j2fjw4kj3wlJNN4k3qQ?filename=a.txt&r=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+    )
     assert.strictEqual(result.cid, 'bafkreidye2j2fjw4kj3wlJNN4k3qQ')
+    assert.strictEqual(result.fileName, 'a.txt')
+    assert.strictEqual(
+      result.chunkMerkleRoot,
+      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+    )
     assert.strictEqual(result.error, undefined)
   })
 
-  it('handles CID without most:// prefix', () => {
+  it('rejects CID without most:// prefix', () => {
     const result = parseMostLink('bafkreidye2j2fjw4kj3wlJNN4k3qQ')
-    assert.strictEqual(result.cid, 'bafkreidye2j2fjw4kj3wlJNN4k3qQ')
-    assert.strictEqual(result.error, undefined)
+    assert.strictEqual(result.cid, '')
+    assert.strictEqual(result.error, 'Link must be a valid most:// URL')
   })
 
-  it('strips trailing slashes', () => {
+  it('rejects trailing slashes', () => {
     const result = parseMostLink('most://bafkreidye2j2fjw4kj3wlJNN4k3qQ///')
-    assert.strictEqual(result.cid, 'bafkreidye2j2fjw4kj3wlJNN4k3qQ')
+    assert.strictEqual(result.cid, '')
+    assert.strictEqual(result.error, 'Link path is not supported')
   })
 
-  it('strips single trailing slash', () => {
-    const result = parseMostLink('most://bafkreidye2j2fjw4kj3wlJNN4k3qQ/')
-    assert.strictEqual(result.cid, 'bafkreidye2j2fjw4kj3wlJNN4k3qQ')
-  })
-
-  it('strips extra path components', () => {
+  it('rejects extra path components', () => {
     const result = parseMostLink(
       'most://bafkreidye2j2fjw4kj3wlJNN4k3qQ/some/path'
     )
-    assert.strictEqual(result.cid, 'bafkreidye2j2fjw4kj3wlJNN4k3qQ')
+    assert.strictEqual(result.cid, '')
+    assert.strictEqual(result.error, 'Link path is not supported')
   })
 
-  it('strips query string', () => {
+  it('rejects links without filename', () => {
     const result = parseMostLink(
-      'most://bafkreidye2j2fjw4kj3wlJNN4k3qQ?foo=bar'
+      'most://bafkreidye2j2fjw4kj3wlJNN4k3qQ?r=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
     )
-    assert.strictEqual(result.cid, 'bafkreidye2j2fjw4kj3wlJNN4k3qQ')
+    assert.strictEqual(result.cid, '')
+    assert.strictEqual(result.error, 'filename is required')
+  })
+
+  it('rejects links without r', () => {
+    const result = parseMostLink(
+      'most://bafkreidye2j2fjw4kj3wlJNN4k3qQ?filename=a.txt'
+    )
+    assert.strictEqual(result.cid, '')
+    assert.strictEqual(
+      result.error,
+      'r must be a 64-character hex string'
+    )
   })
 
   it('rejects invalid CID format', () => {
@@ -116,14 +132,9 @@ describe('parseMostLink', () => {
     )
   })
 
-  it('trims whitespace inside CID', () => {
-    const result = parseMostLink('most://  bafkreidye2j2fjw4kj3wlJNN4k3qQ  ')
-    assert.strictEqual(result.cid, 'bafkreidye2j2fjw4kj3wlJNN4k3qQ')
-  })
-
-  it('handles CID v0 with conversion attempt', () => {
+  it('rejects CID v0', () => {
     const result = parseMostLink(
-      'most://QmT5NvUtoM5nWFfrQdVrFtvGfKFmG7AHE8P34isapyhCxX'
+      'most://QmT5NvUtoM5nWFfrQdVrFtvGfKFmG7AHE8P34isapyhCxX?filename=a.txt&r=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
     )
     assert.strictEqual(
       result.error,

@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useMediaQuery } from '@mantine/hooks'
 import Link from 'next/link'
 import { Sun, Moon, Menu } from 'lucide-react'
 import { LogoIcon } from '~/components/icons/LogoIcon'

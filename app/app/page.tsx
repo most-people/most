@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   Upload,
   Sun,
@@ -22,15 +22,11 @@ import {
   HardDrive,
   Search,
   Info,
-  Power,
   Edit2,
   Loader,
-  Globe,
-  ChevronDown,
-  Settings,
   ArrowRight,
 } from 'lucide-react'
-import AppShell, { useAppShell } from '~/components/AppShell'
+import AppShell from '~/components/AppShell'
 import { ModalOverlay, ConfirmModal, InputModal } from '~/components/ui'
 import { api } from '~/server/src/utils/api'
 import { useAppStore } from '~/app/app/useAppStore'
@@ -110,7 +106,8 @@ const API = {
     api.post('/api/folder/rename', { json: { oldPath, newPath } }).json<any>(),
 }
 
-const MOCK_FILES = [
+// Demo data for no-backend marketing preview. Not compatibility code.
+const DEMO_FILES = [
   {
     cid: 'mock1',
     fileName: '示例文档.pdf',
@@ -162,7 +159,7 @@ const MOCK_FILES = [
   },
 ]
 
-const MOCK_STORAGE = {
+const DEMO_STORAGE = {
   total: 107374182400,
   used: 8053063680,
   free: 99321118720,
@@ -315,15 +312,7 @@ function generateBreadcrumbs(currentPath) {
   ]
 }
 
-const createRefreshHandler = (setter, apiMethod) => async () => {
-  try {
-    setter(await apiMethod())
-  } catch (err) {
-    console.info(err)
-  }
-}
-
-function FileCard({ file, isSelected, isDarkMode, onSelect, onPreview }) {
+function FileCard({ file, isSelected, onSelect, onPreview }) {
   const subtype = getFileSubtype(file.fileName)
 
   return (
@@ -344,7 +333,7 @@ function FileCard({ file, isSelected, isDarkMode, onSelect, onPreview }) {
   )
 }
 
-function FolderCard({ folder, isDarkMode, onClick }) {
+function FolderCard({ folder, onClick }) {
   return (
     <div onClick={onClick} className="card">
       <div className="card-icon folder">
@@ -469,7 +458,6 @@ export default function App() {
   const [isTransferPanelOpen, transferPanel] = useDisclosure(false)
   const [searchQuery, setSearchQuery] = useState('')
   const { copy: copyLink, copied: linkCopied } = useClipboard({ timeout: 2000 })
-  const [peerCount, setPeerCount] = useState(0)
   const [storageStats, setStorageStats] = useState({
     total: 0,
     used: 0,
@@ -479,53 +467,15 @@ export default function App() {
   const [confirmModal, setConfirmModal] = useState(null)
   const [inputModal, setInputModal] = useState(null)
   const [inputLoading, setInputLoading] = useState(false)
-  const [renameTarget, setRenameTarget] = useState(null)
   const [previewText, setPreviewText] = useState('')
   const [previewLoading, setPreviewLoading] = useState(false)
-  const [previewMediaLoading, setPreviewMediaLoading] = useState(false)
-  const [previewLoaded, setPreviewLoaded] = useState(false)
-  const previewMediaRef = useRef(null)
-  const previewTextRef = useRef(null)
 
   useEffect(() => {
-    if (
-      previewItem &&
-      (previewItem.subtype === 'image' || previewItem.subtype === 'video')
-    ) {
-      setPreviewMediaLoading(true)
-      setPreviewLoaded(false)
-    }
     if (previewItem && previewItem.subtype === 'text') {
       setPreviewText('')
       loadPreviewText(previewItem.cid)
     }
   }, [previewItem?.cid])
-
-  useEffect(() => {
-    const media = previewMediaRef.current
-    if (!media) return
-
-    const handleLoad = () => setPreviewMediaLoading(false)
-    const handleError = () => setPreviewMediaLoading(false)
-
-    if (previewItem?.subtype === 'image') {
-      if (media.complete) {
-        setPreviewMediaLoading(false)
-      } else {
-        media.addEventListener('load', handleLoad)
-        media.addEventListener('error', handleError)
-      }
-    } else if (previewItem?.subtype === 'video') {
-      media.addEventListener('canplay', handleLoad)
-      media.addEventListener('error', handleError)
-    }
-
-    return () => {
-      media.removeEventListener('load', handleLoad)
-      media.removeEventListener('error', handleError)
-      media.removeEventListener('canplay', handleLoad)
-    }
-  }, [previewItem])
 
   const currentPath = currentFolderId || ''
   const allFolders = getUniqueFolders(items)
@@ -543,13 +493,8 @@ export default function App() {
     try {
       const result = await API.listPublishedFiles()
       setItems(result || [])
-    } catch (err) {
-      if (process.env.NODE_ENV === 'development') {
-        console.warn('API fallback to mock data:', err.message)
-        setItems(MOCK_FILES)
-      } else {
-        setItems([])
-      }
+    } catch {
+      setItems(DEMO_FILES)
     }
   }
   const refreshTrash = async () => {
@@ -564,12 +509,8 @@ export default function App() {
     try {
       const result = await API.getStorageStats()
       setStorageStats(result)
-    } catch (err) {
-      if (process.env.NODE_ENV === 'development') {
-        setStorageStats(MOCK_STORAGE)
-      } else {
-        setStorageStats({ total: 0, used: 0, free: 0 })
-      }
+    } catch {
+      setStorageStats(DEMO_STORAGE)
     }
   }
 
@@ -577,78 +518,6 @@ export default function App() {
     setSelectedIds(prev =>
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     )
-  }
-
-  const handleDelete = async id => {
-    setConfirmModal({
-      title: '确认删除',
-      message: '确定要删除吗？',
-      confirmText: '删除',
-      danger: true,
-      onConfirm: async () => {
-        setConfirmModal(null)
-        try {
-          await API.deletePublishedFile(id)
-          setSelectedIds(prev => prev.filter(i => i !== id))
-          addToast('已删除', 'success')
-          refreshFiles()
-          refreshTrash()
-          refreshStorageStats()
-        } catch {
-          addToast('删除失败', 'error')
-        }
-      },
-    })
-  }
-
-  const handleFolderDelete = async folder => {
-    const toDelete = items.filter(
-      i =>
-        parseName(i.fileName).folder.toLowerCase() === folder.path.toLowerCase()
-    )
-    setConfirmModal({
-      title: '确认删除',
-      message:
-        toDelete.length > 0
-          ? `确定要删除文件夹中的 ${toDelete.length} 个文件吗？`
-          : '确定要删除此文件夹吗？',
-      confirmText: '删除',
-      danger: true,
-      onConfirm: async () => {
-        setConfirmModal(null)
-        try {
-          for (const f of toDelete) {
-            if (f.cid) await API.deletePublishedFile(f.cid)
-          }
-          addToast('已删除', 'success')
-          refreshFiles()
-          refreshTrash()
-          refreshStorageStats()
-        } catch {
-          addToast('删除失败', 'error')
-        }
-      },
-    })
-  }
-
-  const handlePermanentDelete = async cid => {
-    setConfirmModal({
-      title: '永久删除',
-      message: '确定要永久删除吗？此操作不可恢复！',
-      confirmText: '永久删除',
-      danger: true,
-      onConfirm: async () => {
-        setConfirmModal(null)
-        try {
-          await API.permanentDeleteTrashFile(cid)
-          addToast('已永久删除', 'success')
-          refreshTrash()
-          refreshStorageStats()
-        } catch {
-          addToast('删除失败', 'error')
-        }
-      },
-    })
   }
 
   const handleRestore = async cid => {
@@ -831,7 +700,7 @@ export default function App() {
           )
           addToast(`${file.name} 上传成功`, 'success')
         }
-      } catch (err) {
+      } catch {
         setTransfers(prev =>
           prev.map(t => (t.id === transferId ? { ...t, status: 'error' } : t))
         )
@@ -870,14 +739,19 @@ export default function App() {
   }
 
   const handleCopyLink = () => {
-    copyLink(`most://${shareItem.cid}?filename=${shareItem.fileName}`)
+    copyLink(
+      `most://${shareItem.cid}?filename=${encodeURIComponent(shareItem.fileName)}&r=${shareItem.chunkMerkleRoot}`
+    )
   }
 
   const [isDownloading, setIsDownloading] = useState(false)
 
   const handleDownloadSharedFile = async () => {
     if (!downloadLink.trim() || !downloadLink.startsWith('most://')) {
-      addToast('链接格式应为 most://<cid>', 'warning')
+      addToast(
+        '链接格式应为 most://<cid>?filename=...&r=...',
+        'warning'
+      )
       return
     }
     if (isDownloading) return
@@ -901,7 +775,7 @@ export default function App() {
         transferPanel.open()
         addToast('下载已开始', 'info')
       }
-    } catch (err) {
+    } catch {
       addToast('下载失败', 'error')
     } finally {
       setIsDownloading(false)
@@ -912,7 +786,7 @@ export default function App() {
     if (transfer.type === 'download' && transfer.status === 'downloading') {
       try {
         await API.cancelDownload(transfer.id)
-      } catch (err) {
+      } catch {
         addToast('取消失败', 'error')
       }
     }
@@ -956,7 +830,6 @@ export default function App() {
   }
 
   useEffect(() => {
-    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
     const ws = new WebSocket(
       `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws`
     )
@@ -1027,9 +900,6 @@ export default function App() {
           )
           addToast(`下载失败: ${data.error}`, 'error')
         }
-        if (event === 'network:status') {
-          setPeerCount(data.peers || 0)
-        }
         if (event === 'download:status') {
           setTransfers(prev =>
             prev.map(t =>
@@ -1060,7 +930,7 @@ export default function App() {
     refreshStorageStats()
     API.getStorageStats()
       .then(s => setStorageStats(s))
-      .catch(() => setStorageStats(MOCK_STORAGE))
+      .catch(() => setStorageStats(DEMO_STORAGE))
   }, [])
 
   const viewTitle =
@@ -1312,7 +1182,6 @@ export default function App() {
                 <FolderCard
                   key={folder.path}
                   folder={folder}
-                  isDarkMode={isDarkMode}
                   onClick={() => handleNavigate(folder.path)}
                 />
               ))}
@@ -1321,7 +1190,6 @@ export default function App() {
                   key={f.cid}
                   file={f}
                   isSelected={selectedIds.includes(f.cid)}
-                  isDarkMode={isDarkMode}
                   onSelect={handleSelect}
                   onPreview={file =>
                     setPreviewItem({
@@ -1388,7 +1256,7 @@ export default function App() {
             </div>
             <div className="share-link-box">
               <div className="share-link-text">
-                most://{shareItem.cid}?filename={shareItem.fileName}
+                {`most://${shareItem.cid}?filename=${encodeURIComponent(shareItem.fileName)}&r=${shareItem.chunkMerkleRoot}`}
               </div>
               <button
                 onClick={handleCopyLink}
@@ -1437,7 +1305,6 @@ export default function App() {
           onClick={() => {
             setPreviewItem(null)
             setPreviewText('')
-            setPreviewMediaLoading(false)
           }}
         >
           <button className="preview-close">
@@ -1446,20 +1313,12 @@ export default function App() {
           <div onClick={e => e.stopPropagation()}>
             {previewItem.subtype === 'image' && (
               <div className="preview-media-wrapper">
-                <img
-                  ref={previewMediaRef}
-                  src={API.getFileDownloadUrl(previewItem.cid)}
-                  alt=""
-                />
+                <img src={API.getFileDownloadUrl(previewItem.cid)} alt="" />
               </div>
             )}
             {previewItem.subtype === 'video' && (
               <div className="preview-media-wrapper">
-                <video
-                  ref={previewMediaRef}
-                  src={API.getFileDownloadUrl(previewItem.cid)}
-                  controls
-                />
+                <video src={API.getFileDownloadUrl(previewItem.cid)} controls />
               </div>
             )}
             {previewItem.subtype === 'audio' && (

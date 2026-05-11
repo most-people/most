@@ -54,8 +54,14 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
 
       assert.ok(result.cid)
       assert.ok(result.cid.startsWith('bafkrei'))
+      assert.match(result.chunkMerkleRoot, /^[0-9a-f]{64}$/)
+      assert.strictEqual(result.chunkSize, 256 * 1024)
+      assert.strictEqual(result.chunkCount, 1)
       assert.strictEqual(result.fileName, 'test.txt')
-      assert.strictEqual(result.link, `most://${result.cid}?filename=test.txt`)
+      assert.strictEqual(
+        result.link,
+        `most://${result.cid}?filename=test.txt&r=${result.chunkMerkleRoot}`
+      )
     })
 
     it('publishes a file from path and returns CID', async () => {
@@ -108,6 +114,7 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
 
       const files = engine.listPublishedFiles()
       assert.strictEqual(files.length, initialCount + 1)
+      assert.match(files.at(-1).chunkMerkleRoot, /^[0-9a-f]{64}$/)
     })
   })
 
@@ -193,6 +200,24 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
 
       assert.strictEqual(dlResult.alreadyExists, true)
       assert.strictEqual(dlResult.fileName, 'self-dl.txt')
+    })
+
+    it('rejects content when r is tampered', async () => {
+      const publishResult = await engine.publishFile(
+        Buffer.from('merkle mismatch download test'),
+        'tampered-merkle.txt'
+      )
+      await engine.deletePublishedFile(publishResult.cid)
+
+      const tamperedLink = publishResult.link.replace(
+        publishResult.chunkMerkleRoot,
+        '0'.repeat(64)
+      )
+
+      await assert.rejects(
+        engine.downloadFile(tamperedLink),
+        /Merkle root mismatch/
+      )
     })
 
     it('rejects invalid most:// link', async () => {

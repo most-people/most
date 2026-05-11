@@ -26,19 +26,13 @@ function createDummyBlockstore() {
  * 使用流式方法高效处理大文件
  *
  * @param {string|Buffer|AsyncIterable} content - 文件路径（字符串）、Buffer 或异步迭代器
- * @param {object} options - 计算选项
- * @param {boolean} [options.rawLeaves=true] - 使用原始叶子节点以支持现代 CID
- * @param {number} [options.cidVersion=1] - CID 版本（0 或 1）
- * @param {number} [options.size] - 总字节数（可选，自动检测）
  * @returns {Promise<{cid: import('multiformats/cid').CID, size: number}>}
  */
-export async function calculateCid(content, options = {}) {
-  const { rawLeaves = true, cidVersion = 1, size: providedSize } = options
-
+export async function calculateCid(content) {
   const blockstore = createDummyBlockstore()
 
   let rootCid = null
-  let totalSize = providedSize || 0
+  let totalSize = 0
 
   let source
 
@@ -75,8 +69,8 @@ export async function calculateCid(content, options = {}) {
 
   try {
     for await (const entry of importer(source, blockstore, {
-      cidVersion,
-      rawLeaves,
+      cidVersion: 1,
+      rawLeaves: true,
       wrapWithDirectory: false,
     })) {
       rootCid = entry.cid
@@ -116,42 +110,49 @@ export function validateCidString(cidString) {
 }
 
 /**
- * 解析 most:// 链接并提取 CID
- * @param {string} link - most://<cid> 格式的链接
- * @returns {{ cid: string, error?: string }}
+ * 解析 most:// 链接并提取 CID 与完整性校验锚
+ * @param {string} link - most://<cid>?filename=...&r=... 格式的链接
+ * @returns {{ cid: string, fileName?: string, chunkMerkleRoot?: string, error?: string }}
  */
 export function parseMostLink(link) {
   if (!link || typeof link !== 'string') {
     return { cid: '', error: 'Link must be a non-empty string' }
   }
 
-  let cidString = link
-
-  if (link.startsWith('most://')) {
-    cidString = link.replace('most://', '')
+  let url
+  try {
+    url = new URL(link)
+  } catch {
+    return { cid: '', error: 'Link must be a valid most:// URL' }
   }
 
-  // 移除尾部斜杠和空白
-  cidString = cidString.trim().replace(/\/+$/, '')
-
-  // 移除 query string，提取 filename
-  let fileName = null
-  if (cidString.includes('?')) {
-    const [cidPart, queryPart] = cidString.split('?')
-    cidString = cidPart
-    const params = new URLSearchParams(queryPart)
-    fileName = params.get('filename')
+  if (url.protocol !== 'most:') {
+    return { cid: '', error: 'Link must use most:// protocol' }
   }
 
-  // 处理可能的额外路径的 URL 解析
-  if (cidString.includes('/')) {
-    cidString = cidString.split('/')[0]
+  if (url.pathname && url.pathname !== '/') {
+    return { cid: '', error: 'Link path is not supported' }
   }
+
+  const cidString = url.hostname
+  const fileName = url.searchParams.get('filename')
+  const chunkMerkleRoot = url.searchParams.get('r')
 
   const validation = validateCidString(cidString)
   if (!validation.valid) {
     return { cid: '', error: validation.error }
   }
 
-  return { cid: cidString, fileName }
+  if (!fileName) {
+    return { cid: '', error: 'filename is required' }
+  }
+
+  if (!chunkMerkleRoot || !/^[0-9a-f]{64}$/.test(chunkMerkleRoot)) {
+    return {
+      cid: '',
+      error: 'r must be a 64-character hex string',
+    }
+  }
+
+  return { cid: cidString, fileName, chunkMerkleRoot }
 }

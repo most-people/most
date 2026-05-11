@@ -115,6 +115,8 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(res.status, 200)
       assert.ok(data.success)
       assert.ok(data.cid)
+      assert.match(data.chunkMerkleRoot, /^[0-9a-f]{64}$/)
+      assert.strictEqual(data.chunkSize, 256 * 1024)
       assert.ok(data.link.startsWith('most://'))
       assert.strictEqual(data.fileName, 'test.txt')
     })

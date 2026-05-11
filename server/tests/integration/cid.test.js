@@ -86,15 +86,20 @@ describe('calculateCid (real file I/O)', () => {
       {
         name: 'empty',
         content: Buffer.alloc(0),
-        expected:
-          'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku',
+        expected: 'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku',
       },
       {
         name: 'hello-world',
         content: Buffer.from('hello world'),
-        expected:
-          'bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e',
-      }
+        expected: 'bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e',
+      },
+      {
+        name: 'cross-chunk',
+        content: Buffer.from(
+          Array.from({ length: 256 * 1024 + 1 }, (_, i) => i % 251)
+        ),
+        expected: 'bafybeiexg2oqkfnj56l7fcmawswqbijt5shq4b5rg6a546uwpkqqzwjioi',
+      },
     ]
 
     for (const sample of samples) {
@@ -132,20 +137,5 @@ describe('calculateCid (real file I/O)', () => {
 
     const result = await calculateCid(filePath)
     assert.ok(result.cid)
-  })
-
-  it('uses rawLeaves option when provided', async () => {
-    const filePath = path.join(tmpDir, 'raw-leaves.txt')
-    fs.writeFileSync(filePath, 'test')
-
-    const resultWithRawLeaves = await calculateCid(filePath, {
-      rawLeaves: true,
-    })
-    const resultWithoutRawLeaves = await calculateCid(filePath, {
-      rawLeaves: false,
-    })
-
-    assert.ok(resultWithRawLeaves.cid)
-    assert.ok(resultWithoutRawLeaves.cid)
   })
 })

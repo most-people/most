@@ -8,10 +8,8 @@ import {
   Wallet,
   ArrowRight,
   ArrowUpRight,
-  Zap,
   Check,
   ExternalLink,
-  ArrowLeft,
   Download,
 } from 'lucide-react'
 import { useAppStore } from '~/app/app/useAppStore'
