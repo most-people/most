@@ -41,6 +41,7 @@ export const useAppStore = create<AppState>(set => ({
     if (existing) {
       const connected = await checkBackendConnection()
       if (connected) {
+        setBackendUrl(existing)
         set({ hasBackend: true })
         return
       }

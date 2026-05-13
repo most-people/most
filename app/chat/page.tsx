@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import { InputModal, ConfirmModal } from '~/components/ui'
-import { api } from '~/server/src/utils/api'
+import { api, getWebSocketUrl } from '~/server/src/utils/api'
 import {
   loadIdentity,
   saveIdentity,
@@ -182,10 +182,10 @@ function ChatPage() {
   }, [myPeerId])
 
   useEffect(() => {
+    if (hasBackend !== true) return
+
     function connectWs() {
-      const ws = new WebSocket(
-        `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws`
-      )
+      const ws = new WebSocket(getWebSocketUrl('/ws'))
 
       ws.onopen = () => {
         isWsConnectedRef.current = true
@@ -233,7 +233,7 @@ function ChatPage() {
         wsRef.current.close()
       }
     }
-  }, [])
+  }, [hasBackend])
 
   useEffect(() => {
     if (myPeerId && wsRef.current && isWsConnectedRef.current) {

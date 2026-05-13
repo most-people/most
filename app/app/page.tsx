@@ -28,7 +28,7 @@ import {
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import { ModalOverlay, ConfirmModal, InputModal } from '~/components/ui'
-import { api } from '~/server/src/utils/api'
+import { api, getApiUrl, getWebSocketUrl } from '~/server/src/utils/api'
 import { useAppStore } from '~/app/app/useAppStore'
 import { useDisclosure, useClipboard } from '~/hooks'
 import Link from 'next/link'
@@ -99,7 +99,7 @@ const API = {
     api.post('/api/download', { json: { link } }).json<any>(),
   cancelDownload: taskId =>
     api.post('/api/download/cancel', { json: { taskId } }).json<any>(),
-  getFileDownloadUrl: cid => `/api/files/${cid}/download`,
+  getFileDownloadUrl: cid => getApiUrl(`/api/files/${cid}/download`),
   moveFile: (cid, newFileName) =>
     api.post('/api/move', { json: { cid, newFileName } }).json<any>(),
   renameFolder: (oldPath, newPath) =>
@@ -726,7 +726,7 @@ export default function App() {
   const loadPreviewText = async cid => {
     setPreviewLoading(true)
     try {
-      const res = await fetch(`/api/files/${cid}/download`, {
+      const res = await fetch(API.getFileDownloadUrl(cid), {
         headers: { Range: 'bytes=0-9999' },
       })
       if (!res.ok) throw new Error('加载失败')
@@ -830,9 +830,9 @@ export default function App() {
   }
 
   useEffect(() => {
-    const ws = new WebSocket(
-      `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws`
-    )
+    if (hasBackend !== true) return
+
+    const ws = new WebSocket(getWebSocketUrl('/ws'))
     ws.onmessage = e => {
       try {
         const { event, data } = JSON.parse(e.data)
@@ -922,16 +922,22 @@ export default function App() {
       }
     }
     return () => ws.close()
-  }, [])
+  }, [hasBackend])
 
   useEffect(() => {
-    refreshFiles()
-    refreshTrash()
-    refreshStorageStats()
-    API.getStorageStats()
-      .then(s => setStorageStats(s))
-      .catch(() => setStorageStats(DEMO_STORAGE))
-  }, [])
+    if (hasBackend === true) {
+      refreshFiles()
+      refreshTrash()
+      refreshStorageStats()
+      return
+    }
+
+    if (hasBackend === false) {
+      setItems(DEMO_FILES)
+      setTrashItems([])
+      setStorageStats(DEMO_STORAGE)
+    }
+  }, [hasBackend])
 
   const viewTitle =
     currentView === 'all'
