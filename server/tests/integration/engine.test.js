@@ -4,6 +4,8 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { MostBoxEngine } from '../../src/index.js'
+import { calculateCid } from '../../src/core/cid.js'
+import { calculateChunkMerkleRoot } from '../../src/core/merkle.js'
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -355,6 +357,24 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
       assert.doesNotThrow(() => {
         engine.cancelDownload('non-existent-task-id')
       })
+    })
+
+    it('rejects an active peer wait when cancelled', async () => {
+      const filePath = path.join(tmpDir, 'cancel-source.txt')
+      fs.writeFileSync(filePath, 'cancel me while peers are missing')
+
+      const [{ cid }, merkle] = await Promise.all([
+        calculateCid(filePath),
+        calculateChunkMerkleRoot(filePath),
+      ])
+      const taskId = `cancel-${Date.now()}`
+      const link = `most://${cid}?filename=cancel-source.txt&r=${merkle.chunkMerkleRoot}`
+
+      const download = engine.downloadFile(link, taskId, { timeout: 10000 })
+      await sleep(100)
+      engine.cancelDownload(taskId)
+
+      await assert.rejects(download, /Download cancelled/)
     })
   })
 

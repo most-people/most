@@ -574,6 +574,7 @@ export class MostBoxEngine extends EventEmitter {
    * @param {string} [taskId] - 用于取消的任务 ID
    * @param {object} [options] - 下载选项
    * @param {number} [options.timeout] - 等待 P2P 内容的超时时间（毫秒）
+   * @param {number} [options.streamReadTimeout] - 下载流无进度超时时间（毫秒）
    * @returns {Promise<{ taskId: string, fileName: string, savedPath: string, alreadyExists?: boolean }>}
    */
   async downloadFile(link, taskId = null, options = {}) {
@@ -582,6 +583,7 @@ export class MostBoxEngine extends EventEmitter {
     taskId =
       taskId || `dl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
     const downloadTimeout = options.timeout || this.#options.downloadTimeout
+    const streamReadTimeout = options.streamReadTimeout ?? STREAM_READ_TIMEOUT
 
     console.log(
       `[MostBox] Starting download for link: ${link} (taskId: ${taskId})`
@@ -726,14 +728,54 @@ export class MostBoxEngine extends EventEmitter {
         let lastProgressUpdate = 0
 
         await new Promise((resolve, reject) => {
+          let settled = false
+          let readTimer = null
+
+          const clearReadTimer = () => {
+            if (readTimer) {
+              clearTimeout(readTimer)
+              readTimer = null
+            }
+          }
+
+          const fail = err => {
+            if (settled) return
+            settled = true
+            clearReadTimer()
+            rs.destroy(err)
+            ws.destroy()
+            fs.unlink(savePath, () => {})
+            reject(err)
+          }
+
+          const complete = () => {
+            if (settled) return
+            settled = true
+            clearReadTimer()
+            resolve()
+          }
+
+          const resetReadTimer = () => {
+            clearReadTimer()
+            if (streamReadTimeout > 0) {
+              readTimer = setTimeout(() => {
+                fail(
+                  new Error(
+                    `Download stalled: no data received for ${streamReadTimeout / 1000}s`
+                  )
+                )
+              }, streamReadTimeout)
+            }
+          }
+
+          resetReadTimer()
+
           rs.on('data', chunk => {
             if (taskState.aborted) {
-              rs.destroy()
-              ws.destroy()
-              fs.unlink(savePath, () => {})
-              reject(new Error('Download cancelled'))
+              fail(new Error('Download cancelled'))
               return
             }
+            resetReadTimer()
             loadedBytes += chunk.length
             const now = Date.now()
             if (
@@ -752,9 +794,19 @@ export class MostBoxEngine extends EventEmitter {
           })
 
           rs.pipe(ws)
-          ws.on('finish', resolve)
-          ws.on('error', reject)
-          rs.on('error', reject)
+          ws.on('finish', complete)
+          ws.on('error', fail)
+          rs.on('error', fail)
+          rs.on('close', () => {
+            if (taskState.aborted) {
+              fail(new Error('Download cancelled'))
+            }
+          })
+          ws.on('close', () => {
+            if (taskState.aborted) {
+              fail(new Error('Download cancelled'))
+            }
+          })
         })
 
         if (taskState.aborted) throw new Error('Download cancelled')
@@ -1178,7 +1230,8 @@ export class MostBoxEngine extends EventEmitter {
     const task = this.#activeDownloads.get(taskId)
     if (task) {
       task.aborted = true
-      if (task.readStream) task.readStream.destroy()
+      const err = new Error('Download cancelled')
+      if (task.readStream) task.readStream.destroy(err)
       if (task.writeStream) task.writeStream.destroy()
     }
   }

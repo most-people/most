@@ -790,9 +790,19 @@ export default function App() {
 
   const handleCancelTransfer = async transfer => {
     if (transfer.type === 'download' && transfer.status === 'downloading') {
+      setTransfers(prev =>
+        prev.map(t =>
+          t.id === transfer.id ? { ...t, status: 'cancelling' } : t
+        )
+      )
       try {
         await API.cancelDownload(transfer.id)
       } catch {
+        setTransfers(prev =>
+          prev.map(t =>
+            t.id === transfer.id ? { ...t, status: 'downloading' } : t
+          )
+        )
         addToast('取消失败', 'error')
       }
     }
@@ -1548,9 +1558,11 @@ export default function App() {
                           ? '失败'
                           : t.status === 'cancelled'
                             ? '已取消'
-                            : t.loaded && t.total
-                              ? `${formatSize(t.loaded)}/${formatSize(t.total)}`
-                              : `${t.progress}%`}
+                            : t.status === 'cancelling'
+                              ? '取消中'
+                              : t.loaded && t.total
+                                ? `${formatSize(t.loaded)}/${formatSize(t.total)}`
+                                : `${t.progress}%`}
                     </span>
                   </div>
                 </div>
