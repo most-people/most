@@ -314,6 +314,15 @@ function generateBreadcrumbs(currentPath) {
 
 function FileCard({ file, isSelected, onSelect, onPreview }) {
   const subtype = getFileSubtype(file.fileName)
+  let fileIcon = <FileText size={24} color="#fff" />
+
+  if (subtype === 'image') {
+    fileIcon = <ImageIcon size={24} color="#fff" />
+  } else if (subtype === 'video') {
+    fileIcon = <Film size={24} color="#fff" />
+  } else if (subtype === 'audio') {
+    fileIcon = <Music size={24} color="#fff" />
+  }
 
   return (
     <div
@@ -323,10 +332,7 @@ function FileCard({ file, isSelected, onSelect, onPreview }) {
       className={`card ${isSelected ? 'selected' : ''}`}
     >
       <div className={`card-icon ${file.starred ? 'starred' : 'file'}`}>
-        {subtype === 'image' && <ImageIcon size={24} color="#fff" />}
-        {subtype === 'video' && <Film size={24} color="#fff" />}
-        {subtype === 'audio' && <Music size={24} color="#fff" />}
-        {subtype === 'file' && <FileText size={24} color="#fff" />}
+        {fileIcon}
       </div>
       <p className="card-name">{parseName(file.fileName).name}</p>
     </div>
