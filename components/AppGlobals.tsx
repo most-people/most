@@ -11,8 +11,6 @@ export default function AppGlobals() {
   const removeToast = useAppStore(s => s.removeToast)
   const showSettings = useAppStore(s => s.showSettings)
   const closeSettings = useAppStore(s => s.closeSettings)
-  const isDarkMode = useAppStore(s => s.isDarkMode)
-  const addToast = useAppStore(s => s.addToast)
 
   useEffect(() => {
     checkBackend()
@@ -31,11 +29,7 @@ export default function AppGlobals() {
       ))}
 
       {showSettings && (
-        <SettingsDrawer
-          onClose={closeSettings}
-          addToast={addToast}
-          isDarkMode={isDarkMode}
-        />
+        <SettingsDrawer onClose={closeSettings} />
       )}
     </>
   )

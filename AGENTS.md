@@ -1,386 +1,151 @@
 ## AI 行为准则
 
-**默认使用中文回复**
-
-基于 Andrej Karpathy 对 LLM 编码实践的观察，以下四条原则优先于所有其他规则。
-
-### 1. 先思考再写代码
-
-**不要假设。不要隐藏困惑。暴露权衡。**
-
-- 不确定时先问，不要擅自猜测
-- 发现歧义时列出多种解释，不要默默选择一种
-- 如果有更简单的方案，主动提出
-- 遇到不清楚的地方明确指出来
-
-### 2. 简洁优先
-
-**用最少的代码解决问题，不添加任何推测性内容。**
-
-- 不添加需求之外的功能
-- 不为单次使用创建抽象
-- 不添加未请求的"灵活性"或"可配置性"
-- 不为不可能出现的场景做错误处理
-- 如果 200 行能改成 50 行，就重写
-
-**检验标准：** 资深工程师会觉得过度设计了吗？如果是，简化。
-
-### 3. 精准修改
-
-**只改必须改的行。只清理自己制造的垃圾。**
-
-- 不"顺手优化"相邻代码、注释或格式
-- 不重构没坏的东西
-- 匹配现有代码风格，即使你做法不同
-- 发现无关死代码只提及不删除
-
-**检验标准：** 每一行改动都能直接追溯到用户的请求。
-
-### 4. 目标驱动执行
-
-**定义成功标准。循环直到验证通过。**
-
-| 而不是...  | 转化为...                          |
-| ---------- | ---------------------------------- |
-| "添加验证" | "为无效输入写测试，然后让它们通过" |
-| "修复 bug" | "写一个复现测试，然后让它通过"     |
-| "重构 X"   | "确保重构前后测试都通过"           |
-
-多步任务先写简要计划：
-
-```
-1. [步骤] → 验证：[检查]
-2. [步骤] → 验证：[检查]
-3. [步骤] → 验证：[检查]
-```
-
-**权衡说明：** 这些原则偏向谨慎而非速度。对于简单任务（错别字修复、明显的一行代码），自行判断——不是每个改动都需要全套严谨流程。目标是减少非重要工作中的代价高昂的错误，而不是拖慢简单任务。
-
-### 5. 新项目优先清晰正确
-
-**这是新项目，不需要向前或者向后兼容。**
-
-- 可以直接调整接口、数据结构和持久化格式
-- 不为了旧链接、旧元数据、旧 API 响应保留兼容分支
-- 不添加迁移逻辑，除非用户明确要求
-- 优先让当前设计简单、统一、可验证
-
-### 6. Demo 数据不是兼容代码
-
-**无后端/宣传/截图/演示用的 demo 数据必须保留，不能按兼容代码删除。**
-
-- `DEMO_*` 数据用于营销展示、无后端预览或宣传截图，不属于旧协议兼容
-- 清理兼容代码前先分类：旧链接/旧元数据/旧 API 分支可删；demo/marketing/no-backend preview 分支保留
-- 如果变量名是 `MOCK_*` 但用途像演示数据，先改名为 `DEMO_*` 并加用途注释，不要直接删除
-- 不确定某个 fallback 是兼容逻辑还是产品演示能力时，先问用户
+- 默认使用中文回复。
+- 先明确目标和成功标准；不确定时说明歧义并提问。
+- 简洁优先：只实现当前需求，不添加推测性功能、兼容分支或多余抽象。
+- 精准修改：只改和任务直接相关的代码，不顺手重构、不清理无关代码。
+- 目标驱动执行：多步任务先写简短计划，并说明每步如何验证。
+- 新项目优先清晰正确：可以直接调整接口、数据结构和持久化格式；除非用户要求，不保留旧格式迁移。
+- Demo 数据不是兼容代码：`DEMO_*` / marketing / no-backend preview 数据要保留；不确定时先问。
 
 ---
 
 # Most.Box
 
-## 项目概述
+Most.Box 是一个公共内容保种网络：用户为一个 CID 付费，独立节点帮用户长期保留完整副本，任何人都能凭 CID 下载并校验文件。
 
-P2P 文件分享应用，基于 Hyperswarm/Hyperdrive 网络。用户上传文件后生成分享链接，接收方通过 P2P 网络下载。
+它不是隐私网盘。MostBox 默认面向公共内容；私密文件必须由用户先本地加密，再把密文作为普通文件上传。
+
+## 计划文档
+
+完整产品计划在 `docs/plan/`，入口是 `docs/plan/README.md`。不要在每次任务开始时通读全部计划；只在需求涉及相关主题时按需打开。
+
+| 需求类型 | 优先阅读 |
+| -------- | -------- |
+| 当前任务顺序、周计划、验收 | `docs/plan/任务优先级与周计划.md` |
+| MVP 范围、完成定义、后置能力 | `docs/plan/MVP落地计划.md` |
+| MVP 后路线和 v1 边界 | `docs/plan/实施路线图.md` |
+| 总体定位、经济模型、风险边界 | `docs/plan/项目计划书.md` |
+| 技术分层、接口优先原则、非 MVP 能力 | `docs/plan/技术架构.md` |
+| CID / 上传 / 下载 / 数据目录入口 | `docs/plan/协议基线实现入口清单.md` |
+| 合约、订单状态、质押、结算 | `docs/plan/智能合约.md` |
+| 节点 daemon、Web 管理台、运营策略 | `docs/plan/节点运营.md` |
+| 审计、fraud proof、Degraded | `docs/plan/零知识证明.md` |
+| 默认不加密、私密文件边界 | `docs/plan/加密与存储.md` |
+
+## 当前 MVP 口径
+
+首版只验证一个闭环：
+
+```
+CID + Merkle 校验
+  → Hyperswarm 完整副本保种
+  → 本地/测试网 USDT 订单
+  → 用户手动选择节点
+  → 节点 pullConfirm
+  → 下载者凭 CID 下载并校验
+  → 最小随机 chunk 审计
+```
+
+MVP 成功标准：
+
+- 上传者离线后，选中的节点仍能继续保种。
+- 下载者只凭 CID 能下载，并通过 CID + `chunkMerkleRoot` 双重校验。
+- 节点能按订单获得可解释的 USDT 收益，并承担可测试的失信成本。
+- 正常节点能通过随机 chunk 审计；错误 proof 必须被识别。
+
+## 产品与协议不变量
+
+- CID 即权限：知道 CID 就能查询订单、发现节点并尝试下载；CID 泄露不是漏洞。
+- v1 只支持 USDT：支付、质押、罚没、审计奖励和 Treasury 都用 USDT；不发行原生代币。
+- 文件模型是完整副本：不做分片、不做纠删码；`replicaCount >= 1`，默认推荐 2。
+- `replicaCount=1` 必须强警告并二次确认，因为无冗余，手动修复也可能没有可用源。
+- 同一 CID 同时最多 1 个 active order；续费用 `addFunds` 延长现有订单，不创建并行订单。
+- 用户手动选择节点；MVP/v1 不做自动抽签、自动 repair 或固定全网定价。
+- 浏览器只展示 demo、文档和客户端下载引导；正式下单、下载、做种、审计和长期节点能力放在桌面端或后台 daemon。
+- 节点能力 API 优先：HTTP API + WebSocket + OpenAPI 是稳定入口；Web 管理台给人用；薄 CLI 只做安装、启动、诊断。
+- 正常审计链下完成，零 gas；只有可验证欺诈或达到不响应阈值后的状态变更才上链。
+- 不响应本身不是 fraud proof，不能仅凭超时罚没本金；只有节点签名过的错误 proof 才触发 USDT 质押罚没。
+- Degraded 后由用户手动选择替补节点；v1 不做自动修复调度和自动带宽费结算。
+- 手续费和罚没余额先进单一 Treasury 地址；不做复杂分账。
 
 ## 技术栈
 
-| 层级 | 技术                                                    |
-| ---- | ------------------------------------------------------- |
-| 前端 | React 19, Next.js 16, TypeScript, Zustand, Lucide React |
-| 后端 | Hono + @hono/node-server + WebSocket                    |
-| P2P  | Hyperswarm 4.x, Hyperdrive 13.x, Corestore 7.x          |
-| Web3 | ethers.js, Hardhat, Solidity, EIP-712                   |
-| 桌面 | Electron 41, electron-builder                           |
-| 测试 | Node.js built-in test runner                            |
+- 前端：React 19, Next.js 16, TypeScript, Zustand, Lucide React
+- 后端：Hono, `@hono/node-server`, WebSocket
+- P2P：Hyperswarm 4.x, Hyperdrive 13.x, Corestore 7.x
+- Web3：ethers.js, Hardhat, Solidity, EIP-712
+- 桌面：Electron 41, electron-builder
+- 测试：Node.js built-in test runner
 
-## 核心架构原则
+## 核心实现约束
 
-- **Hyperdrive 只存文件内容**：key 使用 CID，解耦存储与目录结构
-- **目录结构由 `published-files.json` 维护**：文件元数据和显示路径（用户看到的文件夹结构）存储在该 JSON 中
-- **移动/重命名零成本**：只需更新 `published-files.json`，不修改 Hyperdrive
+- CID 使用 UnixFS CID v1，当前由 `server/src/core/cid.js` 和 `ipfs-unixfs-importer@16.1.5` 生成。
+- CID 显式参数：`cidVersion: 1`、`rawLeaves: true`、`wrapWithDirectory: false`；升级 importer 前必须跑 CID 黄金样本测试。
+- Merkle 默认按 256KB chunk 生成 `chunkMerkleRoot`，它是下载校验、pullConfirm 和审计的协议锚点。
+- Hyperswarm topic 使用 `cid.multihash.digest`，不要额外 hash、截断或换 topic 规则。
+- Hyperdrive 只存文件内容，key 固定为 `/<cid>`；用户可见路径和文件名不进入 Hyperdrive。
+- 用户文件列表和目录结构由 `published-files.json` 维护；节点持有记录应和桌面文件管理视图分开，避免污染用户文件列表。
+- 下载完成后可临时做种，帮助热门文件分摊节点上行压力。
+- `most://<cid>?filename=...&r=...` 中的 `r` 是 `chunkMerkleRoot`，下载和 P2P pull 都应把它作为必填校验锚。
 
-## 开发命令
+## 常用命令
 
 ```bash
-# 开发（需两个终端）
-npm run dev            # Next.js (3000)
-node server/index.js   # 后端 (1976)
-
-# 生产
-npm start              # 构建 + 启动（静态导出到 out/）
-
-# 测试
-npm test                     # 运行所有测试
-npm run test:unit            # 仅运行单元测试
-node --test server/tests/unit/errors.test.js  # 运行单个测试文件
-
-# 代码格式化与检查
-npm run format               # Prettier 格式化全部代码
-npm run lint                 # ESLint 检查
-
-# Electron
-npm run electron:dev && npm run electron:build:win && npm run electron:build:mac
+npm run dev            # Next.js，端口 3000
+node server/index.js   # 后端，默认端口 1976
+npm start              # 构建静态 out/ 并由后端 serve
+npm test
+npm run test:unit
+npm run test:protocol
+npm run lint
 ```
 
-> **构建说明**：Next.js 配置为静态导出（`output: 'export'`），`npm start` 会先生成 `out/` 目录，再由 `server/index.js` 直接 serve 该目录。
+环境变量：
 
-## 环境变量与数据存储
+- `MOSTBOX_PORT`，默认 `1976`
+- `MOSTBOX_HOST`，默认 `0.0.0.0`
 
-| 变量           | 默认值    | 说明         |
-| -------------- | --------- | ------------ |
-| `MOSTBOX_PORT` | `1976`    | 后端服务端口 |
-| `MOSTBOX_HOST` | `0.0.0.0` | 后端监听地址 |
+## 验证策略
 
-- 配置文件：`~/.most-box/config.json`
-- 默认数据目录：`~/most-data`
+- 改 CID、Merkle、上传、下载、链接解析、P2P pull 时，优先跑 `npm run test:protocol`。
+- 改后端核心逻辑时，跑相关 `node --test server/tests/...`；范围较大时跑 `npm test`。
+- 改前端结构或样式时，跑 `npm run lint`，必要时启动前后端手动验证。
+- 改合约时，按 `docs/plan/智能合约.md` 的状态机补 Hardhat 单测，不只测成功路径。
+- 涉及 MVP 主线时，用“上传者离线后仍可下载并校验”作为最高验收场景。
 
----
+## 代码约定
 
-## 代码规范
+- 使用 ESM；本地导入带 `.js` 扩展名。
+- 2 空格缩进、单引号、默认不写分号。
+- 命名：组件 / 类 `PascalCase`，函数 / 变量 `camelCase`，常量 `UPPER_SNAKE_CASE`，私有字段 `#field`。
+- TypeScript 避免 `any`，组件 Props 使用 `{ComponentName}Props`。
+- 全局 Zustand 状态在 `app/app/useAppStore.ts`，组件通过 action 修改状态。
+- 错误类在 `server/src/utils/errors.js`；P2P 网络噪声错误可静默处理。
+- 测试使用 `node:test` 和 `node:assert`，测试文件命名 `*.test.js`。
 
-### 模块系统
+## 前端样式
 
-- 使用 ESM（`import`/`export`），`package.json` 中 `"type": "module"`
-- 导入顺序：外部依赖 → Node.js 内置模块 → 本地相对路径导入
-- 本地导入使用 `.js` 扩展名
+- 全部使用 CSS class，禁止组件内联 `style={{}}`。
+- 全局变量和基础组件类在 `app/globals.css`；页面样式放到 `styles/{模块}.css` 并由对应 layout 引入。
+- 按钮和输入框复用全局 `.btn` / `.input` 及其变体，不在页面 CSS 重复定义。
+- 图标统一使用 `lucide-react`；品牌 Logo 等自定义图标放在 `components/icons/`。
+- `ModalOverlay` 是唯一弹窗玻璃容器提供者；弹窗 CSS 不重复定义容器的 width、padding、background、blur、border、shadow、radius。
 
-### 命名约定
+## P2P / 聊天注意点
 
-| 类型        | 规范               | 示例                                        |
-| ----------- | ------------------ | ------------------------------------------- |
-| 类名/组件名 | `PascalCase`       | `MostBoxEngine`, `AppError`, `ModalOverlay` |
-| 函数/变量   | `camelCase`        | `publishFile`, `getNodeId`                  |
-| 常量        | `UPPER_SNAKE_CASE` | `MAX_FILE_SIZE`, `SWARM_BOOTSTRAP`          |
-| 私有类字段  | `#` 前缀           | `#store`, `#swarm`, `#drives`               |
-| 文件名      | `camelCase`        | `cid.js`, `errors.js`, `AppHomeMode.tsx`    |
+- Hyperswarm 4.x 中 `conn` 直接作为流使用，不要调用 `conn.openStream()`。
+- Channel append 监听用 `lastCoreLength` 只处理新消息，避免重复推旧消息。
+- 双方都拥有频道时，通过 `store.namespace(\`channel-${name}\`).replicate(conn)` 复制。
+- WebSocket 订阅要等 `peerId` 就绪；未就绪时暂存频道名，随后补发订阅。
 
-### 格式化
+## 关键入口
 
-- 2 空格缩进
-- 不使用分号（除必要情况外）
-- 单引号字符串
-- 箭头函数优先，除非需要 `this` 绑定
-- 异步函数使用 `async/await`，不使用 `.then()` 链
-
-### TypeScript 规范
-
-- `tsconfig.json` 中 `strict: false`，但鼓励显式类型标注
-- 组件 Props 使用 `interface` 定义，命名为 `{ComponentName}Props`
-- 避免使用 `any`，优先使用 `unknown` 或具体类型
-- 类型定义放在使用处附近，复杂类型可抽到 `types/` 目录
-
-### 状态管理（Zustand）
-
-- 全局状态统一在 `app/app/useAppStore.ts` 管理
-- Store 接口定义包含：状态字段 + 操作方法
-- 状态更新使用 `set()`，复杂逻辑使用 `get()` 读取当前状态
-- 主题状态初始化在模块加载时执行（客户端仅）
-- 避免在组件中直接修改 store，必须通过 action 方法
-
-### 数据流
-
-```
-客户端请求 → Hono API 路由 → MostBoxEngine → Corestore/Hyperdrive → P2P 复制
-                ↓
-          WebSocket 事件推送 → 客户端实时更新
-```
-
-- 前端通过 REST API 与后端交互
-- 实时通知通过 WebSocket (`/ws`) 推送
-- P2P 数据复制由 Hyperswarm 自动处理，无需前端干预
-
-### 错误处理
-
-- 自定义错误类继承 `AppError`，定义在 `server/src/utils/errors.js`
-- 错误类型：`ValidationError`, `FileSizeError`, `PathSecurityError`, `PeerNotFoundError`, `IntegrityError`, `PermissionError`, `EngineNotInitializedError`
-- 使用 `try/catch` 处理异步操作，`console.error` 记录非关键错误
-- P2P 网络错误（SSL/ECONNRESET）静默处理，不抛出
-
-### 样式
-
-- 全部使用 CSS class，禁止内联 `style={{}}`
-- Apple Liquid Glass 设计系统，变量定义在 `app/globals.css`
-- 主题切换：`document.documentElement.setAttribute('data-theme', 'dark'|'light')`
-- **页面级样式按需加载**：`globals.css` 只保留设计系统变量和全局 reset；各路由的专用样式放在 `styles/{模块}.css`，由对应路由的 `layout.tsx` 导入
-
-#### 统一组件样式
-
-所有按钮和输入框使用 `app/globals.css` 中定义的类名组合，**禁止**在组件或 CSS 文件中重复定义：
-
-| 基础类   | 变体类                                                                                          | 用途   |
-| -------- | ----------------------------------------------------------------------------------------------- | ------ |
-| `.btn`   | `-primary`, `-secondary`, `-danger`, `-ghost`, `-info`, `-warning`, `-icon`, `-circle`, `-full` | 按钮   |
-| `.input` | `-pill`, `-compact`, `-flex`                                                                    | 输入框 |
-
-**Focus 状态**：统一使用 `border-color: var(--accent)` + `box-shadow: 0 0 0 3px var(--accent-soft)`
-
-#### 图标
-
-- **统一使用 `lucide-react`**，禁止在组件中内联手写 `<svg>`
-- 品牌 Logo 等自定义图标放在 `components/icons/`，以 `PascalCase.tsx` 命名
-- 图标大小通过 `size` prop 控制，不手写 `width`/`height`
-
-#### Liquid Glass 设计
-
-玻璃材质、毛糊层级、圆角、阴影等具体数值以 `app/globals.css` 中的 CSS 变量为准。设计原则：
-
-- 轻玻璃（导航栏、悬浮元素）→ `--glass-bg-subtle`
-- 标准玻璃（卡片、侧边栏）→ `--glass-bg`
-- 重玻璃（弹窗内容区）→ `--glass-bg-heavy`
-- 弹窗遮罩：`rgba(0, 0, 0, 0.55)` + `backdrop-filter: var(--blur-xl)`
-
-#### 弹窗容器规范
-
-- **`ModalOverlay`** 是唯一的弹窗玻璃容器提供者，内部自动包裹 `<div className="modal-container">`
-- 所有弹窗组件根元素只需添加 `modal-container` class
-- **禁止**在弹窗 CSS 中重复定义容器属性（width / padding / background / backdrop-filter / border / box-shadow / border-radius）
-
-### 响应式断点
-
-- `≤768px`：平板 / 大屏手机，侧边栏变为抽屉式
-- `≤480px`：小屏手机，进一步压缩布局
-
----
-
-## 项目结构
-
-### 关键文件
-
-| 路径                               | 说明                                   |
-| ---------------------------------- | -------------------------------------- |
-| **页面**                           |                                        |
-| `app/page.tsx`                     | 营销首页（功能门户）                   |
-| `app/app/page.tsx`                 | 文件管理器主界面                       |
-| `app/chat/page.tsx`                | 聊天页                                 |
-| `app/ping/page.tsx`                | 网络连通性测试                         |
-| `app/web3/page.tsx`                | Web3 身份仪表盘                        |
-| `app/docs/page.tsx`                | 文档首页                               |
-| `app/changelog/page.tsx`           | 更新日志                               |
-| `app/download/page.tsx`            | 桌面客户端下载                         |
-| **布局与全局**                     |                                        |
-| `app/layout.tsx`                   | 根布局                                 |
-| `app/globals.css`                  | 全局 CSS 变量 + Reset + 通用动画       |
-| `app/not-found.tsx`                | 404 页面                               |
-| `app/error-boundary.tsx`           | 错误边界                               |
-| `app/app/useAppStore.ts`           | Zustand 全局状态管理                   |
-| **组件**                           |                                        |
-| `components/AppHomeMode.tsx`       | 文件管理器主组件                       |
-| `components/AppShell.tsx`          | 应用外壳                               |
-| `components/FeaturePortal.tsx`     | 营销首页功能门户                       |
-| `components/ui/`                   | 通用 UI 组件（ModalOverlay, Toast 等） |
-| `components/icons/LogoIcon.tsx`    | 品牌 Logo                              |
-| **后端**                           |                                        |
-| `server/index.js`                  | HTTP 服务 + WebSocket + API 路由       |
-| `server/src/index.js`              | MostBoxEngine 核心类                   |
-| `server/src/core/cid.js`           | CID 计算与链接解析                     |
-| `server/src/utils/errors.js`       | 自定义错误类                           |
-| `server/src/utils/security.js`     | 安全验证                               |
-| `server/src/utils/userIdentity.js` | 身份生成与持久化                       |
-| `server/src/utils/mostWallet.js`   | 钱包密钥派生                           |
-| `server/src/config.js`             | 全局配置常量                           |
-| **桌面端**                         |                                        |
-| `electron/main.js`                 | Electron 主进程                        |
-| `electron/preload.js`              | Electron 预加载脚本                    |
-
-### 样式文件
-
-| 文件                   | 用途           |
-| ---------------------- | -------------- |
-| `styles/app.css`       | 文件管理器样式 |
-| `styles/chat.css`      | 聊天样式       |
-| `styles/marketing.css` | 营销首页样式   |
-| `styles/web3.css`      | Web3 页面样式  |
-| `styles/ping.css`      | Ping 测试样式  |
-| `styles/portal.css`    | 功能门户样式   |
-
----
-
-## API 端点
-
-| 方法   | 路径                           | 说明                     |
-| ------ | ------------------------------ | ------------------------ |
-| GET    | `/api/node-id`                 | 获取节点 ID              |
-| GET    | `/api/files`                   | 列出已发布文件           |
-| POST   | `/api/publish`                 | 上传文件（multipart）    |
-| POST   | `/api/download`                | 下载分享的文件           |
-| POST   | `/api/download/cancel`         | 取消活动下载             |
-| GET    | `/api/trash`                   | 回收站列表               |
-| POST   | `/api/trash/:cid/restore`      | 恢复文件                 |
-| DELETE | `/api/trash/:cid`              | 永久删除                 |
-| DELETE | `/api/trash`                   | 清空回收站               |
-| POST   | `/api/files/:cid/star`         | 切换收藏状态             |
-| POST   | `/api/move`                    | 移动/重命名文件          |
-| POST   | `/api/folder/rename`           | 重命名文件夹             |
-| DELETE | `/api/files/:cid`              | 删除文件（移入回收站）   |
-| GET    | `/api/files/:cid/download`     | 内联服务文件（含 Range） |
-| GET    | `/api/storage`                 | 存储统计                 |
-| GET    | `/api/config`                  | 获取配置                 |
-| POST   | `/api/config`                  | 更新配置                 |
-| GET    | `/api/config/data-path`        | 获取/设置数据存储路径    |
-| GET    | `/api/network-status`          | 获取网络状态             |
-| GET    | `/api/network`                 | 获取本机网络地址列表     |
-| GET    | `/api/display-name`            | 获取显示名               |
-| POST   | `/api/display-name`            | 设置显示名               |
-| POST   | `/api/channels`                | 创建/加入频道            |
-| GET    | `/api/channels`                | 获取频道列表             |
-| DELETE | `/api/channels/:name`          | 离开频道                 |
-| GET    | `/api/channels/:name/messages` | 获取频道消息             |
-| POST   | `/api/channels/:name/messages` | 发送消息                 |
-| GET    | `/api/channels/:name/peers`    | 获取频道在线用户         |
-| POST   | `/api/shutdown`                | 优雅关闭服务器           |
-| WS     | `/ws`                          | WebSocket 实时事件       |
-
----
-
-## 测试规范
-
-- 使用 `node:test` 和 `node:assert`
-- 测试文件命名：`*.test.js`
-- 目录结构：`server/tests/unit/` 和 `server/tests/integration/`
-- 使用 `describe`/`it` 组织测试用例
-- 集成测试避免使用真实网络，使用 mock 或本地环境
-
----
-
-## 频道聊天架构
-
-### 架构概述
-
-每个用户运行独立的 MostBox 服务器实例，通过 P2P (Hyperswarm) 网络复制数据。WebSocket 用于实时事件通知。
-
-```
-用户 A (server) ←──P2P复制──→ 用户 B (server)
-     ↑                                ↑
-  WebSocket ←─── 事件推送 ───→ WebSocket
-```
-
-### 关键组件
-
-| 组件            | 职责                                 |
-| --------------- | ------------------------------------ |
-| `MostBoxEngine` | 核心引擎，管理频道、消息、P2P 连接   |
-| `Corestore`     | 存储管理，每个频道有独立的 namespace |
-| `Hypercore`     | 单条 append-only 日志，存储消息      |
-| `Hyperswarm`    | P2P 网络发现与连接                   |
-| `WebSocket`     | 服务器→客户端实时事件推送            |
-
-### 消息流程
-
-1. 客户端 POST 消息 → `core.append()` 写入本地
-2. P2P 复制到远程节点 → `core.on('append')` 收到
-3. `emit('channel:message')` → WebSocket 推送给订阅者
-
-### 重要实现原则
-
-1. **Channel Core Append 监听**：用 `lastCoreLength` 指针记录上次处理位置，避免重复触发旧消息。仅处理 `core.length > lastCoreLength` 的新条目。
-2. **Channel Replication**：对端也拥有该频道时，通过 `store.namespace(\`channel-${name}\`).replicate(conn)` 建立复制流。
-3. **WebSocket 订阅时机**：`peerId` 异步获取，需等待就绪后再发送 `channel:subscribe`。未就绪时应暂存频道名，就绪后补发订阅。
-4. **Hyperswarm 4.x API**：`conn` 直接作为流使用，**不要**调用 `conn.openStream()`。
-
-### 常见问题排查
-
-| 问题           | 排查方法                                                  |
-| -------------- | --------------------------------------------------------- |
-| 消息收不到     | 检查 `core.on('append')` 是否触发、`subscribers` 数量     |
-| P2P 连接失败   | 检查是否误用了 `conn.openStream`（Hyperswarm 4.x 不支持） |
-| 订阅者 unknown | `peerId` 未就绪就发送订阅                                 |
+- 前端主应用：`app/app/page.tsx`、`components/AppHomeMode.tsx`
+- 全局状态：`app/app/useAppStore.ts`
+- 后端入口：`server/index.js`
+- 核心引擎：`server/src/index.js`
+- CID / 链接：`server/src/core/cid.js`
+- Merkle：`server/src/core/merkle.js`
+- 配置：`server/src/config.js`
+- Electron：`electron/main.js`、`electron/preload.js`
