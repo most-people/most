@@ -5,6 +5,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { serve } from '@hono/node-server'
 import { createApp } from '../../index.js'
+import { calculateCid } from '../../src/core/cid.js'
+import { calculateChunkMerkleRoot } from '../../src/core/merkle.js'
 import { MostBoxEngine } from '../../src/index.js'
 
 const TEST_PORT = 19771
@@ -207,6 +209,108 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       })
 
       assert.strictEqual(res.status, 400)
+    })
+  })
+
+  describe('node holdings and P2P pull API', () => {
+    it('lists node holdings after publish', async () => {
+      const publishResult = await engine.publishFile(
+        Buffer.from('api-holding'),
+        'api-holding.txt'
+      )
+
+      const res = await fetch(`${baseUrl}/api/node/holdings`)
+      const data = await res.json()
+      const holding = data.find(item => item.cid === publishResult.cid)
+
+      assert.strictEqual(res.status, 200)
+      assert.ok(holding)
+      assert.strictEqual(holding.size, 'api-holding'.length)
+      assert.strictEqual(holding.root, publishResult.chunkMerkleRoot)
+      assert.match(holding.topic, /^[0-9a-f]{64}$/)
+      assert.strictEqual(holding.joined, true)
+    })
+
+    it('creates a manual holding record', async () => {
+      const content = Buffer.from('manual holding')
+      const { cid } = await calculateCid(content)
+      const merkle = await calculateChunkMerkleRoot(content)
+
+      const res = await fetch(`${baseUrl}/api/node/holdings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cid: cid.toString(),
+          size: content.length,
+          root: merkle.chunkMerkleRoot,
+          localPath: path.join(tmpDir, 'manual.txt'),
+        }),
+      })
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 200)
+      assert.strictEqual(data.success, true)
+      assert.strictEqual(data.holding.cid, cid.toString())
+      assert.strictEqual(data.holding.joined, true)
+    })
+
+    it('returns PEER_NOT_FOUND when no peer serves the CID', async () => {
+      const content = Buffer.from('missing p2p content')
+      const { cid } = await calculateCid(content)
+      const merkle = await calculateChunkMerkleRoot(content)
+
+      const res = await fetch(`${baseUrl}/api/p2p/pull`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cid: cid.toString(),
+          fileName: 'missing.txt',
+          chunkMerkleRoot: merkle.chunkMerkleRoot,
+          timeout: 100,
+        }),
+      })
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 503)
+      assert.strictEqual(data.code, 'PEER_NOT_FOUND')
+    })
+
+    it('returns INTEGRITY_ERROR explicitly', async () => {
+      const fakeEngine = {
+        pullByCid: async () => {
+          const err = new Error('File content Merkle root mismatch')
+          err.code = 'INTEGRITY_ERROR'
+          throw err
+        },
+      }
+      const { app } = createApp(fakeEngine, { port: TEST_PORT + 1 })
+
+      const res = await app.request('/api/p2p/pull', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 422)
+      assert.strictEqual(data.code, 'INTEGRITY_ERROR')
+    })
+
+    it('returns ENGINE_NOT_INITIALIZED when the node is stopped', async () => {
+      const stoppedEngine = new MostBoxEngine({
+        dataPath: path.join(tmpDir, 'stopped-engine'),
+      })
+      const { app } = createApp(stoppedEngine, { port: TEST_PORT + 2 })
+
+      const res = await app.request('/api/p2p/pull', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cid: 'bafkreidontexist' }),
+      })
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 503)
+      assert.strictEqual(data.code, 'ENGINE_NOT_INITIALIZED')
     })
   })
 

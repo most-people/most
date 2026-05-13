@@ -54,6 +54,35 @@ function saveConfig(config) {
   }
 }
 
+function getApiErrorStatus(err) {
+  switch (err.code) {
+    case 'VALIDATION_ERROR':
+    case 'PATH_SECURITY_ERROR':
+    case 'FILE_SIZE_ERROR':
+      return 400
+    case 'PEER_NOT_FOUND':
+      return 503
+    case 'INTEGRITY_ERROR':
+      return 422
+    case 'PERMISSION_ERROR':
+      return 403
+    case 'ENGINE_NOT_INITIALIZED':
+      return 503
+    default:
+      return 500
+  }
+}
+
+function errorJson(c, err) {
+  return c.json(
+    {
+      error: err.message,
+      code: err.code || 'UNKNOWN',
+    },
+    getApiErrorStatus(err)
+  )
+}
+
 function getDataPath() {
   if (process.env.MOSTBOX_DATA_PATH) {
     return process.env.MOSTBOX_DATA_PATH
@@ -231,7 +260,7 @@ export function createApp(engine, options = {}) {
     return async (c, next) => {
       const clientIp =
         c.req.header('x-forwarded-for') ||
-        c.env.incoming?.socket?.remoteAddress ||
+        c.env?.incoming?.socket?.remoteAddress ||
         'unknown'
       if (!checkRateLimit(clientIp)) {
         return c.json({ error: 'Too many requests' }, 429)
@@ -431,6 +460,40 @@ export function createApp(engine, options = {}) {
     return c.json({ port: appPort, addresses: [localEntry, ...addresses] })
   })
 
+  // --- 节点保种路由 ---
+  app.get('/api/node/holdings', c => {
+    try {
+      return c.json(engine.listHoldings())
+    } catch (err) {
+      return errorJson(c, err)
+    }
+  })
+
+  app.post('/api/node/holdings', async c => {
+    try {
+      const body = await c.req.json()
+      const holding = await engine.addHolding(body)
+      return c.json({ success: true, holding })
+    } catch (err) {
+      return errorJson(c, err)
+    }
+  })
+
+  app.post('/api/p2p/pull', async c => {
+    try {
+      const body = await c.req.json()
+      const timeout =
+        body.timeout === undefined ? undefined : Number(body.timeout)
+      const result = await engine.pullByCid({
+        ...body,
+        timeout: Number.isFinite(timeout) && timeout > 0 ? timeout : undefined,
+      })
+      return c.json({ success: true, ...result })
+    } catch (err) {
+      return errorJson(c, err)
+    }
+  })
+
   // --- 文件路由 ---
   app.get('/api/files', c => {
     return c.json(engine.listPublishedFiles())
@@ -447,7 +510,8 @@ export function createApp(engine, options = {}) {
     try {
       const publishResult = await engine.publishFile(
         result.filePath,
-        result.filename
+        result.filename,
+        { localPath: null }
       )
       return c.json({ success: true, ...publishResult })
     } finally {

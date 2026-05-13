@@ -67,11 +67,13 @@ export class MostBoxEngine extends EventEmitter {
   #swarm = null
   #drives = new Map()
   #publishedFiles = []
+  #holdings = []
   #trashFiles = []
   #initialized = false
   #options = null
   #activeDownloads = new Map()
   #drivePromises = new Map()
+  #fileDiscoveries = new Map()
 
   #channels = []
   #channelCores = new Map()
@@ -100,6 +102,7 @@ export class MostBoxEngine extends EventEmitter {
       downloadPath:
         options.downloadPath || path.join(options.dataPath, 'downloads'),
       maxFileSize: options.maxFileSize || MAX_FILE_SIZE,
+      downloadTimeout: options.downloadTimeout || DOWNLOAD_TIMEOUT,
     }
   }
 
@@ -231,6 +234,24 @@ export class MostBoxEngine extends EventEmitter {
       `[MostBox] Loaded ${this.#publishedFiles.length} published files`
     )
 
+    this.#holdings = this.#loadHoldingsMetadata()
+    console.log(`[MostBox] Loaded ${this.#holdings.length} node holdings`)
+
+    for (const holding of this.#holdings) {
+      try {
+        await this.#joinCidTopicInternal(holding.cid, {
+          server: true,
+          client: false,
+        })
+        console.log(`[MostBox] Rejoined CID topic: ${holding.cid}`)
+      } catch (err) {
+        console.warn(
+          `[MostBox] Failed to rejoin CID topic ${holding.cid}:`,
+          err.message
+        )
+      }
+    }
+
     this.#trashFiles = this.#loadTrashMetadata()
     console.log(`[MostBox] Loaded ${this.#trashFiles.length} trash files`)
 
@@ -296,6 +317,7 @@ export class MostBoxEngine extends EventEmitter {
 
     await Promise.allSettled([...this.#drives.values()].map(d => d.close()))
     this.#drives.clear()
+    this.#fileDiscoveries.clear()
 
     for (const core of this.#channelCores.values()) {
       try {
@@ -360,9 +382,11 @@ export class MostBoxEngine extends EventEmitter {
    * Hyperdrive 中存储 key 为 '/' + cid，metadata 中存储 displayName（用户看到的路径）
    * @param {string|Buffer} content - 文件路径（字符串）或内容（Buffer）
    * @param {string} [fileName] - 文件名（Buffer 输入时必填）
+   * @param {object} [options] - 发布选项
+   * @param {string|null} [options.localPath] - 持有记录中的本地路径
    * @returns {Promise<{ cid: string, link: string, fileName: string }>}
    */
-  async publishFile(content, fileName) {
+  async publishFile(content, fileName, options = {}) {
     this.#ensureInitialized()
 
     let cleanPath = null
@@ -411,6 +435,9 @@ export class MostBoxEngine extends EventEmitter {
     const { cid: rootCid } = await calculateCid(content)
     const cidString = rootCid.toString()
     const merkle = await calculateChunkMerkleRoot(content)
+    const { driveName: name } = this.#getCidInfo(cidString)
+    const holdingLocalPath =
+      options.localPath === undefined ? cleanPath : options.localPath
 
     // 检查相同内容是否已存在
     const existingIndex = this.#publishedFiles.findIndex(
@@ -418,6 +445,22 @@ export class MostBoxEngine extends EventEmitter {
     )
     if (existingIndex !== -1) {
       const existing = this.#publishedFiles[existingIndex]
+      await this.#joinCidTopicInternal(cidString, {
+        server: true,
+        client: false,
+      })
+      this.#upsertHolding({
+        cid: cidString,
+        fileName: existing.fileName,
+        size: fileSize,
+        chunkMerkleRoot: existing.chunkMerkleRoot,
+        chunkSize: existing.chunkSize,
+        chunkCount: existing.chunkCount,
+        localPath: holdingLocalPath,
+        driveName: name,
+        source: 'published',
+        temporary: false,
+      })
       return {
         cid: cidString,
         link: `most://${cidString}?filename=${encodeURIComponent(existing.fileName)}&r=${existing.chunkMerkleRoot}`,
@@ -430,8 +473,6 @@ export class MostBoxEngine extends EventEmitter {
     }
 
     // 获取或创建该 CID 对应的 drive
-    const hashHex = b4a.toString(rootCid.multihash.digest, 'hex')
-    const name = `drive-${hashHex}`
     let drive = this.#drives.get(name)
 
     if (!drive) {
@@ -439,12 +480,15 @@ export class MostBoxEngine extends EventEmitter {
         server: true,
         client: false,
       })
-      const discovery = this.#swarm.join(drive.discoveryKey, {
+      this.#swarm.join(drive.discoveryKey, {
         server: true,
         client: false,
       })
-      await discovery.flushed()
     }
+    await this.#joinCidTopicInternal(cidString, {
+      server: true,
+      client: false,
+    })
 
     this.emit('publish:progress', { stage: 'uploading', file: safeFileName })
 
@@ -498,6 +542,18 @@ export class MostBoxEngine extends EventEmitter {
       starred: false,
     })
     this.#savePublishedMetadata()
+    this.#upsertHolding({
+      cid: cidString,
+      fileName: safeFileName,
+      size: fileSize,
+      chunkMerkleRoot: merkle.chunkMerkleRoot,
+      chunkSize: merkle.chunkSize,
+      chunkCount: merkle.chunkCount,
+      localPath: holdingLocalPath,
+      driveName: name,
+      source: 'published',
+      temporary: false,
+    })
 
     const result = {
       cid: cidString,
@@ -516,13 +572,16 @@ export class MostBoxEngine extends EventEmitter {
    * 从 P2P 网络下载文件
    * @param {string} link - most:// 链接
    * @param {string} [taskId] - 用于取消的任务 ID
+   * @param {object} [options] - 下载选项
+   * @param {number} [options.timeout] - 等待 P2P 内容的超时时间（毫秒）
    * @returns {Promise<{ taskId: string, fileName: string, savedPath: string, alreadyExists?: boolean }>}
    */
-  async downloadFile(link, taskId = null) {
+  async downloadFile(link, taskId = null, options = {}) {
     this.#ensureInitialized()
 
     taskId =
       taskId || `dl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+    const downloadTimeout = options.timeout || this.#options.downloadTimeout
 
     console.log(
       `[MostBox] Starting download for link: ${link} (taskId: ${taskId})`
@@ -552,11 +611,10 @@ export class MostBoxEngine extends EventEmitter {
       const linkFileName = parsed.fileName
 
       const parsedCid = CID.parse(cidString)
-      const hashHex = b4a.toString(parsedCid.multihash.digest, 'hex')
+      const { driveName: name } = this.#getCidInfo(cidString)
 
       if (taskState.aborted) throw new Error('Download cancelled')
 
-      const name = `drive-${hashHex}`
       let drive = this.#drives.get(name)
 
       if (!drive) {
@@ -569,24 +627,29 @@ export class MostBoxEngine extends EventEmitter {
         this.emit('download:status', { taskId, status: 'connecting' })
 
         console.log(`[MostBox] Joining swarm for drive discovery...`)
-        await this.#swarm
-          .join(drive.discoveryKey, { server: true, client: true })
-          .flushed()
-        console.log(`[MostBox] Swarm join flushed`)
+        this.#swarm.join(drive.discoveryKey, {
+          server: true,
+          client: true,
+        })
+        console.log(`[MostBox] Swarm join requested`)
       } else {
         console.log(`[MostBox] Using existing drive: ${name}`)
       }
+      await this.#joinCidTopicInternal(cidString, {
+        server: true,
+        client: true,
+      })
 
       if (taskState.aborted) throw new Error('Download cancelled')
 
       this.emit('download:status', { taskId, status: 'finding-peers' })
 
       console.log(
-        `[MostBox] Waiting for drive content (timeout: ${DOWNLOAD_TIMEOUT / 1000}s)...`
+        `[MostBox] Waiting for drive content (timeout: ${downloadTimeout / 1000}s)...`
       )
       const entries = await this.#waitForDriveContent(
         drive,
-        DOWNLOAD_TIMEOUT,
+        downloadTimeout,
         taskId,
         taskState
       )
@@ -760,6 +823,19 @@ export class MostBoxEngine extends EventEmitter {
           })
         }
         this.#savePublishedMetadata()
+        const savedSize = totalBytes || fs.statSync(savePath).size
+        this.#upsertHolding({
+          cid: cidString,
+          fileName: sanitizedFileName,
+          size: savedSize,
+          chunkMerkleRoot: merkle.chunkMerkleRoot,
+          chunkSize: merkle.chunkSize,
+          chunkCount: merkle.chunkCount,
+          localPath: savePath,
+          driveName: name,
+          source: 'downloaded',
+          temporary: true,
+        })
 
         this.emit('download:success', result)
         return result
@@ -919,11 +995,18 @@ export class MostBoxEngine extends EventEmitter {
           // 文件可能不存在于驱动器中
         }
 
-        await this.#swarm.leave(drive.discoveryKey)
+        this.#swarm.leave(drive.discoveryKey).catch(err => {
+          console.warn(
+            `[MostBox] Failed to leave drive discovery ${driveName}:`,
+            err.message
+          )
+        })
         await drive.close()
         this.#drives.delete(driveName)
       }
 
+      await this.#leaveCidTopic(fileRecord.cid)
+      this.#removeHolding(fileRecord.cid)
       this.#trashFiles.splice(index, 1)
       this.#saveTrashMetadata()
     }
@@ -948,10 +1031,17 @@ export class MostBoxEngine extends EventEmitter {
           // 文件可能不存在
         }
 
-        await this.#swarm.leave(drive.discoveryKey)
+        this.#swarm.leave(drive.discoveryKey).catch(err => {
+          console.warn(
+            `[MostBox] Failed to leave drive discovery ${driveName}:`,
+            err.message
+          )
+        })
         await drive.close()
         this.#drives.delete(driveName)
       }
+      await this.#leaveCidTopic(fileRecord.cid)
+      this.#removeHolding(fileRecord.cid)
     }
 
     this.#trashFiles = []
@@ -1095,6 +1185,121 @@ export class MostBoxEngine extends EventEmitter {
 
   getPublishedFiles() {
     return this.#publishedFiles
+  }
+
+  /**
+   * 列出当前节点持有的可做种文件副本
+   * @returns {Array}
+   */
+  listHoldings() {
+    this.#ensureInitialized()
+    return this.#holdings.map(holding => ({
+      ...holding,
+      joined: this.#fileDiscoveries.has(holding.cid),
+      link: holding.chunkMerkleRoot
+        ? `most://${holding.cid}?filename=${encodeURIComponent(holding.fileName || holding.cid)}&r=${holding.chunkMerkleRoot}`
+        : undefined,
+    }))
+  }
+
+  /**
+   * 手动记录节点已持有的文件副本
+   * @param {object} record - 持有记录
+   */
+  async addHolding(record) {
+    this.#ensureInitialized()
+    const holding = this.#normalizeHolding(record)
+    await this.#joinCidTopicInternal(holding.cid, {
+      server: true,
+      client: false,
+    })
+    return this.#upsertHolding(holding)
+  }
+
+  /**
+   * 按 CID digest topic 拉取完整文件副本
+   * @param {object} input - 拉取参数
+   * @param {string} [input.link] - most:// 链接
+   * @param {string} [input.cid] - 文件 CID
+   * @param {string} [input.fileName] - 保存文件名
+   * @param {string} [input.chunkMerkleRoot] - 期望 Merkle root
+   * @param {string} [input.root] - chunkMerkleRoot 别名
+   * @param {string} [input.taskId] - 下载任务 ID
+   * @param {number} [input.timeout] - 等待 P2P 内容的超时时间
+   */
+  async pullByCid(input = {}) {
+    this.#ensureInitialized()
+
+    if (input.link) {
+      const parsed = parseMostLink(input.link)
+      if (parsed.error) {
+        throw new ValidationError(parsed.error)
+      }
+      const result = await this.downloadFile(input.link, input.taskId || null, {
+        timeout: input.timeout,
+      })
+      return {
+        ...result,
+        cid: parsed.cid,
+        chunkMerkleRoot: parsed.chunkMerkleRoot,
+      }
+    }
+
+    const cid = input.cid
+    const chunkMerkleRoot = input.chunkMerkleRoot || input.root
+    if (!cid) {
+      throw new ValidationError('cid is required')
+    }
+    if (!chunkMerkleRoot || !/^[0-9a-f]{64}$/.test(chunkMerkleRoot)) {
+      throw new ValidationError(
+        'chunkMerkleRoot must be a 64-character hex string'
+      )
+    }
+
+    this.#getCidInfo(cid)
+    const fileName = sanitizeFilename(input.fileName || `${cid}.bin`)
+    const link = `most://${cid}?filename=${encodeURIComponent(fileName)}&r=${chunkMerkleRoot}`
+    const result = await this.downloadFile(link, input.taskId || null, {
+      timeout: input.timeout,
+    })
+
+    return {
+      ...result,
+      cid,
+      chunkMerkleRoot,
+    }
+  }
+
+  /**
+   * 按 CID digest 加入文件 topic
+   * @param {string} cid - 文件 CID
+   * @param {object} [options] - Hyperswarm join 选项
+   */
+  async joinCidTopic(cid, options = {}) {
+    this.#ensureInitialized()
+    return this.#joinCidTopicInternal(cid, options)
+  }
+
+  /**
+   * 用内存复制流连接两个本地引擎，供本地集成测试和诊断使用。
+   */
+  replicateWith(peerEngine) {
+    this.#ensureInitialized()
+    peerEngine.#ensureInitialized()
+
+    const left = this.#store.replicate(true, { live: true })
+    const right = peerEngine.#store.replicate(false, { live: true })
+
+    left.on('error', () => {})
+    right.on('error', () => {})
+    left.pipe(right).pipe(left)
+
+    return {
+      close: () => {
+        left.destroy()
+        right.destroy()
+      },
+    }
   }
 
   /**
@@ -1277,12 +1482,10 @@ export class MostBoxEngine extends EventEmitter {
       server: true,
       client: true,
     })
-    await appDiscovery.flushed()
     const chatDiscovery = this.#chatSwarm.join(chatDiscoveryKey, {
       server: true,
       client: true,
     })
-    await chatDiscovery.flushed()
 
     this.#setupChannelAppendListener(core, name)
 
@@ -1338,12 +1541,10 @@ export class MostBoxEngine extends EventEmitter {
       server: true,
       client: true,
     })
-    await appDiscovery.flushed()
     const chatDiscovery = this.#chatSwarm.join(chatDiscoveryKey, {
       server: true,
       client: true,
     })
-    await chatDiscovery.flushed()
 
     this.#setupChannelAppendListener(core, name)
 
@@ -1385,29 +1586,25 @@ export class MostBoxEngine extends EventEmitter {
 
     const appDiscovery = this.#channelDiscoveries.get(name)
     if (appDiscovery && this.#swarm) {
-      try {
-        await this.#swarm.leave(b4a.from(channel.discoveryKey, 'hex'))
-      } catch (err) {
+      this.#channelDiscoveries.delete(name)
+      this.#swarm.leave(b4a.from(channel.discoveryKey, 'hex')).catch(err => {
         console.warn(
           `[MostBox] Failed to leave app swarm for ${name}:`,
           err.message
         )
-      }
-      this.#channelDiscoveries.delete(name)
+      })
     }
 
     const chatDiscovery = this.#channelChatDiscoveries.get(name)
     if (chatDiscovery && this.#chatSwarm) {
-      try {
-        const chatDiscoveryKey = this.#generateChannelChatDiscoveryKey(name)
-        await this.#chatSwarm.leave(chatDiscoveryKey)
-      } catch (err) {
+      this.#channelChatDiscoveries.delete(name)
+      const chatDiscoveryKey = this.#generateChannelChatDiscoveryKey(name)
+      this.#chatSwarm.leave(chatDiscoveryKey).catch(err => {
         console.warn(
           `[MostBox] Failed to leave chat swarm for ${name}:`,
           err.message
         )
-      }
-      this.#channelChatDiscoveries.delete(name)
+      })
     }
 
     const core = this.#channelCores.get(name)
@@ -1587,6 +1784,144 @@ export class MostBoxEngine extends EventEmitter {
     }
   }
 
+  #getCidInfo(cid) {
+    try {
+      const parsedCid = CID.parse(cid)
+      const topic = b4a.from(parsedCid.multihash.digest)
+      if (topic.length !== 32) {
+        throw new ValidationError('CID digest must be 32 bytes')
+      }
+      const topicHex = b4a.toString(topic, 'hex')
+      return {
+        topic,
+        topicHex,
+        driveName: `drive-${topicHex}`,
+      }
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        throw err
+      }
+      throw new ValidationError('Invalid CID format')
+    }
+  }
+
+  #normalizeHolding(record = {}) {
+    const cid = record.cid
+    if (!cid) {
+      throw new ValidationError('cid is required')
+    }
+
+    const chunkMerkleRoot = record.chunkMerkleRoot || record.root
+    if (!chunkMerkleRoot || !/^[0-9a-f]{64}$/.test(chunkMerkleRoot)) {
+      throw new ValidationError(
+        'chunkMerkleRoot must be a 64-character hex string'
+      )
+    }
+
+    const { topicHex, driveName } = this.#getCidInfo(cid)
+    if (record.topic && record.topic !== topicHex) {
+      throw new ValidationError('topic must match CID digest')
+    }
+
+    const size = Number(record.size)
+    if (!Number.isFinite(size) || size < 0) {
+      throw new ValidationError('size must be a non-negative number')
+    }
+
+    return {
+      cid,
+      fileName: record.fileName || cid,
+      size,
+      root: chunkMerkleRoot,
+      chunkMerkleRoot,
+      chunkSize: record.chunkSize || null,
+      chunkCount: record.chunkCount || null,
+      localPath: record.localPath || null,
+      topic: topicHex,
+      driveName: record.driveName || driveName,
+      source: record.source || 'manual',
+      temporary: record.temporary === true,
+    }
+  }
+
+  #upsertHolding(record) {
+    const holding = this.#normalizeHolding(record)
+    const now = new Date().toISOString()
+    const index = this.#holdings.findIndex(f => f.cid === holding.cid)
+    const next =
+      index === -1
+        ? { ...holding, createdAt: now, updatedAt: now }
+        : { ...this.#holdings[index], ...holding, updatedAt: now }
+
+    if (index === -1) {
+      this.#holdings.push(next)
+    } else {
+      this.#holdings[index] = next
+    }
+
+    this.#saveHoldingsMetadata()
+    this.emit('holding:updated', next)
+    return {
+      ...next,
+      joined: this.#fileDiscoveries.has(next.cid),
+    }
+  }
+
+  #removeHolding(cid) {
+    const before = this.#holdings.length
+    this.#holdings = this.#holdings.filter(holding => holding.cid !== cid)
+    if (this.#holdings.length !== before) {
+      this.#saveHoldingsMetadata()
+      this.emit('holding:removed', { cid })
+    }
+  }
+
+  async #joinCidTopicInternal(cid, options = {}) {
+    const { topic, topicHex, driveName } = this.#getCidInfo(cid)
+    await this.#getOrCreateDrive(driveName)
+
+    const existing = this.#fileDiscoveries.get(cid)
+    if (existing) {
+      return {
+        cid,
+        topic: topicHex,
+        driveName,
+        joined: true,
+      }
+    }
+
+    const discovery = this.#swarm.join(topic, {
+      server: options.server !== false,
+      client: options.client === true,
+    })
+
+    this.#fileDiscoveries.set(cid, {
+      discovery,
+      topic: topicHex,
+      driveName,
+    })
+    this.emit('file:topic:joined', { cid, topic: topicHex, driveName })
+
+    return {
+      cid,
+      topic: topicHex,
+      driveName,
+      joined: true,
+    }
+  }
+
+  async #leaveCidTopic(cid) {
+    const existing = this.#fileDiscoveries.get(cid)
+    if (!existing || !this.#swarm) {
+      return
+    }
+
+    this.#fileDiscoveries.delete(cid)
+    this.#swarm.leave(b4a.from(existing.topic, 'hex')).catch(err => {
+      console.warn(`[MostBox] Failed to leave CID topic ${cid}:`, err.message)
+    })
+  }
+
   async #getOrCreateDrive(name, _options = { server: true, client: false }) {
     if (this.#drives.has(name)) return this.#drives.get(name)
     if (this.#drivePromises.has(name)) return this.#drivePromises.get(name)
@@ -1631,6 +1966,10 @@ export class MostBoxEngine extends EventEmitter {
     return path.join(this.#options.dataPath, 'published-files.json')
   }
 
+  #getHoldingsMetadataPath() {
+    return path.join(this.#options.dataPath, 'node-holdings.json')
+  }
+
   #getTrashMetadataPath() {
     return path.join(this.#options.dataPath, 'trash-files.json')
   }
@@ -1667,6 +2006,32 @@ export class MostBoxEngine extends EventEmitter {
       )
     } catch (err) {
       console.error('Failed to save published metadata:', err.message)
+    }
+  }
+
+  #loadHoldingsMetadata() {
+    try {
+      const metadataPath = this.#getHoldingsMetadataPath()
+      if (fs.existsSync(metadataPath)) {
+        const data = fs.readFileSync(metadataPath, 'utf-8')
+        const parsed = JSON.parse(data)
+        return parsed.map(record => this.#normalizeHolding(record))
+      }
+    } catch (err) {
+      console.warn(
+        'Failed to load node holdings metadata, using empty list:',
+        err.message
+      )
+    }
+    return []
+  }
+
+  #saveHoldingsMetadata() {
+    try {
+      const metadataPath = this.#getHoldingsMetadataPath()
+      this.#atomicWrite(metadataPath, JSON.stringify(this.#holdings, null, 2))
+    } catch (err) {
+      console.error('Failed to save node holdings metadata:', err.message)
     }
   }
 

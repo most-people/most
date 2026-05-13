@@ -5,6 +5,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { MostBoxEngine } from '../../src/index.js'
 
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+
 describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'most-engine-test-'))
   const uid = Math.random().toString(36).slice(2, 8)
@@ -232,6 +234,119 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
         engine.downloadFile(''),
         /Link must be a non-empty string/
       )
+    })
+  })
+
+  describe('node holdings and CID topic pull', () => {
+    it('persists holdings and rejoins CID topics after restart', async () => {
+      const holdingTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-holding-test-')
+      )
+      const dataPath = path.join(holdingTmpDir, 'data')
+      let firstEngine
+      let secondEngine
+
+      try {
+        firstEngine = new MostBoxEngine({ dataPath })
+        await firstEngine.start()
+
+        const publishResult = await firstEngine.publishFile(
+          Buffer.from('holding restart test'),
+          'holding.txt'
+        )
+        const holding = firstEngine
+          .listHoldings()
+          .find(item => item.cid === publishResult.cid)
+
+        assert.ok(holding)
+        assert.strictEqual(holding.size, 'holding restart test'.length)
+        assert.strictEqual(holding.root, publishResult.chunkMerkleRoot)
+        assert.match(holding.topic, /^[0-9a-f]{64}$/)
+        assert.strictEqual(holding.joined, true)
+
+        await firstEngine.stop()
+        firstEngine = null
+
+        secondEngine = new MostBoxEngine({ dataPath })
+        await secondEngine.start()
+        const restored = secondEngine
+          .listHoldings()
+          .find(item => item.cid === publishResult.cid)
+
+        assert.ok(restored)
+        assert.strictEqual(restored.joined, true)
+        assert.strictEqual(restored.topic, holding.topic)
+      } finally {
+        if (firstEngine) await firstEngine.stop().catch(() => {})
+        if (secondEngine) await secondEngine.stop().catch(() => {})
+        fs.rmSync(holdingTmpDir, { recursive: true, force: true })
+      }
+    })
+
+    it('pulls through local seed nodes after the uploader stops', async () => {
+      const p2pTmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'most-p2p-test-'))
+      const engines = []
+      const links = []
+
+      try {
+        const makeEngine = async name => {
+          const dataPath = path.join(p2pTmpDir, name)
+          const nextEngine = new MostBoxEngine({
+            dataPath,
+            downloadTimeout: 10000,
+          })
+          await nextEngine.start()
+          engines.push(nextEngine)
+          return nextEngine
+        }
+
+        const uploader = await makeEngine('uploader')
+        const seedB = await makeEngine('seed-b')
+        const seedC = await makeEngine('seed-c')
+        const downloader = await makeEngine('downloader')
+
+        const content = Buffer.alloc(1024 * 1024, 'a')
+        const publishResult = await uploader.publishFile(content, 'seed.bin')
+        const pullInput = {
+          cid: publishResult.cid,
+          fileName: publishResult.fileName,
+          chunkMerkleRoot: publishResult.chunkMerkleRoot,
+          timeout: 10000,
+        }
+
+        const pullB = seedB.pullByCid(pullInput)
+        await sleep(100)
+        links.push(uploader.replicateWith(seedB))
+        const resultB = await pullB
+        assert.deepStrictEqual(fs.readFileSync(resultB.savedPath), content)
+
+        const pullC = seedC.pullByCid(pullInput)
+        await sleep(100)
+        links.push(uploader.replicateWith(seedC))
+        const resultC = await pullC
+        assert.deepStrictEqual(fs.readFileSync(resultC.savedPath), content)
+
+        await uploader.stop()
+        const uploaderIndex = engines.indexOf(uploader)
+        engines.splice(uploaderIndex, 1)
+
+        const pullD = downloader.pullByCid(pullInput)
+        await sleep(100)
+        links.push(seedB.replicateWith(downloader))
+        links.push(seedC.replicateWith(downloader))
+        const resultD = await pullD
+
+        assert.deepStrictEqual(fs.readFileSync(resultD.savedPath), content)
+        assert.ok(seedB.listHoldings().some(h => h.cid === publishResult.cid))
+        assert.ok(seedC.listHoldings().some(h => h.cid === publishResult.cid))
+        assert.ok(
+          downloader.listHoldings().some(h => h.cid === publishResult.cid)
+        )
+      } finally {
+        for (const link of links) link.close()
+        await Promise.allSettled(engines.map(nextEngine => nextEngine.stop()))
+        fs.rmSync(p2pTmpDir, { recursive: true, force: true })
+      }
     })
   })
 
