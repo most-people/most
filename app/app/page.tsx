@@ -25,6 +25,7 @@ import {
   Edit2,
   Loader,
   ArrowRight,
+  Server,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import { ModalOverlay, ConfirmModal, InputModal } from '~/components/ui'
@@ -754,10 +755,7 @@ export default function App() {
 
   const handleDownloadSharedFile = async () => {
     if (!downloadLink.trim() || !downloadLink.startsWith('most://')) {
-      addToast(
-        '链接格式应为 most://<cid>?filename=...&r=...',
-        'warning'
-      )
+      addToast('链接格式应为 most://<cid>?filename=...&r=...', 'warning')
       return
     }
     if (isDownloading) return
@@ -1018,6 +1016,14 @@ export default function App() {
                 <span>{item.label}</span>
               </button>
             ))}
+            <Link
+              href="/admin"
+              className="sidebar-nav-btn"
+              onClick={closeSidebar}
+            >
+              <Server size={18} />
+              <span>节点管理</span>
+            </Link>
           </nav>
 
           <div className="sidebar-footer">

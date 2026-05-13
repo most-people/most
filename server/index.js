@@ -13,6 +13,8 @@ import { MostBoxEngine } from './src/index.js'
 import { parseMostLink, validateCidString } from './src/core/cid.js'
 import { sanitizeFilename } from './src/utils/security.js'
 import { MAX_FILE_SIZE } from './src/config.js'
+import { createNodeConfigStore, evaluateNodePolicy } from './src/node/config.js'
+import { createNodeLogger } from './src/node/logs.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = Number(process.env.MOSTBOX_PORT || process.env.PORT) || 1976
@@ -25,34 +27,10 @@ const RATE_LIMIT_WINDOW = 60 * 1000
 const RATE_LIMIT_MAX_REQUESTS = 120
 
 // --- 配置 ---
-const CONFIG_DIR = path.join(os.homedir(), '.most-box')
-const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json')
-
-function loadConfig() {
-  try {
-    if (fs.existsSync(CONFIG_FILE)) {
-      return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'))
-    }
-  } catch (err) {
-    console.error('[Config] Load error:', err.message)
-  }
-  return {}
-}
-
-function saveConfig(config) {
-  try {
-    if (!fs.existsSync(CONFIG_DIR)) {
-      fs.mkdirSync(CONFIG_DIR, { recursive: true })
-    }
-    const tmpPath = CONFIG_FILE + '.tmp'
-    fs.writeFileSync(tmpPath, JSON.stringify(config, null, 2), 'utf-8')
-    fs.renameSync(tmpPath, CONFIG_FILE)
-    return true
-  } catch (err) {
-    console.error('[Config] Save error:', err.message)
-    return false
-  }
-}
+const defaultConfigStore = createNodeConfigStore()
+const defaultNodeLogger = createNodeLogger(defaultConfigStore.configDir)
+const CONFIG_DIR = defaultConfigStore.configDir
+const PACKAGE_JSON = readPackageJson()
 
 function getApiErrorStatus(err) {
   switch (err.code) {
@@ -83,12 +61,188 @@ function errorJson(c, err) {
   )
 }
 
-function getDataPath() {
-  if (process.env.MOSTBOX_DATA_PATH) {
-    return process.env.MOSTBOX_DATA_PATH
+function readPackageJson() {
+  try {
+    return JSON.parse(
+      fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf-8')
+    )
+  } catch {
+    return { version: '0.0.0' }
   }
-  const config = loadConfig()
-  return config.dataPath || path.join(os.homedir(), 'most-data')
+}
+
+function getDataPath(configStore = defaultConfigStore) {
+  return configStore.getDataPath()
+}
+
+function resolveDataPathForSave(inputPath) {
+  let dataPath = String(inputPath || '').trim()
+  let basePath = dataPath
+
+  if (!dataPath) {
+    return { dataPath: '' }
+  }
+
+  if (dataPath.match(/^[A-Za-z]:\\$/)) {
+    basePath = dataPath
+    dataPath = path.join(dataPath, 'most-data')
+  }
+
+  if (!fs.existsSync(basePath)) {
+    return { error: '目录不存在' }
+  }
+
+  if (!fs.existsSync(dataPath)) {
+    fs.mkdirSync(dataPath, { recursive: true })
+  }
+
+  return { dataPath }
+}
+
+function getNetworkAddresses(appPort) {
+  const interfaces = os.networkInterfaces()
+  const addresses = []
+  const seen = new Set()
+
+  for (const [name, nets] of Object.entries(interfaces)) {
+    for (const net of nets) {
+      if (net.family !== 'IPv4' || net.internal) continue
+      if (seen.has(net.address)) continue
+      seen.add(net.address)
+
+      let type = 'lan'
+      let label = '局域网'
+      if (net.address.startsWith('100.')) {
+        type = 'tailscale'
+        label = 'Tailscale'
+      } else if (
+        name.toLowerCase().includes('zt') ||
+        name.toLowerCase().includes('zerotier')
+      ) {
+        type = 'zerotier'
+        label = 'ZeroTier'
+      }
+
+      addresses.push({ type, ip: net.address, label, iface: name })
+    }
+  }
+
+  const localEntry = {
+    type: 'local',
+    ip: 'localhost',
+    label: '本机',
+    iface: 'loopback',
+  }
+  return { port: appPort, addresses: [localEntry, ...addresses] }
+}
+
+async function buildNodeStatus(engine, configStore, appPort, host) {
+  const config = configStore.getNodeConfig()
+  const storage = await engine.getStorageStats()
+  const network = engine.getNetworkStatus()
+  const holdings = engine.listHoldings()
+
+  return {
+    status: 'online',
+    version: PACKAGE_JSON.version,
+    uptimeSeconds: Math.floor(process.uptime()),
+    nodeId: engine.getNodeId(),
+    host,
+    port: appPort,
+    listen: getNetworkAddresses(appPort),
+    dataPath: getDataPath(configStore),
+    config,
+    policy: {
+      allowOrders: config.allowOrders,
+      maxFileSizeBytes: config.maxFileSizeBytes,
+      minimumPriceUsdtPerGbMonth: config.minimumPriceUsdtPerGbMonth,
+    },
+    capacity: {
+      configuredBytes: config.capacityBytes,
+      usedBytes: storage.used,
+      freeBytes: Math.max(0, config.capacityBytes - storage.used),
+    },
+    storage,
+    network,
+    holdings,
+  }
+}
+
+function buildOpenApiSpec(appPort) {
+  return {
+    openapi: '3.1.0',
+    info: {
+      title: 'MostBox Node Daemon API',
+      version: PACKAGE_JSON.version,
+    },
+    servers: [{ url: `http://localhost:${appPort}` }],
+    paths: {
+      '/api/node/status': {
+        get: {
+          summary: 'Get node daemon status',
+          responses: { 200: { description: 'Node status' } },
+        },
+      },
+      '/api/node/config': {
+        get: {
+          summary: 'Get node daemon config',
+          responses: { 200: { description: 'Node config' } },
+        },
+        post: {
+          summary: 'Update node daemon config',
+          responses: { 200: { description: 'Updated config' } },
+        },
+      },
+      '/api/node/policy': {
+        get: {
+          summary: 'Get local order policy',
+          responses: { 200: { description: 'Node policy' } },
+        },
+        post: {
+          summary: 'Update local order policy',
+          responses: { 200: { description: 'Updated policy' } },
+        },
+      },
+      '/api/node/policy/evaluate': {
+        post: {
+          summary: 'Evaluate a local order candidate against node policy',
+          responses: { 200: { description: 'Policy decision' } },
+        },
+      },
+      '/api/node/holdings': {
+        get: {
+          summary: 'List CID replicas held by this node',
+          responses: { 200: { description: 'Node holdings' } },
+        },
+        post: {
+          summary: 'Add a held CID replica record and join its topic',
+          responses: { 200: { description: 'Created holding' } },
+        },
+      },
+      '/api/node/logs': {
+        get: {
+          summary: 'Read recent node daemon logs',
+          responses: { 200: { description: 'Node logs' } },
+        },
+        delete: {
+          summary: 'Clear node daemon logs',
+          responses: { 200: { description: 'Logs cleared' } },
+        },
+      },
+      '/api/storage': {
+        get: {
+          summary: 'Get storage statistics',
+          responses: { 200: { description: 'Storage statistics' } },
+        },
+      },
+      '/api/p2p/pull': {
+        post: {
+          summary: 'Pull a full file replica by CID and chunkMerkleRoot',
+          responses: { 200: { description: 'Pull task result' } },
+        },
+      },
+    },
+  }
 }
 
 // --- 静态文件服务 ---
@@ -232,6 +386,10 @@ async function parseMultipartBusboy(req) {
 // --- Hono 应用工厂 ---
 export function createApp(engine, options = {}) {
   const appPort = options.port || PORT
+  const appHost = options.host || HOST
+  const configStore = options.configStore || defaultConfigStore
+  const nodeLogger =
+    options.nodeLogger || createNodeLogger(configStore.configDir || CONFIG_DIR)
   const wssRef = options.wssRef || { current: null }
   const serverInstanceRef = options.serverInstanceRef || { current: null }
 
@@ -286,6 +444,33 @@ export function createApp(engine, options = {}) {
         }
       })
     }
+  }
+
+  async function broadcastNodeStatus() {
+    try {
+      const status = await buildNodeStatus(
+        engine,
+        configStore,
+        appPort,
+        appHost
+      )
+      wsBroadcast('node:status', status)
+      return status
+    } catch (err) {
+      const entry = nodeLogger.append({
+        level: 'error',
+        event: 'node:status:error',
+        message: err.message,
+      })
+      wsBroadcast('node:log', entry)
+      return null
+    }
+  }
+
+  function appendNodeLog(input) {
+    const entry = nodeLogger.append(input)
+    wsBroadcast('node:log', entry)
+    return entry
   }
 
   function wsSendToChannel(channelName, event, data) {
@@ -359,9 +544,10 @@ export function createApp(engine, options = {}) {
   app.onError((err, c) => {
     console.error('[API Error]', err)
     try {
-      const errorLogPath = path.join(CONFIG_DIR, 'server-error.log')
-      if (!fs.existsSync(CONFIG_DIR)) {
-        fs.mkdirSync(CONFIG_DIR, { recursive: true })
+      const errorLogDir = configStore.configDir || CONFIG_DIR
+      const errorLogPath = path.join(errorLogDir, 'server-error.log')
+      if (!fs.existsSync(errorLogDir)) {
+        fs.mkdirSync(errorLogDir, { recursive: true })
       }
       fs.appendFileSync(
         errorLogPath,
@@ -377,45 +563,138 @@ export function createApp(engine, options = {}) {
   })
 
   app.get('/api/config', c => {
-    const config = loadConfig()
+    const config = configStore.loadRawConfig()
     return c.json({ dataPath: config.dataPath || '' })
   })
 
   app.post('/api/config', async c => {
     const body = await c.req.json()
-    const config = loadConfig()
+    const patch = {}
 
     if (body.resetStorage) {
-      config.dataPath = ''
+      patch.dataPath = ''
     } else if (body.dataPath !== undefined) {
-      let dataPath = body.dataPath.trim()
-      let basePath = dataPath
-
-      if (dataPath.match(/^[A-Za-z]:\\$/)) {
-        basePath = dataPath
-        dataPath = path.join(dataPath, 'most-data')
-      }
-
-      if (!fs.existsSync(basePath)) {
-        return c.json({ error: '目录不存在' }, 400)
-      }
-
-      if (!fs.existsSync(dataPath)) {
-        fs.mkdirSync(dataPath, { recursive: true })
-      }
-
-      config.dataPath = dataPath
+      const resolved = resolveDataPathForSave(body.dataPath)
+      if (resolved.error) return c.json({ error: resolved.error }, 400)
+      patch.dataPath = resolved.dataPath
     }
 
-    const success = saveConfig(config)
-    return c.json({ success, dataPath: getDataPath() })
+    const { success } = configStore.saveNodeConfigPatch(patch)
+    appendNodeLog({
+      event: 'node:config:updated',
+      message: 'Node config updated',
+      data: { dataPath: getDataPath(configStore) },
+    })
+    await broadcastNodeStatus()
+    return c.json({ success, dataPath: getDataPath(configStore) })
   })
 
   app.get('/api/config/data-path', c => {
-    const config = loadConfig()
+    const config = configStore.getNodeConfig()
     const isDefault = !config.dataPath
-    const dataPath = getDataPath()
+    const dataPath = getDataPath(configStore)
     return c.json({ dataPath, isDefault })
+  })
+
+  app.get('/api/node/status', async c => {
+    try {
+      return c.json(
+        await buildNodeStatus(engine, configStore, appPort, appHost)
+      )
+    } catch (err) {
+      return errorJson(c, err)
+    }
+  })
+
+  app.get('/api/node/config', c => {
+    const config = configStore.getNodeConfig()
+    return c.json({
+      ...config,
+      dataPath: getDataPath(configStore),
+      configuredDataPath: config.dataPath,
+      isDefaultDataPath: !config.dataPath && !process.env.MOSTBOX_DATA_PATH,
+      envDataPath: process.env.MOSTBOX_DATA_PATH || null,
+    })
+  })
+
+  app.post('/api/node/config', async c => {
+    const body = await c.req.json()
+    const patch = { ...body }
+
+    if (body.resetStorage) {
+      patch.dataPath = ''
+    } else if (body.dataPath !== undefined) {
+      const resolved = resolveDataPathForSave(body.dataPath)
+      if (resolved.error) return c.json({ error: resolved.error }, 400)
+      patch.dataPath = resolved.dataPath
+    }
+
+    const { success, config } = configStore.saveNodeConfigPatch(patch)
+    appendNodeLog({
+      event: 'node:config:updated',
+      message: 'Node daemon config updated',
+      data: {
+        dataPath: getDataPath(configStore),
+        capacityBytes: config.capacityBytes,
+      },
+    })
+    await broadcastNodeStatus()
+    return c.json({ success, ...config, dataPath: getDataPath(configStore) })
+  })
+
+  app.get('/api/node/policy', c => {
+    const config = configStore.getNodeConfig()
+    return c.json({
+      allowOrders: config.allowOrders,
+      maxFileSizeBytes: config.maxFileSizeBytes,
+      minimumPriceUsdtPerGbMonth: config.minimumPriceUsdtPerGbMonth,
+    })
+  })
+
+  app.post('/api/node/policy', async c => {
+    const body = await c.req.json()
+    const { success, config } = configStore.saveNodeConfigPatch({
+      allowOrders: body.allowOrders,
+      maxFileSizeBytes: body.maxFileSizeBytes,
+      minimumPriceUsdtPerGbMonth: body.minimumPriceUsdtPerGbMonth,
+    })
+    const policy = {
+      allowOrders: config.allowOrders,
+      maxFileSizeBytes: config.maxFileSizeBytes,
+      minimumPriceUsdtPerGbMonth: config.minimumPriceUsdtPerGbMonth,
+    }
+    appendNodeLog({
+      event: 'node:policy:updated',
+      message: 'Node order policy updated',
+      data: policy,
+    })
+    await broadcastNodeStatus()
+    return c.json({ success, ...policy })
+  })
+
+  app.post('/api/node/policy/evaluate', async c => {
+    const body = await c.req.json()
+    const decision = evaluateNodePolicy(configStore.getNodeConfig(), body)
+    return c.json(decision)
+  })
+
+  app.get('/api/node/logs', c => {
+    const limit = Number(c.req.query('limit') || 100)
+    return c.json({
+      logFile: nodeLogger.logFile,
+      logs: nodeLogger.list(limit),
+    })
+  })
+
+  app.delete('/api/node/logs', c => {
+    const success = nodeLogger.clear()
+    const clearedAt = new Date().toISOString()
+    wsBroadcast('node:logs:cleared', { clearedAt })
+    return c.json({ success, clearedAt })
+  })
+
+  app.get('/api/openapi.json', c => {
+    return c.json(buildOpenApiSpec(appPort))
   })
 
   // --- 网络路由 ---
@@ -424,40 +703,7 @@ export function createApp(engine, options = {}) {
   })
 
   app.get('/api/network', c => {
-    const interfaces = os.networkInterfaces()
-    const addresses = []
-    const seen = new Set()
-
-    for (const [name, nets] of Object.entries(interfaces)) {
-      for (const net of nets) {
-        if (net.family !== 'IPv4' || net.internal) continue
-        if (seen.has(net.address)) continue
-        seen.add(net.address)
-
-        let type = 'lan'
-        let label = '局域网'
-        if (net.address.startsWith('100.')) {
-          type = 'tailscale'
-          label = 'Tailscale'
-        } else if (
-          name.toLowerCase().includes('zt') ||
-          name.toLowerCase().includes('zerotier')
-        ) {
-          type = 'zerotier'
-          label = 'ZeroTier'
-        }
-
-        addresses.push({ type, ip: net.address, label, iface: name })
-      }
-    }
-
-    const localEntry = {
-      type: 'local',
-      ip: 'localhost',
-      label: '本机',
-      iface: 'loopback',
-    }
-    return c.json({ port: appPort, addresses: [localEntry, ...addresses] })
+    return c.json(getNetworkAddresses(appPort))
   })
 
   // --- 节点保种路由 ---
@@ -473,6 +719,12 @@ export function createApp(engine, options = {}) {
     try {
       const body = await c.req.json()
       const holding = await engine.addHolding(body)
+      appendNodeLog({
+        event: 'node:holding:added',
+        message: 'Node holding added',
+        data: { cid: holding.cid, size: holding.size },
+      })
+      await broadcastNodeStatus()
       return c.json({ success: true, holding })
     } catch (err) {
       return errorJson(c, err)
@@ -488,8 +740,20 @@ export function createApp(engine, options = {}) {
         ...body,
         timeout: Number.isFinite(timeout) && timeout > 0 ? timeout : undefined,
       })
+      appendNodeLog({
+        event: 'node:pull:success',
+        message: 'P2P pull completed',
+        data: { cid: result.cid, taskId: result.taskId },
+      })
+      await broadcastNodeStatus()
       return c.json({ success: true, ...result })
     } catch (err) {
+      appendNodeLog({
+        level: 'error',
+        event: 'node:pull:error',
+        message: err.message,
+        data: { code: err.code || 'UNKNOWN' },
+      })
       return errorJson(c, err)
     }
   })
@@ -898,6 +1162,8 @@ export function createApp(engine, options = {}) {
     app,
     wsBroadcast,
     wsSendToChannel,
+    broadcastNodeStatus,
+    appendNodeLog,
     subscribeToChannel,
     unsubscribeFromChannel,
     cleanupWsSubscriptions,
@@ -922,7 +1188,9 @@ export async function main() {
     )
   }
 
-  const dataPath = getDataPath()
+  const configStore = defaultConfigStore
+  const nodeLogger = defaultNodeLogger
+  const dataPath = getDataPath(configStore)
   console.log(`[MostBox] Storage: ${dataPath}`)
 
   const engine = new MostBoxEngine({ dataPath })
@@ -934,25 +1202,78 @@ export async function main() {
     app,
     wsBroadcast,
     wsSendToChannel,
+    broadcastNodeStatus,
+    appendNodeLog,
     subscribeToChannel,
     unsubscribeFromChannel,
     cleanupWsSubscriptions,
   } = createApp(engine, {
     port: PORT,
+    host: HOST,
+    configStore,
+    nodeLogger,
     wssRef,
     serverInstanceRef,
   })
 
+  let engineReadyForStatus = false
+  const safeBroadcastNodeStatus = () => {
+    if (engineReadyForStatus) {
+      broadcastNodeStatus()
+    }
+  }
+
   engine.on('download:progress', data => wsBroadcast('download:progress', data))
   engine.on('download:status', data => wsBroadcast('download:status', data))
-  engine.on('download:success', data => wsBroadcast('download:success', data))
+  engine.on('download:success', data => {
+    wsBroadcast('download:success', data)
+    appendNodeLog({
+      event: 'node:download:success',
+      message: 'Download verified and stored',
+      data,
+    })
+    safeBroadcastNodeStatus()
+  })
   engine.on('download:cancelled', data =>
     wsBroadcast('download:cancelled', data)
   )
   engine.on('publish:progress', data => wsBroadcast('publish:progress', data))
-  engine.on('publish:success', data => wsBroadcast('publish:success', data))
+  engine.on('publish:success', data => {
+    wsBroadcast('publish:success', data)
+    appendNodeLog({
+      event: 'node:publish:success',
+      message: 'File published and seeding',
+      data: { cid: data.cid, fileName: data.fileName },
+    })
+    safeBroadcastNodeStatus()
+  })
   engine.on('connection', () => {
     wsBroadcast('network:status', engine.getNetworkStatus())
+    safeBroadcastNodeStatus()
+  })
+  engine.on('holding:updated', data => {
+    appendNodeLog({
+      event: 'node:holding:updated',
+      message: 'Holding metadata updated',
+      data: { cid: data.cid, size: data.size },
+    })
+    safeBroadcastNodeStatus()
+  })
+  engine.on('holding:removed', data => {
+    appendNodeLog({
+      event: 'node:holding:removed',
+      message: 'Holding metadata removed',
+      data,
+    })
+    safeBroadcastNodeStatus()
+  })
+  engine.on('file:topic:joined', data => {
+    appendNodeLog({
+      event: 'node:topic:joined',
+      message: 'CID topic joined',
+      data,
+    })
+    safeBroadcastNodeStatus()
   })
   engine.on('channel:message', data =>
     wsSendToChannel(data.channel, 'channel:message', data)
@@ -967,7 +1288,14 @@ export async function main() {
   engine.on('channel:left', data => wsBroadcast('channel:left', data))
 
   await engine.start()
+  engineReadyForStatus = true
   console.log('[MostBox] Engine ready')
+  appendNodeLog({
+    event: 'node:ready',
+    message: 'Node daemon ready',
+    data: { dataPath, port: PORT },
+  })
+  broadcastNodeStatus()
 
   serverInstanceRef.current = serve(
     { fetch: app.fetch, port: PORT, hostname: HOST },

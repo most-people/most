@@ -8,6 +8,8 @@ import { createApp } from '../../index.js'
 import { calculateCid } from '../../src/core/cid.js'
 import { calculateChunkMerkleRoot } from '../../src/core/merkle.js'
 import { MostBoxEngine } from '../../src/index.js'
+import { createNodeConfigStore } from '../../src/node/config.js'
+import { createNodeLogger } from '../../src/node/logs.js'
 
 const TEST_PORT = 19771
 const baseUrl = 'http://localhost:' + TEST_PORT
@@ -17,6 +19,8 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
   const uid = Math.random().toString(36).slice(2, 8)
   let serverInstance
   let engine
+  let configStore
+  let nodeLogger
   let originalProcessExit
 
   before(async () => {
@@ -27,8 +31,14 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     fs.mkdirSync(dataPath, { recursive: true })
     engine = new MostBoxEngine({ dataPath })
     await engine.start()
+    configStore = createNodeConfigStore(path.join(tmpDir, 'config'))
+    nodeLogger = createNodeLogger(configStore.configDir)
 
-    const { app } = createApp(engine, { port: TEST_PORT })
+    const { app } = createApp(engine, {
+      port: TEST_PORT,
+      configStore,
+      nodeLogger,
+    })
 
     serverInstance = serve({
       fetch: app.fetch,
@@ -80,6 +90,100 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(res.status, 200)
       assert.ok(data.id)
       assert.ok(/^[0-9a-f]+$/i.test(data.id))
+    })
+  })
+
+  describe('node daemon management API', () => {
+    it('returns node status for the Web admin console', async () => {
+      const res = await fetch(`${baseUrl}/api/node/status`)
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 200)
+      assert.strictEqual(data.status, 'online')
+      assert.ok(data.nodeId)
+      assert.strictEqual(data.port, TEST_PORT)
+      assert.ok(Array.isArray(data.listen.addresses))
+      assert.strictEqual(typeof data.capacity.configuredBytes, 'number')
+      assert.ok(Array.isArray(data.holdings))
+    })
+
+    it('saves daemon config and exposes policy locally', async () => {
+      const dataPath = path.join(tmpDir, 'saved-node-data')
+      fs.mkdirSync(dataPath, { recursive: true })
+
+      const res = await fetch(`${baseUrl}/api/node/config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dataPath,
+          capacityBytes: 1024 * 1024 * 1024,
+          minimumPriceUsdtPerGbMonth: '2.5',
+          allowOrders: true,
+          maxFileSizeBytes: 1024 * 1024,
+        }),
+      })
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 200)
+      assert.strictEqual(data.success, true)
+      assert.strictEqual(data.dataPath, dataPath)
+      assert.strictEqual(data.capacityBytes, 1024 * 1024 * 1024)
+      assert.strictEqual(data.minimumPriceUsdtPerGbMonth, '2.5')
+      assert.strictEqual(data.allowOrders, true)
+
+      const policyRes = await fetch(`${baseUrl}/api/node/policy/evaluate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          size: 2 * 1024 * 1024,
+          offeredPriceUsdtPerGbMonth: '1.0',
+        }),
+      })
+      const decision = await policyRes.json()
+
+      assert.strictEqual(policyRes.status, 200)
+      assert.strictEqual(decision.accepted, false)
+      assert.ok(decision.reasons.includes('file-too-large'))
+      assert.ok(decision.reasons.includes('price-too-low'))
+    })
+
+    it('returns node logs and OpenAPI spec', async () => {
+      await fetch(`${baseUrl}/api/node/policy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ allowOrders: false }),
+      })
+
+      const logsRes = await fetch(`${baseUrl}/api/node/logs?limit=20`)
+      const logsData = await logsRes.json()
+
+      assert.strictEqual(logsRes.status, 200)
+      assert.ok(Array.isArray(logsData.logs))
+      assert.ok(logsData.logs.some(log => log.event === 'node:policy:updated'))
+
+      const specRes = await fetch(`${baseUrl}/api/openapi.json`)
+      const spec = await specRes.json()
+
+      assert.strictEqual(specRes.status, 200)
+      assert.strictEqual(spec.openapi, '3.1.0')
+      assert.ok(spec.paths['/api/node/status'])
+      assert.ok(spec.paths['/api/node/logs'])
+      assert.ok(spec.paths['/api/node/logs'].delete)
+      assert.ok(spec.paths['/api/node/policy'])
+
+      const clearRes = await fetch(`${baseUrl}/api/node/logs`, {
+        method: 'DELETE',
+      })
+      const clearData = await clearRes.json()
+
+      assert.strictEqual(clearRes.status, 200)
+      assert.strictEqual(clearData.success, true)
+
+      const emptyLogsRes = await fetch(`${baseUrl}/api/node/logs?limit=20`)
+      const emptyLogsData = await emptyLogsRes.json()
+
+      assert.strictEqual(emptyLogsRes.status, 200)
+      assert.deepStrictEqual(emptyLogsData.logs, [])
     })
   })
 
@@ -283,7 +387,11 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
           throw err
         },
       }
-      const { app } = createApp(fakeEngine, { port: TEST_PORT + 1 })
+      const { app } = createApp(fakeEngine, {
+        port: TEST_PORT + 1,
+        configStore,
+        nodeLogger,
+      })
 
       const res = await app.request('/api/p2p/pull', {
         method: 'POST',
@@ -300,7 +408,11 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const stoppedEngine = new MostBoxEngine({
         dataPath: path.join(tmpDir, 'stopped-engine'),
       })
-      const { app } = createApp(stoppedEngine, { port: TEST_PORT + 2 })
+      const { app } = createApp(stoppedEngine, {
+        port: TEST_PORT + 2,
+        configStore,
+        nodeLogger,
+      })
 
       const res = await app.request('/api/p2p/pull', {
         method: 'POST',
