@@ -11,7 +11,7 @@ const features = [
   },
   { title: 'P2P 直连', desc: 'Hyperswarm 网络发现，点对点传输，不限速不限量' },
   { title: '大文件流式传输', desc: 'GB 级文件轻松传，流式处理，内存占用低' },
-  { title: '确定性链接', desc: '相同文件 = 相同 CID，一次发布永久有效' },
+  { title: '确定性链接', desc: '相同文件 = 相同 CID，链接可反复校验' },
   { title: '频道聊天', desc: 'P2P 加密即时通讯，创建频道与朋友实时聊天' },
   { title: '开源免费', desc: 'MIT 协议，自托管，数据完全由自己掌控' },
 ]
@@ -32,7 +32,7 @@ const steps = [
   {
     num: '3',
     title: '开始分享',
-    desc: '上传文件生成链接，或创建频道与朋友聊天。',
+    desc: '发布文件生成链接，或创建频道与朋友聊天。',
   },
 ]
 
@@ -41,7 +41,12 @@ const compareRows = [
   { feature: '传输限速', wechat: '有限制', cloud: '有限制', mostbox: '不限速' },
   { feature: '文件大小', wechat: '有限制', cloud: '有限制', mostbox: '无限制' },
   { feature: '中心化', wechat: '是', cloud: '是', mostbox: '否 (P2P)' },
-  { feature: '端到端加密', wechat: '否', cloud: '部分', mostbox: '是' },
+  {
+    feature: '私密分享',
+    wechat: '否',
+    cloud: '部分',
+    mostbox: '自行加密',
+  },
   { feature: '开源', wechat: '否', cloud: '否', mostbox: 'MIT 协议' },
   { feature: '自托管', wechat: '否', cloud: '否', mostbox: '可以' },
 ]

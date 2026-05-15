@@ -71,7 +71,7 @@ const features: FeatureDef[] = [
       {
         num: '3',
         title: '开始分享',
-        desc: '上传文件，复制链接，发给朋友即可。',
+        desc: '发布文件，复制链接，发给朋友即可。',
       },
     ],
   },

@@ -117,8 +117,10 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         body: JSON.stringify({
           dataPath,
           capacityBytes: 1024 * 1024 * 1024,
-          minimumPriceUsdtPerGbMonth: '2.5',
-          allowOrders: true,
+          autoSeedDownloads: true,
+          autoSeedPublishes: false,
+          maxConcurrentSeeds: 8,
+          uploadRateLimitBytesPerSecond: 1024 * 1024,
           maxFileSizeBytes: 1024 * 1024,
         }),
       })
@@ -128,15 +130,18 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(data.success, true)
       assert.strictEqual(data.dataPath, dataPath)
       assert.strictEqual(data.capacityBytes, 1024 * 1024 * 1024)
-      assert.strictEqual(data.minimumPriceUsdtPerGbMonth, '2.5')
-      assert.strictEqual(data.allowOrders, true)
+      assert.strictEqual(data.autoSeedDownloads, true)
+      assert.strictEqual(data.autoSeedPublishes, false)
+      assert.strictEqual(data.maxConcurrentSeeds, 8)
+      assert.strictEqual(data.uploadRateLimitBytesPerSecond, 1024 * 1024)
+      assert.strictEqual('allowOrders' in data, false)
+      assert.strictEqual('minimumPriceUsdtPerGbMonth' in data, false)
 
       const policyRes = await fetch(`${baseUrl}/api/node/policy/evaluate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           size: 2 * 1024 * 1024,
-          offeredPriceUsdtPerGbMonth: '1.0',
         }),
       })
       const decision = await policyRes.json()
@@ -144,14 +149,15 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(policyRes.status, 200)
       assert.strictEqual(decision.accepted, false)
       assert.ok(decision.reasons.includes('file-too-large'))
-      assert.ok(decision.reasons.includes('price-too-low'))
+      assert.strictEqual('offeredPriceUsdtPerGbMonth' in decision.policy, false)
+      assert.strictEqual('allowOrders' in decision.policy, false)
     })
 
     it('returns node logs and OpenAPI spec', async () => {
       await fetch(`${baseUrl}/api/node/policy`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ allowOrders: false }),
+        body: JSON.stringify({ autoSeedDownloads: false }),
       })
 
       const logsRes = await fetch(`${baseUrl}/api/node/logs?limit=20`)

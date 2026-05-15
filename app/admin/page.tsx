@@ -32,8 +32,10 @@ interface NodeConfig {
   dataPath: string
   configuredDataPath?: string
   capacityBytes: number
-  minimumPriceUsdtPerGbMonth: string
-  allowOrders: boolean
+  autoSeedDownloads: boolean
+  autoSeedPublishes: boolean
+  maxConcurrentSeeds: number
+  uploadRateLimitBytesPerSecond: number
   maxFileSizeBytes: number
 }
 
@@ -70,9 +72,11 @@ interface NodeStatus {
   dataPath: string
   config: NodeConfig
   policy: {
-    allowOrders: boolean
+    autoSeedDownloads: boolean
+    autoSeedPublishes: boolean
     maxFileSizeBytes: number
-    minimumPriceUsdtPerGbMonth: string
+    maxConcurrentSeeds: number
+    uploadRateLimitBytesPerSecond: number
   }
   capacity: {
     configuredBytes: number
@@ -128,6 +132,23 @@ function gibToBytes(value: string) {
   return Math.round(parsed * 1024 * 1024 * 1024)
 }
 
+function bytesPerSecondToMbps(bytes: number) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0'
+  return String(Math.round((bytes / 1024 / 1024) * 100) / 100)
+}
+
+function mbpsToBytesPerSecond(value: string) {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0
+  return Math.round(parsed * 1024 * 1024)
+}
+
+function numberOrZero(value: string) {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed < 0) return 0
+  return Math.floor(parsed)
+}
+
 function shortText(text: string, head = 12, tail = 8) {
   if (!text) return '-'
   if (text.length <= head + tail + 3) return text
@@ -146,12 +167,13 @@ export default function AdminPage() {
   const [configForm, setConfigForm] = useState({
     dataPath: '',
     capacityGiB: '100',
-    minimumPriceUsdtPerGbMonth: '0',
   })
   const [policyForm, setPolicyForm] = useState({
-    allowOrders: false,
+    autoSeedDownloads: true,
+    autoSeedPublishes: true,
     maxFileSizeGiB: '100',
-    minimumPriceUsdtPerGbMonth: '0',
+    maxConcurrentSeeds: '32',
+    uploadRateLimitMbps: '0',
   })
 
   const capacityPercent = useMemo(() => {
@@ -171,14 +193,15 @@ export default function AdminPage() {
       setConfigForm({
         dataPath: nextStatus.dataPath || '',
         capacityGiB: bytesToGiB(nextStatus.config.capacityBytes),
-        minimumPriceUsdtPerGbMonth:
-          nextStatus.config.minimumPriceUsdtPerGbMonth,
       })
       setPolicyForm({
-        allowOrders: nextStatus.policy.allowOrders,
+        autoSeedDownloads: nextStatus.policy.autoSeedDownloads,
+        autoSeedPublishes: nextStatus.policy.autoSeedPublishes,
         maxFileSizeGiB: bytesToGiB(nextStatus.policy.maxFileSizeBytes),
-        minimumPriceUsdtPerGbMonth:
-          nextStatus.policy.minimumPriceUsdtPerGbMonth,
+        maxConcurrentSeeds: String(nextStatus.policy.maxConcurrentSeeds),
+        uploadRateLimitMbps: bytesPerSecondToMbps(
+          nextStatus.policy.uploadRateLimitBytesPerSecond
+        ),
       })
       setError('')
     } catch (err) {
@@ -203,7 +226,6 @@ export default function AdminPage() {
           json: {
             dataPath: configForm.dataPath,
             capacityBytes: gibToBytes(configForm.capacityGiB),
-            minimumPriceUsdtPerGbMonth: configForm.minimumPriceUsdtPerGbMonth,
           },
         })
         .json()
@@ -224,9 +246,13 @@ export default function AdminPage() {
       await api
         .post('/api/node/policy', {
           json: {
-            allowOrders: policyForm.allowOrders,
+            autoSeedDownloads: policyForm.autoSeedDownloads,
+            autoSeedPublishes: policyForm.autoSeedPublishes,
             maxFileSizeBytes: gibToBytes(policyForm.maxFileSizeGiB),
-            minimumPriceUsdtPerGbMonth: policyForm.minimumPriceUsdtPerGbMonth,
+            maxConcurrentSeeds: numberOrZero(policyForm.maxConcurrentSeeds),
+            uploadRateLimitBytesPerSecond: mbpsToBytesPerSecond(
+              policyForm.uploadRateLimitMbps
+            ),
           },
         })
         .json()
@@ -450,19 +476,6 @@ export default function AdminPage() {
               }
             />
           </label>
-          <label className="admin-field">
-            <span>最低报价 USDT/GB/月</span>
-            <input
-              className="input"
-              value={configForm.minimumPriceUsdtPerGbMonth}
-              onChange={event =>
-                setConfigForm(prev => ({
-                  ...prev,
-                  minimumPriceUsdtPerGbMonth: event.target.value,
-                }))
-              }
-            />
-          </label>
           <button
             className="btn btn-primary btn-full"
             onClick={saveConfig}
@@ -477,19 +490,32 @@ export default function AdminPage() {
           <div className="admin-panel-header">
             <div>
               <p className="admin-kicker">Policy</p>
-              <h2>接单策略</h2>
+              <h2>做种策略</h2>
             </div>
             <ListChecks size={18} />
           </div>
           <label className="admin-toggle-row">
-            <span>允许接单</span>
+            <span>下载后自动做种</span>
             <input
               type="checkbox"
-              checked={policyForm.allowOrders}
+              checked={policyForm.autoSeedDownloads}
               onChange={event =>
                 setPolicyForm(prev => ({
                   ...prev,
-                  allowOrders: event.target.checked,
+                  autoSeedDownloads: event.target.checked,
+                }))
+              }
+            />
+          </label>
+          <label className="admin-toggle-row">
+            <span>发布后自动做种</span>
+            <input
+              type="checkbox"
+              checked={policyForm.autoSeedPublishes}
+              onChange={event =>
+                setPolicyForm(prev => ({
+                  ...prev,
+                  autoSeedPublishes: event.target.checked,
                 }))
               }
             />
@@ -511,14 +537,33 @@ export default function AdminPage() {
             />
           </label>
           <label className="admin-field">
-            <span>最低价格 USDT/GB/月</span>
+            <span>最大同时做种数</span>
             <input
               className="input"
-              value={policyForm.minimumPriceUsdtPerGbMonth}
+              type="number"
+              min="0"
+              step="1"
+              value={policyForm.maxConcurrentSeeds}
               onChange={event =>
                 setPolicyForm(prev => ({
                   ...prev,
-                  minimumPriceUsdtPerGbMonth: event.target.value,
+                  maxConcurrentSeeds: event.target.value,
+                }))
+              }
+            />
+          </label>
+          <label className="admin-field">
+            <span>上传限速 MB/s</span>
+            <input
+              className="input"
+              type="number"
+              min="0"
+              step="0.1"
+              value={policyForm.uploadRateLimitMbps}
+              onChange={event =>
+                setPolicyForm(prev => ({
+                  ...prev,
+                  uploadRateLimitMbps: event.target.value,
                 }))
               }
             />

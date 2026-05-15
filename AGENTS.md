@@ -1,3 +1,12 @@
+## Shell Preference
+
+- On Windows, default to Git Bash for local shell commands.
+- Preferred executable: `C:\Program Files\Git\bin\bash.exe`.
+- If `bash` is not on PATH or the tool default shell is PowerShell, invoke commands through `& 'C:\Program Files\Git\bin\bash.exe' -lc '<command>'`.
+- Use PowerShell only for Windows-specific tasks or when Git Bash cannot run the command.
+
+---
+
 ## AI 行为准则
 
 - 默认使用中文回复。
@@ -12,9 +21,11 @@
 
 # Most.Box
 
-Most.Box 是一个公共内容保种网络：用户为一个 CID 付费，独立节点帮用户长期保留完整副本，任何人都能凭 CID 下载并校验文件。
+Most.Box 是一个 P2P 文件分享与做种工具：用户发布文件得到 `most://` 分享链接，其他人凭链接下载并校验；下载完成的人默认继续做种，让文件像 BitTorrent / 磁力链接一样传播。
 
-它不是隐私网盘。MostBox 默认面向公共内容；私密文件必须由用户先本地加密，再把密文作为普通文件上传。
+它不是云盘、备份服务或付费存储市场。用户需要自己保存好重要数据；MostBox 只帮助在线用户把文件传播出去，并在仍有种子在线时让其他人下载。
+
+Web3 产品入口和以太坊钱包工具保留为独立工具箱，不参与 MostBox 文件分享、下载或做种主流程。
 
 ## 计划文档
 
@@ -25,12 +36,10 @@ Most.Box 是一个公共内容保种网络：用户为一个 CID 付费，独立
 | 当前任务顺序、周计划、验收 | `docs/plan/任务优先级与周计划.md` |
 | MVP 范围、完成定义、后置能力 | `docs/plan/MVP落地计划.md` |
 | MVP 后路线和 v1 边界 | `docs/plan/实施路线图.md` |
-| 总体定位、经济模型、风险边界 | `docs/plan/项目计划书.md` |
+| 总体定位、风险边界 | `docs/plan/项目计划书.md` |
 | 技术分层、接口优先原则、非 MVP 能力 | `docs/plan/技术架构.md` |
-| CID / 上传 / 下载 / 数据目录入口 | `docs/plan/协议基线实现入口清单.md` |
-| 合约、订单状态、质押、结算 | `docs/plan/智能合约.md` |
-| 节点 daemon、Web 管理台、运营策略 | `docs/plan/节点运营.md` |
-| 审计、fraud proof、Degraded | `docs/plan/零知识证明.md` |
+| CID / 发布 / 下载 / 数据目录入口 | `docs/plan/协议基线实现入口清单.md` |
+| 做种 daemon、Web 管理台、做种策略 | `docs/plan/节点运营.md` |
 | 默认不加密、私密文件边界 | `docs/plan/加密与存储.md` |
 
 ## 当前 MVP 口径
@@ -38,43 +47,40 @@ Most.Box 是一个公共内容保种网络：用户为一个 CID 付费，独立
 首版只验证一个闭环：
 
 ```
-CID + Merkle 校验
-  → Hyperswarm 完整副本保种
-  → 本地/测试网 USDT 订单
-  → 用户手动选择节点
-  → 节点 pullConfirm
-  → 下载者凭 CID 下载并校验
-  → 最小随机 chunk 审计
+CID + chunkMerkleRoot
+  → most:// 分享链接
+  → 发布者按 CID topic 做种
+  → 下载者凭链接下载并校验
+  → 下载者默认持续做种
+  → 发布者退出后，只要还有下载者在线即可继续传播
 ```
 
 MVP 成功标准：
 
-- 上传者离线后，选中的节点仍能继续保种。
-- 下载者只凭 CID 能下载，并通过 CID + `chunkMerkleRoot` 双重校验。
-- 节点能按订单获得可解释的 USDT 收益，并承担可测试的失信成本。
-- 正常节点能通过随机 chunk 审计；错误 proof 必须被识别。
+- 发布者在线时，下载者能凭 `most://` 链接发现 peer、下载文件并通过 CID + `chunkMerkleRoot` 双重校验。
+- 下载完成后，本机默认把该文件加入做种列表，应用/daemon 重启后自动重新 join 对应 CID topic。
+- 发布者退出后，只要至少一个下载者仍在线做种，新下载者仍能完成下载并校验。
+- 用户能看到本机正在做种的 CID、文件大小、Merkle root、topic join 状态和基础日志。
 
 ## 产品与协议不变量
 
-- CID 即权限：知道 CID 就能查询订单、发现节点并尝试下载；CID 泄露不是漏洞。
-- v1 只支持 USDT：支付、质押、罚没、审计奖励和 Treasury 都用 USDT；不发行原生代币。
-- 文件模型是完整副本：不做分片、不做纠删码；`replicaCount >= 1`，默认推荐 2。
-- `replicaCount=1` 必须强警告并二次确认，因为无冗余，手动修复也可能没有可用源。
-- 同一 CID 同时最多 1 个 active order；续费用 `addFunds` 延长现有订单，不创建并行订单。
-- 用户手动选择节点；MVP/v1 不做自动抽签、自动 repair 或固定全网定价。
-- 浏览器只展示 demo、文档和客户端下载引导；正式下单、下载、做种、审计和长期节点能力放在桌面端或后台 daemon。
-- 节点能力 API 优先：HTTP API + WebSocket + OpenAPI 是稳定入口；Web 管理台给人用；薄 CLI 只做安装、启动、诊断。
-- 正常审计链下完成，零 gas；只有可验证欺诈或达到不响应阈值后的状态变更才上链。
-- 不响应本身不是 fraud proof，不能仅凭超时罚没本金；只有节点签名过的错误 proof 才触发 USDT 质押罚没。
-- Degraded 后由用户手动选择替补节点；v1 不做自动修复调度和自动带宽费结算。
-- 手续费和罚没余额先进单一 Treasury 地址；不做复杂分账。
+- `most://<cid>?filename=...&r=...` 是 MostBox 原生分享链接；本轮不改成 `magnet:`，也不做双格式。
+- `r` 是 `chunkMerkleRoot`，下载和 P2P pull 都必须把它作为必填校验锚。
+- CID 即权限：知道链接的人即可尝试下载；CID 或链接泄露不是漏洞。
+- MostBox 不承诺永久保存或离线可用；可用性来自当前在线种子数量。
+- 发布成功和下载成功后默认持续做种，除非用户暂停、删除文件或关闭应用。
+- 文件模型是完整副本：不做分片、不做纠删码；每个做种 peer 持有完整文件。
+- Hyperswarm topic 使用 `cid.multihash.digest`，不要额外 hash、截断或换 topic 规则。
+- Hyperdrive 只存文件内容，key 固定为 `/<cid>`；用户可见路径和文件名不进入 Hyperdrive。
+- 用户文件列表和目录结构由 `published-files.json` 维护；做种持有记录由 `node-holdings.json` 维护，避免污染用户文件管理视图。
+- 不实现上链存储协议、智能合约、USDT 支付、质押、订单、赏金猎人、fraud proof、Treasury 或云端下单。
 
 ## 技术栈
 
 - 前端：React 19, Next.js 16, TypeScript, Zustand, Lucide React
 - 后端：Hono, `@hono/node-server`, WebSocket
 - P2P：Hyperswarm 4.x, Hyperdrive 13.x, Corestore 7.x
-- Web3：ethers.js, Hardhat, Solidity, EIP-712
+- Web3 工具箱：ethers.js
 - 桌面：Electron 41, electron-builder
 - 测试：Node.js built-in test runner
 
@@ -82,12 +88,10 @@ MVP 成功标准：
 
 - CID 使用 UnixFS CID v1，当前由 `server/src/core/cid.js` 和 `ipfs-unixfs-importer@16.1.5` 生成。
 - CID 显式参数：`cidVersion: 1`、`rawLeaves: true`、`wrapWithDirectory: false`；升级 importer 前必须跑 CID 黄金样本测试。
-- Merkle 默认按 256KB chunk 生成 `chunkMerkleRoot`，它是下载校验、pullConfirm 和审计的协议锚点。
-- Hyperswarm topic 使用 `cid.multihash.digest`，不要额外 hash、截断或换 topic 规则。
-- Hyperdrive 只存文件内容，key 固定为 `/<cid>`；用户可见路径和文件名不进入 Hyperdrive。
-- 用户文件列表和目录结构由 `published-files.json` 维护；节点持有记录应和桌面文件管理视图分开，避免污染用户文件列表。
-- 下载完成后可临时做种，帮助热门文件分摊节点上行压力。
-- `most://<cid>?filename=...&r=...` 中的 `r` 是 `chunkMerkleRoot`，下载和 P2P pull 都应把它作为必填校验锚。
+- Merkle 默认按 256KB chunk 生成 `chunkMerkleRoot`，它是下载校验和做种校验的协议锚点。
+- 下载完成后写入 Hyperdrive 并记录 holding，让下载者自动成为新的种子。
+- seed policy 默认：`autoSeedDownloads: true`、`autoSeedPublishes: true`、`maxConcurrentSeeds`、`uploadRateLimitBytesPerSecond`、`maxFileSizeBytes`、`capacityBytes`。
+- 节点/做种能力 API 优先：HTTP API + WebSocket + OpenAPI 是稳定入口；Web 管理台给人用；薄 CLI 只做安装、启动、诊断。
 
 ## 常用命令
 
@@ -108,11 +112,11 @@ npm run lint
 
 ## 验证策略
 
-- 改 CID、Merkle、上传、下载、链接解析、P2P pull 时，优先跑 `npm run test:protocol`。
+- 改 CID、Merkle、发布、下载、链接解析、P2P pull 时，优先跑 `npm run test:protocol`。
 - 改后端核心逻辑时，跑相关 `node --test server/tests/...`；范围较大时跑 `npm test`。
 - 改前端结构或样式时，跑 `npm run lint`，必要时启动前后端手动验证。
-- 改合约时，按 `docs/plan/智能合约.md` 的状态机补 Hardhat 单测，不只测成功路径。
-- 涉及 MVP 主线时，用“上传者离线后仍可下载并校验”作为最高验收场景。
+- 涉及 MVP 主线时，用“发布者退出后，下载者种子仍可继续传播并校验”作为最高验收场景。
+- Web3 工具箱保留独立测试；不要把钱包作为文件分享前置条件。
 
 ## 代码约定
 
@@ -142,9 +146,11 @@ npm run lint
 ## 关键入口
 
 - 前端主应用：`app/app/page.tsx`、`components/AppHomeMode.tsx`
+- Web3 工具箱：`app/web3/page.tsx`
 - 全局状态：`app/app/useAppStore.ts`
 - 后端入口：`server/index.js`
 - 核心引擎：`server/src/index.js`
+- 做种配置：`server/src/node/config.js`
 - CID / 链接：`server/src/core/cid.js`
 - Merkle：`server/src/core/merkle.js`
 - 配置：`server/src/config.js`

@@ -13,7 +13,7 @@ import { MostBoxEngine } from './src/index.js'
 import { parseMostLink, validateCidString } from './src/core/cid.js'
 import { sanitizeFilename } from './src/utils/security.js'
 import { MAX_FILE_SIZE } from './src/config.js'
-import { createNodeConfigStore, evaluateNodePolicy } from './src/node/config.js'
+import { createNodeConfigStore, evaluateSeedPolicy } from './src/node/config.js'
 import { createNodeLogger } from './src/node/logs.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -153,9 +153,11 @@ async function buildNodeStatus(engine, configStore, appPort, host) {
     dataPath: getDataPath(configStore),
     config,
     policy: {
-      allowOrders: config.allowOrders,
+      autoSeedDownloads: config.autoSeedDownloads,
+      autoSeedPublishes: config.autoSeedPublishes,
       maxFileSizeBytes: config.maxFileSizeBytes,
-      minimumPriceUsdtPerGbMonth: config.minimumPriceUsdtPerGbMonth,
+      maxConcurrentSeeds: config.maxConcurrentSeeds,
+      uploadRateLimitBytesPerSecond: config.uploadRateLimitBytesPerSecond,
     },
     capacity: {
       configuredBytes: config.capacityBytes,
@@ -195,17 +197,17 @@ function buildOpenApiSpec(appPort) {
       },
       '/api/node/policy': {
         get: {
-          summary: 'Get local order policy',
-          responses: { 200: { description: 'Node policy' } },
+          summary: 'Get local seeding policy',
+          responses: { 200: { description: 'Seed policy' } },
         },
         post: {
-          summary: 'Update local order policy',
+          summary: 'Update local seeding policy',
           responses: { 200: { description: 'Updated policy' } },
         },
       },
       '/api/node/policy/evaluate': {
         post: {
-          summary: 'Evaluate a local order candidate against node policy',
+          summary: 'Evaluate a local file against seed policy',
           responses: { 200: { description: 'Policy decision' } },
         },
       },
@@ -645,27 +647,33 @@ export function createApp(engine, options = {}) {
   app.get('/api/node/policy', c => {
     const config = configStore.getNodeConfig()
     return c.json({
-      allowOrders: config.allowOrders,
+      autoSeedDownloads: config.autoSeedDownloads,
+      autoSeedPublishes: config.autoSeedPublishes,
       maxFileSizeBytes: config.maxFileSizeBytes,
-      minimumPriceUsdtPerGbMonth: config.minimumPriceUsdtPerGbMonth,
+      maxConcurrentSeeds: config.maxConcurrentSeeds,
+      uploadRateLimitBytesPerSecond: config.uploadRateLimitBytesPerSecond,
     })
   })
 
   app.post('/api/node/policy', async c => {
     const body = await c.req.json()
     const { success, config } = configStore.saveNodeConfigPatch({
-      allowOrders: body.allowOrders,
+      autoSeedDownloads: body.autoSeedDownloads,
+      autoSeedPublishes: body.autoSeedPublishes,
       maxFileSizeBytes: body.maxFileSizeBytes,
-      minimumPriceUsdtPerGbMonth: body.minimumPriceUsdtPerGbMonth,
+      maxConcurrentSeeds: body.maxConcurrentSeeds,
+      uploadRateLimitBytesPerSecond: body.uploadRateLimitBytesPerSecond,
     })
     const policy = {
-      allowOrders: config.allowOrders,
+      autoSeedDownloads: config.autoSeedDownloads,
+      autoSeedPublishes: config.autoSeedPublishes,
       maxFileSizeBytes: config.maxFileSizeBytes,
-      minimumPriceUsdtPerGbMonth: config.minimumPriceUsdtPerGbMonth,
+      maxConcurrentSeeds: config.maxConcurrentSeeds,
+      uploadRateLimitBytesPerSecond: config.uploadRateLimitBytesPerSecond,
     }
     appendNodeLog({
       event: 'node:policy:updated',
-      message: 'Node order policy updated',
+      message: 'Node seed policy updated',
       data: policy,
     })
     await broadcastNodeStatus()
@@ -674,7 +682,7 @@ export function createApp(engine, options = {}) {
 
   app.post('/api/node/policy/evaluate', async c => {
     const body = await c.req.json()
-    const decision = evaluateNodePolicy(configStore.getNodeConfig(), body)
+    const decision = evaluateSeedPolicy(configStore.getNodeConfig(), body)
     return c.json(decision)
   })
 

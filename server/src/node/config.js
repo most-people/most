@@ -6,7 +6,6 @@ import { MAX_FILE_SIZE } from '../config.js'
 const DEFAULT_CONFIG_DIR_NAME = '.most-box'
 const DEFAULT_DATA_DIR_NAME = 'most-data'
 const DEFAULT_CAPACITY_BYTES = 100 * 1024 * 1024 * 1024
-const DECIMAL_STRING_REGEX = /^\d+(?:\.\d{1,6})?$/
 
 export function getDefaultConfigDir() {
   return process.env.MOSTBOX_CONFIG_DIR
@@ -22,8 +21,10 @@ export function getDefaultNodeConfig() {
   return {
     dataPath: '',
     capacityBytes: DEFAULT_CAPACITY_BYTES,
-    minimumPriceUsdtPerGbMonth: '0',
-    allowOrders: false,
+    autoSeedDownloads: true,
+    autoSeedPublishes: true,
+    maxConcurrentSeeds: 32,
+    uploadRateLimitBytesPerSecond: 0,
     maxFileSizeBytes: MAX_FILE_SIZE,
   }
 }
@@ -40,10 +41,14 @@ export function normalizeNodeConfig(raw = {}) {
     rawNode.maxFileSizeBytes ?? raw.maxFileSizeBytes,
     defaults.maxFileSizeBytes
   )
-  const minimumPriceUsdtPerGbMonth = normalizeDecimalString(
-    rawNode.minimumPriceUsdtPerGbMonth ??
-      raw.minimumPriceUsdtPerGbMonth ??
-      defaults.minimumPriceUsdtPerGbMonth
+  const maxConcurrentSeeds = normalizePositiveInteger(
+    rawNode.maxConcurrentSeeds ?? raw.maxConcurrentSeeds,
+    defaults.maxConcurrentSeeds
+  )
+  const uploadRateLimitBytesPerSecond = normalizePositiveInteger(
+    rawNode.uploadRateLimitBytesPerSecond ??
+      raw.uploadRateLimitBytesPerSecond,
+    defaults.uploadRateLimitBytesPerSecond
   )
 
   return {
@@ -52,13 +57,20 @@ export function normalizeNodeConfig(raw = {}) {
         ? raw.dataPath.trim()
         : defaults.dataPath,
     capacityBytes,
-    minimumPriceUsdtPerGbMonth,
-    allowOrders:
-      typeof rawNode.allowOrders === 'boolean'
-        ? rawNode.allowOrders
-        : typeof raw.allowOrders === 'boolean'
-          ? raw.allowOrders
-          : defaults.allowOrders,
+    autoSeedDownloads:
+      typeof rawNode.autoSeedDownloads === 'boolean'
+        ? rawNode.autoSeedDownloads
+        : typeof raw.autoSeedDownloads === 'boolean'
+          ? raw.autoSeedDownloads
+          : defaults.autoSeedDownloads,
+    autoSeedPublishes:
+      typeof rawNode.autoSeedPublishes === 'boolean'
+        ? rawNode.autoSeedPublishes
+        : typeof raw.autoSeedPublishes === 'boolean'
+          ? raw.autoSeedPublishes
+          : defaults.autoSeedPublishes,
+    maxConcurrentSeeds,
+    uploadRateLimitBytesPerSecond,
     maxFileSizeBytes,
   }
 }
@@ -117,14 +129,22 @@ export function createNodeConfigStore(configDir = getDefaultConfigDir()) {
           patch.capacityBytes === undefined
             ? current.capacityBytes
             : patch.capacityBytes,
-        minimumPriceUsdtPerGbMonth:
-          patch.minimumPriceUsdtPerGbMonth === undefined
-            ? current.minimumPriceUsdtPerGbMonth
-            : patch.minimumPriceUsdtPerGbMonth,
-        allowOrders:
-          patch.allowOrders === undefined
-            ? current.allowOrders
-            : patch.allowOrders,
+        autoSeedDownloads:
+          patch.autoSeedDownloads === undefined
+            ? current.autoSeedDownloads
+            : patch.autoSeedDownloads,
+        autoSeedPublishes:
+          patch.autoSeedPublishes === undefined
+            ? current.autoSeedPublishes
+            : patch.autoSeedPublishes,
+        maxConcurrentSeeds:
+          patch.maxConcurrentSeeds === undefined
+            ? current.maxConcurrentSeeds
+            : patch.maxConcurrentSeeds,
+        uploadRateLimitBytesPerSecond:
+          patch.uploadRateLimitBytesPerSecond === undefined
+            ? current.uploadRateLimitBytesPerSecond
+            : patch.uploadRateLimitBytesPerSecond,
         maxFileSizeBytes:
           patch.maxFileSizeBytes === undefined
             ? current.maxFileSizeBytes
@@ -138,8 +158,10 @@ export function createNodeConfigStore(configDir = getDefaultConfigDir()) {
       node: {
         ...(raw.node && typeof raw.node === 'object' ? raw.node : {}),
         capacityBytes: next.capacityBytes,
-        minimumPriceUsdtPerGbMonth: next.minimumPriceUsdtPerGbMonth,
-        allowOrders: next.allowOrders,
+        autoSeedDownloads: next.autoSeedDownloads,
+        autoSeedPublishes: next.autoSeedPublishes,
+        maxConcurrentSeeds: next.maxConcurrentSeeds,
+        uploadRateLimitBytesPerSecond: next.uploadRateLimitBytesPerSecond,
         maxFileSizeBytes: next.maxFileSizeBytes,
         updatedAt: new Date().toISOString(),
       },
@@ -159,27 +181,16 @@ export function createNodeConfigStore(configDir = getDefaultConfigDir()) {
   }
 }
 
-export function evaluateNodePolicy(config, input = {}) {
+export function evaluateSeedPolicy(config, input = {}) {
   const size = Number(input.size ?? input.fileSize ?? 0)
-  const offeredPrice = normalizeDecimalString(
-    input.offeredPriceUsdtPerGbMonth ?? input.priceUsdtPerGbMonth ?? '0'
-  )
   const reasons = []
 
-  if (!config.allowOrders) {
-    reasons.push('orders-disabled')
-  }
   if (!Number.isFinite(size) || size < 0) {
     reasons.push('invalid-size')
   } else if (size > config.maxFileSizeBytes) {
     reasons.push('file-too-large')
   } else if (size > config.capacityBytes) {
     reasons.push('capacity-too-small')
-  }
-  if (
-    compareDecimalStrings(offeredPrice, config.minimumPriceUsdtPerGbMonth) < 0
-  ) {
-    reasons.push('price-too-low')
   }
 
   return {
@@ -195,28 +206,4 @@ function normalizePositiveInteger(value, fallback) {
     return fallback
   }
   return Math.floor(parsed)
-}
-
-function normalizeDecimalString(value) {
-  const text = String(value ?? '0').trim()
-  if (!DECIMAL_STRING_REGEX.test(text)) {
-    return '0'
-  }
-  return text.replace(/^0+(?=\d)/, '') || '0'
-}
-
-function compareDecimalStrings(left, right) {
-  const [leftInt, leftDec = ''] = left.split('.')
-  const [rightInt, rightDec = ''] = right.split('.')
-  const leftBig = BigInt(leftInt || '0')
-  const rightBig = BigInt(rightInt || '0')
-  if (leftBig !== rightBig) {
-    return leftBig > rightBig ? 1 : -1
-  }
-
-  const maxLength = Math.max(leftDec.length, rightDec.length)
-  const leftPadded = leftDec.padEnd(maxLength, '0')
-  const rightPadded = rightDec.padEnd(maxLength, '0')
-  if (leftPadded === rightPadded) return 0
-  return leftPadded > rightPadded ? 1 : -1
 }

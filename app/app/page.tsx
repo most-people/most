@@ -26,7 +26,6 @@ import {
   Loader,
   ArrowRight,
   Server,
-  Cloud,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import { ModalOverlay, ConfirmModal, InputModal } from '~/components/ui'
@@ -712,7 +711,7 @@ export default function App() {
         setTransfers(prev =>
           prev.map(t => (t.id === transferId ? { ...t, status: 'error' } : t))
         )
-        addToast(`上传失败: ${file.name}`, 'error')
+        addToast(`发布失败: ${file.name}`, 'error')
       }
     }
 
@@ -957,11 +956,9 @@ export default function App() {
   const viewTitle =
     currentView === 'all'
       ? '本地'
-      : currentView === 'cloud'
-        ? '云端'
-        : currentView === 'starred'
-          ? '收藏'
-          : '回收站'
+      : currentView === 'starred'
+        ? '收藏'
+        : '回收站'
   const displayFiles =
     currentView === 'all'
       ? filteredFiles
@@ -979,7 +976,7 @@ export default function App() {
               .includes(searchQuery.toLowerCase())
           )
   const displayFolders =
-    currentView === 'starred' || currentView === 'cloud'
+    currentView === 'starred'
       ? []
       : folders.filter(f =>
           f.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -1001,7 +998,6 @@ export default function App() {
           <nav className="sidebar-nav">
             {[
               { id: 'all', icon: <Files size={18} />, label: '本地' },
-              { id: 'cloud', icon: <Cloud size={18} />, label: '云端' },
               { id: 'starred', icon: <Star size={18} />, label: '收藏' },
               { id: 'trash', icon: <Trash2 size={18} />, label: '回收站' },
             ].map(item => (
@@ -1125,7 +1121,7 @@ export default function App() {
               className="action-card-input"
             />
             <Upload size={20} className="action-grid-icon" />
-            <p>上传文件</p>
+            <p>发布文件</p>
           </div>
           <div
             className="action-card action-card-download"
@@ -1134,53 +1130,6 @@ export default function App() {
             <Download size={20} className="action-grid-icon" />
             <p>下载文件</p>
           </div>
-        </div>
-      )}
-
-      {currentView === 'cloud' && (
-        <div className="cloud-page">
-          <section className="cloud-hero">
-            <div>
-              <h3>云端订单</h3>
-              <p>
-                本地页负责生成 CID
-                和本机做种；云端页用于下单，让独立节点持有完整副本，并在你离线后继续提供下载。
-              </p>
-            </div>
-            <button
-              className="btn btn-primary"
-              onClick={() => addToast('云端下单会在订单模块接入后启用', 'info')}
-            >
-              创建订单
-            </button>
-          </section>
-
-          <div className="cloud-flow">
-            <div>
-              <span>1</span>
-              <strong>选择 CID</strong>
-              <p>从本地文件选择要长期保种的公共内容。</p>
-            </div>
-            <div>
-              <span>2</span>
-              <strong>选择节点</strong>
-              <p>节点报价后，用户手动选择副本数和存储节点。</p>
-            </div>
-            <div>
-              <span>3</span>
-              <strong>审计与赏金</strong>
-              <p>订单生效后可定期抽查节点，错误 proof 才触发罚没和赏金。</p>
-            </div>
-          </div>
-
-          <section className="cloud-note">
-            <h4>可验证失信赔付</h4>
-            <p>
-              云端订单按可验证证据赔付。节点签名过的错误 proof
-              会触发质押罚没，审计者获得赏金；订单未完成或进入可归责失信状态时，用户获得退款式补偿。具体赔付上限由订单金额、节点质押和
-              Treasury 规则决定。
-            </p>
-          </section>
         </div>
       )}
 
@@ -1247,7 +1196,6 @@ export default function App() {
           ))}
 
         {currentView !== 'trash' &&
-          currentView !== 'cloud' &&
           (displayFiles.length === 0 && displayFolders.length === 0 ? (
             <div className="empty-state">
               {searchQuery
@@ -1346,16 +1294,7 @@ export default function App() {
               </button>
             </div>
             <div className="share-storage-note">
-              <span>本机在线时可下载。</span>
-              <button
-                className="btn btn-sm btn-primary"
-                onClick={() => {
-                  setShareItem(null)
-                  setCurrentView('cloud')
-                }}
-              >
-                去云端下单
-              </button>
+              <span>本机在线时可下载；下载者完成后会默认继续做种。</span>
             </div>
           </div>
         </ModalOverlay>

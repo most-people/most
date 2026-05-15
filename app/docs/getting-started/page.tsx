@@ -130,7 +130,7 @@ export default function GettingStartedPage() {
                   开始使用
                 </h2>
                 <p style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
-                  上传文件生成分享链接，或创建频道与朋友聊天。
+                  发布文件生成分享链接，或创建频道与朋友聊天。
                 </p>
               </div>
             </div>
