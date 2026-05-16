@@ -27,6 +27,7 @@ import {
   ArrowRight,
   Server,
 } from 'lucide-react'
+import { CID } from 'multiformats/cid'
 import AppShell from '~/components/AppShell'
 import { ModalOverlay, ConfirmModal, InputModal } from '~/components/ui'
 import { api, getApiUrl, getWebSocketUrl } from '~/server/src/utils/api'
@@ -57,12 +58,162 @@ interface ToggleStarResponse {
   starred: boolean
 }
 
+interface DownloadCheckResponse {
+  success: boolean
+  available: boolean
+  cid: string
+  fileName: string
+  size: number | null
+  alreadyExists?: boolean
+}
+
+type DownloadCheckResult = {
+  status: 'success' | 'error'
+  link: string
+  message: string
+}
+
+type ApiErrorPayload = {
+  status?: number
+  code?: string
+  error?: string
+}
+
 interface StorageStats {
   total: number
   used: number
   free: number
   fileCount: number
   trashCount: number
+}
+
+async function getApiErrorPayload(err: unknown): Promise<ApiErrorPayload> {
+  const response =
+    err && typeof err === 'object' && 'response' in err
+      ? (err as { response?: Response }).response
+      : null
+
+  if (!response) return {}
+
+  const data = response.bodyUsed
+    ? null
+    : ((await response
+        .clone()
+        .json()
+        .catch(() => null)) as Record<string, unknown> | null)
+
+  return {
+    status: response.status,
+    code: typeof data?.code === 'string' ? data.code : undefined,
+    error: typeof data?.error === 'string' ? data.error : undefined,
+  }
+}
+
+async function getApiErrorMessage(err: unknown, fallback: string) {
+  const data = await getApiErrorPayload(err)
+  return data.error || fallback
+}
+
+async function getDownloadCheckErrorMessage(err: unknown) {
+  const data = await getApiErrorPayload(err)
+  const errorName =
+    err && typeof err === 'object' && 'name' in err
+      ? String((err as { name?: string }).name)
+      : ''
+
+  if (errorName === 'TimeoutError') {
+    return '检测等待超时，暂时没有等到在线种子响应。请确认分享者或其他下载者仍在线做种，稍后再检测。'
+  }
+
+  if (!data.status) {
+    return '无法连接本地节点，请确认 MostBox 后端正在运行后再检测。'
+  }
+
+  if (data.status === 404) {
+    return '当前后端还没有检测接口，请重启 MostBox 后端后再试。'
+  }
+
+  if (data.code === 'VALIDATION_ERROR') {
+    return '链接格式不正确，请粘贴完整的 most://<cid>?filename=... 分享链接。'
+  }
+
+  if (data.code === 'CONFLICT') {
+    return data.error
+      ? `${data.error}，请先处理同名文件后再下载。`
+      : '下载目录已有同名文件，请先重命名或移走后再检测。'
+  }
+
+  if (data.code === 'PEER_NOT_FOUND') {
+    return '暂时没有发现在线种子。请确认分享者或其他下载者仍在线做种，稍后再检测。'
+  }
+
+  if (data.code === 'PERMISSION_ERROR') {
+    return data.error
+      ? `下载目录不可写：${data.error}`
+      : '下载目录不可写，请检查目录权限后再检测。'
+  }
+
+  if (data.code === 'ENGINE_NOT_INITIALIZED') {
+    return '本地节点还没有启动完成，请稍等几秒后重新检测。'
+  }
+
+  if (data.status === 503) {
+    return '暂时没有发现在线种子。请确认分享者或其他下载者仍在线做种，稍后再检测。'
+  }
+
+  if (data.status >= 500) {
+    return '本地节点检测时出错，请稍后重试或查看节点日志。'
+  }
+
+  return data.error
+    ? `检测未通过：${data.error}`
+    : '检测未通过，请确认链接完整、发布者在线且本机网络正常。'
+}
+
+function getDownloadLinkValidationMessage(link: string) {
+  const value = link.trim()
+
+  if (!value) {
+    return '请先粘贴 most:// 分享链接。'
+  }
+
+  let url: URL
+  try {
+    url = new URL(value)
+  } catch {
+    return '链接无法解析，请粘贴完整的 most://<cid>?filename=... 分享链接。'
+  }
+
+  if (url.protocol !== 'most:') {
+    return '链接协议不正确，应以 most:// 开头。'
+  }
+
+  if (url.pathname && url.pathname !== '/') {
+    return '链接里不应包含路径，请使用 most://<cid>?filename=... 格式。'
+  }
+
+  try {
+    const cid = CID.parse(url.hostname)
+    if (cid.version !== 1 || cid.multihash.digest.length !== 32) {
+      return 'CID 格式不符合 MostBox 要求，请确认分享链接完整。'
+    }
+  } catch {
+    return 'CID 无效，请确认 most:// 后面的内容没有缺失或被截断。'
+  }
+
+  const fileName = url.searchParams.get('filename')?.trim()
+  if (!fileName) {
+    return '链接缺少 filename 参数，请复制完整分享链接后再检测。'
+  }
+
+  const unsupportedParam = [...url.searchParams.keys()].find(
+    key => key !== 'filename'
+  )
+  if (unsupportedParam) {
+    return `链接包含暂不支持的参数 ${unsupportedParam}，请只保留 filename。`
+  }
+
+  return null
 }
 
 const API = {
@@ -96,6 +247,10 @@ const API = {
     }
     return res.json<any>()
   },
+  checkDownload: link =>
+    api
+      .post('/api/download/check', { json: { link }, timeout: 15000 })
+      .json<DownloadCheckResponse>(),
   downloadFile: link =>
     api.post('/api/download', { json: { link } }).json<any>(),
   cancelDownload: taskId =>
@@ -461,6 +616,9 @@ export default function App() {
   const [shareItem, setShareItem] = useState(null)
   const [isDownloadModalOpen, downloadModal] = useDisclosure(false)
   const [downloadLink, setDownloadLink] = useState('')
+  const [downloadCheckResult, setDownloadCheckResult] =
+    useState<DownloadCheckResult | null>(null)
+  const [isCheckingDownload, setIsCheckingDownload] = useState(false)
   const [transfers, setTransfers] = useState([])
   const [isTransferPanelOpen, transferPanel] = useDisclosure(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -752,18 +910,85 @@ export default function App() {
   }
 
   const [isDownloading, setIsDownloading] = useState(false)
+  const normalizedDownloadLink = downloadLink.trim()
+  const isDownloadReady =
+    downloadCheckResult?.status === 'success' &&
+    downloadCheckResult.link === normalizedDownloadLink
+
+  const closeDownloadModal = () => {
+    downloadModal.close()
+    setDownloadCheckResult(null)
+  }
+
+  const handleDownloadLinkChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setDownloadLink(e.target.value)
+    setDownloadCheckResult(null)
+  }
+
+  const handleCheckDownloadAvailability = async () => {
+    const validationMessage = getDownloadLinkValidationMessage(
+      normalizedDownloadLink
+    )
+    if (validationMessage) {
+      setDownloadCheckResult({
+        status: 'error',
+        link: normalizedDownloadLink,
+        message: validationMessage,
+      })
+      addToast(validationMessage, 'warning')
+      return
+    }
+
+    if (isCheckingDownload || isDownloading) return
+
+    setIsCheckingDownload(true)
+    setDownloadCheckResult(null)
+    try {
+      const result = await API.checkDownload(normalizedDownloadLink)
+      const message = result.alreadyExists
+        ? `${result.fileName} 已在本机`
+        : `${result.fileName} 可下载`
+      setDownloadCheckResult({
+        status: 'success',
+        link: normalizedDownloadLink,
+        message,
+      })
+      addToast(
+        result.alreadyExists ? `${result.fileName} 已存在` : '检测通过',
+        result.alreadyExists ? 'warning' : 'success'
+      )
+    } catch (err) {
+      const message = await getDownloadCheckErrorMessage(err)
+      setDownloadCheckResult({
+        status: 'error',
+        link: normalizedDownloadLink,
+        message,
+      })
+      addToast(message, 'error')
+    } finally {
+      setIsCheckingDownload(false)
+    }
+  }
 
   const handleDownloadSharedFile = async () => {
-    if (!downloadLink.trim() || !downloadLink.startsWith('most://')) {
-      addToast('链接格式应为 most://<cid>?filename=...', 'warning')
+    const validationMessage = getDownloadLinkValidationMessage(
+      normalizedDownloadLink
+    )
+    if (validationMessage) {
+      addToast(validationMessage, 'warning')
+      return
+    }
+    if (!isDownloadReady) {
+      addToast('请先检测链接可用性', 'warning')
       return
     }
     if (isDownloading) return
     setIsDownloading(true)
     try {
-      const result = await API.downloadFile(downloadLink)
+      const result = await API.downloadFile(normalizedDownloadLink)
       setDownloadLink('')
-      downloadModal.close()
+      setDownloadCheckResult(null)
+      closeDownloadModal()
 
       if (result.alreadyExists) {
         addToast(`${result.fileName} 已存在`, 'warning')
@@ -780,19 +1005,7 @@ export default function App() {
         addToast('下载已开始', 'info')
       }
     } catch (err) {
-      let message = '下载失败'
-      const response =
-        err && typeof err === 'object' && 'response' in err
-          ? (err as { response?: Response }).response
-          : null
-      if (response) {
-        const data = await response
-          .json<Record<string, unknown>>()
-          .catch(() => null)
-        if (typeof data?.error === 'string') {
-          message = data.error
-        }
-      }
+      const message = await getApiErrorMessage(err, '下载失败')
       addToast(message, 'error')
     } finally {
       setIsDownloading(false)
@@ -1314,29 +1527,66 @@ export default function App() {
       )}
 
       {isDownloadModalOpen && (
-        <ModalOverlay onClose={() => downloadModal.close()}>
+        <ModalOverlay onClose={closeDownloadModal}>
           <div className="download-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3>下载文件</h3>
-              <button
-                onClick={() => downloadModal.close()}
-                className="btn btn-icon"
-              >
+              <button onClick={closeDownloadModal} className="btn btn-icon">
                 <X size={18} />
               </button>
             </div>
-            <input
-              type="text"
-              className="input"
-              value={downloadLink}
-              onChange={e => setDownloadLink(e.target.value)}
-              placeholder="输入 most:// 链接"
-            />
+            <div className="download-link-row">
+              <input
+                type="text"
+                className="input"
+                value={downloadLink}
+                onChange={handleDownloadLinkChange}
+                placeholder="输入 most:// 链接"
+              />
+              <button
+                type="button"
+                onClick={handleCheckDownloadAvailability}
+                disabled={
+                  !normalizedDownloadLink || isCheckingDownload || isDownloading
+                }
+                className="btn btn-secondary download-check-btn"
+              >
+                {isCheckingDownload ? (
+                  <Loader size={14} className="spin" />
+                ) : isDownloadReady ? (
+                  <Check size={14} />
+                ) : (
+                  <Search size={14} />
+                )}
+                {isCheckingDownload
+                  ? '检测中...'
+                  : isDownloadReady
+                    ? '已通过'
+                    : '检测'}
+              </button>
+            </div>
+            {downloadCheckResult && (
+              <div
+                className={`download-check-status ${downloadCheckResult.status}`}
+              >
+                {downloadCheckResult.status === 'success' ? (
+                  <Check size={14} />
+                ) : (
+                  <Info size={14} />
+                )}
+                <span>{downloadCheckResult.message}</span>
+              </div>
+            )}
             <button
               onClick={handleDownloadSharedFile}
-              disabled={!downloadLink.trim() || isDownloading}
+              disabled={!isDownloadReady || isDownloading || isCheckingDownload}
               className="btn btn-info btn-full"
             >
+              {isDownloading ? (
+                <Loader size={14} className="spin" />
+              ) : (
+                <Download size={14} />
+              )}
               {isDownloading ? '下载中...' : '开始下载'}
             </button>
           </div>

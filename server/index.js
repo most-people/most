@@ -532,8 +532,10 @@ export function createApp(engine, options = {}) {
     cors({
       origin: [
         'http://localhost:3000',
+        'http://127.0.0.1:3000',
         'https://most.box',
         `http://localhost:${appPort}`,
+        `http://127.0.0.1:${appPort}`,
       ],
       credentials: true,
     })
@@ -781,6 +783,49 @@ export function createApp(engine, options = {}) {
       return c.json({ success: true, ...publishResult })
     } finally {
       fs.unlink(result.filePath, () => {})
+    }
+  })
+
+  app.post('/api/download/check', async c => {
+    const body = await c.req.json()
+    if (!body.link) {
+      return c.json({ error: 'link is required' }, 400)
+    }
+
+    const parsed = parseMostLink(body.link)
+    if (parsed.error) {
+      return c.json({ error: parsed.error }, 400)
+    }
+
+    const existingFile = engine
+      .getPublishedFiles()
+      .find(f => f.cid === parsed.cid)
+    if (existingFile) {
+      return c.json({
+        success: true,
+        available: true,
+        cid: parsed.cid,
+        fileName: existingFile.fileName,
+        size: Number(existingFile.size) || null,
+        alreadyExists: true,
+      })
+    }
+
+    if (engine.hasDownloadNameConflict(parsed.fileName)) {
+      return c.json(
+        {
+          error: `已有同名文件: ${parsed.fileName}`,
+          code: 'CONFLICT',
+        },
+        409
+      )
+    }
+
+    try {
+      const result = await engine.checkDownloadAvailability(body.link)
+      return c.json({ success: true, ...result })
+    } catch (err) {
+      return errorJson(c, err)
     }
   })
 

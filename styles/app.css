@@ -1090,6 +1090,67 @@
   }
 }
 
+.download-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.download-modal .modal-header {
+  margin-bottom: 2px;
+}
+
+.download-link-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.download-check-btn {
+  min-width: 88px;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 14px;
+}
+
+.download-check-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: 38px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg-subtle);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.download-check-status svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.download-check-status.success {
+  border-color: rgba(52, 199, 89, 0.35);
+  background: rgba(52, 199, 89, 0.1);
+  color: var(--success);
+}
+
+.download-check-status.error {
+  border-color: rgba(255, 59, 48, 0.35);
+  background: rgba(255, 59, 48, 0.1);
+  color: var(--danger);
+}
+
+.download-modal > .btn-full {
+  justify-content: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
 /* === Confirm Modal === */
 .confirm-modal {
   h3 {
@@ -2005,6 +2066,14 @@
     width: 100%;
     max-width: 100%;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+
+  .download-link-row {
+    grid-template-columns: 1fr;
+  }
+
+  .download-check-btn {
+    width: 100%;
   }
 
   /* Toast */

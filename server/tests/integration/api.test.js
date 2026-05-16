@@ -289,6 +289,67 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
   })
 
   describe('POST /api/download', () => {
+    it('checks an existing link before download', async () => {
+      const publishResult = await engine.publishFile(
+        Buffer.from('check-download'),
+        'check-download.txt'
+      )
+
+      const res = await fetch(`${baseUrl}/api/download/check`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ link: publishResult.link }),
+      })
+
+      const data = await res.json()
+      assert.strictEqual(res.status, 200)
+      assert.strictEqual(data.success, true)
+      assert.strictEqual(data.available, true)
+      assert.strictEqual(data.alreadyExists, true)
+      assert.strictEqual(data.cid, publishResult.cid)
+    })
+
+    it('checks remote availability without starting a download task', async () => {
+      let checked = false
+      let startedDownload = false
+      const fakeEngine = {
+        getPublishedFiles: () => [],
+        hasDownloadNameConflict: () => false,
+        checkDownloadAvailability: async link => {
+          checked = true
+          return {
+            available: true,
+            cid: VALID_MISSING_CID,
+            fileName: new URL(link).searchParams.get('filename'),
+            size: 12,
+          }
+        },
+        downloadFile: async () => {
+          startedDownload = true
+        },
+      }
+      const { app } = createApp(fakeEngine, {
+        port: TEST_PORT + 4,
+        configStore,
+        nodeLogger,
+      })
+
+      const res = await app.request('/api/download/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          link: `most://${VALID_MISSING_CID}?filename=remote.txt`,
+        }),
+      })
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 200)
+      assert.strictEqual(data.available, true)
+      assert.strictEqual(data.fileName, 'remote.txt')
+      assert.strictEqual(checked, true)
+      assert.strictEqual(startedDownload, false)
+    })
+
     it('returns taskId for valid link', async () => {
       await engine.publishFile(Buffer.from('test'), 'dl-test.txt')
       const files = engine.listPublishedFiles()

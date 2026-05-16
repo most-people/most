@@ -605,7 +605,8 @@ export class MostBoxEngine extends EventEmitter {
           size:
             existingHolding?.size ??
             (Number.isFinite(existingSize) ? existingSize : 0),
-          localPath: existingHolding?.localPath || existingFile.localPath || null,
+          localPath:
+            existingHolding?.localPath || existingFile.localPath || null,
           driveName: existingFile.driveName || name,
           source: existingHolding?.source || 'published',
           temporary: existingHolding?.temporary === true,
@@ -716,14 +717,14 @@ export class MostBoxEngine extends EventEmitter {
           // 忽略
         }
 
-      const savePath = path.join(targetDir, sanitizedFileName)
-      fs.mkdirSync(path.dirname(savePath), { recursive: true })
-      if (fs.existsSync(savePath)) {
-        throw new ConflictError(`已有同名文件: ${sanitizedFileName}`)
-      }
+        const savePath = path.join(targetDir, sanitizedFileName)
+        fs.mkdirSync(path.dirname(savePath), { recursive: true })
+        if (fs.existsSync(savePath)) {
+          throw new ConflictError(`已有同名文件: ${sanitizedFileName}`)
+        }
 
-      this.emit('download:status', {
-        taskId,
+        this.emit('download:status', {
+          taskId,
           status: 'downloading',
           file: sanitizedFileName,
           size: totalBytes ? formatFileSize(totalBytes) : null,
@@ -895,6 +896,86 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   /**
+   * 检测 most:// 链接当前是否能找到可下载内容，但不读取文件内容。
+   * @param {string} link - most:// 链接
+   * @param {object} [options] - 检测选项
+   * @param {number} [options.timeout] - 等待 P2P 内容的超时时间（毫秒）
+   * @returns {Promise<{ available: boolean, cid: string, fileName: string, size: number|null, alreadyExists?: boolean }>}
+   */
+  async checkDownloadAvailability(link, options = {}) {
+    this.#ensureInitialized()
+
+    const timeout = options.timeout || DRIVE_ENTRY_TIMEOUT
+    const parsed = parseMostLink(link)
+    if (parsed.error) {
+      throw new ValidationError(parsed.error)
+    }
+
+    const cidString = parsed.cid
+    const { driveName: name } = this.#getCidInfo(cidString)
+    const existingFile = this.#publishedFiles.find(f => f.cid === cidString)
+    if (existingFile) {
+      return {
+        available: true,
+        cid: cidString,
+        fileName: existingFile.fileName,
+        size: Number(existingFile.size) || null,
+        alreadyExists: true,
+      }
+    }
+
+    const writableCheck = await checkDirectoryWritable(
+      this.#options.downloadPath
+    )
+    if (!writableCheck.writable) {
+      throw new PermissionError(writableCheck.error)
+    }
+
+    let drive = this.#drives.get(name)
+
+    if (!drive) {
+      drive = await this.#getOrCreateDrive(name, {
+        server: true,
+        client: true,
+      })
+
+      this.#swarm.join(drive.discoveryKey, {
+        server: true,
+        client: true,
+      })
+    }
+
+    await this.#joinCidTopicInternal(cidString, {
+      server: true,
+      client: true,
+    })
+
+    const driveKey = '/' + cidString
+    const entry = await this.#waitForDriveEntry(drive, driveKey, timeout)
+
+    if (!entry) {
+      throw new PeerNotFoundError(
+        '当前没有发现可下载的在线种子，请稍后重试或确认发布者在线'
+      )
+    }
+
+    let size = null
+    try {
+      const stat = await drive.entry(entry.key)
+      if (stat?.value?.blob) {
+        size = stat.value.blob.byteLength || 0
+      }
+    } catch {}
+
+    return {
+      available: true,
+      cid: cidString,
+      fileName: parsed.fileName,
+      size,
+    }
+  }
+
+  /**
    * 列出所有已发布文件
    * @param {object} [options] - 筛选选项
    * @param {boolean} [options.starred] - 按收藏状态筛选
@@ -951,7 +1032,8 @@ export class MostBoxEngine extends EventEmitter {
       this.#trashFiles.push({
         fileName: fileRecord.fileName,
         cid: fileRecord.cid,
-        driveName: fileRecord.driveName || this.#getCidInfo(fileRecord.cid).driveName,
+        driveName:
+          fileRecord.driveName || this.#getCidInfo(fileRecord.cid).driveName,
         size: holding?.size ?? fileRecord.size ?? 0,
         localPath: holding?.localPath || fileRecord.localPath || null,
         source: holding?.source || 'published',
@@ -2388,7 +2470,7 @@ export class MostBoxEngine extends EventEmitter {
       const localEntry = await drive.entry(key)
       if (localEntry) {
         console.log(`[MostBox] Found expected entry ${key} locally`)
-        this.emit('download:status', { taskId, status: 'syncing' })
+        if (taskId) this.emit('download:status', { taskId, status: 'syncing' })
         return localEntry
       }
     } catch {}
@@ -2427,7 +2509,9 @@ export class MostBoxEngine extends EventEmitter {
         const entry = await drive.entry(key)
         if (entry) {
           console.log(`[MostBox] Found ${key} after ${elapsed}s`)
-          this.emit('download:status', { taskId, status: 'syncing' })
+          if (taskId) {
+            this.emit('download:status', { taskId, status: 'syncing' })
+          }
           return entry
         }
       } catch {}
@@ -2435,14 +2519,18 @@ export class MostBoxEngine extends EventEmitter {
       if (hasPeers) {
         const newStatus = 'syncing'
         if (lastStatus !== newStatus) {
-          this.emit('download:status', { taskId, status: newStatus })
+          if (taskId) {
+            this.emit('download:status', { taskId, status: newStatus })
+          }
           lastStatus = newStatus
         }
         pollInterval = Math.min(pollInterval + 200, DOWNLOAD_POLL_INTERVAL_MAX)
       } else {
         const newStatus = 'finding-peers'
         if (lastStatus !== newStatus) {
-          this.emit('download:status', { taskId, status: newStatus })
+          if (taskId) {
+            this.emit('download:status', { taskId, status: newStatus })
+          }
           lastStatus = newStatus
         }
         pollInterval = DOWNLOAD_POLL_INTERVAL_MIN
