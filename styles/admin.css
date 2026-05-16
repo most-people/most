@@ -189,6 +189,18 @@
   margin-bottom: 12px;
 }
 
+.admin-field-hint,
+.admin-table-note {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.admin-table-note {
+  margin-bottom: 10px;
+}
+
 .admin-toggle-row {
   justify-content: space-between;
   gap: 12px;
@@ -250,7 +262,7 @@
   display: grid;
   grid-template-columns:
     minmax(160px, 1.4fr) minmax(150px, 1fr) minmax(150px, 1fr)
-    90px;
+    120px;
   gap: 12px;
   min-width: 700px;
   padding: 10px 12px;

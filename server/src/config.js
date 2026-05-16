@@ -28,6 +28,10 @@ export const DOWNLOAD_POLL_INTERVAL_MIN = 500
 export const DOWNLOAD_POLL_INTERVAL_MAX = 2000
 export const DRIVE_UPDATE_INTERVAL = 2000
 
+// 启动时恢复做种 topic 的后台批处理
+export const HOLDING_REJOIN_BATCH_SIZE = 16
+export const HOLDING_REJOIN_BATCH_DELAY = 25
+
 // 进度更新节流间隔（毫秒）
 export const PROGRESS_THROTTLE = 500
 

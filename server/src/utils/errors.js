@@ -58,6 +58,13 @@ export class PermissionError extends AppError {
   }
 }
 
+export class ConflictError extends AppError {
+  constructor(message = 'Resource conflict') {
+    super(message, 'CONFLICT')
+    this.name = 'ConflictError'
+  }
+}
+
 export class EngineNotInitializedError extends AppError {
   constructor(message = 'Engine not initialized. Call start() first.') {
     super(message, 'ENGINE_NOT_INITIALIZED')

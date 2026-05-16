@@ -39,7 +39,7 @@ Web3 产品入口和以太坊钱包工具保留为独立工具箱，不参与 Mo
 | 总体定位、风险边界 | `docs/plan/项目计划书.md` |
 | 技术分层、接口优先原则、非 MVP 能力 | `docs/plan/技术架构.md` |
 | CID / 发布 / 下载 / 数据目录入口 | `docs/plan/协议基线实现入口清单.md` |
-| 做种 daemon、Web 管理台、做种策略 | `docs/plan/节点运营.md` |
+| 做种 daemon、Web 管理台、节点设置 | `docs/plan/节点运营.md` |
 | 默认不加密、私密文件边界 | `docs/plan/加密与存储.md` |
 
 ## 当前 MVP 口径
@@ -47,25 +47,24 @@ Web3 产品入口和以太坊钱包工具保留为独立工具箱，不参与 Mo
 首版只验证一个闭环：
 
 ```
-CID + chunkMerkleRoot
+CID
   → most:// 分享链接
   → 发布者按 CID topic 做种
-  → 下载者凭链接下载并校验
+  → 下载者凭链接下载并重算 CID 校验
   → 下载者默认持续做种
   → 发布者退出后，只要还有下载者在线即可继续传播
 ```
 
 MVP 成功标准：
 
-- 发布者在线时，下载者能凭 `most://` 链接发现 peer、下载文件并通过 CID + `chunkMerkleRoot` 双重校验。
+- 发布者在线时，下载者能凭 `most://` 链接发现 peer、下载文件并通过 CID 校验。
 - 下载完成后，本机默认把该文件加入做种列表，应用/daemon 重启后自动重新 join 对应 CID topic。
 - 发布者退出后，只要至少一个下载者仍在线做种，新下载者仍能完成下载并校验。
-- 用户能看到本机正在做种的 CID、文件大小、Merkle root、topic join 状态和基础日志。
+- 用户能看到本机正在做种的 CID、文件大小、topic join 状态和基础日志。
 
 ## 产品与协议不变量
 
-- `most://<cid>?filename=...&r=...` 是 MostBox 原生分享链接；本轮不改成 `magnet:`，也不做双格式。
-- `r` 是 `chunkMerkleRoot`，下载和 P2P pull 都必须把它作为必填校验锚。
+- `most://<cid>?filename=...` 是 MostBox 原生分享链接；本轮不改成 `magnet:`，也不做双格式。
 - CID 即权限：知道链接的人即可尝试下载；CID 或链接泄露不是漏洞。
 - MostBox 不承诺永久保存或离线可用；可用性来自当前在线种子数量。
 - 发布成功和下载成功后默认持续做种，除非用户暂停、删除文件或关闭应用。
@@ -88,9 +87,9 @@ MVP 成功标准：
 
 - CID 使用 UnixFS CID v1，当前由 `server/src/core/cid.js` 和 `ipfs-unixfs-importer@16.1.5` 生成。
 - CID 显式参数：`cidVersion: 1`、`rawLeaves: true`、`wrapWithDirectory: false`；升级 importer 前必须跑 CID 黄金样本测试。
-- Merkle 默认按 256KB chunk 生成 `chunkMerkleRoot`，它是下载校验和做种校验的协议锚点。
-- 下载完成后写入 Hyperdrive 并记录 holding，让下载者自动成为新的种子。
-- seed policy 默认：`autoSeedDownloads: true`、`autoSeedPublishes: true`、`maxConcurrentSeeds`、`uploadRateLimitBytesPerSecond`、`maxFileSizeBytes`、`capacityBytes`。
+- 下载完成后必须重算 UnixFS CID v1，只有 CID 与链接一致才保存并做种。
+- 下载只接受 Hyperdrive 中精确的 `/<cid>` 文件；下载完成后写入 Hyperdrive 并记录 holding，让下载者自动成为新的种子。
+- 节点配置保留 `maxFileSizeBytes`、`capacityBytes` 和数据目录；发布或下载成功后固定自动做种，不提供关闭开关、产品层同时做种上限或应用层限速。
 - 节点/做种能力 API 优先：HTTP API + WebSocket + OpenAPI 是稳定入口；Web 管理台给人用；薄 CLI 只做安装、启动、诊断。
 
 ## 常用命令
@@ -112,7 +111,7 @@ npm run lint
 
 ## 验证策略
 
-- 改 CID、Merkle、发布、下载、链接解析、P2P pull 时，优先跑 `npm run test:protocol`。
+- 改 CID、发布、下载、链接解析、P2P pull 时，优先跑 `npm run test:protocol`。
 - 改后端核心逻辑时，跑相关 `node --test server/tests/...`；范围较大时跑 `npm test`。
 - 改前端结构或样式时，跑 `npm run lint`，必要时启动前后端手动验证。
 - 涉及 MVP 主线时，用“发布者退出后，下载者种子仍可继续传播并校验”作为最高验收场景。
@@ -152,6 +151,5 @@ npm run lint
 - 核心引擎：`server/src/index.js`
 - 做种配置：`server/src/node/config.js`
 - CID / 链接：`server/src/core/cid.js`
-- Merkle：`server/src/core/merkle.js`
 - 配置：`server/src/config.js`
 - Electron：`electron/main.js`、`electron/preload.js`

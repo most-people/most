@@ -5,9 +5,25 @@ import os from 'node:os'
 import path from 'node:path'
 import { MostBoxEngine } from '../../src/index.js'
 import { calculateCid } from '../../src/core/cid.js'
-import { calculateChunkMerkleRoot } from '../../src/core/merkle.js'
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+
+async function waitForHoldingStatus(
+  engine,
+  cid,
+  expectedStatus = 'active',
+  timeout = 5000
+) {
+  const start = Date.now()
+  while (Date.now() - start < timeout) {
+    const holding = engine.listHoldings().find(item => item.cid === cid)
+    if (holding?.seedStatus === expectedStatus) {
+      return holding
+    }
+    await sleep(25)
+  }
+  throw new Error(`Holding ${cid} did not reach ${expectedStatus}`)
+}
 
 describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'most-engine-test-'))
@@ -58,14 +74,8 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
 
       assert.ok(result.cid)
       assert.ok(result.cid.startsWith('bafkrei'))
-      assert.match(result.chunkMerkleRoot, /^[0-9a-f]{64}$/)
-      assert.strictEqual(result.chunkSize, 256 * 1024)
-      assert.strictEqual(result.chunkCount, 1)
       assert.strictEqual(result.fileName, 'test.txt')
-      assert.strictEqual(
-        result.link,
-        `most://${result.cid}?filename=test.txt&r=${result.chunkMerkleRoot}`
-      )
+      assert.strictEqual(result.link, `most://${result.cid}?filename=test.txt`)
     })
 
     it('publishes a file from path and returns CID', async () => {
@@ -118,7 +128,6 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
 
       const files = engine.listPublishedFiles()
       assert.strictEqual(files.length, initialCount + 1)
-      assert.match(files.at(-1).chunkMerkleRoot, /^[0-9a-f]{64}$/)
     })
   })
 
@@ -167,6 +176,7 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
 
       const trash = engine.listTrashFiles()
       assert.ok(trash.some(f => f.cid === cid))
+      assert.ok(!engine.listHoldings().some(f => f.cid === cid))
     })
 
     it('restores file from trash', async () => {
@@ -177,10 +187,13 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
       const cid = result.cid
 
       await engine.deletePublishedFile(cid)
-      engine.restoreTrashFile(cid)
+      await engine.restoreTrashFile(cid)
 
       const files = engine.listPublishedFiles()
       assert.ok(files.some(f => f.cid === cid))
+      const holding = engine.listHoldings().find(f => f.cid === cid)
+      assert.ok(holding)
+      assert.strictEqual(holding.seedStatus, 'active')
     })
   })
 
@@ -206,22 +219,47 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
       assert.strictEqual(dlResult.fileName, 'self-dl.txt')
     })
 
-    it('rejects content when r is tampered', async () => {
-      const publishResult = await engine.publishFile(
-        Buffer.from('merkle mismatch download test'),
-        'tampered-merkle.txt'
+    it('repairs missing holding when an existing file is downloaded again', async () => {
+      const repairTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-existing-repair-')
       )
-      await engine.deletePublishedFile(publishResult.cid)
+      const dataPath = path.join(repairTmpDir, 'data')
+      let publishedLink
+      let publishedCid
+      let repairEngine
+      let firstEngine
 
-      const tamperedLink = publishResult.link.replace(
-        publishResult.chunkMerkleRoot,
-        '0'.repeat(64)
-      )
+      try {
+        firstEngine = new MostBoxEngine({ dataPath })
+        await firstEngine.start()
+        const publishResult = await firstEngine.publishFile(
+          Buffer.from('existing metadata repair'),
+          'repair.txt'
+        )
+        publishedLink = publishResult.link
+        publishedCid = publishResult.cid
+        await firstEngine.stop()
+        firstEngine = null
 
-      await assert.rejects(
-        engine.downloadFile(tamperedLink),
-        /Merkle root mismatch/
-      )
+        fs.rmSync(path.join(dataPath, 'node-holdings.json'), { force: true })
+
+        repairEngine = new MostBoxEngine({ dataPath })
+        await repairEngine.start()
+        assert.ok(!repairEngine.listHoldings().some(item => item.cid === publishedCid))
+
+        const result = await repairEngine.downloadFile(publishedLink)
+
+        assert.strictEqual(result.alreadyExists, true)
+        const holding = repairEngine
+          .listHoldings()
+          .find(item => item.cid === publishedCid)
+        assert.ok(holding)
+        assert.strictEqual(holding.seedStatus, 'active')
+      } finally {
+        if (firstEngine) await firstEngine.stop().catch(() => {})
+        if (repairEngine) await repairEngine.stop().catch(() => {})
+        fs.rmSync(repairTmpDir, { recursive: true, force: true })
+      }
     })
 
     it('rejects invalid most:// link', async () => {
@@ -262,7 +300,6 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
 
         assert.ok(holding)
         assert.strictEqual(holding.size, 'holding restart test'.length)
-        assert.strictEqual(holding.root, publishResult.chunkMerkleRoot)
         assert.match(holding.topic, /^[0-9a-f]{64}$/)
         assert.strictEqual(holding.joined, true)
 
@@ -271,9 +308,17 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
 
         secondEngine = new MostBoxEngine({ dataPath })
         await secondEngine.start()
-        const restored = secondEngine
+        const queued = secondEngine
           .listHoldings()
           .find(item => item.cid === publishResult.cid)
+
+        assert.ok(queued)
+        assert.ok(['queued', 'joining', 'active'].includes(queued.seedStatus))
+
+        const restored = await waitForHoldingStatus(
+          secondEngine,
+          publishResult.cid
+        )
 
         assert.ok(restored)
         assert.strictEqual(restored.joined, true)
@@ -312,7 +357,6 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
         const pullInput = {
           cid: publishResult.cid,
           fileName: publishResult.fileName,
-          chunkMerkleRoot: publishResult.chunkMerkleRoot,
           timeout: 10000,
         }
 
@@ -363,12 +407,9 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
       const filePath = path.join(tmpDir, 'cancel-source.txt')
       fs.writeFileSync(filePath, 'cancel me while peers are missing')
 
-      const [{ cid }, merkle] = await Promise.all([
-        calculateCid(filePath),
-        calculateChunkMerkleRoot(filePath),
-      ])
+      const { cid } = await calculateCid(filePath)
       const taskId = `cancel-${Date.now()}`
-      const link = `most://${cid}?filename=cancel-source.txt&r=${merkle.chunkMerkleRoot}`
+      const link = `most://${cid}?filename=cancel-source.txt`
 
       const download = engine.downloadFile(link, taskId, { timeout: 10000 })
       await sleep(100)

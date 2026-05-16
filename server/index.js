@@ -13,14 +13,16 @@ import { MostBoxEngine } from './src/index.js'
 import { parseMostLink, validateCidString } from './src/core/cid.js'
 import { sanitizeFilename } from './src/utils/security.js'
 import { MAX_FILE_SIZE } from './src/config.js'
-import { createNodeConfigStore, evaluateSeedPolicy } from './src/node/config.js'
+import {
+  createNodeConfigStore,
+  evaluateStorageLimits,
+} from './src/node/config.js'
 import { createNodeLogger } from './src/node/logs.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = Number(process.env.MOSTBOX_PORT || process.env.PORT) || 1976
 const HOST = process.env.MOSTBOX_HOST || '0.0.0.0'
 
-const MAX_UPLOAD_SIZE = MAX_FILE_SIZE
 const UPLOAD_TMP_DIR = path.join(os.tmpdir(), 'most-box-uploads')
 
 const RATE_LIMIT_WINDOW = 60 * 1000
@@ -42,6 +44,8 @@ function getApiErrorStatus(err) {
       return 503
     case 'INTEGRITY_ERROR':
       return 422
+    case 'CONFLICT':
+      return 409
     case 'PERMISSION_ERROR':
       return 403
     case 'ENGINE_NOT_INITIALIZED':
@@ -153,11 +157,7 @@ async function buildNodeStatus(engine, configStore, appPort, host) {
     dataPath: getDataPath(configStore),
     config,
     policy: {
-      autoSeedDownloads: config.autoSeedDownloads,
-      autoSeedPublishes: config.autoSeedPublishes,
       maxFileSizeBytes: config.maxFileSizeBytes,
-      maxConcurrentSeeds: config.maxConcurrentSeeds,
-      uploadRateLimitBytesPerSecond: config.uploadRateLimitBytesPerSecond,
     },
     capacity: {
       configuredBytes: config.capacityBytes,
@@ -197,18 +197,18 @@ function buildOpenApiSpec(appPort) {
       },
       '/api/node/policy': {
         get: {
-          summary: 'Get local seeding policy',
-          responses: { 200: { description: 'Seed policy' } },
+          summary: 'Get local storage limits',
+          responses: { 200: { description: 'Storage limits' } },
         },
         post: {
-          summary: 'Update local seeding policy',
-          responses: { 200: { description: 'Updated policy' } },
+          summary: 'Update local storage limits',
+          responses: { 200: { description: 'Updated storage limits' } },
         },
       },
       '/api/node/policy/evaluate': {
         post: {
-          summary: 'Evaluate a local file against seed policy',
-          responses: { 200: { description: 'Policy decision' } },
+          summary: 'Evaluate a local file against storage limits',
+          responses: { 200: { description: 'Storage limit decision' } },
         },
       },
       '/api/node/holdings': {
@@ -239,7 +239,7 @@ function buildOpenApiSpec(appPort) {
       },
       '/api/p2p/pull': {
         post: {
-          summary: 'Pull a full file replica by CID and chunkMerkleRoot',
+          summary: 'Pull a full file replica by CID',
           responses: { 200: { description: 'Pull task result' } },
         },
       },
@@ -310,7 +310,7 @@ function decodeFilenameFromHeader(headerStr) {
   return null
 }
 
-async function parseMultipartBusboy(req) {
+async function parseMultipartBusboy(req, maxUploadSize = MAX_FILE_SIZE) {
   return new Promise((resolve, reject) => {
     if (!fs.existsSync(UPLOAD_TMP_DIR)) {
       fs.mkdirSync(UPLOAD_TMP_DIR, { recursive: true })
@@ -319,7 +319,7 @@ async function parseMultipartBusboy(req) {
     const busboy = Busboy({
       headers: req.headers,
       limits: {
-        fileSize: MAX_UPLOAD_SIZE,
+        fileSize: maxUploadSize,
         files: 1,
         fields: 0,
       },
@@ -340,7 +340,7 @@ async function parseMultipartBusboy(req) {
 
       stream.on('data', chunk => {
         fileSize += chunk.length
-        if (fileSize > MAX_UPLOAD_SIZE) {
+        if (fileSize > maxUploadSize) {
           stream.destroy()
           writeStream.destroy()
           fs.unlink(tempPath, () => {})
@@ -632,6 +632,7 @@ export function createApp(engine, options = {}) {
     }
 
     const { success, config } = configStore.saveNodeConfigPatch(patch)
+    engine.setMaxFileSize(config.maxFileSizeBytes)
     appendNodeLog({
       event: 'node:config:updated',
       message: 'Node daemon config updated',
@@ -647,33 +648,22 @@ export function createApp(engine, options = {}) {
   app.get('/api/node/policy', c => {
     const config = configStore.getNodeConfig()
     return c.json({
-      autoSeedDownloads: config.autoSeedDownloads,
-      autoSeedPublishes: config.autoSeedPublishes,
       maxFileSizeBytes: config.maxFileSizeBytes,
-      maxConcurrentSeeds: config.maxConcurrentSeeds,
-      uploadRateLimitBytesPerSecond: config.uploadRateLimitBytesPerSecond,
     })
   })
 
   app.post('/api/node/policy', async c => {
     const body = await c.req.json()
     const { success, config } = configStore.saveNodeConfigPatch({
-      autoSeedDownloads: body.autoSeedDownloads,
-      autoSeedPublishes: body.autoSeedPublishes,
       maxFileSizeBytes: body.maxFileSizeBytes,
-      maxConcurrentSeeds: body.maxConcurrentSeeds,
-      uploadRateLimitBytesPerSecond: body.uploadRateLimitBytesPerSecond,
     })
+    engine.setMaxFileSize(config.maxFileSizeBytes)
     const policy = {
-      autoSeedDownloads: config.autoSeedDownloads,
-      autoSeedPublishes: config.autoSeedPublishes,
       maxFileSizeBytes: config.maxFileSizeBytes,
-      maxConcurrentSeeds: config.maxConcurrentSeeds,
-      uploadRateLimitBytesPerSecond: config.uploadRateLimitBytesPerSecond,
     }
     appendNodeLog({
       event: 'node:policy:updated',
-      message: 'Node seed policy updated',
+      message: 'Node storage limits updated',
       data: policy,
     })
     await broadcastNodeStatus()
@@ -682,7 +672,7 @@ export function createApp(engine, options = {}) {
 
   app.post('/api/node/policy/evaluate', async c => {
     const body = await c.req.json()
-    const decision = evaluateSeedPolicy(configStore.getNodeConfig(), body)
+    const decision = evaluateStorageLimits(configStore.getNodeConfig(), body)
     return c.json(decision)
   })
 
@@ -773,7 +763,10 @@ export function createApp(engine, options = {}) {
 
   app.post('/api/publish', async c => {
     const req = c.env.incoming
-    const result = await parseMultipartBusboy(req)
+    const result = await parseMultipartBusboy(
+      req,
+      configStore.getNodeConfig().maxFileSizeBytes
+    )
 
     if (!result || !result.filename) {
       return c.json({ error: 'No file provided' }, 400)
@@ -809,12 +802,22 @@ export function createApp(engine, options = {}) {
       .find(f => f.cid === parsed.cid)
     if (existingFile) {
       console.log(`[MostBox] File already exists: ${existingFile.fileName}`)
-      return c.json({
-        success: true,
-        taskId,
-        alreadyExists: true,
-        fileName: existingFile.fileName,
-      })
+      try {
+        const result = await engine.downloadFile(body.link, taskId)
+        return c.json({ success: true, ...result })
+      } catch (err) {
+        return errorJson(c, err)
+      }
+    }
+
+    if (engine.hasDownloadNameConflict(parsed.fileName)) {
+      return c.json(
+        {
+          error: `已有同名文件: ${parsed.fileName}`,
+          code: 'CONFLICT',
+        },
+        409
+      )
     }
 
     engine.downloadFile(body.link, taskId).catch(err => {
@@ -935,7 +938,7 @@ export function createApp(engine, options = {}) {
       return c.json({ error: cidValidation.error }, 400)
     }
     try {
-      const result = engine.restoreTrashFile(cid)
+      const result = await engine.restoreTrashFile(cid)
       return c.json({ success: true, files: result })
     } catch (err) {
       return c.json({ error: err.message }, 400)
@@ -1201,7 +1204,10 @@ export async function main() {
   const dataPath = getDataPath(configStore)
   console.log(`[MostBox] Storage: ${dataPath}`)
 
-  const engine = new MostBoxEngine({ dataPath })
+  const engine = new MostBoxEngine({
+    dataPath,
+    maxFileSize: configStore.getNodeConfig().maxFileSizeBytes,
+  })
 
   const wssRef = { current: null }
   const serverInstanceRef = { current: null }

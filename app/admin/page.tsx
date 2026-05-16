@@ -10,7 +10,6 @@ import {
   Database,
   FileText,
   HardDrive,
-  ListChecks,
   RefreshCw,
   Save,
   Server,
@@ -32,10 +31,6 @@ interface NodeConfig {
   dataPath: string
   configuredDataPath?: string
   capacityBytes: number
-  autoSeedDownloads: boolean
-  autoSeedPublishes: boolean
-  maxConcurrentSeeds: number
-  uploadRateLimitBytesPerSecond: number
   maxFileSizeBytes: number
 }
 
@@ -52,9 +47,9 @@ interface NodeHolding {
   cid: string
   fileName: string
   size: number
-  chunkMerkleRoot?: string
-  root?: string
   joined: boolean
+  seedStatus?: 'queued' | 'joining' | 'active' | 'paused' | 'error'
+  seedError?: string
   updatedAt?: string
 }
 
@@ -72,11 +67,7 @@ interface NodeStatus {
   dataPath: string
   config: NodeConfig
   policy: {
-    autoSeedDownloads: boolean
-    autoSeedPublishes: boolean
     maxFileSizeBytes: number
-    maxConcurrentSeeds: number
-    uploadRateLimitBytesPerSecond: number
   }
   capacity: {
     configuredBytes: number
@@ -132,27 +123,27 @@ function gibToBytes(value: string) {
   return Math.round(parsed * 1024 * 1024 * 1024)
 }
 
-function bytesPerSecondToMbps(bytes: number) {
-  if (!Number.isFinite(bytes) || bytes <= 0) return '0'
-  return String(Math.round((bytes / 1024 / 1024) * 100) / 100)
-}
-
-function mbpsToBytesPerSecond(value: string) {
-  const parsed = Number(value)
-  if (!Number.isFinite(parsed) || parsed <= 0) return 0
-  return Math.round(parsed * 1024 * 1024)
-}
-
-function numberOrZero(value: string) {
-  const parsed = Number(value)
-  if (!Number.isFinite(parsed) || parsed < 0) return 0
-  return Math.floor(parsed)
-}
-
 function shortText(text: string, head = 12, tail = 8) {
   if (!text) return '-'
   if (text.length <= head + tail + 3) return text
   return `${text.slice(0, head)}...${text.slice(-tail)}`
+}
+
+function formatSeedStatus(holding: NodeHolding) {
+  switch (holding.seedStatus) {
+    case 'queued':
+      return '队列中'
+    case 'joining':
+      return '加入中'
+    case 'active':
+      return '做种中'
+    case 'paused':
+      return '已暂停'
+    case 'error':
+      return holding.seedError ? `错误：${holding.seedError}` : '错误'
+    default:
+      return holding.joined ? '做种中' : '未 join'
+  }
 }
 
 export default function AdminPage() {
@@ -162,18 +153,11 @@ export default function AdminPage() {
   const [logs, setLogs] = useState<NodeLog[]>([])
   const [error, setError] = useState('')
   const [isSavingConfig, setIsSavingConfig] = useState(false)
-  const [isSavingPolicy, setIsSavingPolicy] = useState(false)
   const [isClearingLogs, setIsClearingLogs] = useState(false)
   const [configForm, setConfigForm] = useState({
     dataPath: '',
     capacityGiB: '100',
-  })
-  const [policyForm, setPolicyForm] = useState({
-    autoSeedDownloads: true,
-    autoSeedPublishes: true,
     maxFileSizeGiB: '100',
-    maxConcurrentSeeds: '32',
-    uploadRateLimitMbps: '0',
   })
 
   const capacityPercent = useMemo(() => {
@@ -186,6 +170,12 @@ export default function AdminPage() {
     )
   }, [status])
 
+  const visibleHoldings = useMemo(
+    () => (status?.holdings || []).slice(0, 100),
+    [status]
+  )
+  const hiddenHoldingCount = Math.max(0, (status?.holdings.length || 0) - 100)
+
   const loadStatus = async () => {
     try {
       const nextStatus = await api.get<NodeStatus>('/api/node/status').json()
@@ -193,15 +183,7 @@ export default function AdminPage() {
       setConfigForm({
         dataPath: nextStatus.dataPath || '',
         capacityGiB: bytesToGiB(nextStatus.config.capacityBytes),
-      })
-      setPolicyForm({
-        autoSeedDownloads: nextStatus.policy.autoSeedDownloads,
-        autoSeedPublishes: nextStatus.policy.autoSeedPublishes,
-        maxFileSizeGiB: bytesToGiB(nextStatus.policy.maxFileSizeBytes),
-        maxConcurrentSeeds: String(nextStatus.policy.maxConcurrentSeeds),
-        uploadRateLimitMbps: bytesPerSecondToMbps(
-          nextStatus.policy.uploadRateLimitBytesPerSecond
-        ),
+        maxFileSizeGiB: bytesToGiB(nextStatus.config.maxFileSizeBytes),
       })
       setError('')
     } catch (err) {
@@ -226,6 +208,7 @@ export default function AdminPage() {
           json: {
             dataPath: configForm.dataPath,
             capacityBytes: gibToBytes(configForm.capacityGiB),
+            maxFileSizeBytes: gibToBytes(configForm.maxFileSizeGiB),
           },
         })
         .json()
@@ -237,33 +220,6 @@ export default function AdminPage() {
       setError(err instanceof Error ? err.message : '保存配置失败')
     } finally {
       setIsSavingConfig(false)
-    }
-  }
-
-  const savePolicy = async () => {
-    setIsSavingPolicy(true)
-    try {
-      await api
-        .post('/api/node/policy', {
-          json: {
-            autoSeedDownloads: policyForm.autoSeedDownloads,
-            autoSeedPublishes: policyForm.autoSeedPublishes,
-            maxFileSizeBytes: gibToBytes(policyForm.maxFileSizeGiB),
-            maxConcurrentSeeds: numberOrZero(policyForm.maxConcurrentSeeds),
-            uploadRateLimitBytesPerSecond: mbpsToBytesPerSecond(
-              policyForm.uploadRateLimitMbps
-            ),
-          },
-        })
-        .json()
-      addToast('节点策略已保存', 'success')
-      await loadStatus()
-      await loadLogs()
-    } catch (err) {
-      addToast('保存策略失败', 'error')
-      setError(err instanceof Error ? err.message : '保存策略失败')
-    } finally {
-      setIsSavingPolicy(false)
     }
   }
 
@@ -442,8 +398,8 @@ export default function AdminPage() {
         <div className="admin-panel">
           <div className="admin-panel-header">
             <div>
-              <p className="admin-kicker">Capacity</p>
-              <h2>容量配置</h2>
+              <p className="admin-kicker">Settings</p>
+              <h2>节点设置</h2>
             </div>
             <Database size={18} />
           </div>
@@ -476,50 +432,6 @@ export default function AdminPage() {
               }
             />
           </label>
-          <button
-            className="btn btn-primary btn-full"
-            onClick={saveConfig}
-            disabled={isSavingConfig}
-          >
-            <Save size={16} />
-            保存配置
-          </button>
-        </div>
-
-        <div className="admin-panel">
-          <div className="admin-panel-header">
-            <div>
-              <p className="admin-kicker">Policy</p>
-              <h2>做种策略</h2>
-            </div>
-            <ListChecks size={18} />
-          </div>
-          <label className="admin-toggle-row">
-            <span>下载后自动做种</span>
-            <input
-              type="checkbox"
-              checked={policyForm.autoSeedDownloads}
-              onChange={event =>
-                setPolicyForm(prev => ({
-                  ...prev,
-                  autoSeedDownloads: event.target.checked,
-                }))
-              }
-            />
-          </label>
-          <label className="admin-toggle-row">
-            <span>发布后自动做种</span>
-            <input
-              type="checkbox"
-              checked={policyForm.autoSeedPublishes}
-              onChange={event =>
-                setPolicyForm(prev => ({
-                  ...prev,
-                  autoSeedPublishes: event.target.checked,
-                }))
-              }
-            />
-          </label>
           <label className="admin-field">
             <span>单文件最大 GiB</span>
             <input
@@ -527,54 +439,25 @@ export default function AdminPage() {
               type="number"
               min="0"
               step="1"
-              value={policyForm.maxFileSizeGiB}
+              value={configForm.maxFileSizeGiB}
               onChange={event =>
-                setPolicyForm(prev => ({
+                setConfigForm(prev => ({
                   ...prev,
                   maxFileSizeGiB: event.target.value,
                 }))
               }
             />
           </label>
-          <label className="admin-field">
-            <span>最大同时做种数</span>
-            <input
-              className="input"
-              type="number"
-              min="0"
-              step="1"
-              value={policyForm.maxConcurrentSeeds}
-              onChange={event =>
-                setPolicyForm(prev => ({
-                  ...prev,
-                  maxConcurrentSeeds: event.target.value,
-                }))
-              }
-            />
-          </label>
-          <label className="admin-field">
-            <span>上传限速 MB/s</span>
-            <input
-              className="input"
-              type="number"
-              min="0"
-              step="0.1"
-              value={policyForm.uploadRateLimitMbps}
-              onChange={event =>
-                setPolicyForm(prev => ({
-                  ...prev,
-                  uploadRateLimitMbps: event.target.value,
-                }))
-              }
-            />
-          </label>
+          <p className="admin-field-hint">
+            发布和下载成功后会固定做种；MostBox 不设同时做种数或传输限速。
+          </p>
           <button
             className="btn btn-primary btn-full"
-            onClick={savePolicy}
-            disabled={isSavingPolicy}
+            onClick={saveConfig}
+            disabled={isSavingConfig}
           >
             <Save size={16} />
-            保存策略
+            保存配置
           </button>
         </div>
 
@@ -593,21 +476,24 @@ export default function AdminPage() {
               {formatSize(status?.capacity.configuredBytes || 0)}
             </span>
           </div>
+          {hiddenHoldingCount > 0 && (
+            <p className="admin-table-note">
+              当前仅展示前 100 个副本，另有 {hiddenHoldingCount} 个仍在后台做种。
+            </p>
+          )}
           <div className="admin-table">
             <div className="admin-table-row admin-table-head">
               <span>文件</span>
               <span>CID</span>
-              <span>Merkle</span>
+              <span>大小</span>
               <span>状态</span>
             </div>
-            {(status?.holdings || []).map(holding => (
+            {visibleHoldings.map(holding => (
               <div className="admin-table-row" key={holding.cid}>
                 <span>{holding.fileName || '-'}</span>
                 <span>{shortText(holding.cid)}</span>
-                <span>
-                  {shortText(holding.chunkMerkleRoot || holding.root || '')}
-                </span>
-                <span>{holding.joined ? '已 join' : '未 join'}</span>
+                <span>{formatSize(holding.size)}</span>
+                <span>{formatSeedStatus(holding)}</span>
               </div>
             ))}
             {(!status || status.holdings.length === 0) && (

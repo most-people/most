@@ -8,6 +8,7 @@ import {
   PeerNotFoundError,
   IntegrityError,
   PermissionError,
+  ConflictError,
   EngineNotInitializedError,
   isErrorWithCode,
 } from '../../src/utils/errors.js'
@@ -113,6 +114,15 @@ describe('PermissionError', () => {
   it('has default message', () => {
     const err = new PermissionError()
     assert.strictEqual(err.message, 'Permission denied')
+  })
+})
+
+describe('ConflictError', () => {
+  it('has CONFLICT code', () => {
+    const err = new ConflictError('name exists')
+    assert.strictEqual(err.code, 'CONFLICT')
+    assert.strictEqual(err.name, 'ConflictError')
+    assert.strictEqual(err.message, 'name exists')
   })
 })
 

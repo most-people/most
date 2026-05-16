@@ -21,10 +21,6 @@ export function getDefaultNodeConfig() {
   return {
     dataPath: '',
     capacityBytes: DEFAULT_CAPACITY_BYTES,
-    autoSeedDownloads: true,
-    autoSeedPublishes: true,
-    maxConcurrentSeeds: 32,
-    uploadRateLimitBytesPerSecond: 0,
     maxFileSizeBytes: MAX_FILE_SIZE,
   }
 }
@@ -41,36 +37,12 @@ export function normalizeNodeConfig(raw = {}) {
     rawNode.maxFileSizeBytes ?? raw.maxFileSizeBytes,
     defaults.maxFileSizeBytes
   )
-  const maxConcurrentSeeds = normalizePositiveInteger(
-    rawNode.maxConcurrentSeeds ?? raw.maxConcurrentSeeds,
-    defaults.maxConcurrentSeeds
-  )
-  const uploadRateLimitBytesPerSecond = normalizePositiveInteger(
-    rawNode.uploadRateLimitBytesPerSecond ??
-      raw.uploadRateLimitBytesPerSecond,
-    defaults.uploadRateLimitBytesPerSecond
-  )
-
   return {
     dataPath:
       typeof raw.dataPath === 'string'
         ? raw.dataPath.trim()
         : defaults.dataPath,
     capacityBytes,
-    autoSeedDownloads:
-      typeof rawNode.autoSeedDownloads === 'boolean'
-        ? rawNode.autoSeedDownloads
-        : typeof raw.autoSeedDownloads === 'boolean'
-          ? raw.autoSeedDownloads
-          : defaults.autoSeedDownloads,
-    autoSeedPublishes:
-      typeof rawNode.autoSeedPublishes === 'boolean'
-        ? rawNode.autoSeedPublishes
-        : typeof raw.autoSeedPublishes === 'boolean'
-          ? raw.autoSeedPublishes
-          : defaults.autoSeedPublishes,
-    maxConcurrentSeeds,
-    uploadRateLimitBytesPerSecond,
     maxFileSizeBytes,
   }
 }
@@ -129,22 +101,6 @@ export function createNodeConfigStore(configDir = getDefaultConfigDir()) {
           patch.capacityBytes === undefined
             ? current.capacityBytes
             : patch.capacityBytes,
-        autoSeedDownloads:
-          patch.autoSeedDownloads === undefined
-            ? current.autoSeedDownloads
-            : patch.autoSeedDownloads,
-        autoSeedPublishes:
-          patch.autoSeedPublishes === undefined
-            ? current.autoSeedPublishes
-            : patch.autoSeedPublishes,
-        maxConcurrentSeeds:
-          patch.maxConcurrentSeeds === undefined
-            ? current.maxConcurrentSeeds
-            : patch.maxConcurrentSeeds,
-        uploadRateLimitBytesPerSecond:
-          patch.uploadRateLimitBytesPerSecond === undefined
-            ? current.uploadRateLimitBytesPerSecond
-            : patch.uploadRateLimitBytesPerSecond,
         maxFileSizeBytes:
           patch.maxFileSizeBytes === undefined
             ? current.maxFileSizeBytes
@@ -153,15 +109,9 @@ export function createNodeConfigStore(configDir = getDefaultConfigDir()) {
     })
 
     const saved = {
-      ...raw,
       dataPath: next.dataPath,
       node: {
-        ...(raw.node && typeof raw.node === 'object' ? raw.node : {}),
         capacityBytes: next.capacityBytes,
-        autoSeedDownloads: next.autoSeedDownloads,
-        autoSeedPublishes: next.autoSeedPublishes,
-        maxConcurrentSeeds: next.maxConcurrentSeeds,
-        uploadRateLimitBytesPerSecond: next.uploadRateLimitBytesPerSecond,
         maxFileSizeBytes: next.maxFileSizeBytes,
         updatedAt: new Date().toISOString(),
       },
@@ -181,7 +131,7 @@ export function createNodeConfigStore(configDir = getDefaultConfigDir()) {
   }
 }
 
-export function evaluateSeedPolicy(config, input = {}) {
+export function evaluateStorageLimits(config, input = {}) {
   const size = Number(input.size ?? input.fileSize ?? 0)
   const reasons = []
 

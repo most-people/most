@@ -747,7 +747,7 @@ export default function App() {
 
   const handleCopyLink = () => {
     copyLink(
-      `most://${shareItem.cid}?filename=${encodeURIComponent(shareItem.fileName)}&r=${shareItem.chunkMerkleRoot}`
+      `most://${shareItem.cid}?filename=${encodeURIComponent(shareItem.fileName)}`
     )
   }
 
@@ -755,7 +755,7 @@ export default function App() {
 
   const handleDownloadSharedFile = async () => {
     if (!downloadLink.trim() || !downloadLink.startsWith('most://')) {
-      addToast('链接格式应为 most://<cid>?filename=...&r=...', 'warning')
+      addToast('链接格式应为 most://<cid>?filename=...', 'warning')
       return
     }
     if (isDownloading) return
@@ -779,8 +779,21 @@ export default function App() {
         transferPanel.open()
         addToast('下载已开始', 'info')
       }
-    } catch {
-      addToast('下载失败', 'error')
+    } catch (err) {
+      let message = '下载失败'
+      const response =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: Response }).response
+          : null
+      if (response) {
+        const data = await response
+          .json<Record<string, unknown>>()
+          .catch(() => null)
+        if (typeof data?.error === 'string') {
+          message = data.error
+        }
+      }
+      addToast(message, 'error')
     } finally {
       setIsDownloading(false)
     }
@@ -1284,7 +1297,7 @@ export default function App() {
             </div>
             <div className="share-link-box">
               <div className="share-link-text">
-                {`most://${shareItem.cid}?filename=${encodeURIComponent(shareItem.fileName)}&r=${shareItem.chunkMerkleRoot}`}
+                {`most://${shareItem.cid}?filename=${encodeURIComponent(shareItem.fileName)}`}
               </div>
               <button
                 onClick={handleCopyLink}

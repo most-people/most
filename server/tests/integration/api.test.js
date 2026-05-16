@@ -6,13 +6,22 @@ import path from 'node:path'
 import { serve } from '@hono/node-server'
 import { createApp } from '../../index.js'
 import { calculateCid } from '../../src/core/cid.js'
-import { calculateChunkMerkleRoot } from '../../src/core/merkle.js'
 import { MostBoxEngine } from '../../src/index.js'
 import { createNodeConfigStore } from '../../src/node/config.js'
 import { createNodeLogger } from '../../src/node/logs.js'
 
 const TEST_PORT = 19771
 const baseUrl = 'http://localhost:' + TEST_PORT
+const VALID_MISSING_CID =
+  'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
+
+function assertNoLegacyNodeSettingFields(value) {
+  const legacyPattern = /Seed|Concurrent|RateLimit/
+  assert.deepStrictEqual(
+    Object.keys(value).filter(key => legacyPattern.test(key)),
+    []
+  )
+}
 
 describe('HTTP API (integration)', { timeout: 180000 }, () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'most-api-test-'))
@@ -105,6 +114,12 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(Array.isArray(data.listen.addresses))
       assert.strictEqual(typeof data.capacity.configuredBytes, 'number')
       assert.ok(Array.isArray(data.holdings))
+      assert.deepStrictEqual(Object.keys(data.policy).sort(), [
+        'maxFileSizeBytes',
+      ])
+      assertNoLegacyNodeSettingFields(data.policy)
+      assert.strictEqual('allowOrders' in data.policy, false)
+      assert.strictEqual('minimumPriceUsdtPerGbMonth' in data.policy, false)
     })
 
     it('saves daemon config and exposes policy locally', async () => {
@@ -117,10 +132,6 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         body: JSON.stringify({
           dataPath,
           capacityBytes: 1024 * 1024 * 1024,
-          autoSeedDownloads: true,
-          autoSeedPublishes: false,
-          maxConcurrentSeeds: 8,
-          uploadRateLimitBytesPerSecond: 1024 * 1024,
           maxFileSizeBytes: 1024 * 1024,
         }),
       })
@@ -130,10 +141,8 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(data.success, true)
       assert.strictEqual(data.dataPath, dataPath)
       assert.strictEqual(data.capacityBytes, 1024 * 1024 * 1024)
-      assert.strictEqual(data.autoSeedDownloads, true)
-      assert.strictEqual(data.autoSeedPublishes, false)
-      assert.strictEqual(data.maxConcurrentSeeds, 8)
-      assert.strictEqual(data.uploadRateLimitBytesPerSecond, 1024 * 1024)
+      assert.strictEqual(data.maxFileSizeBytes, 1024 * 1024)
+      assertNoLegacyNodeSettingFields(data)
       assert.strictEqual('allowOrders' in data, false)
       assert.strictEqual('minimumPriceUsdtPerGbMonth' in data, false)
 
@@ -149,6 +158,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(policyRes.status, 200)
       assert.strictEqual(decision.accepted, false)
       assert.ok(decision.reasons.includes('file-too-large'))
+      assertNoLegacyNodeSettingFields(decision.policy)
       assert.strictEqual('offeredPriceUsdtPerGbMonth' in decision.policy, false)
       assert.strictEqual('allowOrders' in decision.policy, false)
     })
@@ -157,7 +167,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       await fetch(`${baseUrl}/api/node/policy`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ autoSeedDownloads: false }),
+        body: JSON.stringify({ maxFileSizeBytes: 2 * 1024 * 1024 }),
       })
 
       const logsRes = await fetch(`${baseUrl}/api/node/logs?limit=20`)
@@ -227,8 +237,6 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(res.status, 200)
       assert.ok(data.success)
       assert.ok(data.cid)
-      assert.match(data.chunkMerkleRoot, /^[0-9a-f]{64}$/)
-      assert.strictEqual(data.chunkSize, 256 * 1024)
       assert.ok(data.link.startsWith('most://'))
       assert.strictEqual(data.fileName, 'test.txt')
     })
@@ -299,6 +307,56 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(data.alreadyExists, true)
     })
 
+    it('uses engine download path for existing files', async () => {
+      let called = false
+      const fakeEngine = {
+        getPublishedFiles: () => [
+          { cid: VALID_MISSING_CID, fileName: 'exists.txt' },
+        ],
+        downloadFile: async (_link, taskId) => {
+          called = true
+          return { taskId, fileName: 'exists.txt', alreadyExists: true }
+        },
+      }
+      const { app } = createApp(fakeEngine, {
+        port: TEST_PORT + 3,
+        configStore,
+        nodeLogger,
+      })
+
+      const res = await app.request('/api/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          link: `most://${VALID_MISSING_CID}?filename=exists.txt`,
+        }),
+      })
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 200)
+      assert.strictEqual(data.alreadyExists, true)
+      assert.strictEqual(called, true)
+    })
+
+    it('returns 409 when another CID would save over an existing filename', async () => {
+      const downloadsDir = path.join(tmpDir, 'api', 'downloads')
+      fs.mkdirSync(downloadsDir, { recursive: true })
+      fs.writeFileSync(path.join(downloadsDir, 'same-name.txt'), 'local file')
+
+      const res = await fetch(`${baseUrl}/api/download`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          link: `most://${VALID_MISSING_CID}?filename=same-name.txt`,
+        }),
+      })
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 409)
+      assert.strictEqual(data.code, 'CONFLICT')
+      assert.match(data.error, /已有同名文件/)
+    })
+
     it('returns 400 for missing link', async () => {
       const res = await fetch(`${baseUrl}/api/download`, {
         method: 'POST',
@@ -336,15 +394,14 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(res.status, 200)
       assert.ok(holding)
       assert.strictEqual(holding.size, 'api-holding'.length)
-      assert.strictEqual(holding.root, publishResult.chunkMerkleRoot)
       assert.match(holding.topic, /^[0-9a-f]{64}$/)
       assert.strictEqual(holding.joined, true)
+      assert.strictEqual(holding.seedStatus, 'active')
     })
 
     it('creates a manual holding record', async () => {
       const content = Buffer.from('manual holding')
       const { cid } = await calculateCid(content)
-      const merkle = await calculateChunkMerkleRoot(content)
 
       const res = await fetch(`${baseUrl}/api/node/holdings`, {
         method: 'POST',
@@ -352,7 +409,6 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         body: JSON.stringify({
           cid: cid.toString(),
           size: content.length,
-          root: merkle.chunkMerkleRoot,
           localPath: path.join(tmpDir, 'manual.txt'),
         }),
       })
@@ -367,7 +423,6 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     it('returns PEER_NOT_FOUND when no peer serves the CID', async () => {
       const content = Buffer.from('missing p2p content')
       const { cid } = await calculateCid(content)
-      const merkle = await calculateChunkMerkleRoot(content)
 
       const res = await fetch(`${baseUrl}/api/p2p/pull`, {
         method: 'POST',
@@ -375,7 +430,6 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         body: JSON.stringify({
           cid: cid.toString(),
           fileName: 'missing.txt',
-          chunkMerkleRoot: merkle.chunkMerkleRoot,
           timeout: 100,
         }),
       })
@@ -388,7 +442,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     it('returns INTEGRITY_ERROR explicitly', async () => {
       const fakeEngine = {
         pullByCid: async () => {
-          const err = new Error('File content Merkle root mismatch')
+          const err = new Error('File content CID mismatch')
           err.code = 'INTEGRITY_ERROR'
           throw err
         },
@@ -536,7 +590,9 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     })
 
     it('returns 404 for non-existent CID', async () => {
-      const res = await fetch(`${baseUrl}/api/files/bafkreidontexist/download`)
+      const res = await fetch(
+        `${baseUrl}/api/files/${VALID_MISSING_CID}/download`
+      )
       assert.strictEqual(res.status, 404)
     })
   })

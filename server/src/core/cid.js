@@ -6,6 +6,7 @@
 import fs from 'node:fs'
 import { Readable } from 'node:stream'
 import { importer } from 'ipfs-unixfs-importer'
+import { CID } from 'multiformats/cid'
 
 /**
  * 用于 CID 计算的虚拟 Blockstore
@@ -99,10 +100,27 @@ export function validateCidString(cidString) {
     return { valid: false, error: 'CID must be a non-empty string' }
   }
 
-  if (!cidString.startsWith('b')) {
+  let parsed
+  try {
+    parsed = CID.parse(cidString)
+  } catch {
     return {
       valid: false,
-      error: 'Invalid CID format: CID v1 must start with "b"',
+      error: 'Invalid CID format',
+    }
+  }
+
+  if (parsed.version !== 1) {
+    return {
+      valid: false,
+      error: 'Invalid CID format: CID v1 required',
+    }
+  }
+
+  if (parsed.multihash.digest.length !== 32) {
+    return {
+      valid: false,
+      error: 'CID digest must be 32 bytes',
     }
   }
 
@@ -110,9 +128,9 @@ export function validateCidString(cidString) {
 }
 
 /**
- * 解析 most:// 链接并提取 CID 与完整性校验锚
- * @param {string} link - most://<cid>?filename=...&r=... 格式的链接
- * @returns {{ cid: string, fileName?: string, chunkMerkleRoot?: string, error?: string }}
+ * 解析 most:// 链接并提取 CID 与用户可见文件名
+ * @param {string} link - most://<cid>?filename=... 格式的链接
+ * @returns {{ cid: string, fileName?: string, error?: string }}
  */
 export function parseMostLink(link) {
   if (!link || typeof link !== 'string') {
@@ -136,7 +154,9 @@ export function parseMostLink(link) {
 
   const cidString = url.hostname
   const fileName = url.searchParams.get('filename')
-  const chunkMerkleRoot = url.searchParams.get('r')
+  const unsupportedParam = [...url.searchParams.keys()].find(
+    key => key !== 'filename'
+  )
 
   const validation = validateCidString(cidString)
   if (!validation.valid) {
@@ -147,12 +167,12 @@ export function parseMostLink(link) {
     return { cid: '', error: 'filename is required' }
   }
 
-  if (!chunkMerkleRoot || !/^[0-9a-f]{64}$/.test(chunkMerkleRoot)) {
+  if (unsupportedParam) {
     return {
       cid: '',
-      error: 'r must be a 64-character hex string',
+      error: `Unsupported query parameter: ${unsupportedParam}`,
     }
   }
 
-  return { cid: cidString, fileName, chunkMerkleRoot }
+  return { cid: cidString, fileName }
 }
