@@ -7,14 +7,16 @@ import SettingsDrawer from '~/components/SettingsDrawer'
 
 export default function AppGlobals() {
   const checkBackend = useAppStore(s => s.checkBackend)
+  const initializeLocalData = useAppStore(s => s.initializeLocalData)
   const toasts = useAppStore(s => s.toasts)
   const removeToast = useAppStore(s => s.removeToast)
   const showSettings = useAppStore(s => s.showSettings)
   const closeSettings = useAppStore(s => s.closeSettings)
 
   useEffect(() => {
+    initializeLocalData()
     checkBackend()
-  }, [checkBackend])
+  }, [checkBackend, initializeLocalData])
 
   return (
     <>

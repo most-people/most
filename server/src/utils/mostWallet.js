@@ -1,4 +1,6 @@
 import {
+  decodeBase64,
+  encodeBase64,
   pbkdf2,
   sha256,
   getBytes,
@@ -39,4 +41,35 @@ export function most25519(danger) {
     private_key: hexlify(x25519KeyPair.secretKey),
     ed_public_key: hexlify(ed25519KeyPair.publicKey),
   }
+}
+
+export async function mostSignMessage(danger, message) {
+  const account = HDNodeWallet.fromPhrase(mostMnemonic(danger))
+  return {
+    address: account.address,
+    signature: await account.signMessage(message),
+  }
+}
+
+export function mostEncode(text, danger) {
+  const bytes = new TextEncoder().encode(text)
+  const nonce = nacl.randomBytes(nacl.secretbox.nonceLength)
+  const key = getBytes(danger).slice(0, nacl.secretbox.keyLength)
+  const encrypted = nacl.secretbox(bytes, nonce, key)
+
+  return ['mp://1', encodeBase64(nonce), encodeBase64(encrypted)].join('.')
+}
+
+export function mostDecode(data, danger) {
+  const [prefix, nonce64, encrypted64] = String(data || '').split('.')
+  if (prefix !== 'mp://1' || !nonce64 || !encrypted64) return ''
+
+  const key = getBytes(danger).slice(0, nacl.secretbox.keyLength)
+  const decrypted = nacl.secretbox.open(
+    decodeBase64(encrypted64),
+    decodeBase64(nonce64),
+    key
+  )
+
+  return decrypted ? new TextDecoder().decode(decrypted) : ''
 }

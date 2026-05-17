@@ -177,6 +177,8 @@ function PemBlock({ label, pem, filename }) {
 export default function Web3Page() {
   const isDarkMode = useAppStore(s => s.isDarkMode)
   const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
+  const setWallet = useAppStore(s => s.setWallet)
+  const addToast = useAppStore(s => s.addToast)
 
   /* view */
   const [currentView, setCurrentView] = useState('identity')
@@ -218,6 +220,11 @@ export default function Web3Page() {
     await new Promise(r => setTimeout(r, 0))
     const result = mostWallet(username.trim(), password)
     setWalletResult(result)
+    setWallet({
+      ...result,
+      displayName: `${result.username}#${result.address.slice(-4).toUpperCase()}`,
+    })
+    addToast(`已登录 ${result.username}`, 'success')
     setMnemonicPhrase(mostMnemonic(result.danger))
     const k = most25519(result.danger)
     setKeys(k)
@@ -362,7 +369,7 @@ export default function Web3Page() {
               ) : (
                 <>
                   <Wallet size={16} />
-                  生成账户
+                  生成并登录
                 </>
               )}
             </button>

@@ -1,8 +1,12 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert'
+import { verifyMessage } from 'ethers'
 import {
+  mostDecode,
+  mostEncode,
   mostWallet,
   mostMnemonic,
+  mostSignMessage,
   most25519,
 } from '../../src/utils/mostWallet.js'
 
@@ -62,5 +66,34 @@ describe('most25519', () => {
     const k1 = most25519(w.danger)
     const k2 = most25519(w.danger)
     assert.deepStrictEqual(k1, k2)
+  })
+})
+
+describe('mostSignMessage', () => {
+  it('signs messages with the derived ethereum wallet', async () => {
+    const w = mostWallet('test', 'pass')
+    const message = '1234567890:GET:/api/backup'
+    const signed = await mostSignMessage(w.danger, message)
+    const recovered = verifyMessage(message, signed.signature)
+
+    assert.strictEqual(signed.address, w.address)
+    assert.strictEqual(recovered, w.address)
+    assert.match(signed.signature, /^0x[a-fA-F0-9]+$/)
+  })
+})
+
+describe('mostEncode / mostDecode', () => {
+  it('round-trips private note content', () => {
+    const w = mostWallet('test', 'pass')
+    const encrypted = mostEncode('hello note', w.danger)
+
+    assert.ok(encrypted.startsWith('mp://1.'))
+    assert.strictEqual(mostDecode(encrypted, w.danger), 'hello note')
+  })
+
+  it('returns an empty string with the wrong key', () => {
+    const encrypted = mostEncode('secret', mostWallet('a', 'b').danger)
+
+    assert.strictEqual(mostDecode(encrypted, mostWallet('a', 'c').danger), '')
   })
 })

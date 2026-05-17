@@ -33,14 +33,14 @@ Web3 产品入口和以太坊钱包工具保留为独立工具箱，不参与 Mo
 
 | 需求类型 | 优先阅读 |
 | -------- | -------- |
-| 当前任务顺序、周计划、验收 | `docs/plan/任务优先级与周计划.md` |
-| MVP 范围、完成定义、后置能力 | `docs/plan/MVP落地计划.md` |
-| MVP 后路线和 v1 边界 | `docs/plan/实施路线图.md` |
-| 总体定位、风险边界 | `docs/plan/项目计划书.md` |
-| 技术分层、接口优先原则、非 MVP 能力 | `docs/plan/技术架构.md` |
-| CID / 发布 / 下载 / 数据目录入口 | `docs/plan/协议基线实现入口清单.md` |
-| 做种 daemon、Web 管理台、节点设置 | `docs/plan/节点运营.md` |
-| 默认不加密、私密文件边界 | `docs/plan/加密与存储.md` |
+| 当前任务板、优先级、验收顺序 | `docs/plan/任务优先级与周计划.md` |
+| MVP 范围、完成定义、验收剧本 | `docs/plan/MVP落地计划.md` |
+| MVP 后里程碑和 v1 边界 | `docs/plan/实施路线图.md` |
+| 产品定位、价值、风险和竞品 | `docs/plan/项目计划书.md` |
+| 分层、核心模块、实现和后置能力 | `docs/plan/技术架构.md` |
+| CID、发布、下载、holding、数据目录入口 | `docs/plan/协议基线实现入口清单.md` |
+| daemon、管理台、配置、安全和排障 | `docs/plan/节点运营.md` |
+| 默认公开分享、私密文件自加密 | `docs/plan/加密与存储.md` |
 
 ## 当前 MVP 口径
 
@@ -146,6 +146,8 @@ npm run lint
 
 - 前端主应用：`app/app/page.tsx`、`components/AppHomeMode.tsx`
 - Web3 工具箱：`app/web3/page.tsx`
+- 笔记模块：`app/note/page.tsx`、`components/MilkdownEditor.tsx`
+- 管理后台：`app/admin/page.tsx`、`app/admin/layout.tsx`
 - 全局状态：`app/app/useAppStore.ts`
 - 后端入口：`server/index.js`
 - 核心引擎：`server/src/index.js`
@@ -153,3 +155,9 @@ npm run lint
 - CID / 链接：`server/src/core/cid.js`
 - 配置：`server/src/config.js`
 - Electron：`electron/main.js`、`electron/preload.js`
+- 工具模块：
+  - 笔记工具：`server/src/utils/noteUtils.js`、`server/src/utils/noteBackup.js`
+  - 钱包工具：`server/src/utils/mostWallet.js`
+  - 安全工具：`server/src/utils/security.js`
+  - 用户身份：`server/src/utils/userIdentity.js`
+  - 头像工具：`server/src/utils/avatar.js`
