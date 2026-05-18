@@ -1,5 +1,8 @@
 import '~/app/globals.css'
 import '~/styles/app.css'
+import '~/styles/note.css'
+import '@milkdown/crepe/theme/common/style.css'
+import '@milkdown/crepe/theme/frame.css'
 import { ErrorBoundary } from '~/app/error-boundary'
 import AppGlobals from '~/components/AppGlobals'
 

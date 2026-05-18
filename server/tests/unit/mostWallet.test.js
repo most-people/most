@@ -1,6 +1,9 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert'
 import {
+  mostCrust,
+  mostDecode,
+  mostEncode,
   mostWallet,
   mostMnemonic,
   most25519,
@@ -62,5 +65,33 @@ describe('most25519', () => {
     const k1 = most25519(w.danger)
     const k2 = most25519(w.danger)
     assert.deepStrictEqual(k1, k2)
+  })
+})
+
+describe('mostCrust', () => {
+  it('derives a deterministic Crust address and signer', () => {
+    const w = mostWallet('test', 'pass')
+    const c1 = mostCrust(w.danger)
+    const c2 = mostCrust(w.danger)
+
+    assert.strictEqual(c1.crust_address, c2.crust_address)
+    assert.match(c1.sign('hello'), /^0x[a-fA-F0-9]+$/)
+    assert.match(c2.sign('hello'), /^0x[a-fA-F0-9]+$/)
+  })
+})
+
+describe('mostEncode / mostDecode', () => {
+  it('round-trips private note content', () => {
+    const w = mostWallet('test', 'pass')
+    const encrypted = mostEncode('hello note', w.danger)
+
+    assert.ok(encrypted.startsWith('mp://1.'))
+    assert.strictEqual(mostDecode(encrypted, w.danger), 'hello note')
+  })
+
+  it('returns an empty string with the wrong key', () => {
+    const encrypted = mostEncode('secret', mostWallet('a', 'b').danger)
+
+    assert.strictEqual(mostDecode(encrypted, mostWallet('a', 'c').danger), '')
   })
 })
