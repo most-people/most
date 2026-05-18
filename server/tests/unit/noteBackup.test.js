@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert'
+import { verifyMessage } from 'ethers'
 import {
   buildNotesBackupUpload,
   decryptNotesBackup,
@@ -30,10 +31,18 @@ describe('noteBackup', () => {
     assert.match(upload.headers.Authorization, /^[^,]+,\d+,0x[a-fA-F0-9]+$/)
   })
 
-  it('uses the backup API path in auth messages', () => {
+  it('uses the ethereum wallet address in auth headers', async () => {
     const wallet = mostWallet('alice', 'secret')
-    const headers = getBackupAuthHeaders(wallet, 'GET', NOTE_BACKUP_API_URL)
+    const headers = await getBackupAuthHeaders(wallet, 'GET', NOTE_BACKUP_API_URL)
+    const [address, timestamp, signature] = headers.Authorization.split(',')
 
     assert.match(headers.Authorization, /^[^,]+,\d+,0x[a-fA-F0-9]+$/)
+    assert.strictEqual(address, wallet.address)
+    assert.ok(timestamp)
+    assert.ok(signature)
+    assert.strictEqual(
+      verifyMessage(`${timestamp}:GET:/api/backup`, signature),
+      wallet.address
+    )
   })
 })

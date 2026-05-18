@@ -418,7 +418,7 @@ function NotePageContent() {
     try {
       const response = await fetch(NOTE_BACKUP_API_URL, {
         method: 'GET',
-        headers: getBackupAuthHeaders(wallet, 'GET', NOTE_BACKUP_API_URL),
+        headers: await getBackupAuthHeaders(wallet, 'GET', NOTE_BACKUP_API_URL),
       })
       if (response.status === 404) {
         addToast('云端暂无备份', 'info')

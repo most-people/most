@@ -1,4 +1,4 @@
-import { mostCrust, mostDecode, mostEncode } from './mostWallet.js'
+import { mostDecode, mostEncode, mostSignMessage } from './mostWallet.js'
 import { calculateNoteCid } from './noteUtils.js'
 
 export const NOTE_BACKUP_API_URL = 'https://api.most.box/api/backup'
@@ -24,13 +24,17 @@ export function decryptNotesBackup(content, danger) {
   return data
 }
 
-export function getBackupAuthHeaders(wallet, method, url = NOTE_BACKUP_API_URL) {
-  const { crust_address, sign } = mostCrust(wallet.danger)
+export async function getBackupAuthHeaders(
+  wallet,
+  method,
+  url = NOTE_BACKUP_API_URL
+) {
   const timestamp = Date.now().toString()
   const path = new URL(url).pathname
   const message = `${timestamp}:${String(method).toUpperCase()}:${path}`
+  const { address, signature } = await mostSignMessage(wallet.danger, message)
   return {
-    Authorization: `${crust_address},${timestamp},${sign(message)}`,
+    Authorization: `${address},${timestamp},${signature}`,
   }
 }
 
@@ -44,7 +48,7 @@ export async function buildNotesBackupUpload(wallet, notes) {
     headers: {
       'Content-Type': 'text/plain',
       'x-backup-cid': cid,
-      ...getBackupAuthHeaders(wallet, 'PUT', NOTE_BACKUP_API_URL),
+      ...(await getBackupAuthHeaders(wallet, 'PUT', NOTE_BACKUP_API_URL)),
     },
   }
 }

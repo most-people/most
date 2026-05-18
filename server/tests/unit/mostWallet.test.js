@@ -1,11 +1,12 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert'
+import { verifyMessage } from 'ethers'
 import {
-  mostCrust,
   mostDecode,
   mostEncode,
   mostWallet,
   mostMnemonic,
+  mostSignMessage,
   most25519,
 } from '../../src/utils/mostWallet.js'
 
@@ -68,15 +69,16 @@ describe('most25519', () => {
   })
 })
 
-describe('mostCrust', () => {
-  it('derives a deterministic Crust address and signer', () => {
+describe('mostSignMessage', () => {
+  it('signs messages with the derived ethereum wallet', async () => {
     const w = mostWallet('test', 'pass')
-    const c1 = mostCrust(w.danger)
-    const c2 = mostCrust(w.danger)
+    const message = '1234567890:GET:/api/backup'
+    const signed = await mostSignMessage(w.danger, message)
+    const recovered = verifyMessage(message, signed.signature)
 
-    assert.strictEqual(c1.crust_address, c2.crust_address)
-    assert.match(c1.sign('hello'), /^0x[a-fA-F0-9]+$/)
-    assert.match(c2.sign('hello'), /^0x[a-fA-F0-9]+$/)
+    assert.strictEqual(signed.address, w.address)
+    assert.strictEqual(recovered, w.address)
+    assert.match(signed.signature, /^0x[a-fA-F0-9]+$/)
   })
 })
 
