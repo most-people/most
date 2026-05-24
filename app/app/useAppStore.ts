@@ -53,6 +53,7 @@ interface AppState {
   openSettings: () => void
   closeSettings: () => void
 
+  localDataReady: boolean
   initializeLocalData: () => void
 
   // Notes
@@ -178,11 +179,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   openSettings: () => set({ showSettings: true }),
   closeSettings: () => set({ showSettings: false }),
 
+  localDataReady: false,
   initializeLocalData: () => {
     const noteState = readJson(NOTES_STORAGE_KEY)
     set({
       notes: normalizeNotes(noteState?.notes),
       notesPath: normalizeNotePath(noteState?.notesPath || ''),
+      localDataReady: true,
     })
   },
 

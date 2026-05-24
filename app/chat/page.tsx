@@ -23,6 +23,7 @@ import { useAppStore } from '~/app/app/useAppStore'
 import { useUserStore } from '~/app/app/userStore'
 import { useDisclosure } from '~/hooks'
 import Link from 'next/link'
+import SidebarAccount from '~/components/SidebarAccount'
 
 interface ChannelMessage {
   id?: string
@@ -106,8 +107,6 @@ function ChatPage() {
   const hasBackend = useAppStore(s => s.hasBackend)
   const addToast = useAppStore(s => s.addToast)
   const userIdentity = useUserStore(s => s.identity)
-  const openLoginModal = useUserStore(s => s.openLoginModal)
-  const logoutUser = useUserStore(s => s.logoutUser)
   const [channels, setChannels] = useState([])
   const [activeChannel, setActiveChannel] = useState(null)
   const [channelMessages, setChannelMessages] = useState([])
@@ -548,33 +547,7 @@ function ChatPage() {
             加入频道
           </button>
 
-          <div className="chat-sidebar-footer">
-            <div className="user-info">
-              <img
-                className="user-avatar-img"
-                src={generateAvatar(userIdentity?.address)}
-                alt="avatar"
-              />
-              <span className="user-name" title={userIdentity?.address}>
-                {userIdentity?.displayName || '未登录'}
-              </span>
-            </div>
-            {!userIdentity ? (
-              <button
-                className="btn btn-primary login-btn"
-                onClick={openLoginModal}
-              >
-                登录
-              </button>
-            ) : (
-              <button
-                className="btn btn-ghost logout-btn"
-                onClick={logoutUser}
-              >
-                退出
-              </button>
-            )}
-          </div>
+          <SidebarAccount />
         </>
       )}
       headerTitle={chatHeaderTitle}

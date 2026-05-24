@@ -3,6 +3,14 @@ import { calculateNoteCid } from './noteUtils.js'
 
 export const NOTE_BACKUP_API_URL = 'https://api.most.box/api/backup'
 
+async function readBackupApiError(response, fallback) {
+  const data = await response
+    .clone()
+    .json()
+    .catch(() => null)
+  return data?.error || fallback
+}
+
 export function encryptNotesBackup(notes, danger) {
   return mostEncode(JSON.stringify({ notes: notes || [] }), danger)
 }
@@ -22,6 +30,10 @@ export function decryptNotesBackup(content, danger) {
     throw new Error('备份数据缺少 notes')
   }
   return data
+}
+
+export async function calculateNotesBackupCid(notes) {
+  return calculateNoteCid(JSON.stringify({ notes: notes || [] }))
 }
 
 export async function getBackupAuthHeaders(
@@ -50,5 +62,58 @@ export async function buildNotesBackupUpload(wallet, notes) {
       'x-backup-cid': cid,
       ...(await getBackupAuthHeaders(wallet, 'PUT', NOTE_BACKUP_API_URL)),
     },
+  }
+}
+
+export async function uploadNotesBackup(
+  wallet,
+  notes,
+  url = NOTE_BACKUP_API_URL
+) {
+  const upload = await buildNotesBackupUpload(wallet, notes)
+  const response = await fetch(url, {
+    method: 'PUT',
+    headers: upload.headers,
+    body: upload.body,
+  })
+  if (!response.ok) {
+    throw new Error(await readBackupApiError(response, '云备份失败'))
+  }
+  return {
+    cid: upload.cid,
+  }
+}
+
+export async function downloadNotesBackup(
+  wallet,
+  url = NOTE_BACKUP_API_URL
+) {
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: await getBackupAuthHeaders(wallet, 'GET', url),
+  })
+  if (response.status === 404) {
+    return {
+      found: false,
+      cid: '',
+      time: 0,
+      notes: [],
+    }
+  }
+  if (!response.ok) {
+    throw new Error(await readBackupApiError(response, '云端恢复失败'))
+  }
+
+  const encrypted = await response.text()
+  if (!encrypted) {
+    throw new Error('云端无备份数据')
+  }
+
+  const data = decryptNotesBackup(encrypted, wallet.danger)
+  return {
+    found: true,
+    cid: response.headers.get('x-backup-cid') || '',
+    time: Number(response.headers.get('x-backup-time') || 0),
+    notes: data.notes,
   }
 }
