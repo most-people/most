@@ -17,7 +17,11 @@ import {
   Trash2,
   Wifi,
 } from 'lucide-react'
-import { api, getWebSocketUrl } from '~/server/src/utils/api'
+import {
+  api,
+  getApiErrorMessage,
+  getWebSocketUrl,
+} from '~/server/src/utils/api'
 import { useAppStore } from '~/app/app/useAppStore'
 
 interface NodeAddress {
@@ -187,7 +191,9 @@ export default function AdminPage() {
       })
       setError('')
     } catch (err) {
-      setError(err instanceof Error ? err.message : '无法读取节点状态')
+      const message = await getApiErrorMessage(err, '无法读取节点状态')
+      setError(message)
+      addToast(message, 'error')
     }
   }
 
@@ -216,8 +222,9 @@ export default function AdminPage() {
       await loadStatus()
       await loadLogs()
     } catch (err) {
-      addToast('保存配置失败', 'error')
-      setError(err instanceof Error ? err.message : '保存配置失败')
+      const message = await getApiErrorMessage(err, '保存配置失败')
+      addToast(message, 'error')
+      setError(message)
     } finally {
       setIsSavingConfig(false)
     }
@@ -236,8 +243,9 @@ export default function AdminPage() {
       setLogs([])
       addToast('节点日志已清空', 'success')
     } catch (err) {
-      addToast('清空日志失败', 'error')
-      setError(err instanceof Error ? err.message : '清空日志失败')
+      const message = await getApiErrorMessage(err, '清空日志失败')
+      addToast(message, 'error')
+      setError(message)
     } finally {
       setIsClearingLogs(false)
     }

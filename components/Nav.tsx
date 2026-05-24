@@ -77,11 +77,11 @@ export function Nav() {
             </Link>
 
             <button
-              className="mkt-nav-mobile-toggle"
+              className="btn btn-icon sidebar-toggle-btn mkt-mobile-only"
               onClick={() => setOpen(!open)}
               aria-label="菜单"
             >
-              <Menu size={24} />
+              <Menu size={16} />
             </button>
           </div>
         </div>

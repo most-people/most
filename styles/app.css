@@ -1084,7 +1084,7 @@
 
   .btn {
     flex: 1;
-    padding: 10px;
+    padding-inline: 12px;
     border-radius: var(--radius-md);
     font-size: 13px;
   }
@@ -1521,19 +1521,20 @@
 /* === Toast === */
 @keyframes toastSlideIn {
   from {
-    transform: translateX(100%);
+    transform: translateX(-50%) translateY(16px);
     opacity: 0;
   }
 
   to {
-    transform: translateX(0);
+    transform: translateX(-50%) translateY(0);
     opacity: 1;
   }
 }
 
 .toast {
   position: fixed;
-  right: 24px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 9999;
   padding: 12px 20px;
   border-radius: var(--radius-lg);
@@ -1596,31 +1597,8 @@
   }
 }
 
-/* === Login Modal === */
-.login-modal-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 200;
-  background: rgba(0, 0, 0, 0.3);
-  backdrop-filter: var(--blur-xl);
-  -webkit-backdrop-filter: var(--blur-xl);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  animation: fadeIn 0.2s ease;
-}
-
 .login-modal {
-  width: 320px;
-  max-width: calc(100vw - 32px);
-  padding: 24px;
-  border-radius: var(--radius-lg);
-  background: var(--glass-bg-heavy);
-  backdrop-filter: var(--blur-2xl);
-  -webkit-backdrop-filter: var(--blur-2xl);
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow-lg), var(--glass-shadow-inset);
-  animation: scaleIn 0.25s ease;
+  width: 100%;
 }
 
 .login-modal-header {
@@ -1690,6 +1668,15 @@
   margin-bottom: 4px;
 }
 
+.login-error {
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 59, 48, 0.1);
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .login-password-wrapper {
   position: relative;
   display: flex;
@@ -1718,6 +1705,18 @@
     color: var(--text-primary);
     background: var(--glass-bg-subtle);
   }
+}
+
+.login-buttons-row {
+  display: flex;
+  gap: 8px;
+}
+
+.login-buttons-row .btn-primary,
+.login-buttons-row .btn-secondary {
+  flex: 1;
+  padding-inline: 12px;
+  font-size: 13px;
 }
 
 /* === Preview Text Container === */
@@ -2078,8 +2077,8 @@
 
   /* Toast */
   .toast {
-    right: 12px;
-    left: 12px;
+    left: 50%;
+    width: min(calc(100vw - 24px), 420px);
   }
 
   /* Batch bar */
@@ -2121,7 +2120,7 @@
     }
 
     .btn-sm {
-      padding: 8px 14px;
+      padding-inline: 14px;
       font-size: 13px;
       min-width: 64px;
       border-radius: var(--radius-md);
@@ -2190,7 +2189,7 @@
     }
 
     .btn-sm {
-      padding: 7px 12px;
+      padding-inline: 12px;
       font-size: 12px;
       min-width: 56px;
     }

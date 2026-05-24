@@ -25,6 +25,7 @@ import {
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import { useAppStore } from '~/app/app/useAppStore'
+import { useUserStore } from '~/app/app/userStore'
 import {
   mostWallet,
   mostMnemonic,
@@ -177,8 +178,8 @@ function PemBlock({ label, pem, filename }) {
 export default function Web3Page() {
   const isDarkMode = useAppStore(s => s.isDarkMode)
   const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
-  const setWallet = useAppStore(s => s.setWallet)
   const addToast = useAppStore(s => s.addToast)
+  const setUserIdentity = useUserStore(s => s.setUserIdentity)
 
   /* view */
   const [currentView, setCurrentView] = useState('identity')
@@ -219,10 +220,12 @@ export default function Web3Page() {
     // Yield to the event loop so the loading state renders before blocking
     await new Promise(r => setTimeout(r, 0))
     const result = mostWallet(username.trim(), password)
+    const displayName = `${result.username}#${result.address.slice(-4).toUpperCase()}`
     setWalletResult(result)
-    setWallet({
+    setUserIdentity({
       ...result,
-      displayName: `${result.username}#${result.address.slice(-4).toUpperCase()}`,
+      password,
+      displayName,
     })
     addToast(`已登录 ${result.username}`, 'success')
     setMnemonicPhrase(mostMnemonic(result.danger))
@@ -239,7 +242,7 @@ export default function Web3Page() {
     setShowMnemonicQr(false)
     setShowX25519Private(false)
     setGenerating(false)
-  }, [username, password])
+  }, [addToast, password, setUserIdentity, username])
 
   const deriveBatch = 10
 
@@ -388,7 +391,7 @@ export default function Web3Page() {
                     />
                     <div>
                       <h1 className="web3-identity-name">
-                        {walletResult?.username || '匿名'}
+                        {walletResult?.username || '未登录'}
                       </h1>
                       <div className="web3-identity-address">
                         <code>{effectiveAddress.toLowerCase()}</code>

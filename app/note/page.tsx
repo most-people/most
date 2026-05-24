@@ -30,6 +30,7 @@ import {
 import AppShell from '~/components/AppShell'
 import { ConfirmModal, InputModal, ModalOverlay } from '~/components/ui'
 import { useAppStore, type NoteItem } from '~/app/app/useAppStore'
+import { useUserStore } from '~/app/app/userStore'
 import type { MilkdownEditorRef } from '~/components/MilkdownEditor'
 import { mostDecode, mostEncode } from '~/server/src/utils/mostWallet.js'
 import {
@@ -167,9 +168,9 @@ function NotePageContent() {
   const isDarkMode = useAppStore(s => s.isDarkMode)
   const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
   const addToast = useAppStore(s => s.addToast)
-  const wallet = useAppStore(s => s.wallet)
-  const loginWithWeb3 = useAppStore(s => s.loginWithWeb3)
-  const logoutWeb3 = useAppStore(s => s.logoutWeb3)
+  const wallet = useUserStore(s => s.wallet)
+  const openLoginModal = useUserStore(s => s.openLoginModal)
+  const logoutUser = useUserStore(s => s.logoutUser)
   const notes = useAppStore(s => s.notes)
   const notesPath = useAppStore(s => s.notesPath)
   const setNotesPath = useAppStore(s => s.setNotesPath)
@@ -184,9 +185,6 @@ function NotePageContent() {
   const selectedNote = notes.find(note => note.cid === cid)
   const showEditor = isNewNote || !!cid
 
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [loginLoading, setLoginLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [inputModal, setInputModal] = useState<null | {
     title: string
@@ -303,24 +301,11 @@ function NotePageContent() {
     )
   }
 
-  function handleLogin() {
-    if (!username.trim()) {
-      addToast('请输入用户名', 'warning')
-      return
-    }
-    setLoginLoading(true)
-    setTimeout(() => {
-      try {
-        const result = loginWithWeb3(username.trim(), password)
-        addToast(`已登录 ${result.username}`, 'success')
-        setUsername('')
-        setPassword('')
-      } catch (err: unknown) {
-        addToast(getErrorMessage(err, '登录失败'), 'error')
-      } finally {
-        setLoginLoading(false)
-      }
-    }, 0)
+  function requireWallet() {
+    if (wallet) return true
+    addToast('请先登录 Web3 账号', 'warning')
+    openLoginModal()
+    return false
   }
 
   function openCreateNoteModal() {
@@ -329,10 +314,7 @@ function NotePageContent() {
       placeholder: '笔记名称',
       confirmText: '创建',
       onConfirm: async value => {
-        if (!wallet) {
-          addToast('请先登录 Web3 账号', 'warning')
-          return
-        }
+        if (!requireWallet()) return
         try {
           const newCid = await saveNote({
             name: value,
@@ -356,10 +338,7 @@ function NotePageContent() {
       placeholder: '文件夹名称',
       confirmText: '创建',
       onConfirm: async value => {
-        if (!wallet) {
-          addToast('请先登录 Web3 账号', 'warning')
-          return
-        }
+        if (!requireWallet()) return
         try {
           await saveNote({
             name: 'index',
@@ -416,10 +395,7 @@ function NotePageContent() {
   }
 
   async function handleSaveEditor() {
-    if (!wallet) {
-      addToast('请先登录 Web3 账号', 'warning')
-      return
-    }
+    if (!requireWallet()) return
     if (!noteName.trim()) {
       addToast('请输入笔记名称', 'warning')
       return
@@ -459,10 +435,7 @@ function NotePageContent() {
   }
 
   async function handleCloudSave() {
-    if (!wallet) {
-      addToast('请先登录 Web3 账号', 'warning')
-      return
-    }
+    if (!requireWallet()) return
 
     setCloudAction('save')
     try {
@@ -484,10 +457,7 @@ function NotePageContent() {
   }
 
   async function handleCloudRestore() {
-    if (!wallet) {
-      addToast('请先登录 Web3 账号', 'warning')
-      return
-    }
+    if (!requireWallet()) return
 
     setCloudAction('restore')
     try {
@@ -529,10 +499,7 @@ function NotePageContent() {
   }
 
   function handleLocalExport() {
-    if (!wallet) {
-      addToast('请先登录 Web3 账号', 'warning')
-      return
-    }
+    if (!requireWallet()) return
 
     try {
       const encrypted = encryptNotesBackup(notes, wallet.danger)
@@ -550,10 +517,7 @@ function NotePageContent() {
   }
 
   function handleLocalImport() {
-    if (!wallet) {
-      addToast('请先登录 Web3 账号', 'warning')
-      return
-    }
+    if (!requireWallet()) return
 
     const input = document.createElement('input')
     input.type = 'file'
@@ -650,36 +614,20 @@ function NotePageContent() {
                   </div>
                   <button
                     className="btn btn-secondary btn-full"
-                    onClick={logoutWeb3}
+                    onClick={logoutUser}
                   >
                     <LogOut size={16} />
                     退出
                   </button>
                 </div>
               ) : (
-                <div className="note-login-card">
-                  <input
-                    className="input input-compact"
-                    value={username}
-                    onChange={event => setUsername(event.target.value)}
-                    placeholder="用户名"
-                  />
-                  <input
-                    className="input input-compact"
-                    value={password}
-                    onChange={event => setPassword(event.target.value)}
-                    placeholder="密码"
-                    type="password"
-                  />
-                  <button
-                    className="btn btn-primary btn-full"
-                    onClick={handleLogin}
-                    disabled={loginLoading}
-                  >
-                    <KeyRound size={16} />
-                    {loginLoading ? '登录中' : '登录'}
-                  </button>
-                </div>
+                <button
+                  className="btn btn-primary btn-full"
+                  onClick={openLoginModal}
+                >
+                  <KeyRound size={16} />
+                  登录
+                </button>
               )}
             </div>
 

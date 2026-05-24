@@ -30,7 +30,13 @@ import {
 import { CID } from 'multiformats/cid'
 import AppShell from '~/components/AppShell'
 import { ModalOverlay, ConfirmModal, InputModal } from '~/components/ui'
-import { api, getApiUrl, getWebSocketUrl } from '~/server/src/utils/api'
+import {
+  api,
+  getApiErrorMessage,
+  getApiErrorPayload,
+  getApiUrl,
+  getWebSocketUrl,
+} from '~/server/src/utils/api'
 import { useAppStore } from '~/app/app/useAppStore'
 import { useDisclosure, useClipboard } from '~/hooks'
 import Link from 'next/link'
@@ -73,45 +79,12 @@ type DownloadCheckResult = {
   message: string
 }
 
-type ApiErrorPayload = {
-  status?: number
-  code?: string
-  error?: string
-}
-
 interface StorageStats {
   total: number
   used: number
   free: number
   fileCount: number
   trashCount: number
-}
-
-async function getApiErrorPayload(err: unknown): Promise<ApiErrorPayload> {
-  const response =
-    err && typeof err === 'object' && 'response' in err
-      ? (err as { response?: Response }).response
-      : null
-
-  if (!response) return {}
-
-  const data = response.bodyUsed
-    ? null
-    : ((await response
-        .clone()
-        .json()
-        .catch(() => null)) as Record<string, unknown> | null)
-
-  return {
-    status: response.status,
-    code: typeof data?.code === 'string' ? data.code : undefined,
-    error: typeof data?.error === 'string' ? data.error : undefined,
-  }
-}
-
-async function getApiErrorMessage(err: unknown, fallback: string) {
-  const data = await getApiErrorPayload(err)
-  return data.error || fallback
 }
 
 async function getDownloadCheckErrorMessage(err: unknown) {
@@ -692,8 +665,8 @@ export default function App() {
       refreshFiles()
       refreshTrash()
       refreshStorageStats()
-    } catch {
-      addToast('恢复失败', 'error')
+    } catch (err) {
+      addToast(await getApiErrorMessage(err, '恢复失败'), 'error')
     }
   }
 
@@ -710,8 +683,8 @@ export default function App() {
           addToast('回收站已清空', 'success')
           refreshTrash()
           refreshStorageStats()
-        } catch {
-          addToast('清空失败', 'error')
+        } catch (err) {
+          addToast(await getApiErrorMessage(err, '清空失败'), 'error')
         }
       },
     })
@@ -724,8 +697,8 @@ export default function App() {
         prev.map(i => (i.cid === cid ? { ...i, starred: result.starred } : i))
       )
       addToast(result.starred ? '已收藏' : '已取消收藏', 'success')
-    } catch {
-      addToast('操作失败', 'error')
+    } catch (err) {
+      addToast(await getApiErrorMessage(err, '操作失败'), 'error')
     }
   }
 
@@ -753,8 +726,8 @@ export default function App() {
           refreshFiles()
           refreshTrash()
           refreshStorageStats()
-        } catch {
-          addToast('删除失败', 'error')
+        } catch (err) {
+          addToast(await getApiErrorMessage(err, '删除失败'), 'error')
         }
       },
     })
@@ -775,8 +748,8 @@ export default function App() {
       moveModal.close()
       addToast('已移动', 'success')
       refreshFiles()
-    } catch {
-      addToast('移动失败', 'error')
+    } catch (err) {
+      addToast(await getApiErrorMessage(err, '移动失败'), 'error')
     }
   }
 
@@ -809,8 +782,8 @@ export default function App() {
             refreshFiles()
           }
           setInputModal(null)
-        } catch {
-          addToast('重命名失败', 'error')
+        } catch (err) {
+          addToast(await getApiErrorMessage(err, '重命名失败'), 'error')
         } finally {
           setInputLoading(false)
         }
@@ -865,11 +838,12 @@ export default function App() {
           )
           addToast(`${file.name} 已添加到本地`, 'success')
         }
-      } catch {
+      } catch (err) {
         setTransfers(prev =>
           prev.map(t => (t.id === transferId ? { ...t, status: 'error' } : t))
         )
-        addToast(`发布失败: ${file.name}`, 'error')
+        const message = await getApiErrorMessage(err, `发布失败: ${file.name}`)
+        addToast(message, 'error')
       }
     }
 
@@ -1021,13 +995,13 @@ export default function App() {
       )
       try {
         await API.cancelDownload(transfer.id)
-      } catch {
+      } catch (err) {
         setTransfers(prev =>
           prev.map(t =>
             t.id === transfer.id ? { ...t, status: 'downloading' } : t
           )
         )
-        addToast('取消失败', 'error')
+        addToast(await getApiErrorMessage(err, '取消失败'), 'error')
       }
     }
   }

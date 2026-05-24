@@ -34,6 +34,50 @@ function createApiInstance() {
 
 export let api = createApiInstance()
 
+export async function getApiErrorPayload(err) {
+  const response =
+    err && typeof err === 'object' && 'response' in err
+      ? err.response
+      : err instanceof Response
+        ? err
+        : null
+
+  if (!response) return {}
+
+  const data = response.bodyUsed
+    ? null
+    : await response
+        .clone()
+        .json()
+        .catch(() => null)
+
+  return {
+    status: response.status,
+    code: typeof data?.code === 'string' ? data.code : undefined,
+    error:
+      typeof data?.error === 'string'
+        ? data.error
+        : typeof data?.message === 'string'
+          ? data.message
+          : undefined,
+  }
+}
+
+export async function getApiErrorMessage(err, fallback = '请求失败') {
+  const data = await getApiErrorPayload(err)
+  if (data.error) return data.error
+
+  const errorName =
+    err && typeof err === 'object' && 'name' in err ? String(err.name) : ''
+  if (errorName === 'TimeoutError') return '请求超时，请稍后重试'
+
+  if (!data.status && err instanceof Error && err.message) {
+    return err.message
+  }
+
+  return fallback
+}
+
 export function setBackendUrl(url) {
   const cleaned = (url || '').trim().replace(/\/+$/, '')
   if (cleaned) {

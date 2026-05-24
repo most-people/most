@@ -2,12 +2,15 @@
 
 import { useEffect } from 'react'
 import { useAppStore } from '~/app/app/useAppStore'
+import { useUserStore } from '~/app/app/userStore'
 import { Toast } from '~/components/ui'
 import SettingsDrawer from '~/components/SettingsDrawer'
+import UserLoginModal from '~/components/UserLoginModal'
 
 export default function AppGlobals() {
   const checkBackend = useAppStore(s => s.checkBackend)
   const initializeLocalData = useAppStore(s => s.initializeLocalData)
+  const initializeUser = useUserStore(s => s.initializeUser)
   const toasts = useAppStore(s => s.toasts)
   const removeToast = useAppStore(s => s.removeToast)
   const showSettings = useAppStore(s => s.showSettings)
@@ -15,8 +18,9 @@ export default function AppGlobals() {
 
   useEffect(() => {
     initializeLocalData()
+    initializeUser()
     checkBackend()
-  }, [checkBackend, initializeLocalData])
+  }, [checkBackend, initializeLocalData, initializeUser])
 
   return (
     <>
@@ -33,6 +37,8 @@ export default function AppGlobals() {
       {showSettings && (
         <SettingsDrawer onClose={closeSettings} />
       )}
+
+      <UserLoginModal />
     </>
   )
 }

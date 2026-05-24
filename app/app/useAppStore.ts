@@ -1,4 +1,3 @@
-import { mostWallet } from '~/server/src/utils/mostWallet.js'
 import {
   calculateNoteCid,
   getNoteFullPath,
@@ -15,20 +14,12 @@ import {
   getBackendUrlExport,
 } from '~/server/src/utils/api'
 
-const IDENTITY_STORAGE_KEY = 'mostbox_identity'
 const NOTES_STORAGE_KEY = 'mostbox_notes'
 
 interface ToastItem {
   id: number
   message: string
   type: string
-}
-
-export interface Web3Wallet {
-  username: string
-  address: string
-  danger: string
-  displayName?: string
 }
 
 export interface NoteItem {
@@ -62,12 +53,7 @@ interface AppState {
   openSettings: () => void
   closeSettings: () => void
 
-  // Web3 identity
-  wallet?: Web3Wallet
   initializeLocalData: () => void
-  loginWithWeb3: (username: string, password: string) => Web3Wallet
-  setWallet: (wallet: Web3Wallet) => void
-  logoutWeb3: () => void
 
   // Notes
   notes: NoteItem[]
@@ -98,27 +84,6 @@ function readJson(key: string) {
 function writeJson(key: string, value: unknown) {
   if (typeof window === 'undefined') return
   localStorage.setItem(key, JSON.stringify(value))
-}
-
-function removeStorage(key: string) {
-  if (typeof window === 'undefined') return
-  localStorage.removeItem(key)
-}
-
-function getDisplayName(wallet: Web3Wallet) {
-  return `${wallet.username}#${wallet.address.slice(-4).toUpperCase()}`
-}
-
-function normalizeWallet(input: unknown): Web3Wallet | undefined {
-  if (!input || typeof input !== 'object') return undefined
-  const value = input as Partial<Web3Wallet>
-  if (!value.username || !value.address || !value.danger) return undefined
-  return {
-    username: value.username,
-    address: value.address,
-    danger: value.danger,
-    displayName: value.displayName || getDisplayName(value as Web3Wallet),
-  }
 }
 
 function normalizeNotes(input: unknown): NoteItem[] {
@@ -213,36 +178,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   openSettings: () => set({ showSettings: true }),
   closeSettings: () => set({ showSettings: false }),
 
-  // Web3 identity
-  wallet: undefined,
   initializeLocalData: () => {
-    const wallet = normalizeWallet(readJson(IDENTITY_STORAGE_KEY))
     const noteState = readJson(NOTES_STORAGE_KEY)
     set({
-      wallet,
       notes: normalizeNotes(noteState?.notes),
       notesPath: normalizeNotePath(noteState?.notesPath || ''),
     })
-  },
-  loginWithWeb3: (username, password) => {
-    const baseWallet = mostWallet(username.trim(), password)
-    const wallet = {
-      ...baseWallet,
-      displayName: getDisplayName(baseWallet),
-    }
-    writeJson(IDENTITY_STORAGE_KEY, wallet)
-    set({ wallet })
-    return wallet
-  },
-  setWallet: wallet => {
-    const normalized = normalizeWallet(wallet)
-    if (!normalized) return
-    writeJson(IDENTITY_STORAGE_KEY, normalized)
-    set({ wallet: normalized })
-  },
-  logoutWeb3: () => {
-    removeStorage(IDENTITY_STORAGE_KEY)
-    set({ wallet: undefined })
   },
 
   // Notes

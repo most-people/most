@@ -112,12 +112,6 @@
 .mkt-mobile-only {
   display: none;
 }
-.mkt-nav-mobile-toggle {
-  display: none;
-  padding: var(--space-2);
-  color: var(--text-primary);
-}
-
 @media (max-width: 768px) {
   .mkt-desktop-only {
     display: none;
@@ -151,9 +145,6 @@
     gap: var(--space-4);
   }
   .mkt-nav-links.open {
-    display: flex;
-  }
-  .mkt-nav-mobile-toggle {
     display: flex;
   }
 }

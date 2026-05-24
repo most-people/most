@@ -8,26 +8,20 @@ import {
   Sun,
   Moon,
   X,
-  Eye,
-  EyeOff,
   Download,
   ArrowRight,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import { InputModal, ConfirmModal } from '~/components/ui'
-import { api, getWebSocketUrl } from '~/server/src/utils/api'
 import {
-  loadIdentity,
-  saveIdentity,
-  saveGuestIdentity,
-  loadGuestIdentity,
-  createGuestIdentity,
-  createLoginIdentity,
-  generateGuestPassword,
-} from '~/server/src/utils/userIdentity.js'
+  api,
+  getApiErrorMessage,
+  getWebSocketUrl,
+} from '~/server/src/utils/api'
 import { generateAvatar } from '~/server/src/utils/avatar.js'
 import { useAppStore } from '~/app/app/useAppStore'
-import { useDisclosure, useToggle } from '~/hooks'
+import { useUserStore } from '~/app/app/userStore'
+import { useDisclosure } from '~/hooks'
 import Link from 'next/link'
 
 interface ChannelMessage {
@@ -110,25 +104,20 @@ function ChatPage() {
   const isDarkMode = useAppStore(s => s.isDarkMode)
   const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
   const hasBackend = useAppStore(s => s.hasBackend)
+  const addToast = useAppStore(s => s.addToast)
+  const userIdentity = useUserStore(s => s.identity)
+  const openLoginModal = useUserStore(s => s.openLoginModal)
+  const logoutUser = useUserStore(s => s.logoutUser)
   const [channels, setChannels] = useState([])
   const [activeChannel, setActiveChannel] = useState(null)
   const [channelMessages, setChannelMessages] = useState([])
   const [channelInput, setChannelInput] = useState('')
   const [showJoinChannel, joinChannelModal] = useDisclosure(false)
   const [myPeerId, setMyPeerId] = useState('')
-  const [error, setError] = useState('')
   const [isJoiningChannel, setIsJoiningChannel] = useState(false)
   const [isLeavingChannel, setIsLeavingChannel] = useState(false)
   const [showLeaveChannelConfirm, leaveChannelModal] = useDisclosure(false)
   const [channelToLeave, setChannelToLeave] = useState(null)
-  const [userIdentity, setUserIdentity] = useState(null)
-  const [showLogin, loginModal] = useDisclosure(false)
-  const [loginUsername, setLoginUsername] = useState('')
-  const [loginPassword, setLoginPassword] = useState('')
-  const [showPassword, togglePassword] = useToggle()
-  const [loginPreviewAvatar, setLoginPreviewAvatar] = useState(null)
-  const [loginPreviewAddress, setLoginPreviewAddress] = useState('')
-  const [hasPreviewedAvatar, setHasPreviewedAvatar] = useState(false)
 
   const wsRef = useRef(null)
   const channelMessagesEndRef = useRef(null)
@@ -151,16 +140,8 @@ function ChatPage() {
       .then(d => setMyPeerId(d.id))
       .catch(err => {
         console.warn('[Chat] Failed to fetch node ID:', err.message)
+        void showApiError(err, '无法读取节点 ID')
       })
-  }, [])
-
-  useEffect(() => {
-    let identity = loadIdentity()
-    if (!identity) {
-      identity = createGuestIdentity(generateGuestPassword())
-      saveIdentity(identity)
-    }
-    setUserIdentity(identity)
   }, [])
 
   const pendingSubscriptionRef = useRef(null)
@@ -256,7 +237,10 @@ function ChatPage() {
       if (hasBackend === true) {
         API.getChannelMessages(activeChannel.name)
           .then(setChannelMessages)
-          .catch(() => setChannelMessages([]))
+          .catch(err => {
+            setChannelMessages([])
+            void showApiError(err, '无法读取频道消息')
+          })
       } else {
         setChannelMessages(DEMO_MESSAGES)
       }
@@ -305,10 +289,18 @@ function ChatPage() {
     } catch {}
   }
 
-  function refreshChannels() {
-    API.getChannels()
-      .then(setChannels)
-      .catch(() => setChannels([]))
+  async function showApiError(err, fallback) {
+    addToast(await getApiErrorMessage(err, fallback), 'error')
+  }
+
+  async function refreshChannels() {
+    try {
+      const result = await API.getChannels()
+      setChannels(result)
+    } catch (err) {
+      setChannels([])
+      await showApiError(err, '无法读取频道列表')
+    }
   }
 
   function wsSend(event, data) {
@@ -400,8 +392,9 @@ function ChatPage() {
       } else {
         setChannelMessages(DEMO_MESSAGES)
       }
-    } catch {
+    } catch (err) {
       setChannelMessages([])
+      await showApiError(err, '打开频道失败')
     }
   }
 
@@ -423,8 +416,7 @@ function ChatPage() {
       leaveChannelModal.close()
       setChannelToLeave(null)
     } catch (err) {
-      setError(err.message)
-      setTimeout(() => setError(''), 3000)
+      await showApiError(err, '退出频道失败')
     } finally {
       setIsLeavingChannel(false)
     }
@@ -438,69 +430,10 @@ function ChatPage() {
       joinChannelModal.close()
       refreshChannels()
     } catch (err) {
-      setError(err.message)
-      setTimeout(() => setError(''), 3000)
+      await showApiError(err, '加入频道失败')
     } finally {
       setIsJoiningChannel(false)
     }
-  }
-
-  function handlePreviewAvatar() {
-    if (!loginUsername.trim() || !loginPassword.trim()) {
-      setError('请输入用户名和密码')
-      setTimeout(() => setError(''), 3000)
-      return
-    }
-    const identity = createLoginIdentity(loginUsername.trim(), loginPassword)
-    setLoginPreviewAvatar(generateAvatar(identity.address))
-    setLoginPreviewAddress(identity.address)
-    setHasPreviewedAvatar(true)
-  }
-
-  function handleLoginUsernameChange(e) {
-    setLoginUsername(e.target.value)
-    setHasPreviewedAvatar(false)
-    setLoginPreviewAvatar(null)
-    setLoginPreviewAddress('')
-  }
-
-  function handleLoginPasswordChange(e) {
-    setLoginPassword(e.target.value)
-    setHasPreviewedAvatar(false)
-    setLoginPreviewAvatar(null)
-    setLoginPreviewAddress('')
-  }
-
-  function handleLogin() {
-    if (!loginUsername.trim() || !loginPassword.trim()) {
-      setError('请输入用户名和密码')
-      setTimeout(() => setError(''), 3000)
-      return
-    }
-    if (!hasPreviewedAvatar) {
-      setError('请先预览并确认头像')
-      setTimeout(() => setError(''), 3000)
-      return
-    }
-    const identity = createLoginIdentity(loginUsername.trim(), loginPassword)
-    if (userIdentity && userIdentity.username === '匿名') {
-      saveGuestIdentity(userIdentity)
-    }
-    saveIdentity(identity)
-    setUserIdentity(identity)
-    loginModal.close()
-    setLoginUsername('')
-    setLoginPassword('')
-    setHasPreviewedAvatar(false)
-  }
-
-  function handleLogout() {
-    let guestIdentity = loadGuestIdentity()
-    if (!guestIdentity) {
-      guestIdentity = createGuestIdentity(generateGuestPassword())
-    }
-    saveIdentity(guestIdentity)
-    setUserIdentity(guestIdentity)
   }
 
   async function handleSendChannelMessage() {
@@ -538,8 +471,7 @@ function ChatPage() {
       )
     } catch (err) {
       setChannelMessages(prev => prev.filter(m => m.id !== optimisticId))
-      setError(err.message)
-      setTimeout(() => setError(''), 3000)
+      await showApiError(err, '发送失败')
     }
   }
 
@@ -624,20 +556,20 @@ function ChatPage() {
                 alt="avatar"
               />
               <span className="user-name" title={userIdentity?.address}>
-                {userIdentity?.displayName || '加载中...'}
+                {userIdentity?.displayName || '未登录'}
               </span>
             </div>
-            {userIdentity && userIdentity.username === '匿名' ? (
+            {!userIdentity ? (
               <button
                 className="btn btn-primary login-btn"
-                onClick={() => loginModal.open()}
+                onClick={openLoginModal}
               >
                 登录
               </button>
             ) : (
               <button
                 className="btn btn-ghost logout-btn"
-                onClick={handleLogout}
+                onClick={logoutUser}
               >
                 退出
               </button>
@@ -710,8 +642,9 @@ function ChatPage() {
             <input
               type="text"
               className="input input-pill"
-              placeholder="输入消息..."
+              placeholder={userIdentity ? '输入消息...' : '请先登录后发言'}
               value={channelInput}
+              disabled={!userIdentity}
               onChange={e => setChannelInput(e.target.value)}
               onKeyDown={e => {
                 if (e.key === 'Enter' && channelInput.trim())
@@ -721,7 +654,7 @@ function ChatPage() {
             <button
               className="send-btn"
               onClick={handleSendChannelMessage}
-              disabled={!channelInput.trim()}
+              disabled={!userIdentity || !channelInput.trim()}
             >
               <Send size={18} />
             </button>
@@ -764,82 +697,6 @@ function ChatPage() {
           danger
         />
       )}
-
-      {showLogin && (
-        <div className="login-modal-overlay">
-          <div className="login-modal">
-            <div className="login-modal-header">
-              <h3>登录</h3>
-              <button
-                className="login-modal-close"
-                onClick={() => loginModal.close()}
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="login-modal-body">
-              <img
-                className="login-avatar-preview"
-                src={loginPreviewAvatar || '/pwa-512x512.png'}
-                alt="avatar"
-              />
-              <p className="login-tip">
-                {loginPreviewAddress
-                  ? `${loginPreviewAddress.slice(0, 6)}...${loginPreviewAddress.slice(-4)}`
-                  : 'Most People'}
-              </p>
-              <input
-                type="text"
-                className="input input-compact"
-                placeholder="用户名"
-                value={loginUsername}
-                onChange={handleLoginUsernameChange}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') handleLogin()
-                }}
-                autoFocus
-              />
-              <div className="login-password-wrapper">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  className="input input-compact"
-                  placeholder="密码"
-                  value={loginPassword}
-                  onChange={handleLoginPasswordChange}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') handleLogin()
-                  }}
-                />
-                <button
-                  className="login-password-toggle"
-                  type="button"
-                  onClick={() => togglePassword()}
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-              <div className="login-buttons-row">
-                <button
-                  className="btn btn-secondary"
-                  onClick={handlePreviewAvatar}
-                  disabled={hasPreviewedAvatar}
-                >
-                  {hasPreviewedAvatar ? '已预览' : '预览头像'}
-                </button>
-                <button
-                  className="btn btn-primary"
-                  onClick={handleLogin}
-                  disabled={!hasPreviewedAvatar}
-                >
-                  登录
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {error && <div className="chat-toast">{error}</div>}
     </AppShell>
   )
 }

@@ -174,37 +174,6 @@
   }
 }
 
-/* === Chat Toast === */
-.chat-toast {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 200;
-  padding: 12px 24px;
-  border-radius: var(--radius-lg);
-  background: var(--glass-bg-heavy);
-  backdrop-filter: var(--blur-xl);
-  -webkit-backdrop-filter: var(--blur-xl);
-  color: var(--text-primary);
-  font-size: 13px;
-  font-weight: 500;
-  box-shadow: var(--glass-shadow-lg), var(--glass-shadow-inset);
-  border: 1px solid var(--glass-border);
-  animation: toastIn 0.3s ease;
-}
-
-@keyframes toastIn {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-}
-
 /* === Welcome State === */
 .chat-welcome {
   flex: 1;
@@ -369,17 +338,4 @@
   .sidebar-nav-btn .leave-channel-btn {
     opacity: 1;
   }
-}
-
-/* === Login Modal === */
-.login-buttons-row {
-  display: flex;
-  gap: 8px;
-}
-
-.login-buttons-row .btn-primary,
-.login-buttons-row .btn-secondary {
-  flex: 1;
-  padding: 10px;
-  font-size: 13px;
 }
