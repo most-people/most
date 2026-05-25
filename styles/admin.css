@@ -507,6 +507,35 @@
   color: var(--danger);
 }
 
+.admin-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 12px;
+  color: var(--warning);
+}
+
+.admin-warning svg {
+  flex: 0 0 auto;
+}
+
+.admin-warning div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.admin-warning strong {
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.admin-warning span {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 @media (max-width: 1040px) {
   .admin-product-grid,
   .admin-overview,

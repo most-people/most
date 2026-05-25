@@ -27,7 +27,6 @@ import {
   Settings,
   Info,
 } from 'lucide-react'
-import { CID } from 'multiformats/cid'
 import AppShell from '~/components/AppShell'
 import { ModalOverlay, ConfirmModal, InputModal } from '~/components/ui'
 import {
@@ -37,6 +36,10 @@ import {
   getApiUrl,
   getWebSocketUrl,
 } from '~/server/src/utils/api'
+import {
+  getDownloadCheckErrorMessageFromPayload,
+  getDownloadLinkValidationMessage,
+} from '~/server/src/utils/downloadMessages.js'
 import { useAppStore } from '~/app/app/useAppStore'
 import { useDisclosure, useClipboard } from '~/hooks'
 import Link from 'next/link'
@@ -93,100 +96,7 @@ async function getDownloadCheckErrorMessage(err: unknown) {
     err && typeof err === 'object' && 'name' in err
       ? String((err as { name?: string }).name)
       : ''
-
-  if (errorName === 'TimeoutError') {
-    return '检测等待超时，暂时没有等到在线种子响应。请确认分享者或其他下载者仍在线做种，稍后再检测。'
-  }
-
-  if (!data.status) {
-    return '无法连接本地节点，请确认 MostBox 后端正在运行后再检测。'
-  }
-
-  if (data.status === 404) {
-    return '当前后端还没有检测接口，请重启 MostBox 后端后再试。'
-  }
-
-  if (data.code === 'VALIDATION_ERROR') {
-    return '链接格式不正确，请粘贴完整的 most://<cid>?filename=... 分享链接。'
-  }
-
-  if (data.code === 'CONFLICT') {
-    return data.error
-      ? `${data.error}，请先处理同名文件后再下载。`
-      : '下载目录已有同名文件，请先重命名或移走后再检测。'
-  }
-
-  if (data.code === 'PEER_NOT_FOUND') {
-    return '暂时没有发现在线种子。请确认分享者或其他下载者仍在线做种，稍后再检测。'
-  }
-
-  if (data.code === 'PERMISSION_ERROR') {
-    return data.error
-      ? `下载目录不可写：${data.error}`
-      : '下载目录不可写，请检查目录权限后再检测。'
-  }
-
-  if (data.code === 'ENGINE_NOT_INITIALIZED') {
-    return '本地节点还没有启动完成，请稍等几秒后重新检测。'
-  }
-
-  if (data.status === 503) {
-    return '暂时没有发现在线种子。请确认分享者或其他下载者仍在线做种，稍后再检测。'
-  }
-
-  if (data.status >= 500) {
-    return '本地节点检测时出错，请稍后重试或查看节点日志。'
-  }
-
-  return data.error
-    ? `检测未通过：${data.error}`
-    : '检测未通过，请确认链接完整、发布者在线且本机网络正常。'
-}
-
-function getDownloadLinkValidationMessage(link: string) {
-  const value = link.trim()
-
-  if (!value) {
-    return '请先粘贴 most:// 分享链接。'
-  }
-
-  let url: URL
-  try {
-    url = new URL(value)
-  } catch {
-    return '链接无法解析，请粘贴完整的 most://<cid>?filename=... 分享链接。'
-  }
-
-  if (url.protocol !== 'most:') {
-    return '链接协议不正确，应以 most:// 开头。'
-  }
-
-  if (url.pathname && url.pathname !== '/') {
-    return '链接里不应包含路径，请使用 most://<cid>?filename=... 格式。'
-  }
-
-  try {
-    const cid = CID.parse(url.hostname)
-    if (cid.version !== 1 || cid.multihash.digest.length !== 32) {
-      return 'CID 格式不符合 MostBox 要求，请确认分享链接完整。'
-    }
-  } catch {
-    return 'CID 无效，请确认 most:// 后面的内容没有缺失或被截断。'
-  }
-
-  const fileName = url.searchParams.get('filename')?.trim()
-  if (!fileName) {
-    return '链接缺少 filename 参数，请复制完整分享链接后再检测。'
-  }
-
-  const unsupportedParam = [...url.searchParams.keys()].find(
-    key => key !== 'filename'
-  )
-  if (unsupportedParam) {
-    return `链接包含暂不支持的参数 ${unsupportedParam}，请只保留 filename。`
-  }
-
-  return null
+  return getDownloadCheckErrorMessageFromPayload(data, errorName)
 }
 
 const API = {

@@ -137,6 +137,10 @@ function shortText(text: string, head = 12, tail = 8) {
   return `${text.slice(0, head)}...${text.slice(-tail)}`
 }
 
+function isLocalListenHost(host: string) {
+  return ['127.0.0.1', 'localhost', '::1'].includes(String(host || '').trim())
+}
+
 function formatSeedStatus(holding: NodeHolding) {
   switch (holding.seedStatus) {
     case 'queued':
@@ -197,6 +201,17 @@ export default function AdminPage() {
     [status]
   )
   const hiddenHoldingCount = Math.max(0, (status?.holdings.length || 0) - 100)
+  const publicListenAddresses = useMemo(
+    () =>
+      status?.listen.addresses.filter(
+        address => address.type !== 'local' && address.ip !== 'localhost'
+      ) || [],
+    [status]
+  )
+  const showListenWarning =
+    !!status &&
+    !isLocalListenHost(status.host) &&
+    publicListenAddresses.length > 0
 
   const loadStatus = async () => {
     try {
@@ -339,6 +354,20 @@ export default function AdminPage() {
         <section className="admin-panel admin-error">
           <FileText size={20} />
           <span>{error}</span>
+        </section>
+      )}
+
+      {showListenWarning && (
+        <section className="admin-panel admin-warning">
+          <ShieldCheck size={20} />
+          <div>
+            <strong>管理台可能被局域网访问</strong>
+            <span>
+              当前监听 {status?.host}:{status?.port}
+              。只在可信网络使用；公网暴露前请配置访问口令，或用
+              MOSTBOX_HOST=127.0.0.1 仅允许本机访问。
+            </span>
+          </div>
         </section>
       )}
 
