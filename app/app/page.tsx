@@ -1189,9 +1189,8 @@ export default function App() {
       sidebar={({ closeSidebar }) => (
         <>
           <div
-            className="sidebar-header"
+            className="sidebar-header sidebar-header-link"
             onClick={() => (window.location.href = '/')}
-            style={{ cursor: 'pointer' }}
           >
             <h1>MOST PEOPLE</h1>
           </div>
@@ -1232,11 +1231,11 @@ export default function App() {
               <span>存储空间</span>
             </div>
             <div className="storage-bar">
-              <div
-                className="storage-bar-fill"
-                style={{
-                  width: `${storageStats.total > 0 ? (storageStats.used / storageStats.total) * 100 : 0}%`,
-                }}
+              <progress
+                className="storage-progress"
+                value={storageStats.used}
+                max={storageStats.total > 0 ? storageStats.total : 1}
+                aria-label="存储空间使用量"
               />
             </div>
             <div className="storage-info">
@@ -1791,12 +1790,12 @@ export default function App() {
                     )}
                   </div>
                   <div className="transfer-progress-row">
-                    <div className="transfer-progress-bar">
-                      <div
-                        className={`transfer-progress-fill ${t.type === 'download' ? 'download' : ''} ${t.status === 'error' ? 'error' : ''} ${t.status === 'cancelled' ? 'cancelled' : ''}`}
-                        style={{ width: `${t.progress}%` }}
-                      />
-                    </div>
+                    <progress
+                      className={`transfer-progress-meter ${t.type === 'download' ? 'download' : ''} ${t.status === 'error' ? 'error' : ''} ${t.status === 'cancelled' ? 'cancelled' : ''}`}
+                      value={Math.max(0, Math.min(100, t.progress))}
+                      max={100}
+                      aria-label={`${t.fileName} 传输进度`}
+                    />
                     <span className="transfer-progress-text">
                       {t.status === 'completed'
                         ? '完成'

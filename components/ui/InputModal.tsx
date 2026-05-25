@@ -58,8 +58,7 @@ export function InputModal({
           <button
             onClick={() => value.trim() && onConfirm(value.trim())}
             disabled={!value.trim() || isLoading}
-            className="btn btn-primary"
-            style={{ opacity: isLoading ? 0.7 : 1 }}
+            className={`btn btn-primary ${isLoading ? 'btn-loading' : ''}`}
           >
             {isLoading ? loadingText || '处理中...' : confirmText}
           </button>

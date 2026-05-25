@@ -148,6 +148,10 @@
   }
 }
 
+.btn-loading {
+  opacity: 0.7;
+}
+
 .btn-primary {
   color: #fff;
   background: var(--accent);
@@ -156,6 +160,46 @@
     background: var(--accent-hover);
     box-shadow: 0 4px 16px rgba(94, 106, 210, 0.3);
   }
+}
+
+/* === Error Boundary === */
+.error-boundary-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: var(--space-8);
+  background: var(--bg-primary);
+  font-family: var(--font-sans);
+}
+
+.error-boundary-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: var(--space-2);
+  color: var(--text-primary);
+}
+
+.error-boundary-desc {
+  color: var(--text-secondary);
+  margin-bottom: var(--space-6);
+  text-align: center;
+  max-width: 400px;
+}
+
+.error-boundary-btn {
+  padding: 10px 24px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.error-boundary-btn:hover {
+  background: var(--accent-hover);
 }
 
 .btn-secondary {

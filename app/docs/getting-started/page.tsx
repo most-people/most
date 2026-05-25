@@ -3,261 +3,104 @@
 import Link from 'next/link'
 import { MarketingLayout } from '~/components/MarketingLayout'
 
+const setupSteps = [
+  {
+    num: '1',
+    title: '下载桌面客户端',
+    desc: '支持 Windows、macOS 和 Linux。数据完全本地存储，无需上传到任何服务器。',
+    link: '/download',
+    linkText: '前往下载页 →',
+  },
+  {
+    num: '2',
+    title: '安装并运行',
+    desc: '安装后打开应用，即可使用 P2P 文件分享和加密聊天功能。',
+  },
+  {
+    num: '3',
+    title: '开始使用',
+    desc: '发布文件生成分享链接，或创建频道与朋友聊天。',
+  },
+]
+
+const capabilityRows = [
+  { feature: 'P2P 文件分享', web: '仅展示', desktop: '完整', webTone: 'warning' },
+  { feature: 'P2P 加密聊天', web: '仅展示', desktop: '完整', webTone: 'warning' },
+  {
+    feature: '文件存储',
+    web: '不支持',
+    desktop: '持久化存储',
+    webTone: 'muted',
+  },
+  {
+    feature: '离线消息',
+    web: '不支持',
+    desktop: '支持',
+    webTone: 'muted',
+  },
+  {
+    feature: '大文件传输',
+    web: '不支持',
+    desktop: '无限制',
+    webTone: 'muted',
+  },
+]
+
 export default function GettingStartedPage() {
   return (
     <MarketingLayout>
-      <main style={{ paddingTop: 64 }}>
-        <div
-          style={{ maxWidth: 720, margin: '0 auto', padding: '48px 24px 80px' }}
-        >
-          <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>
-            快速开始
-          </h1>
-          <p style={{ color: 'var(--text-secondary)', marginBottom: 32 }}>
-            下载桌面客户端，获得完整的 P2P 体验。
-          </p>
+      <div className="mkt-page mkt-page-narrow">
+        <h1 className="mkt-page-title mkt-page-title-compact">快速开始</h1>
+        <p className="mkt-page-lead mkt-page-lead-compact">
+          下载桌面客户端，获得完整的 P2P 体验。
+        </p>
 
-          <section style={{ marginBottom: 40 }}>
-            <div
-              style={{
-                display: 'flex',
-                gap: 16,
-                alignItems: 'flex-start',
-                marginBottom: 24,
-              }}
-            >
-              <span
-                style={{
-                  flexShrink: 0,
-                  width: 36,
-                  height: 36,
-                  borderRadius: 9999,
-                  background: 'var(--accent)',
-                  color: '#fff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 13,
-                  fontWeight: 700,
-                }}
-              >
-                1
-              </span>
-              <div style={{ flex: 1 }}>
-                <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>
-                  下载桌面客户端
-                </h2>
-                <p
-                  style={{
-                    fontSize: 14,
-                    color: 'var(--text-secondary)',
-                    marginBottom: 12,
-                  }}
-                >
-                  支持 Windows、macOS 和
-                  Linux。数据完全本地存储，无需上传到任何服务器。
-                </p>
-                <Link
-                  href="/download"
-                  style={{ color: 'var(--accent)', fontSize: 14 }}
-                >
-                  前往下载页 →
-                </Link>
+        <section className="mkt-doc-section mkt-doc-section-compact">
+          <div className="mkt-step-list">
+            {setupSteps.map(step => (
+              <div key={step.num} className="mkt-step-item">
+                <span className="mkt-step-number">{step.num}</span>
+                <div className="mkt-step-body">
+                  <h2>{step.title}</h2>
+                  <p>{step.desc}</p>
+                  {step.link && (
+                    <Link href={step.link} className="mkt-inline-link">
+                      {step.linkText}
+                    </Link>
+                  )}
+                </div>
               </div>
-            </div>
-
-            <div
-              style={{
-                display: 'flex',
-                gap: 16,
-                alignItems: 'flex-start',
-                marginBottom: 24,
-              }}
-            >
-              <span
-                style={{
-                  flexShrink: 0,
-                  width: 36,
-                  height: 36,
-                  borderRadius: 9999,
-                  background: 'var(--accent)',
-                  color: '#fff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 13,
-                  fontWeight: 700,
-                }}
-              >
-                2
-              </span>
-              <div style={{ flex: 1 }}>
-                <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>
-                  安装并运行
-                </h2>
-                <p
-                  style={{
-                    fontSize: 14,
-                    color: 'var(--text-secondary)',
-                    marginBottom: 12,
-                  }}
-                >
-                  安装后打开应用，即可使用 P2P 文件分享和加密聊天功能。
-                </p>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-              <span
-                style={{
-                  flexShrink: 0,
-                  width: 36,
-                  height: 36,
-                  borderRadius: 9999,
-                  background: 'var(--accent)',
-                  color: '#fff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 13,
-                  fontWeight: 700,
-                }}
-              >
-                3
-              </span>
-              <div style={{ flex: 1 }}>
-                <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>
-                  开始使用
-                </h2>
-                <p style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
-                  发布文件生成分享链接，或创建频道与朋友聊天。
-                </p>
-              </div>
-            </div>
-          </section>
-
-          <section
-            style={{
-              marginBottom: 40,
-              padding: 20,
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border-color)',
-              borderRadius: 12,
-            }}
-          >
-            <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>
-              Web 端 vs 桌面端
-            </h3>
-            <table
-              style={{
-                width: '100%',
-                borderCollapse: 'collapse',
-                fontSize: 13,
-              }}
-            >
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
-                  <th
-                    style={{
-                      textAlign: 'left',
-                      padding: '8px 0',
-                      fontWeight: 600,
-                    }}
-                  >
-                    功能
-                  </th>
-                  <th
-                    style={{
-                      textAlign: 'left',
-                      padding: '8px 0',
-                      fontWeight: 600,
-                    }}
-                  >
-                    Web 端
-                  </th>
-                  <th
-                    style={{
-                      textAlign: 'left',
-                      padding: '8px 0',
-                      fontWeight: 600,
-                    }}
-                  >
-                    桌面端
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
-                  <td style={{ padding: '8px 0' }}>P2P 文件分享</td>
-                  <td style={{ padding: '8px 0', color: 'var(--warning)' }}>
-                    仅展示
-                  </td>
-                  <td style={{ padding: '8px 0', color: 'var(--success)' }}>
-                    完整
-                  </td>
-                </tr>
-                <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
-                  <td style={{ padding: '8px 0' }}>P2P 加密聊天</td>
-                  <td style={{ padding: '8px 0', color: 'var(--warning)' }}>
-                    仅展示
-                  </td>
-                  <td style={{ padding: '8px 0', color: 'var(--success)' }}>
-                    完整
-                  </td>
-                </tr>
-                <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
-                  <td style={{ padding: '8px 0' }}>文件存储</td>
-                  <td
-                    style={{ padding: '8px 0', color: 'var(--text-secondary)' }}
-                  >
-                    不支持
-                  </td>
-                  <td style={{ padding: '8px 0', color: 'var(--success)' }}>
-                    持久化存储
-                  </td>
-                </tr>
-                <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
-                  <td style={{ padding: '8px 0' }}>离线消息</td>
-                  <td
-                    style={{ padding: '8px 0', color: 'var(--text-secondary)' }}
-                  >
-                    不支持
-                  </td>
-                  <td style={{ padding: '8px 0', color: 'var(--success)' }}>
-                    支持
-                  </td>
-                </tr>
-                <tr>
-                  <td style={{ padding: '8px 0' }}>大文件传输</td>
-                  <td
-                    style={{ padding: '8px 0', color: 'var(--text-secondary)' }}
-                  >
-                    不支持
-                  </td>
-                  <td style={{ padding: '8px 0', color: 'var(--success)' }}>
-                    无限制
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </section>
-
-          <div style={{ display: 'flex', gap: 24 }}>
-            <Link
-              href="/docs/"
-              style={{ color: 'var(--accent)', fontSize: 14 }}
-            >
-              ← 文档首页
-            </Link>
-            <Link
-              href="/changelog/"
-              style={{ color: 'var(--accent)', fontSize: 14 }}
-            >
-              更新日志 →
-            </Link>
+            ))}
           </div>
+        </section>
+
+        <section className="mkt-compare-panel">
+          <h2>Web 端 vs 桌面端</h2>
+          <table className="mkt-capability-table">
+            <thead>
+              <tr>
+                <th>功能</th>
+                <th>Web 端</th>
+                <th>桌面端</th>
+              </tr>
+            </thead>
+            <tbody>
+              {capabilityRows.map(row => (
+                <tr key={row.feature}>
+                  <td>{row.feature}</td>
+                  <td className={`is-${row.webTone}`}>{row.web}</td>
+                  <td className="is-success">{row.desktop}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <div className="mkt-link-row">
+          <Link href="/docs/">← 文档首页</Link>
+          <Link href="/changelog/">更新日志 →</Link>
         </div>
-      </main>
+      </div>
     </MarketingLayout>
   )
 }

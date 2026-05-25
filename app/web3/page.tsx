@@ -289,9 +289,8 @@ export default function Web3Page() {
       sidebar={({ closeSidebar }) => (
         <>
           <div
-            className="sidebar-header"
+            className="sidebar-header sidebar-header-link"
             onClick={() => (window.location.href = '/')}
-            style={{ cursor: 'pointer' }}
           >
             <h1>MOST PEOPLE</h1>
           </div>

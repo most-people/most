@@ -326,24 +326,20 @@ export function PingPanel() {
                   <span className="ping-pulse-dot" />
                 ) : (
                   <span
-                    className="ping-status-label"
-                    style={{
-                      color: isTimeout ? 'var(--danger)' : 'var(--success)',
-                    }}
+                    className={`ping-status-label ${isTimeout ? 'is-error' : 'is-success'}`}
                   >
                     {isTimeout ? '不可用' : '可用'}
                   </span>
                 )}
 
                 <span
-                  className="ping-latency"
-                  style={
+                  className={`ping-latency ${
                     isPending
-                      ? { color: 'var(--text-muted)' }
-                      : {
-                          color: isTimeout ? 'var(--danger)' : 'var(--success)',
-                        }
-                  }
+                      ? 'is-muted'
+                      : isTimeout
+                        ? 'is-error'
+                        : 'is-success'
+                  }`}
                 >
                   {isPending
                     ? '--'

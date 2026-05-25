@@ -40,7 +40,7 @@ function SettingsDrawer({ onClose }) {
                   <Download size={14} className="icon-inline" />
                   下载桌面客户端
                 </label>
-                <p className="drawer-hint" style={{ marginBottom: '12px' }}>
+                <p className="drawer-hint drawer-hint-spaced">
                   Web 端仅用于界面展示。下载桌面客户端获得完整的 P2P
                   文件分享和加密聊天体验。
                 </p>

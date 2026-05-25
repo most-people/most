@@ -7,8 +7,9 @@ export function Toast({ message, type, onDone, index }) {
     const t = setTimeout(onDone, 3000)
     return () => clearTimeout(t)
   }, [])
+  const stackIndex = Math.min(Math.max(index, 0), 5)
   return (
-    <div className={`toast ${type}`} style={{ bottom: 80 + index * 60 }}>
+    <div className={`toast ${type} toast-stack-${stackIndex}`}>
       {message}
     </div>
   )

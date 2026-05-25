@@ -54,245 +54,87 @@ const compareRows = [
 export default function DocsPage() {
   return (
     <MarketingLayout>
-      <main style={{ paddingTop: 64 }}>
-        <div
-          style={{ maxWidth: 960, margin: '0 auto', padding: '48px 24px 80px' }}
-        >
-          <h1
-            style={{
-              fontSize: 32,
-              fontWeight: 700,
-              marginBottom: 16,
-              textAlign: 'center',
-            }}
-          >
-            MostBox 文档
-          </h1>
-          <p
-            style={{
-              textAlign: 'center',
-              color: 'var(--text-secondary)',
-              marginBottom: 48,
-              maxWidth: '50ch',
-              margin: '0 auto 48px',
-            }}
-          >
+      <div className="mkt-page mkt-page-wide">
+        <header className="mkt-page-hero">
+          <h1 className="mkt-page-title">MostBox 文档</h1>
+          <p className="mkt-page-lead">
             P2P 文件分享应用。基于 Hyperswarm/Hyperdrive 的去中心化文件分发。
           </p>
+        </header>
 
-          <section style={{ marginBottom: 64 }}>
-            <h2 style={{ fontSize: 20, fontWeight: 600, marginBottom: 16 }}>
-              快速开始
-            </h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-              {steps.map(step => (
-                <div
-                  key={step.num}
-                  style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}
-                >
-                  <span
-                    style={{
-                      flexShrink: 0,
-                      width: 36,
-                      height: 36,
-                      borderRadius: 9999,
-                      background: 'var(--accent)',
-                      color: '#fff',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 13,
-                      fontWeight: 700,
-                    }}
-                  >
-                    {step.num}
-                  </span>
-                  <div style={{ flex: 1 }}>
-                    <h4
-                      style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}
-                    >
-                      {step.title}
-                    </h4>
-                    <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-                      {step.desc}
+        <section className="mkt-doc-section">
+          <h2 className="mkt-doc-section-title">快速开始</h2>
+          <div className="mkt-step-list">
+            {steps.map(step => (
+              <div key={step.num} className="mkt-step-item">
+                <span className="mkt-step-number">{step.num}</span>
+                <div className="mkt-step-body">
+                  <h3>{step.title}</h3>
+                  <p>{step.desc}</p>
+                  {step.link && (
+                    <p className="mkt-step-link">
+                      <a
+                        href={step.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {step.linkText} →
+                      </a>
                     </p>
-                    {step.link && (
-                      <p style={{ marginTop: 8 }}>
-                        <a
-                          href={step.link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{ fontSize: 13, color: 'var(--accent)' }}
-                        >
-                          {step.linkText} →
-                        </a>
-                      </p>
-                    )}
-                  </div>
+                  )}
                 </div>
-              ))}
-            </div>
-          </section>
-
-          <section style={{ marginBottom: 64 }}>
-            <h2 style={{ fontSize: 20, fontWeight: 600, marginBottom: 16 }}>
-              核心功能
-            </h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {features.map(f => (
-                <div
-                  key={f.title}
-                  style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}
-                >
-                  <span
-                    style={{
-                      color: 'var(--accent)',
-                      marginTop: 2,
-                      flexShrink: 0,
-                    }}
-                  >
-                    <Check size={16} strokeWidth={2} />
-                  </span>
-                  <div>
-                    <strong
-                      style={{
-                        display: 'block',
-                        fontWeight: 600,
-                        marginBottom: 2,
-                      }}
-                    >
-                      {f.title}
-                    </strong>
-                    <span
-                      style={{ color: 'var(--text-secondary)', fontSize: 13 }}
-                    >
-                      {f.desc}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section style={{ marginBottom: 64 }}>
-            <h2 style={{ fontSize: 20, fontWeight: 600, marginBottom: 16 }}>
-              为什么选择 MostBox？
-            </h2>
-            <div style={{ overflowX: 'auto' }}>
-              <table
-                style={{
-                  width: '100%',
-                  borderCollapse: 'collapse',
-                  fontSize: 13,
-                  fontFamily: 'var(--font-mono)',
-                }}
-              >
-                <thead>
-                  <tr style={{ borderBottom: '2px solid var(--border-color)' }}>
-                    <th
-                      style={{
-                        textAlign: 'left',
-                        padding: '12px 16px',
-                        fontWeight: 600,
-                        fontSize: 11,
-                        color: 'var(--text-muted)',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em',
-                      }}
-                    ></th>
-                    <th
-                      style={{
-                        textAlign: 'center',
-                        padding: '12px 16px',
-                        fontWeight: 600,
-                        fontSize: 11,
-                        color: 'var(--text-muted)',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em',
-                      }}
-                    >
-                      微信/QQ
-                    </th>
-                    <th
-                      style={{
-                        textAlign: 'center',
-                        padding: '12px 16px',
-                        fontWeight: 600,
-                        fontSize: 11,
-                        color: 'var(--text-muted)',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em',
-                      }}
-                    >
-                      网盘
-                    </th>
-                    <th
-                      style={{
-                        textAlign: 'center',
-                        padding: '12px 16px',
-                        fontWeight: 600,
-                        fontSize: 11,
-                        color: 'var(--accent)',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em',
-                      }}
-                    >
-                      MostBox
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {compareRows.map(row => (
-                    <tr
-                      key={row.feature}
-                      style={{ borderBottom: '1px solid var(--border-color)' }}
-                    >
-                      <td style={{ padding: '12px 16px' }}>{row.feature}</td>
-                      <td
-                        style={{
-                          padding: '12px 16px',
-                          textAlign: 'center',
-                          color: 'var(--text-secondary)',
-                        }}
-                      >
-                        {row.wechat}
-                      </td>
-                      <td
-                        style={{
-                          padding: '12px 16px',
-                          textAlign: 'center',
-                          color: 'var(--text-secondary)',
-                        }}
-                      >
-                        {row.cloud}
-                      </td>
-                      <td
-                        style={{
-                          padding: '12px 16px',
-                          textAlign: 'center',
-                          color: 'var(--accent)',
-                          fontWeight: 600,
-                        }}
-                      >
-                        {row.mostbox}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <div style={{ marginTop: 48 }}>
-            <Link
-              href="/changelog/"
-              style={{ color: 'var(--accent)', fontSize: 14 }}
-            >
-              查看更新日志 →
-            </Link>
+              </div>
+            ))}
           </div>
+        </section>
+
+        <section className="mkt-doc-section">
+          <h2 className="mkt-doc-section-title">核心功能</h2>
+          <div className="mkt-feature-list">
+            {features.map(feature => (
+              <div key={feature.title} className="mkt-feature-row">
+                <span className="mkt-feature-icon">
+                  <Check size={16} strokeWidth={2} />
+                </span>
+                <div>
+                  <strong>{feature.title}</strong>
+                  <span>{feature.desc}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="mkt-doc-section">
+          <h2 className="mkt-doc-section-title">为什么选择 MostBox？</h2>
+          <div className="mkt-table-wrap">
+            <table className="mkt-compare-table">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>微信/QQ</th>
+                  <th>网盘</th>
+                  <th className="is-mostbox">MostBox</th>
+                </tr>
+              </thead>
+              <tbody>
+                {compareRows.map(row => (
+                  <tr key={row.feature}>
+                    <td>{row.feature}</td>
+                    <td>{row.wechat}</td>
+                    <td>{row.cloud}</td>
+                    <td className="is-mostbox">{row.mostbox}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <div className="mkt-page-footer">
+          <Link href="/changelog/">查看更新日志 →</Link>
         </div>
-      </main>
+      </div>
     </MarketingLayout>
   )
 }

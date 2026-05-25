@@ -485,22 +485,15 @@ function ChatPage() {
       sidebar={({ closeSidebar }) => (
         <>
           <div
-            className="sidebar-header"
+            className="sidebar-header sidebar-header-link"
             onClick={() => (window.location.href = '/')}
-            style={{ cursor: 'pointer' }}
           >
             <h1>MOST PEOPLE</h1>
           </div>
 
           <nav className="sidebar-nav">
             {channels.length === 0 ? (
-              <div
-                style={{
-                  padding: '40px 20px',
-                  textAlign: 'center',
-                  color: 'var(--text-muted)',
-                }}
-              >
+              <div className="sidebar-empty-state">
                 <p>暂无频道</p>
               </div>
             ) : (

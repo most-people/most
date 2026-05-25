@@ -5,11 +5,12 @@
   "type": "module",
   "main": "electron/main.js",
   "bin": {
-    "most-box": "./server/cli.js"
+    "most-box": "server/cli.js"
   },
   "files": [
     "out",
     "public",
+    "electron",
     "server/src",
     "server/index.js",
     "server/cli.js"
@@ -52,7 +53,7 @@
     "dayjs": "^1.11.20",
     "ethers": "^6.16.0",
     "eventemitter3": "^5.0.4",
-    "hono": "^4.12.15",
+    "hono": "^4.12.23",
     "hypercore": "^11.28.1",
     "hyperdrive": "^13.3.2",
     "hyperswarm": "^4.17.0",
@@ -60,12 +61,12 @@
     "ky": "^2.0.2",
     "lucide-react": "^1.9.0",
     "multiformats": "^13.4.2",
-    "next": "^16.2.4",
+    "next": "^16.2.6",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "tweetnacl": "^1.0.3",
-    "ws": "^8.20.0",
+    "ws": "^8.21.0",
     "zustand": "^5.0.12"
   },
   "devDependencies": {
@@ -82,6 +83,11 @@
     "typescript": "6.0.3",
     "typescript-eslint": "^8.59.2",
     "wait-on": "^9.0.5"
+  },
+  "overrides": {
+    "brace-expansion": "5.0.6",
+    "postcss": "8.5.15",
+    "ws": "$ws"
   },
   "build": {
     "appId": "com.mostbox.app",
@@ -121,7 +127,7 @@
           ]
         }
       ],
-      "icon": "public/icon.ico"
+      "icon": "public/favicon.ico"
     },
     "nsis": {
       "oneClick": false,
@@ -140,7 +146,7 @@
           ]
         }
       ],
-      "icon": "public/icon.icns",
+      "icon": "public/pwa-512x512.png",
       "category": "public.app-category.utilities"
     },
     "dmg": {
@@ -167,6 +173,7 @@
           ]
         }
       ],
+      "icon": "public/pwa-512x512.png",
       "category": "Utility"
     }
   }

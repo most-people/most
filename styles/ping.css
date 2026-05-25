@@ -177,6 +177,20 @@
   font-variant-numeric: tabular-nums;
 }
 
+.ping-status-label.is-success,
+.ping-latency.is-success {
+  color: var(--success);
+}
+
+.ping-status-label.is-error,
+.ping-latency.is-error {
+  color: var(--danger);
+}
+
+.ping-latency.is-muted {
+  color: var(--text-muted);
+}
+
 /* === Brand Icon === */
 
 .brand-icon-wrap {

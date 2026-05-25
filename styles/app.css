@@ -69,6 +69,10 @@
     align-items: center;
     border-bottom: 1px solid var(--glass-border);
 
+    &.sidebar-header-link {
+      cursor: pointer;
+    }
+
     h1 {
       font-size: 18px;
       font-weight: 700;
@@ -82,6 +86,12 @@
   .sidebar-nav {
     padding: 12px 8px;
     flex: 1;
+  }
+
+  .sidebar-empty-state {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--text-muted);
   }
 
   .sidebar-nav-btn {
@@ -134,11 +144,30 @@
     overflow: hidden;
   }
 
-  .storage-bar-fill {
-    height: 100%;
-    background: linear-gradient(90deg, var(--accent), var(--info));
+  .storage-progress {
+    display: block;
+    width: 100%;
+    height: 4px;
+    border: 0;
     border-radius: var(--radius-full);
+    overflow: hidden;
+    background: transparent;
+    appearance: none;
+  }
+
+  .storage-progress::-webkit-progress-bar {
+    background: transparent;
+  }
+
+  .storage-progress::-webkit-progress-value {
+    border-radius: var(--radius-full);
+    background: linear-gradient(90deg, var(--accent), var(--info));
     transition: width 0.3s;
+  }
+
+  .storage-progress::-moz-progress-bar {
+    border-radius: var(--radius-full);
+    background: linear-gradient(90deg, var(--accent), var(--info));
   }
 
   .storage-info {
@@ -1484,30 +1513,53 @@
     gap: 8px;
   }
 
-  .transfer-progress-bar {
+  .transfer-progress-meter {
     flex: 1;
     height: 4px;
+    border: 0;
     border-radius: var(--radius-full);
+    background: var(--glass-bg-subtle);
+    overflow: hidden;
+    appearance: none;
+  }
+
+  .transfer-progress-meter::-webkit-progress-bar {
     background: var(--glass-bg-subtle);
   }
 
-  .transfer-progress-fill {
-    height: 100%;
+  .transfer-progress-meter::-webkit-progress-value {
     border-radius: var(--radius-full);
     background: var(--accent);
     transition: width 0.2s;
+  }
 
-    &.download {
-      background: var(--info);
-    }
+  .transfer-progress-meter::-moz-progress-bar {
+    border-radius: var(--radius-full);
+    background: var(--accent);
+  }
 
-    &.error {
-      background: var(--danger);
-    }
+  .transfer-progress-meter.download::-webkit-progress-value {
+    background: var(--info);
+  }
 
-    &.cancelled {
-      background: var(--warning);
-    }
+  .transfer-progress-meter.download::-moz-progress-bar {
+    background: var(--info);
+  }
+
+  .transfer-progress-meter.error::-webkit-progress-value {
+    background: var(--danger);
+  }
+
+  .transfer-progress-meter.error::-moz-progress-bar {
+    background: var(--danger);
+  }
+
+  .transfer-progress-meter.cancelled::-webkit-progress-value {
+    background: var(--warning);
+  }
+
+  .transfer-progress-meter.cancelled::-moz-progress-bar {
+    background: var(--warning);
   }
 
   .transfer-progress-text {
@@ -1534,6 +1586,7 @@
 .toast {
   position: fixed;
   left: 50%;
+  bottom: 80px;
   transform: translateX(-50%);
   z-index: 9999;
   padding: 12px 20px;
@@ -1565,6 +1618,30 @@
     background: rgba(90, 200, 250, 0.6);
     color: #fff;
   }
+}
+
+.toast-stack-0 {
+  bottom: 80px;
+}
+
+.toast-stack-1 {
+  bottom: 140px;
+}
+
+.toast-stack-2 {
+  bottom: 200px;
+}
+
+.toast-stack-3 {
+  bottom: 260px;
+}
+
+.toast-stack-4 {
+  bottom: 320px;
+}
+
+.toast-stack-5 {
+  bottom: 380px;
 }
 
 /* === Welcome Guide Path Step === */
@@ -2368,6 +2445,10 @@
   font-size: 11px;
   color: var(--text-muted);
   margin-top: 8px;
+}
+
+.drawer-hint-spaced {
+  margin-bottom: 12px;
 }
 
 .drawer-status {
