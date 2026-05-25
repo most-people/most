@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
   Activity,
+  AlertTriangle,
   Apple,
   ArrowLeft,
   CheckCircle2,
@@ -141,6 +142,12 @@ function isLocalListenHost(host: string) {
   return ['127.0.0.1', 'localhost', '::1'].includes(String(host || '').trim())
 }
 
+function formatListenHost(host: string) {
+  const normalized = String(host || '').trim()
+  if (normalized === '0.0.0.0' || normalized === '::') return '所有网卡'
+  return normalized || '-'
+}
+
 function formatSeedStatus(holding: NodeHolding) {
   switch (holding.seedStatus) {
     case 'queued':
@@ -172,6 +179,29 @@ const DESKTOP_FEATURES = [
   '大文件无限制传输',
 ]
 
+const SEED_STATUS_HELP = [
+  {
+    label: '做种中',
+    tone: 'active',
+    desc: '已加入 CID topic，可被其他节点发现并提供完整副本。',
+  },
+  {
+    label: '队列中 / 加入中',
+    tone: 'pending',
+    desc: '正在等待或重连 topic，通常会自动进入做种中。',
+  },
+  {
+    label: '已暂停 / 未 join',
+    tone: 'muted',
+    desc: '本机仍持有文件，但当前不会对外提供下载。',
+  },
+  {
+    label: '错误',
+    tone: 'error',
+    desc: '加入或做种失败，请查看下方节点日志里的 seed 事件。',
+  },
+]
+
 export default function AdminPage() {
   const hasBackend = useAppStore(s => s.hasBackend)
   const addToast = useAppStore(s => s.addToast)
@@ -201,17 +231,18 @@ export default function AdminPage() {
     [status]
   )
   const hiddenHoldingCount = Math.max(0, (status?.holdings.length || 0) - 100)
-  const publicListenAddresses = useMemo(
+  const nonLocalListenAddresses = useMemo(
     () =>
       status?.listen.addresses.filter(
         address => address.type !== 'local' && address.ip !== 'localhost'
       ) || [],
     [status]
   )
-  const showListenWarning =
+  const showPublicExposureWarning =
     !!status &&
     !isLocalListenHost(status.host) &&
-    publicListenAddresses.length > 0
+    (nonLocalListenAddresses.length > 0 ||
+      ['0.0.0.0', '::'].includes(String(status.host || '').trim()))
 
   const loadStatus = async () => {
     try {
@@ -357,16 +388,25 @@ export default function AdminPage() {
         </section>
       )}
 
-      {showListenWarning && (
-        <section className="admin-panel admin-warning">
-          <ShieldCheck size={20} />
+      {showPublicExposureWarning && (
+        <section className="admin-panel admin-warning admin-security-warning">
+          <AlertTriangle size={20} />
           <div>
-            <strong>管理台可能被局域网访问</strong>
+            <strong>安全提示：管理台可能被公网访问</strong>
             <span>
-              当前监听 {status?.host}:{status?.port}
-              。只在可信网络使用；公网暴露前请配置访问口令，或用
-              MOSTBOX_HOST=127.0.0.1 仅允许本机访问。
+              当前监听 {formatListenHost(status?.host || '')}:{status?.port}
+              ，同一网络内设备可能打开管理台。如果服务器、公网 IP
+              或端口转发暴露了 {status?.port} 端口，公网用户也可能访问本页和
+              节点 API。
             </span>
+            <ul className="admin-warning-list">
+              <li>不要把管理台端口直接开放到公网。</li>
+              <li>远程管理前先使用 VPN、防火墙白名单或带认证的反向代理。</li>
+              <li>
+                只允许本机访问时，设置 <code>MOSTBOX_HOST=127.0.0.1</code>{' '}
+                后重启 daemon。
+              </li>
+            </ul>
           </div>
         </section>
       )}
@@ -589,6 +629,17 @@ export default function AdminPage() {
               {formatSize(status?.capacity.usedBytes || 0)} /{' '}
               {formatSize(status?.capacity.configuredBytes || 0)}
             </span>
+          </div>
+          <div className="admin-seed-help" aria-label="做种状态说明">
+            {SEED_STATUS_HELP.map(item => (
+              <div className="admin-seed-help-item" key={item.label}>
+                <span className={`admin-seed-dot ${item.tone}`} />
+                <div>
+                  <strong>{item.label}</strong>
+                  <span>{item.desc}</span>
+                </div>
+              </div>
+            ))}
           </div>
           {hiddenHoldingCount > 0 && (
             <p className="admin-table-note">
