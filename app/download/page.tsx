@@ -124,10 +124,6 @@ export default function DownloadPage() {
       <footer className="mkt-footer">
         <div className="mkt-container">
           <div className="mkt-footer-inner">
-            <div className="mkt-footer-links">
-              <Link href="/docs">文档</Link>
-              <Link href="/changelog">更新日志</Link>
-            </div>
             <p className="mkt-footer-copy">MostBox 0.0.6</p>
           </div>
         </div>

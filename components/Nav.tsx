@@ -1,17 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Sun, Moon, Menu } from 'lucide-react'
+import { Moon, Sun } from 'lucide-react'
 import { LogoIcon } from '~/components/icons/LogoIcon'
 
-const navItems = [
-  { href: '/docs/getting-started/', label: '文档' },
-  { href: '/changelog/', label: '更新日志' },
-]
-
 export function Nav() {
-  const [open, setOpen] = useState(false)
   const [isDarkMode, setIsDarkMode] = useState(false)
 
   useEffect(() => {
@@ -41,32 +35,9 @@ export function Nav() {
             MOST PEOPLE
           </Link>
 
-          <div className={`mkt-nav-links ${open ? 'open' : ''}`}>
-            {navItems.map(item => (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setOpen(false)}
-              >
-                {item.label}
-              </Link>
-            ))}
-            <button
-              className="mkt-theme-toggle mkt-mobile-only"
-              onClick={() => {
-                setIsDarkMode(!isDarkMode)
-                setOpen(false)
-              }}
-              aria-label="切换主题"
-            >
-              {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
-              {isDarkMode ? ' 亮色模式' : ' 暗色模式'}
-            </button>
-          </div>
-
           <div className="mkt-nav-cta">
             <button
-              className="mkt-theme-toggle mkt-desktop-only"
+              className="mkt-theme-toggle"
               onClick={() => setIsDarkMode(!isDarkMode)}
               aria-label="切换主题"
             >
@@ -75,14 +46,6 @@ export function Nav() {
             <Link href="/app/" className="btn btn-primary">
               开始使用
             </Link>
-
-            <button
-              className="btn btn-icon sidebar-toggle-btn mkt-mobile-only"
-              onClick={() => setOpen(!open)}
-              aria-label="菜单"
-            >
-              <Menu size={16} />
-            </button>
           </div>
         </div>
       </nav>

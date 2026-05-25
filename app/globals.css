@@ -123,8 +123,7 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  min-height: 32px;
-  padding: 0 16px;
+  padding: 10px 16px;
   font-size: 14px;
   font-weight: 500;
   font-family: var(--font-sans);
@@ -150,6 +149,13 @@
 
 .btn-loading {
   opacity: 0.7;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  min-height: 32px;
+  font-size: 13px;
+  border-radius: var(--radius-sm);
 }
 
 .btn-primary {

@@ -21,11 +21,11 @@ import {
   Files,
   HardDrive,
   Search,
-  Info,
   Edit2,
   Loader,
   ArrowRight,
-  Server,
+  Settings,
+  Info,
 } from 'lucide-react'
 import { CID } from 'multiformats/cid'
 import AppShell from '~/components/AppShell'
@@ -577,7 +577,6 @@ export default function App() {
   const isDarkMode = useAppStore(s => s.isDarkMode)
   const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
   const addToast = useAppStore(s => s.addToast)
-  const openSettings = useAppStore(s => s.openSettings)
   const hasBackend = useAppStore(s => s.hasBackend)
   const [items, setItems] = useState([])
   const [trashItems, setTrashItems] = useState([])
@@ -1215,14 +1214,6 @@ export default function App() {
                 <span>{item.label}</span>
               </button>
             ))}
-            <Link
-              href="/admin"
-              className="sidebar-nav-btn"
-              onClick={closeSidebar}
-            >
-              <Server size={18} />
-              <span>节点管理</span>
-            </Link>
           </nav>
 
           <div className="sidebar-footer">
@@ -1281,9 +1272,14 @@ export default function App() {
           >
             {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
           </button>
-          <button onClick={() => openSettings()} className="btn btn-icon">
-            <Info size={16} />
-          </button>
+          <Link
+            href="/admin"
+            className="btn btn-icon"
+            aria-label="节点管理"
+            title="节点管理"
+          >
+            <Settings size={16} />
+          </Link>
         </>
       }
     >

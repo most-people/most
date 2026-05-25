@@ -6,12 +6,9 @@ import {
   CheckCircle2,
   Cloud,
   Download,
-  Moon,
   MoreHorizontal,
-  Sun,
   Upload,
 } from 'lucide-react'
-import { useAppStore } from '~/app/app/useAppStore'
 import { useUserStore } from '~/app/app/userStore'
 import type { NoteBackupSyncState } from '~/app/note/useNoteBackupSync'
 
@@ -22,8 +19,6 @@ interface NoteMoreMenuProps {
 export function NoteMoreMenu({ sync }: NoteMoreMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
-  const isDarkMode = useAppStore(s => s.isDarkMode)
-  const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
   const wallet = useUserStore(s => s.wallet)
   const busy = sync.action !== null
 
@@ -39,11 +34,6 @@ export function NoteMoreMenu({ sync }: NoteMoreMenuProps) {
     document.addEventListener('mousedown', handlePointerDown)
     return () => document.removeEventListener('mousedown', handlePointerDown)
   }, [open])
-
-  function handleThemeToggle() {
-    setOpen(false)
-    setIsDarkMode(!isDarkMode)
-  }
 
   async function runMenuAction(action: () => Promise<unknown> | unknown) {
     setOpen(false)
@@ -94,13 +84,6 @@ export function NoteMoreMenu({ sync }: NoteMoreMenuProps) {
           >
             <Download size={16} />
             本地导入
-          </button>
-
-          <div className="note-more-separator" />
-
-          <button className="note-more-item" onClick={handleThemeToggle}>
-            {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
-            {isDarkMode ? '浅色模式' : '深色模式'}
           </button>
         </div>
       )}

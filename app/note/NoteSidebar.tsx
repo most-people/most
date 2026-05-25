@@ -11,7 +11,7 @@ export function NoteSidebar({ children }: NoteSidebarProps) {
   return (
     <>
       <div
-        className="sidebar-header"
+        className="sidebar-header sidebar-header-link"
         onClick={() => {
           window.location.href = '/'
         }}

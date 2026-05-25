@@ -4,12 +4,16 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
   Activity,
+  Apple,
   ArrowLeft,
   CheckCircle2,
   Clipboard,
   Database,
+  Download,
   FileText,
   HardDrive,
+  Laptop,
+  Monitor,
   RefreshCw,
   Save,
   Server,
@@ -149,6 +153,20 @@ function formatSeedStatus(holding: NodeHolding) {
       return holding.joined ? '做种中' : '未 join'
   }
 }
+
+const DESKTOP_PLATFORMS = [
+  { name: 'Windows', icon: Monitor, ext: '.exe' },
+  { name: 'macOS', icon: Apple, ext: '.dmg' },
+  { name: 'Linux', icon: Laptop, ext: '.AppImage' },
+]
+
+const DESKTOP_FEATURES = [
+  'P2P 文件分享与下载',
+  '加密频道聊天',
+  '本地持久化存储',
+  '离线消息同步',
+  '大文件无限制传输',
+]
 
 export default function AdminPage() {
   const hasBackend = useAppStore(s => s.hasBackend)
@@ -293,8 +311,7 @@ export default function AdminPage() {
             <ArrowLeft size={16} />
           </Link>
           <div>
-            <p className="admin-kicker">MostBox daemon</p>
-            <h1>节点管理台</h1>
+            <h1>节点管理</h1>
           </div>
         </div>
         <div className="admin-topbar-actions">
@@ -324,6 +341,67 @@ export default function AdminPage() {
           <span>{error}</span>
         </section>
       )}
+
+      <section className="admin-product-grid" aria-label="MostBox 信息">
+        <div className="admin-product-panel admin-product-main">
+          <div className="admin-product-mark">MB</div>
+          <div>
+            <h2>MostBox</h2>
+            <p className="admin-product-version">
+              版本 {status?.version || '0.1.0'}
+            </p>
+            <p className="admin-product-stack">
+              Hyperswarm · Hyperdrive · IPFS
+            </p>
+          </div>
+        </div>
+
+        <div className="admin-product-panel admin-download-panel">
+          <div className="admin-panel-header compact">
+            <div>
+              <h2>下载桌面客户端</h2>
+            </div>
+            <Download size={18} />
+          </div>
+          <p className="admin-product-desc">
+            Web 端仅用于界面展示。下载桌面客户端获得完整的 P2P
+            文件分享和加密聊天体验。
+          </p>
+          <div className="admin-platform-list">
+            {DESKTOP_PLATFORMS.map(platform => {
+              const PlatformIcon = platform.icon
+              return (
+                <Link
+                  key={platform.name}
+                  href="/download"
+                  className="admin-platform-link"
+                >
+                  <PlatformIcon size={16} />
+                  <span>{platform.name}</span>
+                  <span>{platform.ext}</span>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="admin-product-panel admin-feature-panel">
+          <div className="admin-panel-header compact">
+            <div>
+              <h2>完整功能</h2>
+            </div>
+            <CheckCircle2 size={18} />
+          </div>
+          <ul className="admin-feature-list">
+            {DESKTOP_FEATURES.map(feature => (
+              <li key={feature}>
+                <CheckCircle2 size={14} />
+                <span>{feature}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
 
       <section className="admin-overview">
         <div className="admin-metric">
@@ -375,7 +453,6 @@ export default function AdminPage() {
         <div className="admin-panel admin-span-2">
           <div className="admin-panel-header">
             <div>
-              <p className="admin-kicker">Status</p>
               <h2>节点状态</h2>
             </div>
             <CheckCircle2 size={18} />
@@ -403,59 +480,60 @@ export default function AdminPage() {
           </div>
         </div>
 
-        <div className="admin-panel">
+        <div className="admin-panel admin-span-2">
           <div className="admin-panel-header">
             <div>
-              <p className="admin-kicker">Settings</p>
               <h2>节点设置</h2>
             </div>
             <Database size={18} />
           </div>
-          <label className="admin-field">
-            <span>数据目录</span>
-            <input
-              className="input"
-              value={configForm.dataPath}
-              onChange={event =>
-                setConfigForm(prev => ({
-                  ...prev,
-                  dataPath: event.target.value,
-                }))
-              }
-            />
-          </label>
-          <label className="admin-field">
-            <span>容量上限 GiB</span>
-            <input
-              className="input"
-              type="number"
-              min="0"
-              step="1"
-              value={configForm.capacityGiB}
-              onChange={event =>
-                setConfigForm(prev => ({
-                  ...prev,
-                  capacityGiB: event.target.value,
-                }))
-              }
-            />
-          </label>
-          <label className="admin-field">
-            <span>单文件最大 GiB</span>
-            <input
-              className="input"
-              type="number"
-              min="0"
-              step="1"
-              value={configForm.maxFileSizeGiB}
-              onChange={event =>
-                setConfigForm(prev => ({
-                  ...prev,
-                  maxFileSizeGiB: event.target.value,
-                }))
-              }
-            />
-          </label>
+          <div className="admin-settings-fields">
+            <label className="admin-field admin-field-wide">
+              <span>数据目录</span>
+              <input
+                className="input"
+                value={configForm.dataPath}
+                onChange={event =>
+                  setConfigForm(prev => ({
+                    ...prev,
+                    dataPath: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <label className="admin-field">
+              <span>容量上限 GiB</span>
+              <input
+                className="input"
+                type="number"
+                min="0"
+                step="1"
+                value={configForm.capacityGiB}
+                onChange={event =>
+                  setConfigForm(prev => ({
+                    ...prev,
+                    capacityGiB: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <label className="admin-field">
+              <span>单文件最大 GiB</span>
+              <input
+                className="input"
+                type="number"
+                min="0"
+                step="1"
+                value={configForm.maxFileSizeGiB}
+                onChange={event =>
+                  setConfigForm(prev => ({
+                    ...prev,
+                    maxFileSizeGiB: event.target.value,
+                  }))
+                }
+              />
+            </label>
+          </div>
           <p className="admin-field-hint">
             发布和下载成功后会固定做种；MostBox 不设同时做种数或传输限速。
           </p>
@@ -472,7 +550,6 @@ export default function AdminPage() {
         <div className="admin-panel admin-span-2">
           <div className="admin-panel-header">
             <div>
-              <p className="admin-kicker">Storage</p>
               <h2>持有副本</h2>
             </div>
             <HardDrive size={18} />
@@ -499,9 +576,19 @@ export default function AdminPage() {
             {visibleHoldings.map(holding => (
               <div className="admin-table-row" key={holding.cid}>
                 <span>{holding.fileName || '-'}</span>
-                <span>{shortText(holding.cid)}</span>
+                <span title={holding.cid}>{shortText(holding.cid)}</span>
                 <span>{formatSize(holding.size)}</span>
-                <span>{formatSeedStatus(holding)}</span>
+                <span
+                  className={`admin-seed-pill ${
+                    holding.seedStatus === 'error'
+                      ? 'error'
+                      : holding.seedStatus === 'active' || holding.joined
+                        ? 'active'
+                        : ''
+                  }`}
+                >
+                  {formatSeedStatus(holding)}
+                </span>
               </div>
             ))}
             {(!status || status.holdings.length === 0) && (
@@ -513,7 +600,6 @@ export default function AdminPage() {
         <div className="admin-panel admin-span-2">
           <div className="admin-panel-header">
             <div>
-              <p className="admin-kicker">Logs</p>
               <h2>节点日志</h2>
             </div>
             <div className="admin-panel-actions">
