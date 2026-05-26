@@ -332,6 +332,16 @@
   margin-bottom: 0;
 }
 
+.admin-settings-fields .admin-field-wide {
+  grid-column: span 3;
+}
+
+.admin-textarea {
+  min-height: 92px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
 .admin-field-hint,
 .admin-table-note {
   margin: 0;
@@ -625,6 +635,10 @@
   .admin-status-grid,
   .admin-seed-help {
     grid-template-columns: 1fr;
+  }
+
+  .admin-settings-fields .admin-field-wide {
+    grid-column: span 1;
   }
 
   .admin-span-2 {

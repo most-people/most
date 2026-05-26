@@ -66,6 +66,11 @@ import {
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
+function normalizeOwnerAddress(address) {
+  const value = String(address || '').trim()
+  return /^0x[a-fA-F0-9]{40}$/.test(value) ? value.toLowerCase() : ''
+}
+
 export class MostBoxEngine extends EventEmitter {
   #store = null
   #swarm = null
@@ -94,7 +99,7 @@ export class MostBoxEngine extends EventEmitter {
    * @param {object} options - 配置选项
    * @param {string} options.dataPath - 存储 P2P 数据的路径（必填）
    * @param {string} [options.downloadPath] - 默认下载路径（可选，默认为 dataPath/downloads）
-   * @param {number} [options.maxFileSize] - 最大文件大小（字节）（默认：100GB）
+   * @param {number} [options.maxFileSize] - 最大文件大小（字节）（默认：10GB）
    */
   constructor(options) {
     super()
@@ -390,6 +395,7 @@ export class MostBoxEngine extends EventEmitter {
    */
   async publishFile(content, fileName, options = {}) {
     this.#ensureInitialized()
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
 
     let cleanPath = null
     let safeFileName
@@ -442,7 +448,7 @@ export class MostBoxEngine extends EventEmitter {
 
     // 检查相同内容是否已存在
     const existingIndex = this.#publishedFiles.findIndex(
-      f => f.cid === cidString
+      f => f.cid === cidString && this.#recordMatchesOwner(f, ownerAddress)
     )
     if (existingIndex !== -1) {
       const existing = this.#publishedFiles[existingIndex]
@@ -532,6 +538,7 @@ export class MostBoxEngine extends EventEmitter {
       driveName: name,
       publishedAt: new Date().toISOString(),
       starred: false,
+      ownerAddress,
     })
     this.#savePublishedMetadata()
     this.#upsertHolding({
@@ -565,6 +572,7 @@ export class MostBoxEngine extends EventEmitter {
    */
   async downloadFile(link, taskId = null, options = {}) {
     this.#ensureInitialized()
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
 
     taskId =
       taskId || `dl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
@@ -588,7 +596,9 @@ export class MostBoxEngine extends EventEmitter {
       const parsedCid = CID.parse(cidString)
       const { driveName: name } = this.#getCidInfo(cidString)
 
-      const existingFile = this.#publishedFiles.find(f => f.cid === cidString)
+      const existingFile = this.#publishedFiles.find(
+        f => f.cid === cidString && this.#recordMatchesOwner(f, ownerAddress)
+      )
       if (existingFile) {
         console.log(`[MostBox] File already exists: ${existingFile.fileName}`)
         const existingHolding = this.#holdings.find(
@@ -858,7 +868,7 @@ export class MostBoxEngine extends EventEmitter {
 
         // 将下载的文件添加到已发布文件列表（displayName 用原始文件名）
         const existingIndex = this.#publishedFiles.findIndex(
-          f => f.cid === cidString
+          f => f.cid === cidString && this.#recordMatchesOwner(f, ownerAddress)
         )
         if (existingIndex !== -1) {
           const existing = this.#publishedFiles[existingIndex]
@@ -873,6 +883,7 @@ export class MostBoxEngine extends EventEmitter {
             driveName: name,
             publishedAt: new Date().toISOString(),
             starred: false,
+            ownerAddress,
           })
         }
         this.#savePublishedMetadata()
@@ -904,6 +915,7 @@ export class MostBoxEngine extends EventEmitter {
    */
   async checkDownloadAvailability(link, options = {}) {
     this.#ensureInitialized()
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
 
     const timeout = options.timeout || DRIVE_ENTRY_TIMEOUT
     const parsed = parseMostLink(link)
@@ -913,7 +925,9 @@ export class MostBoxEngine extends EventEmitter {
 
     const cidString = parsed.cid
     const { driveName: name } = this.#getCidInfo(cidString)
-    const existingFile = this.#publishedFiles.find(f => f.cid === cidString)
+    const existingFile = this.#publishedFiles.find(
+      f => f.cid === cidString && this.#recordMatchesOwner(f, ownerAddress)
+    )
     if (existingFile) {
       return {
         available: true,
@@ -984,6 +998,11 @@ export class MostBoxEngine extends EventEmitter {
   listPublishedFiles(options = {}) {
     this.#ensureInitialized()
     let files = this.#publishedFiles
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+
+    if (ownerAddress) {
+      files = files.filter(f => this.#recordMatchesOwner(f, ownerAddress))
+    }
 
     if (options.starred === true) {
       files = files.filter(f => f.starred === true)
@@ -995,6 +1014,7 @@ export class MostBoxEngine extends EventEmitter {
       link: `most://${f.cid}?filename=${encodeURIComponent(f.fileName)}`,
       publishedAt: f.publishedAt,
       starred: f.starred || false,
+      ownerAddress: f.ownerAddress || '',
     }))
   }
 
@@ -1003,9 +1023,12 @@ export class MostBoxEngine extends EventEmitter {
    * @param {string} cid - 文件的 CID
    * @returns {object} 更新后的文件信息
    */
-  toggleStarred(cid) {
+  toggleStarred(cid, options = {}) {
     this.#ensureInitialized()
-    const index = this.#publishedFiles.findIndex(f => f.cid === cid)
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    const index = this.#publishedFiles.findIndex(
+      f => f.cid === cid && this.#recordMatchesOwner(f, ownerAddress)
+    )
     if (index === -1) {
       throw new Error('File not found')
     }
@@ -1022,9 +1045,12 @@ export class MostBoxEngine extends EventEmitter {
    * @param {string} cid - 要删除文件的 CID
    * @returns {Promise<Array>} 更新后的已发布文件列表
    */
-  async deletePublishedFile(cid) {
+  async deletePublishedFile(cid, options = {}) {
     this.#ensureInitialized()
-    const index = this.#publishedFiles.findIndex(f => f.cid === cid)
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    const index = this.#publishedFiles.findIndex(
+      f => f.cid === cid && this.#recordMatchesOwner(f, ownerAddress)
+    )
     if (index !== -1) {
       const fileRecord = this.#publishedFiles[index]
       const holding = this.#holdings.find(item => item.cid === fileRecord.cid)
@@ -1039,34 +1065,42 @@ export class MostBoxEngine extends EventEmitter {
         source: holding?.source || 'published',
         publishedAt: fileRecord.publishedAt,
         starred: fileRecord.starred || false,
+        ownerAddress: fileRecord.ownerAddress || ownerAddress,
         deletedAt: new Date().toISOString(),
       })
       this.#saveTrashMetadata()
 
-      await this.#leaveCidTopic(fileRecord.cid)
-      await this.#closeDriveForSeed(
-        fileRecord.driveName || this.#getCidInfo(fileRecord.cid).driveName
-      )
-      this.#removeHolding(fileRecord.cid)
-
       this.#publishedFiles.splice(index, 1)
       this.#savePublishedMetadata()
+
+      if (!this.#hasPublishedReference(fileRecord.cid)) {
+        await this.#leaveCidTopic(fileRecord.cid)
+        await this.#closeDriveForSeed(
+          fileRecord.driveName || this.#getCidInfo(fileRecord.cid).driveName
+        )
+        this.#removeHolding(fileRecord.cid)
+      }
     }
-    return this.listPublishedFiles()
+    return this.listPublishedFiles({ ownerAddress })
   }
 
   /**
    * 列出回收站中的所有文件
    * @returns {Array} 回收站文件
    */
-  listTrashFiles() {
+  listTrashFiles(options = {}) {
     this.#ensureInitialized()
-    return this.#trashFiles.map(f => ({
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    const files = ownerAddress
+      ? this.#trashFiles.filter(f => this.#recordMatchesOwner(f, ownerAddress))
+      : this.#trashFiles
+    return files.map(f => ({
       fileName: f.fileName,
       cid: f.cid,
       link: `most://${f.cid}?filename=${encodeURIComponent(f.fileName)}`,
       publishedAt: f.publishedAt,
       starred: f.starred || false,
+      ownerAddress: f.ownerAddress || '',
       deletedAt: f.deletedAt,
     }))
   }
@@ -1076,9 +1110,12 @@ export class MostBoxEngine extends EventEmitter {
    * @param {string} cid - 要恢复文件的 CID
    * @returns {Promise<Array>} 更新后的已发布文件列表
    */
-  async restoreTrashFile(cid) {
+  async restoreTrashFile(cid, options = {}) {
     this.#ensureInitialized()
-    const index = this.#trashFiles.findIndex(f => f.cid === cid)
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    const index = this.#trashFiles.findIndex(
+      f => f.cid === cid && this.#recordMatchesOwner(f, ownerAddress)
+    )
     if (index === -1) {
       throw new Error('File not found in trash')
     }
@@ -1095,6 +1132,7 @@ export class MostBoxEngine extends EventEmitter {
       driveName,
       publishedAt: fileRecord.publishedAt,
       starred: fileRecord.starred || false,
+      ownerAddress: fileRecord.ownerAddress || ownerAddress,
     })
     this.#savePublishedMetadata()
 
@@ -1115,7 +1153,7 @@ export class MostBoxEngine extends EventEmitter {
       temporary: fileRecord.source === 'downloaded',
     })
 
-    return this.listPublishedFiles()
+    return this.listPublishedFiles({ ownerAddress })
   }
 
   /**
@@ -1123,41 +1161,60 @@ export class MostBoxEngine extends EventEmitter {
    * @param {string} cid - 要永久删除文件的 CID
    * @returns {Promise<Array>} 更新后的回收站列表
    */
-  async permanentDeleteTrashFile(cid) {
+  async permanentDeleteTrashFile(cid, options = {}) {
     this.#ensureInitialized()
-    const index = this.#trashFiles.findIndex(f => f.cid === cid)
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    const index = this.#trashFiles.findIndex(
+      f => f.cid === cid && this.#recordMatchesOwner(f, ownerAddress)
+    )
     if (index !== -1) {
       const fileRecord = this.#trashFiles[index]
       const driveName =
         fileRecord.driveName || this.#getCidInfo(fileRecord.cid).driveName
 
-      try {
-        const drive = await this.#getOrCreateDrive(driveName)
-        await drive.del('/' + fileRecord.cid)
-      } catch {
-        // 文件可能不存在于驱动器中
-      }
-      await this.#closeDriveForSeed(driveName)
-
-      await this.#leaveCidTopic(fileRecord.cid)
-      this.#removeHolding(fileRecord.cid)
       this.#trashFiles.splice(index, 1)
       this.#saveTrashMetadata()
+
+      if (!this.#hasAnyUserReference(fileRecord.cid)) {
+        try {
+          const drive = await this.#getOrCreateDrive(driveName)
+          await drive.del('/' + fileRecord.cid)
+        } catch {
+          // 文件可能不存在于驱动器中
+        }
+        await this.#closeDriveForSeed(driveName)
+        await this.#leaveCidTopic(fileRecord.cid)
+        this.#removeHolding(fileRecord.cid)
+      }
     }
-    return this.listTrashFiles()
+    return this.listTrashFiles({ ownerAddress })
   }
 
   /**
    * 清空回收站 — 永久删除所有回收站文件
    * @returns {Promise<Array>} 清空后的回收站列表
    */
-  async emptyTrash() {
+  async emptyTrash(options = {}) {
     this.#ensureInitialized()
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    const remainingTrash = []
+    const removedTrash = []
 
     for (const fileRecord of this.#trashFiles) {
+      if (ownerAddress && !this.#recordMatchesOwner(fileRecord, ownerAddress)) {
+        remainingTrash.push(fileRecord)
+        continue
+      }
+      removedTrash.push(fileRecord)
+    }
+
+    this.#trashFiles = remainingTrash
+    this.#saveTrashMetadata()
+
+    for (const fileRecord of removedTrash) {
+      if (this.#hasAnyUserReference(fileRecord.cid)) continue
       const driveName =
         fileRecord.driveName || this.#getCidInfo(fileRecord.cid).driveName
-
       try {
         const drive = await this.#getOrCreateDrive(driveName)
         await drive.del('/' + fileRecord.cid)
@@ -1169,18 +1226,16 @@ export class MostBoxEngine extends EventEmitter {
       this.#removeHolding(fileRecord.cid)
     }
 
-    this.#trashFiles = []
-    this.#saveTrashMetadata()
-
-    return []
+    return this.listTrashFiles({ ownerAddress })
   }
 
   /**
    * 获取存储统计信息
    * @returns {Promise<{ total: number, used: number, free: number, fileCount: number, trashCount: number }>}
    */
-  async getStorageStats() {
+  async getStorageStats(options = {}) {
     this.#ensureInitialized()
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
 
     let totalSize = 0
     let freeSize = 0
@@ -1231,8 +1286,15 @@ export class MostBoxEngine extends EventEmitter {
       total: totalSize,
       used: usedSize,
       free: freeSize,
-      fileCount: this.#publishedFiles.length,
-      trashCount: this.#trashFiles.length,
+      fileCount: ownerAddress
+        ? this.#publishedFiles.filter(f =>
+            this.#recordMatchesOwner(f, ownerAddress)
+          ).length
+        : this.#publishedFiles.length,
+      trashCount: ownerAddress
+        ? this.#trashFiles.filter(f => this.#recordMatchesOwner(f, ownerAddress))
+            .length
+        : this.#trashFiles.length,
     }
   }
 
@@ -1243,9 +1305,12 @@ export class MostBoxEngine extends EventEmitter {
    * @param {string} newFileName - 新文件路径
    * @returns {object} 更新后的文件信息
    */
-  moveFile(cid, newFileName) {
+  moveFile(cid, newFileName, options = {}) {
     this.#ensureInitialized()
-    const index = this.#publishedFiles.findIndex(f => f.cid === cid)
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    const index = this.#publishedFiles.findIndex(
+      f => f.cid === cid && this.#recordMatchesOwner(f, ownerAddress)
+    )
     if (index === -1) {
       throw new Error('File not found')
     }
@@ -1267,13 +1332,17 @@ export class MostBoxEngine extends EventEmitter {
    * @param {string} newPath - 新文件夹路径
    * @returns {object} 更新后的文件信息
    */
-  renameFolder(oldPath, newPath) {
+  renameFolder(oldPath, newPath, options = {}) {
     this.#ensureInitialized()
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
     const prefix = oldPath + '/'
     const updatedFiles = []
 
     for (const file of this.#publishedFiles) {
-      if (file.fileName.startsWith(prefix)) {
+      if (
+        file.fileName.startsWith(prefix) &&
+        this.#recordMatchesOwner(file, ownerAddress)
+      ) {
         const remainder = file.fileName.substring(prefix.length)
         const newFileName = sanitizeFilename(
           remainder ? newPath + '/' + remainder : newPath
@@ -1324,8 +1393,110 @@ export class MostBoxEngine extends EventEmitter {
     this.#options.maxFileSize = Math.floor(parsed)
   }
 
-  getPublishedFiles() {
-    return this.#publishedFiles
+  getPublishedFiles(options = {}) {
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    return ownerAddress
+      ? this.#publishedFiles.filter(f => this.#recordMatchesOwner(f, ownerAddress))
+      : this.#publishedFiles
+  }
+
+  listUsers() {
+    this.#ensureInitialized()
+    const users = new Map()
+    const ensure = address => {
+      const ownerAddress = normalizeOwnerAddress(address)
+      if (!ownerAddress) return null
+      if (!users.has(ownerAddress)) {
+        users.set(ownerAddress, {
+          address: ownerAddress,
+          fileCount: 0,
+          trashCount: 0,
+          cidCount: 0,
+          cids: new Set(),
+        })
+      }
+      return users.get(ownerAddress)
+    }
+
+    for (const file of this.#publishedFiles) {
+      const entry = ensure(file.ownerAddress)
+      if (!entry) continue
+      entry.fileCount += 1
+      entry.cids.add(file.cid)
+    }
+    for (const file of this.#trashFiles) {
+      const entry = ensure(file.ownerAddress)
+      if (!entry) continue
+      entry.trashCount += 1
+      entry.cids.add(file.cid)
+    }
+
+    return [...users.values()].map(user => ({
+      address: user.address,
+      fileCount: user.fileCount,
+      trashCount: user.trashCount,
+      cidCount: user.cids.size,
+    }))
+  }
+
+  async clearUserData(ownerAddressInput) {
+    this.#ensureInitialized()
+    const ownerAddress = normalizeOwnerAddress(ownerAddressInput)
+    if (!ownerAddress) {
+      throw new ValidationError('valid owner address is required')
+    }
+
+    const affectedCids = new Set()
+    const beforeFiles = this.#publishedFiles.length
+    const beforeTrash = this.#trashFiles.length
+
+    this.#publishedFiles = this.#publishedFiles.filter(file => {
+      if (this.#recordMatchesOwner(file, ownerAddress)) {
+        affectedCids.add(file.cid)
+        return false
+      }
+      return true
+    })
+    this.#trashFiles = this.#trashFiles.filter(file => {
+      if (this.#recordMatchesOwner(file, ownerAddress)) {
+        affectedCids.add(file.cid)
+        return false
+      }
+      return true
+    })
+    this.#channels = this.#channels
+      .map(channel => ({
+        ...channel,
+        members: Array.isArray(channel.members)
+          ? channel.members.filter(member => normalizeOwnerAddress(member) !== ownerAddress)
+          : [],
+      }))
+      .filter(channel => channel.members.length > 0)
+
+    this.#savePublishedMetadata()
+    this.#saveTrashMetadata()
+    this.#saveChannelsMetadata()
+
+    let removedReplicas = 0
+    for (const cid of affectedCids) {
+      if (this.#hasAnyUserReference(cid)) continue
+      const driveName = this.#getCidInfo(cid).driveName
+      try {
+        const drive = await this.#getOrCreateDrive(driveName)
+        await drive.del('/' + cid)
+      } catch {}
+      await this.#closeDriveForSeed(driveName)
+      await this.#leaveCidTopic(cid)
+      this.#removeHolding(cid)
+      removedReplicas += 1
+    }
+
+    return {
+      ownerAddress,
+      removedFiles: beforeFiles - this.#publishedFiles.length,
+      removedTrashFiles: beforeTrash - this.#trashFiles.length,
+      removedReplicas,
+    }
   }
 
   /**
@@ -1383,6 +1554,7 @@ export class MostBoxEngine extends EventEmitter {
       }
       const result = await this.downloadFile(input.link, input.taskId || null, {
         timeout: input.timeout,
+        ownerAddress: input.ownerAddress,
       })
       return {
         ...result,
@@ -1400,6 +1572,7 @@ export class MostBoxEngine extends EventEmitter {
     const link = `most://${cid}?filename=${encodeURIComponent(fileName)}`
     const result = await this.downloadFile(link, input.taskId || null, {
       timeout: input.timeout,
+      ownerAddress: input.ownerAddress,
     })
 
     return {
@@ -1447,10 +1620,13 @@ export class MostBoxEngine extends EventEmitter {
    * @param {number} [offset=0] - 读取起始位置
    * @param {number} [limit=10000] - 最大读取字节数
    */
-  async readFileContent(cid, offset = 0, limit = DEFAULT_READ_LIMIT) {
+  async readFileContent(cid, offset = 0, limit = DEFAULT_READ_LIMIT, options = {}) {
     this.#ensureInitialized()
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
 
-    const fileRecord = this.#publishedFiles.find(f => f.cid === cid)
+    const fileRecord = this.#publishedFiles.find(
+      f => f.cid === cid && this.#recordMatchesOwner(f, ownerAddress)
+    )
     if (!fileRecord) {
       throw new Error('File not found')
     }
@@ -1507,8 +1683,11 @@ export class MostBoxEngine extends EventEmitter {
    */
   async readFileRaw(cid, options = {}) {
     this.#ensureInitialized()
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
 
-    const fileRecord = this.#publishedFiles.find(f => f.cid === cid)
+    const fileRecord = this.#publishedFiles.find(
+      f => f.cid === cid && this.#recordMatchesOwner(f, ownerAddress)
+    )
     if (!fileRecord) {
       throw new Error('File not found')
     }
@@ -1592,8 +1771,9 @@ export class MostBoxEngine extends EventEmitter {
    * @param {string} [type='personal'] - 频道类型
    * @returns {Promise<{ name: string, key: string }>}
    */
-  async createChannel(name, type = 'personal') {
+  async createChannel(name, type = 'personal', options = {}) {
     this.#ensureInitialized()
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
 
     if (!CHANNEL_NAME_REGEX.test(name)) {
       throw new Error('频道名只能包含字母、数字、下划线和连字符')
@@ -1607,6 +1787,16 @@ export class MostBoxEngine extends EventEmitter {
 
     const existing = this.#channels.find(c => c.name === name)
     if (existing) {
+      if (
+        ownerAddress &&
+        !Array.isArray(existing.members)
+      ) {
+        existing.members = []
+      }
+      if (ownerAddress && !existing.members.includes(ownerAddress)) {
+        existing.members.push(ownerAddress)
+        this.#saveChannelsMetadata()
+      }
       return { name: existing.name, key: existing.coreKey }
     }
 
@@ -1633,6 +1823,8 @@ export class MostBoxEngine extends EventEmitter {
       coreKey: b4a.toString(core.key, 'hex'),
       createdAt: new Date().toISOString(),
       type,
+      ownerAddress,
+      members: ownerAddress ? [ownerAddress] : [],
     }
 
     this.#channels.push(channelInfo)
@@ -1654,11 +1846,19 @@ export class MostBoxEngine extends EventEmitter {
    * @param {string} [coreKey] - 频道的 coreKey（加入他人创建的频道时必填）
    * @returns {Promise<{ name: string, key: string }>}
    */
-  async joinChannel(name, coreKey = null) {
+  async joinChannel(name, coreKey = null, options = {}) {
     this.#ensureInitialized()
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
 
     const existing = this.#channels.find(c => c.name === name)
     if (existing) {
+      if (ownerAddress && !Array.isArray(existing.members)) {
+        existing.members = []
+      }
+      if (ownerAddress && !existing.members.includes(ownerAddress)) {
+        existing.members.push(ownerAddress)
+        this.#saveChannelsMetadata()
+      }
       return { name: existing.name, key: existing.coreKey }
     }
 
@@ -1692,6 +1892,8 @@ export class MostBoxEngine extends EventEmitter {
       coreKey,
       createdAt: new Date().toISOString(),
       type: 'group',
+      ownerAddress,
+      members: ownerAddress ? [ownerAddress] : [],
     }
 
     this.#channels.push(channelInfo)
@@ -1712,8 +1914,9 @@ export class MostBoxEngine extends EventEmitter {
    * @param {string} name - 频道名
    * @returns {Promise<string[]>} 剩余频道列表
    */
-  async leaveChannel(name) {
+  async leaveChannel(name, options = {}) {
     this.#ensureInitialized()
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
 
     const index = this.#channels.findIndex(c => c.name === name)
     if (index === -1) {
@@ -1721,6 +1924,15 @@ export class MostBoxEngine extends EventEmitter {
     }
 
     const channel = this.#channels[index]
+    if (ownerAddress && Array.isArray(channel.members)) {
+      channel.members = channel.members.filter(
+        member => normalizeOwnerAddress(member) !== ownerAddress
+      )
+      if (channel.members.length > 0) {
+        this.#saveChannelsMetadata()
+        return this.listChannels({ ownerAddress })
+      }
+    }
 
     const appDiscovery = this.#channelDiscoveries.get(name)
     if (appDiscovery && this.#swarm) {
@@ -1765,17 +1977,23 @@ export class MostBoxEngine extends EventEmitter {
     console.log(`[MostBox] Left channel: ${name}`)
     this.emit('channel:left', { name })
 
-    return this.listChannels()
+    return this.listChannels({ ownerAddress })
   }
 
   /**
    * 列出所有频道
    * @returns {Array<{ name: string, coreKey: string, createdAt: string, type: string, peerCount: number }>}
    */
-  listChannels() {
+  listChannels(options = {}) {
     this.#ensureInitialized()
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
 
-    return this.#channels.map(c => ({
+    return this.#channels
+      .filter(c => {
+        if (!ownerAddress) return true
+        return Array.isArray(c.members) && c.members.includes(ownerAddress)
+      })
+      .map(c => ({
       name: c.name,
       coreKey: c.coreKey,
       createdAt: c.createdAt,
@@ -2169,6 +2387,23 @@ export class MostBoxEngine extends EventEmitter {
     await drive.close()
     this.#drives.delete(driveName)
     return drive
+  }
+
+  #recordMatchesOwner(record, ownerAddress) {
+    const normalizedOwner = normalizeOwnerAddress(ownerAddress)
+    if (!normalizedOwner) return !record.ownerAddress
+    return normalizeOwnerAddress(record.ownerAddress) === normalizedOwner
+  }
+
+  #hasPublishedReference(cid) {
+    return this.#publishedFiles.some(file => file.cid === cid)
+  }
+
+  #hasAnyUserReference(cid) {
+    return (
+      this.#publishedFiles.some(file => file.cid === cid) ||
+      this.#trashFiles.some(file => file.cid === cid)
+    )
   }
 
   async #getOrCreateDrive(name, _options = { server: true, client: false }) {

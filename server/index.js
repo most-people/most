@@ -12,27 +12,48 @@ import { serve } from '@hono/node-server'
 import { MostBoxEngine } from './src/index.js'
 import { parseMostLink, validateCidString } from './src/core/cid.js'
 import { sanitizeFilename } from './src/utils/security.js'
+import {
+  normalizeAddress,
+  parseInviteList,
+  verifyAuthHeader,
+} from './src/utils/auth.js'
 import { MAX_FILE_SIZE } from './src/config.js'
 import {
+  DEFAULT_NODE_HOST,
+  DEFAULT_NODE_PORT,
   createNodeConfigStore,
   evaluateStorageLimits,
+  normalizeNodeHost,
+  normalizeRemoteInvites,
 } from './src/node/config.js'
 import { createNodeLogger } from './src/node/logs.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const PORT = Number(process.env.MOSTBOX_PORT || process.env.PORT) || 1976
-const HOST = process.env.MOSTBOX_HOST || '0.0.0.0'
 
 const UPLOAD_TMP_DIR = path.join(os.tmpdir(), 'most-box-uploads')
 
 const RATE_LIMIT_WINDOW = 60 * 1000
 const RATE_LIMIT_MAX_REQUESTS = 120
+const DEFAULT_ALLOWED_ORIGINS = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'https://most.box',
+  'https://most-people.com',
+]
 
 // --- 配置 ---
 const defaultConfigStore = createNodeConfigStore()
 const defaultNodeLogger = createNodeLogger(defaultConfigStore.configDir)
 const CONFIG_DIR = defaultConfigStore.configDir
 const PACKAGE_JSON = readPackageJson()
+const PORT =
+  Number(process.env.MOSTBOX_PORT || process.env.PORT) ||
+  defaultConfigStore.getNodeConfig().port ||
+  DEFAULT_NODE_PORT
+const HOST = normalizeNodeHost(
+  process.env.MOSTBOX_HOST || defaultConfigStore.getNodeConfig().host,
+  DEFAULT_NODE_HOST
+)
 
 function getApiErrorStatus(err) {
   switch (err.code) {
@@ -103,7 +124,17 @@ function resolveDataPathForSave(inputPath) {
   return { dataPath }
 }
 
-function getNetworkAddresses(appPort) {
+function getNetworkAddresses(appPort, host = DEFAULT_NODE_HOST) {
+  const localEntry = {
+    type: 'local',
+    ip: 'localhost',
+    label: '本机',
+    iface: 'loopback',
+  }
+  if (!isPublicListenHost(host)) {
+    return { port: appPort, addresses: [localEntry] }
+  }
+
   const interfaces = os.networkInterfaces()
   const addresses = []
   const seen = new Set()
@@ -131,17 +162,13 @@ function getNetworkAddresses(appPort) {
     }
   }
 
-  const localEntry = {
-    type: 'local',
-    ip: 'localhost',
-    label: '本机',
-    iface: 'loopback',
-  }
   return { port: appPort, addresses: [localEntry, ...addresses] }
 }
 
 async function buildNodeStatus(engine, configStore, appPort, host) {
   const config = configStore.getNodeConfig()
+  const { remoteInvites, ...publicConfig } = config
+  const remoteInviteCount = remoteInvites.length
   const storage = await engine.getStorageStats()
   const network = engine.getNetworkStatus()
   const holdings = engine.listHoldings()
@@ -153,9 +180,13 @@ async function buildNodeStatus(engine, configStore, appPort, host) {
     nodeId: engine.getNodeId(),
     host,
     port: appPort,
-    listen: getNetworkAddresses(appPort),
+    listen: getNetworkAddresses(appPort, host),
     dataPath: getDataPath(configStore),
-    config,
+    config: {
+      ...publicConfig,
+      remoteInviteCount,
+      remoteInviteConfigured: remoteInviteCount > 0,
+    },
     policy: {
       maxFileSizeBytes: config.maxFileSizeBytes,
     },
@@ -231,12 +262,6 @@ function buildOpenApiSpec(appPort) {
           responses: { 200: { description: 'Logs cleared' } },
         },
       },
-      '/api/storage': {
-        get: {
-          summary: 'Get storage statistics',
-          responses: { 200: { description: 'Storage statistics' } },
-        },
-      },
       '/api/p2p/pull': {
         post: {
           summary: 'Pull a full file replica by CID',
@@ -245,6 +270,130 @@ function buildOpenApiSpec(appPort) {
       },
     },
   }
+}
+
+function getAllowedOrigins(appPort) {
+  const configured = String(process.env.MOSTBOX_ALLOWED_ORIGINS || '')
+    .split(',')
+    .map(item => item.trim())
+    .filter(Boolean)
+  return [
+    ...new Set([
+      ...DEFAULT_ALLOWED_ORIGINS,
+      ...configured,
+      `http://localhost:${appPort}`,
+      `http://127.0.0.1:${appPort}`,
+    ]),
+  ]
+}
+
+function getRequestPath(c) {
+  return new URL(c.req.url).pathname
+}
+
+function extractHostname(value) {
+  const input = String(value || '').trim()
+  if (!input) return ''
+
+  try {
+    return new URL(input.includes('://') ? input : `http://${input}`).hostname
+  } catch {
+    return ''
+  }
+}
+
+function isLocalHostname(hostname) {
+  const value = String(hostname || '').trim().toLowerCase()
+  return ['localhost', '127.0.0.1', '::1', '[::1]'].includes(value)
+}
+
+function isPublicListenHost(host) {
+  return !isLocalHostname(normalizeNodeHost(host, DEFAULT_NODE_HOST))
+}
+
+function isExternalOrigin(origin) {
+  if (!origin) return false
+  const hostname = extractHostname(origin)
+  if (!hostname) {
+    return true
+  }
+  return !isLocalHostname(hostname)
+}
+
+function isLocalRequestHost(hostHeader) {
+  const hostname = extractHostname(hostHeader)
+  if (!hostname) {
+    return false
+  }
+  return isLocalHostname(hostname)
+}
+
+function isLoopbackRemoteAddress(address) {
+  const value = String(address || '').trim().toLowerCase()
+  return (
+    value === 'localhost' ||
+    value === '::1' ||
+    value === '::ffff:localhost' ||
+    value === '127.0.0.1' ||
+    value === '::ffff:127.0.0.1' ||
+    value.startsWith('127.') ||
+    value.startsWith('::ffff:127.')
+  )
+}
+
+function isLocalRequest(c) {
+  const host = c.req.header('host')
+  if (host) {
+    return isLocalRequestHost(host)
+  }
+  const clientIp =
+    c.req.header('x-forwarded-for') ||
+    c.env?.incoming?.socket?.remoteAddress ||
+    ''
+  return isLoopbackRemoteAddress(clientIp)
+}
+
+function isLocalUpgradeRequest(req) {
+  if (req.headers.host) {
+    return isLocalRequestHost(req.headers.host)
+  }
+  return isLoopbackRemoteAddress(req.socket?.remoteAddress)
+}
+
+function isRemoteAccessRequest({ invite, origin, listenHost, local }) {
+  return (
+    Boolean(invite) ||
+    isExternalOrigin(origin) ||
+    (isPublicListenHost(listenHost) && !local)
+  )
+}
+
+function remoteInviteConfigured(inviteSet) {
+  return inviteSet.size > 0
+}
+
+function hasValidInvite(inviteSet, invite) {
+  const code = String(invite || '').trim()
+  return remoteInviteConfigured(inviteSet) && code && inviteSet.has(code)
+}
+
+function getInvalidInviteResponse(c) {
+  return c.json(
+    {
+      error: 'Remote node invite required',
+      code: 'INVALID_INVITE',
+    },
+    403
+  )
+}
+
+function getLocalhostDisplayUrl(host, port) {
+  if (isLocalHostname(host)) return `http://localhost:${port}`
+  return `http://localhost:${port}`
+}
+
+function shouldOpenBrowserForHost(host) {
+  return isLocalHostname(host)
 }
 
 // --- 静态文件服务 ---
@@ -394,6 +543,13 @@ export function createApp(engine, options = {}) {
     options.nodeLogger || createNodeLogger(configStore.configDir || CONFIG_DIR)
   const wssRef = options.wssRef || { current: null }
   const serverInstanceRef = options.serverInstanceRef || { current: null }
+  function getRemoteInviteSet() {
+    const invites =
+      options.remoteInvites === undefined
+        ? configStore.getNodeConfig().remoteInvites
+        : normalizeRemoteInvites(options.remoteInvites)
+    return new Set(invites)
+  }
 
   // 速率限制（每个 app 实例独立）
   const rateLimitMap = new Map()
@@ -425,6 +581,75 @@ export function createApp(engine, options = {}) {
       if (!checkRateLimit(clientIp)) {
         return c.json({ error: 'Too many requests' }, 429)
       }
+      await next()
+    }
+  }
+
+  function isValidInvite(c) {
+    const invite = String(c.req.header('x-mostbox-invite') || '').trim()
+    return hasValidInvite(getRemoteInviteSet(), invite)
+  }
+
+  function isRemoteRequest(c) {
+    return isRemoteAccessRequest({
+      invite: c.req.header('x-mostbox-invite'),
+      origin: c.req.header('origin'),
+      listenHost: appHost,
+      local: isLocalRequest(c),
+    })
+  }
+
+  function requiresUserAuth(path) {
+    return (
+      path === '/api/files' ||
+      path === '/api/publish' ||
+      path === '/api/download/check' ||
+      path === '/api/download' ||
+      path === '/api/download/cancel' ||
+      path === '/api/trash' ||
+      path === '/api/move' ||
+      path === '/api/folder/rename' ||
+      path.startsWith('/api/files/') ||
+      path.startsWith('/api/trash/') ||
+      path.startsWith('/api/channels')
+    )
+  }
+
+  function isAdminApi(path) {
+    return (
+      path.startsWith('/api/admin/') ||
+      path === '/api/node/config' ||
+      path === '/api/node/policy' ||
+      path === '/api/node/logs' ||
+      path === '/api/shutdown'
+    )
+  }
+
+  function authMiddleware() {
+    return async (c, next) => {
+      const path = getRequestPath(c)
+
+      if (isRemoteRequest(c) && !isValidInvite(c)) {
+        return getInvalidInviteResponse(c)
+      }
+
+      if (isRemoteRequest(c) && isAdminApi(path)) {
+        return c.json({ error: 'Remote users cannot access node administration', code: 'REMOTE_ADMIN_FORBIDDEN' }, 403)
+      }
+
+      const authHeader = c.req.header('authorization')
+      if (authHeader) {
+        const auth = verifyAuthHeader(authHeader, c.req.method, path)
+        if (!auth.ok) {
+          return c.json({ error: auth.error, code: 'UNAUTHORIZED' }, 401)
+        }
+        c.set('userAddress', auth.address)
+      }
+
+      if (requiresUserAuth(path) && !c.get('userAddress')) {
+        return c.json({ error: 'Login required', code: 'LOGIN_REQUIRED' }, 401)
+      }
+
       await next()
     }
   }
@@ -530,19 +755,14 @@ export function createApp(engine, options = {}) {
   app.use(
     '/api/*',
     cors({
-      origin: [
-        'http://localhost:3000',
-        'http://127.0.0.1:3000',
-        'https://most.box',
-        `http://localhost:${appPort}`,
-        `http://127.0.0.1:${appPort}`,
-      ],
+      origin: getAllowedOrigins(appPort),
       credentials: true,
     })
   )
 
   // 速率限制中间件
   app.use('/api/*', rateLimitMiddleware())
+  app.use('/api/*', authMiddleware())
 
   // 全局错误处理
   app.onError((err, c) => {
@@ -564,6 +784,19 @@ export function createApp(engine, options = {}) {
   // --- 配置路由 ---
   app.get('/api/node-id', c => {
     return c.json({ id: engine.getNodeId() })
+  })
+
+  app.get('/api/remote/capabilities', c => {
+    const remoteInviteSet = getRemoteInviteSet()
+    return c.json({
+      remoteAccess: isPublicListenHost(appHost) && remoteInviteConfigured(remoteInviteSet),
+      inviteRequired: true,
+      inviteConfigured: remoteInviteConfigured(remoteInviteSet),
+      authenticated: Boolean(c.get('userAddress')),
+      userAddress: c.get('userAddress') || null,
+      adminAvailable: !isRemoteRequest(c),
+      listenHost: appHost,
+    })
   })
 
   app.get('/api/config', c => {
@@ -618,6 +851,12 @@ export function createApp(engine, options = {}) {
       configuredDataPath: config.dataPath,
       isDefaultDataPath: !config.dataPath && !process.env.MOSTBOX_DATA_PATH,
       envDataPath: process.env.MOSTBOX_DATA_PATH || null,
+      currentHost: appHost,
+      envHost: process.env.MOSTBOX_HOST || null,
+      currentPort: appPort,
+      envPort: process.env.MOSTBOX_PORT || process.env.PORT || null,
+      remoteInvites: config.remoteInvites,
+      envRemoteInvites: parseInviteList(process.env.MOSTBOX_REMOTE_INVITES),
     })
   })
 
@@ -640,7 +879,9 @@ export function createApp(engine, options = {}) {
       message: 'Node daemon config updated',
       data: {
         dataPath: getDataPath(configStore),
+        port: config.port,
         capacityBytes: config.capacityBytes,
+        remoteInviteCount: config.remoteInvites.length,
       },
     })
     await broadcastNodeStatus()
@@ -691,6 +932,29 @@ export function createApp(engine, options = {}) {
     const clearedAt = new Date().toISOString()
     wsBroadcast('node:logs:cleared', { clearedAt })
     return c.json({ success, clearedAt })
+  })
+
+  app.get('/api/admin/users', c => {
+    return c.json({ users: engine.listUsers() })
+  })
+
+  app.delete('/api/admin/users/:address/data', async c => {
+    const address = normalizeAddress(c.req.param('address'))
+    if (!address) {
+      return c.json({ error: 'valid address is required' }, 400)
+    }
+    try {
+      const result = await engine.clearUserData(address)
+      appendNodeLog({
+        event: 'node:user-data:cleared',
+        message: 'User data cleared',
+        data: result,
+      })
+      await broadcastNodeStatus()
+      return c.json({ success: true, ...result })
+    } catch (err) {
+      return errorJson(c, err)
+    }
   })
 
   app.get('/api/openapi.json', c => {
@@ -760,7 +1024,9 @@ export function createApp(engine, options = {}) {
 
   // --- 文件路由 ---
   app.get('/api/files', c => {
-    return c.json(engine.listPublishedFiles())
+    return c.json(
+      engine.listPublishedFiles({ ownerAddress: c.get('userAddress') })
+    )
   })
 
   app.post('/api/publish', async c => {
@@ -778,7 +1044,7 @@ export function createApp(engine, options = {}) {
       const publishResult = await engine.publishFile(
         result.filePath,
         result.filename,
-        { localPath: null }
+        { localPath: null, ownerAddress: c.get('userAddress') }
       )
       return c.json({ success: true, ...publishResult })
     } finally {
@@ -798,7 +1064,7 @@ export function createApp(engine, options = {}) {
     }
 
     const existingFile = engine
-      .getPublishedFiles()
+      .getPublishedFiles({ ownerAddress: c.get('userAddress') })
       .find(f => f.cid === parsed.cid)
     if (existingFile) {
       return c.json({
@@ -822,7 +1088,9 @@ export function createApp(engine, options = {}) {
     }
 
     try {
-      const result = await engine.checkDownloadAvailability(body.link)
+      const result = await engine.checkDownloadAvailability(body.link, {
+        ownerAddress: c.get('userAddress'),
+      })
       return c.json({ success: true, ...result })
     } catch (err) {
       return errorJson(c, err)
@@ -843,12 +1111,14 @@ export function createApp(engine, options = {}) {
     }
 
     const existingFile = engine
-      .getPublishedFiles()
+      .getPublishedFiles({ ownerAddress: c.get('userAddress') })
       .find(f => f.cid === parsed.cid)
     if (existingFile) {
       console.log(`[MostBox] File already exists: ${existingFile.fileName}`)
       try {
-        const result = await engine.downloadFile(body.link, taskId)
+        const result = await engine.downloadFile(body.link, taskId, {
+          ownerAddress: c.get('userAddress'),
+        })
         return c.json({ success: true, ...result })
       } catch (err) {
         return errorJson(c, err)
@@ -865,13 +1135,15 @@ export function createApp(engine, options = {}) {
       )
     }
 
-    engine.downloadFile(body.link, taskId).catch(err => {
-      if (err.message === 'Download cancelled') {
-        wsBroadcast('download:cancelled', { taskId })
-      } else {
-        wsBroadcast('download:error', { taskId, error: err.message })
-      }
-    })
+    engine
+      .downloadFile(body.link, taskId, { ownerAddress: c.get('userAddress') })
+      .catch(err => {
+        if (err.message === 'Download cancelled') {
+          wsBroadcast('download:cancelled', { taskId })
+        } else {
+          wsBroadcast('download:error', { taskId, error: err.message })
+        }
+      })
 
     return c.json({ success: true, taskId })
   })
@@ -891,7 +1163,9 @@ export function createApp(engine, options = {}) {
     if (!cidValidation.valid) {
       return c.json({ error: cidValidation.error }, 400)
     }
-    const result = await engine.deletePublishedFile(cid)
+    const result = await engine.deletePublishedFile(cid, {
+      ownerAddress: c.get('userAddress'),
+    })
     return c.json(result)
   })
 
@@ -913,7 +1187,9 @@ export function createApp(engine, options = {}) {
       return c.json({ error: 'Invalid filename' }, 400)
     }
     try {
-      const result = engine.moveFile(body.cid, cleanFileName)
+      const result = engine.moveFile(body.cid, cleanFileName, {
+        ownerAddress: c.get('userAddress'),
+      })
       return c.json({ success: true, ...result })
     } catch (err) {
       return c.json({ error: err.message }, 400)
@@ -938,7 +1214,11 @@ export function createApp(engine, options = {}) {
           const offset = start
           const limit = end !== undefined ? end - start + 1 : undefined
 
-          const result = await engine.readFileRaw(cid, { offset, limit })
+          const result = await engine.readFileRaw(cid, {
+            offset,
+            limit,
+            ownerAddress: c.get('userAddress'),
+          })
           const contentType = getMimeType(result.fileName)
 
           c.header('Content-Type', contentType)
@@ -953,7 +1233,9 @@ export function createApp(engine, options = {}) {
         }
       }
 
-      const result = await engine.readFileRaw(cid)
+      const result = await engine.readFileRaw(cid, {
+        ownerAddress: c.get('userAddress'),
+      })
       const contentType = getMimeType(result.fileName)
       c.header('Content-Type', contentType)
       c.header('Content-Length', String(result.totalSize))
@@ -973,7 +1255,7 @@ export function createApp(engine, options = {}) {
 
   // --- 回收站路由 ---
   app.get('/api/trash', c => {
-    return c.json(engine.listTrashFiles())
+    return c.json(engine.listTrashFiles({ ownerAddress: c.get('userAddress') }))
   })
 
   app.post('/api/trash/:cid/restore', async c => {
@@ -983,7 +1265,9 @@ export function createApp(engine, options = {}) {
       return c.json({ error: cidValidation.error }, 400)
     }
     try {
-      const result = await engine.restoreTrashFile(cid)
+      const result = await engine.restoreTrashFile(cid, {
+        ownerAddress: c.get('userAddress'),
+      })
       return c.json({ success: true, files: result })
     } catch (err) {
       return c.json({ error: err.message }, 400)
@@ -996,12 +1280,16 @@ export function createApp(engine, options = {}) {
     if (!cidValidation.valid) {
       return c.json({ error: cidValidation.error }, 400)
     }
-    const result = await engine.permanentDeleteTrashFile(cid)
+    const result = await engine.permanentDeleteTrashFile(cid, {
+      ownerAddress: c.get('userAddress'),
+    })
     return c.json({ success: true, trashFiles: result })
   })
 
   app.delete('/api/trash', async c => {
-    const result = await engine.emptyTrash()
+    const result = await engine.emptyTrash({
+      ownerAddress: c.get('userAddress'),
+    })
     return c.json({ success: true, trashFiles: result })
   })
 
@@ -1013,17 +1301,13 @@ export function createApp(engine, options = {}) {
       return c.json({ error: cidValidation.error }, 400)
     }
     try {
-      const result = engine.toggleStarred(cid)
+      const result = engine.toggleStarred(cid, {
+        ownerAddress: c.get('userAddress'),
+      })
       return c.json({ success: true, ...result })
     } catch (err) {
       return c.json({ error: err.message }, 400)
     }
-  })
-
-  // --- 存储路由 ---
-  app.get('/api/storage', async c => {
-    const result = await engine.getStorageStats()
-    return c.json(result)
   })
 
   // --- 显示名路由 ---
@@ -1056,7 +1340,8 @@ export function createApp(engine, options = {}) {
     try {
       const result = await engine.createChannel(
         body.name.trim(),
-        body.type || 'personal'
+        body.type || 'personal',
+        { ownerAddress: c.get('userAddress') }
       )
       return c.json({ success: true, ...result })
     } catch (err) {
@@ -1065,13 +1350,15 @@ export function createApp(engine, options = {}) {
   })
 
   app.get('/api/channels', c => {
-    return c.json(engine.listChannels())
+    return c.json(engine.listChannels({ ownerAddress: c.get('userAddress') }))
   })
 
   app.delete('/api/channels/:name', async c => {
     const name = c.req.param('name')
     try {
-      const result = await engine.leaveChannel(name)
+      const result = await engine.leaveChannel(name, {
+        ownerAddress: c.get('userAddress'),
+      })
       return c.json({ success: true, channels: result })
     } catch (err) {
       return c.json({ error: err.message }, 400)
@@ -1135,7 +1422,9 @@ export function createApp(engine, options = {}) {
       return c.json({ error: 'Path traversal not allowed' }, 400)
     }
     try {
-      const result = engine.renameFolder(body.oldPath, body.newPath)
+      const result = engine.renameFolder(body.oldPath, body.newPath, {
+        ownerAddress: c.get('userAddress'),
+      })
       return c.json({ success: true, ...result })
     } catch (err) {
       return c.json({ error: err.message }, 400)
@@ -1145,14 +1434,7 @@ export function createApp(engine, options = {}) {
   // --- 关机路由 ---
   app.post('/api/shutdown', c => {
     const clientIp = c.env.incoming?.socket?.remoteAddress || 'unknown'
-    const isLocalhost =
-      clientIp === 'localhost' ||
-      clientIp === '::1' ||
-      clientIp === '::ffff:localhost' ||
-      clientIp === '127.0.0.1' ||
-      clientIp === '::ffff:127.0.0.1' ||
-      clientIp.startsWith('::ffff:127.')
-    if (!isLocalhost) {
+    if (!isLoopbackRemoteAddress(clientIp)) {
       return c.json({ error: 'Forbidden' }, 403)
     }
     c.json({ success: true })
@@ -1359,10 +1641,11 @@ export async function main() {
   serverInstanceRef.current = serve(
     { fetch: app.fetch, port: PORT, hostname: HOST },
     () => {
-      const displayUrl = `http://localhost:${PORT}`
+      const displayUrl = getLocalhostDisplayUrl(HOST, PORT)
       console.log(`[MostBox] Server running at ${displayUrl}`)
 
       if (process.env.ELECTRON_APP) return
+      if (!shouldOpenBrowserForHost(HOST)) return
 
       if (process.platform === 'win32') {
         spawn('cmd.exe', ['/c', 'start', '', displayUrl], {
@@ -1411,8 +1694,39 @@ export async function main() {
     })
   })
 
+  function validateWebSocketRequest(req) {
+    const url = new URL(req.url, `http://localhost:${PORT}`)
+    const invite = String(url.searchParams.get('invite') || '').trim()
+    const remote = isRemoteAccessRequest({
+      invite,
+      origin: req.headers.origin,
+      listenHost: HOST,
+      local: isLocalUpgradeRequest(req),
+    })
+    if (!remote) return true
+
+    const wsInviteSet = new Set(configStore.getNodeConfig().remoteInvites)
+    if (!hasValidInvite(wsInviteSet, invite)) {
+      return false
+    }
+
+    const address = url.searchParams.get('address') || ''
+    const timestamp = url.searchParams.get('timestamp') || ''
+    const signature = url.searchParams.get('signature') || ''
+    const auth = verifyAuthHeader(
+      `${address},${timestamp},${signature}`,
+      'GET',
+      '/ws'
+    )
+    return auth.ok
+  }
+
   serverInstanceRef.current.on('upgrade', (req, socket, head) => {
     if (req.url.startsWith('/ws')) {
+      if (!validateWebSocketRequest(req)) {
+        socket.destroy()
+        return
+      }
       wssRef.current.handleUpgrade(req, socket, head, ws => {
         wssRef.current.emit('connection', ws, req)
       })

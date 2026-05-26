@@ -28,19 +28,24 @@ import {
   Info,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
+import SidebarAccount from '~/components/SidebarAccount'
 import { ModalOverlay, ConfirmModal, InputModal } from '~/components/ui'
 import {
   api,
   getApiErrorMessage,
   getApiErrorPayload,
   getApiUrl,
-  getWebSocketUrl,
+  getApiRequestHeaders,
+  getAuthenticatedWebSocketUrl,
+  getBackendUrlExport,
+  getRemoteBackendUrlExport,
 } from '~/server/src/utils/api'
 import {
   getDownloadCheckErrorMessageFromPayload,
   getDownloadLinkValidationMessage,
 } from '~/server/src/utils/downloadMessages.js'
 import { useAppStore } from '~/app/app/useAppStore'
+import { useUserStore } from '~/app/app/userStore'
 import { useDisclosure, useClipboard } from '~/hooks'
 import Link from 'next/link'
 
@@ -82,14 +87,6 @@ type DownloadCheckResult = {
   message: string
 }
 
-interface StorageStats {
-  total: number
-  used: number
-  free: number
-  fileCount: number
-  trashCount: number
-}
-
 async function getDownloadCheckErrorMessage(err: unknown) {
   const data = await getApiErrorPayload(err)
   const errorName =
@@ -108,7 +105,6 @@ const API = {
   emptyTrash: () => api.delete('/api/trash').json(),
   toggleStar: cid =>
     api.post<ToggleStarResponse>(`/api/files/${cid}/star`).json(),
-  getStorageStats: () => api.get<StorageStats>('/api/storage').json(),
   getConfig: () => api.get('/api/config').json<any>(),
   getDataPath: () => api.get<DataPathResponse>('/api/config/data-path').json(),
   getNetworkAddresses: () => api.get<NetworkResponse>('/api/network').json(),
@@ -197,14 +193,6 @@ const DEMO_FILES = [
     starred: false,
   },
 ]
-
-const DEMO_STORAGE = {
-  total: 107374182400,
-  used: 8053063680,
-  free: 99321118720,
-  fileCount: 42,
-  trashCount: 3,
-}
 
 function formatSize(bytes) {
   if (!bytes || bytes <= 0) return '0 B'
@@ -488,6 +476,9 @@ export default function App() {
   const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
   const addToast = useAppStore(s => s.addToast)
   const hasBackend = useAppStore(s => s.hasBackend)
+  const openSettings = useAppStore(s => s.openSettings)
+  const userIdentity = useUserStore(s => s.identity)
+  const openLoginModal = useUserStore(s => s.openLoginModal)
   const [items, setItems] = useState([])
   const [trashItems, setTrashItems] = useState([])
   const [currentFolderId, setCurrentFolderId] = useState(null)
@@ -505,17 +496,13 @@ export default function App() {
   const [isTransferPanelOpen, transferPanel] = useDisclosure(false)
   const [searchQuery, setSearchQuery] = useState('')
   const { copy: copyLink, copied: linkCopied } = useClipboard({ timeout: 2000 })
-  const [storageStats, setStorageStats] = useState({
-    total: 0,
-    used: 0,
-    free: 0,
-  })
   const [isMoveModalOpen, moveModal] = useDisclosure(false)
   const [confirmModal, setConfirmModal] = useState(null)
   const [inputModal, setInputModal] = useState(null)
   const [inputLoading, setInputLoading] = useState(false)
   const [previewText, setPreviewText] = useState('')
   const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewBlobUrl, setPreviewBlobUrl] = useState('')
 
   useEffect(() => {
     if (previewItem && previewItem.subtype === 'text') {
@@ -524,9 +511,45 @@ export default function App() {
     }
   }, [previewItem?.cid])
 
+  useEffect(() => {
+    if (
+      !previewItem ||
+      !['image', 'video', 'audio'].includes(previewItem.subtype)
+    ) {
+      setPreviewBlobUrl('')
+      return
+    }
+
+    setPreviewBlobUrl('')
+    let revokedUrl = ''
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch(API.getFileDownloadUrl(previewItem.cid), {
+          headers: await getApiRequestHeaders(
+            'GET',
+            `/api/files/${previewItem.cid}/download`
+          ),
+        })
+        if (!res.ok) throw new Error('加载失败')
+        const url = URL.createObjectURL(await res.blob())
+        revokedUrl = url
+        if (!cancelled) setPreviewBlobUrl(url)
+      } catch {
+        if (!cancelled) setPreviewBlobUrl('')
+      }
+    })()
+
+    return () => {
+      cancelled = true
+      if (revokedUrl) URL.revokeObjectURL(revokedUrl)
+    }
+  }, [previewItem?.cid, previewItem?.subtype])
+
   const currentPath = currentFolderId || ''
   const allFolders = getUniqueFolders(items)
   const { folders, files } = getItemsForPath(items, allFolders, currentPath)
+  const remoteBackendUrl = getRemoteBackendUrlExport()
 
   const filteredFiles = searchQuery
     ? items.filter(f =>
@@ -537,6 +560,10 @@ export default function App() {
     : files
 
   const refreshFiles = async () => {
+    if (!userIdentity) {
+      setItems([])
+      return
+    }
     try {
       const result = await API.listPublishedFiles()
       setItems(result || [])
@@ -545,6 +572,10 @@ export default function App() {
     }
   }
   const refreshTrash = async () => {
+    if (!userIdentity) {
+      setTrashItems([])
+      return
+    }
     try {
       const result = await API.listTrashFiles()
       setTrashItems(result || [])
@@ -552,15 +583,6 @@ export default function App() {
       setTrashItems([])
     }
   }
-  const refreshStorageStats = async () => {
-    try {
-      const result = await API.getStorageStats()
-      setStorageStats(result)
-    } catch {
-      setStorageStats(DEMO_STORAGE)
-    }
-  }
-
   const handleSelect = id => {
     setSelectedIds(prev =>
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
@@ -573,7 +595,6 @@ export default function App() {
       addToast('已恢复', 'success')
       refreshFiles()
       refreshTrash()
-      refreshStorageStats()
     } catch (err) {
       addToast(await getApiErrorMessage(err, '恢复失败'), 'error')
     }
@@ -591,7 +612,6 @@ export default function App() {
           await API.emptyTrash()
           addToast('回收站已清空', 'success')
           refreshTrash()
-          refreshStorageStats()
         } catch (err) {
           addToast(await getApiErrorMessage(err, '清空失败'), 'error')
         }
@@ -634,7 +654,6 @@ export default function App() {
           addToast(isTrash ? '已永久删除' : '已删除', 'success')
           refreshFiles()
           refreshTrash()
-          refreshStorageStats()
         } catch (err) {
           addToast(await getApiErrorMessage(err, '删除失败'), 'error')
         }
@@ -701,6 +720,22 @@ export default function App() {
   }
 
   const processFiles = async (files: FileList) => {
+    if (!userIdentity) {
+      openLoginModal()
+      addToast('请先登录后发布文件', 'warning')
+      return
+    }
+    const backendUrl = getBackendUrlExport()
+    const isRemoteBackend =
+      backendUrl &&
+      !backendUrl.includes('localhost') &&
+      !backendUrl.includes('127.0.0.1')
+    if (isRemoteBackend) {
+      const confirmed = window.confirm(
+        '远程节点会保存你上传的完整文件，默认不加密。私密文件请先自行加密后再发布。'
+      )
+      if (!confirmed) return
+    }
     const prefix = currentPath ? currentPath + '/' : ''
     const newTransfers = []
 
@@ -768,14 +803,19 @@ export default function App() {
     }, 3000)
 
     refreshFiles()
-    refreshStorageStats()
   }
 
   const loadPreviewText = async cid => {
     setPreviewLoading(true)
     try {
       const res = await fetch(API.getFileDownloadUrl(cid), {
-        headers: { Range: 'bytes=0-9999' },
+        headers: {
+          ...(await getApiRequestHeaders(
+            'GET',
+            `/api/files/${cid}/download`
+          )),
+          Range: 'bytes=0-9999',
+        },
       })
       if (!res.ok) throw new Error('加载失败')
       const text = await res.text()
@@ -854,6 +894,11 @@ export default function App() {
   }
 
   const handleDownloadSharedFile = async () => {
+    if (!userIdentity) {
+      openLoginModal()
+      addToast('请先登录后下载文件', 'warning')
+      return
+    }
     const validationMessage = getDownloadLinkValidationMessage(
       normalizedDownloadLink
     )
@@ -917,7 +962,12 @@ export default function App() {
 
   const handleSaveAs = async file => {
     try {
-      const res = await fetch(API.getFileDownloadUrl(file.cid))
+      const res = await fetch(API.getFileDownloadUrl(file.cid), {
+        headers: await getApiRequestHeaders(
+          'GET',
+          `/api/files/${file.cid}/download`
+        ),
+      })
       if (!res.ok) throw new Error('获取文件失败')
       const blob = await res.blob()
       const showSaveFilePicker = (window as any).showSaveFilePicker
@@ -955,13 +1005,19 @@ export default function App() {
   useEffect(() => {
     if (hasBackend !== true) return
 
-    const ws = new WebSocket(getWebSocketUrl('/ws'))
+    let ws: WebSocket | null = null
+    let cancelled = false
+    ;(async () => {
+      ws = new WebSocket(await getAuthenticatedWebSocketUrl('/ws'))
+      if (cancelled) {
+        ws.close()
+        return
+      }
     ws.onmessage = e => {
       try {
         const { event, data } = JSON.parse(e.data)
         if (event === 'publish:success' || event === 'download:success') {
           refreshFiles()
-          refreshStorageStats()
           const taskId = data.taskId || data.fileName
           setTransfers(prev =>
             prev.map(t =>
@@ -1044,23 +1100,25 @@ export default function App() {
         console.warn('[App WS] Failed to parse message:', err.message)
       }
     }
-    return () => ws.close()
-  }, [hasBackend])
+    })()
+    return () => {
+      cancelled = true
+      ws?.close()
+    }
+  }, [hasBackend, userIdentity?.address])
 
   useEffect(() => {
-    if (hasBackend === true) {
+    if (hasBackend === true && userIdentity) {
       refreshFiles()
       refreshTrash()
-      refreshStorageStats()
       return
     }
 
     if (hasBackend === false) {
       setItems(DEMO_FILES)
       setTrashItems([])
-      setStorageStats(DEMO_STORAGE)
     }
-  }, [hasBackend])
+  }, [hasBackend, userIdentity?.address])
 
   const viewTitle =
     currentView === 'all'
@@ -1126,26 +1184,7 @@ export default function App() {
             ))}
           </nav>
 
-          <div className="sidebar-footer">
-            <div className="sidebar-footer-label">
-              <HardDrive size={14} />
-              <span>存储空间</span>
-            </div>
-            <div className="storage-bar">
-              <progress
-                className="storage-progress"
-                value={storageStats.used}
-                max={storageStats.total > 0 ? storageStats.total : 1}
-                aria-label="存储空间使用量"
-              />
-            </div>
-            <div className="storage-info">
-              <span>{formatSize(storageStats.used)}</span>
-              <span>
-                {storageStats.total > 0 ? formatSize(storageStats.total) : '-'}
-              </span>
-            </div>
-          </div>
+          <SidebarAccount />
         </>
       )}
       headerTitle={<h2 className="header-title">{viewTitle}</h2>}
@@ -1182,13 +1221,21 @@ export default function App() {
           >
             {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
           </button>
+          <button
+            onClick={openSettings}
+            className="btn btn-icon"
+            aria-label={remoteBackendUrl ? '远程节点' : '连接节点'}
+            title={remoteBackendUrl ? '远程节点' : '连接节点'}
+          >
+            <Settings size={16} />
+          </button>
           <Link
             href="/admin"
             className="btn btn-icon"
             aria-label="节点管理"
             title="节点管理"
           >
-            <Settings size={16} />
+            <HardDrive size={16} />
           </Link>
         </>
       }
@@ -1204,7 +1251,17 @@ export default function App() {
         </div>
       )}
 
-      {currentView === 'all' && (
+      {hasBackend === true && !userIdentity && (
+        <div className="download-banner">
+          <span>文件分享需要先登录；登录后只会看到你自己的文件。</span>
+          <button className="download-banner-btn" onClick={openLoginModal}>
+            登录
+            <ArrowRight size={12} />
+          </button>
+        </div>
+      )}
+
+      {userIdentity && currentView === 'all' && (
         <div className="action-grid">
           <div
             className={`action-card upload ${isDraggingOverUpload ? 'drag-over' : ''}`}
@@ -1486,12 +1543,24 @@ export default function App() {
           <div onClick={e => e.stopPropagation()}>
             {previewItem.subtype === 'image' && (
               <div className="preview-media-wrapper">
-                <img src={API.getFileDownloadUrl(previewItem.cid)} alt="" />
+                {previewBlobUrl ? (
+                  <img src={previewBlobUrl} alt="" />
+                ) : (
+                  <div className="preview-loading">
+                    <div className="preview-loading-spinner" />
+                  </div>
+                )}
               </div>
             )}
             {previewItem.subtype === 'video' && (
               <div className="preview-media-wrapper">
-                <video src={API.getFileDownloadUrl(previewItem.cid)} controls />
+                {previewBlobUrl ? (
+                  <video src={previewBlobUrl} controls />
+                ) : (
+                  <div className="preview-loading">
+                    <div className="preview-loading-spinner" />
+                  </div>
+                )}
               </div>
             )}
             {previewItem.subtype === 'audio' && (
@@ -1500,11 +1569,18 @@ export default function App() {
                   <Music size={36} color="var(--accent)" />
                 </div>
                 <p className="preview-audio-filename">{previewItem.fileName}</p>
-                <audio
-                  className="preview-audio-player"
-                  src={API.getFileDownloadUrl(previewItem.cid)}
-                  controls
-                />
+                {previewBlobUrl ? (
+                  <audio
+                    className="preview-audio-player"
+                    src={previewBlobUrl}
+                    controls
+                  />
+                ) : (
+                  <div className="preview-text-loading">
+                    <Loader size={24} className="preview-text-spinner" />
+                    <p>正在加载音频预览...</p>
+                  </div>
+                )}
               </div>
             )}
             {previewItem.subtype === 'file' && (
@@ -1556,7 +1632,6 @@ export default function App() {
                   addToast('已恢复', 'success')
                   refreshFiles()
                   refreshTrash()
-                  refreshStorageStats()
                 }}
                 className="btn btn-sm"
               >

@@ -16,7 +16,7 @@ import { InputModal, ConfirmModal } from '~/components/ui'
 import {
   api,
   getApiErrorMessage,
-  getWebSocketUrl,
+  getAuthenticatedWebSocketUrl,
 } from '~/server/src/utils/api'
 import { generateAvatar } from '~/server/src/utils/avatar.js'
 import { useAppStore } from '~/app/app/useAppStore'
@@ -164,8 +164,8 @@ function ChatPage() {
   useEffect(() => {
     if (hasBackend !== true) return
 
-    function connectWs() {
-      const ws = new WebSocket(getWebSocketUrl('/ws'))
+    async function connectWs() {
+      const ws = new WebSocket(await getAuthenticatedWebSocketUrl('/ws'))
 
       ws.onopen = () => {
         isWsConnectedRef.current = true

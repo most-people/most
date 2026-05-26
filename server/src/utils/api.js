@@ -1,15 +1,14 @@
 import ky from 'ky'
+import { buildAuthHeaders, normalizeAuthPath } from './auth.js'
 
 const STORAGE_KEY = 'mostbox_backend_url'
+const INVITE_STORAGE_KEY = 'mostbox_backend_invite'
 const LOCALHOST_BACKEND_URL = 'http://localhost:1976'
 
 function isLocalFrontendOrigin() {
   if (typeof window === 'undefined') return false
 
-  return (
-    ['localhost', '127.0.0.1'].includes(window.location.hostname) &&
-    window.location.port === '3000'
-  )
+  return ['localhost', '127.0.0.1'].includes(window.location.hostname)
 }
 
 function getDefaultBackendUrl() {
@@ -21,14 +20,91 @@ function getBackendUrl() {
   return localStorage.getItem(STORAGE_KEY) || getDefaultBackendUrl()
 }
 
+function getConfiguredBackendUrl() {
+  if (typeof window === 'undefined') return ''
+  return localStorage.getItem(STORAGE_KEY) || ''
+}
+
+function getRemoteBackendUrl() {
+  const configured = getConfiguredBackendUrl()
+  if (!configured) return ''
+  try {
+    const { hostname } = new URL(configured)
+    return ['localhost', '127.0.0.1', '::1'].includes(hostname)
+      ? ''
+      : configured
+  } catch {
+    return configured
+  }
+}
+
+function getBackendInvite() {
+  if (typeof window === 'undefined') return ''
+  return localStorage.getItem(INVITE_STORAGE_KEY) || ''
+}
+
+function normalizeBackendUrl(url) {
+  return (url || '').trim().replace(/\/+$/, '')
+}
+
+function getStoredIdentity() {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = localStorage.getItem('mostbox_identity')
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
 function normalizePath(path) {
   return path.startsWith('/') ? path : `/${path}`
 }
 
 function createApiInstance() {
-  const url = getBackendUrl()
-  return ky.create({
-    prefix: url,
+  const client = ky.create({
+    hooks: {
+      beforeRequest: [
+        async ({ request }) => {
+          const headers = new Headers(request.headers || {})
+          const invite = getBackendInvite()
+          if (invite) {
+            headers.set('x-mostbox-invite', invite)
+          }
+
+          const identity = getStoredIdentity()
+          if (identity?.danger) {
+            try {
+              const authHeaders = await buildAuthHeaders(
+                identity,
+                request.method,
+                normalizeAuthPath(request.url)
+              )
+              for (const [key, value] of Object.entries(authHeaders)) {
+                headers.set(key, value)
+              }
+            } catch {
+              // Ignore invalid legacy identity data for public/backend probes.
+            }
+          }
+          return new Request(request, { headers })
+        },
+      ],
+    },
+  })
+
+  return new Proxy(client, {
+    get(target, prop, receiver) {
+      const value = Reflect.get(target, prop, receiver)
+      if (!['get', 'post', 'put', 'patch', 'delete', 'head'].includes(prop)) {
+        return value
+      }
+      return (input, options) => {
+        const nextInput =
+          typeof input === 'string' ? getApiUrl(input) : input
+        return value.call(target, nextInput, options)
+      }
+    },
   })
 }
 
@@ -71,7 +147,7 @@ export async function getApiErrorMessage(err, fallback = '请求失败') {
     err && typeof err === 'object' && 'name' in err ? String(err.name) : ''
   if (errorName === 'TimeoutError') return '请求超时，请稍后重试'
 
-  if (!data.status && err instanceof Error && err.message) {
+  if (err instanceof Error && err.message) {
     return err.message
   }
 
@@ -79,7 +155,7 @@ export async function getApiErrorMessage(err, fallback = '请求失败') {
 }
 
 export function setBackendUrl(url) {
-  const cleaned = (url || '').trim().replace(/\/+$/, '')
+  const cleaned = normalizeBackendUrl(url)
   if (cleaned) {
     localStorage.setItem(STORAGE_KEY, cleaned)
   } else {
@@ -88,13 +164,56 @@ export function setBackendUrl(url) {
   api = createApiInstance()
 }
 
+export function setBackendInvite(invite) {
+  const cleaned = (invite || '').trim()
+  if (cleaned) {
+    localStorage.setItem(INVITE_STORAGE_KEY, cleaned)
+  } else {
+    localStorage.removeItem(INVITE_STORAGE_KEY)
+  }
+  api = createApiInstance()
+}
+
+export function configureBackend({ url, invite }) {
+  setBackendUrl(url)
+  setBackendInvite(invite)
+}
+
+export function clearBackendConnection() {
+  setBackendUrl('')
+  setBackendInvite('')
+}
+
 export function getBackendUrlExport() {
   return getBackendUrl()
+}
+
+export function getRemoteBackendUrlExport() {
+  return getRemoteBackendUrl()
+}
+
+export function getBackendInviteExport() {
+  return getBackendInvite()
 }
 
 export function getApiUrl(path) {
   const url = getBackendUrl()
   return `${url}${normalizePath(path)}`
+}
+
+export async function getApiRequestHeaders(method = 'GET', path = '/') {
+  const headers = {}
+  const invite = getBackendInvite()
+  if (invite) headers['x-mostbox-invite'] = invite
+  try {
+    Object.assign(
+      headers,
+      await buildAuthHeaders(getStoredIdentity(), method, normalizeAuthPath(path))
+    )
+  } catch {
+    // Callers that require auth will receive the server's 401 response.
+  }
+  return headers
 }
 
 export function getWebSocketUrl(path = '/ws') {
@@ -106,11 +225,65 @@ export function getWebSocketUrl(path = '/ws') {
   return url.toString()
 }
 
+export async function getAuthenticatedWebSocketUrl(path = '/ws') {
+  if (typeof window === 'undefined') return normalizePath(path)
+
+  const base = getBackendUrl() || window.location.origin
+  const url = new URL(normalizePath(path), base)
+  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+
+  const invite = getBackendInvite()
+  if (invite) url.searchParams.set('invite', invite)
+
+  const identity = getStoredIdentity()
+  if (identity?.danger) {
+    try {
+      const auth = await buildAuthHeaders(
+        identity,
+        'GET',
+        normalizeAuthPath(path)
+      )
+      const [address, timestamp, signature] = String(
+        auth.Authorization || ''
+      ).split(',')
+      if (address && signature) {
+        url.searchParams.set('address', address)
+        url.searchParams.set('timestamp', timestamp)
+        url.searchParams.set('signature', signature)
+      }
+    } catch {
+      // Leave WebSocket unauthenticated when local identity data is invalid.
+    }
+  }
+
+  return url.toString()
+}
+
 export async function checkBackendConnection() {
   const url = getBackendUrl()
+  const invite = getBackendInvite()
+  return checkBackendConnectionTarget({ url, invite })
+}
+
+export async function checkBackendConnectionTarget({ url, invite = '' }) {
+  const cleanedUrl = normalizeBackendUrl(url)
+  if (!cleanedUrl) return false
+
   try {
-    const res = await fetch(`${url}/api/node-id`, {
+    const headers = {}
+    if (invite) headers['x-mostbox-invite'] = invite
+    const identity = getStoredIdentity()
+    try {
+      Object.assign(
+        headers,
+        await buildAuthHeaders(identity, 'GET', '/api/remote/capabilities')
+      )
+    } catch {
+      // Backend detection should still work when old identity data is invalid.
+    }
+    const res = await fetch(`${cleanedUrl}/api/remote/capabilities`, {
       method: 'GET',
+      headers,
       signal: AbortSignal.timeout(3000),
     })
     return res.ok

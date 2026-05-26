@@ -63,15 +63,19 @@ npm run test:unit # 只运行单元测试
 | 场景 | 命令                                       | 访问地址                  |
 | ---- | ------------------------------------------ | ------------------------- |
 | 本地 | `npx most-box`                             | `http://localhost:1976`   |
-| 内网 | `set MOSTBOX_HOST=0.0.0.0 && npx most-box` | `http://<IP>:1976`        |
+| 内网 | `set MOSTBOX_HOST=0.0.0.0 && set MOSTBOX_REMOTE_INVITES=your-code && npx most-box` | `http://<IP>:1976`        |
 | 外网 | Caddy 反向代理                             | `https://your-domain.com` |
 
 ### 内网访问
 
 ```bash
 set MOSTBOX_HOST=0.0.0.0
+set MOSTBOX_REMOTE_INVITES=your-code
 npx most-box
 ```
+
+默认只监听本机 `127.0.0.1`。开放到局域网或公网后，远程请求必须携带
+`MOSTBOX_REMOTE_INVITES` 中配置的邀请码；不要在未设置邀请码时暴露端口。
 
 ### 外网访问（Caddy）
 

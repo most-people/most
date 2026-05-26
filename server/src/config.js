@@ -3,7 +3,7 @@
  */
 
 // 文件大小限制
-export const MAX_FILE_SIZE = 100 * 1024 * 1024 * 1024 // 100 GB
+export const MAX_FILE_SIZE = 10 * 1024 * 1024 * 1024 // 10 GB
 
 // 网络超时（毫秒）
 export const CONNECTION_TIMEOUT = 120000

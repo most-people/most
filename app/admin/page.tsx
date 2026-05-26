@@ -25,7 +25,8 @@ import {
 import {
   api,
   getApiErrorMessage,
-  getWebSocketUrl,
+  getAuthenticatedWebSocketUrl,
+  getBackendUrlExport,
 } from '~/server/src/utils/api'
 import { useAppStore } from '~/app/app/useAppStore'
 
@@ -39,8 +40,13 @@ interface NodeAddress {
 interface NodeConfig {
   dataPath: string
   configuredDataPath?: string
+  host: string
+  port: number
   capacityBytes: number
   maxFileSizeBytes: number
+  remoteInvites?: string[]
+  remoteInviteCount?: number
+  remoteInviteConfigured?: boolean
 }
 
 interface NodeLog {
@@ -99,6 +105,13 @@ interface NodeStatus {
   holdings: NodeHolding[]
 }
 
+interface AdminUserData {
+  address: string
+  fileCount: number
+  trashCount: number
+  cidCount: number
+}
+
 const EMPTY_STATUS: NodeStatus | null = null
 
 function formatSize(bytes: number) {
@@ -130,6 +143,17 @@ function gibToBytes(value: string) {
   const parsed = Number(value)
   if (!Number.isFinite(parsed) || parsed < 0) return 0
   return Math.round(parsed * 1024 * 1024 * 1024)
+}
+
+function parseInviteText(value: string) {
+  return Array.from(
+    new Set(
+      String(value || '')
+        .split(/[\n,]/)
+        .map(item => item.trim())
+        .filter(Boolean)
+    )
+  )
 }
 
 function shortText(text: string, head = 12, tail = 8) {
@@ -210,10 +234,15 @@ export default function AdminPage() {
   const [error, setError] = useState('')
   const [isSavingConfig, setIsSavingConfig] = useState(false)
   const [isClearingLogs, setIsClearingLogs] = useState(false)
+  const [users, setUsers] = useState<AdminUserData[]>([])
+  const [isClearingUser, setIsClearingUser] = useState('')
   const [configForm, setConfigForm] = useState({
     dataPath: '',
+    host: '127.0.0.1',
+    port: '1976',
     capacityGiB: '100',
-    maxFileSizeGiB: '100',
+    maxFileSizeGiB: '10',
+    remoteInvites: '',
   })
 
   const capacityPercent = useMemo(() => {
@@ -243,15 +272,24 @@ export default function AdminPage() {
     !isLocalListenHost(status.host) &&
     (nonLocalListenAddresses.length > 0 ||
       ['0.0.0.0', '::'].includes(String(status.host || '').trim()))
+  const backendUrl = getBackendUrlExport()
+  const isRemoteAdmin =
+    Boolean(backendUrl) &&
+    !backendUrl.includes('localhost') &&
+    !backendUrl.includes('127.0.0.1')
 
   const loadStatus = async () => {
     try {
       const nextStatus = await api.get<NodeStatus>('/api/node/status').json()
+      const nodeConfig = await api.get<NodeConfig>('/api/node/config').json()
       setStatus(nextStatus)
       setConfigForm({
-        dataPath: nextStatus.dataPath || '',
-        capacityGiB: bytesToGiB(nextStatus.config.capacityBytes),
-        maxFileSizeGiB: bytesToGiB(nextStatus.config.maxFileSizeBytes),
+        dataPath: nodeConfig.dataPath || nextStatus.dataPath || '',
+        host: nodeConfig.host || nextStatus.config.host || '127.0.0.1',
+        port: String(nodeConfig.port || nextStatus.port || 1976),
+        capacityGiB: bytesToGiB(nodeConfig.capacityBytes),
+        maxFileSizeGiB: bytesToGiB(nodeConfig.maxFileSizeBytes),
+        remoteInvites: (nodeConfig.remoteInvites || []).join('\n'),
       })
       setError('')
     } catch (err) {
@@ -270,6 +308,15 @@ export default function AdminPage() {
     } catch {}
   }
 
+  const loadUsers = async () => {
+    try {
+      const result = await api
+        .get<{ users: AdminUserData[] }>('/api/admin/users')
+        .json()
+      setUsers(result.users || [])
+    } catch {}
+  }
+
   const saveConfig = async () => {
     setIsSavingConfig(true)
     try {
@@ -277,8 +324,11 @@ export default function AdminPage() {
         .post('/api/node/config', {
           json: {
             dataPath: configForm.dataPath,
+            host: configForm.host,
+            port: Number(configForm.port),
             capacityBytes: gibToBytes(configForm.capacityGiB),
             maxFileSizeBytes: gibToBytes(configForm.maxFileSizeGiB),
+            remoteInvites: parseInviteText(configForm.remoteInvites),
           },
         })
         .json()
@@ -315,12 +365,41 @@ export default function AdminPage() {
     }
   }
 
+  const clearUserData = async (address: string) => {
+    const confirmed = window.confirm(
+      `确定清除用户 ${address.slice(0, 6)}...${address.slice(-4)} 的文件记录和回收站吗？无人引用的副本也会被清理。`
+    )
+    if (!confirmed) return
+    setIsClearingUser(address)
+    try {
+      await api.delete(`/api/admin/users/${address}/data`).json()
+      addToast('用户数据已清除', 'success')
+      await loadUsers()
+      await loadStatus()
+    } catch (err) {
+      const message = await getApiErrorMessage(err, '清除用户数据失败')
+      addToast(message, 'error')
+      setError(message)
+    } finally {
+      setIsClearingUser('')
+    }
+  }
+
   useEffect(() => {
     if (hasBackend !== true) return
+    if (isRemoteAdmin) return
     loadStatus()
     loadLogs()
+    loadUsers()
 
-    const ws = new WebSocket(getWebSocketUrl('/ws'))
+    let ws: WebSocket | null = null
+    let cancelled = false
+    ;(async () => {
+      ws = new WebSocket(await getAuthenticatedWebSocketUrl('/ws'))
+      if (cancelled) {
+        ws.close()
+        return
+      }
     ws.onmessage = event => {
       try {
         const message = JSON.parse(event.data)
@@ -342,8 +421,12 @@ export default function AdminPage() {
         }
       } catch {}
     }
-    return () => ws.close()
-  }, [hasBackend])
+    })()
+    return () => {
+      cancelled = true
+      ws?.close()
+    }
+  }, [hasBackend, isRemoteAdmin])
 
   return (
     <main className="admin-page">
@@ -381,14 +464,24 @@ export default function AdminPage() {
         </section>
       )}
 
-      {error && (
+      {isRemoteAdmin && (
+        <section className="admin-panel admin-error">
+          <AlertTriangle size={18} />
+          <div>
+            <h2>远程节点管理不可用</h2>
+            <p>当前连接的是别人部署的远程节点，普通邀请码不能查看或修改节点管理数据。</p>
+          </div>
+        </section>
+      )}
+
+      {!isRemoteAdmin && error && (
         <section className="admin-panel admin-error">
           <FileText size={20} />
           <span>{error}</span>
         </section>
       )}
 
-      {showPublicExposureWarning && (
+      {!isRemoteAdmin && showPublicExposureWarning && (
         <section className="admin-panel admin-warning admin-security-warning">
           <AlertTriangle size={20} />
           <div>
@@ -397,7 +490,7 @@ export default function AdminPage() {
               当前监听 {formatListenHost(status?.host || '')}:{status?.port}
               ，同一网络内设备可能打开管理台。如果服务器、公网 IP
               或端口转发暴露了 {status?.port} 端口，公网用户也可能访问本页和
-              节点 API。
+              节点 API。远程 API 会要求有效邀请码。
             </span>
             <ul className="admin-warning-list">
               <li>不要把管理台端口直接开放到公网。</li>
@@ -411,6 +504,8 @@ export default function AdminPage() {
         </section>
       )}
 
+      {!isRemoteAdmin && (
+        <>
       <section className="admin-product-grid" aria-label="MostBox 信息">
         <div className="admin-product-panel admin-product-main">
           <div className="admin-product-mark">MB</div>
@@ -471,7 +566,6 @@ export default function AdminPage() {
           </ul>
         </div>
       </section>
-
       <section className="admin-overview">
         <div className="admin-metric">
           <div className="admin-metric-icon">
@@ -552,6 +646,43 @@ export default function AdminPage() {
         <div className="admin-panel admin-span-2">
           <div className="admin-panel-header">
             <div>
+              <h2>用户数据</h2>
+            </div>
+            <Database size={18} />
+          </div>
+          <div className="admin-table">
+            <div className="admin-table-row admin-table-head">
+              <span>用户</span>
+              <span>文件</span>
+              <span>回收站</span>
+              <span>操作</span>
+            </div>
+            {users.map(user => (
+              <div className="admin-table-row" key={user.address}>
+                <span title={user.address}>{shortText(user.address)}</span>
+                <span>{user.fileCount}</span>
+                <span>{user.trashCount}</span>
+                <span>
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() => clearUserData(user.address)}
+                    disabled={isClearingUser === user.address}
+                  >
+                    <Trash2 size={16} />
+                    清除
+                  </button>
+                </span>
+              </div>
+            ))}
+            {users.length === 0 && (
+              <div className="admin-empty-row">暂无用户数据</div>
+            )}
+          </div>
+        </div>
+
+        <div className="admin-panel admin-span-2">
+          <div className="admin-panel-header">
+            <div>
               <h2>节点设置</h2>
             </div>
             <Database size={18} />
@@ -566,6 +697,39 @@ export default function AdminPage() {
                   setConfigForm(prev => ({
                     ...prev,
                     dataPath: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <label className="admin-field">
+              <span>访问范围</span>
+              <select
+                className="input"
+                value={configForm.host}
+                onChange={event =>
+                  setConfigForm(prev => ({
+                    ...prev,
+                    host: event.target.value,
+                  }))
+                }
+              >
+                <option value="127.0.0.1">仅本机</option>
+                <option value="0.0.0.0">开放到公网/局域网</option>
+              </select>
+            </label>
+            <label className="admin-field">
+              <span>HTTP 端口</span>
+              <input
+                className="input"
+                type="number"
+                min="1"
+                max="65535"
+                step="1"
+                value={configForm.port}
+                onChange={event =>
+                  setConfigForm(prev => ({
+                    ...prev,
+                    port: event.target.value,
                   }))
                 }
               />
@@ -602,8 +766,23 @@ export default function AdminPage() {
                 }
               />
             </label>
+            <label className="admin-field admin-field-wide">
+              <span>远程访问邀请码</span>
+              <textarea
+                className="input admin-textarea"
+                value={configForm.remoteInvites}
+                placeholder="每行一个，或用英文逗号分隔"
+                onChange={event =>
+                  setConfigForm(prev => ({
+                    ...prev,
+                    remoteInvites: event.target.value,
+                  }))
+                }
+              />
+            </label>
           </div>
           <p className="admin-field-hint">
+            监听地址变更保存后需要重启 daemon；开放到公网/局域网时，远程使用必须配置邀请码。修改邀请码后新请求立即生效。
             发布和下载成功后会固定做种；MostBox 不设同时做种数或传输限速。
           </p>
           <button
@@ -712,6 +891,8 @@ export default function AdminPage() {
           </div>
         </div>
       </section>
+      </>
+      )}
     </main>
   )
 }

@@ -181,6 +181,7 @@ const features: FeatureDef[] = [
 /* ─── Component ─── */
 export default function FeaturePortal() {
   const hasBackend = useAppStore(s => s.hasBackend)
+  const openSettings = useAppStore(s => s.openSettings)
   const [selected, setSelected] = useState<string>('app')
 
   const activeFeature = features.find(f => f.id === selected) || features[0]
@@ -244,7 +245,7 @@ export default function FeaturePortal() {
                       {backendStatus === 'disconnected' && (
                         <>
                           <span className="status-dot disconnected" />
-                          需下载
+                          需连接
                         </>
                       )}
                     </div>
@@ -314,10 +315,20 @@ export default function FeaturePortal() {
                   <ArrowRight size={16} />
                 </Link>
                 {activeFeature.requiresBackend && hasBackend === false && (
-                  <Link href="/download" className="btn btn-secondary">
-                    <Download size={16} />
-                    下载桌面客户端
-                  </Link>
+                  <>
+                    <button
+                      type="button"
+                      onClick={openSettings}
+                      className="btn btn-secondary"
+                    >
+                      <ArrowUpRight size={16} />
+                      连接远程节点
+                    </button>
+                    <Link href="/download" className="btn btn-secondary">
+                      <Download size={16} />
+                      下载桌面客户端
+                    </Link>
+                  </>
                 )}
               </div>
             </>

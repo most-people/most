@@ -9,11 +9,15 @@ import { calculateCid } from '../../src/core/cid.js'
 import { MostBoxEngine } from '../../src/index.js'
 import { createNodeConfigStore } from '../../src/node/config.js'
 import { createNodeLogger } from '../../src/node/logs.js'
+import { buildAuthHeaders } from '../../src/utils/auth.js'
+import { createLoginIdentity } from '../../src/utils/userIdentity.js'
 
 const TEST_PORT = 19771
 const baseUrl = 'http://localhost:' + TEST_PORT
 const VALID_MISSING_CID =
   'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
+const TEST_IDENTITY = createLoginIdentity('api-user', 'api-password')
+const SECOND_IDENTITY = createLoginIdentity('second-user', 'second-password')
 
 function assertNoLegacyNodeSettingFields(value) {
   const legacyPattern = /Seed|Concurrent|RateLimit/
@@ -31,15 +35,86 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
   let configStore
   let nodeLogger
   let originalProcessExit
+  let originalFetch
+
+  async function buildTestAuthHeaders(input, init = {}) {
+    const method = init.method || 'GET'
+    const path = new URL(String(input), baseUrl).pathname
+    return buildAuthHeaders(TEST_IDENTITY, method, path)
+  }
+
+  async function fetchWithoutAuth(input, init = {}) {
+    return originalFetch(input, init)
+  }
+
+  async function fetchAs(identity, input, init = {}) {
+    const headers = new Headers(init.headers || {})
+    const method = init.method || 'GET'
+    const path = new URL(String(input), baseUrl).pathname
+    const authHeaders = await buildAuthHeaders(identity, method, path)
+    for (const [key, value] of Object.entries(authHeaders)) {
+      headers.set(key, value)
+    }
+    return originalFetch(input, { ...init, headers })
+  }
+
+  async function requestWithAuth(app, path, init = {}) {
+    const headers = new Headers(init.headers || {})
+    const authHeaders = await buildAuthHeaders(
+      TEST_IDENTITY,
+      init.method || 'GET',
+      path
+    )
+    for (const [key, value] of Object.entries(authHeaders)) {
+      headers.set(key, value)
+    }
+    return app.request(path, { ...init, headers })
+  }
 
   before(async () => {
     originalProcessExit = process.exit
     process.exit = () => {}
+    originalFetch = globalThis.fetch
+    globalThis.fetch = async (input, init = {}) => {
+      const headers = new Headers(init.headers || {})
+      const url = String(input)
+      if (url.includes('/api/')) {
+        const authHeaders = await buildTestAuthHeaders(input, init)
+        for (const [key, value] of Object.entries(authHeaders)) {
+          headers.set(key, value)
+        }
+      }
+      return originalFetch(input, { ...init, headers })
+    }
 
     const dataPath = path.join(tmpDir, 'api')
     fs.mkdirSync(dataPath, { recursive: true })
     engine = new MostBoxEngine({ dataPath })
     await engine.start()
+    const publishFile = engine.publishFile.bind(engine)
+    engine.publishFile = (content, fileName, options = {}) =>
+      publishFile(content, fileName, {
+        ownerAddress: TEST_IDENTITY.address,
+        ...options,
+      })
+    const createChannel = engine.createChannel.bind(engine)
+    engine.createChannel = (name, type = 'personal', options = {}) =>
+      createChannel(name, type, {
+        ownerAddress: TEST_IDENTITY.address,
+        ...options,
+      })
+    const deletePublishedFile = engine.deletePublishedFile.bind(engine)
+    engine.deletePublishedFile = (cid, options = {}) =>
+      deletePublishedFile(cid, {
+        ownerAddress: TEST_IDENTITY.address,
+        ...options,
+      })
+    const permanentDeleteTrashFile = engine.permanentDeleteTrashFile.bind(engine)
+    engine.permanentDeleteTrashFile = (cid, options = {}) =>
+      permanentDeleteTrashFile(cid, {
+        ownerAddress: TEST_IDENTITY.address,
+        ...options,
+      })
     configStore = createNodeConfigStore(path.join(tmpDir, 'config'))
     nodeLogger = createNodeLogger(configStore.configDir)
 
@@ -78,14 +153,19 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     }
     fs.rmSync(tmpDir, { recursive: true, force: true })
     process.exit = originalProcessExit
+    globalThis.fetch = originalFetch
   })
 
   beforeEach(async () => {
     for (const file of engine.listPublishedFiles()) {
-      await engine.deletePublishedFile(file.cid)
+      await engine.deletePublishedFile(file.cid, {
+        ownerAddress: file.ownerAddress || TEST_IDENTITY.address,
+      })
     }
     for (const file of engine.listTrashFiles()) {
-      await engine.permanentDeleteTrashFile(file.cid)
+      await engine.permanentDeleteTrashFile(file.cid, {
+        ownerAddress: file.ownerAddress || TEST_IDENTITY.address,
+      })
     }
     for (const channel of engine.listChannels()) {
       await engine.leaveChannel(channel.name)
@@ -111,9 +191,15 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(data.status, 'online')
       assert.ok(data.nodeId)
       assert.strictEqual(data.port, TEST_PORT)
+      assert.strictEqual(data.host, '127.0.0.1')
+      assert.strictEqual(data.config.host, '127.0.0.1')
+      assert.strictEqual(data.config.port, 1976)
+      assert.strictEqual(data.config.maxFileSizeBytes, 10 * 1024 * 1024 * 1024)
       assert.ok(Array.isArray(data.listen.addresses))
       assert.strictEqual(typeof data.capacity.configuredBytes, 'number')
       assert.ok(Array.isArray(data.holdings))
+      assert.strictEqual('remoteInvites' in data.config, false)
+      assert.strictEqual(typeof data.config.remoteInviteCount, 'number')
       assert.deepStrictEqual(Object.keys(data.policy).sort(), [
         'maxFileSizeBytes',
       ])
@@ -131,8 +217,11 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           dataPath,
+          host: '0.0.0.0',
+          port: 1999,
           capacityBytes: 1024 * 1024 * 1024,
           maxFileSizeBytes: 1024 * 1024,
+          remoteInvites: ['invite-one', 'invite-two', 'invite-one'],
         }),
       })
       const data = await res.json()
@@ -140,8 +229,11 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(res.status, 200)
       assert.strictEqual(data.success, true)
       assert.strictEqual(data.dataPath, dataPath)
+      assert.strictEqual(data.host, '0.0.0.0')
+      assert.strictEqual(data.port, 1999)
       assert.strictEqual(data.capacityBytes, 1024 * 1024 * 1024)
       assert.strictEqual(data.maxFileSizeBytes, 1024 * 1024)
+      assert.deepStrictEqual(data.remoteInvites, ['invite-one', 'invite-two'])
       assertNoLegacyNodeSettingFields(data)
       assert.strictEqual('allowOrders' in data, false)
       assert.strictEqual('minimumPriceUsdtPerGbMonth' in data, false)
@@ -161,6 +253,37 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assertNoLegacyNodeSettingFields(decision.policy)
       assert.strictEqual('offeredPriceUsdtPerGbMonth' in decision.policy, false)
       assert.strictEqual('allowOrders' in decision.policy, false)
+    })
+
+    it('uses saved remote invites for remote access checks', async () => {
+      const { success } = configStore.saveNodeConfigPatch({
+        remoteInvites: ['saved-invite'],
+      })
+      assert.strictEqual(success, true)
+
+      const { app } = createApp(engine, {
+        port: TEST_PORT + 12,
+        host: '0.0.0.0',
+        configStore,
+        nodeLogger,
+      })
+
+      const rejected = await app.request('/api/node-id', {
+        headers: { host: '203.0.113.10:1976' },
+      })
+      const rejectedData = await rejected.json()
+      assert.strictEqual(rejected.status, 403)
+      assert.strictEqual(rejectedData.code, 'INVALID_INVITE')
+
+      const accepted = await app.request('/api/node-id', {
+        headers: {
+          host: '203.0.113.10:1976',
+          'x-mostbox-invite': 'saved-invite',
+        },
+      })
+      const acceptedData = await accepted.json()
+      assert.strictEqual(accepted.status, 200)
+      assert.ok(acceptedData.id)
     })
 
     it('returns node logs and OpenAPI spec', async () => {
@@ -204,12 +327,40 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
   })
 
   describe('GET /api/files', () => {
+    it('requires login for file APIs', async () => {
+      const res = await fetchWithoutAuth(`${baseUrl}/api/files`)
+      const data = await res.json()
+      assert.strictEqual(res.status, 401)
+      assert.strictEqual(data.code, 'LOGIN_REQUIRED')
+    })
+
     it('returns empty array initially', async () => {
       const res = await fetch(`${baseUrl}/api/files`)
       const data = await res.json()
       assert.strictEqual(res.status, 200)
       assert.ok(Array.isArray(data))
       assert.strictEqual(data.length, 0)
+    })
+
+    it('only returns files owned by the logged-in user', async () => {
+      const first = await engine.publishFile(Buffer.from('first'), 'first.txt')
+      const second = await engine.publishFile(
+        Buffer.from('second'),
+        'second.txt',
+        { ownerAddress: SECOND_IDENTITY.address }
+      )
+
+      const firstRes = await fetch(`${baseUrl}/api/files`)
+      const firstData = await firstRes.json()
+      assert.strictEqual(firstRes.status, 200)
+      assert.ok(firstData.some(file => file.cid === first.cid))
+      assert.ok(!firstData.some(file => file.cid === second.cid))
+
+      const secondRes = await fetchAs(SECOND_IDENTITY, `${baseUrl}/api/files`)
+      const secondData = await secondRes.json()
+      assert.strictEqual(secondRes.status, 200)
+      assert.ok(secondData.some(file => file.cid === second.cid))
+      assert.ok(!secondData.some(file => file.cid === first.cid))
     })
   })
 
@@ -334,7 +485,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         nodeLogger,
       })
 
-      const res = await app.request('/api/download/check', {
+      const res = await requestWithAuth(app, '/api/download/check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -385,7 +536,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         nodeLogger,
       })
 
-      const res = await app.request('/api/download', {
+      const res = await requestWithAuth(app, '/api/download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -740,18 +891,106 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     })
   })
 
-  describe('GET /api/storage', () => {
-    it('returns storage statistics', async () => {
-      await engine.publishFile(Buffer.from('storage-test'), 'storage.txt')
+  describe('admin user data API', () => {
+    it('clears one user without removing another user records', async () => {
+      const first = await engine.publishFile(Buffer.from('first'), 'first.txt')
+      const second = await engine.publishFile(
+        Buffer.from('second'),
+        'second.txt',
+        { ownerAddress: SECOND_IDENTITY.address }
+      )
 
-      const res = await fetch(`${baseUrl}/api/storage`)
+      const listRes = await fetch(`${baseUrl}/api/admin/users`)
+      const listData = await listRes.json()
+      assert.strictEqual(listRes.status, 200)
+      assert.ok(
+        listData.users.some(user => user.address === TEST_IDENTITY.address.toLowerCase())
+      )
+
+      const clearRes = await fetch(
+        `${baseUrl}/api/admin/users/${TEST_IDENTITY.address}/data`,
+        { method: 'DELETE' }
+      )
+      assert.strictEqual(clearRes.status, 200)
+
+      const firstFiles = await (await fetch(`${baseUrl}/api/files`)).json()
+      assert.ok(!firstFiles.some(file => file.cid === first.cid))
+
+      const secondFiles = await (
+        await fetchAs(SECOND_IDENTITY, `${baseUrl}/api/files`)
+      ).json()
+      assert.ok(secondFiles.some(file => file.cid === second.cid))
+    })
+
+    it('blocks remote invite users from node administration', async () => {
+      const { app } = createApp(engine, {
+        port: TEST_PORT + 8,
+        configStore,
+        nodeLogger,
+        remoteInvites: ['invite-ok'],
+      })
+
+      const res = await app.request('/api/node/config', {
+        headers: { 'x-mostbox-invite': 'invite-ok' },
+      })
+      const data = await res.json()
+      assert.strictEqual(res.status, 403)
+      assert.strictEqual(data.code, 'REMOTE_ADMIN_FORBIDDEN')
+    })
+
+    it('requires a configured invite when the node is opened remotely', async () => {
+      const { app } = createApp(engine, {
+        port: TEST_PORT + 9,
+        host: '0.0.0.0',
+        configStore,
+        nodeLogger,
+        remoteInvites: [],
+      })
+
+      const res = await app.request('/api/node-id', {
+        headers: { host: '203.0.113.10:1976' },
+      })
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 403)
+      assert.strictEqual(data.code, 'INVALID_INVITE')
+    })
+
+    it('allows remote use with a valid invite when opened remotely', async () => {
+      const { app } = createApp(engine, {
+        port: TEST_PORT + 10,
+        host: '0.0.0.0',
+        configStore,
+        nodeLogger,
+        remoteInvites: ['invite-ok'],
+      })
+
+      const res = await app.request('/api/node-id', {
+        headers: {
+          host: '203.0.113.10:1976',
+          'x-mostbox-invite': 'invite-ok',
+        },
+      })
       const data = await res.json()
 
       assert.strictEqual(res.status, 200)
-      assert.strictEqual(typeof data.total, 'number')
-      assert.strictEqual(typeof data.used, 'number')
-      assert.strictEqual(typeof data.fileCount, 'number')
-      assert.strictEqual(data.fileCount, 1)
+      assert.ok(data.id)
+    })
+
+    it('keeps local administration available when opened remotely', async () => {
+      const { app } = createApp(engine, {
+        port: TEST_PORT + 11,
+        host: '0.0.0.0',
+        configStore,
+        nodeLogger,
+        remoteInvites: [],
+      })
+
+      const res = await app.request('/api/node/config', {
+        headers: { host: 'localhost:1976' },
+      })
+
+      assert.strictEqual(res.status, 200)
     })
   })
 
