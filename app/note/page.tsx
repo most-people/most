@@ -5,10 +5,13 @@ import dynamic from 'next/dynamic'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   ArrowLeft,
+  ChevronDown,
+  ChevronRight,
   Edit2,
   Eye,
   FileText,
   Folder,
+  FolderInput,
   Lock,
   Moon,
   NotebookPen,
@@ -161,12 +164,10 @@ function NotePageContent() {
     confirmText: string
     onConfirm: () => void | Promise<void>
   }>(null)
-  const [createNoteModalOpen, setCreateNoteModalOpen] = useState(false)
-  const [renameTarget, setRenameTarget] = useState<ExplorerItem | null>(null)
-  const [renameName, setRenameName] = useState('')
   const [moveTarget, setMoveTarget] = useState<ExplorerItem | null>(null)
   const [previewContent, setPreviewContent] = useState('')
   const [previewError, setPreviewError] = useState('')
+  const [previewName, setPreviewName] = useState('')
   const [noteName, setNoteName] = useState('')
   const [notePath, setNotePath] = useState('')
   const [plainContent, setPlainContent] = useState('')
@@ -254,6 +255,10 @@ function NotePageContent() {
     setPlainContent(selectedNote.content || '')
     setEditError('')
   }, [cid, isEditing, localDataReady, selectedNote, wallet])
+
+  useEffect(() => {
+    setPreviewName(selectedNote?.name || '')
+  }, [selectedNote?.cid, selectedNote?.name])
 
   const explorerItems = useMemo(
     () =>
@@ -350,44 +355,46 @@ function NotePageContent() {
   }
 
   function openCreateNoteModal() {
-    setCreateNoteModalOpen(true)
+    setInputModal({
+      title: '新建笔记',
+      placeholder: '笔记名称',
+      confirmText: '创建',
+      onConfirm: async value => {
+        if (!requireWallet()) return
+        try {
+          const newCid = await saveNote({
+            name: value,
+            path: notesPath,
+            content: '',
+            isSecret: false,
+          })
+          setInputModal(null)
+          addToast('笔记已创建', 'success')
+          await backupSync.uploadNow({ silent: true })
+          router.push(`/note/?cid=${encodeURIComponent(newCid)}&mode=edit`)
+        } catch (err: unknown) {
+          addToast(getErrorMessage(err, '创建失败'), 'error')
+        }
+      },
+    })
   }
 
-  async function handleCreateNote(name: string, path: string) {
-    if (!requireWallet()) return
-    try {
-      const newCid = await saveNote({
-        name,
-        path,
-        content: '',
-        isSecret: false,
-      })
-      setCreateNoteModalOpen(false)
-      addToast('笔记已创建', 'success')
-      await backupSync.uploadNow({ silent: true })
-      router.push(`/note/?cid=${encodeURIComponent(newCid)}&mode=edit`)
-    } catch (err: unknown) {
-      addToast(getErrorMessage(err, '创建失败'), 'error')
+  async function handlePreviewRename() {
+    if (!selectedNote) return
+    const nextName = previewName.trim()
+    if (!nextName) {
+      setPreviewName(selectedNote.name)
+      addToast('请输入笔记名称', 'warning')
+      return
     }
-  }
+    if (nextName === selectedNote.name) return
 
-  function openRenameModal(item: ExplorerItem) {
-    setRenameTarget(item)
-    setRenameName(item.name)
-  }
-
-  async function handleRename() {
-    if (!renameTarget) return
     try {
-      renameNote(
-        getExplorerItemFullPath(renameTarget),
-        renameTarget.path,
-        renameName
-      )
-      setRenameTarget(null)
+      renameNote(getNoteFullPath(selectedNote), selectedNote.path, nextName)
       addToast('已重命名', 'success')
       await backupSync.uploadNow({ silent: true })
     } catch (err: unknown) {
+      setPreviewName(selectedNote.name)
       addToast(getErrorMessage(err, '重命名失败'), 'error')
     }
   }
@@ -439,15 +446,6 @@ function NotePageContent() {
 
   const headerRight = (
     <div className="note-theme-wrap">
-      <div className="note-header-actions">
-        <button
-          className="btn btn-sm btn-primary"
-          onClick={openCreateNoteModal}
-        >
-          <Plus size={16} />
-          新笔记
-        </button>
-      </div>
       <button
         className="btn btn-icon"
         onClick={() => setIsDarkMode(!isDarkMode)}
@@ -573,9 +571,6 @@ function NotePageContent() {
               <>
                 <div className="note-editor-panel-header">
                   <div className="note-editor-title-area">
-                    <span className="note-kicker">
-                      {isEditing ? '编辑模式' : '阅读模式'}
-                    </span>
                     {isEditing ? (
                       <input
                         className="note-title-input"
@@ -585,27 +580,29 @@ function NotePageContent() {
                         disabled={!selectedNote}
                       />
                     ) : selectedNote ? (
-                      <button
-                        type="button"
-                        className="note-title-button"
-                        onClick={() => openRenameModal(selectedNote)}
+                      <input
+                        className="note-title-input"
+                        value={previewName}
+                        onBlur={handlePreviewRename}
+                        onChange={event => setPreviewName(event.target.value)}
+                        onKeyDown={event => {
+                          if (event.key === 'Enter') {
+                            event.currentTarget.blur()
+                          }
+                          if (event.key === 'Escape') {
+                            setPreviewName(selectedNote.name)
+                            event.currentTarget.blur()
+                          }
+                        }}
+                        placeholder="笔记名称"
                         title="重命名"
-                      >
-                        {selectedNote.name || '未命名笔记'}
-                      </button>
+                      />
                     ) : (
                       <h3>未命名笔记</h3>
                     )}
                     {selectedNote && (
                       <div className="note-editor-info">
-                        <button
-                          type="button"
-                          className="note-info-button"
-                          onClick={() => openMoveModal(selectedNote)}
-                          title="移动"
-                        >
-                          {selectedNote.path || '全部笔记'}
-                        </button>
+                        <span>{isEditing ? '编辑模式' : '阅读模式'}</span>
                         <span>{selectedNotePrivacyLabel}</span>
                         <span>{formatDate(selectedNote.updated_at)}</span>
                       </div>
@@ -625,17 +622,42 @@ function NotePageContent() {
                       {isEditing ? <X size={16} /> : <ArrowLeft size={16} />}
                     </button>
                     {isEditing ? (
-                      <button
-                        className="btn btn-sm btn-primary"
-                        onClick={handleSaveEditor}
-                        disabled={saving || !!editError || !selectedNote}
-                      >
-                        <Save size={16} />
-                        {saving ? '保存中' : '保存'}
-                      </button>
+                      <>
+                        <button
+                          className={`btn btn-sm ${
+                            editIsSecret ? 'btn-warning' : 'btn-secondary'
+                          }`}
+                          onClick={() => setEditIsSecret(!editIsSecret)}
+                          disabled={!selectedNote}
+                        >
+                          {editIsSecret ? (
+                            <Lock size={16} />
+                          ) : (
+                            <Eye size={16} />
+                          )}
+                          {editIsSecret ? '私密' : '公开'}
+                        </button>
+                        <button
+                          className="btn btn-sm btn-primary"
+                          onClick={handleSaveEditor}
+                          disabled={saving || !!editError || !selectedNote}
+                        >
+                          <Save size={16} />
+                          {saving ? '保存中' : '保存'}
+                        </button>
+                      </>
                     ) : (
                       selectedNote && (
                         <>
+                          <button
+                            type="button"
+                            className="btn btn-icon"
+                            onClick={() => openMoveModal(selectedNote)}
+                            title="移动"
+                            aria-label="移动"
+                          >
+                            <FolderInput size={16} />
+                          </button>
                           <button
                             type="button"
                             className="btn btn-icon note-editor-action-danger"
@@ -647,41 +669,20 @@ function NotePageContent() {
                           </button>
                           <button
                             type="button"
-                            className="btn btn-icon note-editor-action-primary"
+                            className="btn btn-sm btn-primary"
                             onClick={() => openEditor(selectedNote)}
                             disabled={!!previewError}
                             title="编辑"
                             aria-label="编辑"
                           >
                             <Edit2 size={16} />
+                            编辑
                           </button>
                         </>
                       )
                     )}
                   </div>
                 </div>
-
-                {isEditing && (
-                  <div className="note-editor-fields">
-                    <input
-                      className="input"
-                      value={notePath}
-                      onChange={event => setNotePath(event.target.value)}
-                      placeholder="目录路径"
-                      disabled={!selectedNote}
-                    />
-                    <button
-                      className={`btn ${
-                        editIsSecret ? 'btn-warning' : 'btn-secondary'
-                      }`}
-                      onClick={() => setEditIsSecret(!editIsSecret)}
-                      disabled={!selectedNote}
-                    >
-                      {editIsSecret ? <Lock size={16} /> : <Eye size={16} />}
-                      {editIsSecret ? '私密' : '公开'}
-                    </button>
-                  </div>
-                )}
 
                 {isEditing ? (
                   editError ? (
@@ -768,51 +769,6 @@ function NotePageContent() {
         />
       )}
 
-      {createNoteModalOpen && (
-        <NoteCreateModal
-          directories={directoryOptions}
-          initialPath={notesPath}
-          onCreate={handleCreateNote}
-          onClose={() => setCreateNoteModalOpen(false)}
-        />
-      )}
-
-      {renameTarget && (
-        <ModalOverlay onClose={() => setRenameTarget(null)}>
-          <div
-            className="note-rename-modal"
-            onClick={event => event.stopPropagation()}
-          >
-            <div className="modal-header">
-              <h3>重命名</h3>
-              <button
-                className="btn btn-icon"
-                onClick={() => setRenameTarget(null)}
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <input
-              className="input input-compact"
-              value={renameName}
-              onChange={event => setRenameName(event.target.value)}
-              placeholder="名称"
-            />
-            <div className="modal-actions">
-              <button
-                className="btn btn-secondary"
-                onClick={() => setRenameTarget(null)}
-              >
-                取消
-              </button>
-              <button className="btn btn-primary" onClick={handleRename}>
-                确认
-              </button>
-            </div>
-          </div>
-        </ModalOverlay>
-      )}
-
       {moveTarget && (
         <NoteMoveModal
           target={moveTarget}
@@ -847,9 +803,25 @@ function NoteMoveModal({
   })
   const [selectedPath, setSelectedPath] = useState(currentPath)
   const [customPath, setCustomPath] = useState('')
+  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
   const normalizedCustomPath = normalizeNotePath(customPath)
   const finalPath = customPath.trim() ? normalizedCustomPath : selectedPath
   const isSamePath = normalizeNotePath(finalPath) === currentPath
+  const childPathsByParent = new Map<string, NoteDirectoryOption[]>()
+
+  for (const directory of usableDirectories) {
+    const siblings = childPathsByParent.get(directory.parentPath) || []
+    siblings.push(directory)
+    childPathsByParent.set(directory.parentPath, siblings)
+  }
+
+  const visibleDirectories = usableDirectories.filter(directory => {
+    if (!directory.parentPath) return true
+    const ancestors = directory.parentPath.split('/').filter(Boolean)
+    return ancestors.every((_, index) =>
+      expandedPaths.has(ancestors.slice(0, index + 1).join('/'))
+    )
+  })
 
   const selectedBreadcrumbs = [
     { label: '全部笔记', path: '' },
@@ -865,6 +837,21 @@ function NoteMoveModal({
   function selectPath(path: string) {
     setSelectedPath(normalizeNotePath(path))
     setCustomPath('')
+  }
+
+  function selectDirectory(path: string) {
+    selectPath(path)
+    if (!childPathsByParent.has(path)) return
+
+    setExpandedPaths(previous => {
+      const next = new Set(previous)
+      if (next.has(path)) {
+        next.delete(path)
+      } else {
+        next.add(path)
+      }
+      return next
+    })
   }
 
   function handleConfirm() {
@@ -905,26 +892,43 @@ function NoteMoveModal({
             className={`note-move-folder-item ${selectedPath === '' ? 'selected' : ''}`}
             onClick={() => selectPath('')}
           >
-            <Folder size={16} />
+            <span className="note-move-folder-spacer" />
+            <Folder className="note-move-folder-icon" size={16} />
             <span>全部笔记</span>
           </button>
           {usableDirectories.length === 0 ? (
             <p className="note-move-empty">还没有可选文件夹</p>
           ) : (
-            usableDirectories.map(directory => (
-              <button
-                type="button"
-                key={directory.path}
-                className={`note-move-folder-item note-move-depth-${Math.min(directory.depth, 4)} ${
-                  selectedPath === directory.path ? 'selected' : ''
-                }`}
-                onClick={() => selectPath(directory.path)}
-              >
-                <Folder size={16} />
-                <span>{directory.name}</span>
-                {directory.parentPath && <small>{directory.parentPath}</small>}
-              </button>
-            ))
+            visibleDirectories.map(directory => {
+              const hasChildren = childPathsByParent.has(directory.path)
+              const isExpanded = expandedPaths.has(directory.path)
+
+              return (
+                <button
+                  type="button"
+                  key={directory.path}
+                  className={`note-move-folder-item note-move-depth-${Math.min(directory.depth, 4)} ${
+                    selectedPath === directory.path ? 'selected' : ''
+                  }`}
+                  onClick={() => selectDirectory(directory.path)}
+                >
+                  {hasChildren ? (
+                    isExpanded ? (
+                      <ChevronDown className="note-move-expander" size={14} />
+                    ) : (
+                      <ChevronRight className="note-move-expander" size={14} />
+                    )
+                  ) : (
+                    <span className="note-move-folder-spacer" />
+                  )}
+                  <Folder className="note-move-folder-icon" size={16} />
+                  <span>{directory.name}</span>
+                  {directory.parentPath && (
+                    <small>{directory.parentPath}</small>
+                  )}
+                </button>
+              )
+            })
           )}
         </div>
         <input
@@ -946,131 +950,6 @@ function NoteMoveModal({
             disabled={isSamePath}
           >
             移动
-          </button>
-        </div>
-      </div>
-    </ModalOverlay>
-  )
-}
-
-function NoteCreateModal({
-  directories,
-  initialPath,
-  onCreate,
-  onClose,
-}: {
-  directories: NoteDirectoryOption[]
-  initialPath: string
-  onCreate: (name: string, path: string) => void | Promise<void>
-  onClose: () => void
-}) {
-  const [name, setName] = useState('')
-  const [selectedPath, setSelectedPath] = useState(
-    normalizeNotePath(initialPath)
-  )
-  const [customPath, setCustomPath] = useState('')
-  const normalizedCustomPath = normalizeNotePath(customPath)
-  const finalPath = customPath.trim() ? normalizedCustomPath : selectedPath
-  const canCreate = name.trim().length > 0
-
-  const selectedBreadcrumbs = [
-    { label: '全部笔记', path: '' },
-    ...selectedPath
-      .split('/')
-      .filter(Boolean)
-      .map((part, index, parts) => ({
-        label: part,
-        path: parts.slice(0, index + 1).join('/'),
-      })),
-  ]
-
-  function selectPath(path: string) {
-    setSelectedPath(normalizeNotePath(path))
-    setCustomPath('')
-  }
-
-  function handleConfirm() {
-    if (canCreate) {
-      onCreate(name.trim(), finalPath)
-    }
-  }
-
-  return (
-    <ModalOverlay onClose={onClose}>
-      <div
-        className="note-move-modal"
-        onClick={event => event.stopPropagation()}
-      >
-        <div className="modal-header">
-          <h3>新建笔记</h3>
-          <button className="btn btn-icon" onClick={onClose}>
-            <X size={18} />
-          </button>
-        </div>
-        <input
-          className="input input-compact"
-          value={name}
-          onChange={event => setName(event.target.value)}
-          placeholder="笔记名称"
-          autoFocus
-        />
-        <div className="note-move-path">
-          {selectedBreadcrumbs.map((part, index) => (
-            <React.Fragment key={part.path || 'root'}>
-              {index > 0 && <span>/</span>}
-              <button type="button" onClick={() => selectPath(part.path)}>
-                {part.label}
-              </button>
-            </React.Fragment>
-          ))}
-        </div>
-        <div className="note-move-folder-list">
-          <button
-            type="button"
-            className={`note-move-folder-item ${selectedPath === '' ? 'selected' : ''}`}
-            onClick={() => selectPath('')}
-          >
-            <Folder size={16} />
-            <span>全部笔记</span>
-          </button>
-          {directories.length === 0 ? (
-            <p className="note-move-empty">还没有可选文件夹</p>
-          ) : (
-            directories.map(directory => (
-              <button
-                type="button"
-                key={directory.path}
-                className={`note-move-folder-item note-move-depth-${Math.min(directory.depth, 4)} ${
-                  selectedPath === directory.path ? 'selected' : ''
-                }`}
-                onClick={() => selectPath(directory.path)}
-              >
-                <Folder size={16} />
-                <span>{directory.name}</span>
-                {directory.parentPath && <small>{directory.parentPath}</small>}
-              </button>
-            ))
-          )}
-        </div>
-        <input
-          className="input input-compact"
-          value={customPath}
-          onChange={event => setCustomPath(event.target.value)}
-          placeholder="或输入新目录路径，如 文章/摘录"
-        />
-        <div className="note-move-destination">
-          保存位置：{finalPath || '全部笔记'}
-        </div>
-        <div className="modal-actions">
-          <button className="btn btn-secondary" onClick={onClose}>
-            取消
-          </button>
-          <button
-            className="btn btn-primary"
-            onClick={handleConfirm}
-            disabled={!canCreate}
-          >
-            创建
           </button>
         </div>
       </div>
