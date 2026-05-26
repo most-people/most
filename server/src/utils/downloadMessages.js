@@ -8,7 +8,8 @@ const DOWNLOAD_CHECK_MESSAGES = {
   validation:
     '链接格式不正确，请粘贴完整的 most://<cid>?filename=... 分享链接。',
   nameConflict: '下载目录已有同名文件，请先重命名或移走后再检测。',
-  noPeer: '暂时没有发现在线种子。请确认分享者或其他下载者仍在线做种，稍后再检测。',
+  noPeer:
+    '暂时没有发现在线种子。请确认分享者或其他下载者仍在线做种，稍后再检测。',
   permission: '下载目录不可写，请检查目录权限后再检测。',
   starting: '本地节点还没有启动完成，请稍等几秒后重新检测。',
   server: '本地节点检测时出错，请稍后重试或查看节点日志。',
@@ -26,10 +27,14 @@ const LINK_VALIDATION_MESSAGES = {
     'CID 格式不符合 MostBox 要求，请确认分享链接完整。',
   'CID digest must be 32 bytes':
     'CID 格式不符合 MostBox 要求，请确认分享链接完整。',
-  'filename is required': '链接缺少 filename 参数，请复制完整分享链接后再检测。',
+  'filename is required':
+    '链接缺少 filename 参数，请复制完整分享链接后再检测。',
 }
 
-export function getDownloadCheckErrorMessageFromPayload(data = {}, errorName = '') {
+export function getDownloadCheckErrorMessageFromPayload(
+  data = {},
+  errorName = ''
+) {
   if (errorName === 'TimeoutError') return DOWNLOAD_CHECK_MESSAGES.timeout
   if (!data.status) return DOWNLOAD_CHECK_MESSAGES.offline
   if (data.status === 404) return DOWNLOAD_CHECK_MESSAGES.missingApi
@@ -55,7 +60,9 @@ export function getDownloadCheckErrorMessageFromPayload(data = {}, errorName = '
 
   if (data.status === 503) return DOWNLOAD_CHECK_MESSAGES.noPeer
   if (data.status >= 500) return DOWNLOAD_CHECK_MESSAGES.server
-  return data.error ? `检测未通过：${data.error}` : DOWNLOAD_CHECK_MESSAGES.fallback
+  return data.error
+    ? `检测未通过：${data.error}`
+    : DOWNLOAD_CHECK_MESSAGES.fallback
 }
 
 export function getDownloadLinkValidationMessage(link = '') {
@@ -76,5 +83,7 @@ export function getDownloadLinkValidationMessage(link = '') {
     return `链接包含暂不支持的参数 ${unsupportedParam}，请只保留 filename。`
   }
 
-  return LINK_VALIDATION_MESSAGES[result.error] || DOWNLOAD_CHECK_MESSAGES.validation
+  return (
+    LINK_VALIDATION_MESSAGES[result.error] || DOWNLOAD_CHECK_MESSAGES.validation
+  )
 }

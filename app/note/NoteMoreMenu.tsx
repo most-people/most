@@ -53,7 +53,9 @@ export function NoteMoreMenu({ sync }: NoteMoreMenuProps) {
 
       {open && (
         <div className="note-more-menu">
-          <div className={`note-sync-status ${sync.hasConflict ? 'conflict' : ''}`}>
+          <div
+            className={`note-sync-status ${sync.hasConflict ? 'conflict' : ''}`}
+          >
             <span className="note-sync-status-icon">
               {sync.hasConflict ? (
                 <AlertTriangle size={16} />

@@ -2,8 +2,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert'
 import { validateCidString, parseMostLink } from '../../src/core/cid.js'
 
-const VALID_CID =
-  'bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e'
+const VALID_CID = 'bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e'
 
 function assertInvalidCid(input, error) {
   const result = validateCidString(input)

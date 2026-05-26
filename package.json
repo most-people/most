@@ -16,9 +16,9 @@
     "server/cli.js"
   ],
   "scripts": {
-    "start": "npm run build && node server/index.js",
-    "build": "next build",
+    "start": "next dev",
     "dev": "next dev",
+    "build": "next build",
     "server": "node --watch server/index.js",
     "test": "node --test server/tests/**/*.test.js",
     "test:unit": "node --test server/tests/unit/*.test.js",

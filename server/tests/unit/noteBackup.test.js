@@ -33,7 +33,11 @@ describe('noteBackup', () => {
 
   it('uses the ethereum wallet address in auth headers', async () => {
     const wallet = mostWallet('alice', 'secret')
-    const headers = await getBackupAuthHeaders(wallet, 'GET', NOTE_BACKUP_API_URL)
+    const headers = await getBackupAuthHeaders(
+      wallet,
+      'GET',
+      NOTE_BACKUP_API_URL
+    )
     const [address, timestamp, signature] = headers.Authorization.split(',')
 
     assert.match(headers.Authorization, /^[^,]+,\d+,0x[a-fA-F0-9]+$/)

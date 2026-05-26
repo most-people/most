@@ -39,7 +39,11 @@ export function filterNotesByPath(notes, currentPath = '', query = '') {
 
   if (normalizedQuery) {
     return files
-      .filter(note => String(note.name || '').toLowerCase().includes(normalizedQuery))
+      .filter(note =>
+        String(note.name || '')
+          .toLowerCase()
+          .includes(normalizedQuery)
+      )
       .sort(sortNotesForExplorer)
   }
 
@@ -99,7 +103,9 @@ export function renameNotesByPath(notes, oldFullPath, targetPath, targetName) {
 
     if (fullPath.startsWith(`${oldPath}/`)) {
       const relativePath = fullPath.slice(oldPath.length + 1)
-      const nextFullPath = normalizeNotePath(`${targetFullPath}/${relativePath}`)
+      const nextFullPath = normalizeNotePath(
+        `${targetFullPath}/${relativePath}`
+      )
       const lastSlash = nextFullPath.lastIndexOf('/')
       return {
         ...note,
@@ -116,5 +122,7 @@ export function renameNotesByPath(notes, oldFullPath, targetPath, targetName) {
 function sortNotesForExplorer(a, b) {
   if (a.type === 'directory' && b.type !== 'directory') return -1
   if (a.type !== 'directory' && b.type === 'directory') return 1
-  return (b.updated_at || b.created_at || 0) - (a.updated_at || a.created_at || 0)
+  return (
+    (b.updated_at || b.created_at || 0) - (a.updated_at || a.created_at || 0)
+  )
 }

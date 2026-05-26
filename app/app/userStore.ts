@@ -146,7 +146,10 @@ export const useUserStore = create<UserState>((set, get) => ({
 
     set({ loginLoading: true, loginError: '' })
     try {
-      const nextIdentity = createLoginIdentity(loginUsername.trim(), loginPassword)
+      const nextIdentity = createLoginIdentity(
+        loginUsername.trim(),
+        loginPassword
+      )
       saveIdentity(nextIdentity)
       set({
         identity: nextIdentity,

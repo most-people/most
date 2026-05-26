@@ -450,7 +450,8 @@
   flex: 1;
 }
 
-.note-editor-title-area h3 {
+.note-editor-title-area h3,
+.note-title-button {
   overflow: hidden;
   color: var(--text-primary);
   font-size: 22px;
@@ -458,6 +459,21 @@
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.note-title-button {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  text-align: left;
+}
+
+.note-title-button:hover {
+  color: var(--accent);
 }
 
 .note-title-input {
@@ -487,11 +503,24 @@
   overflow-x: auto;
 }
 
-.note-editor-info span {
+.note-editor-info span,
+.note-info-button {
   flex: 0 0 auto;
   padding: 3px 7px;
+  border: 0;
   border-radius: 8px;
   background: var(--glass-bg-subtle);
+  color: inherit;
+  font: inherit;
+}
+
+.note-info-button {
+  cursor: pointer;
+}
+
+.note-info-button:hover {
+  color: var(--accent);
+  background: var(--accent-soft);
 }
 
 .note-editor-actions,
@@ -640,9 +669,21 @@
 
 [data-theme='dark'] .milkdown-editor .milkdown-code-block .cm-content,
 [data-theme='dark'] .milkdown-editor .milkdown-code-block .cm-line,
-[data-theme='dark'] .milkdown-editor .milkdown-code-block .milkdown-code-block-placeholder,
-[data-theme='dark'] .milkdown-editor .milkdown-code-block .preview-panel .preview,
-[data-theme='dark'] .milkdown-editor .milkdown-code-block .preview-panel .preview .katex,
+[data-theme='dark']
+  .milkdown-editor
+  .milkdown-code-block
+  .milkdown-code-block-placeholder,
+[data-theme='dark']
+  .milkdown-editor
+  .milkdown-code-block
+  .preview-panel
+  .preview,
+[data-theme='dark']
+  .milkdown-editor
+  .milkdown-code-block
+  .preview-panel
+  .preview
+  .katex,
 [data-theme='dark'] .milkdown-editor span[data-type='math_inline'],
 [data-theme='dark'] .milkdown-editor .katex {
   color: var(--text-primary);

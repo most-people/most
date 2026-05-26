@@ -643,7 +643,8 @@ export default function AdminPage() {
           </div>
           {hiddenHoldingCount > 0 && (
             <p className="admin-table-note">
-              当前仅展示前 100 个副本，另有 {hiddenHoldingCount} 个仍在后台做种。
+              当前仅展示前 100 个副本，另有 {hiddenHoldingCount}{' '}
+              个仍在后台做种。
             </p>
           )}
           <div className="admin-table">

@@ -34,9 +34,7 @@ export default function AppGlobals() {
         />
       ))}
 
-      {showSettings && (
-        <SettingsDrawer onClose={closeSettings} />
-      )}
+      {showSettings && <SettingsDrawer onClose={closeSettings} />}
 
       <UserLoginModal />
     </>

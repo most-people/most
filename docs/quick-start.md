@@ -19,11 +19,11 @@ npm run dev
 
 打开：
 
-| 入口 | 地址 | 用途 |
-| ---- | ---- | ---- |
-| 主应用 | `http://localhost:3000/app/` | 发布文件、复制链接、下载文件 |
-| 管理台 | `http://localhost:3000/admin/` | 查看节点状态、holding、容量和日志 |
-| API | `http://localhost:1976/api/openapi.json` | daemon HTTP API |
+| 入口   | 地址                                     | 用途                              |
+| ------ | ---------------------------------------- | --------------------------------- |
+| 主应用 | `http://localhost:3000/app/`             | 发布文件、复制链接、下载文件      |
+| 管理台 | `http://localhost:3000/admin/`           | 查看节点状态、holding、容量和日志 |
+| API    | `http://localhost:1976/api/openapi.json` | daemon HTTP API                   |
 
 发布包路径：正式安装包从 `/download` 或 GitHub Releases latest 下载；本地构建使用 `npm run electron:build:win`、`npm run electron:build:mac` 或 `npm run electron:build:linux`。
 
@@ -104,11 +104,11 @@ node --test --test-name-pattern "pulls through local seed nodes after the upload
 
 ## 六、通过标准
 
-| 场景 | 通过标准 |
-| ---- | -------- |
-| 发布者 | 能得到 `most://` 链接，管理台看到对应 holding |
-| 下载者 | 能凭链接下载，CID 校验通过，下载后自动做种 |
-| daemon 重启 | 已持有 CID 自动恢复 join topic |
-| 发布者退出 | 至少一个下载者在线做种时，新下载者仍可完成下载 |
+| 场景        | 通过标准                                       |
+| ----------- | ---------------------------------------------- |
+| 发布者      | 能得到 `most://` 链接，管理台看到对应 holding  |
+| 下载者      | 能凭链接下载，CID 校验通过，下载后自动做种     |
+| daemon 重启 | 已持有 CID 自动恢复 join topic                 |
+| 发布者退出  | 至少一个下载者在线做种时，新下载者仍可完成下载 |
 
 如果下载失败，优先检查：链接是否完整、发布者或下载者种子是否在线、端口和防火墙是否允许 P2P 连接、管理台日志中是否出现 `PEER_NOT_FOUND` 或 `INTEGRITY_ERROR`。

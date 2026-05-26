@@ -7,7 +7,9 @@ interface SidebarAccountProps {
   className?: string
 }
 
-export default function SidebarAccount({ className = '' }: SidebarAccountProps) {
+export default function SidebarAccount({
+  className = '',
+}: SidebarAccountProps) {
   const identity = useUserStore(s => s.identity)
   const openLoginModal = useUserStore(s => s.openLoginModal)
   const logoutUser = useUserStore(s => s.logoutUser)

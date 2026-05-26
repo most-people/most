@@ -245,7 +245,9 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
 
         repairEngine = new MostBoxEngine({ dataPath })
         await repairEngine.start()
-        assert.ok(!repairEngine.listHoldings().some(item => item.cid === publishedCid))
+        assert.ok(
+          !repairEngine.listHoldings().some(item => item.cid === publishedCid)
+        )
 
         const result = await repairEngine.downloadFile(publishedLink)
 

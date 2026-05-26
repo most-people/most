@@ -181,7 +181,8 @@ export function useNoteBackupSync(): NoteBackupSyncState {
 
         const cloudNotes = backup.notes || []
         const localCid = await calculateNotesBackupCid(currentNotes)
-        const cloudCid = backup.cid || (await calculateNotesBackupCid(cloudNotes))
+        const cloudCid =
+          backup.cid || (await calculateNotesBackupCid(cloudNotes))
 
         if (currentNotes.length > 0 && localCid !== cloudCid) {
           const confirmed = window.confirm(
@@ -256,9 +257,8 @@ export function useNoteBackupSync(): NoteBackupSyncState {
           const content = reader.result as string
           const data = decryptNotesBackup(content, currentWallet.danger)
           if (useAppStore.getState().notes.length > 0) {
-            const confirmed = window.confirm(
-              '恢复将覆盖当前本地笔记，是否继续？'
-            )
+            const confirmed =
+              window.confirm('恢复将覆盖当前本地笔记，是否继续？')
             if (!confirmed) {
               addToast('已取消恢复', 'info')
               return

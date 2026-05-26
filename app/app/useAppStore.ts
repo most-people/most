@@ -213,7 +213,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     const existingIndex = input.cid
       ? notes.findIndex(note => note.cid === input.cid)
       : notes.findIndex(
-          note => normalizeNotePath(note.path) === path && note.name === nameValidation.name
+          note =>
+            normalizeNotePath(note.path) === path &&
+            note.name === nameValidation.name
         )
     const targetFullPath = normalizeNotePath(
       path ? `${path}/${nameValidation.name}` : nameValidation.name
@@ -239,7 +241,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     const nextNotes =
       existingIndex >= 0
-        ? notes.map((note, index) => (index === existingIndex ? nextNote : note))
+        ? notes.map((note, index) =>
+            index === existingIndex ? nextNote : note
+          )
         : [...notes, nextNote]
 
     set({ notes: nextNotes })

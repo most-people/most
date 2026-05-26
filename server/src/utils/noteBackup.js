@@ -84,10 +84,7 @@ export async function uploadNotesBackup(
   }
 }
 
-export async function downloadNotesBackup(
-  wallet,
-  url = NOTE_BACKUP_API_URL
-) {
+export async function downloadNotesBackup(wallet, url = NOTE_BACKUP_API_URL) {
   const response = await fetch(url, {
     method: 'GET',
     headers: await getBackupAuthHeaders(wallet, 'GET', url),
