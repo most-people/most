@@ -8,6 +8,7 @@ import {
   useState,
 } from 'react'
 import { Crepe } from '@milkdown/crepe'
+import { linkAttr } from '@milkdown/kit/preset/commonmark'
 import { replaceAll } from '@milkdown/utils'
 
 interface MilkdownEditorProps {
@@ -89,6 +90,13 @@ export const MilkdownEditor = forwardRef<
           },
         },
       },
+    })
+
+    crepe.editor.config(ctx => {
+      ctx.set(linkAttr.key, () => ({
+        rel: 'noopener noreferrer',
+        target: '_blank',
+      }))
     })
 
     crepe.on(listener => {
