@@ -47,6 +47,28 @@ function normalizeBackendUrl(url) {
   return (url || '').trim().replace(/\/+$/, '')
 }
 
+function isLocalBackendUrl(url) {
+  const value = normalizeBackendUrl(url)
+  if (!value) return false
+  try {
+    const { hostname } = new URL(value)
+    const normalized = hostname.toLowerCase()
+    return (
+      normalized === 'localhost' ||
+      normalized === '::1' ||
+      normalized === '[::1]' ||
+      normalized === '127.0.0.1' ||
+      normalized.startsWith('127.')
+    )
+  } catch {
+    return false
+  }
+}
+
+function shouldAttachBackendInvite(url = getBackendUrl()) {
+  return Boolean(getBackendInvite()) && !isLocalBackendUrl(url)
+}
+
 function getStoredIdentity() {
   if (typeof window === 'undefined') return null
   try {
@@ -68,7 +90,7 @@ function createApiInstance() {
         async ({ request }) => {
           const headers = new Headers(request.headers || {})
           const invite = getBackendInvite()
-          if (invite) {
+          if (invite && shouldAttachBackendInvite(request.url)) {
             headers.set('x-mostbox-invite', invite)
           }
 
@@ -202,9 +224,12 @@ export function getApiUrl(path) {
 }
 
 export async function getApiRequestHeaders(method = 'GET', path = '/') {
+  /** @type {Record<string, string>} */
   const headers = {}
   const invite = getBackendInvite()
-  if (invite) headers['x-mostbox-invite'] = invite
+  if (invite && shouldAttachBackendInvite()) {
+    headers['x-mostbox-invite'] = invite
+  }
   try {
     Object.assign(
       headers,
@@ -233,7 +258,9 @@ export async function getAuthenticatedWebSocketUrl(path = '/ws') {
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
 
   const invite = getBackendInvite()
-  if (invite) url.searchParams.set('invite', invite)
+  if (invite && shouldAttachBackendInvite(url.toString())) {
+    url.searchParams.set('invite', invite)
+  }
 
   const identity = getStoredIdentity()
   if (identity?.danger) {
@@ -261,7 +288,7 @@ export async function getAuthenticatedWebSocketUrl(path = '/ws') {
 
 export async function checkBackendConnection() {
   const url = getBackendUrl()
-  const invite = getBackendInvite()
+  const invite = shouldAttachBackendInvite(url) ? getBackendInvite() : ''
   return checkBackendConnectionTarget({ url, invite })
 }
 
