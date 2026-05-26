@@ -28,6 +28,7 @@ import { useAppStore, type NoteItem } from '~/app/app/useAppStore'
 import { useUserStore } from '~/app/app/userStore'
 import type { MilkdownEditorRef } from '~/components/MilkdownEditor'
 import { mostDecode, mostEncode } from '~/server/src/utils/mostWallet.js'
+import { formatDate } from '~/server/src/utils/dateTime.js'
 import {
   filterNotesByPath,
   getNoteFullPath,
@@ -62,16 +63,6 @@ type NoteDirectoryOption = {
   name: string
   parentPath: string
   depth: number
-}
-
-function formatDate(time: number) {
-  if (!time) return ''
-  return new Date(time).toLocaleString('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
 }
 
 function getNotePreview(note: NoteItem) {

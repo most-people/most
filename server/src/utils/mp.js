@@ -1,7 +1,7 @@
 import { getBytes } from 'ethers'
-import dayjs from 'dayjs'
 import nacl from 'tweetnacl'
 import { generateAvatar } from './avatar.js'
+import { formatTime } from './dateTime.js'
 
 const BASE36_ALPHABET = '0123456789abcdefghijklmnopqrstuvwxyz'
 
@@ -77,29 +77,5 @@ export const getIPNS = (private_key, ed_public_key) => {
   return 'k' + baseXEncode(cidBytes, BASE36_ALPHABET)
 }
 
-export const formatTime = time => {
-  if (!time) return ''
-  const date = dayjs(Number(time))
-  const hour = date.hour()
-  let timeOfDay
-  if (hour >= 0 && hour < 3) {
-    timeOfDay = '凌晨'
-  } else if (hour >= 3 && hour < 6) {
-    timeOfDay = '拂晓'
-  } else if (hour >= 6 && hour < 9) {
-    timeOfDay = '早晨'
-  } else if (hour >= 9 && hour < 12) {
-    timeOfDay = '上午'
-  } else if (hour >= 12 && hour < 15) {
-    timeOfDay = '下午'
-  } else if (hour >= 15 && hour < 18) {
-    timeOfDay = '傍晚'
-  } else if (hour >= 18 && hour < 21) {
-    timeOfDay = '薄暮'
-  } else {
-    timeOfDay = '深夜'
-  }
-  return date.format(`YYYY年M月D日 ${timeOfDay}h点`)
-}
-
 export const avatar = generateAvatar
+export { formatTime }
