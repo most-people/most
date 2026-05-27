@@ -459,9 +459,9 @@
   display: grid;
   grid-template-columns:
     minmax(160px, 1.4fr) minmax(150px, 1fr) minmax(120px, 0.8fr)
-    130px;
+    minmax(72px, 0.45fr) minmax(120px, 0.8fr) 130px;
   gap: 12px;
-  min-width: 700px;
+  min-width: 900px;
   padding: 10px 12px;
   border-bottom: 1px solid var(--glass-border);
   font-size: 13px;
@@ -512,6 +512,38 @@
   gap: 8px;
   max-height: 360px;
   overflow: auto;
+}
+
+.admin-log-filter {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  margin-bottom: 12px;
+  padding: 3px;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  background: var(--glass-bg-subtle);
+  overflow-x: auto;
+}
+
+.admin-log-filter button {
+  min-width: 64px;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.admin-log-filter button.active {
+  background: var(--glass-bg-solid);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
 }
 
 .admin-log-row {

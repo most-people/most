@@ -86,6 +86,60 @@ function errorJson(c, err) {
   )
 }
 
+const NODE_LOG_FILTERS = {
+  join: ['join', 'joined', 'topic'],
+  pull: ['pull', 'p2p'],
+  verify: ['verify', 'verified', 'integrity', 'download:success'],
+  serve: ['seed', 'seeding', 'holding', 'publish:success', 'topic:joined'],
+  error: ['error', 'failed', 'fail'],
+}
+
+function getNodeLogSearchText(log = {}) {
+  let dataText = ''
+  try {
+    dataText = JSON.stringify(log.data || {})
+  } catch {}
+
+  return [log.level, log.event, log.message, dataText]
+    .map(value => String(value || '').toLowerCase())
+    .join(' ')
+}
+
+function matchesNodeLogFilter(log, filter) {
+  const normalized = String(filter || 'all')
+    .trim()
+    .toLowerCase()
+  if (!normalized || normalized === 'all') return true
+
+  const text = getNodeLogSearchText(log)
+  if (normalized === 'error') {
+    return (
+      log.level === 'error' ||
+      NODE_LOG_FILTERS.error.some(term => text.includes(term))
+    )
+  }
+
+  const terms = NODE_LOG_FILTERS[normalized] || [normalized]
+  return terms.some(term => text.includes(term))
+}
+
+function listFilteredNodeLogs(nodeLogger, options = {}) {
+  const limit = Math.max(1, Math.min(Number(options.limit) || 100, 1000))
+  const filter = String(options.filter || 'all')
+    .trim()
+    .toLowerCase()
+  const query = String(options.query || '')
+    .trim()
+    .toLowerCase()
+  const logs = nodeLogger
+    .list(1000)
+    .filter(log => matchesNodeLogFilter(log, filter))
+    .filter(log => !query || getNodeLogSearchText(log).includes(query))
+    .slice(0, limit)
+
+  return { filter, query, logs }
+}
+
 function readPackageJson() {
   try {
     return JSON.parse(
@@ -262,6 +316,12 @@ function buildOpenApiSpec(appPort) {
           responses: { 200: { description: 'Logs cleared' } },
         },
       },
+      '/api/node/diagnostics': {
+        get: {
+          summary: 'Export node diagnostics snapshot',
+          responses: { 200: { description: 'Diagnostics snapshot' } },
+        },
+      },
       '/api/p2p/pull': {
         post: {
           summary: 'Pull a full file replica by CID',
@@ -303,7 +363,9 @@ function extractHostname(value) {
 }
 
 function isLocalHostname(hostname) {
-  const value = String(hostname || '').trim().toLowerCase()
+  const value = String(hostname || '')
+    .trim()
+    .toLowerCase()
   return ['localhost', '127.0.0.1', '::1', '[::1]'].includes(value)
 }
 
@@ -329,7 +391,9 @@ function isLocalRequestHost(hostHeader) {
 }
 
 function isLoopbackRemoteAddress(address) {
-  const value = String(address || '').trim().toLowerCase()
+  const value = String(address || '')
+    .trim()
+    .toLowerCase()
   return (
     value === 'localhost' ||
     value === '::1' ||
@@ -634,7 +698,13 @@ export function createApp(engine, options = {}) {
       }
 
       if (isRemoteRequest(c) && isAdminApi(path)) {
-        return c.json({ error: 'Remote users cannot access node administration', code: 'REMOTE_ADMIN_FORBIDDEN' }, 403)
+        return c.json(
+          {
+            error: 'Remote users cannot access node administration',
+            code: 'REMOTE_ADMIN_FORBIDDEN',
+          },
+          403
+        )
       }
 
       const authHeader = c.req.header('authorization')
@@ -789,7 +859,8 @@ export function createApp(engine, options = {}) {
   app.get('/api/remote/capabilities', c => {
     const remoteInviteSet = getRemoteInviteSet()
     return c.json({
-      remoteAccess: isPublicListenHost(appHost) && remoteInviteConfigured(remoteInviteSet),
+      remoteAccess:
+        isPublicListenHost(appHost) && remoteInviteConfigured(remoteInviteSet),
       inviteRequired: true,
       inviteConfigured: remoteInviteConfigured(remoteInviteSet),
       authenticated: Boolean(c.get('userAddress')),
@@ -921,9 +992,14 @@ export function createApp(engine, options = {}) {
 
   app.get('/api/node/logs', c => {
     const limit = Number(c.req.query('limit') || 100)
+    const filter = c.req.query('filter') || 'all'
+    const query = c.req.query('q') || ''
+    const result = listFilteredNodeLogs(nodeLogger, { limit, filter, query })
     return c.json({
       logFile: nodeLogger.logFile,
-      logs: nodeLogger.list(limit),
+      filter: result.filter,
+      query: result.query,
+      logs: result.logs,
     })
   })
 
@@ -932,6 +1008,28 @@ export function createApp(engine, options = {}) {
     const clearedAt = new Date().toISOString()
     wsBroadcast('node:logs:cleared', { clearedAt })
     return c.json({ success, clearedAt })
+  })
+
+  app.get('/api/node/diagnostics', async c => {
+    try {
+      const status = await buildNodeStatus(
+        engine,
+        configStore,
+        appPort,
+        appHost
+      )
+      return c.json({
+        generatedAt: new Date().toISOString(),
+        packageVersion: PACKAGE_JSON.version,
+        platform: process.platform,
+        nodeVersion: process.version,
+        status,
+        logFile: nodeLogger.logFile,
+        logs: nodeLogger.list(200),
+      })
+    } catch (err) {
+      return errorJson(c, err)
+    }
   })
 
   app.get('/api/admin/users', c => {
@@ -1614,6 +1712,10 @@ export async function main() {
       message: 'CID topic joined',
       data,
     })
+    safeBroadcastNodeStatus()
+  })
+  engine.on('seed:metrics', data => {
+    wsBroadcast('seed:metrics', data)
     safeBroadcastNodeStatus()
   })
   engine.on('channel:message', data =>

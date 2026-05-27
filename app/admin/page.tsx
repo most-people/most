@@ -2,6 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import dayjs from 'dayjs'
+import relativeTime from 'dayjs/plugin/relativeTime'
+import 'dayjs/locale/zh-cn'
 import {
   Activity,
   AlertTriangle,
@@ -29,6 +32,9 @@ import {
   getBackendUrlExport,
 } from '~/server/src/utils/api'
 import { useAppStore } from '~/app/app/useAppStore'
+
+dayjs.extend(relativeTime)
+dayjs.locale('zh-cn')
 
 interface NodeAddress {
   type: string
@@ -66,6 +72,9 @@ interface NodeHolding {
   seedStatus?: 'queued' | 'joining' | 'active' | 'paused' | 'error'
   seedError?: string
   updatedAt?: string
+  peerCount?: number
+  lastServedAt?: string | null
+  totalServedBytes?: number
 }
 
 interface NodeStatus {
@@ -189,6 +198,14 @@ function formatSeedStatus(holding: NodeHolding) {
   }
 }
 
+function formatRecentTime(value?: string | null) {
+  if (!value) return '从未'
+  const time = dayjs(value)
+  if (!time.isValid()) return '从未'
+  if (time.isAfter(dayjs())) return '刚刚'
+  return time.fromNow()
+}
+
 const DESKTOP_PLATFORMS = [
   { name: 'Windows', icon: Monitor, ext: '.exe' },
   { name: 'macOS', icon: Apple, ext: '.dmg' },
@@ -226,6 +243,52 @@ const SEED_STATUS_HELP = [
   },
 ]
 
+const LOG_FILTER_OPTIONS = [
+  { value: 'all', label: '全部' },
+  { value: 'join', label: 'Join' },
+  { value: 'pull', label: 'Pull' },
+  { value: 'verify', label: 'Verify' },
+  { value: 'serve', label: 'Serve' },
+  { value: 'error', label: 'Error' },
+]
+
+const LOG_FILTER_TERMS: Record<string, string[]> = {
+  join: ['join', 'joined', 'topic'],
+  pull: ['pull', 'p2p'],
+  verify: ['verify', 'verified', 'integrity', 'download:success'],
+  serve: ['seed', 'seeding', 'holding', 'publish:success', 'topic:joined'],
+  error: ['error', 'failed', 'fail'],
+}
+
+function getNodeLogText(log: NodeLog) {
+  let dataText = ''
+  try {
+    dataText = JSON.stringify(log.data || {})
+  } catch {}
+
+  return [log.level, log.event, log.message, dataText]
+    .map(value => String(value || '').toLowerCase())
+    .join(' ')
+}
+
+function nodeLogMatchesFilter(log: NodeLog, filter: string) {
+  const normalized = String(filter || 'all')
+    .trim()
+    .toLowerCase()
+  if (!normalized || normalized === 'all') return true
+
+  const text = getNodeLogText(log)
+  if (normalized === 'error') {
+    return (
+      log.level === 'error' ||
+      LOG_FILTER_TERMS.error.some(term => text.includes(term))
+    )
+  }
+
+  const terms = LOG_FILTER_TERMS[normalized] || [normalized]
+  return terms.some(term => text.includes(term))
+}
+
 export default function AdminPage() {
   const hasBackend = useAppStore(s => s.hasBackend)
   const addToast = useAppStore(s => s.addToast)
@@ -234,6 +297,8 @@ export default function AdminPage() {
   const [error, setError] = useState('')
   const [isSavingConfig, setIsSavingConfig] = useState(false)
   const [isClearingLogs, setIsClearingLogs] = useState(false)
+  const [isExportingDiagnostics, setIsExportingDiagnostics] = useState(false)
+  const [logFilter, setLogFilter] = useState('all')
   const [users, setUsers] = useState<AdminUserData[]>([])
   const [isClearingUser, setIsClearingUser] = useState('')
   const [configForm, setConfigForm] = useState({
@@ -299,10 +364,14 @@ export default function AdminPage() {
     }
   }
 
-  const loadLogs = async () => {
+  const loadLogs = async (nextFilter = logFilter) => {
     try {
+      const query = new URLSearchParams({
+        limit: '80',
+        filter: nextFilter,
+      })
       const result = await api
-        .get<{ logs: NodeLog[] }>('/api/node/logs?limit=80')
+        .get<{ logs: NodeLog[] }>(`/api/node/logs?${query.toString()}`)
         .json()
       setLogs(result.logs || [])
     } catch {}
@@ -365,6 +434,32 @@ export default function AdminPage() {
     }
   }
 
+  const exportDiagnostics = async () => {
+    setIsExportingDiagnostics(true)
+    try {
+      const diagnostics = await api.get('/api/node/diagnostics').json()
+      const blob = new Blob([JSON.stringify(diagnostics, null, 2)], {
+        type: 'application/json',
+      })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+      link.href = url
+      link.download = `mostbox-diagnostics-${stamp}.json`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+      addToast('诊断已导出', 'success')
+    } catch (err) {
+      const message = await getApiErrorMessage(err, '导出诊断失败')
+      addToast(message, 'error')
+      setError(message)
+    } finally {
+      setIsExportingDiagnostics(false)
+    }
+  }
+
   const clearUserData = async (address: string) => {
     const confirmed = window.confirm(
       `确定清除用户 ${address.slice(0, 6)}...${address.slice(-4)} 的文件记录和回收站吗？无人引用的副本也会被清理。`
@@ -400,33 +495,35 @@ export default function AdminPage() {
         ws.close()
         return
       }
-    ws.onmessage = event => {
-      try {
-        const message = JSON.parse(event.data)
-        if (message.event === 'node:status') {
-          setStatus(message.data)
-        }
-        if (message.event === 'node:log') {
-          setLogs(prev => [message.data, ...prev].slice(0, 80))
-        }
-        if (message.event === 'node:logs:cleared') {
-          setLogs([])
-        }
-        if (
-          message.event === 'publish:success' ||
-          message.event === 'download:success' ||
-          message.event === 'network:status'
-        ) {
-          loadStatus()
-        }
-      } catch {}
-    }
+      ws.onmessage = event => {
+        try {
+          const message = JSON.parse(event.data)
+          if (message.event === 'node:status') {
+            setStatus(message.data)
+          }
+          if (message.event === 'node:log') {
+            if (nodeLogMatchesFilter(message.data, logFilter)) {
+              setLogs(prev => [message.data, ...prev].slice(0, 80))
+            }
+          }
+          if (message.event === 'node:logs:cleared') {
+            setLogs([])
+          }
+          if (
+            message.event === 'publish:success' ||
+            message.event === 'download:success' ||
+            message.event === 'network:status'
+          ) {
+            loadStatus()
+          }
+        } catch {}
+      }
     })()
     return () => {
       cancelled = true
       ws?.close()
     }
-  }, [hasBackend, isRemoteAdmin])
+  }, [hasBackend, isRemoteAdmin, logFilter])
 
   return (
     <main className="admin-page">
@@ -469,7 +566,9 @@ export default function AdminPage() {
           <AlertTriangle size={18} />
           <div>
             <h2>远程节点管理不可用</h2>
-            <p>当前连接的是别人部署的远程节点，普通邀请码不能查看或修改节点管理数据。</p>
+            <p>
+              当前连接的是别人部署的远程节点，普通邀请码不能查看或修改节点管理数据。
+            </p>
           </div>
         </section>
       )}
@@ -506,392 +605,428 @@ export default function AdminPage() {
 
       {!isRemoteAdmin && (
         <>
-      <section className="admin-product-grid" aria-label="MostBox 信息">
-        <div className="admin-product-panel admin-product-main">
-          <div className="admin-product-mark">MB</div>
-          <div>
-            <h2>MostBox</h2>
-            <p className="admin-product-version">
-              版本 {status?.version || '0.1.0'}
-            </p>
-            <p className="admin-product-stack">
-              Hyperswarm · Hyperdrive · IPFS
-            </p>
-          </div>
-        </div>
-
-        <div className="admin-product-panel admin-download-panel">
-          <div className="admin-panel-header compact">
-            <div>
-              <h2>下载桌面客户端</h2>
-            </div>
-            <Download size={18} />
-          </div>
-          <p className="admin-product-desc">
-            Web 端仅用于界面展示。下载桌面客户端获得完整的 P2P
-            文件分享和加密聊天体验。
-          </p>
-          <div className="admin-platform-list">
-            {DESKTOP_PLATFORMS.map(platform => {
-              const PlatformIcon = platform.icon
-              return (
-                <Link
-                  key={platform.name}
-                  href="/download"
-                  className="admin-platform-link"
-                >
-                  <PlatformIcon size={16} />
-                  <span>{platform.name}</span>
-                  <span>{platform.ext}</span>
-                </Link>
-              )
-            })}
-          </div>
-        </div>
-
-        <div className="admin-product-panel admin-feature-panel">
-          <div className="admin-panel-header compact">
-            <div>
-              <h2>完整功能</h2>
-            </div>
-            <CheckCircle2 size={18} />
-          </div>
-          <ul className="admin-feature-list">
-            {DESKTOP_FEATURES.map(feature => (
-              <li key={feature}>
-                <CheckCircle2 size={14} />
-                <span>{feature}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </section>
-      <section className="admin-overview">
-        <div className="admin-metric">
-          <div className="admin-metric-icon">
-            <ShieldCheck size={18} />
-          </div>
-          <div>
-            <span>节点 ID</span>
-            <strong>{shortText(status?.nodeId || '')}</strong>
-          </div>
-          <button
-            className="btn btn-icon admin-metric-action"
-            onClick={copyNodeId}
-            aria-label="复制节点 ID"
-          >
-            <Clipboard size={15} />
-          </button>
-        </div>
-        <div className="admin-metric">
-          <div className="admin-metric-icon">
-            <Wifi size={18} />
-          </div>
-          <div>
-            <span>连接</span>
-            <strong>{status ? `${status.network.peers} peers` : '-'}</strong>
-          </div>
-        </div>
-        <div className="admin-metric">
-          <div className="admin-metric-icon">
-            <HardDrive size={18} />
-          </div>
-          <div>
-            <span>容量</span>
-            <strong>{capacityPercent}%</strong>
-          </div>
-        </div>
-        <div className="admin-metric">
-          <div className="admin-metric-icon">
-            <Server size={18} />
-          </div>
-          <div>
-            <span>运行</span>
-            <strong>{status ? formatUptime(status.uptimeSeconds) : '-'}</strong>
-          </div>
-        </div>
-      </section>
-
-      <section className="admin-grid">
-        <div className="admin-panel admin-span-2">
-          <div className="admin-panel-header">
-            <div>
-              <h2>节点状态</h2>
-            </div>
-            <CheckCircle2 size={18} />
-          </div>
-          <div className="admin-status-grid">
-            <div>
-              <span>版本</span>
-              <strong>{status?.version || '-'}</strong>
-            </div>
-            <div>
-              <span>监听</span>
-              <strong>{status ? `${status.host}:${status.port}` : '-'}</strong>
-            </div>
-            <div>
-              <span>数据目录</span>
-              <strong>{status?.dataPath || '-'}</strong>
-            </div>
-          </div>
-          <div className="admin-address-list">
-            {(status?.listen.addresses || []).map(address => (
-              <span key={`${address.type}-${address.ip}`}>
-                {address.label}: {address.ip}:{status?.port}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        <div className="admin-panel admin-span-2">
-          <div className="admin-panel-header">
-            <div>
-              <h2>用户数据</h2>
-            </div>
-            <Database size={18} />
-          </div>
-          <div className="admin-table">
-            <div className="admin-table-row admin-table-head">
-              <span>用户</span>
-              <span>文件</span>
-              <span>回收站</span>
-              <span>操作</span>
-            </div>
-            {users.map(user => (
-              <div className="admin-table-row" key={user.address}>
-                <span title={user.address}>{shortText(user.address)}</span>
-                <span>{user.fileCount}</span>
-                <span>{user.trashCount}</span>
-                <span>
-                  <button
-                    className="btn btn-ghost"
-                    onClick={() => clearUserData(user.address)}
-                    disabled={isClearingUser === user.address}
-                  >
-                    <Trash2 size={16} />
-                    清除
-                  </button>
-                </span>
+          <section className="admin-product-grid" aria-label="MostBox 信息">
+            <div className="admin-product-panel admin-product-main">
+              <div className="admin-product-mark">MB</div>
+              <div>
+                <h2>MostBox</h2>
+                <p className="admin-product-version">
+                  版本 {status?.version || '0.1.0'}
+                </p>
+                <p className="admin-product-stack">
+                  Hyperswarm · Hyperdrive · IPFS
+                </p>
               </div>
-            ))}
-            {users.length === 0 && (
-              <div className="admin-empty-row">暂无用户数据</div>
-            )}
-          </div>
-        </div>
-
-        <div className="admin-panel admin-span-2">
-          <div className="admin-panel-header">
-            <div>
-              <h2>节点设置</h2>
             </div>
-            <Database size={18} />
-          </div>
-          <div className="admin-settings-fields">
-            <label className="admin-field admin-field-wide">
-              <span>数据目录</span>
-              <input
-                className="input"
-                value={configForm.dataPath}
-                onChange={event =>
-                  setConfigForm(prev => ({
-                    ...prev,
-                    dataPath: event.target.value,
-                  }))
-                }
-              />
-            </label>
-            <label className="admin-field">
-              <span>访问范围</span>
-              <select
-                className="input"
-                value={configForm.host}
-                onChange={event =>
-                  setConfigForm(prev => ({
-                    ...prev,
-                    host: event.target.value,
-                  }))
-                }
-              >
-                <option value="127.0.0.1">仅本机</option>
-                <option value="0.0.0.0">开放到公网/局域网</option>
-              </select>
-            </label>
-            <label className="admin-field">
-              <span>HTTP 端口</span>
-              <input
-                className="input"
-                type="number"
-                min="1"
-                max="65535"
-                step="1"
-                value={configForm.port}
-                onChange={event =>
-                  setConfigForm(prev => ({
-                    ...prev,
-                    port: event.target.value,
-                  }))
-                }
-              />
-            </label>
-            <label className="admin-field">
-              <span>容量上限 GiB</span>
-              <input
-                className="input"
-                type="number"
-                min="0"
-                step="1"
-                value={configForm.capacityGiB}
-                onChange={event =>
-                  setConfigForm(prev => ({
-                    ...prev,
-                    capacityGiB: event.target.value,
-                  }))
-                }
-              />
-            </label>
-            <label className="admin-field">
-              <span>单文件最大 GiB</span>
-              <input
-                className="input"
-                type="number"
-                min="0"
-                step="1"
-                value={configForm.maxFileSizeGiB}
-                onChange={event =>
-                  setConfigForm(prev => ({
-                    ...prev,
-                    maxFileSizeGiB: event.target.value,
-                  }))
-                }
-              />
-            </label>
-            <label className="admin-field admin-field-wide">
-              <span>远程访问邀请码</span>
-              <textarea
-                className="input admin-textarea"
-                value={configForm.remoteInvites}
-                placeholder="每行一个，或用英文逗号分隔"
-                onChange={event =>
-                  setConfigForm(prev => ({
-                    ...prev,
-                    remoteInvites: event.target.value,
-                  }))
-                }
-              />
-            </label>
-          </div>
-          <p className="admin-field-hint">
-            监听地址变更保存后需要重启 daemon；开放到公网/局域网时，远程使用必须配置邀请码。修改邀请码后新请求立即生效。
-            发布和下载成功后会固定做种；MostBox 不设同时做种数或传输限速。
-          </p>
-          <button
-            className="btn btn-primary btn-full"
-            onClick={saveConfig}
-            disabled={isSavingConfig}
-          >
-            <Save size={16} />
-            保存配置
-          </button>
-        </div>
 
-        <div className="admin-panel admin-span-2">
-          <div className="admin-panel-header">
-            <div>
-              <h2>持有副本</h2>
-            </div>
-            <HardDrive size={18} />
-          </div>
-          <div className="admin-capacity-row">
-            <progress value={capacityPercent} max="100" />
-            <span>
-              {formatSize(status?.capacity.usedBytes || 0)} /{' '}
-              {formatSize(status?.capacity.configuredBytes || 0)}
-            </span>
-          </div>
-          <div className="admin-seed-help" aria-label="做种状态说明">
-            {SEED_STATUS_HELP.map(item => (
-              <div className="admin-seed-help-item" key={item.label}>
-                <span className={`admin-seed-dot ${item.tone}`} />
+            <div className="admin-product-panel admin-download-panel">
+              <div className="admin-panel-header compact">
                 <div>
-                  <strong>{item.label}</strong>
-                  <span>{item.desc}</span>
+                  <h2>下载桌面客户端</h2>
+                </div>
+                <Download size={18} />
+              </div>
+              <p className="admin-product-desc">
+                Web 端仅用于界面展示。下载桌面客户端获得完整的 P2P
+                文件分享和加密聊天体验。
+              </p>
+              <div className="admin-platform-list">
+                {DESKTOP_PLATFORMS.map(platform => {
+                  const PlatformIcon = platform.icon
+                  return (
+                    <Link
+                      key={platform.name}
+                      href="/download"
+                      className="admin-platform-link"
+                    >
+                      <PlatformIcon size={16} />
+                      <span>{platform.name}</span>
+                      <span>{platform.ext}</span>
+                    </Link>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="admin-product-panel admin-feature-panel">
+              <div className="admin-panel-header compact">
+                <div>
+                  <h2>完整功能</h2>
+                </div>
+                <CheckCircle2 size={18} />
+              </div>
+              <ul className="admin-feature-list">
+                {DESKTOP_FEATURES.map(feature => (
+                  <li key={feature}>
+                    <CheckCircle2 size={14} />
+                    <span>{feature}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </section>
+          <section className="admin-overview">
+            <div className="admin-metric">
+              <div className="admin-metric-icon">
+                <ShieldCheck size={18} />
+              </div>
+              <div>
+                <span>节点 ID</span>
+                <strong>{shortText(status?.nodeId || '')}</strong>
+              </div>
+              <button
+                className="btn btn-icon admin-metric-action"
+                onClick={copyNodeId}
+                aria-label="复制节点 ID"
+              >
+                <Clipboard size={15} />
+              </button>
+            </div>
+            <div className="admin-metric">
+              <div className="admin-metric-icon">
+                <Wifi size={18} />
+              </div>
+              <div>
+                <span>连接</span>
+                <strong>
+                  {status ? `${status.network.peers} peers` : '-'}
+                </strong>
+              </div>
+            </div>
+            <div className="admin-metric">
+              <div className="admin-metric-icon">
+                <HardDrive size={18} />
+              </div>
+              <div>
+                <span>容量</span>
+                <strong>{capacityPercent}%</strong>
+              </div>
+            </div>
+            <div className="admin-metric">
+              <div className="admin-metric-icon">
+                <Server size={18} />
+              </div>
+              <div>
+                <span>运行</span>
+                <strong>
+                  {status ? formatUptime(status.uptimeSeconds) : '-'}
+                </strong>
+              </div>
+            </div>
+          </section>
+
+          <section className="admin-grid">
+            <div className="admin-panel admin-span-2">
+              <div className="admin-panel-header">
+                <div>
+                  <h2>节点状态</h2>
+                </div>
+                <CheckCircle2 size={18} />
+              </div>
+              <div className="admin-status-grid">
+                <div>
+                  <span>版本</span>
+                  <strong>{status?.version || '-'}</strong>
+                </div>
+                <div>
+                  <span>监听</span>
+                  <strong>
+                    {status ? `${status.host}:${status.port}` : '-'}
+                  </strong>
+                </div>
+                <div>
+                  <span>数据目录</span>
+                  <strong>{status?.dataPath || '-'}</strong>
                 </div>
               </div>
-            ))}
-          </div>
-          {hiddenHoldingCount > 0 && (
-            <p className="admin-table-note">
-              当前仅展示前 100 个副本，另有 {hiddenHoldingCount}{' '}
-              个仍在后台做种。
-            </p>
-          )}
-          <div className="admin-table">
-            <div className="admin-table-row admin-table-head">
-              <span>文件</span>
-              <span>CID</span>
-              <span>大小</span>
-              <span>状态</span>
-            </div>
-            {visibleHoldings.map(holding => (
-              <div className="admin-table-row" key={holding.cid}>
-                <span>{holding.fileName || '-'}</span>
-                <span title={holding.cid}>{shortText(holding.cid)}</span>
-                <span>{formatSize(holding.size)}</span>
-                <span
-                  className={`admin-seed-pill ${
-                    holding.seedStatus === 'error'
-                      ? 'error'
-                      : holding.seedStatus === 'active' || holding.joined
-                        ? 'active'
-                        : ''
-                  }`}
-                >
-                  {formatSeedStatus(holding)}
-                </span>
+              <div className="admin-address-list">
+                {(status?.listen.addresses || []).map(address => (
+                  <span key={`${address.type}-${address.ip}`}>
+                    {address.label}: {address.ip}:{status?.port}
+                  </span>
+                ))}
               </div>
-            ))}
-            {(!status || status.holdings.length === 0) && (
-              <div className="admin-empty-row">暂无持有副本</div>
-            )}
-          </div>
-        </div>
+            </div>
 
-        <div className="admin-panel admin-span-2">
-          <div className="admin-panel-header">
-            <div>
-              <h2>节点日志</h2>
-            </div>
-            <div className="admin-panel-actions">
-              <button
-                className="btn btn-ghost"
-                onClick={clearLogs}
-                disabled={isClearingLogs || logs.length === 0}
-              >
-                <Trash2 size={16} />
-                清空日志
-              </button>
-              <FileText size={18} />
-            </div>
-          </div>
-          <div className="admin-log-list">
-            {logs.map(log => (
-              <div className="admin-log-row" key={log.id}>
-                <time>{new Date(log.ts).toLocaleTimeString('zh-CN')}</time>
-                <span className={`admin-log-level ${log.level}`}>
-                  {log.level}
-                </span>
-                <strong>{log.event}</strong>
-                <span>{log.message}</span>
+            <div className="admin-panel admin-span-2">
+              <div className="admin-panel-header">
+                <div>
+                  <h2>用户数据</h2>
+                </div>
+                <Database size={18} />
               </div>
-            ))}
-            {logs.length === 0 && (
-              <div className="admin-empty-row">暂无日志</div>
-            )}
-          </div>
-        </div>
-      </section>
-      </>
+              <div className="admin-table">
+                <div className="admin-table-row admin-table-head">
+                  <span>用户</span>
+                  <span>文件</span>
+                  <span>回收站</span>
+                  <span>操作</span>
+                </div>
+                {users.map(user => (
+                  <div className="admin-table-row" key={user.address}>
+                    <span title={user.address}>{shortText(user.address)}</span>
+                    <span>{user.fileCount}</span>
+                    <span>{user.trashCount}</span>
+                    <span>
+                      <button
+                        className="btn btn-ghost"
+                        onClick={() => clearUserData(user.address)}
+                        disabled={isClearingUser === user.address}
+                      >
+                        <Trash2 size={16} />
+                        清除
+                      </button>
+                    </span>
+                  </div>
+                ))}
+                {users.length === 0 && (
+                  <div className="admin-empty-row">暂无用户数据</div>
+                )}
+              </div>
+            </div>
+
+            <div className="admin-panel admin-span-2">
+              <div className="admin-panel-header">
+                <div>
+                  <h2>节点设置</h2>
+                </div>
+                <Database size={18} />
+              </div>
+              <div className="admin-settings-fields">
+                <label className="admin-field admin-field-wide">
+                  <span>数据目录</span>
+                  <input
+                    className="input"
+                    value={configForm.dataPath}
+                    onChange={event =>
+                      setConfigForm(prev => ({
+                        ...prev,
+                        dataPath: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+                <label className="admin-field">
+                  <span>访问范围</span>
+                  <select
+                    className="input"
+                    value={configForm.host}
+                    onChange={event =>
+                      setConfigForm(prev => ({
+                        ...prev,
+                        host: event.target.value,
+                      }))
+                    }
+                  >
+                    <option value="127.0.0.1">仅本机</option>
+                    <option value="0.0.0.0">开放到公网/局域网</option>
+                  </select>
+                </label>
+                <label className="admin-field">
+                  <span>HTTP 端口</span>
+                  <input
+                    className="input"
+                    type="number"
+                    min="1"
+                    max="65535"
+                    step="1"
+                    value={configForm.port}
+                    onChange={event =>
+                      setConfigForm(prev => ({
+                        ...prev,
+                        port: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+                <label className="admin-field">
+                  <span>容量上限 GiB</span>
+                  <input
+                    className="input"
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={configForm.capacityGiB}
+                    onChange={event =>
+                      setConfigForm(prev => ({
+                        ...prev,
+                        capacityGiB: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+                <label className="admin-field">
+                  <span>单文件最大 GiB</span>
+                  <input
+                    className="input"
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={configForm.maxFileSizeGiB}
+                    onChange={event =>
+                      setConfigForm(prev => ({
+                        ...prev,
+                        maxFileSizeGiB: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+                <label className="admin-field admin-field-wide">
+                  <span>远程访问邀请码</span>
+                  <textarea
+                    className="input admin-textarea"
+                    value={configForm.remoteInvites}
+                    placeholder="每行一个，或用英文逗号分隔"
+                    onChange={event =>
+                      setConfigForm(prev => ({
+                        ...prev,
+                        remoteInvites: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+              </div>
+              <p className="admin-field-hint">
+                监听地址变更保存后需要重启
+                daemon；开放到公网/局域网时，远程使用必须配置邀请码。修改邀请码后新请求立即生效。
+                发布和下载成功后会固定做种；MostBox 不设同时做种数或传输限速。
+              </p>
+              <button
+                className="btn btn-primary btn-full"
+                onClick={saveConfig}
+                disabled={isSavingConfig}
+              >
+                <Save size={16} />
+                保存配置
+              </button>
+            </div>
+
+            <div className="admin-panel admin-span-2">
+              <div className="admin-panel-header">
+                <div>
+                  <h2>持有副本</h2>
+                </div>
+                <HardDrive size={18} />
+              </div>
+              <div className="admin-capacity-row">
+                <progress value={capacityPercent} max="100" />
+                <span>
+                  {formatSize(status?.capacity.usedBytes || 0)} /{' '}
+                  {formatSize(status?.capacity.configuredBytes || 0)}
+                </span>
+              </div>
+              <div className="admin-seed-help" aria-label="做种状态说明">
+                {SEED_STATUS_HELP.map(item => (
+                  <div className="admin-seed-help-item" key={item.label}>
+                    <span className={`admin-seed-dot ${item.tone}`} />
+                    <div>
+                      <strong>{item.label}</strong>
+                      <span>{item.desc}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {hiddenHoldingCount > 0 && (
+                <p className="admin-table-note">
+                  当前仅展示前 100 个副本，另有 {hiddenHoldingCount}{' '}
+                  个仍在后台做种。
+                </p>
+              )}
+              <div className="admin-table">
+                <div className="admin-table-row admin-table-head">
+                  <span>文件</span>
+                  <span>CID</span>
+                  <span>大小</span>
+                  <span>Peer</span>
+                  <span>最近服务</span>
+                  <span>状态</span>
+                </div>
+                {visibleHoldings.map(holding => (
+                  <div className="admin-table-row" key={holding.cid}>
+                    <span>{holding.fileName || '-'}</span>
+                    <span title={holding.cid}>{shortText(holding.cid)}</span>
+                    <span>{formatSize(holding.size)}</span>
+                    <span>{holding.peerCount ?? 0}</span>
+                    <span title={holding.lastServedAt || ''}>
+                      {formatRecentTime(holding.lastServedAt)}
+                    </span>
+                    <span
+                      className={`admin-seed-pill ${
+                        holding.seedStatus === 'error'
+                          ? 'error'
+                          : holding.seedStatus === 'active' || holding.joined
+                            ? 'active'
+                            : ''
+                      }`}
+                    >
+                      {formatSeedStatus(holding)}
+                    </span>
+                  </div>
+                ))}
+                {(!status || status.holdings.length === 0) && (
+                  <div className="admin-empty-row">暂无持有副本</div>
+                )}
+              </div>
+            </div>
+
+            <div className="admin-panel admin-span-2">
+              <div className="admin-panel-header">
+                <div>
+                  <h2>节点日志</h2>
+                </div>
+                <div className="admin-panel-actions">
+                  <button
+                    className="btn btn-secondary"
+                    onClick={exportDiagnostics}
+                    disabled={isExportingDiagnostics}
+                  >
+                    <Download size={16} />
+                    导出诊断
+                  </button>
+                  <button
+                    className="btn btn-ghost"
+                    onClick={clearLogs}
+                    disabled={isClearingLogs || logs.length === 0}
+                  >
+                    <Trash2 size={16} />
+                    清空日志
+                  </button>
+                  <FileText size={18} />
+                </div>
+              </div>
+              <div className="admin-log-filter" aria-label="日志筛选">
+                {LOG_FILTER_OPTIONS.map(item => (
+                  <button
+                    key={item.value}
+                    type="button"
+                    className={logFilter === item.value ? 'active' : ''}
+                    onClick={() => {
+                      setLogFilter(item.value)
+                      loadLogs(item.value)
+                    }}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+              <div className="admin-log-list">
+                {logs.map(log => (
+                  <div className="admin-log-row" key={log.id}>
+                    <time>{new Date(log.ts).toLocaleTimeString('zh-CN')}</time>
+                    <span className={`admin-log-level ${log.level}`}>
+                      {log.level}
+                    </span>
+                    <strong>{log.event}</strong>
+                    <span>{log.message}</span>
+                  </div>
+                ))}
+                {logs.length === 0 && (
+                  <div className="admin-empty-row">暂无日志</div>
+                )}
+              </div>
+            </div>
+          </section>
+        </>
       )}
     </main>
   )

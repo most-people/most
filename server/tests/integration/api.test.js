@@ -109,7 +109,8 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         ownerAddress: TEST_IDENTITY.address,
         ...options,
       })
-    const permanentDeleteTrashFile = engine.permanentDeleteTrashFile.bind(engine)
+    const permanentDeleteTrashFile =
+      engine.permanentDeleteTrashFile.bind(engine)
     engine.permanentDeleteTrashFile = (cid, options = {}) =>
       permanentDeleteTrashFile(cid, {
         ownerAddress: TEST_IDENTITY.address,
@@ -308,6 +309,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(spec.paths['/api/node/status'])
       assert.ok(spec.paths['/api/node/logs'])
       assert.ok(spec.paths['/api/node/logs'].delete)
+      assert.ok(spec.paths['/api/node/diagnostics'])
       assert.ok(spec.paths['/api/node/policy'])
 
       const clearRes = await fetch(`${baseUrl}/api/node/logs`, {
@@ -323,6 +325,60 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
 
       assert.strictEqual(emptyLogsRes.status, 200)
       assert.deepStrictEqual(emptyLogsData.logs, [])
+    })
+
+    it('filters node logs by Alpha diagnostic category', async () => {
+      nodeLogger.clear()
+      nodeLogger.append({
+        event: 'node:topic:joined',
+        message: 'CID topic joined',
+      })
+      nodeLogger.append({
+        level: 'error',
+        event: 'node:pull:error',
+        message: 'P2P pull failed',
+      })
+      nodeLogger.append({
+        event: 'node:download:success',
+        message: 'Download verified and stored',
+      })
+
+      const pullRes = await fetch(`${baseUrl}/api/node/logs?filter=pull`)
+      const pullData = await pullRes.json()
+      assert.strictEqual(pullRes.status, 200)
+      assert.deepStrictEqual(
+        pullData.logs.map(log => log.event),
+        ['node:pull:error']
+      )
+
+      const verifyRes = await fetch(`${baseUrl}/api/node/logs?filter=verify`)
+      const verifyData = await verifyRes.json()
+      assert.strictEqual(verifyRes.status, 200)
+      assert.deepStrictEqual(
+        verifyData.logs.map(log => log.event),
+        ['node:download:success']
+      )
+
+      const errorRes = await fetch(`${baseUrl}/api/node/logs?filter=error`)
+      const errorData = await errorRes.json()
+      assert.strictEqual(errorRes.status, 200)
+      assert.deepStrictEqual(
+        errorData.logs.map(log => log.event),
+        ['node:pull:error']
+      )
+    })
+
+    it('exports a sanitized diagnostics snapshot', async () => {
+      const res = await fetch(`${baseUrl}/api/node/diagnostics`)
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 200)
+      assert.ok(data.generatedAt)
+      assert.strictEqual(typeof data.packageVersion, 'string')
+      assert.strictEqual(data.status.status, 'online')
+      assert.ok(Array.isArray(data.status.holdings))
+      assert.ok(Array.isArray(data.logs))
+      assert.strictEqual('remoteInvites' in data.status.config, false)
     })
   })
 
@@ -609,6 +665,9 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.match(holding.topic, /^[0-9a-f]{64}$/)
       assert.strictEqual(holding.joined, true)
       assert.strictEqual(holding.seedStatus, 'active')
+      assert.strictEqual(typeof holding.peerCount, 'number')
+      assert.strictEqual(holding.lastServedAt, null)
+      assert.strictEqual(holding.totalServedBytes, 0)
     })
 
     it('creates a manual holding record', async () => {
@@ -904,7 +963,9 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const listData = await listRes.json()
       assert.strictEqual(listRes.status, 200)
       assert.ok(
-        listData.users.some(user => user.address === TEST_IDENTITY.address.toLowerCase())
+        listData.users.some(
+          user => user.address === TEST_IDENTITY.address.toLowerCase()
+        )
       )
 
       const clearRes = await fetch(

@@ -18,7 +18,7 @@ import { CID } from 'multiformats/cid'
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { calculateCid, parseMostLink } from './core/cid.js'
+import { calculateCid, parseMostLink, validateCidString } from './core/cid.js'
 import {
   sanitizeFilename,
   validateAndSanitizePath,
@@ -83,6 +83,7 @@ export class MostBoxEngine extends EventEmitter {
   #activeDownloads = new Map()
   #drivePromises = new Map()
   #fileDiscoveries = new Map()
+  #fileMonitors = new Map()
   #seedStates = new Map()
   #holdingResumeTask = null
 
@@ -320,6 +321,10 @@ export class MostBoxEngine extends EventEmitter {
     }
     this.#activeDownloads.clear()
 
+    await Promise.allSettled(
+      [...this.#fileMonitors.values()].map(item => this.#closeFileMonitor(item))
+    )
+    this.#fileMonitors.clear()
     await Promise.allSettled([...this.#drives.values()].map(d => d.close()))
     this.#drives.clear()
     this.#fileDiscoveries.clear()
@@ -593,7 +598,6 @@ export class MostBoxEngine extends EventEmitter {
       }
       const cidString = parsed.cid
       console.log(`[MostBox] Parsed CID: ${cidString}`)
-      const parsedCid = CID.parse(cidString)
       const { driveName: name } = this.#getCidInfo(cidString)
 
       const existingFile = this.#publishedFiles.find(
@@ -836,13 +840,12 @@ export class MostBoxEngine extends EventEmitter {
         this.emit('download:status', { taskId, status: 'verifying' })
 
         const { cid: downloadedCid } = await calculateCid(savePath)
-        const expectedHash = b4a.toString(parsedCid.multihash.digest, 'hex')
-        const actualHash = b4a.toString(downloadedCid.multihash.digest, 'hex')
+        const downloadedCidString = downloadedCid.toString()
 
-        if (expectedHash !== actualHash) {
+        if (downloadedCidString !== cidString) {
           fs.unlinkSync(savePath)
           throw new IntegrityError(
-            `File content CID mismatch. File may be corrupted or tampered.`
+            `File content CID mismatch. Expected ${cidString}, got ${downloadedCidString}.`
           )
         }
 
@@ -1292,8 +1295,9 @@ export class MostBoxEngine extends EventEmitter {
           ).length
         : this.#publishedFiles.length,
       trashCount: ownerAddress
-        ? this.#trashFiles.filter(f => this.#recordMatchesOwner(f, ownerAddress))
-            .length
+        ? this.#trashFiles.filter(f =>
+            this.#recordMatchesOwner(f, ownerAddress)
+          ).length
         : this.#trashFiles.length,
     }
   }
@@ -1396,7 +1400,9 @@ export class MostBoxEngine extends EventEmitter {
   getPublishedFiles(options = {}) {
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
     return ownerAddress
-      ? this.#publishedFiles.filter(f => this.#recordMatchesOwner(f, ownerAddress))
+      ? this.#publishedFiles.filter(f =>
+          this.#recordMatchesOwner(f, ownerAddress)
+        )
       : this.#publishedFiles
   }
 
@@ -1468,7 +1474,9 @@ export class MostBoxEngine extends EventEmitter {
       .map(channel => ({
         ...channel,
         members: Array.isArray(channel.members)
-          ? channel.members.filter(member => normalizeOwnerAddress(member) !== ownerAddress)
+          ? channel.members.filter(
+              member => normalizeOwnerAddress(member) !== ownerAddress
+            )
           : [],
       }))
       .filter(channel => channel.members.length > 0)
@@ -1516,6 +1524,7 @@ export class MostBoxEngine extends EventEmitter {
         seedStatus: status,
         seedError: seedState?.error,
         seedStatusUpdatedAt: seedState?.updatedAt,
+        ...this.#getFileRuntimeStats(holding.cid),
         link: `most://${holding.cid}?filename=${encodeURIComponent(holding.fileName || holding.cid)}`,
       }
     })
@@ -1620,7 +1629,12 @@ export class MostBoxEngine extends EventEmitter {
    * @param {number} [offset=0] - 读取起始位置
    * @param {number} [limit=10000] - 最大读取字节数
    */
-  async readFileContent(cid, offset = 0, limit = DEFAULT_READ_LIMIT, options = {}) {
+  async readFileContent(
+    cid,
+    offset = 0,
+    limit = DEFAULT_READ_LIMIT,
+    options = {}
+  ) {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
 
@@ -1787,10 +1801,7 @@ export class MostBoxEngine extends EventEmitter {
 
     const existing = this.#channels.find(c => c.name === name)
     if (existing) {
-      if (
-        ownerAddress &&
-        !Array.isArray(existing.members)
-      ) {
+      if (ownerAddress && !Array.isArray(existing.members)) {
         existing.members = []
       }
       if (ownerAddress && !existing.members.includes(ownerAddress)) {
@@ -1994,12 +2005,12 @@ export class MostBoxEngine extends EventEmitter {
         return Array.isArray(c.members) && c.members.includes(ownerAddress)
       })
       .map(c => ({
-      name: c.name,
-      coreKey: c.coreKey,
-      createdAt: c.createdAt,
-      type: c.type,
-      peerCount: (this.#channelPeers.get(c.name) || new Map()).size,
-    }))
+        name: c.name,
+        coreKey: c.coreKey,
+        createdAt: c.createdAt,
+        type: c.type,
+        peerCount: (this.#channelPeers.get(c.name) || new Map()).size,
+      }))
   }
 
   /**
@@ -2142,6 +2153,10 @@ export class MostBoxEngine extends EventEmitter {
 
   #getCidInfo(cid) {
     try {
+      const validation = validateCidString(cid)
+      if (!validation.valid) {
+        throw new ValidationError(validation.error)
+      }
       const parsedCid = CID.parse(cid)
       const topic = b4a.from(parsedCid.multihash.digest)
       if (topic.length !== 32) {
@@ -2178,6 +2193,111 @@ export class MostBoxEngine extends EventEmitter {
     if (this.#seedStates.delete(cid)) {
       this.emit('seed:state:removed', { cid })
     }
+  }
+
+  #getFileRuntimeStats(cid) {
+    const state = this.#fileMonitors.get(cid)
+    if (!state) {
+      return {
+        peerCount: 0,
+        lastServedAt: null,
+        totalServedBytes: 0,
+      }
+    }
+
+    return {
+      peerCount: state.peerCount || 0,
+      lastServedAt: state.lastServedAt || null,
+      totalServedBytes: state.totalServedBytes || 0,
+    }
+  }
+
+  async #ensureFileMonitor(cid, drive = null) {
+    const existing = this.#fileMonitors.get(cid)
+    if (existing) return existing
+
+    const { driveName } = this.#getCidInfo(cid)
+    const monitoredDrive = drive || (await this.#getOrCreateDrive(driveName))
+    const monitor = monitoredDrive.monitor('/' + cid)
+    const state = {
+      cid,
+      monitor,
+      peerCount: 0,
+      lastServedAt: null,
+      totalServedBytes: 0,
+      uploadBytes: 0,
+      uploadBlocks: 0,
+      lastMetricsEmittedAt: 0,
+      cleanup: null,
+    }
+    this.#fileMonitors.set(cid, state)
+
+    const emitMetrics = (force = false) => {
+      const now = Date.now()
+      if (!force && now - state.lastMetricsEmittedAt < 1000) return
+      state.lastMetricsEmittedAt = now
+      this.emit('seed:metrics', {
+        cid,
+        ...this.#getFileRuntimeStats(cid),
+      })
+    }
+
+    const updatePeerCount = () => {
+      const nextPeerCount = Number(monitor.peers) || 0
+      if (nextPeerCount !== state.peerCount) {
+        state.peerCount = nextPeerCount
+        emitMetrics(true)
+      }
+    }
+
+    const updateTransferStats = () => {
+      updatePeerCount()
+      const uploadStats = monitor.uploadStats || {}
+      const uploadBytes = Number(uploadStats.monitoringBytes) || 0
+      const uploadBlocks = Number(uploadStats.blocks) || 0
+      const servedMore =
+        uploadBytes > state.uploadBytes || uploadBlocks > state.uploadBlocks
+
+      if (servedMore) {
+        state.lastServedAt = new Date().toISOString()
+        state.totalServedBytes = uploadBytes
+      }
+
+      state.uploadBytes = uploadBytes
+      state.uploadBlocks = uploadBlocks
+      if (servedMore) emitMetrics()
+    }
+
+    monitor.on('update', updateTransferStats)
+    try {
+      await monitor.ready()
+      const blobs = monitor.blobs
+      const onPeerUpdate = () => {
+        updatePeerCount()
+      }
+      blobs?.core?.on('peer-add', onPeerUpdate)
+      blobs?.core?.on('peer-remove', onPeerUpdate)
+      state.cleanup = () => {
+        blobs?.core?.off('peer-add', onPeerUpdate)
+        blobs?.core?.off('peer-remove', onPeerUpdate)
+      }
+      updateTransferStats()
+    } catch (err) {
+      this.#fileMonitors.delete(cid)
+      monitor.off('update', updateTransferStats)
+      await monitor.close().catch(() => {})
+      throw err
+    }
+
+    return state
+  }
+
+  async #closeFileMonitor(state) {
+    if (!state) return
+    try {
+      state.cleanup?.()
+      await state.monitor.close()
+    } catch {}
   }
 
   #resumeHoldingsInBackground() {
@@ -2267,6 +2387,12 @@ export class MostBoxEngine extends EventEmitter {
 
     this.#saveHoldingsMetadata()
     this.emit('holding:updated', next)
+    this.#ensureFileMonitor(next.cid).catch(err => {
+      this.#setSeedState(next.cid, {
+        status: 'error',
+        error: err.message,
+      })
+    })
     const seedState = this.#seedStates.get(next.cid)
     return {
       ...next,
@@ -2276,6 +2402,7 @@ export class MostBoxEngine extends EventEmitter {
         (this.#fileDiscoveries.has(next.cid) ? 'active' : 'queued'),
       seedError: seedState?.error,
       seedStatusUpdatedAt: seedState?.updatedAt,
+      ...this.#getFileRuntimeStats(next.cid),
     }
   }
 
@@ -2286,6 +2413,8 @@ export class MostBoxEngine extends EventEmitter {
       this.#saveHoldingsMetadata()
       this.emit('holding:removed', { cid })
     }
+    this.#closeFileMonitor(this.#fileMonitors.get(cid))
+    this.#fileMonitors.delete(cid)
     this.#clearSeedState(cid)
   }
 
@@ -2299,10 +2428,18 @@ export class MostBoxEngine extends EventEmitter {
     })
 
     try {
-      await this.#getOrCreateDrive(driveName)
+      const drive = await this.#getOrCreateDrive(driveName)
 
       const existing = this.#fileDiscoveries.get(cid)
       if (existing) {
+        if (this.#holdings.some(holding => holding.cid === cid)) {
+          this.#ensureFileMonitor(cid, drive).catch(err => {
+            this.#setSeedState(cid, {
+              status: 'error',
+              error: err.message,
+            })
+          })
+        }
         this.#setSeedState(cid, {
           status: 'active',
           topic: topicHex,
@@ -2333,6 +2470,14 @@ export class MostBoxEngine extends EventEmitter {
         driveName,
         error: undefined,
       })
+      if (this.#holdings.some(holding => holding.cid === cid)) {
+        this.#ensureFileMonitor(cid, drive).catch(err => {
+          this.#setSeedState(cid, {
+            status: 'error',
+            error: err.message,
+          })
+        })
+      }
       this.emit('file:topic:joined', { cid, topic: topicHex, driveName })
 
       return {

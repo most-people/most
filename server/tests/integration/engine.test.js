@@ -3,8 +3,13 @@ import assert from 'node:assert'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import b4a from 'b4a'
+import Corestore from 'corestore'
+import Hyperdrive from 'hyperdrive'
+import { CID } from 'multiformats/cid'
 import { MostBoxEngine } from '../../src/index.js'
 import { calculateCid } from '../../src/core/cid.js'
+import { GLOBAL_SHARED_SEED_STRING } from '../../src/config.js'
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -23,6 +28,24 @@ async function waitForHoldingStatus(
     await sleep(25)
   }
   throw new Error(`Holding ${cid} did not reach ${expectedStatus}`)
+}
+
+async function waitForHoldingMetric(
+  engine,
+  cid,
+  predicate,
+  description,
+  timeout = 5000
+) {
+  const start = Date.now()
+  while (Date.now() - start < timeout) {
+    const holding = engine.listHoldings().find(item => item.cid === cid)
+    if (holding && predicate(holding)) {
+      return holding
+    }
+    await sleep(25)
+  }
+  throw new Error(`Holding ${cid} did not report ${description}`)
 }
 
 describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
@@ -277,9 +300,84 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
         /Link must be a non-empty string/
       )
     })
+
+    it('rejects content when the recomputed CID does not exactly match the link CID', async () => {
+      const mismatchTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-cid-mismatch-')
+      )
+      const attackerPath = path.join(mismatchTmpDir, 'attacker')
+      const downloaderPath = path.join(mismatchTmpDir, 'downloader')
+      const content = Buffer.from('same digest is not the same CID')
+      const { cid: realCid } = await calculateCid(content)
+      const fakeCid = CID.createV1(0x70, realCid.multihash).toString()
+      const topicHex = b4a.toString(realCid.multihash.digest, 'hex')
+      const driveName = `drive-${topicHex}`
+      const seed = b4a.alloc(32).fill(GLOBAL_SHARED_SEED_STRING)
+      const store = new Corestore(attackerPath, {
+        primaryKey: seed,
+        unsafe: true,
+      })
+      let attacker
+      let downloader
+      let link
+
+      try {
+        await store.ready()
+        const drive = new Hyperdrive(store.namespace(driveName))
+        await drive.ready()
+        const ws = drive.createWriteStream('/' + fakeCid)
+        ws.end(content)
+        await new Promise((resolve, reject) => {
+          ws.on('finish', resolve)
+          ws.on('error', reject)
+        })
+        await drive.close()
+        await store.close()
+
+        attacker = new MostBoxEngine({ dataPath: attackerPath })
+        downloader = new MostBoxEngine({
+          dataPath: downloaderPath,
+          downloadTimeout: 5000,
+        })
+        await attacker.start()
+        await downloader.start()
+        await attacker.addHolding({
+          cid: fakeCid,
+          fileName: 'mismatch.txt',
+          size: content.length,
+        })
+
+        link = attacker.replicateWith(downloader)
+        await assert.rejects(
+          downloader.downloadFile(
+            `most://${fakeCid}?filename=mismatch.txt`,
+            null,
+            { timeout: 5000 }
+          ),
+          /File content CID mismatch/
+        )
+      } finally {
+        link?.close()
+        await store.close().catch(() => {})
+        if (attacker) await attacker.stop().catch(() => {})
+        if (downloader) await downloader.stop().catch(() => {})
+        fs.rmSync(mismatchTmpDir, { recursive: true, force: true })
+      }
+    })
   })
 
   describe('node holdings and CID topic pull', () => {
+    it('rejects holdings for non-v1 CID strings', async () => {
+      await assert.rejects(
+        engine.addHolding({
+          cid: 'QmT5NvUtoM5nWFfrQdVrFtvGfKFmG7AHE8P34isapyhCxX',
+          fileName: 'legacy.txt',
+          size: 1,
+        }),
+        /CID v1 required/
+      )
+    })
+
     it('persists holdings and rejoins CID topics after restart', async () => {
       const holdingTmpDir = fs.mkdtempSync(
         path.join(os.tmpdir(), 'most-holding-test-')
@@ -367,6 +465,13 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
         links.push(uploader.replicateWith(seedB))
         const resultB = await pullB
         assert.deepStrictEqual(fs.readFileSync(resultB.savedPath), content)
+        const uploaderServed = await waitForHoldingMetric(
+          uploader,
+          publishResult.cid,
+          holding => holding.peerCount > 0 && Boolean(holding.lastServedAt),
+          'peer count and last served time'
+        )
+        assert.ok(uploaderServed.totalServedBytes > 0)
 
         const pullC = seedC.pullByCid(pullInput)
         await sleep(100)
