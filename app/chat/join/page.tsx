@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { KeyRound, Check, AlertCircle, Sun, Moon } from 'lucide-react'
+import { KeyRound, Check, AlertCircle, Sun, Moon, ArrowLeft } from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import { useAppStore } from '~/app/app/useAppStore'
 
@@ -69,6 +69,7 @@ function ChatJoinPage() {
           className="sidebar-header sidebar-header-link"
           onClick={() => (window.location.href = '/chat')}
         >
+          <ArrowLeft size={18} />
           <h1>MOST PEOPLE</h1>
         </div>
       )}

@@ -10,6 +10,7 @@ import {
   X,
   Download,
   ArrowRight,
+  ArrowLeft,
   Edit2,
   Calendar,
   Hash,
@@ -255,12 +256,12 @@ function ChatPage() {
   }, [myPeerId])
 
   useEffect(() => {
-    if (isBackendReady) {
+    if (isBackendReady && userIdentity) {
       refreshChannels()
     } else if (hasBackend === false) {
       setChannels(DEMO_CHANNELS)
     }
-  }, [hasBackend, isBackendReady])
+  }, [hasBackend, isBackendReady, userIdentity?.address])
 
   useEffect(() => {
     if (activeChannel) {
@@ -559,6 +560,7 @@ function ChatPage() {
             className="sidebar-header sidebar-header-link"
             onClick={() => (window.location.href = '/')}
           >
+            <ArrowLeft size={18} />
             <h1>MOST PEOPLE</h1>
           </div>
 

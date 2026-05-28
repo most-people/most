@@ -23,6 +23,7 @@ import {
   User,
   Lock,
   Wallet,
+  ArrowLeft,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import { useAppStore } from '~/app/app/useAppStore'
@@ -739,6 +740,7 @@ export default function Web3Page() {
             className="sidebar-header sidebar-header-link"
             onClick={() => (window.location.href = '/')}
           >
+            <ArrowLeft size={18} />
             <h1>MOST PEOPLE</h1>
           </div>
           <nav className="sidebar-nav">

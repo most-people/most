@@ -23,6 +23,7 @@ import {
   Edit2,
   Loader,
   ArrowRight,
+  ArrowLeft,
   Info,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
@@ -1198,6 +1199,7 @@ export default function App() {
             className="sidebar-header sidebar-header-link"
             onClick={() => (window.location.href = '/')}
           >
+            <ArrowLeft size={18} />
             <h1>MOST PEOPLE</h1>
           </div>
           <nav className="sidebar-nav">
