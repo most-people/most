@@ -98,7 +98,6 @@ export function useNoteBackupSync(): NoteBackupSyncState {
       const currentWallet = useUserStore.getState().wallet
       if (currentWallet) return currentWallet
       if (!silent) {
-        addToast('请先登录 Web3 账号', 'warning')
         openLoginModal()
       }
       return null

@@ -244,6 +244,7 @@
 }
 
 .note-count {
+  flex-shrink: 0;
   color: var(--text-muted);
   font-size: 12px;
   font-weight: 600;
@@ -305,6 +306,7 @@
 
 .note-breadcrumbs {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   flex: 0 0 auto;
@@ -312,7 +314,6 @@
   margin: 8px 0;
   color: var(--text-muted);
   font-size: 12px;
-  overflow-x: auto;
 }
 
 .note-breadcrumbs button {
@@ -528,7 +529,7 @@
 .note-editor-frame {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  /* overflow: auto; */
   background: var(--bg-secondary);
 }
 
@@ -574,7 +575,7 @@
 
 .milkdown-editor .ProseMirror {
   width: min(760px, 100%);
-  min-height: calc(100dvh - 196px);
+  /* min-height: calc(100dvh - 196px); */
   margin: 0 auto;
   padding: 42px 36px 72px;
   background: transparent;
@@ -759,10 +760,10 @@
 
 .note-move-path {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   min-height: 30px;
-  overflow-x: auto;
   color: var(--text-muted);
   font-size: 12px;
 }
@@ -944,7 +945,7 @@
   }
 
   .milkdown-editor .ProseMirror {
-    min-height: calc(100dvh - 280px);
+    /* min-height: calc(100dvh - 280px); */
     padding: 28px 18px 56px;
   }
 }

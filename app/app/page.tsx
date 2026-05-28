@@ -1234,12 +1234,18 @@ export default function App() {
             onDrop={e => {
               e.preventDefault()
               setIsDraggingOverUpload(false)
+              if (!requireLogin() || !requireBackendReady()) return
               processFiles(e.dataTransfer.files)
             }}
           >
             <input
               type="file"
               multiple
+              onClick={e => {
+                if (!requireLogin() || !requireBackendReady()) {
+                  e.preventDefault()
+                }
+              }}
               onChange={e => processFiles(e.target.files)}
               className="action-card-input"
             />
@@ -1248,7 +1254,10 @@ export default function App() {
           </div>
           <div
             className="action-card action-card-download"
-            onClick={() => downloadModal.open()}
+            onClick={() => {
+              if (!requireLogin() || !requireBackendReady()) return
+              downloadModal.open()
+            }}
           >
             <Download size={20} className="action-grid-icon" />
             <p>下载文件</p>

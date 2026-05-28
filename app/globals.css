@@ -99,7 +99,7 @@
 
   /* === Dark Glass === */
   --glass-bg: rgba(28, 28, 30, 0.45);
-  --glass-bg-heavy: rgba(28, 28, 30, 0.9);
+  --glass-bg-heavy: rgba(28, 28, 30, 0.94);
   --glass-bg-subtle: rgba(28, 28, 30, 0.25);
   --glass-bg-solid: rgba(28, 28, 30, 0.8);
   --glass-border: rgba(255, 255, 255, 0.1);

@@ -588,7 +588,10 @@ function ChatPage() {
 
           <button
             className="create-channel-btn"
-            onClick={() => joinChannelModal.open()}
+            onClick={() => {
+              if (!requireLogin() || !requireBackendReady()) return
+              joinChannelModal.open()
+            }}
           >
             <Plus size={16} />
             加入频道

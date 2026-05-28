@@ -4,14 +4,13 @@ import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
-  ArrowLeft,
   ChevronDown,
   ChevronRight,
-  Edit2,
+  PencilRuler,
   Eye,
   FileText,
   Folder,
-  FolderInput,
+  Move,
   Lock,
   Moon,
   NotebookPen,
@@ -297,7 +296,6 @@ function NotePageContent() {
 
   function requireWallet() {
     if (wallet) return true
-    addToast('请先登录 Web3 账号', 'warning')
     openLoginModal()
     return false
   }
@@ -346,6 +344,7 @@ function NotePageContent() {
   }
 
   function openCreateNoteModal() {
+    if (!requireWallet()) return
     setInputModal({
       title: '新建笔记',
       placeholder: '笔记名称',
@@ -613,7 +612,7 @@ function NotePageContent() {
                       title={isEditing ? '取消' : '关闭'}
                       aria-label={isEditing ? '取消' : '关闭'}
                     >
-                      {isEditing ? <X size={16} /> : <ArrowLeft size={16} />}
+                      <X size={16} />
                     </button>
                     {isEditing ? (
                       <>
@@ -650,7 +649,7 @@ function NotePageContent() {
                             title="移动"
                             aria-label="移动"
                           >
-                            <FolderInput size={16} />
+                            <Move size={16} />
                           </button>
                           <button
                             type="button"
@@ -669,7 +668,7 @@ function NotePageContent() {
                             title="编辑"
                             aria-label="编辑"
                           >
-                            <Edit2 size={16} />
+                            <PencilRuler size={16} />
                             编辑
                           </button>
                         </>
