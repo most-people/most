@@ -6,7 +6,7 @@
 /* === Layout === */
 .app-layout {
   display: flex;
-  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   background: transparent;
   color: var(--text-primary);
@@ -42,7 +42,6 @@
 /* === Sidebar === */
 .sidebar {
   width: 200px;
-  height: 100vh;
   overflow-y: auto;
   background: var(--glass-bg-heavy);
   backdrop-filter: var(--blur-xl);
@@ -1329,7 +1328,7 @@
   img,
   video {
     max-width: 100%;
-    max-height: 80vh;
+    max-height: 80dvh;
     border-radius: var(--radius-lg);
     box-shadow: var(--glass-shadow-lg);
   }
@@ -1420,7 +1419,7 @@
 
 /* === Transfer Panel === */
 .transfer-modal {
-  max-height: 70vh;
+  max-height: 70dvh;
   overflow: auto;
 
   .transfer-item {
@@ -1745,7 +1744,7 @@
 .preview-text-container {
   width: 90vw;
   max-width: 900px;
-  max-height: 80vh;
+  max-height: 80dvh;
   overflow: auto;
   background: var(--glass-bg-heavy);
   backdrop-filter: var(--blur-2xl);
@@ -1833,7 +1832,7 @@
 .preview-media-wrapper img,
 .preview-media-wrapper video {
   max-width: 100%;
-  max-height: 80vh;
+  max-height: 80dvh;
   border-radius: var(--radius-lg);
 }
 
@@ -2014,7 +2013,7 @@
     width: 100%;
     max-width: 100%;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-    max-height: 85vh;
+    max-height: 85dvh;
     overflow: auto;
   }
 

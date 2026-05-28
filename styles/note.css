@@ -1,5 +1,5 @@
 .note-page {
-  height: calc(100vh - 64px);
+  height: calc(100dvh - 64px);
   min-height: 0;
   padding: 16px;
   overflow: hidden;
@@ -574,7 +574,7 @@
 
 .milkdown-editor .ProseMirror {
   width: min(760px, 100%);
-  min-height: calc(100vh - 196px);
+  min-height: calc(100dvh - 196px);
   margin: 0 auto;
   padding: 42px 36px 72px;
   background: transparent;
@@ -894,13 +894,13 @@
   }
 
   .note-editor-panel {
-    min-height: 70vh;
+    min-height: 70dvh;
   }
 }
 
 @media (max-width: 768px) {
   .note-page {
-    height: calc(100vh - 56px);
+    height: calc(100dvh - 56px);
     padding: 10px;
   }
 
@@ -944,7 +944,7 @@
   }
 
   .milkdown-editor .ProseMirror {
-    min-height: calc(100vh - 280px);
+    min-height: calc(100dvh - 280px);
     padding: 28px 18px 56px;
   }
 }
