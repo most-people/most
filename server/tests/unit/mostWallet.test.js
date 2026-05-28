@@ -75,7 +75,7 @@ describe('most25519', () => {
 describe('mostSignMessage', () => {
   it('signs messages with the derived ethereum wallet', async () => {
     const w = mostWallet('test', 'pass')
-    const message = '1234567890:GET:/api/backup'
+    const message = '1234567890:GET:/auth/backup'
     const signed = await mostSignMessage(w.danger, message)
     const recovered = verifyMessage(message, signed.signature)
 

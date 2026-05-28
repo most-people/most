@@ -1,7 +1,7 @@
 import { mostDecode, mostEncode, mostSignMessage } from './mostWallet.js'
 import { calculateNoteCid } from './noteUtils.js'
 
-export const NOTE_BACKUP_API_URL = 'https://api.most.box/api/backup'
+export const NOTE_BACKUP_API_URL = 'https://api.most.box/auth/backup'
 
 async function readBackupApiError(response, fallback) {
   const data = await response

@@ -45,7 +45,7 @@ describe('noteBackup', () => {
     assert.ok(timestamp)
     assert.ok(signature)
     assert.strictEqual(
-      verifyMessage(`${timestamp}:GET:/api/backup`, signature),
+      verifyMessage(`${timestamp}:GET:/auth/backup`, signature),
       wallet.address
     )
   })
