@@ -47,11 +47,13 @@ function ChatJoinPage() {
         if (!response.ok) {
           setError(data.error || '解密失败')
         } else {
-          setDecrypted(data.decrypted)
-          console.log('[ChatJoin] Decrypted:', data.decrypted)
+          setDecrypted(JSON.stringify(data, null, 2))
+          console.log('[ChatJoin] Decrypted:', data)
         }
       } catch (err) {
-        setError(`请求出错: ${err instanceof Error ? err.message : String(err)}`)
+        setError(
+          `请求出错: ${err instanceof Error ? err.message : String(err)}`
+        )
       }
 
       setLoading(false)
@@ -63,7 +65,10 @@ function ChatJoinPage() {
   return (
     <AppShell
       sidebar={() => (
-        <div className="sidebar-header sidebar-header-link" onClick={() => (window.location.href = '/chat')}>
+        <div
+          className="sidebar-header sidebar-header-link"
+          onClick={() => (window.location.href = '/chat')}
+        >
           <h1>MOST PEOPLE</h1>
         </div>
       )}

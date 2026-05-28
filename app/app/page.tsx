@@ -828,10 +828,7 @@ export default function App() {
     try {
       const res = await fetch(API.getFileDownloadUrl(cid), {
         headers: {
-          ...(await getApiRequestHeaders(
-            'GET',
-            `/api/files/${cid}/download`
-          )),
+          ...(await getApiRequestHeaders('GET', `/api/files/${cid}/download`)),
           Range: 'bytes=0-9999',
         },
       })
@@ -1035,93 +1032,95 @@ export default function App() {
         ws.close()
         return
       }
-    ws.onmessage = e => {
-      try {
-        const { event, data } = JSON.parse(e.data)
-        if (event === 'publish:success' || event === 'download:success') {
-          refreshFiles()
-          const taskId = data.taskId || data.fileName
-          setTransfers(prev =>
-            prev.map(t =>
-              t.id === taskId || t.fileName === data.fileName
-                ? { ...t, progress: 100, status: 'completed' }
-                : t
-            )
-          )
-          if (event === 'download:success') {
-            if (data.alreadyExists) {
-              addToast(`${data.fileName} 已存在`, 'warning')
-            } else {
-              addToast(`${data.fileName} 下载完成`, 'success')
-            }
-            setTimeout(() => {
-              setTransfers(prev =>
-                prev.filter(t => !(t.id === taskId && t.status === 'completed'))
+      ws.onmessage = e => {
+        try {
+          const { event, data } = JSON.parse(e.data)
+          if (event === 'publish:success' || event === 'download:success') {
+            refreshFiles()
+            const taskId = data.taskId || data.fileName
+            setTransfers(prev =>
+              prev.map(t =>
+                t.id === taskId || t.fileName === data.fileName
+                  ? { ...t, progress: 100, status: 'completed' }
+                  : t
               )
-            }, 3000)
-          }
-        }
-        if (event === 'publish:progress') {
-          setTransfers(prev =>
-            prev.map(t => {
-              if (
-                data.file &&
-                t.fileName === data.file &&
-                t.type === 'upload'
-              ) {
-                let progress = 50
-                if (data.stage === 'calculating-cid') progress = 25
-                else if (data.stage === 'uploading') progress = 75
-                else if (data.stage === 'complete') progress = 100
-                return { ...t, progress }
+            )
+            if (event === 'download:success') {
+              if (data.alreadyExists) {
+                addToast(`${data.fileName} 已存在`, 'warning')
+              } else {
+                addToast(`${data.fileName} 下载完成`, 'success')
               }
-              return t
-            })
-          )
-        }
-        if (event === 'download:progress') {
-          setTransfers(prev =>
-            prev.map(t =>
-              t.id === data.taskId
-                ? {
-                    ...t,
-                    progress: data.percent || 0,
-                    loaded: data.loaded,
-                    total: data.total,
-                  }
-                : t
+              setTimeout(() => {
+                setTransfers(prev =>
+                  prev.filter(
+                    t => !(t.id === taskId && t.status === 'completed')
+                  )
+                )
+              }, 3000)
+            }
+          }
+          if (event === 'publish:progress') {
+            setTransfers(prev =>
+              prev.map(t => {
+                if (
+                  data.file &&
+                  t.fileName === data.file &&
+                  t.type === 'upload'
+                ) {
+                  let progress = 50
+                  if (data.stage === 'calculating-cid') progress = 25
+                  else if (data.stage === 'uploading') progress = 75
+                  else if (data.stage === 'complete') progress = 100
+                  return { ...t, progress }
+                }
+                return t
+              })
             )
-          )
-        }
-        if (event === 'download:error') {
-          setTransfers(prev =>
-            prev.map(t =>
-              t.id === data.taskId ? { ...t, status: 'error' } : t
+          }
+          if (event === 'download:progress') {
+            setTransfers(prev =>
+              prev.map(t =>
+                t.id === data.taskId
+                  ? {
+                      ...t,
+                      progress: data.percent || 0,
+                      loaded: data.loaded,
+                      total: data.total,
+                    }
+                  : t
+              )
             )
-          )
-          addToast(`下载失败: ${data.error}`, 'error')
-        }
-        if (event === 'download:status') {
-          setTransfers(prev =>
-            prev.map(t =>
-              t.id === data.taskId
-                ? { ...t, fileName: data.file || t.fileName }
-                : t
+          }
+          if (event === 'download:error') {
+            setTransfers(prev =>
+              prev.map(t =>
+                t.id === data.taskId ? { ...t, status: 'error' } : t
+              )
             )
-          )
-        }
-        if (event === 'download:cancelled') {
-          setTransfers(prev =>
-            prev.map(t =>
-              t.id === data.taskId ? { ...t, status: 'cancelled' } : t
+            addToast(`下载失败: ${data.error}`, 'error')
+          }
+          if (event === 'download:status') {
+            setTransfers(prev =>
+              prev.map(t =>
+                t.id === data.taskId
+                  ? { ...t, fileName: data.file || t.fileName }
+                  : t
+              )
             )
-          )
-          addToast('下载已取消', 'warning')
+          }
+          if (event === 'download:cancelled') {
+            setTransfers(prev =>
+              prev.map(t =>
+                t.id === data.taskId ? { ...t, status: 'cancelled' } : t
+              )
+            )
+            addToast('下载已取消', 'warning')
+          }
+        } catch (err) {
+          console.warn('[App WS] Failed to parse message:', err.message)
         }
-      } catch (err) {
-        console.warn('[App WS] Failed to parse message:', err.message)
       }
-    }
     })()
     return () => {
       cancelled = true

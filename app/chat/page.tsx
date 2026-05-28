@@ -368,7 +368,10 @@ function ChatPage() {
         if (currentChannel) {
           if (isBackendReady) {
             API.getChannelPeers(currentChannel.name).catch(err => {
-              console.warn('[Chat] Failed to fetch peers on event:', err.message)
+              console.warn(
+                '[Chat] Failed to fetch peers on event:',
+                err.message
+              )
             })
           }
         }

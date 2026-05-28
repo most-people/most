@@ -31,16 +31,16 @@ export function getDefaultNodeConfig() {
 }
 
 export function normalizeRemoteInvites(value = []) {
-  const items = Array.isArray(value)
-    ? value
-    : String(value || '').split(',')
+  const items = Array.isArray(value) ? value : String(value || '').split(',')
   return Array.from(
     new Set(items.map(item => String(item || '').trim()).filter(Boolean))
   )
 }
 
 export function normalizeNodeHost(value, fallback = DEFAULT_NODE_HOST) {
-  const host = String(value || '').trim().toLowerCase()
+  const host = String(value || '')
+    .trim()
+    .toLowerCase()
   if (['localhost', '127.0.0.1', '::1'].includes(host)) {
     return DEFAULT_NODE_HOST
   }

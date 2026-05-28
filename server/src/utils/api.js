@@ -122,8 +122,7 @@ function createApiInstance() {
         return value
       }
       return (input, options) => {
-        const nextInput =
-          typeof input === 'string' ? getApiUrl(input) : input
+        const nextInput = typeof input === 'string' ? getApiUrl(input) : input
         return value.call(target, nextInput, options)
       }
     },
@@ -233,7 +232,11 @@ export async function getApiRequestHeaders(method = 'GET', path = '/') {
   try {
     Object.assign(
       headers,
-      await buildAuthHeaders(getStoredIdentity(), method, normalizeAuthPath(path))
+      await buildAuthHeaders(
+        getStoredIdentity(),
+        method,
+        normalizeAuthPath(path)
+      )
     )
   } catch {
     // Callers that require auth will receive the server's 401 response.

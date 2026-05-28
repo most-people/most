@@ -60,11 +60,11 @@ npm run test:unit # 只运行单元测试
 
 ## 访问场景
 
-| 场景 | 命令                                       | 访问地址                  |
-| ---- | ------------------------------------------ | ------------------------- |
-| 本地 | `npx most-box`                             | `http://localhost:1976`   |
+| 场景 | 命令                                                                               | 访问地址                  |
+| ---- | ---------------------------------------------------------------------------------- | ------------------------- |
+| 本地 | `npx most-box`                                                                     | `http://localhost:1976`   |
 | 内网 | `set MOSTBOX_HOST=0.0.0.0 && set MOSTBOX_REMOTE_INVITES=your-code && npx most-box` | `http://<IP>:1976`        |
-| 外网 | Caddy 反向代理                             | `https://your-domain.com` |
+| 外网 | Caddy 反向代理                                                                     | `https://your-domain.com` |
 
 ### 内网访问
 

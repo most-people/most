@@ -37,7 +37,8 @@ export default function ConnectPage() {
             </div>
             <h1 className="connect-hero-title">连接节点</h1>
             <p className="connect-hero-desc">
-              连接你信任的 MostBox 远程节点，或回到本地 daemon。远程节点需要节点地址和邀请码。
+              连接你信任的 MostBox 远程节点，或回到本地
+              daemon。远程节点需要节点地址和邀请码。
             </p>
           </div>
         </section>
