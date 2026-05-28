@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { Server, Unplug } from 'lucide-react'
 import { useAppStore } from '~/app/app/useAppStore'
-import { useUserStore } from '~/app/app/userStore'
 import {
   checkBackendConnectionTarget,
   clearBackendConnection,
@@ -34,8 +33,6 @@ export default function RemoteNodeConnectPanel({
 }: RemoteNodeConnectPanelProps) {
   const checkBackend = useAppStore(s => s.checkBackend)
   const addToast = useAppStore(s => s.addToast)
-  const identity = useUserStore(s => s.identity)
-  const openLoginModal = useUserStore(s => s.openLoginModal)
   const remoteBackendUrl = getRemoteBackendUrlExport()
   const [remoteUrl, setRemoteUrl] = useState(remoteBackendUrl)
   const [remoteInvite, setRemoteInvite] = useState(getBackendInviteExport())
@@ -46,11 +43,6 @@ export default function RemoteNodeConnectPanel({
   const isPage = variant === 'page'
 
   async function handleConnectRemote() {
-    if (!identity) {
-      openLoginModal()
-      addToast('请先登录后连接远程节点', 'warning')
-      return
-    }
     const nextRemoteUrl = normalizeRemoteUrlInput(remoteUrl)
     if (!isHttpUrl(nextRemoteUrl)) {
       addToast('请输入有效的 http(s) 节点地址', 'warning')

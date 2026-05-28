@@ -484,6 +484,22 @@ export default function Web3Page() {
   const [boxBADecryptedText, setBoxBADecryptedText] = useState('')
   const [boxBAError, setBoxBAError] = useState('')
 
+  const [boxDecryptSenderPublicKey, setBoxDecryptSenderPublicKey] = useState('')
+  const [boxDecryptRecipientPrivateKey, setBoxDecryptRecipientPrivateKey] =
+    useState('')
+  const [boxDecryptCipherText, setBoxDecryptCipherText] = useState('')
+  const [boxDecryptResult, setBoxDecryptResult] = useState('')
+  const [boxDecryptError, setBoxDecryptError] = useState('')
+  const [boxDecryptShowPrivateKey, setBoxDecryptShowPrivateKey] = useState(false)
+
+  const [boxEncryptSenderPrivateKey, setBoxEncryptSenderPrivateKey] = useState('')
+  const [boxEncryptRecipientPublicKey, setBoxEncryptRecipientPublicKey] =
+    useState('')
+  const [boxEncryptMessage, setBoxEncryptMessage] = useState('')
+  const [boxEncryptCipherText, setBoxEncryptCipherText] = useState('')
+  const [boxEncryptError, setBoxEncryptError] = useState('')
+  const [boxEncryptShowPrivateKey, setBoxEncryptShowPrivateKey] = useState(false)
+
   /* compute results on button click */
   const handleGenerate = useCallback(async () => {
     if (!username.trim()) return
@@ -602,6 +618,53 @@ export default function Web3Page() {
     }
     setDecryptedText(decrypted)
     setError('')
+  }
+
+  function handleDecryptOnly() {
+    if (!boxDecryptSenderPublicKey.trim()) {
+      setBoxDecryptError('请输入发送方公钥')
+      return
+    }
+    if (!boxDecryptRecipientPrivateKey.trim()) {
+      setBoxDecryptError('请输入接收方私钥')
+      return
+    }
+    if (!boxDecryptCipherText.trim()) {
+      setBoxDecryptError('请粘贴密文')
+      return
+    }
+    const decrypted = mostBoxDecrypt(boxDecryptCipherText, {
+      senderPublicKey: boxDecryptSenderPublicKey.trim(),
+      recipientPrivateKey: boxDecryptRecipientPrivateKey.trim(),
+    })
+    if (!decrypted) {
+      setBoxDecryptError('解密失败，请确认发送方公钥、接收方私钥和密文匹配')
+      setBoxDecryptResult('')
+      return
+    }
+    setBoxDecryptResult(decrypted)
+    setBoxDecryptError('')
+  }
+
+  function handleEncryptOnly() {
+    if (!boxEncryptSenderPrivateKey.trim()) {
+      setBoxEncryptError('请输入发送方私钥')
+      return
+    }
+    if (!boxEncryptRecipientPublicKey.trim()) {
+      setBoxEncryptError('请输入接收方公钥')
+      return
+    }
+    if (!boxEncryptMessage.trim()) {
+      setBoxEncryptError('请输入要加密的消息')
+      return
+    }
+    const encrypted = mostBoxEncrypt(boxEncryptMessage, {
+      senderPrivateKey: boxEncryptSenderPrivateKey.trim(),
+      recipientPublicKey: boxEncryptRecipientPublicKey.trim(),
+    })
+    setBoxEncryptCipherText(encrypted)
+    setBoxEncryptError('')
   }
 
   const deriveBatch = 10
@@ -1153,6 +1216,188 @@ export default function Web3Page() {
                   })
                 }
               />
+
+              <section className="web3-box-flow">
+                <div className="web3-box-flow-header">
+                  <div>
+                    <h2>仅加密</h2>
+                    <p>
+                      只输入发送方私钥和接收方公钥即可加密，无需生成完整账号。
+                    </p>
+                  </div>
+                </div>
+
+                <div className="web3-box-login">
+                  <div className="input-wrap">
+                    <input
+                      type={boxEncryptShowPrivateKey ? 'text' : 'password'}
+                      placeholder="发送方 x25519 私钥"
+                      value={boxEncryptSenderPrivateKey}
+                      onChange={event =>
+                        setBoxEncryptSenderPrivateKey(event.target.value)
+                      }
+                      className="input"
+                      autoCapitalize="off"
+                      autoCorrect="off"
+                      spellCheck="false"
+                    />
+                    <button
+                      className="input-eye"
+                      onClick={() =>
+                        setBoxEncryptShowPrivateKey(!boxEncryptShowPrivateKey)
+                      }
+                      type="button"
+                    >
+                      {boxEncryptShowPrivateKey ? (
+                        <EyeOff size={16} />
+                      ) : (
+                        <Eye size={16} />
+                      )}
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="接收方 x25519 公钥"
+                    value={boxEncryptRecipientPublicKey}
+                    onChange={event =>
+                      setBoxEncryptRecipientPublicKey(event.target.value)
+                    }
+                    className="input"
+                    autoCapitalize="off"
+                    autoCorrect="off"
+                    spellCheck="false"
+                  />
+                </div>
+
+                <label className="web3-box-label">明文</label>
+                <textarea
+                  className="textarea"
+                  value={boxEncryptMessage}
+                  onChange={event => setBoxEncryptMessage(event.target.value)}
+                  rows={4}
+                  placeholder="输入要加密的消息"
+                />
+
+                <div className="web3-box-actions">
+                  <button
+                    className="btn btn-primary"
+                    onClick={handleEncryptOnly}
+                    type="button"
+                  >
+                    <Lock size={16} />
+                    加密
+                  </button>
+                </div>
+
+                {boxEncryptError && (
+                  <p className="web3-tools-danger">{boxEncryptError}</p>
+                )}
+
+                <div className="web3-box-result">
+                  <div className="web3-box-result-header">
+                    <span>密文</span>
+                  </div>
+                  <textarea
+                    className="textarea mono"
+                    value={boxEncryptCipherText}
+                    readOnly
+                    rows={5}
+                    placeholder="加密成功后显示密文"
+                  />
+                </div>
+              </section>
+
+              <section className="web3-box-flow">
+                <div className="web3-box-flow-header">
+                  <div>
+                    <h2>仅解密</h2>
+                    <p>
+                      只输入发送方公钥和接收方私钥即可解密，无需生成完整账号。
+                    </p>
+                  </div>
+                </div>
+
+                <div className="web3-box-login">
+                  <input
+                    type="text"
+                    placeholder="发送方 x25519 公钥"
+                    value={boxDecryptSenderPublicKey}
+                    onChange={event =>
+                      setBoxDecryptSenderPublicKey(event.target.value)
+                    }
+                    className="input"
+                    autoCapitalize="off"
+                    autoCorrect="off"
+                    spellCheck="false"
+                  />
+                  <div className="input-wrap">
+                    <input
+                      type={boxDecryptShowPrivateKey ? 'text' : 'password'}
+                      placeholder="接收方 x25519 私钥"
+                      value={boxDecryptRecipientPrivateKey}
+                      onChange={event =>
+                        setBoxDecryptRecipientPrivateKey(event.target.value)
+                      }
+                      className="input"
+                      autoCapitalize="off"
+                      autoCorrect="off"
+                      spellCheck="false"
+                    />
+                    <button
+                      className="input-eye"
+                      onClick={() =>
+                        setBoxDecryptShowPrivateKey(!boxDecryptShowPrivateKey)
+                      }
+                      type="button"
+                    >
+                      {boxDecryptShowPrivateKey ? (
+                        <EyeOff size={16} />
+                      ) : (
+                        <Eye size={16} />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <label className="web3-box-label">密文</label>
+                <textarea
+                  className="textarea mono"
+                  value={boxDecryptCipherText}
+                  onChange={event =>
+                    setBoxDecryptCipherText(event.target.value)
+                  }
+                  rows={5}
+                  placeholder="粘贴要解密的密文"
+                />
+
+                <div className="web3-box-actions">
+                  <button
+                    className="btn btn-secondary"
+                    onClick={handleDecryptOnly}
+                    type="button"
+                  >
+                    <KeyRound size={16} />
+                    解密
+                  </button>
+                </div>
+
+                {boxDecryptError && (
+                  <p className="web3-tools-danger">{boxDecryptError}</p>
+                )}
+
+                <div className="web3-box-result">
+                  <div className="web3-box-result-header">
+                    <span>解密结果</span>
+                  </div>
+                  <textarea
+                    className="textarea mono"
+                    value={boxDecryptResult}
+                    readOnly
+                    rows={5}
+                    placeholder="解密成功后显示明文"
+                  />
+                </div>
+              </section>
             </div>
           )}
         </div>
