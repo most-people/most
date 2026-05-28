@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { HDNodeWallet } from 'ethers'
 import {
@@ -285,9 +285,9 @@ function BoxFlowPanel({
 
       <div className="web3-box-result-grid">
         <div className="web3-box-result">
-          <div className="web3-box-result-header">
+          <label className="web3-box-result-header">
             <span>密文</span>
-          </div>
+          </label>
           <textarea
             className="textarea mono"
             value={cipherText}
@@ -298,9 +298,9 @@ function BoxFlowPanel({
         </div>
 
         <div className="web3-box-result">
-          <div className="web3-box-result-header">
+          <label className="web3-box-result-header">
             <span>解密结果</span>
-          </div>
+          </label>
           <textarea
             className="textarea mono"
             value={decryptedText}
@@ -431,7 +431,25 @@ export default function Web3Page() {
   const setUserIdentity = useUserStore(s => s.setUserIdentity)
 
   /* view */
-  const [currentView, setCurrentView] = useState('identity')
+  const validViews = ['wallet', 'pem', 'export', 'EA'] as const
+  type ViewId = (typeof validViews)[number]
+  const [currentView, setCurrentView] = useState<ViewId>('wallet')
+
+  useEffect(() => {
+    const hashToView = (): ViewId => {
+      const hash = window.location.hash.replace('#', '')
+      return validViews.includes(hash as ViewId) ? (hash as ViewId) : 'wallet'
+    }
+    setCurrentView(hashToView())
+    const onHashChange = () => setCurrentView(hashToView())
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
+
+  const switchView = (id: ViewId) => {
+    setCurrentView(id)
+    window.location.hash = id
+  }
 
   /* username+password inputs */
   const [username, setUsername] = useState('')
@@ -490,15 +508,18 @@ export default function Web3Page() {
   const [boxDecryptCipherText, setBoxDecryptCipherText] = useState('')
   const [boxDecryptResult, setBoxDecryptResult] = useState('')
   const [boxDecryptError, setBoxDecryptError] = useState('')
-  const [boxDecryptShowPrivateKey, setBoxDecryptShowPrivateKey] = useState(false)
+  const [boxDecryptShowPrivateKey, setBoxDecryptShowPrivateKey] =
+    useState(false)
 
-  const [boxEncryptSenderPrivateKey, setBoxEncryptSenderPrivateKey] = useState('')
+  const [boxEncryptSenderPrivateKey, setBoxEncryptSenderPrivateKey] =
+    useState('')
   const [boxEncryptRecipientPublicKey, setBoxEncryptRecipientPublicKey] =
     useState('')
   const [boxEncryptMessage, setBoxEncryptMessage] = useState('')
   const [boxEncryptCipherText, setBoxEncryptCipherText] = useState('')
   const [boxEncryptError, setBoxEncryptError] = useState('')
-  const [boxEncryptShowPrivateKey, setBoxEncryptShowPrivateKey] = useState(false)
+  const [boxEncryptShowPrivateKey, setBoxEncryptShowPrivateKey] =
+    useState(false)
 
   /* compute results on button click */
   const handleGenerate = useCallback(async () => {
@@ -551,7 +572,7 @@ export default function Web3Page() {
     setBoxABError('')
     setBoxBADecryptedText('')
     setBoxBAError('')
-    addToast(`${label} 账号已生成`, 'success')
+    addToast(`账号已生成`, 'success')
   }
 
   function encryptBoxMessage({
@@ -691,23 +712,23 @@ export default function Web3Page() {
   const mask = (s: string) => (s ? '•'.repeat(Math.min(s.length, 32)) : '-')
 
   const viewTitle =
-    currentView === 'identity'
+    currentView === 'wallet'
       ? 'Web3'
       : currentView === 'pem'
         ? 'PEM 导出'
-        : currentView === 'box'
+        : currentView === 'EA'
           ? '非对称加密'
           : 'Wallet 导出'
 
   const sidebarNavItems = [
     {
-      id: 'identity',
+      id: 'wallet',
       icon: <User size={16} />,
       label: 'Web3',
     },
     { id: 'pem', icon: <Lock size={16} />, label: 'PEM 导出' },
-    { id: 'tools', icon: <Wallet size={16} />, label: 'Wallet 导出' },
-    { id: 'box', icon: <KeyRound size={16} />, label: '非对称加密' },
+    { id: 'export', icon: <Wallet size={16} />, label: 'Wallet 导出' },
+    { id: 'EA', icon: <KeyRound size={16} />, label: '非对称加密' },
   ]
 
   return (
@@ -725,7 +746,7 @@ export default function Web3Page() {
               <button
                 key={item.id}
                 onClick={() => {
-                  setCurrentView(item.id)
+                  switchView(item.id as ViewId)
                   closeSidebar()
                 }}
                 className={`sidebar-nav-btn ${currentView === item.id ? 'active' : ''}`}
@@ -749,11 +770,9 @@ export default function Web3Page() {
       }
     >
       <div className="web3-page">
-        <div
-          className={`web3-container ${currentView === 'box' ? 'wide' : ''}`}
-        >
+        <div className={`web3-container ${currentView === 'EA' ? 'wide' : ''}`}>
           {/* ── Shared Input Area ── */}
-          {currentView !== 'box' && (
+          {currentView !== 'EA' && (
             <div className="input-panel">
               <div className="web3-tools-inputs">
                 <input
@@ -808,7 +827,7 @@ export default function Web3Page() {
           )}
 
           {/* ── View: Identity & Keys ── */}
-          {currentView === 'identity' && (
+          {currentView === 'wallet' && (
             <>
               {hasValidWallet && effectiveAddress ? (
                 <>
@@ -932,7 +951,7 @@ export default function Web3Page() {
           )}
 
           {/* ── View: Wallet Tools ── */}
-          {currentView === 'tools' && (
+          {currentView === 'export' && (
             <>
               {hasValidWallet && effectiveAddress ? (
                 <>
@@ -1096,7 +1115,7 @@ export default function Web3Page() {
           )}
 
           {/* ── View: Asymmetric Box ── */}
-          {currentView === 'box' && (
+          {currentView === 'EA' && (
             <div className="web3-box-workspace">
               <div className="web3-box-grid">
                 <BoxAccountPanel
@@ -1149,85 +1168,90 @@ export default function Web3Page() {
                 />
               </div>
 
-              <BoxFlowPanel
-                title="A → B 加密"
-                description="加密使用 A 私钥 + B 公钥；解密使用 A 公钥 + B 私钥。"
-                message={boxABMessage}
-                cipherText={boxABCipherText}
-                decryptedText={boxABDecryptedText}
-                error={boxABError}
-                encryptLabel="用 A 私钥 + B 公钥加密"
-                decryptLabel="用 A 公钥 + B 私钥解密"
-                messagePlaceholder="输入要从 A 发给 B 的消息"
-                cipherPlaceholder="加密后生成密文，或粘贴已有密文"
-                onMessageChange={setBoxABMessage}
-                onCipherTextChange={setBoxABCipherText}
-                onEncrypt={() =>
-                  encryptBoxMessage({
-                    senderAccount: boxAAccount,
-                    recipientAccount: boxBAccount,
-                    message: boxABMessage,
-                    setCipherText: setBoxABCipherText,
-                    setDecryptedText: setBoxABDecryptedText,
-                    setError: setBoxABError,
-                  })
-                }
-                onDecrypt={() =>
-                  decryptBoxMessage({
-                    senderAccount: boxAAccount,
-                    recipientAccount: boxBAccount,
-                    cipherText: boxABCipherText,
-                    setDecryptedText: setBoxABDecryptedText,
-                    setError: setBoxABError,
-                  })
-                }
-              />
+              <div className="web3-box-flow-grid">
+                <BoxFlowPanel
+                  title="A → B"
+                  description="加密使用 A 私钥 + B 公钥；解密使用 A 公钥 + B 私钥。"
+                  message={boxABMessage}
+                  cipherText={boxABCipherText}
+                  decryptedText={boxABDecryptedText}
+                  error={boxABError}
+                  encryptLabel="用 A 私钥 + B 公钥加密"
+                  decryptLabel="用 A 公钥 + B 私钥解密"
+                  messagePlaceholder="输入要从 A 发给 B 的消息"
+                  cipherPlaceholder="加密后生成密文，或粘贴已有密文"
+                  onMessageChange={setBoxABMessage}
+                  onCipherTextChange={setBoxABCipherText}
+                  onEncrypt={() =>
+                    encryptBoxMessage({
+                      senderAccount: boxAAccount,
+                      recipientAccount: boxBAccount,
+                      message: boxABMessage,
+                      setCipherText: setBoxABCipherText,
+                      setDecryptedText: setBoxABDecryptedText,
+                      setError: setBoxABError,
+                    })
+                  }
+                  onDecrypt={() =>
+                    decryptBoxMessage({
+                      senderAccount: boxAAccount,
+                      recipientAccount: boxBAccount,
+                      cipherText: boxABCipherText,
+                      setDecryptedText: setBoxABDecryptedText,
+                      setError: setBoxABError,
+                    })
+                  }
+                />
 
-              <BoxFlowPanel
-                title="B → A 加密"
-                description="加密使用 B 私钥 + A 公钥；解密使用 B 公钥 + A 私钥。"
-                message={boxBAMessage}
-                cipherText={boxBACipherText}
-                decryptedText={boxBADecryptedText}
-                error={boxBAError}
-                encryptLabel="用 B 私钥 + A 公钥加密"
-                decryptLabel="用 B 公钥 + A 私钥解密"
-                messagePlaceholder="输入要从 B 发给 A 的消息"
-                cipherPlaceholder="加密后生成密文，或粘贴已有密文"
-                onMessageChange={setBoxBAMessage}
-                onCipherTextChange={setBoxBACipherText}
-                onEncrypt={() =>
-                  encryptBoxMessage({
-                    senderAccount: boxBAccount,
-                    recipientAccount: boxAAccount,
-                    message: boxBAMessage,
-                    setCipherText: setBoxBACipherText,
-                    setDecryptedText: setBoxBADecryptedText,
-                    setError: setBoxBAError,
-                  })
-                }
-                onDecrypt={() =>
-                  decryptBoxMessage({
-                    senderAccount: boxBAccount,
-                    recipientAccount: boxAAccount,
-                    cipherText: boxBACipherText,
-                    setDecryptedText: setBoxBADecryptedText,
-                    setError: setBoxBAError,
-                  })
-                }
-              />
+                <BoxFlowPanel
+                  title="B → A"
+                  description="加密使用 B 私钥 + A 公钥；解密使用 B 公钥 + A 私钥。"
+                  message={boxBAMessage}
+                  cipherText={boxBACipherText}
+                  decryptedText={boxBADecryptedText}
+                  error={boxBAError}
+                  encryptLabel="用 B 私钥 + A 公钥加密"
+                  decryptLabel="用 B 公钥 + A 私钥解密"
+                  messagePlaceholder="输入要从 B 发给 A 的消息"
+                  cipherPlaceholder="加密后生成密文，或粘贴已有密文"
+                  onMessageChange={setBoxBAMessage}
+                  onCipherTextChange={setBoxBACipherText}
+                  onEncrypt={() =>
+                    encryptBoxMessage({
+                      senderAccount: boxBAccount,
+                      recipientAccount: boxAAccount,
+                      message: boxBAMessage,
+                      setCipherText: setBoxBACipherText,
+                      setDecryptedText: setBoxBADecryptedText,
+                      setError: setBoxBAError,
+                    })
+                  }
+                  onDecrypt={() =>
+                    decryptBoxMessage({
+                      senderAccount: boxBAccount,
+                      recipientAccount: boxAAccount,
+                      cipherText: boxBACipherText,
+                      setDecryptedText: setBoxBADecryptedText,
+                      setError: setBoxBAError,
+                    })
+                  }
+                />
+              </div>
 
-              <section className="web3-box-flow">
-                <div className="web3-box-flow-header">
-                  <div>
-                    <h2>仅加密</h2>
-                    <p>
-                      只输入发送方私钥和接收方公钥即可加密，无需生成完整账号。
-                    </p>
+              <div className="web3-box-flow-grid">
+                <section className="web3-box-flow">
+                  <div className="web3-box-flow-header">
+                    <div>
+                      <h2>加密</h2>
+                      <p>
+                        只输入发送方私钥和接收方公钥即可加密，无需生成完整账号。
+                      </p>
+                    </div>
                   </div>
-                </div>
 
-                <div className="web3-box-login">
+                  <label className="web3-box-result-header">
+                    <span>发送方</span>
+                  </label>
                   <div className="input-wrap">
                     <input
                       type={boxEncryptShowPrivateKey ? 'text' : 'password'}
@@ -1255,6 +1279,9 @@ export default function Web3Page() {
                       )}
                     </button>
                   </div>
+                  <label className="web3-box-result-header">
+                    <span>接收方</span>
+                  </label>
                   <input
                     type="text"
                     placeholder="接收方 x25519 公钥"
@@ -1267,57 +1294,60 @@ export default function Web3Page() {
                     autoCorrect="off"
                     spellCheck="false"
                   />
-                </div>
 
-                <label className="web3-box-label">明文</label>
-                <textarea
-                  className="textarea"
-                  value={boxEncryptMessage}
-                  onChange={event => setBoxEncryptMessage(event.target.value)}
-                  rows={4}
-                  placeholder="输入要加密的消息"
-                />
-
-                <div className="web3-box-actions">
-                  <button
-                    className="btn btn-primary"
-                    onClick={handleEncryptOnly}
-                    type="button"
-                  >
-                    <Lock size={16} />
-                    加密
-                  </button>
-                </div>
-
-                {boxEncryptError && (
-                  <p className="web3-tools-danger">{boxEncryptError}</p>
-                )}
-
-                <div className="web3-box-result">
-                  <div className="web3-box-result-header">
-                    <span>密文</span>
-                  </div>
+                  <label className="web3-box-result-header">
+                    <span>明文</span>
+                  </label>
                   <textarea
-                    className="textarea mono"
-                    value={boxEncryptCipherText}
-                    readOnly
-                    rows={5}
-                    placeholder="加密成功后显示密文"
+                    className="textarea"
+                    value={boxEncryptMessage}
+                    onChange={event => setBoxEncryptMessage(event.target.value)}
+                    rows={4}
+                    placeholder="输入要加密的消息"
                   />
-                </div>
-              </section>
 
-              <section className="web3-box-flow">
-                <div className="web3-box-flow-header">
-                  <div>
-                    <h2>仅解密</h2>
-                    <p>
-                      只输入发送方公钥和接收方私钥即可解密，无需生成完整账号。
-                    </p>
+                  <div className="web3-box-actions">
+                    <button
+                      className="btn btn-primary"
+                      onClick={handleEncryptOnly}
+                      type="button"
+                    >
+                      <Lock size={16} />
+                      加密
+                    </button>
                   </div>
-                </div>
 
-                <div className="web3-box-login">
+                  {boxEncryptError && (
+                    <p className="web3-tools-danger">{boxEncryptError}</p>
+                  )}
+
+                  <div className="web3-box-result">
+                    <label className="web3-box-result-header">
+                      <span>密文</span>
+                    </label>
+                    <textarea
+                      className="textarea mono"
+                      value={boxEncryptCipherText}
+                      readOnly
+                      rows={5}
+                      placeholder="加密成功后显示密文"
+                    />
+                  </div>
+                </section>
+
+                <section className="web3-box-flow">
+                  <div className="web3-box-flow-header">
+                    <div>
+                      <h2>解密</h2>
+                      <p>
+                        只输入发送方公钥和接收方私钥即可解密，无需生成完整账号。
+                      </p>
+                    </div>
+                  </div>
+
+                  <label className="web3-box-result-header">
+                    <span>发送方</span>
+                  </label>
                   <input
                     type="text"
                     placeholder="发送方 x25519 公钥"
@@ -1330,6 +1360,9 @@ export default function Web3Page() {
                     autoCorrect="off"
                     spellCheck="false"
                   />
+                  <label className="web3-box-result-header">
+                    <span>接收方</span>
+                  </label>
                   <div className="input-wrap">
                     <input
                       type={boxDecryptShowPrivateKey ? 'text' : 'password'}
@@ -1357,47 +1390,49 @@ export default function Web3Page() {
                       )}
                     </button>
                   </div>
-                </div>
 
-                <label className="web3-box-label">密文</label>
-                <textarea
-                  className="textarea mono"
-                  value={boxDecryptCipherText}
-                  onChange={event =>
-                    setBoxDecryptCipherText(event.target.value)
-                  }
-                  rows={5}
-                  placeholder="粘贴要解密的密文"
-                />
-
-                <div className="web3-box-actions">
-                  <button
-                    className="btn btn-secondary"
-                    onClick={handleDecryptOnly}
-                    type="button"
-                  >
-                    <KeyRound size={16} />
-                    解密
-                  </button>
-                </div>
-
-                {boxDecryptError && (
-                  <p className="web3-tools-danger">{boxDecryptError}</p>
-                )}
-
-                <div className="web3-box-result">
-                  <div className="web3-box-result-header">
-                    <span>解密结果</span>
-                  </div>
+                  <label className="web3-box-result-header">
+                    <span>密文</span>
+                  </label>
                   <textarea
                     className="textarea mono"
-                    value={boxDecryptResult}
-                    readOnly
+                    value={boxDecryptCipherText}
+                    onChange={event =>
+                      setBoxDecryptCipherText(event.target.value)
+                    }
                     rows={5}
-                    placeholder="解密成功后显示明文"
+                    placeholder="粘贴要解密的密文"
                   />
-                </div>
-              </section>
+
+                  <div className="web3-box-actions">
+                    <button
+                      className="btn btn-secondary"
+                      onClick={handleDecryptOnly}
+                      type="button"
+                    >
+                      <KeyRound size={16} />
+                      解密
+                    </button>
+                  </div>
+
+                  {boxDecryptError && (
+                    <p className="web3-tools-danger">{boxDecryptError}</p>
+                  )}
+
+                  <div className="web3-box-result">
+                    <label className="web3-box-result-header">
+                      <span>解密结果</span>
+                    </label>
+                    <textarea
+                      className="textarea mono"
+                      value={boxDecryptResult}
+                      readOnly
+                      rows={5}
+                      placeholder="解密成功后显示明文"
+                    />
+                  </div>
+                </section>
+              </div>
             </div>
           )}
         </div>

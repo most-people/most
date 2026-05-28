@@ -707,9 +707,16 @@
   margin: 0;
 }
 
+.web3-box-flow-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
 @media (max-width: 860px) {
   .web3-box-grid,
-  .web3-box-result-grid {
+  .web3-box-result-grid,
+  .web3-box-flow-grid {
     grid-template-columns: 1fr;
   }
 }

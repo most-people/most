@@ -841,6 +841,7 @@
   font-family: var(--font-sans);
   outline: none;
   transition: border-color var(--transition-fast);
+  resize: none;
 
   &:focus {
     border-color: var(--accent);
