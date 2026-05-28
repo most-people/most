@@ -760,6 +760,87 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
     })
   })
 
+  describe('setChannelRemark()', () => {
+    it('sets a remark for a channel', async () => {
+      await engine.createChannel(`remark-${uid}`, 'personal', {
+        ownerAddress: '0x1234567890abcdef1234567890abcdef12345678',
+      })
+      const remark = engine.setChannelRemark(`remark-${uid}`, '我的备注', {
+        ownerAddress: '0x1234567890abcdef1234567890abcdef12345678',
+      })
+      assert.strictEqual(remark, '我的备注')
+
+      const channels = engine.listChannels({
+        ownerAddress: '0x1234567890abcdef1234567890abcdef12345678',
+      })
+      const ch = channels.find(c => c.name === `remark-${uid}`)
+      assert.strictEqual(ch.remark, '我的备注')
+    })
+
+    it('updates an existing remark', async () => {
+      await engine.createChannel(`remark-up-${uid}`, 'personal', {
+        ownerAddress: '0x1234567890abcdef1234567890abcdef12345678',
+      })
+      engine.setChannelRemark(`remark-up-${uid}`, '旧备注', {
+        ownerAddress: '0x1234567890abcdef1234567890abcdef12345678',
+      })
+      const remark = engine.setChannelRemark(`remark-up-${uid}`, '新备注', {
+        ownerAddress: '0x1234567890abcdef1234567890abcdef12345678',
+      })
+      assert.strictEqual(remark, '新备注')
+    })
+
+    it('clears remark when empty string provided', async () => {
+      await engine.createChannel(`remark-cl-${uid}`, 'personal', {
+        ownerAddress: '0x1234567890abcdef1234567890abcdef12345678',
+      })
+      engine.setChannelRemark(`remark-cl-${uid}`, '有备注', {
+        ownerAddress: '0x1234567890abcdef1234567890abcdef12345678',
+      })
+      const remark = engine.setChannelRemark(`remark-cl-${uid}`, '', {
+        ownerAddress: '0x1234567890abcdef1234567890abcdef12345678',
+      })
+      assert.strictEqual(remark, '')
+
+      const channels = engine.listChannels({
+        ownerAddress: '0x1234567890abcdef1234567890abcdef12345678',
+      })
+      const ch = channels.find(c => c.name === `remark-cl-${uid}`)
+      assert.strictEqual(ch.remark, '')
+    })
+
+    it('throws for non-existent channel', async () => {
+      assert.throws(
+        () =>
+          engine.setChannelRemark('nonexistent', 'test', {
+            ownerAddress: '0x1234567890abcdef1234567890abcdef12345678',
+          }),
+        /频道不存在/
+      )
+    })
+
+    it('throws for remark exceeding max length', async () => {
+      await engine.createChannel(`remark-len-${uid}`, 'personal', {
+        ownerAddress: '0x1234567890abcdef1234567890abcdef12345678',
+      })
+      assert.throws(
+        () =>
+          engine.setChannelRemark(`remark-len-${uid}`, 'a'.repeat(51), {
+            ownerAddress: '0x1234567890abcdef1234567890abcdef12345678',
+          }),
+        /备注最多 50 个字符/
+      )
+    })
+
+    it('throws without ownerAddress', async () => {
+      await engine.createChannel(`remark-no-${uid}`)
+      assert.throws(
+        () => engine.setChannelRemark(`remark-no-${uid}`, 'test'),
+        /需要登录/
+      )
+    })
+  })
+
   describe('getDisplayName() and setDisplayName()', () => {
     it('returns null initially', () => {
       const name = engine.getDisplayName()

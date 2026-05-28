@@ -1991,9 +1991,40 @@ export class MostBoxEngine extends EventEmitter {
     return this.listChannels({ ownerAddress })
   }
 
+  setChannelRemark(name, remark, options = {}) {
+    this.#ensureInitialized()
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    if (!ownerAddress) {
+      throw new Error('需要登录才能设置备注')
+    }
+
+    const channel = this.#channels.find(c => c.name === name)
+    if (!channel) {
+      throw new Error('频道不存在')
+    }
+
+    const trimmed = (remark || '').trim()
+    if (trimmed.length > 50) {
+      throw new Error('备注最多 50 个字符')
+    }
+
+    if (!channel.remarks) {
+      channel.remarks = {}
+    }
+
+    if (trimmed) {
+      channel.remarks[ownerAddress] = trimmed
+    } else {
+      delete channel.remarks[ownerAddress]
+    }
+
+    this.#saveChannelsMetadata()
+    return trimmed
+  }
+
   /**
    * 列出所有频道
-   * @returns {Array<{ name: string, coreKey: string, createdAt: string, type: string, peerCount: number }>}
+   * @returns {Array<{ name: string, coreKey: string, createdAt: string, type: string, peerCount: number, remark: string }>}
    */
   listChannels(options = {}) {
     this.#ensureInitialized()
@@ -2010,6 +2041,7 @@ export class MostBoxEngine extends EventEmitter {
         createdAt: c.createdAt,
         type: c.type,
         peerCount: (this.#channelPeers.get(c.name) || new Map()).size,
+        remark: ownerAddress && c.remarks ? c.remarks[ownerAddress] || '' : '',
       }))
   }
 

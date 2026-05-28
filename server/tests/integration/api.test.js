@@ -1266,6 +1266,63 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     })
   })
 
+  describe('PUT /api/channels/:name/remark', () => {
+    it('sets a remark for a channel', async () => {
+      await engine.createChannel(`remark-${uid}`)
+      const res = await fetch(`${baseUrl}/api/channels/remark-${uid}/remark`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ remark: '测试备注' }),
+      })
+      const data = await res.json()
+      assert.strictEqual(res.status, 200)
+      assert.ok(data.success)
+      assert.strictEqual(data.remark, '测试备注')
+    })
+
+    it('clears remark with empty string', async () => {
+      await engine.createChannel(`remark-clr-${uid}`)
+      await fetch(`${baseUrl}/api/channels/remark-clr-${uid}/remark`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ remark: '有备注' }),
+      })
+      const res = await fetch(
+        `${baseUrl}/api/channels/remark-clr-${uid}/remark`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ remark: '' }),
+        }
+      )
+      const data = await res.json()
+      assert.strictEqual(res.status, 200)
+      assert.strictEqual(data.remark, '')
+    })
+
+    it('returns 400 for non-existent channel', async () => {
+      const res = await fetch(`${baseUrl}/api/channels/nonexistent/remark`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ remark: 'test' }),
+      })
+      assert.strictEqual(res.status, 400)
+    })
+
+    it('returns 400 for remark exceeding max length', async () => {
+      await engine.createChannel(`remark-long-${uid}`)
+      const res = await fetch(
+        `${baseUrl}/api/channels/remark-long-${uid}/remark`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ remark: 'a'.repeat(51) }),
+        }
+      )
+      assert.strictEqual(res.status, 400)
+    })
+  })
+
   describe('GET /api/config', () => {
     it('returns config with dataPath', async () => {
       const res = await fetch(`${baseUrl}/api/config`)

@@ -10,6 +10,10 @@ import {
   X,
   Download,
   ArrowRight,
+  Edit2,
+  Calendar,
+  Hash,
+  Settings,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import { InputModal, ConfirmModal } from '~/components/ui'
@@ -36,6 +40,11 @@ interface ChannelMessage {
 
 interface Channel {
   name: string
+  remark?: string
+  createdAt?: string
+  coreKey?: string
+  type?: string
+  peerCount?: number
 }
 
 interface SendMessageResult {
@@ -68,6 +77,15 @@ const API = {
       .json(),
   getChannelPeers: (name: string) =>
     api.get<string[]>(`/api/channels/${encodeURIComponent(name)}/peers`).json(),
+  setChannelRemark: (name: string, remark: string) =>
+    api
+      .put<{
+        success: boolean
+        remark: string
+      }>(`/api/channels/${encodeURIComponent(name)}/remark`, {
+        json: { remark },
+      })
+      .json(),
 }
 
 // Demo data for no-backend marketing preview. Not compatibility code.
@@ -117,6 +135,8 @@ function ChatPage() {
   const [isLeavingChannel, setIsLeavingChannel] = useState(false)
   const [showLeaveChannelConfirm, leaveChannelModal] = useDisclosure(false)
   const [channelToLeave, setChannelToLeave] = useState(null)
+  const [showChannelDetail, setShowChannelDetail] = useState(false)
+  const [remarkInput, setRemarkInput] = useState('')
 
   const wsRef = useRef(null)
   const channelMessagesEndRef = useRef(null)
@@ -489,8 +509,27 @@ function ChatPage() {
     }
   }
 
+  async function handleSetRemark() {
+    if (!activeChannel || !isBackendReady) return
+    try {
+      const result = await API.setChannelRemark(activeChannel.name, remarkInput)
+      setChannels(prev =>
+        prev.map(c =>
+          c.name === activeChannel.name ? { ...c, remark: result.remark } : c
+        )
+      )
+      setActiveChannel(prev =>
+        prev ? { ...prev, remark: result.remark } : null
+      )
+    } catch (err) {
+      await showApiError(err, '设置备注失败')
+    }
+  }
+
   const chatHeaderTitle = activeChannel ? (
-    <h2 className="header-title">{activeChannel.name}</h2>
+    <h2 className="header-title">
+      {activeChannel.remark || activeChannel.name}
+    </h2>
   ) : (
     <h2 className="header-title">聊天</h2>
   )
@@ -530,7 +569,7 @@ function ChatPage() {
                   }}
                 >
                   <MessageSquare size={16} />
-                  <span>{channel.name}</span>
+                  <span>{channel.remark || channel.name}</span>
                   <button
                     className="leave-channel-btn"
                     onClick={e => {
@@ -560,13 +599,24 @@ function ChatPage() {
       )}
       headerTitle={chatHeaderTitle}
       headerRight={
-        <button
-          className="btn btn-icon"
-          onClick={() => setIsDarkMode(!isDarkMode)}
-          title="切换主题"
-        >
-          {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
-        </button>
+        <div className="header-right-actions">
+          <button
+            className="btn btn-icon"
+            onClick={() => setIsDarkMode(!isDarkMode)}
+            title="切换主题"
+          >
+            {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+          {activeChannel && (
+            <button
+              className="btn btn-icon"
+              onClick={() => setShowChannelDetail(true)}
+              title="频道设置"
+            >
+              <Settings size={16} />
+            </button>
+          )}
+        </div>
       }
     >
       {hasBackend === false && (
@@ -677,6 +727,89 @@ function ChatPage() {
           }}
           danger
         />
+      )}
+
+      {showChannelDetail && activeChannel && (
+        <div
+          className="channel-detail-overlay"
+          onClick={() => setShowChannelDetail(false)}
+        >
+          <div
+            className="channel-detail-drawer"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="channel-detail-header">
+              <h3>频道详情</h3>
+              <button
+                className="btn btn-icon"
+                onClick={() => setShowChannelDetail(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="channel-detail-body">
+              <div className="channel-detail-section">
+                <div className="channel-detail-label">
+                  <Hash size={14} />
+                  <span>频道 ID</span>
+                </div>
+                <div className="channel-detail-value channel-detail-mono">
+                  {activeChannel.name}
+                </div>
+              </div>
+
+              <div className="channel-detail-section">
+                <div className="channel-detail-label">
+                  <Edit2 size={14} />
+                  <span>备注名称</span>
+                </div>
+                <input
+                  type="text"
+                  className="input input-compact"
+                  placeholder="输入备注名称"
+                  value={remarkInput}
+                  onChange={e => setRemarkInput(e.target.value)}
+                  onFocus={() => setRemarkInput(activeChannel.remark || '')}
+                  onBlur={() => handleSetRemark()}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.currentTarget.blur()
+                    }
+                  }}
+                  maxLength={50}
+                />
+              </div>
+
+              <div className="channel-detail-section">
+                <div className="channel-detail-label">
+                  <Calendar size={14} />
+                  <span>创建时间</span>
+                </div>
+                <div className="channel-detail-value">
+                  {activeChannel.createdAt
+                    ? new Date(activeChannel.createdAt).toLocaleDateString(
+                        'zh-CN'
+                      )
+                    : '-'}
+                </div>
+              </div>
+            </div>
+
+            <div className="channel-detail-footer">
+              <button
+                className="btn btn-danger btn-block"
+                onClick={() => {
+                  setShowChannelDetail(false)
+                  setChannelToLeave(activeChannel)
+                  leaveChannelModal.open()
+                }}
+              >
+                退出频道
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </AppShell>
   )

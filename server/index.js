@@ -1507,6 +1507,19 @@ export function createApp(engine, options = {}) {
     return c.json(engine.getChannelPeers(c.req.param('name')))
   })
 
+  app.put('/api/channels/:name/remark', async c => {
+    const name = c.req.param('name')
+    const body = await c.req.json()
+    try {
+      const remark = engine.setChannelRemark(name, body.remark, {
+        ownerAddress: c.get('userAddress'),
+      })
+      return c.json({ success: true, remark })
+    } catch (err) {
+      return c.json({ error: err.message }, 400)
+    }
+  })
+
   // --- 文件夹重命名 ---
   app.post('/api/folder/rename', async c => {
     const body = await c.req.json()
