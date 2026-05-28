@@ -533,7 +533,6 @@ export default function Web3Page() {
     setWalletResult(result)
     setUserIdentity({
       ...result,
-      password,
       displayName,
     })
     addToast(`已登录 ${result.username}`, 'success')
