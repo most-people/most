@@ -124,7 +124,7 @@ export default function DownloadPage() {
       <footer className="mkt-footer">
         <div className="mkt-container">
           <div className="mkt-footer-inner">
-            <p className="mkt-footer-copy">MostBox 0.0.6</p>
+            <p className="mkt-footer-copy">MostBox</p>
           </div>
         </div>
       </footer>

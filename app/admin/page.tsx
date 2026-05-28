@@ -546,11 +546,7 @@ export default function AdminPage() {
     <main className="admin-page">
       <header className="admin-topbar">
         <div className="admin-title-group">
-          <Link
-            href="/app"
-            className="btn btn-icon"
-            aria-label="返回文件控制台"
-          >
+          <Link href="/" className="btn btn-icon" aria-label="返回首页">
             <ArrowLeft size={16} />
           </Link>
           <div>
