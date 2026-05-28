@@ -142,6 +142,7 @@ function ChatPage() {
   const channelMessagesEndRef = useRef(null)
   const activeChannelRef = useRef(null)
   const reconnectTimeoutRef = useRef(null)
+  const reconnectAttemptRef = useRef(0)
   const isWsConnectedRef = useRef(false)
   const isBackendReady = hasBackend === true
 
@@ -188,13 +189,16 @@ function ChatPage() {
   }, [myPeerId])
 
   useEffect(() => {
-    if (!isBackendReady) return
+    if (!isBackendReady || !userIdentity) return
+
+    reconnectAttemptRef.current = 0
 
     async function connectWs() {
       const ws = new WebSocket(await getAuthenticatedWebSocketUrl('/ws'))
 
       ws.onopen = () => {
         isWsConnectedRef.current = true
+        reconnectAttemptRef.current = 0
         if (myPeerId && ws.readyState === 1) {
           ws.send(
             JSON.stringify({ event: 'register', data: { peerId: myPeerId } })
@@ -217,9 +221,12 @@ function ChatPage() {
 
       ws.onclose = () => {
         isWsConnectedRef.current = false
-        if (isMountedRef.current) {
-          reconnectTimeoutRef.current = setTimeout(connectWs, 3000)
-        }
+        if (!isMountedRef.current) return
+        const attempt = reconnectAttemptRef.current
+        if (attempt >= 20) return
+        const delay = Math.min(3000 * Math.pow(2, attempt), 30000)
+        reconnectAttemptRef.current = attempt + 1
+        reconnectTimeoutRef.current = setTimeout(connectWs, delay)
       }
 
       ws.onerror = () => {
@@ -239,7 +246,7 @@ function ChatPage() {
         wsRef.current.close()
       }
     }
-  }, [isBackendReady])
+  }, [isBackendReady, userIdentity?.address])
 
   useEffect(() => {
     if (myPeerId) {
@@ -295,6 +302,16 @@ function ChatPage() {
       }
     }
   }, [activeChannel, channels])
+
+  useEffect(() => {
+    if (userIdentity) return
+    setChannels([])
+    setActiveChannel(null)
+    setChannelMessages([])
+    setChannelInput('')
+    setMyPeerId('')
+    setShowChannelDetail(false)
+  }, [userIdentity?.address])
 
   async function syncChannelMessages(channelName) {
     if (!isBackendReady) return

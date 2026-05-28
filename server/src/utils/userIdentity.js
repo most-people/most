@@ -4,7 +4,6 @@ export function createLoginIdentity(username, password) {
   const { address, danger } = mostWallet(username, password)
   return {
     username,
-    password,
     address,
     danger,
     displayName: `${username}#${address.slice(-4).toUpperCase()}`,

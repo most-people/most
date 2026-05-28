@@ -1141,6 +1141,24 @@ export default function App() {
     }
   }, [hasBackend, userIdentity?.address])
 
+  useEffect(() => {
+    if (userIdentity) return
+    setSelectedIds([])
+    setPreviewItem(null)
+    setShareItem(null)
+    setDownloadLink('')
+    setDownloadCheckResult(null)
+    setTransfers([])
+    setSearchQuery('')
+    setCurrentFolderId(null)
+    setCurrentView('all')
+    setPreviewText('')
+    if (previewBlobUrl) {
+      URL.revokeObjectURL(previewBlobUrl)
+      setPreviewBlobUrl('')
+    }
+  }, [userIdentity?.address])
+
   const viewTitle =
     currentView === 'all'
       ? '本地'

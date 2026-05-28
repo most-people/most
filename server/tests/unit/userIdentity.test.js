@@ -10,7 +10,7 @@ describe('userIdentity', () => {
     it('creates a login identity with username and password', () => {
       const identity = createLoginIdentity('alice', 'secret')
       assert.strictEqual(identity.username, 'alice')
-      assert.strictEqual(identity.password, 'secret')
+      assert.strictEqual(identity.password, undefined)
       assert.ok(identity.address)
       assert.ok(identity.address.startsWith('0x'))
       assert.ok(identity.displayName.includes('alice'))

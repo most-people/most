@@ -13,8 +13,7 @@ import {
   setBackendUrl,
   getBackendUrlExport,
 } from '~/server/src/utils/api'
-
-const NOTES_STORAGE_KEY = 'mostbox_notes'
+import { getNotes, putNotes } from '~/lib/notesDb'
 
 interface ToastItem {
   id: number
@@ -59,6 +58,9 @@ interface AppState {
   // Notes
   notes: NoteItem[]
   notesPath: string
+  notesAddress: string
+  loadUserNotes: (address: string) => Promise<void>
+  resetAppState: () => void
   setNotesPath: (path: string) => void
   saveNote: (input: {
     cid?: string
@@ -70,21 +72,6 @@ interface AppState {
   deleteNote: (cid?: string, path?: string, name?: string) => void
   renameNote: (oldFullPath: string, newPath: string, newName: string) => void
   importNotes: (notes: NoteItem[]) => void
-}
-
-function readJson(key: string) {
-  if (typeof window === 'undefined') return null
-  try {
-    const raw = localStorage.getItem(key)
-    return raw ? JSON.parse(raw) : null
-  } catch {
-    return null
-  }
-}
-
-function writeJson(key: string, value: unknown) {
-  if (typeof window === 'undefined') return
-  localStorage.setItem(key, JSON.stringify(value))
 }
 
 function normalizeNotes(input: unknown): NoteItem[] {
@@ -118,10 +105,10 @@ function normalizeNotes(input: unknown): NoteItem[] {
     }))
 }
 
-function persistNotes(notes: NoteItem[], notesPath: string) {
-  writeJson(NOTES_STORAGE_KEY, {
-    notes,
-    notesPath: normalizeNotePath(notesPath),
+function persistNotes(address: string, notes: NoteItem[], notesPath: string) {
+  if (!address) return
+  putNotes(address, notes, normalizeNotePath(notesPath)).catch(err => {
+    console.warn('Failed to persist notes:', err)
   })
 }
 
@@ -181,10 +168,10 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   localDataReady: false,
   initializeLocalData: () => {
-    const noteState = readJson(NOTES_STORAGE_KEY)
     set({
-      notes: normalizeNotes(noteState?.notes),
-      notesPath: normalizeNotePath(noteState?.notesPath || ''),
+      notes: [],
+      notesPath: '',
+      notesAddress: '',
       localDataReady: true,
     })
   },
@@ -192,10 +179,33 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Notes
   notes: [],
   notesPath: '',
+  notesAddress: '',
+  loadUserNotes: async address => {
+    try {
+      const data = await getNotes(address)
+      set({
+        notes: data ? normalizeNotes(data.notes) : [],
+        notesPath: normalizeNotePath(data?.notesPath || ''),
+        notesAddress: address,
+      })
+    } catch (err) {
+      console.warn('Failed to load notes from IndexedDB:', err)
+      set({ notes: [], notesPath: '', notesAddress: address })
+    }
+  },
+  resetAppState: () => {
+    set({
+      notes: [],
+      notesPath: '',
+      notesAddress: '',
+      toasts: [],
+      showSettings: false,
+    })
+  },
   setNotesPath: path => {
     const notesPath = normalizeNotePath(path)
     set({ notesPath })
-    persistNotes(get().notes, notesPath)
+    persistNotes(get().notesAddress, get().notes, notesPath)
   },
   saveNote: async input => {
     const nameValidation = validateNoteName(input.name)
@@ -247,7 +257,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         : [...notes, nextNote]
 
     set({ notes: nextNotes })
-    persistNotes(nextNotes, get().notesPath)
+    persistNotes(get().notesAddress, nextNotes, get().notesPath)
     return cid
   },
   deleteNote: (cid, path, name) => {
@@ -264,7 +274,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       return true
     })
     set({ notes: nextNotes })
-    persistNotes(nextNotes, get().notesPath)
+    persistNotes(get().notesAddress, nextNotes, get().notesPath)
   },
   renameNote: (oldFullPath, newPath, newName) => {
     const nameValidation = validateNoteName(newName)
@@ -297,12 +307,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       nameValidation.name
     )
     set({ notes: nextNotes })
-    persistNotes(nextNotes, get().notesPath)
+    persistNotes(get().notesAddress, nextNotes, get().notesPath)
   },
   importNotes: notes => {
     const nextNotes = normalizeNotes(notes)
     set({ notes: nextNotes })
-    persistNotes(nextNotes, get().notesPath)
+    persistNotes(get().notesAddress, nextNotes, get().notesPath)
   },
 }))
 

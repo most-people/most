@@ -11,7 +11,6 @@ export interface UserIdentity {
   address: string
   danger: string
   displayName?: string
-  password?: string
 }
 
 interface UserState {
@@ -51,7 +50,6 @@ function normalizeIdentity(input: unknown): UserIdentity | null {
     username: value.username,
     address: value.address,
     danger: value.danger,
-    password: value.password,
     displayName: getDisplayName(value as UserIdentity),
   }
 }
