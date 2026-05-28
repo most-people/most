@@ -2,12 +2,15 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert'
 import { verifyMessage } from 'ethers'
 import {
+  mostBoxDecrypt,
+  mostBoxEncrypt,
   mostDecode,
   mostEncode,
   mostWallet,
   mostMnemonic,
   mostSignMessage,
   most25519,
+  parseMostBoxToken,
 } from '../../src/utils/mostWallet.js'
 
 describe('mostWallet', () => {
@@ -95,5 +98,96 @@ describe('mostEncode / mostDecode', () => {
     const encrypted = mostEncode('secret', mostWallet('a', 'b').danger)
 
     assert.strictEqual(mostDecode(encrypted, mostWallet('a', 'c').danger), '')
+  })
+})
+
+describe('mostBoxEncrypt / mostBoxDecrypt', () => {
+  function boxKeys() {
+    return {
+      alice: most25519(mostWallet('alice', 'secret-a').danger),
+      bob: most25519(mostWallet('bob', 'secret-b').danger),
+    }
+  }
+
+  it('decrypts content with sender public key and recipient private key', () => {
+    const { alice, bob } = boxKeys()
+    const encrypted = mostBoxEncrypt('hello bob', {
+      senderPrivateKey: alice.private_key,
+      recipientPublicKey: bob.public_key,
+    })
+
+    assert.doesNotMatch(encrypted, /[+.=/]/)
+    assert.ok(!encrypted.includes('://'))
+    const info = parseMostBoxToken(encrypted)
+    assert.strictEqual(info.version, 1)
+    assert.ok(Number.isSafeInteger(info.timestampMs))
+    assert.ok(info.timestampMs <= Date.now())
+    assert.doesNotMatch(info.nonce, /[+.=/]/)
+    assert.strictEqual(
+      mostBoxDecrypt(encrypted, {
+        senderPublicKey: alice.public_key,
+        recipientPrivateKey: bob.private_key,
+      }),
+      'hello bob'
+    )
+  })
+
+  it('decrypts content in the opposite direction', () => {
+    const { alice, bob } = boxKeys()
+    const encrypted = mostBoxEncrypt('hello alice', {
+      senderPrivateKey: bob.private_key,
+      recipientPublicKey: alice.public_key,
+    })
+
+    assert.doesNotMatch(encrypted, /[+.=/]/)
+    assert.strictEqual(
+      mostBoxDecrypt(encrypted, {
+        senderPublicKey: bob.public_key,
+        recipientPrivateKey: alice.private_key,
+      }),
+      'hello alice'
+    )
+  })
+
+  it('does not decrypt when sender and recipient roles are reversed', () => {
+    const { alice, bob } = boxKeys()
+    const encrypted = mostBoxEncrypt('hello bob', {
+      senderPrivateKey: alice.private_key,
+      recipientPublicKey: bob.public_key,
+    })
+
+    assert.strictEqual(
+      mostBoxDecrypt(encrypted, {
+        senderPublicKey: bob.public_key,
+        recipientPrivateKey: alice.private_key,
+      }),
+      ''
+    )
+  })
+
+  it('rejects invalid box tokens', () => {
+    const { alice, bob } = boxKeys()
+    const encrypted = mostBoxEncrypt('hello bob', {
+      senderPrivateKey: alice.private_key,
+      recipientPublicKey: bob.public_key,
+    })
+    const payload = Buffer.from(encrypted, 'base64url')
+    payload[0] = 2
+    const wrongVersion = payload.toString('base64url')
+    const tooShort = Buffer.from([1, 0, 0]).toString('base64url')
+    const decrypt = token =>
+      mostBoxDecrypt(token, {
+        senderPublicKey: alice.public_key,
+        recipientPrivateKey: bob.private_key,
+      })
+
+    assert.strictEqual(decrypt(''), '')
+    assert.strictEqual(decrypt('not.valid'), '')
+    assert.strictEqual(decrypt(wrongVersion), '')
+    assert.strictEqual(decrypt(tooShort), '')
+    assert.strictEqual(parseMostBoxToken(''), null)
+    assert.strictEqual(parseMostBoxToken('not.valid'), null)
+    assert.strictEqual(parseMostBoxToken(wrongVersion), null)
+    assert.strictEqual(parseMostBoxToken(tooShort), null)
   })
 })

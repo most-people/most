@@ -7,6 +7,7 @@ import {
   Eye,
   EyeOff,
   Copy,
+  Check,
   ExternalLink,
   KeyRound,
   Fingerprint,
@@ -27,9 +28,12 @@ import AppShell from '~/components/AppShell'
 import { useAppStore } from '~/app/app/useAppStore'
 import { useUserStore } from '~/app/app/userStore'
 import {
+  mostBoxDecrypt,
+  mostBoxEncrypt,
   mostWallet,
   mostMnemonic,
   most25519,
+  parseMostBoxToken,
 } from '~/server/src/utils/mostWallet.js'
 import { getEdKeyPair, getIPNS } from '~/server/src/utils/mp.js'
 import { generateAvatar } from '~/server/src/utils/avatar.js'
@@ -51,8 +55,7 @@ function CopyButton({ text }) {
       onClick={handleCopy}
       title={copied ? '已复制' : '复制'}
     >
-      <Copy size={14} />
-      {copied && <span className="copy-hint">已复制</span>}
+      {copied ? <Check size={14} /> : <Copy size={14} />}
     </button>
   )
 }
@@ -75,6 +78,252 @@ function EmptyState({ icon, message }) {
       <div className="empty-state-icon">{icon}</div>
       <p>{message}</p>
     </div>
+  )
+}
+
+type BoxAccount = {
+  username: string
+  address: string
+  publicKey: string
+  privateKey: string
+}
+
+interface BoxAccountPanelProps {
+  title: string
+  username: string
+  password: string
+  showPassword: boolean
+  showPrivateKey: boolean
+  account: BoxAccount | null
+  onUsernameChange: (value: string) => void
+  onPasswordChange: (value: string) => void
+  onTogglePassword: () => void
+  onTogglePrivateKey: () => void
+  onGenerate: () => void
+}
+
+interface BoxFlowPanelProps {
+  title: string
+  description: string
+  message: string
+  cipherText: string
+  decryptedText: string
+  error: string
+  encryptLabel: string
+  decryptLabel: string
+  messagePlaceholder: string
+  cipherPlaceholder: string
+  onMessageChange: (value: string) => void
+  onCipherTextChange: (value: string) => void
+  onEncrypt: () => void
+  onDecrypt: () => void
+}
+
+function maskSecret(value: string) {
+  return value ? '•'.repeat(Math.min(value.length, 32)) : '-'
+}
+
+function formatBoxTimestamp(timestampMs: number) {
+  if (!Number.isFinite(timestampMs)) return '-'
+  return `${new Date(timestampMs).toLocaleString()}`
+}
+
+function BoxAccountPanel({
+  title,
+  username,
+  password,
+  showPassword,
+  showPrivateKey,
+  account,
+  onUsernameChange,
+  onPasswordChange,
+  onTogglePassword,
+  onTogglePrivateKey,
+  onGenerate,
+}: BoxAccountPanelProps) {
+  return (
+    <div className="web3-box-account">
+      <div className="web3-box-account-header">
+        <div>
+          <h2>{title}</h2>
+          <p>用户名和密码会确定性生成 x25519 密钥对。</p>
+        </div>
+      </div>
+      <div className="web3-box-login">
+        <input
+          type="text"
+          placeholder="用户名"
+          value={username}
+          onChange={event => onUsernameChange(event.target.value)}
+          className="input"
+          autoCapitalize="off"
+          autoCorrect="off"
+          spellCheck="false"
+        />
+        <div className="input-wrap">
+          <input
+            type={showPassword ? 'text' : 'password'}
+            placeholder="密码（可选）"
+            value={password}
+            onChange={event => onPasswordChange(event.target.value)}
+            className="input"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck="false"
+          />
+          <button
+            className="input-eye"
+            onClick={onTogglePassword}
+            type="button"
+          >
+            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+          </button>
+        </div>
+        <button
+          className="btn btn-primary btn-full"
+          onClick={onGenerate}
+          disabled={!username.trim()}
+          type="button"
+        >
+          <KeyRound size={16} />
+          生成账号
+        </button>
+      </div>
+
+      {account ? (
+        <div className="web3-box-key-list">
+          <div className="web3-box-key-row">
+            <span>地址</span>
+            <div className="mono-row">
+              <code className="mono">{account.address.toLowerCase()}</code>
+              <CopyButton text={account.address.toLowerCase()} />
+            </div>
+          </div>
+          <div className="web3-box-key-row">
+            <span>x25519 公钥</span>
+            <div className="mono-row">
+              <code className="mono">{account.publicKey}</code>
+              <CopyButton text={account.publicKey} />
+            </div>
+          </div>
+          <div className="web3-box-key-row">
+            <span>x25519 私钥</span>
+            <div className="mono-row danger">
+              <code className="mono">
+                {showPrivateKey
+                  ? account.privateKey
+                  : maskSecret(account.privateKey)}
+              </code>
+              <button
+                className="btn btn-icon"
+                onClick={onTogglePrivateKey}
+                title={showPrivateKey ? '隐藏私钥' : '显示私钥'}
+                type="button"
+              >
+                {showPrivateKey ? <Eye size={14} /> : <EyeOff size={14} />}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function BoxFlowPanel({
+  title,
+  description,
+  message,
+  cipherText,
+  decryptedText,
+  error,
+  encryptLabel,
+  decryptLabel,
+  messagePlaceholder,
+  cipherPlaceholder,
+  onMessageChange,
+  onCipherTextChange,
+  onEncrypt,
+  onDecrypt,
+}: BoxFlowPanelProps) {
+  const messageInputId = `box-message-${title.replaceAll(/\s+/g, '-')}`
+  const tokenInfo = parseMostBoxToken(cipherText)
+
+  return (
+    <section className="web3-box-flow">
+      <div className="web3-box-flow-header">
+        <div>
+          <h2>{title}</h2>
+          <p>{description}</p>
+        </div>
+      </div>
+
+      <label className="web3-box-label" htmlFor={messageInputId}>
+        明文
+      </label>
+      <textarea
+        id={messageInputId}
+        className="textarea"
+        value={message}
+        onChange={event => onMessageChange(event.target.value)}
+        rows={4}
+        placeholder={messagePlaceholder}
+      />
+
+      <div className="web3-box-actions">
+        <button className="btn btn-primary" onClick={onEncrypt} type="button">
+          <Lock size={16} />
+          {encryptLabel}
+        </button>
+        <button className="btn btn-secondary" onClick={onDecrypt} type="button">
+          <KeyRound size={16} />
+          {decryptLabel}
+        </button>
+      </div>
+
+      {error && <p className="web3-tools-danger">{error}</p>}
+
+      <div className="web3-box-result-grid">
+        <div className="web3-box-result">
+          <div className="web3-box-result-header">
+            <span>密文</span>
+          </div>
+          <textarea
+            className="textarea mono"
+            value={cipherText}
+            onChange={event => onCipherTextChange(event.target.value)}
+            rows={5}
+            placeholder={cipherPlaceholder}
+          />
+        </div>
+
+        <div className="web3-box-result">
+          <div className="web3-box-result-header">
+            <span>解密结果</span>
+          </div>
+          <textarea
+            className="textarea mono"
+            value={decryptedText}
+            readOnly
+            rows={5}
+            placeholder="解密成功后显示明文"
+          />
+        </div>
+      </div>
+
+      {tokenInfo && (
+        <div className="web3-box-token-meta">
+          <div className="web3-box-token-meta-row">
+            <span>时间戳</span>
+            <code>{formatBoxTimestamp(tokenInfo.timestampMs)}</code>
+          </div>
+          <div className="web3-box-token-meta-row">
+            <span>随机数</span>
+            <code>{tokenInfo.nonce}</code>
+          </div>
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -213,6 +462,28 @@ export default function Web3Page() {
   /* generate state */
   const [generating, setGenerating] = useState(false)
 
+  /* asymmetric box demo */
+  const [boxAUsername, setBoxAUsername] = useState('')
+  const [boxAPassword, setBoxAPassword] = useState('')
+  const [boxAShowPassword, setBoxAShowPassword] = useState(false)
+  const [boxAShowPrivateKey, setBoxAShowPrivateKey] = useState(false)
+  const [boxAAccount, setBoxAAccount] = useState<BoxAccount | null>(null)
+  const [boxBUsername, setBoxBUsername] = useState('')
+  const [boxBPassword, setBoxBPassword] = useState('')
+  const [boxBShowPassword, setBoxBShowPassword] = useState(false)
+  const [boxBShowPrivateKey, setBoxBShowPrivateKey] = useState(false)
+  const [boxBAccount, setBoxBAccount] = useState<BoxAccount | null>(null)
+  const [boxABMessage, setBoxABMessage] =
+    useState('你好，B。这是来自 A 的加密消息。')
+  const [boxABCipherText, setBoxABCipherText] = useState('')
+  const [boxABDecryptedText, setBoxABDecryptedText] = useState('')
+  const [boxABError, setBoxABError] = useState('')
+  const [boxBAMessage, setBoxBAMessage] =
+    useState('你好，A。这是来自 B 的加密消息。')
+  const [boxBACipherText, setBoxBACipherText] = useState('')
+  const [boxBADecryptedText, setBoxBADecryptedText] = useState('')
+  const [boxBAError, setBoxBAError] = useState('')
+
   /* compute results on button click */
   const handleGenerate = useCallback(async () => {
     if (!username.trim()) return
@@ -244,6 +515,95 @@ export default function Web3Page() {
     setGenerating(false)
   }, [addToast, password, setUserIdentity, username])
 
+  function generateBoxAccount(
+    label: string,
+    nextUsername: string,
+    nextPassword: string,
+    setter: (account: BoxAccount) => void
+  ) {
+    const trimmedUsername = nextUsername.trim()
+    if (!trimmedUsername) return
+    const wallet = mostWallet(trimmedUsername, nextPassword)
+    const nextKeys = most25519(wallet.danger)
+    setter({
+      username: wallet.username,
+      address: wallet.address,
+      publicKey: nextKeys.public_key,
+      privateKey: nextKeys.private_key,
+    })
+    setBoxABDecryptedText('')
+    setBoxABError('')
+    setBoxBADecryptedText('')
+    setBoxBAError('')
+    addToast(`${label} 账号已生成`, 'success')
+  }
+
+  function encryptBoxMessage({
+    senderAccount,
+    recipientAccount,
+    message,
+    setCipherText,
+    setDecryptedText,
+    setError,
+  }: {
+    senderAccount: BoxAccount | null
+    recipientAccount: BoxAccount | null
+    message: string
+    setCipherText: (value: string) => void
+    setDecryptedText: (value: string) => void
+    setError: (value: string) => void
+  }) {
+    if (!senderAccount || !recipientAccount) {
+      setError('请先生成 A 和 B 两个账号')
+      return
+    }
+    if (!message.trim()) {
+      setError('请输入要加密的消息')
+      return
+    }
+    const encrypted = mostBoxEncrypt(message, {
+      senderPrivateKey: senderAccount.privateKey,
+      recipientPublicKey: recipientAccount.publicKey,
+    })
+    setCipherText(encrypted)
+    setDecryptedText('')
+    setError('')
+  }
+
+  function decryptBoxMessage({
+    senderAccount,
+    recipientAccount,
+    cipherText,
+    setDecryptedText,
+    setError,
+  }: {
+    senderAccount: BoxAccount | null
+    recipientAccount: BoxAccount | null
+    cipherText: string
+    setDecryptedText: (value: string) => void
+    setError: (value: string) => void
+  }) {
+    if (!senderAccount || !recipientAccount) {
+      setError('请先生成 A 和 B 两个账号')
+      return
+    }
+    if (!cipherText.trim()) {
+      setError('请先生成或粘贴密文')
+      return
+    }
+    const decrypted = mostBoxDecrypt(cipherText, {
+      senderPublicKey: senderAccount.publicKey,
+      recipientPrivateKey: recipientAccount.privateKey,
+    })
+    if (!decrypted) {
+      setError('解密失败，请确认发送方公钥、接收方私钥和密文匹配')
+      setDecryptedText('')
+      return
+    }
+    setDecryptedText(decrypted)
+    setError('')
+  }
+
   const deriveBatch = 10
 
   const handleDerive = () => {
@@ -272,7 +632,9 @@ export default function Web3Page() {
       ? 'Web3'
       : currentView === 'pem'
         ? 'PEM 导出'
-        : 'Wallet 导出'
+        : currentView === 'box'
+          ? '非对称加密'
+          : 'Wallet 导出'
 
   const sidebarNavItems = [
     {
@@ -282,6 +644,7 @@ export default function Web3Page() {
     },
     { id: 'pem', icon: <Lock size={16} />, label: 'PEM 导出' },
     { id: 'tools', icon: <Wallet size={16} />, label: 'Wallet 导出' },
+    { id: 'box', icon: <KeyRound size={16} />, label: '非对称加密' },
   ]
 
   return (
@@ -323,59 +686,63 @@ export default function Web3Page() {
       }
     >
       <div className="web3-page">
-        <div className="web3-container">
+        <div
+          className={`web3-container ${currentView === 'box' ? 'wide' : ''}`}
+        >
           {/* ── Shared Input Area ── */}
-          <div className="input-panel">
-            <div className="web3-tools-inputs">
-              <input
-                type="text"
-                placeholder="用户名"
-                value={username}
-                onChange={e => setUsername(e.target.value)}
-                className="input"
-                autoCapitalize="off"
-                autoCorrect="off"
-                spellCheck="false"
-              />
-              <div className="input-wrap">
+          {currentView !== 'box' && (
+            <div className="input-panel">
+              <div className="web3-tools-inputs">
                 <input
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="密码（可选）"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
+                  type="text"
+                  placeholder="用户名"
+                  value={username}
+                  onChange={e => setUsername(e.target.value)}
                   className="input"
                   autoCapitalize="off"
                   autoCorrect="off"
                   spellCheck="false"
                 />
-                <button
-                  className="input-eye"
-                  onClick={() => setShowPassword(!showPassword)}
-                  type="button"
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
+                <div className="input-wrap">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="密码（可选）"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    className="input"
+                    autoCapitalize="off"
+                    autoCorrect="off"
+                    spellCheck="false"
+                  />
+                  <button
+                    className="input-eye"
+                    onClick={() => setShowPassword(!showPassword)}
+                    type="button"
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
               </div>
+              <button
+                className="btn btn-primary btn-full"
+                onClick={handleGenerate}
+                disabled={!username.trim() || generating}
+                type="button"
+              >
+                {generating ? (
+                  <>
+                    <span className="spinner" />
+                    生成中...
+                  </>
+                ) : (
+                  <>
+                    <Wallet size={16} />
+                    生成并登录
+                  </>
+                )}
+              </button>
             </div>
-            <button
-              className="btn btn-primary btn-full"
-              onClick={handleGenerate}
-              disabled={!username.trim() || generating}
-              type="button"
-            >
-              {generating ? (
-                <>
-                  <span className="spinner" />
-                  生成中...
-                </>
-              ) : (
-                <>
-                  <Wallet size={16} />
-                  生成并登录
-                </>
-              )}
-            </button>
-          </div>
+          )}
 
           {/* ── View: Identity & Keys ── */}
           {currentView === 'identity' && (
@@ -435,32 +802,26 @@ export default function Web3Page() {
                         icon={<Shield size={18} />}
                         accent
                       >
-                        <div className="web3-private-toggle">
-                          <span className="hint-text">
-                            点击眼睛图标查看私钥
-                          </span>
-                          <button
-                            className="input-eye"
-                            onClick={() =>
-                              setShowX25519Private(!showX25519Private)
-                            }
-                          >
-                            {showX25519Private ? (
-                              <Eye size={16} />
-                            ) : (
-                              <EyeOff size={16} />
-                            )}
-                          </button>
-                        </div>
                         <div className="mono-row danger">
                           <code className="mono">
                             {showX25519Private
                               ? keys.private_key
                               : mask(keys.private_key)}
                           </code>
-                          {showX25519Private && (
-                            <CopyButton text={keys.private_key} />
-                          )}
+                          <button
+                            className="btn btn-icon"
+                            onClick={() =>
+                              setShowX25519Private(!showX25519Private)
+                            }
+                            title={showX25519Private ? '隐藏私钥' : '显示私钥'}
+                            type="button"
+                          >
+                            {showX25519Private ? (
+                              <Eye size={14} />
+                            ) : (
+                              <EyeOff size={14} />
+                            )}
+                          </button>
                         </div>
                       </KeyCard>
 
@@ -669,6 +1030,130 @@ export default function Web3Page() {
                 />
               )}
             </>
+          )}
+
+          {/* ── View: Asymmetric Box ── */}
+          {currentView === 'box' && (
+            <div className="web3-box-workspace">
+              <div className="web3-box-grid">
+                <BoxAccountPanel
+                  title="A 账号"
+                  username={boxAUsername}
+                  password={boxAPassword}
+                  showPassword={boxAShowPassword}
+                  showPrivateKey={boxAShowPrivateKey}
+                  account={boxAAccount}
+                  onUsernameChange={setBoxAUsername}
+                  onPasswordChange={setBoxAPassword}
+                  onTogglePassword={() =>
+                    setBoxAShowPassword(!boxAShowPassword)
+                  }
+                  onTogglePrivateKey={() =>
+                    setBoxAShowPrivateKey(!boxAShowPrivateKey)
+                  }
+                  onGenerate={() =>
+                    generateBoxAccount(
+                      'A',
+                      boxAUsername,
+                      boxAPassword,
+                      setBoxAAccount
+                    )
+                  }
+                />
+                <BoxAccountPanel
+                  title="B 账号"
+                  username={boxBUsername}
+                  password={boxBPassword}
+                  showPassword={boxBShowPassword}
+                  showPrivateKey={boxBShowPrivateKey}
+                  account={boxBAccount}
+                  onUsernameChange={setBoxBUsername}
+                  onPasswordChange={setBoxBPassword}
+                  onTogglePassword={() =>
+                    setBoxBShowPassword(!boxBShowPassword)
+                  }
+                  onTogglePrivateKey={() =>
+                    setBoxBShowPrivateKey(!boxBShowPrivateKey)
+                  }
+                  onGenerate={() =>
+                    generateBoxAccount(
+                      'B',
+                      boxBUsername,
+                      boxBPassword,
+                      setBoxBAccount
+                    )
+                  }
+                />
+              </div>
+
+              <BoxFlowPanel
+                title="A → B 加密"
+                description="加密使用 A 私钥 + B 公钥；解密使用 A 公钥 + B 私钥。"
+                message={boxABMessage}
+                cipherText={boxABCipherText}
+                decryptedText={boxABDecryptedText}
+                error={boxABError}
+                encryptLabel="用 A 私钥 + B 公钥加密"
+                decryptLabel="用 A 公钥 + B 私钥解密"
+                messagePlaceholder="输入要从 A 发给 B 的消息"
+                cipherPlaceholder="加密后生成密文，或粘贴已有密文"
+                onMessageChange={setBoxABMessage}
+                onCipherTextChange={setBoxABCipherText}
+                onEncrypt={() =>
+                  encryptBoxMessage({
+                    senderAccount: boxAAccount,
+                    recipientAccount: boxBAccount,
+                    message: boxABMessage,
+                    setCipherText: setBoxABCipherText,
+                    setDecryptedText: setBoxABDecryptedText,
+                    setError: setBoxABError,
+                  })
+                }
+                onDecrypt={() =>
+                  decryptBoxMessage({
+                    senderAccount: boxAAccount,
+                    recipientAccount: boxBAccount,
+                    cipherText: boxABCipherText,
+                    setDecryptedText: setBoxABDecryptedText,
+                    setError: setBoxABError,
+                  })
+                }
+              />
+
+              <BoxFlowPanel
+                title="B → A 加密"
+                description="加密使用 B 私钥 + A 公钥；解密使用 B 公钥 + A 私钥。"
+                message={boxBAMessage}
+                cipherText={boxBACipherText}
+                decryptedText={boxBADecryptedText}
+                error={boxBAError}
+                encryptLabel="用 B 私钥 + A 公钥加密"
+                decryptLabel="用 B 公钥 + A 私钥解密"
+                messagePlaceholder="输入要从 B 发给 A 的消息"
+                cipherPlaceholder="加密后生成密文，或粘贴已有密文"
+                onMessageChange={setBoxBAMessage}
+                onCipherTextChange={setBoxBACipherText}
+                onEncrypt={() =>
+                  encryptBoxMessage({
+                    senderAccount: boxBAccount,
+                    recipientAccount: boxAAccount,
+                    message: boxBAMessage,
+                    setCipherText: setBoxBACipherText,
+                    setDecryptedText: setBoxBADecryptedText,
+                    setError: setBoxBAError,
+                  })
+                }
+                onDecrypt={() =>
+                  decryptBoxMessage({
+                    senderAccount: boxBAccount,
+                    recipientAccount: boxAAccount,
+                    cipherText: boxBACipherText,
+                    setDecryptedText: setBoxBADecryptedText,
+                    setError: setBoxBAError,
+                  })
+                }
+              />
+            </div>
           )}
         </div>
       </div>

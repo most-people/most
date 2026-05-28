@@ -16,6 +16,10 @@
   max-width: 720px;
 }
 
+.web3-container.wide {
+  max-width: 980px;
+}
+
 .web3-container.narrow {
   max-width: 640px;
 }
@@ -346,6 +350,7 @@
 
 .web3-tools-warning,
 .web3-tools-danger {
+  margin-top: var(--space-3);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -519,4 +524,192 @@
 
 .web3-derive-th {
   white-space: nowrap;
+}
+
+/* === Asymmetric Box === */
+.web3-box-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.web3-box-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.web3-box-account,
+.web3-box-flow,
+.web3-box-source-panel {
+  background: var(--glass-bg);
+  backdrop-filter: var(--blur-md);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--glass-shadow);
+}
+
+.web3-box-account {
+  min-width: 0;
+}
+
+.web3-box-account-header,
+.web3-box-flow-header,
+.web3-box-result-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.web3-box-account-header,
+.web3-box-flow-header {
+  margin-bottom: var(--space-4);
+}
+
+.web3-box-account h2,
+.web3-box-flow h2 {
+  font-size: 17px;
+  line-height: 1.25;
+  letter-spacing: 0;
+  color: var(--text-primary);
+}
+
+.web3-box-account p,
+.web3-box-flow-header p,
+.web3-box-placeholder {
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.web3-box-login,
+.web3-box-key-list,
+.web3-box-result-grid {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.web3-box-key-list {
+  margin-top: var(--space-4);
+}
+
+.web3-box-key-row > span,
+.web3-box-label,
+.web3-box-result-header span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.web3-box-key-row .mono-row {
+  min-height: 42px;
+}
+
+.web3-box-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.web3-box-result-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: var(--space-4);
+}
+
+.web3-box-result {
+  min-width: 0;
+}
+
+.web3-box-token-meta {
+  display: flex;
+  gap: 8px;
+  margin-top: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.web3-box-token-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: start;
+  padding: 10px 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: var(--glass-bg-subtle);
+}
+
+.web3-box-token-meta-row span {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.web3-box-token-meta-row code {
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.web3-box-result-header {
+  min-height: 34px;
+  align-items: center;
+}
+
+.web3-box-result-header span {
+  margin-bottom: 0;
+}
+
+.web3-box-source-panel {
+  min-width: 0;
+}
+
+.web3-box-source-loading {
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.web3-box-source-editor {
+  min-height: 0;
+}
+
+.web3-box-source-editor .milkdown {
+  height: auto;
+}
+
+.web3-box-source-editor .ProseMirror {
+  width: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.web3-box-source-editor .ProseMirror h2 {
+  margin: 0 0 var(--space-4);
+  color: var(--text-primary);
+  font-size: 17px;
+  line-height: 1.25;
+}
+
+.web3-box-source-editor .milkdown-code-block {
+  margin: 0;
+}
+
+@media (max-width: 860px) {
+  .web3-box-grid,
+  .web3-box-result-grid {
+    grid-template-columns: 1fr;
+  }
 }
