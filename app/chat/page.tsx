@@ -222,10 +222,8 @@ function ChatPage() {
   }, [isBackendReady])
 
   useEffect(() => {
-    if (myPeerId && wsRef.current && isWsConnectedRef.current) {
-      wsRef.current.send(
-        JSON.stringify({ event: 'register', data: { peerId: myPeerId } })
-      )
+    if (myPeerId) {
+      wsSend('register', { peerId: myPeerId })
     }
   }, [myPeerId])
 
