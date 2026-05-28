@@ -8,8 +8,6 @@ import {
   Sun,
   Moon,
   X,
-  Download,
-  ArrowRight,
   ArrowLeft,
   Edit2,
   Calendar,
@@ -27,7 +25,6 @@ import { generateAvatar } from '~/server/src/utils/avatar.js'
 import { useAppStore } from '~/app/app/useAppStore'
 import { useUserStore } from '~/app/app/userStore'
 import { useDisclosure } from '~/hooks'
-import Link from 'next/link'
 import SidebarAccount from '~/components/SidebarAccount'
 
 interface ChannelMessage {
@@ -89,43 +86,14 @@ const API = {
       .json(),
 }
 
-// Demo data for no-backend marketing preview. Not compatibility code.
-const DEMO_CHANNELS: Channel[] = [
-  { name: 'general' },
-  { name: 'random' },
-  { name: 'tech' },
-]
-
-const DEMO_MESSAGES: ChannelMessage[] = [
-  {
-    id: 'm1',
-    author: 'user1',
-    authorName: 'Alice',
-    content: '大家好！欢迎使用 P2P 聊天',
-    timestamp: Date.now() - 3600000,
-  },
-  {
-    id: 'm2',
-    author: 'user2',
-    authorName: 'Bob',
-    content: '这个聊天是基于 Hyperswarm 的，完全去中心化',
-    timestamp: Date.now() - 3500000,
-  },
-  {
-    id: 'm3',
-    author: 'user3',
-    authorName: 'Charlie',
-    content: '消息通过 P2P 网络同步，无需服务器',
-    timestamp: Date.now() - 3400000,
-  },
-]
-
 function ChatPage() {
   const isDarkMode = useAppStore(s => s.isDarkMode)
   const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
   const hasBackend = useAppStore(s => s.hasBackend)
   const addToast = useAppStore(s => s.addToast)
+  const openConnectModal = useAppStore(s => s.openConnectModal)
   const userIdentity = useUserStore(s => s.identity)
+  const openLoginModal = useUserStore(s => s.openLoginModal)
   const [channels, setChannels] = useState([])
   const [activeChannel, setActiveChannel] = useState(null)
   const [channelMessages, setChannelMessages] = useState([])
@@ -146,6 +114,18 @@ function ChatPage() {
   const reconnectAttemptRef = useRef(0)
   const isWsConnectedRef = useRef(false)
   const isBackendReady = hasBackend === true
+
+  function requireBackendReady() {
+    if (isBackendReady) return true
+    openConnectModal()
+    return false
+  }
+
+  function requireLogin() {
+    if (userIdentity) return true
+    openLoginModal()
+    return false
+  }
 
   useEffect(() => {
     activeChannelRef.current = activeChannel
@@ -258,8 +238,6 @@ function ChatPage() {
   useEffect(() => {
     if (isBackendReady && userIdentity) {
       refreshChannels()
-    } else if (hasBackend === false) {
-      setChannels(DEMO_CHANNELS)
     }
   }, [hasBackend, isBackendReady, userIdentity?.address])
 
@@ -272,8 +250,6 @@ function ChatPage() {
             setChannelMessages([])
             void showApiError(err, '无法读取频道消息')
           })
-      } else if (hasBackend === false) {
-        setChannelMessages(DEMO_MESSAGES)
       }
     }
   }, [activeChannel, hasBackend, isBackendReady])
@@ -423,6 +399,8 @@ function ChatPage() {
   }
 
   async function handleOpenChannel(channel) {
+    if (!requireLogin()) return
+    if (!requireBackendReady()) return
     if (activeChannelRef.current) {
       unsubscribeFromChannel(activeChannelRef.current.name)
     }
@@ -438,8 +416,6 @@ function ChatPage() {
         const messages = await API.getChannelMessages(channel.name)
         setChannelMessages(messages)
         await API.getChannelPeers(channel.name)
-      } else {
-        setChannelMessages(DEMO_MESSAGES)
       }
     } catch (err) {
       setChannelMessages([])
@@ -449,7 +425,8 @@ function ChatPage() {
 
   async function handleLeaveChannel(name, e) {
     if (e) e.stopPropagation()
-    if (!isBackendReady) return
+    if (!requireLogin()) return
+    if (!requireBackendReady()) return
     if (isLeavingChannel) return
     setIsLeavingChannel(true)
     unsubscribeFromChannel(name)
@@ -474,7 +451,8 @@ function ChatPage() {
 
   async function handleJoinChannel(channelName) {
     if (!channelName.trim() || isJoiningChannel) return
-    if (!isBackendReady) return
+    if (!requireLogin()) return
+    if (!requireBackendReady()) return
     setIsJoiningChannel(true)
     try {
       await API.createChannel(channelName.trim(), 'public')
@@ -488,8 +466,9 @@ function ChatPage() {
   }
 
   async function handleSendChannelMessage() {
-    if (!channelInput.trim() || !activeChannel || !userIdentity) return
-    if (!isBackendReady) return
+    if (!channelInput.trim() || !activeChannel) return
+    if (!requireLogin()) return
+    if (!requireBackendReady()) return
     const content = channelInput.trim()
     setChannelInput('')
 
@@ -528,7 +507,9 @@ function ChatPage() {
   }
 
   async function handleSetRemark() {
-    if (!activeChannel || !isBackendReady) return
+    if (!activeChannel) return
+    if (!requireLogin()) return
+    if (!requireBackendReady()) return
     try {
       const result = await API.setChannelRemark(activeChannel.name, remarkInput)
       setChannels(prev =>
@@ -638,17 +619,6 @@ function ChatPage() {
         </div>
       }
     >
-      {hasBackend === false && (
-        <div className="download-banner">
-          <span>Web 端仅用于界面展示，下载桌面客户端获得完整功能</span>
-          <Link href="/download" className="download-banner-btn">
-            <Download size={14} />
-            下载客户端
-            <ArrowRight size={12} />
-          </Link>
-        </div>
-      )}
-
       {activeChannel ? (
         <>
           <div className="chat-messages">

@@ -183,6 +183,7 @@ const features: FeatureDef[] = [
 /* ─── Component ─── */
 export default function FeaturePortal() {
   const hasBackend = useAppStore(s => s.hasBackend)
+  const openConnectModal = useAppStore(s => s.openConnectModal)
   const [selected, setSelected] = useState<string>('app')
 
   const activeFeature = features.find(f => f.id === selected) || features[0]
@@ -261,10 +262,10 @@ export default function FeaturePortal() {
             })}
           </div>
           <div className="portal-node-actions" aria-label="节点入口">
-            <Link href="/connect" className="btn btn-secondary">
+            <button onClick={openConnectModal} className="btn btn-secondary">
               <Server size={16} />
               连接节点
-            </Link>
+            </button>
             <Link href="/admin" className="btn btn-secondary">
               <HardDrive size={16} />
               节点管理
@@ -327,10 +328,10 @@ export default function FeaturePortal() {
                 </Link>
                 {activeFeature.requiresBackend && hasBackend === false && (
                   <>
-                    <Link href="/connect" className="btn btn-secondary">
+                    <button onClick={openConnectModal} className="btn btn-secondary">
                       <Server size={16} />
                       连接节点
-                    </Link>
+                    </button>
                     <Link href="/download" className="btn btn-secondary">
                       <Download size={16} />
                       下载桌面客户端

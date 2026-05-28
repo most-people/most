@@ -52,6 +52,11 @@ interface AppState {
   openSettings: () => void
   closeSettings: () => void
 
+  // Connect Modal
+  showConnectModal: boolean
+  openConnectModal: () => void
+  closeConnectModal: () => void
+
   localDataReady: boolean
   initializeLocalData: () => void
 
@@ -166,6 +171,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   openSettings: () => set({ showSettings: true }),
   closeSettings: () => set({ showSettings: false }),
 
+  // Connect Modal
+  showConnectModal: false,
+  openConnectModal: () => set({ showConnectModal: true }),
+  closeConnectModal: () => set({ showConnectModal: false }),
+
   localDataReady: false,
   initializeLocalData: () => {
     set({
@@ -200,6 +210,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       notesAddress: '',
       toasts: [],
       showSettings: false,
+      showConnectModal: false,
     })
   },
   setNotesPath: path => {

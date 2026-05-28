@@ -17,6 +17,8 @@ export function useIsTablet(breakpoint = 1024) {
   return useMediaQuery(`(max-width: ${breakpoint}px)`)
 }
 
+export { useGuardedAction } from '~/hooks/useGuardedAction'
+
 export {
   useMediaQuery,
   useViewportSize,

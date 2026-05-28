@@ -22,7 +22,6 @@ import {
   Search,
   Edit2,
   Loader,
-  ArrowRight,
   ArrowLeft,
   Info,
 } from 'lucide-react'
@@ -45,8 +44,6 @@ import {
 import { useAppStore } from '~/app/app/useAppStore'
 import { useUserStore } from '~/app/app/userStore'
 import { useDisclosure, useClipboard } from '~/hooks'
-import Link from 'next/link'
-
 interface NetworkAddress {
   type: string
   ip: string
@@ -138,59 +135,6 @@ const API = {
   renameFolder: (oldPath, newPath) =>
     api.post('/api/folder/rename', { json: { oldPath, newPath } }).json<any>(),
 }
-
-// Demo data for no-backend marketing preview. Not compatibility code.
-const DEMO_FILES = [
-  {
-    cid: 'mock1',
-    fileName: '示例文档.pdf',
-    size: 2048576,
-    createdAt: '2024-01-15',
-    starred: false,
-  },
-  {
-    cid: 'mock2',
-    fileName: '项目截图.png',
-    size: 1536000,
-    createdAt: '2024-01-20',
-    starred: true,
-  },
-  {
-    cid: 'mock3',
-    fileName: '会议录音.mp3',
-    size: 5120000,
-    createdAt: '2024-02-01',
-    starred: false,
-  },
-  {
-    cid: 'mock4',
-    fileName: '演示视频.mp4',
-    size: 52428800,
-    createdAt: '2024-02-10',
-    starred: false,
-  },
-  {
-    cid: 'mock5',
-    fileName: '代码备份.zip',
-    size: 10485760,
-    createdAt: '2024-02-15',
-    starred: false,
-  },
-  {
-    cid: 'mock6',
-    fileName: '设计稿/首页设计.fig',
-    size: 8388608,
-    createdAt: '2024-02-20',
-    starred: true,
-  },
-  {
-    cid: 'mock7',
-    fileName: '设计稿/图标集.svg',
-    size: 512000,
-    createdAt: '2024-02-22',
-    starred: false,
-  },
-]
 
 function formatSize(bytes) {
   if (!bytes || bytes <= 0) return '0 B'
@@ -474,6 +418,7 @@ export default function App() {
   const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
   const addToast = useAppStore(s => s.addToast)
   const hasBackend = useAppStore(s => s.hasBackend)
+  const openConnectModal = useAppStore(s => s.openConnectModal)
   const userIdentity = useUserStore(s => s.identity)
   const openLoginModal = useUserStore(s => s.openLoginModal)
   const [items, setItems] = useState([])
@@ -552,10 +497,13 @@ export default function App() {
   const { folders, files } = getItemsForPath(items, allFolders, currentPath)
   function requireBackendReady() {
     if (isBackendReady) return true
-    addToast(
-      hasBackend === null ? '正在检测后端连接，请稍后再试' : '未连接后端',
-      'warning'
-    )
+    openConnectModal()
+    return false
+  }
+
+  function requireLogin() {
+    if (userIdentity) return true
+    openLoginModal()
     return false
   }
 
@@ -576,7 +524,7 @@ export default function App() {
       const result = await API.listPublishedFiles()
       setItems(result || [])
     } catch {
-      setItems(DEMO_FILES)
+      setItems([])
     }
   }
   const refreshTrash = async () => {
@@ -598,6 +546,7 @@ export default function App() {
   }
 
   const handleRestore = async cid => {
+    if (!requireLogin()) return
     if (!requireBackendReady()) return
     try {
       await API.restoreTrashFile(cid)
@@ -610,6 +559,7 @@ export default function App() {
   }
 
   const handleEmptyTrash = async () => {
+    if (!requireLogin()) return
     if (!requireBackendReady()) return
     setConfirmModal({
       title: '清空回收站',
@@ -630,6 +580,7 @@ export default function App() {
   }
 
   const handleToggleStar = async cid => {
+    if (!requireLogin()) return
     if (!requireBackendReady()) return
     try {
       const result = await API.toggleStar(cid)
@@ -643,6 +594,7 @@ export default function App() {
   }
 
   const handleBatchDelete = async () => {
+    if (!requireLogin()) return
     if (!requireBackendReady()) return
     const isTrash = currentView === 'trash'
     setConfirmModal({
@@ -674,6 +626,7 @@ export default function App() {
   }
 
   const handleMove = async targetPath => {
+    if (!requireLogin()) return
     if (!requireBackendReady()) return
     try {
       for (const id of selectedIds) {
@@ -704,6 +657,7 @@ export default function App() {
       confirmText: '重命名',
       onConfirm: async newName => {
         if (newName === currentName) return
+        if (!requireLogin()) return
         if (!requireBackendReady()) return
         setInputLoading(true)
         try {
@@ -879,6 +833,7 @@ export default function App() {
     }
 
     if (isCheckingDownload || isDownloading) return
+    if (!requireLogin()) return
     if (!requireBackendReady()) return
 
     setIsCheckingDownload(true)
@@ -959,6 +914,7 @@ export default function App() {
   }
 
   const handleCancelTransfer = async transfer => {
+    if (!requireLogin()) return
     if (!requireBackendReady()) return
     if (transfer.type === 'download' && transfer.status === 'downloading') {
       setTransfers(prev =>
@@ -980,6 +936,7 @@ export default function App() {
   }
 
   const handleSaveAs = async file => {
+    if (!requireLogin()) return
     if (!requireBackendReady()) return
     try {
       const res = await fetch(API.getFileDownloadUrl(file.cid), {
@@ -1137,7 +1094,7 @@ export default function App() {
     }
 
     if (hasBackend === false) {
-      setItems(DEMO_FILES)
+      setItems([])
       setTrashItems([])
     }
   }, [hasBackend, userIdentity?.address])
@@ -1265,28 +1222,7 @@ export default function App() {
         </>
       }
     >
-      {hasBackend === false && (
-        <div className="download-banner">
-          <span>Web 端仅用于界面展示，下载桌面客户端获得完整功能</span>
-          <Link href="/download" className="download-banner-btn">
-            <Download size={14} />
-            下载客户端
-            <ArrowRight size={12} />
-          </Link>
-        </div>
-      )}
-
-      {hasBackend === true && !userIdentity && (
-        <div className="download-banner">
-          <span>文件分享需要先登录；登录后只会看到你自己的文件。</span>
-          <button className="download-banner-btn" onClick={openLoginModal}>
-            登录
-            <ArrowRight size={12} />
-          </button>
-        </div>
-      )}
-
-      {userIdentity && currentView === 'all' && (
+      {currentView === 'all' && (
         <div className="action-grid">
           <div
             className={`action-card upload ${isDraggingOverUpload ? 'drag-over' : ''}`}
@@ -1650,6 +1586,7 @@ export default function App() {
             <>
               <button
                 onClick={async () => {
+                  if (!requireLogin()) return
                   if (!requireBackendReady()) return
                   await Promise.all(
                     selectedIds.map(cid => API.restoreTrashFile(cid))

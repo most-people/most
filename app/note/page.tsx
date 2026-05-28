@@ -371,6 +371,7 @@ function NotePageContent() {
   }
 
   async function handlePreviewRename() {
+    if (!requireWallet()) return
     if (!selectedNote) return
     const nextName = previewName.trim()
     if (!nextName) {
@@ -391,6 +392,7 @@ function NotePageContent() {
   }
 
   function openMoveModal(item: ExplorerItem) {
+    if (!requireWallet()) return
     setMoveTarget(item)
   }
 
@@ -411,6 +413,7 @@ function NotePageContent() {
   }
 
   function openDeleteConfirm(item: ExplorerItem) {
+    if (!requireWallet()) return
     const isDirectory = item.type === 'directory'
     setConfirmModal({
       title: isDirectory ? '删除文件夹' : '删除笔记',

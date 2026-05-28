@@ -6,6 +6,7 @@ import { useUserStore } from '~/app/app/userStore'
 import { Toast } from '~/components/ui'
 import SettingsDrawer from '~/components/SettingsDrawer'
 import UserLoginModal from '~/components/UserLoginModal'
+import ConnectModal from '~/components/ConnectModal'
 
 export default function AppGlobals() {
   const checkBackend = useAppStore(s => s.checkBackend)
@@ -48,6 +49,8 @@ export default function AppGlobals() {
       {showSettings && <SettingsDrawer onClose={closeSettings} />}
 
       <UserLoginModal />
+
+      <ConnectModal />
     </>
   )
 }
