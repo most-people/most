@@ -695,16 +695,16 @@ export default function App() {
     }
     if (!requireBackendReady()) return
     const backendUrl = getBackendUrlExport()
-    const isRemoteBackend =
-      backendUrl &&
-      !backendUrl.includes('localhost') &&
-      !backendUrl.includes('127.0.0.1')
-    if (isRemoteBackend) {
-      const confirmed = window.confirm(
-        '远程节点会保存你上传的完整文件，默认不加密。私密文件请先自行加密后再发布。'
-      )
-      if (!confirmed) return
-    }
+    // const isRemoteBackend =
+    //   backendUrl &&
+    //   !backendUrl.includes('localhost') &&
+    //   !backendUrl.includes('127.0.0.1')
+    // if (isRemoteBackend) {
+    //   const confirmed = window.confirm(
+    //     '远程节点会保存你上传的完整文件，默认不加密。私密文件请先自行加密后再发布。'
+    //   )
+    //   if (!confirmed) return
+    // }
     const prefix = currentPath ? currentPath + '/' : ''
     const newTransfers = []
 

@@ -663,7 +663,15 @@ export function createApp(engine, options = {}) {
     })
   }
 
+  function isPublicFileDownloadPath(path) {
+    return /^\/api\/files\/[^/]+\/download$/.test(path)
+  }
+
   function requiresUserAuth(path) {
+    if (isPublicFileDownloadPath(path)) {
+      return false
+    }
+
     return (
       path === '/api/files' ||
       path === '/api/publish' ||
@@ -709,6 +717,11 @@ export function createApp(engine, options = {}) {
 
       const authHeader = c.req.header('authorization')
       if (authHeader) {
+        if (isPublicFileDownloadPath(path)) {
+          await next()
+          return
+        }
+
         const auth = verifyAuthHeader(authHeader, c.req.method, path)
         if (!auth.ok) {
           return c.json({ error: auth.error, code: 'UNAUTHORIZED' }, 401)
@@ -1315,7 +1328,7 @@ export function createApp(engine, options = {}) {
           const result = await engine.readFileRaw(cid, {
             offset,
             limit,
-            ownerAddress: c.get('userAddress'),
+            public: true,
           })
           const contentType = getMimeType(result.fileName)
 
@@ -1332,7 +1345,7 @@ export function createApp(engine, options = {}) {
       }
 
       const result = await engine.readFileRaw(cid, {
-        ownerAddress: c.get('userAddress'),
+        public: true,
       })
       const contentType = getMimeType(result.fileName)
       c.header('Content-Type', contentType)
