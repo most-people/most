@@ -123,6 +123,7 @@ function ChatPage() {
   const activeChannelRef = useRef(null)
   const reconnectTimeoutRef = useRef(null)
   const isWsConnectedRef = useRef(false)
+  const isBackendReady = hasBackend === true
 
   useEffect(() => {
     activeChannelRef.current = activeChannel
@@ -133,6 +134,11 @@ function ChatPage() {
   }, [channelMessages])
 
   useEffect(() => {
+    if (!isBackendReady) {
+      setMyPeerId('')
+      return
+    }
+
     api
       .get('/api/node-id')
       .json<{ id: string }>()
@@ -141,7 +147,7 @@ function ChatPage() {
         console.warn('[Chat] Failed to fetch node ID:', err.message)
         void showApiError(err, '无法读取节点 ID')
       })
-  }, [])
+  }, [isBackendReady])
 
   const pendingSubscriptionRef = useRef(null)
   const isMountedRef = useRef(true)
@@ -162,7 +168,7 @@ function ChatPage() {
   }, [myPeerId])
 
   useEffect(() => {
-    if (hasBackend !== true) return
+    if (!isBackendReady) return
 
     async function connectWs() {
       const ws = new WebSocket(await getAuthenticatedWebSocketUrl('/ws'))
@@ -213,7 +219,7 @@ function ChatPage() {
         wsRef.current.close()
       }
     }
-  }, [hasBackend])
+  }, [isBackendReady])
 
   useEffect(() => {
     if (myPeerId && wsRef.current && isWsConnectedRef.current) {
@@ -224,27 +230,27 @@ function ChatPage() {
   }, [myPeerId])
 
   useEffect(() => {
-    if (hasBackend === true) {
+    if (isBackendReady) {
       refreshChannels()
-    } else {
+    } else if (hasBackend === false) {
       setChannels(DEMO_CHANNELS)
     }
-  }, [hasBackend])
+  }, [hasBackend, isBackendReady])
 
   useEffect(() => {
     if (activeChannel) {
-      if (hasBackend === true) {
+      if (isBackendReady) {
         API.getChannelMessages(activeChannel.name)
           .then(setChannelMessages)
           .catch(err => {
             setChannelMessages([])
             void showApiError(err, '无法读取频道消息')
           })
-      } else {
+      } else if (hasBackend === false) {
         setChannelMessages(DEMO_MESSAGES)
       }
     }
-  }, [activeChannel, hasBackend])
+  }, [activeChannel, hasBackend, isBackendReady])
 
   useEffect(() => {
     const channelParam = new URLSearchParams(window.location.search).get(
@@ -273,7 +279,7 @@ function ChatPage() {
   }, [activeChannel, channels])
 
   async function syncChannelMessages(channelName) {
-    if (hasBackend !== true) return
+    if (!isBackendReady) return
     try {
       const messages = await API.getChannelMessages(channelName)
       setChannelMessages(prev => {
@@ -293,6 +299,7 @@ function ChatPage() {
   }
 
   async function refreshChannels() {
+    if (!isBackendReady) return
     try {
       const result = await API.getChannels()
       setChannels(result)
@@ -350,18 +357,22 @@ function ChatPage() {
             if (exists) return prev
             return [...prev, { ...data.message, id: messageId }]
           })
-          API.getChannelPeers(currentChannel.name).catch(err => {
-            console.warn('[Chat] Failed to fetch peers:', err.message)
-          })
+          if (isBackendReady) {
+            API.getChannelPeers(currentChannel.name).catch(err => {
+              console.warn('[Chat] Failed to fetch peers:', err.message)
+            })
+          }
         }
         break
 
       case 'channel:peer:online':
       case 'channel:peer:offline':
         if (currentChannel) {
-          API.getChannelPeers(currentChannel.name).catch(err => {
-            console.warn('[Chat] Failed to fetch peers on event:', err.message)
-          })
+          if (isBackendReady) {
+            API.getChannelPeers(currentChannel.name).catch(err => {
+              console.warn('[Chat] Failed to fetch peers on event:', err.message)
+            })
+          }
         }
         break
 
@@ -384,7 +395,7 @@ function ChatPage() {
       `?channel=${encodeURIComponent(channel.name)}`
     )
     try {
-      if (hasBackend === true) {
+      if (isBackendReady) {
         const messages = await API.getChannelMessages(channel.name)
         setChannelMessages(messages)
         await API.getChannelPeers(channel.name)
@@ -399,6 +410,7 @@ function ChatPage() {
 
   async function handleLeaveChannel(name, e) {
     if (e) e.stopPropagation()
+    if (!isBackendReady) return
     if (isLeavingChannel) return
     setIsLeavingChannel(true)
     unsubscribeFromChannel(name)
@@ -423,6 +435,7 @@ function ChatPage() {
 
   async function handleJoinChannel(channelName) {
     if (!channelName.trim() || isJoiningChannel) return
+    if (!isBackendReady) return
     setIsJoiningChannel(true)
     try {
       await API.createChannel(channelName.trim(), 'public')
@@ -437,6 +450,7 @@ function ChatPage() {
 
   async function handleSendChannelMessage() {
     if (!channelInput.trim() || !activeChannel || !userIdentity) return
+    if (!isBackendReady) return
     const content = channelInput.trim()
     setChannelInput('')
 

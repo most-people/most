@@ -19,12 +19,10 @@ import {
   ArrowUpDown,
   Star,
   Files,
-  HardDrive,
   Search,
   Edit2,
   Loader,
   ArrowRight,
-  Settings,
   Info,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
@@ -38,7 +36,6 @@ import {
   getApiRequestHeaders,
   getAuthenticatedWebSocketUrl,
   getBackendUrlExport,
-  getRemoteBackendUrlExport,
 } from '~/server/src/utils/api'
 import {
   getDownloadCheckErrorMessageFromPayload,
@@ -476,7 +473,6 @@ export default function App() {
   const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
   const addToast = useAppStore(s => s.addToast)
   const hasBackend = useAppStore(s => s.hasBackend)
-  const openSettings = useAppStore(s => s.openSettings)
   const userIdentity = useUserStore(s => s.identity)
   const openLoginModal = useUserStore(s => s.openLoginModal)
   const [items, setItems] = useState([])
@@ -503,18 +499,22 @@ export default function App() {
   const [previewText, setPreviewText] = useState('')
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewBlobUrl, setPreviewBlobUrl] = useState('')
+  const isBackendReady = hasBackend === true
 
   useEffect(() => {
-    if (previewItem && previewItem.subtype === 'text') {
+    if (previewItem && previewItem.subtype === 'text' && isBackendReady) {
       setPreviewText('')
       loadPreviewText(previewItem.cid)
+    } else if (previewItem?.subtype === 'text' && hasBackend !== null) {
+      setPreviewText('加载失败')
     }
-  }, [previewItem?.cid])
+  }, [previewItem?.cid, isBackendReady, hasBackend])
 
   useEffect(() => {
     if (
       !previewItem ||
-      !['image', 'video', 'audio'].includes(previewItem.subtype)
+      !['image', 'video', 'audio'].includes(previewItem.subtype) ||
+      !isBackendReady
     ) {
       setPreviewBlobUrl('')
       return
@@ -544,12 +544,19 @@ export default function App() {
       cancelled = true
       if (revokedUrl) URL.revokeObjectURL(revokedUrl)
     }
-  }, [previewItem?.cid, previewItem?.subtype])
+  }, [previewItem?.cid, previewItem?.subtype, isBackendReady])
 
   const currentPath = currentFolderId || ''
   const allFolders = getUniqueFolders(items)
   const { folders, files } = getItemsForPath(items, allFolders, currentPath)
-  const remoteBackendUrl = getRemoteBackendUrlExport()
+  function requireBackendReady() {
+    if (isBackendReady) return true
+    addToast(
+      hasBackend === null ? '正在检测后端连接，请稍后再试' : '未连接后端',
+      'warning'
+    )
+    return false
+  }
 
   const filteredFiles = searchQuery
     ? items.filter(f =>
@@ -560,7 +567,7 @@ export default function App() {
     : files
 
   const refreshFiles = async () => {
-    if (!userIdentity) {
+    if (!isBackendReady || !userIdentity) {
       setItems([])
       return
     }
@@ -572,7 +579,7 @@ export default function App() {
     }
   }
   const refreshTrash = async () => {
-    if (!userIdentity) {
+    if (!isBackendReady || !userIdentity) {
       setTrashItems([])
       return
     }
@@ -590,6 +597,7 @@ export default function App() {
   }
 
   const handleRestore = async cid => {
+    if (!requireBackendReady()) return
     try {
       await API.restoreTrashFile(cid)
       addToast('已恢复', 'success')
@@ -601,6 +609,7 @@ export default function App() {
   }
 
   const handleEmptyTrash = async () => {
+    if (!requireBackendReady()) return
     setConfirmModal({
       title: '清空回收站',
       message: '确定要清空回收站吗？此操作不可恢复！',
@@ -620,6 +629,7 @@ export default function App() {
   }
 
   const handleToggleStar = async cid => {
+    if (!requireBackendReady()) return
     try {
       const result = await API.toggleStar(cid)
       setItems(prev =>
@@ -632,6 +642,7 @@ export default function App() {
   }
 
   const handleBatchDelete = async () => {
+    if (!requireBackendReady()) return
     const isTrash = currentView === 'trash'
     setConfirmModal({
       title: isTrash ? '永久删除' : '批量删除',
@@ -662,6 +673,7 @@ export default function App() {
   }
 
   const handleMove = async targetPath => {
+    if (!requireBackendReady()) return
     try {
       for (const id of selectedIds) {
         const file = items.find(i => i.cid === id)
@@ -691,6 +703,7 @@ export default function App() {
       confirmText: '重命名',
       onConfirm: async newName => {
         if (newName === currentName) return
+        if (!requireBackendReady()) return
         setInputLoading(true)
         try {
           if (isFolder) {
@@ -725,6 +738,7 @@ export default function App() {
       addToast('请先登录后发布文件', 'warning')
       return
     }
+    if (!requireBackendReady()) return
     const backendUrl = getBackendUrlExport()
     const isRemoteBackend =
       backendUrl &&
@@ -806,6 +820,10 @@ export default function App() {
   }
 
   const loadPreviewText = async cid => {
+    if (!isBackendReady) {
+      setPreviewText('加载失败')
+      return
+    }
     setPreviewLoading(true)
     try {
       const res = await fetch(API.getFileDownloadUrl(cid), {
@@ -863,6 +881,7 @@ export default function App() {
     }
 
     if (isCheckingDownload || isDownloading) return
+    if (!requireBackendReady()) return
 
     setIsCheckingDownload(true)
     setDownloadCheckResult(null)
@@ -899,6 +918,7 @@ export default function App() {
       addToast('请先登录后下载文件', 'warning')
       return
     }
+    if (!requireBackendReady()) return
     const validationMessage = getDownloadLinkValidationMessage(
       normalizedDownloadLink
     )
@@ -941,6 +961,7 @@ export default function App() {
   }
 
   const handleCancelTransfer = async transfer => {
+    if (!requireBackendReady()) return
     if (transfer.type === 'download' && transfer.status === 'downloading') {
       setTransfers(prev =>
         prev.map(t =>
@@ -961,6 +982,7 @@ export default function App() {
   }
 
   const handleSaveAs = async file => {
+    if (!requireBackendReady()) return
     try {
       const res = await fetch(API.getFileDownloadUrl(file.cid), {
         headers: await getApiRequestHeaders(
@@ -1221,22 +1243,6 @@ export default function App() {
           >
             {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
           </button>
-          <button
-            onClick={openSettings}
-            className="btn btn-icon"
-            aria-label={remoteBackendUrl ? '远程节点' : '连接节点'}
-            title={remoteBackendUrl ? '远程节点' : '连接节点'}
-          >
-            <Settings size={16} />
-          </button>
-          <Link
-            href="/admin"
-            className="btn btn-icon"
-            aria-label="节点管理"
-            title="节点管理"
-          >
-            <HardDrive size={16} />
-          </Link>
         </>
       }
     >
@@ -1625,6 +1631,7 @@ export default function App() {
             <>
               <button
                 onClick={async () => {
+                  if (!requireBackendReady()) return
                   await Promise.all(
                     selectedIds.map(cid => API.restoreTrashFile(cid))
                   )

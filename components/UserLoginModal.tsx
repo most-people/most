@@ -100,14 +100,14 @@ export default function UserLoginModal() {
               disabled={hasPreviewedAvatar || loginLoading}
               type="button"
             >
-              {hasPreviewedAvatar ? '已预览' : '预览头像'}
+              {hasPreviewedAvatar ? '检查地址' : '登录'}
             </button>
             <button
               className="btn btn-primary"
               disabled={!hasPreviewedAvatar || loginLoading}
               type="submit"
             >
-              {loginLoading ? '登录中' : '登录'}
+              {loginLoading ? '登录中' : '确认'}
             </button>
           </div>
         </div>

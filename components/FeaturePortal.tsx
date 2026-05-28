@@ -12,6 +12,8 @@ import {
   Check,
   ExternalLink,
   Download,
+  Server,
+  HardDrive,
 } from 'lucide-react'
 import { useAppStore } from '~/app/app/useAppStore'
 
@@ -181,7 +183,6 @@ const features: FeatureDef[] = [
 /* ─── Component ─── */
 export default function FeaturePortal() {
   const hasBackend = useAppStore(s => s.hasBackend)
-  const openSettings = useAppStore(s => s.openSettings)
   const [selected, setSelected] = useState<string>('app')
 
   const activeFeature = features.find(f => f.id === selected) || features[0]
@@ -259,6 +260,16 @@ export default function FeaturePortal() {
               )
             })}
           </div>
+          <div className="portal-node-actions" aria-label="节点入口">
+            <Link href="/connect" className="btn btn-secondary">
+              <Server size={16} />
+              连接节点
+            </Link>
+            <Link href="/admin" className="btn btn-secondary">
+              <HardDrive size={16} />
+              节点管理
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -316,14 +327,10 @@ export default function FeaturePortal() {
                 </Link>
                 {activeFeature.requiresBackend && hasBackend === false && (
                   <>
-                    <button
-                      type="button"
-                      onClick={openSettings}
-                      className="btn btn-secondary"
-                    >
-                      <ArrowUpRight size={16} />
-                      连接远程节点
-                    </button>
+                    <Link href="/connect" className="btn btn-secondary">
+                      <Server size={16} />
+                      连接节点
+                    </Link>
                     <Link href="/download" className="btn btn-secondary">
                       <Download size={16} />
                       下载桌面客户端

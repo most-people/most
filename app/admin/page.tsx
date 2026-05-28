@@ -309,6 +309,16 @@ export default function AdminPage() {
     maxFileSizeGiB: '10',
     remoteInvites: '',
   })
+  const isBackendReady = hasBackend === true
+
+  function requireBackendReady() {
+    if (isBackendReady) return true
+    addToast(
+      hasBackend === null ? '正在检测后端连接，请稍后再试' : '未连接后端',
+      'warning'
+    )
+    return false
+  }
 
   const capacityPercent = useMemo(() => {
     if (!status || status.capacity.configuredBytes <= 0) return 0
@@ -344,6 +354,7 @@ export default function AdminPage() {
     !backendUrl.includes('127.0.0.1')
 
   const loadStatus = async () => {
+    if (!isBackendReady) return
     try {
       const nextStatus = await api.get<NodeStatus>('/api/node/status').json()
       const nodeConfig = await api.get<NodeConfig>('/api/node/config').json()
@@ -365,6 +376,7 @@ export default function AdminPage() {
   }
 
   const loadLogs = async (nextFilter = logFilter) => {
+    if (!isBackendReady) return
     try {
       const query = new URLSearchParams({
         limit: '80',
@@ -378,6 +390,7 @@ export default function AdminPage() {
   }
 
   const loadUsers = async () => {
+    if (!isBackendReady) return
     try {
       const result = await api
         .get<{ users: AdminUserData[] }>('/api/admin/users')
@@ -387,6 +400,7 @@ export default function AdminPage() {
   }
 
   const saveConfig = async () => {
+    if (!requireBackendReady()) return
     setIsSavingConfig(true)
     try {
       await api
@@ -420,6 +434,7 @@ export default function AdminPage() {
   }
 
   const clearLogs = async () => {
+    if (!requireBackendReady()) return
     setIsClearingLogs(true)
     try {
       await api.delete('/api/node/logs').json()
@@ -435,6 +450,7 @@ export default function AdminPage() {
   }
 
   const exportDiagnostics = async () => {
+    if (!requireBackendReady()) return
     setIsExportingDiagnostics(true)
     try {
       const diagnostics = await api.get('/api/node/diagnostics').json()
@@ -461,6 +477,7 @@ export default function AdminPage() {
   }
 
   const clearUserData = async (address: string) => {
+    if (!requireBackendReady()) return
     const confirmed = window.confirm(
       `确定清除用户 ${address.slice(0, 6)}...${address.slice(-4)} 的文件记录和回收站吗？无人引用的副本也会被清理。`
     )
@@ -481,7 +498,7 @@ export default function AdminPage() {
   }
 
   useEffect(() => {
-    if (hasBackend !== true) return
+    if (!isBackendReady) return
     if (isRemoteAdmin) return
     loadStatus()
     loadLogs()
@@ -523,7 +540,7 @@ export default function AdminPage() {
       cancelled = true
       ws?.close()
     }
-  }, [hasBackend, isRemoteAdmin, logFilter])
+  }, [isBackendReady, isRemoteAdmin, logFilter])
 
   return (
     <main className="admin-page">

@@ -118,6 +118,18 @@
   color: var(--text-secondary);
 }
 
+.portal-node-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.portal-node-actions .btn {
+  min-width: 128px;
+}
+
 /* Status badge */
 .portal-card-status {
   display: inline-flex;
