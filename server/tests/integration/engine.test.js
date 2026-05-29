@@ -566,6 +566,294 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
         /File not found/
       )
     })
+
+    it('reads published file content', async () => {
+      const content = Buffer.from('readFileRaw test content')
+      const result = await engine.publishFile(content, 'read-raw.txt')
+
+      const readResult = await engine.readFileRaw(result.cid)
+
+      assert.ok(readResult.buffer)
+      assert.strictEqual(readResult.buffer.toString(), 'readFileRaw test content')
+      assert.strictEqual(readResult.fileName, 'read-raw.txt')
+      assert.strictEqual(readResult.totalSize, content.length)
+    })
+
+    it('reads file with public option bypassing owner check', async () => {
+      const content = Buffer.from('public read test')
+      const ownerAddr = '0x1234567890123456789012345678901234567890'
+      const result = await engine.publishFile(content, 'public-read.txt', {
+        ownerAddress: ownerAddr,
+      })
+
+      const readResult = await engine.readFileRaw(result.cid, { public: true })
+
+      assert.strictEqual(readResult.buffer.toString(), 'public read test')
+    })
+
+    it('denies access to non-owner without public option', async () => {
+      const content = Buffer.from('owner restricted content')
+      const ownerAddr = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+      const otherAddr = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+      const result = await engine.publishFile(content, 'owner-only.txt', {
+        ownerAddress: ownerAddr,
+      })
+
+      await assert.rejects(
+        engine.readFileRaw(result.cid, { ownerAddress: otherAddr }),
+        /File not found/
+      )
+    })
+
+    it('allows owner to read their own file', async () => {
+      const content = Buffer.from('owner reads own file')
+      const ownerAddr = '0xcccccccccccccccccccccccccccccccccccccccc'
+      const result = await engine.publishFile(content, 'owner-read.txt', {
+        ownerAddress: ownerAddr,
+      })
+
+      const readResult = await engine.readFileRaw(result.cid, {
+        ownerAddress: ownerAddr,
+      })
+
+      assert.strictEqual(readResult.buffer.toString(), 'owner reads own file')
+    })
+  })
+
+  describe('readFileContent()', () => {
+    it('denies access to non-owner without public option', async () => {
+      const content = Buffer.from('restricted content')
+      const ownerAddr = '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
+      const otherAddr = '0xffffffffffffffffffffffffffffffffffffffff'
+      const result = await engine.publishFile(content, 'restricted.txt', {
+        ownerAddress: ownerAddr,
+      })
+
+      await assert.rejects(
+        engine.readFileContent(result.cid, { ownerAddress: otherAddr }),
+        /File not found/
+      )
+    })
+  })
+
+  describe('storage capacity', () => {
+    it('rejects publish when capacity exceeded', async () => {
+      const capacityTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-capacity-test-')
+      )
+      const dataPath = path.join(capacityTmpDir, 'data')
+      let capacityEngine
+
+      try {
+        capacityEngine = new MostBoxEngine({
+          dataPath,
+          capacityBytes: 100,
+        })
+        await capacityEngine.start()
+
+        const largeContent = Buffer.alloc(200, 'x')
+        await assert.rejects(
+          capacityEngine.publishFile(largeContent, 'too-large.txt'),
+          /Storage capacity exceeded/
+        )
+      } finally {
+        if (capacityEngine) await capacityEngine.stop().catch(() => {})
+        fs.rmSync(capacityTmpDir, { recursive: true, force: true })
+      }
+    })
+
+    it('allows publish when within capacity', async () => {
+      const capacityTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-capacity-ok-')
+      )
+      const dataPath = path.join(capacityTmpDir, 'data')
+      let capacityEngine
+
+      try {
+        capacityEngine = new MostBoxEngine({
+          dataPath,
+          capacityBytes: 10000,
+        })
+        await capacityEngine.start()
+
+        const smallContent = Buffer.from('small file')
+        const result = await capacityEngine.publishFile(
+          smallContent,
+          'small.txt'
+        )
+
+        assert.ok(result.cid)
+      } finally {
+        if (capacityEngine) await capacityEngine.stop().catch(() => {})
+        fs.rmSync(capacityTmpDir, { recursive: true, force: true })
+      }
+    })
+  })
+
+  describe('owner isolation', () => {
+    const ownerA = '0x1111111111111111111111111111111111111111'
+    const ownerB = '0x2222222222222222222222222222222222222222'
+    let isoEngine
+    let isoTmpDir
+
+    before(async () => {
+      isoTmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'most-owner-iso-'))
+      const dataPath = path.join(isoTmpDir, 'data')
+      isoEngine = new MostBoxEngine({ dataPath })
+      await isoEngine.start()
+    })
+
+    after(async () => {
+      if (isoEngine) await isoEngine.stop().catch(() => {})
+      fs.rmSync(isoTmpDir, { recursive: true, force: true })
+    })
+
+    it('listPublishedFiles filters by owner', async () => {
+      await isoEngine.publishFile(Buffer.from('owner A file'), 'a-file.txt', {
+        ownerAddress: ownerA,
+      })
+      await isoEngine.publishFile(Buffer.from('owner B file'), 'b-file.txt', {
+        ownerAddress: ownerB,
+      })
+
+      const filesA = isoEngine.listPublishedFiles({ ownerAddress: ownerA })
+      const filesB = isoEngine.listPublishedFiles({ ownerAddress: ownerB })
+
+      assert.ok(filesA.some(f => f.fileName === 'a-file.txt'))
+      assert.ok(!filesA.some(f => f.fileName === 'b-file.txt'))
+      assert.ok(filesB.some(f => f.fileName === 'b-file.txt'))
+      assert.ok(!filesB.some(f => f.fileName === 'a-file.txt'))
+    })
+
+    it('deletePublishedFile only affects owner files', async () => {
+      const result = await isoEngine.publishFile(
+        Buffer.from('delete isolation'),
+        'del-iso.txt',
+        { ownerAddress: ownerA }
+      )
+
+      await isoEngine.deletePublishedFile(result.cid, {
+        ownerAddress: ownerB,
+      })
+
+      const filesA = isoEngine.listPublishedFiles({ ownerAddress: ownerA })
+      assert.ok(filesA.some(f => f.cid === result.cid))
+
+      const trashB = isoEngine.listTrashFiles({ ownerAddress: ownerB })
+      assert.ok(!trashB.some(f => f.cid === result.cid))
+    })
+
+    it('restoreTrashFile only affects owner files', async () => {
+      const result = await isoEngine.publishFile(
+        Buffer.from('restore isolation'),
+        'restore-iso.txt',
+        { ownerAddress: ownerA }
+      )
+      await isoEngine.deletePublishedFile(result.cid, {
+        ownerAddress: ownerA,
+      })
+
+      await assert.rejects(
+        isoEngine.restoreTrashFile(result.cid, { ownerAddress: ownerB }),
+        /File not found in trash/
+      )
+
+      const trashA = isoEngine.listTrashFiles({ ownerAddress: ownerA })
+      assert.ok(trashA.some(f => f.cid === result.cid))
+    })
+
+    it('emptyTrash only affects owner files', async () => {
+      await isoEngine.publishFile(Buffer.from('trash A'), 'trash-a.txt', {
+        ownerAddress: ownerA,
+      })
+      const resultB = await isoEngine.publishFile(
+        Buffer.from('trash B'),
+        'trash-b.txt',
+        { ownerAddress: ownerB }
+      )
+
+      const trashA = isoEngine.listTrashFiles({ ownerAddress: ownerA })
+      for (const f of trashA) {
+        await isoEngine.deletePublishedFile(f.cid, { ownerAddress: ownerA })
+      }
+
+      await isoEngine.emptyTrash({ ownerAddress: ownerA })
+
+      const trashAfterA = isoEngine.listTrashFiles({ ownerAddress: ownerA })
+      assert.strictEqual(trashAfterA.length, 0)
+
+      await isoEngine.deletePublishedFile(resultB.cid, {
+        ownerAddress: ownerB,
+      })
+      const trashAfterB = isoEngine.listTrashFiles({ ownerAddress: ownerB })
+      assert.ok(trashAfterB.some(f => f.cid === resultB.cid))
+    })
+  })
+
+  describe('listPublishedFiles() starred filter', () => {
+    it('filters by starred status', async () => {
+      const starTmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'most-star-'))
+      const dataPath = path.join(starTmpDir, 'data')
+      let starEngine
+
+      try {
+        starEngine = new MostBoxEngine({ dataPath })
+        await starEngine.start()
+
+        const r1 = await starEngine.publishFile(Buffer.from('star1'), 's1.txt')
+        const r2 = await starEngine.publishFile(Buffer.from('star2'), 's2.txt')
+        await starEngine.publishFile(Buffer.from('nostar'), 'ns.txt')
+
+        starEngine.toggleStarred(r1.cid)
+        starEngine.toggleStarred(r2.cid)
+
+        const starred = starEngine.listPublishedFiles({ starred: true })
+        const all = starEngine.listPublishedFiles()
+
+        assert.strictEqual(starred.length, 2)
+        assert.ok(starred.every(f => f.starred === true))
+        assert.strictEqual(all.length, 3)
+      } finally {
+        if (starEngine) await starEngine.stop().catch(() => {})
+        fs.rmSync(starTmpDir, { recursive: true, force: true })
+      }
+    })
+  })
+
+  describe('addHolding() happy path', () => {
+    it('adds a holding and joins CID topic', async () => {
+      const holdingTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-add-holding-')
+      )
+      const dataPath = path.join(holdingTmpDir, 'data')
+      let holdingEngine
+
+      try {
+        holdingEngine = new MostBoxEngine({ dataPath })
+        await holdingEngine.start()
+
+        const content = Buffer.from('addHolding test content')
+        const { cid } = await calculateCid(content)
+
+        await holdingEngine.addHolding({
+          cid: cid.toString(),
+          fileName: 'manual-holding.txt',
+          size: content.length,
+        })
+
+        const holdings = holdingEngine.listHoldings()
+        const holding = holdings.find(h => h.cid === cid.toString())
+
+        assert.ok(holding)
+        assert.strictEqual(holding.fileName, 'manual-holding.txt')
+        assert.strictEqual(holding.size, content.length)
+        assert.strictEqual(holding.source, 'manual')
+        assert.match(holding.topic, /^[0-9a-f]{64}$/)
+      } finally {
+        if (holdingEngine) await holdingEngine.stop().catch(() => {})
+        fs.rmSync(holdingTmpDir, { recursive: true, force: true })
+      }
+    })
   })
 
   describe('renameFolder()', () => {

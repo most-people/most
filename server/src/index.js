@@ -34,6 +34,7 @@ import {
   IntegrityError,
   PermissionError,
   ConflictError,
+  StorageCapacityError,
   EngineNotInitializedError,
 } from './utils/errors.js'
 import {
@@ -101,6 +102,7 @@ export class MostBoxEngine extends EventEmitter {
    * @param {string} options.dataPath - 存储 P2P 数据的路径（必填）
    * @param {string} [options.downloadPath] - 默认下载路径（可选，默认为 dataPath/downloads）
    * @param {number} [options.maxFileSize] - 最大文件大小（字节）（默认：10GB）
+   * @param {number} [options.capacityBytes] - 节点存储容量上限（字节）（默认：100GB）
    */
   constructor(options) {
     super()
@@ -114,6 +116,7 @@ export class MostBoxEngine extends EventEmitter {
       downloadPath:
         options.downloadPath || path.join(options.dataPath, 'downloads'),
       maxFileSize: options.maxFileSize || MAX_FILE_SIZE,
+      capacityBytes: options.capacityBytes || 100 * 1024 * 1024 * 1024,
       downloadTimeout: options.downloadTimeout || DOWNLOAD_TIMEOUT,
     }
   }
@@ -440,6 +443,8 @@ export class MostBoxEngine extends EventEmitter {
       )
     }
 
+    this.#checkCapacity(fileSize)
+
     this.emit('publish:progress', {
       stage: 'calculating-cid',
       file: safeFileName,
@@ -468,7 +473,6 @@ export class MostBoxEngine extends EventEmitter {
         localPath: holdingLocalPath,
         driveName: name,
         source: 'published',
-        temporary: false,
       })
       return {
         cid: cidString,
@@ -483,10 +487,6 @@ export class MostBoxEngine extends EventEmitter {
 
     if (!drive) {
       drive = await this.#getOrCreateDrive(name, {
-        server: true,
-        client: false,
-      })
-      this.#swarm.join(drive.discoveryKey, {
         server: true,
         client: false,
       })
@@ -553,7 +553,6 @@ export class MostBoxEngine extends EventEmitter {
       localPath: holdingLocalPath,
       driveName: name,
       source: 'published',
-      temporary: false,
     })
 
     const result = {
@@ -623,7 +622,6 @@ export class MostBoxEngine extends EventEmitter {
             existingHolding?.localPath || existingFile.localPath || null,
           driveName: existingFile.driveName || name,
           source: existingHolding?.source || 'published',
-          temporary: existingHolding?.temporary === true,
         })
         return {
           taskId,
@@ -646,13 +644,6 @@ export class MostBoxEngine extends EventEmitter {
         })
 
         this.emit('download:status', { taskId, status: 'connecting' })
-
-        console.log(`[MostBox] Joining swarm for drive discovery...`)
-        this.#swarm.join(drive.discoveryKey, {
-          server: true,
-          client: true,
-        })
-        console.log(`[MostBox] Swarm join requested`)
       } else {
         console.log(`[MostBox] Using existing drive: ${name}`)
       }
@@ -729,6 +720,10 @@ export class MostBoxEngine extends EventEmitter {
           }
         } catch {
           // 忽略
+        }
+
+        if (totalBytes > 0) {
+          this.#checkCapacity(totalBytes)
         }
 
         const savePath = path.join(targetDir, sanitizedFileName)
@@ -861,6 +856,12 @@ export class MostBoxEngine extends EventEmitter {
             writeStream.on('error', reject)
             readStream.on('error', reject)
           })
+          const verifyEntry = await drive.entry(driveKey)
+          if (!verifyEntry || !verifyEntry.value || !verifyEntry.value.blob) {
+            throw new IntegrityError(
+              `Failed to write file to Hyperdrive for seeding: ${driveKey}`
+            )
+          }
         }
 
         const result = {
@@ -898,7 +899,6 @@ export class MostBoxEngine extends EventEmitter {
           localPath: savePath,
           driveName: name,
           source: 'downloaded',
-          temporary: true,
         })
 
         this.emit('download:success', result)
@@ -952,11 +952,6 @@ export class MostBoxEngine extends EventEmitter {
 
     if (!drive) {
       drive = await this.#getOrCreateDrive(name, {
-        server: true,
-        client: true,
-      })
-
-      this.#swarm.join(drive.discoveryKey, {
         server: true,
         client: true,
       })
@@ -1153,7 +1148,6 @@ export class MostBoxEngine extends EventEmitter {
       localPath: fileRecord.localPath || null,
       driveName,
       source: fileRecord.source || 'published',
-      temporary: fileRecord.source === 'downloaded',
     })
 
     return this.listPublishedFiles({ ownerAddress })
@@ -2398,7 +2392,6 @@ export class MostBoxEngine extends EventEmitter {
       topic: topicHex,
       driveName: record.driveName || driveName,
       source: record.source || 'manual',
-      temporary: record.temporary === true,
     }
   }
 
@@ -2553,14 +2546,6 @@ export class MostBoxEngine extends EventEmitter {
       return null
     }
 
-    if (this.#swarm) {
-      this.#swarm.leave(drive.discoveryKey).catch(err => {
-        console.warn(
-          `[MostBox] Failed to leave drive discovery ${driveName}:`,
-          err.message
-        )
-      })
-    }
     await drive.close()
     this.#drives.delete(driveName)
     return drive
@@ -2581,6 +2566,22 @@ export class MostBoxEngine extends EventEmitter {
       this.#publishedFiles.some(file => file.cid === cid) ||
       this.#trashFiles.some(file => file.cid === cid)
     )
+  }
+
+  #getUsedBytes() {
+    return this.#holdings.reduce((sum, h) => sum + (h.size || 0), 0)
+  }
+
+  #checkCapacity(additionalBytes) {
+    const used = this.#getUsedBytes()
+    const capacity = this.#options.capacityBytes
+    if (used + additionalBytes > capacity) {
+      const usedGB = (used / (1024 * 1024 * 1024)).toFixed(2)
+      const capacityGB = (capacity / (1024 * 1024 * 1024)).toFixed(2)
+      throw new StorageCapacityError(
+        `Storage capacity exceeded: used ${usedGB} GB, capacity ${capacityGB} GB`
+      )
+    }
   }
 
   async #getOrCreateDrive(name, _options = { server: true, client: false }) {
@@ -2605,11 +2606,6 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   async #syncDrive(drive, timeout = DRIVE_SYNC_TIMEOUT) {
-    const done = drive.findingPeers()
-    this.#swarm
-      .join(drive.discoveryKey, { server: true, client: true })
-      .flushed()
-      .then(done, done)
     try {
       const updated = await Promise.race([
         drive.update(),

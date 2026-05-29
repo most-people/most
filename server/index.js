@@ -1655,9 +1655,11 @@ export async function main() {
   const dataPath = getDataPath(configStore)
   console.log(`[MostBox] Storage: ${dataPath}`)
 
+  const nodeConfig = configStore.getNodeConfig()
   const engine = new MostBoxEngine({
     dataPath,
-    maxFileSize: configStore.getNodeConfig().maxFileSizeBytes,
+    maxFileSize: nodeConfig.maxFileSizeBytes,
+    capacityBytes: nodeConfig.capacityBytes,
   })
 
   const wssRef = { current: null }

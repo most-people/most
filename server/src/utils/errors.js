@@ -65,6 +65,13 @@ export class ConflictError extends AppError {
   }
 }
 
+export class StorageCapacityError extends AppError {
+  constructor(message = 'Storage capacity exceeded') {
+    super(message, 'STORAGE_CAPACITY_ERROR')
+    this.name = 'StorageCapacityError'
+  }
+}
+
 export class EngineNotInitializedError extends AppError {
   constructor(message = 'Engine not initialized. Call start() first.') {
     super(message, 'ENGINE_NOT_INITIALIZED')
