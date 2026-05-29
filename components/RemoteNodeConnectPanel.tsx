@@ -50,12 +50,18 @@ export default function RemoteNodeConnectPanel({
     }
     setIsConnecting(true)
     try {
-      const connected = await checkBackendConnectionTarget({
+      const { ok, reason } = await checkBackendConnectionTarget({
         url: nextRemoteUrl,
         invite: remoteInvite,
       })
-      if (!connected) {
-        addToast('远程节点连接失败，请检查地址和邀请码', 'error')
+      if (!ok) {
+        if (reason === 'http') {
+          addToast('远程节点 HTTP 不可达，请检查地址', 'error')
+        } else if (reason === 'ws') {
+          addToast('远程节点 WebSocket 不可达，请检查地址或代理配置', 'error')
+        } else {
+          addToast('远程节点连接失败，请检查地址和邀请码', 'error')
+        }
         return
       }
       configureBackend({ url: nextRemoteUrl, invite: remoteInvite })

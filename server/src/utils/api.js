@@ -295,14 +295,10 @@ export async function checkBackendConnection() {
   return checkBackendConnectionTarget({ url, invite })
 }
 
-export async function checkBackendConnectionTarget({ url, invite = '' }) {
-  const cleanedUrl = normalizeBackendUrl(url)
-  if (!cleanedUrl) return false
-
+async function probeHttp(cleanedUrl, invite, identity) {
   try {
     const headers = {}
     if (invite) headers['x-mostbox-invite'] = invite
-    const identity = getStoredIdentity()
     try {
       Object.assign(
         headers,
@@ -316,10 +312,82 @@ export async function checkBackendConnectionTarget({ url, invite = '' }) {
       headers,
       signal: AbortSignal.timeout(3000),
     })
-    return res.ok
+    if (!res.ok) return { ok: false, reason: 'http' }
+    return { ok: true }
   } catch {
-    return false
+    return { ok: false, reason: 'http' }
   }
+}
+
+async function probeWebSocket(cleanedUrl, invite, identity) {
+  if (typeof WebSocket === 'undefined') return { ok: true }
+
+  try {
+    const base = new URL(cleanedUrl)
+    const wsProtocol = base.protocol === 'https:' ? 'wss:' : 'ws:'
+    const wsUrl = new URL(`${wsProtocol}//${base.host}/ws`)
+
+    if (invite) {
+      wsUrl.searchParams.set('invite', invite)
+    }
+
+    if (identity?.danger) {
+      try {
+        const auth = await buildAuthHeaders(
+          identity,
+          'GET',
+          normalizeAuthPath('/ws')
+        )
+        const [address, timestamp, signature] = String(
+          auth.Authorization || ''
+        ).split(',')
+        if (address && signature) {
+          wsUrl.searchParams.set('address', address)
+          wsUrl.searchParams.set('timestamp', timestamp)
+          wsUrl.searchParams.set('signature', signature)
+        }
+      } catch {
+        // Leave WebSocket unauthenticated when local identity data is invalid.
+      }
+    }
+
+    return await new Promise(resolve => {
+      const ws = new WebSocket(wsUrl.toString())
+      const timeout = setTimeout(() => {
+        ws.close()
+        resolve({ ok: false, reason: 'ws' })
+      }, 4000)
+
+      ws.onopen = () => {
+        clearTimeout(timeout)
+        ws.close()
+        resolve({ ok: true })
+      }
+
+      ws.onerror = () => {
+        clearTimeout(timeout)
+        resolve({ ok: false, reason: 'ws' })
+      }
+    })
+  } catch {
+    return { ok: false, reason: 'ws' }
+  }
+}
+
+export async function checkBackendConnectionTarget({ url, invite = '' }) {
+  const cleanedUrl = normalizeBackendUrl(url)
+  if (!cleanedUrl) return { ok: false, reason: 'http' }
+
+  const identity = getStoredIdentity()
+
+  const [httpResult, wsResult] = await Promise.all([
+    probeHttp(cleanedUrl, invite, identity),
+    probeWebSocket(cleanedUrl, invite, identity),
+  ])
+
+  if (!httpResult.ok) return httpResult
+  if (!wsResult.ok) return wsResult
+  return { ok: true }
 }
 
 export async function detectSameOriginBackend() {
