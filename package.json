@@ -20,6 +20,7 @@
     "dev": "next dev",
     "build": "next build",
     "server": "node --watch server/index.js",
+    "serve": "node server/index.js",
     "test": "node --test server/tests/**/*.test.js",
     "test:unit": "node --test server/tests/unit/*.test.js",
     "test:protocol": "node --test --test-name-pattern \"extracts CID and filename|matches golden CID samples|publishes a file from Buffer|lists published files|pulls through local seed nodes\" server/tests/unit/cid.test.js server/tests/integration/cid.test.js server/tests/integration/engine.test.js",
