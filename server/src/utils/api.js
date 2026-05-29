@@ -83,6 +83,13 @@ function normalizePath(path) {
   return path.startsWith('/') ? path : `/${path}`
 }
 
+function buildWebSocketUrl(base, wsPath = '/ws') {
+  const url = new URL(base)
+  const wsProtocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+  const basePath = url.pathname.replace(/\/+$/, '')
+  return `${wsProtocol}//${url.host}${basePath}${normalizePath(wsPath)}`
+}
+
 function createApiInstance() {
   const client = ky.create({
     hooks: {
@@ -248,17 +255,14 @@ export function getWebSocketUrl(path = '/ws') {
   if (typeof window === 'undefined') return normalizePath(path)
 
   const base = getBackendUrl() || window.location.origin
-  const url = new URL(normalizePath(path), base)
-  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
-  return url.toString()
+  return buildWebSocketUrl(base, path)
 }
 
 export async function getAuthenticatedWebSocketUrl(path = '/ws') {
   if (typeof window === 'undefined') return normalizePath(path)
 
   const base = getBackendUrl() || window.location.origin
-  const url = new URL(normalizePath(path), base)
-  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+  const url = new URL(buildWebSocketUrl(base, path))
 
   const invite = getBackendInvite()
   if (invite && shouldAttachBackendInvite(url.toString())) {
@@ -323,9 +327,7 @@ async function probeWebSocket(cleanedUrl, invite, identity) {
   if (typeof WebSocket === 'undefined') return { ok: true }
 
   try {
-    const base = new URL(cleanedUrl)
-    const wsProtocol = base.protocol === 'https:' ? 'wss:' : 'ws:'
-    const wsUrl = new URL(`${wsProtocol}//${base.host}/ws`)
+    const wsUrl = new URL(buildWebSocketUrl(cleanedUrl))
 
     if (invite) {
       wsUrl.searchParams.set('invite', invite)
