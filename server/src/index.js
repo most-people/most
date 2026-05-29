@@ -90,6 +90,7 @@ export class MostBoxEngine extends EventEmitter {
 
   #channels = []
   #channelCores = new Map()
+  #channelLocalCoreKey = new Map()
   #channelDiscoveries = new Map()
   #channelChatDiscoveries = new Map()
   #channelPeers = new Map()
@@ -274,7 +275,12 @@ export class MostBoxEngine extends EventEmitter {
           valueEncoding: 'json',
         })
         await core.ready()
-        this.#channelCores.set(channel.name, core)
+        const coreKeyHex = b4a.toString(core.key, 'hex')
+        if (!this.#channelCores.has(channel.name)) {
+          this.#channelCores.set(channel.name, new Map())
+        }
+        this.#channelCores.get(channel.name).set(coreKeyHex, core)
+        this.#channelLocalCoreKey.set(channel.name, coreKeyHex)
         this.#channelPeers.set(channel.name, new Map())
         this.#setupChannelAppendListener(core, channel.name)
 
@@ -334,14 +340,17 @@ export class MostBoxEngine extends EventEmitter {
     this.#seedStates.clear()
     this.#holdingResumeTask = null
 
-    for (const core of this.#channelCores.values()) {
-      try {
-        await core.close()
-      } catch (err) {
-        console.warn('[MostBox] Failed to close channel core:', err.message)
+    for (const [, coresMap] of this.#channelCores) {
+      for (const [, core] of coresMap) {
+        try {
+          await core.close()
+        } catch (err) {
+          console.warn('[MostBox] Failed to close channel core:', err.message)
+        }
       }
     }
     this.#channelCores.clear()
+    this.#channelLocalCoreKey.clear()
     this.#channelDiscoveries.clear()
     this.#channelChatDiscoveries.clear()
     this.#channelPeers.clear()
@@ -1837,7 +1846,12 @@ export class MostBoxEngine extends EventEmitter {
     }
 
     this.#channels.push(channelInfo)
-    this.#channelCores.set(name, core)
+    const coreKeyHex = b4a.toString(core.key, 'hex')
+    if (!this.#channelCores.has(name)) {
+      this.#channelCores.set(name, new Map())
+    }
+    this.#channelCores.get(name).set(coreKeyHex, core)
+    this.#channelLocalCoreKey.set(name, coreKeyHex)
     this.#channelPeers.set(name, new Map())
     this.#channelDiscoveries.set(name, appDiscovery)
     this.#channelChatDiscoveries.set(name, chatDiscovery)
@@ -1906,7 +1920,10 @@ export class MostBoxEngine extends EventEmitter {
     }
 
     this.#channels.push(channelInfo)
-    this.#channelCores.set(name, core)
+    if (!this.#channelCores.has(name)) {
+      this.#channelCores.set(name, new Map())
+    }
+    this.#channelCores.get(name).set(coreKey, core)
     this.#channelPeers.set(name, new Map())
     this.#channelDiscoveries.set(name, appDiscovery)
     this.#channelChatDiscoveries.set(name, chatDiscovery)
@@ -1966,18 +1983,21 @@ export class MostBoxEngine extends EventEmitter {
       })
     }
 
-    const core = this.#channelCores.get(name)
-    if (core) {
-      try {
-        await core.close()
-      } catch (err) {
-        console.warn(
-          `[MostBox] Failed to close channel core for ${name}:`,
-          err.message
-        )
+    const coresMap = this.#channelCores.get(name)
+    if (coresMap) {
+      for (const [, core] of coresMap) {
+        try {
+          await core.close()
+        } catch (err) {
+          console.warn(
+            `[MostBox] Failed to close channel core for ${name}:`,
+            err.message
+          )
+        }
       }
       this.#channelCores.delete(name)
     }
+    this.#channelLocalCoreKey.delete(name)
 
     this.#channelPeers.delete(name)
     this.#channels.splice(index, 1)
@@ -2056,26 +2076,44 @@ export class MostBoxEngine extends EventEmitter {
 
     const { limit = CHANNEL_MESSAGE_LIMIT, offset = 0 } = options
 
-    const core = this.#channelCores.get(name)
-    if (!core) {
+    const coresMap = this.#channelCores.get(name)
+    if (!coresMap || coresMap.size === 0) {
       throw new Error('频道未初始化')
     }
 
-    const messages = []
-    const total = core.length
-    const start = Math.max(0, total - offset - limit)
-    const end = total - offset
-
-    for (let i = start; i < end; i++) {
-      try {
-        const entry = await core.get(i)
-        messages.push(entry)
-      } catch {
-        break
+    const allMessages = []
+    for (const [coreKeyHex, core] of coresMap) {
+      for (let i = 0; i < core.length; i++) {
+        try {
+          const entry = await core.get(i)
+          if (entry && entry.type === 'message') {
+            allMessages.push({
+              ...entry,
+              _coreKey: coreKeyHex,
+              _index: i,
+            })
+          }
+        } catch {
+          break
+        }
       }
     }
 
-    return messages
+    const seen = new Set()
+    const unique = allMessages.filter(m => {
+      const key = `${m._coreKey}:${m.author}:${m.timestamp}:${m.content}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+
+    unique.sort((a, b) => a.timestamp - b.timestamp)
+
+    const total = unique.length
+    const start = Math.max(0, total - offset - limit)
+    const end = total - offset
+
+    return unique.slice(start, end).map(({ _coreKey, _index, ...msg }) => msg)
   }
 
   /**
@@ -2089,9 +2127,11 @@ export class MostBoxEngine extends EventEmitter {
   async sendMessage(name, content, author, authorName) {
     this.#ensureInitialized()
 
-    const core = this.#channelCores.get(name)
+    const localKeyHex = this.#channelLocalCoreKey.get(name)
+    const coresMap = this.#channelCores.get(name)
+    const core = localKeyHex && coresMap ? coresMap.get(localKeyHex) : null
     if (!core) {
-      throw new Error('频道未初始化')
+      throw new Error('频道未初始化或无可写 core')
     }
 
     if (!content || !content.trim()) {
@@ -2796,15 +2836,46 @@ export class MostBoxEngine extends EventEmitter {
     })
   }
 
+  async #openRemoteChannelCore(channelName, coreKeyHex) {
+    const coresMap = this.#channelCores.get(channelName)
+    if (!coresMap) return
+    if (coresMap.has(coreKeyHex)) return
+
+    try {
+      const ns = this.#store.namespace(`channel-${channelName}`)
+      const core = ns.get({
+        key: b4a.from(coreKeyHex, 'hex'),
+        valueEncoding: 'json',
+      })
+      await core.ready()
+      coresMap.set(coreKeyHex, core)
+      this.#setupChannelAppendListener(core, channelName)
+      console.log(
+        `[MostBox] Opened remote channel core ${coreKeyHex.slice(0, 8)}... for ${channelName}`
+      )
+    } catch (err) {
+      console.warn(
+        `[MostBox] Failed to open remote channel core for ${channelName}:`,
+        err.message
+      )
+    }
+  }
+
   async #handleChannelConnection(conn) {
     const stream = conn
     let connectedPeerId = null
+
+    const coreKeys = {}
+    for (const [name, localKeyHex] of this.#channelLocalCoreKey) {
+      coreKeys[name] = localKeyHex
+    }
 
     const helloMessage = JSON.stringify({
       type: 'channel-hello',
       peerId: this.getNodeId(),
       authorName: this.getNodeId().slice(0, 4),
       channels: this.#channels.map(c => c.name),
+      coreKeys,
     })
 
     try {
@@ -2829,6 +2900,17 @@ export class MostBoxEngine extends EventEmitter {
               })
             }
           }
+
+          if (msg.coreKeys && typeof msg.coreKeys === 'object') {
+            for (const [channelName, coreKeyHex] of Object.entries(
+              msg.coreKeys
+            )) {
+              if (this.#channelCores.has(channelName) && coreKeyHex) {
+                await this.#openRemoteChannelCore(channelName, coreKeyHex)
+              }
+            }
+          }
+
           this.emit('channel:peer:online', {
             peerId: msg.peerId,
             authorName: msg.authorName,
