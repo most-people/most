@@ -250,6 +250,7 @@ function ChatPage() {
             setChannelMessages([])
             void showApiError(err, '无法读取频道消息')
           })
+        API.getChannelPeers(activeChannel.name).catch(() => {})
       }
     }
   }, [activeChannel, hasBackend, isBackendReady])
@@ -260,25 +261,11 @@ function ChatPage() {
     )
     if (channelParam && channels.length > 0) {
       const found = channels.find(c => c.name === channelParam)
-      if (found && activeChannel?.name !== found.name) {
+      if (found && (!activeChannel || activeChannel.name !== found.name)) {
         handleOpenChannel(found)
       }
     }
-  }, [channels])
-
-  useEffect(() => {
-    if (!activeChannel && channels.length > 0) {
-      const channelParam = new URLSearchParams(window.location.search).get(
-        'channel'
-      )
-      if (channelParam) {
-        const found = channels.find(c => c.name === channelParam)
-        if (found) {
-          handleOpenChannel(found)
-        }
-      }
-    }
-  }, [activeChannel, channels])
+  }, [channels, activeChannel])
 
   useEffect(() => {
     if (userIdentity) return
@@ -411,16 +398,6 @@ function ChatPage() {
       '',
       `?channel=${encodeURIComponent(channel.name)}`
     )
-    try {
-      if (isBackendReady) {
-        const messages = await API.getChannelMessages(channel.name)
-        setChannelMessages(messages)
-        await API.getChannelPeers(channel.name)
-      }
-    } catch (err) {
-      setChannelMessages([])
-      await showApiError(err, '打开频道失败')
-    }
   }
 
   async function handleLeaveChannel(name, e) {

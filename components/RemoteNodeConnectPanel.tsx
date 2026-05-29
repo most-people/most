@@ -9,6 +9,7 @@ import {
   configureBackend,
   getBackendInviteExport,
   getRemoteBackendUrlExport,
+  setBackendUrl,
 } from '~/server/src/utils/api'
 
 interface RemoteNodeConnectPanelProps {
@@ -66,7 +67,8 @@ export default function RemoteNodeConnectPanel({
       }
       configureBackend({ url: nextRemoteUrl, invite: remoteInvite })
       setRemoteUrl(nextRemoteUrl)
-      await checkBackend()
+      setBackendUrl(nextRemoteUrl)
+      useAppStore.setState({ hasBackend: true })
       addToast('远程节点已连接', 'success')
     } catch {
       addToast('远程节点连接失败', 'error')
@@ -135,7 +137,7 @@ export default function RemoteNodeConnectPanel({
             disabled={isConnecting}
           >
             <Unplug size={16} />
-            清除远程配置
+            断开连接
           </button>
         )}
       </div>
