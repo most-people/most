@@ -25,6 +25,13 @@ export function useGuardedAction({ needBackend, needLogin }: GuardOptions) {
       }
       action()
     },
-    [hasBackend, userIdentity, needBackend, needLogin, openConnectModal, openLoginModal]
+    [
+      hasBackend,
+      userIdentity,
+      needBackend,
+      needLogin,
+      openConnectModal,
+      openLoginModal,
+    ]
   )
 }

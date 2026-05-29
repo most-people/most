@@ -1633,7 +1633,9 @@ export class MostBoxEngine extends EventEmitter {
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
 
     const fileRecord = this.#publishedFiles.find(
-      f => f.cid === cid && (options.public || this.#recordMatchesOwner(f, ownerAddress))
+      f =>
+        f.cid === cid &&
+        (options.public || this.#recordMatchesOwner(f, ownerAddress))
     )
     if (!fileRecord) {
       throw new Error('File not found')
@@ -1694,7 +1696,9 @@ export class MostBoxEngine extends EventEmitter {
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
 
     const fileRecord = this.#publishedFiles.find(
-      f => f.cid === cid && (options.public || this.#recordMatchesOwner(f, ownerAddress))
+      f =>
+        f.cid === cid &&
+        (options.public || this.#recordMatchesOwner(f, ownerAddress))
     )
     if (!fileRecord) {
       throw new Error('File not found')

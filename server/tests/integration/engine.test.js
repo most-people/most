@@ -574,7 +574,10 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
       const readResult = await engine.readFileRaw(result.cid)
 
       assert.ok(readResult.buffer)
-      assert.strictEqual(readResult.buffer.toString(), 'readFileRaw test content')
+      assert.strictEqual(
+        readResult.buffer.toString(),
+        'readFileRaw test content'
+      )
       assert.strictEqual(readResult.fileName, 'read-raw.txt')
       assert.strictEqual(readResult.totalSize, content.length)
     })

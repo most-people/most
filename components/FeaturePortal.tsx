@@ -328,7 +328,10 @@ export default function FeaturePortal() {
                 </Link>
                 {activeFeature.requiresBackend && hasBackend === false && (
                   <>
-                    <button onClick={openConnectModal} className="btn btn-secondary">
+                    <button
+                      onClick={openConnectModal}
+                      className="btn btn-secondary"
+                    >
                       <Server size={16} />
                       连接节点
                     </button>

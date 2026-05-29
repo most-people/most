@@ -2,7 +2,14 @@
 
 import React, { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { KeyRound, Check, AlertCircle, Sun, Moon, ArrowLeft } from 'lucide-react'
+import {
+  KeyRound,
+  Check,
+  AlertCircle,
+  Sun,
+  Moon,
+  ArrowLeft,
+} from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import { useAppStore } from '~/app/app/useAppStore'
 
