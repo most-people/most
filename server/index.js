@@ -14,7 +14,6 @@ import { parseMostLink, validateCidString } from './src/core/cid.js'
 import { sanitizeFilename } from './src/utils/security.js'
 import {
   normalizeAddress,
-  parseInviteList,
   verifyAuthHeader,
 } from './src/utils/auth.js'
 import { MAX_FILE_SIZE } from './src/config.js'
@@ -23,7 +22,6 @@ import {
   DEFAULT_NODE_PORT,
   createNodeConfigStore,
   evaluateStorageLimits,
-  normalizeNodeHost,
   normalizeRemoteInvites,
 } from './src/node/config.js'
 import { createNodeLogger } from './src/node/logs.js'
@@ -46,14 +44,8 @@ const defaultConfigStore = createNodeConfigStore()
 const defaultNodeLogger = createNodeLogger(defaultConfigStore.configDir)
 const CONFIG_DIR = defaultConfigStore.configDir
 const PACKAGE_JSON = readPackageJson()
-const PORT =
-  Number(process.env.MOSTBOX_PORT || process.env.PORT) ||
-  defaultConfigStore.getNodeConfig().port ||
-  DEFAULT_NODE_PORT
-const HOST = normalizeNodeHost(
-  process.env.MOSTBOX_HOST || defaultConfigStore.getNodeConfig().host,
-  DEFAULT_NODE_HOST
-)
+const PORT = DEFAULT_NODE_PORT
+const HOST = DEFAULT_NODE_HOST
 
 function getApiErrorStatus(err) {
   switch (err.code) {
@@ -178,48 +170,16 @@ function resolveDataPathForSave(inputPath) {
   return { dataPath }
 }
 
-function getNetworkAddresses(appPort, host = DEFAULT_NODE_HOST) {
-  const localEntry = {
-    type: 'local',
-    ip: 'localhost',
-    label: '本机',
-    iface: 'loopback',
+function getNetworkAddresses(appPort) {
+  return {
+    port: appPort,
+    addresses: [
+      { type: 'local', ip: 'localhost', label: '本机', iface: 'loopback' },
+    ],
   }
-  if (!isPublicListenHost(host)) {
-    return { port: appPort, addresses: [localEntry] }
-  }
-
-  const interfaces = os.networkInterfaces()
-  const addresses = []
-  const seen = new Set()
-
-  for (const [name, nets] of Object.entries(interfaces)) {
-    for (const net of nets) {
-      if (net.family !== 'IPv4' || net.internal) continue
-      if (seen.has(net.address)) continue
-      seen.add(net.address)
-
-      let type = 'lan'
-      let label = '局域网'
-      if (net.address.startsWith('100.')) {
-        type = 'tailscale'
-        label = 'Tailscale'
-      } else if (
-        name.toLowerCase().includes('zt') ||
-        name.toLowerCase().includes('zerotier')
-      ) {
-        type = 'zerotier'
-        label = 'ZeroTier'
-      }
-
-      addresses.push({ type, ip: net.address, label, iface: name })
-    }
-  }
-
-  return { port: appPort, addresses: [localEntry, ...addresses] }
 }
 
-async function buildNodeStatus(engine, configStore, appPort, host) {
+async function buildNodeStatus(engine, configStore, appPort) {
   const config = configStore.getNodeConfig()
   const { remoteInvites, ...publicConfig } = config
   const remoteInviteCount = remoteInvites.length
@@ -232,9 +192,9 @@ async function buildNodeStatus(engine, configStore, appPort, host) {
     version: PACKAGE_JSON.version,
     uptimeSeconds: Math.floor(process.uptime()),
     nodeId: engine.getNodeId(),
-    host,
+    host: DEFAULT_NODE_HOST,
     port: appPort,
-    listen: getNetworkAddresses(appPort, host),
+    listen: getNetworkAddresses(appPort),
     dataPath: getDataPath(configStore),
     config: {
       ...publicConfig,
@@ -333,14 +293,9 @@ function buildOpenApiSpec(appPort) {
 }
 
 function getAllowedOrigins(appPort) {
-  const configured = String(process.env.MOSTBOX_ALLOWED_ORIGINS || '')
-    .split(',')
-    .map(item => item.trim())
-    .filter(Boolean)
   return [
     ...new Set([
       ...DEFAULT_ALLOWED_ORIGINS,
-      ...configured,
       `http://localhost:${appPort}`,
       `http://127.0.0.1:${appPort}`,
     ]),
@@ -369,8 +324,8 @@ function isLocalHostname(hostname) {
   return ['localhost', '127.0.0.1', '::1', '[::1]'].includes(value)
 }
 
-function isPublicListenHost(host) {
-  return !isLocalHostname(normalizeNodeHost(host, DEFAULT_NODE_HOST))
+function isPublicListenHost() {
+  return false
 }
 
 function isExternalOrigin(origin) {
@@ -761,8 +716,7 @@ export function createApp(engine, options = {}) {
       const status = await buildNodeStatus(
         engine,
         configStore,
-        appPort,
-        appHost
+        appPort
       )
       wsBroadcast('node:status', status)
       return status
@@ -920,7 +874,7 @@ export function createApp(engine, options = {}) {
   app.get('/api/node/status', async c => {
     try {
       return c.json(
-        await buildNodeStatus(engine, configStore, appPort, appHost)
+        await buildNodeStatus(engine, configStore, appPort)
       )
     } catch (err) {
       return errorJson(c, err)
@@ -933,14 +887,10 @@ export function createApp(engine, options = {}) {
       ...config,
       dataPath: getDataPath(configStore),
       configuredDataPath: config.dataPath,
-      isDefaultDataPath: !config.dataPath && !process.env.MOSTBOX_DATA_PATH,
-      envDataPath: process.env.MOSTBOX_DATA_PATH || null,
+      isDefaultDataPath: !config.dataPath,
       currentHost: appHost,
-      envHost: process.env.MOSTBOX_HOST || null,
       currentPort: appPort,
-      envPort: process.env.MOSTBOX_PORT || process.env.PORT || null,
       remoteInvites: config.remoteInvites,
-      envRemoteInvites: parseInviteList(process.env.MOSTBOX_REMOTE_INVITES),
     })
   })
 
@@ -1028,8 +978,7 @@ export function createApp(engine, options = {}) {
       const status = await buildNodeStatus(
         engine,
         configStore,
-        appPort,
-        appHost
+        appPort
       )
       return c.json({
         generatedAt: new Date().toISOString(),

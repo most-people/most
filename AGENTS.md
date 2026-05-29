@@ -104,12 +104,6 @@ npm run test:protocol
 npm run lint
 ```
 
-环境变量：
-
-- `MOSTBOX_PORT`，默认 `1976`
-- `MOSTBOX_HOST`，默认 `127.0.0.1`
-- `MOSTBOX_REMOTE_INVITES`，开放到局域网/公网时必填，逗号分隔邀请码
-
 ## 验证策略
 
 - 改 CID、发布、下载、链接解析、P2P pull 时，优先跑 `npm run test:protocol`。

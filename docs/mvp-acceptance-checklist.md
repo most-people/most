@@ -23,7 +23,7 @@ npm run lint
 
 | 检查项       | 通过标准                                                                                   | 入口                                   |
 | ------------ | ------------------------------------------------------------------------------------------ | -------------------------------------- |
-| 安全策略     | 监听非本机地址时，管理台展示局域网/公网暴露警告；只本机访问时可用 `MOSTBOX_HOST=127.0.0.1` | `app/admin/page.tsx`                   |
+| 安全策略     | 固定监听 `127.0.0.1:1976`，远程管理通过 SSH 隧道或反向代理 | `server/index.js`                      |
 | 状态解释     | holding 显示 queued、joining、active、paused、error 对应中文状态                           | `formatSeedStatus()`                   |
 | 日志可读     | 管理台展示时间、level、event、message，支持清空日志                                        | `/api/node/logs`、`app/admin/page.tsx` |
 | 设置落盘     | 数据目录、容量上限、单文件上限保存后，API 和管理台能读回                                   | `/api/node/config`                     |

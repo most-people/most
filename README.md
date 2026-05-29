@@ -60,22 +60,23 @@ npm run test:unit # 只运行单元测试
 
 ## 访问场景
 
-| 场景 | 命令                                                                               | 访问地址                  |
-| ---- | ---------------------------------------------------------------------------------- | ------------------------- |
-| 本地 | `npx most-box`                                                                     | `http://localhost:1976`   |
-| 内网 | `set MOSTBOX_HOST=0.0.0.0 && set MOSTBOX_REMOTE_INVITES=your-code && npx most-box` | `http://<IP>:1976`        |
-| 外网 | Caddy 反向代理                                                                     | `https://your-domain.com` |
+| 场景     | 方式                                  | 访问地址                |
+| -------- | ------------------------------------- | ----------------------- |
+| 本地     | `npx most-box`                        | `http://localhost:1976` |
+| 远程管理 | SSH 隧道 + `/admin/`                  | `http://localhost:1976` |
+| 外网     | Caddy 反向代理                        | `https://your-domain`   |
 
-### 内网访问
+### 远程管理节点
+
+MostBox 默认只监听 `127.0.0.1`，无需开放端口即可安全运行。
+
+要管理部署在远程服务器上的节点，使用 SSH 隧道将服务器的 1976 端口转发到本地：
 
 ```bash
-set MOSTBOX_HOST=0.0.0.0
-set MOSTBOX_REMOTE_INVITES=your-code
-npx most-box
+ssh -L 1976:127.0.0.1:1976 user@your-server
 ```
 
-默认只监听本机 `127.0.0.1`。开放到局域网或公网后，远程请求必须携带
-`MOSTBOX_REMOTE_INVITES` 中配置的邀请码；不要在未设置邀请码时暴露端口。
+然后在本地浏览器打开 `http://localhost:1976/admin/` 即可管理远程节点。
 
 ### 外网访问（Caddy）
 
@@ -84,6 +85,8 @@ mostbox.example.com {
   reverse_proxy localhost:1976
 }
 ```
+
+开放到局域网或公网时，在 `/admin/` 中配置邀请码，远程请求必须携带有效邀请码。
 
 ## 核心功能
 

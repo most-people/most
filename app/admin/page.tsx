@@ -171,16 +171,6 @@ function shortText(text: string, head = 12, tail = 8) {
   return `${text.slice(0, head)}...${text.slice(-tail)}`
 }
 
-function isLocalListenHost(host: string) {
-  return ['127.0.0.1', 'localhost', '::1'].includes(String(host || '').trim())
-}
-
-function formatListenHost(host: string) {
-  const normalized = String(host || '').trim()
-  if (normalized === '0.0.0.0' || normalized === '::') return '所有网卡'
-  return normalized || '-'
-}
-
 function formatSeedStatus(holding: NodeHolding) {
   switch (holding.seedStatus) {
     case 'queued':
@@ -303,8 +293,6 @@ export default function AdminPage() {
   const [isClearingUser, setIsClearingUser] = useState('')
   const [configForm, setConfigForm] = useState({
     dataPath: '',
-    host: '127.0.0.1',
-    port: '1976',
     capacityGiB: '100',
     maxFileSizeGiB: '10',
     remoteInvites: '',
@@ -335,18 +323,6 @@ export default function AdminPage() {
     [status]
   )
   const hiddenHoldingCount = Math.max(0, (status?.holdings.length || 0) - 100)
-  const nonLocalListenAddresses = useMemo(
-    () =>
-      status?.listen.addresses.filter(
-        address => address.type !== 'local' && address.ip !== 'localhost'
-      ) || [],
-    [status]
-  )
-  const showPublicExposureWarning =
-    !!status &&
-    !isLocalListenHost(status.host) &&
-    (nonLocalListenAddresses.length > 0 ||
-      ['0.0.0.0', '::'].includes(String(status.host || '').trim()))
   const backendUrl = getBackendUrlExport()
   const isRemoteAdmin =
     Boolean(backendUrl) &&
@@ -361,8 +337,6 @@ export default function AdminPage() {
       setStatus(nextStatus)
       setConfigForm({
         dataPath: nodeConfig.dataPath || nextStatus.dataPath || '',
-        host: nodeConfig.host || nextStatus.config.host || '127.0.0.1',
-        port: String(nodeConfig.port || nextStatus.port || 1976),
         capacityGiB: bytesToGiB(nodeConfig.capacityBytes),
         maxFileSizeGiB: bytesToGiB(nodeConfig.maxFileSizeBytes),
         remoteInvites: (nodeConfig.remoteInvites || []).join('\n'),
@@ -407,15 +381,20 @@ export default function AdminPage() {
         .post('/api/node/config', {
           json: {
             dataPath: configForm.dataPath,
-            host: configForm.host,
-            port: Number(configForm.port),
             capacityBytes: gibToBytes(configForm.capacityGiB),
             maxFileSizeBytes: gibToBytes(configForm.maxFileSizeGiB),
             remoteInvites: parseInviteText(configForm.remoteInvites),
           },
         })
         .json()
-      addToast('节点配置已保存', 'success')
+      const needsRestart =
+        configForm.dataPath !== (status?.dataPath || '')
+      addToast(
+        needsRestart
+          ? '节点配置已保存。修改了数据目录，需要重启 daemon 生效。'
+          : '节点配置已保存',
+        'success'
+      )
       await loadStatus()
       await loadLogs()
     } catch (err) {
@@ -590,29 +569,6 @@ export default function AdminPage() {
         <section className="admin-panel admin-error">
           <FileText size={20} />
           <span>{error}</span>
-        </section>
-      )}
-
-      {!isRemoteAdmin && showPublicExposureWarning && (
-        <section className="admin-panel admin-warning admin-security-warning">
-          <AlertTriangle size={20} />
-          <div>
-            <strong>安全提示：管理台可能被公网访问</strong>
-            <span>
-              当前监听 {formatListenHost(status?.host || '')}:{status?.port}
-              ，同一网络内设备可能打开管理台。如果服务器、公网 IP
-              或端口转发暴露了 {status?.port} 端口，公网用户也可能访问本页和
-              节点 API。远程 API 会要求有效邀请码。
-            </span>
-            <ul className="admin-warning-list">
-              <li>不要把管理台端口直接开放到公网。</li>
-              <li>远程管理前先使用 VPN、防火墙白名单或带认证的反向代理。</li>
-              <li>
-                只允许本机访问时，设置 <code>MOSTBOX_HOST=127.0.0.1</code>{' '}
-                后重启 daemon。
-              </li>
-            </ul>
-          </div>
         </section>
       )}
 
@@ -820,39 +776,6 @@ export default function AdminPage() {
                   />
                 </label>
                 <label className="admin-field">
-                  <span>访问范围</span>
-                  <select
-                    className="input"
-                    value={configForm.host}
-                    onChange={event =>
-                      setConfigForm(prev => ({
-                        ...prev,
-                        host: event.target.value,
-                      }))
-                    }
-                  >
-                    <option value="127.0.0.1">仅本机</option>
-                    <option value="0.0.0.0">开放到公网/局域网</option>
-                  </select>
-                </label>
-                <label className="admin-field">
-                  <span>HTTP 端口</span>
-                  <input
-                    className="input"
-                    type="number"
-                    min="1"
-                    max="65535"
-                    step="1"
-                    value={configForm.port}
-                    onChange={event =>
-                      setConfigForm(prev => ({
-                        ...prev,
-                        port: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-                <label className="admin-field">
                   <span>容量上限 GiB</span>
                   <input
                     className="input"
@@ -900,8 +823,7 @@ export default function AdminPage() {
                 </label>
               </div>
               <p className="admin-field-hint">
-                监听地址变更保存后需要重启
-                daemon；开放到公网/局域网时，远程使用必须配置邀请码。修改邀请码后新请求立即生效。
+                数据目录变更保存后需要重启 daemon。修改邀请码后新请求立即生效。
                 发布和下载成功后会固定做种；MostBox 不设同时做种数或传输限速。
               </p>
               <button

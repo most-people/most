@@ -8,7 +8,7 @@
 
 ```bash
 npm install
-MOSTBOX_HOST=127.0.0.1 MOSTBOX_PORT=1976 node server/index.js
+node server/index.js
 ```
 
 另开一个终端：
@@ -72,7 +72,7 @@ curl -X POST http://localhost:1976/api/p2p/pull \
 源码方式启动 daemon：
 
 ```bash
-MOSTBOX_HOST=127.0.0.1 MOSTBOX_PORT=1976 node server/index.js
+node server/index.js
 ```
 
 常用检查：

@@ -4,7 +4,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const PORT = Number(process.env.MOSTBOX_PORT) || 1976
+const PORT = 1976
 
 let mainWindow = null
 let engine = null

@@ -10,9 +10,7 @@ export const DEFAULT_NODE_PORT = 1976
 export const DEFAULT_NODE_HOST = '127.0.0.1'
 
 export function getDefaultConfigDir() {
-  return process.env.MOSTBOX_CONFIG_DIR
-    ? path.resolve(process.env.MOSTBOX_CONFIG_DIR)
-    : path.join(os.homedir(), DEFAULT_CONFIG_DIR_NAME)
+  return path.join(os.homedir(), DEFAULT_CONFIG_DIR_NAME)
 }
 
 export function getDefaultDataPath() {
@@ -22,11 +20,10 @@ export function getDefaultDataPath() {
 export function getDefaultNodeConfig() {
   return {
     dataPath: '',
-    host: DEFAULT_NODE_HOST,
     port: DEFAULT_NODE_PORT,
     capacityBytes: DEFAULT_CAPACITY_BYTES,
     maxFileSizeBytes: MAX_FILE_SIZE,
-    remoteInvites: normalizeRemoteInvites(process.env.MOSTBOX_REMOTE_INVITES),
+    remoteInvites: [],
   }
 }
 
@@ -35,17 +32,6 @@ export function normalizeRemoteInvites(value = []) {
   return Array.from(
     new Set(items.map(item => String(item || '').trim()).filter(Boolean))
   )
-}
-
-export function normalizeNodeHost(value, fallback = DEFAULT_NODE_HOST) {
-  const host = String(value || '')
-    .trim()
-    .toLowerCase()
-  if (['localhost', '127.0.0.1', '::1'].includes(host)) {
-    return DEFAULT_NODE_HOST
-  }
-  if (['0.0.0.0', '::'].includes(host)) return host
-  return fallback
 }
 
 export function normalizeNodeConfig(raw = {}) {
@@ -60,7 +46,6 @@ export function normalizeNodeConfig(raw = {}) {
     rawNode.maxFileSizeBytes ?? raw.maxFileSizeBytes,
     defaults.maxFileSizeBytes
   )
-  const port = normalizePort(rawNode.port ?? raw.port, defaults.port)
   const remoteInvites = normalizeRemoteInvites(
     rawNode.remoteInvites ?? raw.remoteInvites ?? defaults.remoteInvites
   )
@@ -69,8 +54,7 @@ export function normalizeNodeConfig(raw = {}) {
       typeof raw.dataPath === 'string'
         ? raw.dataPath.trim()
         : defaults.dataPath,
-    host: normalizeNodeHost(rawNode.host ?? raw.host, defaults.host),
-    port,
+    port: defaults.port,
     capacityBytes,
     maxFileSizeBytes,
     remoteInvites,
@@ -112,9 +96,6 @@ export function createNodeConfigStore(configDir = getDefaultConfigDir()) {
   }
 
   function getDataPath() {
-    if (process.env.MOSTBOX_DATA_PATH) {
-      return process.env.MOSTBOX_DATA_PATH
-    }
     return getNodeConfig().dataPath || getDefaultDataPath()
   }
 
@@ -127,8 +108,6 @@ export function createNodeConfigStore(configDir = getDefaultConfigDir()) {
         patch.dataPath === undefined ? current.dataPath : patch.dataPath,
       node: {
         ...(raw.node && typeof raw.node === 'object' ? raw.node : {}),
-        host: patch.host === undefined ? current.host : patch.host,
-        port: patch.port === undefined ? current.port : patch.port,
         capacityBytes:
           patch.capacityBytes === undefined
             ? current.capacityBytes
@@ -147,8 +126,6 @@ export function createNodeConfigStore(configDir = getDefaultConfigDir()) {
     const saved = {
       dataPath: next.dataPath,
       node: {
-        host: next.host,
-        port: next.port,
         capacityBytes: next.capacityBytes,
         maxFileSizeBytes: next.maxFileSizeBytes,
         remoteInvites: next.remoteInvites,
@@ -195,12 +172,4 @@ function normalizePositiveInteger(value, fallback) {
     return fallback
   }
   return Math.floor(parsed)
-}
-
-function normalizePort(value, fallback) {
-  const parsed = Number(value)
-  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
-    return fallback
-  }
-  return parsed
 }
