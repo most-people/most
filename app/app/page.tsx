@@ -26,6 +26,7 @@ import {
   Info,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
+import OpenSidebarButton from '~/components/OpenSidebarButton'
 import SidebarAccount from '~/components/SidebarAccount'
 import { ModalOverlay, ConfirmModal, InputModal } from '~/components/ui'
 import {
@@ -1287,8 +1288,9 @@ export default function App() {
       <div className="content-grid">
         {currentView === 'trash' &&
           (displayFiles.length === 0 ? (
-            <div className="empty-state">
-              {searchQuery ? '未找到相关文件' : '回收站是空的'}
+            <div className="empty-state app-empty-state">
+              <p>{searchQuery ? '未找到相关文件' : '回收站是空的'}</p>
+              <OpenSidebarButton label="打开文件导航" />
             </div>
           ) : (
             <div className="file-grid">
@@ -1317,12 +1319,15 @@ export default function App() {
 
         {currentView !== 'trash' &&
           (displayFiles.length === 0 && displayFolders.length === 0 ? (
-            <div className="empty-state">
-              {searchQuery
-                ? '未找到相关文件'
-                : currentView === 'starred'
-                  ? '暂无的收藏'
-                  : '暂无本地文件'}
+            <div className="empty-state app-empty-state">
+              <p>
+                {searchQuery
+                  ? '未找到相关文件'
+                  : currentView === 'starred'
+                    ? '暂无的收藏'
+                    : '暂无本地文件'}
+              </p>
+              <OpenSidebarButton label="打开文件导航" />
             </div>
           ) : (
             <div className="file-grid">

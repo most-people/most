@@ -22,6 +22,7 @@ import {
   X,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
+import OpenSidebarButton from '~/components/OpenSidebarButton'
 import { ConfirmModal, InputModal, ModalOverlay } from '~/components/ui'
 import { useAppStore, type NoteItem } from '~/app/app/useAppStore'
 import { useUserStore } from '~/app/app/userStore'
@@ -727,13 +728,7 @@ function NotePageContent() {
                 <p>
                   {notes.length > 0 ? '选择一篇笔记继续' : '创建第一篇笔记'}
                 </p>
-                <button
-                  className="btn btn-primary"
-                  onClick={openCreateNoteModal}
-                >
-                  <Plus size={16} />
-                  新笔记
-                </button>
+                <OpenSidebarButton label="打开笔记列表" variant="default" />
               </div>
             )}
           </section>

@@ -168,6 +168,10 @@
   }
 }
 
+.sidebar-open-hint {
+  margin-top: var(--space-2);
+}
+
 /* === Error Boundary === */
 .error-boundary-page {
   display: flex;

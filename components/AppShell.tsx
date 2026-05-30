@@ -7,6 +7,8 @@ import { useDisclosure } from '~/hooks'
 
 interface AppShellContextValue {
   closeSidebar: () => void
+  openSidebar: () => void
+  isSidebarVisible: boolean
 }
 
 const AppShellContext = createContext<AppShellContextValue | null>(null)
@@ -18,7 +20,10 @@ export function useAppShell() {
 }
 
 interface AppShellProps {
-  sidebar: (helpers: { closeSidebar: () => void }) => React.ReactNode
+  sidebar: (helpers: {
+    closeSidebar: () => void
+    openSidebar: () => void
+  }) => React.ReactNode
   headerTitle?: React.ReactNode
   headerRight?: React.ReactNode
   children: React.ReactNode
@@ -42,8 +47,24 @@ export default function AppShell({
     }
   }
 
+  const handleOpenSidebar = () => {
+    if (isMobile) {
+      sidebarCtl.open()
+    } else {
+      setIsSidebarCollapsed(false)
+    }
+  }
+
+  const isSidebarVisible = isMobile ? isSidebarOpen : !isSidebarCollapsed
+
   return (
-    <AppShellContext.Provider value={{ closeSidebar: sidebarCtl.close }}>
+    <AppShellContext.Provider
+      value={{
+        closeSidebar: sidebarCtl.close,
+        openSidebar: handleOpenSidebar,
+        isSidebarVisible,
+      }}
+    >
       <div className="app-layout">
         <div
           className={`sidebar-overlay ${isSidebarOpen ? 'visible' : ''}`}
@@ -53,7 +74,10 @@ export default function AppShell({
         <div
           className={`sidebar ${isSidebarOpen ? 'open' : ''} ${isSidebarCollapsed ? 'collapsed' : ''}`}
         >
-          {sidebar({ closeSidebar: sidebarCtl.close })}
+          {sidebar({
+            closeSidebar: sidebarCtl.close,
+            openSidebar: handleOpenSidebar,
+          })}
         </div>
 
         <div className="main-content">

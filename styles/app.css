@@ -458,6 +458,13 @@
   }
 }
 
+.app-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
 .empty-state-icon {
   width: 64px;
   height: 64px;

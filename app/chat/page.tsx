@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import { InputModal, ConfirmModal } from '~/components/ui'
+import OpenSidebarButton from '~/components/OpenSidebarButton'
 import {
   api,
   getApiErrorMessage,
@@ -427,13 +428,24 @@ function ChatPage() {
   }
 
   async function handleJoinChannel(channelName) {
-    if (!channelName.trim() || isJoiningChannel) return
+    const name = channelName.trim()
+    if (!name || isJoiningChannel) return
     if (!requireLogin()) return
     if (!requireBackendReady()) return
     setIsJoiningChannel(true)
     try {
-      await API.createChannel(channelName.trim(), 'public')
+      await API.createChannel(name, 'public')
+      const joinedChannel = channels.find(channel => channel.name === name) || {
+        name,
+        type: 'public',
+      }
+      setChannels(prev =>
+        prev.some(channel => channel.name === name)
+          ? prev
+          : [...prev, joinedChannel]
+      )
       joinChannelModal.close()
+      await handleOpenChannel(joinedChannel)
       refreshChannels()
     } catch (err) {
       await showApiError(err, '加入频道失败')
@@ -668,6 +680,7 @@ function ChatPage() {
             </div>
             <h2>选择频道</h2>
             <p>从左侧边栏选择一个频道开始聊天，或创建一个新频道</p>
+            <OpenSidebarButton label="打开频道列表" />
           </div>
         </>
       )}
