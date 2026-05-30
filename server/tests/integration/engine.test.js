@@ -1169,5 +1169,103 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
       const r2 = await engine.joinChannel(`existing-join-${uid}`)
       assert.strictEqual(r1.key, r2.key)
     })
+
+    it('creates a writable local core when joining by another channel core key', async () => {
+      const joinTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-join-channel-test-')
+      )
+      const joinDataPath = path.join(joinTmpDir, 'data')
+      fs.mkdirSync(joinDataPath, { recursive: true })
+      const joinEngine = new MostBoxEngine({
+        dataPath: joinDataPath,
+        disableNetwork: true,
+      })
+
+      try {
+        await joinEngine.start()
+        const channelName = `remote-join-${uid}`
+        const created = await engine.createChannel(channelName)
+        const joined = await joinEngine.joinChannel(channelName, created.key)
+
+        assert.strictEqual(joined.name, channelName)
+        assert.notStrictEqual(joined.key, created.key)
+
+        const message = await joinEngine.sendMessage(
+          channelName,
+          'hello from joiner',
+          '0x1234567890abcdef1234567890abcdef12345678',
+          'Joiner'
+        )
+        assert.strictEqual(message.content, 'hello from joiner')
+
+        const messages = await joinEngine.getChannelMessages(channelName)
+        assert.strictEqual(messages.length, 1)
+        assert.strictEqual(messages[0].content, 'hello from joiner')
+
+        const metadataPath = path.join(joinDataPath, 'channels.json')
+        const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf-8'))
+        const channel = metadata.find(c => c.name === channelName)
+        assert.deepStrictEqual(channel.remoteCoreKeys, [created.key])
+        assert.strictEqual(channel.coreKey, joined.key)
+      } finally {
+        await joinEngine.stop().catch(() => {})
+        fs.rmSync(joinTmpDir, { recursive: true, force: true })
+      }
+    })
+
+    it('keeps a joined channel writable after restart', async () => {
+      const restartTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-join-restart-test-')
+      )
+      const restartDataPath = path.join(restartTmpDir, 'data')
+      fs.mkdirSync(restartDataPath, { recursive: true })
+      const channelName = `join-restart-${uid}`
+      const created = await engine.createChannel(channelName)
+      let joinedKey
+      let joinEngine = new MostBoxEngine({
+        dataPath: restartDataPath,
+        disableNetwork: true,
+      })
+
+      try {
+        await joinEngine.start()
+        const joined = await joinEngine.joinChannel(channelName, created.key)
+        joinedKey = joined.key
+        await joinEngine.sendMessage(
+          channelName,
+          'before restart',
+          '0x1234567890abcdef1234567890abcdef12345678',
+          'Joiner'
+        )
+        await joinEngine.stop()
+
+        joinEngine = new MostBoxEngine({
+          dataPath: restartDataPath,
+          disableNetwork: true,
+        })
+        await joinEngine.start()
+        const channels = joinEngine.listChannels()
+        const channel = channels.find(c => c.name === channelName)
+
+        assert.ok(channel)
+        assert.strictEqual(channel.coreKey, joinedKey)
+
+        await joinEngine.sendMessage(
+          channelName,
+          'after restart',
+          '0x1234567890abcdef1234567890abcdef12345678',
+          'Joiner'
+        )
+
+        const messages = await joinEngine.getChannelMessages(channelName)
+        assert.deepStrictEqual(
+          messages.map(message => message.content),
+          ['before restart', 'after restart']
+        )
+      } finally {
+        await joinEngine.stop().catch(() => {})
+        fs.rmSync(restartTmpDir, { recursive: true, force: true })
+      }
+    })
   })
 })

@@ -72,6 +72,25 @@ function normalizeOwnerAddress(address) {
   return /^0x[a-fA-F0-9]{40}$/.test(value) ? value.toLowerCase() : ''
 }
 
+function createOfflineSwarm() {
+  return {
+    connections: new Set(),
+    keyPair: {
+      publicKey: crypto.randomBytes(32),
+    },
+    on() {},
+    join() {
+      return {}
+    },
+    leave() {
+      return Promise.resolve()
+    },
+    destroy() {
+      return Promise.resolve()
+    },
+  }
+}
+
 export class MostBoxEngine extends EventEmitter {
   #store = null
   #swarm = null
@@ -104,6 +123,7 @@ export class MostBoxEngine extends EventEmitter {
    * @param {string} [options.downloadPath] - 默认下载路径（可选，默认为 dataPath/downloads）
    * @param {number} [options.maxFileSize] - 最大文件大小（字节）（默认：10GB）
    * @param {number} [options.capacityBytes] - 节点存储容量上限（字节）（默认：100GB）
+   * @param {boolean} [options.disableNetwork] - 测试用：跳过真实 Hyperswarm 网络
    */
   constructor(options) {
     super()
@@ -119,6 +139,7 @@ export class MostBoxEngine extends EventEmitter {
       maxFileSize: options.maxFileSize || MAX_FILE_SIZE,
       capacityBytes: options.capacityBytes || 100 * 1024 * 1024 * 1024,
       downloadTimeout: options.downloadTimeout || DOWNLOAD_TIMEOUT,
+      disableNetwork: options.disableNetwork === true,
     }
   }
 
@@ -177,14 +198,19 @@ export class MostBoxEngine extends EventEmitter {
     }
 
     console.log(`[MostBox] Initializing Hyperswarm...`)
-    this.#swarm = new Hyperswarm({
-      maxPeers: MAX_PEERS,
-      bootstrap: SWARM_BOOTSTRAP,
-      firewall: () => false,
-      connectionKeepAlive: SWARM_KEEP_ALIVE_INTERVAL,
-      randomPunchInterval: SWARM_RANDOM_PUNCH_INTERVAL,
-      handshakeTimeout: CONNECTION_TIMEOUT,
-    })
+    if (this.#options.disableNetwork) {
+      this.#swarm = createOfflineSwarm()
+      this.#chatSwarm = createOfflineSwarm()
+    } else {
+      this.#swarm = new Hyperswarm({
+        maxPeers: MAX_PEERS,
+        bootstrap: SWARM_BOOTSTRAP,
+        firewall: () => false,
+        connectionKeepAlive: SWARM_KEEP_ALIVE_INTERVAL,
+        randomPunchInterval: SWARM_RANDOM_PUNCH_INTERVAL,
+        handshakeTimeout: CONNECTION_TIMEOUT,
+      })
+    }
 
     this.#swarm.on('error', err => {
       if (
@@ -210,14 +236,16 @@ export class MostBoxEngine extends EventEmitter {
       this.emit('connection', conn)
     })
 
-    this.#chatSwarm = new Hyperswarm({
-      maxPeers: MAX_PEERS,
-      bootstrap: SWARM_BOOTSTRAP,
-      firewall: () => false,
-      connectionKeepAlive: SWARM_KEEP_ALIVE_INTERVAL,
-      randomPunchInterval: SWARM_RANDOM_PUNCH_INTERVAL,
-      handshakeTimeout: CONNECTION_TIMEOUT,
-    })
+    if (!this.#options.disableNetwork) {
+      this.#chatSwarm = new Hyperswarm({
+        maxPeers: MAX_PEERS,
+        bootstrap: SWARM_BOOTSTRAP,
+        firewall: () => false,
+        connectionKeepAlive: SWARM_KEEP_ALIVE_INTERVAL,
+        randomPunchInterval: SWARM_RANDOM_PUNCH_INTERVAL,
+        handshakeTimeout: CONNECTION_TIMEOUT,
+      })
+    }
 
     this.#chatSwarm.on('error', err => {
       if (
@@ -340,6 +368,16 @@ export class MostBoxEngine extends EventEmitter {
     this.#seedStates.clear()
     this.#holdingResumeTask = null
 
+    if (this.#swarm) {
+      await this.#swarm.destroy()
+      this.#swarm = null
+    }
+
+    if (this.#chatSwarm) {
+      await this.#chatSwarm.destroy()
+      this.#chatSwarm = null
+    }
+
     for (const [, coresMap] of this.#channelCores) {
       for (const [, core] of coresMap) {
         try {
@@ -355,16 +393,6 @@ export class MostBoxEngine extends EventEmitter {
     this.#channelChatDiscoveries.clear()
     this.#channelPeers.clear()
     this.#channels = []
-
-    if (this.#swarm) {
-      await this.#swarm.destroy()
-      this.#swarm = null
-    }
-
-    if (this.#chatSwarm) {
-      await this.#chatSwarm.destroy()
-      this.#chatSwarm = null
-    }
 
     if (this.#store) {
       await this.#store.close()
@@ -1843,6 +1871,7 @@ export class MostBoxEngine extends EventEmitter {
       type,
       ownerAddress,
       members: ownerAddress ? [ownerAddress] : [],
+      remoteCoreKeys: [],
     }
 
     this.#channels.push(channelInfo)
@@ -1882,6 +1911,15 @@ export class MostBoxEngine extends EventEmitter {
         existing.members.push(ownerAddress)
         this.#saveChannelsMetadata()
       }
+      if (coreKey && coreKey !== existing.coreKey) {
+        if (!Array.isArray(existing.remoteCoreKeys)) {
+          existing.remoteCoreKeys = []
+        }
+        if (!existing.remoteCoreKeys.includes(coreKey)) {
+          existing.remoteCoreKeys.push(coreKey)
+          this.#saveChannelsMetadata()
+        }
+      }
       return { name: existing.name, key: existing.coreKey }
     }
 
@@ -1890,11 +1928,13 @@ export class MostBoxEngine extends EventEmitter {
     }
 
     const ns = this.#store.namespace(`channel-${name}`)
-    const core = ns.get({
-      key: b4a.from(coreKey, 'hex'),
+    const remoteCoreKeyHex = b4a.toString(b4a.from(coreKey, 'hex'), 'hex')
+    const localCore = ns.get({
+      name: `messages-${this.getNodeId()}`,
       valueEncoding: 'json',
     })
-    await core.ready()
+    await localCore.ready()
+    const localCoreKeyHex = b4a.toString(localCore.key, 'hex')
 
     const discoveryKey = this.#generateChannelDiscoveryKey(name)
     const chatDiscoveryKey = this.#generateChannelChatDiscoveryKey(name)
@@ -1907,32 +1947,35 @@ export class MostBoxEngine extends EventEmitter {
       client: true,
     })
 
-    this.#setupChannelAppendListener(core, name)
+    this.#setupChannelAppendListener(localCore, name)
 
     const channelInfo = {
       name,
       discoveryKey: b4a.toString(discoveryKey, 'hex'),
-      coreKey,
+      coreKey: localCoreKeyHex,
       createdAt: new Date().toISOString(),
       type: 'group',
       ownerAddress,
       members: ownerAddress ? [ownerAddress] : [],
+      remoteCoreKeys:
+        remoteCoreKeyHex === localCoreKeyHex ? [] : [remoteCoreKeyHex],
     }
 
     this.#channels.push(channelInfo)
     if (!this.#channelCores.has(name)) {
       this.#channelCores.set(name, new Map())
     }
-    this.#channelCores.get(name).set(coreKey, core)
+    this.#channelCores.get(name).set(localCoreKeyHex, localCore)
+    this.#channelLocalCoreKey.set(name, localCoreKeyHex)
     this.#channelPeers.set(name, new Map())
     this.#channelDiscoveries.set(name, appDiscovery)
     this.#channelChatDiscoveries.set(name, chatDiscovery)
     this.#saveChannelsMetadata()
 
     console.log(`[MostBox] Joined channel: ${name}`)
-    this.emit('channel:joined', { name, key: coreKey })
+    this.emit('channel:joined', { name, key: localCoreKeyHex })
 
-    return { name, key: coreKey }
+    return { name, key: localCoreKeyHex }
   }
 
   /**
@@ -2848,10 +2891,21 @@ export class MostBoxEngine extends EventEmitter {
         valueEncoding: 'json',
       })
       await core.ready()
-      coresMap.set(coreKeyHex, core)
+      const normalizedCoreKey = b4a.toString(core.key, 'hex')
+      coresMap.set(normalizedCoreKey, core)
       this.#setupChannelAppendListener(core, channelName)
+      const channel = this.#channels.find(c => c.name === channelName)
+      if (channel && normalizedCoreKey !== channel.coreKey) {
+        if (!Array.isArray(channel.remoteCoreKeys)) {
+          channel.remoteCoreKeys = []
+        }
+        if (!channel.remoteCoreKeys.includes(normalizedCoreKey)) {
+          channel.remoteCoreKeys.push(normalizedCoreKey)
+          this.#saveChannelsMetadata()
+        }
+      }
       console.log(
-        `[MostBox] Opened remote channel core ${coreKeyHex.slice(0, 8)}... for ${channelName}`
+        `[MostBox] Opened remote channel core ${normalizedCoreKey.slice(0, 8)}... for ${channelName}`
       )
     } catch (err) {
       console.warn(

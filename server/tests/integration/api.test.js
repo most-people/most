@@ -1086,6 +1086,18 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
   })
 
   describe('POST /api/channels', () => {
+    it('requires login before creating a channel', async () => {
+      const res = await fetchWithoutAuth(`${baseUrl}/api/channels`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: `auth-${uid}` }),
+      })
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 401)
+      assert.strictEqual(data.code, 'LOGIN_REQUIRED')
+    })
+
     it('creates a channel', async () => {
       const res = await fetch(`${baseUrl}/api/channels`, {
         method: 'POST',
@@ -1131,6 +1143,14 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
   })
 
   describe('GET /api/channels', () => {
+    it('requires login before listing channels', async () => {
+      const res = await fetchWithoutAuth(`${baseUrl}/api/channels`)
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 401)
+      assert.strictEqual(data.code, 'LOGIN_REQUIRED')
+    })
+
     it('returns empty array initially', async () => {
       const res = await fetch(`${baseUrl}/api/channels`)
       const data = await res.json()
@@ -1150,6 +1170,26 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
   })
 
   describe('POST /api/channels/:name/messages', () => {
+    it('requires login before sending a message', async () => {
+      await engine.createChannel(`auth-msg-${uid}`)
+      const res = await fetchWithoutAuth(
+        `${baseUrl}/api/channels/auth-msg-${uid}/messages`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: 'Hello!',
+            author: TEST_IDENTITY.address,
+            authorName: 'TestUser',
+          }),
+        }
+      )
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 401)
+      assert.strictEqual(data.code, 'LOGIN_REQUIRED')
+    })
+
     it('sends a message to a channel', async () => {
       await engine.createChannel(`msg-${uid}`)
       const res = await fetch(`${baseUrl}/api/channels/msg-${uid}/messages`, {
@@ -1157,7 +1197,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           content: 'Hello!',
-          author: '0x1234567890abcdef1234567890abcdef12345678',
+          author: TEST_IDENTITY.address,
           authorName: 'TestUser',
         }),
       })
@@ -1165,6 +1205,27 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(res.status, 200)
       assert.ok(data.success)
       assert.strictEqual(data.message.content, 'Hello!')
+    })
+
+    it('rejects a message author that does not match the logged-in user', async () => {
+      await engine.createChannel(`spoof-${uid}`)
+      const res = await fetchAs(
+        SECOND_IDENTITY,
+        `${baseUrl}/api/channels/spoof-${uid}/messages`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: 'spoofed',
+            author: TEST_IDENTITY.address,
+            authorName: 'TestUser',
+          }),
+        }
+      )
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 403)
+      assert.match(data.error, /author/)
     })
 
     it('returns 400 for empty content', async () => {
@@ -1182,6 +1243,17 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
   })
 
   describe('GET /api/channels/:name/messages', () => {
+    it('requires login before reading messages', async () => {
+      await engine.createChannel(`auth-read-${uid}`)
+      const res = await fetchWithoutAuth(
+        `${baseUrl}/api/channels/auth-read-${uid}/messages`
+      )
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 401)
+      assert.strictEqual(data.code, 'LOGIN_REQUIRED')
+    })
+
     it('returns messages from a channel', async () => {
       await engine.createChannel(`read-${uid}`)
       await engine.sendMessage(
@@ -1267,6 +1339,22 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
   })
 
   describe('PUT /api/channels/:name/remark', () => {
+    it('requires login before setting a remark', async () => {
+      await engine.createChannel(`auth-remark-${uid}`)
+      const res = await fetchWithoutAuth(
+        `${baseUrl}/api/channels/auth-remark-${uid}/remark`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ remark: '测试备注' }),
+        }
+      )
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 401)
+      assert.strictEqual(data.code, 'LOGIN_REQUIRED')
+    })
+
     it('sets a remark for a channel', async () => {
       await engine.createChannel(`remark-${uid}`)
       const res = await fetch(`${baseUrl}/api/channels/remark-${uid}/remark`, {

@@ -1426,6 +1426,9 @@ export function createApp(engine, options = {}) {
     if (!/^0x[a-fA-F0-9]{40}$/.test(body.author)) {
       return c.json({ error: 'Invalid author format' }, 400)
     }
+    if (normalizeAddress(body.author) !== c.get('userAddress')) {
+      return c.json({ error: 'message author must match logged-in user' }, 403)
+    }
     if (body.authorName.length > 50) {
       return c.json({ error: 'authorName too long' }, 400)
     }
