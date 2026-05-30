@@ -487,12 +487,6 @@ function NotePageContent() {
         <div className="note-empty-state">
           <NotebookPen size={32} />
           <p>{searchQuery ? '未找到笔记' : '还没有笔记'}</p>
-          {!searchQuery && (
-            <button className="btn btn-primary" onClick={openCreateNoteModal}>
-              <Plus size={16} />
-              新笔记
-            </button>
-          )}
         </div>
       ) : (
         <div className="note-list">
@@ -544,6 +538,13 @@ function NotePageContent() {
           ))}
         </div>
       )}
+
+      <div className="note-create-btn">
+        <button className="btn" onClick={openCreateNoteModal}>
+          <Plus size={16} />
+          新笔记
+        </button>
+      </div>
     </section>
   )
 

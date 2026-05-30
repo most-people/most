@@ -207,6 +207,12 @@
   height: 36px;
 }
 
+.note-sidebar-list .note-create-btn {
+  margin-top: 10px;
+  display: flex;
+  justify-content: center;
+}
+
 .note-sidebar-list .note-breadcrumbs {
   min-height: 22px;
   margin: 0;
