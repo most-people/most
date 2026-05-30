@@ -46,6 +46,10 @@ interface Channel {
   peerCount?: number
 }
 
+const CHANNEL_NAME_MIN_LENGTH = 3
+const CHANNEL_NAME_MAX_LENGTH = 20
+const CHANNEL_NAME_REGEX = /^[a-zA-Z0-9_-]+$/
+
 interface SendMessageResult {
   message: ChannelMessage
 }
@@ -298,6 +302,19 @@ function ChatPage() {
     addToast(await getApiErrorMessage(err, fallback), 'error')
   }
 
+  function getChannelNameValidationError(name) {
+    if (name.length < CHANNEL_NAME_MIN_LENGTH) {
+      return `频道名至少 ${CHANNEL_NAME_MIN_LENGTH} 个字符`
+    }
+    if (name.length > CHANNEL_NAME_MAX_LENGTH) {
+      return `频道名最多 ${CHANNEL_NAME_MAX_LENGTH} 个字符`
+    }
+    if (!CHANNEL_NAME_REGEX.test(name)) {
+      return '频道名只能包含字母、数字、下划线和连字符'
+    }
+    return ''
+  }
+
   async function refreshChannels() {
     if (!isBackendReady) return
     try {
@@ -430,6 +447,11 @@ function ChatPage() {
   async function handleJoinChannel(channelName) {
     const name = channelName.trim()
     if (!name || isJoiningChannel) return
+    const validationError = getChannelNameValidationError(name)
+    if (validationError) {
+      addToast(validationError, 'error')
+      return
+    }
     if (!requireLogin()) return
     if (!requireBackendReady()) return
     setIsJoiningChannel(true)
@@ -688,8 +710,9 @@ function ChatPage() {
       {showJoinChannel && (
         <InputModal
           title="加入频道"
-          placeholder="频道名"
+          placeholder="频道ID：3-20 位字母、数字、_ 或 -"
           confirmText="加入"
+          validate={getChannelNameValidationError}
           onConfirm={handleJoinChannel}
           onClose={() => joinChannelModal.close()}
           isLoading={isJoiningChannel}

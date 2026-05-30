@@ -987,6 +987,13 @@
   }
 }
 
+.input-modal-error {
+  margin-top: 8px;
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .modal-actions {
   margin-top: 16px;
   display: flex;

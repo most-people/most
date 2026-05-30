@@ -13,6 +13,7 @@ interface InputModalProps {
   onClose: () => void
   isLoading?: boolean
   loadingText?: string
+  validate?: (value: string) => string
 }
 
 export function InputModal({
@@ -24,8 +25,18 @@ export function InputModal({
   onClose,
   isLoading,
   loadingText,
+  validate,
 }: InputModalProps) {
   const [value, setValue] = useState(defaultValue || '')
+  const trimmedValue = value.trim()
+  const validationError = trimmedValue && validate ? validate(trimmedValue) : ''
+  const canConfirm = Boolean(trimmedValue) && !validationError && !isLoading
+
+  function handleConfirm() {
+    if (!canConfirm) return
+    onConfirm(trimmedValue)
+  }
+
   return (
     <ModalOverlay onClose={onClose}>
       <div className="input-modal" onClick={e => e.stopPropagation()}>
@@ -42,11 +53,17 @@ export function InputModal({
           placeholder={placeholder}
           autoFocus
           onKeyDown={e => {
-            if (e.key === 'Enter' && value.trim() && !isLoading)
-              onConfirm(value.trim())
+            if (e.key === 'Enter') handleConfirm()
           }}
           className="input input-compact"
+          aria-invalid={Boolean(validationError)}
+          aria-describedby={validationError ? 'input-modal-error' : undefined}
         />
+        {validationError && (
+          <p className="input-modal-error" id="input-modal-error">
+            {validationError}
+          </p>
+        )}
         <div className="modal-actions">
           <button
             onClick={onClose}
@@ -56,8 +73,8 @@ export function InputModal({
             取消
           </button>
           <button
-            onClick={() => value.trim() && onConfirm(value.trim())}
-            disabled={!value.trim() || isLoading}
+            onClick={handleConfirm}
+            disabled={!canConfirm}
             className={`btn btn-primary ${isLoading ? 'btn-loading' : ''}`}
           >
             {isLoading ? loadingText || '处理中...' : confirmText}
