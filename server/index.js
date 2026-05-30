@@ -2,7 +2,6 @@ import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
 import { fileURLToPath } from 'node:url'
-import { spawn } from 'node:child_process'
 import Busboy from 'busboy'
 import { WebSocketServer } from 'ws'
 import { Hono } from 'hono'
@@ -12,10 +11,7 @@ import { serve } from '@hono/node-server'
 import { MostBoxEngine } from './src/index.js'
 import { parseMostLink, validateCidString } from './src/core/cid.js'
 import { sanitizeFilename } from './src/utils/security.js'
-import {
-  normalizeAddress,
-  verifyAuthHeader,
-} from './src/utils/auth.js'
+import { normalizeAddress, verifyAuthHeader } from './src/utils/auth.js'
 import { MAX_FILE_SIZE } from './src/config.js'
 import {
   DEFAULT_NODE_HOST,
@@ -406,15 +402,6 @@ function getInvalidInviteResponse(c) {
   )
 }
 
-function getLocalhostDisplayUrl(host, port) {
-  if (isLocalHostname(host)) return `http://localhost:${port}`
-  return `http://localhost:${port}`
-}
-
-function shouldOpenBrowserForHost(host) {
-  return isLocalHostname(host)
-}
-
 // --- 静态文件服务 ---
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -713,11 +700,7 @@ export function createApp(engine, options = {}) {
 
   async function broadcastNodeStatus() {
     try {
-      const status = await buildNodeStatus(
-        engine,
-        configStore,
-        appPort
-      )
+      const status = await buildNodeStatus(engine, configStore, appPort)
       wsBroadcast('node:status', status)
       return status
     } catch (err) {
@@ -873,9 +856,7 @@ export function createApp(engine, options = {}) {
 
   app.get('/api/node/status', async c => {
     try {
-      return c.json(
-        await buildNodeStatus(engine, configStore, appPort)
-      )
+      return c.json(await buildNodeStatus(engine, configStore, appPort))
     } catch (err) {
       return errorJson(c, err)
     }
@@ -975,11 +956,7 @@ export function createApp(engine, options = {}) {
 
   app.get('/api/node/diagnostics', async c => {
     try {
-      const status = await buildNodeStatus(
-        engine,
-        configStore,
-        appPort
-      )
+      const status = await buildNodeStatus(engine, configStore, appPort)
       return c.json({
         generatedAt: new Date().toISOString(),
         packageVersion: PACKAGE_JSON.version,
@@ -1720,24 +1697,8 @@ export async function main() {
   serverInstanceRef.current = serve(
     { fetch: app.fetch, port: PORT, hostname: HOST },
     () => {
-      const displayUrl = getLocalhostDisplayUrl(HOST, PORT)
+      const displayUrl = `http://localhost:${PORT}`
       console.log(`[MostBox] Server running at ${displayUrl}`)
-
-      if (process.env.ELECTRON_APP) return
-      if (!shouldOpenBrowserForHost(HOST)) return
-
-      if (process.platform === 'win32') {
-        spawn('cmd.exe', ['/c', 'start', '', displayUrl], {
-          detached: true,
-          stdio: 'ignore',
-        }).unref()
-      } else {
-        const cmd = process.platform === 'darwin' ? 'open' : 'xdg-open'
-        spawn(cmd, [displayUrl], {
-          detached: true,
-          stdio: 'ignore',
-        }).unref()
-      }
     }
   )
 
