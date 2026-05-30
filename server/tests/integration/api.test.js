@@ -1228,6 +1228,58 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.match(data.error, /author/)
     })
 
+    it('blocks non-members from sending to a local channel', async () => {
+      const channelName = `private-send-${uid}`
+      await engine.createChannel(channelName)
+
+      const blocked = await fetchAs(
+        SECOND_IDENTITY,
+        `${baseUrl}/api/channels/${channelName}/messages`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: 'not joined yet',
+            author: SECOND_IDENTITY.address,
+            authorName: 'SecondUser',
+          }),
+        }
+      )
+      const blockedData = await blocked.json()
+
+      assert.strictEqual(blocked.status, 403)
+      assert.strictEqual(blockedData.code, 'PERMISSION_ERROR')
+
+      const joinRes = await fetchAs(
+        SECOND_IDENTITY,
+        `${baseUrl}/api/channels`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: channelName }),
+        }
+      )
+      assert.strictEqual(joinRes.status, 200)
+
+      const allowed = await fetchAs(
+        SECOND_IDENTITY,
+        `${baseUrl}/api/channels/${channelName}/messages`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: 'joined now',
+            author: SECOND_IDENTITY.address,
+            authorName: 'SecondUser',
+          }),
+        }
+      )
+      const allowedData = await allowed.json()
+
+      assert.strictEqual(allowed.status, 200)
+      assert.strictEqual(allowedData.message.content, 'joined now')
+    })
+
     it('returns 400 for empty content', async () => {
       await engine.createChannel(`empty-msg-${uid}`)
       const res = await fetch(
@@ -1276,6 +1328,26 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(data.length, 2)
       assert.strictEqual(data[0].content, 'msg1')
       assert.strictEqual(data[1].content, 'msg2')
+    })
+
+    it('blocks non-members from reading local channel history', async () => {
+      const channelName = `private-read-${uid}`
+      await engine.createChannel(channelName)
+      await engine.sendMessage(
+        channelName,
+        'owner-only message',
+        TEST_IDENTITY.address,
+        'TestUser'
+      )
+
+      const res = await fetchAs(
+        SECOND_IDENTITY,
+        `${baseUrl}/api/channels/${channelName}/messages`
+      )
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 403)
+      assert.strictEqual(data.code, 'PERMISSION_ERROR')
     })
 
     it('returns empty array for channel with no messages', async () => {

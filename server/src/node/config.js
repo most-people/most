@@ -20,6 +20,7 @@ export function getDefaultDataPath() {
 export function getDefaultNodeConfig() {
   return {
     dataPath: '',
+    host: DEFAULT_NODE_HOST,
     port: DEFAULT_NODE_PORT,
     capacityBytes: DEFAULT_CAPACITY_BYTES,
     maxFileSizeBytes: MAX_FILE_SIZE,
@@ -49,12 +50,18 @@ export function normalizeNodeConfig(raw = {}) {
   const remoteInvites = normalizeRemoteInvites(
     rawNode.remoteInvites ?? raw.remoteInvites ?? defaults.remoteInvites
   )
+  const host = normalizeHost(rawNode.host ?? raw.host, defaults.host)
+  const port = normalizePositiveInteger(
+    rawNode.port ?? raw.port,
+    defaults.port
+  )
   return {
     dataPath:
       typeof raw.dataPath === 'string'
         ? raw.dataPath.trim()
         : defaults.dataPath,
-    port: defaults.port,
+    host,
+    port,
     capacityBytes,
     maxFileSizeBytes,
     remoteInvites,
@@ -108,6 +115,8 @@ export function createNodeConfigStore(configDir = getDefaultConfigDir()) {
         patch.dataPath === undefined ? current.dataPath : patch.dataPath,
       node: {
         ...(raw.node && typeof raw.node === 'object' ? raw.node : {}),
+        host: patch.host === undefined ? current.host : patch.host,
+        port: patch.port === undefined ? current.port : patch.port,
         capacityBytes:
           patch.capacityBytes === undefined
             ? current.capacityBytes
@@ -126,6 +135,8 @@ export function createNodeConfigStore(configDir = getDefaultConfigDir()) {
     const saved = {
       dataPath: next.dataPath,
       node: {
+        host: next.host,
+        port: next.port,
         capacityBytes: next.capacityBytes,
         maxFileSizeBytes: next.maxFileSizeBytes,
         remoteInvites: next.remoteInvites,
@@ -172,4 +183,9 @@ function normalizePositiveInteger(value, fallback) {
     return fallback
   }
   return Math.floor(parsed)
+}
+
+function normalizeHost(value, fallback) {
+  const host = String(value || '').trim()
+  return host || fallback
 }

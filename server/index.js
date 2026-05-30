@@ -74,6 +74,11 @@ function errorJson(c, err) {
   )
 }
 
+function badRequestOrAppError(c, err) {
+  if (err.code) return errorJson(c, err)
+  return c.json({ error: err.message }, 400)
+}
+
 const NODE_LOG_FILTERS = {
   join: ['join', 'joined', 'topic'],
   pull: ['pull', 'p2p'],
@@ -320,8 +325,11 @@ function isLocalHostname(hostname) {
   return ['localhost', '127.0.0.1', '::1', '[::1]'].includes(value)
 }
 
-function isPublicListenHost() {
-  return false
+function isPublicListenHost(listenHost) {
+  const hostname = extractHostname(listenHost)
+  if (!hostname) return false
+  const value = hostname.toLowerCase()
+  return value === '0.0.0.0' || value === '::' || !isLocalHostname(value)
 }
 
 function isExternalOrigin(origin) {
@@ -1407,10 +1415,14 @@ export function createApp(engine, options = {}) {
     const limit = parseInt(c.req.query('limit') || '100', 10)
     const offset = parseInt(c.req.query('offset') || '0', 10)
     try {
-      const messages = await engine.getChannelMessages(name, { limit, offset })
+      const messages = await engine.getChannelMessages(name, {
+        limit,
+        offset,
+        ownerAddress: c.get('userAddress'),
+      })
       return c.json(messages)
     } catch (err) {
-      return c.json({ error: err.message }, 400)
+      return badRequestOrAppError(c, err)
     }
   })
 
@@ -1437,16 +1449,25 @@ export function createApp(engine, options = {}) {
         name,
         body.content,
         body.author,
-        body.authorName
+        body.authorName,
+        { ownerAddress: c.get('userAddress') }
       )
       return c.json({ success: true, message })
     } catch (err) {
-      return c.json({ error: err.message }, 400)
+      return badRequestOrAppError(c, err)
     }
   })
 
   app.get('/api/channels/:name/peers', c => {
-    return c.json(engine.getChannelPeers(c.req.param('name')))
+    try {
+      return c.json(
+        engine.getChannelPeers(c.req.param('name'), {
+          ownerAddress: c.get('userAddress'),
+        })
+      )
+    } catch (err) {
+      return badRequestOrAppError(c, err)
+    }
   })
 
   app.put('/api/channels/:name/remark', async c => {

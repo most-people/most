@@ -48,6 +48,22 @@ async function waitForHoldingMetric(
   throw new Error(`Holding ${cid} did not report ${description}`)
 }
 
+async function waitForChannelMessage(
+  engine,
+  channelName,
+  content,
+  timeout = 5000
+) {
+  const start = Date.now()
+  while (Date.now() - start < timeout) {
+    const messages = await engine.getChannelMessages(channelName)
+    const message = messages.find(item => item.content === content)
+    if (message) return message
+    await sleep(25)
+  }
+  throw new Error(`Channel ${channelName} did not receive ${content}`)
+}
+
 describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'most-engine-test-'))
   const uid = Math.random().toString(36).slice(2, 8)
@@ -971,6 +987,26 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
       assert.strictEqual(messages[0].content, 'Hello World')
     })
 
+    it('emits one channel message event for a local append', async () => {
+      const ch = `event-${uid}`
+      const events = []
+      const onMessage = data => {
+        if (data.channel === ch) events.push(data)
+      }
+
+      msgEngine.on('channel:message', onMessage)
+      try {
+        await msgEngine.createChannel(ch)
+        await msgEngine.sendMessage(ch, 'single event')
+        await sleep(100)
+
+        assert.strictEqual(events.length, 1)
+        assert.strictEqual(events[0].message.content, 'single event')
+      } finally {
+        msgEngine.off('channel:message', onMessage)
+      }
+    })
+
     it('retrieves messages in order', async () => {
       const ch = `order-${uid}`
       await msgEngine.createChannel(ch)
@@ -1210,6 +1246,65 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
       } finally {
         await joinEngine.stop().catch(() => {})
         fs.rmSync(joinTmpDir, { recursive: true, force: true })
+      }
+    })
+
+    it('reopens persisted remote channel cores after restart', async () => {
+      const restartTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-remote-core-restart-')
+      )
+      const sourceDataPath = path.join(restartTmpDir, 'source')
+      const joinDataPath = path.join(restartTmpDir, 'joiner')
+      const channelName = `hist-${uid}`
+      let sourceEngine
+      let joinEngine
+      let replication
+
+      try {
+        sourceEngine = new MostBoxEngine({
+          dataPath: sourceDataPath,
+          disableNetwork: true,
+        })
+        joinEngine = new MostBoxEngine({
+          dataPath: joinDataPath,
+          disableNetwork: true,
+        })
+        await sourceEngine.start()
+        await joinEngine.start()
+
+        const created = await sourceEngine.createChannel(channelName)
+        await sourceEngine.sendMessage(
+          channelName,
+          'before joiner restart',
+          '0x1234567890abcdef1234567890abcdef12345678',
+          'Source'
+        )
+        await joinEngine.joinChannel(channelName, created.key)
+        replication = sourceEngine.replicateWith(joinEngine)
+        await waitForChannelMessage(
+          joinEngine,
+          channelName,
+          'before joiner restart'
+        )
+
+        replication.close()
+        replication = null
+        await joinEngine.stop()
+        joinEngine = new MostBoxEngine({
+          dataPath: joinDataPath,
+          disableNetwork: true,
+        })
+        await joinEngine.start()
+
+        const messages = await joinEngine.getChannelMessages(channelName)
+        assert.ok(
+          messages.some(message => message.content === 'before joiner restart')
+        )
+      } finally {
+        replication?.close()
+        if (sourceEngine) await sourceEngine.stop().catch(() => {})
+        if (joinEngine) await joinEngine.stop().catch(() => {})
+        fs.rmSync(restartTmpDir, { recursive: true, force: true })
       }
     })
 

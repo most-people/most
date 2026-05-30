@@ -311,6 +311,14 @@ export class MostBoxEngine extends EventEmitter {
         this.#channelLocalCoreKey.set(channel.name, coreKeyHex)
         this.#channelPeers.set(channel.name, new Map())
         this.#setupChannelAppendListener(core, channel.name)
+        const remoteCoreKeys = Array.isArray(channel.remoteCoreKeys)
+          ? channel.remoteCoreKeys
+          : []
+        for (const remoteCoreKey of remoteCoreKeys) {
+          if (remoteCoreKey && remoteCoreKey !== coreKeyHex) {
+            await this.#openRemoteChannelCore(channel.name, remoteCoreKey)
+          }
+        }
 
         const discoveryKey = b4a.from(channel.discoveryKey, 'hex')
         const chatDiscoveryKey = this.#generateChannelChatDiscoveryKey(
@@ -685,7 +693,7 @@ export class MostBoxEngine extends EventEmitter {
         console.log(`[MostBox] Using existing drive: ${name}`)
       }
       await this.#joinCidTopicInternal(cidString, {
-        server: true,
+        server: false,
         client: true,
       })
 
@@ -900,6 +908,10 @@ export class MostBoxEngine extends EventEmitter {
             )
           }
         }
+        await this.#joinCidTopicInternal(cidString, {
+          server: true,
+          client: false,
+        })
 
         const result = {
           taskId,
@@ -995,7 +1007,7 @@ export class MostBoxEngine extends EventEmitter {
     }
 
     await this.#joinCidTopicInternal(cidString, {
-      server: true,
+      server: false,
       client: true,
     })
 
@@ -1919,6 +1931,7 @@ export class MostBoxEngine extends EventEmitter {
           existing.remoteCoreKeys.push(coreKey)
           this.#saveChannelsMetadata()
         }
+        await this.#openRemoteChannelCore(name, coreKey)
       }
       return { name: existing.name, key: existing.coreKey }
     }
@@ -1971,6 +1984,9 @@ export class MostBoxEngine extends EventEmitter {
     this.#channelDiscoveries.set(name, appDiscovery)
     this.#channelChatDiscoveries.set(name, chatDiscovery)
     this.#saveChannelsMetadata()
+    if (remoteCoreKeyHex !== localCoreKeyHex) {
+      await this.#openRemoteChannelCore(name, remoteCoreKeyHex)
+    }
 
     console.log(`[MostBox] Joined channel: ${name}`)
     this.emit('channel:joined', { name, key: localCoreKeyHex })
@@ -2116,6 +2132,7 @@ export class MostBoxEngine extends EventEmitter {
    */
   async getChannelMessages(name, options = {}) {
     this.#ensureInitialized()
+    this.#assertChannelMember(name, options.ownerAddress)
 
     const { limit = CHANNEL_MESSAGE_LIMIT, offset = 0 } = options
 
@@ -2167,8 +2184,9 @@ export class MostBoxEngine extends EventEmitter {
    * @param {string} authorName - 作者显示名
    * @returns {Promise<object>}
    */
-  async sendMessage(name, content, author, authorName) {
+  async sendMessage(name, content, author, authorName, options = {}) {
     this.#ensureInitialized()
+    this.#assertChannelMember(name, options.ownerAddress)
 
     const localKeyHex = this.#channelLocalCoreKey.get(name)
     const coresMap = this.#channelCores.get(name)
@@ -2196,8 +2214,6 @@ export class MostBoxEngine extends EventEmitter {
 
     await core.append(message)
 
-    this.emit('channel:message', { channel: name, message })
-
     return message
   }
 
@@ -2206,8 +2222,9 @@ export class MostBoxEngine extends EventEmitter {
    * @param {string} name - 频道名
    * @returns {Array<{ peerId: string, authorName: string, lastSeen: number }>}
    */
-  getChannelPeers(name) {
+  getChannelPeers(name, options = {}) {
     this.#ensureInitialized()
+    this.#assertChannelMember(name, options.ownerAddress)
 
     const peers = this.#channelPeers.get(name)
     if (!peers) {
@@ -2261,6 +2278,22 @@ export class MostBoxEngine extends EventEmitter {
   #ensureInitialized() {
     if (!this.#initialized) {
       throw new EngineNotInitializedError()
+    }
+  }
+
+  #assertChannelMember(name, ownerAddress) {
+    const normalizedOwner = normalizeOwnerAddress(ownerAddress)
+    if (!normalizedOwner) return
+
+    const channel = this.#channels.find(c => c.name === name)
+    if (!channel) {
+      throw new Error('频道不存在')
+    }
+    if (
+      !Array.isArray(channel.members) ||
+      !channel.members.includes(normalizedOwner)
+    ) {
+      throw new PermissionError('未加入该频道')
     }
   }
 
@@ -2532,6 +2565,8 @@ export class MostBoxEngine extends EventEmitter {
 
   async #joinCidTopicInternal(cid, options = {}) {
     const { topic, topicHex, driveName } = this.#getCidInfo(cid)
+    const requestedServer = options.server !== false
+    const requestedClient = options.client === true
     this.#setSeedState(cid, {
       status: 'joining',
       topic: topicHex,
@@ -2544,37 +2579,56 @@ export class MostBoxEngine extends EventEmitter {
 
       const existing = this.#fileDiscoveries.get(cid)
       if (existing) {
-        if (this.#holdings.some(holding => holding.cid === cid)) {
-          this.#ensureFileMonitor(cid, drive).catch(err => {
-            this.#setSeedState(cid, {
-              status: 'error',
-              error: err.message,
+        const nextServer = existing.server || requestedServer
+        const nextClient = existing.client || requestedClient
+        const needsRoleUpgrade =
+          nextServer !== existing.server || nextClient !== existing.client
+
+        if (!needsRoleUpgrade) {
+          if (this.#holdings.some(holding => holding.cid === cid)) {
+            this.#ensureFileMonitor(cid, drive).catch(err => {
+              this.#setSeedState(cid, {
+                status: 'error',
+                error: err.message,
+              })
             })
+          }
+          this.#setSeedState(cid, {
+            status: 'active',
+            topic: topicHex,
+            driveName,
+            error: undefined,
           })
+          return {
+            cid,
+            topic: topicHex,
+            driveName,
+            joined: true,
+          }
         }
-        this.#setSeedState(cid, {
-          status: 'active',
-          topic: topicHex,
-          driveName,
-          error: undefined,
+
+        await this.#swarm.leave(topic).catch(err => {
+          console.warn(
+            `[MostBox] Failed to upgrade CID topic role for ${cid}:`,
+            err.message
+          )
         })
-        return {
-          cid,
-          topic: topicHex,
-          driveName,
-          joined: true,
-        }
+        this.#fileDiscoveries.delete(cid)
       }
 
+      const server = existing?.server || requestedServer
+      const client = existing?.client || requestedClient
       const discovery = this.#swarm.join(topic, {
-        server: options.server !== false,
-        client: options.client === true,
+        server,
+        client,
       })
 
       this.#fileDiscoveries.set(cid, {
         discovery,
         topic: topicHex,
         driveName,
+        server,
+        client,
       })
       this.#setSeedState(cid, {
         status: 'active',
