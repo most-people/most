@@ -48,7 +48,8 @@ npx most-box@latest
 git clone <your-repo-url>
 cd most
 npm i
-npm start
+npm run dev
+node server/index.js
 ```
 
 ## 测试
@@ -116,7 +117,7 @@ mostbox.example.com {
 
 ### 文件存储在哪里？
 
-文件以 **P2P 方式** 存储在分享者和接收者的设备上。当文件被分享时，内容会被分片存储在 P2P 网络中。**没有中心化服务器**，真正实现去中心化。
+文件以 **P2P 方式** 保存在分享者和接收者的设备上。每个做种节点都持有完整文件副本；MostBox 不会把文件集中上传到云端服务器。
 
 ### 如何分享文件给其他人？
 
@@ -140,7 +141,7 @@ mostbox.example.com {
 - 创建一个频道（如 `alice` 或 `team-project`）
 - 将频道名称分享给朋友
 - 朋友加入后即可实时聊天
-- 消息通过 P2P 网络加密传输，服务器只负责建立连接
+- 消息通过 P2P 通道复制，服务器或节点只负责连接与同步
 
 ### 如何使用频道聊天？
 
@@ -190,7 +191,6 @@ npx most-box
 - **前端**: React 19, Next.js 16, TypeScript, Zustand, Lucide React
 - **后端**: Hono + @hono/node-server + WebSocket
 - **P2P**: Hyperswarm 4.x, Hyperdrive 13.x, Corestore 7.x
-- **Web3**: ethers.js, Hardhat, Solidity, EIP-712
 - **桌面**: Electron 41, electron-builder
 - **测试**: Node.js built-in test runner
 

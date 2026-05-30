@@ -26,20 +26,16 @@ Most.Box 是一个 P2P 文件分享与做种工具：用户发布文件得到 `m
 
 Web3 产品入口和以太坊钱包工具保留为独立工具箱，不参与 MostBox 文件分享、下载或做种主流程。
 
-## 计划文档
+## 当前文档
 
-完整产品计划在 `docs/plan/`，入口是 `docs/plan/README.md`。不要在每次任务开始时通读全部计划；只在需求涉及相关主题时按需打开。
+`docs/plan/` 中的阶段性计划已移除；代码、README 和验收文档是当前事实来源。处理相关需求时优先阅读：
 
-| 需求类型                               | 优先阅读                            |
-| -------------------------------------- | ----------------------------------- |
-| 当前任务板、优先级、验收顺序           | `docs/plan/任务优先级与周计划.md`   |
-| MVP 范围、完成定义、验收剧本           | `docs/plan/MVP落地计划.md`          |
-| MVP 后里程碑和 v1 边界                 | `docs/plan/实施路线图.md`           |
-| 产品定位、价值、风险和竞品             | `docs/plan/项目计划书.md`           |
-| 分层、核心模块、实现和后置能力         | `docs/plan/技术架构.md`             |
-| CID、发布、下载、holding、数据目录入口 | `docs/plan/协议基线实现入口清单.md` |
-| daemon、管理台、配置、安全和排障       | `docs/plan/节点运营.md`             |
-| 默认公开分享、私密文件自加密           | `docs/plan/加密与存储.md`           |
+| 需求类型                     | 优先阅读                                      |
+| ---------------------------- | --------------------------------------------- |
+| 新用户或本地验收             | `docs/quick-start.md`                         |
+| MVP 主线回归和验收清单       | `docs/mvp-acceptance-checklist.md`            |
+| 产品定位、使用方式和技术栈   | `README.md`                                   |
+| 代码结构、协议边界和开发约定 | 本文件，以及相关入口文件                      |
 
 ## 当前 MVP 口径
 
@@ -96,7 +92,8 @@ MVP 成功标准：
 ```bash
 npm run dev            # Next.js，端口 3000
 node server/index.js   # 后端，默认端口 1976
-npm start              # 构建静态 out/ 并由后端 serve
+npm start              # Next.js 开发服务
+npm run serve          # 构建并由后端 serve
 npm test
 npm run test:unit
 npm run test:protocol
@@ -143,7 +140,9 @@ npm run lint
 - 笔记模块：`app/note/page.tsx`、`components/MilkdownEditor.tsx`
 - 管理后台：`app/admin/page.tsx`、`app/admin/layout.tsx`
 - 全局状态：`app/app/useAppStore.ts`
-- 后端入口：`server/index.js`
+- 后端 daemon 启动入口：`server/index.js`
+- HTTP 应用和路由：`server/src/http/app.js`
+- HTTP 支撑模块：`server/src/http/*.js`
 - 核心引擎：`server/src/index.js`
 - 做种配置：`server/src/node/config.js`
 - CID / 链接：`server/src/core/cid.js`
