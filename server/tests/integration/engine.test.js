@@ -987,6 +987,50 @@ describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
       assert.strictEqual(messages[0].content, 'Hello World')
     })
 
+    it('stores channel attachment metadata', async () => {
+      const ch = `attach-${uid}`
+      const cid =
+        'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
+      const fileName = `chat-file/${ch}/photo.png`
+      const link = `most://${cid}?filename=${encodeURIComponent(fileName)}`
+      await msgEngine.createChannel(ch)
+
+      const msg = await msgEngine.sendMessage(ch, link, undefined, undefined, {
+        attachment: {
+          kind: 'image',
+          cid,
+          fileName,
+          link,
+          mimeType: 'image/png',
+          size: 123,
+        },
+      })
+
+      assert.strictEqual(msg.attachment.kind, 'image')
+      assert.strictEqual(msg.attachment.fileName, fileName)
+      assert.strictEqual(msg.attachment.link, link)
+
+      const messages = await msgEngine.getChannelMessages(ch)
+      assert.deepStrictEqual(messages[0].attachment, msg.attachment)
+    })
+
+    it('rejects invalid attachment metadata', async () => {
+      const ch = `bad-attach-${uid}`
+      await msgEngine.createChannel(ch)
+
+      await assert.rejects(
+        msgEngine.sendMessage(ch, 'bad attachment', undefined, undefined, {
+          attachment: {
+            kind: 'image',
+            cid: 'not-a-cid',
+            fileName: 'chat-file/bad/photo.png',
+            link: 'most://not-a-cid?filename=chat-file%2Fbad%2Fphoto.png',
+          },
+        }),
+        /Invalid CID format/
+      )
+    })
+
     it('emits one channel message event for a local append', async () => {
       const ch = `event-${uid}`
       const events = []

@@ -13,13 +13,22 @@ import {
   Calendar,
   Hash,
   Settings,
+  Image as ImageIcon,
+  Film,
+  FileText,
+  Download,
+  Loader,
+  Music,
+  Paperclip,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
+import FilePreviewOverlay from '~/components/FilePreviewOverlay'
 import { InputModal, ConfirmModal } from '~/components/ui'
 import OpenSidebarButton from '~/components/OpenSidebarButton'
 import {
   api,
   getApiErrorMessage,
+  getApiUrl,
   getAuthenticatedWebSocketUrl,
 } from '~/server/src/utils/api'
 import { generateAvatar } from '~/server/src/utils/avatar.js'
@@ -27,6 +36,16 @@ import { useAppStore } from '~/app/app/useAppStore'
 import { useUserStore } from '~/app/app/userStore'
 import { useDisclosure } from '~/hooks'
 import SidebarAccount from '~/components/SidebarAccount'
+import { getFileSubtype, type FileSubtype } from '~/lib/filePreview'
+
+interface ChannelAttachment {
+  kind: FileSubtype
+  cid: string
+  fileName: string
+  link: string
+  mimeType?: string
+  size?: number
+}
 
 interface ChannelMessage {
   id?: string
@@ -35,6 +54,7 @@ interface ChannelMessage {
   content: string
   timestamp: number
   pending?: boolean
+  attachment?: ChannelAttachment
 }
 
 interface Channel {
@@ -70,14 +90,35 @@ const API = {
     name: string,
     content: string,
     author: string,
-    authorName: string
+    authorName: string,
+    attachment?: ChannelAttachment
   ) =>
     api
       .post<SendMessageResult>(
         `/api/channels/${encodeURIComponent(name)}/messages`,
-        { json: { content, author, authorName } }
+        {
+          json: attachment
+            ? { content, author, authorName, attachment }
+            : { content, author, authorName },
+        }
       )
       .json(),
+  async publishFile(file: File, customName: string) {
+    const formData = new FormData()
+    formData.append('file', file, customName)
+    const res = await api.post('/api/publish', { body: formData })
+    if (!res.ok) {
+      const err = await res
+        .json<{ error: string }>()
+        .catch(() => ({ error: res.statusText }))
+      throw new Error(err.error || 'Request failed')
+    }
+    return res.json<any>()
+  },
+  listPublishedFiles: () => api.get('/api/files').json<any[]>(),
+  downloadFile: (link: string) =>
+    api.post('/api/download', { json: { link } }).json<any>(),
+  getFileDownloadUrl: (cid: string) => getApiUrl(`/api/files/${cid}/download`),
   getChannelPeers: (name: string) =>
     api.get<string[]>(`/api/channels/${encodeURIComponent(name)}/peers`).json(),
   setChannelRemark: (name: string, remark: string) =>
@@ -89,6 +130,37 @@ const API = {
         json: { remark },
       })
       .json(),
+}
+
+const CHAT_FILE_ROOT = 'chat-file'
+
+function formatSize(bytes?: number) {
+  if (!bytes || bytes <= 0) return ''
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024 * 1024 * 1024)
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
+}
+
+function getBaseFileName(fileName: string) {
+  const parts = String(fileName || '').split('/')
+  return parts[parts.length - 1] || fileName
+}
+
+function getAttachmentKind(file: File, fileName: string): FileSubtype {
+  if (file.type.startsWith('image/')) return 'image'
+  if (file.type.startsWith('video/')) return 'video'
+  if (file.type.startsWith('audio/')) return 'audio'
+  if (file.type.startsWith('text/')) return 'text'
+  return getFileSubtype(fileName)
+}
+
+function getAttachmentIcon(kind: FileSubtype) {
+  if (kind === 'image') return <ImageIcon size={20} />
+  if (kind === 'video') return <Film size={20} />
+  if (kind === 'audio') return <Music size={20} />
+  return <FileText size={20} />
 }
 
 function ChatPage() {
@@ -111,6 +183,9 @@ function ChatPage() {
   const [channelToLeave, setChannelToLeave] = useState(null)
   const [showChannelDetail, setShowChannelDetail] = useState(false)
   const [remarkInput, setRemarkInput] = useState('')
+  const [previewItem, setPreviewItem] = useState(null)
+  const [isPublishingAttachment, setIsPublishingAttachment] = useState(false)
+  const [attachmentDownloadStatus, setAttachmentDownloadStatus] = useState({})
 
   const wsRef = useRef(null)
   const channelMessagesEndRef = useRef(null)
@@ -118,6 +193,10 @@ function ChatPage() {
   const reconnectTimeoutRef = useRef(null)
   const reconnectAttemptRef = useRef(0)
   const isWsConnectedRef = useRef(false)
+  const imageInputRef = useRef<HTMLInputElement>(null)
+  const videoInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const pendingAttachmentPreviewsRef = useRef(new Map())
   const isBackendReady = hasBackend === true
 
   function requireBackendReady() {
@@ -280,6 +359,9 @@ function ChatPage() {
     setChannelInput('')
     setMyPeerId('')
     setShowChannelDetail(false)
+    setPreviewItem(null)
+    setAttachmentDownloadStatus({})
+    pendingAttachmentPreviewsRef.current.clear()
   }, [userIdentity?.address])
 
   async function syncChannelMessages(channelName) {
@@ -344,6 +426,26 @@ function ChatPage() {
     wsSend('channel:unsubscribe', { channel: channelName })
   }
 
+  function openAttachmentPreview(
+    attachment: ChannelAttachment,
+    fileName = attachment.fileName
+  ) {
+    const subtype = getFileSubtype(fileName)
+    setPreviewItem({
+      cid: attachment.cid,
+      fileName,
+      subtype: subtype === 'file' ? attachment.kind : subtype,
+    })
+  }
+
+  function clearAttachmentDownload(cid: string) {
+    setAttachmentDownloadStatus(prev => {
+      const next = { ...prev }
+      delete next[cid]
+      return next
+    })
+  }
+
   function handleWsEvent(event, data) {
     const currentChannel = activeChannelRef.current
     switch (event) {
@@ -400,6 +502,37 @@ function ChatPage() {
       case 'channel:left':
         refreshChannels()
         break
+
+      case 'download:success': {
+        const attachment = pendingAttachmentPreviewsRef.current.get(
+          data.taskId
+        )
+        if (attachment) {
+          pendingAttachmentPreviewsRef.current.delete(data.taskId)
+          clearAttachmentDownload(attachment.cid)
+          addToast(`${data.fileName || getBaseFileName(attachment.fileName)} 下载完成`, 'success')
+          openAttachmentPreview(attachment, data.fileName || attachment.fileName)
+        }
+        break
+      }
+
+      case 'download:error':
+      case 'download:cancelled': {
+        const attachment = pendingAttachmentPreviewsRef.current.get(
+          data.taskId
+        )
+        if (attachment) {
+          pendingAttachmentPreviewsRef.current.delete(data.taskId)
+          clearAttachmentDownload(attachment.cid)
+          addToast(
+            event === 'download:cancelled'
+              ? '附件下载已取消'
+              : data.error || '附件下载失败',
+            'error'
+          )
+        }
+        break
+      }
     }
   }
 
@@ -476,30 +609,34 @@ function ChatPage() {
     }
   }
 
-  async function handleSendChannelMessage() {
-    if (!channelInput.trim() || !activeChannel) return
-    if (!requireLogin()) return
-    if (!requireBackendReady()) return
-    const content = channelInput.trim()
-    setChannelInput('')
+  async function sendChannelMessage(
+    content: string,
+    attachment?: ChannelAttachment
+  ) {
+    if (!content.trim() || !activeChannel) return false
+    if (!requireLogin()) return false
+    if (!requireBackendReady()) return false
+    const trimmedContent = content.trim()
 
     const optimisticId = `${userIdentity.address}-${Date.now()}-${Math.random().toString(36).slice(2)}`
     const optimisticMsg = {
       id: optimisticId,
       author: userIdentity.address,
       authorName: userIdentity.displayName,
-      content,
+      content: trimmedContent,
       timestamp: Date.now(),
       pending: true,
+      attachment,
     }
     setChannelMessages(prev => [...prev, optimisticMsg])
 
     try {
       const result = await API.sendChannelMessage(
         activeChannel.name,
-        content,
+        trimmedContent,
         userIdentity.address,
-        userIdentity.displayName
+        userIdentity.displayName,
+        attachment
       )
       setChannelMessages(prev =>
         prev.map(m =>
@@ -511,9 +648,100 @@ function ChatPage() {
             : m
         )
       )
+      return true
     } catch (err) {
       setChannelMessages(prev => prev.filter(m => m.id !== optimisticId))
       await showApiError(err, '发送失败')
+      return false
+    }
+  }
+
+  async function handleSendChannelMessage() {
+    if (!channelInput.trim()) return
+    const content = channelInput.trim()
+    setChannelInput('')
+    await sendChannelMessage(content)
+  }
+
+  function getChatAttachmentFileName(channelName: string, fileName: string) {
+    return `${CHAT_FILE_ROOT}/${channelName}/${fileName}`
+  }
+
+  async function handleSelectAttachmentFiles(files: FileList | null) {
+    if (!files || files.length === 0 || !activeChannel) return
+    if (!requireLogin()) return
+    if (!requireBackendReady()) return
+    if (isPublishingAttachment) return
+
+    setIsPublishingAttachment(true)
+    try {
+      for (const file of Array.from(files)) {
+        const targetFileName = getChatAttachmentFileName(
+          activeChannel.name,
+          file.name
+        )
+        const result = await API.publishFile(file, targetFileName)
+        const fileName = result.fileName || targetFileName
+        const link =
+          result.link ||
+          `most://${result.cid}?filename=${encodeURIComponent(fileName)}`
+        const attachment: ChannelAttachment = {
+          kind: getAttachmentKind(file, fileName),
+          cid: result.cid,
+          fileName,
+          link,
+          mimeType: file.type || undefined,
+          size: file.size,
+        }
+        const sent = await sendChannelMessage(link, attachment)
+        if (sent) {
+          addToast(`${getBaseFileName(fileName)} 已发布`, 'success')
+        }
+      }
+    } catch (err) {
+      await showApiError(err, '附件发送失败')
+    } finally {
+      setIsPublishingAttachment(false)
+    }
+  }
+
+  async function handleOpenAttachment(attachment: ChannelAttachment) {
+    if (!requireLogin()) return
+    if (!requireBackendReady()) return
+    if (attachmentDownloadStatus[attachment.cid]) return
+
+    try {
+      const files = await API.listPublishedFiles()
+      const localFile = files.find(file => file.cid === attachment.cid)
+      if (localFile) {
+        openAttachmentPreview(
+          { ...attachment, fileName: localFile.fileName },
+          localFile.fileName
+        )
+        return
+      }
+
+      setAttachmentDownloadStatus(prev => ({
+        ...prev,
+        [attachment.cid]: 'downloading',
+      }))
+      const result = await API.downloadFile(attachment.link)
+      if (result.alreadyExists || result.fileName) {
+        clearAttachmentDownload(attachment.cid)
+        openAttachmentPreview(
+          { ...attachment, fileName: result.fileName || attachment.fileName },
+          result.fileName || attachment.fileName
+        )
+        return
+      }
+
+      if (result.taskId) {
+        pendingAttachmentPreviewsRef.current.set(result.taskId, attachment)
+        addToast('开始下载附件', 'success')
+      }
+    } catch (err) {
+      clearAttachmentDownload(attachment.cid)
+      await showApiError(err, '附件下载失败')
     }
   }
 
@@ -534,6 +762,47 @@ function ChatPage() {
     } catch (err) {
       await showApiError(err, '设置备注失败')
     }
+  }
+
+  function renderMessageBubble(msg: ChannelMessage) {
+    if (!msg.attachment) {
+      return <div className="message-bubble">{msg.content}</div>
+    }
+
+    const attachment = msg.attachment
+    const isDownloading = attachmentDownloadStatus[attachment.cid]
+    const detail = formatSize(attachment.size) || 'MostBox 文件'
+
+    return (
+      <div className="message-bubble has-attachment">
+        <button
+          type="button"
+          className="chat-attachment-card"
+          onClick={() => handleOpenAttachment(attachment)}
+          disabled={Boolean(msg.pending || isDownloading)}
+          title={attachment.link}
+        >
+          <span className={`chat-attachment-icon ${attachment.kind}`}>
+            {isDownloading ? (
+              <Loader size={20} className="chat-attachment-spinner" />
+            ) : (
+              getAttachmentIcon(attachment.kind)
+            )}
+          </span>
+          <span className="chat-attachment-info">
+            <span className="chat-attachment-name">
+              {getBaseFileName(attachment.fileName)}
+            </span>
+            <span className="chat-attachment-meta">
+              {msg.pending ? '发送中...' : detail}
+            </span>
+          </span>
+          <span className="chat-attachment-action">
+            {isDownloading ? '下载中' : <Download size={16} />}
+          </span>
+        </button>
+      </div>
+    )
   }
 
   const chatHeaderTitle = activeChannel ? (
@@ -658,7 +927,7 @@ function ChatPage() {
                     <span className="message-author">
                       {msg.authorName || msg.author?.slice(0, 8) || 'Unknown'}
                     </span>
-                    <div className="message-bubble">{msg.content}</div>
+                    {renderMessageBubble(msg)}
                     <span className="message-time">
                       {new Date(msg.timestamp).toLocaleTimeString('zh-CN', {
                         hour: '2-digit',
@@ -673,6 +942,66 @@ function ChatPage() {
           </div>
 
           <div className="chat-input-area">
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/*"
+              className="chat-file-input"
+              onChange={e => {
+                void handleSelectAttachmentFiles(e.target.files)
+                e.currentTarget.value = ''
+              }}
+            />
+            <input
+              ref={videoInputRef}
+              type="file"
+              accept="video/*"
+              className="chat-file-input"
+              onChange={e => {
+                void handleSelectAttachmentFiles(e.target.files)
+                e.currentTarget.value = ''
+              }}
+            />
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="chat-file-input"
+              onChange={e => {
+                void handleSelectAttachmentFiles(e.target.files)
+                e.currentTarget.value = ''
+              }}
+            />
+            <button
+              type="button"
+              className="chat-tool-btn"
+              onClick={() => imageInputRef.current?.click()}
+              disabled={!userIdentity || isPublishingAttachment}
+              title="发送图片"
+            >
+              <ImageIcon size={18} />
+            </button>
+            <button
+              type="button"
+              className="chat-tool-btn"
+              onClick={() => videoInputRef.current?.click()}
+              disabled={!userIdentity || isPublishingAttachment}
+              title="发送视频"
+            >
+              <Film size={18} />
+            </button>
+            <button
+              type="button"
+              className="chat-tool-btn"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={!userIdentity || isPublishingAttachment}
+              title="发送文件"
+            >
+              {isPublishingAttachment ? (
+                <Loader size={18} className="chat-attachment-spinner" />
+              ) : (
+                <Paperclip size={18} />
+              )}
+            </button>
             <input
               type="text"
               className="input input-pill"
@@ -731,6 +1060,15 @@ function ChatPage() {
             setChannelToLeave(null)
           }}
           danger
+        />
+      )}
+
+      {previewItem && (
+        <FilePreviewOverlay
+          item={previewItem}
+          isBackendReady={isBackendReady}
+          getFileDownloadUrl={API.getFileDownloadUrl}
+          onClose={() => setPreviewItem(null)}
         />
       )}
 

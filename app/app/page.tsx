@@ -28,6 +28,7 @@ import {
 import AppShell from '~/components/AppShell'
 import OpenSidebarButton from '~/components/OpenSidebarButton'
 import SidebarAccount from '~/components/SidebarAccount'
+import FilePreviewOverlay from '~/components/FilePreviewOverlay'
 import { ModalOverlay, ConfirmModal, InputModal } from '~/components/ui'
 import {
   api,
@@ -44,6 +45,7 @@ import {
 import { useAppStore } from '~/app/app/useAppStore'
 import { useUserStore } from '~/app/app/userStore'
 import { useDisclosure, useClipboard } from '~/hooks'
+import { getFileSubtype } from '~/lib/filePreview'
 interface NetworkAddress {
   type: string
   ip: string
@@ -189,82 +191,6 @@ function getItemsForPath(files, allFolders, currentPath) {
     folders: getCurrentFolders(allFolders, currentPath),
     files: files.filter(f => parseName(f.fileName).folder === currentPath),
   }
-}
-
-function getFileSubtype(fileName) {
-  const ext = fileName.split('.').pop().toLowerCase()
-  const imgExts = [
-    'jpg',
-    'jpeg',
-    'png',
-    'gif',
-    'webp',
-    'svg',
-    'bmp',
-    'ico',
-    'tiff',
-    'heic',
-    'heif',
-  ]
-  const vidExts = [
-    'mp4',
-    'webm',
-    'mov',
-    'avi',
-    'mkv',
-    'flv',
-    'wmv',
-    'm4v',
-    'mpeg',
-    '3gp',
-  ]
-  const audExts = ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma', 'opus']
-  const txtExts = [
-    'txt',
-    'md',
-    'js',
-    'ts',
-    'jsx',
-    'tsx',
-    'css',
-    'scss',
-    'less',
-    'json',
-    'xml',
-    'html',
-    'htm',
-    'yaml',
-    'yml',
-    'toml',
-    'ini',
-    'cfg',
-    'conf',
-    'log',
-    'sh',
-    'bash',
-    'py',
-    'rb',
-    'go',
-    'rs',
-    'java',
-    'c',
-    'cpp',
-    'h',
-    'hpp',
-    'cs',
-    'php',
-    'sql',
-    'graphql',
-    'env',
-    'gitignore',
-    'dockerfile',
-    'readme',
-  ]
-  if (imgExts.includes(ext)) return 'image'
-  if (vidExts.includes(ext)) return 'video'
-  if (audExts.includes(ext)) return 'audio'
-  if (txtExts.includes(ext)) return 'text'
-  return 'file'
 }
 
 function generateBreadcrumbs(currentPath) {
@@ -442,55 +368,7 @@ export default function App() {
   const [confirmModal, setConfirmModal] = useState(null)
   const [inputModal, setInputModal] = useState(null)
   const [inputLoading, setInputLoading] = useState(false)
-  const [previewText, setPreviewText] = useState('')
-  const [previewLoading, setPreviewLoading] = useState(false)
-  const [previewBlobUrl, setPreviewBlobUrl] = useState('')
   const isBackendReady = hasBackend === true
-
-  useEffect(() => {
-    if (previewItem && previewItem.subtype === 'text' && isBackendReady) {
-      setPreviewText('')
-      loadPreviewText(previewItem.cid)
-    } else if (previewItem?.subtype === 'text' && hasBackend !== null) {
-      setPreviewText('加载失败')
-    }
-  }, [previewItem?.cid, isBackendReady, hasBackend])
-
-  useEffect(() => {
-    if (
-      !previewItem ||
-      !['image', 'video', 'audio'].includes(previewItem.subtype) ||
-      !isBackendReady
-    ) {
-      setPreviewBlobUrl('')
-      return
-    }
-
-    setPreviewBlobUrl('')
-    let revokedUrl = ''
-    let cancelled = false
-    ;(async () => {
-      try {
-        const res = await fetch(API.getFileDownloadUrl(previewItem.cid), {
-          headers: await getApiRequestHeaders(
-            'GET',
-            `/api/files/${previewItem.cid}/download`
-          ),
-        })
-        if (!res.ok) throw new Error('加载失败')
-        const url = URL.createObjectURL(await res.blob())
-        revokedUrl = url
-        if (!cancelled) setPreviewBlobUrl(url)
-      } catch {
-        if (!cancelled) setPreviewBlobUrl('')
-      }
-    })()
-
-    return () => {
-      cancelled = true
-      if (revokedUrl) URL.revokeObjectURL(revokedUrl)
-    }
-  }, [previewItem?.cid, previewItem?.subtype, isBackendReady])
 
   const currentPath = currentFolderId || ''
   const allFolders = getUniqueFolders(items)
@@ -761,28 +639,6 @@ export default function App() {
     }, 3000)
 
     refreshFiles()
-  }
-
-  const loadPreviewText = async cid => {
-    if (!isBackendReady) {
-      setPreviewText('加载失败')
-      return
-    }
-    setPreviewLoading(true)
-    try {
-      const res = await fetch(API.getFileDownloadUrl(cid), {
-        headers: {
-          ...(await getApiRequestHeaders('GET', `/api/files/${cid}/download`)),
-          Range: 'bytes=0-9999',
-        },
-      })
-      if (!res.ok) throw new Error('加载失败')
-      const text = await res.text()
-      setPreviewText(text || '（文件为空）')
-    } catch {
-      setPreviewText('加载失败')
-    }
-    setPreviewLoading(false)
   }
 
   const handleCopyLink = () => {
@@ -1099,11 +955,6 @@ export default function App() {
     setSearchQuery('')
     setCurrentFolderId(null)
     setCurrentView('all')
-    setPreviewText('')
-    if (previewBlobUrl) {
-      URL.revokeObjectURL(previewBlobUrl)
-      setPreviewBlobUrl('')
-    }
   }, [userIdentity?.address])
 
   const viewTitle =
@@ -1493,88 +1344,12 @@ export default function App() {
       )}
 
       {previewItem && (
-        <div
-          className="preview-overlay"
-          onClick={() => {
-            setPreviewItem(null)
-            setPreviewText('')
-          }}
-        >
-          <button className="preview-close">
-            <X size={20} />
-          </button>
-          <div onClick={e => e.stopPropagation()}>
-            {previewItem.subtype === 'image' && (
-              <div className="preview-media-wrapper">
-                {previewBlobUrl ? (
-                  <img src={previewBlobUrl} alt="" />
-                ) : (
-                  <div className="preview-loading">
-                    <div className="preview-loading-spinner" />
-                  </div>
-                )}
-              </div>
-            )}
-            {previewItem.subtype === 'video' && (
-              <div className="preview-media-wrapper">
-                {previewBlobUrl ? (
-                  <video src={previewBlobUrl} controls />
-                ) : (
-                  <div className="preview-loading">
-                    <div className="preview-loading-spinner" />
-                  </div>
-                )}
-              </div>
-            )}
-            {previewItem.subtype === 'audio' && (
-              <div className="preview-audio">
-                <div className="preview-audio-icon">
-                  <Music size={36} color="var(--accent)" />
-                </div>
-                <p className="preview-audio-filename">{previewItem.fileName}</p>
-                {previewBlobUrl ? (
-                  <audio
-                    className="preview-audio-player"
-                    src={previewBlobUrl}
-                    controls
-                  />
-                ) : (
-                  <div className="preview-text-loading">
-                    <Loader size={24} className="preview-text-spinner" />
-                    <p>正在加载音频预览...</p>
-                  </div>
-                )}
-              </div>
-            )}
-            {previewItem.subtype === 'file' && (
-              <div className="preview-unsupported">
-                <FileText size={48} className="preview-file-icon" />
-                <p>{previewItem.fileName}</p>
-                <p className="preview-unsupported-hint">无法预览</p>
-              </div>
-            )}
-            {previewItem.subtype === 'text' && (
-              <div className="preview-text-container">
-                <div className="preview-text-header">
-                  <span>{previewItem.fileName}</span>
-                </div>
-                {previewLoading ? (
-                  <div className="preview-text-loading">
-                    <Loader size={24} className="preview-text-spinner" />
-                    <p>正在加载文本预览...</p>
-                    <p className="preview-text-loading-hint">
-                      如果是初次预览，可能需要等待 P2P 网络同步
-                    </p>
-                  </div>
-                ) : (
-                  <pre className="preview-text">
-                    {previewText || '（文件为空）'}
-                  </pre>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
+        <FilePreviewOverlay
+          item={previewItem}
+          isBackendReady={isBackendReady}
+          getFileDownloadUrl={API.getFileDownloadUrl}
+          onClose={() => setPreviewItem(null)}
+        />
       )}
 
       {selectedIds.length > 0 && (
@@ -1622,8 +1397,6 @@ export default function App() {
                       if (file) {
                         const subtype = getFileSubtype(file.fileName)
                         setPreviewItem({ ...file, subtype })
-                        setPreviewText('')
-                        if (subtype === 'text') loadPreviewText(file.cid)
                       }
                     }}
                     className="btn btn-sm"

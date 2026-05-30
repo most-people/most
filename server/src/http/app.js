@@ -1007,7 +1007,7 @@ export function createApp(engine, options = {}) {
         body.content,
         body.author,
         body.authorName,
-        { ownerAddress: c.get('userAddress') }
+        { ownerAddress: c.get('userAddress'), attachment: body.attachment }
       )
       return c.json({ success: true, message })
     } catch (err) {

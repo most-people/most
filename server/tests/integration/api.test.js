@@ -1207,6 +1207,68 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(data.message.content, 'Hello!')
     })
 
+    it('sends an attachment message to a channel', async () => {
+      const channelName = `attach-${uid}`
+      const fileName = `chat-file/${channelName}/clip.mp4`
+      const link = `most://${VALID_MISSING_CID}?filename=${encodeURIComponent(fileName)}`
+      await engine.createChannel(channelName)
+
+      const res = await fetch(`${baseUrl}/api/channels/${channelName}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: link,
+          author: TEST_IDENTITY.address,
+          authorName: 'TestUser',
+          attachment: {
+            kind: 'video',
+            cid: VALID_MISSING_CID,
+            fileName,
+            link,
+            mimeType: 'video/mp4',
+            size: 456,
+          },
+        }),
+      })
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 200)
+      assert.strictEqual(data.message.content, link)
+      assert.deepStrictEqual(data.message.attachment, {
+        kind: 'video',
+        cid: VALID_MISSING_CID,
+        fileName,
+        link,
+        mimeType: 'video/mp4',
+        size: 456,
+      })
+    })
+
+    it('rejects invalid attachment metadata', async () => {
+      const channelName = `badat-${uid}`
+      await engine.createChannel(channelName)
+
+      const res = await fetch(`${baseUrl}/api/channels/${channelName}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: `most://${VALID_MISSING_CID}?filename=chat-file%2Fbad%2Ffile.txt`,
+          author: TEST_IDENTITY.address,
+          authorName: 'TestUser',
+          attachment: {
+            kind: 'unknown',
+            cid: VALID_MISSING_CID,
+            fileName: 'chat-file/bad/file.txt',
+            link: `most://${VALID_MISSING_CID}?filename=chat-file%2Fbad%2Ffile.txt`,
+          },
+        }),
+      })
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 400)
+      assert.match(data.error, /attachment kind/)
+    })
+
     it('rejects a message author that does not match the logged-in user', async () => {
       await engine.createChannel(`spoof-${uid}`)
       const res = await fetchAs(
