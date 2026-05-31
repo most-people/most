@@ -55,7 +55,6 @@ function ChatJoinContent() {
           setError(data.error || '解密失败')
         } else {
           setDecrypted(JSON.stringify(data, null, 2))
-          console.log('[ChatJoin] Decrypted:', data)
         }
       } catch (err) {
         setError(

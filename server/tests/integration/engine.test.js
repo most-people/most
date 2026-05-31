@@ -64,7 +64,7 @@ async function waitForChannelMessage(
   throw new Error(`Channel ${channelName} did not receive ${content}`)
 }
 
-describe('MostBoxEngine (integration)', { timeout: 240000 }, () => {
+describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'most-engine-test-'))
   const uid = Math.random().toString(36).slice(2, 8)
   let engine

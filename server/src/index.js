@@ -14,11 +14,12 @@ import Corestore from 'corestore'
 import Hyperdrive from 'hyperdrive'
 import b4a from 'b4a'
 import crypto from 'node:crypto'
-import { CID } from 'multiformats/cid'
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { calculateCid, parseMostLink, validateCidString } from './core/cid.js'
+import { calculateCid, parseMostLink } from './core/cid.js'
+import { normalizeChannelAttachment } from './core/channelAttachment.js'
+import { getCidInfo } from './core/cidTopic.js'
 import {
   sanitizeFilename,
   validateAndSanitizePath,
@@ -70,71 +71,6 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 function normalizeOwnerAddress(address) {
   const value = String(address || '').trim()
   return /^0x[a-fA-F0-9]{40}$/.test(value) ? value.toLowerCase() : ''
-}
-
-const CHANNEL_ATTACHMENT_KINDS = new Set([
-  'image',
-  'video',
-  'audio',
-  'text',
-  'file',
-])
-
-function normalizeChannelAttachment(input) {
-  if (input === undefined || input === null) return null
-  if (typeof input !== 'object' || Array.isArray(input)) {
-    throw new ValidationError('attachment must be an object')
-  }
-
-  const kind = String(input.kind || '').trim()
-  if (!CHANNEL_ATTACHMENT_KINDS.has(kind)) {
-    throw new ValidationError('Invalid attachment kind')
-  }
-
-  const cid = String(input.cid || '').trim()
-  const cidValidation = validateCidString(cid)
-  if (!cidValidation.valid) {
-    throw new ValidationError(cidValidation.error)
-  }
-
-  const fileName = sanitizeFilename(String(input.fileName || ''))
-  if (!fileName || fileName === 'unnamed_file') {
-    throw new ValidationError('attachment fileName is required')
-  }
-
-  const parsed = parseMostLink(String(input.link || '').trim())
-  if (parsed.error) {
-    throw new ValidationError(parsed.error)
-  }
-  if (parsed.cid !== cid) {
-    throw new ValidationError('attachment link CID mismatch')
-  }
-
-  const linkFileName = sanitizeFilename(parsed.fileName)
-  if (linkFileName !== fileName) {
-    throw new ValidationError('attachment link filename mismatch')
-  }
-
-  const attachment = {
-    kind,
-    cid,
-    fileName,
-    link: `most://${cid}?filename=${encodeURIComponent(fileName)}`,
-  }
-
-  if (typeof input.mimeType === 'string' && input.mimeType.length <= 100) {
-    attachment.mimeType = input.mimeType
-  }
-
-  if (input.size !== undefined && input.size !== null) {
-    const size = Number(input.size)
-    if (!Number.isFinite(size) || size < 0) {
-      throw new ValidationError('attachment size must be a non-negative number')
-    }
-    attachment.size = Math.floor(size)
-  }
-
-  return attachment
 }
 
 function createOfflineSwarm() {
@@ -1234,9 +1170,7 @@ export class MostBoxEngine extends EventEmitter {
 
     const fileRecord = this.#trashFiles[index]
 
-    const parsedCid = CID.parse(fileRecord.cid)
-    const hashHex = b4a.toString(parsedCid.multihash.digest, 'hex')
-    const driveName = `drive-${hashHex}`
+    const { driveName } = this.#getCidInfo(fileRecord.cid)
 
     this.#publishedFiles.push({
       fileName: fileRecord.fileName,
@@ -2371,28 +2305,7 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #getCidInfo(cid) {
-    try {
-      const validation = validateCidString(cid)
-      if (!validation.valid) {
-        throw new ValidationError(validation.error)
-      }
-      const parsedCid = CID.parse(cid)
-      const topic = b4a.from(parsedCid.multihash.digest)
-      if (topic.length !== 32) {
-        throw new ValidationError('CID digest must be 32 bytes')
-      }
-      const topicHex = b4a.toString(topic, 'hex')
-      return {
-        topic,
-        topicHex,
-        driveName: `drive-${topicHex}`,
-      }
-    } catch (err) {
-      if (err instanceof ValidationError) {
-        throw err
-      }
-      throw new ValidationError('Invalid CID format')
-    }
+    return getCidInfo(cid)
   }
 
   #setSeedState(cid, patch = {}) {

@@ -26,6 +26,12 @@ jobs:
       - name: Run tests
         run: npm test
 
+      - name: Run frontend smoke tests
+        run: npm run test:frontend
+
+      - name: Typecheck
+        run: npm run typecheck
+
       - name: Build
         run: npm run build
 

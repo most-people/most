@@ -207,7 +207,7 @@ const DESKTOP_FEATURES = [
   '加密频道聊天',
   '本地持久化存储',
   '离线消息同步',
-  '大文件无限制传输',
+  '默认 10GB 大文件传输',
 ]
 
 const SEED_STATUS_HELP = [
