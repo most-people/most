@@ -57,7 +57,18 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Check published npm version
+        id: npm-version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view "most-box@$VERSION" version >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish to npm
+        if: steps.npm-version.outputs.exists != 'true'
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
