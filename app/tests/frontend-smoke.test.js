@@ -78,4 +78,15 @@ describe('frontend smoke checks', () => {
     assert.match(readme, /https:\/\/download\.most\.box/)
     assert.match(readme, /most-box-backup/)
   })
+
+  it('checks desktop updates through the public release manifest', () => {
+    const mainSource = readSource('electron/main.js')
+    const checkerSource = readSource('electron/updateChecker.js')
+
+    assert.match(mainSource, /checkForUpdates/)
+    assert.match(mainSource, /showMessageBox/)
+    assert.match(mainSource, /openExternal/)
+    assert.match(checkerSource, /MOSTBOX_RELEASE_MANIFEST_URL/)
+    assert.match(checkerSource, /download\.most\.box\/releases\/latest\.json/)
+  })
 })

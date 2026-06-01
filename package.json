@@ -115,6 +115,7 @@
       "server/cli.js",
       "package.json",
       "!**/*.map",
+      "!electron/**/*.test.js",
       "!server/tests/**/*"
     ],
     "asarUnpack": [

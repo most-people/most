@@ -1,7 +1,23 @@
-import { app, BrowserWindow, Menu, Tray, nativeImage } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  Menu,
+  Tray,
+  dialog,
+  nativeImage,
+  shell,
+} from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+
+import {
+  formatBytes,
+  getAvailableUpdate,
+  getCurrentArch,
+  getCurrentPlatform,
+  getReleaseManifestUrl,
+} from './updateChecker.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = 1976
@@ -10,6 +26,7 @@ let mainWindow = null
 let engine = null
 let tray = null
 let isQuitting = false
+let hasCheckedForUpdates = false
 
 function getTrayIconPath() {
   const candidates = [
@@ -102,12 +119,79 @@ async function startServer() {
   engine = await main()
 }
 
+async function fetchReleaseManifest(manifestUrl) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 8000)
+
+  try {
+    const response = await fetch(manifestUrl, {
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+    if (!response.ok) return null
+    return await response.json()
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+async function checkForUpdates() {
+  if (hasCheckedForUpdates) return
+  hasCheckedForUpdates = true
+
+  try {
+    const platform = getCurrentPlatform()
+    const arch = getCurrentArch()
+    if (!platform || !arch) return
+
+    const manifest = await fetchReleaseManifest(getReleaseManifestUrl())
+    const update = getAvailableUpdate(manifest, {
+      currentVersion: app.getVersion(),
+      platform,
+      arch,
+    })
+
+    if (!update) return
+
+    const sizeText = formatBytes(update.asset.size)
+    const detail = [
+      `当前版本：${app.getVersion()}`,
+      `最新版本：${update.version}`,
+      sizeText ? `安装包大小：${sizeText}` : null,
+      '',
+      '是否现在打开浏览器下载更新？',
+    ]
+      .filter(line => line !== null)
+      .join('\n')
+
+    const result = await dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      buttons: ['立即下载', '稍后'],
+      defaultId: 0,
+      cancelId: 1,
+      title: '发现 MostBox 新版本',
+      message: `MostBox ${update.version} 已可下载`,
+      detail,
+      noLink: true,
+    })
+
+    if (result.response === 0) {
+      await shell.openExternal(update.downloadUrl)
+    }
+  } catch (error) {
+    console.warn('[Electron] Update check skipped:', error)
+  }
+}
+
 app.whenReady().then(async () => {
   try {
     await startServer()
     createWindow()
     createTray()
     Menu.setApplicationMenu(null)
+    setTimeout(() => {
+      checkForUpdates()
+    }, 3000)
 
     app.on('activate', () => {
       showMainWindow()
