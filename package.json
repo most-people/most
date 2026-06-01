@@ -32,6 +32,8 @@
     "electron:rebuild": "electron-rebuild -f -w sodium-native",
     "electron:build": "npm run build && npm run electron:rebuild && electron-builder",
     "electron:build:win": "npm run build && npm run electron:rebuild && electron-builder --win",
+    "electron:build:win:x64": "npm run electron:build:win -- --x64",
+    "electron:build:win:arm64": "npm run electron:build:win -- --arm64",
     "electron:build:mac": "npm run build && npm run electron:rebuild && electron-builder --mac",
     "electron:build:linux": "npm run build && npm run electron:rebuild && electron-builder --linux"
   },
@@ -46,10 +48,6 @@
     "@dicebear/collection": "^9.4.2",
     "@dicebear/core": "^9.4.2",
     "@hono/node-server": "^2.0.0",
-    "@iconify/react": "^6.0.2",
-    "@mantine/hooks": "^9.1.0",
-    "@milkdown/crepe": "^7.21.1",
-    "@milkdown/utils": "^7.21.1",
     "b4a": "^1.8.0",
     "busboy": "^1.6.0",
     "corestore": "^7.9.2",
@@ -61,20 +59,17 @@
     "hyperdrive": "^13.3.2",
     "hyperswarm": "^4.17.0",
     "ipfs-unixfs-importer": "^16.1.5",
-    "ky": "^2.0.2",
-    "lucide-react": "^1.9.0",
     "multiformats": "^13.4.2",
-    "next": "^16.2.6",
-    "qrcode.react": "^4.2.0",
-    "react": "^19.2.5",
-    "react-dom": "^19.2.5",
     "tweetnacl": "^1.0.3",
-    "ws": "^8.21.0",
-    "zustand": "^5.0.12"
+    "ws": "^8.21.0"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.4",
     "@eslint/js": "^10.0.1",
+    "@iconify/react": "^6.0.2",
+    "@mantine/hooks": "^9.1.0",
+    "@milkdown/crepe": "^7.21.1",
+    "@milkdown/utils": "^7.21.1",
     "@types/react": "19.2.14",
     "concurrently": "^9.2.1",
     "electron": "^41.3.0",
@@ -82,10 +77,17 @@
     "esbuild": "^0.28.0",
     "eslint": "^10.2.1",
     "globals": "^17.5.0",
+    "ky": "^2.0.2",
+    "lucide-react": "^1.9.0",
+    "next": "^16.2.6",
     "prettier": "^3.8.3",
+    "qrcode.react": "^4.2.0",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
     "typescript": "6.0.3",
     "typescript-eslint": "^8.59.2",
-    "wait-on": "^9.0.5"
+    "wait-on": "^9.0.5",
+    "zustand": "^5.0.12"
   },
   "overrides": {
     "brace-expansion": "5.0.6",
@@ -104,17 +106,16 @@
     "directories": {
       "output": "dist"
     },
+    "afterPack": "electron/afterPack.cjs",
     "files": [
       "out/**/*",
-      "server/**/*",
       "electron/**/*",
-      "package.json"
-    ],
-    "extraResources": [
-      {
-        "from": "out",
-        "to": "app/out"
-      }
+      "server/src/**/*",
+      "server/index.js",
+      "server/cli.js",
+      "package.json",
+      "!**/*.map",
+      "!server/tests/**/*"
     ],
     "asarUnpack": [
       "**/*.node",
@@ -122,14 +123,9 @@
     ],
     "win": {
       "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        }
+        "nsis"
       ],
+      "artifactName": "${productName}-${version}-win-${arch}-setup.${ext}",
       "icon": "public/favicon.ico"
     },
     "nsis": {
@@ -140,6 +136,7 @@
       "shortcutName": "MostBox"
     },
     "mac": {
+      "artifactName": "${productName}-${version}-mac-${arch}.${ext}",
       "target": [
         {
           "target": "dmg",
@@ -167,6 +164,7 @@
       ]
     },
     "linux": {
+      "artifactName": "${productName}-${version}-linux-${arch}.${ext}",
       "target": [
         {
           "target": "AppImage",

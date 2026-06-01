@@ -206,19 +206,32 @@ git push origin v0.0.7
 触发后自动执行：
 
 1. **npm 包发布** — 发布 `most-box` 到 npm registry
-2. **Windows 打包** — 构建 `.exe` 安装包（x64 + arm64）并上传 Release
+2. **Windows 打包** — 分别构建 `.exe` 安装包（x64 / arm64）并上传 Release
 3. **macOS 打包** — 构建 `.dmg` 安装包（x64 + arm64）并上传 Release
 4. **Linux 打包** — 构建 `.AppImage` 安装包（x64 + arm64）并上传 Release
+5. **下载镜像** — 将 Release 资产同步到 Cloudflare R2，并生成 `releases/latest.json`
 
-electron-builder 自动创建 GitHub Release 并附加所有平台安装包。
+GitHub Release 是可信备用源；下载页优先读取 R2 的 `releases/latest.json` 并使用 R2 下载链接。
 
 ### 配置 Secrets
 
+R2 发布资产使用独立公开桶，默认 bucket 为 `most-box-releases`，默认公开域名为
+`https://download.most.box`。不要复用 `api.most.box` 项目的 `most-box-backup` 备份桶。
+
 在仓库 Settings → Secrets and variables → Actions 中添加：
 
-| Secret      | 说明                                    |
-| ----------- | --------------------------------------- |
-| `NPM_TOKEN` | npm 发布令牌（`npm token create` 生成） |
+| Secret                 | 说明                                    |
+| ---------------------- | --------------------------------------- |
+| `NPM_TOKEN`            | npm 发布令牌（`npm token create` 生成） |
+| `R2_ACCOUNT_ID`        | Cloudflare 账户 ID                      |
+| `R2_ACCESS_KEY_ID`     | R2 S3 API Access Key ID                 |
+| `R2_SECRET_ACCESS_KEY` | R2 S3 API Secret Access Key             |
+| `R2_BUCKET`            | 可选；默认 `most-box-releases`          |
+| `R2_PUBLIC_BASE_URL`   | 可选；默认 `https://download.most.box`  |
+
+下载页默认读取 `https://download.most.box/releases/latest.json`。部署环境可额外配置
+`NEXT_PUBLIC_R2_PUBLIC_BASE_URL` 覆盖公开域名，或直接配置
+`NEXT_PUBLIC_RELEASE_MANIFEST_URL` 指向指定的 `latest.json`。
 
 ## 社区
 

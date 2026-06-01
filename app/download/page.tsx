@@ -1,43 +1,20 @@
 import '~/styles/marketing.css'
 import '~/styles/download.css'
 import Link from 'next/link'
-import { ArrowLeft, Download, Monitor, Apple, Laptop } from 'lucide-react'
+import { ArrowLeft, Download } from 'lucide-react'
+import DownloadOptions from '~/app/download/DownloadOptions'
 
 export const metadata = {
   title: '下载 MostBox 桌面客户端',
   description: '下载 MostBox 桌面客户端，获得完整的 P2P 文件分享和聊天功能',
 }
 
-const platforms = [
-  {
-    name: 'Windows',
-    icon: <Monitor size={32} />,
-    ext: '.exe',
-    desc: 'Windows 10 或更高版本',
-    link: 'https://github.com/most-people/most/releases/latest',
-  },
-  {
-    name: 'macOS',
-    icon: <Apple size={32} />,
-    ext: '.dmg',
-    desc: 'macOS 12 Monterey 或更高版本',
-    link: 'https://github.com/most-people/most/releases/latest',
-  },
-  {
-    name: 'Linux',
-    icon: <Laptop size={32} />,
-    ext: '.AppImage',
-    desc: 'Ubuntu 20.04+ / Debian 11+ / 其他主流发行版',
-    link: 'https://github.com/most-people/most/releases/latest',
-  },
-]
-
 const webVsDesktop = [
   { feature: 'P2P 文件分享', web: '仅展示', desktop: '完整' },
   { feature: 'P2P 加密聊天', web: '仅展示', desktop: '完整' },
   { feature: '文件存储', web: '不支持', desktop: '持久化存储' },
   { feature: '离线消息', web: '不支持', desktop: '支持' },
-  { feature: '大文件传输', web: '不支持', desktop: '无限制' },
+  { feature: '大文件传输', web: '不支持', desktop: '10GB 上限内' },
 ]
 
 export default function DownloadPage() {
@@ -68,19 +45,7 @@ export default function DownloadPage() {
       <section className="download-platforms">
         <div className="mkt-container">
           <h2 className="download-section-title">选择你的平台</h2>
-          <div className="download-platform-grid">
-            {platforms.map(p => (
-              <a key={p.name} href={p.link} className="download-platform-card">
-                <div className="download-platform-icon">{p.icon}</div>
-                <h3>{p.name}</h3>
-                <p>{p.desc}</p>
-                <span className="download-platform-btn">
-                  <Download size={16} />
-                  下载 {p.ext}
-                </span>
-              </a>
-            ))}
-          </div>
+          <DownloadOptions />
         </div>
       </section>
 

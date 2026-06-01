@@ -59,25 +59,35 @@
   color: var(--text-primary);
 }
 
+.download-options {
+  display: grid;
+  gap: 20px;
+}
+
+.download-source-note {
+  margin: 0;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
 .download-platform-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
 }
 
 .download-platform-card {
+  position: relative;
   display: flex;
-  flex-wrap: wrap;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
+  align-items: flex-start;
+  gap: 18px;
   padding: 32px 24px;
   background: var(--glass-bg);
   backdrop-filter: var(--blur-md);
   -webkit-backdrop-filter: var(--blur-md);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
-  text-decoration: none;
   color: var(--text-primary);
   transition: all var(--transition);
 }
@@ -91,36 +101,122 @@
 
 .download-platform-icon {
   color: var(--accent);
-  margin-bottom: 16px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
 }
 
-.download-platform-card h3 {
+.download-platform-content {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.download-platform-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.download-platform-heading h3 {
   font-size: 18px;
   font-weight: 600;
-  margin-bottom: 8px;
+  margin: 0;
+}
+
+.download-platform-heading span,
+.download-recommended-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  background: var(--glass-bg-heavy);
+  border: 1px solid var(--glass-border);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .download-platform-card p {
   font-size: 13px;
   color: var(--text-secondary);
-  margin-bottom: 20px;
+  margin: 0;
+  line-height: 1.5;
 }
 
-.download-platform-btn {
+.download-platform-meta {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.download-platform-meta div {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.download-platform-meta dt,
+.download-platform-meta dd {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.download-platform-meta dt {
+  color: var(--text-muted);
+}
+
+.download-platform-meta dd {
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.download-platform-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.download-platform-actions .btn {
+  gap: 8px;
+}
+
+.download-platform-fallback {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  background: var(--accent);
-  color: #fff;
-  border-radius: var(--radius-md);
-  font-size: 14px;
-  font-weight: 500;
-  transition: all var(--transition-fast);
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  text-decoration: none;
 }
 
-.download-platform-card:hover .download-platform-btn {
-  background: var(--accent-hover);
+.download-platform-fallback:hover {
+  color: var(--accent);
+}
+
+.download-recommended-badge {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.download-platform-card.is-recommended {
+  border-color: var(--accent);
 }
 
 /* Comparison Table */
@@ -193,8 +289,6 @@
   }
 
   .download-platform-card {
-    flex-direction: row;
-    text-align: left;
     gap: 16px;
     padding: 20px;
   }
@@ -204,11 +298,12 @@
     flex-shrink: 0;
   }
 
-  .download-platform-card p {
-    margin-bottom: 12px;
+  .download-recommended-badge {
+    position: static;
+    align-self: flex-start;
   }
 
-  .download-platform-btn {
-    margin-top: auto;
+  .download-platform-meta div {
+    grid-template-columns: 48px minmax(0, 1fr);
   }
 }

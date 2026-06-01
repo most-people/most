@@ -49,9 +49,33 @@ describe('frontend smoke checks', () => {
       readSource('README.md'),
       readSource('app/admin/page.tsx'),
       readSource('components/FeaturePortal.tsx'),
+      readSource('app/download/page.tsx'),
     ].join('\n')
 
     assert.doesNotMatch(sources, /无限文件大小|无限制传输/)
     assert.match(sources, /10GB|10 GB/)
+  })
+
+  it('prefers the R2 download manifest while keeping GitHub fallback links', () => {
+    const source = readSource('app/download/DownloadOptions.tsx')
+
+    assert.match(source, /NEXT_PUBLIC_RELEASE_MANIFEST_URL/)
+    assert.match(source, /NEXT_PUBLIC_R2_PUBLIC_BASE_URL/)
+    assert.match(source, /releases\/latest\.json/)
+    assert.match(source, /https:\/\/download\.most\.box/)
+    assert.match(source, /github\.com\/most-people\/most\/releases\/latest/)
+    assert.match(source, /GitHub 备用/)
+  })
+
+  it('documents the dedicated R2 release bucket defaults', () => {
+    const releaseWorkflow = readSource('.github/workflows/release.yml')
+    const readme = readSource('README.md')
+
+    assert.match(releaseWorkflow, /most-box-releases/)
+    assert.match(releaseWorkflow, /https:\/\/download\.most\.box/)
+    assert.match(releaseWorkflow, /most-box-backup/)
+    assert.match(readme, /most-box-releases/)
+    assert.match(readme, /https:\/\/download\.most\.box/)
+    assert.match(readme, /most-box-backup/)
   })
 })
