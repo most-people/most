@@ -96,6 +96,10 @@ export function isLocalUpgradeRequest(req) {
 }
 
 export function isRemoteAccessRequest({ invite, origin, listenHost, local }) {
+  if (local) {
+    return false
+  }
+
   return (
     Boolean(invite) ||
     isExternalOrigin(origin) ||

@@ -336,6 +336,13 @@ export function createApp(engine, options = {}) {
 
   const app = new Hono()
 
+  app.use('/api/*', async (c, next) => {
+    if (c.req.header('access-control-request-private-network') === 'true') {
+      c.header('Access-Control-Allow-Private-Network', 'true')
+    }
+    await next()
+  })
+
   // CORS 中间件
   app.use(
     '/api/*',

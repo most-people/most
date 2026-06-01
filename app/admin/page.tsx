@@ -330,7 +330,7 @@ export default function AdminPage() {
     !backendUrl.includes('127.0.0.1')
 
   const loadStatus = async () => {
-    if (!isBackendReady) return
+    if (!isBackendReady) return false
     try {
       const nextStatus = await api.get<NodeStatus>('/api/node/status').json()
       const nodeConfig = await api.get<NodeConfig>('/api/node/config').json()
@@ -342,10 +342,19 @@ export default function AdminPage() {
         remoteInvites: (nodeConfig.remoteInvites || []).join('\n'),
       })
       setError('')
+      return true
     } catch (err) {
       const message = await getApiErrorMessage(err, '无法读取节点状态')
       setError(message)
       addToast(message, 'error')
+      return false
+    }
+  }
+
+  const refreshStatus = async () => {
+    if (!requireBackendReady()) return
+    if (await loadStatus()) {
+      addToast('节点状态已刷新', 'success')
     }
   }
 
@@ -539,7 +548,7 @@ export default function AdminPage() {
             <Activity size={14} />
             {status?.status === 'online' ? '在线' : '等待'}
           </span>
-          <button className="btn btn-secondary" onClick={loadStatus}>
+          <button className="btn btn-secondary" onClick={refreshStatus}>
             <RefreshCw size={16} />
             刷新
           </button>

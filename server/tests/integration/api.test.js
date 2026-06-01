@@ -181,6 +181,48 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(data.id)
       assert.ok(/^[0-9a-f]+$/i.test(data.id))
     })
+
+    it('allows private network preflight from most.box', async () => {
+      const res = await fetchWithoutAuth(`${baseUrl}/api/node-id`, {
+        method: 'OPTIONS',
+        headers: {
+          Origin: 'https://most.box',
+          'Access-Control-Request-Method': 'GET',
+          'Access-Control-Request-Private-Network': 'true',
+        },
+      })
+
+      assert.strictEqual(res.status, 204)
+      assert.strictEqual(
+        res.headers.get('access-control-allow-origin'),
+        'https://most.box'
+      )
+      assert.strictEqual(
+        res.headers.get('access-control-allow-private-network'),
+        'true'
+      )
+    })
+
+    it('allows private network preflight from most-people.com', async () => {
+      const res = await fetchWithoutAuth(`${baseUrl}/api/node-id`, {
+        method: 'OPTIONS',
+        headers: {
+          Origin: 'https://most-people.com',
+          'Access-Control-Request-Method': 'GET',
+          'Access-Control-Request-Private-Network': 'true',
+        },
+      })
+
+      assert.strictEqual(res.status, 204)
+      assert.strictEqual(
+        res.headers.get('access-control-allow-origin'),
+        'https://most-people.com'
+      )
+      assert.strictEqual(
+        res.headers.get('access-control-allow-private-network'),
+        'true'
+      )
+    })
   })
 
   describe('node daemon management API', () => {
@@ -285,6 +327,56 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const acceptedData = await accepted.json()
       assert.strictEqual(accepted.status, 200)
       assert.ok(acceptedData.id)
+    })
+
+    it('allows most.box to use a localhost daemon without a remote invite', async () => {
+      const { success } = configStore.saveNodeConfigPatch({
+        remoteInvites: ['saved-invite'],
+      })
+      assert.strictEqual(success, true)
+
+      const { app } = createApp(engine, {
+        port: TEST_PORT + 13,
+        host: '127.0.0.1',
+        configStore,
+        nodeLogger,
+      })
+
+      const res = await app.request('/api/node-id', {
+        headers: {
+          host: 'localhost:1976',
+          origin: 'https://most.box',
+        },
+      })
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 200)
+      assert.ok(data.id)
+    })
+
+    it('allows most-people.com to use a localhost daemon without a remote invite', async () => {
+      const { success } = configStore.saveNodeConfigPatch({
+        remoteInvites: ['saved-invite'],
+      })
+      assert.strictEqual(success, true)
+
+      const { app } = createApp(engine, {
+        port: TEST_PORT + 14,
+        host: '127.0.0.1',
+        configStore,
+        nodeLogger,
+      })
+
+      const res = await app.request('/api/node-id', {
+        headers: {
+          host: 'localhost:1976',
+          origin: 'https://most-people.com',
+        },
+      })
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 200)
+      assert.ok(data.id)
     })
 
     it('returns node logs and OpenAPI spec', async () => {
