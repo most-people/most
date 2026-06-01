@@ -1,12 +1,14 @@
 import { describe, it, beforeEach, afterEach } from 'node:test'
 import assert from 'node:assert'
 import {
+  api,
   checkBackendConnectionTarget,
   clearBackendConnection,
   configureBackend,
   getAuthenticatedWebSocketUrl,
   getWebSocketUrl,
 } from '../../src/utils/api.js'
+import { verifyAuthHeader } from '../../src/utils/auth.js'
 
 class MemoryStorage {
   #items = new Map()
@@ -171,6 +173,37 @@ describe('api browser helpers', () => {
       const url = new URL(await getAuthenticatedWebSocketUrl('/ws'))
 
       assert.strictEqual(url.toString(), 'ws://127.0.0.1:1976/ws')
+    })
+  })
+
+  describe('api request auth', () => {
+    it('signs the rewritten backend path behind a reverse proxy prefix', async () => {
+      configureBackend({
+        url: 'https://node.example.com/fe-customer-api',
+        invite: 'invite-code',
+      })
+      installStoredIdentity()
+      globalThis.fetch = async request => {
+        assert.strictEqual(
+          request.url,
+          'https://node.example.com/fe-customer-api/api/channels'
+        )
+        assert.strictEqual(
+          request.headers.get('x-mostbox-invite'),
+          'invite-code'
+        )
+        assert.strictEqual(
+          verifyAuthHeader(
+            request.headers.get('authorization'),
+            'POST',
+            '/api/channels'
+          ).ok,
+          true
+        )
+        return new Response('{}', { status: 200 })
+      }
+
+      await api.post('/api/channels', { json: { name: 'test' } }).json()
     })
   })
 
