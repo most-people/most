@@ -59,6 +59,13 @@ function installWebSocketProbe({ opens = true, urls = [] } = {}) {
   }
 }
 
+function installStoredIdentity() {
+  localStorage.setItem(
+    'mostbox_identity',
+    JSON.stringify({ danger: '0x' + '11'.repeat(32) })
+  )
+}
+
 describe('api browser helpers', () => {
   const originalWindow = globalThis.window
   const originalLocalStorage = globalThis.localStorage
@@ -172,6 +179,7 @@ describe('api browser helpers', () => {
       const wsUrls = []
       globalThis.fetch = async () => new Response('{}', { status: 503 })
       installWebSocketProbe({ urls: wsUrls })
+      installStoredIdentity()
 
       const result = await checkBackendConnectionTarget({
         url: 'https://node.example.com/base',
@@ -179,9 +187,12 @@ describe('api browser helpers', () => {
       })
 
       assert.deepStrictEqual(result, { ok: false, reason: 'http' })
-      assert.deepStrictEqual(wsUrls, [
-        'wss://node.example.com/base/ws?invite=invite-code',
-      ])
+      assert.strictEqual(wsUrls.length, 1)
+      assert.strictEqual(new URL(wsUrls[0]).pathname, '/base/ws')
+      assert.strictEqual(
+        new URL(wsUrls[0]).searchParams.get('invite'),
+        'invite-code'
+      )
     })
 
     it('reports ws when HTTP works but the WebSocket probe fails', async () => {
@@ -194,6 +205,7 @@ describe('api browser helpers', () => {
         return new Response('{}', { status: 200 })
       }
       installWebSocketProbe({ opens: false, urls: wsUrls })
+      installStoredIdentity()
 
       const result = await checkBackendConnectionTarget({
         url: 'https://node.example.com/base',
@@ -201,20 +213,38 @@ describe('api browser helpers', () => {
       })
 
       assert.deepStrictEqual(result, { ok: false, reason: 'ws' })
-      assert.deepStrictEqual(wsUrls, [
-        'wss://node.example.com/base/ws?invite=invite-code',
-      ])
+      assert.strictEqual(wsUrls.length, 1)
+      assert.strictEqual(new URL(wsUrls[0]).pathname, '/base/ws')
+      assert.strictEqual(
+        new URL(wsUrls[0]).searchParams.get('invite'),
+        'invite-code'
+      )
     })
 
     it('returns ok only when HTTP and WebSocket both work', async () => {
       globalThis.fetch = async () => new Response('{}', { status: 200 })
       installWebSocketProbe()
+      installStoredIdentity()
 
       const result = await checkBackendConnectionTarget({
         url: 'https://node.example.com/base',
       })
 
       assert.deepStrictEqual(result, { ok: true })
+    })
+
+    it('skips the signed WebSocket probe before login', async () => {
+      const wsUrls = []
+      globalThis.fetch = async () => new Response('{}', { status: 200 })
+      installWebSocketProbe({ urls: wsUrls })
+
+      const result = await checkBackendConnectionTarget({
+        url: 'https://node.example.com/base',
+        invite: 'invite-code',
+      })
+
+      assert.deepStrictEqual(result, { ok: true })
+      assert.deepStrictEqual(wsUrls, [])
     })
 
     it('does not require WebSocket in a non-browser runtime', async () => {

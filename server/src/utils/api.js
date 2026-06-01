@@ -325,6 +325,7 @@ async function probeHttp(cleanedUrl, invite, identity) {
 
 async function probeWebSocket(cleanedUrl, invite, identity) {
   if (typeof WebSocket === 'undefined') return { ok: true }
+  if (!identity?.danger) return { ok: true }
 
   try {
     const wsUrl = new URL(buildWebSocketUrl(cleanedUrl))
