@@ -14,6 +14,7 @@ import {
   Download,
   Server,
   HardDrive,
+  Gamepad2,
 } from 'lucide-react'
 import { useAppStore } from '~/app/app/useAppStore'
 
@@ -144,6 +145,40 @@ const features: FeatureDef[] = [
         num: '3',
         title: '备份恢复',
         desc: '登录后可把加密笔记同步到云端。',
+      },
+    ],
+  },
+  {
+    id: 'gandengyan',
+    title: '干瞪眼',
+    subtitle: 'P2P 牌桌',
+    icon: <Gamepad2 size={28} />,
+    path: '/gandengyan/',
+    requiresBackend: true,
+    hero: '常驻节点里的在线牌桌',
+    desc: '把干瞪眼作为 MostBox 的独立页面接入，复用现有节点连接、Web3 登录身份和桌面端常驻入口。',
+    features: [
+      '使用 MostBox 本地账号进入房间',
+      '复用现有节点 WebSocket，不新增独立服务端口',
+      '房间链接可直接分享给朋友',
+      '支持 1-2 副牌、2-6 人和人机陪测',
+      '游戏规则、服务端事件和页面样式拆分维护',
+    ],
+    steps: [
+      {
+        num: '1',
+        title: '登录账号',
+        desc: '使用现有 MostBox Web3 本地账号作为牌桌身份。',
+      },
+      {
+        num: '2',
+        title: '创建房间',
+        desc: '创建房间后复制链接，发给朋友加入。',
+      },
+      {
+        num: '3',
+        title: '开始调试',
+        desc: '可先用人机补位测试出牌、计分和房间同步。',
       },
     ],
   },
