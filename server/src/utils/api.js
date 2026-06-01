@@ -83,6 +83,23 @@ function normalizePath(path) {
   return path.startsWith('/') ? path : `/${path}`
 }
 
+function getBackendAuthPath(url) {
+  const requestPath = normalizeAuthPath(url)
+  const backendUrl = getBackendUrl()
+  if (!backendUrl) return requestPath
+
+  try {
+    const basePath = new URL(backendUrl).pathname.replace(/\/+$/, '')
+    if (!basePath || basePath === '/') return requestPath
+    if (requestPath === basePath) return '/'
+    if (requestPath.startsWith(`${basePath}/`)) {
+      return requestPath.slice(basePath.length)
+    }
+  } catch {}
+
+  return requestPath
+}
+
 function buildWebSocketUrl(base, wsPath = '/ws') {
   const url = new URL(base)
   const wsProtocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -107,7 +124,7 @@ function createApiInstance() {
               const authHeaders = await buildAuthHeaders(
                 identity,
                 request.method,
-                normalizeAuthPath(request.url)
+                getBackendAuthPath(request.url)
               )
               for (const [key, value] of Object.entries(authHeaders)) {
                 headers.set(key, value)
@@ -325,6 +342,7 @@ async function probeHttp(cleanedUrl, invite, identity) {
 
 async function probeWebSocket(cleanedUrl, invite, identity) {
   if (typeof WebSocket === 'undefined') return { ok: true }
+  if (!identity?.danger) return { ok: true }
 
   try {
     const wsUrl = new URL(buildWebSocketUrl(cleanedUrl))
