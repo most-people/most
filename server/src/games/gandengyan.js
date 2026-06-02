@@ -4,6 +4,7 @@ const STRAIGHT_RANKS = RANKS.filter(rank => rank !== '2')
 const RANK_VALUE = new Map(RANKS.map((rank, index) => [rank, index + 3]))
 const INITIAL_HAND_SIZE = 5
 const SEALED_PENALTY = 15
+const INITIAL_SCORE = 1000
 
 export function createGanDengYanRoom({
   roomCode,
@@ -31,7 +32,7 @@ export function createGanDengYanRoom({
       seat,
       hand: [],
       handCount: 0,
-      score: 0,
+      score: INITIAL_SCORE,
       playedCards: 0,
     })),
     deck: [],
@@ -64,7 +65,7 @@ export function syncGanDengYanLobby(room, players = []) {
       seat,
       hand: [],
       handCount: 0,
-      score: currentScores.get(player.address) || 0,
+      score: currentScores.get(player.address) ?? INITIAL_SCORE,
       playedCards: 0,
     }))
   state.seq += 1
@@ -216,7 +217,7 @@ export function publicGanDengYanRoom(room) {
       name: player.name,
       seat: player.seat,
       handCount: player.hand?.length ?? player.handCount ?? 0,
-      score: Number(player.score || 0),
+      score: Number(player.score ?? INITIAL_SCORE),
       playedCards: Number(player.playedCards || 0),
       hand: Array.isArray(player.hand) ? player.hand.map(publicCard) : [],
     })),
@@ -359,7 +360,10 @@ function canBeat(combo, tableCombo) {
   }
   if (combo.length !== tableCombo.length) return false
   if (combo.type === 'single' || combo.type === 'pair') {
-    return combo.value === nextValue(tableCombo.value) || combo.value === RANK_VALUE.get('2')
+    return (
+      combo.value === nextValue(tableCombo.value) ||
+      (combo.value === RANK_VALUE.get('2') && tableCombo.value !== RANK_VALUE.get('2'))
+    )
   }
   return combo.value === nextValue(tableCombo.value)
 }
@@ -388,7 +392,7 @@ function normalizeRoundPlayer(input) {
     seat: Number(input.seat || 0),
     hand: Array.isArray(input.hand) ? input.hand.map(normalizeCard).filter(Boolean) : [],
     handCount: Number(input.handCount || 0),
-    score: Number(input.score || 0),
+    score: Number(input.score ?? INITIAL_SCORE),
     playedCards: Number(input.playedCards || 0),
   }
 }

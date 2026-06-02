@@ -390,7 +390,7 @@ export default function GanDengYanPage() {
                 {room.players.map(player => (
                   <div key={player.seat} className={styles.scoreRow}>
                     <span>{player.name}</span>
-                    <strong>{player.score > 0 ? `+${player.score}` : player.score}</strong>
+                    <strong>{player.score}</strong>
                   </div>
                 ))}
               </section>
