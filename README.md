@@ -36,7 +36,7 @@ npx most-box@latest
 
 ### 方式二：桌面客户端
 
-前往 [Most.Box](https://Most.Box/download) 下载桌面客户端，支持 Windows、macOS 和 Linux。
+前往 [Most.Box](https://Most.Box/download) 下载客户端，支持 Windows、macOS 和 Linux。
 
 ## 需求
 
@@ -161,7 +161,7 @@ npx most-box
 
 浏览器访问 `http://localhost:1976`，输入链接即可下载。
 
-或者前往 [Most.Box](https://Most.Box/download) 下载桌面客户端。
+或者前往 [Most.Box](https://Most.Box/download) 下载客户端。
 
 ## 路线图
 

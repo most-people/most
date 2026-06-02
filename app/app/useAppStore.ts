@@ -47,11 +47,6 @@ interface AppState {
   addToast: (message: string, type?: string) => void
   removeToast: (id: number) => void
 
-  // Settings
-  showSettings: boolean
-  openSettings: () => void
-  closeSettings: () => void
-
   // Connect Modal
   showConnectModal: boolean
   openConnectModal: () => void
@@ -166,11 +161,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     }))
   },
 
-  // Settings
-  showSettings: false,
-  openSettings: () => set({ showSettings: true }),
-  closeSettings: () => set({ showSettings: false }),
-
   // Connect Modal
   showConnectModal: false,
   openConnectModal: () => set({ showConnectModal: true }),
@@ -209,7 +199,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       notesPath: '',
       notesAddress: '',
       toasts: [],
-      showSettings: false,
       showConnectModal: false,
     })
   },

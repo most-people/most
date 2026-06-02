@@ -64,7 +64,7 @@ const features: FeatureDef[] = [
     steps: [
       {
         num: '1',
-        title: '下载桌面客户端',
+        title: '下载客户端',
         desc: '支持 Windows、macOS 和 Linux，桌面端提供完整的 P2P 能力。',
         link: '/download',
         linkText: '前往下载页',
@@ -100,7 +100,7 @@ const features: FeatureDef[] = [
     steps: [
       {
         num: '1',
-        title: '下载桌面客户端',
+        title: '下载客户端',
         desc: '支持 Windows、macOS 和 Linux。',
         link: '/download',
         linkText: '前往下载页',
@@ -301,6 +301,10 @@ export default function FeaturePortal() {
               <Server size={16} />
               连接节点
             </button>
+            <Link href="/download" className="btn btn-primary">
+              <Download size={16} />
+              下载客户端
+            </Link>
             <Link href="/admin" className="btn btn-secondary">
               <HardDrive size={16} />
               节点管理
@@ -372,7 +376,7 @@ export default function FeaturePortal() {
                     </button>
                     <Link href="/download" className="btn btn-secondary">
                       <Download size={16} />
-                      下载桌面客户端
+                      下载客户端
                     </Link>
                   </>
                 )}

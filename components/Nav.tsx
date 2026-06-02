@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Moon, Sun } from 'lucide-react'
+import { Download, Moon, Sun } from 'lucide-react'
 import { LogoIcon } from '~/components/icons/LogoIcon'
 
 export function Nav() {
@@ -43,6 +43,13 @@ export function Nav() {
             >
               {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
             </button>
+            <Link
+              href="/download/"
+              className="btn btn-secondary mkt-nav-preview"
+            >
+              <Download size={16} />
+              下载客户端
+            </Link>
             <Link href="/app/" className="btn btn-primary">
               开始使用
             </Link>
