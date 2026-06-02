@@ -351,6 +351,24 @@
   color: var(--text, #17211b);
 }
 
+.resultBox {
+  display: grid;
+  gap: 4px;
+  border-top: 1px solid var(--border, #e3e8df);
+  padding-top: 8px;
+  color: var(--muted, #667168);
+  font-size: 13px;
+}
+
+.resultBox strong,
+.resultBox span {
+  display: block;
+}
+
+.resultBox strong {
+  color: var(--text, #17211b);
+}
+
 .logPanel {
   max-height: 280px;
   overflow: auto;

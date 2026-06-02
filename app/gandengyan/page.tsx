@@ -13,17 +13,32 @@ import {
   Share2,
   Sun,
   Users,
+  Volume2,
+  VolumeX,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import SidebarAccount from '~/components/SidebarAccount'
-import { getAuthenticatedWebSocketUrl } from '~/server/src/utils/api'
+import { channelApi } from '~/lib/channelApi'
+import { useChannelMessages } from '~/hooks/useChannelMessages'
+import { getApiErrorMessage } from '~/server/src/utils/api'
 import { useAppStore } from '~/app/app/useAppStore'
 import { useUserStore } from '~/app/app/userStore'
+import {
+  RANKS,
+  analyzeCards,
+  applyGameEvent,
+  makeGameChannelName,
+  makeGameEvent,
+  makeRoomId,
+  normalizeRoomCode,
+  reduceGameEvents,
+} from '~/server/src/games/gandengyan.js'
 import styles from './page.module.css'
 
-const ranks = ['3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A', '2']
-const straightRanks = ranks.filter(rank => rank !== '2')
-const rankValue = new Map(ranks.map((rank, index) => [rank, index + 3]))
+const rankValue = new Map(RANKS.map((rank: string, index: number) => [rank, index + 3]))
+const voiceBasePath = '/voices'
+const voiceAssetVersion = '20260602-tts-numbers'
+const voiceExtensions = ['mp3', 'wav', 'ogg']
 
 type Card = {
   id: string
@@ -58,7 +73,8 @@ type Room = {
   baseScore: number
   bombCount: number
   diceRolls?: { name: string; value: number }[]
-  table?: { playerName: string; cards: Card[]; combo?: { label: string } } | null
+  lastAction?: any
+  table?: { seat: number; playerName: string; cards: Card[]; combo?: any } | null
   winnerSeat: number | null
   roundResult?: {
     winnerName: string
@@ -72,110 +88,223 @@ function classNames(...items: Array<string | false | null | undefined>) {
   return items.filter(Boolean).join(' ')
 }
 
+function eventId() {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID()
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
 export default function GanDengYanPage() {
-  const socketRef = useRef<WebSocket | null>(null)
-  const [connected, setConnected] = useState(false)
-  const [playerId, setPlayerId] = useState('')
-  const [room, setRoom] = useState<Room | null>(null)
-  const [roomId, setRoomId] = useState('')
+  const [activeRoomCode, setActiveRoomCode] = useState('')
+  const [roomInput, setRoomInput] = useState('')
+  const [channelName, setChannelName] = useState('')
+  const [channelReady, setChannelReady] = useState(false)
+  const [openingRoom, setOpeningRoom] = useState(false)
   const [selected, setSelected] = useState<string[]>([])
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
-  const { isDarkMode, setIsDarkMode } = useAppStore()
+  const [voiceOn, setVoiceOn] = useState(false)
+  const lastAnnouncementRef = useRef('')
+  const botMoveKeyRef = useRef('')
+  const pendingAutoJoinRef = useRef('')
+  const { isDarkMode, setIsDarkMode, hasBackend, addToast, openConnectModal } = useAppStore()
   const { identity, initializeUser, openLoginModal } = useUserStore()
+  const isBackendReady = hasBackend === true
+
+  const {
+    messages,
+    setMessages,
+    connected,
+    refreshMessages,
+  } = useChannelMessages({
+    enabled: isBackendReady && Boolean(identity && channelName && channelReady),
+    channelName,
+    author: identity?.address,
+    authorName: identity?.displayName,
+  })
 
   useEffect(() => {
     initializeUser()
   }, [initializeUser])
 
   useEffect(() => {
-    let closed = false
-    let socket: WebSocket | null = null
-
-    async function connect() {
-      const url = await getAuthenticatedWebSocketUrl('/ws')
-      if (closed) return
-      socket = new WebSocket(url)
-      socketRef.current = socket
-      socket.addEventListener('open', () => setConnected(true))
-      socket.addEventListener('close', () => setConnected(false))
-      socket.addEventListener('message', event => {
-        const message = JSON.parse(event.data)
-        if (message.event === 'gandengyan:hello') setPlayerId(message.data.playerId)
-        if (message.event === 'gandengyan:roomCreated') {
-          setRoomId(message.data.roomId)
-          setRoomUrl(message.data.roomId)
-        }
-        if (message.event === 'gandengyan:state') {
-          setRoom(message.data)
-          setRoomUrl(message.data.id)
-          setSelected([])
-          setError('')
-        }
-        if (message.event === 'gandengyan:error') setError(message.data.message)
-      })
-    }
-
-    void connect()
-
-    return () => {
-      closed = true
-      socket?.close()
+    const saved = localStorage.getItem('gdy-voice') === '1'
+    setVoiceOn(saved)
+    const roomFromUrl = normalizeRoomCode(
+      new URLSearchParams(window.location.search).get('room') || ''
+    )
+    if (roomFromUrl) {
+      setRoomInput(roomFromUrl)
+      pendingAutoJoinRef.current = roomFromUrl
     }
   }, [])
 
   useEffect(() => {
-    const initialRoom = new URLSearchParams(window.location.search)
-      .get('room')
-      ?.toUpperCase()
-    if (initialRoom) setRoomId(initialRoom)
-  }, [])
+    if (
+      !pendingAutoJoinRef.current ||
+      !identity ||
+      !isBackendReady ||
+      channelReady ||
+      openingRoom
+    ) {
+      return
+    }
+    const roomCode = pendingAutoJoinRef.current
+    pendingAutoJoinRef.current = ''
+    void openRoom(roomCode, 'join')
+  }, [identity, isBackendReady, channelReady, openingRoom])
 
-  const me = useMemo(
-    () => room?.players.find(player => player.id === playerId) || null,
-    [room, playerId]
+  const reduced = useMemo(
+    () => reduceGameEvents(messages, identity?.address, activeRoomCode),
+    [messages, identity?.address, activeRoomCode]
   )
-  const isOwner = room?.ownerId === playerId
+  const privateRoom = reduced.room
+  const room = reduced.publicRoom as Room | null
+  const me = useMemo(
+    () => room?.players.find(player => player.id === identity?.address) || null,
+    [room, identity?.address]
+  )
+  const isOwner = Boolean(room && identity?.address && room.ownerId === identity.address)
   const myTurn = room?.status === 'playing' && room.currentSeat === me?.seat
   const selectedCards = useMemo(
     () => selected.map(id => me?.hand.find(card => card.id === id)).filter(Boolean) as Card[],
     [selected, me]
   )
-  const preview = useMemo(() => analyzeSelection(selectedCards), [selectedCards])
+  const preview = useMemo(() => analyzeCards(selectedCards), [selectedCards])
   const shareLink =
-    room && typeof window !== 'undefined'
-      ? `${window.location.origin}/gandengyan?room=${room.id}`
+    activeRoomCode && typeof window !== 'undefined'
+      ? `${window.location.origin}/game?room=${activeRoomCode}`
       : ''
   const lowDeck = Boolean(room && room.status === 'playing' && room.deckCount < 3)
+  const voiceCue = useMemo(() => makeVoiceCue(room, me), [room?.lastAction, room?.winnerSeat, room?.status, me?.seat])
 
-  function send(event: string, data: Record<string, unknown> = {}) {
+  useEffect(() => {
+    setSelected(value => keepHeldCards(value, room, identity?.address))
+  }, [room, identity?.address])
+
+  useEffect(() => {
+    if (!voiceOn || !voiceCue || voiceCue.key === lastAnnouncementRef.current) return
+    lastAnnouncementRef.current = voiceCue.key
+    void speakCue(voiceCue)
+  }, [voiceCue, voiceOn])
+
+  useEffect(() => {
+    if (!isOwner || !privateRoom || privateRoom.status !== 'playing') return
+    const currentPlayer = privateRoom.players.find(player => player.seat === privateRoom.currentSeat)
+    if (!currentPlayer?.bot) return
+    const key = `${messages.length}-${privateRoom.currentSeat}-${privateRoom.lastAction?.id || ''}`
+    if (botMoveKeyRef.current === key) return
+    botMoveKeyRef.current = key
+    const timer = setTimeout(() => {
+      void sendGameEvent('bot', {}, { validate: false })
+    }, 700)
+    return () => clearTimeout(timer)
+  }, [isOwner, privateRoom, messages.length])
+
+  function requireReady() {
     if (!identity) {
       openLoginModal()
+      return false
+    }
+    if (!isBackendReady) {
+      openConnectModal()
+      return false
+    }
+    return true
+  }
+
+  async function openRoom(roomCode: string, mode: 'create' | 'join') {
+    if (!requireReady() || openingRoom) return
+    const normalized = normalizeRoomCode(roomCode)
+    const nextChannelName = makeGameChannelName(normalized)
+    if (!normalized || !nextChannelName || !identity) {
+      setError('房间号不正确')
       return
     }
+
+    setOpeningRoom(true)
     setError('')
-    socketRef.current?.send(
-      JSON.stringify({
-        event,
-        data: { ...data, identity },
+    try {
+      await channelApi.createChannel(nextChannelName, 'game')
+      setActiveRoomCode(normalized)
+      setRoomInput(normalized)
+      setChannelName(nextChannelName)
+      setChannelReady(true)
+      setRoomUrl(normalized)
+      await appendGameEvent(nextChannelName, normalized, mode, {
+        name: identity.displayName,
+        address: identity.address,
       })
+      const nextMessages = await channelApi.getChannelMessages(nextChannelName)
+      setMessages(nextMessages)
+    } catch (err) {
+      setError(await getApiErrorMessage(err, '进入房间失败'))
+    } finally {
+      setOpeningRoom(false)
+    }
+  }
+
+  async function appendGameEvent(
+    targetChannelName: string,
+    targetRoomCode: string,
+    event: string,
+    payload: Record<string, unknown> = {}
+  ) {
+    if (!identity) throw new Error('请先登录')
+    const content = JSON.stringify(
+      makeGameEvent({
+        roomCode: targetRoomCode,
+        event,
+        payload,
+        eventId: eventId(),
+      })
+    )
+    await channelApi.sendChannelMessage(
+      targetChannelName,
+      content,
+      identity.address,
+      identity.displayName || identity.username
     )
   }
 
-  function copyShareLink() {
-    void navigator.clipboard.writeText(shareLink)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1400)
+  async function sendGameEvent(
+    event: string,
+    payload: Record<string, unknown> = {},
+    options: { validate?: boolean } = {}
+  ) {
+    if (!requireReady() || !channelName || !activeRoomCode || !identity) return
+    try {
+      if (options.validate !== false && privateRoom) {
+        const draft = JSON.parse(JSON.stringify(privateRoom))
+        applyGameEvent(draft, {
+          event,
+          payload,
+          roomCode: activeRoomCode,
+          actorId: identity.address,
+          actorName: identity.displayName,
+        })
+      }
+      setError('')
+      await appendGameEvent(channelName, activeRoomCode, event, payload)
+      await refreshMessages()
+    } catch (err) {
+      setError(await getApiErrorMessage(err, '操作失败'))
+    }
+  }
+
+  function createRoomSubmit() {
+    void openRoom(makeRoomId(), 'create')
   }
 
   function joinRoomSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    send('gandengyan:joinRoom', { roomId })
+    void openRoom(roomInput, 'join')
   }
 
   function changeSettings(key: string, value: number) {
     if (!room) return
-    send('gandengyan:settings', { settings: { ...room.settings, [key]: value } })
+    void sendGameEvent('settings', { settings: { ...room.settings, [key]: value } })
   }
 
   function toggleCard(cardId: string) {
@@ -184,6 +313,20 @@ export default function GanDengYanPage() {
         ? value.filter(id => id !== cardId)
         : [...value, cardId]
     )
+  }
+
+  async function copyShareLink() {
+    if (!shareLink) return
+    await navigator.clipboard.writeText(shareLink)
+    setCopied(true)
+    addToast('房间链接已复制', 'success')
+    setTimeout(() => setCopied(false), 1400)
+  }
+
+  function toggleVoice() {
+    const next = !voiceOn
+    setVoiceOn(next)
+    localStorage.setItem('gdy-voice', next ? '1' : '0')
   }
 
   const sidebar = ({ closeSidebar }) => (
@@ -201,7 +344,7 @@ export default function GanDengYanPage() {
           <Users size={16} />
           <span>频道</span>
         </Link>
-        <Link href="/gandengyan/" className="sidebar-nav-btn active" onClick={closeSidebar}>
+        <Link href="/game/" className="sidebar-nav-btn active" onClick={closeSidebar}>
           <Bot size={16} />
           <span>干瞪眼</span>
         </Link>
@@ -216,12 +359,15 @@ export default function GanDengYanPage() {
       headerTitle={<h2 className="header-title">干瞪眼</h2>}
       headerRight={
         <div className={styles.headerActions}>
-          {room && (
+          {activeRoomCode && (
             <button className="btn btn-sm" onClick={copyShareLink}>
               <Copy size={14} />
               {copied ? '已复制' : '分享房间'}
             </button>
           )}
+          <button className="btn btn-icon" onClick={toggleVoice} title="语音开关">
+            {voiceOn ? <Volume2 size={16} /> : <VolumeX size={16} />}
+          </button>
           <button
             className="btn btn-icon"
             onClick={() => setIsDarkMode(!isDarkMode)}
@@ -240,7 +386,7 @@ export default function GanDengYanPage() {
               <div>
                 <h1>干瞪眼牌桌</h1>
                 <p>
-                  使用 MostBox 账号进入房间，牌桌通信复用当前节点的 WebSocket 连接。
+                  使用 MostBox 频道进入房间，牌桌事件写入 game 频道消息。
                 </p>
               </div>
             </div>
@@ -252,8 +398,8 @@ export default function GanDengYanPage() {
               </div>
               <button
                 className="btn btn-primary"
-                disabled={!connected}
-                onClick={() => send('gandengyan:createRoom')}
+                disabled={openingRoom}
+                onClick={createRoomSubmit}
               >
                 <Play size={16} />
                 创建房间
@@ -262,17 +408,28 @@ export default function GanDengYanPage() {
                 <label>
                   房间号
                   <input
-                    value={roomId}
+                    value={roomInput}
                     maxLength={8}
-                    onChange={event => setRoomId(event.target.value.toUpperCase())}
+                    onChange={event => setRoomInput(normalizeRoomCode(event.target.value))}
                     placeholder="输入房间号"
                   />
                 </label>
-                <button className="btn" disabled={!connected || !roomId}>
+                <button className="btn" disabled={openingRoom || !roomInput}>
                   加入房间
                 </button>
               </form>
-              <p className={styles.status}>{connected ? '节点已连接' : '正在连接节点...'}</p>
+              <p className={styles.status}>
+                {openingRoom
+                  ? '正在进入房间...'
+                  : connected || channelReady
+                    ? '频道已连接'
+                    : isBackendReady
+                      ? '等待进入房间'
+                      : '请先连接 MostBox 后端'}
+              </p>
+              {activeRoomCode && messages.length === 0 && (
+                <p className={styles.status}>等待房主在线同步房间 {activeRoomCode}...</p>
+              )}
               {error && <p className={styles.error}>{error}</p>}
             </div>
           </section>
@@ -286,7 +443,7 @@ export default function GanDengYanPage() {
                 </div>
                 <div className={styles.badges}>
                   {lowDeck && <span className={styles.dangerBadge}>牌堆不足 3 张</span>}
-                  <span>{connected ? '在线' : '离线'}</span>
+                  <span>{connected ? '频道在线' : '等待同步'}</span>
                 </div>
               </div>
 
@@ -298,6 +455,7 @@ export default function GanDengYanPage() {
                     active={room.currentSeat === player.seat}
                     winner={room.winnerSeat === player.seat}
                     relation={positionLabel(me, player, room.players.length)}
+                    showHandCount={room.status !== 'playing' || player.id === identity?.address || player.handCount <= 3}
                   />
                 ))}
               </div>
@@ -378,13 +536,13 @@ export default function GanDengYanPage() {
                   <b>{room.settings.bots}</b>
                 </label>
                 {isOwner && room.status === 'lobby' && (
-                  <button className="btn btn-primary" onClick={() => send('gandengyan:start')}>
+                  <button className="btn btn-primary" onClick={() => sendGameEvent('start', { seed: eventId() })}>
                     <Play size={16} />
                     开始游戏
                   </button>
                 )}
                 {isOwner && room.status === 'finished' && (
-                  <button className="btn btn-primary" onClick={() => send('gandengyan:restart')}>
+                  <button className="btn btn-primary" onClick={() => sendGameEvent('restart', { seed: eventId() })}>
                     <RotateCcw size={16} />
                     再来一局
                   </button>
@@ -397,12 +555,27 @@ export default function GanDengYanPage() {
                   <span>炸弹 {room.bombCount} 次</span>
                   <span>弃牌 {room.discardCount} 张</span>
                 </div>
+                {room.diceRolls?.length > 0 && (
+                  <p className={styles.status}>
+                    骰子 {room.diceRolls.map(roll => `${roll.name} ${roll.value}`).join(' / ')}
+                  </p>
+                )}
                 {room.players.map(player => (
                   <div key={player.seat} className={styles.scoreRow}>
                     <span>{player.name}</span>
                     <strong>{player.score > 0 ? `+${player.score}` : player.score}</strong>
                   </div>
                 ))}
+                {room.roundResult && (
+                  <div className={styles.resultBox}>
+                    <strong>{room.roundResult.winnerName} +{room.roundResult.winnerGain}</strong>
+                    {room.roundResult.losers.map(loser => (
+                      <span key={loser.seat}>
+                        {loser.name} -{loser.loss}{loser.sealed ? ' 封门' : ` ${loser.cardsLeft}张`}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </section>
 
               <section className={classNames(styles.panel, styles.logPanel)}>
@@ -414,7 +587,7 @@ export default function GanDengYanPage() {
             </aside>
 
             <div className={styles.handPanel}>
-              <PlayerBadge player={me} active={myTurn} winner={room.winnerSeat === me?.seat} />
+              <PlayerBadge player={me} active={myTurn} winner={room.winnerSeat === me?.seat} showHandCount />
               <div className={styles.hand}>
                 {me?.hand.map(card => (
                   <button
@@ -429,17 +602,17 @@ export default function GanDengYanPage() {
               <div className={styles.actions}>
                 <div className={classNames(styles.preview, preview && styles.valid)}>
                   <strong>{preview ? preview.label : selected.length ? '牌型不合法' : '先选牌'}</strong>
-                  <span>{selectedCards.map(card => card.label).join(' ') || '按选择顺序解释大小王'}</span>
+                  <span>{selectedCards.map(card => card.label).join(' ') || '自动识别牌型'}</span>
                 </div>
                 <button
                   className="btn btn-primary"
                   disabled={!myTurn || selected.length === 0 || !preview}
-                  onClick={() => send('gandengyan:play', { cardIds: selected })}
+                  onClick={() => sendGameEvent('play', { cardIds: selected })}
                 >
                   <Send size={16} />
                   出牌
                 </button>
-                <button className="btn" disabled={!myTurn || !room.table} onClick={() => send('gandengyan:pass')}>
+                <button className="btn" disabled={!myTurn || !room.table} onClick={() => sendGameEvent('pass')}>
                   不要
                 </button>
                 {error && <span className={styles.error}>{error}</span>}
@@ -452,8 +625,9 @@ export default function GanDengYanPage() {
   )
 }
 
-function PlayerBadge({ player, active, winner, relation = '' }) {
+function PlayerBadge({ player, active, winner, relation = '', showHandCount = false }) {
   if (!player) return null
+  const handText = showHandCount ? `${player.handCount} 张` : '手牌较多'
   return (
     <div className={classNames(styles.player, active && styles.active, winner && styles.winner)}>
       <div className={styles.avatar}>{player.bot ? 'AI' : player.name.slice(0, 1)}</div>
@@ -462,7 +636,8 @@ function PlayerBadge({ player, active, winner, relation = '' }) {
         <span>
           {relation}
           {relation ? ' · ' : ''}
-          {player.handCount} 张{player.connected ? '' : ' · 掉线'}
+          {handText}
+          {player.connected ? '' : ' · 掉线'}
         </span>
       </div>
     </div>
@@ -478,61 +653,9 @@ function CardView({ card, small = false }: { card: Card; small?: boolean }) {
   )
 }
 
-function analyzeSelection(cards: Card[]) {
-  if (!cards.length) return null
-  const jokerCount = cards.filter(isJoker).length
-  const normals = cards.filter(card => !isJoker(card))
-  if (normals.length === 0) return null
-  const bomb = analyzeBomb(cards, normals, jokerCount)
-  if (bomb) return bomb
-  if (cards.length === 1 && jokerCount === 0) {
-    const value = cardValue(cards[0])
-    return comboLabel('单张', [value])
-  }
-  if (cards.length === 2 && canRepresentSameRank(normals)) {
-    const value = cardValue(normals[0])
-    return comboLabel('对子', [value, value])
-  }
-  return analyzeStraight(cards) || analyzePairStraight(cards)
-}
-
-function analyzeBomb(cards: Card[], normals: Card[], jokerCount: number) {
-  if (cards.length < 3 || !canRepresentSameRank(normals)) return null
-  const value = cardValue(normals[0])
-  return comboLabel(jokerCount === 0 ? '纯炸弹' : '带王炸弹', Array(cards.length).fill(value))
-}
-
-function analyzeStraight(cards: Card[]) {
-  if (cards.length < 3) return null
-  for (let start = 0; start <= straightRanks.length - cards.length; start += 1) {
-    const values = straightRanks.slice(start, start + cards.length).map(rank => rankValue.get(rank))
-    if (cards.every((card, index) => isJoker(card) || cardValue(card) === values[index])) {
-      return comboLabel('顺子', values)
-    }
-  }
-  return null
-}
-
-function analyzePairStraight(cards: Card[]) {
-  if (cards.length < 4 || cards.length % 2 !== 0) return null
-  const pairCount = cards.length / 2
-  for (let start = 0; start <= straightRanks.length - pairCount; start += 1) {
-    const pairValues = straightRanks.slice(start, start + pairCount).map(rank => rankValue.get(rank))
-    const values = pairValues.flatMap(value => [value, value])
-    if (cards.every((card, index) => isJoker(card) || cardValue(card) === values[index])) {
-      return comboLabel('连对', values)
-    }
-  }
-  return null
-}
-
-function comboLabel(name: string, values: Array<number | undefined>) {
-  return { label: `${name}（${values.map(valueLabel).join(' ')}）` }
-}
-
 function setRoomUrl(id: string) {
-  if (!id) return
-  const nextUrl = `/gandengyan?room=${id}`
+  if (!id || typeof window === 'undefined') return
+  const nextUrl = `/game?room=${id}`
   if (`${window.location.pathname}${window.location.search}` !== nextUrl) {
     window.history.replaceState(null, '', nextUrl)
   }
@@ -552,18 +675,125 @@ function positionLabel(me: Player | null, player: Player, total: number) {
   return offset % 2 === 0 ? `座位 ${player.seat + 1}/队友位` : `座位 ${player.seat + 1}/对手位`
 }
 
-function canRepresentSameRank(normals: Card[]) {
-  return normals.length > 0 && normals.every(card => card.rank === normals[0].rank)
+function makeVoiceCue(room: Room | null, me: Player | null) {
+  if (!room) return null
+  if (room.status === 'finished' && room.winnerSeat !== null) {
+    const won = room.winnerSeat === me?.seat
+    return {
+      key: `result-${room.winnerSeat}-${room.roundResult?.winnerGain ?? ''}`,
+      text: won ? '你真棒' : '我输了呜呜呜',
+      voiceKeys: [won ? 'win' : 'lose'],
+    }
+  }
+  if (room.lastAction?.type === 'start') {
+    const playerText = room.lastAction.seat === me?.seat ? '你' : room.lastAction.playerName
+    return {
+      key: room.lastAction.id,
+      text: `${playerText}先出牌`,
+      voiceKeys: ['start'],
+    }
+  }
+  if (room.lastAction?.type === 'pass') {
+    const playerText = room.lastAction.seat === me?.seat ? '你' : room.lastAction.playerName
+    return {
+      key: room.lastAction.id,
+      text: `${playerText}不要`,
+      voiceKeys: ['pass', 'buyao', 'yaobuqi'],
+    }
+  }
+  const actionCombo = room.lastAction?.type === 'play' ? room.lastAction.combo : null
+  const actionCards = room.lastAction?.type === 'play' ? room.lastAction.cards : null
+  const actionSeat = room.lastAction?.type === 'play' ? room.lastAction.seat : null
+  const actionPlayerName = room.lastAction?.type === 'play' ? room.lastAction.playerName : null
+  if (!room.table?.combo) return null
+  const combo = actionCombo || room.table.combo
+  const cards = actionCards || room.table.cards
+  const seat = actionSeat ?? room.table.seat
+  const playerName = actionPlayerName || room.table.playerName
+  const playerText = seat === me?.seat ? '你' : playerName
+  return {
+    key: room.lastAction?.type === 'play' ? room.lastAction.id : `play-${seat}-${cards.map((card: Card) => card.id).join('-')}`,
+    text: `${playerText}出${comboSpeechText(combo)}`,
+    voiceKeys: comboVoiceKeys(combo),
+  }
 }
 
-function isJoker(card: Card) {
-  return card.rank === 'SJ' || card.rank === 'BJ'
+function comboSpeechText(combo) {
+  const valuesText = compactValues(combo.resolvedValues || [])
+  if (combo.type === 'single') return valuesText
+  if (combo.type === 'pair') return `对${valueLabel(combo.value)}`
+  if (combo.type === 'straight') return `${valuesText}顺子`
+  if (combo.type === 'pairStraight') return `${valuesText}连对`
+  if (combo.type === 'bomb') return valuesText ? `${valuesText}炸弹` : '炸弹'
+  return combo.label || '牌'
 }
 
-function cardValue(card: Card) {
-  return rankValue.get(card.rank) || 99
+function compactValues(values: number[]) {
+  return values.map(valueLabel).join('')
+}
+
+function comboVoiceKeys(combo) {
+  const value = rankVoiceKey(combo.value)
+  if (combo.type === 'single' || combo.type === 'pair') return []
+  if (combo.type === 'straight') return [`straight-${valuesVoiceKey(combo.resolvedValues)}`, 'straight', 'shunzi'].filter(Boolean)
+  if (combo.type === 'pairStraight') return [`pair-straight-${valuesVoiceKey(combo.resolvedValues)}`, 'pair-straight', 'liandui'].filter(Boolean)
+  if (combo.type === 'bomb') return [`bomb-${value}`, `zha-${value}`, 'bomb', 'zha'].filter(Boolean)
+  return []
+}
+
+function valuesVoiceKey(values = []) {
+  return values.map(rankVoiceKey).filter(Boolean).join('-')
+}
+
+function rankVoiceKey(value: number) {
+  if (value === 16) return 'small-joker'
+  if (value === 17) return 'big-joker'
+  const rank = RANKS.find((item: string) => rankValue.get(item) === value)
+  return rank?.toLowerCase() || ''
 }
 
 function valueLabel(value: number | undefined) {
-  return ranks.find(rank => rankValue.get(rank) === value) || String(value)
+  if (value === 16) return '小王'
+  if (value === 17) return '大王'
+  return RANKS.find((rank: string) => rankValue.get(rank) === value) || String(value)
+}
+
+async function speakCue(cue) {
+  if (await playVoiceCue(cue.voiceKeys || [])) return
+  if (!('speechSynthesis' in window)) return
+  window.speechSynthesis.cancel()
+  window.speechSynthesis.speak(makeUtterance(cue.text))
+}
+
+async function playVoiceCue(keys: string[]) {
+  for (const key of keys) {
+    for (const extension of voiceExtensions) {
+      if (await playAudio(`${voiceBasePath}/${key}.${extension}?v=${voiceAssetVersion}`)) return true
+    }
+  }
+  return false
+}
+
+function playAudio(src: string) {
+  return new Promise(resolve => {
+    const audio = new Audio(src)
+    audio.preload = 'auto'
+    audio.onended = () => resolve(true)
+    audio.onerror = () => resolve(false)
+    audio.play().catch(() => resolve(false))
+  })
+}
+
+function makeUtterance(text: string) {
+  const utterance = new SpeechSynthesisUtterance(text)
+  utterance.lang = 'zh-CN'
+  utterance.rate = 1.05
+  return utterance
+}
+
+function keepHeldCards(selectedIds: string[], room: Room | null, playerId?: string) {
+  const handIds = new Set(
+    room?.players.find(player => player.id === playerId)?.hand.map(card => card.id) || []
+  )
+  return selectedIds.filter(id => handIds.has(id))
 }

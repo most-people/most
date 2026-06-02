@@ -153,16 +153,16 @@ const features: FeatureDef[] = [
     title: '干瞪眼',
     subtitle: 'P2P 牌桌',
     icon: <Gamepad2 size={28} />,
-    path: '/gandengyan/',
+    path: '/game/',
     requiresBackend: true,
     hero: '常驻节点里的在线牌桌',
-    desc: '把干瞪眼作为 MostBox 的独立页面接入，复用现有节点连接、Web3 登录身份和桌面端常驻入口。',
+    desc: '把干瞪眼作为 MostBox 的独立页面接入，复用现有频道消息、Web3 登录身份和桌面端常驻入口。',
     features: [
       '使用 MostBox 本地账号进入房间',
-      '复用现有节点 WebSocket，不新增独立服务端口',
-      '房间链接可直接分享给朋友',
+      '复用 /chat/ 的频道后端，不新增游戏后端接口',
+      '房间链接可直接分享到群组',
       '支持 1-2 副牌、2-6 人和人机陪测',
-      '游戏规则、服务端事件和页面样式拆分维护',
+      '游戏规则、频道事件和页面样式拆分维护',
     ],
     steps: [
       {

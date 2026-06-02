@@ -25,84 +25,26 @@ import AppShell from '~/components/AppShell'
 import FilePreviewOverlay from '~/components/FilePreviewOverlay'
 import { InputModal, ConfirmModal } from '~/components/ui'
 import OpenSidebarButton from '~/components/OpenSidebarButton'
-import {
-  api,
-  getApiErrorMessage,
-  getApiUrl,
-  getAuthenticatedWebSocketUrl,
-} from '~/server/src/utils/api'
+import { api, getApiErrorMessage } from '~/server/src/utils/api'
 import { generateAvatar } from '~/server/src/utils/avatar.js'
 import { useAppStore } from '~/app/app/useAppStore'
 import { useUserStore } from '~/app/app/userStore'
 import { useDisclosure } from '~/hooks'
 import SidebarAccount from '~/components/SidebarAccount'
 import { getFileSubtype, type FileSubtype } from '~/lib/filePreview'
-
-interface ChannelAttachment {
-  kind: FileSubtype
-  cid: string
-  fileName: string
-  link: string
-  mimeType?: string
-  size?: number
-}
-
-interface ChannelMessage {
-  id?: string
-  author: string
-  authorName?: string
-  content: string
-  timestamp: number
-  pending?: boolean
-  attachment?: ChannelAttachment
-}
-
-interface Channel {
-  name: string
-  remark?: string
-  createdAt?: string
-  coreKey?: string
-  type?: string
-  peerCount?: number
-}
+import {
+  channelApi,
+  type Channel,
+  type ChannelAttachment,
+  type ChannelMessage,
+} from '~/lib/channelApi'
+import { useChannelMessages } from '~/hooks/useChannelMessages'
 
 const CHANNEL_NAME_MIN_LENGTH = 3
 const CHANNEL_NAME_MAX_LENGTH = 20
 const CHANNEL_NAME_REGEX = /^[a-zA-Z0-9_-]+$/
 
-interface SendMessageResult {
-  message: ChannelMessage
-}
-
 const API = {
-  getChannels: () => api.get<Channel[]>('/api/channels').json(),
-  createChannel: (name: string, type: string) =>
-    api.post(`/api/channels`, { json: { name, type } }).json(),
-  leaveChannel: (name: string) =>
-    api.delete(`/api/channels/${encodeURIComponent(name)}`).json(),
-  getChannelMessages: (name: string, limit = 100, offset = 0) =>
-    api
-      .get<
-        ChannelMessage[]
-      >(`/api/channels/${encodeURIComponent(name)}/messages?limit=${limit}&offset=${offset}`)
-      .json(),
-  sendChannelMessage: (
-    name: string,
-    content: string,
-    author: string,
-    authorName: string,
-    attachment?: ChannelAttachment
-  ) =>
-    api
-      .post<SendMessageResult>(
-        `/api/channels/${encodeURIComponent(name)}/messages`,
-        {
-          json: attachment
-            ? { content, author, authorName, attachment }
-            : { content, author, authorName },
-        }
-      )
-      .json(),
   async publishFile(file: File, customName: string) {
     const formData = new FormData()
     formData.append('file', file, customName)
@@ -118,18 +60,6 @@ const API = {
   listPublishedFiles: () => api.get('/api/files').json<any[]>(),
   downloadFile: (link: string) =>
     api.post('/api/download', { json: { link } }).json<any>(),
-  getFileDownloadUrl: (cid: string) => getApiUrl(`/api/files/${cid}/download`),
-  getChannelPeers: (name: string) =>
-    api.get<string[]>(`/api/channels/${encodeURIComponent(name)}/peers`).json(),
-  setChannelRemark: (name: string, remark: string) =>
-    api
-      .put<{
-        success: boolean
-        remark: string
-      }>(`/api/channels/${encodeURIComponent(name)}/remark`, {
-        json: { remark },
-      })
-      .json(),
 }
 
 const CHAT_FILE_ROOT = 'chat-file'
@@ -171,33 +101,38 @@ function ChatPage() {
   const openConnectModal = useAppStore(s => s.openConnectModal)
   const userIdentity = useUserStore(s => s.identity)
   const openLoginModal = useUserStore(s => s.openLoginModal)
-  const [channels, setChannels] = useState([])
-  const [activeChannel, setActiveChannel] = useState(null)
-  const [channelMessages, setChannelMessages] = useState([])
+  const [channels, setChannels] = useState<Channel[]>([])
+  const [activeChannel, setActiveChannel] = useState<Channel | null>(null)
   const [channelInput, setChannelInput] = useState('')
   const [showJoinChannel, joinChannelModal] = useDisclosure(false)
-  const [myPeerId, setMyPeerId] = useState('')
   const [isJoiningChannel, setIsJoiningChannel] = useState(false)
   const [isLeavingChannel, setIsLeavingChannel] = useState(false)
   const [showLeaveChannelConfirm, leaveChannelModal] = useDisclosure(false)
-  const [channelToLeave, setChannelToLeave] = useState(null)
+  const [channelToLeave, setChannelToLeave] = useState<Channel | null>(null)
   const [showChannelDetail, setShowChannelDetail] = useState(false)
   const [remarkInput, setRemarkInput] = useState('')
   const [previewItem, setPreviewItem] = useState(null)
   const [isPublishingAttachment, setIsPublishingAttachment] = useState(false)
   const [attachmentDownloadStatus, setAttachmentDownloadStatus] = useState({})
 
-  const wsRef = useRef(null)
   const channelMessagesEndRef = useRef(null)
-  const activeChannelRef = useRef(null)
-  const reconnectTimeoutRef = useRef(null)
-  const reconnectAttemptRef = useRef(0)
-  const isWsConnectedRef = useRef(false)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const videoInputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const pendingAttachmentPreviewsRef = useRef(new Map())
   const isBackendReady = hasBackend === true
+  const {
+    messages: channelMessages,
+    setMessages: setChannelMessages,
+    sendMessage: sendTransportMessage,
+  } = useChannelMessages({
+    enabled: isBackendReady && Boolean(userIdentity && activeChannel),
+    channelName: activeChannel?.name || '',
+    author: userIdentity?.address,
+    authorName: userIdentity?.displayName,
+    onChannelListChanged: refreshChannels,
+    onEvent: handleWsEvent,
+  })
 
   function requireBackendReady() {
     if (isBackendReady) return true
@@ -212,132 +147,14 @@ function ChatPage() {
   }
 
   useEffect(() => {
-    activeChannelRef.current = activeChannel
-  }, [activeChannel])
-
-  useEffect(() => {
     channelMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [channelMessages])
-
-  useEffect(() => {
-    if (!isBackendReady) {
-      setMyPeerId('')
-      return
-    }
-
-    api
-      .get('/api/node-id')
-      .json<{ id: string }>()
-      .then(d => setMyPeerId(d.id))
-      .catch(err => {
-        console.warn('[Chat] Failed to fetch node ID:', err.message)
-        void showApiError(err, '无法读取节点 ID')
-      })
-  }, [isBackendReady])
-
-  const pendingSubscriptionRef = useRef(null)
-  const isMountedRef = useRef(true)
-
-  useEffect(() => {
-    isMountedRef.current = true
-    return () => {
-      isMountedRef.current = false
-    }
-  }, [])
-
-  useEffect(() => {
-    if (myPeerId && pendingSubscriptionRef.current) {
-      const channelName = pendingSubscriptionRef.current
-      pendingSubscriptionRef.current = null
-      subscribeToChannel(channelName)
-    }
-  }, [myPeerId])
-
-  useEffect(() => {
-    if (!isBackendReady || !userIdentity) return
-
-    reconnectAttemptRef.current = 0
-
-    async function connectWs() {
-      const ws = new WebSocket(await getAuthenticatedWebSocketUrl('/ws'))
-
-      ws.onopen = () => {
-        isWsConnectedRef.current = true
-        reconnectAttemptRef.current = 0
-        if (myPeerId && ws.readyState === 1) {
-          ws.send(
-            JSON.stringify({ event: 'register', data: { peerId: myPeerId } })
-          )
-        }
-        if (activeChannelRef.current) {
-          subscribeToChannel(activeChannelRef.current.name)
-          syncChannelMessages(activeChannelRef.current.name)
-        }
-      }
-
-      ws.onmessage = e => {
-        try {
-          const { event, data } = JSON.parse(e.data)
-          handleWsEvent(event, data)
-        } catch (err) {
-          console.warn('[Chat WS] Failed to parse message:', err.message)
-        }
-      }
-
-      ws.onclose = () => {
-        isWsConnectedRef.current = false
-        if (!isMountedRef.current) return
-        const attempt = reconnectAttemptRef.current
-        if (attempt >= 20) return
-        const delay = Math.min(3000 * Math.pow(2, attempt), 30000)
-        reconnectAttemptRef.current = attempt + 1
-        reconnectTimeoutRef.current = setTimeout(connectWs, delay)
-      }
-
-      ws.onerror = () => {
-        ws.close()
-      }
-
-      wsRef.current = ws
-    }
-
-    connectWs()
-
-    return () => {
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current)
-      }
-      if (wsRef.current) {
-        wsRef.current.close()
-      }
-    }
-  }, [isBackendReady, userIdentity?.address])
-
-  useEffect(() => {
-    if (myPeerId) {
-      wsSend('register', { peerId: myPeerId })
-    }
-  }, [myPeerId])
 
   useEffect(() => {
     if (isBackendReady && userIdentity) {
       refreshChannels()
     }
   }, [hasBackend, isBackendReady, userIdentity?.address])
-
-  useEffect(() => {
-    if (activeChannel) {
-      if (isBackendReady) {
-        API.getChannelMessages(activeChannel.name)
-          .then(setChannelMessages)
-          .catch(err => {
-            setChannelMessages([])
-            void showApiError(err, '无法读取频道消息')
-          })
-        API.getChannelPeers(activeChannel.name).catch(() => {})
-      }
-    }
-  }, [activeChannel, hasBackend, isBackendReady])
 
   useEffect(() => {
     const channelParam = new URLSearchParams(window.location.search).get(
@@ -357,28 +174,11 @@ function ChatPage() {
     setActiveChannel(null)
     setChannelMessages([])
     setChannelInput('')
-    setMyPeerId('')
     setShowChannelDetail(false)
     setPreviewItem(null)
     setAttachmentDownloadStatus({})
     pendingAttachmentPreviewsRef.current.clear()
   }, [userIdentity?.address])
-
-  async function syncChannelMessages(channelName) {
-    if (!isBackendReady) return
-    try {
-      const messages = await API.getChannelMessages(channelName)
-      setChannelMessages(prev => {
-        const newMsgs = messages.filter(m => {
-          const id = m.id || `${m.author}-${m.timestamp}`
-          return !prev.some(p => (p.id || `${p.author}-${p.timestamp}`) === id)
-        })
-        if (newMsgs.length === 0) return prev
-        return [...prev, ...newMsgs]
-      })
-      await API.getChannelPeers(channelName)
-    } catch {}
-  }
 
   async function showApiError(err, fallback) {
     addToast(await getApiErrorMessage(err, fallback), 'error')
@@ -400,30 +200,12 @@ function ChatPage() {
   async function refreshChannels() {
     if (!isBackendReady) return
     try {
-      const result = await API.getChannels()
-      setChannels(result)
+      const result = await channelApi.getChannels()
+      setChannels(result.filter(channel => channel.type !== 'game'))
     } catch (err) {
       setChannels([])
       await showApiError(err, '无法读取频道列表')
     }
-  }
-
-  function wsSend(event, data) {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ event, data }))
-    }
-  }
-
-  function subscribeToChannel(channelName) {
-    if (!myPeerId) {
-      pendingSubscriptionRef.current = channelName
-      return
-    }
-    wsSend('channel:subscribe', { channel: channelName })
-  }
-
-  function unsubscribeFromChannel(channelName) {
-    wsSend('channel:unsubscribe', { channel: channelName })
   }
 
   function openAttachmentPreview(
@@ -447,62 +229,7 @@ function ChatPage() {
   }
 
   function handleWsEvent(event, data) {
-    const currentChannel = activeChannelRef.current
     switch (event) {
-      case 'channel:message':
-        if (currentChannel && data.channel === currentChannel.name) {
-          setChannelMessages(prev => {
-            const messageId =
-              data.message.id ||
-              `${data.message.author}-${data.message.timestamp}`
-            const pendingIdx = prev.findIndex(
-              m =>
-                m.pending &&
-                m.content === data.message.content &&
-                m.author === data.message.author
-            )
-            if (pendingIdx !== -1) {
-              const updated = [...prev]
-              updated[pendingIdx] = { ...data.message, id: messageId }
-              return updated
-            }
-            const exists = prev.some(
-              m =>
-                m.id === messageId ||
-                (m.timestamp === data.message.timestamp &&
-                  m.content === data.message.content &&
-                  m.author === data.message.author)
-            )
-            if (exists) return prev
-            return [...prev, { ...data.message, id: messageId }]
-          })
-          if (isBackendReady) {
-            API.getChannelPeers(currentChannel.name).catch(err => {
-              console.warn('[Chat] Failed to fetch peers:', err.message)
-            })
-          }
-        }
-        break
-
-      case 'channel:peer:online':
-      case 'channel:peer:offline':
-        if (currentChannel) {
-          if (isBackendReady) {
-            API.getChannelPeers(currentChannel.name).catch(err => {
-              console.warn(
-                '[Chat] Failed to fetch peers on event:',
-                err.message
-              )
-            })
-          }
-        }
-        break
-
-      case 'channel:joined':
-      case 'channel:left':
-        refreshChannels()
-        break
-
       case 'download:success': {
         const attachment = pendingAttachmentPreviewsRef.current.get(
           data.taskId
@@ -539,11 +266,7 @@ function ChatPage() {
   async function handleOpenChannel(channel) {
     if (!requireLogin()) return
     if (!requireBackendReady()) return
-    if (activeChannelRef.current) {
-      unsubscribeFromChannel(activeChannelRef.current.name)
-    }
     setActiveChannel(channel)
-    subscribeToChannel(channel.name)
     window.history.pushState(
       {},
       '',
@@ -557,9 +280,8 @@ function ChatPage() {
     if (!requireBackendReady()) return
     if (isLeavingChannel) return
     setIsLeavingChannel(true)
-    unsubscribeFromChannel(name)
     try {
-      await API.leaveChannel(name)
+      await channelApi.leaveChannel(name)
       if (activeChannel?.name === name) {
         setActiveChannel(null)
         setChannelMessages([])
@@ -589,7 +311,7 @@ function ChatPage() {
     if (!requireBackendReady()) return
     setIsJoiningChannel(true)
     try {
-      await API.createChannel(name, 'public')
+      await channelApi.createChannel(name, 'public')
       const joinedChannel = channels.find(channel => channel.name === name) || {
         name,
         type: 'public',
@@ -618,39 +340,10 @@ function ChatPage() {
     if (!requireBackendReady()) return false
     const trimmedContent = content.trim()
 
-    const optimisticId = `${userIdentity.address}-${Date.now()}-${Math.random().toString(36).slice(2)}`
-    const optimisticMsg = {
-      id: optimisticId,
-      author: userIdentity.address,
-      authorName: userIdentity.displayName,
-      content: trimmedContent,
-      timestamp: Date.now(),
-      pending: true,
-      attachment,
-    }
-    setChannelMessages(prev => [...prev, optimisticMsg])
-
     try {
-      const result = await API.sendChannelMessage(
-        activeChannel.name,
-        trimmedContent,
-        userIdentity.address,
-        userIdentity.displayName,
-        attachment
-      )
-      setChannelMessages(prev =>
-        prev.map(m =>
-          m.id === optimisticId
-            ? {
-                ...result.message,
-                id: result.message.id || result.message.timestamp,
-              }
-            : m
-        )
-      )
+      await sendTransportMessage(trimmedContent, attachment)
       return true
     } catch (err) {
-      setChannelMessages(prev => prev.filter(m => m.id !== optimisticId))
       await showApiError(err, '发送失败')
       return false
     }
@@ -750,7 +443,7 @@ function ChatPage() {
     if (!requireLogin()) return
     if (!requireBackendReady()) return
     try {
-      const result = await API.setChannelRemark(activeChannel.name, remarkInput)
+      const result = await channelApi.setChannelRemark(activeChannel.name, remarkInput)
       setChannels(prev =>
         prev.map(c =>
           c.name === activeChannel.name ? { ...c, remark: result.remark } : c
@@ -1067,7 +760,7 @@ function ChatPage() {
         <FilePreviewOverlay
           item={previewItem}
           isBackendReady={isBackendReady}
-          getFileDownloadUrl={API.getFileDownloadUrl}
+          getFileDownloadUrl={channelApi.getFileDownloadUrl}
           onClose={() => setPreviewItem(null)}
         />
       )}
