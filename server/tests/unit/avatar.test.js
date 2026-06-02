@@ -5,12 +5,12 @@ import { generateAvatar } from '../../src/utils/avatar.js'
 describe('generateAvatar', () => {
   it('returns default image for empty address', () => {
     const result = generateAvatar('')
-    assert.strictEqual(result, '/pwa-512x512.png')
+    assert.strictEqual(result, '/avatar.png')
   })
 
   it('returns default image for null address', () => {
     const result = generateAvatar(null)
-    assert.strictEqual(result, '/pwa-512x512.png')
+    assert.strictEqual(result, '/avatar.png')
   })
 
   it('returns a data URI for valid address', () => {

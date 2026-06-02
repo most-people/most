@@ -28,14 +28,35 @@ let tray = null
 let isQuitting = false
 let hasCheckedForUpdates = false
 
-function getTrayIconPath() {
-  const candidates = [
-    path.join(__dirname, '..', 'out', 'favicon.ico'),
-    path.join(process.resourcesPath, 'app', 'out', 'favicon.ico'),
-    path.join(__dirname, '..', 'public', 'favicon.ico'),
+function getIconCandidates() {
+  return [
+    path.join(__dirname, '..', 'out', 'logo.ico'),
+    path.join(process.resourcesPath, 'app', 'out', 'logo.ico'),
+    path.join(__dirname, '..', 'public', 'logo.ico'),
+    path.join(__dirname, '..', 'out', 'logo-512.png'),
+    path.join(process.resourcesPath, 'app', 'out', 'logo-512.png'),
+    path.join(__dirname, '..', 'public', 'logo-512.png'),
+    path.join(__dirname, '..', 'out', 'logo.svg'),
+    path.join(process.resourcesPath, 'app', 'out', 'logo.svg'),
+    path.join(__dirname, '..', 'public', 'logo.svg'),
   ]
+}
 
-  return candidates.find(candidate => fs.existsSync(candidate))
+function getIconPath() {
+  return getIconCandidates().find(candidate => fs.existsSync(candidate))
+}
+
+function createNativeIcon() {
+  for (const candidate of getIconCandidates()) {
+    if (!fs.existsSync(candidate)) continue
+
+    const image = nativeImage.createFromPath(candidate)
+    if (!image.isEmpty()) {
+      return image
+    }
+  }
+
+  return nativeImage.createEmpty()
 }
 
 function showMainWindow() {
@@ -65,10 +86,7 @@ function createTray() {
     return
   }
 
-  const iconPath = getTrayIconPath()
-  const image = iconPath ? nativeImage.createFromPath(iconPath) : null
-
-  tray = new Tray(image && !image.isEmpty() ? image : nativeImage.createEmpty())
+  tray = new Tray(createNativeIcon())
   tray.setToolTip('MostBox')
   tray.setContextMenu(
     Menu.buildFromTemplate([
@@ -82,6 +100,8 @@ function createTray() {
 }
 
 function createWindow() {
+  const iconPath = getIconPath()
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -89,6 +109,7 @@ function createWindow() {
     minHeight: 600,
     title: 'MostBox',
     autoHideMenuBar: true,
+    ...(iconPath ? { icon: iconPath } : {}),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,

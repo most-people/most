@@ -63,7 +63,7 @@ export default function UserLoginModal() {
             src={
               loginPreviewAddress
                 ? generateAvatar(loginPreviewAddress)
-                : '/pwa-512x512.png'
+                : '/avatar.png'
             }
             alt="avatar"
           />
