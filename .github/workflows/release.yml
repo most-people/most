@@ -280,7 +280,25 @@ jobs:
           python -m pip install --user awscli
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
+      - name: Upload assets to R2
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          endpoint="https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
+          aws --endpoint-url "$endpoint" s3 cp release-assets "s3://$R2_RELEASE_BUCKET/releases/$GITHUB_REF_NAME" \
+            --recursive \
+            --exclude "latest.json" \
+            --cache-control "public, max-age=31536000, immutable"
+          aws --endpoint-url "$endpoint" s3 cp release-assets/latest.json "s3://$R2_RELEASE_BUCKET/releases/latest.json" \
+            --content-type "application/json" \
+            --cache-control "public, max-age=60"
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+
       - name: Configure R2 CORS
+        continue-on-error: true
         run: |
           export PATH="$HOME/.local/bin:$PATH"
           endpoint="https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
@@ -311,23 +329,6 @@ jobs:
             --cors-configuration file://r2-cors.json
           aws --endpoint-url "$endpoint" s3api get-bucket-cors \
             --bucket "$R2_RELEASE_BUCKET"
-        env:
-          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: auto
-
-      - name: Upload assets to R2
-        run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          endpoint="https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
-          aws --endpoint-url "$endpoint" s3 cp release-assets "s3://$R2_RELEASE_BUCKET/releases/$GITHUB_REF_NAME" \
-            --recursive \
-            --exclude "latest.json" \
-            --cache-control "public, max-age=31536000, immutable"
-          aws --endpoint-url "$endpoint" s3 cp release-assets/latest.json "s3://$R2_RELEASE_BUCKET/releases/latest.json" \
-            --content-type "application/json" \
-            --cache-control "public, max-age=60"
         env:
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
