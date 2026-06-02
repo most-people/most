@@ -28,6 +28,7 @@
     "typecheck": "tsc --noEmit",
     "format": "npx prettier --write .",
     "lint": "npx eslint .",
+    "r2:cors": "node scripts/configure-r2-cors.mjs",
     "electron:dev": "concurrently \"npm run build\" \"wait-on out/index.html && electron .\"",
     "electron:rebuild": "electron-rebuild -f -w sodium-native",
     "electron:build": "npm run build && npm run electron:rebuild && electron-builder",

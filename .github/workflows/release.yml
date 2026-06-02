@@ -280,6 +280,15 @@ jobs:
           python -m pip install --user awscli
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
+      - name: Configure R2 CORS
+        run: node scripts/configure-r2-cors.mjs
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ env.R2_RELEASE_BUCKET }}
+          R2_CORS_ORIGINS: https://most.box,https://most-people.com
+
       - name: Upload assets to R2
         run: |
           export PATH="$HOME/.local/bin:$PATH"

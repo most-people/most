@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Apple, Download, ExternalLink, Laptop, Monitor } from 'lucide-react'
+import { Apple, Cloud, Code, Download, Laptop, Monitor } from 'lucide-react'
 
 type DownloadPlatform = 'windows' | 'macos' | 'linux'
 type DownloadArch = 'x64' | 'arm64'
+type DownloadSource = 'r2' | 'github'
 
 type DownloadAsset = {
   platform: DownloadPlatform
@@ -25,8 +26,7 @@ type DownloadManifest = {
 
 type DownloadStatus = 'loading' | 'ready' | 'fallback'
 
-const GITHUB_LATEST_URL =
-  'https://github.com/most-people/most/releases/latest'
+const GITHUB_LATEST_URL = 'https://github.com/most-people/most/releases/latest'
 
 const DEFAULT_R2_PUBLIC_BASE_URL = 'https://download.most.box'
 
@@ -143,7 +143,7 @@ function getNavigatorPlatform() {
     .toLowerCase()
 }
 
-function detectRecommendedKey() {
+function detectCurrentKey() {
   if (typeof navigator === 'undefined') return 'windows:x64'
 
   const platform = getNavigatorPlatform()
@@ -170,10 +170,11 @@ export default function DownloadOptions() {
   const [status, setStatus] = useState<DownloadStatus>(
     RELEASE_MANIFEST_URL ? 'loading' : 'fallback'
   )
-  const [recommendedKey, setRecommendedKey] = useState('windows:x64')
+  const [currentKey, setCurrentKey] = useState('windows:x64')
+  const [downloadSource, setDownloadSource] = useState<DownloadSource>('r2')
 
   useEffect(() => {
-    setRecommendedKey(detectRecommendedKey())
+    setCurrentKey(detectCurrentKey())
   }, [])
 
   useEffect(() => {
@@ -209,14 +210,60 @@ export default function DownloadOptions() {
     return () => controller.abort()
   }, [])
 
+  useEffect(() => {
+    if (status === 'fallback') {
+      setDownloadSource('github')
+    }
+  }, [status])
+
   const assets = manifest?.assets.length ? manifest.assets : FALLBACK_ASSETS
+  const hasR2Assets = assets.some(asset => asset.r2Url)
+  const activeSource = downloadSource === 'r2' && hasR2Assets ? 'r2' : 'github'
 
   return (
     <div className="download-options">
+      <div
+        className="download-source-tabs"
+        role="tablist"
+        aria-label="下载来源"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeSource === 'r2'}
+          disabled={!hasR2Assets}
+          className={
+            activeSource === 'r2'
+              ? 'download-source-tab is-active'
+              : 'download-source-tab'
+          }
+          onClick={() => setDownloadSource('r2')}
+        >
+          <Cloud size={16} />
+          Cloudflare R2
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeSource === 'github'}
+          className={
+            activeSource === 'github'
+              ? 'download-source-tab is-active'
+              : 'download-source-tab'
+          }
+          onClick={() => setDownloadSource('github')}
+        >
+          <Code size={16} />
+          GitHub Releases
+        </button>
+      </div>
+
       <p className="download-source-note">
-        {status === 'ready' && manifest
-          ? `优先使用高速镜像，当前版本 ${manifest.version}。`
-          : '暂时使用 GitHub Releases 备用下载。'}
+        {status === 'loading'
+          ? '正在获取 Cloudflare R2 高速镜像。'
+          : status === 'ready' && manifest
+            ? `当前版本 ${manifest.version}，可切换 Cloudflare R2 或 GitHub Releases 下载。`
+            : '无法获取高速镜像信息，已切换到 GitHub Releases 备用下载。'}
       </p>
 
       <div className="download-platform-grid">
@@ -224,14 +271,15 @@ export default function DownloadOptions() {
           const meta = PLATFORM_META[asset.platform]
           const Icon = meta.icon
           const key = `${asset.platform}:${asset.arch}`
-          const primaryUrl = asset.r2Url || asset.githubUrl
-          const isRecommended = key === recommendedKey
+          const primaryUrl =
+            activeSource === 'r2' && asset.r2Url ? asset.r2Url : asset.githubUrl
+          const isCurrent = key === currentKey
 
           return (
             <article
               key={key}
               className={
-                isRecommended
+                isCurrent
                   ? 'download-platform-card is-recommended'
                   : 'download-platform-card'
               }
@@ -248,7 +296,11 @@ export default function DownloadOptions() {
                 <dl className="download-platform-meta">
                   <div>
                     <dt>来源</dt>
-                    <dd>{getSourceLabel(asset)}</dd>
+                    <dd>
+                      {activeSource === 'r2' && asset.r2Url
+                        ? getSourceLabel(asset)
+                        : 'GitHub Releases'}
+                    </dd>
                   </div>
                   {asset.size ? (
                     <div>
@@ -268,19 +320,10 @@ export default function DownloadOptions() {
                     <Download size={16} />
                     下载 {meta.ext}
                   </a>
-                  {asset.r2Url && asset.githubUrl ? (
-                    <a
-                      href={asset.githubUrl}
-                      className="download-platform-fallback"
-                    >
-                      <ExternalLink size={14} />
-                      GitHub 备用
-                    </a>
-                  ) : null}
                 </div>
               </div>
-              {isRecommended ? (
-                <span className="download-recommended-badge">推荐</span>
+              {isCurrent ? (
+                <span className="download-recommended-badge">当前</span>
               ) : null}
             </article>
           )

@@ -56,7 +56,7 @@ describe('frontend smoke checks', () => {
     assert.match(sources, /10GB|10 GB/)
   })
 
-  it('prefers the R2 download manifest while keeping GitHub fallback links', () => {
+  it('lets users choose R2 or GitHub download sources', () => {
     const source = readSource('app/download/DownloadOptions.tsx')
 
     assert.match(source, /NEXT_PUBLIC_RELEASE_MANIFEST_URL/)
@@ -64,7 +64,9 @@ describe('frontend smoke checks', () => {
     assert.match(source, /releases\/latest\.json/)
     assert.match(source, /https:\/\/download\.most\.box/)
     assert.match(source, /github\.com\/most-people\/most\/releases\/latest/)
-    assert.match(source, /GitHub 备用/)
+    assert.match(source, /Cloudflare R2/)
+    assert.match(source, /GitHub Releases/)
+    assert.match(source, /role="tablist"/)
   })
 
   it('documents the dedicated R2 release bucket defaults', () => {
