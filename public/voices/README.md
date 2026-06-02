@@ -33,4 +33,4 @@ Current selected clips from `112909261-1-208.mp4`:
 - start.mp3 / win.mp3 / lose.mp3
 - one-card-left.mp3 / two-cards-left.mp3 / super-double.mp3 are kept as useful spare clips, but the current game UI does not call them yet.
 
-Note: the single-* and pair-* number clips are kept for manual review, but the current game does not call them because the source video's rapid number list caused audible mismatches. Single and pair plays currently fall back to browser speech synthesis so the spoken rank always matches the card.
+Note: single-* and pair-* clips are used first for single and pair plays. The source cuts for J/Q/K/A are label-shifted, so the app remaps those ranks in code: J uses q, Q uses k, K uses a, and A uses j.

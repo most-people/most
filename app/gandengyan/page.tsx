@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   Bot,
   Copy,
+  LogOut,
   Moon,
   Play,
   RotateCcw,
@@ -37,8 +38,9 @@ import styles from './page.module.css'
 
 const rankValue = new Map(RANKS.map((rank: string, index: number) => [rank, index + 3]))
 const voiceBasePath = '/voices'
-const voiceAssetVersion = '20260602-tts-numbers'
+const voiceAssetVersion = '20260602-face-rank-remap'
 const voiceExtensions = ['mp3', 'wav', 'ogg']
+const gameMessageLimit = 2000
 
 type Card = {
   id: string
@@ -58,6 +60,7 @@ type Player = {
   handCount: number
   hand: Card[]
   score: number
+  leftScore?: number
   playedCards: number
 }
 
@@ -122,6 +125,8 @@ export default function GanDengYanPage() {
     channelName,
     author: identity?.address,
     authorName: identity?.displayName,
+    limit: gameMessageLimit,
+    refreshOnMessage: true,
   })
 
   useEffect(() => {
@@ -165,6 +170,15 @@ export default function GanDengYanPage() {
     () => room?.players.find(player => player.id === identity?.address) || null,
     [room, identity?.address]
   )
+  const currentTurnPlayer = useMemo(
+    () => room?.players.find(player => player.seat === room.currentSeat) || null,
+    [room]
+  )
+  const participantNames = useMemo(
+    () => room?.players.filter(player => !player.bot).map(player => player.name).join('、') || '',
+    [room]
+  )
+  const isSpectating = Boolean(room && identity?.address && !me)
   const isOwner = Boolean(room && identity?.address && room.ownerId === identity.address)
   const myTurn = room?.status === 'playing' && room.currentSeat === me?.seat
   const selectedCards = useMemo(
@@ -190,17 +204,24 @@ export default function GanDengYanPage() {
   }, [voiceCue, voiceOn])
 
   useEffect(() => {
-    if (!isOwner || !privateRoom || privateRoom.status !== 'playing') return
+    if (!identity?.address || !privateRoom || privateRoom.status !== 'playing') return
+    const currentUser = privateRoom.players.find(player => player.id === identity.address && !player.bot)
+    if (!currentUser) return
     const currentPlayer = privateRoom.players.find(player => player.seat === privateRoom.currentSeat)
     if (!currentPlayer?.bot) return
-    const key = `${messages.length}-${privateRoom.currentSeat}-${privateRoom.lastAction?.id || ''}`
+    const afterActionId = String(privateRoom.lastAction?.id || '')
+    const key = `${privateRoom.id}-${privateRoom.currentSeat}-${afterActionId}`
     if (botMoveKeyRef.current === key) return
-    botMoveKeyRef.current = key
     const timer = setTimeout(() => {
-      void sendGameEvent('bot', {}, { validate: false })
+      botMoveKeyRef.current = key
+      void sendGameEvent(
+        'bot',
+        { seat: currentPlayer.seat, afterActionId },
+        { validate: false }
+      )
     }, 700)
     return () => clearTimeout(timer)
-  }, [isOwner, privateRoom, messages.length])
+  }, [identity?.address, privateRoom])
 
   function requireReady() {
     if (!identity) {
@@ -236,7 +257,7 @@ export default function GanDengYanPage() {
         name: identity.displayName,
         address: identity.address,
       })
-      const nextMessages = await channelApi.getChannelMessages(nextChannelName)
+      const nextMessages = await channelApi.getChannelMessages(nextChannelName, gameMessageLimit)
       setMessages(nextMessages)
     } catch (err) {
       setError(await getApiErrorMessage(err, '进入房间失败'))
@@ -295,6 +316,36 @@ export default function GanDengYanPage() {
 
   function createRoomSubmit() {
     void openRoom(makeRoomId(), 'create')
+  }
+
+  function closeRoomView() {
+    pendingAutoJoinRef.current = ''
+    botMoveKeyRef.current = ''
+    lastAnnouncementRef.current = ''
+    setActiveRoomCode('')
+    setRoomInput('')
+    setChannelName('')
+    setChannelReady(false)
+    setMessages([])
+    setSelected([])
+    setError('')
+    setRoomUrl('')
+  }
+
+  async function leaveGame() {
+    const currentPlayer = room?.players.find(player => player.id === identity?.address && !player.bot)
+    if (!activeRoomCode || !channelName || !identity || !currentPlayer) {
+      closeRoomView()
+      return
+    }
+    try {
+      setError('')
+      await appendGameEvent(channelName, activeRoomCode, 'leave')
+      addToast('已离开游戏', 'success')
+      closeRoomView()
+    } catch (err) {
+      setError(await getApiErrorMessage(err, '离开游戏失败'))
+    }
   }
 
   function joinRoomSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -363,6 +414,12 @@ export default function GanDengYanPage() {
             <button className="btn btn-sm" onClick={copyShareLink}>
               <Copy size={14} />
               {copied ? '已复制' : '分享房间'}
+            </button>
+          )}
+          {activeRoomCode && (
+            <button className="btn btn-sm btn-danger" onClick={leaveGame}>
+              <LogOut size={14} />
+              离开游戏
             </button>
           )}
           <button className="btn btn-icon" onClick={toggleVoice} title="语音开关">
@@ -488,11 +545,13 @@ export default function GanDengYanPage() {
               </div>
 
               <div className={styles.notice}>
-                {room.status === 'finished'
-                  ? `${room.players.find(player => player.seat === room.winnerSeat)?.name} 获胜`
-                  : myTurn
-                    ? '轮到你出牌'
-                    : `等待 ${room.players.find(player => player.seat === room.currentSeat)?.name || '玩家'}`}
+                {isSpectating
+                  ? '当前账号不在本局，正在旁观'
+                  : room.status === 'finished'
+                    ? `${room.players.find(player => player.seat === room.winnerSeat)?.name} 获胜`
+                    : myTurn
+                      ? '轮到你出牌'
+                      : `等待 ${currentTurnPlayer?.name || '玩家'}`}
               </div>
             </div>
 
@@ -550,7 +609,15 @@ export default function GanDengYanPage() {
               </section>
 
               <section className={styles.panel}>
-                <h3>分数</h3>
+                <div className={styles.panelTitleRow}>
+                  <h3>分数</h3>
+                  {isOwner && (
+                    <button className="btn btn-sm" onClick={() => sendGameEvent('resetScores')}>
+                      <RotateCcw size={14} />
+                      重置分数
+                    </button>
+                  )}
+                </div>
                 <div className={styles.scoreMeta}>
                   <span>炸弹 {room.bombCount} 次</span>
                   <span>弃牌 {room.discardCount} 张</span>
@@ -562,8 +629,13 @@ export default function GanDengYanPage() {
                 )}
                 {room.players.map(player => (
                   <div key={player.seat} className={styles.scoreRow}>
-                    <span>{player.name}</span>
-                    <strong>{player.score > 0 ? `+${player.score}` : player.score}</strong>
+                    <span>
+                      {player.name}
+                      {!player.connected && !player.bot && (
+                        <em>离开时 {player.leftScore ?? player.score}</em>
+                      )}
+                    </span>
+                    <strong>{player.score}</strong>
                   </div>
                 ))}
                 {room.roundResult && (
@@ -577,44 +649,57 @@ export default function GanDengYanPage() {
                   </div>
                 )}
               </section>
-
-              <section className={classNames(styles.panel, styles.logPanel)}>
-                <h3>牌局记录</h3>
-                {room.log.map((item, index) => (
-                  <p key={`${item}-${index}`}>{item}</p>
-                ))}
-              </section>
             </aside>
 
             <div className={styles.handPanel}>
-              <PlayerBadge player={me} active={myTurn} winner={room.winnerSeat === me?.seat} showHandCount />
+              {me ? (
+                <PlayerBadge player={me} active={myTurn} winner={room.winnerSeat === me?.seat} showHandCount />
+              ) : (
+                <div className={styles.spectatorNotice}>
+                  <strong>当前账号不在本局</strong>
+                  <span>
+                    当前账号 {identity?.displayName || '未登录'}，本局玩家 {participantNames || '暂无真人玩家'}。
+                  </span>
+                </div>
+              )}
               <div className={styles.hand}>
-                {me?.hand.map(card => (
-                  <button
-                    key={card.id}
-                    className={classNames(styles.cardButton, selected.includes(card.id) && styles.picked)}
-                    onClick={() => toggleCard(card.id)}
-                  >
-                    <CardView card={card} />
-                  </button>
-                ))}
+                {me ? (
+                  me.hand.map(card => (
+                    <button
+                      key={card.id}
+                      className={classNames(styles.cardButton, selected.includes(card.id) && styles.picked)}
+                      onClick={() => toggleCard(card.id)}
+                    >
+                      <CardView card={card} />
+                    </button>
+                  ))
+                ) : (
+                  <div className={styles.emptyHand}>
+                    <span>请切回本局玩家账号，或新开一局。</span>
+                  </div>
+                )}
               </div>
               <div className={styles.actions}>
                 <div className={classNames(styles.preview, preview && styles.valid)}>
-                  <strong>{preview ? preview.label : selected.length ? '牌型不合法' : '先选牌'}</strong>
-                  <span>{selectedCards.map(card => card.label).join(' ') || '自动识别牌型'}</span>
+                  <strong>{me ? (preview ? preview.label : selected.length ? '牌型不合法' : '先选牌') : '旁观中'}</strong>
+                  <span>{me ? selectedCards.map(card => card.label).join(' ') || '自动识别牌型' : '当前账号没有本局手牌'}</span>
                 </div>
                 <button
                   className="btn btn-primary"
-                  disabled={!myTurn || selected.length === 0 || !preview}
+                  disabled={!me || !myTurn || selected.length === 0 || !preview}
                   onClick={() => sendGameEvent('play', { cardIds: selected })}
                 >
                   <Send size={16} />
                   出牌
                 </button>
-                <button className="btn" disabled={!myTurn || !room.table} onClick={() => sendGameEvent('pass')}>
+                <button className="btn" disabled={!me || !myTurn || !room.table} onClick={() => sendGameEvent('pass')}>
                   不要
                 </button>
+                {!me && (
+                  <button className="btn" disabled={openingRoom} onClick={createRoomSubmit}>
+                    新开一局
+                  </button>
+                )}
                 {error && <span className={styles.error}>{error}</span>}
               </div>
             </div>
@@ -654,8 +739,8 @@ function CardView({ card, small = false }: { card: Card; small?: boolean }) {
 }
 
 function setRoomUrl(id: string) {
-  if (!id || typeof window === 'undefined') return
-  const nextUrl = `/game?room=${id}`
+  if (typeof window === 'undefined') return
+  const nextUrl = id ? `/game?room=${id}` : '/game'
   if (`${window.location.pathname}${window.location.search}` !== nextUrl) {
     window.history.replaceState(null, '', nextUrl)
   }
@@ -734,11 +819,23 @@ function compactValues(values: number[]) {
 
 function comboVoiceKeys(combo) {
   const value = rankVoiceKey(combo.value)
-  if (combo.type === 'single' || combo.type === 'pair') return []
+  const localValue = localRankVoiceKey(value)
+  if (combo.type === 'single') return localValue ? [`single-${localValue}`] : []
+  if (combo.type === 'pair') return localValue ? [`pair-${localValue}`, `dui-${localValue}`, 'pair'] : ['pair']
   if (combo.type === 'straight') return [`straight-${valuesVoiceKey(combo.resolvedValues)}`, 'straight', 'shunzi'].filter(Boolean)
   if (combo.type === 'pairStraight') return [`pair-straight-${valuesVoiceKey(combo.resolvedValues)}`, 'pair-straight', 'liandui'].filter(Boolean)
   if (combo.type === 'bomb') return [`bomb-${value}`, `zha-${value}`, 'bomb', 'zha'].filter(Boolean)
   return []
+}
+
+function localRankVoiceKey(value: string) {
+  const faceRankVoiceMap: Record<string, string> = {
+    j: 'q',
+    q: 'k',
+    k: 'a',
+    a: 'j',
+  }
+  return faceRankVoiceMap[value] || value
 }
 
 function valuesVoiceKey(values = []) {

@@ -7,6 +7,7 @@
 .headerActions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -309,6 +310,13 @@
   font-size: 15px;
 }
 
+.panelTitleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .segmented {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(68px, 1fr));
@@ -345,10 +353,24 @@
 
 .scoreRow {
   display: flex;
+  align-items: center;
+  gap: 10px;
   justify-content: space-between;
   border-top: 1px solid var(--border, #e3e8df);
   padding-top: 8px;
   color: var(--text, #17211b);
+}
+
+.scoreRow span {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.scoreRow em {
+  color: var(--muted, #667168);
+  font-size: 12px;
+  font-style: normal;
 }
 
 .resultBox {
@@ -397,6 +419,39 @@
   gap: 8px;
   overflow-x: auto;
   padding: 4px 2px 10px;
+}
+
+.spectatorNotice,
+.emptyHand {
+  border: 1px solid var(--border, #d7ded3);
+  border-radius: 8px;
+  background: var(--bg, #f6f7f3);
+}
+
+.spectatorNotice {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+}
+
+.spectatorNotice strong {
+  color: var(--text, #17211b);
+  font-size: 14px;
+}
+
+.spectatorNotice span,
+.emptyHand span {
+  color: var(--muted, #667168);
+  font-size: 13px;
+}
+
+.emptyHand {
+  display: grid;
+  flex: 1;
+  min-width: 220px;
+  place-items: center;
+  padding: 18px;
+  text-align: center;
 }
 
 .cardButton {

@@ -10,6 +10,7 @@ interface UseChannelMessagesOptions {
   author?: string
   authorName?: string
   limit?: number
+  refreshOnMessage?: boolean
   onChannelListChanged?: () => void
   onEvent?: (event: string, data: any) => void
 }
@@ -39,6 +40,7 @@ export function useChannelMessages({
   author,
   authorName,
   limit = 100,
+  refreshOnMessage = false,
   onChannelListChanged,
   onEvent,
 }: UseChannelMessagesOptions) {
@@ -50,7 +52,9 @@ export function useChannelMessages({
   const channelNameRef = useRef(channelName || '')
   const onEventRef = useRef(onEvent)
   const onChannelListChangedRef = useRef(onChannelListChanged)
+  const refreshOnMessageRef = useRef(refreshOnMessage)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const messageRefreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const reconnectAttemptRef = useRef(0)
   const mountedRef = useRef(false)
 
@@ -65,6 +69,10 @@ export function useChannelMessages({
   useEffect(() => {
     onChannelListChangedRef.current = onChannelListChanged
   }, [onChannelListChanged])
+
+  useEffect(() => {
+    refreshOnMessageRef.current = refreshOnMessage
+  }, [refreshOnMessage])
 
   const wsSend = useCallback((event: string, data: Record<string, unknown>) => {
     const ws = wsRef.current
@@ -185,6 +193,12 @@ export function useChannelMessages({
               return mergeMessages(previous, [incoming])
             })
             void refreshPeers()
+            if (refreshOnMessageRef.current && !messageRefreshTimeoutRef.current) {
+              messageRefreshTimeoutRef.current = setTimeout(() => {
+                messageRefreshTimeoutRef.current = null
+                void refreshMessages()
+              }, 120)
+            }
           }
 
           if (
@@ -225,6 +239,10 @@ export function useChannelMessages({
       closed = true
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current)
+      }
+      if (messageRefreshTimeoutRef.current) {
+        clearTimeout(messageRefreshTimeoutRef.current)
+        messageRefreshTimeoutRef.current = null
       }
       wsRef.current?.close()
     }

@@ -4,6 +4,7 @@ const STRAIGHT_RANKS = RANKS.filter(rank => rank !== '2')
 const RANK_VALUE = new Map(RANKS.map((rank, index) => [rank, index + 3]))
 const INITIAL_HAND_SIZE = 5
 const SEALED_PENALTY = 15
+const INITIAL_SCORE = 1000
 
 export const GAN_DENG_YAN_GAME_ID = 'gdy'
 export const GAN_DENG_YAN_EVENT_TYPE = 'game'
@@ -122,6 +123,17 @@ export function applyGameEvent(room, event) {
     return room
   }
 
+  if (event.event === 'leave') {
+    leaveRoom(room, actorId)
+    return room
+  }
+
+  if (event.event === 'resetScores') {
+    assertOwner(room, actorId)
+    resetRoomScores(room)
+    return room
+  }
+
   if (event.event === 'start') {
     assertOwner(room, actorId)
     startGame(room, event.payload?.seed)
@@ -149,7 +161,8 @@ export function applyGameEvent(room, event) {
   }
 
   if (event.event === 'bot') {
-    assertOwner(room, actorId)
+    assertRoomHuman(room, actorId)
+    if (!isExpectedBotEvent(room, event.payload || {})) return room
     botStep(room)
     if (room.lastAction) room.lastAction.id = event.eventId
     return room
@@ -160,6 +173,25 @@ export function applyGameEvent(room, event) {
 
 function assertOwner(room, playerId) {
   if (room.ownerId !== playerId) throw new Error('只有房主可以操作')
+}
+
+function assertRoomHuman(room, playerId) {
+  if (!room.players.some(player => player.id === playerId && !player.bot)) {
+    throw new Error('只有房间玩家可以操作人机')
+  }
+}
+
+function isExpectedBotEvent(room, payload) {
+  const player = currentPlayer(room)
+  if (room.status !== 'playing' || !player?.bot) return false
+  if (payload.seat !== undefined && Number(payload.seat) !== player.seat) return false
+  if (
+    payload.afterActionId !== undefined &&
+    String(payload.afterActionId) !== String(room.lastAction?.id || '')
+  ) {
+    return false
+  }
+  return true
 }
 
 export function createRoom({ roomId, ownerId, ownerName, ownerAddress }) {
@@ -177,7 +209,7 @@ export function createRoom({ roomId, ownerId, ownerName, ownerAddress }) {
         seat: 0,
         connected: true,
         hand: [],
-        score: 0,
+        score: INITIAL_SCORE,
         playedCards: 0,
       },
     ],
@@ -229,7 +261,7 @@ export function joinRoom(room, playerId, name, address) {
     seat,
     connected: true,
     hand: [],
-    score: 0,
+    score: INITIAL_SCORE,
     playedCards: 0,
   }
   room.players = room.players.filter(item => item.seat !== seat)
@@ -244,11 +276,23 @@ export function joinRoom(room, playerId, name, address) {
 export function leaveRoom(room, playerId) {
   const player = room.players.find(item => item.id === playerId)
   if (!player || player.bot) return
+  player.leftScore = player.score
   player.connected = false
+  room.log.unshift(`${player.name} 离开游戏，离开时 ${player.score} 分`)
   if (room.status === 'lobby') {
     room.players = room.players.filter(item => item.id !== playerId)
     syncBots(room)
   }
+  transferOwnerAfterLeave(room, playerId)
+  room.updatedAt = Date.now()
+}
+
+export function resetRoomScores(room) {
+  for (const player of room.players) {
+    player.score = INITIAL_SCORE
+  }
+  room.roundResult = null
+  room.log.unshift(`房主已将所有玩家分数重置为 ${INITIAL_SCORE}`)
   room.updatedAt = Date.now()
 }
 
@@ -347,11 +391,10 @@ export function passTurn(room, playerId) {
   const activeSeats = activePlayers(room).map(item => item.seat)
   const seatsToBeat = activeSeats.filter(seat => seat !== room.lastWinnerSeat)
   if (seatsToBeat.every(seat => room.passSeats.includes(seat))) {
-    refillAfterRound(room)
     room.currentSeat = room.lastWinnerSeat
     room.table = null
     room.passSeats = []
-    room.log.unshift('本轮结束，所有玩家各补 1 张，重新领出')
+    room.log.unshift('本轮结束，重新领出')
   } else {
     advanceTurn(room)
   }
@@ -402,6 +445,7 @@ export function publicRoom(room, viewerId) {
       connected: player.connected,
       handCount: player.hand.length,
       score: player.score,
+      leftScore: player.leftScore,
       playedCards: player.playedCards,
       hand: player.id === viewerId ? player.hand.map(publicCard) : [],
     })),
@@ -497,8 +541,9 @@ function canBeat(combo, tableCombo) {
   if (combo.type !== tableCombo.type) return false
   if (combo.type === 'bomb') {
     if (combo.length !== tableCombo.length) return combo.length > tableCombo.length
+    if (combo.pure !== tableCombo.pure) return combo.pure && !tableCombo.pure
     if (combo.value !== tableCombo.value) return combo.value > tableCombo.value
-    return combo.pure && !tableCombo.pure
+    return false
   }
   if (combo.length !== tableCombo.length) return false
   if (combo.type === 'single' || combo.type === 'pair') {
@@ -509,7 +554,7 @@ function canBeat(combo, tableCombo) {
 
 function syncBots(room) {
   const seats = room.settings.seats
-  room.players = room.players.filter(player => player.seat < seats && (!player.bot || room.status === 'lobby'))
+  room.players = room.players.filter(player => player.seat < seats)
   while (orderedPlayers(room).filter(player => player.bot).length > room.settings.bots) {
     const bot = orderedPlayers(room).filter(player => player.bot).at(-1)
     room.players = room.players.filter(player => player.id !== bot.id)
@@ -529,9 +574,15 @@ function makeBot(seat) {
     seat,
     connected: true,
     hand: [],
-    score: 0,
+    score: INITIAL_SCORE,
     playedCards: 0,
   }
+}
+
+function transferOwnerAfterLeave(room, playerId) {
+  if (room.ownerId !== playerId) return
+  const nextOwner = orderedPlayers(room).find(player => !player.bot && player.id !== playerId)
+  if (nextOwner) room.ownerId = nextOwner.id
 }
 
 function chooseStarter(room, rng) {
@@ -624,14 +675,6 @@ function finishGameByOnlyJokers(room, loser, winner) {
   }
   room.log.unshift(`${loser.name} 只剩王牌，自动判负；${winner.name} 获胜`)
   room.updatedAt = Date.now()
-}
-
-function refillAfterRound(room) {
-  for (const player of activePlayers(room)) {
-    if (room.deck.length === 0) break
-    player.hand.push(...draw(room, 1))
-    sortHand(player.hand)
-  }
 }
 
 function firstOpenHumanSeat(room) {
