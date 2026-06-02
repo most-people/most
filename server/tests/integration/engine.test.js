@@ -9,6 +9,10 @@ import Hyperdrive from 'hyperdrive'
 import { CID } from 'multiformats/cid'
 import { MostBoxEngine } from '../../src/index.js'
 import { calculateCid } from '../../src/core/cid.js'
+import {
+  GAME_CHANNEL_TYPE,
+  gameRoomCodeToChannelName,
+} from '../../src/core/gameRoom.js'
 import { GLOBAL_SHARED_SEED_STRING } from '../../src/config.js'
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
@@ -917,6 +921,13 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.ok(result.key)
     })
 
+    it('creates game room channels with shared game type', async () => {
+      const name = gameRoomCodeToChannelName('gandengyan', 'ABC123')
+      const result = await engine.createChannel(name, GAME_CHANNEL_TYPE)
+      assert.strictEqual(result.name, name)
+      assert.ok(result.key)
+    })
+
     it('returns existing channel if already created', async () => {
       const first = await engine.createChannel(`dup-${uid}`)
       const second = await engine.createChannel(`dup-${uid}`)
@@ -935,7 +946,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
     })
 
     it('rejects channel names that are too long', async () => {
-      await assert.rejects(engine.createChannel('a'.repeat(21)), /最多 20 个字/)
+      await assert.rejects(engine.createChannel('a'.repeat(31)), /最多 30 个字/)
     })
   })
 

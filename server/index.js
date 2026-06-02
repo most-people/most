@@ -4,7 +4,6 @@ import { fileURLToPath } from 'node:url'
 import { WebSocketServer } from 'ws'
 import { serve } from '@hono/node-server'
 import { MostBoxEngine } from './src/index.js'
-import { createGanDengYanSocketHandlers } from './src/games/gandengyan.js'
 import {
   DEFAULT_NODE_HOST,
   DEFAULT_NODE_PORT,
@@ -133,23 +132,16 @@ function createWebSocketServer({
   cleanupWsSubscriptions,
 }) {
   const wss = new WebSocketServer({ noServer: true })
-  const ganDengYan = createGanDengYanSocketHandlers()
 
   wss.on('connection', ws => {
-    ganDengYan.bindClient(ws)
     ws.on('error', () => {})
     ws.on('close', () => {
-      ganDengYan.unbindClient(ws)
       cleanupWsSubscriptions(ws)
     })
     ws.on('message', raw => {
       try {
         const msg = JSON.parse(raw)
         const { event, data } = msg
-
-        if (ganDengYan.handleMessage(ws, event, data)) {
-          return
-        }
 
         switch (event) {
           case 'register':

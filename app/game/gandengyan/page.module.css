@@ -1,7 +1,7 @@
 .page {
   min-height: calc(100vh - 64px);
   padding: 18px;
-  background: var(--bg, #f6f7f3);
+  background: var(--bg-primary);
 }
 
 .headerActions {
@@ -28,14 +28,14 @@
 
 .cardMark {
   display: grid;
-  flex: 0 0 112px;
   width: 112px;
   height: 152px;
+  flex: 0 0 112px;
   place-items: center;
   border: 8px solid #fff;
   border-radius: 8px;
   background: #c93d32;
-  box-shadow: 0 22px 60px rgba(36, 54, 45, 0.16);
+  box-shadow: var(--shadow-lg);
   color: #fff;
   font-size: 70px;
   font-weight: 900;
@@ -43,25 +43,26 @@
 
 .entryBrand h1 {
   margin: 0;
-  color: var(--text, #17211b);
-  font-size: clamp(42px, 8vw, 92px);
+  color: var(--text-primary);
+  font-size: 64px;
   line-height: 0.95;
 }
 
 .entryBrand p {
   max-width: 520px;
   margin: 18px 0 0;
-  color: var(--muted, #667168);
+  color: var(--text-secondary);
   font-size: 18px;
   line-height: 1.7;
 }
 
 .entryPanel,
-.panel {
-  border: 1px solid var(--border, #d7ded3);
+.panel,
+.handPanel {
+  border: 1px solid var(--glass-border);
   border-radius: 8px;
-  background: var(--panel, rgba(255, 255, 255, 0.86));
-  box-shadow: 0 18px 50px rgba(35, 55, 43, 0.1);
+  background: var(--glass-bg);
+  box-shadow: var(--glass-shadow);
 }
 
 .entryPanel {
@@ -82,14 +83,14 @@
 
 .accountLine {
   justify-content: space-between;
-  color: var(--muted, #667168);
+  color: var(--text-secondary);
   font-size: 14px;
 }
 
 .accountLine strong {
   max-width: 190px;
   overflow: hidden;
-  color: var(--text, #17211b);
+  color: var(--text-primary);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -100,30 +101,25 @@
   gap: 8px;
 }
 
-.joinForm label,
-.rangeLine {
-  color: var(--muted, #667168);
+.joinForm label {
+  color: var(--text-secondary);
   font-size: 14px;
 }
 
 .joinForm input {
   width: 100%;
   min-height: 40px;
-  border: 1px solid var(--border, #c4cec5);
+  border: 1px solid var(--glass-border);
   border-radius: 8px;
   padding: 0 12px;
-  background: var(--panel, #fff);
-  color: var(--text, #17211b);
+  background: var(--bg-primary);
+  color: var(--text-primary);
 }
 
-.status,
-.error {
+.status {
   margin: 0;
+  color: var(--text-secondary);
   font-size: 14px;
-}
-
-.error {
-  color: #c73228;
 }
 
 .gameGrid {
@@ -213,9 +209,9 @@
 
 .avatar {
   display: grid;
-  flex: 0 0 40px;
   width: 40px;
   height: 40px;
+  flex: 0 0 40px;
   place-items: center;
   border-radius: 50%;
   background: #17211b;
@@ -305,50 +301,22 @@
 
 .panel h3 {
   margin: 0;
-  color: var(--text, #17211b);
+  color: var(--text-primary);
   font-size: 15px;
-}
-
-.segmented {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(68px, 1fr));
-  gap: 6px;
-}
-
-.segmented button {
-  min-height: 36px;
-  border: 1px solid var(--border, #c4cec5);
-  border-radius: 8px;
-  background: var(--panel, #fff);
-  color: var(--text, #17211b);
-}
-
-.segmented .selected {
-  border-color: #176b4d;
-  background: #176b4d;
-  color: #fff;
-  font-weight: 800;
-}
-
-.rangeLine {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) 24px;
-  align-items: center;
-  gap: 8px;
 }
 
 .scoreMeta {
   justify-content: space-between;
-  color: var(--muted, #667168);
+  color: var(--text-secondary);
   font-size: 13px;
 }
 
 .scoreRow {
   display: flex;
   justify-content: space-between;
-  border-top: 1px solid var(--border, #e3e8df);
+  border-top: 1px solid var(--glass-border);
   padding-top: 8px;
-  color: var(--text, #17211b);
+  color: var(--text-primary);
 }
 
 .logPanel {
@@ -358,7 +326,7 @@
 
 .logPanel p {
   margin: 0;
-  color: var(--muted, #667168);
+  color: var(--text-secondary);
   font-size: 13px;
   line-height: 1.5;
 }
@@ -367,10 +335,7 @@
   grid-area: hand;
   display: grid;
   gap: 12px;
-  border: 1px solid var(--border, #d7ded3);
-  border-radius: 8px;
   padding: 12px;
-  background: var(--panel, rgba(255, 255, 255, 0.9));
 }
 
 .hand {
@@ -452,15 +417,15 @@
   display: grid;
   flex: 1 1 260px;
   min-height: 46px;
-  border: 1px solid var(--border, #d7ded3);
+  border: 1px solid var(--glass-border);
   border-radius: 8px;
   padding: 7px 10px;
-  background: var(--bg, #f6f7f3);
-  color: var(--muted, #667168);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
 }
 
 .preview strong {
-  color: var(--text, #17211b);
+  color: var(--text-primary);
   font-size: 14px;
 }
 
@@ -498,6 +463,10 @@
   .entryBrand {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .entryBrand h1 {
+    font-size: 42px;
   }
 
   .cardMark {

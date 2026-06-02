@@ -48,7 +48,7 @@ export const SWARM_BOOTSTRAP = [
 ]
 
 export const CHANNEL_NAME_MIN_LENGTH = 3
-export const CHANNEL_NAME_MAX_LENGTH = 20
+export const CHANNEL_NAME_MAX_LENGTH = 30
 export const CHANNEL_NAME_REGEX = /^[a-zA-Z0-9_-]+$/
 export const CHANNEL_NAME_PREFIX = 'most-box-room-'
 export const CHANNEL_MESSAGE_LIMIT = 100

@@ -1834,6 +1834,7 @@ export class MostBoxEngine extends EventEmitter {
   async createChannel(name, type = 'personal', options = {}) {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    const channelType = String(type || 'personal').trim() || 'personal'
 
     if (!CHANNEL_NAME_REGEX.test(name)) {
       throw new Error('频道名只能包含字母、数字、下划线和连字符')
@@ -1879,7 +1880,7 @@ export class MostBoxEngine extends EventEmitter {
       discoveryKey: b4a.toString(discoveryKey, 'hex'),
       coreKey: b4a.toString(core.key, 'hex'),
       createdAt: new Date().toISOString(),
-      type,
+      type: channelType,
       ownerAddress,
       members: ownerAddress ? [ownerAddress] : [],
       remoteCoreKeys: [],
@@ -2105,11 +2106,18 @@ export class MostBoxEngine extends EventEmitter {
   listChannels(options = {}) {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    const type = String(options.type || '').trim()
+    const excludeType = String(options.excludeType || '').trim()
 
     return this.#channels
       .filter(c => {
         if (!ownerAddress) return true
         return Array.isArray(c.members) && c.members.includes(ownerAddress)
+      })
+      .filter(c => {
+        if (type) return c.type === type
+        if (excludeType) return c.type !== excludeType
+        return true
       })
       .map(c => ({
         name: c.name,

@@ -132,6 +132,8 @@ npm run lint
 - Channel append 监听用 `lastCoreLength` 只处理新消息，避免重复推旧消息。
 - 双方都拥有频道时，通过 `store.namespace(\`channel-${name}\`).replicate(conn)` 复制。
 - WebSocket 订阅要等 `peerId` 就绪；未就绪时暂存频道名，随后补发订阅。
+- 游戏房间频道必须使用公共 Channel 系统：HTTP `/api/channels`、WebSocket `channel:*`、Corestore/Hypercore 频道消息日志；游戏层只负责事件 payload 和状态派生。
+- 新实现不兼容旧游戏频道或旧事件格式；历史遗留协议直接清理，不写迁移或双格式分支。
 
 ## 关键入口
 

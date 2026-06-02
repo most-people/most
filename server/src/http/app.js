@@ -959,7 +959,13 @@ export function createApp(engine, options = {}) {
   })
 
   app.get('/api/channels', c => {
-    return c.json(engine.listChannels({ ownerAddress: c.get('userAddress') }))
+    return c.json(
+      engine.listChannels({
+        ownerAddress: c.get('userAddress'),
+        type: c.req.query('type'),
+        excludeType: c.req.query('excludeType'),
+      })
+    )
   })
 
   app.delete('/api/channels/:name', async c => {
