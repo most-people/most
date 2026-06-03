@@ -684,7 +684,12 @@ function ChatPage() {
                 >
                   <img
                     className="msg-avatar"
-                    src={generateAvatar(msg.author)}
+                    src={generateAvatar(
+                      msg.author,
+                      msg.author === userIdentity?.address
+                        ? userIdentity.avatar
+                        : undefined
+                    )}
                     alt="avatar"
                   />
                   <div className="msg-content">

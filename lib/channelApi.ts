@@ -51,6 +51,11 @@ export interface SetChannelRemarkResult {
   remark: string
 }
 
+export interface CreateChannelResult extends Channel {
+  success?: boolean
+  key?: string
+}
+
 export const channelApi = {
   getChannels(options: GetChannelsOptions = {}) {
     const params = new URLSearchParams()
@@ -63,7 +68,9 @@ export const channelApi = {
   },
 
   createChannel(name: string, type = 'personal') {
-    return api.post<Channel>('/api/channels', { json: { name, type } }).json()
+    return api
+      .post<CreateChannelResult>('/api/channels', { json: { name, type } })
+      .json()
   },
 
   leaveChannel(name: string) {

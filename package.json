@@ -17,9 +17,9 @@
   ],
   "scripts": {
     "start": "next dev",
+    "server": "node --watch server/index.js",
     "dev": "next dev",
     "build": "next build",
-    "server": "node --watch server/index.js",
     "serve": "next build && node server/index.js",
     "test": "node --test server/tests/**/*.test.js",
     "test:unit": "node --test server/tests/unit/*.test.js",

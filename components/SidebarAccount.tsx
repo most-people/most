@@ -19,7 +19,7 @@ export default function SidebarAccount({
       <div className="user-info">
         <img
           className="user-avatar-img"
-          src={generateAvatar(identity?.address)}
+          src={generateAvatar(identity?.address, identity?.avatar)}
           alt="avatar"
         />
         <span className="user-name" title={identity?.address}>
