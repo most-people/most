@@ -589,6 +589,36 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(data.success)
       assert.strictEqual(data.fileName, '测试文件.txt')
     })
+
+    it('preserves chat attachment folder paths in multipart filename', async () => {
+      const boundary = '----TestBoundaryChatAttachment'
+      const fileName = 'chat-file/general/photo.png'
+      const body = [
+        `--${boundary}`,
+        `Content-Disposition: form-data; name="file"; filename="${fileName}"`,
+        'Content-Type: image/png',
+        '',
+        'fake png bytes for chat attachment path test',
+        `--${boundary}--`,
+      ].join('\r\n')
+
+      const res = await fetch(`${baseUrl}/api/publish`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        },
+        body,
+      })
+
+      const data = await res.json()
+      assert.strictEqual(res.status, 200)
+      assert.ok(data.success)
+      assert.strictEqual(data.fileName, fileName)
+      assert.strictEqual(
+        data.link,
+        `most://${data.cid}?filename=${encodeURIComponent(fileName)}`
+      )
+    })
   })
 
   describe('POST /api/download', () => {
