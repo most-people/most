@@ -672,16 +672,21 @@ export function createApp(engine, options = {}) {
       return c.json({ error: parsed.error }, 400)
     }
 
-    const existingFile = engine
-      .getPublishedFiles({ ownerAddress: c.get('userAddress') })
-      .find(f => f.cid === parsed.cid)
-    if (existingFile) {
+    const localAvailability =
+      typeof engine.getLocalCidAvailability === 'function'
+        ? await engine.getLocalCidAvailability(body.link, {
+            ownerAddress: c.get('userAddress'),
+          })
+        : engine
+            .getPublishedFiles({ ownerAddress: c.get('userAddress') })
+            .find(f => f.cid === parsed.cid)
+    if (localAvailability) {
       return c.json({
         success: true,
         available: true,
         cid: parsed.cid,
-        fileName: existingFile.fileName,
-        size: Number(existingFile.size) || null,
+        fileName: localAvailability.fileName,
+        size: Number(localAvailability.size) || null,
         alreadyExists: true,
       })
     }
@@ -719,11 +724,18 @@ export function createApp(engine, options = {}) {
       return c.json({ error: parsed.error }, 400)
     }
 
-    const existingFile = engine
-      .getPublishedFiles({ ownerAddress: c.get('userAddress') })
-      .find(f => f.cid === parsed.cid)
-    if (existingFile) {
-      console.log(`[MostBox] File already exists: ${existingFile.fileName}`)
+    const localAvailability =
+      typeof engine.getLocalCidAvailability === 'function'
+        ? await engine.getLocalCidAvailability(body.link, {
+            ownerAddress: c.get('userAddress'),
+          })
+        : engine
+            .getPublishedFiles({ ownerAddress: c.get('userAddress') })
+            .find(f => f.cid === parsed.cid)
+    if (localAvailability) {
+      console.log(
+        `[MostBox] CID content already exists locally: ${parsed.cid}`
+      )
       try {
         const result = await engine.downloadFile(body.link, taskId, {
           ownerAddress: c.get('userAddress'),

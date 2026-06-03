@@ -732,6 +732,31 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(called, true)
     })
 
+    it('uses local CID availability before filename conflict checks', async () => {
+      const publishResult = await engine.publishFile(
+        Buffer.from('cid-first chat attachment'),
+        '#18.txt'
+      )
+      const chatFileName = `chat-file/${uid}/#18.txt`
+      const downloadPath = path.join(tmpDir, 'api', 'downloads', chatFileName)
+      fs.mkdirSync(path.dirname(downloadPath), { recursive: true })
+      fs.writeFileSync(downloadPath, 'same target name')
+
+      const res = await fetch(`${baseUrl}/api/download`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          link: `most://${publishResult.cid}?filename=${encodeURIComponent(chatFileName)}`,
+        }),
+      })
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 200)
+      assert.strictEqual(data.success, true)
+      assert.strictEqual(data.alreadyExists, true)
+      assert.strictEqual(data.fileName, chatFileName)
+    })
+
     it('returns 409 when another CID would save over an existing filename', async () => {
       const downloadsDir = path.join(tmpDir, 'api', 'downloads')
       fs.mkdirSync(downloadsDir, { recursive: true })

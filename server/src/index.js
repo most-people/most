@@ -48,7 +48,6 @@ import {
   SWARM_KEEP_ALIVE_INTERVAL,
   SWARM_RANDOM_PUNCH_INTERVAL,
   DRIVE_ENTRY_TIMEOUT,
-  DRIVE_SYNC_TIMEOUT,
   STREAM_READ_TIMEOUT,
   FILE_WRITE_CHUNK_SIZE,
   DOWNLOAD_POLL_INTERVAL_MIN,
@@ -67,10 +66,20 @@ import {
 } from './config.js'
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+const CHAT_FILE_ROOT = 'chat-file'
 
 function normalizeOwnerAddress(address) {
   const value = String(address || '').trim()
   return /^0x[a-fA-F0-9]{40}$/.test(value) ? value.toLowerCase() : ''
+}
+
+function getPathBaseName(fileName) {
+  const parts = String(fileName || '').split('/').filter(Boolean)
+  return parts[parts.length - 1] || 'unnamed_file'
+}
+
+function buildMostLink(cid, fileName) {
+  return `most://${cid}?filename=${encodeURIComponent(fileName)}`
 }
 
 function createOfflineSwarm() {
@@ -644,39 +653,43 @@ export class MostBoxEngine extends EventEmitter {
       const cidString = parsed.cid
       console.log(`[MostBox] Parsed CID: ${cidString}`)
       const { driveName: name } = this.#getCidInfo(cidString)
+      const linkFileName = sanitizeFilename(parsed.fileName)
 
-      const existingFile = this.#publishedFiles.find(
-        f => f.cid === cidString && this.#recordMatchesOwner(f, ownerAddress)
-      )
-      if (existingFile) {
-        console.log(`[MostBox] File already exists: ${existingFile.fileName}`)
+      const localContent = await this.#getLocalCidContent(cidString, {
+        ownerAddress,
+        public: true,
+        allowHoldingFallback: true,
+      })
+      if (localContent) {
+        const existingFile = localContent.fileRecord
+        console.log(
+          `[MostBox] CID content already exists locally: ${cidString}`
+        )
         const existingHolding = this.#holdings.find(
           item => item.cid === cidString
         )
-        const existingSize = Number(existingFile.size)
         await this.#joinCidTopicInternal(cidString, {
           server: true,
           client: false,
         })
         this.#upsertHolding({
           cid: cidString,
-          fileName: existingFile.fileName,
+          fileName:
+            existingHolding?.fileName || existingFile?.fileName || linkFileName,
           size:
             existingHolding?.size ??
-            (Number.isFinite(existingSize) ? existingSize : 0),
+            (Number.isFinite(localContent.size) ? localContent.size : 0),
           localPath:
-            existingHolding?.localPath || existingFile.localPath || null,
-          driveName: existingFile.driveName || name,
+            existingHolding?.localPath || existingFile?.localPath || null,
+          driveName: existingFile?.driveName || name,
           source: existingHolding?.source || 'published',
         })
         return {
           taskId,
-          fileName: existingFile.fileName,
+          fileName: linkFileName,
           alreadyExists: true,
         }
       }
-
-      const linkFileName = parsed.fileName
 
       if (taskState.aborted) throw new Error('Download cancelled')
 
@@ -926,9 +939,8 @@ export class MostBoxEngine extends EventEmitter {
         )
         if (existingIndex !== -1) {
           const existing = this.#publishedFiles[existingIndex]
-          if (existing.fileName !== sanitizedFileName) {
-            throw new Error(`文件已存在: ${existing.fileName}`)
-          }
+          existing.fileName = sanitizedFileName
+          existing.driveName = name
           existing.publishedAt = new Date().toISOString()
         } else {
           this.#publishedFiles.push({
@@ -960,6 +972,35 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   /**
+   * 快速检查 most:// 链接对应的 CID 内容是否已在本机可读。
+   */
+  async getLocalCidAvailability(link, options = {}) {
+    this.#ensureInitialized()
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    const parsed = parseMostLink(link)
+    if (parsed.error) {
+      throw new ValidationError(parsed.error)
+    }
+
+    const localContent = await this.#getLocalCidContent(parsed.cid, {
+      ownerAddress,
+      public: true,
+      allowHoldingFallback: true,
+    })
+    if (!localContent) {
+      return null
+    }
+
+    return {
+      available: true,
+      cid: parsed.cid,
+      fileName: sanitizeFilename(parsed.fileName),
+      size: localContent.size,
+      alreadyExists: true,
+    }
+  }
+
+  /**
    * 检测 most:// 链接当前是否能找到可下载内容，但不读取文件内容。
    * @param {string} link - most:// 链接
    * @param {object} [options] - 检测选项
@@ -978,15 +1019,17 @@ export class MostBoxEngine extends EventEmitter {
 
     const cidString = parsed.cid
     const { driveName: name } = this.#getCidInfo(cidString)
-    const existingFile = this.#publishedFiles.find(
-      f => f.cid === cidString && this.#recordMatchesOwner(f, ownerAddress)
-    )
-    if (existingFile) {
+    const localContent = await this.#getLocalCidContent(cidString, {
+      ownerAddress,
+      public: true,
+      allowHoldingFallback: true,
+    })
+    if (localContent) {
       return {
         available: true,
         cid: cidString,
-        fileName: existingFile.fileName,
-        size: Number(existingFile.size) || null,
+        fileName: sanitizeFilename(parsed.fileName),
+        size: localContent.size,
         alreadyExists: true,
       }
     }
@@ -1678,28 +1721,23 @@ export class MostBoxEngine extends EventEmitter {
     options = {}
   ) {
     this.#ensureInitialized()
+    if (typeof offset === 'object' && offset !== null) {
+      options = offset
+      offset = 0
+      limit = DEFAULT_READ_LIMIT
+    }
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
 
-    const fileRecord = this.#publishedFiles.find(
-      f =>
-        f.cid === cid &&
-        (options.public || this.#recordMatchesOwner(f, ownerAddress))
-    )
-    if (!fileRecord) {
+    const localContent = await this.#getLocalCidContent(cid, {
+      ownerAddress,
+      public: options.public,
+    })
+    if (!localContent) {
       throw new Error('File not found')
     }
 
-    const drive = await this.#getDriveForFile(fileRecord)
-
-    // Hyperdrive 中 key 为 '/' + cid
     const driveKey = '/' + cid
-    const entry = await drive.entry(driveKey, {
-      wait: true,
-      timeout: DRIVE_ENTRY_TIMEOUT,
-    })
-    if (!entry || !entry.value) {
-      throw new Error('File content not available')
-    }
+    const { drive } = localContent
 
     const chunks = []
     const stream = drive.createReadStream(driveKey, {
@@ -1743,25 +1781,16 @@ export class MostBoxEngine extends EventEmitter {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
 
-    const fileRecord = this.#publishedFiles.find(
-      f =>
-        f.cid === cid &&
-        (options.public || this.#recordMatchesOwner(f, ownerAddress))
-    )
-    if (!fileRecord) {
+    const localContent = await this.#getLocalCidContent(cid, {
+      ownerAddress,
+      public: options.public,
+    })
+    if (!localContent) {
       throw new Error('File not found')
     }
 
-    const drive = await this.#getDriveForFile(fileRecord)
-
     const driveKey = '/' + cid
-    const entry = await drive.entry(driveKey, {
-      wait: true,
-      timeout: DRIVE_ENTRY_TIMEOUT,
-    })
-    if (!entry || !entry.value || !entry.value.blob) {
-      throw new Error('File content not available')
-    }
+    const { drive, entry, fileRecord } = localContent
 
     const totalSize = entry.value.blob.byteLength || 0
 
@@ -1808,19 +1837,63 @@ export class MostBoxEngine extends EventEmitter {
     return { buffer, fileName: fileRecord.fileName, totalSize }
   }
 
-  /**
-   * 获取文件对应的 drive，如果不存在则创建并同步
-   */
-  async #getDriveForFile(fileRecord) {
-    let drive = this.#drives.get(fileRecord.driveName)
-    if (!drive) {
-      drive = await this.#getOrCreateDrive(fileRecord.driveName, {
-        server: true,
-        client: true,
-      })
+  async #hasLocalDriveContent(drive, key) {
+    try {
+      return await drive.has(key)
+    } catch {
+      return false
     }
-    await this.#syncDrive(drive)
-    return drive
+  }
+
+  async #getLocalCidContent(cid, options = {}) {
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    const fileRecord = this.#publishedFiles.find(
+      f =>
+        f.cid === cid &&
+        (options.public || this.#recordMatchesOwner(f, ownerAddress))
+    )
+    if (!options.allowHoldingFallback && !fileRecord) {
+      return null
+    }
+    const holding = this.#holdings.find(item => item.cid === cid)
+    const { driveName } = this.#getCidInfo(cid)
+    const drive = await this.#getOrCreateDrive(
+      fileRecord?.driveName || holding?.driveName || driveName,
+      { server: true, client: false }
+    )
+    const driveKey = '/' + cid
+
+    try {
+      const entry = await drive.entry(driveKey, { wait: false })
+      if (!entry?.value?.blob) {
+        return null
+      }
+      const hasContent = await this.#hasLocalDriveContent(drive, driveKey)
+      if (!hasContent) {
+        return null
+      }
+
+      const size =
+        Number(entry.value.blob.byteLength) ||
+        Number(fileRecord?.size) ||
+        Number(holding?.size) ||
+        0
+      return {
+        drive,
+        entry,
+        size,
+        fileRecord: fileRecord || {
+          cid,
+          fileName: holding?.fileName || cid,
+          driveName: holding?.driveName || driveName,
+          localPath: holding?.localPath || null,
+          size,
+          ownerAddress,
+        },
+      }
+    } catch {
+      return null
+    }
   }
 
   // --- 频道管理 ---
@@ -2180,7 +2253,11 @@ export class MostBoxEngine extends EventEmitter {
     const start = Math.max(0, total - offset - limit)
     const end = total - offset
 
-    return unique.slice(start, end).map(({ _coreKey, _index, ...msg }) => msg)
+    return unique
+      .slice(start, end)
+      .map(({ _coreKey, _index, ...msg }) =>
+        this.#normalizeChannelMessageForResponse(name, msg)
+      )
   }
 
   /**
@@ -2309,6 +2386,44 @@ export class MostBoxEngine extends EventEmitter {
       !channel.members.includes(normalizedOwner)
     ) {
       throw new PermissionError('未加入该频道')
+    }
+  }
+
+  #normalizeChannelMessageForResponse(channelName, message) {
+    const attachment = message?.attachment
+    if (!attachment?.cid || !attachment.fileName) {
+      return message
+    }
+
+    const oldFileName = sanitizeFilename(String(attachment.fileName))
+    const channelPrefix = `${CHAT_FILE_ROOT}/${channelName}/`
+    const fileName = oldFileName.startsWith(channelPrefix)
+      ? oldFileName
+      : `${channelPrefix}${getPathBaseName(oldFileName)}`
+    const link = buildMostLink(attachment.cid, fileName)
+    const content =
+      typeof message.content === 'string' &&
+      (message.content === attachment.link ||
+        parseMostLink(message.content).cid === attachment.cid)
+        ? link
+        : message.content
+
+    if (
+      fileName === attachment.fileName &&
+      link === attachment.link &&
+      content === message.content
+    ) {
+      return message
+    }
+
+    return {
+      ...message,
+      content,
+      attachment: {
+        ...attachment,
+        fileName,
+        link,
+      },
     }
   }
 
@@ -2740,20 +2855,6 @@ export class MostBoxEngine extends EventEmitter {
     }
   }
 
-  async #syncDrive(drive, timeout = DRIVE_SYNC_TIMEOUT) {
-    try {
-      const updated = await Promise.race([
-        drive.update(),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Sync timeout')), timeout)
-        ),
-      ])
-      return updated
-    } catch {
-      return false
-    }
-  }
-
   #getMetadataPath() {
     return path.join(this.#options.dataPath, 'published-files.json')
   }
@@ -2911,7 +3012,10 @@ export class MostBoxEngine extends EventEmitter {
             if (entry && entry.type === 'message') {
               this.emit('channel:message', {
                 channel: channelName,
-                message: entry,
+                message: this.#normalizeChannelMessageForResponse(
+                  channelName,
+                  entry
+                ),
               })
             }
           } catch (err) {

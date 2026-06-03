@@ -262,6 +262,72 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.strictEqual(dlResult.fileName, 'self-dl.txt')
     })
 
+    it('uses CID content instead of the old metadata filename for existing downloads', async () => {
+      const content = Buffer.from('existing CID with old chat metadata')
+      const publishResult = await engine.publishFile(content, '#18.txt')
+      const channelName = `cid-chat-${uid}`
+      const chatFileName = `chat-file/${channelName}/#18.txt`
+      const link = `most://${publishResult.cid}?filename=${encodeURIComponent(chatFileName)}`
+
+      const result = await engine.downloadFile(link)
+
+      assert.strictEqual(result.alreadyExists, true)
+      assert.strictEqual(result.fileName, chatFileName)
+      const readResult = await engine.readFileRaw(publishResult.cid, {
+        public: true,
+      })
+      assert.strictEqual(readResult.buffer.toString('utf8'), content.toString())
+    })
+
+    it('does not treat metadata-only records as local content', async () => {
+      const metadataTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-metadata-only-')
+      )
+      const dataPath = path.join(metadataTmpDir, 'data')
+      const content = Buffer.from('metadata without local blocks')
+      const { cid } = await calculateCid(content)
+      const cidString = cid.toString()
+      const { getCidInfo } = await import('../../src/core/cidTopic.js')
+      const { driveName } = getCidInfo(cidString)
+      let metadataEngine
+
+      try {
+        fs.mkdirSync(dataPath, { recursive: true })
+        fs.writeFileSync(
+          path.join(dataPath, 'published-files.json'),
+          JSON.stringify(
+            [
+              {
+                fileName: '#18.txt',
+                cid: cidString,
+                driveName,
+                publishedAt: new Date().toISOString(),
+                starred: false,
+                ownerAddress: '',
+              },
+            ],
+            null,
+            2
+          )
+        )
+
+        metadataEngine = new MostBoxEngine({
+          dataPath,
+          disableNetwork: true,
+          downloadTimeout: 100,
+        })
+        await metadataEngine.start()
+
+        const availability = await metadataEngine.getLocalCidAvailability(
+          `most://${cidString}?filename=${encodeURIComponent('chat-file/no-seed/#18.txt')}`
+        )
+        assert.strictEqual(availability, null)
+      } finally {
+        if (metadataEngine) await metadataEngine.stop().catch(() => {})
+        fs.rmSync(metadataTmpDir, { recursive: true, force: true })
+      }
+    })
+
     it('repairs missing holding when an existing file is downloaded again', async () => {
       const repairTmpDir = fs.mkdtempSync(
         path.join(os.tmpdir(), 'most-existing-repair-')
@@ -1023,6 +1089,56 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
 
       const messages = await msgEngine.getChannelMessages(ch)
       assert.deepStrictEqual(messages[0].attachment, msg.attachment)
+    })
+
+    it('normalizes old bare chat attachment filenames on read', async () => {
+      const ch = `old-attach-${uid}`
+      const cid =
+        'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
+      const fileName = '#18.txt'
+      const link = `most://${cid}?filename=${encodeURIComponent(fileName)}`
+      const normalizedFileName = `chat-file/${ch}/#18.txt`
+      const normalizedLink = `most://${cid}?filename=${encodeURIComponent(normalizedFileName)}`
+      await msgEngine.createChannel(ch)
+
+      await msgEngine.sendMessage(ch, link, undefined, undefined, {
+        attachment: {
+          kind: 'text',
+          cid,
+          fileName,
+          link,
+          size: 18,
+        },
+      })
+
+      const messages = await msgEngine.getChannelMessages(ch)
+      assert.strictEqual(messages[0].attachment.fileName, normalizedFileName)
+      assert.strictEqual(messages[0].attachment.link, normalizedLink)
+      assert.strictEqual(messages[0].content, normalizedLink)
+    })
+
+    it('does not double-prefix normalized chat attachment filenames', async () => {
+      const ch = `norm-attach-${uid}`
+      const cid =
+        'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
+      const fileName = `chat-file/${ch}/a.txt`
+      const link = `most://${cid}?filename=${encodeURIComponent(fileName)}`
+      await msgEngine.createChannel(ch)
+
+      await msgEngine.sendMessage(ch, link, undefined, undefined, {
+        attachment: {
+          kind: 'text',
+          cid,
+          fileName,
+          link,
+          size: 1,
+        },
+      })
+
+      const messages = await msgEngine.getChannelMessages(ch)
+      assert.strictEqual(messages[0].attachment.fileName, fileName)
+      assert.strictEqual(messages[0].attachment.link, link)
+      assert.strictEqual(messages[0].content, link)
     })
 
     it('rejects invalid attachment metadata', async () => {

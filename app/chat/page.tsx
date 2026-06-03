@@ -57,7 +57,6 @@ const API = {
     }
     return res.json<any>()
   },
-  listPublishedFiles: () => api.get('/api/files').json<any[]>(),
   downloadFile: (link: string) =>
     api.post('/api/download', { json: { link } }).json<any>(),
   getFileDownloadUrl: (cid: string) => getApiUrl(`/api/files/${cid}/download`),
@@ -472,16 +471,6 @@ function ChatPage() {
     if (attachmentDownloadStatus[attachment.cid]) return
 
     try {
-      const files = await API.listPublishedFiles()
-      const localFile = files.find(file => file.cid === attachment.cid)
-      if (localFile) {
-        openAttachmentPreview(
-          { ...attachment, fileName: localFile.fileName },
-          localFile.fileName
-        )
-        return
-      }
-
       setAttachmentDownloadStatus(prev => ({
         ...prev,
         [attachment.cid]: 'downloading',
