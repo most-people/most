@@ -646,7 +646,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       let checked = false
       let startedDownload = false
       const fakeEngine = {
-        getPublishedFiles: () => [],
+        getLocalCidAvailability: async () => null,
         hasDownloadNameConflict: () => false,
         checkDownloadAvailability: async link => {
           checked = true
@@ -704,9 +704,12 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     it('uses engine download path for existing files', async () => {
       let called = false
       const fakeEngine = {
-        getPublishedFiles: () => [
-          { cid: VALID_MISSING_CID, fileName: 'exists.txt' },
-        ],
+        getLocalCidAvailability: async () => ({
+          cid: VALID_MISSING_CID,
+          fileName: 'exists.txt',
+          size: 6,
+          alreadyExists: true,
+        }),
         downloadFile: async (_link, taskId) => {
           called = true
           return { taskId, fileName: 'exists.txt', alreadyExists: true }
@@ -976,6 +979,24 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       })
 
       assert.strictEqual(res.status, 400)
+    })
+
+    it('returns 409 when moving onto an existing same-folder name', async () => {
+      await engine.publishFile(Buffer.from('api move conflict one'), 'api/a.txt')
+      const second = await engine.publishFile(
+        Buffer.from('api move conflict two'),
+        'api/b.txt'
+      )
+
+      const res = await fetch(`${baseUrl}/api/move`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cid: second.cid, newFileName: 'api/a.txt' }),
+      })
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 409)
+      assert.strictEqual(data.code, 'CONFLICT')
     })
   })
 

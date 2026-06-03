@@ -672,14 +672,9 @@ export function createApp(engine, options = {}) {
       return c.json({ error: parsed.error }, 400)
     }
 
-    const localAvailability =
-      typeof engine.getLocalCidAvailability === 'function'
-        ? await engine.getLocalCidAvailability(body.link, {
-            ownerAddress: c.get('userAddress'),
-          })
-        : engine
-            .getPublishedFiles({ ownerAddress: c.get('userAddress') })
-            .find(f => f.cid === parsed.cid)
+    const localAvailability = await engine.getLocalCidAvailability(body.link, {
+      ownerAddress: c.get('userAddress'),
+    })
     if (localAvailability) {
       return c.json({
         success: true,
@@ -724,14 +719,9 @@ export function createApp(engine, options = {}) {
       return c.json({ error: parsed.error }, 400)
     }
 
-    const localAvailability =
-      typeof engine.getLocalCidAvailability === 'function'
-        ? await engine.getLocalCidAvailability(body.link, {
-            ownerAddress: c.get('userAddress'),
-          })
-        : engine
-            .getPublishedFiles({ ownerAddress: c.get('userAddress') })
-            .find(f => f.cid === parsed.cid)
+    const localAvailability = await engine.getLocalCidAvailability(body.link, {
+      ownerAddress: c.get('userAddress'),
+    })
     if (localAvailability) {
       console.log(
         `[MostBox] CID content already exists locally: ${parsed.cid}`
@@ -813,7 +803,7 @@ export function createApp(engine, options = {}) {
       })
       return c.json({ success: true, ...result })
     } catch (err) {
-      return c.json({ error: err.message }, 400)
+      return badRequestOrAppError(c, err)
     }
   })
 
@@ -1083,7 +1073,7 @@ export function createApp(engine, options = {}) {
       })
       return c.json({ success: true, ...result })
     } catch (err) {
-      return c.json({ error: err.message }, 400)
+      return badRequestOrAppError(c, err)
     }
   })
 

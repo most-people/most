@@ -61,6 +61,8 @@ MVP 成功标准：
 
 - `most://<cid>?filename=...` 是 MostBox 原生分享链接；本轮不改成 `magnet:`，也不做双格式。
 - CID 即权限：知道链接的人即可尝试下载；CID 或链接泄露不是漏洞。
+- CID 是唯一内容身份：发布、做种 topic、Hyperdrive key、下载发现、本地已有判断、预览/打开和完整性校验都必须以 CID 为准。
+- 文件名、用户可见路径、聊天附件路径和 metadata 只服务展示、分类、保存路径与冲突提示，不得替代 CID 判断内容是否存在、是否可读或是否可信。
 - MostBox 不承诺永久保存或离线可用；可用性来自当前在线种子数量。
 - 发布成功和下载成功后默认持续做种，除非用户暂停、删除文件或关闭应用。
 - 文件模型是完整副本：不做分片、不做纠删码；每个做种 peer 持有完整文件。
@@ -83,6 +85,7 @@ MVP 成功标准：
 - CID 使用 UnixFS CID v1，当前由 `server/src/core/cid.js` 和 `ipfs-unixfs-importer@16.1.5` 生成。
 - CID 显式参数：`cidVersion: 1`、`rawLeaves: true`、`wrapWithDirectory: false`；升级 importer 前必须跑 CID 黄金样本测试。
 - 下载完成后必须重算 UnixFS CID v1，只有 CID 与链接一致才保存并做种。
+- 判断“本地已有”必须确认本机可按 `/<cid>` 读到内容；只有 metadata、文件名或保存路径匹配不算本地已有。
 - 下载只接受 Hyperdrive 中精确的 `/<cid>` 文件；下载完成后写入 Hyperdrive 并记录 holding，让下载者自动成为新的种子。
 - 节点配置保留 `maxFileSizeBytes`、`capacityBytes` 和数据目录；发布或下载成功后固定自动做种，不提供关闭开关、产品层同时做种上限或应用层限速。
 - 节点/做种能力 API 优先：HTTP API + WebSocket + OpenAPI 是稳定入口；Web 管理台给人用；薄 CLI 只做安装、启动、诊断。

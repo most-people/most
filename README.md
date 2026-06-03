@@ -5,6 +5,8 @@
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 > P2P 文件分享应用。基于 Hyperswarm/Hyperdrive 的去中心化文件分发。
+>
+> CID 是 MostBox 的文件身份：发布、做种、发现、下载和校验都围绕 CID 进行。文件名和目录只用于展示与本地保存路径，不作为内容是否存在或是否可信的依据。
 
 ## 为什么用 MostBox？
 
@@ -91,9 +93,10 @@ mostbox.example.com {
 
 ## 核心功能
 
-1. **确定性 P2P 文件发布**
+1. **CID 优先的 P2P 文件发布**
    - 采用标准 IPFS UnixFS Chunking 算法计算 CID v1
    - 相同文件生成一致的 CID 链接
+   - CID 决定做种 topic、Hyperdrive 存储 key 和下载校验结果；文件名变化不改变内容身份
 
 2. **大文件流式传输**
    - 支持 GB 级别超大文件的发布与下载
@@ -128,7 +131,7 @@ mostbox.example.com {
 
 ### most:// 链接是什么？
 
-`most://` 是 MostBox 自定义的协议链接，格式为 `most://<cid>`。接收方安装 MostBox 后，点击链接即可自动下载文件。
+`most://` 是 MostBox 自定义的协议链接，完整格式为 `most://<cid>?filename=...`。CID 决定要下载和校验的内容；`filename` 只是建议展示名或本地保存路径。
 
 ### 支持大文件吗？
 

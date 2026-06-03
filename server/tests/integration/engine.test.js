@@ -141,6 +141,45 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.strictEqual(result2.alreadyExists, true)
     })
 
+    it('keeps one published record per CID even when folders differ', async () => {
+      const content = Buffer.from(`unique cid record ${Date.now()}`)
+
+      const result1 = await engine.publishFile(content, 'folder-a/same.txt')
+      const result2 = await engine.publishFile(content, 'folder-b/same.txt')
+      const records = engine
+        .listPublishedFiles()
+        .filter(file => file.cid === result1.cid)
+
+      assert.strictEqual(result1.cid, result2.cid)
+      assert.strictEqual(result2.alreadyExists, true)
+      assert.strictEqual(records.length, 1)
+      assert.strictEqual(records[0].fileName, 'folder-a/same.txt')
+    })
+
+    it('rejects duplicate names in the same folder for different CIDs', async () => {
+      await engine.publishFile(Buffer.from('same folder one'), 'dup/name.txt')
+
+      await assert.rejects(
+        engine.publishFile(Buffer.from('same folder two'), 'dup/name.txt'),
+        /已有同名文件/
+      )
+    })
+
+    it('allows the same filename in different folders for different CIDs', async () => {
+      const result1 = await engine.publishFile(
+        Buffer.from('different folder one'),
+        'folder-one/name.txt'
+      )
+      const result2 = await engine.publishFile(
+        Buffer.from('different folder two'),
+        'folder-two/name.txt'
+      )
+
+      assert.notStrictEqual(result1.cid, result2.cid)
+      assert.strictEqual(result1.fileName, 'folder-one/name.txt')
+      assert.strictEqual(result2.fileName, 'folder-two/name.txt')
+    })
+
     it('different content produces different CID', async () => {
       const content1 = Buffer.from('content A')
       const content2 = Buffer.from('content B')
@@ -204,6 +243,19 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
 
       const moved = engine.moveFile(cid, 'new-name.txt')
       assert.strictEqual(moved.fileName, 'new-name.txt')
+    })
+
+    it('rejects moving a different CID onto an existing same-folder name', async () => {
+      await engine.publishFile(Buffer.from('move conflict one'), 'move/a.txt')
+      const second = await engine.publishFile(
+        Buffer.from('move conflict two'),
+        'move/b.txt'
+      )
+
+      assert.throws(
+        () => engine.moveFile(second.cid, 'move/a.txt'),
+        /已有同名文件/
+      )
     })
   })
 
@@ -949,6 +1001,22 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
     it('returns empty files array when no matching files', () => {
       const result = engine.renameFolder('nonexistent', 'new-name')
       assert.deepStrictEqual(result.files, [])
+    })
+
+    it('rejects folder rename when it would create a same-folder duplicate', async () => {
+      await engine.publishFile(
+        Buffer.from('folder rename conflict one'),
+        'rename-src/a.txt'
+      )
+      await engine.publishFile(
+        Buffer.from('folder rename conflict two'),
+        'rename-target/a.txt'
+      )
+
+      assert.throws(
+        () => engine.renameFolder('rename-src', 'rename-target'),
+        /已有同名文件/
+      )
     })
   })
 

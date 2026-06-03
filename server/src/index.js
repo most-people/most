@@ -78,6 +78,12 @@ function getPathBaseName(fileName) {
   return parts[parts.length - 1] || 'unnamed_file'
 }
 
+function getDisplayPathFolder(fileName) {
+  const parts = String(fileName || '').split('/').filter(Boolean)
+  parts.pop()
+  return parts.join('/')
+}
+
 function buildMostLink(cid, fileName) {
   return `most://${cid}?filename=${encodeURIComponent(fileName)}`
 }
@@ -537,6 +543,10 @@ export class MostBoxEngine extends EventEmitter {
       }
     }
 
+    this.#assertDisplayNameAvailable(safeFileName, {
+      ownerAddress,
+    })
+
     // 获取或创建该 CID 对应的 drive
     let drive = this.#drives.get(name)
 
@@ -690,6 +700,11 @@ export class MostBoxEngine extends EventEmitter {
           alreadyExists: true,
         }
       }
+
+      this.#assertDisplayNameAvailable(linkFileName, {
+        ownerAddress,
+        excludeCid: cidString,
+      })
 
       if (taskState.aborted) throw new Error('Download cancelled')
 
@@ -937,6 +952,10 @@ export class MostBoxEngine extends EventEmitter {
         const existingIndex = this.#publishedFiles.findIndex(
           f => f.cid === cidString && this.#recordMatchesOwner(f, ownerAddress)
         )
+        this.#assertDisplayNameAvailable(sanitizedFileName, {
+          ownerAddress,
+          excludeCid: cidString,
+        })
         if (existingIndex !== -1) {
           const existing = this.#publishedFiles[existingIndex]
           existing.fileName = sanitizedFileName
@@ -1215,6 +1234,20 @@ export class MostBoxEngine extends EventEmitter {
 
     const { driveName } = this.#getCidInfo(fileRecord.cid)
 
+    const existingIndex = this.#publishedFiles.findIndex(
+      f => f.cid === fileRecord.cid && this.#recordMatchesOwner(f, ownerAddress)
+    )
+    if (existingIndex !== -1) {
+      this.#trashFiles.splice(index, 1)
+      this.#saveTrashMetadata()
+      return this.listPublishedFiles({ ownerAddress })
+    }
+
+    this.#assertDisplayNameAvailable(fileRecord.fileName, {
+      ownerAddress,
+      excludeCid: fileRecord.cid,
+    })
+
     this.#publishedFiles.push({
       fileName: fileRecord.fileName,
       cid: fileRecord.cid,
@@ -1404,6 +1437,10 @@ export class MostBoxEngine extends EventEmitter {
       throw new Error('File not found')
     }
     const safeFileName = sanitizeFilename(newFileName)
+    this.#assertDisplayNameAvailable(safeFileName, {
+      ownerAddress,
+      excludeCid: cid,
+    })
     this.#publishedFiles[index].fileName = safeFileName
     this.#publishedFiles[index].publishedAt = new Date().toISOString()
     this.#savePublishedMetadata()
@@ -1425,7 +1462,7 @@ export class MostBoxEngine extends EventEmitter {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
     const prefix = oldPath + '/'
-    const updatedFiles = []
+    const updates = []
 
     for (const file of this.#publishedFiles) {
       if (
@@ -1436,15 +1473,26 @@ export class MostBoxEngine extends EventEmitter {
         const newFileName = sanitizeFilename(
           remainder ? newPath + '/' + remainder : newPath
         )
-        file.fileName = newFileName
-        file.publishedAt = new Date().toISOString()
-        updatedFiles.push({
-          cid: file.cid,
-          fileName: file.fileName,
-          link: `most://${file.cid}?filename=${encodeURIComponent(file.fileName)}`,
-        })
+        updates.push({ file, newFileName })
       }
     }
+
+    for (const { file, newFileName } of updates) {
+      this.#assertDisplayNameAvailable(newFileName, {
+        ownerAddress,
+        excludeCid: file.cid,
+      })
+    }
+
+    const updatedFiles = updates.map(({ file, newFileName }) => {
+      file.fileName = newFileName
+      file.publishedAt = new Date().toISOString()
+      return {
+        cid: file.cid,
+        fileName: file.fileName,
+        link: `most://${file.cid}?filename=${encodeURIComponent(file.fileName)}`,
+      }
+    })
 
     if (updatedFiles.length > 0) {
       this.#savePublishedMetadata()
@@ -2805,6 +2853,31 @@ export class MostBoxEngine extends EventEmitter {
     const normalizedOwner = normalizeOwnerAddress(ownerAddress)
     if (!normalizedOwner) return !record.ownerAddress
     return normalizeOwnerAddress(record.ownerAddress) === normalizedOwner
+  }
+
+  #assertDisplayNameAvailable(fileName, options = {}) {
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    const safeFileName = sanitizeFilename(fileName)
+    const folder = getDisplayPathFolder(safeFileName)
+    const baseName = getPathBaseName(safeFileName)
+    const conflict = this.#publishedFiles.find(file => {
+      if (
+        options.excludeCid &&
+        file.cid === options.excludeCid &&
+        this.#recordMatchesOwner(file, ownerAddress)
+      ) {
+        return false
+      }
+      if (!this.#recordMatchesOwner(file, ownerAddress)) return false
+      const existingFileName = sanitizeFilename(file.fileName)
+      return (
+        getDisplayPathFolder(existingFileName) === folder &&
+        getPathBaseName(existingFileName) === baseName
+      )
+    })
+    if (conflict) {
+      throw new ConflictError(`已有同名文件: ${safeFileName}`)
+    }
   }
 
   #hasPublishedReference(cid) {
