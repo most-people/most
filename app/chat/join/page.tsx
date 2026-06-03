@@ -249,16 +249,25 @@ function ChatJoinContent() {
     >
       <div className="chat-join-container">
         <div className="chat-join-panel">
-          <section className="chat-join-helper" aria-labelledby="ea-test-title">
-            <div className="chat-join-helper-title">
-              <KeyRound size={18} />
-              <h3 id="ea-test-title">测试公钥</h3>
+          {loading ? (
+            <div className="chat-join-loading">
+              <KeyRound size={32} />
+              <p>{status || '正在解密...'}</p>
             </div>
-            <code className="chat-join-public-key">{EA_TEST_PUBLIC_KEY}</code>
-            <a className="btn btn-primary" href="/web3/#EA">
-              前往 Web3 测试
-            </a>
-          </section>
+          ) : error ? (
+            <div className="chat-join-error">
+              <AlertCircle size={32} />
+              <p>{error}</p>
+              {status && <p className="chat-join-status">{status}</p>}
+              {decrypted && <pre className="chat-join-result">{decrypted}</pre>}
+            </div>
+          ) : (
+            <div className="chat-join-success">
+              <Check size={32} />
+              <p>{status || '解密成功'}</p>
+              <pre className="chat-join-result">{decrypted}</pre>
+            </div>
+          )}
 
           <section
             className="chat-join-spec"
@@ -281,25 +290,16 @@ function ChatJoinContent() {
             </div>
           </section>
 
-          {loading ? (
-            <div className="chat-join-loading">
-              <KeyRound size={32} />
-              <p>{status || '正在解密...'}</p>
+          <section className="chat-join-helper" aria-labelledby="ea-test-title">
+            <div className="chat-join-helper-title">
+              <KeyRound size={18} />
+              <h3 id="ea-test-title">测试公钥</h3>
             </div>
-          ) : error ? (
-            <div className="chat-join-error">
-              <AlertCircle size={32} />
-              <p>{error}</p>
-              {status && <p className="chat-join-status">{status}</p>}
-              {decrypted && <pre className="chat-join-result">{decrypted}</pre>}
-            </div>
-          ) : (
-            <div className="chat-join-success">
-              <Check size={32} />
-              <p>{status || '解密成功'}</p>
-              <pre className="chat-join-result">{decrypted}</pre>
-            </div>
-          )}
+            <code className="chat-join-public-key">{EA_TEST_PUBLIC_KEY}</code>
+            <a className="btn" href="/web3/#EA" target="_blank">
+              前往 Web3 工具箱
+            </a>
+          </section>
         </div>
       </div>
     </AppShell>
