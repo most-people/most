@@ -57,7 +57,7 @@ describe('frontend smoke checks', () => {
   })
 
   it('lets users choose R2 or GitHub download sources', () => {
-    const source = readSource('app/download/DownloadOptions.tsx')
+    const source = readSource('components/DownloadOptions.tsx')
 
     assert.match(source, /NEXT_PUBLIC_RELEASE_MANIFEST_URL/)
     assert.match(source, /NEXT_PUBLIC_R2_PUBLIC_BASE_URL/)

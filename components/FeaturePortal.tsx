@@ -266,7 +266,7 @@ export default function FeaturePortal() {
                   <div className="portal-card-title">{f.title}</div>
                   <div className="portal-card-subtitle">{f.subtitle}</div>
                   {needsBackend ? (
-                    <div className={`portal-card-status ${backendStatus}`}>
+                    <div className={`ui-badge portal-card-status ${backendStatus}`}>
                       {backendStatus === 'checking' && (
                         <>
                           <span className="status-dot checking" />
@@ -287,7 +287,7 @@ export default function FeaturePortal() {
                       )}
                     </div>
                   ) : (
-                    <div className="portal-card-status ready">
+                    <div className="ui-badge portal-card-status ready">
                       <span className="status-dot ready" />
                       已就绪
                     </div>

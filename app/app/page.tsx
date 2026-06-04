@@ -5,11 +5,7 @@ import {
   Upload,
   Sun,
   Moon,
-  Image as ImageIcon,
   Trash2,
-  Folder,
-  Film,
-  Music,
   ChevronRight,
   FileText,
   X,
@@ -26,9 +22,15 @@ import {
   Info,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
+import {
+  FileCard,
+  FolderCard,
+  parseAppFileName,
+} from '~/components/AppFileCards'
 import OpenSidebarButton from '~/components/OpenSidebarButton'
 import SidebarAccount from '~/components/SidebarAccount'
 import FilePreviewOverlay from '~/components/FilePreviewOverlay'
+import { MoveModal } from '~/components/MoveModal'
 import { ModalOverlay, ConfirmModal, InputModal } from '~/components/ui'
 import {
   api,
@@ -153,12 +155,7 @@ function formatDate(dateString) {
 }
 
 function parseName(fullPath) {
-  const lastSlash = fullPath.lastIndexOf('/')
-  if (lastSlash === -1) return { folder: '', name: fullPath }
-  return {
-    folder: fullPath.substring(0, lastSlash),
-    name: fullPath.substring(lastSlash + 1),
-  }
+  return parseAppFileName(fullPath)
 }
 
 function getUniqueFolders(files: { fileName: string }[]): string[] {
@@ -205,138 +202,6 @@ function generateBreadcrumbs(currentPath) {
         name: part,
       })),
   ]
-}
-
-function FileCard({ file, isSelected, onSelect, onPreview }) {
-  const subtype = getFileSubtype(file.fileName)
-  let fileIcon = <FileText size={24} color="#fff" />
-
-  if (subtype === 'image') {
-    fileIcon = <ImageIcon size={24} color="#fff" />
-  } else if (subtype === 'video') {
-    fileIcon = <Film size={24} color="#fff" />
-  } else if (subtype === 'audio') {
-    fileIcon = <Music size={24} color="#fff" />
-  }
-
-  return (
-    <div
-      data-id={file.cid}
-      onClick={() => onSelect(file.cid)}
-      onDoubleClick={() => onPreview(file)}
-      className={`card ${isSelected ? 'selected' : ''}`}
-    >
-      <div className={`card-icon ${file.starred ? 'starred' : 'file'}`}>
-        {fileIcon}
-      </div>
-      <p className="card-name">{parseName(file.fileName).name}</p>
-    </div>
-  )
-}
-
-function FolderCard({ folder, onClick }) {
-  return (
-    <div onClick={onClick} className="card">
-      <div className="card-icon folder">
-        <Folder size={28} color="#fff" />
-      </div>
-      <p className="card-name">{folder.name}</p>
-    </div>
-  )
-}
-
-function MoveModal({ items, allFolders, currentPath, onMove, onClose }) {
-  const [targetPath, setTargetPath] = useState('')
-  const [customPath, setCustomPath] = useState(currentPath)
-
-  const breadcrumbParts = generateBreadcrumbs(targetPath)
-
-  const handleConfirm = () => {
-    const finalPath = targetPath || customPath.trim()
-    onMove(finalPath)
-  }
-
-  return (
-    <ModalOverlay onClose={onClose}>
-      <div className="move-modal" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3>移动到</h3>
-          <button onClick={onClose} className="btn btn-icon">
-            <X size={18} />
-          </button>
-        </div>
-        <p className="move-modal-desc">已选 {items.length} 个项目</p>
-        <div className="move-new-folder">
-          <input
-            type="text"
-            className="input"
-            value={customPath}
-            onChange={e => setCustomPath(e.target.value)}
-            placeholder="输入路径创建嵌套文件夹"
-          />
-        </div>
-        <p className="move-modal-hint">如 图片/壁纸</p>
-        <div className="move-breadcrumb">
-          {breadcrumbParts.map((part, i) => (
-            <React.Fragment key={part.path}>
-              {i > 0 && <span className="breadcrumb-separator">/</span>}
-              <button
-                key={part.path}
-                onClick={() => {
-                  setTargetPath(part.path)
-                  setCustomPath(part.path)
-                }}
-                className={`move-breadcrumb-btn ${targetPath === part.path && !customPath ? 'active' : ''}`}
-              >
-                {part.name}
-              </button>
-            </React.Fragment>
-          ))}
-        </div>
-        <div className="move-folder-list">
-          {allFolders.filter(f => {
-            if (targetPath === '') {
-              return !f.path.includes('/')
-            }
-            const prefix = targetPath + '/'
-            if (!f.path.startsWith(prefix)) return false
-            const relativePath = f.path.substring(prefix.length)
-            return !relativePath.includes('/')
-          }).length === 0 && (
-            <p className="move-modal-empty">该目录下没有子文件夹</p>
-          )}
-          {allFolders
-            .filter(f => {
-              if (targetPath === '') {
-                return !f.path.includes('/')
-              }
-              const prefix = targetPath + '/'
-              if (!f.path.startsWith(prefix)) return false
-              const relativePath = f.path.substring(prefix.length)
-              return !relativePath.includes('/')
-            })
-            .map(folder => (
-              <button
-                key={folder.path}
-                onClick={() => setTargetPath(folder.path)}
-                className={`move-folder-item ${targetPath === folder.path && !customPath ? 'selected' : ''}`}
-              >
-                <Folder size={16} />
-                <span>{folder.name}</span>
-              </button>
-            ))}
-        </div>
-        <div className="modal-actions">
-          <button onClick={onClose} className="btn btn-secondary">
-            取消
-          </button>
-          <button onClick={handleConfirm} className="btn btn-primary">
-            移动
-          </button>
-        </div>
-      </div>
-    </ModalOverlay>
-  )
 }
 
 export default function App() {

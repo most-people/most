@@ -223,7 +223,7 @@ export default function DownloadOptions() {
   return (
     <div className="download-options">
       <div
-        className="download-source-tabs"
+        className="ui-segmented-control download-source-tabs"
         role="tablist"
         aria-label="下载来源"
       >
@@ -234,8 +234,8 @@ export default function DownloadOptions() {
           disabled={!hasR2Assets}
           className={
             activeSource === 'r2'
-              ? 'download-source-tab is-active'
-              : 'download-source-tab'
+              ? 'ui-segmented-option download-source-tab is-active'
+              : 'ui-segmented-option download-source-tab'
           }
           onClick={() => setDownloadSource('r2')}
         >
@@ -248,8 +248,8 @@ export default function DownloadOptions() {
           aria-selected={activeSource === 'github'}
           className={
             activeSource === 'github'
-              ? 'download-source-tab is-active'
-              : 'download-source-tab'
+              ? 'ui-segmented-option download-source-tab is-active'
+              : 'ui-segmented-option download-source-tab'
           }
           onClick={() => setDownloadSource('github')}
         >

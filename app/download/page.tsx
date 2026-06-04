@@ -2,7 +2,7 @@ import '~/styles/marketing.css'
 import '~/styles/download.css'
 import Link from 'next/link'
 import { ArrowLeft, Download } from 'lucide-react'
-import DownloadOptions from '~/app/download/DownloadOptions'
+import DownloadOptions from '~/components/DownloadOptions'
 
 export const metadata = {
   title: '下载 MostBox 桌面客户端',

@@ -184,52 +184,11 @@
 
 /* Status badge */
 .portal-card-status {
-  display: inline-flex;
-  align-items: center;
   gap: 5px;
+  min-height: auto;
   font-size: 11px;
-  font-weight: 500;
   margin-top: 6px;
   padding: 3px 10px;
-  border-radius: var(--radius-full);
-  background: var(--glass-bg-subtle);
-  border: 1px solid var(--glass-border);
-}
-
-.status-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  display: inline-block;
-}
-
-.status-dot.checking {
-  background: var(--warning);
-  animation: pulse-dot 1.2s ease-in-out infinite;
-}
-
-.status-dot.connected {
-  background: var(--success);
-}
-
-.status-dot.disconnected {
-  background: var(--danger);
-}
-
-.status-dot.ready {
-  background: var(--info);
-}
-
-@keyframes pulse-dot {
-  0%,
-  100% {
-    opacity: 0.4;
-    transform: scale(0.9);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1);
-  }
 }
 
 /* ─── Marketing Content ─── */

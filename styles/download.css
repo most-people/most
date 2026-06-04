@@ -72,47 +72,8 @@
 }
 
 .download-source-tabs {
-  display: inline-grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   justify-self: center;
-  padding: 4px;
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md);
-  gap: 4px;
-}
-
-.download-source-tab {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 40px;
-  padding: 0 16px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-secondary);
-  font: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all var(--transition);
-}
-
-.download-source-tab:hover:not(:disabled) {
-  color: var(--text-primary);
-  background: var(--glass-bg-heavy);
-}
-
-.download-source-tab.is-active {
-  color: var(--accent);
-  background: var(--accent-soft);
-}
-
-.download-source-tab:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
 }
 
 .download-platform-grid {
