@@ -81,6 +81,18 @@ describe('frontend smoke checks', () => {
     assert.match(readme, /most-box-backup/)
   })
 
+  it('documents current runtime and desktop dependency requirements', () => {
+    const readme = readSource('README.md')
+    const agents = readSource('AGENTS.md')
+
+    assert.match(readme, /Node\.js >= 22\.12/)
+    assert.match(readme, /Electron 42/)
+    assert.doesNotMatch(readme, /Node\.js >= 18/)
+    assert.doesNotMatch(readme, /Electron 41/)
+    assert.match(agents, /ipfs-unixfs-importer@17\.0\.1/)
+    assert.doesNotMatch(agents, /components\/AppHomeMode\.tsx/)
+  })
+
   it('checks desktop updates through the public release manifest', () => {
     const mainSource = readSource('electron/main.js')
     const checkerSource = readSource('electron/updateChecker.js')

@@ -516,6 +516,38 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       )
     })
 
+    it('rejects manual holdings whose topic does not match the CID digest', async () => {
+      const content = Buffer.from('holding topic mismatch')
+      const { cid } = await calculateCid(content)
+
+      await assert.rejects(
+        engine.addHolding({
+          cid: cid.toString(),
+          fileName: 'bad-topic.txt',
+          size: content.length,
+          topic: '00'.repeat(32),
+        }),
+        /topic must match CID digest/
+      )
+    })
+
+    it('normalizes manual holding driveName from the CID digest', async () => {
+      const content = Buffer.from('holding drive name normalization')
+      const { cid } = await calculateCid(content)
+      const cidString = cid.toString()
+
+      const holding = await engine.addHolding({
+        cid: cidString,
+        fileName: 'wrong-drive.txt',
+        size: content.length,
+        driveName: 'drive-not-from-cid',
+      })
+
+      assert.match(holding.driveName, /^drive-[0-9a-f]{64}$/)
+      assert.notStrictEqual(holding.driveName, 'drive-not-from-cid')
+      assert.strictEqual(holding.driveName, `drive-${holding.topic}`)
+    })
+
     it('persists holdings and rejoins CID topics after restart', async () => {
       const holdingTmpDir = fs.mkdtempSync(
         path.join(os.tmpdir(), 'most-holding-test-')

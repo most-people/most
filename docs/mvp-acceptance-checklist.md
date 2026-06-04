@@ -28,12 +28,16 @@ npm run lint
 | 日志可读     | 管理台展示时间、level、event、message，支持清空日志                                        | `/api/node/logs`、`app/admin/page.tsx` |
 | 设置落盘     | 数据目录、容量上限、单文件上限保存后，API 和管理台能读回                                   | `/api/node/config`                     |
 | holding 可见 | 发布或下载成功后，`/api/node/holdings` 与管理台都能看到 CID、大小、状态                    | `/api/node/holdings`                   |
+| CID 派生     | 手动 holding 的 topic 与 driveName 都必须由 CID digest 派生，传入不匹配值不能污染记录      | `server/src/index.js`                  |
+| API 文档     | OpenAPI 同时包含节点管理、holding、P2P pull、发布、下载检测、下载和按 CID 读取文件路径     | `/api/openapi.json`                    |
 
 推荐检查：
 
 ```bash
-node --test --test-name-pattern "returns node status|saves daemon config and exposes policy locally|returns node logs and OpenAPI spec|lists node holdings after publish|creates a manual holding record" server/tests/integration/api.test.js
+node --test --test-name-pattern "returns node status|saves daemon config and exposes policy locally|returns node logs and OpenAPI spec|lists node holdings after publish|creates a manual holding record|normalizes manual holding driveName from the CID" server/tests/integration/api.test.js
 ```
+
+文件管理 API 需要本地身份签名；裸 curl 验收示例见 `docs/quick-start.md`。
 
 ## 三、Alpha 前长测
 

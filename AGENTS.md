@@ -79,12 +79,14 @@ MVP 成功标准：
 - 后端：Hono, `@hono/node-server`, WebSocket
 - P2P：Hyperswarm 4.x, Hyperdrive 13.x, Corestore 7.x
 - Web3 工具箱：ethers.js
-- 桌面：Electron 41, electron-builder
+- 桌面：Electron 42, electron-builder
 - 测试：Node.js built-in test runner
+
+本地源码开发建议 Node.js >= 22.12。当前 Next.js 16 需要 Node.js >= 20.9，Electron 42 开发/打包需要 Node.js >= 22.12。
 
 ## 核心实现约束
 
-- CID 使用 UnixFS CID v1，当前由 `server/src/core/cid.js` 和 `ipfs-unixfs-importer@16.1.5` 生成。
+- CID 使用 UnixFS CID v1，当前由 `server/src/core/cid.js` 和 `ipfs-unixfs-importer@17.0.1` 生成。
 - CID 显式参数：`cidVersion: 1`、`rawLeaves: true`、`wrapWithDirectory: false`；升级 importer 前必须跑 CID 黄金样本测试。
 - 下载完成后必须重算 UnixFS CID v1，只有 CID 与链接一致才保存并做种。
 - 判断“本地已有”必须确认本机可按 `/<cid>` 读到内容；只有 metadata、文件名或保存路径匹配不算本地已有。
@@ -142,7 +144,7 @@ npm run lint
 
 ## 关键入口
 
-- 前端主应用：`app/app/page.tsx`、`components/AppHomeMode.tsx`
+- 前端主应用：`app/app/page.tsx`
 - Web3 工具箱：`app/web3/page.tsx`
 - 笔记模块：`app/note/page.tsx`、`components/MilkdownEditor.tsx`
 - 管理后台：`app/admin/page.tsx`、`app/admin/layout.tsx`

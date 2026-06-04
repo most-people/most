@@ -4,6 +4,8 @@
 
 ## 一、准备
 
+本地源码验收建议使用 Node.js >= 22.12。当前 Next.js 16 需要 Node.js >= 20.9，Electron 42 开发/打包需要 Node.js >= 22.12。
+
 本地源码验收需要两个进程：
 
 ```bash
@@ -27,6 +29,23 @@ npm run dev
 
 发布包路径：正式安装包从 `/download` 或 GitHub Releases latest 下载；本地构建使用 `npm run electron:build:win`、`npm run electron:build:mac` 或 `npm run electron:build:linux`。
 
+Web UI 会自动创建本地身份并给文件 API 请求签名。裸 curl 调用 `/api/publish`、`/api/files`、`/api/download/check`、`/api/download`、`/api/p2p/pull` 等文件管理接口时，需要带 `Authorization` 头；节点状态、holding、日志等本机管理接口可直接 curl。
+
+生成测试签名头的 Bash 函数：
+
+```bash
+auth_header() {
+  MSYS_NO_PATHCONV=1 node --input-type=module -e '
+    import { createLoginIdentity } from "./server/src/utils/userIdentity.js"
+    import { buildAuthHeaders } from "./server/src/utils/auth.js"
+    const [, method, path] = process.argv
+    const identity = createLoginIdentity("quickstart", "quickstart")
+    const headers = await buildAuthHeaders(identity, method, path)
+    console.log(headers.Authorization)
+  ' "$1" "$2"
+}
+```
+
 ## 二、发布者路径
 
 1. 启动桌面端，或按上面的源码方式启动后打开 `/app/`。
@@ -39,7 +58,10 @@ API 验证：
 
 ```bash
 printf 'hello mostbox\n' > /tmp/mostbox-sample.txt
-curl -F "file=@/tmp/mostbox-sample.txt" http://localhost:1976/api/publish
+AUTH="$(auth_header POST /api/publish)"
+curl -H "Authorization: $AUTH" \
+  -F "file=@/tmp/mostbox-sample.txt" \
+  http://localhost:1976/api/publish
 curl http://localhost:1976/api/node/holdings
 ```
 
@@ -56,12 +78,16 @@ curl http://localhost:1976/api/node/holdings
 API 验证：
 
 ```bash
+AUTH="$(auth_header POST /api/download/check)"
 curl -X POST http://localhost:1976/api/download/check \
   -H "Content-Type: application/json" \
+  -H "Authorization: $AUTH" \
   -d '{"link":"most://<cid>?filename=<name>"}'
 
+AUTH="$(auth_header POST /api/p2p/pull)"
 curl -X POST http://localhost:1976/api/p2p/pull \
   -H "Content-Type: application/json" \
+  -H "Authorization: $AUTH" \
   -d '{"link":"most://<cid>?filename=<name>","timeout":60000}'
 ```
 
@@ -82,6 +108,7 @@ curl http://localhost:1976/api/node/status
 curl http://localhost:1976/api/node/config
 curl http://localhost:1976/api/node/holdings
 curl http://localhost:1976/api/node/logs
+curl http://localhost:1976/api/node/diagnostics
 ```
 
 配置数据目录和容量后，重启 daemon，再查看 `/api/node/holdings` 或 `/admin/`。已持有 CID 应自动恢复 join topic。

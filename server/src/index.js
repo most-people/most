@@ -2795,7 +2795,7 @@ export class MostBoxEngine extends EventEmitter {
       size,
       localPath: record.localPath || null,
       topic: topicHex,
-      driveName: record.driveName || driveName,
+      driveName,
       source: record.source || 'manual',
     }
   }

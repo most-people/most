@@ -407,6 +407,12 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(spec.paths['/api/node/logs'].delete)
       assert.ok(spec.paths['/api/node/diagnostics'])
       assert.ok(spec.paths['/api/node/policy'])
+      assert.ok(spec.paths['/api/files'])
+      assert.ok(spec.paths['/api/publish'])
+      assert.ok(spec.paths['/api/download/check'])
+      assert.ok(spec.paths['/api/download'])
+      assert.ok(spec.paths['/api/download/cancel'])
+      assert.ok(spec.paths['/api/files/{cid}/download'])
 
       const clearRes = await fetch(`${baseUrl}/api/node/logs`, {
         method: 'DELETE',
@@ -843,6 +849,28 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(data.success, true)
       assert.strictEqual(data.holding.cid, cid.toString())
       assert.strictEqual(data.holding.joined, true)
+    })
+
+    it('normalizes manual holding driveName from the CID', async () => {
+      const content = Buffer.from('api manual driveName normalization')
+      const { cid } = await calculateCid(content)
+
+      const res = await fetch(`${baseUrl}/api/node/holdings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cid: cid.toString(),
+          fileName: 'manual-drive.txt',
+          size: content.length,
+          driveName: 'drive-not-from-cid',
+        }),
+      })
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 200)
+      assert.match(data.holding.driveName, /^drive-[0-9a-f]{64}$/)
+      assert.notStrictEqual(data.holding.driveName, 'drive-not-from-cid')
+      assert.strictEqual(data.holding.driveName, `drive-${data.holding.topic}`)
     })
 
     it('returns PEER_NOT_FOUND when no peer serves the CID', async () => {

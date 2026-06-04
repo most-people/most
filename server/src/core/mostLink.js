@@ -73,7 +73,7 @@ export function parseMostLink(link) {
     return { cid: '', error: validation.error }
   }
 
-  if (!fileName) {
+  if (!fileName || !fileName.trim()) {
     return { cid: '', error: 'filename is required' }
   }
 

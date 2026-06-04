@@ -1,7 +1,7 @@
 # MostBox：你的数字魔盒
 
 [![npm version](https://img.shields.io/npm/v/most-box)](https://npmjs.com/package/most-box)
-[![Node.js version](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org)
+[![Node.js version](https://img.shields.io/badge/node-%3E%3D22.12-brightgreen)](https://nodejs.org)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 > P2P 文件分享应用。基于 Hyperswarm/Hyperdrive 的去中心化文件分发。
@@ -12,7 +12,7 @@
 
 | 特性                | MostBox | 微信/QQ | 网盘 |
 | ------------------- | ------- | ------- | ---- |
-| 🔒 无需注册         | ✅      | ❌      | ❌   |
+| 🔒 无需云端账号     | ✅      | ❌      | ❌   |
 | 🚀 P2P直连，不限速  | ✅      | ❌      | 限流 |
 | 💾 去中心化存储     | ✅      | ❌      | ❌   |
 | 🌐 开源免费，自托管 | ✅      | ❌      |      |
@@ -42,7 +42,9 @@ npx most-box@latest
 
 ## 需求
 
-- Node.js >= 18 ([下载地址](https://nodejs.org))
+- 使用桌面客户端：无需单独安装 Node.js。
+- 使用 `npx most-box@latest` 或本地源码开发：建议 Node.js >= 22.12。当前 Next.js 16 需要 Node.js >= 20.9，Electron 42 开发/打包需要 Node.js >= 22.12。
+- MostBox Web 界面会创建本地身份用于本机数据隔离和 API 签名；这不是云端注册账号。
 
 ## 开发
 
@@ -125,13 +127,18 @@ mostbox.example.com {
 ### 如何分享文件给其他人？
 
 1. 打开 MostBox Web 界面
-2. 上传文件或文件夹
-3. 点击「复制链接」获取 `most://<cid>` 链接
-4. 将链接发送给接收者
+2. 使用本地身份登录
+3. 上传文件或文件夹
+4. 点击「复制链接」获取 `most://<cid>` 链接
+5. 将链接发送给接收者
 
 ### most:// 链接是什么？
 
 `most://` 是 MostBox 自定义的协议链接，完整格式为 `most://<cid>?filename=...`。CID 决定要下载和校验的内容；`filename` 只是建议展示名或本地保存路径。
+
+### 为什么 Web 界面需要登录？
+
+这里的登录是本地身份，不是云端账号注册。MostBox 用它隔离同一节点上的不同用户文件列表，并为本地 HTTP API 请求生成短期签名；知道 `most://` 链接的人仍然可以尝试下载对应 CID 内容。
 
 ### 支持大文件吗？
 
@@ -156,7 +163,7 @@ mostbox.example.com {
 
 ### 如何在其他设备上下载文件？
 
-确保设备已安装 Node.js >= 18，然后运行：
+使用桌面客户端，或确保设备已安装 Node.js >= 22.12 后运行：
 
 ```bash
 npx most-box
@@ -194,7 +201,7 @@ npx most-box
 - **前端**: React 19, Next.js 16, TypeScript, Zustand, Lucide React
 - **后端**: Hono + @hono/node-server + WebSocket
 - **P2P**: Hyperswarm 4.x, Hyperdrive 13.x, Corestore 7.x
-- **桌面**: Electron 41, electron-builder
+- **桌面**: Electron 42, electron-builder
 - **测试**: Node.js built-in test runner
 
 ## CI/CD
