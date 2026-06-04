@@ -119,6 +119,10 @@ function formatAddressShort(address?: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`
 }
 
+function hasAddressSuffix(name?: string) {
+  return /#[a-fA-F0-9]{4}$/.test(String(name || '').trim())
+}
+
 type AttachmentDownloadState = {
   status: 'checking' | 'available' | 'error'
   message?: string
@@ -165,6 +169,7 @@ function ChatPage() {
     useState<ChannelAttachment | null>(null)
   const [channelMembers, setChannelMembers] = useState<ChannelMember[]>([])
   const [isLoadingChannelMembers, setIsLoadingChannelMembers] = useState(false)
+  const [showAddressSuffix, setShowAddressSuffix] = useState(false)
 
   const channelMessagesEndRef = useRef<HTMLDivElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
@@ -761,6 +766,14 @@ function ChatPage() {
     )
   }
 
+  function formatDisplayName(name?: string, address?: string) {
+    const displayName = String(name || '').trim()
+    if (!displayName) return formatAddressShort(address)
+    if (!showAddressSuffix) return displayName.replace(/#[a-fA-F0-9]{4}$/, '')
+    if (hasAddressSuffix(displayName)) return displayName
+    return address ? `${displayName}#${address.slice(-4).toUpperCase()}` : displayName
+  }
+
   function renderChannelMembers() {
     if (isLoadingChannelMembers && channelMembers.length === 0) {
       return <div className="channel-members-empty">正在读取成员...</div>
@@ -780,7 +793,7 @@ function ChatPage() {
               alt="avatar"
             />
             <span className="channel-member-name">
-              {member.displayName || formatAddressShort(member.address)}
+              {formatDisplayName(member.displayName, member.address)}
             </span>
           </div>
         ))}
@@ -913,7 +926,7 @@ function ChatPage() {
                   />
                   <div className="msg-content">
                     <span className="message-author">
-                      {msg.authorName || msg.author?.slice(0, 8) || 'Unknown'}
+                      {formatDisplayName(msg.authorName, msg.author)}
                     </span>
                     {renderMessageBubble(msg)}
                     <span className="message-time">
@@ -1133,6 +1146,17 @@ function ChatPage() {
                   <span>群成员 ({channelMembers.length})</span>
                 </div>
                 {renderChannelMembers()}
+              </div>
+
+              <div className="channel-detail-section">
+                <label className="setting-switch">
+                  <span>显示 #地址后四位</span>
+                  <input
+                    type="checkbox"
+                    checked={showAddressSuffix}
+                    onChange={e => setShowAddressSuffix(e.target.checked)}
+                  />
+                </label>
               </div>
 
               <div className="channel-detail-section">

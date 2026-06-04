@@ -509,6 +509,57 @@ button {
   flex: 1;
 }
 
+/* === Setting Switch === */
+.setting-switch {
+  min-height: 44px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-primary);
+  font-size: 14px;
+  background: var(--glass-bg-subtle);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.setting-switch input {
+  appearance: none;
+  width: 42px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--glass-border);
+  background: color-mix(in srgb, var(--text-muted) 20%, transparent);
+  position: relative;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.setting-switch input::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  transition: transform var(--transition-fast);
+}
+
+.setting-switch input:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.setting-switch input:checked::after {
+  transform: translateX(18px);
+}
+
 /* === Backend Error Page === */
 .backend-error-page {
   display: flex;
