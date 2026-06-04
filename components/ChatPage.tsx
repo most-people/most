@@ -17,6 +17,7 @@ import {
   Film,
   Loader,
   Paperclip,
+  Search,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import {
@@ -125,6 +126,7 @@ export function ChatPage() {
   const openLoginModal = useUserStore(s => s.openLoginModal)
   const [channels, setChannels] = useState<Channel[]>([])
   const [activeChannel, setActiveChannel] = useState<Channel | null>(null)
+  const [channelSearchInput, setChannelSearchInput] = useState('')
   const [channelInput, setChannelInput] = useState('')
   const [showJoinChannel, joinChannelModal] = useDisclosure(false)
   const [myPeerId, setMyPeerId] = useState('')
@@ -755,6 +757,15 @@ export function ChatPage() {
   ) : (
     <h2 className="header-title">聊天</h2>
   )
+  const channelSearchQuery = channelSearchInput.trim().toLowerCase()
+  const filteredChannels = channelSearchQuery
+    ? channels.filter(channel => {
+        const displayName = channel.remark || channel.name
+        return [displayName, channel.name].some(value =>
+          value.toLowerCase().includes(channelSearchQuery)
+        )
+      })
+    : channels
 
   return (
     <AppShell
@@ -768,13 +779,31 @@ export function ChatPage() {
             <h1>MOST PEOPLE</h1>
           </div>
 
+          <div className="chat-channel-search">
+            <div className="chat-channel-search-control">
+              <Search className="chat-channel-search-icon" size={15} />
+              <input
+                type="search"
+                className="input input-compact chat-channel-search-input"
+                placeholder="搜索频道"
+                value={channelSearchInput}
+                onChange={e => setChannelSearchInput(e.target.value)}
+                aria-label="搜索频道"
+              />
+            </div>
+          </div>
+
           <nav className="sidebar-nav">
             {channels.length === 0 ? (
               <div className="sidebar-empty-state">
                 <p>暂无频道</p>
               </div>
+            ) : filteredChannels.length === 0 ? (
+              <div className="sidebar-empty-state">
+                <p>未找到频道</p>
+              </div>
             ) : (
-              channels.map(channel => (
+              filteredChannels.map(channel => (
                 <div
                   key={channel.name}
                   className={`sidebar-nav-btn ${activeChannel?.name === channel.name ? 'active' : ''}`}
