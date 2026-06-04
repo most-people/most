@@ -230,6 +230,14 @@
   color: var(--text-secondary);
   font-size: 12px;
   white-space: nowrap;
+
+  &.available {
+    color: var(--success);
+  }
+
+  &.error {
+    color: var(--danger);
+  }
 }
 
 .chat-attachment-spinner {

@@ -20,12 +20,23 @@ import {
   Loader,
   Music,
   Paperclip,
+  Eye,
+  AlertCircle,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import FilePreviewOverlay from '~/components/FilePreviewOverlay'
-import { InputModal, ConfirmModal } from '~/components/ui'
+import { InputModal, ConfirmModal, ModalOverlay } from '~/components/ui'
 import OpenSidebarButton from '~/components/OpenSidebarButton'
-import { api, getApiErrorMessage, getApiUrl } from '~/server/src/utils/api'
+import {
+  api,
+  getApiErrorMessage,
+  getApiErrorPayload,
+  getApiUrl,
+} from '~/server/src/utils/api'
+import {
+  getDownloadCheckErrorMessageFromPayload,
+  getDownloadLinkValidationMessage,
+} from '~/server/src/utils/downloadMessages.js'
 import { generateAvatar } from '~/server/src/utils/avatar.js'
 import { useAppStore } from '~/app/app/useAppStore'
 import { useUserStore } from '~/app/app/userStore'
@@ -43,6 +54,8 @@ import { getFileSubtype, type FileSubtype } from '~/lib/filePreview'
 const CHANNEL_NAME_MIN_LENGTH = 3
 const CHANNEL_NAME_MAX_LENGTH = 30
 const CHANNEL_NAME_REGEX = /^[a-zA-Z0-9_-]+$/
+const ATTACHMENT_CHECK_TIMEOUT_MS = 10000
+const ATTACHMENT_CHECK_REQUEST_TIMEOUT_MS = ATTACHMENT_CHECK_TIMEOUT_MS + 2000
 
 const API = {
   async publishFile(file: File, customName: string) {
@@ -59,6 +72,13 @@ const API = {
   },
   downloadFile: (link: string) =>
     api.post('/api/download', { json: { link } }).json<any>(),
+  checkDownload: (link: string) =>
+    api
+      .post('/api/download/check', {
+        json: { link, timeout: ATTACHMENT_CHECK_TIMEOUT_MS },
+        timeout: ATTACHMENT_CHECK_REQUEST_TIMEOUT_MS,
+      })
+      .json<any>(),
   getFileDownloadUrl: (cid: string) => getApiUrl(`/api/files/${cid}/download`),
 }
 
@@ -93,6 +113,20 @@ function getAttachmentIcon(kind: FileSubtype) {
   return <FileText size={20} />
 }
 
+type AttachmentDownloadState = {
+  status: 'checking' | 'available' | 'error'
+  message?: string
+}
+
+async function getDownloadCheckErrorMessage(err: unknown) {
+  const data = await getApiErrorPayload(err)
+  const errorName =
+    err && typeof err === 'object' && 'name' in err
+      ? String((err as { name?: string }).name)
+      : ''
+  return getDownloadCheckErrorMessageFromPayload(data, errorName)
+}
+
 function ChatPage() {
   const isDarkMode = useAppStore(s => s.isDarkMode)
   const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
@@ -119,14 +153,19 @@ function ChatPage() {
   } | null>(null)
   const [isPublishingAttachment, setIsPublishingAttachment] = useState(false)
   const [attachmentDownloadStatus, setAttachmentDownloadStatus] = useState<
-    Record<string, string>
+    Record<string, AttachmentDownloadState>
   >({})
+  const [failedAttachment, setFailedAttachment] =
+    useState<ChannelAttachment | null>(null)
 
   const channelMessagesEndRef = useRef<HTMLDivElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const videoInputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const pendingAttachmentPreviewsRef = useRef(new Map<string, ChannelAttachment>())
+  const pendingAttachmentPreviewsRef = useRef(
+    new Map<string, ChannelAttachment>()
+  )
+  const activeAttachmentDownloadsRef = useRef(new Set<string>())
   const isBackendReady = hasBackend === true
 
   const showApiError = useCallback(
@@ -142,10 +181,7 @@ function ChatPage() {
       case 'channel:peer:offline':
         if (activeChannel) {
           channelApi.getChannelPeers(activeChannel.name).catch(err => {
-            console.warn(
-              '[Chat] Failed to fetch peers on event:',
-              err.message
-            )
+            console.warn('[Chat] Failed to fetch peers on event:', err.message)
           })
         }
         break
@@ -159,7 +195,11 @@ function ChatPage() {
         const attachment = pendingAttachmentPreviewsRef.current.get(data.taskId)
         if (attachment) {
           pendingAttachmentPreviewsRef.current.delete(data.taskId)
-          clearAttachmentDownload(attachment.cid)
+          activeAttachmentDownloadsRef.current.delete(attachment.cid)
+          setAttachmentDownloadStatus(prev => ({
+            ...prev,
+            [attachment.cid]: { status: 'available' },
+          }))
           addToast(
             `${data.fileName || getBaseFileName(attachment.fileName)} 下载完成`,
             'success'
@@ -177,7 +217,17 @@ function ChatPage() {
         const attachment = pendingAttachmentPreviewsRef.current.get(data.taskId)
         if (attachment) {
           pendingAttachmentPreviewsRef.current.delete(data.taskId)
-          clearAttachmentDownload(attachment.cid)
+          activeAttachmentDownloadsRef.current.delete(attachment.cid)
+          setAttachmentDownloadStatus(prev => ({
+            ...prev,
+            [attachment.cid]: {
+              status: 'error',
+              message:
+                event === 'download:cancelled'
+                  ? '附件下载已取消'
+                  : data.error || '附件下载失败',
+            },
+          }))
           addToast(
             event === 'download:cancelled'
               ? '附件下载已取消'
@@ -274,6 +324,7 @@ function ChatPage() {
     setShowChannelDetail(false)
     setPreviewItem(null)
     setAttachmentDownloadStatus({})
+    activeAttachmentDownloadsRef.current.clear()
     pendingAttachmentPreviewsRef.current.clear()
   }, [clearChannelMessages, userIdentity?.address])
 
@@ -313,12 +364,82 @@ function ChatPage() {
     })
   }
 
-  function clearAttachmentDownload(cid: string) {
-    setAttachmentDownloadStatus(prev => {
-      const next = { ...prev }
-      delete next[cid]
-      return next
-    })
+  async function checkAttachmentAvailability(attachment: ChannelAttachment) {
+    const validationMessage = getDownloadLinkValidationMessage(attachment.link)
+    if (validationMessage) {
+      setAttachmentDownloadStatus(prev => ({
+        ...prev,
+        [attachment.cid]: { status: 'error', message: validationMessage },
+      }))
+      return false
+    }
+
+    try {
+      setAttachmentDownloadStatus(prev => ({
+        ...prev,
+        [attachment.cid]: { status: 'checking' },
+      }))
+      const checkResult = await API.checkDownload(attachment.link)
+      setAttachmentDownloadStatus(prev => ({
+        ...prev,
+        [attachment.cid]: {
+          status: 'available',
+          message: checkResult.alreadyExists ? '本机已有' : '可预览',
+        },
+      }))
+      return true
+    } catch (err) {
+      const message = await getDownloadCheckErrorMessage(err)
+      setAttachmentDownloadStatus(prev => ({
+        ...prev,
+        [attachment.cid]: { status: 'error', message },
+      }))
+      return false
+    }
+  }
+
+  async function handleRetryAttachmentCheck(attachment: ChannelAttachment) {
+    setFailedAttachment(null)
+    const ok = await checkAttachmentAvailability(attachment)
+    if (ok) {
+      await startAttachmentDownload(attachment)
+    }
+  }
+
+  async function startAttachmentDownload(attachment: ChannelAttachment) {
+    if (activeAttachmentDownloadsRef.current.has(attachment.cid)) return
+    activeAttachmentDownloadsRef.current.add(attachment.cid)
+    setAttachmentDownloadStatus(prev => ({
+      ...prev,
+      [attachment.cid]: { status: 'available' },
+    }))
+    try {
+      const result = await API.downloadFile(attachment.link)
+      if (result.alreadyExists || result.fileName) {
+        activeAttachmentDownloadsRef.current.delete(attachment.cid)
+        setAttachmentDownloadStatus(prev => ({
+          ...prev,
+          [attachment.cid]: { status: 'available' },
+        }))
+        openAttachmentPreview(
+          { ...attachment, fileName: result.fileName || attachment.fileName },
+          result.fileName || attachment.fileName
+        )
+        return
+      }
+
+      if (result.taskId) {
+        pendingAttachmentPreviewsRef.current.set(result.taskId, attachment)
+        addToast('开始下载附件', 'success')
+      }
+    } catch (err) {
+      const message = await getDownloadCheckErrorMessage(err)
+      activeAttachmentDownloadsRef.current.delete(attachment.cid)
+      setAttachmentDownloadStatus(prev => ({
+        ...prev,
+        [attachment.cid]: { status: 'error', message },
+      }))
+    }
   }
 
   async function handleOpenChannel(channel: Channel) {
@@ -407,7 +528,7 @@ function ChatPage() {
         content: trimmedContent,
         author: userIdentity.address,
         authorName: userIdentity.displayName || userIdentity.username,
-        attachment
+        attachment,
       })
       return true
     } catch (err) {
@@ -468,31 +589,23 @@ function ChatPage() {
   async function handleOpenAttachment(attachment: ChannelAttachment) {
     if (!requireLogin()) return
     if (!requireBackendReady()) return
-    if (attachmentDownloadStatus[attachment.cid]) return
+    const currentState = attachmentDownloadStatus[attachment.cid]
+    if (currentState?.status === 'checking') return
 
-    try {
-      setAttachmentDownloadStatus(prev => ({
-        ...prev,
-        [attachment.cid]: 'downloading',
-      }))
-      const result = await API.downloadFile(attachment.link)
-      if (result.alreadyExists || result.fileName) {
-        clearAttachmentDownload(attachment.cid)
-        openAttachmentPreview(
-          { ...attachment, fileName: result.fileName || attachment.fileName },
-          result.fileName || attachment.fileName
-        )
-        return
-      }
-
-      if (result.taskId) {
-        pendingAttachmentPreviewsRef.current.set(result.taskId, attachment)
-        addToast('开始下载附件', 'success')
-      }
-    } catch (err) {
-      clearAttachmentDownload(attachment.cid)
-      await showApiError(err, '附件下载失败')
+    if (currentState?.status === 'error') {
+      setFailedAttachment(attachment)
+      return
     }
+
+    if (currentState?.status !== 'available') {
+      const ok = await checkAttachmentAvailability(attachment)
+      if (ok) {
+        await startAttachmentDownload(attachment)
+      }
+      return
+    }
+
+    await startAttachmentDownload(attachment)
   }
 
   async function handleSetRemark() {
@@ -523,8 +636,17 @@ function ChatPage() {
     }
 
     const attachment = msg.attachment
-    const isDownloading = attachmentDownloadStatus[attachment.cid]
+    const downloadState = attachmentDownloadStatus[attachment.cid]
+    const downloadStatus = downloadState?.status
+    const isBusy = downloadStatus === 'checking'
     const detail = formatSize(attachment.size) || 'MostBox 文件'
+    const actionClassName = [
+      'chat-attachment-action',
+      downloadStatus === 'error' ? 'error' : '',
+      downloadStatus === 'available' ? 'available' : '',
+    ]
+      .filter(Boolean)
+      .join(' ')
 
     return (
       <div className="message-bubble has-attachment">
@@ -532,11 +654,11 @@ function ChatPage() {
           type="button"
           className="chat-attachment-card"
           onClick={() => handleOpenAttachment(attachment)}
-          disabled={Boolean(msg.pending || isDownloading)}
+          disabled={Boolean(msg.pending || isBusy)}
           title={attachment.link}
         >
           <span className={`chat-attachment-icon ${attachment.kind}`}>
-            {isDownloading ? (
+            {isBusy ? (
               <Loader size={20} className="chat-attachment-spinner" />
             ) : (
               getAttachmentIcon(attachment.kind)
@@ -550,8 +672,16 @@ function ChatPage() {
               {msg.pending ? '发送中...' : detail}
             </span>
           </span>
-          <span className="chat-attachment-action">
-            {isDownloading ? '下载中' : <Download size={16} />}
+          <span className={actionClassName}>
+            {isBusy ? (
+              '检测中'
+            ) : downloadStatus === 'available' ? (
+              <Eye size={16} />
+            ) : downloadStatus === 'error' ? (
+              <AlertCircle size={17} />
+            ) : (
+              <Download size={16} />
+            )}
           </span>
         </button>
       </div>
@@ -819,6 +949,54 @@ function ChatPage() {
           }}
           danger
         />
+      )}
+
+      {failedAttachment && (
+        <ModalOverlay
+          onClose={() => setFailedAttachment(null)}
+          closeOnOverlayClick
+        >
+          <div className="confirm-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>暂时没有在线种子</h3>
+              <button
+                type="button"
+                className="btn btn-icon"
+                onClick={() => setFailedAttachment(null)}
+                aria-label="关闭"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p>
+              {attachmentDownloadStatus[failedAttachment.cid]?.message ||
+                '暂时没有发现在线种子。请确认分享者或其他下载者仍在线做种。'}
+            </p>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setFailedAttachment(null)}
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => handleRetryAttachmentCheck(failedAttachment)}
+                disabled={
+                  attachmentDownloadStatus[failedAttachment.cid]?.status ===
+                  'checking'
+                }
+              >
+                {attachmentDownloadStatus[failedAttachment.cid]?.status ===
+                'checking'
+                  ? '检测中...'
+                  : '再次检测'}
+              </button>
+            </div>
+          </div>
+        </ModalOverlay>
       )}
 
       {previewItem && (

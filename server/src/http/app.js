@@ -697,8 +697,11 @@ export function createApp(engine, options = {}) {
     }
 
     try {
+      const timeout =
+        body.timeout === undefined ? undefined : Number(body.timeout)
       const result = await engine.checkDownloadAvailability(body.link, {
         ownerAddress: c.get('userAddress'),
+        timeout: Number.isFinite(timeout) && timeout > 0 ? timeout : undefined,
       })
       return c.json({ success: true, ...result })
     } catch (err) {
