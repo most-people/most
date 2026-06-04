@@ -175,7 +175,10 @@ function ChatJoinContent() {
 
       setStatus('正在加入频道...')
       for (const channel of invite.channels) {
-        await channelApi.createChannel(channel.id, 'public')
+        await channelApi.createChannel(channel.id, 'public', {
+          displayName: invite.name || identity.displayName,
+          avatar: invite.avatar,
+        })
         const remark = normalizeChannelRemark(channel.name)
         if (remark) {
           await channelApi.setChannelRemark(channel.id, remark)

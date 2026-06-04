@@ -1413,6 +1413,32 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(data.message.content, 'Hello!')
     })
 
+    it('updates channel member avatar when sending a message', async () => {
+      const channelName = `member-avatar-${uid}`
+      await engine.createChannel(channelName)
+      const res = await fetch(`${baseUrl}/api/channels/${channelName}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: 'avatar update',
+          author: TEST_IDENTITY.address,
+          authorName: 'AvatarUser',
+          avatar: 'data:image/png;base64,avatar',
+        }),
+      })
+      assert.strictEqual(res.status, 200)
+
+      const membersRes = await fetch(
+        `${baseUrl}/api/channels/${channelName}/members`
+      )
+      const members = await membersRes.json()
+
+      assert.strictEqual(membersRes.status, 200)
+      assert.strictEqual(members.length, 1)
+      assert.strictEqual(members[0].displayName, 'AvatarUser')
+      assert.strictEqual(members[0].avatar, 'data:image/png;base64,avatar')
+    })
+
     it('sends an attachment message to a channel', async () => {
       const channelName = `attach-${uid}`
       const fileName = `chat-file/${channelName}/clip.mp4`
@@ -1644,6 +1670,72 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const data = await res.json()
       assert.strictEqual(res.status, 200)
       assert.strictEqual(data.length, 2)
+    })
+  })
+
+  describe('GET /api/channels/:name/members', () => {
+    it('returns channel members ordered by join time', async () => {
+      const channelName = `members-${uid}`
+      const firstJoin = await fetch(`${baseUrl}/api/channels`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: channelName,
+          type: 'public',
+          displayName: 'FirstUser',
+          avatar: 'first.png',
+        }),
+      })
+      assert.strictEqual(firstJoin.status, 200)
+
+      await new Promise(resolve => setTimeout(resolve, 5))
+      const secondJoin = await fetchAs(
+        SECOND_IDENTITY,
+        `${baseUrl}/api/channels`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: channelName,
+            type: 'public',
+            displayName: 'SecondUser',
+            avatar: 'second.png',
+          }),
+        }
+      )
+      assert.strictEqual(secondJoin.status, 200)
+
+      const res = await fetch(`${baseUrl}/api/channels/${channelName}/members`)
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 200)
+      assert.deepStrictEqual(
+        data.map(member => member.address),
+        [TEST_IDENTITY.address.toLowerCase(), SECOND_IDENTITY.address.toLowerCase()]
+      )
+      assert.strictEqual(data[0].displayName, 'FirstUser')
+      assert.strictEqual(data[0].avatar, 'first.png')
+      assert.strictEqual(data[1].displayName, 'SecondUser')
+      assert.strictEqual(data[1].avatar, 'second.png')
+      assert.ok(new Date(data[0].joinedAt).getTime() > 0)
+      assert.ok(
+        new Date(data[0].joinedAt).getTime() <=
+          new Date(data[1].joinedAt).getTime()
+      )
+    })
+
+    it('blocks non-members from reading channel members', async () => {
+      const channelName = `private-members-${uid}`
+      await engine.createChannel(channelName)
+
+      const res = await fetchAs(
+        SECOND_IDENTITY,
+        `${baseUrl}/api/channels/${channelName}/members`
+      )
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 403)
+      assert.strictEqual(data.code, 'PERMISSION_ERROR')
     })
   })
 

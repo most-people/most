@@ -1098,6 +1098,65 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
     })
   })
 
+  describe('getChannelMembers()', () => {
+    it('stores channel members as profile objects', async () => {
+      const ownerAddress = '0x1234567890abcdef1234567890abcdef12345678'
+      const channelName = `members-${uid}`
+      await engine.createChannel(channelName, 'public', {
+        ownerAddress,
+        displayName: 'Alice#5678',
+        avatar: 'data:image/png;base64,alice',
+      })
+
+      const members = engine.getChannelMembers(channelName, { ownerAddress })
+
+      assert.deepStrictEqual(members, [
+        {
+          address: ownerAddress,
+          displayName: 'Alice#5678',
+          avatar: 'data:image/png;base64,alice',
+          joinedAt: members[0].joinedAt,
+        },
+      ])
+      assert.ok(new Date(members[0].joinedAt).getTime() > 0)
+    })
+
+    it('orders members by join time and refreshes profile fields', async () => {
+      const alice = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+      const bob = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+      const channelName = `member-order-${uid}`
+      await engine.createChannel(channelName, 'public', {
+        ownerAddress: alice,
+        displayName: 'Alice',
+      })
+      await new Promise(resolve => setTimeout(resolve, 5))
+      await engine.createChannel(channelName, 'public', {
+        ownerAddress: bob,
+        displayName: 'Bob',
+        avatar: 'bob.png',
+      })
+      await engine.sendMessage(channelName, 'hello', bob, 'Bobby', {
+        ownerAddress: bob,
+        avatar: 'bobby.png',
+      })
+
+      const members = engine.getChannelMembers(channelName, {
+        ownerAddress: alice,
+      })
+
+      assert.deepStrictEqual(
+        members.map(member => member.address),
+        [alice, bob]
+      )
+      assert.strictEqual(members[1].displayName, 'Bobby')
+      assert.strictEqual(members[1].avatar, 'bobby.png')
+      assert.ok(
+        new Date(members[0].joinedAt).getTime() <=
+          new Date(members[1].joinedAt).getTime()
+      )
+    })
+  })
+
   describe('sendMessage() and getChannelMessages()', () => {
     let msgEngine
     let msgTmpDir

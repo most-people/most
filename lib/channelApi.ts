@@ -29,6 +29,13 @@ export interface Channel {
   peerCount?: number
 }
 
+export interface ChannelMember {
+  address: string
+  displayName: string
+  avatar?: string
+  joinedAt: string
+}
+
 export interface SendMessageResult {
   message: ChannelMessage
 }
@@ -43,7 +50,13 @@ export interface SendChannelMessageInput {
   content: string
   author: string
   authorName: string
+  avatar?: string
   attachment?: ChannelAttachment
+}
+
+export interface ChannelProfileInput {
+  displayName?: string
+  avatar?: string
 }
 
 export interface SetChannelRemarkResult {
@@ -67,9 +80,15 @@ export const channelApi = {
       .json()
   },
 
-  createChannel(name: string, type = 'personal') {
+  createChannel(
+    name: string,
+    type = 'personal',
+    profile: ChannelProfileInput = {}
+  ) {
     return api
-      .post<CreateChannelResult>('/api/channels', { json: { name, type } })
+      .post<CreateChannelResult>('/api/channels', {
+        json: { name, type, ...profile },
+      })
       .json()
   },
 
@@ -90,6 +109,7 @@ export const channelApi = {
     content,
     author,
     authorName,
+    avatar,
     attachment,
   }: SendChannelMessageInput) {
     return api
@@ -97,10 +117,16 @@ export const channelApi = {
         `/api/channels/${encodeURIComponent(channelName)}/messages`,
         {
           json: attachment
-            ? { content, author, authorName, attachment }
-            : { content, author, authorName },
+            ? { content, author, authorName, avatar, attachment }
+            : { content, author, authorName, avatar },
         }
       )
+      .json()
+  },
+
+  getChannelMembers(name: string) {
+    return api
+      .get<ChannelMember[]>(`/api/channels/${encodeURIComponent(name)}/members`)
       .json()
   },
 

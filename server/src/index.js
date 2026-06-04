@@ -88,6 +88,17 @@ function buildMostLink(cid, fileName) {
   return `most://${cid}?filename=${encodeURIComponent(fileName)}`
 }
 
+function normalizeChannelDisplayName(input, fallbackAddress = '') {
+  const value = String(input || '').trim()
+  if (value) return value.slice(0, 50)
+  return fallbackAddress ? fallbackAddress.slice(0, 10) : ''
+}
+
+function normalizeChannelAvatar(input) {
+  const value = String(input || '').trim()
+  return value ? value.slice(0, 4096) : ''
+}
+
 function createOfflineSwarm() {
   return {
     connections: new Set(),
@@ -1608,7 +1619,7 @@ export class MostBoxEngine extends EventEmitter {
         ...channel,
         members: Array.isArray(channel.members)
           ? channel.members.filter(
-              member => normalizeOwnerAddress(member) !== ownerAddress
+              member => normalizeOwnerAddress(member?.address) !== ownerAddress
             )
           : [],
       }))
@@ -1969,14 +1980,16 @@ export class MostBoxEngine extends EventEmitter {
 
     const existing = this.#channels.find(c => c.name === name)
     if (existing) {
-      if (ownerAddress && !Array.isArray(existing.members)) {
-        existing.members = []
-      }
-      if (ownerAddress && !existing.members.includes(ownerAddress)) {
-        existing.members.push(ownerAddress)
+      if (this.#upsertChannelMember(existing, options)) {
         this.#saveChannelsMetadata()
       }
-      return { name: existing.name, key: existing.coreKey }
+      return {
+        name: existing.name,
+        key: existing.coreKey,
+        coreKey: existing.coreKey,
+        createdAt: existing.createdAt,
+        type: existing.type,
+      }
     }
 
     const ns = this.#store.namespace(`channel-${name}`)
@@ -2003,9 +2016,10 @@ export class MostBoxEngine extends EventEmitter {
       createdAt: new Date().toISOString(),
       type: channelType,
       ownerAddress,
-      members: ownerAddress ? [ownerAddress] : [],
+      members: [],
       remoteCoreKeys: [],
     }
+    this.#upsertChannelMember(channelInfo, options)
 
     this.#channels.push(channelInfo)
     const coreKeyHex = b4a.toString(core.key, 'hex')
@@ -2022,7 +2036,13 @@ export class MostBoxEngine extends EventEmitter {
     console.log(`[MostBox] Channel created: ${name}`)
     this.emit('channel:joined', { name, key: channelInfo.coreKey })
 
-    return { name, key: channelInfo.coreKey }
+    return {
+      name,
+      key: channelInfo.coreKey,
+      coreKey: channelInfo.coreKey,
+      createdAt: channelInfo.createdAt,
+      type: channelInfo.type,
+    }
   }
 
   /**
@@ -2037,11 +2057,7 @@ export class MostBoxEngine extends EventEmitter {
 
     const existing = this.#channels.find(c => c.name === name)
     if (existing) {
-      if (ownerAddress && !Array.isArray(existing.members)) {
-        existing.members = []
-      }
-      if (ownerAddress && !existing.members.includes(ownerAddress)) {
-        existing.members.push(ownerAddress)
+      if (this.#upsertChannelMember(existing, options)) {
         this.#saveChannelsMetadata()
       }
       if (coreKey && coreKey !== existing.coreKey) {
@@ -2054,7 +2070,13 @@ export class MostBoxEngine extends EventEmitter {
         }
         await this.#openRemoteChannelCore(name, coreKey)
       }
-      return { name: existing.name, key: existing.coreKey }
+      return {
+        name: existing.name,
+        key: existing.coreKey,
+        coreKey: existing.coreKey,
+        createdAt: existing.createdAt,
+        type: existing.type,
+      }
     }
 
     if (!coreKey) {
@@ -2090,10 +2112,11 @@ export class MostBoxEngine extends EventEmitter {
       createdAt: new Date().toISOString(),
       type: 'group',
       ownerAddress,
-      members: ownerAddress ? [ownerAddress] : [],
+      members: [],
       remoteCoreKeys:
         remoteCoreKeyHex === localCoreKeyHex ? [] : [remoteCoreKeyHex],
     }
+    this.#upsertChannelMember(channelInfo, options)
 
     this.#channels.push(channelInfo)
     if (!this.#channelCores.has(name)) {
@@ -2112,7 +2135,13 @@ export class MostBoxEngine extends EventEmitter {
     console.log(`[MostBox] Joined channel: ${name}`)
     this.emit('channel:joined', { name, key: localCoreKeyHex })
 
-    return { name, key: localCoreKeyHex }
+    return {
+      name,
+      key: localCoreKeyHex,
+      coreKey: localCoreKeyHex,
+      createdAt: channelInfo.createdAt,
+      type: channelInfo.type,
+    }
   }
 
   /**
@@ -2132,7 +2161,7 @@ export class MostBoxEngine extends EventEmitter {
     const channel = this.#channels[index]
     if (ownerAddress && Array.isArray(channel.members)) {
       channel.members = channel.members.filter(
-        member => normalizeOwnerAddress(member) !== ownerAddress
+        member => normalizeOwnerAddress(member?.address) !== ownerAddress
       )
       if (channel.members.length > 0) {
         this.#saveChannelsMetadata()
@@ -2233,7 +2262,7 @@ export class MostBoxEngine extends EventEmitter {
     return this.#channels
       .filter(c => {
         if (!ownerAddress) return true
-        return Array.isArray(c.members) && c.members.includes(ownerAddress)
+        return this.#channelHasMember(c, ownerAddress)
       })
       .filter(c => {
         if (type) return c.type === type
@@ -2248,6 +2277,18 @@ export class MostBoxEngine extends EventEmitter {
         peerCount: (this.#channelPeers.get(c.name) || new Map()).size,
         remark: ownerAddress && c.remarks ? c.remarks[ownerAddress] || '' : '',
       }))
+  }
+
+  getChannelMembers(name, options = {}) {
+    this.#ensureInitialized()
+    this.#assertChannelMember(name, options.ownerAddress)
+
+    const channel = this.#channels.find(c => c.name === name)
+    if (!channel) {
+      throw new Error('频道不存在')
+    }
+
+    return this.#getChannelMembers(channel)
   }
 
   /**
@@ -2320,6 +2361,7 @@ export class MostBoxEngine extends EventEmitter {
   async sendMessage(name, content, author, authorName, options = {}) {
     this.#ensureInitialized()
     this.#assertChannelMember(name, options.ownerAddress)
+    const channel = this.#channels.find(c => c.name === name)
 
     const localKeyHex = this.#channelLocalCoreKey.get(name)
     const coresMap = this.#channelCores.get(name)
@@ -2339,6 +2381,16 @@ export class MostBoxEngine extends EventEmitter {
     const attachment = normalizeChannelAttachment(options.attachment)
     if (attachment && trimmed !== attachment.link) {
       throw new ValidationError('attachment content must match link')
+    }
+    if (
+      channel &&
+      this.#upsertChannelMember(channel, {
+        ownerAddress: options.ownerAddress,
+        displayName: authorName,
+        avatar: options.avatar,
+      })
+    ) {
+      this.#saveChannelsMetadata()
     }
 
     const message = {
@@ -2429,12 +2481,88 @@ export class MostBoxEngine extends EventEmitter {
     if (!channel) {
       throw new Error('频道不存在')
     }
-    if (
-      !Array.isArray(channel.members) ||
-      !channel.members.includes(normalizedOwner)
-    ) {
+    if (!this.#channelHasMember(channel, normalizedOwner)) {
       throw new PermissionError('未加入该频道')
     }
+  }
+
+  #channelHasMember(channel, ownerAddress) {
+    const normalizedOwner = normalizeOwnerAddress(ownerAddress)
+    if (!normalizedOwner || !Array.isArray(channel?.members)) return false
+    return channel.members.some(
+      member => normalizeOwnerAddress(member?.address) === normalizedOwner
+    )
+  }
+
+  #upsertChannelMember(channel, options = {}) {
+    const address = normalizeOwnerAddress(options.ownerAddress)
+    if (!address) return false
+
+    if (!Array.isArray(channel.members)) {
+      channel.members = []
+    }
+
+    const displayName = normalizeChannelDisplayName(options.displayName, address)
+    const avatar = normalizeChannelAvatar(options.avatar)
+    const existing = channel.members.find(
+      member => normalizeOwnerAddress(member?.address) === address
+    )
+
+    if (existing) {
+      let changed = false
+      if (existing.address !== address) {
+        existing.address = address
+        changed = true
+      }
+      if (displayName && existing.displayName !== displayName) {
+        existing.displayName = displayName
+        changed = true
+      }
+      if (avatar && existing.avatar !== avatar) {
+        existing.avatar = avatar
+        changed = true
+      }
+      if (!existing.joinedAt) {
+        existing.joinedAt = new Date().toISOString()
+        changed = true
+      }
+      return changed
+    }
+
+    const member = {
+      address,
+      displayName,
+      joinedAt: new Date().toISOString(),
+    }
+    if (avatar) {
+      member.avatar = avatar
+    }
+    channel.members.push(member)
+    return true
+  }
+
+  #getChannelMembers(channel) {
+    const members = Array.isArray(channel?.members) ? channel.members : []
+    return members
+      .map((member, index) => ({
+        address: normalizeOwnerAddress(member?.address),
+        displayName: normalizeChannelDisplayName(
+          member?.displayName,
+          normalizeOwnerAddress(member?.address)
+        ),
+        avatar: normalizeChannelAvatar(member?.avatar),
+        joinedAt: String(member?.joinedAt || ''),
+        _index: index,
+      }))
+      .filter(member => member.address && member.joinedAt)
+      .sort((a, b) => {
+        const timeDiff =
+          new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime()
+        return timeDiff || a._index - b._index
+      })
+      .map(({ _index, ...member }) =>
+        member.avatar ? member : { ...member, avatar: undefined }
+      )
   }
 
   #normalizeChannelMessageForResponse(channelName, message) {

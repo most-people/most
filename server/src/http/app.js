@@ -955,7 +955,11 @@ export function createApp(engine, options = {}) {
       const result = await engine.createChannel(
         body.name.trim(),
         body.type || 'personal',
-        { ownerAddress: c.get('userAddress') }
+        {
+          ownerAddress: c.get('userAddress'),
+          displayName: body.displayName,
+          avatar: body.avatar,
+        }
       )
       return c.json({ success: true, ...result })
     } catch (err) {
@@ -1001,6 +1005,18 @@ export function createApp(engine, options = {}) {
     }
   })
 
+  app.get('/api/channels/:name/members', c => {
+    try {
+      return c.json(
+        engine.getChannelMembers(c.req.param('name'), {
+          ownerAddress: c.get('userAddress'),
+        })
+      )
+    } catch (err) {
+      return badRequestOrAppError(c, err)
+    }
+  })
+
   app.post('/api/channels/:name/messages', async c => {
     const name = c.req.param('name')
     const body = await c.req.json()
@@ -1025,7 +1041,11 @@ export function createApp(engine, options = {}) {
         body.content,
         body.author,
         body.authorName,
-        { ownerAddress: c.get('userAddress'), attachment: body.attachment }
+        {
+          ownerAddress: c.get('userAddress'),
+          attachment: body.attachment,
+          avatar: body.avatar,
+        }
       )
       return c.json({ success: true, message })
     } catch (err) {

@@ -27,6 +27,7 @@ export interface SendChannelMessageOptions {
   content: string
   author: string
   authorName: string
+  avatar?: string
   attachment?: ChannelAttachment
   optimisticId?: string
 }
@@ -176,6 +177,7 @@ export function useChannelMessages({
       content,
       author,
       authorName,
+      avatar,
       attachment,
       optimisticId,
     }: SendChannelMessageOptions) => {
@@ -199,6 +201,7 @@ export function useChannelMessages({
           content: trimmed,
           author,
           authorName,
+          avatar,
           attachment,
         })
         setMessages(prev =>

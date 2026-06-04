@@ -47,6 +47,7 @@ import {
   channelApi,
   type Channel,
   type ChannelAttachment,
+  type ChannelMember,
   type ChannelMessage,
 } from '~/lib/channelApi'
 import { getFileSubtype, type FileSubtype } from '~/lib/filePreview'
@@ -113,6 +114,11 @@ function getAttachmentIcon(kind: FileSubtype) {
   return <FileText size={20} />
 }
 
+function formatAddressShort(address?: string) {
+  if (!address) return 'Unknown'
+  return `${address.slice(0, 6)}...${address.slice(-4)}`
+}
+
 type AttachmentDownloadState = {
   status: 'checking' | 'available' | 'error'
   message?: string
@@ -157,6 +163,8 @@ function ChatPage() {
   >({})
   const [failedAttachment, setFailedAttachment] =
     useState<ChannelAttachment | null>(null)
+  const [channelMembers, setChannelMembers] = useState<ChannelMember[]>([])
+  const [isLoadingChannelMembers, setIsLoadingChannelMembers] = useState(false)
 
   const channelMessagesEndRef = useRef<HTMLDivElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
@@ -175,6 +183,33 @@ function ChatPage() {
     [addToast]
   )
 
+  const getCurrentChannelProfile = useCallback(
+    () => ({
+      displayName: userIdentity?.displayName || userIdentity?.username || '',
+      avatar: userIdentity?.avatar,
+    }),
+    [userIdentity?.avatar, userIdentity?.displayName, userIdentity?.username]
+  )
+
+  const refreshChannelMembers = useCallback(
+    async (channelName = activeChannel?.name) => {
+      if (!channelName || !isBackendReady || !userIdentity) {
+        setChannelMembers([])
+        return
+      }
+      setIsLoadingChannelMembers(true)
+      try {
+        setChannelMembers(await channelApi.getChannelMembers(channelName))
+      } catch (err) {
+        setChannelMembers([])
+        await showApiError(err, '无法读取频道成员')
+      } finally {
+        setIsLoadingChannelMembers(false)
+      }
+    },
+    [activeChannel?.name, isBackendReady, showApiError, userIdentity]
+  )
+
   function handleChannelSocketEvent(event: string, data: any) {
     switch (event) {
       case 'channel:peer:online':
@@ -189,6 +224,7 @@ function ChatPage() {
       case 'channel:joined':
       case 'channel:left':
         void refreshChannels()
+        void refreshChannelMembers()
         break
 
       case 'download:success': {
@@ -298,9 +334,21 @@ function ChatPage() {
       if (isBackendReady) {
         void syncMessages(activeChannel.name, { replace: true })
         channelApi.getChannelPeers(activeChannel.name).catch(() => {})
+        void refreshChannelMembers(activeChannel.name)
       }
     }
-  }, [activeChannel, hasBackend, isBackendReady, syncMessages])
+  }, [
+    activeChannel,
+    hasBackend,
+    isBackendReady,
+    refreshChannelMembers,
+    syncMessages,
+  ])
+
+  useEffect(() => {
+    if (!showChannelDetail || !activeChannel) return
+    void refreshChannelMembers(activeChannel.name)
+  }, [activeChannel, refreshChannelMembers, showChannelDetail])
 
   useEffect(() => {
     const channelParam = new URLSearchParams(window.location.search).get(
@@ -310,6 +358,16 @@ function ChatPage() {
       const found = channels.find(c => c.name === channelParam)
       if (found && (!activeChannel || activeChannel.name !== found.name)) {
         handleOpenChannel(found)
+      } else if (
+        found &&
+        activeChannel &&
+        activeChannel.name === found.name &&
+        (activeChannel.createdAt !== found.createdAt ||
+          activeChannel.coreKey !== found.coreKey ||
+          activeChannel.remark !== found.remark ||
+          activeChannel.type !== found.type)
+      ) {
+        setActiveChannel(found)
       }
     }
   }, [channels, activeChannel])
@@ -323,6 +381,7 @@ function ChatPage() {
     setMyPeerId('')
     setShowChannelDetail(false)
     setPreviewItem(null)
+    setChannelMembers([])
     setAttachmentDownloadStatus({})
     activeAttachmentDownloadsRef.current.clear()
     pendingAttachmentPreviewsRef.current.clear()
@@ -493,18 +552,30 @@ function ChatPage() {
     if (!requireBackendReady()) return
     setIsJoiningChannel(true)
     try {
-      await channelApi.createChannel(name, 'public')
-      const joinedChannel = channels.find(channel => channel.name === name) || {
+      const result = await channelApi.createChannel(
         name,
-        type: 'public',
+        'public',
+        getCurrentChannelProfile()
+      )
+      const existingChannel = channels.find(channel => channel.name === name)
+      const joinedChannel: Channel = {
+        ...existingChannel,
+        name: result.name || name,
+        type: result.type || existingChannel?.type || 'public',
+        createdAt: result.createdAt || existingChannel?.createdAt,
+        coreKey: result.coreKey || result.key || existingChannel?.coreKey,
+        remark: existingChannel?.remark,
       }
       setChannels(prev =>
         prev.some(channel => channel.name === name)
-          ? prev
+          ? prev.map(channel =>
+              channel.name === name ? { ...channel, ...joinedChannel } : channel
+            )
           : [...prev, joinedChannel]
       )
       joinChannelModal.close()
       await handleOpenChannel(joinedChannel)
+      void refreshChannelMembers(name)
       refreshChannels()
     } catch (err) {
       await showApiError(err, '加入频道失败')
@@ -528,8 +599,10 @@ function ChatPage() {
         content: trimmedContent,
         author: userIdentity.address,
         authorName: userIdentity.displayName || userIdentity.username,
+        avatar: userIdentity.avatar,
         attachment,
       })
+      void refreshChannelMembers(activeChannel.name)
       return true
     } catch (err) {
       await showApiError(err, '发送失败')
@@ -684,6 +757,33 @@ function ChatPage() {
             )}
           </span>
         </button>
+      </div>
+    )
+  }
+
+  function renderChannelMembers() {
+    if (isLoadingChannelMembers && channelMembers.length === 0) {
+      return <div className="channel-members-empty">正在读取成员...</div>
+    }
+
+    if (channelMembers.length === 0) {
+      return <div className="channel-members-empty">暂无成员</div>
+    }
+
+    return (
+      <div className="channel-members-grid">
+        {channelMembers.map(member => (
+          <div className="channel-member" key={member.address}>
+            <img
+              className="channel-member-avatar"
+              src={generateAvatar(member.address, member.avatar)}
+              alt="avatar"
+            />
+            <span className="channel-member-name">
+              {member.displayName || formatAddressShort(member.address)}
+            </span>
+          </div>
+        ))}
       </div>
     )
   }
@@ -1028,6 +1128,13 @@ function ChatPage() {
             </div>
 
             <div className="channel-detail-body">
+              <div className="channel-detail-section channel-members-section">
+                <div className="channel-detail-label">
+                  <span>群成员 ({channelMembers.length})</span>
+                </div>
+                {renderChannelMembers()}
+              </div>
+
               <div className="channel-detail-section">
                 <div className="channel-detail-label">
                   <Hash size={14} />
