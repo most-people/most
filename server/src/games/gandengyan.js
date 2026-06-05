@@ -3,7 +3,7 @@ const RANKS = ['3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A', '2']
 const STRAIGHT_RANKS = RANKS.filter(rank => rank !== '2')
 const RANK_VALUE = new Map(RANKS.map((rank, index) => [rank, index + 3]))
 const INITIAL_HAND_SIZE = 5
-const SEALED_PENALTY = 15
+const SEALED_PENALTY = 20
 const INITIAL_SCORE = 1000
 
 export function createGanDengYanRoom({
@@ -128,6 +128,7 @@ export function playGanDengYanCards(room, address, cardIds) {
     return { ok: false, error: '出的牌压不过上一手', state: publicGanDengYanRoom(state) }
   }
 
+  cards.sort(compareCards)
   player.hand = player.hand.filter(card => !cardIds.includes(card.id))
   player.handCount = player.hand.length
   player.playedCards += cards.length
@@ -188,7 +189,9 @@ export function publicGanDengYanRoom(room) {
     ownerAddress: room.ownerAddress,
     status: room.status,
     seq: Number(room.seq || 1),
+    deck: Array.isArray(room.deck) ? room.deck.map(publicCard) : [],
     deckCount: room.deck?.length || Number(room.deckCount || 0),
+    discard: Array.isArray(room.discard) ? room.discard.map(publicCard) : [],
     discardCount: room.discard?.length || Number(room.discardCount || 0),
     currentSeat: Number(room.currentSeat || 0),
     lastWinnerSeat:
@@ -237,7 +240,7 @@ export function hydrateGanDengYanRoom(input) {
     players: Array.isArray(input.players)
       ? input.players.map(normalizeRoundPlayer).filter(Boolean)
       : [],
-    deck: Array.isArray(input.deck) ? input.deck.map(normalizeCard).filter(Boolean) : [],
+    deck: Array.isArray(input.deck) ? input.deck.map(expandCompactCard).filter(Boolean) : [],
     discard: Array.isArray(input.discard)
       ? input.discard.map(normalizeCard).filter(Boolean)
       : [],
@@ -274,6 +277,7 @@ export function hydrateGanDengYanRoom(input) {
 
 export function analyzeCards(cards) {
   if (!cards?.length) return null
+  cards = [...cards].sort(compareCards)
   const jokerCount = cards.filter(isJoker).length
   const normals = cards.filter(card => !isJoker(card))
   if (normals.length === 0) return null
@@ -303,15 +307,22 @@ function analyzeBomb(cards, normals, jokerCount) {
 
 function analyzeStraight(cards) {
   if (cards.length < 3) return null
+  const jokerCount = cards.filter(isJoker).length
+  const normals = cards.filter(card => !isJoker(card))
   for (let start = 0; start <= STRAIGHT_RANKS.length - cards.length; start += 1) {
     const values = STRAIGHT_RANKS.slice(start, start + cards.length).map(rank =>
       RANK_VALUE.get(rank)
     )
-    if (
-      cards.every(
-        (card, index) => isJoker(card) || cardValue(card) === values[index]
-      )
-    ) {
+    const remaining = [...values]
+    let matched = 0
+    for (const card of normals) {
+      const idx = remaining.indexOf(cardValue(card))
+      if (idx !== -1) {
+        remaining.splice(idx, 1)
+        matched += 1
+      }
+    }
+    if (matched + jokerCount === cards.length && remaining.length === jokerCount) {
       return makeCombo('straight', values.at(-1), cards.length, values)
     }
   }
@@ -321,16 +332,23 @@ function analyzeStraight(cards) {
 function analyzePairStraight(cards) {
   if (cards.length < 4 || cards.length % 2 !== 0) return null
   const pairCount = cards.length / 2
+  const jokerCount = cards.filter(isJoker).length
+  const normals = cards.filter(card => !isJoker(card))
   for (let start = 0; start <= STRAIGHT_RANKS.length - pairCount; start += 1) {
     const pairValues = STRAIGHT_RANKS.slice(start, start + pairCount).map(rank =>
       RANK_VALUE.get(rank)
     )
-    const values = pairValues.flatMap(value => [value, value])
-    if (
-      cards.every(
-        (card, index) => isJoker(card) || cardValue(card) === values[index]
-      )
-    ) {
+    const remaining = pairValues.flatMap(value => [value, value])
+    let matched = 0
+    for (const card of normals) {
+      const idx = remaining.indexOf(cardValue(card))
+      if (idx !== -1) {
+        remaining.splice(idx, 1)
+        matched += 1
+      }
+    }
+    if (matched + jokerCount === cards.length && remaining.length === jokerCount) {
+      const values = pairValues.flatMap(value => [value, value])
       return makeCombo('pairStraight', pairValues.at(-1), cards.length, values)
     }
   }
@@ -448,7 +466,7 @@ function finishGame(room, winner) {
   for (const player of orderedPlayers(room)) {
     if (player.seat === winner.seat) continue
     const sealed = player.playedCards === 0
-    const loss = sealed ? SEALED_PENALTY : player.hand.length * room.baseScore
+    const loss = sealed ? SEALED_PENALTY : player.hand.length * room.baseScore * 0.5
     player.score -= loss
     winnerGain += loss
     losers.push({
@@ -551,6 +569,14 @@ function isJoker(card) {
 
 function suitValue(suit) {
   return { D: 0, C: 1, H: 2, S: 3, Joker: 4 }[suit] || 0
+}
+
+function expandCompactCard(input) {
+  if (typeof input === 'string') {
+    const [suit, rank] = input.split('-')
+    return normalizeCard({ id: input, suit, rank })
+  }
+  return normalizeCard(input)
 }
 
 function publicCard(card) {

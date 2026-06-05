@@ -121,6 +121,10 @@
       background: var(--glass-bg-subtle);
       color: var(--text-primary);
     }
+
+    svg {
+      flex-shrink: 0;
+    }
   }
 
   .chat-sidebar-footer {

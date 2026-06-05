@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Copy,
   Moon,
@@ -56,6 +56,14 @@ type Room = {
   bombCount: number
   table?: { playerName: string; cards: Card[]; combo?: { label: string } } | null
   winnerSeat: number | null
+  roundResult?: {
+    winnerSeat: number
+    winnerName: string
+    winnerGain: number
+    baseScore: number
+    bombCount: number
+    losers: Array<{ seat: number; name: string; loss: number; sealed: boolean; cardsLeft: number }>
+  } | null
   log: string[]
 }
 
@@ -69,6 +77,49 @@ function sameAddress(left?: string, right?: string) {
   return String(left || '').toLowerCase() === String(right || '').toLowerCase()
 }
 
+function speak(text: string) {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window) || !text) return
+  window.speechSynthesis.cancel()
+  const utterance = new SpeechSynthesisUtterance(text)
+  utterance.lang = 'zh-CN'
+  utterance.rate = 1.1
+  window.speechSynthesis.speak(utterance)
+}
+
+function pronounce(rank: string) {
+  return rank === 'J' ? '勾' : rank === 'Q' ? '圈' : rank === 'A' ? '坚' : rank === '10' ? '十' : rank
+}
+
+function getSpeechText(logEntry: string) {
+  if (!logEntry) return ''
+  if (/不要/.test(logEntry)) return '不要'
+  if (/本轮结束/.test(logEntry)) return '不要'
+  if (/新一局开始/.test(logEntry)) return '新一局开始'
+  if (/获胜/.test(logEntry)) return '游戏结束'
+
+  const playMatch = logEntry.match(/出\s+(\S+?)(?:（([^）]+)）)?\s+(?:[♠♥♣♦]|小王|大王)/)
+  if (!playMatch) return ''
+
+  const type = playMatch[1]
+  const raw = playMatch[2]
+
+  if (!raw) return type
+
+  const ranks = raw.split(/\s+/).map(pronounce)
+
+  if (type === '对子') return `对${ranks[0]}`
+  if (type === '单张') return ranks[0]
+  if (/炸弹/.test(type)) return `${ranks[0]}炸`
+  if (type === '顺子') return ranks.join(' ')
+  if (type === '连对') {
+    const unique: string[] = []
+    for (let i = 0; i < ranks.length; i += 2) unique.push(ranks[i])
+    return unique.map(r => r + r).join('')
+  }
+
+  return type
+}
+
 export default function GanDengYanPage() {
   const isDarkMode = useAppStore(s => s.isDarkMode)
   const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
@@ -77,6 +128,8 @@ export default function GanDengYanPage() {
   const [roomInput, setRoomInput] = useState('')
   const [selected, setSelected] = useState<string[]>([])
   const [copied, setCopied] = useState(false)
+  const pendingAutoJoin = useRef('')
+  const autoJoinAttempted = useRef(false)
 
   const game = useGameRoom({
     gameId: GAME_ID,
@@ -91,8 +144,22 @@ export default function GanDengYanPage() {
     const initialRoom = new URLSearchParams(window.location.search)
       .get('room')
       ?.toUpperCase()
-    if (initialRoom) setRoomInput(initialRoom)
+    if (initialRoom) {
+      setRoomInput(initialRoom)
+      pendingAutoJoin.current = initialRoom
+    }
   }, [])
+
+  useEffect(() => {
+    const code = pendingAutoJoin.current
+    if (!code || autoJoinAttempted.current) return
+    if (!game.isBackendReady || !game.userIdentity) return
+    autoJoinAttempted.current = true
+    pendingAutoJoin.current = ''
+    void game.joinRoom(code).then(ok => {
+      if (ok) addToast('已进入房间', 'success')
+    })
+  }, [game.isBackendReady, game.userIdentity, game.joinRoom, addToast])
 
   useEffect(() => {
     if (!game.roomCode) return
@@ -130,9 +197,42 @@ export default function GanDengYanPage() {
       ? `${window.location.origin}/game/gandengyan?room=${game.roomCode}`
       : ''
   const lowDeck = Boolean(room && room.status === 'playing' && room.deckCount < 3)
+  const prevSeqRef = useRef(-1)
+  const lastSpokenLogRef = useRef('')
+  const spokenFinishedRef = useRef(false)
 
   useEffect(() => {
     setSelected([])
+  }, [room?.seq])
+
+  useEffect(() => {
+    if (!room) return
+    const seq = room.seq
+    if (prevSeqRef.current < 0) {
+      prevSeqRef.current = seq
+      return
+    }
+    if (seq === prevSeqRef.current) return
+    prevSeqRef.current = seq
+
+    if (room.status !== 'finished') {
+      spokenFinishedRef.current = false
+    }
+
+    if (room.status === 'finished' && room.winnerSeat !== null) {
+      if (!spokenFinishedRef.current) {
+        spokenFinishedRef.current = true
+        speak('游戏结束')
+      }
+      return
+    }
+
+    const latestLog = room.log[0] || ''
+    if (latestLog && latestLog !== lastSpokenLogRef.current) {
+      lastSpokenLogRef.current = latestLog
+      const text = getSpeechText(latestLog)
+      if (text) speak(text)
+    }
   }, [room?.seq])
 
   useEffect(() => {
@@ -348,14 +448,35 @@ export default function GanDengYanPage() {
               </div>
 
               <div className={styles.notice}>
-                {room.status === 'finished'
-                  ? `${room.players.find(player => player.seat === room.winnerSeat)?.name} 获胜`
-                  : myTurn
-                    ? '轮到你出牌'
-                    : `等待 ${
-                        room.players.find(player => player.seat === room.currentSeat)?.name ||
-                        '玩家'
-                      }`}
+                {room.status === 'finished' ? (
+                  room.roundResult ? (
+                    <div className={styles.resultDetail}>
+                      <p>
+                        <strong>{room.roundResult.winnerName}</strong> 获胜，赢{' '}
+                        {room.roundResult.winnerGain} 分
+                        {room.roundResult.bombCount > 0 &&
+                          `（${room.roundResult.bombCount} 个炸弹）`}
+                      </p>
+                      {room.roundResult.losers.map(loser => (
+                        <p key={loser.seat}>
+                          {loser.name}
+                          {loser.sealed
+                            ? '（封牌）扣 20 分'
+                            : `剩 ${loser.cardsLeft} 张，扣 ${loser.loss} 分`}
+                        </p>
+                      ))}
+                    </div>
+                  ) : (
+                    `${room.players.find(player => player.seat === room.winnerSeat)?.name} 获胜`
+                  )
+                ) : myTurn ? (
+                  '轮到你出牌'
+                ) : (
+                  `等待 ${
+                    room.players.find(player => player.seat === room.currentSeat)?.name ||
+                    '玩家'
+                  }`
+                )}
               </div>
             </div>
 

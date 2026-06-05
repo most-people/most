@@ -142,6 +142,16 @@ npm run lint
 - 游戏房间频道必须使用公共 Channel 系统：HTTP `/api/channels`、WebSocket `channel:*`、Corestore/Hypercore 频道消息日志；游戏层只负责事件 payload 和状态派生。
 - 新实现不兼容旧游戏频道或旧事件格式；历史遗留协议直接清理，不写迁移或双格式分支。
 
+## 游戏房间接入约定
+
+- 游戏房间复用 MostBox 现有 P2P channel：Hyperswarm discovery + Corestore/Hypercore JSON 消息日志 + HTTP API + WebSocket 实时通知。
+- 游戏不新增独立后端接口；统一使用 `/api/channels` 和 `/ws`，前端通过共享 `channelApi` 与 `useChannelMessages` 读写频道。
+- `/chat/` 与游戏共用频道后端，但产品语义分开：聊天发送普通文本/附件；游戏发送结构化游戏事件 JSON。
+- 游戏频道 `type` 使用 `game`，频道名格式使用 `game-${gameId}-${roomCode}`；当前干瞪眼玩法的 `gameId` 是 `gdy`，实际频道名形如 `game-gdy-A1B2C3`。
+- 游戏事件内容使用 JSON，顶层包含 `type: "game"`、`gameId`、`roomCode`、`event`、`eventId` 和 `payload`。
+- 历史兼容不保留旧游戏 WebSocket 事件；需要时直接清理旧事件路径，避免维护双协议。
+- 写代码前先考虑项目结构，优先拆出可复用模块，不写重复或相似的通道/消息同步逻辑。
+
 ## 关键入口
 
 - 前端主应用：`app/app/page.tsx`
