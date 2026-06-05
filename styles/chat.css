@@ -184,26 +184,6 @@
   padding: 10px 8px 0;
 }
 
-.chat-channel-search-control {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.chat-channel-search-icon {
-  position: absolute;
-  left: 12px;
-  color: var(--text-muted);
-  pointer-events: none;
-}
-
-.chat-channel-search-input {
-  height: 38px;
-  padding-left: 34px;
-  padding-right: 12px;
-  font-size: 13px;
-}
-
 .create-channel-btn {
   margin: 8px;
 }

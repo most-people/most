@@ -64,7 +64,7 @@ const features: FeatureDef[] = [
     steps: [
       {
         num: '1',
-        title: '下载桌面客户端',
+        title: '下载客户端',
         desc: '支持 Windows、macOS 和 Linux，桌面端提供完整的 P2P 能力。',
         link: '/download',
         linkText: '前往下载页',
@@ -100,7 +100,7 @@ const features: FeatureDef[] = [
     steps: [
       {
         num: '1',
-        title: '下载桌面客户端',
+        title: '下载客户端',
         desc: '支持 Windows、macOS 和 Linux。',
         link: '/download',
         linkText: '前往下载页',
@@ -149,36 +149,36 @@ const features: FeatureDef[] = [
     ],
   },
   {
-    id: 'gandengyan',
-    title: '干瞪眼',
+    id: 'game',
+    title: '游戏',
     subtitle: 'P2P 牌桌',
     icon: <Gamepad2 size={28} />,
     path: '/game/gandengyan/',
     requiresBackend: true,
-    hero: '常驻节点里的在线牌桌',
-    desc: '把干瞪眼作为 MostBox 的独立页面接入，复用现有频道消息、Web3 登录身份和桌面端常驻入口。',
+    hero: '常驻节点里的 P2P 牌桌',
+    desc: '默认进入干瞪眼，侧边栏可切换炸金花，统一复用 MostBox 频道消息和 WebSocket 订阅能力。',
     features: [
       '使用 MostBox 本地账号进入房间',
-      '复用 /chat/ 的频道后端，不新增游戏后端接口',
-      '房间链接可直接分享到群组',
-      '支持 1-2 副牌、2-6 人和人机陪测',
-      '游戏规则、频道事件和页面样式拆分维护',
+      '统一房间码和 P2P 频道同步',
+      '不新增独立服务端口',
+      '房间链接可分享给朋友',
+      '只保留 MVP 所需牌桌闭环',
     ],
     steps: [
       {
         num: '1',
-        title: '登录账号',
-        desc: '使用现有 MostBox Web3 本地账号作为牌桌身份。',
+        title: '进入牌桌',
+        desc: '默认打开干瞪眼，也可从侧边栏切换炸金花。',
       },
       {
         num: '2',
         title: '创建房间',
-        desc: '创建房间后复制链接，发给朋友加入。',
+        desc: '生成房间码，复制链接发给朋友加入。',
       },
       {
         num: '3',
-        title: '开始调试',
-        desc: '可先用人机补位测试出牌、计分和房间同步。',
+        title: '开始牌局',
+        desc: '房主在线开局并推进牌桌状态。',
       },
     ],
   },
@@ -266,7 +266,9 @@ export default function FeaturePortal() {
                   <div className="portal-card-title">{f.title}</div>
                   <div className="portal-card-subtitle">{f.subtitle}</div>
                   {needsBackend ? (
-                    <div className={`portal-card-status ${backendStatus}`}>
+                    <div
+                      className={`ui-badge portal-card-status ${backendStatus}`}
+                    >
                       {backendStatus === 'checking' && (
                         <>
                           <span className="status-dot checking" />
@@ -287,7 +289,7 @@ export default function FeaturePortal() {
                       )}
                     </div>
                   ) : (
-                    <div className="portal-card-status ready">
+                    <div className="ui-badge portal-card-status ready">
                       <span className="status-dot ready" />
                       已就绪
                     </div>
@@ -301,6 +303,10 @@ export default function FeaturePortal() {
               <Server size={16} />
               连接节点
             </button>
+            <Link href="/download" className="btn btn-primary">
+              <Download size={16} />
+              下载客户端
+            </Link>
             <Link href="/admin" className="btn btn-secondary">
               <HardDrive size={16} />
               节点管理
@@ -372,7 +378,7 @@ export default function FeaturePortal() {
                     </button>
                     <Link href="/download" className="btn btn-secondary">
                       <Download size={16} />
-                      下载桌面客户端
+                      下载客户端
                     </Link>
                   </>
                 )}

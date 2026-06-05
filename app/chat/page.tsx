@@ -780,11 +780,11 @@ function ChatPage() {
           </div>
 
           <div className="chat-channel-search">
-            <div className="chat-channel-search-control">
-              <Search className="chat-channel-search-icon" size={15} />
+            <div className="ui-input-control">
+              <Search className="ui-input-icon" size={15} />
               <input
                 type="search"
-                className="input input-compact chat-channel-search-input"
+                className="input input-compact"
                 placeholder="搜索频道"
                 value={channelSearchInput}
                 onChange={e => setChannelSearchInput(e.target.value)}

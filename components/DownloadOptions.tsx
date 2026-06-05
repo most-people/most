@@ -239,7 +239,7 @@ export default function DownloadOptions() {
           }
           onClick={() => setDownloadSource('r2')}
         >
-          <Cloud size={16} />
+          <Cloud size={15} />
           Cloudflare R2
         </button>
         <button
@@ -253,7 +253,7 @@ export default function DownloadOptions() {
           }
           onClick={() => setDownloadSource('github')}
         >
-          <Code size={16} />
+          <Code size={15} />
           GitHub Releases
         </button>
       </div>

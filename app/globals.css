@@ -513,6 +513,23 @@ button {
   flex: 1;
 }
 
+.ui-input-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.ui-input-icon {
+  position: absolute;
+  left: 12px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.ui-input-control .input {
+  padding-left: 34px;
+}
+
 /* === Textareas & Mono Blocks === */
 .textarea {
   width: 100%;
@@ -724,7 +741,7 @@ button {
 
 .ui-segmented-option:hover:not(:disabled) {
   color: var(--text-primary);
-  background: var(--glass-bg-heavy);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 .ui-segmented-option.is-active,
@@ -760,6 +777,12 @@ button {
   border-color: var(--accent);
   color: var(--accent);
   background: var(--accent-soft);
+}
+
+.ui-action-dashed-sm {
+  min-height: 32px;
+  padding: 6px 10px;
+  font-size: 12px;
 }
 
 /* === Common Cards & Empty States === */

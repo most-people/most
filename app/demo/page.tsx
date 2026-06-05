@@ -21,6 +21,8 @@ import {
   Moon,
   MousePointerClick,
   Palette,
+  Plus,
+  Search,
   Server,
   ShieldAlert,
   Sparkles,
@@ -210,6 +212,10 @@ export default function DemoPage() {
               <button className="btn btn-primary" disabled>
                 Disabled
               </button>
+              <button type="button" className="ui-action-dashed">
+                <Plus size={16} />
+                Dashed
+              </button>
             </div>
           </DemoCard>
 
@@ -237,6 +243,10 @@ export default function DemoPage() {
               <button className="btn btn-sm btn-primary" disabled>
                 Disabled
               </button>
+              <button type="button" className="ui-action-dashed ui-action-dashed-sm">
+                <Plus size={14} />
+                Dashed
+              </button>
             </div>
           </DemoCard>
 
@@ -255,6 +265,14 @@ export default function DemoPage() {
                 rows={3}
                 readOnly
               />
+              <div className="ui-input-control">
+                <Search className="ui-input-icon" size={15} />
+                <input
+                  className="input input-compact"
+                  placeholder="带图标搜索"
+                  readOnly
+                />
+              </div>
             </div>
           </DemoCard>
 
