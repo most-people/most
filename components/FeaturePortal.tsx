@@ -289,7 +289,7 @@ export default function FeaturePortal() {
                       )}
                     </div>
                   ) : (
-                    <div className="portal-card-status ready">
+                    <div className="ui-badge portal-card-status ready">
                       <span className="status-dot ready" />
                       已就绪
                     </div>
