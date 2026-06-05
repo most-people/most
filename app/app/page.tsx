@@ -1078,7 +1078,6 @@ export default function App() {
           message={confirmModal.message}
           confirmText={confirmModal.confirmText}
           danger={confirmModal.danger}
-          closeOnOverlayClick={confirmModal.danger}
           onConfirm={confirmModal.onConfirm}
           onClose={() => setConfirmModal(null)}
         />
@@ -1340,7 +1339,6 @@ export default function App() {
       {isTransferPanelOpen && (
         <ModalOverlay
           onClose={() => transferPanel.close()}
-          closeOnOverlayClick={true}
         >
           <div className="transfer-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">

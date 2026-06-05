@@ -13,7 +13,7 @@ export default function ConnectModal() {
   if (!showConnectModal) return null
 
   const modal = (
-    <ModalOverlay onClose={closeConnectModal} closeOnOverlayClick>
+    <ModalOverlay onClose={closeConnectModal}>
       <div className="connect-modal">
         <div className="connect-modal-header">
           <h3>连接节点</h3>

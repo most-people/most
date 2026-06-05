@@ -11,7 +11,6 @@ interface ConfirmModalProps {
   onConfirm: () => void | Promise<void>
   onClose: () => void
   danger?: boolean
-  closeOnOverlayClick?: boolean
 }
 
 export function ConfirmModal({
@@ -21,10 +20,9 @@ export function ConfirmModal({
   onConfirm,
   onClose,
   danger,
-  closeOnOverlayClick,
 }: ConfirmModalProps) {
   return (
-    <ModalOverlay onClose={onClose} closeOnOverlayClick={closeOnOverlayClick}>
+    <ModalOverlay onClose={onClose}>
       <div className="confirm-modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <h3>{title}</h3>

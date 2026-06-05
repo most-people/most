@@ -39,7 +39,7 @@ export default function UserLoginModal() {
   }
 
   const modal = (
-    <ModalOverlay onClose={closeLoginModal} closeOnOverlayClick>
+    <ModalOverlay onClose={closeLoginModal}>
       <form
         className="login-modal"
         onSubmit={event => {

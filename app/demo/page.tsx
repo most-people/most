@@ -637,7 +637,7 @@ export default function DemoPage() {
       ))}
 
       {showOverlay && (
-        <ModalOverlay onClose={() => setShowOverlay(false)} closeOnOverlayClick>
+        <ModalOverlay onClose={() => setShowOverlay(false)}>
           <div className="demo-basic-modal" onClick={e => e.stopPropagation()}>
             <h3>ModalOverlay</h3>
             <p>这是基础容器示例，用来检查玻璃背景、居中和关闭行为。</p>
@@ -662,7 +662,6 @@ export default function DemoPage() {
             pushToast('success', 'ConfirmModal 已确认')
           }}
           onClose={() => setShowConfirm(false)}
-          closeOnOverlayClick
         />
       )}
 

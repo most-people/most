@@ -1052,7 +1052,6 @@ function ChatPage() {
       {failedAttachment && (
         <ModalOverlay
           onClose={() => setFailedAttachment(null)}
-          closeOnOverlayClick
         >
           <div className="confirm-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
