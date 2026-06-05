@@ -62,6 +62,8 @@ export default function ZhajinhuaPage() {
   const initializeUser = useUserStore(s => s.initializeUser)
   const [roomInput, setRoomInput] = useState('')
   const [copied, setCopied] = useState(false)
+  const pendingAutoJoin = useRef('')
+  const autoJoinAttempted = useRef(false)
   const [raiseAmount, setRaiseAmount] = useState(20)
   const [compareTarget, setCompareTarget] = useState('')
   const [privateHands, setPrivateHands] = useState<Record<string, string[]>>({})
@@ -95,8 +97,22 @@ export default function ZhajinhuaPage() {
     const initialRoom = new URLSearchParams(window.location.search)
       .get('room')
       ?.toUpperCase()
-    if (initialRoom) setRoomInput(initialRoom)
+    if (initialRoom) {
+      setRoomInput(initialRoom)
+      pendingAutoJoin.current = initialRoom
+    }
   }, [])
+
+  useEffect(() => {
+    const code = pendingAutoJoin.current
+    if (!code || autoJoinAttempted.current) return
+    if (!game.isBackendReady || !game.userIdentity) return
+    autoJoinAttempted.current = true
+    pendingAutoJoin.current = ''
+    void game.joinRoom(code).then(ok => {
+      if (ok) addToast('已进入房间', 'success')
+    })
+  }, [game.isBackendReady, game.userIdentity, game.joinRoom, addToast])
 
   useEffect(() => {
     if (!game.roomCode) return

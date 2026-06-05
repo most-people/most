@@ -1,5 +1,5 @@
 import type { FileSubtype } from '~/lib/filePreview'
-import { api } from '~/server/src/utils/api'
+import { api, getApiUrl } from '~/server/src/utils/api'
 
 export interface ChannelAttachment {
   kind: FileSubtype
@@ -12,6 +12,7 @@ export interface ChannelAttachment {
 
 export interface ChannelMessage {
   id?: string | number
+  type?: string
   author: string
   authorName?: string
   content: string
@@ -143,5 +144,9 @@ export const channelApi = {
         { json: { remark } }
       )
       .json()
+  },
+
+  getFileDownloadUrl(cid: string) {
+    return getApiUrl(`/api/files/${cid}/download`)
   },
 }

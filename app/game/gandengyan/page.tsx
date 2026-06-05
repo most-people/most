@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Copy,
   Moon,
@@ -56,6 +56,14 @@ type Room = {
   bombCount: number
   table?: { playerName: string; cards: Card[]; combo?: { label: string } } | null
   winnerSeat: number | null
+  roundResult?: {
+    winnerSeat: number
+    winnerName: string
+    winnerGain: number
+    baseScore: number
+    bombCount: number
+    losers: Array<{ seat: number; name: string; loss: number; sealed: boolean; cardsLeft: number }>
+  } | null
   log: string[]
 }
 
@@ -77,6 +85,8 @@ export default function GanDengYanPage() {
   const [roomInput, setRoomInput] = useState('')
   const [selected, setSelected] = useState<string[]>([])
   const [copied, setCopied] = useState(false)
+  const pendingAutoJoin = useRef('')
+  const autoJoinAttempted = useRef(false)
 
   const game = useGameRoom({
     gameId: GAME_ID,
@@ -91,8 +101,22 @@ export default function GanDengYanPage() {
     const initialRoom = new URLSearchParams(window.location.search)
       .get('room')
       ?.toUpperCase()
-    if (initialRoom) setRoomInput(initialRoom)
+    if (initialRoom) {
+      setRoomInput(initialRoom)
+      pendingAutoJoin.current = initialRoom
+    }
   }, [])
+
+  useEffect(() => {
+    const code = pendingAutoJoin.current
+    if (!code || autoJoinAttempted.current) return
+    if (!game.isBackendReady || !game.userIdentity) return
+    autoJoinAttempted.current = true
+    pendingAutoJoin.current = ''
+    void game.joinRoom(code).then(ok => {
+      if (ok) addToast('已进入房间', 'success')
+    })
+  }, [game.isBackendReady, game.userIdentity, game.joinRoom, addToast])
 
   useEffect(() => {
     if (!game.roomCode) return
@@ -348,14 +372,35 @@ export default function GanDengYanPage() {
               </div>
 
               <div className={styles.notice}>
-                {room.status === 'finished'
-                  ? `${room.players.find(player => player.seat === room.winnerSeat)?.name} 获胜`
-                  : myTurn
-                    ? '轮到你出牌'
-                    : `等待 ${
-                        room.players.find(player => player.seat === room.currentSeat)?.name ||
-                        '玩家'
-                      }`}
+                {room.status === 'finished' ? (
+                  room.roundResult ? (
+                    <div className={styles.resultDetail}>
+                      <p>
+                        <strong>{room.roundResult.winnerName}</strong> 获胜，赢{' '}
+                        {room.roundResult.winnerGain} 分
+                        {room.roundResult.bombCount > 0 &&
+                          `（${room.roundResult.bombCount} 个炸弹）`}
+                      </p>
+                      {room.roundResult.losers.map(loser => (
+                        <p key={loser.seat}>
+                          {loser.name}
+                          {loser.sealed
+                            ? '（封牌）扣 20 分'
+                            : `剩 ${loser.cardsLeft} 张，扣 ${loser.loss} 分`}
+                        </p>
+                      ))}
+                    </div>
+                  ) : (
+                    `${room.players.find(player => player.seat === room.winnerSeat)?.name} 获胜`
+                  )
+                ) : myTurn ? (
+                  '轮到你出牌'
+                ) : (
+                  `等待 ${
+                    room.players.find(player => player.seat === room.currentSeat)?.name ||
+                    '玩家'
+                  }`
+                )}
               </div>
             </div>
 

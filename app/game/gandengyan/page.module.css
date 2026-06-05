@@ -286,6 +286,17 @@
   text-align: center;
 }
 
+.resultDetail {
+  display: grid;
+  gap: 4px;
+  font-weight: 600;
+}
+
+.resultDetail p {
+  margin: 0;
+  font-size: 14px;
+}
+
 .sidePanel {
   grid-area: side;
   display: grid;

@@ -3,7 +3,7 @@ const RANKS = ['3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A', '2']
 const STRAIGHT_RANKS = RANKS.filter(rank => rank !== '2')
 const RANK_VALUE = new Map(RANKS.map((rank, index) => [rank, index + 3]))
 const INITIAL_HAND_SIZE = 5
-const SEALED_PENALTY = 15
+const SEALED_PENALTY = 20
 const INITIAL_SCORE = 1000
 
 export function createGanDengYanRoom({
@@ -128,6 +128,7 @@ export function playGanDengYanCards(room, address, cardIds) {
     return { ok: false, error: '出的牌压不过上一手', state: publicGanDengYanRoom(state) }
   }
 
+  cards.sort(compareCards)
   player.hand = player.hand.filter(card => !cardIds.includes(card.id))
   player.handCount = player.hand.length
   player.playedCards += cards.length
@@ -188,6 +189,7 @@ export function publicGanDengYanRoom(room) {
     ownerAddress: room.ownerAddress,
     status: room.status,
     seq: Number(room.seq || 1),
+    deck: Array.isArray(room.deck) ? room.deck.map(compactCard) : [],
     deckCount: room.deck?.length || Number(room.deckCount || 0),
     discardCount: room.discard?.length || Number(room.discardCount || 0),
     currentSeat: Number(room.currentSeat || 0),
@@ -237,7 +239,7 @@ export function hydrateGanDengYanRoom(input) {
     players: Array.isArray(input.players)
       ? input.players.map(normalizeRoundPlayer).filter(Boolean)
       : [],
-    deck: Array.isArray(input.deck) ? input.deck.map(normalizeCard).filter(Boolean) : [],
+    deck: Array.isArray(input.deck) ? input.deck.map(expandCompactCard).filter(Boolean) : [],
     discard: Array.isArray(input.discard)
       ? input.discard.map(normalizeCard).filter(Boolean)
       : [],
@@ -274,6 +276,7 @@ export function hydrateGanDengYanRoom(input) {
 
 export function analyzeCards(cards) {
   if (!cards?.length) return null
+  cards = [...cards].sort(compareCards)
   const jokerCount = cards.filter(isJoker).length
   const normals = cards.filter(card => !isJoker(card))
   if (normals.length === 0) return null
@@ -448,7 +451,7 @@ function finishGame(room, winner) {
   for (const player of orderedPlayers(room)) {
     if (player.seat === winner.seat) continue
     const sealed = player.playedCards === 0
-    const loss = sealed ? SEALED_PENALTY : player.hand.length * room.baseScore
+    const loss = sealed ? SEALED_PENALTY : player.hand.length * room.baseScore * 0.5
     player.score -= loss
     winnerGain += loss
     losers.push({
@@ -551,6 +554,18 @@ function isJoker(card) {
 
 function suitValue(suit) {
   return { D: 0, C: 1, H: 2, S: 3, Joker: 4 }[suit] || 0
+}
+
+function compactCard(card) {
+  return `${card.suit}-${card.rank}`
+}
+
+function expandCompactCard(input) {
+  if (typeof input === 'string') {
+    const [suit, rank] = input.split('-')
+    return normalizeCard({ id: input, suit, rank })
+  }
+  return normalizeCard(input)
 }
 
 function publicCard(card) {
