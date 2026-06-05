@@ -189,7 +189,9 @@ export function publicGanDengYanRoom(room) {
     ownerAddress: room.ownerAddress,
     status: room.status,
     seq: Number(room.seq || 1),
+    deck: Array.isArray(room.deck) ? room.deck.map(publicCard) : [],
     deckCount: room.deck?.length || Number(room.deckCount || 0),
+    discard: Array.isArray(room.discard) ? room.discard.map(publicCard) : [],
     discardCount: room.discard?.length || Number(room.discardCount || 0),
     currentSeat: Number(room.currentSeat || 0),
     lastWinnerSeat:
@@ -305,15 +307,22 @@ function analyzeBomb(cards, normals, jokerCount) {
 
 function analyzeStraight(cards) {
   if (cards.length < 3) return null
+  const jokerCount = cards.filter(isJoker).length
+  const normals = cards.filter(card => !isJoker(card))
   for (let start = 0; start <= STRAIGHT_RANKS.length - cards.length; start += 1) {
     const values = STRAIGHT_RANKS.slice(start, start + cards.length).map(rank =>
       RANK_VALUE.get(rank)
     )
-    if (
-      cards.every(
-        (card, index) => isJoker(card) || cardValue(card) === values[index]
-      )
-    ) {
+    const remaining = [...values]
+    let matched = 0
+    for (const card of normals) {
+      const idx = remaining.indexOf(cardValue(card))
+      if (idx !== -1) {
+        remaining.splice(idx, 1)
+        matched += 1
+      }
+    }
+    if (matched + jokerCount === cards.length && remaining.length === jokerCount) {
       return makeCombo('straight', values.at(-1), cards.length, values)
     }
   }
@@ -323,16 +332,23 @@ function analyzeStraight(cards) {
 function analyzePairStraight(cards) {
   if (cards.length < 4 || cards.length % 2 !== 0) return null
   const pairCount = cards.length / 2
+  const jokerCount = cards.filter(isJoker).length
+  const normals = cards.filter(card => !isJoker(card))
   for (let start = 0; start <= STRAIGHT_RANKS.length - pairCount; start += 1) {
     const pairValues = STRAIGHT_RANKS.slice(start, start + pairCount).map(rank =>
       RANK_VALUE.get(rank)
     )
-    const values = pairValues.flatMap(value => [value, value])
-    if (
-      cards.every(
-        (card, index) => isJoker(card) || cardValue(card) === values[index]
-      )
-    ) {
+    const remaining = pairValues.flatMap(value => [value, value])
+    let matched = 0
+    for (const card of normals) {
+      const idx = remaining.indexOf(cardValue(card))
+      if (idx !== -1) {
+        remaining.splice(idx, 1)
+        matched += 1
+      }
+    }
+    if (matched + jokerCount === cards.length && remaining.length === jokerCount) {
+      const values = pairValues.flatMap(value => [value, value])
       return makeCombo('pairStraight', pairValues.at(-1), cards.length, values)
     }
   }

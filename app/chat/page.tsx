@@ -716,7 +716,9 @@ function ChatPage() {
     if (!displayName) return formatAddressShort(address)
     if (!showAddressSuffix) return displayName.replace(/#[a-fA-F0-9]{4}$/, '')
     if (hasAddressSuffix(displayName)) return displayName
-    return address ? `${displayName}#${address.slice(-4).toUpperCase()}` : displayName
+    return address
+      ? `${displayName}#${address.slice(-4).toUpperCase()}`
+      : displayName
   }
 
   function renderChannelMembers() {
@@ -729,7 +731,9 @@ function ChatPage() {
     }
 
     if (channelMembers.length === 0) {
-      return <div className="ui-empty-inline channel-members-empty">暂无成员</div>
+      return (
+        <div className="ui-empty-inline channel-members-empty">暂无成员</div>
+      )
     }
 
     return (
@@ -974,7 +978,10 @@ function ChatPage() {
               title="发送文件"
             >
               {isPublishingAttachment ? (
-                <Loader size={18} className="ui-spinner chat-attachment-spinner" />
+                <Loader
+                  size={18}
+                  className="ui-spinner chat-attachment-spinner"
+                />
               ) : (
                 <Paperclip size={18} />
               )}

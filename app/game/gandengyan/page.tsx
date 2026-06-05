@@ -86,12 +86,38 @@ function speak(text: string) {
   window.speechSynthesis.speak(utterance)
 }
 
-function getSpeechText(table: Room['table']) {
-  if (!table) return ''
-  const combo = table.combo?.label || ''
-  if (/不要|pass/i.test(combo)) return '不要'
-  if (combo) return combo
-  return '出牌'
+function pronounce(rank: string) {
+  return rank === 'J' ? '勾' : rank === 'Q' ? '圈' : rank === 'A' ? '坚' : rank === '10' ? '十' : rank
+}
+
+function getSpeechText(logEntry: string) {
+  if (!logEntry) return ''
+  if (/不要/.test(logEntry)) return '不要'
+  if (/本轮结束/.test(logEntry)) return '不要'
+  if (/新一局开始/.test(logEntry)) return '新一局开始'
+  if (/获胜/.test(logEntry)) return '游戏结束'
+
+  const playMatch = logEntry.match(/出\s+(\S+?)(?:（([^）]+)）)?\s+(?:[♠♥♣♦]|小王|大王)/)
+  if (!playMatch) return ''
+
+  const type = playMatch[1]
+  const raw = playMatch[2]
+
+  if (!raw) return type
+
+  const ranks = raw.split(/\s+/).map(pronounce)
+
+  if (type === '对子') return `对${ranks[0]}`
+  if (type === '单张') return ranks[0]
+  if (/炸弹/.test(type)) return `${ranks[0]}炸`
+  if (type === '顺子') return ranks.join(' ')
+  if (type === '连对') {
+    const unique: string[] = []
+    for (let i = 0; i < ranks.length; i += 2) unique.push(ranks[i])
+    return unique.map(r => r + r).join('')
+  }
+
+  return type
 }
 
 export default function GanDengYanPage() {
@@ -172,6 +198,8 @@ export default function GanDengYanPage() {
       : ''
   const lowDeck = Boolean(room && room.status === 'playing' && room.deckCount < 3)
   const prevSeqRef = useRef(-1)
+  const lastSpokenLogRef = useRef('')
+  const spokenFinishedRef = useRef(false)
 
   useEffect(() => {
     setSelected([])
@@ -179,22 +207,33 @@ export default function GanDengYanPage() {
 
   useEffect(() => {
     if (!room) return
+    const seq = room.seq
     if (prevSeqRef.current < 0) {
-      prevSeqRef.current = room.seq
+      prevSeqRef.current = seq
       return
     }
-    if (room.seq === prevSeqRef.current) return
-    prevSeqRef.current = room.seq
+    if (seq === prevSeqRef.current) return
+    prevSeqRef.current = seq
+
+    if (room.status !== 'finished') {
+      spokenFinishedRef.current = false
+    }
 
     if (room.status === 'finished' && room.winnerSeat !== null) {
-      speak('游戏结束')
+      if (!spokenFinishedRef.current) {
+        spokenFinishedRef.current = true
+        speak('游戏结束')
+      }
       return
     }
 
-    if (room.table) {
-      speak(getSpeechText(room.table))
+    const latestLog = room.log[0] || ''
+    if (latestLog && latestLog !== lastSpokenLogRef.current) {
+      lastSpokenLogRef.current = latestLog
+      const text = getSpeechText(latestLog)
+      if (text) speak(text)
     }
-  }, [room])
+  }, [room?.seq])
 
   useEffect(() => {
     if (!isOwner || !game.roomCode || !game.userIdentity) return
