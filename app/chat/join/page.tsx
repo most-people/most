@@ -27,6 +27,8 @@ import {
 const EA_TEST_PUBLIC_KEY =
   '0x955fe80bdb8312165471fcacd6a8f83df88a770dda6f38657ca4e62ec28d5b54'
 const CHANNEL_REMARK_MAX_LENGTH = 50
+const CHAT_JOIN_API_BASE =
+  process.env.NEXT_PUBLIC_CHAT_JOIN_API_BASE || 'https://api.most.box'
 
 function parseJsonText(text: string): unknown | null {
   try {
@@ -194,7 +196,7 @@ function ChatJoinContent() {
       try {
         setStatus('正在解密邀请...')
         const response = await fetch(
-          'https://api.most.box/api/chat.join.decrypt',
+          `${CHAT_JOIN_API_BASE}/api/chat.join.decrypt`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

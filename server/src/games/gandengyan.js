@@ -189,7 +189,6 @@ export function publicGanDengYanRoom(room) {
     ownerAddress: room.ownerAddress,
     status: room.status,
     seq: Number(room.seq || 1),
-    deck: Array.isArray(room.deck) ? room.deck.map(compactCard) : [],
     deckCount: room.deck?.length || Number(room.deckCount || 0),
     discardCount: room.discard?.length || Number(room.discardCount || 0),
     currentSeat: Number(room.currentSeat || 0),
@@ -554,10 +553,6 @@ function isJoker(card) {
 
 function suitValue(suit) {
   return { D: 0, C: 1, H: 2, S: 3, Joker: 4 }[suit] || 0
-}
-
-function compactCard(card) {
-  return `${card.suit}-${card.rank}`
 }
 
 function expandCompactCard(input) {

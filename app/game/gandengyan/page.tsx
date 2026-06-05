@@ -77,6 +77,23 @@ function sameAddress(left?: string, right?: string) {
   return String(left || '').toLowerCase() === String(right || '').toLowerCase()
 }
 
+function speak(text: string) {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window) || !text) return
+  window.speechSynthesis.cancel()
+  const utterance = new SpeechSynthesisUtterance(text)
+  utterance.lang = 'zh-CN'
+  utterance.rate = 1.1
+  window.speechSynthesis.speak(utterance)
+}
+
+function getSpeechText(table: Room['table']) {
+  if (!table) return ''
+  const combo = table.combo?.label || ''
+  if (/不要|pass/i.test(combo)) return '不要'
+  if (combo) return combo
+  return '出牌'
+}
+
 export default function GanDengYanPage() {
   const isDarkMode = useAppStore(s => s.isDarkMode)
   const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
@@ -154,10 +171,30 @@ export default function GanDengYanPage() {
       ? `${window.location.origin}/game/gandengyan?room=${game.roomCode}`
       : ''
   const lowDeck = Boolean(room && room.status === 'playing' && room.deckCount < 3)
+  const prevSeqRef = useRef(-1)
 
   useEffect(() => {
     setSelected([])
   }, [room?.seq])
+
+  useEffect(() => {
+    if (!room) return
+    if (prevSeqRef.current < 0) {
+      prevSeqRef.current = room.seq
+      return
+    }
+    if (room.seq === prevSeqRef.current) return
+    prevSeqRef.current = room.seq
+
+    if (room.status === 'finished' && room.winnerSeat !== null) {
+      speak('游戏结束')
+      return
+    }
+
+    if (room.table) {
+      speak(getSpeechText(room.table))
+    }
+  }, [room])
 
   useEffect(() => {
     if (!isOwner || !game.roomCode || !game.userIdentity) return
