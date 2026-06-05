@@ -153,7 +153,7 @@ const features: FeatureDef[] = [
     title: '干瞪眼',
     subtitle: 'P2P 牌桌',
     icon: <Gamepad2 size={28} />,
-    path: '/game/',
+    path: '/game/gandengyan/',
     requiresBackend: true,
     hero: '常驻节点里的在线牌桌',
     desc: '把干瞪眼作为 MostBox 的独立页面接入，复用现有频道消息、Web3 登录身份和桌面端常驻入口。',

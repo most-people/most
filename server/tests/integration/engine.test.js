@@ -9,6 +9,10 @@ import Hyperdrive from 'hyperdrive'
 import { CID } from 'multiformats/cid'
 import { MostBoxEngine } from '../../src/index.js'
 import { calculateCid } from '../../src/core/cid.js'
+import {
+  GAME_CHANNEL_TYPE,
+  gameRoomCodeToChannelName,
+} from '../../src/core/gameRoom.js'
 import { GLOBAL_SHARED_SEED_STRING } from '../../src/config.js'
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
@@ -137,6 +141,45 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.strictEqual(result2.alreadyExists, true)
     })
 
+    it('keeps one published record per CID even when folders differ', async () => {
+      const content = Buffer.from(`unique cid record ${Date.now()}`)
+
+      const result1 = await engine.publishFile(content, 'folder-a/same.txt')
+      const result2 = await engine.publishFile(content, 'folder-b/same.txt')
+      const records = engine
+        .listPublishedFiles()
+        .filter(file => file.cid === result1.cid)
+
+      assert.strictEqual(result1.cid, result2.cid)
+      assert.strictEqual(result2.alreadyExists, true)
+      assert.strictEqual(records.length, 1)
+      assert.strictEqual(records[0].fileName, 'folder-a/same.txt')
+    })
+
+    it('rejects duplicate names in the same folder for different CIDs', async () => {
+      await engine.publishFile(Buffer.from('same folder one'), 'dup/name.txt')
+
+      await assert.rejects(
+        engine.publishFile(Buffer.from('same folder two'), 'dup/name.txt'),
+        /已有同名文件/
+      )
+    })
+
+    it('allows the same filename in different folders for different CIDs', async () => {
+      const result1 = await engine.publishFile(
+        Buffer.from('different folder one'),
+        'folder-one/name.txt'
+      )
+      const result2 = await engine.publishFile(
+        Buffer.from('different folder two'),
+        'folder-two/name.txt'
+      )
+
+      assert.notStrictEqual(result1.cid, result2.cid)
+      assert.strictEqual(result1.fileName, 'folder-one/name.txt')
+      assert.strictEqual(result2.fileName, 'folder-two/name.txt')
+    })
+
     it('different content produces different CID', async () => {
       const content1 = Buffer.from('content A')
       const content2 = Buffer.from('content B')
@@ -201,6 +244,19 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       const moved = engine.moveFile(cid, 'new-name.txt')
       assert.strictEqual(moved.fileName, 'new-name.txt')
     })
+
+    it('rejects moving a different CID onto an existing same-folder name', async () => {
+      await engine.publishFile(Buffer.from('move conflict one'), 'move/a.txt')
+      const second = await engine.publishFile(
+        Buffer.from('move conflict two'),
+        'move/b.txt'
+      )
+
+      assert.throws(
+        () => engine.moveFile(second.cid, 'move/a.txt'),
+        /已有同名文件/
+      )
+    })
   })
 
   describe('deletePublishedFile() and trash', () => {
@@ -256,6 +312,72 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
 
       assert.strictEqual(dlResult.alreadyExists, true)
       assert.strictEqual(dlResult.fileName, 'self-dl.txt')
+    })
+
+    it('uses CID content instead of the old metadata filename for existing downloads', async () => {
+      const content = Buffer.from('existing CID with old chat metadata')
+      const publishResult = await engine.publishFile(content, '#18.txt')
+      const channelName = `cid-chat-${uid}`
+      const chatFileName = `chat-file/${channelName}/#18.txt`
+      const link = `most://${publishResult.cid}?filename=${encodeURIComponent(chatFileName)}`
+
+      const result = await engine.downloadFile(link)
+
+      assert.strictEqual(result.alreadyExists, true)
+      assert.strictEqual(result.fileName, chatFileName)
+      const readResult = await engine.readFileRaw(publishResult.cid, {
+        public: true,
+      })
+      assert.strictEqual(readResult.buffer.toString('utf8'), content.toString())
+    })
+
+    it('does not treat metadata-only records as local content', async () => {
+      const metadataTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-metadata-only-')
+      )
+      const dataPath = path.join(metadataTmpDir, 'data')
+      const content = Buffer.from('metadata without local blocks')
+      const { cid } = await calculateCid(content)
+      const cidString = cid.toString()
+      const { getCidInfo } = await import('../../src/core/cidTopic.js')
+      const { driveName } = getCidInfo(cidString)
+      let metadataEngine
+
+      try {
+        fs.mkdirSync(dataPath, { recursive: true })
+        fs.writeFileSync(
+          path.join(dataPath, 'published-files.json'),
+          JSON.stringify(
+            [
+              {
+                fileName: '#18.txt',
+                cid: cidString,
+                driveName,
+                publishedAt: new Date().toISOString(),
+                starred: false,
+                ownerAddress: '',
+              },
+            ],
+            null,
+            2
+          )
+        )
+
+        metadataEngine = new MostBoxEngine({
+          dataPath,
+          disableNetwork: true,
+          downloadTimeout: 100,
+        })
+        await metadataEngine.start()
+
+        const availability = await metadataEngine.getLocalCidAvailability(
+          `most://${cidString}?filename=${encodeURIComponent('chat-file/no-seed/#18.txt')}`
+        )
+        assert.strictEqual(availability, null)
+      } finally {
+        if (metadataEngine) await metadataEngine.stop().catch(() => {})
+        fs.rmSync(metadataTmpDir, { recursive: true, force: true })
+      }
     })
 
     it('repairs missing holding when an existing file is downloaded again', async () => {
@@ -392,6 +514,38 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         }),
         /CID v1 required/
       )
+    })
+
+    it('rejects manual holdings whose topic does not match the CID digest', async () => {
+      const content = Buffer.from('holding topic mismatch')
+      const { cid } = await calculateCid(content)
+
+      await assert.rejects(
+        engine.addHolding({
+          cid: cid.toString(),
+          fileName: 'bad-topic.txt',
+          size: content.length,
+          topic: '00'.repeat(32),
+        }),
+        /topic must match CID digest/
+      )
+    })
+
+    it('normalizes manual holding driveName from the CID digest', async () => {
+      const content = Buffer.from('holding drive name normalization')
+      const { cid } = await calculateCid(content)
+      const cidString = cid.toString()
+
+      const holding = await engine.addHolding({
+        cid: cidString,
+        fileName: 'wrong-drive.txt',
+        size: content.length,
+        driveName: 'drive-not-from-cid',
+      })
+
+      assert.match(holding.driveName, /^drive-[0-9a-f]{64}$/)
+      assert.notStrictEqual(holding.driveName, 'drive-not-from-cid')
+      assert.strictEqual(holding.driveName, `drive-${holding.topic}`)
     })
 
     it('persists holdings and rejoins CID topics after restart', async () => {
@@ -880,6 +1034,22 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       const result = engine.renameFolder('nonexistent', 'new-name')
       assert.deepStrictEqual(result.files, [])
     })
+
+    it('rejects folder rename when it would create a same-folder duplicate', async () => {
+      await engine.publishFile(
+        Buffer.from('folder rename conflict one'),
+        'rename-src/a.txt'
+      )
+      await engine.publishFile(
+        Buffer.from('folder rename conflict two'),
+        'rename-target/a.txt'
+      )
+
+      assert.throws(
+        () => engine.renameFolder('rename-src', 'rename-target'),
+        /已有同名文件/
+      )
+    })
   })
 
   describe('permanentDeleteTrashFile()', () => {
@@ -917,6 +1087,13 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.ok(result.key)
     })
 
+    it('creates game room channels with shared game type', async () => {
+      const name = gameRoomCodeToChannelName('gandengyan', 'ABC123')
+      const result = await engine.createChannel(name, GAME_CHANNEL_TYPE)
+      assert.strictEqual(result.name, name)
+      assert.ok(result.key)
+    })
+
     it('returns existing channel if already created', async () => {
       const first = await engine.createChannel(`dup-${uid}`)
       const second = await engine.createChannel(`dup-${uid}`)
@@ -935,7 +1112,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
     })
 
     it('rejects channel names that are too long', async () => {
-      await assert.rejects(engine.createChannel('a'.repeat(21)), /最多 20 个字/)
+      await assert.rejects(engine.createChannel('a'.repeat(31)), /最多 30 个字/)
     })
   })
 
@@ -950,6 +1127,65 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       const channels = engine.listChannels()
       assert.ok(channels.some(c => c.name === `list-${uid}`))
       assert.strictEqual(typeof channels[0].peerCount, 'number')
+    })
+  })
+
+  describe('getChannelMembers()', () => {
+    it('stores channel members as profile objects', async () => {
+      const ownerAddress = '0x1234567890abcdef1234567890abcdef12345678'
+      const channelName = `members-${uid}`
+      await engine.createChannel(channelName, 'public', {
+        ownerAddress,
+        displayName: 'Alice#5678',
+        avatar: 'data:image/png;base64,alice',
+      })
+
+      const members = engine.getChannelMembers(channelName, { ownerAddress })
+
+      assert.deepStrictEqual(members, [
+        {
+          address: ownerAddress,
+          displayName: 'Alice#5678',
+          avatar: 'data:image/png;base64,alice',
+          joinedAt: members[0].joinedAt,
+        },
+      ])
+      assert.ok(new Date(members[0].joinedAt).getTime() > 0)
+    })
+
+    it('orders members by join time and refreshes profile fields', async () => {
+      const alice = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+      const bob = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+      const channelName = `member-order-${uid}`
+      await engine.createChannel(channelName, 'public', {
+        ownerAddress: alice,
+        displayName: 'Alice',
+      })
+      await new Promise(resolve => setTimeout(resolve, 5))
+      await engine.createChannel(channelName, 'public', {
+        ownerAddress: bob,
+        displayName: 'Bob',
+        avatar: 'bob.png',
+      })
+      await engine.sendMessage(channelName, 'hello', bob, 'Bobby', {
+        ownerAddress: bob,
+        avatar: 'bobby.png',
+      })
+
+      const members = engine.getChannelMembers(channelName, {
+        ownerAddress: alice,
+      })
+
+      assert.deepStrictEqual(
+        members.map(member => member.address),
+        [alice, bob]
+      )
+      assert.strictEqual(members[1].displayName, 'Bobby')
+      assert.strictEqual(members[1].avatar, 'bobby.png')
+      assert.ok(
+        new Date(members[0].joinedAt).getTime() <=
+          new Date(members[1].joinedAt).getTime()
+      )
     })
   })
 
@@ -1012,6 +1248,56 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
 
       const messages = await msgEngine.getChannelMessages(ch)
       assert.deepStrictEqual(messages[0].attachment, msg.attachment)
+    })
+
+    it('normalizes old bare chat attachment filenames on read', async () => {
+      const ch = `old-attach-${uid}`
+      const cid =
+        'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
+      const fileName = '#18.txt'
+      const link = `most://${cid}?filename=${encodeURIComponent(fileName)}`
+      const normalizedFileName = `chat-file/${ch}/#18.txt`
+      const normalizedLink = `most://${cid}?filename=${encodeURIComponent(normalizedFileName)}`
+      await msgEngine.createChannel(ch)
+
+      await msgEngine.sendMessage(ch, link, undefined, undefined, {
+        attachment: {
+          kind: 'text',
+          cid,
+          fileName,
+          link,
+          size: 18,
+        },
+      })
+
+      const messages = await msgEngine.getChannelMessages(ch)
+      assert.strictEqual(messages[0].attachment.fileName, normalizedFileName)
+      assert.strictEqual(messages[0].attachment.link, normalizedLink)
+      assert.strictEqual(messages[0].content, normalizedLink)
+    })
+
+    it('does not double-prefix normalized chat attachment filenames', async () => {
+      const ch = `norm-attach-${uid}`
+      const cid =
+        'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
+      const fileName = `chat-file/${ch}/a.txt`
+      const link = `most://${cid}?filename=${encodeURIComponent(fileName)}`
+      await msgEngine.createChannel(ch)
+
+      await msgEngine.sendMessage(ch, link, undefined, undefined, {
+        attachment: {
+          kind: 'text',
+          cid,
+          fileName,
+          link,
+          size: 1,
+        },
+      })
+
+      const messages = await msgEngine.getChannelMessages(ch)
+      assert.strictEqual(messages[0].attachment.fileName, fileName)
+      assert.strictEqual(messages[0].attachment.link, link)
+      assert.strictEqual(messages[0].content, link)
     })
 
     it('rejects invalid attachment metadata', async () => {

@@ -1,14 +1,16 @@
 'use client'
 
 import { useEffect } from 'react'
+import { usePathname } from 'next/navigation'
 import { useAppStore } from '~/app/app/useAppStore'
 import { useUserStore } from '~/app/app/userStore'
 import { Toast } from '~/components/ui'
-import SettingsDrawer from '~/components/SettingsDrawer'
 import UserLoginModal from '~/components/UserLoginModal'
 import ConnectModal from '~/components/ConnectModal'
 
 export default function AppGlobals() {
+  const pathname = usePathname()
+  const isDemoPage = pathname === '/demo' || pathname.startsWith('/demo/')
   const checkBackend = useAppStore(s => s.checkBackend)
   const initializeLocalData = useAppStore(s => s.initializeLocalData)
   const initializeUser = useUserStore(s => s.initializeUser)
@@ -17,22 +19,26 @@ export default function AppGlobals() {
   const resetAppState = useAppStore(s => s.resetAppState)
   const toasts = useAppStore(s => s.toasts)
   const removeToast = useAppStore(s => s.removeToast)
-  const showSettings = useAppStore(s => s.showSettings)
-  const closeSettings = useAppStore(s => s.closeSettings)
 
   useEffect(() => {
+    if (isDemoPage) return
+
     initializeLocalData()
     initializeUser()
     checkBackend()
-  }, [checkBackend, initializeLocalData, initializeUser])
+  }, [checkBackend, initializeLocalData, initializeUser, isDemoPage])
 
   useEffect(() => {
+    if (isDemoPage) return
+
     if (identity) {
       loadUserNotes(identity.address)
     } else {
       resetAppState()
     }
-  }, [identity?.address, loadUserNotes, resetAppState])
+  }, [identity?.address, isDemoPage, loadUserNotes, resetAppState])
+
+  if (isDemoPage) return null
 
   return (
     <>
@@ -45,8 +51,6 @@ export default function AppGlobals() {
           index={i}
         />
       ))}
-
-      {showSettings && <SettingsDrawer onClose={closeSettings} />}
 
       <UserLoginModal />
 

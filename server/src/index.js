@@ -48,7 +48,6 @@ import {
   SWARM_KEEP_ALIVE_INTERVAL,
   SWARM_RANDOM_PUNCH_INTERVAL,
   DRIVE_ENTRY_TIMEOUT,
-  DRIVE_SYNC_TIMEOUT,
   STREAM_READ_TIMEOUT,
   FILE_WRITE_CHUNK_SIZE,
   DOWNLOAD_POLL_INTERVAL_MIN,
@@ -67,10 +66,37 @@ import {
 } from './config.js'
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+const CHAT_FILE_ROOT = 'chat-file'
 
 function normalizeOwnerAddress(address) {
   const value = String(address || '').trim()
   return /^0x[a-fA-F0-9]{40}$/.test(value) ? value.toLowerCase() : ''
+}
+
+function getPathBaseName(fileName) {
+  const parts = String(fileName || '').split('/').filter(Boolean)
+  return parts[parts.length - 1] || 'unnamed_file'
+}
+
+function getDisplayPathFolder(fileName) {
+  const parts = String(fileName || '').split('/').filter(Boolean)
+  parts.pop()
+  return parts.join('/')
+}
+
+function buildMostLink(cid, fileName) {
+  return `most://${cid}?filename=${encodeURIComponent(fileName)}`
+}
+
+function normalizeChannelDisplayName(input, fallbackAddress = '') {
+  const value = String(input || '').trim()
+  if (value) return value.slice(0, 50)
+  return fallbackAddress ? fallbackAddress.slice(0, 10) : ''
+}
+
+function normalizeChannelAvatar(input) {
+  const value = String(input || '').trim()
+  return value ? value.slice(0, 4096) : ''
 }
 
 function createOfflineSwarm() {
@@ -528,6 +554,10 @@ export class MostBoxEngine extends EventEmitter {
       }
     }
 
+    this.#assertDisplayNameAvailable(safeFileName, {
+      ownerAddress,
+    })
+
     // 获取或创建该 CID 对应的 drive
     let drive = this.#drives.get(name)
 
@@ -644,39 +674,48 @@ export class MostBoxEngine extends EventEmitter {
       const cidString = parsed.cid
       console.log(`[MostBox] Parsed CID: ${cidString}`)
       const { driveName: name } = this.#getCidInfo(cidString)
+      const linkFileName = sanitizeFilename(parsed.fileName)
 
-      const existingFile = this.#publishedFiles.find(
-        f => f.cid === cidString && this.#recordMatchesOwner(f, ownerAddress)
-      )
-      if (existingFile) {
-        console.log(`[MostBox] File already exists: ${existingFile.fileName}`)
+      const localContent = await this.#getLocalCidContent(cidString, {
+        ownerAddress,
+        public: true,
+        allowHoldingFallback: true,
+      })
+      if (localContent) {
+        const existingFile = localContent.fileRecord
+        console.log(
+          `[MostBox] CID content already exists locally: ${cidString}`
+        )
         const existingHolding = this.#holdings.find(
           item => item.cid === cidString
         )
-        const existingSize = Number(existingFile.size)
         await this.#joinCidTopicInternal(cidString, {
           server: true,
           client: false,
         })
         this.#upsertHolding({
           cid: cidString,
-          fileName: existingFile.fileName,
+          fileName:
+            existingHolding?.fileName || existingFile?.fileName || linkFileName,
           size:
             existingHolding?.size ??
-            (Number.isFinite(existingSize) ? existingSize : 0),
+            (Number.isFinite(localContent.size) ? localContent.size : 0),
           localPath:
-            existingHolding?.localPath || existingFile.localPath || null,
-          driveName: existingFile.driveName || name,
+            existingHolding?.localPath || existingFile?.localPath || null,
+          driveName: existingFile?.driveName || name,
           source: existingHolding?.source || 'published',
         })
         return {
           taskId,
-          fileName: existingFile.fileName,
+          fileName: linkFileName,
           alreadyExists: true,
         }
       }
 
-      const linkFileName = parsed.fileName
+      this.#assertDisplayNameAvailable(linkFileName, {
+        ownerAddress,
+        excludeCid: cidString,
+      })
 
       if (taskState.aborted) throw new Error('Download cancelled')
 
@@ -924,11 +963,14 @@ export class MostBoxEngine extends EventEmitter {
         const existingIndex = this.#publishedFiles.findIndex(
           f => f.cid === cidString && this.#recordMatchesOwner(f, ownerAddress)
         )
+        this.#assertDisplayNameAvailable(sanitizedFileName, {
+          ownerAddress,
+          excludeCid: cidString,
+        })
         if (existingIndex !== -1) {
           const existing = this.#publishedFiles[existingIndex]
-          if (existing.fileName !== sanitizedFileName) {
-            throw new Error(`文件已存在: ${existing.fileName}`)
-          }
+          existing.fileName = sanitizedFileName
+          existing.driveName = name
           existing.publishedAt = new Date().toISOString()
         } else {
           this.#publishedFiles.push({
@@ -960,6 +1002,35 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   /**
+   * 快速检查 most:// 链接对应的 CID 内容是否已在本机可读。
+   */
+  async getLocalCidAvailability(link, options = {}) {
+    this.#ensureInitialized()
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    const parsed = parseMostLink(link)
+    if (parsed.error) {
+      throw new ValidationError(parsed.error)
+    }
+
+    const localContent = await this.#getLocalCidContent(parsed.cid, {
+      ownerAddress,
+      public: true,
+      allowHoldingFallback: true,
+    })
+    if (!localContent) {
+      return null
+    }
+
+    return {
+      available: true,
+      cid: parsed.cid,
+      fileName: sanitizeFilename(parsed.fileName),
+      size: localContent.size,
+      alreadyExists: true,
+    }
+  }
+
+  /**
    * 检测 most:// 链接当前是否能找到可下载内容，但不读取文件内容。
    * @param {string} link - most:// 链接
    * @param {object} [options] - 检测选项
@@ -978,15 +1049,17 @@ export class MostBoxEngine extends EventEmitter {
 
     const cidString = parsed.cid
     const { driveName: name } = this.#getCidInfo(cidString)
-    const existingFile = this.#publishedFiles.find(
-      f => f.cid === cidString && this.#recordMatchesOwner(f, ownerAddress)
-    )
-    if (existingFile) {
+    const localContent = await this.#getLocalCidContent(cidString, {
+      ownerAddress,
+      public: true,
+      allowHoldingFallback: true,
+    })
+    if (localContent) {
       return {
         available: true,
         cid: cidString,
-        fileName: existingFile.fileName,
-        size: Number(existingFile.size) || null,
+        fileName: sanitizeFilename(parsed.fileName),
+        size: localContent.size,
         alreadyExists: true,
       }
     }
@@ -1171,6 +1244,20 @@ export class MostBoxEngine extends EventEmitter {
     const fileRecord = this.#trashFiles[index]
 
     const { driveName } = this.#getCidInfo(fileRecord.cid)
+
+    const existingIndex = this.#publishedFiles.findIndex(
+      f => f.cid === fileRecord.cid && this.#recordMatchesOwner(f, ownerAddress)
+    )
+    if (existingIndex !== -1) {
+      this.#trashFiles.splice(index, 1)
+      this.#saveTrashMetadata()
+      return this.listPublishedFiles({ ownerAddress })
+    }
+
+    this.#assertDisplayNameAvailable(fileRecord.fileName, {
+      ownerAddress,
+      excludeCid: fileRecord.cid,
+    })
 
     this.#publishedFiles.push({
       fileName: fileRecord.fileName,
@@ -1361,6 +1448,10 @@ export class MostBoxEngine extends EventEmitter {
       throw new Error('File not found')
     }
     const safeFileName = sanitizeFilename(newFileName)
+    this.#assertDisplayNameAvailable(safeFileName, {
+      ownerAddress,
+      excludeCid: cid,
+    })
     this.#publishedFiles[index].fileName = safeFileName
     this.#publishedFiles[index].publishedAt = new Date().toISOString()
     this.#savePublishedMetadata()
@@ -1382,7 +1473,7 @@ export class MostBoxEngine extends EventEmitter {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
     const prefix = oldPath + '/'
-    const updatedFiles = []
+    const updates = []
 
     for (const file of this.#publishedFiles) {
       if (
@@ -1393,15 +1484,26 @@ export class MostBoxEngine extends EventEmitter {
         const newFileName = sanitizeFilename(
           remainder ? newPath + '/' + remainder : newPath
         )
-        file.fileName = newFileName
-        file.publishedAt = new Date().toISOString()
-        updatedFiles.push({
-          cid: file.cid,
-          fileName: file.fileName,
-          link: `most://${file.cid}?filename=${encodeURIComponent(file.fileName)}`,
-        })
+        updates.push({ file, newFileName })
       }
     }
+
+    for (const { file, newFileName } of updates) {
+      this.#assertDisplayNameAvailable(newFileName, {
+        ownerAddress,
+        excludeCid: file.cid,
+      })
+    }
+
+    const updatedFiles = updates.map(({ file, newFileName }) => {
+      file.fileName = newFileName
+      file.publishedAt = new Date().toISOString()
+      return {
+        cid: file.cid,
+        fileName: file.fileName,
+        link: `most://${file.cid}?filename=${encodeURIComponent(file.fileName)}`,
+      }
+    })
 
     if (updatedFiles.length > 0) {
       this.#savePublishedMetadata()
@@ -1517,7 +1619,7 @@ export class MostBoxEngine extends EventEmitter {
         ...channel,
         members: Array.isArray(channel.members)
           ? channel.members.filter(
-              member => normalizeOwnerAddress(member) !== ownerAddress
+              member => normalizeOwnerAddress(member?.address) !== ownerAddress
             )
           : [],
       }))
@@ -1678,28 +1780,23 @@ export class MostBoxEngine extends EventEmitter {
     options = {}
   ) {
     this.#ensureInitialized()
+    if (typeof offset === 'object' && offset !== null) {
+      options = offset
+      offset = 0
+      limit = DEFAULT_READ_LIMIT
+    }
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
 
-    const fileRecord = this.#publishedFiles.find(
-      f =>
-        f.cid === cid &&
-        (options.public || this.#recordMatchesOwner(f, ownerAddress))
-    )
-    if (!fileRecord) {
+    const localContent = await this.#getLocalCidContent(cid, {
+      ownerAddress,
+      public: options.public,
+    })
+    if (!localContent) {
       throw new Error('File not found')
     }
 
-    const drive = await this.#getDriveForFile(fileRecord)
-
-    // Hyperdrive 中 key 为 '/' + cid
     const driveKey = '/' + cid
-    const entry = await drive.entry(driveKey, {
-      wait: true,
-      timeout: DRIVE_ENTRY_TIMEOUT,
-    })
-    if (!entry || !entry.value) {
-      throw new Error('File content not available')
-    }
+    const { drive } = localContent
 
     const chunks = []
     const stream = drive.createReadStream(driveKey, {
@@ -1743,25 +1840,16 @@ export class MostBoxEngine extends EventEmitter {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
 
-    const fileRecord = this.#publishedFiles.find(
-      f =>
-        f.cid === cid &&
-        (options.public || this.#recordMatchesOwner(f, ownerAddress))
-    )
-    if (!fileRecord) {
+    const localContent = await this.#getLocalCidContent(cid, {
+      ownerAddress,
+      public: options.public,
+    })
+    if (!localContent) {
       throw new Error('File not found')
     }
 
-    const drive = await this.#getDriveForFile(fileRecord)
-
     const driveKey = '/' + cid
-    const entry = await drive.entry(driveKey, {
-      wait: true,
-      timeout: DRIVE_ENTRY_TIMEOUT,
-    })
-    if (!entry || !entry.value || !entry.value.blob) {
-      throw new Error('File content not available')
-    }
+    const { drive, entry, fileRecord } = localContent
 
     const totalSize = entry.value.blob.byteLength || 0
 
@@ -1808,19 +1896,63 @@ export class MostBoxEngine extends EventEmitter {
     return { buffer, fileName: fileRecord.fileName, totalSize }
   }
 
-  /**
-   * 获取文件对应的 drive，如果不存在则创建并同步
-   */
-  async #getDriveForFile(fileRecord) {
-    let drive = this.#drives.get(fileRecord.driveName)
-    if (!drive) {
-      drive = await this.#getOrCreateDrive(fileRecord.driveName, {
-        server: true,
-        client: true,
-      })
+  async #hasLocalDriveContent(drive, key) {
+    try {
+      return await drive.has(key)
+    } catch {
+      return false
     }
-    await this.#syncDrive(drive)
-    return drive
+  }
+
+  async #getLocalCidContent(cid, options = {}) {
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    const fileRecord = this.#publishedFiles.find(
+      f =>
+        f.cid === cid &&
+        (options.public || this.#recordMatchesOwner(f, ownerAddress))
+    )
+    if (!options.allowHoldingFallback && !fileRecord) {
+      return null
+    }
+    const holding = this.#holdings.find(item => item.cid === cid)
+    const { driveName } = this.#getCidInfo(cid)
+    const drive = await this.#getOrCreateDrive(
+      fileRecord?.driveName || holding?.driveName || driveName,
+      { server: true, client: false }
+    )
+    const driveKey = '/' + cid
+
+    try {
+      const entry = await drive.entry(driveKey, { wait: false })
+      if (!entry?.value?.blob) {
+        return null
+      }
+      const hasContent = await this.#hasLocalDriveContent(drive, driveKey)
+      if (!hasContent) {
+        return null
+      }
+
+      const size =
+        Number(entry.value.blob.byteLength) ||
+        Number(fileRecord?.size) ||
+        Number(holding?.size) ||
+        0
+      return {
+        drive,
+        entry,
+        size,
+        fileRecord: fileRecord || {
+          cid,
+          fileName: holding?.fileName || cid,
+          driveName: holding?.driveName || driveName,
+          localPath: holding?.localPath || null,
+          size,
+          ownerAddress,
+        },
+      }
+    } catch {
+      return null
+    }
   }
 
   // --- 频道管理 ---
@@ -1834,6 +1966,7 @@ export class MostBoxEngine extends EventEmitter {
   async createChannel(name, type = 'personal', options = {}) {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    const channelType = String(type || 'personal').trim() || 'personal'
 
     if (!CHANNEL_NAME_REGEX.test(name)) {
       throw new Error('频道名只能包含字母、数字、下划线和连字符')
@@ -1847,14 +1980,16 @@ export class MostBoxEngine extends EventEmitter {
 
     const existing = this.#channels.find(c => c.name === name)
     if (existing) {
-      if (ownerAddress && !Array.isArray(existing.members)) {
-        existing.members = []
-      }
-      if (ownerAddress && !existing.members.includes(ownerAddress)) {
-        existing.members.push(ownerAddress)
+      if (this.#upsertChannelMember(existing, options)) {
         this.#saveChannelsMetadata()
       }
-      return { name: existing.name, key: existing.coreKey }
+      return {
+        name: existing.name,
+        key: existing.coreKey,
+        coreKey: existing.coreKey,
+        createdAt: existing.createdAt,
+        type: existing.type,
+      }
     }
 
     const ns = this.#store.namespace(`channel-${name}`)
@@ -1879,11 +2014,12 @@ export class MostBoxEngine extends EventEmitter {
       discoveryKey: b4a.toString(discoveryKey, 'hex'),
       coreKey: b4a.toString(core.key, 'hex'),
       createdAt: new Date().toISOString(),
-      type,
+      type: channelType,
       ownerAddress,
-      members: ownerAddress ? [ownerAddress] : [],
+      members: [],
       remoteCoreKeys: [],
     }
+    this.#upsertChannelMember(channelInfo, options)
 
     this.#channels.push(channelInfo)
     const coreKeyHex = b4a.toString(core.key, 'hex')
@@ -1900,7 +2036,13 @@ export class MostBoxEngine extends EventEmitter {
     console.log(`[MostBox] Channel created: ${name}`)
     this.emit('channel:joined', { name, key: channelInfo.coreKey })
 
-    return { name, key: channelInfo.coreKey }
+    return {
+      name,
+      key: channelInfo.coreKey,
+      coreKey: channelInfo.coreKey,
+      createdAt: channelInfo.createdAt,
+      type: channelInfo.type,
+    }
   }
 
   /**
@@ -1915,11 +2057,7 @@ export class MostBoxEngine extends EventEmitter {
 
     const existing = this.#channels.find(c => c.name === name)
     if (existing) {
-      if (ownerAddress && !Array.isArray(existing.members)) {
-        existing.members = []
-      }
-      if (ownerAddress && !existing.members.includes(ownerAddress)) {
-        existing.members.push(ownerAddress)
+      if (this.#upsertChannelMember(existing, options)) {
         this.#saveChannelsMetadata()
       }
       if (coreKey && coreKey !== existing.coreKey) {
@@ -1932,7 +2070,13 @@ export class MostBoxEngine extends EventEmitter {
         }
         await this.#openRemoteChannelCore(name, coreKey)
       }
-      return { name: existing.name, key: existing.coreKey }
+      return {
+        name: existing.name,
+        key: existing.coreKey,
+        coreKey: existing.coreKey,
+        createdAt: existing.createdAt,
+        type: existing.type,
+      }
     }
 
     if (!coreKey) {
@@ -1968,10 +2112,11 @@ export class MostBoxEngine extends EventEmitter {
       createdAt: new Date().toISOString(),
       type: 'group',
       ownerAddress,
-      members: ownerAddress ? [ownerAddress] : [],
+      members: [],
       remoteCoreKeys:
         remoteCoreKeyHex === localCoreKeyHex ? [] : [remoteCoreKeyHex],
     }
+    this.#upsertChannelMember(channelInfo, options)
 
     this.#channels.push(channelInfo)
     if (!this.#channelCores.has(name)) {
@@ -1990,7 +2135,13 @@ export class MostBoxEngine extends EventEmitter {
     console.log(`[MostBox] Joined channel: ${name}`)
     this.emit('channel:joined', { name, key: localCoreKeyHex })
 
-    return { name, key: localCoreKeyHex }
+    return {
+      name,
+      key: localCoreKeyHex,
+      coreKey: localCoreKeyHex,
+      createdAt: channelInfo.createdAt,
+      type: channelInfo.type,
+    }
   }
 
   /**
@@ -2010,7 +2161,7 @@ export class MostBoxEngine extends EventEmitter {
     const channel = this.#channels[index]
     if (ownerAddress && Array.isArray(channel.members)) {
       channel.members = channel.members.filter(
-        member => normalizeOwnerAddress(member) !== ownerAddress
+        member => normalizeOwnerAddress(member?.address) !== ownerAddress
       )
       if (channel.members.length > 0) {
         this.#saveChannelsMetadata()
@@ -2105,11 +2256,18 @@ export class MostBoxEngine extends EventEmitter {
   listChannels(options = {}) {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    const type = String(options.type || '').trim()
+    const excludeType = String(options.excludeType || '').trim()
 
     return this.#channels
       .filter(c => {
         if (!ownerAddress) return true
-        return Array.isArray(c.members) && c.members.includes(ownerAddress)
+        return this.#channelHasMember(c, ownerAddress)
+      })
+      .filter(c => {
+        if (type) return c.type === type
+        if (excludeType) return c.type !== excludeType
+        return true
       })
       .map(c => ({
         name: c.name,
@@ -2119,6 +2277,18 @@ export class MostBoxEngine extends EventEmitter {
         peerCount: (this.#channelPeers.get(c.name) || new Map()).size,
         remark: ownerAddress && c.remarks ? c.remarks[ownerAddress] || '' : '',
       }))
+  }
+
+  getChannelMembers(name, options = {}) {
+    this.#ensureInitialized()
+    this.#assertChannelMember(name, options.ownerAddress)
+
+    const channel = this.#channels.find(c => c.name === name)
+    if (!channel) {
+      throw new Error('频道不存在')
+    }
+
+    return this.#getChannelMembers(channel)
   }
 
   /**
@@ -2172,7 +2342,11 @@ export class MostBoxEngine extends EventEmitter {
     const start = Math.max(0, total - offset - limit)
     const end = total - offset
 
-    return unique.slice(start, end).map(({ _coreKey, _index, ...msg }) => msg)
+    return unique
+      .slice(start, end)
+      .map(({ _coreKey, _index, ...msg }) =>
+        this.#normalizeChannelMessageForResponse(name, msg)
+      )
   }
 
   /**
@@ -2187,6 +2361,7 @@ export class MostBoxEngine extends EventEmitter {
   async sendMessage(name, content, author, authorName, options = {}) {
     this.#ensureInitialized()
     this.#assertChannelMember(name, options.ownerAddress)
+    const channel = this.#channels.find(c => c.name === name)
 
     const localKeyHex = this.#channelLocalCoreKey.get(name)
     const coresMap = this.#channelCores.get(name)
@@ -2206,6 +2381,16 @@ export class MostBoxEngine extends EventEmitter {
     const attachment = normalizeChannelAttachment(options.attachment)
     if (attachment && trimmed !== attachment.link) {
       throw new ValidationError('attachment content must match link')
+    }
+    if (
+      channel &&
+      this.#upsertChannelMember(channel, {
+        ownerAddress: options.ownerAddress,
+        displayName: authorName,
+        avatar: options.avatar,
+      })
+    ) {
+      this.#saveChannelsMetadata()
     }
 
     const message = {
@@ -2296,11 +2481,125 @@ export class MostBoxEngine extends EventEmitter {
     if (!channel) {
       throw new Error('频道不存在')
     }
-    if (
-      !Array.isArray(channel.members) ||
-      !channel.members.includes(normalizedOwner)
-    ) {
+    if (!this.#channelHasMember(channel, normalizedOwner)) {
       throw new PermissionError('未加入该频道')
+    }
+  }
+
+  #channelHasMember(channel, ownerAddress) {
+    const normalizedOwner = normalizeOwnerAddress(ownerAddress)
+    if (!normalizedOwner || !Array.isArray(channel?.members)) return false
+    return channel.members.some(
+      member => normalizeOwnerAddress(member?.address) === normalizedOwner
+    )
+  }
+
+  #upsertChannelMember(channel, options = {}) {
+    const address = normalizeOwnerAddress(options.ownerAddress)
+    if (!address) return false
+
+    if (!Array.isArray(channel.members)) {
+      channel.members = []
+    }
+
+    const displayName = normalizeChannelDisplayName(options.displayName, address)
+    const avatar = normalizeChannelAvatar(options.avatar)
+    const existing = channel.members.find(
+      member => normalizeOwnerAddress(member?.address) === address
+    )
+
+    if (existing) {
+      let changed = false
+      if (existing.address !== address) {
+        existing.address = address
+        changed = true
+      }
+      if (displayName && existing.displayName !== displayName) {
+        existing.displayName = displayName
+        changed = true
+      }
+      if (avatar && existing.avatar !== avatar) {
+        existing.avatar = avatar
+        changed = true
+      }
+      if (!existing.joinedAt) {
+        existing.joinedAt = new Date().toISOString()
+        changed = true
+      }
+      return changed
+    }
+
+    const member = {
+      address,
+      displayName,
+      joinedAt: new Date().toISOString(),
+    }
+    if (avatar) {
+      member.avatar = avatar
+    }
+    channel.members.push(member)
+    return true
+  }
+
+  #getChannelMembers(channel) {
+    const members = Array.isArray(channel?.members) ? channel.members : []
+    return members
+      .map((member, index) => ({
+        address: normalizeOwnerAddress(member?.address),
+        displayName: normalizeChannelDisplayName(
+          member?.displayName,
+          normalizeOwnerAddress(member?.address)
+        ),
+        avatar: normalizeChannelAvatar(member?.avatar),
+        joinedAt: String(member?.joinedAt || ''),
+        _index: index,
+      }))
+      .filter(member => member.address && member.joinedAt)
+      .sort((a, b) => {
+        const timeDiff =
+          new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime()
+        return timeDiff || a._index - b._index
+      })
+      .map(({ _index, ...member }) =>
+        member.avatar ? member : { ...member, avatar: undefined }
+      )
+  }
+
+  #normalizeChannelMessageForResponse(channelName, message) {
+    const attachment = message?.attachment
+    if (!attachment?.cid || !attachment.fileName) {
+      return message
+    }
+
+    const oldFileName = sanitizeFilename(String(attachment.fileName))
+    const channelPrefix = `${CHAT_FILE_ROOT}/${channelName}/`
+    const fileName = oldFileName.startsWith(channelPrefix)
+      ? oldFileName
+      : `${channelPrefix}${getPathBaseName(oldFileName)}`
+    const link = buildMostLink(attachment.cid, fileName)
+    const content =
+      typeof message.content === 'string' &&
+      (message.content === attachment.link ||
+        parseMostLink(message.content).cid === attachment.cid)
+        ? link
+        : message.content
+
+    if (
+      fileName === attachment.fileName &&
+      link === attachment.link &&
+      content === message.content
+    ) {
+      return message
+    }
+
+    return {
+      ...message,
+      content,
+      attachment: {
+        ...attachment,
+        fileName,
+        link,
+      },
     }
   }
 
@@ -2496,7 +2795,7 @@ export class MostBoxEngine extends EventEmitter {
       size,
       localPath: record.localPath || null,
       topic: topicHex,
-      driveName: record.driveName || driveName,
+      driveName,
       source: record.source || 'manual',
     }
   }
@@ -2684,6 +2983,31 @@ export class MostBoxEngine extends EventEmitter {
     return normalizeOwnerAddress(record.ownerAddress) === normalizedOwner
   }
 
+  #assertDisplayNameAvailable(fileName, options = {}) {
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    const safeFileName = sanitizeFilename(fileName)
+    const folder = getDisplayPathFolder(safeFileName)
+    const baseName = getPathBaseName(safeFileName)
+    const conflict = this.#publishedFiles.find(file => {
+      if (
+        options.excludeCid &&
+        file.cid === options.excludeCid &&
+        this.#recordMatchesOwner(file, ownerAddress)
+      ) {
+        return false
+      }
+      if (!this.#recordMatchesOwner(file, ownerAddress)) return false
+      const existingFileName = sanitizeFilename(file.fileName)
+      return (
+        getDisplayPathFolder(existingFileName) === folder &&
+        getPathBaseName(existingFileName) === baseName
+      )
+    })
+    if (conflict) {
+      throw new ConflictError(`已有同名文件: ${safeFileName}`)
+    }
+  }
+
   #hasPublishedReference(cid) {
     return this.#publishedFiles.some(file => file.cid === cid)
   }
@@ -2729,20 +3053,6 @@ export class MostBoxEngine extends EventEmitter {
       return drive
     } finally {
       this.#drivePromises.delete(name)
-    }
-  }
-
-  async #syncDrive(drive, timeout = DRIVE_SYNC_TIMEOUT) {
-    try {
-      const updated = await Promise.race([
-        drive.update(),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Sync timeout')), timeout)
-        ),
-      ])
-      return updated
-    } catch {
-      return false
     }
   }
 
@@ -2903,7 +3213,10 @@ export class MostBoxEngine extends EventEmitter {
             if (entry && entry.type === 'message') {
               this.emit('channel:message', {
                 channel: channelName,
-                message: entry,
+                message: this.#normalizeChannelMessageForResponse(
+                  channelName,
+                  entry
+                ),
               })
             }
           } catch (err) {

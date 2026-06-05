@@ -126,12 +126,16 @@ function ChatPage() {
     setMessages: setChannelMessages,
     sendMessage: sendTransportMessage,
   } = useChannelMessages({
-    enabled: isBackendReady && Boolean(userIdentity && activeChannel),
+    isReady: isBackendReady,
+    enabled: Boolean(userIdentity && activeChannel),
     channelName: activeChannel?.name || '',
-    author: userIdentity?.address,
-    authorName: userIdentity?.displayName,
-    onChannelListChanged: refreshChannels,
-    onEvent: handleWsEvent,
+    onSyncError: err => showApiError(err, '无法读取频道消息'),
+    onSocketEvent: (event, data) => {
+      if (event === 'channel:joined' || event === 'channel:left') {
+        void refreshChannels()
+      }
+      handleWsEvent(event, data)
+    },
   })
 
   function requireBackendReady() {
@@ -341,7 +345,14 @@ function ChatPage() {
     const trimmedContent = content.trim()
 
     try {
-      await sendTransportMessage(trimmedContent, attachment)
+      await sendTransportMessage({
+        channelName: activeChannel.name,
+        content: trimmedContent,
+        author: userIdentity.address,
+        authorName: userIdentity.displayName || userIdentity.username,
+        avatar: userIdentity.avatar,
+        attachment,
+      })
       return true
     } catch (err) {
       await showApiError(err, '发送失败')

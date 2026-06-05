@@ -66,7 +66,7 @@ async function main() {
   const version = tag.replace(/^v/, '')
   const files = await fs.readdir(assetsDir)
   const assetPattern = new RegExp(
-    `^MostBox-${escapeRegExp(version)}-(win|mac|linux)-(x64|arm64)(?:-setup)?\\.(exe|dmg|AppImage)$`
+    `^MostBox-${escapeRegExp(version)}-(win|mac|linux)-(x64|x86_64|arm64)(?:-setup)?\\.(exe|dmg|AppImage)$`
   )
 
   const assets = []
@@ -74,10 +74,11 @@ async function main() {
     const match = filename.match(assetPattern)
     if (!match) continue
 
-    const [, platformToken, arch] = match
+    const [, platformToken, archToken] = match
     const filePath = path.join(assetsDir, filename)
     const stat = await fs.stat(filePath)
     const platform = PLATFORM_BY_TOKEN[platformToken]
+    const arch = archToken === 'x86_64' ? 'x64' : archToken
 
     assets.push({
       platform,

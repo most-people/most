@@ -137,6 +137,43 @@ export function buildOpenApiSpec(appPort) {
           responses: { 200: { description: 'Pull task result' } },
         },
       },
+      '/api/files': {
+        get: {
+          summary: 'List published files for the authenticated local user',
+          responses: { 200: { description: 'Published file list' } },
+        },
+      },
+      '/api/publish': {
+        post: {
+          summary: 'Publish a file and start seeding by CID',
+          responses: { 200: { description: 'Published CID and most:// link' } },
+        },
+      },
+      '/api/download/check': {
+        post: {
+          summary:
+            'Check whether a most:// link is locally available or discoverable',
+          responses: { 200: { description: 'Download availability result' } },
+        },
+      },
+      '/api/download': {
+        post: {
+          summary: 'Start downloading a most:// link',
+          responses: { 200: { description: 'Download task result' } },
+        },
+      },
+      '/api/download/cancel': {
+        post: {
+          summary: 'Cancel an active download task',
+          responses: { 200: { description: 'Cancellation result' } },
+        },
+      },
+      '/api/files/{cid}/download': {
+        get: {
+          summary: 'Read a locally held file by CID',
+          responses: { 200: { description: 'File bytes' } },
+        },
+      },
     },
   }
 }

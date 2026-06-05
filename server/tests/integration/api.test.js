@@ -7,6 +7,10 @@ import { serve } from '@hono/node-server'
 import { createApp } from '../../index.js'
 import { calculateCid } from '../../src/core/cid.js'
 import { MostBoxEngine } from '../../src/index.js'
+import {
+  GAME_CHANNEL_TYPE,
+  gameRoomCodeToChannelName,
+} from '../../src/core/gameRoom.js'
 import { createNodeConfigStore } from '../../src/node/config.js'
 import { createNodeLogger } from '../../src/node/logs.js'
 import { buildAuthHeaders } from '../../src/utils/auth.js'
@@ -403,6 +407,12 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(spec.paths['/api/node/logs'].delete)
       assert.ok(spec.paths['/api/node/diagnostics'])
       assert.ok(spec.paths['/api/node/policy'])
+      assert.ok(spec.paths['/api/files'])
+      assert.ok(spec.paths['/api/publish'])
+      assert.ok(spec.paths['/api/download/check'])
+      assert.ok(spec.paths['/api/download'])
+      assert.ok(spec.paths['/api/download/cancel'])
+      assert.ok(spec.paths['/api/files/{cid}/download'])
 
       const clearRes = await fetch(`${baseUrl}/api/node/logs`, {
         method: 'DELETE',
@@ -585,6 +595,36 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(data.success)
       assert.strictEqual(data.fileName, '测试文件.txt')
     })
+
+    it('preserves chat attachment folder paths in multipart filename', async () => {
+      const boundary = '----TestBoundaryChatAttachment'
+      const fileName = 'chat-file/general/photo.png'
+      const body = [
+        `--${boundary}`,
+        `Content-Disposition: form-data; name="file"; filename="${fileName}"`,
+        'Content-Type: image/png',
+        '',
+        'fake png bytes for chat attachment path test',
+        `--${boundary}--`,
+      ].join('\r\n')
+
+      const res = await fetch(`${baseUrl}/api/publish`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        },
+        body,
+      })
+
+      const data = await res.json()
+      assert.strictEqual(res.status, 200)
+      assert.ok(data.success)
+      assert.strictEqual(data.fileName, fileName)
+      assert.strictEqual(
+        data.link,
+        `most://${data.cid}?filename=${encodeURIComponent(fileName)}`
+      )
+    })
   })
 
   describe('POST /api/download', () => {
@@ -612,7 +652,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       let checked = false
       let startedDownload = false
       const fakeEngine = {
-        getPublishedFiles: () => [],
+        getLocalCidAvailability: async () => null,
         hasDownloadNameConflict: () => false,
         checkDownloadAvailability: async link => {
           checked = true
@@ -670,9 +710,12 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     it('uses engine download path for existing files', async () => {
       let called = false
       const fakeEngine = {
-        getPublishedFiles: () => [
-          { cid: VALID_MISSING_CID, fileName: 'exists.txt' },
-        ],
+        getLocalCidAvailability: async () => ({
+          cid: VALID_MISSING_CID,
+          fileName: 'exists.txt',
+          size: 6,
+          alreadyExists: true,
+        }),
         downloadFile: async (_link, taskId) => {
           called = true
           return { taskId, fileName: 'exists.txt', alreadyExists: true }
@@ -696,6 +739,31 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(res.status, 200)
       assert.strictEqual(data.alreadyExists, true)
       assert.strictEqual(called, true)
+    })
+
+    it('uses local CID availability before filename conflict checks', async () => {
+      const publishResult = await engine.publishFile(
+        Buffer.from('cid-first chat attachment'),
+        '#18.txt'
+      )
+      const chatFileName = `chat-file/${uid}/#18.txt`
+      const downloadPath = path.join(tmpDir, 'api', 'downloads', chatFileName)
+      fs.mkdirSync(path.dirname(downloadPath), { recursive: true })
+      fs.writeFileSync(downloadPath, 'same target name')
+
+      const res = await fetch(`${baseUrl}/api/download`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          link: `most://${publishResult.cid}?filename=${encodeURIComponent(chatFileName)}`,
+        }),
+      })
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 200)
+      assert.strictEqual(data.success, true)
+      assert.strictEqual(data.alreadyExists, true)
+      assert.strictEqual(data.fileName, chatFileName)
     })
 
     it('returns 409 when another CID would save over an existing filename', async () => {
@@ -781,6 +849,28 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(data.success, true)
       assert.strictEqual(data.holding.cid, cid.toString())
       assert.strictEqual(data.holding.joined, true)
+    })
+
+    it('normalizes manual holding driveName from the CID', async () => {
+      const content = Buffer.from('api manual driveName normalization')
+      const { cid } = await calculateCid(content)
+
+      const res = await fetch(`${baseUrl}/api/node/holdings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cid: cid.toString(),
+          fileName: 'manual-drive.txt',
+          size: content.length,
+          driveName: 'drive-not-from-cid',
+        }),
+      })
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 200)
+      assert.match(data.holding.driveName, /^drive-[0-9a-f]{64}$/)
+      assert.notStrictEqual(data.holding.driveName, 'drive-not-from-cid')
+      assert.strictEqual(data.holding.driveName, `drive-${data.holding.topic}`)
     })
 
     it('returns PEER_NOT_FOUND when no peer serves the CID', async () => {
@@ -917,6 +1007,24 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       })
 
       assert.strictEqual(res.status, 400)
+    })
+
+    it('returns 409 when moving onto an existing same-folder name', async () => {
+      await engine.publishFile(Buffer.from('api move conflict one'), 'api/a.txt')
+      const second = await engine.publishFile(
+        Buffer.from('api move conflict two'),
+        'api/b.txt'
+      )
+
+      const res = await fetch(`${baseUrl}/api/move`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cid: second.cid, newFileName: 'api/a.txt' }),
+      })
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 409)
+      assert.strictEqual(data.code, 'CONFLICT')
     })
   })
 
@@ -1203,6 +1311,23 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(data.key)
     })
 
+    it('creates shared game room channels', async () => {
+      for (const gameId of ['gandengyan', 'zhajinhua']) {
+        const name = gameRoomCodeToChannelName(gameId, 'ABC123')
+        const res = await fetch(`${baseUrl}/api/channels`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, type: GAME_CHANNEL_TYPE }),
+        })
+        const data = await res.json()
+
+        assert.strictEqual(res.status, 200)
+        assert.ok(data.success)
+        assert.strictEqual(data.name, name)
+        assert.ok(data.key)
+      }
+    })
+
     it('returns existing channel if already created', async () => {
       await engine.createChannel(`dup-${uid}`)
       const res = await fetch(`${baseUrl}/api/channels`, {
@@ -1259,6 +1384,23 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(data.length >= 1)
       assert.ok(data.some(c => c.name === `list-${uid}`))
     })
+
+    it('filters game channels by type and excludes them from chat lists', async () => {
+      await engine.createChannel(`chat-${uid}`, 'public')
+      await engine.createChannel(`game-zjh-${uid}`, 'game')
+
+      const gameRes = await fetch(`${baseUrl}/api/channels?type=game`)
+      const gameData = await gameRes.json()
+      assert.strictEqual(gameRes.status, 200)
+      assert.ok(gameData.some(c => c.name === `game-zjh-${uid}`))
+      assert.ok(!gameData.some(c => c.name === `chat-${uid}`))
+
+      const chatRes = await fetch(`${baseUrl}/api/channels?excludeType=game`)
+      const chatData = await chatRes.json()
+      assert.strictEqual(chatRes.status, 200)
+      assert.ok(chatData.some(c => c.name === `chat-${uid}`))
+      assert.ok(!chatData.some(c => c.name === `game-zjh-${uid}`))
+    })
   })
 
   describe('POST /api/channels/:name/messages', () => {
@@ -1297,6 +1439,32 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(res.status, 200)
       assert.ok(data.success)
       assert.strictEqual(data.message.content, 'Hello!')
+    })
+
+    it('updates channel member avatar when sending a message', async () => {
+      const channelName = `member-avatar-${uid}`
+      await engine.createChannel(channelName)
+      const res = await fetch(`${baseUrl}/api/channels/${channelName}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: 'avatar update',
+          author: TEST_IDENTITY.address,
+          authorName: 'AvatarUser',
+          avatar: 'data:image/png;base64,avatar',
+        }),
+      })
+      assert.strictEqual(res.status, 200)
+
+      const membersRes = await fetch(
+        `${baseUrl}/api/channels/${channelName}/members`
+      )
+      const members = await membersRes.json()
+
+      assert.strictEqual(membersRes.status, 200)
+      assert.strictEqual(members.length, 1)
+      assert.strictEqual(members[0].displayName, 'AvatarUser')
+      assert.strictEqual(members[0].avatar, 'data:image/png;base64,avatar')
     })
 
     it('sends an attachment message to a channel', async () => {
@@ -1530,6 +1698,72 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const data = await res.json()
       assert.strictEqual(res.status, 200)
       assert.strictEqual(data.length, 2)
+    })
+  })
+
+  describe('GET /api/channels/:name/members', () => {
+    it('returns channel members ordered by join time', async () => {
+      const channelName = `members-${uid}`
+      const firstJoin = await fetch(`${baseUrl}/api/channels`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: channelName,
+          type: 'public',
+          displayName: 'FirstUser',
+          avatar: 'first.png',
+        }),
+      })
+      assert.strictEqual(firstJoin.status, 200)
+
+      await new Promise(resolve => setTimeout(resolve, 5))
+      const secondJoin = await fetchAs(
+        SECOND_IDENTITY,
+        `${baseUrl}/api/channels`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: channelName,
+            type: 'public',
+            displayName: 'SecondUser',
+            avatar: 'second.png',
+          }),
+        }
+      )
+      assert.strictEqual(secondJoin.status, 200)
+
+      const res = await fetch(`${baseUrl}/api/channels/${channelName}/members`)
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 200)
+      assert.deepStrictEqual(
+        data.map(member => member.address),
+        [TEST_IDENTITY.address.toLowerCase(), SECOND_IDENTITY.address.toLowerCase()]
+      )
+      assert.strictEqual(data[0].displayName, 'FirstUser')
+      assert.strictEqual(data[0].avatar, 'first.png')
+      assert.strictEqual(data[1].displayName, 'SecondUser')
+      assert.strictEqual(data[1].avatar, 'second.png')
+      assert.ok(new Date(data[0].joinedAt).getTime() > 0)
+      assert.ok(
+        new Date(data[0].joinedAt).getTime() <=
+          new Date(data[1].joinedAt).getTime()
+      )
+    })
+
+    it('blocks non-members from reading channel members', async () => {
+      const channelName = `private-members-${uid}`
+      await engine.createChannel(channelName)
+
+      const res = await fetchAs(
+        SECOND_IDENTITY,
+        `${baseUrl}/api/channels/${channelName}/members`
+      )
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 403)
+      assert.strictEqual(data.code, 'PERMISSION_ERROR')
     })
   })
 

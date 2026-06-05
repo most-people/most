@@ -8,7 +8,6 @@ import 'dayjs/locale/zh-cn'
 import {
   Activity,
   AlertTriangle,
-  Apple,
   ArrowLeft,
   CheckCircle2,
   Clipboard,
@@ -16,8 +15,6 @@ import {
   Download,
   FileText,
   HardDrive,
-  Laptop,
-  Monitor,
   RefreshCw,
   Save,
   Server,
@@ -195,20 +192,6 @@ function formatRecentTime(value?: string | null) {
   if (time.isAfter(dayjs())) return '刚刚'
   return time.fromNow()
 }
-
-const DESKTOP_PLATFORMS = [
-  { name: 'Windows', icon: Monitor, ext: '.exe' },
-  { name: 'macOS', icon: Apple, ext: '.dmg' },
-  { name: 'Linux', icon: Laptop, ext: '.AppImage' },
-]
-
-const DESKTOP_FEATURES = [
-  'P2P 文件分享与下载',
-  '加密频道聊天',
-  '本地持久化存储',
-  '离线消息同步',
-  '默认 10GB 大文件传输',
-]
 
 const SEED_STATUS_HELP = [
   {
@@ -396,8 +379,7 @@ export default function AdminPage() {
           },
         })
         .json()
-      const needsRestart =
-        configForm.dataPath !== (status?.dataPath || '')
+      const needsRestart = configForm.dataPath !== (status?.dataPath || '')
       addToast(
         needsRestart
           ? '节点配置已保存。修改了数据目录，需要重启 daemon 生效。'
@@ -583,66 +565,6 @@ export default function AdminPage() {
 
       {!isRemoteAdmin && (
         <>
-          <section className="admin-product-grid" aria-label="MostBox 信息">
-            <div className="admin-product-panel admin-product-main">
-              <div className="admin-product-mark">MB</div>
-              <div>
-                <h2>MostBox</h2>
-                <p className="admin-product-version">
-                  版本 {status?.version || '0.1.0'}
-                </p>
-                <p className="admin-product-stack">
-                  Hyperswarm · Hyperdrive · IPFS
-                </p>
-              </div>
-            </div>
-
-            <div className="admin-product-panel admin-download-panel">
-              <div className="admin-panel-header compact">
-                <div>
-                  <h2>下载桌面客户端</h2>
-                </div>
-                <Download size={18} />
-              </div>
-              <p className="admin-product-desc">
-                Web 端仅用于界面展示。下载桌面客户端获得完整的 P2P
-                文件分享和加密聊天体验。
-              </p>
-              <div className="admin-platform-list">
-                {DESKTOP_PLATFORMS.map(platform => {
-                  const PlatformIcon = platform.icon
-                  return (
-                    <Link
-                      key={platform.name}
-                      href="/download"
-                      className="admin-platform-link"
-                    >
-                      <PlatformIcon size={16} />
-                      <span>{platform.name}</span>
-                      <span>{platform.ext}</span>
-                    </Link>
-                  )
-                })}
-              </div>
-            </div>
-
-            <div className="admin-product-panel admin-feature-panel">
-              <div className="admin-panel-header compact">
-                <div>
-                  <h2>完整功能</h2>
-                </div>
-                <CheckCircle2 size={18} />
-              </div>
-              <ul className="admin-feature-list">
-                {DESKTOP_FEATURES.map(feature => (
-                  <li key={feature}>
-                    <CheckCircle2 size={14} />
-                    <span>{feature}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </section>
           <section className="admin-overview">
             <div className="admin-metric">
               <div className="admin-metric-icon">

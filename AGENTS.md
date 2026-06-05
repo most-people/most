@@ -9,12 +9,14 @@
 
 ## AI 行为准则
 
+<!-- Source: swarmclawai/andrej-karpathy-skills, adapters/codex/AGENTS.md, synced 2026-06-04 -->
+
 - 默认使用中文回复。
-- 先明确目标和成功标准；不确定时说明歧义并提问。
-- 简洁优先：只实现当前需求，不添加推测性功能、兼容分支或多余抽象。
-- 精准修改：只改和任务直接相关的代码，不顺手重构、不清理无关代码。
+- 编码前先明确目标、成功标准、已知约束和关键假设；不确定时说明歧义并提问。
+- 简单优先：只实现当前需求，不添加推测性功能、未请求的配置、兼容分支或多余抽象。
+- 精准修改：只改和任务直接相关的代码，不顺手重构、不清理无关代码、不改变无关行为。
 - 目标驱动执行：多步任务先写简短计划，并说明每步如何验证。
-- 新项目优先清晰正确：可以直接调整接口、数据结构和持久化格式；除非用户要求，不保留旧格式迁移。
+- 验证闭环：改动完成后运行最小必要检查，并清楚说明已验证内容、未验证风险和原因。
 
 ---
 
@@ -61,6 +63,8 @@ MVP 成功标准：
 
 - `most://<cid>?filename=...` 是 MostBox 原生分享链接；本轮不改成 `magnet:`，也不做双格式。
 - CID 即权限：知道链接的人即可尝试下载；CID 或链接泄露不是漏洞。
+- CID 是唯一内容身份：发布、做种 topic、Hyperdrive key、下载发现、本地已有判断、预览/打开和完整性校验都必须以 CID 为准。
+- 文件名、用户可见路径、聊天附件路径和 metadata 只服务展示、分类、保存路径与冲突提示，不得替代 CID 判断内容是否存在、是否可读或是否可信。
 - MostBox 不承诺永久保存或离线可用；可用性来自当前在线种子数量。
 - 发布成功和下载成功后默认持续做种，除非用户暂停、删除文件或关闭应用。
 - 文件模型是完整副本：不做分片、不做纠删码；每个做种 peer 持有完整文件。
@@ -75,14 +79,17 @@ MVP 成功标准：
 - 后端：Hono, `@hono/node-server`, WebSocket
 - P2P：Hyperswarm 4.x, Hyperdrive 13.x, Corestore 7.x
 - Web3 工具箱：ethers.js
-- 桌面：Electron 41, electron-builder
+- 桌面：Electron 42, electron-builder
 - 测试：Node.js built-in test runner
+
+本地源码开发建议 Node.js >= 22.12。当前 Next.js 16 需要 Node.js >= 20.9，Electron 42 开发/打包需要 Node.js >= 22.12。
 
 ## 核心实现约束
 
-- CID 使用 UnixFS CID v1，当前由 `server/src/core/cid.js` 和 `ipfs-unixfs-importer@16.1.5` 生成。
+- CID 使用 UnixFS CID v1，当前由 `server/src/core/cid.js` 和 `ipfs-unixfs-importer@17.0.1` 生成。
 - CID 显式参数：`cidVersion: 1`、`rawLeaves: true`、`wrapWithDirectory: false`；升级 importer 前必须跑 CID 黄金样本测试。
 - 下载完成后必须重算 UnixFS CID v1，只有 CID 与链接一致才保存并做种。
+- 判断“本地已有”必须确认本机可按 `/<cid>` 读到内容；只有 metadata、文件名或保存路径匹配不算本地已有。
 - 下载只接受 Hyperdrive 中精确的 `/<cid>` 文件；下载完成后写入 Hyperdrive 并记录 holding，让下载者自动成为新的种子。
 - 节点配置保留 `maxFileSizeBytes`、`capacityBytes` 和数据目录；发布或下载成功后固定自动做种，不提供关闭开关、产品层同时做种上限或应用层限速。
 - 节点/做种能力 API 优先：HTTP API + WebSocket + OpenAPI 是稳定入口；Web 管理台给人用；薄 CLI 只做安装、启动、诊断。
@@ -132,6 +139,8 @@ npm run lint
 - Channel append 监听用 `lastCoreLength` 只处理新消息，避免重复推旧消息。
 - 双方都拥有频道时，通过 `store.namespace(\`channel-${name}\`).replicate(conn)` 复制。
 - WebSocket 订阅要等 `peerId` 就绪；未就绪时暂存频道名，随后补发订阅。
+- 游戏房间频道必须使用公共 Channel 系统：HTTP `/api/channels`、WebSocket `channel:*`、Corestore/Hypercore 频道消息日志；游戏层只负责事件 payload 和状态派生。
+- 新实现不兼容旧游戏频道或旧事件格式；历史遗留协议直接清理，不写迁移或双格式分支。
 
 ## 游戏房间接入约定
 
@@ -145,7 +154,7 @@ npm run lint
 
 ## 关键入口
 
-- 前端主应用：`app/app/page.tsx`、`components/AppHomeMode.tsx`
+- 前端主应用：`app/app/page.tsx`
 - Web3 工具箱：`app/web3/page.tsx`
 - 笔记模块：`app/note/page.tsx`、`components/MilkdownEditor.tsx`
 - 管理后台：`app/admin/page.tsx`、`app/admin/layout.tsx`

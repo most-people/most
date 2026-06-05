@@ -99,6 +99,13 @@ describe('parseMostLink', () => {
     assertInvalidLink(`most://${VALID_CID}`, 'filename is required')
   })
 
+  it('rejects blank filename values', () => {
+    assertInvalidLink(
+      `most://${VALID_CID}?filename=%20%20`,
+      'filename is required'
+    )
+  })
+
   it('rejects unsupported query parameters', () => {
     assertInvalidLink(
       `most://${VALID_CID}?filename=a.txt&foo=bar`,

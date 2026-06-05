@@ -6,8 +6,6 @@ import { HDNodeWallet } from 'ethers'
 import {
   Eye,
   EyeOff,
-  Copy,
-  Check,
   ExternalLink,
   KeyRound,
   Fingerprint,
@@ -19,13 +17,16 @@ import {
   ShieldAlert,
   ChevronDown,
   ChevronUp,
-  Download,
   User,
   Lock,
   Wallet,
   ArrowLeft,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
+import { CopyButton } from '~/components/CopyButton'
+import { EmptyState } from '~/components/EmptyState'
+import { KeyCard } from '~/components/KeyCard'
+import { PemBlock } from '~/components/PemBlock'
 import { useAppStore } from '~/app/app/useAppStore'
 import { useUserStore } from '~/app/app/userStore'
 import {
@@ -38,49 +39,6 @@ import {
 } from '~/server/src/utils/mostWallet.js'
 import { getEdKeyPair, getIPNS } from '~/server/src/utils/mp.js'
 import { generateAvatar } from '~/server/src/utils/avatar.js'
-
-/* ─── Helpers ─── */
-
-function CopyButton({ text }) {
-  const [copied, setCopied] = useState(false)
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    } catch {}
-  }
-  return (
-    <button
-      className="btn btn-icon"
-      onClick={handleCopy}
-      title={copied ? '已复制' : '复制'}
-    >
-      {copied ? <Check size={14} /> : <Copy size={14} />}
-    </button>
-  )
-}
-
-function KeyCard({ title, icon, children, accent = false }) {
-  return (
-    <div className={`web3-key-card ${accent ? 'accent' : ''}`}>
-      <div className="web3-key-card-header">
-        <span className="web3-key-card-icon">{icon}</span>
-        <span className="web3-key-card-title">{title}</span>
-      </div>
-      <div className="web3-key-card-body">{children}</div>
-    </div>
-  )
-}
-
-function EmptyState({ icon, message }) {
-  return (
-    <div className="empty-state glass">
-      <div className="empty-state-icon">{icon}</div>
-      <p>{message}</p>
-    </div>
-  )
-}
 
 type BoxAccount = {
   username: string
@@ -375,52 +333,6 @@ const ed25519PublicKeyToPEM = publicKey => {
   spki.set(publicKeyBitString, offset)
   const base64 = base64Encode(spki)
   return `-----BEGIN PUBLIC KEY-----\n${base64.match(/.{1,64}/g)?.join('\n')}\n-----END PUBLIC KEY-----`
-}
-
-function PemBlock({ label, pem, filename }) {
-  const [copied, setCopied] = useState(false)
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(pem)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    } catch {}
-  }
-  const handleDownload = () => {
-    const blob = new Blob([pem], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-  return (
-    <div className="web3-pem-block">
-      <div className="web3-pem-header">
-        <span className="web3-pem-label">{label}</span>
-        <div className="web3-pem-actions">
-          <button
-            className="btn btn-sm"
-            onClick={handleCopy}
-            title={copied ? '已复制' : '复制'}
-          >
-            <Copy size={14} />
-            {copied ? '已复制' : '复制'}
-          </button>
-          <button
-            className="btn btn-sm btn-primary"
-            onClick={handleDownload}
-            title="下载"
-          >
-            <Download size={14} />
-            下载
-          </button>
-        </div>
-      </div>
-      <textarea className="textarea mono" value={pem} readOnly rows={6} />
-    </div>
-  )
 }
 
 /* ─── Main Page ─── */

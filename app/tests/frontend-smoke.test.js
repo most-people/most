@@ -56,15 +56,17 @@ describe('frontend smoke checks', () => {
     assert.match(sources, /10GB|10 GB/)
   })
 
-  it('prefers the R2 download manifest while keeping GitHub fallback links', () => {
-    const source = readSource('app/download/DownloadOptions.tsx')
+  it('lets users choose R2 or GitHub download sources', () => {
+    const source = readSource('components/DownloadOptions.tsx')
 
     assert.match(source, /NEXT_PUBLIC_RELEASE_MANIFEST_URL/)
     assert.match(source, /NEXT_PUBLIC_R2_PUBLIC_BASE_URL/)
     assert.match(source, /releases\/latest\.json/)
     assert.match(source, /https:\/\/download\.most\.box/)
     assert.match(source, /github\.com\/most-people\/most\/releases\/latest/)
-    assert.match(source, /GitHub 备用/)
+    assert.match(source, /Cloudflare R2/)
+    assert.match(source, /GitHub Releases/)
+    assert.match(source, /role="tablist"/)
   })
 
   it('documents the dedicated R2 release bucket defaults', () => {
@@ -77,6 +79,18 @@ describe('frontend smoke checks', () => {
     assert.match(readme, /most-box-releases/)
     assert.match(readme, /https:\/\/download\.most\.box/)
     assert.match(readme, /most-box-backup/)
+  })
+
+  it('documents current runtime and desktop dependency requirements', () => {
+    const readme = readSource('README.md')
+    const agents = readSource('AGENTS.md')
+
+    assert.match(readme, /Node\.js >= 22\.12/)
+    assert.match(readme, /Electron 42/)
+    assert.doesNotMatch(readme, /Node\.js >= 18/)
+    assert.doesNotMatch(readme, /Electron 41/)
+    assert.match(agents, /ipfs-unixfs-importer@17\.0\.1/)
+    assert.doesNotMatch(agents, /components\/AppHomeMode\.tsx/)
   })
 
   it('checks desktop updates through the public release manifest', () => {

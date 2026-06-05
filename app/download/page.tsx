@@ -2,7 +2,7 @@ import '~/styles/marketing.css'
 import '~/styles/download.css'
 import Link from 'next/link'
 import { ArrowLeft, Download } from 'lucide-react'
-import DownloadOptions from '~/app/download/DownloadOptions'
+import DownloadOptions from '~/components/DownloadOptions'
 
 export const metadata = {
   title: '下载 MostBox 桌面客户端',
@@ -36,8 +36,8 @@ export default function DownloadPage() {
           </div>
           <h1 className="download-hero-title">下载桌面客户端</h1>
           <p className="download-hero-desc">
-            Web 端仅用于界面展示，所有数据均为模拟。下载桌面客户端，获得完整的
-            P2P 文件分享和加密聊天体验。
+            Web 端可连接已有 MostBox 节点；桌面客户端内置本地 P2P
+            节点，提供发布、下载校验和持续做种的最佳体验。
           </p>
         </div>
       </section>

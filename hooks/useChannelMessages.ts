@@ -1,300 +1,338 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { channelApi, type ChannelAttachment, type ChannelMessage } from '~/lib/channelApi'
-import { api, getAuthenticatedWebSocketUrl } from '~/server/src/utils/api'
+import {
+  channelApi,
+  type ChannelAttachment,
+  type ChannelMessage,
+} from '~/lib/channelApi'
+import { getAuthenticatedWebSocketUrl } from '~/server/src/utils/api'
 
 interface UseChannelMessagesOptions {
+  isReady: boolean
+  enabled?: boolean
   channelName?: string
-  enabled: boolean
-  author?: string
-  authorName?: string
+  peerId?: string
+  waitForPeerId?: boolean
   limit?: number
-  refreshOnMessage?: boolean
-  onChannelListChanged?: () => void
-  onEvent?: (event: string, data: any) => void
+  reconnectBaseDelay?: number
+  acceptMessage?: (message: ChannelMessage) => boolean
+  getMessageKey?: (message: ChannelMessage) => string
+  onSyncError?: (err: unknown) => void | Promise<void>
+  onSocketEvent?: (event: string, data: any) => void
 }
 
-function messageKey(message: ChannelMessage) {
+export interface SendChannelMessageOptions {
+  channelName?: string
+  content: string
+  author: string
+  authorName: string
+  avatar?: string
+  attachment?: ChannelAttachment
+  optimisticId?: string
+}
+
+function defaultMessageKey(message: ChannelMessage) {
   return String(
     message.id ||
       `${message.author || ''}-${message.timestamp || ''}-${message.content || ''}`
   )
 }
 
-function mergeMessages(previous: ChannelMessage[], incoming: ChannelMessage[]) {
-  const seen = new Set(previous.map(messageKey))
-  const next = [...previous]
-  for (const message of incoming) {
-    const key = messageKey(message)
-    if (seen.has(key)) continue
-    seen.add(key)
-    next.push(message)
-  }
-  return next.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
-}
-
 export function useChannelMessages({
-  channelName,
-  enabled,
-  author,
-  authorName,
+  isReady,
+  enabled = true,
+  channelName = '',
+  peerId = '',
+  waitForPeerId = false,
   limit = 100,
-  refreshOnMessage = false,
-  onChannelListChanged,
-  onEvent,
+  reconnectBaseDelay = 2500,
+  acceptMessage,
+  getMessageKey = defaultMessageKey,
+  onSyncError,
+  onSocketEvent,
 }: UseChannelMessagesOptions) {
   const [messages, setMessages] = useState<ChannelMessage[]>([])
-  const [peers, setPeers] = useState<string[]>([])
   const [connected, setConnected] = useState(false)
-  const [myPeerId, setMyPeerId] = useState('')
+
   const wsRef = useRef<WebSocket | null>(null)
-  const channelNameRef = useRef(channelName || '')
-  const onEventRef = useRef(onEvent)
-  const onChannelListChangedRef = useRef(onChannelListChanged)
-  const refreshOnMessageRef = useRef(refreshOnMessage)
-  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const messageRefreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const channelNameRef = useRef(channelName)
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const reconnectAttemptRef = useRef(0)
-  const mountedRef = useRef(false)
+  const acceptMessageRef = useRef(acceptMessage)
+  const getMessageKeyRef = useRef(getMessageKey)
+  const onSocketEventRef = useRef(onSocketEvent)
+  const onSyncErrorRef = useRef(onSyncError)
+  const peerIdRef = useRef(peerId)
 
   useEffect(() => {
-    channelNameRef.current = channelName || ''
-  }, [channelName])
+    acceptMessageRef.current = acceptMessage
+  }, [acceptMessage])
 
   useEffect(() => {
-    onEventRef.current = onEvent
-  }, [onEvent])
+    getMessageKeyRef.current = getMessageKey
+  }, [getMessageKey])
 
   useEffect(() => {
-    onChannelListChangedRef.current = onChannelListChanged
-  }, [onChannelListChanged])
+    onSocketEventRef.current = onSocketEvent
+  }, [onSocketEvent])
 
   useEffect(() => {
-    refreshOnMessageRef.current = refreshOnMessage
-  }, [refreshOnMessage])
+    onSyncErrorRef.current = onSyncError
+  }, [onSyncError])
 
-  const wsSend = useCallback((event: string, data: Record<string, unknown>) => {
-    const ws = wsRef.current
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ event, data }))
+  const filterMessages = useCallback((items: ChannelMessage[]) => {
+    const accept = acceptMessageRef.current
+    return accept ? items.filter(accept) : items
+  }, [])
+
+  const mergeMessages = useCallback(
+    (
+      previous: ChannelMessage[],
+      incoming: ChannelMessage[],
+      replacePending = true
+    ) => {
+      const next = [...previous]
+      for (const message of filterMessages(incoming)) {
+        const key = getMessageKeyRef.current(message)
+        if (replacePending) {
+          const pendingIndex = next.findIndex(
+            item =>
+              item.pending &&
+              item.author?.toLowerCase() === message.author?.toLowerCase() &&
+              item.content === message.content
+          )
+          if (pendingIndex !== -1) {
+            next[pendingIndex] = { ...message, id: message.id || key }
+            continue
+          }
+        }
+        if (next.some(item => getMessageKeyRef.current(item) === key)) continue
+        next.push({ ...message, id: message.id || key })
+      }
+      return next
+    },
+    [filterMessages]
+  )
+
+  const wsSend = useCallback((event: string, data: unknown) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ event, data }))
     }
   }, [])
 
-  const refreshPeers = useCallback(async () => {
-    if (!enabled || !channelNameRef.current) return
-    try {
-      const nextPeers = await channelApi.getChannelPeers(channelNameRef.current)
-      setPeers(nextPeers)
-    } catch {
-      setPeers([])
-    }
-  }, [enabled])
+  const subscribe = useCallback(
+    (name: string) => {
+      if (!name) return
+      wsSend('channel:subscribe', { channel: name })
+    },
+    [wsSend]
+  )
 
-  const refreshMessages = useCallback(async () => {
-    if (!enabled || !channelNameRef.current) return
-    const nextMessages = await channelApi.getChannelMessages(
-      channelNameRef.current,
-      limit
-    )
-    setMessages(nextMessages)
-    await refreshPeers()
-  }, [enabled, limit, refreshPeers])
+  const unsubscribe = useCallback(
+    (name: string) => {
+      if (!name) return
+      wsSend('channel:unsubscribe', { channel: name })
+    },
+    [wsSend]
+  )
+
+  const syncMessages = useCallback(
+    async (name = channelNameRef.current, options: { replace?: boolean } = {}) => {
+      if (!name || !isReady) return []
+      try {
+        const result = filterMessages(
+          await channelApi.getChannelMessages(name, limit)
+        )
+        setMessages(prev =>
+          options.replace ? result : mergeMessages(prev, result, false)
+        )
+        return result
+      } catch (err) {
+        if (options.replace) setMessages([])
+        await onSyncErrorRef.current?.(err)
+        return []
+      }
+    },
+    [filterMessages, isReady, limit, mergeMessages]
+  )
 
   useEffect(() => {
-    mountedRef.current = true
-    return () => {
-      mountedRef.current = false
+    peerIdRef.current = peerId
+    if (!peerId) return
+    wsSend('register', { peerId })
+    if (waitForPeerId && channelNameRef.current) {
+      subscribe(channelNameRef.current)
+      void syncMessages(channelNameRef.current, { replace: true })
     }
+  }, [peerId, subscribe, syncMessages, waitForPeerId, wsSend])
+
+  const clearMessages = useCallback(() => {
+    setMessages([])
   }, [])
 
+  const sendMessage = useCallback(
+    async ({
+      channelName: targetChannel = channelNameRef.current,
+      content,
+      author,
+      authorName,
+      avatar,
+      attachment,
+      optimisticId,
+    }: SendChannelMessageOptions) => {
+      const trimmed = content.trim()
+      if (!targetChannel || !trimmed) return null
+      const optimistic: ChannelMessage = {
+        id:
+          optimisticId ||
+          `${author}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        author,
+        authorName,
+        content: trimmed,
+        timestamp: Date.now(),
+        pending: true,
+        attachment,
+      }
+      setMessages(prev => [...prev, optimistic])
+      try {
+        const result = await channelApi.sendChannelMessage({
+          channelName: targetChannel,
+          content: trimmed,
+          author,
+          authorName,
+          avatar,
+          attachment,
+        })
+        setMessages(prev =>
+          prev.map(item =>
+            item.id === optimistic.id
+              ? {
+                  ...result.message,
+                  id:
+                    result.message.id ||
+                    getMessageKeyRef.current(result.message),
+                }
+              : item
+          )
+        )
+        return result.message
+      } catch (err) {
+        setMessages(prev => prev.filter(item => item.id !== optimistic.id))
+        throw err
+      }
+    },
+    []
+  )
+
   useEffect(() => {
-    if (!enabled) {
-      setMyPeerId('')
-      return
+    const previous = channelNameRef.current
+    channelNameRef.current = channelName
+    if (previous && previous !== channelName) {
+      unsubscribe(previous)
     }
-
-    api
-      .get('/api/node-id')
-      .json<{ id: string }>()
-      .then(data => {
-        if (mountedRef.current) setMyPeerId(data.id)
-      })
-      .catch(() => {
-        if (mountedRef.current) setMyPeerId('')
-      })
-  }, [enabled])
-
-  useEffect(() => {
-    if (!enabled || !myPeerId) return
-    wsSend('register', { peerId: myPeerId })
-  }, [enabled, myPeerId, wsSend])
-
-  useEffect(() => {
-    if (!enabled || !channelName) {
-      setMessages([])
-      setPeers([])
-      return
+    if (!channelName || !isReady || !enabled) return
+    void syncMessages(channelName, { replace: true })
+    if (!waitForPeerId || peerIdRef.current) {
+      subscribe(channelName)
     }
-    void refreshMessages()
-    wsSend('channel:subscribe', { channel: channelName })
-    return () => {
-      wsSend('channel:unsubscribe', { channel: channelName })
-    }
-  }, [channelName, enabled, refreshMessages, wsSend])
+    return () => unsubscribe(channelName)
+  }, [
+    channelName,
+    enabled,
+    isReady,
+    subscribe,
+    syncMessages,
+    unsubscribe,
+    waitForPeerId,
+  ])
 
   useEffect(() => {
-    if (!enabled) {
-      wsRef.current?.close()
+    if (!isReady || !enabled) {
       setConnected(false)
       return
     }
-
     let closed = false
+    reconnectAttemptRef.current = 0
 
     async function connectWs() {
       const ws = new WebSocket(await getAuthenticatedWebSocketUrl('/ws'))
-      wsRef.current = ws
-
+      if (closed) {
+        ws.close()
+        return
+      }
       ws.onopen = () => {
         setConnected(true)
         reconnectAttemptRef.current = 0
-        if (myPeerId) {
-          ws.send(JSON.stringify({ event: 'register', data: { peerId: myPeerId } }))
-        }
-        if (channelNameRef.current) {
+        if (peerIdRef.current) {
           ws.send(
             JSON.stringify({
-              event: 'channel:subscribe',
-              data: { channel: channelNameRef.current },
+              event: 'register',
+              data: { peerId: peerIdRef.current },
             })
           )
-          void refreshMessages()
+        }
+        if (
+          channelNameRef.current &&
+          (!waitForPeerId || peerIdRef.current)
+        ) {
+          subscribe(channelNameRef.current)
+          void syncMessages(channelNameRef.current, { replace: true })
         }
       }
-
       ws.onmessage = event => {
         try {
-          const { event: wsEvent, data } = JSON.parse(event.data)
-          if (wsEvent === 'channel:message' && data.channel === channelNameRef.current) {
-            setMessages(previous => {
-              const incoming = data.message as ChannelMessage
-              const pendingIndex = previous.findIndex(
-                message =>
-                  message.pending &&
-                  message.author === incoming.author &&
-                  message.content === incoming.content
-              )
-              if (pendingIndex !== -1) {
-                const updated = [...previous]
-                updated[pendingIndex] = incoming
-                return updated
-              }
-              return mergeMessages(previous, [incoming])
-            })
-            void refreshPeers()
-            if (refreshOnMessageRef.current && !messageRefreshTimeoutRef.current) {
-              messageRefreshTimeoutRef.current = setTimeout(() => {
-                messageRefreshTimeoutRef.current = null
-                void refreshMessages()
-              }, 120)
-            }
-          }
-
+          const payload = JSON.parse(event.data)
+          onSocketEventRef.current?.(payload.event, payload.data)
           if (
-            wsEvent === 'channel:peer:online' ||
-            wsEvent === 'channel:peer:offline'
+            payload.event === 'channel:message' &&
+            payload.data?.channel === channelNameRef.current &&
+            payload.data?.message
           ) {
-            void refreshPeers()
+            setMessages(prev => mergeMessages(prev, [payload.data.message]))
           }
-
-          if (wsEvent === 'channel:joined' || wsEvent === 'channel:left') {
-            onChannelListChangedRef.current?.()
-          }
-
-          onEventRef.current?.(wsEvent, data)
-        } catch (error) {
-          console.warn('[Channel WS] Failed to parse message:', error)
-        }
+        } catch {}
       }
-
       ws.onclose = () => {
         setConnected(false)
-        if (closed || !mountedRef.current) return
+        if (closed) return
         const attempt = reconnectAttemptRef.current
         if (attempt >= 20) return
-        const delay = Math.min(3000 * Math.pow(2, attempt), 30000)
+        const delay = Math.min(
+          reconnectBaseDelay * Math.pow(2, attempt),
+          30000
+        )
         reconnectAttemptRef.current = attempt + 1
-        reconnectTimeoutRef.current = setTimeout(connectWs, delay)
+        reconnectTimerRef.current = setTimeout(connectWs, delay)
       }
-
-      ws.onerror = () => {
-        ws.close()
-      }
+      ws.onerror = () => ws.close()
+      wsRef.current = ws
     }
 
     void connectWs()
 
     return () => {
       closed = true
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current)
-      }
-      if (messageRefreshTimeoutRef.current) {
-        clearTimeout(messageRefreshTimeoutRef.current)
-        messageRefreshTimeoutRef.current = null
-      }
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current)
       wsRef.current?.close()
+      wsRef.current = null
     }
-  }, [enabled, myPeerId, refreshMessages, refreshPeers])
-
-  const sendMessage = useCallback(
-    async (content: string, attachment?: ChannelAttachment) => {
-      if (!enabled || !channelName || !author || !authorName) {
-        throw new Error('频道未连接或未登录')
-      }
-      const optimisticId = `${author}-${Date.now()}-${Math.random().toString(36).slice(2)}`
-      const optimisticMessage: ChannelMessage = {
-        id: optimisticId,
-        author,
-        authorName,
-        content,
-        timestamp: Date.now(),
-        pending: true,
-        attachment,
-      }
-      setMessages(previous => mergeMessages(previous, [optimisticMessage]))
-
-      try {
-        const result = await channelApi.sendChannelMessage(
-          channelName,
-          content,
-          author,
-          authorName,
-          attachment
-        )
-        setMessages(previous =>
-          previous.map(message =>
-            message.id === optimisticId ? result.message : message
-          )
-        )
-        return result.message
-      } catch (error) {
-        setMessages(previous => previous.filter(message => message.id !== optimisticId))
-        throw error
-      }
-    },
-    [author, authorName, channelName, enabled]
-  )
+  }, [
+    enabled,
+    isReady,
+    mergeMessages,
+    reconnectBaseDelay,
+    subscribe,
+    syncMessages,
+    waitForPeerId,
+  ])
 
   return {
-    messages,
-    setMessages,
-    peers,
+    clearMessages,
     connected,
-    myPeerId,
-    refreshMessages,
-    refreshPeers,
+    messages,
     sendMessage,
+    setMessages,
+    syncMessages,
   }
 }

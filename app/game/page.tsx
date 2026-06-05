@@ -1,1 +1,5 @@
-export { default } from '../gandengyan/page'
+import { redirect } from 'next/navigation'
+
+export default function GamePage() {
+  redirect('/game/gandengyan/')
+}

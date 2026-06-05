@@ -46,6 +46,7 @@ export async function parseMultipartBusboy(req, maxUploadSize = MAX_FILE_SIZE) {
 
     const busboy = Busboy({
       headers: req.headers,
+      preservePath: true,
       limits: {
         fileSize: maxUploadSize,
         files: 1,

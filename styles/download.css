@@ -71,6 +71,11 @@
   font-size: 14px;
 }
 
+.download-source-tabs {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  justify-self: center;
+}
+
 .download-platform-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -193,19 +198,6 @@
   gap: 8px;
 }
 
-.download-platform-fallback {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--text-secondary);
-  font-size: 13px;
-  text-decoration: none;
-}
-
-.download-platform-fallback:hover {
-  color: var(--accent);
-}
-
 .download-recommended-badge {
   position: absolute;
   top: 16px;
@@ -286,6 +278,10 @@
   .download-platform-grid {
     grid-template-columns: 1fr;
     gap: 16px;
+  }
+
+  .download-source-tabs {
+    width: 100%;
   }
 
   .download-platform-card {

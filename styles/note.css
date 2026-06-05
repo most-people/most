@@ -63,8 +63,6 @@
 
 .note-sync-status {
   padding: 10px;
-  color: var(--text-secondary);
-  background: var(--glass-bg-subtle);
 }
 
 .note-sync-status.conflict {
@@ -74,18 +72,8 @@
 .note-sync-status-icon {
   width: 30px;
   height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   flex: 0 0 auto;
   border-radius: 8px;
-  color: var(--accent);
-  background: var(--accent-soft);
-}
-
-.note-sync-status.conflict .note-sync-status-icon {
-  color: var(--warning);
-  background: rgba(255, 149, 0, 0.14);
 }
 
 .note-sync-status span:last-child {
@@ -345,89 +333,19 @@
 }
 
 .note-list-item {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: center;
-  gap: 6px;
-  border: 1px solid transparent;
   border-radius: 8px;
-  background: transparent;
-  transition:
-    background var(--transition-fast),
-    border-color var(--transition-fast);
-}
-
-.note-list-item:hover,
-.note-list-item.active {
-  border-color: var(--glass-border);
-  background: var(--glass-bg-subtle);
-}
-
-.note-list-item.active {
-  border-color: var(--accent);
-  background: var(--accent-soft);
 }
 
 .note-list-item-main {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
   padding: 9px 8px;
-  border: 0;
-  background: transparent;
-  color: var(--text-primary);
-  text-align: left;
 }
 
 .note-list-icon {
-  width: 34px;
-  height: 34px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   border-radius: 8px;
-  color: var(--accent);
-  background: var(--accent-soft);
-}
-
-.note-list-item-main.folder .note-list-icon {
-  color: var(--warning);
-  background: rgba(255, 149, 0, 0.14);
-}
-
-.note-list-copy {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.note-list-name,
-.note-list-preview,
-.note-list-date {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.note-list-name {
-  color: var(--text-primary);
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.note-list-preview,
-.note-list-date {
-  color: var(--text-secondary);
-  font-size: 12px;
 }
 
 .note-list-date {
   max-width: 58px;
-  text-align: right;
 }
 
 .note-editor-panel {
@@ -686,14 +604,7 @@
 .note-editor-loading,
 .note-editor-empty {
   min-height: 260px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
   padding: 24px;
-  color: var(--text-secondary);
-  text-align: center;
 }
 
 .note-editor-empty {
@@ -701,17 +612,9 @@
   background: var(--glass-bg-solid);
 }
 
-.note-editor-empty h3 {
-  color: var(--text-primary);
-  font-size: 18px;
-}
-
 .note-editor-empty-icon {
   width: 56px;
   height: 56px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   border-radius: 8px;
   color: var(--accent);
   background: var(--accent-soft);

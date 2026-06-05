@@ -1,5 +1,5 @@
-import { api, getApiUrl } from '~/server/src/utils/api'
 import type { FileSubtype } from '~/lib/filePreview'
+import { api, getApiUrl } from '~/server/src/utils/api'
 
 export interface ChannelAttachment {
   kind: FileSubtype
@@ -30,49 +30,123 @@ export interface Channel {
   peerCount?: number
 }
 
+export interface ChannelMember {
+  address: string
+  displayName: string
+  avatar?: string
+  joinedAt: string
+}
+
 export interface SendMessageResult {
   message: ChannelMessage
 }
 
+export interface GetChannelsOptions {
+  type?: string
+  excludeType?: string
+}
+
+export interface SendChannelMessageInput {
+  channelName: string
+  content: string
+  author: string
+  authorName: string
+  avatar?: string
+  attachment?: ChannelAttachment
+}
+
+export interface ChannelProfileInput {
+  displayName?: string
+  avatar?: string
+}
+
+export interface SetChannelRemarkResult {
+  success: boolean
+  remark: string
+}
+
+export interface CreateChannelResult extends Channel {
+  success?: boolean
+  key?: string
+}
+
 export const channelApi = {
-  getChannels: () => api.get<Channel[]>('/api/channels').json(),
-  createChannel: (name: string, type: string) =>
-    api.post('/api/channels', { json: { name, type } }).json(),
-  leaveChannel: (name: string) =>
-    api.delete(`/api/channels/${encodeURIComponent(name)}`).json(),
-  getChannelMessages: (name: string, limit = 100, offset = 0) =>
-    api
-      .get<
-        ChannelMessage[]
-      >(`/api/channels/${encodeURIComponent(name)}/messages?limit=${limit}&offset=${offset}`)
-      .json(),
-  sendChannelMessage: (
+  getChannels(options: GetChannelsOptions = {}) {
+    const params = new URLSearchParams()
+    if (options.type) params.set('type', options.type)
+    if (options.excludeType) params.set('excludeType', options.excludeType)
+    const query = params.toString()
+    return api
+      .get<Channel[]>(query ? `/api/channels?${query}` : '/api/channels')
+      .json()
+  },
+
+  createChannel(
     name: string,
-    content: string,
-    author: string,
-    authorName: string,
-    attachment?: ChannelAttachment
-  ) =>
-    api
+    type = 'personal',
+    profile: ChannelProfileInput = {}
+  ) {
+    return api
+      .post<CreateChannelResult>('/api/channels', {
+        json: { name, type, ...profile },
+      })
+      .json()
+  },
+
+  leaveChannel(name: string) {
+    return api.delete(`/api/channels/${encodeURIComponent(name)}`).json()
+  },
+
+  getChannelMessages(name: string, limit = 100, offset = 0) {
+    return api
+      .get<ChannelMessage[]>(
+        `/api/channels/${encodeURIComponent(name)}/messages?limit=${limit}&offset=${offset}`
+      )
+      .json()
+  },
+
+  sendChannelMessage({
+    channelName,
+    content,
+    author,
+    authorName,
+    avatar,
+    attachment,
+  }: SendChannelMessageInput) {
+    return api
       .post<SendMessageResult>(
-        `/api/channels/${encodeURIComponent(name)}/messages`,
+        `/api/channels/${encodeURIComponent(channelName)}/messages`,
         {
           json: attachment
-            ? { content, author, authorName, attachment }
-            : { content, author, authorName },
+            ? { content, author, authorName, avatar, attachment }
+            : { content, author, authorName, avatar },
         }
       )
-      .json(),
-  getChannelPeers: (name: string) =>
-    api.get<string[]>(`/api/channels/${encodeURIComponent(name)}/peers`).json(),
-  setChannelRemark: (name: string, remark: string) =>
-    api
-      .put<{
-        success: boolean
-        remark: string
-      }>(`/api/channels/${encodeURIComponent(name)}/remark`, {
-        json: { remark },
-      })
-      .json(),
-  getFileDownloadUrl: (cid: string) => getApiUrl(`/api/files/${cid}/download`),
+      .json()
+  },
+
+  getChannelMembers(name: string) {
+    return api
+      .get<ChannelMember[]>(`/api/channels/${encodeURIComponent(name)}/members`)
+      .json()
+  },
+
+  getChannelPeers(name: string) {
+    return api
+      .get<string[]>(`/api/channels/${encodeURIComponent(name)}/peers`)
+      .json()
+  },
+
+  setChannelRemark(name: string, remark: string) {
+    return api
+      .put<SetChannelRemarkResult>(
+        `/api/channels/${encodeURIComponent(name)}/remark`,
+        { json: { remark } }
+      )
+      .json()
+  },
+
+  getFileDownloadUrl(cid: string) {
+    return getApiUrl(`/api/files/${cid}/download`)
+  },
 }

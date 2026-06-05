@@ -672,16 +672,16 @@ export function createApp(engine, options = {}) {
       return c.json({ error: parsed.error }, 400)
     }
 
-    const existingFile = engine
-      .getPublishedFiles({ ownerAddress: c.get('userAddress') })
-      .find(f => f.cid === parsed.cid)
-    if (existingFile) {
+    const localAvailability = await engine.getLocalCidAvailability(body.link, {
+      ownerAddress: c.get('userAddress'),
+    })
+    if (localAvailability) {
       return c.json({
         success: true,
         available: true,
         cid: parsed.cid,
-        fileName: existingFile.fileName,
-        size: Number(existingFile.size) || null,
+        fileName: localAvailability.fileName,
+        size: Number(localAvailability.size) || null,
         alreadyExists: true,
       })
     }
@@ -697,8 +697,11 @@ export function createApp(engine, options = {}) {
     }
 
     try {
+      const timeout =
+        body.timeout === undefined ? undefined : Number(body.timeout)
       const result = await engine.checkDownloadAvailability(body.link, {
         ownerAddress: c.get('userAddress'),
+        timeout: Number.isFinite(timeout) && timeout > 0 ? timeout : undefined,
       })
       return c.json({ success: true, ...result })
     } catch (err) {
@@ -719,11 +722,13 @@ export function createApp(engine, options = {}) {
       return c.json({ error: parsed.error }, 400)
     }
 
-    const existingFile = engine
-      .getPublishedFiles({ ownerAddress: c.get('userAddress') })
-      .find(f => f.cid === parsed.cid)
-    if (existingFile) {
-      console.log(`[MostBox] File already exists: ${existingFile.fileName}`)
+    const localAvailability = await engine.getLocalCidAvailability(body.link, {
+      ownerAddress: c.get('userAddress'),
+    })
+    if (localAvailability) {
+      console.log(
+        `[MostBox] CID content already exists locally: ${parsed.cid}`
+      )
       try {
         const result = await engine.downloadFile(body.link, taskId, {
           ownerAddress: c.get('userAddress'),
@@ -801,7 +806,7 @@ export function createApp(engine, options = {}) {
       })
       return c.json({ success: true, ...result })
     } catch (err) {
-      return c.json({ error: err.message }, 400)
+      return badRequestOrAppError(c, err)
     }
   })
 
@@ -950,7 +955,11 @@ export function createApp(engine, options = {}) {
       const result = await engine.createChannel(
         body.name.trim(),
         body.type || 'personal',
-        { ownerAddress: c.get('userAddress') }
+        {
+          ownerAddress: c.get('userAddress'),
+          displayName: body.displayName,
+          avatar: body.avatar,
+        }
       )
       return c.json({ success: true, ...result })
     } catch (err) {
@@ -959,7 +968,13 @@ export function createApp(engine, options = {}) {
   })
 
   app.get('/api/channels', c => {
-    return c.json(engine.listChannels({ ownerAddress: c.get('userAddress') }))
+    return c.json(
+      engine.listChannels({
+        ownerAddress: c.get('userAddress'),
+        type: c.req.query('type'),
+        excludeType: c.req.query('excludeType'),
+      })
+    )
   })
 
   app.delete('/api/channels/:name', async c => {
@@ -990,6 +1005,18 @@ export function createApp(engine, options = {}) {
     }
   })
 
+  app.get('/api/channels/:name/members', c => {
+    try {
+      return c.json(
+        engine.getChannelMembers(c.req.param('name'), {
+          ownerAddress: c.get('userAddress'),
+        })
+      )
+    } catch (err) {
+      return badRequestOrAppError(c, err)
+    }
+  })
+
   app.post('/api/channels/:name/messages', async c => {
     const name = c.req.param('name')
     const body = await c.req.json()
@@ -1014,7 +1041,11 @@ export function createApp(engine, options = {}) {
         body.content,
         body.author,
         body.authorName,
-        { ownerAddress: c.get('userAddress'), attachment: body.attachment }
+        {
+          ownerAddress: c.get('userAddress'),
+          attachment: body.attachment,
+          avatar: body.avatar,
+        }
       )
       return c.json({ success: true, message })
     } catch (err) {
@@ -1065,7 +1096,7 @@ export function createApp(engine, options = {}) {
       })
       return c.json({ success: true, ...result })
     } catch (err) {
-      return c.json({ error: err.message }, 400)
+      return badRequestOrAppError(c, err)
     }
   })
 
