@@ -50,15 +50,15 @@ const features: FeatureDef[] = [
     path: '/app/',
     requiresBackend: true,
     hero: 'P2P 文件分享，无需注册',
-    desc: '基于 Hyperswarm 的去中心化文件传输，让文件分享回归点对点。MostBox 不是云盘；链接来自 CID，可用性来自当前在线种子。',
+    desc: '基于 Hyperswarm 的去中心化文件传输，让文件分享回归点对点。MostBox 不是云盘；链接来自 CID，可用性来自当前在线种子。当前 MVP 优先使用桌面客户端。',
     features: [
-      '无需注册，打开浏览器即用',
+      '无需云端账号，使用本地身份隔离数据',
       'Hyperswarm P2P 直连传输',
       'GB 级大文件流式处理',
       '相同文件 = 相同 CID，链接可反复校验',
       '下载完成后默认继续做种',
       '相比微信、QQ 或网盘，不依赖中心化账号和云端托管',
-      'Web 端负责展示，完整发布、下载和持续做种依赖桌面客户端',
+      'Web 端只连接已有节点，桌面端提供完整 P2P 能力',
       'MIT 开源，自托管，数据完全自主掌控',
     ],
     steps: [
@@ -72,7 +72,7 @@ const features: FeatureDef[] = [
       {
         num: '2',
         title: '安装并运行',
-        desc: '安装后打开应用，即可使用。',
+        desc: '安装后打开应用，无需单独安装 Node.js。',
       },
       {
         num: '3',
@@ -301,7 +301,7 @@ export default function FeaturePortal() {
           <div className="portal-node-actions" aria-label="节点入口">
             <button onClick={openConnectModal} className="btn btn-secondary">
               <Server size={16} />
-              连接节点
+              Web 连接节点
             </button>
             <Link href="/admin" className="btn btn-secondary">
               <HardDrive size={16} />
@@ -370,7 +370,7 @@ export default function FeaturePortal() {
                       className="btn btn-secondary"
                     >
                       <Server size={16} />
-                      连接节点
+                      Web 连接节点
                     </button>
                     <Link href="/download" className="btn btn-secondary">
                       <Download size={16} />

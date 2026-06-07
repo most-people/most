@@ -45,13 +45,13 @@ export function Nav() {
             </button>
             <Link
               href="/download/"
-              className="btn btn-secondary mkt-nav-preview"
+              className="btn btn-primary mkt-nav-preview"
             >
               <Download size={16} />
-              下载客户端
+              下载桌面端
             </Link>
-            <Link href="/app/" className="btn btn-primary">
-              开始使用
+            <Link href="/app/" className="btn btn-secondary">
+              打开 Web
             </Link>
           </div>
         </div>

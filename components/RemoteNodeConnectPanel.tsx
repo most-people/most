@@ -40,7 +40,7 @@ export default function RemoteNodeConnectPanel({
   const [isConnecting, setIsConnecting] = useState(false)
   const title = remoteBackendUrl ? '修改远程节点' : '连接远程节点'
   const hint =
-    '输入别人部署好的 MostBox 节点地址和邀请码，无需安装客户端即可使用文件分享和聊天。'
+    'Web 端只连接已有 MostBox 节点。输入别人部署好的节点地址和邀请码后，可通过该节点使用文件分享和聊天；本机完整 P2P 能力请使用桌面客户端。'
   const isPage = variant === 'page'
 
   async function handleConnectRemote() {

@@ -20,13 +20,19 @@
 
 ## 演示
 
-在线体验：[Most.Box](https://Most.Box)
+在线 Web 入口：[Most.Box](https://Most.Box)
+
+> Web 入口只负责连接已有 MostBox 节点；要在本机发布、下载、校验和持续做种，优先使用桌面客户端，或在本机运行 `npx most-box@latest` 启动完整节点。
 
 ## 🚀 立即使用
 
-### 方式一：npm 包（推荐）
+### 方式一：桌面客户端（推荐）
 
-打开终端，运行：
+前往 [Most.Box 下载页](https://Most.Box/download) 下载客户端，支持 Windows、macOS 和 Linux。桌面端内置本地 MostBox 节点，提供完整 P2P 文件分享、下载校验和持续做种能力，无需单独安装 Node.js。
+
+### 方式二：npm 包
+
+适合开发、自托管或临时启动本机节点。请先安装 Node.js >= 22.12，然后运行：
 
 ```bash
 npx most-box@latest
@@ -36,15 +42,12 @@ npx most-box@latest
 
 浏览器自动访问 **http://localhost:1976**
 
-### 方式二：桌面客户端
-
-前往 [Most.Box](https://Most.Box/download) 下载客户端，支持 Windows、macOS 和 Linux。
-
 ## 需求
 
 - 使用桌面客户端：无需单独安装 Node.js。
 - 使用 `npx most-box@latest` 或本地源码开发：建议 Node.js >= 22.12。当前 Next.js 16 需要 Node.js >= 20.9，Electron 42 开发/打包需要 Node.js >= 22.12。
-- MostBox Web 界面会创建本地身份用于本机数据隔离和 API 签名；这不是云端注册账号。
+- MostBox Web 界面只连接已有节点；在线入口或单独打开的浏览器页面不会替你启动 P2P 节点。
+- MostBox 会创建本地身份用于本机数据隔离和 API 签名；这不是云端注册账号。
 
 ## 开发
 
@@ -67,7 +70,7 @@ npm run test:unit # 只运行单元测试
 
 | 场景     | 方式                                  | 访问地址                |
 | -------- | ------------------------------------- | ----------------------- |
-| 本地     | `npx most-box`                        | `http://localhost:1976` |
+| 本地     | 桌面客户端或 `npx most-box@latest`    | `http://localhost:1976` |
 | 远程管理 | SSH 隧道 + `/admin/`                  | `http://localhost:1976` |
 | 外网     | Caddy 反向代理                        | `https://your-domain`   |
 
@@ -126,7 +129,7 @@ mostbox.example.com {
 
 ### 如何分享文件给其他人？
 
-1. 打开 MostBox Web 界面
+1. 打开 MostBox 桌面客户端，或运行 `npx most-box@latest` 后打开本机 Web 界面
 2. 使用本地身份登录
 3. 上传文件或文件夹
 4. 点击「复制链接」获取 `most://<cid>` 链接
@@ -163,15 +166,17 @@ mostbox.example.com {
 
 ### 如何在其他设备上下载文件？
 
-使用桌面客户端，或确保设备已安装 Node.js >= 22.12 后运行：
+优先安装桌面客户端；桌面端内置完整 P2P 节点，无需 Node.js。
+
+如果要用 npm 入口，请确保设备已安装 Node.js >= 22.12 后运行：
 
 ```bash
-npx most-box
+npx most-box@latest
 ```
 
 浏览器访问 `http://localhost:1976`，输入链接即可下载。
 
-或者前往 [Most.Box](https://Most.Box/download) 下载客户端。
+在线 Web 入口只能连接已有节点；它本身不提供本机发布、下载校验或持续做种能力。
 
 ## 路线图
 
