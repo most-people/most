@@ -1692,5 +1692,32 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         fs.rmSync(restartTmpDir, { recursive: true, force: true })
       }
     })
+
+    it('does not persist transient game channels', async () => {
+      const restartTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-game-channel-persist-')
+      )
+      const restartDataPath = path.join(restartTmpDir, 'data')
+      const chatChannelName = `persist-chat-${uid}`
+      const gameChannelName = gameRoomCodeToChannelName('gandengyan', 'ABCD12')
+      const restartEngine = new MostBoxEngine({
+        dataPath: restartDataPath,
+        disableNetwork: true,
+      })
+
+      try {
+        await restartEngine.start()
+        await restartEngine.createChannel(chatChannelName, 'public')
+        await restartEngine.createChannel(gameChannelName, GAME_CHANNEL_TYPE)
+        let metadata = JSON.parse(
+          fs.readFileSync(path.join(restartDataPath, 'channels.json'), 'utf-8')
+        )
+        assert.ok(metadata.some(c => c.name === chatChannelName))
+        assert.ok(!metadata.some(c => c.name === gameChannelName))
+      } finally {
+        await restartEngine.stop().catch(() => {})
+        fs.rmSync(restartTmpDir, { recursive: true, force: true })
+      }
+    })
   })
 })

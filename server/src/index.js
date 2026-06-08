@@ -67,6 +67,7 @@ import {
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 const CHAT_FILE_ROOT = 'chat-file'
+const TRANSIENT_CHANNEL_TYPES = new Set(['game'])
 
 function normalizeOwnerAddress(address) {
   const value = String(address || '').trim()
@@ -3181,7 +3182,13 @@ export class MostBoxEngine extends EventEmitter {
   #saveChannelsMetadata() {
     try {
       const metadataPath = this.#getChannelsMetadataPath()
-      this.#atomicWrite(metadataPath, JSON.stringify(this.#channels, null, 2))
+      const persistentChannels = this.#channels.filter(
+        channel => !TRANSIENT_CHANNEL_TYPES.has(channel?.type)
+      )
+      this.#atomicWrite(
+        metadataPath,
+        JSON.stringify(persistentChannels, null, 2)
+      )
     } catch (err) {
       console.error('Failed to save channels metadata:', err.message)
     }
