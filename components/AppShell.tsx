@@ -26,6 +26,7 @@ interface AppShellProps {
   }) => React.ReactNode
   headerTitle?: React.ReactNode
   headerRight?: React.ReactNode
+  hideSidebar?: boolean
   children: React.ReactNode
 }
 
@@ -33,6 +34,7 @@ export default function AppShell({
   sidebar,
   headerTitle,
   headerRight,
+  hideSidebar = false,
   children,
 }: AppShellProps) {
   const [isSidebarOpen, sidebarCtl] = useDisclosure(false)
@@ -40,6 +42,7 @@ export default function AppShell({
   const isMobile = useMediaQuery('(max-width: 768px)')
 
   const handleToggleSidebar = () => {
+    if (hideSidebar) return
     if (isMobile) {
       sidebarCtl.toggle()
     } else {
@@ -48,6 +51,7 @@ export default function AppShell({
   }
 
   const handleOpenSidebar = () => {
+    if (hideSidebar) return
     if (isMobile) {
       sidebarCtl.open()
     } else {
@@ -55,7 +59,11 @@ export default function AppShell({
     }
   }
 
-  const isSidebarVisible = isMobile ? isSidebarOpen : !isSidebarCollapsed
+  const isSidebarVisible = hideSidebar
+    ? false
+    : isMobile
+      ? isSidebarOpen
+      : !isSidebarCollapsed
 
   return (
     <AppShellContext.Provider
@@ -66,36 +74,42 @@ export default function AppShell({
       }}
     >
       <div className="app-layout">
-        <div
-          className={`sidebar-overlay ${isSidebarOpen ? 'visible' : ''}`}
-          onClick={() => sidebarCtl.close()}
-        />
+        {!hideSidebar && (
+          <div
+            className={`sidebar-overlay ${isSidebarOpen ? 'visible' : ''}`}
+            onClick={() => sidebarCtl.close()}
+          />
+        )}
 
-        <div
-          className={`sidebar ${isSidebarOpen ? 'open' : ''} ${isSidebarCollapsed ? 'collapsed' : ''}`}
-        >
-          {sidebar({
-            closeSidebar: sidebarCtl.close,
-            openSidebar: handleOpenSidebar,
-          })}
-        </div>
+        {!hideSidebar && (
+          <div
+            className={`sidebar ${isSidebarOpen ? 'open' : ''} ${isSidebarCollapsed ? 'collapsed' : ''}`}
+          >
+            {sidebar({
+              closeSidebar: sidebarCtl.close,
+              openSidebar: handleOpenSidebar,
+            })}
+          </div>
+        )}
 
         <div className="main-content">
           <header className="app-header">
             <div className="header-left">
-              <button
-                onClick={handleToggleSidebar}
-                className="btn btn-icon sidebar-toggle-btn"
-                aria-label={
-                  isMobile
-                    ? '打开菜单'
-                    : isSidebarCollapsed
-                      ? '展开侧边栏'
-                      : '收起侧边栏'
-                }
-              >
-                <Menu size={16} />
-              </button>
+              {!hideSidebar && (
+                <button
+                  onClick={handleToggleSidebar}
+                  className="btn btn-icon sidebar-toggle-btn"
+                  aria-label={
+                    isMobile
+                      ? '打开菜单'
+                      : isSidebarCollapsed
+                        ? '展开侧边栏'
+                        : '收起侧边栏'
+                  }
+                >
+                  <Menu size={16} />
+                </button>
+              )}
               {headerTitle}
             </div>
             <div className="header-right">{headerRight}</div>

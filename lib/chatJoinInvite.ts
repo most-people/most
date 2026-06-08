@@ -8,6 +8,7 @@ export interface ChatJoinInvitePayload {
   node_invite?: string
   locale?: string
   uid: string
+  identity?: 'user' | 'service' | 'service_ai'
   avatar?: string
   name?: string
   channels: ChatJoinInviteChannel[]
@@ -34,6 +35,11 @@ export const CHAT_JOIN_INVITE_FIELDS: ChatJoinInviteField[] = [
     name: 'uid',
     required: true,
     description: '作为用户名，密码为空，用于生成账户并自动登录。',
+  },
+  {
+    name: 'identity',
+    required: false,
+    description: '邀请身份类型；user 为普通用户视图。',
   },
   {
     name: 'avatar',

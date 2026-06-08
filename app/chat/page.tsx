@@ -126,6 +126,7 @@ function ChatPage() {
   const openLoginModal = useUserStore(s => s.openLoginModal)
   const [channels, setChannels] = useState<Channel[]>([])
   const [activeChannel, setActiveChannel] = useState<Channel | null>(null)
+  const [requestedChannelName, setRequestedChannelName] = useState('')
   const [channelSearchInput, setChannelSearchInput] = useState('')
   const [channelInput, setChannelInput] = useState('')
   const [showJoinChannel, joinChannelModal] = useDisclosure(false)
@@ -150,6 +151,7 @@ function ChatPage() {
   const [channelMembers, setChannelMembers] = useState<ChannelMember[]>([])
   const [isLoadingChannelMembers, setIsLoadingChannelMembers] = useState(false)
   const [showAddressSuffix, setShowAddressSuffix] = useState(false)
+  const isInviteUser = userIdentity?.identity === 'user'
 
   const channelMessagesEndRef = useRef<HTMLDivElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
@@ -291,6 +293,26 @@ function ChatPage() {
   }
 
   useEffect(() => {
+    const updateRequestedChannelName = () => {
+      setRequestedChannelName(
+        new URLSearchParams(window.location.search).get('channel') || ''
+      )
+    }
+
+    updateRequestedChannelName()
+    window.addEventListener('popstate', updateRequestedChannelName)
+    return () =>
+      window.removeEventListener('popstate', updateRequestedChannelName)
+  }, [])
+
+  useEffect(() => {
+    if (!userIdentity) return
+    setRequestedChannelName(
+      new URLSearchParams(window.location.search).get('channel') || ''
+    )
+  }, [userIdentity?.address])
+
+  useEffect(() => {
     channelMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [channelMessages])
 
@@ -338,11 +360,8 @@ function ChatPage() {
   }, [activeChannel, refreshChannelMembers, showChannelDetail])
 
   useEffect(() => {
-    const channelParam = new URLSearchParams(window.location.search).get(
-      'channel'
-    )
-    if (channelParam && channels.length > 0) {
-      const found = channels.find(c => c.name === channelParam)
+    if (requestedChannelName && channels.length > 0) {
+      const found = channels.find(c => c.name === requestedChannelName)
       if (found && (!activeChannel || activeChannel.name !== found.name)) {
         handleOpenChannel(found)
       } else if (
@@ -357,12 +376,13 @@ function ChatPage() {
         setActiveChannel(found)
       }
     }
-  }, [channels, activeChannel])
+  }, [channels, activeChannel, requestedChannelName])
 
   useEffect(() => {
     if (userIdentity) return
     setChannels([])
     setActiveChannel(null)
+    setRequestedChannelName('')
     clearChannelMessages()
     setChannelInput('')
     setMyPeerId('')
@@ -492,6 +512,7 @@ function ChatPage() {
     if (!requireLogin()) return
     if (!requireBackendReady()) return
     setActiveChannel(channel)
+    setRequestedChannelName(channel.name)
     window.history.pushState(
       {},
       '',
@@ -512,6 +533,7 @@ function ChatPage() {
       await channelApi.leaveChannel(name)
       if (activeChannel?.name === name) {
         setActiveChannel(null)
+        setRequestedChannelName('')
         clearChannelMessages()
         const url = new URL(window.location.href)
         url.searchParams.delete('channel')
@@ -754,6 +776,11 @@ function ChatPage() {
     )
   }
 
+  const isRestoringInviteChannel =
+    isInviteUser &&
+    Boolean(requestedChannelName) &&
+    !activeChannel
+
   const chatHeaderTitle = activeChannel ? (
     <h2 className="header-title">
       {activeChannel.remark || activeChannel.name}
@@ -826,37 +853,42 @@ function ChatPage() {
                 >
                   <MessageSquare size={16} />
                   <span>{channel.remark || channel.name}</span>
-                  <button
-                    className="leave-channel-btn"
-                    onClick={e => {
-                      e.stopPropagation()
-                      setChannelToLeave(channel)
-                      leaveChannelModal.open()
-                    }}
-                    title="退出频道"
-                  >
-                    <X size={14} />
-                  </button>
+                  {!isInviteUser && (
+                    <button
+                      className="leave-channel-btn"
+                      onClick={e => {
+                        e.stopPropagation()
+                        setChannelToLeave(channel)
+                        leaveChannelModal.open()
+                      }}
+                      title="退出频道"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
                 </div>
               ))
             )}
           </nav>
 
-          <button
-            className="ui-action-dashed create-channel-btn"
-            onClick={() => {
-              if (!requireLogin() || !requireBackendReady()) return
-              joinChannelModal.open()
-            }}
-          >
-            <Plus size={16} />
-            加入频道
-          </button>
+          {!isInviteUser && (
+            <button
+              className="ui-action-dashed create-channel-btn"
+              onClick={() => {
+                if (!requireLogin() || !requireBackendReady()) return
+                joinChannelModal.open()
+              }}
+            >
+              <Plus size={16} />
+              加入频道
+            </button>
+          )}
 
           <SidebarAccount />
         </>
       )}
       headerTitle={chatHeaderTitle}
+      hideSidebar={isInviteUser}
       headerRight={
         <div className="header-right-actions">
           <button
@@ -866,7 +898,7 @@ function ChatPage() {
           >
             {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
           </button>
-          {activeChannel && (
+          {activeChannel && !isInviteUser && (
             <button
               className="btn btn-icon"
               onClick={() => setShowChannelDetail(true)}
@@ -1007,6 +1039,14 @@ function ChatPage() {
             </button>
           </div>
         </>
+      ) : isRestoringInviteChannel ? (
+        <div className="ui-empty-state chat-welcome">
+          <div className="ui-empty-icon ui-empty-icon-lg welcome-icon">
+            <Loader size={36} className="ui-spinner" />
+          </div>
+          <h2 className="ui-empty-title">正在打开频道</h2>
+          <p className="ui-empty-desc">正在恢复聊天内容...</p>
+        </div>
       ) : (
         <>
           <div className="ui-empty-state chat-welcome">
@@ -1132,26 +1172,30 @@ function ChatPage() {
                 {renderChannelMembers()}
               </div>
 
-              <div className="channel-detail-section">
-                <label className="setting-switch">
-                  <span>显示 #地址后四位</span>
-                  <input
-                    type="checkbox"
-                    checked={showAddressSuffix}
-                    onChange={e => setShowAddressSuffix(e.target.checked)}
-                  />
-                </label>
-              </div>
+              {!isInviteUser && (
+                <div className="channel-detail-section">
+                  <label className="setting-switch">
+                    <span>显示 #地址后四位</span>
+                    <input
+                      type="checkbox"
+                      checked={showAddressSuffix}
+                      onChange={e => setShowAddressSuffix(e.target.checked)}
+                    />
+                  </label>
+                </div>
+              )}
 
-              <div className="channel-detail-section">
-                <div className="channel-detail-label">
-                  <Hash size={14} />
-                  <span>频道 ID</span>
+              {!isInviteUser && (
+                <div className="channel-detail-section">
+                  <div className="channel-detail-label">
+                    <Hash size={14} />
+                    <span>频道 ID</span>
+                  </div>
+                  <div className="ui-meta-box channel-detail-value channel-detail-mono">
+                    {activeChannel.name}
+                  </div>
                 </div>
-                <div className="ui-meta-box channel-detail-value channel-detail-mono">
-                  {activeChannel.name}
-                </div>
-              </div>
+              )}
 
               <div className="channel-detail-section">
                 <div className="channel-detail-label">
@@ -1190,18 +1234,20 @@ function ChatPage() {
               </div>
             </div>
 
-            <div className="channel-detail-footer">
-              <button
-                className="btn btn-danger btn-block"
-                onClick={() => {
-                  setShowChannelDetail(false)
-                  setChannelToLeave(activeChannel)
-                  leaveChannelModal.open()
-                }}
-              >
-                退出频道
-              </button>
-            </div>
+            {!isInviteUser && (
+              <div className="channel-detail-footer">
+                <button
+                  className="btn btn-danger btn-block"
+                  onClick={() => {
+                    setShowChannelDetail(false)
+                    setChannelToLeave(activeChannel)
+                    leaveChannelModal.open()
+                  }}
+                >
+                  退出频道
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

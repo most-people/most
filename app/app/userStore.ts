@@ -5,6 +5,9 @@ import {
   clearIdentity,
   saveIdentity,
 } from '~/server/src/utils/userIdentity.js'
+import type { ChatJoinInvitePayload } from '~/lib/chatJoinInvite'
+
+type UserIdentityKind = NonNullable<ChatJoinInvitePayload['identity']>
 
 export interface UserIdentity {
   username: string
@@ -12,6 +15,7 @@ export interface UserIdentity {
   danger: string
   displayName?: string
   avatar?: string
+  identity?: UserIdentityKind
 }
 
 interface UserState {
@@ -53,6 +57,12 @@ function normalizeIdentity(input: unknown): UserIdentity | null {
     danger: value.danger,
     displayName: getDisplayName(value as UserIdentity),
     avatar: typeof value.avatar === 'string' ? value.avatar : undefined,
+    identity:
+      value.identity === 'user' ||
+      value.identity === 'service' ||
+      value.identity === 'service_ai'
+        ? value.identity
+        : undefined,
   }
 }
 

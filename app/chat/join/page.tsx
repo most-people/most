@@ -71,6 +71,15 @@ function normalizeOptionalString(value: unknown) {
   return typeof value === 'string' ? value.trim() : ''
 }
 
+function normalizeInviteIdentity(value: unknown) {
+  const identity = normalizeOptionalString(value)
+  return identity === 'user' ||
+    identity === 'service' ||
+    identity === 'service_ai'
+    ? identity
+    : undefined
+}
+
 function normalizeInvitePayload(input: unknown): ChatJoinInvitePayload | null {
   const value = parseNestedJsonText(input)
   if (!isRecord(value)) return null
@@ -92,6 +101,7 @@ function normalizeInvitePayload(input: unknown): ChatJoinInvitePayload | null {
     node_invite: normalizeOptionalString(value.node_invite) || undefined,
     locale: normalizeOptionalString(value.locale) || undefined,
     uid,
+    identity: normalizeInviteIdentity(value.identity),
     avatar: normalizeOptionalString(value.avatar) || undefined,
     name: normalizeOptionalString(value.name) || undefined,
     channels,
@@ -171,6 +181,7 @@ function ChatJoinContent() {
       const identity = createLoginIdentity(invite.uid, '')
       setUserIdentity({
         ...identity,
+        identity: invite.identity,
         displayName: invite.name || identity.displayName,
         avatar: invite.avatar,
       })
