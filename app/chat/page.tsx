@@ -888,7 +888,6 @@ function ChatPage() {
         </>
       )}
       headerTitle={chatHeaderTitle}
-      hideSidebar={isInviteUser}
       headerRight={
         <div className="header-right-actions">
           <button
@@ -898,7 +897,7 @@ function ChatPage() {
           >
             {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
           </button>
-          {activeChannel && !isInviteUser && (
+          {activeChannel && (
             <button
               className="btn btn-icon"
               onClick={() => setShowChannelDetail(true)}
