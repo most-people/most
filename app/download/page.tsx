@@ -35,7 +35,7 @@ export default function DownloadPage() {
           <div className="download-hero-icon">
             <Download size={40} />
           </div>
-          <h1 className="download-hero-title">下载桌面客户端</h1>
+          <h1 className="download-hero-title">下载客户端</h1>
           <p className="download-hero-desc">
             桌面客户端是当前 MVP 的首选入口，内置本地 P2P
             节点，提供发布、下载校验和持续做种的完整能力。Web 端只连接已有

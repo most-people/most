@@ -43,12 +43,9 @@ export function Nav() {
             >
               {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
             </button>
-            <Link
-              href="/download/"
-              className="btn btn-primary mkt-nav-preview"
-            >
+            <Link href="/download/" className="btn btn-primary mkt-nav-preview">
               <Download size={16} />
-              下载桌面端
+              下载客户端
             </Link>
             <Link href="/app/" className="btn btn-secondary">
               打开 Web
