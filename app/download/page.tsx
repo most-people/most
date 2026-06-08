@@ -38,8 +38,8 @@ export default function DownloadPage() {
           <h1 className="download-hero-title">下载桌面客户端</h1>
           <p className="download-hero-desc">
             桌面客户端是当前 MVP 的首选入口，内置本地 P2P
-            节点，提供发布、下载校验和持续做种的完整能力。Web
-            端只连接已有 MostBox 节点。
+            节点，提供发布、下载校验和持续做种的完整能力。Web 端只连接已有
+            MostBox 节点。
           </p>
         </div>
       </section>
@@ -79,11 +79,6 @@ export default function DownloadPage() {
 
       <section className="download-cta">
         <div className="mkt-container">
-          <p className="download-cta-desc">
-            {
-              '桌面端无需单独安装 Node.js；npm 入口请使用 Node.js >= 22.12 运行 npx most-box@latest。'
-            }
-          </p>
           <Link href="/" className="btn btn-primary">
             返回首页
           </Link>

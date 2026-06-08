@@ -73,10 +73,6 @@
   justify-content: flex-end;
 }
 
-.mkt-nav-preview {
-  color: var(--text-secondary);
-}
-
 .mkt-theme-toggle {
   display: flex;
   align-items: center;

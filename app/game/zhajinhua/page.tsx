@@ -273,7 +273,12 @@ export default function ZhajinhuaPage() {
           if (isBot && fullRound.status === 'playing' && sameAddress(fullRound.turnAddress, authorAddr)) {
             const fallbackCall = applyPlayerAction(
               fullRound,
-              createPlayerActionEvent({ roundId: fullRound.roundId, action: 'call' }),
+              createPlayerActionEvent({
+                roundId: fullRound.roundId,
+                action: 'call',
+                amount: undefined,
+                target: undefined,
+              }),
               authorAddr
             )
             if (fallbackCall.ok) {
@@ -281,7 +286,12 @@ export default function ZhajinhuaPage() {
             } else {
               const fallbackFold = applyPlayerAction(
                 fullRound,
-                createPlayerActionEvent({ roundId: fullRound.roundId, action: 'fold' }),
+                createPlayerActionEvent({
+                  roundId: fullRound.roundId,
+                  action: 'fold',
+                  amount: undefined,
+                  target: undefined,
+                }),
                 authorAddr
               )
               if (fallbackFold.ok) result = fallbackFold
