@@ -182,6 +182,45 @@ export function passGanDengYanTurn(room, address) {
   return { ok: true, state: publicGanDengYanRoom(state) }
 }
 
+export function removeGanDengYanPlayer(room, address) {
+  const state = hydrateGanDengYanRoom(room)
+  if (!state) return null
+  const normalizedAddress = normalizeAddress(address)
+  const index = state.players.findIndex(p => p.address === normalizedAddress)
+  if (index === -1) return publicGanDengYanRoom(state)
+  const leaving = state.players[index]
+  const wasCurrentTurn = state.currentSeat === leaving.seat
+  const wasLastWinner = state.lastWinnerSeat === leaving.seat
+  state.players.splice(index, 1)
+  state.passSeats = state.passSeats.filter(seat => seat !== leaving.seat)
+  state.log.unshift(`${leaving.name} 已退出房间`)
+  const remaining = orderedPlayers(state)
+  if (state.status === 'playing') {
+    if (remaining.length <= 1) {
+      if (remaining.length === 1) {
+        finishGame(state, remaining[0])
+      } else {
+        state.status = 'finished'
+        state.log.unshift('玩家不足，本局结束')
+      }
+    } else {
+      if (wasCurrentTurn) {
+        const active = activePlayers(state)
+        if (active.length > 0) {
+          const nextIndex = active.findIndex(p => p.seat > leaving.seat)
+          state.currentSeat = active[nextIndex >= 0 ? nextIndex : 0].seat
+        }
+      }
+      if (wasLastWinner && state.table) {
+        state.table = null
+        state.passSeats = []
+      }
+    }
+  }
+  state.seq += 1
+  return publicGanDengYanRoom(state)
+}
+
 export function publicGanDengYanRoom(room) {
   if (!room) return null
   return {

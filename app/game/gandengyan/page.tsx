@@ -1,14 +1,7 @@
 'use client'
 
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import {
-  Copy,
-  Moon,
-  Play,
-  RotateCcw,
-  Send,
-  Sun,
-} from 'lucide-react'
+import { Copy, Moon, Play, RotateCcw, Send, Sun } from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import GameSidebar from '~/components/GameSidebar'
 import { useGameRoom } from '~/hooks/useGameRoom'
@@ -19,10 +12,14 @@ import {
   createGanDengYanRoom,
   passGanDengYanTurn,
   playGanDengYanCards,
+  removeGanDengYanPlayer,
   startGanDengYanRound,
   syncGanDengYanLobby,
 } from '~/server/src/games/gandengyan.js'
-import { deriveGameRoomLobby, getLatestGameState } from '~/server/src/core/gameRoom.js'
+import {
+  deriveGameRoomLobby,
+  getLatestGameState,
+} from '~/server/src/core/gameRoom.js'
 import styles from './page.module.css'
 
 type Card = {
@@ -54,7 +51,11 @@ type Room = {
   currentSeat: number
   baseScore: number
   bombCount: number
-  table?: { playerName: string; cards: Card[]; combo?: { label: string } } | null
+  table?: {
+    playerName: string
+    cards: Card[]
+    combo?: { label: string }
+  } | null
   winnerSeat: number | null
   roundResult?: {
     winnerSeat: number
@@ -62,7 +63,13 @@ type Room = {
     winnerGain: number
     baseScore: number
     bombCount: number
-    losers: Array<{ seat: number; name: string; loss: number; sealed: boolean; cardsLeft: number }>
+    losers: Array<{
+      seat: number
+      name: string
+      loss: number
+      sealed: boolean
+      cardsLeft: number
+    }>
   } | null
   log: string[]
 }
@@ -78,7 +85,8 @@ function sameAddress(left?: string, right?: string) {
 }
 
 function speak(text: string) {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window) || !text) return
+  if (typeof window === 'undefined' || !('speechSynthesis' in window) || !text)
+    return
   window.speechSynthesis.cancel()
   const utterance = new SpeechSynthesisUtterance(text)
   utterance.lang = 'zh-CN'
@@ -87,7 +95,15 @@ function speak(text: string) {
 }
 
 function pronounce(rank: string) {
-  return rank === 'J' ? '勾' : rank === 'Q' ? '圈' : rank === 'A' ? '坚' : rank === '10' ? '十' : rank
+  return rank === 'J'
+    ? '勾'
+    : rank === 'Q'
+      ? '圈'
+      : rank === 'A'
+        ? '坚'
+        : rank === '10'
+          ? '十'
+          : rank
 }
 
 function getSpeechText(logEntry: string) {
@@ -97,7 +113,9 @@ function getSpeechText(logEntry: string) {
   if (/新一局开始/.test(logEntry)) return '新一局开始'
   if (/获胜/.test(logEntry)) return '游戏结束'
 
-  const playMatch = logEntry.match(/出\s+(\S+?)(?:（([^）]+)）)?\s+(?:[♠♥♣♦]|小王|大王)/)
+  const playMatch = logEntry.match(
+    /出\s+(\S+?)(?:（([^）]+)）)?\s+(?:[♠♥♣♦]|小王|大王)/
+  )
   if (!playMatch) return ''
 
   const type = playMatch[1]
@@ -114,7 +132,7 @@ function getSpeechText(logEntry: string) {
   if (type === '连对') {
     const unique: string[] = []
     for (let i = 0; i < ranks.length; i += 2) unique.push(ranks[i])
-    return unique.map(r => r + r).join('')
+    return '连对 ' + unique.flatMap(r => [r, r]).join(' ')
   }
 
   return type
@@ -173,22 +191,34 @@ export default function GanDengYanPage() {
     () =>
       deriveGameRoomLobby(
         game.messages,
-        game.roomCode ? { gameId: GAME_ID, roomCode: game.roomCode } : { gameId: GAME_ID }
+        game.roomCode
+          ? { gameId: GAME_ID, roomCode: game.roomCode }
+          : { gameId: GAME_ID }
       ),
     [game.messages, game.roomCode]
   )
   const latestStateEvent = useMemo(
-    () => getLatestGameState(game.messages, { gameId: GAME_ID, roomCode: game.roomCode }),
+    () =>
+      getLatestGameState(game.messages, {
+        gameId: GAME_ID,
+        roomCode: game.roomCode,
+      }),
     [game.messages, game.roomCode]
   )
   const room = latestStateEvent?.payload?.state as Room | null
   const me = room?.players.find(player =>
     sameAddress(player.address, game.userIdentity?.address)
   )
-  const isOwner = sameAddress(room?.ownerAddress || lobby.hostAddress, game.userIdentity?.address)
+  const isOwner = sameAddress(
+    room?.ownerAddress || lobby.hostAddress,
+    game.userIdentity?.address
+  )
   const myTurn = room?.status === 'playing' && room.currentSeat === me?.seat
   const selectedCards = useMemo(
-    () => selected.map(id => me?.hand.find(card => card.id === id)).filter(Boolean) as Card[],
+    () =>
+      selected
+        .map(id => me?.hand.find(card => card.id === id))
+        .filter(Boolean) as Card[],
     [selected, me]
   )
   const preview = useMemo(() => analyzeCards(selectedCards), [selectedCards])
@@ -196,7 +226,6 @@ export default function GanDengYanPage() {
     game.roomCode && typeof window !== 'undefined'
       ? `${window.location.origin}/game/gandengyan?room=${game.roomCode}`
       : ''
-  const lowDeck = Boolean(room && room.status === 'playing' && room.deckCount < 3)
   const prevSeqRef = useRef(-1)
   const lastSpokenLogRef = useRef('')
   const spokenFinishedRef = useRef(false)
@@ -244,7 +273,10 @@ export default function GanDengYanPage() {
       ownerName: game.userIdentity.displayName || game.userIdentity.username,
       players: lobby.players,
     })
-    void game.sendRoomEvent('room:state', { state: nextRoom, seq: nextRoom.seq })
+    void game.sendRoomEvent('room:state', {
+      state: nextRoom,
+      seq: nextRoom.seq,
+    })
   }, [game, isOwner, latestStateEvent, lobby.players])
 
   useEffect(() => {
@@ -253,6 +285,34 @@ export default function GanDengYanPage() {
     if (synced && synced.players.length !== room.players.length) {
       void game.sendRoomEvent('room:state', { state: synced, seq: synced.seq })
     }
+  }, [game, isOwner, lobby.players, room])
+
+  const leaveCountRef = useRef(0)
+  const leaveEvents = useMemo(
+    () => game.roomEvents.filter(e => e.event?.event === 'player:leave'),
+    [game.roomEvents]
+  )
+  useEffect(() => {
+    if (leaveEvents.length <= leaveCountRef.current) return
+    const newLeaves = leaveEvents.slice(leaveCountRef.current)
+    leaveCountRef.current = leaveEvents.length
+    for (const item of newLeaves) {
+      const name = item.event?.payload?.player?.name || '玩家'
+      addToast(`${name} 已退出房间`, 'info')
+    }
+  }, [leaveEvents, addToast])
+
+  useEffect(() => {
+    if (!room || !isOwner || room.status !== 'playing') return
+    const lobbyAddresses = new Set(
+      lobby.players.map(p => p.address.toLowerCase())
+    )
+    const missing = room.players.find(
+      p => !lobbyAddresses.has(p.address.toLowerCase())
+    )
+    if (!missing) return
+    const updated = removeGanDengYanPlayer(room, missing.address)
+    if (updated) void publishState(updated as Room)
   }, [game, isOwner, lobby.players, room])
 
   async function createRoom() {
@@ -295,7 +355,11 @@ export default function GanDengYanPage() {
 
   async function playSelected() {
     if (!room || !game.userIdentity) return
-    const result = playGanDengYanCards(room, game.userIdentity.address, selected)
+    const result = playGanDengYanCards(
+      room,
+      game.userIdentity.address,
+      selected
+    )
     if (!result.ok) {
       addToast(result.error || '出牌失败', 'error')
       return
@@ -326,7 +390,7 @@ export default function GanDengYanPage() {
       sidebar={({ closeSidebar }) => (
         <GameSidebar activeGame="gandengyan" closeSidebar={closeSidebar} />
       )}
-      headerTitle={<h2 className="header-title">游戏 · 干瞪眼</h2>}
+      headerTitle={<h2 className="header-title">干瞪眼</h2>}
       headerRight={
         <div className={styles.headerActions}>
           {room && (
@@ -352,7 +416,9 @@ export default function GanDengYanPage() {
               <div className={styles.cardMark}>干</div>
               <div>
                 <h1>干瞪眼牌桌</h1>
-                <p>创建房间码邀请朋友加入，房间状态通过 MostBox P2P 频道同步。</p>
+                <p>
+                  创建房间码邀请朋友加入，房间状态通过 MostBox P2P 频道同步。
+                </p>
               </div>
             </div>
 
@@ -375,7 +441,9 @@ export default function GanDengYanPage() {
                   <input
                     value={roomInput}
                     maxLength={8}
-                    onChange={event => setRoomInput(event.target.value.toUpperCase())}
+                    onChange={event =>
+                      setRoomInput(event.target.value.toUpperCase())
+                    }
                     placeholder="输入房间号"
                   />
                 </label>
@@ -403,7 +471,6 @@ export default function GanDengYanPage() {
                   </span>
                 </div>
                 <div className={styles.badges}>
-                  {lowDeck && <span className={styles.dangerBadge}>牌堆不足 3 张</span>}
                   <span>{game.connected ? '在线' : '离线'}</span>
                 </div>
               </div>
@@ -429,7 +496,8 @@ export default function GanDengYanPage() {
                   {room.table ? (
                     <>
                       <strong>
-                        {room.table.playerName} 出 {room.table.combo?.label || '牌'}
+                        {room.table.playerName} 出{' '}
+                        {room.table.combo?.label || '牌'}
                       </strong>
                       <div className={styles.playedCards}>
                         {room.table.cards.map(card => (
@@ -473,8 +541,9 @@ export default function GanDengYanPage() {
                   '轮到你出牌'
                 ) : (
                   `等待 ${
-                    room.players.find(player => player.seat === room.currentSeat)?.name ||
-                    '玩家'
+                    room.players.find(
+                      player => player.seat === room.currentSeat
+                    )?.name || '玩家'
                   }`
                 )}
               </div>
@@ -525,7 +594,11 @@ export default function GanDengYanPage() {
             </aside>
 
             <div className={styles.handPanel}>
-              <PlayerBadge player={me} active={myTurn} winner={room.winnerSeat === me?.seat} />
+              <PlayerBadge
+                player={me}
+                active={myTurn}
+                winner={room.winnerSeat === me?.seat}
+              />
               <div className={styles.hand}>
                 {me?.hand.map(card => (
                   <button
@@ -541,11 +614,23 @@ export default function GanDengYanPage() {
                 ))}
               </div>
               <div className={styles.actions}>
-                <div className={classNames(styles.preview, preview && styles.valid)}>
+                <div
+                  className={classNames(
+                    styles.preview,
+                    preview && styles.valid
+                  )}
+                >
                   <strong>
-                    {preview ? preview.label : selected.length ? '牌型不合法' : '先选牌'}
+                    {preview
+                      ? preview.label
+                      : selected.length
+                        ? '牌型不合法'
+                        : '先选牌'}
                   </strong>
-                  <span>{selectedCards.map(card => card.label).join(' ') || '按选择顺序解释大小王'}</span>
+                  <span>
+                    {selectedCards.map(card => card.label).join(' ') ||
+                      '按选择顺序解释大小王'}
+                  </span>
                 </div>
                 <button
                   className="btn btn-primary"
@@ -555,7 +640,11 @@ export default function GanDengYanPage() {
                   <Send size={16} />
                   出牌
                 </button>
-                <button className="btn" disabled={!myTurn || !room.table} onClick={passTurn}>
+                <button
+                  className="btn"
+                  disabled={!myTurn || !room.table}
+                  onClick={passTurn}
+                >
                   不要
                 </button>
               </div>
@@ -580,7 +669,13 @@ function PlayerBadge({
 }) {
   if (!player) return null
   return (
-    <div className={classNames(styles.player, active && styles.active, winner && styles.winner)}>
+    <div
+      className={classNames(
+        styles.player,
+        active && styles.active,
+        winner && styles.winner
+      )}
+    >
       <div className={styles.avatar}>{player.name.slice(0, 1)}</div>
       <div>
         <strong>{player.name}</strong>
@@ -596,14 +691,24 @@ function PlayerBadge({
 
 function CardView({ card, small = false }: { card: Card; small?: boolean }) {
   return (
-    <div className={classNames(styles.card, styles[card.color], small && styles.small)}>
+    <div
+      className={classNames(
+        styles.card,
+        styles[card.color],
+        small && styles.small
+      )}
+    >
       <span>{card.label}</span>
       <i>{card.suit === 'Joker' ? '*' : card.label.slice(0, 1)}</i>
     </div>
   )
 }
 
-function positionLabel(me: Player | null | undefined, player: Player, total: number) {
+function positionLabel(
+  me: Player | null | undefined,
+  player: Player,
+  total: number
+) {
   if (!me) return `座位 ${player.seat + 1}`
   const offset = (player.seat - me.seat + total) % total
   if (offset === 0) return '我'
@@ -614,5 +719,7 @@ function positionLabel(me: Player | null | undefined, player: Player, total: num
     if (offset === 2) return '对家/队友位'
     return '上家/对手位'
   }
-  return offset % 2 === 0 ? `座位 ${player.seat + 1}/队友位` : `座位 ${player.seat + 1}/对手位`
+  return offset % 2 === 0
+    ? `座位 ${player.seat + 1}/队友位`
+    : `座位 ${player.seat + 1}/对手位`
 }

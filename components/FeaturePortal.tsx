@@ -150,7 +150,7 @@ const features: FeatureDef[] = [
   },
   {
     id: 'gandengyan',
-    title: '干瞪眼',
+    title: '游戏',
     subtitle: 'P2P 牌桌',
     icon: <Gamepad2 size={28} />,
     path: '/game/gandengyan/',

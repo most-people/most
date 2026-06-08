@@ -1,15 +1,7 @@
 'use client'
 
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import {
-  Copy,
-  Eye,
-  Moon,
-  Play,
-  RefreshCcw,
-  Spade,
-  Sun,
-} from 'lucide-react'
+import { Copy, Eye, Moon, Play, RefreshCcw, Spade, Sun } from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import GameSidebar from '~/components/GameSidebar'
 import { useGameRoom } from '~/hooks/useGameRoom'
@@ -28,8 +20,15 @@ import {
   hydrateRoundWithHands,
   startRound,
 } from '~/server/src/core/zhajinhua.js'
-import { deriveGameRoomLobby, getLatestGameState } from '~/server/src/core/gameRoom.js'
-import { most25519, mostBoxDecrypt, mostBoxEncrypt } from '~/server/src/utils/mostWallet.js'
+import {
+  deriveGameRoomLobby,
+  getLatestGameState,
+} from '~/server/src/core/gameRoom.js'
+import {
+  most25519,
+  mostBoxDecrypt,
+  mostBoxEncrypt,
+} from '~/server/src/utils/mostWallet.js'
 import { generateAvatar } from '~/server/src/utils/avatar.js'
 
 const GAME_ID = 'zhajinhua'
@@ -123,11 +122,19 @@ export default function ZhajinhuaPage() {
   }, [game.roomCode])
 
   const lobby = useMemo(
-    () => deriveGameRoomLobby(game.messages, { gameId: GAME_ID, roomCode: game.roomCode }),
+    () =>
+      deriveGameRoomLobby(game.messages, {
+        gameId: GAME_ID,
+        roomCode: game.roomCode,
+      }),
     [game.messages, game.roomCode]
   )
   const latestStateEvent = useMemo(
-    () => getLatestGameState(game.messages, { gameId: GAME_ID, roomCode: game.roomCode }),
+    () =>
+      getLatestGameState(game.messages, {
+        gameId: GAME_ID,
+        roomCode: game.roomCode,
+      }),
     [game.messages, game.roomCode]
   )
   const currentRound = latestStateEvent?.payload?.round || null
@@ -142,18 +149,23 @@ export default function ZhajinhuaPage() {
     lobby.players.find(player => sameAddress(player.address, myAddress))
   const myDealtHand = privateHands[currentRound?.roundId || ''] || null
   const myShowdownHand =
-    currentRound?.showdown && myAddress ? currentRound.showdown[myAddress] : null
+    currentRound?.showdown && myAddress
+      ? currentRound.showdown[myAddress]
+      : null
   const myHand = myShowdownHand || (myRoundPlayer?.looked ? myDealtHand : null)
   const allowedActions = getAllowedActions(currentRound, myAddress)
   const activePlayers = getActiveRoundPlayers(currentRound)
-  const canHostStart = isHost && canStartRound(
-    lobby.players.map(player => ({
-      ...player,
-      chips:
-        currentRound?.players.find(item => sameAddress(item.address, player.address))
-          ?.chips ?? ZHJ_INITIAL_CHIPS,
-    }))
-  )
+  const canHostStart =
+    isHost &&
+    canStartRound(
+      lobby.players.map(player => ({
+        ...player,
+        chips:
+          currentRound?.players.find(item =>
+            sameAddress(item.address, player.address)
+          )?.chips ?? ZHJ_INITIAL_CHIPS,
+      }))
+    )
   const shareLink =
     game.roomCode && typeof window !== 'undefined'
       ? `${window.location.origin}/game/zhajinhua?room=${game.roomCode}`
@@ -204,9 +216,11 @@ export default function ZhajinhuaPage() {
       if (!event || event.event !== 'player:action') return false
       const payload = event.payload as { actionEvent?: any }
       const actionEvent = payload.actionEvent
-      if (!actionEvent || actionEvent.roundId !== currentRound.roundId) return false
+      if (!actionEvent || actionEvent.roundId !== currentRound.roundId)
+        return false
       if (processedActionIdsRef.current.has(actionEvent.eventId)) return false
-      if (currentRound.appliedEventIds?.includes(actionEvent.eventId)) return false
+      if (currentRound.appliedEventIds?.includes(actionEvent.eventId))
+        return false
       return true
     })
     if (pending.length === 0) return
@@ -219,7 +233,11 @@ export default function ZhajinhuaPage() {
         if (cancelled) return
         const payload = item.event?.payload as { actionEvent?: any }
         const actionEvent = payload.actionEvent
-        const result = applyPlayerAction(fullRound, actionEvent, item.message.author)
+        const result = applyPlayerAction(
+          fullRound,
+          actionEvent,
+          item.message.author
+        )
         if (!result.ok) continue
         fullRound = result.state
         hostHandsRef.current = result.state.hands
@@ -275,8 +293,9 @@ export default function ZhajinhuaPage() {
       const players = lobby.players.map(player => ({
         ...player,
         chips:
-          currentRound?.players.find(item => sameAddress(item.address, player.address))
-            ?.chips ?? ZHJ_INITIAL_CHIPS,
+          currentRound?.players.find(item =>
+            sameAddress(item.address, player.address)
+          )?.chips ?? ZHJ_INITIAL_CHIPS,
       }))
       const round = startRound({
         roomCode: game.roomCode,
@@ -287,10 +306,13 @@ export default function ZhajinhuaPage() {
       processedActionIdsRef.current.clear()
       await publishRound(round)
       for (const player of round.players) {
-        const encrypted = mostBoxEncrypt(JSON.stringify(round.hands[player.address]), {
-          senderPrivateKey: myKeys.private_key,
-          recipientPublicKey: player.publicKey,
-        })
+        const encrypted = mostBoxEncrypt(
+          JSON.stringify(round.hands[player.address]),
+          {
+            senderPrivateKey: myKeys.private_key,
+            recipientPublicKey: player.publicKey,
+          }
+        )
         await game.sendRoomEvent('deal:private', {
           roundId: round.roundId,
           recipient: player.address,
@@ -308,7 +330,10 @@ export default function ZhajinhuaPage() {
     }
   }
 
-  async function handlePlayerAction(action: string, options: Record<string, unknown> = {}) {
+  async function handlePlayerAction(
+    action: string,
+    options: Record<string, unknown> = {}
+  ) {
     if (!currentRound || !game.userIdentity) return
     const actionEvent = createPlayerActionEvent({
       roundId: currentRound.roundId,
@@ -341,8 +366,10 @@ export default function ZhajinhuaPage() {
       )}
       headerTitle={
         <div className="zjh-header-title">
-          <h2 className="header-title">游戏 · 炸金花</h2>
-          {game.roomCode && <span className="header-badge">房间 {game.roomCode}</span>}
+          <h2 className="header-title">炸金花</h2>
+          {game.roomCode && (
+            <span className="header-badge">房间 {game.roomCode}</span>
+          )}
         </div>
       }
       headerRight={
@@ -372,7 +399,11 @@ export default function ZhajinhuaPage() {
             <h2>P2P 炸金花</h2>
             <p>创建房间邀请朋友，房主在线开始牌局并推进状态。</p>
             <div className="zjh-welcome-actions">
-              <button className="btn btn-primary" disabled={game.joining} onClick={createRoom}>
+              <button
+                className="btn btn-primary"
+                disabled={game.joining}
+                onClick={createRoom}
+              >
                 <Play size={16} />
                 创建房间
               </button>
@@ -380,11 +411,16 @@ export default function ZhajinhuaPage() {
                 <input
                   className="input input-compact"
                   value={roomInput}
-                  onChange={event => setRoomInput(event.target.value.toUpperCase())}
+                  onChange={event =>
+                    setRoomInput(event.target.value.toUpperCase())
+                  }
                   placeholder="输入房间码"
                   maxLength={8}
                 />
-                <button className="btn btn-icon" disabled={game.joining || !roomInput}>
+                <button
+                  className="btn btn-icon"
+                  disabled={game.joining || !roomInput}
+                >
                   <Play size={16} />
                 </button>
               </form>
@@ -421,7 +457,9 @@ export default function ZhajinhuaPage() {
                         <span>{shortAddress(player.address)}</span>
                       </div>
                       <div className="zjh-seat-meta">
-                        <span>{roundPlayer?.chips ?? ZHJ_INITIAL_CHIPS} 筹码</span>
+                        <span>
+                          {roundPlayer?.chips ?? ZHJ_INITIAL_CHIPS} 筹码
+                        </span>
                         <span>
                           {roundPlayer?.status === 'folded'
                             ? '已弃牌'
@@ -445,23 +483,21 @@ export default function ZhajinhuaPage() {
                   <span>我的手牌</span>
                 </div>
                 <div className="zjh-hand">
-                  {myHand ? (
-                    myHand.map(card => {
-                      const parts = cardParts(card)
-                      return (
-                        <div key={card} className={`zjh-card ${parts.color}`}>
-                          <span>{parts.rank}</span>
-                          <strong>{parts.suit}</strong>
+                  {myHand
+                    ? myHand.map(card => {
+                        const parts = cardParts(card)
+                        return (
+                          <div key={card} className={`zjh-card ${parts.color}`}>
+                            <span>{parts.rank}</span>
+                            <strong>{parts.suit}</strong>
+                          </div>
+                        )
+                      })
+                    : [0, 1, 2].map(index => (
+                        <div key={index} className="zjh-card back">
+                          <Spade size={18} />
                         </div>
-                      )
-                    })
-                  ) : (
-                    [0, 1, 2].map(index => (
-                      <div key={index} className="zjh-card back">
-                        <Spade size={18} />
-                      </div>
-                    ))
-                  )}
+                      ))}
                 </div>
                 <p className="zjh-hand-label">
                   {myHand
@@ -481,7 +517,9 @@ export default function ZhajinhuaPage() {
                   <button
                     className="btn btn-primary btn-full"
                     onClick={hostStartRound}
-                    disabled={!canHostStart || currentRound?.status === 'playing'}
+                    disabled={
+                      !canHostStart || currentRound?.status === 'playing'
+                    }
                   >
                     <RefreshCcw size={16} />
                     开始本局
@@ -519,7 +557,9 @@ export default function ZhajinhuaPage() {
                   <select
                     className="input input-compact"
                     value={raiseAmount}
-                    onChange={event => setRaiseAmount(Number(event.target.value))}
+                    onChange={event =>
+                      setRaiseAmount(Number(event.target.value))
+                    }
                   >
                     {ZHJ_RAISE_STEPS.map(step => (
                       <option key={step} value={step}>
@@ -530,7 +570,9 @@ export default function ZhajinhuaPage() {
                   <button
                     className="btn btn-secondary"
                     disabled={!allowedActions.includes('raise')}
-                    onClick={() => handlePlayerAction('raise', { amount: raiseAmount })}
+                    onClick={() =>
+                      handlePlayerAction('raise', { amount: raiseAmount })
+                    }
                   >
                     加注
                   </button>
@@ -551,8 +593,12 @@ export default function ZhajinhuaPage() {
                   </select>
                   <button
                     className="btn btn-secondary"
-                    disabled={!allowedActions.includes('compare') || !compareTarget}
-                    onClick={() => handlePlayerAction('compare', { target: compareTarget })}
+                    disabled={
+                      !allowedActions.includes('compare') || !compareTarget
+                    }
+                    onClick={() =>
+                      handlePlayerAction('compare', { target: compareTarget })
+                    }
                   >
                     比牌
                   </button>
@@ -563,7 +609,9 @@ export default function ZhajinhuaPage() {
                 <div className="zjh-panel-title">状态</div>
                 <div className="zjh-status-grid">
                   <span>房主</span>
-                  <strong>{hostAddress ? shortAddress(hostAddress) : '-'}</strong>
+                  <strong>
+                    {hostAddress ? shortAddress(hostAddress) : '-'}
+                  </strong>
                   <span>我的筹码</span>
                   <strong>{myPlayer?.chips ?? ZHJ_INITIAL_CHIPS}</strong>
                   <span>本轮</span>
@@ -580,7 +628,13 @@ export default function ZhajinhuaPage() {
   )
 }
 
-function getPlayerName(address: string, players: Array<{ address: string; name: string }>) {
+function getPlayerName(
+  address: string,
+  players: Array<{ address: string; name: string }>
+) {
   const normalized = address.toLowerCase()
-  return players.find(player => player.address === normalized)?.name || shortAddress(address)
+  return (
+    players.find(player => player.address === normalized)?.name ||
+    shortAddress(address)
+  )
 }

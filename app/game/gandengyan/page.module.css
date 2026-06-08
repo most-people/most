@@ -167,15 +167,6 @@
   justify-content: flex-end;
 }
 
-.dangerBadge {
-  border: 1px solid rgba(255, 205, 71, 0.58);
-  border-radius: 999px;
-  padding: 4px 9px;
-  background: rgba(197, 49, 42, 0.28);
-  color: #ffd66b !important;
-  font-weight: 800;
-}
-
 .seats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));

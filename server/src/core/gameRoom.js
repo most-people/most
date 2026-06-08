@@ -120,6 +120,18 @@ export function deriveGameRoomLobby(messages = [], options = {}) {
     if (event.event === 'player:join') {
       const player = createPlayerFromPayload(event.payload?.player, message.author)
       if (player) upsertPlayer(players, playerMap, player)
+      continue
+    }
+
+    if (event.event === 'player:leave') {
+      const address = normalizeAddress(event.payload?.player?.address || message.author)
+      if (address) {
+        const index = players.findIndex(p => p.address === address)
+        if (index !== -1) {
+          players.splice(index, 1)
+          playerMap.delete(address)
+        }
+      }
     }
   }
 
