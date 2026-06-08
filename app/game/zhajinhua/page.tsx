@@ -29,9 +29,13 @@ import {
   mostBoxDecrypt,
   mostBoxEncrypt,
 } from '~/server/src/utils/mostWallet.js'
-import { generateAvatar } from '~/server/src/utils/avatar.js'
+import styles from './page.module.css'
 
 const GAME_ID = 'zhajinhua'
+
+function classNames(...items: Array<string | false | null | undefined>) {
+  return items.filter(Boolean).join(' ')
+}
 
 function sameAddress(left?: string, right?: string) {
   return String(left || '').toLowerCase() === String(right || '').toLowerCase()
@@ -49,9 +53,9 @@ function cardParts(card: string) {
   const value = String(card || '')
   const suit = value.slice(-1)
   const rank = value.slice(0, -1)
-  const suitLabel = { S: 'S', H: 'H', C: 'C', D: 'D' }[suit] || suit
+  const suitSymbol = { S: '♠', H: '♥', C: '♣', D: '♦' }[suit] || suit
   const color = suit === 'H' || suit === 'D' ? 'red' : 'black'
-  return { rank, suit: suitLabel, color }
+  return { rank, suit: suitSymbol, color }
 }
 
 export default function ZhajinhuaPage() {
@@ -66,6 +70,8 @@ export default function ZhajinhuaPage() {
   const [raiseAmount, setRaiseAmount] = useState(20)
   const [compareTarget, setCompareTarget] = useState('')
   const [privateHands, setPrivateHands] = useState<Record<string, string[]>>({})
+  const [showFinishBanner, setShowFinishBanner] = useState(true)
+  const [showCompareOverlay, setShowCompareOverlay] = useState(false)
   const hostHandsRef = useRef<Record<string, string[]> | null>(null)
   const processedActionIdsRef = useRef(new Set<string>())
 
@@ -152,7 +158,11 @@ export default function ZhajinhuaPage() {
     currentRound?.showdown && myAddress
       ? currentRound.showdown[myAddress]
       : null
-  const myHand = myShowdownHand || (myRoundPlayer?.looked ? myDealtHand : null)
+  const myCompareRevealHand =
+    currentRound?.compareReveal && myAddress
+      ? currentRound.compareReveal[myAddress]
+      : null
+  const myHand = myShowdownHand || myCompareRevealHand || (myRoundPlayer?.looked ? myDealtHand : null)
   const allowedActions = getAllowedActions(currentRound, myAddress)
   const activePlayers = getActiveRoundPlayers(currentRound)
   const canHostStart =
@@ -208,6 +218,25 @@ export default function ZhajinhuaPage() {
   ])
 
   useEffect(() => {
+    if (currentRound?.status === 'finished' && currentRound.winner) {
+      setShowFinishBanner(true)
+      const timer = setTimeout(() => setShowFinishBanner(false), 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [currentRound?.finishedAt, currentRound?.status, currentRound?.winner])
+
+  useEffect(() => {
+    const ts = currentRound?.lastCompare?.timestamp
+    if (ts) {
+      setShowCompareOverlay(true)
+      const timer = setTimeout(() => setShowCompareOverlay(false), 5000)
+      return () => clearTimeout(timer)
+    } else {
+      setShowCompareOverlay(false)
+    }
+  }, [currentRound?.lastCompare?.timestamp, currentRound?.roundId])
+
+  useEffect(() => {
     if (!isHost || !currentRound || currentRound.status !== 'playing') return
     const hands = hostHandsRef.current
     if (!hands) return
@@ -233,12 +262,36 @@ export default function ZhajinhuaPage() {
         if (cancelled) return
         const payload = item.event?.payload as { actionEvent?: any }
         const actionEvent = payload.actionEvent
-        const result = applyPlayerAction(
+        let result = applyPlayerAction(
           fullRound,
           actionEvent,
           item.message.author
         )
-        if (!result.ok) continue
+        if (!result.ok) {
+          const authorAddr = item.message.author
+          const isBot = !sameAddress(authorAddr, game.userIdentity?.address)
+          if (isBot && fullRound.status === 'playing' && sameAddress(fullRound.turnAddress, authorAddr)) {
+            const fallbackCall = applyPlayerAction(
+              fullRound,
+              createPlayerActionEvent({ roundId: fullRound.roundId, action: 'call' }),
+              authorAddr
+            )
+            if (fallbackCall.ok) {
+              result = fallbackCall
+            } else {
+              const fallbackFold = applyPlayerAction(
+                fullRound,
+                createPlayerActionEvent({ roundId: fullRound.roundId, action: 'fold' }),
+                authorAddr
+              )
+              if (fallbackFold.ok) result = fallbackFold
+            }
+          }
+          if (!result.ok) {
+            processedActionIdsRef.current.add(actionEvent.eventId)
+            continue
+          }
+        }
         fullRound = result.state
         hostHandsRef.current = result.state.hands
         const ok = await publishRound(result.state)
@@ -301,6 +354,8 @@ export default function ZhajinhuaPage() {
         roomCode: game.roomCode,
         players,
         hostAddress: game.userIdentity.address,
+        previousSeq: currentRound?.seq || 0,
+        previousWinner: currentRound?.winner || '',
       })
       hostHandsRef.current = round.hands as Record<string, string[]>
       processedActionIdsRef.current.clear()
@@ -364,19 +419,12 @@ export default function ZhajinhuaPage() {
       sidebar={({ closeSidebar }) => (
         <GameSidebar activeGame="zhajinhua" closeSidebar={closeSidebar} />
       )}
-      headerTitle={
-        <div className="zjh-header-title">
-          <h2 className="header-title">炸金花</h2>
-          {game.roomCode && (
-            <span className="header-badge">房间 {game.roomCode}</span>
-          )}
-        </div>
-      }
+      headerTitle={<h2 className="header-title">炸金花</h2>}
       headerRight={
-        <div className="header-right-actions">
+        <div className={styles.headerActions}>
           {game.roomCode && (
-            <button className="btn btn-secondary" onClick={copyShareLink}>
-              <Copy size={16} />
+            <button className="btn btn-sm" onClick={copyShareLink}>
+              <Copy size={14} />
               {copied ? '已复制' : '分享房间'}
             </button>
           )}
@@ -390,15 +438,26 @@ export default function ZhajinhuaPage() {
         </div>
       }
     >
-      <main className="zjh-page">
+      <main className={styles.page}>
         {!game.roomCode ? (
-          <section className="zjh-welcome">
-            <div className="zjh-welcome-icon">
-              <Spade size={36} />
+          <section className={styles.entry}>
+            <div className={styles.entryBrand}>
+              <div className={styles.cardMark}>
+                <Spade size={48} />
+              </div>
+              <div>
+                <h1>炸金花牌桌</h1>
+                <p>
+                  创建房间码邀请朋友加入，房间状态通过 MostBox P2P 频道同步。
+                </p>
+              </div>
             </div>
-            <h2>P2P 炸金花</h2>
-            <p>创建房间邀请朋友，房主在线开始牌局并推进状态。</p>
-            <div className="zjh-welcome-actions">
+
+            <div className={styles.entryPanel}>
+              <div className={styles.accountLine}>
+                <span>当前账号</span>
+                <strong>{game.userIdentity?.displayName || '未登录'}</strong>
+              </div>
               <button
                 className="btn btn-primary"
                 disabled={game.joining}
@@ -407,56 +466,81 @@ export default function ZhajinhuaPage() {
                 <Play size={16} />
                 创建房间
               </button>
-              <form className="zjh-room-input-row" onSubmit={joinRoom}>
-                <input
-                  className="input input-compact"
-                  value={roomInput}
-                  onChange={event =>
-                    setRoomInput(event.target.value.toUpperCase())
-                  }
-                  placeholder="输入房间码"
-                  maxLength={8}
-                />
-                <button
-                  className="btn btn-icon"
-                  disabled={game.joining || !roomInput}
-                >
-                  <Play size={16} />
+              <form onSubmit={joinRoom} className={styles.joinForm}>
+                <label>
+                  房间号
+                  <input
+                    value={roomInput}
+                    maxLength={8}
+                    onChange={event =>
+                      setRoomInput(event.target.value.toUpperCase())
+                    }
+                    placeholder="输入房间号"
+                  />
+                </label>
+                <button className="btn" disabled={game.joining || !roomInput}>
+                  加入房间
                 </button>
               </form>
+              <p className={styles.status}>
+                {game.isBackendReady ? '节点已连接' : '正在连接节点...'}
+              </p>
             </div>
           </section>
         ) : (
-          <div className="zjh-board">
-            <section className="zjh-table">
-              <div className="zjh-table-center">
+          <div className={styles.board}>
+            <section className={styles.table}>
+              {currentRound?.status === 'finished' && currentRound.winner && showFinishBanner && (
+                <div className={styles.finishBanner}>
+                  <span className={styles.finishBannerIcon}>🏆</span>
+                  <span>
+                    {getPlayerName(currentRound.winner, lobby.players)} 赢得{' '}
+                    {currentRound.winAmount ?? 0} 筹码
+                  </span>
+                </div>
+              )}
+              {currentRound?.lastCompare && showCompareOverlay && (
+                <CompareOverlay
+                  lastCompare={currentRound.lastCompare}
+                  compareReveal={currentRound.compareReveal || {}}
+                  myAddress={myAddress}
+                  myDealtHand={myDealtHand}
+                  lobbyPlayers={lobby.players}
+                  onClose={() => setShowCompareOverlay(false)}
+                />
+              )}
+              <div className={styles.tableCenter}>
                 <span>底池</span>
                 <strong>{currentRound?.pot || 0}</strong>
                 <small>当前注 {currentRound?.currentBet || 0}</small>
               </div>
 
-              <div className="zjh-seats">
+              <div className={styles.seats}>
                 {lobby.players.map(player => {
                   const roundPlayer = currentRound?.players.find(item =>
                     sameAddress(item.address, player.address)
                   )
                   const isTurn = currentRound?.turnAddress === player.address
                   const isWinner = currentRound?.winner === player.address
+                  const isFolded = roundPlayer?.status === 'folded'
                   return (
                     <div
                       key={player.address}
-                      className={`zjh-seat ${isTurn ? 'turn' : ''} ${isWinner ? 'winner' : ''}`}
+                      className={classNames(
+                        styles.seat,
+                        isTurn && styles.seatTurn,
+                        isWinner && styles.seatWinner,
+                        isFolded && styles.seatFolded
+                      )}
                     >
-                      <img
-                        className="zjh-seat-avatar"
-                        src={generateAvatar(player.address)}
-                        alt="avatar"
-                      />
-                      <div className="zjh-seat-main">
+                      <div className={styles.seatAvatar}>
+                        {player.name.slice(0, 1)}
+                      </div>
+                      <div className={styles.seatMain}>
                         <strong>{player.name}</strong>
                         <span>{shortAddress(player.address)}</span>
                       </div>
-                      <div className="zjh-seat-meta">
+                      <div className={styles.seatMeta}>
                         <span>
                           {roundPlayer?.chips ?? ZHJ_INITIAL_CHIPS} 筹码
                         </span>
@@ -476,30 +560,37 @@ export default function ZhajinhuaPage() {
               </div>
             </section>
 
-            <aside className="zjh-panel">
-              <div className="zjh-panel-section">
-                <div className="zjh-panel-title">
+            <aside className={styles.panel}>
+              <div className={styles.panelSection}>
+                <div className={styles.panelTitle}>
                   <Spade size={16} />
                   <span>我的手牌</span>
                 </div>
-                <div className="zjh-hand">
+                <div className={styles.hand}>
                   {myHand
                     ? myHand.map(card => {
                         const parts = cardParts(card)
+                        const label = `${parts.suit}${parts.rank}`
                         return (
-                          <div key={card} className={`zjh-card ${parts.color}`}>
-                            <span>{parts.rank}</span>
-                            <strong>{parts.suit}</strong>
+                          <div
+                            key={card}
+                            className={classNames(
+                              styles.card,
+                              styles[parts.color]
+                            )}
+                          >
+                            <span>{label}</span>
+                            <i>{parts.suit}</i>
                           </div>
                         )
                       })
                     : [0, 1, 2].map(index => (
-                        <div key={index} className="zjh-card back">
+                        <div key={index} className={styles.cardBack}>
                           <Spade size={18} />
                         </div>
                       ))}
                 </div>
-                <p className="zjh-hand-label">
+                <p className={styles.handLabel}>
                   {myHand
                     ? getHandLabel(myHand)
                     : myDealtHand
@@ -508,8 +599,8 @@ export default function ZhajinhuaPage() {
                 </p>
               </div>
 
-              <div className="zjh-panel-section">
-                <div className="zjh-panel-title">
+              <div className={styles.panelSection}>
+                <div className={styles.panelTitle}>
                   <Play size={16} />
                   <span>操作</span>
                 </div>
@@ -522,13 +613,16 @@ export default function ZhajinhuaPage() {
                     }
                   >
                     <RefreshCcw size={16} />
-                    开始本局
+                    {currentRound?.status === 'finished' ? '再来一局' : '开始本局'}
                   </button>
                 ) : (
-                  <p className="zjh-muted">等待房主开始或继续牌局。</p>
+                  <p className={styles.muted}>等待房主开始或继续牌局。</p>
+                )}
+                {isHost && currentRound?.status === 'finished' && !canHostStart && (
+                  <p className={styles.muted}>筹码不足的玩家太多，无法开局</p>
                 )}
 
-                <div className="zjh-actions">
+                <div className={styles.actionGrid}>
                   <button
                     className="btn btn-secondary"
                     disabled={!allowedActions.includes('look')}
@@ -553,7 +647,7 @@ export default function ZhajinhuaPage() {
                   </button>
                 </div>
 
-                <div className="zjh-raise-row">
+                <div className={styles.raiseRow}>
                   <select
                     className="input input-compact"
                     value={raiseAmount}
@@ -578,7 +672,7 @@ export default function ZhajinhuaPage() {
                   </button>
                 </div>
 
-                <div className="zjh-raise-row">
+                <div className={styles.raiseRow}>
                   <select
                     className="input input-compact"
                     value={compareTarget}
@@ -605,9 +699,9 @@ export default function ZhajinhuaPage() {
                 </div>
               </div>
 
-              <div className="zjh-panel-section">
-                <div className="zjh-panel-title">状态</div>
-                <div className="zjh-status-grid">
+              <div className={styles.panelSection}>
+                <div className={styles.panelTitle}>状态</div>
+                <div className={styles.statusGrid}>
                   <span>房主</span>
                   <strong>
                     {hostAddress ? shortAddress(hostAddress) : '-'}
@@ -625,6 +719,113 @@ export default function ZhajinhuaPage() {
         )}
       </main>
     </AppShell>
+  )
+}
+
+interface CompareOverlayProps {
+  lastCompare: {
+    initiator: string
+    target: string
+    winner: string
+    loser: string
+    initiatorLooked: boolean
+    targetLooked: boolean
+    timestamp: number
+  }
+  compareReveal: Record<string, string[]>
+  myAddress: string
+  myDealtHand: string[] | null
+  lobbyPlayers: Array<{ address: string; name: string }>
+  onClose: () => void
+}
+
+function CompareOverlay({
+  lastCompare,
+  compareReveal,
+  myAddress,
+  myDealtHand,
+  lobbyPlayers,
+  onClose,
+}: CompareOverlayProps) {
+  const initiatorName = getPlayerName(lastCompare.initiator, lobbyPlayers)
+  const targetName = getPlayerName(lastCompare.target, lobbyPlayers)
+  const winnerName = getPlayerName(lastCompare.winner, lobbyPlayers)
+
+  const isInitiator = sameAddress(myAddress, lastCompare.initiator)
+  const isTarget = sameAddress(myAddress, lastCompare.target)
+  const isParticipant = isInitiator || isTarget
+
+  function getDisplayCards(playerAddress: string, playerLooked: boolean) {
+    const revealed = compareReveal[playerAddress]
+    if (revealed) return revealed
+    if (isParticipant && sameAddress(playerAddress, myAddress) && playerLooked && myDealtHand) {
+      return myDealtHand
+    }
+    return null
+  }
+
+  const initiatorDisplayCards = getDisplayCards(lastCompare.initiator, lastCompare.initiatorLooked)
+  const targetDisplayCards = getDisplayCards(lastCompare.target, lastCompare.targetLooked)
+
+  return (
+    <div className={styles.compareOverlay} onClick={onClose}>
+      <div className={styles.compareBox} onClick={e => e.stopPropagation()}>
+        <div className={styles.compareTitle}>比牌结果</div>
+        <div className={styles.comparePlayers}>
+          <div className={classNames(styles.compareSide, sameAddress(lastCompare.winner, lastCompare.initiator) && styles.compareWinner)}>
+            <div className={styles.compareName}>{initiatorName}</div>
+            <div className={styles.compareCards}>
+              {initiatorDisplayCards
+                ? initiatorDisplayCards.map(card => {
+                    const parts = cardParts(card)
+                    return (
+                      <div key={card} className={classNames(styles.card, styles[parts.color])}>
+                        <span>{parts.rank}</span>
+                        <i>{parts.suit}</i>
+                      </div>
+                    )
+                  })
+                : [0, 1, 2].map(i => (
+                    <div key={i} className={styles.cardBack}>
+                      <Spade size={18} />
+                    </div>
+                  ))}
+            </div>
+            {initiatorDisplayCards && (
+              <div className={styles.compareLabel}>{getHandLabel(initiatorDisplayCards)}</div>
+            )}
+          </div>
+          <div className={styles.compareVs}>VS</div>
+          <div className={classNames(styles.compareSide, sameAddress(lastCompare.winner, lastCompare.target) && styles.compareWinner)}>
+            <div className={styles.compareName}>{targetName}</div>
+            <div className={styles.compareCards}>
+              {targetDisplayCards
+                ? targetDisplayCards.map(card => {
+                    const parts = cardParts(card)
+                    return (
+                      <div key={card} className={classNames(styles.card, styles[parts.color])}>
+                        <span>{parts.rank}</span>
+                        <i>{parts.suit}</i>
+                      </div>
+                    )
+                  })
+                : [0, 1, 2].map(i => (
+                    <div key={i} className={styles.cardBack}>
+                      <Spade size={18} />
+                    </div>
+                  ))}
+            </div>
+            {targetDisplayCards && (
+              <div className={styles.compareLabel}>{getHandLabel(targetDisplayCards)}</div>
+            )}
+          </div>
+        </div>
+        <div className={styles.compareResult}>
+          {winnerName} 胜出
+        </div>
+        <button className="btn btn-sm" onClick={onClose}>关闭</button>
+      </div>
+    </div>
   )
 }
 

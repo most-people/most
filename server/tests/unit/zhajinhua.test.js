@@ -81,6 +81,7 @@ describe('zhajinhua room events', () => {
           { ...alice, chips: ZHJ_INITIAL_CHIPS },
           { ...bob, chips: ZHJ_INITIAL_CHIPS },
         ],
+        previousWinner: bob.address,
         random: () => 0,
       })
     )
@@ -120,13 +121,26 @@ describe('zhajinhua room events', () => {
           { ...alice, chips: ZHJ_INITIAL_CHIPS },
           { ...bob, chips: ZHJ_INITIAL_CHIPS },
         ],
+        previousWinner: bob.address,
         random: () => 0,
       })
     )
-    const round = hydrateRoundWithHands(publicRound, {
+    let round = hydrateRoundWithHands(publicRound, {
       [alice.address.toLowerCase()]: ['AS', 'AD', 'AC'],
       [bob.address.toLowerCase()]: ['KS', 'KD', 'KC'],
     })
+    const bobCallEvent = createPlayerActionEvent({
+      roundId: round.roundId,
+      action: 'call',
+    })
+    const bobCallResult = applyPlayerAction(round, bobCallEvent, bob.address)
+    round = bobCallResult.state
+    const aliceCallEvent = createPlayerActionEvent({
+      roundId: round.roundId,
+      action: 'call',
+    })
+    const aliceCallResult = applyPlayerAction(round, aliceCallEvent, alice.address)
+    round = aliceCallResult.state
     const action = createPlayerActionEvent({
       roundId: round.roundId,
       action: 'compare',
@@ -174,6 +188,7 @@ describe('zhajinhua room events', () => {
         { ...alice, address: alice.address.toLowerCase(), chips: ZHJ_INITIAL_CHIPS },
         { ...bob, address: bob.address.toLowerCase(), chips: ZHJ_INITIAL_CHIPS },
       ],
+      previousWinner: bob.address,
       random: () => 0,
     })
     round.hands[bob.address.toLowerCase()] = ['AS', 'AD', 'AC']
