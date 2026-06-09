@@ -186,85 +186,10 @@
     }
   }
 
-.logout-btn {
-  padding: 4px 10px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--glass-border);
-    background: transparent;
-    color: var(--text-secondary);
-    font-size: 11px;
-    font-weight: 500;
-    cursor: pointer;
-    flex-shrink: 0;
-    transition: all var(--transition-fast);
-
-    &:hover {
-      background: var(--glass-bg-subtle);
-    color: var(--text-primary);
-  }
-}
-
-.account-actions-menu {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.account-actions-dropdown {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 8px);
-  z-index: 20;
-  min-width: 108px;
-  padding: 6px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--glass-border);
-  background: var(--bg-secondary);
-  box-shadow: var(--shadow-lg);
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(4px);
-  transition:
-    opacity var(--transition-fast),
-    transform var(--transition-fast);
-}
-
-.account-actions-menu:hover .account-actions-dropdown,
-.account-actions-menu:focus-within .account-actions-dropdown {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateY(0);
-}
-
-.account-actions-item {
-  width: 100%;
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
-  border-radius: var(--radius-sm);
-  padding: 8px 10px;
-  text-align: left;
-  font-size: 12px;
-  line-height: 1.35;
-  cursor: pointer;
-}
-
-.account-actions-item:hover {
-  background: var(--glass-bg-subtle);
-  color: var(--text-primary);
-}
-
-.account-actions-item.danger {
-  color: var(--danger);
-}
-
-.account-actions-item.danger:hover {
-  background: rgba(255, 59, 48, 0.12);
-  color: var(--danger);
+.account-menu-trigger {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
 }
 
 .sidebar-tools {

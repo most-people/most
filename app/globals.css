@@ -1134,6 +1134,114 @@ button.ui-file-card {
   overflow-wrap: anywhere;
 }
 
+.ui-action-menu-anchor {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ui-action-menu {
+  position: fixed;
+  top: var(--action-menu-top, 0);
+  left: var(--action-menu-left, 0);
+  z-index: 1000;
+  min-width: 148px;
+  max-width: min(300px, calc(100vw - 16px));
+  padding: 6px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--bg-secondary) 96%, transparent);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px) scale(0.98);
+  transform-origin: top right;
+  transition:
+    opacity var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.ui-action-menu.is-positioned {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+}
+
+.ui-action-menu-item {
+  width: 100%;
+  min-height: 34px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px 8px;
+  align-items: center;
+  padding: 8px 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ui-action-menu-item.has-icon {
+  grid-template-columns: 18px minmax(0, 1fr);
+}
+
+.ui-action-menu-item.has-description {
+  align-items: start;
+  padding-block: 9px;
+}
+
+.ui-action-menu-item:hover:not(:disabled),
+.ui-action-menu-item:focus-visible {
+  background: var(--glass-bg-subtle);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.ui-action-menu-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.ui-action-menu-item.danger {
+  color: var(--danger);
+}
+
+.ui-action-menu-item.danger:hover:not(:disabled),
+.ui-action-menu-item.danger:focus-visible {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+}
+
+.ui-action-menu-item-icon {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  grid-row: span 2;
+}
+
+.ui-action-menu-item-label {
+  min-width: 0;
+  color: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.ui-action-menu-item-description {
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 /* === Backend Error Page === */
 .backend-error-page {
   display: flex;

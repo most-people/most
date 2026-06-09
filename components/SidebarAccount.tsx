@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { MoreHorizontal } from 'lucide-react'
-import { ConfirmModal } from '~/components/ui'
+import { ActionMenu, ConfirmModal } from '~/components/ui'
 import { generateAvatar } from '~/server/src/utils/avatar.js'
 import { useUserStore } from '~/app/app/userStore'
 
@@ -35,25 +35,28 @@ export default function SidebarAccount({
           登录
         </button>
       ) : (
-        <div className="account-actions-menu">
-          <button
-            className="btn btn-ghost logout-btn"
-            type="button"
-            aria-label="更多操作"
-            title="更多操作"
-          >
-            <MoreHorizontal size={16} />
-          </button>
-          <div className="account-actions-dropdown" role="menu">
+        <ActionMenu
+          ariaLabel="账号操作"
+          placement="top-end"
+          items={[
+            {
+              key: 'logout',
+              label: '退出',
+              danger: true,
+              onSelect: () => setShowLogoutConfirm(true),
+            },
+          ]}
+          renderTrigger={triggerProps => (
             <button
-              className="account-actions-item danger"
-              type="button"
-              onClick={() => setShowLogoutConfirm(true)}
+              {...triggerProps}
+              className="btn btn-icon account-menu-trigger"
+              aria-label="更多操作"
+              title="更多操作"
             >
-              退出
+              <MoreHorizontal size={16} />
             </button>
-          </div>
-        </div>
+          )}
+        />
       )}
       {showLogoutConfirm && (
         <ConfirmModal

@@ -2,19 +2,21 @@
 
 import type {
   ChangeEvent,
-  FocusEvent,
   KeyboardEvent,
   ReactNode,
   RefObject,
 } from 'react'
-import { useState } from 'react'
 import {
   ArrowRight,
+  FileText,
+  Film,
+  Image as ImageIcon,
   Loader,
   MessageSquare,
   MoreHorizontal,
   Plus,
 } from 'lucide-react'
+import { ActionMenu } from '~/components/ui'
 
 export type ChatMessageVariant = 'self' | 'other'
 
@@ -30,18 +32,21 @@ const ATTACHMENT_MENU_OPTIONS = [
     key: 'image',
     label: '图片',
     accept: 'image/*',
+    icon: ImageIcon,
     tooltip: `支持 JPG、PNG、GIF、WEBP 等图片，单个文件最大 ${DEFAULT_ATTACHMENT_SIZE_LABEL}`,
   },
   {
     key: 'video',
     label: '视频',
     accept: 'video/*',
+    icon: Film,
     tooltip: `支持视频文件，单个文件最大 ${DEFAULT_ATTACHMENT_SIZE_LABEL}`,
   },
   {
     key: 'file',
     label: '文件',
     accept: '',
+    icon: FileText,
     tooltip: `支持任意文件，单个文件最大 ${DEFAULT_ATTACHMENT_SIZE_LABEL}`,
   },
 ] as const
@@ -109,36 +114,37 @@ export function ChatChannelNavItem({
       role="button"
       tabIndex={0}
       onKeyDown={event => {
-        if (event.key === 'Enter') onSelect?.()
+        if (event.target !== event.currentTarget) return
+        if (event.key !== 'Enter') return
+        onSelect?.()
       }}
     >
       <MessageSquare size={16} />
       <span>{title}</span>
       {hasActions && (
-        <div
-          className="channel-actions-menu"
-          onClick={event => event.stopPropagation()}
-        >
-          <button
-            className="leave-channel-btn channel-actions-trigger"
-            title="更多操作"
-            type="button"
-            aria-label="更多操作"
-          >
-            <MoreHorizontal size={16} />
-          </button>
-          <div className="channel-actions-dropdown" role="menu">
-            {onLeave && (
-              <button
-                type="button"
-                className="channel-actions-item danger"
-                onClick={onLeave}
-              >
-                删除
-              </button>
-            )}
-          </div>
-        </div>
+        <ActionMenu
+          ariaLabel="频道操作"
+          className="channel-actions-anchor"
+          placement="bottom-end"
+          items={[
+            {
+              key: 'delete',
+              label: '删除',
+              danger: true,
+              onSelect: () => onLeave?.(),
+            },
+          ]}
+          renderTrigger={triggerProps => (
+            <button
+              {...triggerProps}
+              className="leave-channel-btn channel-actions-trigger"
+              title="更多操作"
+              aria-label="更多操作"
+            >
+              <MoreHorizontal size={16} />
+            </button>
+          )}
+        />
       )}
     </div>
   )
@@ -204,7 +210,6 @@ export function ChatComposer({
 }) {
   const toolsDisabled = disabled || isPublishingAttachment
   const sendDisabled = disabled || !message.trim()
-  const [isAttachmentMenuOpen, setIsAttachmentMenuOpen] = useState(false)
 
   function handleFileInput(
     event: ChangeEvent<HTMLInputElement>,
@@ -218,21 +223,12 @@ export function ChatComposer({
     if (event.key === 'Enter' && message.trim()) onSend()
   }
 
-  function handleAttachmentMenuBlur(event: FocusEvent<HTMLDivElement>) {
-    const nextTarget = event.relatedTarget
-    if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) {
-      return
-    }
-    setIsAttachmentMenuOpen(false)
-  }
-
   function openAttachmentPicker(accept: string) {
     if (toolsDisabled) return
     const input = attachmentInputRef?.current
     if (!input) return
     input.accept = accept
     input.click()
-    setIsAttachmentMenuOpen(false)
   }
 
   return (
@@ -244,50 +240,34 @@ export function ChatComposer({
         className="chat-file-input"
         onChange={event => handleFileInput(event, onSelectAttachmentFiles)}
       />
-      <div
-        className={`chat-tool-btn-wrap ${isAttachmentMenuOpen ? 'is-open' : ''}`}
-        onMouseEnter={() => {
-          if (!toolsDisabled) setIsAttachmentMenuOpen(true)
-        }}
-        onMouseLeave={() => setIsAttachmentMenuOpen(false)}
-        onBlur={handleAttachmentMenuBlur}
-      >
-        <button
-          type="button"
-          className="btn btn-circle chat-tool-btn"
-          onClick={() => {
-            if (toolsDisabled) return
-            setIsAttachmentMenuOpen(open => !open)
-          }}
-          disabled={toolsDisabled}
-          aria-label={attachmentButtonTitle}
-          aria-haspopup="menu"
-          aria-expanded={isAttachmentMenuOpen}
-        >
-          {isPublishingAttachment ? (
-            <Loader size={18} className="ui-spinner chat-attachment-spinner" />
-          ) : (
-            <Plus size={18} />
-          )}
-        </button>
-        <div className="chat-tool-dropdown" role="menu" aria-label="附件类型">
-          {ATTACHMENT_MENU_OPTIONS.map(option => (
-            <div className="chat-tool-dropdown-item-wrap" key={option.key}>
-              <button
-                type="button"
-                className="chat-tool-dropdown-item"
-                role="menuitem"
-                onClick={() => openAttachmentPicker(option.accept)}
-              >
-                {option.label}
-              </button>
-              <span role="tooltip" className="chat-tool-item-tooltip">
-                {option.tooltip}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
+      <ActionMenu
+        ariaLabel="附件类型"
+        placement="top-start"
+        disabled={toolsDisabled}
+        items={ATTACHMENT_MENU_OPTIONS.map(option => {
+          const Icon = option.icon
+          return {
+            key: option.key,
+            label: option.label,
+            description: option.tooltip,
+            icon: <Icon size={16} />,
+            onSelect: () => openAttachmentPicker(option.accept),
+          }
+        })}
+        renderTrigger={triggerProps => (
+          <button
+            {...triggerProps}
+            className="btn btn-circle chat-tool-btn"
+            aria-label={attachmentButtonTitle}
+          >
+            {isPublishingAttachment ? (
+              <Loader size={18} className="ui-spinner chat-attachment-spinner" />
+            ) : (
+              <Plus size={18} />
+            )}
+          </button>
+        )}
+      />
       <input
         type="text"
         className="input input-pill"

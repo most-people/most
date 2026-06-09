@@ -141,18 +141,31 @@ describe('frontend smoke checks', () => {
     const chatSource = readSource('app/chat/page.tsx')
     const demoSource = readSource('app/demo/page.tsx')
     const componentSource = readSource('components/ChatUi.tsx')
+    const sidebarAccountSource = readSource('components/SidebarAccount.tsx')
+    const uiIndexSource = readSource('components/ui/index.ts')
 
     assert.match(chatSource, /from '~\/components\/ChatUi'/)
     assert.match(demoSource, /from '~\/components\/ChatUi'/)
     assert.match(demoSource, /P2P Chat/)
+    assert.match(uiIndexSource, /ActionMenu/)
     assert.match(componentSource, /export function ChatMessageItem/)
     assert.match(componentSource, /export function ChatComposer/)
     assert.match(componentSource, /export function ChannelMemberGrid/)
+    assert.match(componentSource, /ActionMenu/)
+    assert.match(sidebarAccountSource, /ActionMenu/)
     assert.match(componentSource, /label: '图片'/)
     assert.match(componentSource, /label: '视频'/)
     assert.match(componentSource, /label: '文件'/)
     assert.doesNotMatch(componentSource, /application\/pdf/)
     assert.doesNotMatch(componentSource, /video\/mp4/)
+    assert.doesNotMatch(
+      componentSource,
+      /chat-tool-dropdown|chat-tool-btn-wrap|chat-tool-item-tooltip|channel-actions-dropdown|channel-actions-item/
+    )
+    assert.doesNotMatch(
+      sidebarAccountSource,
+      /account-actions-menu|account-actions-dropdown|account-actions-item|logout-btn/
+    )
     assert.doesNotMatch(chatSource, /PINNED_CHANNELS|channelToRename|ChatTypingIndicator|__duplicate/)
     assert.doesNotMatch(chatSource, /正在输入|告诉我可以帮你做什么|取消置顶|修改名称/)
   })
