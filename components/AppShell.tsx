@@ -66,8 +66,11 @@ export default function AppShell({
   )
 
   useEffect(() => {
-    if (defaultHide && !previousDefaultHideRef.current) {
+    if (defaultHide === previousDefaultHideRef.current) return
+    if (defaultHide) {
       handleCloseSidebar({ collapse: true })
+    } else {
+      setIsSidebarCollapsed(false)
     }
     previousDefaultHideRef.current = defaultHide
   }, [defaultHide, handleCloseSidebar])
