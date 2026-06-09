@@ -42,7 +42,8 @@
 /* === Sidebar === */
 .sidebar {
   width: 200px;
-  overflow-y: auto;
+  height: 100dvh;
+  overflow: hidden;
   background: var(--glass-bg-heavy);
   backdrop-filter: var(--blur-xl);
   -webkit-backdrop-filter: var(--blur-xl);
@@ -86,6 +87,9 @@
   .sidebar-nav {
     padding: 12px 8px;
     flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 
   .sidebar-empty-state {

@@ -157,7 +157,7 @@ function ChatJoinContent() {
     flowKeyRef.current = flowKey
 
     async function runJoinFlow(invite: ChatJoinInvitePayload) {
-      if (!hasBackend && invite.node_url) {
+      if (invite.node_url) {
         setStatus('正在连接远程节点...')
         const result = await checkBackendConnectionTarget({
           url: invite.node_url,
