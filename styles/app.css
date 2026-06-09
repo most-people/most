@@ -228,6 +228,19 @@
   display: flex;
 }
 
+.sidebar-toggle-static-logo {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  background: var(--glass-bg-subtle);
+  border: 1px solid var(--glass-border);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
 .mobile-menu-btn {
   display: none;
 }

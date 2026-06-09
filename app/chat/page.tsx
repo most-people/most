@@ -27,6 +27,7 @@ import {
 import FilePreviewOverlay from '~/components/FilePreviewOverlay'
 import { InputModal, ConfirmModal, ModalOverlay } from '~/components/ui'
 import OpenSidebarButton from '~/components/OpenSidebarButton'
+import { LogoIcon } from '~/components/icons/LogoIcon'
 import {
   api,
   getApiErrorMessage,
@@ -852,41 +853,44 @@ function ChatPage() {
                 >
                   <MessageSquare size={16} />
                   <span>{channel.remark || channel.name}</span>
-                  {!isInviteUser && (
-                    <button
-                      className="leave-channel-btn"
-                      onClick={e => {
-                        e.stopPropagation()
-                        setChannelToLeave(channel)
-                        leaveChannelModal.open()
-                      }}
-                      title="退出频道"
-                    >
-                      <X size={14} />
-                    </button>
-                  )}
+                  <button
+                    className="leave-channel-btn"
+                    onClick={e => {
+                      e.stopPropagation()
+                      setChannelToLeave(channel)
+                      leaveChannelModal.open()
+                    }}
+                    title="退出频道"
+                  >
+                    <X size={14} />
+                  </button>
                 </div>
               ))
             )}
           </nav>
 
-          {!isInviteUser && (
-            <button
-              className="ui-action-dashed create-channel-btn"
-              onClick={() => {
-                if (!requireLogin() || !requireBackendReady()) return
-                joinChannelModal.open()
-              }}
-            >
-              <Plus size={16} />
-              加入频道
-            </button>
-          )}
+          <button
+            className="ui-action-dashed create-channel-btn"
+            onClick={() => {
+              if (!requireLogin() || !requireBackendReady()) return
+              joinChannelModal.open()
+            }}
+          >
+            <Plus size={16} />
+            加入频道
+          </button>
 
           <SidebarAccount />
         </>
       )}
       headerTitle={chatHeaderTitle}
+      sidebarToggleReplacement={
+        isInviteUser ? (
+          <span className="sidebar-toggle-static-logo" aria-hidden="true">
+            <LogoIcon size={18} />
+          </span>
+        ) : undefined
+      }
       headerRight={
         <div className="header-right-actions">
           <button

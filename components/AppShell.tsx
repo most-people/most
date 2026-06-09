@@ -39,6 +39,7 @@ interface AppShellProps {
   }) => React.ReactNode
   headerTitle?: React.ReactNode
   headerRight?: React.ReactNode
+  sidebarToggleReplacement?: React.ReactNode
   defaultHide?: boolean
   children: React.ReactNode
 }
@@ -47,6 +48,7 @@ export default function AppShell({
   sidebar,
   headerTitle,
   headerRight,
+  sidebarToggleReplacement,
   defaultHide = false,
   children,
 }: AppShellProps) {
@@ -119,19 +121,21 @@ export default function AppShell({
         <div className="main-content">
           <header className="app-header">
             <div className="header-left">
-              <button
-                onClick={handleToggleSidebar}
-                className="btn btn-icon sidebar-toggle-btn"
-                aria-label={
-                  isMobile
-                    ? '打开菜单'
-                    : isSidebarCollapsed
-                      ? '展开侧边栏'
-                      : '收起侧边栏'
-                }
-              >
-                <Menu size={16} />
-              </button>
+              {sidebarToggleReplacement ?? (
+                <button
+                  onClick={handleToggleSidebar}
+                  className="btn btn-icon sidebar-toggle-btn"
+                  aria-label={
+                    isMobile
+                      ? '打开菜单'
+                      : isSidebarCollapsed
+                        ? '展开侧边栏'
+                        : '收起侧边栏'
+                  }
+                >
+                  <Menu size={16} />
+                </button>
+              )}
               {headerTitle}
             </div>
             <div className="header-right">{headerRight}</div>
