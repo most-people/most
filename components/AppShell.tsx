@@ -1,12 +1,25 @@
 'use client'
 
-import React, { useState, createContext, useContext } from 'react'
+import React, {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  createContext,
+  useContext,
+} from 'react'
 import { useMediaQuery } from '@mantine/hooks'
 import { Menu } from 'lucide-react'
 import { useDisclosure } from '~/hooks'
 
+type CloseSidebarOptions = {
+  collapse?: boolean
+}
+
+type CloseSidebar = (options?: CloseSidebarOptions) => void
+
 interface AppShellContextValue {
-  closeSidebar: () => void
+  closeSidebar: CloseSidebar
   openSidebar: () => void
   isSidebarVisible: boolean
 }
@@ -21,11 +34,12 @@ export function useAppShell() {
 
 interface AppShellProps {
   sidebar: (helpers: {
-    closeSidebar: () => void
+    closeSidebar: CloseSidebar
     openSidebar: () => void
   }) => React.ReactNode
   headerTitle?: React.ReactNode
   headerRight?: React.ReactNode
+  defaultHide?: boolean
   children: React.ReactNode
 }
 
@@ -33,11 +47,30 @@ export default function AppShell({
   sidebar,
   headerTitle,
   headerRight,
+  defaultHide = false,
   children,
 }: AppShellProps) {
   const [isSidebarOpen, sidebarCtl] = useDisclosure(false)
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(defaultHide)
+  const previousDefaultHideRef = useRef(defaultHide)
   const isMobile = useMediaQuery('(max-width: 768px)')
+
+  const handleCloseSidebar = useCallback<CloseSidebar>(
+    (options = {}) => {
+      sidebarCtl.close()
+      if (options.collapse) {
+        setIsSidebarCollapsed(true)
+      }
+    },
+    [sidebarCtl]
+  )
+
+  useEffect(() => {
+    if (defaultHide && !previousDefaultHideRef.current) {
+      handleCloseSidebar({ collapse: true })
+    }
+    previousDefaultHideRef.current = defaultHide
+  }, [defaultHide, handleCloseSidebar])
 
   const handleToggleSidebar = () => {
     if (isMobile) {
@@ -60,7 +93,7 @@ export default function AppShell({
   return (
     <AppShellContext.Provider
       value={{
-        closeSidebar: sidebarCtl.close,
+        closeSidebar: handleCloseSidebar,
         openSidebar: handleOpenSidebar,
         isSidebarVisible,
       }}
@@ -68,14 +101,14 @@ export default function AppShell({
       <div className="app-layout">
         <div
           className={`sidebar-overlay ${isSidebarOpen ? 'visible' : ''}`}
-          onClick={() => sidebarCtl.close()}
+          onClick={() => handleCloseSidebar()}
         />
 
         <div
           className={`sidebar ${isSidebarOpen ? 'open' : ''} ${isSidebarCollapsed ? 'collapsed' : ''}`}
         >
           {sidebar({
-            closeSidebar: sidebarCtl.close,
+            closeSidebar: handleCloseSidebar,
             openSidebar: handleOpenSidebar,
           })}
         </div>

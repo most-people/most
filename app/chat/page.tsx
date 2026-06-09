@@ -777,9 +777,7 @@ function ChatPage() {
   }
 
   const isRestoringInviteChannel =
-    isInviteUser &&
-    Boolean(requestedChannelName) &&
-    !activeChannel
+    isInviteUser && Boolean(requestedChannelName) && !activeChannel
 
   const chatHeaderTitle = activeChannel ? (
     <h2 className="header-title">
@@ -800,6 +798,7 @@ function ChatPage() {
 
   return (
     <AppShell
+      defaultHide={isInviteUser}
       sidebar={({ closeSidebar }) => (
         <>
           <div
@@ -1089,9 +1088,7 @@ function ChatPage() {
       )}
 
       {failedAttachment && (
-        <ModalOverlay
-          onClose={() => setFailedAttachment(null)}
-        >
+        <ModalOverlay onClose={() => setFailedAttachment(null)}>
           <div className="confirm-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3>暂时没有在线种子</h3>
