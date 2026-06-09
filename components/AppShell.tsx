@@ -37,6 +37,7 @@ interface AppShellProps {
     closeSidebar: CloseSidebar
     openSidebar: () => void
   }) => React.ReactNode
+  className?: string
   headerTitle?: React.ReactNode
   headerRight?: React.ReactNode
   sidebarToggleReplacement?: React.ReactNode
@@ -46,6 +47,7 @@ interface AppShellProps {
 
 export default function AppShell({
   sidebar,
+  className = '',
   headerTitle,
   headerRight,
   sidebarToggleReplacement,
@@ -103,7 +105,7 @@ export default function AppShell({
         isSidebarVisible,
       }}
     >
-      <div className="app-layout">
+      <div className={['app-layout', className].filter(Boolean).join(' ')}>
         <div
           className={`sidebar-overlay ${isSidebarOpen ? 'visible' : ''}`}
           onClick={() => handleCloseSidebar()}

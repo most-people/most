@@ -2,6 +2,7 @@
 
 import '~/styles/portal.css'
 import '~/styles/marketing.css'
+import '~/styles/chat.css'
 import '~/styles/demo.css'
 
 import { type ReactNode, useState } from 'react'
@@ -34,6 +35,14 @@ import { useAppStore } from '~/app/app/useAppStore'
 import { useUserStore } from '~/app/app/userStore'
 import { CopyButton } from '~/components/CopyButton'
 import { ChatAttachmentCard } from '~/components/ChatAttachmentCard'
+import {
+  ChannelMemberGrid,
+  ChatAttachmentBubble,
+  ChatChannelNavItem,
+  ChatComposer,
+  ChatMessageItem,
+  ChatTextBubble,
+} from '~/components/ChatUi'
 import ConnectModal from '~/components/ConnectModal'
 import { EmptyState } from '~/components/EmptyState'
 import { Footer } from '~/components/Footer'
@@ -48,6 +57,7 @@ import { NoteSidebar } from '~/components/NoteSidebar'
 import { PemBlock } from '~/components/PemBlock'
 import { ConfirmModal, InputModal, ModalOverlay, Toast } from '~/components/ui'
 import UserLoginModal from '~/components/UserLoginModal'
+import { generateAvatar } from '~/server/src/utils/avatar.js'
 
 type DemoToast = {
   id: number
@@ -128,6 +138,7 @@ export default function DemoPage() {
   const [demoDownloadSource, setDemoDownloadSource] = useState<'r2' | 'github'>(
     'r2'
   )
+  const [demoChatMessage, setDemoChatMessage] = useState('今晚同步频道状态')
   const [showOverlay, setShowOverlay] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [showInput, setShowInput] = useState(false)
@@ -525,6 +536,110 @@ export default function DemoPage() {
                 <span className="peer-dot" />
                 <span className="peer-id">12D3KooW...demo</span>
                 <Wifi size={14} />
+              </div>
+            </div>
+          </DemoCard>
+        </div>
+      </DemoSection>
+
+      <DemoSection
+        id="p2p-chat"
+        icon={<MessageSquare size={18} />}
+        eyebrow="P2P Chat"
+        title="P2P 聊天控件"
+        description="频道列表、消息气泡、附件消息、输入栏和成员网格都与真实聊天页共用组件。"
+      >
+        <div className="demo-grid demo-grid-two">
+          <DemoCard title="频道列表项">
+            <div className="demo-chat-sidebar-preview">
+              <ChatChannelNavItem active title="general" />
+              <ChatChannelNavItem title="design-review" />
+              <ChatChannelNavItem
+                title="launch-room"
+                onLeave={() => pushToast('info', '退出频道控件示例')}
+              />
+              <button type="button" className="ui-action-dashed">
+                <Plus size={16} />
+                加入频道
+              </button>
+            </div>
+          </DemoCard>
+
+          <DemoCard title="消息气泡">
+            <div className="chat-messages demo-chat-messages-preview">
+              <ChatMessageItem
+                variant="other"
+                avatarSrc={generateAvatar('peer-demo')}
+                author="Most Peer"
+                time="20:16"
+              >
+                <ChatTextBubble>节点已在线，可以开始同步频道消息。</ChatTextBubble>
+              </ChatMessageItem>
+              <ChatMessageItem
+                variant="self"
+                avatarSrc={generateAvatar('self-demo')}
+                author="Raina"
+                time="20:18"
+              >
+                <ChatTextBubble>收到，我把控件收进 demo。</ChatTextBubble>
+              </ChatMessageItem>
+              <ChatMessageItem
+                variant="other"
+                avatarSrc={generateAvatar('file-demo')}
+                author="Most Peer"
+                time="20:19"
+              >
+                <ChatAttachmentBubble>
+                  <ChatAttachmentCard
+                    attachment={{
+                      kind: 'image',
+                      cid: 'bafy-chat-demo-image',
+                      fileName: 'chat-assets/channel-preview.png',
+                      link: 'most://bafy-chat-demo-image?filename=channel-preview.png',
+                      size: 186420,
+                    }}
+                    status="available"
+                  />
+                </ChatAttachmentBubble>
+              </ChatMessageItem>
+            </div>
+          </DemoCard>
+
+          <DemoCard title="消息输入栏" className="demo-chat-composer-card">
+            <ChatComposer
+              message={demoChatMessage}
+              placeholder="输入消息..."
+              onMessageChange={setDemoChatMessage}
+              onSend={() => pushToast('success', `发送：${demoChatMessage}`)}
+              onSelectAttachmentFiles={() =>
+                pushToast('info', '图片、视频和文件选择控件示例')
+              }
+            />
+          </DemoCard>
+
+          <DemoCard title="频道成员">
+            <div className="demo-stack">
+              <ChannelMemberGrid
+                members={[
+                  {
+                    id: 'raina-demo',
+                    name: 'Raina',
+                    avatarSrc: generateAvatar('raina-demo'),
+                  },
+                  {
+                    id: 'peer-a-demo',
+                    name: 'Alice#1A2B',
+                    avatarSrc: generateAvatar('peer-a-demo'),
+                  },
+                  {
+                    id: 'peer-b-demo',
+                    name: 'Bob#3C4D',
+                    avatarSrc: generateAvatar('peer-b-demo'),
+                  },
+                ]}
+              />
+              <div className="ui-meta-box channel-detail-value channel-detail-mono">
+                8acdf33076e075168bf889b21d21665b
               </div>
             </div>
           </DemoCard>

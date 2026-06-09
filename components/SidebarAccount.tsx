@@ -1,5 +1,8 @@
 'use client'
 
+import { useState } from 'react'
+import { MoreHorizontal } from 'lucide-react'
+import { ConfirmModal } from '~/components/ui'
 import { generateAvatar } from '~/server/src/utils/avatar.js'
 import { useUserStore } from '~/app/app/userStore'
 
@@ -13,6 +16,7 @@ export default function SidebarAccount({
   const identity = useUserStore(s => s.identity)
   const openLoginModal = useUserStore(s => s.openLoginModal)
   const logoutUser = useUserStore(s => s.logoutUser)
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
 
   return (
     <div className={`chat-sidebar-footer sidebar-account ${className}`}>
@@ -31,9 +35,38 @@ export default function SidebarAccount({
           登录
         </button>
       ) : (
-        <button className="btn btn-ghost logout-btn" onClick={logoutUser}>
-          退出
-        </button>
+        <div className="account-actions-menu">
+          <button
+            className="btn btn-ghost logout-btn"
+            type="button"
+            aria-label="更多操作"
+            title="更多操作"
+          >
+            <MoreHorizontal size={16} />
+          </button>
+          <div className="account-actions-dropdown" role="menu">
+            <button
+              className="account-actions-item danger"
+              type="button"
+              onClick={() => setShowLogoutConfirm(true)}
+            >
+              退出
+            </button>
+          </div>
+        </div>
+      )}
+      {showLogoutConfirm && (
+        <ConfirmModal
+          title="退出登录"
+          message="确定要退出当前账号吗？"
+          confirmText="退出"
+          danger
+          onConfirm={() => {
+            logoutUser()
+            setShowLogoutConfirm(false)
+          }}
+          onClose={() => setShowLogoutConfirm(false)}
+        />
       )}
     </div>
   )

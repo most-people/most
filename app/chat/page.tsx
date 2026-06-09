@@ -3,7 +3,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
   MessageSquare,
-  Send,
   Plus,
   Sun,
   Moon,
@@ -13,10 +12,7 @@ import {
   Calendar,
   Hash,
   Settings,
-  Image as ImageIcon,
-  Film,
   Loader,
-  Paperclip,
   Search,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
@@ -24,6 +20,14 @@ import {
   ChatAttachmentCard,
   getAttachmentBaseFileName,
 } from '~/components/ChatAttachmentCard'
+import {
+  ChannelMemberGrid,
+  ChatAttachmentBubble,
+  ChatChannelNavItem,
+  ChatComposer,
+  ChatMessageItem,
+  ChatTextBubble,
+} from '~/components/ChatUi'
 import FilePreviewOverlay from '~/components/FilePreviewOverlay'
 import { InputModal, ConfirmModal, ModalOverlay } from '~/components/ui'
 import OpenSidebarButton from '~/components/OpenSidebarButton'
@@ -155,9 +159,7 @@ function ChatPage() {
   const isInviteUser = userIdentity?.identity === 'user'
 
   const channelMessagesEndRef = useRef<HTMLDivElement>(null)
-  const imageInputRef = useRef<HTMLInputElement>(null)
-  const videoInputRef = useRef<HTMLInputElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const attachmentInputRef = useRef<HTMLInputElement>(null)
   const pendingAttachmentPreviewsRef = useRef(
     new Map<string, ChannelAttachment>()
   )
@@ -715,7 +717,7 @@ function ChatPage() {
 
   function renderMessageBubble(msg: ChannelMessage) {
     if (!msg.attachment) {
-      return <div className="message-bubble">{msg.content}</div>
+      return <ChatTextBubble>{msg.content}</ChatTextBubble>
     }
 
     const attachment = msg.attachment
@@ -723,14 +725,14 @@ function ChatPage() {
     const downloadStatus = downloadState?.status
 
     return (
-      <div className="message-bubble has-attachment">
+      <ChatAttachmentBubble>
         <ChatAttachmentCard
           attachment={attachment}
           status={downloadStatus}
           pending={msg.pending}
           onOpen={handleOpenAttachment}
         />
-      </div>
+      </ChatAttachmentBubble>
     )
   }
 
@@ -745,35 +747,15 @@ function ChatPage() {
   }
 
   function renderChannelMembers() {
-    if (isLoadingChannelMembers && channelMembers.length === 0) {
-      return (
-        <div className="ui-empty-inline channel-members-empty">
-          正在读取成员...
-        </div>
-      )
-    }
-
-    if (channelMembers.length === 0) {
-      return (
-        <div className="ui-empty-inline channel-members-empty">暂无成员</div>
-      )
-    }
-
     return (
-      <div className="channel-members-grid">
-        {channelMembers.map(member => (
-          <div className="channel-member" key={member.address}>
-            <img
-              className="channel-member-avatar"
-              src={generateAvatar(member.address, member.avatar)}
-              alt="avatar"
-            />
-            <span className="channel-member-name">
-              {formatDisplayName(member.displayName, member.address)}
-            </span>
-          </div>
-        ))}
-      </div>
+      <ChannelMemberGrid
+        isLoading={isLoadingChannelMembers}
+        members={channelMembers.map(member => ({
+          id: member.address,
+          name: formatDisplayName(member.displayName, member.address),
+          avatarSrc: generateAvatar(member.address, member.avatar),
+        }))}
+      />
     )
   }
 
@@ -799,6 +781,7 @@ function ChatPage() {
 
   return (
     <AppShell
+      className="chat-app-layout"
       defaultHide={isInviteUser}
       sidebar={({ closeSidebar }) => (
         <>
@@ -835,36 +818,19 @@ function ChatPage() {
               </div>
             ) : (
               filteredChannels.map(channel => (
-                <div
+                <ChatChannelNavItem
                   key={channel.name}
-                  className={`sidebar-nav-btn ${activeChannel?.name === channel.name ? 'active' : ''}`}
-                  onClick={() => {
+                  active={activeChannel?.name === channel.name}
+                  title={channel.remark || channel.name}
+                  onSelect={() => {
                     handleOpenChannel(channel)
                     closeSidebar()
                   }}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      handleOpenChannel(channel)
-                      closeSidebar()
-                    }
+                  onLeave={() => {
+                    setChannelToLeave(channel)
+                    leaveChannelModal.open()
                   }}
-                >
-                  <MessageSquare size={16} />
-                  <span>{channel.remark || channel.name}</span>
-                  <button
-                    className="leave-channel-btn"
-                    onClick={e => {
-                      e.stopPropagation()
-                      setChannelToLeave(channel)
-                      leaveChannelModal.open()
-                    }}
-                    title="退出频道"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
+                />
               ))
             )}
           </nav>
@@ -923,123 +889,44 @@ function ChatPage() {
                 <p>暂无消息，开始聊天吧！</p>
               </div>
             ) : (
-              channelMessages.map(msg => (
-                <div
-                  key={msg.id || `${msg.author}-${msg.timestamp}`}
-                  className={`chat-message ${msg.author === userIdentity?.address ? 'self' : 'other'} ${msg.pending ? 'pending' : ''}`}
-                >
-                  <img
-                    className="msg-avatar"
-                    src={generateAvatar(
+              channelMessages.map(msg => {
+                const isSelf = msg.author === userIdentity?.address
+
+                return (
+                  <ChatMessageItem
+                    key={msg.id || `${msg.author}-${msg.timestamp}`}
+                    variant={isSelf ? 'self' : 'other'}
+                    pending={msg.pending}
+                    avatarSrc={generateAvatar(
                       msg.author,
-                      msg.author === userIdentity?.address
-                        ? userIdentity.avatar
-                        : undefined
+                      isSelf ? userIdentity.avatar : undefined
                     )}
-                    alt="avatar"
-                  />
-                  <div className="msg-content">
-                    <span className="message-author">
-                      {formatDisplayName(msg.authorName, msg.author)}
-                    </span>
+                    author={formatDisplayName(msg.authorName, msg.author)}
+                    time={new Date(msg.timestamp).toLocaleTimeString('zh-CN', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  >
                     {renderMessageBubble(msg)}
-                    <span className="message-time">
-                      {new Date(msg.timestamp).toLocaleTimeString('zh-CN', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </span>
-                  </div>
-                </div>
-              ))
+                  </ChatMessageItem>
+                )
+              })
             )}
             <div ref={channelMessagesEndRef} />
           </div>
 
-          <div className="chat-input-area">
-            <input
-              ref={imageInputRef}
-              type="file"
-              accept="image/*"
-              className="chat-file-input"
-              onChange={e => {
-                void handleSelectAttachmentFiles(e.target.files)
-                e.currentTarget.value = ''
-              }}
-            />
-            <input
-              ref={videoInputRef}
-              type="file"
-              accept="video/*"
-              className="chat-file-input"
-              onChange={e => {
-                void handleSelectAttachmentFiles(e.target.files)
-                e.currentTarget.value = ''
-              }}
-            />
-            <input
-              ref={fileInputRef}
-              type="file"
-              className="chat-file-input"
-              onChange={e => {
-                void handleSelectAttachmentFiles(e.target.files)
-                e.currentTarget.value = ''
-              }}
-            />
-            <button
-              type="button"
-              className="btn btn-circle chat-tool-btn"
-              onClick={() => imageInputRef.current?.click()}
-              disabled={!userIdentity || isPublishingAttachment}
-              title="发送图片"
-            >
-              <ImageIcon size={18} />
-            </button>
-            <button
-              type="button"
-              className="btn btn-circle chat-tool-btn"
-              onClick={() => videoInputRef.current?.click()}
-              disabled={!userIdentity || isPublishingAttachment}
-              title="发送视频"
-            >
-              <Film size={18} />
-            </button>
-            <button
-              type="button"
-              className="btn btn-circle chat-tool-btn"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={!userIdentity || isPublishingAttachment}
-              title="发送文件"
-            >
-              {isPublishingAttachment ? (
-                <Loader
-                  size={18}
-                  className="ui-spinner chat-attachment-spinner"
-                />
-              ) : (
-                <Paperclip size={18} />
-              )}
-            </button>
-            <input
-              type="text"
-              className="input input-pill"
-              placeholder={userIdentity ? '输入消息...' : '请先登录后发言'}
-              value={channelInput}
-              disabled={!userIdentity}
-              onChange={e => setChannelInput(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter' && channelInput.trim())
-                  handleSendChannelMessage()
-              }}
-            />
-            <button
-              className="btn btn-circle btn-primary send-btn"
-              onClick={handleSendChannelMessage}
-              disabled={!userIdentity || !channelInput.trim()}
-            >
-              <Send size={18} />
-            </button>
-          </div>
+          <ChatComposer
+            message={channelInput}
+            placeholder={userIdentity ? '输入消息...' : '请先登录后发言'}
+            disabled={!userIdentity}
+            isPublishingAttachment={isPublishingAttachment}
+            attachmentInputRef={attachmentInputRef}
+            onMessageChange={setChannelInput}
+            onSend={handleSendChannelMessage}
+            onSelectAttachmentFiles={files => {
+              void handleSelectAttachmentFiles(files)
+            }}
+          />
         </>
       ) : isRestoringInviteChannel ? (
         <div className="ui-empty-state chat-welcome">

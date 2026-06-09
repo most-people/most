@@ -225,6 +225,39 @@
   background: var(--glass-bg-subtle);
 }
 
+.demo-chat-sidebar-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: var(--glass-bg-subtle);
+}
+
+.demo-chat-sidebar-preview .ui-action-dashed {
+  margin-top: var(--space-2);
+}
+
+.demo-chat-messages-preview {
+  min-height: 330px;
+  max-height: 380px;
+  overflow: auto;
+  padding: var(--space-4);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: var(--glass-bg-subtle);
+}
+
+.demo-chat-composer-card {
+  overflow: hidden;
+}
+
+.demo-chat-composer-card .chat-input-area {
+  margin: calc(var(--space-5) * -1);
+  margin-top: 0;
+}
+
 .demo-surface .ui-segmented-control {
   width: fit-content;
   max-width: 100%;
