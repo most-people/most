@@ -18,6 +18,11 @@ const webVsDesktop = [
   { feature: '大文件传输', web: '依赖所连节点', desktop: '10GB 上限内' },
 ]
 
+const desktopRuntimeNote =
+  '桌面客户端是当前 MVP 的首选入口，内置本地 P2P 节点，提供发布、下载校验和持续做种的完整能力。Web 端只连接已有 MostBox 节点。'
+const npmRuntimeNote =
+  '使用 npm 入口请先安装 Node.js >= 22.12，然后运行 npx most-box@latest 启动本机完整节点。'
+
 export default function DownloadPage() {
   return (
     <div className="download-page">
@@ -36,11 +41,7 @@ export default function DownloadPage() {
             <Download size={40} />
           </div>
           <h1 className="download-hero-title">下载客户端</h1>
-          <p className="download-hero-desc">
-            桌面客户端是当前 MVP 的首选入口，内置本地 P2P
-            节点，提供发布、下载校验和持续做种的完整能力。Web 端只连接已有
-            MostBox 节点。
-          </p>
+          <p className="download-hero-desc">{desktopRuntimeNote}</p>
         </div>
       </section>
 
@@ -74,6 +75,12 @@ export default function DownloadPage() {
               </tbody>
             </table>
           </div>
+        </div>
+      </section>
+
+      <section className="download-cta">
+        <div className="mkt-container">
+          <p className="download-hero-desc">{npmRuntimeNote}</p>
         </div>
       </section>
 
