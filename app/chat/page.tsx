@@ -56,13 +56,22 @@ import {
   type ChannelMessage,
 } from '~/lib/channelApi'
 import { getFileSubtype, type FileSubtype } from '~/lib/filePreview'
+import {
+  applyIncomingChannelMessageReadState,
+  getChannelActivityTime,
+  getChatReadStorageKey,
+  hasUnreadChannelMessage,
+  initializeChannelLastReadAt,
+  markChannelReadInMap,
+  readStoredChannelLastReadAt,
+  writeStoredChannelLastReadAt,
+} from '~/lib/chatUnread.js'
 
 const CHANNEL_NAME_MIN_LENGTH = 3
 const CHANNEL_NAME_MAX_LENGTH = 30
 const CHANNEL_NAME_REGEX = /^[a-zA-Z0-9_-]+$/
 const ATTACHMENT_CHECK_TIMEOUT_MS = 10000
 const ATTACHMENT_CHECK_REQUEST_TIMEOUT_MS = ATTACHMENT_CHECK_TIMEOUT_MS + 2000
-const CHAT_READ_STORAGE_PREFIX = 'mostbox.chat.lastReadAt'
 const CHAT_NOTIFICATION_SOUND_MIN_INTERVAL_MS = 1200
 
 const API = {
@@ -116,59 +125,6 @@ type AttachmentDownloadState = {
 
 type ChannelLastReadMap = Record<string, number>
 type BrowserAudioContextConstructor = typeof AudioContext
-
-function getChannelActivityTime(channel: Channel) {
-  return (
-    Date.parse(channel.lastMessageAt || '') ||
-    Date.parse(channel.createdAt || '') ||
-    0
-  )
-}
-
-function getChatReadStorageKey(address?: string) {
-  const normalizedAddress = String(address || '').trim().toLowerCase()
-  return normalizedAddress
-    ? `${CHAT_READ_STORAGE_PREFIX}:${normalizedAddress}`
-    : ''
-}
-
-function readStoredChannelLastReadAt(storageKey: string): ChannelLastReadMap {
-  if (!storageKey || typeof window === 'undefined') return {}
-  try {
-    const value = window.localStorage.getItem(storageKey)
-    if (!value) return {}
-    const parsed = JSON.parse(value)
-    if (!parsed || typeof parsed !== 'object') return {}
-
-    return Object.entries(parsed).reduce<ChannelLastReadMap>(
-      (result, [name, timestamp]) => {
-        const value = Number(timestamp)
-        if (name && Number.isFinite(value) && value >= 0) {
-          result[name] = value
-        }
-        return result
-      },
-      {}
-    )
-  } catch {
-    return {}
-  }
-}
-
-function writeStoredChannelLastReadAt(
-  storageKey: string,
-  value: ChannelLastReadMap
-) {
-  if (!storageKey || typeof window === 'undefined') return
-  try {
-    window.localStorage.setItem(storageKey, JSON.stringify(value))
-  } catch {}
-}
-
-function getChannelReadTimestamp(timestamp: number) {
-  const value = Number(timestamp) || Date.now()
-  return Math.max(0, Math.floor(value))
-}
 
 function getBrowserAudioContextConstructor():
   | BrowserAudioContextConstructor
@@ -259,11 +215,10 @@ function ChatPage() {
     (channelName: string, timestamp = Date.now()) => {
       if (!channelName) return
       setChannelLastReadAt(prev => {
-        const nextTimestamp = getChannelReadTimestamp(timestamp)
-        if ((prev[channelName] || 0) >= nextTimestamp) return prev
-        const next = { ...prev, [channelName]: nextTimestamp }
-        writeStoredChannelLastReadAt(channelReadStorageKey, next)
-        return next
+        const result = markChannelReadInMap(prev, channelName, timestamp)
+        if (!result.changed) return prev
+        writeStoredChannelLastReadAt(channelReadStorageKey, result.value)
+        return result.value
       })
     },
     [channelReadStorageKey]
@@ -382,21 +337,22 @@ function ChatPage() {
             )
           )
           const isActiveChannel = channelName === activeChannelNameRef.current
-          const isSelfMessage =
-            String(message?.author || '').toLowerCase() ===
-            String(userIdentity?.address || '').toLowerCase()
-          if (isActiveChannel || isSelfMessage) {
-            markChannelRead(channelName, messageTime)
-          } else {
-            setChannelLastReadAt(prev => {
-              const readAt = prev[channelName] || 0
-              if (readAt < messageTime) return prev
-              const next = { ...prev, [channelName]: Math.max(0, messageTime - 1) }
-              writeStoredChannelLastReadAt(channelReadStorageKey, next)
-              return next
+          setChannelLastReadAt(prev => {
+            const result = applyIncomingChannelMessageReadState(prev, {
+              channelName,
+              messageTime,
+              activeChannelName: isActiveChannel ? channelName : '',
+              messageAuthor: message?.author,
+              userAddress: userIdentity?.address,
             })
-            playChannelNotificationSound()
-          }
+            if (result.changed) {
+              writeStoredChannelLastReadAt(channelReadStorageKey, result.value)
+            }
+            if (result.notify) {
+              playChannelNotificationSound()
+            }
+            return result.changed ? result.value : prev
+          })
         }
         break
       }
@@ -486,6 +442,7 @@ function ChatPage() {
     waitForPeerId: true,
     onSyncError: err => showApiError(err, '无法读取频道消息'),
     onSocketEvent: handleChannelSocketEvent,
+    onReconnect: refreshChannels,
   })
 
   function requireBackendReady() {
@@ -531,19 +488,11 @@ function ChatPage() {
   useEffect(() => {
     if (!channelReadStorageKey || channels.length === 0) return
     setChannelLastReadAt(prev => {
-      let changed = false
-      const next = { ...prev }
-      for (const channel of channels) {
-        if (next[channel.name] !== undefined) continue
-        next[channel.name] = getChannelReadTimestamp(
-          getChannelActivityTime(channel)
-        )
-        changed = true
+      const result = initializeChannelLastReadAt(prev, channels)
+      if (result.changed) {
+        writeStoredChannelLastReadAt(channelReadStorageKey, result.value)
       }
-      if (changed) {
-        writeStoredChannelLastReadAt(channelReadStorageKey, next)
-      }
-      return changed ? next : prev
+      return result.changed ? result.value : prev
     })
   }, [channelReadStorageKey, channels])
 
@@ -906,6 +855,12 @@ function ChatPage() {
             : channel
         )
       )
+      if (sentMessage) {
+        markChannelRead(
+          activeChannel.name,
+          Number(sentMessage.timestamp) || Date.now()
+        )
+      }
       void refreshChannelMembers(activeChannel.name)
       return true
     } catch (err) {
@@ -1089,13 +1044,6 @@ function ChatPage() {
       }),
     [channels]
   )
-  const hasUnreadChannelMessage = useCallback(
-    (channel: Channel) => {
-      const activityTime = getChannelActivityTime(channel)
-      return activityTime > (channelLastReadAt[channel.name] || 0)
-    },
-    [channelLastReadAt]
-  )
   const filteredChannels = channelSearchQuery
     ? sortedChannels.filter(channel => {
         const displayName = channel.remark || channel.name
@@ -1148,7 +1096,7 @@ function ChatPage() {
                   key={channel.name}
                   active={activeChannel?.name === channel.name}
                   pinned={Boolean(channel.pinned)}
-                  unread={hasUnreadChannelMessage(channel)}
+                  unread={hasUnreadChannelMessage(channel, channelLastReadAt)}
                   title={channel.remark || channel.name}
                   onSelect={() => {
                     handleOpenChannel(channel)

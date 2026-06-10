@@ -7,6 +7,11 @@ import {
   type ChannelMessage,
 } from '~/lib/channelApi'
 import { getAuthenticatedWebSocketUrl } from '~/server/src/utils/api'
+import {
+  getChannelSubscriptionChanges,
+  getChannelSubscriptionKey,
+  getChannelSubscriptionNames,
+} from '~/lib/channelSubscriptions.js'
 
 interface UseChannelMessagesOptions {
   isReady: boolean
@@ -21,6 +26,7 @@ interface UseChannelMessagesOptions {
   getMessageKey?: (message: ChannelMessage) => string
   onSyncError?: (err: unknown) => void | Promise<void>
   onSocketEvent?: (event: string, data: any) => void
+  onReconnect?: () => void | Promise<void>
 }
 
 export interface SendChannelMessageOptions {
@@ -53,11 +59,12 @@ export function useChannelMessages({
   getMessageKey = defaultMessageKey,
   onSyncError,
   onSocketEvent,
+  onReconnect,
 }: UseChannelMessagesOptions) {
   const [messages, setMessages] = useState<ChannelMessage[]>([])
   const [connected, setConnected] = useState(false)
   const extraSubscribedChannelNamesKey = useMemo(
-    () => [...new Set(extraSubscribedChannelNames.filter(Boolean))].join('\n'),
+    () => getChannelSubscriptionKey(extraSubscribedChannelNames),
     [extraSubscribedChannelNames]
   )
 
@@ -70,6 +77,7 @@ export function useChannelMessages({
   const getMessageKeyRef = useRef(getMessageKey)
   const onSocketEventRef = useRef(onSocketEvent)
   const onSyncErrorRef = useRef(onSyncError)
+  const onReconnectRef = useRef(onReconnect)
   const peerIdRef = useRef(peerId)
   const subscribedChannelsRef = useRef(new Set<string>())
 
@@ -94,6 +102,10 @@ export function useChannelMessages({
   useEffect(() => {
     onSyncErrorRef.current = onSyncError
   }, [onSyncError])
+
+  useEffect(() => {
+    onReconnectRef.current = onReconnect
+  }, [onReconnect])
 
   const filterMessages = useCallback((items: ChannelMessage[]) => {
     const accept = acceptMessageRef.current
@@ -138,15 +150,15 @@ export function useChannelMessages({
   const replaceSubscriptions = useCallback(
     (names: string[]) => {
       const nextNames = new Set(names.filter(Boolean))
-      for (const name of subscribedChannelsRef.current) {
-        if (!nextNames.has(name)) {
-          wsSend('channel:unsubscribe', { channel: name })
-        }
+      const changes = getChannelSubscriptionChanges(
+        subscribedChannelsRef.current,
+        nextNames
+      )
+      for (const name of changes.unsubscribe) {
+        wsSend('channel:unsubscribe', { channel: name })
       }
-      for (const name of nextNames) {
-        if (!subscribedChannelsRef.current.has(name)) {
-          wsSend('channel:subscribe', { channel: name })
-        }
+      for (const name of changes.subscribe) {
+        wsSend('channel:subscribe', { channel: name })
       }
       subscribedChannelsRef.current = nextNames
     },
@@ -154,11 +166,10 @@ export function useChannelMessages({
   )
 
   const getSubscriptionNames = useCallback(() => {
-    const names = [
+    return getChannelSubscriptionNames(
       channelNameRef.current,
-      ...extraSubscribedChannelNamesRef.current,
-    ]
-    return [...new Set(names.filter(Boolean))]
+      extraSubscribedChannelNamesRef.current
+    )
   }, [])
 
   const syncMessages = useCallback(
@@ -322,6 +333,7 @@ export function useChannelMessages({
           if (channelNameRef.current) {
             void syncMessages(channelNameRef.current, { replace: true })
           }
+          void onReconnectRef.current?.()
         }
       }
       ws.onmessage = event => {
