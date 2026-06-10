@@ -1,11 +1,6 @@
 'use client'
 
-import type {
-  ChangeEvent,
-  KeyboardEvent,
-  ReactNode,
-  RefObject,
-} from 'react'
+import type { ChangeEvent, KeyboardEvent, ReactNode, RefObject } from 'react'
 import {
   ArrowRight,
   Edit2,
@@ -205,9 +200,7 @@ export function ChannelMemberGrid({
   }
 
   if (members.length === 0) {
-    return (
-      <div className="ui-empty-inline channel-members-empty">暂无成员</div>
-    )
+    return <div className="ui-empty-inline channel-members-empty">暂无成员</div>
   }
 
   return (
@@ -299,7 +292,10 @@ export function ChatComposer({
             aria-label={attachmentButtonTitle}
           >
             {isPublishingAttachment ? (
-              <Loader size={18} className="ui-spinner chat-attachment-spinner" />
+              <Loader
+                size={18}
+                className="ui-spinner chat-attachment-spinner"
+              />
             ) : (
               <Plus size={18} />
             )}
