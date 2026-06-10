@@ -25,9 +25,11 @@ export interface Channel {
   name: string
   remark?: string
   createdAt?: string
+  lastMessageAt?: string
   coreKey?: string
   type?: string
   peerCount?: number
+  pinned?: boolean
 }
 
 export interface ChannelMember {
@@ -63,6 +65,11 @@ export interface ChannelProfileInput {
 export interface SetChannelRemarkResult {
   success: boolean
   remark: string
+}
+
+export interface SetChannelPinnedResult {
+  success: boolean
+  pinned: boolean
 }
 
 export interface CreateChannelResult extends Channel {
@@ -142,6 +149,15 @@ export const channelApi = {
       .put<SetChannelRemarkResult>(
         `/api/channels/${encodeURIComponent(name)}/remark`,
         { json: { remark } }
+      )
+      .json()
+  },
+
+  setChannelPinned(name: string, pinned: boolean) {
+    return api
+      .put<SetChannelPinnedResult>(
+        `/api/channels/${encodeURIComponent(name)}/pin`,
+        { json: { pinned } }
       )
       .json()
   },

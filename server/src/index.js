@@ -1618,6 +1618,13 @@ export class MostBoxEngine extends EventEmitter {
     this.#channels = this.#channels
       .map(channel => ({
         ...channel,
+        pinnedBy: channel.pinnedBy
+          ? Object.fromEntries(
+              Object.entries(channel.pinnedBy).filter(
+                ([address]) => normalizeOwnerAddress(address) !== ownerAddress
+              )
+            )
+          : undefined,
         members: Array.isArray(channel.members)
           ? channel.members.filter(
               member => normalizeOwnerAddress(member?.address) !== ownerAddress
@@ -2250,9 +2257,36 @@ export class MostBoxEngine extends EventEmitter {
     return trimmed
   }
 
+  setChannelPinned(name, pinned, options = {}) {
+    this.#ensureInitialized()
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    if (!ownerAddress) {
+      throw new Error('需要登录才能设置置顶')
+    }
+
+    const channel = this.#channels.find(c => c.name === name)
+    if (!channel) {
+      throw new Error('频道不存在')
+    }
+    this.#assertChannelMember(name, ownerAddress)
+
+    if (!channel.pinnedBy) {
+      channel.pinnedBy = {}
+    }
+
+    if (pinned) {
+      channel.pinnedBy[ownerAddress] = true
+    } else {
+      delete channel.pinnedBy[ownerAddress]
+    }
+
+    this.#saveChannelsMetadata()
+    return Boolean(channel.pinnedBy[ownerAddress])
+  }
+
   /**
    * 列出所有频道
-   * @returns {Array<{ name: string, coreKey: string, createdAt: string, type: string, peerCount: number, remark: string }>}
+   * @returns {Array<{ name: string, coreKey: string, createdAt: string, lastMessageAt: string, type: string, peerCount: number, remark: string, pinned: boolean }>}
    */
   listChannels(options = {}) {
     this.#ensureInitialized()
@@ -2274,9 +2308,11 @@ export class MostBoxEngine extends EventEmitter {
         name: c.name,
         coreKey: c.coreKey,
         createdAt: c.createdAt,
+        lastMessageAt: c.lastMessageAt || '',
         type: c.type,
         peerCount: (this.#channelPeers.get(c.name) || new Map()).size,
         remark: ownerAddress && c.remarks ? c.remarks[ownerAddress] || '' : '',
+        pinned: Boolean(ownerAddress && c.pinnedBy?.[ownerAddress]),
       }))
   }
 
@@ -2406,6 +2442,10 @@ export class MostBoxEngine extends EventEmitter {
     }
 
     await core.append(message)
+    if (channel) {
+      channel.lastMessageAt = new Date(message.timestamp).toISOString()
+      this.#saveChannelsMetadata()
+    }
 
     return message
   }
@@ -3218,6 +3258,15 @@ export class MostBoxEngine extends EventEmitter {
           try {
             const entry = await core.get(i)
             if (entry && entry.type === 'message') {
+              const channel = this.#channels.find(c => c.name === channelName)
+              if (channel) {
+                const entryTime = Number(entry.timestamp) || Date.now()
+                const currentTime = Date.parse(channel.lastMessageAt || '') || 0
+                if (entryTime > currentTime) {
+                  channel.lastMessageAt = new Date(entryTime).toISOString()
+                  this.#saveChannelsMetadata()
+                }
+              }
               this.emit('channel:message', {
                 channel: channelName,
                 message: this.#normalizeChannelMessageForResponse(

@@ -42,7 +42,6 @@ export default function SidebarAccount({
             {
               key: 'logout',
               label: '退出',
-              danger: true,
               onSelect: () => setShowLogoutConfirm(true),
             },
           ]}
@@ -63,7 +62,6 @@ export default function SidebarAccount({
           title="退出登录"
           message="确定要退出当前账号吗？"
           confirmText="退出"
-          danger
           onConfirm={() => {
             logoutUser()
             setShowLogoutConfirm(false)

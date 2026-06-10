@@ -8,12 +8,15 @@ import type {
 } from 'react'
 import {
   ArrowRight,
+  Edit2,
   FileText,
   Film,
   Image as ImageIcon,
   Loader,
   MessageSquare,
   MoreHorizontal,
+  Pin,
+  PinOff,
   Plus,
 } from 'lucide-react'
 import { ActionMenu } from '~/components/ui'
@@ -96,20 +99,33 @@ export function ChatMessageItem({
 
 export function ChatChannelNavItem({
   active = false,
+  pinned = false,
   title,
   onSelect,
+  onTogglePin,
+  onRename,
   onLeave,
 }: {
   active?: boolean
+  pinned?: boolean
   title: string
   onSelect?: () => void
+  onTogglePin?: () => void
+  onRename?: () => void
   onLeave?: () => void
 }) {
-  const hasActions = Boolean(onLeave)
+  const hasActions = Boolean(onTogglePin || onRename || onLeave)
+  const className = [
+    'sidebar-nav-btn',
+    active ? 'active' : '',
+    pinned ? 'pinned' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
 
   return (
     <div
-      className={`sidebar-nav-btn ${active ? 'active' : ''}`}
+      className={className}
       onClick={onSelect}
       role="button"
       tabIndex={0}
@@ -128,9 +144,20 @@ export function ChatChannelNavItem({
           placement="bottom-end"
           items={[
             {
+              key: 'pin',
+              label: pinned ? '取消置顶' : '置顶',
+              icon: pinned ? <PinOff size={16} /> : <Pin size={16} />,
+              onSelect: () => onTogglePin?.(),
+            },
+            {
+              key: 'rename',
+              label: '重命名',
+              icon: <Edit2 size={16} />,
+              onSelect: () => onRename?.(),
+            },
+            {
               key: 'delete',
               label: '删除',
-              danger: true,
               onSelect: () => onLeave?.(),
             },
           ]}

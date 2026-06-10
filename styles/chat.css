@@ -188,6 +188,24 @@
   margin: 8px;
 }
 
+/* === Pinned Channels === */
+.sidebar-nav-btn.pinned {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+.sidebar-nav-btn.pinned:not(.active) {
+  color: var(--text-primary);
+}
+
+.sidebar-nav-btn.pinned:hover:not(.active) {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.sidebar-nav-btn.pinned.active {
+  background: color-mix(in srgb, var(--accent) 26%, var(--glass-bg-subtle));
+}
+
 /* === Channel Action Menu === */
 .channel-actions-anchor {
   margin-left: auto;
@@ -214,8 +232,8 @@
 }
 
 .leave-channel-btn.channel-actions-trigger:hover {
-  color: var(--danger);
-  background: rgba(255, 59, 48, 0.1);
+  color: var(--text-primary);
+  background: var(--glass-bg-subtle);
 }
 
 /* === Mobile === */

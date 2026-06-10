@@ -1498,6 +1498,45 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
     })
   })
 
+  describe('setChannelPinned()', () => {
+    it('sets a per-user pin flag for a channel', async () => {
+      const ownerAddress = '0x1234567890abcdef1234567890abcdef12345678'
+      const otherAddress = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+      const channelName = `pin-${uid}`
+      await engine.createChannel(channelName, 'personal', { ownerAddress })
+
+      const pinned = engine.setChannelPinned(channelName, true, { ownerAddress })
+
+      assert.strictEqual(pinned, true)
+      const ownerChannels = engine.listChannels({ ownerAddress })
+      const otherChannels = engine.listChannels({ ownerAddress: otherAddress })
+      assert.strictEqual(
+        ownerChannels.find(c => c.name === channelName).pinned,
+        true
+      )
+      assert.strictEqual(
+        otherChannels.some(c => c.name === channelName),
+        false
+      )
+
+      const unpinned = engine.setChannelPinned(channelName, false, { ownerAddress })
+      assert.strictEqual(unpinned, false)
+      assert.strictEqual(
+        engine.listChannels({ ownerAddress }).find(c => c.name === channelName)
+          .pinned,
+        false
+      )
+    })
+
+    it('throws without ownerAddress', async () => {
+      await engine.createChannel(`pin-no-${uid}`)
+      assert.throws(
+        () => engine.setChannelPinned(`pin-no-${uid}`, true),
+        /需要登录/
+      )
+    })
+  })
+
   describe('getDisplayName() and setDisplayName()', () => {
     it('returns null initially', () => {
       const name = engine.getDisplayName()

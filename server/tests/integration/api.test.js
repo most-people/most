@@ -1871,6 +1871,55 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     })
   })
 
+  describe('PUT /api/channels/:name/pin', () => {
+    it('requires login before pinning a channel', async () => {
+      await engine.createChannel(`auth-pin-${uid}`)
+      const res = await fetchWithoutAuth(
+        `${baseUrl}/api/channels/auth-pin-${uid}/pin`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pinned: true }),
+        }
+      )
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 401)
+      assert.strictEqual(data.code, 'LOGIN_REQUIRED')
+    })
+
+    it('sets and clears a channel pin', async () => {
+      await engine.createChannel(`pin-${uid}`, 'personal', {
+        ownerAddress: TEST_IDENTITY.address,
+      })
+      const pinRes = await fetch(`${baseUrl}/api/channels/pin-${uid}/pin`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pinned: true }),
+      })
+      const pinData = await pinRes.json()
+
+      assert.strictEqual(pinRes.status, 200)
+      assert.strictEqual(pinData.pinned, true)
+
+      const listRes = await fetch(`${baseUrl}/api/channels`)
+      const channels = await listRes.json()
+      assert.strictEqual(
+        channels.find(c => c.name === `pin-${uid}`).pinned,
+        true
+      )
+
+      const clearRes = await fetch(`${baseUrl}/api/channels/pin-${uid}/pin`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pinned: false }),
+      })
+      const clearData = await clearRes.json()
+      assert.strictEqual(clearRes.status, 200)
+      assert.strictEqual(clearData.pinned, false)
+    })
+  })
+
   describe('GET /api/config', () => {
     it('returns config with dataPath', async () => {
       const res = await fetch(`${baseUrl}/api/config`)

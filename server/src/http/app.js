@@ -1078,6 +1078,19 @@ export function createApp(engine, options = {}) {
     }
   })
 
+  app.put('/api/channels/:name/pin', async c => {
+    const name = c.req.param('name')
+    const body = await c.req.json()
+    try {
+      const pinned = engine.setChannelPinned(name, Boolean(body.pinned), {
+        ownerAddress: c.get('userAddress'),
+      })
+      return c.json({ success: true, pinned })
+    } catch (err) {
+      return c.json({ error: err.message }, 400)
+    }
+  })
+
   // --- 文件夹重命名 ---
   app.post('/api/folder/rename', async c => {
     const body = await c.req.json()

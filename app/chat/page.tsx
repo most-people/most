@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   MessageSquare,
   Plus,
@@ -112,6 +112,14 @@ type AttachmentDownloadState = {
   message?: string
 }
 
+function getChannelActivityTime(channel: Channel) {
+  return (
+    Date.parse(channel.lastMessageAt || '') ||
+    Date.parse(channel.createdAt || '') ||
+    0
+  )
+}
+
 async function getDownloadCheckErrorMessage(err: unknown) {
   const data = await getApiErrorPayload(err)
   const errorName =
@@ -140,8 +148,10 @@ function ChatPage() {
   const [isLeavingChannel, setIsLeavingChannel] = useState(false)
   const [showLeaveChannelConfirm, leaveChannelModal] = useDisclosure(false)
   const [channelToLeave, setChannelToLeave] = useState<Channel | null>(null)
+  const [channelToRename, setChannelToRename] = useState<Channel | null>(null)
   const [showChannelDetail, setShowChannelDetail] = useState(false)
   const [remarkInput, setRemarkInput] = useState('')
+  const [isRenamingChannel, setIsRenamingChannel] = useState(false)
   const [previewItem, setPreviewItem] = useState<{
     cid: string
     fileName: string
@@ -202,6 +212,24 @@ function ChatPage() {
 
   function handleChannelSocketEvent(event: string, data: any) {
     switch (event) {
+      case 'channel:message': {
+        const channelName = data?.channel
+        const messageTime = Number(data?.message?.timestamp) || Date.now()
+        if (channelName) {
+          setChannels(prev =>
+            prev.map(channel =>
+              channel.name === channelName
+                ? {
+                    ...channel,
+                    lastMessageAt: new Date(messageTime).toISOString(),
+                  }
+                : channel
+            )
+          )
+        }
+        break
+      }
+
       case 'channel:peer:online':
       case 'channel:peer:offline':
         if (activeChannel) {
@@ -370,11 +398,13 @@ function ChatPage() {
       } else if (
         found &&
         activeChannel &&
-        activeChannel.name === found.name &&
-        (activeChannel.createdAt !== found.createdAt ||
-          activeChannel.coreKey !== found.coreKey ||
-          activeChannel.remark !== found.remark ||
-          activeChannel.type !== found.type)
+          activeChannel.name === found.name &&
+          (activeChannel.createdAt !== found.createdAt ||
+            activeChannel.coreKey !== found.coreKey ||
+            activeChannel.lastMessageAt !== found.lastMessageAt ||
+            activeChannel.pinned !== found.pinned ||
+            activeChannel.remark !== found.remark ||
+            activeChannel.type !== found.type)
       ) {
         setActiveChannel(found)
       }
@@ -386,6 +416,7 @@ function ChatPage() {
     setChannels([])
     setActiveChannel(null)
     setRequestedChannelName('')
+    setChannelToRename(null)
     clearChannelMessages()
     setChannelInput('')
     setMyPeerId('')
@@ -552,6 +583,27 @@ function ChatPage() {
     }
   }
 
+  async function handleToggleChannelPin(channel: Channel) {
+    if (!requireLogin()) return
+    if (!requireBackendReady()) return
+    const nextPinned = !channel.pinned
+    try {
+      const result = await channelApi.setChannelPinned(channel.name, nextPinned)
+      setChannels(prev =>
+        prev.map(item =>
+          item.name === channel.name ? { ...item, pinned: result.pinned } : item
+        )
+      )
+      setActiveChannel(prev =>
+        prev && prev.name === channel.name
+          ? { ...prev, pinned: result.pinned }
+          : prev
+      )
+    } catch (err) {
+      await showApiError(err, nextPinned ? '置顶失败' : '取消置顶失败')
+    }
+  }
+
   async function handleJoinChannel(channelName: string) {
     const name = channelName.trim()
     if (!name || isJoiningChannel) return
@@ -606,7 +658,7 @@ function ChatPage() {
     const trimmedContent = content.trim()
 
     try {
-      await sendSharedChannelMessage({
+      const sentMessage = await sendSharedChannelMessage({
         channelName: activeChannel.name,
         content: trimmedContent,
         author: userIdentity.address,
@@ -614,6 +666,18 @@ function ChatPage() {
         avatar: userIdentity.avatar,
         attachment,
       })
+      setChannels(prev =>
+        prev.map(channel =>
+          channel.name === activeChannel.name
+            ? {
+                ...channel,
+                lastMessageAt: new Date(
+                  Number(sentMessage?.timestamp) || Date.now()
+                ).toISOString(),
+              }
+            : channel
+        )
+      )
       void refreshChannelMembers(activeChannel.name)
       return true
     } catch (err) {
@@ -693,25 +757,39 @@ function ChatPage() {
     await startAttachmentDownload(attachment)
   }
 
-  async function handleSetRemark() {
-    if (!activeChannel) return
+  async function updateChannelRemark(channel: Channel, nextRemark: string) {
     if (!requireLogin()) return
     if (!requireBackendReady()) return
+
+    const result = await channelApi.setChannelRemark(channel.name, nextRemark)
+    setChannels(prev =>
+      prev.map(c => (c.name === channel.name ? { ...c, remark: result.remark } : c))
+    )
+    setActiveChannel(prev =>
+      prev && prev.name === channel.name ? { ...prev, remark: result.remark } : prev
+    )
+    return result.remark
+  }
+
+  async function handleSetRemark() {
+    if (!activeChannel) return
     try {
-      const result = await channelApi.setChannelRemark(
-        activeChannel.name,
-        remarkInput
-      )
-      setChannels(prev =>
-        prev.map(c =>
-          c.name === activeChannel.name ? { ...c, remark: result.remark } : c
-        )
-      )
-      setActiveChannel(prev =>
-        prev ? { ...prev, remark: result.remark } : null
-      )
+      await updateChannelRemark(activeChannel, remarkInput)
     } catch (err) {
       await showApiError(err, '设置备注失败')
+    }
+  }
+
+  async function handleRenameChannel(value: string) {
+    if (!channelToRename || isRenamingChannel) return
+    setIsRenamingChannel(true)
+    try {
+      await updateChannelRemark(channelToRename, value)
+      setChannelToRename(null)
+    } catch (err) {
+      await showApiError(err, '重命名失败')
+    } finally {
+      setIsRenamingChannel(false)
     }
   }
 
@@ -770,14 +848,27 @@ function ChatPage() {
     <h2 className="header-title">聊天</h2>
   )
   const channelSearchQuery = channelSearchInput.trim().toLowerCase()
+  const sortedChannels = useMemo(
+    () =>
+      [...channels].sort((a, b) => {
+        const pinnedDiff = Number(Boolean(b.pinned)) - Number(Boolean(a.pinned))
+        if (pinnedDiff !== 0) return pinnedDiff
+
+        const activityDiff = getChannelActivityTime(b) - getChannelActivityTime(a)
+        if (activityDiff !== 0) return activityDiff
+
+        return (a.remark || a.name).localeCompare(b.remark || b.name, 'zh-CN')
+      }),
+    [channels]
+  )
   const filteredChannels = channelSearchQuery
-    ? channels.filter(channel => {
+    ? sortedChannels.filter(channel => {
         const displayName = channel.remark || channel.name
         return [displayName, channel.name].some(value =>
           value.toLowerCase().includes(channelSearchQuery)
         )
       })
-    : channels
+    : sortedChannels
 
   return (
     <AppShell
@@ -821,11 +912,14 @@ function ChatPage() {
                 <ChatChannelNavItem
                   key={channel.name}
                   active={activeChannel?.name === channel.name}
+                  pinned={Boolean(channel.pinned)}
                   title={channel.remark || channel.name}
                   onSelect={() => {
                     handleOpenChannel(channel)
                     closeSidebar()
                   }}
+                  onTogglePin={() => void handleToggleChannelPin(channel)}
+                  onRename={() => setChannelToRename(channel)}
                   onLeave={() => {
                     setChannelToLeave(channel)
                     leaveChannelModal.open()
@@ -964,6 +1058,24 @@ function ChatPage() {
         />
       )}
 
+      {channelToRename && (
+        <InputModal
+          title="重命名频道"
+          placeholder="输入备注名称"
+          defaultValue={channelToRename.remark || ''}
+          confirmText="保存"
+          onConfirm={handleRenameChannel}
+          onClose={() => {
+            if (isRenamingChannel) return
+            setChannelToRename(null)
+          }}
+          isLoading={isRenamingChannel}
+          loadingText="保存中..."
+          allowEmpty
+          validate={value => (value.length > 50 ? '备注名称最多 50 个字符' : '')}
+        />
+      )}
+
       {showLeaveChannelConfirm && channelToLeave && (
         <ConfirmModal
           title="退出频道"
@@ -974,7 +1086,6 @@ function ChatPage() {
             leaveChannelModal.close()
             setChannelToLeave(null)
           }}
-          danger
         />
       )}
 
@@ -1124,7 +1235,7 @@ function ChatPage() {
             {!isInviteUser && (
               <div className="channel-detail-footer">
                 <button
-                  className="btn btn-danger btn-block"
+                  className="btn btn-secondary btn-block"
                   onClick={() => {
                     setShowChannelDetail(false)
                     setChannelToLeave(activeChannel)

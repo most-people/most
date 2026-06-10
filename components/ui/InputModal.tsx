@@ -14,6 +14,7 @@ interface InputModalProps {
   isLoading?: boolean
   loadingText?: string
   validate?: (value: string) => string
+  allowEmpty?: boolean
 }
 
 export function InputModal({
@@ -26,11 +27,13 @@ export function InputModal({
   isLoading,
   loadingText,
   validate,
+  allowEmpty = false,
 }: InputModalProps) {
   const [value, setValue] = useState(defaultValue || '')
   const trimmedValue = value.trim()
   const validationError = trimmedValue && validate ? validate(trimmedValue) : ''
-  const canConfirm = Boolean(trimmedValue) && !validationError && !isLoading
+  const canConfirm =
+    (allowEmpty || Boolean(trimmedValue)) && !validationError && !isLoading
 
   function handleConfirm() {
     if (!canConfirm) return
