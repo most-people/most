@@ -18,6 +18,7 @@ import {
   Pin,
   PinOff,
   Plus,
+  Trash2,
 } from 'lucide-react'
 import { ActionMenu } from '~/components/ui'
 
@@ -29,28 +30,24 @@ export type ChannelMemberView = {
   avatarSrc: string
 }
 
-const DEFAULT_ATTACHMENT_SIZE_LABEL = '10 GB'
 const ATTACHMENT_MENU_OPTIONS = [
   {
     key: 'image',
     label: '图片',
     accept: 'image/*',
     icon: ImageIcon,
-    tooltip: `支持 JPG、PNG、GIF、WEBP 等图片，单个文件最大 ${DEFAULT_ATTACHMENT_SIZE_LABEL}`,
   },
   {
     key: 'video',
     label: '视频',
     accept: 'video/*',
     icon: Film,
-    tooltip: `支持视频文件，单个文件最大 ${DEFAULT_ATTACHMENT_SIZE_LABEL}`,
   },
   {
     key: 'file',
     label: '文件',
     accept: '',
     icon: FileText,
-    tooltip: `支持任意文件，单个文件最大 ${DEFAULT_ATTACHMENT_SIZE_LABEL}`,
   },
 ] as const
 
@@ -172,6 +169,7 @@ export function ChatChannelNavItem({
             {
               key: 'delete',
               label: '删除',
+              icon: <Trash2 size={16} />,
               onSelect: () => onLeave?.(),
             },
           ]}
@@ -290,7 +288,6 @@ export function ChatComposer({
           return {
             key: option.key,
             label: option.label,
-            description: option.tooltip,
             icon: <Icon size={16} />,
             onSelect: () => openAttachmentPicker(option.accept),
           }

@@ -117,14 +117,14 @@
     &.active {
       background: var(--accent-soft);
       color: var(--accent);
-      font-weight: 600;
-      box-shadow: var(--glass-shadow-inset);
+      /* font-weight: 600; */
+      /* box-shadow: var(--glass-shadow-inset); */
     }
 
-    &:hover:not(.active) {
+    /* &:hover:not(.active) {
       background: var(--glass-bg-subtle);
       color: var(--text-primary);
-    }
+    } */
 
     svg {
       flex-shrink: 0;
@@ -186,13 +186,13 @@
     }
   }
 
-.account-menu-trigger {
-  width: 30px;
-  height: 30px;
-  flex-shrink: 0;
-}
+  .account-menu-trigger {
+    width: 30px;
+    height: 30px;
+    flex-shrink: 0;
+  }
 
-.sidebar-tools {
+  .sidebar-tools {
     padding: 12px 8px;
     border-top: 1px solid var(--glass-border);
   }

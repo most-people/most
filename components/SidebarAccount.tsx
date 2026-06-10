@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { MoreHorizontal } from 'lucide-react'
+import { LogOut, MoreHorizontal } from 'lucide-react'
 import { ActionMenu, ConfirmModal } from '~/components/ui'
 import { generateAvatar } from '~/server/src/utils/avatar.js'
 import { useUserStore } from '~/app/app/userStore'
@@ -42,6 +42,7 @@ export default function SidebarAccount({
             {
               key: 'logout',
               label: '退出',
+              icon: <LogOut size={16} />,
               onSelect: () => setShowLogoutConfirm(true),
             },
           ]}
@@ -62,6 +63,7 @@ export default function SidebarAccount({
           title="退出登录"
           message="确定要退出当前账号吗？"
           confirmText="退出"
+          danger
           onConfirm={() => {
             logoutUser()
             setShowLogoutConfirm(false)

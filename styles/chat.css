@@ -188,7 +188,48 @@
   margin: 8px;
 }
 
-/* === Channel Notifications === */
+/* === Channel List === */
+.chat-app-layout .sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 8px;
+}
+
+.chat-app-layout .sidebar-nav-btn {
+  min-height: 48px;
+  margin: 0;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.chat-app-layout .sidebar-nav-btn:hover {
+  background: var(--glass-bg-subtle);
+  color: var(--text-primary);
+}
+
+.chat-app-layout .sidebar-nav-btn.active {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+}
+
+.chat-app-layout .sidebar-nav-btn.unread:not(.active) {
+  color: var(--text-primary);
+}
+
+.chat-app-layout .sidebar-nav-btn.pinned:not(.active) {
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
+  color: var(--text-primary);
+}
+
+.chat-app-layout .sidebar-nav-btn.pinned:hover:not(.active) {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
 .chat-channel-icon-wrap {
   position: relative;
   width: 16px;
@@ -222,31 +263,10 @@
   box-shadow: 0 0 0 2px color-mix(in srgb, #ff3b30 16%, transparent);
 }
 
-.sidebar-nav-btn.unread:not(.active) {
-  color: var(--text-primary);
-}
-
-/* === Pinned Channels === */
-.sidebar-nav-btn.pinned {
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent);
-}
-
-.sidebar-nav-btn.pinned:not(.active) {
-  color: var(--text-primary);
-}
-
-.sidebar-nav-btn.pinned:hover:not(.active) {
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-}
-
-.sidebar-nav-btn.pinned.active {
-  background: color-mix(in srgb, var(--accent) 26%, var(--glass-bg-subtle));
-}
-
 /* === Channel Action Menu === */
 .channel-actions-anchor {
   margin-left: auto;
+  flex: 0 0 28px;
 }
 
 .leave-channel-btn.channel-actions-trigger {
@@ -255,9 +275,14 @@
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 4px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
   border-radius: var(--radius-sm);
-  transition: all var(--transition-fast);
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast),
+    opacity var(--transition-fast);
   display: flex;
   align-items: center;
   justify-content: center;

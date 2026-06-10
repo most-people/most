@@ -232,8 +232,7 @@ function ChatPage() {
 
     try {
       const audioContext =
-        notificationAudioContextRef.current ||
-        new AudioContextConstructor()
+        notificationAudioContextRef.current || new AudioContextConstructor()
       notificationAudioContextRef.current = audioContext
       if (audioContext.state === 'suspended') {
         void audioContext.resume().catch(() => {})
@@ -258,8 +257,7 @@ function ChatPage() {
 
     try {
       const audioContext =
-        notificationAudioContextRef.current ||
-        new AudioContextConstructor()
+        notificationAudioContextRef.current || new AudioContextConstructor()
       notificationAudioContextRef.current = audioContext
       if (audioContext.state === 'suspended') {
         void audioContext.resume().catch(() => {})
@@ -277,14 +275,10 @@ function ChatPage() {
         audioContext.currentTime + 0.18
       )
       gain.connect(audioContext.destination)
-
       ;[740, 980].forEach((frequency, index) => {
         const oscillator = audioContext.createOscillator()
         oscillator.type = 'sine'
-        oscillator.frequency.setValueAtTime(
-          frequency,
-          audioContext.currentTime
-        )
+        oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime)
         oscillator.connect(gain)
         oscillator.start(audioContext.currentTime + index * 0.035)
         oscillator.stop(audioContext.currentTime + 0.16 + index * 0.035)
@@ -570,13 +564,13 @@ function ChatPage() {
       } else if (
         found &&
         activeChannel &&
-          activeChannel.name === found.name &&
-          (activeChannel.createdAt !== found.createdAt ||
-            activeChannel.coreKey !== found.coreKey ||
-            activeChannel.lastMessageAt !== found.lastMessageAt ||
-            activeChannel.pinned !== found.pinned ||
-            activeChannel.remark !== found.remark ||
-            activeChannel.type !== found.type)
+        activeChannel.name === found.name &&
+        (activeChannel.createdAt !== found.createdAt ||
+          activeChannel.coreKey !== found.coreKey ||
+          activeChannel.lastMessageAt !== found.lastMessageAt ||
+          activeChannel.pinned !== found.pinned ||
+          activeChannel.remark !== found.remark ||
+          activeChannel.type !== found.type)
       ) {
         setActiveChannel(found)
       }
@@ -946,10 +940,14 @@ function ChatPage() {
 
     const result = await channelApi.setChannelRemark(channel.name, nextRemark)
     setChannels(prev =>
-      prev.map(c => (c.name === channel.name ? { ...c, remark: result.remark } : c))
+      prev.map(c =>
+        c.name === channel.name ? { ...c, remark: result.remark } : c
+      )
     )
     setActiveChannel(prev =>
-      prev && prev.name === channel.name ? { ...prev, remark: result.remark } : prev
+      prev && prev.name === channel.name
+        ? { ...prev, remark: result.remark }
+        : prev
     )
     return result.remark
   }
@@ -1037,7 +1035,8 @@ function ChatPage() {
         const pinnedDiff = Number(Boolean(b.pinned)) - Number(Boolean(a.pinned))
         if (pinnedDiff !== 0) return pinnedDiff
 
-        const activityDiff = getChannelActivityTime(b) - getChannelActivityTime(a)
+        const activityDiff =
+          getChannelActivityTime(b) - getChannelActivityTime(a)
         if (activityDiff !== 0) return activityDiff
 
         return (a.remark || a.name).localeCompare(b.remark || b.name, 'zh-CN')
@@ -1256,7 +1255,9 @@ function ChatPage() {
           isLoading={isRenamingChannel}
           loadingText="保存中..."
           allowEmpty
-          validate={value => (value.length > 50 ? '备注名称最多 50 个字符' : '')}
+          validate={value =>
+            value.length > 50 ? '备注名称最多 50 个字符' : ''
+          }
         />
       )}
 
@@ -1266,6 +1267,7 @@ function ChatPage() {
           message={`确定要退出频道 "${channelToLeave.name}" 吗？`}
           confirmText={isLeavingChannel ? '退出中...' : '退出'}
           onConfirm={() => handleLeaveChannel(channelToLeave.name, undefined)}
+          danger
           onClose={() => {
             leaveChannelModal.close()
             setChannelToLeave(null)
