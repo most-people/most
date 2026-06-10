@@ -9,6 +9,7 @@ export interface ChatJoinInvitePayload {
   locale?: string
   uid: string
   identity?: 'user' | 'service' | 'service_ai'
+  logo?: string
   avatar?: string
   name?: string
   channels: ChatJoinInviteChannel[]
@@ -40,6 +41,11 @@ export const CHAT_JOIN_INVITE_FIELDS: ChatJoinInviteField[] = [
     name: 'identity',
     required: false,
     description: '邀请身份类型；user 为普通用户视图。',
+  },
+  {
+    name: 'logo',
+    required: false,
+    description: '覆盖邀请用户聊天页顶部 logo。',
   },
   {
     name: 'avatar',

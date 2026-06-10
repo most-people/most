@@ -14,6 +14,7 @@ export interface UserIdentity {
   address: string
   danger: string
   displayName?: string
+  logo?: string
   avatar?: string
   identity?: UserIdentityKind
 }
@@ -56,6 +57,7 @@ function normalizeIdentity(input: unknown): UserIdentity | null {
     address: value.address,
     danger: value.danger,
     displayName: getDisplayName(value as UserIdentity),
+    logo: typeof value.logo === 'string' ? value.logo : undefined,
     avatar: typeof value.avatar === 'string' ? value.avatar : undefined,
     identity:
       value.identity === 'user' ||

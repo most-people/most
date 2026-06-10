@@ -102,6 +102,7 @@ function normalizeInvitePayload(input: unknown): ChatJoinInvitePayload | null {
     locale: normalizeOptionalString(value.locale) || undefined,
     uid,
     identity: normalizeInviteIdentity(value.identity),
+    logo: normalizeOptionalString(value.logo) || undefined,
     avatar: normalizeOptionalString(value.avatar) || undefined,
     name: normalizeOptionalString(value.name) || undefined,
     channels,
@@ -183,6 +184,7 @@ function ChatJoinContent() {
         ...identity,
         identity: invite.identity,
         displayName: invite.name || identity.displayName,
+        logo: invite.logo,
         avatar: invite.avatar,
       })
 

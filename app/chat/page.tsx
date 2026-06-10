@@ -183,9 +183,12 @@ function ChatPage() {
   const [channelMembers, setChannelMembers] = useState<ChannelMember[]>([])
   const [isLoadingChannelMembers, setIsLoadingChannelMembers] = useState(false)
   const [showAddressSuffix, setShowAddressSuffix] = useState(false)
+  const [hasInviteLogoError, setHasInviteLogoError] = useState(false)
   const [channelLastReadAt, setChannelLastReadAt] =
     useState<ChannelLastReadMap>({})
   const isInviteUser = userIdentity?.identity === 'user'
+  const inviteLogo =
+    isInviteUser && !hasInviteLogoError ? userIdentity.logo : ''
 
   const channelMessagesEndRef = useRef<HTMLDivElement>(null)
   const attachmentInputRef = useRef<HTMLInputElement>(null)
@@ -470,6 +473,10 @@ function ChatPage() {
       new URLSearchParams(window.location.search).get('channel') || ''
     )
   }, [userIdentity?.address])
+
+  useEffect(() => {
+    setHasInviteLogoError(false)
+  }, [userIdentity?.logo])
 
   useEffect(() => {
     activeChannelNameRef.current = activeChannel?.name || ''
@@ -1130,7 +1137,16 @@ function ChatPage() {
       sidebarToggleReplacement={
         isInviteUser ? (
           <span className="sidebar-toggle-static-logo" aria-hidden="true">
-            <LogoIcon size={18} />
+            {inviteLogo ? (
+              <img
+                className="sidebar-toggle-static-logo-img"
+                src={inviteLogo}
+                alt=""
+                onError={() => setHasInviteLogoError(true)}
+              />
+            ) : (
+              <LogoIcon size={18} />
+            )}
           </span>
         ) : undefined
       }
