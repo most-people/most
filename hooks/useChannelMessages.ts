@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   channelApi,
   type ChannelAttachment,
@@ -12,6 +12,7 @@ interface UseChannelMessagesOptions {
   isReady: boolean
   enabled?: boolean
   channelName?: string
+  extraSubscribedChannelNames?: string[]
   peerId?: string
   waitForPeerId?: boolean
   limit?: number
@@ -43,6 +44,7 @@ export function useChannelMessages({
   isReady,
   enabled = true,
   channelName = '',
+  extraSubscribedChannelNames = [],
   peerId = '',
   waitForPeerId = false,
   limit = 100,
@@ -54,9 +56,14 @@ export function useChannelMessages({
 }: UseChannelMessagesOptions) {
   const [messages, setMessages] = useState<ChannelMessage[]>([])
   const [connected, setConnected] = useState(false)
+  const extraSubscribedChannelNamesKey = useMemo(
+    () => [...new Set(extraSubscribedChannelNames.filter(Boolean))].join('\n'),
+    [extraSubscribedChannelNames]
+  )
 
   const wsRef = useRef<WebSocket | null>(null)
   const channelNameRef = useRef(channelName)
+  const extraSubscribedChannelNamesRef = useRef(extraSubscribedChannelNames)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const reconnectAttemptRef = useRef(0)
   const acceptMessageRef = useRef(acceptMessage)
@@ -64,6 +71,13 @@ export function useChannelMessages({
   const onSocketEventRef = useRef(onSocketEvent)
   const onSyncErrorRef = useRef(onSyncError)
   const peerIdRef = useRef(peerId)
+  const subscribedChannelsRef = useRef(new Set<string>())
+
+  useEffect(() => {
+    extraSubscribedChannelNamesRef.current = extraSubscribedChannelNamesKey
+      ? extraSubscribedChannelNamesKey.split('\n')
+      : []
+  }, [extraSubscribedChannelNamesKey])
 
   useEffect(() => {
     acceptMessageRef.current = acceptMessage
@@ -121,21 +135,31 @@ export function useChannelMessages({
     }
   }, [])
 
-  const subscribe = useCallback(
-    (name: string) => {
-      if (!name) return
-      wsSend('channel:subscribe', { channel: name })
+  const replaceSubscriptions = useCallback(
+    (names: string[]) => {
+      const nextNames = new Set(names.filter(Boolean))
+      for (const name of subscribedChannelsRef.current) {
+        if (!nextNames.has(name)) {
+          wsSend('channel:unsubscribe', { channel: name })
+        }
+      }
+      for (const name of nextNames) {
+        if (!subscribedChannelsRef.current.has(name)) {
+          wsSend('channel:subscribe', { channel: name })
+        }
+      }
+      subscribedChannelsRef.current = nextNames
     },
     [wsSend]
   )
 
-  const unsubscribe = useCallback(
-    (name: string) => {
-      if (!name) return
-      wsSend('channel:unsubscribe', { channel: name })
-    },
-    [wsSend]
-  )
+  const getSubscriptionNames = useCallback(() => {
+    const names = [
+      channelNameRef.current,
+      ...extraSubscribedChannelNamesRef.current,
+    ]
+    return [...new Set(names.filter(Boolean))]
+  }, [])
 
   const syncMessages = useCallback(
     async (name = channelNameRef.current, options: { replace?: boolean } = {}) => {
@@ -161,11 +185,20 @@ export function useChannelMessages({
     peerIdRef.current = peerId
     if (!peerId) return
     wsSend('register', { peerId })
-    if (waitForPeerId && channelNameRef.current) {
-      subscribe(channelNameRef.current)
-      void syncMessages(channelNameRef.current, { replace: true })
+    if (waitForPeerId) {
+      replaceSubscriptions(getSubscriptionNames())
+      if (channelNameRef.current) {
+        void syncMessages(channelNameRef.current, { replace: true })
+      }
     }
-  }, [peerId, subscribe, syncMessages, waitForPeerId, wsSend])
+  }, [
+    getSubscriptionNames,
+    peerId,
+    replaceSubscriptions,
+    syncMessages,
+    waitForPeerId,
+    wsSend,
+  ])
 
   const clearMessages = useCallback(() => {
     setMessages([])
@@ -226,24 +259,33 @@ export function useChannelMessages({
   )
 
   useEffect(() => {
-    const previous = channelNameRef.current
     channelNameRef.current = channelName
-    if (previous && previous !== channelName) {
-      unsubscribe(previous)
+    if (!isReady || !enabled) return
+    if (channelName) {
+      void syncMessages(channelName, { replace: true })
     }
-    if (!channelName || !isReady || !enabled) return
-    void syncMessages(channelName, { replace: true })
     if (!waitForPeerId || peerIdRef.current) {
-      subscribe(channelName)
+      replaceSubscriptions(getSubscriptionNames())
     }
-    return () => unsubscribe(channelName)
   }, [
     channelName,
     enabled,
+    extraSubscribedChannelNamesKey,
+    getSubscriptionNames,
     isReady,
-    subscribe,
+    replaceSubscriptions,
     syncMessages,
-    unsubscribe,
+    waitForPeerId,
+  ])
+
+  useEffect(() => {
+    if (!isReady || !enabled || (waitForPeerId && !peerIdRef.current)) return
+    replaceSubscriptions(getSubscriptionNames())
+  }, [
+    enabled,
+    getSubscriptionNames,
+    isReady,
+    replaceSubscriptions,
     waitForPeerId,
   ])
 
@@ -273,11 +315,13 @@ export function useChannelMessages({
           )
         }
         if (
-          channelNameRef.current &&
           (!waitForPeerId || peerIdRef.current)
         ) {
-          subscribe(channelNameRef.current)
-          void syncMessages(channelNameRef.current, { replace: true })
+          subscribedChannelsRef.current.clear()
+          replaceSubscriptions(getSubscriptionNames())
+          if (channelNameRef.current) {
+            void syncMessages(channelNameRef.current, { replace: true })
+          }
         }
       }
       ws.onmessage = event => {
@@ -316,13 +360,15 @@ export function useChannelMessages({
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current)
       wsRef.current?.close()
       wsRef.current = null
+      subscribedChannelsRef.current.clear()
     }
   }, [
     enabled,
+    getSubscriptionNames,
     isReady,
     mergeMessages,
     reconnectBaseDelay,
-    subscribe,
+    replaceSubscriptions,
     syncMessages,
     waitForPeerId,
   ])

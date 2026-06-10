@@ -188,6 +188,44 @@
   margin: 8px;
 }
 
+/* === Channel Notifications === */
+.chat-channel-icon-wrap {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-channel-title {
+  min-width: 0;
+  flex: 1;
+}
+
+.chat-channel-title-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-channel-unread-dot {
+  width: 8px;
+  height: 8px;
+  position: absolute;
+  top: -2px;
+  right: -3px;
+  border-radius: 50%;
+  background: #ff3b30;
+  box-shadow: 0 0 0 2px color-mix(in srgb, #ff3b30 16%, transparent);
+}
+
+.sidebar-nav-btn.unread:not(.active) {
+  color: var(--text-primary);
+}
+
 /* === Pinned Channels === */
 .sidebar-nav-btn.pinned {
   background: color-mix(in srgb, var(--accent) 14%, transparent);

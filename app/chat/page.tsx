@@ -62,6 +62,8 @@ const CHANNEL_NAME_MAX_LENGTH = 30
 const CHANNEL_NAME_REGEX = /^[a-zA-Z0-9_-]+$/
 const ATTACHMENT_CHECK_TIMEOUT_MS = 10000
 const ATTACHMENT_CHECK_REQUEST_TIMEOUT_MS = ATTACHMENT_CHECK_TIMEOUT_MS + 2000
+const CHAT_READ_STORAGE_PREFIX = 'mostbox.chat.lastReadAt'
+const CHAT_NOTIFICATION_SOUND_MIN_INTERVAL_MS = 1200
 
 const API = {
   async publishFile(file: File, customName: string) {
@@ -112,12 +114,71 @@ type AttachmentDownloadState = {
   message?: string
 }
 
+type ChannelLastReadMap = Record<string, number>
+type BrowserAudioContextConstructor = typeof AudioContext
+
 function getChannelActivityTime(channel: Channel) {
   return (
     Date.parse(channel.lastMessageAt || '') ||
     Date.parse(channel.createdAt || '') ||
     0
   )
+}
+
+function getChatReadStorageKey(address?: string) {
+  const normalizedAddress = String(address || '').trim().toLowerCase()
+  return normalizedAddress
+    ? `${CHAT_READ_STORAGE_PREFIX}:${normalizedAddress}`
+    : ''
+}
+
+function readStoredChannelLastReadAt(storageKey: string): ChannelLastReadMap {
+  if (!storageKey || typeof window === 'undefined') return {}
+  try {
+    const value = window.localStorage.getItem(storageKey)
+    if (!value) return {}
+    const parsed = JSON.parse(value)
+    if (!parsed || typeof parsed !== 'object') return {}
+
+    return Object.entries(parsed).reduce<ChannelLastReadMap>(
+      (result, [name, timestamp]) => {
+        const value = Number(timestamp)
+        if (name && Number.isFinite(value) && value >= 0) {
+          result[name] = value
+        }
+        return result
+      },
+      {}
+    )
+  } catch {
+    return {}
+  }
+}
+
+function writeStoredChannelLastReadAt(
+  storageKey: string,
+  value: ChannelLastReadMap
+) {
+  if (!storageKey || typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(storageKey, JSON.stringify(value))
+  } catch {}
+}
+
+function getChannelReadTimestamp(timestamp: number) {
+  const value = Number(timestamp) || Date.now()
+  return Math.max(0, Math.floor(value))
+}
+
+function getBrowserAudioContextConstructor():
+  | BrowserAudioContextConstructor
+  | undefined {
+  if (typeof window === 'undefined') return undefined
+  const audioWindow = window as Window &
+    typeof globalThis & {
+      webkitAudioContext?: BrowserAudioContextConstructor
+    }
+  return audioWindow.AudioContext || audioWindow.webkitAudioContext
 }
 
 async function getDownloadCheckErrorMessage(err: unknown) {
@@ -166,10 +227,16 @@ function ChatPage() {
   const [channelMembers, setChannelMembers] = useState<ChannelMember[]>([])
   const [isLoadingChannelMembers, setIsLoadingChannelMembers] = useState(false)
   const [showAddressSuffix, setShowAddressSuffix] = useState(false)
+  const [channelLastReadAt, setChannelLastReadAt] =
+    useState<ChannelLastReadMap>({})
   const isInviteUser = userIdentity?.identity === 'user'
 
   const channelMessagesEndRef = useRef<HTMLDivElement>(null)
   const attachmentInputRef = useRef<HTMLInputElement>(null)
+  const activeChannelNameRef = useRef('')
+  const notificationAudioContextRef = useRef<AudioContext | null>(null)
+  const notificationAudioUnlockedRef = useRef(false)
+  const lastNotificationSoundAtRef = useRef(0)
   const pendingAttachmentPreviewsRef = useRef(
     new Map<string, ChannelAttachment>()
   )
@@ -182,6 +249,93 @@ function ChatPage() {
     },
     [addToast]
   )
+
+  const channelReadStorageKey = useMemo(
+    () => getChatReadStorageKey(userIdentity?.address),
+    [userIdentity?.address]
+  )
+
+  const markChannelRead = useCallback(
+    (channelName: string, timestamp = Date.now()) => {
+      if (!channelName) return
+      setChannelLastReadAt(prev => {
+        const nextTimestamp = getChannelReadTimestamp(timestamp)
+        if ((prev[channelName] || 0) >= nextTimestamp) return prev
+        const next = { ...prev, [channelName]: nextTimestamp }
+        writeStoredChannelLastReadAt(channelReadStorageKey, next)
+        return next
+      })
+    },
+    [channelReadStorageKey]
+  )
+
+  const ensureNotificationAudioUnlocked = useCallback(() => {
+    if (notificationAudioUnlockedRef.current) return
+    if (typeof window === 'undefined') return
+    const AudioContextConstructor = getBrowserAudioContextConstructor()
+    if (!AudioContextConstructor) return
+
+    try {
+      const audioContext =
+        notificationAudioContextRef.current ||
+        new AudioContextConstructor()
+      notificationAudioContextRef.current = audioContext
+      if (audioContext.state === 'suspended') {
+        void audioContext.resume().catch(() => {})
+      }
+      notificationAudioUnlockedRef.current = true
+    } catch {}
+  }, [])
+
+  const playChannelNotificationSound = useCallback(() => {
+    if (!notificationAudioUnlockedRef.current) return
+    const now = Date.now()
+    if (
+      now - lastNotificationSoundAtRef.current <
+      CHAT_NOTIFICATION_SOUND_MIN_INTERVAL_MS
+    ) {
+      return
+    }
+    lastNotificationSoundAtRef.current = now
+
+    const AudioContextConstructor = getBrowserAudioContextConstructor()
+    if (!AudioContextConstructor) return
+
+    try {
+      const audioContext =
+        notificationAudioContextRef.current ||
+        new AudioContextConstructor()
+      notificationAudioContextRef.current = audioContext
+      if (audioContext.state === 'suspended') {
+        void audioContext.resume().catch(() => {})
+        return
+      }
+
+      const gain = audioContext.createGain()
+      gain.gain.setValueAtTime(0.0001, audioContext.currentTime)
+      gain.gain.exponentialRampToValueAtTime(
+        0.08,
+        audioContext.currentTime + 0.015
+      )
+      gain.gain.exponentialRampToValueAtTime(
+        0.0001,
+        audioContext.currentTime + 0.18
+      )
+      gain.connect(audioContext.destination)
+
+      ;[740, 980].forEach((frequency, index) => {
+        const oscillator = audioContext.createOscillator()
+        oscillator.type = 'sine'
+        oscillator.frequency.setValueAtTime(
+          frequency,
+          audioContext.currentTime
+        )
+        oscillator.connect(gain)
+        oscillator.start(audioContext.currentTime + index * 0.035)
+        oscillator.stop(audioContext.currentTime + 0.16 + index * 0.035)
+      })
+    } catch {}
+  }, [])
 
   const getCurrentChannelProfile = useCallback(
     () => ({
@@ -214,7 +368,8 @@ function ChatPage() {
     switch (event) {
       case 'channel:message': {
         const channelName = data?.channel
-        const messageTime = Number(data?.message?.timestamp) || Date.now()
+        const message = data?.message as ChannelMessage | undefined
+        const messageTime = Number(message?.timestamp) || Date.now()
         if (channelName) {
           setChannels(prev =>
             prev.map(channel =>
@@ -226,6 +381,22 @@ function ChatPage() {
                 : channel
             )
           )
+          const isActiveChannel = channelName === activeChannelNameRef.current
+          const isSelfMessage =
+            String(message?.author || '').toLowerCase() ===
+            String(userIdentity?.address || '').toLowerCase()
+          if (isActiveChannel || isSelfMessage) {
+            markChannelRead(channelName, messageTime)
+          } else {
+            setChannelLastReadAt(prev => {
+              const readAt = prev[channelName] || 0
+              if (readAt < messageTime) return prev
+              const next = { ...prev, [channelName]: Math.max(0, messageTime - 1) }
+              writeStoredChannelLastReadAt(channelReadStorageKey, next)
+              return next
+            })
+            playChannelNotificationSound()
+          }
         }
         break
       }
@@ -296,6 +467,11 @@ function ChatPage() {
     }
   }
 
+  const subscribedChannelNames = useMemo(
+    () => channels.map(channel => channel.name),
+    [channels]
+  )
+
   const {
     clearMessages: clearChannelMessages,
     messages: channelMessages,
@@ -305,6 +481,7 @@ function ChatPage() {
     isReady: isBackendReady,
     enabled: Boolean(userIdentity),
     channelName: activeChannel?.name || '',
+    extraSubscribedChannelNames: subscribedChannelNames,
     peerId: myPeerId,
     waitForPeerId: true,
     onSyncError: err => showApiError(err, '无法读取频道消息'),
@@ -342,6 +519,52 @@ function ChatPage() {
       new URLSearchParams(window.location.search).get('channel') || ''
     )
   }, [userIdentity?.address])
+
+  useEffect(() => {
+    activeChannelNameRef.current = activeChannel?.name || ''
+  }, [activeChannel?.name])
+
+  useEffect(() => {
+    setChannelLastReadAt(readStoredChannelLastReadAt(channelReadStorageKey))
+  }, [channelReadStorageKey])
+
+  useEffect(() => {
+    if (!channelReadStorageKey || channels.length === 0) return
+    setChannelLastReadAt(prev => {
+      let changed = false
+      const next = { ...prev }
+      for (const channel of channels) {
+        if (next[channel.name] !== undefined) continue
+        next[channel.name] = getChannelReadTimestamp(
+          getChannelActivityTime(channel)
+        )
+        changed = true
+      }
+      if (changed) {
+        writeStoredChannelLastReadAt(channelReadStorageKey, next)
+      }
+      return changed ? next : prev
+    })
+  }, [channelReadStorageKey, channels])
+
+  useEffect(() => {
+    window.addEventListener('pointerdown', ensureNotificationAudioUnlocked, {
+      passive: true,
+    })
+    window.addEventListener('keydown', ensureNotificationAudioUnlocked)
+    return () => {
+      window.removeEventListener('pointerdown', ensureNotificationAudioUnlocked)
+      window.removeEventListener('keydown', ensureNotificationAudioUnlocked)
+    }
+  }, [ensureNotificationAudioUnlocked])
+
+  useEffect(() => {
+    return () => {
+      void notificationAudioContextRef.current?.close().catch(() => {})
+      notificationAudioContextRef.current = null
+      notificationAudioUnlockedRef.current = false
+    }
+  }, [])
 
   useEffect(() => {
     channelMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -424,6 +647,7 @@ function ChatPage() {
     setPreviewItem(null)
     setChannelMembers([])
     setAttachmentDownloadStatus({})
+    setChannelLastReadAt({})
     activeAttachmentDownloadsRef.current.clear()
     pendingAttachmentPreviewsRef.current.clear()
   }, [clearChannelMessages, userIdentity?.address])
@@ -545,6 +769,10 @@ function ChatPage() {
   async function handleOpenChannel(channel: Channel) {
     if (!requireLogin()) return
     if (!requireBackendReady()) return
+    markChannelRead(
+      channel.name,
+      Math.max(getChannelActivityTime(channel), Date.now())
+    )
     setActiveChannel(channel)
     setRequestedChannelName(channel.name)
     window.history.pushState(
@@ -861,6 +1089,13 @@ function ChatPage() {
       }),
     [channels]
   )
+  const hasUnreadChannelMessage = useCallback(
+    (channel: Channel) => {
+      const activityTime = getChannelActivityTime(channel)
+      return activityTime > (channelLastReadAt[channel.name] || 0)
+    },
+    [channelLastReadAt]
+  )
   const filteredChannels = channelSearchQuery
     ? sortedChannels.filter(channel => {
         const displayName = channel.remark || channel.name
@@ -913,6 +1148,7 @@ function ChatPage() {
                   key={channel.name}
                   active={activeChannel?.name === channel.name}
                   pinned={Boolean(channel.pinned)}
+                  unread={hasUnreadChannelMessage(channel)}
                   title={channel.remark || channel.name}
                   onSelect={() => {
                     handleOpenChannel(channel)

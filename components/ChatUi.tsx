@@ -100,6 +100,7 @@ export function ChatMessageItem({
 export function ChatChannelNavItem({
   active = false,
   pinned = false,
+  unread = false,
   title,
   onSelect,
   onTogglePin,
@@ -108,6 +109,7 @@ export function ChatChannelNavItem({
 }: {
   active?: boolean
   pinned?: boolean
+  unread?: boolean
   title: string
   onSelect?: () => void
   onTogglePin?: () => void
@@ -119,6 +121,7 @@ export function ChatChannelNavItem({
     'sidebar-nav-btn',
     active ? 'active' : '',
     pinned ? 'pinned' : '',
+    unread ? 'unread' : '',
   ]
     .filter(Boolean)
     .join(' ')
@@ -135,8 +138,19 @@ export function ChatChannelNavItem({
         onSelect?.()
       }}
     >
-      <MessageSquare size={16} />
-      <span>{title}</span>
+      <span className="chat-channel-icon-wrap">
+        <MessageSquare size={16} />
+        {unread && (
+          <span
+            className="chat-channel-unread-dot"
+            title="有新消息"
+            aria-hidden="true"
+          />
+        )}
+      </span>
+      <span className="chat-channel-title">
+        <span className="chat-channel-title-text">{title}</span>
+      </span>
       {hasActions && (
         <ActionMenu
           ariaLabel="频道操作"

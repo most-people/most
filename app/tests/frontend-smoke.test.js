@@ -119,6 +119,7 @@ describe('frontend smoke checks', () => {
 
   it('keeps Gan Deng Yan game page wired to the server rules and P2P channel', () => {
     const source = readSource('app/game/gandengyan/page.tsx')
+    const gameRoomSource = readSource('hooks/useGameRoom.ts')
 
     assert.match(source, /GAME_ID = 'gandengyan'/)
     assert.match(source, /useGameRoom/)
@@ -135,6 +136,8 @@ describe('frontend smoke checks', () => {
     assert.match(source, /加入房间/)
     assert.match(source, /开始游戏/)
     assert.match(source, /再来一局/)
+    assert.match(gameRoomSource, /useChannelMessages/)
+    assert.doesNotMatch(gameRoomSource, /extraSubscribedChannelNames/)
   })
 
   it('keeps P2P chat controls shared without the discarded chat extras', () => {
@@ -151,6 +154,8 @@ describe('frontend smoke checks', () => {
     assert.match(componentSource, /export function ChatMessageItem/)
     assert.match(componentSource, /export function ChatComposer/)
     assert.match(componentSource, /export function ChannelMemberGrid/)
+    assert.match(componentSource, /unread = false/)
+    assert.match(componentSource, /chat-channel-unread-dot/)
     assert.match(componentSource, /ActionMenu/)
     assert.match(componentSource, /label: pinned \? '取消置顶' : '置顶'/)
     assert.match(componentSource, /label: '重命名'/)
@@ -161,6 +166,9 @@ describe('frontend smoke checks', () => {
     assert.match(chatSource, /setChannelPinned/)
     assert.match(chatSource, /channelToRename/)
     assert.match(chatSource, /lastMessageAt/)
+    assert.match(chatSource, /extraSubscribedChannelNames/)
+    assert.match(chatSource, /CHAT_READ_STORAGE_PREFIX/)
+    assert.match(chatSource, /playChannelNotificationSound/)
     assert.match(chatSource, /btn btn-secondary btn-block/)
     assert.match(componentSource, /label: '图片'/)
     assert.match(componentSource, /label: '视频'/)
