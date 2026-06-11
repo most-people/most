@@ -31,9 +31,9 @@ const GITHUB_LATEST_URL = 'https://github.com/most-people/most/releases/latest'
 const DEFAULT_R2_PUBLIC_BASE_URL = 'https://download.most.box'
 
 const RELEASE_MANIFEST_URL =
-  process.env.NEXT_PUBLIC_RELEASE_MANIFEST_URL ||
+  import.meta.env.VITE_RELEASE_MANIFEST_URL ||
   `${(
-    process.env.NEXT_PUBLIC_R2_PUBLIC_BASE_URL || DEFAULT_R2_PUBLIC_BASE_URL
+    import.meta.env.VITE_R2_PUBLIC_BASE_URL || DEFAULT_R2_PUBLIC_BASE_URL
   ).replace(/\/+$/, '')}/releases/latest.json`
 
 const FALLBACK_ASSETS: DownloadAsset[] = [

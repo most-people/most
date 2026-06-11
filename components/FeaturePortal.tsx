@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import Link from 'next/link'
+import Link from '~/lib/routerCompat'
 import {
   FolderOpen,
   MessageSquare,
@@ -372,7 +372,7 @@ export default function FeaturePortal() {
                       <Server size={16} />
                       Web 连接节点
                     </button>
-                    <Link href="/download" className="btn btn-secondary">
+                    <Link href="/download/" className="btn btn-secondary">
                       <Download size={16} />
                       下载客户端
                     </Link>

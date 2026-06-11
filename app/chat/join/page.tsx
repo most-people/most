@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, Suspense, useRef } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams } from '~/lib/routerCompat'
 import {
   KeyRound,
   Check,
@@ -28,7 +28,7 @@ const EA_TEST_PUBLIC_KEY =
   '0x955fe80bdb8312165471fcacd6a8f83df88a770dda6f38657ca4e62ec28d5b54'
 const CHANNEL_REMARK_MAX_LENGTH = 50
 const CHAT_JOIN_API_BASE =
-  process.env.NEXT_PUBLIC_CHAT_JOIN_API_BASE || 'https://api.most.box'
+  import.meta.env.VITE_CHAT_JOIN_API_BASE || 'https://api.most.box'
 
 function parseJsonText(text: string): unknown | null {
   try {

@@ -38,8 +38,8 @@ export function getMimeType(fileName) {
 export function registerStaticRoutes(app) {
   const publicDir = path.join(__dirname, '..', '..', '..', 'out')
 
+  app.get('/assets/*', serveStatic({ root: './out' }))
   app.get('/static/*', serveStatic({ root: './out' }))
-  app.get('/_next/*', serveStatic({ root: './out' }))
 
   app.all('/api/*', c => {
     return c.json({ error: 'Not found' }, 404)

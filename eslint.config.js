@@ -7,7 +7,6 @@ export default [
     ignores: [
       'dist/**',
       'out/**',
-      '.next/**',
       'public/bundle.js',
       'public/bundle.js.map',
       'public/index.js',

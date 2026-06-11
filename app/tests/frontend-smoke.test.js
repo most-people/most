@@ -59,8 +59,8 @@ describe('frontend smoke checks', () => {
   it('lets users choose R2 or GitHub download sources', () => {
     const source = readSource('components/DownloadOptions.tsx')
 
-    assert.match(source, /NEXT_PUBLIC_RELEASE_MANIFEST_URL/)
-    assert.match(source, /NEXT_PUBLIC_R2_PUBLIC_BASE_URL/)
+    assert.match(source, /VITE_RELEASE_MANIFEST_URL/)
+    assert.match(source, /VITE_R2_PUBLIC_BASE_URL/)
     assert.match(source, /releases\/latest\.json/)
     assert.match(source, /https:\/\/download\.most\.box/)
     assert.match(source, /github\.com\/most-people\/most\/releases\/latest/)
@@ -93,6 +93,7 @@ describe('frontend smoke checks', () => {
     assert.match(readme, /桌面客户端（推荐）/)
     assert.match(readme, /Web 入口只负责连接已有 MostBox 节点/)
     assert.match(readme, /Electron 42/)
+    assert.match(readme, /TanStack Start static prerender/)
     assert.doesNotMatch(readme, /Node\.js >= 18/)
     assert.doesNotMatch(readme, /npx most-box\s*$/m)
     assert.match(downloadPage, /Web\s*端只连接已有 MostBox 节点/)
@@ -104,6 +105,29 @@ describe('frontend smoke checks', () => {
     assert.doesNotMatch(readme, /Electron 41/)
     assert.match(agents, /ipfs-unixfs-importer@17\.0\.1/)
     assert.doesNotMatch(agents, /components\/AppHomeMode\.tsx/)
+  })
+
+  it('uses TanStack Start static prerender for the web shell', () => {
+    const packageJson = readSource('package.json')
+    const viteConfig = readSource('vite.config.ts')
+    const rootRoute = readSource('src/routes/__root.tsx')
+    const appRoute = readSource('src/routes/app/index.tsx')
+    const adminRoute = readSource('src/routes/admin/index.tsx')
+    const downloadRoute = readSource('src/routes/download/index.tsx')
+
+    assert.match(packageJson, /"@tanstack\/react-start"/)
+    assert.doesNotMatch(packageJson, /"next"/)
+    assert.match(viteConfig, /tanstackStart/)
+    assert.match(viteConfig, /prerender/)
+    assert.match(viteConfig, /autoSubfolderIndex:\s*true/)
+    assert.match(viteConfig, /crawlLinks:\s*true/)
+    assert.match(viteConfig, /failOnError:\s*true/)
+    assert.match(viteConfig, /outDir:\s*'out'/)
+    assert.match(rootRoute, /HeadContent/)
+    assert.match(rootRoute, /Scripts/)
+    assert.match(appRoute, /ssr:\s*false/)
+    assert.match(adminRoute, /ssr:\s*false/)
+    assert.doesNotMatch(downloadRoute, /ssr:\s*false/)
   })
 
   it('checks desktop updates through the public release manifest', () => {

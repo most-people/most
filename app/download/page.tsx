@@ -1,6 +1,6 @@
 import '~/styles/marketing.css'
 import '~/styles/download.css'
-import Link from 'next/link'
+import Link from '~/lib/routerCompat'
 import { ArrowLeft, Download } from 'lucide-react'
 import DownloadOptions from '~/components/DownloadOptions'
 

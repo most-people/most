@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { usePathname } from 'next/navigation'
+import { usePathname } from '~/lib/routerCompat'
 import { useAppStore } from '~/app/app/useAppStore'
 import { useUserStore } from '~/app/app/userStore'
 import { Toast } from '~/components/ui'

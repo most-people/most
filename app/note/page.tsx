@@ -1,8 +1,8 @@
 'use client'
 
 import { Fragment, Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import dynamic from 'next/dynamic'
-import { useRouter, useSearchParams } from 'next/navigation'
+import dynamic from '~/lib/dynamic'
+import { useRouter, useSearchParams } from '~/lib/routerCompat'
 import {
   PencilRuler,
   Eye,

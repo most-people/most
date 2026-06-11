@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
+import Link from '~/lib/routerCompat'
 import { Download, Moon, Sun } from 'lucide-react'
 import { LogoIcon } from '~/components/icons/LogoIcon'
 

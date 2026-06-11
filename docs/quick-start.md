@@ -4,7 +4,7 @@
 
 ## 一、准备
 
-本地源码验收建议使用 Node.js >= 22.12。当前 Next.js 16 需要 Node.js >= 20.9，Electron 42 开发/打包需要 Node.js >= 22.12。
+本地源码验收建议使用 Node.js >= 22.12。当前 TanStack Start static prerender 前端和 Electron 42 开发/打包都建议 Node.js >= 22.12。
 
 本地源码验收需要两个进程：
 

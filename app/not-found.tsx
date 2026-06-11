@@ -1,7 +1,6 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
-import Link from 'next/link'
+import Link, { useRouter } from '~/lib/routerCompat'
 import { Compass, ArrowLeft, Home } from 'lucide-react'
 
 export default function NotFound() {

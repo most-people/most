@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation'
+import { Navigate } from '@tanstack/react-router'
 
 export default function GamePage() {
-  redirect('/game/gandengyan/')
+  return <Navigate to="/game/gandengyan/" replace />
 }

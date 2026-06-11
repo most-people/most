@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation'
+import { Navigate } from '@tanstack/react-router'
 
 export default function Web3ToolsRedirect() {
-  redirect('/web3')
+  return <Navigate to="/web3/" replace />
 }

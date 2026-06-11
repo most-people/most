@@ -1,6 +1,6 @@
 'use client'
 
-import Link from 'next/link'
+import Link from '~/lib/routerCompat'
 import { ArrowLeft, Spade, Swords } from 'lucide-react'
 import SidebarAccount from '~/components/SidebarAccount'
 
