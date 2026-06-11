@@ -961,6 +961,43 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       const trashAfterB = isoEngine.listTrashFiles({ ownerAddress: ownerB })
       assert.ok(trashAfterB.some(f => f.cid === resultB.cid))
     })
+
+    it('exports metadata and imports with full replacement', async () => {
+      const oldResult = await isoEngine.publishFile(
+        Buffer.from('old import data'),
+        'old-import.txt',
+        { ownerAddress: ownerA }
+      )
+      const newResult = await isoEngine.publishFile(
+        Buffer.from('new import data'),
+        'new-import.txt',
+        { ownerAddress: ownerA }
+      )
+      const exported = isoEngine.exportUserMetadata(ownerA)
+      const pkg = {
+        ...exported,
+        files: exported.files.filter(file => file.cid === newResult.cid),
+        trashFiles: [],
+        channels: [],
+      }
+
+      const check = await isoEngine.checkUserImport(pkg, {
+        ownerAddress: ownerA,
+        timeout: 100,
+      })
+      assert.strictEqual(check.ready, true)
+
+      const result = await isoEngine.importUserMetadata(pkg, {
+        ownerAddress: ownerA,
+        checkId: check.checkId,
+        timeout: 100,
+      })
+      assert.strictEqual(result.success, true)
+
+      const files = isoEngine.listPublishedFiles({ ownerAddress: ownerA })
+      assert.ok(files.some(file => file.cid === newResult.cid))
+      assert.ok(!files.some(file => file.cid === oldResult.cid))
+    })
   })
 
   describe('listPublishedFiles() starred filter', () => {

@@ -137,6 +137,24 @@ export function buildOpenApiSpec(appPort) {
           responses: { 200: { description: 'Pull task result' } },
         },
       },
+      '/api/user/export': {
+        get: {
+          summary: 'Export authenticated user metadata',
+          responses: { 200: { description: 'User metadata export' } },
+        },
+      },
+      '/api/user/import/check': {
+        post: {
+          summary: 'Validate a user metadata import package',
+          responses: { 200: { description: 'Import readiness result' } },
+        },
+      },
+      '/api/user/import': {
+        post: {
+          summary: 'Replace authenticated user metadata and pull files by CID',
+          responses: { 200: { description: 'Import result' } },
+        },
+      },
       '/api/files': {
         get: {
           summary: 'List published files for the authenticated local user',

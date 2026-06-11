@@ -68,10 +68,42 @@ import {
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 const CHAT_FILE_ROOT = 'chat-file'
 const TRANSIENT_CHANNEL_TYPES = new Set(['game'])
+const DEFAULT_OWNER_BUCKET = '__local__'
+const USER_DATA_SCHEMA_VERSION = 1
+const IMPORT_CHECK_TTL_MS = 10 * 60 * 1000
+const IMPORT_CHECK_MAX_FILES = 5000
 
 function normalizeOwnerAddress(address) {
   const value = String(address || '').trim()
   return /^0x[a-fA-F0-9]{40}$/.test(value) ? value.toLowerCase() : ''
+}
+
+function getOwnerBucketKey(address) {
+  return normalizeOwnerAddress(address) || DEFAULT_OWNER_BUCKET
+}
+
+function normalizeMetadataBuckets(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    return {}
+  }
+  const buckets = {}
+  for (const [rawOwner, records] of Object.entries(input)) {
+    const ownerKey =
+      rawOwner === DEFAULT_OWNER_BUCKET
+        ? DEFAULT_OWNER_BUCKET
+        : normalizeOwnerAddress(rawOwner)
+    if (!ownerKey || !Array.isArray(records)) continue
+    buckets[ownerKey] = records.map(record => ({ ...record }))
+  }
+  return buckets
+}
+
+function cloneMetadataRecord(record, ownerAddress = '') {
+  return {
+    ...record,
+    ownerAddress:
+      ownerAddress && ownerAddress !== DEFAULT_OWNER_BUCKET ? ownerAddress : '',
+  }
 }
 
 function getPathBaseName(fileName) {
@@ -123,12 +155,13 @@ export class MostBoxEngine extends EventEmitter {
   #store = null
   #swarm = null
   #drives = new Map()
-  #publishedFiles = []
+  #publishedFiles = {}
   #holdings = []
-  #trashFiles = []
+  #trashFiles = {}
   #initialized = false
   #options = null
   #activeDownloads = new Map()
+  #importChecks = new Map()
   #drivePromises = new Map()
   #fileDiscoveries = new Map()
   #fileMonitors = new Map()
@@ -303,7 +336,7 @@ export class MostBoxEngine extends EventEmitter {
 
     this.#publishedFiles = this.#loadPublishedMetadata()
     console.log(
-      `[MostBox] Loaded ${this.#publishedFiles.length} published files`
+      `[MostBox] Loaded ${this.#countBucketRecords(this.#publishedFiles)} published files`
     )
 
     this.#holdings = this.#loadHoldingsMetadata()
@@ -318,7 +351,9 @@ export class MostBoxEngine extends EventEmitter {
     }
 
     this.#trashFiles = this.#loadTrashMetadata()
-    console.log(`[MostBox] Loaded ${this.#trashFiles.length} trash files`)
+    console.log(
+      `[MostBox] Loaded ${this.#countBucketRecords(this.#trashFiles)} trash files`
+    )
 
     this.#channels = this.#loadChannelsMetadata()
     console.log(`[MostBox] Loaded ${this.#channels.length} channels`)
@@ -429,6 +464,7 @@ export class MostBoxEngine extends EventEmitter {
     this.#channelChatDiscoveries.clear()
     this.#channelPeers.clear()
     this.#channels = []
+    this.#importChecks.clear()
 
     if (this.#store) {
       await this.#store.close()
@@ -525,12 +561,11 @@ export class MostBoxEngine extends EventEmitter {
     const { cid: rootCid } = await calculateCid(content)
     const cidString = rootCid.toString()
     const { driveName: name } = this.#getCidInfo(cidString)
+    const publishedBucket = this.#getPublishedBucket(ownerAddress, true)
     // 检查相同内容是否已存在
-    const existingIndex = this.#publishedFiles.findIndex(
-      f => f.cid === cidString && this.#recordMatchesOwner(f, ownerAddress)
-    )
+    const existingIndex = publishedBucket.findIndex(f => f.cid === cidString)
     if (existingIndex !== -1) {
-      const existing = this.#publishedFiles[existingIndex]
+      const existing = publishedBucket[existingIndex]
       await this.#joinCidTopicInternal(cidString, {
         server: true,
         client: false,
@@ -609,13 +644,12 @@ export class MostBoxEngine extends EventEmitter {
     }
 
     // 存储 displayName（用户看到的文件夹路径），不存储 drivePath
-    this.#publishedFiles.push({
+    publishedBucket.push({
       fileName: safeFileName,
       cid: cidString,
       driveName: name,
       publishedAt: new Date().toISOString(),
       starred: false,
-      ownerAddress,
     })
     this.#savePublishedMetadata()
     this.#upsertHolding({
@@ -952,27 +986,26 @@ export class MostBoxEngine extends EventEmitter {
           savedPath: savePath,
         }
 
-        // 将下载的文件添加到已发布文件列表（displayName 用原始文件名）
-        const existingIndex = this.#publishedFiles.findIndex(
-          f => f.cid === cidString && this.#recordMatchesOwner(f, ownerAddress)
+        const publishedBucket = this.#getPublishedBucket(ownerAddress, true)
+        const existingIndex = publishedBucket.findIndex(
+          f => f.cid === cidString
         )
         this.#assertDisplayNameAvailable(sanitizedFileName, {
           ownerAddress,
           excludeCid: cidString,
         })
         if (existingIndex !== -1) {
-          const existing = this.#publishedFiles[existingIndex]
+          const existing = publishedBucket[existingIndex]
           existing.fileName = sanitizedFileName
           existing.driveName = name
           existing.publishedAt = new Date().toISOString()
         } else {
-          this.#publishedFiles.push({
+          publishedBucket.push({
             fileName: sanitizedFileName,
             cid: cidString,
             driveName: name,
             publishedAt: new Date().toISOString(),
             starred: false,
-            ownerAddress,
           })
         }
         this.#savePublishedMetadata()
@@ -1110,12 +1143,8 @@ export class MostBoxEngine extends EventEmitter {
    */
   listPublishedFiles(options = {}) {
     this.#ensureInitialized()
-    let files = this.#publishedFiles
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
-
-    if (ownerAddress) {
-      files = files.filter(f => this.#recordMatchesOwner(f, ownerAddress))
-    }
+    let files = this.#getPublishedBucket(ownerAddress)
 
     if (options.starred === true) {
       files = files.filter(f => f.starred === true)
@@ -1127,7 +1156,7 @@ export class MostBoxEngine extends EventEmitter {
       link: `most://${f.cid}?filename=${encodeURIComponent(f.fileName)}`,
       publishedAt: f.publishedAt,
       starred: f.starred || false,
-      ownerAddress: f.ownerAddress || '',
+      ownerAddress: ownerAddress || '',
     }))
   }
 
@@ -1139,17 +1168,16 @@ export class MostBoxEngine extends EventEmitter {
   toggleStarred(cid, options = {}) {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
-    const index = this.#publishedFiles.findIndex(
-      f => f.cid === cid && this.#recordMatchesOwner(f, ownerAddress)
-    )
+    const files = this.#getPublishedBucket(ownerAddress)
+    const index = files.findIndex(f => f.cid === cid)
     if (index === -1) {
       throw new Error('File not found')
     }
-    this.#publishedFiles[index].starred = !this.#publishedFiles[index].starred
+    files[index].starred = !files[index].starred
     this.#savePublishedMetadata()
     return {
       cid,
-      starred: this.#publishedFiles[index].starred,
+      starred: files[index].starred,
     }
   }
 
@@ -1161,14 +1189,14 @@ export class MostBoxEngine extends EventEmitter {
   async deletePublishedFile(cid, options = {}) {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
-    const index = this.#publishedFiles.findIndex(
-      f => f.cid === cid && this.#recordMatchesOwner(f, ownerAddress)
-    )
+    const files = this.#getPublishedBucket(ownerAddress)
+    const trashFiles = this.#getTrashBucket(ownerAddress, true)
+    const index = files.findIndex(f => f.cid === cid)
     if (index !== -1) {
-      const fileRecord = this.#publishedFiles[index]
+      const fileRecord = files[index]
       const holding = this.#holdings.find(item => item.cid === fileRecord.cid)
 
-      this.#trashFiles.push({
+      trashFiles.push({
         fileName: fileRecord.fileName,
         cid: fileRecord.cid,
         driveName:
@@ -1177,12 +1205,12 @@ export class MostBoxEngine extends EventEmitter {
         source: holding?.source || 'published',
         publishedAt: fileRecord.publishedAt,
         starred: fileRecord.starred || false,
-        ownerAddress: fileRecord.ownerAddress || ownerAddress,
         deletedAt: new Date().toISOString(),
       })
       this.#saveTrashMetadata()
 
-      this.#publishedFiles.splice(index, 1)
+      files.splice(index, 1)
+      this.#setPublishedBucket(ownerAddress, files)
       this.#savePublishedMetadata()
 
       if (!this.#hasPublishedReference(fileRecord.cid)) {
@@ -1203,16 +1231,14 @@ export class MostBoxEngine extends EventEmitter {
   listTrashFiles(options = {}) {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
-    const files = ownerAddress
-      ? this.#trashFiles.filter(f => this.#recordMatchesOwner(f, ownerAddress))
-      : this.#trashFiles
+    const files = this.#getTrashBucket(ownerAddress)
     return files.map(f => ({
       fileName: f.fileName,
       cid: f.cid,
       link: `most://${f.cid}?filename=${encodeURIComponent(f.fileName)}`,
       publishedAt: f.publishedAt,
       starred: f.starred || false,
-      ownerAddress: f.ownerAddress || '',
+      ownerAddress: ownerAddress || '',
       deletedAt: f.deletedAt,
     }))
   }
@@ -1225,22 +1251,23 @@ export class MostBoxEngine extends EventEmitter {
   async restoreTrashFile(cid, options = {}) {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
-    const index = this.#trashFiles.findIndex(
-      f => f.cid === cid && this.#recordMatchesOwner(f, ownerAddress)
-    )
+    const trashFiles = this.#getTrashBucket(ownerAddress)
+    const publishedFiles = this.#getPublishedBucket(ownerAddress, true)
+    const index = trashFiles.findIndex(f => f.cid === cid)
     if (index === -1) {
       throw new Error('File not found in trash')
     }
 
-    const fileRecord = this.#trashFiles[index]
+    const fileRecord = trashFiles[index]
 
     const { driveName } = this.#getCidInfo(fileRecord.cid)
 
-    const existingIndex = this.#publishedFiles.findIndex(
-      f => f.cid === fileRecord.cid && this.#recordMatchesOwner(f, ownerAddress)
+    const existingIndex = publishedFiles.findIndex(
+      f => f.cid === fileRecord.cid
     )
     if (existingIndex !== -1) {
-      this.#trashFiles.splice(index, 1)
+      trashFiles.splice(index, 1)
+      this.#setTrashBucket(ownerAddress, trashFiles)
       this.#saveTrashMetadata()
       return this.listPublishedFiles({ ownerAddress })
     }
@@ -1250,17 +1277,17 @@ export class MostBoxEngine extends EventEmitter {
       excludeCid: fileRecord.cid,
     })
 
-    this.#publishedFiles.push({
+    publishedFiles.push({
       fileName: fileRecord.fileName,
       cid: fileRecord.cid,
       driveName,
       publishedAt: fileRecord.publishedAt,
       starred: fileRecord.starred || false,
-      ownerAddress: fileRecord.ownerAddress || ownerAddress,
     })
     this.#savePublishedMetadata()
 
-    this.#trashFiles.splice(index, 1)
+    trashFiles.splice(index, 1)
+    this.#setTrashBucket(ownerAddress, trashFiles)
     this.#saveTrashMetadata()
 
     await this.#joinCidTopicInternal(fileRecord.cid, {
@@ -1286,15 +1313,15 @@ export class MostBoxEngine extends EventEmitter {
   async permanentDeleteTrashFile(cid, options = {}) {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
-    const index = this.#trashFiles.findIndex(
-      f => f.cid === cid && this.#recordMatchesOwner(f, ownerAddress)
-    )
+    const trashFiles = this.#getTrashBucket(ownerAddress)
+    const index = trashFiles.findIndex(f => f.cid === cid)
     if (index !== -1) {
-      const fileRecord = this.#trashFiles[index]
+      const fileRecord = trashFiles[index]
       const driveName =
         fileRecord.driveName || this.#getCidInfo(fileRecord.cid).driveName
 
-      this.#trashFiles.splice(index, 1)
+      trashFiles.splice(index, 1)
+      this.#setTrashBucket(ownerAddress, trashFiles)
       this.#saveTrashMetadata()
 
       if (!this.#hasAnyUserReference(fileRecord.cid)) {
@@ -1319,18 +1346,8 @@ export class MostBoxEngine extends EventEmitter {
   async emptyTrash(options = {}) {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
-    const remainingTrash = []
-    const removedTrash = []
-
-    for (const fileRecord of this.#trashFiles) {
-      if (ownerAddress && !this.#recordMatchesOwner(fileRecord, ownerAddress)) {
-        remainingTrash.push(fileRecord)
-        continue
-      }
-      removedTrash.push(fileRecord)
-    }
-
-    this.#trashFiles = remainingTrash
+    const removedTrash = [...this.#getTrashBucket(ownerAddress)]
+    this.#setTrashBucket(ownerAddress, [])
     this.#saveTrashMetadata()
 
     for (const fileRecord of removedTrash) {
@@ -1409,15 +1426,11 @@ export class MostBoxEngine extends EventEmitter {
       used: usedSize,
       free: freeSize,
       fileCount: ownerAddress
-        ? this.#publishedFiles.filter(f =>
-            this.#recordMatchesOwner(f, ownerAddress)
-          ).length
-        : this.#publishedFiles.length,
+        ? this.#getPublishedBucket(ownerAddress).length
+        : this.#countBucketRecords(this.#publishedFiles),
       trashCount: ownerAddress
-        ? this.#trashFiles.filter(f =>
-            this.#recordMatchesOwner(f, ownerAddress)
-          ).length
-        : this.#trashFiles.length,
+        ? this.#getTrashBucket(ownerAddress).length
+        : this.#countBucketRecords(this.#trashFiles),
     }
   }
 
@@ -1431,9 +1444,8 @@ export class MostBoxEngine extends EventEmitter {
   moveFile(cid, newFileName, options = {}) {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
-    const index = this.#publishedFiles.findIndex(
-      f => f.cid === cid && this.#recordMatchesOwner(f, ownerAddress)
-    )
+    const files = this.#getPublishedBucket(ownerAddress)
+    const index = files.findIndex(f => f.cid === cid)
     if (index === -1) {
       throw new Error('File not found')
     }
@@ -1442,8 +1454,8 @@ export class MostBoxEngine extends EventEmitter {
       ownerAddress,
       excludeCid: cid,
     })
-    this.#publishedFiles[index].fileName = safeFileName
-    this.#publishedFiles[index].publishedAt = new Date().toISOString()
+    files[index].fileName = safeFileName
+    files[index].publishedAt = new Date().toISOString()
     this.#savePublishedMetadata()
     return {
       cid,
@@ -1464,12 +1476,10 @@ export class MostBoxEngine extends EventEmitter {
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
     const prefix = oldPath + '/'
     const updates = []
+    const files = this.#getPublishedBucket(ownerAddress)
 
-    for (const file of this.#publishedFiles) {
-      if (
-        file.fileName.startsWith(prefix) &&
-        this.#recordMatchesOwner(file, ownerAddress)
-      ) {
+    for (const file of files) {
+      if (file.fileName.startsWith(prefix)) {
         const remainder = file.fileName.substring(prefix.length)
         const newFileName = sanitizeFilename(
           remainder ? newPath + '/' + remainder : newPath
@@ -1534,10 +1544,8 @@ export class MostBoxEngine extends EventEmitter {
   getPublishedFiles(options = {}) {
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
     return ownerAddress
-      ? this.#publishedFiles.filter(f =>
-          this.#recordMatchesOwner(f, ownerAddress)
-        )
-      : this.#publishedFiles
+      ? this.#getPublishedBucket(ownerAddress)
+      : this.#allPublishedRecords()
   }
 
   listUsers() {
@@ -1558,17 +1566,21 @@ export class MostBoxEngine extends EventEmitter {
       return users.get(ownerAddress)
     }
 
-    for (const file of this.#publishedFiles) {
-      const entry = ensure(file.ownerAddress)
+    for (const [ownerAddress, files] of Object.entries(this.#publishedFiles)) {
+      const entry = ensure(ownerAddress)
       if (!entry) continue
-      entry.fileCount += 1
-      entry.cids.add(file.cid)
+      entry.fileCount += files.length
+      for (const file of files) {
+        entry.cids.add(file.cid)
+      }
     }
-    for (const file of this.#trashFiles) {
-      const entry = ensure(file.ownerAddress)
+    for (const [ownerAddress, files] of Object.entries(this.#trashFiles)) {
+      const entry = ensure(ownerAddress)
       if (!entry) continue
-      entry.trashCount += 1
-      entry.cids.add(file.cid)
+      entry.trashCount += files.length
+      for (const file of files) {
+        entry.cids.add(file.cid)
+      }
     }
 
     return [...users.values()].map(user => ({
@@ -1586,65 +1598,258 @@ export class MostBoxEngine extends EventEmitter {
       throw new ValidationError('valid owner address is required')
     }
 
-    const affectedCids = new Set()
-    const beforeFiles = this.#publishedFiles.length
-    const beforeTrash = this.#trashFiles.length
-
-    this.#publishedFiles = this.#publishedFiles.filter(file => {
-      if (this.#recordMatchesOwner(file, ownerAddress)) {
-        affectedCids.add(file.cid)
-        return false
-      }
-      return true
-    })
-    this.#trashFiles = this.#trashFiles.filter(file => {
-      if (this.#recordMatchesOwner(file, ownerAddress)) {
-        affectedCids.add(file.cid)
-        return false
-      }
-      return true
-    })
-    this.#channels = this.#channels
-      .map(channel => ({
-        ...channel,
-        pinnedBy: channel.pinnedBy
-          ? Object.fromEntries(
-              Object.entries(channel.pinnedBy).filter(
-                ([address]) => normalizeOwnerAddress(address) !== ownerAddress
-              )
-            )
-          : undefined,
-        members: Array.isArray(channel.members)
-          ? channel.members.filter(
-              member => normalizeOwnerAddress(member?.address) !== ownerAddress
-            )
-          : [],
-      }))
-      .filter(channel => channel.members.length > 0)
-
-    this.#savePublishedMetadata()
-    this.#saveTrashMetadata()
-    this.#saveChannelsMetadata()
-
-    let removedReplicas = 0
-    for (const cid of affectedCids) {
-      if (this.#hasAnyUserReference(cid)) continue
-      const driveName = this.#getCidInfo(cid).driveName
-      try {
-        const drive = await this.#getOrCreateDrive(driveName)
-        await drive.del('/' + cid)
-      } catch {}
-      await this.#closeDriveForSeed(driveName)
-      await this.#leaveCidTopic(cid)
-      this.#removeHolding(cid)
-      removedReplicas += 1
-    }
+    const result = await this.#clearUserDataInternal(ownerAddress)
 
     return {
       ownerAddress,
-      removedFiles: beforeFiles - this.#publishedFiles.length,
-      removedTrashFiles: beforeTrash - this.#trashFiles.length,
-      removedReplicas,
+      ...result,
+    }
+  }
+
+  exportUserMetadata(ownerAddressInput) {
+    this.#ensureInitialized()
+    const ownerAddress = normalizeOwnerAddress(ownerAddressInput)
+    if (!ownerAddress) {
+      throw new ValidationError('valid owner address is required')
+    }
+
+    const files = this.#getPublishedBucket(ownerAddress).map(file => ({
+      fileName: file.fileName,
+      cid: file.cid,
+      driveName: file.driveName || this.#getCidInfo(file.cid).driveName,
+      publishedAt: file.publishedAt,
+      starred: file.starred || false,
+      link: buildMostLink(file.cid, file.fileName),
+    }))
+    const trashFiles = this.#getTrashBucket(ownerAddress).map(file => ({
+      fileName: file.fileName,
+      cid: file.cid,
+      driveName: file.driveName || this.#getCidInfo(file.cid).driveName,
+      size: Number(file.size) || 0,
+      source: file.source || 'published',
+      publishedAt: file.publishedAt,
+      starred: file.starred || false,
+      deletedAt: file.deletedAt,
+      link: buildMostLink(file.cid, file.fileName),
+    }))
+    const channels = this.#channels
+      .filter(channel => this.#channelHasMember(channel, ownerAddress))
+      .map(channel => ({
+        name: channel.name,
+        type: channel.type,
+        coreKey: channel.coreKey,
+        createdAt: channel.createdAt,
+        lastMessageAt: channel.lastMessageAt || '',
+        member: this.#getChannelMembers(channel).find(
+          member => member.address === ownerAddress
+        ),
+        remark: channel.remarks?.[ownerAddress] || '',
+        pinned: Boolean(channel.pinnedBy?.[ownerAddress]),
+      }))
+
+    return {
+      schemaVersion: USER_DATA_SCHEMA_VERSION,
+      exportedAt: new Date().toISOString(),
+      ownerAddress,
+      files,
+      trashFiles,
+      channels,
+    }
+  }
+
+  async checkUserImport(input = {}, options = {}) {
+    this.#ensureInitialized()
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    if (!ownerAddress) {
+      throw new ValidationError('valid owner address is required')
+    }
+
+    const normalized = this.#normalizeUserImportPackage(input)
+    const failures = []
+    const seenPaths = new Set()
+    const checkedActiveCids = new Set()
+    const importedCids = new Set([
+      ...normalized.files.map(file => file.cid),
+      ...normalized.trashFiles.map(file => file.cid),
+    ])
+    const currentCids = this.#collectUserCids(ownerAddress)
+    let requiredBytes = 0
+
+    if (normalized.files.length > IMPORT_CHECK_MAX_FILES) {
+      failures.push({
+        scope: 'package',
+        error: `too many files: max ${IMPORT_CHECK_MAX_FILES}`,
+      })
+    }
+
+    for (const file of normalized.files) {
+      const pathKey = sanitizeFilename(file.fileName).toLowerCase()
+      if (seenPaths.has(pathKey)) {
+        failures.push({
+          cid: file.cid,
+          fileName: file.fileName,
+          error: 'duplicate file path',
+        })
+        continue
+      }
+      seenPaths.add(pathKey)
+
+      const link = buildMostLink(file.cid, file.fileName)
+      try {
+        const result = await this.checkDownloadAvailability(link, {
+          ownerAddress,
+          timeout: options.timeout || DRIVE_ENTRY_TIMEOUT,
+        })
+        if (!checkedActiveCids.has(file.cid) && !result.alreadyExists) {
+          requiredBytes += Number(result.size) || Number(file.size) || 0
+        }
+        checkedActiveCids.add(file.cid)
+      } catch (err) {
+        failures.push({
+          cid: file.cid,
+          fileName: file.fileName,
+          error: err.message,
+          code: err.code || 'UNAVAILABLE',
+        })
+      }
+    }
+
+    let reclaimableBytes = 0
+    for (const cid of currentCids) {
+      if (importedCids.has(cid)) continue
+      const referencedByOtherUser =
+        this.#allPublishedRecords().some(
+          file => file.cid === cid && file.ownerAddress !== ownerAddress
+        ) ||
+        this.#allTrashRecords().some(
+          file => file.cid === cid && file.ownerAddress !== ownerAddress
+        )
+      if (referencedByOtherUser) continue
+      const holding = this.#holdings.find(item => item.cid === cid)
+      reclaimableBytes += Number(holding?.size) || 0
+    }
+    const availableBytes = Math.max(
+      0,
+      this.#options.capacityBytes - this.#getUsedBytes() + reclaimableBytes
+    )
+    if (requiredBytes > availableBytes) {
+      failures.push({
+        scope: 'capacity',
+        error: 'insufficient capacity',
+        requiredBytes,
+        availableBytes,
+      })
+    }
+
+    const ready = failures.length === 0
+    const checkId = `import_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`
+    if (ready) {
+      this.#importChecks.set(checkId, {
+        ownerAddress,
+        packageHash: this.#hashImportPackage(input),
+        expiresAt: Date.now() + IMPORT_CHECK_TTL_MS,
+      })
+    }
+
+    return {
+      ready,
+      checkId: ready ? checkId : '',
+      failures,
+      currentFileCount: this.#getPublishedBucket(ownerAddress).length,
+      currentTrashCount: this.#getTrashBucket(ownerAddress).length,
+      currentCidCount: currentCids.size,
+      importFileCount: normalized.files.length,
+      importTrashCount: normalized.trashFiles.length,
+      requiredBytes,
+      availableBytes,
+    }
+  }
+
+  async importUserMetadata(input = {}, options = {}) {
+    this.#ensureInitialized()
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    if (!ownerAddress) {
+      throw new ValidationError('valid owner address is required')
+    }
+
+    const checkId = String(options.checkId || '').trim()
+    const check = this.#importChecks.get(checkId)
+    if (
+      !check ||
+      check.ownerAddress !== ownerAddress ||
+      check.expiresAt < Date.now() ||
+      check.packageHash !== this.#hashImportPackage(input)
+    ) {
+      throw new ValidationError('valid import check is required')
+    }
+    this.#importChecks.delete(checkId)
+
+    const normalized = this.#normalizeUserImportPackage(input)
+    const previousCids = this.#collectUserCids(ownerAddress)
+    const previous = {
+      removedFiles: this.#getPublishedBucket(ownerAddress).length,
+      removedTrashFiles: this.#getTrashBucket(ownerAddress).length,
+    }
+    const now = new Date().toISOString()
+
+    this.#removeUserFromChannels(ownerAddress)
+    this.#setPublishedBucket(
+      ownerAddress,
+      normalized.files.map(file => ({
+        fileName: file.fileName,
+        cid: file.cid,
+        driveName: file.driveName || this.#getCidInfo(file.cid).driveName,
+        publishedAt: file.publishedAt || now,
+        starred: file.starred || false,
+      }))
+    )
+    this.#setTrashBucket(
+      ownerAddress,
+      normalized.trashFiles.map(file => ({
+        fileName: file.fileName,
+        cid: file.cid,
+        driveName: file.driveName || this.#getCidInfo(file.cid).driveName,
+        size: Number(file.size) || 0,
+        source: file.source || 'imported',
+        publishedAt: file.publishedAt || now,
+        starred: file.starred || false,
+        deletedAt: file.deletedAt || now,
+      }))
+    )
+    this.#applyImportedChannels(ownerAddress, normalized.channels)
+    this.#savePublishedMetadata()
+    this.#saveTrashMetadata()
+    this.#saveChannelsMetadata()
+    previous.removedReplicas = await this.#cleanupUnreferencedCids(previousCids)
+
+    const importedFiles = []
+    const failedFiles = []
+    for (const file of normalized.files) {
+      try {
+        const result = await this.pullByCid({
+          link: buildMostLink(file.cid, file.fileName),
+          ownerAddress,
+          timeout: options.timeout,
+        })
+        importedFiles.push({ cid: file.cid, fileName: file.fileName, result })
+      } catch (err) {
+        failedFiles.push({
+          cid: file.cid,
+          fileName: file.fileName,
+          error: err.message,
+          code: err.code || 'IMPORT_PULL_FAILED',
+        })
+      }
+    }
+
+    return {
+      success: failedFiles.length === 0,
+      ownerAddress,
+      replacedFiles: previous.removedFiles,
+      replacedTrashFiles: previous.removedTrashFiles,
+      importedFiles: importedFiles.length,
+      importedTrashFiles: normalized.trashFiles.length,
+      failedFiles,
     }
   }
 
@@ -1903,11 +2108,14 @@ export class MostBoxEngine extends EventEmitter {
 
   async #getLocalCidContent(cid, options = {}) {
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
-    const fileRecord = this.#publishedFiles.find(
-      f =>
-        f.cid === cid &&
-        (options.public || this.#recordMatchesOwner(f, ownerAddress))
+    const ownerRecord = this.#getPublishedBucket(ownerAddress).find(
+      f => f.cid === cid
     )
+    const fileRecord =
+      ownerRecord ||
+      (options.public
+        ? this.#allPublishedRecords().find(f => f.cid === cid)
+        : null)
     if (!options.allowHoldingFallback && !fileRecord) {
       return null
     }
@@ -2655,6 +2863,114 @@ export class MostBoxEngine extends EventEmitter {
     }
   }
 
+  #hashImportPackage(input) {
+    return crypto
+      .createHash('sha256')
+      .update(JSON.stringify(input || {}))
+      .digest('hex')
+  }
+
+  #normalizeUserImportPackage(input = {}) {
+    if (!input || typeof input !== 'object') {
+      throw new ValidationError('import package must be an object')
+    }
+    if (Number(input.schemaVersion) !== USER_DATA_SCHEMA_VERSION) {
+      throw new ValidationError('unsupported import package schemaVersion')
+    }
+
+    const normalizeFile = (record, scope) => {
+      if (!record || typeof record !== 'object') {
+        throw new ValidationError(`${scope} record must be an object`)
+      }
+      const cid = String(record.cid || '').trim()
+      const { driveName } = this.#getCidInfo(cid)
+      const fileName = sanitizeFilename(record.fileName || cid)
+      if (!fileName || fileName === 'unnamed') {
+        throw new ValidationError(`${scope} fileName is invalid`)
+      }
+      return {
+        cid,
+        fileName,
+        driveName,
+        size: Number(record.size) || 0,
+        source: String(record.source || 'imported'),
+        publishedAt:
+          typeof record.publishedAt === 'string' ? record.publishedAt : '',
+        deletedAt: typeof record.deletedAt === 'string' ? record.deletedAt : '',
+        starred: Boolean(record.starred),
+      }
+    }
+
+    const files = Array.isArray(input.files)
+      ? input.files.map(record => normalizeFile(record, 'files'))
+      : []
+    const trashFiles = Array.isArray(input.trashFiles)
+      ? input.trashFiles.map(record => normalizeFile(record, 'trashFiles'))
+      : []
+    const channels = Array.isArray(input.channels)
+      ? input.channels
+          .filter(channel => channel && typeof channel === 'object')
+          .map(channel => ({
+            name: String(channel.name || '').trim(),
+            type: String(channel.type || 'personal').trim() || 'personal',
+            coreKey: String(channel.coreKey || '').trim(),
+            createdAt:
+              typeof channel.createdAt === 'string' ? channel.createdAt : '',
+            lastMessageAt:
+              typeof channel.lastMessageAt === 'string'
+                ? channel.lastMessageAt
+                : '',
+            member:
+              channel.member && typeof channel.member === 'object'
+                ? channel.member
+                : null,
+            remark: String(channel.remark || '').slice(0, 50),
+            pinned: Boolean(channel.pinned),
+          }))
+          .filter(channel => CHANNEL_NAME_REGEX.test(channel.name))
+      : []
+
+    return { files, trashFiles, channels }
+  }
+
+  #applyImportedChannels(ownerAddress, channels = []) {
+    const normalizedOwner = normalizeOwnerAddress(ownerAddress)
+    if (!normalizedOwner) return
+
+    for (const imported of channels) {
+      let channel = this.#channels.find(item => item.name === imported.name)
+      if (!channel) {
+        const discoveryKey = this.#generateChannelDiscoveryKey(imported.name)
+        channel = {
+          name: imported.name,
+          discoveryKey: b4a.toString(discoveryKey, 'hex'),
+          coreKey: imported.coreKey,
+          createdAt: imported.createdAt || new Date().toISOString(),
+          lastMessageAt: imported.lastMessageAt || '',
+          type: imported.type,
+          members: [],
+          remoteCoreKeys: [],
+        }
+        this.#channels.push(channel)
+      }
+
+      this.#upsertChannelMember(channel, {
+        ownerAddress: normalizedOwner,
+        displayName: imported.member?.displayName || imported.member?.name || '',
+        avatar: imported.member?.avatar || '',
+      })
+
+      if (imported.remark) {
+        channel.remarks = channel.remarks || {}
+        channel.remarks[normalizedOwner] = imported.remark
+      }
+      if (imported.pinned) {
+        channel.pinnedBy = channel.pinnedBy || {}
+        channel.pinnedBy[normalizedOwner] = true
+      }
+    }
+  }
+
   #getFileRuntimeStats(cid) {
     const state = this.#fileMonitors.get(cid)
     if (!state) {
@@ -3005,26 +3321,163 @@ export class MostBoxEngine extends EventEmitter {
     return drive
   }
 
-  #recordMatchesOwner(record, ownerAddress) {
+  #getOwnerKey(ownerAddress) {
+    return getOwnerBucketKey(ownerAddress)
+  }
+
+  #getPublishedBucket(ownerAddress, create = false) {
+    const ownerKey = this.#getOwnerKey(ownerAddress)
+    if (!this.#publishedFiles[ownerKey] && create) {
+      this.#publishedFiles[ownerKey] = []
+    }
+    return this.#publishedFiles[ownerKey] || []
+  }
+
+  #getTrashBucket(ownerAddress, create = false) {
+    const ownerKey = this.#getOwnerKey(ownerAddress)
+    if (!this.#trashFiles[ownerKey] && create) {
+      this.#trashFiles[ownerKey] = []
+    }
+    return this.#trashFiles[ownerKey] || []
+  }
+
+  #setPublishedBucket(ownerAddress, records) {
+    const ownerKey = this.#getOwnerKey(ownerAddress)
+    const next = Array.isArray(records) ? records : []
+    if (next.length === 0) {
+      delete this.#publishedFiles[ownerKey]
+    } else {
+      this.#publishedFiles[ownerKey] = next
+    }
+  }
+
+  #setTrashBucket(ownerAddress, records) {
+    const ownerKey = this.#getOwnerKey(ownerAddress)
+    const next = Array.isArray(records) ? records : []
+    if (next.length === 0) {
+      delete this.#trashFiles[ownerKey]
+    } else {
+      this.#trashFiles[ownerKey] = next
+    }
+  }
+
+  #allPublishedRecords() {
+    return Object.entries(this.#publishedFiles).flatMap(([owner, records]) =>
+      records.map(record => cloneMetadataRecord(record, owner))
+    )
+  }
+
+  #allTrashRecords() {
+    return Object.entries(this.#trashFiles).flatMap(([owner, records]) =>
+      records.map(record => cloneMetadataRecord(record, owner))
+    )
+  }
+
+  #countBucketRecords(buckets) {
+    return Object.values(buckets || {}).reduce(
+      (sum, records) => sum + (Array.isArray(records) ? records.length : 0),
+      0
+    )
+  }
+
+  #collectUserCids(ownerAddress) {
+    const cids = new Set()
+    for (const file of this.#getPublishedBucket(ownerAddress)) {
+      cids.add(file.cid)
+    }
+    for (const file of this.#getTrashBucket(ownerAddress)) {
+      cids.add(file.cid)
+    }
+    return cids
+  }
+
+  #removeUserFromChannels(ownerAddress) {
     const normalizedOwner = normalizeOwnerAddress(ownerAddress)
-    if (!normalizedOwner) return !record.ownerAddress
-    return normalizeOwnerAddress(record.ownerAddress) === normalizedOwner
+    if (!normalizedOwner) return
+
+    this.#channels = this.#channels
+      .map(channel => {
+        const remarks = channel.remarks
+          ? Object.fromEntries(
+              Object.entries(channel.remarks).filter(
+                ([address]) => normalizeOwnerAddress(address) !== normalizedOwner
+              )
+            )
+          : undefined
+        const pinnedBy = channel.pinnedBy
+          ? Object.fromEntries(
+              Object.entries(channel.pinnedBy).filter(
+                ([address]) => normalizeOwnerAddress(address) !== normalizedOwner
+              )
+            )
+          : undefined
+        return {
+          ...channel,
+          remarks:
+            remarks && Object.keys(remarks).length > 0 ? remarks : undefined,
+          pinnedBy:
+            pinnedBy && Object.keys(pinnedBy).length > 0 ? pinnedBy : undefined,
+          members: Array.isArray(channel.members)
+            ? channel.members.filter(
+                member =>
+                  normalizeOwnerAddress(member?.address) !== normalizedOwner
+              )
+            : [],
+        }
+      })
+      .filter(channel => channel.members.length > 0)
+  }
+
+  async #cleanupUnreferencedCids(cids) {
+    let removedReplicas = 0
+    for (const cid of cids) {
+      if (this.#hasAnyUserReference(cid)) continue
+      const driveName = this.#getCidInfo(cid).driveName
+      try {
+        const drive = await this.#getOrCreateDrive(driveName)
+        await drive.del('/' + cid)
+      } catch {}
+      await this.#closeDriveForSeed(driveName)
+      await this.#leaveCidTopic(cid)
+      this.#removeHolding(cid)
+      removedReplicas += 1
+    }
+    return removedReplicas
+  }
+
+  async #clearUserDataInternal(ownerAddress) {
+    const affectedCids = this.#collectUserCids(ownerAddress)
+    const removedFiles = this.#getPublishedBucket(ownerAddress).length
+    const removedTrashFiles = this.#getTrashBucket(ownerAddress).length
+
+    this.#setPublishedBucket(ownerAddress, [])
+    this.#setTrashBucket(ownerAddress, [])
+    this.#removeUserFromChannels(ownerAddress)
+    this.#savePublishedMetadata()
+    this.#saveTrashMetadata()
+    this.#saveChannelsMetadata()
+
+    const removedReplicas = await this.#cleanupUnreferencedCids(affectedCids)
+    return {
+      removedFiles,
+      removedTrashFiles,
+      removedReplicas,
+    }
   }
 
   #assertDisplayNameAvailable(fileName, options = {}) {
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    const files = this.#getPublishedBucket(ownerAddress)
     const safeFileName = sanitizeFilename(fileName)
     const folder = getDisplayPathFolder(safeFileName)
     const baseName = getPathBaseName(safeFileName)
-    const conflict = this.#publishedFiles.find(file => {
+    const conflict = files.find(file => {
       if (
         options.excludeCid &&
-        file.cid === options.excludeCid &&
-        this.#recordMatchesOwner(file, ownerAddress)
+        file.cid === options.excludeCid
       ) {
         return false
       }
-      if (!this.#recordMatchesOwner(file, ownerAddress)) return false
       const existingFileName = sanitizeFilename(file.fileName)
       return (
         getDisplayPathFolder(existingFileName) === folder &&
@@ -3037,13 +3490,13 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #hasPublishedReference(cid) {
-    return this.#publishedFiles.some(file => file.cid === cid)
+    return this.#allPublishedRecords().some(file => file.cid === cid)
   }
 
   #hasAnyUserReference(cid) {
     return (
-      this.#publishedFiles.some(file => file.cid === cid) ||
-      this.#trashFiles.some(file => file.cid === cid)
+      this.#allPublishedRecords().some(file => file.cid === cid) ||
+      this.#allTrashRecords().some(file => file.cid === cid)
     )
   }
 
@@ -3108,7 +3561,13 @@ export class MostBoxEngine extends EventEmitter {
       if (fs.existsSync(metadataPath)) {
         const data = fs.readFileSync(metadataPath, 'utf-8')
         const parsed = JSON.parse(data)
-        return parsed.map(f => ({ ...f, starred: f.starred || false }))
+        const buckets = normalizeMetadataBuckets(parsed)
+        for (const records of Object.values(buckets)) {
+          for (const record of records) {
+            record.starred = record.starred || false
+          }
+        }
+        return buckets
       }
     } catch (err) {
       console.warn(
@@ -3162,7 +3621,7 @@ export class MostBoxEngine extends EventEmitter {
       const metadataPath = this.#getTrashMetadataPath()
       if (fs.existsSync(metadataPath)) {
         const data = fs.readFileSync(metadataPath, 'utf-8')
-        return JSON.parse(data)
+        return normalizeMetadataBuckets(JSON.parse(data))
       }
     } catch (err) {
       console.warn(

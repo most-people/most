@@ -158,6 +158,9 @@ export function createApp(engine, options = {}) {
       path === '/api/download/check' ||
       path === '/api/download' ||
       path === '/api/download/cancel' ||
+      path === '/api/user/export' ||
+      path === '/api/user/import/check' ||
+      path === '/api/user/import' ||
       path === '/api/trash' ||
       path === '/api/move' ||
       path === '/api/folder/rename' ||
@@ -545,6 +548,55 @@ export function createApp(engine, options = {}) {
 
   app.get('/api/admin/users', c => {
     return c.json({ users: engine.listUsers() })
+  })
+
+  app.get('/api/user/export', c => {
+    try {
+      return c.json(engine.exportUserMetadata(c.get('userAddress')))
+    } catch (err) {
+      return errorJson(c, err)
+    }
+  })
+
+  app.post('/api/user/import/check', async c => {
+    try {
+      const body = await c.req.json()
+      const timeout =
+        body.timeout === undefined ? undefined : Number(body.timeout)
+      const result = await engine.checkUserImport(body.package || body, {
+        ownerAddress: c.get('userAddress'),
+        timeout: Number.isFinite(timeout) && timeout > 0 ? timeout : undefined,
+      })
+      return c.json({ success: true, ...result })
+    } catch (err) {
+      return errorJson(c, err)
+    }
+  })
+
+  app.post('/api/user/import', async c => {
+    try {
+      const body = await c.req.json()
+      const timeout =
+        body.timeout === undefined ? undefined : Number(body.timeout)
+      const result = await engine.importUserMetadata(body.package || body, {
+        ownerAddress: c.get('userAddress'),
+        checkId: body.checkId,
+        timeout: Number.isFinite(timeout) && timeout > 0 ? timeout : undefined,
+      })
+      appendNodeLog({
+        event: 'node:user-data:imported',
+        message: 'User data imported',
+        data: {
+          ownerAddress: result.ownerAddress,
+          importedFiles: result.importedFiles,
+          failedFiles: result.failedFiles.length,
+        },
+      })
+      await broadcastNodeStatus()
+      return c.json(result)
+    } catch (err) {
+      return errorJson(c, err)
+    }
   })
 
   app.delete('/api/admin/users/:address/data', async c => {

@@ -21,7 +21,10 @@ import {
   Lock,
   Wallet,
   ArrowLeft,
+  Database,
+  Upload,
 } from 'lucide-react'
+import Link from 'next/link'
 import AppShell from '~/components/AppShell'
 import { CopyButton } from '~/components/CopyButton'
 import { EmptyState } from '~/components/EmptyState'
@@ -668,6 +671,14 @@ export default function Web3Page() {
                 <span>{item.label}</span>
               </button>
             ))}
+            <Link href="/web3/export" className="sidebar-nav-btn">
+              <Database size={16} />
+              <span>数据导出</span>
+            </Link>
+            <Link href="/web3/import" className="sidebar-nav-btn">
+              <Upload size={16} />
+              <span>数据导入</span>
+            </Link>
           </nav>
         </>
       )}

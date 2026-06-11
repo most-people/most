@@ -22,6 +22,7 @@ const VALID_MISSING_CID =
   'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
 const TEST_IDENTITY = createLoginIdentity('api-user', 'api-password')
 const SECOND_IDENTITY = createLoginIdentity('second-user', 'second-password')
+const IMPORT_IDENTITY = createLoginIdentity('import-user', 'import-password')
 
 function assertNoLegacyNodeSettingFields(value) {
   const legacyPattern = /Seed|Concurrent|RateLimit/
@@ -162,16 +163,9 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
   })
 
   beforeEach(async () => {
-    for (const file of engine.listPublishedFiles()) {
-      await engine.deletePublishedFile(file.cid, {
-        ownerAddress: file.ownerAddress || TEST_IDENTITY.address,
-      })
-    }
-    for (const file of engine.listTrashFiles()) {
-      await engine.permanentDeleteTrashFile(file.cid, {
-        ownerAddress: file.ownerAddress || TEST_IDENTITY.address,
-      })
-    }
+    await engine.clearUserData(TEST_IDENTITY.address)
+    await engine.clearUserData(SECOND_IDENTITY.address)
+    await engine.clearUserData(IMPORT_IDENTITY.address)
     for (const channel of engine.listChannels()) {
       await engine.leaveChannel(channel.name)
     }
@@ -690,14 +684,16 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     })
 
     it('returns taskId for valid link', async () => {
-      await engine.publishFile(Buffer.from('test'), 'dl-test.txt')
-      const files = engine.listPublishedFiles()
-      const link = files[0].link
+      const published = await engine.publishFile(
+        Buffer.from('test'),
+        'dl-test.txt',
+        { ownerAddress: TEST_IDENTITY.address }
+      )
 
       const res = await fetch(`${baseUrl}/api/download`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ link }),
+        body: JSON.stringify({ link: published.link }),
       })
 
       const data = await res.json()
@@ -1069,11 +1065,13 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
 
   describe('POST /api/files/:cid/star', () => {
     it('toggles starred status', async () => {
-      await engine.publishFile(Buffer.from('test'), 'star-test.txt')
-      const files = engine.listPublishedFiles()
-      const cid = files[0].cid
+      const published = await engine.publishFile(
+        Buffer.from('test'),
+        'star-test.txt',
+        { ownerAddress: TEST_IDENTITY.address }
+      )
 
-      const res = await fetch(`${baseUrl}/api/files/${cid}/star`, {
+      const res = await fetch(`${baseUrl}/api/files/${published.cid}/star`, {
         method: 'POST',
       })
 
@@ -1086,8 +1084,14 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
 
   describe('GET /api/trash', () => {
     it('returns trash files', async () => {
-      await engine.publishFile(Buffer.from('trash-test'), 'trash.txt')
-      await engine.deletePublishedFile(engine.listPublishedFiles()[0].cid)
+      const published = await engine.publishFile(
+        Buffer.from('trash-test'),
+        'trash.txt',
+        { ownerAddress: TEST_IDENTITY.address }
+      )
+      await engine.deletePublishedFile(published.cid, {
+        ownerAddress: TEST_IDENTITY.address,
+      })
 
       const res = await fetch(`${baseUrl}/api/trash`)
       const data = await res.json()
@@ -1101,9 +1105,15 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
 
   describe('POST /api/trash/:cid/restore', () => {
     it('restores file from trash', async () => {
-      await engine.publishFile(Buffer.from('restore-test'), 'restore.txt')
-      const cid = engine.listPublishedFiles()[0].cid
-      await engine.deletePublishedFile(cid)
+      const published = await engine.publishFile(
+        Buffer.from('restore-test'),
+        'restore.txt',
+        { ownerAddress: TEST_IDENTITY.address }
+      )
+      const cid = published.cid
+      await engine.deletePublishedFile(cid, {
+        ownerAddress: TEST_IDENTITY.address,
+      })
 
       const res = await fetch(`${baseUrl}/api/trash/${cid}/restore`, {
         method: 'POST',
@@ -1112,15 +1122,24 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const data = await res.json()
       assert.strictEqual(res.status, 200)
       assert.ok(data.success)
-      assert.strictEqual(engine.listTrashFiles().length, 0)
+      assert.strictEqual(
+        engine.listTrashFiles({ ownerAddress: TEST_IDENTITY.address }).length,
+        0
+      )
     })
   })
 
   describe('DELETE /api/trash/:cid', () => {
     it('permanently deletes a trash file', async () => {
-      await engine.publishFile(Buffer.from('perm-delete'), 'perm.txt')
-      const cid = engine.listPublishedFiles()[0].cid
-      await engine.deletePublishedFile(cid)
+      const published = await engine.publishFile(
+        Buffer.from('perm-delete'),
+        'perm.txt',
+        { ownerAddress: TEST_IDENTITY.address }
+      )
+      const cid = published.cid
+      await engine.deletePublishedFile(cid, {
+        ownerAddress: TEST_IDENTITY.address,
+      })
 
       const res = await fetch(`${baseUrl}/api/trash/${cid}`, {
         method: 'DELETE',
@@ -1129,27 +1148,120 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
 
       assert.strictEqual(res.status, 200)
       assert.ok(data.success)
-      assert.strictEqual(engine.listTrashFiles().length, 0)
+      assert.strictEqual(
+        engine.listTrashFiles({ ownerAddress: TEST_IDENTITY.address }).length,
+        0
+      )
     })
   })
 
   describe('DELETE /api/trash', () => {
     it('empties the trash', async () => {
-      await engine.publishFile(Buffer.from('empty1'), 'empty1.txt')
-      await engine.publishFile(Buffer.from('empty2'), 'empty2.txt')
-      await engine.deletePublishedFile(engine.listPublishedFiles()[0].cid)
-      await engine.deletePublishedFile(engine.listPublishedFiles()[0].cid)
+      const first = await engine.publishFile(
+        Buffer.from('empty1'),
+        'empty1.txt',
+        { ownerAddress: TEST_IDENTITY.address }
+      )
+      const second = await engine.publishFile(
+        Buffer.from('empty2'),
+        'empty2.txt',
+        { ownerAddress: TEST_IDENTITY.address }
+      )
+      await engine.deletePublishedFile(first.cid, {
+        ownerAddress: TEST_IDENTITY.address,
+      })
+      await engine.deletePublishedFile(second.cid, {
+        ownerAddress: TEST_IDENTITY.address,
+      })
 
       const res = await fetch(`${baseUrl}/api/trash`, { method: 'DELETE' })
       const data = await res.json()
 
       assert.strictEqual(res.status, 200)
       assert.ok(data.success)
-      assert.strictEqual(engine.listTrashFiles().length, 0)
+      assert.strictEqual(
+        engine.listTrashFiles({ ownerAddress: TEST_IDENTITY.address }).length,
+        0
+      )
     })
   })
 
   describe('admin user data API', () => {
+    it('exports and imports user metadata with full replacement', async () => {
+      const oldFile = await engine.publishFile(
+        Buffer.from('import old file'),
+        `import-old-${uid}.txt`,
+        { ownerAddress: IMPORT_IDENTITY.address }
+      )
+      const importFile = await engine.publishFile(
+        Buffer.from('import replacement file'),
+        `import-replacement-${uid}.txt`,
+        { ownerAddress: IMPORT_IDENTITY.address }
+      )
+
+      const exportRes = await fetchAs(
+        IMPORT_IDENTITY,
+        `${baseUrl}/api/user/export`
+      )
+      const exportData = await exportRes.json()
+      assert.strictEqual(exportRes.status, 200)
+      assert.ok(exportData.files.some(file => file.cid === importFile.cid))
+
+      const pkg = {
+        ...exportData,
+        files: exportData.files.filter(file => file.cid === importFile.cid),
+        trashFiles: [],
+        channels: [],
+      }
+
+      const checkRes = await fetchAs(
+        IMPORT_IDENTITY,
+        `${baseUrl}/api/user/import/check`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ package: pkg }),
+        }
+      )
+      const checkData = await checkRes.json()
+      assert.strictEqual(checkRes.status, 200)
+      assert.strictEqual(checkData.ready, true)
+      assert.ok(checkData.checkId)
+
+      const importRes = await fetchAs(
+        IMPORT_IDENTITY,
+        `${baseUrl}/api/user/import`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ package: pkg, checkId: checkData.checkId }),
+        }
+      )
+      const importData = await importRes.json()
+      assert.strictEqual(importRes.status, 200)
+      assert.strictEqual(importData.success, true)
+
+      const files = await (
+        await fetchAs(IMPORT_IDENTITY, `${baseUrl}/api/files`)
+      ).json()
+      assert.ok(files.some(file => file.cid === importFile.cid))
+      assert.ok(!files.some(file => file.cid === oldFile.cid))
+    })
+
+    it('rejects import without a valid checkId', async () => {
+      const exportRes = await fetch(`${baseUrl}/api/user/export`)
+      const pkg = await exportRes.json()
+
+      const importRes = await fetch(`${baseUrl}/api/user/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ package: pkg, checkId: 'missing' }),
+      })
+      const data = await importRes.json()
+      assert.strictEqual(importRes.status, 400)
+      assert.strictEqual(data.code, 'VALIDATION_ERROR')
+    })
+
     it('clears one user without removing another user records', async () => {
       const first = await engine.publishFile(Buffer.from('first'), 'first.txt')
       const second = await engine.publishFile(
