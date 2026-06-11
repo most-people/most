@@ -840,7 +840,6 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         body: JSON.stringify({
           cid: cid.toString(),
           size: content.length,
-          localPath: path.join(tmpDir, 'manual.txt'),
         }),
       })
       const data = await res.json()

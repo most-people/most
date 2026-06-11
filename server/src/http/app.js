@@ -653,7 +653,7 @@ export function createApp(engine, options = {}) {
       const publishResult = await engine.publishFile(
         result.filePath,
         result.filename,
-        { localPath: null, ownerAddress: c.get('userAddress') }
+        { ownerAddress: c.get('userAddress') }
       )
       return c.json({ success: true, ...publishResult })
     } finally {

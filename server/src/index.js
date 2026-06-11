@@ -471,7 +471,6 @@ export class MostBoxEngine extends EventEmitter {
    * @param {string|Buffer} content - 文件路径（字符串）或内容（Buffer）
    * @param {string} [fileName] - 文件名（Buffer 输入时必填）
    * @param {object} [options] - 发布选项
-   * @param {string|null} [options.localPath] - 持有记录中的本地路径
    * @returns {Promise<{ cid: string, link: string, fileName: string }>}
    */
   async publishFile(content, fileName, options = {}) {
@@ -526,9 +525,6 @@ export class MostBoxEngine extends EventEmitter {
     const { cid: rootCid } = await calculateCid(content)
     const cidString = rootCid.toString()
     const { driveName: name } = this.#getCidInfo(cidString)
-    const holdingLocalPath =
-      options.localPath === undefined ? cleanPath : options.localPath
-
     // 检查相同内容是否已存在
     const existingIndex = this.#publishedFiles.findIndex(
       f => f.cid === cidString && this.#recordMatchesOwner(f, ownerAddress)
@@ -543,7 +539,6 @@ export class MostBoxEngine extends EventEmitter {
         cid: cidString,
         fileName: existing.fileName,
         size: fileSize,
-        localPath: holdingLocalPath,
         driveName: name,
         source: 'published',
       })
@@ -627,7 +622,6 @@ export class MostBoxEngine extends EventEmitter {
       cid: cidString,
       fileName: safeFileName,
       size: fileSize,
-      localPath: holdingLocalPath,
       driveName: name,
       source: 'published',
     })
@@ -701,8 +695,6 @@ export class MostBoxEngine extends EventEmitter {
           size:
             existingHolding?.size ??
             (Number.isFinite(localContent.size) ? localContent.size : 0),
-          localPath:
-            existingHolding?.localPath || existingFile?.localPath || null,
           driveName: existingFile?.driveName || name,
           source: existingHolding?.source || 'published',
         })
@@ -989,7 +981,6 @@ export class MostBoxEngine extends EventEmitter {
           cid: cidString,
           fileName: sanitizedFileName,
           size: savedSize,
-          localPath: savePath,
           driveName: name,
           source: 'downloaded',
         })
@@ -1183,7 +1174,6 @@ export class MostBoxEngine extends EventEmitter {
         driveName:
           fileRecord.driveName || this.#getCidInfo(fileRecord.cid).driveName,
         size: holding?.size ?? fileRecord.size ?? 0,
-        localPath: holding?.localPath || fileRecord.localPath || null,
         source: holding?.source || 'published',
         publishedAt: fileRecord.publishedAt,
         starred: fileRecord.starred || false,
@@ -1281,7 +1271,6 @@ export class MostBoxEngine extends EventEmitter {
       cid: fileRecord.cid,
       fileName: fileRecord.fileName,
       size: Number(fileRecord.size) || 0,
-      localPath: fileRecord.localPath || null,
       driveName,
       source: fileRecord.source || 'published',
     })
@@ -1953,7 +1942,6 @@ export class MostBoxEngine extends EventEmitter {
           cid,
           fileName: holding?.fileName || cid,
           driveName: holding?.driveName || driveName,
-          localPath: holding?.localPath || null,
           size,
           ownerAddress,
         },
@@ -2834,7 +2822,6 @@ export class MostBoxEngine extends EventEmitter {
       cid,
       fileName: record.fileName || cid,
       size,
-      localPath: record.localPath || null,
       topic: topicHex,
       driveName,
       source: record.source || 'manual',
