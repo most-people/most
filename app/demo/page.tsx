@@ -1,5 +1,3 @@
-'use client'
-
 import '~/styles/portal.css'
 import '~/styles/marketing.css'
 import '~/styles/chat.css'

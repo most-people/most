@@ -1,7 +1,5 @@
-'use client'
-
-import React, { useState, useEffect, Suspense, useRef } from 'react'
-import { useSearchParams } from '~/lib/routerCompat'
+import React, { useState, useEffect, Suspense, useMemo, useRef } from 'react'
+import { useLocation } from '@tanstack/react-router'
 import {
   KeyRound,
   Check,
@@ -120,7 +118,14 @@ function normalizeChannelRemark(value?: string) {
 }
 
 function ChatJoinContent() {
-  const searchParams = useSearchParams()
+  const searchStr = useLocation({ select: location => location.searchStr })
+  const { token, pub } = useMemo(() => {
+    const searchParams = new URLSearchParams(searchStr)
+    return {
+      token: searchParams.get('token') || '',
+      pub: searchParams.get('pub') || '',
+    }
+  }, [searchStr])
   const isDarkMode = useAppStore(s => s.isDarkMode)
   const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
   const hasBackend = useAppStore(s => s.hasBackend)
@@ -133,9 +138,6 @@ function ChatJoinContent() {
   const flowKeyRef = useRef('')
 
   useEffect(() => {
-    const token = searchParams.get('token')
-    const pub = searchParams.get('pub')
-
     if (!token) {
       setError('缺少 token 参数')
       setLoading(false)
@@ -241,7 +243,7 @@ function ChatJoinContent() {
     }
 
     decrypt()
-  }, [hasBackend, searchParams, setUserIdentity])
+  }, [hasBackend, pub, setUserIdentity, token])
 
   return (
     <AppShell

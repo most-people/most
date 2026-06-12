@@ -1,5 +1,3 @@
-'use client'
-
 import React, { useEffect, useState } from 'react'
 import { FileText, Loader, Music, X } from 'lucide-react'
 import type { FileSubtype } from '~/lib/filePreview'

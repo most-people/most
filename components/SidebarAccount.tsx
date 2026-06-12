@@ -1,5 +1,3 @@
-'use client'
-
 import { useState } from 'react'
 import { LogOut, MoreHorizontal } from 'lucide-react'
 import { ActionMenu, ConfirmModal } from '~/components/ui'

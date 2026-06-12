@@ -1,14 +1,14 @@
-import Link from '~/lib/routerCompat'
+import { Link } from '@tanstack/react-router'
 
 const footerLinks = [
-  { href: '/', label: '关于' },
-  { href: '/ping/', label: '网络' },
+  { to: '/', label: '关于' },
+  { to: '/ping/', label: '网络' },
   {
     href: 'https://github.com/most-people/most',
     label: 'GitHub',
     external: true,
   },
-]
+] as const
 
 export function Footer() {
   return (
@@ -16,17 +16,22 @@ export function Footer() {
       <div className="mkt-container">
         <div className="mkt-footer-inner">
           <div className="mkt-footer-links">
-            {footerLinks.map(link => (
-              <Link
-                key={link.href}
-                href={link.href}
-                {...(link.external
-                  ? { target: '_blank', rel: 'noopener noreferrer' }
-                  : {})}
-              >
-                {link.label}
-              </Link>
-            ))}
+            {footerLinks.map(link =>
+              'external' in link ? (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {link.label}
+                </a>
+              ) : (
+                <Link key={link.to} to={link.to}>
+                  {link.label}
+                </Link>
+              )
+            )}
           </div>
           <span className="mkt-footer-copy">
             © {new Date().getFullYear()} MOST PEOPLE · MIT License

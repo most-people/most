@@ -1,5 +1,3 @@
-'use client'
-
 import { PanelLeftOpen } from 'lucide-react'
 import { useAppShell } from '~/components/AppShell'
 

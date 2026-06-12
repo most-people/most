@@ -1,5 +1,3 @@
-'use client'
-
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { useAppStore } from '~/app/app/useAppStore'

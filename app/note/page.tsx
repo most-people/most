@@ -1,8 +1,13 @@
-'use client'
-
-import { Fragment, Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import dynamic from '~/lib/dynamic'
-import { useRouter, useSearchParams } from '~/lib/routerCompat'
+import {
+  Fragment,
+  Suspense,
+  lazy,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import { useLocation, useNavigate } from '@tanstack/react-router'
 import {
   PencilRuler,
   Eye,
@@ -37,15 +42,36 @@ import { NoteMoveModal, type NoteMoveTarget } from '~/components/NoteMoveModal'
 import { NoteSidebar } from '~/components/NoteSidebar'
 import { useNoteBackupSync } from '~/app/note/useNoteBackupSync'
 
-const MilkdownEditor = dynamic(
-  () => import('~/components/MilkdownEditor').then(mod => mod.MilkdownEditor),
-  {
-    ssr: false,
-    loading: () => <div className="note-editor-loading">加载编辑器...</div>,
-  }
-)
+const MilkdownEditor = lazy(async () => {
+  const mod = await import('~/components/MilkdownEditor')
+  return { default: mod.MilkdownEditor }
+})
 
 type ExplorerItem = NoteMoveTarget
+
+type NoteSearchParams = {
+  cid?: string
+  mode?: 'edit'
+}
+
+function getNoteSearch(searchStr: string): NoteSearchParams {
+  const searchParams = new URLSearchParams(searchStr)
+  const mode = searchParams.get('mode')
+
+  return {
+    cid: searchParams.get('cid') || undefined,
+    mode: mode === 'edit' ? 'edit' : undefined,
+  }
+}
+
+function getNoteHref(search: NoteSearchParams = {}) {
+  const searchParams = new URLSearchParams()
+  if (search.cid) searchParams.set('cid', search.cid)
+  if (search.mode) searchParams.set('mode', search.mode)
+
+  const query = searchParams.toString()
+  return query ? `/note/?${query}` : '/note/'
+}
 
 function getNotePreview(note: NoteItem) {
   if (note.isSecret || note.content.startsWith('mp://1')) {
@@ -100,8 +126,9 @@ function getDirectoryOptions(notes: NoteItem[]) {
 }
 
 function NotePageContent() {
-  const router = useRouter()
-  const params = useSearchParams()
+  const navigate = useNavigate()
+  const searchStr = useLocation({ select: location => location.searchStr })
+  const params = useMemo(() => getNoteSearch(searchStr), [searchStr])
   const editorRef = useRef<MilkdownEditorRef>(null)
   const backupSync = useNoteBackupSync()
 
@@ -118,10 +145,10 @@ function NotePageContent() {
   const renameNote = useAppStore(s => s.renameNote)
   const localDataReady = useAppStore(s => s.localDataReady)
 
-  const cid = params.get('cid') || ''
+  const cid = params.cid || ''
   const selectedNote = notes.find(note => note.cid === cid)
   const showPreview = !!cid
-  const isEditing = showPreview && params.get('mode') === 'edit'
+  const isEditing = showPreview && params.mode === 'edit'
 
   const [searchQuery, setSearchQuery] = useState('')
   const [inputModal, setInputModal] = useState<null | {
@@ -269,12 +296,19 @@ function NotePageContent() {
   }, [notesPath])
   const directoryOptions = useMemo(() => getDirectoryOptions(notes), [notes])
 
+  function navigateToNote(
+    search: NoteSearchParams = {},
+    replace = false
+  ) {
+    navigate({ href: getNoteHref(search), replace })
+  }
+
   function openPreview(note: NoteItem) {
-    router.push(`/note/?cid=${encodeURIComponent(note.cid)}`)
+    navigateToNote({ cid: note.cid })
   }
 
   function openEditor(note: NoteItem) {
-    router.push(`/note/?cid=${encodeURIComponent(note.cid)}&mode=edit`)
+    navigateToNote({ cid: note.cid, mode: 'edit' })
   }
 
   function requireWallet() {
@@ -284,11 +318,7 @@ function NotePageContent() {
   }
 
   function closeEditor() {
-    router.push(
-      selectedNote
-        ? `/note/?cid=${encodeURIComponent(selectedNote.cid)}`
-        : '/note/'
-    )
+    navigateToNote(selectedNote ? { cid: selectedNote.cid } : {})
   }
 
   async function handleSaveEditor() {
@@ -318,7 +348,7 @@ function NotePageContent() {
       setPlainContent(markdown)
       addToast('笔记已保存', 'success')
       await backupSync.uploadNow({ silent: true })
-      router.replace(`/note/?cid=${encodeURIComponent(nextCid)}`)
+      navigateToNote({ cid: nextCid }, true)
     } catch (err: unknown) {
       addToast(getErrorMessage(err, '保存失败'), 'error')
     } finally {
@@ -344,7 +374,7 @@ function NotePageContent() {
           setInputModal(null)
           addToast('笔记已创建', 'success')
           await backupSync.uploadNow({ silent: true })
-          router.push(`/note/?cid=${encodeURIComponent(newCid)}&mode=edit`)
+          navigateToNote({ cid: newCid, mode: 'edit' })
         } catch (err: unknown) {
           addToast(getErrorMessage(err, '创建失败'), 'error')
         }
@@ -407,7 +437,7 @@ function NotePageContent() {
         addToast('已删除', 'success')
         await backupSync.uploadNow({ silent: true })
         if (item.type === 'file' && item.cid === cid) {
-          router.push('/note/')
+          navigateToNote()
         }
       },
     })
@@ -591,7 +621,7 @@ function NotePageContent() {
                       type="button"
                       className="btn btn-icon"
                       onClick={
-                        isEditing ? closeEditor : () => router.push('/note/')
+                        isEditing ? closeEditor : () => navigateToNote()
                       }
                       title={isEditing ? '取消' : '关闭'}
                       aria-label={isEditing ? '取消' : '关闭'}

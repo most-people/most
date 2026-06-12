@@ -1,5 +1,3 @@
-'use client'
-
 import { Download } from 'lucide-react'
 import { CopyButton } from '~/components/CopyButton'
 

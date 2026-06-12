@@ -1,5 +1,3 @@
-'use client'
-
 import { PingPanel } from '~/components/PingPanel'
 import { MarketingLayout } from '~/components/MarketingLayout'
 

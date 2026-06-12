@@ -1,7 +1,5 @@
-'use client'
-
 import { useEffect, useMemo, useState } from 'react'
-import Link from '~/lib/routerCompat'
+import { Link } from '@tanstack/react-router'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import 'dayjs/locale/zh-cn'
@@ -516,7 +514,7 @@ export default function AdminPage() {
     <main className="admin-page">
       <header className="admin-topbar">
         <div className="admin-title-group">
-          <Link href="/" className="btn btn-icon" aria-label="返回首页">
+          <Link to="/" className="btn btn-icon" aria-label="返回首页">
             <ArrowLeft size={16} />
           </Link>
           <div>

@@ -1,7 +1,5 @@
-'use client'
-
 import React, { useState } from 'react'
-import Link from '~/lib/routerCompat'
+import { Link } from '@tanstack/react-router'
 import {
   FolderOpen,
   MessageSquare,
@@ -19,12 +17,21 @@ import {
 import { useAppStore } from '~/app/app/useAppStore'
 
 /* ─── Types ─── */
+type InternalRoutePath =
+  | '/app/'
+  | '/chat/'
+  | '/note/'
+  | '/game/gandengyan/'
+  | '/web3/'
+  | '/admin/'
+  | '/download/'
+
 interface FeatureDef {
   id: string
   title: string
   subtitle: string
   icon: React.ReactNode
-  path: string
+  path: InternalRoutePath
   requiresBackend: boolean
   hero: string
   desc: string
@@ -34,7 +41,7 @@ interface FeatureDef {
     title: string
     desc: string
     code?: string
-    link?: string
+    link?: InternalRoutePath
     linkText?: string
   }[]
   extra?: React.ReactNode
@@ -66,7 +73,7 @@ const features: FeatureDef[] = [
         num: '1',
         title: '下载客户端',
         desc: '支持 Windows、macOS 和 Linux，桌面端提供完整的 P2P 能力。',
-        link: '/download',
+        link: '/download/',
         linkText: '前往下载页',
       },
       {
@@ -102,7 +109,7 @@ const features: FeatureDef[] = [
         num: '1',
         title: '下载客户端',
         desc: '支持 Windows、macOS 和 Linux。',
-        link: '/download',
+        link: '/download/',
         linkText: '前往下载页',
       },
       { num: '2', title: '创建频道', desc: '输入任意频道名即可加入或创建。' },
@@ -255,7 +262,7 @@ export default function FeaturePortal() {
                   onClick={() => setSelected(f.id)}
                 >
                   <Link
-                    href={f.path}
+                    to={f.path}
                     className="btn btn-icon portal-card-open-btn"
                     onClick={e => e.stopPropagation()}
                     title={`打开${f.title}`}
@@ -303,7 +310,7 @@ export default function FeaturePortal() {
               <Server size={16} />
               Web 连接节点
             </button>
-            <Link href="/admin" className="btn btn-secondary">
+            <Link to="/admin/" className="btn btn-secondary">
               <HardDrive size={16} />
               节点管理
             </Link>
@@ -344,13 +351,9 @@ export default function FeaturePortal() {
                       )}
                       {step.link && (
                         <p className="portal-step-link">
-                          <a
-                            href={step.link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
+                          <Link to={step.link}>
                             {step.linkText} <ExternalLink size={12} />
-                          </a>
+                          </Link>
                         </p>
                       )}
                     </div>
@@ -359,7 +362,7 @@ export default function FeaturePortal() {
               </div>
 
               <div className="portal-actions">
-                <Link href={activeFeature.path} className="btn btn-primary">
+                <Link to={activeFeature.path} className="btn btn-primary">
                   进入 {activeFeature.title}
                   <ArrowRight size={16} />
                 </Link>
@@ -372,7 +375,7 @@ export default function FeaturePortal() {
                       <Server size={16} />
                       Web 连接节点
                     </button>
-                    <Link href="/download/" className="btn btn-secondary">
+                    <Link to="/download/" className="btn btn-secondary">
                       <Download size={16} />
                       下载客户端
                     </Link>

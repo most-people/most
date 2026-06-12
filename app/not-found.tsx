@@ -1,10 +1,16 @@
-'use client'
-
-import Link, { useRouter } from '~/lib/routerCompat'
-import { Compass, ArrowLeft, Home } from 'lucide-react'
+import { Link, useNavigate } from '@tanstack/react-router'
+import { ArrowLeft, Compass, Home } from 'lucide-react'
 
 export default function NotFound() {
-  const router = useRouter()
+  const navigate = useNavigate()
+
+  function goBack() {
+    if (window.history.length > 1) {
+      window.history.back()
+      return
+    }
+    navigate({ to: '/' })
+  }
 
   return (
     <div className="not-found-page">
@@ -17,11 +23,11 @@ export default function NotFound() {
           你访问的页面似乎已经迷失在 P2P 网络中了
         </p>
         <div className="not-found-actions">
-          <button onClick={() => router.back()} className="btn btn-secondary">
+          <button onClick={goBack} className="btn btn-secondary">
             <ArrowLeft size={16} />
             上一页
           </button>
-          <Link href="/" className="btn btn-primary">
+          <Link to="/" className="btn btn-primary">
             <Home size={16} />
             回首页
           </Link>

@@ -1,5 +1,3 @@
-'use client'
-
 import React, { useState } from 'react'
 import { X } from 'lucide-react'
 import { ModalOverlay } from '~/components/ui/ModalOverlay'

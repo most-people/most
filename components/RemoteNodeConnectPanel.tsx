@@ -1,5 +1,3 @@
-'use client'
-
 import { useState } from 'react'
 import { Server, Unplug } from 'lucide-react'
 import { useAppStore } from '~/app/app/useAppStore'

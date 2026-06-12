@@ -1,5 +1,3 @@
-'use client'
-
 import type { ChangeEvent, KeyboardEvent, ReactNode, RefObject } from 'react'
 import {
   ArrowRight,

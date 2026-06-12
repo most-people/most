@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: ['18', '22', '24']
+        node-version: ['22', '24']
 
     steps:
       - name: Checkout
@@ -53,6 +53,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Check static output
+        run: npm run check:static-output
+
   typecheck:
     name: Typecheck
     runs-on: ubuntu-latest
@@ -72,6 +75,9 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
+
+      - name: Typecheck TanStack routes
+        run: npm run typecheck:strict-router
 
   lint:
     name: Lint

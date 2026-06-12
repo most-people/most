@@ -35,8 +35,14 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Typecheck TanStack routes
+        run: npm run typecheck:strict-router
+
       - name: Build
         run: npm run build
+
+      - name: Check static output
+        run: npm run check:static-output
 
   create-release:
     name: Create GitHub Release
@@ -76,6 +82,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Check static output
+        run: npm run check:static-output
+
       - name: Check published npm version
         id: npm-version
         run: |
@@ -113,6 +122,9 @@ jobs:
       - name: Build Windows x64
         run: npm run electron:build:win -- --x64 --publish never
 
+      - name: Check static output
+        run: npm run check:static-output
+
       - name: Upload Windows x64 assets
         shell: bash
         run: |
@@ -129,6 +141,9 @@ jobs:
 
       - name: Build Windows arm64
         run: npm run electron:build:win -- --arm64 --publish never
+
+      - name: Check static output
+        run: npm run check:static-output
 
       - name: Upload Windows arm64 assets
         shell: bash
@@ -165,6 +180,9 @@ jobs:
       - name: Build macOS
         run: npm run electron:build:mac -- --publish never
 
+      - name: Check static output
+        run: npm run check:static-output
+
       - name: Upload macOS assets
         run: |
           shopt -s nullglob
@@ -198,6 +216,9 @@ jobs:
 
       - name: Build Linux
         run: npm run electron:build:linux -- --publish never
+
+      - name: Check static output
+        run: npm run check:static-output
 
       - name: Upload Linux assets
         run: |

@@ -1,7 +1,5 @@
-'use client'
-
 import { useEffect } from 'react'
-import { usePathname } from '~/lib/routerCompat'
+import { useLocation } from '@tanstack/react-router'
 import { useAppStore } from '~/app/app/useAppStore'
 import { useUserStore } from '~/app/app/userStore'
 import { Toast } from '~/components/ui'
@@ -9,7 +7,7 @@ import UserLoginModal from '~/components/UserLoginModal'
 import ConnectModal from '~/components/ConnectModal'
 
 export default function AppGlobals() {
-  const pathname = usePathname()
+  const pathname = useLocation({ select: location => location.pathname })
   const isDemoPage = pathname === '/demo' || pathname.startsWith('/demo/')
   const checkBackend = useAppStore(s => s.checkBackend)
   const initializeLocalData = useAppStore(s => s.initializeLocalData)

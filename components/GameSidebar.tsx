@@ -1,6 +1,4 @@
-'use client'
-
-import Link from '~/lib/routerCompat'
+import { Link } from '@tanstack/react-router'
 import { ArrowLeft, Spade, Swords } from 'lucide-react'
 import SidebarAccount from '~/components/SidebarAccount'
 
@@ -30,7 +28,7 @@ export default function GameSidebar({
 }: GameSidebarProps) {
   return (
     <>
-      <Link href="/" className="sidebar-header sidebar-header-link">
+      <Link to="/" className="sidebar-header sidebar-header-link">
         <ArrowLeft size={18} />
         <h1>MOST PEOPLE</h1>
       </Link>
@@ -38,7 +36,7 @@ export default function GameSidebar({
         {items.map(item => (
           <Link
             key={item.id}
-            href={item.href}
+            to={item.href}
             className={`sidebar-nav-btn ${activeGame === item.id ? 'active' : ''}`}
             onClick={closeSidebar}
           >

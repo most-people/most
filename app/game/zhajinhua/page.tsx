@@ -1,5 +1,3 @@
-'use client'
-
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Copy, Eye, Moon, Play, RefreshCcw, Spade, Sun } from 'lucide-react'
 import AppShell from '~/components/AppShell'

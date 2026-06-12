@@ -1,7 +1,5 @@
-'use client'
-
 import { useEffect, useState } from 'react'
-import Link from '~/lib/routerCompat'
+import { Link } from '@tanstack/react-router'
 import { Download, Moon, Sun } from 'lucide-react'
 import { LogoIcon } from '~/components/icons/LogoIcon'
 
@@ -30,7 +28,7 @@ export function Nav() {
     <>
       <nav className="mkt-nav">
         <div className="mkt-nav-inner">
-          <Link href="/" className="mkt-nav-logo">
+          <Link to="/" className="mkt-nav-logo">
             <LogoIcon />
             MOST PEOPLE
           </Link>
@@ -43,11 +41,11 @@ export function Nav() {
             >
               {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
             </button>
-            <Link href="/download/" className="btn btn-primary mkt-nav-preview">
+            <Link to="/download/" className="btn btn-primary mkt-nav-preview">
               <Download size={16} />
               下载客户端
             </Link>
-            <Link href="/app/" className="btn btn-secondary">
+            <Link to="/app/" className="btn btn-secondary">
               打开 Web
             </Link>
           </div>

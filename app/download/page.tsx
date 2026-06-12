@@ -1,14 +1,8 @@
 import '~/styles/marketing.css'
 import '~/styles/download.css'
-import Link from '~/lib/routerCompat'
+import { Link } from '@tanstack/react-router'
 import { ArrowLeft, Download } from 'lucide-react'
 import DownloadOptions from '~/components/DownloadOptions'
-
-export const metadata = {
-  title: '下载 MostBox 桌面客户端',
-  description:
-    '下载 MostBox 桌面客户端，获得完整的 P2P 文件分享、下载校验和持续做种能力',
-}
 
 const webVsDesktop = [
   { feature: '节点能力', web: '连接已有节点', desktop: '内置本地节点' },
@@ -28,7 +22,7 @@ export default function DownloadPage() {
     <div className="download-page">
       <nav className="mkt-nav">
         <div className="mkt-nav-inner">
-          <Link href="/" className="mkt-nav-logo">
+          <Link to="/" className="mkt-nav-logo">
             <ArrowLeft size={18} />
             <span>MOST PEOPLE</span>
           </Link>
@@ -86,7 +80,7 @@ export default function DownloadPage() {
 
       <section className="download-cta">
         <div className="mkt-container">
-          <Link href="/" className="btn btn-primary">
+          <Link to="/" className="btn btn-primary">
             返回首页
           </Link>
         </div>

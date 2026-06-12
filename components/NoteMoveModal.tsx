@@ -1,5 +1,3 @@
-'use client'
-
 import React, { useState } from 'react'
 import { ChevronDown, ChevronRight, Folder, X } from 'lucide-react'
 import type { NoteItem } from '~/app/app/useAppStore'

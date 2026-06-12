@@ -1,5 +1,3 @@
-'use client'
-
 import { FileText, Film, Folder, Image as ImageIcon, Music } from 'lucide-react'
 import { getFileSubtype, type FileSubtype } from '~/lib/filePreview'
 

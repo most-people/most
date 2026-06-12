@@ -1,0 +1,37 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "incremental": false,
+    "noEmit": true,
+    "strictNullChecks": true,
+    "paths": {
+      "~/*": ["./*"],
+      "~/app/page": ["./src/typecheck-stubs/route-component.tsx"],
+      "~/app/admin/page": ["./src/typecheck-stubs/route-component.tsx"],
+      "~/app/app/page": ["./src/typecheck-stubs/route-component.tsx"],
+      "~/app/chat/page": ["./src/typecheck-stubs/route-component.tsx"],
+      "~/app/chat/join/page": ["./src/typecheck-stubs/route-component.tsx"],
+      "~/app/demo/page": ["./src/typecheck-stubs/route-component.tsx"],
+      "~/app/download/page": ["./src/typecheck-stubs/route-component.tsx"],
+      "~/app/game/gandengyan/page": [
+        "./src/typecheck-stubs/route-component.tsx"
+      ],
+      "~/app/game/zhajinhua/page": [
+        "./src/typecheck-stubs/route-component.tsx"
+      ],
+      "~/app/note/page": ["./src/typecheck-stubs/route-component.tsx"],
+      "~/app/ping/page": ["./src/typecheck-stubs/route-component.tsx"],
+      "~/app/web3/page": ["./src/typecheck-stubs/route-component.tsx"],
+      "~/app/error-boundary": ["./src/typecheck-stubs/error-boundary.tsx"],
+      "~/app/not-found": ["./src/typecheck-stubs/route-component.tsx"],
+      "~/components/AppGlobals": ["./src/typecheck-stubs/route-component.tsx"]
+    }
+  },
+  "include": [
+    "src/router.tsx",
+    "src/routeTree.gen.ts",
+    "src/routes/**/*.tsx",
+    "src/typecheck-stubs/**/*.tsx",
+    "src/typecheck-stubs/**/*.d.ts"
+  ]
+}

@@ -1,5 +1,3 @@
-'use client'
-
 import React, { useEffect } from 'react'
 
 export function Toast({ message, type, onDone, index }) {

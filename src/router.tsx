@@ -8,8 +8,7 @@ export function getRouter() {
     defaultPreload: 'intent',
     scrollRestoration: true,
     trailingSlash: 'always',
-    // TanStack Router enforces strictNullChecks; this project keeps strict mode off.
-  } as any)
+  })
 }
 
 declare module '@tanstack/react-router' {

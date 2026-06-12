@@ -1,5 +1,3 @@
-'use client'
-
 import '~/styles/portal.css'
 
 import FeaturePortal from '~/components/FeaturePortal'

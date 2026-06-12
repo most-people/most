@@ -1,5 +1,3 @@
-'use client'
-
 import { useEffect, useState } from 'react'
 import { Apple, Cloud, Code, Download, Laptop, Monitor } from 'lucide-react'
 
