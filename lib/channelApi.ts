@@ -118,7 +118,7 @@ export const channelApi = {
   },
 
   leaveChannel(name: string) {
-    return api.delete(`/api/channels/${encodeURIComponent(name)}`).json()
+    return api.delete('/api/channels', { json: { channelKey: name } }).json()
   },
 
   getChannelMessages(name: string, limit = 100, offset = 0) {

@@ -1029,8 +1029,11 @@ export function createApp(engine, options = {}) {
     )
   })
 
-  app.delete('/api/channels/:name', async c => {
-    const name = c.req.param('name')
+  const leaveChannelForRequest = async (c, channelIdentifier) => {
+    const name = String(channelIdentifier || '').trim()
+    if (!name) {
+      return c.json({ error: '频道标识不能为空' }, 400)
+    }
     try {
       const result = await engine.leaveChannel(name, {
         ownerAddress: c.get('userAddress'),
@@ -1039,6 +1042,11 @@ export function createApp(engine, options = {}) {
     } catch (err) {
       return c.json({ error: err.message }, 400)
     }
+  }
+
+  app.delete('/api/channels', async c => {
+    const body = await c.req.json().catch(() => ({}))
+    return leaveChannelForRequest(c, body.channelKey || body.name)
   })
 
   app.get('/api/channels/:name/messages', async c => {

@@ -1902,11 +1902,13 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     })
   })
 
-  describe('DELETE /api/channels/:name', () => {
-    it('leaves a channel', async () => {
+  describe('DELETE /api/channels', () => {
+    it('leaves a channel by JSON body name', async () => {
       await engine.createChannel(`leave-${uid}`)
-      const res = await fetch(`${baseUrl}/api/channels/leave-${uid}`, {
+      const res = await fetch(`${baseUrl}/api/channels`, {
         method: 'DELETE',
+        body: JSON.stringify({ name: `leave-${uid}` }),
+        headers: { 'content-type': 'application/json' },
       })
       const data = await res.json()
       assert.strictEqual(res.status, 200)
@@ -1914,11 +1916,33 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(!data.channels.some(c => c.name === `leave-${uid}`))
     })
 
+    it('leaves a channel by JSON body channelKey', async () => {
+      const channel = await engine.createChannel(`leave-body-${uid}`)
+      const res = await fetch(`${baseUrl}/api/channels`, {
+        method: 'DELETE',
+        body: JSON.stringify({ channelKey: channel.channelKey }),
+        headers: { 'content-type': 'application/json' },
+      })
+      const data = await res.json()
+      assert.strictEqual(res.status, 200)
+      assert.ok(data.success)
+      assert.ok(!data.channels.some(c => c.channelKey === channel.channelKey))
+    })
+
     it('returns 400 for non-existent channel', async () => {
+      const res = await fetch(`${baseUrl}/api/channels`, {
+        method: 'DELETE',
+        body: JSON.stringify({ channelKey: 'nonexistent' }),
+        headers: { 'content-type': 'application/json' },
+      })
+      assert.strictEqual(res.status, 400)
+    })
+
+    it('does not expose path parameter channel deletion', async () => {
       const res = await fetch(`${baseUrl}/api/channels/nonexistent`, {
         method: 'DELETE',
       })
-      assert.strictEqual(res.status, 400)
+      assert.strictEqual(res.status, 404)
     })
   })
 
