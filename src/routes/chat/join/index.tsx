@@ -5,6 +5,7 @@ import ChatJoinPage from '~/app/chat/join/page'
 type ChatJoinSearch = {
   token?: string
   pub?: string
+  fixture?: string
 }
 
 export const Route = createFileRoute('/chat/join/')({
@@ -12,6 +13,7 @@ export const Route = createFileRoute('/chat/join/')({
   validateSearch: (search: Record<string, unknown>): ChatJoinSearch => ({
     token: typeof search.token === 'string' ? search.token : undefined,
     pub: typeof search.pub === 'string' ? search.pub : undefined,
+    fixture: typeof search.fixture === 'string' ? search.fixture : undefined,
   }),
   component: ChatJoinPage,
 })

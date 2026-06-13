@@ -40,7 +40,7 @@ export const CHAT_JOIN_INVITE_FIELDS: ChatJoinInviteField[] = [
   {
     name: 'identity',
     required: false,
-    description: '邀请身份类型；user 为普通用户视图。',
+    description: '邀请身份类型；user 为普通用户，service 为服务账号。',
   },
   {
     name: 'logo',

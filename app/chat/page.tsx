@@ -1296,7 +1296,7 @@ function ChatPage() {
                     pending={msg.pending}
                     avatarSrc={generateAvatar(
                       msg.author,
-                      isSelf ? userIdentity.avatar : undefined
+                      msg.avatar || (isSelf ? userIdentity.avatar : undefined)
                     )}
                     author={formatDisplayName(msg.authorName, msg.author)}
                     time={new Date(msg.timestamp).toLocaleTimeString('zh-CN', {

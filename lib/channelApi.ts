@@ -15,6 +15,7 @@ export interface ChannelMessage {
   type?: string
   author: string
   authorName?: string
+  avatar?: string
   content: string
   timestamp: number
   pending?: boolean

@@ -231,6 +231,7 @@ export function useChannelMessages({
           `${author}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         author,
         authorName,
+        avatar,
         content: trimmed,
         timestamp: Date.now(),
         pending: true,

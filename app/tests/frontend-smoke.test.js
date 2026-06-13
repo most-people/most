@@ -11,6 +11,17 @@ function readSource(path) {
   return fs.readFileSync(new URL(`../../${path}`, import.meta.url), 'utf-8')
 }
 
+function listSourceFiles(path) {
+  return fs
+    .readdirSync(new URL(`../../${path}/`, import.meta.url), {
+      withFileTypes: true,
+    })
+    .flatMap((entry) => {
+      const childPath = `${path}/${entry.name}`
+      return entry.isDirectory() ? listSourceFiles(childPath) : [childPath]
+    })
+}
+
 describe('frontend smoke checks', () => {
   it('keeps the share modal aligned with the MVP seeding promise', () => {
     const source = readSource('app/app/page.tsx')
@@ -119,6 +130,7 @@ describe('frontend smoke checks', () => {
     assert.doesNotMatch(packageJson, /"next"/)
     assert.match(viteConfig, /tanstackStart/)
     assert.match(viteConfig, /prerender/)
+    assert.match(viteConfig, /autoStaticPathsDiscovery:\s*true/)
     assert.match(viteConfig, /autoSubfolderIndex:\s*true/)
     assert.match(viteConfig, /crawlLinks:\s*true/)
     assert.match(viteConfig, /failOnError:\s*true/)
@@ -128,6 +140,39 @@ describe('frontend smoke checks', () => {
     assert.match(appRoute, /ssr:\s*false/)
     assert.match(adminRoute, /ssr:\s*false/)
     assert.doesNotMatch(downloadRoute, /ssr:\s*false/)
+  })
+
+  it('keeps static output checks aligned with TanStack static routes', () => {
+    const checkStaticOutput = readSource('scripts/check-static-output.mjs')
+    const checkedRoutes = Array.from(
+      checkStaticOutput.matchAll(/route:\s*'([^']+)'/g),
+      ([, route]) => route
+    ).sort()
+
+    const staticRoutes = listSourceFiles('src/routes')
+      .filter((file) => file.endsWith('.tsx'))
+      .flatMap((file) => {
+        const source = readSource(file)
+        const match = source.match(/createFileRoute\(\s*'([^']+)'\s*\)/)
+        if (!match) {
+          return []
+        }
+
+        const route = match[1]
+        if (route.includes('$') || !/component\s*:/.test(source)) {
+          return []
+        }
+
+        return [route]
+      })
+      .sort()
+
+    assert.deepEqual(checkedRoutes, staticRoutes)
+    assert.match(checkStaticOutput, /admin\/index\.html/)
+    assert.match(checkStaticOutput, /chat\/index\.html/)
+    assert.match(checkStaticOutput, /note\/index\.html/)
+    assert.match(checkStaticOutput, /web3\/index\.html/)
+    assert.match(checkStaticOutput, /game\/gandengyan\/index\.html/)
   })
 
   it('checks desktop updates through the public release manifest', () => {

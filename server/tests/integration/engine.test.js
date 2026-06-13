@@ -1255,6 +1255,8 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       const result = await engine.createChannel(`test-${uid}`)
       assert.strictEqual(result.name, `test-${uid}`)
       assert.ok(result.key)
+      assert.match(result.channelKey, new RegExp(`^${result.name}\\.[0-9a-f]{16}$`))
+      assert.ok(!result.channelKey.includes(':'))
     })
 
     it('creates a channel with type', async () => {
@@ -1397,6 +1399,32 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.ok(Array.isArray(messages))
       assert.strictEqual(messages.length, 1)
       assert.strictEqual(messages[0].content, 'Hello World')
+    })
+
+    it('returns current channel member avatar with messages', async () => {
+      const ch = `avatar-msg-${uid}`
+      const author = '0x1234567890abcdef1234567890abcdef12345678'
+      await msgEngine.createChannel(ch, 'personal', {
+        ownerAddress: author,
+        displayName: 'Avatar Sender',
+        avatar: 'old.png',
+      })
+      const msg = await msgEngine.sendMessage(
+        ch,
+        'Hello Avatar',
+        author,
+        'Avatar Sender',
+        {
+          ownerAddress: author,
+          avatar: 'data:image/png;base64,msg-avatar',
+        }
+      )
+      assert.strictEqual(msg.avatar, 'data:image/png;base64,msg-avatar')
+
+      const messages = await msgEngine.getChannelMessages(ch, {
+        ownerAddress: author,
+      })
+      assert.strictEqual(messages[0].avatar, 'data:image/png;base64,msg-avatar')
     })
 
     it('stores channel attachment metadata', async () => {
@@ -1814,7 +1842,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       const second = await engine.joinChannel(channelName, {
         channelId: channelName,
         fingerprint: 'abcdef1234567890',
-        channelKey: `${channelName}:abcdef1234567890`,
+        channelKey: `${channelName}.abcdef1234567890`,
         type: 'public',
         writerCoreKeys: [],
       }, {

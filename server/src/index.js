@@ -76,6 +76,7 @@ const CHANNEL_FINGERPRINT_BYTES = 8
 const CHANNEL_WRITER_ID_BYTES = 8
 const CHANNEL_DISCOVERY_TIMEOUT = 600
 const CHANNEL_CANDIDATE_TTL = 30 * 1000
+const CHANNEL_KEY_SEPARATOR = '.'
 
 function normalizeOwnerAddress(address) {
   const value = String(address || '').trim()
@@ -149,11 +150,16 @@ function createChannelWriterId() {
 }
 
 function buildChannelKey(channelId, fingerprint) {
-  return `${channelId}:${fingerprint}`
+  return `${channelId}${CHANNEL_KEY_SEPARATOR}${fingerprint}`
 }
 
 function normalizeChannelKey(input) {
   return String(input || '').trim()
+}
+
+function getChannelFingerprintFromKey(channelId, channelKey) {
+  const prefix = `${channelId}${CHANNEL_KEY_SEPARATOR}`
+  return channelKey.startsWith(prefix) ? channelKey.slice(prefix.length) : ''
 }
 
 function uniqueStrings(values = []) {
@@ -2623,7 +2629,7 @@ export class MostBoxEngine extends EventEmitter {
       this.#saveChannelsMetadata()
     }
 
-    return message
+    return this.#normalizeChannelMessageForResponse(channel.channelKey, message)
   }
 
   /**
@@ -2755,13 +2761,17 @@ export class MostBoxEngine extends EventEmitter {
     const channelKey = normalizeChannelKey(candidateInput.channelKey)
     const fingerprint =
       String(candidateInput.fingerprint || '').trim() ||
-      channelKey.slice(channelId.length + 1)
+      getChannelFingerprintFromKey(channelId, channelKey)
     if (!channelId || !fingerprint) {
       throw new Error('频道候选缺少身份信息')
     }
+    const expectedChannelKey = buildChannelKey(channelId, fingerprint)
+    if (channelKey && channelKey !== expectedChannelKey) {
+      throw new Error('频道候选身份格式不匹配')
+    }
 
     const existing = this.#channels.find(
-      channel => channel.channelKey === buildChannelKey(channelId, fingerprint)
+      channel => channel.channelKey === expectedChannelKey
     )
     if (existing) {
       if (this.#upsertChannelMember(existing, options)) {
@@ -3137,13 +3147,23 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #normalizeChannelMessageForResponse(channelKey, message) {
-    const attachment = message?.attachment
+    const channel = this.#channels.find(item => item.channelKey === channelKey)
+    const authorAddress = normalizeOwnerAddress(message?.author)
+    const member = Array.isArray(channel?.members)
+      ? channel.members.find(
+          item => normalizeOwnerAddress(item?.address) === authorAddress
+        )
+      : null
+    const avatar = normalizeChannelAvatar(member?.avatar)
+    const baseMessage = avatar && message?.avatar !== avatar
+      ? { ...message, avatar }
+      : message
+    const attachment = baseMessage?.attachment
     if (!attachment?.cid || !attachment.fileName) {
-      return message
+      return baseMessage
     }
 
     const oldFileName = sanitizeFilename(String(attachment.fileName))
-    const channel = this.#channels.find(item => item.channelKey === channelKey)
     const channelPathName = channel?.channelId || channelKey
     const channelPrefix = `${CHAT_FILE_ROOT}/${channelPathName}/`
     const fileName = oldFileName.startsWith(channelPrefix)
@@ -3151,22 +3171,22 @@ export class MostBoxEngine extends EventEmitter {
       : `${channelPrefix}${getPathBaseName(oldFileName)}`
     const link = buildMostLink(attachment.cid, fileName)
     const content =
-      typeof message.content === 'string' &&
-      (message.content === attachment.link ||
-        parseMostLink(message.content).cid === attachment.cid)
+      typeof baseMessage.content === 'string' &&
+      (baseMessage.content === attachment.link ||
+        parseMostLink(baseMessage.content).cid === attachment.cid)
         ? link
-        : message.content
+        : baseMessage.content
 
     if (
       fileName === attachment.fileName &&
       link === attachment.link &&
-      content === message.content
+      content === baseMessage.content
     ) {
-      return message
+      return baseMessage
     }
 
     return {
-      ...message,
+      ...baseMessage,
       content,
       attachment: {
         ...attachment,
@@ -3782,9 +3802,13 @@ export class MostBoxEngine extends EventEmitter {
     if (!record || typeof record !== 'object') return false
     const channelId = normalizeChannelId(record.channelId)
     const fingerprint = String(record.fingerprint || '').trim()
-    const channelKey =
-      normalizeChannelKey(record.channelKey) ||
-      (channelId && fingerprint ? buildChannelKey(channelId, fingerprint) : '')
+    const expectedChannelKey =
+      channelId && fingerprint ? buildChannelKey(channelId, fingerprint) : ''
+    const recordChannelKey = normalizeChannelKey(record.channelKey)
+    if (recordChannelKey && recordChannelKey !== expectedChannelKey) {
+      return false
+    }
+    const channelKey = recordChannelKey || expectedChannelKey
     if (!channelId || !fingerprint || !channelKey) return false
     const syncUpdatedAt = getSyncTimestamp(record.syncUpdatedAt, timestamp)
     const entityKey = `channel:${channelKey}`
@@ -4745,16 +4769,17 @@ export class MostBoxEngine extends EventEmitter {
           .map(channel => {
             const channelId = normalizeChannelId(channel.channelId)
             const fingerprint = String(channel.fingerprint || '').trim()
-            const channelKey =
-              normalizeChannelKey(channel.channelKey) ||
-              (channelId && fingerprint
+            const expectedChannelKey =
+              channelId && fingerprint
                 ? buildChannelKey(channelId, fingerprint)
-                : '')
+                : ''
+            const channelKey = normalizeChannelKey(channel.channelKey)
             return {
               ...channel,
               channelId,
               fingerprint,
               channelKey,
+              expectedChannelKey,
               name: channelId,
               writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
             }
@@ -4763,10 +4788,11 @@ export class MostBoxEngine extends EventEmitter {
             channel =>
               CHANNEL_NAME_REGEX.test(channel.channelId) &&
               channel.fingerprint &&
-              channel.channelKey &&
+              channel.channelKey === channel.expectedChannelKey &&
               channel.writerId &&
               channel.localWriterCoreKey
           )
+          .map(({ expectedChannelKey: _expectedChannelKey, ...channel }) => channel)
       }
     } catch (err) {
       console.warn(

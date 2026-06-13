@@ -675,3 +675,85 @@
   width: 100%;
   text-align: left;
 }
+
+.chat-join-test-account-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.chat-join-test-account {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 0;
+  border-top: 1px solid var(--glass-border);
+}
+
+.chat-join-test-account:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.chat-join-test-account:last-child {
+  padding-bottom: 0;
+}
+
+.chat-join-test-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  object-fit: cover;
+  border: 1px solid var(--glass-border);
+}
+
+.chat-join-test-account-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  code,
+  p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+
+  code {
+    font-family: var(--font-mono);
+  }
+}
+
+.chat-join-test-account-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+
+  strong {
+    color: var(--text-primary);
+    font-size: 14px;
+    overflow-wrap: anywhere;
+  }
+
+  span {
+    flex: 0 0 auto;
+    color: var(--accent);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    text-transform: uppercase;
+  }
+}
+
+@media (max-width: 560px) {
+  .chat-join-test-account {
+    grid-template-columns: 44px minmax(0, 1fr);
+  }
+
+  .chat-join-test-account .btn {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+}

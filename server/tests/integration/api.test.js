@@ -1396,6 +1396,8 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(data.success)
       assert.strictEqual(data.name, 'test-channel')
       assert.ok(data.key)
+      assert.match(data.channelKey, /^test-channel\.[0-9a-f]{16}$/)
+      assert.ok(!data.channelKey.includes(':'))
     })
 
     it('creates shared game room channels', async () => {
@@ -1433,7 +1435,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       await engine.joinChannel(channelId, {
         channelId,
         fingerprint: '1234567890abcdef',
-        channelKey: `${channelId}:1234567890abcdef`,
+        channelKey: `${channelId}.1234567890abcdef`,
         type: 'public',
         writerCoreKeys: [],
       })
@@ -1578,17 +1580,25 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
           avatar: 'data:image/png;base64,avatar',
         }),
       })
+      const data = await res.json()
       assert.strictEqual(res.status, 200)
+      assert.strictEqual(data.message.avatar, 'data:image/png;base64,avatar')
 
       const membersRes = await fetch(
         `${baseUrl}/api/channels/${channelName}/members`
       )
       const members = await membersRes.json()
+      const messagesRes = await fetch(
+        `${baseUrl}/api/channels/${channelName}/messages`
+      )
+      const messages = await messagesRes.json()
 
       assert.strictEqual(membersRes.status, 200)
       assert.strictEqual(members.length, 1)
       assert.strictEqual(members[0].displayName, 'AvatarUser')
       assert.strictEqual(members[0].avatar, 'data:image/png;base64,avatar')
+      assert.strictEqual(messagesRes.status, 200)
+      assert.strictEqual(messages[0].avatar, 'data:image/png;base64,avatar')
     })
 
     it('sends an attachment message to a channel', async () => {

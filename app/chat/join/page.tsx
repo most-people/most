@@ -7,6 +7,7 @@ import {
   Sun,
   Moon,
   ArrowLeft,
+  Users,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import { useAppStore } from '~/app/app/useAppStore'
@@ -21,6 +22,11 @@ import {
   CHAT_JOIN_INVITE_FIELDS,
   type ChatJoinInvitePayload,
 } from '~/lib/chatJoinInvite'
+import {
+  CHAT_JOIN_TEST_INVITES,
+  formatChatJoinTestInvite,
+  getChatJoinTestInvite,
+} from '~/lib/chatJoinTestData.js'
 
 const EA_TEST_PUBLIC_KEY =
   '0x955fe80bdb8312165471fcacd6a8f83df88a770dda6f38657ca4e62ec28d5b54'
@@ -119,11 +125,12 @@ function normalizeChannelRemark(value?: string) {
 
 function ChatJoinContent() {
   const searchStr = useLocation({ select: location => location.searchStr })
-  const { token, pub } = useMemo(() => {
+  const { token, pub, fixture } = useMemo(() => {
     const searchParams = new URLSearchParams(searchStr)
     return {
       token: searchParams.get('token') || '',
       pub: searchParams.get('pub') || '',
+      fixture: searchParams.get('fixture') || '',
     }
   }, [searchStr])
   const isDarkMode = useAppStore(s => s.isDarkMode)
@@ -138,13 +145,21 @@ function ChatJoinContent() {
   const flowKeyRef = useRef('')
 
   useEffect(() => {
-    if (!token) {
+    const fixtureInvite = getChatJoinTestInvite(fixture)
+
+    if (fixture && !fixtureInvite) {
+      setError(`未知测试账号：${fixture}`)
+      setLoading(false)
+      return
+    }
+
+    if (!fixtureInvite && !token) {
       setError('缺少 token 参数')
       setLoading(false)
       return
     }
 
-    if (!pub) {
+    if (!fixtureInvite && !pub) {
       setError('缺少 pub 参数')
       setLoading(false)
       return
@@ -155,7 +170,7 @@ function ChatJoinContent() {
       return
     }
 
-    const flowKey = `${token}:${pub}`
+    const flowKey = fixtureInvite ? `fixture:${fixture}` : `${token}:${pub}`
     if (flowKeyRef.current === flowKey) return
     flowKeyRef.current = flowKey
 
@@ -217,6 +232,13 @@ function ChatJoinContent() {
 
     async function decrypt() {
       try {
+        if (fixtureInvite) {
+          setStatus(`正在载入 ${fixtureInvite.name || fixture} 测试账号...`)
+          setDecrypted(formatChatJoinTestInvite(fixtureInvite))
+          await runJoinFlow(fixtureInvite)
+          return
+        }
+
         setStatus('正在解密邀请...')
         const response = await fetch(
           `${CHAT_JOIN_API_BASE}/api/chat.join.decrypt`,
@@ -251,7 +273,7 @@ function ChatJoinContent() {
     }
 
     decrypt()
-  }, [hasBackend, pub, setUserIdentity, token])
+  }, [fixture, hasBackend, pub, setUserIdentity, token])
 
   return (
     <AppShell
@@ -329,6 +351,41 @@ function ChatJoinContent() {
             <a className="btn" href="/web3/#EA" target="_blank">
               前往 Web3 工具箱
             </a>
+          </section>
+
+          <section
+            className="chat-join-helper"
+            aria-labelledby="chat-join-test-title"
+          >
+            <div className="chat-join-helper-title">
+              <Users size={18} />
+              <h3 id="chat-join-test-title">测试账号</h3>
+            </div>
+            <div className="chat-join-test-account-list">
+              {CHAT_JOIN_TEST_INVITES.map(invite => (
+                <div className="chat-join-test-account" key={invite.uid}>
+                  <img
+                    className="chat-join-test-avatar"
+                    src={invite.avatar}
+                    alt=""
+                  />
+                  <div className="chat-join-test-account-main">
+                    <div className="chat-join-test-account-head">
+                      <strong>{invite.name}</strong>
+                      <span>{invite.identity}</span>
+                    </div>
+                    <code>{invite.uid}</code>
+                    <p>{invite.channels[0]?.name || invite.channels[0]?.id}</p>
+                  </div>
+                  <a
+                    className="btn btn-secondary"
+                    href={`/chat/join?fixture=${invite.uid}`}
+                  >
+                    加入
+                  </a>
+                </div>
+              ))}
+            </div>
           </section>
         </div>
       </div>

@@ -8,6 +8,7 @@ export default defineConfig({
     tanstackStart({
       prerender: {
         enabled: true,
+        autoStaticPathsDiscovery: true,
         autoSubfolderIndex: true,
         crawlLinks: true,
         failOnError: true,
