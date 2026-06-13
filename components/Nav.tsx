@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Download, Moon, Sun } from 'lucide-react'
+import { LanguageToggle } from '~/components/LanguageToggle'
 import { LogoIcon } from '~/components/icons/LogoIcon'
 
 export function Nav() {
@@ -41,6 +42,7 @@ export function Nav() {
             >
               {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
             </button>
+            <LanguageToggle className="mkt-theme-toggle" />
             <Link to="/download/" className="btn btn-primary mkt-nav-preview">
               <Download size={16} />
               下载客户端
