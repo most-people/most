@@ -116,6 +116,15 @@ function bindEngineEvents({
   )
   engine.on('channel:joined', data => wsBroadcast('channel:joined', data))
   engine.on('channel:left', data => wsBroadcast('channel:left', data))
+  engine.on('user:metadata:updated', data => {
+    appendNodeLog({
+      event: 'node:user-sync:updated',
+      message: 'User metadata synced',
+      data,
+    })
+    wsBroadcast('user:metadata:updated', data)
+    safeBroadcastNodeStatus()
+  })
 
   return {
     markReady() {

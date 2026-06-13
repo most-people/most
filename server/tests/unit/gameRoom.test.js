@@ -17,9 +17,9 @@ describe('game room shared core', () => {
   it('maps game ids and room codes to shared channel names', () => {
     assert.strictEqual(
       gameRoomCodeToChannelName('zhajinhua', 'ABC123'),
-      'game-zhajinhua-abc123'
+      'game.zhajinhua.abc123'
     )
-    assert.deepStrictEqual(channelNameToGameRoom('game-gandengyan-abcd'), {
+    assert.deepStrictEqual(channelNameToGameRoom('game.gandengyan.abcd'), {
       gameId: 'gandengyan',
       roomCode: 'ABCD',
     })

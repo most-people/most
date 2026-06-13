@@ -158,9 +158,8 @@ export function createApp(engine, options = {}) {
       path === '/api/download/check' ||
       path === '/api/download' ||
       path === '/api/download/cancel' ||
-      path === '/api/user/export' ||
-      path === '/api/user/import/check' ||
-      path === '/api/user/import' ||
+      path === '/api/user/sync/start' ||
+      path === '/api/user/sync/status' ||
       path === '/api/trash' ||
       path === '/api/move' ||
       path === '/api/folder/rename' ||
@@ -550,22 +549,17 @@ export function createApp(engine, options = {}) {
     return c.json({ users: engine.listUsers() })
   })
 
-  app.get('/api/user/export', c => {
-    try {
-      return c.json(engine.exportUserMetadata(c.get('userAddress')))
-    } catch (err) {
-      return errorJson(c, err)
-    }
-  })
-
-  app.post('/api/user/import/check', async c => {
+  app.post('/api/user/sync/start', async c => {
     try {
       const body = await c.req.json()
-      const timeout =
-        body.timeout === undefined ? undefined : Number(body.timeout)
-      const result = await engine.checkUserImport(body.package || body, {
-        ownerAddress: c.get('userAddress'),
-        timeout: Number.isFinite(timeout) && timeout > 0 ? timeout : undefined,
+      const result = await engine.startUserSync(c.get('userAddress'), body)
+      appendNodeLog({
+        event: 'node:user-sync:started',
+        message: 'User sync started',
+        data: {
+          ownerAddress: result.ownerAddress,
+          syncName: result.syncName,
+        },
       })
       return c.json({ success: true, ...result })
     } catch (err) {
@@ -573,27 +567,9 @@ export function createApp(engine, options = {}) {
     }
   })
 
-  app.post('/api/user/import', async c => {
+  app.get('/api/user/sync/status', c => {
     try {
-      const body = await c.req.json()
-      const timeout =
-        body.timeout === undefined ? undefined : Number(body.timeout)
-      const result = await engine.importUserMetadata(body.package || body, {
-        ownerAddress: c.get('userAddress'),
-        checkId: body.checkId,
-        timeout: Number.isFinite(timeout) && timeout > 0 ? timeout : undefined,
-      })
-      appendNodeLog({
-        event: 'node:user-data:imported',
-        message: 'User data imported',
-        data: {
-          ownerAddress: result.ownerAddress,
-          importedFiles: result.importedFiles,
-          failedFiles: result.failedFiles.length,
-        },
-      })
-      await broadcastNodeStatus()
-      return c.json(result)
+      return c.json(engine.getUserSyncStatus(c.get('userAddress')))
     } catch (err) {
       return errorJson(c, err)
     }
@@ -833,6 +809,27 @@ export function createApp(engine, options = {}) {
       ownerAddress: c.get('userAddress'),
     })
     return c.json(result)
+  })
+
+  app.post('/api/files/:cid/cache', async c => {
+    const cid = c.req.param('cid')
+    const cidValidation = validateCidString(cid)
+    if (!cidValidation.valid) {
+      return c.json({ error: cidValidation.error }, 400)
+    }
+    try {
+      const body = await c.req.json().catch(() => ({}))
+      const timeout =
+        body.timeout === undefined ? undefined : Number(body.timeout)
+      const result = await engine.cacheFile(cid, {
+        ownerAddress: c.get('userAddress'),
+        timeout: Number.isFinite(timeout) && timeout > 0 ? timeout : undefined,
+        taskId: body.taskId,
+      })
+      return c.json({ success: true, ...result })
+    } catch (err) {
+      return badRequestOrAppError(c, err)
+    }
   })
 
   app.post('/api/move', async c => {

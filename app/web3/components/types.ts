@@ -10,8 +10,6 @@ export type ViewId =
   | 'pem'
   | 'export'
   | 'EA'
-  | 'user-export'
-  | 'user-import'
 
 export type WalletResult = {
   username: string

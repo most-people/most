@@ -129,6 +129,7 @@ const API = {
       .json<DownloadCheckResponse>(),
   downloadFile: link =>
     api.post('/api/download', { json: { link } }).json<any>(),
+  cacheFile: cid => api.post(`/api/files/${cid}/cache`).json<any>(),
   cancelDownload: taskId =>
     api.post('/api/download/cancel', { json: { taskId } }).json<any>(),
   getFileDownloadUrl: cid => getApiUrl(`/api/files/${cid}/download`),
@@ -646,6 +647,10 @@ export default function App() {
   const handleSaveAs = async file => {
     if (!requireLogin()) return
     if (!requireBackendReady()) return
+    if (file.localAvailable === false) {
+      addToast('文件尚未保存在本机，请先拉取到本机', 'warning')
+      return
+    }
     try {
       const res = await fetch(API.getFileDownloadUrl(file.cid), {
         headers: await getApiRequestHeaders(
@@ -679,6 +684,19 @@ export default function App() {
       if (err.name !== 'AbortError') {
         addToast('保存失败: ' + err.message, 'error')
       }
+    }
+  }
+
+  const handleCacheFile = async file => {
+    if (!requireLogin()) return
+    if (!requireBackendReady()) return
+    try {
+      addToast('开始拉取到本机', 'info')
+      await API.cacheFile(file.cid)
+      addToast('已拉取到本机并开始做种', 'success')
+      refreshFiles()
+    } catch (err) {
+      addToast(await getApiErrorMessage(err, '拉取失败'), 'error')
     }
   }
 
@@ -782,6 +800,10 @@ export default function App() {
               )
             )
             addToast('下载已取消', 'warning')
+          }
+          if (event === 'user:metadata:updated') {
+            refreshFiles()
+            refreshTrash()
           }
         } catch (err) {
           console.warn('[App WS] Failed to parse message:', err.message)
@@ -1058,12 +1080,16 @@ export default function App() {
                   file={f}
                   isSelected={selectedIds.includes(f.cid)}
                   onSelect={handleSelect}
-                  onPreview={file =>
+                  onPreview={file => {
+                    if (file.localAvailable === false) {
+                      addToast('文件尚未保存在本机，请先拉取到本机', 'warning')
+                      return
+                    }
                     setPreviewItem({
                       ...file,
                       subtype: getFileSubtype(file.fileName),
                     })
-                  }
+                  }}
                 />
               ))}
             </div>
@@ -1257,6 +1283,13 @@ export default function App() {
                     onClick={() => {
                       const file = items.find(i => i.cid === selectedIds[0])
                       if (file) {
+                        if (file.localAvailable === false) {
+                          addToast(
+                            '文件尚未保存在本机，请先拉取到本机',
+                            'warning'
+                          )
+                          return
+                        }
                         const subtype = getFileSubtype(file.fileName)
                         setPreviewItem({ ...file, subtype })
                       }
@@ -1308,6 +1341,21 @@ export default function App() {
               >
                 删除
               </button>
+              {selectedIds.length === 1 &&
+                (() => {
+                  const file = items.find(i => i.cid === selectedIds[0])
+                  return file && file.localAvailable === false
+                })() && (
+                  <button
+                    onClick={() => {
+                      const file = items.find(i => i.cid === selectedIds[0])
+                      if (file) void handleCacheFile(file)
+                    }}
+                    className="btn btn-sm"
+                  >
+                    拉取到本机
+                  </button>
+                )}
               {selectedIds.length === 1 && (
                 <button
                   onClick={() =>

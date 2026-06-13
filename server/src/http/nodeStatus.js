@@ -137,28 +137,28 @@ export function buildOpenApiSpec(appPort) {
           responses: { 200: { description: 'Pull task result' } },
         },
       },
-      '/api/user/export': {
+      '/api/user/sync/start': {
+        post: {
+          summary: 'Start hidden authenticated user metadata sync',
+          responses: { 200: { description: 'User sync status' } },
+        },
+      },
+      '/api/user/sync/status': {
         get: {
-          summary: 'Export authenticated user metadata',
-          responses: { 200: { description: 'User metadata export' } },
-        },
-      },
-      '/api/user/import/check': {
-        post: {
-          summary: 'Validate a user metadata import package',
-          responses: { 200: { description: 'Import readiness result' } },
-        },
-      },
-      '/api/user/import': {
-        post: {
-          summary: 'Replace authenticated user metadata and pull files by CID',
-          responses: { 200: { description: 'Import result' } },
+          summary: 'Read authenticated user metadata sync status',
+          responses: { 200: { description: 'User sync status' } },
         },
       },
       '/api/files': {
         get: {
           summary: 'List published files for the authenticated local user',
           responses: { 200: { description: 'Published file list' } },
+        },
+      },
+      '/api/files/{cid}/cache': {
+        post: {
+          summary: 'Pull a synced directory file into this node cache',
+          responses: { 200: { description: 'Cache pull result' } },
         },
       },
       '/api/publish': {

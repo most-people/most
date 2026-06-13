@@ -3,12 +3,10 @@ import { useCallback, useEffect, useState } from 'react'
 import { HDNodeWallet } from 'ethers'
 import {
   ArrowLeft,
-  Database,
   KeyRound,
   Lock,
   Moon,
   Sun,
-  Upload,
   User,
   Wallet,
 } from 'lucide-react'
@@ -26,8 +24,6 @@ import { getEdKeyPair, getIPNS } from '~/server/src/utils/mp.js'
 import { generateAvatar } from '~/server/src/utils/avatar.js'
 import { AsymmetricBoxView } from './components/AsymmetricBoxView'
 import { PemExportView } from './components/PemExportView'
-import { UserDataExportSection } from './components/UserDataExportSection'
-import { UserDataImportSection } from './components/UserDataImportSection'
 import { WalletExportView } from './components/WalletExportView'
 import { WalletIdentityView } from './components/WalletIdentityView'
 import { Web3LoginPanel } from './components/Web3LoginPanel'
@@ -48,8 +44,6 @@ const validViews: readonly ViewId[] = [
   'pem',
   'export',
   'EA',
-  'user-export',
-  'user-import',
 ]
 
 function getHashView(): ViewId {
@@ -319,11 +313,7 @@ export default function Web3Page() {
         ? 'PEM 导出'
         : currentView === 'EA'
           ? '非对称加密'
-          : currentView === 'user-export'
-            ? '用户数据导出'
-            : currentView === 'user-import'
-              ? '用户数据导入'
-              : 'Wallet 导出'
+          : 'Wallet 导出'
 
   const sidebarNavItems: Array<{
     id: ViewId
@@ -334,11 +324,9 @@ export default function Web3Page() {
     { id: 'pem', icon: <Lock size={16} />, label: 'PEM 导出' },
     { id: 'export', icon: <Wallet size={16} />, label: 'Wallet 导出' },
     { id: 'EA', icon: <KeyRound size={16} />, label: '非对称加密' },
-    { id: 'user-export', icon: <Database size={16} />, label: '数据导出' },
-    { id: 'user-import', icon: <Upload size={16} />, label: '数据导入' },
   ]
 
-  const showLoginPanel = currentView !== 'EA' && !currentView.startsWith('user-')
+  const showLoginPanel = currentView !== 'EA'
 
   return (
     <AppShell
@@ -563,9 +551,6 @@ export default function Web3Page() {
               onDecryptOnly={handleDecryptOnly}
             />
           )}
-
-          {currentView === 'user-export' && <UserDataExportSection />}
-          {currentView === 'user-import' && <UserDataImportSection />}
         </div>
       </div>
     </AppShell>

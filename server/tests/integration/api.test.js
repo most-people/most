@@ -3,6 +3,7 @@ import assert from 'node:assert'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import crypto from 'node:crypto'
 import { serve } from '@hono/node-server'
 import { createApp } from '../../index.js'
 import { calculateCid } from '../../src/core/cid.js'
@@ -22,7 +23,16 @@ const VALID_MISSING_CID =
   'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
 const TEST_IDENTITY = createLoginIdentity('api-user', 'api-password')
 const SECOND_IDENTITY = createLoginIdentity('second-user', 'second-password')
-const IMPORT_IDENTITY = createLoginIdentity('import-user', 'import-password')
+
+function createUserSyncKeys(seed) {
+  const derive = label =>
+    crypto.createHash('sha256').update(`${seed}:${label}`).digest('hex')
+  return {
+    syncTopicKey: derive('topic'),
+    syncCipherKey: derive('cipher'),
+    syncMacKey: derive('mac'),
+  }
+}
 
 function assertNoLegacyNodeSettingFields(value) {
   const legacyPattern = /Seed|Concurrent|RateLimit/
@@ -165,7 +175,6 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
   beforeEach(async () => {
     await engine.clearUserData(TEST_IDENTITY.address)
     await engine.clearUserData(SECOND_IDENTITY.address)
-    await engine.clearUserData(IMPORT_IDENTITY.address)
     for (const channel of engine.listChannels()) {
       await engine.leaveChannel(channel.name)
     }
@@ -1187,79 +1196,46 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
   })
 
   describe('admin user data API', () => {
-    it('exports and imports user metadata with full replacement', async () => {
-      const oldFile = await engine.publishFile(
-        Buffer.from('import old file'),
-        `import-old-${uid}.txt`,
-        { ownerAddress: IMPORT_IDENTITY.address }
-      )
-      const importFile = await engine.publishFile(
-        Buffer.from('import replacement file'),
-        `import-replacement-${uid}.txt`,
-        { ownerAddress: IMPORT_IDENTITY.address }
-      )
-
-      const exportRes = await fetchAs(
-        IMPORT_IDENTITY,
-        `${baseUrl}/api/user/export`
-      )
-      const exportData = await exportRes.json()
-      assert.strictEqual(exportRes.status, 200)
-      assert.ok(exportData.files.some(file => file.cid === importFile.cid))
-
-      const pkg = {
-        ...exportData,
-        files: exportData.files.filter(file => file.cid === importFile.cid),
-        trashFiles: [],
-        channels: [],
-      }
-
-      const checkRes = await fetchAs(
-        IMPORT_IDENTITY,
-        `${baseUrl}/api/user/import/check`,
+    it('starts and reports authenticated user metadata sync', async () => {
+      const keys = createUserSyncKeys(`api-sync-${uid}`)
+      const startRes = await fetchAs(
+        TEST_IDENTITY,
+        `${baseUrl}/api/user/sync/start`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ package: pkg }),
+          body: JSON.stringify(keys),
         }
       )
-      const checkData = await checkRes.json()
-      assert.strictEqual(checkRes.status, 200)
-      assert.strictEqual(checkData.ready, true)
-      assert.ok(checkData.checkId)
+      const startData = await startRes.json()
+      assert.strictEqual(startRes.status, 200)
+      assert.strictEqual(startData.success, true)
+      assert.strictEqual(startData.enabled, true)
+      assert.ok(startData.syncName.startsWith('user.sync.'))
 
-      const importRes = await fetchAs(
-        IMPORT_IDENTITY,
-        `${baseUrl}/api/user/import`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ package: pkg, checkId: checkData.checkId }),
-        }
+      const statusRes = await fetchAs(
+        TEST_IDENTITY,
+        `${baseUrl}/api/user/sync/status`
       )
-      const importData = await importRes.json()
-      assert.strictEqual(importRes.status, 200)
-      assert.strictEqual(importData.success, true)
-
-      const files = await (
-        await fetchAs(IMPORT_IDENTITY, `${baseUrl}/api/files`)
-      ).json()
-      assert.ok(files.some(file => file.cid === importFile.cid))
-      assert.ok(!files.some(file => file.cid === oldFile.cid))
+      const statusData = await statusRes.json()
+      assert.strictEqual(statusRes.status, 200)
+      assert.strictEqual(statusData.enabled, true)
+      assert.strictEqual(statusData.syncId, startData.syncId)
     })
 
-    it('rejects import without a valid checkId', async () => {
-      const exportRes = await fetch(`${baseUrl}/api/user/export`)
-      const pkg = await exportRes.json()
-
-      const importRes = await fetch(`${baseUrl}/api/user/import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ package: pkg, checkId: 'missing' }),
-      })
-      const data = await importRes.json()
-      assert.strictEqual(importRes.status, 400)
-      assert.strictEqual(data.code, 'VALIDATION_ERROR')
+    it('does not expose legacy JSON import or export APIs', async () => {
+      for (const pathName of [
+        '/api/user/export',
+        '/api/user/import/check',
+        '/api/user/import',
+      ]) {
+        const res = await fetchAs(TEST_IDENTITY, `${baseUrl}${pathName}`, {
+          method: pathName.endsWith('/export') ? 'GET' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: pathName.endsWith('/export') ? undefined : JSON.stringify({}),
+        })
+        assert.strictEqual(res.status, 404)
+      }
     })
 
     it('clears one user without removing another user records', async () => {
@@ -1494,6 +1470,17 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       })
       assert.strictEqual(res.status, 400)
     })
+
+    it('rejects dotted user-created channel IDs', async () => {
+      const res = await fetch(`${baseUrl}/api/channels`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'user.sync.test' }),
+      })
+      const data = await res.json()
+      assert.strictEqual(res.status, 400)
+      assert.match(data.error, /点号为系统保留/)
+    })
   })
 
   describe('GET /api/channels', () => {
@@ -1524,19 +1511,19 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
 
     it('filters game channels by type and excludes them from chat lists', async () => {
       await engine.createChannel(`chat-${uid}`, 'public')
-      await engine.createChannel(`game-zjh-${uid}`, 'game')
+      await engine.createChannel(`game.zhajinhua.${uid}`, 'game')
 
       const gameRes = await fetch(`${baseUrl}/api/channels?type=game`)
       const gameData = await gameRes.json()
       assert.strictEqual(gameRes.status, 200)
-      assert.ok(gameData.some(c => c.name === `game-zjh-${uid}`))
+      assert.ok(gameData.some(c => c.name === `game.zhajinhua.${uid}`))
       assert.ok(!gameData.some(c => c.name === `chat-${uid}`))
 
       const chatRes = await fetch(`${baseUrl}/api/channels?excludeType=game`)
       const chatData = await chatRes.json()
       assert.strictEqual(chatRes.status, 200)
       assert.ok(chatData.some(c => c.name === `chat-${uid}`))
-      assert.ok(!chatData.some(c => c.name === `game-zjh-${uid}`))
+      assert.ok(!chatData.some(c => c.name === `game.zhajinhua.${uid}`))
     })
   })
 

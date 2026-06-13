@@ -69,9 +69,9 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 const CHAT_FILE_ROOT = 'chat-file'
 const TRANSIENT_CHANNEL_TYPES = new Set(['game'])
 const DEFAULT_OWNER_BUCKET = '__local__'
-const USER_DATA_SCHEMA_VERSION = 1
-const IMPORT_CHECK_TTL_MS = 10 * 60 * 1000
-const IMPORT_CHECK_MAX_FILES = 5000
+const USER_SYNC_SCHEMA_VERSION = 1
+const USER_SYNC_NAMESPACE_PREFIX = 'user.sync.'
+const USER_SYNC_KEY_HEX_LENGTH = 64
 const CHANNEL_FINGERPRINT_BYTES = 8
 const CHANNEL_WRITER_ID_BYTES = 8
 const CHANNEL_DISCOVERY_TIMEOUT = 600
@@ -160,6 +160,36 @@ function uniqueStrings(values = []) {
   return [...new Set(values.map(value => String(value || '').trim()).filter(Boolean))]
 }
 
+function normalizeUserSyncKey(input) {
+  const value = String(input || '').trim().replace(/^0x/i, '').toLowerCase()
+  return /^[0-9a-f]+$/.test(value) && value.length === USER_SYNC_KEY_HEX_LENGTH
+    ? value
+    : ''
+}
+
+function deriveUserSyncId(syncTopicKey) {
+  return crypto
+    .createHash('sha256')
+    .update(Buffer.from(syncTopicKey, 'hex'))
+    .digest('hex')
+    .slice(0, 24)
+}
+
+function getUserSyncName(syncId) {
+  return `${USER_SYNC_NAMESPACE_PREFIX}${syncId}`
+}
+
+function getSyncTimestamp(input, fallback = Date.now()) {
+  const numeric = Number(input)
+  if (Number.isFinite(numeric) && numeric > 0) return Math.floor(numeric)
+  const parsed = Date.parse(String(input || ''))
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+}
+
+function getNextSyncTimestamp(previous) {
+  return Math.max(Date.now(), getSyncTimestamp(previous, 0) + 1)
+}
+
 function createOfflineSwarm() {
   return {
     connections: new Set(),
@@ -189,7 +219,6 @@ export class MostBoxEngine extends EventEmitter {
   #initialized = false
   #options = null
   #activeDownloads = new Map()
-  #importChecks = new Map()
   #drivePromises = new Map()
   #fileDiscoveries = new Map()
   #fileMonitors = new Map()
@@ -204,6 +233,12 @@ export class MostBoxEngine extends EventEmitter {
   #channelIdDiscoveries = new Map()
   #channelPeers = new Map()
   #channelCandidateCache = new Map()
+
+  #userSyncSessions = new Map()
+  #userSyncCores = new Map()
+  #userSyncCoreOffsets = new Map()
+  #userSyncDiscoveries = new Map()
+  #userSyncMetadata = { sessions: {}, clocks: {} }
 
   #chatSwarm = null
 
@@ -401,6 +436,8 @@ export class MostBoxEngine extends EventEmitter {
       }
     }
 
+    this.#userSyncMetadata = this.#loadUserSyncMetadata()
+
     this.#initialized = true
     console.log(`[MostBox] Engine initialized successfully`)
     this.emit('ready')
@@ -461,7 +498,20 @@ export class MostBoxEngine extends EventEmitter {
     this.#channelPeers.clear()
     this.#channelCandidateCache.clear()
     this.#channels = []
-    this.#importChecks.clear()
+
+    for (const [, coresMap] of this.#userSyncCores) {
+      for (const [, core] of coresMap) {
+        try {
+          await core.close()
+        } catch (err) {
+          console.warn('[MostBox] Failed to close user sync core:', err.message)
+        }
+      }
+    }
+    this.#userSyncSessions.clear()
+    this.#userSyncCores.clear()
+    this.#userSyncCoreOffsets.clear()
+    this.#userSyncDiscoveries.clear()
 
     if (this.#store) {
       await this.#store.close()
@@ -641,13 +691,18 @@ export class MostBoxEngine extends EventEmitter {
     }
 
     // 存储 displayName（用户看到的文件夹路径），不存储 drivePath
-    publishedBucket.push({
+    const now = Date.now()
+    const fileRecord = {
       fileName: safeFileName,
       cid: cidString,
       driveName: name,
-      publishedAt: new Date().toISOString(),
+      size: fileSize,
+      source: 'published',
+      publishedAt: new Date(now).toISOString(),
       starred: false,
-    })
+      syncUpdatedAt: now,
+    }
+    publishedBucket.push(fileRecord)
     this.#savePublishedMetadata()
     this.#upsertHolding({
       cid: cidString,
@@ -664,6 +719,9 @@ export class MostBoxEngine extends EventEmitter {
     }
 
     this.emit('publish:success', result)
+    this.#appendUserSyncOpSoon(ownerAddress, 'file:upsert', {
+      file: this.#formatFileForSync(fileRecord, 'active'),
+    })
     return result
   }
 
@@ -991,22 +1049,32 @@ export class MostBoxEngine extends EventEmitter {
           ownerAddress,
           excludeCid: cidString,
         })
+        const savedSize = totalBytes || fs.statSync(savePath).size
+        const syncUpdatedAt =
+          existingIndex !== -1
+            ? getNextSyncTimestamp(publishedBucket[existingIndex].syncUpdatedAt)
+            : Date.now()
         if (existingIndex !== -1) {
           const existing = publishedBucket[existingIndex]
           existing.fileName = sanitizedFileName
           existing.driveName = name
-          existing.publishedAt = new Date().toISOString()
+          existing.size = savedSize
+          existing.source = 'downloaded'
+          existing.publishedAt = new Date(syncUpdatedAt).toISOString()
+          existing.syncUpdatedAt = syncUpdatedAt
         } else {
           publishedBucket.push({
             fileName: sanitizedFileName,
             cid: cidString,
             driveName: name,
-            publishedAt: new Date().toISOString(),
+            size: savedSize,
+            source: 'downloaded',
+            publishedAt: new Date(syncUpdatedAt).toISOString(),
             starred: false,
+            syncUpdatedAt,
           })
         }
         this.#savePublishedMetadata()
-        const savedSize = totalBytes || fs.statSync(savePath).size
         this.#upsertHolding({
           cid: cidString,
           fileName: sanitizedFileName,
@@ -1016,6 +1084,10 @@ export class MostBoxEngine extends EventEmitter {
         })
 
         this.emit('download:success', result)
+        const syncedFile = publishedBucket.find(file => file.cid === cidString)
+        this.#appendUserSyncOpSoon(ownerAddress, 'file:upsert', {
+          file: this.#formatFileForSync(syncedFile, 'active'),
+        })
         return result
       }
     } finally {
@@ -1152,8 +1224,14 @@ export class MostBoxEngine extends EventEmitter {
       cid: f.cid,
       link: `most://${f.cid}?filename=${encodeURIComponent(f.fileName)}`,
       publishedAt: f.publishedAt,
+      size: Number(f.size) || 0,
       starred: f.starred || false,
       ownerAddress: ownerAddress || '',
+      localAvailable: this.#holdings.some(holding => holding.cid === f.cid),
+      seedStatus: this.#seedStates.get(f.cid)?.status || '',
+      holdingSize:
+        Number(this.#holdings.find(holding => holding.cid === f.cid)?.size) ||
+        0,
     }))
   }
 
@@ -1171,7 +1249,11 @@ export class MostBoxEngine extends EventEmitter {
       throw new Error('File not found')
     }
     files[index].starred = !files[index].starred
+    files[index].syncUpdatedAt = getNextSyncTimestamp(files[index].syncUpdatedAt)
     this.#savePublishedMetadata()
+    this.#appendUserSyncOpSoon(ownerAddress, 'file:upsert', {
+      file: this.#formatFileForSync(files[index], 'active'),
+    })
     return {
       cid,
       starred: files[index].starred,
@@ -1192,8 +1274,9 @@ export class MostBoxEngine extends EventEmitter {
     if (index !== -1) {
       const fileRecord = files[index]
       const holding = this.#holdings.find(item => item.cid === fileRecord.cid)
+      const syncUpdatedAt = getNextSyncTimestamp(fileRecord.syncUpdatedAt)
 
-      trashFiles.push({
+      const trashRecord = {
         fileName: fileRecord.fileName,
         cid: fileRecord.cid,
         driveName:
@@ -1202,13 +1285,18 @@ export class MostBoxEngine extends EventEmitter {
         source: holding?.source || 'published',
         publishedAt: fileRecord.publishedAt,
         starred: fileRecord.starred || false,
-        deletedAt: new Date().toISOString(),
-      })
+        deletedAt: new Date(syncUpdatedAt).toISOString(),
+        syncUpdatedAt,
+      }
+      trashFiles.push(trashRecord)
       this.#saveTrashMetadata()
 
       files.splice(index, 1)
       this.#setPublishedBucket(ownerAddress, files)
       this.#savePublishedMetadata()
+      this.#appendUserSyncOpSoon(ownerAddress, 'file:trash', {
+        file: this.#formatFileForSync(trashRecord, 'trash'),
+      })
 
       if (!this.#hasPublishedReference(fileRecord.cid)) {
         await this.#leaveCidTopic(fileRecord.cid)
@@ -1234,9 +1322,15 @@ export class MostBoxEngine extends EventEmitter {
       cid: f.cid,
       link: `most://${f.cid}?filename=${encodeURIComponent(f.fileName)}`,
       publishedAt: f.publishedAt,
+      size: Number(f.size) || 0,
       starred: f.starred || false,
       ownerAddress: ownerAddress || '',
       deletedAt: f.deletedAt,
+      localAvailable: this.#holdings.some(holding => holding.cid === f.cid),
+      seedStatus: this.#seedStates.get(f.cid)?.status || '',
+      holdingSize:
+        Number(this.#holdings.find(holding => holding.cid === f.cid)?.size) ||
+        0,
     }))
   }
 
@@ -1266,6 +1360,9 @@ export class MostBoxEngine extends EventEmitter {
       trashFiles.splice(index, 1)
       this.#setTrashBucket(ownerAddress, trashFiles)
       this.#saveTrashMetadata()
+      this.#appendUserSyncOpSoon(ownerAddress, 'file:upsert', {
+        file: this.#formatFileForSync(publishedFiles[existingIndex], 'active'),
+      })
       return this.listPublishedFiles({ ownerAddress })
     }
 
@@ -1274,29 +1371,43 @@ export class MostBoxEngine extends EventEmitter {
       excludeCid: fileRecord.cid,
     })
 
-    publishedFiles.push({
+    const syncUpdatedAt = getNextSyncTimestamp(fileRecord.syncUpdatedAt)
+    const publishedRecord = {
       fileName: fileRecord.fileName,
       cid: fileRecord.cid,
       driveName,
       publishedAt: fileRecord.publishedAt,
       starred: fileRecord.starred || false,
-    })
+      size: Number(fileRecord.size) || 0,
+      source: fileRecord.source || 'synced',
+      syncUpdatedAt,
+    }
+    publishedFiles.push(publishedRecord)
     this.#savePublishedMetadata()
 
     trashFiles.splice(index, 1)
     this.#setTrashBucket(ownerAddress, trashFiles)
     this.#saveTrashMetadata()
 
-    await this.#joinCidTopicInternal(fileRecord.cid, {
-      server: true,
-      client: false,
+    const localContent = await this.#getLocalCidContent(fileRecord.cid, {
+      ownerAddress,
+      allowHoldingFallback: true,
     })
-    this.#upsertHolding({
-      cid: fileRecord.cid,
-      fileName: fileRecord.fileName,
-      size: Number(fileRecord.size) || 0,
-      driveName,
-      source: fileRecord.source || 'published',
+    if (localContent) {
+      await this.#joinCidTopicInternal(fileRecord.cid, {
+        server: true,
+        client: false,
+      })
+      this.#upsertHolding({
+        cid: fileRecord.cid,
+        fileName: fileRecord.fileName,
+        size: localContent.size || Number(fileRecord.size) || 0,
+        driveName,
+        source: fileRecord.source || 'published',
+      })
+    }
+    this.#appendUserSyncOpSoon(ownerAddress, 'file:upsert', {
+      file: this.#formatFileForSync(publishedRecord, 'active'),
     })
 
     return this.listPublishedFiles({ ownerAddress })
@@ -1320,6 +1431,10 @@ export class MostBoxEngine extends EventEmitter {
       trashFiles.splice(index, 1)
       this.#setTrashBucket(ownerAddress, trashFiles)
       this.#saveTrashMetadata()
+      this.#appendUserSyncOpSoon(ownerAddress, 'file:delete', {
+        cid: fileRecord.cid,
+        syncUpdatedAt: getNextSyncTimestamp(fileRecord.syncUpdatedAt),
+      })
 
       if (!this.#hasAnyUserReference(fileRecord.cid)) {
         try {
@@ -1346,8 +1461,11 @@ export class MostBoxEngine extends EventEmitter {
     const removedTrash = [...this.#getTrashBucket(ownerAddress)]
     this.#setTrashBucket(ownerAddress, [])
     this.#saveTrashMetadata()
-
     for (const fileRecord of removedTrash) {
+      this.#appendUserSyncOpSoon(ownerAddress, 'file:delete', {
+        cid: fileRecord.cid,
+        syncUpdatedAt: getNextSyncTimestamp(fileRecord.syncUpdatedAt),
+      })
       if (this.#hasAnyUserReference(fileRecord.cid)) continue
       const driveName =
         fileRecord.driveName || this.#getCidInfo(fileRecord.cid).driveName
@@ -1452,8 +1570,12 @@ export class MostBoxEngine extends EventEmitter {
       excludeCid: cid,
     })
     files[index].fileName = safeFileName
-    files[index].publishedAt = new Date().toISOString()
+    files[index].syncUpdatedAt = getNextSyncTimestamp(files[index].syncUpdatedAt)
+    files[index].publishedAt = new Date(files[index].syncUpdatedAt).toISOString()
     this.#savePublishedMetadata()
+    this.#appendUserSyncOpSoon(ownerAddress, 'file:upsert', {
+      file: this.#formatFileForSync(files[index], 'active'),
+    })
     return {
       cid,
       fileName: safeFileName,
@@ -1494,7 +1616,8 @@ export class MostBoxEngine extends EventEmitter {
 
     const updatedFiles = updates.map(({ file, newFileName }) => {
       file.fileName = newFileName
-      file.publishedAt = new Date().toISOString()
+      file.syncUpdatedAt = getNextSyncTimestamp(file.syncUpdatedAt)
+      file.publishedAt = new Date(file.syncUpdatedAt).toISOString()
       return {
         cid: file.cid,
         fileName: file.fileName,
@@ -1504,6 +1627,11 @@ export class MostBoxEngine extends EventEmitter {
 
     if (updatedFiles.length > 0) {
       this.#savePublishedMetadata()
+      for (const { file } of updates) {
+        this.#appendUserSyncOpSoon(ownerAddress, 'file:upsert', {
+          file: this.#formatFileForSync(file, 'active'),
+        })
+      }
     }
 
     return { files: updatedFiles }
@@ -1600,257 +1728,6 @@ export class MostBoxEngine extends EventEmitter {
     return {
       ownerAddress,
       ...result,
-    }
-  }
-
-  exportUserMetadata(ownerAddressInput) {
-    this.#ensureInitialized()
-    const ownerAddress = normalizeOwnerAddress(ownerAddressInput)
-    if (!ownerAddress) {
-      throw new ValidationError('valid owner address is required')
-    }
-
-    const files = this.#getPublishedBucket(ownerAddress).map(file => ({
-      fileName: file.fileName,
-      cid: file.cid,
-      driveName: file.driveName || this.#getCidInfo(file.cid).driveName,
-      publishedAt: file.publishedAt,
-      starred: file.starred || false,
-      link: buildMostLink(file.cid, file.fileName),
-    }))
-    const trashFiles = this.#getTrashBucket(ownerAddress).map(file => ({
-      fileName: file.fileName,
-      cid: file.cid,
-      driveName: file.driveName || this.#getCidInfo(file.cid).driveName,
-      size: Number(file.size) || 0,
-      source: file.source || 'published',
-      publishedAt: file.publishedAt,
-      starred: file.starred || false,
-      deletedAt: file.deletedAt,
-      link: buildMostLink(file.cid, file.fileName),
-    }))
-    const channels = this.#channels
-      .filter(channel => this.#channelHasMember(channel, ownerAddress))
-      .map(channel => ({
-        channelId: channel.channelId,
-        fingerprint: channel.fingerprint,
-        channelKey: channel.channelKey,
-        name: channel.channelId,
-        type: channel.type,
-        localWriterCoreKey: channel.localWriterCoreKey,
-        writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
-        createdAt: channel.createdAt,
-        lastMessageAt: channel.lastMessageAt || '',
-        member: this.#getChannelMembers(channel).find(
-          member => member.address === ownerAddress
-        ),
-        remark: channel.remarks?.[ownerAddress] || '',
-        pinned: Boolean(channel.pinnedBy?.[ownerAddress]),
-      }))
-
-    return {
-      schemaVersion: USER_DATA_SCHEMA_VERSION,
-      exportedAt: new Date().toISOString(),
-      ownerAddress,
-      files,
-      trashFiles,
-      channels,
-    }
-  }
-
-  async checkUserImport(input = {}, options = {}) {
-    this.#ensureInitialized()
-    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
-    if (!ownerAddress) {
-      throw new ValidationError('valid owner address is required')
-    }
-
-    const normalized = this.#normalizeUserImportPackage(input)
-    const failures = []
-    const seenPaths = new Set()
-    const checkedActiveCids = new Set()
-    const importedCids = new Set([
-      ...normalized.files.map(file => file.cid),
-      ...normalized.trashFiles.map(file => file.cid),
-    ])
-    const currentCids = this.#collectUserCids(ownerAddress)
-    let requiredBytes = 0
-
-    if (normalized.files.length > IMPORT_CHECK_MAX_FILES) {
-      failures.push({
-        scope: 'package',
-        error: `too many files: max ${IMPORT_CHECK_MAX_FILES}`,
-      })
-    }
-
-    for (const file of normalized.files) {
-      const pathKey = sanitizeFilename(file.fileName).toLowerCase()
-      if (seenPaths.has(pathKey)) {
-        failures.push({
-          cid: file.cid,
-          fileName: file.fileName,
-          error: 'duplicate file path',
-        })
-        continue
-      }
-      seenPaths.add(pathKey)
-
-      const link = buildMostLink(file.cid, file.fileName)
-      try {
-        const result = await this.checkDownloadAvailability(link, {
-          ownerAddress,
-          timeout: options.timeout || DRIVE_ENTRY_TIMEOUT,
-        })
-        if (!checkedActiveCids.has(file.cid) && !result.alreadyExists) {
-          requiredBytes += Number(result.size) || Number(file.size) || 0
-        }
-        checkedActiveCids.add(file.cid)
-      } catch (err) {
-        failures.push({
-          cid: file.cid,
-          fileName: file.fileName,
-          error: err.message,
-          code: err.code || 'UNAVAILABLE',
-        })
-      }
-    }
-
-    let reclaimableBytes = 0
-    for (const cid of currentCids) {
-      if (importedCids.has(cid)) continue
-      const referencedByOtherUser =
-        this.#allPublishedRecords().some(
-          file => file.cid === cid && file.ownerAddress !== ownerAddress
-        ) ||
-        this.#allTrashRecords().some(
-          file => file.cid === cid && file.ownerAddress !== ownerAddress
-        )
-      if (referencedByOtherUser) continue
-      const holding = this.#holdings.find(item => item.cid === cid)
-      reclaimableBytes += Number(holding?.size) || 0
-    }
-    const availableBytes = Math.max(
-      0,
-      this.#options.capacityBytes - this.#getUsedBytes() + reclaimableBytes
-    )
-    if (requiredBytes > availableBytes) {
-      failures.push({
-        scope: 'capacity',
-        error: 'insufficient capacity',
-        requiredBytes,
-        availableBytes,
-      })
-    }
-
-    const ready = failures.length === 0
-    const checkId = `import_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`
-    if (ready) {
-      this.#importChecks.set(checkId, {
-        ownerAddress,
-        packageHash: this.#hashImportPackage(input),
-        expiresAt: Date.now() + IMPORT_CHECK_TTL_MS,
-      })
-    }
-
-    return {
-      ready,
-      checkId: ready ? checkId : '',
-      failures,
-      currentFileCount: this.#getPublishedBucket(ownerAddress).length,
-      currentTrashCount: this.#getTrashBucket(ownerAddress).length,
-      currentCidCount: currentCids.size,
-      importFileCount: normalized.files.length,
-      importTrashCount: normalized.trashFiles.length,
-      requiredBytes,
-      availableBytes,
-    }
-  }
-
-  async importUserMetadata(input = {}, options = {}) {
-    this.#ensureInitialized()
-    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
-    if (!ownerAddress) {
-      throw new ValidationError('valid owner address is required')
-    }
-
-    const checkId = String(options.checkId || '').trim()
-    const check = this.#importChecks.get(checkId)
-    if (
-      !check ||
-      check.ownerAddress !== ownerAddress ||
-      check.expiresAt < Date.now() ||
-      check.packageHash !== this.#hashImportPackage(input)
-    ) {
-      throw new ValidationError('valid import check is required')
-    }
-    this.#importChecks.delete(checkId)
-
-    const normalized = this.#normalizeUserImportPackage(input)
-    const previousCids = this.#collectUserCids(ownerAddress)
-    const previous = {
-      removedFiles: this.#getPublishedBucket(ownerAddress).length,
-      removedTrashFiles: this.#getTrashBucket(ownerAddress).length,
-    }
-    const now = new Date().toISOString()
-
-    this.#removeUserFromChannels(ownerAddress)
-    this.#setPublishedBucket(
-      ownerAddress,
-      normalized.files.map(file => ({
-        fileName: file.fileName,
-        cid: file.cid,
-        driveName: file.driveName || this.#getCidInfo(file.cid).driveName,
-        publishedAt: file.publishedAt || now,
-        starred: file.starred || false,
-      }))
-    )
-    this.#setTrashBucket(
-      ownerAddress,
-      normalized.trashFiles.map(file => ({
-        fileName: file.fileName,
-        cid: file.cid,
-        driveName: file.driveName || this.#getCidInfo(file.cid).driveName,
-        size: Number(file.size) || 0,
-        source: file.source || 'imported',
-        publishedAt: file.publishedAt || now,
-        starred: file.starred || false,
-        deletedAt: file.deletedAt || now,
-      }))
-    )
-    this.#applyImportedChannels(ownerAddress, normalized.channels)
-    this.#savePublishedMetadata()
-    this.#saveTrashMetadata()
-    this.#saveChannelsMetadata()
-    previous.removedReplicas = await this.#cleanupUnreferencedCids(previousCids)
-
-    const importedFiles = []
-    const failedFiles = []
-    for (const file of normalized.files) {
-      try {
-        const result = await this.pullByCid({
-          link: buildMostLink(file.cid, file.fileName),
-          ownerAddress,
-          timeout: options.timeout,
-        })
-        importedFiles.push({ cid: file.cid, fileName: file.fileName, result })
-      } catch (err) {
-        failedFiles.push({
-          cid: file.cid,
-          fileName: file.fileName,
-          error: err.message,
-          code: err.code || 'IMPORT_PULL_FAILED',
-        })
-      }
-    }
-
-    return {
-      success: failedFiles.length === 0,
-      ownerAddress,
-      replacedFiles: previous.removedFiles,
-      replacedTrashFiles: previous.removedTrashFiles,
-      importedFiles: importedFiles.length,
-      importedTrashFiles: normalized.trashFiles.length,
-      failedFiles,
     }
   }
 
@@ -1960,6 +1837,8 @@ export class MostBoxEngine extends EventEmitter {
     left.on('error', () => {})
     right.on('error', () => {})
     left.pipe(right).pipe(left)
+    this.#exchangeUserSyncSessions(peerEngine).catch(() => {})
+    peerEngine.#exchangeUserSyncSessions(this).catch(() => {})
 
     return {
       close: () => {
@@ -1967,6 +1846,108 @@ export class MostBoxEngine extends EventEmitter {
         right.destroy()
       },
     }
+  }
+
+  /**
+   * 启动当前账号的隐藏 user.sync 元数据同步。
+   */
+  async startUserSync(ownerAddressInput, input = {}) {
+    this.#ensureInitialized()
+    const ownerAddress = normalizeOwnerAddress(ownerAddressInput)
+    if (!ownerAddress) {
+      throw new ValidationError('valid owner address is required')
+    }
+
+    const syncTopicKey = normalizeUserSyncKey(input.syncTopicKey)
+    const syncCipherKey = normalizeUserSyncKey(input.syncCipherKey)
+    const syncMacKey = normalizeUserSyncKey(input.syncMacKey)
+    if (!syncTopicKey || !syncCipherKey || !syncMacKey) {
+      throw new ValidationError('valid user sync keys are required')
+    }
+
+    const syncId = deriveUserSyncId(syncTopicKey)
+    const syncName = getUserSyncName(syncId)
+    const persisted = this.#userSyncMetadata.sessions?.[ownerAddress]
+    const session = {
+      ownerAddress,
+      syncId,
+      syncName,
+      syncTopicKey,
+      syncCipherKey,
+      syncMacKey,
+      writerId:
+        persisted?.syncId === syncId && persisted?.writerId
+          ? persisted.writerId
+          : createChannelWriterId(),
+      localWriterCoreKey:
+        persisted?.syncId === syncId ? persisted.localWriterCoreKey || '' : '',
+      writerCoreKeys:
+        persisted?.syncId === syncId
+          ? uniqueStrings(persisted.writerCoreKeys)
+          : [],
+      startedAt: new Date().toISOString(),
+    }
+
+    this.#userSyncSessions.set(ownerAddress, session)
+    await this.#openUserSyncRuntime(session)
+    await this.#joinUserSyncDiscovery(session)
+    this.#persistUserSyncSession(session)
+    await this.#appendUserSyncSnapshot(ownerAddress, 'start')
+
+    return this.getUserSyncStatus(ownerAddress)
+  }
+
+  getUserSyncStatus(ownerAddressInput) {
+    this.#ensureInitialized()
+    const ownerAddress = normalizeOwnerAddress(ownerAddressInput)
+    if (!ownerAddress) {
+      throw new ValidationError('valid owner address is required')
+    }
+    const session = this.#userSyncSessions.get(ownerAddress)
+    if (!session) {
+      const persisted = this.#userSyncMetadata.sessions?.[ownerAddress]
+      return {
+        enabled: false,
+        ownerAddress,
+        syncName: persisted?.syncName || '',
+        syncId: persisted?.syncId || '',
+        peerCount: 0,
+        writerCoreKeys: uniqueStrings(persisted?.writerCoreKeys),
+        localWriterCoreKey: persisted?.localWriterCoreKey || '',
+        lastSyncedAt: persisted?.lastSyncedAt || '',
+      }
+    }
+
+    return {
+      enabled: true,
+      ownerAddress,
+      syncName: session.syncName,
+      syncId: session.syncId,
+      peerCount: this.#chatSwarm?.connections?.size || 0,
+      writerCoreKeys: uniqueStrings(session.writerCoreKeys),
+      localWriterCoreKey: session.localWriterCoreKey,
+      lastSyncedAt:
+        this.#userSyncMetadata.sessions?.[ownerAddress]?.lastSyncedAt || '',
+    }
+  }
+
+  async cacheFile(cid, options = {}) {
+    this.#ensureInitialized()
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    const fileRecord = this.#getPublishedBucket(ownerAddress).find(
+      item => item.cid === cid
+    )
+    if (!fileRecord) {
+      throw new Error('File not found')
+    }
+    const result = await this.pullByCid({
+      cid,
+      fileName: fileRecord.fileName,
+      ownerAddress,
+      timeout: options.timeout,
+      taskId: options.taskId,
+    })
+    return result
   }
 
   /**
@@ -2176,7 +2157,13 @@ export class MostBoxEngine extends EventEmitter {
     const selectedChannelKey = normalizeChannelKey(options.channelKey)
     const selectedFingerprint = String(options.fingerprint || '').trim()
 
-    if (!CHANNEL_NAME_REGEX.test(channelId)) {
+    if (channelId.includes('.') && channelType !== 'game') {
+      throw new Error('点号为系统保留，不能用于手动频道 ID')
+    }
+    if (channelType === 'game' && !/^game\.[a-z0-9]+\.[a-z0-9]+$/.test(channelId)) {
+      throw new Error('游戏频道必须使用 game.<gameId>.<roomCode> 格式')
+    }
+    if (channelType !== 'game' && !CHANNEL_NAME_REGEX.test(channelId)) {
       throw new Error('频道名只能包含字母、数字、下划线和连字符')
     }
     if (channelId.length < CHANNEL_NAME_MIN_LENGTH) {
@@ -2193,10 +2180,12 @@ export class MostBoxEngine extends EventEmitter {
       if (existing) {
         await this.#mergeChannelWriterCoreKeys(
           existing,
-          options.writerCoreKeys || candidate?.writerCoreKeys
+          options.writerCoreKeys
         )
         if (this.#upsertChannelMember(existing, options)) {
+          existing.syncUpdatedAt = getNextSyncTimestamp(existing.syncUpdatedAt)
           this.#saveChannelsMetadata()
+          this.#appendUserSyncChannelUpsertSoon(existing, ownerAddress)
         }
         return this.#formatChannelForResponse(existing, ownerAddress)
       }
@@ -2236,13 +2225,28 @@ export class MostBoxEngine extends EventEmitter {
           channel => channel.channelKey === candidate.channelKey
         )
         if (existing && this.#upsertChannelMember(existing, options)) {
+          existing.syncUpdatedAt = getNextSyncTimestamp(existing.syncUpdatedAt)
           this.#saveChannelsMetadata()
+          this.#appendUserSyncChannelUpsertSoon(existing, ownerAddress)
         }
-        return existing
-          ? this.#formatChannelForResponse(existing, ownerAddress)
-          : this.#joinChannelFromCandidate(candidate, channelType, options)
+        if (existing) return this.#formatChannelForResponse(existing, ownerAddress)
+        const joined = await this.#joinChannelFromCandidate(
+          candidate,
+          channelType,
+          options
+        )
+        const joinedChannel = this.#resolveChannel(joined.channelKey, ownerAddress)
+        this.#appendUserSyncChannelUpsertSoon(joinedChannel, ownerAddress)
+        return joined
       }
-      return this.#joinChannelFromCandidate(candidate, channelType, options)
+      const joined = await this.#joinChannelFromCandidate(
+        candidate,
+        channelType,
+        options
+      )
+      const joinedChannel = this.#resolveChannel(joined.channelKey, ownerAddress)
+      this.#appendUserSyncChannelUpsertSoon(joinedChannel, ownerAddress)
+      return joined
     }
 
     const channelInfo = await this.#createLocalChannel(channelId, channelType, {
@@ -2257,6 +2261,7 @@ export class MostBoxEngine extends EventEmitter {
       channelId: channelInfo.channelId,
       key: channelInfo.channelKey,
     })
+    this.#appendUserSyncChannelUpsertSoon(channelInfo, ownerAddress)
 
     return this.#formatChannelForResponse(channelInfo, ownerAddress)
   }
@@ -2288,16 +2293,24 @@ export class MostBoxEngine extends EventEmitter {
     if (existing) {
       await this.#mergeChannelWriterCoreKeys(existing, candidate.writerCoreKeys)
       if (this.#upsertChannelMember(existing, options)) {
+        existing.syncUpdatedAt = getNextSyncTimestamp(existing.syncUpdatedAt)
         this.#saveChannelsMetadata()
+        this.#appendUserSyncChannelUpsertSoon(existing, options.ownerAddress)
       }
       return this.#formatChannelForResponse(existing, options.ownerAddress)
     }
 
     const cached = this.#getCachedChannelCandidate(channelId, channelKey)
-    return this.#joinChannelFromCandidate(cached || candidate, 'group', {
+    const joined = await this.#joinChannelFromCandidate(cached || candidate, 'group', {
       ...options,
       channelKey,
     })
+    const joinedChannel = this.#resolveChannel(
+      joined.channelKey,
+      options.ownerAddress
+    )
+    this.#appendUserSyncChannelUpsertSoon(joinedChannel, options.ownerAddress)
+    return joined
   }
 
   /**
@@ -2319,6 +2332,9 @@ export class MostBoxEngine extends EventEmitter {
       channel.members = channel.members.filter(
         member => normalizeOwnerAddress(member?.address) !== ownerAddress
       )
+      const syncUpdatedAt = getNextSyncTimestamp(channel.syncUpdatedAt)
+      channel.syncUpdatedAt = syncUpdatedAt
+      this.#appendUserSyncChannelLeaveSoon(channel, ownerAddress, syncUpdatedAt)
       if (channel.members.length > 0) {
         this.#saveChannelsMetadata()
         return this.listChannels({ ownerAddress })
@@ -2424,7 +2440,9 @@ export class MostBoxEngine extends EventEmitter {
       delete channel.remarks[ownerAddress]
     }
 
+    channel.syncUpdatedAt = getNextSyncTimestamp(channel.syncUpdatedAt)
     this.#saveChannelsMetadata()
+    this.#appendUserSyncChannelUpsertSoon(channel, ownerAddress)
     return trimmed
   }
 
@@ -2448,7 +2466,9 @@ export class MostBoxEngine extends EventEmitter {
       delete channel.pinnedBy[ownerAddress]
     }
 
+    channel.syncUpdatedAt = getNextSyncTimestamp(channel.syncUpdatedAt)
     this.#saveChannelsMetadata()
+    this.#appendUserSyncChannelUpsertSoon(channel, ownerAddress)
     return Boolean(channel.pinnedBy[ownerAddress])
   }
 
@@ -2710,6 +2730,7 @@ export class MostBoxEngine extends EventEmitter {
       localWriterCoreKey,
       writerCoreKeys,
       members: [],
+      syncUpdatedAt: Date.now(),
     }
 
     this.#upsertChannelMember(channelInfo, options)
@@ -3178,133 +3199,796 @@ export class MostBoxEngine extends EventEmitter {
     }
   }
 
-  #hashImportPackage(input) {
-    return crypto
-      .createHash('sha256')
-      .update(JSON.stringify(input || {}))
-      .digest('hex')
+  #getUserSyncNamespace(session) {
+    return this.#store.namespace(session.syncName)
   }
 
-  #normalizeUserImportPackage(input = {}) {
-    if (!input || typeof input !== 'object') {
-      throw new ValidationError('import package must be an object')
-    }
-    if (Number(input.schemaVersion) !== USER_DATA_SCHEMA_VERSION) {
-      throw new ValidationError('unsupported import package schemaVersion')
-    }
+  async #openUserSyncRuntime(session) {
+    const ns = this.#getUserSyncNamespace(session)
+    const localCore = session.localWriterCoreKey
+      ? ns.get({
+          key: b4a.from(session.localWriterCoreKey, 'hex'),
+          valueEncoding: 'json',
+        })
+      : ns.get({
+          name: `writer-${session.writerId}`,
+          valueEncoding: 'json',
+        })
+    await localCore.ready()
+    session.localWriterCoreKey = b4a.toString(localCore.key, 'hex')
+    session.writerCoreKeys = uniqueStrings([
+      ...session.writerCoreKeys,
+      session.localWriterCoreKey,
+    ])
 
-    const normalizeFile = (record, scope) => {
-      if (!record || typeof record !== 'object') {
-        throw new ValidationError(`${scope} record must be an object`)
-      }
-      const cid = String(record.cid || '').trim()
-      const { driveName } = this.#getCidInfo(cid)
-      const fileName = sanitizeFilename(record.fileName || cid)
-      if (!fileName || fileName === 'unnamed') {
-        throw new ValidationError(`${scope} fileName is invalid`)
-      }
-      return {
-        cid,
-        fileName,
-        driveName,
-        size: Number(record.size) || 0,
-        source: String(record.source || 'imported'),
-        publishedAt:
-          typeof record.publishedAt === 'string' ? record.publishedAt : '',
-        deletedAt: typeof record.deletedAt === 'string' ? record.deletedAt : '',
-        starred: Boolean(record.starred),
+    if (!this.#userSyncCores.has(session.ownerAddress)) {
+      this.#userSyncCores.set(session.ownerAddress, new Map())
+    }
+    this.#userSyncCores
+      .get(session.ownerAddress)
+      .set(session.localWriterCoreKey, localCore)
+    this.#setupUserSyncAppendListener(
+      localCore,
+      session,
+      session.localWriterCoreKey
+    )
+
+    for (const writerCoreKey of session.writerCoreKeys) {
+      if (writerCoreKey && writerCoreKey !== session.localWriterCoreKey) {
+        await this.#openRemoteUserSyncCore(session, writerCoreKey)
       }
     }
-
-    const files = Array.isArray(input.files)
-      ? input.files.map(record => normalizeFile(record, 'files'))
-      : []
-    const trashFiles = Array.isArray(input.trashFiles)
-      ? input.trashFiles.map(record => normalizeFile(record, 'trashFiles'))
-      : []
-    const channels = Array.isArray(input.channels)
-      ? input.channels
-          .filter(channel => channel && typeof channel === 'object')
-          .map(channel => {
-            const channelId = normalizeChannelId(
-              channel.channelId || channel.name
-            )
-            const fingerprint = String(channel.fingerprint || '').trim()
-            const channelKey =
-              normalizeChannelKey(channel.channelKey) ||
-              (channelId && fingerprint
-                ? buildChannelKey(channelId, fingerprint)
-                : '')
-            return {
-              channelId,
-              fingerprint,
-              channelKey,
-              type: String(channel.type || 'personal').trim() || 'personal',
-              writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
-              createdAt:
-                typeof channel.createdAt === 'string' ? channel.createdAt : '',
-              lastMessageAt:
-                typeof channel.lastMessageAt === 'string'
-                  ? channel.lastMessageAt
-                  : '',
-              member:
-                channel.member && typeof channel.member === 'object'
-                  ? channel.member
-                  : null,
-              remark: String(channel.remark || '').slice(0, 50),
-              pinned: Boolean(channel.pinned),
-            }
-          })
-          .filter(
-            channel =>
-              CHANNEL_NAME_REGEX.test(channel.channelId) &&
-              channel.fingerprint &&
-              channel.channelKey
-          )
-      : []
-
-    return { files, trashFiles, channels }
   }
 
-  #applyImportedChannels(ownerAddress, channels = []) {
-    const normalizedOwner = normalizeOwnerAddress(ownerAddress)
-    if (!normalizedOwner) return
+  async #joinUserSyncDiscovery(session) {
+    if (this.#userSyncDiscoveries.has(session.ownerAddress)) return
+    const discoveryKey = this.#generateUserSyncDiscoveryKey(session.syncId)
+    const appDiscovery = this.#swarm.join(discoveryKey, {
+      server: true,
+      client: true,
+    })
+    const chatDiscovery = this.#chatSwarm.join(
+      discoveryKey,
+      { server: true, client: true }
+    )
+    this.#userSyncDiscoveries.set(session.ownerAddress, {
+      appDiscovery,
+      chatDiscovery,
+    })
+  }
 
-    for (const imported of channels) {
-      let channel = this.#channels.find(
-        item => item.channelKey === imported.channelKey
-      )
-      if (!channel) {
-        channel = {
-          channelId: imported.channelId,
-          fingerprint: imported.fingerprint,
-          channelKey: imported.channelKey,
-          name: imported.channelId,
-          createdAt: imported.createdAt || new Date().toISOString(),
-          lastMessageAt: imported.lastMessageAt || '',
-          type: imported.type,
-          writerId: createChannelWriterId(),
-          localWriterCoreKey: '',
-          writerCoreKeys: imported.writerCoreKeys,
-          members: [],
+  async #openRemoteUserSyncCore(session, writerCoreKey) {
+    const normalizedCoreKey = String(writerCoreKey || '').trim()
+    if (
+      !normalizedCoreKey ||
+      normalizedCoreKey === session.localWriterCoreKey
+    ) {
+      return null
+    }
+    if (!this.#userSyncCores.has(session.ownerAddress)) {
+      this.#userSyncCores.set(session.ownerAddress, new Map())
+    }
+    const coresMap = this.#userSyncCores.get(session.ownerAddress)
+    if (coresMap.has(normalizedCoreKey)) return coresMap.get(normalizedCoreKey)
+
+    const ns = this.#getUserSyncNamespace(session)
+    const core = ns.get({
+      key: b4a.from(normalizedCoreKey, 'hex'),
+      valueEncoding: 'json',
+    })
+    await core.ready()
+    coresMap.set(normalizedCoreKey, core)
+    session.writerCoreKeys = uniqueStrings([
+      ...session.writerCoreKeys,
+      normalizedCoreKey,
+    ])
+    this.#persistUserSyncSession(session)
+    this.#setupUserSyncAppendListener(core, session, normalizedCoreKey)
+    return core
+  }
+
+  #setupUserSyncAppendListener(core, session, coreKey) {
+    const offsetKey = `${session.ownerAddress}:${coreKey}`
+    let processing = false
+    const processEntries = async () => {
+      if (processing) return
+      processing = true
+      try {
+        let index = this.#userSyncCoreOffsets.get(offsetKey) || 0
+        while (index < core.length) {
+          const entry = await core.get(index)
+          await this.#applyUserSyncEntry(session, entry)
+          index += 1
+          this.#userSyncCoreOffsets.set(offsetKey, index)
         }
-        this.#channels.push(channel)
+      } finally {
+        processing = false
       }
+    }
 
-      this.#upsertChannelMember(channel, {
-        ownerAddress: normalizedOwner,
-        displayName: imported.member?.displayName || imported.member?.name || '',
-        avatar: imported.member?.avatar || '',
+    core.on('append', () => {
+      processEntries().catch(err => {
+        console.warn('[MostBox] Failed to process user sync entry:', err.message)
       })
+    })
+    processEntries().catch(err => {
+      console.warn('[MostBox] Failed to process user sync entries:', err.message)
+    })
+  }
 
-      if (imported.remark) {
-        channel.remarks = channel.remarks || {}
-        channel.remarks[normalizedOwner] = imported.remark
+  #encodeUserSyncEntry(session, op) {
+    const nonce = crypto.randomBytes(12)
+    const cipher = crypto.createCipheriv(
+      'aes-256-gcm',
+      Buffer.from(session.syncCipherKey, 'hex'),
+      nonce
+    )
+    const encrypted = Buffer.concat([
+      cipher.update(JSON.stringify(op), 'utf8'),
+      cipher.final(),
+    ])
+    const tag = cipher.getAuthTag()
+    const body = `${nonce.toString('hex')}.${encrypted.toString('hex')}.${tag.toString('hex')}`
+    const mac = crypto
+      .createHmac('sha256', Buffer.from(session.syncMacKey, 'hex'))
+      .update(body)
+      .digest('hex')
+
+    return {
+      type: 'user-sync-op',
+      schemaVersion: USER_SYNC_SCHEMA_VERSION,
+      ownerAddress: session.ownerAddress,
+      syncId: session.syncId,
+      writerCoreKeys: uniqueStrings(session.writerCoreKeys),
+      body,
+      mac,
+      createdAt: new Date(op.timestamp).toISOString(),
+    }
+  }
+
+  #decodeUserSyncEntry(session, entry) {
+    if (
+      !entry ||
+      entry.type !== 'user-sync-op' ||
+      entry.syncId !== session.syncId ||
+      entry.ownerAddress !== session.ownerAddress ||
+      Number(entry.schemaVersion) !== USER_SYNC_SCHEMA_VERSION
+    ) {
+      return null
+    }
+
+    const expectedMac = crypto
+      .createHmac('sha256', Buffer.from(session.syncMacKey, 'hex'))
+      .update(String(entry.body || ''))
+      .digest('hex')
+    if (expectedMac !== entry.mac) return null
+
+    const [nonceHex, encryptedHex, tagHex] = String(entry.body || '').split('.')
+    if (!nonceHex || !encryptedHex || !tagHex) return null
+
+    try {
+      const decipher = crypto.createDecipheriv(
+        'aes-256-gcm',
+        Buffer.from(session.syncCipherKey, 'hex'),
+        Buffer.from(nonceHex, 'hex')
+      )
+      decipher.setAuthTag(Buffer.from(tagHex, 'hex'))
+      const decrypted = Buffer.concat([
+        decipher.update(Buffer.from(encryptedHex, 'hex')),
+        decipher.final(),
+      ])
+      return JSON.parse(decrypted.toString('utf8'))
+    } catch {
+      return null
+    }
+  }
+
+  async #appendUserSyncOp(ownerAddressInput, kind, payload = {}) {
+    const ownerAddress = normalizeOwnerAddress(ownerAddressInput)
+    const session = this.#userSyncSessions.get(ownerAddress)
+    if (!session?.localWriterCoreKey) return null
+    const coresMap = this.#userSyncCores.get(ownerAddress)
+    const core = coresMap?.get(session.localWriterCoreKey)
+    if (!core) return null
+
+    const op = {
+      opId: `${Date.now()}-${crypto.randomBytes(6).toString('hex')}`,
+      schemaVersion: USER_SYNC_SCHEMA_VERSION,
+      kind,
+      ownerAddress,
+      timestamp: Date.now(),
+      payload,
+    }
+    this.#markUserSyncClockForOp(op)
+    await core.append(this.#encodeUserSyncEntry(session, op))
+    this.#touchUserSyncSession(session)
+    return op
+  }
+
+  #appendUserSyncOpSoon(ownerAddress, kind, payload = {}) {
+    this.#appendUserSyncOp(ownerAddress, kind, payload).catch(err => {
+      console.warn('[MostBox] Failed to append user sync op:', err.message)
+    })
+  }
+
+  async #appendUserSyncSnapshot(ownerAddressInput, reason = 'snapshot') {
+    const ownerAddress = normalizeOwnerAddress(ownerAddressInput)
+    if (!this.#userSyncSessions.has(ownerAddress)) return null
+    const files = this.#getPublishedBucket(ownerAddress).map(file =>
+      this.#formatFileForSync(file, 'active')
+    )
+    const trashFiles = this.#getTrashBucket(ownerAddress).map(file =>
+      this.#formatFileForSync(file, 'trash')
+    )
+    const channels = this.#channels
+      .filter(channel => this.#channelHasMember(channel, ownerAddress))
+      .map(channel => this.#formatChannelForSync(channel, ownerAddress))
+      .filter(Boolean)
+    return this.#appendUserSyncOp(ownerAddress, 'snapshot', {
+      reason,
+      files,
+      trashFiles,
+      channels,
+    })
+  }
+
+  async #applyUserSyncEntry(session, entry) {
+    const op = this.#decodeUserSyncEntry(session, entry)
+    if (!op || op.ownerAddress !== session.ownerAddress) return false
+    if (Array.isArray(entry.writerCoreKeys)) {
+      await this.#mergeUserSyncWriterCoreKeys(session, entry.writerCoreKeys)
+    }
+    return this.#applyUserSyncOp(session, op)
+  }
+
+  async #applyUserSyncOp(session, op) {
+    let changedFiles = false
+    let changedChannels = false
+    if (op.kind === 'snapshot') {
+      const payload = op.payload || {}
+      for (const file of Array.isArray(payload.files) ? payload.files : []) {
+        changedFiles =
+          this.#applyUserSyncFileRecord(
+            session.ownerAddress,
+            file,
+            'active',
+            getSyncTimestamp(file.syncUpdatedAt, op.timestamp)
+          ) || changedFiles
       }
-      if (imported.pinned) {
-        channel.pinnedBy = channel.pinnedBy || {}
-        channel.pinnedBy[normalizedOwner] = true
+      for (const file of Array.isArray(payload.trashFiles) ? payload.trashFiles : []) {
+        changedFiles =
+          this.#applyUserSyncFileRecord(
+            session.ownerAddress,
+            file,
+            'trash',
+            getSyncTimestamp(file.syncUpdatedAt, op.timestamp)
+          ) || changedFiles
       }
+      for (const channel of Array.isArray(payload.channels) ? payload.channels : []) {
+        changedChannels =
+          (await this.#applyUserSyncChannelRecord(
+            session.ownerAddress,
+            channel,
+            getSyncTimestamp(channel.syncUpdatedAt, op.timestamp)
+          )) || changedChannels
+      }
+    } else if (op.kind === 'file:upsert') {
+      changedFiles = this.#applyUserSyncFileRecord(
+        session.ownerAddress,
+        op.payload?.file,
+        'active',
+        getSyncTimestamp(op.payload?.file?.syncUpdatedAt, op.timestamp)
+      )
+    } else if (op.kind === 'file:trash') {
+      changedFiles = this.#applyUserSyncFileRecord(
+        session.ownerAddress,
+        op.payload?.file,
+        'trash',
+        getSyncTimestamp(op.payload?.file?.syncUpdatedAt, op.timestamp)
+      )
+    } else if (op.kind === 'file:delete') {
+      changedFiles = await this.#applyUserSyncFileDelete(
+        session.ownerAddress,
+        op.payload?.cid,
+        getSyncTimestamp(op.payload?.syncUpdatedAt, op.timestamp)
+      )
+    } else if (op.kind === 'channel:upsert') {
+      changedChannels = await this.#applyUserSyncChannelRecord(
+        session.ownerAddress,
+        op.payload?.channel,
+        getSyncTimestamp(op.payload?.channel?.syncUpdatedAt, op.timestamp)
+      )
+    } else if (op.kind === 'channel:leave') {
+      changedChannels = this.#applyUserSyncChannelLeave(
+        session.ownerAddress,
+        op.payload?.channelKey,
+        getSyncTimestamp(op.payload?.syncUpdatedAt, op.timestamp)
+      )
+    }
+
+    if (changedFiles) {
+      this.#savePublishedMetadata()
+      this.#saveTrashMetadata()
+      this.emit('user:metadata:updated', {
+        ownerAddress: session.ownerAddress,
+        scope: 'files',
+      })
+    }
+    if (changedChannels) {
+      this.#saveChannelsMetadata()
+      this.emit('user:metadata:updated', {
+        ownerAddress: session.ownerAddress,
+        scope: 'channels',
+      })
+    }
+    if (changedFiles || changedChannels) {
+      this.#touchUserSyncSession(session)
+    }
+    return changedFiles || changedChannels
+  }
+
+  async #mergeUserSyncWriterCoreKeys(session, writerCoreKeys = []) {
+    const nextKeys = uniqueStrings(writerCoreKeys)
+    if (nextKeys.length === 0) return false
+    const previous = new Set(session.writerCoreKeys || [])
+    let changed = false
+    for (const writerCoreKey of nextKeys) {
+      if (!previous.has(writerCoreKey)) {
+        previous.add(writerCoreKey)
+        changed = true
+      }
+      if (writerCoreKey !== session.localWriterCoreKey) {
+        await this.#openRemoteUserSyncCore(session, writerCoreKey)
+      }
+    }
+    if (changed) {
+      session.writerCoreKeys = [...previous]
+      this.#persistUserSyncSession(session)
+    }
+    return changed
+  }
+
+  async #exchangeUserSyncSessions(peerEngine) {
+    for (const session of this.#userSyncSessions.values()) {
+      const peerSession = peerEngine.#userSyncSessions.get(session.ownerAddress)
+      if (!peerSession || peerSession.syncId !== session.syncId) continue
+      await this.#mergeUserSyncWriterCoreKeys(
+        session,
+        peerSession.writerCoreKeys
+      )
+      await peerEngine.#mergeUserSyncWriterCoreKeys(
+        peerSession,
+        session.writerCoreKeys
+      )
+    }
+  }
+
+  #formatFileForSync(file, state = 'active') {
+    const cid = String(file?.cid || '').trim()
+    if (!cid) return null
+    const { driveName } = this.#getCidInfo(cid)
+    const syncUpdatedAt = getSyncTimestamp(
+      file.syncUpdatedAt || file.deletedAt || file.publishedAt
+    )
+    return {
+      cid,
+      fileName: sanitizeFilename(file.fileName || cid),
+      driveName: file.driveName || driveName,
+      size: Number(file.size) || 0,
+      source: String(file.source || (state === 'active' ? 'published' : 'trash')),
+      publishedAt:
+        typeof file.publishedAt === 'string'
+          ? file.publishedAt
+          : new Date(syncUpdatedAt).toISOString(),
+      deletedAt:
+        typeof file.deletedAt === 'string'
+          ? file.deletedAt
+          : state === 'trash'
+            ? new Date(syncUpdatedAt).toISOString()
+            : '',
+      starred: Boolean(file.starred),
+      syncUpdatedAt,
+    }
+  }
+
+  #formatChannelForSync(channel, ownerAddress) {
+    const owner = normalizeOwnerAddress(ownerAddress)
+    if (
+      !channel ||
+      !owner ||
+      TRANSIENT_CHANNEL_TYPES.has(channel.type) ||
+      !this.#channelHasMember(channel, owner)
+    ) {
+      return null
+    }
+    return {
+      channelId: channel.channelId,
+      fingerprint: channel.fingerprint,
+      channelKey: channel.channelKey,
+      type: channel.type,
+      createdAt: channel.createdAt,
+      lastMessageAt: channel.lastMessageAt || '',
+      writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
+      member: this.#getChannelMembers(channel).find(
+        member => member.address === owner
+      ),
+      remark: channel.remarks?.[owner] || '',
+      pinned: Boolean(channel.pinnedBy?.[owner]),
+      syncUpdatedAt: getSyncTimestamp(
+        channel.syncUpdatedAt || channel.lastMessageAt || channel.createdAt
+      ),
+    }
+  }
+
+  #appendUserSyncChannelUpsertSoon(channel, ownerAddress) {
+    const owner = normalizeOwnerAddress(ownerAddress)
+    const record = this.#formatChannelForSync(channel, owner)
+    if (!record) return
+    this.#appendUserSyncOpSoon(owner, 'channel:upsert', { channel: record })
+  }
+
+  #appendUserSyncChannelLeaveSoon(channel, ownerAddress, syncUpdatedAt = Date.now()) {
+    const owner = normalizeOwnerAddress(ownerAddress)
+    if (!owner || !channel || TRANSIENT_CHANNEL_TYPES.has(channel.type)) return
+    this.#appendUserSyncOpSoon(owner, 'channel:leave', {
+      channelKey: channel.channelKey,
+      syncUpdatedAt,
+    })
+  }
+
+  #normalizeSyncFileRecord(record, state, timestamp) {
+    if (!record || typeof record !== 'object') return null
+    const cid = String(record.cid || '').trim()
+    if (!cid) return null
+    let driveName = ''
+    try {
+      driveName = this.#getCidInfo(cid).driveName
+    } catch {
+      return null
+    }
+    const fileName = sanitizeFilename(record.fileName || cid)
+    if (!fileName || fileName === 'unnamed') return null
+    const syncUpdatedAt = getSyncTimestamp(record.syncUpdatedAt, timestamp)
+    return {
+      cid,
+      fileName,
+      driveName: record.driveName || driveName,
+      size: Number(record.size) || 0,
+      source: String(record.source || (state === 'active' ? 'synced' : 'trash')),
+      publishedAt:
+        typeof record.publishedAt === 'string'
+          ? record.publishedAt
+          : new Date(syncUpdatedAt).toISOString(),
+      deletedAt:
+        typeof record.deletedAt === 'string'
+          ? record.deletedAt
+          : state === 'trash'
+            ? new Date(syncUpdatedAt).toISOString()
+            : '',
+      starred: Boolean(record.starred),
+      syncUpdatedAt,
+    }
+  }
+
+  #applyUserSyncFileRecord(ownerAddress, record, state, timestamp) {
+    const normalized = this.#normalizeSyncFileRecord(record, state, timestamp)
+    if (!normalized) return false
+    const entityKey = `file:${normalized.cid}`
+    if (!this.#shouldApplyUserSyncEntity(ownerAddress, entityKey, normalized.syncUpdatedAt)) {
+      return false
+    }
+
+    const publishedFiles = [...this.#getPublishedBucket(ownerAddress)]
+    const trashFiles = [...this.#getTrashBucket(ownerAddress)]
+    let changed = false
+
+    const publishedIndex = publishedFiles.findIndex(
+      file => file.cid === normalized.cid
+    )
+    const trashIndex = trashFiles.findIndex(file => file.cid === normalized.cid)
+    const localHolding = this.#holdings.find(
+      holding => holding.cid === normalized.cid
+    )
+    const localSource = localHolding?.source || 'synced'
+
+    if (state === 'active') {
+      const nextRecord = {
+        fileName: normalized.fileName,
+        cid: normalized.cid,
+        driveName: normalized.driveName,
+        size: normalized.size,
+        source: localSource,
+        publishedAt: normalized.publishedAt,
+        starred: normalized.starred,
+        syncUpdatedAt: normalized.syncUpdatedAt,
+      }
+      if (publishedIndex === -1) {
+        publishedFiles.push(nextRecord)
+        changed = true
+      } else if (
+        JSON.stringify(publishedFiles[publishedIndex]) !==
+        JSON.stringify(nextRecord)
+      ) {
+        publishedFiles[publishedIndex] = nextRecord
+        changed = true
+      }
+      if (trashIndex !== -1) {
+        trashFiles.splice(trashIndex, 1)
+        changed = true
+      }
+    } else {
+      const nextRecord = {
+        fileName: normalized.fileName,
+        cid: normalized.cid,
+        driveName: normalized.driveName,
+        size: normalized.size,
+        source: localSource,
+        publishedAt: normalized.publishedAt,
+        starred: normalized.starred,
+        deletedAt: normalized.deletedAt || new Date(normalized.syncUpdatedAt).toISOString(),
+        syncUpdatedAt: normalized.syncUpdatedAt,
+      }
+      if (trashIndex === -1) {
+        trashFiles.push(nextRecord)
+        changed = true
+      } else if (
+        JSON.stringify(trashFiles[trashIndex]) !== JSON.stringify(nextRecord)
+      ) {
+        trashFiles[trashIndex] = nextRecord
+        changed = true
+      }
+      if (publishedIndex !== -1) {
+        publishedFiles.splice(publishedIndex, 1)
+        changed = true
+      }
+    }
+
+    if (changed) {
+      this.#setPublishedBucket(ownerAddress, publishedFiles)
+      this.#setTrashBucket(ownerAddress, trashFiles)
+      this.#setUserSyncClock(ownerAddress, entityKey, normalized.syncUpdatedAt)
+    }
+    return changed
+  }
+
+  async #applyUserSyncFileDelete(ownerAddress, cidInput, timestamp) {
+    const cid = String(cidInput || '').trim()
+    if (!cid) return false
+    const syncUpdatedAt = getSyncTimestamp(timestamp)
+    const entityKey = `file:${cid}`
+    if (!this.#shouldApplyUserSyncEntity(ownerAddress, entityKey, syncUpdatedAt)) {
+      return false
+    }
+
+    const publishedFiles = this.#getPublishedBucket(ownerAddress).filter(
+      file => file.cid !== cid
+    )
+    const trashFiles = this.#getTrashBucket(ownerAddress).filter(
+      file => file.cid !== cid
+    )
+    const changed =
+      publishedFiles.length !== this.#getPublishedBucket(ownerAddress).length ||
+      trashFiles.length !== this.#getTrashBucket(ownerAddress).length
+    this.#setPublishedBucket(ownerAddress, publishedFiles)
+    this.#setTrashBucket(ownerAddress, trashFiles)
+    this.#setUserSyncClock(ownerAddress, entityKey, syncUpdatedAt)
+    if (changed && !this.#hasAnyUserReference(cid)) {
+      await this.#cleanupUnreferencedCids([cid])
+    }
+    return changed
+  }
+
+  async #applyUserSyncChannelRecord(ownerAddress, record, timestamp) {
+    if (!record || typeof record !== 'object') return false
+    const channelId = normalizeChannelId(record.channelId)
+    const fingerprint = String(record.fingerprint || '').trim()
+    const channelKey =
+      normalizeChannelKey(record.channelKey) ||
+      (channelId && fingerprint ? buildChannelKey(channelId, fingerprint) : '')
+    if (!channelId || !fingerprint || !channelKey) return false
+    const syncUpdatedAt = getSyncTimestamp(record.syncUpdatedAt, timestamp)
+    const entityKey = `channel:${channelKey}`
+    if (!this.#shouldApplyUserSyncEntity(ownerAddress, entityKey, syncUpdatedAt)) {
+      return false
+    }
+
+    let channel = this.#channels.find(item => item.channelKey === channelKey)
+    let changed = false
+    if (!channel) {
+      channel = {
+        channelId,
+        fingerprint,
+        channelKey,
+        name: channelId,
+        createdAt:
+          typeof record.createdAt === 'string'
+            ? record.createdAt
+            : new Date(syncUpdatedAt).toISOString(),
+        lastMessageAt:
+          typeof record.lastMessageAt === 'string' ? record.lastMessageAt : '',
+        type: String(record.type || 'personal').trim() || 'personal',
+        writerId: createChannelWriterId(),
+        localWriterCoreKey: '',
+        writerCoreKeys: uniqueStrings(record.writerCoreKeys),
+        members: [],
+        syncUpdatedAt,
+      }
+      this.#channels.push(channel)
+      changed = true
+    } else {
+      const nextKeys = uniqueStrings([
+        ...(channel.writerCoreKeys || []),
+        ...(record.writerCoreKeys || []),
+      ])
+      if (nextKeys.length !== (channel.writerCoreKeys || []).length) {
+        channel.writerCoreKeys = nextKeys
+        changed = true
+      }
+      if (record.lastMessageAt && record.lastMessageAt !== channel.lastMessageAt) {
+        channel.lastMessageAt = record.lastMessageAt
+        changed = true
+      }
+      channel.syncUpdatedAt = syncUpdatedAt
+    }
+
+    if (
+      this.#upsertChannelMember(channel, {
+        ownerAddress,
+        displayName:
+          record.member?.displayName || record.remark || '',
+        avatar: record.member?.avatar || '',
+      })
+    ) {
+      changed = true
+    }
+    if (record.remark !== undefined) {
+      channel.remarks = channel.remarks || {}
+      const remark = String(record.remark || '').slice(0, 50)
+      if (remark) channel.remarks[ownerAddress] = remark
+      else delete channel.remarks[ownerAddress]
+      changed = true
+    }
+    channel.pinnedBy = channel.pinnedBy || {}
+    if (record.pinned) {
+      channel.pinnedBy[ownerAddress] = true
+    } else {
+      delete channel.pinnedBy[ownerAddress]
+    }
+    this.#setUserSyncClock(ownerAddress, entityKey, syncUpdatedAt)
+
+    if (!this.#channelLocalCoreKey.get(channel.channelKey)) {
+      await this.#openChannelRuntime(channel)
+      await this.#joinChannelDiscoveryTopics(channel)
+      changed = true
+      this.emit('channel:joined', {
+        channel: channel.channelKey,
+        channelKey: channel.channelKey,
+        channelId: channel.channelId,
+        key: channel.channelKey,
+      })
+    }
+    return changed
+  }
+
+  #applyUserSyncChannelLeave(ownerAddress, channelKeyInput, timestamp) {
+    const channelKey = normalizeChannelKey(channelKeyInput)
+    if (!channelKey) return false
+    const syncUpdatedAt = getSyncTimestamp(timestamp)
+    const entityKey = `channel:${channelKey}`
+    if (!this.#shouldApplyUserSyncEntity(ownerAddress, entityKey, syncUpdatedAt)) {
+      return false
+    }
+    const channel = this.#channels.find(item => item.channelKey === channelKey)
+    if (!channel) {
+      this.#setUserSyncClock(ownerAddress, entityKey, syncUpdatedAt)
+      return false
+    }
+    const before = channel.members?.length || 0
+    channel.members = (channel.members || []).filter(
+      member => normalizeOwnerAddress(member?.address) !== ownerAddress
+    )
+    if (channel.remarks) delete channel.remarks[ownerAddress]
+    if (channel.pinnedBy) delete channel.pinnedBy[ownerAddress]
+    this.#setUserSyncClock(ownerAddress, entityKey, syncUpdatedAt)
+    const changed = before !== channel.members.length
+    if (channel.members.length === 0) {
+      this.#channels = this.#channels.filter(item => item.channelKey !== channelKey)
+    }
+    if (changed) {
+      this.emit('channel:left', {
+        channel: channelKey,
+        channelKey,
+        channelId: channel.channelId,
+        name: channel.channelId,
+      })
+    }
+    return changed
+  }
+
+  #getUserSyncClock(ownerAddress, entityKey) {
+    const owner = normalizeOwnerAddress(ownerAddress)
+    return Number(this.#userSyncMetadata.clocks?.[owner]?.[entityKey]) || 0
+  }
+
+  #setUserSyncClock(ownerAddress, entityKey, timestamp) {
+    const owner = normalizeOwnerAddress(ownerAddress)
+    if (!owner || !entityKey) return
+    this.#userSyncMetadata.clocks = this.#userSyncMetadata.clocks || {}
+    this.#userSyncMetadata.clocks[owner] =
+      this.#userSyncMetadata.clocks[owner] || {}
+    this.#userSyncMetadata.clocks[owner][entityKey] = Math.max(
+      this.#getUserSyncClock(owner, entityKey),
+      getSyncTimestamp(timestamp)
+    )
+    this.#saveUserSyncMetadata()
+  }
+
+  #shouldApplyUserSyncEntity(ownerAddress, entityKey, timestamp) {
+    return getSyncTimestamp(timestamp) > this.#getUserSyncClock(ownerAddress, entityKey)
+  }
+
+  #markUserSyncClockForOp(op) {
+    const ownerAddress = normalizeOwnerAddress(op.ownerAddress)
+    if (!ownerAddress) return
+    if (op.kind === 'file:upsert' || op.kind === 'file:trash') {
+      const cid = op.payload?.file?.cid
+      const timestamp = getSyncTimestamp(
+        op.payload?.file?.syncUpdatedAt,
+        op.timestamp
+      )
+      if (cid) this.#setUserSyncClock(ownerAddress, `file:${cid}`, timestamp)
+    } else if (op.kind === 'file:delete') {
+      const cid = op.payload?.cid
+      const timestamp = getSyncTimestamp(
+        op.payload?.syncUpdatedAt,
+        op.timestamp
+      )
+      if (cid) this.#setUserSyncClock(ownerAddress, `file:${cid}`, timestamp)
+    } else if (op.kind === 'channel:upsert') {
+      const channelKey = op.payload?.channel?.channelKey
+      const timestamp = getSyncTimestamp(
+        op.payload?.channel?.syncUpdatedAt,
+        op.timestamp
+      )
+      if (channelKey) {
+        this.#setUserSyncClock(ownerAddress, `channel:${channelKey}`, timestamp)
+      }
+    } else if (op.kind === 'channel:leave') {
+      const channelKey = op.payload?.channelKey
+      const timestamp = getSyncTimestamp(
+        op.payload?.syncUpdatedAt,
+        op.timestamp
+      )
+      if (channelKey) {
+        this.#setUserSyncClock(ownerAddress, `channel:${channelKey}`, timestamp)
+      }
+    }
+  }
+
+  #persistUserSyncSession(session) {
+    this.#userSyncMetadata.sessions = this.#userSyncMetadata.sessions || {}
+    this.#userSyncMetadata.sessions[session.ownerAddress] = {
+      ownerAddress: session.ownerAddress,
+      syncId: session.syncId,
+      syncName: session.syncName,
+      writerId: session.writerId,
+      localWriterCoreKey: session.localWriterCoreKey,
+      writerCoreKeys: uniqueStrings(session.writerCoreKeys),
+      startedAt: session.startedAt,
+      lastSyncedAt:
+        this.#userSyncMetadata.sessions?.[session.ownerAddress]?.lastSyncedAt ||
+        '',
+      updatedAt: new Date().toISOString(),
+    }
+    this.#saveUserSyncMetadata()
+  }
+
+  #touchUserSyncSession(session) {
+    this.#persistUserSyncSession(session)
+    const persisted = this.#userSyncMetadata.sessions?.[session.ownerAddress]
+    if (persisted) {
+      persisted.lastSyncedAt = new Date().toISOString()
+      this.#saveUserSyncMetadata()
     }
   }
 
@@ -3886,6 +4570,10 @@ export class MostBoxEngine extends EventEmitter {
     return path.join(this.#options.dataPath, 'trash-files.json')
   }
 
+  #getUserSyncMetadataPath() {
+    return path.join(this.#options.dataPath, 'user-sync.json')
+  }
+
   #atomicWrite(filePath, data) {
     const tmpPath = filePath + '.tmp'
     fs.writeFileSync(tmpPath, data, 'utf-8')
@@ -3975,6 +4663,65 @@ export class MostBoxEngine extends EventEmitter {
       this.#atomicWrite(metadataPath, JSON.stringify(this.#trashFiles, null, 2))
     } catch (err) {
       console.error('Failed to save trash metadata:', err.message)
+    }
+  }
+
+  #loadUserSyncMetadata() {
+    try {
+      const metadataPath = this.#getUserSyncMetadataPath()
+      if (fs.existsSync(metadataPath)) {
+        const parsed = JSON.parse(fs.readFileSync(metadataPath, 'utf-8'))
+        const sessions = {}
+        for (const [owner, session] of Object.entries(parsed.sessions || {})) {
+          const ownerAddress = normalizeOwnerAddress(owner)
+          const syncId = String(session?.syncId || '').trim()
+          if (!ownerAddress || !syncId) continue
+          sessions[ownerAddress] = {
+            ownerAddress,
+            syncId,
+            syncName: String(session.syncName || getUserSyncName(syncId)),
+            writerId: String(session.writerId || ''),
+            localWriterCoreKey: String(session.localWriterCoreKey || ''),
+            writerCoreKeys: uniqueStrings(session.writerCoreKeys),
+            startedAt: String(session.startedAt || ''),
+            lastSyncedAt: String(session.lastSyncedAt || ''),
+            updatedAt: String(session.updatedAt || ''),
+          }
+        }
+
+        const clocks = {}
+        for (const [owner, records] of Object.entries(parsed.clocks || {})) {
+          const ownerAddress = normalizeOwnerAddress(owner)
+          if (!ownerAddress || !records || typeof records !== 'object') continue
+          clocks[ownerAddress] = {}
+          for (const [entityKey, timestamp] of Object.entries(records)) {
+            const value = Number(timestamp)
+            if (entityKey && Number.isFinite(value) && value > 0) {
+              clocks[ownerAddress][entityKey] = value
+            }
+          }
+        }
+
+        return { sessions, clocks }
+      }
+    } catch (err) {
+      console.warn(
+        'Failed to load user sync metadata, using empty state:',
+        err.message
+      )
+    }
+    return { sessions: {}, clocks: {} }
+  }
+
+  #saveUserSyncMetadata() {
+    try {
+      const metadataPath = this.#getUserSyncMetadataPath()
+      this.#atomicWrite(
+        metadataPath,
+        JSON.stringify(this.#userSyncMetadata, null, 2)
+      )
+    } catch (err) {
+      console.error('Failed to save user sync metadata:', err.message)
     }
   }
 
@@ -4083,6 +4830,14 @@ export class MostBoxEngine extends EventEmitter {
     return hash
   }
 
+  #generateUserSyncDiscoveryKey(syncId) {
+    const hash = crypto
+      .createHash('sha256')
+      .update(`${CHANNEL_NAME_PREFIX}${USER_SYNC_NAMESPACE_PREFIX}${syncId}`)
+      .digest()
+    return hash
+  }
+
   #setupChannelAppendListener(core, channelKey) {
     let lastCoreLength = core.length
     core.on('append', async () => {
@@ -4175,12 +4930,21 @@ export class MostBoxEngine extends EventEmitter {
         this.#channelLocalCoreKey.get(channel.channelKey),
       ]),
     }))
+    const userSyncSessions = [...this.#userSyncSessions.values()].map(
+      session => ({
+        ownerAddress: session.ownerAddress,
+        syncId: session.syncId,
+        syncName: session.syncName,
+        writerCoreKeys: uniqueStrings(session.writerCoreKeys),
+      })
+    )
 
     const helloMessage = JSON.stringify({
       type: 'channel-hello',
       peerId: this.getNodeId(),
       authorName: this.getNodeId().slice(0, 4),
       channels,
+      userSyncSessions,
     })
 
     try {
@@ -4254,6 +5018,30 @@ export class MostBoxEngine extends EventEmitter {
                 )
               }
             }
+          }
+
+          const remoteUserSyncSessions = Array.isArray(msg.userSyncSessions)
+            ? msg.userSyncSessions
+                .filter(session => session && typeof session === 'object')
+                .map(session => ({
+                  ownerAddress: normalizeOwnerAddress(session.ownerAddress),
+                  syncId: String(session.syncId || '').trim(),
+                  writerCoreKeys: uniqueStrings(session.writerCoreKeys),
+                }))
+                .filter(session => session.ownerAddress && session.syncId)
+            : []
+
+          for (const remoteSession of remoteUserSyncSessions) {
+            const localSession = this.#userSyncSessions.get(
+              remoteSession.ownerAddress
+            )
+            if (!localSession || localSession.syncId !== remoteSession.syncId) {
+              continue
+            }
+            await this.#mergeUserSyncWriterCoreKeys(
+              localSession,
+              remoteSession.writerCoreKeys
+            )
           }
 
           this.emit('channel:peer:online', {

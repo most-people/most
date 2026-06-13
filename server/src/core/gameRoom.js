@@ -35,12 +35,12 @@ export function gameRoomCodeToChannelName(gameId, roomCode) {
   const normalizedGameId = normalizeGameId(gameId)
   const code = normalizeGameRoomCode(roomCode)
   if (!normalizedGameId || !isValidGameRoomCode(code)) return ''
-  return `game-${normalizedGameId}-${code.toLowerCase()}`
+  return `game.${normalizedGameId}.${code.toLowerCase()}`
 }
 
 export function channelNameToGameRoom(input) {
   const value = String(input || '').trim().toLowerCase()
-  const match = /^game-([a-z0-9]+)-([a-z0-9]+)$/.exec(value)
+  const match = /^game\.([a-z0-9]+)\.([a-z0-9]+)$/.exec(value)
   if (!match) return null
   const gameId = normalizeGameId(match[1])
   const roomCode = normalizeGameRoomCode(match[2])

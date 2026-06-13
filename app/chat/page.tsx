@@ -384,6 +384,12 @@ function ChatPage() {
         void refreshChannelMembers()
         break
 
+      case 'user:metadata:updated':
+        if (data?.scope === 'channels') {
+          void refreshChannels()
+        }
+        break
+
       case 'download:success': {
         const attachment = pendingAttachmentPreviewsRef.current.get(data.taskId)
         if (attachment) {
@@ -629,6 +635,9 @@ function ChatPage() {
     }
     if (name.length > CHANNEL_NAME_MAX_LENGTH) {
       return `频道名最多 ${CHANNEL_NAME_MAX_LENGTH} 个字符`
+    }
+    if (name.includes('.')) {
+      return '点号为系统保留，不能用于手动频道 ID'
     }
     if (!CHANNEL_NAME_REGEX.test(name)) {
       return '频道名只能包含字母、数字、下划线和连字符'
