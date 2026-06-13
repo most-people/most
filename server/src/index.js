@@ -72,6 +72,10 @@ const DEFAULT_OWNER_BUCKET = '__local__'
 const USER_DATA_SCHEMA_VERSION = 1
 const IMPORT_CHECK_TTL_MS = 10 * 60 * 1000
 const IMPORT_CHECK_MAX_FILES = 5000
+const CHANNEL_FINGERPRINT_BYTES = 8
+const CHANNEL_WRITER_ID_BYTES = 8
+const CHANNEL_DISCOVERY_TIMEOUT = 600
+const CHANNEL_CANDIDATE_TTL = 30 * 1000
 
 function normalizeOwnerAddress(address) {
   const value = String(address || '').trim()
@@ -132,6 +136,30 @@ function normalizeChannelAvatar(input) {
   return value ? value.slice(0, 4096) : ''
 }
 
+function normalizeChannelId(input) {
+  return String(input || '').trim()
+}
+
+function createChannelFingerprint() {
+  return crypto.randomBytes(CHANNEL_FINGERPRINT_BYTES).toString('hex')
+}
+
+function createChannelWriterId() {
+  return crypto.randomBytes(CHANNEL_WRITER_ID_BYTES).toString('hex')
+}
+
+function buildChannelKey(channelId, fingerprint) {
+  return `${channelId}:${fingerprint}`
+}
+
+function normalizeChannelKey(input) {
+  return String(input || '').trim()
+}
+
+function uniqueStrings(values = []) {
+  return [...new Set(values.map(value => String(value || '').trim()).filter(Boolean))]
+}
+
 function createOfflineSwarm() {
   return {
     connections: new Set(),
@@ -173,7 +201,9 @@ export class MostBoxEngine extends EventEmitter {
   #channelLocalCoreKey = new Map()
   #channelDiscoveries = new Map()
   #channelChatDiscoveries = new Map()
+  #channelIdDiscoveries = new Map()
   #channelPeers = new Map()
+  #channelCandidateCache = new Map()
 
   #chatSwarm = null
 
@@ -360,47 +390,12 @@ export class MostBoxEngine extends EventEmitter {
 
     for (const channel of this.#channels) {
       try {
-        const ns = this.#store.namespace(`channel-${channel.name}`)
-        const core = ns.get({
-          key: b4a.from(channel.coreKey, 'hex'),
-          valueEncoding: 'json',
-        })
-        await core.ready()
-        const coreKeyHex = b4a.toString(core.key, 'hex')
-        if (!this.#channelCores.has(channel.name)) {
-          this.#channelCores.set(channel.name, new Map())
-        }
-        this.#channelCores.get(channel.name).set(coreKeyHex, core)
-        this.#channelLocalCoreKey.set(channel.name, coreKeyHex)
-        this.#channelPeers.set(channel.name, new Map())
-        this.#setupChannelAppendListener(core, channel.name)
-        const remoteCoreKeys = Array.isArray(channel.remoteCoreKeys)
-          ? channel.remoteCoreKeys
-          : []
-        for (const remoteCoreKey of remoteCoreKeys) {
-          if (remoteCoreKey && remoteCoreKey !== coreKeyHex) {
-            await this.#openRemoteChannelCore(channel.name, remoteCoreKey)
-          }
-        }
-
-        const discoveryKey = b4a.from(channel.discoveryKey, 'hex')
-        const chatDiscoveryKey = this.#generateChannelChatDiscoveryKey(
-          channel.name
-        )
-        const appDiscovery = this.#swarm.join(discoveryKey, {
-          server: true,
-          client: true,
-        })
-        this.#channelDiscoveries.set(channel.name, appDiscovery)
-        const chatDiscovery = this.#chatSwarm.join(chatDiscoveryKey, {
-          server: true,
-          client: true,
-        })
-        this.#channelChatDiscoveries.set(channel.name, chatDiscovery)
-        console.log(`[MostBox] Rejoined channel: ${channel.name}`)
+        await this.#openChannelRuntime(channel)
+        await this.#joinChannelDiscoveryTopics(channel)
+        console.log(`[MostBox] Rejoined channel: ${channel.channelKey}`)
       } catch (err) {
         console.warn(
-          `[MostBox] Failed to rejoin channel ${channel.name}:`,
+          `[MostBox] Failed to rejoin channel ${channel.channelKey}:`,
           err.message
         )
       }
@@ -462,7 +457,9 @@ export class MostBoxEngine extends EventEmitter {
     this.#channelLocalCoreKey.clear()
     this.#channelDiscoveries.clear()
     this.#channelChatDiscoveries.clear()
+    this.#channelIdDiscoveries.clear()
     this.#channelPeers.clear()
+    this.#channelCandidateCache.clear()
     this.#channels = []
     this.#importChecks.clear()
 
@@ -1635,9 +1632,13 @@ export class MostBoxEngine extends EventEmitter {
     const channels = this.#channels
       .filter(channel => this.#channelHasMember(channel, ownerAddress))
       .map(channel => ({
-        name: channel.name,
+        channelId: channel.channelId,
+        fingerprint: channel.fingerprint,
+        channelKey: channel.channelKey,
+        name: channel.channelId,
         type: channel.type,
-        coreKey: channel.coreKey,
+        localWriterCoreKey: channel.localWriterCoreKey,
+        writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
         createdAt: channel.createdAt,
         lastMessageAt: channel.lastMessageAt || '',
         member: this.#getChannelMembers(channel).find(
@@ -2162,207 +2163,158 @@ export class MostBoxEngine extends EventEmitter {
   // --- 频道管理 ---
 
   /**
-   * 创建或加入频道
-   * @param {string} name - 频道名
+   * 创建或加入频道。channelId 是用户输入的短 ID，channelKey 是内部唯一身份。
+   * @param {string} channelIdInput - 用户可见短频道 ID
    * @param {string} [type='personal'] - 频道类型
-   * @returns {Promise<{ name: string, key: string }>}
+   * @returns {Promise<object>}
    */
-  async createChannel(name, type = 'personal', options = {}) {
+  async createChannel(channelIdInput, type = 'personal', options = {}) {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    const channelId = normalizeChannelId(channelIdInput)
     const channelType = String(type || 'personal').trim() || 'personal'
+    const selectedChannelKey = normalizeChannelKey(options.channelKey)
+    const selectedFingerprint = String(options.fingerprint || '').trim()
 
-    if (!CHANNEL_NAME_REGEX.test(name)) {
+    if (!CHANNEL_NAME_REGEX.test(channelId)) {
       throw new Error('频道名只能包含字母、数字、下划线和连字符')
     }
-    if (name.length < CHANNEL_NAME_MIN_LENGTH) {
+    if (channelId.length < CHANNEL_NAME_MIN_LENGTH) {
       throw new Error(`频道名至少 ${CHANNEL_NAME_MIN_LENGTH} 个字符`)
     }
-    if (name.length > CHANNEL_NAME_MAX_LENGTH) {
+    if (channelId.length > CHANNEL_NAME_MAX_LENGTH) {
       throw new Error(`频道名最多 ${CHANNEL_NAME_MAX_LENGTH} 个字符`)
     }
 
-    const existing = this.#channels.find(c => c.name === name)
-    if (existing) {
-      if (this.#upsertChannelMember(existing, options)) {
-        this.#saveChannelsMetadata()
+    if (selectedChannelKey || selectedFingerprint) {
+      const channelKey =
+        selectedChannelKey || buildChannelKey(channelId, selectedFingerprint)
+      const existing = this.#channels.find(c => c.channelKey === channelKey)
+      if (existing) {
+        await this.#mergeChannelWriterCoreKeys(
+          existing,
+          options.writerCoreKeys || candidate?.writerCoreKeys
+        )
+        if (this.#upsertChannelMember(existing, options)) {
+          this.#saveChannelsMetadata()
+        }
+        return this.#formatChannelForResponse(existing, ownerAddress)
       }
+
+      const candidate = this.#getCachedChannelCandidate(channelId, channelKey)
+      if (!candidate) {
+        throw new Error('未发现该频道候选，请重新搜索频道')
+      }
+      return this.#joinChannelFromCandidate(candidate, channelType, options)
+    }
+
+    const localCandidates = this.#getLocalChannelCandidates(channelId)
+    const remoteCandidates = options.discover
+      ? await this.#discoverChannelCandidates(channelId, {
+          timeout: options.discoveryTimeout,
+        })
+      : []
+    const candidates = this.#mergeChannelCandidates([
+      ...localCandidates,
+      ...remoteCandidates,
+    ])
+
+    if (candidates.length > 1) {
       return {
-        name: existing.name,
-        key: existing.coreKey,
-        coreKey: existing.coreKey,
-        createdAt: existing.createdAt,
-        type: existing.type,
+        conflict: true,
+        channelId,
+        candidates: candidates.map(candidate =>
+          this.#formatChannelCandidateForResponse(candidate, ownerAddress)
+        ),
       }
     }
 
-    const ns = this.#store.namespace(`channel-${name}`)
-    const core = ns.get({ name: 'messages', valueEncoding: 'json' })
-    await core.ready()
+    if (candidates.length === 1) {
+      const candidate = candidates[0]
+      if (candidate.local) {
+        const existing = this.#channels.find(
+          channel => channel.channelKey === candidate.channelKey
+        )
+        if (existing && this.#upsertChannelMember(existing, options)) {
+          this.#saveChannelsMetadata()
+        }
+        return existing
+          ? this.#formatChannelForResponse(existing, ownerAddress)
+          : this.#joinChannelFromCandidate(candidate, channelType, options)
+      }
+      return this.#joinChannelFromCandidate(candidate, channelType, options)
+    }
 
-    const discoveryKey = this.#generateChannelDiscoveryKey(name)
-    const chatDiscoveryKey = this.#generateChannelChatDiscoveryKey(name)
-    const appDiscovery = this.#swarm.join(discoveryKey, {
-      server: true,
-      client: true,
-    })
-    const chatDiscovery = this.#chatSwarm.join(chatDiscoveryKey, {
-      server: true,
-      client: true,
-    })
-
-    this.#setupChannelAppendListener(core, name)
-
-    const channelInfo = {
-      name,
-      discoveryKey: b4a.toString(discoveryKey, 'hex'),
-      coreKey: b4a.toString(core.key, 'hex'),
-      createdAt: new Date().toISOString(),
-      type: channelType,
+    const channelInfo = await this.#createLocalChannel(channelId, channelType, {
+      ...options,
       ownerAddress,
-      members: [],
-      remoteCoreKeys: [],
-    }
-    this.#upsertChannelMember(channelInfo, options)
+    })
 
-    this.#channels.push(channelInfo)
-    const coreKeyHex = b4a.toString(core.key, 'hex')
-    if (!this.#channelCores.has(name)) {
-      this.#channelCores.set(name, new Map())
-    }
-    this.#channelCores.get(name).set(coreKeyHex, core)
-    this.#channelLocalCoreKey.set(name, coreKeyHex)
-    this.#channelPeers.set(name, new Map())
-    this.#channelDiscoveries.set(name, appDiscovery)
-    this.#channelChatDiscoveries.set(name, chatDiscovery)
-    this.#saveChannelsMetadata()
+    console.log(`[MostBox] Channel created: ${channelInfo.channelKey}`)
+    this.emit('channel:joined', {
+      channel: channelInfo.channelKey,
+      channelKey: channelInfo.channelKey,
+      channelId: channelInfo.channelId,
+      key: channelInfo.channelKey,
+    })
 
-    console.log(`[MostBox] Channel created: ${name}`)
-    this.emit('channel:joined', { name, key: channelInfo.coreKey })
-
-    return {
-      name,
-      key: channelInfo.coreKey,
-      coreKey: channelInfo.coreKey,
-      createdAt: channelInfo.createdAt,
-      type: channelInfo.type,
-    }
+    return this.#formatChannelForResponse(channelInfo, ownerAddress)
   }
 
   /**
-   * 加入已有频道（通过频道名和 coreKey）
-   * @param {string} name - 频道名
-   * @param {string} [coreKey] - 频道的 coreKey（加入他人创建的频道时必填）
-   * @returns {Promise<{ name: string, key: string }>}
+   * 通过已发现候选加入频道。
+   * @param {string} channelIdInput - 用户可见短频道 ID
+   * @param {object|string|null} candidateInput - 候选对象或 channelKey
+   * @returns {Promise<object>}
    */
-  async joinChannel(name, coreKey = null, options = {}) {
+  async joinChannel(channelIdInput, candidateInput = null, options = {}) {
     this.#ensureInitialized()
-    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    const channelId = normalizeChannelId(channelIdInput)
+    const candidate =
+      candidateInput && typeof candidateInput === 'object'
+        ? candidateInput
+        : candidateInput
+          ? { channelKey: String(candidateInput), channelId }
+          : null
 
-    const existing = this.#channels.find(c => c.name === name)
+    if (!candidate?.channelKey && !candidate?.fingerprint) {
+      return this.createChannel(channelId, options.type || 'group', options)
+    }
+
+    const channelKey =
+      normalizeChannelKey(candidate.channelKey) ||
+      buildChannelKey(channelId, String(candidate.fingerprint || '').trim())
+    const existing = this.#channels.find(c => c.channelKey === channelKey)
     if (existing) {
+      await this.#mergeChannelWriterCoreKeys(existing, candidate.writerCoreKeys)
       if (this.#upsertChannelMember(existing, options)) {
         this.#saveChannelsMetadata()
       }
-      if (coreKey && coreKey !== existing.coreKey) {
-        if (!Array.isArray(existing.remoteCoreKeys)) {
-          existing.remoteCoreKeys = []
-        }
-        if (!existing.remoteCoreKeys.includes(coreKey)) {
-          existing.remoteCoreKeys.push(coreKey)
-          this.#saveChannelsMetadata()
-        }
-        await this.#openRemoteChannelCore(name, coreKey)
-      }
-      return {
-        name: existing.name,
-        key: existing.coreKey,
-        coreKey: existing.coreKey,
-        createdAt: existing.createdAt,
-        type: existing.type,
-      }
+      return this.#formatChannelForResponse(existing, options.ownerAddress)
     }
 
-    if (!coreKey) {
-      throw new Error('加入已有频道需要提供 coreKey')
-    }
-
-    const ns = this.#store.namespace(`channel-${name}`)
-    const remoteCoreKeyHex = b4a.toString(b4a.from(coreKey, 'hex'), 'hex')
-    const localCore = ns.get({
-      name: `messages-${this.getNodeId()}`,
-      valueEncoding: 'json',
+    const cached = this.#getCachedChannelCandidate(channelId, channelKey)
+    return this.#joinChannelFromCandidate(cached || candidate, 'group', {
+      ...options,
+      channelKey,
     })
-    await localCore.ready()
-    const localCoreKeyHex = b4a.toString(localCore.key, 'hex')
-
-    const discoveryKey = this.#generateChannelDiscoveryKey(name)
-    const chatDiscoveryKey = this.#generateChannelChatDiscoveryKey(name)
-    const appDiscovery = this.#swarm.join(discoveryKey, {
-      server: true,
-      client: true,
-    })
-    const chatDiscovery = this.#chatSwarm.join(chatDiscoveryKey, {
-      server: true,
-      client: true,
-    })
-
-    this.#setupChannelAppendListener(localCore, name)
-
-    const channelInfo = {
-      name,
-      discoveryKey: b4a.toString(discoveryKey, 'hex'),
-      coreKey: localCoreKeyHex,
-      createdAt: new Date().toISOString(),
-      type: 'group',
-      ownerAddress,
-      members: [],
-      remoteCoreKeys:
-        remoteCoreKeyHex === localCoreKeyHex ? [] : [remoteCoreKeyHex],
-    }
-    this.#upsertChannelMember(channelInfo, options)
-
-    this.#channels.push(channelInfo)
-    if (!this.#channelCores.has(name)) {
-      this.#channelCores.set(name, new Map())
-    }
-    this.#channelCores.get(name).set(localCoreKeyHex, localCore)
-    this.#channelLocalCoreKey.set(name, localCoreKeyHex)
-    this.#channelPeers.set(name, new Map())
-    this.#channelDiscoveries.set(name, appDiscovery)
-    this.#channelChatDiscoveries.set(name, chatDiscovery)
-    this.#saveChannelsMetadata()
-    if (remoteCoreKeyHex !== localCoreKeyHex) {
-      await this.#openRemoteChannelCore(name, remoteCoreKeyHex)
-    }
-
-    console.log(`[MostBox] Joined channel: ${name}`)
-    this.emit('channel:joined', { name, key: localCoreKeyHex })
-
-    return {
-      name,
-      key: localCoreKeyHex,
-      coreKey: localCoreKeyHex,
-      createdAt: channelInfo.createdAt,
-      type: channelInfo.type,
-    }
   }
 
   /**
    * 离开频道
-   * @param {string} name - 频道名
+   * @param {string} channelKeyInput - 内部频道 key，或本地唯一短频道 ID
    * @returns {Promise<string[]>} 剩余频道列表
    */
-  async leaveChannel(name, options = {}) {
+  async leaveChannel(channelKeyInput, options = {}) {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
 
-    const index = this.#channels.findIndex(c => c.name === name)
+    const channel = this.#resolveChannel(channelKeyInput, ownerAddress)
+    const index = this.#channels.findIndex(c => c.channelKey === channel.channelKey)
     if (index === -1) {
       throw new Error('频道不存在')
     }
 
-    const channel = this.#channels[index]
     if (ownerAddress && Array.isArray(channel.members)) {
       channel.members = channel.members.filter(
         member => normalizeOwnerAddress(member?.address) !== ownerAddress
@@ -2373,66 +2325,89 @@ export class MostBoxEngine extends EventEmitter {
       }
     }
 
-    const appDiscovery = this.#channelDiscoveries.get(name)
+    const appDiscovery = this.#channelDiscoveries.get(channel.channelKey)
     if (appDiscovery && this.#swarm) {
-      this.#channelDiscoveries.delete(name)
-      this.#swarm.leave(b4a.from(channel.discoveryKey, 'hex')).catch(err => {
+      this.#channelDiscoveries.delete(channel.channelKey)
+      this.#swarm.leave(this.#generateChannelDiscoveryKey(channel.channelKey)).catch(err => {
         console.warn(
-          `[MostBox] Failed to leave app swarm for ${name}:`,
+          `[MostBox] Failed to leave app swarm for ${channel.channelKey}:`,
           err.message
         )
       })
     }
 
-    const chatDiscovery = this.#channelChatDiscoveries.get(name)
+    const chatDiscovery = this.#channelChatDiscoveries.get(channel.channelKey)
     if (chatDiscovery && this.#chatSwarm) {
-      this.#channelChatDiscoveries.delete(name)
-      const chatDiscoveryKey = this.#generateChannelChatDiscoveryKey(name)
+      this.#channelChatDiscoveries.delete(channel.channelKey)
+      const chatDiscoveryKey = this.#generateChannelChatDiscoveryKey(
+        channel.channelKey
+      )
       this.#chatSwarm.leave(chatDiscoveryKey).catch(err => {
         console.warn(
-          `[MostBox] Failed to leave chat swarm for ${name}:`,
+          `[MostBox] Failed to leave chat swarm for ${channel.channelKey}:`,
           err.message
         )
       })
     }
 
-    const coresMap = this.#channelCores.get(name)
+    const hasSameIdChannel = this.#channels.some(
+      (item, itemIndex) =>
+        itemIndex !== index && item.channelId === channel.channelId
+    )
+    if (!hasSameIdChannel) {
+      const idDiscovery = this.#channelIdDiscoveries.get(channel.channelId)
+      if (idDiscovery && this.#chatSwarm) {
+        this.#channelIdDiscoveries.delete(channel.channelId)
+        this.#chatSwarm
+          .leave(this.#generateChannelIdDiscoveryKey(channel.channelId))
+          .catch(err => {
+            console.warn(
+              `[MostBox] Failed to leave channel ID discovery for ${channel.channelId}:`,
+              err.message
+            )
+          })
+      }
+    }
+
+    const coresMap = this.#channelCores.get(channel.channelKey)
     if (coresMap) {
       for (const [, core] of coresMap) {
         try {
           await core.close()
         } catch (err) {
           console.warn(
-            `[MostBox] Failed to close channel core for ${name}:`,
+            `[MostBox] Failed to close channel core for ${channel.channelKey}:`,
             err.message
           )
         }
       }
-      this.#channelCores.delete(name)
+      this.#channelCores.delete(channel.channelKey)
     }
-    this.#channelLocalCoreKey.delete(name)
+    this.#channelLocalCoreKey.delete(channel.channelKey)
 
-    this.#channelPeers.delete(name)
+    this.#channelPeers.delete(channel.channelKey)
     this.#channels.splice(index, 1)
     this.#saveChannelsMetadata()
 
-    console.log(`[MostBox] Left channel: ${name}`)
-    this.emit('channel:left', { name })
+    console.log(`[MostBox] Left channel: ${channel.channelKey}`)
+    this.emit('channel:left', {
+      channel: channel.channelKey,
+      channelKey: channel.channelKey,
+      channelId: channel.channelId,
+      name: channel.channelId,
+    })
 
     return this.listChannels({ ownerAddress })
   }
 
-  setChannelRemark(name, remark, options = {}) {
+  setChannelRemark(channelKeyInput, remark, options = {}) {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
     if (!ownerAddress) {
       throw new Error('需要登录才能设置备注')
     }
 
-    const channel = this.#channels.find(c => c.name === name)
-    if (!channel) {
-      throw new Error('频道不存在')
-    }
+    const channel = this.#resolveChannel(channelKeyInput, ownerAddress)
 
     const trimmed = (remark || '').trim()
     if (trimmed.length > 50) {
@@ -2453,18 +2428,15 @@ export class MostBoxEngine extends EventEmitter {
     return trimmed
   }
 
-  setChannelPinned(name, pinned, options = {}) {
+  setChannelPinned(channelKeyInput, pinned, options = {}) {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
     if (!ownerAddress) {
       throw new Error('需要登录才能设置置顶')
     }
 
-    const channel = this.#channels.find(c => c.name === name)
-    if (!channel) {
-      throw new Error('频道不存在')
-    }
-    this.#assertChannelMember(name, ownerAddress)
+    const channel = this.#resolveChannel(channelKeyInput, ownerAddress)
+    this.#assertChannelMember(channel.channelKey, ownerAddress)
 
     if (!channel.pinnedBy) {
       channel.pinnedBy = {}
@@ -2482,7 +2454,7 @@ export class MostBoxEngine extends EventEmitter {
 
   /**
    * 列出所有频道
-   * @returns {Array<{ name: string, coreKey: string, createdAt: string, lastMessageAt: string, type: string, peerCount: number, remark: string, pinned: boolean }>}
+   * @returns {Array<{ channelId: string, channelKey: string, name: string, createdAt: string, lastMessageAt: string, type: string, peerCount: number, remark: string, pinned: boolean }>}
    */
   listChannels(options = {}) {
     this.#ensureInitialized()
@@ -2500,45 +2472,33 @@ export class MostBoxEngine extends EventEmitter {
         if (excludeType) return c.type !== excludeType
         return true
       })
-      .map(c => ({
-        name: c.name,
-        coreKey: c.coreKey,
-        createdAt: c.createdAt,
-        lastMessageAt: c.lastMessageAt || '',
-        type: c.type,
-        peerCount: (this.#channelPeers.get(c.name) || new Map()).size,
-        remark: ownerAddress && c.remarks ? c.remarks[ownerAddress] || '' : '',
-        pinned: Boolean(ownerAddress && c.pinnedBy?.[ownerAddress]),
-      }))
+      .map(c => this.#formatChannelForResponse(c, ownerAddress))
   }
 
-  getChannelMembers(name, options = {}) {
+  getChannelMembers(channelKeyInput, options = {}) {
     this.#ensureInitialized()
-    this.#assertChannelMember(name, options.ownerAddress)
-
-    const channel = this.#channels.find(c => c.name === name)
-    if (!channel) {
-      throw new Error('频道不存在')
-    }
+    this.#assertChannelMember(channelKeyInput, options.ownerAddress)
+    const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
 
     return this.#getChannelMembers(channel)
   }
 
   /**
    * 获取频道消息
-   * @param {string} name - 频道名
+   * @param {string} channelKeyInput - 内部频道 key，或本地唯一短频道 ID
    * @param {object} [options] - 选项
    * @param {number} [options.limit=100] - 消息数量
    * @param {number} [options.offset=0] - 偏移量
    * @returns {Promise<Array>}
    */
-  async getChannelMessages(name, options = {}) {
+  async getChannelMessages(channelKeyInput, options = {}) {
     this.#ensureInitialized()
-    this.#assertChannelMember(name, options.ownerAddress)
+    this.#assertChannelMember(channelKeyInput, options.ownerAddress)
+    const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
 
     const { limit = CHANNEL_MESSAGE_LIMIT, offset = 0 } = options
 
-    const coresMap = this.#channelCores.get(name)
+    const coresMap = this.#channelCores.get(channel.channelKey)
     if (!coresMap || coresMap.size === 0) {
       throw new Error('频道未初始化')
     }
@@ -2578,26 +2538,26 @@ export class MostBoxEngine extends EventEmitter {
     return unique
       .slice(start, end)
       .map(({ _coreKey, _index, ...msg }) =>
-        this.#normalizeChannelMessageForResponse(name, msg)
+        this.#normalizeChannelMessageForResponse(channel.channelKey, msg)
       )
   }
 
   /**
    * 发送消息到频道
-   * @param {string} name - 频道名
+   * @param {string} channelKeyInput - 内部频道 key，或本地唯一短频道 ID
    * @param {string} content - 消息内容
    * @param {string} author - 作者 address
    * @param {string} authorName - 作者显示名
    * @param {object} [options.attachment] - 附件元数据
    * @returns {Promise<object>}
    */
-  async sendMessage(name, content, author, authorName, options = {}) {
+  async sendMessage(channelKeyInput, content, author, authorName, options = {}) {
     this.#ensureInitialized()
-    this.#assertChannelMember(name, options.ownerAddress)
-    const channel = this.#channels.find(c => c.name === name)
+    this.#assertChannelMember(channelKeyInput, options.ownerAddress)
+    const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
 
-    const localKeyHex = this.#channelLocalCoreKey.get(name)
-    const coresMap = this.#channelCores.get(name)
+    const localKeyHex = this.#channelLocalCoreKey.get(channel.channelKey)
+    const coresMap = this.#channelCores.get(channel.channelKey)
     const core = localKeyHex && coresMap ? coresMap.get(localKeyHex) : null
     if (!core) {
       throw new Error('频道未初始化或无可写 core')
@@ -2648,14 +2608,15 @@ export class MostBoxEngine extends EventEmitter {
 
   /**
    * 获取频道内在线用户
-   * @param {string} name - 频道名
+   * @param {string} channelKeyInput - 内部频道 key，或本地唯一短频道 ID
    * @returns {Array<{ peerId: string, authorName: string, lastSeen: number }>}
    */
-  getChannelPeers(name, options = {}) {
+  getChannelPeers(channelKeyInput, options = {}) {
     this.#ensureInitialized()
-    this.#assertChannelMember(name, options.ownerAddress)
+    this.#assertChannelMember(channelKeyInput, options.ownerAddress)
+    const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
 
-    const peers = this.#channelPeers.get(name)
+    const peers = this.#channelPeers.get(channel.channelKey)
     if (!peers) {
       return []
     }
@@ -2704,6 +2665,361 @@ export class MostBoxEngine extends EventEmitter {
 
   // --- 私有方法 ---
 
+  #resolveChannel(identifier, ownerAddress = '') {
+    const value = normalizeChannelKey(identifier)
+    const owner = normalizeOwnerAddress(ownerAddress)
+    let channel = this.#channels.find(c => c.channelKey === value)
+    if (channel) return channel
+
+    const matches = this.#channels.filter(c => c.channelId === value)
+    const visibleMatches = owner
+      ? matches.filter(c => this.#channelHasMember(c, owner))
+      : matches
+    if (visibleMatches.length === 1) return visibleMatches[0]
+    if (visibleMatches.length > 1) {
+      throw new Error('频道 ID 存在多个候选，请使用 channelKey')
+    }
+    throw new Error('频道不存在')
+  }
+
+  async #createLocalChannel(channelId, type = 'personal', options = {}) {
+    const fingerprint =
+      String(options.fingerprint || '').trim() || createChannelFingerprint()
+    const channelKey = buildChannelKey(channelId, fingerprint)
+    const writerId = String(options.writerId || '').trim() || createChannelWriterId()
+    const ns = this.#store.namespace(`channel-${channelKey}`)
+    const localCore = ns.get({
+      name: `messages-${writerId}`,
+      valueEncoding: 'json',
+    })
+    await localCore.ready()
+    const localWriterCoreKey = b4a.toString(localCore.key, 'hex')
+    const writerCoreKeys = uniqueStrings([
+      ...(Array.isArray(options.writerCoreKeys) ? options.writerCoreKeys : []),
+      localWriterCoreKey,
+    ])
+    const channelInfo = {
+      channelId,
+      fingerprint,
+      channelKey,
+      name: channelId,
+      type: String(type || 'personal').trim() || 'personal',
+      createdAt: options.createdAt || new Date().toISOString(),
+      lastMessageAt: options.lastMessageAt || '',
+      writerId,
+      localWriterCoreKey,
+      writerCoreKeys,
+      members: [],
+    }
+
+    this.#upsertChannelMember(channelInfo, options)
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    const remark = String(options.remark || '').trim()
+    if (ownerAddress && remark) {
+      channelInfo.remarks = { [ownerAddress]: remark.slice(0, 50) }
+    }
+
+    this.#channels.push(channelInfo)
+    await this.#openChannelRuntime(channelInfo)
+    await this.#joinChannelDiscoveryTopics(channelInfo)
+    this.#cacheChannelCandidate(this.#channelToCandidate(channelInfo, true))
+    this.#saveChannelsMetadata()
+    return channelInfo
+  }
+
+  async #joinChannelFromCandidate(candidateInput, type = 'group', options = {}) {
+    const channelId = normalizeChannelId(
+      candidateInput.channelId || options.channelId
+    )
+    const channelKey = normalizeChannelKey(candidateInput.channelKey)
+    const fingerprint =
+      String(candidateInput.fingerprint || '').trim() ||
+      channelKey.slice(channelId.length + 1)
+    if (!channelId || !fingerprint) {
+      throw new Error('频道候选缺少身份信息')
+    }
+
+    const existing = this.#channels.find(
+      channel => channel.channelKey === buildChannelKey(channelId, fingerprint)
+    )
+    if (existing) {
+      if (this.#upsertChannelMember(existing, options)) {
+        this.#saveChannelsMetadata()
+      }
+      return this.#formatChannelForResponse(existing, options.ownerAddress)
+    }
+
+    const hasSameIdLocal = this.#channels.some(
+      channel => channel.channelId === channelId
+    )
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    const remark =
+      ownerAddress && hasSameIdLocal && !String(options.remark || '').trim()
+        ? `${channelId}-网络`
+        : options.remark
+    const channelInfo = await this.#createLocalChannel(channelId, candidateInput.type || type, {
+      ...options,
+      ownerAddress,
+      fingerprint,
+      createdAt: candidateInput.createdAt,
+      lastMessageAt: candidateInput.lastMessageAt,
+      writerCoreKeys: candidateInput.writerCoreKeys,
+      remark,
+    })
+
+    console.log(`[MostBox] Joined channel: ${channelInfo.channelKey}`)
+    this.emit('channel:joined', {
+      channel: channelInfo.channelKey,
+      channelKey: channelInfo.channelKey,
+      channelId: channelInfo.channelId,
+      key: channelInfo.channelKey,
+    })
+
+    return this.#formatChannelForResponse(channelInfo, ownerAddress)
+  }
+
+  async #openChannelRuntime(channel) {
+    const ns = this.#store.namespace(`channel-${channel.channelKey}`)
+    const localCore = channel.localWriterCoreKey
+      ? ns.get({
+          key: b4a.from(channel.localWriterCoreKey, 'hex'),
+          valueEncoding: 'json',
+        })
+      : ns.get({
+          name: `messages-${channel.writerId || createChannelWriterId()}`,
+          valueEncoding: 'json',
+        })
+    await localCore.ready()
+    const localWriterCoreKey = b4a.toString(localCore.key, 'hex')
+    channel.localWriterCoreKey = localWriterCoreKey
+    channel.writerCoreKeys = uniqueStrings([
+      ...(Array.isArray(channel.writerCoreKeys) ? channel.writerCoreKeys : []),
+      localWriterCoreKey,
+    ])
+
+    if (!this.#channelCores.has(channel.channelKey)) {
+      this.#channelCores.set(channel.channelKey, new Map())
+    }
+    this.#channelCores.get(channel.channelKey).set(localWriterCoreKey, localCore)
+    this.#channelLocalCoreKey.set(channel.channelKey, localWriterCoreKey)
+    if (!this.#channelPeers.has(channel.channelKey)) {
+      this.#channelPeers.set(channel.channelKey, new Map())
+    }
+    this.#setupChannelAppendListener(localCore, channel.channelKey)
+
+    for (const writerCoreKey of channel.writerCoreKeys) {
+      if (writerCoreKey && writerCoreKey !== localWriterCoreKey) {
+        await this.#openRemoteChannelCore(channel.channelKey, writerCoreKey)
+      }
+    }
+  }
+
+  async #mergeChannelWriterCoreKeys(channel, writerCoreKeys = []) {
+    const nextKeys = uniqueStrings(writerCoreKeys)
+    if (nextKeys.length === 0) return false
+
+    const previous = new Set(channel.writerCoreKeys || [])
+    let changed = false
+    for (const writerCoreKey of nextKeys) {
+      if (!previous.has(writerCoreKey)) {
+        previous.add(writerCoreKey)
+        changed = true
+      }
+      if (writerCoreKey !== this.#channelLocalCoreKey.get(channel.channelKey)) {
+        await this.#openRemoteChannelCore(channel.channelKey, writerCoreKey)
+      }
+    }
+    if (changed) {
+      channel.writerCoreKeys = [...previous]
+      this.#saveChannelsMetadata()
+    }
+    return changed
+  }
+
+  async #joinChannelDiscoveryTopics(channel) {
+    if (!this.#channelDiscoveries.has(channel.channelKey)) {
+      const appDiscovery = this.#swarm.join(
+        this.#generateChannelDiscoveryKey(channel.channelKey),
+        { server: true, client: true }
+      )
+      this.#channelDiscoveries.set(channel.channelKey, appDiscovery)
+    }
+
+    if (!this.#channelChatDiscoveries.has(channel.channelKey)) {
+      const chatDiscovery = this.#chatSwarm.join(
+        this.#generateChannelChatDiscoveryKey(channel.channelKey),
+        { server: true, client: true }
+      )
+      this.#channelChatDiscoveries.set(channel.channelKey, chatDiscovery)
+    }
+
+    if (!this.#channelIdDiscoveries.has(channel.channelId)) {
+      const idDiscovery = this.#chatSwarm.join(
+        this.#generateChannelIdDiscoveryKey(channel.channelId),
+        { server: true, client: true }
+      )
+      this.#channelIdDiscoveries.set(channel.channelId, idDiscovery)
+    }
+  }
+
+  #getLocalChannelCandidates(channelId, options = {}) {
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    return this.#channels
+      .filter(channel => channel.channelId === channelId)
+      .filter(channel => {
+        if (!ownerAddress) return true
+        return this.#channelHasMember(channel, ownerAddress)
+      })
+      .map(channel => this.#channelToCandidate(channel, true))
+  }
+
+  async #discoverChannelCandidates(channelId, options = {}) {
+    if (this.#options.disableNetwork) return []
+    const timeout =
+      Number(options.timeout) >= 0
+        ? Number(options.timeout)
+        : CHANNEL_DISCOVERY_TIMEOUT
+    const hadDiscovery = this.#channelIdDiscoveries.has(channelId)
+    if (!hadDiscovery) {
+      const discovery = this.#chatSwarm.join(
+        this.#generateChannelIdDiscoveryKey(channelId),
+        { server: true, client: true }
+      )
+      this.#channelIdDiscoveries.set(channelId, discovery)
+    }
+    await sleep(timeout)
+    const now = Date.now()
+    const candidates = [
+      ...(this.#channelCandidateCache.get(channelId)?.values() || []),
+    ].filter(
+      candidate =>
+        candidate.local ||
+        !candidate.lastSeen ||
+        now - candidate.lastSeen <= CHANNEL_CANDIDATE_TTL
+    )
+    if (!hadDiscovery && !this.#channels.some(c => c.channelId === channelId)) {
+      this.#channelIdDiscoveries.delete(channelId)
+      this.#chatSwarm
+        .leave(this.#generateChannelIdDiscoveryKey(channelId))
+        .catch(() => {})
+    }
+    return candidates
+  }
+
+  #mergeChannelCandidates(candidates) {
+    const byKey = new Map()
+    for (const candidate of candidates) {
+      if (!candidate?.channelKey) continue
+      const existing = byKey.get(candidate.channelKey)
+      if (!existing) {
+        byKey.set(candidate.channelKey, {
+          ...candidate,
+          writerCoreKeys: uniqueStrings(candidate.writerCoreKeys),
+          onlineCount: Number(candidate.onlineCount) || (candidate.local ? 0 : 1),
+        })
+        continue
+      }
+      byKey.set(candidate.channelKey, {
+        ...existing,
+        ...candidate,
+        local: existing.local || candidate.local,
+        writerCoreKeys: uniqueStrings([
+          ...existing.writerCoreKeys,
+          ...(candidate.writerCoreKeys || []),
+        ]),
+        onlineCount:
+          Math.max(Number(existing.onlineCount) || 0, 0) +
+          (candidate.local ? 0 : 1),
+      })
+    }
+    return [...byKey.values()]
+  }
+
+  #channelToCandidate(channel, local = false) {
+    return {
+      channelId: channel.channelId,
+      fingerprint: channel.fingerprint,
+      channelKey: channel.channelKey,
+      type: channel.type,
+      createdAt: channel.createdAt,
+      lastMessageAt: channel.lastMessageAt || '',
+      writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
+      local,
+      onlineCount: local ? 0 : 1,
+    }
+  }
+
+  #cacheChannelCandidate(candidate) {
+    if (!candidate?.channelId || !candidate?.channelKey) return
+    if (!this.#channelCandidateCache.has(candidate.channelId)) {
+      this.#channelCandidateCache.set(candidate.channelId, new Map())
+    }
+    const cache = this.#channelCandidateCache.get(candidate.channelId)
+    const existing = cache.get(candidate.channelKey)
+    cache.set(candidate.channelKey, {
+      ...existing,
+      ...candidate,
+      writerCoreKeys: uniqueStrings([
+        ...(existing?.writerCoreKeys || []),
+        ...(candidate.writerCoreKeys || []),
+      ]),
+      onlineCount: Math.max(Number(existing?.onlineCount) || 0, 0) + 1,
+      lastSeen: Date.now(),
+    })
+  }
+
+  #getCachedChannelCandidate(channelId, channelKey) {
+    const candidate = this.#channelCandidateCache.get(channelId)?.get(channelKey)
+    if (candidate) return candidate
+    const local = this.#channels.find(channel => channel.channelKey === channelKey)
+    return local ? this.#channelToCandidate(local, true) : null
+  }
+
+  #formatChannelCandidateForResponse(candidate, ownerAddress = '') {
+    const owner = normalizeOwnerAddress(ownerAddress)
+    const localChannel = this.#channels.find(
+      channel => channel.channelKey === candidate.channelKey
+    )
+    const remark =
+      localChannel && owner
+        ? localChannel.remarks?.[owner] || ''
+        : candidate.local
+          ? ''
+          : `${candidate.channelId}-网络`
+    return {
+      channelId: candidate.channelId,
+      fingerprint: candidate.fingerprint,
+      channelKey: candidate.channelKey,
+      name: candidate.channelId,
+      type: candidate.type || 'public',
+      createdAt: candidate.createdAt || '',
+      lastMessageAt: candidate.lastMessageAt || '',
+      remark,
+      local: Boolean(candidate.local),
+      onlineCount: Number(candidate.onlineCount) || 0,
+    }
+  }
+
+  #formatChannelForResponse(channel, ownerAddress = '') {
+    const owner = normalizeOwnerAddress(ownerAddress)
+    return {
+      name: channel.channelId,
+      channelId: channel.channelId,
+      fingerprint: channel.fingerprint,
+      channelKey: channel.channelKey,
+      key: channel.channelKey,
+      coreKey: channel.localWriterCoreKey,
+      localWriterCoreKey: channel.localWriterCoreKey,
+      writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
+      createdAt: channel.createdAt,
+      lastMessageAt: channel.lastMessageAt || '',
+      type: channel.type,
+      peerCount: (this.#channelPeers.get(channel.channelKey) || new Map()).size,
+      remark: owner && channel.remarks ? channel.remarks[owner] || '' : '',
+      pinned: Boolean(owner && channel.pinnedBy?.[owner]),
+    }
+  }
+
   #ensureInitialized() {
     if (!this.#initialized) {
       throw new EngineNotInitializedError()
@@ -2714,10 +3030,7 @@ export class MostBoxEngine extends EventEmitter {
     const normalizedOwner = normalizeOwnerAddress(ownerAddress)
     if (!normalizedOwner) return
 
-    const channel = this.#channels.find(c => c.name === name)
-    if (!channel) {
-      throw new Error('频道不存在')
-    }
+    const channel = this.#resolveChannel(name)
     if (!this.#channelHasMember(channel, normalizedOwner)) {
       throw new PermissionError('未加入该频道')
     }
@@ -2802,14 +3115,16 @@ export class MostBoxEngine extends EventEmitter {
       )
   }
 
-  #normalizeChannelMessageForResponse(channelName, message) {
+  #normalizeChannelMessageForResponse(channelKey, message) {
     const attachment = message?.attachment
     if (!attachment?.cid || !attachment.fileName) {
       return message
     }
 
     const oldFileName = sanitizeFilename(String(attachment.fileName))
-    const channelPrefix = `${CHAT_FILE_ROOT}/${channelName}/`
+    const channel = this.#channels.find(item => item.channelKey === channelKey)
+    const channelPathName = channel?.channelId || channelKey
+    const channelPrefix = `${CHAT_FILE_ROOT}/${channelPathName}/`
     const fileName = oldFileName.startsWith(channelPrefix)
       ? oldFileName
       : `${channelPrefix}${getPathBaseName(oldFileName)}`
@@ -2910,24 +3225,42 @@ export class MostBoxEngine extends EventEmitter {
     const channels = Array.isArray(input.channels)
       ? input.channels
           .filter(channel => channel && typeof channel === 'object')
-          .map(channel => ({
-            name: String(channel.name || '').trim(),
-            type: String(channel.type || 'personal').trim() || 'personal',
-            coreKey: String(channel.coreKey || '').trim(),
-            createdAt:
-              typeof channel.createdAt === 'string' ? channel.createdAt : '',
-            lastMessageAt:
-              typeof channel.lastMessageAt === 'string'
-                ? channel.lastMessageAt
-                : '',
-            member:
-              channel.member && typeof channel.member === 'object'
-                ? channel.member
-                : null,
-            remark: String(channel.remark || '').slice(0, 50),
-            pinned: Boolean(channel.pinned),
-          }))
-          .filter(channel => CHANNEL_NAME_REGEX.test(channel.name))
+          .map(channel => {
+            const channelId = normalizeChannelId(
+              channel.channelId || channel.name
+            )
+            const fingerprint = String(channel.fingerprint || '').trim()
+            const channelKey =
+              normalizeChannelKey(channel.channelKey) ||
+              (channelId && fingerprint
+                ? buildChannelKey(channelId, fingerprint)
+                : '')
+            return {
+              channelId,
+              fingerprint,
+              channelKey,
+              type: String(channel.type || 'personal').trim() || 'personal',
+              writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
+              createdAt:
+                typeof channel.createdAt === 'string' ? channel.createdAt : '',
+              lastMessageAt:
+                typeof channel.lastMessageAt === 'string'
+                  ? channel.lastMessageAt
+                  : '',
+              member:
+                channel.member && typeof channel.member === 'object'
+                  ? channel.member
+                  : null,
+              remark: String(channel.remark || '').slice(0, 50),
+              pinned: Boolean(channel.pinned),
+            }
+          })
+          .filter(
+            channel =>
+              CHANNEL_NAME_REGEX.test(channel.channelId) &&
+              channel.fingerprint &&
+              channel.channelKey
+          )
       : []
 
     return { files, trashFiles, channels }
@@ -2938,18 +3271,22 @@ export class MostBoxEngine extends EventEmitter {
     if (!normalizedOwner) return
 
     for (const imported of channels) {
-      let channel = this.#channels.find(item => item.name === imported.name)
+      let channel = this.#channels.find(
+        item => item.channelKey === imported.channelKey
+      )
       if (!channel) {
-        const discoveryKey = this.#generateChannelDiscoveryKey(imported.name)
         channel = {
-          name: imported.name,
-          discoveryKey: b4a.toString(discoveryKey, 'hex'),
-          coreKey: imported.coreKey,
+          channelId: imported.channelId,
+          fingerprint: imported.fingerprint,
+          channelKey: imported.channelKey,
+          name: imported.channelId,
           createdAt: imported.createdAt || new Date().toISOString(),
           lastMessageAt: imported.lastMessageAt || '',
           type: imported.type,
+          writerId: createChannelWriterId(),
+          localWriterCoreKey: '',
+          writerCoreKeys: imported.writerCoreKeys,
           members: [],
-          remoteCoreKeys: [],
         }
         this.#channels.push(channel)
       }
@@ -3654,7 +3991,35 @@ export class MostBoxEngine extends EventEmitter {
       const metadataPath = this.#getChannelsMetadataPath()
       if (fs.existsSync(metadataPath)) {
         const data = fs.readFileSync(metadataPath, 'utf-8')
-        return JSON.parse(data)
+        const channels = JSON.parse(data)
+        if (!Array.isArray(channels)) return []
+        return channels
+          .filter(channel => channel && typeof channel === 'object')
+          .map(channel => {
+            const channelId = normalizeChannelId(channel.channelId)
+            const fingerprint = String(channel.fingerprint || '').trim()
+            const channelKey =
+              normalizeChannelKey(channel.channelKey) ||
+              (channelId && fingerprint
+                ? buildChannelKey(channelId, fingerprint)
+                : '')
+            return {
+              ...channel,
+              channelId,
+              fingerprint,
+              channelKey,
+              name: channelId,
+              writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
+            }
+          })
+          .filter(
+            channel =>
+              CHANNEL_NAME_REGEX.test(channel.channelId) &&
+              channel.fingerprint &&
+              channel.channelKey &&
+              channel.writerId &&
+              channel.localWriterCoreKey
+          )
       }
     } catch (err) {
       console.warn(
@@ -3668,9 +4033,23 @@ export class MostBoxEngine extends EventEmitter {
   #saveChannelsMetadata() {
     try {
       const metadataPath = this.#getChannelsMetadataPath()
-      const persistentChannels = this.#channels.filter(
-        channel => !TRANSIENT_CHANNEL_TYPES.has(channel?.type)
-      )
+      const persistentChannels = this.#channels
+        .filter(channel => !TRANSIENT_CHANNEL_TYPES.has(channel?.type))
+        .map(channel => ({
+          channelId: channel.channelId,
+          fingerprint: channel.fingerprint,
+          channelKey: channel.channelKey,
+          name: channel.channelId,
+          type: channel.type,
+          createdAt: channel.createdAt,
+          lastMessageAt: channel.lastMessageAt || '',
+          writerId: channel.writerId,
+          localWriterCoreKey: channel.localWriterCoreKey,
+          writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
+          members: Array.isArray(channel.members) ? channel.members : [],
+          remarks: channel.remarks,
+          pinnedBy: channel.pinnedBy,
+        }))
       this.#atomicWrite(
         metadataPath,
         JSON.stringify(persistentChannels, null, 2)
@@ -3680,23 +4059,31 @@ export class MostBoxEngine extends EventEmitter {
     }
   }
 
-  #generateChannelDiscoveryKey(name) {
+  #generateChannelDiscoveryKey(channelKey) {
     const hash = crypto
       .createHash('sha256')
-      .update(`${CHANNEL_NAME_PREFIX}${name}`)
+      .update(`${CHANNEL_NAME_PREFIX}channel:${channelKey}`)
       .digest()
     return hash
   }
 
-  #generateChannelChatDiscoveryKey(name) {
+  #generateChannelChatDiscoveryKey(channelKey) {
     const hash = crypto
       .createHash('sha256')
-      .update(`${CHANNEL_NAME_PREFIX}${name}:chat`)
+      .update(`${CHANNEL_NAME_PREFIX}channel:${channelKey}:chat`)
       .digest()
     return hash
   }
 
-  #setupChannelAppendListener(core, channelName) {
+  #generateChannelIdDiscoveryKey(channelId) {
+    const hash = crypto
+      .createHash('sha256')
+      .update(`${CHANNEL_NAME_PREFIX}id:${channelId}:candidates`)
+      .digest()
+    return hash
+  }
+
+  #setupChannelAppendListener(core, channelKey) {
     let lastCoreLength = core.length
     core.on('append', async () => {
       if (core.length > lastCoreLength) {
@@ -3704,7 +4091,9 @@ export class MostBoxEngine extends EventEmitter {
           try {
             const entry = await core.get(i)
             if (entry && entry.type === 'message') {
-              const channel = this.#channels.find(c => c.name === channelName)
+              const channel = this.#channels.find(
+                c => c.channelKey === channelKey
+              )
               if (channel) {
                 const entryTime = Number(entry.timestamp) || Date.now()
                 const currentTime = Date.parse(channel.lastMessageAt || '') || 0
@@ -3714,16 +4103,18 @@ export class MostBoxEngine extends EventEmitter {
                 }
               }
               this.emit('channel:message', {
-                channel: channelName,
+                channel: channelKey,
+                channelKey,
+                channelId: channel?.channelId || '',
                 message: this.#normalizeChannelMessageForResponse(
-                  channelName,
+                  channelKey,
                   entry
                 ),
               })
             }
           } catch (err) {
             console.error(
-              `[MostBox] Failed to read channel message from ${channelName}:`,
+              `[MostBox] Failed to read channel message from ${channelKey}:`,
               err.message
             )
             continue
@@ -3734,13 +4125,13 @@ export class MostBoxEngine extends EventEmitter {
     })
   }
 
-  async #openRemoteChannelCore(channelName, coreKeyHex) {
-    const coresMap = this.#channelCores.get(channelName)
+  async #openRemoteChannelCore(channelKey, coreKeyHex) {
+    const coresMap = this.#channelCores.get(channelKey)
     if (!coresMap) return
     if (coresMap.has(coreKeyHex)) return
 
     try {
-      const ns = this.#store.namespace(`channel-${channelName}`)
+      const ns = this.#store.namespace(`channel-${channelKey}`)
       const core = ns.get({
         key: b4a.from(coreKeyHex, 'hex'),
         valueEncoding: 'json',
@@ -3748,23 +4139,21 @@ export class MostBoxEngine extends EventEmitter {
       await core.ready()
       const normalizedCoreKey = b4a.toString(core.key, 'hex')
       coresMap.set(normalizedCoreKey, core)
-      this.#setupChannelAppendListener(core, channelName)
-      const channel = this.#channels.find(c => c.name === channelName)
-      if (channel && normalizedCoreKey !== channel.coreKey) {
-        if (!Array.isArray(channel.remoteCoreKeys)) {
-          channel.remoteCoreKeys = []
-        }
-        if (!channel.remoteCoreKeys.includes(normalizedCoreKey)) {
-          channel.remoteCoreKeys.push(normalizedCoreKey)
-          this.#saveChannelsMetadata()
-        }
+      this.#setupChannelAppendListener(core, channelKey)
+      const channel = this.#channels.find(c => c.channelKey === channelKey)
+      if (channel && !channel.writerCoreKeys?.includes(normalizedCoreKey)) {
+        channel.writerCoreKeys = uniqueStrings([
+          ...(channel.writerCoreKeys || []),
+          normalizedCoreKey,
+        ])
+        this.#saveChannelsMetadata()
       }
       console.log(
-        `[MostBox] Opened remote channel core ${normalizedCoreKey.slice(0, 8)}... for ${channelName}`
+        `[MostBox] Opened remote channel core ${normalizedCoreKey.slice(0, 8)}... for ${channelKey}`
       )
     } catch (err) {
       console.warn(
-        `[MostBox] Failed to open remote channel core for ${channelName}:`,
+        `[MostBox] Failed to open remote channel core for ${channelKey}:`,
         err.message
       )
     }
@@ -3774,17 +4163,24 @@ export class MostBoxEngine extends EventEmitter {
     const stream = conn
     let connectedPeerId = null
 
-    const coreKeys = {}
-    for (const [name, localKeyHex] of this.#channelLocalCoreKey) {
-      coreKeys[name] = localKeyHex
-    }
+    const channels = this.#channels.map(channel => ({
+      channelId: channel.channelId,
+      fingerprint: channel.fingerprint,
+      channelKey: channel.channelKey,
+      type: channel.type,
+      createdAt: channel.createdAt,
+      lastMessageAt: channel.lastMessageAt || '',
+      writerCoreKeys: uniqueStrings([
+        ...(channel.writerCoreKeys || []),
+        this.#channelLocalCoreKey.get(channel.channelKey),
+      ]),
+    }))
 
     const helloMessage = JSON.stringify({
       type: 'channel-hello',
       peerId: this.getNodeId(),
       authorName: this.getNodeId().slice(0, 4),
-      channels: this.#channels.map(c => c.name),
-      coreKeys,
+      channels,
     })
 
     try {
@@ -3799,23 +4195,63 @@ export class MostBoxEngine extends EventEmitter {
         if (msg.type === 'channel-hello') {
           connectedPeerId = msg.peerId
 
-          const theirChannels = new Set(msg.channels || [])
-          for (const [name, peers] of this.#channelPeers) {
-            if (theirChannels.has(name)) {
+          const remoteChannels = Array.isArray(msg.channels)
+            ? msg.channels
+                .filter(channel => channel && typeof channel === 'object')
+                .map(channel => ({
+                  channelId: normalizeChannelId(channel.channelId),
+                  fingerprint: String(channel.fingerprint || '').trim(),
+                  channelKey: normalizeChannelKey(channel.channelKey),
+                  type: String(channel.type || 'public').trim() || 'public',
+                  createdAt:
+                    typeof channel.createdAt === 'string'
+                      ? channel.createdAt
+                      : '',
+                  lastMessageAt:
+                    typeof channel.lastMessageAt === 'string'
+                      ? channel.lastMessageAt
+                      : '',
+                  writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
+                }))
+                .filter(
+                  channel =>
+                    channel.channelId &&
+                    channel.fingerprint &&
+                    channel.channelKey
+                )
+            : []
+
+          for (const remoteChannel of remoteChannels) {
+            this.#cacheChannelCandidate({
+              ...remoteChannel,
+              local: false,
+              peerId: msg.peerId,
+              onlineCount: 1,
+            })
+
+            const localChannel = this.#channels.find(
+              channel => channel.channelKey === remoteChannel.channelKey
+            )
+            if (!localChannel) continue
+
+            const peers = this.#channelPeers.get(localChannel.channelKey)
+            if (peers) {
               peers.set(msg.peerId, {
                 peerId: msg.peerId,
                 authorName: msg.authorName,
                 lastSeen: Date.now(),
               })
             }
-          }
 
-          if (msg.coreKeys && typeof msg.coreKeys === 'object') {
-            for (const [channelName, coreKeyHex] of Object.entries(
-              msg.coreKeys
-            )) {
-              if (this.#channelCores.has(channelName) && coreKeyHex) {
-                await this.#openRemoteChannelCore(channelName, coreKeyHex)
+            for (const writerCoreKey of remoteChannel.writerCoreKeys) {
+              if (
+                writerCoreKey &&
+                writerCoreKey !== this.#channelLocalCoreKey.get(localChannel.channelKey)
+              ) {
+                await this.#openRemoteChannelCore(
+                  localChannel.channelKey,
+                  writerCoreKey
+                )
               }
             }
           }

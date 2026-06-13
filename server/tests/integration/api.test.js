@@ -1451,6 +1451,32 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(data.name, `dup-${uid}`)
     })
 
+    it('returns conflict candidates for duplicate short channel IDs', async () => {
+      const channelId = `conflict-${uid}`
+      await engine.createChannel(channelId)
+      await engine.joinChannel(channelId, {
+        channelId,
+        fingerprint: '1234567890abcdef',
+        channelKey: `${channelId}:1234567890abcdef`,
+        type: 'public',
+        writerCoreKeys: [],
+      })
+
+      const res = await fetch(`${baseUrl}/api/channels`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: channelId }),
+      })
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 200)
+      assert.strictEqual(data.success, false)
+      assert.strictEqual(data.conflict, true)
+      assert.strictEqual(data.channelId, channelId)
+      assert.strictEqual(data.candidates.length, 2)
+      assert.ok(data.candidates.every(candidate => candidate.channelKey))
+    })
+
     it('returns 400 for missing name', async () => {
       const res = await fetch(`${baseUrl}/api/channels`, {
         method: 'POST',

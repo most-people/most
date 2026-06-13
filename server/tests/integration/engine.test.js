@@ -68,6 +68,18 @@ async function waitForChannelMessage(
   throw new Error(`Channel ${channelName} did not receive ${content}`)
 }
 
+function toChannelCandidate(channel) {
+  return {
+    channelId: channel.channelId || channel.name,
+    fingerprint: channel.fingerprint,
+    channelKey: channel.channelKey || channel.key,
+    type: channel.type,
+    createdAt: channel.createdAt,
+    lastMessageAt: channel.lastMessageAt,
+    writerCoreKeys: channel.writerCoreKeys,
+  }
+}
+
 describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'most-engine-test-'))
   const uid = Math.random().toString(36).slice(2, 8)
@@ -1357,13 +1369,15 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
     it('emits one channel message event for a local append', async () => {
       const ch = `event-${uid}`
       const events = []
+      let channelKey = ''
       const onMessage = data => {
-        if (data.channel === ch) events.push(data)
+        if (data.channel === channelKey) events.push(data)
       }
 
       msgEngine.on('channel:message', onMessage)
       try {
-        await msgEngine.createChannel(ch)
+        const created = await msgEngine.createChannel(ch)
+        channelKey = created.channelKey
         await msgEngine.sendMessage(ch, 'single event')
         await sleep(100)
 
@@ -1427,7 +1441,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
     it('throws for non-existent channel', async () => {
       await assert.rejects(
         msgEngine.sendMessage('nonexistent', 'test'),
-        /频道未初始化/
+        /频道不存在/
       )
     })
   })
@@ -1588,9 +1602,12 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
   })
 
   describe('joinChannel()', () => {
-    it('joins an existing channel by coreKey', async () => {
+    it('joins an existing channel by candidate identity', async () => {
       const created = await engine.createChannel(`join-${uid}`, 'group')
-      const joined = await engine.joinChannel(`join-${uid}`, created.key)
+      const joined = await engine.joinChannel(
+        `join-${uid}`,
+        toChannelCandidate(created)
+      )
       assert.strictEqual(joined.name, `join-${uid}`)
       assert.strictEqual(joined.key, created.key)
 
@@ -1598,11 +1615,10 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.ok(channels.find(c => c.name === `join-${uid}`))
     })
 
-    it('throws without coreKey for unknown channel', async () => {
-      await assert.rejects(
-        () => engine.joinChannel('nonexistent-channel'),
-        /加入已有频道需要提供 coreKey/
-      )
+    it('creates a new channel when no candidate is supplied', async () => {
+      const joined = await engine.joinChannel(`new-join-${uid}`)
+      assert.strictEqual(joined.name, `new-join-${uid}`)
+      assert.ok(joined.channelKey)
     })
 
     it('returns existing if already joined', async () => {
@@ -1612,7 +1628,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.strictEqual(r1.key, r2.key)
     })
 
-    it('creates a writable local core when joining by another channel core key', async () => {
+    it('creates a writable local writer core when joining another channel', async () => {
       const joinTmpDir = fs.mkdtempSync(
         path.join(os.tmpdir(), 'most-join-channel-test-')
       )
@@ -1627,10 +1643,17 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         await joinEngine.start()
         const channelName = `remote-join-${uid}`
         const created = await engine.createChannel(channelName)
-        const joined = await joinEngine.joinChannel(channelName, created.key)
+        const joined = await joinEngine.joinChannel(
+          channelName,
+          toChannelCandidate(created)
+        )
 
         assert.strictEqual(joined.name, channelName)
-        assert.notStrictEqual(joined.key, created.key)
+        assert.strictEqual(joined.key, created.key)
+        assert.notStrictEqual(
+          joined.localWriterCoreKey,
+          created.localWriterCoreKey
+        )
 
         const message = await joinEngine.sendMessage(
           channelName,
@@ -1647,11 +1670,108 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         const metadataPath = path.join(joinDataPath, 'channels.json')
         const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf-8'))
         const channel = metadata.find(c => c.name === channelName)
-        assert.deepStrictEqual(channel.remoteCoreKeys, [created.key])
-        assert.strictEqual(channel.coreKey, joined.key)
+        assert.ok(channel.writerCoreKeys.includes(created.localWriterCoreKey))
+        assert.strictEqual(channel.channelKey, joined.key)
       } finally {
         await joinEngine.stop().catch(() => {})
         fs.rmSync(joinTmpDir, { recursive: true, force: true })
+      }
+    })
+
+    it('keeps same channel IDs with different fingerprints isolated', async () => {
+      const channelName = `sameid-${uid}`
+      const ownerAddress = '0x1234567890abcdef1234567890abcdef12345678'
+      const first = await engine.createChannel(channelName, 'public', {
+        ownerAddress,
+      })
+      const second = await engine.joinChannel(channelName, {
+        channelId: channelName,
+        fingerprint: 'abcdef1234567890',
+        channelKey: `${channelName}:abcdef1234567890`,
+        type: 'public',
+        writerCoreKeys: [],
+      }, {
+        ownerAddress,
+      })
+
+      assert.strictEqual(first.name, second.name)
+      assert.notStrictEqual(first.channelKey, second.channelKey)
+      const listedChannels = engine
+        .listChannels({ ownerAddress })
+        .filter(channel => channel.name === channelName)
+      assert.strictEqual(listedChannels.length, 2)
+      assert.strictEqual(
+        listedChannels.find(channel => channel.channelKey === second.channelKey)
+          .remark,
+        `${channelName}-网络`
+      )
+
+      await engine.sendMessage(first.channelKey, 'from first')
+      await engine.sendMessage(second.channelKey, 'from second')
+
+      const firstMessages = await engine.getChannelMessages(first.channelKey)
+      const secondMessages = await engine.getChannelMessages(second.channelKey)
+      assert.deepStrictEqual(
+        firstMessages.map(message => message.content),
+        ['from first']
+      )
+      assert.deepStrictEqual(
+        secondMessages.map(message => message.content),
+        ['from second']
+      )
+      await assert.rejects(
+        engine.getChannelMessages(channelName),
+        /多个候选/
+      )
+    })
+
+    it('merges messages from multiple writer cores in one channel', async () => {
+      const mergeTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-channel-merge-test-')
+      )
+      const sourceDataPath = path.join(mergeTmpDir, 'source')
+      const joinDataPath = path.join(mergeTmpDir, 'joiner')
+      const channelName = `merge-${uid}`
+      let sourceEngine
+      let joinEngine
+      let replication
+
+      try {
+        sourceEngine = new MostBoxEngine({
+          dataPath: sourceDataPath,
+          disableNetwork: true,
+        })
+        joinEngine = new MostBoxEngine({
+          dataPath: joinDataPath,
+          disableNetwork: true,
+        })
+        await sourceEngine.start()
+        await joinEngine.start()
+
+        const created = await sourceEngine.createChannel(channelName)
+        await sourceEngine.sendMessage(created.channelKey, 'from source')
+
+        const joined = await joinEngine.joinChannel(
+          channelName,
+          toChannelCandidate(created)
+        )
+        await joinEngine.sendMessage(joined.channelKey, 'from joiner')
+        await sourceEngine.joinChannel(channelName, toChannelCandidate(joined))
+
+        replication = sourceEngine.replicateWith(joinEngine)
+        await waitForChannelMessage(joinEngine, joined.channelKey, 'from source')
+        await waitForChannelMessage(sourceEngine, created.channelKey, 'from joiner')
+
+        const messages = await sourceEngine.getChannelMessages(created.channelKey)
+        assert.deepStrictEqual(
+          messages.map(message => message.content),
+          ['from source', 'from joiner']
+        )
+      } finally {
+        replication?.close()
+        if (sourceEngine) await sourceEngine.stop().catch(() => {})
+        if (joinEngine) await joinEngine.stop().catch(() => {})
+        fs.rmSync(mergeTmpDir, { recursive: true, force: true })
       }
     })
 
@@ -1685,7 +1805,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
           '0x1234567890abcdef1234567890abcdef12345678',
           'Source'
         )
-        await joinEngine.joinChannel(channelName, created.key)
+        await joinEngine.joinChannel(channelName, toChannelCandidate(created))
         replication = sourceEngine.replicateWith(joinEngine)
         await waitForChannelMessage(
           joinEngine,
@@ -1723,6 +1843,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       const channelName = `join-restart-${uid}`
       const created = await engine.createChannel(channelName)
       let joinedKey
+      let joinedWriterKey
       let joinEngine = new MostBoxEngine({
         dataPath: restartDataPath,
         disableNetwork: true,
@@ -1730,8 +1851,12 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
 
       try {
         await joinEngine.start()
-        const joined = await joinEngine.joinChannel(channelName, created.key)
+        const joined = await joinEngine.joinChannel(
+          channelName,
+          toChannelCandidate(created)
+        )
         joinedKey = joined.key
+        joinedWriterKey = joined.localWriterCoreKey
         await joinEngine.sendMessage(
           channelName,
           'before restart',
@@ -1749,7 +1874,8 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         const channel = channels.find(c => c.name === channelName)
 
         assert.ok(channel)
-        assert.strictEqual(channel.coreKey, joinedKey)
+        assert.strictEqual(channel.channelKey, joinedKey)
+        assert.strictEqual(channel.localWriterCoreKey, joinedWriterKey)
 
         await joinEngine.sendMessage(
           channelName,

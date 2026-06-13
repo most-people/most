@@ -191,20 +191,28 @@ function ChatJoinContent() {
       })
 
       setStatus('正在加入频道...')
+      let firstJoinedChannelKey = ''
       for (const channel of invite.channels) {
-        await channelApi.createChannel(channel.id, 'public', {
+        const result = await channelApi.createChannel(channel.id, 'public', {
           displayName: invite.name || identity.displayName,
           avatar: invite.avatar,
         })
+        if (result.conflict) {
+          throw new Error(`频道 ${channel.id} 存在多个候选，请在聊天页选择`)
+        }
+        const joinedChannelKey = result.channelKey || result.key || channel.id
+        if (!firstJoinedChannelKey) firstJoinedChannelKey = joinedChannelKey
         const remark = normalizeChannelRemark(channel.name)
         if (remark) {
-          await channelApi.setChannelRemark(channel.id, remark)
+          await channelApi.setChannelRemark(joinedChannelKey, remark)
         }
       }
 
       const firstChannel = invite.channels[0]
       setStatus('加入成功，正在打开频道...')
-      window.location.href = getJoinChannelUrl(firstChannel.id)
+      window.location.href = getJoinChannelUrl(
+        firstJoinedChannelKey || firstChannel.id
+      )
     }
 
     async function decrypt() {

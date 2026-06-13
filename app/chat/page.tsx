@@ -50,6 +50,7 @@ import {
   channelApi,
   type Channel,
   type ChannelAttachment,
+  type ChannelConflictCandidate,
   type ChannelMember,
   type ChannelMessage,
 } from '~/lib/channelApi'
@@ -71,6 +72,18 @@ const CHANNEL_NAME_REGEX = /^[a-zA-Z0-9_-]+$/
 const ATTACHMENT_CHECK_TIMEOUT_MS = 10000
 const ATTACHMENT_CHECK_REQUEST_TIMEOUT_MS = ATTACHMENT_CHECK_TIMEOUT_MS + 2000
 const CHAT_NOTIFICATION_SOUND_MIN_INTERVAL_MS = 1200
+
+function getChannelKey(channel?: Pick<Channel, 'channelKey' | 'name'> | null) {
+  return channel?.channelKey || channel?.name || ''
+}
+
+function getChannelId(channel?: Pick<Channel, 'channelId' | 'name'> | null) {
+  return channel?.channelId || channel?.name || ''
+}
+
+function getChannelTitle(channel?: Pick<Channel, 'remark' | 'channelId' | 'name'> | null) {
+  return channel?.remark || getChannelId(channel)
+}
 
 const API = {
   async publishFile(file: File, customName: string) {
@@ -155,6 +168,10 @@ function ChatPage() {
   const [channels, setChannels] = useState<Channel[]>([])
   const [activeChannel, setActiveChannel] = useState<Channel | null>(null)
   const [requestedChannelName, setRequestedChannelName] = useState('')
+  const [joinConflictChannelId, setJoinConflictChannelId] = useState('')
+  const [joinConflictCandidates, setJoinConflictCandidates] = useState<
+    ChannelConflictCandidate[]
+  >([])
   const [channelSearchInput, setChannelSearchInput] = useState('')
   const [channelInput, setChannelInput] = useState('')
   const [showJoinChannel, joinChannelModal] = useDisclosure(false)
@@ -213,10 +230,10 @@ function ChatPage() {
   )
 
   const markChannelRead = useCallback(
-    (channelName: string, timestamp = Date.now()) => {
-      if (!channelName) return
+    (channelKey: string, timestamp = Date.now()) => {
+      if (!channelKey) return
       setChannelLastReadAt(prev => {
-        const result = markChannelReadInMap(prev, channelName, timestamp)
+        const result = markChannelReadInMap(prev, channelKey, timestamp)
         if (!result.changed) return prev
         writeStoredChannelLastReadAt(channelReadStorageKey, result.value)
         return result.value
@@ -296,14 +313,14 @@ function ChatPage() {
   )
 
   const refreshChannelMembers = useCallback(
-    async (channelName = activeChannel?.name) => {
-      if (!channelName || !isBackendReady || !userIdentity) {
+    async (channelKey = getChannelKey(activeChannel)) => {
+      if (!channelKey || !isBackendReady || !userIdentity) {
         setChannelMembers([])
         return
       }
       setIsLoadingChannelMembers(true)
       try {
-        setChannelMembers(await channelApi.getChannelMembers(channelName))
+        setChannelMembers(await channelApi.getChannelMembers(channelKey))
       } catch (err) {
         setChannelMembers([])
         await showApiError(err, '无法读取频道成员')
@@ -311,32 +328,32 @@ function ChatPage() {
         setIsLoadingChannelMembers(false)
       }
     },
-    [activeChannel?.name, isBackendReady, showApiError, userIdentity]
+    [activeChannel, isBackendReady, showApiError, userIdentity]
   )
 
   function handleChannelSocketEvent(event: string, data: any) {
     switch (event) {
       case 'channel:message': {
-        const channelName = data?.channel
+        const channelKey = data?.channelKey || data?.channel
         const message = data?.message as ChannelMessage | undefined
         const messageTime = Number(message?.timestamp) || Date.now()
-        if (channelName) {
+        if (channelKey) {
           setChannels(prev =>
             prev.map(channel =>
-              channel.name === channelName
+              getChannelKey(channel) === channelKey
                 ? {
                     ...channel,
                     lastMessageAt: new Date(messageTime).toISOString(),
                   }
                 : channel
-            )
+              )
           )
-          const isActiveChannel = channelName === activeChannelNameRef.current
+          const isActiveChannel = channelKey === activeChannelNameRef.current
           setChannelLastReadAt(prev => {
             const result = applyIncomingChannelMessageReadState(prev, {
-              channelName,
+              channelName: channelKey,
               messageTime,
-              activeChannelName: isActiveChannel ? channelName : '',
+              activeChannelName: isActiveChannel ? channelKey : '',
               messageAuthor: message?.author,
               userAddress: userIdentity?.address,
             })
@@ -355,7 +372,7 @@ function ChatPage() {
       case 'channel:peer:online':
       case 'channel:peer:offline':
         if (activeChannel) {
-          channelApi.getChannelPeers(activeChannel.name).catch(err => {
+          channelApi.getChannelPeers(getChannelKey(activeChannel)).catch(err => {
             console.warn('[Chat] Failed to fetch peers on event:', err.message)
           })
         }
@@ -419,7 +436,7 @@ function ChatPage() {
   }
 
   const subscribedChannelNames = useMemo(
-    () => channels.map(channel => channel.name),
+    () => channels.map(channel => getChannelKey(channel)),
     [channels]
   )
 
@@ -431,7 +448,7 @@ function ChatPage() {
   } = useChannelMessages({
     isReady: isBackendReady,
     enabled: Boolean(userIdentity),
-    channelName: activeChannel?.name || '',
+    channelName: getChannelKey(activeChannel),
     extraSubscribedChannelNames: subscribedChannelNames,
     peerId: myPeerId,
     waitForPeerId: true,
@@ -477,8 +494,8 @@ function ChatPage() {
   }, [userIdentity?.logo])
 
   useEffect(() => {
-    activeChannelNameRef.current = activeChannel?.name || ''
-  }, [activeChannel?.name])
+    activeChannelNameRef.current = getChannelKey(activeChannel)
+  }, [activeChannel])
 
   useEffect(() => {
     setChannelLastReadAt(readStoredChannelLastReadAt(channelReadStorageKey))
@@ -543,9 +560,10 @@ function ChatPage() {
   useEffect(() => {
     if (activeChannel) {
       if (isBackendReady) {
-        void syncMessages(activeChannel.name, { replace: true })
-        channelApi.getChannelPeers(activeChannel.name).catch(() => {})
-        void refreshChannelMembers(activeChannel.name)
+        const activeChannelKey = getChannelKey(activeChannel)
+        void syncMessages(activeChannelKey, { replace: true })
+        channelApi.getChannelPeers(activeChannelKey).catch(() => {})
+        void refreshChannelMembers(activeChannelKey)
       }
     }
   }, [
@@ -558,18 +576,23 @@ function ChatPage() {
 
   useEffect(() => {
     if (!showChannelDetail || !activeChannel) return
-    void refreshChannelMembers(activeChannel.name)
+    void refreshChannelMembers(getChannelKey(activeChannel))
   }, [activeChannel, refreshChannelMembers, showChannelDetail])
 
   useEffect(() => {
     if (requestedChannelName && channels.length > 0) {
-      const found = channels.find(c => c.name === requestedChannelName)
-      if (found && (!activeChannel || activeChannel.name !== found.name)) {
+      const found =
+        channels.find(c => getChannelKey(c) === requestedChannelName) ||
+        channels.find(c => getChannelId(c) === requestedChannelName)
+      if (
+        found &&
+        (!activeChannel || getChannelKey(activeChannel) !== getChannelKey(found))
+      ) {
         handleOpenChannel(found)
       } else if (
         found &&
         activeChannel &&
-        activeChannel.name === found.name &&
+        getChannelKey(activeChannel) === getChannelKey(found) &&
         (activeChannel.createdAt !== found.createdAt ||
           activeChannel.coreKey !== found.coreKey ||
           activeChannel.lastMessageAt !== found.lastMessageAt ||
@@ -717,21 +740,22 @@ function ChatPage() {
   async function handleOpenChannel(channel: Channel) {
     if (!requireLogin()) return
     if (!requireBackendReady()) return
+    const channelKey = getChannelKey(channel)
     markChannelRead(
-      channel.name,
+      channelKey,
       Math.max(getChannelActivityTime(channel), Date.now())
     )
     setActiveChannel(channel)
-    setRequestedChannelName(channel.name)
+    setRequestedChannelName(channelKey)
     window.history.pushState(
       {},
       '',
-      `?channel=${encodeURIComponent(channel.name)}`
+      `?channel=${encodeURIComponent(channelKey)}`
     )
   }
 
   async function handleLeaveChannel(
-    name: string,
+    channelKey: string,
     e?: React.MouseEvent<HTMLButtonElement>
   ) {
     if (e) e.stopPropagation()
@@ -740,8 +764,8 @@ function ChatPage() {
     if (isLeavingChannel) return
     setIsLeavingChannel(true)
     try {
-      await channelApi.leaveChannel(name)
-      if (activeChannel?.name === name) {
+      await channelApi.leaveChannel(channelKey)
+      if (getChannelKey(activeChannel) === channelKey) {
         setActiveChannel(null)
         setRequestedChannelName('')
         clearChannelMessages()
@@ -763,15 +787,18 @@ function ChatPage() {
     if (!requireLogin()) return
     if (!requireBackendReady()) return
     const nextPinned = !channel.pinned
+    const channelKey = getChannelKey(channel)
     try {
-      const result = await channelApi.setChannelPinned(channel.name, nextPinned)
+      const result = await channelApi.setChannelPinned(channelKey, nextPinned)
       setChannels(prev =>
         prev.map(item =>
-          item.name === channel.name ? { ...item, pinned: result.pinned } : item
+          getChannelKey(item) === channelKey
+            ? { ...item, pinned: result.pinned }
+            : item
         )
       )
       setActiveChannel(prev =>
-        prev && prev.name === channel.name
+        prev && getChannelKey(prev) === channelKey
           ? { ...prev, pinned: result.pinned }
           : prev
       )
@@ -797,25 +824,95 @@ function ChatPage() {
         'public',
         getCurrentChannelProfile()
       )
-      const existingChannel = channels.find(channel => channel.name === name)
+      if (result.conflict && result.candidates?.length) {
+        setJoinConflictChannelId(result.channelId || name)
+        setJoinConflictCandidates(result.candidates)
+        joinChannelModal.close()
+        return
+      }
+      const resultKey = result.channelKey || result.key || result.name || name
+      const existingChannel = channels.find(
+        channel => getChannelKey(channel) === resultKey
+      )
       const joinedChannel: Channel = {
         ...existingChannel,
         name: result.name || name,
+        channelId: result.channelId || result.name || name,
+        channelKey: result.channelKey || result.key || existingChannel?.channelKey,
+        fingerprint: result.fingerprint || existingChannel?.fingerprint,
         type: result.type || existingChannel?.type || 'public',
         createdAt: result.createdAt || existingChannel?.createdAt,
         coreKey: result.coreKey || result.key || existingChannel?.coreKey,
-        remark: existingChannel?.remark,
+        localWriterCoreKey:
+          result.localWriterCoreKey || existingChannel?.localWriterCoreKey,
+        writerCoreKeys: result.writerCoreKeys || existingChannel?.writerCoreKeys,
+        remark: result.remark || existingChannel?.remark,
       }
+      const joinedChannelKey = getChannelKey(joinedChannel)
       setChannels(prev =>
-        prev.some(channel => channel.name === name)
+        prev.some(channel => getChannelKey(channel) === joinedChannelKey)
           ? prev.map(channel =>
-              channel.name === name ? { ...channel, ...joinedChannel } : channel
+              getChannelKey(channel) === joinedChannelKey
+                ? { ...channel, ...joinedChannel }
+                : channel
             )
           : [...prev, joinedChannel]
       )
       joinChannelModal.close()
       await handleOpenChannel(joinedChannel)
-      void refreshChannelMembers(name)
+      void refreshChannelMembers(joinedChannelKey)
+      refreshChannels()
+    } catch (err) {
+      await showApiError(err, '加入频道失败')
+    } finally {
+      setIsJoiningChannel(false)
+    }
+  }
+
+  async function handleSelectConflictCandidate(
+    candidate: ChannelConflictCandidate
+  ) {
+    const channelId = candidate.channelId || joinConflictChannelId
+    if (!channelId || !candidate.channelKey || isJoiningChannel) return
+    if (!requireLogin()) return
+    if (!requireBackendReady()) return
+    setIsJoiningChannel(true)
+    try {
+      const result = await channelApi.createChannel(
+        channelId,
+        candidate.type || 'public',
+        {
+          ...getCurrentChannelProfile(),
+          channelKey: candidate.channelKey,
+          fingerprint: candidate.fingerprint,
+        }
+      )
+      if (result.conflict) {
+        setJoinConflictCandidates(result.candidates || [])
+        return
+      }
+      const joinedChannel: Channel = {
+        ...candidate,
+        ...result,
+        name: result.name || channelId,
+        channelId: result.channelId || channelId,
+        channelKey: result.channelKey || candidate.channelKey,
+        remark: result.remark || candidate.remark,
+      }
+      const channelKey = getChannelKey(joinedChannel)
+      setChannels(prev =>
+        prev.some(channel => getChannelKey(channel) === channelKey)
+          ? prev.map(channel =>
+              getChannelKey(channel) === channelKey
+                ? { ...channel, ...joinedChannel }
+                : channel
+            )
+          : [...prev, joinedChannel]
+      )
+      setJoinConflictChannelId('')
+      setJoinConflictCandidates([])
+      await handleOpenChannel(joinedChannel)
+      void refreshChannelMembers(channelKey)
       refreshChannels()
     } catch (err) {
       await showApiError(err, '加入频道失败')
@@ -832,10 +929,11 @@ function ChatPage() {
     if (!requireLogin()) return false
     if (!requireBackendReady()) return false
     const trimmedContent = content.trim()
+    const activeChannelKey = getChannelKey(activeChannel)
 
     try {
       const sentMessage = await sendSharedChannelMessage({
-        channelName: activeChannel.name,
+        channelName: activeChannelKey,
         content: trimmedContent,
         author: userIdentity.address,
         authorName: userIdentity.displayName || userIdentity.username,
@@ -844,7 +942,7 @@ function ChatPage() {
       })
       setChannels(prev =>
         prev.map(channel =>
-          channel.name === activeChannel.name
+          getChannelKey(channel) === activeChannelKey
             ? {
                 ...channel,
                 lastMessageAt: new Date(
@@ -856,11 +954,11 @@ function ChatPage() {
       )
       if (sentMessage) {
         markChannelRead(
-          activeChannel.name,
+          activeChannelKey,
           Number(sentMessage.timestamp) || Date.now()
         )
       }
-      void refreshChannelMembers(activeChannel.name)
+      void refreshChannelMembers(activeChannelKey)
       return true
     } catch (err) {
       await showApiError(err, '发送失败')
@@ -889,7 +987,7 @@ function ChatPage() {
     try {
       for (const file of Array.from(files)) {
         const targetFileName = getChatAttachmentFileName(
-          activeChannel.name,
+          getChannelId(activeChannel),
           file.name
         )
         const result = await API.publishFile(file, targetFileName)
@@ -943,14 +1041,15 @@ function ChatPage() {
     if (!requireLogin()) return
     if (!requireBackendReady()) return
 
-    const result = await channelApi.setChannelRemark(channel.name, nextRemark)
+    const channelKey = getChannelKey(channel)
+    const result = await channelApi.setChannelRemark(channelKey, nextRemark)
     setChannels(prev =>
       prev.map(c =>
-        c.name === channel.name ? { ...c, remark: result.remark } : c
+        getChannelKey(c) === channelKey ? { ...c, remark: result.remark } : c
       )
     )
     setActiveChannel(prev =>
-      prev && prev.name === channel.name
+      prev && getChannelKey(prev) === channelKey
         ? { ...prev, remark: result.remark }
         : prev
     )
@@ -1027,9 +1126,7 @@ function ChatPage() {
     isInviteUser && Boolean(requestedChannelName) && !activeChannel
 
   const chatHeaderTitle = activeChannel ? (
-    <h2 className="header-title">
-      {activeChannel.remark || activeChannel.name}
-    </h2>
+    <h2 className="header-title">{getChannelTitle(activeChannel)}</h2>
   ) : (
     <h2 className="header-title">聊天</h2>
   )
@@ -1044,14 +1141,14 @@ function ChatPage() {
           getChannelActivityTime(b) - getChannelActivityTime(a)
         if (activityDiff !== 0) return activityDiff
 
-        return (a.remark || a.name).localeCompare(b.remark || b.name, 'zh-CN')
+        return getChannelTitle(a).localeCompare(getChannelTitle(b), 'zh-CN')
       }),
     [channels]
   )
   const filteredChannels = channelSearchQuery
     ? sortedChannels.filter(channel => {
-        const displayName = channel.remark || channel.name
-        return [displayName, channel.name].some(value =>
+        const displayName = getChannelTitle(channel)
+        return [displayName, getChannelId(channel), getChannelKey(channel)].some(value =>
           value.toLowerCase().includes(channelSearchQuery)
         )
       })
@@ -1097,11 +1194,11 @@ function ChatPage() {
             ) : (
               filteredChannels.map(channel => (
                 <ChatChannelNavItem
-                  key={channel.name}
-                  active={activeChannel?.name === channel.name}
+                  key={getChannelKey(channel)}
+                  active={getChannelKey(activeChannel) === getChannelKey(channel)}
                   pinned={Boolean(channel.pinned)}
                   unread={hasUnreadChannelMessage(channel, channelLastReadAt)}
-                  title={channel.remark || channel.name}
+                  title={getChannelTitle(channel)}
                   onSelect={() => {
                     handleOpenChannel(channel)
                     closeSidebar()
@@ -1255,6 +1352,67 @@ function ChatPage() {
         />
       )}
 
+      {joinConflictCandidates.length > 0 && (
+        <ModalOverlay
+          onClose={() => {
+            if (isJoiningChannel) return
+            setJoinConflictChannelId('')
+            setJoinConflictCandidates([])
+          }}
+        >
+          <div
+            className="confirm-modal channel-conflict-modal"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <h3>选择频道</h3>
+              <button
+                type="button"
+                className="btn btn-icon"
+                onClick={() => {
+                  if (isJoiningChannel) return
+                  setJoinConflictChannelId('')
+                  setJoinConflictCandidates([])
+                }}
+                aria-label="关闭"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="channel-conflict-list">
+              {joinConflictCandidates.map(candidate => (
+                <button
+                  type="button"
+                  key={candidate.channelKey || candidate.fingerprint}
+                  className="channel-conflict-option"
+                  onClick={() => void handleSelectConflictCandidate(candidate)}
+                  disabled={isJoiningChannel}
+                >
+                  <span className="channel-conflict-title">
+                    {getChannelTitle(candidate)}
+                  </span>
+                  <span className="channel-conflict-meta">
+                    {getChannelId(candidate)}
+                    {candidate.onlineCount
+                      ? ` · 在线 ${candidate.onlineCount}`
+                      : ''}
+                    {candidate.local ? ' · 本地已有' : ''}
+                  </span>
+                  {candidate.lastMessageAt && (
+                    <span className="channel-conflict-meta">
+                      最近活跃{' '}
+                      {new Date(candidate.lastMessageAt).toLocaleString(
+                        'zh-CN'
+                      )}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        </ModalOverlay>
+      )}
+
       {channelToRename && (
         <InputModal
           title="重命名频道"
@@ -1278,9 +1436,11 @@ function ChatPage() {
       {showLeaveChannelConfirm && channelToLeave && (
         <ConfirmModal
           title="退出频道"
-          message={`确定要退出频道 "${channelToLeave.name}" 吗？`}
+          message={`确定要退出频道 "${getChannelTitle(channelToLeave)}" 吗？`}
           confirmText={isLeavingChannel ? '退出中...' : '退出'}
-          onConfirm={() => handleLeaveChannel(channelToLeave.name, undefined)}
+          onConfirm={() =>
+            handleLeaveChannel(getChannelKey(channelToLeave), undefined)
+          }
           danger
           onClose={() => {
             leaveChannelModal.close()
@@ -1390,7 +1550,7 @@ function ChatPage() {
                     <span>频道 ID</span>
                   </div>
                   <div className="ui-meta-box channel-detail-value channel-detail-mono">
-                    {activeChannel.name}
+                    {getChannelId(activeChannel)}
                   </div>
                 </div>
               )}
