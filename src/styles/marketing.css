@@ -90,6 +90,41 @@
   color: var(--text-primary);
   background: var(--glass-bg-subtle);
 }
+
+.mkt-nav-avatar-trigger {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+}
+
+.mkt-nav-avatar-trigger:hover {
+  opacity: 0.88;
+  transform: translateY(-1px);
+}
+
+.mkt-nav-avatar-trigger:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.mkt-nav-avatar {
+  width: 32px;
+  height: 32px;
+  display: block;
+  border-radius: var(--radius-full);
+  object-fit: cover;
+  background: var(--glass-bg-subtle);
+}
 /* === Footer === */
 .mkt-footer {
   border-top: 1px solid var(--glass-border);

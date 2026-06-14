@@ -1,10 +1,17 @@
 import React, { useEffect } from 'react'
 import { useHotkeys } from '~/hooks'
 
+interface ModalOverlayProps {
+  children: React.ReactNode
+  onClose?: () => void
+  className?: string
+}
+
 export function ModalOverlay({
   children,
   onClose,
-}) {
+  className = '',
+}: ModalOverlayProps) {
   useHotkeys(onClose ? [['Escape', onClose]] : [])
 
   useEffect(() => {
@@ -35,7 +42,7 @@ export function ModalOverlay({
   }, [])
 
   return (
-    <div className="modal-overlay">
+    <div className={['modal-overlay', className].filter(Boolean).join(' ')}>
       <div className="modal-overlay-backdrop" />
       <div className="modal-glass">{children}</div>
     </div>
