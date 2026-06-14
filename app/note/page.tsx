@@ -31,7 +31,6 @@ import { useAppStore, type NoteItem } from '~/app/app/useAppStore'
 import { useUserStore } from '~/app/app/userStore'
 import type { MilkdownEditorRef } from '~/components/MilkdownEditor'
 import { mostDecode, mostEncode } from '~/server/src/utils/mostWallet.js'
-import { formatDate } from '~/server/src/utils/dateTime.js'
 import {
   filterNotesByPath,
   getNoteFullPath,
@@ -41,6 +40,7 @@ import { NoteMoreMenu } from '~/components/NoteMoreMenu'
 import { NoteMoveModal, type NoteMoveTarget } from '~/components/NoteMoveModal'
 import { NoteSidebar } from '~/components/NoteSidebar'
 import { useNoteBackupSync } from '~/app/note/useNoteBackupSync'
+import { useI18n, type MessageKey } from '~/lib/i18n'
 
 const MilkdownEditor = lazy(async () => {
   const mod = await import('~/components/MilkdownEditor')
@@ -73,9 +73,9 @@ function getNoteHref(search: NoteSearchParams = {}) {
   return query ? `/note/?${query}` : '/note/'
 }
 
-function getNotePreview(note: NoteItem) {
+function getNotePreview(note: NoteItem, t: (key: MessageKey) => string) {
   if (note.isSecret || note.content.startsWith('mp://1')) {
-    return '私密内容已加密'
+    return t('note.preview.encrypted')
   }
 
   const preview = String(note.content || '')
@@ -86,11 +86,27 @@ function getNotePreview(note: NoteItem) {
     .replace(/\s+/g, ' ')
     .trim()
 
-  return preview || '空白笔记'
+  return preview || t('note.preview.empty')
 }
 
-function getErrorMessage(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback
+const noteErrorMessageKeys: Record<string, MessageKey> = {
+  'note.error.nameRequired': 'note.error.nameRequired',
+  'note.error.nameNoSlash': 'note.error.nameNoSlash',
+  'note.error.nameNoBackslash': 'note.error.nameNoBackslash',
+  'note.error.nameInvalid': 'note.error.nameInvalid',
+  'note.error.nameConflict': 'note.error.nameConflict',
+  'note.error.moveIntoSelf': 'note.error.moveIntoSelf',
+}
+
+function getErrorMessage(
+  error: unknown,
+  fallback: string,
+  t: (key: MessageKey) => string
+) {
+  const message = error instanceof Error ? error.message : ''
+  const messageKey = noteErrorMessageKeys[message]
+  if (messageKey) return t(messageKey)
+  return message || fallback
 }
 
 function getExplorerItemFullPath(item: ExplorerItem) {
@@ -102,7 +118,10 @@ function getExplorerItemFullPath(item: ExplorerItem) {
   return getNoteFullPath(item)
 }
 
-function getDirectoryOptions(notes: NoteItem[]) {
+function getDirectoryOptions(
+  notes: NoteItem[],
+  compareStrings: (left: string, right: string) => number
+) {
   const directories = new Set<string>()
 
   for (const note of notes) {
@@ -113,7 +132,7 @@ function getDirectoryOptions(notes: NoteItem[]) {
   }
 
   return Array.from(directories)
-    .sort((left, right) => left.localeCompare(right, 'zh-CN'))
+    .sort(compareStrings)
     .map(path => {
       const parts = path.split('/')
       return {
@@ -126,6 +145,7 @@ function getDirectoryOptions(notes: NoteItem[]) {
 }
 
 function NotePageContent() {
+  const { t, formatDate, compareStrings } = useI18n()
   const navigate = useNavigate()
   const searchStr = useLocation({ select: location => location.searchStr })
   const params = useMemo(() => getNoteSearch(searchStr), [searchStr])
@@ -184,21 +204,21 @@ function NotePageContent() {
 
     if (!selectedNote) {
       setPreviewContent('')
-      setPreviewError(localDataReady ? '笔记不存在' : '')
+      setPreviewError(localDataReady ? t('note.error.notFound') : '')
       return
     }
 
     if (selectedNote.content.startsWith('mp://1')) {
       if (!wallet) {
         setPreviewContent('')
-        setPreviewError('请先登录 Web3 账号以解密此笔记')
+        setPreviewError(t('note.error.loginToDecrypt'))
         return
       }
 
       const decrypted = mostDecode(selectedNote.content, wallet.danger)
       if (!decrypted) {
         setPreviewContent('')
-        setPreviewError('无法解密，请确认当前 Web3 账号正确')
+        setPreviewError(t('note.error.decryptFailed'))
         return
       }
 
@@ -209,7 +229,7 @@ function NotePageContent() {
 
     setPreviewContent(selectedNote.content || '')
     setPreviewError('')
-  }, [cid, localDataReady, selectedNote, wallet])
+  }, [cid, localDataReady, selectedNote, t, wallet])
 
   useEffect(() => {
     if (!isEditing) {
@@ -222,7 +242,7 @@ function NotePageContent() {
       setNotePath('')
       setPlainContent('')
       setEditIsSecret(false)
-      setEditError(localDataReady ? '笔记不存在' : '')
+      setEditError(localDataReady ? t('note.error.notFound') : '')
       return
     }
 
@@ -236,14 +256,14 @@ function NotePageContent() {
     if (selectedNote.content.startsWith('mp://1')) {
       if (!wallet) {
         setPlainContent('')
-        setEditError('请先登录 Web3 账号以解密此笔记')
+        setEditError(t('note.error.loginToDecrypt'))
         return
       }
 
       const decrypted = mostDecode(selectedNote.content, wallet.danger)
       if (!decrypted) {
         setPlainContent('')
-        setEditError('无法解密，请确认当前 Web3 账号正确')
+        setEditError(t('note.error.decryptFailed'))
         return
       }
 
@@ -254,7 +274,7 @@ function NotePageContent() {
 
     setPlainContent(selectedNote.content || '')
     setEditError('')
-  }, [cid, isEditing, localDataReady, selectedNote, wallet])
+  }, [cid, isEditing, localDataReady, selectedNote, t, wallet])
 
   useEffect(() => {
     setPreviewName(selectedNote?.name || '')
@@ -278,23 +298,26 @@ function NotePageContent() {
     selectedNote?.content.startsWith('mp://1') === true
   const selectedNotePrivacyLabel = isEditing
     ? editIsSecret
-      ? '私密'
-      : '公开'
+      ? t('note.privacy.secret')
+      : t('note.privacy.public')
     : selectedNoteIsSecret
-      ? '私密'
-      : '公开'
+      ? t('note.privacy.secret')
+      : t('note.privacy.public')
 
   const breadcrumbs = useMemo(() => {
     const parts = notesPath.split('/').filter(Boolean)
     return [
-      { label: '全部笔记', path: '' },
+      { label: t('note.root'), path: '' },
       ...parts.map((part, index) => ({
         label: part,
         path: parts.slice(0, index + 1).join('/'),
       })),
     ]
-  }, [notesPath])
-  const directoryOptions = useMemo(() => getDirectoryOptions(notes), [notes])
+  }, [notesPath, t])
+  const directoryOptions = useMemo(
+    () => getDirectoryOptions(notes, compareStrings),
+    [compareStrings, notes]
+  )
 
   function navigateToNote(
     search: NoteSearchParams = {},
@@ -324,11 +347,11 @@ function NotePageContent() {
   async function handleSaveEditor() {
     if (!requireWallet()) return
     if (!selectedNote) {
-      addToast('笔记不存在', 'error')
+      addToast(t('note.toast.notFound'), 'error')
       return
     }
     if (!noteName.trim()) {
-      addToast('请输入笔记名称', 'warning')
+      addToast(t('note.toast.nameRequired'), 'warning')
       return
     }
 
@@ -346,11 +369,11 @@ function NotePageContent() {
         isSecret: editIsSecret,
       })
       setPlainContent(markdown)
-      addToast('笔记已保存', 'success')
+      addToast(t('note.toast.saved'), 'success')
       await backupSync.uploadNow({ silent: true })
       navigateToNote({ cid: nextCid }, true)
     } catch (err: unknown) {
-      addToast(getErrorMessage(err, '保存失败'), 'error')
+      addToast(getErrorMessage(err, t('note.toast.saveFailed'), t), 'error')
     } finally {
       setSaving(false)
     }
@@ -359,9 +382,9 @@ function NotePageContent() {
   function openCreateNoteModal() {
     if (!requireWallet()) return
     setInputModal({
-      title: '新建笔记',
-      placeholder: '笔记名称',
-      confirmText: '创建',
+      title: t('note.create.title'),
+      placeholder: t('note.namePlaceholder'),
+      confirmText: t('note.create.action'),
       onConfirm: async value => {
         if (!requireWallet()) return
         try {
@@ -372,11 +395,14 @@ function NotePageContent() {
             isSecret: false,
           })
           setInputModal(null)
-          addToast('笔记已创建', 'success')
+          addToast(t('note.toast.created'), 'success')
           await backupSync.uploadNow({ silent: true })
           navigateToNote({ cid: newCid, mode: 'edit' })
         } catch (err: unknown) {
-          addToast(getErrorMessage(err, '创建失败'), 'error')
+          addToast(
+            getErrorMessage(err, t('note.toast.createFailed'), t),
+            'error'
+          )
         }
       },
     })
@@ -388,18 +414,18 @@ function NotePageContent() {
     const nextName = previewName.trim()
     if (!nextName) {
       setPreviewName(selectedNote.name)
-      addToast('请输入笔记名称', 'warning')
+      addToast(t('note.toast.nameRequired'), 'warning')
       return
     }
     if (nextName === selectedNote.name) return
 
     try {
       renameNote(getNoteFullPath(selectedNote), selectedNote.path, nextName)
-      addToast('已重命名', 'success')
+      addToast(t('note.toast.renamed'), 'success')
       await backupSync.uploadNow({ silent: true })
     } catch (err: unknown) {
       setPreviewName(selectedNote.name)
-      addToast(getErrorMessage(err, '重命名失败'), 'error')
+      addToast(getErrorMessage(err, t('note.toast.renameFailed'), t), 'error')
     }
   }
 
@@ -417,10 +443,10 @@ function NotePageContent() {
         moveTarget.name
       )
       setMoveTarget(null)
-      addToast('已移动', 'success')
+      addToast(t('note.toast.moved'), 'success')
       await backupSync.uploadNow({ silent: true })
     } catch (err: unknown) {
-      addToast(getErrorMessage(err, '移动失败'), 'error')
+      addToast(getErrorMessage(err, t('note.toast.moveFailed'), t), 'error')
     }
   }
 
@@ -428,13 +454,15 @@ function NotePageContent() {
     if (!requireWallet()) return
     const isDirectory = item.type === 'directory'
     setConfirmModal({
-      title: isDirectory ? '删除文件夹' : '删除笔记',
-      message: `确定要删除「${item.name}」吗？此操作不可撤销。`,
-      confirmText: '删除',
+      title: isDirectory
+        ? t('note.delete.folderTitle')
+        : t('note.delete.noteTitle'),
+      message: t('note.delete.message', { name: item.name }),
+      confirmText: t('note.action.delete'),
       onConfirm: async () => {
         deleteNote(isDirectory ? undefined : item.cid, item.path, item.name)
         setConfirmModal(null)
-        addToast('已删除', 'success')
+        addToast(t('note.toast.deleted'), 'success')
         await backupSync.uploadNow({ silent: true })
         if (item.type === 'file' && item.cid === cid) {
           navigateToNote()
@@ -445,8 +473,8 @@ function NotePageContent() {
 
   const headerTitle = (
     <div className="note-header-title">
-      <h2 className="header-title">笔记</h2>
-      <span>{notes.length} 篇</span>
+      <h2 className="header-title">{t('note.title')}</h2>
+      <span>{t('note.count', { count: notes.length })}</span>
     </div>
   )
 
@@ -455,8 +483,8 @@ function NotePageContent() {
       <button
         className="btn btn-icon"
         onClick={() => setIsDarkMode(!isDarkMode)}
-        title="切换主题"
-        aria-label="切换主题"
+        title={t('common.theme.toggle')}
+        aria-label={t('common.theme.toggle')}
       >
         {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
       </button>
@@ -467,7 +495,7 @@ function NotePageContent() {
   const noteExplorer = (
     <section
       className="note-list-panel note-sidebar-list"
-      aria-label="笔记列表"
+      aria-label={t('note.listLabel')}
     >
       <div className="note-list-header">
         <div className="note-current-location">
@@ -476,13 +504,17 @@ function NotePageContent() {
               <Fragment key={part.path || 'root'}>
                 {index > 0 && <span>/</span>}
                 <button onClick={() => setNotesPath(part.path)}>
-                  {part.label}
+                  <span translate={part.path ? 'no' : 'yes'}>
+                    {part.label}
+                  </span>
                 </button>
               </Fragment>
             ))}
           </div>
         </div>
-        <span className="note-count">{visibleFileCount} 篇</span>
+        <span className="note-count">
+          {t('note.count', { count: visibleFileCount })}
+        </span>
       </div>
 
       <div className="note-search">
@@ -491,14 +523,16 @@ function NotePageContent() {
           className="input input-flex"
           value={searchQuery}
           onChange={event => setSearchQuery(event.target.value)}
-          placeholder="搜索笔记"
+          placeholder={t('note.search.placeholder')}
         />
       </div>
 
       {explorerItems.length === 0 ? (
         <div className="ui-empty-state note-empty-state">
           <NotebookPen size={32} />
-          <p>{searchQuery ? '未找到笔记' : '还没有笔记'}</p>
+          <p>
+            {searchQuery ? t('note.empty.noMatches') : t('note.empty.noNotes')}
+          </p>
         </div>
       ) : (
         <div className="note-list">
@@ -539,10 +573,12 @@ function NotePageContent() {
                       className="ui-list-desc note-list-preview"
                       translate="no"
                     >
-                      {getNotePreview(item)}
+                      {getNotePreview(item, t)}
                     </span>
                   ) : (
-                    <span className="ui-list-desc note-list-preview">文件夹</span>
+                    <span className="ui-list-desc note-list-preview">
+                      {t('note.folder')}
+                    </span>
                   )}
                 </span>
                 {item.type === 'file' && (
@@ -559,7 +595,7 @@ function NotePageContent() {
       <div className="note-create-btn">
         <button className="btn" onClick={openCreateNoteModal}>
           <Plus size={16} />
-          新笔记
+          {t('note.newNote')}
         </button>
       </div>
     </section>
@@ -577,7 +613,9 @@ function NotePageContent() {
         <section className="note-workspace">
           <section
             className="note-editor-panel"
-            aria-label={isEditing ? '笔记编辑器' : '笔记阅读器'}
+            aria-label={
+              isEditing ? t('note.editorLabel.edit') : t('note.editorLabel.read')
+            }
           >
             {showPreview ? (
               <>
@@ -588,7 +626,8 @@ function NotePageContent() {
                         className="note-title-input"
                         value={noteName}
                         onChange={event => setNoteName(event.target.value)}
-                        placeholder="笔记名称"
+                        placeholder={t('note.namePlaceholder')}
+                        translate="no"
                         disabled={!selectedNote}
                       />
                     ) : selectedNote ? (
@@ -606,15 +645,18 @@ function NotePageContent() {
                             event.currentTarget.blur()
                           }
                         }}
-                        placeholder="笔记名称"
-                        title="重命名"
+                        placeholder={t('note.namePlaceholder')}
+                        title={t('app.rename')}
+                        translate="no"
                       />
                     ) : (
-                      <h3>未命名笔记</h3>
+                      <h3>{t('note.untitled')}</h3>
                     )}
                     {selectedNote && (
                       <div className="note-editor-info">
-                        <span>{isEditing ? '编辑模式' : '阅读模式'}</span>
+                        <span>
+                          {isEditing ? t('note.mode.edit') : t('note.mode.read')}
+                        </span>
                         <span>{selectedNotePrivacyLabel}</span>
                         <span>{formatDate(selectedNote.updated_at)}</span>
                       </div>
@@ -628,8 +670,10 @@ function NotePageContent() {
                       onClick={
                         isEditing ? closeEditor : () => navigateToNote()
                       }
-                      title={isEditing ? '取消' : '关闭'}
-                      aria-label={isEditing ? '取消' : '关闭'}
+                      title={isEditing ? t('common.cancel') : t('common.close')}
+                      aria-label={
+                        isEditing ? t('common.cancel') : t('common.close')
+                      }
                     >
                       <X size={16} />
                     </button>
@@ -647,7 +691,9 @@ function NotePageContent() {
                           ) : (
                             <Eye size={16} />
                           )}
-                          {editIsSecret ? '私密' : '公开'}
+                          {editIsSecret
+                            ? t('note.privacy.secret')
+                            : t('note.privacy.public')}
                         </button>
                         <button
                           className="btn btn-sm btn-primary"
@@ -655,7 +701,7 @@ function NotePageContent() {
                           disabled={saving || !!editError || !selectedNote}
                         >
                           <Save size={16} />
-                          {saving ? '保存中' : '保存'}
+                          {saving ? t('note.action.saving') : t('note.action.save')}
                         </button>
                       </>
                     ) : (
@@ -665,8 +711,8 @@ function NotePageContent() {
                             type="button"
                             className="btn btn-icon"
                             onClick={() => openMoveModal(selectedNote)}
-                            title="移动"
-                            aria-label="移动"
+                            title={t('note.action.move')}
+                            aria-label={t('note.action.move')}
                           >
                             <Move size={16} />
                           </button>
@@ -674,8 +720,8 @@ function NotePageContent() {
                             type="button"
                             className="btn btn-icon note-editor-action-danger"
                             onClick={() => openDeleteConfirm(selectedNote)}
-                            title="删除"
-                            aria-label="删除"
+                            title={t('note.action.delete')}
+                            aria-label={t('note.action.delete')}
                           >
                             <Trash2 size={16} />
                           </button>
@@ -684,11 +730,11 @@ function NotePageContent() {
                             className="btn btn-sm btn-primary"
                             onClick={() => openEditor(selectedNote)}
                             disabled={!!previewError}
-                            title="编辑"
-                            aria-label="编辑"
+                            title={t('note.action.edit')}
+                            aria-label={t('note.action.edit')}
                           >
                             <PencilRuler size={16} />
-                            编辑
+                            {t('note.action.edit')}
                           </button>
                         </>
                       )
@@ -714,7 +760,11 @@ function NotePageContent() {
                   ) : (
                     <div className="note-empty-state editor-error">
                       <NotebookPen size={36} />
-                      <p>{localDataReady ? '笔记不存在' : '加载中...'}</p>
+                      <p>
+                        {localDataReady
+                          ? t('note.error.notFound')
+                          : t('note.loading')}
+                      </p>
                     </div>
                   )
                 ) : previewError ? (
@@ -733,7 +783,11 @@ function NotePageContent() {
                 ) : (
                   <div className="ui-empty-state note-empty-state editor-error">
                     <NotebookPen size={36} />
-                    <p>{localDataReady ? '笔记不存在' : '加载中...'}</p>
+                    <p>
+                      {localDataReady
+                        ? t('note.error.notFound')
+                        : t('note.loading')}
+                    </p>
                   </div>
                 )}
               </>
@@ -742,11 +796,13 @@ function NotePageContent() {
                 <div className="ui-empty-icon note-editor-empty-icon">
                   <NotebookPen size={32} />
                 </div>
-                <h3 className="ui-empty-title">没有打开的笔记</h3>
+                <h3 className="ui-empty-title">{t('note.noOpen.title')}</h3>
                 <p className="ui-empty-desc">
-                  {notes.length > 0 ? '选择一篇笔记继续' : '创建第一篇笔记'}
+                  {notes.length > 0
+                    ? t('note.noOpen.select')
+                    : t('note.noOpen.createFirst')}
                 </p>
-                <OpenSidebarButton label="打开笔记列表" variant="default" />
+                <OpenSidebarButton label={t('note.openList')} variant="default" />
               </div>
             )}
           </section>
@@ -788,8 +844,12 @@ function NotePageContent() {
 }
 
 export default function NotePage() {
+  const { t } = useI18n()
+
   return (
-    <Suspense fallback={<div className="note-editor-loading">加载中...</div>}>
+    <Suspense
+      fallback={<div className="note-editor-loading">{t('note.loading')}</div>}
+    >
       <NotePageContent />
     </Suspense>
   )

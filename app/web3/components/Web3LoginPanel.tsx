@@ -1,4 +1,5 @@
 import { Eye, EyeOff, Wallet } from 'lucide-react'
+import { useI18n } from '~/lib/i18n'
 
 type Web3LoginPanelProps = {
   username: string
@@ -21,12 +22,14 @@ export function Web3LoginPanel({
   onTogglePassword,
   onGenerate,
 }: Web3LoginPanelProps) {
+  const { t } = useI18n()
+
   return (
     <div className="input-panel">
       <div className="web3-tools-inputs">
         <input
           type="text"
-          placeholder="用户名"
+          placeholder={t('login.username.placeholder')}
           value={username}
           onChange={event => onUsernameChange(event.target.value)}
           className="input"
@@ -37,7 +40,7 @@ export function Web3LoginPanel({
         <div className="input-wrap">
           <input
             type={showPassword ? 'text' : 'password'}
-            placeholder="密码（可选）"
+            placeholder={t('web3.login.passwordOptional')}
             value={password}
             onChange={event => onPasswordChange(event.target.value)}
             className="input"
@@ -59,12 +62,12 @@ export function Web3LoginPanel({
         {generating ? (
           <>
             <span className="spinner" />
-            生成中...
+            {t('web3.login.generating')}
           </>
         ) : (
           <>
             <Wallet size={16} />
-            生成并登录
+            {t('web3.login.generateAndSignIn')}
           </>
         )}
       </button>

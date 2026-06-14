@@ -481,14 +481,14 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
     it('rejects invalid most:// link', async () => {
       await assert.rejects(
         engine.downloadFile('most://invalid-cid'),
-        /Invalid CID format/
+        /invalid_cid_format/
       )
     })
 
     it('rejects empty link', async () => {
       await assert.rejects(
         engine.downloadFile(''),
-        /Link must be a non-empty string/
+        /link_empty/
       )
     })
 
@@ -1517,7 +1517,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
             link: 'most://not-a-cid?filename=chat-file%2Fbad%2Fphoto.png',
           },
         }),
-        /Invalid CID format/
+        /invalid_cid_format/
       )
     })
 

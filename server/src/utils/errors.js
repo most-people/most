@@ -12,9 +12,11 @@ export class AppError extends Error {
 }
 
 export class ValidationError extends AppError {
-  constructor(message) {
+  constructor(message, errorCode = '', details = undefined) {
     super(message, 'VALIDATION_ERROR')
     this.name = 'ValidationError'
+    if (errorCode) this.errorCode = errorCode
+    if (details) this.details = details
   }
 }
 

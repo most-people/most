@@ -1,3 +1,5 @@
+import type { MessageKey } from '~/lib/i18n'
+
 export interface ChatJoinInviteChannel {
   id: string
   name?: string
@@ -18,58 +20,58 @@ export interface ChatJoinInvitePayload {
 export interface ChatJoinInviteField {
   name: string
   required: boolean
-  description: string
+  descriptionKey: MessageKey
 }
 
 export const CHAT_JOIN_INVITE_FIELDS: ChatJoinInviteField[] = [
   {
     name: 'node_url',
     required: false,
-    description: 'Web 端未连接后端时，用于连接远程节点。',
+    descriptionKey: 'chatJoin.field.nodeUrl',
   },
   {
     name: 'node_invite',
     required: false,
-    description: '配合 node_url 作为远程节点邀请码。',
+    descriptionKey: 'chatJoin.field.nodeInvite',
   },
   {
     name: 'uid',
     required: true,
-    description: '作为用户名，密码为空，用于生成账户并自动登录。',
+    descriptionKey: 'chatJoin.field.uid',
   },
   {
     name: 'identity',
     required: false,
-    description: '邀请身份类型；user 为普通用户，service 为服务账号。',
+    descriptionKey: 'chatJoin.field.identity',
   },
   {
     name: 'logo',
     required: false,
-    description: '覆盖邀请用户聊天页顶部 logo。',
+    descriptionKey: 'chatJoin.field.logo',
   },
   {
     name: 'avatar',
     required: false,
-    description: '覆盖默认头像。',
+    descriptionKey: 'chatJoin.field.avatar',
   },
   {
     name: 'name',
     required: false,
-    description: '覆盖默认昵称。',
+    descriptionKey: 'chatJoin.field.name',
   },
   {
     name: 'locale',
     required: false,
-    description: '预留给多语言切换，当前暂不执行。',
+    descriptionKey: 'chatJoin.field.locale',
   },
   {
     name: 'channels[].id',
     required: true,
-    description: '频道 ID，用于自动加入频道。',
+    descriptionKey: 'chatJoin.field.channelId',
   },
   {
     name: 'channels[].name',
     required: false,
-    description: '频道备注，不作为频道 ID。',
+    descriptionKey: 'chatJoin.field.channelName',
   },
 ]

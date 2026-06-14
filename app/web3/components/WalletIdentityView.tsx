@@ -1,7 +1,17 @@
-import { Eye, EyeOff, ExternalLink, Fingerprint, Globe, KeyRound, Shield, User } from 'lucide-react'
+import {
+  Eye,
+  EyeOff,
+  ExternalLink,
+  Fingerprint,
+  Globe,
+  KeyRound,
+  Shield,
+  User,
+} from 'lucide-react'
 import { CopyButton } from '~/components/CopyButton'
 import { EmptyState } from '~/components/EmptyState'
 import { KeyCard } from '~/components/KeyCard'
+import { useI18n } from '~/lib/i18n'
 import type { MostKeySet, WalletResult } from './types'
 
 type WalletIdentityViewProps = {
@@ -25,13 +35,14 @@ export function WalletIdentityView({
   showPrivateKey,
   onTogglePrivateKey,
 }: WalletIdentityViewProps) {
+  const { t } = useI18n()
   const effectiveAddress = walletResult?.address || ''
 
   if (!walletResult || !effectiveAddress) {
     return (
       <EmptyState
         icon={<User size={36} />}
-        message="请输入用户名和密码以查看身份信息"
+        message={t('web3.empty.identity')}
       />
     )
   }
@@ -42,10 +53,10 @@ export function WalletIdentityView({
         <img src={avatarSrc} alt="avatar" className="web3-identity-avatar" />
         <div>
           <h1 className="web3-identity-name">
-            {walletResult.username || '未登录'}
+            {walletResult.username || t('web3.notSignedIn')}
           </h1>
           <div className="web3-identity-address">
-            <code>{effectiveAddress.toLowerCase()}</code>
+            <code translate="no">{effectiveAddress.toLowerCase()}</code>
             <CopyButton text={effectiveAddress.toLowerCase()} />
             <a
               href={`https://debank.com/profile/${effectiveAddress}`}
@@ -54,7 +65,7 @@ export function WalletIdentityView({
               className="link"
             >
               <ExternalLink size={14} />
-              查看
+              {t('web3.action.view')}
             </a>
           </div>
         </div>
@@ -62,23 +73,37 @@ export function WalletIdentityView({
 
       {keys && (
         <div className="web3-key-grid">
-          <KeyCard title="Ed25519 公钥" icon={<Fingerprint size={18} />}>
+          <KeyCard
+            title={t('web3.label.ed25519Public')}
+            icon={<Fingerprint size={18} />}
+          >
             <div className="mono-row">
-              <code className="mono">{keys.ed_public_key}</code>
+              <code className="mono" translate="no">
+                {keys.ed_public_key}
+              </code>
               <CopyButton text={keys.ed_public_key} />
             </div>
           </KeyCard>
 
-          <KeyCard title="x25519 公钥" icon={<KeyRound size={18} />}>
+          <KeyCard
+            title={t('web3.label.x25519Public')}
+            icon={<KeyRound size={18} />}
+          >
             <div className="mono-row">
-              <code className="mono">{keys.public_key}</code>
+              <code className="mono" translate="no">
+                {keys.public_key}
+              </code>
               <CopyButton text={keys.public_key} />
             </div>
           </KeyCard>
 
-          <KeyCard title="x25519 & Ed25519 私钥" icon={<Shield size={18} />} accent>
+          <KeyCard
+            title={t('web3.label.combinedPrivate')}
+            icon={<Shield size={18} />}
+            accent
+          >
             <div className="mono-row danger">
-              <code className="mono">
+              <code className="mono" translate="no">
                 {showPrivateKey
                   ? keys.private_key
                   : maskSecret(keys.private_key)}
@@ -86,7 +111,11 @@ export function WalletIdentityView({
               <button
                 className="btn btn-icon"
                 onClick={onTogglePrivateKey}
-                title={showPrivateKey ? '隐藏私钥' : '显示私钥'}
+                title={
+                  showPrivateKey
+                    ? t('web3.action.hidePrivateKey')
+                    : t('web3.action.showPrivateKey')
+                }
                 type="button"
               >
                 {showPrivateKey ? <Eye size={14} /> : <EyeOff size={14} />}
@@ -96,7 +125,9 @@ export function WalletIdentityView({
 
           <KeyCard title="IPNS ID" icon={<Globe size={18} />}>
             <div className="mono-row">
-              <code className="mono">{ipns}</code>
+              <code className="mono" translate="no">
+                {ipns}
+              </code>
               <CopyButton text={ipns} />
             </div>
           </KeyCard>

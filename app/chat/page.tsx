@@ -326,12 +326,12 @@ function ChatPage() {
         setChannelMembers(await channelApi.getChannelMembers(channelKey))
       } catch (err) {
         setChannelMembers([])
-        await showApiError(err, '无法读取频道成员')
+        await showApiError(err, t('chat.error.members'))
       } finally {
         setIsLoadingChannelMembers(false)
       }
     },
-    [activeChannel, isBackendReady, showApiError, userIdentity]
+    [activeChannel, isBackendReady, showApiError, t, userIdentity]
   )
 
   function handleChannelSocketEvent(event: string, data: any) {
@@ -462,7 +462,7 @@ function ChatPage() {
     extraSubscribedChannelNames: subscribedChannelNames,
     peerId: myPeerId,
     waitForPeerId: true,
-    onSyncError: err => showApiError(err, '无法读取频道消息'),
+    onSyncError: err => showApiError(err, t('chat.error.messages')),
     onSocketEvent: handleChannelSocketEvent,
     onReconnect: refreshChannels,
   })
@@ -557,9 +557,9 @@ function ChatPage() {
       .then(d => setMyPeerId(d.id))
       .catch(err => {
         console.warn('[Chat] Failed to fetch node ID:', err.message)
-        void showApiError(err, '无法读取节点 ID')
+        void showApiError(err, t('chat.error.nodeId'))
       })
-  }, [isBackendReady, showApiError])
+  }, [isBackendReady, showApiError, t])
 
   useEffect(() => {
     if (isBackendReady && userIdentity) {
@@ -635,16 +635,20 @@ function ChatPage() {
 
   function getChannelNameValidationError(name) {
     if (name.length < CHANNEL_NAME_MIN_LENGTH) {
-      return `频道名至少 ${CHANNEL_NAME_MIN_LENGTH} 个字符`
+      return t('chat.validation.nameMin', {
+        count: CHANNEL_NAME_MIN_LENGTH,
+      })
     }
     if (name.length > CHANNEL_NAME_MAX_LENGTH) {
-      return `频道名最多 ${CHANNEL_NAME_MAX_LENGTH} 个字符`
+      return t('chat.validation.nameMax', {
+        count: CHANNEL_NAME_MAX_LENGTH,
+      })
     }
     if (name.includes('.')) {
-      return '点号为系统保留，不能用于手动频道 ID'
+      return t('chat.validation.dotReserved')
     }
     if (!CHANNEL_NAME_REGEX.test(name)) {
-      return '频道名只能包含字母、数字、下划线和连字符'
+      return t('chat.validation.allowedChars')
     }
     return ''
   }
@@ -656,7 +660,7 @@ function ChatPage() {
       setChannels(result)
     } catch (err) {
       setChannels([])
-      await showApiError(err, '无法读取频道列表')
+      await showApiError(err, t('chat.error.channelList'))
     }
   }
 
@@ -795,7 +799,7 @@ function ChatPage() {
       leaveChannelModal.close()
       setChannelToLeave(null)
     } catch (err) {
-      await showApiError(err, '退出频道失败')
+      await showApiError(err, t('chat.error.leave'))
     } finally {
       setIsLeavingChannel(false)
     }
@@ -821,7 +825,10 @@ function ChatPage() {
           : prev
       )
     } catch (err) {
-      await showApiError(err, nextPinned ? '置顶失败' : '取消置顶失败')
+      await showApiError(
+        err,
+        nextPinned ? t('chat.error.pin') : t('chat.error.unpin')
+      )
     }
   }
 
@@ -881,7 +888,7 @@ function ChatPage() {
       void refreshChannelMembers(joinedChannelKey)
       refreshChannels()
     } catch (err) {
-      await showApiError(err, '加入频道失败')
+      await showApiError(err, t('chat.error.join'))
     } finally {
       setIsJoiningChannel(false)
     }
@@ -933,7 +940,7 @@ function ChatPage() {
       void refreshChannelMembers(channelKey)
       refreshChannels()
     } catch (err) {
-      await showApiError(err, '加入频道失败')
+      await showApiError(err, t('chat.error.join'))
     } finally {
       setIsJoiningChannel(false)
     }
@@ -979,7 +986,7 @@ function ChatPage() {
       void refreshChannelMembers(activeChannelKey)
       return true
     } catch (err) {
-      await showApiError(err, '发送失败')
+      await showApiError(err, t('chat.error.send'))
       return false
     }
   }
@@ -1023,11 +1030,16 @@ function ChatPage() {
         }
         const sent = await sendChannelMessage(link, attachment)
         if (sent) {
-          addToast(`${getAttachmentBaseFileName(fileName)} 已发布`, 'success')
+          addToast(
+            t('chat.attachment.published', {
+              fileName: getAttachmentBaseFileName(fileName),
+            }),
+            'success'
+          )
         }
       }
     } catch (err) {
-      await showApiError(err, '附件发送失败')
+      await showApiError(err, t('chat.error.attachmentSend'))
     } finally {
       setIsPublishingAttachment(false)
     }
@@ -1079,7 +1091,7 @@ function ChatPage() {
     try {
       await updateChannelRemark(activeChannel, remarkInput)
     } catch (err) {
-      await showApiError(err, '设置备注失败')
+      await showApiError(err, t('chat.error.remark'))
     }
   }
 
@@ -1090,7 +1102,7 @@ function ChatPage() {
       await updateChannelRemark(channelToRename, value)
       setChannelToRename(null)
     } catch (err) {
-      await showApiError(err, '重命名失败')
+      await showApiError(err, t('chat.error.rename'))
     } finally {
       setIsRenamingChannel(false)
     }
@@ -1144,9 +1156,11 @@ function ChatPage() {
     isInviteUser && Boolean(requestedChannelName) && !activeChannel
 
   const chatHeaderTitle = activeChannel ? (
-    <h2 className="header-title">{getChannelTitle(activeChannel)}</h2>
+    <h2 className="header-title" translate="no">
+      {getChannelTitle(activeChannel)}
+    </h2>
   ) : (
-    <h2 className="header-title">聊天</h2>
+    <h2 className="header-title">{t('chat.title')}</h2>
   )
   const channelSearchQuery = channelSearchInput.trim().toLowerCase()
   const sortedChannels = useMemo(
@@ -1192,10 +1206,10 @@ function ChatPage() {
               <input
                 type="search"
                 className="input input-compact"
-                placeholder="搜索频道"
+                placeholder={t('chat.search.placeholder')}
                 value={channelSearchInput}
                 onChange={e => setChannelSearchInput(e.target.value)}
-                aria-label="搜索频道"
+                aria-label={t('chat.search.placeholder')}
               />
             </div>
           </div>
@@ -1203,11 +1217,11 @@ function ChatPage() {
           <nav className="sidebar-nav">
             {channels.length === 0 ? (
               <div className="sidebar-empty-state">
-                <p>暂无频道</p>
+                <p>{t('chat.empty.noChannels')}</p>
               </div>
             ) : filteredChannels.length === 0 ? (
               <div className="sidebar-empty-state">
-                <p>未找到频道</p>
+                <p>{t('chat.empty.noMatches')}</p>
               </div>
             ) : (
               filteredChannels.map(channel => (
@@ -1240,7 +1254,7 @@ function ChatPage() {
             }}
           >
             <Plus size={16} />
-            加入频道
+            {t('chat.joinChannel')}
           </button>
 
           <SidebarAccount />
@@ -1268,7 +1282,7 @@ function ChatPage() {
           <button
             className="btn btn-icon"
             onClick={() => setIsDarkMode(!isDarkMode)}
-            title="切换主题"
+            title={t('common.theme.toggle')}
           >
             {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
           </button>
@@ -1276,7 +1290,7 @@ function ChatPage() {
             <button
               className="btn btn-icon"
               onClick={() => setShowChannelDetail(true)}
-              title="频道设置"
+              title={t('chat.channelSettings')}
             >
               <Settings size={16} />
             </button>
@@ -1292,7 +1306,7 @@ function ChatPage() {
                 <div className="ui-empty-icon empty-icon">
                   <MessageSquare size={28} />
                 </div>
-                <p>暂无消息，开始聊天吧！</p>
+                <p>{t('chat.empty.noMessages')}</p>
               </div>
             ) : (
               channelMessages.map(msg => {
@@ -1320,7 +1334,11 @@ function ChatPage() {
 
           <ChatComposer
             message={channelInput}
-            placeholder={userIdentity ? '输入消息...' : '请先登录后发言'}
+            placeholder={
+              userIdentity
+                ? t('chat.composer.placeholder')
+                : t('chat.composer.signInPlaceholder')
+            }
             disabled={!userIdentity}
             isPublishingAttachment={isPublishingAttachment}
             attachmentInputRef={attachmentInputRef}
@@ -1336,8 +1354,8 @@ function ChatPage() {
           <div className="ui-empty-icon ui-empty-icon-lg welcome-icon">
             <Loader size={36} className="ui-spinner" />
           </div>
-          <h2 className="ui-empty-title">正在打开频道</h2>
-          <p className="ui-empty-desc">正在恢复聊天内容...</p>
+          <h2 className="ui-empty-title">{t('chat.restoring.title')}</h2>
+          <p className="ui-empty-desc">{t('chat.restoring.desc')}</p>
         </div>
       ) : (
         <>
@@ -1345,25 +1363,25 @@ function ChatPage() {
             <div className="ui-empty-icon ui-empty-icon-lg welcome-icon">
               <MessageSquare size={36} />
             </div>
-            <h2 className="ui-empty-title">选择频道</h2>
+            <h2 className="ui-empty-title">{t('chat.select.title')}</h2>
             <p className="ui-empty-desc">
-              从左侧边栏选择一个频道开始聊天，或创建一个新频道
+              {t('chat.select.desc')}
             </p>
-            <OpenSidebarButton label="打开频道列表" />
+            <OpenSidebarButton label={t('chat.openChannelList')} />
           </div>
         </>
       )}
 
       {showJoinChannel && (
         <InputModal
-          title="加入频道"
-          placeholder="频道ID：3-20 位字母、数字、_ 或 -"
-          confirmText="加入"
+          title={t('chat.joinChannel')}
+          placeholder={t('chat.join.placeholder')}
+          confirmText={t('chat.join.confirm')}
           validate={getChannelNameValidationError}
           onConfirm={handleJoinChannel}
           onClose={() => joinChannelModal.close()}
           isLoading={isJoiningChannel}
-          loadingText="加入中..."
+          loadingText={t('chat.join.joining')}
         />
       )}
 
@@ -1380,7 +1398,7 @@ function ChatPage() {
             onClick={e => e.stopPropagation()}
           >
             <div className="modal-header">
-              <h3>选择频道</h3>
+              <h3>{t('chat.conflict.title')}</h3>
               <button
                 type="button"
                 className="btn btn-icon"
@@ -1389,7 +1407,7 @@ function ChatPage() {
                   setJoinConflictChannelId('')
                   setJoinConflictCandidates([])
                 }}
-                aria-label="关闭"
+                aria-label={t('common.close')}
               >
                 <X size={18} />
               </button>
@@ -1403,11 +1421,13 @@ function ChatPage() {
                   onClick={() => void handleSelectConflictCandidate(candidate)}
                   disabled={isJoiningChannel}
                 >
-                  <span className="channel-conflict-title">
+                  <span className="channel-conflict-title" translate="no">
                     {getChannelTitle(candidate)}
                   </span>
-                  <span className="channel-conflict-meta">
+                  <span className="channel-conflict-meta" translate="no">
                     {getChannelId(candidate)}
+                  </span>
+                  <span className="channel-conflict-meta">
                     {candidate.onlineCount
                       ? ` · ${t('chat.channel.onlineCount', {
                           count: candidate.onlineCount,
@@ -1433,29 +1453,33 @@ function ChatPage() {
 
       {channelToRename && (
         <InputModal
-          title="重命名频道"
-          placeholder="输入备注名称"
+          title={t('chat.renameChannel')}
+          placeholder={t('chat.remark.placeholder')}
           defaultValue={channelToRename.remark || ''}
-          confirmText="保存"
+          confirmText={t('chat.remark.save')}
           onConfirm={handleRenameChannel}
           onClose={() => {
             if (isRenamingChannel) return
             setChannelToRename(null)
           }}
           isLoading={isRenamingChannel}
-          loadingText="保存中..."
+          loadingText={t('chat.remark.saving')}
           allowEmpty
           validate={value =>
-            value.length > 50 ? '备注名称最多 50 个字符' : ''
+            value.length > 50 ? t('chat.remark.tooLong') : ''
           }
         />
       )}
 
       {showLeaveChannelConfirm && channelToLeave && (
         <ConfirmModal
-          title="退出频道"
-          message={`确定要退出频道 "${getChannelTitle(channelToLeave)}" 吗？`}
-          confirmText={isLeavingChannel ? '退出中...' : '退出'}
+          title={t('chat.leaveChannel')}
+          message={t('chat.leaveConfirm', {
+            channel: getChannelTitle(channelToLeave),
+          })}
+          confirmText={
+            isLeavingChannel ? t('chat.leaving') : t('chat.leaveChannel')
+          }
           onConfirm={() =>
             handleLeaveChannel(getChannelKey(channelToLeave), undefined)
           }
@@ -1531,7 +1555,7 @@ function ChatPage() {
             onClick={e => e.stopPropagation()}
           >
             <div className="channel-detail-header">
-              <h3>频道详情</h3>
+              <h3>{t('chat.details.title')}</h3>
               <button
                 className="btn btn-icon"
                 onClick={() => setShowChannelDetail(false)}
@@ -1543,7 +1567,11 @@ function ChatPage() {
             <div className="channel-detail-body">
               <div className="channel-detail-section channel-members-section">
                 <div className="channel-detail-label">
-                  <span>群成员 ({channelMembers.length})</span>
+                  <span>
+                    {t('chat.details.members', {
+                      count: channelMembers.length,
+                    })}
+                  </span>
                 </div>
                 {renderChannelMembers()}
               </div>
@@ -1551,7 +1579,7 @@ function ChatPage() {
               {!isInviteUser && (
                 <div className="channel-detail-section">
                   <label className="setting-switch">
-                    <span>显示 #地址后四位</span>
+                    <span>{t('chat.details.showAddressSuffix')}</span>
                     <input
                       type="checkbox"
                       checked={showAddressSuffix}
@@ -1565,9 +1593,12 @@ function ChatPage() {
                 <div className="channel-detail-section">
                   <div className="channel-detail-label">
                     <Hash size={14} />
-                    <span>频道 ID</span>
+                    <span>{t('chat.details.channelId')}</span>
                   </div>
-                  <div className="ui-meta-box channel-detail-value channel-detail-mono">
+                  <div
+                    className="ui-meta-box channel-detail-value channel-detail-mono"
+                    translate="no"
+                  >
                     {getChannelId(activeChannel)}
                   </div>
                 </div>
@@ -1576,12 +1607,12 @@ function ChatPage() {
               <div className="channel-detail-section">
                 <div className="channel-detail-label">
                   <Edit2 size={14} />
-                  <span>备注名称</span>
+                  <span>{t('chat.remark.placeholder')}</span>
                 </div>
                 <input
                   type="text"
                   className="input input-compact"
-                  placeholder="输入备注名称"
+                  placeholder={t('chat.remark.placeholder')}
                   value={remarkInput}
                   onChange={e => setRemarkInput(e.target.value)}
                   onFocus={() => setRemarkInput(activeChannel.remark || '')}
@@ -1618,7 +1649,7 @@ function ChatPage() {
                     leaveChannelModal.open()
                   }}
                 >
-                  退出频道
+                  {t('chat.leaveChannel')}
                 </button>
               </div>
             )}

@@ -7,8 +7,10 @@ import UserLoginModal from '~/components/UserLoginModal'
 import ConnectModal from '~/components/ConnectModal'
 import { startUserMetadataSync } from '~/lib/userSync'
 import { getApiErrorMessage } from '~/server/src/utils/api'
+import { useI18n } from '~/lib/i18n'
 
 export default function AppGlobals() {
+  const { t } = useI18n()
   const pathname = useLocation({ select: location => location.pathname })
   const isDemoPage = pathname === '/demo' || pathname.startsWith('/demo/')
   const checkBackend = useAppStore(s => s.checkBackend)
@@ -51,9 +53,12 @@ export default function AppGlobals() {
     syncStartedForRef.current = syncKey
     startUserMetadataSync(identity).catch(async err => {
       syncStartedForRef.current = ''
-      addToast(await getApiErrorMessage(err, '账号同步启动失败'), 'error')
+      addToast(
+        await getApiErrorMessage(err, t('appGlobals.syncStartFailed')),
+        'error'
+      )
     })
-  }, [addToast, hasBackend, identity, identity?.address, isDemoPage])
+  }, [addToast, hasBackend, identity, identity?.address, isDemoPage, t])
 
   if (isDemoPage) return null
 

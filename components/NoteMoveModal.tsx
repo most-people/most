@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { ChevronDown, ChevronRight, Folder, X } from 'lucide-react'
 import type { NoteItem } from '~/app/app/useAppStore'
 import { ModalOverlay } from '~/components/ui'
+import { useI18n } from '~/lib/i18n'
 import {
   getNoteFullPath,
   normalizeNotePath,
@@ -46,6 +47,7 @@ export function NoteMoveModal({
   onMove: (targetPath: string) => void | Promise<void>
   onClose: () => void
 }) {
+  const { t } = useI18n()
   const currentPath = normalizeNotePath(target.path || '')
   const targetFullPath = getNoteMoveTargetFullPath(target)
   const usableDirectories = directories.filter(directory => {
@@ -78,7 +80,7 @@ export function NoteMoveModal({
   })
 
   const selectedBreadcrumbs = [
-    { label: '全部笔记', path: '' },
+    { label: t('note.root'), path: '' },
     ...selectedPath
       .split('/')
       .filter(Boolean)
@@ -121,13 +123,13 @@ export function NoteMoveModal({
         onClick={event => event.stopPropagation()}
       >
         <div className="modal-header">
-          <h3>移动笔记</h3>
+          <h3>{t('note.move.title')}</h3>
           <button className="btn btn-icon" onClick={onClose}>
             <X size={18} />
           </button>
         </div>
         <div className="note-move-target">
-          <span>正在移动</span>
+          <span>{t('note.move.moving')}</span>
           <strong translate="no">{target.name}</strong>
         </div>
         <div className="note-move-path">
@@ -148,10 +150,10 @@ export function NoteMoveModal({
           >
             <span className="note-move-folder-spacer" />
             <Folder className="note-move-folder-icon" size={16} />
-            <span>全部笔记</span>
+            <span>{t('note.root')}</span>
           </button>
           {usableDirectories.length === 0 ? (
-            <p className="note-move-empty">还没有可选文件夹</p>
+            <p className="note-move-empty">{t('note.move.noFolders')}</p>
           ) : (
             visibleDirectories.map(directory => {
               const hasChildren = childPathsByParent.has(directory.path)
@@ -189,22 +191,25 @@ export function NoteMoveModal({
           className="input input-compact"
           value={customPath}
           onChange={event => setCustomPath(event.target.value)}
-          placeholder="或输入新目录路径，如 文章/摘录"
+          placeholder={t('note.move.pathPlaceholder')}
           translate="no"
         />
         <div className="note-move-destination">
-          目标位置：{finalPath || '全部笔记'}
+          <span>{t('note.move.destinationLabel')}</span>
+          <span translate={finalPath ? 'no' : 'yes'}>
+            {finalPath || t('note.root')}
+          </span>
         </div>
         <div className="modal-actions">
           <button className="btn btn-secondary" onClick={onClose}>
-            取消
+            {t('common.cancel')}
           </button>
           <button
             className="btn btn-primary"
             onClick={handleConfirm}
             disabled={isSamePath}
           >
-            移动
+            {t('note.action.move')}
           </button>
         </div>
       </div>

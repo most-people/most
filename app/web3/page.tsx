@@ -13,6 +13,7 @@ import {
 import AppShell from '~/components/AppShell'
 import { useAppStore } from '~/app/app/useAppStore'
 import { useUserStore } from '~/app/app/userStore'
+import { useI18n, type MessageKey } from '~/lib/i18n'
 import {
   mostBoxDecrypt,
   mostBoxEncrypt,
@@ -52,6 +53,7 @@ function getHashView(): ViewId {
 }
 
 export default function Web3Page() {
+  const { t } = useI18n()
   const isDarkMode = useAppStore(s => s.isDarkMode)
   const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
   const addToast = useAppStore(s => s.addToast)
@@ -88,13 +90,11 @@ export default function Web3Page() {
   const [boxBShowPassword, setBoxBShowPassword] = useState(false)
   const [boxBShowPrivateKey, setBoxBShowPrivateKey] = useState(false)
   const [boxBAccount, setBoxBAccount] = useState<BoxAccount | null>(null)
-  const [boxABMessage, setBoxABMessage] =
-    useState('你好，B。这是来自 A 的加密消息。')
+  const [boxABMessage, setBoxABMessage] = useState('Hello B. This is from A.')
   const [boxABCipherText, setBoxABCipherText] = useState('')
   const [boxABDecryptedText, setBoxABDecryptedText] = useState('')
   const [boxABError, setBoxABError] = useState('')
-  const [boxBAMessage, setBoxBAMessage] =
-    useState('你好，A。这是来自 B 的加密消息。')
+  const [boxBAMessage, setBoxBAMessage] = useState('Hello A. This is from B.')
   const [boxBACipherText, setBoxBACipherText] = useState('')
   const [boxBADecryptedText, setBoxBADecryptedText] = useState('')
   const [boxBAError, setBoxBAError] = useState('')
@@ -136,7 +136,10 @@ export default function Web3Page() {
     const displayName = `${result.username}#${result.address.slice(-4).toUpperCase()}`
     setWalletResult(result)
     setUserIdentity({ ...result, displayName })
-    addToast(`已登录 ${result.username}`, 'success')
+    addToast(
+      t('login.toast.signedIn', { username: result.username }),
+      'success'
+    )
     setMnemonicPhrase(mostMnemonic(result.danger))
     const nextKeys = most25519(result.danger)
     setKeys(nextKeys)
@@ -151,7 +154,7 @@ export default function Web3Page() {
     setShowMnemonicQr(false)
     setShowX25519Private(false)
     setGenerating(false)
-  }, [addToast, password, setUserIdentity, username])
+  }, [addToast, password, setUserIdentity, t, username])
 
   function generateBoxAccount(
     nextUsername: string,
@@ -172,7 +175,7 @@ export default function Web3Page() {
     setBoxABError('')
     setBoxBADecryptedText('')
     setBoxBAError('')
-    addToast('账号已生成', 'success')
+    addToast(t('web3.toast.accountGenerated'), 'success')
   }
 
   function encryptBoxMessage({
@@ -191,11 +194,11 @@ export default function Web3Page() {
     setError: (value: string) => void
   }) {
     if (!senderAccount || !recipientAccount) {
-      setError('请先生成 A 和 B 两个账号')
+      setError(t('web3.error.accountsRequired'))
       return
     }
     if (!message.trim()) {
-      setError('请输入要加密的消息')
+      setError(t('web3.error.messageRequired'))
       return
     }
     const encrypted = mostBoxEncrypt(message, {
@@ -221,11 +224,11 @@ export default function Web3Page() {
     setError: (value: string) => void
   }) {
     if (!senderAccount || !recipientAccount) {
-      setError('请先生成 A 和 B 两个账号')
+      setError(t('web3.error.accountsRequired'))
       return
     }
     if (!cipherText.trim()) {
-      setError('请先生成或粘贴密文')
+      setError(t('web3.error.cipherRequired'))
       return
     }
     const decrypted = mostBoxDecrypt(cipherText, {
@@ -233,7 +236,7 @@ export default function Web3Page() {
       recipientPrivateKey: recipientAccount.privateKey,
     })
     if (!decrypted) {
-      setError('解密失败，请确认发送方公钥、接收方私钥和密文匹配')
+      setError(t('web3.error.decryptFailed'))
       setDecryptedText('')
       return
     }
@@ -243,15 +246,15 @@ export default function Web3Page() {
 
   function handleDecryptOnly() {
     if (!boxDecryptSenderPublicKey.trim()) {
-      setBoxDecryptError('请输入发送方公钥')
+      setBoxDecryptError(t('web3.error.senderPublicRequired'))
       return
     }
     if (!boxDecryptRecipientPrivateKey.trim()) {
-      setBoxDecryptError('请输入接收方私钥')
+      setBoxDecryptError(t('web3.error.recipientPrivateRequired'))
       return
     }
     if (!boxDecryptCipherText.trim()) {
-      setBoxDecryptError('请粘贴密文')
+      setBoxDecryptError(t('web3.error.cipherRequired'))
       return
     }
     const decrypted = mostBoxDecrypt(boxDecryptCipherText, {
@@ -259,7 +262,7 @@ export default function Web3Page() {
       recipientPrivateKey: boxDecryptRecipientPrivateKey.trim(),
     })
     if (!decrypted) {
-      setBoxDecryptError('解密失败，请确认发送方公钥、接收方私钥和密文匹配')
+      setBoxDecryptError(t('web3.error.decryptFailed'))
       setBoxDecryptResult('')
       return
     }
@@ -269,15 +272,15 @@ export default function Web3Page() {
 
   function handleEncryptOnly() {
     if (!boxEncryptSenderPrivateKey.trim()) {
-      setBoxEncryptError('请输入发送方私钥')
+      setBoxEncryptError(t('web3.error.senderPrivateRequired'))
       return
     }
     if (!boxEncryptRecipientPublicKey.trim()) {
-      setBoxEncryptError('请输入接收方公钥')
+      setBoxEncryptError(t('web3.error.recipientPublicRequired'))
       return
     }
     if (!boxEncryptMessage.trim()) {
-      setBoxEncryptError('请输入要加密的消息')
+      setBoxEncryptError(t('web3.error.messageRequired'))
       return
     }
     const encrypted = mostBoxEncrypt(boxEncryptMessage, {
@@ -306,24 +309,28 @@ export default function Web3Page() {
   }
 
   const avatarSrc = generateAvatar(walletResult?.address || undefined)
-  const viewTitle =
+  const viewTitleKey: MessageKey =
     currentView === 'wallet'
-      ? 'Web3'
+      ? 'web3.view.wallet'
       : currentView === 'pem'
-        ? 'PEM 导出'
+        ? 'web3.view.pem'
         : currentView === 'EA'
-          ? '非对称加密'
-          : 'Wallet 导出'
+          ? 'web3.view.asymmetric'
+          : 'web3.view.export'
 
   const sidebarNavItems: Array<{
     id: ViewId
     icon: ReactNode
-    label: string
+    labelKey: MessageKey
   }> = [
-    { id: 'wallet', icon: <User size={16} />, label: 'Web3' },
-    { id: 'pem', icon: <Lock size={16} />, label: 'PEM 导出' },
-    { id: 'export', icon: <Wallet size={16} />, label: 'Wallet 导出' },
-    { id: 'EA', icon: <KeyRound size={16} />, label: '非对称加密' },
+    { id: 'wallet', icon: <User size={16} />, labelKey: 'web3.view.wallet' },
+    { id: 'pem', icon: <Lock size={16} />, labelKey: 'web3.view.pem' },
+    { id: 'export', icon: <Wallet size={16} />, labelKey: 'web3.view.export' },
+    {
+      id: 'EA',
+      icon: <KeyRound size={16} />,
+      labelKey: 'web3.view.asymmetric',
+    },
   ]
 
   const showLoginPanel = currentView !== 'EA'
@@ -350,18 +357,18 @@ export default function Web3Page() {
                 className={`sidebar-nav-btn ${currentView === item.id ? 'active' : ''}`}
               >
                 {item.icon}
-                <span>{item.label}</span>
+                <span>{t(item.labelKey)}</span>
               </button>
             ))}
           </nav>
         </>
       )}
-      headerTitle={<h2 className="header-title">{viewTitle}</h2>}
+      headerTitle={<h2 className="header-title">{t(viewTitleKey)}</h2>}
       headerRight={
         <button
           className="btn btn-icon"
           onClick={() => setIsDarkMode(!isDarkMode)}
-          title="切换主题"
+          title={t('common.theme.toggle')}
         >
           {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
         </button>

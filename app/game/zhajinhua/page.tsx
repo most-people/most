@@ -5,6 +5,7 @@ import GameSidebar from '~/components/GameSidebar'
 import { useGameRoom } from '~/hooks/useGameRoom'
 import { useAppStore } from '~/app/app/useAppStore'
 import { useUserStore, type UserIdentity } from '~/app/app/userStore'
+import { useI18n } from '~/lib/i18n'
 import {
   ZHJ_INITIAL_CHIPS,
   ZHJ_RAISE_STEPS,
@@ -57,6 +58,7 @@ function cardParts(card: string) {
 }
 
 export default function ZhajinhuaPage() {
+  const { t } = useI18n()
   const isDarkMode = useAppStore(s => s.isDarkMode)
   const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
   const addToast = useAppStore(s => s.addToast)
@@ -113,9 +115,9 @@ export default function ZhajinhuaPage() {
     autoJoinAttempted.current = true
     pendingAutoJoin.current = ''
     void game.joinRoom(code).then(ok => {
-      if (ok) addToast('已进入房间', 'success')
+      if (ok) addToast(t('game.toast.joinedRoom'), 'success')
     })
-  }, [game.isBackendReady, game.userIdentity, game.joinRoom, addToast])
+  }, [game.isBackendReady, game.userIdentity, game.joinRoom, addToast, t])
 
   useEffect(() => {
     if (!game.roomCode) return
@@ -322,13 +324,13 @@ export default function ZhajinhuaPage() {
 
   async function createRoom() {
     const ok = await game.createRoom()
-    if (ok) addToast('房间已创建', 'success')
+    if (ok) addToast(t('game.toast.roomCreated'), 'success')
   }
 
   async function joinRoom(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const ok = await game.joinRoom(roomInput)
-    if (ok) addToast('已进入房间', 'success')
+    if (ok) addToast(t('game.toast.joinedRoom'), 'success')
   }
 
   async function copyShareLink() {
@@ -347,7 +349,7 @@ export default function ZhajinhuaPage() {
 
   async function hostStartRound() {
     if (!game.userIdentity || !myKeys || !canHostStart) {
-      addToast('至少需要 2 名有足够筹码的玩家', 'error')
+      addToast(t('game.zhajinhua.error.notEnoughPlayers'), 'error')
       return
     }
     try {
@@ -387,9 +389,12 @@ export default function ZhajinhuaPage() {
         ...prev,
         [round.roundId]: round.hands[game.userIdentity.address.toLowerCase()],
       }))
-      addToast('新一局已开始', 'success')
+      addToast(t('game.zhajinhua.toast.roundStarted'), 'success')
     } catch (err) {
-      addToast(err instanceof Error ? err.message : '开局失败', 'error')
+      addToast(
+        err instanceof Error ? err.message : t('game.zhajinhua.error.startFailed'),
+        'error'
+      )
     }
   }
 
@@ -410,13 +415,15 @@ export default function ZhajinhuaPage() {
   const roundStatusText =
     currentRound?.status === 'playing'
       ? sameAddress(currentRound.turnAddress, myAddress)
-        ? '轮到你操作'
+        ? t('game.zhajinhua.status.yourTurn')
         : currentRound.turnAddress
-          ? `等待 ${getPlayerName(currentRound.turnAddress, lobby.players)}`
-          : '进行中'
+          ? t('game.zhajinhua.status.waitingPlayer', {
+              player: getPlayerName(currentRound.turnAddress, lobby.players),
+            })
+          : t('game.status.playing')
       : currentRound?.status === 'finished'
-        ? '本局结束'
-        : '等待开局'
+        ? t('game.status.finished')
+        : t('game.status.waitingStart')
 
   const compareOptions = activePlayers.filter(
     player => !sameAddress(player.address, myAddress)
@@ -427,19 +434,19 @@ export default function ZhajinhuaPage() {
       sidebar={({ closeSidebar }) => (
         <GameSidebar activeGame="zhajinhua" closeSidebar={closeSidebar} />
       )}
-      headerTitle={<h2 className="header-title">炸金花</h2>}
+      headerTitle={<h2 className="header-title">{t('game.zhajinhua.title')}</h2>}
       headerRight={
         <div className={styles.headerActions}>
           {game.roomCode && (
             <button className="btn btn-sm" onClick={copyShareLink}>
               <Copy size={14} />
-              {copied ? '已复制' : '分享房间'}
+              {copied ? t('common.copied') : t('game.action.shareRoom')}
             </button>
           )}
           <button
             className="btn btn-icon"
             onClick={() => setIsDarkMode(!isDarkMode)}
-            title="切换主题"
+            title={t('common.theme.toggle')}
           >
             {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
           </button>
@@ -454,17 +461,19 @@ export default function ZhajinhuaPage() {
                 <Spade size={48} />
               </div>
               <div>
-                <h1>炸金花牌桌</h1>
+                <h1>{t('game.zhajinhua.hero.title')}</h1>
                 <p>
-                  创建房间码邀请朋友加入，房间状态通过 MostBox P2P 频道同步。
+                  {t('game.hero.desc')}
                 </p>
               </div>
             </div>
 
             <div className={styles.entryPanel}>
               <div className={styles.accountLine}>
-                <span>当前账号</span>
-                <strong>{game.userIdentity?.displayName || '未登录'}</strong>
+                <span>{t('game.currentAccount')}</span>
+                <strong translate="no">
+                  {game.userIdentity?.displayName || t('web3.notSignedIn')}
+                </strong>
               </div>
               <button
                 className="btn btn-primary"
@@ -472,26 +481,28 @@ export default function ZhajinhuaPage() {
                 onClick={createRoom}
               >
                 <Play size={16} />
-                创建房间
+                {t('game.action.createRoom')}
               </button>
               <form onSubmit={joinRoom} className={styles.joinForm}>
                 <label>
-                  房间号
+                  {t('game.roomCode')}
                   <input
                     value={roomInput}
                     maxLength={8}
                     onChange={event =>
                       setRoomInput(event.target.value.toUpperCase())
                     }
-                    placeholder="输入房间号"
+                    placeholder={t('game.roomCode.placeholder')}
                   />
                 </label>
                 <button className="btn" disabled={game.joining || !roomInput}>
-                  加入房间
+                  {t('game.action.joinRoom')}
                 </button>
               </form>
               <p className={styles.status}>
-                {game.isBackendReady ? '节点已连接' : '正在连接节点...'}
+                {game.isBackendReady
+                  ? t('game.status.nodeConnected')
+                  : t('game.status.nodeConnecting')}
               </p>
             </div>
           </section>
@@ -502,8 +513,10 @@ export default function ZhajinhuaPage() {
                 <div className={styles.finishBanner}>
                   <span className={styles.finishBannerIcon}>🏆</span>
                   <span>
-                    {getPlayerName(currentRound.winner, lobby.players)} 赢得{' '}
-                    {currentRound.winAmount ?? 0} 筹码
+                    {t('game.zhajinhua.result.winChips', {
+                      player: getPlayerName(currentRound.winner, lobby.players),
+                      amount: currentRound.winAmount ?? 0,
+                    })}
                   </span>
                 </div>
               )}
@@ -518,9 +531,13 @@ export default function ZhajinhuaPage() {
                 />
               )}
               <div className={styles.tableCenter}>
-                <span>底池</span>
+                <span>{t('game.zhajinhua.pot')}</span>
                 <strong>{currentRound?.pot || 0}</strong>
-                <small>当前注 {currentRound?.currentBet || 0}</small>
+                <small>
+                  {t('game.zhajinhua.currentBet', {
+                    amount: currentRound?.currentBet || 0,
+                  })}
+                </small>
               </div>
 
               <div className={styles.seats}>
@@ -545,21 +562,23 @@ export default function ZhajinhuaPage() {
                         {player.name.slice(0, 1)}
                       </div>
                       <div className={styles.seatMain}>
-                        <strong>{player.name}</strong>
-                        <span>{shortAddress(player.address)}</span>
+                        <strong translate="no">{player.name}</strong>
+                        <span translate="no">{shortAddress(player.address)}</span>
                       </div>
                       <div className={styles.seatMeta}>
                         <span>
-                          {roundPlayer?.chips ?? ZHJ_INITIAL_CHIPS} 筹码
+                          {t('game.zhajinhua.chips', {
+                            amount: roundPlayer?.chips ?? ZHJ_INITIAL_CHIPS,
+                          })}
                         </span>
                         <span>
                           {roundPlayer?.status === 'folded'
-                            ? '已弃牌'
+                            ? t('game.zhajinhua.player.folded')
                             : roundPlayer?.looked
-                              ? '已看牌'
+                              ? t('game.zhajinhua.player.looked')
                               : currentRound
-                                ? '在局中'
-                                : '等待开局'}
+                                ? t('game.zhajinhua.player.inRound')
+                                : t('game.status.waitingStart')}
                         </span>
                       </div>
                     </div>
@@ -572,7 +591,7 @@ export default function ZhajinhuaPage() {
               <div className={styles.panelSection}>
                 <div className={styles.panelTitle}>
                   <Spade size={16} />
-                  <span>我的手牌</span>
+                  <span>{t('game.zhajinhua.myHand')}</span>
                 </div>
                 <div className={styles.hand}>
                   {myHand
@@ -602,15 +621,15 @@ export default function ZhajinhuaPage() {
                   {myHand
                     ? getHandLabel(myHand)
                     : myDealtHand
-                      ? '未看牌'
-                      : '等待房主发牌'}
+                      ? t('game.zhajinhua.hand.unlooked')
+                      : t('game.zhajinhua.hand.waitingDeal')}
                 </p>
               </div>
 
               <div className={styles.panelSection}>
                 <div className={styles.panelTitle}>
                   <Play size={16} />
-                  <span>操作</span>
+                  <span>{t('game.actions')}</span>
                 </div>
                 {isHost ? (
                   <button
@@ -621,13 +640,17 @@ export default function ZhajinhuaPage() {
                     }
                   >
                     <RefreshCcw size={16} />
-                    {currentRound?.status === 'finished' ? '再来一局' : '开始本局'}
+                    {currentRound?.status === 'finished'
+                      ? t('game.action.nextRound')
+                      : t('game.action.startRound')}
                   </button>
                 ) : (
-                  <p className={styles.muted}>等待房主开始或继续牌局。</p>
+                  <p className={styles.muted}>{t('game.waitingHost')}</p>
                 )}
                 {isHost && currentRound?.status === 'finished' && !canHostStart && (
-                  <p className={styles.muted}>筹码不足的玩家太多，无法开局</p>
+                  <p className={styles.muted}>
+                    {t('game.zhajinhua.error.tooManyLowChips')}
+                  </p>
                 )}
 
                 <div className={styles.actionGrid}>
@@ -637,21 +660,21 @@ export default function ZhajinhuaPage() {
                     onClick={() => handlePlayerAction('look')}
                   >
                     <Eye size={16} />
-                    看牌
+                    {t('game.zhajinhua.action.look')}
                   </button>
                   <button
                     className="btn btn-secondary"
                     disabled={!allowedActions.includes('call')}
                     onClick={() => handlePlayerAction('call')}
                   >
-                    跟注
+                    {t('game.zhajinhua.action.call')}
                   </button>
                   <button
                     className="btn btn-secondary"
                     disabled={!allowedActions.includes('fold')}
                     onClick={() => handlePlayerAction('fold')}
                   >
-                    弃牌
+                    {t('game.zhajinhua.action.fold')}
                   </button>
                 </div>
 
@@ -665,7 +688,7 @@ export default function ZhajinhuaPage() {
                   >
                     {ZHJ_RAISE_STEPS.map(step => (
                       <option key={step} value={step}>
-                        加 {step}
+                        {t('game.zhajinhua.action.raiseOption', { amount: step })}
                       </option>
                     ))}
                   </select>
@@ -676,7 +699,7 @@ export default function ZhajinhuaPage() {
                       handlePlayerAction('raise', { amount: raiseAmount })
                     }
                   >
-                    加注
+                    {t('game.zhajinhua.action.raise')}
                   </button>
                 </div>
 
@@ -686,7 +709,9 @@ export default function ZhajinhuaPage() {
                     value={compareTarget}
                     onChange={event => setCompareTarget(event.target.value)}
                   >
-                    <option value="">选择比牌对象</option>
+                    <option value="">
+                      {t('game.zhajinhua.action.comparePlaceholder')}
+                    </option>
                     {compareOptions.map(player => (
                       <option key={player.address} value={player.address}>
                         {player.name}
@@ -702,24 +727,26 @@ export default function ZhajinhuaPage() {
                       handlePlayerAction('compare', { target: compareTarget })
                     }
                   >
-                    比牌
+                    {t('game.zhajinhua.action.compare')}
                   </button>
                 </div>
               </div>
 
               <div className={styles.panelSection}>
-                <div className={styles.panelTitle}>状态</div>
+                <div className={styles.panelTitle}>{t('game.status.title')}</div>
                 <div className={styles.statusGrid}>
-                  <span>房主</span>
+                  <span>{t('game.host')}</span>
                   <strong>
                     {hostAddress ? shortAddress(hostAddress) : '-'}
                   </strong>
-                  <span>我的筹码</span>
+                  <span>{t('game.zhajinhua.myChips')}</span>
                   <strong>{myPlayer?.chips ?? ZHJ_INITIAL_CHIPS}</strong>
-                  <span>本轮</span>
+                  <span>{t('game.round')}</span>
                   <strong>{roundStatusText}</strong>
-                  <span>提示</span>
-                  <strong>{currentRound?.lastAction || '等待玩家加入'}</strong>
+                  <span>{t('game.hint')}</span>
+                  <strong>
+                    {currentRound?.lastAction || t('game.waitingPlayers')}
+                  </strong>
                 </div>
               </div>
             </aside>
@@ -755,6 +782,7 @@ function CompareOverlay({
   lobbyPlayers,
   onClose,
 }: CompareOverlayProps) {
+  const { t } = useI18n()
   const initiatorName = getPlayerName(lastCompare.initiator, lobbyPlayers)
   const targetName = getPlayerName(lastCompare.target, lobbyPlayers)
   const winnerName = getPlayerName(lastCompare.winner, lobbyPlayers)
@@ -778,7 +806,9 @@ function CompareOverlay({
   return (
     <div className={styles.compareOverlay} onClick={onClose}>
       <div className={styles.compareBox} onClick={e => e.stopPropagation()}>
-        <div className={styles.compareTitle}>比牌结果</div>
+        <div className={styles.compareTitle}>
+          {t('game.zhajinhua.compareResult')}
+        </div>
         <div className={styles.comparePlayers}>
           <div className={classNames(styles.compareSide, sameAddress(lastCompare.winner, lastCompare.initiator) && styles.compareWinner)}>
             <div className={styles.compareName}>{initiatorName}</div>
@@ -829,9 +859,11 @@ function CompareOverlay({
           </div>
         </div>
         <div className={styles.compareResult}>
-          {winnerName} 胜出
+          {t('game.zhajinhua.result.winner', { player: winnerName })}
         </div>
-        <button className="btn btn-sm" onClick={onClose}>关闭</button>
+        <button className="btn btn-sm" onClick={onClose}>
+          {t('common.close')}
+        </button>
       </div>
     </div>
   )

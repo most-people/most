@@ -18,11 +18,35 @@ export function getNoteFullPath(note) {
   return path ? `${path}/${name}` : name
 }
 
+export const NOTE_NAME_ERROR_CODES = {
+  EMPTY: 'empty',
+  SLASH: 'slash',
+  BACKSLASH: 'backslash',
+}
+
 export function validateNoteName(name) {
   const value = String(name || '').trim()
-  if (!value) return { valid: false, error: '请输入名称' }
-  if (value.includes('/')) return { valid: false, error: '名称不能包含 /' }
-  if (value.includes('\\')) return { valid: false, error: '名称不能包含 \\' }
+  if (!value) {
+    return {
+      valid: false,
+      errorCode: NOTE_NAME_ERROR_CODES.EMPTY,
+      error: 'Name is required',
+    }
+  }
+  if (value.includes('/')) {
+    return {
+      valid: false,
+      errorCode: NOTE_NAME_ERROR_CODES.SLASH,
+      error: 'Name cannot contain /',
+    }
+  }
+  if (value.includes('\\')) {
+    return {
+      valid: false,
+      errorCode: NOTE_NAME_ERROR_CODES.BACKSLASH,
+      error: 'Name cannot contain \\',
+    }
+  }
   return { valid: true, name: value }
 }
 

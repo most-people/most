@@ -1,23 +1,47 @@
 import '~/styles/marketing.css'
 import '~/styles/download.css'
+import { useEffect } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ArrowLeft, Download } from 'lucide-react'
 import DownloadOptions from '~/components/DownloadOptions'
+import { LanguageToggle } from '~/components/LanguageToggle'
+import { useI18n } from '~/lib/i18n'
 
 const webVsDesktop = [
-  { feature: '节点能力', web: '连接已有节点', desktop: '内置本地节点' },
-  { feature: 'P2P 文件分享', web: '依赖所连节点', desktop: '完整支持' },
-  { feature: '下载校验', web: '依赖所连节点', desktop: '完整支持' },
-  { feature: '持续做种', web: '依赖所连节点', desktop: '默认开启' },
-  { feature: '大文件传输', web: '依赖所连节点', desktop: '10GB 上限内' },
-]
-
-const desktopRuntimeNote =
-  '桌面客户端是当前 MVP 的首选入口，内置本地 P2P 节点，提供发布、下载校验和持续做种的完整能力。Web 端只连接已有 MostBox 节点。'
-const npmRuntimeNote =
-  '使用 npm 入口请先安装 Node.js >= 22.12，然后运行 npx most-box@latest 启动本机完整节点。'
+  {
+    featureKey: 'download.comparison.node',
+    webKey: 'download.comparison.webConnectsNode',
+    desktopKey: 'download.comparison.desktopBuiltinNode',
+  },
+  {
+    featureKey: 'download.comparison.fileSharing',
+    webKey: 'download.comparison.webDependsNode',
+    desktopKey: 'download.comparison.desktopFull',
+  },
+  {
+    featureKey: 'download.comparison.verification',
+    webKey: 'download.comparison.webDependsNode',
+    desktopKey: 'download.comparison.desktopFull',
+  },
+  {
+    featureKey: 'download.comparison.seeding',
+    webKey: 'download.comparison.webDependsNode',
+    desktopKey: 'download.comparison.desktopDefaultOn',
+  },
+  {
+    featureKey: 'download.comparison.largeFiles',
+    webKey: 'download.comparison.webDependsNode',
+    desktopKey: 'download.comparison.desktop10gb',
+  },
+] as const
 
 export default function DownloadPage() {
+  const { t } = useI18n()
+
+  useEffect(() => {
+    document.title = t('download.meta.title')
+  }, [t])
+
   return (
     <div className="download-page">
       <nav className="mkt-nav">
@@ -26,6 +50,7 @@ export default function DownloadPage() {
             <ArrowLeft size={18} />
             <span>MOST PEOPLE</span>
           </Link>
+          <LanguageToggle />
         </div>
       </nav>
 
@@ -34,36 +59,40 @@ export default function DownloadPage() {
           <div className="download-hero-icon">
             <Download size={40} />
           </div>
-          <h1 className="download-hero-title">下载客户端</h1>
-          <p className="download-hero-desc">{desktopRuntimeNote}</p>
+          <h1 className="download-hero-title">{t('download.hero.title')}</h1>
+          <p className="download-hero-desc">{t('download.hero.desc')}</p>
         </div>
       </section>
 
       <section className="download-platforms">
         <div className="mkt-container">
-          <h2 className="download-section-title">选择你的平台</h2>
+          <h2 className="download-section-title">
+            {t('download.platforms.title')}
+          </h2>
           <DownloadOptions />
         </div>
       </section>
 
       <section className="download-comparison">
         <div className="mkt-container">
-          <h2 className="download-section-title">Web 端 vs 桌面端</h2>
+          <h2 className="download-section-title">
+            {t('download.comparison.title')}
+          </h2>
           <div className="download-table-wrap">
             <table className="download-table">
               <thead>
                 <tr>
-                  <th>功能</th>
-                  <th>Web 端</th>
-                  <th>桌面端</th>
+                  <th>{t('download.comparison.feature')}</th>
+                  <th>{t('download.comparison.web')}</th>
+                  <th>{t('download.comparison.desktop')}</th>
                 </tr>
               </thead>
               <tbody>
                 {webVsDesktop.map(row => (
-                  <tr key={row.feature}>
-                    <td>{row.feature}</td>
-                    <td className="col-web">{row.web}</td>
-                    <td className="col-desktop">{row.desktop}</td>
+                  <tr key={row.featureKey}>
+                    <td>{t(row.featureKey)}</td>
+                    <td className="col-web">{t(row.webKey)}</td>
+                    <td className="col-desktop">{t(row.desktopKey)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -74,14 +103,14 @@ export default function DownloadPage() {
 
       <section className="download-cta">
         <div className="mkt-container">
-          <p className="download-hero-desc">{npmRuntimeNote}</p>
+          <p className="download-hero-desc">{t('download.npmNote')}</p>
         </div>
       </section>
 
       <section className="download-cta">
         <div className="mkt-container">
           <Link to="/" className="btn btn-primary">
-            返回首页
+            {t('common.backHome')}
           </Link>
         </div>
       </section>

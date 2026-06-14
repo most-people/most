@@ -25,7 +25,7 @@ import {
 import { ErrorBoundary } from '~/app/error-boundary'
 import NotFoundPage from '~/app/not-found'
 import AppGlobals from '~/components/AppGlobals'
-import { I18nProvider } from '~/lib/i18n'
+import { I18nProvider, translateMessage } from '~/lib/i18n'
 
 export const Route = createRootRoute({
   head: () => ({
@@ -34,7 +34,10 @@ export const Route = createRootRoute({
       { name: 'viewport', content: 'width=device-width, initial-scale=1.0' },
       { name: 'theme-color', content: '#5e6ad2' },
       { title: 'MostBox' },
-      { name: 'description', content: 'P2P 文件分享，无需注册' },
+      {
+        name: 'description',
+        content: translateMessage('portal.feature.app.hero'),
+      },
     ],
     links: [{ rel: 'icon', href: '/logo.svg', type: 'image/svg+xml' }],
   }),

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Check, Copy } from 'lucide-react'
+import { useI18n } from '~/lib/i18n'
 
 interface CopyButtonProps {
   text: string
@@ -12,11 +13,14 @@ interface CopyButtonProps {
 export function CopyButton({
   text,
   label,
-  copiedLabel = '已复制',
+  copiedLabel,
   className = 'btn btn-icon',
   iconSize = 14,
 }: CopyButtonProps) {
+  const { t } = useI18n()
   const [copied, setCopied] = useState(false)
+  const resolvedCopiedLabel = copiedLabel || t('common.copied')
+  const resolvedLabel = label || t('common.copy')
 
   async function handleCopy() {
     try {
@@ -31,10 +35,10 @@ export function CopyButton({
       type="button"
       className={className}
       onClick={handleCopy}
-      title={copied ? copiedLabel : label || '复制'}
+      title={copied ? resolvedCopiedLabel : resolvedLabel}
     >
       {copied ? <Check size={iconSize} /> : <Copy size={iconSize} />}
-      {label ? (copied ? copiedLabel : label) : null}
+      {label ? (copied ? resolvedCopiedLabel : label) : null}
     </button>
   )
 }

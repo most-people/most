@@ -1,16 +1,20 @@
 import { Link } from '@tanstack/react-router'
+import { useI18n } from '~/lib/i18n'
 
 const footerLinks = [
-  { to: '/', label: '关于' },
-  { to: '/ping/', label: '网络' },
+  { to: '/', labelKey: 'footer.about' },
+  { to: '/ping/', labelKey: 'footer.network' },
   {
     href: 'https://github.com/most-people/most',
+    labelKey: null,
     label: 'GitHub',
     external: true,
   },
 ] as const
 
 export function Footer() {
+  const { t } = useI18n()
+
   return (
     <footer className="mkt-footer">
       <div className="mkt-container">
@@ -28,7 +32,7 @@ export function Footer() {
                 </a>
               ) : (
                 <Link key={link.to} to={link.to}>
-                  {link.label}
+                  {t(link.labelKey)}
                 </Link>
               )
             )}

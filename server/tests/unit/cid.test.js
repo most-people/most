@@ -1,19 +1,26 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert'
-import { validateCidString, parseMostLink } from '../../src/core/cid.js'
+import {
+  MOST_LINK_ERROR_CODES,
+  validateCidString,
+  parseMostLink,
+} from '../../src/core/cid.js'
 
 const VALID_CID = 'bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e'
 
-function assertInvalidCid(input, error) {
+function assertInvalidCid(input, errorCode) {
   const result = validateCidString(input)
   assert.strictEqual(result.valid, false)
-  assert.strictEqual(result.error, error)
+  assert.strictEqual(result.errorCode, errorCode)
+  assert.strictEqual(Object.hasOwn(result, 'error'), false)
 }
 
-function assertInvalidLink(input, error) {
+function assertInvalidLink(input, errorCode) {
   const result = parseMostLink(input)
   assert.strictEqual(result.cid, '')
-  assert.strictEqual(result.error, error)
+  assert.strictEqual(result.errorCode, errorCode)
+  assert.strictEqual(Object.hasOwn(result, 'error'), false)
+  return result
 }
 
 function mostLink(fileName = 'a.txt') {
@@ -22,32 +29,32 @@ function mostLink(fileName = 'a.txt') {
 
 describe('validateCidString', () => {
   it('rejects null', () => {
-    assertInvalidCid(null, 'CID must be a non-empty string')
+    assertInvalidCid(null, MOST_LINK_ERROR_CODES.CID_EMPTY)
   })
 
   it('rejects undefined', () => {
-    assertInvalidCid(undefined, 'CID must be a non-empty string')
+    assertInvalidCid(undefined, MOST_LINK_ERROR_CODES.CID_EMPTY)
   })
 
   it('rejects non-string values', () => {
-    assert.strictEqual(validateCidString(123).valid, false)
-    assert.strictEqual(validateCidString({}).valid, false)
-    assert.strictEqual(validateCidString([]).valid, false)
+    assertInvalidCid(123, MOST_LINK_ERROR_CODES.CID_EMPTY)
+    assertInvalidCid({}, MOST_LINK_ERROR_CODES.CID_EMPTY)
+    assertInvalidCid([], MOST_LINK_ERROR_CODES.CID_EMPTY)
   })
 
   it('rejects empty string', () => {
-    assertInvalidCid('', 'CID must be a non-empty string')
+    assertInvalidCid('', MOST_LINK_ERROR_CODES.CID_EMPTY)
   })
 
   it('rejects CID v0', () => {
     assertInvalidCid(
       'QmT5NvUtoM5nWFfrQdVrFtvGfKFmG7AHE8P34isapyhCxX',
-      'Invalid CID format: CID v1 required'
+      MOST_LINK_ERROR_CODES.CID_V1_REQUIRED
     )
   })
 
   it('rejects fake CID v1 strings', () => {
-    assertInvalidCid('bafkreid', 'Invalid CID format')
+    assertInvalidCid('bafkreid', MOST_LINK_ERROR_CODES.INVALID_CID_FORMAT)
   })
 
   it('accepts valid CID v1 strings', () => {
@@ -69,7 +76,8 @@ describe('parseMostLink', () => {
     const result = parseMostLink(mostLink())
     assert.strictEqual(result.cid, VALID_CID)
     assert.strictEqual(result.fileName, 'a.txt')
-    assert.strictEqual(result.error, undefined)
+    assert.strictEqual(result.errorCode, undefined)
+    assert.strictEqual(Object.hasOwn(result, 'error'), false)
   })
 
   it('decodes URL-encoded filenames with spaces and Unicode', () => {
@@ -77,55 +85,63 @@ describe('parseMostLink', () => {
     const result = parseMostLink(mostLink(fileName))
     assert.strictEqual(result.cid, VALID_CID)
     assert.strictEqual(result.fileName, fileName)
-    assert.strictEqual(result.error, undefined)
+    assert.strictEqual(result.errorCode, undefined)
+    assert.strictEqual(Object.hasOwn(result, 'error'), false)
   })
 
   it('rejects CID without most:// prefix', () => {
-    assertInvalidLink(VALID_CID, 'Link must be a valid most:// URL')
+    assertInvalidLink(VALID_CID, MOST_LINK_ERROR_CODES.INVALID_URL)
   })
 
   it('rejects trailing slashes', () => {
-    assertInvalidLink(`most://${VALID_CID}///`, 'Link path is not supported')
+    assertInvalidLink(
+      `most://${VALID_CID}///`,
+      MOST_LINK_ERROR_CODES.UNSUPPORTED_PATH
+    )
   })
 
   it('rejects extra path components', () => {
     assertInvalidLink(
       `most://${VALID_CID}/some/path`,
-      'Link path is not supported'
+      MOST_LINK_ERROR_CODES.UNSUPPORTED_PATH
     )
   })
 
   it('rejects links without filename', () => {
-    assertInvalidLink(`most://${VALID_CID}`, 'filename is required')
+    assertInvalidLink(
+      `most://${VALID_CID}`,
+      MOST_LINK_ERROR_CODES.FILENAME_REQUIRED
+    )
   })
 
   it('rejects blank filename values', () => {
     assertInvalidLink(
       `most://${VALID_CID}?filename=%20%20`,
-      'filename is required'
+      MOST_LINK_ERROR_CODES.FILENAME_REQUIRED
     )
   })
 
   it('rejects unsupported query parameters', () => {
-    assertInvalidLink(
+    const result = assertInvalidLink(
       `most://${VALID_CID}?filename=a.txt&foo=bar`,
-      'Unsupported query parameter: foo'
+      MOST_LINK_ERROR_CODES.UNSUPPORTED_QUERY_PARAM
     )
+    assert.deepStrictEqual(result.details, { param: 'foo' })
   })
 
   it('rejects invalid CID format', () => {
-    assertInvalidLink('most://invalid', 'Invalid CID format')
+    assertInvalidLink('most://invalid', MOST_LINK_ERROR_CODES.INVALID_CID_FORMAT)
   })
 
   it('rejects null/undefined', () => {
-    assertInvalidLink(null, 'Link must be a non-empty string')
-    assertInvalidLink(undefined, 'Link must be a non-empty string')
+    assertInvalidLink(null, MOST_LINK_ERROR_CODES.LINK_EMPTY)
+    assertInvalidLink(undefined, MOST_LINK_ERROR_CODES.LINK_EMPTY)
   })
 
   it('rejects CID v0', () => {
     assertInvalidLink(
       'most://QmT5NvUtoM5nWFfrQdVrFtvGfKFmG7AHE8P34isapyhCxX?filename=a.txt',
-      'Invalid CID format: CID v1 required'
+      MOST_LINK_ERROR_CODES.CID_V1_REQUIRED
     )
   })
 })

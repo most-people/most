@@ -1,8 +1,10 @@
 import { Link, useNavigate } from '@tanstack/react-router'
 import { ArrowLeft, Compass, Home } from 'lucide-react'
+import { useI18n } from '~/lib/i18n'
 
 export default function NotFound() {
   const navigate = useNavigate()
+  const { t } = useI18n()
 
   function goBack() {
     if (window.history.length > 1) {
@@ -18,18 +20,18 @@ export default function NotFound() {
         <div className="not-found-icon">
           <Compass size={48} strokeWidth={1.5} />
         </div>
-        <h1 className="not-found-title">页面未找到</h1>
+        <h1 className="not-found-title">{t('notFound.title')}</h1>
         <p className="not-found-desc">
-          你访问的页面似乎已经迷失在 P2P 网络中了
+          {t('notFound.desc')}
         </p>
         <div className="not-found-actions">
           <button onClick={goBack} className="btn btn-secondary">
             <ArrowLeft size={16} />
-            上一页
+            {t('common.back')}
           </button>
           <Link to="/" className="btn btn-primary">
             <Home size={16} />
-            回首页
+            {t('common.backHome')}
           </Link>
         </div>
       </div>

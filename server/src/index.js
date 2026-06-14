@@ -758,8 +758,12 @@ export class MostBoxEngine extends EventEmitter {
 
     try {
       const parsed = parseMostLink(link)
-      if (parsed.error) {
-        throw new ValidationError(parsed.error)
+      if (parsed.errorCode) {
+        throw new ValidationError(
+          parsed.errorCode,
+          parsed.errorCode,
+          parsed.details
+        )
       }
       const cidString = parsed.cid
       console.log(`[MostBox] Parsed CID: ${cidString}`)
@@ -1108,8 +1112,12 @@ export class MostBoxEngine extends EventEmitter {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
     const parsed = parseMostLink(link)
-    if (parsed.error) {
-      throw new ValidationError(parsed.error)
+    if (parsed.errorCode) {
+      throw new ValidationError(
+        parsed.errorCode,
+        parsed.errorCode,
+        parsed.details
+      )
     }
 
     const localContent = await this.#getLocalCidContent(parsed.cid, {
@@ -1143,8 +1151,12 @@ export class MostBoxEngine extends EventEmitter {
 
     const timeout = options.timeout || DRIVE_ENTRY_TIMEOUT
     const parsed = parseMostLink(link)
-    if (parsed.error) {
-      throw new ValidationError(parsed.error)
+    if (parsed.errorCode) {
+      throw new ValidationError(
+        parsed.errorCode,
+        parsed.errorCode,
+        parsed.details
+      )
     }
 
     const cidString = parsed.cid
@@ -1788,8 +1800,12 @@ export class MostBoxEngine extends EventEmitter {
 
     if (input.link) {
       const parsed = parseMostLink(input.link)
-      if (parsed.error) {
-        throw new ValidationError(parsed.error)
+      if (parsed.errorCode) {
+        throw new ValidationError(
+          parsed.errorCode,
+          parsed.errorCode,
+          parsed.details
+        )
       }
       const result = await this.downloadFile(input.link, input.taskId || null, {
         timeout: input.timeout,

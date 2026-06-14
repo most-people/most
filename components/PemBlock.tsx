@@ -1,5 +1,6 @@
 import { Download } from 'lucide-react'
 import { CopyButton } from '~/components/CopyButton'
+import { useI18n } from '~/lib/i18n'
 
 interface PemBlockProps {
   label: string
@@ -8,6 +9,8 @@ interface PemBlockProps {
 }
 
 export function PemBlock({ label, pem, filename }: PemBlockProps) {
+  const { t } = useI18n()
+
   function handleDownload() {
     const blob = new Blob([pem], { type: 'text/plain' })
     const url = URL.createObjectURL(blob)
@@ -25,7 +28,7 @@ export function PemBlock({ label, pem, filename }: PemBlockProps) {
         <div className="web3-pem-actions">
           <CopyButton
             text={pem}
-            label="复制"
+            label={t('common.copy')}
             className="btn btn-sm"
             iconSize={14}
           />
@@ -33,10 +36,10 @@ export function PemBlock({ label, pem, filename }: PemBlockProps) {
             type="button"
             className="btn btn-sm btn-primary"
             onClick={handleDownload}
-            title="下载"
+            title={t('common.download')}
           >
             <Download size={14} />
-            下载
+            {t('common.download')}
           </button>
         </div>
       </div>

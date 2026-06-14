@@ -8,6 +8,7 @@ import {
 import { Crepe } from '@milkdown/crepe'
 import { linkAttr } from '@milkdown/kit/preset/commonmark'
 import { replaceAll } from '@milkdown/utils'
+import { useI18n } from '~/lib/i18n'
 
 interface MilkdownEditorProps {
   content: string
@@ -25,6 +26,7 @@ export const MilkdownEditor = forwardRef<
   MilkdownEditorRef,
   MilkdownEditorProps
 >(({ content, readOnly, onChange, className }, ref) => {
+  const { locale, t } = useI18n()
   const rootRef = useRef<HTMLDivElement>(null)
   const crepeRef = useRef<Crepe | null>(null)
   const onChangeRef = useRef(onChange)
@@ -51,40 +53,40 @@ export const MilkdownEditor = forwardRef<
       defaultValue: content,
       featureConfigs: {
         [Crepe.Feature.Placeholder]: {
-          text: '输入 / 以使用命令...',
+          text: t('milkdown.placeholder'),
         },
         [Crepe.Feature.ImageBlock]: {
-          inlineUploadButton: '上传图片',
-          inlineUploadPlaceholderText: '或粘贴图片链接...',
-          blockUploadButton: '上传图片',
-          blockUploadPlaceholderText: '或粘贴图片链接...',
-          blockCaptionPlaceholderText: '添加标题...',
+          inlineUploadButton: t('milkdown.image.upload'),
+          inlineUploadPlaceholderText: t('milkdown.image.placeholder'),
+          blockUploadButton: t('milkdown.image.upload'),
+          blockUploadPlaceholderText: t('milkdown.image.placeholder'),
+          blockCaptionPlaceholderText: t('milkdown.image.captionPlaceholder'),
         },
         [Crepe.Feature.BlockEdit]: {
           textGroup: {
-            label: '基础',
-            text: { label: '文本' },
-            h1: { label: '一级标题' },
-            h2: { label: '二级标题' },
-            h3: { label: '三级标题' },
-            h4: { label: '四级标题' },
-            h5: { label: '五级标题' },
-            h6: { label: '六级标题' },
-            quote: { label: '引用' },
-            divider: { label: '分割线' },
+            label: t('milkdown.group.basic'),
+            text: { label: t('milkdown.block.text') },
+            h1: { label: t('milkdown.block.h1') },
+            h2: { label: t('milkdown.block.h2') },
+            h3: { label: t('milkdown.block.h3') },
+            h4: { label: t('milkdown.block.h4') },
+            h5: { label: t('milkdown.block.h5') },
+            h6: { label: t('milkdown.block.h6') },
+            quote: { label: t('milkdown.block.quote') },
+            divider: { label: t('milkdown.block.divider') },
           },
           listGroup: {
-            label: '列表',
-            bulletList: { label: '无序列表' },
-            orderedList: { label: '有序列表' },
-            taskList: { label: '任务列表' },
+            label: t('milkdown.group.list'),
+            bulletList: { label: t('milkdown.block.bulletList') },
+            orderedList: { label: t('milkdown.block.orderedList') },
+            taskList: { label: t('milkdown.block.taskList') },
           },
           advancedGroup: {
-            label: '高级',
-            image: { label: '图片' },
-            codeBlock: { label: '代码块' },
-            table: { label: '表格' },
-            math: { label: '数学公式' },
+            label: t('milkdown.group.advanced'),
+            image: { label: t('milkdown.block.image') },
+            codeBlock: { label: t('milkdown.block.codeBlock') },
+            table: { label: t('milkdown.block.table') },
+            math: { label: t('milkdown.block.math') },
           },
         },
       },
@@ -124,7 +126,7 @@ export const MilkdownEditor = forwardRef<
         crepeRef.current = null
       }
     }
-  }, [])
+  }, [locale, t])
 
   useEffect(() => {
     if (crepeRef.current && isReady) {

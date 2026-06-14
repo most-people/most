@@ -1,4 +1,4 @@
-import { parseMostLink } from '../core/mostLink.js'
+import { MOST_LINK_ERROR_CODES, parseMostLink } from '../core/mostLink.js'
 
 const DOWNLOAD_CHECK_MESSAGES = {
   timeout:
@@ -17,17 +17,21 @@ const DOWNLOAD_CHECK_MESSAGES = {
 }
 
 const LINK_VALIDATION_MESSAGES = {
-  'Link must be a valid most:// URL':
+  [MOST_LINK_ERROR_CODES.INVALID_URL]:
     '链接无法解析，请粘贴完整的 most://<cid>?filename=... 分享链接。',
-  'Link must use most:// protocol': '链接协议不正确，应以 most:// 开头。',
-  'Link path is not supported':
+  [MOST_LINK_ERROR_CODES.INVALID_PROTOCOL]:
+    '链接协议不正确，应以 most:// 开头。',
+  [MOST_LINK_ERROR_CODES.UNSUPPORTED_PATH]:
     '链接里不应包含路径，请使用 most://<cid>?filename=... 格式。',
-  'Invalid CID format': 'CID 无效，请确认 most:// 后面的内容没有缺失或被截断。',
-  'Invalid CID format: CID v1 required':
+  [MOST_LINK_ERROR_CODES.CID_EMPTY]:
+    'CID 无效，请确认 most:// 后面的内容没有缺失或被截断。',
+  [MOST_LINK_ERROR_CODES.INVALID_CID_FORMAT]:
+    'CID 无效，请确认 most:// 后面的内容没有缺失或被截断。',
+  [MOST_LINK_ERROR_CODES.CID_V1_REQUIRED]:
     'CID 格式不符合 MostBox 要求，请确认分享链接完整。',
-  'CID digest must be 32 bytes':
+  [MOST_LINK_ERROR_CODES.CID_DIGEST_LENGTH]:
     'CID 格式不符合 MostBox 要求，请确认分享链接完整。',
-  'filename is required':
+  [MOST_LINK_ERROR_CODES.FILENAME_REQUIRED]:
     '链接缺少 filename 参数，请复制完整分享链接后再检测。',
 }
 
@@ -70,20 +74,15 @@ export function getDownloadLinkValidationMessage(link = '') {
   if (!value) return '请先粘贴 most:// 分享链接。'
 
   const result = parseMostLink(value)
-  if (!result.error) {
-    return result.fileName?.trim()
-      ? null
-      : LINK_VALIDATION_MESSAGES['filename is required']
-  }
+  if (!result.errorCode) return null
 
-  if (result.error.startsWith('Unsupported query parameter: ')) {
-    const unsupportedParam = result.error.slice(
-      'Unsupported query parameter: '.length
-    )
+  if (result.errorCode === MOST_LINK_ERROR_CODES.UNSUPPORTED_QUERY_PARAM) {
+    const unsupportedParam = result.details?.param || ''
     return `链接包含暂不支持的参数 ${unsupportedParam}，请只保留 filename。`
   }
 
   return (
-    LINK_VALIDATION_MESSAGES[result.error] || DOWNLOAD_CHECK_MESSAGES.validation
+    LINK_VALIDATION_MESSAGES[result.errorCode] ||
+    DOWNLOAD_CHECK_MESSAGES.validation
   )
 }

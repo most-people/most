@@ -1,15 +1,15 @@
 import { createFileRoute } from '@tanstack/react-router'
 
 import DownloadPage from '~/app/download/page'
+import { translateMessage } from '~/lib/i18n'
 
 export const Route = createFileRoute('/download/')({
   head: () => ({
     meta: [
-      { title: '下载 MostBox 桌面客户端' },
+      { title: translateMessage('download.meta.title') },
       {
         name: 'description',
-        content:
-          '下载 MostBox 桌面客户端，获得完整的 P2P 文件分享、下载校验和持续做种能力',
+        content: translateMessage('download.meta.desc'),
       },
     ],
   }),

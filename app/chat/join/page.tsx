@@ -18,6 +18,7 @@ import {
   configureBackend,
 } from '~/server/src/utils/api'
 import { channelApi } from '~/lib/channelApi'
+import { useI18n } from '~/lib/i18n'
 import {
   CHAT_JOIN_INVITE_FIELDS,
   type ChatJoinInvitePayload,
@@ -55,7 +56,11 @@ function formatDecryptedResponse(text: string, parsed: unknown | null) {
   return JSON.stringify(parsed, null, 2)
 }
 
-function getDecryptError(text: string, parsed: unknown | null) {
+function getDecryptError(
+  text: string,
+  parsed: unknown | null,
+  fallback: string
+) {
   if (parsed && typeof parsed === 'object' && 'error' in parsed) {
     const error = parsed.error
 
@@ -64,7 +69,7 @@ function getDecryptError(text: string, parsed: unknown | null) {
     }
   }
 
-  return text || '解密失败'
+  return text || fallback
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -124,6 +129,7 @@ function normalizeChannelRemark(value?: string) {
 }
 
 function ChatJoinContent() {
+  const { t } = useI18n()
   const searchStr = useLocation({ select: location => location.searchStr })
   const { token, pub, fixture } = useMemo(() => {
     const searchParams = new URLSearchParams(searchStr)
@@ -148,25 +154,25 @@ function ChatJoinContent() {
     const fixtureInvite = getChatJoinTestInvite(fixture)
 
     if (fixture && !fixtureInvite) {
-      setError(`未知测试账号：${fixture}`)
+      setError(t('chatJoin.error.unknownFixture', { fixture }))
       setLoading(false)
       return
     }
 
     if (!fixtureInvite && !token) {
-      setError('缺少 token 参数')
+      setError(t('chatJoin.error.missingToken'))
       setLoading(false)
       return
     }
 
     if (!fixtureInvite && !pub) {
-      setError('缺少 pub 参数')
+      setError(t('chatJoin.error.missingPub'))
       setLoading(false)
       return
     }
 
     if (hasBackend === null) {
-      setStatus('正在检测后端连接...')
+      setStatus(t('chatJoin.status.checkingBackend'))
       return
     }
 
@@ -176,14 +182,14 @@ function ChatJoinContent() {
 
     async function runJoinFlow(invite: ChatJoinInvitePayload) {
       if (invite.node_url) {
-        setStatus('正在连接远程节点...')
+        setStatus(t('chatJoin.status.connectingRemote'))
         const result = await checkBackendConnectionTarget({
           url: invite.node_url,
           invite: invite.node_invite || '',
         })
 
         if (!result.ok) {
-          throw new Error('远程节点连接失败')
+          throw new Error(t('chatJoin.error.remoteConnectFailed'))
         }
 
         configureBackend({
@@ -192,10 +198,10 @@ function ChatJoinContent() {
         })
         useAppStore.setState({ hasBackend: true })
       } else if (!hasBackend) {
-        throw new Error('未连接后端，邀请中也没有 node_url')
+        throw new Error(t('chatJoin.error.noBackend'))
       }
 
-      setStatus('正在登录邀请账号...')
+      setStatus(t('chatJoin.status.signingIn'))
       const identity = createLoginIdentity(invite.uid, '')
       setUserIdentity({
         ...identity,
@@ -205,7 +211,7 @@ function ChatJoinContent() {
         avatar: invite.avatar,
       })
 
-      setStatus('正在加入频道...')
+      setStatus(t('chatJoin.status.joiningChannel'))
       let firstJoinedChannelKey = ''
       for (const channel of invite.channels) {
         const result = await channelApi.createChannel(channel.id, 'public', {
@@ -213,7 +219,9 @@ function ChatJoinContent() {
           avatar: invite.avatar,
         })
         if (result.conflict) {
-          throw new Error(`频道 ${channel.id} 存在多个候选，请在聊天页选择`)
+          throw new Error(
+            t('chatJoin.error.channelConflict', { channel: channel.id })
+          )
         }
         const joinedChannelKey = result.channelKey || result.key || channel.id
         if (!firstJoinedChannelKey) firstJoinedChannelKey = joinedChannelKey
@@ -224,7 +232,7 @@ function ChatJoinContent() {
       }
 
       const firstChannel = invite.channels[0]
-      setStatus('加入成功，正在打开频道...')
+      setStatus(t('chatJoin.status.openingChannel'))
       window.location.href = getJoinChannelUrl(
         firstJoinedChannelKey || firstChannel.id
       )
@@ -233,13 +241,17 @@ function ChatJoinContent() {
     async function decrypt() {
       try {
         if (fixtureInvite) {
-          setStatus(`正在载入 ${fixtureInvite.name || fixture} 测试账号...`)
+          setStatus(
+            t('chatJoin.status.loadingFixture', {
+              name: fixtureInvite.name || fixture,
+            })
+          )
           setDecrypted(formatChatJoinTestInvite(fixtureInvite))
           await runJoinFlow(fixtureInvite)
           return
         }
 
-        setStatus('正在解密邀请...')
+        setStatus(t('chatJoin.status.decryptingInvite'))
         const response = await fetch(
           `${CHAT_JOIN_API_BASE}/api/chat.join.decrypt`,
           {
@@ -253,19 +265,23 @@ function ChatJoinContent() {
         const parsed = parseJsonText(responseText)
 
         if (!response.ok) {
-          setError(getDecryptError(responseText, parsed))
+          setError(
+            getDecryptError(responseText, parsed, t('chatJoin.error.decrypt'))
+          )
         } else {
           setDecrypted(formatDecryptedResponse(responseText, parsed))
           const invite = normalizeInvitePayload(parsed)
           if (!invite) {
-            setError('邀请内容缺少 uid 或 channels[].id')
+            setError(t('chatJoin.error.invalidInvite'))
             return
           }
           await runJoinFlow(invite)
         }
       } catch (err) {
         setError(
-          `请求出错: ${err instanceof Error ? err.message : String(err)}`
+          t('chatJoin.error.request', {
+            message: err instanceof Error ? err.message : String(err),
+          })
         )
       } finally {
         setLoading(false)
@@ -273,7 +289,7 @@ function ChatJoinContent() {
     }
 
     decrypt()
-  }, [fixture, hasBackend, pub, setUserIdentity, token])
+  }, [fixture, hasBackend, pub, setUserIdentity, t, token])
 
   return (
     <AppShell
@@ -286,12 +302,12 @@ function ChatJoinContent() {
           <h1>MOST PEOPLE</h1>
         </div>
       )}
-      headerTitle={<h2 className="header-title">加入频道</h2>}
+      headerTitle={<h2 className="header-title">{t('chatJoin.title')}</h2>}
       headerRight={
         <button
           className="btn btn-icon"
           onClick={() => setIsDarkMode(!isDarkMode)}
-          title="切换主题"
+          title={t('common.theme.toggle')}
         >
           {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
         </button>
@@ -302,20 +318,26 @@ function ChatJoinContent() {
           {loading ? (
             <div className="chat-join-loading">
               <KeyRound size={32} />
-              <p>{status || '正在解密...'}</p>
+              <p>{status || t('chatJoin.status.decrypting')}</p>
             </div>
           ) : error ? (
             <div className="chat-join-error">
               <AlertCircle size={32} />
               <p>{error}</p>
               {status && <p className="chat-join-status">{status}</p>}
-              {decrypted && <pre className="chat-join-result">{decrypted}</pre>}
+              {decrypted && (
+                <pre className="chat-join-result" translate="no">
+                  {decrypted}
+                </pre>
+              )}
             </div>
           ) : (
             <div className="chat-join-success">
               <Check size={32} />
-              <p>{status || '解密成功'}</p>
-              <pre className="chat-join-result">{decrypted}</pre>
+              <p>{status || t('chatJoin.status.decryptSuccess')}</p>
+              <pre className="chat-join-result" translate="no">
+                {decrypted}
+              </pre>
             </div>
           )}
 
@@ -325,16 +347,20 @@ function ChatJoinContent() {
           >
             <div className="chat-join-helper-title">
               <KeyRound size={18} />
-              <h3 id="chat-join-spec-title">支持字段</h3>
+              <h3 id="chat-join-spec-title">{t('chatJoin.specTitle')}</h3>
             </div>
             <div className="chat-join-field-list">
               {CHAT_JOIN_INVITE_FIELDS.map(field => (
                 <div className="chat-join-field" key={field.name}>
                   <div className="chat-join-field-meta">
                     <code className="chat-join-field-name">{field.name}</code>
-                    <span>{field.required ? '必填' : '可选'}</span>
+                    <span>
+                      {field.required
+                        ? t('chatJoin.field.required')
+                        : t('chatJoin.field.optional')}
+                    </span>
                   </div>
-                  <p>{field.description}</p>
+                  <p>{t(field.descriptionKey)}</p>
                 </div>
               ))}
             </div>
@@ -343,13 +369,13 @@ function ChatJoinContent() {
           <section className="chat-join-helper" aria-labelledby="ea-test-title">
             <div className="chat-join-helper-title">
               <KeyRound size={18} />
-              <h3 id="ea-test-title">测试公钥</h3>
+              <h3 id="ea-test-title">{t('chatJoin.testPublicKey')}</h3>
             </div>
-            <code className="ui-code-box chat-join-public-key">
+            <code className="ui-code-box chat-join-public-key" translate="no">
               {EA_TEST_PUBLIC_KEY}
             </code>
             <a className="btn" href="/web3/#EA" target="_blank">
-              前往 Web3 工具箱
+              {t('chatJoin.openWeb3')}
             </a>
           </section>
 
@@ -359,7 +385,7 @@ function ChatJoinContent() {
           >
             <div className="chat-join-helper-title">
               <Users size={18} />
-              <h3 id="chat-join-test-title">测试账号</h3>
+              <h3 id="chat-join-test-title">{t('chatJoin.testAccounts')}</h3>
             </div>
             <div className="chat-join-test-account-list">
               {CHAT_JOIN_TEST_INVITES.map(invite => (
@@ -371,17 +397,19 @@ function ChatJoinContent() {
                   />
                   <div className="chat-join-test-account-main">
                     <div className="chat-join-test-account-head">
-                      <strong>{invite.name}</strong>
-                      <span>{invite.identity}</span>
+                      <strong translate="no">{invite.name}</strong>
+                      <span translate="no">{invite.identity}</span>
                     </div>
-                    <code>{invite.uid}</code>
-                    <p>{invite.channels[0]?.name || invite.channels[0]?.id}</p>
+                    <code translate="no">{invite.uid}</code>
+                    <p translate="no">
+                      {invite.channels[0]?.name || invite.channels[0]?.id}
+                    </p>
                   </div>
                   <a
                     className="btn btn-secondary"
                     href={`/chat/join?fixture=${invite.uid}`}
                   >
-                    加入
+                    {t('chatJoin.join')}
                   </a>
                 </div>
               ))}

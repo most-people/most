@@ -24,7 +24,7 @@ export function normalizeChannelAttachment(input) {
   const cid = String(input.cid || '').trim()
   const cidValidation = validateCidString(cid)
   if (!cidValidation.valid) {
-    throw new ValidationError(cidValidation.error)
+    throw new ValidationError(cidValidation.errorCode, cidValidation.errorCode)
   }
 
   const fileName = sanitizeFilename(String(input.fileName || ''))
@@ -33,8 +33,12 @@ export function normalizeChannelAttachment(input) {
   }
 
   const parsed = parseMostLink(String(input.link || '').trim())
-  if (parsed.error) {
-    throw new ValidationError(parsed.error)
+  if (parsed.errorCode) {
+    throw new ValidationError(
+      parsed.errorCode,
+      parsed.errorCode,
+      parsed.details
+    )
   }
   if (parsed.cid !== cid) {
     throw new ValidationError('attachment link CID mismatch')

@@ -94,11 +94,14 @@ describe('frontend smoke checks', () => {
 
   it('shows node holdings and seed states in the admin console', () => {
     const source = readSource('app/admin/page.tsx')
+    const messages = readSource('lib/i18n/messages.ts')
 
     assert.match(source, /NodeHolding/)
     assert.match(source, /formatSeedStatus/)
-    assert.match(source, /做种中/)
-    assert.match(source, /队列中/)
+    assert.match(source, /admin\.seedStatus\.active/)
+    assert.match(source, /admin\.seedStatus\.queued/)
+    assert.match(messages, /'admin\.seedStatus\.active': '做种中'/)
+    assert.match(messages, /'admin\.seedStatus\.queued': '队列中'/)
   })
 
   it('does not advertise unlimited file size in user-facing copy', () => {
@@ -155,9 +158,11 @@ describe('frontend smoke checks', () => {
     assert.match(readme, /TanStack Start static prerender/)
     assert.doesNotMatch(readme, /Node\.js >= 18/)
     assert.doesNotMatch(readme, /npx most-box\s*$/m)
-    assert.match(downloadPage, /Web\s*端只连接已有 MostBox 节点/)
-    assert.match(downloadPage, /Node\.js >= 22\.12/)
-    assert.match(downloadPage, /npx most-box@latest/)
+    assert.match(downloadPage, /download\.hero\.desc/)
+    assert.match(downloadPage, /download\.npmNote/)
+    assert.match(messages, /Web 端只连接已有 MostBox 节点/)
+    assert.match(messages, /Node\.js >= 22\.12/)
+    assert.match(messages, /npx most-box@latest/)
     assert.match(portal, /portal\.feature\.app\.bullet\.desktop/)
     assert.match(messages, /Web 端只连接已有节点，桌面端提供完整 P2P 能力/)
     assert.match(remoteNodePanel, /remote\.hint/)
@@ -251,10 +256,10 @@ describe('frontend smoke checks', () => {
     assert.match(source, /deriveGameRoomLobby/)
     assert.match(source, /getLatestGameState/)
     assert.match(source, /sendRoomEvent/)
-    assert.match(source, /创建房间/)
-    assert.match(source, /加入房间/)
-    assert.match(source, /开始游戏/)
-    assert.match(source, /再来一局/)
+    assert.match(source, /game\.action\.createRoom/)
+    assert.match(source, /game\.action\.joinRoom/)
+    assert.match(source, /game\.action\.startRound/)
+    assert.match(source, /game\.action\.nextRound/)
     assert.match(gameRoomSource, /useChannelMessages/)
     assert.doesNotMatch(gameRoomSource, /extraSubscribedChannelNames/)
   })
@@ -331,15 +336,58 @@ describe('frontend smoke checks', () => {
     assert.match(appSource, /getLocalizedDownloadLinkValidationMessage/)
     assert.match(chatSource, /getLocalizedDownloadLinkValidationMessage/)
     assert.match(downloadValidationSource, /parseMostLink/)
+    assert.match(downloadValidationSource, /MOST_LINK_ERROR_CODES/)
     assert.match(downloadValidationSource, /MessageKey/)
     assert.doesNotMatch(appSource, /getDownloadLinkValidationMessage/)
     assert.doesNotMatch(chatSource, /getDownloadLinkValidationMessage/)
+    assert.doesNotMatch(downloadValidationSource, /Unsupported query parameter:/)
     assert.doesNotMatch(appSource, /[\u4e00-\u9fff]/)
     assert.match(messagesSource, /'app\.download\.validation\.empty'/)
     assert.match(messagesSource, /type MessageKey = keyof typeof zhCNMessages/)
     assert.match(messagesSource, /satisfies Record<MessageKey, string>/)
     assert.match(i18nSource, /translateMessage/)
     assert.doesNotMatch(i18nSource, /MutationObserver|createTreeWalker|translateDocument/)
+  })
+
+  it('keeps migrated surfaces free of hardcoded Chinese UI copy', () => {
+    const migratedSources = [
+      readSource('app/download/page.tsx'),
+      readSource('components/DownloadOptions.tsx'),
+      readSource('components/Footer.tsx'),
+      readSource('components/CopyButton.tsx'),
+      readSource('components/AppGlobals.tsx'),
+      readSource('components/PingPanel.tsx'),
+      readSource('components/PemBlock.tsx'),
+      readSource('components/MilkdownEditor.tsx'),
+      readSource('components/GameSidebar.tsx'),
+      readSource('components/NoteMoreMenu.tsx'),
+      readSource('components/UserLoginModal.tsx'),
+      readSource('app/error-boundary.tsx'),
+      readSource('app/not-found.tsx'),
+      readSource('app/chat/page.tsx'),
+      readSource('app/chat/join/page.tsx'),
+      readSource('app/note/page.tsx'),
+      readSource('app/note/useNoteBackupSync.ts'),
+      readSource('app/admin/page.tsx'),
+      readSource('app/web3/page.tsx'),
+      ...listSourceFiles('app/web3/components')
+        .filter(file => file.endsWith('.tsx'))
+        .map(readSource),
+      readSource('app/game/zhajinhua/page.tsx'),
+      readSource('app/game/gandengyan/page.tsx'),
+      readSource('src/routes/__root.tsx'),
+      readSource('src/routes/download/index.tsx'),
+      readSource('src/routes/ping/index.tsx'),
+    ].join('\n')
+
+    assert.doesNotMatch(migratedSources, /[\u4e00-\u9fff]/)
+    assert.match(migratedSources, /download\.hero\.desc/)
+    assert.match(migratedSources, /chat\.joinChannel/)
+    assert.match(migratedSources, /ping\.retryAll/)
+    assert.match(migratedSources, /admin\.title/)
+    assert.match(migratedSources, /web3\.view\.wallet/)
+    assert.match(migratedSources, /game\.zhajinhua\.title/)
+    assert.match(migratedSources, /game\.gandengyan\.title/)
   })
 
   it('translates stable keys and most link validation messages', async () => {

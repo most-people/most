@@ -6,8 +6,10 @@ import {
   saveIdentity,
 } from '~/server/src/utils/userIdentity.js'
 import type { ChatJoinInvitePayload } from '~/lib/chatJoinInvite'
+import type { MessageKey } from '~/lib/i18n'
 
 type UserIdentityKind = NonNullable<ChatJoinInvitePayload['identity']>
+const LEGACY_ANONYMOUS_USERNAME = '\u533f\u540d'
 
 export interface UserIdentity {
   username: string
@@ -29,7 +31,7 @@ interface UserState {
   loginPreviewAddress: string
   hasPreviewedAvatar: boolean
   loginLoading: boolean
-  loginError: string
+  loginError: MessageKey | ''
   initializeUser: () => void
   openLoginModal: () => void
   closeLoginModal: () => void
@@ -51,7 +53,7 @@ function normalizeIdentity(input: unknown): UserIdentity | null {
   if (!input || typeof input !== 'object') return null
   const value = input as Partial<UserIdentity>
   if (!value.username || !value.address || !value.danger) return null
-  if (value.username === '匿名') return null
+  if (value.username === LEGACY_ANONYMOUS_USERNAME) return null
   return {
     username: value.username,
     address: value.address,
@@ -76,7 +78,7 @@ function resetLoginForm() {
     loginPreviewAddress: '',
     hasPreviewedAvatar: false,
     loginLoading: false,
-    loginError: '',
+    loginError: '' as const,
   }
 }
 
@@ -133,7 +135,7 @@ export const useUserStore = create<UserState>((set, get) => ({
   previewLoginIdentity: () => {
     const { loginUsername, loginPassword } = get()
     if (!loginUsername.trim() || !loginPassword.trim()) {
-      set({ loginError: '请输入用户名和密码' })
+      set({ loginError: 'login.error.credentialsRequired' })
       return null
     }
     const identity = createLoginIdentity(loginUsername.trim(), loginPassword)
@@ -148,11 +150,11 @@ export const useUserStore = create<UserState>((set, get) => ({
   loginUser: () => {
     const { loginUsername, loginPassword, hasPreviewedAvatar } = get()
     if (!loginUsername.trim() || !loginPassword.trim()) {
-      set({ loginError: '请输入用户名和密码' })
+      set({ loginError: 'login.error.credentialsRequired' })
       return null
     }
     if (!hasPreviewedAvatar) {
-      set({ loginError: '请先预览并确认头像' })
+      set({ loginError: 'login.error.previewRequired' })
       return null
     }
 
@@ -170,10 +172,10 @@ export const useUserStore = create<UserState>((set, get) => ({
         ...resetLoginForm(),
       })
       return nextIdentity
-    } catch (error) {
+    } catch {
       set({
         loginLoading: false,
-        loginError: error instanceof Error ? error.message : '登录失败',
+        loginError: 'login.error.failed',
       })
       return null
     }

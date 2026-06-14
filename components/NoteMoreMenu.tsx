@@ -9,12 +9,14 @@ import {
 } from 'lucide-react'
 import { useUserStore } from '~/app/app/userStore'
 import type { NoteBackupSyncState } from '~/app/note/useNoteBackupSync'
+import { useI18n } from '~/lib/i18n'
 
 interface NoteMoreMenuProps {
   sync: NoteBackupSyncState
 }
 
 export function NoteMoreMenu({ sync }: NoteMoreMenuProps) {
+  const { t } = useI18n()
   const menuRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
   const wallet = useUserStore(s => s.wallet)
@@ -43,8 +45,8 @@ export function NoteMoreMenu({ sync }: NoteMoreMenuProps) {
       <button
         className="btn btn-icon note-more-trigger"
         onClick={() => setOpen(value => !value)}
-        title="更多"
-        aria-label="更多"
+        title={t('common.moreActions')}
+        aria-label={t('common.moreActions')}
       >
         <MoreHorizontal size={16} />
       </button>
@@ -70,7 +72,7 @@ export function NoteMoreMenu({ sync }: NoteMoreMenuProps) {
               )}
             </span>
             <span>
-              <strong>云同步</strong>
+              <strong>{t('note.sync.title')}</strong>
               <small>{sync.statusLabel}</small>
             </span>
           </div>
@@ -81,7 +83,7 @@ export function NoteMoreMenu({ sync }: NoteMoreMenuProps) {
             disabled={!wallet || busy}
           >
             <Upload size={16} />
-            本地导出
+            {t('note.sync.exportLocal')}
           </button>
           <button
             className="note-more-item"
@@ -89,7 +91,7 @@ export function NoteMoreMenu({ sync }: NoteMoreMenuProps) {
             disabled={!wallet || busy}
           >
             <Download size={16} />
-            本地导入
+            {t('note.sync.importLocal')}
           </button>
         </div>
       )}

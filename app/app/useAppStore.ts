@@ -1,6 +1,7 @@
 import {
   calculateNoteCid,
   getNoteFullPath,
+  NOTE_NAME_ERROR_CODES,
   normalizeNotePath,
   renameNotesByPath,
   validateNoteName,
@@ -83,7 +84,7 @@ function normalizeNotes(input: unknown): NoteItem[] {
       return value.type === 'file' || value.content !== undefined
     })
     .map(note => ({
-      name: String((note as Partial<NoteItem>).name || '未命名'),
+      name: String((note as Partial<NoteItem>).name || 'Untitled'),
       cid: String((note as Partial<NoteItem>).cid || ''),
       path: normalizeNotePath((note as Partial<NoteItem>).path || ''),
       content: String((note as Partial<NoteItem>).content || ''),
@@ -110,6 +111,19 @@ function persistNotes(address: string, notes: NoteItem[], notesPath: string) {
   putNotes(address, notes, normalizeNotePath(notesPath)).catch(err => {
     console.warn('Failed to persist notes:', err)
   })
+}
+
+function getNoteNameErrorKey(errorCode?: string) {
+  switch (errorCode) {
+    case NOTE_NAME_ERROR_CODES.EMPTY:
+      return 'note.error.nameRequired'
+    case NOTE_NAME_ERROR_CODES.SLASH:
+      return 'note.error.nameNoSlash'
+    case NOTE_NAME_ERROR_CODES.BACKSLASH:
+      return 'note.error.nameNoBackslash'
+    default:
+      return 'note.error.nameInvalid'
+  }
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -210,7 +224,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   saveNote: async input => {
     const nameValidation = validateNoteName(input.name)
     if (!nameValidation.valid) {
-      throw new Error(nameValidation.error)
+      throw new Error(getNoteNameErrorKey(nameValidation.errorCode))
     }
 
     const path = normalizeNotePath(input.path || '')
@@ -234,7 +248,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       return index !== existingIndex && getNoteFullPath(note) === targetFullPath
     })
     if (hasNameConflict) {
-      throw new Error('目标位置已存在同名笔记')
+      throw new Error('note.error.nameConflict')
     }
 
     const existing = existingIndex >= 0 ? notes[existingIndex] : null
@@ -279,7 +293,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   renameNote: (oldFullPath, newPath, newName) => {
     const nameValidation = validateNoteName(newName)
     if (!nameValidation.valid) {
-      throw new Error(nameValidation.error)
+      throw new Error(getNoteNameErrorKey(nameValidation.errorCode))
     }
 
     const oldPath = normalizeNotePath(oldFullPath)
@@ -289,7 +303,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     )
 
     if (targetFullPath.startsWith(`${oldPath}/`)) {
-      throw new Error('不能移动到自身子目录')
+      throw new Error('note.error.moveIntoSelf')
     }
 
     const conflict = get().notes.some(note => {
@@ -297,7 +311,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       return fullPath !== oldPath && fullPath === targetFullPath
     })
     if (conflict) {
-      throw new Error('目标位置已存在同名笔记')
+      throw new Error('note.error.nameConflict')
     }
 
     const nextNotes = renameNotesByPath(

@@ -4,9 +4,11 @@ import { Eye, EyeOff, X } from 'lucide-react'
 import { useUserStore } from '~/app/app/userStore'
 import { useAppStore } from '~/app/app/useAppStore'
 import { ModalOverlay } from '~/components/ui'
+import { useI18n } from '~/lib/i18n'
 import { generateAvatar } from '~/server/src/utils/avatar.js'
 
 export default function UserLoginModal() {
+  const { t } = useI18n()
   const addToast = useAppStore(s => s.addToast)
   const showLoginModal = useUserStore(s => s.showLoginModal)
   const closeLoginModal = useUserStore(s => s.closeLoginModal)
@@ -32,7 +34,10 @@ export default function UserLoginModal() {
   function handleLogin() {
     const identity = loginUser()
     if (identity) {
-      addToast(`已登录 ${identity.username}`, 'success')
+      addToast(
+        t('login.toast.signedIn', { username: identity.username }),
+        'success'
+      )
     }
   }
 
@@ -46,7 +51,7 @@ export default function UserLoginModal() {
         }}
       >
         <div className="login-modal-header">
-          <h3>登录</h3>
+          <h3>{t('login.title')}</h3>
           <button
             className="login-modal-close"
             onClick={closeLoginModal}
@@ -66,11 +71,11 @@ export default function UserLoginModal() {
             alt="avatar"
           />
           <p className="login-tip">{previewLabel}</p>
-          {loginError && <p className="login-error">{loginError}</p>}
+          {loginError && <p className="login-error">{t(loginError)}</p>}
           <input
             type="text"
             className="input input-compact"
-            placeholder="用户名"
+            placeholder={t('login.username.placeholder')}
             value={loginUsername}
             onChange={event => setLoginUsername(event.target.value)}
             autoFocus
@@ -79,7 +84,7 @@ export default function UserLoginModal() {
             <input
               type={showPassword ? 'text' : 'password'}
               className="input input-compact"
-              placeholder="密码"
+              placeholder={t('login.password.placeholder')}
               value={loginPassword}
               onChange={event => setLoginPassword(event.target.value)}
             />
@@ -98,14 +103,14 @@ export default function UserLoginModal() {
               disabled={hasPreviewedAvatar || loginLoading}
               type="button"
             >
-              {hasPreviewedAvatar ? '检查地址' : '登录'}
+              {hasPreviewedAvatar ? t('login.previewed') : t('login.preview')}
             </button>
             <button
               className="btn btn-primary"
               disabled={!hasPreviewedAvatar || loginLoading}
               type="submit"
             >
-              {loginLoading ? '登录中' : '确认'}
+              {loginLoading ? t('login.loading') : t('common.confirm')}
             </button>
           </div>
         </div>

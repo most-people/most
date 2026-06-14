@@ -1,6 +1,8 @@
 import { Link } from '@tanstack/react-router'
+import type { ReactNode } from 'react'
 import { ArrowLeft, Spade, Swords } from 'lucide-react'
 import SidebarAccount from '~/components/SidebarAccount'
+import { useI18n, type MessageKey } from '~/lib/i18n'
 
 type GameSidebarProps = {
   activeGame: 'gandengyan' | 'zhajinhua'
@@ -10,22 +12,29 @@ type GameSidebarProps = {
 const items = [
   {
     id: 'gandengyan',
-    label: '干瞪眼',
+    labelKey: 'game.gandengyan.title',
     href: '/game/gandengyan/',
     icon: <Swords size={16} />,
   },
   {
     id: 'zhajinhua',
-    label: '炸金花',
+    labelKey: 'game.zhajinhua.title',
     href: '/game/zhajinhua/',
     icon: <Spade size={16} />,
   },
-] as const
+] satisfies Array<{
+  id: GameSidebarProps['activeGame']
+  labelKey: MessageKey
+  href: string
+  icon: ReactNode
+}>
 
 export default function GameSidebar({
   activeGame,
   closeSidebar,
 }: GameSidebarProps) {
+  const { t } = useI18n()
+
   return (
     <>
       <Link to="/" className="sidebar-header sidebar-header-link">
@@ -41,7 +50,7 @@ export default function GameSidebar({
             onClick={closeSidebar}
           >
             {item.icon}
-            <span>{item.label}</span>
+            <span>{t(item.labelKey)}</span>
           </Link>
         ))}
       </nav>

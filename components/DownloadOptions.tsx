@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Apple, Cloud, Code, Download, Laptop, Monitor } from 'lucide-react'
+import { useI18n } from '~/lib/i18n'
 
 type DownloadPlatform = 'windows' | 'macos' | 'linux'
 type DownloadArch = 'x64' | 'arm64'
@@ -83,22 +84,22 @@ const PLATFORM_META = {
   windows: {
     name: 'Windows',
     ext: '.exe',
-    desc: 'Windows 10 或更高版本',
+    descKey: 'download.platform.windows.desc',
     icon: Monitor,
   },
   macos: {
     name: 'macOS',
     ext: '.dmg',
-    desc: 'macOS 12 Monterey 或更高版本',
+    descKey: 'download.platform.macos.desc',
     icon: Apple,
   },
   linux: {
     name: 'Linux',
     ext: '.AppImage',
-    desc: 'Ubuntu 20.04+ / Debian 11+ / 其他主流发行版',
+    descKey: 'download.platform.linux.desc',
     icon: Laptop,
   },
-}
+} as const
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -159,11 +160,8 @@ function formatSize(size?: number) {
   return `${mb.toFixed(mb >= 100 ? 0 : 1)} MB`
 }
 
-function getSourceLabel(asset: DownloadAsset) {
-  return asset.r2Url ? 'Cloudflare R2 高速镜像' : 'GitHub Releases'
-}
-
 export default function DownloadOptions() {
+  const { t } = useI18n()
   const [manifest, setManifest] = useState<DownloadManifest | null>(null)
   const [status, setStatus] = useState<DownloadStatus>(
     RELEASE_MANIFEST_URL ? 'loading' : 'fallback'
@@ -223,7 +221,7 @@ export default function DownloadOptions() {
       <div
         className="ui-segmented-control download-source-tabs"
         role="tablist"
-        aria-label="下载来源"
+        aria-label={t('download.source.label')}
       >
         <button
           type="button"
@@ -258,10 +256,10 @@ export default function DownloadOptions() {
 
       <p className="download-source-note">
         {status === 'loading'
-          ? '正在获取 Cloudflare R2 高速镜像。'
+          ? t('download.source.loading')
           : status === 'ready' && manifest
-            ? `当前版本 ${manifest.version}，可切换 Cloudflare R2 或 GitHub Releases 下载。`
-            : '无法获取高速镜像信息，已切换到 GitHub Releases 备用下载。'}
+            ? t('download.source.ready', { version: manifest.version })
+            : t('download.source.fallback')}
       </p>
 
       <div className="download-platform-grid">
@@ -290,19 +288,19 @@ export default function DownloadOptions() {
                   <h3>{meta.name}</h3>
                   <span>{asset.arch}</span>
                 </div>
-                <p>{meta.desc}</p>
+                <p>{t(meta.descKey)}</p>
                 <dl className="download-platform-meta">
                   <div>
-                    <dt>来源</dt>
+                    <dt>{t('download.platform.source')}</dt>
                     <dd>
                       {activeSource === 'r2' && asset.r2Url
-                        ? getSourceLabel(asset)
+                        ? t('download.source.r2Mirror')
                         : 'GitHub Releases'}
                     </dd>
                   </div>
                   {asset.size ? (
                     <div>
-                      <dt>大小</dt>
+                      <dt>{t('download.platform.size')}</dt>
                       <dd>{formatSize(asset.size)}</dd>
                     </div>
                   ) : null}
@@ -316,12 +314,14 @@ export default function DownloadOptions() {
                 <div className="download-platform-actions">
                   <a href={primaryUrl} className="btn btn-primary">
                     <Download size={16} />
-                    下载 {meta.ext}
+                    {t('download.platform.action', { ext: meta.ext })}
                   </a>
                 </div>
               </div>
               {isCurrent ? (
-                <span className="download-recommended-badge">当前</span>
+                <span className="download-recommended-badge">
+                  {t('download.platform.current')}
+                </span>
               ) : null}
             </article>
           )

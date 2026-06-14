@@ -27,9 +27,14 @@ import {
   getBackendUrlExport,
 } from '~/server/src/utils/api'
 import { useAppStore } from '~/app/app/useAppStore'
+import {
+  DEFAULT_LOCALE,
+  useI18n,
+  type Locale,
+  type MessageKey,
+} from '~/lib/i18n'
 
 dayjs.extend(relativeTime)
-dayjs.locale('zh-cn')
 
 interface NodeAddress {
   type: string
@@ -128,14 +133,19 @@ function formatSize(bytes: number) {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
 }
 
-function formatUptime(seconds: number) {
+type AdminTranslate = (
+  key: MessageKey,
+  params?: Record<string, string | number>
+) => string
+
+function formatUptime(seconds: number, t: AdminTranslate) {
   const total = Math.max(0, Number(seconds) || 0)
   const days = Math.floor(total / 86400)
   const hours = Math.floor((total % 86400) / 3600)
   const minutes = Math.floor((total % 3600) / 60)
-  if (days > 0) return `${days} 天 ${hours} 小时`
-  if (hours > 0) return `${hours} 小时 ${minutes} 分钟`
-  return `${minutes} 分钟`
+  if (days > 0) return t('admin.uptime.daysHours', { days, hours })
+  if (hours > 0) return t('admin.uptime.hoursMinutes', { hours, minutes })
+  return t('admin.uptime.minutes', { minutes })
 }
 
 function bytesToGiB(bytes: number) {
@@ -166,62 +176,77 @@ function shortText(text: string, head = 12, tail = 8) {
   return `${text.slice(0, head)}...${text.slice(-tail)}`
 }
 
-function formatSeedStatus(holding: NodeHolding) {
+function formatSeedStatus(holding: NodeHolding, t: AdminTranslate) {
   switch (holding.seedStatus) {
     case 'queued':
-      return '队列中'
+      return t('admin.seedStatus.queued')
     case 'joining':
-      return '加入中'
+      return t('admin.seedStatus.joining')
     case 'active':
-      return '做种中'
+      return t('admin.seedStatus.active')
     case 'paused':
-      return '已暂停'
+      return t('admin.seedStatus.paused')
     case 'error':
-      return holding.seedError ? `错误：${holding.seedError}` : '错误'
+      return holding.seedError
+        ? t('admin.seedStatus.errorWithMessage', {
+            message: holding.seedError,
+          })
+        : t('admin.seedStatus.error')
     default:
-      return holding.joined ? '做种中' : '未 join'
+      return holding.joined
+        ? t('admin.seedStatus.active')
+        : t('admin.seedStatus.notJoined')
   }
 }
 
-function formatRecentTime(value?: string | null) {
-  if (!value) return '从未'
+function getDayjsLocale(locale: Locale) {
+  return locale === DEFAULT_LOCALE ? 'zh-cn' : 'en'
+}
+
+function formatRecentTime(
+  value: string | null | undefined,
+  t: (key: MessageKey) => string,
+  locale: Locale
+) {
+  if (!value) return t('admin.time.never')
   const time = dayjs(value)
-  if (!time.isValid()) return '从未'
-  if (time.isAfter(dayjs())) return '刚刚'
-  return time.fromNow()
+  if (!time.isValid()) return t('admin.time.never')
+  if (time.isAfter(dayjs())) return t('admin.time.justNow')
+  const dayjsLocale = getDayjsLocale(locale)
+  return time.locale(dayjsLocale).from(dayjs().locale(dayjsLocale))
 }
 
 const SEED_STATUS_HELP = [
   {
-    label: '做种中',
+    labelKey: 'admin.seedHelp.active.label',
     tone: 'active',
-    desc: '已加入 CID topic，可被其他节点发现并提供完整副本。',
+    descKey: 'admin.seedHelp.active.desc',
   },
   {
-    label: '队列中 / 加入中',
+    labelKey: 'admin.seedHelp.pending.label',
     tone: 'pending',
-    desc: '正在等待或重连 topic，通常会自动进入做种中。',
+    descKey: 'admin.seedHelp.pending.desc',
   },
   {
-    label: '已暂停 / 未 join',
+    labelKey: 'admin.seedHelp.paused.label',
     tone: 'muted',
-    desc: '本机仍持有文件，但当前不会对外提供下载。',
+    descKey: 'admin.seedHelp.paused.desc',
   },
   {
-    label: '错误',
+    labelKey: 'admin.seedHelp.error.label',
     tone: 'error',
-    desc: '加入或做种失败，请查看下方节点日志里的 seed 事件。',
+    descKey: 'admin.seedHelp.error.desc',
   },
-]
+] satisfies Array<{ labelKey: MessageKey; tone: string; descKey: MessageKey }>
 
 const LOG_FILTER_OPTIONS = [
-  { value: 'all', label: '全部' },
-  { value: 'join', label: 'Join' },
-  { value: 'pull', label: 'Pull' },
-  { value: 'verify', label: 'Verify' },
-  { value: 'serve', label: 'Serve' },
-  { value: 'error', label: 'Error' },
-]
+  { value: 'all', labelKey: 'admin.logFilter.all' },
+  { value: 'join', labelKey: 'admin.logFilter.join' },
+  { value: 'pull', labelKey: 'admin.logFilter.pull' },
+  { value: 'verify', labelKey: 'admin.logFilter.verify' },
+  { value: 'serve', labelKey: 'admin.logFilter.serve' },
+  { value: 'error', labelKey: 'admin.logFilter.error' },
+] satisfies Array<{ value: string; labelKey: MessageKey }>
 
 const LOG_FILTER_TERMS: Record<string, string[]> = {
   join: ['join', 'joined', 'topic'],
@@ -261,6 +286,7 @@ function nodeLogMatchesFilter(log: NodeLog, filter: string) {
 }
 
 export default function AdminPage() {
+  const { t, locale, formatNumber, formatTime } = useI18n()
   const hasBackend = useAppStore(s => s.hasBackend)
   const addToast = useAppStore(s => s.addToast)
   const [status, setStatus] = useState<NodeStatus | null>(EMPTY_STATUS)
@@ -283,7 +309,9 @@ export default function AdminPage() {
   function requireBackendReady() {
     if (isBackendReady) return true
     addToast(
-      hasBackend === null ? '正在检测后端连接，请稍后再试' : '未连接后端',
+      hasBackend === null
+        ? t('admin.toast.backendChecking')
+        : t('admin.toast.backendDisconnected'),
       'warning'
     )
     return false
@@ -325,7 +353,10 @@ export default function AdminPage() {
       setError('')
       return true
     } catch (err) {
-      const message = await getApiErrorMessage(err, '无法读取节点状态')
+      const message = await getApiErrorMessage(
+        err,
+        t('admin.error.readStatus')
+      )
       setError(message)
       addToast(message, 'error')
       return false
@@ -335,7 +366,7 @@ export default function AdminPage() {
   const refreshStatus = async () => {
     if (!requireBackendReady()) return
     if (await loadStatus()) {
-      addToast('节点状态已刷新', 'success')
+      addToast(t('admin.toast.statusRefreshed'), 'success')
     }
   }
 
@@ -380,14 +411,17 @@ export default function AdminPage() {
       const needsRestart = configForm.dataPath !== (status?.dataPath || '')
       addToast(
         needsRestart
-          ? '节点配置已保存。修改了数据目录，需要重启 daemon 生效。'
-          : '节点配置已保存',
+          ? t('admin.toast.configSavedRestart')
+          : t('admin.toast.configSaved'),
         'success'
       )
       await loadStatus()
       await loadLogs()
     } catch (err) {
-      const message = await getApiErrorMessage(err, '保存配置失败')
+      const message = await getApiErrorMessage(
+        err,
+        t('admin.error.saveConfig')
+      )
       addToast(message, 'error')
       setError(message)
     } finally {
@@ -398,7 +432,7 @@ export default function AdminPage() {
   const copyNodeId = async () => {
     if (!status?.nodeId) return
     await navigator.clipboard.writeText(status.nodeId)
-    addToast('节点 ID 已复制', 'success')
+    addToast(t('admin.toast.nodeIdCopied'), 'success')
   }
 
   const clearLogs = async () => {
@@ -407,9 +441,12 @@ export default function AdminPage() {
     try {
       await api.delete('/api/node/logs').json()
       setLogs([])
-      addToast('节点日志已清空', 'success')
+      addToast(t('admin.toast.logsCleared'), 'success')
     } catch (err) {
-      const message = await getApiErrorMessage(err, '清空日志失败')
+      const message = await getApiErrorMessage(
+        err,
+        t('admin.error.clearLogs')
+      )
       addToast(message, 'error')
       setError(message)
     } finally {
@@ -434,9 +471,12 @@ export default function AdminPage() {
       link.click()
       link.remove()
       URL.revokeObjectURL(url)
-      addToast('诊断已导出', 'success')
+      addToast(t('admin.toast.diagnosticsExported'), 'success')
     } catch (err) {
-      const message = await getApiErrorMessage(err, '导出诊断失败')
+      const message = await getApiErrorMessage(
+        err,
+        t('admin.error.exportDiagnostics')
+      )
       addToast(message, 'error')
       setError(message)
     } finally {
@@ -447,17 +487,22 @@ export default function AdminPage() {
   const clearUserData = async (address: string) => {
     if (!requireBackendReady()) return
     const confirmed = window.confirm(
-      `确定清除用户 ${address.slice(0, 6)}...${address.slice(-4)} 的文件记录和回收站吗？无人引用的副本也会被清理。`
+      t('admin.confirm.clearUserData', {
+        address: `${address.slice(0, 6)}...${address.slice(-4)}`,
+      })
     )
     if (!confirmed) return
     setIsClearingUser(address)
     try {
       await api.delete(`/api/admin/users/${address}/data`).json()
-      addToast('用户数据已清除', 'success')
+      addToast(t('admin.toast.userDataCleared'), 'success')
       await loadUsers()
       await loadStatus()
     } catch (err) {
-      const message = await getApiErrorMessage(err, '清除用户数据失败')
+      const message = await getApiErrorMessage(
+        err,
+        t('admin.error.clearUserData')
+      )
       addToast(message, 'error')
       setError(message)
     } finally {
@@ -514,11 +559,15 @@ export default function AdminPage() {
     <main className="admin-page">
       <header className="admin-topbar">
         <div className="admin-title-group">
-          <Link to="/" className="btn btn-icon" aria-label="返回首页">
+          <Link
+            to="/"
+            className="btn btn-icon"
+            aria-label={t('common.backHome')}
+          >
             <ArrowLeft size={16} />
           </Link>
           <div>
-            <h1>节点管理</h1>
+            <h1>{t('admin.title')}</h1>
           </div>
         </div>
         <div className="admin-topbar-actions">
@@ -526,11 +575,13 @@ export default function AdminPage() {
             className={`admin-status-pill ${status?.status === 'online' ? 'online' : ''}`}
           >
             <Activity size={14} />
-            {status?.status === 'online' ? '在线' : '等待'}
+            {status?.status === 'online'
+              ? t('admin.status.online')
+              : t('admin.status.waiting')}
           </span>
           <button className="btn btn-secondary" onClick={refreshStatus}>
             <RefreshCw size={16} />
-            刷新
+            {t('admin.action.refresh')}
           </button>
         </div>
       </header>
@@ -538,7 +589,7 @@ export default function AdminPage() {
       {hasBackend === false && (
         <section className="admin-panel admin-error">
           <Server size={20} />
-          <span>未连接本地 daemon</span>
+          <span>{t('admin.error.localDaemonDisconnected')}</span>
         </section>
       )}
 
@@ -546,9 +597,9 @@ export default function AdminPage() {
         <section className="admin-panel admin-error">
           <AlertTriangle size={18} />
           <div>
-            <h2>远程节点管理不可用</h2>
+            <h2>{t('admin.remoteUnavailable.title')}</h2>
             <p>
-              当前连接的是别人部署的远程节点，普通邀请码不能查看或修改节点管理数据。
+              {t('admin.remoteUnavailable.desc')}
             </p>
           </div>
         </section>
@@ -569,13 +620,15 @@ export default function AdminPage() {
                 <ShieldCheck size={18} />
               </div>
               <div>
-                <span>节点 ID</span>
-                <strong>{shortText(status?.nodeId || '')}</strong>
+                <span>{t('admin.metric.nodeId')}</span>
+                <strong translate="no">
+                  {shortText(status?.nodeId || '')}
+                </strong>
               </div>
               <button
                 className="btn btn-icon admin-metric-action"
                 onClick={copyNodeId}
-                aria-label="复制节点 ID"
+                aria-label={t('admin.action.copyNodeId')}
               >
                 <Clipboard size={15} />
               </button>
@@ -585,9 +638,13 @@ export default function AdminPage() {
                 <Wifi size={18} />
               </div>
               <div>
-                <span>连接</span>
+                <span>{t('admin.metric.connections')}</span>
                 <strong>
-                  {status ? `${status.network.peers} peers` : '-'}
+                  {status
+                    ? t('admin.metric.peers', {
+                        count: status.network.peers,
+                      })
+                    : '-'}
                 </strong>
               </div>
             </div>
@@ -596,7 +653,7 @@ export default function AdminPage() {
                 <HardDrive size={18} />
               </div>
               <div>
-                <span>容量</span>
+                <span>{t('admin.metric.capacity')}</span>
                 <strong>{capacityPercent}%</strong>
               </div>
             </div>
@@ -605,9 +662,9 @@ export default function AdminPage() {
                 <Server size={18} />
               </div>
               <div>
-                <span>运行</span>
+                <span>{t('admin.metric.uptime')}</span>
                 <strong>
-                  {status ? formatUptime(status.uptimeSeconds) : '-'}
+                  {status ? formatUptime(status.uptimeSeconds, t) : '-'}
                 </strong>
               </div>
             </div>
@@ -617,29 +674,29 @@ export default function AdminPage() {
             <div className="admin-panel admin-span-2">
               <div className="admin-panel-header">
                 <div>
-                  <h2>节点状态</h2>
+                  <h2>{t('admin.nodeStatus.title')}</h2>
                 </div>
                 <CheckCircle2 size={18} />
               </div>
               <div className="admin-status-grid">
                 <div>
-                  <span>版本</span>
-                  <strong>{status?.version || '-'}</strong>
+                  <span>{t('admin.nodeStatus.version')}</span>
+                  <strong translate="no">{status?.version || '-'}</strong>
                 </div>
                 <div>
-                  <span>监听</span>
-                  <strong>
+                  <span>{t('admin.nodeStatus.listen')}</span>
+                  <strong translate="no">
                     {status ? `${status.host}:${status.port}` : '-'}
                   </strong>
                 </div>
                 <div>
-                  <span>数据目录</span>
-                  <strong>{status?.dataPath || '-'}</strong>
+                  <span>{t('admin.nodeStatus.dataPath')}</span>
+                  <strong translate="no">{status?.dataPath || '-'}</strong>
                 </div>
               </div>
               <div className="admin-address-list">
                 {(status?.listen.addresses || []).map(address => (
-                  <span key={`${address.type}-${address.ip}`}>
+                  <span key={`${address.type}-${address.ip}`} translate="no">
                     {address.label}: {address.ip}:{status?.port}
                   </span>
                 ))}
@@ -649,22 +706,24 @@ export default function AdminPage() {
             <div className="admin-panel admin-span-2">
               <div className="admin-panel-header">
                 <div>
-                  <h2>用户数据</h2>
+                  <h2>{t('admin.userData.title')}</h2>
                 </div>
                 <Database size={18} />
               </div>
               <div className="admin-table">
                 <div className="admin-table-row admin-table-head">
-                  <span>用户</span>
-                  <span>文件</span>
-                  <span>回收站</span>
-                  <span>操作</span>
+                  <span>{t('admin.userData.user')}</span>
+                  <span>{t('admin.userData.files')}</span>
+                  <span>{t('admin.userData.trash')}</span>
+                  <span>{t('admin.userData.actions')}</span>
                 </div>
                 {users.map(user => (
                   <div className="admin-table-row" key={user.address}>
-                    <span title={user.address}>{shortText(user.address)}</span>
-                    <span>{user.fileCount}</span>
-                    <span>{user.trashCount}</span>
+                    <span title={user.address} translate="no">
+                      {shortText(user.address)}
+                    </span>
+                    <span>{formatNumber(user.fileCount)}</span>
+                    <span>{formatNumber(user.trashCount)}</span>
                     <span>
                       <button
                         className="btn btn-ghost"
@@ -672,13 +731,15 @@ export default function AdminPage() {
                         disabled={isClearingUser === user.address}
                       >
                         <Trash2 size={16} />
-                        清除
+                        {t('admin.action.clear')}
                       </button>
                     </span>
                   </div>
                 ))}
                 {users.length === 0 && (
-                  <div className="admin-empty-row">暂无用户数据</div>
+                  <div className="admin-empty-row">
+                    {t('admin.userData.empty')}
+                  </div>
                 )}
               </div>
             </div>
@@ -686,13 +747,13 @@ export default function AdminPage() {
             <div className="admin-panel admin-span-2">
               <div className="admin-panel-header">
                 <div>
-                  <h2>节点设置</h2>
+                  <h2>{t('admin.settings.title')}</h2>
                 </div>
                 <Database size={18} />
               </div>
               <div className="admin-settings-fields">
                 <label className="admin-field admin-field-wide">
-                  <span>数据目录</span>
+                  <span>{t('admin.settings.dataPath')}</span>
                   <input
                     className="input"
                     value={configForm.dataPath}
@@ -705,7 +766,7 @@ export default function AdminPage() {
                   />
                 </label>
                 <label className="admin-field">
-                  <span>容量上限 GiB</span>
+                  <span>{t('admin.settings.capacityGiB')}</span>
                   <input
                     className="input"
                     type="number"
@@ -721,7 +782,7 @@ export default function AdminPage() {
                   />
                 </label>
                 <label className="admin-field">
-                  <span>单文件最大 GiB</span>
+                  <span>{t('admin.settings.maxFileSizeGiB')}</span>
                   <input
                     className="input"
                     type="number"
@@ -737,11 +798,11 @@ export default function AdminPage() {
                   />
                 </label>
                 <label className="admin-field admin-field-wide">
-                  <span>远程访问邀请码</span>
+                  <span>{t('admin.settings.remoteInvites')}</span>
                   <textarea
                     className="input admin-textarea"
                     value={configForm.remoteInvites}
-                    placeholder="每行一个，或用英文逗号分隔"
+                    placeholder={t('admin.settings.remoteInvitesPlaceholder')}
                     onChange={event =>
                       setConfigForm(prev => ({
                         ...prev,
@@ -752,8 +813,7 @@ export default function AdminPage() {
                 </label>
               </div>
               <p className="admin-field-hint">
-                数据目录变更保存后需要重启 daemon。修改邀请码后新请求立即生效。
-                发布和下载成功后会固定做种；MostBox 不设同时做种数或传输限速。
+                {t('admin.settings.hint')}
               </p>
               <button
                 className="btn btn-primary btn-full"
@@ -761,14 +821,14 @@ export default function AdminPage() {
                 disabled={isSavingConfig}
               >
                 <Save size={16} />
-                保存配置
+                {t('admin.action.saveConfig')}
               </button>
             </div>
 
             <div className="admin-panel admin-span-2">
               <div className="admin-panel-header">
                 <div>
-                  <h2>持有副本</h2>
+                  <h2>{t('admin.holdings.title')}</h2>
                 </div>
                 <HardDrive size={18} />
               </div>
@@ -779,31 +839,35 @@ export default function AdminPage() {
                   {formatSize(status?.capacity.configuredBytes || 0)}
                 </span>
               </div>
-              <div className="admin-seed-help" aria-label="做种状态说明">
+              <div
+                className="admin-seed-help"
+                aria-label={t('admin.seedHelp.label')}
+              >
                 {SEED_STATUS_HELP.map(item => (
-                  <div className="admin-seed-help-item" key={item.label}>
+                  <div className="admin-seed-help-item" key={item.labelKey}>
                     <span className={`admin-seed-dot ${item.tone}`} />
                     <div>
-                      <strong>{item.label}</strong>
-                      <span>{item.desc}</span>
+                      <strong>{t(item.labelKey)}</strong>
+                      <span>{t(item.descKey)}</span>
                     </div>
                   </div>
                 ))}
               </div>
               {hiddenHoldingCount > 0 && (
                 <p className="admin-table-note">
-                  当前仅展示前 100 个副本，另有 {hiddenHoldingCount}{' '}
-                  个仍在后台做种。
+                  {t('admin.holdings.hiddenCount', {
+                    count: formatNumber(hiddenHoldingCount),
+                  })}
                 </p>
               )}
               <div className="admin-table">
                 <div className="admin-table-row admin-table-head">
-                  <span>文件</span>
+                  <span>{t('admin.holdings.file')}</span>
                   <span>CID</span>
-                  <span>大小</span>
+                  <span>{t('admin.holdings.size')}</span>
                   <span>Peer</span>
-                  <span>最近服务</span>
-                  <span>状态</span>
+                  <span>{t('admin.holdings.lastServed')}</span>
+                  <span>{t('admin.holdings.status')}</span>
                 </div>
                 {visibleHoldings.map(holding => (
                   <div className="admin-table-row" key={holding.cid}>
@@ -814,7 +878,7 @@ export default function AdminPage() {
                     <span>{formatSize(holding.size)}</span>
                     <span>{holding.peerCount ?? 0}</span>
                     <span title={holding.lastServedAt || ''}>
-                      {formatRecentTime(holding.lastServedAt)}
+                      {formatRecentTime(holding.lastServedAt, t, locale)}
                     </span>
                     <span
                       className={`admin-seed-pill ${
@@ -825,12 +889,14 @@ export default function AdminPage() {
                             : ''
                       }`}
                     >
-                      {formatSeedStatus(holding)}
+                      {formatSeedStatus(holding, t)}
                     </span>
                   </div>
                 ))}
                 {(!status || status.holdings.length === 0) && (
-                  <div className="admin-empty-row">暂无持有副本</div>
+                  <div className="admin-empty-row">
+                    {t('admin.holdings.empty')}
+                  </div>
                 )}
               </div>
             </div>
@@ -838,7 +904,7 @@ export default function AdminPage() {
             <div className="admin-panel admin-span-2">
               <div className="admin-panel-header">
                 <div>
-                  <h2>节点日志</h2>
+                  <h2>{t('admin.logs.title')}</h2>
                 </div>
                 <div className="admin-panel-actions">
                   <button
@@ -847,7 +913,7 @@ export default function AdminPage() {
                     disabled={isExportingDiagnostics}
                   >
                     <Download size={16} />
-                    导出诊断
+                    {t('admin.action.exportDiagnostics')}
                   </button>
                   <button
                     className="btn btn-ghost"
@@ -855,12 +921,15 @@ export default function AdminPage() {
                     disabled={isClearingLogs || logs.length === 0}
                   >
                     <Trash2 size={16} />
-                    清空日志
+                    {t('admin.action.clearLogs')}
                   </button>
                   <FileText size={18} />
                 </div>
               </div>
-              <div className="admin-log-filter" aria-label="日志筛选">
+              <div
+                className="admin-log-filter"
+                aria-label={t('admin.logs.filterLabel')}
+              >
                 {LOG_FILTER_OPTIONS.map(item => (
                   <button
                     key={item.value}
@@ -871,23 +940,26 @@ export default function AdminPage() {
                       loadLogs(item.value)
                     }}
                   >
-                    {item.label}
+                    {t(item.labelKey)}
                   </button>
                 ))}
               </div>
               <div className="admin-log-list">
                 {logs.map(log => (
                   <div className="admin-log-row" key={log.id}>
-                    <time>{new Date(log.ts).toLocaleTimeString('zh-CN')}</time>
-                    <span className={`admin-log-level ${log.level}`}>
+                    <time>{formatTime(log.ts)}</time>
+                    <span
+                      className={`admin-log-level ${log.level}`}
+                      translate="no"
+                    >
                       {log.level}
                     </span>
-                    <strong>{log.event}</strong>
-                    <span>{log.message}</span>
+                    <strong translate="no">{log.event}</strong>
+                    <span translate="no">{log.message}</span>
                   </div>
                 ))}
                 {logs.length === 0 && (
-                  <div className="admin-empty-row">暂无日志</div>
+                  <div className="admin-empty-row">{t('admin.logs.empty')}</div>
                 )}
               </div>
             </div>

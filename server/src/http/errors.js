@@ -20,11 +20,15 @@ export function getApiErrorStatus(err) {
 }
 
 export function errorJson(c, err) {
+  const payload = {
+    error: err.message,
+    code: err.code || 'UNKNOWN',
+  }
+  if (err.errorCode) payload.errorCode = err.errorCode
+  if (err.details) payload.details = err.details
+
   return c.json(
-    {
-      error: err.message,
-      code: err.code || 'UNKNOWN',
-    },
+    payload,
     getApiErrorStatus(err)
   )
 }

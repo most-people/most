@@ -5,6 +5,7 @@ import GameSidebar from '~/components/GameSidebar'
 import { useGameRoom } from '~/hooks/useGameRoom'
 import { useAppStore } from '~/app/app/useAppStore'
 import { useUserStore } from '~/app/app/userStore'
+import { useI18n, type Locale, type MessageKey } from '~/lib/i18n'
 import {
   analyzeCards,
   createGanDengYanRoom,
@@ -82,61 +83,18 @@ function sameAddress(left?: string, right?: string) {
   return String(left || '').toLowerCase() === String(right || '').toLowerCase()
 }
 
-function speak(text: string) {
+function speak(text: string, locale: Locale) {
   if (typeof window === 'undefined' || !('speechSynthesis' in window) || !text)
     return
   window.speechSynthesis.cancel()
   const utterance = new SpeechSynthesisUtterance(text)
-  utterance.lang = 'zh-CN'
+  utterance.lang = locale
   utterance.rate = 1.1
   window.speechSynthesis.speak(utterance)
 }
 
-function pronounce(rank: string) {
-  return rank === 'J'
-    ? '勾'
-    : rank === 'Q'
-      ? '圈'
-      : rank === 'A'
-        ? '坚'
-        : rank === '10'
-          ? '十'
-          : rank
-}
-
-function getSpeechText(logEntry: string) {
-  if (!logEntry) return ''
-  if (/不要/.test(logEntry)) return '不要'
-  if (/本轮结束/.test(logEntry)) return '不要'
-  if (/新一局开始/.test(logEntry)) return '新一局开始'
-  if (/获胜/.test(logEntry)) return '游戏结束'
-
-  const playMatch = logEntry.match(
-    /出\s+(\S+?)(?:（([^）]+)）)?\s+(?:[♠♥♣♦]|小王|大王)/
-  )
-  if (!playMatch) return ''
-
-  const type = playMatch[1]
-  const raw = playMatch[2]
-
-  if (!raw) return type
-
-  const ranks = raw.split(/\s+/).map(pronounce)
-
-  if (type === '对子') return `对${ranks[0]}`
-  if (type === '单张') return ranks[0]
-  if (/炸弹/.test(type)) return `${ranks[0]}炸`
-  if (type === '顺子') return ranks.join(' ')
-  if (type === '连对') {
-    const unique: string[] = []
-    for (let i = 0; i < ranks.length; i += 2) unique.push(ranks[i])
-    return '连对 ' + unique.flatMap(r => [r, r]).join(' ')
-  }
-
-  return type
-}
-
 export default function GanDengYanPage() {
+  const { t, locale } = useI18n()
   const isDarkMode = useAppStore(s => s.isDarkMode)
   const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
   const addToast = useAppStore(s => s.addToast)
@@ -173,9 +131,9 @@ export default function GanDengYanPage() {
     autoJoinAttempted.current = true
     pendingAutoJoin.current = ''
     void game.joinRoom(code).then(ok => {
-      if (ok) addToast('已进入房间', 'success')
+      if (ok) addToast(t('game.toast.joinedRoom'), 'success')
     })
-  }, [game.isBackendReady, game.userIdentity, game.joinRoom, addToast])
+  }, [game.isBackendReady, game.userIdentity, game.joinRoom, addToast, t])
 
   useEffect(() => {
     if (!game.roomCode) return
@@ -225,7 +183,6 @@ export default function GanDengYanPage() {
       ? `${window.location.origin}/game/gandengyan?room=${game.roomCode}`
       : ''
   const prevSeqRef = useRef(-1)
-  const lastSpokenLogRef = useRef('')
   const spokenFinishedRef = useRef(false)
 
   useEffect(() => {
@@ -249,18 +206,12 @@ export default function GanDengYanPage() {
     if (room.status === 'finished' && room.winnerSeat !== null) {
       if (!spokenFinishedRef.current) {
         spokenFinishedRef.current = true
-        speak('游戏结束')
+        speak(t('game.gandengyan.speech.gameOver'), locale)
       }
       return
     }
 
-    const latestLog = room.log[0] || ''
-    if (latestLog && latestLog !== lastSpokenLogRef.current) {
-      lastSpokenLogRef.current = latestLog
-      const text = getSpeechText(latestLog)
-      if (text) speak(text)
-    }
-  }, [room?.seq])
+  }, [locale, room?.seq, t])
 
   useEffect(() => {
     if (!isOwner || !game.roomCode || !game.userIdentity) return
@@ -295,10 +246,10 @@ export default function GanDengYanPage() {
     const newLeaves = leaveEvents.slice(leaveCountRef.current)
     leaveCountRef.current = leaveEvents.length
     for (const item of newLeaves) {
-      const name = item.event?.payload?.player?.name || '玩家'
-      addToast(`${name} 已退出房间`, 'info')
+      const name = item.event?.payload?.player?.name || t('game.player')
+      addToast(t('game.toast.playerLeft', { player: name }), 'info')
     }
-  }, [leaveEvents, addToast])
+  }, [leaveEvents, addToast, t])
 
   useEffect(() => {
     if (!room || !isOwner || room.status !== 'playing') return
@@ -315,13 +266,13 @@ export default function GanDengYanPage() {
 
   async function createRoom() {
     const ok = await game.createRoom()
-    if (ok) addToast('房间已创建', 'success')
+    if (ok) addToast(t('game.toast.roomCreated'), 'success')
   }
 
   async function joinRoom(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const ok = await game.joinRoom(roomInput)
-    if (ok) addToast('已进入房间', 'success')
+    if (ok) addToast(t('game.toast.joinedRoom'), 'success')
   }
 
   async function copyShareLink() {
@@ -343,7 +294,10 @@ export default function GanDengYanPage() {
     try {
       await publishState(startGanDengYanRound(room))
     } catch (err) {
-      addToast(err instanceof Error ? err.message : '开局失败', 'error')
+      addToast(
+        err instanceof Error ? err.message : t('game.zhajinhua.error.startFailed'),
+        'error'
+      )
     }
   }
 
@@ -359,7 +313,7 @@ export default function GanDengYanPage() {
       selected
     )
     if (!result.ok) {
-      addToast(result.error || '出牌失败', 'error')
+      addToast(result.error || t('game.gandengyan.error.playFailed'), 'error')
       return
     }
     await publishState(result.state)
@@ -369,7 +323,7 @@ export default function GanDengYanPage() {
     if (!room || !game.userIdentity) return
     const result = passGanDengYanTurn(room, game.userIdentity.address)
     if (!result.ok) {
-      addToast(result.error || '操作失败', 'error')
+      addToast(result.error || t('game.gandengyan.error.actionFailed'), 'error')
       return
     }
     await publishState(result.state)
@@ -388,19 +342,19 @@ export default function GanDengYanPage() {
       sidebar={({ closeSidebar }) => (
         <GameSidebar activeGame="gandengyan" closeSidebar={closeSidebar} />
       )}
-      headerTitle={<h2 className="header-title">干瞪眼</h2>}
+      headerTitle={<h2 className="header-title">{t('game.gandengyan.title')}</h2>}
       headerRight={
         <div className={styles.headerActions}>
           {room && (
             <button className="btn btn-sm" onClick={copyShareLink}>
               <Copy size={14} />
-              {copied ? '已复制' : '分享房间'}
+              {copied ? t('common.copied') : t('game.action.shareRoom')}
             </button>
           )}
           <button
             className="btn btn-icon"
             onClick={() => setIsDarkMode(!isDarkMode)}
-            title="切换主题"
+            title={t('common.theme.toggle')}
           >
             {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
           </button>
@@ -411,19 +365,21 @@ export default function GanDengYanPage() {
         {!room ? (
           <section className={styles.entry}>
             <div className={styles.entryBrand}>
-              <div className={styles.cardMark}>干</div>
+              <div className={styles.cardMark}>{t('game.gandengyan.mark')}</div>
               <div>
-                <h1>干瞪眼牌桌</h1>
+                <h1>{t('game.gandengyan.hero.title')}</h1>
                 <p>
-                  创建房间码邀请朋友加入，房间状态通过 MostBox P2P 频道同步。
+                  {t('game.hero.desc')}
                 </p>
               </div>
             </div>
 
             <div className={styles.entryPanel}>
               <div className={styles.accountLine}>
-                <span>当前账号</span>
-                <strong>{game.userIdentity?.displayName || '未登录'}</strong>
+                <span>{t('game.currentAccount')}</span>
+                <strong translate="no">
+                  {game.userIdentity?.displayName || t('web3.notSignedIn')}
+                </strong>
               </div>
               <button
                 className="btn btn-primary"
@@ -431,26 +387,28 @@ export default function GanDengYanPage() {
                 onClick={createRoom}
               >
                 <Play size={16} />
-                创建房间
+                {t('game.action.createRoom')}
               </button>
               <form onSubmit={joinRoom} className={styles.joinForm}>
                 <label>
-                  房间号
+                  {t('game.roomCode')}
                   <input
                     value={roomInput}
                     maxLength={8}
                     onChange={event =>
                       setRoomInput(event.target.value.toUpperCase())
                     }
-                    placeholder="输入房间号"
+                    placeholder={t('game.roomCode.placeholder')}
                   />
                 </label>
                 <button className="btn" disabled={game.joining || !roomInput}>
-                  加入房间
+                  {t('game.action.joinRoom')}
                 </button>
               </form>
               <p className={styles.status}>
-                {game.isBackendReady ? '节点已连接' : '正在连接节点...'}
+                {game.isBackendReady
+                  ? t('game.status.nodeConnected')
+                  : t('game.status.nodeConnecting')}
               </p>
             </div>
           </section>
@@ -459,17 +417,23 @@ export default function GanDengYanPage() {
             <div className={styles.tablePanel}>
               <div className={styles.roomBar}>
                 <div>
-                  <strong>房间 {room.id}</strong>
+                  <strong translate="no">
+                    {t('game.roomLabel', { room: room.id })}
+                  </strong>
                   <span>
                     {room.status === 'lobby'
-                      ? '等待开局'
+                      ? t('game.status.waitingStart')
                       : room.status === 'finished'
-                        ? '本局结束'
-                        : '进行中'}
+                        ? t('game.status.finished')
+                        : t('game.status.playing')}
                   </span>
                 </div>
                 <div className={styles.badges}>
-                  <span>{game.connected ? '在线' : '离线'}</span>
+                  <span>
+                    {game.connected
+                      ? t('game.status.online')
+                      : t('game.status.offline')}
+                  </span>
                 </div>
               </div>
 
@@ -480,22 +444,24 @@ export default function GanDengYanPage() {
                     player={player}
                     active={room.currentSeat === player.seat}
                     winner={room.winnerSeat === player.seat}
-                    relation={positionLabel(me, player, room.players.length)}
+                    relation={positionLabel(me, player, room.players.length, t)}
                   />
                 ))}
               </div>
 
               <div className={styles.centerTable}>
                 <div className={styles.deckBox}>
-                  <span>牌堆</span>
+                  <span>{t('game.gandengyan.deck')}</span>
                   <strong>{room.deckCount}</strong>
                 </div>
                 <div className={styles.playedBox}>
                   {room.table ? (
                     <>
                       <strong>
-                        {room.table.playerName} 出{' '}
-                        {room.table.combo?.label || '牌'}
+                        {t('game.gandengyan.tablePlay', {
+                          player: room.table.playerName,
+                          combo: room.table.combo?.label || t('game.card'),
+                        })}
                       </strong>
                       <div className={styles.playedCards}>
                         {room.table.cards.map(card => (
@@ -504,11 +470,11 @@ export default function GanDengYanPage() {
                       </div>
                     </>
                   ) : (
-                    <span>等待领出</span>
+                    <span>{t('game.gandengyan.waitingLead')}</span>
                   )}
                 </div>
                 <div className={styles.deckBox}>
-                  <span>底分</span>
+                  <span>{t('game.gandengyan.baseScore')}</span>
                   <strong>{room.baseScore}</strong>
                 </div>
               </div>
@@ -518,38 +484,54 @@ export default function GanDengYanPage() {
                   room.roundResult ? (
                     <div className={styles.resultDetail}>
                       <p>
-                        <strong>{room.roundResult.winnerName}</strong> 获胜，赢{' '}
-                        {room.roundResult.winnerGain} 分
+                        {t('game.gandengyan.result.winnerGain', {
+                          player: room.roundResult.winnerName,
+                          score: room.roundResult.winnerGain,
+                        })}
                         {room.roundResult.bombCount > 0 &&
-                          `（${room.roundResult.bombCount} 个炸弹）`}
+                          t('game.gandengyan.result.bombCount', {
+                            count: room.roundResult.bombCount,
+                          })}
                       </p>
                       {room.roundResult.losers.map(loser => (
                         <p key={loser.seat}>
-                          {loser.name}
                           {loser.sealed
-                            ? '（封牌）扣 20 分'
-                            : `剩 ${loser.cardsLeft} 张，扣 ${loser.loss} 分`}
+                            ? t('game.gandengyan.result.sealedLoss', {
+                                player: loser.name,
+                                loss: 20,
+                              })
+                            : t('game.gandengyan.result.cardsLeftLoss', {
+                                player: loser.name,
+                                cards: loser.cardsLeft,
+                                loss: loser.loss,
+                              })}
                         </p>
                       ))}
                     </div>
                   ) : (
-                    `${room.players.find(player => player.seat === room.winnerSeat)?.name} 获胜`
+                    t('game.gandengyan.result.winner', {
+                      player:
+                        room.players.find(
+                          player => player.seat === room.winnerSeat
+                        )?.name || t('game.player'),
+                    })
                   )
                 ) : myTurn ? (
-                  '轮到你出牌'
+                  t('game.gandengyan.status.yourTurn')
                 ) : (
-                  `等待 ${
-                    room.players.find(
-                      player => player.seat === room.currentSeat
-                    )?.name || '玩家'
-                  }`
+                  t('game.zhajinhua.status.waitingPlayer', {
+                    player:
+                      room.players.find(
+                        player => player.seat === room.currentSeat
+                      )?.name || t('game.player'),
+                  })
                 )}
               </div>
             </div>
 
             <aside className={styles.sidePanel}>
               <section className={styles.panel}>
-                <h3>牌局</h3>
+                <h3>{t('game.gandengyan.roundPanel')}</h3>
                 {isOwner && room.status === 'lobby' && (
                   <button
                     className="btn btn-primary"
@@ -557,36 +539,48 @@ export default function GanDengYanPage() {
                     onClick={startRound}
                   >
                     <Play size={16} />
-                    开始游戏
+                    {t('game.action.startRound')}
                   </button>
                 )}
                 {isOwner && room.status === 'finished' && (
                   <button className="btn btn-primary" onClick={restartRound}>
                     <RotateCcw size={16} />
-                    再来一局
+                    {t('game.action.nextRound')}
                   </button>
                 )}
-                {!isOwner && <p className={styles.status}>等待房主操作。</p>}
+                {!isOwner && (
+                  <p className={styles.status}>{t('game.waitingHost')}</p>
+                )}
               </section>
 
               <section className={styles.panel}>
-                <h3>分数</h3>
+                <h3>{t('game.gandengyan.score')}</h3>
                 <div className={styles.scoreMeta}>
-                  <span>炸弹 {room.bombCount} 次</span>
-                  <span>弃牌 {room.discardCount} 张</span>
+                  <span>
+                    {t('game.gandengyan.bombCount', {
+                      count: room.bombCount,
+                    })}
+                  </span>
+                  <span>
+                    {t('game.gandengyan.discardCount', {
+                      count: room.discardCount,
+                    })}
+                  </span>
                 </div>
                 {room.players.map(player => (
                   <div key={player.seat} className={styles.scoreRow}>
-                    <span>{player.name}</span>
+                    <span translate="no">{player.name}</span>
                     <strong>{player.score}</strong>
                   </div>
                 ))}
               </section>
 
               <section className={classNames(styles.panel, styles.logPanel)}>
-                <h3>牌局记录</h3>
+                <h3>{t('game.gandengyan.log')}</h3>
                 {room.log.map((item, index) => (
-                  <p key={`${item}-${index}`}>{item}</p>
+                  <p key={`${item}-${index}`} translate="no">
+                    {item}
+                  </p>
                 ))}
               </section>
             </aside>
@@ -622,12 +616,12 @@ export default function GanDengYanPage() {
                     {preview
                       ? preview.label
                       : selected.length
-                        ? '牌型不合法'
-                        : '先选牌'}
+                        ? t('game.gandengyan.invalidCombo')
+                        : t('game.gandengyan.selectCards')}
                   </strong>
                   <span>
                     {selectedCards.map(card => card.label).join(' ') ||
-                      '按选择顺序解释大小王'}
+                      t('game.gandengyan.jokerOrderHint')}
                   </span>
                 </div>
                 <button
@@ -636,14 +630,14 @@ export default function GanDengYanPage() {
                   onClick={playSelected}
                 >
                   <Send size={16} />
-                  出牌
+                  {t('game.gandengyan.action.play')}
                 </button>
                 <button
                   className="btn"
                   disabled={!myTurn || !room.table}
                   onClick={passTurn}
                 >
-                  不要
+                  {t('game.gandengyan.action.pass')}
                 </button>
               </div>
             </div>
@@ -665,6 +659,7 @@ function PlayerBadge({
   winner: boolean
   relation?: string
 }) {
+  const { t } = useI18n()
   if (!player) return null
   return (
     <div
@@ -674,13 +669,15 @@ function PlayerBadge({
         winner && styles.winner
       )}
     >
-      <div className={styles.avatar}>{player.name.slice(0, 1)}</div>
+      <div className={styles.avatar} translate="no">
+        {player.name.slice(0, 1)}
+      </div>
       <div>
-        <strong>{player.name}</strong>
+        <strong translate="no">{player.name}</strong>
         <span>
           {relation}
           {relation ? ' · ' : ''}
-          {player.handCount} 张
+          {t('game.gandengyan.handCount', { count: player.handCount })}
         </span>
       </div>
     </div>
@@ -705,19 +702,24 @@ function CardView({ card, small = false }: { card: Card; small?: boolean }) {
 function positionLabel(
   me: Player | null | undefined,
   player: Player,
-  total: number
+  total: number,
+  t: (key: MessageKey, params?: Record<string, string | number>) => string
 ) {
-  if (!me) return `座位 ${player.seat + 1}`
+  if (!me) return t('game.gandengyan.position.seat', { seat: player.seat + 1 })
   const offset = (player.seat - me.seat + total) % total
-  if (offset === 0) return '我'
-  if (total === 2) return '对手位'
-  if (total === 3) return offset === 1 ? '下家/对手位' : '上家/对手位'
+  if (offset === 0) return t('game.gandengyan.position.me')
+  if (total === 2) return t('game.gandengyan.position.opponent')
+  if (total === 3) {
+    return offset === 1
+      ? t('game.gandengyan.position.nextOpponent')
+      : t('game.gandengyan.position.prevOpponent')
+  }
   if (total === 4) {
-    if (offset === 1) return '下家/对手位'
-    if (offset === 2) return '对家/队友位'
-    return '上家/对手位'
+    if (offset === 1) return t('game.gandengyan.position.nextOpponent')
+    if (offset === 2) return t('game.gandengyan.position.partner')
+    return t('game.gandengyan.position.prevOpponent')
   }
   return offset % 2 === 0
-    ? `座位 ${player.seat + 1}/队友位`
-    : `座位 ${player.seat + 1}/对手位`
+    ? t('game.gandengyan.position.seatPartner', { seat: player.seat + 1 })
+    : t('game.gandengyan.position.seatOpponent', { seat: player.seat + 1 })
 }

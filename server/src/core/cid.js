@@ -7,7 +7,11 @@ import fs from 'node:fs'
 import { Readable } from 'node:stream'
 import { importer } from 'ipfs-unixfs-importer'
 
-export { validateCidString, parseMostLink } from './mostLink.js'
+export {
+  MOST_LINK_ERROR_CODES,
+  validateCidString,
+  parseMostLink,
+} from './mostLink.js'
 
 /**
  * 用于 CID 计算的虚拟 Blockstore

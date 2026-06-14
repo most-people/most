@@ -1,4 +1,5 @@
 import { KeyRound, Lock } from 'lucide-react'
+import { useI18n } from '~/lib/i18n'
 import { parseMostBoxToken } from '~/server/src/utils/mostWallet.js'
 
 type BoxFlowPanelProps = {
@@ -18,9 +19,12 @@ type BoxFlowPanelProps = {
   onDecrypt: () => void
 }
 
-function formatBoxTimestamp(timestampMs: number) {
+function formatBoxTimestamp(
+  timestampMs: number,
+  formatDateTime: (value: number) => string
+) {
   if (!Number.isFinite(timestampMs)) return '-'
-  return `${new Date(timestampMs).toLocaleString()}`
+  return formatDateTime(timestampMs)
 }
 
 export function BoxFlowPanel({
@@ -39,6 +43,7 @@ export function BoxFlowPanel({
   onEncrypt,
   onDecrypt,
 }: BoxFlowPanelProps) {
+  const { t, formatDateTime } = useI18n()
   const messageInputId = `box-message-${title.replaceAll(/\s+/g, '-')}`
   const tokenInfo = parseMostBoxToken(cipherText)
 
@@ -52,7 +57,7 @@ export function BoxFlowPanel({
       </div>
 
       <label className="web3-box-label" htmlFor={messageInputId}>
-        明文
+        {t('web3.box.plaintext')}
       </label>
       <textarea
         id={messageInputId}
@@ -61,6 +66,7 @@ export function BoxFlowPanel({
         onChange={event => onMessageChange(event.target.value)}
         rows={4}
         placeholder={messagePlaceholder}
+        translate="no"
       />
 
       <div className="web3-box-actions">
@@ -79,7 +85,7 @@ export function BoxFlowPanel({
       <div className="web3-box-result-grid">
         <div className="web3-box-result">
           <label className="web3-box-result-header">
-            <span>密文</span>
+            <span>{t('web3.box.ciphertext')}</span>
           </label>
           <textarea
             className="textarea mono"
@@ -87,19 +93,21 @@ export function BoxFlowPanel({
             onChange={event => onCipherTextChange(event.target.value)}
             rows={5}
             placeholder={cipherPlaceholder}
+            translate="no"
           />
         </div>
 
         <div className="web3-box-result">
           <label className="web3-box-result-header">
-            <span>解密结果</span>
+            <span>{t('web3.box.decryptResult')}</span>
           </label>
           <textarea
             className="textarea mono"
             value={decryptedText}
             readOnly
             rows={5}
-            placeholder="解密成功后显示明文"
+            placeholder={t('web3.box.decryptResultPlaceholder')}
+            translate="no"
           />
         </div>
       </div>
@@ -107,12 +115,14 @@ export function BoxFlowPanel({
       {tokenInfo && (
         <div className="web3-box-token-meta">
           <div className="web3-box-token-meta-row">
-            <span>时间戳</span>
-            <code>{formatBoxTimestamp(tokenInfo.timestampMs)}</code>
+            <span>{t('web3.box.timestamp')}</span>
+            <code translate="no">
+              {formatBoxTimestamp(tokenInfo.timestampMs, formatDateTime)}
+            </code>
           </div>
           <div className="web3-box-token-meta-row">
-            <span>随机数</span>
-            <code>{tokenInfo.nonce}</code>
+            <span>{t('web3.box.nonce')}</span>
+            <code translate="no">{tokenInfo.nonce}</code>
           </div>
         </div>
       )}

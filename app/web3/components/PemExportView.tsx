@@ -1,6 +1,7 @@
 import { Lock } from 'lucide-react'
 import { EmptyState } from '~/components/EmptyState'
 import { PemBlock } from '~/components/PemBlock'
+import { useI18n } from '~/lib/i18n'
 import type { WalletResult } from './types'
 
 type PemExportViewProps = {
@@ -14,11 +15,13 @@ export function PemExportView({
   publicPem,
   privatePem,
 }: PemExportViewProps) {
+  const { t } = useI18n()
+
   if (!publicPem || !privatePem) {
     return (
       <EmptyState
         icon={<Lock size={36} />}
-        message="请输入用户名和密码以生成 PEM 密钥"
+        message={t('web3.empty.pem')}
       />
     )
   }
@@ -27,8 +30,16 @@ export function PemExportView({
 
   return (
     <div className="web3-pem-list">
-      <PemBlock label={`${baseName}.pub`} pem={publicPem} filename={`${baseName}.pub`} />
-      <PemBlock label={`${baseName}.pem`} pem={privatePem} filename={`${baseName}.pem`} />
+      <PemBlock
+        label={`${baseName}.pub`}
+        pem={publicPem}
+        filename={`${baseName}.pub`}
+      />
+      <PemBlock
+        label={`${baseName}.pem`}
+        pem={privatePem}
+        filename={`${baseName}.pem`}
+      />
     </div>
   )
 }

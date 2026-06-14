@@ -19,6 +19,7 @@ import {
   RotateCw,
   Wifi,
 } from 'lucide-react'
+import { useI18n } from '~/lib/i18n'
 
 interface PingTarget {
   name: string
@@ -157,9 +158,14 @@ function BrandIcon({
 }
 
 export function PingPanel() {
+  const { t, formatNumber } = useI18n()
   const [results, setResults] = useState<Map<string, PingResult>>(new Map())
   const [runningAll, setRunningAll] = useState(false)
   const abortRefs = useRef<Map<string, AbortController>>(new Map())
+
+  useEffect(() => {
+    document.title = t('ping.meta.title')
+  }, [t])
 
   const runSingleTest = useCallback((host: string) => {
     setResults(prev => {
@@ -265,9 +271,9 @@ export function PingPanel() {
         <div className="ping-title-wrap">
           <Wifi size={28} className="ping-title-icon" />
           <div>
-            <h1 className="ping-title">网络连通性</h1>
+            <h1 className="ping-title">{t('ping.title')}</h1>
             <p className="ping-subtitle">
-              通过向对应网站发送请求进行测试，延迟值仅供参考。
+              {t('ping.subtitle')}
             </p>
           </div>
         </div>
@@ -275,8 +281,8 @@ export function PingPanel() {
           className="btn btn-icon"
           onClick={runAllTests}
           disabled={runningAll}
-          aria-label="重新测试全部"
-          title="重新测试全部"
+          aria-label={t('ping.retryAll')}
+          title={t('ping.retryAll')}
         >
           <RotateCw size={18} className={runningAll ? 'ping-spin' : ''} />
         </button>
@@ -309,8 +315,8 @@ export function PingPanel() {
                   className="ping-card-refresh"
                   onClick={() => runSingleTest(target.host)}
                   disabled={isPending}
-                  aria-label={`重新测试 ${target.name}`}
-                  title="重新测试"
+                  aria-label={t('ping.retryOne', { name: target.name })}
+                  title={t('ping.retry')}
                 >
                   <RotateCw
                     size={13}
@@ -326,7 +332,7 @@ export function PingPanel() {
                   <span
                     className={`ping-status-label ${isTimeout ? 'is-error' : 'is-success'}`}
                   >
-                    {isTimeout ? '不可用' : '可用'}
+                    {isTimeout ? t('ping.unavailable') : t('ping.available')}
                   </span>
                 )}
 
@@ -342,8 +348,8 @@ export function PingPanel() {
                   {isPending
                     ? '--'
                     : isTimeout
-                      ? '超时'
-                      : `${result!.latency} ms`}
+                      ? t('ping.timeout')
+                      : `${formatNumber(result!.latency)} ms`}
                 </span>
               </div>
             </div>

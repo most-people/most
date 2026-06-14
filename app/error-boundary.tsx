@@ -1,4 +1,11 @@
 import React from 'react'
+import {
+  LEGACY_LOCALE_STORAGE_KEY,
+  LOCALE_STORAGE_KEY,
+  normalizeLocale,
+  translateMessage,
+  type MessageKey,
+} from '~/lib/i18n'
 
 interface ErrorBoundaryState {
   hasError: boolean
@@ -7,6 +14,22 @@ interface ErrorBoundaryState {
 
 interface ErrorBoundaryProps {
   children: React.ReactNode
+}
+
+function readErrorBoundaryLocale() {
+  if (typeof window === 'undefined') return undefined
+  try {
+    return normalizeLocale(
+      window.localStorage.getItem(LOCALE_STORAGE_KEY) ||
+        window.localStorage.getItem(LEGACY_LOCALE_STORAGE_KEY)
+    )
+  } catch {
+    return undefined
+  }
+}
+
+function t(key: MessageKey) {
+  return translateMessage(key, readErrorBoundaryLocale())
 }
 
 export class ErrorBoundary extends React.Component<
@@ -34,12 +57,12 @@ export class ErrorBoundary extends React.Component<
     if (this.state.hasError) {
       return (
         <div className="error-boundary-page">
-          <h1 className="error-boundary-title">出错了</h1>
+          <h1 className="error-boundary-title">{t('errorBoundary.title')}</h1>
           <p className="error-boundary-desc">
-            发生了意外错误，请尝试重新加载页面
+            {t('errorBoundary.desc')}
           </p>
           <button onClick={this.handleReload} className="error-boundary-btn">
-            重新加载
+            {t('errorBoundary.reload')}
           </button>
         </div>
       )

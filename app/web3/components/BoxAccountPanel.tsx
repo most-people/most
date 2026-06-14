@@ -1,5 +1,6 @@
 import { Eye, EyeOff, KeyRound } from 'lucide-react'
 import { CopyButton } from '~/components/CopyButton'
+import { useI18n } from '~/lib/i18n'
 import type { BoxAccount } from './types'
 
 type BoxAccountPanelProps = {
@@ -33,18 +34,20 @@ export function BoxAccountPanel({
   onTogglePrivateKey,
   onGenerate,
 }: BoxAccountPanelProps) {
+  const { t } = useI18n()
+
   return (
     <div className="web3-box-account">
       <div className="web3-box-account-header">
         <div>
           <h2>{title}</h2>
-          <p>用户名和密码会确定性生成 x25519 密钥对。</p>
+          <p>{t('web3.box.account.desc')}</p>
         </div>
       </div>
       <div className="web3-box-login">
         <input
           type="text"
-          placeholder="用户名"
+          placeholder={t('login.username.placeholder')}
           value={username}
           onChange={event => onUsernameChange(event.target.value)}
           className="input"
@@ -55,7 +58,7 @@ export function BoxAccountPanel({
         <div className="input-wrap">
           <input
             type={showPassword ? 'text' : 'password'}
-            placeholder="密码（可选）"
+            placeholder={t('web3.login.passwordOptional')}
             value={password}
             onChange={event => onPasswordChange(event.target.value)}
             className="input"
@@ -74,30 +77,34 @@ export function BoxAccountPanel({
           type="button"
         >
           <KeyRound size={16} />
-          生成账号
+          {t('web3.box.account.generate')}
         </button>
       </div>
 
       {account ? (
         <div className="web3-box-key-list">
           <div className="web3-box-key-row">
-            <span>地址</span>
+            <span>{t('web3.label.address')}</span>
             <div className="mono-row">
-              <code className="mono">{account.address.toLowerCase()}</code>
+              <code className="mono" translate="no">
+                {account.address.toLowerCase()}
+              </code>
               <CopyButton text={account.address.toLowerCase()} />
             </div>
           </div>
           <div className="web3-box-key-row">
-            <span>x25519 公钥</span>
+            <span>{t('web3.label.x25519Public')}</span>
             <div className="mono-row">
-              <code className="mono">{account.publicKey}</code>
+              <code className="mono" translate="no">
+                {account.publicKey}
+              </code>
               <CopyButton text={account.publicKey} />
             </div>
           </div>
           <div className="web3-box-key-row">
-            <span>x25519 私钥</span>
+            <span>{t('web3.label.x25519Private')}</span>
             <div className="mono-row danger">
-              <code className="mono">
+              <code className="mono" translate="no">
                 {showPrivateKey
                   ? account.privateKey
                   : maskSecret(account.privateKey)}
@@ -105,7 +112,11 @@ export function BoxAccountPanel({
               <button
                 className="btn btn-icon"
                 onClick={onTogglePrivateKey}
-                title={showPrivateKey ? '隐藏私钥' : '显示私钥'}
+                title={
+                  showPrivateKey
+                    ? t('web3.action.hidePrivateKey')
+                    : t('web3.action.showPrivateKey')
+                }
                 type="button"
               >
                 {showPrivateKey ? <Eye size={14} /> : <EyeOff size={14} />}

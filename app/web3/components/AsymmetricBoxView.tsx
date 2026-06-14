@@ -1,4 +1,5 @@
 import { Eye, EyeOff, KeyRound, Lock } from 'lucide-react'
+import { useI18n } from '~/lib/i18n'
 import { BoxAccountPanel } from './BoxAccountPanel'
 import { BoxFlowPanel } from './BoxFlowPanel'
 import type { BoxAccount } from './types'
@@ -65,11 +66,13 @@ type AsymmetricBoxViewProps = {
 }
 
 export function AsymmetricBoxView(props: AsymmetricBoxViewProps) {
+  const { t } = useI18n()
+
   return (
     <div className="web3-box-workspace">
       <div className="web3-box-grid">
         <BoxAccountPanel
-          title="A 账号"
+          title={t('web3.box.accountA')}
           username={props.boxAUsername}
           password={props.boxAPassword}
           showPassword={props.boxAShowPassword}
@@ -82,7 +85,7 @@ export function AsymmetricBoxView(props: AsymmetricBoxViewProps) {
           onGenerate={props.onGenerateBoxA}
         />
         <BoxAccountPanel
-          title="B 账号"
+          title={t('web3.box.accountB')}
           username={props.boxBUsername}
           password={props.boxBPassword}
           showPassword={props.boxBShowPassword}
@@ -99,15 +102,15 @@ export function AsymmetricBoxView(props: AsymmetricBoxViewProps) {
       <div className="web3-box-flow-grid">
         <BoxFlowPanel
           title="A → B"
-          description="加密使用 A 私钥 + B 公钥；解密使用 A 公钥 + B 私钥。"
+          description={t('web3.box.flowAB.desc')}
           message={props.boxABMessage}
           cipherText={props.boxABCipherText}
           decryptedText={props.boxABDecryptedText}
           error={props.boxABError}
-          encryptLabel="用 A 私钥 + B 公钥加密"
-          decryptLabel="用 A 公钥 + B 私钥解密"
-          messagePlaceholder="输入要从 A 发给 B 的消息"
-          cipherPlaceholder="加密后生成密文，或粘贴已有密文"
+          encryptLabel={t('web3.box.flowAB.encrypt')}
+          decryptLabel={t('web3.box.flowAB.decrypt')}
+          messagePlaceholder={t('web3.box.flowAB.messagePlaceholder')}
+          cipherPlaceholder={t('web3.box.cipherPlaceholder')}
           onMessageChange={props.onBoxABMessageChange}
           onCipherTextChange={props.onBoxABCipherTextChange}
           onEncrypt={props.onEncryptBoxAB}
@@ -116,15 +119,15 @@ export function AsymmetricBoxView(props: AsymmetricBoxViewProps) {
 
         <BoxFlowPanel
           title="B → A"
-          description="加密使用 B 私钥 + A 公钥；解密使用 B 公钥 + A 私钥。"
+          description={t('web3.box.flowBA.desc')}
           message={props.boxBAMessage}
           cipherText={props.boxBACipherText}
           decryptedText={props.boxBADecryptedText}
           error={props.boxBAError}
-          encryptLabel="用 B 私钥 + A 公钥加密"
-          decryptLabel="用 B 公钥 + A 私钥解密"
-          messagePlaceholder="输入要从 B 发给 A 的消息"
-          cipherPlaceholder="加密后生成密文，或粘贴已有密文"
+          encryptLabel={t('web3.box.flowBA.encrypt')}
+          decryptLabel={t('web3.box.flowBA.decrypt')}
+          messagePlaceholder={t('web3.box.flowBA.messagePlaceholder')}
+          cipherPlaceholder={t('web3.box.cipherPlaceholder')}
           onMessageChange={props.onBoxBAMessageChange}
           onCipherTextChange={props.onBoxBACipherTextChange}
           onEncrypt={props.onEncryptBoxBA}
@@ -136,18 +139,18 @@ export function AsymmetricBoxView(props: AsymmetricBoxViewProps) {
         <section className="web3-box-flow">
           <div className="web3-box-flow-header">
             <div>
-              <h2>加密</h2>
-              <p>只输入发送方私钥和接收方公钥即可加密，无需生成完整账号。</p>
+              <h2>{t('web3.box.encryptTitle')}</h2>
+              <p>{t('web3.box.encryptDesc')}</p>
             </div>
           </div>
 
           <label className="web3-box-result-header">
-            <span>发送方</span>
+            <span>{t('web3.box.sender')}</span>
           </label>
           <div className="input-wrap">
             <input
               type={props.boxEncryptShowPrivateKey ? 'text' : 'password'}
-              placeholder="发送方 x25519 私钥"
+              placeholder={t('web3.box.senderPrivatePlaceholder')}
               value={props.boxEncryptSenderPrivateKey}
               onChange={event =>
                 props.onBoxEncryptSenderPrivateKeyChange(event.target.value)
@@ -170,11 +173,11 @@ export function AsymmetricBoxView(props: AsymmetricBoxViewProps) {
             </button>
           </div>
           <label className="web3-box-result-header">
-            <span>接收方</span>
+            <span>{t('web3.box.recipient')}</span>
           </label>
           <input
             type="text"
-            placeholder="接收方 x25519 公钥"
+            placeholder={t('web3.box.recipientPublicPlaceholder')}
             value={props.boxEncryptRecipientPublicKey}
             onChange={event =>
               props.onBoxEncryptRecipientPublicKeyChange(event.target.value)
@@ -186,14 +189,15 @@ export function AsymmetricBoxView(props: AsymmetricBoxViewProps) {
           />
 
           <label className="web3-box-result-header">
-            <span>明文</span>
+            <span>{t('web3.box.plaintext')}</span>
           </label>
           <textarea
             className="textarea"
             value={props.boxEncryptMessage}
             onChange={event => props.onBoxEncryptMessageChange(event.target.value)}
             rows={4}
-            placeholder="输入要加密的消息"
+            placeholder={t('web3.box.messagePlaceholder')}
+            translate="no"
           />
 
           <div className="web3-box-actions">
@@ -203,7 +207,7 @@ export function AsymmetricBoxView(props: AsymmetricBoxViewProps) {
               type="button"
             >
               <Lock size={16} />
-              加密
+              {t('web3.box.encryptTitle')}
             </button>
           </div>
 
@@ -213,14 +217,15 @@ export function AsymmetricBoxView(props: AsymmetricBoxViewProps) {
 
           <div className="web3-box-result">
             <label className="web3-box-result-header">
-              <span>密文</span>
+              <span>{t('web3.box.ciphertext')}</span>
             </label>
             <textarea
               className="textarea mono"
               value={props.boxEncryptCipherText}
               readOnly
               rows={5}
-              placeholder="加密成功后显示密文"
+              placeholder={t('web3.box.encryptResultPlaceholder')}
+              translate="no"
             />
           </div>
         </section>
@@ -228,17 +233,17 @@ export function AsymmetricBoxView(props: AsymmetricBoxViewProps) {
         <section className="web3-box-flow">
           <div className="web3-box-flow-header">
             <div>
-              <h2>解密</h2>
-              <p>只输入发送方公钥和接收方私钥即可解密，无需生成完整账号。</p>
+              <h2>{t('web3.box.decryptTitle')}</h2>
+              <p>{t('web3.box.decryptDesc')}</p>
             </div>
           </div>
 
           <label className="web3-box-result-header">
-            <span>发送方</span>
+            <span>{t('web3.box.sender')}</span>
           </label>
           <input
             type="text"
-            placeholder="发送方 x25519 公钥"
+            placeholder={t('web3.box.senderPublicPlaceholder')}
             value={props.boxDecryptSenderPublicKey}
             onChange={event =>
               props.onBoxDecryptSenderPublicKeyChange(event.target.value)
@@ -249,12 +254,12 @@ export function AsymmetricBoxView(props: AsymmetricBoxViewProps) {
             spellCheck="false"
           />
           <label className="web3-box-result-header">
-            <span>接收方</span>
+            <span>{t('web3.box.recipient')}</span>
           </label>
           <div className="input-wrap">
             <input
               type={props.boxDecryptShowPrivateKey ? 'text' : 'password'}
-              placeholder="接收方 x25519 私钥"
+              placeholder={t('web3.box.recipientPrivatePlaceholder')}
               value={props.boxDecryptRecipientPrivateKey}
               onChange={event =>
                 props.onBoxDecryptRecipientPrivateKeyChange(event.target.value)
@@ -278,14 +283,15 @@ export function AsymmetricBoxView(props: AsymmetricBoxViewProps) {
           </div>
 
           <label className="web3-box-result-header">
-            <span>密文</span>
+            <span>{t('web3.box.ciphertext')}</span>
           </label>
           <textarea
             className="textarea mono"
             value={props.boxDecryptCipherText}
             onChange={event => props.onBoxDecryptCipherTextChange(event.target.value)}
             rows={5}
-            placeholder="粘贴要解密的密文"
+            placeholder={t('web3.box.cipherDecryptPlaceholder')}
+            translate="no"
           />
 
           <div className="web3-box-actions">
@@ -295,7 +301,7 @@ export function AsymmetricBoxView(props: AsymmetricBoxViewProps) {
               type="button"
             >
               <KeyRound size={16} />
-              解密
+              {t('web3.box.decryptTitle')}
             </button>
           </div>
 
@@ -305,14 +311,15 @@ export function AsymmetricBoxView(props: AsymmetricBoxViewProps) {
 
           <div className="web3-box-result">
             <label className="web3-box-result-header">
-              <span>解密结果</span>
+              <span>{t('web3.box.decryptResult')}</span>
             </label>
             <textarea
               className="textarea mono"
               value={props.boxDecryptResult}
               readOnly
               rows={5}
-              placeholder="解密成功后显示明文"
+              placeholder={t('web3.box.decryptResultPlaceholder')}
+              translate="no"
             />
           </div>
         </section>

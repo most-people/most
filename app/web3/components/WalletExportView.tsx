@@ -1,7 +1,15 @@
-import { ChevronDown, ChevronUp, KeyRound, QrCode, ShieldAlert, Wallet } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronUp,
+  KeyRound,
+  QrCode,
+  ShieldAlert,
+  Wallet,
+} from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { CopyButton } from '~/components/CopyButton'
 import { EmptyState } from '~/components/EmptyState'
+import { useI18n } from '~/lib/i18n'
 import type { DerivedWallet, WalletResult } from './types'
 
 type WalletExportViewProps = {
@@ -43,13 +51,14 @@ export function WalletExportView({
   onToggleDerivePrivateKey,
   onDerive,
 }: WalletExportViewProps) {
+  const { t } = useI18n()
   const effectiveAddress = walletResult?.address || ''
 
   if (!walletResult || !effectiveAddress) {
     return (
       <EmptyState
         icon={<Wallet size={36} />}
-        message="请输入用户名和密码以使用钱包工具"
+        message={t('web3.empty.walletTools')}
       />
     )
   }
@@ -59,13 +68,17 @@ export function WalletExportView({
       <div className="web3-tools-section">
         <button className="web3-tools-toggle" onClick={onToggleAddressQr}>
           <QrCode size={14} />
-          {showAddressQr ? '隐藏地址二维码' : '显示地址二维码'}
+          {showAddressQr
+            ? t('web3.action.hideAddressQr')
+            : t('web3.action.showAddressQr')}
           {showAddressQr ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </button>
         {showAddressQr && (
           <div className="web3-mnemonic-reveal">
             <div className="web3-mnemonic-card">
-              <p className="web3-mnemonic-text">{effectiveAddress}</p>
+              <p className="web3-mnemonic-text" translate="no">
+                {effectiveAddress}
+              </p>
               <CopyButton text={effectiveAddress} />
             </div>
             <div className="qr-wrap">
@@ -79,7 +92,9 @@ export function WalletExportView({
         <div className="web3-tools-section">
           <button className="web3-tools-toggle" onClick={onToggleMnemonicReveal}>
             <KeyRound size={14} />
-            {showMnemonicReveal ? '隐藏助记词' : '显示助记词'}
+            {showMnemonicReveal
+              ? t('web3.action.hideMnemonic')
+              : t('web3.action.showMnemonic')}
             {showMnemonicReveal ? (
               <ChevronUp size={14} />
             ) : (
@@ -89,15 +104,19 @@ export function WalletExportView({
           {showMnemonicReveal && (
             <div className="web3-mnemonic-reveal">
               <div className="web3-mnemonic-card">
-                <p className="web3-mnemonic-text">{mnemonicPhrase}</p>
+                <p className="web3-mnemonic-text" translate="no">
+                  {mnemonicPhrase}
+                </p>
                 <CopyButton text={mnemonicPhrase} />
               </div>
               <p className="web3-tools-danger">
                 <ShieldAlert size={14} />
-                任何拥有您助记词的人都可以窃取您账户中的任何资产，切勿泄露！！！
+                {t('web3.warning.mnemonic')}
               </p>
               <button className="web3-tools-toggle" onClick={onToggleMnemonicQr}>
-                {showMnemonicQr ? '隐藏助记词二维码' : '显示助记词二维码'}
+                {showMnemonicQr
+                  ? t('web3.action.hideMnemonicQr')
+                  : t('web3.action.showMnemonicQr')}
               </button>
               {showMnemonicQr && (
                 <div className="qr-wrap">
@@ -113,13 +132,13 @@ export function WalletExportView({
         <div className="web3-mnemonic-reveal">
           <div>
             <button className="btn btn-primary" onClick={onDerive}>
-              派生 {deriveBatch} 个地址
+              {t('web3.action.deriveAddresses', { count: deriveBatch })}
             </button>
           </div>
 
           <p className="web3-tools-danger">
             <ShieldAlert size={14} />
-            任何拥有您私钥的人都可以窃取您地址中的任何资产，切勿泄露！！！
+            {t('web3.warning.privateKey')}
           </p>
 
           {deriveList.length > 0 && (
@@ -127,17 +146,27 @@ export function WalletExportView({
               <table className="web3-derive-table">
                 <thead>
                   <tr>
-                    <th onClick={onToggleDeriveIndex} className="web3-derive-th">
-                      账户
+                    <th
+                      onClick={onToggleDeriveIndex}
+                      className="web3-derive-th"
+                    >
+                      {t('web3.label.account')}
                     </th>
-                    <th onClick={onToggleDeriveAddress} className="web3-derive-th">
-                      地址
+                    <th
+                      onClick={onToggleDeriveAddress}
+                      className="web3-derive-th"
+                    >
+                      {t('web3.label.address')}
                     </th>
                     <th
                       onClick={onToggleDerivePrivateKey}
                       className="web3-derive-th danger"
                     >
-                      私钥（点击{deriveShowPrivateKey ? '隐藏' : '显示'}）
+                      {t('web3.label.privateKeyToggle', {
+                        action: deriveShowPrivateKey
+                          ? t('web3.action.hide')
+                          : t('web3.action.show'),
+                      })}
                     </th>
                   </tr>
                 </thead>
@@ -145,9 +174,13 @@ export function WalletExportView({
                   {deriveList.map(item => (
                     <tr key={item.index}>
                       <td>{deriveShowIndex ? item.index + 1 : ''}</td>
-                      <td>{deriveShowAddress ? item.address : ''}</td>
+                      <td translate="no">
+                        {deriveShowAddress ? item.address : ''}
+                      </td>
                       <td className="danger">
-                        {deriveShowPrivateKey ? item.privateKey : ''}
+                        <span translate="no">
+                          {deriveShowPrivateKey ? item.privateKey : ''}
+                        </span>
                       </td>
                     </tr>
                   ))}

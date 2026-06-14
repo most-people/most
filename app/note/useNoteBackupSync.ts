@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAppStore } from '~/app/app/useAppStore'
 import { useUserStore } from '~/app/app/userStore'
+import { useI18n, type MessageKey } from '~/lib/i18n'
 import {
   calculateNotesBackupCid,
   decryptNotesBackup,
@@ -49,28 +50,29 @@ function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback
 }
 
-function getStatusLabel(status: BackupStatus) {
+function getStatusLabel(status: BackupStatus, t: (key: MessageKey) => string) {
   switch (status) {
     case 'disabled':
-      return '未登录'
+      return t('note.sync.status.disabled')
     case 'checking':
-      return '检查中'
+      return t('note.sync.status.checking')
     case 'uploading':
-      return '同步中'
+      return t('note.sync.status.uploading')
     case 'restoring':
-      return '恢复中'
+      return t('note.sync.status.restoring')
     case 'synced':
-      return '已同步'
+      return t('note.sync.status.synced')
     case 'conflict':
-      return '有冲突'
+      return t('note.sync.status.conflict')
     case 'error':
-      return '同步失败'
+      return t('note.sync.status.error')
     default:
-      return '待同步'
+      return t('note.sync.status.idle')
   }
 }
 
 export function useNoteBackupSync(): NoteBackupSyncState {
+  const { t } = useI18n()
   const wallet = useUserStore(s => s.wallet)
   const openLoginModal = useUserStore(s => s.openLoginModal)
   const addToast = useAppStore(s => s.addToast)
@@ -114,10 +116,10 @@ export function useNoteBackupSync(): NoteBackupSyncState {
 
       if (noteBackupHasConflict && confirmConflict) {
         const confirmed = window.confirm(
-          '本地数据与云端不一致，本地修改将会覆盖云端数据，是否继续？'
+          t('note.sync.confirm.uploadConflict')
         )
         if (!confirmed) {
-          if (!silent) addToast('已取消同步', 'info')
+          if (!silent) addToast(t('note.sync.toast.cancelSync'), 'info')
           setStatus('conflict')
           return false
         }
@@ -132,21 +134,24 @@ export function useNoteBackupSync(): NoteBackupSyncState {
         noteBackupLoadedAddress = currentWallet.address
         setHasConflict(false)
         setStatus('synced')
-        if (!silent) addToast('云端备份已更新', 'success')
+        if (!silent) addToast(t('note.sync.toast.cloudUpdated'), 'success')
         return true
       } catch (err: unknown) {
         setStatus('error')
         if (silent) {
-          console.info(getErrorMessage(err, '云备份失败'))
+          console.info(getErrorMessage(err, t('note.sync.error.backupFailed')))
         } else {
-          addToast(getErrorMessage(err, '云备份失败'), 'error')
+          addToast(
+            getErrorMessage(err, t('note.sync.error.backupFailed')),
+            'error'
+          )
         }
         return false
       } finally {
         setAction(null)
       }
     },
-    [addToast, requireWallet, setHasConflict]
+    [addToast, requireWallet, setHasConflict, t]
   )
 
   const restoreFromCloud = useCallback(
@@ -172,7 +177,7 @@ export function useNoteBackupSync(): NoteBackupSyncState {
             return uploadNow({ silent: true, confirmConflict: false })
           }
           setStatus(currentNotes.length > 0 ? 'idle' : 'synced')
-          if (manual) addToast('云端暂无备份', 'info')
+          if (manual) addToast(t('note.sync.toast.noCloudBackup'), 'info')
           return false
         }
 
@@ -183,12 +188,12 @@ export function useNoteBackupSync(): NoteBackupSyncState {
 
         if (currentNotes.length > 0 && localCid !== cloudCid) {
           const confirmed = window.confirm(
-            '云端备份与本地笔记不一致。恢复会覆盖本地笔记，是否继续？'
+            t('note.sync.confirm.restoreConflict')
           )
           if (!confirmed) {
             setHasConflict(true)
             setStatus('conflict')
-            if (manual) addToast('已取消恢复', 'info')
+            if (manual) addToast(t('note.sync.toast.cancelRestore'), 'info')
             return false
           }
         }
@@ -200,21 +205,26 @@ export function useNoteBackupSync(): NoteBackupSyncState {
         noteBackupLoadedAddress = currentWallet.address
         setHasConflict(false)
         setStatus('synced')
-        if (manual) addToast('已从云端恢复', 'success')
+        if (manual) addToast(t('note.sync.toast.restoredCloud'), 'success')
         return true
       } catch (err: unknown) {
         setStatus('error')
         if (manual) {
-          addToast(getErrorMessage(err, '云端恢复失败'), 'error')
+          addToast(
+            getErrorMessage(err, t('note.sync.error.restoreCloudFailed')),
+            'error'
+          )
         } else {
-          console.info(getErrorMessage(err, '云端恢复失败'))
+          console.info(
+            getErrorMessage(err, t('note.sync.error.restoreCloudFailed'))
+          )
         }
         return false
       } finally {
         setAction(null)
       }
     },
-    [addToast, importNotes, requireWallet, setHasConflict, uploadNow]
+    [addToast, importNotes, requireWallet, setHasConflict, t, uploadNow]
   )
 
   const exportLocalBackup = useCallback(() => {
@@ -231,11 +241,11 @@ export function useNoteBackupSync(): NoteBackupSyncState {
       link.download = `${currentWallet.address.slice(-4)}-most-notes-${new Date().toISOString().slice(0, 10)}.txt`
       link.click()
       URL.revokeObjectURL(url)
-      addToast('笔记已导出到本地', 'success')
+      addToast(t('note.sync.toast.exportedLocal'), 'success')
     } catch (err: unknown) {
-      addToast(getErrorMessage(err, '导出失败'), 'error')
+      addToast(getErrorMessage(err, t('note.sync.error.exportFailed')), 'error')
     }
-  }, [addToast, requireWallet])
+  }, [addToast, requireWallet, t])
 
   const importLocalBackup = useCallback(() => {
     const currentWallet = requireWallet(false)
@@ -255,23 +265,26 @@ export function useNoteBackupSync(): NoteBackupSyncState {
           const data = decryptNotesBackup(content, currentWallet.danger)
           if (useAppStore.getState().notes.length > 0) {
             const confirmed =
-              window.confirm('恢复将覆盖当前本地笔记，是否继续？')
+              window.confirm(t('note.sync.confirm.importOverwrite'))
             if (!confirmed) {
-              addToast('已取消恢复', 'info')
+              addToast(t('note.sync.toast.cancelRestore'), 'info')
               return
             }
           }
           importNotes(data.notes)
-          addToast('已从本地恢复笔记', 'success')
+          addToast(t('note.sync.toast.restoredLocal'), 'success')
           await uploadNow({ silent: true })
         } catch (err: unknown) {
-          addToast(getErrorMessage(err, '导入失败'), 'error')
+          addToast(
+            getErrorMessage(err, t('note.sync.error.importFailed')),
+            'error'
+          )
         }
       }
       reader.readAsText(file)
     }
     input.click()
-  }, [addToast, importNotes, requireWallet, uploadNow])
+  }, [addToast, importNotes, requireWallet, t, uploadNow])
 
   useEffect(() => {
     if (!localDataReady) return
@@ -317,7 +330,7 @@ export function useNoteBackupSync(): NoteBackupSyncState {
     return () => window.clearTimeout(timer)
   }, [autoUploadReady, localDataReady, notes, uploadNow, wallet])
 
-  const statusLabel = useMemo(() => getStatusLabel(status), [status])
+  const statusLabel = useMemo(() => getStatusLabel(status, t), [status, t])
 
   return {
     action,

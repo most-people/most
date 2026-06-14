@@ -1,14 +1,15 @@
 import { createFileRoute } from '@tanstack/react-router'
 
 import PingPage from '~/app/ping/page'
+import { translateMessage } from '~/lib/i18n'
 
 export const Route = createFileRoute('/ping/')({
   head: () => ({
     meta: [
-      { title: 'MostBox - 网络连通性' },
+      { title: translateMessage('ping.meta.title') },
       {
         name: 'description',
-        content: '测试到全球主流网站的网络连通性和延迟',
+        content: translateMessage('ping.meta.desc'),
       },
     ],
   }),

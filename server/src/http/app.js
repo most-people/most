@@ -46,6 +46,14 @@ const CONFIG_DIR = defaultConfigStore.configDir
 const PORT = DEFAULT_NODE_PORT
 const HOST = DEFAULT_NODE_HOST
 
+function validationErrorPayload(errorCode, details = undefined) {
+  return {
+    errorCode,
+    code: 'VALIDATION_ERROR',
+    ...(details ? { details } : {}),
+  }
+}
+
 
 
 export function getDataPath(configStore = defaultConfigStore) {
@@ -696,8 +704,11 @@ export function createApp(engine, options = {}) {
     }
 
     const parsed = parseMostLink(body.link)
-    if (parsed.error) {
-      return c.json({ error: parsed.error }, 400)
+    if (parsed.errorCode) {
+      return c.json(
+        validationErrorPayload(parsed.errorCode, parsed.details),
+        400
+      )
     }
 
     const localAvailability = await engine.getLocalCidAvailability(body.link, {
@@ -746,8 +757,11 @@ export function createApp(engine, options = {}) {
     const taskId = `dl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 
     const parsed = parseMostLink(body.link)
-    if (parsed.error) {
-      return c.json({ error: parsed.error }, 400)
+    if (parsed.errorCode) {
+      return c.json(
+        validationErrorPayload(parsed.errorCode, parsed.details),
+        400
+      )
     }
 
     const localAvailability = await engine.getLocalCidAvailability(body.link, {
@@ -803,7 +817,7 @@ export function createApp(engine, options = {}) {
     const cid = c.req.param('cid')
     const cidValidation = validateCidString(cid)
     if (!cidValidation.valid) {
-      return c.json({ error: cidValidation.error }, 400)
+      return c.json(validationErrorPayload(cidValidation.errorCode), 400)
     }
     const result = await engine.deletePublishedFile(cid, {
       ownerAddress: c.get('userAddress'),
@@ -815,7 +829,7 @@ export function createApp(engine, options = {}) {
     const cid = c.req.param('cid')
     const cidValidation = validateCidString(cid)
     if (!cidValidation.valid) {
-      return c.json({ error: cidValidation.error }, 400)
+      return c.json(validationErrorPayload(cidValidation.errorCode), 400)
     }
     try {
       const body = await c.req.json().catch(() => ({}))
@@ -839,7 +853,7 @@ export function createApp(engine, options = {}) {
     }
     const cidValidation = validateCidString(body.cid)
     if (!cidValidation.valid) {
-      return c.json({ error: cidValidation.error }, 400)
+      return c.json(validationErrorPayload(cidValidation.errorCode), 400)
     }
     const cleanFileName = sanitizeFilename(body.newFileName)
     if (
@@ -863,7 +877,7 @@ export function createApp(engine, options = {}) {
     const cid = c.req.param('cid')
     const cidValidation = validateCidString(cid)
     if (!cidValidation.valid) {
-      return c.json({ error: cidValidation.error }, 400)
+      return c.json(validationErrorPayload(cidValidation.errorCode), 400)
     }
 
     const rangeHeader = c.req.header('range')
@@ -925,7 +939,7 @@ export function createApp(engine, options = {}) {
     const cid = c.req.param('cid')
     const cidValidation = validateCidString(cid)
     if (!cidValidation.valid) {
-      return c.json({ error: cidValidation.error }, 400)
+      return c.json(validationErrorPayload(cidValidation.errorCode), 400)
     }
     try {
       const result = await engine.restoreTrashFile(cid, {
@@ -941,7 +955,7 @@ export function createApp(engine, options = {}) {
     const cid = c.req.param('cid')
     const cidValidation = validateCidString(cid)
     if (!cidValidation.valid) {
-      return c.json({ error: cidValidation.error }, 400)
+      return c.json(validationErrorPayload(cidValidation.errorCode), 400)
     }
     const result = await engine.permanentDeleteTrashFile(cid, {
       ownerAddress: c.get('userAddress'),
@@ -961,7 +975,7 @@ export function createApp(engine, options = {}) {
     const cid = c.req.param('cid')
     const cidValidation = validateCidString(cid)
     if (!cidValidation.valid) {
-      return c.json({ error: cidValidation.error }, 400)
+      return c.json(validationErrorPayload(cidValidation.errorCode), 400)
     }
     try {
       const result = engine.toggleStarred(cid, {
