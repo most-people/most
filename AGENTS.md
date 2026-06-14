@@ -111,7 +111,7 @@ npm run lint
 
 - 改 CID、发布、下载、链接解析、P2P pull 时，优先跑 `npm run test:protocol`。
 - 改后端核心逻辑时，跑相关 `node --test server/tests/...`；范围较大时跑 `npm test`。
-- 改前端结构或样式时，跑 `npm run lint`，必要时启动前后端手动验证。
+- 改前端结构或样式时，跑 `npm run typecheck`、`npm run typecheck:strict-router`、`npm run lint`，必要时启动前后端手动验证。
 - 涉及 MVP 主线时，用“发布者退出后，下载者种子仍可继续传播并校验”作为最高验收场景。
 - Web3 工具箱保留独立测试；不要把钱包作为文件分享前置条件。
 
@@ -121,8 +121,9 @@ npm run lint
 - 2 空格缩进、单引号、默认不写分号。
 - 命名：组件 / 类 `PascalCase`，函数 / 变量 `camelCase`，常量 `UPPER_SNAKE_CASE`，私有字段 `#field`。
 - TypeScript 避免 `any`，组件 Props 使用 `{ComponentName}Props`。
-- 前端路由使用 TanStack Router：`src/routes/**/index.tsx` 只做路由注册、SSR 开关、redirect/head；页面和业务实现放在 `src/features/**`。
+- 前端路由使用 TanStack Router：`src/routes/**/index.tsx` 只做路由注册、SSR 开关、redirect/head/search 等关键配置；页面组件放在同目录 `index.lazy.tsx` 并从 `src/features/**` 引入。
 - 全局 Zustand 状态在 `src/stores/useAppStore.ts`，组件通过 action 修改状态。
+- i18n 文案按域放在 `src/lib/i18n/messages/*.ts`，由 `src/lib/i18n/messages.ts` 聚合导出；业务代码通过稳定 `MessageKey` 使用文案，不直接拼中文 UI 文案。
 - 错误类在 `server/src/utils/errors.js`；P2P 网络噪声错误可静默处理。
 - 测试使用 `node:test` 和 `node:assert`，测试文件命名 `*.test.js`。
 
@@ -156,7 +157,8 @@ npm run lint
 ## 关键入口
 
 - 前端主应用：`src/features/files/AppPage.tsx`
-- 前端路由壳：`src/routes/**/index.tsx`
+- 前端路由壳：`src/routes/**/index.tsx`、`src/routes/**/index.lazy.tsx`
+- i18n 文案入口：`src/lib/i18n/messages.ts`、`src/lib/i18n/messages/*.ts`
 - Web3 工具箱：`src/features/web3/Web3Page.tsx`
 - 笔记模块：`src/features/note/NotePage.tsx`、`src/components/MilkdownEditor.tsx`
 - 管理后台：`src/features/admin/AdminPage.tsx`

@@ -17,6 +17,8 @@ cd most
 
 ### 2. 安装依赖
 
+本地源码开发建议使用 Node.js >= 22.12。
+
 ```bash
 npm install
 ```
@@ -43,6 +45,14 @@ npm test
 
 # 只运行单元测试
 npm run test:unit
+
+# 前端结构、路由和静态输出检查
+npm run typecheck
+npm run typecheck:strict-router
+npm run lint
+npm run test:frontend
+npm run build
+npm run check:static-output
 ```
 
 ## 代码规范
@@ -87,6 +97,8 @@ Closes #123
 - 使用 ES Module (ESM)
 - 使用有意义的变量命名
 - 添加必要的注释说明复杂逻辑
+- 前端路由使用 TanStack Router：`src/routes/**/index.tsx` 保留关键配置，`index.lazy.tsx` 加载 `src/features/**` 页面组件
+- 共享 UI、hooks、lib、stores、styles 都位于 `src/` 下；不要再新增顶层前端源码目录
 - 运行 `npm test` 确保测试通过
 
 ## 分支策略

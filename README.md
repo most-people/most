@@ -61,6 +61,17 @@ node server/index.js
 
 开发模式需要两个进程：`npm run dev` 启动 TanStack Start 前端，默认访问 `http://localhost:3000`；`node server/index.js` 启动本地 daemon，默认监听 `http://localhost:1976`。
 
+## 项目结构
+
+前端源码集中在 `src/`：
+
+- `src/routes/`：TanStack Router file-based routes。`index.tsx` 保留路由关键配置，`index.lazy.tsx` 加载页面组件。
+- `src/features/`：页面和业务实现，例如文件分享、聊天、笔记、管理台、游戏和 Web3 工具箱。
+- `src/components/`：跨功能共享 UI。
+- `src/hooks/`、`src/lib/`、`src/stores/`、`src/styles/`：共享 hooks、工具、状态和样式。
+- `src/lib/i18n/messages/*.ts`：按域拆分的中英文文案 catalog，由 `src/lib/i18n/messages.ts` 聚合。
+- `server/`：daemon、HTTP API、P2P 引擎和协议测试。
+
 ## 测试
 
 ```bash
