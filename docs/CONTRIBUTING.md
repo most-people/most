@@ -24,10 +24,16 @@ npm install
 ### 3. 启动开发服务器
 
 ```bash
-npm start
+npm run dev
 ```
 
-浏览器访问 `http://localhost:1976`
+另开一个终端启动本地 daemon：
+
+```bash
+node server/index.js
+```
+
+浏览器访问 `http://localhost:3000`。daemon 默认监听 `http://localhost:1976`，前端会自动连接本机节点。
 
 ### 4. 运行测试
 

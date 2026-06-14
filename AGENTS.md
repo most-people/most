@@ -75,14 +75,14 @@ MVP 成功标准：
 
 ## 技术栈
 
-- 前端：React 19, Next.js 16, TypeScript, Zustand, Lucide React
+- 前端：React 19, Vite, TanStack Start static prerender, TanStack Router, TypeScript, Zustand, Lucide React
 - 后端：Hono, `@hono/node-server`, WebSocket
 - P2P：Hyperswarm 4.x, Hyperdrive 13.x, Corestore 7.x
 - Web3 工具箱：ethers.js
 - 桌面：Electron 42, electron-builder
 - 测试：Node.js built-in test runner
 
-本地源码开发建议 Node.js >= 22.12。当前 Next.js 16 需要 Node.js >= 20.9，Electron 42 开发/打包需要 Node.js >= 22.12。
+本地源码开发建议 Node.js >= 22.12。当前 TanStack Start static prerender 前端和 Electron 42 开发/打包都建议 Node.js >= 22.12。
 
 ## 核心实现约束
 
@@ -97,9 +97,9 @@ MVP 成功标准：
 ## 常用命令
 
 ```bash
-npm run dev            # Next.js，端口 3000
+npm run dev            # Vite / TanStack Start 前端，端口 3000
 node server/index.js   # 后端，默认端口 1976
-npm start              # Next.js 开发服务
+npm start              # 同 npm run dev
 npm run serve          # 构建并由后端 serve
 npm test
 npm run test:unit
@@ -121,6 +121,7 @@ npm run lint
 - 2 空格缩进、单引号、默认不写分号。
 - 命名：组件 / 类 `PascalCase`，函数 / 变量 `camelCase`，常量 `UPPER_SNAKE_CASE`，私有字段 `#field`。
 - TypeScript 避免 `any`，组件 Props 使用 `{ComponentName}Props`。
+- 前端路由使用 TanStack Router：`src/routes/**/index.tsx` 只做路由注册和 SSR 开关，页面实现保留在 `app/**/page.tsx`；新增页面时两边要同步。
 - 全局 Zustand 状态在 `app/app/useAppStore.ts`，组件通过 action 修改状态。
 - 错误类在 `server/src/utils/errors.js`；P2P 网络噪声错误可静默处理。
 - 测试使用 `node:test` 和 `node:assert`，测试文件命名 `*.test.js`。
@@ -155,9 +156,10 @@ npm run lint
 ## 关键入口
 
 - 前端主应用：`app/app/page.tsx`
+- 前端路由壳：`src/routes/**/index.tsx`
 - Web3 工具箱：`app/web3/page.tsx`
 - 笔记模块：`app/note/page.tsx`、`components/MilkdownEditor.tsx`
-- 管理后台：`app/admin/page.tsx`、`app/admin/layout.tsx`
+- 管理后台：`app/admin/page.tsx`
 - 全局状态：`app/app/useAppStore.ts`
 - 后端 daemon 启动入口：`server/index.js`
 - HTTP 应用和路由：`server/src/http/app.js`

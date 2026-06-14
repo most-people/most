@@ -102,3 +102,7 @@ export function parseMostLink(link) {
 
   return { cid: cidString, fileName }
 }
+
+export function buildMostLink(cid, fileName) {
+  return `most://${cid}?filename=${encodeURIComponent(fileName)}`
+}

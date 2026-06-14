@@ -11,6 +11,7 @@ export {
   MOST_LINK_ERROR_CODES,
   validateCidString,
   parseMostLink,
+  buildMostLink,
 } from './mostLink.js'
 
 /**

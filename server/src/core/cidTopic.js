@@ -3,19 +3,30 @@ import { CID } from 'multiformats/cid'
 import { MOST_LINK_ERROR_CODES, validateCidString } from './cid.js'
 import { ValidationError } from '../utils/errors.js'
 
+const CID_INFO_ERROR_MESSAGES = {
+  [MOST_LINK_ERROR_CODES.CID_EMPTY]: 'CID is required',
+  [MOST_LINK_ERROR_CODES.INVALID_CID_FORMAT]: 'Invalid CID format',
+  [MOST_LINK_ERROR_CODES.CID_V1_REQUIRED]: 'CID v1 required',
+  [MOST_LINK_ERROR_CODES.CID_DIGEST_LENGTH]: 'CID digest must be 32 bytes',
+}
+
+function cidValidationError(errorCode) {
+  return new ValidationError(
+    CID_INFO_ERROR_MESSAGES[errorCode] || errorCode,
+    errorCode
+  )
+}
+
 export function getCidInfo(cid) {
   try {
     const validation = validateCidString(cid)
     if (!validation.valid) {
-      throw new ValidationError(validation.errorCode, validation.errorCode)
+      throw cidValidationError(validation.errorCode)
     }
     const parsedCid = CID.parse(cid)
     const topic = b4a.from(parsedCid.multihash.digest)
     if (topic.length !== 32) {
-      throw new ValidationError(
-        MOST_LINK_ERROR_CODES.CID_DIGEST_LENGTH,
-        MOST_LINK_ERROR_CODES.CID_DIGEST_LENGTH
-      )
+      throw cidValidationError(MOST_LINK_ERROR_CODES.CID_DIGEST_LENGTH)
     }
     const topicHex = b4a.toString(topic, 'hex')
     return {
@@ -27,9 +38,6 @@ export function getCidInfo(cid) {
     if (err instanceof ValidationError) {
       throw err
     }
-    throw new ValidationError(
-      MOST_LINK_ERROR_CODES.INVALID_CID_FORMAT,
-      MOST_LINK_ERROR_CODES.INVALID_CID_FORMAT
-    )
+    throw cidValidationError(MOST_LINK_ERROR_CODES.INVALID_CID_FORMAT)
   }
 }

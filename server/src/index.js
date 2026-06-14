@@ -17,9 +17,41 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { calculateCid, parseMostLink } from './core/cid.js'
+import { calculateCid, parseMostLink, buildMostLink } from './core/cid.js'
 import { normalizeChannelAttachment } from './core/channelAttachment.js'
 import { getCidInfo } from './core/cidTopic.js'
+import {
+  CHAT_FILE_ROOT,
+  TRANSIENT_CHANNEL_TYPES,
+  CHANNEL_DISCOVERY_TIMEOUT,
+  CHANNEL_CANDIDATE_TTL,
+  normalizeChannelDisplayName,
+  normalizeChannelAvatar,
+  normalizeChannelId,
+  createChannelFingerprint,
+  createChannelWriterId,
+  buildChannelKey,
+  normalizeChannelKey,
+  getChannelFingerprintFromKey,
+  uniqueStrings,
+} from './core/channelIdentity.js'
+import { getPathBaseName, getDisplayPathFolder } from './core/displayPath.js'
+import {
+  normalizeOwnerAddress,
+  getOwnerBucketKey,
+  normalizeMetadataBuckets,
+  cloneMetadataRecord,
+} from './core/ownerMetadata.js'
+import {
+  USER_SYNC_SCHEMA_VERSION,
+  USER_SYNC_NAMESPACE_PREFIX,
+  normalizeUserSyncKey,
+  deriveUserSyncId,
+  getUserSyncName,
+  getSyncTimestamp,
+  getNextSyncTimestamp,
+} from './core/userSyncKeys.js'
+import { createOfflineSwarm } from './node/offlineSwarm.js'
 import {
   sanitizeFilename,
   validateAndSanitizePath,
@@ -66,154 +98,6 @@ import {
 } from './config.js'
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
-const CHAT_FILE_ROOT = 'chat-file'
-const TRANSIENT_CHANNEL_TYPES = new Set(['game'])
-const DEFAULT_OWNER_BUCKET = '__local__'
-const USER_SYNC_SCHEMA_VERSION = 1
-const USER_SYNC_NAMESPACE_PREFIX = 'user.sync.'
-const USER_SYNC_KEY_HEX_LENGTH = 64
-const CHANNEL_FINGERPRINT_BYTES = 8
-const CHANNEL_WRITER_ID_BYTES = 8
-const CHANNEL_DISCOVERY_TIMEOUT = 600
-const CHANNEL_CANDIDATE_TTL = 30 * 1000
-const CHANNEL_KEY_SEPARATOR = '.'
-
-function normalizeOwnerAddress(address) {
-  const value = String(address || '').trim()
-  return /^0x[a-fA-F0-9]{40}$/.test(value) ? value.toLowerCase() : ''
-}
-
-function getOwnerBucketKey(address) {
-  return normalizeOwnerAddress(address) || DEFAULT_OWNER_BUCKET
-}
-
-function normalizeMetadataBuckets(input) {
-  if (!input || typeof input !== 'object' || Array.isArray(input)) {
-    return {}
-  }
-  const buckets = {}
-  for (const [rawOwner, records] of Object.entries(input)) {
-    const ownerKey =
-      rawOwner === DEFAULT_OWNER_BUCKET
-        ? DEFAULT_OWNER_BUCKET
-        : normalizeOwnerAddress(rawOwner)
-    if (!ownerKey || !Array.isArray(records)) continue
-    buckets[ownerKey] = records.map(record => ({ ...record }))
-  }
-  return buckets
-}
-
-function cloneMetadataRecord(record, ownerAddress = '') {
-  return {
-    ...record,
-    ownerAddress:
-      ownerAddress && ownerAddress !== DEFAULT_OWNER_BUCKET ? ownerAddress : '',
-  }
-}
-
-function getPathBaseName(fileName) {
-  const parts = String(fileName || '').split('/').filter(Boolean)
-  return parts[parts.length - 1] || 'unnamed_file'
-}
-
-function getDisplayPathFolder(fileName) {
-  const parts = String(fileName || '').split('/').filter(Boolean)
-  parts.pop()
-  return parts.join('/')
-}
-
-function buildMostLink(cid, fileName) {
-  return `most://${cid}?filename=${encodeURIComponent(fileName)}`
-}
-
-function normalizeChannelDisplayName(input, fallbackAddress = '') {
-  const value = String(input || '').trim()
-  if (value) return value.slice(0, 50)
-  return fallbackAddress ? fallbackAddress.slice(0, 10) : ''
-}
-
-function normalizeChannelAvatar(input) {
-  const value = String(input || '').trim()
-  return value ? value.slice(0, 4096) : ''
-}
-
-function normalizeChannelId(input) {
-  return String(input || '').trim()
-}
-
-function createChannelFingerprint() {
-  return crypto.randomBytes(CHANNEL_FINGERPRINT_BYTES).toString('hex')
-}
-
-function createChannelWriterId() {
-  return crypto.randomBytes(CHANNEL_WRITER_ID_BYTES).toString('hex')
-}
-
-function buildChannelKey(channelId, fingerprint) {
-  return `${channelId}${CHANNEL_KEY_SEPARATOR}${fingerprint}`
-}
-
-function normalizeChannelKey(input) {
-  return String(input || '').trim()
-}
-
-function getChannelFingerprintFromKey(channelId, channelKey) {
-  const prefix = `${channelId}${CHANNEL_KEY_SEPARATOR}`
-  return channelKey.startsWith(prefix) ? channelKey.slice(prefix.length) : ''
-}
-
-function uniqueStrings(values = []) {
-  return [...new Set(values.map(value => String(value || '').trim()).filter(Boolean))]
-}
-
-function normalizeUserSyncKey(input) {
-  const value = String(input || '').trim().replace(/^0x/i, '').toLowerCase()
-  return /^[0-9a-f]+$/.test(value) && value.length === USER_SYNC_KEY_HEX_LENGTH
-    ? value
-    : ''
-}
-
-function deriveUserSyncId(syncTopicKey) {
-  return crypto
-    .createHash('sha256')
-    .update(Buffer.from(syncTopicKey, 'hex'))
-    .digest('hex')
-    .slice(0, 24)
-}
-
-function getUserSyncName(syncId) {
-  return `${USER_SYNC_NAMESPACE_PREFIX}${syncId}`
-}
-
-function getSyncTimestamp(input, fallback = Date.now()) {
-  const numeric = Number(input)
-  if (Number.isFinite(numeric) && numeric > 0) return Math.floor(numeric)
-  const parsed = Date.parse(String(input || ''))
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
-}
-
-function getNextSyncTimestamp(previous) {
-  return Math.max(Date.now(), getSyncTimestamp(previous, 0) + 1)
-}
-
-function createOfflineSwarm() {
-  return {
-    connections: new Set(),
-    keyPair: {
-      publicKey: crypto.randomBytes(32),
-    },
-    on() {},
-    join() {
-      return {}
-    },
-    leave() {
-      return Promise.resolve()
-    },
-    destroy() {
-      return Promise.resolve()
-    },
-  }
-}
 
 export class MostBoxEngine extends EventEmitter {
   #store = null

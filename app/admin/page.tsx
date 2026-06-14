@@ -33,6 +33,7 @@ import {
   type Locale,
   type MessageKey,
 } from '~/lib/i18n'
+import { formatBytes } from '~/lib/format'
 
 dayjs.extend(relativeTime)
 
@@ -122,16 +123,6 @@ interface AdminUserData {
 }
 
 const EMPTY_STATUS: NodeStatus | null = null
-
-function formatSize(bytes: number) {
-  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  if (bytes < 1024 * 1024 * 1024) {
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  }
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
-}
 
 type AdminTranslate = (
   key: MessageKey,
@@ -835,8 +826,8 @@ export default function AdminPage() {
               <div className="admin-capacity-row">
                 <progress value={capacityPercent} max="100" />
                 <span>
-                  {formatSize(status?.capacity.usedBytes || 0)} /{' '}
-                  {formatSize(status?.capacity.configuredBytes || 0)}
+                  {formatBytes(status?.capacity.usedBytes || 0)} /{' '}
+                  {formatBytes(status?.capacity.configuredBytes || 0)}
                 </span>
               </div>
               <div
@@ -875,7 +866,7 @@ export default function AdminPage() {
                     <span title={holding.cid} translate="no">
                       {shortText(holding.cid)}
                     </span>
-                    <span>{formatSize(holding.size)}</span>
+                    <span>{formatBytes(holding.size)}</span>
                     <span>{holding.peerCount ?? 0}</span>
                     <span title={holding.lastServedAt || ''}>
                       {formatRecentTime(holding.lastServedAt, t, locale)}

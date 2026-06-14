@@ -26,6 +26,7 @@ import {
   remoteInviteConfigured,
 } from './access.js'
 import { badRequestOrAppError, errorJson } from './errors.js'
+import { resolveDataPathForSave } from './dataPath.js'
 import { listFilteredNodeLogs } from './nodeLogs.js'
 import {
   buildNodeStatus,
@@ -33,11 +34,16 @@ import {
   getNetworkAddresses,
   getPackageVersion,
 } from './nodeStatus.js'
+import { createRateLimitMiddleware } from './rateLimit.js'
+import {
+  validationErrorPayload,
+  isPublicFileDownloadPath,
+  requiresUserAuth,
+  isAdminApi,
+} from './routePolicy.js'
 import { parseMultipartBusboy } from './uploads.js'
 import { getMimeType, registerStaticRoutes } from './staticFiles.js'
 
-const RATE_LIMIT_WINDOW = 60 * 1000
-const RATE_LIMIT_MAX_REQUESTS = 120
 export { UPLOAD_TMP_DIR } from './uploads.js'
 
 // --- 配置 ---
@@ -46,45 +52,9 @@ const CONFIG_DIR = defaultConfigStore.configDir
 const PORT = DEFAULT_NODE_PORT
 const HOST = DEFAULT_NODE_HOST
 
-function validationErrorPayload(errorCode, details = undefined) {
-  return {
-    errorCode,
-    code: 'VALIDATION_ERROR',
-    ...(details ? { details } : {}),
-  }
-}
-
-
-
 export function getDataPath(configStore = defaultConfigStore) {
   return configStore.getDataPath()
 }
-
-function resolveDataPathForSave(inputPath) {
-  let dataPath = String(inputPath || '').trim()
-  let basePath = dataPath
-
-  if (!dataPath) {
-    return { dataPath: '' }
-  }
-
-  if (dataPath.match(/^[A-Za-z]:\\$/)) {
-    basePath = dataPath
-    dataPath = path.join(dataPath, 'most-data')
-  }
-
-  if (!fs.existsSync(basePath)) {
-    return { error: '目录不存在' }
-  }
-
-  if (!fs.existsSync(dataPath)) {
-    fs.mkdirSync(dataPath, { recursive: true })
-  }
-
-  return { dataPath }
-}
-
-
 
 // --- Hono 应用工厂 ---
 export function createApp(engine, options = {}) {
@@ -103,40 +73,6 @@ export function createApp(engine, options = {}) {
     return new Set(invites)
   }
 
-  // 速率限制（每个 app 实例独立）
-  const rateLimitMap = new Map()
-  function checkRateLimit(clientIp) {
-    const now = Date.now()
-    if (!rateLimitMap.has(clientIp)) {
-      rateLimitMap.set(clientIp, [])
-    }
-    const requests = rateLimitMap.get(clientIp)
-    while (requests.length > 0 && requests[0] < now - RATE_LIMIT_WINDOW) {
-      requests.shift()
-    }
-    if (requests.length === 0) {
-      rateLimitMap.delete(clientIp)
-    }
-    if (requests.length >= RATE_LIMIT_MAX_REQUESTS) {
-      return false
-    }
-    requests.push(now)
-    return true
-  }
-
-  function rateLimitMiddleware() {
-    return async (c, next) => {
-      const clientIp =
-        c.req.header('x-forwarded-for') ||
-        c.env?.incoming?.socket?.remoteAddress ||
-        'unknown'
-      if (!checkRateLimit(clientIp)) {
-        return c.json({ error: 'Too many requests' }, 429)
-      }
-      await next()
-    }
-  }
-
   function isValidInvite(c) {
     const invite = String(c.req.header('x-mostbox-invite') || '').trim()
     return hasValidInvite(getRemoteInviteSet(), invite)
@@ -149,42 +85,6 @@ export function createApp(engine, options = {}) {
       listenHost: appHost,
       local: isLocalRequest(c),
     })
-  }
-
-  function isPublicFileDownloadPath(path) {
-    return /^\/api\/files\/[^/]+\/download$/.test(path)
-  }
-
-  function requiresUserAuth(path) {
-    if (isPublicFileDownloadPath(path)) {
-      return false
-    }
-
-    return (
-      path === '/api/files' ||
-      path === '/api/publish' ||
-      path === '/api/download/check' ||
-      path === '/api/download' ||
-      path === '/api/download/cancel' ||
-      path === '/api/user/sync/start' ||
-      path === '/api/user/sync/status' ||
-      path === '/api/trash' ||
-      path === '/api/move' ||
-      path === '/api/folder/rename' ||
-      path.startsWith('/api/files/') ||
-      path.startsWith('/api/trash/') ||
-      path.startsWith('/api/channels')
-    )
-  }
-
-  function isAdminApi(path) {
-    return (
-      path.startsWith('/api/admin/') ||
-      path === '/api/node/config' ||
-      path === '/api/node/policy' ||
-      path === '/api/node/logs' ||
-      path === '/api/shutdown'
-    )
   }
 
   function authMiddleware() {
@@ -363,7 +263,7 @@ export function createApp(engine, options = {}) {
   )
 
   // 速率限制中间件
-  app.use('/api/*', rateLimitMiddleware())
+  app.use('/api/*', createRateLimitMiddleware())
   app.use('/api/*', authMiddleware())
 
   // 全局错误处理

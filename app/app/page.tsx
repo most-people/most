@@ -31,122 +31,23 @@ import FilePreviewOverlay from '~/components/FilePreviewOverlay'
 import { MoveModal } from '~/components/MoveModal'
 import { ModalOverlay, ConfirmModal, InputModal } from '~/components/ui'
 import {
-  api,
   getApiErrorMessage,
-  getApiErrorPayload,
-  getApiUrl,
   getApiRequestHeaders,
   getAuthenticatedWebSocketUrl,
 } from '~/server/src/utils/api'
-import {
-  getDownloadCheckErrorMessageFromPayload,
-} from '~/server/src/utils/downloadMessages.js'
 import { useAppStore } from '~/app/app/useAppStore'
 import { useUserStore } from '~/app/app/userStore'
 import { useDisclosure, useClipboard } from '~/hooks'
+import { fileApi, getDownloadCheckErrorMessage } from '~/lib/fileApi'
 import { getFileSubtype } from '~/lib/filePreview'
+import { formatBytes } from '~/lib/format'
 import { useI18n } from '~/lib/i18n'
 import { getLocalizedDownloadLinkValidationMessage } from '~/lib/i18n/downloadValidation'
-interface NetworkAddress {
-  type: string
-  ip: string
-  label: string
-  iface: string
-}
-
-interface DataPathResponse {
-  dataPath: string
-  isDefault: boolean
-}
-
-interface NetworkResponse {
-  port: number
-  addresses: NetworkAddress[]
-}
-
-interface ToggleStarResponse {
-  success: boolean
-  cid: string
-  starred: boolean
-}
-
-interface DownloadCheckResponse {
-  success: boolean
-  available: boolean
-  cid: string
-  fileName: string
-  size: number | null
-  alreadyExists?: boolean
-}
 
 type DownloadCheckResult = {
   status: 'success' | 'error'
   link: string
   message: string
-}
-
-async function getDownloadCheckErrorMessage(err: unknown) {
-  const data = await getApiErrorPayload(err)
-  const errorName =
-    err && typeof err === 'object' && 'name' in err
-      ? String((err as { name?: string }).name)
-      : ''
-  return getDownloadCheckErrorMessageFromPayload(data, errorName)
-}
-
-const API = {
-  listPublishedFiles: () => api.get('/api/files').json<any[]>(),
-  listTrashFiles: () => api.get('/api/trash').json<any[]>(),
-  deletePublishedFile: cid => api.delete(`/api/files/${cid}`).json(),
-  restoreTrashFile: cid => api.post(`/api/trash/${cid}/restore`).json(),
-  permanentDeleteTrashFile: cid => api.delete(`/api/trash/${cid}`).json(),
-  emptyTrash: () => api.delete('/api/trash').json(),
-  toggleStar: cid =>
-    api.post<ToggleStarResponse>(`/api/files/${cid}/star`).json(),
-  getConfig: () => api.get('/api/config').json<any>(),
-  getDataPath: () => api.get<DataPathResponse>('/api/config/data-path').json(),
-  getNetworkAddresses: () => api.get<NetworkResponse>('/api/network').json(),
-  saveConfig: config =>
-    api
-      .post('/api/config', {
-        json: config,
-      })
-      .json(),
-  async publishFile(file, customName) {
-    const formData = new FormData()
-    formData.append('file', file, customName || file.name)
-    const res = await api.post('/api/publish', { body: formData })
-    if (!res.ok) {
-      const err = await res
-        .json<{ error: string }>()
-        .catch(() => ({ error: res.statusText }))
-      throw new Error(err.error || 'Request failed')
-    }
-    return res.json<any>()
-  },
-  checkDownload: link =>
-    api
-      .post('/api/download/check', { json: { link }, timeout: 15000 })
-      .json<DownloadCheckResponse>(),
-  downloadFile: link =>
-    api.post('/api/download', { json: { link } }).json<any>(),
-  cacheFile: cid => api.post(`/api/files/${cid}/cache`).json<any>(),
-  cancelDownload: taskId =>
-    api.post('/api/download/cancel', { json: { taskId } }).json<any>(),
-  getFileDownloadUrl: cid => getApiUrl(`/api/files/${cid}/download`),
-  moveFile: (cid, newFileName) =>
-    api.post('/api/move', { json: { cid, newFileName } }).json<any>(),
-  renameFolder: (oldPath, newPath) =>
-    api.post('/api/folder/rename', { json: { oldPath, newPath } }).json<any>(),
-}
-
-function formatSize(bytes) {
-  if (!bytes || bytes <= 0) return '0 B'
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  if (bytes < 1024 * 1024 * 1024)
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
 }
 
 function parseName(fullPath) {
@@ -262,7 +163,7 @@ export default function App() {
       return
     }
     try {
-      const result = await API.listPublishedFiles()
+      const result = await fileApi.listPublishedFiles()
       setItems(result || [])
     } catch {
       setItems([])
@@ -274,7 +175,7 @@ export default function App() {
       return
     }
     try {
-      const result = await API.listTrashFiles()
+      const result = await fileApi.listTrashFiles()
       setTrashItems(result || [])
     } catch {
       setTrashItems([])
@@ -290,7 +191,7 @@ export default function App() {
     if (!requireLogin()) return
     if (!requireBackendReady()) return
     try {
-      await API.restoreTrashFile(cid)
+      await fileApi.restoreTrashFile(cid)
       addToast(t('app.toast.restored'), 'success')
       refreshFiles()
       refreshTrash()
@@ -310,7 +211,7 @@ export default function App() {
       onConfirm: async () => {
         setConfirmModal(null)
         try {
-          await API.emptyTrash()
+          await fileApi.emptyTrash()
           addToast(t('app.toast.trashEmptied'), 'success')
           refreshTrash()
         } catch (err) {
@@ -324,7 +225,7 @@ export default function App() {
     if (!requireLogin()) return
     if (!requireBackendReady()) return
     try {
-      const result = await API.toggleStar(cid)
+      const result = await fileApi.toggleStar(cid)
       setItems(prev =>
         prev.map(i => (i.cid === cid ? { ...i, starred: result.starred } : i))
       )
@@ -353,9 +254,9 @@ export default function App() {
         try {
           for (const id of selectedIds) {
             if (isTrash) {
-              await API.permanentDeleteTrashFile(id)
+              await fileApi.permanentDeleteTrashFile(id)
             } else {
-              if (!id.startsWith('__')) await API.deletePublishedFile(id)
+              if (!id.startsWith('__')) await fileApi.deletePublishedFile(id)
             }
           }
           setSelectedIds([])
@@ -382,7 +283,7 @@ export default function App() {
         const { name } = parseName(file.fileName)
         const newFileName = targetPath ? `${targetPath}/${name}` : name
         if (file.fileName !== newFileName) {
-          await API.moveFile(id, newFileName)
+          await fileApi.moveFile(id, newFileName)
         }
       }
       setSelectedIds([])
@@ -413,14 +314,14 @@ export default function App() {
             const parentPath =
               lastSlash !== -1 ? target.path.substring(0, lastSlash) : ''
             const newPath = parentPath ? `${parentPath}/${newName}` : newName
-            await API.renameFolder(target.path, newPath)
+            await fileApi.renameFolder(target.path, newPath)
             addToast(t('app.toast.renamed'), 'success')
             refreshFiles()
             handleNavigate(newPath)
           } else {
             const { folder } = parseName(target.fileName)
             const newFileName = folder ? `${folder}/${newName}` : newName
-            await API.moveFile(target.cid, newFileName)
+            await fileApi.moveFile(target.cid, newFileName)
             addToast(t('app.toast.renamed'), 'success')
             refreshFiles()
           }
@@ -469,7 +370,7 @@ export default function App() {
       }
 
       try {
-        const result = await API.publishFile(file, fileName)
+        const result = await fileApi.publishFile(file, fileName)
         if (result.alreadyExists) {
           setTransfers(prev =>
             prev.map(t =>
@@ -557,7 +458,7 @@ export default function App() {
     setIsCheckingDownload(true)
     setDownloadCheckResult(null)
     try {
-      const result = await API.checkDownload(normalizedDownloadLink)
+      const result = await fileApi.checkDownload(normalizedDownloadLink)
       const message = result.alreadyExists
         ? t('app.fileAlreadyLocal', { fileName: result.fileName })
         : t('app.fileAvailable', { fileName: result.fileName })
@@ -607,7 +508,7 @@ export default function App() {
     if (isDownloading) return
     setIsDownloading(true)
     try {
-      const result = await API.downloadFile(normalizedDownloadLink)
+      const result = await fileApi.downloadFile(normalizedDownloadLink)
       setDownloadLink('')
       setDownloadCheckResult(null)
       closeDownloadModal()
@@ -644,7 +545,7 @@ export default function App() {
         )
       )
       try {
-        await API.cancelDownload(transfer.id)
+        await fileApi.cancelDownload(transfer.id)
       } catch (err) {
         setTransfers(prev =>
           prev.map(t =>
@@ -664,7 +565,7 @@ export default function App() {
       return
     }
     try {
-      const res = await fetch(API.getFileDownloadUrl(file.cid), {
+      const res = await fetch(fileApi.getFileDownloadUrl(file.cid), {
         headers: await getApiRequestHeaders(
           'GET',
           `/api/files/${file.cid}/download`
@@ -704,7 +605,7 @@ export default function App() {
     if (!requireBackendReady()) return
     try {
       addToast(t('app.toast.startPullLocal'), 'info')
-      await API.cacheFile(file.cid)
+      await fileApi.cacheFile(file.cid)
       addToast(t('app.toast.pulledAndSeeding'), 'success')
       refreshFiles()
     } catch (err) {
@@ -1272,7 +1173,7 @@ export default function App() {
         <FilePreviewOverlay
           item={previewItem}
           isBackendReady={isBackendReady}
-          getFileDownloadUrl={API.getFileDownloadUrl}
+          getFileDownloadUrl={fileApi.getFileDownloadUrl}
           onClose={() => setPreviewItem(null)}
         />
       )}
@@ -1293,7 +1194,7 @@ export default function App() {
                   if (!requireLogin()) return
                   if (!requireBackendReady()) return
                   await Promise.all(
-                    selectedIds.map(cid => API.restoreTrashFile(cid))
+                    selectedIds.map(cid => fileApi.restoreTrashFile(cid))
                   )
                   setSelectedIds([])
                   addToast(t('app.toast.restored'), 'success')
@@ -1475,7 +1376,7 @@ export default function App() {
                             : transfer.status === 'cancelling'
                               ? t('app.cancelling')
                               : transfer.loaded && transfer.total
-                                ? `${formatSize(transfer.loaded)}/${formatSize(transfer.total)}`
+                                ? `${formatBytes(transfer.loaded)}/${formatBytes(transfer.total)}`
                                 : `${transfer.progress}%`}
                     </span>
                   </div>

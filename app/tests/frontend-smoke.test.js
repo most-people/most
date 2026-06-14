@@ -10,6 +10,7 @@ import {
   getDownloadCheckErrorMessageFromPayload,
   getDownloadLinkValidationMessage,
 } from '../../server/src/utils/downloadMessages.js'
+import { requiredStaticEntries } from '../../scripts/static-routes.mjs'
 
 function readSource(path) {
   return fs.readFileSync(new URL(`../../${path}`, import.meta.url), 'utf-8')
@@ -199,10 +200,8 @@ describe('frontend smoke checks', () => {
 
   it('keeps static output checks aligned with TanStack static routes', () => {
     const checkStaticOutput = readSource('scripts/check-static-output.mjs')
-    const checkedRoutes = Array.from(
-      checkStaticOutput.matchAll(/route:\s*'([^']+)'/g),
-      ([, route]) => route
-    ).sort()
+    const staticManifest = readSource('scripts/static-routes.mjs')
+    const checkedRoutes = requiredStaticEntries.map(({ route }) => route).sort()
 
     const staticRoutes = listSourceFiles('src/routes')
       .filter((file) => file.endsWith('.tsx'))
@@ -223,11 +222,12 @@ describe('frontend smoke checks', () => {
       .sort()
 
     assert.deepEqual(checkedRoutes, staticRoutes)
-    assert.match(checkStaticOutput, /admin\/index\.html/)
-    assert.match(checkStaticOutput, /chat\/index\.html/)
-    assert.match(checkStaticOutput, /note\/index\.html/)
-    assert.match(checkStaticOutput, /web3\/index\.html/)
-    assert.match(checkStaticOutput, /game\/gandengyan\/index\.html/)
+    assert.match(checkStaticOutput, /requiredStaticEntries/)
+    assert.match(staticManifest, /admin/)
+    assert.match(staticManifest, /chat\/join/)
+    assert.match(staticManifest, /note/)
+    assert.match(staticManifest, /web3\/tools/)
+    assert.match(staticManifest, /game\/gandengyan/)
   })
 
   it('checks desktop updates through the public release manifest', () => {

@@ -59,6 +59,8 @@ npm run dev
 node server/index.js
 ```
 
+开发模式需要两个进程：`npm run dev` 启动 TanStack Start 前端，默认访问 `http://localhost:3000`；`node server/index.js` 启动本地 daemon，默认监听 `http://localhost:1976`。
+
 ## 测试
 
 ```bash

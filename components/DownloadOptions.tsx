@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Apple, Cloud, Code, Download, Laptop, Monitor } from 'lucide-react'
+import { formatMegabytes } from '~/lib/format'
 import { useI18n } from '~/lib/i18n'
 
 type DownloadPlatform = 'windows' | 'macos' | 'linux'
@@ -153,13 +154,6 @@ function detectCurrentKey() {
   return `windows:${arch}`
 }
 
-function formatSize(size?: number) {
-  if (!size) return ''
-
-  const mb = size / 1024 / 1024
-  return `${mb.toFixed(mb >= 100 ? 0 : 1)} MB`
-}
-
 export default function DownloadOptions() {
   const { t } = useI18n()
   const [manifest, setManifest] = useState<DownloadManifest | null>(null)
@@ -301,7 +295,7 @@ export default function DownloadOptions() {
                   {asset.size ? (
                     <div>
                       <dt>{t('download.platform.size')}</dt>
-                      <dd>{formatSize(asset.size)}</dd>
+                      <dd>{formatMegabytes(asset.size)}</dd>
                     </div>
                   ) : null}
                   {asset.sha256 ? (

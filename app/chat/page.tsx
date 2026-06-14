@@ -33,12 +33,7 @@ import { LogoIcon } from '~/components/icons/LogoIcon'
 import {
   api,
   getApiErrorMessage,
-  getApiErrorPayload,
-  getApiUrl,
 } from '~/server/src/utils/api'
-import {
-  getDownloadCheckErrorMessageFromPayload,
-} from '~/server/src/utils/downloadMessages.js'
 import { generateAvatar } from '~/server/src/utils/avatar.js'
 import { useAppStore } from '~/app/app/useAppStore'
 import { useUserStore } from '~/app/app/userStore'
@@ -66,6 +61,7 @@ import {
   readStoredChannelLastReadAt,
   writeStoredChannelLastReadAt,
 } from '~/lib/chatUnread.js'
+import { fileApi, getDownloadCheckErrorMessage } from '~/lib/fileApi'
 
 const CHANNEL_NAME_MIN_LENGTH = 3
 const CHANNEL_NAME_MAX_LENGTH = 30
@@ -84,31 +80,6 @@ function getChannelId(channel?: Pick<Channel, 'channelId' | 'name'> | null) {
 
 function getChannelTitle(channel?: Pick<Channel, 'remark' | 'channelId' | 'name'> | null) {
   return channel?.remark || getChannelId(channel)
-}
-
-const API = {
-  async publishFile(file: File, customName: string) {
-    const formData = new FormData()
-    formData.append('file', file, customName)
-    const res = await api.post('/api/publish', { body: formData })
-    if (!res.ok) {
-      const err = await res
-        .json<{ error: string }>()
-        .catch(() => ({ error: res.statusText }))
-      throw new Error(err.error || 'Request failed')
-    }
-    return res.json<any>()
-  },
-  downloadFile: (link: string) =>
-    api.post('/api/download', { json: { link } }).json<any>(),
-  checkDownload: (link: string) =>
-    api
-      .post('/api/download/check', {
-        json: { link, timeout: ATTACHMENT_CHECK_TIMEOUT_MS },
-        timeout: ATTACHMENT_CHECK_REQUEST_TIMEOUT_MS,
-      })
-      .json<any>(),
-  getFileDownloadUrl: (cid: string) => getApiUrl(`/api/files/${cid}/download`),
 }
 
 const CHAT_FILE_ROOT = 'chat-file'
@@ -147,15 +118,6 @@ function getBrowserAudioContextConstructor():
       webkitAudioContext?: BrowserAudioContextConstructor
     }
   return audioWindow.AudioContext || audioWindow.webkitAudioContext
-}
-
-async function getDownloadCheckErrorMessage(err: unknown) {
-  const data = await getApiErrorPayload(err)
-  const errorName =
-    err && typeof err === 'object' && 'name' in err
-      ? String((err as { name?: string }).name)
-      : ''
-  return getDownloadCheckErrorMessageFromPayload(data, errorName)
 }
 
 function ChatPage() {
@@ -694,7 +656,10 @@ function ChatPage() {
         ...prev,
         [attachment.cid]: { status: 'checking' },
       }))
-      const checkResult = await API.checkDownload(attachment.link)
+      const checkResult = await fileApi.checkDownload(attachment.link, {
+        timeout: ATTACHMENT_CHECK_TIMEOUT_MS,
+        requestTimeout: ATTACHMENT_CHECK_REQUEST_TIMEOUT_MS,
+      })
       setAttachmentDownloadStatus(prev => ({
         ...prev,
         [attachment.cid]: {
@@ -731,7 +696,7 @@ function ChatPage() {
       [attachment.cid]: { status: 'available' },
     }))
     try {
-      const result = await API.downloadFile(attachment.link)
+      const result = await fileApi.downloadFile(attachment.link)
       if (result.alreadyExists || result.fileName) {
         activeAttachmentDownloadsRef.current.delete(attachment.cid)
         setAttachmentDownloadStatus(prev => ({
@@ -1015,7 +980,7 @@ function ChatPage() {
           getChannelId(activeChannel),
           file.name
         )
-        const result = await API.publishFile(file, targetFileName)
+        const result = await fileApi.publishFile(file, targetFileName)
         const fileName = result.fileName || targetFileName
         const link =
           result.link ||
@@ -1540,7 +1505,7 @@ function ChatPage() {
         <FilePreviewOverlay
           item={previewItem}
           isBackendReady={isBackendReady}
-          getFileDownloadUrl={API.getFileDownloadUrl}
+          getFileDownloadUrl={fileApi.getFileDownloadUrl}
           onClose={() => setPreviewItem(null)}
         />
       )}
