@@ -9,7 +9,6 @@ import {
 import { create } from 'zustand'
 import {
   checkBackendConnection,
-  detectSameOriginBackend,
   detectLocalhostBackend,
   setBackendUrl,
   getBackendUrlExport,
@@ -138,12 +137,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         set({ hasBackend: true })
         return
       }
-    }
-    const sameOrigin = await detectSameOriginBackend()
-    if (sameOrigin) {
-      setBackendUrl('')
-      set({ hasBackend: true })
-      return
     }
     const localhost = await detectLocalhostBackend()
     if (localhost) {

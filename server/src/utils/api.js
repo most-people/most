@@ -410,20 +410,6 @@ export async function checkBackendConnectionTarget({ url, invite = '' }) {
   return { ok: true }
 }
 
-export async function detectSameOriginBackend() {
-  if (isLocalFrontendOrigin()) return false
-
-  try {
-    const res = await fetch('/api/node-id', {
-      method: 'GET',
-      signal: AbortSignal.timeout(2000),
-    })
-    return res.ok
-  } catch {
-    return false
-  }
-}
-
 export async function detectLocalhostBackend() {
   try {
     const res = await fetch(`${LOCALHOST_BACKEND_URL}/api/node-id`, {
