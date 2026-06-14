@@ -9,7 +9,6 @@ import React, {
 import { useMediaQuery } from '@mantine/hooks'
 import { Menu } from 'lucide-react'
 import { useDisclosure } from '~/hooks'
-import { LanguageToggle } from '~/components/LanguageToggle'
 
 type CloseSidebarOptions = {
   collapse?: boolean
@@ -139,10 +138,7 @@ export default function AppShell({
               )}
               {headerTitle}
             </div>
-            <div className="header-right">
-              <LanguageToggle className="btn btn-icon app-language-toggle" />
-              {headerRight}
-            </div>
+            <div className="header-right">{headerRight}</div>
           </header>
 
           {children}

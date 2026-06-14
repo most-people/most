@@ -15,7 +15,6 @@ import {
   Gamepad2,
 } from 'lucide-react'
 import { useAppStore } from '~/app/app/useAppStore'
-import { useI18n } from '~/lib/i18n'
 
 /* ─── Types ─── */
 type InternalRoutePath =
@@ -227,7 +226,6 @@ const features: FeatureDef[] = [
 export default function FeaturePortal() {
   const hasBackend = useAppStore(s => s.hasBackend)
   const openConnectModal = useAppStore(s => s.openConnectModal)
-  const { t } = useI18n()
   const [selected, setSelected] = useState<string>('app')
 
   const activeFeature = features.find(f => f.id === selected) || features[0]
@@ -365,7 +363,7 @@ export default function FeaturePortal() {
 
               <div className="portal-actions">
                 <Link to={activeFeature.path} className="btn btn-primary">
-                  {t('进入')} {t(activeFeature.title)}
+                  进入 {activeFeature.title}
                   <ArrowRight size={16} />
                 </Link>
                 {activeFeature.requiresBackend && hasBackend === false && (

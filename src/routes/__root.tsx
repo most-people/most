@@ -25,7 +25,6 @@ import {
 import { ErrorBoundary } from '~/app/error-boundary'
 import NotFoundPage from '~/app/not-found'
 import AppGlobals from '~/components/AppGlobals'
-import { LocaleEffects } from '~/components/LocaleEffects'
 
 export const Route = createRootRoute({
   head: () => ({
@@ -47,7 +46,6 @@ function RootRoute() {
     <RootDocument>
       <ErrorBoundary>
         <ClientOnly>
-          <LocaleEffects />
           <AppGlobals />
         </ClientOnly>
         <GlobalErrorHandler />
@@ -70,9 +68,6 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
                 if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
                   document.documentElement.setAttribute('data-theme', 'dark');
                 }
-                var locale = localStorage.getItem('mostbox.language');
-                document.documentElement.setAttribute('lang', locale === 'en' ? 'en' : 'zh-CN');
-                document.documentElement.setAttribute('data-locale', locale === 'en' ? 'en' : 'zh-CN');
               })();
             `,
           }}
