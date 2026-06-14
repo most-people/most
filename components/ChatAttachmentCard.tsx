@@ -9,6 +9,7 @@ import {
   Music,
 } from 'lucide-react'
 import type { ChannelAttachment } from '~/lib/channelApi'
+import { useI18n } from '~/lib/i18n'
 
 export type ChatAttachmentStatus = 'idle' | 'checking' | 'available' | 'error'
 
@@ -44,6 +45,7 @@ export function ChatAttachmentCard({
   pending?: boolean
   onOpen?: (attachment: ChannelAttachment) => void
 }) {
+  const { t } = useI18n()
   const isBusy = status === 'checking'
   const actionClassName = [
     'ui-file-action',
@@ -53,7 +55,7 @@ export function ChatAttachmentCard({
   ]
     .filter(Boolean)
     .join(' ')
-  const detail = formatAttachmentSize(attachment.size) || 'MostBox 文件'
+  const detail = formatAttachmentSize(attachment.size) || t('chat.mostboxFile')
 
   return (
     <button
@@ -62,6 +64,7 @@ export function ChatAttachmentCard({
       onClick={() => onOpen?.(attachment)}
       disabled={pending || isBusy}
       title={attachment.link}
+      translate="no"
     >
       <span className={`ui-file-icon chat-attachment-icon ${attachment.kind}`}>
         {isBusy ? (
@@ -71,16 +74,16 @@ export function ChatAttachmentCard({
         )}
       </span>
       <span className="ui-file-info chat-attachment-info">
-        <span className="ui-file-name chat-attachment-name">
+        <span className="ui-file-name chat-attachment-name" translate="no">
           {getAttachmentBaseFileName(attachment.fileName)}
         </span>
-        <span className="ui-file-meta chat-attachment-meta">
-          {pending ? '发送中...' : detail}
+        <span className="ui-file-meta chat-attachment-meta" translate="yes">
+          {pending ? t('chat.sending') : detail}
         </span>
       </span>
-      <span className={actionClassName}>
+      <span className={actionClassName} translate="yes">
         {isBusy ? (
-          '检测中'
+          t('chat.checking')
         ) : status === 'available' ? (
           <Eye size={16} />
         ) : status === 'error' ? (

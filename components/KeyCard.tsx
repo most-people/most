@@ -14,7 +14,9 @@ export function KeyCard({ title, icon, children, accent = false }: KeyCardProps)
         <span className="web3-key-card-icon">{icon}</span>
         <span className="web3-key-card-title">{title}</span>
       </div>
-      <div className="web3-key-card-body">{children}</div>
+      <div className="web3-key-card-body" translate="no">
+        {children}
+      </div>
     </div>
   )
 }

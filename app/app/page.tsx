@@ -40,12 +40,13 @@ import {
 } from '~/server/src/utils/api'
 import {
   getDownloadCheckErrorMessageFromPayload,
-  getDownloadLinkValidationMessage,
 } from '~/server/src/utils/downloadMessages.js'
 import { useAppStore } from '~/app/app/useAppStore'
 import { useUserStore } from '~/app/app/userStore'
 import { useDisclosure, useClipboard } from '~/hooks'
 import { getFileSubtype } from '~/lib/filePreview'
+import { useI18n } from '~/lib/i18n'
+import { getLocalizedDownloadLinkValidationMessage } from '~/lib/i18n/downloadValidation'
 interface NetworkAddress {
   type: string
   ip: string
@@ -148,11 +149,6 @@ function formatSize(bytes) {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
 }
 
-function formatDate(dateString) {
-  if (!dateString) return ''
-  return new Date(dateString).toLocaleDateString('zh-CN')
-}
-
 function parseName(fullPath) {
   return parseAppFileName(fullPath)
 }
@@ -189,10 +185,10 @@ function getItemsForPath(files, allFolders, currentPath) {
   }
 }
 
-function generateBreadcrumbs(currentPath) {
+function generateBreadcrumbs(currentPath, rootName) {
   if (!currentPath) return []
   return [
-    { path: '', name: '全部内容' },
+    { path: '', name: rootName },
     ...currentPath
       .split('/')
       .filter(Boolean)
@@ -232,7 +228,10 @@ export default function App() {
   const [confirmModal, setConfirmModal] = useState(null)
   const [inputModal, setInputModal] = useState(null)
   const [inputLoading, setInputLoading] = useState(false)
+  const { t, formatDate } = useI18n()
   const isBackendReady = hasBackend === true
+  const formatOptionalDate = (value?: string | null) =>
+    value ? formatDate(value) : ''
 
   const currentPath = currentFolderId || ''
   const allFolders = getUniqueFolders(items)
@@ -292,11 +291,11 @@ export default function App() {
     if (!requireBackendReady()) return
     try {
       await API.restoreTrashFile(cid)
-      addToast('已恢复', 'success')
+      addToast(t('app.toast.restored'), 'success')
       refreshFiles()
       refreshTrash()
     } catch (err) {
-      addToast(await getApiErrorMessage(err, '恢复失败'), 'error')
+      addToast(await getApiErrorMessage(err, t('app.toast.restoreFailed')), 'error')
     }
   }
 
@@ -304,18 +303,18 @@ export default function App() {
     if (!requireLogin()) return
     if (!requireBackendReady()) return
     setConfirmModal({
-      title: '清空回收站',
-      message: '确定要清空回收站吗？此操作不可恢复！',
-      confirmText: '清空',
+      title: t('app.clearTrash.title'),
+      message: t('app.clearTrash.message'),
+      confirmText: t('app.clear'),
       danger: true,
       onConfirm: async () => {
         setConfirmModal(null)
         try {
           await API.emptyTrash()
-          addToast('回收站已清空', 'success')
+          addToast(t('app.toast.trashEmptied'), 'success')
           refreshTrash()
         } catch (err) {
-          addToast(await getApiErrorMessage(err, '清空失败'), 'error')
+          addToast(await getApiErrorMessage(err, t('app.toast.emptyFailed')), 'error')
         }
       },
     })
@@ -329,9 +328,12 @@ export default function App() {
       setItems(prev =>
         prev.map(i => (i.cid === cid ? { ...i, starred: result.starred } : i))
       )
-      addToast(result.starred ? '已收藏' : '已取消收藏', 'success')
+      addToast(
+        result.starred ? t('app.toast.favorited') : t('app.toast.unfavorited'),
+        'success'
+      )
     } catch (err) {
-      addToast(await getApiErrorMessage(err, '操作失败'), 'error')
+      addToast(await getApiErrorMessage(err, t('app.toast.actionFailed')), 'error')
     }
   }
 
@@ -340,11 +342,11 @@ export default function App() {
     if (!requireBackendReady()) return
     const isTrash = currentView === 'trash'
     setConfirmModal({
-      title: isTrash ? '永久删除' : '批量删除',
+      title: isTrash ? t('app.permanentDelete') : t('app.batchDelete'),
       message: isTrash
-        ? `确定要永久删除选中的 ${selectedIds.length} 个项目吗？此操作不可恢复！`
-        : `确定要删除选中的 ${selectedIds.length} 个项目吗？`,
-      confirmText: isTrash ? '永久删除' : '删除',
+        ? t('app.deleteSelectedPermanent', { count: selectedIds.length })
+        : t('app.deleteSelected', { count: selectedIds.length }),
+      confirmText: isTrash ? t('app.permanentDelete') : t('app.delete'),
       danger: true,
       onConfirm: async () => {
         setConfirmModal(null)
@@ -357,11 +359,14 @@ export default function App() {
             }
           }
           setSelectedIds([])
-          addToast(isTrash ? '已永久删除' : '已删除', 'success')
+          addToast(
+            isTrash ? t('app.toast.deletedPermanently') : t('app.toast.deleted'),
+            'success'
+          )
           refreshFiles()
           refreshTrash()
         } catch (err) {
-          addToast(await getApiErrorMessage(err, '删除失败'), 'error')
+          addToast(await getApiErrorMessage(err, t('app.toast.deleteFailed')), 'error')
         }
       },
     })
@@ -382,10 +387,10 @@ export default function App() {
       }
       setSelectedIds([])
       moveModal.close()
-      addToast('已移动', 'success')
+      addToast(t('app.toast.moved'), 'success')
       refreshFiles()
     } catch (err) {
-      addToast(await getApiErrorMessage(err, '移动失败'), 'error')
+      addToast(await getApiErrorMessage(err, t('app.toast.moveFailed')), 'error')
     }
   }
 
@@ -393,10 +398,10 @@ export default function App() {
     const isFolder = !!target.path
     const currentName = isFolder ? target.name : parseName(target.fileName).name
     setInputModal({
-      title: isFolder ? '重命名文件夹' : '重命名文件',
-      placeholder: '请输入新名称',
+      title: isFolder ? t('app.renameFolder') : t('app.renameFile'),
+      placeholder: t('app.enterNewName'),
       defaultValue: currentName,
-      confirmText: '重命名',
+      confirmText: t('app.rename'),
       onConfirm: async newName => {
         if (newName === currentName) return
         if (!requireLogin()) return
@@ -409,19 +414,19 @@ export default function App() {
               lastSlash !== -1 ? target.path.substring(0, lastSlash) : ''
             const newPath = parentPath ? `${parentPath}/${newName}` : newName
             await API.renameFolder(target.path, newPath)
-            addToast('已重命名', 'success')
+            addToast(t('app.toast.renamed'), 'success')
             refreshFiles()
             handleNavigate(newPath)
           } else {
             const { folder } = parseName(target.fileName)
             const newFileName = folder ? `${folder}/${newName}` : newName
             await API.moveFile(target.cid, newFileName)
-            addToast('已重命名', 'success')
+            addToast(t('app.toast.renamed'), 'success')
             refreshFiles()
           }
           setInputModal(null)
         } catch (err) {
-          addToast(await getApiErrorMessage(err, '重命名失败'), 'error')
+          addToast(await getApiErrorMessage(err, t('app.toast.renameFailed')), 'error')
         } finally {
           setInputLoading(false)
         }
@@ -432,7 +437,7 @@ export default function App() {
   const processFiles = async (files: FileList) => {
     if (!userIdentity) {
       openLoginModal()
-      addToast('请先登录后发布文件', 'warning')
+      addToast(t('app.toast.signInBeforePublish'), 'warning')
       return
     }
     if (!requireBackendReady()) return
@@ -444,7 +449,7 @@ export default function App() {
 
       const nameExists = items.some(item => item.fileName === fileName)
       if (nameExists) {
-        addToast(`${file.name} 已存在`, 'warning')
+        addToast(t('app.fileAlreadyExists', { fileName: file.name }), 'warning')
         continue
       }
 
@@ -471,7 +476,7 @@ export default function App() {
               t.id === transferId ? { ...t, status: 'completed' } : t
             )
           )
-          addToast(`${file.name} 已存在`, 'warning')
+          addToast(t('app.fileAlreadyExists', { fileName: file.name }), 'warning')
         } else {
           setTransfers(prev =>
             prev.map(t =>
@@ -480,13 +485,16 @@ export default function App() {
                 : t
             )
           )
-          addToast(`${file.name} 已添加到本地`, 'success')
+          addToast(t('app.fileAddedLocal', { fileName: file.name }), 'success')
         }
       } catch (err) {
         setTransfers(prev =>
           prev.map(t => (t.id === transferId ? { ...t, status: 'error' } : t))
         )
-        const message = await getApiErrorMessage(err, `发布失败: ${file.name}`)
+        const message = await getApiErrorMessage(
+          err,
+          t('app.publishFailedWithFile', { fileName: file.name })
+        )
         addToast(message, 'error')
       }
     }
@@ -528,8 +536,9 @@ export default function App() {
   }
 
   const handleCheckDownloadAvailability = async () => {
-    const validationMessage = getDownloadLinkValidationMessage(
-      normalizedDownloadLink
+    const validationMessage = getLocalizedDownloadLinkValidationMessage(
+      normalizedDownloadLink,
+      t
     )
     if (validationMessage) {
       setDownloadCheckResult({
@@ -550,15 +559,17 @@ export default function App() {
     try {
       const result = await API.checkDownload(normalizedDownloadLink)
       const message = result.alreadyExists
-        ? `${result.fileName} 已在本机`
-        : `${result.fileName} 可下载`
+        ? t('app.fileAlreadyLocal', { fileName: result.fileName })
+        : t('app.fileAvailable', { fileName: result.fileName })
       setDownloadCheckResult({
         status: 'success',
         link: normalizedDownloadLink,
         message,
       })
       addToast(
-        result.alreadyExists ? `${result.fileName} 已存在` : '检测通过',
+        result.alreadyExists
+          ? t('app.fileAlreadyExists', { fileName: result.fileName })
+          : t('app.toast.checkPassed'),
         result.alreadyExists ? 'warning' : 'success'
       )
     } catch (err) {
@@ -577,19 +588,20 @@ export default function App() {
   const handleDownloadSharedFile = async () => {
     if (!userIdentity) {
       openLoginModal()
-      addToast('请先登录后下载文件', 'warning')
+      addToast(t('app.toast.signInBeforeDownload'), 'warning')
       return
     }
     if (!requireBackendReady()) return
-    const validationMessage = getDownloadLinkValidationMessage(
-      normalizedDownloadLink
+    const validationMessage = getLocalizedDownloadLinkValidationMessage(
+      normalizedDownloadLink,
+      t
     )
     if (validationMessage) {
       addToast(validationMessage, 'warning')
       return
     }
     if (!isDownloadReady) {
-      addToast('请先检测链接可用性', 'warning')
+      addToast(t('app.toast.checkLinkFirst'), 'warning')
       return
     }
     if (isDownloading) return
@@ -601,21 +613,21 @@ export default function App() {
       closeDownloadModal()
 
       if (result.alreadyExists) {
-        addToast(`${result.fileName} 已存在`, 'warning')
+        addToast(t('app.fileAlreadyExists', { fileName: result.fileName }), 'warning')
       } else {
         const transfer = {
           id: result.taskId,
-          fileName: '下载文件',
+          fileName: t('app.downloadFallbackName'),
           progress: 0,
           type: 'download',
           status: 'downloading',
         }
         setTransfers(prev => [...prev, transfer])
         transferPanel.open()
-        addToast('下载已开始', 'info')
+        addToast(t('app.toast.downloadStarted'), 'info')
       }
     } catch (err) {
-      const message = await getApiErrorMessage(err, '下载失败')
+      const message = await getApiErrorMessage(err, t('app.toast.downloadFailed'))
       addToast(message, 'error')
     } finally {
       setIsDownloading(false)
@@ -639,7 +651,7 @@ export default function App() {
             t.id === transfer.id ? { ...t, status: 'downloading' } : t
           )
         )
-        addToast(await getApiErrorMessage(err, '取消失败'), 'error')
+        addToast(await getApiErrorMessage(err, t('app.toast.cancelFailed')), 'error')
       }
     }
   }
@@ -648,7 +660,7 @@ export default function App() {
     if (!requireLogin()) return
     if (!requireBackendReady()) return
     if (file.localAvailable === false) {
-      addToast('文件尚未保存在本机，请先拉取到本机', 'warning')
+      addToast(t('app.toast.fileNotLocal'), 'warning')
       return
     }
     try {
@@ -658,7 +670,7 @@ export default function App() {
           `/api/files/${file.cid}/download`
         ),
       })
-      if (!res.ok) throw new Error('获取文件失败')
+      if (!res.ok) throw new Error(t('app.toast.getFileFailed'))
       const blob = await res.blob()
       const showSaveFilePicker = (window as any).showSaveFilePicker
       if (showSaveFilePicker) {
@@ -668,7 +680,7 @@ export default function App() {
         const writable = await handle.createWritable()
         await writable.write(blob)
         await writable.close()
-        addToast('文件已保存', 'success')
+        addToast(t('app.toast.fileSaved'), 'success')
       } else {
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
@@ -678,11 +690,11 @@ export default function App() {
         a.click()
         document.body.removeChild(a)
         URL.revokeObjectURL(url)
-        addToast('文件已下载', 'success')
+        addToast(t('app.toast.fileDownloaded'), 'success')
       }
     } catch (err) {
       if (err.name !== 'AbortError') {
-        addToast('保存失败: ' + err.message, 'error')
+        addToast(t('app.saveFailedWithError', { error: err.message }), 'error')
       }
     }
   }
@@ -691,12 +703,12 @@ export default function App() {
     if (!requireLogin()) return
     if (!requireBackendReady()) return
     try {
-      addToast('开始拉取到本机', 'info')
+      addToast(t('app.toast.startPullLocal'), 'info')
       await API.cacheFile(file.cid)
-      addToast('已拉取到本机并开始做种', 'success')
+      addToast(t('app.toast.pulledAndSeeding'), 'success')
       refreshFiles()
     } catch (err) {
-      addToast(await getApiErrorMessage(err, '拉取失败'), 'error')
+      addToast(await getApiErrorMessage(err, t('app.toast.pullFailed')), 'error')
     }
   }
 
@@ -731,9 +743,15 @@ export default function App() {
             )
             if (event === 'download:success') {
               if (data.alreadyExists) {
-                addToast(`${data.fileName} 已存在`, 'warning')
+                addToast(
+                  t('app.fileAlreadyExists', { fileName: data.fileName }),
+                  'warning'
+                )
               } else {
-                addToast(`${data.fileName} 下载完成`, 'success')
+                addToast(
+                  t('app.fileDownloadCompleted', { fileName: data.fileName }),
+                  'success'
+                )
               }
               setTimeout(() => {
                 setTransfers(prev =>
@@ -782,7 +800,10 @@ export default function App() {
                 t.id === data.taskId ? { ...t, status: 'error' } : t
               )
             )
-            addToast(`下载失败: ${data.error}`, 'error')
+            addToast(
+              t('app.downloadFailedWithError', { error: data.error }),
+              'error'
+            )
           }
           if (event === 'download:status') {
             setTransfers(prev =>
@@ -799,7 +820,7 @@ export default function App() {
                 t.id === data.taskId ? { ...t, status: 'cancelled' } : t
               )
             )
-            addToast('下载已取消', 'warning')
+            addToast(t('app.toast.downloadCancelled'), 'warning')
           }
           if (event === 'user:metadata:updated') {
             refreshFiles()
@@ -844,10 +865,10 @@ export default function App() {
 
   const viewTitle =
     currentView === 'all'
-      ? '本地'
+      ? t('app.nav.local')
       : currentView === 'starred'
-        ? '收藏'
-        : '回收站'
+        ? t('app.nav.favorites')
+        : t('app.nav.trash')
   const displayFiles =
     currentView === 'all'
       ? filteredFiles
@@ -871,7 +892,7 @@ export default function App() {
           f.name.toLowerCase().includes(searchQuery.toLowerCase())
         )
 
-  const breadcrumbParts = generateBreadcrumbs(currentPath)
+  const breadcrumbParts = generateBreadcrumbs(currentPath, t('app.allContent'))
 
   return (
     <AppShell
@@ -886,9 +907,17 @@ export default function App() {
           </div>
           <nav className="sidebar-nav">
             {[
-              { id: 'all', icon: <Files size={18} />, label: '本地' },
-              { id: 'starred', icon: <Star size={18} />, label: '收藏' },
-              { id: 'trash', icon: <Trash2 size={18} />, label: '回收站' },
+              { id: 'all', icon: <Files size={18} />, label: t('app.nav.local') },
+              {
+                id: 'starred',
+                icon: <Star size={18} />,
+                label: t('app.nav.favorites'),
+              },
+              {
+                id: 'trash',
+                icon: <Trash2 size={18} />,
+                label: t('app.nav.trash'),
+              },
             ].map(item => (
               <button
                 key={item.id}
@@ -919,7 +948,7 @@ export default function App() {
               type="text"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              placeholder="搜索..."
+              placeholder={t('app.search.placeholder')}
             />
             {searchQuery && (
               <button onClick={() => setSearchQuery('')}>
@@ -932,7 +961,7 @@ export default function App() {
               onClick={handleEmptyTrash}
               className="btn btn-sm btn-empty-trash"
             >
-              清空回收站
+              {t('app.emptyTrash')}
             </button>
           )}
           <button onClick={() => transferPanel.open()} className="btn btn-icon">
@@ -975,7 +1004,7 @@ export default function App() {
               className="action-card-input"
             />
             <Upload size={20} className="action-grid-icon" />
-            <p>发布文件</p>
+            <p>{t('app.publishFile')}</p>
           </div>
           <div
             className="action-card action-card-download"
@@ -985,7 +1014,7 @@ export default function App() {
             }}
           >
             <Download size={20} className="action-grid-icon" />
-            <p>下载文件</p>
+            <p>{t('app.downloadFile')}</p>
           </div>
         </div>
       )}
@@ -994,7 +1023,9 @@ export default function App() {
         <div className="breadcrumb">
           {currentPath ? (
             <>
-              <button onClick={() => handleNavigate('')}>全部内容</button>
+              <button onClick={() => handleNavigate('')}>
+                {t('app.allContent')}
+              </button>
               {breadcrumbParts.slice(1).map((part, i) => (
                 <React.Fragment key={part.path}>
                   <ChevronRight size={12} />
@@ -1004,7 +1035,7 @@ export default function App() {
                       i === breadcrumbParts.length - 2 ? 'current' : ''
                     }
                   >
-                    {part.name}
+                    <span translate="no">{part.name}</span>
                   </button>
                   {i === breadcrumbParts.length - 2 && (
                     <button
@@ -1025,8 +1056,8 @@ export default function App() {
         {currentView === 'trash' &&
           (displayFiles.length === 0 ? (
             <div className="empty-state app-empty-state">
-              <p>{searchQuery ? '未找到相关文件' : '回收站是空的'}</p>
-              <OpenSidebarButton label="打开文件导航" />
+              <p>{searchQuery ? t('app.noMatches') : t('app.trashEmpty')}</p>
+              <OpenSidebarButton label={t('app.openFileNavigation')} />
             </div>
           ) : (
             <div className="file-grid">
@@ -1046,8 +1077,14 @@ export default function App() {
                   <div className="card-icon trash">
                     <FileText size={24} color="#fff" />
                   </div>
-                  <p className="card-name">{parseName(f.fileName).name}</p>
-                  <p className="card-date">删除于 {formatDate(f.deletedAt)}</p>
+                  <p className="card-name" translate="no">
+                    {parseName(f.fileName).name}
+                  </p>
+                  <p className="card-date">
+                    {t('app.deletedOn', {
+                      date: formatOptionalDate(f.deletedAt),
+                    })}
+                  </p>
                 </div>
               ))}
             </div>
@@ -1058,12 +1095,12 @@ export default function App() {
             <div className="empty-state app-empty-state">
               <p>
                 {searchQuery
-                  ? '未找到相关文件'
+                  ? t('app.noMatches')
                   : currentView === 'starred'
-                    ? '暂无的收藏'
-                    : '暂无本地文件'}
+                    ? t('app.noFavorites')
+                    : t('app.noLocalFiles')}
               </p>
-              <OpenSidebarButton label="打开文件导航" />
+              <OpenSidebarButton label={t('app.openFileNavigation')} />
             </div>
           ) : (
             <div className="file-grid">
@@ -1082,7 +1119,7 @@ export default function App() {
                   onSelect={handleSelect}
                   onPreview={file => {
                     if (file.localAvailable === false) {
-                      addToast('文件尚未保存在本机，请先拉取到本机', 'warning')
+                      addToast(t('app.toast.fileNotLocal'), 'warning')
                       return
                     }
                     setPreviewItem({
@@ -1138,7 +1175,7 @@ export default function App() {
         <ModalOverlay onClose={() => setShareItem(null)}>
           <div className="share-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>分享链接</h3>
+              <h3>{t('app.shareLink')}</h3>
               <button
                 onClick={() => setShareItem(null)}
                 className="btn btn-icon"
@@ -1147,7 +1184,7 @@ export default function App() {
               </button>
             </div>
             <div className="share-link-box">
-              <div className="share-link-text">
+              <div className="share-link-text" translate="no">
                 {`most://${shareItem.cid}?filename=${encodeURIComponent(shareItem.fileName)}`}
               </div>
               <button
@@ -1158,7 +1195,7 @@ export default function App() {
               </button>
             </div>
             <div className="share-storage-note">
-              <span>本机在线时可下载；下载者完成后会默认继续做种。</span>
+              <span>{t('app.shareSeedNote')}</span>
             </div>
           </div>
         </ModalOverlay>
@@ -1168,7 +1205,7 @@ export default function App() {
         <ModalOverlay onClose={closeDownloadModal}>
           <div className="download-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>下载文件</h3>
+              <h3>{t('app.downloadFile')}</h3>
               <button onClick={closeDownloadModal} className="btn btn-icon">
                 <X size={18} />
               </button>
@@ -1179,7 +1216,7 @@ export default function App() {
                 className="input"
                 value={downloadLink}
                 onChange={handleDownloadLinkChange}
-                placeholder="输入 most:// 链接"
+                placeholder={t('app.downloadLink.placeholder')}
               />
               <button
                 type="button"
@@ -1197,10 +1234,10 @@ export default function App() {
                   <Search size={14} />
                 )}
                 {isCheckingDownload
-                  ? '检测中...'
+                  ? t('app.checking')
                   : isDownloadReady
-                    ? '已通过'
-                    : '检测'}
+                    ? t('app.passed')
+                    : t('app.check')}
               </button>
             </div>
             {downloadCheckResult && (
@@ -1225,7 +1262,7 @@ export default function App() {
               ) : (
                 <Download size={14} />
               )}
-              {isDownloading ? '下载中...' : '开始下载'}
+              {isDownloading ? t('app.downloading') : t('app.startDownload')}
             </button>
           </div>
         </ModalOverlay>
@@ -1242,7 +1279,9 @@ export default function App() {
 
       {selectedIds.length > 0 && (
         <div className="batch-bar">
-          <span className="batch-info">已选 {selectedIds.length} 项</span>
+          <span className="batch-info">
+            {t('app.selectedItems', { count: selectedIds.length })}
+          </span>
           <button onClick={() => setSelectedIds([])} className="batch-dismiss">
             <X size={16} />
           </button>
@@ -1257,19 +1296,19 @@ export default function App() {
                     selectedIds.map(cid => API.restoreTrashFile(cid))
                   )
                   setSelectedIds([])
-                  addToast('已恢复', 'success')
+                  addToast(t('app.toast.restored'), 'success')
                   refreshFiles()
                   refreshTrash()
                 }}
                 className="btn btn-sm"
               >
-                恢复
+                {t('app.restore')}
               </button>
               <button
                 onClick={handleBatchDelete}
                 className="btn btn-sm btn-danger"
               >
-                永久删除
+                {t('app.permanentDelete')}
               </button>
             </>
           ) : (
@@ -1284,10 +1323,7 @@ export default function App() {
                       const file = items.find(i => i.cid === selectedIds[0])
                       if (file) {
                         if (file.localAvailable === false) {
-                          addToast(
-                            '文件尚未保存在本机，请先拉取到本机',
-                            'warning'
-                          )
+                          addToast(t('app.toast.fileNotLocal'), 'warning')
                           return
                         }
                         const subtype = getFileSubtype(file.fileName)
@@ -1296,7 +1332,7 @@ export default function App() {
                     }}
                     className="btn btn-sm"
                   >
-                    预览
+                    {t('app.preview')}
                   </button>
                 )}
               <button
@@ -1314,7 +1350,7 @@ export default function App() {
                 }}
                 className="btn btn-sm btn-star"
               >
-                收藏
+                {t('app.favorite')}
               </button>
               {selectedIds.length === 1 && (
                 <button
@@ -1326,20 +1362,20 @@ export default function App() {
                   }}
                   className="btn btn-sm"
                 >
-                  重命名
+                  {t('app.rename')}
                 </button>
               )}
               <button
                 onClick={() => moveModal.open()}
                 className="btn btn-sm btn-move"
               >
-                移动
+                {t('app.move')}
               </button>
               <button
                 onClick={handleBatchDelete}
                 className="btn btn-sm btn-danger"
               >
-                删除
+                {t('app.delete')}
               </button>
               {selectedIds.length === 1 &&
                 (() => {
@@ -1353,7 +1389,7 @@ export default function App() {
                     }}
                     className="btn btn-sm"
                   >
-                    拉取到本机
+                    {t('app.pullToLocal')}
                   </button>
                 )}
               {selectedIds.length === 1 && (
@@ -1363,7 +1399,7 @@ export default function App() {
                   }
                   className="btn btn-sm"
                 >
-                  分享
+                  {t('app.share')}
                 </button>
               )}
               {selectedIds.length === 1 && (
@@ -1374,7 +1410,7 @@ export default function App() {
                   }}
                   className="btn btn-sm"
                 >
-                  另存为
+                  {t('app.saveAs')}
                 </button>
               )}
             </>
@@ -1388,7 +1424,7 @@ export default function App() {
         >
           <div className="transfer-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>传输</h3>
+              <h3>{t('app.transfers')}</h3>
               <button
                 onClick={() => transferPanel.close()}
                 className="btn btn-icon"
@@ -1397,20 +1433,23 @@ export default function App() {
               </button>
             </div>
             {transfers.length === 0 ? (
-              <div className="empty-transfer">暂无传输</div>
+              <div className="empty-transfer">{t('app.noTransfers')}</div>
             ) : (
-              transfers.map(t => (
-                <div key={t.id} className="transfer-item">
+              transfers.map(transfer => (
+                <div key={transfer.id} className="transfer-item">
                   <div className="transfer-item-header">
-                    {t.type === 'upload' ? (
+                    {transfer.type === 'upload' ? (
                       <Upload size={14} />
                     ) : (
                       <Download size={14} />
                     )}
-                    <span className="transfer-item-name">{t.fileName}</span>
-                    {t.status === 'downloading' && t.type === 'download' && (
+                    <span className="transfer-item-name" translate="no">
+                      {transfer.fileName}
+                    </span>
+                    {transfer.status === 'downloading' &&
+                      transfer.type === 'download' && (
                       <button
-                        onClick={() => handleCancelTransfer(t)}
+                        onClick={() => handleCancelTransfer(transfer)}
                         className="transfer-item-cancel"
                       >
                         <X size={14} />
@@ -1419,23 +1458,25 @@ export default function App() {
                   </div>
                   <div className="transfer-progress-row">
                     <progress
-                      className={`transfer-progress-meter ${t.type === 'download' ? 'download' : ''} ${t.status === 'error' ? 'error' : ''} ${t.status === 'cancelled' ? 'cancelled' : ''}`}
-                      value={Math.max(0, Math.min(100, t.progress))}
+                      className={`transfer-progress-meter ${transfer.type === 'download' ? 'download' : ''} ${transfer.status === 'error' ? 'error' : ''} ${transfer.status === 'cancelled' ? 'cancelled' : ''}`}
+                      value={Math.max(0, Math.min(100, transfer.progress))}
                       max={100}
-                      aria-label={`${t.fileName} 传输进度`}
+                      aria-label={t('app.transferProgress', {
+                        fileName: transfer.fileName,
+                      })}
                     />
                     <span className="transfer-progress-text">
-                      {t.status === 'completed'
-                        ? '完成'
-                        : t.status === 'error'
-                          ? '失败'
-                          : t.status === 'cancelled'
-                            ? '已取消'
-                            : t.status === 'cancelling'
-                              ? '取消中'
-                              : t.loaded && t.total
-                                ? `${formatSize(t.loaded)}/${formatSize(t.total)}`
-                                : `${t.progress}%`}
+                      {transfer.status === 'completed'
+                        ? t('app.completed')
+                        : transfer.status === 'error'
+                          ? t('app.failed')
+                          : transfer.status === 'cancelled'
+                            ? t('app.cancelled')
+                            : transfer.status === 'cancelling'
+                              ? t('app.cancelling')
+                              : transfer.loaded && transfer.total
+                                ? `${formatSize(transfer.loaded)}/${formatSize(transfer.total)}`
+                                : `${transfer.progress}%`}
                     </span>
                   </div>
                 </div>

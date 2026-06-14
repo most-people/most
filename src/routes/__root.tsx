@@ -25,6 +25,7 @@ import {
 import { ErrorBoundary } from '~/app/error-boundary'
 import NotFoundPage from '~/app/not-found'
 import AppGlobals from '~/components/AppGlobals'
+import { I18nProvider } from '~/lib/i18n'
 
 export const Route = createRootRoute({
   head: () => ({
@@ -44,13 +45,15 @@ export const Route = createRootRoute({
 function RootRoute() {
   return (
     <RootDocument>
-      <ErrorBoundary>
-        <ClientOnly>
-          <AppGlobals />
-        </ClientOnly>
-        <GlobalErrorHandler />
-        <Outlet />
-      </ErrorBoundary>
+      <I18nProvider>
+        <ErrorBoundary>
+          <ClientOnly>
+            <AppGlobals />
+          </ClientOnly>
+          <GlobalErrorHandler />
+          <Outlet />
+        </ErrorBoundary>
+      </I18nProvider>
     </RootDocument>
   )
 }
@@ -68,6 +71,10 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
                 if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
                   document.documentElement.setAttribute('data-theme', 'dark');
                 }
+                var locale = localStorage.getItem('mostbox.locale') || localStorage.getItem('mostbox.language');
+                var normalizedLocale = locale === 'en' ? 'en' : 'zh-CN';
+                document.documentElement.setAttribute('lang', normalizedLocale);
+                document.documentElement.setAttribute('data-locale', normalizedLocale);
               })();
             `,
           }}

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { FileText, Loader, Music, X } from 'lucide-react'
 import type { FileSubtype } from '~/lib/filePreview'
+import { useI18n } from '~/lib/i18n'
 import { getApiRequestHeaders } from '~/server/src/utils/api'
 
 export interface FilePreviewItem {
@@ -26,6 +27,7 @@ export default function FilePreviewOverlay({
   getFileDownloadUrl,
   onClose,
 }: FilePreviewOverlayProps) {
+  const { t } = useI18n()
   const [previewText, setPreviewText] = useState('')
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewBlobUrl, setPreviewBlobUrl] = useState('')
@@ -39,7 +41,7 @@ export default function FilePreviewOverlay({
     setPreviewError('')
 
     if (!isBackendReady) {
-      setPreviewText('加载失败')
+      setPreviewText(t('preview.loadFailed'))
       return
     }
 
@@ -55,11 +57,11 @@ export default function FilePreviewOverlay({
             Range: 'bytes=0-9999',
           },
         })
-        if (!res.ok) throw new Error('加载失败')
+        if (!res.ok) throw new Error(t('preview.loadFailed'))
         const text = await res.text()
-        if (!cancelled) setPreviewText(text || '（文件为空）')
+        if (!cancelled) setPreviewText(text || t('preview.emptyFile'))
       } catch {
-        if (!cancelled) setPreviewText('加载失败')
+        if (!cancelled) setPreviewText(t('preview.loadFailed'))
       } finally {
         if (!cancelled) setPreviewLoading(false)
       }
@@ -80,7 +82,7 @@ export default function FilePreviewOverlay({
     setPreviewError('')
 
     if (!isBackendReady) {
-      setPreviewError('加载失败')
+      setPreviewError(t('preview.loadFailed'))
       return
     }
 
@@ -94,12 +96,12 @@ export default function FilePreviewOverlay({
             `/api/files/${item.cid}/download`
           ),
         })
-        if (!res.ok) throw new Error('加载失败')
+        if (!res.ok) throw new Error(t('preview.loadFailed'))
         const url = URL.createObjectURL(await res.blob())
         revokedUrl = url
         if (!cancelled) setPreviewBlobUrl(url)
       } catch {
-        if (!cancelled) setPreviewError('加载失败')
+        if (!cancelled) setPreviewError(t('preview.loadFailed'))
       }
     })()
 
@@ -115,7 +117,7 @@ export default function FilePreviewOverlay({
         type="button"
         className="preview-close"
         onClick={onClose}
-        aria-label="关闭预览"
+      aria-label={t('preview.close')}
       >
         <X size={20} />
       </button>
@@ -123,11 +125,11 @@ export default function FilePreviewOverlay({
         {item.subtype === 'image' && (
           <div className="preview-media-wrapper">
             {previewBlobUrl ? (
-              <img src={previewBlobUrl} alt={item.fileName} />
+              <img src={previewBlobUrl} alt={item.fileName} translate="no" />
             ) : previewError ? (
               <div className="preview-unsupported">
                 <FileText size={48} className="preview-file-icon" />
-                <p>{item.fileName}</p>
+                <p translate="no">{item.fileName}</p>
                 <p className="preview-unsupported-hint">{previewError}</p>
               </div>
             ) : (
@@ -144,7 +146,7 @@ export default function FilePreviewOverlay({
             ) : previewError ? (
               <div className="preview-unsupported">
                 <FileText size={48} className="preview-file-icon" />
-                <p>{item.fileName}</p>
+                <p translate="no">{item.fileName}</p>
                 <p className="preview-unsupported-hint">{previewError}</p>
               </div>
             ) : (
@@ -159,7 +161,9 @@ export default function FilePreviewOverlay({
             <div className="preview-audio-icon">
               <Music size={36} color="var(--accent)" />
             </div>
-            <p className="preview-audio-filename">{item.fileName}</p>
+            <p className="preview-audio-filename" translate="no">
+              {item.fileName}
+            </p>
             {previewBlobUrl ? (
               <audio
                 className="preview-audio-player"
@@ -173,7 +177,7 @@ export default function FilePreviewOverlay({
                 ) : (
                   <>
                     <Loader size={24} className="preview-text-spinner" />
-                    <p>正在加载音频预览...</p>
+                    <p>{t('preview.audioLoading')}</p>
                   </>
                 )}
               </div>
@@ -183,25 +187,29 @@ export default function FilePreviewOverlay({
         {item.subtype === 'file' && (
           <div className="preview-unsupported">
             <FileText size={48} className="preview-file-icon" />
-            <p>{item.fileName}</p>
-            <p className="preview-unsupported-hint">无法预览</p>
+            <p translate="no">{item.fileName}</p>
+            <p className="preview-unsupported-hint">
+              {t('preview.unsupported')}
+            </p>
           </div>
         )}
         {item.subtype === 'text' && (
           <div className="preview-text-container">
             <div className="preview-text-header">
-              <span>{item.fileName}</span>
+              <span translate="no">{item.fileName}</span>
             </div>
             {previewLoading ? (
               <div className="preview-text-loading">
                 <Loader size={24} className="preview-text-spinner" />
-                <p>正在加载文本预览...</p>
+                <p>{t('preview.textLoading')}</p>
                 <p className="preview-text-loading-hint">
-                  如果是初次预览，可能需要等待 P2P 网络同步
+                  {t('preview.firstSyncHint')}
                 </p>
               </div>
             ) : (
-              <pre className="preview-text">{previewText || '（文件为空）'}</pre>
+              <pre className="preview-text" translate="no">
+                {previewText || t('preview.emptyFile')}
+              </pre>
             )}
           </div>
         )}

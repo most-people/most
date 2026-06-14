@@ -8,7 +8,9 @@ import React, {
 } from 'react'
 import { useMediaQuery } from '@mantine/hooks'
 import { Menu } from 'lucide-react'
+import { LanguageToggle } from '~/components/LanguageToggle'
 import { useDisclosure } from '~/hooks'
+import { useI18n } from '~/lib/i18n'
 
 type CloseSidebarOptions = {
   collapse?: boolean
@@ -56,6 +58,7 @@ export default function AppShell({
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(defaultHide)
   const previousDefaultHideRef = useRef(defaultHide)
   const isMobile = useMediaQuery('(max-width: 768px)')
+  const { t } = useI18n()
 
   const handleCloseSidebar = useCallback<CloseSidebar>(
     (options = {}) => {
@@ -127,10 +130,10 @@ export default function AppShell({
                   className="btn btn-icon sidebar-toggle-btn"
                   aria-label={
                     isMobile
-                      ? '打开菜单'
+                      ? t('appShell.openMenu')
                       : isSidebarCollapsed
-                        ? '展开侧边栏'
-                        : '收起侧边栏'
+                        ? t('appShell.expandSidebar')
+                        : t('appShell.collapseSidebar')
                   }
                 >
                   <Menu size={16} />
@@ -138,7 +141,10 @@ export default function AppShell({
               )}
               {headerTitle}
             </div>
-            <div className="header-right">{headerRight}</div>
+            <div className="header-right">
+              <LanguageToggle className="btn btn-icon app-language-toggle" />
+              {headerRight}
+            </div>
           </header>
 
           {children}

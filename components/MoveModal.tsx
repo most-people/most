@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Folder, X } from 'lucide-react'
 import { ModalOverlay } from '~/components/ui'
+import { useI18n } from '~/lib/i18n'
 
 interface MoveItem {
   cid: string
@@ -20,10 +21,10 @@ interface MoveModalProps {
   onClose: () => void
 }
 
-function generateBreadcrumbs(currentPath: string) {
+function generateBreadcrumbs(currentPath: string, rootName: string) {
   if (!currentPath) return []
   return [
-    { path: '', name: '全部内容' },
+    { path: '', name: rootName },
     ...currentPath
       .split('/')
       .filter(Boolean)
@@ -43,8 +44,9 @@ export function MoveModal({
 }: MoveModalProps) {
   const [targetPath, setTargetPath] = useState('')
   const [customPath, setCustomPath] = useState(currentPath)
+  const { t } = useI18n()
 
-  const breadcrumbParts = generateBreadcrumbs(targetPath)
+  const breadcrumbParts = generateBreadcrumbs(targetPath, t('move.root'))
 
   function handleConfirm() {
     const finalPath = targetPath || customPath.trim()
@@ -65,22 +67,25 @@ export function MoveModal({
     <ModalOverlay onClose={onClose}>
       <div className="move-modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <h3>移动到</h3>
+          <h3>{t('move.title')}</h3>
           <button type="button" onClick={onClose} className="btn btn-icon">
             <X size={18} />
           </button>
         </div>
-        <p className="move-modal-desc">已选 {items.length} 个项目</p>
+        <p className="move-modal-desc">
+          {t('move.selectedCount', { count: items.length })}
+        </p>
         <div className="move-new-folder">
           <input
             type="text"
             className="input"
             value={customPath}
             onChange={e => setCustomPath(e.target.value)}
-            placeholder="输入路径创建嵌套文件夹"
+            placeholder={t('move.pathPlaceholder')}
+            translate="no"
           />
         </div>
-        <p className="move-modal-hint">如 图片/壁纸</p>
+        <p className="move-modal-hint">{t('move.pathExample')}</p>
         <div className="move-breadcrumb">
           {breadcrumbParts.map((part, i) => (
             <React.Fragment key={part.path}>
@@ -95,14 +100,14 @@ export function MoveModal({
                   targetPath === part.path && !customPath ? 'active' : ''
                 }`}
               >
-                {part.name}
+                <span translate={part.path ? 'no' : 'yes'}>{part.name}</span>
               </button>
             </React.Fragment>
           ))}
         </div>
         <div className="move-folder-list">
           {visibleFolders.length === 0 && (
-            <p className="move-modal-empty">该目录下没有子文件夹</p>
+            <p className="move-modal-empty">{t('move.noSubfolders')}</p>
           )}
           {visibleFolders.map(folder => (
             <button
@@ -114,20 +119,20 @@ export function MoveModal({
               }`}
             >
               <Folder size={16} />
-              <span>{folder.name}</span>
+              <span translate="no">{folder.name}</span>
             </button>
           ))}
         </div>
         <div className="modal-actions">
           <button type="button" onClick={onClose} className="btn btn-secondary">
-            取消
+            {t('common.cancel')}
           </button>
           <button
             type="button"
             onClick={handleConfirm}
             className="btn btn-primary"
           >
-            移动
+            {t('move.action')}
           </button>
         </div>
       </div>

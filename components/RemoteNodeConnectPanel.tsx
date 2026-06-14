@@ -9,6 +9,7 @@ import {
   getRemoteBackendUrlExport,
   setBackendUrl,
 } from '~/server/src/utils/api'
+import { useI18n } from '~/lib/i18n'
 
 interface RemoteNodeConnectPanelProps {
   variant?: 'page' | 'drawer'
@@ -36,15 +37,17 @@ export default function RemoteNodeConnectPanel({
   const [remoteUrl, setRemoteUrl] = useState(remoteBackendUrl)
   const [remoteInvite, setRemoteInvite] = useState(getBackendInviteExport())
   const [isConnecting, setIsConnecting] = useState(false)
-  const title = remoteBackendUrl ? '修改远程节点' : '连接远程节点'
-  const hint =
-    'Web 端只连接已有 MostBox 节点。输入别人部署好的节点地址和邀请码后，可通过该节点使用文件分享和聊天；本机完整 P2P 能力请使用桌面客户端。'
+  const { t } = useI18n()
+  const title = remoteBackendUrl
+    ? t('remote.title.edit')
+    : t('remote.title.connect')
+  const hint = t('remote.hint')
   const isPage = variant === 'page'
 
   async function handleConnectRemote() {
     const nextRemoteUrl = normalizeRemoteUrlInput(remoteUrl)
     if (!isHttpUrl(nextRemoteUrl)) {
-      addToast('请输入有效的 http(s) 节点地址', 'warning')
+      addToast(t('remote.error.invalidUrl'), 'warning')
       return
     }
     setIsConnecting(true)
@@ -55,11 +58,11 @@ export default function RemoteNodeConnectPanel({
       })
       if (!ok) {
         if (reason === 'http') {
-          addToast('远程节点 HTTP 不可达，请检查地址', 'error')
+          addToast(t('remote.error.http'), 'error')
         } else if (reason === 'ws') {
-          addToast('远程节点 WebSocket 不可达，请检查地址或代理配置', 'error')
+          addToast(t('remote.error.ws'), 'error')
         } else {
-          addToast('远程节点连接失败，请检查地址和邀请码', 'error')
+          addToast(t('remote.error.failed'), 'error')
         }
         return
       }
@@ -67,9 +70,9 @@ export default function RemoteNodeConnectPanel({
       setRemoteUrl(nextRemoteUrl)
       setBackendUrl(nextRemoteUrl)
       useAppStore.setState({ hasBackend: true })
-      addToast('远程节点已连接', 'success')
+      addToast(t('remote.connected'), 'success')
     } catch {
-      addToast('远程节点连接失败', 'error')
+      addToast(t('remote.connectFailed'), 'error')
     } finally {
       setIsConnecting(false)
     }
@@ -80,7 +83,7 @@ export default function RemoteNodeConnectPanel({
     setRemoteUrl('')
     setRemoteInvite('')
     await checkBackend()
-    addToast('已清除远程节点，优先使用本地节点', 'success')
+    addToast(t('remote.cleared'), 'success')
   }
 
   return (
@@ -112,7 +115,7 @@ export default function RemoteNodeConnectPanel({
         />
         <input
           className="input input-compact"
-          placeholder="邀请码"
+          placeholder={t('remote.invite.placeholder')}
           value={remoteInvite}
           onChange={event => setRemoteInvite(event.target.value)}
         />
@@ -123,10 +126,10 @@ export default function RemoteNodeConnectPanel({
         >
           <Server size={16} />
           {isConnecting
-            ? '连接中...'
+            ? t('remote.connecting')
             : remoteBackendUrl
-              ? '更新连接'
-              : '连接节点'}
+              ? t('remote.updateConnection')
+              : t('remote.connectNode')}
         </button>
         {remoteBackendUrl && (
           <button
@@ -135,13 +138,13 @@ export default function RemoteNodeConnectPanel({
             disabled={isConnecting}
           >
             <Unplug size={16} />
-            断开连接
+            {t('remote.disconnect')}
           </button>
         )}
       </div>
       {remoteBackendUrl && (
         <p className={isPage ? 'remote-node-status' : 'drawer-status'}>
-          当前远程节点：{remoteBackendUrl}
+          {t('remote.currentNode', { url: remoteBackendUrl })}
         </p>
       )}
     </div>

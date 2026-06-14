@@ -128,14 +128,14 @@ export function NoteMoveModal({
         </div>
         <div className="note-move-target">
           <span>正在移动</span>
-          <strong>{target.name}</strong>
+          <strong translate="no">{target.name}</strong>
         </div>
         <div className="note-move-path">
           {selectedBreadcrumbs.map((part, index) => (
             <React.Fragment key={part.path || 'root'}>
               {index > 0 && <span>/</span>}
               <button type="button" onClick={() => selectPath(part.path)}>
-                {part.label}
+                <span translate={part.path ? 'no' : 'yes'}>{part.label}</span>
               </button>
             </React.Fragment>
           ))}
@@ -176,8 +176,10 @@ export function NoteMoveModal({
                     <span className="note-move-folder-spacer" />
                   )}
                   <Folder className="note-move-folder-icon" size={16} />
-                  <span>{directory.name}</span>
-                  {directory.parentPath && <small>{directory.parentPath}</small>}
+                  <span translate="no">{directory.name}</span>
+                  {directory.parentPath && (
+                    <small translate="no">{directory.parentPath}</small>
+                  )}
                 </button>
               )
             })
@@ -188,6 +190,7 @@ export function NoteMoveModal({
           value={customPath}
           onChange={event => setCustomPath(event.target.value)}
           placeholder="或输入新目录路径，如 文章/摘录"
+          translate="no"
         />
         <div className="note-move-destination">
           目标位置：{finalPath || '全部笔记'}

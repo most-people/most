@@ -14,6 +14,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { ActionMenu } from '~/components/ui'
+import { useI18n, type MessageKey } from '~/lib/i18n'
 
 export type ChatMessageVariant = 'self' | 'other'
 
@@ -26,30 +27,39 @@ export type ChannelMemberView = {
 const ATTACHMENT_MENU_OPTIONS = [
   {
     key: 'image',
-    label: '图片',
+    labelKey: 'chat.attachment.image',
     accept: 'image/*',
     icon: ImageIcon,
   },
   {
     key: 'video',
-    label: '视频',
+    labelKey: 'chat.attachment.video',
     accept: 'video/*',
     icon: Film,
   },
   {
     key: 'file',
-    label: '文件',
+    labelKey: 'chat.attachment.file',
     accept: '',
     icon: FileText,
   },
-] as const
+] as const satisfies ReadonlyArray<{
+  key: string
+  labelKey: MessageKey
+  accept: string
+  icon: typeof ImageIcon
+}>
 
 const DEFAULT_ATTACHMENT_ACCEPT = ATTACHMENT_MENU_OPTIONS.map(
   option => option.accept
 ).join(',')
 
 export function ChatTextBubble({ children }: { children: ReactNode }) {
-  return <div className="message-bubble">{children}</div>
+  return (
+    <div className="message-bubble" translate="no">
+      {children}
+    </div>
+  )
 }
 
 export function ChatAttachmentBubble({ children }: { children: ReactNode }) {
@@ -79,7 +89,9 @@ export function ChatMessageItem({
     <div className={className}>
       <img className="msg-avatar" src={avatarSrc} alt="avatar" />
       <div className="msg-content">
-        <span className="message-author">{author}</span>
+        <span className="message-author" translate="no">
+          {author}
+        </span>
         {children}
         <span className="message-time">{time}</span>
       </div>
@@ -106,6 +118,7 @@ export function ChatChannelNavItem({
   onRename?: () => void
   onLeave?: () => void
 }) {
+  const { t } = useI18n()
   const hasActions = Boolean(onTogglePin || onRename || onLeave)
   const className = [
     'sidebar-nav-btn',
@@ -133,35 +146,37 @@ export function ChatChannelNavItem({
         {unread && (
           <span
             className="chat-channel-unread-dot"
-            title="有新消息"
+            title={t('chat.unread')}
             aria-hidden="true"
           />
         )}
       </span>
       <span className="chat-channel-title">
-        <span className="chat-channel-title-text">{title}</span>
+        <span className="chat-channel-title-text" translate="no">
+          {title}
+        </span>
       </span>
       {hasActions && (
         <ActionMenu
-          ariaLabel="频道操作"
+          ariaLabel={t('chat.channelActions')}
           className="channel-actions-anchor"
           placement="bottom-end"
           items={[
             {
               key: 'pin',
-              label: pinned ? '取消置顶' : '置顶',
+              label: pinned ? t('chat.unpin') : t('chat.pin'),
               icon: pinned ? <PinOff size={16} /> : <Pin size={16} />,
               onSelect: () => onTogglePin?.(),
             },
             {
               key: 'rename',
-              label: '重命名',
+              label: t('chat.rename'),
               icon: <Edit2 size={16} />,
               onSelect: () => onRename?.(),
             },
             {
               key: 'delete',
-              label: '删除',
+              label: t('chat.delete'),
               icon: <Trash2 size={16} />,
               onSelect: () => onLeave?.(),
             },
@@ -170,8 +185,8 @@ export function ChatChannelNavItem({
             <button
               {...triggerProps}
               className="leave-channel-btn channel-actions-trigger"
-              title="更多操作"
-              aria-label="更多操作"
+              title={t('common.moreActions')}
+              aria-label={t('common.moreActions')}
             >
               <MoreHorizontal size={16} />
             </button>
@@ -189,16 +204,22 @@ export function ChannelMemberGrid({
   members: ChannelMemberView[]
   isLoading?: boolean
 }) {
+  const { t } = useI18n()
+
   if (isLoading && members.length === 0) {
     return (
       <div className="ui-empty-inline channel-members-empty">
-        正在读取成员...
+        {t('chat.loadingMembers')}
       </div>
     )
   }
 
   if (members.length === 0) {
-    return <div className="ui-empty-inline channel-members-empty">暂无成员</div>
+    return (
+      <div className="ui-empty-inline channel-members-empty">
+        {t('chat.noMembers')}
+      </div>
+    )
   }
 
   return (
@@ -210,7 +231,9 @@ export function ChannelMemberGrid({
             src={member.avatarSrc}
             alt="avatar"
           />
-          <span className="channel-member-name">{member.name}</span>
+          <span className="channel-member-name" translate="no">
+            {member.name}
+          </span>
         </div>
       ))}
     </div>
@@ -222,7 +245,7 @@ export function ChatComposer({
   placeholder,
   disabled = false,
   isPublishingAttachment = false,
-  attachmentButtonTitle = '添加附件',
+  attachmentButtonTitle,
   attachmentInputRef,
   onMessageChange,
   onSend,
@@ -238,8 +261,10 @@ export function ChatComposer({
   onSend: () => void
   onSelectAttachmentFiles?: (files: FileList | null) => void
 }) {
+  const { t } = useI18n()
   const toolsDisabled = disabled || isPublishingAttachment
   const sendDisabled = disabled || !message.trim()
+  const attachmentTitle = attachmentButtonTitle || t('chat.attachment.add')
 
   function handleFileInput(
     event: ChangeEvent<HTMLInputElement>,
@@ -271,14 +296,14 @@ export function ChatComposer({
         onChange={event => handleFileInput(event, onSelectAttachmentFiles)}
       />
       <ActionMenu
-        ariaLabel="附件类型"
+        ariaLabel={t('chat.attachmentType')}
         placement="top-start"
         disabled={toolsDisabled}
         items={ATTACHMENT_MENU_OPTIONS.map(option => {
           const Icon = option.icon
           return {
             key: option.key,
-            label: option.label,
+            label: t(option.labelKey),
             icon: <Icon size={16} />,
             onSelect: () => openAttachmentPicker(option.accept),
           }
@@ -287,7 +312,7 @@ export function ChatComposer({
           <button
             {...triggerProps}
             className="btn btn-circle chat-tool-btn"
-            aria-label={attachmentButtonTitle}
+            aria-label={attachmentTitle}
           >
             {isPublishingAttachment ? (
               <Loader
@@ -314,7 +339,7 @@ export function ChatComposer({
         className="btn btn-circle btn-primary send-btn"
         onClick={onSend}
         disabled={sendDisabled}
-        title="发送消息"
+        title={t('chat.sendMessage')}
       >
         <ArrowRight size={18} />
       </button>

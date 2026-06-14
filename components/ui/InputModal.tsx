@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { X } from 'lucide-react'
 import { ModalOverlay } from '~/components/ui/ModalOverlay'
+import { useI18n } from '~/lib/i18n'
 
 interface InputModalProps {
   title: string
@@ -27,6 +28,7 @@ export function InputModal({
   validate,
   allowEmpty = false,
 }: InputModalProps) {
+  const { t } = useI18n()
   const [value, setValue] = useState(defaultValue || '')
   const trimmedValue = value.trim()
   const validationError = trimmedValue && validate ? validate(trimmedValue) : ''
@@ -71,14 +73,14 @@ export function InputModal({
             disabled={isLoading}
             className="btn btn-secondary"
           >
-            取消
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleConfirm}
             disabled={!canConfirm}
             className={`btn btn-primary ${isLoading ? 'btn-loading' : ''}`}
           >
-            {isLoading ? loadingText || '处理中...' : confirmText}
+            {isLoading ? loadingText || t('common.processing') : confirmText}
           </button>
         </div>
       </div>

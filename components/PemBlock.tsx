@@ -40,7 +40,13 @@ export function PemBlock({ label, pem, filename }: PemBlockProps) {
           </button>
         </div>
       </div>
-      <textarea className="textarea mono" value={pem} readOnly rows={6} />
+      <textarea
+        className="textarea mono"
+        value={pem}
+        readOnly
+        rows={6}
+        translate="no"
+      />
     </div>
   )
 }

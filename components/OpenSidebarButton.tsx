@@ -1,5 +1,6 @@
 import { PanelLeftOpen } from 'lucide-react'
 import { useAppShell } from '~/components/AppShell'
+import { useI18n } from '~/lib/i18n'
 
 interface OpenSidebarButtonProps {
   label?: string
@@ -8,12 +9,14 @@ interface OpenSidebarButtonProps {
 }
 
 export default function OpenSidebarButton({
-  label = '打开侧边栏',
+  label,
   className = '',
   variant = 'primary',
 }: OpenSidebarButtonProps) {
   const { isSidebarVisible, openSidebar } = useAppShell()
+  const { t } = useI18n()
   const variantClass = variant === 'primary' ? 'btn-primary' : ''
+  const buttonLabel = label || t('appShell.openSidebar')
 
   if (isSidebarVisible) return null
 
@@ -24,7 +27,7 @@ export default function OpenSidebarButton({
       onClick={openSidebar}
     >
       <PanelLeftOpen size={16} />
-      {label}
+      {buttonLabel}
     </button>
   )
 }

@@ -1,6 +1,10 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
+import path from 'node:path'
+import { Buffer } from 'node:buffer'
+import { fileURLToPath } from 'node:url'
+import { build } from 'esbuild'
 
 import {
   getDownloadCheckErrorMessageFromPayload,
@@ -9,6 +13,46 @@ import {
 
 function readSource(path) {
   return fs.readFileSync(new URL(`../../${path}`, import.meta.url), 'utf-8')
+}
+
+const repoRootPath = fileURLToPath(new URL('../../', import.meta.url))
+
+async function importBundledSource(sourcePath) {
+  const result = await build({
+    entryPoints: [fileURLToPath(new URL(`../../${sourcePath}`, import.meta.url))],
+    bundle: true,
+    format: 'esm',
+    jsx: 'automatic',
+    logLevel: 'silent',
+    platform: 'node',
+    write: false,
+    plugins: [
+      {
+        name: 'repo-alias',
+        setup(build) {
+          build.onResolve({ filter: /^~\// }, args => ({
+            path: resolveRepoAlias(args.path),
+          }))
+        },
+      },
+    ],
+  })
+  const bundled = result.outputFiles[0].text
+  return import(
+    `data:text/javascript;base64,${Buffer.from(bundled).toString('base64')}`
+  )
+}
+
+function resolveRepoAlias(importPath) {
+  const resolvedPath = path.join(repoRootPath, importPath.slice(2))
+  const candidates = [
+    resolvedPath,
+    `${resolvedPath}.ts`,
+    `${resolvedPath}.tsx`,
+    `${resolvedPath}.js`,
+    `${resolvedPath}.jsx`,
+  ]
+  return candidates.find(candidate => fs.existsSync(candidate)) || resolvedPath
 }
 
 function listSourceFiles(path) {
@@ -25,10 +69,12 @@ function listSourceFiles(path) {
 describe('frontend smoke checks', () => {
   it('keeps the share modal aligned with the MVP seeding promise', () => {
     const source = readSource('app/app/page.tsx')
+    const messages = readSource('lib/i18n/messages.ts')
 
     assert.match(source, /most:\/\/\$\{shareItem\.cid\}\?filename=/)
-    assert.match(source, /本机在线时可下载/)
-    assert.match(source, /下载者完成后会默认继续做种/)
+    assert.match(source, /app\.shareSeedNote/)
+    assert.match(messages, /本机在线时可下载/)
+    assert.match(messages, /下载者完成后会默认继续做种/)
   })
 
   it('keeps the download modal validation messages user-readable', () => {
@@ -60,6 +106,7 @@ describe('frontend smoke checks', () => {
       readSource('README.md'),
       readSource('app/admin/page.tsx'),
       readSource('components/FeaturePortal.tsx'),
+      readSource('lib/i18n/messages.ts'),
       readSource('app/download/page.tsx'),
     ].join('\n')
 
@@ -97,6 +144,7 @@ describe('frontend smoke checks', () => {
     const agents = readSource('AGENTS.md')
     const downloadPage = readSource('app/download/page.tsx')
     const portal = readSource('components/FeaturePortal.tsx')
+    const messages = readSource('lib/i18n/messages.ts')
     const remoteNodePanel = readSource('components/RemoteNodeConnectPanel.tsx')
 
     assert.match(readme, /Node\.js >= 22\.12/)
@@ -110,9 +158,11 @@ describe('frontend smoke checks', () => {
     assert.match(downloadPage, /Web\s*端只连接已有 MostBox 节点/)
     assert.match(downloadPage, /Node\.js >= 22\.12/)
     assert.match(downloadPage, /npx most-box@latest/)
-    assert.match(portal, /Web 端只连接已有节点，桌面端提供完整 P2P 能力/)
-    assert.match(remoteNodePanel, /Web 端只连接已有 MostBox 节点/)
-    assert.match(remoteNodePanel, /本机完整 P2P 能力请使用桌面客户端/)
+    assert.match(portal, /portal\.feature\.app\.bullet\.desktop/)
+    assert.match(messages, /Web 端只连接已有节点，桌面端提供完整 P2P 能力/)
+    assert.match(remoteNodePanel, /remote\.hint/)
+    assert.match(messages, /Web 端只连接已有 MostBox 节点/)
+    assert.match(messages, /本机完整 P2P 能力请使用桌面客户端/)
     assert.doesNotMatch(readme, /Electron 41/)
     assert.match(agents, /ipfs-unixfs-importer@17\.0\.1/)
     assert.doesNotMatch(agents, /components\/AppHomeMode\.tsx/)
@@ -216,6 +266,7 @@ describe('frontend smoke checks', () => {
     const sidebarAccountSource = readSource('components/SidebarAccount.tsx')
     const uiIndexSource = readSource('components/ui/index.ts')
     const chatUnreadSource = readSource('lib/chatUnread.js')
+    const i18nMessages = readSource('lib/i18n/messages.ts')
 
     assert.match(chatSource, /from '~\/components\/ChatUi'/)
     assert.match(demoSource, /from '~\/components\/ChatUi'/)
@@ -227,9 +278,9 @@ describe('frontend smoke checks', () => {
     assert.match(componentSource, /unread = false/)
     assert.match(componentSource, /chat-channel-unread-dot/)
     assert.match(componentSource, /ActionMenu/)
-    assert.match(componentSource, /label: pinned \? '取消置顶' : '置顶'/)
-    assert.match(componentSource, /label: '重命名'/)
-    assert.match(componentSource, /label: '删除'/)
+    assert.match(componentSource, /t\('chat\.unpin'\).*t\('chat\.pin'\)/s)
+    assert.match(componentSource, /t\('chat\.rename'\)/)
+    assert.match(componentSource, /t\('chat\.delete'\)/)
     assert.doesNotMatch(componentSource, /key: 'delete'[\s\S]{0,120}danger: true/)
     assert.match(sidebarAccountSource, /ActionMenu/)
     assert.doesNotMatch(sidebarAccountSource, /danger: true/)
@@ -242,9 +293,12 @@ describe('frontend smoke checks', () => {
     assert.match(chatSource, /onReconnect: refreshChannels/)
     assert.match(chatSource, /markChannelRead\(/)
     assert.match(chatSource, /btn btn-secondary btn-block/)
-    assert.match(componentSource, /label: '图片'/)
-    assert.match(componentSource, /label: '视频'/)
-    assert.match(componentSource, /label: '文件'/)
+    assert.match(componentSource, /labelKey: 'chat\.attachment\.image'/)
+    assert.match(componentSource, /labelKey: 'chat\.attachment\.video'/)
+    assert.match(componentSource, /labelKey: 'chat\.attachment\.file'/)
+    assert.match(i18nMessages, /'chat\.attachment\.image': '图片'/)
+    assert.match(i18nMessages, /'chat\.attachment\.video': '视频'/)
+    assert.match(i18nMessages, /'chat\.attachment\.file': '文件'/)
     assert.doesNotMatch(componentSource, /application\/pdf/)
     assert.doesNotMatch(componentSource, /video\/mp4/)
     assert.doesNotMatch(
@@ -257,5 +311,95 @@ describe('frontend smoke checks', () => {
     )
     assert.doesNotMatch(chatSource, /PINNED_CHANNELS|ChatTypingIndicator|__duplicate/)
     assert.doesNotMatch(chatSource, /正在输入|告诉我可以帮你做什么|修改名称/)
+  })
+
+  it('uses key-based i18n without DOM translation', () => {
+    const rootRoute = readSource('src/routes/__root.tsx')
+    const i18nSource = readSource('lib/i18n/index.tsx')
+    const messagesSource = readSource('lib/i18n/messages.ts')
+    const downloadValidationSource = readSource(
+      'lib/i18n/downloadValidation.ts'
+    )
+    const portalSource = readSource('components/FeaturePortal.tsx')
+    const navSource = readSource('components/Nav.tsx')
+    const appSource = readSource('app/app/page.tsx')
+    const chatSource = readSource('app/chat/page.tsx')
+
+    assert.match(rootRoute, /I18nProvider/)
+    assert.match(navSource, /LanguageToggle/)
+    assert.match(portalSource, /titleKey: 'portal\.feature\.app\.title'/)
+    assert.match(appSource, /getLocalizedDownloadLinkValidationMessage/)
+    assert.match(chatSource, /getLocalizedDownloadLinkValidationMessage/)
+    assert.match(downloadValidationSource, /parseMostLink/)
+    assert.match(downloadValidationSource, /MessageKey/)
+    assert.doesNotMatch(appSource, /getDownloadLinkValidationMessage/)
+    assert.doesNotMatch(chatSource, /getDownloadLinkValidationMessage/)
+    assert.doesNotMatch(appSource, /[\u4e00-\u9fff]/)
+    assert.match(messagesSource, /'app\.download\.validation\.empty'/)
+    assert.match(messagesSource, /type MessageKey = keyof typeof zhCNMessages/)
+    assert.match(messagesSource, /satisfies Record<MessageKey, string>/)
+    assert.match(i18nSource, /translateMessage/)
+    assert.doesNotMatch(i18nSource, /MutationObserver|createTreeWalker|translateDocument/)
+  })
+
+  it('translates stable keys and most link validation messages', async () => {
+    const i18n = await importBundledSource('lib/i18n/index.tsx')
+    const downloadValidation = await importBundledSource(
+      'lib/i18n/downloadValidation.ts'
+    )
+    const validCid =
+      'bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e'
+
+    assert.equal(
+      i18n.translateMessage('app.fileAvailable', 'zh-CN', {
+        fileName: '计划.md',
+      }),
+      '计划.md 可下载'
+    )
+    assert.equal(
+      i18n.translateMessage('app.fileAvailable', 'en', {
+        fileName: '计划.md',
+      }),
+      '计划.md is available to download'
+    )
+    assert.deepEqual(
+      downloadValidation.getMostLinkValidationMessageKey(
+        'https://example.com/file'
+      ),
+      { key: 'app.download.validation.protocol' }
+    )
+    assert.deepEqual(
+      downloadValidation.getMostLinkValidationMessageKey(
+        `most://${validCid}?filename=test.txt&x=1`
+      ),
+      {
+        key: 'app.download.validation.unsupportedParam',
+        params: { param: 'x' },
+      }
+    )
+  })
+
+  it('marks user-authored content as not translatable', () => {
+    const sources = [
+      readSource('components/AppFileCards.tsx'),
+      readSource('components/ChatUi.tsx'),
+      readSource('components/ChatAttachmentCard.tsx'),
+      readSource('components/FilePreviewOverlay.tsx'),
+      readSource('components/MoveModal.tsx'),
+      readSource('components/NoteMoveModal.tsx'),
+      readSource('app/note/page.tsx'),
+      readSource('app/app/page.tsx'),
+      readSource('app/admin/page.tsx'),
+      readSource('components/PemBlock.tsx'),
+      readSource('components/KeyCard.tsx'),
+    ].join('\n')
+
+    assert.match(sources, /className="card-name" translate="no"/)
+    assert.match(sources, /chat-channel-title-text" translate="no"/)
+    assert.match(sources, /className="message-bubble" translate="no"/)
+    assert.match(sources, /share-link-text" translate="no"/)
+    assert.match(sources, /className="preview-text" translate="no"/)
+    assert.match(sources, /className="textarea mono"[\s\S]*translate="no"/)
+    assert.match(sources, /title=\{holding\.cid\} translate="no"/)
   })
 })

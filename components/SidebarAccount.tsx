@@ -3,6 +3,7 @@ import { LogOut, MoreHorizontal } from 'lucide-react'
 import { ActionMenu, ConfirmModal } from '~/components/ui'
 import { generateAvatar } from '~/server/src/utils/avatar.js'
 import { useUserStore } from '~/app/app/userStore'
+import { useI18n } from '~/lib/i18n'
 
 interface SidebarAccountProps {
   className?: string
@@ -15,6 +16,7 @@ export default function SidebarAccount({
   const openLoginModal = useUserStore(s => s.openLoginModal)
   const logoutUser = useUserStore(s => s.logoutUser)
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
+  const { t } = useI18n()
 
   return (
     <div className={`chat-sidebar-footer sidebar-account ${className}`}>
@@ -25,21 +27,23 @@ export default function SidebarAccount({
           alt="avatar"
         />
         <span className="user-name" title={identity?.address}>
-          {identity?.displayName || '未登录'}
+          <span translate={identity?.displayName ? 'no' : 'yes'}>
+            {identity?.displayName || t('account.notSignedIn')}
+          </span>
         </span>
       </div>
       {!identity ? (
         <button className="btn btn-primary login-btn" onClick={openLoginModal}>
-          登录
+          {t('account.signIn')}
         </button>
       ) : (
         <ActionMenu
-          ariaLabel="账号操作"
+          ariaLabel={t('account.actions')}
           placement="top-end"
           items={[
             {
               key: 'logout',
-              label: '退出',
+              label: t('account.logout'),
               icon: <LogOut size={16} />,
               onSelect: () => setShowLogoutConfirm(true),
             },
@@ -48,8 +52,8 @@ export default function SidebarAccount({
             <button
               {...triggerProps}
               className="btn btn-icon account-menu-trigger"
-              aria-label="更多操作"
-              title="更多操作"
+              aria-label={t('common.moreActions')}
+              title={t('common.moreActions')}
             >
               <MoreHorizontal size={16} />
             </button>
@@ -58,9 +62,9 @@ export default function SidebarAccount({
       )}
       {showLogoutConfirm && (
         <ConfirmModal
-          title="退出登录"
-          message="确定要退出当前账号吗？"
-          confirmText="退出"
+          title={t('account.logoutTitle')}
+          message={t('account.logoutConfirm')}
+          confirmText={t('account.logout')}
           danger
           onConfirm={() => {
             logoutUser()

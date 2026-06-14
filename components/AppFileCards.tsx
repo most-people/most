@@ -62,7 +62,9 @@ export function FileCard({
       <div className={`card-icon ${file.starred ? 'starred' : 'file'}`}>
         {fileIcon}
       </div>
-      <p className="card-name">{parseAppFileName(file.fileName).name}</p>
+      <p className="card-name" translate="no">
+        {parseAppFileName(file.fileName).name}
+      </p>
     </div>
   )
 }
@@ -73,7 +75,9 @@ export function FolderCard({ folder, onClick }: FolderCardProps) {
       <div className="card-icon folder">
         <Folder size={28} color="#fff" />
       </div>
-      <p className="card-name">{folder.name}</p>
+      <p className="card-name" translate="no">
+        {folder.name}
+      </p>
     </div>
   )
 }

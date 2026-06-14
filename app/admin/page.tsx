@@ -807,8 +807,10 @@ export default function AdminPage() {
                 </div>
                 {visibleHoldings.map(holding => (
                   <div className="admin-table-row" key={holding.cid}>
-                    <span>{holding.fileName || '-'}</span>
-                    <span title={holding.cid}>{shortText(holding.cid)}</span>
+                    <span translate="no">{holding.fileName || '-'}</span>
+                    <span title={holding.cid} translate="no">
+                      {shortText(holding.cid)}
+                    </span>
                     <span>{formatSize(holding.size)}</span>
                     <span>{holding.peerCount ?? 0}</span>
                     <span title={holding.lastServedAt || ''}>

@@ -1,6 +1,7 @@
 import React from 'react'
 import { X } from 'lucide-react'
 import { ModalOverlay } from '~/components/ui/ModalOverlay'
+import { useI18n } from '~/lib/i18n'
 
 interface ConfirmModalProps {
   title: string
@@ -19,6 +20,8 @@ export function ConfirmModal({
   onClose,
   danger,
 }: ConfirmModalProps) {
+  const { t } = useI18n()
+
   return (
     <ModalOverlay onClose={onClose}>
       <div className="confirm-modal" onClick={e => e.stopPropagation()}>
@@ -31,7 +34,7 @@ export function ConfirmModal({
         <p>{message}</p>
         <div className="modal-actions">
           <button onClick={onClose} className="btn btn-secondary">
-            取消
+            {t('common.cancel')}
           </button>
           <button
             onClick={onConfirm}

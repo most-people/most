@@ -531,9 +531,14 @@ function NotePageContent() {
                   )}
                 </span>
                 <span className="ui-list-copy note-list-copy">
-                  <span className="ui-list-title note-list-name">{item.name}</span>
+                  <span className="ui-list-title note-list-name" translate="no">
+                    {item.name}
+                  </span>
                   {item.type === 'file' ? (
-                    <span className="ui-list-desc note-list-preview">
+                    <span
+                      className="ui-list-desc note-list-preview"
+                      translate="no"
+                    >
                       {getNotePreview(item)}
                     </span>
                   ) : (

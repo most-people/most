@@ -38,7 +38,6 @@ import {
 } from '~/server/src/utils/api'
 import {
   getDownloadCheckErrorMessageFromPayload,
-  getDownloadLinkValidationMessage,
 } from '~/server/src/utils/downloadMessages.js'
 import { generateAvatar } from '~/server/src/utils/avatar.js'
 import { useAppStore } from '~/app/app/useAppStore'
@@ -55,6 +54,8 @@ import {
   type ChannelMessage,
 } from '~/lib/channelApi'
 import { getFileSubtype, type FileSubtype } from '~/lib/filePreview'
+import { useI18n } from '~/lib/i18n'
+import { getLocalizedDownloadLinkValidationMessage } from '~/lib/i18n/downloadValidation'
 import {
   applyIncomingChannelMessageReadState,
   getChannelActivityTime,
@@ -216,6 +217,8 @@ function ChatPage() {
   )
   const activeAttachmentDownloadsRef = useRef(new Set<string>())
   const isBackendReady = hasBackend === true
+  const { t, compareStrings, formatDate, formatTime, formatDateTime } =
+    useI18n()
 
   const showApiError = useCallback(
     async (err: unknown, fallback: string) => {
@@ -400,9 +403,10 @@ function ChatPage() {
             [attachment.cid]: { status: 'available' },
           }))
           addToast(
-            `${
-              data.fileName || getAttachmentBaseFileName(attachment.fileName)
-            } 下载完成`,
+            t('chat.attachment.downloadCompleted', {
+              fileName:
+                data.fileName || getAttachmentBaseFileName(attachment.fileName),
+            }),
             'success'
           )
           openAttachmentPreview(
@@ -425,14 +429,14 @@ function ChatPage() {
               status: 'error',
               message:
                 event === 'download:cancelled'
-                  ? '附件下载已取消'
-                  : data.error || '附件下载失败',
+                  ? t('chat.attachment.downloadCancelled')
+                  : data.error || t('chat.attachment.downloadFailed'),
             },
           }))
           addToast(
             event === 'download:cancelled'
-              ? '附件下载已取消'
-              : data.error || '附件下载失败',
+              ? t('chat.attachment.downloadCancelled')
+              : data.error || t('chat.attachment.downloadFailed'),
             'error'
           )
         }
@@ -669,7 +673,10 @@ function ChatPage() {
   }
 
   async function checkAttachmentAvailability(attachment: ChannelAttachment) {
-    const validationMessage = getDownloadLinkValidationMessage(attachment.link)
+    const validationMessage = getLocalizedDownloadLinkValidationMessage(
+      attachment.link,
+      t
+    )
     if (validationMessage) {
       setAttachmentDownloadStatus(prev => ({
         ...prev,
@@ -688,7 +695,9 @@ function ChatPage() {
         ...prev,
         [attachment.cid]: {
           status: 'available',
-          message: checkResult.alreadyExists ? '本机已有' : '可预览',
+          message: checkResult.alreadyExists
+            ? t('chat.attachment.localAvailable')
+            : t('chat.attachment.previewAvailable'),
         },
       }))
       return true
@@ -734,7 +743,7 @@ function ChatPage() {
 
       if (result.taskId) {
         pendingAttachmentPreviewsRef.current.set(result.taskId, attachment)
-        addToast('开始下载附件', 'success')
+        addToast(t('chat.attachment.downloadStarted'), 'success')
       }
     } catch (err) {
       const message = await getDownloadCheckErrorMessage(err)
@@ -1150,9 +1159,9 @@ function ChatPage() {
           getChannelActivityTime(b) - getChannelActivityTime(a)
         if (activityDiff !== 0) return activityDiff
 
-        return getChannelTitle(a).localeCompare(getChannelTitle(b), 'zh-CN')
+        return compareStrings(getChannelTitle(a), getChannelTitle(b))
       }),
-    [channels]
+    [channels, compareStrings]
   )
   const filteredChannels = channelSearchQuery
     ? sortedChannels.filter(channel => {
@@ -1299,10 +1308,7 @@ function ChatPage() {
                       msg.avatar || (isSelf ? userIdentity.avatar : undefined)
                     )}
                     author={formatDisplayName(msg.authorName, msg.author)}
-                    time={new Date(msg.timestamp).toLocaleTimeString('zh-CN', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
+                    time={formatTime(msg.timestamp)}
                   >
                     {renderMessageBubble(msg)}
                   </ChatMessageItem>
@@ -1403,16 +1409,19 @@ function ChatPage() {
                   <span className="channel-conflict-meta">
                     {getChannelId(candidate)}
                     {candidate.onlineCount
-                      ? ` · 在线 ${candidate.onlineCount}`
+                      ? ` · ${t('chat.channel.onlineCount', {
+                          count: candidate.onlineCount,
+                        })}`
                       : ''}
-                    {candidate.local ? ' · 本地已有' : ''}
+                    {candidate.local
+                      ? ` · ${t('chat.channel.localAlready')}`
+                      : ''}
                   </span>
                   {candidate.lastMessageAt && (
                     <span className="channel-conflict-meta">
-                      最近活跃{' '}
-                      {new Date(candidate.lastMessageAt).toLocaleString(
-                        'zh-CN'
-                      )}
+                      {t('chat.channel.recentActive', {
+                        time: formatDateTime(candidate.lastMessageAt),
+                      })}
                     </span>
                   )}
                 </button>
@@ -1462,19 +1471,19 @@ function ChatPage() {
         <ModalOverlay onClose={() => setFailedAttachment(null)}>
           <div className="confirm-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>暂时没有在线种子</h3>
+              <h3>{t('chat.attachment.noSeedsTitle')}</h3>
               <button
                 type="button"
                 className="btn btn-icon"
                 onClick={() => setFailedAttachment(null)}
-                aria-label="关闭"
+                aria-label={t('common.close')}
               >
                 <X size={18} />
               </button>
             </div>
             <p>
               {attachmentDownloadStatus[failedAttachment.cid]?.message ||
-                '暂时没有发现在线种子。请确认分享者或其他下载者仍在线做种。'}
+                t('chat.attachment.noSeedsFallback')}
             </p>
             <div className="modal-actions">
               <button
@@ -1482,7 +1491,7 @@ function ChatPage() {
                 className="btn btn-secondary"
                 onClick={() => setFailedAttachment(null)}
               >
-                取消
+                {t('common.cancel')}
               </button>
               <button
                 type="button"
@@ -1495,8 +1504,8 @@ function ChatPage() {
               >
                 {attachmentDownloadStatus[failedAttachment.cid]?.status ===
                 'checking'
-                  ? '检测中...'
-                  : '再次检测'}
+                  ? t('app.checking')
+                  : t('chat.attachment.retryCheck')}
               </button>
             </div>
           </div>
@@ -1589,13 +1598,11 @@ function ChatPage() {
               <div className="channel-detail-section">
                 <div className="channel-detail-label">
                   <Calendar size={14} />
-                  <span>创建时间</span>
+                  <span>{t('chat.channel.createdAt')}</span>
                 </div>
                 <div className="ui-meta-box channel-detail-value">
                   {activeChannel.createdAt
-                    ? new Date(activeChannel.createdAt).toLocaleDateString(
-                        'zh-CN'
-                      )
+                    ? formatDate(activeChannel.createdAt)
                     : '-'}
                 </div>
               </div>

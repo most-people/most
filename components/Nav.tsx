@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Download, Moon, Sun } from 'lucide-react'
+import { LanguageToggle } from '~/components/LanguageToggle'
 import { LogoIcon } from '~/components/icons/LogoIcon'
+import { useI18n } from '~/lib/i18n'
 
 export function Nav() {
   const [isDarkMode, setIsDarkMode] = useState(false)
+  const { t } = useI18n()
 
   useEffect(() => {
     const saved = localStorage.getItem('theme')
@@ -37,16 +40,17 @@ export function Nav() {
             <button
               className="mkt-theme-toggle"
               onClick={() => setIsDarkMode(!isDarkMode)}
-              aria-label="切换主题"
+              aria-label={t('common.theme.toggle')}
             >
               {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
             </button>
+            <LanguageToggle className="mkt-theme-toggle" />
             <Link to="/download/" className="btn btn-primary mkt-nav-preview">
               <Download size={16} />
-              下载客户端
+              {t('nav.downloadClient')}
             </Link>
             <Link to="/app/" className="btn btn-secondary">
-              打开 Web
+              {t('nav.openWeb')}
             </Link>
           </div>
         </div>
