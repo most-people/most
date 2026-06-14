@@ -121,10 +121,9 @@
       /* box-shadow: var(--glass-shadow-inset); */
     }
 
-    /* &:hover:not(.active) {
-      background: var(--glass-bg-subtle);
-      color: var(--text-primary);
-    } */
+    span {
+      text-align: left;
+    }
 
     svg {
       flex-shrink: 0;
