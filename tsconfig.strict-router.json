@@ -5,25 +5,50 @@
     "noEmit": true,
     "strictNullChecks": true,
     "paths": {
-      "~/*": ["./*"],
-      "~/app/page": ["./src/typecheck-stubs/route-component.tsx"],
-      "~/app/admin/page": ["./src/typecheck-stubs/route-component.tsx"],
-      "~/app/app/page": ["./src/typecheck-stubs/route-component.tsx"],
-      "~/app/chat/page": ["./src/typecheck-stubs/route-component.tsx"],
-      "~/app/chat/join/page": ["./src/typecheck-stubs/route-component.tsx"],
-      "~/app/demo/page": ["./src/typecheck-stubs/route-component.tsx"],
-      "~/app/download/page": ["./src/typecheck-stubs/route-component.tsx"],
-      "~/app/game/gandengyan/page": [
+      "~/*": ["./src/*"],
+      "~server/*": ["./server/*"],
+      "~/features/portal/HomePage": [
         "./src/typecheck-stubs/route-component.tsx"
       ],
-      "~/app/game/zhajinhua/page": [
+      "~/features/admin/AdminPage": [
         "./src/typecheck-stubs/route-component.tsx"
       ],
-      "~/app/note/page": ["./src/typecheck-stubs/route-component.tsx"],
-      "~/app/ping/page": ["./src/typecheck-stubs/route-component.tsx"],
-      "~/app/web3/page": ["./src/typecheck-stubs/route-component.tsx"],
-      "~/app/error-boundary": ["./src/typecheck-stubs/error-boundary.tsx"],
-      "~/app/not-found": ["./src/typecheck-stubs/route-component.tsx"],
+      "~/features/files/AppPage": [
+        "./src/typecheck-stubs/route-component.tsx"
+      ],
+      "~/features/chat/ChatPage": [
+        "./src/typecheck-stubs/route-component.tsx"
+      ],
+      "~/features/chat/ChatJoinPage": [
+        "./src/typecheck-stubs/route-component.tsx"
+      ],
+      "~/features/demo/DemoPage": [
+        "./src/typecheck-stubs/route-component.tsx"
+      ],
+      "~/features/download/DownloadPage": [
+        "./src/typecheck-stubs/route-component.tsx"
+      ],
+      "~/features/game/gandengyan/GanDengYanPage": [
+        "./src/typecheck-stubs/route-component.tsx"
+      ],
+      "~/features/game/zhajinhua/ZhajinhuaPage": [
+        "./src/typecheck-stubs/route-component.tsx"
+      ],
+      "~/features/note/NotePage": [
+        "./src/typecheck-stubs/route-component.tsx"
+      ],
+      "~/features/ping/PingPage": [
+        "./src/typecheck-stubs/route-component.tsx"
+      ],
+      "~/features/web3/Web3Page": [
+        "./src/typecheck-stubs/route-component.tsx"
+      ],
+      "~/features/system/ErrorBoundary": [
+        "./src/typecheck-stubs/error-boundary.tsx"
+      ],
+      "~/features/system/NotFoundPage": [
+        "./src/typecheck-stubs/route-component.tsx"
+      ],
       "~/components/AppGlobals": ["./src/typecheck-stubs/route-component.tsx"]
     }
   },

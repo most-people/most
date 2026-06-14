@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import PingPage from '~/app/ping/page'
+import PingPage from '~/features/ping/PingPage'
 import { translateMessage } from '~/lib/i18n'
 
 export const Route = createFileRoute('/ping/')({

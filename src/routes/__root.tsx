@@ -1,4 +1,4 @@
-import '~/app/globals.css'
+import '~/styles/globals.css'
 import '~/styles/app.css'
 import '~/styles/note.css'
 import '~/styles/marketing.css'
@@ -22,8 +22,8 @@ import {
   createRootRoute,
 } from '@tanstack/react-router'
 
-import { ErrorBoundary } from '~/app/error-boundary'
-import NotFoundPage from '~/app/not-found'
+import { ErrorBoundary } from '~/features/system/ErrorBoundary'
+import NotFoundPage from '~/features/system/NotFoundPage'
 import AppGlobals from '~/components/AppGlobals'
 import { I18nProvider, translateMessage } from '~/lib/i18n'
 

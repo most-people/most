@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import NotePage from '~/app/note/page'
+import NotePage from '~/features/note/NotePage'
 
 type NoteSearch = {
   cid?: string

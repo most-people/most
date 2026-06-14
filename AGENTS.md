@@ -121,17 +121,17 @@ npm run lint
 - 2 空格缩进、单引号、默认不写分号。
 - 命名：组件 / 类 `PascalCase`，函数 / 变量 `camelCase`，常量 `UPPER_SNAKE_CASE`，私有字段 `#field`。
 - TypeScript 避免 `any`，组件 Props 使用 `{ComponentName}Props`。
-- 前端路由使用 TanStack Router：`src/routes/**/index.tsx` 只做路由注册和 SSR 开关，页面实现保留在 `app/**/page.tsx`；新增页面时两边要同步。
-- 全局 Zustand 状态在 `app/app/useAppStore.ts`，组件通过 action 修改状态。
+- 前端路由使用 TanStack Router：`src/routes/**/index.tsx` 只做路由注册、SSR 开关、redirect/head；页面和业务实现放在 `src/features/**`。
+- 全局 Zustand 状态在 `src/stores/useAppStore.ts`，组件通过 action 修改状态。
 - 错误类在 `server/src/utils/errors.js`；P2P 网络噪声错误可静默处理。
 - 测试使用 `node:test` 和 `node:assert`，测试文件命名 `*.test.js`。
 
 ## 前端样式
 
 - 全部使用 CSS class，禁止组件内联 `style={{}}`。
-- 全局变量和基础组件类在 `app/globals.css`；页面样式放到 `styles/{模块}.css` 并由对应 layout 引入。
+- 全局变量和基础组件类在 `src/styles/globals.css`；页面样式放到 `src/styles/{模块}.css` 并由对应 route/root 引入。
 - 按钮和输入框复用全局 `.btn` / `.input` 及其变体，不在页面 CSS 重复定义。
-- 图标统一使用 `lucide-react`；品牌 Logo 等自定义图标放在 `components/icons/`。
+- 图标统一使用 `lucide-react`；品牌 Logo 等自定义图标放在 `src/components/icons/`。
 - `ModalOverlay` 是唯一弹窗玻璃容器提供者；弹窗 CSS 不重复定义容器的 width、padding、background、blur、border、shadow、radius。
 
 ## P2P / 聊天注意点
@@ -155,12 +155,12 @@ npm run lint
 
 ## 关键入口
 
-- 前端主应用：`app/app/page.tsx`
+- 前端主应用：`src/features/files/AppPage.tsx`
 - 前端路由壳：`src/routes/**/index.tsx`
-- Web3 工具箱：`app/web3/page.tsx`
-- 笔记模块：`app/note/page.tsx`、`components/MilkdownEditor.tsx`
-- 管理后台：`app/admin/page.tsx`
-- 全局状态：`app/app/useAppStore.ts`
+- Web3 工具箱：`src/features/web3/Web3Page.tsx`
+- 笔记模块：`src/features/note/NotePage.tsx`、`src/components/MilkdownEditor.tsx`
+- 管理后台：`src/features/admin/AdminPage.tsx`
+- 全局状态：`src/stores/useAppStore.ts`
 - 后端 daemon 启动入口：`server/index.js`
 - HTTP 应用和路由：`server/src/http/app.js`
 - HTTP 支撑模块：`server/src/http/*.js`

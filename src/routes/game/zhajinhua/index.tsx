@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import ZhajinhuaPage from '~/app/game/zhajinhua/page'
+import ZhajinhuaPage from '~/features/game/zhajinhua/ZhajinhuaPage'
 
 export const Route = createFileRoute('/game/zhajinhua/')({
   ssr: false,

@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import GanDengYanPage from '~/app/game/gandengyan/page'
+import GanDengYanPage from '~/features/game/gandengyan/GanDengYanPage'
 
 export const Route = createFileRoute('/game/gandengyan/')({
   ssr: false,

@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import DownloadPage from '~/app/download/page'
+import DownloadPage from '~/features/download/DownloadPage'
 import { translateMessage } from '~/lib/i18n'
 
 export const Route = createFileRoute('/download/')({

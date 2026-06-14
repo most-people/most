@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import ChatJoinPage from '~/app/chat/join/page'
+import ChatJoinPage from '~/features/chat/ChatJoinPage'
 
 type ChatJoinSearch = {
   token?: string
