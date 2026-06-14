@@ -17,7 +17,6 @@ import {
   Info,
   LogIn,
   MessageSquare,
-  Moon,
   MousePointerClick,
   Palette,
   Plus,
@@ -25,7 +24,6 @@ import {
   Server,
   ShieldAlert,
   Sparkles,
-  Sun,
   Type,
   Wifi,
 } from 'lucide-react'
@@ -45,8 +43,10 @@ import ConnectModal from '~/components/ConnectModal'
 import { EmptyState } from '~/components/EmptyState'
 import { Footer } from '~/components/Footer'
 import { FileCard, FolderCard } from '~/components/AppFileCards'
+import { LanguageToggle } from '~/components/LanguageToggle'
 import { LogoIcon } from '~/components/icons/LogoIcon'
 import { KeyCard } from '~/components/KeyCard'
+import { MarketingThemeToggle } from '~/components/MarketingThemeToggle'
 import { MoveModal } from '~/components/MoveModal'
 import { Nav } from '~/components/Nav'
 import { NoteMoreMenu } from '~/components/NoteMoreMenu'
@@ -143,8 +143,6 @@ export default function DemoPage() {
   const [showMoveModal, setShowMoveModal] = useState(false)
   const [showNoteMoveModal, setShowNoteMoveModal] = useState(false)
   const [toasts, setToasts] = useState<DemoToast[]>([])
-  const isDarkMode = useAppStore(s => s.isDarkMode)
-  const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
   const openConnectModal = useAppStore(s => s.openConnectModal)
   const openLoginModal = useUserStore(s => s.openLoginModal)
 
@@ -170,15 +168,10 @@ export default function DemoPage() {
           <ArrowLeft size={18} />
           <span>MOST PEOPLE</span>
         </a>
-        <button
-          type="button"
-          className="mkt-theme-toggle"
-          onClick={() => setIsDarkMode(!isDarkMode)}
-          aria-label="切换主题"
-          title="切换主题"
-        >
-          {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
-        </button>
+        <div className="mkt-nav-cta">
+          <MarketingThemeToggle />
+          <LanguageToggle className="mkt-theme-toggle" />
+        </div>
       </header>
 
       <section className="demo-hero">

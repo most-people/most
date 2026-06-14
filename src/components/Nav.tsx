@@ -1,15 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { Download, Image, LogOut, Moon, Pencil, Sun } from 'lucide-react'
+import { Download, Image, LogOut, Pencil } from 'lucide-react'
 import { ActionMenu, ConfirmModal, InputModal } from '~/components/ui'
 import { LanguageToggle } from '~/components/LanguageToggle'
+import { MarketingThemeToggle } from '~/components/MarketingThemeToggle'
 import { LogoIcon } from '~/components/icons/LogoIcon'
 import { useI18n } from '~/lib/i18n'
 import { useUserStore } from '~/stores/userStore'
 import { generateAvatar } from '~server/src/utils/avatar.js'
 
 export function Nav() {
-  const [isDarkMode, setIsDarkMode] = useState(false)
   const [accountModal, setAccountModal] = useState<
     'displayName' | 'avatar' | 'logout' | null
   >(null)
@@ -49,24 +49,6 @@ export function Nav() {
     }
   }
 
-  useEffect(() => {
-    const saved = localStorage.getItem('theme')
-    const prefersDark = window.matchMedia(
-      '(prefers-color-scheme: dark)'
-    ).matches
-    if (saved === 'dark' || (!saved && prefersDark)) {
-      setIsDarkMode(true)
-    }
-  }, [])
-
-  useEffect(() => {
-    document.documentElement.setAttribute(
-      'data-theme',
-      isDarkMode ? 'dark' : 'light'
-    )
-    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light')
-  }, [isDarkMode])
-
   return (
     <>
       <nav className="mkt-nav">
@@ -77,13 +59,7 @@ export function Nav() {
           </Link>
 
           <div className="mkt-nav-cta">
-            <button
-              className="mkt-theme-toggle"
-              onClick={() => setIsDarkMode(!isDarkMode)}
-              aria-label={t('common.theme.toggle')}
-            >
-              {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
-            </button>
+            <MarketingThemeToggle />
             <LanguageToggle className="mkt-theme-toggle" />
             <Link to="/download/" className="btn btn-primary mkt-nav-preview">
               <Download size={16} />
