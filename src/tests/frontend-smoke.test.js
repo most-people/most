@@ -18,6 +18,40 @@ function readSource(path) {
 
 const repoRootPath = fileURLToPath(new URL('../../', import.meta.url))
 
+const SOURCE_PATHS = {
+  agents: 'AGENTS.md',
+  packageJson: 'package.json',
+  readme: 'README.md',
+  viteConfig: 'vite.config.ts',
+  components: {
+    featurePortal: 'src/components/FeaturePortal.tsx',
+    remoteNodePanel: 'src/components/RemoteNodeConnectPanel.tsx',
+  },
+  features: {
+    admin: 'src/features/admin/AdminPage.tsx',
+    chat: 'src/features/chat/ChatPage.tsx',
+    download: 'src/features/download/DownloadPage.tsx',
+    files: 'src/features/files/AppPage.tsx',
+    ganDengYan: 'src/features/game/gandengyan/GanDengYanPage.tsx',
+  },
+  i18n: {
+    entry: 'src/lib/i18n/messages.ts',
+    catalogs: 'src/lib/i18n/messages',
+    provider: 'src/lib/i18n/index.tsx',
+  },
+  routes: {
+    app: 'src/routes/app/index.tsx',
+    admin: 'src/routes/admin/index.tsx',
+    download: 'src/routes/download/index.tsx',
+    root: 'src/routes/__root.tsx',
+    tree: 'src/routes',
+  },
+  scripts: {
+    checkStaticOutput: 'scripts/check-static-output.mjs',
+    staticRoutes: 'scripts/static-routes.mjs',
+  },
+}
+
 async function importBundledSource(sourcePath) {
   const result = await build({
     entryPoints: [fileURLToPath(new URL(`../../${sourcePath}`, import.meta.url))],
@@ -65,7 +99,11 @@ function resolveWithExtensions(resolvedPath) {
     `${resolvedPath}.js`,
     `${resolvedPath}.jsx`,
   ]
-  return candidates.find(candidate => fs.existsSync(candidate)) || resolvedPath
+  return (
+    candidates.find(candidate =>
+      fs.existsSync(candidate) && fs.statSync(candidate).isFile()
+    ) || resolvedPath
+  )
 }
 
 function listSourceFiles(path) {
@@ -79,10 +117,21 @@ function listSourceFiles(path) {
     })
 }
 
+function readI18nSources() {
+  return [
+    SOURCE_PATHS.i18n.entry,
+    ...listSourceFiles(SOURCE_PATHS.i18n.catalogs)
+      .filter(file => file.endsWith('.ts'))
+      .sort(),
+  ]
+    .map(readSource)
+    .join('\n')
+}
+
 describe('frontend smoke checks', () => {
   it('keeps the share modal aligned with the MVP seeding promise', () => {
-    const source = readSource('src/features/files/AppPage.tsx')
-    const messages = readSource('src/lib/i18n/messages.ts')
+    const source = readSource(SOURCE_PATHS.features.files)
+    const messages = readI18nSources()
 
     assert.match(source, /most:\/\/\$\{shareItem\.cid\}\?filename=/)
     assert.match(source, /app\.shareSeedNote/)
@@ -106,8 +155,8 @@ describe('frontend smoke checks', () => {
   })
 
   it('shows node holdings and seed states in the admin console', () => {
-    const source = readSource('src/features/admin/AdminPage.tsx')
-    const messages = readSource('src/lib/i18n/messages.ts')
+    const source = readSource(SOURCE_PATHS.features.admin)
+    const messages = readI18nSources()
 
     assert.match(source, /NodeHolding/)
     assert.match(source, /formatSeedStatus/)
@@ -119,11 +168,11 @@ describe('frontend smoke checks', () => {
 
   it('does not advertise unlimited file size in user-facing copy', () => {
     const sources = [
-      readSource('README.md'),
-      readSource('src/features/admin/AdminPage.tsx'),
-      readSource('src/components/FeaturePortal.tsx'),
-      readSource('src/lib/i18n/messages.ts'),
-      readSource('src/features/download/DownloadPage.tsx'),
+      readSource(SOURCE_PATHS.readme),
+      readSource(SOURCE_PATHS.features.admin),
+      readSource(SOURCE_PATHS.components.featurePortal),
+      readI18nSources(),
+      readSource(SOURCE_PATHS.features.download),
     ].join('\n')
 
     assert.doesNotMatch(sources, /无限文件大小|无限制传输/)
@@ -145,7 +194,7 @@ describe('frontend smoke checks', () => {
 
   it('documents the dedicated R2 release bucket defaults', () => {
     const releaseWorkflow = readSource('.github/workflows/release.yml')
-    const readme = readSource('README.md')
+    const readme = readSource(SOURCE_PATHS.readme)
 
     assert.match(releaseWorkflow, /most-box-releases/)
     assert.match(releaseWorkflow, /https:\/\/download\.most\.box/)
@@ -156,12 +205,12 @@ describe('frontend smoke checks', () => {
   })
 
   it('documents current runtime and desktop dependency requirements', () => {
-    const readme = readSource('README.md')
-    const agents = readSource('AGENTS.md')
-    const downloadPage = readSource('src/features/download/DownloadPage.tsx')
-    const portal = readSource('src/components/FeaturePortal.tsx')
-    const messages = readSource('src/lib/i18n/messages.ts')
-    const remoteNodePanel = readSource('src/components/RemoteNodeConnectPanel.tsx')
+    const readme = readSource(SOURCE_PATHS.readme)
+    const agents = readSource(SOURCE_PATHS.agents)
+    const downloadPage = readSource(SOURCE_PATHS.features.download)
+    const portal = readSource(SOURCE_PATHS.components.featurePortal)
+    const messages = readI18nSources()
+    const remoteNodePanel = readSource(SOURCE_PATHS.components.remoteNodePanel)
 
     assert.match(readme, /Node\.js >= 22\.12/)
     assert.match(readme, /npx most-box@latest/)
@@ -187,12 +236,12 @@ describe('frontend smoke checks', () => {
   })
 
   it('uses TanStack Start static prerender for the web shell', () => {
-    const packageJson = readSource('package.json')
-    const viteConfig = readSource('vite.config.ts')
-    const rootRoute = readSource('src/routes/__root.tsx')
-    const appRoute = readSource('src/routes/app/index.tsx')
-    const adminRoute = readSource('src/routes/admin/index.tsx')
-    const downloadRoute = readSource('src/routes/download/index.tsx')
+    const packageJson = readSource(SOURCE_PATHS.packageJson)
+    const viteConfig = readSource(SOURCE_PATHS.viteConfig)
+    const rootRoute = readSource(SOURCE_PATHS.routes.root)
+    const appRoute = readSource(SOURCE_PATHS.routes.app)
+    const adminRoute = readSource(SOURCE_PATHS.routes.admin)
+    const downloadRoute = readSource(SOURCE_PATHS.routes.download)
 
     assert.match(packageJson, /"@tanstack\/react-start"/)
     assert.doesNotMatch(packageJson, /"next"/)
@@ -211,27 +260,32 @@ describe('frontend smoke checks', () => {
   })
 
   it('keeps static output checks aligned with TanStack static routes', () => {
-    const checkStaticOutput = readSource('scripts/check-static-output.mjs')
-    const staticManifest = readSource('scripts/static-routes.mjs')
+    const checkStaticOutput = readSource(SOURCE_PATHS.scripts.checkStaticOutput)
+    const staticManifest = readSource(SOURCE_PATHS.scripts.staticRoutes)
     const checkedRoutes = requiredStaticEntries.map(({ route }) => route).sort()
 
-    const staticRoutes = listSourceFiles('src/routes')
-      .filter((file) => file.endsWith('.tsx'))
-      .flatMap((file) => {
-        const source = readSource(file)
-        const match = source.match(/createFileRoute\(\s*'([^']+)'\s*\)/)
-        if (!match) {
-          return []
-        }
+    const staticRoutes = Array.from(
+      new Set(
+        listSourceFiles(SOURCE_PATHS.routes.tree)
+          .filter((file) => file.endsWith('.tsx'))
+          .flatMap((file) => {
+            const source = readSource(file)
+            const match = source.match(
+              /create(?:Lazy)?FileRoute\(\s*'([^']+)'\s*\)/
+            )
+            if (!match) {
+              return []
+            }
 
-        const route = match[1]
-        if (route.includes('$') || !/component\s*:/.test(source)) {
-          return []
-        }
+            const route = match[1]
+            if (route.includes('$') || !/component\s*:/.test(source)) {
+              return []
+            }
 
-        return [route]
-      })
-      .sort()
+            return [route]
+          })
+      )
+    ).sort()
 
     assert.deepEqual(checkedRoutes, staticRoutes)
     assert.match(checkStaticOutput, /requiredStaticEntries/)
@@ -256,7 +310,7 @@ describe('frontend smoke checks', () => {
   })
 
   it('keeps Gan Deng Yan game page wired to the server rules and P2P channel', () => {
-    const source = readSource('src/features/game/gandengyan/GanDengYanPage.tsx')
+    const source = readSource(SOURCE_PATHS.features.ganDengYan)
     const gameRoomSource = readSource('src/hooks/useGameRoom.ts')
 
     assert.match(source, /GAME_ID = 'gandengyan'/)
@@ -279,13 +333,13 @@ describe('frontend smoke checks', () => {
   })
 
   it('keeps P2P chat controls shared without the discarded chat extras', () => {
-    const chatSource = readSource('src/features/chat/ChatPage.tsx')
+    const chatSource = readSource(SOURCE_PATHS.features.chat)
     const demoSource = readSource('src/features/demo/DemoPage.tsx')
     const componentSource = readSource('src/components/ChatUi.tsx')
     const sidebarAccountSource = readSource('src/components/SidebarAccount.tsx')
     const uiIndexSource = readSource('src/components/ui/index.ts')
     const chatUnreadSource = readSource('src/lib/chatUnread.js')
-    const i18nMessages = readSource('src/lib/i18n/messages.ts')
+    const i18nMessages = readI18nSources()
 
     assert.match(chatSource, /from '~\/components\/ChatUi'/)
     assert.match(demoSource, /from '~\/components\/ChatUi'/)
@@ -333,16 +387,17 @@ describe('frontend smoke checks', () => {
   })
 
   it('uses key-based i18n without DOM translation', () => {
-    const rootRoute = readSource('src/routes/__root.tsx')
-    const i18nSource = readSource('src/lib/i18n/index.tsx')
-    const messagesSource = readSource('src/lib/i18n/messages.ts')
+    const rootRoute = readSource(SOURCE_PATHS.routes.root)
+    const i18nSource = readSource(SOURCE_PATHS.i18n.provider)
+    const messagesSource = readSource(SOURCE_PATHS.i18n.entry)
+    const messageCatalogs = readI18nSources()
     const downloadValidationSource = readSource(
       'src/lib/i18n/downloadValidation.ts'
     )
     const portalSource = readSource('src/components/FeaturePortal.tsx')
     const navSource = readSource('src/components/Nav.tsx')
-    const appSource = readSource('src/features/files/AppPage.tsx')
-    const chatSource = readSource('src/features/chat/ChatPage.tsx')
+    const appSource = readSource(SOURCE_PATHS.features.files)
+    const chatSource = readSource(SOURCE_PATHS.features.chat)
 
     assert.match(rootRoute, /I18nProvider/)
     assert.match(navSource, /LanguageToggle/)
@@ -356,7 +411,7 @@ describe('frontend smoke checks', () => {
     assert.doesNotMatch(chatSource, /getDownloadLinkValidationMessage/)
     assert.doesNotMatch(downloadValidationSource, /Unsupported query parameter:/)
     assert.doesNotMatch(appSource, /[\u4e00-\u9fff]/)
-    assert.match(messagesSource, /'app\.download\.validation\.empty'/)
+    assert.match(messageCatalogs, /'app\.download\.validation\.empty'/)
     assert.match(messagesSource, /type MessageKey = keyof typeof zhCNMessages/)
     assert.match(messagesSource, /satisfies Record<MessageKey, string>/)
     assert.match(i18nSource, /translateMessage/)

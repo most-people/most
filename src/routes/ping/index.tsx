@@ -1,6 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import PingPage from '~/features/ping/PingPage'
 import { translateMessage } from '~/lib/i18n'
 
 export const Route = createFileRoute('/ping/')({
@@ -13,5 +12,4 @@ export const Route = createFileRoute('/ping/')({
       },
     ],
   }),
-  component: PingPage,
 })

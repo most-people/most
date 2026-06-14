@@ -1,6 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import DownloadPage from '~/features/download/DownloadPage'
 import { translateMessage } from '~/lib/i18n'
 
 export const Route = createFileRoute('/download/')({
@@ -13,5 +12,4 @@ export const Route = createFileRoute('/download/')({
       },
     ],
   }),
-  component: DownloadPage,
 })

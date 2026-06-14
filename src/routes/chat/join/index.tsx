@@ -1,7 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import ChatJoinPage from '~/features/chat/ChatJoinPage'
-
 type ChatJoinSearch = {
   token?: string
   pub?: string
@@ -15,5 +13,4 @@ export const Route = createFileRoute('/chat/join/')({
     pub: typeof search.pub === 'string' ? search.pub : undefined,
     fixture: typeof search.fixture === 'string' ? search.fixture : undefined,
   }),
-  component: ChatJoinPage,
 })

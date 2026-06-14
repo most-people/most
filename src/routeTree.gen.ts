@@ -27,22 +27,22 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any).lazy(() => import('./routes/index.lazy').then((d) => d.Route))
 const Web3IndexRoute = Web3IndexRouteImport.update({
   id: '/web3/',
   path: '/web3/',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any).lazy(() => import('./routes/web3/index.lazy').then((d) => d.Route))
 const PingIndexRoute = PingIndexRouteImport.update({
   id: '/ping/',
   path: '/ping/',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any).lazy(() => import('./routes/ping/index.lazy').then((d) => d.Route))
 const NoteIndexRoute = NoteIndexRouteImport.update({
   id: '/note/',
   path: '/note/',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any).lazy(() => import('./routes/note/index.lazy').then((d) => d.Route))
 const GameIndexRoute = GameIndexRouteImport.update({
   id: '/game/',
   path: '/game/',
@@ -52,42 +52,50 @@ const DownloadIndexRoute = DownloadIndexRouteImport.update({
   id: '/download/',
   path: '/download/',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any).lazy(() =>
+  import('./routes/download/index.lazy').then((d) => d.Route),
+)
 const DemoIndexRoute = DemoIndexRouteImport.update({
   id: '/demo/',
   path: '/demo/',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any).lazy(() => import('./routes/demo/index.lazy').then((d) => d.Route))
 const ChatIndexRoute = ChatIndexRouteImport.update({
   id: '/chat/',
   path: '/chat/',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any).lazy(() => import('./routes/chat/index.lazy').then((d) => d.Route))
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/app/',
   path: '/app/',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any).lazy(() => import('./routes/app/index.lazy').then((d) => d.Route))
 const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/admin/',
   path: '/admin/',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any).lazy(() => import('./routes/admin/index.lazy').then((d) => d.Route))
 const GameZhajinhuaIndexRoute = GameZhajinhuaIndexRouteImport.update({
   id: '/game/zhajinhua/',
   path: '/game/zhajinhua/',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any).lazy(() =>
+  import('./routes/game/zhajinhua/index.lazy').then((d) => d.Route),
+)
 const GameGandengyanIndexRoute = GameGandengyanIndexRouteImport.update({
   id: '/game/gandengyan/',
   path: '/game/gandengyan/',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any).lazy(() =>
+  import('./routes/game/gandengyan/index.lazy').then((d) => d.Route),
+)
 const ChatJoinIndexRoute = ChatJoinIndexRouteImport.update({
   id: '/chat/join/',
   path: '/chat/join/',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any).lazy(() =>
+  import('./routes/chat/join/index.lazy').then((d) => d.Route),
+)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
