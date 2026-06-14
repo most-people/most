@@ -19,8 +19,6 @@ import { Route as DemoIndexRouteImport } from './routes/demo/index'
 import { Route as ChatIndexRouteImport } from './routes/chat/index'
 import { Route as AppIndexRouteImport } from './routes/app/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
-import { Route as Web3ToolsIndexRouteImport } from './routes/web3/tools/index'
-import { Route as Web3Ed25519IndexRouteImport } from './routes/web3/ed25519/index'
 import { Route as GameZhajinhuaIndexRouteImport } from './routes/game/zhajinhua/index'
 import { Route as GameGandengyanIndexRouteImport } from './routes/game/gandengyan/index'
 import { Route as ChatJoinIndexRouteImport } from './routes/chat/join/index'
@@ -75,16 +73,6 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   path: '/admin/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const Web3ToolsIndexRoute = Web3ToolsIndexRouteImport.update({
-  id: '/web3/tools/',
-  path: '/web3/tools/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const Web3Ed25519IndexRoute = Web3Ed25519IndexRouteImport.update({
-  id: '/web3/ed25519/',
-  path: '/web3/ed25519/',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const GameZhajinhuaIndexRoute = GameZhajinhuaIndexRouteImport.update({
   id: '/game/zhajinhua/',
   path: '/game/zhajinhua/',
@@ -115,8 +103,6 @@ export interface FileRoutesByFullPath {
   '/chat/join/': typeof ChatJoinIndexRoute
   '/game/gandengyan/': typeof GameGandengyanIndexRoute
   '/game/zhajinhua/': typeof GameZhajinhuaIndexRoute
-  '/web3/ed25519/': typeof Web3Ed25519IndexRoute
-  '/web3/tools/': typeof Web3ToolsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -132,8 +118,6 @@ export interface FileRoutesByTo {
   '/chat/join': typeof ChatJoinIndexRoute
   '/game/gandengyan': typeof GameGandengyanIndexRoute
   '/game/zhajinhua': typeof GameZhajinhuaIndexRoute
-  '/web3/ed25519': typeof Web3Ed25519IndexRoute
-  '/web3/tools': typeof Web3ToolsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -150,8 +134,6 @@ export interface FileRoutesById {
   '/chat/join/': typeof ChatJoinIndexRoute
   '/game/gandengyan/': typeof GameGandengyanIndexRoute
   '/game/zhajinhua/': typeof GameZhajinhuaIndexRoute
-  '/web3/ed25519/': typeof Web3Ed25519IndexRoute
-  '/web3/tools/': typeof Web3ToolsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -169,8 +151,6 @@ export interface FileRouteTypes {
     | '/chat/join/'
     | '/game/gandengyan/'
     | '/game/zhajinhua/'
-    | '/web3/ed25519/'
-    | '/web3/tools/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -186,8 +166,6 @@ export interface FileRouteTypes {
     | '/chat/join'
     | '/game/gandengyan'
     | '/game/zhajinhua'
-    | '/web3/ed25519'
-    | '/web3/tools'
   id:
     | '__root__'
     | '/'
@@ -203,8 +181,6 @@ export interface FileRouteTypes {
     | '/chat/join/'
     | '/game/gandengyan/'
     | '/game/zhajinhua/'
-    | '/web3/ed25519/'
-    | '/web3/tools/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -221,8 +197,6 @@ export interface RootRouteChildren {
   ChatJoinIndexRoute: typeof ChatJoinIndexRoute
   GameGandengyanIndexRoute: typeof GameGandengyanIndexRoute
   GameZhajinhuaIndexRoute: typeof GameZhajinhuaIndexRoute
-  Web3Ed25519IndexRoute: typeof Web3Ed25519IndexRoute
-  Web3ToolsIndexRoute: typeof Web3ToolsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -297,20 +271,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/web3/tools/': {
-      id: '/web3/tools/'
-      path: '/web3/tools'
-      fullPath: '/web3/tools/'
-      preLoaderRoute: typeof Web3ToolsIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/web3/ed25519/': {
-      id: '/web3/ed25519/'
-      path: '/web3/ed25519'
-      fullPath: '/web3/ed25519/'
-      preLoaderRoute: typeof Web3Ed25519IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/game/zhajinhua/': {
       id: '/game/zhajinhua/'
       path: '/game/zhajinhua'
@@ -349,8 +309,6 @@ const rootRouteChildren: RootRouteChildren = {
   ChatJoinIndexRoute: ChatJoinIndexRoute,
   GameGandengyanIndexRoute: GameGandengyanIndexRoute,
   GameZhajinhuaIndexRoute: GameZhajinhuaIndexRoute,
-  Web3Ed25519IndexRoute: Web3Ed25519IndexRoute,
-  Web3ToolsIndexRoute: Web3ToolsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

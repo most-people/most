@@ -130,7 +130,7 @@ function createApiInstance() {
                 headers.set(key, value)
               }
             } catch {
-              // Ignore invalid legacy identity data for public/backend probes.
+              // Keep public/backend probes usable when stored identity data is invalid.
             }
           }
           return new Request(request, { headers })

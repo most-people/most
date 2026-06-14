@@ -1,6 +1,5 @@
 export const DEFAULT_LOCALE = 'zh-CN'
 export const LOCALE_STORAGE_KEY = 'mostbox.locale'
-export const LEGACY_LOCALE_STORAGE_KEY = 'mostbox.language'
 
 export const LOCALES = ['zh-CN', 'en'] as const
 

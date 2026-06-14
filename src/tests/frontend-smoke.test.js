@@ -238,7 +238,9 @@ describe('frontend smoke checks', () => {
     assert.match(staticManifest, /admin/)
     assert.match(staticManifest, /chat\/join/)
     assert.match(staticManifest, /note/)
-    assert.match(staticManifest, /web3\/tools/)
+    assert.match(staticManifest, /web3/)
+    assert.doesNotMatch(staticManifest, /web3\/ed25519/)
+    assert.doesNotMatch(staticManifest, /web3\/tools/)
     assert.match(staticManifest, /game\/gandengyan/)
   })
 

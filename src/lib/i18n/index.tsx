@@ -8,7 +8,6 @@ import React, {
 } from 'react'
 import {
   DEFAULT_LOCALE,
-  LEGACY_LOCALE_STORAGE_KEY,
   LOCALE_STORAGE_KEY,
   LOCALES,
   localeNames,
@@ -37,7 +36,6 @@ const I18nContext = createContext<I18nContextValue | null>(null)
 
 export {
   DEFAULT_LOCALE,
-  LEGACY_LOCALE_STORAGE_KEY,
   LOCALE_STORAGE_KEY,
   LOCALES,
   localeNames,
@@ -79,10 +77,7 @@ export function translateMessage(
 function readStoredLocale() {
   if (typeof window === 'undefined') return DEFAULT_LOCALE
   try {
-    return normalizeLocale(
-      window.localStorage.getItem(LOCALE_STORAGE_KEY) ||
-        window.localStorage.getItem(LEGACY_LOCALE_STORAGE_KEY)
-    )
+    return normalizeLocale(window.localStorage.getItem(LOCALE_STORAGE_KEY))
   } catch {
     return DEFAULT_LOCALE
   }
@@ -92,7 +87,6 @@ function persistLocale(locale: Locale) {
   if (typeof window === 'undefined') return
   try {
     window.localStorage.setItem(LOCALE_STORAGE_KEY, locale)
-    window.localStorage.removeItem(LEGACY_LOCALE_STORAGE_KEY)
   } catch {
     // Keep the in-memory locale even when storage is blocked.
   }
@@ -129,10 +123,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     if (typeof window === 'undefined') return
 
     function handleStorage(event: StorageEvent) {
-      if (
-        event.key !== LOCALE_STORAGE_KEY &&
-        event.key !== LEGACY_LOCALE_STORAGE_KEY
-      ) {
+      if (event.key !== LOCALE_STORAGE_KEY) {
         return
       }
       setLocaleState(readStoredLocale())

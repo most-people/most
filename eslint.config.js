@@ -7,10 +7,7 @@ export default [
     ignores: [
       'dist/**',
       'out/**',
-      'public/bundle.js',
-      'public/bundle.js.map',
-      'public/index.js',
-      'public/chat-page.js',
+      '.tanstack/tmp/**',
       'node_modules/**',
     ],
   },

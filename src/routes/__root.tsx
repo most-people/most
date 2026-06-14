@@ -74,7 +74,7 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
                 if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
                   document.documentElement.setAttribute('data-theme', 'dark');
                 }
-                var locale = localStorage.getItem('mostbox.locale') || localStorage.getItem('mostbox.language');
+                var locale = localStorage.getItem('mostbox.locale');
                 var normalizedLocale = locale === 'en' ? 'en' : 'zh-CN';
                 document.documentElement.setAttribute('lang', normalizedLocale);
                 document.documentElement.setAttribute('data-locale', normalizedLocale);

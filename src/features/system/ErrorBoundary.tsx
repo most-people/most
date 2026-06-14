@@ -1,6 +1,5 @@
 import React from 'react'
 import {
-  LEGACY_LOCALE_STORAGE_KEY,
   LOCALE_STORAGE_KEY,
   normalizeLocale,
   translateMessage,
@@ -19,10 +18,7 @@ interface ErrorBoundaryProps {
 function readErrorBoundaryLocale() {
   if (typeof window === 'undefined') return undefined
   try {
-    return normalizeLocale(
-      window.localStorage.getItem(LOCALE_STORAGE_KEY) ||
-        window.localStorage.getItem(LEGACY_LOCALE_STORAGE_KEY)
-    )
+    return normalizeLocale(window.localStorage.getItem(LOCALE_STORAGE_KEY))
   } catch {
     return undefined
   }

@@ -12,8 +12,6 @@ export const requiredStaticRoutes = [
   '/note/',
   '/ping/',
   '/web3/',
-  '/web3/ed25519/',
-  '/web3/tools/',
 ]
 
 export function getStaticOutputFile(route) {
