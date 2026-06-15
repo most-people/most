@@ -53,7 +53,12 @@ function cardParts(card: string) {
   const value = String(card || '')
   const suit = value.slice(-1)
   const rank = value.slice(0, -1)
-  const suitSymbol = { S: '♠', H: '♥', C: '♣', D: '♦' }[suit] || suit
+  const suitSymbol = {
+    S: '\u2660',
+    H: '\u2665',
+    C: '\u2663',
+    D: '\u2666',
+  }[suit] || suit
   const color = suit === 'H' || suit === 'D' ? 'red' : 'black'
   return { rank, suit: suitSymbol, color }
 }

@@ -129,6 +129,14 @@
       "**/*.node",
       "**/sodium-native/**"
     ],
+    "protocols": [
+      {
+        "name": "MostBox Link",
+        "schemes": [
+          "most"
+        ]
+      }
+    ],
     "win": {
       "target": [
         "nsis"

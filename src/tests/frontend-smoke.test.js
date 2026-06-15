@@ -365,6 +365,41 @@ describe('frontend smoke checks', () => {
     assert.doesNotMatch(gameRoomSource, /extraSubscribedChannelNames/)
   })
 
+  it('keeps game room errors localized and card suits stable', () => {
+    const gameRoomSource = readSource('src/hooks/useGameRoom.ts')
+    const zhajinhuaSource = readSource(
+      'src/features/game/zhajinhua/ZhajinhuaPage.tsx'
+    )
+    const i18nMessages = readI18nSources()
+
+    for (const key of [
+      'game.room.error.readLog',
+      'game.room.error.invalidCode',
+      'game.room.error.createFailed',
+      'game.room.error.joinFailed',
+      'game.room.error.sendEventFailed',
+    ]) {
+      assert.match(gameRoomSource, new RegExp(key.replaceAll('.', '\\.')))
+      assert.match(i18nMessages, new RegExp(`'${key}'`))
+    }
+    assert.doesNotMatch(gameRoomSource, /[\u4e00-\u9fff]/)
+    assert.doesNotMatch(
+      gameRoomSource,
+      /无法读取房间记录|请输入 4-8 位房间码|创建房间失败|进入房间失败|发送房间事件失败/
+    )
+
+    assert.match(zhajinhuaSource, /S:\s*'\\u2660'/)
+    assert.match(zhajinhuaSource, /H:\s*'\\u2665'/)
+    assert.match(zhajinhuaSource, /C:\s*'\\u2663'/)
+    assert.match(zhajinhuaSource, /D:\s*'\\u2666'/)
+    assert.doesNotMatch(
+      zhajinhuaSource,
+      /S:\s*'S'|H:\s*'H'|C:\s*'C'|D:\s*'D'/
+    )
+    assert.doesNotMatch(zhajinhuaSource, /[\u2660\u2665\u2666\u2663]/)
+    assert.doesNotMatch(zhajinhuaSource, /\uFFFD/)
+  })
+
   it('keeps P2P chat controls shared without the discarded chat extras', () => {
     const chatSource = readSource(SOURCE_PATHS.features.chat)
     const componentSource = readSource('src/components/ChatUi.tsx')
@@ -585,6 +620,16 @@ describe('frontend smoke checks', () => {
       /const canSaveAvatarUrl = avatarUrlDraft\.trim\(\)\.length > 0/
     )
     assert.match(profileSource, /disabled=\{!canSaveAvatarUrl\}/)
+  })
+
+  it('prefills the profile avatar URL field from the stored avatar value', () => {
+    const profileSource = readSource('src/features/profile/ProfilePage.tsx')
+
+    assert.match(
+      profileSource,
+      /setAvatarUrlDraft\(\s*normalizeDefaultAvatarValue\(identity\.avatar\) \|\| identity\.avatar \|\| ''\s*\)/
+    )
+    assert.match(profileSource, /isSupportedAvatarValue/)
   })
 
   it('uses profile identity as the single source for chat and game messages', () => {

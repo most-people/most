@@ -31,8 +31,6 @@ const LINK_VALIDATION_MESSAGES = {
     'CID 格式不符合 MostBox 要求，请确认分享链接完整。',
   [MOST_LINK_ERROR_CODES.CID_DIGEST_LENGTH]:
     'CID 格式不符合 MostBox 要求，请确认分享链接完整。',
-  [MOST_LINK_ERROR_CODES.FILENAME_REQUIRED]:
-    '链接缺少 filename 参数，请复制完整分享链接后再检测。',
 }
 
 export function getDownloadCheckErrorMessageFromPayload(

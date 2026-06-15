@@ -18,6 +18,10 @@ import {
   getCurrentPlatform,
   getReleaseManifestUrl,
 } from './updateChecker.js'
+import {
+  createMostDeepLinkTarget,
+  findMostDeepLinkArg,
+} from './deepLink.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = 1976
@@ -27,6 +31,9 @@ let engine = null
 let tray = null
 let isQuitting = false
 let hasCheckedForUpdates = false
+let pendingDeepLinkUrl = ''
+
+const gotSingleInstanceLock = app.requestSingleInstanceLock()
 
 function getIconCandidates() {
   return [
@@ -70,6 +77,44 @@ function showMainWindow() {
   }
   mainWindow.show()
   mainWindow.focus()
+}
+
+function getLocalAppUrl(routePath = '/') {
+  return new URL(routePath, `http://localhost:${PORT}`).toString()
+}
+
+function getInitialWindowUrl() {
+  const initialUrl = pendingDeepLinkUrl || getLocalAppUrl('/')
+  pendingDeepLinkUrl = ''
+  return initialUrl
+}
+
+function registerMostProtocolClient() {
+  if (process.defaultApp && process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient('most', process.execPath, [
+      path.resolve(process.argv[1]),
+    ])
+    return
+  }
+
+  app.setAsDefaultProtocolClient('most')
+}
+
+function openMostDeepLink(link) {
+  const targetUrl = createMostDeepLinkTarget(
+    link,
+    `http://localhost:${PORT}`
+  )
+  if (!targetUrl) return
+
+  pendingDeepLinkUrl = targetUrl
+  if (!mainWindow) {
+    return
+  }
+
+  showMainWindow()
+  mainWindow.loadURL(targetUrl)
+  pendingDeepLinkUrl = ''
 }
 
 function quitFromTray() {
@@ -117,7 +162,7 @@ function createWindow() {
     },
   })
 
-  mainWindow.loadURL(`http://localhost:${PORT}`)
+  mainWindow.loadURL(getInitialWindowUrl())
 
   mainWindow.on('close', event => {
     if (isQuitting) {
@@ -204,25 +249,47 @@ async function checkForUpdates() {
   }
 }
 
-app.whenReady().then(async () => {
-  try {
-    await startServer()
-    createWindow()
-    createTray()
-    Menu.setApplicationMenu(null)
-    setTimeout(() => {
-      checkForUpdates()
-    }, 3000)
+if (!gotSingleInstanceLock) {
+  isQuitting = true
+  app.quit()
+} else {
+  registerMostProtocolClient()
+  openMostDeepLink(findMostDeepLinkArg(process.argv))
 
-    app.on('activate', () => {
-      showMainWindow()
-    })
-  } catch (err) {
-    console.error('[Electron] Failed to start server:', err)
-    isQuitting = true
-    app.quit()
-  }
-})
+  app.on('second-instance', (_event, commandLine) => {
+    const link = findMostDeepLinkArg(commandLine)
+    if (link) {
+      openMostDeepLink(link)
+      return
+    }
+    showMainWindow()
+  })
+
+  app.on('open-url', (event, url) => {
+    event.preventDefault()
+    openMostDeepLink(url)
+  })
+
+  app.whenReady().then(async () => {
+    try {
+      await startServer()
+      createWindow()
+      createTray()
+      Menu.setApplicationMenu(null)
+      setTimeout(() => {
+        checkForUpdates()
+      }, 3000)
+
+      app.on('activate', () => {
+        showMainWindow()
+      })
+    } catch (err) {
+      console.error('[Electron] Failed to start server:', err)
+      isQuitting = true
+      app.quit()
+    }
+  })
+}
 
 app.on('window-all-closed', () => {
   // Keep the daemon alive; users exit from the tray menu.

@@ -9,7 +9,6 @@ export const MOST_LINK_ERROR_CODES = {
   INVALID_URL: 'invalid_url',
   INVALID_PROTOCOL: 'invalid_protocol',
   UNSUPPORTED_PATH: 'unsupported_path',
-  FILENAME_REQUIRED: 'filename_required',
   UNSUPPORTED_QUERY_PARAM: 'unsupported_query_param',
 }
 
@@ -79,7 +78,7 @@ export function parseMostLink(link) {
   }
 
   const cidString = url.hostname
-  const fileName = url.searchParams.get('filename')
+  const rawFileName = url.searchParams.get('filename')
   const unsupportedParam = [...url.searchParams.keys()].find(
     key => key !== 'filename'
   )
@@ -89,10 +88,6 @@ export function parseMostLink(link) {
     return invalidLink(validation.errorCode)
   }
 
-  if (!fileName || !fileName.trim()) {
-    return invalidLink(MOST_LINK_ERROR_CODES.FILENAME_REQUIRED)
-  }
-
   if (unsupportedParam) {
     return invalidLink(
       MOST_LINK_ERROR_CODES.UNSUPPORTED_QUERY_PARAM,
@@ -100,9 +95,15 @@ export function parseMostLink(link) {
     )
   }
 
+  const fileName = rawFileName?.trim() || cidString
+
   return { cid: cidString, fileName }
 }
 
 export function buildMostLink(cid, fileName) {
-  return `most://${cid}?filename=${encodeURIComponent(fileName)}`
+  const trimmedFileName = String(fileName || '').trim()
+  if (!trimmedFileName) {
+    return `most://${cid}`
+  }
+  return `most://${cid}?filename=${encodeURIComponent(trimmedFileName)}`
 }

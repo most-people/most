@@ -26,6 +26,7 @@ import {
   generateAvatar,
   getDefaultAvatarValue,
   isDefaultAvatarValue,
+  normalizeDefaultAvatarValue,
 } from '~server/src/utils/avatar.js'
 import { most25519 } from '~server/src/utils/mostWallet.js'
 import { getIPNS } from '~server/src/utils/mp.js'
@@ -46,11 +47,8 @@ const avatarOptions: AvatarOption[] = [
   })),
 ]
 
-function isCustomAvatarUrl(value?: string) {
-  return Boolean(value && !isDefaultAvatarValue(value))
-}
-
-function validateAvatarUrl(value: string) {
+function isSupportedAvatarValue(value: string) {
+  if (isDefaultAvatarValue(value)) return true
   try {
     const url = new URL(value)
     return url.protocol === 'http:' || url.protocol === 'https:'
@@ -81,7 +79,9 @@ export default function ProfilePage() {
       return
     }
     setDisplayNameDraft(identity.displayName || identity.username)
-    setAvatarUrlDraft(isCustomAvatarUrl(identity.avatar) ? identity.avatar || '' : '')
+    setAvatarUrlDraft(
+      normalizeDefaultAvatarValue(identity.avatar) || identity.avatar || ''
+    )
     setAvatarUrlError('')
   }, [identity])
 
@@ -121,7 +121,8 @@ export default function ProfilePage() {
     )
   }
 
-  const activeAvatar = identity.avatar || ''
+  const activeAvatar =
+    normalizeDefaultAvatarValue(identity.avatar) || identity.avatar || ''
   const avatarSrc = generateAvatar(identity.address, identity.avatar)
   const address = identity.address.toLowerCase()
   const canSaveAvatarUrl = avatarUrlDraft.trim().length > 0
@@ -163,7 +164,7 @@ export default function ProfilePage() {
       updateAvatar(undefined)
       return
     }
-    if (!validateAvatarUrl(nextUrl)) {
+    if (!isSupportedAvatarValue(nextUrl)) {
       setAvatarUrlError(t('nav.avatarUrlInvalid'))
       return
     }

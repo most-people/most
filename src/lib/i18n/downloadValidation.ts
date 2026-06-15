@@ -28,8 +28,6 @@ const downloadValidationErrorKeys: Record<string, MessageKey> = {
   [MOST_LINK_ERROR_CODES.CID_V1_REQUIRED]: 'app.download.validation.cidV1',
   [MOST_LINK_ERROR_CODES.CID_DIGEST_LENGTH]:
     'app.download.validation.cidDigest',
-  [MOST_LINK_ERROR_CODES.FILENAME_REQUIRED]:
-    'app.download.validation.filenameRequired',
 }
 
 export function getMostLinkValidationMessageKey(

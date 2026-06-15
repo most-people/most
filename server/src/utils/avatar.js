@@ -2,16 +2,31 @@ import { createAvatar } from '@dicebear/core'
 import { botttsNeutral } from '@dicebear/collection'
 
 export const defaultAvatarIds = [
-  'mint',
-  'violet',
-  'ocean',
-  'ember',
-  'sage',
-  'dusk',
+  'panda',
+  'owl',
+  'dolphin',
+  'tiger',
+  'turtle',
+  'snow-mountain',
 ]
 
+const legacyDefaultAvatarIdAliases = {
+  mint: 'panda',
+  violet: 'owl',
+  ocean: 'dolphin',
+  ember: 'tiger',
+  sage: 'turtle',
+  dusk: 'snow-mountain',
+}
+
+function normalizeDefaultAvatarId(id) {
+  const value = typeof id === 'string' ? id.trim() : ''
+  if (defaultAvatarIds.includes(value)) return value
+  return legacyDefaultAvatarIdAliases[value] || ''
+}
+
 export function getDefaultAvatarValue(id) {
-  return getDefaultAvatarPath(id)
+  return getDefaultAvatarPath(normalizeDefaultAvatarId(id) || id)
 }
 
 export function getDefaultAvatarPath(id) {
@@ -22,12 +37,16 @@ function getDefaultAvatarId(avatar) {
   if (typeof avatar !== 'string') return ''
   const value = avatar.trim()
   const match = /^\/avatars\/default\/([^/]+)\.svg$/.exec(value)
-  const id = match?.[1] || ''
-  return defaultAvatarIds.includes(id) ? id : ''
+  return normalizeDefaultAvatarId(match?.[1] || '')
 }
 
 export function isDefaultAvatarValue(avatar) {
   return Boolean(getDefaultAvatarId(avatar))
+}
+
+export function normalizeDefaultAvatarValue(avatar) {
+  const id = getDefaultAvatarId(avatar)
+  return id ? getDefaultAvatarPath(id) : ''
 }
 
 function createAddressAvatar(address) {

@@ -10,6 +10,7 @@ import {
 import { channelApi, type ChannelMessage } from '~/lib/channelApi'
 import { useChannelMessages } from '~/hooks/useChannelMessages'
 import { getApiErrorMessage } from '~server/src/utils/api'
+import { useI18n } from '~/lib/i18n'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore, type UserIdentity } from '~/stores/userStore'
 import {
@@ -29,6 +30,7 @@ export function useGameRoom({
   onError,
   getPlayerPayload,
 }: UseGameRoomOptions) {
+  const { t } = useI18n()
   const hasBackend = useAppStore(s => s.hasBackend)
   const checkBackend = useAppStore(s => s.checkBackend)
   const openConnectModal = useAppStore(s => s.openConnectModal)
@@ -78,7 +80,7 @@ export function useGameRoom({
     limit: 500,
     acceptMessage: acceptGameMessage,
     getMessageKey: getGameMessageKey,
-    onSyncError: err => reportError(err, '无法读取房间记录'),
+    onSyncError: err => reportError(err, t('game.room.error.readLog')),
   })
 
   const roomEvents = useMemo(
@@ -116,7 +118,7 @@ export function useGameRoom({
       const code = create ? createGameRoomCode() : normalizeGameRoomCode(codeInput)
       const name = gameRoomCodeToChannelName(gameId, code)
       if (!name) {
-        if (onError) onError('请输入 4-8 位房间码')
+        if (onError) onError(t('game.room.error.invalidCode'))
         return false
       }
       setJoining(true)
@@ -148,7 +150,12 @@ export function useGameRoom({
         clearMessages()
         return true
       } catch (err) {
-        await reportError(err, create ? '创建房间失败' : '进入房间失败')
+        await reportError(
+          err,
+          create
+            ? t('game.room.error.createFailed')
+            : t('game.room.error.joinFailed')
+        )
         return false
       } finally {
         setJoining(false)
@@ -161,6 +168,7 @@ export function useGameRoom({
       onError,
       reportError,
       clearMessages,
+      t,
       userIdentity,
     ]
   )
@@ -188,7 +196,7 @@ export function useGameRoom({
         })
         return true
       } catch (err) {
-        await reportError(err, '发送房间事件失败')
+        await reportError(err, t('game.room.error.sendEventFailed'))
         return false
       }
     },
@@ -199,6 +207,7 @@ export function useGameRoom({
       reportError,
       roomCode,
       sendMessage,
+      t,
       userIdentity,
     ]
   )

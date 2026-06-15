@@ -68,7 +68,7 @@ describe('game room shared core', () => {
         {
           author,
           authorName: 'New Name',
-          avatar: '/avatars/default/mint.svg',
+          avatar: '/avatars/default/panda.svg',
           content: JSON.stringify(event),
           timestamp: 1,
         },
@@ -77,6 +77,6 @@ describe('game room shared core', () => {
     )
 
     assert.strictEqual(lobby.players[0].name, 'New Name')
-    assert.strictEqual(lobby.players[0].avatar, '/avatars/default/mint.svg')
+    assert.strictEqual(lobby.players[0].avatar, '/avatars/default/panda.svg')
   })
 })

@@ -3,6 +3,7 @@ import assert from 'node:assert'
 import {
   generateAvatar,
   getDefaultAvatarValue,
+  normalizeDefaultAvatarValue,
 } from '../../src/utils/avatar.js'
 
 describe('generateAvatar', () => {
@@ -22,11 +23,26 @@ describe('generateAvatar', () => {
   })
 
   it('treats built-in default avatars as regular links', () => {
-    const avatar = getDefaultAvatarValue('mint')
-    assert.strictEqual(avatar, '/avatars/default/mint.svg')
+    const avatar = getDefaultAvatarValue('panda')
+    assert.strictEqual(avatar, '/avatars/default/panda.svg')
     assert.strictEqual(
       generateAvatar('0x1234567890abcdef', avatar),
-      '/avatars/default/mint.svg'
+      '/avatars/default/panda.svg'
+    )
+  })
+
+  it('normalizes legacy default avatar names to semantic filenames', () => {
+    assert.strictEqual(
+      getDefaultAvatarValue('mint'),
+      '/avatars/default/panda.svg'
+    )
+    assert.strictEqual(
+      normalizeDefaultAvatarValue('/avatars/default/ocean.svg'),
+      '/avatars/default/dolphin.svg'
+    )
+    assert.strictEqual(
+      generateAvatar('0x1234567890abcdef', '/avatars/default/dusk.svg'),
+      '/avatars/default/snow-mountain.svg'
     )
   })
 
