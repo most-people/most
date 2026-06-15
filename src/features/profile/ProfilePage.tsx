@@ -13,6 +13,7 @@ import {
   WalletCards,
 } from 'lucide-react'
 import { CopyButton } from '~/components/CopyButton'
+import { MarketingHeader } from '~/components/MarketingHeader'
 import { MarketingLayout } from '~/components/MarketingLayout'
 import { ConfirmModal } from '~/components/ui'
 import { useAppStore } from '~/stores/useAppStore'
@@ -67,6 +68,7 @@ export default function ProfilePage() {
   const [avatarUrlDraft, setAvatarUrlDraft] = useState('')
   const [avatarUrlError, setAvatarUrlError] = useState('')
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
+  const header = <MarketingHeader />
 
   useEffect(() => {
     if (!identity) {
@@ -92,7 +94,7 @@ export default function ProfilePage() {
 
   if (!identity) {
     return (
-      <MarketingLayout>
+      <MarketingLayout header={header}>
         <section className="profile-page">
           <div className="profile-container narrow">
             <div className="profile-empty glass">
@@ -154,7 +156,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <MarketingLayout>
+    <MarketingLayout header={header}>
       <section className="profile-page">
         <div className="profile-container">
           <header className="profile-header">

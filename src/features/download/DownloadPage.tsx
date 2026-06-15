@@ -2,10 +2,9 @@ import '~/styles/marketing.css'
 import '~/styles/download.css'
 import { useEffect } from 'react'
 import { Link } from '@tanstack/react-router'
-import { ArrowLeft, Download } from 'lucide-react'
+import { Download } from 'lucide-react'
 import DownloadOptions from '~/components/DownloadOptions'
-import { LanguageToggle } from '~/components/LanguageToggle'
-import { MarketingThemeToggle } from '~/components/MarketingThemeToggle'
+import { MarketingHeader } from '~/components/MarketingHeader'
 import { useI18n } from '~/lib/i18n'
 
 const webVsDesktop = [
@@ -45,18 +44,7 @@ export default function DownloadPage() {
 
   return (
     <div className="download-page">
-      <nav className="mkt-nav">
-        <div className="mkt-nav-inner">
-          <Link to="/" className="mkt-nav-logo">
-            <ArrowLeft size={18} />
-            <span>MOST PEOPLE</span>
-          </Link>
-          <div className="mkt-nav-cta">
-            <MarketingThemeToggle />
-            <LanguageToggle className="mkt-theme-toggle" />
-          </div>
-        </div>
-      </nav>
+      <MarketingHeader />
 
       <section className="download-hero">
         <div className="mkt-container">

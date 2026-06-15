@@ -147,6 +147,27 @@
     flex: 1;
   }
 
+  .user-avatar-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border-radius: var(--radius-sm);
+    transition:
+      opacity var(--transition-fast),
+      transform var(--transition-fast);
+
+    &:hover {
+      opacity: 0.86;
+      transform: translateY(-1px);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 3px;
+    }
+  }
+
   .user-avatar {
     width: 24px;
     height: 24px;
@@ -185,9 +206,10 @@
     }
   }
 
-  .account-menu-trigger {
-    width: 30px;
-    height: 30px;
+  .logout-btn {
+    min-height: 30px;
+    padding: 4px 10px;
+    font-size: 11px;
     flex-shrink: 0;
   }
 

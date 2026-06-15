@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from '@tanstack/react-router'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import 'dayjs/locale/zh-cn'
@@ -7,7 +6,6 @@ import 'dayjs/locale/zh-tw'
 import {
   Activity,
   AlertTriangle,
-  ArrowLeft,
   CheckCircle2,
   Clipboard,
   Database,
@@ -28,6 +26,7 @@ import {
   getBackendUrlExport,
 } from '~server/src/utils/api'
 import { useAppStore } from '~/stores/useAppStore'
+import { MarketingHeader } from '~/components/MarketingHeader'
 import {
   useI18n,
   type Locale,
@@ -552,35 +551,28 @@ export default function AdminPage() {
   }, [isBackendReady, isRemoteAdmin, logFilter])
 
   return (
-    <main className="admin-page">
-      <header className="admin-topbar">
-        <div className="admin-title-group">
-          <Link
-            to="/"
-            className="btn btn-icon"
-            aria-label={t('common.backHome')}
-          >
-            <ArrowLeft size={16} />
-          </Link>
-          <div>
+    <>
+      <MarketingHeader />
+      <main className="admin-page">
+        <header className="admin-topbar">
+          <div className="admin-title-group">
             <h1>{t('admin.title')}</h1>
           </div>
-        </div>
-        <div className="admin-topbar-actions">
-          <span
-            className={`admin-status-pill ${status?.status === 'online' ? 'online' : ''}`}
-          >
-            <Activity size={14} />
-            {status?.status === 'online'
-              ? t('admin.status.online')
-              : t('admin.status.waiting')}
-          </span>
-          <button className="btn btn-secondary" onClick={refreshStatus}>
-            <RefreshCw size={16} />
-            {t('admin.action.refresh')}
-          </button>
-        </div>
-      </header>
+          <div className="admin-topbar-actions">
+            <span
+              className={`admin-status-pill ${status?.status === 'online' ? 'online' : ''}`}
+            >
+              <Activity size={14} />
+              {status?.status === 'online'
+                ? t('admin.status.online')
+                : t('admin.status.waiting')}
+            </span>
+            <button className="btn btn-secondary" onClick={refreshStatus}>
+              <RefreshCw size={16} />
+              {t('admin.action.refresh')}
+            </button>
+          </div>
+        </header>
 
       {hasBackend === false && (
         <section className="admin-panel admin-error">
@@ -962,6 +954,7 @@ export default function AdminPage() {
           </section>
         </>
       )}
-    </main>
+      </main>
+    </>
   )
 }

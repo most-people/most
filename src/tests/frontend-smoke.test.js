@@ -369,8 +369,10 @@ describe('frontend smoke checks', () => {
     assert.match(componentSource, /t\('chat\.rename'\)/)
     assert.match(componentSource, /t\('chat\.delete'\)/)
     assert.doesNotMatch(componentSource, /key: 'delete'[\s\S]{0,120}danger: true/)
-    assert.match(sidebarAccountSource, /ActionMenu/)
-    assert.doesNotMatch(sidebarAccountSource, /danger: true/)
+    assert.match(sidebarAccountSource, /to="\/profile\/"/)
+    assert.match(sidebarAccountSource, /className="btn btn-secondary logout-btn"/)
+    assert.match(sidebarAccountSource, /t\('account\.logout'\)/)
+    assert.doesNotMatch(sidebarAccountSource, /ActionMenu|MoreHorizontal/)
     assert.match(chatSource, /setChannelPinned/)
     assert.match(chatSource, /channelToRename/)
     assert.match(chatSource, /lastMessageAt/)
@@ -394,7 +396,7 @@ describe('frontend smoke checks', () => {
     )
     assert.doesNotMatch(
       sidebarAccountSource,
-      /account-actions-menu|account-actions-dropdown|account-actions-item|logout-btn/
+      /account-actions-menu|account-actions-dropdown|account-actions-item|account-menu-trigger/
     )
     assert.doesNotMatch(chatSource, /PINNED_CHANNELS|ChatTypingIndicator|__duplicate/)
     assert.doesNotMatch(chatSource, /正在输入|告诉我可以帮你做什么|修改名称/)

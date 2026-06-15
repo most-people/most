@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useHotkeys } from '~/hooks'
 
 interface ModalOverlayProps {
@@ -41,10 +42,13 @@ export function ModalOverlay({
     }
   }, [])
 
-  return (
+  const overlay = (
     <div className={['modal-overlay', className].filter(Boolean).join(' ')}>
       <div className="modal-overlay-backdrop" />
       <div className="modal-glass">{children}</div>
     </div>
   )
+
+  if (typeof document === 'undefined') return overlay
+  return createPortal(overlay, document.body)
 }

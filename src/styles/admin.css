@@ -1,5 +1,5 @@
 .admin-page {
-  min-height: 100dvh;
+  min-height: calc(100dvh - 64px);
   max-width: 1280px;
   margin: 0 auto;
   padding: 24px;

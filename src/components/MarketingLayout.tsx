@@ -1,12 +1,18 @@
 import '~/styles/marketing.css'
 
+import type { ReactNode } from 'react'
 import { Nav } from '~/components/Nav'
 import { Footer } from '~/components/Footer'
 
-export function MarketingLayout({ children }: { children: React.ReactNode }) {
+interface MarketingLayoutProps {
+  children: ReactNode
+  header?: ReactNode
+}
+
+export function MarketingLayout({ children, header }: MarketingLayoutProps) {
   return (
     <div className="mkt-layout">
-      <Nav />
+      {header ?? <Nav />}
       <main className="mkt-layout-main">{children}</main>
       <Footer />
     </div>
