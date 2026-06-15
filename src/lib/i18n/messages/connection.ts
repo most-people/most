@@ -25,6 +25,33 @@ export const zhCNConnectionMessages = {
   'account.logoutConfirm': '确定要退出当前账号吗？',
 } as const
 
+export const zhTWConnectionMessages = {
+  'remote.title.edit': '修改遠端節點',
+  'remote.title.connect': '連線遠端節點',
+  'remote.hint':
+    'Web 端只連線已有 MostBox 節點。輸入別人部署好的節點地址和邀請碼後，可通過該節點使用檔案分享和聊天；本機完整 P2P 能力請使用桌面用戶端。',
+  'remote.invite.placeholder': '邀請碼',
+  'remote.connecting': '連線中...',
+  'remote.updateConnection': '更新連線',
+  'remote.connectNode': '連線節點',
+  'remote.disconnect': '斷開連線',
+  'remote.currentNode': '當前遠端節點：{url}',
+  'remote.error.invalidUrl': '請輸入有效的 http(s) 節點地址',
+  'remote.error.http': '遠端節點 HTTP 不可達，請檢查地址',
+  'remote.error.ws': '遠端節點 WebSocket 不可達，請檢查地址或代理設定',
+  'remote.error.failed': '遠端節點連線失敗，請檢查地址和邀請碼',
+  'remote.connected': '遠端節點已連線',
+  'remote.connectFailed': '遠端節點連線失敗',
+  'remote.cleared': '已清除遠端節點，優先使用本機節點',
+  'connectModal.title': '連線節點',
+  'account.notSignedIn': '未登入',
+  'account.signIn': '登入',
+  'account.actions': '帳號操作',
+  'account.logout': '退出',
+  'account.logoutTitle': '登出',
+  'account.logoutConfirm': '確定要退出當前帳號嗎？',
+} as const
+
 export const enConnectionMessages = {
   'remote.title.edit': 'Edit remote node',
   'remote.title.connect': 'Connect remote node',

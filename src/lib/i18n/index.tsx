@@ -53,7 +53,9 @@ export function normalizeLocale(value: unknown): Locale {
 }
 
 export function getNextLocale(locale: Locale): Locale {
-  return locale === 'zh-CN' ? 'en' : 'zh-CN'
+  const currentIndex = LOCALES.indexOf(locale)
+  const nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % LOCALES.length
+  return LOCALES[nextIndex] ?? DEFAULT_LOCALE
 }
 
 export function interpolateMessage(

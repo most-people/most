@@ -106,6 +106,114 @@ export const zhCNPortalMessages = {
   'portal.feature.web3.step.export.desc': '复制地址、导出 PEM、派生子地址。',
 } as const
 
+export const zhTWPortalMessages = {
+  'portal.hero.subtitle': '去中心化 P2P 工具箱',
+  'portal.nodeEntry': '節點入口',
+  'portal.webConnectNode': 'Web 連線節點',
+  'portal.nodeAdmin': '節點管理',
+  'portal.enterFeature': '進入 {title}',
+  'portal.openFeature': '開啟{title}',
+  'portal.feature.app.title': 'MostBox',
+  'portal.feature.app.subtitle': 'P2P 檔案分享',
+  'portal.feature.app.hero': 'P2P 檔案分享，無需註冊',
+  'portal.feature.app.desc':
+    '基於 Hyperswarm 的去中心化檔案傳輸，讓檔案分享迴歸點對點。MostBox 不是雲盤；連結來自 CID，可用性來自當前線上種子。當前 MVP 優先使用桌面用戶端。',
+  'portal.feature.app.bullet.localIdentity':
+    '無需雲端帳號，使用本機身份隔離資料',
+  'portal.feature.app.bullet.hyperswarm': 'Hyperswarm P2P 直連傳輸',
+  'portal.feature.app.bullet.largeFiles': 'GB 級大檔案流式處理',
+  'portal.feature.app.bullet.cid': '相同檔案 = 相同 CID，連結可反覆校驗',
+  'portal.feature.app.bullet.seedAfterDownload': '下載完成後預設繼續做種',
+  'portal.feature.app.bullet.noCloud':
+    '相比微信、QQ 或網盤，不依賴中心化帳號和雲端託管',
+  'portal.feature.app.bullet.desktop':
+    'Web 端只連線已有節點，桌面端提供完整 P2P 能力',
+  'portal.feature.app.bullet.openSource':
+    'MIT 開源，自託管，資料完全自主掌控',
+  'portal.feature.app.step.download.title': '下載用戶端',
+  'portal.feature.app.step.download.desc':
+    '支援 Windows、macOS 和 Linux，桌面端提供完整的 P2P 能力。',
+  'portal.feature.app.step.download.link': '前往下載頁',
+  'portal.feature.app.step.install.title': '安裝並執行',
+  'portal.feature.app.step.install.desc': '安裝後開啟應用，無需單獨安裝 Node.js。',
+  'portal.feature.app.step.share.title': '開始分享',
+  'portal.feature.app.step.share.desc':
+    '發布檔案生成 most:// 連結，朋友下載校驗通過後也會成為新的種子。',
+  'portal.feature.chat.title': 'P2P 聊天',
+  'portal.feature.chat.subtitle': '頻道加密通訊',
+  'portal.feature.chat.hero': '去中心化頻道聊天',
+  'portal.feature.chat.desc':
+    '基於 Hypercore 的 P2P 加密即時通訊。建立頻道，邀請朋友，端到端加密，無需伺服器中轉。',
+  'portal.feature.chat.bullet.encrypted': 'P2P 加密頻道訊息',
+  'portal.feature.chat.bullet.identity': '本機登入身份保護訊息署名',
+  'portal.feature.chat.bullet.sync': '訊息通過 Hyperswarm 網路同步',
+  'portal.feature.chat.bullet.offline': '離線訊息自動同步',
+  'portal.feature.chat.bullet.noAccount': '無需中心化帳號註冊',
+  'portal.feature.chat.step.download.title': '下載用戶端',
+  'portal.feature.chat.step.download.desc': '支援 Windows、macOS 和 Linux。',
+  'portal.feature.chat.step.download.link': '前往下載頁',
+  'portal.feature.chat.step.create.title': '建立頻道',
+  'portal.feature.chat.step.create.desc': '輸入任意頻道名即可加入或建立。',
+  'portal.feature.chat.step.send.title': '開始聊天',
+  'portal.feature.chat.step.send.desc':
+    '傳送訊息，P2P 網路自動同步給所有線上節點。',
+  'portal.feature.note.title': '筆記',
+  'portal.feature.note.subtitle': '加密雲備份',
+  'portal.feature.note.hero': 'Web3 加密筆記',
+  'portal.feature.note.desc':
+    '使用本機 Web3 金鑰加密 Markdown 筆記，可在瀏覽器本機儲存並按需同步到雲端備份。',
+  'portal.feature.note.bullet.markdown': 'Markdown 塊編輯器',
+  'portal.feature.note.bullet.privacy': '公開 / 私密筆記切換',
+  'portal.feature.note.bullet.folders': '資料夾、搜尋和移動',
+  'portal.feature.note.bullet.web3': 'Web3 登入態加密',
+  'portal.feature.note.bullet.backup': '雲端備份與恢復',
+  'portal.feature.note.bullet.independent': '獨立於 P2P 檔案分享',
+  'portal.feature.note.step.account.title': '生成 Web3 帳號',
+  'portal.feature.note.step.account.desc': '用使用者名稱和密碼派生本機金鑰。',
+  'portal.feature.note.step.create.title': '建立筆記',
+  'portal.feature.note.step.create.desc': '寫 Markdown，按需切換為私密內容。',
+  'portal.feature.note.step.backup.title': '備份恢復',
+  'portal.feature.note.step.backup.desc': '登入後可把加密筆記同步到雲端。',
+  'portal.feature.game.title': '遊戲',
+  'portal.feature.game.subtitle': 'P2P 牌桌',
+  'portal.feature.game.hero': '常駐節點裡的線上牌桌',
+  'portal.feature.game.desc':
+    '把乾瞪眼作為 MostBox 的獨立頁面接入，複用現有頻道訊息、Web3 登入身份和桌面端常駐入口。',
+  'portal.feature.game.bullet.account': '使用 MostBox 本機帳號進入房間',
+  'portal.feature.game.bullet.channel':
+    '複用 /chat/ 的頻道後端，不新增遊戲後端介面',
+  'portal.feature.game.bullet.link': '房間連結可直接分享到群組',
+  'portal.feature.game.bullet.rules': '支援 1-2 副牌、2-6 人和人機陪測',
+  'portal.feature.game.bullet.maintain':
+    '遊戲規則、頻道事件和頁面樣式拆分維護',
+  'portal.feature.game.step.login.title': '登入帳號',
+  'portal.feature.game.step.login.desc':
+    '使用現有 MostBox Web3 本機帳號作為牌桌身份。',
+  'portal.feature.game.step.create.title': '建立房間',
+  'portal.feature.game.step.create.desc': '建立房間後複製連結，發給朋友加入。',
+  'portal.feature.game.step.test.title': '開始除錯',
+  'portal.feature.game.step.test.desc':
+    '可先用人機補位測試出牌、計分和房間同步。',
+  'portal.feature.web3.title': 'Web3',
+  'portal.feature.web3.subtitle': '帳戶工具箱',
+  'portal.feature.web3.hero': '確定性金鑰派生工具箱',
+  'portal.feature.web3.desc':
+    '純前端執行的 Web3 帳戶工具。輸入使用者名稱和密碼，即可生成 Ed25519 / x25519 金鑰對、助記詞、以太坊地址，支援 PEM 匯出和地址派生。',
+  'portal.feature.web3.bullet.frontend': '純前端執行，無需後端',
+  'portal.feature.web3.bullet.keys': 'Ed25519 / x25519 金鑰對生成',
+  'portal.feature.web3.bullet.mnemonic': 'BIP-39 助記詞派生',
+  'portal.feature.web3.bullet.eth': '以太坊地址與私鑰匯出',
+  'portal.feature.web3.bullet.pem': 'PEM 格式金鑰匯出',
+  'portal.feature.web3.bullet.qr': '二維碼展示地址與助記詞',
+  'portal.feature.web3.step.username.title': '輸入使用者名稱',
+  'portal.feature.web3.step.username.desc': '使用者名稱 + 密碼（可選）作為種子。',
+  'portal.feature.web3.step.keys.title': '檢視金鑰',
+  'portal.feature.web3.step.keys.desc':
+    '即時生成 Ed25519、x25519 公鑰與 IPNS ID。',
+  'portal.feature.web3.step.export.title': '匯出使用',
+  'portal.feature.web3.step.export.desc': '複製地址、匯出 PEM、派生子地址。',
+} as const
+
 export const enPortalMessages = {
   'portal.hero.subtitle': 'Decentralized P2P toolbox',
   'portal.nodeEntry': 'Node entry',

@@ -1,27 +1,84 @@
-import { enCoreMessages, zhCNCoreMessages } from './messages/core'
-import { enDownloadMessages, zhCNDownloadMessages } from './messages/download'
-import { enPingMessages, zhCNPingMessages } from './messages/ping'
-import { enPortalMessages, zhCNPortalMessages } from './messages/portal'
-import { enConnectionMessages, zhCNConnectionMessages } from './messages/connection'
-import { enChatMessages, zhCNChatMessages } from './messages/chat'
-import { enChatJoinMessages, zhCNChatJoinMessages } from './messages/chatJoin'
-import { enFilesMessages, zhCNFilesMessages } from './messages/files'
-import { enNoteMessages, zhCNNoteMessages } from './messages/note'
-import { enIdentityMessages, zhCNIdentityMessages } from './messages/identity'
-import { enWeb3Messages, zhCNWeb3Messages } from './messages/web3'
-import { enGameMessages, zhCNGameMessages } from './messages/game'
-import { enAdminMessages, zhCNAdminMessages } from './messages/admin'
-import { enProfileMessages, zhCNProfileMessages } from './messages/profile'
+import {
+  enCoreMessages,
+  zhCNCoreMessages,
+  zhTWCoreMessages,
+} from './messages/core'
+import {
+  enDownloadMessages,
+  zhCNDownloadMessages,
+  zhTWDownloadMessages,
+} from './messages/download'
+import {
+  enPingMessages,
+  zhCNPingMessages,
+  zhTWPingMessages,
+} from './messages/ping'
+import {
+  enPortalMessages,
+  zhCNPortalMessages,
+  zhTWPortalMessages,
+} from './messages/portal'
+import {
+  enConnectionMessages,
+  zhCNConnectionMessages,
+  zhTWConnectionMessages,
+} from './messages/connection'
+import {
+  enChatMessages,
+  zhCNChatMessages,
+  zhTWChatMessages,
+} from './messages/chat'
+import {
+  enChatJoinMessages,
+  zhCNChatJoinMessages,
+  zhTWChatJoinMessages,
+} from './messages/chatJoin'
+import {
+  enFilesMessages,
+  zhCNFilesMessages,
+  zhTWFilesMessages,
+} from './messages/files'
+import {
+  enNoteMessages,
+  zhCNNoteMessages,
+  zhTWNoteMessages,
+} from './messages/note'
+import {
+  enIdentityMessages,
+  zhCNIdentityMessages,
+  zhTWIdentityMessages,
+} from './messages/identity'
+import {
+  enWeb3Messages,
+  zhCNWeb3Messages,
+  zhTWWeb3Messages,
+} from './messages/web3'
+import {
+  enGameMessages,
+  zhCNGameMessages,
+  zhTWGameMessages,
+} from './messages/game'
+import {
+  enAdminMessages,
+  zhCNAdminMessages,
+  zhTWAdminMessages,
+} from './messages/admin'
+import {
+  enProfileMessages,
+  zhCNProfileMessages,
+  zhTWProfileMessages,
+} from './messages/profile'
 
 export const DEFAULT_LOCALE = 'zh-CN'
 export const LOCALE_STORAGE_KEY = 'mostbox.locale'
 
-export const LOCALES = ['zh-CN', 'en'] as const
+export const LOCALES = ['zh-CN', 'zh-TW', 'en'] as const
 
 export type Locale = (typeof LOCALES)[number]
 
 export const localeNames: Record<Locale, string> = {
-  'zh-CN': '中文',
+  'zh-CN': '简体中文',
+  'zh-TW': '繁體中文',
   en: 'English',
 }
 
@@ -61,7 +118,25 @@ export const enMessages = {
   ...enProfileMessages,
 } satisfies Record<MessageKey, string>
 
+export const zhTWMessages = {
+  ...zhTWCoreMessages,
+  ...zhTWDownloadMessages,
+  ...zhTWPingMessages,
+  ...zhTWPortalMessages,
+  ...zhTWConnectionMessages,
+  ...zhTWChatMessages,
+  ...zhTWChatJoinMessages,
+  ...zhTWFilesMessages,
+  ...zhTWNoteMessages,
+  ...zhTWIdentityMessages,
+  ...zhTWWeb3Messages,
+  ...zhTWGameMessages,
+  ...zhTWAdminMessages,
+  ...zhTWProfileMessages,
+} satisfies Record<MessageKey, string>
+
 export const messages = {
   'zh-CN': zhCNMessages,
+  'zh-TW': zhTWMessages,
   en: enMessages,
 } satisfies Record<Locale, Record<MessageKey, string>>

@@ -11,6 +11,19 @@ export const zhCNIdentityMessages = {
   'login.error.failed': '登录失败',
 } as const
 
+export const zhTWIdentityMessages = {
+  'login.title': '登入',
+  'login.username.placeholder': '使用者名稱',
+  'login.password.placeholder': '密碼',
+  'login.preview': '登入',
+  'login.previewed': '檢查地址',
+  'login.loading': '登入中',
+  'login.toast.signedIn': '已登入 {username}',
+  'login.error.credentialsRequired': '請輸入使用者名稱和密碼',
+  'login.error.previewRequired': '請先預覽並確認頭像',
+  'login.error.failed': '登入失敗',
+} as const
+
 export const enIdentityMessages = {
   'login.title': 'Sign in',
   'login.username.placeholder': 'Username',

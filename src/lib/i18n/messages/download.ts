@@ -40,6 +40,48 @@ export const zhCNDownloadMessages = {
   'download.platform.current': '当前',
 } as const
 
+export const zhTWDownloadMessages = {
+  'download.meta.title': '下載 MostBox 桌面用戶端',
+  'download.meta.desc':
+    '下載 MostBox 桌面用戶端，獲得完整的 P2P 檔案分享、下載校驗和持續做種能力',
+  'download.hero.title': '下載用戶端',
+  'download.hero.desc':
+    '桌面用戶端是當前 MVP 的首選入口，內建本機 P2P 節點，提供發布、下載校驗和持續做種的完整能力。Web 端只連線已有 MostBox 節點。',
+  'download.platforms.title': '選擇你的平臺',
+  'download.comparison.title': 'Web 端 vs 桌面端',
+  'download.comparison.feature': '功能',
+  'download.comparison.web': 'Web 端',
+  'download.comparison.desktop': '桌面端',
+  'download.comparison.node': '節點能力',
+  'download.comparison.fileSharing': 'P2P 檔案分享',
+  'download.comparison.verification': '下載校驗',
+  'download.comparison.seeding': '持續做種',
+  'download.comparison.largeFiles': '大檔案傳輸',
+  'download.comparison.webConnectsNode': '連線已有節點',
+  'download.comparison.webDependsNode': '依賴所連節點',
+  'download.comparison.desktopBuiltinNode': '內建本機節點',
+  'download.comparison.desktopFull': '完整支援',
+  'download.comparison.desktopDefaultOn': '預設開啟',
+  'download.comparison.desktop10gb': '10GB 上限內',
+  'download.npmNote':
+    '使用 npm 入口請先安裝 Node.js >= 22.12，然後執行 npx most-box@latest 啟動本機完整節點。',
+  'download.source.label': '下載來源',
+  'download.source.r2Mirror': 'Cloudflare R2 高速映象',
+  'download.source.loading': '正在取得 Cloudflare R2 高速映象。',
+  'download.source.ready':
+    '當前版本 {version}，可切換 Cloudflare R2 或 GitHub Releases 下載。',
+  'download.source.fallback':
+    '無法取得高速映象資訊，已切換到 GitHub Releases 備用下載。',
+  'download.platform.windows.desc': 'Windows 10 或更高版本',
+  'download.platform.macos.desc': 'macOS 12 Monterey 或更高版本',
+  'download.platform.linux.desc':
+    'Ubuntu 20.04+ / Debian 11+ / 其他主流發行版',
+  'download.platform.source': '來源',
+  'download.platform.size': '大小',
+  'download.platform.action': '下載 {ext}',
+  'download.platform.current': '當前',
+} as const
+
 export const enDownloadMessages = {
   'download.meta.title': 'Download the MostBox desktop client',
   'download.meta.desc':

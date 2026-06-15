@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import 'dayjs/locale/zh-cn'
+import 'dayjs/locale/zh-tw'
 import {
   Activity,
   AlertTriangle,
@@ -28,7 +29,6 @@ import {
 } from '~server/src/utils/api'
 import { useAppStore } from '~/stores/useAppStore'
 import {
-  DEFAULT_LOCALE,
   useI18n,
   type Locale,
   type MessageKey,
@@ -191,7 +191,12 @@ function formatSeedStatus(holding: NodeHolding, t: AdminTranslate) {
 }
 
 function getDayjsLocale(locale: Locale) {
-  return locale === DEFAULT_LOCALE ? 'zh-cn' : 'en'
+  const dayjsLocales: Record<Locale, string> = {
+    'zh-CN': 'zh-cn',
+    'zh-TW': 'zh-tw',
+    en: 'en',
+  }
+  return dayjsLocales[locale]
 }
 
 function formatRecentTime(

@@ -76,7 +76,8 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
                   document.documentElement.setAttribute('data-theme', 'dark');
                 }
                 var locale = localStorage.getItem('mostbox.locale');
-                var normalizedLocale = locale === 'en' ? 'en' : 'zh-CN';
+                var supportedLocales = ['zh-CN', 'zh-TW', 'en'];
+                var normalizedLocale = supportedLocales.indexOf(locale) >= 0 ? locale : 'zh-CN';
                 document.documentElement.setAttribute('lang', normalizedLocale);
                 document.documentElement.setAttribute('data-locale', normalizedLocale);
               })();

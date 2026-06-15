@@ -26,6 +26,34 @@ export const zhCNProfileMessages = {
   'profile.avatar.dusk': '雪山',
 } as const
 
+export const zhTWProfileMessages = {
+  'profile.meta.title': 'Profile | MostBox',
+  'profile.meta.desc': '管理 MostBox 帳號頭像、顯示名稱和本機身份資訊。',
+  'profile.kicker': 'Profile',
+  'profile.signedOut.title': '請先登入',
+  'profile.signedOut.desc': '登入後可以管理頭像、顯示名稱，並查看目前使用者地址和公鑰資訊。',
+  'profile.section.account': '帳號資料',
+  'profile.section.account.desc': '這些資訊只保存在本機，用於聊天、遊戲和工具箱裡的身份展示。',
+  'profile.section.avatar': '頭像',
+  'profile.section.avatar.desc': '選擇一個內建頭像，或繼續使用自己的頭像 URL。',
+  'profile.section.identity': '身份資訊',
+  'profile.section.identity.desc': '以下資訊來自目前本機帳號，可用於識別和複製公開身份。',
+  'profile.label.displayName': '顯示名稱',
+  'profile.label.username': '使用者名稱',
+  'profile.label.customAvatar': '自訂頭像 URL',
+  'profile.action.save': '儲存',
+  'profile.action.openWallet': '開啟 Web3 錢包',
+  'profile.toast.saved': '資料已儲存',
+  'profile.toast.avatarUpdated': '頭像已更新',
+  'profile.avatar.address': '地址頭像',
+  'profile.avatar.mint': '熊貓',
+  'profile.avatar.violet': '貓頭鷹',
+  'profile.avatar.ocean': '海豚',
+  'profile.avatar.ember': '老虎',
+  'profile.avatar.sage': '海龜',
+  'profile.avatar.dusk': '雪山',
+} as const
+
 export const enProfileMessages = {
   'profile.meta.title': 'Profile | MostBox',
   'profile.meta.desc': 'Manage the MostBox account avatar, display name, and local identity.',

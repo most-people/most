@@ -39,6 +39,47 @@ export const zhCNChatJoinMessages = {
   'chatJoin.join': '加入',
 } as const
 
+export const zhTWChatJoinMessages = {
+  'chatJoin.title': '加入頻道',
+  'chatJoin.status.checkingBackend': '正在檢測後端連線...',
+  'chatJoin.status.connectingRemote': '正在連線遠端節點...',
+  'chatJoin.status.signingIn': '正在登入邀請帳號...',
+  'chatJoin.status.joiningChannel': '正在加入頻道...',
+  'chatJoin.status.openingChannel': '加入成功，正在開啟頻道...',
+  'chatJoin.status.loadingFixture': '正在載入 {name} 測試帳號...',
+  'chatJoin.status.decryptingInvite': '正在解密邀請...',
+  'chatJoin.status.decrypting': '正在解密...',
+  'chatJoin.status.decryptSuccess': '解密成功',
+  'chatJoin.error.unknownFixture': '未知測試帳號：{fixture}',
+  'chatJoin.error.missingToken': '缺少 token 參數',
+  'chatJoin.error.missingPub': '缺少 pub 參數',
+  'chatJoin.error.remoteConnectFailed': '遠端節點連線失敗',
+  'chatJoin.error.noBackend': '未連線後端，邀請中也沒有 node_url',
+  'chatJoin.error.channelConflict':
+    '頻道 {channel} 存在多個候選，請在聊天頁選擇',
+  'chatJoin.error.decrypt': '解密失敗',
+  'chatJoin.error.invalidInvite': '邀請內容缺少 uid 或 channels[].id',
+  'chatJoin.error.request': '請求出錯: {message}',
+  'chatJoin.specTitle': '支援欄位',
+  'chatJoin.field.required': '必填',
+  'chatJoin.field.optional': '可選',
+  'chatJoin.field.nodeUrl': 'Web 端未連線後端時，用於連線遠端節點。',
+  'chatJoin.field.nodeInvite': '配合 node_url 作為遠端節點邀請碼。',
+  'chatJoin.field.uid': '作為使用者名稱，密碼為空，用於生成帳戶並自動登入。',
+  'chatJoin.field.identity':
+    '邀請身份型別；user 為普通使用者，service 為服務帳號。',
+  'chatJoin.field.logo': '覆蓋邀請使用者聊天頁頂部 logo。',
+  'chatJoin.field.avatar': '覆蓋預設頭像。',
+  'chatJoin.field.name': '覆蓋預設暱稱。',
+  'chatJoin.field.locale': '預留給多語言切換，當前暫不執行。',
+  'chatJoin.field.channelId': '頻道 ID，用於自動加入頻道。',
+  'chatJoin.field.channelName': '頻道備註，不作為頻道 ID。',
+  'chatJoin.testPublicKey': '測試公鑰',
+  'chatJoin.openWeb3': '前往 Web3 工具箱',
+  'chatJoin.testAccounts': '測試帳號',
+  'chatJoin.join': '加入',
+} as const
+
 export const enChatJoinMessages = {
   'chatJoin.title': 'Join channel',
   'chatJoin.status.checkingBackend': 'Checking backend connection...',

@@ -410,11 +410,17 @@ describe('frontend smoke checks', () => {
     )
     const portalSource = readSource('src/components/FeaturePortal.tsx')
     const navSource = readSource('src/components/Nav.tsx')
+    const languageSource = readSource('src/components/LanguageToggle.tsx')
     const appSource = readSource(SOURCE_PATHS.features.files)
     const chatSource = readSource(SOURCE_PATHS.features.chat)
 
     assert.match(rootRoute, /I18nProvider/)
+    assert.match(rootRoute, /supportedLocales = \['zh-CN', 'zh-TW', 'en'\]/)
     assert.match(navSource, /LanguageToggle/)
+    assert.match(languageSource, /ActionMenu/)
+    assert.match(languageSource, /LOCALES\.map/)
+    assert.match(languageSource, /<Check size=\{16\}/)
+    assert.doesNotMatch(languageSource, /locale === 'zh-CN'/)
     assert.match(portalSource, /titleKey: 'portal\.feature\.app\.title'/)
     assert.match(appSource, /getLocalizedDownloadLinkValidationMessage/)
     assert.match(chatSource, /getLocalizedDownloadLinkValidationMessage/)
@@ -426,7 +432,10 @@ describe('frontend smoke checks', () => {
     assert.doesNotMatch(downloadValidationSource, /Unsupported query parameter:/)
     assert.doesNotMatch(appSource, /[\u4e00-\u9fff]/)
     assert.match(messageCatalogs, /'app\.download\.validation\.empty'/)
+    assert.match(messagesSource, /LOCALES = \['zh-CN', 'zh-TW', 'en'\] as const/)
     assert.match(messagesSource, /type MessageKey = keyof typeof zhCNMessages/)
+    assert.match(messagesSource, /export const zhTWMessages/)
+    assert.match(messagesSource, /'zh-TW': zhTWMessages/)
     assert.match(messagesSource, /satisfies Record<MessageKey, string>/)
     assert.match(i18nSource, /translateMessage/)
     assert.doesNotMatch(i18nSource, /MutationObserver|createTreeWalker|translateDocument/)
@@ -481,6 +490,13 @@ describe('frontend smoke checks', () => {
     const validCid =
       'bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e'
 
+    assert.deepEqual([...i18n.LOCALES], ['zh-CN', 'zh-TW', 'en'])
+    assert.ok(i18n.messages['zh-TW'])
+    assert.equal(i18n.normalizeLocale('zh-TW'), 'zh-TW')
+    assert.equal(i18n.normalizeLocale('fr'), 'zh-CN')
+    assert.equal(i18n.getNextLocale('zh-CN'), 'zh-TW')
+    assert.equal(i18n.getNextLocale('zh-TW'), 'en')
+    assert.equal(i18n.getNextLocale('en'), 'zh-CN')
     assert.equal(
       i18n.translateMessage('app.fileAvailable', 'zh-CN', {
         fileName: '计划.md',
@@ -492,6 +508,12 @@ describe('frontend smoke checks', () => {
         fileName: '计划.md',
       }),
       '计划.md is available to download'
+    )
+    assert.equal(
+      i18n.translateMessage('app.fileAvailable', 'zh-TW', {
+        fileName: '計畫.md',
+      }),
+      '計畫.md 可下載'
     )
     assert.deepEqual(
       downloadValidation.getMostLinkValidationMessageKey(
