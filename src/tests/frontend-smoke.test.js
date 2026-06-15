@@ -367,7 +367,6 @@ describe('frontend smoke checks', () => {
 
   it('keeps P2P chat controls shared without the discarded chat extras', () => {
     const chatSource = readSource(SOURCE_PATHS.features.chat)
-    const demoSource = readSource('src/features/demo/DemoPage.tsx')
     const componentSource = readSource('src/components/ChatUi.tsx')
     const sidebarAccountSource = readSource('src/components/SidebarAccount.tsx')
     const uiIndexSource = readSource('src/components/ui/index.ts')
@@ -375,8 +374,6 @@ describe('frontend smoke checks', () => {
     const i18nMessages = readI18nSources()
 
     assert.match(chatSource, /from '~\/components\/ChatUi'/)
-    assert.match(demoSource, /from '~\/components\/ChatUi'/)
-    assert.match(demoSource, /P2P Chat/)
     assert.match(uiIndexSource, /ActionMenu/)
     assert.match(componentSource, /export function ChatMessageItem/)
     assert.match(componentSource, /export function ChatComposer/)

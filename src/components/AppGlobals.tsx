@@ -12,7 +12,6 @@ import { useI18n } from '~/lib/i18n'
 export default function AppGlobals() {
   const { t } = useI18n()
   const pathname = useLocation({ select: location => location.pathname })
-  const isDemoPage = pathname === '/demo' || pathname.startsWith('/demo/')
   const checkBackend = useAppStore(s => s.checkBackend)
   const hasBackend = useAppStore(s => s.hasBackend)
   const initializeLocalData = useAppStore(s => s.initializeLocalData)
@@ -28,30 +27,26 @@ export default function AppGlobals() {
   const syncStartedForRef = useRef('')
 
   useEffect(() => {
-    if (isDemoPage) return
-
     initializeLocalData()
     initializeUser()
     checkBackend()
-  }, [checkBackend, initializeLocalData, initializeUser, isDemoPage])
+  }, [checkBackend, initializeLocalData, initializeUser])
 
   useEffect(() => {
-    if (isDemoPage || firstPath) return
+    if (firstPath) return
     setFirstPath(pathname || '/')
-  }, [firstPath, isDemoPage, pathname, setFirstPath])
+  }, [firstPath, pathname, setFirstPath])
 
   useEffect(() => {
-    if (isDemoPage) return
-
     if (identity) {
       loadUserNotes(identity.address)
     } else {
       resetAppState()
     }
-  }, [identity?.address, isDemoPage, loadUserNotes, resetAppState])
+  }, [identity?.address, loadUserNotes, resetAppState])
 
   useEffect(() => {
-    if (isDemoPage || hasBackend !== true || !identity) {
+    if (hasBackend !== true || !identity) {
       syncStartedForRef.current = ''
       return
     }
@@ -65,9 +60,7 @@ export default function AppGlobals() {
         'error'
       )
     })
-  }, [addToast, hasBackend, identity, identity?.address, isDemoPage, t])
-
-  if (isDemoPage) return null
+  }, [addToast, hasBackend, identity, identity?.address, t])
 
   return (
     <>
