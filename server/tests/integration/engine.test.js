@@ -1891,6 +1891,68 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       }
     })
 
+    it('exchanges new channel writer cores over an existing peer connection', async () => {
+      const sequenceTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-channel-sequence-test-')
+      )
+      const firstDataPath = path.join(sequenceTmpDir, 'first')
+      const secondDataPath = path.join(sequenceTmpDir, 'second')
+      const channelNames = [`seq-a-${uid}`, `seq-b-${uid}`]
+      let firstEngine
+      let secondEngine
+      let replication
+
+      try {
+        firstEngine = new MostBoxEngine({
+          dataPath: firstDataPath,
+          disableNetwork: true,
+        })
+        secondEngine = new MostBoxEngine({
+          dataPath: secondDataPath,
+          disableNetwork: true,
+        })
+        await firstEngine.start()
+        await secondEngine.start()
+        replication = firstEngine.replicateWith(secondEngine)
+
+        for (const channelName of channelNames) {
+          const first = await firstEngine.createChannel(channelName, 'public', {
+            discover: true,
+            discoveryTimeout: 25,
+          })
+          await sleep(25)
+          const second = await secondEngine.createChannel(channelName, 'public', {
+            discover: true,
+            discoveryTimeout: 25,
+          })
+
+          assert.strictEqual(first.channelKey, channelName)
+          assert.strictEqual(second.channelKey, channelName)
+
+          const firstMessage = `from first ${channelName}`
+          const secondMessage = `from second ${channelName}`
+          await firstEngine.sendMessage(first.channelKey, firstMessage)
+          await secondEngine.sendMessage(second.channelKey, secondMessage)
+
+          await waitForChannelMessage(
+            secondEngine,
+            second.channelKey,
+            firstMessage
+          )
+          await waitForChannelMessage(
+            firstEngine,
+            first.channelKey,
+            secondMessage
+          )
+        }
+      } finally {
+        replication?.close()
+        if (firstEngine) await firstEngine.stop().catch(() => {})
+        if (secondEngine) await secondEngine.stop().catch(() => {})
+        fs.rmSync(sequenceTmpDir, { recursive: true, force: true })
+      }
+    })
+
     it('merges messages from multiple writer cores in one channel', async () => {
       const mergeTmpDir = fs.mkdtempSync(
         path.join(os.tmpdir(), 'most-channel-merge-test-')

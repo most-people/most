@@ -16,6 +16,7 @@ import b4a from 'b4a'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
+import { Duplex } from 'node:stream'
 
 import { calculateCid, parseMostLink, buildMostLink } from './core/cid.js'
 import { normalizeChannelAttachment } from './core/channelAttachment.js'
@@ -97,6 +98,44 @@ import {
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
+function createMemoryDuplexPair() {
+  let left
+  let right
+
+  left = new Duplex({
+    read() {},
+    write(chunk, _encoding, callback) {
+      if (!right.destroyed) right.push(chunk)
+      callback()
+    },
+    final(callback) {
+      if (!right.destroyed) right.push(null)
+      callback()
+    },
+  })
+
+  right = new Duplex({
+    read() {},
+    write(chunk, _encoding, callback) {
+      if (!left.destroyed) left.push(chunk)
+      callback()
+    },
+    final(callback) {
+      if (!left.destroyed) left.push(null)
+      callback()
+    },
+  })
+
+  left.on('close', () => {
+    if (!right.destroyed) right.destroy()
+  })
+  right.on('close', () => {
+    if (!left.destroyed) left.destroy()
+  })
+
+  return [left, right]
+}
+
 export class MostBoxEngine extends EventEmitter {
   #store = null
   #swarm = null
@@ -121,6 +160,7 @@ export class MostBoxEngine extends EventEmitter {
   #channelIdDiscoveries = new Map()
   #channelPeers = new Map()
   #channelCandidateCache = new Map()
+  #channelStreams = new Set()
 
   #userSyncSessions = new Map()
   #userSyncCores = new Map()
@@ -385,6 +425,7 @@ export class MostBoxEngine extends EventEmitter {
     this.#channelIdDiscoveries.clear()
     this.#channelPeers.clear()
     this.#channelCandidateCache.clear()
+    this.#channelStreams.clear()
     this.#channels = []
 
     for (const [, coresMap] of this.#userSyncCores) {
@@ -1737,10 +1778,15 @@ export class MostBoxEngine extends EventEmitter {
 
     const left = this.#store.replicate(true, { live: true })
     const right = peerEngine.#store.replicate(false, { live: true })
+    const [leftChat, rightChat] = createMemoryDuplexPair()
 
     left.on('error', () => {})
     right.on('error', () => {})
+    leftChat.on('error', () => {})
+    rightChat.on('error', () => {})
     left.pipe(right).pipe(left)
+    this.#handleChannelConnection(leftChat).catch(() => {})
+    peerEngine.#handleChannelConnection(rightChat).catch(() => {})
     this.#exchangeUserSyncSessions(peerEngine).catch(() => {})
     peerEngine.#exchangeUserSyncSessions(this).catch(() => {})
 
@@ -1748,6 +1794,8 @@ export class MostBoxEngine extends EventEmitter {
       close: () => {
         left.destroy()
         right.destroy()
+        leftChat.destroy()
+        rightChat.destroy()
       },
     }
   }
@@ -2102,6 +2150,7 @@ export class MostBoxEngine extends EventEmitter {
             existing.syncUpdatedAt = getNextSyncTimestamp(existing.syncUpdatedAt)
             this.#saveChannelsMetadata()
             this.#appendUserSyncChannelUpsertSoon(existing, ownerAddress)
+            this.#broadcastChannelHello()
           }
           return this.#formatChannelForResponse(existing, ownerAddress)
         }
@@ -2164,11 +2213,16 @@ export class MostBoxEngine extends EventEmitter {
     const channelKey = buildChannelKey(channelId)
     const existing = this.#channels.find(c => c.channelKey === channelKey)
     if (existing) {
-      await this.#mergeChannelWriterCoreKeys(existing, candidate.writerCoreKeys)
-      if (this.#upsertChannelMember(existing, options)) {
+      const writerKeysChanged = await this.#mergeChannelWriterCoreKeys(
+        existing,
+        candidate.writerCoreKeys
+      )
+      const memberChanged = this.#upsertChannelMember(existing, options)
+      if (writerKeysChanged || memberChanged) {
         existing.syncUpdatedAt = getNextSyncTimestamp(existing.syncUpdatedAt)
         this.#saveChannelsMetadata()
         this.#appendUserSyncChannelUpsertSoon(existing, options.ownerAddress)
+        this.#broadcastChannelHello()
       }
       return this.#formatChannelForResponse(existing, options.ownerAddress)
     }
@@ -2615,6 +2669,7 @@ export class MostBoxEngine extends EventEmitter {
     await this.#joinChannelDiscoveryTopics(channelInfo)
     this.#cacheChannelCandidate(this.#channelToCandidate(channelInfo, true))
     this.#saveChannelsMetadata()
+    this.#broadcastChannelHello()
     return channelInfo
   }
 
@@ -2633,6 +2688,7 @@ export class MostBoxEngine extends EventEmitter {
     if (existing) {
       if (this.#upsertChannelMember(existing, options)) {
         this.#saveChannelsMetadata()
+        this.#broadcastChannelHello()
       }
       return this.#formatChannelForResponse(existing, options.ownerAddress)
     }
@@ -2761,7 +2817,18 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   async #discoverChannelCandidates(channelId, options = {}) {
-    if (this.#options.disableNetwork) return []
+    const getCachedCandidates = () => {
+      const now = Date.now()
+      return [
+        ...(this.#channelCandidateCache.get(channelId)?.values() || []),
+      ].filter(
+        candidate =>
+          candidate.local ||
+          !candidate.lastSeen ||
+          now - candidate.lastSeen <= CHANNEL_CANDIDATE_TTL
+      )
+    }
+    if (this.#options.disableNetwork) return getCachedCandidates()
     const timeout =
       Number(options.timeout) >= 0
         ? Number(options.timeout)
@@ -2775,15 +2842,7 @@ export class MostBoxEngine extends EventEmitter {
       this.#channelIdDiscoveries.set(channelId, discovery)
     }
     await sleep(timeout)
-    const now = Date.now()
-    const candidates = [
-      ...(this.#channelCandidateCache.get(channelId)?.values() || []),
-    ].filter(
-      candidate =>
-        candidate.local ||
-        !candidate.lastSeen ||
-        now - candidate.lastSeen <= CHANNEL_CANDIDATE_TTL
-    )
+    const candidates = getCachedCandidates()
     if (!hadDiscovery && !this.#channels.some(c => c.channelId === channelId)) {
       this.#channelIdDiscoveries.delete(channelId)
       this.#chatSwarm
@@ -4757,10 +4816,7 @@ export class MostBoxEngine extends EventEmitter {
     }
   }
 
-  async #handleChannelConnection(conn) {
-    const stream = conn
-    let connectedPeerId = null
-
+  #buildChannelHelloMessage() {
     const channels = this.#channels.map(channel => ({
       channelId: channel.channelId,
       channelKey: channel.channelKey,
@@ -4781,123 +4837,157 @@ export class MostBoxEngine extends EventEmitter {
       })
     )
 
-    const helloMessage = JSON.stringify({
+    return {
       type: 'channel-hello',
       peerId: this.getNodeId(),
       authorName: this.getNodeId().slice(0, 4),
       channels,
       userSyncSessions,
-    })
+    }
+  }
 
+  #sendChannelHello(stream) {
+    if (!stream || stream.destroyed || stream.writableEnded) {
+      this.#channelStreams.delete(stream)
+      return false
+    }
     try {
-      stream.write(helloMessage)
+      stream.write(`${JSON.stringify(this.#buildChannelHelloMessage())}\n`)
+      return true
     } catch {
-      return
+      this.#channelStreams.delete(stream)
+      return false
+    }
+  }
+
+  #broadcastChannelHello() {
+    for (const stream of [...this.#channelStreams]) {
+      this.#sendChannelHello(stream)
+    }
+  }
+
+  async #processChannelHelloMessage(msg) {
+    if (msg.type !== 'channel-hello') return null
+
+    const remoteChannels = Array.isArray(msg.channels)
+      ? msg.channels
+          .filter(channel => channel && typeof channel === 'object')
+          .map(channel => {
+            const channelId = normalizeChannelId(channel.channelId)
+            return {
+              channelId,
+              channelKey: buildChannelKey(channelId),
+              type: String(channel.type || 'public').trim() || 'public',
+              createdAt:
+                typeof channel.createdAt === 'string' ? channel.createdAt : '',
+              lastMessageAt:
+                typeof channel.lastMessageAt === 'string'
+                  ? channel.lastMessageAt
+                  : '',
+              writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
+            }
+          })
+          .filter(channel => channel.channelId && channel.channelKey)
+      : []
+
+    for (const remoteChannel of remoteChannels) {
+      this.#cacheChannelCandidate({
+        ...remoteChannel,
+        local: false,
+        peerId: msg.peerId,
+      })
+
+      const localChannel = this.#channels.find(
+        channel => channel.channelKey === remoteChannel.channelKey
+      )
+      if (!localChannel) continue
+
+      const peers = this.#channelPeers.get(localChannel.channelKey)
+      if (peers) {
+        peers.set(msg.peerId, {
+          peerId: msg.peerId,
+          authorName: msg.authorName,
+          lastSeen: Date.now(),
+        })
+      }
+
+      for (const writerCoreKey of remoteChannel.writerCoreKeys) {
+        if (
+          writerCoreKey &&
+          writerCoreKey !== this.#channelLocalCoreKey.get(localChannel.channelKey)
+        ) {
+          await this.#openRemoteChannelCore(
+            localChannel.channelKey,
+            writerCoreKey
+          )
+        }
+      }
     }
 
+    const remoteUserSyncSessions = Array.isArray(msg.userSyncSessions)
+      ? msg.userSyncSessions
+          .filter(session => session && typeof session === 'object')
+          .map(session => ({
+            ownerAddress: normalizeOwnerAddress(session.ownerAddress),
+            syncId: String(session.syncId || '').trim(),
+            writerCoreKeys: uniqueStrings(session.writerCoreKeys),
+          }))
+          .filter(session => session.ownerAddress && session.syncId)
+      : []
+
+    for (const remoteSession of remoteUserSyncSessions) {
+      const localSession = this.#userSyncSessions.get(
+        remoteSession.ownerAddress
+      )
+      if (!localSession || localSession.syncId !== remoteSession.syncId) {
+        continue
+      }
+      await this.#mergeUserSyncWriterCoreKeys(
+        localSession,
+        remoteSession.writerCoreKeys
+      )
+    }
+
+    this.emit('channel:peer:online', {
+      peerId: msg.peerId,
+      authorName: msg.authorName,
+    })
+
+    return msg.peerId
+  }
+
+  async #handleChannelConnection(conn) {
+    const stream = conn
+    let connectedPeerId = null
+    let readBuffer = ''
+    let closed = false
+
+    this.#channelStreams.add(stream)
+    if (!this.#sendChannelHello(stream)) return
+
     stream.on('data', async data => {
-      try {
-        const msg = JSON.parse(data.toString())
-        if (msg.type === 'channel-hello') {
-          connectedPeerId = msg.peerId
-
-          const remoteChannels = Array.isArray(msg.channels)
-            ? msg.channels
-                .filter(channel => channel && typeof channel === 'object')
-                .map(channel => {
-                  const channelId = normalizeChannelId(channel.channelId)
-                  return {
-                    channelId,
-                    channelKey: buildChannelKey(channelId),
-                    type: String(channel.type || 'public').trim() || 'public',
-                    createdAt:
-                      typeof channel.createdAt === 'string'
-                        ? channel.createdAt
-                        : '',
-                    lastMessageAt:
-                      typeof channel.lastMessageAt === 'string'
-                        ? channel.lastMessageAt
-                        : '',
-                    writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
-                  }
-                })
-                .filter(
-                  channel =>
-                    channel.channelId &&
-                    channel.channelKey
-                )
-            : []
-
-          for (const remoteChannel of remoteChannels) {
-            this.#cacheChannelCandidate({
-              ...remoteChannel,
-              local: false,
-              peerId: msg.peerId,
-            })
-
-            const localChannel = this.#channels.find(
-              channel => channel.channelKey === remoteChannel.channelKey
-            )
-            if (!localChannel) continue
-
-            const peers = this.#channelPeers.get(localChannel.channelKey)
-            if (peers) {
-              peers.set(msg.peerId, {
-                peerId: msg.peerId,
-                authorName: msg.authorName,
-                lastSeen: Date.now(),
-              })
-            }
-
-            for (const writerCoreKey of remoteChannel.writerCoreKeys) {
-              if (
-                writerCoreKey &&
-                writerCoreKey !==
-                  this.#channelLocalCoreKey.get(localChannel.channelKey)
-              ) {
-                await this.#openRemoteChannelCore(
-                  localChannel.channelKey,
-                  writerCoreKey
-                )
-              }
-            }
-          }
-
-          const remoteUserSyncSessions = Array.isArray(msg.userSyncSessions)
-            ? msg.userSyncSessions
-                .filter(session => session && typeof session === 'object')
-                .map(session => ({
-                  ownerAddress: normalizeOwnerAddress(session.ownerAddress),
-                  syncId: String(session.syncId || '').trim(),
-                  writerCoreKeys: uniqueStrings(session.writerCoreKeys),
-                }))
-                .filter(session => session.ownerAddress && session.syncId)
-            : []
-
-          for (const remoteSession of remoteUserSyncSessions) {
-            const localSession = this.#userSyncSessions.get(
-              remoteSession.ownerAddress
-            )
-            if (!localSession || localSession.syncId !== remoteSession.syncId) {
-              continue
-            }
-            await this.#mergeUserSyncWriterCoreKeys(
-              localSession,
-              remoteSession.writerCoreKeys
-            )
-          }
-
-          this.emit('channel:peer:online', {
-            peerId: msg.peerId,
-            authorName: msg.authorName,
-          })
+      readBuffer += data.toString()
+      let newlineIndex = readBuffer.indexOf('\n')
+      while (newlineIndex !== -1) {
+        const line = readBuffer.slice(0, newlineIndex).trim()
+        readBuffer = readBuffer.slice(newlineIndex + 1)
+        newlineIndex = readBuffer.indexOf('\n')
+        if (!line) continue
+        try {
+          const peerId = await this.#processChannelHelloMessage(
+            JSON.parse(line)
+          )
+          if (peerId) connectedPeerId = peerId
+        } catch (err) {
+          console.warn(`[MostBox] Failed to process channel data:`, err.message)
         }
-      } catch (err) {
-        console.warn(`[MostBox] Failed to process channel data:`, err.message)
       }
     })
 
-    stream.on('close', () => {
+    const cleanup = () => {
+      if (closed) return
+      closed = true
+      this.#channelStreams.delete(stream)
       if (connectedPeerId) {
         for (const [, peers] of this.#channelPeers) {
           if (peers.has(connectedPeerId)) {
@@ -4910,7 +5000,10 @@ export class MostBoxEngine extends EventEmitter {
           }
         }
       }
-    })
+    }
+
+    stream.on('close', cleanup)
+    stream.on('error', cleanup)
   }
 
   /**
