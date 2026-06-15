@@ -1,4 +1,4 @@
-import type { MessageKey } from '~/lib/i18n'
+import { isLocale, type Locale, type MessageKey } from '~/lib/i18n'
 
 export interface ChatJoinInviteChannel {
   id: string
@@ -8,7 +8,7 @@ export interface ChatJoinInviteChannel {
 export interface ChatJoinInvitePayload {
   node_url?: string
   node_invite?: string
-  locale?: string
+  locale?: Locale
   uid: string
   identity?: 'user' | 'service' | 'service_ai'
   logo?: string
@@ -75,3 +75,8 @@ export const CHAT_JOIN_INVITE_FIELDS: ChatJoinInviteField[] = [
     descriptionKey: 'chatJoin.field.channelName',
   },
 ]
+
+export function normalizeChatJoinInviteLocale(value: unknown) {
+  const locale = typeof value === 'string' ? value.trim() : value
+  return isLocale(locale) ? locale : undefined
+}

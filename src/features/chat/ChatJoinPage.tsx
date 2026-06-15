@@ -7,7 +7,6 @@ import {
   Sun,
   Moon,
   ArrowLeft,
-  Users,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import { useAppStore } from '~/stores/useAppStore'
@@ -18,13 +17,13 @@ import {
   configureBackend,
 } from '~server/src/utils/api'
 import { channelApi } from '~/lib/channelApi'
-import { useI18n } from '~/lib/i18n'
+import { translateMessage, useI18n } from '~/lib/i18n'
 import {
   CHAT_JOIN_INVITE_FIELDS,
+  normalizeChatJoinInviteLocale,
   type ChatJoinInvitePayload,
 } from '~/lib/chatJoinInvite'
 import {
-  CHAT_JOIN_TEST_INVITES,
   formatChatJoinTestInvite,
   getChatJoinTestInvite,
 } from '~/lib/chatJoinTestData.js'
@@ -108,7 +107,7 @@ function normalizeInvitePayload(input: unknown): ChatJoinInvitePayload | null {
   return {
     node_url: normalizeOptionalString(value.node_url) || undefined,
     node_invite: normalizeOptionalString(value.node_invite) || undefined,
-    locale: normalizeOptionalString(value.locale) || undefined,
+    locale: normalizeChatJoinInviteLocale(value.locale),
     uid,
     identity: normalizeInviteIdentity(value.identity),
     logo: normalizeOptionalString(value.logo) || undefined,
@@ -129,7 +128,7 @@ function normalizeChannelRemark(value?: string) {
 }
 
 function ChatJoinContent() {
-  const { t } = useI18n()
+  const { t, setLocale } = useI18n()
   const searchStr = useLocation({ select: location => location.searchStr })
   const { token, pub, fixture } = useMemo(() => {
     const searchParams = new URLSearchParams(searchStr)
@@ -181,15 +180,22 @@ function ChatJoinContent() {
     flowKeyRef.current = flowKey
 
     async function runJoinFlow(invite: ChatJoinInvitePayload) {
+      const translateForInvite: typeof t = (key, params) =>
+        invite.locale ? translateMessage(key, invite.locale, params) : t(key, params)
+
+      if (invite.locale) {
+        setLocale(invite.locale)
+      }
+
       if (invite.node_url) {
-        setStatus(t('chatJoin.status.connectingRemote'))
+        setStatus(translateForInvite('chatJoin.status.connectingRemote'))
         const result = await checkBackendConnectionTarget({
           url: invite.node_url,
           invite: invite.node_invite || '',
         })
 
         if (!result.ok) {
-          throw new Error(t('chatJoin.error.remoteConnectFailed'))
+          throw new Error(translateForInvite('chatJoin.error.remoteConnectFailed'))
         }
 
         configureBackend({
@@ -198,10 +204,10 @@ function ChatJoinContent() {
         })
         useAppStore.setState({ hasBackend: true })
       } else if (!hasBackend) {
-        throw new Error(t('chatJoin.error.noBackend'))
+        throw new Error(translateForInvite('chatJoin.error.noBackend'))
       }
 
-      setStatus(t('chatJoin.status.signingIn'))
+      setStatus(translateForInvite('chatJoin.status.signingIn'))
       const identity = createLoginIdentity(invite.uid, '')
       setUserIdentity({
         ...identity,
@@ -211,7 +217,7 @@ function ChatJoinContent() {
         avatar: invite.avatar,
       })
 
-      setStatus(t('chatJoin.status.joiningChannel'))
+      setStatus(translateForInvite('chatJoin.status.joiningChannel'))
       let firstJoinedChannelKey = ''
       for (const channel of invite.channels) {
         const result = await channelApi.createChannel(channel.id, 'public', {
@@ -220,7 +226,9 @@ function ChatJoinContent() {
         })
         if (result.conflict) {
           throw new Error(
-            t('chatJoin.error.channelConflict', { channel: channel.id })
+            translateForInvite('chatJoin.error.channelConflict', {
+              channel: channel.id,
+            })
           )
         }
         const joinedChannelKey = result.channelKey || result.key || channel.id
@@ -232,7 +240,7 @@ function ChatJoinContent() {
       }
 
       const firstChannel = invite.channels[0]
-      setStatus(t('chatJoin.status.openingChannel'))
+      setStatus(translateForInvite('chatJoin.status.openingChannel'))
       window.location.href = getJoinChannelUrl(
         firstJoinedChannelKey || firstChannel.id
       )
@@ -289,7 +297,7 @@ function ChatJoinContent() {
     }
 
     decrypt()
-  }, [fixture, hasBackend, pub, setUserIdentity, t, token])
+  }, [fixture, hasBackend, pub, setLocale, setUserIdentity, t, token])
 
   return (
     <AppShell
@@ -379,42 +387,6 @@ function ChatJoinContent() {
             </a>
           </section>
 
-          <section
-            className="chat-join-helper"
-            aria-labelledby="chat-join-test-title"
-          >
-            <div className="chat-join-helper-title">
-              <Users size={18} />
-              <h3 id="chat-join-test-title">{t('chatJoin.testAccounts')}</h3>
-            </div>
-            <div className="chat-join-test-account-list">
-              {CHAT_JOIN_TEST_INVITES.map(invite => (
-                <div className="chat-join-test-account" key={invite.uid}>
-                  <img
-                    className="chat-join-test-avatar"
-                    src={invite.avatar}
-                    alt=""
-                  />
-                  <div className="chat-join-test-account-main">
-                    <div className="chat-join-test-account-head">
-                      <strong translate="no">{invite.name}</strong>
-                      <span translate="no">{invite.identity}</span>
-                    </div>
-                    <code translate="no">{invite.uid}</code>
-                    <p translate="no">
-                      {invite.channels[0]?.name || invite.channels[0]?.id}
-                    </p>
-                  </div>
-                  <a
-                    className="btn btn-secondary"
-                    href={`/chat/join?fixture=${invite.uid}`}
-                  >
-                    {t('chatJoin.join')}
-                  </a>
-                </div>
-              ))}
-            </div>
-          </section>
         </div>
       </div>
     </AppShell>
