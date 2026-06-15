@@ -14,6 +14,7 @@ import {
   HardDrive,
   Gamepad2,
 } from 'lucide-react'
+import { useIsDesktopClient } from '~/hooks'
 import { useAppStore } from '~/stores/useAppStore'
 import { useI18n, type MessageKey } from '~/lib/i18n'
 
@@ -43,6 +44,7 @@ interface FeatureDef {
     code?: string
     link?: InternalRoutePath
     linkTextKey?: MessageKey
+    hideInDesktopClient?: boolean
   }[]
 }
 
@@ -73,11 +75,13 @@ const features: FeatureDef[] = [
         descKey: 'portal.feature.app.step.download.desc',
         link: '/download/',
         linkTextKey: 'portal.feature.app.step.download.link',
+        hideInDesktopClient: true,
       },
       {
         num: '2',
         titleKey: 'portal.feature.app.step.install.title',
         descKey: 'portal.feature.app.step.install.desc',
+        hideInDesktopClient: true,
       },
       {
         num: '3',
@@ -109,6 +113,7 @@ const features: FeatureDef[] = [
         descKey: 'portal.feature.chat.step.download.desc',
         link: '/download/',
         linkTextKey: 'portal.feature.chat.step.download.link',
+        hideInDesktopClient: true,
       },
       {
         num: '2',
@@ -233,9 +238,13 @@ export default function FeaturePortal() {
   const openConnectModal = useAppStore(s => s.openConnectModal)
   const [selected, setSelected] = useState<string>('app')
   const { t } = useI18n()
+  const isDesktopClient = useIsDesktopClient()
 
   const activeFeature = features.find(f => f.id === selected) || features[0]
   const activeFeatureTitle = t(activeFeature.titleKey)
+  const activeFeatureSteps = activeFeature.steps.filter(
+    step => !(isDesktopClient && step.hideInDesktopClient)
+  )
 
   return (
     <div className="portal-page">
@@ -346,9 +355,9 @@ export default function FeaturePortal() {
             </div>
 
             <div className="portal-marketing-steps">
-              {activeFeature.steps.map(step => (
+              {activeFeatureSteps.map((step, index) => (
                 <div key={step.num} className="portal-step">
-                  <span className="portal-step-num">{step.num}</span>
+                  <span className="portal-step-num">{index + 1}</span>
                   <div className="portal-step-content">
                     <strong>{t(step.titleKey)}</strong>
                     <p>{t(step.descKey)}</p>
@@ -383,10 +392,12 @@ export default function FeaturePortal() {
                     <Server size={16} />
                     {t('portal.webConnectNode')}
                   </button>
-                  <Link to="/download/" className="btn btn-secondary">
-                    <Download size={16} />
-                    {t('nav.downloadClient')}
-                  </Link>
+                  {!isDesktopClient && (
+                    <Link to="/download/" className="btn btn-secondary">
+                      <Download size={16} />
+                      {t('nav.downloadClient')}
+                    </Link>
+                  )}
                 </>
               )}
             </div>

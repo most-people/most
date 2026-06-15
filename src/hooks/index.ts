@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import {
   useMediaQuery,
   useViewportSize,
@@ -8,6 +9,27 @@ import {
   useToggle,
   useWindowEvent,
 } from '@mantine/hooks'
+
+type ElectronRuntimeWindow = Window & {
+  electronAPI?: {
+    isElectron?: boolean
+  }
+}
+
+export function isDesktopClientRuntime() {
+  if (typeof window === 'undefined') return false
+  return (window as ElectronRuntimeWindow).electronAPI?.isElectron === true
+}
+
+export function useIsDesktopClient() {
+  const [isDesktopClient, setIsDesktopClient] = useState(false)
+
+  useEffect(() => {
+    setIsDesktopClient(isDesktopClientRuntime())
+  }, [])
+
+  return isDesktopClient
+}
 
 export function useIsMobile(breakpoint = 768) {
   return useMediaQuery(`(max-width: ${breakpoint}px)`)

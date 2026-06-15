@@ -558,6 +558,19 @@ describe('frontend smoke checks', () => {
     assert.match(sources, /title=\{holding\.cid\} translate="no"/)
   })
 
+  it('hides download client entry points in the desktop client runtime', () => {
+    const hookSource = readSource('src/hooks/index.ts')
+    const navSource = readSource('src/components/Nav.tsx')
+    const portalSource = readSource('src/components/FeaturePortal.tsx')
+
+    assert.match(hookSource, /electronAPI\?\.isElectron === true/)
+    assert.match(navSource, /const isDesktopClient = useIsDesktopClient\(\)/)
+    assert.match(navSource, /!\s*isDesktopClient &&/)
+    assert.match(portalSource, /hideInDesktopClient: true/)
+    assert.match(portalSource, /activeFeatureSteps/)
+    assert.match(portalSource, /!\s*isDesktopClient &&/)
+  })
+
   it('keeps note save route updates ahead of silent backup sync', () => {
     const noteSource = readSource('src/features/note/NotePage.tsx')
     const saveStart = noteSource.indexOf('async function handleSaveEditor()')

@@ -3,6 +3,7 @@ import { Download } from 'lucide-react'
 import { LanguageToggle } from '~/components/LanguageToggle'
 import { MarketingThemeToggle } from '~/components/MarketingThemeToggle'
 import { LogoIcon } from '~/components/icons/LogoIcon'
+import { useIsDesktopClient } from '~/hooks'
 import { useI18n } from '~/lib/i18n'
 import { useUserStore } from '~/stores/userStore'
 import { generateAvatar } from '~server/src/utils/avatar.js'
@@ -11,6 +12,7 @@ export function Nav() {
   const identity = useUserStore(s => s.identity)
   const openLoginModal = useUserStore(s => s.openLoginModal)
   const { t } = useI18n()
+  const isDesktopClient = useIsDesktopClient()
   const identityLabel =
     identity?.displayName || identity?.username || t('nav.openWeb')
 
@@ -25,10 +27,12 @@ export function Nav() {
         <div className="mkt-nav-cta">
           <MarketingThemeToggle />
           <LanguageToggle className="mkt-theme-toggle" />
-          <Link to="/download/" className="btn btn-primary mkt-nav-preview">
-            <Download size={16} />
-            {t('nav.downloadClient')}
-          </Link>
+          {!isDesktopClient && (
+            <Link to="/download/" className="btn btn-primary mkt-nav-preview">
+              <Download size={16} />
+              {t('nav.downloadClient')}
+            </Link>
+          )}
           {identity ? (
             <Link
               to="/profile/"
