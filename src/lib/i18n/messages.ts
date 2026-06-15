@@ -11,6 +11,7 @@ import { enIdentityMessages, zhCNIdentityMessages } from './messages/identity'
 import { enWeb3Messages, zhCNWeb3Messages } from './messages/web3'
 import { enGameMessages, zhCNGameMessages } from './messages/game'
 import { enAdminMessages, zhCNAdminMessages } from './messages/admin'
+import { enProfileMessages, zhCNProfileMessages } from './messages/profile'
 
 export const DEFAULT_LOCALE = 'zh-CN'
 export const LOCALE_STORAGE_KEY = 'mostbox.locale'
@@ -38,6 +39,7 @@ export const zhCNMessages = {
   ...zhCNWeb3Messages,
   ...zhCNGameMessages,
   ...zhCNAdminMessages,
+  ...zhCNProfileMessages,
 } as const
 
 export type MessageKey = keyof typeof zhCNMessages
@@ -56,6 +58,7 @@ export const enMessages = {
   ...enWeb3Messages,
   ...enGameMessages,
   ...enAdminMessages,
+  ...enProfileMessages,
 } satisfies Record<MessageKey, string>
 
 export const messages = {

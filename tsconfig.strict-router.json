@@ -40,6 +40,9 @@
       "~/features/ping/PingPage": [
         "./src/typecheck-stubs/route-component.tsx"
       ],
+      "~/features/profile/ProfilePage": [
+        "./src/typecheck-stubs/route-component.tsx"
+      ],
       "~/features/web3/Web3Page": [
         "./src/typecheck-stubs/route-component.tsx"
       ],

@@ -11,6 +11,7 @@ export const requiredStaticRoutes = [
   '/game/zhajinhua/',
   '/note/',
   '/ping/',
+  '/profile/',
   '/web3/',
 ]
 

@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as Web3IndexRouteImport } from './routes/web3/index'
+import { Route as ProfileIndexRouteImport } from './routes/profile/index'
 import { Route as PingIndexRouteImport } from './routes/ping/index'
 import { Route as NoteIndexRouteImport } from './routes/note/index'
 import { Route as GameIndexRouteImport } from './routes/game/index'
@@ -33,6 +34,11 @@ const Web3IndexRoute = Web3IndexRouteImport.update({
   path: '/web3/',
   getParentRoute: () => rootRouteImport,
 } as any).lazy(() => import('./routes/web3/index.lazy').then((d) => d.Route))
+const ProfileIndexRoute = ProfileIndexRouteImport.update({
+  id: '/profile/',
+  path: '/profile/',
+  getParentRoute: () => rootRouteImport,
+} as any).lazy(() => import('./routes/profile/index.lazy').then((d) => d.Route))
 const PingIndexRoute = PingIndexRouteImport.update({
   id: '/ping/',
   path: '/ping/',
@@ -107,6 +113,7 @@ export interface FileRoutesByFullPath {
   '/game/': typeof GameIndexRoute
   '/note/': typeof NoteIndexRoute
   '/ping/': typeof PingIndexRoute
+  '/profile/': typeof ProfileIndexRoute
   '/web3/': typeof Web3IndexRoute
   '/chat/join/': typeof ChatJoinIndexRoute
   '/game/gandengyan/': typeof GameGandengyanIndexRoute
@@ -122,6 +129,7 @@ export interface FileRoutesByTo {
   '/game': typeof GameIndexRoute
   '/note': typeof NoteIndexRoute
   '/ping': typeof PingIndexRoute
+  '/profile': typeof ProfileIndexRoute
   '/web3': typeof Web3IndexRoute
   '/chat/join': typeof ChatJoinIndexRoute
   '/game/gandengyan': typeof GameGandengyanIndexRoute
@@ -138,6 +146,7 @@ export interface FileRoutesById {
   '/game/': typeof GameIndexRoute
   '/note/': typeof NoteIndexRoute
   '/ping/': typeof PingIndexRoute
+  '/profile/': typeof ProfileIndexRoute
   '/web3/': typeof Web3IndexRoute
   '/chat/join/': typeof ChatJoinIndexRoute
   '/game/gandengyan/': typeof GameGandengyanIndexRoute
@@ -155,6 +164,7 @@ export interface FileRouteTypes {
     | '/game/'
     | '/note/'
     | '/ping/'
+    | '/profile/'
     | '/web3/'
     | '/chat/join/'
     | '/game/gandengyan/'
@@ -170,6 +180,7 @@ export interface FileRouteTypes {
     | '/game'
     | '/note'
     | '/ping'
+    | '/profile'
     | '/web3'
     | '/chat/join'
     | '/game/gandengyan'
@@ -185,6 +196,7 @@ export interface FileRouteTypes {
     | '/game/'
     | '/note/'
     | '/ping/'
+    | '/profile/'
     | '/web3/'
     | '/chat/join/'
     | '/game/gandengyan/'
@@ -201,6 +213,7 @@ export interface RootRouteChildren {
   GameIndexRoute: typeof GameIndexRoute
   NoteIndexRoute: typeof NoteIndexRoute
   PingIndexRoute: typeof PingIndexRoute
+  ProfileIndexRoute: typeof ProfileIndexRoute
   Web3IndexRoute: typeof Web3IndexRoute
   ChatJoinIndexRoute: typeof ChatJoinIndexRoute
   GameGandengyanIndexRoute: typeof GameGandengyanIndexRoute
@@ -221,6 +234,13 @@ declare module '@tanstack/react-router' {
       path: '/web3'
       fullPath: '/web3/'
       preLoaderRoute: typeof Web3IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile/': {
+      id: '/profile/'
+      path: '/profile'
+      fullPath: '/profile/'
+      preLoaderRoute: typeof ProfileIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ping/': {
@@ -313,6 +333,7 @@ const rootRouteChildren: RootRouteChildren = {
   GameIndexRoute: GameIndexRoute,
   NoteIndexRoute: NoteIndexRoute,
   PingIndexRoute: PingIndexRoute,
+  ProfileIndexRoute: ProfileIndexRoute,
   Web3IndexRoute: Web3IndexRoute,
   ChatJoinIndexRoute: ChatJoinIndexRoute,
   GameGandengyanIndexRoute: GameGandengyanIndexRoute,
