@@ -369,9 +369,9 @@ function NotePageContent() {
         isSecret: editIsSecret,
       })
       setPlainContent(markdown)
+      navigateToNote({ cid: nextCid }, true)
       addToast(t('note.toast.saved'), 'success')
       await backupSync.uploadNow({ silent: true })
-      navigateToNote({ cid: nextCid }, true)
     } catch (err: unknown) {
       addToast(getErrorMessage(err, t('note.toast.saveFailed'), t), 'error')
     } finally {

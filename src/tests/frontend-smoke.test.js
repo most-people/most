@@ -557,4 +557,23 @@ describe('frontend smoke checks', () => {
     assert.match(sources, /className="textarea mono"[\s\S]*translate="no"/)
     assert.match(sources, /title=\{holding\.cid\} translate="no"/)
   })
+
+  it('keeps note save route updates ahead of silent backup sync', () => {
+    const noteSource = readSource('src/features/note/NotePage.tsx')
+    const saveStart = noteSource.indexOf('async function handleSaveEditor()')
+    const createStart = noteSource.indexOf('function openCreateNoteModal()', saveStart)
+    const saveHandlerSource = noteSource.slice(saveStart, createStart)
+
+    const saveIndex = saveHandlerSource.indexOf('const nextCid = await saveNote')
+    const routeIndex = saveHandlerSource.indexOf(
+      'navigateToNote({ cid: nextCid }, true)'
+    )
+    const backupIndex = saveHandlerSource.indexOf(
+      'await backupSync.uploadNow({ silent: true })'
+    )
+
+    assert.ok(saveIndex >= 0)
+    assert.ok(routeIndex > saveIndex)
+    assert.ok(backupIndex > routeIndex)
+  })
 })
