@@ -44,6 +44,25 @@ function defaultMessageKey(message: ChannelMessage) {
   )
 }
 
+function getMessageTimestamp(message: ChannelMessage) {
+  const timestamp = Number(message.timestamp)
+  return Number.isFinite(timestamp) ? timestamp : 0
+}
+
+function sortMessagesForDisplay(items: ChannelMessage[]) {
+  return items
+    .map((message, index) => ({ message, index }))
+    .sort((left, right) => {
+      const timeDiff =
+        getMessageTimestamp(left.message) -
+        getMessageTimestamp(right.message)
+      if (timeDiff !== 0) return timeDiff
+
+      return left.index - right.index
+    })
+    .map(item => item.message)
+}
+
 export function useChannelMessages({
   isReady,
   enabled = true,
@@ -134,7 +153,7 @@ export function useChannelMessages({
         if (next.some(item => getMessageKeyRef.current(item) === key)) continue
         next.push({ ...message, id: message.id || key })
       }
-      return next
+      return sortMessagesForDisplay(next)
     },
     [filterMessages]
   )
@@ -178,7 +197,9 @@ export function useChannelMessages({
           await channelApi.getChannelMessages(name, limit)
         )
         setMessages(prev =>
-          options.replace ? result : mergeMessages(prev, result, false)
+          options.replace
+            ? sortMessagesForDisplay(result)
+            : mergeMessages(prev, result, false)
         )
         return result
       } catch (err) {
@@ -237,7 +258,7 @@ export function useChannelMessages({
         pending: true,
         attachment,
       }
-      setMessages(prev => [...prev, optimistic])
+      setMessages(prev => sortMessagesForDisplay([...prev, optimistic]))
       try {
         const result = await channelApi.sendChannelMessage({
           channelName: targetChannel,
@@ -248,15 +269,17 @@ export function useChannelMessages({
           attachment,
         })
         setMessages(prev =>
-          prev.map(item =>
-            item.id === optimistic.id
-              ? {
-                  ...result.message,
-                  id:
-                    result.message.id ||
-                    getMessageKeyRef.current(result.message),
-                }
-              : item
+          sortMessagesForDisplay(
+            prev.map(item =>
+              item.id === optimistic.id
+                ? {
+                    ...result.message,
+                    id:
+                      result.message.id ||
+                      getMessageKeyRef.current(result.message),
+                  }
+                : item
+            )
           )
         )
         return result.message

@@ -69,6 +69,16 @@ async function waitForChannelMessage(
   throw new Error(`Channel ${channelName} did not receive ${content}`)
 }
 
+async function withMockedDateNow(timestamp, action) {
+  const originalDateNow = Date.now
+  Date.now = () => timestamp
+  try {
+    return await action()
+  } finally {
+    Date.now = originalDateNow
+  }
+}
+
 function toChannelCandidate(channel) {
   return {
     channelId: channel.channelId || channel.name,
@@ -1553,6 +1563,70 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.strictEqual(messages.length, 3)
       assert.strictEqual(messages[0].content, 'first')
       assert.strictEqual(messages[2].content, 'third')
+    })
+
+    it('keeps replies ordered when peer clocks differ', async () => {
+      const clockTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-channel-clock-test-')
+      )
+      const firstDataPath = path.join(clockTmpDir, 'first')
+      const secondDataPath = path.join(clockTmpDir, 'second')
+      const ch = `clock-${uid}`
+      let firstEngine
+      let secondEngine
+      let replication
+
+      try {
+        firstEngine = new MostBoxEngine({
+          dataPath: firstDataPath,
+          disableNetwork: true,
+        })
+        secondEngine = new MostBoxEngine({
+          dataPath: secondDataPath,
+          disableNetwork: true,
+        })
+        await firstEngine.start()
+        await secondEngine.start()
+
+        await firstEngine.createChannel(ch, 'public')
+        await secondEngine.createChannel(ch, 'public')
+        replication = firstEngine.replicateWith(secondEngine)
+
+        await withMockedDateNow(1000, () =>
+          firstEngine.sendMessage(ch, 'A1')
+        )
+        await waitForChannelMessage(secondEngine, ch, 'A1')
+
+        await withMockedDateNow(10000, () =>
+          secondEngine.sendMessage(ch, 'B1')
+        )
+        await waitForChannelMessage(firstEngine, ch, 'B1')
+
+        await withMockedDateNow(2000, () =>
+          firstEngine.sendMessage(ch, 'A2')
+        )
+        await waitForChannelMessage(secondEngine, ch, 'A2')
+
+        const firstMessages = await firstEngine.getChannelMessages(ch)
+        const secondMessages = await secondEngine.getChannelMessages(ch)
+        assert.deepStrictEqual(
+          firstMessages.map(message => message.content),
+          ['A1', 'B1', 'A2']
+        )
+        assert.deepStrictEqual(
+          secondMessages.map(message => message.content),
+          ['A1', 'B1', 'A2']
+        )
+        assert.ok(
+          firstMessages[2].timestamp > firstMessages[1].timestamp,
+          'follow-up message timestamp should advance past seen peer reply'
+        )
+      } finally {
+        replication?.close()
+        if (firstEngine) await firstEngine.stop().catch(() => {})
+        if (secondEngine) await secondEngine.stop().catch(() => {})
+        fs.rmSync(clockTmpDir, { recursive: true, force: true })
+      }
     })
 
     it('supports pagination with limit', async () => {

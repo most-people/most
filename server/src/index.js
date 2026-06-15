@@ -2542,7 +2542,9 @@ export class MostBoxEngine extends EventEmitter {
       author,
       authorName,
       content: trimmed,
-      timestamp: Date.now(),
+      timestamp: await this.#getNextChannelMessageTimestamp(
+        channel.channelKey
+      ),
     }
     if (attachment) {
       message.attachment = attachment
@@ -3035,6 +3037,31 @@ export class MostBoxEngine extends EventEmitter {
       .map(({ _index, ...member }) =>
         member.avatar ? member : { ...member, avatar: undefined }
       )
+  }
+
+  async #getNextChannelMessageTimestamp(channelKey) {
+    const coresMap = this.#channelCores.get(channelKey)
+    let maxTimestamp = 0
+
+    if (coresMap) {
+      for (const [, core] of coresMap) {
+        for (let i = 0; i < core.length; i++) {
+          try {
+            const entry = await core.get(i)
+            if (entry?.type === 'message') {
+              maxTimestamp = Math.max(
+                maxTimestamp,
+                Number(entry.timestamp) || 0
+              )
+            }
+          } catch {
+            break
+          }
+        }
+      }
+    }
+
+    return Math.max(Date.now(), maxTimestamp + 1)
   }
 
   #normalizeChannelMessageForResponse(channelKey, message) {
