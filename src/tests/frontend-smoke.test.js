@@ -323,6 +323,14 @@ describe('frontend smoke checks', () => {
     assert.match(checkerSource, /download\.most\.box\/releases\/latest\.json/)
   })
 
+  it('uses back navigation for secondary marketing headers', () => {
+    const headerSource = readSource('src/components/MarketingHeader.tsx')
+
+    assert.match(headerSource, /window\.history\.back\(\)/)
+    assert.match(headerSource, /navigate\(\{ to: '\/' \}\)/)
+    assert.doesNotMatch(headerSource, /<Link to="\/" className="mkt-nav-logo"/)
+  })
+
   it('keeps Gan Deng Yan game page wired to the server rules and P2P channel', () => {
     const source = readSource(SOURCE_PATHS.features.ganDengYan)
     const gameRoomSource = readSource('src/hooks/useGameRoom.ts')
