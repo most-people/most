@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 import { ArrowLeft, Spade, Swords } from 'lucide-react'
 import SidebarAccount from '~/components/SidebarAccount'
+import { useBack } from '~/hooks/useBack'
 import { useI18n, type MessageKey } from '~/lib/i18n'
 
 type GameSidebarProps = {
@@ -34,13 +35,18 @@ export default function GameSidebar({
   closeSidebar,
 }: GameSidebarProps) {
   const { t } = useI18n()
+  const back = useBack()
 
   return (
     <>
-      <Link to="/" className="sidebar-header sidebar-header-link">
+      <button
+        type="button"
+        className="sidebar-header sidebar-header-link"
+        onClick={back}
+      >
         <ArrowLeft size={18} />
         <h1>MOST PEOPLE</h1>
-      </Link>
+      </button>
       <nav className="sidebar-nav">
         {items.map(item => (
           <Link

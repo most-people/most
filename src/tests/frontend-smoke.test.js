@@ -325,10 +325,21 @@ describe('frontend smoke checks', () => {
 
   it('uses back navigation for secondary marketing headers', () => {
     const headerSource = readSource('src/components/MarketingHeader.tsx')
+    const gameSidebarSource = readSource('src/components/GameSidebar.tsx')
+    const appGlobalsSource = readSource('src/components/AppGlobals.tsx')
+    const userStoreSource = readSource('src/stores/userStore.ts')
+    const useBackSource = readSource('src/hooks/useBack.ts')
 
-    assert.match(headerSource, /window\.history\.back\(\)/)
-    assert.match(headerSource, /navigate\(\{ to: '\/' \}\)/)
+    assert.match(userStoreSource, /firstPath: string/)
+    assert.match(appGlobalsSource, /setFirstPath\(pathname \|\| '\/'\)/)
+    assert.match(useBackSource, /firstPath === pathname/)
+    assert.match(useBackSource, /setFirstPath\('\/'\)/)
+    assert.match(useBackSource, /navigate\(\{ to: '\/', replace: true \}\)/)
+    assert.match(useBackSource, /window\.history\.back\(\)/)
+    assert.match(headerSource, /useBack/)
+    assert.match(gameSidebarSource, /useBack/)
     assert.doesNotMatch(headerSource, /<Link to="\/" className="mkt-nav-logo"/)
+    assert.doesNotMatch(gameSidebarSource, /<Link to="\/" className="sidebar-header/)
   })
 
   it('keeps Gan Deng Yan game page wired to the server rules and P2P channel', () => {

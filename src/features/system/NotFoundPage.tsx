@@ -1,18 +1,11 @@
-import { Link, useNavigate } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router'
 import { ArrowLeft, Compass, Home } from 'lucide-react'
+import { useBack } from '~/hooks/useBack'
 import { useI18n } from '~/lib/i18n'
 
 export default function NotFound() {
-  const navigate = useNavigate()
+  const back = useBack()
   const { t } = useI18n()
-
-  function goBack() {
-    if (window.history.length > 1) {
-      window.history.back()
-      return
-    }
-    navigate({ to: '/' })
-  }
 
   return (
     <div className="not-found-page">
@@ -25,7 +18,7 @@ export default function NotFound() {
           {t('notFound.desc')}
         </p>
         <div className="not-found-actions">
-          <button onClick={goBack} className="btn btn-secondary">
+          <button onClick={back} className="btn btn-secondary">
             <ArrowLeft size={16} />
             {t('common.back')}
           </button>

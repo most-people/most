@@ -11,6 +11,7 @@ import {
   Wallet,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
+import { useBack } from '~/hooks/useBack'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import { useI18n, type MessageKey } from '~/lib/i18n'
@@ -54,6 +55,7 @@ function getHashView(): ViewId {
 
 export default function Web3Page() {
   const { t } = useI18n()
+  const back = useBack()
   const isDarkMode = useAppStore(s => s.isDarkMode)
   const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
   const addToast = useAppStore(s => s.addToast)
@@ -339,13 +341,14 @@ export default function Web3Page() {
     <AppShell
       sidebar={({ closeSidebar }) => (
         <>
-          <div
+          <button
+            type="button"
             className="sidebar-header sidebar-header-link"
-            onClick={() => (window.location.href = '/')}
+            onClick={back}
           >
             <ArrowLeft size={18} />
             <h1>MOST PEOPLE</h1>
-          </div>
+          </button>
           <nav className="sidebar-nav">
             {sidebarNavItems.map(item => (
               <button

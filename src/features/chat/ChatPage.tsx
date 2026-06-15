@@ -38,6 +38,7 @@ import { generateAvatar } from '~server/src/utils/avatar.js'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import { useDisclosure } from '~/hooks'
+import { useBack } from '~/hooks/useBack'
 import { useChannelMessages } from '~/hooks/useChannelMessages'
 import SidebarAccount from '~/components/SidebarAccount'
 import {
@@ -128,6 +129,7 @@ function ChatPage() {
   const openConnectModal = useAppStore(s => s.openConnectModal)
   const userIdentity = useUserStore(s => s.identity)
   const openLoginModal = useUserStore(s => s.openLoginModal)
+  const back = useBack()
   const [channels, setChannels] = useState<Channel[]>([])
   const [activeChannel, setActiveChannel] = useState<Channel | null>(null)
   const [requestedChannelName, setRequestedChannelName] = useState('')
@@ -1083,13 +1085,14 @@ function ChatPage() {
       defaultHide={isInviteUser}
       sidebar={({ closeSidebar }) => (
         <>
-          <div
+          <button
+            type="button"
             className="sidebar-header sidebar-header-link"
-            onClick={() => (window.location.href = '/')}
+            onClick={back}
           >
             <ArrowLeft size={18} />
             <h1>MOST PEOPLE</h1>
-          </div>
+          </button>
 
           <div className="chat-channel-search">
             <div className="ui-input-control">

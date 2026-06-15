@@ -38,6 +38,7 @@ import {
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import { useDisclosure, useClipboard } from '~/hooks'
+import { useBack } from '~/hooks/useBack'
 import { fileApi, getDownloadCheckErrorMessage } from '~/lib/fileApi'
 import { getFileSubtype } from '~/lib/filePreview'
 import { formatBytes } from '~/lib/format'
@@ -108,6 +109,7 @@ export default function App() {
   const openConnectModal = useAppStore(s => s.openConnectModal)
   const userIdentity = useUserStore(s => s.identity)
   const openLoginModal = useUserStore(s => s.openLoginModal)
+  const back = useBack()
   const [items, setItems] = useState([])
   const [trashItems, setTrashItems] = useState([])
   const [currentFolderId, setCurrentFolderId] = useState(null)
@@ -799,13 +801,14 @@ export default function App() {
     <AppShell
       sidebar={({ closeSidebar }) => (
         <>
-          <div
+          <button
+            type="button"
             className="sidebar-header sidebar-header-link"
-            onClick={() => (window.location.href = '/')}
+            onClick={back}
           >
             <ArrowLeft size={18} />
             <h1>MOST PEOPLE</h1>
-          </div>
+          </button>
           <nav className="sidebar-nav">
             {[
               { id: 'all', icon: <Files size={18} />, label: t('app.nav.local') },

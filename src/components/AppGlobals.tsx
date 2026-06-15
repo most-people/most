@@ -16,7 +16,9 @@ export default function AppGlobals() {
   const checkBackend = useAppStore(s => s.checkBackend)
   const hasBackend = useAppStore(s => s.hasBackend)
   const initializeLocalData = useAppStore(s => s.initializeLocalData)
+  const firstPath = useUserStore(s => s.firstPath)
   const initializeUser = useUserStore(s => s.initializeUser)
+  const setFirstPath = useUserStore(s => s.setFirstPath)
   const identity = useUserStore(s => s.identity)
   const loadUserNotes = useAppStore(s => s.loadUserNotes)
   const resetAppState = useAppStore(s => s.resetAppState)
@@ -32,6 +34,11 @@ export default function AppGlobals() {
     initializeUser()
     checkBackend()
   }, [checkBackend, initializeLocalData, initializeUser, isDemoPage])
+
+  useEffect(() => {
+    if (isDemoPage || firstPath) return
+    setFirstPath(pathname || '/')
+  }, [firstPath, isDemoPage, pathname, setFirstPath])
 
   useEffect(() => {
     if (isDemoPage) return

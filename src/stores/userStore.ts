@@ -24,6 +24,7 @@ export interface UserIdentity {
 interface UserState {
   identity: UserIdentity | null
   wallet?: UserIdentity
+  firstPath: string
   showLoginModal: boolean
   loginUsername: string
   loginPassword: string
@@ -32,6 +33,7 @@ interface UserState {
   hasPreviewedAvatar: boolean
   loginLoading: boolean
   loginError: MessageKey | ''
+  setFirstPath: (path: string) => void
   initializeUser: () => void
   openLoginModal: () => void
   closeLoginModal: () => void
@@ -88,6 +90,7 @@ function resetLoginForm() {
 export const useUserStore = create<UserState>((set, get) => ({
   identity: null,
   wallet: undefined,
+  firstPath: '',
   showLoginModal: false,
   loginUsername: '',
   loginPassword: '',
@@ -96,6 +99,10 @@ export const useUserStore = create<UserState>((set, get) => ({
   hasPreviewedAvatar: false,
   loginLoading: false,
   loginError: '',
+
+  setFirstPath: path => {
+    set({ firstPath: path || '/' })
+  },
 
   initializeUser: () => {
     const identity = normalizeIdentity(loadIdentity())
