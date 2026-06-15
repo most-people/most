@@ -19,6 +19,8 @@ import { ConfirmModal } from '~/components/ui'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import { useI18n, type MessageKey } from '~/lib/i18n'
+import { syncUserProfileMetadata } from '~/lib/userSync'
+import { getApiErrorMessage } from '~server/src/utils/api'
 import {
   defaultAvatarIds,
   generateAvatar,
@@ -60,6 +62,7 @@ function validateAvatarUrl(value: string) {
 export default function ProfilePage() {
   const { t } = useI18n()
   const addToast = useAppStore(s => s.addToast)
+  const hasBackend = useAppStore(s => s.hasBackend)
   const identity = useUserStore(s => s.identity)
   const openLoginModal = useUserStore(s => s.openLoginModal)
   const setUserIdentity = useUserStore(s => s.setUserIdentity)
@@ -123,9 +126,23 @@ export default function ProfilePage() {
   const address = identity.address.toLowerCase()
   const canSaveAvatarUrl = avatarUrlDraft.trim().length > 0
 
+  async function syncSavedProfile(nextIdentity) {
+    if (hasBackend !== true) return
+    try {
+      await syncUserProfileMetadata(nextIdentity)
+    } catch (err) {
+      addToast(
+        await getApiErrorMessage(err, t('appGlobals.syncStartFailed')),
+        'error'
+      )
+    }
+  }
+
   function updateAvatar(nextAvatar?: string) {
     if (!identity) return
-    setUserIdentity({ ...identity, avatar: nextAvatar || undefined })
+    const nextIdentity = { ...identity, avatar: nextAvatar || undefined }
+    setUserIdentity(nextIdentity)
+    void syncSavedProfile(nextIdentity)
     setAvatarUrlError('')
     addToast(t('profile.toast.avatarUpdated'), 'success')
   }
@@ -133,7 +150,9 @@ export default function ProfilePage() {
   function handleSaveDisplayName() {
     if (!identity) return
     const displayName = displayNameDraft.trim() || identity.username
-    setUserIdentity({ ...identity, displayName })
+    const nextIdentity = { ...identity, displayName }
+    setUserIdentity(nextIdentity)
+    void syncSavedProfile(nextIdentity)
     setDisplayNameDraft(displayName)
     addToast(t('profile.toast.saved'), 'success')
   }

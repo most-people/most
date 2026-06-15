@@ -12,6 +12,11 @@ import { useChannelMessages } from '~/hooks/useChannelMessages'
 import { getApiErrorMessage } from '~server/src/utils/api'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore, type UserIdentity } from '~/stores/userStore'
+import {
+  getUserChannelProfile,
+  getUserDisplayName,
+  getUserMessageIdentity,
+} from '~/lib/userSync'
 
 interface UseGameRoomOptions {
   gameId: string
@@ -116,7 +121,11 @@ export function useGameRoom({
       }
       setJoining(true)
       try {
-        const channel = await channelApi.createChannel(name, GAME_CHANNEL_TYPE)
+        const channel = await channelApi.createChannel(
+          name,
+          GAME_CHANNEL_TYPE,
+          getUserChannelProfile(userIdentity)
+        )
         const channelKey = channel.channelKey || channel.key || name
         const eventName = create ? 'room:create' : 'player:join'
         await sendGameEventToChannel(
@@ -127,7 +136,10 @@ export function useGameRoom({
           eventName,
           {
             player: getPlayerPayload
-              ? getPlayerPayload(userIdentity)
+              ? {
+                  ...playerPayload(userIdentity),
+                  ...getPlayerPayload(userIdentity),
+                }
               : playerPayload(userIdentity),
           }
         )
@@ -172,8 +184,6 @@ export function useGameRoom({
         await sendMessage({
           channelName,
           content,
-          author: userIdentity.address,
-          authorName: displayName(userIdentity),
           optimisticId: `${userIdentity.address}-${event.eventId}`,
         })
         return true
@@ -228,20 +238,16 @@ async function sendGameEventToChannel(
   await channelApi.sendChannelMessage({
     channelName,
     content: JSON.stringify(event),
-    author: userIdentity.address,
-    authorName: displayName(userIdentity),
+    ...getUserMessageIdentity(userIdentity),
   })
 }
 
 function playerPayload(identity: UserIdentity) {
   return {
     address: identity.address,
-    name: displayName(identity),
+    name: getUserDisplayName(identity),
+    avatar: identity.avatar || '',
     publicKey: '',
     joinedAt: Date.now(),
   }
-}
-
-function displayName(identity: UserIdentity) {
-  return identity.displayName || identity.username
 }

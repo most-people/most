@@ -1434,6 +1434,28 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         ownerAddress: author,
       })
       assert.strictEqual(messages[0].avatar, 'data:image/png;base64,msg-avatar')
+
+      await msgEngine.createChannel(ch, 'personal', {
+        ownerAddress: author,
+        displayName: 'Fresh Sender',
+        avatar: '/avatars/default/mint.svg',
+      })
+      const refreshed = await msgEngine.getChannelMessages(ch, {
+        ownerAddress: author,
+      })
+      assert.strictEqual(refreshed[0].authorName, 'Fresh Sender')
+      assert.strictEqual(refreshed[0].avatar, '/avatars/default/mint.svg')
+
+      await msgEngine.createChannel(ch, 'personal', {
+        ownerAddress: author,
+        displayName: 'No Avatar Sender',
+        avatar: '',
+      })
+      const cleared = await msgEngine.getChannelMessages(ch, {
+        ownerAddress: author,
+      })
+      assert.strictEqual(cleared[0].authorName, 'No Avatar Sender')
+      assert.strictEqual(cleared[0].avatar, undefined)
     })
 
     it('stores channel attachment metadata', async () => {

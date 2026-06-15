@@ -60,7 +60,10 @@ function normalizeIdentity(input: unknown): UserIdentity | null {
     danger: value.danger,
     displayName: getDisplayName(value as UserIdentity),
     logo: typeof value.logo === 'string' ? value.logo : undefined,
-    avatar: typeof value.avatar === 'string' ? value.avatar : undefined,
+    avatar:
+      typeof value.avatar === 'string'
+        ? value.avatar.trim() || undefined
+        : undefined,
     identity:
       value.identity === 'user' ||
       value.identity === 'service' ||

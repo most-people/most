@@ -2531,7 +2531,9 @@ export class MostBoxEngine extends EventEmitter {
       this.#upsertChannelMember(channel, {
         ownerAddress: options.ownerAddress,
         displayName: authorName,
-        avatar: options.avatar,
+        ...(Object.prototype.hasOwnProperty.call(options, 'avatar')
+          ? { avatar: options.avatar }
+          : {}),
       })
     ) {
       this.#saveChannelsMetadata()
@@ -2992,9 +2994,16 @@ export class MostBoxEngine extends EventEmitter {
         existing.displayName = displayName
         changed = true
       }
-      if (avatar && existing.avatar !== avatar) {
-        existing.avatar = avatar
-        changed = true
+      if (Object.prototype.hasOwnProperty.call(options, 'avatar')) {
+        const currentAvatar = normalizeChannelAvatar(existing.avatar)
+        if (currentAvatar !== avatar) {
+          if (avatar) {
+            existing.avatar = avatar
+          } else {
+            delete existing.avatar
+          }
+          changed = true
+        }
       }
       if (!existing.joinedAt) {
         existing.joinedAt = new Date().toISOString()
@@ -3072,10 +3081,23 @@ export class MostBoxEngine extends EventEmitter {
           item => normalizeOwnerAddress(item?.address) === authorAddress
         )
       : null
-    const avatar = normalizeChannelAvatar(member?.avatar)
-    const baseMessage = avatar && message?.avatar !== avatar
-      ? { ...message, avatar }
-      : message
+    let baseMessage = message
+    if (member) {
+      const displayName = normalizeChannelDisplayName(
+        member.displayName,
+        authorAddress
+      )
+      const avatar = normalizeChannelAvatar(member.avatar)
+      if (displayName && baseMessage?.authorName !== displayName) {
+        baseMessage = { ...baseMessage, authorName: displayName }
+      }
+      if (avatar && baseMessage?.avatar !== avatar) {
+        baseMessage = { ...baseMessage, avatar }
+      } else if (!avatar && baseMessage?.avatar) {
+        baseMessage = { ...baseMessage }
+        delete baseMessage.avatar
+      }
+    }
     const attachment = baseMessage?.attachment
     if (!attachment?.cid || !attachment.fileName) {
       return baseMessage

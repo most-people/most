@@ -28,6 +28,7 @@ import {
   mostBoxDecrypt,
   mostBoxEncrypt,
 } from '~server/src/utils/mostWallet.js'
+import { generateAvatar } from '~server/src/utils/avatar.js'
 import styles from './page.module.css'
 
 const GAME_ID = 'zhajinhua'
@@ -83,6 +84,7 @@ export default function ZhajinhuaPage() {
       return {
         address: identity.address,
         name: displayName(identity),
+        avatar: identity.avatar || '',
         publicKey: keys.public_key,
         joinedAt: Date.now(),
       }
@@ -559,7 +561,10 @@ export default function ZhajinhuaPage() {
                       )}
                     >
                       <div className={styles.seatAvatar}>
-                        {player.name.slice(0, 1)}
+                        <img
+                          src={generateAvatar(player.address, player.avatar)}
+                          alt=""
+                        />
                       </div>
                       <div className={styles.seatMain}>
                         <strong translate="no">{player.name}</strong>

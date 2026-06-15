@@ -18,6 +18,7 @@ export function createGanDengYanRoom({
     roomPlayers.unshift({
       address: normalizeAddress(ownerAddress),
       name: cleanName(ownerName),
+      avatar: '',
     })
   }
 
@@ -29,6 +30,7 @@ export function createGanDengYanRoom({
     players: roomPlayers.slice(0, 6).map((player, seat) => ({
       address: player.address,
       name: cleanName(player.name),
+      avatar: cleanAvatar(player.avatar),
       seat,
       hand: [],
       handCount: 0,
@@ -62,6 +64,7 @@ export function syncGanDengYanLobby(room, players = []) {
     .map((player, seat) => ({
       address: player.address,
       name: cleanName(player.name),
+      avatar: cleanAvatar(player.avatar),
       seat,
       hand: [],
       handCount: 0,
@@ -257,6 +260,7 @@ export function publicGanDengYanRoom(room) {
     players: orderedPlayers(room).map(player => ({
       address: player.address,
       name: player.name,
+      avatar: cleanAvatar(player.avatar),
       seat: player.seat,
       handCount: player.hand?.length ?? player.handCount ?? 0,
       score: Number(player.score ?? INITIAL_SCORE),
@@ -431,6 +435,7 @@ function normalizePlayers(players) {
     .map(player => ({
       address: normalizeAddress(player.address),
       name: cleanName(player.name),
+      avatar: cleanAvatar(player.avatar),
       publicKey: String(player.publicKey || ''),
     }))
     .filter(player => {
@@ -446,6 +451,7 @@ function normalizeRoundPlayer(input) {
   return {
     address,
     name: cleanName(input.name),
+    avatar: cleanAvatar(input.avatar),
     seat: Number(input.seat || 0),
     hand: Array.isArray(input.hand) ? input.hand.map(normalizeCard).filter(Boolean) : [],
     handCount: Number(input.handCount || 0),
@@ -678,4 +684,8 @@ function normalizeAddress(value) {
 
 function cleanName(name) {
   return String(name || '玩家').trim().slice(0, 16) || '玩家'
+}
+
+function cleanAvatar(avatar) {
+  return String(avatar || '').trim().slice(0, 4096)
 }

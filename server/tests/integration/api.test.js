@@ -1573,6 +1573,28 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(members[0].avatar, 'data:image/png;base64,avatar')
       assert.strictEqual(messagesRes.status, 200)
       assert.strictEqual(messages[0].avatar, 'data:image/png;base64,avatar')
+
+      const noAvatarRes = await fetch(
+        `${baseUrl}/api/channels/${channelName}/messages`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: 'avatar unchanged',
+            author: TEST_IDENTITY.address,
+            authorName: 'AvatarUser',
+          }),
+        }
+      )
+      assert.strictEqual(noAvatarRes.status, 200)
+      const unchangedMembersRes = await fetch(
+        `${baseUrl}/api/channels/${channelName}/members`
+      )
+      const unchangedMembers = await unchangedMembersRes.json()
+      assert.strictEqual(
+        unchangedMembers[0].avatar,
+        'data:image/png;base64,avatar'
+      )
     })
 
     it('sends an attachment message to a channel', async () => {

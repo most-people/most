@@ -915,15 +915,18 @@ export function createApp(engine, options = {}) {
       return c.json({ error: 'name is required' }, 400)
     }
     try {
+      const channelOptions = {
+        ownerAddress: c.get('userAddress'),
+        displayName: body.displayName,
+        discover: true,
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'avatar')) {
+        channelOptions.avatar = body.avatar
+      }
       const result = await engine.createChannel(
         body.name.trim(),
         body.type || 'personal',
-        {
-          ownerAddress: c.get('userAddress'),
-          displayName: body.displayName,
-          avatar: body.avatar,
-          discover: true,
-        }
+        channelOptions
       )
       return c.json({ success: true, ...result })
     } catch (err) {
@@ -1008,16 +1011,19 @@ export function createApp(engine, options = {}) {
       return c.json({ error: 'authorName too long' }, 400)
     }
     try {
+      const messageOptions = {
+        ownerAddress: c.get('userAddress'),
+        attachment: body.attachment,
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'avatar')) {
+        messageOptions.avatar = body.avatar
+      }
       const message = await engine.sendMessage(
         name,
         body.content,
         body.author,
         body.authorName,
-        {
-          ownerAddress: c.get('userAddress'),
-          attachment: body.attachment,
-          avatar: body.avatar,
-        }
+        messageOptions
       )
       return c.json({ success: true, message })
     } catch (err) {

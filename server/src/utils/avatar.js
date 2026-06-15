@@ -1,8 +1,6 @@
 import { createAvatar } from '@dicebear/core'
 import { botttsNeutral } from '@dicebear/collection'
 
-export const DEFAULT_AVATAR_PREFIX = 'most-avatar:'
-
 export const defaultAvatarIds = [
   'mint',
   'violet',
@@ -13,7 +11,7 @@ export const defaultAvatarIds = [
 ]
 
 export function getDefaultAvatarValue(id) {
-  return `${DEFAULT_AVATAR_PREFIX}${id}`
+  return getDefaultAvatarPath(id)
 }
 
 export function getDefaultAvatarPath(id) {
@@ -22,8 +20,9 @@ export function getDefaultAvatarPath(id) {
 
 function getDefaultAvatarId(avatar) {
   if (typeof avatar !== 'string') return ''
-  if (!avatar.startsWith(DEFAULT_AVATAR_PREFIX)) return ''
-  const id = avatar.slice(DEFAULT_AVATAR_PREFIX.length)
+  const value = avatar.trim()
+  const match = /^\/avatars\/default\/([^/]+)\.svg$/.exec(value)
+  const id = match?.[1] || ''
   return defaultAvatarIds.includes(id) ? id : ''
 }
 
@@ -43,9 +42,6 @@ export function generateAvatar(address, avatar) {
   const defaultAvatarId = getDefaultAvatarId(avatar)
   if (defaultAvatarId) {
     return getDefaultAvatarPath(defaultAvatarId)
-  }
-  if (typeof avatar === 'string' && avatar.startsWith(DEFAULT_AVATAR_PREFIX)) {
-    return address ? createAddressAvatar(address) : '/avatar.png'
   }
   if (avatar) return avatar
   if (!address) return '/avatar.png'

@@ -571,6 +571,36 @@ describe('frontend smoke checks', () => {
     assert.match(profileSource, /disabled=\{!canSaveAvatarUrl\}/)
   })
 
+  it('uses profile identity as the single source for chat and game messages', () => {
+    const chatSource = readSource('src/features/chat/ChatPage.tsx')
+    const gameRoomSource = readSource('src/hooks/useGameRoom.ts')
+    const channelMessagesSource = readSource('src/hooks/useChannelMessages.ts')
+    const userSyncSource = readSource('src/lib/userSync.ts')
+
+    assert.match(userSyncSource, /getUserMessageIdentity/)
+    assert.match(userSyncSource, /getUserChannelProfile/)
+    assert.match(channelMessagesSource, /useUserStore/)
+    assert.match(channelMessagesSource, /getUserMessageIdentity\(userIdentity\)/)
+    assert.doesNotMatch(chatSource, /author:\s*userIdentity\.address/)
+    assert.doesNotMatch(gameRoomSource, /author:\s*userIdentity\.address/)
+    assert.match(gameRoomSource, /getUserChannelProfile\(userIdentity\)/)
+    assert.match(gameRoomSource, /avatar:\s*identity\.avatar \|\| ''/)
+  })
+
+  it('syncs profile saves through existing user metadata and channel APIs', () => {
+    const profileSource = readSource('src/features/profile/ProfilePage.tsx')
+    const userSyncSource = readSource('src/lib/userSync.ts')
+
+    assert.match(profileSource, /syncUserProfileMetadata/)
+    assert.match(profileSource, /void syncSavedProfile\(nextIdentity\)/)
+    assert.match(
+      userSyncSource,
+      /startUserMetadataSync\(identity\)[\s\S]*refreshJoinedChannelProfiles\(identity\)/
+    )
+    assert.match(userSyncSource, /channelApi\.getChannels\(\)/)
+    assert.match(userSyncSource, /channelApi\.createChannel/)
+  })
+
   it('hides download client entry points in the desktop client runtime', () => {
     const hookSource = readSource('src/hooks/index.ts')
     const navSource = readSource('src/components/Nav.tsx')

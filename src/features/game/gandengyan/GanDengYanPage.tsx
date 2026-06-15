@@ -19,6 +19,7 @@ import {
   deriveGameRoomLobby,
   getLatestGameState,
 } from '~server/src/core/gameRoom.js'
+import { generateAvatar } from '~server/src/utils/avatar.js'
 import styles from './page.module.css'
 
 type Card = {
@@ -32,6 +33,7 @@ type Card = {
 type Player = {
   address: string
   name: string
+  avatar?: string
   seat: number
   handCount: number
   hand: Card[]
@@ -670,7 +672,7 @@ function PlayerBadge({
       )}
     >
       <div className={styles.avatar} translate="no">
-        {player.name.slice(0, 1)}
+        <img src={generateAvatar(player.address, player.avatar)} alt="" />
       </div>
       <div>
         <strong translate="no">{player.name}</strong>

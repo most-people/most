@@ -10,6 +10,8 @@ import {
   getChannelSubscriptionKey,
   getChannelSubscriptionNames,
 } from '~/lib/channelSubscriptions.js'
+import { getUserMessageIdentity } from '~/lib/userSync'
+import { useUserStore } from '~/stores/userStore'
 
 interface UseChannelMessagesOptions {
   isReady: boolean
@@ -30,9 +32,6 @@ interface UseChannelMessagesOptions {
 export interface SendChannelMessageOptions {
   channelName?: string
   content: string
-  author: string
-  authorName: string
-  avatar?: string
   attachment?: ChannelAttachment
   optimisticId?: string
 }
@@ -78,6 +77,7 @@ export function useChannelMessages({
   onSocketEvent,
   onReconnect,
 }: UseChannelMessagesOptions) {
+  const userIdentity = useUserStore(s => s.identity)
   const [messages, setMessages] = useState<ChannelMessage[]>([])
   const [connected, setConnected] = useState(false)
   const extraSubscribedChannelNamesKey = useMemo(
@@ -238,21 +238,17 @@ export function useChannelMessages({
     async ({
       channelName: targetChannel = channelNameRef.current,
       content,
-      author,
-      authorName,
-      avatar,
       attachment,
       optimisticId,
     }: SendChannelMessageOptions) => {
       const trimmed = content.trim()
-      if (!targetChannel || !trimmed) return null
+      if (!targetChannel || !trimmed || !userIdentity) return null
+      const messageIdentity = getUserMessageIdentity(userIdentity)
       const optimistic: ChannelMessage = {
         id:
           optimisticId ||
-          `${author}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        author,
-        authorName,
-        avatar,
+          `${messageIdentity.author}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        ...messageIdentity,
         content: trimmed,
         timestamp: Date.now(),
         pending: true,
@@ -263,9 +259,7 @@ export function useChannelMessages({
         const result = await channelApi.sendChannelMessage({
           channelName: targetChannel,
           content: trimmed,
-          author,
-          authorName,
-          avatar,
+          ...messageIdentity,
           attachment,
         })
         setMessages(prev =>
@@ -288,7 +282,7 @@ export function useChannelMessages({
         throw err
       }
     },
-    []
+    [userIdentity]
   )
 
   useEffect(() => {
@@ -368,6 +362,13 @@ export function useChannelMessages({
             payload.data?.message
           ) {
             setMessages(prev => mergeMessages(prev, [payload.data.message]))
+          }
+          if (
+            payload.event === 'user:metadata:updated' &&
+            payload.data?.scope === 'channels' &&
+            channelNameRef.current
+          ) {
+            void syncMessages(channelNameRef.current, { replace: true })
           }
         } catch {}
       }

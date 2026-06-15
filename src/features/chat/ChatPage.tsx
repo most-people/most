@@ -49,6 +49,7 @@ import {
 } from '~/lib/channelApi'
 import { getFileSubtype, type FileSubtype } from '~/lib/filePreview'
 import { useI18n } from '~/lib/i18n'
+import { getUserChannelProfile } from '~/lib/userSync'
 import { getLocalizedDownloadLinkValidationMessage } from '~/lib/i18n/downloadValidation'
 import {
   applyIncomingChannelMessageReadState,
@@ -263,14 +264,6 @@ function ChatPage() {
     } catch {}
   }, [])
 
-  const getCurrentChannelProfile = useCallback(
-    () => ({
-      displayName: userIdentity?.displayName || userIdentity?.username || '',
-      avatar: userIdentity?.avatar,
-    }),
-    [userIdentity?.avatar, userIdentity?.displayName, userIdentity?.username]
-  )
-
   const refreshChannelMembers = useCallback(
     async (channelKey = getChannelKey(activeChannel)) => {
       if (!channelKey || !isBackendReady || !userIdentity) {
@@ -346,6 +339,7 @@ function ChatPage() {
       case 'user:metadata:updated':
         if (data?.scope === 'channels') {
           void refreshChannels()
+          void refreshChannelMembers(activeChannelNameRef.current)
         }
         break
 
@@ -806,7 +800,7 @@ function ChatPage() {
       const result = await channelApi.createChannel(
         name,
         'public',
-        getCurrentChannelProfile()
+        getUserChannelProfile(userIdentity)
       )
       const resultKey = result.channelKey || result.key || result.name || name
       const existingChannel = channels.find(
@@ -860,9 +854,6 @@ function ChatPage() {
       const sentMessage = await sendSharedChannelMessage({
         channelName: activeChannelKey,
         content: trimmedContent,
-        author: userIdentity.address,
-        authorName: userIdentity.displayName || userIdentity.username,
-        avatar: userIdentity.avatar,
         attachment,
       })
       setChannels(prev =>
@@ -1210,7 +1201,9 @@ function ChatPage() {
               </div>
             ) : (
               channelMessages.map(msg => {
-                const isSelf = msg.author === userIdentity?.address
+                const isSelf =
+                  msg.author?.toLowerCase() ===
+                  userIdentity?.address.toLowerCase()
 
                 return (
                   <ChatMessageItem

@@ -110,7 +110,7 @@ export function deriveGameRoomLobby(messages = [], options = {}) {
     if (!event) continue
 
     if (event.event === 'room:create') {
-      const player = createPlayerFromPayload(event.payload?.player, message.author)
+      const player = createPlayerFromPayload(event.payload?.player, message)
       if (!player) continue
       if (!hostAddress) hostAddress = player.address
       upsertPlayer(players, playerMap, player)
@@ -118,7 +118,7 @@ export function deriveGameRoomLobby(messages = [], options = {}) {
     }
 
     if (event.event === 'player:join') {
-      const player = createPlayerFromPayload(event.payload?.player, message.author)
+      const player = createPlayerFromPayload(event.payload?.player, message)
       if (player) upsertPlayer(players, playerMap, player)
       continue
     }
@@ -157,18 +157,28 @@ export function getLatestGameState(messages = [], options = {}) {
   return latest
 }
 
-export function createPlayerFromPayload(input, author) {
+export function createPlayerFromPayload(input, messageOrAuthor) {
   if (!input || typeof input !== 'object') return null
+  const message =
+    messageOrAuthor && typeof messageOrAuthor === 'object'
+      ? messageOrAuthor
+      : { author: messageOrAuthor }
+  const author = message.author
   const address = normalizeAddress(input.address || author)
   if (!address || normalizeAddress(author) !== address) return null
-  const name = String(input.name || '').trim().slice(0, 50) || shortAddress(address)
+  const name =
+    String(message.authorName || input.name || '').trim().slice(0, 50) ||
+    shortAddress(address)
+  const avatar = String(message.avatar || input.avatar || '').trim()
   const publicKey = String(input.publicKey || '').trim()
-  return {
+  const player = {
     address,
     name,
     publicKey,
     joinedAt: Number(input.joinedAt || Date.now()),
   }
+  if (avatar) player.avatar = avatar.slice(0, 4096)
+  return player
 }
 
 export function normalizeGamePlayer(input) {

@@ -17,6 +17,7 @@ import {
   configureBackend,
 } from '~server/src/utils/api'
 import { channelApi } from '~/lib/channelApi'
+import { getUserChannelProfile } from '~/lib/userSync'
 import { translateMessage, useI18n } from '~/lib/i18n'
 import {
   CHAT_JOIN_INVITE_FIELDS,
@@ -209,21 +210,23 @@ function ChatJoinContent() {
 
       setStatus(translateForInvite('chatJoin.status.signingIn'))
       const identity = createLoginIdentity(invite.uid, '')
-      setUserIdentity({
+      const nextIdentity = {
         ...identity,
         identity: invite.identity,
         displayName: invite.name || identity.displayName,
         logo: invite.logo,
         avatar: invite.avatar,
-      })
+      }
+      setUserIdentity(nextIdentity)
 
       setStatus(translateForInvite('chatJoin.status.joiningChannel'))
       let firstJoinedChannelKey = ''
       for (const channel of invite.channels) {
-        const result = await channelApi.createChannel(channel.id, 'public', {
-          displayName: invite.name || identity.displayName,
-          avatar: invite.avatar,
-        })
+        const result = await channelApi.createChannel(
+          channel.id,
+          'public',
+          getUserChannelProfile(nextIdentity)
+        )
         const joinedChannelKey = result.channelKey || result.key || channel.id
         if (!firstJoinedChannelKey) firstJoinedChannelKey = joinedChannelKey
         const remark = normalizeChannelRemark(channel.name)

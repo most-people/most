@@ -1,6 +1,9 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert'
-import { generateAvatar } from '../../src/utils/avatar.js'
+import {
+  generateAvatar,
+  getDefaultAvatarValue,
+} from '../../src/utils/avatar.js'
 
 describe('generateAvatar', () => {
   it('returns default image for empty address', () => {
@@ -16,6 +19,15 @@ describe('generateAvatar', () => {
   it('returns a data URI for valid address', () => {
     const result = generateAvatar('0x1234567890abcdef')
     assert.ok(result.startsWith('data:image/svg+xml'))
+  })
+
+  it('treats built-in default avatars as regular links', () => {
+    const avatar = getDefaultAvatarValue('mint')
+    assert.strictEqual(avatar, '/avatars/default/mint.svg')
+    assert.strictEqual(
+      generateAvatar('0x1234567890abcdef', avatar),
+      '/avatars/default/mint.svg'
+    )
   })
 
   it('produces consistent avatar for same address', () => {

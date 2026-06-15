@@ -5,6 +5,7 @@ import {
   GAME_CHANNEL_TYPE,
   channelNameToGameRoom,
   createGameEvent,
+  deriveGameRoomLobby,
   gameRoomCodeToChannelName,
   parseGameEvent,
 } from '../../src/core/gameRoom.js'
@@ -45,5 +46,37 @@ describe('game room shared core', () => {
       parseGameEvent(JSON.stringify(event), { gameId: 'gandengyan' }),
       null
     )
+  })
+
+  it('refreshes lobby player profile from current message metadata', () => {
+    const author = '0x1234567890abcdef1234567890abcdef12345678'
+    const event = createGameEvent({
+      gameId: 'gandengyan',
+      roomCode: 'ABCD',
+      event: 'player:join',
+      payload: {
+        player: {
+          address: author,
+          name: 'Old Name',
+          avatar: 'old.png',
+        },
+      },
+    })
+
+    const lobby = deriveGameRoomLobby(
+      [
+        {
+          author,
+          authorName: 'New Name',
+          avatar: '/avatars/default/mint.svg',
+          content: JSON.stringify(event),
+          timestamp: 1,
+        },
+      ],
+      { gameId: 'gandengyan', roomCode: 'ABCD' }
+    )
+
+    assert.strictEqual(lobby.players[0].name, 'New Name')
+    assert.strictEqual(lobby.players[0].avatar, '/avatars/default/mint.svg')
   })
 })

@@ -196,6 +196,7 @@ export function startRound({ roomCode, players, hostAddress, previousSeq = 0, pr
     return {
       address: player.address,
       name: player.name,
+      avatar: cleanAvatar(player.avatar),
       publicKey: player.publicKey,
       chips: Number(player.chips) - ZHJ_ANTE,
       status: 'active',
@@ -597,6 +598,7 @@ function normalizeRoundPlayer(input) {
   return {
     address,
     name: String(input.name || shortAddress(address)).slice(0, 50),
+    avatar: cleanAvatar(input.avatar),
     publicKey: String(input.publicKey || ''),
     chips: Math.max(0, Number(input.chips) || 0),
     status: input.status === 'folded' ? 'folded' : 'active',
@@ -612,6 +614,10 @@ function normalizeAddress(value) {
 
 function shortAddress(address) {
   return address ? `${address.slice(0, 6)}...${address.slice(-4)}` : ''
+}
+
+function cleanAvatar(value) {
+  return String(value || '').trim().slice(0, 4096)
 }
 
 function clone(value) {
