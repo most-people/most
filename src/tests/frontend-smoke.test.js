@@ -25,6 +25,7 @@ const SOURCE_PATHS = {
   viteConfig: 'vite.config.ts',
   components: {
     featurePortal: 'src/components/FeaturePortal.tsx',
+    footer: 'src/components/Footer.tsx',
     remoteNodePanel: 'src/components/RemoteNodeConnectPanel.tsx',
   },
   features: {
@@ -257,6 +258,19 @@ describe('frontend smoke checks', () => {
     assert.match(appRoute, /ssr:\s*false/)
     assert.match(adminRoute, /ssr:\s*false/)
     assert.doesNotMatch(downloadRoute, /ssr:\s*false/)
+  })
+
+  it('shows the static package version in the footer', () => {
+    const footer = readSource(SOURCE_PATHS.components.footer)
+    const admin = readSource(SOURCE_PATHS.features.admin)
+
+    assert.match(footer, /from '..\/..\/package\.json'/)
+    assert.match(footer, /const version = packageJson\.version/)
+    assert.match(footer, /v\{version\}/)
+    assert.doesNotMatch(footer, /title=\{version\}/)
+    assert.doesNotMatch(footer, /commit=|build=/)
+    assert.doesNotMatch(admin, /admin\.nodeStatus\.webBuild/)
+    assert.doesNotMatch(admin, /buildVersion|buildIdentifier|buildInfo/)
   })
 
   it('keeps static output checks aligned with TanStack static routes', () => {

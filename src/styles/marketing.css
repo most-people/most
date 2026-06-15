@@ -155,6 +155,11 @@
   font-size: var(--font-size-xs, 0.75rem);
   color: var(--text-muted);
 }
+.mkt-footer-build {
+  font-size: var(--font-size-xs, 0.75rem);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
 
 @media (max-width: 768px) {
   .mkt-nav-inner {
