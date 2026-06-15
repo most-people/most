@@ -72,7 +72,6 @@ async function waitForChannelMessage(
 function toChannelCandidate(channel) {
   return {
     channelId: channel.channelId || channel.name,
-    fingerprint: channel.fingerprint,
     channelKey: channel.channelKey || channel.key,
     type: channel.type,
     createdAt: channel.createdAt,
@@ -1255,7 +1254,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       const result = await engine.createChannel(`test-${uid}`)
       assert.strictEqual(result.name, `test-${uid}`)
       assert.ok(result.key)
-      assert.match(result.channelKey, new RegExp(`^${result.name}\\.[0-9a-f]{16}$`))
+      assert.strictEqual(result.channelKey, result.name)
       assert.ok(!result.channelKey.includes(':'))
     })
 
@@ -1833,51 +1832,63 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       }
     })
 
-    it('keeps same channel IDs with different fingerprints isolated', async () => {
-      const channelName = `sameid-${uid}`
-      const ownerAddress = '0x1234567890abcdef1234567890abcdef12345678'
-      const first = await engine.createChannel(channelName, 'public', {
-        ownerAddress,
-      })
-      const second = await engine.joinChannel(channelName, {
-        channelId: channelName,
-        fingerprint: 'abcdef1234567890',
-        channelKey: `${channelName}.abcdef1234567890`,
-        type: 'public',
-        writerCoreKeys: [],
-      }, {
-        ownerAddress,
-      })
+    it('uses the same channel identity for independent joins by short ID', async () => {
+      const mergeTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-channel-plain-id-test-')
+      )
+      const firstDataPath = path.join(mergeTmpDir, 'first')
+      const secondDataPath = path.join(mergeTmpDir, 'second')
+      const channelName = `stable-${uid}`
+      let firstEngine
+      let secondEngine
+      let replication
 
-      assert.strictEqual(first.name, second.name)
-      assert.notStrictEqual(first.channelKey, second.channelKey)
-      const listedChannels = engine
-        .listChannels({ ownerAddress })
-        .filter(channel => channel.name === channelName)
-      assert.strictEqual(listedChannels.length, 2)
-      assert.strictEqual(
-        listedChannels.find(channel => channel.channelKey === second.channelKey)
-          .remark,
-        `${channelName}-网络`
-      )
+      try {
+        firstEngine = new MostBoxEngine({
+          dataPath: firstDataPath,
+          disableNetwork: true,
+        })
+        secondEngine = new MostBoxEngine({
+          dataPath: secondDataPath,
+          disableNetwork: true,
+        })
+        await firstEngine.start()
+        await secondEngine.start()
 
-      await engine.sendMessage(first.channelKey, 'from first')
-      await engine.sendMessage(second.channelKey, 'from second')
+        const first = await firstEngine.createChannel(channelName, 'public')
+        const second = await secondEngine.createChannel(channelName, 'public')
 
-      const firstMessages = await engine.getChannelMessages(first.channelKey)
-      const secondMessages = await engine.getChannelMessages(second.channelKey)
-      assert.deepStrictEqual(
-        firstMessages.map(message => message.content),
-        ['from first']
-      )
-      assert.deepStrictEqual(
-        secondMessages.map(message => message.content),
-        ['from second']
-      )
-      await assert.rejects(
-        engine.getChannelMessages(channelName),
-        /多个候选/
-      )
+        assert.strictEqual(first.channelKey, channelName)
+        assert.strictEqual(second.channelKey, channelName)
+        assert.strictEqual(first.channelKey, second.channelKey)
+
+        await firstEngine.sendMessage(first.channelKey, 'from first')
+        await secondEngine.sendMessage(second.channelKey, 'from second')
+        await firstEngine.joinChannel(channelName, toChannelCandidate(second))
+        await secondEngine.joinChannel(channelName, toChannelCandidate(first))
+
+        replication = firstEngine.replicateWith(secondEngine)
+        await waitForChannelMessage(secondEngine, second.channelKey, 'from first')
+        await waitForChannelMessage(firstEngine, first.channelKey, 'from second')
+
+        const firstMessages = await firstEngine.getChannelMessages(first.channelKey)
+        const secondMessages = await secondEngine.getChannelMessages(
+          second.channelKey
+        )
+        assert.deepStrictEqual(
+          firstMessages.map(message => message.content).sort(),
+          ['from first', 'from second']
+        )
+        assert.deepStrictEqual(
+          secondMessages.map(message => message.content).sort(),
+          ['from first', 'from second']
+        )
+      } finally {
+        replication?.close()
+        if (firstEngine) await firstEngine.stop().catch(() => {})
+        if (secondEngine) await secondEngine.stop().catch(() => {})
+        fs.rmSync(mergeTmpDir, { recursive: true, force: true })
+      }
     })
 
     it('merges messages from multiple writer cores in one channel', async () => {

@@ -117,9 +117,6 @@ export function useGameRoom({
       setJoining(true)
       try {
         const channel = await channelApi.createChannel(name, GAME_CHANNEL_TYPE)
-        if (channel.conflict) {
-          throw new Error('房间码存在多个候选，请换一个房间码')
-        }
         const channelKey = channel.channelKey || channel.key || name
         const eventName = create ? 'room:create' : 'player:join'
         await sendGameEventToChannel(

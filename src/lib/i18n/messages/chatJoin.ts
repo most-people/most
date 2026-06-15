@@ -14,8 +14,6 @@ export const zhCNChatJoinMessages = {
   'chatJoin.error.missingPub': '缺少 pub 参数',
   'chatJoin.error.remoteConnectFailed': '远程节点连接失败',
   'chatJoin.error.noBackend': '未连接后端，邀请中也没有 node_url',
-  'chatJoin.error.channelConflict':
-    '频道 {channel} 存在多个候选，请在聊天页选择',
   'chatJoin.error.decrypt': '解密失败',
   'chatJoin.error.invalidInvite': '邀请内容缺少 uid 或 channels[].id',
   'chatJoin.error.request': '请求出错: {message}',
@@ -53,8 +51,6 @@ export const zhTWChatJoinMessages = {
   'chatJoin.error.missingPub': '缺少 pub 參數',
   'chatJoin.error.remoteConnectFailed': '遠端節點連線失敗',
   'chatJoin.error.noBackend': '未連線後端，邀請中也沒有 node_url',
-  'chatJoin.error.channelConflict':
-    '頻道 {channel} 存在多個候選，請在聊天頁選擇',
   'chatJoin.error.decrypt': '解密失敗',
   'chatJoin.error.invalidInvite': '邀請內容缺少 uid 或 channels[].id',
   'chatJoin.error.request': '請求出錯: {message}',
@@ -92,8 +88,6 @@ export const enChatJoinMessages = {
   'chatJoin.error.missingPub': 'Missing pub parameter',
   'chatJoin.error.remoteConnectFailed': 'Failed to connect to remote node',
   'chatJoin.error.noBackend': 'No backend is connected and the invite has no node_url',
-  'chatJoin.error.channelConflict':
-    'Channel {channel} has multiple candidates. Choose one in Chat.',
   'chatJoin.error.decrypt': 'Decrypt failed',
   'chatJoin.error.invalidInvite': 'Invite is missing uid or channels[].id',
   'chatJoin.error.request': 'Request failed: {message}',

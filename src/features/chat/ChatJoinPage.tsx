@@ -224,13 +224,6 @@ function ChatJoinContent() {
           displayName: invite.name || identity.displayName,
           avatar: invite.avatar,
         })
-        if (result.conflict) {
-          throw new Error(
-            translateForInvite('chatJoin.error.channelConflict', {
-              channel: channel.id,
-            })
-          )
-        }
         const joinedChannelKey = result.channelKey || result.key || channel.id
         if (!firstJoinedChannelKey) firstJoinedChannelKey = joinedChannelKey
         const remark = normalizeChannelRemark(channel.name)

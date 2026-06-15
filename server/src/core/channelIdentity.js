@@ -5,9 +5,7 @@ export const TRANSIENT_CHANNEL_TYPES = new Set(['game'])
 export const CHANNEL_DISCOVERY_TIMEOUT = 600
 export const CHANNEL_CANDIDATE_TTL = 30 * 1000
 
-const CHANNEL_FINGERPRINT_BYTES = 8
 const CHANNEL_WRITER_ID_BYTES = 8
-const CHANNEL_KEY_SEPARATOR = '.'
 
 export function normalizeChannelDisplayName(input, fallbackAddress = '') {
   const value = String(input || '').trim()
@@ -24,25 +22,16 @@ export function normalizeChannelId(input) {
   return String(input || '').trim()
 }
 
-export function createChannelFingerprint() {
-  return crypto.randomBytes(CHANNEL_FINGERPRINT_BYTES).toString('hex')
-}
-
 export function createChannelWriterId() {
   return crypto.randomBytes(CHANNEL_WRITER_ID_BYTES).toString('hex')
 }
 
-export function buildChannelKey(channelId, fingerprint) {
-  return `${channelId}${CHANNEL_KEY_SEPARATOR}${fingerprint}`
+export function buildChannelKey(channelId) {
+  return normalizeChannelId(channelId)
 }
 
 export function normalizeChannelKey(input) {
   return String(input || '').trim()
-}
-
-export function getChannelFingerprintFromKey(channelId, channelKey) {
-  const prefix = `${channelId}${CHANNEL_KEY_SEPARATOR}`
-  return channelKey.startsWith(prefix) ? channelKey.slice(prefix.length) : ''
 }
 
 export function uniqueStrings(values = []) {

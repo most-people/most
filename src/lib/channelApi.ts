@@ -26,7 +26,6 @@ export interface Channel {
   name: string
   channelId?: string
   channelKey?: string
-  fingerprint?: string
   remark?: string
   createdAt?: string
   lastMessageAt?: string
@@ -68,11 +67,6 @@ export interface ChannelProfileInput {
   avatar?: string
 }
 
-export interface ChannelJoinSelectionInput extends ChannelProfileInput {
-  channelKey?: string
-  fingerprint?: string
-}
-
 export interface SetChannelRemarkResult {
   success: boolean
   remark: string
@@ -83,16 +77,9 @@ export interface SetChannelPinnedResult {
   pinned: boolean
 }
 
-export interface ChannelConflictCandidate extends Channel {
-  local?: boolean
-  onlineCount?: number
-}
-
 export interface CreateChannelResult extends Channel {
   success?: boolean
   key?: string
-  conflict?: boolean
-  candidates?: ChannelConflictCandidate[]
 }
 
 export const channelApi = {
@@ -109,7 +96,7 @@ export const channelApi = {
   createChannel(
     name: string,
     type = 'personal',
-    profile: ChannelJoinSelectionInput = {}
+    profile: ChannelProfileInput = {}
   ) {
     return api
       .post<CreateChannelResult>('/api/channels', {

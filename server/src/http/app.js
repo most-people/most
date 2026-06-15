@@ -922,12 +922,10 @@ export function createApp(engine, options = {}) {
           ownerAddress: c.get('userAddress'),
           displayName: body.displayName,
           avatar: body.avatar,
-          channelKey: body.channelKey,
-          fingerprint: body.fingerprint,
           discover: true,
         }
       )
-      return c.json({ success: !result.conflict, ...result })
+      return c.json({ success: true, ...result })
     } catch (err) {
       return c.json({ error: err.message }, 400)
     }

@@ -44,7 +44,6 @@ import {
   channelApi,
   type Channel,
   type ChannelAttachment,
-  type ChannelConflictCandidate,
   type ChannelMember,
   type ChannelMessage,
 } from '~/lib/channelApi'
@@ -131,10 +130,6 @@ function ChatPage() {
   const [channels, setChannels] = useState<Channel[]>([])
   const [activeChannel, setActiveChannel] = useState<Channel | null>(null)
   const [requestedChannelName, setRequestedChannelName] = useState('')
-  const [joinConflictChannelId, setJoinConflictChannelId] = useState('')
-  const [joinConflictCandidates, setJoinConflictCandidates] = useState<
-    ChannelConflictCandidate[]
-  >([])
   const [channelSearchInput, setChannelSearchInput] = useState('')
   const [channelInput, setChannelInput] = useState('')
   const [showJoinChannel, joinChannelModal] = useDisclosure(false)
@@ -179,8 +174,7 @@ function ChatPage() {
   )
   const activeAttachmentDownloadsRef = useRef(new Set<string>())
   const isBackendReady = hasBackend === true
-  const { t, compareStrings, formatDate, formatTime, formatDateTime } =
-    useI18n()
+  const { t, compareStrings, formatDate, formatTime } = useI18n()
 
   const showApiError = useCallback(
     async (err: unknown, fallback: string) => {
@@ -814,12 +808,6 @@ function ChatPage() {
         'public',
         getCurrentChannelProfile()
       )
-      if (result.conflict && result.candidates?.length) {
-        setJoinConflictChannelId(result.channelId || name)
-        setJoinConflictCandidates(result.candidates)
-        joinChannelModal.close()
-        return
-      }
       const resultKey = result.channelKey || result.key || result.name || name
       const existingChannel = channels.find(
         channel => getChannelKey(channel) === resultKey
@@ -829,7 +817,6 @@ function ChatPage() {
         name: result.name || name,
         channelId: result.channelId || result.name || name,
         channelKey: result.channelKey || result.key || existingChannel?.channelKey,
-        fingerprint: result.fingerprint || existingChannel?.fingerprint,
         type: result.type || existingChannel?.type || 'public',
         createdAt: result.createdAt || existingChannel?.createdAt,
         coreKey: result.coreKey || result.key || existingChannel?.coreKey,
@@ -851,58 +838,6 @@ function ChatPage() {
       joinChannelModal.close()
       await handleOpenChannel(joinedChannel)
       void refreshChannelMembers(joinedChannelKey)
-      refreshChannels()
-    } catch (err) {
-      await showApiError(err, t('chat.error.join'))
-    } finally {
-      setIsJoiningChannel(false)
-    }
-  }
-
-  async function handleSelectConflictCandidate(
-    candidate: ChannelConflictCandidate
-  ) {
-    const channelId = candidate.channelId || joinConflictChannelId
-    if (!channelId || !candidate.channelKey || isJoiningChannel) return
-    if (!requireLogin()) return
-    if (!requireBackendReady()) return
-    setIsJoiningChannel(true)
-    try {
-      const result = await channelApi.createChannel(
-        channelId,
-        candidate.type || 'public',
-        {
-          ...getCurrentChannelProfile(),
-          channelKey: candidate.channelKey,
-          fingerprint: candidate.fingerprint,
-        }
-      )
-      if (result.conflict) {
-        setJoinConflictCandidates(result.candidates || [])
-        return
-      }
-      const joinedChannel: Channel = {
-        ...candidate,
-        ...result,
-        name: result.name || channelId,
-        channelId: result.channelId || channelId,
-        channelKey: result.channelKey || candidate.channelKey,
-        remark: result.remark || candidate.remark,
-      }
-      const channelKey = getChannelKey(joinedChannel)
-      setChannels(prev =>
-        prev.some(channel => getChannelKey(channel) === channelKey)
-          ? prev.map(channel =>
-              getChannelKey(channel) === channelKey
-                ? { ...channel, ...joinedChannel }
-                : channel
-            )
-          : [...prev, joinedChannel]
-      )
-      setJoinConflictChannelId('')
-      setJoinConflictCandidates([])
-      await handleOpenChannel(joinedChannel)
-      void refreshChannelMembers(channelKey)
       refreshChannels()
     } catch (err) {
       await showApiError(err, t('chat.error.join'))
@@ -1348,72 +1283,6 @@ function ChatPage() {
           isLoading={isJoiningChannel}
           loadingText={t('chat.join.joining')}
         />
-      )}
-
-      {joinConflictCandidates.length > 0 && (
-        <ModalOverlay
-          onClose={() => {
-            if (isJoiningChannel) return
-            setJoinConflictChannelId('')
-            setJoinConflictCandidates([])
-          }}
-        >
-          <div
-            className="confirm-modal channel-conflict-modal"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="modal-header">
-              <h3>{t('chat.conflict.title')}</h3>
-              <button
-                type="button"
-                className="btn btn-icon"
-                onClick={() => {
-                  if (isJoiningChannel) return
-                  setJoinConflictChannelId('')
-                  setJoinConflictCandidates([])
-                }}
-                aria-label={t('common.close')}
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="channel-conflict-list">
-              {joinConflictCandidates.map(candidate => (
-                <button
-                  type="button"
-                  key={candidate.channelKey || candidate.fingerprint}
-                  className="channel-conflict-option"
-                  onClick={() => void handleSelectConflictCandidate(candidate)}
-                  disabled={isJoiningChannel}
-                >
-                  <span className="channel-conflict-title" translate="no">
-                    {getChannelTitle(candidate)}
-                  </span>
-                  <span className="channel-conflict-meta" translate="no">
-                    {getChannelId(candidate)}
-                  </span>
-                  <span className="channel-conflict-meta">
-                    {candidate.onlineCount
-                      ? ` · ${t('chat.channel.onlineCount', {
-                          count: candidate.onlineCount,
-                        })}`
-                      : ''}
-                    {candidate.local
-                      ? ` · ${t('chat.channel.localAlready')}`
-                      : ''}
-                  </span>
-                  {candidate.lastMessageAt && (
-                    <span className="channel-conflict-meta">
-                      {t('chat.channel.recentActive', {
-                        time: formatDateTime(candidate.lastMessageAt),
-                      })}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        </ModalOverlay>
       )}
 
       {channelToRename && (
