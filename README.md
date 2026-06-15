@@ -193,7 +193,7 @@ npx most-box@latest
 
 ## 路线图
 
-### v0.2.0（当前版本）
+### v0.2.1（当前版本）
 
 - ✅ P2P 文件上传与下载
 - ✅ 确定性 CID 生成
@@ -227,8 +227,8 @@ npx most-box@latest
 发布新版本时，推送 tag 即可自动构建：
 
 ```bash
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.2.1
+git push origin v0.2.1
 ```
 
 触发后自动执行：
