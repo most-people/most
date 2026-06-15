@@ -1,7 +1,7 @@
 export const zhCNProfileMessages = {
-  'profile.meta.title': 'Profile | MostBox',
+  'profile.meta.title': '个人资料 | MostBox',
   'profile.meta.desc': '管理 MostBox 账号头像、显示名称和本地身份信息。',
-  'profile.kicker': 'Profile',
+  'profile.kicker': '个人资料',
   'profile.signedOut.title': '请先登录',
   'profile.signedOut.desc': '登录后可以管理头像、显示名称，并查看当前用户地址和公钥信息。',
   'profile.section.account': '账号资料',
@@ -27,9 +27,9 @@ export const zhCNProfileMessages = {
 } as const
 
 export const zhTWProfileMessages = {
-  'profile.meta.title': 'Profile | MostBox',
+  'profile.meta.title': '個人資料 | MostBox',
   'profile.meta.desc': '管理 MostBox 帳號頭像、顯示名稱和本機身份資訊。',
-  'profile.kicker': 'Profile',
+  'profile.kicker': '個人資料',
   'profile.signedOut.title': '請先登入',
   'profile.signedOut.desc': '登入後可以管理頭像、顯示名稱，並查看目前使用者地址和公鑰資訊。',
   'profile.section.account': '帳號資料',

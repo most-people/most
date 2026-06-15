@@ -121,6 +121,7 @@ export default function ProfilePage() {
   const activeAvatar = identity.avatar || ''
   const avatarSrc = generateAvatar(identity.address, identity.avatar)
   const address = identity.address.toLowerCase()
+  const canSaveAvatarUrl = avatarUrlDraft.trim().length > 0
 
   function updateAvatar(nextAvatar?: string) {
     if (!identity) return
@@ -285,6 +286,7 @@ export default function ProfilePage() {
                       type="button"
                       className="btn btn-secondary"
                       onClick={handleSaveAvatarUrl}
+                      disabled={!canSaveAvatarUrl}
                     >
                       <Save size={16} />
                       {t('profile.action.save')}

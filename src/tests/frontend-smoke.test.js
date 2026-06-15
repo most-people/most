@@ -517,6 +517,9 @@ describe('frontend smoke checks', () => {
       }),
       '計畫.md 可下載'
     )
+    assert.equal(i18n.translateMessage('profile.kicker', 'zh-CN'), '个人资料')
+    assert.equal(i18n.translateMessage('profile.kicker', 'zh-TW'), '個人資料')
+    assert.equal(i18n.translateMessage('profile.kicker', 'en'), 'Profile')
     assert.deepEqual(
       downloadValidation.getMostLinkValidationMessageKey(
         'https://example.com/file'
@@ -556,6 +559,16 @@ describe('frontend smoke checks', () => {
     assert.match(sources, /className="preview-text" translate="no"/)
     assert.match(sources, /className="textarea mono"[\s\S]*translate="no"/)
     assert.match(sources, /title=\{holding\.cid\} translate="no"/)
+  })
+
+  it('disables custom avatar save until a URL is entered', () => {
+    const profileSource = readSource('src/features/profile/ProfilePage.tsx')
+
+    assert.match(
+      profileSource,
+      /const canSaveAvatarUrl = avatarUrlDraft\.trim\(\)\.length > 0/
+    )
+    assert.match(profileSource, /disabled=\{!canSaveAvatarUrl\}/)
   })
 
   it('hides download client entry points in the desktop client runtime', () => {
