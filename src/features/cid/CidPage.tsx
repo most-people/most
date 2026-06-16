@@ -1,0 +1,541 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useLocation, useParams } from '@tanstack/react-router'
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Download,
+  FileText,
+  HardDrive,
+  Loader2,
+  LogIn,
+  RefreshCw,
+  WifiOff,
+  XCircle,
+} from 'lucide-react'
+
+import {
+  fileApi,
+  getDownloadCheckErrorMessage,
+  type DownloadCheckResponse,
+} from '~/lib/fileApi'
+import { formatBytes } from '~/lib/format'
+import {
+  getLocalizedDownloadLinkValidationMessage,
+} from '~/lib/i18n/downloadValidation'
+import { useI18n } from '~/lib/i18n'
+import { useAppStore } from '~/stores/useAppStore'
+import { useUserStore } from '~/stores/userStore'
+import { getApiErrorMessage, getAuthenticatedWebSocketUrl } from '~server/src/utils/api'
+import { parseMostLink } from '~server/src/core/mostLink.js'
+
+type CheckStatus =
+  | 'idle'
+  | 'waiting-backend'
+  | 'login-required'
+  | 'backend-missing'
+  | 'checking'
+  | 'available'
+  | 'already-local'
+  | 'error'
+
+type DownloadStatus =
+  | 'idle'
+  | 'starting'
+  | 'downloading'
+  | 'completed'
+  | 'error'
+  | 'cancelled'
+
+type CheckState = {
+  status: CheckStatus
+  message: string
+}
+
+type DownloadState = {
+  status: DownloadStatus
+  message: string
+}
+
+type DownloadEventPayload = {
+  taskId?: string
+  percent?: number
+  loaded?: number
+  total?: number
+  file?: string
+  fileName?: string
+  error?: string
+}
+
+function buildMostLinkFromRoute(cid: string, searchStr: string) {
+  return `most://${cid}${searchStr || ''}`
+}
+
+function formatDownloadPath(dataPath: string, fallback: string) {
+  const cleaned = dataPath.trim().replace(/[\\/]+$/, '')
+  if (!cleaned) return fallback
+  const separator = cleaned.includes('\\') ? '\\' : '/'
+  return `${cleaned}${separator}downloads`
+}
+
+function readString(record: Record<string, unknown>, key: string) {
+  const value = record[key]
+  return typeof value === 'string' ? value : undefined
+}
+
+function readNumber(record: Record<string, unknown>, key: string) {
+  const value = record[key]
+  return typeof value === 'number' && Number.isFinite(value)
+    ? value
+    : undefined
+}
+
+function parseDownloadEvent(raw: string) {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return null
+  }
+
+  if (!parsed || typeof parsed !== 'object') return null
+  const root = parsed as Record<string, unknown>
+  const event = readString(root, 'event')
+  const data = root.data
+  if (!event || !data || typeof data !== 'object') return null
+
+  const payloadRecord = data as Record<string, unknown>
+  const payload: DownloadEventPayload = {
+    taskId: readString(payloadRecord, 'taskId'),
+    percent: readNumber(payloadRecord, 'percent'),
+    loaded: readNumber(payloadRecord, 'loaded'),
+    total: readNumber(payloadRecord, 'total'),
+    file: readString(payloadRecord, 'file'),
+    fileName: readString(payloadRecord, 'fileName'),
+    error: readString(payloadRecord, 'error'),
+  }
+
+  return { event, payload }
+}
+
+export default function CidPage() {
+  const { t } = useI18n()
+  const { cid } = useParams({ from: '/cid/$cid/' })
+  const searchStr = useLocation({ select: location => location.searchStr })
+  const hasBackend = useAppStore(s => s.hasBackend)
+  const addToast = useAppStore(s => s.addToast)
+  const openConnectModal = useAppStore(s => s.openConnectModal)
+  const userIdentity = useUserStore(s => s.identity)
+  const openLoginModal = useUserStore(s => s.openLoginModal)
+
+  const mostLink = useMemo(
+    () => buildMostLinkFromRoute(cid, searchStr),
+    [cid, searchStr]
+  )
+  const parsedLink = useMemo(() => parseMostLink(mostLink), [mostLink])
+  const validationMessage = useMemo(
+    () => getLocalizedDownloadLinkValidationMessage(mostLink, t),
+    [mostLink, t]
+  )
+  const initialFileName = parsedLink.fileName || cid
+
+  const [checkState, setCheckState] = useState<CheckState>({
+    status: 'idle',
+    message: '',
+  })
+  const [checkResult, setCheckResult] =
+    useState<DownloadCheckResponse | null>(null)
+  const [downloadState, setDownloadState] = useState<DownloadState>({
+    status: 'idle',
+    message: '',
+  })
+  const [taskId, setTaskId] = useState('')
+  const [progress, setProgress] = useState(0)
+  const [loadedBytes, setLoadedBytes] = useState<number | null>(null)
+  const [totalBytes, setTotalBytes] = useState<number | null>(null)
+  const [downloadPath, setDownloadPath] = useState('')
+  const checkSeqRef = useRef(0)
+
+  const fileName = checkResult?.fileName || initialFileName
+  const fileSize = checkResult?.size ?? totalBytes
+  const canStartDownload =
+    checkState.status === 'available' || checkState.status === 'already-local'
+  const isDownloading =
+    downloadState.status === 'starting' || downloadState.status === 'downloading'
+
+  const displayDownloadPath = formatDownloadPath(
+    downloadPath,
+    t('cid.saveToFallback')
+  )
+
+  const runCheck = useCallback(async () => {
+    const seq = checkSeqRef.current + 1
+    checkSeqRef.current = seq
+    setTaskId('')
+    setProgress(0)
+    setLoadedBytes(null)
+    setTotalBytes(null)
+    setDownloadState({ status: 'idle', message: '' })
+
+    if (validationMessage) {
+      setCheckResult(null)
+      setCheckState({ status: 'error', message: validationMessage })
+      return
+    }
+
+    if (hasBackend === null) {
+      setCheckResult(null)
+      setCheckState({
+        status: 'waiting-backend',
+        message: t('cid.status.waitingBackend'),
+      })
+      return
+    }
+
+    if (hasBackend !== true) {
+      setCheckResult(null)
+      setCheckState({
+        status: 'backend-missing',
+        message: t('cid.status.backendMissing'),
+      })
+      return
+    }
+
+    if (!userIdentity) {
+      setCheckResult(null)
+      setCheckState({
+        status: 'login-required',
+        message: t('cid.status.loginRequired'),
+      })
+      return
+    }
+
+    setCheckState({ status: 'checking', message: t('cid.status.checking') })
+    setCheckResult(null)
+
+    try {
+      const result = await fileApi.checkDownload(mostLink)
+      if (checkSeqRef.current !== seq) return
+      setCheckResult(result)
+      setCheckState({
+        status: result.alreadyExists ? 'already-local' : 'available',
+        message: result.alreadyExists
+          ? t('cid.status.alreadyLocal', { fileName: result.fileName })
+          : t('cid.status.available', { fileName: result.fileName }),
+      })
+    } catch (err) {
+      if (checkSeqRef.current !== seq) return
+      const message = await getDownloadCheckErrorMessage(err)
+      setCheckState({ status: 'error', message })
+      setCheckResult(null)
+    }
+  }, [hasBackend, mostLink, t, userIdentity, validationMessage])
+
+  useEffect(() => {
+    document.title = t('cid.meta.title')
+  }, [t])
+
+  useEffect(() => {
+    runCheck()
+  }, [runCheck])
+
+  useEffect(() => {
+    if (hasBackend !== true) return
+    let cancelled = false
+    fileApi
+      .getDataPath()
+      .then(result => {
+        if (!cancelled) setDownloadPath(result.dataPath)
+      })
+      .catch(() => {
+        if (!cancelled) setDownloadPath('')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [hasBackend])
+
+  useEffect(() => {
+    if (!taskId || !userIdentity) return
+
+    let ws: WebSocket | null = null
+    let cancelled = false
+    ;(async () => {
+      ws = new WebSocket(await getAuthenticatedWebSocketUrl('/ws'))
+      if (cancelled) {
+        ws.close()
+        return
+      }
+
+      ws.onmessage = event => {
+        const parsed = parseDownloadEvent(event.data)
+        if (!parsed || parsed.payload.taskId !== taskId) return
+
+        if (parsed.event === 'download:progress') {
+          setProgress(parsed.payload.percent || 0)
+          setLoadedBytes(parsed.payload.loaded ?? null)
+          setTotalBytes(parsed.payload.total ?? null)
+        }
+
+        if (parsed.event === 'download:status') {
+          setDownloadState({
+            status: 'downloading',
+            message: parsed.payload.file
+              ? t('cid.status.downloadingFile', {
+                  fileName: parsed.payload.file,
+                })
+              : t('cid.status.downloading'),
+          })
+        }
+
+        if (parsed.event === 'download:success') {
+          setProgress(100)
+          setDownloadState({
+            status: 'completed',
+            message: t('cid.status.downloadComplete', {
+              fileName: parsed.payload.fileName || fileName,
+            }),
+          })
+          addToast(t('cid.toast.downloadComplete'), 'success')
+        }
+
+        if (parsed.event === 'download:error') {
+          setDownloadState({
+            status: 'error',
+            message:
+              parsed.payload.error ||
+              t('cid.status.downloadFailed', { error: '' }),
+          })
+          addToast(
+            t('cid.toast.downloadFailed', {
+              error: parsed.payload.error || t('cid.errorFallback'),
+            }),
+            'error'
+          )
+        }
+
+        if (parsed.event === 'download:cancelled') {
+          setDownloadState({
+            status: 'cancelled',
+            message: t('cid.status.cancelled'),
+          })
+          addToast(t('cid.toast.cancelled'), 'warning')
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+      ws?.close()
+    }
+  }, [addToast, fileName, t, taskId, userIdentity])
+
+  const handleStartDownload = async () => {
+    if (!userIdentity) {
+      openLoginModal()
+      return
+    }
+
+    if (hasBackend !== true) {
+      openConnectModal()
+      return
+    }
+
+    if (!canStartDownload || isDownloading) return
+
+    setDownloadState({
+      status: 'starting',
+      message: t('cid.status.startingDownload'),
+    })
+    setProgress(0)
+
+    try {
+      const result = await fileApi.downloadFile(mostLink)
+      if (result.alreadyExists) {
+        setDownloadState({
+          status: 'completed',
+          message: t('cid.status.alreadyLocal', {
+            fileName: result.fileName || fileName,
+          }),
+        })
+        addToast(t('cid.toast.alreadyLocal'), 'warning')
+        return
+      }
+
+      if (result.taskId) {
+        setTaskId(result.taskId)
+        setDownloadState({
+          status: 'downloading',
+          message: t('cid.status.downloading'),
+        })
+        addToast(t('cid.toast.downloadStarted'), 'info')
+      }
+    } catch (err) {
+      const message = await getApiErrorMessage(
+        err,
+        t('cid.status.downloadFailed', { error: t('cid.errorFallback') })
+      )
+      setDownloadState({ status: 'error', message })
+      addToast(message, 'error')
+    }
+  }
+
+  const handleCancelDownload = async () => {
+    if (!taskId) return
+    await fileApi.cancelDownload(taskId).catch(() => {})
+  }
+
+  const statusIcon = getStatusIcon(checkState.status, downloadState.status)
+
+  return (
+    <main className="cid-page">
+      <section className="cid-shell">
+        <div className="cid-heading">
+          <span className="cid-kicker">{t('cid.kicker')}</span>
+          <h1>{t('cid.title')}</h1>
+          <p>{t('cid.subtitle')}</p>
+        </div>
+
+        <div className="cid-panel">
+          <div className="cid-status">
+            <span className={`cid-status-icon ${checkState.status}`}>
+              {statusIcon}
+            </span>
+            <div>
+              <p className="cid-status-label">{getStatusLabel(checkState.status, t)}</p>
+              <p className="cid-status-message">{checkState.message}</p>
+            </div>
+          </div>
+
+          <dl className="cid-details">
+            <div>
+              <dt>
+                <FileText size={16} />
+                {t('cid.fileNameLabel')}
+              </dt>
+              <dd>{fileName}</dd>
+            </div>
+            <div>
+              <dt>{t('cid.cidLabel')}</dt>
+              <dd className="cid-mono">{cid}</dd>
+            </div>
+            <div>
+              <dt>{t('cid.sizeLabel')}</dt>
+              <dd>{fileSize ? formatBytes(fileSize) : t('cid.unknownSize')}</dd>
+            </div>
+            <div>
+              <dt>
+                <HardDrive size={16} />
+                {t('cid.saveToLabel')}
+              </dt>
+              <dd>{displayDownloadPath}</dd>
+            </div>
+          </dl>
+
+          {downloadState.status !== 'idle' && (
+            <div className={`cid-download-state ${downloadState.status}`}>
+              <p>{downloadState.message}</p>
+              {(downloadState.status === 'starting' ||
+                downloadState.status === 'downloading') && (
+                <div className="cid-progress">
+                  <progress
+                    className="cid-progress-bar"
+                    value={progress}
+                    max={100}
+                  />
+                  <span>
+                    {loadedBytes !== null && totalBytes !== null
+                      ? `${formatBytes(loadedBytes)} / ${formatBytes(totalBytes)}`
+                      : `${progress}%`}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="cid-actions">
+            {checkState.status === 'login-required' && (
+              <button className="btn btn-primary" onClick={openLoginModal}>
+                <LogIn size={16} />
+                {t('cid.loginAction')}
+              </button>
+            )}
+            {checkState.status === 'backend-missing' && (
+              <button className="btn btn-primary" onClick={openConnectModal}>
+                <WifiOff size={16} />
+                {t('cid.connectAction')}
+              </button>
+            )}
+            <button
+              className="btn btn-primary"
+              disabled={!canStartDownload || isDownloading}
+              onClick={handleStartDownload}
+            >
+              {isDownloading ? (
+                <Loader2 className="cid-spin-icon" size={16} />
+              ) : (
+                <Download size={16} />
+              )}
+              {isDownloading ? t('cid.downloadingAction') : t('cid.startAction')}
+            </button>
+            {taskId && downloadState.status === 'downloading' && (
+              <button className="btn btn-secondary" onClick={handleCancelDownload}>
+                <XCircle size={16} />
+                {t('cid.cancelAction')}
+              </button>
+            )}
+            <button
+              className="btn btn-secondary"
+              disabled={checkState.status === 'checking'}
+              onClick={runCheck}
+            >
+              <RefreshCw size={16} />
+              {t('cid.retryAction')}
+            </button>
+            <Link to="/app/" className="btn btn-secondary">
+              {t('cid.openAppAction')}
+            </Link>
+          </div>
+        </div>
+      </section>
+    </main>
+  )
+}
+
+function getStatusIcon(checkStatus: CheckStatus, downloadStatus: DownloadStatus) {
+  if (downloadStatus === 'completed') return <CheckCircle2 size={28} />
+  if (downloadStatus === 'error' || checkStatus === 'error') {
+    return <AlertTriangle size={28} />
+  }
+  if (
+    checkStatus === 'checking' ||
+    checkStatus === 'waiting-backend' ||
+    downloadStatus === 'starting' ||
+    downloadStatus === 'downloading'
+  ) {
+    return <Loader2 size={28} />
+  }
+  if (checkStatus === 'backend-missing') return <WifiOff size={28} />
+  if (checkStatus === 'login-required') return <LogIn size={28} />
+  return <CheckCircle2 size={28} />
+}
+
+function getStatusLabel(checkStatus: CheckStatus, t: ReturnType<typeof useI18n>['t']) {
+  switch (checkStatus) {
+    case 'checking':
+      return t('cid.label.checking')
+    case 'available':
+      return t('cid.label.available')
+    case 'already-local':
+      return t('cid.label.alreadyLocal')
+    case 'login-required':
+      return t('cid.label.loginRequired')
+    case 'backend-missing':
+      return t('cid.label.backendMissing')
+    case 'waiting-backend':
+      return t('cid.label.waitingBackend')
+    case 'error':
+      return t('cid.label.error')
+    default:
+      return t('cid.label.idle')
+  }
+}

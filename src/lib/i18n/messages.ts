@@ -9,6 +9,11 @@ import {
   zhTWDownloadMessages,
 } from './messages/download'
 import {
+  enCidMessages,
+  zhCNCidMessages,
+  zhTWCidMessages,
+} from './messages/cid'
+import {
   enPingMessages,
   zhCNPingMessages,
   zhTWPingMessages,
@@ -85,6 +90,7 @@ export const localeNames: Record<Locale, string> = {
 export const zhCNMessages = {
   ...zhCNCoreMessages,
   ...zhCNDownloadMessages,
+  ...zhCNCidMessages,
   ...zhCNPingMessages,
   ...zhCNPortalMessages,
   ...zhCNConnectionMessages,
@@ -104,6 +110,7 @@ export type MessageKey = keyof typeof zhCNMessages
 export const enMessages = {
   ...enCoreMessages,
   ...enDownloadMessages,
+  ...enCidMessages,
   ...enPingMessages,
   ...enPortalMessages,
   ...enConnectionMessages,
@@ -121,6 +128,7 @@ export const enMessages = {
 export const zhTWMessages = {
   ...zhTWCoreMessages,
   ...zhTWDownloadMessages,
+  ...zhTWCidMessages,
   ...zhTWPingMessages,
   ...zhTWPortalMessages,
   ...zhTWConnectionMessages,

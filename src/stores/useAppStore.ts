@@ -219,6 +219,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!nameValidation.valid) {
       throw new Error(getNoteNameErrorKey(nameValidation.errorCode))
     }
+    const validatedName = nameValidation.name || input.name
 
     const path = normalizeNotePath(input.path || '')
     const content = String(input.content || '')
@@ -232,10 +233,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       : notes.findIndex(
           note =>
             normalizeNotePath(note.path) === path &&
-            note.name === nameValidation.name
+            note.name === validatedName
         )
     const targetFullPath = normalizeNotePath(
-      path ? `${path}/${nameValidation.name}` : nameValidation.name
+      path ? `${path}/${validatedName}` : validatedName
     )
     const hasNameConflict = notes.some((note, index) => {
       return index !== existingIndex && getNoteFullPath(note) === targetFullPath
@@ -246,7 +247,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     const existing = existingIndex >= 0 ? notes[existingIndex] : null
     const nextNote: NoteItem = {
-      name: nameValidation.name,
+      name: validatedName,
       cid,
       path,
       content,

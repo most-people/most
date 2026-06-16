@@ -4,6 +4,7 @@ import {
   MOST_LINK_ERROR_CODES,
   validateCidString,
   parseMostLink,
+  buildMostLink,
 } from '../../src/core/cid.js'
 
 const VALID_CID = 'bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e'
@@ -107,18 +108,18 @@ describe('parseMostLink', () => {
     )
   })
 
-  it('rejects links without filename', () => {
-    assertInvalidLink(
-      `most://${VALID_CID}`,
-      MOST_LINK_ERROR_CODES.FILENAME_REQUIRED
-    )
+  it('uses CID as filename when filename is omitted', () => {
+    const result = parseMostLink(`most://${VALID_CID}`)
+    assert.strictEqual(result.cid, VALID_CID)
+    assert.strictEqual(result.fileName, VALID_CID)
+    assert.strictEqual(result.errorCode, undefined)
   })
 
-  it('rejects blank filename values', () => {
-    assertInvalidLink(
-      `most://${VALID_CID}?filename=%20%20`,
-      MOST_LINK_ERROR_CODES.FILENAME_REQUIRED
-    )
+  it('uses CID as filename when filename is blank', () => {
+    const result = parseMostLink(`most://${VALID_CID}?filename=%20%20`)
+    assert.strictEqual(result.cid, VALID_CID)
+    assert.strictEqual(result.fileName, VALID_CID)
+    assert.strictEqual(result.errorCode, undefined)
   })
 
   it('rejects unsupported query parameters', () => {
@@ -142,6 +143,20 @@ describe('parseMostLink', () => {
     assertInvalidLink(
       'most://QmT5NvUtoM5nWFfrQdVrFtvGfKFmG7AHE8P34isapyhCxX?filename=a.txt',
       MOST_LINK_ERROR_CODES.CID_V1_REQUIRED
+    )
+  })
+})
+
+describe('buildMostLink', () => {
+  it('omits filename query when no filename is provided', () => {
+    assert.strictEqual(buildMostLink(VALID_CID), `most://${VALID_CID}`)
+    assert.strictEqual(buildMostLink(VALID_CID, '  '), `most://${VALID_CID}`)
+  })
+
+  it('keeps explicit filenames encoded', () => {
+    assert.strictEqual(
+      buildMostLink(VALID_CID, '测试 文件.txt'),
+      `most://${VALID_CID}?filename=${encodeURIComponent('测试 文件.txt')}`
     )
   })
 })

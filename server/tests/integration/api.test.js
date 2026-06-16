@@ -651,6 +651,27 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(data.cid, publishResult.cid)
     })
 
+    it('checks a bare most link with CID as the fallback filename', async () => {
+      const publishResult = await engine.publishFile(
+        Buffer.from('check-bare-download'),
+        'check-bare-download.txt'
+      )
+
+      const res = await fetch(`${baseUrl}/api/download/check`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ link: `most://${publishResult.cid}` }),
+      })
+
+      const data = await res.json()
+      assert.strictEqual(res.status, 200)
+      assert.strictEqual(data.success, true)
+      assert.strictEqual(data.available, true)
+      assert.strictEqual(data.alreadyExists, true)
+      assert.strictEqual(data.cid, publishResult.cid)
+      assert.strictEqual(data.fileName, publishResult.cid)
+    })
+
     it('checks remote availability without starting a download task', async () => {
       let checked = false
       let startedDownload = false

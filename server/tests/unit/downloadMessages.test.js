@@ -56,12 +56,12 @@ describe('getDownloadLinkValidationMessage', () => {
     )
   })
 
-  it('rejects filenames that only contain spaces', () => {
+  it('accepts links with blank filename values', () => {
     assert.strictEqual(
       getDownloadLinkValidationMessage(
         'most://bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e?filename=%20%20'
       ),
-      '链接缺少 filename 参数，请复制完整分享链接后再检测。'
+      null
     )
   })
 

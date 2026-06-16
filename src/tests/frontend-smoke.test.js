@@ -31,6 +31,7 @@ const SOURCE_PATHS = {
   features: {
     admin: 'src/features/admin/AdminPage.tsx',
     chat: 'src/features/chat/ChatPage.tsx',
+    cid: 'src/features/cid/CidPage.tsx',
     download: 'src/features/download/DownloadPage.tsx',
     files: 'src/features/files/AppPage.tsx',
     ganDengYan: 'src/features/game/gandengyan/GanDengYanPage.tsx',
@@ -43,6 +44,7 @@ const SOURCE_PATHS = {
   routes: {
     app: 'src/routes/app/index.tsx',
     admin: 'src/routes/admin/index.tsx',
+    cid: 'src/routes/cid/$cid/index.tsx',
     download: 'src/routes/download/index.tsx',
     root: 'src/routes/__root.tsx',
     tree: 'src/routes',
@@ -323,6 +325,40 @@ describe('frontend smoke checks', () => {
     assert.match(checkerSource, /download\.most\.box\/releases\/latest\.json/)
   })
 
+  it('registers and routes most protocol deep links to the CID page', () => {
+    const packageJson = readSource(SOURCE_PATHS.packageJson)
+    const mainSource = readSource('electron/main.js')
+    const deepLinkSource = readSource('electron/deepLink.js')
+    const cidRoute = readSource(SOURCE_PATHS.routes.cid)
+
+    assert.match(packageJson, /"schemes":\s*\[\s*"most"\s*\]/)
+    assert.match(mainSource, /setAsDefaultProtocolClient\('most'/)
+    assert.match(mainSource, /requestSingleInstanceLock/)
+    assert.match(mainSource, /second-instance/)
+    assert.match(mainSource, /open-url/)
+    assert.match(deepLinkSource, /createCidRoutePathFromMostLink/)
+    assert.match(deepLinkSource, /\/cid\/\$\{encodeURIComponent\(url\.hostname\)\}/)
+    assert.match(cidRoute, /createFileRoute\('\/cid\/\$cid\/'\)/)
+    assert.match(cidRoute, /ssr:\s*false/)
+  })
+
+  it('keeps the CID page as a check-before-download flow', () => {
+    const cidPage = readSource(SOURCE_PATHS.features.cid)
+    const rootRoute = readSource(SOURCE_PATHS.routes.root)
+    const messages = readI18nSources()
+
+    assert.match(cidPage, /buildMostLinkFromRoute/)
+    assert.match(cidPage, /fileApi\.checkDownload\(mostLink\)/)
+    assert.match(cidPage, /fileApi\.downloadFile\(mostLink\)/)
+    assert.match(cidPage, /getAuthenticatedWebSocketUrl\('\/ws'\)/)
+    assert.match(cidPage, /fileApi\s*\.\s*getDataPath\(\)/)
+    assert.match(cidPage, /parseMostLink\(mostLink\)/)
+    assert.match(rootRoute, /styles\/cid\.css/)
+    assert.match(messages, /'cid\.startAction': '开始下载'/)
+    assert.match(messages, /MostBox 数据目录\/downloads/)
+    assert.match(messages, /'cid\.startAction': 'Start download'/)
+  })
+
   it('uses back navigation for secondary marketing headers', () => {
     const headerSource = readSource('src/components/MarketingHeader.tsx')
     const gameSidebarSource = readSource('src/components/GameSidebar.tsx')
@@ -576,6 +612,16 @@ describe('frontend smoke checks', () => {
         'https://example.com/file'
       ),
       { key: 'app.download.validation.protocol' }
+    )
+    assert.equal(
+      downloadValidation.getMostLinkValidationMessageKey(`most://${validCid}`),
+      null
+    )
+    assert.equal(
+      downloadValidation.getMostLinkValidationMessageKey(
+        `most://${validCid}?filename=%20%20`
+      ),
+      null
     )
     assert.deepEqual(
       downloadValidation.getMostLinkValidationMessageKey(

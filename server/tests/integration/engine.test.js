@@ -376,6 +376,45 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.strictEqual(dlResult.fileName, 'self-dl.txt')
     })
 
+    it('downloads bare most links using CID as the filename', async () => {
+      const bareTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-bare-link-')
+      )
+      let publisher
+      let downloader
+      let replication
+
+      try {
+        publisher = new MostBoxEngine({
+          dataPath: path.join(bareTmpDir, 'publisher'),
+          downloadTimeout: 5000,
+        })
+        downloader = new MostBoxEngine({
+          dataPath: path.join(bareTmpDir, 'downloader'),
+          downloadTimeout: 5000,
+        })
+        await publisher.start()
+        await downloader.start()
+
+        const content = Buffer.from('bare most link download')
+        const publishResult = await publisher.publishFile(content, 'source.txt')
+        const download = downloader.downloadFile(`most://${publishResult.cid}`)
+
+        await sleep(100)
+        replication = publisher.replicateWith(downloader)
+        const result = await download
+
+        assert.strictEqual(result.fileName, publishResult.cid)
+        assert.strictEqual(path.basename(result.savedPath), publishResult.cid)
+        assert.deepStrictEqual(fs.readFileSync(result.savedPath), content)
+      } finally {
+        replication?.close()
+        if (publisher) await publisher.stop().catch(() => {})
+        if (downloader) await downloader.stop().catch(() => {})
+        fs.rmSync(bareTmpDir, { recursive: true, force: true })
+      }
+    })
+
     it('uses CID content instead of the old metadata filename for existing downloads', async () => {
       const content = Buffer.from('existing CID with old chat metadata')
       const publishResult = await engine.publishFile(content, '#18.txt')
