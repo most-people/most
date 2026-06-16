@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { DEFAULT_NODE_HOST } from '../node/config.js'
@@ -19,16 +20,49 @@ function readPackageJson() {
   }
 }
 
-export function getNetworkAddresses(appPort) {
-  return {
-    port: appPort,
-    addresses: [
-      { type: 'local', ip: 'localhost', label: '本机', iface: 'loopback' },
-    ],
-  }
+function isWildcardHost(host) {
+  return host === '0.0.0.0' || host === '::'
 }
 
-export async function buildNodeStatus(engine, configStore, appPort) {
+function isLoopbackHost(host) {
+  return ['localhost', '127.0.0.1', '::1', '[::1]'].includes(host)
+}
+
+export function getNetworkAddresses(appPort, appHost = DEFAULT_NODE_HOST) {
+  const addresses = [
+    { type: 'local', ip: 'localhost', label: '本机', iface: 'loopback' },
+  ]
+
+  if (isWildcardHost(appHost)) {
+    for (const [iface, entries = []] of Object.entries(os.networkInterfaces())) {
+      for (const entry of entries) {
+        if (entry.internal) continue
+        addresses.push({
+          type: entry.family === 'IPv6' ? 'ipv6' : 'lan',
+          ip: entry.address,
+          label: iface,
+          iface,
+        })
+      }
+    }
+  } else if (!isLoopbackHost(appHost)) {
+    addresses.push({
+      type: 'listen',
+      ip: appHost,
+      label: '监听地址',
+      iface: 'configured',
+    })
+  }
+
+  return { port: appPort, addresses }
+}
+
+export async function buildNodeStatus(
+  engine,
+  configStore,
+  appPort,
+  appHost = DEFAULT_NODE_HOST
+) {
   const config = configStore.getNodeConfig()
   const { remoteInvites, ...publicConfig } = config
   const remoteInviteCount = remoteInvites.length
@@ -41,9 +75,9 @@ export async function buildNodeStatus(engine, configStore, appPort) {
     version: PACKAGE_JSON.version,
     uptimeSeconds: Math.floor(process.uptime()),
     nodeId: engine.getNodeId(),
-    host: DEFAULT_NODE_HOST,
+    host: appHost,
     port: appPort,
-    listen: getNetworkAddresses(appPort),
+    listen: getNetworkAddresses(appPort, appHost),
     dataPath: configStore.getDataPath(),
     config: {
       ...publicConfig,

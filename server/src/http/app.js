@@ -17,6 +17,7 @@ import {
   hasValidInvite,
   isLocalRequest,
   isLocalUpgradeRequest,
+  isPublicListenHost,
   isRemoteAccessRequest,
 } from './access.js'
 import { buildNodeStatus } from './nodeStatus.js'
@@ -53,6 +54,8 @@ export function createApp(engine, options = {}) {
     options.nodeLogger || createNodeLogger(configStore.configDir || CONFIG_DIR)
   const wssRef = options.wssRef || { current: null }
   const serverInstanceRef = options.serverInstanceRef || { current: null }
+  const trustPrivateNetwork =
+    options.trustPrivateNetwork ?? isPublicListenHost(appHost)
   function getRemoteInviteSet() {
     const invites =
       options.remoteInvites === undefined
@@ -71,7 +74,7 @@ export function createApp(engine, options = {}) {
       invite: c.req.header('x-mostbox-invite'),
       origin: c.req.header('origin'),
       listenHost: appHost,
-      local: isLocalRequest(c),
+      local: isLocalRequest(c, { trustPrivateNetwork }),
     })
   }
 
@@ -136,7 +139,12 @@ export function createApp(engine, options = {}) {
 
   async function broadcastNodeStatus() {
     try {
-      const status = await buildNodeStatus(engine, configStore, appPort)
+      const status = await buildNodeStatus(
+        engine,
+        configStore,
+        appPort,
+        appHost
+      )
       wsBroadcast('node:status', status)
       return status
     } catch (err) {
@@ -208,7 +216,7 @@ export function createApp(engine, options = {}) {
       invite,
       origin: req.headers.origin,
       listenHost: appHost,
-      local: isLocalUpgradeRequest(req),
+      local: isLocalUpgradeRequest(req, { trustPrivateNetwork }),
     })
     if (!remote) return true
 

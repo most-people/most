@@ -81,11 +81,71 @@ npm run test:unit # 只运行单元测试
 
 ## 访问场景
 
-| 场景     | 方式                                  | 访问地址                |
-| -------- | ------------------------------------- | ----------------------- |
-| 本地     | 桌面客户端或 `npx most-box@latest`    | `http://localhost:1976` |
-| 远程管理 | SSH 隧道 + `/admin/`                  | `http://localhost:1976` |
-| 外网     | Caddy 反向代理                        | `https://your-domain`   |
+| 场景       | 方式                                  | 访问地址                    |
+| ---------- | ------------------------------------- | --------------------------- |
+| 本地       | 桌面客户端或 `npx most-box@latest`    | `http://localhost:1976`     |
+| 局域网/NAS | 监听 `0.0.0.0`，仅信任家庭局域网      | `http://NAS-IP:1976`        |
+| 远程管理   | SSH 隧道 + `/admin/`                  | `http://localhost:1976`     |
+| 外网       | Caddy 反向代理                        | `https://your-domain`       |
+
+### 飞牛 OS / NAS 局域网部署
+
+飞牛 OS 自带 Docker，可以把 NAS 变成一台 24 小时在线的 MostBox 做种机。普通用户建议直接用飞牛的 Docker 图形界面，不需要 SSH。
+
+你只需要准备两样东西：
+
+- 飞牛 OS 已安装并启用 Docker。
+- 知道 NAS 的局域网地址，例如 `192.168.31.107`。如果你是通过 `http://192.168.31.107:5666/` 打开飞牛 OS，那么 NAS 地址就是 `192.168.31.107`。
+
+部署步骤：
+
+1. 打开飞牛 OS 桌面的 **Docker**。
+2. 找到 **Compose**、**项目** 或 **创建项目** 入口。
+3. 项目名填写 `mostbox`。
+4. Compose 内容整段复制下面这一块，不需要改里面的命令。
+5. 保存并启动项目。
+
+```yaml
+services:
+  mostbox:
+    image: node:22-bookworm-slim
+    container_name: mostbox
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      - /vol1/docker/mostbox:/data
+    working_dir: /data
+    command: >
+      sh -lc "if [ ! -e /usr/lib/x86_64-linux-gnu/libatomic.so.1 ]; then
+      apt-get update &&
+      DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libatomic1 ca-certificates &&
+      rm -rf /var/lib/apt/lists/*;
+      fi;
+      mkdir -p /data/home /data/npm-cache &&
+      chown -R 1000:1000 /data/home /data/npm-cache &&
+      su node -s /bin/sh -c 'HOME=/data/home npm_config_cache=/data/npm-cache npm_config_audit=false npm_config_fund=false npx -y most-box@latest --host 0.0.0.0'"
+```
+
+启动后，在同一局域网的电脑或手机浏览器打开：
+
+```text
+http://你的NAS地址:1976
+```
+
+例如你的飞牛地址是 `192.168.31.107`，就打开：
+
+```text
+http://192.168.31.107:1976
+```
+
+看到 MostBox 页面后，就可以在 NAS 上发布文件。发布后复制生成的 `most://<cid>?filename=...` 链接发给别人；下载者运行自己的 MostBox，粘贴链接下载。你的 NAS 会继续在线做种，关闭浏览器页面也不影响容器做种。
+
+常见问题：
+
+- 页面打不开：先确认 Docker 项目状态是“运行中”，再确认访问的是 NAS 的局域网 IP 加 `:1976`。
+- 日志里一直下载失败：可能是 NAS 访问 npm 或 Debian 软件源太慢，可以给 Docker 项目临时加代理。
+- 数据目录：文件和节点数据保存在 NAS 的 `/vol1/docker/mostbox`，通常位于飞牛的第一个存储空间。
+- 安全提醒：`--host 0.0.0.0` 是给家庭局域网使用的。不要在路由器里把 `1976` 端口直接暴露到公网；需要公网 Web 入口时，请使用 HTTPS 反向代理，并在管理台配置远程访问邀请码。
 
 ### 远程管理节点
 
@@ -107,7 +167,7 @@ mostbox.example.com {
 }
 ```
 
-开放到局域网或公网时，在 `/admin/` 中配置邀请码，远程请求必须携带有效邀请码。
+开放到公网时，在 `/admin/` 中配置邀请码，远程请求必须携带有效邀请码。
 
 ## 核心功能
 

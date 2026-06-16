@@ -18,8 +18,31 @@ import {
 
 export { createApp } from './src/http/app.js'
 
-const PORT = DEFAULT_NODE_PORT
-const HOST = DEFAULT_NODE_HOST
+export function parseRuntimeArgs(argv = process.argv.slice(2)) {
+  const options = {}
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index]
+    if (arg === '--host') {
+      options.host = String(argv[index + 1] || '').trim()
+      index += 1
+    } else if (arg.startsWith('--host=')) {
+      options.host = arg.slice('--host='.length).trim()
+    }
+  }
+
+  return options
+}
+
+function getRuntimeHost(nodeConfig, runtimeArgs) {
+  return runtimeArgs.host || nodeConfig.host || DEFAULT_NODE_HOST
+}
+
+function getDisplayHost(host) {
+  if (host === '0.0.0.0') return 'localhost'
+  if (host === '::') return '[::1]'
+  return host
+}
 
 function cleanUploadTempDir() {
   if (!fs.existsSync(UPLOAD_TMP_DIR)) return
@@ -221,6 +244,9 @@ export async function main() {
   console.log(`[MostBox] Storage: ${dataPath}`)
 
   const nodeConfig = configStore.getNodeConfig()
+  const runtimeArgs = parseRuntimeArgs()
+  const port = DEFAULT_NODE_PORT
+  const host = getRuntimeHost(nodeConfig, runtimeArgs)
   const engine = new MostBoxEngine({
     dataPath,
     maxFileSize: nodeConfig.maxFileSizeBytes,
@@ -231,8 +257,8 @@ export async function main() {
   const serverInstanceRef = { current: null }
 
   const appRuntime = createApp(engine, {
-    port: PORT,
-    host: HOST,
+    port,
+    host,
     configStore,
     nodeLogger,
     wssRef,
@@ -253,15 +279,18 @@ export async function main() {
   appRuntime.appendNodeLog({
     event: 'node:ready',
     message: 'Node daemon ready',
-    data: { dataPath, port: PORT },
+    data: { dataPath, host, port },
   })
   appRuntime.broadcastNodeStatus()
 
   serverInstanceRef.current = serve(
-    { fetch: appRuntime.app.fetch, port: PORT, hostname: HOST },
+    { fetch: appRuntime.app.fetch, port, hostname: host },
     () => {
-      const displayUrl = `http://localhost:${PORT}`
+      const displayUrl = `http://${getDisplayHost(host)}:${port}`
       console.log(`[MostBox] Server running at ${displayUrl}`)
+      if (host !== DEFAULT_NODE_HOST) {
+        console.log(`[MostBox] Listening on ${host}:${port}`)
+      }
     }
   )
 

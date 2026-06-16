@@ -86,7 +86,7 @@ export function registerNodeRoutes(
 
   app.get('/api/node/status', async c => {
     try {
-      return c.json(await buildNodeStatus(engine, configStore, appPort))
+      return c.json(await buildNodeStatus(engine, configStore, appPort, appHost))
     } catch (err) {
       return errorJson(c, err)
     }
@@ -186,7 +186,12 @@ export function registerNodeRoutes(
 
   app.get('/api/node/diagnostics', async c => {
     try {
-      const status = await buildNodeStatus(engine, configStore, appPort)
+      const status = await buildNodeStatus(
+        engine,
+        configStore,
+        appPort,
+        appHost
+      )
       return c.json({
         generatedAt: new Date().toISOString(),
         packageVersion: getPackageVersion(),

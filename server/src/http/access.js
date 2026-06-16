@@ -37,6 +37,53 @@ function isLocalHostname(hostname) {
   return ['localhost', '127.0.0.1', '::1', '[::1]'].includes(value)
 }
 
+function normalizeNetworkAddress(address) {
+  const value = String(address || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '')
+
+  if (value.startsWith('::ffff:')) {
+    return value.slice('::ffff:'.length)
+  }
+
+  return value
+}
+
+export function isPrivateNetworkHostname(hostname) {
+  const value = normalizeNetworkAddress(hostname)
+
+  if (value === '::1' || value === 'localhost') {
+    return true
+  }
+
+  if (
+    value.includes(':') &&
+    (value.startsWith('fc') ||
+      value.startsWith('fd') ||
+      value.startsWith('fe80:'))
+  ) {
+    return true
+  }
+
+  const parts = value.split('.').map(part => Number(part))
+  if (
+    parts.length !== 4 ||
+    parts.some(part => !Number.isInteger(part) || part < 0 || part > 255)
+  ) {
+    return false
+  }
+
+  const [first, second] = parts
+  return (
+    first === 10 ||
+    first === 127 ||
+    (first === 169 && second === 254) ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168)
+  )
+}
+
 export function isPublicListenHost(listenHost) {
   const hostname = extractHostname(listenHost)
   if (!hostname) return false
@@ -76,23 +123,27 @@ export function isLoopbackRemoteAddress(address) {
   )
 }
 
-export function isLocalRequest(c) {
+export function isLocalRequest(c, options = {}) {
   const host = c.req.header('host')
-  if (host) {
-    return isLocalRequestHost(host)
+  if (host && isLocalRequestHost(host)) {
+    return true
   }
-  const clientIp =
-    c.req.header('x-forwarded-for') ||
-    c.env?.incoming?.socket?.remoteAddress ||
-    ''
-  return isLoopbackRemoteAddress(clientIp)
+  const clientIp = c.env?.incoming?.socket?.remoteAddress || ''
+  return (
+    isLoopbackRemoteAddress(clientIp) ||
+    (options.trustPrivateNetwork && isPrivateNetworkHostname(clientIp))
+  )
 }
 
-export function isLocalUpgradeRequest(req) {
-  if (req.headers.host) {
-    return isLocalRequestHost(req.headers.host)
+export function isLocalUpgradeRequest(req, options = {}) {
+  if (req.headers.host && isLocalRequestHost(req.headers.host)) {
+    return true
   }
-  return isLoopbackRemoteAddress(req.socket?.remoteAddress)
+  const remoteAddress = req.socket?.remoteAddress
+  return (
+    isLoopbackRemoteAddress(remoteAddress) ||
+    (options.trustPrivateNetwork && isPrivateNetworkHostname(remoteAddress))
+  )
 }
 
 export function isRemoteAccessRequest({ invite, origin, listenHost, local }) {

@@ -51,17 +51,13 @@ export function normalizeNodeConfig(raw = {}) {
     rawNode.remoteInvites ?? raw.remoteInvites ?? defaults.remoteInvites
   )
   const host = normalizeHost(rawNode.host ?? raw.host, defaults.host)
-  const port = normalizePositiveInteger(
-    rawNode.port ?? raw.port,
-    defaults.port
-  )
   return {
     dataPath:
       typeof raw.dataPath === 'string'
         ? raw.dataPath.trim()
         : defaults.dataPath,
     host,
-    port,
+    port: DEFAULT_NODE_PORT,
     capacityBytes,
     maxFileSizeBytes,
     remoteInvites,
@@ -116,7 +112,7 @@ export function createNodeConfigStore(configDir = getDefaultConfigDir()) {
       node: {
         ...(raw.node && typeof raw.node === 'object' ? raw.node : {}),
         host: patch.host === undefined ? current.host : patch.host,
-        port: patch.port === undefined ? current.port : patch.port,
+        port: DEFAULT_NODE_PORT,
         capacityBytes:
           patch.capacityBytes === undefined
             ? current.capacityBytes

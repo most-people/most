@@ -285,7 +285,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(data.success, true)
       assert.strictEqual(data.dataPath, dataPath)
       assert.strictEqual(data.host, '0.0.0.0')
-      assert.strictEqual(data.port, 1999)
+      assert.strictEqual(data.port, 1976)
       assert.strictEqual(data.capacityBytes, 1024 * 1024 * 1024)
       assert.strictEqual(data.maxFileSizeBytes, 1024 * 1024)
       assert.deepStrictEqual(data.remoteInvites, ['invite-one', 'invite-two'])
@@ -1504,6 +1504,64 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
 
       const res = await app.request('/api/node-id', {
         headers: { host: '203.0.113.10:1976' },
+      })
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 403)
+      assert.strictEqual(data.code, 'INVALID_INVITE')
+    })
+
+    it('does not trust LAN host headers by themselves', async () => {
+      const { app } = createApp(engine, {
+        port: TEST_PORT + 15,
+        host: '0.0.0.0',
+        configStore,
+        nodeLogger,
+        remoteInvites: [],
+      })
+
+      const res = await app.request('/api/node-id', {
+        headers: { host: '192.168.31.171:1976' },
+      })
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 403)
+      assert.strictEqual(data.code, 'INVALID_INVITE')
+    })
+
+    it('allows LAN administration when listening on all interfaces', async () => {
+      const { app } = createApp(engine, {
+        port: TEST_PORT + 16,
+        host: '0.0.0.0',
+        configStore,
+        nodeLogger,
+      })
+
+      const res = await app.request('/api/node/config', {
+        headers: { host: '192.168.31.171:1976' },
+      }, {
+        incoming: { socket: { remoteAddress: '::ffff:192.168.31.239' } },
+      })
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 200)
+      assert.strictEqual(data.currentHost, '0.0.0.0')
+    })
+
+    it('does not trust spoofed LAN host headers', async () => {
+      const { app } = createApp(engine, {
+        port: TEST_PORT + 17,
+        host: '0.0.0.0',
+        configStore,
+        nodeLogger,
+        remoteInvites: [],
+        trustPrivateNetwork: true,
+      })
+
+      const res = await app.request('/api/node-id', {
+        headers: { host: '192.168.31.171:1976' },
+      }, {
+        incoming: { socket: { remoteAddress: '203.0.113.20' } },
       })
       const data = await res.json()
 
