@@ -608,7 +608,7 @@ function ChatPage() {
   async function refreshChannels() {
     if (!isBackendReady) return
     try {
-      const result = await channelApi.getChannels({ excludeType: 'game' })
+      const result = await channelApi.getChannels()
       setChannels(result)
     } catch (err) {
       setChannels([])

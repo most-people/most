@@ -1356,6 +1356,28 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.ok(channels.some(c => c.name === `list-${uid}`))
       assert.strictEqual(typeof channels[0].peerCount, 'number')
     })
+
+    it('filters dotted system channels by default', async () => {
+      const chatName = `list-chat-${uid}`
+      const gameName = `game.gandengyan.${uid}`
+      await engine.createChannel(chatName, 'public')
+      await engine.createChannel(gameName, GAME_CHANNEL_TYPE)
+
+      const channels = engine.listChannels()
+      assert.ok(channels.some(c => c.name === chatName))
+      assert.ok(!channels.some(c => c.name === gameName))
+      assert.ok(
+        channels.every(
+          c =>
+            ![c.name, c.channelId, c.channelKey].some(value =>
+              String(value || '').includes('.')
+            )
+        )
+      )
+
+      const gameChannels = engine.listChannels({ type: GAME_CHANNEL_TYPE })
+      assert.ok(gameChannels.some(c => c.name === gameName))
+    })
   })
 
   describe('getChannelMembers()', () => {

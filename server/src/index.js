@@ -32,6 +32,7 @@ import {
   createChannelWriterId,
   buildChannelKey,
   normalizeChannelKey,
+  isSpecialChannel,
   uniqueStrings,
 } from './core/channelIdentity.js'
 import { getPathBaseName, getDisplayPathFolder } from './core/displayPath.js'
@@ -2404,14 +2405,13 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   /**
-   * 列出所有频道
+   * 列出频道；默认排除带点号的系统频道。
    * @returns {Array<{ channelId: string, channelKey: string, name: string, createdAt: string, lastMessageAt: string, type: string, peerCount: number, remark: string, pinned: boolean }>}
    */
   listChannels(options = {}) {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
     const type = String(options.type || '').trim()
-    const excludeType = String(options.excludeType || '').trim()
 
     return this.#channels
       .filter(c => {
@@ -2420,8 +2420,7 @@ export class MostBoxEngine extends EventEmitter {
       })
       .filter(c => {
         if (type) return c.type === type
-        if (excludeType) return c.type !== excludeType
-        return true
+        return !isSpecialChannel(c)
       })
       .map(c => this.#formatChannelForResponse(c, ownerAddress))
   }

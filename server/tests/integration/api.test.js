@@ -175,7 +175,11 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
   beforeEach(async () => {
     await engine.clearUserData(TEST_IDENTITY.address)
     await engine.clearUserData(SECOND_IDENTITY.address)
-    for (const channel of engine.listChannels()) {
+    const channels = [
+      ...engine.listChannels(),
+      ...engine.listChannels({ type: 'game' }),
+    ]
+    for (const channel of channels) {
       await engine.leaveChannel(channel.name)
     }
   })
@@ -1506,7 +1510,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(data.some(c => c.name === `list-${uid}`))
     })
 
-    it('filters game channels by type and excludes them from chat lists', async () => {
+    it('filters dotted system channels by default while preserving type queries', async () => {
       await engine.createChannel(`chat-${uid}`, 'public')
       await engine.createChannel(`game.zhajinhua.${uid}`, 'game')
 
@@ -1516,11 +1520,12 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(gameData.some(c => c.name === `game.zhajinhua.${uid}`))
       assert.ok(!gameData.some(c => c.name === `chat-${uid}`))
 
-      const chatRes = await fetch(`${baseUrl}/api/channels?excludeType=game`)
+      const chatRes = await fetch(`${baseUrl}/api/channels`)
       const chatData = await chatRes.json()
       assert.strictEqual(chatRes.status, 200)
       assert.ok(chatData.some(c => c.name === `chat-${uid}`))
       assert.ok(!chatData.some(c => c.name === `game.zhajinhua.${uid}`))
+      assert.ok(chatData.every(c => !String(c.name || '').includes('.')))
     })
   })
 

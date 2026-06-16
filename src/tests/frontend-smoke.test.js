@@ -733,6 +733,18 @@ describe('frontend smoke checks', () => {
     assert.match(userSyncSource, /channelApi\.createChannel/)
   })
 
+  it('uses default channel list filtering without legacy filter parameters', () => {
+    const chatSource = readSource(SOURCE_PATHS.features.chat)
+    const channelApiSource = readSource('src/lib/channelApi.ts')
+    const removedOptionName = 'exclude' + 'Type'
+
+    assert.match(chatSource, /channelApi\.getChannels\(\)/)
+    assert.doesNotMatch(
+      `${chatSource}\n${channelApiSource}`,
+      new RegExp(removedOptionName)
+    )
+  })
+
   it('hides download client entry points in the desktop client runtime', () => {
     const hookSource = readSource('src/hooks/index.ts')
     const navSource = readSource('src/components/Nav.tsx')

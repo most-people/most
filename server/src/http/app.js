@@ -939,7 +939,6 @@ export function createApp(engine, options = {}) {
       engine.listChannels({
         ownerAddress: c.get('userAddress'),
         type: c.req.query('type'),
-        excludeType: c.req.query('excludeType'),
       })
     )
   })

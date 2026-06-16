@@ -50,7 +50,6 @@ export interface SendMessageResult {
 
 export interface GetChannelsOptions {
   type?: string
-  excludeType?: string
 }
 
 export interface SendChannelMessageInput {
@@ -86,7 +85,6 @@ export const channelApi = {
   getChannels(options: GetChannelsOptions = {}) {
     const params = new URLSearchParams()
     if (options.type) params.set('type', options.type)
-    if (options.excludeType) params.set('excludeType', options.excludeType)
     const query = params.toString()
     return api
       .get<Channel[]>(query ? `/api/channels?${query}` : '/api/channels')

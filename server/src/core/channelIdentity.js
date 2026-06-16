@@ -34,6 +34,12 @@ export function normalizeChannelKey(input) {
   return String(input || '').trim()
 }
 
+export function isSpecialChannel(channel = {}) {
+  return [channel.name, channel.channelId, channel.channelKey].some(value =>
+    String(value || '').includes('.')
+  )
+}
+
 export function uniqueStrings(values = []) {
   return [...new Set(values.map(value => String(value || '').trim()).filter(Boolean))]
 }
