@@ -12,6 +12,8 @@ import { MostBoxEngine } from '../../src/index.js'
 import { calculateCid } from '../../src/core/cid.js'
 import {
   GAME_CHANNEL_TYPE,
+  createGameEvent,
+  deriveGameRoomLobby,
   gameRoomCodeToChannelName,
 } from '../../src/core/gameRoom.js'
 import { GLOBAL_SHARED_SEED_STRING } from '../../src/config.js'
@@ -1495,6 +1497,84 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       })
       assert.strictEqual(cleared[0].authorName, 'No Avatar Sender')
       assert.strictEqual(cleared[0].avatar, undefined)
+    })
+
+    it('refreshes saved profile metadata across chat and game channels', async () => {
+      const author = '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd'
+      const roomCode = 'ABCD'
+      const chatChannel = `profile-chat-${uid}`
+      const gameChannel = gameRoomCodeToChannelName('gandengyan', roomCode)
+      const oldProfile = {
+        ownerAddress: author,
+        displayName: 'Old Profile',
+        avatar: 'old.png',
+      }
+      const freshProfile = {
+        ownerAddress: author,
+        displayName: 'Fresh Profile',
+        avatar: '/avatars/default/mint.svg',
+      }
+
+      await msgEngine.createChannel(chatChannel, 'public', oldProfile)
+      await msgEngine.sendMessage(
+        chatChannel,
+        'hello profile',
+        author,
+        oldProfile.displayName,
+        oldProfile
+      )
+
+      await msgEngine.createChannel(gameChannel, GAME_CHANNEL_TYPE, oldProfile)
+      const joinEvent = createGameEvent({
+        gameId: 'gandengyan',
+        roomCode,
+        event: 'player:join',
+        payload: {
+          player: {
+            address: author,
+            name: oldProfile.displayName,
+            avatar: oldProfile.avatar,
+          },
+        },
+      })
+      await msgEngine.sendMessage(
+        gameChannel,
+        JSON.stringify(joinEvent),
+        author,
+        oldProfile.displayName,
+        oldProfile
+      )
+
+      await msgEngine.createChannel(chatChannel, 'public', freshProfile)
+      await msgEngine.createChannel(gameChannel, GAME_CHANNEL_TYPE, freshProfile)
+
+      const chatMessages = await msgEngine.getChannelMessages(chatChannel, {
+        ownerAddress: author,
+      })
+      assert.strictEqual(chatMessages[0].authorName, freshProfile.displayName)
+      assert.strictEqual(chatMessages[0].avatar, freshProfile.avatar)
+
+      const chatMembers = msgEngine.getChannelMembers(chatChannel, {
+        ownerAddress: author,
+      })
+      assert.strictEqual(chatMembers[0].displayName, freshProfile.displayName)
+      assert.strictEqual(chatMembers[0].avatar, freshProfile.avatar)
+
+      const gameMessages = await msgEngine.getChannelMessages(gameChannel, {
+        ownerAddress: author,
+      })
+      const lobby = deriveGameRoomLobby(gameMessages, {
+        gameId: 'gandengyan',
+        roomCode,
+      })
+      assert.strictEqual(lobby.players[0].name, freshProfile.displayName)
+      assert.strictEqual(lobby.players[0].avatar, freshProfile.avatar)
+
+      const gameMembers = msgEngine.getChannelMembers(gameChannel, {
+        ownerAddress: author,
+      })
+      assert.strictEqual(gameMembers[0].displayName, freshProfile.displayName)
+      assert.strictEqual(gameMembers[0].avatar, freshProfile.avatar)
     })
 
     it('stores channel attachment metadata', async () => {

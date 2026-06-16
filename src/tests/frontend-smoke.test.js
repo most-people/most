@@ -678,6 +678,28 @@ describe('frontend smoke checks', () => {
     assert.match(profileSource, /isSupportedAvatarValue/)
   })
 
+  it('keys profile metadata sync by address, display name, and avatar', () => {
+    const appGlobalsSource = readSource('src/components/AppGlobals.tsx')
+    const userSyncSource = readSource('src/lib/userSync.ts')
+    const keyStart = userSyncSource.indexOf(
+      'export function getUserProfileSyncKey'
+    )
+    const keyEnd = userSyncSource.indexOf(
+      'export function getUserChannelProfile',
+      keyStart
+    )
+    const keySource = userSyncSource.slice(keyStart, keyEnd)
+
+    assert.match(appGlobalsSource, /getUserProfileSyncKey\(identity\)/)
+    assert.doesNotMatch(
+      appGlobalsSource,
+      /const syncKey = identity\.address\.toLowerCase\(\)/
+    )
+    assert.match(keySource, /identity\.address\.toLowerCase\(\)/)
+    assert.match(keySource, /getUserDisplayName\(identity\)/)
+    assert.match(keySource, /identity\.avatar \|\| ''/)
+  })
+
   it('uses profile identity as the single source for chat and game messages', () => {
     const chatSource = readSource('src/features/chat/ChatPage.tsx')
     const gameRoomSource = readSource('src/hooks/useGameRoom.ts')
@@ -691,6 +713,9 @@ describe('frontend smoke checks', () => {
     assert.doesNotMatch(chatSource, /author:\s*userIdentity\.address/)
     assert.doesNotMatch(gameRoomSource, /author:\s*userIdentity\.address/)
     assert.match(gameRoomSource, /getUserChannelProfile\(userIdentity\)/)
+    assert.match(gameRoomSource, /getGamePlayerPayload\(/)
+    assert.match(gameRoomSource, /getUserMessageIdentity\(userIdentity\)/)
+    assert.match(gameRoomSource, /await sendMessage\(\{[\s\S]*optimisticId:/)
     assert.match(gameRoomSource, /avatar:\s*identity\.avatar \|\| ''/)
   })
 

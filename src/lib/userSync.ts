@@ -48,6 +48,14 @@ export function getUserDisplayName(identity: UserIdentity) {
   return identity.displayName || identity.username
 }
 
+export function getUserProfileSyncKey(identity: UserIdentity) {
+  return JSON.stringify([
+    identity.address.toLowerCase(),
+    getUserDisplayName(identity),
+    identity.avatar || '',
+  ])
+}
+
 export function getUserChannelProfile(identity: UserIdentity) {
   return {
     displayName: getUserDisplayName(identity),

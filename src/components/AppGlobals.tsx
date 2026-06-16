@@ -5,7 +5,7 @@ import { useUserStore } from '~/stores/userStore'
 import { Toast } from '~/components/ui'
 import UserLoginModal from '~/components/UserLoginModal'
 import ConnectModal from '~/components/ConnectModal'
-import { startUserMetadataSync } from '~/lib/userSync'
+import { getUserProfileSyncKey, startUserMetadataSync } from '~/lib/userSync'
 import { getApiErrorMessage } from '~server/src/utils/api'
 import { useI18n } from '~/lib/i18n'
 
@@ -50,7 +50,7 @@ export default function AppGlobals() {
       syncStartedForRef.current = ''
       return
     }
-    const syncKey = identity.address.toLowerCase()
+    const syncKey = getUserProfileSyncKey(identity)
     if (syncStartedForRef.current === syncKey) return
     syncStartedForRef.current = syncKey
     startUserMetadataSync(identity).catch(async err => {
@@ -60,7 +60,7 @@ export default function AppGlobals() {
         'error'
       )
     })
-  }, [addToast, hasBackend, identity, identity?.address, t])
+  }, [addToast, hasBackend, identity, t])
 
   return (
     <>

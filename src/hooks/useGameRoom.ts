@@ -137,12 +137,10 @@ export function useGameRoom({
           code,
           eventName,
           {
-            player: getPlayerPayload
-              ? {
-                  ...playerPayload(userIdentity),
-                  ...getPlayerPayload(userIdentity),
-                }
-              : playerPayload(userIdentity),
+            player: getGamePlayerPayload(
+              userIdentity,
+              getPlayerPayload?.(userIdentity)
+            ),
           }
         )
         setRoomCode(code)
@@ -259,4 +257,19 @@ function playerPayload(identity: UserIdentity) {
     publicKey: '',
     joinedAt: Date.now(),
   }
+}
+
+function getGamePlayerPayload(
+  identity: UserIdentity,
+  extraPayload: Record<string, unknown> = {}
+) {
+  const basePayload = playerPayload(identity)
+  const payload = {
+    ...basePayload,
+    ...extraPayload,
+  }
+  if (!Object.prototype.hasOwnProperty.call(extraPayload, 'avatar')) {
+    payload.avatar = basePayload.avatar
+  }
+  return payload
 }
