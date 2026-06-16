@@ -68,6 +68,24 @@ function installStoredIdentity() {
   )
 }
 
+function capabilitiesResponse() {
+  return new Response(
+    JSON.stringify({
+      remoteAccess: false,
+      inviteRequired: true,
+      inviteConfigured: false,
+      authenticated: false,
+      userAddress: null,
+      adminAvailable: true,
+      listenHost: '127.0.0.1',
+    }),
+    {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }
+  )
+}
+
 describe('api browser helpers', () => {
   const originalWindow = globalThis.window
   const originalLocalStorage = globalThis.localStorage
@@ -235,7 +253,7 @@ describe('api browser helpers', () => {
           String(input),
           'https://node.example.com/base/api/remote/capabilities'
         )
-        return new Response('{}', { status: 200 })
+        return capabilitiesResponse()
       }
       installWebSocketProbe({ opens: false, urls: wsUrls })
       installStoredIdentity()
@@ -255,7 +273,7 @@ describe('api browser helpers', () => {
     })
 
     it('returns ok only when HTTP and WebSocket both work', async () => {
-      globalThis.fetch = async () => new Response('{}', { status: 200 })
+      globalThis.fetch = async () => capabilitiesResponse()
       installWebSocketProbe()
       installStoredIdentity()
 
@@ -268,7 +286,7 @@ describe('api browser helpers', () => {
 
     it('skips the signed WebSocket probe before login', async () => {
       const wsUrls = []
-      globalThis.fetch = async () => new Response('{}', { status: 200 })
+      globalThis.fetch = async () => capabilitiesResponse()
       installWebSocketProbe({ urls: wsUrls })
 
       const result = await checkBackendConnectionTarget({
@@ -282,13 +300,27 @@ describe('api browser helpers', () => {
 
     it('does not require WebSocket in a non-browser runtime', async () => {
       delete globalThis.WebSocket
-      globalThis.fetch = async () => new Response('{}', { status: 200 })
+      globalThis.fetch = async () => capabilitiesResponse()
 
       const result = await checkBackendConnectionTarget({
         url: 'https://node.example.com/base',
       })
 
       assert.deepStrictEqual(result, { ok: true })
+    })
+
+    it('rejects non-MostBox HTTP responses', async () => {
+      globalThis.fetch = async () =>
+        new Response('<html>not the daemon</html>', {
+          status: 200,
+          headers: { 'content-type': 'text/html' },
+        })
+
+      const result = await checkBackendConnectionTarget({
+        url: 'https://node.example.com/base',
+      })
+
+      assert.deepStrictEqual(result, { ok: false, reason: 'http' })
     })
   })
 

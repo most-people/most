@@ -8,10 +8,12 @@ import {
 } from '~server/src/utils/noteUtils.js'
 import { create } from 'zustand'
 import {
-  checkBackendConnection,
+  checkBackendConnectionTarget,
+  clearBackendConnection,
   detectLocalhostBackend,
   setBackendUrl,
-  getBackendUrlExport,
+  getConfiguredBackendUrlExport,
+  getSameOriginBackendUrlExport,
 } from '~server/src/utils/api'
 import { getNotes, putNotes } from '~/lib/notesDb'
 
@@ -129,15 +131,27 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Backend
   hasBackend: null,
   checkBackend: async () => {
-    const existing = getBackendUrlExport()
+    const sameOrigin = getSameOriginBackendUrlExport()
+    if (sameOrigin) {
+      const { ok } = await checkBackendConnectionTarget({ url: sameOrigin })
+      if (ok) {
+        clearBackendConnection()
+        set({ hasBackend: true })
+        return
+      }
+    }
+
+    const existing = getConfiguredBackendUrlExport()
     if (existing) {
-      const { ok } = await checkBackendConnection()
+      const { ok } = await checkBackendConnectionTarget({ url: existing })
       if (ok) {
         setBackendUrl(existing)
         set({ hasBackend: true })
         return
       }
+      clearBackendConnection()
     }
+
     const localhost = await detectLocalhostBackend()
     if (localhost) {
       setBackendUrl('http://localhost:1976')

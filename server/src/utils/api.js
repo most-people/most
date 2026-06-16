@@ -15,6 +15,11 @@ function getDefaultBackendUrl() {
   return isLocalFrontendOrigin() ? LOCALHOST_BACKEND_URL : ''
 }
 
+function getSameOriginBackendUrl() {
+  if (typeof window === 'undefined') return ''
+  return window.location.origin || ''
+}
+
 function getBackendUrl() {
   if (typeof window === 'undefined') return ''
   return localStorage.getItem(STORAGE_KEY) || getDefaultBackendUrl()
@@ -233,6 +238,14 @@ export function getBackendUrlExport() {
   return getBackendUrl()
 }
 
+export function getConfiguredBackendUrlExport() {
+  return getConfiguredBackendUrl()
+}
+
+export function getSameOriginBackendUrlExport() {
+  return getSameOriginBackendUrl()
+}
+
 export function getRemoteBackendUrlExport() {
   return getRemoteBackendUrl()
 }
@@ -311,7 +324,7 @@ export async function getAuthenticatedWebSocketUrl(path = '/ws') {
 }
 
 export async function checkBackendConnection() {
-  const url = getBackendUrl()
+  const url = getBackendUrl() || getSameOriginBackendUrl()
   const invite = shouldAttachBackendInvite(url) ? getBackendInvite() : ''
   return checkBackendConnectionTarget({ url, invite })
 }
@@ -334,6 +347,19 @@ async function probeHttp(cleanedUrl, invite, identity) {
       signal: AbortSignal.timeout(3000),
     })
     if (!res.ok) return { ok: false, reason: 'http' }
+    const data = await res
+      .clone()
+      .json()
+      .catch(() => null)
+    if (
+      !data ||
+      typeof data.remoteAccess !== 'boolean' ||
+      typeof data.inviteRequired !== 'boolean' ||
+      typeof data.adminAvailable !== 'boolean' ||
+      typeof data.listenHost !== 'string'
+    ) {
+      return { ok: false, reason: 'http' }
+    }
     return { ok: true }
   } catch {
     return { ok: false, reason: 'http' }
