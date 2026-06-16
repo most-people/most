@@ -5,6 +5,13 @@ export const zhCNCidMessages = {
   'cid.title': '检查分享文件',
   'cid.subtitle':
     'MostBox 会先检查这个 CID 是否能从在线种子下载。确认可用后，你可以手动开始下载。',
+  'cid.handoff.title': '用 MostBox 客户端打开',
+  'cid.handoff.desc':
+    '已安装客户端时，浏览器会交给系统打开这个 most:// 分享，并让 MostBox 接管检测和下载。',
+  'cid.handoff.action': '用 MostBox 打开',
+  'cid.handoff.fallback':
+    '如果浏览器没有弹出确认，或 MostBox 没有打开，可能还没安装客户端或系统协议未注册。你仍可在本页连接本地节点检测下载。',
+  'cid.handoff.downloadAction': '下载客户端',
   'cid.fileNameLabel': '文件名',
   'cid.cidLabel': 'CID',
   'cid.sizeLabel': '大小',
@@ -53,6 +60,13 @@ export const zhTWCidMessages = {
   'cid.title': '檢查分享檔案',
   'cid.subtitle':
     'MostBox 會先檢查這個 CID 是否能從線上種子下載。確認可用後，你可以手動開始下載。',
+  'cid.handoff.title': '用 MostBox 用戶端開啟',
+  'cid.handoff.desc':
+    '已安裝用戶端時，瀏覽器會交給系統開啟這個 most:// 分享，並讓 MostBox 接管檢測和下載。',
+  'cid.handoff.action': '用 MostBox 開啟',
+  'cid.handoff.fallback':
+    '如果瀏覽器沒有跳出確認，或 MostBox 沒有開啟，可能尚未安裝用戶端或系統協議未註冊。你仍可在本頁連線本機節點檢測下載。',
+  'cid.handoff.downloadAction': '下載用戶端',
   'cid.fileNameLabel': '檔案名稱',
   'cid.cidLabel': 'CID',
   'cid.sizeLabel': '大小',
@@ -102,6 +116,13 @@ export const enCidMessages = {
   'cid.title': 'Check shared file',
   'cid.subtitle':
     'MostBox checks whether this CID can be downloaded from online seeders first. Once it is available, you can start the download manually.',
+  'cid.handoff.title': 'Open with the MostBox client',
+  'cid.handoff.desc':
+    'If the client is installed, your browser will hand this most:// share to the system so MostBox can take over checking and downloading.',
+  'cid.handoff.action': 'Open in MostBox',
+  'cid.handoff.fallback':
+    'If the browser did not ask for confirmation or MostBox did not open, the client may not be installed or the system protocol may not be registered. You can still connect a local node on this page to check and download.',
+  'cid.handoff.downloadAction': 'Download client',
   'cid.fileNameLabel': 'File name',
   'cid.cidLabel': 'CID',
   'cid.sizeLabel': 'Size',

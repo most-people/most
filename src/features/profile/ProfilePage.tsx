@@ -141,7 +141,11 @@ export default function ProfilePage() {
 
   function updateAvatar(nextAvatar?: string) {
     if (!identity) return
-    const nextIdentity = { ...identity, avatar: nextAvatar || undefined }
+    const nextIdentity = {
+      ...identity,
+      avatar: nextAvatar || undefined,
+      profileUpdatedAt: Date.now(),
+    }
     setUserIdentity(nextIdentity)
     void syncSavedProfile(nextIdentity)
     setAvatarUrlError('')
@@ -151,7 +155,7 @@ export default function ProfilePage() {
   function handleSaveDisplayName() {
     if (!identity) return
     const displayName = displayNameDraft.trim() || identity.username
-    const nextIdentity = { ...identity, displayName }
+    const nextIdentity = { ...identity, displayName, profileUpdatedAt: Date.now() }
     setUserIdentity(nextIdentity)
     void syncSavedProfile(nextIdentity)
     setDisplayNameDraft(displayName)

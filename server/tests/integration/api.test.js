@@ -1248,6 +1248,62 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(statusData.syncId, startData.syncId)
     })
 
+    it('requires authentication for user profile sync APIs', async () => {
+      const getRes = await fetchWithoutAuth(`${baseUrl}/api/user/profile`)
+      assert.strictEqual(getRes.status, 401)
+
+      const putRes = await fetchWithoutAuth(`${baseUrl}/api/user/profile`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          displayName: 'No Auth',
+          avatar: '',
+          syncUpdatedAt: Date.now(),
+        }),
+      })
+      assert.strictEqual(putRes.status, 401)
+    })
+
+    it('saves and reads authenticated user profile sync metadata', async () => {
+      const keys = createUserSyncKeys(`api-profile-${uid}`)
+      await fetchAs(TEST_IDENTITY, `${baseUrl}/api/user/sync/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(keys),
+      })
+
+      const syncUpdatedAt = Date.now()
+      const putRes = await fetchAs(
+        TEST_IDENTITY,
+        `${baseUrl}/api/user/profile`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            displayName: 'Synced API User',
+            avatar: '/avatars/default/panda.svg',
+            syncUpdatedAt,
+          }),
+        }
+      )
+      const putData = await putRes.json()
+      assert.strictEqual(putRes.status, 200)
+      assert.strictEqual(putData.success, true)
+      assert.strictEqual(putData.profile.displayName, 'Synced API User')
+      assert.strictEqual(putData.profile.avatar, '/avatars/default/panda.svg')
+      assert.strictEqual(putData.profile.syncUpdatedAt, syncUpdatedAt)
+
+      const getRes = await fetchAs(
+        TEST_IDENTITY,
+        `${baseUrl}/api/user/profile`
+      )
+      const getData = await getRes.json()
+      assert.strictEqual(getRes.status, 200)
+      assert.strictEqual(getData.displayName, 'Synced API User')
+      assert.strictEqual(getData.avatar, '/avatars/default/panda.svg')
+      assert.strictEqual(getData.syncUpdatedAt, syncUpdatedAt)
+    })
+
     it('does not expose legacy JSON import or export APIs', async () => {
       for (const pathName of [
         '/api/user/export',

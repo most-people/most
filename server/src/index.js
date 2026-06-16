@@ -167,7 +167,7 @@ export class MostBoxEngine extends EventEmitter {
   #userSyncCores = new Map()
   #userSyncCoreOffsets = new Map()
   #userSyncDiscoveries = new Map()
-  #userSyncMetadata = { sessions: {}, clocks: {} }
+  #userSyncMetadata = { sessions: {}, clocks: {}, profiles: {} }
 
   #chatSwarm = null
 
@@ -1884,6 +1884,58 @@ export class MostBoxEngine extends EventEmitter {
     }
   }
 
+  getUserProfile(ownerAddressInput) {
+    this.#ensureInitialized()
+    const ownerAddress = normalizeOwnerAddress(ownerAddressInput)
+    if (!ownerAddress) {
+      throw new ValidationError('valid owner address is required')
+    }
+    const profile = this.#userSyncMetadata.profiles?.[ownerAddress]
+    return profile ? { ...profile } : null
+  }
+
+  saveUserProfile(ownerAddressInput, profileInput = {}) {
+    this.#ensureInitialized()
+    const ownerAddress = normalizeOwnerAddress(ownerAddressInput)
+    if (!ownerAddress) {
+      throw new ValidationError('valid owner address is required')
+    }
+    const existing = this.getUserProfile(ownerAddress)
+    const profile = this.#normalizeUserProfileRecord(
+      ownerAddress,
+      profileInput,
+      getNextSyncTimestamp(existing?.syncUpdatedAt)
+    )
+    if (!profile) {
+      throw new ValidationError('valid profile is required')
+    }
+    if (existing && profile.syncUpdatedAt <= existing.syncUpdatedAt) {
+      return { ...existing }
+    }
+
+    this.#userSyncMetadata.profiles = this.#userSyncMetadata.profiles || {}
+    this.#userSyncMetadata.profiles[ownerAddress] = profile
+    this.#setUserSyncClock(ownerAddress, 'profile', profile.syncUpdatedAt)
+    this.#appendUserSyncOpSoon(ownerAddress, 'profile:upsert', { profile })
+
+    const changedChannels = this.#applyUserProfileToJoinedChannels(
+      ownerAddress,
+      profile
+    )
+    if (changedChannels) {
+      this.#saveChannelsMetadata()
+      this.emit('user:metadata:updated', {
+        ownerAddress,
+        scope: 'channels',
+      })
+    }
+    this.emit('user:metadata:updated', {
+      ownerAddress,
+      scope: 'profile',
+    })
+    return { ...profile }
+  }
+
   async cacheFile(cid, options = {}) {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
@@ -3383,8 +3435,10 @@ export class MostBoxEngine extends EventEmitter {
       .filter(channel => this.#channelHasMember(channel, ownerAddress))
       .map(channel => this.#formatChannelForSync(channel, ownerAddress))
       .filter(Boolean)
+    const profile = this.#formatUserProfileForSync(ownerAddress)
     return this.#appendUserSyncOp(ownerAddress, 'snapshot', {
       reason,
+      profile,
       files,
       trashFiles,
       channels,
@@ -3403,8 +3457,16 @@ export class MostBoxEngine extends EventEmitter {
   async #applyUserSyncOp(session, op) {
     let changedFiles = false
     let changedChannels = false
+    let changedProfile = false
     if (op.kind === 'snapshot') {
       const payload = op.payload || {}
+      const profileResult = this.#applyUserSyncProfileRecord(
+        session.ownerAddress,
+        payload.profile,
+        getSyncTimestamp(payload.profile?.syncUpdatedAt, op.timestamp)
+      )
+      changedProfile = profileResult.changedProfile || changedProfile
+      changedChannels = profileResult.changedChannels || changedChannels
       for (const file of Array.isArray(payload.files) ? payload.files : []) {
         changedFiles =
           this.#applyUserSyncFileRecord(
@@ -3463,8 +3525,22 @@ export class MostBoxEngine extends EventEmitter {
         op.payload?.channelKey,
         getSyncTimestamp(op.payload?.syncUpdatedAt, op.timestamp)
       )
+    } else if (op.kind === 'profile:upsert') {
+      const profileResult = this.#applyUserSyncProfileRecord(
+        session.ownerAddress,
+        op.payload?.profile,
+        getSyncTimestamp(op.payload?.profile?.syncUpdatedAt, op.timestamp)
+      )
+      changedProfile = profileResult.changedProfile
+      changedChannels = changedChannels || profileResult.changedChannels
     }
 
+    if (changedProfile) {
+      this.emit('user:metadata:updated', {
+        ownerAddress: session.ownerAddress,
+        scope: 'profile',
+      })
+    }
     if (changedFiles) {
       this.#savePublishedMetadata()
       this.#saveTrashMetadata()
@@ -3483,7 +3559,10 @@ export class MostBoxEngine extends EventEmitter {
     if (changedFiles || changedChannels) {
       this.#touchUserSyncSession(session)
     }
-    return changedFiles || changedChannels
+    if (changedProfile) {
+      this.#touchUserSyncSession(session)
+    }
+    return changedFiles || changedChannels || changedProfile
   }
 
   async #mergeUserSyncWriterCoreKeys(session, writerCoreKeys = []) {
@@ -3576,6 +3655,70 @@ export class MostBoxEngine extends EventEmitter {
         channel.syncUpdatedAt || channel.lastMessageAt || channel.createdAt
       ),
     }
+  }
+
+  #formatUserProfileForSync(ownerAddress) {
+    const owner = normalizeOwnerAddress(ownerAddress)
+    if (!owner) return null
+    const profile = this.#userSyncMetadata.profiles?.[owner]
+    return profile ? { ...profile } : null
+  }
+
+  #normalizeUserProfileRecord(ownerAddress, record, timestamp = Date.now()) {
+    const owner = normalizeOwnerAddress(ownerAddress)
+    if (!owner || !record || typeof record !== 'object') return null
+    const displayName = normalizeChannelDisplayName(record.displayName, owner)
+    const avatar = normalizeChannelAvatar(record.avatar)
+    const syncUpdatedAt = getSyncTimestamp(record.syncUpdatedAt, timestamp)
+    return {
+      displayName,
+      avatar,
+      syncUpdatedAt,
+    }
+  }
+
+  #applyUserSyncProfileRecord(ownerAddress, record, timestamp) {
+    const owner = normalizeOwnerAddress(ownerAddress)
+    const profile = this.#normalizeUserProfileRecord(owner, record, timestamp)
+    if (!profile) {
+      return { changedProfile: false, changedChannels: false }
+    }
+    if (!this.#shouldApplyUserSyncEntity(owner, 'profile', profile.syncUpdatedAt)) {
+      return { changedProfile: false, changedChannels: false }
+    }
+
+    const existing = this.#userSyncMetadata.profiles?.[owner]
+    this.#userSyncMetadata.profiles = this.#userSyncMetadata.profiles || {}
+    this.#userSyncMetadata.profiles[owner] = profile
+    this.#setUserSyncClock(owner, 'profile', profile.syncUpdatedAt)
+    const changedChannels = this.#applyUserProfileToJoinedChannels(
+      owner,
+      profile
+    )
+    return {
+      changedProfile:
+        !existing ||
+        existing.displayName !== profile.displayName ||
+        existing.avatar !== profile.avatar ||
+        Number(existing.syncUpdatedAt) !== profile.syncUpdatedAt,
+      changedChannels,
+    }
+  }
+
+  #applyUserProfileToJoinedChannels(ownerAddress, profile) {
+    const owner = normalizeOwnerAddress(ownerAddress)
+    if (!owner || !profile) return false
+    let changed = false
+    for (const channel of this.#channels) {
+      if (!this.#channelHasMember(channel, owner)) continue
+      changed =
+        this.#upsertChannelMember(channel, {
+          ownerAddress: owner,
+          displayName: profile.displayName,
+          avatar: profile.avatar,
+        }) || changed
+    }
+    return changed
   }
 
   #appendUserSyncChannelUpsertSoon(channel, ownerAddress) {
@@ -3917,6 +4060,12 @@ export class MostBoxEngine extends EventEmitter {
       if (channelKey) {
         this.#setUserSyncClock(ownerAddress, `channel:${channelKey}`, timestamp)
       }
+    } else if (op.kind === 'profile:upsert') {
+      const timestamp = getSyncTimestamp(
+        op.payload?.profile?.syncUpdatedAt,
+        op.timestamp
+      )
+      this.#setUserSyncClock(ownerAddress, 'profile', timestamp)
     }
   }
 
@@ -4657,7 +4806,18 @@ export class MostBoxEngine extends EventEmitter {
           }
         }
 
-        return { sessions, clocks }
+        const profiles = {}
+        for (const [owner, profile] of Object.entries(parsed.profiles || {})) {
+          const ownerAddress = normalizeOwnerAddress(owner)
+          const normalized = this.#normalizeUserProfileRecord(
+            ownerAddress,
+            profile,
+            profile?.syncUpdatedAt
+          )
+          if (normalized) profiles[ownerAddress] = normalized
+        }
+
+        return { sessions, clocks, profiles }
       }
     } catch (err) {
       console.warn(
@@ -4665,7 +4825,7 @@ export class MostBoxEngine extends EventEmitter {
         err.message
       )
     }
-    return { sessions: {}, clocks: {} }
+    return { sessions: {}, clocks: {}, profiles: {} }
   }
 
   #saveUserSyncMetadata() {

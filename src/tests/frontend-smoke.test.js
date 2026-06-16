@@ -342,6 +342,21 @@ describe('frontend smoke checks', () => {
     assert.match(cidRoute, /ssr:\s*false/)
   })
 
+  it('offers a browser handoff from CID landing pages to the desktop client', () => {
+    const cidPage = readSource(SOURCE_PATHS.features.cid)
+    const messages = readI18nSources()
+
+    assert.match(cidPage, /href=\{mostLink\}/)
+    assert.match(cidPage, /onClick=\{handleOpenMostBox\}/)
+    assert.match(cidPage, /HANDOFF_FALLBACK_DELAY_MS/)
+    assert.match(cidPage, /cid\.handoff\.fallback/)
+    assert.match(cidPage, /to="\/download\/"/)
+    assert.match(messages, /'cid\.handoff\.action': '用 MostBox 打开'/)
+    assert.match(messages, /系统协议未注册/)
+    assert.match(messages, /'cid\.handoff\.action': 'Open in MostBox'/)
+    assert.match(messages, /system protocol may not be registered/)
+  })
+
   it('keeps the CID page as a check-before-download flow', () => {
     const cidPage = readSource(SOURCE_PATHS.features.cid)
     const rootRoute = readSource(SOURCE_PATHS.routes.root)
@@ -700,6 +715,25 @@ describe('frontend smoke checks', () => {
     assert.match(keySource, /identity\.avatar \|\| ''/)
   })
 
+  it('restores profile metadata from user sync without overwriting remote defaults', () => {
+    const appGlobalsSource = readSource('src/components/AppGlobals.tsx')
+    const userStoreSource = readSource('src/stores/userStore.ts')
+    const userSyncSource = readSource('src/lib/userSync.ts')
+    const profileSource = readSource('src/features/profile/ProfilePage.tsx')
+
+    assert.match(userStoreSource, /profileUpdatedAt\?: number/)
+    assert.match(userStoreSource, /LEGACY_PROFILE_UPDATED_AT/)
+    assert.match(profileSource, /profileUpdatedAt: Date\.now\(\)/)
+    assert.match(userSyncSource, /getSyncedUserProfile/)
+    assert.match(userSyncSource, /saveSyncedUserProfile/)
+    assert.match(userSyncSource, /restoreUserProfileFromSync/)
+    assert.match(userSyncSource, /localUpdatedAt > 0/)
+    assert.match(appGlobalsSource, /reconcileUserProfileSync/)
+    assert.match(appGlobalsSource, /getAuthenticatedWebSocketUrl\('\/ws'\)/)
+    assert.match(appGlobalsSource, /payload\.data\?\.scope === 'profile'/)
+    assert.match(appGlobalsSource, /setUserIdentity\(result\.restoredIdentity\)/)
+  })
+
   it('uses profile identity as the single source for chat and game messages', () => {
     const chatSource = readSource('src/features/chat/ChatPage.tsx')
     const gameRoomSource = readSource('src/hooks/useGameRoom.ts')
@@ -729,6 +763,8 @@ describe('frontend smoke checks', () => {
       userSyncSource,
       /startUserMetadataSync\(identity\)[\s\S]*refreshJoinedChannelProfiles\(identity\)/
     )
+    assert.match(userSyncSource, /saveSyncedUserProfile\(identity\)/)
+    assert.match(userSyncSource, /\/api\/user\/profile/)
     assert.match(userSyncSource, /channelApi\.getChannels\(\)/)
     assert.match(userSyncSource, /channelApi\.createChannel/)
   })

@@ -483,6 +483,24 @@ export function createApp(engine, options = {}) {
     }
   })
 
+  app.get('/api/user/profile', c => {
+    try {
+      return c.json(engine.getUserProfile(c.get('userAddress')))
+    } catch (err) {
+      return errorJson(c, err)
+    }
+  })
+
+  app.put('/api/user/profile', async c => {
+    try {
+      const body = await c.req.json()
+      const profile = engine.saveUserProfile(c.get('userAddress'), body)
+      return c.json({ success: true, profile })
+    } catch (err) {
+      return errorJson(c, err)
+    }
+  })
+
   app.delete('/api/admin/users/:address/data', async c => {
     const address = normalizeAddress(c.req.param('address'))
     if (!address) {

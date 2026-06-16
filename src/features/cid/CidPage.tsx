@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Download,
+  ExternalLink,
   FileText,
   HardDrive,
   Loader2,
@@ -65,6 +66,8 @@ type DownloadEventPayload = {
   fileName?: string
   error?: string
 }
+
+const HANDOFF_FALLBACK_DELAY_MS = 1800
 
 function buildMostLinkFromRoute(cid: string, searchStr: string) {
   return `most://${cid}${searchStr || ''}`
@@ -153,7 +156,9 @@ export default function CidPage() {
   const [loadedBytes, setLoadedBytes] = useState<number | null>(null)
   const [totalBytes, setTotalBytes] = useState<number | null>(null)
   const [downloadPath, setDownloadPath] = useState('')
+  const [showHandoffFallback, setShowHandoffFallback] = useState(false)
   const checkSeqRef = useRef(0)
+  const handoffTimerRef = useRef<number | null>(null)
 
   const fileName = checkResult?.fileName || initialFileName
   const fileSize = checkResult?.size ?? totalBytes
@@ -233,6 +238,29 @@ export default function CidPage() {
   useEffect(() => {
     document.title = t('cid.meta.title')
   }, [t])
+
+  useEffect(() => {
+    const clearHandoffTimer = () => {
+      if (handoffTimerRef.current === null) return
+      window.clearTimeout(handoffTimerRef.current)
+      handoffTimerRef.current = null
+    }
+
+    const handlePageHidden = () => {
+      if (document.visibilityState !== 'hidden') return
+      clearHandoffTimer()
+      setShowHandoffFallback(false)
+    }
+
+    document.addEventListener('visibilitychange', handlePageHidden)
+    window.addEventListener('pagehide', handlePageHidden)
+
+    return () => {
+      clearHandoffTimer()
+      document.removeEventListener('visibilitychange', handlePageHidden)
+      window.removeEventListener('pagehide', handlePageHidden)
+    }
+  }, [])
 
   useEffect(() => {
     runCheck()
@@ -379,6 +407,21 @@ export default function CidPage() {
     }
   }
 
+  const handleOpenMostBox = () => {
+    setShowHandoffFallback(false)
+
+    if (handoffTimerRef.current !== null) {
+      window.clearTimeout(handoffTimerRef.current)
+    }
+
+    handoffTimerRef.current = window.setTimeout(() => {
+      handoffTimerRef.current = null
+      if (document.visibilityState !== 'hidden') {
+        setShowHandoffFallback(true)
+      }
+    }, HANDOFF_FALLBACK_DELAY_MS)
+  }
+
   const handleCancelDownload = async () => {
     if (!taskId) return
     await fileApi.cancelDownload(taskId).catch(() => {})
@@ -396,6 +439,32 @@ export default function CidPage() {
         </div>
 
         <div className="cid-panel">
+          <div className="cid-handoff" aria-label={t('cid.handoff.title')}>
+            <div className="cid-handoff-copy">
+              <p className="cid-handoff-title">{t('cid.handoff.title')}</p>
+              <p>{t('cid.handoff.desc')}</p>
+            </div>
+            <a
+              className="btn btn-primary"
+              href={mostLink}
+              onClick={handleOpenMostBox}
+            >
+              <ExternalLink size={16} />
+              {t('cid.handoff.action')}
+            </a>
+          </div>
+
+          {showHandoffFallback && (
+            <div className="cid-handoff-fallback" role="status">
+              <AlertTriangle size={18} />
+              <p>{t('cid.handoff.fallback')}</p>
+              <Link to="/download/" className="btn btn-secondary">
+                <Download size={16} />
+                {t('cid.handoff.downloadAction')}
+              </Link>
+            </div>
+          )}
+
           <div className="cid-status">
             <span className={`cid-status-icon ${checkState.status}`}>
               {statusIcon}

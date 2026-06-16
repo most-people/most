@@ -132,6 +132,21 @@ async function waitForUserChannel(
   throw new Error(`User channel ${channelKey} did not sync`)
 }
 
+async function waitForUserProfile(
+  engine,
+  ownerAddress,
+  predicate = () => true,
+  timeout = 5000
+) {
+  const start = Date.now()
+  while (Date.now() - start < timeout) {
+    const profile = engine.getUserProfile(ownerAddress)
+    if (profile && predicate(profile)) return profile
+    await sleep(25)
+  }
+  throw new Error(`User profile ${ownerAddress} did not sync`)
+}
+
 describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'most-engine-test-'))
   const uid = Math.random().toString(36).slice(2, 8)
@@ -1122,6 +1137,85 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       }
     })
 
+    it('syncs user profile metadata from snapshots and newer profile ops', async () => {
+      const syncTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-user-profile-sync-')
+      )
+      const sourcePath = path.join(syncTmpDir, 'source')
+      const targetPath = path.join(syncTmpDir, 'target')
+      const syncOwner = '0x3434343434343434343434343434343434343434'
+      const keys = createUserSyncKeys(`profile-${uid}`)
+      let sourceEngine
+      let targetEngine
+      let replication
+
+      try {
+        sourceEngine = new MostBoxEngine({
+          dataPath: sourcePath,
+          disableNetwork: true,
+        })
+        targetEngine = new MostBoxEngine({
+          dataPath: targetPath,
+          disableNetwork: true,
+        })
+        await sourceEngine.start()
+        await targetEngine.start()
+
+        sourceEngine.saveUserProfile(syncOwner, {
+          displayName: 'Snapshot Name',
+          avatar: 'old.png',
+          syncUpdatedAt: 1000,
+        })
+        await sourceEngine.startUserSync(syncOwner, keys)
+        await targetEngine.startUserSync(syncOwner, keys)
+        replication = sourceEngine.replicateWith(targetEngine)
+
+        const snapshotProfile = await waitForUserProfile(
+          targetEngine,
+          syncOwner,
+          profile => profile.displayName === 'Snapshot Name'
+        )
+        assert.strictEqual(snapshotProfile.avatar, 'old.png')
+
+        sourceEngine.saveUserProfile(syncOwner, {
+          displayName: 'Fresh Name',
+          avatar: '/avatars/default/panda.svg',
+          syncUpdatedAt: 2000,
+        })
+        const freshProfile = await waitForUserProfile(
+          targetEngine,
+          syncOwner,
+          profile => profile.displayName === 'Fresh Name'
+        )
+        assert.strictEqual(freshProfile.avatar, '/avatars/default/panda.svg')
+
+        targetEngine.saveUserProfile(syncOwner, {
+          displayName: 'Newest Local',
+          avatar: 'newest.png',
+          syncUpdatedAt: 3000,
+        })
+        sourceEngine.saveUserProfile(syncOwner, {
+          displayName: 'Stale Remote',
+          avatar: 'stale.png',
+          syncUpdatedAt: 2500,
+        })
+        await sleep(100)
+        assert.strictEqual(
+          targetEngine.getUserProfile(syncOwner).displayName,
+          'Newest Local'
+        )
+        assert.strictEqual(
+          targetEngine.getUserProfile(syncOwner).avatar,
+          'newest.png'
+        )
+      } finally {
+        replication?.close()
+        if (sourceEngine) await sourceEngine.stop().catch(() => {})
+        if (targetEngine) await targetEngine.stop().catch(() => {})
+        fs.rmSync(syncTmpDir, { recursive: true, force: true })
+      }
+    })
+
     it('syncs channel metadata and opens the synced channel runtime', async () => {
       const syncTmpDir = fs.mkdtempSync(
         path.join(os.tmpdir(), 'most-user-sync-channel-')
@@ -1521,7 +1615,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.strictEqual(cleared[0].avatar, undefined)
     })
 
-    it('refreshes saved profile metadata across chat and game channels', async () => {
+    it('profile sync refreshes saved profile metadata across chat and game channels', async () => {
       const author = '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd'
       const roomCode = 'ABCD'
       const chatChannel = `profile-chat-${uid}`
@@ -1534,7 +1628,8 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       const freshProfile = {
         ownerAddress: author,
         displayName: 'Fresh Profile',
-        avatar: '/avatars/default/mint.svg',
+        avatar: '/avatars/default/panda.svg',
+        syncUpdatedAt: 2000,
       }
 
       await msgEngine.createChannel(chatChannel, 'public', oldProfile)
@@ -1567,8 +1662,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         oldProfile
       )
 
-      await msgEngine.createChannel(chatChannel, 'public', freshProfile)
-      await msgEngine.createChannel(gameChannel, GAME_CHANNEL_TYPE, freshProfile)
+      msgEngine.saveUserProfile(author, freshProfile)
 
       const chatMessages = await msgEngine.getChannelMessages(chatChannel, {
         ownerAddress: author,

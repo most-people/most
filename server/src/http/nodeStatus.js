@@ -149,6 +149,16 @@ export function buildOpenApiSpec(appPort) {
           responses: { 200: { description: 'User sync status' } },
         },
       },
+      '/api/user/profile': {
+        get: {
+          summary: 'Read authenticated synced profile metadata',
+          responses: { 200: { description: 'Synced profile' } },
+        },
+        put: {
+          summary: 'Update authenticated synced profile metadata',
+          responses: { 200: { description: 'Synced profile update result' } },
+        },
+      },
       '/api/files': {
         get: {
           summary: 'List published files for the authenticated local user',

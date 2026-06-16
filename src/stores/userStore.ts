@@ -10,6 +10,7 @@ import type { MessageKey } from '~/lib/i18n'
 
 type UserIdentityKind = NonNullable<ChatJoinInvitePayload['identity']>
 const LEGACY_ANONYMOUS_USERNAME = '\u533f\u540d'
+const LEGACY_PROFILE_UPDATED_AT = 1
 
 export interface UserIdentity {
   username: string
@@ -18,6 +19,7 @@ export interface UserIdentity {
   displayName?: string
   logo?: string
   avatar?: string
+  profileUpdatedAt?: number
   identity?: UserIdentityKind
 }
 
@@ -46,9 +48,13 @@ interface UserState {
   logoutUser: () => void
 }
 
+function getDefaultDisplayName(identity: Pick<UserIdentity, 'username' | 'address'>) {
+  return `${identity.username}#${identity.address.slice(-4).toUpperCase()}`
+}
+
 function getDisplayName(identity: UserIdentity) {
   if (identity.displayName) return identity.displayName
-  return `${identity.username}#${identity.address.slice(-4).toUpperCase()}`
+  return getDefaultDisplayName(identity)
 }
 
 function normalizeIdentity(input: unknown): UserIdentity | null {
@@ -56,16 +62,32 @@ function normalizeIdentity(input: unknown): UserIdentity | null {
   const value = input as Partial<UserIdentity>
   if (!value.username || !value.address || !value.danger) return null
   if (value.username === LEGACY_ANONYMOUS_USERNAME) return null
+  const address = value.address
+  const displayName = getDisplayName(value as UserIdentity)
+  const avatar =
+    typeof value.avatar === 'string'
+      ? value.avatar.trim() || undefined
+      : undefined
+  const profileUpdatedAt = Number(value.profileUpdatedAt)
+  const hasCustomProfile =
+    Boolean(avatar) ||
+    displayName !== getDefaultDisplayName({
+      username: value.username,
+      address,
+    })
   return {
     username: value.username,
-    address: value.address,
+    address,
     danger: value.danger,
-    displayName: getDisplayName(value as UserIdentity),
+    displayName,
     logo: typeof value.logo === 'string' ? value.logo : undefined,
-    avatar:
-      typeof value.avatar === 'string'
-        ? value.avatar.trim() || undefined
-        : undefined,
+    avatar,
+    profileUpdatedAt:
+      Number.isFinite(profileUpdatedAt) && profileUpdatedAt > 0
+        ? Math.floor(profileUpdatedAt)
+        : hasCustomProfile
+          ? LEGACY_PROFILE_UPDATED_AT
+          : undefined,
     identity:
       value.identity === 'user' ||
       value.identity === 'service' ||

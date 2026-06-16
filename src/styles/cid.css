@@ -45,6 +45,46 @@
   box-shadow: var(--glass-shadow);
 }
 
+.cid-handoff {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+}
+
+.cid-handoff-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.cid-handoff-title {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.cid-handoff p,
+.cid-handoff-fallback p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.cid-handoff-fallback {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 149, 0, 0.3);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 149, 0, 0.1);
+  color: var(--warning);
+}
+
 .cid-status {
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr);
@@ -206,5 +246,11 @@
   .cid-details div {
     grid-template-columns: 1fr;
     gap: 6px;
+  }
+
+  .cid-handoff,
+  .cid-handoff-fallback {
+    grid-template-columns: 1fr;
+    align-items: stretch;
   }
 }
