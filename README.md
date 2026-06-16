@@ -253,7 +253,7 @@ npx most-box@latest
 
 ## 路线图
 
-### v0.2.1（当前版本）
+### v0.2.3（当前版本）
 
 - ✅ P2P 文件上传与下载
 - ✅ 确定性 CID 生成
@@ -263,10 +263,11 @@ npx most-box@latest
 - ✅ P2P 频道聊天
 - ✅ 网络连通性测试
 - ✅ Electron 桌面客户端
+- ✅ 下载体验优化 - 检测是否可下载
 
 ### 长期规划
 
-- [ ] 下载体验优化 - 检测是否可下载
+
 - [ ] P2P 多人视频/语音通话
   - 基于 WebRTC 的端到端加密通话
   - 频道内一键发起通话
@@ -287,8 +288,8 @@ npx most-box@latest
 发布新版本时，推送 tag 即可自动构建：
 
 ```bash
-git tag v0.2.1
-git push origin v0.2.1
+git tag v0.2.3
+git push origin v0.2.3
 ```
 
 触发后自动执行：
