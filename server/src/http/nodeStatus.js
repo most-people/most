@@ -202,6 +202,54 @@ export function buildOpenApiSpec(appPort) {
           responses: { 200: { description: 'File bytes' } },
         },
       },
+      '/api/channels': {
+        get: {
+          summary: 'List authenticated user channels',
+          responses: { 200: { description: 'Channel list' } },
+        },
+        post: {
+          summary: 'Create or join a P2P channel',
+          responses: { 200: { description: 'Channel metadata' } },
+        },
+        delete: {
+          summary: 'Leave a P2P channel',
+          responses: { 200: { description: 'Updated channel list' } },
+        },
+      },
+      '/api/channels/{name}/messages': {
+        get: {
+          summary: 'Read P2P channel messages',
+          responses: { 200: { description: 'Channel messages' } },
+        },
+        post: {
+          summary: 'Send a P2P channel message',
+          responses: { 200: { description: 'Created channel message' } },
+        },
+      },
+      '/api/channels/{name}/members': {
+        get: {
+          summary: 'List P2P channel members',
+          responses: { 200: { description: 'Channel members' } },
+        },
+      },
+      '/api/channels/{name}/peers': {
+        get: {
+          summary: 'List currently connected channel peers',
+          responses: { 200: { description: 'Channel peers' } },
+        },
+      },
+      '/api/channels/{name}/remark': {
+        put: {
+          summary: 'Set an authenticated user channel remark',
+          responses: { 200: { description: 'Updated channel remark' } },
+        },
+      },
+      '/api/channels/{name}/pin': {
+        put: {
+          summary: 'Pin or unpin a channel for the authenticated user',
+          responses: { 200: { description: 'Updated pin state' } },
+        },
+      },
     },
   }
 }

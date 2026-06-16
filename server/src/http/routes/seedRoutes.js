@@ -35,6 +35,7 @@ export function registerSeedRoutes(
         body.timeout === undefined ? undefined : Number(body.timeout)
       const result = await engine.pullByCid({
         ...body,
+        ownerAddress: c.get('userAddress'),
         timeout: Number.isFinite(timeout) && timeout > 0 ? timeout : undefined,
       })
       appendNodeLog({

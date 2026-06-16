@@ -21,6 +21,7 @@ export function requiresUserAuth(path) {
     path === '/api/download/check' ||
     path === '/api/download' ||
     path === '/api/download/cancel' ||
+    path === '/api/p2p/pull' ||
     path === '/api/user/profile' ||
     path === '/api/user/sync/start' ||
     path === '/api/user/sync/status' ||

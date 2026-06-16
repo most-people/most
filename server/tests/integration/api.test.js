@@ -23,6 +23,7 @@ const VALID_MISSING_CID =
   'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
 const TEST_IDENTITY = createLoginIdentity('api-user', 'api-password')
 const SECOND_IDENTITY = createLoginIdentity('second-user', 'second-password')
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 function createUserSyncKeys(seed) {
   const derive = label =>
@@ -420,6 +421,17 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(spec.paths['/api/download'])
       assert.ok(spec.paths['/api/download/cancel'])
       assert.ok(spec.paths['/api/files/{cid}/download'])
+      assert.ok(spec.paths['/api/channels'])
+      assert.ok(spec.paths['/api/channels'].get)
+      assert.ok(spec.paths['/api/channels'].post)
+      assert.ok(spec.paths['/api/channels'].delete)
+      assert.ok(spec.paths['/api/channels/{name}/messages'])
+      assert.ok(spec.paths['/api/channels/{name}/messages'].get)
+      assert.ok(spec.paths['/api/channels/{name}/messages'].post)
+      assert.ok(spec.paths['/api/channels/{name}/members'])
+      assert.ok(spec.paths['/api/channels/{name}/peers'])
+      assert.ok(spec.paths['/api/channels/{name}/remark'])
+      assert.ok(spec.paths['/api/channels/{name}/pin'])
 
       const clearRes = await fetch(`${baseUrl}/api/node/logs`, {
         method: 'DELETE',
@@ -839,6 +851,18 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
   })
 
   describe('node holdings and P2P pull API', () => {
+    it('requires login before pulling by CID', async () => {
+      const res = await fetchWithoutAuth(`${baseUrl}/api/p2p/pull`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cid: VALID_MISSING_CID }),
+      })
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 401)
+      assert.strictEqual(data.code, 'LOGIN_REQUIRED')
+    })
+
     it('lists node holdings after publish', async () => {
       const publishResult = await engine.publishFile(
         Buffer.from('api-holding'),
@@ -902,6 +926,108 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(data.holding.driveName, `drive-${data.holding.topic}`)
     })
 
+    it('passes the authenticated user to P2P pull downloads', async () => {
+      const originalPullByCid = engine.pullByCid
+      let capturedInput = null
+
+      engine.pullByCid = async input => {
+        capturedInput = input
+        return {
+          taskId: 'captured-pull',
+          fileName: 'captured.txt',
+          cid: input.cid,
+        }
+      }
+
+      try {
+        const res = await fetchAs(SECOND_IDENTITY, `${baseUrl}/api/p2p/pull`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            cid: VALID_MISSING_CID,
+            fileName: 'captured.txt',
+          }),
+        })
+        const data = await res.json()
+
+        assert.strictEqual(res.status, 200)
+        assert.strictEqual(data.success, true)
+        assert.strictEqual(data.cid, VALID_MISSING_CID)
+        assert.ok(capturedInput)
+        assert.strictEqual(
+          capturedInput.ownerAddress,
+          SECOND_IDENTITY.address.toLowerCase()
+        )
+      } finally {
+        engine.pullByCid = originalPullByCid
+      }
+    })
+
+    it('allows authenticated P2P pull downloads to be deleted from holdings', async () => {
+      const pullTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-api-pull-delete-')
+      )
+      let publisher
+      let replication
+
+      try {
+        publisher = new MostBoxEngine({
+          dataPath: path.join(pullTmpDir, 'publisher'),
+          downloadTimeout: 10000,
+        })
+        await publisher.start()
+
+        const content = Buffer.from('api pull delete ownership')
+        const publishResult = await publisher.publishFile(
+          content,
+          'api-pull-delete.txt'
+        )
+
+        const pullPromise = fetch(`${baseUrl}/api/p2p/pull`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            link: publishResult.link,
+            timeout: 10000,
+          }),
+        })
+        await sleep(100)
+        replication = publisher.replicateWith(engine)
+
+        const pullRes = await pullPromise
+        const pullData = await pullRes.json()
+        assert.strictEqual(pullRes.status, 200)
+        assert.strictEqual(pullData.success, true)
+        assert.strictEqual(pullData.cid, publishResult.cid)
+
+        const filesRes = await fetch(`${baseUrl}/api/files`)
+        const files = await filesRes.json()
+        assert.ok(files.some(file => file.cid === publishResult.cid))
+
+        const deleteRes = await fetch(
+          `${baseUrl}/api/files/${publishResult.cid}`,
+          { method: 'DELETE' }
+        )
+        assert.strictEqual(deleteRes.status, 200)
+
+        const permanentDeleteRes = await fetch(
+          `${baseUrl}/api/trash/${publishResult.cid}`,
+          { method: 'DELETE' }
+        )
+        assert.strictEqual(permanentDeleteRes.status, 200)
+
+        const holdingsRes = await fetch(`${baseUrl}/api/node/holdings`)
+        const holdings = await holdingsRes.json()
+        assert.ok(
+          !holdings.some(holding => holding.cid === publishResult.cid)
+        )
+      } finally {
+        replication?.close()
+        if (publisher) await publisher.stop().catch(() => {})
+        fs.rmSync(pullTmpDir, { recursive: true, force: true })
+      }
+    })
+
     it('returns PEER_NOT_FOUND when no peer serves the CID', async () => {
       const content = Buffer.from('missing p2p content')
       const { cid } = await calculateCid(content)
@@ -935,7 +1061,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         nodeLogger,
       })
 
-      const res = await app.request('/api/p2p/pull', {
+      const res = await requestWithAuth(app, '/api/p2p/pull', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
@@ -956,7 +1082,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         nodeLogger,
       })
 
-      const res = await app.request('/api/p2p/pull', {
+      const res = await requestWithAuth(app, '/api/p2p/pull', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cid: 'bafkreidontexist' }),
