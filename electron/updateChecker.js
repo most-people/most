@@ -47,6 +47,10 @@ function isRecord(value) {
   return typeof value === 'object' && value !== null
 }
 
+function hasDownloadUrl(asset) {
+  return typeof asset.r2Url === 'string' || typeof asset.githubUrl === 'string'
+}
+
 export function findUpdateAsset(manifest, platform, arch) {
   if (!isRecord(manifest) || !Array.isArray(manifest.assets)) return null
 
@@ -57,8 +61,8 @@ export function findUpdateAsset(manifest, platform, arch) {
       asset.arch === arch &&
       (asset.kind === 'updater' || asset.kind === 'installer') &&
       typeof asset.cid === 'string' &&
+      hasDownloadUrl(asset) &&
       (typeof asset.githubUrl === 'string' ||
-        typeof asset.r2Url === 'string' ||
         typeof asset.githubUrl === 'undefined') &&
       (typeof asset.r2Url === 'string' || typeof asset.r2Url === 'undefined')
   )
@@ -93,7 +97,7 @@ export function getAvailableUpdate(manifest, options = {}) {
   const asset = findUpdateAsset(manifest, platform, arch)
   if (!asset) return null
 
-  const downloadUrl = asset.r2Url || asset.githubUrl || ''
+  const downloadUrl = asset.r2Url || asset.githubUrl
 
   return {
     version: manifest.version,

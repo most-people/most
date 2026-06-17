@@ -340,6 +340,10 @@
   white-space: nowrap;
 }
 
+.desktop-update-button:disabled {
+  opacity: 0.8;
+}
+
 /* === Search === */
 .search-box {
   display: flex;

@@ -155,6 +155,30 @@ describe('desktop update checker', () => {
     assert.equal(update?.downloadUrl, manifest.assets[2].githubUrl)
   })
 
+  it('ignores updater assets without an HTTP fallback URL', () => {
+    const update = getAvailableUpdate(
+      {
+        version: '0.1.4',
+        assets: [
+          {
+            platform: 'windows',
+            arch: 'x64',
+            kind: 'updater',
+            filename: 'MostBox-0.1.4-win-x64-setup.exe',
+            cid: 'bafybeibkowplg3qw4jnfzrrmh5yljvtg4eas3h5d2u4xjptfbxozxwi4cq',
+          },
+        ],
+      },
+      {
+        currentVersion: '0.1.3',
+        platform: 'windows',
+        arch: 'x64',
+      }
+    )
+
+    assert.equal(update, null)
+  })
+
   it('formats installer sizes for update prompts', () => {
     assert.equal(formatBytes(112197632), '107 MB')
     assert.equal(formatBytes(2.5 * 1024 * 1024), '2.5 MB')

@@ -434,11 +434,65 @@ function quitForUpdate() {
   app.quit()
 }
 
+function getPowerShellPath() {
+  if (process.env.SystemRoot) {
+    const candidate = path.join(
+      process.env.SystemRoot,
+      'System32',
+      'WindowsPowerShell',
+      'v1.0',
+      'powershell.exe'
+    )
+    if (fs.existsSync(candidate)) return candidate
+  }
+
+  return 'powershell.exe'
+}
+
 function installWindowsUpdate(updatePath) {
-  const child = spawn(updatePath, ['/S'], {
-    detached: true,
-    stdio: 'ignore',
-  })
+  const scriptPath = path.join(
+    app.getPath('userData'),
+    'updates',
+    'install-windows.ps1'
+  )
+  const exePath = app.getPath('exe')
+  const script = `param(
+  [Parameter(Mandatory=$true)][string]$UpdatePath,
+  [Parameter(Mandatory=$true)][int]$AppPid,
+  [Parameter(Mandatory=$true)][string]$ExePath
+)
+
+$ErrorActionPreference = "Stop"
+try {
+  Wait-Process -Id $AppPid -ErrorAction SilentlyContinue
+} catch {}
+
+$installer = Start-Process -FilePath $UpdatePath -ArgumentList "/S" -Wait -PassThru
+if (($null -eq $installer.ExitCode -or $installer.ExitCode -eq 0) -and (Test-Path -LiteralPath $ExePath)) {
+  Start-Process -FilePath $ExePath
+}
+`
+
+  fs.mkdirSync(path.dirname(scriptPath), { recursive: true })
+  fs.writeFileSync(scriptPath, script, 'utf8')
+  const child = spawn(
+    getPowerShellPath(),
+    [
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      scriptPath,
+      updatePath,
+      String(process.pid),
+      exePath,
+    ],
+    {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+    }
+  )
   child.unref()
   quitForUpdate()
 }
