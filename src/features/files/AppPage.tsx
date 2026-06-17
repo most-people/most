@@ -43,6 +43,7 @@ import { getFileSubtype } from '~/lib/filePreview'
 import { formatBytes } from '~/lib/format'
 import { useI18n } from '~/lib/i18n'
 import { getLocalizedDownloadLinkValidationMessage } from '~/lib/i18n/downloadValidation'
+import { buildCidShareLink } from '~/lib/shareLink'
 
 type DownloadCheckResult = {
   status: 'success' | 'error'
@@ -414,10 +415,13 @@ export default function App() {
     refreshFiles()
   }
 
+  const shareLink = shareItem
+    ? buildCidShareLink(shareItem.cid, shareItem.fileName)
+    : ''
+
   const handleCopyLink = () => {
-    copyLink(
-      `most://${shareItem.cid}?filename=${encodeURIComponent(shareItem.fileName)}`
-    )
+    if (!shareLink) return
+    copyLink(shareLink)
   }
 
   const [isDownloading, setIsDownloading] = useState(false)
@@ -1080,7 +1084,7 @@ export default function App() {
             </div>
             <div className="share-link-box">
               <div className="share-link-text" translate="no">
-                {`most://${shareItem.cid}?filename=${encodeURIComponent(shareItem.fileName)}`}
+                {shareLink}
               </div>
               <button
                 onClick={handleCopyLink}

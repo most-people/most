@@ -138,9 +138,14 @@ function readI18nSources() {
 describe('frontend smoke checks', () => {
   it('keeps the share modal aligned with the MVP seeding promise', () => {
     const source = readSource(SOURCE_PATHS.features.files)
+    const shareLinkSource = readSource('src/lib/shareLink.ts')
     const messages = readI18nSources()
 
-    assert.match(source, /most:\/\/\$\{shareItem\.cid\}\?filename=/)
+    assert.match(source, /buildCidShareLink\(shareItem\.cid, shareItem\.fileName\)/)
+    assert.match(source, /\{shareLink\}/)
+    assert.match(shareLinkSource, /https:\/\/most\.box/)
+    assert.match(shareLinkSource, /\/cid\/\$\{encodeURIComponent\(cid\)\}/)
+    assert.match(shareLinkSource, /\?filename=\$\{encodeURIComponent\(trimmedFileName\)\}/)
     assert.match(source, /app\.shareSeedNote/)
     assert.match(messages, /本机在线时可下载/)
     assert.match(messages, /下载者完成后会默认继续做种/)
