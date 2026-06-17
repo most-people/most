@@ -12,6 +12,7 @@ import { useI18n, type MessageKey } from '~/lib/i18n'
 
 type AccountBackupAction = 'backup' | 'restore' | 'export' | 'import' | null
 type AccountBackupStatus = 'idle' | 'disabled' | 'working' | 'synced' | 'error'
+type AccountBackupProfile = AccountBackupPayload['profile']
 
 interface AccountBackupPayload {
   type: 'mostbox.account-backup'
@@ -89,9 +90,17 @@ function hasDifferentBackupData(
   )
 }
 
+async function readRestoredProfile(fallback: AccountBackupProfile) {
+  try {
+    return await api.get<AccountBackupProfile>('/api/user/profile').json()
+  } catch {
+    return fallback || null
+  }
+}
+
 function applyProfileToIdentity(
   identity: UserIdentity,
-  profile: AccountBackupPayload['profile']
+  profile: AccountBackupProfile
 ) {
   if (!profile) return identity
   const updatedAt = Number(profile.updatedAt)
@@ -112,7 +121,6 @@ export function useAccountBackup() {
   const notes = useAppStore(s => s.notes)
   const importNotes = useAppStore(s => s.importNotes)
   const wallet = useUserStore(s => s.wallet)
-  const identity = useUserStore(s => s.identity)
   const openLoginModal = useUserStore(s => s.openLoginModal)
   const setUserIdentity = useUserStore(s => s.setUserIdentity)
   const [action, setAction] = useState<AccountBackupAction>(null)
@@ -185,22 +193,22 @@ export function useAccountBackup() {
         }
       }
 
-      const result = await api
-        .post<{ success: boolean; result: { profileUpdated?: boolean } }>(
-          '/api/user/import',
-          { json: payload }
-        )
+      await api
+        .post<{ success: boolean }>('/api/user/import', { json: payload })
         .json()
       importNotes(payload.notes as Parameters<typeof importNotes>[0])
-      if (identity && result.result?.profileUpdated) {
-        setUserIdentity(applyProfileToIdentity(identity, payload.profile))
+      const currentIdentity = useUserStore.getState().identity
+      const restoredProfile = await readRestoredProfile(payload.profile)
+      if (currentIdentity && restoredProfile) {
+        setUserIdentity(
+          applyProfileToIdentity(currentIdentity, restoredProfile)
+        )
       }
       return true
     },
     [
       addToast,
       buildPayload,
-      identity,
       importNotes,
       requireBackend,
       requireWallet,

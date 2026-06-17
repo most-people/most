@@ -197,6 +197,56 @@ export default function ProfilePage() {
     <MarketingLayout header={header}>
       <section className="profile-page">
         <div className="profile-container">
+          <section className="profile-panel profile-backup-panel">
+            <div className="profile-panel-header">
+              <div>
+                <h2>{t('profile.section.backup')}</h2>
+                <p>{t('profile.section.backup.desc')}</p>
+              </div>
+              <span className="profile-backup-status">
+                {accountBackup.statusLabel}
+              </span>
+            </div>
+            <div className="profile-backup-actions">
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={accountBackup.backupToCloud}
+                disabled={accountBackup.busy}
+              >
+                <CloudUpload size={16} />
+                {t('profile.backup.action.cloudBackup')}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={accountBackup.restoreFromCloud}
+                disabled={accountBackup.busy}
+              >
+                <CloudDownload size={16} />
+                {t('profile.backup.action.cloudRestore')}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={accountBackup.exportLocalBackup}
+                disabled={accountBackup.busy}
+              >
+                <Download size={16} />
+                {t('profile.backup.action.exportLocal')}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={accountBackup.importLocalBackup}
+                disabled={accountBackup.busy}
+              >
+                <Upload size={16} />
+                {t('profile.backup.action.importLocal')}
+              </button>
+            </div>
+          </section>
+
           <header className="profile-header">
             <img className="profile-avatar-large" src={avatarSrc} alt="" />
             <div className="profile-heading">
@@ -336,56 +386,6 @@ export default function ProfilePage() {
               </div>
             </section>
           </div>
-
-          <section className="profile-panel profile-backup-panel">
-            <div className="profile-panel-header">
-              <div>
-                <h2>{t('profile.section.backup')}</h2>
-                <p>{t('profile.section.backup.desc')}</p>
-              </div>
-              <span className="profile-backup-status">
-                {accountBackup.statusLabel}
-              </span>
-            </div>
-            <div className="profile-backup-actions">
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={accountBackup.backupToCloud}
-                disabled={accountBackup.busy}
-              >
-                <CloudUpload size={16} />
-                {t('profile.backup.action.cloudBackup')}
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={accountBackup.restoreFromCloud}
-                disabled={accountBackup.busy}
-              >
-                <CloudDownload size={16} />
-                {t('profile.backup.action.cloudRestore')}
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={accountBackup.exportLocalBackup}
-                disabled={accountBackup.busy}
-              >
-                <Download size={16} />
-                {t('profile.backup.action.exportLocal')}
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={accountBackup.importLocalBackup}
-                disabled={accountBackup.busy}
-              >
-                <Upload size={16} />
-                {t('profile.backup.action.importLocal')}
-              </button>
-            </div>
-          </section>
 
           <section className="profile-panel profile-identity-panel">
             <div className="profile-panel-header">

@@ -716,6 +716,14 @@ describe('frontend smoke checks', () => {
     assert.match(profileSource, /accountBackup\.restoreFromCloud/)
     assert.match(profileSource, /accountBackup\.exportLocalBackup/)
     assert.match(profileSource, /accountBackup\.importLocalBackup/)
+    const backupPanelIndex = profileSource.indexOf('profile-backup-panel')
+    const profileHeaderIndex = profileSource.indexOf('profile-header')
+    assert.ok(
+      backupPanelIndex !== -1 &&
+        profileHeaderIndex !== -1 &&
+        backupPanelIndex < profileHeaderIndex,
+      'account backup panel should render before the profile header'
+    )
     assert.doesNotMatch(noteSource, /useNoteBackupSync|NoteMoreMenu|backupSync/)
     assert.match(backupSource, /backupToCloud/)
     assert.match(backupSource, /restoreFromCloud/)
@@ -752,6 +760,11 @@ describe('frontend smoke checks', () => {
     assert.doesNotMatch(profileSource, /backupToCloud\(\)/)
     assert.match(backupSource, /\/api\/user\/export/)
     assert.match(backupSource, /\/api\/user\/import/)
+    assert.match(backupSource, /readRestoredProfile/)
+    assert.match(backupSource, /\/api\/user\/profile/)
+    assert.match(backupSource, /importNotes\(payload\.notes/)
+    assert.match(backupSource, /setUserIdentity/)
+    assert.doesNotMatch(backupSource, /profileUpdated\?/)
   })
 
   it('uses default channel list filtering without legacy filter parameters', () => {
