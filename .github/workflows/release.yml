@@ -246,6 +246,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
       - name: Download GitHub release assets
         run: gh release download "$GITHUB_REF_NAME" --dir release-assets --clobber
         env:
