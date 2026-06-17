@@ -334,6 +334,12 @@
   }
 }
 
+.desktop-update-button {
+  flex: 0 0 auto;
+  min-height: 32px;
+  white-space: nowrap;
+}
+
 /* === Search === */
 .search-box {
   display: flex;

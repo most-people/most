@@ -317,12 +317,21 @@ describe('frontend smoke checks', () => {
   it('checks desktop updates through the public release manifest', () => {
     const mainSource = readSource('electron/main.js')
     const checkerSource = readSource('electron/updateChecker.js')
+    const preloadSource = readSource('electron/preload.js')
+    const updateButtonSource = readSource('src/components/DesktopUpdateButton.tsx')
 
     assert.match(mainSource, /checkForUpdates/)
-    assert.match(mainSource, /showMessageBox/)
-    assert.match(mainSource, /openExternal/)
+    assert.match(mainSource, /downloadCidToPath/)
+    assert.match(mainSource, /seedCidFileFromPath/)
+    assert.match(mainSource, /installDownloadedUpdate/)
+    assert.match(mainSource, /verifyFileCid/)
+    assert.match(preloadSource, /updates:get-state/)
+    assert.match(preloadSource, /updates:install-and-restart/)
+    assert.match(updateButtonSource, /useDesktopUpdate/)
+    assert.match(updateButtonSource, /desktopUpdate\.install/)
     assert.match(checkerSource, /MOSTBOX_RELEASE_MANIFEST_URL/)
     assert.match(checkerSource, /download\.most\.box\/releases\/latest\.json/)
+    assert.match(checkerSource, /asset\.kind === 'updater'/)
   })
 
   it('registers and routes most protocol deep links to the CID page', () => {

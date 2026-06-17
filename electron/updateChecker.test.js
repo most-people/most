@@ -21,7 +21,19 @@ const manifest = {
       kind: 'installer',
       filename: 'MostBox-0.1.3-win-x64-setup.exe',
       size: 112197632,
-      sha256: 'hash',
+      cid: 'bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e',
+      r2Url:
+        'https://download.most.box/releases/v0.1.3/MostBox-0.1.3-win-x64-setup.exe',
+      githubUrl:
+        'https://github.com/most-people/most/releases/download/v0.1.3/MostBox-0.1.3-win-x64-setup.exe',
+    },
+    {
+      platform: 'windows',
+      arch: 'x64',
+      kind: 'updater',
+      filename: 'MostBox-0.1.3-win-x64-setup.exe',
+      size: 112197632,
+      cid: 'bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e',
       r2Url:
         'https://download.most.box/releases/v0.1.3/MostBox-0.1.3-win-x64-setup.exe',
       githubUrl:
@@ -30,18 +42,20 @@ const manifest = {
     {
       platform: 'windows',
       arch: 'arm64',
-      kind: 'installer',
+      kind: 'updater',
       filename: 'MostBox-0.1.3-win-arm64-setup.exe',
+      cid: 'bafkreidsxk7x7eekhalvskbqtqnucird2p4eq3riz6ijmrswzm4miwq74m',
       githubUrl:
         'https://github.com/most-people/most/releases/download/v0.1.3/MostBox-0.1.3-win-arm64-setup.exe',
     },
     {
       platform: 'macos',
       arch: 'arm64',
-      kind: 'installer',
-      filename: 'MostBox-0.1.3-mac-arm64.dmg',
+      kind: 'updater',
+      filename: 'MostBox-0.1.3-mac-arm64.zip',
+      cid: 'bafkreicjs6qwdk7xuclzrkch7gx4vy3zc7y5dxrg4i764py54nk5kekbsm',
       githubUrl:
-        'https://github.com/most-people/most/releases/download/v0.1.3/MostBox-0.1.3-mac-arm64.dmg',
+        'https://github.com/most-people/most/releases/download/v0.1.3/MostBox-0.1.3-mac-arm64.zip',
     },
   ],
 }
@@ -86,6 +100,7 @@ describe('desktop update checker', () => {
       findUpdateAsset(manifest, 'windows', 'x64')?.filename,
       'MostBox-0.1.3-win-x64-setup.exe'
     )
+    assert.equal(findUpdateAsset(manifest, 'windows', 'x64')?.kind, 'updater')
     assert.equal(
       findUpdateAsset(manifest, 'windows', 'arm64')?.filename,
       'MostBox-0.1.3-win-arm64-setup.exe'
@@ -101,7 +116,8 @@ describe('desktop update checker', () => {
     })
 
     assert.equal(update?.version, '0.1.3')
-    assert.equal(update?.downloadUrl, manifest.assets[0].r2Url)
+    assert.equal(update?.cid, manifest.assets[1].cid)
+    assert.equal(update?.downloadUrl, manifest.assets[1].r2Url)
 
     assert.equal(
       getAvailableUpdate(manifest, {
@@ -136,7 +152,7 @@ describe('desktop update checker', () => {
       arch: 'arm64',
     })
 
-    assert.equal(update?.downloadUrl, manifest.assets[1].githubUrl)
+    assert.equal(update?.downloadUrl, manifest.assets[2].githubUrl)
   })
 
   it('formats installer sizes for update prompts', () => {

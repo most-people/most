@@ -50,16 +50,23 @@ function isRecord(value) {
 export function findUpdateAsset(manifest, platform, arch) {
   if (!isRecord(manifest) || !Array.isArray(manifest.assets)) return null
 
+  const compatibleAssets = manifest.assets.filter(
+    asset =>
+      isRecord(asset) &&
+      asset.platform === platform &&
+      asset.arch === arch &&
+      (asset.kind === 'updater' || asset.kind === 'installer') &&
+      typeof asset.cid === 'string' &&
+      (typeof asset.githubUrl === 'string' ||
+        typeof asset.r2Url === 'string' ||
+        typeof asset.githubUrl === 'undefined') &&
+      (typeof asset.r2Url === 'string' || typeof asset.r2Url === 'undefined')
+  )
+
   return (
-    manifest.assets.find(
-      asset =>
-        isRecord(asset) &&
-        asset.platform === platform &&
-        asset.arch === arch &&
-        asset.kind === 'installer' &&
-        typeof asset.githubUrl === 'string' &&
-        (typeof asset.r2Url === 'string' || typeof asset.r2Url === 'undefined')
-    ) || null
+    compatibleAssets.find(asset => asset.kind === 'updater') ||
+    compatibleAssets.find(asset => asset.kind === 'installer') ||
+    null
   )
 }
 
@@ -86,12 +93,12 @@ export function getAvailableUpdate(manifest, options = {}) {
   const asset = findUpdateAsset(manifest, platform, arch)
   if (!asset) return null
 
-  const downloadUrl = asset.r2Url || asset.githubUrl
-  if (!downloadUrl) return null
+  const downloadUrl = asset.r2Url || asset.githubUrl || ''
 
   return {
     version: manifest.version,
     asset,
+    cid: asset.cid,
     downloadUrl,
   }
 }

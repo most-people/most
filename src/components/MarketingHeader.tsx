@@ -1,4 +1,5 @@
 import { ArrowLeft } from 'lucide-react'
+import { DesktopUpdateButton } from '~/components/DesktopUpdateButton'
 import { LanguageToggle } from '~/components/LanguageToggle'
 import { MarketingThemeToggle } from '~/components/MarketingThemeToggle'
 import { useBack } from '~/hooks/useBack'
@@ -20,6 +21,7 @@ export function MarketingHeader() {
         <div className="mkt-nav-cta">
           <MarketingThemeToggle />
           <LanguageToggle className="mkt-theme-toggle" />
+          <DesktopUpdateButton />
         </div>
       </div>
     </nav>

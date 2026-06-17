@@ -186,7 +186,7 @@ jobs:
       - name: Upload macOS assets
         run: |
           shopt -s nullglob
-          assets=(dist/*-mac-*.dmg dist/*-mac-*.dmg.blockmap)
+          assets=(dist/*-mac-*.dmg dist/*-mac-*.zip dist/*-mac-*.dmg.blockmap dist/*-mac-*.zip.blockmap)
           if [ ${#assets[@]} -eq 0 ]; then
             echo "No macOS assets found"
             exit 1

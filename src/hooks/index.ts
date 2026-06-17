@@ -49,3 +49,9 @@ export {
   useToggle,
   useWindowEvent,
 }
+
+export {
+  useDesktopUpdate,
+  type DesktopUpdateState,
+  type DesktopUpdateStatus,
+} from './useDesktopUpdate'

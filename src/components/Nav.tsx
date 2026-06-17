@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { Download } from 'lucide-react'
+import { DesktopUpdateButton } from '~/components/DesktopUpdateButton'
 import { LanguageToggle } from '~/components/LanguageToggle'
 import { MarketingThemeToggle } from '~/components/MarketingThemeToggle'
 import { LogoIcon } from '~/components/icons/LogoIcon'
@@ -27,6 +28,7 @@ export function Nav() {
         <div className="mkt-nav-cta">
           <MarketingThemeToggle />
           <LanguageToggle className="mkt-theme-toggle" />
+          <DesktopUpdateButton />
           {!isDesktopClient && (
             <Link to="/download/" className="btn btn-primary mkt-nav-preview">
               <Download size={16} />

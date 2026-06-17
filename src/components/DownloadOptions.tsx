@@ -10,10 +10,10 @@ type DownloadSource = 'r2' | 'github'
 type DownloadAsset = {
   platform: DownloadPlatform
   arch: DownloadArch
-  kind: 'installer'
+  kind: 'installer' | 'updater'
   filename: string
   size?: number
-  sha256?: string
+  cid?: string
   r2Url?: string
   githubUrl: string
 }
@@ -112,7 +112,7 @@ function isDownloadAsset(value: unknown): value is DownloadAsset {
   return (
     ['windows', 'macos', 'linux'].includes(String(value.platform)) &&
     ['x64', 'arm64'].includes(String(value.arch)) &&
-    value.kind === 'installer' &&
+    (value.kind === 'installer' || value.kind === 'updater') &&
     typeof value.filename === 'string' &&
     typeof value.githubUrl === 'string' &&
     (typeof value.r2Url === 'string' || typeof value.r2Url === 'undefined')
@@ -206,7 +206,9 @@ export default function DownloadOptions() {
     }
   }, [status])
 
-  const assets = manifest?.assets.length ? manifest.assets : FALLBACK_ASSETS
+  const installerAssets =
+    manifest?.assets.filter(asset => asset.kind === 'installer') || []
+  const assets = installerAssets.length ? installerAssets : FALLBACK_ASSETS
   const hasR2Assets = assets.some(asset => asset.r2Url)
   const activeSource = downloadSource === 'r2' && hasR2Assets ? 'r2' : 'github'
 
@@ -298,10 +300,10 @@ export default function DownloadOptions() {
                       <dd>{formatMegabytes(asset.size)}</dd>
                     </div>
                   ) : null}
-                  {asset.sha256 ? (
+                  {asset.cid ? (
                     <div>
-                      <dt>SHA256</dt>
-                      <dd>{asset.sha256.slice(0, 12)}</dd>
+                      <dt>CID</dt>
+                      <dd>{asset.cid.slice(0, 12)}</dd>
                     </div>
                   ) : null}
                 </dl>

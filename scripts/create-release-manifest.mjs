@@ -1,6 +1,7 @@
-import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+
+import { calculateCid } from '../server/src/core/cid.js'
 
 const EXPECTED_ASSETS = [
   ['windows', 'x64'],
@@ -44,17 +45,39 @@ function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-async function sha256(filePath) {
-  const hash = crypto.createHash('sha256')
-  const file = await fs.open(filePath, 'r')
-  try {
-    for await (const chunk of file.createReadStream()) {
-      hash.update(chunk)
-    }
-  } finally {
-    await file.close()
+function getAssetKind(platform, ext) {
+  if (platform === 'macos' && ext === 'zip') return 'updater'
+  return 'installer'
+}
+
+function shouldAddUpdaterAlias(platform, ext) {
+  return (
+    (platform === 'windows' && ext === 'exe') ||
+    (platform === 'linux' && ext === 'AppImage')
+  )
+}
+
+function createAssetRecord({
+  platform,
+  arch,
+  kind,
+  filename,
+  size,
+  cid,
+  publicBaseUrl,
+  tag,
+  repo,
+}) {
+  return {
+    platform,
+    arch,
+    kind,
+    filename,
+    size,
+    cid,
+    r2Url: `${publicBaseUrl}/releases/${tag}/${encodeURIComponent(filename)}`,
+    githubUrl: `https://github.com/${repo}/releases/download/${tag}/${encodeURIComponent(filename)}`,
   }
-  return hash.digest('hex')
 }
 
 async function main() {
@@ -66,7 +89,7 @@ async function main() {
   const version = tag.replace(/^v/, '')
   const files = await fs.readdir(assetsDir)
   const assetPattern = new RegExp(
-    `^MostBox-${escapeRegExp(version)}-(win|mac|linux)-(x64|x86_64|arm64)(?:-setup)?\\.(exe|dmg|AppImage)$`
+    `^MostBox-${escapeRegExp(version)}-(win|mac|linux)-(x64|x86_64|arm64)(?:-setup)?\\.(exe|dmg|zip|AppImage)$`
   )
 
   const assets = []
@@ -74,31 +97,67 @@ async function main() {
     const match = filename.match(assetPattern)
     if (!match) continue
 
-    const [, platformToken, archToken] = match
+    const [, platformToken, archToken, ext] = match
     const filePath = path.join(assetsDir, filename)
     const stat = await fs.stat(filePath)
     const platform = PLATFORM_BY_TOKEN[platformToken]
     const arch = archToken === 'x86_64' ? 'x64' : archToken
+    const cid = (await calculateCid(filePath)).cid.toString()
+    const kind = getAssetKind(platform, ext)
 
-    assets.push({
+    assets.push(createAssetRecord({
       platform,
       arch,
-      kind: 'installer',
+      kind,
       filename,
       size: stat.size,
-      sha256: await sha256(filePath),
-      r2Url: `${publicBaseUrl}/releases/${tag}/${encodeURIComponent(filename)}`,
-      githubUrl: `https://github.com/${repo}/releases/download/${tag}/${encodeURIComponent(filename)}`,
-    })
+      cid,
+      publicBaseUrl,
+      tag,
+      repo,
+    }))
+
+    if (shouldAddUpdaterAlias(platform, ext)) {
+      assets.push(createAssetRecord({
+        platform,
+        arch,
+        kind: 'updater',
+        filename,
+        size: stat.size,
+        cid,
+        publicBaseUrl,
+        tag,
+        repo,
+      }))
+    }
   }
 
-  const present = new Set(assets.map(asset => `${asset.platform}:${asset.arch}`))
+  const installerPresent = new Set(
+    assets
+      .filter(asset => asset.kind === 'installer')
+      .map(asset => `${asset.platform}:${asset.arch}`)
+  )
   const missing = EXPECTED_ASSETS.filter(
-    ([platform, arch]) => !present.has(`${platform}:${arch}`)
+    ([platform, arch]) => !installerPresent.has(`${platform}:${arch}`)
+  )
+  const updaterPresent = new Set(
+    assets
+      .filter(asset => asset.kind === 'updater')
+      .map(asset => `${asset.platform}:${asset.arch}`)
+  )
+  const missingUpdaters = EXPECTED_ASSETS.filter(
+    ([platform, arch]) => !updaterPresent.has(`${platform}:${arch}`)
   )
   if (missing.length > 0) {
     throw new Error(
       `Missing release assets: ${missing
+        .map(([platform, arch]) => `${platform}/${arch}`)
+        .join(', ')}`
+    )
+  }
+  if (missingUpdaters.length > 0) {
+    throw new Error(
+      `Missing updater assets: ${missingUpdaters
         .map(([platform, arch]) => `${platform}/${arch}`)
         .join(', ')}`
     )
@@ -108,7 +167,11 @@ async function main() {
     EXPECTED_ASSETS.map(([platform, arch], index) => [`${platform}:${arch}`, index])
   )
   assets.sort(
-    (a, b) => order.get(`${a.platform}:${a.arch}`) - order.get(`${b.platform}:${b.arch}`)
+    (a, b) =>
+      order.get(`${a.platform}:${a.arch}`) -
+        order.get(`${b.platform}:${b.arch}`) ||
+      a.kind.localeCompare(b.kind) ||
+      a.filename.localeCompare(b.filename)
   )
 
   const manifest = {

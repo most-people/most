@@ -296,7 +296,7 @@ git push origin v0.2.3
 
 1. **npm 包发布** — 发布 `most-box` 到 npm registry
 2. **Windows 打包** — 分别构建 `.exe` 安装包（x64 / arm64）并上传 Release
-3. **macOS 打包** — 构建 `.dmg` 安装包（x64 + arm64）并上传 Release
+3. **macOS 打包** — 构建 `.dmg` 安装包和 `.zip` 更新包（x64 + arm64）并上传 Release
 4. **Linux 打包** — 构建 `.AppImage` 安装包（x64 + arm64）并上传 Release
 5. **下载镜像** — 将 Release 资产同步到 Cloudflare R2，并生成 `releases/latest.json`
 

@@ -17,6 +17,8 @@ describe('create-release-manifest', () => {
         'MostBox-0.1.3-win-arm64-setup.exe',
         'MostBox-0.1.3-mac-x64.dmg',
         'MostBox-0.1.3-mac-arm64.dmg',
+        'MostBox-0.1.3-mac-x64.zip',
+        'MostBox-0.1.3-mac-arm64.zip',
         'MostBox-0.1.3-linux-x86_64.AppImage',
         'MostBox-0.1.3-linux-arm64.AppImage',
       ]
@@ -43,11 +45,32 @@ describe('create-release-manifest', () => {
         await fs.readFile(path.join(tmpDir, 'latest.json'), 'utf8')
       )
       const linuxX64 = manifest.assets.find(
-        asset => asset.platform === 'linux' && asset.arch === 'x64'
+        asset =>
+          asset.platform === 'linux' &&
+          asset.arch === 'x64' &&
+          asset.kind === 'installer'
+      )
+      const linuxX64Updater = manifest.assets.find(
+        asset =>
+          asset.platform === 'linux' &&
+          asset.arch === 'x64' &&
+          asset.kind === 'updater'
+      )
+      const macX64Updater = manifest.assets.find(
+        asset =>
+          asset.platform === 'macos' &&
+          asset.arch === 'x64' &&
+          asset.kind === 'updater'
       )
 
-      assert.equal(manifest.assets.length, 6)
+      assert.equal(manifest.assets.length, 12)
       assert.equal(linuxX64.filename, 'MostBox-0.1.3-linux-x86_64.AppImage')
+      assert.equal(linuxX64Updater.filename, linuxX64.filename)
+      assert.equal(linuxX64Updater.cid, linuxX64.cid)
+      assert.equal(macX64Updater.filename, 'MostBox-0.1.3-mac-x64.zip')
+      assert.match(macX64Updater.cid, /^baf/)
+      assert.ok(manifest.assets.every(asset => typeof asset.cid === 'string'))
+      assert.ok(manifest.assets.every(asset => !('sha256' in asset)))
     } finally {
       await fs.rm(tmpDir, { recursive: true, force: true })
     }
