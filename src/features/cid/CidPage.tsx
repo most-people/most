@@ -23,6 +23,7 @@ import { formatBytes } from '~/lib/format'
 import {
   getLocalizedDownloadLinkValidationMessage,
 } from '~/lib/i18n/downloadValidation'
+import { MarketingHeader } from '~/components/MarketingHeader'
 import { useI18n } from '~/lib/i18n'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
@@ -430,143 +431,155 @@ export default function CidPage() {
   const statusIcon = getStatusIcon(checkState.status, downloadState.status)
 
   return (
-    <main className="cid-page">
-      <section className="cid-shell">
-        <div className="cid-heading">
-          <span className="cid-kicker">{t('cid.kicker')}</span>
-          <h1>{t('cid.title')}</h1>
-          <p>{t('cid.subtitle')}</p>
-        </div>
-
-        <div className="cid-panel">
-          <div className="cid-handoff" aria-label={t('cid.handoff.title')}>
-            <div className="cid-handoff-copy">
-              <p className="cid-handoff-title">{t('cid.handoff.title')}</p>
-              <p>{t('cid.handoff.desc')}</p>
-            </div>
-            <a
-              className="btn btn-primary"
-              href={mostLink}
-              onClick={handleOpenMostBox}
-            >
-              <ExternalLink size={16} />
-              {t('cid.handoff.action')}
-            </a>
+    <div className="cid-layout">
+      <MarketingHeader />
+      <main className="cid-page">
+        <section className="cid-shell">
+          <div className="cid-heading">
+            <span className="cid-kicker">{t('cid.kicker')}</span>
+            <h1>{t('cid.title')}</h1>
+            <p>{t('cid.subtitle')}</p>
           </div>
 
-          {showHandoffFallback && (
-            <div className="cid-handoff-fallback" role="status">
-              <AlertTriangle size={18} />
-              <p>{t('cid.handoff.fallback')}</p>
-              <Link to="/download/" className="btn btn-secondary">
-                <Download size={16} />
-                {t('cid.handoff.downloadAction')}
+          <div className="cid-panel">
+            <div className="cid-handoff" aria-label={t('cid.handoff.title')}>
+              <div className="cid-handoff-copy">
+                <p className="cid-handoff-title">{t('cid.handoff.title')}</p>
+                <p>{t('cid.handoff.desc')}</p>
+              </div>
+              <a
+                className="btn btn-primary"
+                href={mostLink}
+                onClick={handleOpenMostBox}
+              >
+                <ExternalLink size={16} />
+                {t('cid.handoff.action')}
+              </a>
+            </div>
+
+            {showHandoffFallback && (
+              <div className="cid-handoff-fallback" role="status">
+                <AlertTriangle size={18} />
+                <p>{t('cid.handoff.fallback')}</p>
+                <Link to="/download/" className="btn btn-secondary">
+                  <Download size={16} />
+                  {t('cid.handoff.downloadAction')}
+                </Link>
+              </div>
+            )}
+
+            <div className="cid-status">
+              <span className={`cid-status-icon ${checkState.status}`}>
+                {statusIcon}
+              </span>
+              <div>
+                <p className="cid-status-label">
+                  {getStatusLabel(checkState.status, t)}
+                </p>
+                <p className="cid-status-message">{checkState.message}</p>
+              </div>
+            </div>
+
+            <dl className="cid-details">
+              <div>
+                <dt>
+                  <FileText size={16} />
+                  {t('cid.fileNameLabel')}
+                </dt>
+                <dd>{fileName}</dd>
+              </div>
+              <div>
+                <dt>{t('cid.cidLabel')}</dt>
+                <dd className="cid-mono">{cid}</dd>
+              </div>
+              <div>
+                <dt>{t('cid.sizeLabel')}</dt>
+                <dd>
+                  {fileSize ? formatBytes(fileSize) : t('cid.unknownSize')}
+                </dd>
+              </div>
+              <div>
+                <dt>
+                  <HardDrive size={16} />
+                  {t('cid.saveToLabel')}
+                </dt>
+                <dd>{displayDownloadPath}</dd>
+              </div>
+            </dl>
+
+            {downloadState.status !== 'idle' && (
+              <div className={`cid-download-state ${downloadState.status}`}>
+                <p>{downloadState.message}</p>
+                {(downloadState.status === 'starting' ||
+                  downloadState.status === 'downloading') && (
+                  <div className="cid-progress">
+                    <progress
+                      className="cid-progress-bar"
+                      value={progress}
+                      max={100}
+                    />
+                    <span>
+                      {loadedBytes !== null && totalBytes !== null
+                        ? `${formatBytes(loadedBytes)} / ${formatBytes(totalBytes)}`
+                        : `${progress}%`}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="cid-actions">
+              {checkState.status === 'login-required' && (
+                <button className="btn btn-primary" onClick={openLoginModal}>
+                  <LogIn size={16} />
+                  {t('cid.loginAction')}
+                </button>
+              )}
+              {checkState.status === 'backend-missing' && (
+                <button className="btn btn-primary" onClick={openConnectModal}>
+                  <WifiOff size={16} />
+                  {t('cid.connectAction')}
+                </button>
+              )}
+              <button
+                className="btn btn-primary"
+                disabled={!canStartDownload || isDownloading}
+                onClick={handleStartDownload}
+              >
+                {isDownloading ? (
+                  <Loader2 className="cid-spin-icon" size={16} />
+                ) : (
+                  <Download size={16} />
+                )}
+                {isDownloading
+                  ? t('cid.downloadingAction')
+                  : t('cid.startAction')}
+              </button>
+              {taskId && downloadState.status === 'downloading' && (
+                <button
+                  className="btn btn-secondary"
+                  onClick={handleCancelDownload}
+                >
+                  <XCircle size={16} />
+                  {t('cid.cancelAction')}
+                </button>
+              )}
+              <button
+                className="btn btn-secondary"
+                disabled={checkState.status === 'checking'}
+                onClick={runCheck}
+              >
+                <RefreshCw size={16} />
+                {t('cid.retryAction')}
+              </button>
+              <Link to="/app/" className="btn btn-secondary">
+                {t('cid.openAppAction')}
               </Link>
             </div>
-          )}
-
-          <div className="cid-status">
-            <span className={`cid-status-icon ${checkState.status}`}>
-              {statusIcon}
-            </span>
-            <div>
-              <p className="cid-status-label">{getStatusLabel(checkState.status, t)}</p>
-              <p className="cid-status-message">{checkState.message}</p>
-            </div>
           </div>
-
-          <dl className="cid-details">
-            <div>
-              <dt>
-                <FileText size={16} />
-                {t('cid.fileNameLabel')}
-              </dt>
-              <dd>{fileName}</dd>
-            </div>
-            <div>
-              <dt>{t('cid.cidLabel')}</dt>
-              <dd className="cid-mono">{cid}</dd>
-            </div>
-            <div>
-              <dt>{t('cid.sizeLabel')}</dt>
-              <dd>{fileSize ? formatBytes(fileSize) : t('cid.unknownSize')}</dd>
-            </div>
-            <div>
-              <dt>
-                <HardDrive size={16} />
-                {t('cid.saveToLabel')}
-              </dt>
-              <dd>{displayDownloadPath}</dd>
-            </div>
-          </dl>
-
-          {downloadState.status !== 'idle' && (
-            <div className={`cid-download-state ${downloadState.status}`}>
-              <p>{downloadState.message}</p>
-              {(downloadState.status === 'starting' ||
-                downloadState.status === 'downloading') && (
-                <div className="cid-progress">
-                  <progress
-                    className="cid-progress-bar"
-                    value={progress}
-                    max={100}
-                  />
-                  <span>
-                    {loadedBytes !== null && totalBytes !== null
-                      ? `${formatBytes(loadedBytes)} / ${formatBytes(totalBytes)}`
-                      : `${progress}%`}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="cid-actions">
-            {checkState.status === 'login-required' && (
-              <button className="btn btn-primary" onClick={openLoginModal}>
-                <LogIn size={16} />
-                {t('cid.loginAction')}
-              </button>
-            )}
-            {checkState.status === 'backend-missing' && (
-              <button className="btn btn-primary" onClick={openConnectModal}>
-                <WifiOff size={16} />
-                {t('cid.connectAction')}
-              </button>
-            )}
-            <button
-              className="btn btn-primary"
-              disabled={!canStartDownload || isDownloading}
-              onClick={handleStartDownload}
-            >
-              {isDownloading ? (
-                <Loader2 className="cid-spin-icon" size={16} />
-              ) : (
-                <Download size={16} />
-              )}
-              {isDownloading ? t('cid.downloadingAction') : t('cid.startAction')}
-            </button>
-            {taskId && downloadState.status === 'downloading' && (
-              <button className="btn btn-secondary" onClick={handleCancelDownload}>
-                <XCircle size={16} />
-                {t('cid.cancelAction')}
-              </button>
-            )}
-            <button
-              className="btn btn-secondary"
-              disabled={checkState.status === 'checking'}
-              onClick={runCheck}
-            >
-              <RefreshCw size={16} />
-              {t('cid.retryAction')}
-            </button>
-            <Link to="/app/" className="btn btn-secondary">
-              {t('cid.openAppAction')}
-            </Link>
-          </div>
-        </div>
-      </section>
-    </main>
+        </section>
+      </main>
+    </div>
   )
 }
 

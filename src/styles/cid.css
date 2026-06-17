@@ -1,9 +1,16 @@
-.cid-page {
+.cid-layout {
   min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+}
+
+.cid-page {
+  flex: 1;
+  min-height: calc(100dvh - 64px);
   display: grid;
   place-items: center;
   padding: 32px 20px;
-  background: var(--bg-primary);
 }
 
 .cid-shell {

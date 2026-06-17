@@ -367,8 +367,16 @@ describe('frontend smoke checks', () => {
 
   it('offers a browser handoff from CID landing pages to the desktop client', () => {
     const cidPage = readSource(SOURCE_PATHS.features.cid)
+    const cidStyles = readSource('src/styles/cid.css')
     const messages = readI18nSources()
 
+    assert.match(
+      cidPage,
+      /import \{ MarketingHeader \} from '~\/components\/MarketingHeader'/
+    )
+    assert.match(cidPage, /<div className="cid-layout">/)
+    assert.match(cidPage, /<MarketingHeader \/>/)
+    assert.match(cidStyles, /\.cid-layout/)
     assert.match(cidPage, /href=\{mostLink\}/)
     assert.match(cidPage, /onClick=\{handleOpenMostBox\}/)
     assert.match(cidPage, /HANDOFF_FALLBACK_DELAY_MS/)
@@ -565,14 +573,14 @@ describe('frontend smoke checks', () => {
       'src/lib/i18n/downloadValidation.ts'
     )
     const portalSource = readSource('src/components/FeaturePortal.tsx')
-    const navSource = readSource('src/components/Nav.tsx')
+    const marketingLayoutSource = readSource('src/components/MarketingLayout.tsx')
     const languageSource = readSource('src/components/LanguageToggle.tsx')
     const appSource = readSource(SOURCE_PATHS.features.files)
     const chatSource = readSource(SOURCE_PATHS.features.chat)
 
     assert.match(rootRoute, /I18nProvider/)
     assert.match(rootRoute, /supportedLocales = \['zh-CN', 'zh-TW', 'en'\]/)
-    assert.match(navSource, /LanguageToggle/)
+    assert.match(marketingLayoutSource, /LanguageToggle/)
     assert.match(languageSource, /ActionMenu/)
     assert.match(languageSource, /LOCALES\.map/)
     assert.match(languageSource, /<Check size=\{16\}/)
@@ -877,7 +885,7 @@ describe('frontend smoke checks', () => {
 
   it('hides download client entry points in the desktop client runtime', () => {
     const hookSource = readSource('src/hooks/index.ts')
-    const navSource = readSource('src/components/Nav.tsx')
+    const marketingLayoutSource = readSource('src/components/MarketingLayout.tsx')
     const portalSource = readSource('src/components/FeaturePortal.tsx')
 
     assert.match(hookSource, /electronAPI\?\.isElectron === true/)
@@ -888,8 +896,11 @@ describe('frontend smoke checks', () => {
       hookSource,
       /isLocalBackendUrlExport|getBackendUrlExport|getSameOriginBackendUrlExport/
     )
-    assert.match(navSource, /const isDesktopClient = useIsDesktopClient\(\)/)
-    assert.match(navSource, /!\s*isDesktopClient &&/)
+    assert.match(
+      marketingLayoutSource,
+      /const isDesktopClient = useIsDesktopClient\(\)/
+    )
+    assert.match(marketingLayoutSource, /!\s*isDesktopClient &&/)
     assert.match(portalSource, /hideInDesktopClient: true/)
     assert.match(portalSource, /activeFeatureSteps/)
     assert.match(portalSource, /!\s*isDesktopClient &&/)
