@@ -772,8 +772,13 @@ describe('frontend smoke checks', () => {
     const portalSource = readSource('src/components/FeaturePortal.tsx')
 
     assert.match(hookSource, /electronAPI\?\.isElectron === true/)
-    assert.match(hookSource, /hasBackend !== true/)
-    assert.match(hookSource, /isLocalBackendUrlExport\(getBackendUrlExport\(\)\)/)
+    assert.match(hookSource, /navigator\?\.userAgent/)
+    assert.match(hookSource, /Electron\\\/\\d\+/)
+    assert.doesNotMatch(hookSource, /hasBackend/)
+    assert.doesNotMatch(
+      hookSource,
+      /isLocalBackendUrlExport|getBackendUrlExport|getSameOriginBackendUrlExport/
+    )
     assert.match(navSource, /const isDesktopClient = useIsDesktopClient\(\)/)
     assert.match(navSource, /!\s*isDesktopClient &&/)
     assert.match(portalSource, /hideInDesktopClient: true/)

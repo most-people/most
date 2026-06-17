@@ -9,12 +9,6 @@ import {
   useToggle,
   useWindowEvent,
 } from '@mantine/hooks'
-import { useAppStore } from '~/stores/useAppStore'
-import {
-  getBackendUrlExport,
-  getSameOriginBackendUrlExport,
-  isLocalBackendUrlExport,
-} from '~server/src/utils/api'
 
 type ElectronRuntimeWindow = Window & {
   electronAPI?: {
@@ -24,29 +18,18 @@ type ElectronRuntimeWindow = Window & {
 
 export function isDesktopClientRuntime() {
   if (typeof window === 'undefined') return false
-  return (window as ElectronRuntimeWindow).electronAPI?.isElectron === true
+  if ((window as ElectronRuntimeWindow).electronAPI?.isElectron === true) {
+    return true
+  }
+  return /\bElectron\/\d+/i.test(window.navigator?.userAgent || '')
 }
 
 export function useIsDesktopClient() {
-  const hasBackend = useAppStore(s => s.hasBackend)
   const [isDesktopClient, setIsDesktopClient] = useState(false)
 
   useEffect(() => {
-    if (isDesktopClientRuntime()) {
-      setIsDesktopClient(true)
-      return
-    }
-
-    if (hasBackend !== true) {
-      setIsDesktopClient(false)
-      return
-    }
-
-    setIsDesktopClient(
-      isLocalBackendUrlExport(getBackendUrlExport()) ||
-        isLocalBackendUrlExport(getSameOriginBackendUrlExport())
-    )
-  }, [hasBackend])
+    setIsDesktopClient(isDesktopClientRuntime())
+  }, [])
 
   return isDesktopClient
 }

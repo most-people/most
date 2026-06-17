@@ -250,10 +250,6 @@ export function getRemoteBackendUrlExport() {
   return getRemoteBackendUrl()
 }
 
-export function isLocalBackendUrlExport(url) {
-  return isLocalBackendUrl(url)
-}
-
 export function getBackendInviteExport() {
   return getBackendInvite()
 }
