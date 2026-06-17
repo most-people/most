@@ -47,6 +47,7 @@ type BackupConfirm = {
   confirmText: string
   danger?: boolean
   onConfirm: () => void | Promise<void>
+  onClose?: () => void
 }
 
 const avatarOptions: AvatarOption[] = [
@@ -234,6 +235,28 @@ export default function ProfilePage() {
     })
   }
 
+  function requestImportBackupConfirm() {
+    return new Promise<boolean>(resolve => {
+      const close = (confirmed: boolean) => {
+        setBackupConfirm(null)
+        resolve(confirmed)
+      }
+      setBackupConfirm({
+        title: t('profile.backup.confirm.importTitle'),
+        message: t('profile.backup.confirm.restore'),
+        confirmText: t('profile.backup.action.importLocal'),
+        onConfirm: () => close(true),
+        onClose: () => close(false),
+      })
+    })
+  }
+
+  function handleImportLocalBackup() {
+    accountBackup.importLocalBackup({
+      requestConfirm: requestImportBackupConfirm,
+    })
+  }
+
   const cloudBackupWorking = accountBackup.action === 'backup'
   const cloudRestoreWorking = accountBackup.action === 'restore'
   const exportWorking = accountBackup.action === 'export'
@@ -251,6 +274,37 @@ export default function ProfilePage() {
               </div>
             </div>
             <div className="profile-backup-actions">
+              <button
+                type="button"
+                className={`btn btn-secondary ${exportWorking ? 'btn-loading' : ''}`}
+                onClick={accountBackup.exportLocalBackup}
+                disabled={accountBackup.busy}
+              >
+                {exportWorking ? (
+                  <Loader size={16} className="ui-spinner" />
+                ) : (
+                  <Download size={16} />
+                )}
+                {exportWorking
+                  ? t('profile.backup.status.exporting')
+                  : t('profile.backup.action.exportLocal')}
+              </button>
+              <button
+                type="button"
+                className={`btn btn-secondary ${importWorking ? 'btn-loading' : ''}`}
+                onClick={handleImportLocalBackup}
+                disabled={accountBackup.busy}
+              >
+                {importWorking ? (
+                  <Loader size={16} className="ui-spinner" />
+                ) : (
+                  <Upload size={16} />
+                )}
+                {importWorking
+                  ? t('profile.backup.status.importing')
+                  : t('profile.backup.action.importLocal')}
+              </button>
+
               <button
                 type="button"
                 className={`btn btn-primary ${cloudBackupWorking ? 'btn-loading' : ''}`}
@@ -280,36 +334,6 @@ export default function ProfilePage() {
                 {cloudRestoreWorking
                   ? t('profile.backup.status.restoring')
                   : t('profile.backup.action.cloudRestore')}
-              </button>
-              <button
-                type="button"
-                className={`btn btn-secondary ${exportWorking ? 'btn-loading' : ''}`}
-                onClick={accountBackup.exportLocalBackup}
-                disabled={accountBackup.busy}
-              >
-                {exportWorking ? (
-                  <Loader size={16} className="ui-spinner" />
-                ) : (
-                  <Download size={16} />
-                )}
-                {exportWorking
-                  ? t('profile.backup.status.exporting')
-                  : t('profile.backup.action.exportLocal')}
-              </button>
-              <button
-                type="button"
-                className={`btn btn-secondary ${importWorking ? 'btn-loading' : ''}`}
-                onClick={accountBackup.importLocalBackup}
-                disabled={accountBackup.busy}
-              >
-                {importWorking ? (
-                  <Loader size={16} className="ui-spinner" />
-                ) : (
-                  <Upload size={16} />
-                )}
-                {importWorking
-                  ? t('profile.backup.status.importing')
-                  : t('profile.backup.action.importLocal')}
               </button>
             </div>
           </section>
@@ -506,7 +530,7 @@ export default function ProfilePage() {
           confirmText={backupConfirm.confirmText}
           danger={backupConfirm.danger}
           onConfirm={backupConfirm.onConfirm}
-          onClose={() => setBackupConfirm(null)}
+          onClose={backupConfirm.onClose || (() => setBackupConfirm(null))}
         />
       )}
     </MarketingLayout>

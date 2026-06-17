@@ -239,7 +239,9 @@ export function registerNodeRoutes(
   app.post('/api/user/import', async c => {
     try {
       const body = await c.req.json()
-      const result = await engine.importUserData(c.get('userAddress'), body)
+      const result = await engine.importUserData(c.get('userAddress'), body, {
+        overwriteProfile: true,
+      })
       appendNodeLog({
         event: 'node:user-data:imported',
         message: 'User account backup imported',

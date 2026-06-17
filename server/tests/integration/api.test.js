@@ -1489,6 +1489,44 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       )
     })
 
+    it('restores backup profile through the API even when local profile is newer', async () => {
+      const localUpdatedAt = Date.now() + 20_000
+      const backupUpdatedAt = localUpdatedAt - 5_000
+      engine.saveUserProfile(TEST_IDENTITY.address, {
+        displayName: 'Newer Local API User',
+        avatar: '/avatars/default/turtle.svg',
+        updatedAt: localUpdatedAt,
+      })
+
+      const res = await fetchAs(TEST_IDENTITY, `${baseUrl}/api/user/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'mostbox.account-backup',
+          schemaVersion: 1,
+          ownerAddress: TEST_IDENTITY.address,
+          exportedAt: new Date(backupUpdatedAt).toISOString(),
+          notes: [],
+          profile: {
+            displayName: 'Restored Older API User',
+            avatar: '',
+            updatedAt: backupUpdatedAt,
+          },
+          files: [],
+          trashFiles: [],
+          channels: [],
+        }),
+      })
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 200)
+      assert.strictEqual(data.success, true)
+      assert.strictEqual(data.result.profileUpdated, true)
+      const profile = engine.getUserProfile(TEST_IDENTITY.address)
+      assert.strictEqual(profile.displayName, 'Restored Older API User')
+      assert.strictEqual(profile.updatedAt, backupUpdatedAt)
+    })
+
     it('rejects account metadata imports for another owner', async () => {
       const res = await fetchAs(TEST_IDENTITY, `${baseUrl}/api/user/import`, {
         method: 'POST',

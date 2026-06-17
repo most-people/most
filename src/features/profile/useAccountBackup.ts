@@ -17,6 +17,15 @@ type RestoreFromCloudOptions = {
   confirm?: boolean
   onlyWhenLocalEmpty?: boolean
   silentNoBackup?: boolean
+  requestConfirm?: RestoreConfirmRequest
+}
+type RestoreConfirmRequest = () => boolean | Promise<boolean>
+type RestorePayloadOptions = {
+  confirm?: boolean
+  requestConfirm?: RestoreConfirmRequest
+}
+type ImportLocalBackupOptions = {
+  requestConfirm?: RestoreConfirmRequest
 }
 
 interface AccountBackupPayload {
@@ -186,7 +195,7 @@ export function useAccountBackup() {
   }, [requireBackend, t])
 
   const restorePayload = useCallback(
-    async (payload: AccountBackupPayload, options: { confirm?: boolean } = {}) => {
+    async (payload: AccountBackupPayload, options: RestorePayloadOptions = {}) => {
       const currentWallet = requireWallet()
       if (!currentWallet || !requireBackend()) return false
       if (payload.ownerAddress.toLowerCase() !== currentWallet.address.toLowerCase()) {
@@ -199,7 +208,9 @@ export function useAccountBackup() {
           hasLocalData(localPayload) &&
           hasDifferentBackupData(localPayload, payload)
         ) {
-          const confirmed = window.confirm(t('profile.backup.confirm.restore'))
+          const confirmed = options.requestConfirm
+            ? await options.requestConfirm()
+            : false
           if (!confirmed) {
             addToast(t('profile.backup.toast.cancelRestore'), 'info')
             return false
@@ -282,6 +293,7 @@ export function useAccountBackup() {
         }
         const restored = await restorePayload(payload, {
           confirm: options.confirm,
+          requestConfirm: options.requestConfirm,
         })
         if (restored) {
           setStatus('synced')
@@ -332,7 +344,7 @@ export function useAccountBackup() {
     }
   }, [addToast, buildPayload, requireBackend, requireWallet, t])
 
-  const importLocalBackup = useCallback(() => {
+  const importLocalBackup = useCallback((options: ImportLocalBackupOptions = {}) => {
     const currentWallet = requireWallet()
     if (!currentWallet || !requireBackend()) return
 
@@ -352,7 +364,9 @@ export function useAccountBackup() {
             String(reader.result || ''),
             currentWallet.danger
           ) as AccountBackupPayload
-          const restored = await restorePayload(payload)
+          const restored = await restorePayload(payload, {
+            requestConfirm: options.requestConfirm,
+          })
           if (restored) {
             setStatus('synced')
             addToast(t('profile.backup.toast.restoredLocal'), 'success')

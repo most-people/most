@@ -1823,7 +1823,7 @@ export class MostBoxEngine extends EventEmitter {
     }
   }
 
-  async importUserData(ownerAddressInput, backupInput = {}) {
+  async importUserData(ownerAddressInput, backupInput = {}, options = {}) {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(ownerAddressInput)
     if (!ownerAddress) {
@@ -1854,7 +1854,10 @@ export class MostBoxEngine extends EventEmitter {
 
     const profileResult = this.#mergeAccountProfileRecord(
       ownerAddress,
-      backupInput.profile
+      backupInput.profile,
+      {
+        overwrite: options.overwriteProfile === true,
+      }
     )
     result.profileUpdated = profileResult.changed
     if (profileResult.skipped) result.skipped += 1
@@ -3533,12 +3536,24 @@ export class MostBoxEngine extends EventEmitter {
     }
   }
 
-  #mergeAccountProfileRecord(ownerAddress, record) {
+  #mergeAccountProfileRecord(ownerAddress, record, options = {}) {
     const owner = normalizeOwnerAddress(ownerAddress)
     const profile = this.#normalizeAccountProfileRecord(owner, record)
     if (!profile) return { changed: false, skipped: true }
     const existing = this.#accountMetadata.profiles?.[owner]
-    if (existing && profile.updatedAt <= getSyncTimestamp(existing.updatedAt, 0)) {
+    if (
+      existing &&
+      !options.overwrite &&
+      profile.updatedAt <= getSyncTimestamp(existing.updatedAt, 0)
+    ) {
+      return { changed: false, skipped: true }
+    }
+    if (
+      existing &&
+      existing.displayName === profile.displayName &&
+      existing.avatar === profile.avatar &&
+      getSyncTimestamp(existing.updatedAt, 0) === profile.updatedAt
+    ) {
       return { changed: false, skipped: true }
     }
 

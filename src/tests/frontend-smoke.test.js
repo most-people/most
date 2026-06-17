@@ -752,6 +752,8 @@ describe('frontend smoke checks', () => {
     assert.match(profileSource, /accountBackup\.importLocalBackup/)
     assert.match(profileSource, /openCloudBackupConfirm/)
     assert.match(profileSource, /openCloudRestoreConfirm/)
+    assert.match(profileSource, /requestImportBackupConfirm/)
+    assert.match(profileSource, /requestConfirm:\s*requestImportBackupConfirm/)
     const backupPanelIndex = profileSource.indexOf('profile-backup-panel')
     const profileHeaderIndex = profileSource.indexOf('profile-header')
     assert.ok(
@@ -766,6 +768,8 @@ describe('frontend smoke checks', () => {
     assert.match(backupSource, /onlyWhenLocalEmpty/)
     assert.match(backupSource, /exportLocalBackup/)
     assert.match(backupSource, /importLocalBackup/)
+    assert.match(backupSource, /requestConfirm/)
+    assert.doesNotMatch(backupSource, /window\.confirm/)
     assert.doesNotMatch(backupSource, /useEffect/)
   })
 
