@@ -35,6 +35,7 @@ interface UserState {
   hasPreviewedAvatar: boolean
   loginLoading: boolean
   loginError: MessageKey | ''
+  pendingCloudRestoreAddress: string | null
   setFirstPath: (path: string) => void
   initializeUser: () => void
   openLoginModal: () => void
@@ -45,10 +46,13 @@ interface UserState {
   previewLoginIdentity: () => UserIdentity | null
   loginUser: () => UserIdentity | null
   setUserIdentity: (identity: UserIdentity) => void
+  consumePendingCloudRestore: (address: string) => boolean
   logoutUser: () => void
 }
 
-function getDefaultDisplayName(identity: Pick<UserIdentity, 'username' | 'address'>) {
+function getDefaultDisplayName(
+  identity: Pick<UserIdentity, 'username' | 'address'>
+) {
   return `${identity.username}#${identity.address.slice(-4).toUpperCase()}`
 }
 
@@ -71,10 +75,11 @@ function normalizeIdentity(input: unknown): UserIdentity | null {
   const profileUpdatedAt = Number(value.profileUpdatedAt)
   const hasCustomProfile =
     Boolean(avatar) ||
-    displayName !== getDefaultDisplayName({
-      username: value.username,
-      address,
-    })
+    displayName !==
+      getDefaultDisplayName({
+        username: value.username,
+        address,
+      })
   return {
     username: value.username,
     address,
@@ -121,6 +126,7 @@ export const useUserStore = create<UserState>((set, get) => ({
   hasPreviewedAvatar: false,
   loginLoading: false,
   loginError: '',
+  pendingCloudRestoreAddress: null,
 
   setFirstPath: path => {
     set({ firstPath: path || '/' })
@@ -200,6 +206,7 @@ export const useUserStore = create<UserState>((set, get) => ({
       set({
         identity: nextIdentity,
         wallet: nextIdentity,
+        pendingCloudRestoreAddress: nextIdentity.address,
         showLoginModal: false,
         ...resetLoginForm(),
       })
@@ -220,8 +227,16 @@ export const useUserStore = create<UserState>((set, get) => ({
     set({ identity: nextIdentity, wallet: nextIdentity })
   },
 
+  consumePendingCloudRestore: address => {
+    const pendingAddress = get().pendingCloudRestoreAddress
+    if (!pendingAddress) return false
+    if (pendingAddress.toLowerCase() !== address.toLowerCase()) return false
+    set({ pendingCloudRestoreAddress: null })
+    return true
+  },
+
   logoutUser: () => {
     clearIdentity()
-    set({ identity: null, wallet: undefined })
+    set({ identity: null, wallet: undefined, pendingCloudRestoreAddress: null })
   },
 }))

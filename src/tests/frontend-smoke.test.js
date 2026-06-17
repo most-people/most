@@ -57,7 +57,9 @@ const SOURCE_PATHS = {
 
 async function importBundledSource(sourcePath) {
   const result = await build({
-    entryPoints: [fileURLToPath(new URL(`../../${sourcePath}`, import.meta.url))],
+    entryPoints: [
+      fileURLToPath(new URL(`../../${sourcePath}`, import.meta.url)),
+    ],
     bundle: true,
     format: 'esm',
     jsx: 'automatic',
@@ -85,7 +87,9 @@ async function importBundledSource(sourcePath) {
 }
 
 function resolveSrcAlias(importPath) {
-  return resolveWithExtensions(path.join(repoRootPath, 'src', importPath.slice(2)))
+  return resolveWithExtensions(
+    path.join(repoRootPath, 'src', importPath.slice(2))
+  )
 }
 
 function resolveServerAlias(importPath) {
@@ -103,8 +107,8 @@ function resolveWithExtensions(resolvedPath) {
     `${resolvedPath}.jsx`,
   ]
   return (
-    candidates.find(candidate =>
-      fs.existsSync(candidate) && fs.statSync(candidate).isFile()
+    candidates.find(
+      candidate => fs.existsSync(candidate) && fs.statSync(candidate).isFile()
     ) || resolvedPath
   )
 }
@@ -114,7 +118,7 @@ function listSourceFiles(path) {
     .readdirSync(new URL(`../../${path}/`, import.meta.url), {
       withFileTypes: true,
     })
-    .flatMap((entry) => {
+    .flatMap(entry => {
       const childPath = `${path}/${entry.name}`
       return entry.isDirectory() ? listSourceFiles(childPath) : [childPath]
     })
@@ -283,8 +287,8 @@ describe('frontend smoke checks', () => {
     const staticRoutes = Array.from(
       new Set(
         listSourceFiles(SOURCE_PATHS.routes.tree)
-          .filter((file) => file.endsWith('.tsx'))
-          .flatMap((file) => {
+          .filter(file => file.endsWith('.tsx'))
+          .flatMap(file => {
             const source = readSource(file)
             const match = source.match(
               /create(?:Lazy)?FileRoute\(\s*'([^']+)'\s*\)/
@@ -318,7 +322,9 @@ describe('frontend smoke checks', () => {
     const mainSource = readSource('electron/main.js')
     const checkerSource = readSource('electron/updateChecker.js')
     const preloadSource = readSource('electron/preload.js')
-    const updateButtonSource = readSource('src/components/DesktopUpdateButton.tsx')
+    const updateButtonSource = readSource(
+      'src/components/DesktopUpdateButton.tsx'
+    )
 
     assert.match(mainSource, /checkForUpdates/)
     assert.match(mainSource, /downloadCidToPath/)
@@ -346,7 +352,10 @@ describe('frontend smoke checks', () => {
     assert.match(mainSource, /second-instance/)
     assert.match(mainSource, /open-url/)
     assert.match(deepLinkSource, /createCidRoutePathFromMostLink/)
-    assert.match(deepLinkSource, /\/cid\/\$\{encodeURIComponent\(url\.hostname\)\}/)
+    assert.match(
+      deepLinkSource,
+      /\/cid\/\$\{encodeURIComponent\(url\.hostname\)\}/
+    )
     assert.match(cidRoute, /createFileRoute\('\/cid\/\$cid\/'\)/)
     assert.match(cidRoute, /ssr:\s*false/)
   })
@@ -399,7 +408,10 @@ describe('frontend smoke checks', () => {
     assert.match(headerSource, /useBack/)
     assert.match(gameSidebarSource, /useBack/)
     assert.doesNotMatch(headerSource, /<Link to="\/" className="mkt-nav-logo"/)
-    assert.doesNotMatch(gameSidebarSource, /<Link to="\/" className="sidebar-header/)
+    assert.doesNotMatch(
+      gameSidebarSource,
+      /<Link to="\/" className="sidebar-header/
+    )
   })
 
   it('keeps Gan Deng Yan game page wired to the server rules and P2P channel', () => {
@@ -452,10 +464,7 @@ describe('frontend smoke checks', () => {
     assert.match(zhajinhuaSource, /H:\s*'\\u2665'/)
     assert.match(zhajinhuaSource, /C:\s*'\\u2663'/)
     assert.match(zhajinhuaSource, /D:\s*'\\u2666'/)
-    assert.doesNotMatch(
-      zhajinhuaSource,
-      /S:\s*'S'|H:\s*'H'|C:\s*'C'|D:\s*'D'/
-    )
+    assert.doesNotMatch(zhajinhuaSource, /S:\s*'S'|H:\s*'H'|C:\s*'C'|D:\s*'D'/)
     assert.doesNotMatch(zhajinhuaSource, /[\u2660\u2665\u2666\u2663]/)
     assert.doesNotMatch(zhajinhuaSource, /\uFFFD/)
   })
@@ -479,9 +488,15 @@ describe('frontend smoke checks', () => {
     assert.match(componentSource, /t\('chat\.unpin'\).*t\('chat\.pin'\)/s)
     assert.match(componentSource, /t\('chat\.rename'\)/)
     assert.match(componentSource, /t\('chat\.delete'\)/)
-    assert.doesNotMatch(componentSource, /key: 'delete'[\s\S]{0,120}danger: true/)
+    assert.doesNotMatch(
+      componentSource,
+      /key: 'delete'[\s\S]{0,120}danger: true/
+    )
     assert.match(sidebarAccountSource, /to="\/profile\/"/)
-    assert.match(sidebarAccountSource, /className="btn btn-secondary logout-btn"/)
+    assert.match(
+      sidebarAccountSource,
+      /className="btn btn-secondary logout-btn"/
+    )
     assert.match(sidebarAccountSource, /t\('account\.logout'\)/)
     assert.doesNotMatch(sidebarAccountSource, /ActionMenu|MoreHorizontal/)
     assert.match(chatSource, /setChannelPinned/)
@@ -509,7 +524,10 @@ describe('frontend smoke checks', () => {
       sidebarAccountSource,
       /account-actions-menu|account-actions-dropdown|account-actions-item|account-menu-trigger/
     )
-    assert.doesNotMatch(chatSource, /PINNED_CHANNELS|ChatTypingIndicator|__duplicate/)
+    assert.doesNotMatch(
+      chatSource,
+      /PINNED_CHANNELS|ChatTypingIndicator|__duplicate/
+    )
     assert.doesNotMatch(chatSource, /正在输入|告诉我可以帮你做什么|修改名称/)
   })
 
@@ -542,16 +560,25 @@ describe('frontend smoke checks', () => {
     assert.match(downloadValidationSource, /MessageKey/)
     assert.doesNotMatch(appSource, /getDownloadLinkValidationMessage/)
     assert.doesNotMatch(chatSource, /getDownloadLinkValidationMessage/)
-    assert.doesNotMatch(downloadValidationSource, /Unsupported query parameter:/)
+    assert.doesNotMatch(
+      downloadValidationSource,
+      /Unsupported query parameter:/
+    )
     assert.doesNotMatch(appSource, /[\u4e00-\u9fff]/)
     assert.match(messageCatalogs, /'app\.download\.validation\.empty'/)
-    assert.match(messagesSource, /LOCALES = \['zh-CN', 'zh-TW', 'en'\] as const/)
+    assert.match(
+      messagesSource,
+      /LOCALES = \['zh-CN', 'zh-TW', 'en'\] as const/
+    )
     assert.match(messagesSource, /type MessageKey = keyof typeof zhCNMessages/)
     assert.match(messagesSource, /export const zhTWMessages/)
     assert.match(messagesSource, /'zh-TW': zhTWMessages/)
     assert.match(messagesSource, /satisfies Record<MessageKey, string>/)
     assert.match(i18nSource, /translateMessage/)
-    assert.doesNotMatch(i18nSource, /MutationObserver|createTreeWalker|translateDocument/)
+    assert.doesNotMatch(
+      i18nSource,
+      /MutationObserver|createTreeWalker|translateDocument/
+    )
   })
 
   it('keeps migrated surfaces free of hardcoded Chinese UI copy', () => {
@@ -702,20 +729,29 @@ describe('frontend smoke checks', () => {
     assert.match(profileSource, /isSupportedAvatarValue/)
   })
 
-  it('keeps account backup manual and scoped to the profile page', () => {
+  it('keeps account backup scoped and restores once after fresh login', () => {
     const appGlobalsSource = readSource('src/components/AppGlobals.tsx')
     const profileSource = readSource('src/features/profile/ProfilePage.tsx')
     const noteSource = readSource('src/features/note/NotePage.tsx')
     const backupSource = readSource('src/features/profile/useAccountBackup.ts')
+    const userStoreSource = readSource('src/stores/userStore.ts')
 
     assert.doesNotMatch(appGlobalsSource, /startUserMetadataSync/)
     assert.doesNotMatch(appGlobalsSource, /reconcileUserProfileSync/)
     assert.doesNotMatch(appGlobalsSource, /getAuthenticatedWebSocketUrl/)
+    assert.match(appGlobalsSource, /consumePendingCloudRestore/)
+    assert.match(
+      appGlobalsSource,
+      /restoreFromCloud\(\{[\s\S]*onlyWhenLocalEmpty:\s*true/
+    )
+    assert.match(userStoreSource, /pendingCloudRestoreAddress/)
     assert.match(profileSource, /useAccountBackup\(\)/)
     assert.match(profileSource, /accountBackup\.backupToCloud/)
     assert.match(profileSource, /accountBackup\.restoreFromCloud/)
     assert.match(profileSource, /accountBackup\.exportLocalBackup/)
     assert.match(profileSource, /accountBackup\.importLocalBackup/)
+    assert.match(profileSource, /openCloudBackupConfirm/)
+    assert.match(profileSource, /openCloudRestoreConfirm/)
     const backupPanelIndex = profileSource.indexOf('profile-backup-panel')
     const profileHeaderIndex = profileSource.indexOf('profile-header')
     assert.ok(
@@ -727,6 +763,7 @@ describe('frontend smoke checks', () => {
     assert.doesNotMatch(noteSource, /useNoteBackupSync|NoteMoreMenu|backupSync/)
     assert.match(backupSource, /backupToCloud/)
     assert.match(backupSource, /restoreFromCloud/)
+    assert.match(backupSource, /onlyWhenLocalEmpty/)
     assert.match(backupSource, /exportLocalBackup/)
     assert.match(backupSource, /importLocalBackup/)
     assert.doesNotMatch(backupSource, /useEffect/)
@@ -741,7 +778,10 @@ describe('frontend smoke checks', () => {
     assert.match(userProfileSource, /getUserMessageIdentity/)
     assert.match(userProfileSource, /getUserChannelProfile/)
     assert.match(channelMessagesSource, /useUserStore/)
-    assert.match(channelMessagesSource, /getUserMessageIdentity\(userIdentity\)/)
+    assert.match(
+      channelMessagesSource,
+      /getUserMessageIdentity\(userIdentity\)/
+    )
     assert.doesNotMatch(chatSource, /author:\s*userIdentity\.address/)
     assert.doesNotMatch(gameRoomSource, /author:\s*userIdentity\.address/)
     assert.match(gameRoomSource, /getUserChannelProfile\(userIdentity\)/)
@@ -754,10 +794,14 @@ describe('frontend smoke checks', () => {
   it('saves profile metadata locally without automatic cloud backup', () => {
     const profileSource = readSource('src/features/profile/ProfilePage.tsx')
     const backupSource = readSource('src/features/profile/useAccountBackup.ts')
+    const saveProfileBlock = profileSource.slice(
+      profileSource.indexOf('async function saveBackendProfile'),
+      profileSource.indexOf('function updateAvatar')
+    )
 
     assert.match(profileSource, /saveBackendProfile\(nextIdentity\)/)
     assert.match(profileSource, /\/api\/user\/profile/)
-    assert.doesNotMatch(profileSource, /backupToCloud\(\)/)
+    assert.doesNotMatch(saveProfileBlock, /backupToCloud/)
     assert.match(backupSource, /\/api\/user\/export/)
     assert.match(backupSource, /\/api\/user\/import/)
     assert.match(backupSource, /readRestoredProfile/)
@@ -802,10 +846,15 @@ describe('frontend smoke checks', () => {
   it('does not trigger account backup from note save flows', () => {
     const noteSource = readSource('src/features/note/NotePage.tsx')
     const saveStart = noteSource.indexOf('async function handleSaveEditor()')
-    const createStart = noteSource.indexOf('function openCreateNoteModal()', saveStart)
+    const createStart = noteSource.indexOf(
+      'function openCreateNoteModal()',
+      saveStart
+    )
     const saveHandlerSource = noteSource.slice(saveStart, createStart)
 
-    const saveIndex = saveHandlerSource.indexOf('const nextCid = await saveNote')
+    const saveIndex = saveHandlerSource.indexOf(
+      'const nextCid = await saveNote'
+    )
     const routeIndex = saveHandlerSource.indexOf(
       'navigateToNote({ cid: nextCid }, true)'
     )

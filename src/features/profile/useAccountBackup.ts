@@ -13,6 +13,11 @@ import { useI18n, type MessageKey } from '~/lib/i18n'
 type AccountBackupAction = 'backup' | 'restore' | 'export' | 'import' | null
 type AccountBackupStatus = 'idle' | 'disabled' | 'working' | 'synced' | 'error'
 type AccountBackupProfile = AccountBackupPayload['profile']
+type RestoreFromCloudOptions = {
+  confirm?: boolean
+  onlyWhenLocalEmpty?: boolean
+  silentNoBackup?: boolean
+}
 
 interface AccountBackupPayload {
   type: 'mostbox.account-backup'
@@ -56,6 +61,15 @@ function hasLocalData(payload: AccountBackupPayload) {
       payload.files?.length ||
       payload.trashFiles?.length ||
       payload.channels?.length
+  )
+}
+
+function hasLocalAccountContent(payload: AccountBackupPayload) {
+  return Boolean(
+    payload.notes.length ||
+    payload.files?.length ||
+    payload.trashFiles?.length ||
+    payload.channels?.length
   )
 }
 
@@ -240,37 +254,55 @@ export function useAccountBackup() {
     }
   }, [addToast, buildPayload, requireBackend, requireWallet, t])
 
-  const restoreFromCloud = useCallback(async () => {
-    const currentWallet = requireWallet()
-    if (!currentWallet || !requireBackend()) return false
-    setAction('restore')
-    setStatus('working')
-    try {
-      const backup = await downloadAccountBackup(currentWallet)
-      if (!backup.found || !backup.payload) {
-        addToast(t('profile.backup.toast.noCloudBackup'), 'info')
-        setStatus('idle')
+  const restoreFromCloud = useCallback(
+    async (options: RestoreFromCloudOptions = {}) => {
+      const currentWallet = requireWallet()
+      if (!currentWallet || !requireBackend()) return false
+      setAction('restore')
+      setStatus('working')
+      try {
+        const backup = await downloadAccountBackup(currentWallet)
+        if (!backup.found || !backup.payload) {
+          if (!options.silentNoBackup) {
+            addToast(t('profile.backup.toast.noCloudBackup'), 'info')
+          }
+          setStatus('idle')
+          return false
+        }
+        const payload = backup.payload as AccountBackupPayload
+        if (options.onlyWhenLocalEmpty) {
+          const localPayload = await buildPayload()
+          if (
+            hasLocalAccountContent(localPayload) &&
+            hasDifferentBackupData(localPayload, payload)
+          ) {
+            setStatus('idle')
+            return false
+          }
+        }
+        const restored = await restorePayload(payload, {
+          confirm: options.confirm,
+        })
+        if (restored) {
+          setStatus('synced')
+          addToast(t('profile.backup.toast.restoredCloud'), 'success')
+        } else {
+          setStatus('idle')
+        }
+        return restored
+      } catch (err: unknown) {
+        setStatus('error')
+        addToast(
+          getErrorMessage(err, t('profile.backup.error.restoreFailed')),
+          'error'
+        )
         return false
+      } finally {
+        setAction(null)
       }
-      const restored = await restorePayload(backup.payload as AccountBackupPayload)
-      if (restored) {
-        setStatus('synced')
-        addToast(t('profile.backup.toast.restoredCloud'), 'success')
-      } else {
-        setStatus('idle')
-      }
-      return restored
-    } catch (err: unknown) {
-      setStatus('error')
-      addToast(
-        getErrorMessage(err, t('profile.backup.error.restoreFailed')),
-        'error'
-      )
-      return false
-    } finally {
-      setAction(null)
-    }
-  }, [addToast, requireBackend, requireWallet, restorePayload, t])
+    },
+    [addToast, buildPayload, requireBackend, requireWallet, restorePayload, t]
+  )
 
   const exportLocalBackup = useCallback(async () => {
     const currentWallet = requireWallet()

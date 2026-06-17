@@ -257,17 +257,6 @@
   margin-bottom: var(--space-6);
 }
 
-.profile-backup-status {
-  flex: 0 0 auto;
-  padding: 6px 10px;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-full);
-  color: var(--text-secondary);
-  background: var(--glass-bg-subtle);
-  font-size: 12px;
-  font-weight: 700;
-}
-
 .profile-backup-actions {
   display: flex;
   flex-wrap: wrap;
