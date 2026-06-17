@@ -392,9 +392,15 @@ describe('frontend smoke checks', () => {
     assert.match(messages, /'cid\.startAction': 'Start download'/)
   })
 
-  it('uses back navigation for secondary marketing headers', () => {
+  it('uses a shared home link for app sidebars', () => {
     const headerSource = readSource('src/components/MarketingHeader.tsx')
     const gameSidebarSource = readSource('src/components/GameSidebar.tsx')
+    const noteSidebarSource = readSource('src/components/NoteSidebar.tsx')
+    const appPageSource = readSource('src/features/files/AppPage.tsx')
+    const chatPageSource = readSource('src/features/chat/ChatPage.tsx')
+    const chatJoinSource = readSource('src/features/chat/ChatJoinPage.tsx')
+    const web3PageSource = readSource('src/features/web3/Web3Page.tsx')
+    const sidebarHomeLinkSource = readSource('src/components/SidebarHomeLink.tsx')
     const appGlobalsSource = readSource('src/components/AppGlobals.tsx')
     const userStoreSource = readSource('src/stores/userStore.ts')
     const useBackSource = readSource('src/hooks/useBack.ts')
@@ -406,12 +412,26 @@ describe('frontend smoke checks', () => {
     assert.match(useBackSource, /navigate\(\{ to: '\/', replace: true \}\)/)
     assert.match(useBackSource, /window\.history\.back\(\)/)
     assert.match(headerSource, /useBack/)
-    assert.match(gameSidebarSource, /useBack/)
-    assert.doesNotMatch(headerSource, /<Link to="\/" className="mkt-nav-logo"/)
-    assert.doesNotMatch(
+    for (const source of [
       gameSidebarSource,
-      /<Link to="\/" className="sidebar-header/
+      appPageSource,
+      chatPageSource,
+      web3PageSource,
+    ]) {
+      assert.match(source, /<SidebarHomeLink onNavigate=\{closeSidebar\} \/>/)
+      assert.doesNotMatch(source, /useBack/)
+      assert.doesNotMatch(source, /ArrowLeft/)
+    }
+    for (const source of [noteSidebarSource, chatJoinSource]) {
+      assert.match(source, /<SidebarHomeLink \/>/)
+      assert.doesNotMatch(source, /useBack/)
+      assert.doesNotMatch(source, /ArrowLeft/)
+    }
+    assert.match(
+      sidebarHomeLinkSource,
+      /<Link\s+to="\/"\s+className="sidebar-header sidebar-header-link"/
     )
+    assert.doesNotMatch(headerSource, /<Link to="\/" className="mkt-nav-logo"/)
   })
 
   it('keeps Gan Deng Yan game page wired to the server rules and P2P channel', () => {

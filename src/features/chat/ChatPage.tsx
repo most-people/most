@@ -5,7 +5,6 @@ import {
   Sun,
   Moon,
   X,
-  ArrowLeft,
   Edit2,
   Calendar,
   Hash,
@@ -29,6 +28,7 @@ import {
 import FilePreviewOverlay from '~/components/FilePreviewOverlay'
 import { InputModal, ConfirmModal, ModalOverlay } from '~/components/ui'
 import OpenSidebarButton from '~/components/OpenSidebarButton'
+import { SidebarHomeLink } from '~/components/SidebarHomeLink'
 import { LogoIcon } from '~/components/icons/LogoIcon'
 import {
   api,
@@ -38,7 +38,6 @@ import { generateAvatar } from '~server/src/utils/avatar.js'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import { useDisclosure } from '~/hooks'
-import { useBack } from '~/hooks/useBack'
 import { useChannelMessages } from '~/hooks/useChannelMessages'
 import SidebarAccount from '~/components/SidebarAccount'
 import {
@@ -129,7 +128,6 @@ function ChatPage() {
   const openConnectModal = useAppStore(s => s.openConnectModal)
   const userIdentity = useUserStore(s => s.identity)
   const openLoginModal = useUserStore(s => s.openLoginModal)
-  const back = useBack()
   const [channels, setChannels] = useState<Channel[]>([])
   const [activeChannel, setActiveChannel] = useState<Channel | null>(null)
   const [requestedChannelName, setRequestedChannelName] = useState('')
@@ -1085,14 +1083,7 @@ function ChatPage() {
       defaultHide={isInviteUser}
       sidebar={({ closeSidebar }) => (
         <>
-          <button
-            type="button"
-            className="sidebar-header sidebar-header-link"
-            onClick={back}
-          >
-            <ArrowLeft size={18} />
-            <h1>MOST PEOPLE</h1>
-          </button>
+          <SidebarHomeLink onNavigate={closeSidebar} />
 
           <div className="chat-channel-search">
             <div className="ui-input-control">

@@ -6,10 +6,9 @@ import {
   AlertCircle,
   Sun,
   Moon,
-  ArrowLeft,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
-import { useBack } from '~/hooks/useBack'
+import { SidebarHomeLink } from '~/components/SidebarHomeLink'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import { createLoginIdentity } from '~server/src/utils/userIdentity.js'
@@ -150,7 +149,6 @@ function ChatJoinContent() {
   const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
   const hasBackend = useAppStore(s => s.hasBackend)
   const setUserIdentity = useUserStore(s => s.setUserIdentity)
-  const back = useBack()
 
   const [decrypted, setDecrypted] = useState('')
   const [error, setError] = useState('')
@@ -314,14 +312,7 @@ function ChatJoinContent() {
   return (
     <AppShell
       sidebar={() => (
-        <button
-          type="button"
-          className="sidebar-header sidebar-header-link"
-          onClick={back}
-        >
-          <ArrowLeft size={18} />
-          <h1>MOST PEOPLE</h1>
-        </button>
+        <SidebarHomeLink />
       )}
       headerTitle={<h2 className="header-title">{t('chatJoin.title')}</h2>}
       headerRight={

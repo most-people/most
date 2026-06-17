@@ -2,7 +2,6 @@ import type { ReactNode } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { HDNodeWallet } from 'ethers'
 import {
-  ArrowLeft,
   KeyRound,
   Lock,
   Moon,
@@ -11,7 +10,7 @@ import {
   Wallet,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
-import { useBack } from '~/hooks/useBack'
+import { SidebarHomeLink } from '~/components/SidebarHomeLink'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import { useI18n, type MessageKey } from '~/lib/i18n'
@@ -55,7 +54,6 @@ function getHashView(): ViewId {
 
 export default function Web3Page() {
   const { t } = useI18n()
-  const back = useBack()
   const isDarkMode = useAppStore(s => s.isDarkMode)
   const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
   const addToast = useAppStore(s => s.addToast)
@@ -341,14 +339,7 @@ export default function Web3Page() {
     <AppShell
       sidebar={({ closeSidebar }) => (
         <>
-          <button
-            type="button"
-            className="sidebar-header sidebar-header-link"
-            onClick={back}
-          >
-            <ArrowLeft size={18} />
-            <h1>MOST PEOPLE</h1>
-          </button>
+          <SidebarHomeLink onNavigate={closeSidebar} />
           <nav className="sidebar-nav">
             {sidebarNavItems.map(item => (
               <button

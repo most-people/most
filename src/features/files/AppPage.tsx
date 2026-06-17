@@ -16,7 +16,6 @@ import {
   Search,
   Edit2,
   Loader,
-  ArrowLeft,
   Info,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
@@ -27,6 +26,7 @@ import {
 } from '~/components/AppFileCards'
 import OpenSidebarButton from '~/components/OpenSidebarButton'
 import SidebarAccount from '~/components/SidebarAccount'
+import { SidebarHomeLink } from '~/components/SidebarHomeLink'
 import FilePreviewOverlay from '~/components/FilePreviewOverlay'
 import { MoveModal } from '~/components/MoveModal'
 import { ModalOverlay, ConfirmModal, InputModal } from '~/components/ui'
@@ -38,7 +38,6 @@ import {
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import { useDisclosure, useClipboard } from '~/hooks'
-import { useBack } from '~/hooks/useBack'
 import { fileApi, getDownloadCheckErrorMessage } from '~/lib/fileApi'
 import { getFileSubtype } from '~/lib/filePreview'
 import { formatBytes } from '~/lib/format'
@@ -109,7 +108,6 @@ export default function App() {
   const openConnectModal = useAppStore(s => s.openConnectModal)
   const userIdentity = useUserStore(s => s.identity)
   const openLoginModal = useUserStore(s => s.openLoginModal)
-  const back = useBack()
   const [items, setItems] = useState([])
   const [trashItems, setTrashItems] = useState([])
   const [currentFolderId, setCurrentFolderId] = useState(null)
@@ -801,14 +799,7 @@ export default function App() {
     <AppShell
       sidebar={({ closeSidebar }) => (
         <>
-          <button
-            type="button"
-            className="sidebar-header sidebar-header-link"
-            onClick={back}
-          >
-            <ArrowLeft size={18} />
-            <h1>MOST PEOPLE</h1>
-          </button>
+          <SidebarHomeLink onNavigate={closeSidebar} />
           <nav className="sidebar-nav">
             {[
               { id: 'all', icon: <Files size={18} />, label: t('app.nav.local') },
