@@ -3,12 +3,16 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import {
   Check,
+  CloudDownload,
+  CloudUpload,
+  Download,
   ExternalLink,
   Fingerprint,
   KeyRound,
   LogOut,
   Save,
   ShieldCheck,
+  Upload,
   User,
   WalletCards,
 } from 'lucide-react'
@@ -19,8 +23,8 @@ import { ConfirmModal } from '~/components/ui'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import { useI18n, type MessageKey } from '~/lib/i18n'
-import { syncUserProfileMetadata } from '~/lib/userSync'
-import { getApiErrorMessage } from '~server/src/utils/api'
+import { useAccountBackup } from '~/features/profile/useAccountBackup'
+import { api, getApiErrorMessage } from '~server/src/utils/api'
 import {
   defaultAvatarIds,
   generateAvatar,
@@ -65,6 +69,7 @@ export default function ProfilePage() {
   const openLoginModal = useUserStore(s => s.openLoginModal)
   const setUserIdentity = useUserStore(s => s.setUserIdentity)
   const logoutUser = useUserStore(s => s.logoutUser)
+  const accountBackup = useAccountBackup()
   const [displayNameDraft, setDisplayNameDraft] = useState('')
   const [avatarUrlDraft, setAvatarUrlDraft] = useState('')
   const [avatarUrlError, setAvatarUrlError] = useState('')
@@ -127,13 +132,21 @@ export default function ProfilePage() {
   const address = identity.address.toLowerCase()
   const canSaveAvatarUrl = avatarUrlDraft.trim().length > 0
 
-  async function syncSavedProfile(nextIdentity) {
+  async function saveBackendProfile(nextIdentity) {
     if (hasBackend !== true) return
     try {
-      await syncUserProfileMetadata(nextIdentity)
+      await api
+        .put('/api/user/profile', {
+          json: {
+            displayName: nextIdentity.displayName || nextIdentity.username,
+            avatar: nextIdentity.avatar || '',
+            updatedAt: nextIdentity.profileUpdatedAt || Date.now(),
+          },
+        })
+        .json()
     } catch (err) {
       addToast(
-        await getApiErrorMessage(err, t('appGlobals.syncStartFailed')),
+        await getApiErrorMessage(err, t('profile.backup.error.profileSaveFailed')),
         'error'
       )
     }
@@ -147,7 +160,7 @@ export default function ProfilePage() {
       profileUpdatedAt: Date.now(),
     }
     setUserIdentity(nextIdentity)
-    void syncSavedProfile(nextIdentity)
+    void saveBackendProfile(nextIdentity)
     setAvatarUrlError('')
     addToast(t('profile.toast.avatarUpdated'), 'success')
   }
@@ -157,7 +170,7 @@ export default function ProfilePage() {
     const displayName = displayNameDraft.trim() || identity.username
     const nextIdentity = { ...identity, displayName, profileUpdatedAt: Date.now() }
     setUserIdentity(nextIdentity)
-    void syncSavedProfile(nextIdentity)
+    void saveBackendProfile(nextIdentity)
     setDisplayNameDraft(displayName)
     addToast(t('profile.toast.saved'), 'success')
   }
@@ -323,6 +336,56 @@ export default function ProfilePage() {
               </div>
             </section>
           </div>
+
+          <section className="profile-panel profile-backup-panel">
+            <div className="profile-panel-header">
+              <div>
+                <h2>{t('profile.section.backup')}</h2>
+                <p>{t('profile.section.backup.desc')}</p>
+              </div>
+              <span className="profile-backup-status">
+                {accountBackup.statusLabel}
+              </span>
+            </div>
+            <div className="profile-backup-actions">
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={accountBackup.backupToCloud}
+                disabled={accountBackup.busy}
+              >
+                <CloudUpload size={16} />
+                {t('profile.backup.action.cloudBackup')}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={accountBackup.restoreFromCloud}
+                disabled={accountBackup.busy}
+              >
+                <CloudDownload size={16} />
+                {t('profile.backup.action.cloudRestore')}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={accountBackup.exportLocalBackup}
+                disabled={accountBackup.busy}
+              >
+                <Download size={16} />
+                {t('profile.backup.action.exportLocal')}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={accountBackup.importLocalBackup}
+                disabled={accountBackup.busy}
+              >
+                <Upload size={16} />
+                {t('profile.backup.action.importLocal')}
+              </button>
+            </div>
+          </section>
 
           <section className="profile-panel profile-identity-panel">
             <div className="profile-panel-header">

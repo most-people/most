@@ -210,32 +210,6 @@ export function registerNodeRoutes(
     return c.json({ users: engine.listUsers() })
   })
 
-  app.post('/api/user/sync/start', async c => {
-    try {
-      const body = await c.req.json()
-      const result = await engine.startUserSync(c.get('userAddress'), body)
-      appendNodeLog({
-        event: 'node:user-sync:started',
-        message: 'User sync started',
-        data: {
-          ownerAddress: result.ownerAddress,
-          syncName: result.syncName,
-        },
-      })
-      return c.json({ success: true, ...result })
-    } catch (err) {
-      return errorJson(c, err)
-    }
-  })
-
-  app.get('/api/user/sync/status', c => {
-    try {
-      return c.json(engine.getUserSyncStatus(c.get('userAddress')))
-    } catch (err) {
-      return errorJson(c, err)
-    }
-  })
-
   app.get('/api/user/profile', c => {
     try {
       return c.json(engine.getUserProfile(c.get('userAddress')))
@@ -249,6 +223,32 @@ export function registerNodeRoutes(
       const body = await c.req.json()
       const profile = engine.saveUserProfile(c.get('userAddress'), body)
       return c.json({ success: true, profile })
+    } catch (err) {
+      return errorJson(c, err)
+    }
+  })
+
+  app.get('/api/user/export', c => {
+    try {
+      return c.json(engine.exportUserData(c.get('userAddress')))
+    } catch (err) {
+      return errorJson(c, err)
+    }
+  })
+
+  app.post('/api/user/import', async c => {
+    try {
+      const body = await c.req.json()
+      const result = await engine.importUserData(c.get('userAddress'), body)
+      appendNodeLog({
+        event: 'node:user-data:imported',
+        message: 'User account backup imported',
+        data: {
+          ownerAddress: c.get('userAddress'),
+          result,
+        },
+      })
+      return c.json({ success: true, result })
     } catch (err) {
       return errorJson(c, err)
     }

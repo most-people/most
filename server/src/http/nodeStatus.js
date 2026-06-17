@@ -171,26 +171,26 @@ export function buildOpenApiSpec(appPort) {
           responses: { 200: { description: 'Pull task result' } },
         },
       },
-      '/api/user/sync/start': {
-        post: {
-          summary: 'Start hidden authenticated user metadata sync',
-          responses: { 200: { description: 'User sync status' } },
-        },
-      },
-      '/api/user/sync/status': {
-        get: {
-          summary: 'Read authenticated user metadata sync status',
-          responses: { 200: { description: 'User sync status' } },
-        },
-      },
       '/api/user/profile': {
         get: {
-          summary: 'Read authenticated synced profile metadata',
-          responses: { 200: { description: 'Synced profile' } },
+          summary: 'Read authenticated local profile metadata',
+          responses: { 200: { description: 'Profile metadata' } },
         },
         put: {
-          summary: 'Update authenticated synced profile metadata',
-          responses: { 200: { description: 'Synced profile update result' } },
+          summary: 'Update authenticated local profile metadata',
+          responses: { 200: { description: 'Profile update result' } },
+        },
+      },
+      '/api/user/export': {
+        get: {
+          summary: 'Export authenticated account metadata for encrypted backup',
+          responses: { 200: { description: 'Account metadata backup payload' } },
+        },
+      },
+      '/api/user/import': {
+        post: {
+          summary: 'Import authenticated account metadata from backup',
+          responses: { 200: { description: 'Account metadata import result' } },
         },
       },
       '/api/files': {
@@ -201,7 +201,7 @@ export function buildOpenApiSpec(appPort) {
       },
       '/api/files/{cid}/cache': {
         post: {
-          summary: 'Pull a synced directory file into this node cache',
+          summary: 'Pull a directory file into this node cache',
           responses: { 200: { description: 'Cache pull result' } },
         },
       },

@@ -23,8 +23,8 @@ export function requiresUserAuth(path) {
     path === '/api/download/cancel' ||
     path === '/api/p2p/pull' ||
     path === '/api/user/profile' ||
-    path === '/api/user/sync/start' ||
-    path === '/api/user/sync/status' ||
+    path === '/api/user/export' ||
+    path === '/api/user/import' ||
     path === '/api/trash' ||
     path === '/api/move' ||
     path === '/api/folder/rename' ||

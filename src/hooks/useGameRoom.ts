@@ -17,7 +17,7 @@ import {
   getUserChannelProfile,
   getUserDisplayName,
   getUserMessageIdentity,
-} from '~/lib/userSync'
+} from '~/lib/userProfile'
 
 interface UseGameRoomOptions {
   gameId: string

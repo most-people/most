@@ -565,14 +565,14 @@ describe('frontend smoke checks', () => {
       readSource('src/components/PemBlock.tsx'),
       readSource('src/components/MilkdownEditor.tsx'),
       readSource('src/components/GameSidebar.tsx'),
-      readSource('src/components/NoteMoreMenu.tsx'),
       readSource('src/components/UserLoginModal.tsx'),
       readSource('src/features/system/ErrorBoundary.tsx'),
       readSource('src/features/system/NotFoundPage.tsx'),
       readSource('src/features/chat/ChatPage.tsx'),
       readSource('src/features/chat/ChatJoinPage.tsx'),
       readSource('src/features/note/NotePage.tsx'),
-      readSource('src/features/note/useNoteBackupSync.ts'),
+      readSource('src/features/profile/ProfilePage.tsx'),
+      readSource('src/features/profile/useAccountBackup.ts'),
       readSource('src/features/admin/AdminPage.tsx'),
       readSource('src/features/web3/Web3Page.tsx'),
       ...listSourceFiles('src/features/web3/components')
@@ -702,55 +702,36 @@ describe('frontend smoke checks', () => {
     assert.match(profileSource, /isSupportedAvatarValue/)
   })
 
-  it('keys profile metadata sync by address, display name, and avatar', () => {
+  it('keeps account backup manual and scoped to the profile page', () => {
     const appGlobalsSource = readSource('src/components/AppGlobals.tsx')
-    const userSyncSource = readSource('src/lib/userSync.ts')
-    const keyStart = userSyncSource.indexOf(
-      'export function getUserProfileSyncKey'
-    )
-    const keyEnd = userSyncSource.indexOf(
-      'export function getUserChannelProfile',
-      keyStart
-    )
-    const keySource = userSyncSource.slice(keyStart, keyEnd)
-
-    assert.match(appGlobalsSource, /getUserProfileSyncKey\(identity\)/)
-    assert.doesNotMatch(
-      appGlobalsSource,
-      /const syncKey = identity\.address\.toLowerCase\(\)/
-    )
-    assert.match(keySource, /identity\.address\.toLowerCase\(\)/)
-    assert.match(keySource, /getUserDisplayName\(identity\)/)
-    assert.match(keySource, /identity\.avatar \|\| ''/)
-  })
-
-  it('restores profile metadata from user sync without overwriting remote defaults', () => {
-    const appGlobalsSource = readSource('src/components/AppGlobals.tsx')
-    const userStoreSource = readSource('src/stores/userStore.ts')
-    const userSyncSource = readSource('src/lib/userSync.ts')
     const profileSource = readSource('src/features/profile/ProfilePage.tsx')
+    const noteSource = readSource('src/features/note/NotePage.tsx')
+    const backupSource = readSource('src/features/profile/useAccountBackup.ts')
 
-    assert.match(userStoreSource, /profileUpdatedAt\?: number/)
-    assert.match(userStoreSource, /LEGACY_PROFILE_UPDATED_AT/)
-    assert.match(profileSource, /profileUpdatedAt: Date\.now\(\)/)
-    assert.match(userSyncSource, /getSyncedUserProfile/)
-    assert.match(userSyncSource, /saveSyncedUserProfile/)
-    assert.match(userSyncSource, /restoreUserProfileFromSync/)
-    assert.match(userSyncSource, /localUpdatedAt > 0/)
-    assert.match(appGlobalsSource, /reconcileUserProfileSync/)
-    assert.match(appGlobalsSource, /getAuthenticatedWebSocketUrl\('\/ws'\)/)
-    assert.match(appGlobalsSource, /payload\.data\?\.scope === 'profile'/)
-    assert.match(appGlobalsSource, /setUserIdentity\(result\.restoredIdentity\)/)
+    assert.doesNotMatch(appGlobalsSource, /startUserMetadataSync/)
+    assert.doesNotMatch(appGlobalsSource, /reconcileUserProfileSync/)
+    assert.doesNotMatch(appGlobalsSource, /getAuthenticatedWebSocketUrl/)
+    assert.match(profileSource, /useAccountBackup\(\)/)
+    assert.match(profileSource, /accountBackup\.backupToCloud/)
+    assert.match(profileSource, /accountBackup\.restoreFromCloud/)
+    assert.match(profileSource, /accountBackup\.exportLocalBackup/)
+    assert.match(profileSource, /accountBackup\.importLocalBackup/)
+    assert.doesNotMatch(noteSource, /useNoteBackupSync|NoteMoreMenu|backupSync/)
+    assert.match(backupSource, /backupToCloud/)
+    assert.match(backupSource, /restoreFromCloud/)
+    assert.match(backupSource, /exportLocalBackup/)
+    assert.match(backupSource, /importLocalBackup/)
+    assert.doesNotMatch(backupSource, /useEffect/)
   })
 
   it('uses profile identity as the single source for chat and game messages', () => {
     const chatSource = readSource('src/features/chat/ChatPage.tsx')
     const gameRoomSource = readSource('src/hooks/useGameRoom.ts')
     const channelMessagesSource = readSource('src/hooks/useChannelMessages.ts')
-    const userSyncSource = readSource('src/lib/userSync.ts')
+    const userProfileSource = readSource('src/lib/userProfile.ts')
 
-    assert.match(userSyncSource, /getUserMessageIdentity/)
-    assert.match(userSyncSource, /getUserChannelProfile/)
+    assert.match(userProfileSource, /getUserMessageIdentity/)
+    assert.match(userProfileSource, /getUserChannelProfile/)
     assert.match(channelMessagesSource, /useUserStore/)
     assert.match(channelMessagesSource, /getUserMessageIdentity\(userIdentity\)/)
     assert.doesNotMatch(chatSource, /author:\s*userIdentity\.address/)
@@ -762,20 +743,15 @@ describe('frontend smoke checks', () => {
     assert.match(gameRoomSource, /avatar:\s*identity\.avatar \|\| ''/)
   })
 
-  it('syncs profile saves through existing user metadata and channel APIs', () => {
+  it('saves profile metadata locally without automatic cloud backup', () => {
     const profileSource = readSource('src/features/profile/ProfilePage.tsx')
-    const userSyncSource = readSource('src/lib/userSync.ts')
+    const backupSource = readSource('src/features/profile/useAccountBackup.ts')
 
-    assert.match(profileSource, /syncUserProfileMetadata/)
-    assert.match(profileSource, /void syncSavedProfile\(nextIdentity\)/)
-    assert.match(
-      userSyncSource,
-      /startUserMetadataSync\(identity\)[\s\S]*refreshJoinedChannelProfiles\(identity\)/
-    )
-    assert.match(userSyncSource, /saveSyncedUserProfile\(identity\)/)
-    assert.match(userSyncSource, /\/api\/user\/profile/)
-    assert.match(userSyncSource, /channelApi\.getChannels\(\)/)
-    assert.match(userSyncSource, /channelApi\.createChannel/)
+    assert.match(profileSource, /saveBackendProfile\(nextIdentity\)/)
+    assert.match(profileSource, /\/api\/user\/profile/)
+    assert.doesNotMatch(profileSource, /backupToCloud\(\)/)
+    assert.match(backupSource, /\/api\/user\/export/)
+    assert.match(backupSource, /\/api\/user\/import/)
   })
 
   it('uses default channel list filtering without legacy filter parameters', () => {
@@ -796,6 +772,8 @@ describe('frontend smoke checks', () => {
     const portalSource = readSource('src/components/FeaturePortal.tsx')
 
     assert.match(hookSource, /electronAPI\?\.isElectron === true/)
+    assert.match(hookSource, /hasBackend !== true/)
+    assert.match(hookSource, /isLocalBackendUrlExport\(getBackendUrlExport\(\)\)/)
     assert.match(navSource, /const isDesktopClient = useIsDesktopClient\(\)/)
     assert.match(navSource, /!\s*isDesktopClient &&/)
     assert.match(portalSource, /hideInDesktopClient: true/)
@@ -803,7 +781,7 @@ describe('frontend smoke checks', () => {
     assert.match(portalSource, /!\s*isDesktopClient &&/)
   })
 
-  it('keeps note save route updates ahead of silent backup sync', () => {
+  it('does not trigger account backup from note save flows', () => {
     const noteSource = readSource('src/features/note/NotePage.tsx')
     const saveStart = noteSource.indexOf('async function handleSaveEditor()')
     const createStart = noteSource.indexOf('function openCreateNoteModal()', saveStart)
@@ -813,12 +791,9 @@ describe('frontend smoke checks', () => {
     const routeIndex = saveHandlerSource.indexOf(
       'navigateToNote({ cid: nextCid }, true)'
     )
-    const backupIndex = saveHandlerSource.indexOf(
-      'await backupSync.uploadNow({ silent: true })'
-    )
 
     assert.ok(saveIndex >= 0)
     assert.ok(routeIndex > saveIndex)
-    assert.ok(backupIndex > routeIndex)
+    assert.doesNotMatch(noteSource, /uploadNow|backupSync|useNoteBackupSync/)
   })
 })

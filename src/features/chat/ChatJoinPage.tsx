@@ -18,7 +18,7 @@ import {
   configureBackend,
 } from '~server/src/utils/api'
 import { channelApi } from '~/lib/channelApi'
-import { getUserChannelProfile } from '~/lib/userSync'
+import { getUserChannelProfile } from '~/lib/userProfile'
 import { translateMessage, useI18n } from '~/lib/i18n'
 import {
   CHAT_JOIN_INVITE_FIELDS,

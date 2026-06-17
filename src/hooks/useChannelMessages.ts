@@ -10,7 +10,7 @@ import {
   getChannelSubscriptionKey,
   getChannelSubscriptionNames,
 } from '~/lib/channelSubscriptions.js'
-import { getUserMessageIdentity } from '~/lib/userSync'
+import { getUserMessageIdentity } from '~/lib/userProfile'
 import { useUserStore } from '~/stores/userStore'
 
 interface UseChannelMessagesOptions {

@@ -50,7 +50,7 @@ import {
 } from '~/lib/channelApi'
 import { getFileSubtype, type FileSubtype } from '~/lib/filePreview'
 import { useI18n } from '~/lib/i18n'
-import { getUserChannelProfile } from '~/lib/userSync'
+import { getUserChannelProfile } from '~/lib/userProfile'
 import { getLocalizedDownloadLinkValidationMessage } from '~/lib/i18n/downloadValidation'
 import {
   applyIncomingChannelMessageReadState,

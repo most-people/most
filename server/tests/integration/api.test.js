@@ -3,7 +3,6 @@ import assert from 'node:assert'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import crypto from 'node:crypto'
 import { serve } from '@hono/node-server'
 import { createApp } from '../../index.js'
 import { calculateCid } from '../../src/core/cid.js'
@@ -24,16 +23,6 @@ const VALID_MISSING_CID =
 const TEST_IDENTITY = createLoginIdentity('api-user', 'api-password')
 const SECOND_IDENTITY = createLoginIdentity('second-user', 'second-password')
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
-
-function createUserSyncKeys(seed) {
-  const derive = label =>
-    crypto.createHash('sha256').update(`${seed}:${label}`).digest('hex')
-  return {
-    syncTopicKey: derive('topic'),
-    syncCipherKey: derive('cipher'),
-    syncMacKey: derive('mac'),
-  }
-}
 
 function assertNoLegacyNodeSettingFields(value) {
   const legacyPattern = /Seed|Concurrent|RateLimit/
@@ -1347,34 +1336,21 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
   })
 
   describe('admin user data API', () => {
-    it('starts and reports authenticated user metadata sync', async () => {
-      const keys = createUserSyncKeys(`api-sync-${uid}`)
-      const startRes = await fetchAs(
-        TEST_IDENTITY,
-        `${baseUrl}/api/user/sync/start`,
-        {
-          method: 'POST',
+    it('does not expose hidden user sync APIs', async () => {
+      for (const pathName of [
+        '/api/user/sync/start',
+        '/api/user/sync/status',
+      ]) {
+        const res = await fetchAs(TEST_IDENTITY, `${baseUrl}${pathName}`, {
+          method: pathName.endsWith('/start') ? 'POST' : 'GET',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(keys),
-        }
-      )
-      const startData = await startRes.json()
-      assert.strictEqual(startRes.status, 200)
-      assert.strictEqual(startData.success, true)
-      assert.strictEqual(startData.enabled, true)
-      assert.ok(startData.syncName.startsWith('user.sync.'))
-
-      const statusRes = await fetchAs(
-        TEST_IDENTITY,
-        `${baseUrl}/api/user/sync/status`
-      )
-      const statusData = await statusRes.json()
-      assert.strictEqual(statusRes.status, 200)
-      assert.strictEqual(statusData.enabled, true)
-      assert.strictEqual(statusData.syncId, startData.syncId)
+          body: pathName.endsWith('/start') ? JSON.stringify({}) : undefined,
+        })
+        assert.strictEqual(res.status, 404)
+      }
     })
 
-    it('requires authentication for user profile sync APIs', async () => {
+    it('requires authentication for user account metadata APIs', async () => {
       const getRes = await fetchWithoutAuth(`${baseUrl}/api/user/profile`)
       assert.strictEqual(getRes.status, 401)
 
@@ -1384,21 +1360,24 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         body: JSON.stringify({
           displayName: 'No Auth',
           avatar: '',
-          syncUpdatedAt: Date.now(),
+          updatedAt: Date.now(),
         }),
       })
       assert.strictEqual(putRes.status, 401)
-    })
 
-    it('saves and reads authenticated user profile sync metadata', async () => {
-      const keys = createUserSyncKeys(`api-profile-${uid}`)
-      await fetchAs(TEST_IDENTITY, `${baseUrl}/api/user/sync/start`, {
+      const exportRes = await fetchWithoutAuth(`${baseUrl}/api/user/export`)
+      assert.strictEqual(exportRes.status, 401)
+
+      const importRes = await fetchWithoutAuth(`${baseUrl}/api/user/import`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(keys),
+        body: JSON.stringify({}),
       })
+      assert.strictEqual(importRes.status, 401)
+    })
 
-      const syncUpdatedAt = Date.now()
+    it('saves and reads authenticated local profile metadata', async () => {
+      const updatedAt = Date.now()
       const putRes = await fetchAs(
         TEST_IDENTITY,
         `${baseUrl}/api/user/profile`,
@@ -1406,18 +1385,18 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            displayName: 'Synced API User',
+            displayName: 'Backed Up API User',
             avatar: '/avatars/default/panda.svg',
-            syncUpdatedAt,
+            updatedAt,
           }),
         }
       )
       const putData = await putRes.json()
       assert.strictEqual(putRes.status, 200)
       assert.strictEqual(putData.success, true)
-      assert.strictEqual(putData.profile.displayName, 'Synced API User')
+      assert.strictEqual(putData.profile.displayName, 'Backed Up API User')
       assert.strictEqual(putData.profile.avatar, '/avatars/default/panda.svg')
-      assert.strictEqual(putData.profile.syncUpdatedAt, syncUpdatedAt)
+      assert.strictEqual(putData.profile.updatedAt, updatedAt)
 
       const getRes = await fetchAs(
         TEST_IDENTITY,
@@ -1425,24 +1404,107 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       )
       const getData = await getRes.json()
       assert.strictEqual(getRes.status, 200)
-      assert.strictEqual(getData.displayName, 'Synced API User')
+      assert.strictEqual(getData.displayName, 'Backed Up API User')
       assert.strictEqual(getData.avatar, '/avatars/default/panda.svg')
-      assert.strictEqual(getData.syncUpdatedAt, syncUpdatedAt)
+      assert.strictEqual(getData.updatedAt, updatedAt)
     })
 
-    it('does not expose legacy JSON import or export APIs', async () => {
-      for (const pathName of [
-        '/api/user/export',
-        '/api/user/import/check',
-        '/api/user/import',
-      ]) {
-        const res = await fetchAs(TEST_IDENTITY, `${baseUrl}${pathName}`, {
-          method: pathName.endsWith('/export') ? 'GET' : 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: pathName.endsWith('/export') ? undefined : JSON.stringify({}),
-        })
-        assert.strictEqual(res.status, 404)
+    it('exports sanitized account metadata for encrypted backup', async () => {
+      const published = await engine.publishFile(
+        Buffer.from('backup export'),
+        `backup-export-${uid}.txt`,
+        { ownerAddress: TEST_IDENTITY.address }
+      )
+      const channel = await engine.createChannel(`backup-${uid}`, 'personal', {
+        ownerAddress: TEST_IDENTITY.address,
+        displayName: 'Backup User',
+      })
+      await engine.setChannelRemark(channel.channelKey, 'backup remark', {
+        ownerAddress: TEST_IDENTITY.address,
+      })
+
+      const res = await fetchAs(TEST_IDENTITY, `${baseUrl}/api/user/export`)
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 200)
+      assert.strictEqual(data.type, 'mostbox.account-backup')
+      assert.strictEqual(data.schemaVersion, 1)
+      assert.strictEqual(
+        data.ownerAddress,
+        TEST_IDENTITY.address.toLowerCase()
+      )
+      assert.ok(data.files.some(file => file.cid === published.cid))
+      assert.ok(data.channels.some(item => item.channelKey === channel.channelKey))
+      assert.strictEqual(JSON.stringify(data).includes(TEST_IDENTITY.danger), false)
+      assert.strictEqual(JSON.stringify(data).includes(tmpDir), false)
+    })
+
+    it('imports same-owner account metadata without file content', async () => {
+      const updatedAt = Date.now() + 10_000
+      const payload = {
+        type: 'mostbox.account-backup',
+        schemaVersion: 1,
+        ownerAddress: TEST_IDENTITY.address,
+        exportedAt: new Date(updatedAt).toISOString(),
+        profile: {
+          displayName: 'Imported API User',
+          avatar: '',
+          updatedAt,
+        },
+        files: [
+          {
+            cid: VALID_MISSING_CID,
+            fileName: `imported-${uid}.txt`,
+            size: 123,
+            source: 'synced',
+            publishedAt: new Date(updatedAt).toISOString(),
+            starred: true,
+            updatedAt,
+          },
+        ],
+        trashFiles: [],
+        channels: [],
       }
+
+      const res = await fetchAs(TEST_IDENTITY, `${baseUrl}/api/user/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const data = await res.json()
+      assert.strictEqual(res.status, 200)
+      assert.strictEqual(data.success, true)
+      assert.strictEqual(data.result.profileUpdated, true)
+      assert.strictEqual(data.result.filesAdded, 1)
+
+      const files = engine.listPublishedFiles({
+        ownerAddress: TEST_IDENTITY.address,
+      })
+      const imported = files.find(file => file.cid === VALID_MISSING_CID)
+      assert.ok(imported)
+      assert.strictEqual(imported.localAvailable, false)
+      assert.strictEqual(
+        engine.getUserProfile(TEST_IDENTITY.address).displayName,
+        'Imported API User'
+      )
+    })
+
+    it('rejects account metadata imports for another owner', async () => {
+      const res = await fetchAs(TEST_IDENTITY, `${baseUrl}/api/user/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'mostbox.account-backup',
+          schemaVersion: 1,
+          ownerAddress: SECOND_IDENTITY.address,
+          exportedAt: new Date().toISOString(),
+          notes: [],
+          files: [],
+          trashFiles: [],
+          channels: [],
+        }),
+      })
+      assert.strictEqual(res.status, 403)
     })
 
     it('clears one user without removing another user records', async () => {

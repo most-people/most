@@ -36,10 +36,8 @@ import {
   getNoteFullPath,
   normalizeNotePath,
 } from '~server/src/utils/noteUtils.js'
-import { NoteMoreMenu } from '~/components/NoteMoreMenu'
 import { NoteMoveModal, type NoteMoveTarget } from '~/components/NoteMoveModal'
 import { NoteSidebar } from '~/components/NoteSidebar'
-import { useNoteBackupSync } from '~/features/note/useNoteBackupSync'
 import { useI18n, type MessageKey } from '~/lib/i18n'
 
 const MilkdownEditor = lazy(async () => {
@@ -150,7 +148,6 @@ function NotePageContent() {
   const searchStr = useLocation({ select: location => location.searchStr })
   const params = useMemo(() => getNoteSearch(searchStr), [searchStr])
   const editorRef = useRef<MilkdownEditorRef>(null)
-  const backupSync = useNoteBackupSync()
 
   const addToast = useAppStore(s => s.addToast)
   const isDarkMode = useAppStore(s => s.isDarkMode)
@@ -371,7 +368,6 @@ function NotePageContent() {
       setPlainContent(markdown)
       navigateToNote({ cid: nextCid }, true)
       addToast(t('note.toast.saved'), 'success')
-      await backupSync.uploadNow({ silent: true })
     } catch (err: unknown) {
       addToast(getErrorMessage(err, t('note.toast.saveFailed'), t), 'error')
     } finally {
@@ -396,7 +392,6 @@ function NotePageContent() {
           })
           setInputModal(null)
           addToast(t('note.toast.created'), 'success')
-          await backupSync.uploadNow({ silent: true })
           navigateToNote({ cid: newCid, mode: 'edit' })
         } catch (err: unknown) {
           addToast(
@@ -422,7 +417,6 @@ function NotePageContent() {
     try {
       renameNote(getNoteFullPath(selectedNote), selectedNote.path, nextName)
       addToast(t('note.toast.renamed'), 'success')
-      await backupSync.uploadNow({ silent: true })
     } catch (err: unknown) {
       setPreviewName(selectedNote.name)
       addToast(getErrorMessage(err, t('note.toast.renameFailed'), t), 'error')
@@ -444,7 +438,6 @@ function NotePageContent() {
       )
       setMoveTarget(null)
       addToast(t('note.toast.moved'), 'success')
-      await backupSync.uploadNow({ silent: true })
     } catch (err: unknown) {
       addToast(getErrorMessage(err, t('note.toast.moveFailed'), t), 'error')
     }
@@ -463,7 +456,6 @@ function NotePageContent() {
         deleteNote(isDirectory ? undefined : item.cid, item.path, item.name)
         setConfirmModal(null)
         addToast(t('note.toast.deleted'), 'success')
-        await backupSync.uploadNow({ silent: true })
         if (item.type === 'file' && item.cid === cid) {
           navigateToNote()
         }
@@ -488,7 +480,6 @@ function NotePageContent() {
       >
         {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
       </button>
-      <NoteMoreMenu sync={backupSync} />
     </div>
   )
 

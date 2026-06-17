@@ -141,8 +141,8 @@ function bindEngineEvents({
   engine.on('channel:left', data => wsBroadcast('channel:left', data))
   engine.on('user:metadata:updated', data => {
     appendNodeLog({
-      event: 'node:user-sync:updated',
-      message: 'User metadata synced',
+      event: 'node:user-metadata:updated',
+      message: 'User metadata updated',
       data,
     })
     wsBroadcast('user:metadata:updated', data)

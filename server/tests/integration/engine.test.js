@@ -3,7 +3,6 @@ import assert from 'node:assert'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import crypto from 'node:crypto'
 import b4a from 'b4a'
 import Corestore from 'corestore'
 import Hyperdrive from 'hyperdrive'
@@ -90,61 +89,6 @@ function toChannelCandidate(channel) {
     lastMessageAt: channel.lastMessageAt,
     writerCoreKeys: channel.writerCoreKeys,
   }
-}
-
-function createUserSyncKeys(seed) {
-  const derive = label =>
-    crypto.createHash('sha256').update(`${seed}:${label}`).digest('hex')
-  return {
-    syncTopicKey: derive('topic'),
-    syncCipherKey: derive('cipher'),
-    syncMacKey: derive('mac'),
-  }
-}
-
-async function waitForUserFile(engine, ownerAddress, cid, timeout = 5000) {
-  const start = Date.now()
-  while (Date.now() - start < timeout) {
-    const file = engine
-      .listPublishedFiles({ ownerAddress })
-      .find(item => item.cid === cid)
-    if (file) return file
-    await sleep(25)
-  }
-  throw new Error(`User file ${cid} did not sync`)
-}
-
-async function waitForUserChannel(
-  engine,
-  ownerAddress,
-  channelKey,
-  timeout = 5000,
-  predicate = () => true
-) {
-  const start = Date.now()
-  while (Date.now() - start < timeout) {
-    const channel = engine
-      .listChannels({ ownerAddress })
-      .find(item => item.channelKey === channelKey)
-    if (channel && predicate(channel)) return channel
-    await sleep(25)
-  }
-  throw new Error(`User channel ${channelKey} did not sync`)
-}
-
-async function waitForUserProfile(
-  engine,
-  ownerAddress,
-  predicate = () => true,
-  timeout = 5000
-) {
-  const start = Date.now()
-  while (Date.now() - start < timeout) {
-    const profile = engine.getUserProfile(ownerAddress)
-    if (profile && predicate(profile)) return profile
-    await sleep(25)
-  }
-  throw new Error(`User profile ${ownerAddress} did not sync`)
 }
 
 describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
@@ -1165,12 +1109,11 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.ok(trashAfterB.some(f => f.cid === resultB.cid))
     })
 
-    it('syncs user metadata without pulling file content automatically', async () => {
-      const syncTmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'most-user-sync-'))
+    it('imports account file metadata without pulling file content automatically', async () => {
+      const syncTmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'most-user-import-'))
       const sourcePath = path.join(syncTmpDir, 'source')
       const targetPath = path.join(syncTmpDir, 'target')
       const syncOwner = '0x3333333333333333333333333333333333333333'
-      const keys = createUserSyncKeys(`files-${uid}`)
       let sourceEngine
       let targetEngine
       let replication
@@ -1186,27 +1129,27 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         })
         await sourceEngine.start()
         await targetEngine.start()
-        await sourceEngine.startUserSync(syncOwner, keys)
-        await targetEngine.startUserSync(syncOwner, keys)
 
         const published = await sourceEngine.publishFile(
-          Buffer.from('synced directory only'),
-          'synced-dir.txt',
+          Buffer.from('imported directory only'),
+          'imported-dir.txt',
           { ownerAddress: syncOwner }
         )
-        replication = sourceEngine.replicateWith(targetEngine)
+        const backup = sourceEngine.exportUserData(syncOwner)
+        const importResult = await targetEngine.importUserData(syncOwner, backup)
+        assert.strictEqual(importResult.filesAdded, 1)
 
-        const synced = await waitForUserFile(
-          targetEngine,
-          syncOwner,
-          published.cid
-        )
-        assert.strictEqual(synced.fileName, 'synced-dir.txt')
-        assert.strictEqual(synced.localAvailable, false)
+        const imported = targetEngine
+          .listPublishedFiles({ ownerAddress: syncOwner })
+          .find(file => file.cid === published.cid)
+        assert.ok(imported)
+        assert.strictEqual(imported.fileName, 'imported-dir.txt')
+        assert.strictEqual(imported.localAvailable, false)
         assert.ok(
           !targetEngine.listHoldings().some(item => item.cid === published.cid)
         )
 
+        replication = sourceEngine.replicateWith(targetEngine)
         await targetEngine.cacheFile(published.cid, {
           ownerAddress: syncOwner,
           timeout: 5000,
@@ -1222,17 +1165,15 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       }
     })
 
-    it('syncs user profile metadata from snapshots and newer profile ops', async () => {
+    it('imports account profile metadata without overwriting newer local profile', async () => {
       const syncTmpDir = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'most-user-profile-sync-')
+        path.join(os.tmpdir(), 'most-user-profile-import-')
       )
       const sourcePath = path.join(syncTmpDir, 'source')
       const targetPath = path.join(syncTmpDir, 'target')
       const syncOwner = '0x3434343434343434343434343434343434343434'
-      const keys = createUserSyncKeys(`profile-${uid}`)
       let sourceEngine
       let targetEngine
-      let replication
 
       try {
         sourceEngine = new MostBoxEngine({
@@ -1247,44 +1188,48 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         await targetEngine.start()
 
         sourceEngine.saveUserProfile(syncOwner, {
-          displayName: 'Snapshot Name',
+          displayName: 'Backup Name',
           avatar: 'old.png',
-          syncUpdatedAt: 1000,
+          updatedAt: 1000,
         })
-        await sourceEngine.startUserSync(syncOwner, keys)
-        await targetEngine.startUserSync(syncOwner, keys)
-        replication = sourceEngine.replicateWith(targetEngine)
-
-        const snapshotProfile = await waitForUserProfile(
-          targetEngine,
+        await targetEngine.importUserData(
           syncOwner,
-          profile => profile.displayName === 'Snapshot Name'
+          sourceEngine.exportUserData(syncOwner)
         )
-        assert.strictEqual(snapshotProfile.avatar, 'old.png')
+
+        assert.strictEqual(
+          targetEngine.getUserProfile(syncOwner).displayName,
+          'Backup Name'
+        )
+        assert.strictEqual(targetEngine.getUserProfile(syncOwner).avatar, 'old.png')
 
         sourceEngine.saveUserProfile(syncOwner, {
           displayName: 'Fresh Name',
           avatar: '/avatars/default/panda.svg',
-          syncUpdatedAt: 2000,
+          updatedAt: 2000,
         })
-        const freshProfile = await waitForUserProfile(
-          targetEngine,
+        await targetEngine.importUserData(
           syncOwner,
-          profile => profile.displayName === 'Fresh Name'
+          sourceEngine.exportUserData(syncOwner)
         )
+        const freshProfile = targetEngine.getUserProfile(syncOwner)
+        assert.strictEqual(freshProfile.displayName, 'Fresh Name')
         assert.strictEqual(freshProfile.avatar, '/avatars/default/panda.svg')
 
         targetEngine.saveUserProfile(syncOwner, {
           displayName: 'Newest Local',
           avatar: 'newest.png',
-          syncUpdatedAt: 3000,
+          updatedAt: 3000,
         })
         sourceEngine.saveUserProfile(syncOwner, {
           displayName: 'Stale Remote',
           avatar: 'stale.png',
-          syncUpdatedAt: 2500,
+          updatedAt: 2500,
         })
-        await sleep(100)
+        await targetEngine.importUserData(
+          syncOwner,
+          sourceEngine.exportUserData(syncOwner)
+        )
         assert.strictEqual(
           targetEngine.getUserProfile(syncOwner).displayName,
           'Newest Local'
@@ -1294,25 +1239,22 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
           'newest.png'
         )
       } finally {
-        replication?.close()
         if (sourceEngine) await sourceEngine.stop().catch(() => {})
         if (targetEngine) await targetEngine.stop().catch(() => {})
         fs.rmSync(syncTmpDir, { recursive: true, force: true })
       }
     })
 
-    it('syncs channel metadata and opens the synced channel runtime', async () => {
+    it('imports channel metadata and opens the channel runtime', async () => {
       const syncTmpDir = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'most-user-sync-channel-')
+        path.join(os.tmpdir(), 'most-user-import-channel-')
       )
       const sourcePath = path.join(syncTmpDir, 'source')
       const targetPath = path.join(syncTmpDir, 'target')
       const syncOwner = '0x4444444444444444444444444444444444444444'
-      const keys = createUserSyncKeys(`channels-${uid}`)
       const channelName = `sync-${uid}`
       let sourceEngine
       let targetEngine
-      let replication
 
       try {
         sourceEngine = new MostBoxEngine({
@@ -1325,8 +1267,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         })
         await sourceEngine.start()
         await targetEngine.start()
-        await sourceEngine.startUserSync(syncOwner, keys)
-        await targetEngine.startUserSync(syncOwner, keys)
 
         const created = await sourceEngine.createChannel(channelName, 'personal', {
           ownerAddress: syncOwner,
@@ -1335,15 +1275,16 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         sourceEngine.setChannelRemark(created.channelKey, '同步频道', {
           ownerAddress: syncOwner,
         })
-        replication = sourceEngine.replicateWith(targetEngine)
-
-        const syncedChannel = await waitForUserChannel(
-          targetEngine,
+        const importResult = await targetEngine.importUserData(
           syncOwner,
-          created.channelKey,
-          5000,
-          channel => channel.remark === '同步频道'
+          sourceEngine.exportUserData(syncOwner)
         )
+        assert.strictEqual(importResult.channelsAdded, 1)
+
+        const syncedChannel = targetEngine
+          .listChannels({ ownerAddress: syncOwner })
+          .find(channel => channel.channelKey === created.channelKey)
+        assert.ok(syncedChannel)
         assert.strictEqual(syncedChannel.remark, '同步频道')
         await targetEngine.sendMessage(
           syncedChannel.channelKey,
@@ -1360,7 +1301,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
           messages.some(message => message.content === 'from synced channel')
         )
       } finally {
-        replication?.close()
         if (sourceEngine) await sourceEngine.stop().catch(() => {})
         if (targetEngine) await targetEngine.stop().catch(() => {})
         fs.rmSync(syncTmpDir, { recursive: true, force: true })
