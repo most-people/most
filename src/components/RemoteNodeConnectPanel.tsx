@@ -1,18 +1,24 @@
 import { useState } from 'react'
-import { Server, Unplug } from 'lucide-react'
+import { CheckCircle2, History, Server, Unplug } from 'lucide-react'
 import { useAppStore } from '~/stores/useAppStore'
 import {
   checkBackendConnectionTarget,
   clearBackendConnection,
   configureBackend,
-  getBackendInviteExport,
-  getRemoteBackendUrlExport,
-  setBackendUrl,
+  getRemoteInviteExport,
+  getRemoteNodesExport,
+  getRemoteUrlExport,
 } from '~server/src/utils/api'
 import { useI18n } from '~/lib/i18n'
 
 interface RemoteNodeConnectPanelProps {
   variant?: 'page' | 'drawer'
+}
+
+interface RemoteNode {
+  url: string
+  invite: string
+  active?: boolean
 }
 
 function normalizeRemoteUrlInput(value: string) {
@@ -28,33 +34,54 @@ function isHttpUrl(value: string) {
   }
 }
 
+function formatRemoteNodeHost(value: string) {
+  try {
+    const url = new URL(value)
+    return url.host
+  } catch {
+    return value
+  }
+}
+
 export default function RemoteNodeConnectPanel({
   variant = 'page',
 }: RemoteNodeConnectPanelProps) {
   const checkBackend = useAppStore(s => s.checkBackend)
   const addToast = useAppStore(s => s.addToast)
-  const remoteBackendUrl = getRemoteBackendUrlExport()
-  const [remoteUrl, setRemoteUrl] = useState(remoteBackendUrl)
-  const [remoteInvite, setRemoteInvite] = useState(getBackendInviteExport())
+  const activeUrl = getRemoteUrlExport()
+  const [urlInput, setUrlInput] = useState(activeUrl)
+  const [inviteInput, setInviteInput] = useState(getRemoteInviteExport())
+  const [nodes, setNodes] = useState<RemoteNode[]>(() =>
+    getRemoteNodesExport()
+  )
   const [isConnecting, setIsConnecting] = useState(false)
   const { t } = useI18n()
-  const title = remoteBackendUrl
+  const title = activeUrl
     ? t('remote.title.edit')
     : t('remote.title.connect')
   const hint = t('remote.hint')
   const isPage = variant === 'page'
 
-  async function handleConnectRemote() {
-    const nextRemoteUrl = normalizeRemoteUrlInput(remoteUrl)
-    if (!isHttpUrl(nextRemoteUrl)) {
+  function refreshNodes() {
+    setNodes(getRemoteNodesExport())
+  }
+
+  async function connectRemote(url: string, invite: string) {
+    const nextUrl = normalizeRemoteUrlInput(url)
+    const nextInvite = invite.trim()
+
+    setUrlInput(nextUrl)
+    setInviteInput(nextInvite)
+
+    if (!isHttpUrl(nextUrl)) {
       addToast(t('remote.error.invalidUrl'), 'warning')
       return
     }
     setIsConnecting(true)
     try {
       const { ok, reason } = await checkBackendConnectionTarget({
-        url: nextRemoteUrl,
-        invite: remoteInvite,
+        url: nextUrl,
+        invite: nextInvite,
       })
       if (!ok) {
         if (reason === 'http') {
@@ -66,9 +93,8 @@ export default function RemoteNodeConnectPanel({
         }
         return
       }
-      configureBackend({ url: nextRemoteUrl, invite: remoteInvite })
-      setRemoteUrl(nextRemoteUrl)
-      setBackendUrl(nextRemoteUrl)
+      configureBackend({ url: nextUrl, invite: nextInvite })
+      refreshNodes()
       useAppStore.setState({ hasBackend: true })
       addToast(t('remote.connected'), 'success')
     } catch {
@@ -78,11 +104,17 @@ export default function RemoteNodeConnectPanel({
     }
   }
 
+  async function handleConnectRemote() {
+    await connectRemote(urlInput, inviteInput)
+  }
+
   async function handleDisconnectRemote() {
     clearBackendConnection()
-    setRemoteUrl('')
-    setRemoteInvite('')
+    setUrlInput('')
+    setInviteInput('')
+    refreshNodes()
     await checkBackend()
+    refreshNodes()
     addToast(t('remote.cleared'), 'success')
   }
 
@@ -110,28 +142,28 @@ export default function RemoteNodeConnectPanel({
         <input
           className="input input-compact"
           placeholder="https://node.example.com"
-          value={remoteUrl}
-          onChange={event => setRemoteUrl(event.target.value)}
+          value={urlInput}
+          onChange={event => setUrlInput(event.target.value)}
         />
         <input
           className="input input-compact"
           placeholder={t('remote.invite.placeholder')}
-          value={remoteInvite}
-          onChange={event => setRemoteInvite(event.target.value)}
+          value={inviteInput}
+          onChange={event => setInviteInput(event.target.value)}
         />
         <button
           className="btn btn-primary btn-full"
           onClick={handleConnectRemote}
-          disabled={isConnecting || !remoteUrl.trim()}
+          disabled={isConnecting || !urlInput.trim()}
         >
           <Server size={16} />
           {isConnecting
             ? t('remote.connecting')
-            : remoteBackendUrl
+            : activeUrl
               ? t('remote.updateConnection')
               : t('remote.connectNode')}
         </button>
-        {remoteBackendUrl && (
+        {activeUrl && (
           <button
             className="btn btn-secondary btn-full"
             onClick={handleDisconnectRemote}
@@ -142,10 +174,49 @@ export default function RemoteNodeConnectPanel({
           </button>
         )}
       </div>
-      {remoteBackendUrl && (
-        <p className={isPage ? 'remote-node-status' : 'drawer-status'}>
-          {t('remote.currentNode', { url: remoteBackendUrl })}
-        </p>
+      {nodes.length > 0 && (
+        <section
+          className="remote-node-history"
+          aria-label={t('remote.history.title')}
+        >
+          <div className="remote-node-history-title">
+            <History size={14} />
+            <span>{t('remote.history.title')}</span>
+          </div>
+          <div className="remote-node-list">
+            {nodes.map(node => {
+              const displayHost = formatRemoteNodeHost(node.url)
+
+              return (
+                <button
+                  key={node.url}
+                  type="button"
+                  className={[
+                    'remote-node-item',
+                    node.active ? 'remote-node-item-active' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                  onClick={() => connectRemote(node.url, node.invite)}
+                  disabled={isConnecting}
+                  title={t('remote.history.switchTo', { url: node.url })}
+                >
+                  <span className="remote-node-item-main">
+                    <span className="remote-node-host">{displayHost}</span>
+                  </span>
+                  {node.active ? (
+                    <span className="remote-node-badge">
+                      <CheckCircle2 size={12} />
+                      {t('remote.history.current')}
+                    </span>
+                  ) : (
+                    <Server className="remote-node-idle-icon" size={14} />
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </section>
       )}
     </div>
   )

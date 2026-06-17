@@ -16,6 +16,8 @@ import { createLoginIdentity } from '~server/src/utils/userIdentity.js'
 import {
   checkBackendConnectionTarget,
   configureBackend,
+  getBackendUrlExport,
+  getRemoteUrlExport,
 } from '~server/src/utils/api'
 import { channelApi } from '~/lib/channelApi'
 import { getUserChannelProfile } from '~/lib/userProfile'
@@ -129,6 +131,10 @@ function normalizeChannelRemark(value?: string) {
     .slice(0, CHANNEL_REMARK_MAX_LENGTH)
 }
 
+function normalizeBackendCandidate(value: string) {
+  return value.trim().replace(/\/+$/, '')
+}
+
 function ChatJoinContent() {
   const { t, setLocale } = useI18n()
   const searchStr = useLocation({ select: location => location.searchStr })
@@ -190,7 +196,15 @@ function ChatJoinContent() {
         setLocale(invite.locale)
       }
 
-      if (invite.node_url) {
+      const remoteUrl = getRemoteUrlExport()
+      const activeBackendUrl = getBackendUrlExport()
+      const isUsingRemote =
+        Boolean(remoteUrl) &&
+        hasBackend === true &&
+        normalizeBackendCandidate(activeBackendUrl) ===
+          normalizeBackendCandidate(remoteUrl)
+
+      if (invite.node_url && !isUsingRemote) {
         setStatus(translateForInvite('chatJoin.status.connectingRemote'))
         const result = await checkBackendConnectionTarget({
           url: invite.node_url,

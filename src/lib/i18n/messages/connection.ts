@@ -1,5 +1,5 @@
 export const zhCNConnectionMessages = {
-  'remote.title.edit': '修改远程节点',
+  'remote.title.edit': '当前远程节点',
   'remote.title.connect': '连接远程节点',
   'remote.hint':
     'Web 端只连接已有 MostBox 节点。输入别人部署好的节点地址和邀请码后，可通过该节点使用文件分享和聊天；本机完整 P2P 能力请使用桌面客户端。',
@@ -8,7 +8,9 @@ export const zhCNConnectionMessages = {
   'remote.updateConnection': '更新连接',
   'remote.connectNode': '连接节点',
   'remote.disconnect': '断开连接',
-  'remote.currentNode': '当前远程节点：{url}',
+  'remote.history.title': '历史节点',
+  'remote.history.current': '当前',
+  'remote.history.switchTo': '切换到 {url}',
   'remote.error.invalidUrl': '请输入有效的 http(s) 节点地址',
   'remote.error.http': '远程节点 HTTP 不可达，请检查地址',
   'remote.error.ws': '远程节点 WebSocket 不可达，请检查地址或代理配置',
@@ -26,7 +28,7 @@ export const zhCNConnectionMessages = {
 } as const
 
 export const zhTWConnectionMessages = {
-  'remote.title.edit': '修改遠端節點',
+  'remote.title.edit': '當前遠端節點',
   'remote.title.connect': '連線遠端節點',
   'remote.hint':
     'Web 端只連線已有 MostBox 節點。輸入別人部署好的節點地址和邀請碼後，可通過該節點使用檔案分享和聊天；本機完整 P2P 能力請使用桌面用戶端。',
@@ -35,7 +37,9 @@ export const zhTWConnectionMessages = {
   'remote.updateConnection': '更新連線',
   'remote.connectNode': '連線節點',
   'remote.disconnect': '斷開連線',
-  'remote.currentNode': '當前遠端節點：{url}',
+  'remote.history.title': '歷史節點',
+  'remote.history.current': '當前',
+  'remote.history.switchTo': '切換到 {url}',
   'remote.error.invalidUrl': '請輸入有效的 http(s) 節點地址',
   'remote.error.http': '遠端節點 HTTP 不可達，請檢查地址',
   'remote.error.ws': '遠端節點 WebSocket 不可達，請檢查地址或代理設定',
@@ -53,7 +57,7 @@ export const zhTWConnectionMessages = {
 } as const
 
 export const enConnectionMessages = {
-  'remote.title.edit': 'Edit remote node',
+  'remote.title.edit': 'Current remote node',
   'remote.title.connect': 'Connect remote node',
   'remote.hint':
     'The Web app only connects to an existing MostBox node. Enter a deployed node URL and invite code to use file sharing and chat through that node; use the desktop client for full local P2P capability.',
@@ -62,7 +66,9 @@ export const enConnectionMessages = {
   'remote.updateConnection': 'Update connection',
   'remote.connectNode': 'Connect node',
   'remote.disconnect': 'Disconnect',
-  'remote.currentNode': 'Current remote node: {url}',
+  'remote.history.title': 'Node history',
+  'remote.history.current': 'Current',
+  'remote.history.switchTo': 'Switch to {url}',
   'remote.error.invalidUrl': 'Please enter a valid http(s) node URL',
   'remote.error.http': 'The remote node HTTP endpoint is unreachable',
   'remote.error.ws':

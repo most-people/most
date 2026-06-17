@@ -9,10 +9,12 @@ import {
 import { create } from 'zustand'
 import {
   checkBackendConnectionTarget,
-  clearBackendConnection,
+  configureBackend,
   detectLocalhostBackend,
+  getRemoteInviteExport,
+  getRemoteUrlExport,
   setBackendUrl,
-  getConfiguredBackendUrlExport,
+  setBackendInvite,
   getSameOriginBackendUrlExport,
 } from '~server/src/utils/api'
 import { getNotes, putNotes } from '~/lib/notesDb'
@@ -131,34 +133,47 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Backend
   hasBackend: null,
   checkBackend: async () => {
-    const sameOrigin = getSameOriginBackendUrlExport()
-    if (sameOrigin) {
-      const { ok } = await checkBackendConnectionTarget({ url: sameOrigin })
+    const remoteUrl = getRemoteUrlExport()
+    if (remoteUrl) {
+      const remoteInvite = getRemoteInviteExport()
+      const { ok } = await checkBackendConnectionTarget({
+        url: remoteUrl,
+        invite: remoteInvite,
+      })
       if (ok) {
-        clearBackendConnection()
+        configureBackend({
+          url: remoteUrl,
+          invite: remoteInvite,
+        })
         set({ hasBackend: true })
         return
       }
-    }
-
-    const existing = getConfiguredBackendUrlExport()
-    if (existing) {
-      const { ok } = await checkBackendConnectionTarget({ url: existing })
-      if (ok) {
-        setBackendUrl(existing)
-        set({ hasBackend: true })
-        return
-      }
-      clearBackendConnection()
     }
 
     const localhost = await detectLocalhostBackend()
     if (localhost) {
       setBackendUrl('http://localhost:1976')
+      setBackendInvite('')
       set({ hasBackend: true })
-    } else {
-      set({ hasBackend: false })
+      return
     }
+
+    const sameOrigin = getSameOriginBackendUrlExport()
+    if (sameOrigin) {
+      const { ok } = await checkBackendConnectionTarget({ url: sameOrigin })
+      if (ok) {
+        setBackendUrl('')
+        setBackendInvite('')
+        set({ hasBackend: true })
+        return
+      }
+    }
+
+    if (!remoteUrl) {
+      setBackendUrl('')
+      setBackendInvite('')
+    }
+    set({ hasBackend: false })
   },
 
   // Theme

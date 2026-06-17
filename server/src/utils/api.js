@@ -3,7 +3,9 @@ import { buildAuthHeaders, normalizeAuthPath } from './auth.js'
 
 const STORAGE_KEY = 'mostbox_backend_url'
 const INVITE_STORAGE_KEY = 'mostbox_backend_invite'
+const REMOTE_NODES_KEY = 'mostbox_remote_nodes'
 const LOCALHOST_BACKEND_URL = 'http://localhost:1976'
+const MAX_REMOTE_NODES = 8
 
 function isLocalFrontendOrigin() {
   if (typeof window === 'undefined') return false
@@ -30,22 +32,136 @@ function getConfiguredBackendUrl() {
   return localStorage.getItem(STORAGE_KEY) || ''
 }
 
-function getRemoteBackendUrl() {
-  const configured = getConfiguredBackendUrl()
-  if (!configured) return ''
+function isRemoteBackendUrl(url) {
+  const configured = normalizeBackendUrl(url)
+  if (!configured) return false
+
   try {
     const { hostname } = new URL(configured)
-    return ['localhost', '127.0.0.1', '::1'].includes(hostname)
-      ? ''
-      : configured
+    const normalized = hostname.toLowerCase()
+    return !(
+      normalized === 'localhost' ||
+      normalized === '::1' ||
+      normalized === '[::1]' ||
+      normalized === '127.0.0.1' ||
+      normalized.startsWith('127.')
+    )
   } catch {
-    return configured
+    return true
   }
 }
 
 function getBackendInvite() {
   if (typeof window === 'undefined') return ''
   return localStorage.getItem(INVITE_STORAGE_KEY) || ''
+}
+
+function normalizeRemoteNode(input, fallback = {}) {
+  if (!input || typeof input !== 'object') return null
+
+  const url = normalizeBackendUrl(input.url)
+  if (!isRemoteBackendUrl(url)) return null
+
+  return {
+    url,
+    invite: typeof input.invite === 'string' ? input.invite.trim() : '',
+    active: input.active === true || fallback.active === true,
+    updatedAt: Number(input.updatedAt || fallback.updatedAt || Date.now()),
+  }
+}
+
+function uniqueRemoteNodes(nodes) {
+  const byUrl = new Map()
+  let activeUrl = ''
+
+  for (const node of nodes) {
+    const normalized = normalizeRemoteNode(node)
+    if (!normalized) continue
+
+    if (normalized.active && !activeUrl) {
+      activeUrl = normalized.url
+    } else if (normalized.active && activeUrl !== normalized.url) {
+      normalized.active = false
+    }
+
+    const existing = byUrl.get(normalized.url)
+    if (!existing || normalized.updatedAt >= existing.updatedAt) {
+      byUrl.set(normalized.url, {
+        ...existing,
+        ...normalized,
+        active: normalized.active || existing?.active === true,
+      })
+    }
+  }
+
+  return [...byUrl.values()]
+    .map(node => ({
+      ...node,
+      active: node.url === activeUrl || (!activeUrl && node.active === true),
+    }))
+    .sort((a, b) => {
+      if (a.active !== b.active) return a.active ? -1 : 1
+      return b.updatedAt - a.updatedAt
+    })
+    .slice(0, MAX_REMOTE_NODES)
+}
+
+function getRemoteNodes() {
+  if (typeof window === 'undefined') return []
+
+  const parsed = parseJsonText(localStorage.getItem(REMOTE_NODES_KEY))
+  const nodes = Array.isArray(parsed) ? parsed : []
+
+  const configured = getConfiguredBackendUrl()
+  if (isRemoteBackendUrl(configured)) {
+    nodes.push({
+      url: configured,
+      invite: getBackendInvite(),
+      active: true,
+      updatedAt: Date.now(),
+    })
+  }
+
+  return uniqueRemoteNodes(nodes)
+}
+
+function setRemoteNodes(nodes) {
+  if (typeof window === 'undefined') return
+
+  localStorage.setItem(
+    REMOTE_NODES_KEY,
+    JSON.stringify(uniqueRemoteNodes(nodes))
+  )
+}
+
+function getActiveRemoteNode() {
+  return getRemoteNodes().find(node => node.active) || null
+}
+
+function saveRemoteNode(url, invite = getBackendInvite(), active = true) {
+  const cleaned = normalizeBackendUrl(url)
+  if (!isRemoteBackendUrl(cleaned)) return
+
+  const nodes = getRemoteNodes().map(node => ({
+    ...node,
+    active: active ? false : node.active,
+  }))
+  nodes.unshift({
+    url: cleaned,
+    invite: (invite || '').trim(),
+    active,
+    updatedAt: Date.now(),
+  })
+  setRemoteNodes(nodes)
+}
+
+function clearActiveRemoteNode() {
+  setRemoteNodes(
+    getRemoteNodes().map(node => ({
+      ...node,
+      active: false,
+    }))
+  )
 }
 
 function normalizeBackendUrl(url) {
@@ -86,6 +202,15 @@ function getStoredIdentity() {
 
 function normalizePath(path) {
   return path.startsWith('/') ? path : `/${path}`
+}
+
+function parseJsonText(text) {
+  if (!text) return null
+  try {
+    return JSON.parse(text)
+  } catch {
+    return null
+  }
 }
 
 function getBackendAuthPath(url) {
@@ -208,6 +333,9 @@ export function setBackendUrl(url) {
   const cleaned = normalizeBackendUrl(url)
   if (cleaned) {
     localStorage.setItem(STORAGE_KEY, cleaned)
+    if (isRemoteBackendUrl(cleaned)) {
+      saveRemoteNode(cleaned)
+    }
   } else {
     localStorage.removeItem(STORAGE_KEY)
   }
@@ -227,11 +355,15 @@ export function setBackendInvite(invite) {
 export function configureBackend({ url, invite }) {
   setBackendUrl(url)
   setBackendInvite(invite)
+  saveRemoteNode(url, invite)
 }
 
 export function clearBackendConnection() {
   setBackendUrl('')
   setBackendInvite('')
+  if (typeof window !== 'undefined') {
+    clearActiveRemoteNode()
+  }
 }
 
 export function getBackendUrlExport() {
@@ -246,8 +378,16 @@ export function getSameOriginBackendUrlExport() {
   return getSameOriginBackendUrl()
 }
 
-export function getRemoteBackendUrlExport() {
-  return getRemoteBackendUrl()
+export function getRemoteUrlExport() {
+  return getActiveRemoteNode()?.url || ''
+}
+
+export function getRemoteInviteExport() {
+  return getActiveRemoteNode()?.invite || ''
+}
+
+export function getRemoteNodesExport() {
+  return getRemoteNodes()
 }
 
 export function getBackendInviteExport() {

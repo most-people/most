@@ -6,7 +6,13 @@ import {
   clearBackendConnection,
   configureBackend,
   getAuthenticatedWebSocketUrl,
+  getBackendUrlExport,
+  getRemoteInviteExport,
+  getRemoteNodesExport,
+  getRemoteUrlExport,
   getWebSocketUrl,
+  setBackendInvite,
+  setBackendUrl,
 } from '../../src/utils/api.js'
 import { verifyAuthHeader } from '../../src/utils/auth.js'
 
@@ -191,6 +197,64 @@ describe('api browser helpers', () => {
       const url = new URL(await getAuthenticatedWebSocketUrl('/ws'))
 
       assert.strictEqual(url.toString(), 'ws://127.0.0.1:1976/ws')
+    })
+  })
+
+  describe('remote node history', () => {
+    it('keeps an active remote node list when the backend falls back to localhost', () => {
+      configureBackend({
+        url: 'https://first.example.com/base',
+        invite: 'first-code',
+      })
+      configureBackend({
+        url: 'https://second.example.com/base',
+        invite: 'second-code',
+      })
+
+      setBackendUrl('http://localhost:1976')
+      setBackendInvite('')
+
+      assert.strictEqual(getBackendUrlExport(), 'http://localhost:1976')
+      assert.strictEqual(getRemoteUrlExport(), 'https://second.example.com/base')
+      assert.strictEqual(getRemoteInviteExport(), 'second-code')
+      assert.deepStrictEqual(
+        getRemoteNodesExport().map(node => ({
+          url: node.url,
+          invite: node.invite,
+          active: node.active,
+        })),
+        [
+          {
+            url: 'https://second.example.com/base',
+            invite: 'second-code',
+            active: true,
+          },
+          {
+            url: 'https://first.example.com/base',
+            invite: 'first-code',
+            active: false,
+          },
+        ]
+      )
+    })
+
+    it('keeps the node list but clears active remote on explicit disconnect', () => {
+      configureBackend({
+        url: 'https://node.example.com/base',
+        invite: 'invite-code',
+      })
+
+      clearBackendConnection()
+
+      assert.strictEqual(getRemoteUrlExport(), '')
+      assert.strictEqual(getRemoteInviteExport(), '')
+      assert.deepStrictEqual(
+        getRemoteNodesExport().map(node => ({
+          url: node.url,
+          active: node.active,
+        })),
+        [{ url: 'https://node.example.com/base', active: false }]
+      )
     })
   })
 

@@ -2360,6 +2360,116 @@
   gap: 8px;
 }
 
+.remote-node-history {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-color);
+}
+
+.remote-node-history-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.remote-node-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.remote-node-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px 8px 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--glass-bg-heavy) 52%, transparent);
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.remote-node-item::before {
+  position: absolute;
+  top: 9px;
+  bottom: 9px;
+  left: 0;
+  width: 3px;
+  border-radius: var(--radius-full);
+  background: transparent;
+  content: '';
+}
+
+.remote-node-item:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 8%, var(--glass-bg-heavy));
+  color: var(--text-primary);
+}
+
+.remote-node-item-active {
+  border-color: color-mix(in srgb, var(--accent) 18%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--glass-bg-heavy));
+  color: var(--text-primary);
+}
+
+.remote-node-item-active::before {
+  background: var(--accent);
+}
+
+.remote-node-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.remote-node-item-main {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.remote-node-host {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.remote-node-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  color: var(--success);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.remote-node-idle-icon {
+  color: var(--text-muted);
+  opacity: 0.72;
+}
+
 .drawer-status {
   font-size: 11px;
   margin-top: 8px;

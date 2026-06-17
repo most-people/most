@@ -827,6 +827,29 @@ describe('frontend smoke checks', () => {
     )
   })
 
+  it('prefers remote nodes before localhost and same-origin backends', () => {
+    const storeSource = readSource('src/stores/useAppStore.ts')
+    const checkStart = storeSource.indexOf('checkBackend: async () => {')
+    const checkEnd = storeSource.indexOf('\n  },\n\n  // Theme', checkStart)
+    const checkBackendSource = storeSource.slice(checkStart, checkEnd)
+    const remoteIndex = checkBackendSource.indexOf('getRemoteUrlExport')
+    const localhostIndex = checkBackendSource.indexOf('detectLocalhostBackend')
+    const sameOriginIndex = checkBackendSource.indexOf(
+      'getSameOriginBackendUrlExport'
+    )
+    const joinSource = readSource('src/features/chat/ChatJoinPage.tsx')
+    const remotePanelSource = readSource(SOURCE_PATHS.components.remoteNodePanel)
+
+    assert.ok(remoteIndex >= 0)
+    assert.ok(localhostIndex > remoteIndex)
+    assert.ok(sameOriginIndex > localhostIndex)
+    assert.doesNotMatch(checkBackendSource, /clearBackendConnection/)
+    assert.match(joinSource, /isUsingRemote/)
+    assert.match(joinSource, /invite\.node_url && !isUsingRemote/)
+    assert.match(remotePanelSource, /getRemoteNodesExport/)
+    assert.match(remotePanelSource, /remote\.history\.title/)
+  })
+
   it('hides download client entry points in the desktop client runtime', () => {
     const hookSource = readSource('src/hooks/index.ts')
     const navSource = readSource('src/components/Nav.tsx')
