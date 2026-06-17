@@ -860,7 +860,7 @@ describe('frontend smoke checks', () => {
     )
   })
 
-  it('prefers remote nodes before localhost and same-origin backends', () => {
+  it('prefers remote nodes before localhost and same-origin backends', async () => {
     const storeSource = readSource('src/stores/useAppStore.ts')
     const checkStart = storeSource.indexOf('checkBackend: async () => {')
     const checkEnd = storeSource.indexOf('\n  },\n\n  // Theme', checkStart)
@@ -872,13 +872,49 @@ describe('frontend smoke checks', () => {
     )
     const joinSource = readSource('src/features/chat/ChatJoinPage.tsx')
     const remotePanelSource = readSource(SOURCE_PATHS.components.remoteNodePanel)
+    const { shouldConnectChatJoinInviteNode } = await importBundledSource(
+      'src/lib/chatJoinRemote.ts'
+    )
 
     assert.ok(remoteIndex >= 0)
     assert.ok(localhostIndex > remoteIndex)
     assert.ok(sameOriginIndex > localhostIndex)
     assert.doesNotMatch(checkBackendSource, /clearBackendConnection/)
-    assert.match(joinSource, /isUsingRemote/)
-    assert.match(joinSource, /invite\.node_url && !isUsingRemote/)
+    assert.match(joinSource, /shouldConnectChatJoinInviteNode/)
+    assert.doesNotMatch(joinSource, /invite\.node_url && !isUsingRemote/)
+    assert.equal(
+      shouldConnectChatJoinInviteNode({
+        inviteNodeUrl: 'https://remote-b.example.com/base',
+        inviteNodeInvite: 'invite-b',
+        hasBackend: true,
+        activeBackendUrl: 'https://remote-a.example.com/base',
+        activeRemoteUrl: 'https://remote-a.example.com/base',
+        activeRemoteInvite: 'invite-a',
+      }),
+      true
+    )
+    assert.equal(
+      shouldConnectChatJoinInviteNode({
+        inviteNodeUrl: 'https://remote-b.example.com/base',
+        inviteNodeInvite: 'invite-b',
+        hasBackend: true,
+        activeBackendUrl: 'https://remote-b.example.com/base/',
+        activeRemoteUrl: 'https://remote-b.example.com/base',
+        activeRemoteInvite: 'invite-b',
+      }),
+      false
+    )
+    assert.equal(
+      shouldConnectChatJoinInviteNode({
+        inviteNodeUrl: 'https://remote-b.example.com/base',
+        inviteNodeInvite: 'invite-b',
+        hasBackend: true,
+        activeBackendUrl: 'https://remote-b.example.com/base',
+        activeRemoteUrl: 'https://remote-b.example.com/base',
+        activeRemoteInvite: 'invite-a',
+      }),
+      true
+    )
     assert.match(remotePanelSource, /getRemoteNodesExport/)
     assert.match(remotePanelSource, /remote\.history\.title/)
   })

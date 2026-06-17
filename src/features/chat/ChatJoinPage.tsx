@@ -16,6 +16,7 @@ import {
   checkBackendConnectionTarget,
   configureBackend,
   getBackendUrlExport,
+  getRemoteInviteExport,
   getRemoteUrlExport,
 } from '~server/src/utils/api'
 import { channelApi } from '~/lib/channelApi'
@@ -26,6 +27,7 @@ import {
   normalizeChatJoinInviteLocale,
   type ChatJoinInvitePayload,
 } from '~/lib/chatJoinInvite'
+import { shouldConnectChatJoinInviteNode } from '~/lib/chatJoinRemote'
 import {
   formatChatJoinTestInvite,
   getChatJoinTestInvite,
@@ -130,10 +132,6 @@ function normalizeChannelRemark(value?: string) {
     .slice(0, CHANNEL_REMARK_MAX_LENGTH)
 }
 
-function normalizeBackendCandidate(value: string) {
-  return value.trim().replace(/\/+$/, '')
-}
-
 function ChatJoinContent() {
   const { t, setLocale } = useI18n()
   const searchStr = useLocation({ select: location => location.searchStr })
@@ -195,14 +193,19 @@ function ChatJoinContent() {
       }
 
       const remoteUrl = getRemoteUrlExport()
+      const remoteInvite = getRemoteInviteExport()
       const activeBackendUrl = getBackendUrlExport()
-      const isUsingRemote =
-        Boolean(remoteUrl) &&
-        hasBackend === true &&
-        normalizeBackendCandidate(activeBackendUrl) ===
-          normalizeBackendCandidate(remoteUrl)
 
-      if (invite.node_url && !isUsingRemote) {
+      if (
+        shouldConnectChatJoinInviteNode({
+          inviteNodeUrl: invite.node_url,
+          inviteNodeInvite: invite.node_invite,
+          hasBackend,
+          activeBackendUrl,
+          activeRemoteUrl: remoteUrl,
+          activeRemoteInvite: remoteInvite,
+        })
+      ) {
         setStatus(translateForInvite('chatJoin.status.connectingRemote'))
         const result = await checkBackendConnectionTarget({
           url: invite.node_url,
