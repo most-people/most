@@ -251,30 +251,6 @@ npx most-box@latest
 
 在线 Web 入口只能连接已有节点；它本身不提供本机发布、下载校验或持续做种能力。
 
-## 路线图
-
-### v0.2.3（当前版本）
-
-- ✅ P2P 文件上传与下载
-- ✅ 确定性 CID 生成
-- ✅ 大文件流式传输
-- ✅ most:// 链接分享
-- ✅ Web UI 界面
-- ✅ P2P 频道聊天
-- ✅ 网络连通性测试
-- ✅ Electron 桌面客户端
-- ✅ 下载体验优化 - 检测是否可下载
-
-### 长期规划
-
-
-- [ ] P2P 多人视频/语音通话
-  - 基于 WebRTC 的端到端加密通话
-  - 频道内一键发起通话
-  - 屏幕共享与文字聊天
-- [ ] 浏览器扩展
-- [ ] 移动端支持（iOS/Android）
-
 ## 技术栈
 
 - **前端**: React 19, Vite, TanStack Start static prerender, TanStack Router, TypeScript, Zustand, Lucide React
@@ -288,8 +264,8 @@ npx most-box@latest
 发布新版本时，推送 tag 即可自动构建：
 
 ```bash
-git tag v0.2.3
-git push origin v0.2.3
+git tag vx.x.x
+git push origin vx.x.x
 ```
 
 触发后自动执行：
