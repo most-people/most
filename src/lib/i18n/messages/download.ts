@@ -38,6 +38,10 @@ export const zhCNDownloadMessages = {
   'download.platform.size': '大小',
   'download.platform.action': '下载 {ext}',
   'download.platform.current': '当前',
+  'download.platform.currentSystem': '当前系统',
+  'download.platform.recommended': '推荐下载',
+  'download.platform.matchedSystem': '已匹配你的设备',
+  'download.platform.otherPlatforms': '其他平台',
 } as const
 
 export const zhTWDownloadMessages = {
@@ -80,6 +84,10 @@ export const zhTWDownloadMessages = {
   'download.platform.size': '大小',
   'download.platform.action': '下載 {ext}',
   'download.platform.current': '當前',
+  'download.platform.currentSystem': '當前系統',
+  'download.platform.recommended': '推薦下載',
+  'download.platform.matchedSystem': '已匹配你的裝置',
+  'download.platform.otherPlatforms': '其他平臺',
 } as const
 
 export const enDownloadMessages = {
@@ -122,4 +130,8 @@ export const enDownloadMessages = {
   'download.platform.size': 'Size',
   'download.platform.action': 'Download {ext}',
   'download.platform.current': 'Current',
+  'download.platform.currentSystem': 'Current system',
+  'download.platform.recommended': 'Recommended download',
+  'download.platform.matchedSystem': 'Matched to your device',
+  'download.platform.otherPlatforms': 'Other platforms',
 } as const

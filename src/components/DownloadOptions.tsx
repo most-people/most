@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react'
-import { Apple, Cloud, Code, Download, Laptop, Monitor } from 'lucide-react'
+import {
+  Apple,
+  CheckCircle2,
+  Cloud,
+  Code,
+  Download,
+  Laptop,
+  Monitor,
+} from 'lucide-react'
 import { formatMegabytes } from '~/lib/format'
 import { useI18n } from '~/lib/i18n'
 
@@ -154,6 +162,10 @@ function detectCurrentKey() {
   return `windows:${arch}`
 }
 
+function getAssetKey(asset: DownloadAsset) {
+  return `${asset.platform}:${asset.arch}`
+}
+
 export default function DownloadOptions() {
   const { t } = useI18n()
   const [manifest, setManifest] = useState<DownloadManifest | null>(null)
@@ -211,6 +223,134 @@ export default function DownloadOptions() {
   const assets = installerAssets.length ? installerAssets : FALLBACK_ASSETS
   const hasR2Assets = assets.some(asset => asset.r2Url)
   const activeSource = downloadSource === 'r2' && hasR2Assets ? 'r2' : 'github'
+  const currentAsset = assets.find(asset => getAssetKey(asset) === currentKey)
+  const otherAssets = currentAsset
+    ? assets.filter(asset => getAssetKey(asset) !== currentKey)
+    : assets
+
+  const getAssetSourceLabel = (asset: DownloadAsset) =>
+    activeSource === 'r2' && asset.r2Url
+      ? t('download.source.r2Mirror')
+      : 'GitHub Releases'
+
+  const getAssetDownloadUrl = (asset: DownloadAsset) =>
+    activeSource === 'r2' && asset.r2Url ? asset.r2Url : asset.githubUrl
+
+  const renderCurrentAsset = (asset: DownloadAsset) => {
+    const meta = PLATFORM_META[asset.platform]
+    const Icon = meta.icon
+
+    return (
+      <article className="download-current-card">
+        <div className="download-current-main">
+          <div className="download-current-icon">
+            <Icon size={34} />
+          </div>
+          <div className="download-current-copy">
+            <div className="download-current-labels">
+              <span className="download-current-kicker">
+                <CheckCircle2 size={14} />
+                {t('download.platform.currentSystem')}
+              </span>
+              <span className="download-current-recommended">
+                {t('download.platform.recommended')}
+              </span>
+            </div>
+            <div className="download-current-heading">
+              <h3>{meta.name}</h3>
+              <span>{asset.arch}</span>
+            </div>
+            <p>{t(meta.descKey)}</p>
+            <dl className="download-current-meta">
+              <div>
+                <dt>{t('download.platform.source')}</dt>
+                <dd>{getAssetSourceLabel(asset)}</dd>
+              </div>
+              {asset.size ? (
+                <div>
+                  <dt>{t('download.platform.size')}</dt>
+                  <dd>{formatMegabytes(asset.size)}</dd>
+                </div>
+              ) : null}
+              {asset.cid ? (
+                <div>
+                  <dt>CID</dt>
+                  <dd>{asset.cid.slice(0, 12)}</dd>
+                </div>
+              ) : null}
+            </dl>
+          </div>
+        </div>
+        <div className="download-current-actions">
+          <span>{t('download.platform.matchedSystem')}</span>
+          <a href={getAssetDownloadUrl(asset)} className="btn btn-primary">
+            <Download size={17} />
+            {t('download.platform.action', { ext: meta.ext })}
+          </a>
+          <p>{getAssetSourceLabel(asset)}</p>
+        </div>
+      </article>
+    )
+  }
+
+  const renderAssetCard = (asset: DownloadAsset) => {
+    const meta = PLATFORM_META[asset.platform]
+    const Icon = meta.icon
+    const key = getAssetKey(asset)
+    const isCurrent = key === currentKey
+
+    return (
+      <article
+        key={key}
+        className={[
+          'download-platform-card',
+          isCurrent ? 'is-recommended' : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+      >
+        <div className="download-platform-icon">
+          <Icon size={32} />
+        </div>
+        <div className="download-platform-content">
+          <div className="download-platform-heading">
+            <h3>{meta.name}</h3>
+            <span>{asset.arch}</span>
+          </div>
+          <p>{t(meta.descKey)}</p>
+          <dl className="download-platform-meta">
+            <div>
+              <dt>{t('download.platform.source')}</dt>
+              <dd>{getAssetSourceLabel(asset)}</dd>
+            </div>
+            {asset.size ? (
+              <div>
+                <dt>{t('download.platform.size')}</dt>
+                <dd>{formatMegabytes(asset.size)}</dd>
+              </div>
+            ) : null}
+            {asset.cid ? (
+              <div>
+                <dt>CID</dt>
+                <dd>{asset.cid.slice(0, 12)}</dd>
+              </div>
+            ) : null}
+          </dl>
+          <div className="download-platform-actions">
+            <a href={getAssetDownloadUrl(asset)} className="btn btn-primary">
+              <Download size={16} />
+              {t('download.platform.action', { ext: meta.ext })}
+            </a>
+          </div>
+        </div>
+        {isCurrent ? (
+          <span className="download-recommended-badge">
+            {t('download.platform.current')}
+          </span>
+        ) : null}
+      </article>
+    )
+  }
 
   return (
     <div className="download-options">
@@ -258,71 +398,25 @@ export default function DownloadOptions() {
             : t('download.source.fallback')}
       </p>
 
-      <div className="download-platform-grid">
-        {assets.map(asset => {
-          const meta = PLATFORM_META[asset.platform]
-          const Icon = meta.icon
-          const key = `${asset.platform}:${asset.arch}`
-          const primaryUrl =
-            activeSource === 'r2' && asset.r2Url ? asset.r2Url : asset.githubUrl
-          const isCurrent = key === currentKey
+      {currentAsset ? (
+        <div
+          className="download-current-platform"
+          aria-label={t('download.platform.currentSystem')}
+        >
+          {renderCurrentAsset(currentAsset)}
+        </div>
+      ) : null}
 
-          return (
-            <article
-              key={key}
-              className={
-                isCurrent
-                  ? 'download-platform-card is-recommended'
-                  : 'download-platform-card'
-              }
-            >
-              <div className="download-platform-icon">
-                <Icon size={32} />
-              </div>
-              <div className="download-platform-content">
-                <div className="download-platform-heading">
-                  <h3>{meta.name}</h3>
-                  <span>{asset.arch}</span>
-                </div>
-                <p>{t(meta.descKey)}</p>
-                <dl className="download-platform-meta">
-                  <div>
-                    <dt>{t('download.platform.source')}</dt>
-                    <dd>
-                      {activeSource === 'r2' && asset.r2Url
-                        ? t('download.source.r2Mirror')
-                        : 'GitHub Releases'}
-                    </dd>
-                  </div>
-                  {asset.size ? (
-                    <div>
-                      <dt>{t('download.platform.size')}</dt>
-                      <dd>{formatMegabytes(asset.size)}</dd>
-                    </div>
-                  ) : null}
-                  {asset.cid ? (
-                    <div>
-                      <dt>CID</dt>
-                      <dd>{asset.cid.slice(0, 12)}</dd>
-                    </div>
-                  ) : null}
-                </dl>
-                <div className="download-platform-actions">
-                  <a href={primaryUrl} className="btn btn-primary">
-                    <Download size={16} />
-                    {t('download.platform.action', { ext: meta.ext })}
-                  </a>
-                </div>
-              </div>
-              {isCurrent ? (
-                <span className="download-recommended-badge">
-                  {t('download.platform.current')}
-                </span>
-              ) : null}
-            </article>
-          )
-        })}
-      </div>
+      {otherAssets.length ? (
+        <div className="download-other-platforms">
+          <p className="download-other-platforms-title">
+            {t('download.platform.otherPlatforms')}
+          </p>
+          <div className="download-platform-grid">
+            {otherAssets.map(asset => renderAssetCard(asset))}
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

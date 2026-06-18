@@ -76,6 +76,218 @@
   justify-self: center;
 }
 
+.download-current-platform {
+  display: grid;
+  justify-self: center;
+  width: min(100%, 860px);
+}
+
+.download-current-card {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 28px;
+  padding: 28px;
+  border: 1px solid rgba(94, 106, 210, 0.52);
+  border-radius: var(--radius-xl);
+  background:
+    radial-gradient(
+      circle at 92% 18%,
+      rgba(52, 199, 89, 0.16),
+      transparent 34%
+    ),
+    linear-gradient(
+      135deg,
+      rgba(94, 106, 210, 0.24),
+      rgba(90, 200, 250, 0.1) 42%,
+      var(--glass-bg-heavy)
+    );
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.22),
+    0 0 0 4px rgba(94, 106, 210, 0.12);
+}
+
+.download-current-card::before {
+  content: '';
+  position: absolute;
+  inset: 16px auto 16px 0;
+  width: 4px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(180deg, var(--accent), var(--success));
+}
+
+.download-current-main,
+.download-current-actions {
+  position: relative;
+  z-index: 1;
+}
+
+.download-current-main {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  min-width: 0;
+}
+
+.download-current-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 68px;
+  height: 68px;
+  border: 1px solid rgba(94, 106, 210, 0.32);
+  border-radius: var(--radius-lg);
+  background: rgba(94, 106, 210, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.download-current-copy {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.download-current-labels {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.download-current-kicker,
+.download-current-recommended,
+.download-current-actions span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.download-current-kicker {
+  gap: 6px;
+  color: var(--success);
+  background: rgba(52, 199, 89, 0.14);
+  border: 1px solid rgba(52, 199, 89, 0.28);
+}
+
+.download-current-recommended {
+  color: var(--text-secondary);
+  background: var(--glass-bg-subtle);
+  border: 1px solid var(--glass-border);
+}
+
+.download-current-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.download-current-heading h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 28px;
+  line-height: 1.1;
+  font-weight: 700;
+}
+
+.download-current-heading span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--glass-border);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.download-current-card p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.download-current-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, max-content));
+  gap: 10px 24px;
+  margin: 2px 0 0;
+}
+
+.download-current-meta div {
+  display: grid;
+  gap: 3px;
+}
+
+.download-current-meta dt,
+.download-current-meta dd {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.download-current-meta dt {
+  color: var(--text-muted);
+}
+
+.download-current-meta dd {
+  color: var(--text-primary);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.download-current-actions {
+  display: grid;
+  justify-items: end;
+  gap: 10px;
+  min-width: 188px;
+}
+
+.download-current-actions span {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid rgba(94, 106, 210, 0.34);
+}
+
+.download-current-actions .btn {
+  min-height: 50px;
+  padding-inline: 22px;
+  border-radius: var(--radius-lg);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.download-current-actions p {
+  max-width: 22ch;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: right;
+}
+
+.download-other-platforms {
+  display: grid;
+  gap: 12px;
+}
+
+.download-other-platforms-title {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
 .download-platform-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -281,6 +493,47 @@
   }
 
   .download-source-tabs {
+    width: 100%;
+  }
+
+  .download-current-card {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    gap: 20px;
+    padding: 24px 20px;
+  }
+
+  .download-current-main {
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .download-current-icon {
+    width: 54px;
+    height: 54px;
+    border-radius: var(--radius-md);
+  }
+
+  .download-current-heading h3 {
+    font-size: 22px;
+  }
+
+  .download-current-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .download-current-actions {
+    justify-items: stretch;
+    min-width: 0;
+  }
+
+  .download-current-actions span,
+  .download-current-actions p {
+    justify-self: flex-start;
+    text-align: left;
+  }
+
+  .download-current-actions .btn {
     width: 100%;
   }
 
