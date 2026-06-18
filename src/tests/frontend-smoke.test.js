@@ -953,8 +953,17 @@ describe('frontend smoke checks', () => {
       }),
       true
     )
-    assert.match(remotePanelSource, /getRemoteNodesExport/)
+    assert.match(remotePanelSource, /getNodeHistoryExport/)
     assert.match(remotePanelSource, /remote\.history\.title/)
+  })
+
+  it('lists localhost in the connection history panel without a special label', () => {
+    const remotePanelSource = readSource(SOURCE_PATHS.components.remoteNodePanel)
+
+    assert.match(remotePanelSource, /getNodeHistoryExport/)
+    assert.match(remotePanelSource, /formatRemoteNodeHost\(node\.url\)/)
+    assert.doesNotMatch(remotePanelSource, /remote\.history\.localNode/)
+    assert.doesNotMatch(remotePanelSource, /remote-node-url/)
   })
 
   it('hides download client entry points in the desktop client runtime', () => {

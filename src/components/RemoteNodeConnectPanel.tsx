@@ -5,8 +5,9 @@ import {
   checkBackendConnectionTarget,
   clearBackendConnection,
   configureBackend,
+  getBackendUrlExport,
   getRemoteInviteExport,
-  getRemoteNodesExport,
+  getNodeHistoryExport,
   getRemoteUrlExport,
 } from '~server/src/utils/api'
 import { useI18n } from '~/lib/i18n'
@@ -48,11 +49,18 @@ export default function RemoteNodeConnectPanel({
 }: RemoteNodeConnectPanelProps) {
   const checkBackend = useAppStore(s => s.checkBackend)
   const addToast = useAppStore(s => s.addToast)
-  const activeUrl = getRemoteUrlExport()
+  const hasBackend = useAppStore(s => s.hasBackend)
+  const activeBackendUrl = normalizeRemoteUrlInput(getBackendUrlExport())
+  const activeRemoteUrl = normalizeRemoteUrlInput(getRemoteUrlExport())
+  const activeUrl =
+    activeRemoteUrl && activeRemoteUrl === activeBackendUrl
+      ? activeRemoteUrl
+      : ''
+  const currentBackendUrl = hasBackend === true ? activeBackendUrl : ''
   const [urlInput, setUrlInput] = useState(activeUrl)
   const [inviteInput, setInviteInput] = useState(getRemoteInviteExport())
   const [nodes, setNodes] = useState<RemoteNode[]>(() =>
-    getRemoteNodesExport()
+    getNodeHistoryExport()
   )
   const [isConnecting, setIsConnecting] = useState(false)
   const { t } = useI18n()
@@ -63,7 +71,7 @@ export default function RemoteNodeConnectPanel({
   const isPage = variant === 'page'
 
   function refreshNodes() {
-    setNodes(getRemoteNodesExport())
+    setNodes(getNodeHistoryExport())
   }
 
   async function connectRemote(url: string, invite: string) {
@@ -186,6 +194,9 @@ export default function RemoteNodeConnectPanel({
           <div className="remote-node-list">
             {nodes.map(node => {
               const displayHost = formatRemoteNodeHost(node.url)
+              const isCurrentNode =
+                currentBackendUrl &&
+                normalizeRemoteUrlInput(node.url) === currentBackendUrl
 
               return (
                 <button
@@ -193,7 +204,7 @@ export default function RemoteNodeConnectPanel({
                   type="button"
                   className={[
                     'remote-node-item',
-                    node.active ? 'remote-node-item-active' : '',
+                    isCurrentNode ? 'remote-node-item-active' : '',
                   ]
                     .filter(Boolean)
                     .join(' ')}
@@ -204,7 +215,7 @@ export default function RemoteNodeConnectPanel({
                   <span className="remote-node-item-main">
                     <span className="remote-node-host">{displayHost}</span>
                   </span>
-                  {node.active ? (
+                  {isCurrentNode ? (
                     <span className="remote-node-badge">
                       <CheckCircle2 size={12} />
                       {t('remote.history.current')}

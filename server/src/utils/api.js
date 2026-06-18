@@ -164,6 +164,49 @@ function clearActiveRemoteNode() {
   )
 }
 
+function getLocalNodeHistoryItem(activeBackendUrl = getBackendUrl()) {
+  const normalizedActiveUrl = normalizeBackendUrl(activeBackendUrl)
+  const fallbackLocalUrl = getDefaultBackendUrl()
+  const localUrl = isLocalBackendUrl(normalizedActiveUrl)
+    ? normalizedActiveUrl
+    : fallbackLocalUrl
+
+  if (!isLocalBackendUrl(localUrl)) return null
+
+  const url = normalizeBackendUrl(localUrl)
+  return {
+    url,
+    invite: '',
+    active: url === normalizedActiveUrl,
+    local: true,
+    updatedAt: Number.MAX_SAFE_INTEGER,
+  }
+}
+
+function getNodeHistory() {
+  if (typeof window === 'undefined') return []
+
+  const activeBackendUrl = normalizeBackendUrl(getBackendUrl())
+  const localNode = getLocalNodeHistoryItem(activeBackendUrl)
+  const remoteNodes = getRemoteNodes().map((node, index) => ({
+    ...node,
+    active: normalizeBackendUrl(node.url) === activeBackendUrl,
+    local: false,
+    order: index + 1,
+  }))
+  const nodes = localNode
+    ? [{ ...localNode, order: 0 }, ...remoteNodes]
+    : remoteNodes
+
+  return nodes
+    .sort((a, b) => {
+      if (a.active !== b.active) return a.active ? -1 : 1
+      if (a.local !== b.local) return a.local ? -1 : 1
+      return a.order - b.order
+    })
+    .map(({ order: _order, ...node }) => node)
+}
+
 function normalizeBackendUrl(url) {
   return (url || '').trim().replace(/\/+$/, '')
 }
@@ -388,6 +431,10 @@ export function getRemoteInviteExport() {
 
 export function getRemoteNodesExport() {
   return getRemoteNodes()
+}
+
+export function getNodeHistoryExport() {
+  return getNodeHistory()
 }
 
 export function getBackendInviteExport() {

@@ -7,6 +7,7 @@ import {
   configureBackend,
   getAuthenticatedWebSocketUrl,
   getBackendUrlExport,
+  getNodeHistoryExport,
   getRemoteInviteExport,
   getRemoteNodesExport,
   getRemoteUrlExport,
@@ -201,6 +202,28 @@ describe('api browser helpers', () => {
   })
 
   describe('remote node history', () => {
+    it('includes the localhost node on a local frontend', () => {
+      installBrowserEnv({
+        hostname: 'localhost',
+        origin: 'http://localhost:3000',
+      })
+
+      assert.deepStrictEqual(
+        getNodeHistoryExport().map(node => ({
+          url: node.url,
+          active: node.active,
+          local: node.local,
+        })),
+        [
+          {
+            url: 'http://localhost:1976',
+            active: true,
+            local: true,
+          },
+        ]
+      )
+    })
+
     it('keeps an active remote node list when the backend falls back to localhost', () => {
       configureBackend({
         url: 'https://first.example.com/base',
@@ -233,6 +256,30 @@ describe('api browser helpers', () => {
             url: 'https://first.example.com/base',
             invite: 'first-code',
             active: false,
+          },
+        ]
+      )
+      assert.deepStrictEqual(
+        getNodeHistoryExport().map(node => ({
+          url: node.url,
+          active: node.active,
+          local: node.local,
+        })),
+        [
+          {
+            url: 'http://localhost:1976',
+            active: true,
+            local: true,
+          },
+          {
+            url: 'https://second.example.com/base',
+            active: false,
+            local: false,
+          },
+          {
+            url: 'https://first.example.com/base',
+            active: false,
+            local: false,
           },
         ]
       )
