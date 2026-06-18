@@ -865,6 +865,27 @@ describe('frontend smoke checks', () => {
     )
   })
 
+  it('auto joins requested chat channels after the channel list loads', () => {
+    const chatSource = readSource(SOURCE_PATHS.features.chat)
+
+    assert.ok(
+      chatSource.includes(
+        'const [hasLoadedChannels, setHasLoadedChannels] = useState(false)'
+      )
+    )
+    assert.match(chatSource, /autoJoinChannelAttemptsRef/)
+    assert.match(chatSource, /autoLoginPromptedChannelsRef/)
+    assert.match(
+      chatSource,
+      /if \(!isBackendReady \|\| !hasLoadedChannels\) return/
+    )
+    assert.match(
+      chatSource,
+      /autoJoinChannelAttemptsRef\.current\.has\(attemptKey\)/
+    )
+    assert.match(chatSource, /void handleJoinChannel\(requestedChannelName\)/)
+  })
+
   it('prefers remote nodes before localhost and same-origin backends', async () => {
     const storeSource = readSource('src/stores/useAppStore.ts')
     const checkStart = storeSource.indexOf('checkBackend: async () => {')

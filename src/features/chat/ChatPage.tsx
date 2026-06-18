@@ -82,6 +82,13 @@ function getChannelTitle(channel?: Pick<Channel, 'remark' | 'channelId' | 'name'
   return channel?.remark || getChannelId(channel)
 }
 
+function getRequestedChannelNameFromLocation() {
+  if (typeof window === 'undefined') return ''
+  return (
+    new URLSearchParams(window.location.search).get('channel') || ''
+  ).trim()
+}
+
 const CHAT_FILE_ROOT = 'chat-file'
 
 function getAttachmentKind(file: File, fileName: string): FileSubtype {
@@ -131,6 +138,7 @@ function ChatPage() {
   const [channels, setChannels] = useState<Channel[]>([])
   const [activeChannel, setActiveChannel] = useState<Channel | null>(null)
   const [requestedChannelName, setRequestedChannelName] = useState('')
+  const [hasLoadedChannels, setHasLoadedChannels] = useState(false)
   const [channelSearchInput, setChannelSearchInput] = useState('')
   const [channelInput, setChannelInput] = useState('')
   const [showJoinChannel, joinChannelModal] = useDisclosure(false)
@@ -167,6 +175,8 @@ function ChatPage() {
   const channelMessagesEndRef = useRef<HTMLDivElement>(null)
   const attachmentInputRef = useRef<HTMLInputElement>(null)
   const activeChannelNameRef = useRef('')
+  const autoJoinChannelAttemptsRef = useRef(new Set<string>())
+  const autoLoginPromptedChannelsRef = useRef(new Set<string>())
   const notificationAudioContextRef = useRef<AudioContext | null>(null)
   const notificationAudioUnlockedRef = useRef(false)
   const lastNotificationSoundAtRef = useRef(0)
@@ -431,9 +441,7 @@ function ChatPage() {
 
   useEffect(() => {
     const updateRequestedChannelName = () => {
-      setRequestedChannelName(
-        new URLSearchParams(window.location.search).get('channel') || ''
-      )
+      setRequestedChannelName(getRequestedChannelNameFromLocation())
     }
 
     updateRequestedChannelName()
@@ -444,9 +452,7 @@ function ChatPage() {
 
   useEffect(() => {
     if (!userIdentity) return
-    setRequestedChannelName(
-      new URLSearchParams(window.location.search).get('channel') || ''
-    )
+    setRequestedChannelName(getRequestedChannelNameFromLocation())
   }, [userIdentity?.address])
 
   useEffect(() => {
@@ -513,7 +519,10 @@ function ChatPage() {
 
   useEffect(() => {
     if (isBackendReady && userIdentity) {
+      setHasLoadedChannels(false)
       refreshChannels()
+    } else {
+      setHasLoadedChannels(false)
     }
   }, [hasBackend, isBackendReady, userIdentity?.address])
 
@@ -540,36 +549,74 @@ function ChatPage() {
   }, [activeChannel, refreshChannelMembers, showChannelDetail])
 
   useEffect(() => {
-    if (requestedChannelName && channels.length > 0) {
-      const found =
-        channels.find(c => getChannelKey(c) === requestedChannelName) ||
-        channels.find(c => getChannelId(c) === requestedChannelName)
-      if (
-        found &&
-        (!activeChannel || getChannelKey(activeChannel) !== getChannelKey(found))
-      ) {
-        handleOpenChannel(found)
-      } else if (
-        found &&
-        activeChannel &&
-        getChannelKey(activeChannel) === getChannelKey(found) &&
-        (activeChannel.createdAt !== found.createdAt ||
-          activeChannel.coreKey !== found.coreKey ||
-          activeChannel.lastMessageAt !== found.lastMessageAt ||
-          activeChannel.pinned !== found.pinned ||
-          activeChannel.remark !== found.remark ||
-          activeChannel.type !== found.type)
-      ) {
-        setActiveChannel(found)
+    if (!requestedChannelName) return
+
+    if (!userIdentity) {
+      if (!autoLoginPromptedChannelsRef.current.has(requestedChannelName)) {
+        autoLoginPromptedChannelsRef.current.add(requestedChannelName)
+        openLoginModal()
       }
+      return
     }
-  }, [channels, activeChannel, requestedChannelName])
+
+    if (!isBackendReady || !hasLoadedChannels) return
+
+    const found =
+      channels.find(c => getChannelKey(c) === requestedChannelName) ||
+      channels.find(c => getChannelId(c) === requestedChannelName)
+    if (
+      found &&
+      (!activeChannel || getChannelKey(activeChannel) !== getChannelKey(found))
+    ) {
+      handleOpenChannel(found)
+      return
+    }
+
+    if (
+      found &&
+      activeChannel &&
+      getChannelKey(activeChannel) === getChannelKey(found) &&
+      (activeChannel.createdAt !== found.createdAt ||
+        activeChannel.coreKey !== found.coreKey ||
+        activeChannel.lastMessageAt !== found.lastMessageAt ||
+        activeChannel.pinned !== found.pinned ||
+        activeChannel.remark !== found.remark ||
+        activeChannel.type !== found.type)
+    ) {
+      setActiveChannel(found)
+      return
+    }
+
+    if (found) return
+
+    const attemptKey = `${userIdentity.address}:${requestedChannelName}`
+    if (autoJoinChannelAttemptsRef.current.has(attemptKey)) return
+    if (isJoiningChannel) return
+
+    const validationError = getChannelNameValidationError(requestedChannelName)
+    autoJoinChannelAttemptsRef.current.add(attemptKey)
+    if (validationError) {
+      addToast(validationError, 'error')
+      return
+    }
+
+    void handleJoinChannel(requestedChannelName)
+  }, [
+    channels,
+    activeChannel,
+    requestedChannelName,
+    hasLoadedChannels,
+    isBackendReady,
+    isJoiningChannel,
+    userIdentity?.address,
+  ])
 
   useEffect(() => {
     if (userIdentity) return
     setChannels([])
+    setHasLoadedChannels(false)
     setActiveChannel(null)
-    setRequestedChannelName('')
+    setRequestedChannelName(getRequestedChannelNameFromLocation())
     setChannelToRename(null)
     clearChannelMessages()
     setChannelInput('')
@@ -604,12 +651,17 @@ function ChatPage() {
   }
 
   async function refreshChannels() {
-    if (!isBackendReady) return
+    if (!isBackendReady) {
+      setHasLoadedChannels(false)
+      return
+    }
     try {
       const result = await channelApi.getChannels()
       setChannels(result)
+      setHasLoadedChannels(true)
     } catch (err) {
       setChannels([])
+      setHasLoadedChannels(false)
       await showApiError(err, t('chat.error.channelList'))
     }
   }
