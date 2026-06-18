@@ -1499,62 +1499,69 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
     })
   })
 
-  describe('getChannelMembers()', () => {
-    it('stores channel members as profile objects', async () => {
+  describe('channel welcome messages', () => {
+    it('writes a normal welcome message with the joining profile snapshot', async () => {
       const ownerAddress = '0x1234567890abcdef1234567890abcdef12345678'
-      const channelName = `members-${uid}`
+      const channelName = `welcome-${uid}`
       await engine.createChannel(channelName, 'public', {
         ownerAddress,
         displayName: 'Alice#5678',
         avatar: 'data:image/png;base64,alice',
       })
 
-      const members = engine.getChannelMembers(channelName, { ownerAddress })
+      const messages = await engine.getChannelMessages(channelName, {
+        ownerAddress,
+      })
 
-      assert.deepStrictEqual(members, [
-        {
-          address: ownerAddress,
-          displayName: 'Alice#5678',
-          avatar: 'data:image/png;base64,alice',
-          joinedAt: members[0].joinedAt,
-        },
-      ])
-      assert.ok(new Date(members[0].joinedAt).getTime() > 0)
+      assert.strictEqual(messages.length, 1)
+      assert.strictEqual(messages[0].content, '我加入了群聊')
+      assert.strictEqual(messages[0].author, ownerAddress)
+      assert.strictEqual(messages[0].authorName, 'Alice#5678')
+      assert.strictEqual(messages[0].avatar, 'data:image/png;base64,alice')
     })
 
-    it('orders members by join time and refreshes profile fields', async () => {
+    it('does not repeat the welcome message for an existing member', async () => {
       const alice = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
-      const bob = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
-      const channelName = `member-order-${uid}`
+      const channelName = `welcome-once-${uid}`
       await engine.createChannel(channelName, 'public', {
         ownerAddress: alice,
         displayName: 'Alice',
       })
-      await new Promise(resolve => setTimeout(resolve, 5))
       await engine.createChannel(channelName, 'public', {
-        ownerAddress: bob,
-        displayName: 'Bob',
-        avatar: 'bob.png',
+        ownerAddress: alice,
+        displayName: 'Alice Fresh',
+        avatar: 'alice.png',
       })
-      await engine.sendMessage(channelName, 'hello', bob, 'Bobby', {
-        ownerAddress: bob,
-        avatar: 'bobby.png',
+      await engine.joinChannel(channelName, null, {
+        ownerAddress: alice,
+        displayName: 'Alice Again',
       })
 
-      const members = engine.getChannelMembers(channelName, {
+      const messages = await engine.getChannelMessages(channelName, {
         ownerAddress: alice,
       })
+      const welcomeMessages = messages.filter(
+        message => message.content === '我加入了群聊'
+      )
 
-      assert.deepStrictEqual(
-        members.map(member => member.address),
-        [alice, bob]
-      )
-      assert.strictEqual(members[1].displayName, 'Bobby')
-      assert.strictEqual(members[1].avatar, 'bobby.png')
-      assert.ok(
-        new Date(members[0].joinedAt).getTime() <=
-          new Date(members[1].joinedAt).getTime()
-      )
+      assert.strictEqual(welcomeMessages.length, 1)
+      assert.strictEqual(welcomeMessages[0].authorName, 'Alice')
+    })
+
+    it('does not write chat welcome messages for game channels', async () => {
+      const ownerAddress = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+      const channelName = gameRoomCodeToChannelName('gandengyan', `G${uid}`)
+      await engine.createChannel(channelName, GAME_CHANNEL_TYPE, {
+        ownerAddress,
+        displayName: 'Game User',
+        avatar: 'game.png',
+      })
+
+      const messages = await engine.getChannelMessages(channelName, {
+        ownerAddress,
+      })
+
+      assert.deepStrictEqual(messages, [])
     })
   })
 
@@ -1592,7 +1599,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.strictEqual(messages[0].content, 'Hello World')
     })
 
-    it('returns current channel member avatar with messages', async () => {
+    it('persists message author profile snapshots', async () => {
       const ch = `avatar-msg-${uid}`
       const author = '0x1234567890abcdef1234567890abcdef12345678'
       await msgEngine.createChannel(ch, 'personal', {
@@ -1615,7 +1622,9 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       const messages = await msgEngine.getChannelMessages(ch, {
         ownerAddress: author,
       })
-      assert.strictEqual(messages[0].avatar, 'data:image/png;base64,msg-avatar')
+      const message = messages.find(item => item.content === 'Hello Avatar')
+      assert.strictEqual(message.authorName, 'Avatar Sender')
+      assert.strictEqual(message.avatar, 'data:image/png;base64,msg-avatar')
 
       await msgEngine.createChannel(ch, 'personal', {
         ownerAddress: author,
@@ -1625,8 +1634,14 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       const refreshed = await msgEngine.getChannelMessages(ch, {
         ownerAddress: author,
       })
-      assert.strictEqual(refreshed[0].authorName, 'Fresh Sender')
-      assert.strictEqual(refreshed[0].avatar, '/avatars/default/mint.svg')
+      const refreshedMessage = refreshed.find(
+        item => item.content === 'Hello Avatar'
+      )
+      assert.strictEqual(refreshedMessage.authorName, 'Avatar Sender')
+      assert.strictEqual(
+        refreshedMessage.avatar,
+        'data:image/png;base64,msg-avatar'
+      )
 
       await msgEngine.createChannel(ch, 'personal', {
         ownerAddress: author,
@@ -1636,11 +1651,15 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       const cleared = await msgEngine.getChannelMessages(ch, {
         ownerAddress: author,
       })
-      assert.strictEqual(cleared[0].authorName, 'No Avatar Sender')
-      assert.strictEqual(cleared[0].avatar, undefined)
+      const clearedMessage = cleared.find(item => item.content === 'Hello Avatar')
+      assert.strictEqual(clearedMessage.authorName, 'Avatar Sender')
+      assert.strictEqual(
+        clearedMessage.avatar,
+        'data:image/png;base64,msg-avatar'
+      )
     })
 
-    it('profile sync refreshes saved profile metadata across chat and game channels', async () => {
+    it('profile sync does not rewrite saved chat and game message snapshots', async () => {
       const author = '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd'
       const roomCode = 'ABCD'
       const chatChannel = `profile-chat-${uid}`
@@ -1692,30 +1711,27 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       const chatMessages = await msgEngine.getChannelMessages(chatChannel, {
         ownerAddress: author,
       })
-      assert.strictEqual(chatMessages[0].authorName, freshProfile.displayName)
-      assert.strictEqual(chatMessages[0].avatar, freshProfile.avatar)
-
-      const chatMembers = msgEngine.getChannelMembers(chatChannel, {
-        ownerAddress: author,
-      })
-      assert.strictEqual(chatMembers[0].displayName, freshProfile.displayName)
-      assert.strictEqual(chatMembers[0].avatar, freshProfile.avatar)
+      const chatMessage = chatMessages.find(
+        message => message.content === 'hello profile'
+      )
+      assert.strictEqual(chatMessage.authorName, oldProfile.displayName)
+      assert.strictEqual(chatMessage.avatar, oldProfile.avatar)
 
       const gameMessages = await msgEngine.getChannelMessages(gameChannel, {
         ownerAddress: author,
       })
+      const gameMessage = gameMessages.find(
+        message => message.content === JSON.stringify(joinEvent)
+      )
+      assert.strictEqual(gameMessage.authorName, oldProfile.displayName)
+      assert.strictEqual(gameMessage.avatar, oldProfile.avatar)
+
       const lobby = deriveGameRoomLobby(gameMessages, {
         gameId: 'gandengyan',
         roomCode,
       })
-      assert.strictEqual(lobby.players[0].name, freshProfile.displayName)
-      assert.strictEqual(lobby.players[0].avatar, freshProfile.avatar)
-
-      const gameMembers = msgEngine.getChannelMembers(gameChannel, {
-        ownerAddress: author,
-      })
-      assert.strictEqual(gameMembers[0].displayName, freshProfile.displayName)
-      assert.strictEqual(gameMembers[0].avatar, freshProfile.avatar)
+      assert.strictEqual(lobby.players[0].name, oldProfile.displayName)
+      assert.strictEqual(lobby.players[0].avatar, oldProfile.avatar)
     })
 
     it('stores channel attachment metadata', async () => {

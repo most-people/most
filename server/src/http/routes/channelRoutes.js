@@ -72,18 +72,6 @@ export function registerChannelRoutes(app, { engine }) {
     }
   })
 
-  app.get('/api/channels/:name/members', c => {
-    try {
-      return c.json(
-        engine.getChannelMembers(c.req.param('name'), {
-          ownerAddress: c.get('userAddress'),
-        })
-      )
-    } catch (err) {
-      return badRequestOrAppError(c, err)
-    }
-  })
-
   app.post('/api/channels/:name/messages', async c => {
     const name = c.req.param('name')
     const body = await c.req.json()

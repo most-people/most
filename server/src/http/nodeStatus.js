@@ -260,12 +260,6 @@ export function buildOpenApiSpec(appPort) {
           responses: { 200: { description: 'Created channel message' } },
         },
       },
-      '/api/channels/{name}/members': {
-        get: {
-          summary: 'List P2P channel members',
-          responses: { 200: { description: 'Channel members' } },
-        },
-      },
       '/api/channels/{name}/peers': {
         get: {
           summary: 'List currently connected channel peers',

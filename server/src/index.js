@@ -93,6 +93,7 @@ import {
 } from './config.js'
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+const CHANNEL_WELCOME_MESSAGE = '我加入了群聊'
 
 function createMemoryDuplexPair() {
   let left
@@ -2462,6 +2463,7 @@ export class MostBoxEngine extends EventEmitter {
           channel => channel.channelKey === candidate.channelKey
         )
         if (existing) {
+          const wasMember = this.#channelHasMember(existing, ownerAddress)
           const writerKeysChanged = await this.#mergeChannelWriterCoreKeys(
             existing,
             candidate.writerCoreKeys
@@ -2472,6 +2474,7 @@ export class MostBoxEngine extends EventEmitter {
             this.#saveChannelsMetadata()
             this.#broadcastChannelHello()
           }
+          await this.#appendChannelWelcomeMessage(existing, options, wasMember)
           return this.#formatChannelForResponse(existing, ownerAddress)
         }
         const joined = await this.#joinChannelFromCandidate(
@@ -2528,6 +2531,7 @@ export class MostBoxEngine extends EventEmitter {
     const channelKey = buildChannelKey(channelId)
     const existing = this.#channels.find(c => c.channelKey === channelKey)
     if (existing) {
+      const wasMember = this.#channelHasMember(existing, options.ownerAddress)
       const writerKeysChanged = await this.#mergeChannelWriterCoreKeys(
         existing,
         candidate.writerCoreKeys
@@ -2538,6 +2542,7 @@ export class MostBoxEngine extends EventEmitter {
         this.#saveChannelsMetadata()
         this.#broadcastChannelHello()
       }
+      await this.#appendChannelWelcomeMessage(existing, options, wasMember)
       return this.#formatChannelForResponse(existing, options.ownerAddress)
     }
 
@@ -2730,14 +2735,6 @@ export class MostBoxEngine extends EventEmitter {
       .map(c => this.#formatChannelForResponse(c, ownerAddress))
   }
 
-  getChannelMembers(channelKeyInput, options = {}) {
-    this.#ensureInitialized()
-    this.#assertChannelMember(channelKeyInput, options.ownerAddress)
-    const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
-
-    return this.#getChannelMembers(channel)
-  }
-
   /**
    * 获取频道消息
    * @param {string} channelKeyInput - 内部频道 key，或本地唯一短频道 ID
@@ -2843,14 +2840,21 @@ export class MostBoxEngine extends EventEmitter {
       this.#saveChannelsMetadata()
     }
 
+    const normalizedAvatar = normalizeChannelAvatar(options.avatar)
     const message = {
       type: 'message',
       author,
-      authorName,
+      authorName: normalizeChannelDisplayName(
+        authorName,
+        normalizeOwnerAddress(author)
+      ),
       content: trimmed,
       timestamp: await this.#getNextChannelMessageTimestamp(
         channel.channelKey
       ),
+    }
+    if (normalizedAvatar) {
+      message.avatar = normalizedAvatar
     }
     if (attachment) {
       message.attachment = attachment
@@ -2977,6 +2981,7 @@ export class MostBoxEngine extends EventEmitter {
     await this.#joinChannelDiscoveryTopics(channelInfo)
     this.#cacheChannelCandidate(this.#channelToCandidate(channelInfo, true))
     this.#saveChannelsMetadata()
+    await this.#appendChannelWelcomeMessage(channelInfo, options, false)
     this.#broadcastChannelHello()
     return channelInfo
   }
@@ -2994,10 +2999,12 @@ export class MostBoxEngine extends EventEmitter {
       channel => channel.channelKey === channelKey
     )
     if (existing) {
+      const wasMember = this.#channelHasMember(existing, options.ownerAddress)
       if (this.#upsertChannelMember(existing, options)) {
         this.#saveChannelsMetadata()
         this.#broadcastChannelHello()
       }
+      await this.#appendChannelWelcomeMessage(existing, options, wasMember)
       return this.#formatChannelForResponse(existing, options.ownerAddress)
     }
 
@@ -3328,6 +3335,32 @@ export class MostBoxEngine extends EventEmitter {
     return true
   }
 
+  async #appendChannelWelcomeMessage(channel, options = {}, wasMember = false) {
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    if (
+      wasMember ||
+      !ownerAddress ||
+      !channel ||
+      TRANSIENT_CHANNEL_TYPES.has(channel.type)
+    ) {
+      return false
+    }
+
+    await this.sendMessage(
+      channel.channelKey,
+      CHANNEL_WELCOME_MESSAGE,
+      ownerAddress,
+      normalizeChannelDisplayName(options.displayName, ownerAddress),
+      {
+        ownerAddress,
+        ...(Object.prototype.hasOwnProperty.call(options, 'avatar')
+          ? { avatar: options.avatar }
+          : {}),
+      }
+    )
+    return true
+  }
+
   #getChannelMembers(channel) {
     const members = Array.isArray(channel?.members) ? channel.members : []
     return members
@@ -3392,14 +3425,11 @@ export class MostBoxEngine extends EventEmitter {
         authorAddress
       )
       const avatar = normalizeChannelAvatar(member.avatar)
-      if (displayName && baseMessage?.authorName !== displayName) {
+      if (displayName && !String(baseMessage?.authorName || '').trim()) {
         baseMessage = { ...baseMessage, authorName: displayName }
       }
-      if (avatar && baseMessage?.avatar !== avatar) {
+      if (avatar && !normalizeChannelAvatar(baseMessage?.avatar)) {
         baseMessage = { ...baseMessage, avatar }
-      } else if (!avatar && baseMessage?.avatar) {
-        baseMessage = { ...baseMessage }
-        delete baseMessage.avatar
       }
     }
     const attachment = baseMessage?.attachment

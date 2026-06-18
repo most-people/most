@@ -417,7 +417,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(spec.paths['/api/channels/{name}/messages'])
       assert.ok(spec.paths['/api/channels/{name}/messages'].get)
       assert.ok(spec.paths['/api/channels/{name}/messages'].post)
-      assert.ok(spec.paths['/api/channels/{name}/members'])
+      assert.strictEqual(spec.paths['/api/channels/{name}/members'], undefined)
       assert.ok(spec.paths['/api/channels/{name}/peers'])
       assert.ok(spec.paths['/api/channels/{name}/remark'])
       assert.ok(spec.paths['/api/channels/{name}/pin'])
@@ -1907,7 +1907,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(data.message.content, 'Hello!')
     })
 
-    it('updates channel member avatar when sending a message', async () => {
+    it('persists message author avatar snapshots', async () => {
       const channelName = `member-avatar-${uid}`
       await engine.createChannel(channelName)
       const res = await fetch(`${baseUrl}/api/channels/${channelName}/messages`, {
@@ -1924,21 +1924,17 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(res.status, 200)
       assert.strictEqual(data.message.avatar, 'data:image/png;base64,avatar')
 
-      const membersRes = await fetch(
-        `${baseUrl}/api/channels/${channelName}/members`
-      )
-      const members = await membersRes.json()
       const messagesRes = await fetch(
         `${baseUrl}/api/channels/${channelName}/messages`
       )
       const messages = await messagesRes.json()
+      const avatarMessage = messages.find(
+        message => message.content === 'avatar update'
+      )
 
-      assert.strictEqual(membersRes.status, 200)
-      assert.strictEqual(members.length, 1)
-      assert.strictEqual(members[0].displayName, 'AvatarUser')
-      assert.strictEqual(members[0].avatar, 'data:image/png;base64,avatar')
       assert.strictEqual(messagesRes.status, 200)
-      assert.strictEqual(messages[0].avatar, 'data:image/png;base64,avatar')
+      assert.strictEqual(avatarMessage.authorName, 'AvatarUser')
+      assert.strictEqual(avatarMessage.avatar, 'data:image/png;base64,avatar')
 
       const noAvatarRes = await fetch(
         `${baseUrl}/api/channels/${channelName}/messages`,
@@ -1953,14 +1949,21 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         }
       )
       assert.strictEqual(noAvatarRes.status, 200)
-      const unchangedMembersRes = await fetch(
-        `${baseUrl}/api/channels/${channelName}/members`
+      const latestMessagesRes = await fetch(
+        `${baseUrl}/api/channels/${channelName}/messages`
       )
-      const unchangedMembers = await unchangedMembersRes.json()
+      const latestMessages = await latestMessagesRes.json()
+      const persistedAvatarMessage = latestMessages.find(
+        message => message.content === 'avatar update'
+      )
+      const noAvatarMessage = latestMessages.find(
+        message => message.content === 'avatar unchanged'
+      )
       assert.strictEqual(
-        unchangedMembers[0].avatar,
+        persistedAvatarMessage.avatar,
         'data:image/png;base64,avatar'
       )
+      assert.strictEqual(noAvatarMessage.authorName, 'AvatarUser')
     })
 
     it('sends an attachment message to a channel', async () => {
@@ -2143,9 +2146,10 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const data = await res.json()
       assert.strictEqual(res.status, 200)
       assert.ok(Array.isArray(data))
-      assert.strictEqual(data.length, 2)
-      assert.strictEqual(data[0].content, 'msg1')
-      assert.strictEqual(data[1].content, 'msg2')
+      assert.deepStrictEqual(
+        data.map(message => message.content),
+        ['我加入了群聊', 'msg1', 'msg2']
+      )
     })
 
     it('blocks non-members from reading local channel history', async () => {
@@ -2168,13 +2172,15 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(data.code, 'PERMISSION_ERROR')
     })
 
-    it('returns empty array for channel with no messages', async () => {
+    it('returns the welcome message for a newly joined chat channel', async () => {
       await engine.createChannel(`empty-${uid}`)
       const res = await fetch(`${baseUrl}/api/channels/empty-${uid}/messages`)
       const data = await res.json()
       assert.strictEqual(res.status, 200)
       assert.ok(Array.isArray(data))
-      assert.strictEqual(data.length, 0)
+      assert.strictEqual(data.length, 1)
+      assert.strictEqual(data[0].content, '我加入了群聊')
+      assert.strictEqual(data[0].author, TEST_IDENTITY.address.toLowerCase())
     })
 
     it('supports pagination with limit and offset', async () => {
@@ -2197,8 +2203,8 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     })
   })
 
-  describe('GET /api/channels/:name/members', () => {
-    it('returns channel members ordered by join time', async () => {
+  describe('channel join history messages', () => {
+    it('records each new chat member with a welcome message snapshot', async () => {
       const channelName = `members-${uid}`
       const firstJoin = await fetch(`${baseUrl}/api/channels`, {
         method: 'POST',
@@ -2229,37 +2235,34 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       )
       assert.strictEqual(secondJoin.status, 200)
 
-      const res = await fetch(`${baseUrl}/api/channels/${channelName}/members`)
+      const res = await fetch(`${baseUrl}/api/channels/${channelName}/messages`)
       const data = await res.json()
+      const welcomeMessages = data.filter(
+        message => message.content === '我加入了群聊'
+      )
 
       assert.strictEqual(res.status, 200)
       assert.deepStrictEqual(
-        data.map(member => member.address),
+        welcomeMessages.map(message => message.author),
         [TEST_IDENTITY.address.toLowerCase(), SECOND_IDENTITY.address.toLowerCase()]
       )
-      assert.strictEqual(data[0].displayName, 'FirstUser')
-      assert.strictEqual(data[0].avatar, 'first.png')
-      assert.strictEqual(data[1].displayName, 'SecondUser')
-      assert.strictEqual(data[1].avatar, 'second.png')
-      assert.ok(new Date(data[0].joinedAt).getTime() > 0)
+      assert.strictEqual(welcomeMessages[0].authorName, 'FirstUser')
+      assert.strictEqual(welcomeMessages[0].avatar, 'first.png')
+      assert.strictEqual(welcomeMessages[1].authorName, 'SecondUser')
+      assert.strictEqual(welcomeMessages[1].avatar, 'second.png')
       assert.ok(
-        new Date(data[0].joinedAt).getTime() <=
-          new Date(data[1].joinedAt).getTime()
+        Number(welcomeMessages[0].timestamp) <=
+          Number(welcomeMessages[1].timestamp)
       )
     })
 
-    it('blocks non-members from reading channel members', async () => {
-      const channelName = `private-members-${uid}`
+    it('does not expose the old channel members endpoint', async () => {
+      const channelName = `removed-members-${uid}`
       await engine.createChannel(channelName)
 
-      const res = await fetchAs(
-        SECOND_IDENTITY,
-        `${baseUrl}/api/channels/${channelName}/members`
-      )
-      const data = await res.json()
+      const res = await fetch(`${baseUrl}/api/channels/${channelName}/members`)
 
-      assert.strictEqual(res.status, 403)
-      assert.strictEqual(data.code, 'PERMISSION_ERROR')
+      assert.strictEqual(res.status, 404)
     })
   })
 

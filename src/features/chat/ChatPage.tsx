@@ -44,7 +44,6 @@ import {
   channelApi,
   type Channel,
   type ChannelAttachment,
-  type ChannelMember,
   type ChannelMessage,
 } from '~/lib/channelApi'
 import { getFileSubtype, type FileSubtype } from '~/lib/filePreview'
@@ -162,8 +161,6 @@ function ChatPage() {
   >({})
   const [failedAttachment, setFailedAttachment] =
     useState<ChannelAttachment | null>(null)
-  const [channelMembers, setChannelMembers] = useState<ChannelMember[]>([])
-  const [isLoadingChannelMembers, setIsLoadingChannelMembers] = useState(false)
   const [showAddressSuffix, setShowAddressSuffix] = useState(false)
   const [hasInviteLogoError, setHasInviteLogoError] = useState(false)
   const [channelLastReadAt, setChannelLastReadAt] =
@@ -274,25 +271,6 @@ function ChatPage() {
     } catch {}
   }, [])
 
-  const refreshChannelMembers = useCallback(
-    async (channelKey = getChannelKey(activeChannel)) => {
-      if (!channelKey || !isBackendReady || !userIdentity) {
-        setChannelMembers([])
-        return
-      }
-      setIsLoadingChannelMembers(true)
-      try {
-        setChannelMembers(await channelApi.getChannelMembers(channelKey))
-      } catch (err) {
-        setChannelMembers([])
-        await showApiError(err, t('chat.error.members'))
-      } finally {
-        setIsLoadingChannelMembers(false)
-      }
-    },
-    [activeChannel, isBackendReady, showApiError, t, userIdentity]
-  )
-
   function handleChannelSocketEvent(event: string, data: any) {
     switch (event) {
       case 'channel:message': {
@@ -343,13 +321,11 @@ function ChatPage() {
       case 'channel:joined':
       case 'channel:left':
         void refreshChannels()
-        void refreshChannelMembers()
         break
 
       case 'user:metadata:updated':
         if (data?.scope === 'channels') {
           void refreshChannels()
-          void refreshChannelMembers(activeChannelNameRef.current)
         }
         break
 
@@ -426,6 +402,53 @@ function ChatPage() {
     onSocketEvent: handleChannelSocketEvent,
     onReconnect: refreshChannels,
   })
+
+  const channelMembers = useMemo(() => {
+    const membersByAuthor = new Map<
+      string,
+      {
+        address: string
+        displayName: string
+        avatar?: string
+        firstSeenAt: number
+        lastSeenAt: number
+        index: number
+      }
+    >()
+
+    channelMessages.forEach((message, index) => {
+      const address = String(message.author || '').trim()
+      if (!address) return
+      const key = address.toLowerCase()
+      const timestamp = Number(message.timestamp) || 0
+      const displayName = String(message.authorName || '').trim()
+      const avatar = String(message.avatar || '').trim()
+      const existing = membersByAuthor.get(key)
+
+      if (!existing) {
+        membersByAuthor.set(key, {
+          address,
+          displayName,
+          ...(avatar ? { avatar } : {}),
+          firstSeenAt: timestamp,
+          lastSeenAt: timestamp,
+          index,
+        })
+        return
+      }
+
+      if (timestamp >= existing.lastSeenAt) {
+        existing.lastSeenAt = timestamp
+        if (displayName) existing.displayName = displayName
+        if (avatar) existing.avatar = avatar
+      }
+    })
+
+    return [...membersByAuthor.values()].sort((a, b) => {
+      const timeDiff = a.firstSeenAt - b.firstSeenAt
+      return timeDiff || a.index - b.index
+    })
+  }, [channelMessages])
 
   function requireBackendReady() {
     if (isBackendReady) return true
@@ -532,21 +555,9 @@ function ChatPage() {
         const activeChannelKey = getChannelKey(activeChannel)
         void syncMessages(activeChannelKey, { replace: true })
         channelApi.getChannelPeers(activeChannelKey).catch(() => {})
-        void refreshChannelMembers(activeChannelKey)
       }
     }
-  }, [
-    activeChannel,
-    hasBackend,
-    isBackendReady,
-    refreshChannelMembers,
-    syncMessages,
-  ])
-
-  useEffect(() => {
-    if (!showChannelDetail || !activeChannel) return
-    void refreshChannelMembers(getChannelKey(activeChannel))
-  }, [activeChannel, refreshChannelMembers, showChannelDetail])
+  }, [activeChannel, hasBackend, isBackendReady, syncMessages])
 
   useEffect(() => {
     if (!requestedChannelName) return
@@ -623,7 +634,6 @@ function ChatPage() {
     setMyPeerId('')
     setShowChannelDetail(false)
     setPreviewItem(null)
-    setChannelMembers([])
     setAttachmentDownloadStatus({})
     setChannelLastReadAt({})
     activeAttachmentDownloadsRef.current.clear()
@@ -883,7 +893,6 @@ function ChatPage() {
       )
       joinChannelModal.close()
       await handleOpenChannel(joinedChannel)
-      void refreshChannelMembers(joinedChannelKey)
       refreshChannels()
     } catch (err) {
       await showApiError(err, t('chat.error.join'))
@@ -926,7 +935,6 @@ function ChatPage() {
           Number(sentMessage.timestamp) || Date.now()
         )
       }
-      void refreshChannelMembers(activeChannelKey)
       return true
     } catch (err) {
       await showApiError(err, t('chat.error.send'))
@@ -1085,7 +1093,6 @@ function ChatPage() {
   function renderChannelMembers() {
     return (
       <ChannelMemberGrid
-        isLoading={isLoadingChannelMembers}
         members={channelMembers.map(member => ({
           id: member.address,
           name: formatDisplayName(member.displayName, member.address),

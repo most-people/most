@@ -37,13 +37,6 @@ export interface Channel {
   pinned?: boolean
 }
 
-export interface ChannelMember {
-  address: string
-  displayName: string
-  avatar?: string
-  joinedAt: string
-}
-
 export interface SendMessageResult {
   message: ChannelMessage
 }
@@ -132,12 +125,6 @@ export const channelApi = {
             : { content, author, authorName, avatar },
         }
       )
-      .json()
-  },
-
-  getChannelMembers(name: string) {
-    return api
-      .get<ChannelMember[]>(`/api/channels/${encodeURIComponent(name)}/members`)
       .json()
   },
 

@@ -886,6 +886,18 @@ describe('frontend smoke checks', () => {
     assert.match(chatSource, /void handleJoinChannel\(requestedChannelName\)/)
   })
 
+  it('derives chat members from channel messages without the members API', () => {
+    const chatSource = readSource(SOURCE_PATHS.features.chat)
+    const channelApiSource = readSource('src/lib/channelApi.ts')
+
+    assert.match(chatSource, /const channelMembers = useMemo/)
+    assert.match(chatSource, /channelMessages\.forEach/)
+    assert.match(chatSource, /membersByAuthor/)
+    assert.doesNotMatch(chatSource, /getChannelMembers/)
+    assert.doesNotMatch(channelApiSource, /getChannelMembers/)
+    assert.doesNotMatch(channelApiSource, /interface ChannelMember/)
+  })
+
   it('prefers remote nodes before localhost and same-origin backends', async () => {
     const storeSource = readSource('src/stores/useAppStore.ts')
     const checkStart = storeSource.indexOf('checkBackend: async () => {')

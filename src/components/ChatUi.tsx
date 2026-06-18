@@ -199,20 +199,10 @@ export function ChatChannelNavItem({
 
 export function ChannelMemberGrid({
   members,
-  isLoading = false,
 }: {
   members: ChannelMemberView[]
-  isLoading?: boolean
 }) {
   const { t } = useI18n()
-
-  if (isLoading && members.length === 0) {
-    return (
-      <div className="ui-empty-inline channel-members-empty">
-        {t('chat.loadingMembers')}
-      </div>
-    )
-  }
 
   if (members.length === 0) {
     return (
