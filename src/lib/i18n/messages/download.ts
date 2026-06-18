@@ -41,7 +41,13 @@ export const zhCNDownloadMessages = {
   'download.platform.currentSystem': '当前系统',
   'download.platform.recommended': '推荐下载',
   'download.platform.matchedSystem': '已匹配你的设备',
-  'download.platform.otherPlatforms': '其他平台',
+  'download.platform.otherPlatforms': '桌面端',
+  'download.platform.mobilePlatforms': '移动端',
+  'download.platform.comingSoon': '敬请期待',
+  'download.platform.ios.name': 'iOS',
+  'download.platform.ios.desc': 'iPhone / iPad 客户端规划中',
+  'download.platform.android.name': '安卓',
+  'download.platform.android.desc': 'Android 手机和平板客户端规划中',
 } as const
 
 export const zhTWDownloadMessages = {
@@ -87,7 +93,13 @@ export const zhTWDownloadMessages = {
   'download.platform.currentSystem': '當前系統',
   'download.platform.recommended': '推薦下載',
   'download.platform.matchedSystem': '已匹配你的裝置',
-  'download.platform.otherPlatforms': '其他平臺',
+  'download.platform.otherPlatforms': '桌面端',
+  'download.platform.mobilePlatforms': '行動端',
+  'download.platform.comingSoon': '敬請期待',
+  'download.platform.ios.name': 'iOS',
+  'download.platform.ios.desc': 'iPhone / iPad 用戶端規劃中',
+  'download.platform.android.name': 'Android',
+  'download.platform.android.desc': 'Android 手機和平板用戶端規劃中',
 } as const
 
 export const enDownloadMessages = {
@@ -133,5 +145,11 @@ export const enDownloadMessages = {
   'download.platform.currentSystem': 'Current system',
   'download.platform.recommended': 'Recommended download',
   'download.platform.matchedSystem': 'Matched to your device',
-  'download.platform.otherPlatforms': 'Other platforms',
+  'download.platform.otherPlatforms': 'Desktop',
+  'download.platform.mobilePlatforms': 'Mobile',
+  'download.platform.comingSoon': 'Coming soon',
+  'download.platform.ios.name': 'iOS',
+  'download.platform.ios.desc': 'iPhone and iPad client is planned.',
+  'download.platform.android.name': 'Android',
+  'download.platform.android.desc': 'Android phone and tablet client is planned.',
 } as const

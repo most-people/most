@@ -7,6 +7,8 @@ import {
   Download,
   Laptop,
   Monitor,
+  Smartphone,
+  TabletSmartphone,
 } from 'lucide-react'
 import { formatMegabytes } from '~/lib/format'
 import { useI18n } from '~/lib/i18n'
@@ -109,6 +111,21 @@ const PLATFORM_META = {
     icon: Laptop,
   },
 } as const
+
+const MOBILE_PLATFORMS = [
+  {
+    key: 'ios',
+    nameKey: 'download.platform.ios.name',
+    descKey: 'download.platform.ios.desc',
+    icon: Smartphone,
+  },
+  {
+    key: 'android',
+    nameKey: 'download.platform.android.name',
+    descKey: 'download.platform.android.desc',
+    icon: TabletSmartphone,
+  },
+] as const
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -352,6 +369,25 @@ export default function DownloadOptions() {
     )
   }
 
+  const renderComingSoonCard = (platform: (typeof MOBILE_PLATFORMS)[number]) => {
+    const Icon = platform.icon
+
+    return (
+      <article key={platform.key} className="download-coming-soon-card">
+        <div className="download-platform-icon download-coming-soon-icon">
+          <Icon size={32} />
+        </div>
+        <div className="download-platform-content">
+          <div className="download-platform-heading">
+            <h3>{t(platform.nameKey)}</h3>
+            <span>{t('download.platform.comingSoon')}</span>
+          </div>
+          <p>{t(platform.descKey)}</p>
+        </div>
+      </article>
+    )
+  }
+
   return (
     <div className="download-options">
       <div
@@ -414,6 +450,14 @@ export default function DownloadOptions() {
           </p>
           <div className="download-platform-grid">
             {otherAssets.map(asset => renderAssetCard(asset))}
+          </div>
+          <div className="download-coming-soon">
+            <p className="download-coming-soon-title">
+              {t('download.platform.mobilePlatforms')}
+            </p>
+            <div className="download-coming-soon-grid">
+              {MOBILE_PLATFORMS.map(platform => renderComingSoonCard(platform))}
+            </div>
           </div>
         </div>
       ) : null}

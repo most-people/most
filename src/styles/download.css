@@ -79,7 +79,7 @@
 .download-current-platform {
   display: grid;
   justify-self: center;
-  width: min(100%, 860px);
+  width: 100%;
 }
 
 .download-current-card {
@@ -277,7 +277,7 @@
 
 .download-other-platforms {
   display: grid;
-  gap: 12px;
+  gap: 16px;
 }
 
 .download-other-platforms-title {
@@ -286,6 +286,49 @@
   font-size: 13px;
   font-weight: 700;
   text-align: center;
+}
+
+.download-coming-soon {
+  display: grid;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.download-coming-soon-title {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.download-coming-soon-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.download-coming-soon-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  min-height: 148px;
+  padding: 28px 24px;
+  border: 1px dashed var(--glass-border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--glass-bg-subtle);
+  color: var(--text-primary);
+}
+
+.download-coming-soon-card .download-platform-heading span {
+  color: var(--text-muted);
+  background: transparent;
+  border-style: dashed;
+}
+
+.download-coming-soon-icon {
+  color: var(--text-muted);
+  background: var(--glass-bg-subtle);
 }
 
 .download-platform-grid {
@@ -488,6 +531,11 @@
   }
 
   .download-platform-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .download-coming-soon-grid {
     grid-template-columns: 1fr;
     gap: 16px;
   }
