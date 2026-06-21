@@ -24,10 +24,13 @@ import {
   Radio,
 } from 'lucide-react-native'
 import { MockMostBoxCore } from './src/mobileCore/mockCore'
+import { BareWorkletMostBoxCore } from './src/mobileCore/workletClient'
 import { parseMostLink } from './src/mobileCore/protocol'
 import type { MobileCoreSnapshot, MostBoxMobileCore } from './src/mobileCore/types'
 
 const DEV_CID_MAX_BYTES = 20 * 1024 * 1024
+
+declare const require: (path: string) => unknown
 
 function formatBytes(size: number) {
   if (!Number.isFinite(size) || size <= 0) return '0 B'
@@ -59,20 +62,58 @@ function getNodeStatusLabel(status: MobileCoreSnapshot['node']['status']) {
   return 'Idle'
 }
 
+function loadBackendBundle() {
+  try {
+    const moduleValue = require('./app.bundle.mjs')
+    if (typeof moduleValue === 'string' || moduleValue instanceof Uint8Array) {
+      return moduleValue
+    }
+
+    if (moduleValue && typeof moduleValue === 'object') {
+      const defaultValue = (moduleValue as { default?: unknown }).default
+      if (typeof defaultValue === 'string' || defaultValue instanceof Uint8Array) {
+        return defaultValue
+      }
+    }
+  } catch {}
+
+  return null
+}
+
+function getCoreStoragePath() {
+  const baseUri = FileSystem.documentDirectory || FileSystem.cacheDirectory || ''
+  const storageUri = `${baseUri.replace(/\/$/, '')}/mostbox-core`
+  if (storageUri.startsWith('file://')) {
+    return decodeURIComponent(storageUri.slice('file://'.length))
+  }
+  return storageUri
+}
+
 export default function App() {
   const coreRef = useRef<MostBoxMobileCore | null>(null)
   const [snapshot, setSnapshot] = useState<MobileCoreSnapshot | null>(null)
   const [downloadLink, setDownloadLink] = useState('')
 
   if (!coreRef.current) {
-    coreRef.current = new MockMostBoxCore()
+    const backendBundle = loadBackendBundle()
+    coreRef.current = backendBundle
+      ? new BareWorkletMostBoxCore({
+          bundle: backendBundle,
+          storagePath: getCoreStoragePath(),
+        })
+      : new MockMostBoxCore()
   }
 
   const core = coreRef.current
 
   useEffect(() => {
     const unsubscribe = core.subscribe(setSnapshot)
-    void core.start()
+    void core.start().catch(error => {
+      Alert.alert(
+        'P2P core 启动失败',
+        error instanceof Error ? error.message : '请先运行 npm run bundle:core'
+      )
+    })
     return () => {
       unsubscribe()
       void core.stop()

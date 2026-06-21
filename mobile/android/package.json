@@ -5,12 +5,12 @@
   "type": "module",
   "main": "expo/AppEntry.js",
   "scripts": {
-    "start": "expo start --dev-client",
-    "android": "expo run:android",
-    "prebuild": "expo prebuild --platform android",
+    "start": "npm run bundle:core && expo start --dev-client",
+    "android": "npm run bundle:core && expo run:android",
+    "prebuild": "npm run bundle:core && expo prebuild --platform android",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --import tsx --test src/mobileCore/*.test.ts",
-    "bundle:core": "bare-pack --target android --linked backend/backend.mjs --out app.bundle.mjs"
+    "bundle:core": "bare-pack --preset android --linked --imports bare-pack-imports.cjs backend/backend.mjs --out app.bundle.mjs"
   },
   "dependencies": {
     "@react-native-clipboard/clipboard": "1.16.3",
