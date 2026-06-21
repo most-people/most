@@ -373,6 +373,14 @@
   overflow-wrap: anywhere;
 }
 
+.admin-holdings-row {
+  grid-template-columns:
+    minmax(160px, 1.25fr) minmax(150px, 1fr) minmax(110px, 0.7fr)
+    minmax(72px, 0.45fr) minmax(90px, 0.6fr) minmax(120px, 0.75fr)
+    minmax(110px, 0.7fr) minmax(130px, 0.8fr);
+  min-width: 1080px;
+}
+
 .admin-table-head {
   color: var(--text-secondary);
   font-size: 12px;

@@ -849,25 +849,40 @@ export default function AdminPage() {
                 </p>
               )}
               <div className="admin-table">
-                <div className="admin-table-row admin-table-head">
+                <div className="admin-table-row admin-table-head admin-holdings-row">
                   <span>{t('admin.holdings.file')}</span>
                   <span>CID</span>
                   <span>{t('admin.holdings.size')}</span>
-                  <span>Peer</span>
+                  <span>{t('admin.holdings.peers')}</span>
+                  <span>{t('admin.holdings.topicJoined')}</span>
                   <span>{t('admin.holdings.lastServed')}</span>
+                  <span>{t('admin.holdings.totalServed')}</span>
                   <span>{t('admin.holdings.status')}</span>
                 </div>
                 {visibleHoldings.map(holding => (
-                  <div className="admin-table-row" key={holding.cid}>
+                  <div
+                    className="admin-table-row admin-holdings-row"
+                    key={holding.cid}
+                  >
                     <span translate="no">{holding.fileName || '-'}</span>
                     <span title={holding.cid} translate="no">
                       {shortText(holding.cid)}
                     </span>
                     <span>{formatBytes(holding.size)}</span>
-                    <span>{holding.peerCount ?? 0}</span>
+                    <span>{formatNumber(holding.peerCount ?? 0)}</span>
+                    <span
+                      className={`admin-seed-pill ${
+                        holding.joined ? 'active' : ''
+                      }`}
+                    >
+                      {holding.joined
+                        ? t('admin.holdings.joinedYes')
+                        : t('admin.holdings.joinedNo')}
+                    </span>
                     <span title={holding.lastServedAt || ''}>
                       {formatRecentTime(holding.lastServedAt, t, locale)}
                     </span>
+                    <span>{formatBytes(holding.totalServedBytes || 0)}</span>
                     <span
                       className={`admin-seed-pill ${
                         holding.seedStatus === 'error'
