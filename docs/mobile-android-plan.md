@@ -56,6 +56,14 @@ Keet 值得参考的是产品和工程分层，而不是照搬聊天、通话或
 - P2P worker 使用 `bare-pack --target android --linked` 打包，优先验证 Android 真机可运行性。
 - UI 与 worker 之间使用命令和事件通信，避免把 HTTP/Hono/WebSocket server 搬进移动端。
 
+当前开发入口：
+
+- Android 工程：`mobile/android/`
+- UI 入口：`mobile/android/App.tsx`
+- 移动端 core 接口：`mobile/android/src/mobileCore/`
+- Bare Worklet 后端入口：`mobile/android/backend/backend.mjs`
+- 当前 UI 先接入开发占位 core；真实 Hyperswarm/Hyperdrive 发布下载在 Phase 1 接入。
+
 需要保留的 MostBox 协议不变量：
 
 - `most://<cid>?filename=...` 是原生分享链接格式。

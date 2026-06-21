@@ -33,6 +33,12 @@ nul
 .electron-builder-cache/
 .electron-builder-out/
 
+# Mobile app local outputs
+mobile/android/.expo/
+mobile/android/android/
+mobile/android/ios/
+mobile/android/app.bundle.mjs
+
 # macOS
 *.dmg
 *.app

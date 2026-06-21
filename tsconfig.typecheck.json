@@ -6,6 +6,7 @@
     "src/router.tsx",
     "src/routeTree.gen.ts",
     "src/routes",
-    "src/typecheck-stubs"
+    "src/typecheck-stubs",
+    "mobile"
   ]
 }

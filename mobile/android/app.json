@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "MostBox Android",
+    "slug": "mostbox-android",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "most",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "android": {
+      "package": "box.most.android",
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
+        "WAKE_LOCK"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "most"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
+    },
+    "plugins": [
+      "expo-document-picker"
+    ]
+  }
+}
