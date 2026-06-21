@@ -12,6 +12,8 @@ import {
 } from 'react-native'
 import * as Clipboard from 'expo-clipboard'
 import * as DocumentPicker from 'expo-document-picker'
+import * as FileSystem from 'expo-file-system/legacy'
+import b4a from 'b4a'
 import {
   Activity,
   Copy,
@@ -25,6 +27,8 @@ import { MockMostBoxCore } from './src/mobileCore/mockCore'
 import { parseMostLink } from './src/mobileCore/protocol'
 import type { MobileCoreSnapshot, MostBoxMobileCore } from './src/mobileCore/types'
 
+const DEV_CID_MAX_BYTES = 20 * 1024 * 1024
+
 function formatBytes(size: number) {
   if (!Number.isFinite(size) || size <= 0) return '0 B'
   const units = ['B', 'KB', 'MB', 'GB']
@@ -35,6 +39,16 @@ function formatBytes(size: number) {
     index += 1
   }
   return `${value.toFixed(index === 0 ? 0 : 1)} ${units[index]}`
+}
+
+async function readDevCidBytes(uri: string, size: number) {
+  if (size > DEV_CID_MAX_BYTES) return undefined
+
+  const base64 = await FileSystem.readAsStringAsync(uri, {
+    encoding: FileSystem.EncodingType.Base64,
+  })
+
+  return b4a.from(base64, 'base64')
 }
 
 function getNodeStatusLabel(status: MobileCoreSnapshot['node']['status']) {
@@ -86,12 +100,15 @@ export default function App() {
     if (result.canceled) return
     const file = result.assets[0]
     if (!file) return
+    const fileSize = file.size || 0
+    const contentBytes = await readDevCidBytes(file.uri, fileSize)
 
     await core.publishFile({
       uri: file.uri,
       name: file.name,
-      size: file.size || 0,
+      size: fileSize,
       mimeType: file.mimeType,
+      contentBytes,
     })
   }
 
@@ -191,7 +208,7 @@ export default function App() {
           />
           {parsedDownload ? (
             <Text style={styles.validationText}>
-              {parsedDownload.filename} · {parsedDownload.cid.slice(0, 16)}
+              {parsedDownload.fileName} · {parsedDownload.cid.slice(0, 16)}
             </Text>
           ) : null}
           <Pressable

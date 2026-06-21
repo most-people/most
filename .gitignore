@@ -25,6 +25,7 @@ most-data/
 # opencode
 .opencode/
 opencode.jsonc
+.tmp/android-build/
 
 # Windows artifacts
 nul
@@ -42,6 +43,10 @@ mobile/android/app.bundle.mjs
 # macOS
 *.dmg
 *.app
+
+# Android packages
+*.apk
+*.aab
 
 # Test temp directories
 server/tests/temp-write-test-*/

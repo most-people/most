@@ -1,4 +1,5 @@
-import { parseMostLink } from './protocol'
+import { calculateUnixfsCidFromBytes } from './cid'
+import { buildMostLink, parseMostLink } from './protocol'
 import type {
   CoreListener,
   DownloadLinkInput,
@@ -80,17 +81,57 @@ export class MockMostBoxCore implements MostBoxMobileCore {
     const transfer: MobileTransfer = {
       id: createId('publish'),
       kind: 'publish',
-      status: 'waitingCore',
+      status: input.contentBytes ? 'running' : 'waitingCore',
       fileName: input.name,
-      progress: 0,
-      message: '等待接入 Bare Worklet P2P core 后计算 CID 并做种',
+      progress: input.contentBytes ? 10 : 0,
+      message: input.contentBytes
+        ? '正在按 UnixFS CID v1 计算 CID'
+        : '等待接入 Bare Worklet P2P core 后流式计算 CID 并做种',
     }
 
     this.#snapshot.transfers = [transfer, ...this.#snapshot.transfers]
-    this.#log(
-      'warn',
-      `已接收 ${input.name}，真实发布将在 P2P core 接入后启用`
-    )
+    this.#emit()
+
+    if (!input.contentBytes) {
+      this.#log(
+        'warn',
+        `已接收 ${input.name}，真实发布将在 P2P core 接入后启用`
+      )
+      return transfer
+    }
+
+    try {
+      const result = await calculateUnixfsCidFromBytes(input.contentBytes)
+      const shareLink = buildMostLink(result.cid, input.name)
+
+      transfer.status = 'completed'
+      transfer.progress = 100
+      transfer.cid = result.cid
+      transfer.link = shareLink
+      transfer.message = 'CID 和 most:// 链接已生成，等待真实 P2P core 做种'
+
+      this.#snapshot.holdings = [
+        {
+          cid: result.cid,
+          fileName: input.name,
+          size: result.size || input.size,
+          status: 'queued',
+          topicJoined: false,
+          peerCount: 0,
+          source: 'published',
+          shareLink,
+        },
+        ...this.#snapshot.holdings.filter(holding => holding.cid !== result.cid),
+      ]
+
+      this.#log('info', `已生成 ${result.cid.slice(0, 16)} 的 most:// 链接`)
+    } catch (error) {
+      transfer.status = 'failed'
+      transfer.message =
+        error instanceof Error ? error.message : '移动端 CID 计算失败'
+      this.#log('error', transfer.message)
+    }
+
     this.#emit()
     return transfer
   }
@@ -101,7 +142,7 @@ export class MockMostBoxCore implements MostBoxMobileCore {
       id: createId('download'),
       kind: 'download',
       status: 'waitingCore',
-      fileName: parsed.filename,
+      fileName: parsed.fileName,
       cid: parsed.cid,
       link: input.link,
       progress: 0,

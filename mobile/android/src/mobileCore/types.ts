@@ -61,6 +61,7 @@ export type PublishFileInput = {
   name: string
   size: number
   mimeType?: string
+  contentBytes?: Uint8Array
 }
 
 export type DownloadLinkInput = {

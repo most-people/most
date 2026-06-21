@@ -7,6 +7,7 @@ export default [
     ignores: [
       'dist/**',
       'out/**',
+      '.tmp/**',
       '.tanstack/tmp/**',
       'node_modules/**',
     ],
