@@ -1,3 +1,9 @@
+import {
+  findCompatibleUpdateAsset,
+  isReleaseManifest,
+  resolveReleaseAssetDownload,
+} from '../server/src/core/releaseManifest.js'
+
 export const DEFAULT_RELEASE_MANIFEST_URL =
   'https://download.most.box/releases/latest.json'
 
@@ -43,35 +49,8 @@ export function isNewerVersion(candidateVersion, currentVersion) {
   return false
 }
 
-function isRecord(value) {
-  return typeof value === 'object' && value !== null
-}
-
-function hasDownloadUrl(asset) {
-  return typeof asset.r2Url === 'string' || typeof asset.githubUrl === 'string'
-}
-
 export function findUpdateAsset(manifest, platform, arch) {
-  if (!isRecord(manifest) || !Array.isArray(manifest.assets)) return null
-
-  const compatibleAssets = manifest.assets.filter(
-    asset =>
-      isRecord(asset) &&
-      asset.platform === platform &&
-      asset.arch === arch &&
-      (asset.kind === 'updater' || asset.kind === 'installer') &&
-      typeof asset.cid === 'string' &&
-      hasDownloadUrl(asset) &&
-      (typeof asset.githubUrl === 'string' ||
-        typeof asset.githubUrl === 'undefined') &&
-      (typeof asset.r2Url === 'string' || typeof asset.r2Url === 'undefined')
-  )
-
-  return (
-    compatibleAssets.find(asset => asset.kind === 'updater') ||
-    compatibleAssets.find(asset => asset.kind === 'installer') ||
-    null
-  )
+  return findCompatibleUpdateAsset(manifest, platform, arch)
 }
 
 export function formatBytes(size) {
@@ -87,8 +66,7 @@ export function getAvailableUpdate(manifest, options = {}) {
   const arch = options.arch
 
   if (
-    !isRecord(manifest) ||
-    typeof manifest.version !== 'string' ||
+    !isReleaseManifest(manifest) ||
     !isNewerVersion(manifest.version, currentVersion)
   ) {
     return null
@@ -97,7 +75,8 @@ export function getAvailableUpdate(manifest, options = {}) {
   const asset = findUpdateAsset(manifest, platform, arch)
   if (!asset) return null
 
-  const downloadUrl = asset.r2Url || asset.githubUrl
+  const { url: downloadUrl } = resolveReleaseAssetDownload(asset, 'r2')
+  if (!downloadUrl) return null
 
   return {
     version: manifest.version,

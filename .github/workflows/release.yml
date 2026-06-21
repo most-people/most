@@ -32,6 +32,9 @@ jobs:
       - name: Run frontend smoke tests
         run: npm run test:frontend
 
+      - name: Run desktop update tests
+        run: npm run test:desktop
+
       - name: Typecheck
         run: npm run typecheck
 

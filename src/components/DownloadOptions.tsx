@@ -10,86 +10,27 @@ import {
   Smartphone,
   TabletSmartphone,
 } from 'lucide-react'
+import {
+  getReleaseAssetKey,
+  isReleaseManifest,
+} from '~server/src/core/releaseManifest.js'
+import {
+  getDownloadOptionsState,
+  getReleaseManifestUrl,
+  resolveDownloadAsset,
+  type DownloadAsset,
+  type DownloadManifest,
+  type DownloadSource,
+} from '~/lib/downloadOptions'
 import { formatMegabytes } from '~/lib/format'
 import { useI18n } from '~/lib/i18n'
 
-type DownloadPlatform = 'windows' | 'macos' | 'linux'
-type DownloadArch = 'x64' | 'arm64'
-type DownloadSource = 'r2' | 'github'
-
-type DownloadAsset = {
-  platform: DownloadPlatform
-  arch: DownloadArch
-  kind: 'installer' | 'updater'
-  filename: string
-  size?: number
-  cid?: string
-  r2Url?: string
-  githubUrl: string
-}
-
-type DownloadManifest = {
-  version: string
-  publishedAt: string
-  assets: DownloadAsset[]
-}
-
 type DownloadStatus = 'loading' | 'ready' | 'fallback'
 
-const GITHUB_LATEST_URL = 'https://github.com/most-people/most/releases/latest'
-
-const DEFAULT_R2_PUBLIC_BASE_URL = 'https://download.most.box'
-
-const RELEASE_MANIFEST_URL =
-  import.meta.env.VITE_RELEASE_MANIFEST_URL ||
-  `${(
-    import.meta.env.VITE_R2_PUBLIC_BASE_URL || DEFAULT_R2_PUBLIC_BASE_URL
-  ).replace(/\/+$/, '')}/releases/latest.json`
-
-const FALLBACK_ASSETS: DownloadAsset[] = [
-  {
-    platform: 'windows',
-    arch: 'x64',
-    kind: 'installer',
-    filename: 'GitHub Releases',
-    githubUrl: GITHUB_LATEST_URL,
-  },
-  {
-    platform: 'windows',
-    arch: 'arm64',
-    kind: 'installer',
-    filename: 'GitHub Releases',
-    githubUrl: GITHUB_LATEST_URL,
-  },
-  {
-    platform: 'macos',
-    arch: 'x64',
-    kind: 'installer',
-    filename: 'GitHub Releases',
-    githubUrl: GITHUB_LATEST_URL,
-  },
-  {
-    platform: 'macos',
-    arch: 'arm64',
-    kind: 'installer',
-    filename: 'GitHub Releases',
-    githubUrl: GITHUB_LATEST_URL,
-  },
-  {
-    platform: 'linux',
-    arch: 'x64',
-    kind: 'installer',
-    filename: 'GitHub Releases',
-    githubUrl: GITHUB_LATEST_URL,
-  },
-  {
-    platform: 'linux',
-    arch: 'arm64',
-    kind: 'installer',
-    filename: 'GitHub Releases',
-    githubUrl: GITHUB_LATEST_URL,
-  },
-]
+const RELEASE_MANIFEST_URL = getReleaseManifestUrl({
+  VITE_RELEASE_MANIFEST_URL: import.meta.env.VITE_RELEASE_MANIFEST_URL,
+  VITE_R2_PUBLIC_BASE_URL: import.meta.env.VITE_R2_PUBLIC_BASE_URL,
+})
 
 const PLATFORM_META = {
   windows: {
@@ -127,32 +68,6 @@ const MOBILE_PLATFORMS = [
   },
 ] as const
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
-
-function isDownloadAsset(value: unknown): value is DownloadAsset {
-  if (!isRecord(value)) return false
-
-  return (
-    ['windows', 'macos', 'linux'].includes(String(value.platform)) &&
-    ['x64', 'arm64'].includes(String(value.arch)) &&
-    (value.kind === 'installer' || value.kind === 'updater') &&
-    typeof value.filename === 'string' &&
-    typeof value.githubUrl === 'string' &&
-    (typeof value.r2Url === 'string' || typeof value.r2Url === 'undefined')
-  )
-}
-
-function isDownloadManifest(value: unknown): value is DownloadManifest {
-  if (!isRecord(value)) return false
-  if (typeof value.version !== 'string') return false
-  if (typeof value.publishedAt !== 'string') return false
-  if (!Array.isArray(value.assets)) return false
-
-  return value.assets.every(isDownloadAsset)
-}
-
 function getNavigatorPlatform() {
   const navigatorWithData = navigator as Navigator & {
     userAgentData?: { platform?: string }
@@ -177,10 +92,6 @@ function detectCurrentKey() {
   if (/mac|darwin/.test(platform)) return `macos:${arch}`
   if (/linux/.test(platform)) return `linux:${arch}`
   return `windows:${arch}`
-}
-
-function getAssetKey(asset: DownloadAsset) {
-  return `${asset.platform}:${asset.arch}`
 }
 
 export default function DownloadOptions() {
@@ -212,10 +123,10 @@ export default function DownloadOptions() {
         return response.json()
       })
       .then(data => {
-        if (!isDownloadManifest(data)) {
+        if (!isReleaseManifest(data)) {
           throw new Error('Invalid download manifest')
         }
-        setManifest(data)
+        setManifest(data as DownloadManifest)
         setStatus('ready')
       })
       .catch(error => {
@@ -235,23 +146,24 @@ export default function DownloadOptions() {
     }
   }, [status])
 
-  const installerAssets =
-    manifest?.assets.filter(asset => asset.kind === 'installer') || []
-  const assets = installerAssets.length ? installerAssets : FALLBACK_ASSETS
-  const hasR2Assets = assets.some(asset => asset.r2Url)
-  const activeSource = downloadSource === 'r2' && hasR2Assets ? 'r2' : 'github'
-  const currentAsset = assets.find(asset => getAssetKey(asset) === currentKey)
-  const otherAssets = currentAsset
-    ? assets.filter(asset => getAssetKey(asset) !== currentKey)
-    : assets
+  const {
+    currentAsset,
+    otherAssets,
+    hasR2Assets,
+    activeSource,
+  } = getDownloadOptionsState({
+    manifest,
+    currentKey,
+    requestedSource: downloadSource,
+  })
 
   const getAssetSourceLabel = (asset: DownloadAsset) =>
-    activeSource === 'r2' && asset.r2Url
+    resolveDownloadAsset(asset, activeSource).source === 'r2'
       ? t('download.source.r2Mirror')
       : 'GitHub Releases'
 
   const getAssetDownloadUrl = (asset: DownloadAsset) =>
-    activeSource === 'r2' && asset.r2Url ? asset.r2Url : asset.githubUrl
+    resolveDownloadAsset(asset, activeSource).url
 
   const renderCurrentAsset = (asset: DownloadAsset) => {
     const meta = PLATFORM_META[asset.platform]
@@ -313,7 +225,7 @@ export default function DownloadOptions() {
   const renderAssetCard = (asset: DownloadAsset) => {
     const meta = PLATFORM_META[asset.platform]
     const Icon = meta.icon
-    const key = getAssetKey(asset)
+    const key = getReleaseAssetKey(asset)
     const isCurrent = key === currentKey
 
     return (

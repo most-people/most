@@ -192,7 +192,10 @@ describe('frontend smoke checks', () => {
   })
 
   it('lets users choose R2 or GitHub download sources', () => {
-    const source = readSource('src/components/DownloadOptions.tsx')
+    const source = [
+      readSource('src/components/DownloadOptions.tsx'),
+      readSource('src/lib/downloadOptions.ts'),
+    ].join('\n')
 
     assert.match(source, /VITE_RELEASE_MANIFEST_URL/)
     assert.match(source, /VITE_R2_PUBLIC_BASE_URL/)
@@ -202,6 +205,81 @@ describe('frontend smoke checks', () => {
     assert.match(source, /Cloudflare R2/)
     assert.match(source, /GitHub Releases/)
     assert.match(source, /role="tablist"/)
+  })
+
+  it('selects current-system release resources with GitHub fallback', async () => {
+    const {
+      getDownloadOptionsState,
+      getReleaseManifestUrl,
+    } = await importBundledSource('src/lib/downloadOptions.ts')
+    const manifest = {
+      version: '0.2.0',
+      publishedAt: '2026-06-02T00:00:00.000Z',
+      assets: [
+        {
+          platform: 'windows',
+          arch: 'x64',
+          kind: 'updater',
+          filename: 'MostBox-0.2.0-win-x64-setup.exe',
+          size: 113246208,
+          cid: 'bafkreih7l2lwv34xse23634mj5g6d63ovfjhyo5hb2h4lng2hhsxp6wh6q',
+          r2Url:
+            'https://download.most.box/releases/v0.2.0/MostBox-0.2.0-win-x64-setup.exe',
+          githubUrl:
+            'https://github.com/most-people/most/releases/download/v0.2.0/MostBox-0.2.0-win-x64-setup.exe',
+        },
+        {
+          platform: 'windows',
+          arch: 'x64',
+          kind: 'installer',
+          filename: 'MostBox-0.2.0-win-x64-setup.exe',
+          size: 113246208,
+          cid: 'bafkreibax3b55elk3vr76ejckvn32ucdogkiq5kkwu5vuxgmccf2hdhbiq',
+          r2Url:
+            'https://download.most.box/releases/v0.2.0/MostBox-0.2.0-win-x64-setup.exe',
+          githubUrl:
+            'https://github.com/most-people/most/releases/download/v0.2.0/MostBox-0.2.0-win-x64-setup.exe',
+        },
+        {
+          platform: 'linux',
+          arch: 'x64',
+          kind: 'installer',
+          filename: 'MostBox-0.2.0-linux-x86_64.AppImage',
+          size: 124780544,
+          cid: 'bafkreig6cnqx3ee7sxd35w25kapmwfxcnoofkrtevizwnfmdqpiksnh5ni',
+          githubUrl:
+            'https://github.com/most-people/most/releases/download/v0.2.0/MostBox-0.2.0-linux-x86_64.AppImage',
+        },
+      ],
+    }
+
+    const windowsState = getDownloadOptionsState({
+      manifest,
+      currentKey: 'windows:x64',
+      requestedSource: 'r2',
+    })
+    assert.equal(windowsState.currentAsset?.kind, 'installer')
+    assert.equal(
+      windowsState.currentAsset?.filename,
+      'MostBox-0.2.0-win-x64-setup.exe'
+    )
+    assert.equal(windowsState.currentDownload?.source, 'r2')
+    assert.equal(windowsState.currentDownload?.url, manifest.assets[1].r2Url)
+
+    const linuxState = getDownloadOptionsState({
+      manifest,
+      currentKey: 'linux:x64',
+      requestedSource: 'r2',
+    })
+    assert.equal(linuxState.currentAsset?.filename, manifest.assets[2].filename)
+    assert.equal(linuxState.currentDownload?.source, 'github')
+    assert.equal(linuxState.currentDownload?.url, manifest.assets[2].githubUrl)
+    assert.equal(
+      getReleaseManifestUrl({
+        VITE_R2_PUBLIC_BASE_URL: 'https://cdn.example.com/',
+      }),
+      'https://cdn.example.com/releases/latest.json'
+    )
   })
 
   it('documents the dedicated R2 release bucket defaults', () => {
@@ -325,7 +403,10 @@ describe('frontend smoke checks', () => {
 
   it('checks desktop updates through the public release manifest', () => {
     const mainSource = readSource('electron/main.js')
-    const checkerSource = readSource('electron/updateChecker.js')
+    const checkerSource = [
+      readSource('electron/updateChecker.js'),
+      readSource('server/src/core/releaseManifest.js'),
+    ].join('\n')
     const preloadSource = readSource('electron/preload.js')
     const updateButtonSource = readSource(
       'src/components/DesktopUpdateButton.tsx'

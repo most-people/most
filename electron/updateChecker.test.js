@@ -44,6 +44,7 @@ const manifest = {
       arch: 'arm64',
       kind: 'updater',
       filename: 'MostBox-0.1.3-win-arm64-setup.exe',
+      size: 108003328,
       cid: 'bafkreidsxk7x7eekhalvskbqtqnucird2p4eq3riz6ijmrswzm4miwq74m',
       githubUrl:
         'https://github.com/most-people/most/releases/download/v0.1.3/MostBox-0.1.3-win-arm64-setup.exe',
@@ -53,6 +54,7 @@ const manifest = {
       arch: 'arm64',
       kind: 'updater',
       filename: 'MostBox-0.1.3-mac-arm64.zip',
+      size: 134217728,
       cid: 'bafkreicjs6qwdk7xuclzrkch7gx4vy3zc7y5dxrg4i764py54nk5kekbsm',
       githubUrl:
         'https://github.com/most-people/most/releases/download/v0.1.3/MostBox-0.1.3-mac-arm64.zip',
@@ -153,6 +155,47 @@ describe('desktop update checker', () => {
     })
 
     assert.equal(update?.downloadUrl, manifest.assets[2].githubUrl)
+  })
+
+  it('prefers a compatible updater asset before installer fallback', () => {
+    const updaterOnlyOnGitHub = {
+      version: '0.1.4',
+      publishedAt: '2026-06-02T00:00:00.000Z',
+      assets: [
+        {
+          platform: 'windows',
+          arch: 'x64',
+          kind: 'installer',
+          filename: 'MostBox-0.1.4-win-x64-setup.exe',
+          size: 113246208,
+          cid: 'bafkreibax3b55elk3vr76ejckvn32ucdogkiq5kkwu5vuxgmccf2hdhbiq',
+          r2Url:
+            'https://download.most.box/releases/v0.1.4/MostBox-0.1.4-win-x64-setup.exe',
+          githubUrl:
+            'https://github.com/most-people/most/releases/download/v0.1.4/MostBox-0.1.4-win-x64-setup.exe',
+        },
+        {
+          platform: 'windows',
+          arch: 'x64',
+          kind: 'updater',
+          filename: 'MostBox-0.1.4-win-x64-setup.exe',
+          size: 113246208,
+          cid: 'bafkreih7l2lwv34xse23634mj5g6d63ovfjhyo5hb2h4lng2hhsxp6wh6q',
+          githubUrl:
+            'https://github.com/most-people/most/releases/download/v0.1.4/MostBox-0.1.4-win-x64-setup.exe',
+        },
+      ],
+    }
+
+    const update = getAvailableUpdate(updaterOnlyOnGitHub, {
+      currentVersion: '0.1.3',
+      platform: 'windows',
+      arch: 'x64',
+    })
+
+    assert.equal(update?.asset.kind, 'updater')
+    assert.equal(update?.cid, updaterOnlyOnGitHub.assets[1].cid)
+    assert.equal(update?.downloadUrl, updaterOnlyOnGitHub.assets[1].githubUrl)
   })
 
   it('ignores updater assets without an HTTP fallback URL', () => {

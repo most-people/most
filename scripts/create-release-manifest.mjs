@@ -2,15 +2,10 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { calculateCid } from '../server/src/core/cid.js'
-
-const EXPECTED_ASSETS = [
-  ['windows', 'x64'],
-  ['windows', 'arm64'],
-  ['macos', 'x64'],
-  ['macos', 'arm64'],
-  ['linux', 'x64'],
-  ['linux', 'arm64'],
-]
+import {
+  RELEASE_TARGETS,
+  isReleaseManifest,
+} from '../server/src/core/releaseManifest.js'
 
 const PLATFORM_BY_TOKEN = {
   win: 'windows',
@@ -137,34 +132,37 @@ async function main() {
       .filter(asset => asset.kind === 'installer')
       .map(asset => `${asset.platform}:${asset.arch}`)
   )
-  const missing = EXPECTED_ASSETS.filter(
-    ([platform, arch]) => !installerPresent.has(`${platform}:${arch}`)
+  const missing = RELEASE_TARGETS.filter(
+    ({ platform, arch }) => !installerPresent.has(`${platform}:${arch}`)
   )
   const updaterPresent = new Set(
     assets
       .filter(asset => asset.kind === 'updater')
       .map(asset => `${asset.platform}:${asset.arch}`)
   )
-  const missingUpdaters = EXPECTED_ASSETS.filter(
-    ([platform, arch]) => !updaterPresent.has(`${platform}:${arch}`)
+  const missingUpdaters = RELEASE_TARGETS.filter(
+    ({ platform, arch }) => !updaterPresent.has(`${platform}:${arch}`)
   )
   if (missing.length > 0) {
     throw new Error(
       `Missing release assets: ${missing
-        .map(([platform, arch]) => `${platform}/${arch}`)
+        .map(({ platform, arch }) => `${platform}/${arch}`)
         .join(', ')}`
     )
   }
   if (missingUpdaters.length > 0) {
     throw new Error(
       `Missing updater assets: ${missingUpdaters
-        .map(([platform, arch]) => `${platform}/${arch}`)
+        .map(({ platform, arch }) => `${platform}/${arch}`)
         .join(', ')}`
     )
   }
 
   const order = new Map(
-    EXPECTED_ASSETS.map(([platform, arch], index) => [`${platform}:${arch}`, index])
+    RELEASE_TARGETS.map(({ platform, arch }, index) => [
+      `${platform}:${arch}`,
+      index,
+    ])
   )
   assets.sort(
     (a, b) =>
@@ -178,6 +176,10 @@ async function main() {
     version,
     publishedAt: new Date().toISOString(),
     assets,
+  }
+
+  if (!isReleaseManifest(manifest)) {
+    throw new Error('Generated release manifest does not match the contract')
   }
 
   const manifestPath = path.join(assetsDir, 'latest.json')
