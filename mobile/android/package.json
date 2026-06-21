@@ -10,7 +10,7 @@
     "prebuild": "npm run bundle:core && expo prebuild --platform android",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --import tsx --test src/mobileCore/*.test.ts",
-    "bundle:core": "bare-pack --preset android --linked --imports bare-pack-imports.cjs backend/backend.mjs --out app.bundle.mjs"
+    "bundle:core": "bare-pack --preset android --linked --imports bare-pack-imports.cjs backend/backend.mjs --out app.bundle.js"
   },
   "dependencies": {
     "@react-native-clipboard/clipboard": "1.16.3",

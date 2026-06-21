@@ -39,6 +39,7 @@ mobile/android/.expo/
 mobile/android/android/
 mobile/android/ios/
 mobile/android/app.bundle.mjs
+mobile/android/app.bundle.js
 
 # macOS
 *.dmg
