@@ -1,9 +1,8 @@
+import { normalizeAddress } from './shared.js'
+
 export const DEFAULT_OWNER_BUCKET = '__local__'
 
-export function normalizeOwnerAddress(address) {
-  const value = String(address || '').trim()
-  return /^0x[a-fA-F0-9]{40}$/.test(value) ? value.toLowerCase() : ''
-}
+export const normalizeOwnerAddress = normalizeAddress
 
 export function getOwnerBucketKey(address) {
   return normalizeOwnerAddress(address) || DEFAULT_OWNER_BUCKET

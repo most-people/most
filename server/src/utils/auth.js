@@ -1,12 +1,9 @@
 import { verifyMessage } from 'ethers'
+import { normalizeAddress } from '../core/shared.js'
 import { mostSignMessage } from './mostWallet.js'
 
 export const AUTH_MAX_AGE_MS = 5 * 60 * 1000
-
-export function normalizeAddress(address) {
-  const value = String(address || '').trim()
-  return /^0x[a-fA-F0-9]{40}$/.test(value) ? value.toLowerCase() : ''
-}
+export { normalizeAddress }
 
 export function buildAuthMessage(timestamp, method, path) {
   return `${timestamp}:${String(method || 'GET').toUpperCase()}:${normalizeAuthPath(path)}`

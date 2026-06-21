@@ -1,4 +1,4 @@
-import { normalizeAddress } from '../../utils/auth.js'
+import { normalizeAddress } from '../../core/shared.js'
 import { badRequestOrAppError } from '../errors.js'
 
 export function registerChannelRoutes(app, { engine }) {

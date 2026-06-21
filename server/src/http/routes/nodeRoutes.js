@@ -1,4 +1,4 @@
-import { normalizeAddress } from '../../utils/auth.js'
+import { normalizeAddress } from '../../core/shared.js'
 import { evaluateStorageLimits } from '../../node/config.js'
 import {
   isLoopbackRemoteAddress,

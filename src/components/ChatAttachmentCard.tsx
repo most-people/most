@@ -9,22 +9,13 @@ import {
   Music,
 } from 'lucide-react'
 import type { ChannelAttachment } from '~/lib/channelApi'
+import { formatBytes } from '~/lib/format'
 import { useI18n } from '~/lib/i18n'
 
 export type ChatAttachmentStatus = 'idle' | 'checking' | 'available' | 'error'
 
-export function formatAttachmentSize(bytes?: number) {
-  if (!bytes || bytes <= 0) return ''
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  if (bytes < 1024 * 1024 * 1024)
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
-}
-
 export function getAttachmentBaseFileName(fileName: string) {
-  const parts = String(fileName || '').split('/')
-  return parts[parts.length - 1] || fileName
+  return String(fileName || '').split('/').pop() || fileName
 }
 
 function getAttachmentIcon(kind: ChannelAttachment['kind']) {
@@ -47,15 +38,9 @@ export function ChatAttachmentCard({
 }) {
   const { t } = useI18n()
   const isBusy = status === 'checking'
-  const actionClassName = [
-    'ui-file-action',
-    'chat-attachment-action',
-    status === 'error' ? 'error' : '',
-    status === 'available' ? 'available' : '',
-  ]
-    .filter(Boolean)
-    .join(' ')
-  const detail = formatAttachmentSize(attachment.size) || t('chat.mostboxFile')
+  const actionClassName =
+    `ui-file-action chat-attachment-action ${status === 'error' ? 'error' : status === 'available' ? 'available' : ''}`.trim()
+  const detail = Number.isFinite(attachment.size) && attachment.size > 0 ? formatBytes(attachment.size) : t('chat.mostboxFile')
 
   return (
     <button

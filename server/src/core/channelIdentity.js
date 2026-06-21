@@ -1,4 +1,5 @@
 import crypto from 'node:crypto'
+import { normalizeAvatar, normalizeDisplayName } from './shared.js'
 
 export const CHAT_FILE_ROOT = 'chat-file'
 export const TRANSIENT_CHANNEL_TYPES = new Set(['game'])
@@ -8,14 +9,11 @@ export const CHANNEL_CANDIDATE_TTL = 30 * 1000
 const CHANNEL_WRITER_ID_BYTES = 8
 
 export function normalizeChannelDisplayName(input, fallbackAddress = '') {
-  const value = String(input || '').trim()
-  if (value) return value.slice(0, 50)
-  return fallbackAddress ? fallbackAddress.slice(0, 10) : ''
+  return normalizeDisplayName(input, fallbackAddress ? fallbackAddress.slice(0, 10) : '')
 }
 
 export function normalizeChannelAvatar(input) {
-  const value = String(input || '').trim()
-  return value ? value.slice(0, 4096) : ''
+  return normalizeAvatar(input)
 }
 
 export function normalizeChannelId(input) {

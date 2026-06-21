@@ -1,3 +1,11 @@
+import {
+  createEventId as createSharedEventId,
+  normalizeAddress,
+  normalizeAvatar,
+  normalizeRoomCode as normalizeSharedRoomCode,
+  shortAddress,
+} from './shared.js'
+
 export const ZHJ_INITIAL_CHIPS = 1000
 export const ZHJ_ANTE = 10
 export const ZHJ_MIN_PLAYERS = 2
@@ -28,15 +36,11 @@ const CATEGORY_LABEL = {
 }
 
 export function normalizeRoomCode(input) {
-  return String(input || '')
-    .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, '')
-    .slice(0, 8)
+  return normalizeSharedRoomCode(input)
 }
 
 export function createEventId(prefix = 'zhajinhua') {
-  return `${prefix}_${Date.now()}_${randomHex(4)}`
+  return createSharedEventId(prefix)
 }
 
 export function createRoundId() {
@@ -196,7 +200,7 @@ export function startRound({ roomCode, players, hostAddress, previousSeq = 0, pr
     return {
       address: player.address,
       name: player.name,
-      avatar: cleanAvatar(player.avatar),
+      avatar: normalizeAvatar(player.avatar),
       publicKey: player.publicKey,
       chips: Number(player.chips) - ZHJ_ANTE,
       status: 'active',
@@ -598,7 +602,7 @@ function normalizeRoundPlayer(input) {
   return {
     address,
     name: String(input.name || shortAddress(address)).slice(0, 50),
-    avatar: cleanAvatar(input.avatar),
+    avatar: normalizeAvatar(input.avatar),
     publicKey: String(input.publicKey || ''),
     chips: Math.max(0, Number(input.chips) || 0),
     status: input.status === 'folded' ? 'folded' : 'active',
@@ -607,31 +611,6 @@ function normalizeRoundPlayer(input) {
   }
 }
 
-function normalizeAddress(value) {
-  const address = String(value || '').trim()
-  return /^0x[a-fA-F0-9]{40}$/.test(address) ? address.toLowerCase() : ''
-}
-
-function shortAddress(address) {
-  return address ? `${address.slice(0, 6)}...${address.slice(-4)}` : ''
-}
-
-function cleanAvatar(value) {
-  return String(value || '').trim().slice(0, 4096)
-}
-
 function clone(value) {
   return JSON.parse(JSON.stringify(value))
-}
-
-function randomHex(byteLength) {
-  const bytes = new Uint8Array(byteLength)
-  if (globalThis.crypto?.getRandomValues) {
-    globalThis.crypto.getRandomValues(bytes)
-  } else {
-    for (let i = 0; i < bytes.length; i++) {
-      bytes[i] = Math.floor(Math.random() * 256)
-    }
-  }
-  return [...bytes].map(byte => byte.toString(16).padStart(2, '0')).join('')
 }

@@ -1,6 +1,6 @@
 import dayjs from 'dayjs'
 
-export function formatDate(time) {
+export function formatTime(time) {
   if (!time) return ''
   const date = dayjs(Number(time))
   const hour = date.hour()
@@ -26,5 +26,3 @@ export function formatDate(time) {
 
   return date.format(`YYYY年M月D日 ${timeOfDay}h:m`)
 }
-
-export const formatTime = formatDate

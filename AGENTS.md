@@ -1,12 +1,3 @@
-## Shell Preference
-
-- On Windows, default to Git Bash for local shell commands.
-- Preferred executable: `C:\Program Files\Git\bin\bash.exe`.
-- If `bash` is not on PATH or the tool default shell is PowerShell, invoke commands through `& 'C:\Program Files\Git\bin\bash.exe' -lc '<command>'`.
-- Use PowerShell only for Windows-specific tasks or when Git Bash cannot run the command.
-
----
-
 ## AI 行为准则
 
 <!-- Source: swarmclawai/andrej-karpathy-skills, adapters/codex/AGENTS.md, synced 2026-06-04 -->

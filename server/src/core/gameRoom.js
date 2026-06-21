@@ -1,3 +1,15 @@
+import {
+  createEventId,
+  normalizeAddress,
+  normalizeAvatar,
+  normalizeDisplayName,
+  normalizeRoomCode,
+  randomInt,
+  shortAddress,
+} from './shared.js'
+
+export { normalizeAddress } from './shared.js'
+
 export const GAME_CHANNEL_TYPE = 'game'
 export const GAME_EVENT_KIND = 'mostbox.game.event'
 export const GAME_EVENT_VERSION = 1
@@ -12,11 +24,7 @@ export function normalizeGameId(input) {
 }
 
 export function normalizeGameRoomCode(input) {
-  return String(input || '')
-    .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, '')
-    .slice(0, 8)
+  return normalizeRoomCode(input)
 }
 
 export function isValidGameRoomCode(input) {
@@ -166,10 +174,11 @@ export function createPlayerFromPayload(input, messageOrAuthor) {
   const author = message.author
   const address = normalizeAddress(input.address || author)
   if (!address || normalizeAddress(author) !== address) return null
-  const name =
-    String(message.authorName || input.name || '').trim().slice(0, 50) ||
+  const name = normalizeDisplayName(
+    message.authorName || input.name,
     shortAddress(address)
-  const avatar = String(message.avatar || input.avatar || '').trim()
+  )
+  const avatar = normalizeAvatar(message.avatar || input.avatar)
   const publicKey = String(input.publicKey || '').trim()
   const player = {
     address,
@@ -177,7 +186,7 @@ export function createPlayerFromPayload(input, messageOrAuthor) {
     publicKey,
     joinedAt: Number(input.joinedAt || Date.now()),
   }
-  if (avatar) player.avatar = avatar.slice(0, 4096)
+  if (avatar) player.avatar = avatar
   return player
 }
 
@@ -191,11 +200,6 @@ export function normalizeGamePlayer(input) {
     name: String(input.name || shortAddress(address)).slice(0, 50),
     publicKey: String(input.publicKey || ''),
   }
-}
-
-export function normalizeAddress(value) {
-  const address = String(value || '').trim()
-  return /^0x[a-fA-F0-9]{40}$/.test(address) ? address.toLowerCase() : ''
 }
 
 function upsertPlayer(players, playerMap, player) {
@@ -212,33 +216,4 @@ function sortMessages(messages) {
   return [...messages].sort(
     (a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0)
   )
-}
-
-function createEventId(prefix) {
-  return `${prefix}_${Date.now()}_${randomHex(4)}`
-}
-
-function randomInt(max) {
-  if (globalThis.crypto?.getRandomValues) {
-    const value = new Uint32Array(1)
-    globalThis.crypto.getRandomValues(value)
-    return value[0] % max
-  }
-  return Math.floor(Math.random() * max)
-}
-
-function randomHex(byteLength) {
-  const bytes = new Uint8Array(byteLength)
-  if (globalThis.crypto?.getRandomValues) {
-    globalThis.crypto.getRandomValues(bytes)
-  } else {
-    for (let i = 0; i < bytes.length; i++) {
-      bytes[i] = Math.floor(Math.random() * 256)
-    }
-  }
-  return [...bytes].map(byte => byte.toString(16).padStart(2, '0')).join('')
-}
-
-function shortAddress(address) {
-  return address ? `${address.slice(0, 6)}...${address.slice(-4)}` : ''
 }
