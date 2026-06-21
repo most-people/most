@@ -30,6 +30,10 @@
 
 前往 [Most.Box 下载页](https://Most.Box/download) 下载客户端，支持 Windows、macOS 和 Linux。桌面端内置本地 MostBox 节点，提供完整 P2P 文件分享、下载校验和持续做种能力，无需单独安装 Node.js。
 
+### 移动端 App 计划
+
+移动端优先按 Android 前台完整种子 MVP 推进，参考 Keet/Pear 的“P2P 核心端 + 平台 UI 壳”分层：手机端先验证自己能发布、下载、校验并在前台继续做种，再扩展后台能力、iOS 和商店分发。详细范围见 [docs/mobile-android-plan.md](docs/mobile-android-plan.md)。
+
 ### 方式二：npm 包
 
 适合开发、自托管或临时启动本机节点。请先安装 Node.js >= 22.12，然后运行：
