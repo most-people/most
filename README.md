@@ -34,7 +34,7 @@
 
 移动端优先按 Android 前台完整种子 MVP 推进，参考 Keet/Pear 的“P2P 核心端 + 平台 UI 壳”分层：手机端先验证自己能发布、下载、校验并在前台继续做种，再扩展后台能力、iOS 和商店分发。详细范围见 [docs/mobile-android-plan.md](docs/mobile-android-plan.md)。
 
-Android 工程入口在 `mobile/android/`。本地开发可运行 `npm run android:start` 启动 Expo Dev Client，或运行 `npm run android:run` 在 Android 真机/模拟器上调试。
+Android 工程入口在 `mobile/android/`。本地开发可运行 `npm run android` 启动 Expo Dev Client 并打开 Android 真机/模拟器；首次安装开发版或原生依赖变更后运行 `npm run android:build`。
 
 ### 方式二：npm 包
 

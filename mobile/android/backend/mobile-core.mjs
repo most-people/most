@@ -394,6 +394,10 @@ export class MobileP2PCore {
     }
     this.#emitSnapshot()
 
+    if (!this.#storagePath) {
+      throw new Error('P2P core storagePath is required')
+    }
+
     ensureDirectory(this.#storagePath)
     ensureDirectory(this.#downloadPath)
 

@@ -132,7 +132,12 @@ export class BareWorkletMostBoxCore implements MostBoxMobileCore {
       }
       this.#worklet = worklet
 
-      await this.#request(COMMANDS.NODE_START, {}, [EVENTS.NODE_READY], 30000)
+      await this.#request(
+        COMMANDS.NODE_START,
+        { storagePath: this.#options.storagePath },
+        [EVENTS.NODE_READY],
+        30000
+      )
     } catch (error) {
       this.#snapshot.node.status = 'error'
       this.#snapshot.node.error =

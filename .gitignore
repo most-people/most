@@ -26,6 +26,7 @@ most-data/
 .opencode/
 opencode.jsonc
 .tmp/android-build/
+.tmp/android-real-p2p-seed/
 
 # Windows artifacts
 nul

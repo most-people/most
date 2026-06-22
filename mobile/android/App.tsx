@@ -1,4 +1,4 @@
-import './src/polyfills/webEvents'
+import './src/polyfills/eventTarget'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
@@ -27,6 +27,7 @@ import {
 import { createMostBoxCore } from './src/mobileCore/createMostBoxCore'
 import { parseMostLink } from './src/mobileCore/protocol'
 import type { MobileCoreSnapshot, MostBoxMobileCore } from './src/mobileCore/types'
+import type { DocumentPickerAsset } from 'expo-document-picker'
 
 const DEV_CID_MAX_BYTES = 20 * 1024 * 1024
 
@@ -42,10 +43,11 @@ function formatBytes(size: number) {
   return `${value.toFixed(index === 0 ? 0 : 1)} ${units[index]}`
 }
 
-async function readDevCidBytes(uri: string, size: number) {
+async function readDevCidBytes(file: DocumentPickerAsset) {
+  const size = file.size || 0
   if (size > DEV_CID_MAX_BYTES) return undefined
 
-  const base64 = await FileSystem.readAsStringAsync(uri, {
+  const base64 = await FileSystem.readAsStringAsync(file.uri, {
     encoding: FileSystem.EncodingType.Base64,
   })
 
@@ -109,24 +111,31 @@ export default function App() {
   }, [downloadLink])
 
   const handlePickFile = async () => {
-    const result = await DocumentPicker.getDocumentAsync({
-      copyToCacheDirectory: true,
-      multiple: false,
-    })
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        copyToCacheDirectory: true,
+        multiple: false,
+      })
 
-    if (result.canceled) return
-    const file = result.assets[0]
-    if (!file) return
-    const fileSize = file.size || 0
-    const contentBytes = await readDevCidBytes(file.uri, fileSize)
+      if (result.canceled) return
+      const file = result.assets[0]
+      if (!file) return
+      const fileSize = file.size || 0
+      const contentBytes = await readDevCidBytes(file)
 
-    await core.publishFile({
-      uri: file.uri,
-      name: file.name,
-      size: fileSize,
-      mimeType: file.mimeType,
-      contentBytes,
-    })
+      await core.publishFile({
+        uri: file.uri,
+        name: file.name,
+        size: fileSize,
+        mimeType: file.mimeType,
+        contentBytes,
+      })
+    } catch (error) {
+      Alert.alert(
+        '发布失败',
+        error instanceof Error ? error.message : '请选择可读取的文件'
+      )
+    }
   }
 
   const handleDownload = async () => {

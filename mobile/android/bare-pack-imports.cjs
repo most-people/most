@@ -13,6 +13,6 @@ module.exports = {
     'dist',
     'src',
     'hashes',
-    'sha2-browser.js'
+    'sha2.js'
   ),
 }

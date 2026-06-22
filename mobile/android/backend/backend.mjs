@@ -2,22 +2,25 @@
 
 import './text-encoding-shim.mjs'
 import { COMMANDS, EVENTS } from '../rpc-commands.mjs'
-import { createEvent, encodeEvent } from './protocol.mjs'
+import { createEvent, createJsonLineParser, encodeEvent } from './protocol.mjs'
 import { MobileP2PCore } from './mobile-core.mjs'
 
 const { IPC } = BareKit
 
 let core = null
 
+function getInitialStoragePath() {
+  return Bare.argv[2] || ''
+}
+
 function send(type, payload = {}, requestId = '') {
   IPC.write(encodeEvent(createEvent(type, payload, requestId)))
 }
 
-function getCore() {
+function getCore(storagePath = '') {
   if (!core) {
-    const storagePath = Bare.argv[2] || ''
     core = new MobileP2PCore({
-      storagePath,
+      storagePath: storagePath || getInitialStoragePath(),
       send: (type, payload) => send(type, payload),
     })
   }
@@ -34,7 +37,9 @@ async function handleCommand(command) {
 
   try {
     if (command.type === COMMANDS.NODE_START) {
-      const snapshot = await getCore().start()
+      const storagePath =
+        typeof payload.storagePath === 'string' ? payload.storagePath : ''
+      const snapshot = await getCore(storagePath).start()
       send(EVENTS.NODE_READY, snapshot, requestId)
       return
     }
@@ -87,29 +92,28 @@ async function handleCommand(command) {
   }
 }
 
-IPC.on('data', data => {
-  for (const line of data.toString().split('\n')) {
-    if (!line.trim()) continue
-
-    try {
-      handleCommand(JSON.parse(line)).catch(error => {
-        send(EVENTS.ERROR, {
-          message: error instanceof Error ? error.message : 'Command failed',
-        })
-      })
-    } catch (error) {
+const parseCommandData = createJsonLineParser(
+  command => {
+    handleCommand(command).catch(error => {
       send(EVENTS.ERROR, {
-        message: error?.message || 'Invalid command payload',
+        message: error instanceof Error ? error.message : 'Command failed',
       })
-    }
+    })
+  },
+  error => {
+    send(EVENTS.ERROR, {
+      message: error?.message || 'Invalid command payload',
+    })
   }
-})
+)
+
+IPC.on('data', parseCommandData)
 
 send(EVENTS.SNAPSHOT, {
   node: {
     status: 'idle',
     peerCount: 0,
-    storagePath: Bare.argv[2] || '',
+    storagePath: getInitialStoragePath(),
     error: '',
   },
   holdings: [],
