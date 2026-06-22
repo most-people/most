@@ -1,3 +1,4 @@
+import './src/polyfills/webEvents'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
@@ -23,9 +24,7 @@ import {
   Link,
   Radio,
 } from 'lucide-react-native'
-import backendBundle from './app.bundle.js'
-import { MockMostBoxCore } from './src/mobileCore/mockCore'
-import { BareWorkletMostBoxCore } from './src/mobileCore/workletClient'
+import { createMostBoxCore } from './src/mobileCore/createMostBoxCore'
 import { parseMostLink } from './src/mobileCore/protocol'
 import type { MobileCoreSnapshot, MostBoxMobileCore } from './src/mobileCore/types'
 
@@ -76,12 +75,9 @@ export default function App() {
   const [downloadLink, setDownloadLink] = useState('')
 
   if (!coreRef.current) {
-    coreRef.current = backendBundle
-      ? new BareWorkletMostBoxCore({
-          bundle: backendBundle,
-          storagePath: getCoreStoragePath(),
-        })
-      : new MockMostBoxCore()
+    coreRef.current = createMostBoxCore({
+      storagePath: getCoreStoragePath(),
+    })
   }
 
   const core = coreRef.current

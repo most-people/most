@@ -1,5 +1,6 @@
 /* global BareKit, Bare */
 
+import './text-encoding-shim.mjs'
 import { COMMANDS, EVENTS } from '../rpc-commands.mjs'
 import { createEvent, encodeEvent } from './protocol.mjs'
 import { MobileP2PCore } from './mobile-core.mjs'
