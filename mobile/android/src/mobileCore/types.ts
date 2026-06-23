@@ -1,4 +1,9 @@
-export type NodeRuntimeStatus = 'idle' | 'starting' | 'ready' | 'stopping' | 'error'
+export type NodeRuntimeStatus =
+  | 'idle'
+  | 'starting'
+  | 'ready'
+  | 'stopping'
+  | 'error'
 
 export type SeedStatus = 'queued' | 'joining' | 'active' | 'paused' | 'error'
 
@@ -74,6 +79,15 @@ export type ExportHoldingInput = {
   fileName?: string
 }
 
+export type DeleteHoldingInput = {
+  cid: string
+}
+
+export type DeleteHoldingResult = {
+  cid: string
+  snapshot: MobileCoreSnapshot
+}
+
 export type ExportHoldingResult = {
   filePath: string
   fileName: string
@@ -89,6 +103,7 @@ export type MostBoxMobileCore = {
   publishFile: (input: PublishFileInput) => Promise<MobileTransfer>
   downloadLink: (input: DownloadLinkInput) => Promise<MobileTransfer>
   exportHolding: (input: ExportHoldingInput) => Promise<ExportHoldingResult>
+  deleteHolding: (input: DeleteHoldingInput) => Promise<DeleteHoldingResult>
   listHoldings: () => Promise<MobileHolding[]>
   getSnapshot: () => MobileCoreSnapshot
   subscribe: (listener: CoreListener) => () => void

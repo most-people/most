@@ -72,6 +72,16 @@ function fileExists(filePath) {
   }
 }
 
+function isPathInside(candidate, parent) {
+  if (!candidate || !parent) return false
+  const resolvedCandidate = path.resolve(candidate)
+  const resolvedParent = path.resolve(parent)
+  return (
+    resolvedCandidate === resolvedParent ||
+    resolvedCandidate.startsWith(`${resolvedParent}${path.sep}`)
+  )
+}
+
 function atomicWrite(filePath, data) {
   const tmpPath = `${filePath}.tmp`
   fs.writeFileSync(tmpPath, data, 'utf8')
@@ -97,8 +107,7 @@ function splitMostLink(link) {
 
   const rest = value.slice('most://'.length)
   const queryIndex = rest.indexOf('?')
-  const authorityAndPath =
-    queryIndex === -1 ? rest : rest.slice(0, queryIndex)
+  const authorityAndPath = queryIndex === -1 ? rest : rest.slice(0, queryIndex)
   const query = queryIndex === -1 ? '' : rest.slice(queryIndex + 1)
 
   const slashIndex = authorityAndPath.indexOf('/')
@@ -317,7 +326,11 @@ async function pipeDriveToFile(stream, targetPath, options = {}) {
       clearReadTimer()
       if (timeout > 0) {
         readTimer = setTimeout(() => {
-          fail(new Error(`Download stalled: no data received for ${timeout / 1000}s`))
+          fail(
+            new Error(
+              `Download stalled: no data received for ${timeout / 1000}s`
+            )
+          )
         }, timeout)
       }
     }
@@ -454,9 +467,14 @@ export class MobileP2PCore {
     this.#emitSnapshot()
 
     for (const holding of [...this.#holdings]) {
-      this.#joinCidTopic(holding.cid, { server: true, client: false }).catch(err => {
-        this.#setSeedState(holding.cid, { status: 'error', error: err.message })
-      })
+      this.#joinCidTopic(holding.cid, { server: true, client: false }).catch(
+        err => {
+          this.#setSeedState(holding.cid, {
+            status: 'error',
+            error: err.message,
+          })
+        }
+      )
     }
 
     return this.getSnapshot()
@@ -471,7 +489,9 @@ export class MobileP2PCore {
       this.#swarm = null
     }
 
-    await Promise.allSettled([...this.#drives.values()].map(drive => drive.close()))
+    await Promise.allSettled(
+      [...this.#drives.values()].map(drive => drive.close())
+    )
     this.#drives.clear()
     this.#drivePromises.clear()
     this.#discoveries.clear()
@@ -589,6 +609,30 @@ export class MobileP2PCore {
 
     try {
       const drive = await this.#getOrCreateDrive(driveName)
+      const existingHolding = this.#holdings.find(
+        holding => holding.cid === cid
+      )
+      const existingEntry = existingHolding
+        ? await drive.entry(driveKey).catch(() => null)
+        : null
+
+      if (existingHolding && existingEntry) {
+        await this.#joinCidTopic(cid, { server: true, client: false })
+        const completed = this.#upsertTransfer({
+          ...transfer,
+          status: 'completed',
+          progress: 100,
+          message: 'Already available in local holdings',
+        })
+        this.#log('info', `CID already exists locally ${cid.slice(0, 16)}`)
+        return {
+          transfer: completed,
+          holding: this.#toMobileHolding(existingHolding),
+          savedPath: existingHolding.localPath || '',
+          alreadyExists: true,
+        }
+      }
+
       await this.#joinCidTopic(cid, { server: false, client: true })
 
       this.#upsertTransfer({
@@ -645,13 +689,16 @@ export class MobileP2PCore {
       const downloaded = await calculateCid({ filePath: tempPath })
       if (downloaded.cid !== cid) {
         safeRm(tempPath)
-        throw new Error(`File content CID mismatch. Expected ${cid}, got ${downloaded.cid}.`)
+        throw new Error(
+          `File content CID mismatch. Expected ${cid}, got ${downloaded.cid}.`
+        )
       }
 
       fs.renameSync(tempPath, savePath)
 
       await this.#joinCidTopic(cid, { server: true, client: false })
-      const savedSize = downloaded.size || totalBytes || fs.statSync(savePath).size || 0
+      const savedSize =
+        downloaded.size || totalBytes || fs.statSync(savePath).size || 0
       const holding = this.#upsertHolding({
         cid,
         fileName,
@@ -686,7 +733,7 @@ export class MobileP2PCore {
     }
   }
 
-  async exportHolding(input = {}, requestId = createId('export')) {
+  async deleteHolding(input = {}) {
     this.#ensureReady()
     const { cid, driveName } = getCidInfo(input.cid)
     const existing = this.#holdings.find(holding => holding.cid === cid)
@@ -694,12 +741,41 @@ export class MobileP2PCore {
       throw new Error('This CID is not available in local holdings')
     }
 
-    const fileName = sanitizeFilename(input.fileName || existing.fileName || cid)
+    const drive = await this.#getOrCreateDrive(existing.driveName || driveName)
+    await drive.del(`/${cid}`).catch(() => {})
+    await this.#leaveCidTopic(cid)
+
+    if (isPathInside(existing.localPath, this.#storagePath)) {
+      safeRm(existing.localPath)
+    }
+
+    this.#removeHolding(cid)
+    this.#log('info', `Deleted local holding ${cid.slice(0, 16)}`)
+
+    return {
+      cid,
+      snapshot: this.getSnapshot(),
+    }
+  }
+
+  async exportHolding(input = {}) {
+    this.#ensureReady()
+    const { cid, driveName } = getCidInfo(input.cid)
+    const existing = this.#holdings.find(holding => holding.cid === cid)
+    if (!existing) {
+      throw new Error('This CID is not available in local holdings')
+    }
+
+    const fileName = sanitizeFilename(
+      input.fileName || existing.fileName || cid
+    )
     let exportPath = existing.localPath || ''
     let holding = existing
 
     if (!fileExists(exportPath)) {
-      const drive = await this.#getOrCreateDrive(existing.driveName || driveName)
+      const drive = await this.#getOrCreateDrive(
+        existing.driveName || driveName
+      )
       const driveKey = `/${cid}`
       const entry = await drive.entry(driveKey).catch(() => null)
       if (!entry) {
@@ -717,7 +793,9 @@ export class MobileP2PCore {
 
         const exported = await calculateCid({ filePath: tempPath })
         if (exported.cid !== cid) {
-          throw new Error(`Exported file CID mismatch. Expected ${cid}, got ${exported.cid}.`)
+          throw new Error(
+            `Exported file CID mismatch. Expected ${cid}, got ${exported.cid}.`
+          )
         }
 
         fs.renameSync(tempPath, exportPath)
@@ -870,6 +948,19 @@ export class MobileP2PCore {
     return drive.entry(driveKey).catch(() => null)
   }
 
+  async #leaveCidTopic(cid) {
+    const { topic } = getCidInfo(cid)
+    const existing = this.#discoveries.get(cid)
+    if (!existing) {
+      this.#clearSeedState(cid)
+      return
+    }
+
+    await this.#swarm.leave(topic).catch(() => {})
+    this.#discoveries.delete(cid)
+    this.#clearSeedState(cid)
+  }
+
   #normalizeHolding(record = {}) {
     const { cid, topicHex, driveName } = getCidInfo(record.cid)
     const size = Number(record.size)
@@ -907,6 +998,15 @@ export class MobileP2PCore {
     this.#saveHoldings()
     this.#emitSnapshot()
     return next
+  }
+
+  #removeHolding(cid) {
+    const before = this.#holdings.length
+    this.#holdings = this.#holdings.filter(holding => holding.cid !== cid)
+    if (this.#holdings.length === before) return false
+    this.#saveHoldings()
+    this.#clearSeedState(cid)
+    return true
   }
 
   #toMobileHolding(holding) {
@@ -971,6 +1071,11 @@ export class MobileP2PCore {
       ...patch,
       updatedAt: nowIso(),
     })
+    this.#emitSnapshot()
+  }
+
+  #clearSeedState(cid) {
+    this.#seedStates.delete(cid)
     this.#emitSnapshot()
   }
 

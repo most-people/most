@@ -1,5 +1,5 @@
 import './src/polyfills/eventTarget'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
   Platform,
@@ -19,23 +19,37 @@ import * as Sharing from 'expo-sharing'
 import b4a from 'b4a'
 import {
   Activity,
+  CircleAlert,
+  CircleCheck,
+  ClipboardPaste,
   Copy,
   Download,
+  FileCheck,
   FileUp,
   HardDrive,
-  Link,
+  Link2,
+  ListChecks,
+  Loader,
   Radio,
   Save,
   Share2,
+  ShieldCheck,
+  Trash2,
+  Wifi,
 } from 'lucide-react-native'
 import { createMostBoxCore } from './src/mobileCore/createMostBoxCore'
 import { parseMostLink } from './src/mobileCore/protocol'
+import type { DocumentPickerAsset } from 'expo-document-picker'
 import type {
+  LogLevel,
   MobileCoreSnapshot,
   MobileHolding,
+  MobileTransfer,
   MostBoxMobileCore,
+  NodeRuntimeStatus,
+  SeedStatus,
+  TransferStatus,
 } from './src/mobileCore/types'
-import type { DocumentPickerAsset } from 'expo-document-picker'
 
 const DEV_CID_MAX_BYTES = 20 * 1024 * 1024
 const MIME_BY_EXTENSION: Record<string, string> = {
@@ -55,6 +69,41 @@ const MIME_BY_EXTENSION: Record<string, string> = {
   zip: 'application/zip',
 }
 
+const NODE_STATUS_LABELS: Record<NodeRuntimeStatus, string> = {
+  idle: '未启动',
+  starting: '启动中',
+  ready: '在线',
+  stopping: '停止中',
+  error: '异常',
+}
+
+const SEED_STATUS_LABELS: Record<SeedStatus, string> = {
+  queued: '排队中',
+  joining: '加入中',
+  active: '做种中',
+  paused: '已暂停',
+  error: '异常',
+}
+
+const TRANSFER_STATUS_LABELS: Record<TransferStatus, string> = {
+  queued: '排队中',
+  running: '传输中',
+  completed: '已完成',
+  failed: '失败',
+  waitingCore: '等待核心',
+}
+
+const TRANSFER_KIND_LABELS: Record<MobileTransfer['kind'], string> = {
+  publish: '发布',
+  download: '下载',
+}
+
+const LOG_LEVEL_LABELS: Record<LogLevel, string> = {
+  info: '信息',
+  warn: '提醒',
+  error: '错误',
+}
+
 function formatBytes(size: number) {
   if (!Number.isFinite(size) || size <= 0) return '0 B'
   const units = ['B', 'KB', 'MB', 'GB']
@@ -65,6 +114,19 @@ function formatBytes(size: number) {
     index += 1
   }
   return `${value.toFixed(index === 0 ? 0 : 1)} ${units[index]}`
+}
+
+function formatLogTime(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '--:--'
+  const hours = date.getHours().toString().padStart(2, '0')
+  const minutes = date.getMinutes().toString().padStart(2, '0')
+  return `${hours}:${minutes}`
+}
+
+function shortCid(cid: string, head = 12, tail = 8) {
+  if (cid.length <= head + tail + 1) return cid
+  return `${cid.slice(0, head)}...${cid.slice(-tail)}`
 }
 
 async function readDevCidBytes(file: DocumentPickerAsset) {
@@ -78,16 +140,9 @@ async function readDevCidBytes(file: DocumentPickerAsset) {
   return b4a.from(base64, 'base64')
 }
 
-function getNodeStatusLabel(status: MobileCoreSnapshot['node']['status']) {
-  if (status === 'ready') return 'Ready'
-  if (status === 'starting') return 'Starting'
-  if (status === 'stopping') return 'Stopping'
-  if (status === 'error') return 'Error'
-  return 'Idle'
-}
-
 function getCoreStoragePath() {
-  const baseUri = FileSystem.documentDirectory || FileSystem.cacheDirectory || ''
+  const baseUri =
+    FileSystem.documentDirectory || FileSystem.cacheDirectory || ''
   const storageUri = `${baseUri.replace(/\/$/, '')}/mostbox-core`
   if (storageUri.startsWith('file://')) {
     return decodeURIComponent(storageUri.slice('file://'.length))
@@ -102,7 +157,8 @@ function getMimeType(fileName: string) {
 
 function toFileUri(filePath: string) {
   const value = filePath.trim()
-  if (value.startsWith('file://') || value.startsWith('content://')) return value
+  if (value.startsWith('file://') || value.startsWith('content://'))
+    return value
   const normalized = value.replace(/\\/g, '/')
   const encoded = normalized
     .split('/')
@@ -111,11 +167,234 @@ function toFileUri(filePath: string) {
   return `file://${encoded.startsWith('/') ? encoded : `/${encoded}`}`
 }
 
+function getSafeSaveFileName(fileName: string, cid: string) {
+  const safeName = fileName
+    .trim()
+    .replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_')
+    .replace(/\s+/g, ' ')
+  return safeName || `${cid}.bin`
+}
+
+async function writeSafFileFromLocalFile(
+  sourceFileUri: string,
+  targetUri: string
+) {
+  const base64 = await FileSystem.readAsStringAsync(sourceFileUri, {
+    encoding: FileSystem.EncodingType.Base64,
+  })
+  await FileSystem.StorageAccessFramework.writeAsStringAsync(
+    targetUri,
+    base64,
+    {
+      encoding: FileSystem.EncodingType.Base64,
+    }
+  )
+}
+
+function getNodeTone(status: NodeRuntimeStatus) {
+  if (status === 'ready') return 'success'
+  if (status === 'error') return 'danger'
+  if (status === 'starting' || status === 'stopping') return 'pending'
+  return 'muted'
+}
+
+function getSeedTone(status: SeedStatus) {
+  if (status === 'active') return 'success'
+  if (status === 'error') return 'danger'
+  if (status === 'joining' || status === 'queued') return 'pending'
+  return 'muted'
+}
+
+function getTransferTone(status: TransferStatus) {
+  if (status === 'completed') return 'success'
+  if (status === 'failed') return 'danger'
+  if (status === 'running') return 'pending'
+  return 'muted'
+}
+
+function clampProgress(value: number) {
+  if (!Number.isFinite(value)) return 0
+  return Math.max(0, Math.min(100, value))
+}
+
+type Tone = 'success' | 'danger' | 'pending' | 'muted'
+
+type MetricProps = {
+  icon: ReactNode
+  label: string
+  value: string
+}
+
+function Metric({ icon, label, value }: MetricProps) {
+  return (
+    <View style={styles.metric}>
+      <View style={styles.metricIcon}>{icon}</View>
+      <Text style={styles.metricValue}>{value}</Text>
+      <Text style={styles.metricLabel}>{label}</Text>
+    </View>
+  )
+}
+
+type StatusBadgeProps = {
+  label: string
+  tone: Tone
+}
+
+function StatusBadge({ label, tone }: StatusBadgeProps) {
+  return (
+    <View style={[styles.badge, styles[`${tone}Badge`]]}>
+      <Text style={[styles.badgeText, styles[`${tone}BadgeText`]]}>
+        {label}
+      </Text>
+    </View>
+  )
+}
+
+type CommandButtonProps = {
+  label: string
+  helper?: string
+  icon: ReactNode
+  onPress: () => void
+  variant?: 'primary' | 'secondary'
+  disabled?: boolean
+}
+
+function CommandButton({
+  label,
+  helper,
+  icon,
+  onPress,
+  variant = 'secondary',
+  disabled = false,
+}: CommandButtonProps) {
+  return (
+    <Pressable
+      disabled={disabled}
+      onPress={onPress}
+      style={[
+        styles.commandButton,
+        variant === 'primary' ? styles.commandButtonPrimary : null,
+        disabled ? styles.commandButtonDisabled : null,
+      ]}
+    >
+      <View
+        style={[
+          styles.commandIcon,
+          variant === 'primary' ? styles.commandIconPrimary : null,
+          disabled ? styles.commandIconDisabled : null,
+        ]}
+      >
+        {icon}
+      </View>
+      <View style={styles.commandTextGroup}>
+        <Text
+          style={[
+            styles.commandLabel,
+            variant === 'primary' ? styles.commandLabelPrimary : null,
+            disabled ? styles.disabledText : null,
+          ]}
+        >
+          {label}
+        </Text>
+        {helper ? (
+          <Text
+            style={[
+              styles.commandHelper,
+              variant === 'primary' ? styles.commandHelperPrimary : null,
+              disabled ? styles.disabledText : null,
+            ]}
+          >
+            {helper}
+          </Text>
+        ) : null}
+      </View>
+    </Pressable>
+  )
+}
+
+type SmallActionProps = {
+  label: string
+  icon: ReactNode
+  onPress: () => void
+  disabled?: boolean
+  primary?: boolean
+  danger?: boolean
+}
+
+function SmallAction({
+  label,
+  icon,
+  onPress,
+  disabled = false,
+  primary = false,
+  danger = false,
+}: SmallActionProps) {
+  return (
+    <Pressable
+      disabled={disabled}
+      onPress={onPress}
+      style={[
+        styles.smallAction,
+        primary ? styles.smallActionPrimary : null,
+        danger ? styles.smallActionDanger : null,
+        disabled ? styles.smallActionDisabled : null,
+      ]}
+    >
+      {icon}
+      <Text
+        style={[
+          styles.smallActionText,
+          primary ? styles.smallActionPrimaryText : null,
+          danger ? styles.smallActionDangerText : null,
+          disabled ? styles.disabledText : null,
+        ]}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  )
+}
+
+type SectionHeaderProps = {
+  icon: ReactNode
+  title: string
+  meta?: string
+}
+
+function SectionHeader({ icon, title, meta }: SectionHeaderProps) {
+  return (
+    <View style={styles.sectionHeader}>
+      <View style={styles.sectionTitleGroup}>
+        {icon}
+        <Text style={styles.sectionTitle}>{title}</Text>
+      </View>
+      {meta ? <Text style={styles.sectionMeta}>{meta}</Text> : null}
+    </View>
+  )
+}
+
+type EmptyStateProps = {
+  title: string
+  body: string
+}
+
+function EmptyState({ title, body }: EmptyStateProps) {
+  return (
+    <View style={styles.emptyState}>
+      <Text style={styles.emptyTitle}>{title}</Text>
+      <Text style={styles.emptyBody}>{body}</Text>
+    </View>
+  )
+}
+
 export default function App() {
   const coreRef = useRef<MostBoxMobileCore | null>(null)
+  const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [snapshot, setSnapshot] = useState<MobileCoreSnapshot | null>(null)
   const [downloadLink, setDownloadLink] = useState('')
   const [exportingCid, setExportingCid] = useState<string | null>(null)
+  const [deletingCid, setDeletingCid] = useState<string | null>(null)
+  const [copiedCid, setCopiedCid] = useState<string | null>(null)
 
   if (!coreRef.current) {
     coreRef.current = createMostBoxCore({
@@ -124,34 +403,92 @@ export default function App() {
   }
 
   const core = coreRef.current
+  const currentSnapshot = snapshot ?? core.getSnapshot()
+  const nodeStatus = currentSnapshot.node.status
+  const nodeStatusLabel = NODE_STATUS_LABELS[nodeStatus]
+  const nodeTone = getNodeTone(nodeStatus)
+  const isReady = nodeStatus === 'ready'
+  const isCoreBusy = nodeStatus === 'starting' || nodeStatus === 'stopping'
 
   useEffect(() => {
     const unsubscribe = core.subscribe(setSnapshot)
     void core.start().catch(error => {
       Alert.alert(
-        'P2P core 启动失败',
+        'P2P 核心启动失败',
         error instanceof Error ? error.message : '请先运行 npm run bundle:core'
       )
     })
     return () => {
       unsubscribe()
+      if (copyResetTimerRef.current) {
+        clearTimeout(copyResetTimerRef.current)
+      }
       void core.stop()
     }
   }, [core])
 
-  const nodeStatus = snapshot?.node.status || 'idle'
-  const nodeStatusLabel = getNodeStatusLabel(nodeStatus)
-
-  const parsedDownload = useMemo(() => {
-    if (!downloadLink.trim()) return null
+  const downloadValidation = useMemo(() => {
+    const link = downloadLink.trim()
+    if (!link) return { state: 'empty' as const }
     try {
-      return parseMostLink(downloadLink.trim())
-    } catch {
-      return null
+      return {
+        state: 'valid' as const,
+        parsed: parseMostLink(link),
+      }
+    } catch (error) {
+      return {
+        state: 'invalid' as const,
+        message: error instanceof Error ? error.message : '链接格式不可用',
+      }
     }
   }, [downloadLink])
 
+  const latestTransfers = currentSnapshot.transfers.slice(0, 4)
+  const recentLogs = currentSnapshot.logs.slice(0, 6)
+  const activeTransfers = currentSnapshot.transfers.filter(
+    transfer =>
+      transfer.status === 'queued' ||
+      transfer.status === 'running' ||
+      transfer.status === 'waitingCore'
+  )
+  const existingDownloadHolding =
+    downloadValidation.state === 'valid'
+      ? currentSnapshot.holdings.find(
+          holding => holding.cid === downloadValidation.parsed.cid
+        ) || null
+      : null
+
+  const markCopied = (cid: string) => {
+    setCopiedCid(cid)
+    if (copyResetTimerRef.current) {
+      clearTimeout(copyResetTimerRef.current)
+    }
+    copyResetTimerRef.current = setTimeout(() => {
+      setCopiedCid(null)
+      copyResetTimerRef.current = null
+    }, 1600)
+  }
+
+  const handleStartCore = async () => {
+    try {
+      await core.start()
+    } catch (error) {
+      Alert.alert(
+        'P2P 核心启动失败',
+        error instanceof Error ? error.message : '无法启动 P2P 核心'
+      )
+    }
+  }
+
+  const guardReady = () => {
+    if (isReady) return true
+    Alert.alert('P2P 核心未就绪', '等状态变为“在线”后再执行文件操作。')
+    return false
+  }
+
   const handlePickFile = async () => {
+    if (!guardReady()) return
+
     try {
       const result = await DocumentPicker.getDocumentAsync({
         copyToCacheDirectory: true,
@@ -179,19 +516,77 @@ export default function App() {
     }
   }
 
+  const handlePasteLink = async () => {
+    const text = (await Clipboard.getStringAsync()).trim()
+    if (!text) {
+      Alert.alert('剪贴板为空', '复制 most:// 分享链接后再粘贴。')
+      return
+    }
+    setDownloadLink(text)
+  }
+
   const handleDownload = async () => {
+    if (!guardReady()) return
+
+    if (downloadValidation.state !== 'valid') {
+      Alert.alert(
+        '链接不可用',
+        downloadValidation.state === 'invalid'
+          ? downloadValidation.message
+          : '请输入 most:// 分享链接'
+      )
+      return
+    }
+
+    if (existingDownloadHolding) {
+      Alert.alert('本机已存', '这个 CID 已经在本机做种列表中。')
+      return
+    }
+
     try {
       await core.downloadLink({ link: downloadLink.trim() })
       setDownloadLink('')
     } catch (error) {
-      Alert.alert('链接不可用', error instanceof Error ? error.message : '请检查链接')
+      Alert.alert(
+        '下载失败',
+        error instanceof Error ? error.message : '请检查链接或等待种子上线'
+      )
     }
   }
 
-  const handleCopyFirstLink = async () => {
-    const firstLink = snapshot?.holdings[0]?.shareLink
-    if (!firstLink) return
-    await Clipboard.setStringAsync(firstLink)
+  const handleDeleteHolding = (holding: MobileHolding) => {
+    if (!guardReady()) return
+
+    Alert.alert(
+      '删除本机文件',
+      `将从本机 MostBox 中移除 ${holding.fileName}，并停止为这个 CID 做种。已另存到手机目录的副本不会被删除。`,
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '删除',
+          style: 'destructive',
+          onPress: () => {
+            setDeletingCid(holding.cid)
+            void core
+              .deleteHolding({ cid: holding.cid })
+              .catch(error => {
+                Alert.alert(
+                  '删除失败',
+                  error instanceof Error ? error.message : '无法删除本机文件'
+                )
+              })
+              .finally(() => {
+                setDeletingCid(null)
+              })
+          },
+        },
+      ]
+    )
+  }
+
+  const handleCopyHoldingLink = async (holding: MobileHolding) => {
+    await Clipboard.setStringAsync(holding.shareLink)
+    markCopied(holding.cid)
   }
 
   const prepareHoldingFile = async (holding: MobileHolding) => {
@@ -202,7 +597,7 @@ export default function App() {
     const fileUri = toFileUri(exported.filePath)
     const info = await FileSystem.getInfoAsync(fileUri)
     if (!info.exists) {
-      throw new Error('导出文件不存在，请重新下载后再试')
+      throw new Error('导出的文件不存在，请重新下载后再试')
     }
 
     return {
@@ -213,6 +608,7 @@ export default function App() {
   }
 
   const handleShareHolding = async (holding: MobileHolding) => {
+    if (!guardReady()) return
     setExportingCid(holding.cid)
     try {
       const available = await Sharing.isAvailableAsync()
@@ -223,16 +619,20 @@ export default function App() {
       const exported = await prepareHoldingFile(holding)
       await Sharing.shareAsync(exported.fileUri, {
         mimeType: exported.mimeType,
-        dialogTitle: `打开或分享 ${exported.fileName}`,
+        dialogTitle: `分享 ${exported.fileName}`,
       })
     } catch (error) {
-      Alert.alert('打开失败', error instanceof Error ? error.message : '无法打开文件')
+      Alert.alert(
+        '打开失败',
+        error instanceof Error ? error.message : '无法打开文件'
+      )
     } finally {
       setExportingCid(null)
     }
   }
 
   const handleSaveHolding = async (holding: MobileHolding) => {
+    if (!guardReady()) return
     setExportingCid(holding.cid)
     try {
       if (Platform.OS !== 'android') {
@@ -248,18 +648,19 @@ export default function App() {
         )
       if (!permission.granted) return
 
+      const saveFileName = getSafeSaveFileName(exported.fileName, holding.cid)
       const targetUri = await FileSystem.StorageAccessFramework.createFileAsync(
         permission.directoryUri,
-        exported.fileName,
+        saveFileName,
         exported.mimeType
       )
-      await FileSystem.copyAsync({
-        from: exported.fileUri,
-        to: targetUri,
-      })
-      Alert.alert('保存成功', `已保存 ${exported.fileName}`)
+      await writeSafFileFromLocalFile(exported.fileUri, targetUri)
+      Alert.alert('保存成功', `已保存 ${saveFileName}`)
     } catch (error) {
-      Alert.alert('保存失败', error instanceof Error ? error.message : '无法保存文件')
+      Alert.alert(
+        '保存失败',
+        error instanceof Error ? error.message : '无法保存文件'
+      )
     } finally {
       setExportingCid(null)
     }
@@ -267,191 +668,356 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.screen}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle="light-content" backgroundColor="#0d3b35" />
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.kicker}>MostBox Android</Text>
-            <Text style={styles.title}>文件分享</Text>
+        <View style={styles.hero}>
+          <View style={styles.header}>
+            <View style={styles.brandGroup}>
+              <Text style={styles.brand}>MostBox</Text>
+              <Text style={styles.title}>移动做种节点</Text>
+            </View>
+            <View style={[styles.nodePill, styles[`${nodeTone}Pill`]]}>
+              <Radio
+                size={15}
+                color={nodeTone === 'success' ? '#116149' : '#5b6b66'}
+              />
+              <Text
+                style={[styles.nodePillText, styles[`${nodeTone}PillText`]]}
+              >
+                {nodeStatusLabel}
+              </Text>
+            </View>
           </View>
-          <View
-            style={[
-              styles.statusPill,
-              nodeStatus === 'ready' ? styles.statusReady : styles.statusIdle,
-            ]}
-          >
-            <Radio size={14} color={nodeStatus === 'ready' ? '#064e3b' : '#475569'} />
-            <Text
-              style={[
-                styles.statusText,
-                nodeStatus === 'ready' ? styles.statusTextReady : null,
-              ]}
-            >
-              {nodeStatusLabel}
-            </Text>
-          </View>
-        </View>
 
-        <View style={styles.metricsGrid}>
-          <View style={styles.metric}>
-            <Activity size={18} color="#22c55e" />
-            <Text style={styles.metricValue}>{snapshot?.node.peerCount || 0}</Text>
-            <Text style={styles.metricLabel}>Peers</Text>
-          </View>
-          <View style={styles.metric}>
-            <HardDrive size={18} color="#38bdf8" />
-            <Text style={styles.metricValue}>{snapshot?.holdings.length || 0}</Text>
-            <Text style={styles.metricLabel}>Holdings</Text>
-          </View>
-        </View>
-
-        <View style={styles.actions}>
-          <Pressable style={styles.primaryButton} onPress={handlePickFile}>
-            <FileUp size={18} color="#f8fafc" />
-            <Text style={styles.primaryButtonText}>发布文件</Text>
-          </Pressable>
-          <Pressable
-            style={[
-              styles.secondaryButton,
-              !snapshot?.holdings.length ? styles.disabledButton : null,
-            ]}
-            disabled={!snapshot?.holdings.length}
-            onPress={handleCopyFirstLink}
-          >
-            <Copy size={18} color={snapshot?.holdings.length ? '#0f172a' : '#94a3b8'} />
-            <Text
-              style={[
-                styles.secondaryButtonText,
-                !snapshot?.holdings.length ? styles.disabledButtonText : null,
-              ]}
-            >
-              复制链接
-            </Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.panel}>
-          <View style={styles.panelTitleRow}>
-            <Link size={18} color="#38bdf8" />
-            <Text style={styles.panelTitle}>下载</Text>
-          </View>
-          <TextInput
-            value={downloadLink}
-            onChangeText={setDownloadLink}
-            placeholder="most://<cid>?filename=..."
-            placeholderTextColor="#64748b"
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={styles.input}
-          />
-          {parsedDownload ? (
-            <Text style={styles.validationText}>
-              {parsedDownload.fileName} · {parsedDownload.cid.slice(0, 16)}
-            </Text>
+          {currentSnapshot.node.error ? (
+            <View style={styles.errorBanner}>
+              <CircleAlert size={18} color="#991b1b" />
+              <Text style={styles.errorText}>{currentSnapshot.node.error}</Text>
+              <Pressable
+                disabled={isCoreBusy}
+                onPress={handleStartCore}
+                style={styles.retryButton}
+              >
+                <Text style={styles.retryButtonText}>重试</Text>
+              </Pressable>
+            </View>
           ) : null}
-          <Pressable
-            style={[
-              styles.primaryButton,
-              !downloadLink.trim() ? styles.disabledPrimaryButton : null,
-            ]}
-            disabled={!downloadLink.trim()}
-            onPress={handleDownload}
-          >
-            <Download size={18} color="#f8fafc" />
-            <Text style={styles.primaryButtonText}>加入下载</Text>
-          </Pressable>
+
+          <View style={styles.metricsRow}>
+            <Metric
+              icon={<Activity size={17} color="#0f766e" />}
+              label="在线 Peer"
+              value={String(currentSnapshot.node.peerCount)}
+            />
+            <Metric
+              icon={<HardDrive size={17} color="#2563eb" />}
+              label="做种文件"
+              value={String(currentSnapshot.holdings.length)}
+            />
+            <Metric
+              icon={<ShieldCheck size={17} color="#b45309" />}
+              label="CID 校验"
+              value="开启"
+            />
+          </View>
+        </View>
+
+        <View style={styles.quickActions}>
+          <CommandButton
+            variant="primary"
+            label={isReady ? '发布文件' : '等待核心'}
+            helper="生成 most:// 链接"
+            disabled={!isReady}
+            onPress={handlePickFile}
+            icon={<FileUp size={22} color={isReady ? '#f8fafc' : '#94a3b8'} />}
+          />
         </View>
 
         <View style={styles.panel}>
-          <Text style={styles.panelTitle}>正在做种</Text>
-          {snapshot?.holdings.length ? (
-            snapshot.holdings.map(holding => {
-              const isExporting = exportingCid === holding.cid
-              return (
-                <View key={holding.cid} style={styles.holdingItem}>
-                  <View style={styles.holdingHeader}>
-                    <View style={styles.listItemMain}>
-                      <Text style={styles.listItemTitle}>{holding.fileName}</Text>
-                      <Text style={styles.listItemMeta}>
-                        {holding.cid.slice(0, 18)} · {formatBytes(holding.size)}
+          <SectionHeader
+            icon={<Link2 size={18} color="#2563eb" />}
+            title="接收文件"
+            meta={
+              existingDownloadHolding
+                ? '本机已存'
+                : downloadValidation.state === 'valid'
+                  ? '链接有效'
+                  : downloadLink.trim()
+                    ? '待检查'
+                    : undefined
+            }
+          />
+
+          <View style={styles.inputShell}>
+            <TextInput
+              value={downloadLink}
+              onChangeText={setDownloadLink}
+              placeholder="most://<cid>?filename=..."
+              placeholderTextColor="#8a9a95"
+              autoCapitalize="none"
+              autoCorrect={false}
+              multiline
+              numberOfLines={3}
+              textAlignVertical="top"
+              style={styles.input}
+            />
+          </View>
+
+          {downloadValidation.state === 'valid' ? (
+            <View style={styles.linkPreview}>
+              <CircleCheck size={17} color="#0f766e" />
+              <View style={styles.previewTextGroup}>
+                <Text style={styles.previewTitle}>
+                  {existingDownloadHolding?.fileName ||
+                    downloadValidation.parsed.fileName}
+                </Text>
+                <Text style={styles.previewMeta}>
+                  {existingDownloadHolding
+                    ? `本机已存 · ${shortCid(downloadValidation.parsed.cid)}`
+                    : shortCid(downloadValidation.parsed.cid)}
+                </Text>
+              </View>
+            </View>
+          ) : downloadValidation.state === 'invalid' ? (
+            <View style={styles.linkPreviewError}>
+              <CircleAlert size={17} color="#b91c1c" />
+              <Text style={styles.previewErrorText}>
+                {downloadValidation.message}
+              </Text>
+            </View>
+          ) : null}
+
+          <View style={styles.downloadActions}>
+            <SmallAction
+              label="粘贴"
+              onPress={handlePasteLink}
+              icon={<ClipboardPaste size={16} color="#0f766e" />}
+            />
+            <SmallAction
+              primary
+              label={
+                existingDownloadHolding
+                  ? '已存'
+                  : isReady
+                    ? '开始下载'
+                    : '核心启动中'
+              }
+              disabled={
+                !isReady ||
+                downloadValidation.state !== 'valid' ||
+                Boolean(existingDownloadHolding)
+              }
+              onPress={handleDownload}
+              icon={
+                <Download
+                  size={16}
+                  color={
+                    isReady &&
+                    downloadValidation.state === 'valid' &&
+                    !existingDownloadHolding
+                      ? '#ffffff'
+                      : '#94a3b8'
+                  }
+                />
+              }
+            />
+          </View>
+        </View>
+
+        <View style={styles.panel}>
+          <SectionHeader
+            icon={<Wifi size={18} color="#0f766e" />}
+            title="正在做种"
+            meta={`${currentSnapshot.holdings.length} 个文件`}
+          />
+
+          {currentSnapshot.holdings.length ? (
+            <View style={styles.holdingList}>
+              {currentSnapshot.holdings.map(holding => {
+                const isExporting = exportingCid === holding.cid
+                const isDeleting = deletingCid === holding.cid
+                const isCopied = copiedCid === holding.cid
+                const seedTone = getSeedTone(holding.status)
+
+                return (
+                  <View key={holding.cid} style={styles.holdingItem}>
+                    <View style={styles.holdingTopRow}>
+                      <View style={styles.fileIcon}>
+                        <FileCheck size={20} color="#0f766e" />
+                      </View>
+                      <View style={styles.holdingMain}>
+                        <Text style={styles.fileName} numberOfLines={2}>
+                          {holding.fileName}
+                        </Text>
+                        <Text style={styles.fileMeta}>
+                          {formatBytes(holding.size)} ·{' '}
+                          {holding.source === 'published' ? '已发布' : '已下载'}
+                        </Text>
+                      </View>
+                      <StatusBadge
+                        label={SEED_STATUS_LABELS[holding.status]}
+                        tone={seedTone}
+                      />
+                    </View>
+
+                    <View style={styles.cidBlock}>
+                      <Text style={styles.cidLabel}>CID</Text>
+                      <Text style={styles.cidText}>
+                        {shortCid(holding.cid, 16, 10)}
                       </Text>
                     </View>
-                    <Text style={styles.badge}>{holding.status}</Text>
-                  </View>
-                  <View style={styles.holdingActions}>
-                    <Pressable
-                      style={[
-                        styles.compactButton,
-                        isExporting ? styles.disabledButton : null,
-                      ]}
-                      disabled={isExporting}
-                      onPress={() => handleShareHolding(holding)}
-                    >
-                      <Share2 size={15} color={isExporting ? '#94a3b8' : '#e0f2fe'} />
-                      <Text
-                        style={[
-                          styles.compactButtonText,
-                          isExporting ? styles.disabledButtonText : null,
-                        ]}
-                      >
-                        {isExporting ? '处理中' : '打开/分享'}
+
+                    <View style={styles.topicRow}>
+                      <Text style={styles.topicText}>
+                        {holding.topicJoined
+                          ? 'Topic 已加入'
+                          : '等待加入 topic'}
                       </Text>
-                    </Pressable>
-                    <Pressable
-                      style={[
-                        styles.compactButton,
-                        isExporting ? styles.disabledButton : null,
-                      ]}
-                      disabled={isExporting}
-                      onPress={() => handleSaveHolding(holding)}
-                    >
-                      <Save size={15} color={isExporting ? '#94a3b8' : '#e0f2fe'} />
-                      <Text
-                        style={[
-                          styles.compactButtonText,
-                          isExporting ? styles.disabledButtonText : null,
-                        ]}
-                      >
-                        保存
+                      <Text style={styles.topicText}>
+                        {holding.peerCount} peer
                       </Text>
-                    </Pressable>
+                    </View>
+
+                    <View style={styles.holdingActions}>
+                      <SmallAction
+                        label={isCopied ? '已复制' : '复制链接'}
+                        onPress={() => handleCopyHoldingLink(holding)}
+                        icon={
+                          isCopied ? (
+                            <CircleCheck size={15} color="#0f766e" />
+                          ) : (
+                            <Copy size={15} color="#0f766e" />
+                          )
+                        }
+                      />
+                      <SmallAction
+                        label={isExporting ? '处理中' : '分享'}
+                        disabled={isExporting || isDeleting || !isReady}
+                        onPress={() => handleShareHolding(holding)}
+                        icon={
+                          isExporting ? (
+                            <Loader size={15} color="#94a3b8" />
+                          ) : (
+                            <Share2 size={15} color="#0f766e" />
+                          )
+                        }
+                      />
+                      <SmallAction
+                        label="保存"
+                        disabled={isExporting || isDeleting || !isReady}
+                        onPress={() => handleSaveHolding(holding)}
+                        icon={
+                          <Save
+                            size={15}
+                            color={isReady ? '#0f766e' : '#94a3b8'}
+                          />
+                        }
+                      />
+                      <SmallAction
+                        danger
+                        label={isDeleting ? '删除中' : '删除'}
+                        disabled={isDeleting || isExporting || !isReady}
+                        onPress={() => handleDeleteHolding(holding)}
+                        icon={
+                          isDeleting ? (
+                            <Loader size={15} color="#94a3b8" />
+                          ) : (
+                            <Trash2 size={15} color="#b91c1c" />
+                          )
+                        }
+                      />
+                    </View>
                   </View>
-                </View>
-              )
-            })
+                )
+              })}
+            </View>
           ) : (
-            <Text style={styles.emptyText}>暂无 holding</Text>
+            <EmptyState
+              title="还没有本机持有文件"
+              body="发布或下载完成后，文件会自动加入做种列表。"
+            />
           )}
         </View>
 
         <View style={styles.panel}>
-          <Text style={styles.panelTitle}>传输</Text>
-          {snapshot?.transfers.length ? (
-            snapshot.transfers.map(transfer => (
-              <View key={transfer.id} style={styles.listItem}>
-                <View style={styles.listItemMain}>
-                  <Text style={styles.listItemTitle}>{transfer.fileName}</Text>
-                  <Text style={styles.listItemMeta}>{transfer.message}</Text>
-                </View>
-                <Text style={styles.badge}>{transfer.status}</Text>
-              </View>
-            ))
+          <SectionHeader
+            icon={<ListChecks size={18} color="#b45309" />}
+            title="传输活动"
+            meta={
+              activeTransfers.length
+                ? `${activeTransfers.length} 个进行中`
+                : '空闲'
+            }
+          />
+
+          {latestTransfers.length ? (
+            <View style={styles.transferList}>
+              {latestTransfers.map(transfer => {
+                const progress = clampProgress(transfer.progress)
+                const filler = Math.max(0, 100 - progress)
+                return (
+                  <View key={transfer.id} style={styles.transferItem}>
+                    <View style={styles.transferTopRow}>
+                      <View style={styles.transferTitleGroup}>
+                        <Text style={styles.transferName} numberOfLines={1}>
+                          {transfer.fileName ||
+                            TRANSFER_KIND_LABELS[transfer.kind]}
+                        </Text>
+                        <Text style={styles.transferMeta}>
+                          {TRANSFER_KIND_LABELS[transfer.kind]} ·{' '}
+                          {transfer.message}
+                        </Text>
+                      </View>
+                      <StatusBadge
+                        label={TRANSFER_STATUS_LABELS[transfer.status]}
+                        tone={getTransferTone(transfer.status)}
+                      />
+                    </View>
+                    <View style={styles.progressTrack}>
+                      <View style={[styles.progressFill, { flex: progress }]} />
+                      <View style={{ flex: filler }} />
+                    </View>
+                  </View>
+                )
+              })}
+            </View>
           ) : (
-            <Text style={styles.emptyText}>暂无传输</Text>
+            <EmptyState title="暂无传输" body="发布和下载进度会显示在这里。" />
           )}
         </View>
 
         <View style={styles.panel}>
-          <Text style={styles.panelTitle}>日志</Text>
-          {snapshot?.logs.length ? (
-            snapshot.logs.map(log => (
-              <View key={log.id} style={styles.logItem}>
-                <Text style={styles.logLevel}>{log.level}</Text>
-                <Text style={styles.logMessage}>{log.message}</Text>
-              </View>
-            ))
+          <SectionHeader
+            icon={<Radio size={18} color="#6d5dfc" />}
+            title="节点日志"
+            meta={recentLogs.length ? `最近 ${recentLogs.length} 条` : '暂无'}
+          />
+
+          {recentLogs.length ? (
+            <View style={styles.logList}>
+              {recentLogs.map(log => (
+                <View key={log.id} style={styles.logItem}>
+                  <Text style={styles.logTime}>{formatLogTime(log.time)}</Text>
+                  <View style={styles.logBody}>
+                    <Text
+                      style={[
+                        styles.logLevel,
+                        log.level === 'error' ? styles.logLevelError : null,
+                        log.level === 'warn' ? styles.logLevelWarn : null,
+                      ]}
+                    >
+                      {LOG_LEVEL_LABELS[log.level]}
+                    </Text>
+                    <Text style={styles.logMessage}>{log.message}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
           ) : (
-            <Text style={styles.emptyText}>暂无日志</Text>
+            <EmptyState
+              title="日志为空"
+              body="核心状态变化和传输事件会记录在这里。"
+            />
           )}
         </View>
       </ScrollView>
@@ -462,239 +1028,511 @@ export default function App() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#07111f',
+    backgroundColor: '#f4f7f5',
   },
   content: {
-    padding: 20,
-    paddingBottom: 36,
-    gap: 16,
+    paddingBottom: 32,
+    gap: 14,
+  },
+  hero: {
+    gap: 18,
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 20,
+    backgroundColor: '#0d3b35',
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    gap: 16,
+    gap: 14,
   },
-  kicker: {
-    color: '#38bdf8',
+  brandGroup: {
+    flex: 1,
+    gap: 3,
+  },
+  brand: {
+    color: '#a7f3d0',
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   title: {
-    color: '#f8fafc',
-    fontSize: 32,
-    fontWeight: '800',
+    color: '#ffffff',
+    fontSize: 28,
+    fontWeight: '900',
   },
-  statusPill: {
+  nodePill: {
+    minHeight: 34,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: '#e2e8f0',
+    paddingHorizontal: 11,
+    borderRadius: 8,
+    backgroundColor: '#e7ece9',
   },
-  statusReady: {
-    backgroundColor: '#bbf7d0',
+  successPill: {
+    backgroundColor: '#d1fae5',
   },
-  statusIdle: {
-    backgroundColor: '#e2e8f0',
+  dangerPill: {
+    backgroundColor: '#fee2e2',
   },
-  statusText: {
-    color: '#475569',
+  pendingPill: {
+    backgroundColor: '#fef3c7',
+  },
+  mutedPill: {
+    backgroundColor: '#e7ece9',
+  },
+  nodePillText: {
+    color: '#5b6b66',
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '900',
   },
-  statusTextReady: {
-    color: '#064e3b',
+  successPillText: {
+    color: '#116149',
   },
-  metricsGrid: {
+  dangerPillText: {
+    color: '#991b1b',
+  },
+  pendingPillText: {
+    color: '#92400e',
+  },
+  mutedPillText: {
+    color: '#5b6b66',
+  },
+  errorBanner: {
+    minHeight: 46,
     flexDirection: 'row',
-    gap: 12,
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: '#fef2f2',
+  },
+  errorText: {
+    flex: 1,
+    color: '#991b1b',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  retryButton: {
+    minHeight: 30,
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: '#991b1b',
+  },
+  retryButtonText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  metricsRow: {
+    flexDirection: 'row',
+    gap: 10,
   },
   metric: {
     flex: 1,
-    minHeight: 92,
+    minHeight: 88,
     justifyContent: 'center',
-    gap: 6,
-    padding: 16,
+    gap: 5,
+    padding: 12,
     borderRadius: 8,
-    backgroundColor: '#0f172a',
-    borderWidth: 1,
-    borderColor: '#1e293b',
+    backgroundColor: '#ffffff',
+  },
+  metricIcon: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    backgroundColor: '#edf6f2',
   },
   metricValue: {
-    color: '#f8fafc',
-    fontSize: 26,
-    fontWeight: '800',
+    color: '#12211d',
+    fontSize: 23,
+    fontWeight: '900',
   },
   metricLabel: {
-    color: '#94a3b8',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  primaryButton: {
-    flex: 1,
-    minHeight: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    borderRadius: 8,
-    backgroundColor: '#2563eb',
-  },
-  primaryButtonText: {
-    color: '#f8fafc',
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  disabledPrimaryButton: {
-    backgroundColor: '#334155',
-  },
-  secondaryButton: {
-    flex: 1,
-    minHeight: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    borderRadius: 8,
-    backgroundColor: '#e2e8f0',
-  },
-  secondaryButtonText: {
-    color: '#0f172a',
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  disabledButton: {
-    backgroundColor: '#1e293b',
-  },
-  disabledButtonText: {
-    color: '#94a3b8',
-  },
-  compactButton: {
-    flex: 1,
-    minHeight: 38,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    borderRadius: 8,
-    backgroundColor: '#164e63',
-  },
-  compactButtonText: {
-    color: '#e0f2fe',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  panel: {
-    gap: 12,
-    padding: 16,
-    borderRadius: 8,
-    backgroundColor: '#0f172a',
-    borderWidth: 1,
-    borderColor: '#1e293b',
-  },
-  panelTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  panelTitle: {
-    color: '#f8fafc',
-    fontSize: 17,
-    fontWeight: '800',
-  },
-  input: {
-    minHeight: 48,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#334155',
-    paddingHorizontal: 12,
-    color: '#f8fafc',
-    backgroundColor: '#020617',
-  },
-  validationText: {
-    color: '#7dd3fc',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  holdingItem: {
-    gap: 10,
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#1e293b',
-  },
-  holdingHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  holdingActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  listItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#1e293b',
-  },
-  listItemMain: {
-    flex: 1,
-    gap: 4,
-  },
-  listItemTitle: {
-    color: '#f8fafc',
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  listItemMeta: {
-    color: '#94a3b8',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  badge: {
-    overflow: 'hidden',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 999,
-    color: '#bae6fd',
-    backgroundColor: '#0c4a6e',
+    color: '#63716c',
     fontSize: 11,
     fontWeight: '800',
   },
-  emptyText: {
-    color: '#94a3b8',
-    fontSize: 13,
-    fontWeight: '600',
+  quickActions: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingHorizontal: 16,
+    marginTop: 2,
+  },
+  commandButton: {
+    flex: 1,
+    minHeight: 84,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 13,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#dbe6e1',
+    backgroundColor: '#ffffff',
+  },
+  commandButtonPrimary: {
+    borderColor: '#0f766e',
+    backgroundColor: '#0f766e',
+  },
+  commandButtonDisabled: {
+    borderColor: '#d5ded9',
+    backgroundColor: '#edf2ef',
+  },
+  commandIcon: {
+    width: 39,
+    height: 39,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    backgroundColor: '#edf6f2',
+  },
+  commandIconPrimary: {
+    backgroundColor: '#17877d',
+  },
+  commandIconDisabled: {
+    backgroundColor: '#e3ebe7',
+  },
+  commandTextGroup: {
+    flex: 1,
+    gap: 3,
+  },
+  commandLabel: {
+    color: '#13231f',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  commandLabelPrimary: {
+    color: '#ffffff',
+  },
+  commandHelper: {
+    color: '#63716c',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  commandHelperPrimary: {
+    color: '#d5f5ec',
+  },
+  panel: {
+    gap: 13,
+    marginHorizontal: 16,
+    padding: 15,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#dbe6e1',
+    backgroundColor: '#ffffff',
+  },
+  sectionHeader: {
+    minHeight: 28,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  sectionTitleGroup: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  sectionTitle: {
+    color: '#13231f',
+    fontSize: 17,
+    fontWeight: '900',
+  },
+  sectionMeta: {
+    color: '#63716c',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  inputShell: {
+    minHeight: 92,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#cddbd5',
+    backgroundColor: '#f8fbf9',
+  },
+  input: {
+    minHeight: 92,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    color: '#13231f',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  linkPreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 11,
+    borderRadius: 8,
+    backgroundColor: '#edfdf7',
+  },
+  linkPreviewError: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 11,
+    borderRadius: 8,
+    backgroundColor: '#fff1f2',
+  },
+  previewTextGroup: {
+    flex: 1,
+    gap: 2,
+  },
+  previewTitle: {
+    color: '#13231f',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  previewMeta: {
+    color: '#0f766e',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  previewErrorText: {
+    flex: 1,
+    color: '#b91c1c',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  downloadActions: {
+    flexDirection: 'row',
+    gap: 9,
+  },
+  smallAction: {
+    flex: 1,
+    minWidth: 128,
+    minHeight: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#d5e3dd',
+    backgroundColor: '#f8fbf9',
+  },
+  smallActionPrimary: {
+    borderColor: '#2563eb',
+    backgroundColor: '#2563eb',
+  },
+  smallActionDanger: {
+    borderColor: '#fecaca',
+    backgroundColor: '#fff1f2',
+  },
+  smallActionDisabled: {
+    borderColor: '#d9e2de',
+    backgroundColor: '#edf2ef',
+  },
+  smallActionText: {
+    color: '#13231f',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  smallActionPrimaryText: {
+    color: '#ffffff',
+  },
+  smallActionDangerText: {
+    color: '#b91c1c',
+  },
+  disabledText: {
+    color: '#94a3a0',
+  },
+  holdingList: {
+    gap: 12,
+  },
+  holdingItem: {
+    gap: 11,
+    padding: 13,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#dbe6e1',
+    backgroundColor: '#fbfdfc',
+  },
+  holdingTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  fileIcon: {
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    backgroundColor: '#edfdf7',
+  },
+  holdingMain: {
+    flex: 1,
+    gap: 3,
+  },
+  fileName: {
+    color: '#13231f',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  fileMeta: {
+    color: '#63716c',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  badge: {
+    minHeight: 27,
+    justifyContent: 'center',
+    paddingHorizontal: 9,
+    borderRadius: 8,
+    backgroundColor: '#e7ece9',
+  },
+  badgeText: {
+    color: '#5b6b66',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  successBadge: {
+    backgroundColor: '#dff8ec',
+  },
+  dangerBadge: {
+    backgroundColor: '#fee2e2',
+  },
+  pendingBadge: {
+    backgroundColor: '#fef3c7',
+  },
+  mutedBadge: {
+    backgroundColor: '#e7ece9',
+  },
+  successBadgeText: {
+    color: '#116149',
+  },
+  dangerBadgeText: {
+    color: '#991b1b',
+  },
+  pendingBadgeText: {
+    color: '#92400e',
+  },
+  mutedBadgeText: {
+    color: '#5b6b66',
+  },
+  cidBlock: {
+    gap: 4,
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: '#eef4f1',
+  },
+  cidLabel: {
+    color: '#63716c',
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  cidText: {
+    color: '#13231f',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  topicRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  topicText: {
+    color: '#63716c',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  holdingActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  transferList: {
+    gap: 10,
+  },
+  transferItem: {
+    gap: 10,
+    paddingVertical: 2,
+  },
+  transferTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  transferTitleGroup: {
+    flex: 1,
+    gap: 3,
+  },
+  transferName: {
+    color: '#13231f',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  transferMeta: {
+    color: '#63716c',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  progressTrack: {
+    height: 7,
+    flexDirection: 'row',
+    overflow: 'hidden',
+    borderRadius: 8,
+    backgroundColor: '#e6eee9',
+  },
+  progressFill: {
+    minWidth: 3,
+    backgroundColor: '#2563eb',
+  },
+  logList: {
+    gap: 11,
   },
   logItem: {
     flexDirection: 'row',
     gap: 10,
-    paddingVertical: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#1e293b',
   },
-  logLevel: {
+  logTime: {
     width: 42,
-    color: '#7dd3fc',
+    color: '#63716c',
     fontSize: 11,
     fontWeight: '800',
-    textTransform: 'uppercase',
+  },
+  logBody: {
+    flex: 1,
+    gap: 2,
+  },
+  logLevel: {
+    color: '#0f766e',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  logLevelWarn: {
+    color: '#b45309',
+  },
+  logLevelError: {
+    color: '#b91c1c',
   },
   logMessage: {
-    flex: 1,
-    color: '#cbd5e1',
+    color: '#44514d',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
+  },
+  emptyState: {
+    gap: 4,
+    paddingVertical: 14,
+  },
+  emptyTitle: {
+    color: '#13231f',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  emptyBody: {
+    color: '#63716c',
+    fontSize: 12,
+    fontWeight: '700',
   },
 })

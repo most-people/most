@@ -5,6 +5,7 @@ export const COMMANDS = Object.freeze({
   FILE_DOWNLOAD: 'file.download',
   FILE_LIST_HOLDINGS: 'file.listHoldings',
   FILE_EXPORT: 'file.export',
+  FILE_DELETE_HOLDING: 'file.deleteHolding',
   LOG_LIST: 'log.list',
 })
 
@@ -17,6 +18,7 @@ export const EVENTS = Object.freeze({
   DOWNLOAD_PROGRESS: 'download.progress',
   DOWNLOAD_SUCCESS: 'download.success',
   FILE_EXPORT_SUCCESS: 'file.export.success',
+  FILE_DELETE_HOLDING_SUCCESS: 'file.deleteHolding.success',
   ERROR: 'error',
   SNAPSHOT: 'snapshot',
 })

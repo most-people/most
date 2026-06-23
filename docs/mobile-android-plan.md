@@ -137,7 +137,7 @@ Phase 0 已在 Android 真机通过。若后续升级 Hyperswarm、Corestore、H
 内测包交付入口：
 
 - `npm run android:test`：运行移动端 CID、`most://` 链接协议和 JSONL IPC 解析测试。
-- `npm run android:build`：生成 `mobile/android/dist/mostbox-android-release.apk`、版本化 APK 和 SHA256 校验文件。
+- `npm run android:build`：生成版本化 APK `mobile/android/dist/mostbox-android-<version>-release.apk` 和 SHA256 校验文件。
 - `docs/mobile-android-alpha.md`：记录每轮真机复测的设备、网络、CID、耗时、结果和失败日志摘要。
 
 ## 验收场景

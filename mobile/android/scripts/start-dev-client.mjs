@@ -11,6 +11,7 @@ const port = Number(process.env.EXPO_PORT || 8081)
 const emulatorWaitTimeoutMs = Number(
   process.env.ANDROID_EMULATOR_TIMEOUT_MS || 180000
 )
+const defaultEmulatorArgs = ['-no-snapshot-load']
 const localHostUrl = `http://127.0.0.1:${port}`
 const appJson = JSON.parse(
   fs.readFileSync(path.join(projectDir, 'app.json'), 'utf8')
@@ -168,6 +169,16 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
+function parseEmulatorArgs() {
+  const rawArgs = process.env.ANDROID_EMULATOR_ARGS
+  if (rawArgs === undefined) return defaultEmulatorArgs
+
+  return rawArgs
+    .split(/\s+/)
+    .map(arg => arg.trim())
+    .filter(Boolean)
+}
+
 function isBootComplete(device) {
   if (!device?.isEmulator) return true
   return (
@@ -218,7 +229,8 @@ async function ensureAndroidDevice() {
   }
 
   console.log(`[android] starting emulator: ${avd}`)
-  const child = spawn(emulator, ['-avd', avd], {
+  const emulatorArgs = ['-avd', avd, ...parseEmulatorArgs()]
+  const child = spawn(emulator, emulatorArgs, {
     cwd: projectDir,
     detached: true,
     stdio: 'ignore',

@@ -3,6 +3,8 @@ import { Worklet } from 'react-native-bare-kit'
 import { COMMANDS, EVENTS } from '../../rpc-commands.mjs'
 import type {
   CoreListener,
+  DeleteHoldingInput,
+  DeleteHoldingResult,
   DownloadLinkInput,
   ExportHoldingInput,
   ExportHoldingResult,
@@ -92,6 +94,11 @@ function isExportHoldingResult(value: unknown): value is ExportHoldingResult {
   )
 }
 
+function isDeleteHoldingResult(value: unknown): value is DeleteHoldingResult {
+  const record = asRecord(value)
+  return typeof record.cid === 'string' && Boolean(record.snapshot)
+}
+
 function normalizeFileUri(uri: string) {
   if (uri.startsWith('file://')) {
     return decodeURIComponent(uri.slice('file://'.length))
@@ -116,6 +123,11 @@ function extractTransfer(payload: unknown) {
 function extractExportResult(payload: unknown) {
   if (isExportHoldingResult(payload)) return payload
   throw new Error('P2P core returned an invalid export payload')
+}
+
+function extractDeleteResult(payload: unknown) {
+  if (isDeleteHoldingResult(payload)) return payload
+  throw new Error('P2P core returned an invalid delete payload')
 }
 
 export class BareWorkletMostBoxCore implements MostBoxMobileCore {
@@ -237,6 +249,17 @@ export class BareWorkletMostBoxCore implements MostBoxMobileCore {
       900000
     )
     return extractExportResult(result)
+  }
+
+  async deleteHolding(input: DeleteHoldingInput): Promise<DeleteHoldingResult> {
+    await this.#ensureStarted()
+    const result = await this.#request(
+      COMMANDS.FILE_DELETE_HOLDING,
+      { cid: input.cid },
+      [EVENTS.FILE_DELETE_HOLDING_SUCCESS],
+      30000
+    )
+    return extractDeleteResult(result)
   }
 
   async listHoldings(): Promise<MobileHolding[]> {

@@ -80,12 +80,22 @@ async function handleCommand(command) {
       return
     }
 
+    if (command.type === COMMANDS.FILE_DELETE_HOLDING) {
+      const result = await getCore().deleteHolding(payload, requestId)
+      send(EVENTS.FILE_DELETE_HOLDING_SUCCESS, result, requestId)
+      return
+    }
+
     if (command.type === COMMANDS.LOG_LIST) {
       send(EVENTS.SNAPSHOT, getCore().getSnapshot(), requestId)
       return
     }
 
-    send(EVENTS.ERROR, { message: `Unsupported command: ${command.type}` }, requestId)
+    send(
+      EVENTS.ERROR,
+      { message: `Unsupported command: ${command.type}` },
+      requestId
+    )
   } catch (error) {
     send(
       EVENTS.ERROR,

@@ -13,9 +13,7 @@ npm run android:build
 
 构建成功后检查 `mobile/android/dist/`：
 
-- `mostbox-android-release.apk`
 - `mostbox-android-<version>-release.apk`
-- `mostbox-android-release.apk.sha256.txt`
 - `mostbox-android-<version>-release.apk.sha256.txt`
 
 安装到真机后，打开 App 并确认首页状态进入 `Ready`。

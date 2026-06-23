@@ -39,9 +39,7 @@ If the machine has multiple network adapters and the selected LAN URL is not rea
 
 `npm run apk` builds a release APK for device installation and writes these files to `mobile/android/dist/`:
 
-- `mostbox-android-release.apk`
 - `mostbox-android-<version>-release.apk`
-- `mostbox-android-release.apk.sha256.txt`
 - `mostbox-android-<version>-release.apk.sha256.txt`
 
 The release build is an internal alpha artifact. It uses the current local Android signing setup and is not a Play Store production build.

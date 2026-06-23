@@ -21,8 +21,8 @@ const apkSource = path.join(
   'release',
   'app-release.apk'
 )
-const apkTarget = path.join(outputDir, 'mostbox-android-release.apk')
-const versionedApkTarget = path.join(
+const legacyApkTarget = path.join(outputDir, 'mostbox-android-release.apk')
+const apkTarget = path.join(
   outputDir,
   `mostbox-android-${version}-release.apk`
 )
@@ -61,6 +61,12 @@ function writeChecksum(filePath) {
   return { checksumPath, digest }
 }
 
+function safeRm(filePath) {
+  try {
+    fs.rmSync(filePath, { force: true })
+  } catch {}
+}
+
 console.log('[android] bundling Bare Worklet core...')
 run(process.execPath, [
   path.join(projectDir, 'node_modules', 'bare-pack', 'bin.js'),
@@ -87,13 +93,11 @@ if (!fs.existsSync(apkSource)) {
 }
 
 fs.mkdirSync(outputDir, { recursive: true })
+safeRm(legacyApkTarget)
+safeRm(`${legacyApkTarget}.sha256.txt`)
 fs.copyFileSync(apkSource, apkTarget)
-fs.copyFileSync(apkSource, versionedApkTarget)
 console.log(`[android] APK ready: ${apkTarget}`)
-console.log(`[android] Versioned APK ready: ${versionedApkTarget}`)
 
-for (const apkPath of [apkTarget, versionedApkTarget]) {
-  const { checksumPath, digest } = writeChecksum(apkPath)
-  console.log(`[android] SHA256 ${digest}  ${path.basename(apkPath)}`)
-  console.log(`[android] Checksum ready: ${checksumPath}`)
-}
+const { checksumPath, digest } = writeChecksum(apkTarget)
+console.log(`[android] SHA256 ${digest}  ${path.basename(apkTarget)}`)
+console.log(`[android] Checksum ready: ${checksumPath}`)
