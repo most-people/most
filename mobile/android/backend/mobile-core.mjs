@@ -604,6 +604,7 @@ export class MobileP2PCore {
     if (existing) {
       await this.#openChannelRuntime(existing)
       await this.#joinChannelDiscoveryTopics(existing)
+      this.#broadcastChannelHello()
       return this.#toMobileChannel(existing)
     }
 
@@ -1396,7 +1397,9 @@ export class MobileP2PCore {
       return false
     }
     try {
-      stream.write(`${JSON.stringify(this.#buildChannelHelloMessage())}\n`)
+      stream.write(
+        b4a.from(`${JSON.stringify(this.#buildChannelHelloMessage())}\n`)
+      )
       return true
     } catch {
       this.#channelStreams.delete(stream)
@@ -1479,7 +1482,7 @@ export class MobileP2PCore {
     if (!this.#sendChannelHello(stream)) return
 
     stream.on('data', async data => {
-      readBuffer += data.toString()
+      readBuffer += b4a.toString(data)
       let newlineIndex = readBuffer.indexOf('\n')
       while (newlineIndex !== -1) {
         const line = readBuffer.slice(0, newlineIndex).trim()
