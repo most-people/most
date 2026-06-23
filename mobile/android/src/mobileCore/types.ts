@@ -22,6 +22,7 @@ export type MobileHolding = {
   peerCount: number
   source: 'published' | 'downloaded'
   shareLink: string
+  localPath?: string
 }
 
 export type MobileTransfer = {
@@ -68,6 +69,18 @@ export type DownloadLinkInput = {
   link: string
 }
 
+export type ExportHoldingInput = {
+  cid: string
+  fileName?: string
+}
+
+export type ExportHoldingResult = {
+  filePath: string
+  fileName: string
+  size: number
+  holding: MobileHolding
+}
+
 export type CoreListener = (snapshot: MobileCoreSnapshot) => void
 
 export type MostBoxMobileCore = {
@@ -75,6 +88,7 @@ export type MostBoxMobileCore = {
   stop: () => Promise<void>
   publishFile: (input: PublishFileInput) => Promise<MobileTransfer>
   downloadLink: (input: DownloadLinkInput) => Promise<MobileTransfer>
+  exportHolding: (input: ExportHoldingInput) => Promise<ExportHoldingResult>
   listHoldings: () => Promise<MobileHolding[]>
   getSnapshot: () => MobileCoreSnapshot
   subscribe: (listener: CoreListener) => () => void

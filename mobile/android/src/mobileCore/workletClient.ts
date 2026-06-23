@@ -4,6 +4,8 @@ import { COMMANDS, EVENTS } from '../../rpc-commands.mjs'
 import type {
   CoreListener,
   DownloadLinkInput,
+  ExportHoldingInput,
+  ExportHoldingResult,
   MobileCoreSnapshot,
   MobileHolding,
   MobileLogEntry,
@@ -80,6 +82,16 @@ function isTransfer(value: unknown): value is MobileTransfer {
   )
 }
 
+function isExportHoldingResult(value: unknown): value is ExportHoldingResult {
+  const record = asRecord(value)
+  return (
+    typeof record.filePath === 'string' &&
+    typeof record.fileName === 'string' &&
+    typeof record.size === 'number' &&
+    Boolean(record.holding)
+  )
+}
+
 function normalizeFileUri(uri: string) {
   if (uri.startsWith('file://')) {
     return decodeURIComponent(uri.slice('file://'.length))
@@ -99,6 +111,11 @@ function extractTransfer(payload: unknown) {
   if (isTransfer(record.transfer)) return record.transfer
   if (isTransfer(payload)) return payload
   throw new Error('P2P core returned an invalid transfer payload')
+}
+
+function extractExportResult(payload: unknown) {
+  if (isExportHoldingResult(payload)) return payload
+  throw new Error('P2P core returned an invalid export payload')
 }
 
 export class BareWorkletMostBoxCore implements MostBoxMobileCore {
@@ -209,6 +226,17 @@ export class BareWorkletMostBoxCore implements MostBoxMobileCore {
       900000
     )
     return extractTransfer(result)
+  }
+
+  async exportHolding(input: ExportHoldingInput): Promise<ExportHoldingResult> {
+    await this.#ensureStarted()
+    const result = await this.#request(
+      COMMANDS.FILE_EXPORT,
+      { cid: input.cid, fileName: input.fileName },
+      [EVENTS.FILE_EXPORT_SUCCESS],
+      900000
+    )
+    return extractExportResult(result)
   }
 
   async listHoldings(): Promise<MobileHolding[]> {

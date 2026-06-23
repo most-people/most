@@ -16,6 +16,7 @@ export const EVENTS = Object.freeze({
   PUBLISH_SUCCESS: 'publish.success',
   DOWNLOAD_PROGRESS: 'download.progress',
   DOWNLOAD_SUCCESS: 'download.success',
+  FILE_EXPORT_SUCCESS: 'file.export.success',
   ERROR: 'error',
   SNAPSHOT: 'snapshot',
 })

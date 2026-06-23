@@ -64,6 +64,14 @@ function safeRm(filePath) {
   }
 }
 
+function fileExists(filePath) {
+  try {
+    return Boolean(filePath) && fs.statSync(filePath).isFile()
+  } catch {
+    return false
+  }
+}
+
 function atomicWrite(filePath, data) {
   const tmpPath = `${filePath}.tmp`
   fs.writeFileSync(tmpPath, data, 'utf8')
@@ -530,6 +538,7 @@ export class MobileP2PCore {
         fileName,
         size,
         driveName,
+        localPath: source.filePath,
         source: 'published',
       })
 
@@ -648,6 +657,7 @@ export class MobileP2PCore {
         fileName,
         size: savedSize,
         driveName,
+        localPath: savePath,
         source: 'downloaded',
       })
 
@@ -673,6 +683,62 @@ export class MobileP2PCore {
       })
       this.#log('error', failed.message)
       throw err
+    }
+  }
+
+  async exportHolding(input = {}, requestId = createId('export')) {
+    this.#ensureReady()
+    const { cid, driveName } = getCidInfo(input.cid)
+    const existing = this.#holdings.find(holding => holding.cid === cid)
+    if (!existing) {
+      throw new Error('This CID is not available in local holdings')
+    }
+
+    const fileName = sanitizeFilename(input.fileName || existing.fileName || cid)
+    let exportPath = existing.localPath || ''
+    let holding = existing
+
+    if (!fileExists(exportPath)) {
+      const drive = await this.#getOrCreateDrive(existing.driveName || driveName)
+      const driveKey = `/${cid}`
+      const entry = await drive.entry(driveKey).catch(() => null)
+      if (!entry) {
+        throw new Error('Local Hyperdrive content is not available for export')
+      }
+
+      exportPath = uniqueSavePath(this.#downloadPath, fileName)
+      const tempPath = `${exportPath}.part`
+      safeRm(tempPath)
+
+      try {
+        await pipeDriveToFile(drive.createReadStream(driveKey), tempPath, {
+          timeout: STREAM_READ_TIMEOUT,
+        })
+
+        const exported = await calculateCid({ filePath: tempPath })
+        if (exported.cid !== cid) {
+          throw new Error(`Exported file CID mismatch. Expected ${cid}, got ${exported.cid}.`)
+        }
+
+        fs.renameSync(tempPath, exportPath)
+        holding = this.#upsertHolding({
+          ...existing,
+          fileName,
+          size: exported.size || existing.size,
+          localPath: exportPath,
+        })
+      } catch (err) {
+        safeRm(tempPath)
+        throw err
+      }
+    }
+
+    this.#log('info', `Prepared ${fileName} for export`)
+    return {
+      filePath: exportPath,
+      fileName,
+      size: holding.size,
+      holding: this.#toMobileHolding(holding),
     }
   }
 
@@ -816,6 +882,7 @@ export class MobileP2PCore {
       size,
       topic: record.topic || topicHex,
       driveName: record.driveName || driveName,
+      localPath: normalizeFileUri(record.localPath || ''),
       source: record.source === 'downloaded' ? 'downloaded' : 'published',
       createdAt: record.createdAt || nowIso(),
       updatedAt: record.updatedAt || nowIso(),
@@ -857,6 +924,7 @@ export class MobileP2PCore {
       peerCount: this.#peerCount(),
       source: holding.source,
       shareLink: buildMostLink(holding.cid, holding.fileName),
+      localPath: holding.localPath || '',
     }
   }
 

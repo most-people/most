@@ -26,6 +26,8 @@ npm run android:build
 | --- | --- |
 | Android 发布，桌面下载 | Android 得到 `most://` 链接；桌面凭链接下载并通过 CID 校验。 |
 | 桌面发布，Android 下载 | Android 下载完成后 CID 校验通过，并自动加入 holdings。 |
+| Android 打开/分享文件 | Holding 行点击 `打开/分享` 后，系统分享或打开面板出现，目标 App 能收到文件副本。 |
+| Android 保存文件 | Holding 行点击 `保存` 后，用户选择目录，目录中出现同名文件副本。 |
 | 发布者退出后继续传播 | 原桌面发布者退出后，只要 Android 仍在前台做种，新的桌面节点仍可下载并校验。 |
 | Android 重启恢复 | Android App 重启后恢复 holdings，并重新 join 对应 CID topic。 |
 | 基础可见性 | Android UI 能看到 CID、文件大小、topic join 状态、peer 数或基础日志。 |
@@ -59,6 +61,8 @@ most:// 链接:
 失败错误:
 Android holdings 状态:
 Android topic join 状态:
+打开/分享结果:
+保存到手机结果:
 桌面日志摘要:
 Android 日志摘要:
 备注:

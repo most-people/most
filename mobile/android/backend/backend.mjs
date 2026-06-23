@@ -74,6 +74,12 @@ async function handleCommand(command) {
       return
     }
 
+    if (command.type === COMMANDS.FILE_EXPORT) {
+      const result = await getCore().exportHolding(payload, requestId)
+      send(EVENTS.FILE_EXPORT_SUCCESS, result, requestId)
+      return
+    }
+
     if (command.type === COMMANDS.LOG_LIST) {
       send(EVENTS.SNAPSHOT, getCore().getSnapshot(), requestId)
       return

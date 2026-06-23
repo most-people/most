@@ -56,12 +56,15 @@ Use one Android device and at least one desktop MostBox node:
 4. Confirm Holdings shows the CID with `active` and `topicJoined` true.
 5. Copy the `most://` link and download it from a desktop MostBox node. The desktop download must pass CID verification.
 6. Publish a file from desktop, download it on Android, and confirm Android adds it to Holdings.
-7. Stop the original desktop publisher. Keep Android in the foreground, then download the same link from another desktop node.
-8. Restart the Android app and confirm existing holdings rejoin their CID topics.
+7. Use `打开/分享` from the Android holding row and confirm Android shows the system share/open sheet.
+8. Use `保存` from the Android holding row, choose a phone folder, and confirm a user-visible copy is created.
+9. Stop the original desktop publisher. Keep Android in the foreground, then download the same link from another desktop node.
+10. Restart the Android app and confirm existing holdings rejoin their CID topics.
 
 ## Known Limits
 
 - Android alpha only promises foreground seeding. It does not promise long-running background availability.
+- Exported or saved files are user-visible copies. MostBox keeps its internal holding copy for CID verification and seeding.
 - iOS, Play Store distribution, cloud relay, account sync, chat, games, notes, and Web3 toolbox migration are outside this alpha.
 - Large files may expose storage, network interruption, and Android file picker/export edge cases; record those in `docs/mobile-android-alpha.md`.
 

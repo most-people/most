@@ -2,6 +2,7 @@ import './src/polyfills/eventTarget'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
+  Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -14,6 +15,7 @@ import {
 import * as Clipboard from 'expo-clipboard'
 import * as DocumentPicker from 'expo-document-picker'
 import * as FileSystem from 'expo-file-system/legacy'
+import * as Sharing from 'expo-sharing'
 import b4a from 'b4a'
 import {
   Activity,
@@ -23,13 +25,35 @@ import {
   HardDrive,
   Link,
   Radio,
+  Save,
+  Share2,
 } from 'lucide-react-native'
 import { createMostBoxCore } from './src/mobileCore/createMostBoxCore'
 import { parseMostLink } from './src/mobileCore/protocol'
-import type { MobileCoreSnapshot, MostBoxMobileCore } from './src/mobileCore/types'
+import type {
+  MobileCoreSnapshot,
+  MobileHolding,
+  MostBoxMobileCore,
+} from './src/mobileCore/types'
 import type { DocumentPickerAsset } from 'expo-document-picker'
 
 const DEV_CID_MAX_BYTES = 20 * 1024 * 1024
+const MIME_BY_EXTENSION: Record<string, string> = {
+  apk: 'application/vnd.android.package-archive',
+  csv: 'text/csv',
+  gif: 'image/gif',
+  jpeg: 'image/jpeg',
+  jpg: 'image/jpeg',
+  json: 'application/json',
+  md: 'text/markdown',
+  mp3: 'audio/mpeg',
+  mp4: 'video/mp4',
+  pdf: 'application/pdf',
+  png: 'image/png',
+  txt: 'text/plain',
+  webp: 'image/webp',
+  zip: 'application/zip',
+}
 
 function formatBytes(size: number) {
   if (!Number.isFinite(size) || size <= 0) return '0 B'
@@ -71,10 +95,27 @@ function getCoreStoragePath() {
   return storageUri
 }
 
+function getMimeType(fileName: string) {
+  const extension = fileName.split('.').pop()?.toLowerCase() || ''
+  return MIME_BY_EXTENSION[extension] || 'application/octet-stream'
+}
+
+function toFileUri(filePath: string) {
+  const value = filePath.trim()
+  if (value.startsWith('file://') || value.startsWith('content://')) return value
+  const normalized = value.replace(/\\/g, '/')
+  const encoded = normalized
+    .split('/')
+    .map(part => encodeURIComponent(part))
+    .join('/')
+  return `file://${encoded.startsWith('/') ? encoded : `/${encoded}`}`
+}
+
 export default function App() {
   const coreRef = useRef<MostBoxMobileCore | null>(null)
   const [snapshot, setSnapshot] = useState<MobileCoreSnapshot | null>(null)
   const [downloadLink, setDownloadLink] = useState('')
+  const [exportingCid, setExportingCid] = useState<string | null>(null)
 
   if (!coreRef.current) {
     coreRef.current = createMostBoxCore({
@@ -151,6 +192,77 @@ export default function App() {
     const firstLink = snapshot?.holdings[0]?.shareLink
     if (!firstLink) return
     await Clipboard.setStringAsync(firstLink)
+  }
+
+  const prepareHoldingFile = async (holding: MobileHolding) => {
+    const exported = await core.exportHolding({
+      cid: holding.cid,
+      fileName: holding.fileName,
+    })
+    const fileUri = toFileUri(exported.filePath)
+    const info = await FileSystem.getInfoAsync(fileUri)
+    if (!info.exists) {
+      throw new Error('导出文件不存在，请重新下载后再试')
+    }
+
+    return {
+      ...exported,
+      fileUri,
+      mimeType: getMimeType(exported.fileName),
+    }
+  }
+
+  const handleShareHolding = async (holding: MobileHolding) => {
+    setExportingCid(holding.cid)
+    try {
+      const available = await Sharing.isAvailableAsync()
+      if (!available) {
+        throw new Error('当前设备不支持系统分享')
+      }
+
+      const exported = await prepareHoldingFile(holding)
+      await Sharing.shareAsync(exported.fileUri, {
+        mimeType: exported.mimeType,
+        dialogTitle: `打开或分享 ${exported.fileName}`,
+      })
+    } catch (error) {
+      Alert.alert('打开失败', error instanceof Error ? error.message : '无法打开文件')
+    } finally {
+      setExportingCid(null)
+    }
+  }
+
+  const handleSaveHolding = async (holding: MobileHolding) => {
+    setExportingCid(holding.cid)
+    try {
+      if (Platform.OS !== 'android') {
+        throw new Error('保存到手机目录目前仅支持 Android')
+      }
+
+      const exported = await prepareHoldingFile(holding)
+      const initialUri =
+        FileSystem.StorageAccessFramework.getUriForDirectoryInRoot('Download')
+      const permission =
+        await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync(
+          initialUri
+        )
+      if (!permission.granted) return
+
+      const targetUri = await FileSystem.StorageAccessFramework.createFileAsync(
+        permission.directoryUri,
+        exported.fileName,
+        exported.mimeType
+      )
+      await FileSystem.copyAsync({
+        from: exported.fileUri,
+        to: targetUri,
+      })
+      Alert.alert('保存成功', `已保存 ${exported.fileName}`)
+    } catch (error) {
+      Alert.alert('保存失败', error instanceof Error ? error.message : '无法保存文件')
+    } finally {
+      setExportingCid(null)
+    }
   }
 
   return (
@@ -253,17 +365,60 @@ export default function App() {
         <View style={styles.panel}>
           <Text style={styles.panelTitle}>正在做种</Text>
           {snapshot?.holdings.length ? (
-            snapshot.holdings.map(holding => (
-              <View key={holding.cid} style={styles.listItem}>
-                <View style={styles.listItemMain}>
-                  <Text style={styles.listItemTitle}>{holding.fileName}</Text>
-                  <Text style={styles.listItemMeta}>
-                    {holding.cid.slice(0, 18)} · {formatBytes(holding.size)}
-                  </Text>
+            snapshot.holdings.map(holding => {
+              const isExporting = exportingCid === holding.cid
+              return (
+                <View key={holding.cid} style={styles.holdingItem}>
+                  <View style={styles.holdingHeader}>
+                    <View style={styles.listItemMain}>
+                      <Text style={styles.listItemTitle}>{holding.fileName}</Text>
+                      <Text style={styles.listItemMeta}>
+                        {holding.cid.slice(0, 18)} · {formatBytes(holding.size)}
+                      </Text>
+                    </View>
+                    <Text style={styles.badge}>{holding.status}</Text>
+                  </View>
+                  <View style={styles.holdingActions}>
+                    <Pressable
+                      style={[
+                        styles.compactButton,
+                        isExporting ? styles.disabledButton : null,
+                      ]}
+                      disabled={isExporting}
+                      onPress={() => handleShareHolding(holding)}
+                    >
+                      <Share2 size={15} color={isExporting ? '#94a3b8' : '#e0f2fe'} />
+                      <Text
+                        style={[
+                          styles.compactButtonText,
+                          isExporting ? styles.disabledButtonText : null,
+                        ]}
+                      >
+                        {isExporting ? '处理中' : '打开/分享'}
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      style={[
+                        styles.compactButton,
+                        isExporting ? styles.disabledButton : null,
+                      ]}
+                      disabled={isExporting}
+                      onPress={() => handleSaveHolding(holding)}
+                    >
+                      <Save size={15} color={isExporting ? '#94a3b8' : '#e0f2fe'} />
+                      <Text
+                        style={[
+                          styles.compactButtonText,
+                          isExporting ? styles.disabledButtonText : null,
+                        ]}
+                      >
+                        保存
+                      </Text>
+                    </Pressable>
+                  </View>
                 </View>
-                <Text style={styles.badge}>{holding.status}</Text>
-              </View>
-            ))
+              )
+            })
           ) : (
             <Text style={styles.emptyText}>暂无 holding</Text>
           )}
@@ -421,6 +576,21 @@ const styles = StyleSheet.create({
   disabledButtonText: {
     color: '#94a3b8',
   },
+  compactButton: {
+    flex: 1,
+    minHeight: 38,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: 8,
+    backgroundColor: '#164e63',
+  },
+  compactButtonText: {
+    color: '#e0f2fe',
+    fontSize: 12,
+    fontWeight: '800',
+  },
   panel: {
     gap: 12,
     padding: 16,
@@ -452,6 +622,22 @@ const styles = StyleSheet.create({
     color: '#7dd3fc',
     fontSize: 12,
     fontWeight: '700',
+  },
+  holdingItem: {
+    gap: 10,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#1e293b',
+  },
+  holdingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  holdingActions: {
+    flexDirection: 'row',
+    gap: 8,
   },
   listItem: {
     flexDirection: 'row',
