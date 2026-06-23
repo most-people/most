@@ -48,6 +48,27 @@ export type MobileLogEntry = {
   message: string
 }
 
+export type MobileChannel = {
+  name: string
+  channelId: string
+  channelKey: string
+  key: string
+  type: string
+  createdAt: string
+  lastMessageAt: string
+  localWriterCoreKey: string
+  writerCoreKeys: string[]
+  peerCount: number
+}
+
+export type MobileChannelMessage = {
+  type?: string
+  author: string
+  authorName: string
+  content: string
+  timestamp: number
+}
+
 export type NodeState = {
   status: NodeRuntimeStatus
   peerCount: number
@@ -59,6 +80,8 @@ export type MobileCoreSnapshot = {
   node: NodeState
   holdings: MobileHolding[]
   transfers: MobileTransfer[]
+  channels: MobileChannel[]
+  channelMessages: Record<string, MobileChannelMessage[]>
   logs: MobileLogEntry[]
 }
 
@@ -88,6 +111,18 @@ export type DeleteHoldingResult = {
   snapshot: MobileCoreSnapshot
 }
 
+export type CreateChannelInput = {
+  name: string
+  type?: string
+}
+
+export type SendChannelMessageInput = {
+  channelName: string
+  content: string
+  author?: string
+  authorName?: string
+}
+
 export type ExportHoldingResult = {
   filePath: string
   fileName: string
@@ -105,6 +140,14 @@ export type MostBoxMobileCore = {
   exportHolding: (input: ExportHoldingInput) => Promise<ExportHoldingResult>
   deleteHolding: (input: DeleteHoldingInput) => Promise<DeleteHoldingResult>
   listHoldings: () => Promise<MobileHolding[]>
+  createChannel: (input: CreateChannelInput) => Promise<MobileChannel>
+  listChannels: () => Promise<MobileChannel[]>
+  getChannelMessages: (
+    channelName: string
+  ) => Promise<MobileChannelMessage[]>
+  sendChannelMessage: (
+    input: SendChannelMessageInput
+  ) => Promise<MobileChannelMessage>
   getSnapshot: () => MobileCoreSnapshot
   subscribe: (listener: CoreListener) => () => void
 }

@@ -1,5 +1,20 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
+import b4a from 'b4a'
+import {
+  DIAGNOSTIC_AUTHOR,
+  buildChannelKey,
+  channelToCandidate,
+  createChannelRecord,
+  formatChannelForResponse,
+  generateChannelChatDiscoveryKey,
+  generateChannelDiscoveryKey,
+  generateChannelIdDiscoveryKey,
+  normalizeChannelMessage,
+  normalizeChannelRecord,
+  sortChannelMessages,
+} from './channel-protocol.mjs'
 import { createJsonLineParser } from './protocol.mjs'
 
 describe('backend JSON line parser', () => {
@@ -55,5 +70,79 @@ describe('backend JSON line parser', () => {
     assert.equal(errors.length, 1)
     assert.equal(messages.length, 1)
     assert.equal(messages[0].type, 'node.start')
+  })
+})
+
+describe('mobile channel protocol helpers', () => {
+  it('derives channel discovery topics with the desktop-compatible prefix', () => {
+    const channelKey = 'android-smoke'
+
+    assert.equal(buildChannelKey(channelKey), channelKey)
+    assert.equal(
+      b4a.toString(generateChannelDiscoveryKey(channelKey), 'hex'),
+      createHash('sha256')
+        .update(`most-box-room-channel:${channelKey}`)
+        .digest('hex')
+    )
+    assert.equal(
+      b4a.toString(generateChannelChatDiscoveryKey(channelKey), 'hex'),
+      createHash('sha256')
+        .update(`most-box-room-channel:${channelKey}:chat`)
+        .digest('hex')
+    )
+    assert.equal(
+      b4a.toString(generateChannelIdDiscoveryKey(channelKey), 'hex'),
+      createHash('sha256')
+        .update(`most-box-room-id:${channelKey}:candidates`)
+        .digest('hex')
+    )
+  })
+
+  it('normalizes diagnostic channel messages into JSON log entries', () => {
+    const message = normalizeChannelMessage(
+      {
+        content: '  from android  ',
+        authorName: 'Android',
+      },
+      { timestamp: 1234 }
+    )
+
+    assert.deepEqual(message, {
+      type: 'message',
+      author: DIAGNOSTIC_AUTHOR,
+      authorName: 'Android',
+      content: 'from android',
+      timestamp: 1234,
+    })
+  })
+
+  it('round-trips channel metadata and writer candidates through JSON', () => {
+    const created = createChannelRecord('android-smoke', 'public', {
+      createdAt: '2026-06-23T00:00:00.000Z',
+      writerCoreKeys: ['aa', 'bb', 'aa'],
+    })
+    const parsed = normalizeChannelRecord(JSON.parse(JSON.stringify(created)))
+    const candidate = channelToCandidate(parsed, true)
+    const response = formatChannelForResponse(parsed, 2)
+
+    assert.equal(parsed.channelId, 'android-smoke')
+    assert.equal(parsed.channelKey, 'android-smoke')
+    assert.deepEqual(parsed.writerCoreKeys, ['aa', 'bb'])
+    assert.deepEqual(candidate.writerCoreKeys, ['aa', 'bb'])
+    assert.equal(response.peerCount, 2)
+    assert.equal(response.localWriterCoreKey, '')
+  })
+
+  it('sorts and deduplicates multi-writer channel messages', () => {
+    const messages = sortChannelMessages([
+      { type: 'message', _coreKey: 'a', author: '1', content: 'late', timestamp: 3 },
+      { type: 'message', _coreKey: 'b', author: '2', content: 'early', timestamp: 1 },
+      { type: 'message', _coreKey: 'b', author: '2', content: 'early', timestamp: 1 },
+    ])
+
+    assert.deepEqual(
+      messages.map(message => message.content),
+      ['early', 'late']
+    )
   })
 })

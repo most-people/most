@@ -7,6 +7,28 @@ import Hyperswarm from 'hyperswarm'
 import { importer } from 'ipfs-unixfs-importer'
 import { CID } from 'multiformats/cid'
 import {
+  CHANNEL_CANDIDATE_TTL,
+  CHANNEL_DISCOVERY_TIMEOUT,
+  CHANNEL_MESSAGE_LIMIT,
+  CHANNELS_FILE,
+  DIAGNOSTIC_AUTHOR,
+  DIAGNOSTIC_AUTHOR_NAME,
+  assertValidChannelId,
+  buildChannelKey,
+  channelToCandidate,
+  createChannelRecord,
+  formatChannelForResponse,
+  generateChannelChatDiscoveryKey,
+  generateChannelDiscoveryKey,
+  generateChannelIdDiscoveryKey,
+  normalizeChannelId,
+  normalizeChannelKey,
+  normalizeChannelMessage,
+  normalizeChannelRecord,
+  sortChannelMessages,
+  uniqueStrings,
+} from './channel-protocol.mjs'
+import {
   getInternalHoldingCleanupPaths,
   removeHoldingRecord,
 } from './holding-records.mjs'
@@ -369,9 +391,20 @@ export class MobileP2PCore {
   #send
   #store = null
   #swarm = null
+  #chatSwarm = null
   #drives = new Map()
   #drivePromises = new Map()
   #discoveries = new Map()
+  #channels = []
+  #channelCores = new Map()
+  #channelLocalCoreKey = new Map()
+  #channelDiscoveries = new Map()
+  #channelChatDiscoveries = new Map()
+  #channelIdDiscoveries = new Map()
+  #channelPeers = new Map()
+  #channelCandidateCache = new Map()
+  #channelStreams = new Set()
+  #channelMessageCache = new Map()
   #holdings = []
   #seedStates = new Map()
   #transfers = []
@@ -395,6 +428,8 @@ export class MobileP2PCore {
       node: { ...this.#node, peerCount: this.#peerCount() },
       holdings: this.#holdings.map(holding => this.#toMobileHolding(holding)),
       transfers: this.#transfers.map(transfer => ({ ...transfer })),
+      channels: this.#channels.map(channel => this.#toMobileChannel(channel)),
+      channelMessages: this.#snapshotChannelMessages(),
       logs: this.#logs.map(log => ({ ...log })),
     }
   }
@@ -443,6 +478,26 @@ export class MobileP2PCore {
       this.#log('warn', message)
     })
 
+    this.#chatSwarm = new Hyperswarm({
+      maxPeers: MAX_PEERS,
+      bootstrap: SWARM_BOOTSTRAP,
+      firewall: () => false,
+      connectionKeepAlive: 5000,
+      randomPunchInterval: 20000,
+      handshakeTimeout: CONNECTION_TIMEOUT,
+    })
+
+    this.#chatSwarm.on('connection', conn => {
+      conn.on('error', () => {})
+      this.#handleChannelConnection(conn).catch(() => {})
+      this.#emitNetworkStatus()
+    })
+    this.#chatSwarm.on('update', () => this.#emitNetworkStatus())
+    this.#chatSwarm.on('error', err => {
+      const message = err && err.message ? err.message : 'Chat swarm error'
+      this.#log('warn', message)
+    })
+
     this.#holdings = this.#loadHoldings()
     for (const holding of this.#holdings) {
       this.#seedStates.set(holding.cid, {
@@ -450,6 +505,12 @@ export class MobileP2PCore {
         topic: holding.topic,
         driveName: holding.driveName,
       })
+    }
+
+    this.#channels = this.#loadChannels()
+    for (const channel of this.#channels) {
+      await this.#openChannelRuntime(channel)
+      await this.#joinChannelDiscoveryTopics(channel)
     }
 
     this.#node = {
@@ -483,6 +544,24 @@ export class MobileP2PCore {
       this.#swarm = null
     }
 
+    if (this.#chatSwarm) {
+      await this.#chatSwarm.destroy()
+      this.#chatSwarm = null
+    }
+
+    for (const [, coresMap] of this.#channelCores) {
+      await Promise.allSettled([...coresMap.values()].map(core => core.close()))
+    }
+    this.#channelCores.clear()
+    this.#channelLocalCoreKey.clear()
+    this.#channelDiscoveries.clear()
+    this.#channelChatDiscoveries.clear()
+    this.#channelIdDiscoveries.clear()
+    this.#channelPeers.clear()
+    this.#channelCandidateCache.clear()
+    this.#channelStreams.clear()
+    this.#channelMessageCache.clear()
+
     await Promise.allSettled(
       [...this.#drives.values()].map(drive => drive.close())
     )
@@ -506,6 +585,131 @@ export class MobileP2PCore {
 
   listHoldings() {
     return this.getSnapshot().holdings
+  }
+
+  listChannels() {
+    this.#ensureReady()
+    return this.#channels.map(channel => this.#toMobileChannel(channel))
+  }
+
+  async createChannel(input = {}) {
+    this.#ensureReady()
+    const requestedType = String(input.type || 'public').trim() || 'public'
+    const channelId = assertValidChannelId(input.name || input.channelId, requestedType)
+    const channelKey = buildChannelKey(channelId)
+    const existing = this.#channels.find(
+      channel => channel.channelKey === channelKey
+    )
+
+    if (existing) {
+      await this.#openChannelRuntime(existing)
+      await this.#joinChannelDiscoveryTopics(existing)
+      return this.#toMobileChannel(existing)
+    }
+
+    const localCandidates = this.#getLocalChannelCandidates(channelId)
+    const remoteCandidates = input.discover === false
+      ? []
+      : await this.#discoverChannelCandidates(channelId, {
+          timeout: input.discoveryTimeout,
+        })
+    const candidates = this.#mergeChannelCandidates([
+      ...localCandidates,
+      ...remoteCandidates,
+    ])
+
+    if (candidates.length > 0) {
+      return this.#joinChannelFromCandidate(candidates[0], requestedType)
+    }
+
+    const channel = createChannelRecord(channelId, requestedType)
+    this.#channels.push(channel)
+    await this.#openChannelRuntime(channel)
+    await this.#joinChannelDiscoveryTopics(channel)
+    this.#cacheChannelCandidate(channelToCandidate(channel, true))
+    this.#saveChannels()
+    this.#broadcastChannelHello()
+    this.#log('info', `Joined channel ${channel.channelKey}`)
+    this.#send('channel.joined', {
+      channel: this.#toMobileChannel(channel),
+      snapshot: this.getSnapshot(),
+    })
+    return this.#toMobileChannel(channel)
+  }
+
+  async getChannelMessages(input = {}) {
+    this.#ensureReady()
+    const channelName =
+      typeof input === 'string' ? input : input.channelName || input.name
+    const channel = this.#resolveChannel(channelName)
+    const limit = typeof input === 'object' ? input.limit : undefined
+    const offset = typeof input === 'object' ? input.offset : undefined
+    const coresMap = this.#channelCores.get(channel.channelKey)
+    if (!coresMap || coresMap.size === 0) {
+      throw new Error('Channel runtime is not initialized')
+    }
+
+    const allMessages = []
+    for (const [coreKeyHex, core] of coresMap) {
+      for (let i = 0; i < core.length; i++) {
+        try {
+          const entry = await core.get(i)
+          if (entry && entry.type === 'message') {
+            allMessages.push({
+              ...entry,
+              _coreKey: coreKeyHex,
+              _index: i,
+            })
+          }
+        } catch {
+          break
+        }
+      }
+    }
+
+    const messages = sortChannelMessages(
+      allMessages,
+      limit || CHANNEL_MESSAGE_LIMIT,
+      offset || 0
+    )
+    this.#cacheChannelMessages(channel.channelKey, messages)
+    this.#emitSnapshot()
+    return messages
+  }
+
+  async sendChannelMessage(input = {}) {
+    this.#ensureReady()
+    const channelName = input.channelName || input.name
+    const channel = this.#resolveChannel(channelName)
+    const localKeyHex = this.#channelLocalCoreKey.get(channel.channelKey)
+    const coresMap = this.#channelCores.get(channel.channelKey)
+    const core = localKeyHex && coresMap ? coresMap.get(localKeyHex) : null
+    if (!core) {
+      throw new Error('Channel runtime is not initialized')
+    }
+
+    const message = normalizeChannelMessage(
+      {
+        content: input.content,
+        author: input.author || DIAGNOSTIC_AUTHOR,
+        authorName: input.authorName || DIAGNOSTIC_AUTHOR_NAME,
+      },
+      {
+        timestamp: await this.#getNextChannelMessageTimestamp(
+          channel.channelKey
+        ),
+      }
+    )
+
+    await core.append(message)
+    channel.lastMessageAt = new Date(message.timestamp).toISOString()
+    this.#saveChannels()
+    this.#cacheChannelMessages(channel.channelKey, [
+      ...(this.#channelMessageCache.get(channel.channelKey) || []),
+      message,
+    ])
+    this.#broadcastChannelHello()
+    return message
   }
 
   async publishFile(input = {}, requestId = createId('publish')) {
@@ -820,8 +1024,502 @@ export class MobileP2PCore {
     }
   }
 
+  async #joinChannelFromCandidate(candidateInput, type = 'public') {
+    const channelType = candidateInput.type || type
+    const channelId = assertValidChannelId(candidateInput.channelId, channelType)
+    const channelKey = buildChannelKey(channelId)
+    const existing = this.#channels.find(
+      channel => channel.channelKey === channelKey
+    )
+
+    if (existing) {
+      await this.#mergeChannelWriterCoreKeys(
+        existing,
+        candidateInput.writerCoreKeys
+      )
+      await this.#joinChannelDiscoveryTopics(existing)
+      this.#broadcastChannelHello()
+      return this.#toMobileChannel(existing)
+    }
+
+    const channel = createChannelRecord(channelId, channelType, {
+      createdAt: candidateInput.createdAt,
+      lastMessageAt: candidateInput.lastMessageAt,
+      writerCoreKeys: candidateInput.writerCoreKeys,
+    })
+
+    this.#channels.push(channel)
+    await this.#openChannelRuntime(channel)
+    await this.#joinChannelDiscoveryTopics(channel)
+    this.#cacheChannelCandidate(channelToCandidate(channel, true))
+    this.#saveChannels()
+    this.#broadcastChannelHello()
+    this.#log('info', `Joined channel ${channel.channelKey}`)
+    this.#send('channel.joined', {
+      channel: this.#toMobileChannel(channel),
+      snapshot: this.getSnapshot(),
+    })
+    return this.#toMobileChannel(channel)
+  }
+
+  async #openChannelRuntime(channel) {
+    const existingMap = this.#channelCores.get(channel.channelKey)
+    if (
+      channel.localWriterCoreKey &&
+      existingMap?.has(channel.localWriterCoreKey)
+    ) {
+      this.#channelLocalCoreKey.set(
+        channel.channelKey,
+        channel.localWriterCoreKey
+      )
+      for (const writerCoreKey of channel.writerCoreKeys || []) {
+        if (
+          writerCoreKey &&
+          writerCoreKey !== channel.localWriterCoreKey &&
+          !existingMap.has(writerCoreKey)
+        ) {
+          await this.#openRemoteChannelCore(channel.channelKey, writerCoreKey)
+        }
+      }
+      return
+    }
+
+    const ns = this.#store.namespace(`channel-${channel.channelKey}`)
+    const localCore = channel.localWriterCoreKey
+      ? ns.get({
+          key: b4a.from(channel.localWriterCoreKey, 'hex'),
+          valueEncoding: 'json',
+        })
+      : ns.get({
+          name: `messages-${channel.writerId}`,
+          valueEncoding: 'json',
+        })
+    await localCore.ready()
+
+    const localWriterCoreKey = b4a.toString(localCore.key, 'hex')
+    channel.localWriterCoreKey = localWriterCoreKey
+    channel.writerCoreKeys = uniqueStrings([
+      ...(Array.isArray(channel.writerCoreKeys) ? channel.writerCoreKeys : []),
+      localWriterCoreKey,
+    ])
+
+    if (!this.#channelCores.has(channel.channelKey)) {
+      this.#channelCores.set(channel.channelKey, new Map())
+    }
+    this.#channelCores.get(channel.channelKey).set(localWriterCoreKey, localCore)
+    this.#channelLocalCoreKey.set(channel.channelKey, localWriterCoreKey)
+    if (!this.#channelPeers.has(channel.channelKey)) {
+      this.#channelPeers.set(channel.channelKey, new Map())
+    }
+    this.#setupChannelAppendListener(localCore, channel.channelKey)
+
+    for (const writerCoreKey of channel.writerCoreKeys) {
+      if (writerCoreKey && writerCoreKey !== localWriterCoreKey) {
+        await this.#openRemoteChannelCore(channel.channelKey, writerCoreKey)
+      }
+    }
+  }
+
+  async #mergeChannelWriterCoreKeys(channel, writerCoreKeys = []) {
+    const nextKeys = uniqueStrings(writerCoreKeys)
+    if (nextKeys.length === 0) return false
+
+    const previous = new Set(channel.writerCoreKeys || [])
+    let changed = false
+    for (const writerCoreKey of nextKeys) {
+      if (!previous.has(writerCoreKey)) {
+        previous.add(writerCoreKey)
+        changed = true
+      }
+      if (writerCoreKey !== this.#channelLocalCoreKey.get(channel.channelKey)) {
+        await this.#openRemoteChannelCore(channel.channelKey, writerCoreKey)
+      }
+    }
+    if (changed) {
+      channel.writerCoreKeys = [...previous]
+      this.#saveChannels()
+    }
+    return changed
+  }
+
+  async #joinChannelDiscoveryTopics(channel) {
+    if (!this.#channelDiscoveries.has(channel.channelKey)) {
+      const discovery = this.#swarm.join(
+        generateChannelDiscoveryKey(channel.channelKey),
+        { server: true, client: true }
+      )
+      this.#channelDiscoveries.set(channel.channelKey, discovery)
+      discovery.flushed?.().then(
+        () => this.#emitSnapshot(),
+        () => {}
+      )
+    }
+
+    if (!this.#channelChatDiscoveries.has(channel.channelKey)) {
+      const discovery = this.#chatSwarm.join(
+        generateChannelChatDiscoveryKey(channel.channelKey),
+        { server: true, client: true }
+      )
+      this.#channelChatDiscoveries.set(channel.channelKey, discovery)
+      discovery.flushed?.().then(
+        () => this.#emitSnapshot(),
+        () => {}
+      )
+    }
+
+    if (!this.#channelIdDiscoveries.has(channel.channelId)) {
+      const discovery = this.#chatSwarm.join(
+        generateChannelIdDiscoveryKey(channel.channelId),
+        { server: true, client: true }
+      )
+      this.#channelIdDiscoveries.set(channel.channelId, discovery)
+      discovery.flushed?.().then(
+        () => this.#emitSnapshot(),
+        () => {}
+      )
+    }
+  }
+
+  #getLocalChannelCandidates(channelId) {
+    return this.#channels
+      .filter(channel => channel.channelId === channelId)
+      .map(channel => channelToCandidate(channel, true))
+  }
+
+  async #discoverChannelCandidates(channelId, options = {}) {
+    const getCachedCandidates = () => {
+      const now = Date.now()
+      return [
+        ...(this.#channelCandidateCache.get(channelId)?.values() || []),
+      ].filter(
+        candidate =>
+          candidate.local ||
+          !candidate.lastSeen ||
+          now - candidate.lastSeen <= CHANNEL_CANDIDATE_TTL
+      )
+    }
+
+    const timeout =
+      Number(options.timeout) >= 0
+        ? Number(options.timeout)
+        : CHANNEL_DISCOVERY_TIMEOUT
+    const hadDiscovery = this.#channelIdDiscoveries.has(channelId)
+    if (!hadDiscovery) {
+      const discovery = this.#chatSwarm.join(
+        generateChannelIdDiscoveryKey(channelId),
+        { server: true, client: true }
+      )
+      this.#channelIdDiscoveries.set(channelId, discovery)
+    }
+
+    await sleep(timeout)
+    const candidates = getCachedCandidates()
+    if (!hadDiscovery && !this.#channels.some(c => c.channelId === channelId)) {
+      this.#channelIdDiscoveries.delete(channelId)
+      this.#chatSwarm.leave(generateChannelIdDiscoveryKey(channelId)).catch(() => {})
+    }
+    return candidates
+  }
+
+  #mergeChannelCandidates(candidates) {
+    const byKey = new Map()
+    for (const candidate of candidates) {
+      if (!candidate?.channelKey) continue
+      const existing = byKey.get(candidate.channelKey)
+      if (!existing) {
+        byKey.set(candidate.channelKey, {
+          ...candidate,
+          writerCoreKeys: uniqueStrings(candidate.writerCoreKeys),
+        })
+        continue
+      }
+      byKey.set(candidate.channelKey, {
+        ...existing,
+        ...candidate,
+        local: existing.local || candidate.local,
+        writerCoreKeys: uniqueStrings([
+          ...existing.writerCoreKeys,
+          ...(candidate.writerCoreKeys || []),
+        ]),
+      })
+    }
+    return [...byKey.values()]
+  }
+
+  #cacheChannelCandidate(candidate) {
+    const channelId = normalizeChannelId(candidate?.channelId)
+    const channelKey = buildChannelKey(channelId)
+    if (!channelId || !channelKey) return
+    if (!this.#channelCandidateCache.has(channelId)) {
+      this.#channelCandidateCache.set(channelId, new Map())
+    }
+    const cache = this.#channelCandidateCache.get(channelId)
+    const existing = cache.get(channelKey)
+    cache.set(channelKey, {
+      ...existing,
+      ...candidate,
+      channelId,
+      channelKey,
+      writerCoreKeys: uniqueStrings([
+        ...(existing?.writerCoreKeys || []),
+        ...(candidate.writerCoreKeys || []),
+      ]),
+      lastSeen: Date.now(),
+    })
+  }
+
+  #resolveChannel(channelKeyInput) {
+    const key = normalizeChannelKey(channelKeyInput)
+    const channel = this.#channels.find(
+      item => item.channelKey === key || item.channelId === key
+    )
+    if (!channel) throw new Error('Channel does not exist')
+    return channel
+  }
+
+  async #getNextChannelMessageTimestamp(channelKey) {
+    const coresMap = this.#channelCores.get(channelKey)
+    let maxTimestamp = 0
+
+    if (coresMap) {
+      for (const [, core] of coresMap) {
+        for (let i = 0; i < core.length; i++) {
+          try {
+            const entry = await core.get(i)
+            if (entry?.type === 'message') {
+              maxTimestamp = Math.max(maxTimestamp, Number(entry.timestamp) || 0)
+            }
+          } catch {
+            break
+          }
+        }
+      }
+    }
+
+    return Math.max(Date.now(), maxTimestamp + 1)
+  }
+
+  #setupChannelAppendListener(core, channelKey) {
+    let lastCoreLength = core.length
+    core.on('append', async () => {
+      if (core.length <= lastCoreLength) return
+
+      for (let i = lastCoreLength; i < core.length; i++) {
+        try {
+          const entry = await core.get(i)
+          if (!entry || entry.type !== 'message') continue
+          const channel = this.#channels.find(c => c.channelKey === channelKey)
+          if (channel) {
+            const entryTime = Number(entry.timestamp) || Date.now()
+            const currentTime = Date.parse(channel.lastMessageAt || '') || 0
+            if (entryTime > currentTime) {
+              channel.lastMessageAt = new Date(entryTime).toISOString()
+              this.#saveChannels()
+            }
+          }
+          const message = {
+            ...entry,
+            timestamp: Number(entry.timestamp) || Date.now(),
+          }
+          this.#cacheChannelMessages(channelKey, [
+            ...(this.#channelMessageCache.get(channelKey) || []),
+            message,
+          ])
+          this.#send('channel.message', {
+            channel: channelKey,
+            channelKey,
+            channelId: channel?.channelId || '',
+            message,
+            snapshot: this.getSnapshot(),
+          })
+          this.#emitSnapshot()
+        } catch (err) {
+          this.#log('warn', `Failed to read channel message: ${err.message}`)
+        }
+      }
+
+      lastCoreLength = core.length
+    })
+  }
+
+  async #openRemoteChannelCore(channelKey, coreKeyHex) {
+    const coresMap = this.#channelCores.get(channelKey)
+    if (!coresMap || !coreKeyHex || coresMap.has(coreKeyHex)) return
+
+    try {
+      const ns = this.#store.namespace(`channel-${channelKey}`)
+      const core = ns.get({
+        key: b4a.from(coreKeyHex, 'hex'),
+        valueEncoding: 'json',
+      })
+      await core.ready()
+      const normalizedCoreKey = b4a.toString(core.key, 'hex')
+      coresMap.set(normalizedCoreKey, core)
+      this.#setupChannelAppendListener(core, channelKey)
+      const channel = this.#channels.find(c => c.channelKey === channelKey)
+      if (channel && !channel.writerCoreKeys?.includes(normalizedCoreKey)) {
+        channel.writerCoreKeys = uniqueStrings([
+          ...(channel.writerCoreKeys || []),
+          normalizedCoreKey,
+        ])
+        this.#saveChannels()
+      }
+    } catch (err) {
+      this.#log('warn', `Failed to open remote channel core: ${err.message}`)
+    }
+  }
+
+  #buildChannelHelloMessage() {
+    const channels = this.#channels.map(channel => ({
+      channelId: channel.channelId,
+      channelKey: channel.channelKey,
+      type: channel.type,
+      createdAt: channel.createdAt,
+      lastMessageAt: channel.lastMessageAt || '',
+      writerCoreKeys: uniqueStrings([
+        ...(channel.writerCoreKeys || []),
+        this.#channelLocalCoreKey.get(channel.channelKey),
+      ]),
+    }))
+
+    return {
+      type: 'channel-hello',
+      peerId: this.#nodeId(),
+      authorName: this.#nodeId().slice(0, 4),
+      channels,
+    }
+  }
+
+  #sendChannelHello(stream) {
+    if (!stream || stream.destroyed || stream.writableEnded) {
+      this.#channelStreams.delete(stream)
+      return false
+    }
+    try {
+      stream.write(`${JSON.stringify(this.#buildChannelHelloMessage())}\n`)
+      return true
+    } catch {
+      this.#channelStreams.delete(stream)
+      return false
+    }
+  }
+
+  #broadcastChannelHello() {
+    for (const stream of [...this.#channelStreams]) {
+      this.#sendChannelHello(stream)
+    }
+  }
+
+  async #processChannelHelloMessage(msg) {
+    if (msg.type !== 'channel-hello') return null
+
+    const remoteChannels = Array.isArray(msg.channels)
+      ? msg.channels
+          .filter(channel => channel && typeof channel === 'object')
+          .map(channel => {
+            const type = String(channel.type || 'public').trim() || 'public'
+            const channelId = normalizeChannelId(channel.channelId)
+            return {
+              channelId,
+              channelKey: buildChannelKey(channelId),
+              type,
+              createdAt:
+                typeof channel.createdAt === 'string' ? channel.createdAt : '',
+              lastMessageAt:
+                typeof channel.lastMessageAt === 'string'
+                  ? channel.lastMessageAt
+                  : '',
+              writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
+            }
+          })
+          .filter(channel => channel.channelId && channel.channelKey)
+      : []
+
+    for (const remoteChannel of remoteChannels) {
+      this.#cacheChannelCandidate({
+        ...remoteChannel,
+        local: false,
+        peerId: msg.peerId,
+      })
+
+      const localChannel = this.#channels.find(
+        channel => channel.channelKey === remoteChannel.channelKey
+      )
+      if (!localChannel) continue
+
+      const peers = this.#channelPeers.get(localChannel.channelKey)
+      if (peers && msg.peerId) {
+        peers.set(msg.peerId, {
+          peerId: msg.peerId,
+          authorName: msg.authorName,
+          lastSeen: Date.now(),
+        })
+      }
+
+      await this.#mergeChannelWriterCoreKeys(
+        localChannel,
+        remoteChannel.writerCoreKeys
+      )
+    }
+
+    this.#send('channel.status', {
+      peerId: msg.peerId,
+      snapshot: this.getSnapshot(),
+    })
+    return msg.peerId
+  }
+
+  async #handleChannelConnection(conn) {
+    const stream = conn
+    let connectedPeerId = null
+    let readBuffer = ''
+    let closed = false
+
+    this.#channelStreams.add(stream)
+    if (!this.#sendChannelHello(stream)) return
+
+    stream.on('data', async data => {
+      readBuffer += data.toString()
+      let newlineIndex = readBuffer.indexOf('\n')
+      while (newlineIndex !== -1) {
+        const line = readBuffer.slice(0, newlineIndex).trim()
+        readBuffer = readBuffer.slice(newlineIndex + 1)
+        newlineIndex = readBuffer.indexOf('\n')
+        if (!line) continue
+        try {
+          const peerId = await this.#processChannelHelloMessage(
+            JSON.parse(line)
+          )
+          if (peerId) connectedPeerId = peerId
+        } catch (err) {
+          this.#log('warn', `Failed to process channel hello: ${err.message}`)
+        }
+      }
+    })
+
+    const cleanup = () => {
+      if (closed) return
+      closed = true
+      this.#channelStreams.delete(stream)
+      if (!connectedPeerId) return
+      for (const [, peers] of this.#channelPeers) {
+        peers.delete(connectedPeerId)
+      }
+      this.#send('channel.status', { snapshot: this.getSnapshot() })
+      this.#emitSnapshot()
+    }
+
+    stream.on('close', cleanup)
+    stream.on('error', cleanup)
+  }
+
   #ensureReady() {
-    if (this.#node.status !== 'ready' || !this.#store || !this.#swarm) {
+    if (
+      this.#node.status !== 'ready' ||
+      !this.#store ||
+      !this.#swarm ||
+      !this.#chatSwarm
+    ) {
       throw new Error('P2P core is not ready')
     }
   }
@@ -1028,6 +1726,27 @@ export class MobileP2PCore {
     }
   }
 
+  #toMobileChannel(channel) {
+    return formatChannelForResponse(
+      channel,
+      (this.#channelPeers.get(channel.channelKey) || new Map()).size
+    )
+  }
+
+  #cacheChannelMessages(channelKey, messages = []) {
+    const normalized = sortChannelMessages(messages, CHANNEL_MESSAGE_LIMIT, 0)
+    this.#channelMessageCache.set(channelKey, normalized)
+  }
+
+  #snapshotChannelMessages() {
+    return Object.fromEntries(
+      [...this.#channelMessageCache.entries()].map(([channelKey, messages]) => [
+        channelKey,
+        messages.map(message => ({ ...message })),
+      ])
+    )
+  }
+
   #upsertTransfer(transfer) {
     const index = this.#transfers.findIndex(item => item.id === transfer.id)
     const next = {
@@ -1097,8 +1816,38 @@ export class MobileP2PCore {
     atomicWrite(filePath, JSON.stringify(this.#holdings, null, 2))
   }
 
+  #loadChannels() {
+    const filePath = path.join(this.#storagePath, CHANNELS_FILE)
+    try {
+      if (!fs.existsSync(filePath)) return []
+      const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'))
+      if (!Array.isArray(parsed)) return []
+      return parsed.map(record => normalizeChannelRecord(record))
+    } catch (err) {
+      this.#log('warn', `Failed to load channels: ${err.message}`)
+      return []
+    }
+  }
+
+  #saveChannels() {
+    const filePath = path.join(this.#storagePath, CHANNELS_FILE)
+    atomicWrite(filePath, JSON.stringify(this.#channels, null, 2))
+    this.#emitSnapshot()
+  }
+
+  #nodeId() {
+    try {
+      return b4a.toString(this.#swarm.keyPair.publicKey, 'hex')
+    } catch {
+      return 'android'
+    }
+  }
+
   #peerCount() {
-    return this.#swarm?.connections?.size || 0
+    return (
+      (this.#swarm?.connections?.size || 0) +
+      (this.#chatSwarm?.connections?.size || 0)
+    )
   }
 
   #emitNetworkStatus() {

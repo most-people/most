@@ -6,6 +6,10 @@ export const COMMANDS = Object.freeze({
   FILE_LIST_HOLDINGS: 'file.listHoldings',
   FILE_EXPORT: 'file.export',
   FILE_DELETE_HOLDING: 'file.deleteHolding',
+  CHANNEL_CREATE: 'channel.create',
+  CHANNEL_LIST: 'channel.list',
+  CHANNEL_MESSAGES: 'channel.messages',
+  CHANNEL_SEND: 'channel.send',
   LOG_LIST: 'log.list',
 })
 
@@ -19,6 +23,9 @@ export const EVENTS = Object.freeze({
   DOWNLOAD_SUCCESS: 'download.success',
   FILE_EXPORT_SUCCESS: 'file.export.success',
   FILE_DELETE_HOLDING_SUCCESS: 'file.deleteHolding.success',
+  CHANNEL_JOINED: 'channel.joined',
+  CHANNEL_MESSAGE: 'channel.message',
+  CHANNEL_STATUS: 'channel.status',
   ERROR: 'error',
   SNAPSHOT: 'snapshot',
 })

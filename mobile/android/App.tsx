@@ -32,6 +32,7 @@ import {
   Loader,
   Radio,
   Save,
+  Send,
   Share2,
   ShieldCheck,
   Trash2,
@@ -43,6 +44,7 @@ import type { DocumentPickerAsset } from 'expo-document-picker'
 import type {
   LogLevel,
   MobileCoreSnapshot,
+  MobileChannelMessage,
   MobileHolding,
   MobileTransfer,
   MostBoxMobileCore,
@@ -122,6 +124,10 @@ function formatLogTime(value: string) {
   const hours = date.getHours().toString().padStart(2, '0')
   const minutes = date.getMinutes().toString().padStart(2, '0')
   return `${hours}:${minutes}`
+}
+
+function formatChannelMessageTime(message: MobileChannelMessage) {
+  return formatLogTime(new Date(message.timestamp).toISOString())
 }
 
 function shortCid(cid: string, head = 12, tail = 8) {
@@ -395,6 +401,9 @@ export default function App() {
   const [exportingCid, setExportingCid] = useState<string | null>(null)
   const [deletingCid, setDeletingCid] = useState<string | null>(null)
   const [copiedCid, setCopiedCid] = useState<string | null>(null)
+  const [channelName, setChannelName] = useState('android-smoke')
+  const [channelDraft, setChannelDraft] = useState('from android')
+  const [channelBusy, setChannelBusy] = useState(false)
 
   if (!coreRef.current) {
     coreRef.current = createMostBoxCore({
@@ -457,6 +466,17 @@ export default function App() {
           holding => holding.cid === downloadValidation.parsed.cid
         ) || null
       : null
+  const normalizedChannelName = channelName.trim() || 'android-smoke'
+  const selectedChannel =
+    currentSnapshot.channels.find(
+      channel =>
+        channel.channelId === normalizedChannelName ||
+        channel.channelKey === normalizedChannelName
+    ) || null
+  const selectedChannelKey =
+    selectedChannel?.channelKey || normalizedChannelName
+  const channelMessages =
+    (currentSnapshot.channelMessages || {})[selectedChannelKey]?.slice(-6) || []
 
   const markCopied = (cid: string) => {
     setCopiedCid(cid)
@@ -551,6 +571,70 @@ export default function App() {
         '下载失败',
         error instanceof Error ? error.message : '请检查链接或等待种子上线'
       )
+    }
+  }
+
+  const handleCreateChannel = async () => {
+    if (!guardReady()) return
+    setChannelBusy(true)
+    try {
+      await core.createChannel({ name: normalizedChannelName, type: 'public' })
+      await core.getChannelMessages(normalizedChannelName)
+    } catch (error) {
+      Alert.alert(
+        'Channel probe failed',
+        error instanceof Error ? error.message : 'Unable to join channel'
+      )
+    } finally {
+      setChannelBusy(false)
+    }
+  }
+
+  const handleRefreshChannel = async () => {
+    if (!guardReady()) return
+    setChannelBusy(true)
+    try {
+      if (!selectedChannel) {
+        await core.createChannel({ name: normalizedChannelName, type: 'public' })
+      }
+      await core.getChannelMessages(normalizedChannelName)
+      await core.listChannels()
+    } catch (error) {
+      Alert.alert(
+        'Channel refresh failed',
+        error instanceof Error ? error.message : 'Unable to refresh channel'
+      )
+    } finally {
+      setChannelBusy(false)
+    }
+  }
+
+  const handleSendChannelMessage = async () => {
+    if (!guardReady()) return
+    const content = channelDraft.trim()
+    if (!content) {
+      Alert.alert('Message required', 'Enter a diagnostic message first.')
+      return
+    }
+
+    setChannelBusy(true)
+    try {
+      if (!selectedChannel) {
+        await core.createChannel({ name: normalizedChannelName, type: 'public' })
+      }
+      await core.sendChannelMessage({
+        channelName: normalizedChannelName,
+        content,
+        authorName: 'Android',
+      })
+      await core.getChannelMessages(normalizedChannelName)
+    } catch (error) {
+      Alert.alert(
+        'Channel send failed',
+        error instanceof Error ? error.message : 'Unable to send channel message'
+      )
+    } finally {
+      setChannelBusy(false)
     }
   }
 
@@ -732,6 +816,103 @@ export default function App() {
             icon={<FileUp size={22} color={isReady ? '#f8fafc' : '#94a3b8'} />}
           />
         </View>
+
+        {__DEV__ ? (
+          <View style={styles.panel}>
+            <SectionHeader
+              icon={<Radio size={18} color="#6d5dfc" />}
+              title="Channel Probe"
+              meta={selectedChannel ? `${selectedChannel.peerCount} peer` : 'dev'}
+            />
+
+            <View style={styles.compactInputShell}>
+              <TextInput
+                value={channelName}
+                onChangeText={setChannelName}
+                placeholder="android-smoke"
+                placeholderTextColor="#8a9a95"
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={styles.compactInput}
+              />
+            </View>
+
+            <View style={styles.channelActions}>
+              <SmallAction
+                label={selectedChannel ? 'Joined' : 'Join'}
+                disabled={!isReady || channelBusy}
+                onPress={handleCreateChannel}
+                icon={
+                  channelBusy ? (
+                    <Loader size={15} color="#94a3b8" />
+                  ) : (
+                    <CircleCheck size={15} color="#0f766e" />
+                  )
+                }
+              />
+              <SmallAction
+                label="Refresh"
+                disabled={!isReady || channelBusy}
+                onPress={handleRefreshChannel}
+                icon={<ListChecks size={15} color="#0f766e" />}
+              />
+            </View>
+
+            {selectedChannel ? (
+              <View style={styles.channelStats}>
+                <Text style={styles.channelStatText}>
+                  key {selectedChannel.channelKey}
+                </Text>
+                <Text style={styles.channelStatText}>
+                  writers {selectedChannel.writerCoreKeys.length}
+                </Text>
+              </View>
+            ) : null}
+
+            <View style={styles.compactInputShell}>
+              <TextInput
+                value={channelDraft}
+                onChangeText={setChannelDraft}
+                placeholder="from android"
+                placeholderTextColor="#8a9a95"
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={styles.compactInput}
+              />
+            </View>
+
+            <SmallAction
+              primary
+              label="Send Probe Message"
+              disabled={!isReady || channelBusy}
+              onPress={handleSendChannelMessage}
+              icon={<Send size={16} color={isReady ? '#ffffff' : '#94a3b8'} />}
+            />
+
+            {channelMessages.length ? (
+              <View style={styles.channelMessageList}>
+                {channelMessages.map(message => (
+                  <View
+                    key={`${message.author}:${message.timestamp}:${message.content}`}
+                    style={styles.channelMessageItem}
+                  >
+                    <Text style={styles.channelMessageMeta}>
+                      {message.authorName} - {formatChannelMessageTime(message)}
+                    </Text>
+                    <Text style={styles.channelMessageText}>
+                      {message.content}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <EmptyState
+                title="No channel messages"
+                body="Join a channel, send a probe, or refresh after a desktop peer sends one."
+              />
+            )}
+          </View>
+        ) : null}
 
         <View style={styles.panel}>
           <SectionHeader
@@ -1264,6 +1445,55 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     color: '#13231f',
     fontSize: 14,
+    fontWeight: '700',
+  },
+  compactInputShell: {
+    minHeight: 44,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#cddbd5',
+    backgroundColor: '#f8fbf9',
+  },
+  compactInput: {
+    minHeight: 44,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    color: '#13231f',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  channelActions: {
+    flexDirection: 'row',
+    gap: 9,
+  },
+  channelStats: {
+    gap: 5,
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: '#f3f0ff',
+  },
+  channelStatText: {
+    color: '#4c3fb0',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  channelMessageList: {
+    gap: 9,
+  },
+  channelMessageItem: {
+    gap: 4,
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: '#f8fbf9',
+  },
+  channelMessageMeta: {
+    color: '#6d5dfc',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  channelMessageText: {
+    color: '#13231f',
+    fontSize: 13,
     fontWeight: '700',
   },
   linkPreview: {
