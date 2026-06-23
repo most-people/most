@@ -6,6 +6,10 @@ import Hyperdrive from 'hyperdrive'
 import Hyperswarm from 'hyperswarm'
 import { importer } from 'ipfs-unixfs-importer'
 import { CID } from 'multiformats/cid'
+import {
+  getInternalHoldingCleanupPaths,
+  removeHoldingRecord,
+} from './holding-records.mjs'
 
 const GLOBAL_SHARED_SEED_STRING = 'most-box-global-shared-seed-v1'
 const MAX_PEERS = 64
@@ -70,16 +74,6 @@ function fileExists(filePath) {
   } catch {
     return false
   }
-}
-
-function isPathInside(candidate, parent) {
-  if (!candidate || !parent) return false
-  const resolvedCandidate = path.resolve(candidate)
-  const resolvedParent = path.resolve(parent)
-  return (
-    resolvedCandidate === resolvedParent ||
-    resolvedCandidate.startsWith(`${resolvedParent}${path.sep}`)
-  )
 }
 
 function atomicWrite(filePath, data) {
@@ -741,12 +735,18 @@ export class MobileP2PCore {
       throw new Error('This CID is not available in local holdings')
     }
 
+    await this.#leaveCidTopic(cid)
     const drive = await this.#getOrCreateDrive(existing.driveName || driveName)
     await drive.del(`/${cid}`).catch(() => {})
-    await this.#leaveCidTopic(cid)
 
-    if (isPathInside(existing.localPath, this.#storagePath)) {
-      safeRm(existing.localPath)
+    for (const cleanupPath of getInternalHoldingCleanupPaths(
+      {
+        localPath: existing.localPath,
+        downloadPath: this.#downloadPath,
+      },
+      path
+    )) {
+      if (fileExists(cleanupPath)) safeRm(cleanupPath)
     }
 
     this.#removeHolding(cid)
@@ -1001,9 +1001,9 @@ export class MobileP2PCore {
   }
 
   #removeHolding(cid) {
-    const before = this.#holdings.length
-    this.#holdings = this.#holdings.filter(holding => holding.cid !== cid)
-    if (this.#holdings.length === before) return false
+    const result = removeHoldingRecord(this.#holdings, cid)
+    if (!result.removed) return false
+    this.#holdings = result.holdings
     this.#saveHoldings()
     this.#clearSeedState(cid)
     return true

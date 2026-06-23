@@ -26,6 +26,7 @@ npm run android:build
 | 桌面发布，Android 下载 | Android 下载完成后 CID 校验通过，并自动加入 holdings。 |
 | Android 打开/分享文件 | Holding 行点击 `打开/分享` 后，系统分享或打开面板出现，目标 App 能收到文件副本。 |
 | Android 保存文件 | Holding 行点击 `保存` 后，用户选择目录，目录中出现同名文件副本。 |
+| Android 删除 holding 后重新下载 | Holding 行点击 `删除` 后，该 CID 从 holdings 消失并停止做种；已保存到手机目录的副本仍存在；再次输入同一 `most://` 链接可重新下载、通过 CID 校验，并重新加入 holdings / CID topic。 |
 | 发布者退出后继续传播 | 原桌面发布者退出后，只要 Android 仍在前台做种，新的桌面节点仍可下载并校验。 |
 | Android 重启恢复 | Android App 重启后恢复 holdings，并重新 join 对应 CID topic。 |
 | 基础可见性 | Android UI 能看到 CID、文件大小、topic join 状态、peer 数或基础日志。 |
@@ -61,6 +62,10 @@ Android holdings 状态:
 Android topic join 状态:
 打开/分享结果:
 保存到手机结果:
+删除 holding 结果:
+删除后手机另存副本是否仍存在:
+同一 most:// 链接重新下载结果:
+重新加入 topic 状态:
 桌面日志摘要:
 Android 日志摘要:
 备注:

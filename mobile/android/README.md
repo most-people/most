@@ -56,13 +56,16 @@ Use one Android device and at least one desktop MostBox node:
 6. Publish a file from desktop, download it on Android, and confirm Android adds it to Holdings.
 7. Use `打开/分享` from the Android holding row and confirm Android shows the system share/open sheet.
 8. Use `保存` from the Android holding row, choose a phone folder, and confirm a user-visible copy is created.
-9. Stop the original desktop publisher. Keep Android in the foreground, then download the same link from another desktop node.
-10. Restart the Android app and confirm existing holdings rejoin their CID topics.
+9. Delete that Android holding and confirm the row disappears, the app stops seeding that CID, and the user-visible copy saved in step 8 still exists.
+10. Paste the same `most://` link again, download it while another seed is online, and confirm Android adds it back to Holdings with `active` and `topicJoined` true.
+11. Stop the original desktop publisher. Keep Android in the foreground, then download the same link from another desktop node.
+12. Restart the Android app and confirm existing holdings rejoin their CID topics.
 
 ## Known Limits
 
 - Android alpha only promises foreground seeding. It does not promise long-running background availability.
 - Exported or saved files are user-visible copies. MostBox keeps its internal holding copy for CID verification and seeding.
+- Deleting an Android holding removes only the app-internal holding copy and holding record; user-visible saved/exported copies are not managed by MostBox.
 - iOS, Play Store distribution, cloud relay, account sync, chat, games, notes, and Web3 toolbox migration are outside this alpha.
 - Large files may expose storage, network interruption, and Android file picker/export edge cases; record those in `docs/mobile-android-alpha.md`.
 
