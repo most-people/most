@@ -40,8 +40,7 @@
     "electron:build:win:x64": "npm run electron:build:win -- --x64",
     "electron:build:win:arm64": "npm run electron:build:win -- --arm64",
     "electron:build:mac": "npm run build && npm run electron:rebuild && electron-builder --mac",
-    "electron:build:linux": "npm run build && npm run electron:rebuild && electron-builder --linux",
-    "android": "npm --prefix mobile/android start --"
+    "electron:build:linux": "npm run build && npm run electron:rebuild && electron-builder --linux"
   },
   "keywords": [
     "p2p",

@@ -5,7 +5,8 @@
   "type": "module",
   "main": "expo/AppEntry.js",
   "scripts": {
-    "start": "bare-pack --preset android --linked --imports bare-pack-imports.cjs backend/backend.mjs --out app.bundle.js && node scripts/start-dev-client.mjs"
+    "start": "bare-pack --preset android --linked --imports bare-pack-imports.cjs backend/backend.mjs --out app.bundle.js && node scripts/start-dev-client.mjs",
+    "apk": "node scripts/build-apk.mjs"
   },
   "dependencies": {
     "@react-native-clipboard/clipboard": "1.16.3",

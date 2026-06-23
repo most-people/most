@@ -17,15 +17,12 @@ Android app MVP for MostBox file sharing. This package keeps the mobile UI and B
 cd mobile/android
 npm install
 npm start
-```
-
-From the repo root, the Android shortcut is:
-
-```bash
-npm run android
+npm run apk
 ```
 
 `npm start` bundles the Bare Worklet core, starts the Expo dev server, picks the first connected Android target unless `ANDROID_SERIAL` is set, starts the first available emulator when no target is connected, and opens the dev client automatically. Emulators use `adb reverse` with `http://127.0.0.1:8081`; physical devices use an automatically selected LAN URL.
+
+`npm run apk` builds a release APK for device installation and copies it to `mobile/android/dist/mostbox-android-release.apk`.
 
 If the machine has multiple network adapters and the selected LAN URL is not reachable from the phone, set `MOST_ANDROID_HOST` to the host IP address on the same Wi-Fi/LAN before running `npm start`. The script prints the dev server URL it is opening; manual entry in the Expo Development Servers screen should only be needed when no device is connected or Android rejects the automatic intent.
 
