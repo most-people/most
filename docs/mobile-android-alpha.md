@@ -1,0 +1,71 @@
+# MostBox Android 内测验收清单
+
+本清单用于记录 Android 内测 APK 的真机复测结果。当前 Android 版本只承诺前台完整种子能力：App 在前台时可以发布、下载、CID 校验，并在发布或下载完成后继续做种。
+
+## 构建与安装
+
+构建前先运行移动端协议测试：
+
+```bash
+npm run android:test
+npm run android:build
+```
+
+构建成功后检查 `mobile/android/dist/`：
+
+- `mostbox-android-release.apk`
+- `mostbox-android-<version>-release.apk`
+- `mostbox-android-release.apk.sha256.txt`
+- `mostbox-android-<version>-release.apk.sha256.txt`
+
+安装到真机后，打开 App 并确认首页状态进入 `Ready`。
+
+## 必测场景
+
+| 场景 | 通过标准 |
+| --- | --- |
+| Android 发布，桌面下载 | Android 得到 `most://` 链接；桌面凭链接下载并通过 CID 校验。 |
+| 桌面发布，Android 下载 | Android 下载完成后 CID 校验通过，并自动加入 holdings。 |
+| 发布者退出后继续传播 | 原桌面发布者退出后，只要 Android 仍在前台做种，新的桌面节点仍可下载并校验。 |
+| Android 重启恢复 | Android App 重启后恢复 holdings，并重新 join 对应 CID topic。 |
+| 基础可见性 | Android UI 能看到 CID、文件大小、topic join 状态、peer 数或基础日志。 |
+
+## 已知边界
+
+- 不承诺 Android 长期后台做种；测试传播能力时保持 App 在前台。
+- 不测试 iOS、Play Store 分发、云端中转、账号同步、聊天、游戏、笔记或 Web3 工具箱。
+- 大文件测试失败时优先记录存储空间、网络切换、Android 文件选择器/导出行为和 App 日志。
+
+## 单轮记录模板
+
+```text
+日期:
+测试人:
+Android 设备型号:
+Android 系统版本:
+APK 文件名:
+APK SHA256:
+桌面节点平台:
+桌面 MostBox 版本或 commit:
+网络环境:
+测试文件大小:
+CID:
+most:// 链接:
+场景:
+开始时间:
+结束时间:
+耗时:
+结果: 通过 / 失败
+失败错误:
+Android holdings 状态:
+Android topic join 状态:
+桌面日志摘要:
+Android 日志摘要:
+备注:
+```
+
+## 回归记录
+
+| 日期 | APK | 设备 | 场景 | CID | 结果 | 备注 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 2026-06-23 | 待填写 | 待填写 | Android 与桌面端到端互通 | 待填写 | 通过 | 真机测试已确认，补充具体设备和 CID。 |

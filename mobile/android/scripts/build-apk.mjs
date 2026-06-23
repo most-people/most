@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import crypto from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
@@ -7,6 +8,10 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 const projectDir = path.resolve(scriptDir, '..')
 const androidDir = path.join(projectDir, 'android')
 const outputDir = path.join(projectDir, 'dist')
+const packageJson = JSON.parse(
+  fs.readFileSync(path.join(projectDir, 'package.json'), 'utf8')
+)
+const version = packageJson.version || '0.0.0'
 const apkSource = path.join(
   androidDir,
   'app',
@@ -17,16 +22,26 @@ const apkSource = path.join(
   'app-release.apk'
 )
 const apkTarget = path.join(outputDir, 'mostbox-android-release.apk')
+const versionedApkTarget = path.join(
+  outputDir,
+  `mostbox-android-${version}-release.apk`
+)
 
 function run(command, args, options = {}) {
-  const result = spawnSync(command, args, {
-    cwd: options.cwd || projectDir,
-    stdio: 'inherit',
-    env: {
-      ...process.env,
-      ...options.env,
-    },
-  })
+  const useCmd = process.platform === 'win32' && /\.(bat|cmd)$/i.test(command)
+  const result = spawnSync(
+    useCmd ? 'cmd.exe' : command,
+    useCmd ? ['/d', '/s', '/c', [command, ...args].join(' ')] : args,
+    {
+      cwd: options.cwd || projectDir,
+      stdio: 'inherit',
+      windowsHide: true,
+      env: {
+        ...process.env,
+        ...options.env,
+      },
+    }
+  )
 
   if (result.error) throw result.error
   if (result.status !== 0) {
@@ -34,12 +49,21 @@ function run(command, args, options = {}) {
   }
 }
 
-function commandName(name) {
-  return process.platform === 'win32' ? `${name}.cmd` : name
+function sha256(filePath) {
+  return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex')
+}
+
+function writeChecksum(filePath) {
+  const digest = sha256(filePath)
+  const fileName = path.basename(filePath)
+  const checksumPath = `${filePath}.sha256.txt`
+  fs.writeFileSync(checksumPath, `${digest}  ${fileName}\n`)
+  return { checksumPath, digest }
 }
 
 console.log('[android] bundling Bare Worklet core...')
-run(commandName('bare-pack'), [
+run(process.execPath, [
+  path.join(projectDir, 'node_modules', 'bare-pack', 'bin.js'),
   '--preset',
   'android',
   '--linked',
@@ -64,4 +88,12 @@ if (!fs.existsSync(apkSource)) {
 
 fs.mkdirSync(outputDir, { recursive: true })
 fs.copyFileSync(apkSource, apkTarget)
+fs.copyFileSync(apkSource, versionedApkTarget)
 console.log(`[android] APK ready: ${apkTarget}`)
+console.log(`[android] Versioned APK ready: ${versionedApkTarget}`)
+
+for (const apkPath of [apkTarget, versionedApkTarget]) {
+  const { checksumPath, digest } = writeChecksum(apkPath)
+  console.log(`[android] SHA256 ${digest}  ${path.basename(apkPath)}`)
+  console.log(`[android] Checksum ready: ${checksumPath}`)
+}
