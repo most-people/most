@@ -620,7 +620,10 @@ describe('frontend smoke checks', () => {
     assert.match(chatSource, /extraSubscribedChannelNames/)
     assert.match(chatUnreadSource, /CHAT_READ_STORAGE_PREFIX/)
     assert.match(chatSource, /playChannelNotificationSound/)
-    assert.match(chatSource, /onReconnect: refreshChannels/)
+    assert.match(
+      chatSource,
+      /onReconnect:\s*\(\) => \{[\s\S]{0,200}refreshChannels\(\)/
+    )
     assert.match(chatSource, /markChannelRead\(/)
     assert.match(chatSource, /btn btn-secondary btn-block/)
     assert.match(componentSource, /labelKey: 'chat\.attachment\.image'/)
@@ -972,6 +975,9 @@ describe('frontend smoke checks', () => {
     assert.match(chatSource, /const channelMembers = useMemo/)
     assert.match(chatSource, /channelMessages\.forEach/)
     assert.match(chatSource, /membersByAuthor/)
+    assert.match(chatSource, /messageProfileByAddress/)
+    assert.match(chatSource, /messageProfile\?\.displayName/)
+    assert.match(chatSource, /messageProfile\?\.avatar/)
     assert.doesNotMatch(chatSource, /getChannelMembers/)
     assert.doesNotMatch(channelApiSource, /getChannelMembers/)
     assert.doesNotMatch(channelApiSource, /interface ChannelMember/)
@@ -1000,6 +1006,40 @@ describe('frontend smoke checks', () => {
     assert.match(chatUiSource, /className="channel-member-avatar-wrap"/)
     assert.match(chatUiSource, /className="chat-avatar-wrap"/)
     assert.match(chatCssSource, /\.chat-online-dot/)
+  })
+
+  it('renders game room player presence without removing player snapshots', () => {
+    const gameRoomSource = readSource('src/hooks/useGameRoom.ts')
+    const ganDengYanSource = readSource(
+      'src/features/game/gandengyan/GanDengYanPage.tsx'
+    )
+    const zhaJinHuaSource = readSource(
+      'src/features/game/zhajinhua/ZhajinhuaPage.tsx'
+    )
+    const ganDengYanCss = readSource(
+      'src/features/game/gandengyan/page.module.css'
+    )
+    const zhaJinHuaCss = readSource(
+      'src/features/game/zhajinhua/page.module.css'
+    )
+
+    assert.match(gameRoomSource, /getChannelPresence/)
+    assert.match(gameRoomSource, /handleGameSocketEvent/)
+    assert.match(gameRoomSource, /presenceEnabled:\s*Boolean\(channelName && userIdentity\)/)
+    assert.match(gameRoomSource, /presenceProfile/)
+    assert.match(gameRoomSource, /presenceByAddress/)
+    assert.match(gameRoomSource, /onlineAddresses/)
+    assert.match(gameRoomSource, /playerPayload/)
+    assert.match(ganDengYanSource, /getGamePlayerDisplay/)
+    assert.match(ganDengYanSource, /presenceByAddress={game\.presenceByAddress}/)
+    assert.match(ganDengYanSource, /onlineAddresses={game\.onlineAddresses}/)
+    assert.match(ganDengYanSource, /styles\.onlineDot/)
+    assert.match(zhaJinHuaSource, /getGamePlayerDisplay/)
+    assert.match(zhaJinHuaSource, /game\.presenceByAddress/)
+    assert.match(zhaJinHuaSource, /game\.onlineAddresses/)
+    assert.match(zhaJinHuaSource, /styles\.onlineDot/)
+    assert.match(ganDengYanCss, /\.onlineDot/)
+    assert.match(zhaJinHuaCss, /\.onlineDot/)
   })
 
   it('prefers remote nodes before localhost and same-origin backends', async () => {

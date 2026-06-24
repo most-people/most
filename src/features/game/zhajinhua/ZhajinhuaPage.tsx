@@ -6,6 +6,7 @@ import { useGameRoom } from '~/hooks/useGameRoom'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore, type UserIdentity } from '~/stores/userStore'
 import { useI18n } from '~/lib/i18n'
+import type { ChannelPresence } from '~/lib/channelApi'
 import {
   ZHJ_INITIAL_CHIPS,
   ZHJ_RAISE_STEPS,
@@ -425,7 +426,11 @@ export default function ZhajinhuaPage() {
         ? t('game.zhajinhua.status.yourTurn')
         : currentRound.turnAddress
           ? t('game.zhajinhua.status.waitingPlayer', {
-              player: getPlayerName(currentRound.turnAddress, lobby.players),
+              player: getPlayerName(
+                currentRound.turnAddress,
+                lobby.players,
+                game.presenceByAddress
+              ),
             })
           : t('game.status.playing')
       : currentRound?.status === 'finished'
@@ -521,7 +526,11 @@ export default function ZhajinhuaPage() {
                   <span className={styles.finishBannerIcon}>🏆</span>
                   <span>
                     {t('game.zhajinhua.result.winChips', {
-                      player: getPlayerName(currentRound.winner, lobby.players),
+                      player: getPlayerName(
+                        currentRound.winner,
+                        lobby.players,
+                        game.presenceByAddress
+                      ),
                       amount: currentRound.winAmount ?? 0,
                     })}
                   </span>
@@ -534,6 +543,7 @@ export default function ZhajinhuaPage() {
                   myAddress={myAddress}
                   myDealtHand={myDealtHand}
                   lobbyPlayers={lobby.players}
+                  presenceByAddress={game.presenceByAddress}
                   onClose={() => setShowCompareOverlay(false)}
                 />
               )}
@@ -552,6 +562,11 @@ export default function ZhajinhuaPage() {
                   const roundPlayer = currentRound?.players.find(item =>
                     sameAddress(item.address, player.address)
                   )
+                  const display = getGamePlayerDisplay(
+                    player,
+                    game.presenceByAddress,
+                    game.onlineAddresses
+                  )
                   const isTurn = currentRound?.turnAddress === player.address
                   const isWinner = currentRound?.winner === player.address
                   const isFolded = roundPlayer?.status === 'folded'
@@ -565,14 +580,20 @@ export default function ZhajinhuaPage() {
                         isFolded && styles.seatFolded
                       )}
                     >
-                      <div className={styles.seatAvatar}>
+                      <div
+                        className={classNames(
+                          styles.seatAvatar,
+                          !display.online && styles.seatAvatarOffline
+                        )}
+                      >
                         <img
-                          src={generateAvatar(player.address, player.avatar)}
+                          src={generateAvatar(player.address, display.avatar)}
                           alt=""
                         />
+                        {display.online && <span className={styles.onlineDot} />}
                       </div>
                       <div className={styles.seatMain}>
-                        <strong translate="no">{player.name}</strong>
+                        <strong translate="no">{display.name}</strong>
                         <span translate="no">{shortAddress(player.address)}</span>
                       </div>
                       <div className={styles.seatMeta}>
@@ -724,7 +745,11 @@ export default function ZhajinhuaPage() {
                     </option>
                     {compareOptions.map(player => (
                       <option key={player.address} value={player.address}>
-                        {player.name}
+                        {getPlayerName(
+                          player.address,
+                          compareOptions,
+                          game.presenceByAddress
+                        )}
                       </option>
                     ))}
                   </select>
@@ -781,6 +806,7 @@ interface CompareOverlayProps {
   myAddress: string
   myDealtHand: string[] | null
   lobbyPlayers: Array<{ address: string; name: string }>
+  presenceByAddress: Map<string, ChannelPresence>
   onClose: () => void
 }
 
@@ -790,12 +816,25 @@ function CompareOverlay({
   myAddress,
   myDealtHand,
   lobbyPlayers,
+  presenceByAddress,
   onClose,
 }: CompareOverlayProps) {
   const { t } = useI18n()
-  const initiatorName = getPlayerName(lastCompare.initiator, lobbyPlayers)
-  const targetName = getPlayerName(lastCompare.target, lobbyPlayers)
-  const winnerName = getPlayerName(lastCompare.winner, lobbyPlayers)
+  const initiatorName = getPlayerName(
+    lastCompare.initiator,
+    lobbyPlayers,
+    presenceByAddress
+  )
+  const targetName = getPlayerName(
+    lastCompare.target,
+    lobbyPlayers,
+    presenceByAddress
+  )
+  const winnerName = getPlayerName(
+    lastCompare.winner,
+    lobbyPlayers,
+    presenceByAddress
+  )
 
   const isInitiator = sameAddress(myAddress, lastCompare.initiator)
   const isTarget = sameAddress(myAddress, lastCompare.target)
@@ -881,11 +920,31 @@ function CompareOverlay({
 
 function getPlayerName(
   address: string,
-  players: Array<{ address: string; name: string }>
+  players: Array<{ address: string; name: string }>,
+  presenceByAddress: Map<string, ChannelPresence>
 ) {
-  const normalized = address.toLowerCase()
+  const normalized = getPresenceKey(address)
   return (
-    players.find(player => player.address === normalized)?.name ||
+    presenceByAddress.get(normalized)?.displayName ||
+    players.find(player => getPresenceKey(player.address) === normalized)?.name ||
     shortAddress(address)
   )
+}
+
+function getPresenceKey(address = '') {
+  return String(address || '').trim().toLowerCase()
+}
+
+function getGamePlayerDisplay(
+  player: { address: string; name: string; avatar?: string },
+  presenceByAddress: Map<string, ChannelPresence>,
+  onlineAddresses: Set<string>
+) {
+  const key = getPresenceKey(player.address)
+  const presence = presenceByAddress.get(key)
+  return {
+    name: getPlayerName(player.address, [player], presenceByAddress),
+    avatar: presence?.avatar || player.avatar || '',
+    online: key ? onlineAddresses.has(key) : false,
+  }
 }

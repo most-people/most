@@ -499,6 +499,15 @@ function ChatPage() {
     })
   }, [channelMessages])
 
+  const messageProfileByAddress = useMemo(() => {
+    return new Map(
+      channelMembers.map(member => [
+        normalizeMemberAddress(member.address),
+        member,
+      ])
+    )
+  }, [channelMembers])
+
   const presenceByAddress = useMemo(() => {
     const map = new Map<string, ChannelPresence>()
     channelPresence.forEach(presence => {
@@ -510,12 +519,7 @@ function ChatPage() {
   }, [channelPresence])
 
   const displayedChannelMembers = useMemo(() => {
-    const membersByAddress = new Map(
-      channelMembers.map(member => [
-        normalizeMemberAddress(member.address),
-        member,
-      ])
-    )
+    const membersByAddress = new Map(messageProfileByAddress)
     channelPresence.forEach((presence, index) => {
       const address = normalizeMemberAddress(presence.address)
       if (!address || membersByAddress.has(address)) return
@@ -529,7 +533,7 @@ function ChatPage() {
       })
     })
     return [...membersByAddress.values()]
-  }, [channelMembers, channelPresence])
+  }, [channelMembers, channelPresence, messageProfileByAddress])
 
   const onlineMemberAddressSet = useMemo(() => {
     return new Set(presenceByAddress.keys())
@@ -1358,12 +1362,19 @@ function ChatPage() {
                 const presence = presenceByAddress.get(
                   normalizeMemberAddress(msg.author)
                 )
+                const messageProfile = messageProfileByAddress.get(
+                  normalizeMemberAddress(msg.author)
+                )
                 const isOnline = onlineMemberAddressSet.has(
                   normalizeMemberAddress(msg.author)
                 )
-                const authorName = presence?.displayName || msg.authorName
+                const authorName =
+                  presence?.displayName ||
+                  messageProfile?.displayName ||
+                  msg.authorName
                 const avatar =
                   presence?.avatar ||
+                  messageProfile?.avatar ||
                   msg.avatar ||
                   (isSelf ? userIdentity.avatar : undefined)
 

@@ -6,6 +6,7 @@ import { useGameRoom } from '~/hooks/useGameRoom'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import { useI18n, type Locale, type MessageKey } from '~/lib/i18n'
+import type { ChannelPresence } from '~/lib/channelApi'
 import {
   analyzeCards,
   createGanDengYanRoom,
@@ -53,6 +54,7 @@ type Room = {
   baseScore: number
   bombCount: number
   table?: {
+    seat?: number
     playerName: string
     cards: Card[]
     combo?: { label: string }
@@ -233,7 +235,7 @@ export default function GanDengYanPage() {
   useEffect(() => {
     if (!room || !isOwner || room.status !== 'lobby') return
     const synced = syncGanDengYanLobby(room, lobby.players)
-    if (synced && synced.players.length !== room.players.length) {
+    if (synced && hasPlayerSnapshotChanges(room.players, synced.players)) {
       void game.sendRoomEvent('room:state', { state: synced, seq: synced.seq })
     }
   }, [game, isOwner, lobby.players, room])
@@ -447,6 +449,8 @@ export default function GanDengYanPage() {
                     active={room.currentSeat === player.seat}
                     winner={room.winnerSeat === player.seat}
                     relation={positionLabel(me, player, room.players.length, t)}
+                    presenceByAddress={game.presenceByAddress}
+                    onlineAddresses={game.onlineAddresses}
                   />
                 ))}
               </div>
@@ -461,7 +465,13 @@ export default function GanDengYanPage() {
                     <>
                       <strong>
                         {t('game.gandengyan.tablePlay', {
-                          player: room.table.playerName,
+                          player:
+                            getGamePlayerName(
+                              room.players.find(
+                                player => player.seat === room.table?.seat
+                              ),
+                              game.presenceByAddress
+                            ) || room.table.playerName,
                           combo: room.table.combo?.label || t('game.card'),
                         })}
                       </strong>
@@ -512,20 +522,24 @@ export default function GanDengYanPage() {
                     </div>
                   ) : (
                     t('game.gandengyan.result.winner', {
-                      player:
+                      player: getGamePlayerName(
                         room.players.find(
                           player => player.seat === room.winnerSeat
-                        )?.name || t('game.player'),
+                        ),
+                        game.presenceByAddress
+                      ) || t('game.player'),
                     })
                   )
                 ) : myTurn ? (
                   t('game.gandengyan.status.yourTurn')
                 ) : (
                   t('game.zhajinhua.status.waitingPlayer', {
-                    player:
+                    player: getGamePlayerName(
                       room.players.find(
                         player => player.seat === room.currentSeat
-                      )?.name || t('game.player'),
+                      ),
+                      game.presenceByAddress
+                    ) || t('game.player'),
                   })
                 )}
               </div>
@@ -571,7 +585,9 @@ export default function GanDengYanPage() {
                 </div>
                 {room.players.map(player => (
                   <div key={player.seat} className={styles.scoreRow}>
-                    <span translate="no">{player.name}</span>
+                    <span translate="no">
+                      {getGamePlayerName(player, game.presenceByAddress)}
+                    </span>
                     <strong>{player.score}</strong>
                   </div>
                 ))}
@@ -592,6 +608,8 @@ export default function GanDengYanPage() {
                 player={me}
                 active={myTurn}
                 winner={room.winnerSeat === me?.seat}
+                presenceByAddress={game.presenceByAddress}
+                onlineAddresses={game.onlineAddresses}
               />
               <div className={styles.hand}>
                 {me?.hand.map(card => (
@@ -655,14 +673,23 @@ function PlayerBadge({
   active,
   winner,
   relation = '',
+  presenceByAddress,
+  onlineAddresses,
 }: {
   player?: Player | null
   active: boolean
   winner: boolean
   relation?: string
+  presenceByAddress: Map<string, ChannelPresence>
+  onlineAddresses: Set<string>
 }) {
   const { t } = useI18n()
   if (!player) return null
+  const display = getGamePlayerDisplay(
+    player,
+    presenceByAddress,
+    onlineAddresses
+  )
   return (
     <div
       className={classNames(
@@ -671,11 +698,18 @@ function PlayerBadge({
         winner && styles.winner
       )}
     >
-      <div className={styles.avatar} translate="no">
-        <img src={generateAvatar(player.address, player.avatar)} alt="" />
+      <div
+        className={classNames(
+          styles.avatar,
+          !display.online && styles.avatarOffline
+        )}
+        translate="no"
+      >
+        <img src={generateAvatar(player.address, display.avatar)} alt="" />
+        {display.online && <span className={styles.onlineDot} />}
       </div>
       <div>
-        <strong translate="no">{player.name}</strong>
+        <strong translate="no">{display.name}</strong>
         <span>
           {relation}
           {relation ? ' · ' : ''}
@@ -684,6 +718,53 @@ function PlayerBadge({
       </div>
     </div>
   )
+}
+
+function hasPlayerSnapshotChanges(
+  currentPlayers: Array<Pick<Player, 'address' | 'name' | 'avatar'>>,
+  nextPlayers: Array<Pick<Player, 'address' | 'name' | 'avatar'>>
+) {
+  if (currentPlayers.length !== nextPlayers.length) return true
+  return nextPlayers.some((player, index) => {
+    const current = currentPlayers[index]
+    return (
+      getPresenceKey(current?.address) !== getPresenceKey(player.address) ||
+      current?.name !== player.name ||
+      (current?.avatar || '') !== (player.avatar || '')
+    )
+  })
+}
+
+function getPresenceKey(address = '') {
+  return String(address || '').trim().toLowerCase()
+}
+
+function shortAddress(address = '') {
+  return address ? `${address.slice(0, 6)}...${address.slice(-4)}` : ''
+}
+
+function getGamePlayerName(
+  player: Pick<Player, 'address' | 'name'> | null | undefined,
+  presenceByAddress: Map<string, ChannelPresence>
+) {
+  if (!player) return ''
+  const key = getPresenceKey(player.address)
+  const name = presenceByAddress.get(key)?.displayName || player.name
+  return String(name || shortAddress(player.address)).trim()
+}
+
+function getGamePlayerDisplay(
+  player: Player,
+  presenceByAddress: Map<string, ChannelPresence>,
+  onlineAddresses: Set<string>
+) {
+  const key = getPresenceKey(player.address)
+  const presence = presenceByAddress.get(key)
+  return {
+    name: getGamePlayerName(player, presenceByAddress),
+    avatar: presence?.avatar || player.avatar || '',
+    online: key ? onlineAddresses.has(key) : false,
+  }
 }
 
 function CardView({ card, small = false }: { card: Card; small?: boolean }) {

@@ -230,6 +230,7 @@
 }
 
 .seatAvatar {
+  position: relative;
   width: 44px;
   height: 44px;
   border-radius: 8px;
@@ -239,13 +240,30 @@
   color: #fff;
   font-size: 15px;
   font-weight: 900;
-  overflow: hidden;
 }
 
 .seatAvatar img {
   width: 100%;
   height: 100%;
+  border-radius: 8px;
   object-fit: cover;
+}
+
+.seatAvatarOffline img {
+  filter: grayscale(0.35);
+  opacity: 0.72;
+}
+
+.onlineDot {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #17211b;
+  border-radius: 50%;
+  background: #30d158;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.28);
 }
 
 .seatMain,

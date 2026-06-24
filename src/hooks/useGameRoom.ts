@@ -1,13 +1,18 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   createGameEvent,
   createGameRoomCode,
   gameRoomCodeToChannelName,
   GAME_CHANNEL_TYPE,
+  normalizeAddress,
   normalizeGameRoomCode,
   parseGameEvent,
 } from '~server/src/core/gameRoom.js'
-import { channelApi, type ChannelMessage } from '~/lib/channelApi'
+import {
+  channelApi,
+  type ChannelMessage,
+  type ChannelPresence,
+} from '~/lib/channelApi'
 import { useChannelMessages } from '~/hooks/useChannelMessages'
 import { getApiErrorMessage } from '~server/src/utils/api'
 import { useI18n } from '~/lib/i18n'
@@ -39,9 +44,24 @@ export function useGameRoom({
 
   const [roomCode, setRoomCode] = useState('')
   const [channelName, setChannelName] = useState('')
+  const [channelPresence, setChannelPresence] = useState<ChannelPresence[]>([])
   const [joining, setJoining] = useState(false)
+  const channelNameRef = useRef(channelName)
+  channelNameRef.current = channelName
 
   const isBackendReady = hasBackend === true
+  const presenceProfile = useMemo(() => {
+    if (!userIdentity) return {}
+    return {
+      ...getUserChannelProfile(userIdentity),
+      profileUpdatedAt: userIdentity.profileUpdatedAt,
+    }
+  }, [
+    userIdentity?.avatar,
+    userIdentity?.displayName,
+    userIdentity?.profileUpdatedAt,
+    userIdentity?.username,
+  ])
 
   const reportError = useCallback(
     async (err: unknown, fallback: string) => {
@@ -49,6 +69,42 @@ export function useGameRoom({
       if (onError) onError(message)
     },
     [onError]
+  )
+
+  const refreshChannelPresence = useCallback(
+    async (name = channelNameRef.current) => {
+      if (!name || !isBackendReady) {
+        setChannelPresence([])
+        return []
+      }
+
+      try {
+        const presence = await channelApi.getChannelPresence(name)
+        if (channelNameRef.current !== name) return []
+        setChannelPresence(presence)
+        return presence
+      } catch (err) {
+        console.warn(
+          '[Game] Failed to fetch channel presence:',
+          err instanceof Error ? err.message : err
+        )
+        return []
+      }
+    },
+    [isBackendReady]
+  )
+
+  const handleGameSocketEvent = useCallback(
+    (event: string, data: any) => {
+      if (event !== 'channel:presence') return
+      const eventChannel = String(data?.channelKey || data?.channel || '').trim()
+      const currentChannel = channelNameRef.current
+      if (!currentChannel) return
+      if (!eventChannel || eventChannel === currentChannel) {
+        void refreshChannelPresence(currentChannel)
+      }
+    },
+    [refreshChannelPresence]
   )
 
   const acceptGameMessage = useCallback(
@@ -81,7 +137,21 @@ export function useGameRoom({
     acceptMessage: acceptGameMessage,
     getMessageKey: getGameMessageKey,
     onSyncError: err => reportError(err, t('game.room.error.readLog')),
+    onSocketEvent: handleGameSocketEvent,
+    onReconnect: () => {
+      void refreshChannelPresence()
+    },
+    presenceEnabled: Boolean(channelName && userIdentity),
+    presenceProfile,
   })
+
+  useEffect(() => {
+    if (!channelName || !isBackendReady) {
+      setChannelPresence([])
+      return
+    }
+    void refreshChannelPresence(channelName)
+  }, [channelName, isBackendReady, refreshChannelPresence])
 
   const roomEvents = useMemo(
     () =>
@@ -92,6 +162,19 @@ export function useGameRoom({
         }))
         .filter(item => item.event),
     [gameId, messages, roomCode]
+  )
+  const presenceByAddress = useMemo(() => {
+    const map = new Map<string, ChannelPresence>()
+    channelPresence.forEach(presence => {
+      const address = normalizeAddress(presence.address)
+      if (!address || !presence.online) return
+      map.set(address, presence)
+    })
+    return map
+  }, [channelPresence])
+  const onlineAddresses = useMemo(
+    () => new Set(presenceByAddress.keys()),
+    [presenceByAddress]
   )
 
   const ensureReady = useCallback(() => {
@@ -212,6 +295,7 @@ export function useGameRoom({
 
   return {
     channelName,
+    channelPresence,
     connected,
     createRoom,
     ensureReady,
@@ -219,6 +303,8 @@ export function useGameRoom({
     joinRoom,
     joining,
     messages,
+    onlineAddresses,
+    presenceByAddress,
     roomCode,
     roomEvents,
     sendRoomEvent,
