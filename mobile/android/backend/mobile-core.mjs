@@ -1,6 +1,4 @@
 import b4a from 'b4a'
-import fs from 'bare-fs'
-import path from 'bare-path'
 import Corestore from 'corestore'
 import Hyperdrive from 'hyperdrive'
 import Hyperswarm from 'hyperswarm'
@@ -32,6 +30,13 @@ import {
   getInternalHoldingCleanupPaths,
   removeHoldingRecord,
 } from './holding-records.mjs'
+
+const fs = typeof globalThis.Bare === 'undefined'
+  ? (await import('node:fs')).default
+  : (await import('bare-fs')).default
+const path = typeof globalThis.Bare === 'undefined'
+  ? (await import('node:path')).default
+  : (await import('bare-path')).default
 
 const GLOBAL_SHARED_SEED_STRING = 'most-box-global-shared-seed-v1'
 const MAX_PEERS = 64
@@ -409,6 +414,7 @@ export class MobileP2PCore {
   #seedStates = new Map()
   #transfers = []
   #logs = []
+  #createSwarm
   #node = {
     status: 'idle',
     peerCount: 0,
@@ -420,6 +426,8 @@ export class MobileP2PCore {
     this.#storagePath = normalizeFileUri(options.storagePath || '')
     this.#downloadPath = path.join(this.#storagePath, 'downloads')
     this.#send = options.send || (() => {})
+    this.#createSwarm =
+      options.createSwarm || (swarmOptions => new Hyperswarm(swarmOptions))
     this.#node.storagePath = this.#storagePath
   }
 
@@ -458,7 +466,7 @@ export class MobileP2PCore {
     })
     await this.#store.ready()
 
-    this.#swarm = new Hyperswarm({
+    this.#swarm = this.#createSwarm({
       maxPeers: MAX_PEERS,
       bootstrap: SWARM_BOOTSTRAP,
       firewall: () => false,
@@ -478,7 +486,7 @@ export class MobileP2PCore {
       this.#log('warn', message)
     })
 
-    this.#chatSwarm = new Hyperswarm({
+    this.#chatSwarm = this.#createSwarm({
       maxPeers: MAX_PEERS,
       bootstrap: SWARM_BOOTSTRAP,
       firewall: () => false,

@@ -7,7 +7,7 @@
   "scripts": {
     "start": "bare-pack --preset android --linked --imports bare-pack-imports.cjs backend/backend.mjs --out app.bundle.js && node scripts/start-dev-client.mjs",
     "build": "node scripts/build-apk.mjs",
-    "test": "node --import tsx --test src/mobileCore/cid.test.ts src/mobileCore/protocol.test.ts && node --test backend/protocol.test.mjs backend/holding-records.test.mjs"
+    "test": "node --import tsx --test src/mobileCore/cid.test.ts src/mobileCore/protocol.test.ts && node --test backend/protocol.test.mjs backend/holding-records.test.mjs backend/mobile-core.test.mjs"
   },
   "dependencies": {
     "@react-native-clipboard/clipboard": "1.16.3",
