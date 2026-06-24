@@ -69,6 +69,20 @@ export type MobileChannelMessage = {
   timestamp: number
 }
 
+export type MobileChannelPresence = {
+  channelKey: string
+  channelId: string
+  address: string
+  displayName?: string
+  avatar?: string
+  profileUpdatedAt?: number
+  lastSeen: number
+  online: boolean
+  local?: boolean
+  status?: string
+  sessionId?: string
+}
+
 export type NodeState = {
   status: NodeRuntimeStatus
   peerCount: number
@@ -82,6 +96,7 @@ export type MobileCoreSnapshot = {
   transfers: MobileTransfer[]
   channels: MobileChannel[]
   channelMessages: Record<string, MobileChannelMessage[]>
+  channelPresence: Record<string, MobileChannelPresence[]>
   logs: MobileLogEntry[]
 }
 
@@ -123,6 +138,15 @@ export type SendChannelMessageInput = {
   authorName?: string
 }
 
+export type ChannelPresenceInput = {
+  channelName: string
+  address?: string
+  displayName?: string
+  avatar?: string
+  profileUpdatedAt?: number
+  sessionId?: string
+}
+
 export type ExportHoldingResult = {
   filePath: string
   fileName: string
@@ -148,6 +172,18 @@ export type MostBoxMobileCore = {
   sendChannelMessage: (
     input: SendChannelMessageInput
   ) => Promise<MobileChannelMessage>
+  getChannelPresence: (
+    channelName: string
+  ) => Promise<MobileChannelPresence[]>
+  joinChannelPresence: (
+    input: ChannelPresenceInput
+  ) => Promise<MobileChannelPresence[]>
+  heartbeatChannelPresence: (
+    input: ChannelPresenceInput
+  ) => Promise<MobileChannelPresence[]>
+  leaveChannelPresence: (
+    input: ChannelPresenceInput
+  ) => Promise<MobileChannelPresence[]>
   getSnapshot: () => MobileCoreSnapshot
   subscribe: (listener: CoreListener) => () => void
 }

@@ -8,6 +8,8 @@ export const CHANNEL_NAME_REGEX = /^[a-zA-Z0-9_-]+$/
 export const CHANNEL_MESSAGE_LIMIT = 100
 export const CHANNEL_DISCOVERY_TIMEOUT = 600
 export const CHANNEL_CANDIDATE_TTL = 30 * 1000
+export const CHANNEL_PRESENCE_HEARTBEAT_MS = 15 * 1000
+export const CHANNEL_PRESENCE_TIMEOUT_MS = 45 * 1000
 export const MAX_CHANNEL_MESSAGE_LENGTH = 2000
 export const DIAGNOSTIC_AUTHOR =
   '0x0000000000000000000000000000000000000001'
@@ -29,6 +31,23 @@ export function uniqueStrings(values = []) {
   return [
     ...new Set(values.map(value => String(value || '').trim()).filter(Boolean)),
   ]
+}
+
+export function normalizeChannelPresenceAddress(value) {
+  const address = String(value || '').trim()
+  return /^0x[a-fA-F0-9]{40}$/.test(address) ? address.toLowerCase() : ''
+}
+
+export function normalizeChannelPresenceDisplayName(input, fallbackAddress = '') {
+  const displayName = String(input || '').trim()
+  const fallback = fallbackAddress
+    ? `${fallbackAddress.slice(0, 6)}...${fallbackAddress.slice(-4)}`
+    : ''
+  return (displayName || fallback).slice(0, 50)
+}
+
+export function normalizeChannelPresenceAvatar(input) {
+  return String(input || '').trim().slice(0, 4096)
 }
 
 export function createChannelWriterId() {

@@ -43,6 +43,7 @@ import { parseMostLink } from './src/mobileCore/protocol'
 import type { DocumentPickerAsset } from 'expo-document-picker'
 import type {
   LogLevel,
+  MobileChannelPresence,
   MobileCoreSnapshot,
   MobileChannelMessage,
   MobileHolding,
@@ -54,6 +55,7 @@ import type {
 } from './src/mobileCore/types'
 
 const DEV_CID_MAX_BYTES = 20 * 1024 * 1024
+const CHANNEL_PRESENCE_HEARTBEAT_MS = 15 * 1000
 const MIME_BY_EXTENSION: Record<string, string> = {
   apk: 'application/vnd.android.package-archive',
   csv: 'text/csv',
@@ -133,6 +135,14 @@ function formatChannelMessageTime(message: MobileChannelMessage) {
 function shortCid(cid: string, head = 12, tail = 8) {
   if (cid.length <= head + tail + 1) return cid
   return `${cid.slice(0, head)}...${cid.slice(-tail)}`
+}
+
+function shortAddress(address: string) {
+  return address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'peer'
+}
+
+function formatPresenceMember(presence: MobileChannelPresence) {
+  return presence.displayName?.trim() || shortAddress(presence.address)
 }
 
 async function readDevCidBytes(file: DocumentPickerAsset) {
@@ -396,6 +406,9 @@ function EmptyState({ title, body }: EmptyStateProps) {
 export default function App() {
   const coreRef = useRef<MostBoxMobileCore | null>(null)
   const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const channelPresenceSessionRef = useRef(
+    `android-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  )
   const [snapshot, setSnapshot] = useState<MobileCoreSnapshot | null>(null)
   const [downloadLink, setDownloadLink] = useState('')
   const [exportingCid, setExportingCid] = useState<string | null>(null)
@@ -475,8 +488,48 @@ export default function App() {
     ) || null
   const selectedChannelKey =
     selectedChannel?.channelKey || normalizedChannelName
+  const activeChannelPresenceKey = selectedChannel?.channelKey || ''
   const channelMessages =
     (currentSnapshot.channelMessages || {})[selectedChannelKey]?.slice(-6) || []
+  const onlineChannelPresence = [
+    ...((currentSnapshot.channelPresence || {})[selectedChannelKey] || []),
+  ]
+    .filter(presence => presence.online)
+    .sort((left, right) => {
+      if (left.local !== right.local) return left.local ? -1 : 1
+      return formatPresenceMember(left).localeCompare(formatPresenceMember(right))
+    })
+
+  useEffect(() => {
+    if (!isReady || !activeChannelPresenceKey) return
+
+    let disposed = false
+    const sessionId = channelPresenceSessionRef.current
+    const basePayload = {
+      channelName: activeChannelPresenceKey,
+      sessionId,
+    }
+
+    void core
+      .joinChannelPresence({
+        ...basePayload,
+        displayName: 'Android',
+      })
+      .catch(() => {})
+
+    const heartbeatTimer = setInterval(() => {
+      if (disposed) return
+      void core.heartbeatChannelPresence(basePayload).catch(() => {})
+    }, CHANNEL_PRESENCE_HEARTBEAT_MS)
+
+    return () => {
+      disposed = true
+      clearInterval(heartbeatTimer)
+      if (core.getSnapshot().node.status === 'ready') {
+        void core.leaveChannelPresence(basePayload).catch(() => {})
+      }
+    }
+  }, [activeChannelPresenceKey, core, isReady])
 
   const markCopied = (cid: string) => {
     setCopiedCid(cid)
@@ -822,7 +875,11 @@ export default function App() {
             <SectionHeader
               icon={<Radio size={18} color="#6d5dfc" />}
               title="Channel Probe"
-              meta={selectedChannel ? `${selectedChannel.peerCount} peer` : 'dev'}
+              meta={
+                selectedChannel
+                  ? `${selectedChannel.peerCount} peer / ${onlineChannelPresence.length} online`
+                  : 'dev'
+              }
             />
 
             <View style={styles.compactInputShell}>
@@ -866,6 +923,25 @@ export default function App() {
                 <Text style={styles.channelStatText}>
                   writers {selectedChannel.writerCoreKeys.length}
                 </Text>
+                <Text style={styles.channelStatText}>
+                  online {onlineChannelPresence.length}
+                </Text>
+              </View>
+            ) : null}
+
+            {onlineChannelPresence.length ? (
+              <View style={styles.channelPresenceList}>
+                {onlineChannelPresence.map(presence => (
+                  <View
+                    key={`${presence.address}:${presence.sessionId || 'default'}`}
+                    style={styles.channelPresencePill}
+                  >
+                    <View style={styles.channelPresenceDot} />
+                    <Text style={styles.channelPresenceText}>
+                      {formatPresenceMember(presence)}
+                    </Text>
+                  </View>
+                ))}
               </View>
             ) : null}
 
@@ -1476,6 +1552,31 @@ const styles = StyleSheet.create({
     color: '#4c3fb0',
     fontSize: 12,
     fontWeight: '800',
+  },
+  channelPresenceList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 7,
+  },
+  channelPresencePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#ecfdf5',
+  },
+  channelPresenceDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#16a34a',
+  },
+  channelPresenceText: {
+    color: '#116149',
+    fontSize: 12,
+    fontWeight: '900',
   },
   channelMessageList: {
     gap: 9,

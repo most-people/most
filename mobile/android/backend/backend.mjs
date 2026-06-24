@@ -138,6 +138,58 @@ async function handleCommand(command) {
       return
     }
 
+    if (command.type === COMMANDS.CHANNEL_PRESENCE_GET) {
+      const presences = getCore().getChannelPresence(payload)
+      send(
+        EVENTS.CHANNEL_PRESENCE,
+        {
+          presences,
+          snapshot: getCore().getSnapshot(),
+        },
+        requestId
+      )
+      return
+    }
+
+    if (command.type === COMMANDS.CHANNEL_PRESENCE_JOIN) {
+      const presences = getCore().joinChannelPresence(payload)
+      send(
+        EVENTS.CHANNEL_PRESENCE,
+        {
+          presences,
+          snapshot: getCore().getSnapshot(),
+        },
+        requestId
+      )
+      return
+    }
+
+    if (command.type === COMMANDS.CHANNEL_PRESENCE_HEARTBEAT) {
+      const presences = getCore().heartbeatChannelPresence(payload)
+      send(
+        EVENTS.CHANNEL_PRESENCE,
+        {
+          presences,
+          snapshot: getCore().getSnapshot(),
+        },
+        requestId
+      )
+      return
+    }
+
+    if (command.type === COMMANDS.CHANNEL_PRESENCE_LEAVE) {
+      const presences = getCore().leaveChannelPresence(payload)
+      send(
+        EVENTS.CHANNEL_PRESENCE,
+        {
+          presences,
+          snapshot: getCore().getSnapshot(),
+        },
+        requestId
+      )
+      return
+    }
+
     if (command.type === COMMANDS.LOG_LIST) {
       send(EVENTS.SNAPSHOT, getCore().getSnapshot(), requestId)
       return
@@ -186,5 +238,8 @@ send(EVENTS.SNAPSHOT, {
   },
   holdings: [],
   transfers: [],
+  channels: [],
+  channelMessages: {},
+  channelPresence: {},
   logs: [],
 })

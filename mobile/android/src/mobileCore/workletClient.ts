@@ -11,6 +11,7 @@ import type {
   ExportHoldingResult,
   MobileChannel,
   MobileChannelMessage,
+  MobileChannelPresence,
   MobileCoreSnapshot,
   MobileHolding,
   MobileLogEntry,
@@ -50,6 +51,7 @@ function createInitialSnapshot(storagePath: string): MobileCoreSnapshot {
     transfers: [],
     channels: [],
     channelMessages: {},
+    channelPresence: {},
     logs: [],
   }
 }
@@ -76,6 +78,8 @@ function isSnapshot(value: unknown): value is MobileCoreSnapshot {
     (record.channels === undefined || Array.isArray(record.channels)) &&
     (record.channelMessages === undefined ||
       typeof record.channelMessages === 'object') &&
+    (record.channelPresence === undefined ||
+      typeof record.channelPresence === 'object') &&
     Array.isArray(record.logs)
   )
 }
@@ -123,6 +127,17 @@ function isChannelMessage(value: unknown): value is MobileChannelMessage {
     typeof record.authorName === 'string' &&
     typeof record.content === 'string' &&
     typeof record.timestamp === 'number'
+  )
+}
+
+function isChannelPresence(value: unknown): value is MobileChannelPresence {
+  const record = asRecord(value)
+  return (
+    typeof record.channelKey === 'string' &&
+    typeof record.channelId === 'string' &&
+    typeof record.address === 'string' &&
+    typeof record.lastSeen === 'number' &&
+    typeof record.online === 'boolean'
   )
 }
 
@@ -178,6 +193,15 @@ function extractChannelMessage(payload: unknown) {
   if (isChannelMessage(record.message)) return record.message
   if (isChannelMessage(payload)) return payload
   throw new Error('P2P core returned an invalid channel message payload')
+}
+
+function extractChannelPresence(payload: unknown) {
+  const record = asRecord(payload)
+  const presences = Array.isArray(record.presences) ? record.presences : payload
+  if (Array.isArray(presences) && presences.every(isChannelPresence)) {
+    return presences
+  }
+  throw new Error('P2P core returned an invalid channel presence payload')
 }
 
 export class BareWorkletMostBoxCore implements MostBoxMobileCore {
@@ -374,6 +398,73 @@ export class BareWorkletMostBoxCore implements MostBoxMobileCore {
     return extractChannelMessage(result)
   }
 
+  async getChannelPresence(
+    channelName: string
+  ): Promise<MobileChannelPresence[]> {
+    await this.#ensureStarted()
+    const result = await this.#request(
+      COMMANDS.CHANNEL_PRESENCE_GET,
+      { channelName },
+      [EVENTS.CHANNEL_PRESENCE],
+      10000
+    )
+    return extractChannelPresence(result)
+  }
+
+  async joinChannelPresence(input: {
+    channelName: string
+    address?: string
+    displayName?: string
+    avatar?: string
+    profileUpdatedAt?: number
+    sessionId?: string
+  }): Promise<MobileChannelPresence[]> {
+    await this.#ensureStarted()
+    const result = await this.#request(
+      COMMANDS.CHANNEL_PRESENCE_JOIN,
+      input,
+      [EVENTS.CHANNEL_PRESENCE],
+      10000
+    )
+    return extractChannelPresence(result)
+  }
+
+  async heartbeatChannelPresence(input: {
+    channelName: string
+    address?: string
+    displayName?: string
+    avatar?: string
+    profileUpdatedAt?: number
+    sessionId?: string
+  }): Promise<MobileChannelPresence[]> {
+    await this.#ensureStarted()
+    const result = await this.#request(
+      COMMANDS.CHANNEL_PRESENCE_HEARTBEAT,
+      input,
+      [EVENTS.CHANNEL_PRESENCE],
+      10000
+    )
+    return extractChannelPresence(result)
+  }
+
+  async leaveChannelPresence(input: {
+    channelName: string
+    address?: string
+    displayName?: string
+    avatar?: string
+    profileUpdatedAt?: number
+    sessionId?: string
+  }): Promise<MobileChannelPresence[]> {
+    await this.#ensureStarted()
+    const result = await this.#request(
+      COMMANDS.CHANNEL_PRESENCE_LEAVE,
+      input,
+      [EVENTS.CHANNEL_PRESENCE],
+      10000
+    )
+    return extractChannelPresence(result)
+  }
+
   getSnapshot() {
     return this.#clone()
   }
@@ -521,6 +612,14 @@ export class BareWorkletMostBoxCore implements MostBoxMobileCore {
           ([channelKey, messages]) => [
             channelKey,
             messages.map(message => ({ ...message })),
+          ]
+        )
+      ),
+      channelPresence: Object.fromEntries(
+        Object.entries(this.#snapshot.channelPresence || {}).map(
+          ([channelKey, presences]) => [
+            channelKey,
+            presences.map(presence => ({ ...presence })),
           ]
         )
       ),

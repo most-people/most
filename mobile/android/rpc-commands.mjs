@@ -10,6 +10,10 @@ export const COMMANDS = Object.freeze({
   CHANNEL_LIST: 'channel.list',
   CHANNEL_MESSAGES: 'channel.messages',
   CHANNEL_SEND: 'channel.send',
+  CHANNEL_PRESENCE_GET: 'channel.presence.get',
+  CHANNEL_PRESENCE_JOIN: 'channel.presence.join',
+  CHANNEL_PRESENCE_HEARTBEAT: 'channel.presence.heartbeat',
+  CHANNEL_PRESENCE_LEAVE: 'channel.presence.leave',
   LOG_LIST: 'log.list',
 })
 
@@ -26,6 +30,7 @@ export const EVENTS = Object.freeze({
   CHANNEL_JOINED: 'channel.joined',
   CHANNEL_MESSAGE: 'channel.message',
   CHANNEL_STATUS: 'channel.status',
+  CHANNEL_PRESENCE: 'channel.presence',
   ERROR: 'error',
   SNAPSHOT: 'snapshot',
 })
