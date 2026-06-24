@@ -137,6 +137,9 @@ function bindEngineEvents({
   engine.on('channel:peer:offline', data =>
     wsBroadcast('channel:peer:offline', data)
   )
+  engine.on('channel:presence', data =>
+    wsSendToChannel(data.channelKey, 'channel:presence', data)
+  )
   engine.on('channel:joined', data => wsBroadcast('channel:joined', data))
   engine.on('channel:left', data => wsBroadcast('channel:left', data))
   engine.on('user:metadata:updated', data => {
@@ -157,23 +160,33 @@ function bindEngineEvents({
 }
 
 function createWebSocketServer({
+  engine,
   serverInstance,
   validateWebSocketRequest,
+  getWebSocketUserAddress,
   subscribeToChannel,
   unsubscribeFromChannel,
   cleanupWsSubscriptions,
 }) {
   const wss = new WebSocketServer({ noServer: true })
+  let wsConnectionCounter = 0
 
-  wss.on('connection', ws => {
+  wss.on('connection', (ws, req) => {
+    ws.userAddress = getWebSocketUserAddress(req)
+    ws.presenceSourceId = `ws:${++wsConnectionCounter}`
     ws.on('error', () => {})
     ws.on('close', () => {
       cleanupWsSubscriptions(ws)
+      try {
+        engine.clearChannelPresenceSource(ws.presenceSourceId, {
+          broadcast: true,
+        })
+      } catch {}
     })
     ws.on('message', raw => {
       try {
         const msg = JSON.parse(raw)
-        const { event, data } = msg
+        const { event, data = {} } = msg
 
         switch (event) {
           case 'register':
@@ -187,6 +200,48 @@ function createWebSocketServer({
           case 'channel:unsubscribe':
             if (data.channel) {
               unsubscribeFromChannel(ws, data.channel)
+            }
+            break
+          case 'channel:presence:join':
+            if (data.channel && ws.userAddress) {
+              engine.joinChannelPresence(data.channel, {
+                ownerAddress: ws.userAddress,
+                sourceId: ws.presenceSourceId,
+                sessionId: data.sessionId,
+                displayName: data.displayName,
+                avatar: data.avatar,
+                profileUpdatedAt: data.profileUpdatedAt,
+              })
+            }
+            break
+          case 'channel:presence:heartbeat':
+            if (data.channel && ws.userAddress) {
+              engine.heartbeatChannelPresence(data.channel, {
+                ownerAddress: ws.userAddress,
+                sourceId: ws.presenceSourceId,
+                sessionId: data.sessionId,
+              })
+            }
+            break
+          case 'channel:presence:profile':
+            if (data.channel && ws.userAddress) {
+              engine.updateChannelPresenceProfile(data.channel, {
+                ownerAddress: ws.userAddress,
+                sourceId: ws.presenceSourceId,
+                sessionId: data.sessionId,
+                displayName: data.displayName,
+                avatar: data.avatar,
+                profileUpdatedAt: data.profileUpdatedAt,
+              })
+            }
+            break
+          case 'channel:presence:leave':
+            if (data.channel && ws.userAddress) {
+              engine.leaveChannelPresence(data.channel, {
+                ownerAddress: ws.userAddress,
+                sourceId: ws.presenceSourceId,
+                sessionId: data.sessionId,
+              })
             }
             break
         }
@@ -295,8 +350,10 @@ export async function main() {
   )
 
   wssRef.current = createWebSocketServer({
+    engine,
     serverInstance: serverInstanceRef.current,
     validateWebSocketRequest: appRuntime.validateWebSocketRequest,
+    getWebSocketUserAddress: appRuntime.getWebSocketUserAddress,
     subscribeToChannel: appRuntime.subscribeToChannel,
     unsubscribeFromChannel: appRuntime.unsubscribeFromChannel,
     cleanupWsSubscriptions: appRuntime.cleanupWsSubscriptions,

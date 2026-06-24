@@ -123,6 +123,18 @@ export function registerChannelRoutes(app, { engine }) {
     }
   })
 
+  app.get('/api/channels/:name/presence', c => {
+    try {
+      return c.json(
+        engine.getChannelPresence(c.req.param('name'), {
+          ownerAddress: c.get('userAddress'),
+        })
+      )
+    } catch (err) {
+      return badRequestOrAppError(c, err)
+    }
+  })
+
   app.put('/api/channels/:name/remark', async c => {
     const name = c.req.param('name')
     const body = await c.req.json()

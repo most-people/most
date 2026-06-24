@@ -266,6 +266,12 @@ export function buildOpenApiSpec(appPort) {
           responses: { 200: { description: 'Channel peers' } },
         },
       },
+      '/api/channels/{name}/presence': {
+        get: {
+          summary: 'List active user presence for a channel',
+          responses: { 200: { description: 'Channel presence' } },
+        },
+      },
       '/api/channels/{name}/remark': {
         put: {
           summary: 'Set an authenticated user channel remark',

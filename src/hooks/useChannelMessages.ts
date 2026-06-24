@@ -13,6 +13,14 @@ import {
 import { getUserMessageIdentity } from '~/lib/userProfile'
 import { useUserStore } from '~/stores/userStore'
 
+const CHANNEL_PRESENCE_HEARTBEAT_MS = 15 * 1000
+
+interface ChannelPresenceProfile {
+  displayName?: string
+  avatar?: string
+  profileUpdatedAt?: number
+}
+
 interface UseChannelMessagesOptions {
   isReady: boolean
   enabled?: boolean
@@ -27,6 +35,8 @@ interface UseChannelMessagesOptions {
   onSyncError?: (err: unknown) => void | Promise<void>
   onSocketEvent?: (event: string, data: any) => void
   onReconnect?: () => void | Promise<void>
+  presenceEnabled?: boolean
+  presenceProfile?: ChannelPresenceProfile
 }
 
 export interface SendChannelMessageOptions {
@@ -62,6 +72,10 @@ function sortMessagesForDisplay(items: ChannelMessage[]) {
     .map(item => item.message)
 }
 
+function createPresenceSessionId() {
+  return `presence-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
 export function useChannelMessages({
   isReady,
   enabled = true,
@@ -76,6 +90,8 @@ export function useChannelMessages({
   onSyncError,
   onSocketEvent,
   onReconnect,
+  presenceEnabled = false,
+  presenceProfile = {},
 }: UseChannelMessagesOptions) {
   const userIdentity = useUserStore(s => s.identity)
   const [messages, setMessages] = useState<ChannelMessage[]>([])
@@ -97,6 +113,10 @@ export function useChannelMessages({
   const onReconnectRef = useRef(onReconnect)
   const peerIdRef = useRef(peerId)
   const subscribedChannelsRef = useRef(new Set<string>())
+  const presenceEnabledRef = useRef(presenceEnabled)
+  const presenceProfileRef = useRef(presenceProfile)
+  const presenceSessionIdRef = useRef(createPresenceSessionId())
+  const joinedPresenceChannelRef = useRef('')
 
   useEffect(() => {
     extraSubscribedChannelNamesRef.current = extraSubscribedChannelNamesKey
@@ -123,6 +143,14 @@ export function useChannelMessages({
   useEffect(() => {
     onReconnectRef.current = onReconnect
   }, [onReconnect])
+
+  useEffect(() => {
+    presenceEnabledRef.current = presenceEnabled
+  }, [presenceEnabled])
+
+  useEffect(() => {
+    presenceProfileRef.current = presenceProfile
+  }, [presenceProfile])
 
   const filterMessages = useCallback((items: ChannelMessage[]) => {
     const accept = acceptMessageRef.current
@@ -163,6 +191,37 @@ export function useChannelMessages({
       wsRef.current.send(JSON.stringify({ event, data }))
     }
   }, [])
+
+  const getPresencePayload = useCallback((channel: string) => {
+    return {
+      channel,
+      sessionId: presenceSessionIdRef.current,
+      ...presenceProfileRef.current,
+    }
+  }, [])
+
+  const leavePresenceChannel = useCallback(
+    (channel = joinedPresenceChannelRef.current) => {
+      if (!channel) return
+      wsSend('channel:presence:leave', {
+        channel,
+        sessionId: presenceSessionIdRef.current,
+      })
+      if (joinedPresenceChannelRef.current === channel) {
+        joinedPresenceChannelRef.current = ''
+      }
+    },
+    [wsSend]
+  )
+
+  const joinPresenceChannel = useCallback(
+    (channel: string) => {
+      if (!channel || !presenceEnabledRef.current || !userIdentity) return
+      wsSend('channel:presence:join', getPresencePayload(channel))
+      joinedPresenceChannelRef.current = channel
+    },
+    [getPresencePayload, userIdentity, wsSend]
+  )
 
   const replaceSubscriptions = useCallback(
     (names: string[]) => {
@@ -306,6 +365,68 @@ export function useChannelMessages({
   ])
 
   useEffect(() => {
+    if (!connected || !presenceEnabled || !userIdentity || !channelName) {
+      leavePresenceChannel()
+      return
+    }
+
+    const currentPresenceChannel = joinedPresenceChannelRef.current
+    if (currentPresenceChannel && currentPresenceChannel !== channelName) {
+      leavePresenceChannel(currentPresenceChannel)
+    }
+    if (joinedPresenceChannelRef.current !== channelName) {
+      joinPresenceChannel(channelName)
+    }
+  }, [
+    channelName,
+    connected,
+    joinPresenceChannel,
+    leavePresenceChannel,
+    presenceEnabled,
+    userIdentity,
+  ])
+
+  const presenceProfileKey = useMemo(
+    () =>
+      [
+        presenceProfile.displayName || '',
+        presenceProfile.avatar || '',
+        presenceProfile.profileUpdatedAt || '',
+      ].join('\n'),
+    [
+      presenceProfile.avatar,
+      presenceProfile.displayName,
+      presenceProfile.profileUpdatedAt,
+    ]
+  )
+
+  useEffect(() => {
+    const channel = joinedPresenceChannelRef.current
+    if (!connected || !presenceEnabled || !channel || !userIdentity) return
+    wsSend('channel:presence:profile', getPresencePayload(channel))
+  }, [
+    connected,
+    getPresencePayload,
+    presenceEnabled,
+    presenceProfileKey,
+    userIdentity,
+    wsSend,
+  ])
+
+  useEffect(() => {
+    if (!connected || !presenceEnabled || !userIdentity) return
+    const timer = window.setInterval(() => {
+      const channel = joinedPresenceChannelRef.current
+      if (!channel) return
+      wsSend('channel:presence:heartbeat', {
+        channel,
+        sessionId: presenceSessionIdRef.current,
+      })
+    }, CHANNEL_PRESENCE_HEARTBEAT_MS)
+    return () => window.clearInterval(timer)
+  }, [connected, presenceEnabled, userIdentity, wsSend])
+
+  useEffect(() => {
     if (!isReady || !enabled || (waitForPeerId && !peerIdRef.current)) return
     replaceSubscriptions(getSubscriptionNames())
   }, [
@@ -374,6 +495,7 @@ export function useChannelMessages({
       }
       ws.onclose = () => {
         setConnected(false)
+        joinedPresenceChannelRef.current = ''
         if (closed) return
         const attempt = reconnectAttemptRef.current
         if (attempt >= 20) return
@@ -393,6 +515,7 @@ export function useChannelMessages({
     return () => {
       closed = true
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current)
+      leavePresenceChannel()
       wsRef.current?.close()
       wsRef.current = null
       subscribedChannelsRef.current.clear()
@@ -401,6 +524,7 @@ export function useChannelMessages({
     enabled,
     getSubscriptionNames,
     isReady,
+    leavePresenceChannel,
     mergeMessages,
     reconnectBaseDelay,
     replaceSubscriptions,

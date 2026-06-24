@@ -419,6 +419,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(spec.paths['/api/channels/{name}/messages'].post)
       assert.strictEqual(spec.paths['/api/channels/{name}/members'], undefined)
       assert.ok(spec.paths['/api/channels/{name}/peers'])
+      assert.ok(spec.paths['/api/channels/{name}/presence'])
       assert.ok(spec.paths['/api/channels/{name}/remark'])
       assert.ok(spec.paths['/api/channels/{name}/pin'])
 
@@ -2270,6 +2271,18 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     it('returns empty peers list for new channel', async () => {
       await engine.createChannel(`peers-${uid}`)
       const res = await fetch(`${baseUrl}/api/channels/peers-${uid}/peers`)
+      const data = await res.json()
+      assert.strictEqual(res.status, 200)
+      assert.ok(Array.isArray(data))
+      assert.strictEqual(data.length, 0)
+    })
+  })
+
+  describe('GET /api/channels/:name/presence', () => {
+    it('returns channel presence list', async () => {
+      const channelName = `presence-api-${uid}`
+      await engine.createChannel(channelName)
+      const res = await fetch(`${baseUrl}/api/channels/${channelName}/presence`)
       const data = await res.json()
       assert.strictEqual(res.status, 200)
       assert.ok(Array.isArray(data))

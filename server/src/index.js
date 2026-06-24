@@ -93,6 +93,8 @@ import {
 } from './config.js'
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+const CHANNEL_PRESENCE_HEARTBEAT_MS = 15 * 1000
+const CHANNEL_PRESENCE_TIMEOUT_MS = 45 * 1000
 const CHANNEL_WELCOME_MESSAGE = '我加入了群聊'
 
 function createMemoryDuplexPair() {
@@ -158,6 +160,9 @@ export class MostBoxEngine extends EventEmitter {
   #channelPeers = new Map()
   #channelCandidateCache = new Map()
   #channelStreams = new Set()
+  #channelPresenceSessions = new Map()
+  #channelPresenceProfiles = new Map()
+  #channelPresenceSweepTimer = null
 
   #accountMetadata = { profiles: {} }
 
@@ -188,6 +193,90 @@ export class MostBoxEngine extends EventEmitter {
       downloadTimeout: options.downloadTimeout || DOWNLOAD_TIMEOUT,
       disableNetwork: options.disableNetwork === true,
     }
+  }
+
+  getChannelPresence(channelKeyInput, options = {}) {
+    this.#ensureInitialized()
+    this.#assertChannelMember(channelKeyInput, options.ownerAddress)
+    const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
+    this.#pruneStaleChannelPresence()
+    return this.#getChannelPresenceList(channel.channelKey)
+  }
+
+  joinChannelPresence(channelKeyInput, options = {}) {
+    this.#ensureInitialized()
+    this.#assertChannelMember(channelKeyInput, options.ownerAddress)
+    const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
+    const event = this.#upsertChannelPresenceSession(channel, {
+      ...options,
+      address: options.ownerAddress,
+      local: true,
+    })
+    if (event) {
+      this.#broadcastChannelPresence(event)
+    }
+    return this.#getChannelPresenceList(channel.channelKey)
+  }
+
+  heartbeatChannelPresence(channelKeyInput, options = {}) {
+    this.#ensureInitialized()
+    this.#assertChannelMember(channelKeyInput, options.ownerAddress)
+    const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
+    const event = this.#touchChannelPresenceSession(channel, {
+      ...options,
+      address: options.ownerAddress,
+      local: true,
+    })
+    this.#broadcastChannelPresence(
+      event ||
+        this.#formatChannelPresence(
+          channel.channelKey,
+          options.ownerAddress,
+          'heartbeat'
+        )
+    )
+    return this.#getChannelPresenceList(channel.channelKey)
+  }
+
+  updateChannelPresenceProfile(channelKeyInput, options = {}) {
+    this.#ensureInitialized()
+    this.#assertChannelMember(channelKeyInput, options.ownerAddress)
+    const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
+    const event = this.#updateChannelPresenceProfile(channel, {
+      ...options,
+      address: options.ownerAddress,
+      local: true,
+    })
+    if (event) {
+      this.#broadcastChannelPresence(event)
+    }
+    return this.#getChannelPresenceList(channel.channelKey)
+  }
+
+  leaveChannelPresence(channelKeyInput, options = {}) {
+    this.#ensureInitialized()
+    this.#assertChannelMember(channelKeyInput, options.ownerAddress)
+    const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
+    const events = this.#removeChannelPresenceSessions(channel.channelKey, {
+      ...options,
+      address: options.ownerAddress,
+    })
+    events.forEach(event => this.#broadcastChannelPresence(event))
+    return this.#getChannelPresenceList(channel.channelKey)
+  }
+
+  clearChannelPresenceSource(sourceId, options = {}) {
+    this.#ensureInitialized()
+    const events = this.#removeChannelPresenceSessionsBySource(sourceId)
+    if (options.broadcast) {
+      events.forEach(event => this.#broadcastChannelPresence(event))
+    }
+    return events
+  }
+
+  pruneChannelPresence() {
+    this.#ensureInitialized()
+    return this.#pruneStaleChannelPresence()
   }
 
   /**
@@ -363,6 +452,7 @@ export class MostBoxEngine extends EventEmitter {
     console.log(`[MostBox] Engine initialized successfully`)
     this.emit('ready')
     this.#resumeHoldingsInBackground()
+    this.#startChannelPresenceSweeper()
 
     return this
   }
@@ -419,6 +509,7 @@ export class MostBoxEngine extends EventEmitter {
     this.#channelPeers.clear()
     this.#channelCandidateCache.clear()
     this.#channelStreams.clear()
+    this.#clearChannelPresenceRuntime()
     this.#channels = []
 
     if (this.#store) {
@@ -3111,6 +3202,312 @@ export class MostBoxEngine extends EventEmitter {
     )
   }
 
+  #normalizePresenceSessionId(sessionId) {
+    return String(sessionId || 'default').trim().slice(0, 120) || 'default'
+  }
+
+  #normalizePresenceSourceId(options = {}) {
+    const sourceId = String(options.sourceId || '').trim()
+    if (sourceId) return sourceId.slice(0, 160)
+    const sourcePeerId = String(options.sourcePeerId || '').trim()
+    if (sourcePeerId) return `peer:${sourcePeerId}`.slice(0, 180)
+    return 'local'
+  }
+
+  #getPresenceSessionKey(options = {}) {
+    return [
+      this.#normalizePresenceSourceId(options),
+      normalizeOwnerAddress(options.address),
+      this.#normalizePresenceSessionId(options.sessionId),
+    ].join(':')
+  }
+
+  #getChannelPresenceSessionMap(channelKey) {
+    if (!this.#channelPresenceSessions.has(channelKey)) {
+      this.#channelPresenceSessions.set(channelKey, new Map())
+    }
+    return this.#channelPresenceSessions.get(channelKey)
+  }
+
+  #getChannelPresenceProfileMap(channelKey) {
+    if (!this.#channelPresenceProfiles.has(channelKey)) {
+      this.#channelPresenceProfiles.set(channelKey, new Map())
+    }
+    return this.#channelPresenceProfiles.get(channelKey)
+  }
+
+  #isChannelPresenceAddressOnline(channelKey, address) {
+    const normalizedAddress = normalizeOwnerAddress(address)
+    if (!normalizedAddress) return false
+    const sessions = this.#channelPresenceSessions.get(channelKey)
+    if (!sessions) return false
+    return [...sessions.values()].some(
+      session => session.address === normalizedAddress
+    )
+  }
+
+  #getChannelPresenceList(channelKey) {
+    const sessions = this.#channelPresenceSessions.get(channelKey)
+    if (!sessions) return []
+    const addresses = uniqueStrings(
+      [...sessions.values()].map(session => session.address)
+    )
+    return addresses
+      .map(address => this.#formatChannelPresence(channelKey, address))
+      .filter(Boolean)
+  }
+
+  #formatChannelPresence(channelKey, address, status = 'online') {
+    const normalizedAddress = normalizeOwnerAddress(address)
+    if (!normalizedAddress) return null
+    const sessions = [
+      ...(this.#channelPresenceSessions.get(channelKey)?.values() || []),
+    ].filter(session => session.address === normalizedAddress)
+    const profile = this.#channelPresenceProfiles
+      .get(channelKey)
+      ?.get(normalizedAddress)
+    const lastSeen = Math.max(
+      0,
+      Number(profile?.lastSeen) || 0,
+      ...sessions.map(session => Number(session.lastSeen) || 0)
+    )
+    return {
+      channelKey,
+      channelId:
+        this.#channels.find(channel => channel.channelKey === channelKey)
+          ?.channelId || channelKey,
+      address: normalizedAddress,
+      displayName: profile?.displayName || undefined,
+      avatar: profile?.avatar || undefined,
+      profileUpdatedAt: profile?.profileUpdatedAt || undefined,
+      lastSeen,
+      online: sessions.length > 0,
+      local: sessions.some(session => session.local),
+      status,
+    }
+  }
+
+  #upsertChannelPresenceProfile(channelKey, address, options = {}, now = Date.now()) {
+    const normalizedAddress = normalizeOwnerAddress(address)
+    if (!normalizedAddress) return false
+    const hasDisplayName = Object.prototype.hasOwnProperty.call(
+      options,
+      'displayName'
+    )
+    const hasAvatar = Object.prototype.hasOwnProperty.call(options, 'avatar')
+    const profileUpdatedAt = Number(options.profileUpdatedAt)
+    const hasProfileUpdatedAt =
+      Number.isFinite(profileUpdatedAt) && profileUpdatedAt > 0
+    if (!hasDisplayName && !hasAvatar && !hasProfileUpdatedAt) return false
+
+    const profiles = this.#getChannelPresenceProfileMap(channelKey)
+    const previous = profiles.get(normalizedAddress)
+    const nextUpdatedAt = hasProfileUpdatedAt
+      ? Math.floor(profileUpdatedAt)
+      : now
+    if (
+      previous?.profileUpdatedAt &&
+      hasProfileUpdatedAt &&
+      nextUpdatedAt < previous.profileUpdatedAt
+    ) {
+      return false
+    }
+
+    const next = {
+      address: normalizedAddress,
+      displayName: previous?.displayName || '',
+      avatar: previous?.avatar || '',
+      profileUpdatedAt: nextUpdatedAt,
+      lastSeen: now,
+    }
+    if (hasDisplayName) {
+      next.displayName = normalizeChannelDisplayName(
+        options.displayName,
+        normalizedAddress
+      )
+    }
+    if (hasAvatar) {
+      next.avatar = normalizeChannelAvatar(options.avatar)
+    }
+
+    const changed =
+      !previous ||
+      previous.displayName !== next.displayName ||
+      previous.avatar !== next.avatar ||
+      previous.profileUpdatedAt !== next.profileUpdatedAt
+    profiles.set(normalizedAddress, next)
+    return changed
+  }
+
+  #emitChannelPresence(channelKey, address, status) {
+    const event = this.#formatChannelPresence(channelKey, address, status)
+    if (event) {
+      this.emit('channel:presence', event)
+    }
+    return event
+  }
+
+  #upsertChannelPresenceSession(channel, options = {}) {
+    const address = normalizeOwnerAddress(options.address)
+    if (!address) return null
+    const now = Number(options.lastSeen) || Date.now()
+    const channelKey = channel.channelKey
+    const wasOnline = this.#isChannelPresenceAddressOnline(channelKey, address)
+    const session = {
+      sessionId: this.#normalizePresenceSessionId(options.sessionId),
+      sourceId: this.#normalizePresenceSourceId(options),
+      address,
+      channelKey,
+      lastSeen: now,
+      local: options.local === true,
+      sourcePeerId: String(options.sourcePeerId || '').trim(),
+    }
+    this.#getChannelPresenceSessionMap(channelKey).set(
+      this.#getPresenceSessionKey(session),
+      session
+    )
+    const profileChanged = this.#upsertChannelPresenceProfile(
+      channelKey,
+      address,
+      options,
+      now
+    )
+    if (!wasOnline) {
+      return this.#emitChannelPresence(channelKey, address, 'online')
+    }
+    if (profileChanged) {
+      return this.#emitChannelPresence(channelKey, address, 'profile')
+    }
+    return null
+  }
+
+  #touchChannelPresenceSession(channel, options = {}) {
+    const address = normalizeOwnerAddress(options.address)
+    if (!address) return null
+    const channelKey = channel.channelKey
+    const sessionKey = this.#getPresenceSessionKey({
+      ...options,
+      address,
+    })
+    const sessions = this.#getChannelPresenceSessionMap(channelKey)
+    const existing = sessions.get(sessionKey)
+    if (!existing) {
+      return this.#upsertChannelPresenceSession(channel, {
+        ...options,
+        address,
+      })
+    }
+    existing.lastSeen = Number(options.lastSeen) || Date.now()
+    sessions.set(sessionKey, existing)
+    return null
+  }
+
+  #updateChannelPresenceProfile(channel, options = {}) {
+    const address = normalizeOwnerAddress(options.address)
+    if (!address) return null
+    const now = Number(options.lastSeen) || Date.now()
+    const changed = this.#upsertChannelPresenceProfile(
+      channel.channelKey,
+      address,
+      options,
+      now
+    )
+    if (changed && this.#isChannelPresenceAddressOnline(channel.channelKey, address)) {
+      return this.#emitChannelPresence(channel.channelKey, address, 'profile')
+    }
+    return null
+  }
+
+  #removeChannelPresenceSessions(channelKey, options = {}) {
+    const address = normalizeOwnerAddress(options.address)
+    const sourceId = this.#normalizePresenceSourceId(options)
+    const sessionId = options.sessionId
+      ? this.#normalizePresenceSessionId(options.sessionId)
+      : ''
+    const sessions = this.#channelPresenceSessions.get(channelKey)
+    if (!sessions || (!address && !sourceId)) return []
+
+    const touchedAddresses = new Set()
+    for (const [key, session] of [...sessions]) {
+      if (address && session.address !== address) continue
+      if (sourceId && session.sourceId !== sourceId) continue
+      if (sessionId && session.sessionId !== sessionId) continue
+      touchedAddresses.add(session.address)
+      sessions.delete(key)
+    }
+    if (sessions.size === 0) {
+      this.#channelPresenceSessions.delete(channelKey)
+    }
+
+    return [...touchedAddresses]
+      .filter(item => !this.#isChannelPresenceAddressOnline(channelKey, item))
+      .map(item => this.#emitChannelPresence(channelKey, item, 'offline'))
+      .filter(Boolean)
+  }
+
+  #removeChannelPresenceSessionsBySource(sourceId) {
+    const normalizedSourceId = String(sourceId || '').trim()
+    if (!normalizedSourceId) return []
+    const events = []
+    for (const [channelKey, sessions] of [...this.#channelPresenceSessions]) {
+      const touchedAddresses = new Set()
+      for (const [key, session] of [...sessions]) {
+        if (session.sourceId !== normalizedSourceId) continue
+        touchedAddresses.add(session.address)
+        sessions.delete(key)
+      }
+      if (sessions.size === 0) {
+        this.#channelPresenceSessions.delete(channelKey)
+      }
+      for (const address of touchedAddresses) {
+        if (!this.#isChannelPresenceAddressOnline(channelKey, address)) {
+          const event = this.#emitChannelPresence(channelKey, address, 'offline')
+          if (event) events.push(event)
+        }
+      }
+    }
+    return events
+  }
+
+  #pruneStaleChannelPresence(now = Date.now()) {
+    const events = []
+    for (const [channelKey, sessions] of [...this.#channelPresenceSessions]) {
+      const touchedAddresses = new Set()
+      for (const [key, session] of [...sessions]) {
+        if (now - session.lastSeen <= CHANNEL_PRESENCE_TIMEOUT_MS) continue
+        touchedAddresses.add(session.address)
+        sessions.delete(key)
+      }
+      if (sessions.size === 0) {
+        this.#channelPresenceSessions.delete(channelKey)
+      }
+      for (const address of touchedAddresses) {
+        if (!this.#isChannelPresenceAddressOnline(channelKey, address)) {
+          const event = this.#emitChannelPresence(channelKey, address, 'offline')
+          if (event) events.push(event)
+        }
+      }
+    }
+    return events
+  }
+
+  #startChannelPresenceSweeper() {
+    if (this.#channelPresenceSweepTimer) return
+    this.#channelPresenceSweepTimer = setInterval(() => {
+      this.#pruneStaleChannelPresence()
+    }, CHANNEL_PRESENCE_HEARTBEAT_MS)
+    this.#channelPresenceSweepTimer.unref?.()
+  }
+
+  #clearChannelPresenceRuntime() {
+    if (this.#channelPresenceSweepTimer) {
+      clearInterval(this.#channelPresenceSweepTimer)
+      this.#channelPresenceSweepTimer = null
+    }
+    this.#channelPresenceSessions.clear()
+    this.#channelPresenceProfiles.clear()
+  }
+
   async #getNextChannelMessageTimestamp(channelKey) {
     const coresMap = this.#channelCores.get(channelKey)
     let maxTimestamp = 0
@@ -4473,6 +4870,40 @@ export class MostBoxEngine extends EventEmitter {
     }
   }
 
+  #sendChannelPresence(stream, event) {
+    if (!stream || stream.destroyed || stream.writableEnded || !event) {
+      this.#channelStreams.delete(stream)
+      return false
+    }
+    try {
+      stream.write(
+        `${JSON.stringify({
+          type: 'channel-presence',
+          peerId: this.getNodeId(),
+          channelId: event.channelId,
+          channelKey: event.channelKey,
+          address: event.address,
+          status: event.status,
+          displayName: event.displayName,
+          avatar: event.avatar,
+          profileUpdatedAt: event.profileUpdatedAt,
+          lastSeen: event.lastSeen || Date.now(),
+          sessionId: event.sessionId || 'default',
+        })}\n`
+      )
+      return true
+    } catch {
+      this.#channelStreams.delete(stream)
+      return false
+    }
+  }
+
+  #broadcastChannelPresence(event) {
+    for (const stream of [...this.#channelStreams]) {
+      this.#sendChannelPresence(stream, event)
+    }
+  }
+
   async #processChannelHelloMessage(msg) {
     if (msg.type !== 'channel-hello') return null
 
@@ -4554,6 +4985,45 @@ export class MostBoxEngine extends EventEmitter {
     return msg.peerId
   }
 
+  #processChannelPresenceMessage(msg) {
+    if (msg.type !== 'channel-presence') return null
+    const peerId = String(msg.peerId || '').trim()
+    if (!peerId || peerId === this.getNodeId()) return null
+    const channelId = normalizeChannelId(msg.channelId || msg.channelKey)
+    const channelKey = buildChannelKey(channelId)
+    const localChannel = this.#channels.find(
+      channel => channel.channelKey === channelKey
+    )
+    if (!localChannel) return peerId
+
+    const address = normalizeOwnerAddress(msg.address)
+    if (!address) return peerId
+
+    const status = String(msg.status || '').trim()
+    const options = {
+      address,
+      sessionId: msg.sessionId,
+      sourcePeerId: peerId,
+      local: false,
+      displayName: msg.displayName,
+      avatar: msg.avatar,
+      profileUpdatedAt: msg.profileUpdatedAt,
+      lastSeen: Number(msg.lastSeen) || Date.now(),
+    }
+
+    if (status === 'online') {
+      this.#upsertChannelPresenceSession(localChannel, options)
+    } else if (status === 'heartbeat') {
+      this.#touchChannelPresenceSession(localChannel, options)
+    } else if (status === 'profile') {
+      this.#updateChannelPresenceProfile(localChannel, options)
+    } else if (status === 'offline') {
+      this.#removeChannelPresenceSessions(localChannel.channelKey, options)
+    }
+
+    return peerId
+  }
+
   async #handleChannelConnection(conn) {
     const stream = conn
     let connectedPeerId = null
@@ -4572,9 +5042,11 @@ export class MostBoxEngine extends EventEmitter {
         newlineIndex = readBuffer.indexOf('\n')
         if (!line) continue
         try {
-          const peerId = await this.#processChannelHelloMessage(
-            JSON.parse(line)
-          )
+          const message = JSON.parse(line)
+          const peerId =
+            message.type === 'channel-presence'
+              ? this.#processChannelPresenceMessage(message)
+              : await this.#processChannelHelloMessage(message)
           if (peerId) connectedPeerId = peerId
         } catch (err) {
           console.warn(`[MostBox] Failed to process channel data:`, err.message)
@@ -4603,6 +5075,7 @@ export class MostBoxEngine extends EventEmitter {
             })
           }
         }
+        this.#removeChannelPresenceSessionsBySource(`peer:${connectedPeerId}`)
       }
     }
 

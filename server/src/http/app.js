@@ -225,6 +225,11 @@ export function createApp(engine, options = {}) {
       return false
     }
 
+    return Boolean(getWebSocketUserAddress(req))
+  }
+
+  function getWebSocketUserAddress(req) {
+    const url = new URL(req.url, `http://localhost:${appPort}`)
     const address = url.searchParams.get('address') || ''
     const timestamp = url.searchParams.get('timestamp') || ''
     const signature = url.searchParams.get('signature') || ''
@@ -233,7 +238,7 @@ export function createApp(engine, options = {}) {
       'GET',
       '/ws'
     )
-    return auth.ok
+    return auth.ok ? auth.address : ''
   }
 
   // 将广播函数挂载到 engine 上供外部测试使用
@@ -310,5 +315,6 @@ export function createApp(engine, options = {}) {
     unsubscribeFromChannel,
     cleanupWsSubscriptions,
     validateWebSocketRequest,
+    getWebSocketUserAddress,
   }
 }

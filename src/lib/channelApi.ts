@@ -44,6 +44,16 @@ export interface ChannelPeer {
   lastSeen?: number
 }
 
+export interface ChannelPresence {
+  address: string
+  displayName?: string
+  avatar?: string
+  profileUpdatedAt?: number
+  lastSeen: number
+  online: boolean
+  local?: boolean
+}
+
 export interface SendMessageResult {
   message: ChannelMessage
 }
@@ -138,6 +148,14 @@ export const channelApi = {
   getChannelPeers(name: string) {
     return api
       .get<ChannelPeer[]>(`/api/channels/${encodeURIComponent(name)}/peers`)
+      .json()
+  },
+
+  getChannelPresence(name: string) {
+    return api
+      .get<ChannelPresence[]>(
+        `/api/channels/${encodeURIComponent(name)}/presence`
+      )
       .json()
   },
 

@@ -45,7 +45,7 @@ import {
   type Channel,
   type ChannelAttachment,
   type ChannelMessage,
-  type ChannelPeer,
+  type ChannelPresence,
 } from '~/lib/channelApi'
 import { getFileSubtype, type FileSubtype } from '~/lib/filePreview'
 import { useI18n } from '~/lib/i18n'
@@ -112,17 +112,6 @@ function normalizeMemberAddress(address?: string) {
   return String(address || '').trim().toLowerCase()
 }
 
-function getOnlineMemberAddressesFromPeers(peers: ChannelPeer[]) {
-  const addresses = new Set<string>()
-  peers.forEach(peer => {
-    peer.memberAddresses?.forEach(address => {
-      const normalized = normalizeMemberAddress(address)
-      if (normalized) addresses.add(normalized)
-    })
-  })
-  return [...addresses]
-}
-
 type AttachmentDownloadState = {
   status: 'checking' | 'available' | 'error'
   message?: string
@@ -181,9 +170,7 @@ function ChatPage() {
   const [hasInviteLogoError, setHasInviteLogoError] = useState(false)
   const [channelLastReadAt, setChannelLastReadAt] =
     useState<ChannelLastReadMap>({})
-  const [onlinePeerMemberAddresses, setOnlinePeerMemberAddresses] = useState<
-    string[]
-  >([])
+  const [channelPresence, setChannelPresence] = useState<ChannelPresence[]>([])
   const isInviteUser = userIdentity?.identity === 'user'
   const inviteLogo =
     isInviteUser && !hasInviteLogoError ? userIdentity.logo : ''
@@ -290,21 +277,21 @@ function ChatPage() {
     } catch {}
   }, [])
 
-  const refreshChannelPeers = useCallback(
+  const refreshChannelPresence = useCallback(
     async (channel = activeChannel) => {
       const channelKey = getChannelKey(channel)
       if (!channelKey || !isBackendReady) {
-        setOnlinePeerMemberAddresses([])
+        setChannelPresence([])
         return
       }
 
       try {
-        const peers = await channelApi.getChannelPeers(channelKey)
+        const presence = await channelApi.getChannelPresence(channelKey)
         if (activeChannelNameRef.current !== channelKey) return
-        setOnlinePeerMemberAddresses(getOnlineMemberAddressesFromPeers(peers))
+        setChannelPresence(presence)
       } catch (err) {
         console.warn(
-          '[Chat] Failed to fetch channel peers:',
+          '[Chat] Failed to fetch channel presence:',
           err instanceof Error ? err.message : err
         )
       }
@@ -350,12 +337,16 @@ function ChatPage() {
         break
       }
 
-      case 'channel:peer:online':
-      case 'channel:peer:offline':
-        if (activeChannel) {
-          void refreshChannelPeers(activeChannel)
+      case 'channel:presence': {
+        const channelKey = data?.channelKey || data?.channel
+        if (
+          activeChannel &&
+          (!channelKey || channelKey === getChannelKey(activeChannel))
+        ) {
+          void refreshChannelPresence(activeChannel)
         }
         break
+      }
 
       case 'channel:joined':
       case 'channel:left':
@@ -424,6 +415,18 @@ function ChatPage() {
     () => channels.map(channel => getChannelKey(channel)),
     [channels]
   )
+  const presenceProfile = useMemo(() => {
+    if (!userIdentity) return {}
+    return {
+      ...getUserChannelProfile(userIdentity),
+      profileUpdatedAt: userIdentity.profileUpdatedAt,
+    }
+  }, [
+    userIdentity?.avatar,
+    userIdentity?.displayName,
+    userIdentity?.profileUpdatedAt,
+    userIdentity?.username,
+  ])
 
   const {
     clearMessages: clearChannelMessages,
@@ -439,7 +442,14 @@ function ChatPage() {
     waitForPeerId: true,
     onSyncError: err => showApiError(err, t('chat.error.messages')),
     onSocketEvent: handleChannelSocketEvent,
-    onReconnect: refreshChannels,
+    onReconnect: () => {
+      refreshChannels()
+      if (activeChannel) {
+        void refreshChannelPresence(activeChannel)
+      }
+    },
+    presenceEnabled: Boolean(activeChannel && userIdentity),
+    presenceProfile,
   })
 
   const channelMembers = useMemo(() => {
@@ -489,19 +499,41 @@ function ChatPage() {
     })
   }, [channelMessages])
 
+  const presenceByAddress = useMemo(() => {
+    const map = new Map<string, ChannelPresence>()
+    channelPresence.forEach(presence => {
+      const address = normalizeMemberAddress(presence.address)
+      if (!address || !presence.online) return
+      map.set(address, presence)
+    })
+    return map
+  }, [channelPresence])
+
+  const displayedChannelMembers = useMemo(() => {
+    const membersByAddress = new Map(
+      channelMembers.map(member => [
+        normalizeMemberAddress(member.address),
+        member,
+      ])
+    )
+    channelPresence.forEach((presence, index) => {
+      const address = normalizeMemberAddress(presence.address)
+      if (!address || membersByAddress.has(address)) return
+      membersByAddress.set(address, {
+        address: presence.address,
+        displayName: presence.displayName || '',
+        ...(presence.avatar ? { avatar: presence.avatar } : {}),
+        firstSeenAt: presence.lastSeen || Date.now(),
+        lastSeenAt: presence.lastSeen || Date.now(),
+        index: channelMembers.length + index,
+      })
+    })
+    return [...membersByAddress.values()]
+  }, [channelMembers, channelPresence])
+
   const onlineMemberAddressSet = useMemo(() => {
-    const addresses = new Set(onlinePeerMemberAddresses)
-    const selfAddress = normalizeMemberAddress(userIdentity?.address)
-    if (selfAddress && activeChannel && isBackendReady) {
-      addresses.add(selfAddress)
-    }
-    return addresses
-  }, [
-    activeChannel,
-    isBackendReady,
-    onlinePeerMemberAddresses,
-    userIdentity?.address,
-  ])
+    return new Set(presenceByAddress.keys())
+  }, [presenceByAddress])
 
   function requireBackendReady() {
     if (isBackendReady) return true
@@ -606,14 +638,14 @@ function ChatPage() {
     if (activeChannel) {
       if (isBackendReady) {
         const activeChannelKey = getChannelKey(activeChannel)
-        setOnlinePeerMemberAddresses([])
+        setChannelPresence([])
         void syncMessages(activeChannelKey, { replace: true })
-        void refreshChannelPeers(activeChannel)
+        void refreshChannelPresence(activeChannel)
       }
     } else {
-      setOnlinePeerMemberAddresses([])
+      setChannelPresence([])
     }
-  }, [activeChannel, isBackendReady, refreshChannelPeers, syncMessages])
+  }, [activeChannel, isBackendReady, refreshChannelPresence, syncMessages])
 
   useEffect(() => {
     if (!requestedChannelName) return
@@ -1149,14 +1181,21 @@ function ChatPage() {
   function renderChannelMembers() {
     return (
       <ChannelMemberGrid
-        members={channelMembers.map(member => ({
-          id: member.address,
-          name: formatDisplayName(member.displayName, member.address),
-          avatarSrc: generateAvatar(member.address, member.avatar),
-          online: onlineMemberAddressSet.has(
+        members={displayedChannelMembers.map(member => {
+          const presence = presenceByAddress.get(
             normalizeMemberAddress(member.address)
-          ),
-        }))}
+          )
+          const displayName = presence?.displayName || member.displayName
+          const avatar = presence?.avatar || member.avatar
+          return {
+            id: member.address,
+            name: formatDisplayName(displayName, member.address),
+            avatarSrc: generateAvatar(member.address, avatar),
+            online: onlineMemberAddressSet.has(
+              normalizeMemberAddress(member.address)
+            ),
+          }
+        })}
       />
     )
   }
@@ -1316,9 +1355,17 @@ function ChatPage() {
                 const isSelf =
                   msg.author?.toLowerCase() ===
                   userIdentity?.address.toLowerCase()
+                const presence = presenceByAddress.get(
+                  normalizeMemberAddress(msg.author)
+                )
                 const isOnline = onlineMemberAddressSet.has(
                   normalizeMemberAddress(msg.author)
                 )
+                const authorName = presence?.displayName || msg.authorName
+                const avatar =
+                  presence?.avatar ||
+                  msg.avatar ||
+                  (isSelf ? userIdentity.avatar : undefined)
 
                 return (
                   <ChatMessageItem
@@ -1326,11 +1373,8 @@ function ChatPage() {
                     variant={isSelf ? 'self' : 'other'}
                     pending={msg.pending}
                     isOnline={isOnline}
-                    avatarSrc={generateAvatar(
-                      msg.author,
-                      msg.avatar || (isSelf ? userIdentity.avatar : undefined)
-                    )}
-                    author={formatDisplayName(msg.authorName, msg.author)}
+                    avatarSrc={generateAvatar(msg.author, avatar)}
+                    author={formatDisplayName(authorName, msg.author)}
                     time={formatTime(msg.timestamp)}
                   >
                     {renderMessageBubble(msg)}
@@ -1512,7 +1556,7 @@ function ChatPage() {
                 <div className="channel-detail-label">
                   <span>
                     {t('chat.details.members', {
-                      count: channelMembers.length,
+                      count: displayedChannelMembers.length,
                     })}
                   </span>
                 </div>

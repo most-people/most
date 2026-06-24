@@ -70,6 +70,44 @@ async function waitForChannelMessage(
   throw new Error(`Channel ${channelName} did not receive ${content}`)
 }
 
+async function waitForChannelPeerAddress(
+  engine,
+  channelName,
+  address,
+  options = {},
+  timeout = 5000
+) {
+  const expected = String(address || '').toLowerCase()
+  const start = Date.now()
+  while (Date.now() - start < timeout) {
+    const peers = engine.getChannelPeers(channelName, options)
+    const peer = peers.find(item =>
+      item.memberAddresses?.some(member => member.toLowerCase() === expected)
+    )
+    if (peer) return peer
+    await sleep(25)
+  }
+  throw new Error(`Channel ${channelName} did not report online peer ${address}`)
+}
+
+async function waitForChannelPresenceAddress(
+  engine,
+  channelName,
+  address,
+  options = {},
+  timeout = 5000
+) {
+  const expected = String(address || '').toLowerCase()
+  const start = Date.now()
+  while (Date.now() - start < timeout) {
+    const presence = engine.getChannelPresence(channelName, options)
+    const entry = presence.find(item => item.address.toLowerCase() === expected)
+    if (entry?.online) return entry
+    await sleep(25)
+  }
+  throw new Error(`Channel ${channelName} did not report presence ${address}`)
+}
+
 async function withMockedDateNow(timestamp, action) {
   const originalDateNow = Date.now
   Date.now = () => timestamp
@@ -1906,6 +1944,237 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       const peers = engine.getChannelPeers(`peers-${uid}`)
       assert.ok(Array.isArray(peers))
       assert.strictEqual(peers.length, 0)
+    })
+
+    it('includes remote peer member addresses from channel hello', async () => {
+      const peerTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-channel-peer-test-')
+      )
+      const firstDataPath = path.join(peerTmpDir, 'first')
+      const secondDataPath = path.join(peerTmpDir, 'second')
+      const channelName = `peers-remote-${uid}`
+      const alice = `0x${'1'.repeat(40)}`
+      const bob = `0x${'2'.repeat(40)}`
+      let firstEngine
+      let secondEngine
+      let replication
+
+      try {
+        fs.mkdirSync(firstDataPath, { recursive: true })
+        fs.mkdirSync(secondDataPath, { recursive: true })
+        firstEngine = new MostBoxEngine({
+          dataPath: firstDataPath,
+          disableNetwork: true,
+        })
+        secondEngine = new MostBoxEngine({
+          dataPath: secondDataPath,
+          disableNetwork: true,
+        })
+        await firstEngine.start()
+        await secondEngine.start()
+
+        await firstEngine.createChannel(channelName, 'public', {
+          ownerAddress: alice,
+          displayName: 'Alice',
+        })
+        await secondEngine.createChannel(channelName, 'public', {
+          ownerAddress: bob,
+          displayName: 'Bob',
+        })
+
+        replication = firstEngine.replicateWith(secondEngine)
+        const remotePeer = await waitForChannelPeerAddress(
+          firstEngine,
+          channelName,
+          bob,
+          { ownerAddress: alice }
+        )
+
+        assert.notStrictEqual(remotePeer.peerId, firstEngine.getNodeId())
+      } finally {
+        replication?.close()
+        if (firstEngine) await firstEngine.stop().catch(() => {})
+        if (secondEngine) await secondEngine.stop().catch(() => {})
+        fs.rmSync(peerTmpDir, { recursive: true, force: true })
+      }
+    })
+  })
+
+  describe('channel presence', () => {
+    it('tracks local sessions and keeps profile separate from heartbeat', async () => {
+      const channelName = `presence-local-${uid}`
+      const alice = `0x${'c'.repeat(40)}`
+      const events = []
+      const onPresence = event => {
+        if (event.channelKey === channelName) events.push(event)
+      }
+
+      engine.on('channel:presence', onPresence)
+      try {
+        await engine.createChannel(channelName, 'personal', {
+          ownerAddress: alice,
+          displayName: 'Alice old',
+        })
+        const now = Date.now()
+
+        await withMockedDateNow(now, async () => {
+          engine.joinChannelPresence(channelName, {
+            ownerAddress: alice,
+            sessionId: 'one',
+            displayName: 'Alice',
+            avatar: 'https://example.test/a.png',
+            profileUpdatedAt: 1,
+          })
+        })
+        await withMockedDateNow(now + 1000, async () => {
+          engine.heartbeatChannelPresence(channelName, {
+            ownerAddress: alice,
+            sessionId: 'one',
+          })
+        })
+
+        let presence = engine.getChannelPresence(channelName, {
+          ownerAddress: alice,
+        })
+        assert.strictEqual(presence.length, 1)
+        assert.strictEqual(presence[0].address, alice)
+        assert.strictEqual(presence[0].displayName, 'Alice')
+        assert.strictEqual(presence[0].avatar, 'https://example.test/a.png')
+        assert.strictEqual(presence[0].lastSeen, now + 1000)
+
+        engine.joinChannelPresence(channelName, {
+          ownerAddress: alice,
+          sessionId: 'two',
+          displayName: 'Alice new',
+          avatar: 'https://example.test/new.png',
+          profileUpdatedAt: 2,
+        })
+        engine.leaveChannelPresence(channelName, {
+          ownerAddress: alice,
+          sessionId: 'one',
+        })
+        presence = engine.getChannelPresence(channelName, {
+          ownerAddress: alice,
+        })
+        assert.strictEqual(presence.length, 1)
+        assert.strictEqual(presence[0].displayName, 'Alice new')
+        assert.strictEqual(presence[0].online, true)
+
+        engine.leaveChannelPresence(channelName, {
+          ownerAddress: alice,
+          sessionId: 'two',
+        })
+        presence = engine.getChannelPresence(channelName, {
+          ownerAddress: alice,
+        })
+        assert.strictEqual(presence.length, 0)
+        assert.ok(events.some(event => event.status === 'online'))
+        assert.ok(events.some(event => event.status === 'profile'))
+        assert.ok(events.some(event => event.status === 'offline'))
+      } finally {
+        engine.off('channel:presence', onPresence)
+      }
+    })
+
+    it('expires stale sessions after the presence timeout', async () => {
+      const channelName = `presence-timeout-${uid}`
+      const alice = `0x${'d'.repeat(40)}`
+      await engine.createChannel(channelName, 'personal', {
+        ownerAddress: alice,
+        displayName: 'Alice',
+      })
+
+      await withMockedDateNow(1000, async () => {
+        engine.joinChannelPresence(channelName, {
+          ownerAddress: alice,
+          sessionId: 'stale',
+          displayName: 'Alice',
+        })
+      })
+      await withMockedDateNow(1000 + 45 * 1000 + 1, async () => {
+        engine.pruneChannelPresence()
+      })
+
+      const presence = engine.getChannelPresence(channelName, {
+        ownerAddress: alice,
+      })
+      assert.strictEqual(presence.length, 0)
+    })
+
+    it('replicates presence over channel peer streams', async () => {
+      const presenceTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-channel-presence-test-')
+      )
+      const firstDataPath = path.join(presenceTmpDir, 'first')
+      const secondDataPath = path.join(presenceTmpDir, 'second')
+      const channelName = `presence-remote-${uid}`
+      const alice = `0x${'3'.repeat(40)}`
+      const bob = `0x${'4'.repeat(40)}`
+      let firstEngine
+      let secondEngine
+      let replication
+
+      try {
+        fs.mkdirSync(firstDataPath, { recursive: true })
+        fs.mkdirSync(secondDataPath, { recursive: true })
+        firstEngine = new MostBoxEngine({
+          dataPath: firstDataPath,
+          disableNetwork: true,
+        })
+        secondEngine = new MostBoxEngine({
+          dataPath: secondDataPath,
+          disableNetwork: true,
+        })
+        await firstEngine.start()
+        await secondEngine.start()
+
+        await firstEngine.createChannel(channelName, 'public', {
+          ownerAddress: alice,
+          displayName: 'Alice',
+        })
+        await secondEngine.createChannel(channelName, 'public', {
+          ownerAddress: bob,
+          displayName: 'Bob',
+        })
+
+        replication = firstEngine.replicateWith(secondEngine)
+        await sleep(25)
+        firstEngine.joinChannelPresence(channelName, {
+          ownerAddress: alice,
+          sessionId: 'alice-tab',
+          displayName: 'Alice Live',
+          avatar: 'https://example.test/alice.png',
+          profileUpdatedAt: 3,
+        })
+
+        const remotePresence = await waitForChannelPresenceAddress(
+          secondEngine,
+          channelName,
+          alice,
+          { ownerAddress: bob }
+        )
+        assert.strictEqual(remotePresence.displayName, 'Alice Live')
+        assert.strictEqual(remotePresence.avatar, 'https://example.test/alice.png')
+
+        firstEngine.leaveChannelPresence(channelName, {
+          ownerAddress: alice,
+          sessionId: 'alice-tab',
+        })
+        const start = Date.now()
+        while (Date.now() - start < 5000) {
+          const presence = secondEngine.getChannelPresence(channelName, {
+            ownerAddress: bob,
+          })
+          if (!presence.some(item => item.address === alice)) return
+          await sleep(25)
+        }
+        throw new Error('Remote presence did not go offline')
+      } finally {
+        replication?.close()
+        if (firstEngine) await firstEngine.stop().catch(() => {})
+        if (secondEngine) await secondEngine.stop().catch(() => {})
+        fs.rmSync(presenceTmpDir, { recursive: true, force: true })
+      }
     })
   })
 
