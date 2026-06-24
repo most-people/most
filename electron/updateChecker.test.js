@@ -42,7 +42,7 @@ const manifest = {
     {
       platform: 'windows',
       arch: 'arm64',
-      kind: 'updater',
+      kind: 'installer',
       filename: 'MostBox-0.1.3-win-arm64-setup.exe',
       size: 108003328,
       cid: 'bafkreidsxk7x7eekhalvskbqtqnucird2p4eq3riz6ijmrswzm4miwq74m',
@@ -102,7 +102,7 @@ describe('desktop update checker', () => {
       findUpdateAsset(manifest, 'windows', 'x64')?.filename,
       'MostBox-0.1.3-win-x64-setup.exe'
     )
-    assert.equal(findUpdateAsset(manifest, 'windows', 'x64')?.kind, 'updater')
+    assert.equal(findUpdateAsset(manifest, 'windows', 'x64')?.kind, 'installer')
     assert.equal(
       findUpdateAsset(manifest, 'windows', 'arm64')?.filename,
       'MostBox-0.1.3-win-arm64-setup.exe'
@@ -118,8 +118,8 @@ describe('desktop update checker', () => {
     })
 
     assert.equal(update?.version, '0.1.3')
-    assert.equal(update?.cid, manifest.assets[1].cid)
-    assert.equal(update?.downloadUrl, manifest.assets[1].r2Url)
+    assert.equal(update?.asset.kind, 'installer')
+    assert.equal(update?.downloadUrl, manifest.assets[0].r2Url)
 
     assert.equal(
       getAvailableUpdate(manifest, {
@@ -157,8 +157,8 @@ describe('desktop update checker', () => {
     assert.equal(update?.downloadUrl, manifest.assets[2].githubUrl)
   })
 
-  it('prefers a compatible updater asset before installer fallback', () => {
-    const updaterOnlyOnGitHub = {
+  it('uses the compatible installer even when updater assets exist', () => {
+    const manifestWithUpdater = {
       version: '0.1.4',
       publishedAt: '2026-06-02T00:00:00.000Z',
       assets: [
@@ -187,28 +187,31 @@ describe('desktop update checker', () => {
       ],
     }
 
-    const update = getAvailableUpdate(updaterOnlyOnGitHub, {
+    const update = getAvailableUpdate(manifestWithUpdater, {
       currentVersion: '0.1.3',
       platform: 'windows',
       arch: 'x64',
     })
 
-    assert.equal(update?.asset.kind, 'updater')
-    assert.equal(update?.cid, updaterOnlyOnGitHub.assets[1].cid)
-    assert.equal(update?.downloadUrl, updaterOnlyOnGitHub.assets[1].githubUrl)
+    assert.equal(update?.asset.kind, 'installer')
+    assert.equal(update?.downloadUrl, manifestWithUpdater.assets[0].r2Url)
   })
 
-  it('ignores updater assets without an HTTP fallback URL', () => {
+  it('ignores updater-only assets', () => {
     const update = getAvailableUpdate(
       {
         version: '0.1.4',
+        publishedAt: '2026-06-02T00:00:00.000Z',
         assets: [
           {
             platform: 'windows',
             arch: 'x64',
             kind: 'updater',
             filename: 'MostBox-0.1.4-win-x64-setup.exe',
+            size: 113246208,
             cid: 'bafybeibkowplg3qw4jnfzrrmh5yljvtg4eas3h5d2u4xjptfbxozxwi4cq',
+            githubUrl:
+              'https://github.com/most-people/most/releases/download/v0.1.4/MostBox-0.1.4-win-x64-setup.exe',
           },
         ],
       },

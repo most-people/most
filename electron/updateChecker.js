@@ -1,5 +1,5 @@
 import {
-  findCompatibleUpdateAsset,
+  getInstallerReleaseAssets,
   isReleaseManifest,
   resolveReleaseAssetDownload,
 } from '../server/src/core/releaseManifest.js'
@@ -50,7 +50,11 @@ export function isNewerVersion(candidateVersion, currentVersion) {
 }
 
 export function findUpdateAsset(manifest, platform, arch) {
-  return findCompatibleUpdateAsset(manifest, platform, arch)
+  return (
+    getInstallerReleaseAssets(manifest).find(
+      asset => asset.platform === platform && asset.arch === arch
+    ) || null
+  )
 }
 
 export function formatBytes(size) {
@@ -81,7 +85,6 @@ export function getAvailableUpdate(manifest, options = {}) {
   return {
     version: manifest.version,
     asset,
-    cid: asset.cid,
     downloadUrl,
   }
 }

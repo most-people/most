@@ -403,32 +403,23 @@ describe('frontend smoke checks', () => {
 
   it('checks desktop updates through the public release manifest', () => {
     const mainSource = readSource('electron/main.js')
-    const checkerSource = [
-      readSource('electron/updateChecker.js'),
-      readSource('server/src/core/releaseManifest.js'),
-    ].join('\n')
+    const checkerSource = readSource('electron/updateChecker.js')
     const preloadSource = readSource('electron/preload.js')
-    const updateButtonSource = readSource(
-      'src/components/DesktopUpdateButton.tsx'
-    )
 
     assert.match(mainSource, /checkForUpdates/)
-    assert.match(mainSource, /downloadCidToPath/)
-    assert.match(mainSource, /seedCidFileFromPath/)
-    assert.match(mainSource, /installDownloadedUpdate/)
-    assert.match(mainSource, /install-windows\.ps1/)
-    assert.match(mainSource, /Wait-Process/)
-    assert.match(mainSource, /app\.getPath\('exe'\)/)
-    assert.match(mainSource, /verifyFileCid/)
-    assert.match(preloadSource, /updates:get-state/)
-    assert.match(preloadSource, /updates:install-and-restart/)
-    assert.match(updateButtonSource, /useDesktopUpdate/)
-    assert.match(updateButtonSource, /state\.status === 'downloading'/)
-    assert.match(updateButtonSource, /desktopUpdate\.downloadingProgress/)
-    assert.match(updateButtonSource, /desktopUpdate\.install/)
+    assert.match(mainSource, /dialog\.showMessageBox/)
+    assert.match(mainSource, /shell\.openExternal\(update\.downloadUrl\)/)
+    assert.match(mainSource, /formatBytes/)
+    assert.doesNotMatch(mainSource, /downloadCidToPath/)
+    assert.doesNotMatch(mainSource, /seedCidFileFromPath/)
+    assert.doesNotMatch(mainSource, /installDownloadedUpdate/)
+    assert.doesNotMatch(mainSource, /updates:/)
+    assert.doesNotMatch(preloadSource, /ipcRenderer/)
+    assert.doesNotMatch(preloadSource, /updates:/)
     assert.match(checkerSource, /MOSTBOX_RELEASE_MANIFEST_URL/)
     assert.match(checkerSource, /download\.most\.box\/releases\/latest\.json/)
-    assert.match(checkerSource, /asset\.kind === 'updater'/)
+    assert.match(checkerSource, /getInstallerReleaseAssets/)
+    assert.doesNotMatch(checkerSource, /findCompatibleUpdateAsset/)
   })
 
   it('registers and routes most protocol deep links to the CID page', () => {

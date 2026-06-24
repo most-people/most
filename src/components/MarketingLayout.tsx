@@ -3,7 +3,6 @@ import '~/styles/marketing.css'
 import { Link } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 import { Download } from 'lucide-react'
-import { DesktopUpdateButton } from '~/components/DesktopUpdateButton'
 import { Footer } from '~/components/Footer'
 import { LanguageToggle } from '~/components/LanguageToggle'
 import { MarketingThemeToggle } from '~/components/MarketingThemeToggle'
@@ -47,7 +46,6 @@ function DefaultMarketingHeader() {
         <div className="mkt-nav-cta">
           <MarketingThemeToggle />
           <LanguageToggle className="mkt-theme-toggle" />
-          <DesktopUpdateButton />
           {!isDesktopClient && (
             <Link to="/download/" className="btn btn-primary mkt-nav-preview">
               <Download size={16} />

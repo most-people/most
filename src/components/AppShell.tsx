@@ -8,7 +8,6 @@ import React, {
 } from 'react'
 import { useMediaQuery } from '@mantine/hooks'
 import { Menu } from 'lucide-react'
-import { DesktopUpdateButton } from '~/components/DesktopUpdateButton'
 import { LanguageToggle } from '~/components/LanguageToggle'
 import { useDisclosure } from '~/hooks'
 import { useI18n } from '~/lib/i18n'
@@ -143,7 +142,6 @@ export default function AppShell({
               {headerTitle}
             </div>
             <div className="header-right">
-              <DesktopUpdateButton />
               <LanguageToggle className="btn btn-icon app-language-toggle" />
               {headerRight}
             </div>

@@ -44,13 +44,6 @@ export const zhCNCoreMessages = {
   'appShell.expandSidebar': '展开侧边栏',
   'appShell.collapseSidebar': '收起侧边栏',
   'appShell.openSidebar': '打开侧边栏',
-  'desktopUpdate.checking': '检查更新',
-  'desktopUpdate.downloading': '正在下载',
-  'desktopUpdate.downloadingProgress': '正在下载 {progress}%',
-  'desktopUpdate.downloadingTitle': '正在下载 MostBox 更新',
-  'desktopUpdate.install': '重启更新',
-  'desktopUpdate.installing': '正在重启',
-  'desktopUpdate.readyTitle': 'MostBox {version} 已下载，点击重启安装',
 } as const
 
 export const zhTWCoreMessages = {
@@ -99,13 +92,6 @@ export const zhTWCoreMessages = {
   'appShell.expandSidebar': '展開側邊欄',
   'appShell.collapseSidebar': '收起側邊欄',
   'appShell.openSidebar': '開啟側邊欄',
-  'desktopUpdate.checking': '檢查更新',
-  'desktopUpdate.downloading': '正在下載',
-  'desktopUpdate.downloadingProgress': '正在下載 {progress}%',
-  'desktopUpdate.downloadingTitle': '正在下載 MostBox 更新',
-  'desktopUpdate.install': '重啟更新',
-  'desktopUpdate.installing': '正在重啟',
-  'desktopUpdate.readyTitle': 'MostBox {version} 已下載，點擊重啟安裝',
 } as const
 
 export const enCoreMessages = {
@@ -154,11 +140,4 @@ export const enCoreMessages = {
   'appShell.expandSidebar': 'Expand sidebar',
   'appShell.collapseSidebar': 'Collapse sidebar',
   'appShell.openSidebar': 'Open sidebar',
-  'desktopUpdate.checking': 'Checking updates',
-  'desktopUpdate.downloading': 'Downloading',
-  'desktopUpdate.downloadingProgress': 'Downloading {progress}%',
-  'desktopUpdate.downloadingTitle': 'MostBox update is downloading.',
-  'desktopUpdate.install': 'Restart to update',
-  'desktopUpdate.installing': 'Restarting',
-  'desktopUpdate.readyTitle': 'MostBox {version} has downloaded. Restart to install.',
 } as const
