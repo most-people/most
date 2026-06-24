@@ -12,7 +12,7 @@ export type DownloadSource = 'r2' | 'github'
 export type DownloadAsset = {
   platform: DownloadPlatform
   arch: DownloadArch
-  kind: 'installer' | 'updater'
+  kind: 'installer'
   filename: string
   size?: number
   cid?: string
@@ -117,8 +117,7 @@ export function getDownloadOptionsState({
     ? installerAssets
     : FALLBACK_DOWNLOAD_ASSETS
   const hasR2Assets = hasR2ReleaseAssets(assets)
-  const activeSource =
-    requestedSource === 'r2' && hasR2Assets ? 'r2' : 'github'
+  const activeSource = requestedSource === 'r2' && hasR2Assets ? 'r2' : 'github'
   const currentAsset =
     assets.find(asset => getReleaseAssetKey(asset) === currentKey) || null
   const otherAssets = currentAsset

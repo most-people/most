@@ -12,7 +12,9 @@ const execFileAsync = promisify(execFile)
 
 describe('create-release-manifest', () => {
   it('recognizes Linux x86_64 AppImage assets as x64', async () => {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'most-release-manifest-'))
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'most-release-manifest-')
+    )
     try {
       const filenames = [
         'MostBox-0.1.3-win-x64-setup.exe',
@@ -21,6 +23,7 @@ describe('create-release-manifest', () => {
         'MostBox-0.1.3-mac-arm64.dmg',
         'MostBox-0.1.3-mac-x64.zip',
         'MostBox-0.1.3-mac-arm64.zip',
+        'MostBox-0.1.3-mac-x64.dmg.blockmap',
         'MostBox-0.1.3-linux-x86_64.AppImage',
         'MostBox-0.1.3-linux-arm64.AppImage',
       ]
@@ -52,26 +55,17 @@ describe('create-release-manifest', () => {
           asset.arch === 'x64' &&
           asset.kind === 'installer'
       )
-      const linuxX64Updater = manifest.assets.find(
-        asset =>
-          asset.platform === 'linux' &&
-          asset.arch === 'x64' &&
-          asset.kind === 'updater'
-      )
-      const macX64Updater = manifest.assets.find(
-        asset =>
-          asset.platform === 'macos' &&
-          asset.arch === 'x64' &&
-          asset.kind === 'updater'
-      )
 
       assert.equal(isReleaseManifest(manifest), true)
-      assert.equal(manifest.assets.length, 12)
+      assert.equal(manifest.assets.length, 6)
       assert.equal(linuxX64.filename, 'MostBox-0.1.3-linux-x86_64.AppImage')
-      assert.equal(linuxX64Updater.filename, linuxX64.filename)
-      assert.equal(linuxX64Updater.cid, linuxX64.cid)
-      assert.equal(macX64Updater.filename, 'MostBox-0.1.3-mac-x64.zip')
-      assert.match(macX64Updater.cid, /^baf/)
+      assert.ok(manifest.assets.every(asset => asset.kind === 'installer'))
+      assert.ok(
+        manifest.assets.every(asset => !asset.filename.endsWith('.zip'))
+      )
+      assert.ok(
+        manifest.assets.every(asset => !asset.filename.endsWith('.blockmap'))
+      )
       assert.ok(manifest.assets.every(asset => typeof asset.cid === 'string'))
       assert.ok(
         manifest.assets.every(asset =>

@@ -1,0 +1,184 @@
+name: Verify R2 Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      manifest_url:
+        description: Public release manifest URL to verify
+        required: false
+        default: https://download.most.box/releases/latest.json
+      bucket:
+        description: R2 release bucket
+        required: false
+        default: most-box-releases
+      expected_latest_cache_control:
+        description: Expected Cache-Control for releases/latest.json
+        required: false
+        default: public, max-age=60, stale-while-revalidate=300
+      expected_asset_cache_control:
+        description: Expected Cache-Control for versioned release assets
+        required: false
+        default: public, max-age=31536000, immutable
+
+permissions:
+  contents: read
+
+jobs:
+  verify-r2-release:
+    name: Verify R2 release metadata
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate R2 credentials
+        run: |
+          missing=0
+          for name in R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is required"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+
+      - name: Install AWS CLI
+        run: |
+          python -m pip install --user awscli
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Download public release manifest
+        run: curl --fail --location --silent --show-error "$MANIFEST_URL" --output release-manifest.json
+        env:
+          MANIFEST_URL: ${{ inputs.manifest_url }}
+
+      - name: Verify R2 storage class and cache metadata
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          endpoint="https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
+
+          node - <<'NODE'
+          const { spawnSync } = require('child_process')
+          const fs = require('fs')
+
+          const manifest = JSON.parse(fs.readFileSync('release-manifest.json', 'utf8'))
+          const bucket = process.env.R2_RELEASE_BUCKET || 'most-box-releases'
+          const expectedLatestCacheControl = process.env.EXPECTED_LATEST_CACHE_CONTROL
+          const expectedAssetCacheControl = process.env.EXPECTED_ASSET_CACHE_CONTROL
+          const endpoint = process.env.R2_ENDPOINT
+
+          function getObjectKeyFromUrl(value) {
+            if (typeof value !== 'string' || value.length === 0) return null
+            return decodeURIComponent(new URL(value).pathname.replace(/^\/+/, ''))
+          }
+
+          const targets = new Map()
+          targets.set('releases/latest.json', {
+            kind: 'manifest',
+            expectedCacheControl: expectedLatestCacheControl,
+          })
+
+          for (const asset of manifest.assets || []) {
+            const key = getObjectKeyFromUrl(asset.r2Url)
+            if (!key) continue
+            targets.set(key, {
+              kind: asset.kind || 'asset',
+              expectedCacheControl: expectedAssetCacheControl,
+            })
+          }
+
+          if (targets.size <= 1) {
+            throw new Error('No R2 release assets found in release manifest')
+          }
+
+          const rows = []
+          for (const [key, target] of targets) {
+            const result = spawnSync(
+              'aws',
+              [
+                '--endpoint-url',
+                endpoint,
+                's3api',
+                'head-object',
+                '--bucket',
+                bucket,
+                '--key',
+                key,
+              ],
+              { encoding: 'utf8' }
+            )
+
+            if (result.status !== 0) {
+              rows.push({
+                key,
+                status: 'failed',
+                storageClass: '',
+                cacheControl: '',
+                expectedCacheControl: target.expectedCacheControl,
+                error: result.stderr.trim() || `aws exited with ${result.status}`,
+              })
+              continue
+            }
+
+            const meta = JSON.parse(result.stdout)
+            const storageClass = meta.StorageClass || 'STANDARD'
+            const cacheControl = meta.CacheControl || ''
+            rows.push({
+              key,
+              status:
+                storageClass === 'STANDARD' &&
+                cacheControl === target.expectedCacheControl
+                  ? 'ok'
+                  : 'failed',
+              storageClass,
+              cacheControl,
+              expectedCacheControl: target.expectedCacheControl,
+              error: '',
+            })
+          }
+
+          const summary = [
+            '# R2 release verification',
+            '',
+            `Manifest version: ${manifest.version || 'unknown'}`,
+            '',
+            `Bucket: ${bucket}`,
+            '',
+            '| Object | Storage class | Cache-Control | Expected Cache-Control | Result |',
+            '| --- | --- | --- | --- | --- |',
+          ]
+
+          for (const row of rows) {
+            summary.push(
+              `| \`${row.key}\` | ${row.storageClass || '-'} | \`${row.cacheControl || '-'}\` | \`${row.expectedCacheControl}\` | ${row.status} |`
+            )
+            if (row.error) {
+              summary.push(`| \`${row.key}\` | - | - | - | ${row.error.replaceAll('|', '\\|')} |`)
+            }
+          }
+
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${summary.join('\n')}\n`)
+
+          const failures = rows.filter(row => row.status !== 'ok')
+          if (failures.length > 0) {
+            for (const row of failures) {
+              console.error(
+                `${row.key} failed: storage=${row.storageClass || '-'}, cache=${row.cacheControl || '-'}`
+              )
+            }
+            process.exit(1)
+          }
+          NODE
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          R2_RELEASE_BUCKET: ${{ inputs.bucket }}
+          EXPECTED_LATEST_CACHE_CONTROL: ${{ inputs.expected_latest_cache_control }}
+          EXPECTED_ASSET_CACHE_CONTROL: ${{ inputs.expected_asset_cache_control }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto

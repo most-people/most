@@ -1,6 +1,6 @@
 export const RELEASE_PLATFORMS = ['windows', 'macos', 'linux']
 export const RELEASE_ARCHES = ['x64', 'arm64']
-export const RELEASE_ASSET_KINDS = ['installer', 'updater']
+export const RELEASE_ASSET_KINDS = ['installer']
 
 export const RELEASE_TARGETS = Object.freeze([
   { platform: 'windows', arch: 'x64' },
@@ -88,21 +88,4 @@ export function resolveReleaseAssetDownload(asset, preferredSource = 'r2') {
         ? asset.githubUrl
         : '',
   }
-}
-
-export function findCompatibleUpdateAsset(manifest, platform, arch) {
-  if (!isReleaseManifest(manifest)) return null
-
-  const compatibleAssets = manifest.assets.filter(
-    asset =>
-      asset.platform === platform &&
-      asset.arch === arch &&
-      (asset.kind === 'updater' || asset.kind === 'installer')
-  )
-
-  return (
-    compatibleAssets.find(asset => asset.kind === 'updater') ||
-    compatibleAssets.find(asset => asset.kind === 'installer') ||
-    null
-  )
 }

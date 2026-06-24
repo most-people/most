@@ -141,11 +141,17 @@ describe('frontend smoke checks', () => {
     const shareLinkSource = readSource('src/lib/shareLink.ts')
     const messages = readI18nSources()
 
-    assert.match(source, /buildCidShareLink\(shareItem\.cid, shareItem\.fileName\)/)
+    assert.match(
+      source,
+      /buildCidShareLink\(shareItem\.cid, shareItem\.fileName\)/
+    )
     assert.match(source, /\{shareLink\}/)
     assert.match(shareLinkSource, /https:\/\/most\.box/)
     assert.match(shareLinkSource, /\/cid\/\$\{encodeURIComponent\(cid\)\}/)
-    assert.match(shareLinkSource, /\?filename=\$\{encodeURIComponent\(trimmedFileName\)\}/)
+    assert.match(
+      shareLinkSource,
+      /\?filename=\$\{encodeURIComponent\(trimmedFileName\)\}/
+    )
     assert.match(source, /app\.shareSeedNote/)
     assert.match(messages, /本机在线时可下载/)
     assert.match(messages, /下载者完成后会默认继续做种/)
@@ -208,26 +214,12 @@ describe('frontend smoke checks', () => {
   })
 
   it('selects current-system release resources with GitHub fallback', async () => {
-    const {
-      getDownloadOptionsState,
-      getReleaseManifestUrl,
-    } = await importBundledSource('src/lib/downloadOptions.ts')
+    const { getDownloadOptionsState, getReleaseManifestUrl } =
+      await importBundledSource('src/lib/downloadOptions.ts')
     const manifest = {
       version: '0.2.0',
       publishedAt: '2026-06-02T00:00:00.000Z',
       assets: [
-        {
-          platform: 'windows',
-          arch: 'x64',
-          kind: 'updater',
-          filename: 'MostBox-0.2.0-win-x64-setup.exe',
-          size: 113246208,
-          cid: 'bafkreih7l2lwv34xse23634mj5g6d63ovfjhyo5hb2h4lng2hhsxp6wh6q',
-          r2Url:
-            'https://download.most.box/releases/v0.2.0/MostBox-0.2.0-win-x64-setup.exe',
-          githubUrl:
-            'https://github.com/most-people/most/releases/download/v0.2.0/MostBox-0.2.0-win-x64-setup.exe',
-        },
         {
           platform: 'windows',
           arch: 'x64',
@@ -264,16 +256,16 @@ describe('frontend smoke checks', () => {
       'MostBox-0.2.0-win-x64-setup.exe'
     )
     assert.equal(windowsState.currentDownload?.source, 'r2')
-    assert.equal(windowsState.currentDownload?.url, manifest.assets[1].r2Url)
+    assert.equal(windowsState.currentDownload?.url, manifest.assets[0].r2Url)
 
     const linuxState = getDownloadOptionsState({
       manifest,
       currentKey: 'linux:x64',
       requestedSource: 'r2',
     })
-    assert.equal(linuxState.currentAsset?.filename, manifest.assets[2].filename)
+    assert.equal(linuxState.currentAsset?.filename, manifest.assets[1].filename)
     assert.equal(linuxState.currentDownload?.source, 'github')
-    assert.equal(linuxState.currentDownload?.url, manifest.assets[2].githubUrl)
+    assert.equal(linuxState.currentDownload?.url, manifest.assets[1].githubUrl)
     assert.equal(
       getReleaseManifestUrl({
         VITE_R2_PUBLIC_BASE_URL: 'https://cdn.example.com/',
@@ -289,9 +281,20 @@ describe('frontend smoke checks', () => {
     assert.match(releaseWorkflow, /most-box-releases/)
     assert.match(releaseWorkflow, /https:\/\/download\.most\.box/)
     assert.match(releaseWorkflow, /most-box-backup/)
+    assert.match(releaseWorkflow, /head-object/)
+    assert.match(releaseWorkflow, /expected STANDARD/)
+    assert.match(releaseWorkflow, /max-age=31536000, immutable/)
+    assert.match(releaseWorkflow, /stale-while-revalidate=300/)
+    assert.doesNotMatch(releaseWorkflow, /blockmap/)
+    assert.doesNotMatch(releaseWorkflow, /mac-\*\.zip/)
+    assert.doesNotMatch(releaseWorkflow, /--recursive/)
     assert.match(readme, /most-box-releases/)
     assert.match(readme, /https:\/\/download\.most\.box/)
     assert.match(readme, /most-box-backup/)
+    assert.match(readme, /Standard/)
+    assert.match(readme, /不再发布 updater \/ blockmap 资产/)
+    assert.match(readme, /max-age=31536000, immutable/)
+    assert.match(readme, /stale-while-revalidate=300/)
   })
 
   it('documents current runtime and desktop dependency requirements', () => {
@@ -490,7 +493,9 @@ describe('frontend smoke checks', () => {
     const chatPageSource = readSource('src/features/chat/ChatPage.tsx')
     const chatJoinSource = readSource('src/features/chat/ChatJoinPage.tsx')
     const web3PageSource = readSource('src/features/web3/Web3Page.tsx')
-    const sidebarHomeLinkSource = readSource('src/components/SidebarHomeLink.tsx')
+    const sidebarHomeLinkSource = readSource(
+      'src/components/SidebarHomeLink.tsx'
+    )
     const appGlobalsSource = readSource('src/components/AppGlobals.tsx')
     const userStoreSource = readSource('src/stores/userStore.ts')
     const useBackSource = readSource('src/hooks/useBack.ts')
@@ -650,7 +655,9 @@ describe('frontend smoke checks', () => {
       'src/lib/i18n/downloadValidation.ts'
     )
     const portalSource = readSource('src/components/FeaturePortal.tsx')
-    const marketingLayoutSource = readSource('src/components/MarketingLayout.tsx')
+    const marketingLayoutSource = readSource(
+      'src/components/MarketingLayout.tsx'
+    )
     const languageSource = readSource('src/components/LanguageToggle.tsx')
     const appSource = readSource(SOURCE_PATHS.features.files)
     const chatSource = readSource(SOURCE_PATHS.features.chat)
@@ -981,7 +988,9 @@ describe('frontend smoke checks', () => {
       'getSameOriginBackendUrlExport'
     )
     const joinSource = readSource('src/features/chat/ChatJoinPage.tsx')
-    const remotePanelSource = readSource(SOURCE_PATHS.components.remoteNodePanel)
+    const remotePanelSource = readSource(
+      SOURCE_PATHS.components.remoteNodePanel
+    )
     const { shouldConnectChatJoinInviteNode } = await importBundledSource(
       'src/lib/chatJoinRemote.ts'
     )
@@ -1030,7 +1039,9 @@ describe('frontend smoke checks', () => {
   })
 
   it('lists localhost in the connection history panel without a special label', () => {
-    const remotePanelSource = readSource(SOURCE_PATHS.components.remoteNodePanel)
+    const remotePanelSource = readSource(
+      SOURCE_PATHS.components.remoteNodePanel
+    )
 
     assert.match(remotePanelSource, /getNodeHistoryExport/)
     assert.match(remotePanelSource, /formatRemoteNodeHost\(node\.url\)/)
@@ -1040,7 +1051,9 @@ describe('frontend smoke checks', () => {
 
   it('hides download client entry points in the desktop client runtime', () => {
     const hookSource = readSource('src/hooks/index.ts')
-    const marketingLayoutSource = readSource('src/components/MarketingLayout.tsx')
+    const marketingLayoutSource = readSource(
+      'src/components/MarketingLayout.tsx'
+    )
     const portalSource = readSource('src/components/FeaturePortal.tsx')
 
     assert.match(hookSource, /electronAPI\?\.isElectron === true/)

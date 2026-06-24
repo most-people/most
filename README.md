@@ -278,7 +278,7 @@ git push origin vx.x.x
 
 1. **npm 包发布** — 发布 `most-box` 到 npm registry
 2. **Windows 打包** — 分别构建 `.exe` 安装包（x64 / arm64）并上传 Release
-3. **macOS 打包** — 构建 `.dmg` 安装包和 `.zip` 更新包（x64 + arm64）并上传 Release
+3. **macOS 打包** — 构建 `.dmg` 安装包（x64 + arm64）并上传 Release
 4. **Linux 打包** — 构建 `.AppImage` 安装包（x64 + arm64）并上传 Release
 5. **下载镜像** — 将 Release 资产同步到 Cloudflare R2，并生成 `releases/latest.json`
 
@@ -288,6 +288,14 @@ GitHub Release 是可信备用源；下载页优先读取 R2 的 `releases/lates
 
 R2 发布资产使用独立公开桶，默认 bucket 为 `most-box-releases`，默认公开域名为
 `https://download.most.box`。不要复用 `api.most.box` 项目的 `most-box-backup` 备份桶。
+Release workflow 不设置 Infrequent Access，R2 对象保持默认 Standard 存储层，并在上传后用
+`head-object` 校验存储层与缓存头。版本化安装包使用
+`public, max-age=31536000, immutable`；`releases/latest.json` 使用
+`public, max-age=60, stale-while-revalidate=300`。
+新发版只在 manifest 和 R2 中发布当前系统可手动打开的 installer（Windows `.exe`、
+macOS `.dmg`、Linux `.AppImage`），不再发布 updater / blockmap 资产。
+需要临时复查线上对象时，可手动运行 GitHub Actions 的 `Verify R2 Release` workflow；
+它复用仓库 R2 secrets 做只读 `head-object` 检查，不需要在本机输入 R2 密钥。
 
 在仓库 Settings → Secrets and variables → Actions 中添加：
 

@@ -132,7 +132,7 @@ jobs:
         shell: bash
         run: |
           shopt -s nullglob
-          assets=(dist/*-win-x64-setup.exe dist/*-win-x64-setup.exe.blockmap)
+          assets=(dist/*-win-x64-setup.exe)
           if [ ${#assets[@]} -eq 0 ]; then
             echo "No Windows x64 assets found"
             exit 1
@@ -152,7 +152,7 @@ jobs:
         shell: bash
         run: |
           shopt -s nullglob
-          assets=(dist/*-win-arm64-setup.exe dist/*-win-arm64-setup.exe.blockmap)
+          assets=(dist/*-win-arm64-setup.exe)
           if [ ${#assets[@]} -eq 0 ]; then
             echo "No Windows arm64 assets found"
             exit 1
@@ -189,7 +189,7 @@ jobs:
       - name: Upload macOS assets
         run: |
           shopt -s nullglob
-          assets=(dist/*-mac-*.dmg dist/*-mac-*.zip dist/*-mac-*.dmg.blockmap dist/*-mac-*.zip.blockmap)
+          assets=(dist/*-mac-*.dmg)
           if [ ${#assets[@]} -eq 0 ]; then
             echo "No macOS assets found"
             exit 1
@@ -317,13 +317,95 @@ jobs:
         run: |
           export PATH="$HOME/.local/bin:$PATH"
           endpoint="https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
-          aws --endpoint-url "$endpoint" s3 cp release-assets "s3://$R2_RELEASE_BUCKET/releases/$GITHUB_REF_NAME" \
-            --recursive \
-            --exclude "latest.json" \
-            --cache-control "public, max-age=31536000, immutable"
+
+          node - <<'NODE' > release-asset-files.txt
+          const fs = require('fs')
+          const manifest = JSON.parse(fs.readFileSync('release-assets/latest.json', 'utf8'))
+          const files = [...new Set(manifest.assets.map(item => item.filename))]
+          if (files.length === 0) {
+            console.error('No release assets found in release manifest')
+            process.exit(1)
+          }
+          process.stdout.write(`${files.join('\n')}\n`)
+          NODE
+
+          while IFS= read -r asset_file; do
+            if [ -z "$asset_file" ]; then
+              continue
+            fi
+
+            aws --endpoint-url "$endpoint" s3 cp "release-assets/$asset_file" "s3://$R2_RELEASE_BUCKET/releases/$GITHUB_REF_NAME/$asset_file" \
+              --cache-control "public, max-age=31536000, immutable"
+          done < release-asset-files.txt
+
           aws --endpoint-url "$endpoint" s3 cp release-assets/latest.json "s3://$R2_RELEASE_BUCKET/releases/latest.json" \
-            --content-type "application/json" \
-            --cache-control "public, max-age=60"
+            --content-type "application/json; charset=utf-8" \
+            --cache-control "public, max-age=60, stale-while-revalidate=300"
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+
+      - name: Verify R2 storage class and cache metadata
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          endpoint="https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
+          node - <<'NODE' > release-asset-files.txt
+          const fs = require('fs')
+          const manifest = JSON.parse(fs.readFileSync('release-assets/latest.json', 'utf8'))
+          const files = [...new Set(manifest.assets.map(item => item.filename))]
+          if (files.length === 0) {
+            console.error('No release assets found in release manifest')
+            process.exit(1)
+          }
+          process.stdout.write(`${files.join('\n')}\n`)
+          NODE
+
+          index=0
+          while IFS= read -r asset_file; do
+            if [ -z "$asset_file" ]; then
+              continue
+            fi
+
+            meta_path="asset-head-$index.json"
+            aws --endpoint-url "$endpoint" s3api head-object \
+              --bucket "$R2_RELEASE_BUCKET" \
+              --key "releases/$GITHUB_REF_NAME/$asset_file" \
+              > "$meta_path"
+
+          node - "$asset_file" "$meta_path" <<'NODE'
+          const fs = require('fs')
+          const [, , filename, metaPath] = process.argv
+          const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'))
+          const storageClass = meta.StorageClass || 'STANDARD'
+          if (storageClass !== 'STANDARD') {
+            throw new Error(`${filename} is stored as ${storageClass}, expected STANDARD`)
+          }
+          if (meta.CacheControl !== 'public, max-age=31536000, immutable') {
+            throw new Error(`Unexpected ${filename} Cache-Control: ${meta.CacheControl}`)
+          }
+          NODE
+
+            index=$((index + 1))
+          done < release-asset-files.txt
+
+          aws --endpoint-url "$endpoint" s3api head-object \
+            --bucket "$R2_RELEASE_BUCKET" \
+            --key "releases/latest.json" \
+            > latest-head.json
+
+          node - <<'NODE'
+          const fs = require('fs')
+          const latest = JSON.parse(fs.readFileSync('latest-head.json', 'utf8'))
+          const storageClass = latest.StorageClass || 'STANDARD'
+          if (storageClass !== 'STANDARD') {
+            throw new Error(`latest.json is stored as ${storageClass}, expected STANDARD`)
+          }
+          if (latest.CacheControl !== 'public, max-age=60, stale-while-revalidate=300') {
+            throw new Error(`Unexpected latest.json Cache-Control: ${latest.CacheControl}`)
+          }
+          NODE
         env:
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}

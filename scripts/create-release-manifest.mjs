@@ -40,22 +40,9 @@ function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-function getAssetKind(platform, ext) {
-  if (platform === 'macos' && ext === 'zip') return 'updater'
-  return 'installer'
-}
-
-function shouldAddUpdaterAlias(platform, ext) {
-  return (
-    (platform === 'windows' && ext === 'exe') ||
-    (platform === 'linux' && ext === 'AppImage')
-  )
-}
-
 function createAssetRecord({
   platform,
   arch,
-  kind,
   filename,
   size,
   cid,
@@ -66,7 +53,7 @@ function createAssetRecord({
   return {
     platform,
     arch,
-    kind,
+    kind: 'installer',
     filename,
     size,
     cid,
@@ -84,7 +71,7 @@ async function main() {
   const version = tag.replace(/^v/, '')
   const files = await fs.readdir(assetsDir)
   const assetPattern = new RegExp(
-    `^MostBox-${escapeRegExp(version)}-(win|mac|linux)-(x64|x86_64|arm64)(?:-setup)?\\.(exe|dmg|zip|AppImage)$`
+    `^MostBox-${escapeRegExp(version)}-(win|mac|linux)-(x64|x86_64|arm64)(?:-setup)?\\.(exe|dmg|AppImage)$`
   )
 
   const assets = []
@@ -98,33 +85,26 @@ async function main() {
     const platform = PLATFORM_BY_TOKEN[platformToken]
     const arch = archToken === 'x86_64' ? 'x64' : archToken
     const cid = (await calculateCid(filePath)).cid.toString()
-    const kind = getAssetKind(platform, ext)
+    if (
+      (platform === 'windows' && ext !== 'exe') ||
+      (platform === 'macos' && ext !== 'dmg') ||
+      (platform === 'linux' && ext !== 'AppImage')
+    ) {
+      continue
+    }
 
-    assets.push(createAssetRecord({
-      platform,
-      arch,
-      kind,
-      filename,
-      size: stat.size,
-      cid,
-      publicBaseUrl,
-      tag,
-      repo,
-    }))
-
-    if (shouldAddUpdaterAlias(platform, ext)) {
-      assets.push(createAssetRecord({
+    assets.push(
+      createAssetRecord({
         platform,
         arch,
-        kind: 'updater',
         filename,
         size: stat.size,
         cid,
         publicBaseUrl,
         tag,
         repo,
-      }))
-    }
+      })
+    )
   }
 
   const installerPresent = new Set(
@@ -135,24 +115,9 @@ async function main() {
   const missing = RELEASE_TARGETS.filter(
     ({ platform, arch }) => !installerPresent.has(`${platform}:${arch}`)
   )
-  const updaterPresent = new Set(
-    assets
-      .filter(asset => asset.kind === 'updater')
-      .map(asset => `${asset.platform}:${asset.arch}`)
-  )
-  const missingUpdaters = RELEASE_TARGETS.filter(
-    ({ platform, arch }) => !updaterPresent.has(`${platform}:${arch}`)
-  )
   if (missing.length > 0) {
     throw new Error(
       `Missing release assets: ${missing
-        .map(({ platform, arch }) => `${platform}/${arch}`)
-        .join(', ')}`
-    )
-  }
-  if (missingUpdaters.length > 0) {
-    throw new Error(
-      `Missing updater assets: ${missingUpdaters
         .map(({ platform, arch }) => `${platform}/${arch}`)
         .join(', ')}`
     )
@@ -168,7 +133,6 @@ async function main() {
     (a, b) =>
       order.get(`${a.platform}:${a.arch}`) -
         order.get(`${b.platform}:${b.arch}`) ||
-      a.kind.localeCompare(b.kind) ||
       a.filename.localeCompare(b.filename)
   )
 
