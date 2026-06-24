@@ -45,6 +45,7 @@ import {
   type Channel,
   type ChannelAttachment,
   type ChannelMessage,
+  type ChannelPeer,
 } from '~/lib/channelApi'
 import { getFileSubtype, type FileSubtype } from '~/lib/filePreview'
 import { useI18n } from '~/lib/i18n'
@@ -107,6 +108,21 @@ function hasAddressSuffix(name?: string) {
   return /#[a-fA-F0-9]{4}$/.test(String(name || '').trim())
 }
 
+function normalizeMemberAddress(address?: string) {
+  return String(address || '').trim().toLowerCase()
+}
+
+function getOnlineMemberAddressesFromPeers(peers: ChannelPeer[]) {
+  const addresses = new Set<string>()
+  peers.forEach(peer => {
+    peer.memberAddresses?.forEach(address => {
+      const normalized = normalizeMemberAddress(address)
+      if (normalized) addresses.add(normalized)
+    })
+  })
+  return [...addresses]
+}
+
 type AttachmentDownloadState = {
   status: 'checking' | 'available' | 'error'
   message?: string
@@ -165,6 +181,9 @@ function ChatPage() {
   const [hasInviteLogoError, setHasInviteLogoError] = useState(false)
   const [channelLastReadAt, setChannelLastReadAt] =
     useState<ChannelLastReadMap>({})
+  const [onlinePeerMemberAddresses, setOnlinePeerMemberAddresses] = useState<
+    string[]
+  >([])
   const isInviteUser = userIdentity?.identity === 'user'
   const inviteLogo =
     isInviteUser && !hasInviteLogoError ? userIdentity.logo : ''
@@ -271,6 +290,28 @@ function ChatPage() {
     } catch {}
   }, [])
 
+  const refreshChannelPeers = useCallback(
+    async (channel = activeChannel) => {
+      const channelKey = getChannelKey(channel)
+      if (!channelKey || !isBackendReady) {
+        setOnlinePeerMemberAddresses([])
+        return
+      }
+
+      try {
+        const peers = await channelApi.getChannelPeers(channelKey)
+        if (activeChannelNameRef.current !== channelKey) return
+        setOnlinePeerMemberAddresses(getOnlineMemberAddressesFromPeers(peers))
+      } catch (err) {
+        console.warn(
+          '[Chat] Failed to fetch channel peers:',
+          err instanceof Error ? err.message : err
+        )
+      }
+    },
+    [activeChannel, isBackendReady]
+  )
+
   function handleChannelSocketEvent(event: string, data: any) {
     switch (event) {
       case 'channel:message': {
@@ -312,9 +353,7 @@ function ChatPage() {
       case 'channel:peer:online':
       case 'channel:peer:offline':
         if (activeChannel) {
-          channelApi.getChannelPeers(getChannelKey(activeChannel)).catch(err => {
-            console.warn('[Chat] Failed to fetch peers on event:', err.message)
-          })
+          void refreshChannelPeers(activeChannel)
         }
         break
 
@@ -450,6 +489,20 @@ function ChatPage() {
     })
   }, [channelMessages])
 
+  const onlineMemberAddressSet = useMemo(() => {
+    const addresses = new Set(onlinePeerMemberAddresses)
+    const selfAddress = normalizeMemberAddress(userIdentity?.address)
+    if (selfAddress && activeChannel && isBackendReady) {
+      addresses.add(selfAddress)
+    }
+    return addresses
+  }, [
+    activeChannel,
+    isBackendReady,
+    onlinePeerMemberAddresses,
+    userIdentity?.address,
+  ])
+
   function requireBackendReady() {
     if (isBackendReady) return true
     openConnectModal()
@@ -553,11 +606,14 @@ function ChatPage() {
     if (activeChannel) {
       if (isBackendReady) {
         const activeChannelKey = getChannelKey(activeChannel)
+        setOnlinePeerMemberAddresses([])
         void syncMessages(activeChannelKey, { replace: true })
-        channelApi.getChannelPeers(activeChannelKey).catch(() => {})
+        void refreshChannelPeers(activeChannel)
       }
+    } else {
+      setOnlinePeerMemberAddresses([])
     }
-  }, [activeChannel, hasBackend, isBackendReady, syncMessages])
+  }, [activeChannel, isBackendReady, refreshChannelPeers, syncMessages])
 
   useEffect(() => {
     if (!requestedChannelName) return
@@ -1097,6 +1153,9 @@ function ChatPage() {
           id: member.address,
           name: formatDisplayName(member.displayName, member.address),
           avatarSrc: generateAvatar(member.address, member.avatar),
+          online: onlineMemberAddressSet.has(
+            normalizeMemberAddress(member.address)
+          ),
         }))}
       />
     )
@@ -1257,12 +1316,16 @@ function ChatPage() {
                 const isSelf =
                   msg.author?.toLowerCase() ===
                   userIdentity?.address.toLowerCase()
+                const isOnline = onlineMemberAddressSet.has(
+                  normalizeMemberAddress(msg.author)
+                )
 
                 return (
                   <ChatMessageItem
                     key={msg.id || `${msg.author}-${msg.timestamp}`}
                     variant={isSelf ? 'self' : 'other'}
                     pending={msg.pending}
+                    isOnline={isOnline}
                     avatarSrc={generateAvatar(
                       msg.author,
                       msg.avatar || (isSelf ? userIdentity.avatar : undefined)

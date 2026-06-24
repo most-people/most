@@ -977,6 +977,24 @@ describe('frontend smoke checks', () => {
     assert.doesNotMatch(channelApiSource, /interface ChannelMember/)
   })
 
+  it('renders chat member online indicators from channel peers', () => {
+    const chatSource = readSource(SOURCE_PATHS.features.chat)
+    const chatUiSource = readSource('src/components/ChatUi.tsx')
+    const chatCssSource = readSource('src/styles/chat.css')
+    const channelApiSource = readSource('src/lib/channelApi.ts')
+
+    assert.match(channelApiSource, /interface ChannelPeer/)
+    assert.match(channelApiSource, /memberAddresses\?: string\[\]/)
+    assert.match(chatSource, /getOnlineMemberAddressesFromPeers/)
+    assert.match(chatSource, /onlineMemberAddressSet/)
+    assert.match(chatSource, /isOnline={isOnline}/)
+    assert.match(chatSource, /online: onlineMemberAddressSet\.has/)
+    assert.match(chatUiSource, /className="chat-online-dot"/)
+    assert.match(chatUiSource, /className="channel-member-avatar-wrap"/)
+    assert.match(chatUiSource, /className="chat-avatar-wrap"/)
+    assert.match(chatCssSource, /\.chat-online-dot/)
+  })
+
   it('prefers remote nodes before localhost and same-origin backends', async () => {
     const storeSource = readSource('src/stores/useAppStore.ts')
     const checkStart = storeSource.indexOf('checkBackend: async () => {')

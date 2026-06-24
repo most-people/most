@@ -37,6 +37,13 @@ export interface Channel {
   pinned?: boolean
 }
 
+export interface ChannelPeer {
+  peerId: string
+  authorName?: string
+  memberAddresses?: string[]
+  lastSeen?: number
+}
+
 export interface SendMessageResult {
   message: ChannelMessage
 }
@@ -130,7 +137,7 @@ export const channelApi = {
 
   getChannelPeers(name: string) {
     return api
-      .get<string[]>(`/api/channels/${encodeURIComponent(name)}/peers`)
+      .get<ChannelPeer[]>(`/api/channels/${encodeURIComponent(name)}/peers`)
       .json()
   },
 

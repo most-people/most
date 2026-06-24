@@ -22,6 +22,7 @@ export type ChannelMemberView = {
   id: string
   name: string
   avatarSrc: string
+  online?: boolean
 }
 
 const ATTACHMENT_MENU_OPTIONS = [
@@ -70,6 +71,7 @@ export function ChatMessageItem({
   variant,
   pending = false,
   avatarSrc,
+  isOnline = false,
   author,
   time,
   children,
@@ -77,6 +79,7 @@ export function ChatMessageItem({
   variant: ChatMessageVariant
   pending?: boolean
   avatarSrc: string
+  isOnline?: boolean
   author: string
   time: string
   children: ReactNode
@@ -87,7 +90,10 @@ export function ChatMessageItem({
 
   return (
     <div className={className}>
-      <img className="msg-avatar" src={avatarSrc} alt="avatar" />
+      <span className="chat-avatar-wrap">
+        <img className="msg-avatar" src={avatarSrc} alt="avatar" />
+        {isOnline && <span className="chat-online-dot" aria-hidden="true" />}
+      </span>
       <div className="msg-content">
         <span className="message-author" translate="no">
           {author}
@@ -216,11 +222,16 @@ export function ChannelMemberGrid({
     <div className="channel-members-grid">
       {members.map(member => (
         <div className="channel-member" key={member.id}>
-          <img
-            className="channel-member-avatar"
-            src={member.avatarSrc}
-            alt="avatar"
-          />
+          <span className="channel-member-avatar-wrap">
+            <img
+              className="channel-member-avatar"
+              src={member.avatarSrc}
+              alt="avatar"
+            />
+            {member.online && (
+              <span className="chat-online-dot" aria-hidden="true" />
+            )}
+          </span>
           <span className="channel-member-name" translate="no">
             {member.name}
           </span>

@@ -2588,7 +2588,7 @@ export class MostBoxEngine extends EventEmitter {
   /**
    * 获取频道内在线用户
    * @param {string} channelKeyInput - 内部频道 key，或本地唯一短频道 ID
-   * @returns {Array<{ peerId: string, authorName: string, lastSeen: number }>}
+   * @returns {Array<{ peerId: string, authorName: string, lastSeen: number, memberAddresses: string[] }>}
    */
   getChannelPeers(channelKeyInput, options = {}) {
     this.#ensureInitialized()
@@ -2603,6 +2603,9 @@ export class MostBoxEngine extends EventEmitter {
     return [...peers.values()].map(p => ({
       peerId: p.peerId,
       authorName: p.authorName,
+      memberAddresses: uniqueStrings(p.memberAddresses).map(address =>
+        normalizeOwnerAddress(address)
+      ).filter(Boolean),
       lastSeen: p.lastSeen,
     }))
   }
@@ -3099,6 +3102,13 @@ export class MostBoxEngine extends EventEmitter {
       .map(({ _index, ...member }) =>
         member.avatar ? member : { ...member, avatar: undefined }
       )
+  }
+
+  #getChannelMemberAddresses(channel) {
+    const members = Array.isArray(channel?.members) ? channel.members : []
+    return uniqueStrings(
+      members.map(member => normalizeOwnerAddress(member?.address))
+    )
   }
 
   async #getNextChannelMessageTimestamp(channelKey) {
@@ -4429,6 +4439,7 @@ export class MostBoxEngine extends EventEmitter {
       type: channel.type,
       createdAt: channel.createdAt,
       lastMessageAt: channel.lastMessageAt || '',
+      memberAddresses: this.#getChannelMemberAddresses(channel),
       writerCoreKeys: uniqueStrings([
         ...(channel.writerCoreKeys || []),
         this.#channelLocalCoreKey.get(channel.channelKey),
@@ -4465,6 +4476,7 @@ export class MostBoxEngine extends EventEmitter {
   async #processChannelHelloMessage(msg) {
     if (msg.type !== 'channel-hello') return null
 
+    const onlineChannels = []
     const remoteChannels = Array.isArray(msg.channels)
       ? msg.channels
           .filter(channel => channel && typeof channel === 'object')
@@ -4480,6 +4492,13 @@ export class MostBoxEngine extends EventEmitter {
                 typeof channel.lastMessageAt === 'string'
                   ? channel.lastMessageAt
                   : '',
+              memberAddresses: uniqueStrings(
+                Array.isArray(channel.memberAddresses)
+                  ? channel.memberAddresses.map(address =>
+                      normalizeOwnerAddress(address)
+                    )
+                  : []
+              ),
               writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
             }
           })
@@ -4503,9 +4522,15 @@ export class MostBoxEngine extends EventEmitter {
         peers.set(msg.peerId, {
           peerId: msg.peerId,
           authorName: msg.authorName,
+          memberAddresses: remoteChannel.memberAddresses,
           lastSeen: Date.now(),
         })
       }
+      onlineChannels.push({
+        channelKey: localChannel.channelKey,
+        channelId: localChannel.channelId,
+        memberAddresses: remoteChannel.memberAddresses,
+      })
 
       for (const writerCoreKey of remoteChannel.writerCoreKeys) {
         if (
@@ -4523,6 +4548,7 @@ export class MostBoxEngine extends EventEmitter {
     this.emit('channel:peer:online', {
       peerId: msg.peerId,
       authorName: msg.authorName,
+      channels: onlineChannels,
     })
 
     return msg.peerId
@@ -4561,13 +4587,19 @@ export class MostBoxEngine extends EventEmitter {
       closed = true
       this.#channelStreams.delete(stream)
       if (connectedPeerId) {
-        for (const [, peers] of this.#channelPeers) {
+        for (const [channelKey, peers] of this.#channelPeers) {
           if (peers.has(connectedPeerId)) {
             const peer = peers.get(connectedPeerId)
             peers.delete(connectedPeerId)
+            const channel = this.#channels.find(
+              item => item.channelKey === channelKey
+            )
             this.emit('channel:peer:offline', {
               peerId: connectedPeerId,
               authorName: peer?.authorName,
+              channelKey,
+              channelId: channel?.channelId || '',
+              memberAddresses: peer?.memberAddresses || [],
             })
           }
         }
