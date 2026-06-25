@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import {
   Upload,
-  Sun,
-  Moon,
   Trash2,
   ChevronRight,
   FileText,
@@ -25,12 +23,10 @@ import {
   parseAppFileName,
 } from '~/components/AppFileCards'
 import OpenSidebarButton from '~/components/OpenSidebarButton'
-import SidebarAccount from '~/components/SidebarAccount'
 import { SidebarHomeLink } from '~/components/SidebarHomeLink'
 import FilePreviewOverlay from '~/components/FilePreviewOverlay'
 import { MoveModal } from '~/components/MoveModal'
 import { ModalOverlay, ConfirmModal, InputModal } from '~/components/ui'
-import { AccountBackupMenuButton } from '~/features/profile/AccountBackup'
 import {
   getApiErrorMessage,
   getApiRequestHeaders,
@@ -103,8 +99,6 @@ function generateBreadcrumbs(currentPath, rootName) {
 }
 
 export default function App() {
-  const isDarkMode = useAppStore(s => s.isDarkMode)
-  const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
   const addToast = useAppStore(s => s.addToast)
   const hasBackend = useAppStore(s => s.hasBackend)
   const openConnectModal = useAppStore(s => s.openConnectModal)
@@ -836,7 +830,6 @@ export default function App() {
             ))}
           </nav>
 
-          <SidebarAccount />
         </>
       )}
       headerTitle={<h2 className="header-title">{viewTitle}</h2>}
@@ -867,13 +860,6 @@ export default function App() {
           <button onClick={() => transferPanel.open()} className="btn btn-icon">
             <ArrowUpDown size={16} />
           </button>
-          <button
-            onClick={() => setIsDarkMode(!isDarkMode)}
-            className="btn btn-icon"
-          >
-            {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
-          <AccountBackupMenuButton />
         </>
       }
     >

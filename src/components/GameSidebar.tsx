@@ -2,7 +2,6 @@ import { Link } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 import { Spade, Swords } from 'lucide-react'
 import { SidebarHomeLink } from '~/components/SidebarHomeLink'
-import SidebarAccount from '~/components/SidebarAccount'
 import { useI18n, type MessageKey } from '~/lib/i18n'
 
 type GameSidebarProps = {
@@ -52,7 +51,6 @@ export default function GameSidebar({
           </Link>
         ))}
       </nav>
-      <SidebarAccount />
     </>
   )
 }

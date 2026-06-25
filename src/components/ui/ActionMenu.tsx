@@ -30,6 +30,10 @@ export type ActionMenuItem = {
   onSelect: () => void
 }
 
+export type ActionMenuContentProps = {
+  closeMenu: () => void
+}
+
 export type ActionMenuTriggerProps = {
   ref: Ref<HTMLButtonElement>
   type: 'button'
@@ -43,7 +47,8 @@ export type ActionMenuTriggerProps = {
 
 export type ActionMenuProps = {
   ariaLabel: string
-  items: ActionMenuItem[]
+  items?: ActionMenuItem[]
+  renderContent?: (props: ActionMenuContentProps) => ReactNode
   renderTrigger: (props: ActionMenuTriggerProps) => ReactNode
   placement?: ActionMenuPlacement
   disabled?: boolean
@@ -60,7 +65,8 @@ const VIEWPORT_PADDING = 8
 
 export function ActionMenu({
   ariaLabel,
-  items,
+  items = [],
+  renderContent,
   renderTrigger,
   placement = 'bottom-end',
   disabled = false,
@@ -141,8 +147,8 @@ export function ActionMenu({
 
     const animationId = window.requestAnimationFrame(() => {
       const firstItem =
-        menuRef.current?.querySelector<HTMLButtonElement>(
-          '.ui-action-menu-item:not(:disabled)'
+        menuRef.current?.querySelector<HTMLElement>(
+          'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
         )
       firstItem?.focus({ preventScroll: true })
     })
@@ -209,37 +215,39 @@ export function ActionMenu({
             aria-label={ariaLabel}
             onClick={event => event.stopPropagation()}
           >
-            {items.map(item => (
-              <button
-                key={item.key}
-                type="button"
-                className={[
-                  'ui-action-menu-item',
-                  item.icon ? 'has-icon' : '',
-                  item.description ? 'has-description' : '',
-                  item.danger ? 'danger' : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-                role="menuitem"
-                disabled={item.disabled}
-                onClick={event => {
-                  event.stopPropagation()
-                  closeMenu()
-                  item.onSelect()
-                }}
-              >
-                {item.icon && (
-                  <span className="ui-action-menu-item-icon">{item.icon}</span>
-                )}
-                <span className="ui-action-menu-item-label">{item.label}</span>
-                {item.description && (
-                  <span className="ui-action-menu-item-description">
-                    {item.description}
-                  </span>
-                )}
-              </button>
-            ))}
+            {renderContent
+              ? renderContent({ closeMenu })
+              : items.map(item => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    className={[
+                      'ui-action-menu-item',
+                      item.icon ? 'has-icon' : '',
+                      item.description ? 'has-description' : '',
+                      item.danger ? 'danger' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                    role="menuitem"
+                    disabled={item.disabled}
+                    onClick={event => {
+                      event.stopPropagation()
+                      closeMenu()
+                      item.onSelect()
+                    }}
+                  >
+                    {item.icon && (
+                      <span className="ui-action-menu-item-icon">{item.icon}</span>
+                    )}
+                    <span className="ui-action-menu-item-label">{item.label}</span>
+                    {item.description && (
+                      <span className="ui-action-menu-item-description">
+                        {item.description}
+                      </span>
+                    )}
+                  </button>
+                ))}
           </div>,
           document.body
         )

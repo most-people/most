@@ -589,7 +589,6 @@ describe('frontend smoke checks', () => {
   it('keeps P2P chat controls shared without the discarded chat extras', () => {
     const chatSource = readSource(SOURCE_PATHS.features.chat)
     const componentSource = readSource('src/components/ChatUi.tsx')
-    const sidebarAccountSource = readSource('src/components/SidebarAccount.tsx')
     const uiIndexSource = readSource('src/components/ui/index.ts')
     const chatUnreadSource = readSource('src/lib/chatUnread.js')
     const i18nMessages = readI18nSources()
@@ -609,13 +608,7 @@ describe('frontend smoke checks', () => {
       componentSource,
       /key: 'delete'[\s\S]{0,120}danger: true/
     )
-    assert.match(sidebarAccountSource, /to="\/profile\/"/)
-    assert.match(
-      sidebarAccountSource,
-      /className="btn btn-secondary logout-btn"/
-    )
-    assert.match(sidebarAccountSource, /t\('account\.logout'\)/)
-    assert.doesNotMatch(sidebarAccountSource, /ActionMenu|MoreHorizontal/)
+    assert.doesNotMatch(chatSource, /SidebarAccount/)
     assert.match(chatSource, /setChannelPinned/)
     assert.match(chatSource, /channelToRename/)
     assert.match(chatSource, /lastMessageAt/)
@@ -641,10 +634,6 @@ describe('frontend smoke checks', () => {
       /chat-tool-dropdown|chat-tool-btn-wrap|chat-tool-item-tooltip|channel-actions-dropdown|channel-actions-item/
     )
     assert.doesNotMatch(
-      sidebarAccountSource,
-      /account-actions-menu|account-actions-dropdown|account-actions-item|account-menu-trigger/
-    )
-    assert.doesNotMatch(
       chatSource,
       /PINNED_CHANNELS|ChatTypingIndicator|__duplicate/
     )
@@ -663,17 +652,41 @@ describe('frontend smoke checks', () => {
     const marketingLayoutSource = readSource(
       'src/components/MarketingLayout.tsx'
     )
-    const languageSource = readSource('src/components/LanguageToggle.tsx')
+    const marketingHeaderSource = readSource('src/components/MarketingHeader.tsx')
+    const appShellSource = readSource('src/components/AppShell.tsx')
+    const languageToggleSource = readSource('src/components/LanguageToggle.tsx')
+    const themeToggleSource = readSource('src/components/ThemeToggle.tsx')
+    const accountMenuSource = readSource('src/features/profile/AccountMenu.tsx')
+    const profileSource = readSource('src/features/profile/ProfilePage.tsx')
     const appSource = readSource(SOURCE_PATHS.features.files)
     const chatSource = readSource(SOURCE_PATHS.features.chat)
 
     assert.match(rootRoute, /I18nProvider/)
     assert.match(rootRoute, /supportedLocales = \['zh-CN', 'zh-TW', 'en'\]/)
+    assert.match(appShellSource, /AccountMenuButton/)
+    assert.match(appShellSource, /ThemeToggle/)
+    assert.match(appShellSource, /LanguageToggle/)
+    assert.match(marketingLayoutSource, /AccountMenuButton/)
+    assert.match(marketingLayoutSource, /ThemeToggle/)
     assert.match(marketingLayoutSource, /LanguageToggle/)
-    assert.match(languageSource, /ActionMenu/)
-    assert.match(languageSource, /LOCALES\.map/)
-    assert.match(languageSource, /<Check size=\{16\}/)
-    assert.doesNotMatch(languageSource, /locale === 'zh-CN'/)
+    assert.match(marketingHeaderSource, /ThemeToggle/)
+    assert.match(marketingHeaderSource, /LanguageToggle/)
+    assert.doesNotMatch(accountMenuSource, /ActionMenu|LOCALES|setLocale|setIsDarkMode/)
+    assert.doesNotMatch(
+      profileSource,
+      /ProfilePreferencesPanel|profile-preferences-panel|profile-locale-grid|profile-preference-action|LOCALES\.map|localeNames\[item\]|setLocale\(item\)|setIsDarkMode\(!isDarkMode\)/
+    )
+    assert.match(languageToggleSource, /ActionMenu/)
+    assert.match(languageToggleSource, /LOCALES\.map/)
+    assert.match(languageToggleSource, /localeNames\[item\]/)
+    assert.match(languageToggleSource, /setLocale\(item\)/)
+    assert.match(languageToggleSource, /<Check size=\{16\}/)
+    assert.match(themeToggleSource, /setIsDarkMode\(!isDarkMode\)/)
+    assert.match(themeToggleSource, /t\('common\.theme\.toggle'\)/)
+    assert.doesNotMatch(
+      messageCatalogs,
+      /common\.locale\.current|common\.locale\.switchTo/
+    )
     assert.match(portalSource, /titleKey: 'portal\.feature\.app\.title'/)
     assert.match(appSource, /getLocalizedDownloadLinkValidationMessage/)
     assert.match(chatSource, /getLocalizedDownloadLinkValidationMessage/)
@@ -710,6 +723,8 @@ describe('frontend smoke checks', () => {
       readSource('src/components/Footer.tsx'),
       readSource('src/components/CopyButton.tsx'),
       readSource('src/components/AppGlobals.tsx'),
+      readSource('src/components/LanguageToggle.tsx'),
+      readSource('src/components/ThemeToggle.tsx'),
       readSource('src/components/PingPanel.tsx'),
       readSource('src/components/PemBlock.tsx'),
       readSource('src/components/MilkdownEditor.tsx'),
@@ -721,6 +736,7 @@ describe('frontend smoke checks', () => {
       readSource('src/features/chat/ChatJoinPage.tsx'),
       readSource('src/features/note/NotePage.tsx'),
       readSource('src/features/profile/ProfilePage.tsx'),
+      readSource('src/features/profile/AccountMenu.tsx'),
       readSource('src/features/profile/useAccountBackup.ts'),
       readSource('src/features/admin/AdminPage.tsx'),
       readSource('src/features/web3/Web3Page.tsx'),
@@ -853,15 +869,38 @@ describe('frontend smoke checks', () => {
 
   it('keeps account backup scoped and restores once after fresh login', () => {
     const appGlobalsSource = readSource('src/components/AppGlobals.tsx')
+    const appShellSource = readSource('src/components/AppShell.tsx')
+    const marketingHeaderSource = readSource('src/components/MarketingHeader.tsx')
+    const marketingLayoutSource = readSource('src/components/MarketingLayout.tsx')
+    const languageToggleSource = readSource('src/components/LanguageToggle.tsx')
+    const themeToggleSource = readSource('src/components/ThemeToggle.tsx')
     const profileSource = readSource('src/features/profile/ProfilePage.tsx')
-    const backupComponentSource = readSource(
-      'src/features/profile/AccountBackup.tsx'
-    )
-    const filesSource = readSource('src/features/files/AppPage.tsx')
-    const noteSource = readSource('src/features/note/NotePage.tsx')
-    const chatSource = readSource('src/features/chat/ChatPage.tsx')
+    const accountMenuSource = readSource('src/features/profile/AccountMenu.tsx')
+    const sidebarSources = [
+      readSource('src/features/files/AppPage.tsx'),
+      readSource('src/features/chat/ChatPage.tsx'),
+      readSource('src/components/NoteSidebar.tsx'),
+      readSource('src/components/GameSidebar.tsx'),
+    ].join('\n')
+    const appHeaderPageSources = [
+      readSource('src/features/files/AppPage.tsx'),
+      readSource('src/features/note/NotePage.tsx'),
+      readSource('src/features/chat/ChatPage.tsx'),
+      readSource('src/features/chat/ChatJoinPage.tsx'),
+      readSource('src/features/web3/Web3Page.tsx'),
+      readSource('src/features/game/gandengyan/GanDengYanPage.tsx'),
+      readSource('src/features/game/zhajinhua/ZhajinhuaPage.tsx'),
+    ].join('\n')
     const backupSource = readSource('src/features/profile/useAccountBackup.ts')
+    const formatSource = readSource('src/lib/format.ts')
+    const profileMessages = readSource('src/lib/i18n/messages/profile.ts')
     const userStoreSource = readSource('src/stores/userStore.ts')
+    const marketingDownloadIndex = marketingLayoutSource.indexOf('to="/download/"')
+    const marketingAccountMenuIndex = marketingLayoutSource.indexOf(
+      '<AccountMenuButton />'
+    )
+    const appHeaderRightIndex = appShellSource.indexOf('{headerRight}')
+    const appAccountMenuIndex = appShellSource.indexOf('<AccountMenuButton />')
 
     assert.doesNotMatch(appGlobalsSource, /startUserMetadataSync/)
     assert.doesNotMatch(appGlobalsSource, /reconcileUserProfileSync/)
@@ -872,51 +911,112 @@ describe('frontend smoke checks', () => {
       /restoreFromCloud\(\{[\s\S]*onlyWhenLocalEmpty:\s*true/
     )
     assert.match(userStoreSource, /pendingCloudRestoreAddress/)
-    assert.match(profileSource, /AccountBackupPanel/)
-    assert.doesNotMatch(profileSource, /accountBackup\./)
-    assert.doesNotMatch(profileSource, /backupConfirm/)
-    assert.match(backupComponentSource, /export function AccountBackupPanel/)
-    assert.match(
-      backupComponentSource,
-      /export function AccountBackupMenuButton/
+    assert.match(appShellSource, /AccountMenuButton/)
+    assert.match(appShellSource, /ThemeToggle/)
+    assert.match(appShellSource, /LanguageToggle/)
+    assert.match(marketingHeaderSource, /AccountMenuButton/)
+    assert.match(marketingHeaderSource, /ThemeToggle/)
+    assert.match(marketingHeaderSource, /LanguageToggle/)
+    assert.match(marketingLayoutSource, /AccountMenuButton/)
+    assert.match(marketingLayoutSource, /ThemeToggle/)
+    assert.match(marketingLayoutSource, /LanguageToggle/)
+    assert.ok(
+      marketingDownloadIndex !== -1 &&
+        marketingAccountMenuIndex !== -1 &&
+        marketingDownloadIndex < marketingAccountMenuIndex
     )
-    assert.match(backupComponentSource, /useAccountBackup\(\)/)
-    assert.match(backupComponentSource, /ActionMenu/)
-    assert.match(backupComponentSource, /ConfirmModal/)
-    assert.match(backupComponentSource, /accountBackup\.backupToCloud/)
-    assert.match(backupComponentSource, /accountBackup\.restoreFromCloud/)
-    assert.match(backupComponentSource, /accountBackup\.exportLocalBackup/)
-    assert.match(backupComponentSource, /accountBackup\.importLocalBackup/)
-    assert.match(backupComponentSource, /openCloudBackupConfirm/)
-    assert.match(backupComponentSource, /openCloudRestoreConfirm/)
-    assert.match(backupComponentSource, /requestImportBackupConfirm/)
+    assert.ok(
+      appHeaderRightIndex !== -1 &&
+        appAccountMenuIndex !== -1 &&
+        appHeaderRightIndex < appAccountMenuIndex
+    )
+    assert.doesNotMatch(marketingLayoutSource, /mkt-nav-avatar-trigger|nav\.getStarted|openLoginModal/)
+    assert.match(profileSource, /profile-backup-card/)
+    assert.match(profileSource, /profile-backup-summary/)
+    assert.match(profileSource, /profile\.backup\.summary\.notes/)
+    assert.match(profileSource, /profile\.backup\.summary\.files/)
+    assert.match(profileSource, /profile\.backup\.summary\.trash/)
+    assert.match(profileSource, /profile\.backup\.summary\.channels/)
+    assert.match(profileSource, /formatNumber\(item\.value\)/)
+    assert.match(profileSource, /profile-backup-actions/)
+    assert.match(profileSource, /`is-\$\{action\.tone\}`/)
+    assert.doesNotMatch(
+      profileSource,
+      /ProfilePreferencesPanel|profile-preferences-panel|profile-locale-grid|profile-preference-action|LOCALES\.map|localeNames\[item\]|setLocale\(item\)|setIsDarkMode\(!isDarkMode\)/
+    )
+    assert.match(languageToggleSource, /ActionMenu/)
+    assert.match(languageToggleSource, /LOCALES\.map/)
+    assert.match(languageToggleSource, /localeNames\[item\]/)
+    assert.match(languageToggleSource, /setLocale\(item\)/)
+    assert.match(themeToggleSource, /setIsDarkMode\(!isDarkMode\)/)
+    assert.match(profileSource, /backupConfirm/)
+    assert.match(profileSource, /ConfirmModal/)
+    assert.match(profileSource, /useAccountBackup\(\)/)
+    assert.match(profileSource, /profile\.logout\.backupReminder/)
+    assert.match(profileSource, /accountBackup\.backupToCloud/)
+    assert.match(profileSource, /accountBackup\.restoreFromCloud/)
+    assert.match(profileSource, /accountBackup\.exportLocalBackup/)
+    assert.match(profileSource, /accountBackup\.importLocalBackup/)
+    assert.match(profileSource, /requestImportBackupConfirm/)
+    assert.match(formatSource, /export function formatAddressShort/)
+    assert.match(formatSource, /slice\(0, 6\).*slice\(-4\)/s)
+    assert.match(accountMenuSource, /export function AccountMenuButton/)
+    assert.doesNotMatch(accountMenuSource, /AccountBackupPanel|AccountBackupMenuButton/)
+    assert.doesNotMatch(
+      accountMenuSource,
+      /useAccountBackup|ConfirmModal|ActionMenu|LOCALES|setLocale|setIsDarkMode|account-menu-|profile\.section\.backup/
+    )
+    assert.match(accountMenuSource, /useUserStore/)
+    assert.match(accountMenuSource, /generateAvatar/)
+    assert.match(accountMenuSource, /t\('nav\.profile'\)/)
+    assert.match(accountMenuSource, /to="\/profile\/"/)
+    assert.match(accountMenuSource, /account-profile-link/)
+    assert.match(accountMenuSource, /account-profile-link-avatar/)
+    assert.doesNotMatch(accountMenuSource, /key: 'language-status'|key: 'backup-status'/)
+    assert.match(accountMenuSource, /<User size=\{18\}/)
+    assert.match(profileSource, /openCloudBackupConfirm/)
+    assert.match(profileSource, /openCloudRestoreConfirm/)
     assert.match(
-      backupComponentSource,
+      profileSource,
       /requestConfirm:\s*requestImportBackupConfirm/
     )
-    assert.match(filesSource, /AccountBackupMenuButton/)
-    assert.ok(
-      (noteSource.match(/AccountBackupMenuButton/g) || []).length >= 3,
-      'note page should render account backup in both note header modes'
+    assert.doesNotMatch(
+      appHeaderPageSources,
+      /AccountBackupMenuButton|AccountBackupPanel|setIsDarkMode|common\.theme\.toggle/
     )
-    assert.match(chatSource, /AccountBackupMenuButton/)
-    const backupPanelIndex = profileSource.indexOf('<AccountBackupPanel')
-    const profileHeaderIndex = profileSource.indexOf('profile-header')
-    assert.ok(
-      backupPanelIndex !== -1 &&
-        profileHeaderIndex !== -1 &&
-        backupPanelIndex < profileHeaderIndex,
-      'account backup panel should render before the profile header'
-    )
-    assert.doesNotMatch(noteSource, /useNoteBackupSync|NoteMoreMenu|backupSync/)
+    assert.doesNotMatch(appHeaderPageSources, /from '~\/features\/profile\/Account/)
+    assert.doesNotMatch(appHeaderPageSources, /Sun size=\{16\}.*Moon size=\{16\}/s)
+    assert.doesNotMatch(appHeaderPageSources, /useNoteBackupSync|NoteMoreMenu|backupSync/)
+    assert.doesNotMatch(sidebarSources, /SidebarAccount/)
     assert.match(backupSource, /backupToCloud/)
     assert.match(backupSource, /restoreFromCloud/)
+    assert.match(backupSource, /backupSummary/)
+    assert.match(backupSource, /refreshBackupSummary/)
+    assert.match(backupSource, /countBackupItems/)
+    assert.match(backupSource, /\/api\/user\/export/)
     assert.match(backupSource, /onlyWhenLocalEmpty/)
     assert.match(backupSource, /exportLocalBackup/)
     assert.match(backupSource, /importLocalBackup/)
     assert.match(backupSource, /requestConfirm/)
+    assert.match(
+      backupSource,
+      /displayName:\s*currentIdentity\.displayName \|\| currentIdentity\.username/
+    )
+    assert.match(backupSource, /avatar:\s*currentIdentity\.avatar \|\| ''/)
+    assert.match(
+      backupSource,
+      /preferences:\s*\{[\s\S]*theme:\s*useAppStore\.getState\(\)\.isDarkMode \? 'dark' : 'light'[\s\S]*locale/
+    )
+    assert.match(backupSource, /preferences:\s*payload\.preferences \|\| null/)
+    assert.match(backupSource, /normalizeBackupPreferences/)
+    assert.match(backupSource, /setIsDarkMode\(restoredPreferences\.theme === 'dark'\)/)
+    assert.match(backupSource, /setLocale\(restoredPreferences\.locale\)/)
+    assert.match(backupSource, /applyProfileToIdentity/)
+    assert.match(backupSource, /profile\.displayName \|\| identity\.username/)
+    assert.match(backupSource, /avatar:\s*profile\.avatar \|\| undefined/)
+    assert.match(profileMessages, /显示名称、头像、偏好设置/)
+    assert.match(profileMessages, /display name, avatar, preferences/)
     assert.doesNotMatch(backupSource, /window\.confirm/)
-    assert.doesNotMatch(backupSource, /useEffect/)
   })
 
   it('uses profile identity as the single source for chat and game messages', () => {

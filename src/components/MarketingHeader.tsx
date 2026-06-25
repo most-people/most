@@ -1,6 +1,7 @@
 import { ArrowLeft } from 'lucide-react'
 import { LanguageToggle } from '~/components/LanguageToggle'
-import { MarketingThemeToggle } from '~/components/MarketingThemeToggle'
+import { ThemeToggle } from '~/components/ThemeToggle'
+import { AccountMenuButton } from '~/features/profile/AccountMenu'
 import { useBack } from '~/hooks/useBack'
 
 export function MarketingHeader() {
@@ -18,8 +19,9 @@ export function MarketingHeader() {
           <span>MOST PEOPLE</span>
         </button>
         <div className="mkt-nav-cta">
-          <MarketingThemeToggle />
-          <LanguageToggle className="mkt-theme-toggle" />
+          <ThemeToggle />
+          <LanguageToggle />
+          <AccountMenuButton />
         </div>
       </div>
     </nav>

@@ -2,8 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   MessageSquare,
   Plus,
-  Sun,
-  Moon,
   X,
   Edit2,
   Calendar,
@@ -27,7 +25,6 @@ import {
 } from '~/components/ChatUi'
 import FilePreviewOverlay from '~/components/FilePreviewOverlay'
 import { InputModal, ConfirmModal, ModalOverlay } from '~/components/ui'
-import { AccountBackupMenuButton } from '~/features/profile/AccountBackup'
 import OpenSidebarButton from '~/components/OpenSidebarButton'
 import { SidebarHomeLink } from '~/components/SidebarHomeLink'
 import { LogoIcon } from '~/components/icons/LogoIcon'
@@ -40,7 +37,6 @@ import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import { useDisclosure } from '~/hooks'
 import { useChannelMessages } from '~/hooks/useChannelMessages'
-import SidebarAccount from '~/components/SidebarAccount'
 import {
   channelApi,
   type Channel,
@@ -133,8 +129,6 @@ function getBrowserAudioContextConstructor():
 }
 
 function ChatPage() {
-  const isDarkMode = useAppStore(s => s.isDarkMode)
-  const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
   const hasBackend = useAppStore(s => s.hasBackend)
   const addToast = useAppStore(s => s.addToast)
   const openConnectModal = useAppStore(s => s.openConnectModal)
@@ -1303,8 +1297,6 @@ function ChatPage() {
             <Plus size={16} />
             {t('chat.joinChannel')}
           </button>
-
-          <SidebarAccount />
         </>
       )}
       headerTitle={chatHeaderTitle}
@@ -1326,13 +1318,6 @@ function ChatPage() {
       }
       headerRight={
         <div className="header-right-actions">
-          <button
-            className="btn btn-icon"
-            onClick={() => setIsDarkMode(!isDarkMode)}
-            title={t('common.theme.toggle')}
-          >
-            {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
           {activeChannel && (
             <button
               className="btn btn-icon"
@@ -1342,7 +1327,6 @@ function ChatPage() {
               <Settings size={16} />
             </button>
           )}
-          <AccountBackupMenuButton />
         </div>
       }
     >

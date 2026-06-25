@@ -4,8 +4,6 @@ import { HDNodeWallet } from 'ethers'
 import {
   KeyRound,
   Lock,
-  Moon,
-  Sun,
   User,
   Wallet,
 } from 'lucide-react'
@@ -54,8 +52,6 @@ function getHashView(): ViewId {
 
 export default function Web3Page() {
   const { t } = useI18n()
-  const isDarkMode = useAppStore(s => s.isDarkMode)
-  const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
   const addToast = useAppStore(s => s.addToast)
   const setUserIdentity = useUserStore(s => s.setUserIdentity)
 
@@ -358,15 +354,6 @@ export default function Web3Page() {
         </>
       )}
       headerTitle={<h2 className="header-title">{t(viewTitleKey)}</h2>}
-      headerRight={
-        <button
-          className="btn btn-icon"
-          onClick={() => setIsDarkMode(!isDarkMode)}
-          title={t('common.theme.toggle')}
-        >
-          {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
-        </button>
-      }
     >
       <div className="web3-page">
         <div className={`web3-container ${currentView === 'EA' ? 'wide' : ''}`}>

@@ -1242,87 +1242,78 @@ button.ui-file-card {
   line-height: 1.4;
 }
 
-.account-backup-trigger {
-  position: relative;
-}
-
-.account-backup-status,
-.account-backup-menu-status {
+.header-tool-btn {
+  width: 32px;
+  height: 32px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-}
-
-.account-backup-status {
-  flex-shrink: 0;
-  padding: 4px 9px;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-full);
-  background: var(--glass-bg-subtle);
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
   color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1;
-  white-space: nowrap;
+  transition:
+    color var(--transition-fast),
+    background var(--transition-fast),
+    transform var(--transition-fast);
 }
 
-.account-backup-status-dot {
-  width: 7px;
-  height: 7px;
+.header-tool-btn:hover,
+.header-tool-btn:focus-visible,
+.header-tool-btn[aria-expanded='true'] {
+  color: var(--text-primary);
+  background: var(--glass-bg-subtle);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.header-tool-btn:focus-visible {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.language-toggle-placeholder {
+  width: 16px;
+  height: 16px;
   display: inline-flex;
-  border-radius: 50%;
-  background: var(--text-muted);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--bg-secondary) 90%, transparent);
 }
 
-.account-backup-trigger .account-backup-status-dot {
-  position: absolute;
-  right: 5px;
-  bottom: 5px;
-  width: 6px;
-  height: 6px;
+.account-profile-link {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  text-decoration: none;
+  box-shadow: none;
+  transition:
+    color var(--transition-fast),
+    transform var(--transition-fast);
 }
 
-.account-backup-status-dot.is-working,
-.account-backup-status.is-working,
-.account-backup-menu-status.is-working {
-  color: var(--accent);
+.account-profile-link:hover,
+.account-profile-link:focus-visible {
+  color: var(--text-primary);
+  outline: none;
+  transform: translateY(-1px);
 }
 
-.account-backup-status-dot.is-working {
-  background: var(--accent);
+.account-profile-link:focus-visible {
+  box-shadow: 0 0 0 2px var(--accent);
 }
 
-.account-backup-status-dot.is-synced,
-.account-backup-status.is-synced,
-.account-backup-menu-status.is-synced {
-  color: var(--success);
-}
-
-.account-backup-status-dot.is-synced {
-  background: var(--success);
-}
-
-.account-backup-status-dot.is-error,
-.account-backup-status.is-error,
-.account-backup-menu-status.is-error {
-  color: var(--danger);
-}
-
-.account-backup-status-dot.is-error {
-  background: var(--danger);
-}
-
-.account-backup-status-dot.is-idle {
-  background: var(--warning);
-}
-
-.account-backup-status-dot.is-disabled {
-  background: var(--text-muted);
-}
-
-.account-backup-menu {
-  min-width: 238px;
+.account-profile-link-avatar {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: inherit;
+  object-fit: cover;
+  background: var(--glass-bg-subtle);
+  box-shadow: var(--shadow-md);
 }
 
 /* === Backend Error Page === */

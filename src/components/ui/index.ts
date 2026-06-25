@@ -4,6 +4,7 @@ export { ConfirmModal } from '~/components/ui/ConfirmModal'
 export { InputModal } from '~/components/ui/InputModal'
 export { ActionMenu } from '~/components/ui/ActionMenu'
 export type {
+  ActionMenuContentProps,
   ActionMenuItem,
   ActionMenuPlacement,
   ActionMenuProps,

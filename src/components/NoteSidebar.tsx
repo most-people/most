@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react'
-import SidebarAccount from '~/components/SidebarAccount'
 import { SidebarHomeLink } from '~/components/SidebarHomeLink'
 
 interface NoteSidebarProps {
@@ -11,7 +10,6 @@ export function NoteSidebar({ children }: NoteSidebarProps) {
     <>
       <SidebarHomeLink />
       {children}
-      <SidebarAccount />
     </>
   )
 }

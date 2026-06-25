@@ -4,8 +4,6 @@ import {
   KeyRound,
   Check,
   AlertCircle,
-  Sun,
-  Moon,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import { SidebarHomeLink } from '~/components/SidebarHomeLink'
@@ -143,8 +141,6 @@ function ChatJoinContent() {
       fixture: searchParams.get('fixture') || '',
     }
   }, [searchStr])
-  const isDarkMode = useAppStore(s => s.isDarkMode)
-  const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
   const hasBackend = useAppStore(s => s.hasBackend)
   const setUserIdentity = useUserStore(s => s.setUserIdentity)
 
@@ -318,15 +314,6 @@ function ChatJoinContent() {
         <SidebarHomeLink />
       )}
       headerTitle={<h2 className="header-title">{t('chatJoin.title')}</h2>}
-      headerRight={
-        <button
-          className="btn btn-icon"
-          onClick={() => setIsDarkMode(!isDarkMode)}
-          title={t('common.theme.toggle')}
-        >
-          {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
-        </button>
-      }
     >
       <div className="chat-join-container">
         <div className="chat-join-panel">

@@ -17,19 +17,16 @@ import {
   FolderOpen,
   Move,
   Lock,
-  Moon,
   NotebookPen,
   Plus,
   Save,
   Search,
-  Sun,
   Trash2,
   X,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import OpenSidebarButton from '~/components/OpenSidebarButton'
 import { ConfirmModal, InputModal } from '~/components/ui'
-import { AccountBackupMenuButton } from '~/features/profile/AccountBackup'
 import { useAppStore, type NoteItem } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import type { MilkdownEditorRef } from '~/components/MilkdownEditor'
@@ -205,8 +202,6 @@ function NotePageContent() {
   const editorRef = useRef<MilkdownEditorRef>(null)
 
   const addToast = useAppStore(s => s.addToast)
-  const isDarkMode = useAppStore(s => s.isDarkMode)
-  const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
   const wallet = useUserStore(s => s.wallet)
   const openLoginModal = useUserStore(s => s.openLoginModal)
   const notes = useAppStore(s => s.notes)
@@ -526,17 +521,7 @@ function NotePageContent() {
   )
 
   const headerRight = (
-    <div className="note-theme-wrap">
-      <button
-        className="btn btn-icon"
-        onClick={() => setIsDarkMode(!isDarkMode)}
-        title={t('common.theme.toggle')}
-        aria-label={t('common.theme.toggle')}
-      >
-        {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
-      </button>
-      <AccountBackupMenuButton />
-    </div>
+    <div className="note-theme-wrap" />
   )
 
   const noteExplorer = (
@@ -898,8 +883,6 @@ function VaultNotePageContent() {
   const editorRef = useRef<MilkdownEditorRef>(null)
 
   const addToast = useAppStore(s => s.addToast)
-  const isDarkMode = useAppStore(s => s.isDarkMode)
-  const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
   const wallet = useUserStore(s => s.wallet)
   const openLoginModal = useUserStore(s => s.openLoginModal)
 
@@ -1120,15 +1103,6 @@ function VaultNotePageContent() {
         <FolderOpen size={16} />
         {openingVault ? t('note.vault.opening') : t('note.vault.open')}
       </button>
-      <button
-        className="btn btn-icon"
-        onClick={() => setIsDarkMode(!isDarkMode)}
-        title={t('common.theme.toggle')}
-        aria-label={t('common.theme.toggle')}
-      >
-        {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
-      </button>
-      <AccountBackupMenuButton />
     </div>
   )
 

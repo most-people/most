@@ -8,11 +8,13 @@ import {
 } from '~server/src/utils/accountBackup.js'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore, type UserIdentity } from '~/stores/userStore'
-import { useI18n, type MessageKey } from '~/lib/i18n'
+import { isLocale, useI18n, type Locale, type MessageKey } from '~/lib/i18n'
 
 type AccountBackupAction = 'backup' | 'restore' | 'export' | 'import' | null
 type AccountBackupStatus = 'idle' | 'disabled' | 'working' | 'synced' | 'error'
 type AccountBackupProfile = AccountBackupPayload['profile']
+type AccountBackupPreferences = AccountBackupPayload['preferences']
+type AccountBackupTheme = 'dark' | 'light'
 type RestoreFromCloudOptions = {
   confirm?: boolean
   onlyWhenLocalEmpty?: boolean
@@ -27,6 +29,12 @@ type RestorePayloadOptions = {
 type ImportLocalBackupOptions = {
   requestConfirm?: RestoreConfirmRequest
 }
+type AccountBackupSummary = {
+  filesCount: number | null
+  trashFilesCount: number | null
+  channelsCount: number | null
+  loading: boolean
+}
 
 interface AccountBackupPayload {
   type: 'mostbox.account-backup'
@@ -38,6 +46,10 @@ interface AccountBackupPayload {
     displayName?: string
     avatar?: string
     updatedAt?: number
+  } | null
+  preferences?: {
+    theme?: AccountBackupTheme
+    locale?: Locale
   } | null
   files?: unknown[]
   trashFiles?: unknown[]
@@ -67,6 +79,7 @@ function hasLocalData(payload: AccountBackupPayload) {
   return Boolean(
     payload.notes.length ||
       payload.profile ||
+      payload.preferences ||
       payload.files?.length ||
       payload.trashFiles?.length ||
       payload.channels?.length
@@ -97,6 +110,7 @@ function getComparablePayload(payload: AccountBackupPayload) {
     ownerAddress: payload.ownerAddress.toLowerCase(),
     notes: payload.notes,
     profile: payload.profile || null,
+    preferences: payload.preferences || null,
     files: sortByStringField(payload.files, 'cid'),
     trashFiles: sortByStringField(payload.trashFiles, 'cid'),
     channels: sortByStringField(payload.channels, 'channelKey'),
@@ -113,11 +127,26 @@ function hasDifferentBackupData(
   )
 }
 
+function countBackupItems(items: unknown[] | undefined) {
+  return Array.isArray(items) ? items.length : 0
+}
+
 async function readRestoredProfile(fallback: AccountBackupProfile) {
   try {
     return await api.get<AccountBackupProfile>('/api/user/profile').json()
   } catch {
     return fallback || null
+  }
+}
+
+function normalizeBackupPreferences(input: AccountBackupPreferences) {
+  if (!input || typeof input !== 'object') return null
+  return {
+    theme:
+      input.theme === 'dark' || input.theme === 'light'
+        ? input.theme
+        : undefined,
+    locale: isLocale(input.locale) ? input.locale : undefined,
   }
 }
 
@@ -137,12 +166,13 @@ function applyProfileToIdentity(
 }
 
 export function useAccountBackup() {
-  const { t } = useI18n()
+  const { locale, setLocale, t } = useI18n()
   const addToast = useAppStore(s => s.addToast)
   const hasBackend = useAppStore(s => s.hasBackend)
   const openConnectModal = useAppStore(s => s.openConnectModal)
   const notes = useAppStore(s => s.notes)
   const importNotes = useAppStore(s => s.importNotes)
+  const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
   const wallet = useUserStore(s => s.wallet)
   const openLoginModal = useUserStore(s => s.openLoginModal)
   const setUserIdentity = useUserStore(s => s.setUserIdentity)
@@ -150,6 +180,38 @@ export function useAccountBackup() {
   const [status, setStatus] = useState<AccountBackupStatus>(
     wallet ? 'idle' : 'disabled'
   )
+  const [backupSummary, setBackupSummary] = useState<AccountBackupSummary>({
+    filesCount: null,
+    trashFilesCount: null,
+    channelsCount: null,
+    loading: false,
+  })
+
+  const refreshBackupSummary = useCallback(async () => {
+    const currentWallet = useUserStore.getState().wallet
+    if (!currentWallet) {
+      setBackupSummary({
+        filesCount: null,
+        trashFilesCount: null,
+        channelsCount: null,
+        loading: false,
+      })
+      return
+    }
+
+    setBackupSummary(summary => ({ ...summary, loading: true }))
+    try {
+      const metadata = await api.get<AccountBackupPayload>('/api/user/export').json()
+      setBackupSummary({
+        filesCount: countBackupItems(metadata.files),
+        trashFilesCount: countBackupItems(metadata.trashFiles),
+        channelsCount: countBackupItems(metadata.channels),
+        loading: false,
+      })
+    } catch {
+      setBackupSummary(summary => ({ ...summary, loading: false }))
+    }
+  }, [])
 
   const requireWallet = useCallback(() => {
     const currentWallet = useUserStore.getState().wallet
@@ -190,9 +252,13 @@ export function useAccountBackup() {
       ownerAddress: currentWallet.address.toLowerCase(),
       exportedAt: new Date().toISOString(),
       profile,
+      preferences: {
+        theme: useAppStore.getState().isDarkMode ? 'dark' : 'light',
+        locale,
+      },
       notes: useAppStore.getState().notes,
     }
-  }, [requireBackend, t])
+  }, [locale, requireBackend, t])
 
   const restorePayload = useCallback(
     async (payload: AccountBackupPayload, options: RestorePayloadOptions = {}) => {
@@ -222,6 +288,13 @@ export function useAccountBackup() {
         .post<{ success: boolean }>('/api/user/import', { json: payload })
         .json()
       importNotes(payload.notes as Parameters<typeof importNotes>[0])
+      const restoredPreferences = normalizeBackupPreferences(payload.preferences)
+      if (restoredPreferences?.theme) {
+        setIsDarkMode(restoredPreferences.theme === 'dark')
+      }
+      if (restoredPreferences?.locale) {
+        setLocale(restoredPreferences.locale)
+      }
       const currentIdentity = useUserStore.getState().identity
       const restoredProfile = await readRestoredProfile(payload.profile)
       if (currentIdentity && restoredProfile) {
@@ -229,6 +302,7 @@ export function useAccountBackup() {
           applyProfileToIdentity(currentIdentity, restoredProfile)
         )
       }
+      void refreshBackupSummary()
       return true
     },
     [
@@ -237,7 +311,10 @@ export function useAccountBackup() {
       importNotes,
       requireBackend,
       requireWallet,
+      refreshBackupSummary,
       setUserIdentity,
+      setIsDarkMode,
+      setLocale,
       t,
     ]
   )
@@ -250,6 +327,7 @@ export function useAccountBackup() {
     try {
       const payload = await buildPayload()
       await uploadAccountBackup(currentWallet, payload)
+      void refreshBackupSummary()
       setStatus('synced')
       addToast(t('profile.backup.toast.cloudUpdated'), 'success')
       return true
@@ -263,7 +341,7 @@ export function useAccountBackup() {
     } finally {
       setAction(null)
     }
-  }, [addToast, buildPayload, requireBackend, requireWallet, t])
+  }, [addToast, buildPayload, refreshBackupSummary, requireBackend, requireWallet, t])
 
   const restoreFromCloud = useCallback(
     async (options: RestoreFromCloudOptions = {}) => {
@@ -409,6 +487,8 @@ export function useAccountBackup() {
     exportLocalBackup,
     importLocalBackup,
     hasBackend,
+    backupSummary,
+    refreshBackupSummary,
     notesCount: notes.length,
   }
 }

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Copy, Moon, Play, RotateCcw, Send, Sun } from 'lucide-react'
+import { Copy, Play, RotateCcw, Send } from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import GameSidebar from '~/components/GameSidebar'
 import { useGameRoom } from '~/hooks/useGameRoom'
@@ -99,8 +99,6 @@ function speak(text: string, locale: Locale) {
 
 export default function GanDengYanPage() {
   const { t, locale } = useI18n()
-  const isDarkMode = useAppStore(s => s.isDarkMode)
-  const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
   const addToast = useAppStore(s => s.addToast)
   const initializeUser = useUserStore(s => s.initializeUser)
   const [roomInput, setRoomInput] = useState('')
@@ -355,13 +353,6 @@ export default function GanDengYanPage() {
               {copied ? t('common.copied') : t('game.action.shareRoom')}
             </button>
           )}
-          <button
-            className="btn btn-icon"
-            onClick={() => setIsDarkMode(!isDarkMode)}
-            title={t('common.theme.toggle')}
-          >
-            {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
         </div>
       }
     >

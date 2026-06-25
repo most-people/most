@@ -3,23 +3,31 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import {
   Check,
+  CheckCircle2,
+  CircleAlert,
+  CloudDownload,
+  CloudUpload,
+  Download,
   ExternalLink,
   Fingerprint,
   KeyRound,
+  Loader,
   LogOut,
   Save,
   ShieldCheck,
+  Upload,
   User,
   WalletCards,
+  X,
 } from 'lucide-react'
 import { CopyButton } from '~/components/CopyButton'
 import { MarketingHeader } from '~/components/MarketingHeader'
 import { MarketingLayout } from '~/components/MarketingLayout'
-import { ConfirmModal } from '~/components/ui'
+import { ConfirmModal, ModalOverlay } from '~/components/ui'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import { useI18n, type MessageKey } from '~/lib/i18n'
-import { AccountBackupPanel } from '~/features/profile/AccountBackup'
+import { useAccountBackup } from '~/features/profile/useAccountBackup'
 import { api, getApiErrorMessage } from '~server/src/utils/api'
 import {
   defaultAvatarIds,
@@ -34,6 +42,15 @@ import { getIPNS } from '~server/src/utils/mp.js'
 type AvatarOption = {
   value: string
   labelKey: MessageKey
+}
+
+type BackupConfirm = {
+  title: string
+  message: string
+  confirmText: string
+  danger?: boolean
+  onConfirm: () => void | Promise<void>
+  onClose?: () => void
 }
 
 const avatarOptions: AvatarOption[] = [
@@ -57,18 +74,43 @@ function isSupportedAvatarValue(value: string) {
   }
 }
 
+function getBackupStatusClass(status: string) {
+  if (status === 'disabled') return 'is-disabled'
+  if (status === 'working') return 'is-working'
+  if (status === 'synced') return 'is-synced'
+  if (status === 'error') return 'is-error'
+  return 'is-idle'
+}
+
+function AccountBackupStatusIcon({
+  status,
+  busy,
+}: {
+  status: string
+  busy: boolean
+}) {
+  if (busy || status === 'working') {
+    return <Loader size={16} className="ui-spinner" />
+  }
+  if (status === 'synced') return <CheckCircle2 size={16} />
+  if (status === 'error') return <CircleAlert size={16} />
+  return <ShieldCheck size={16} />
+}
+
 export default function ProfilePage() {
-  const { t } = useI18n()
+  const { formatNumber, t } = useI18n()
   const addToast = useAppStore(s => s.addToast)
   const hasBackend = useAppStore(s => s.hasBackend)
   const identity = useUserStore(s => s.identity)
   const openLoginModal = useUserStore(s => s.openLoginModal)
   const setUserIdentity = useUserStore(s => s.setUserIdentity)
   const logoutUser = useUserStore(s => s.logoutUser)
+  const accountBackup = useAccountBackup()
   const [displayNameDraft, setDisplayNameDraft] = useState('')
   const [avatarUrlDraft, setAvatarUrlDraft] = useState('')
   const [avatarUrlError, setAvatarUrlError] = useState('')
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
+  const [backupConfirm, setBackupConfirm] = useState<BackupConfirm | null>(null)
   const header = <MarketingHeader />
 
   useEffect(() => {
@@ -84,6 +126,11 @@ export default function ProfilePage() {
     )
     setAvatarUrlError('')
   }, [identity])
+
+  useEffect(() => {
+    if (!identity) return
+    void accountBackup.refreshBackupSummary()
+  }, [accountBackup.refreshBackupSummary, hasBackend, identity])
 
   const keys = useMemo(() => {
     if (!identity) return null
@@ -126,6 +173,134 @@ export default function ProfilePage() {
   const avatarSrc = generateAvatar(identity.address, identity.avatar)
   const address = identity.address.toLowerCase()
   const canSaveAvatarUrl = avatarUrlDraft.trim().length > 0
+  const backupStatusClass = getBackupStatusClass(accountBackup.status)
+  const cloudBackupWorking = accountBackup.action === 'backup'
+  const cloudRestoreWorking = accountBackup.action === 'restore'
+  const exportWorking = accountBackup.action === 'export'
+  const importWorking = accountBackup.action === 'import'
+  const backupSummaryItems = [
+    {
+      key: 'notes',
+      label: t('profile.backup.summary.notes'),
+      value: accountBackup.notesCount,
+    },
+    {
+      key: 'files',
+      label: t('profile.backup.summary.files'),
+      value: accountBackup.backupSummary.filesCount,
+    },
+    {
+      key: 'trash',
+      label: t('profile.backup.summary.trash'),
+      value: accountBackup.backupSummary.trashFilesCount,
+    },
+    {
+      key: 'channels',
+      label: t('profile.backup.summary.channels'),
+      value: accountBackup.backupSummary.channelsCount,
+    },
+  ]
+
+  function openCloudBackupConfirm() {
+    setBackupConfirm({
+      title: t('profile.backup.confirm.backupTitle'),
+      message: t('profile.backup.confirm.backupMessage'),
+      confirmText: t('profile.backup.action.cloudBackup'),
+      onConfirm: async () => {
+        setBackupConfirm(null)
+        await accountBackup.backupToCloud()
+      },
+    })
+  }
+
+  function openCloudRestoreConfirm() {
+    setBackupConfirm({
+      title: t('profile.backup.confirm.restoreTitle'),
+      message: t('profile.backup.confirm.restoreMessage'),
+      confirmText: t('profile.backup.action.cloudRestore'),
+      onConfirm: async () => {
+        setBackupConfirm(null)
+        await accountBackup.restoreFromCloud({ confirm: false })
+      },
+    })
+  }
+
+  function requestImportBackupConfirm() {
+    return new Promise<boolean>(resolve => {
+      const close = (confirmed: boolean) => {
+        setBackupConfirm(null)
+        resolve(confirmed)
+      }
+      setBackupConfirm({
+        title: t('profile.backup.confirm.importTitle'),
+        message: t('profile.backup.confirm.restore'),
+        confirmText: t('profile.backup.action.importLocal'),
+        onConfirm: () => close(true),
+        onClose: () => close(false),
+      })
+    })
+  }
+
+  function handleImportLocalBackup() {
+    accountBackup.importLocalBackup({
+      requestConfirm: requestImportBackupConfirm,
+    })
+  }
+
+  const backupActions = [
+    {
+      key: 'cloud-backup',
+      tone: 'cloud-backup',
+      label: cloudBackupWorking
+        ? t('profile.backup.status.backingUp')
+        : t('profile.backup.action.cloudBackup'),
+      icon: cloudBackupWorking ? (
+        <Loader size={16} className="ui-spinner" />
+      ) : (
+        <CloudUpload size={16} />
+      ),
+      onClick: openCloudBackupConfirm,
+    },
+    {
+      key: 'cloud-restore',
+      tone: 'cloud-restore',
+      label: cloudRestoreWorking
+        ? t('profile.backup.status.restoring')
+        : t('profile.backup.action.cloudRestore'),
+      icon: cloudRestoreWorking ? (
+        <Loader size={16} className="ui-spinner" />
+      ) : (
+        <CloudDownload size={16} />
+      ),
+      onClick: openCloudRestoreConfirm,
+    },
+    {
+      key: 'export-local',
+      tone: 'export-local',
+      label: exportWorking
+        ? t('profile.backup.status.exporting')
+        : t('profile.backup.action.exportLocal'),
+      icon: exportWorking ? (
+        <Loader size={16} className="ui-spinner" />
+      ) : (
+        <Download size={16} />
+      ),
+      onClick: accountBackup.exportLocalBackup,
+    },
+    {
+      key: 'import-local',
+      tone: 'import-local',
+      label: importWorking
+        ? t('profile.backup.status.importing')
+        : t('profile.backup.action.importLocal'),
+      icon: importWorking ? (
+        <Loader size={16} className="ui-spinner" />
+      ) : (
+        <Upload size={16} />
+      ),
+      onClick: handleImportLocalBackup,
+    },
+  ]
 
   async function saveBackendProfile(nextIdentity) {
     if (hasBackend !== true) return
@@ -199,7 +374,56 @@ export default function ProfilePage() {
     <MarketingLayout header={header}>
       <section className="profile-page">
         <div className="profile-container">
-          <AccountBackupPanel />
+          <section className="profile-panel profile-backup-card">
+            <div className="profile-panel-header profile-backup-header">
+              <div>
+                <h2>{t('profile.section.backup')}</h2>
+                <p>{t('profile.section.backup.desc')}</p>
+              </div>
+              <span className={`profile-backup-status ${backupStatusClass}`}>
+                <AccountBackupStatusIcon
+                  status={accountBackup.status}
+                  busy={accountBackup.busy}
+                />
+                {accountBackup.statusLabel}
+              </span>
+            </div>
+            <div
+              className="profile-backup-summary"
+              aria-label={t('profile.backup.summary.label')}
+            >
+              {backupSummaryItems.map(item => (
+                <div key={item.key} className="profile-backup-stat">
+                  <span className="profile-backup-stat-value">
+                    {item.value === null
+                      ? accountBackup.backupSummary.loading
+                        ? '...'
+                        : '-'
+                      : formatNumber(item.value)}
+                  </span>
+                  <span className="profile-backup-stat-label">{item.label}</span>
+                </div>
+              ))}
+            </div>
+            <div className="profile-backup-actions">
+              {backupActions.map(action => (
+                <button
+                  key={action.key}
+                  type="button"
+                  className={[
+                    'btn',
+                    'profile-backup-action',
+                    `is-${action.tone}`,
+                  ].join(' ')}
+                  disabled={accountBackup.busy}
+                  onClick={action.onClick}
+                >
+                  {action.icon}
+                  {action.label}
+                </button>
+              ))}
+            </div>
+          </section>
 
           <header className="profile-header">
             <img className="profile-avatar-large" src={avatarSrc} alt="" />
@@ -261,11 +485,6 @@ export default function ProfilePage() {
                 <ProfileFact
                   label={t('profile.label.username')}
                   value={identity.username}
-                />
-                <ProfileFact
-                  label={t('web3.label.address')}
-                  value={identity.address}
-                  copy
                 />
               </div>
             </section>
@@ -376,15 +595,85 @@ export default function ProfilePage() {
           </section>
         </div>
       </section>
-      {showLogoutConfirm && (
+      {backupConfirm && (
         <ConfirmModal
-          title={t('account.logoutTitle')}
-          message={t('account.logoutConfirm')}
-          confirmText={t('account.logout')}
-          danger
-          onConfirm={handleLogout}
-          onClose={() => setShowLogoutConfirm(false)}
+          title={backupConfirm.title}
+          message={backupConfirm.message}
+          confirmText={backupConfirm.confirmText}
+          danger={backupConfirm.danger}
+          onConfirm={backupConfirm.onConfirm}
+          onClose={backupConfirm.onClose || (() => setBackupConfirm(null))}
         />
+      )}
+      {showLogoutConfirm && (
+        <ModalOverlay
+          className="profile-logout-overlay"
+          onClose={() => setShowLogoutConfirm(false)}
+        >
+          <div
+            className="confirm-modal profile-logout-modal"
+            onClick={event => event.stopPropagation()}
+          >
+            <div className="modal-header">
+              <h3>{t('account.logoutTitle')}</h3>
+              <button
+                type="button"
+                className="btn btn-icon"
+                onClick={() => setShowLogoutConfirm(false)}
+                aria-label={t('common.close')}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p className="profile-logout-reminder">
+              {t('profile.logout.backupReminder')}
+            </p>
+            <div className="profile-logout-backup-actions">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={accountBackup.busy}
+                onClick={() => void accountBackup.backupToCloud()}
+              >
+                {accountBackup.action === 'backup' ? (
+                  <Loader size={16} className="ui-spinner" />
+                ) : (
+                  <CloudUpload size={16} />
+                )}
+                {t('profile.backup.action.cloudBackup')}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={accountBackup.busy}
+                onClick={() => void accountBackup.exportLocalBackup()}
+              >
+                {accountBackup.action === 'export' ? (
+                  <Loader size={16} className="ui-spinner" />
+                ) : (
+                  <Download size={16} />
+                )}
+                {t('profile.backup.action.exportLocal')}
+              </button>
+            </div>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setShowLogoutConfirm(false)}
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={handleLogout}
+              >
+                {t('account.logout')}
+              </button>
+            </div>
+          </div>
+        </ModalOverlay>
       )}
     </MarketingLayout>
   )
