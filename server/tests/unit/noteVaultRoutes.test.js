@@ -1,0 +1,127 @@
+import { describe, it, beforeEach, afterEach } from 'node:test'
+import assert from 'node:assert'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { createApp } from '../../src/http/app.js'
+import { createNodeConfigStore } from '../../src/node/config.js'
+import { buildAuthHeaders } from '../../src/utils/auth.js'
+import { createLoginIdentity } from '../../src/utils/userIdentity.js'
+
+const TEST_IDENTITY = createLoginIdentity('vault-user', 'vault-password')
+
+function createFakeEngine() {
+  return {}
+}
+
+async function requestWithAuth(app, requestPath, init = {}) {
+  const headers = new Headers(init.headers || {})
+  const method = init.method || 'GET'
+  const authHeaders = await buildAuthHeaders(
+    TEST_IDENTITY,
+    method,
+    new URL(requestPath, 'http://localhost').pathname
+  )
+  for (const [key, value] of Object.entries(authHeaders)) {
+    headers.set(key, value)
+  }
+  return app.request(requestPath, { ...init, headers })
+}
+
+describe('note vault routes', () => {
+  let tmpDir
+  let configStore
+  let app
+  let originalElectronApp
+
+  beforeEach(() => {
+    originalElectronApp = process.env.ELECTRON_APP
+    process.env.ELECTRON_APP = 'true'
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'most-note-vault-api-'))
+    configStore = createNodeConfigStore(path.join(tmpDir, 'config'))
+    app = createApp(createFakeEngine(), {
+      configStore,
+      port: 1976,
+      host: '127.0.0.1',
+    }).app
+  })
+
+  afterEach(() => {
+    if (originalElectronApp === undefined) {
+      delete process.env.ELECTRON_APP
+    } else {
+      process.env.ELECTRON_APP = originalElectronApp
+    }
+    fs.rmSync(tmpDir, { recursive: true, force: true })
+  })
+
+  it('requires login for note vault APIs', async () => {
+    const res = await app.request('/api/note-vault/status')
+    const data = await res.json()
+
+    assert.strictEqual(res.status, 401)
+    assert.strictEqual(data.code, 'LOGIN_REQUIRED')
+  })
+
+  it('rejects note vault APIs outside Electron mode', async () => {
+    delete process.env.ELECTRON_APP
+
+    const res = await requestWithAuth(app, '/api/note-vault/status')
+    const data = await res.json()
+
+    assert.strictEqual(res.status, 403)
+    assert.strictEqual(data.code, 'PERMISSION_ERROR')
+  })
+
+  it('configures, lists, reads, and saves Markdown files', async () => {
+    const vaultDir = path.join(tmpDir, 'vault')
+    fs.mkdirSync(path.join(vaultDir, 'docs'), { recursive: true })
+    fs.writeFileSync(path.join(vaultDir, 'docs', 'hello.md'), '# Hello', 'utf8')
+    fs.writeFileSync(path.join(vaultDir, 'ignore.txt'), 'ignore', 'utf8')
+
+    const configRes = await requestWithAuth(app, '/api/note-vault/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: vaultDir }),
+    })
+    const configData = await configRes.json()
+
+    assert.strictEqual(configRes.status, 200)
+    assert.strictEqual(configData.success, true)
+    assert.strictEqual(configData.configured, true)
+    assert.strictEqual(configData.fileCount, 1)
+
+    const listRes = await requestWithAuth(app, '/api/note-vault/files')
+    const listData = await listRes.json()
+
+    assert.strictEqual(listRes.status, 200)
+    assert.deepStrictEqual(
+      listData.files.map(file => file.path),
+      ['docs/hello.md']
+    )
+
+    const readRes = await requestWithAuth(
+      app,
+      '/api/note-vault/file?path=docs%2Fhello.md'
+    )
+    const readData = await readRes.json()
+
+    assert.strictEqual(readRes.status, 200)
+    assert.strictEqual(readData.content, '# Hello')
+
+    const saveRes = await requestWithAuth(app, '/api/note-vault/file', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: 'docs/hello.md', content: '# Saved' }),
+    })
+    const saveData = await saveRes.json()
+
+    assert.strictEqual(saveRes.status, 200)
+    assert.strictEqual(saveData.success, true)
+    assert.strictEqual(saveData.file.content, '# Saved')
+    assert.strictEqual(
+      fs.readFileSync(path.join(vaultDir, 'docs', 'hello.md'), 'utf8'),
+      '# Saved'
+    )
+  })
+})

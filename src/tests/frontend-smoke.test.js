@@ -407,7 +407,7 @@ describe('frontend smoke checks', () => {
   it('checks desktop updates through the public release manifest', () => {
     const mainSource = readSource('electron/main.js')
     const checkerSource = readSource('electron/updateChecker.js')
-    const preloadSource = readSource('electron/preload.js')
+    const preloadSource = readSource('electron/preload.cjs')
 
     assert.match(mainSource, /checkForUpdates/)
     assert.match(mainSource, /dialog\.showMessageBox/)
@@ -417,7 +417,9 @@ describe('frontend smoke checks', () => {
     assert.doesNotMatch(mainSource, /seedCidFileFromPath/)
     assert.doesNotMatch(mainSource, /installDownloadedUpdate/)
     assert.doesNotMatch(mainSource, /updates:/)
-    assert.doesNotMatch(preloadSource, /ipcRenderer/)
+    assert.match(preloadSource, /selectNoteVaultDirectory/)
+    assert.doesNotMatch(preloadSource, /ipcRenderer\.(send|on|once)\(/)
+    assert.doesNotMatch(preloadSource, /ipcRenderer:\s*ipcRenderer/)
     assert.doesNotMatch(preloadSource, /updates:/)
     assert.match(checkerSource, /MOSTBOX_RELEASE_MANIFEST_URL/)
     assert.match(checkerSource, /download\.most\.box\/releases\/latest\.json/)

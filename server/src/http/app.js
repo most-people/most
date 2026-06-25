@@ -31,6 +31,7 @@ import { registerStaticRoutes } from './staticFiles.js'
 import { registerChannelRoutes } from './routes/channelRoutes.js'
 import { registerFileRoutes } from './routes/fileRoutes.js'
 import { registerNodeRoutes } from './routes/nodeRoutes.js'
+import { registerNoteVaultRoutes } from './routes/noteVaultRoutes.js'
 import { registerSeedRoutes } from './routes/seedRoutes.js'
 
 export { UPLOAD_TMP_DIR } from './uploads.js'
@@ -302,6 +303,7 @@ export function createApp(engine, options = {}) {
   registerSeedRoutes(app, { engine, appendNodeLog, broadcastNodeStatus })
   registerFileRoutes(app, { engine, configStore, wsBroadcast })
   registerChannelRoutes(app, { engine })
+  registerNoteVaultRoutes(app, { configStore, isRemoteRequest })
 
   registerStaticRoutes(app)
 

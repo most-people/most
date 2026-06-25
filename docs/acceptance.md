@@ -208,10 +208,18 @@ CID:
 | 私密笔记       | 未登录时不可解密；正确 Web3 账号登录后可阅读、编辑、重新保存               | `/note`、`mostEncode()`、`mostDecode()` |
 | 备份恢复       | 云端缺失、冲突、失败、本地导入导出都有反馈                                 | `useNoteBackupSync()`                   |
 | 资源管理       | 新建、重命名、移动、删除文件夹、搜索不丢数据                               | `noteUtils`、`src/features/note/NotePage.tsx` |
+| 桌面 Markdown 笔记库 | Electron + 本地 daemon 下可选择目录、列出 `.md`、打开并保存当前文件；Web 端仍使用 IndexedDB | `/note`、`/api/note-vault/*` |
 | CID 边界       | `calculateNoteCid()` 只用于笔记 raw CID，不进入 `most://` 文件分享协议     | `server/src/core/cid.js`、笔记测试      |
 
 推荐检查：
 
 ```bash
-node --test server/tests/unit/noteUtils.test.js server/tests/unit/noteBackup.test.js
+node --test server/tests/unit/noteUtils.test.js server/tests/unit/accountBackup.test.js server/tests/unit/noteVault.test.js server/tests/unit/noteVaultRoutes.test.js
 ```
+
+桌面 Markdown 笔记库最小闭环手动验收：
+
+1. 启动 Electron 包或 `npm run electron:dev`，登录 Web3 账号后打开 `/note`。
+2. 点击“打开笔记库”，选择一个本地目录；目录内递归 `.md` 文件应出现在左侧列表。
+3. 打开任一 `.md` 文件，进入编辑模式修改内容并保存；用外部编辑器打开同一文件，应能看到保存后的 Markdown。
+4. 在普通 Web 浏览器打开 `/note`，不应出现本地目录选择入口，原 IndexedDB 笔记行为保持不变。

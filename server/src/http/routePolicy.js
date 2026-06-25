@@ -28,6 +28,7 @@ export function requiresUserAuth(path) {
     path === '/api/trash' ||
     path === '/api/move' ||
     path === '/api/folder/rename' ||
+    path.startsWith('/api/note-vault') ||
     path.startsWith('/api/files/') ||
     path.startsWith('/api/trash/') ||
     path.startsWith('/api/channels')

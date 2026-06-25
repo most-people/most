@@ -1,6 +1,7 @@
 import {
   app,
   BrowserWindow,
+  ipcMain,
   Menu,
   Tray,
   dialog,
@@ -144,6 +145,21 @@ function createTray() {
   tray.on('double-click', showMainWindow)
 }
 
+function registerNoteVaultIpc() {
+  ipcMain.handle('note-vault:select-directory', async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: '选择 Markdown 笔记库',
+      properties: ['openDirectory', 'createDirectory'],
+    })
+
+    if (result.canceled || result.filePaths.length === 0) {
+      return null
+    }
+
+    return result.filePaths[0]
+  })
+}
+
 function createWindow() {
   const iconPath = getIconPath()
 
@@ -158,7 +174,7 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'preload.cjs'),
     },
   })
 
@@ -273,6 +289,7 @@ if (!gotSingleInstanceLock) {
   app.whenReady().then(async () => {
     try {
       await startServer()
+      registerNoteVaultIpc()
       createWindow()
       createTray()
       Menu.setApplicationMenu(null)

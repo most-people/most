@@ -2,6 +2,7 @@ import {
   Fragment,
   Suspense,
   lazy,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -13,6 +14,7 @@ import {
   Eye,
   FileText,
   Folder,
+  FolderOpen,
   Move,
   Lock,
   Moon,
@@ -39,6 +41,21 @@ import {
 import { NoteMoveModal, type NoteMoveTarget } from '~/components/NoteMoveModal'
 import { NoteSidebar } from '~/components/NoteSidebar'
 import { useI18n, type MessageKey } from '~/lib/i18n'
+import { useIsDesktopClient } from '~/hooks'
+import {
+  getApiErrorMessage,
+  getBackendUrlExport,
+} from '~server/src/utils/api.js'
+import {
+  configureNoteVault,
+  getNoteVaultStatus,
+  listNoteVaultFiles,
+  readNoteVaultFile,
+  saveNoteVaultFile,
+  type NoteVaultFile,
+  type NoteVaultFileContent,
+  type NoteVaultStatus,
+} from './noteVaultApi'
 
 const MilkdownEditor = lazy(async () => {
   const mod = await import('~/components/MilkdownEditor')
@@ -49,6 +66,7 @@ type ExplorerItem = NoteMoveTarget
 
 type NoteSearchParams = {
   cid?: string
+  file?: string
   mode?: 'edit'
 }
 
@@ -58,6 +76,7 @@ function getNoteSearch(searchStr: string): NoteSearchParams {
 
   return {
     cid: searchParams.get('cid') || undefined,
+    file: searchParams.get('file') || undefined,
     mode: mode === 'edit' ? 'edit' : undefined,
   }
 }
@@ -65,6 +84,7 @@ function getNoteSearch(searchStr: string): NoteSearchParams {
 function getNoteHref(search: NoteSearchParams = {}) {
   const searchParams = new URLSearchParams()
   if (search.cid) searchParams.set('cid', search.cid)
+  if (search.file) searchParams.set('file', search.file)
   if (search.mode) searchParams.set('mode', search.mode)
 
   const query = searchParams.toString()
@@ -140,6 +160,40 @@ function getDirectoryOptions(
         depth: Math.max(parts.length - 1, 0),
       }
     })
+}
+
+function getVaultNoteItems(files: NoteVaultFile[]): NoteItem[] {
+  return files.map(file => ({
+    name: file.name,
+    cid: file.path,
+    path: normalizeNotePath(file.directory),
+    content: '',
+    size: file.size,
+    type: 'file',
+    created_at: Number(file.mtimeMs) || Date.now(),
+    updated_at: Number(file.mtimeMs) || Date.now(),
+    isSecret: false,
+  }))
+}
+
+function isLocalNoteVaultBackend(url: string) {
+  const value =
+    url ||
+    (typeof window !== 'undefined' ? window.location.origin || '' : '')
+  if (!value) return false
+
+  try {
+    const hostname = new URL(value).hostname.toLowerCase()
+    return (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '::1' ||
+      hostname === '[::1]' ||
+      hostname.startsWith('127.')
+    )
+  } catch {
+    return false
+  }
 }
 
 function NotePageContent() {
@@ -834,14 +888,521 @@ function NotePageContent() {
   )
 }
 
+function VaultNotePageContent() {
+  const { t, formatDate } = useI18n()
+  const navigate = useNavigate()
+  const searchStr = useLocation({ select: location => location.searchStr })
+  const params = useMemo(() => getNoteSearch(searchStr), [searchStr])
+  const editorRef = useRef<MilkdownEditorRef>(null)
+
+  const addToast = useAppStore(s => s.addToast)
+  const isDarkMode = useAppStore(s => s.isDarkMode)
+  const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
+  const wallet = useUserStore(s => s.wallet)
+  const openLoginModal = useUserStore(s => s.openLoginModal)
+
+  const currentFilePath = params.file || ''
+  const showPreview = !!currentFilePath
+  const isEditing = showPreview && params.mode === 'edit'
+
+  const [vaultStatus, setVaultStatus] = useState<NoteVaultStatus | null>(null)
+  const [vaultFiles, setVaultFiles] = useState<NoteVaultFile[]>([])
+  const [vaultFolderPath, setVaultFolderPath] = useState('')
+  const [vaultLoading, setVaultLoading] = useState(true)
+  const [vaultError, setVaultError] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [openingVault, setOpeningVault] = useState(false)
+  const [selectedFile, setSelectedFile] =
+    useState<NoteVaultFileContent | null>(null)
+  const [plainContent, setPlainContent] = useState('')
+  const [fileLoading, setFileLoading] = useState(false)
+  const [fileError, setFileError] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const vaultNotes = useMemo(() => getVaultNoteItems(vaultFiles), [vaultFiles])
+  const selectedNote = vaultNotes.find(note => note.cid === currentFilePath)
+  const explorerItems = useMemo(
+    () =>
+      filterNotesByPath(
+        vaultNotes,
+        vaultFolderPath,
+        searchQuery
+      ) as unknown as ExplorerItem[],
+    [vaultFolderPath, searchQuery, vaultNotes]
+  )
+  const visibleFileCount = explorerItems.filter(
+    item => item.type === 'file'
+  ).length
+  const breadcrumbs = useMemo(() => {
+    const parts = vaultFolderPath.split('/').filter(Boolean)
+    return [
+      { label: t('note.root'), path: '' },
+      ...parts.map((part, index) => ({
+        label: part,
+        path: parts.slice(0, index + 1).join('/'),
+      })),
+    ]
+  }, [vaultFolderPath, t])
+
+  const refreshVault = useCallback(async () => {
+    if (!wallet) {
+      setVaultStatus(null)
+      setVaultFiles([])
+      setVaultError(t('note.vault.loginRequired'))
+      setVaultLoading(false)
+      return
+    }
+
+    setVaultLoading(true)
+    setVaultError('')
+    try {
+      const status = await getNoteVaultStatus()
+      setVaultStatus(status)
+      if (status.configured) {
+        setVaultFiles(await listNoteVaultFiles())
+      } else {
+        setVaultFiles([])
+      }
+    } catch (err: unknown) {
+      setVaultStatus(null)
+      setVaultFiles([])
+      setVaultError(await getApiErrorMessage(err, t('note.vault.loadFailed')))
+    } finally {
+      setVaultLoading(false)
+    }
+  }, [t, wallet])
+
+  useEffect(() => {
+    void refreshVault()
+  }, [refreshVault])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadFile() {
+      if (!currentFilePath) {
+        setSelectedFile(null)
+        setPlainContent('')
+        setFileError('')
+        setFileLoading(false)
+        return
+      }
+      if (!wallet) {
+        setSelectedFile(null)
+        setPlainContent('')
+        setFileError(t('note.vault.loginRequired'))
+        setFileLoading(false)
+        return
+      }
+      if (vaultStatus?.configured !== true) {
+        setSelectedFile(null)
+        setPlainContent('')
+        setFileError('')
+        setFileLoading(false)
+        return
+      }
+
+      setFileLoading(true)
+      setFileError('')
+      try {
+        const file = await readNoteVaultFile(currentFilePath)
+        if (cancelled) return
+        setSelectedFile(file)
+        setPlainContent(file.content)
+      } catch (err: unknown) {
+        if (cancelled) return
+        setSelectedFile(null)
+        setPlainContent('')
+        setFileError(await getApiErrorMessage(err, t('note.error.notFound')))
+      } finally {
+        if (!cancelled) setFileLoading(false)
+      }
+    }
+
+    void loadFile()
+    return () => {
+      cancelled = true
+    }
+  }, [currentFilePath, t, vaultStatus?.configured, wallet])
+
+  function navigateToVault(
+    search: NoteSearchParams = {},
+    replace = false
+  ) {
+    navigate({ href: getNoteHref(search), replace })
+  }
+
+  function openPreview(note: NoteItem) {
+    navigateToVault({ file: note.cid })
+  }
+
+  function openEditor() {
+    if (!currentFilePath) return
+    navigateToVault({ file: currentFilePath, mode: 'edit' })
+  }
+
+  function closeEditor() {
+    navigateToVault(currentFilePath ? { file: currentFilePath } : {})
+  }
+
+  async function handleOpenVault() {
+    if (!wallet) {
+      openLoginModal()
+      return
+    }
+
+    const picker = window.electronAPI?.selectNoteVaultDirectory
+    if (!picker) {
+      addToast(t('note.vault.selectFailed'), 'error')
+      return
+    }
+
+    setOpeningVault(true)
+    try {
+      const directory = await picker()
+      if (!directory) return
+
+      await configureNoteVault(directory)
+      await refreshVault()
+      navigateToVault({}, true)
+      addToast(t('note.vault.opened'), 'success')
+    } catch (err: unknown) {
+      addToast(await getApiErrorMessage(err, t('note.vault.selectFailed')), 'error')
+    } finally {
+      setOpeningVault(false)
+    }
+  }
+
+  async function handleSaveEditor() {
+    if (!wallet) {
+      openLoginModal()
+      return
+    }
+    if (!currentFilePath) {
+      addToast(t('note.toast.notFound'), 'error')
+      return
+    }
+
+    setSaving(true)
+    try {
+      const markdown = editorRef.current?.getMarkdown() ?? plainContent
+      const file = await saveNoteVaultFile(currentFilePath, markdown)
+      setSelectedFile(file)
+      setPlainContent(file.content)
+      await refreshVault()
+      navigateToVault({ file: file.path }, true)
+      addToast(t('note.toast.saved'), 'success')
+    } catch (err: unknown) {
+      addToast(await getApiErrorMessage(err, t('note.toast.saveFailed')), 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const headerTitle = (
+    <div className="note-header-title">
+      <h2 className="header-title">{t('note.title')}</h2>
+      <span>{t('note.count', { count: vaultFiles.length })}</span>
+    </div>
+  )
+
+  const headerRight = (
+    <div className="note-theme-wrap">
+      <button
+        className="btn btn-sm"
+        onClick={handleOpenVault}
+        disabled={openingVault}
+        title={t('note.vault.open')}
+        aria-label={t('note.vault.open')}
+      >
+        <FolderOpen size={16} />
+        {openingVault ? t('note.vault.opening') : t('note.vault.open')}
+      </button>
+      <button
+        className="btn btn-icon"
+        onClick={() => setIsDarkMode(!isDarkMode)}
+        title={t('common.theme.toggle')}
+        aria-label={t('common.theme.toggle')}
+      >
+        {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
+      </button>
+    </div>
+  )
+
+  const noteExplorer = (
+    <section
+      className="note-list-panel note-sidebar-list"
+      aria-label={t('note.listLabel')}
+    >
+      <div className="note-list-header">
+        <div className="note-current-location">
+          <div className="note-breadcrumbs">
+            {breadcrumbs.map((part, index) => (
+              <Fragment key={part.path || 'root'}>
+                {index > 0 && <span>/</span>}
+                <button onClick={() => setVaultFolderPath(part.path)}>
+                  <span translate={part.path ? 'no' : 'yes'}>
+                    {part.label}
+                  </span>
+                </button>
+              </Fragment>
+            ))}
+          </div>
+        </div>
+        <span className="note-count">
+          {t('note.count', { count: visibleFileCount })}
+        </span>
+      </div>
+
+      <div className="note-search">
+        <Search size={16} />
+        <input
+          className="input input-flex"
+          value={searchQuery}
+          onChange={event => setSearchQuery(event.target.value)}
+          placeholder={t('note.search.placeholder')}
+        />
+      </div>
+
+      {vaultLoading ? (
+        <div className="ui-empty-state note-empty-state">
+          <NotebookPen size={32} />
+          <p>{t('note.loading')}</p>
+        </div>
+      ) : vaultError ? (
+        <div className="ui-empty-state note-empty-state">
+          <Lock size={32} />
+          <p>{vaultError}</p>
+        </div>
+      ) : vaultStatus?.configured !== true ? (
+        <div className="ui-empty-state note-empty-state">
+          <FolderOpen size={32} />
+          <button
+            className="btn btn-primary"
+            onClick={handleOpenVault}
+            disabled={openingVault}
+          >
+            <FolderOpen size={16} />
+            {openingVault ? t('note.vault.opening') : t('note.vault.open')}
+          </button>
+        </div>
+      ) : explorerItems.length === 0 ? (
+        <div className="ui-empty-state note-empty-state">
+          <NotebookPen size={32} />
+          <p>
+            {searchQuery ? t('note.empty.noMatches') : t('note.vault.noFiles')}
+          </p>
+        </div>
+      ) : (
+        <div className="note-list">
+          {explorerItems.map(item => (
+            <article
+              key={`${item.type}:${item.cid || getExplorerItemFullPath(item)}`}
+              className={`ui-list-item note-list-item ${item.type === 'file' && item.cid === currentFilePath ? 'active' : ''}`}
+            >
+              <button
+                className={`ui-list-item-main note-list-item-main ${item.type === 'directory' ? 'folder' : ''}`}
+                onClick={() => {
+                  if (item.type === 'directory') {
+                    setVaultFolderPath(
+                      normalizeNotePath(
+                        item.path ? `${item.path}/${item.name}` : item.name
+                      )
+                    )
+                  } else {
+                    openPreview(item)
+                  }
+                }}
+              >
+                <span className={`ui-list-icon note-list-icon ${item.type === 'directory' ? 'warning' : ''}`}>
+                  {item.type === 'directory' ? (
+                    <Folder size={18} />
+                  ) : (
+                    <FileText size={18} />
+                  )}
+                </span>
+                <span className="ui-list-copy note-list-copy">
+                  <span className="ui-list-title note-list-name" translate="no">
+                    {item.name}
+                  </span>
+                  <span className="ui-list-desc note-list-preview" translate="no">
+                    {item.type === 'file'
+                      ? item.cid
+                      : t('note.folder')}
+                  </span>
+                </span>
+                {item.type === 'file' && (
+                  <span className="ui-list-meta note-list-date">
+                    {formatDate(item.updated_at)}
+                  </span>
+                )}
+              </button>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+
+  const editorMetaTime =
+    selectedFile?.mtimeMs || selectedNote?.updated_at || Date.now()
+  const selectedTitle =
+    selectedFile?.name || selectedNote?.name || t('note.untitled')
+
+  return (
+    <AppShell
+      sidebar={() => <NoteSidebar>{noteExplorer}</NoteSidebar>}
+      headerTitle={headerTitle}
+      headerRight={headerRight}
+    >
+      <main
+        className={`note-page note-browser-page ${showPreview ? 'has-editor' : ''}`}
+      >
+        <section className="note-workspace">
+          <section
+            className="note-editor-panel"
+            aria-label={
+              isEditing ? t('note.editorLabel.edit') : t('note.editorLabel.read')
+            }
+          >
+            {showPreview ? (
+              <>
+                <div className="note-editor-panel-header">
+                  <div className="note-editor-title-area">
+                    <h3 translate="no">{selectedTitle}</h3>
+                    <div className="note-editor-info">
+                      <span>
+                        {isEditing ? t('note.mode.edit') : t('note.mode.read')}
+                      </span>
+                      <span translate="no">{currentFilePath}</span>
+                      <span>{formatDate(editorMetaTime)}</span>
+                    </div>
+                  </div>
+
+                  <div className="note-editor-actions">
+                    <button
+                      type="button"
+                      className="btn btn-icon"
+                      onClick={isEditing ? closeEditor : () => navigateToVault()}
+                      title={isEditing ? t('common.cancel') : t('common.close')}
+                      aria-label={
+                        isEditing ? t('common.cancel') : t('common.close')
+                      }
+                    >
+                      <X size={16} />
+                    </button>
+                    {isEditing ? (
+                      <button
+                        className="btn btn-sm btn-primary"
+                        onClick={handleSaveEditor}
+                        disabled={saving || !!fileError || !selectedFile}
+                      >
+                        <Save size={16} />
+                        {saving ? t('note.action.saving') : t('note.action.save')}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-primary"
+                        onClick={openEditor}
+                        disabled={!!fileError || !selectedFile}
+                        title={t('note.action.edit')}
+                        aria-label={t('note.action.edit')}
+                      >
+                        <PencilRuler size={16} />
+                        {t('note.action.edit')}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {fileLoading ? (
+                  <div className="ui-empty-state note-empty-state editor-error">
+                    <NotebookPen size={36} />
+                    <p>{t('note.loading')}</p>
+                  </div>
+                ) : fileError ? (
+                  <div className="ui-empty-state note-empty-state editor-error">
+                    <Lock size={36} />
+                    <p>{fileError}</p>
+                  </div>
+                ) : isEditing ? (
+                  <div className="note-editor-frame editing">
+                    <MilkdownEditor
+                      ref={editorRef}
+                      content={plainContent}
+                      onChange={setPlainContent}
+                      className="milkdown-editor"
+                    />
+                  </div>
+                ) : selectedFile ? (
+                  <div className="note-editor-frame reading">
+                    <MilkdownEditor
+                      content={selectedFile.content}
+                      readOnly
+                      className="milkdown-editor"
+                    />
+                  </div>
+                ) : (
+                  <div className="ui-empty-state note-empty-state editor-error">
+                    <NotebookPen size={36} />
+                    <p>{t('note.error.notFound')}</p>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="ui-empty-state note-editor-empty">
+                <div className="ui-empty-icon note-editor-empty-icon">
+                  <NotebookPen size={32} />
+                </div>
+                <h3 className="ui-empty-title">
+                  {vaultStatus?.configured
+                    ? t('note.noOpen.title')
+                    : t('note.vault.open')}
+                </h3>
+                <p className="ui-empty-desc">
+                  {vaultStatus?.configured
+                    ? t('note.noOpen.select')
+                    : t('note.vault.emptyPrompt')}
+                </p>
+                {vaultStatus?.configured ? (
+                  <OpenSidebarButton
+                    label={t('note.openList')}
+                    variant="default"
+                  />
+                ) : (
+                  <button
+                    className="btn btn-primary"
+                    onClick={handleOpenVault}
+                    disabled={openingVault}
+                  >
+                    <FolderOpen size={16} />
+                    {openingVault ? t('note.vault.opening') : t('note.vault.open')}
+                  </button>
+                )}
+              </div>
+            )}
+          </section>
+        </section>
+      </main>
+    </AppShell>
+  )
+}
+
 export default function NotePage() {
   const { t } = useI18n()
+  const hasBackend = useAppStore(s => s.hasBackend)
+  const isDesktopClient = useIsDesktopClient()
+  const useVaultMode =
+    isDesktopClient &&
+    hasBackend === true &&
+    isLocalNoteVaultBackend(getBackendUrlExport())
 
   return (
     <Suspense
       fallback={<div className="note-editor-loading">{t('note.loading')}</div>}
     >
-      <NotePageContent />
+      {useVaultMode ? <VaultNotePageContent /> : <NotePageContent />}
     </Suspense>
   )
 }
