@@ -1,7 +1,7 @@
 export const zhCNCidMessages = {
   'cid.meta.title': 'CID 下载检查 - MostBox',
   'cid.meta.desc': '检查 MostBox CID 是否有在线种子，并在确认后开始下载。',
-  'cid.kicker': 'MOSTBOX CID',
+  'cid.kicker': 'MostBox CID',
   'cid.title': '检查分享文件',
   'cid.subtitle':
     'MostBox 会先检查这个 CID 是否能从在线种子下载。确认可用后，你可以手动开始下载。',
@@ -56,7 +56,7 @@ export const zhCNCidMessages = {
 export const zhTWCidMessages = {
   'cid.meta.title': 'CID 下載檢查 - MostBox',
   'cid.meta.desc': '檢查 MostBox CID 是否有線上種子，並在確認後開始下載。',
-  'cid.kicker': 'MOSTBOX CID',
+  'cid.kicker': 'MostBox CID',
   'cid.title': '檢查分享檔案',
   'cid.subtitle':
     'MostBox 會先檢查這個 CID 是否能從線上種子下載。確認可用後，你可以手動開始下載。',
@@ -112,7 +112,7 @@ export const enCidMessages = {
   'cid.meta.title': 'CID download check - MostBox',
   'cid.meta.desc':
     'Check whether a MostBox CID has online seeders, then start the download after confirming it.',
-  'cid.kicker': 'MOSTBOX CID',
+  'cid.kicker': 'MostBox CID',
   'cid.title': 'Check shared file',
   'cid.subtitle':
     'MostBox checks whether this CID can be downloaded from online seeders first. Once it is available, you can start the download manually.',

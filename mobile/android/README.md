@@ -13,14 +13,6 @@ Android app MVP for MostBox file sharing. This package keeps the mobile UI and B
 
 ## Commands
 
-From the repository root:
-
-```bash
-npm run android
-npm run android:test
-npm run android:build
-```
-
 From this package:
 
 ```bash
@@ -28,7 +20,7 @@ cd mobile/android
 npm install
 npm start
 npm test
-npm run apk
+npm run build
 ```
 
 `npm start` bundles the Bare Worklet core, starts the Expo dev server, picks the first connected Android target unless `ANDROID_SERIAL` is set, starts the first available emulator when no target is connected, and opens the dev client automatically. Emulators use `adb reverse` with `http://127.0.0.1:8081`; physical devices use an automatically selected LAN URL.
@@ -37,7 +29,7 @@ If the machine has multiple network adapters and the selected LAN URL is not rea
 
 ## Alpha APK
 
-`npm run apk` builds a release APK for device installation and writes these files to `mobile/android/dist/`:
+`npm run build` builds a release APK for device installation and writes these files to `mobile/android/dist/`:
 
 - `mostbox-android-<version>-release.apk`
 - `mostbox-android-<version>-release.apk.sha256.txt`

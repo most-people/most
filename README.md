@@ -6,21 +6,23 @@
 
 > P2P 文件分享应用。基于 Hyperswarm/Hyperdrive 的去中心化文件分发。
 >
+> MostBox 是 “MOST PEOPLE 去中心化 P2P 工具箱” 的简写，也对应 `most.box` 主域名。
+>
 > CID 是 MostBox 的文件身份：发布、做种、发现、下载和校验都围绕 CID 进行。文件名和目录只用于展示与本地保存路径，不作为内容是否存在或是否可信的依据。
 
 ## 为什么用 MostBox？
 
-| 特性                | MostBox | 微信/QQ | 网盘 |
-| ------------------- | ------- | ------- | ---- |
-| 🔒 无需云端账号     | ✅      | ❌      | ❌   |
-| 🚀 P2P直连，不限速  | ✅      | ❌      | 限流 |
-| 💾 去中心化存储     | ✅      | ❌      | ❌   |
-| 🌐 开源免费，自托管 | ✅      | ❌      |      |
-| 📦 大文件分享       | ✅      | ❌      | 限流 |
+| 特性               | MostBox | 微信/QQ | 网盘 |
+| ------------------ | ------- | ------- | ---- |
+| 🔒 无需云端账号     | ✅       | ❌       | ❌    |
+| 🚀 P2P直连，不限速  | ✅       | ❌       | 限流 |
+| 💾 去中心化存储     | ✅       | ❌       | ❌    |
+| 🌐 开源免费，自托管 | ✅       | ❌       |      |
+| 📦 大文件分享       | ✅       | ❌       | 限流 |
 
 ## 演示
 
-在线 Web 入口：[Most.Box](https://Most.Box)
+在线 Web 入口：[MostBox](https://Most.Box)
 
 > Web 入口只负责连接已有 MostBox 节点；要在本机发布、下载、校验和持续做种，优先使用桌面客户端，或在本机运行 `npx most-box@latest` 启动完整节点。
 
@@ -28,13 +30,13 @@
 
 ### 方式一：桌面客户端（推荐）
 
-前往 [Most.Box 下载页](https://Most.Box/download) 下载客户端，支持 Windows、macOS 和 Linux。桌面端内置本地 MostBox 节点，提供完整 P2P 文件分享、下载校验和持续做种能力，无需单独安装 Node.js。
+前往 [MostBox 下载页](https://Most.Box/download) 下载客户端，支持 Windows、macOS 和 Linux。桌面端内置本地 MostBox 节点，提供完整 P2P 文件分享、下载校验和持续做种能力，无需单独安装 Node.js。
 
 ### 移动端 App 计划
 
 移动端优先按 Android 前台完整种子 MVP 推进，参考 Keet/Pear 的“P2P 核心端 + 平台 UI 壳”分层：手机端先验证自己能发布、下载、校验并在前台继续做种，再扩展后台能力、iOS 和商店分发。详细范围见 [docs/mobile-android-plan.md](docs/mobile-android-plan.md)。
 
-Android 工程入口在 `mobile/android/`。本地开发可运行 `npm run android` 启动 Expo Dev Client 并打开 Android 真机/模拟器；首次安装开发版或原生依赖变更后运行 `npm run android:build`。
+Android 工程入口在 `mobile/android/`。本地开发先进入该目录运行 `npm install`；`npm start` 会启动 Expo Dev Client 并打开 Android 真机/模拟器；首次安装开发版或原生依赖变更后运行 `npm run build` 生成内部 Alpha APK。
 
 ### 方式二：npm 包
 
@@ -46,7 +48,7 @@ npx most-box@latest
 
 > 使用 `@latest` 确保每次运行最新版本。
 
-浏览器自动访问 **http://localhost:1976**
+启动后在浏览器打开 **http://localhost:1976**
 
 ## 需求
 
@@ -58,7 +60,7 @@ npx most-box@latest
 ## 开发
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/most-people/most.git
 cd most
 npm i
 npm run dev
@@ -72,27 +74,29 @@ node server/index.js
 前端源码集中在 `src/`：
 
 - `src/routes/`：TanStack Router file-based routes。`index.tsx` 保留路由关键配置，`index.lazy.tsx` 加载页面组件。
-- `src/features/`：页面和业务实现，例如文件分享、聊天、笔记、管理台、游戏和 Web3 工具箱。
+- `src/features/`：页面和业务实现，例如文件分享、聊天、知识库、管理台、游戏和 Web3 工具箱。
 - `src/components/`：跨功能共享 UI。
 - `src/hooks/`、`src/lib/`、`src/stores/`、`src/styles/`：共享 hooks、工具、状态和样式。
 - `src/lib/i18n/messages/*.ts`：按域拆分的中英文文案 catalog，由 `src/lib/i18n/messages.ts` 聚合。
 - `server/`：daemon、HTTP API、P2P 引擎和协议测试。
+- `mobile/android/`：Android Alpha 应用和 Bare Worklet P2P 核心。
 
 ## 测试
 
 ```bash
-npm test          # 运行全部测试
-npm run test:unit # 只运行单元测试
+npm test              # 运行全部后端测试
+npm run test:unit     # 只运行后端单元测试
+npm run test:protocol # 运行 CID / 发布 / 下载 / P2P 接力协议回归
 ```
 
 ## 访问场景
 
-| 场景       | 方式                                  | 访问地址                    |
-| ---------- | ------------------------------------- | --------------------------- |
-| 本地       | 桌面客户端或 `npx most-box@latest`    | `http://localhost:1976`     |
-| 局域网/NAS | 监听 `0.0.0.0`，仅信任家庭局域网      | `http://NAS-IP:1976`        |
-| 远程管理   | SSH 隧道 + `/admin/`                  | `http://localhost:1976`     |
-| 外网       | Caddy 反向代理                        | `https://your-domain`       |
+| 场景       | 方式                               | 访问地址                |
+| ---------- | ---------------------------------- | ----------------------- |
+| 本地       | 桌面客户端或 `npx most-box@latest` | `http://localhost:1976` |
+| 局域网/NAS | 监听 `0.0.0.0`，仅信任家庭局域网   | `http://NAS-IP:1976`    |
+| 远程管理   | SSH 隧道 + `/admin/`               | `http://localhost:1976` |
+| 外网       | Caddy 反向代理                     | `https://your-domain`   |
 
 ### 飞牛 OS / NAS 局域网部署
 
@@ -222,6 +226,10 @@ mostbox.example.com {
 
 这里的登录是本地身份，不是云端账号注册。MostBox 用它隔离同一节点上的不同用户文件列表，并为本地 HTTP API 请求生成短期签名；知道 `most://` 链接的人仍然可以尝试下载对应 CID 内容。
 
+### 知识库云备份和文件分享是什么关系？
+
+知识库、笔记和账号备份属于独立工具箱能力；云备份只覆盖对应工具箱数据，不会把 MostBox 发布的文件上传成云盘，也不参与 `most://` 文件下载、CID 校验或做种传播闭环。
+
 ### 支持大文件吗？
 
 支持。目前默认单文件上限为 **10GB**，可在本地节点策略中调整；传输采用流式处理，内存占用低。
@@ -263,6 +271,7 @@ npx most-box@latest
 - **后端**: Hono + @hono/node-server + WebSocket
 - **P2P**: Hyperswarm 4.x, Hyperdrive 13.x, Corestore 7.x
 - **桌面**: Electron 42, electron-builder
+- **移动端**: Expo 56, React Native 0.85, react-native-bare-kit / Bare Worklet
 - **测试**: Node.js built-in test runner
 
 ## CI/CD

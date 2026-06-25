@@ -70,6 +70,7 @@ MVP 成功标准：
 - P2P：Hyperswarm 4.x, Hyperdrive 13.x, Corestore 7.x
 - Web3 工具箱：ethers.js
 - 桌面：Electron 42, electron-builder
+- 移动端：Expo 56, React Native 0.85, react-native-bare-kit / Bare Worklet
 - 测试：Node.js built-in test runner
 
 本地源码开发建议 Node.js >= 22.12。当前 TanStack Start static prerender 前端和 Electron 42 开发/打包都建议 Node.js >= 22.12。
@@ -95,6 +96,13 @@ npm test
 npm run test:unit
 npm run test:protocol
 npm run lint
+
+# Android 子包
+cd mobile/android
+npm install
+npm start
+npm test
+npm run build
 ```
 
 ## 验证策略
@@ -139,7 +147,7 @@ npm run lint
 - 游戏房间复用 MostBox 现有 P2P channel：Hyperswarm discovery + Corestore/Hypercore JSON 消息日志 + HTTP API + WebSocket 实时通知。
 - 游戏不新增独立后端接口；统一使用 `/api/channels` 和 `/ws`，前端通过共享 `channelApi` 与 `useChannelMessages` 读写频道。
 - `/chat/` 与游戏共用频道后端，但产品语义分开：聊天发送普通文本/附件；游戏发送结构化游戏事件 JSON。
-- 游戏频道 `type` 使用 `game`，频道名格式使用 `game.<gameId>.<roomCode>`；当前干瞪眼玩法的 `gameId` 是 `gandengyan`，实际频道名形如 `game.gandengyan.a1b2c3`。
+- 游戏频道 `type` 使用 `game`，频道名格式使用 `game.<gameId>.<roomCode>`；当前已有 `gameId` 包括 `gandengyan` 和 `zhajinhua`，实际频道名形如 `game.gandengyan.a1b2c3` 或 `game.zhajinhua.a1b2c3`。
 - 游戏事件内容使用 JSON，顶层包含 `type: "game"`、`gameId`、`roomCode`、`event`、`eventId` 和 `payload`。
 - 历史兼容不保留旧游戏 WebSocket 事件；需要时直接清理旧事件路径，避免维护双协议。
 - 写代码前先考虑项目结构，优先拆出可复用模块，不写重复或相似的通道/消息同步逻辑。
@@ -152,6 +160,7 @@ npm run lint
 - Web3 工具箱：`src/features/web3/Web3Page.tsx`
 - 笔记模块：`src/features/note/NotePage.tsx`、`src/components/MilkdownEditor.tsx`
 - 管理后台：`src/features/admin/AdminPage.tsx`
+- Android Alpha：`mobile/android/`
 - 全局状态：`src/stores/useAppStore.ts`
 - 后端 daemon 启动入口：`server/index.js`
 - HTTP 应用和路由：`server/src/http/app.js`

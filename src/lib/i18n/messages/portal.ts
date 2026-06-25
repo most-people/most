@@ -5,7 +5,7 @@ export const zhCNPortalMessages = {
   'portal.nodeAdmin': '节点管理',
   'portal.enterFeature': '进入 {title}',
   'portal.openFeature': '打开{title}',
-  'portal.feature.app.title': 'MostBox',
+  'portal.feature.app.title': '文件',
   'portal.feature.app.subtitle': 'P2P 文件分享',
   'portal.feature.app.hero': 'P2P 文件分享，无需注册',
   'portal.feature.app.desc':
@@ -31,8 +31,8 @@ export const zhCNPortalMessages = {
   'portal.feature.app.step.share.title': '开始分享',
   'portal.feature.app.step.share.desc':
     '发布文件生成 most:// 链接，朋友下载校验通过后也会成为新的种子。',
-  'portal.feature.chat.title': 'P2P 聊天',
-  'portal.feature.chat.subtitle': '频道加密通讯',
+  'portal.feature.chat.title': '聊天',
+  'portal.feature.chat.subtitle': 'P2P 频道加密通讯',
   'portal.feature.chat.hero': '去中心化频道聊天',
   'portal.feature.chat.desc':
     '基于 Hypercore 的 P2P 加密即时通讯。创建频道，邀请朋友，端到端加密，无需服务器中转。',
@@ -49,9 +49,9 @@ export const zhCNPortalMessages = {
   'portal.feature.chat.step.send.title': '开始聊天',
   'portal.feature.chat.step.send.desc':
     '发送消息，P2P 网络自动同步给所有在线节点。',
-  'portal.feature.note.title': '笔记',
+  'portal.feature.note.title': '知识库',
   'portal.feature.note.subtitle': '加密云备份',
-  'portal.feature.note.hero': 'Web3 加密笔记',
+  'portal.feature.note.hero': 'Web3 加密知识库',
   'portal.feature.note.desc':
     '使用本地 Web3 密钥加密 Markdown 笔记，可在浏览器本地保存并按需同步到云端备份。',
   'portal.feature.note.bullet.markdown': 'Markdown 块编辑器',
@@ -113,7 +113,7 @@ export const zhTWPortalMessages = {
   'portal.nodeAdmin': '節點管理',
   'portal.enterFeature': '進入 {title}',
   'portal.openFeature': '開啟{title}',
-  'portal.feature.app.title': 'MostBox',
+  'portal.feature.app.title': '檔案',
   'portal.feature.app.subtitle': 'P2P 檔案分享',
   'portal.feature.app.hero': 'P2P 檔案分享，無需註冊',
   'portal.feature.app.desc':
@@ -139,8 +139,8 @@ export const zhTWPortalMessages = {
   'portal.feature.app.step.share.title': '開始分享',
   'portal.feature.app.step.share.desc':
     '發布檔案生成 most:// 連結，朋友下載校驗通過後也會成為新的種子。',
-  'portal.feature.chat.title': 'P2P 聊天',
-  'portal.feature.chat.subtitle': '頻道加密通訊',
+  'portal.feature.chat.title': '聊天',
+  'portal.feature.chat.subtitle': 'P2P 頻道加密通訊',
   'portal.feature.chat.hero': '去中心化頻道聊天',
   'portal.feature.chat.desc':
     '基於 Hypercore 的 P2P 加密即時通訊。建立頻道，邀請朋友，端到端加密，無需伺服器中轉。',
@@ -157,9 +157,9 @@ export const zhTWPortalMessages = {
   'portal.feature.chat.step.send.title': '開始聊天',
   'portal.feature.chat.step.send.desc':
     '傳送訊息，P2P 網路自動同步給所有線上節點。',
-  'portal.feature.note.title': '筆記',
+  'portal.feature.note.title': '知識庫',
   'portal.feature.note.subtitle': '加密雲備份',
-  'portal.feature.note.hero': 'Web3 加密筆記',
+  'portal.feature.note.hero': 'Web3 加密知識庫',
   'portal.feature.note.desc':
     '使用本機 Web3 金鑰加密 Markdown 筆記，可在瀏覽器本機儲存並按需同步到雲端備份。',
   'portal.feature.note.bullet.markdown': 'Markdown 塊編輯器',
@@ -221,7 +221,7 @@ export const enPortalMessages = {
   'portal.nodeAdmin': 'Node admin',
   'portal.enterFeature': 'Open {title}',
   'portal.openFeature': 'Open {title}',
-  'portal.feature.app.title': 'MostBox',
+  'portal.feature.app.title': 'Files',
   'portal.feature.app.subtitle': 'P2P file sharing',
   'portal.feature.app.hero': 'P2P file sharing, no signup required',
   'portal.feature.app.desc':
@@ -251,8 +251,8 @@ export const enPortalMessages = {
   'portal.feature.app.step.share.title': 'Start sharing',
   'portal.feature.app.step.share.desc':
     'Publish a file to create a most:// link. Friends who complete and verify the download become new seeders.',
-  'portal.feature.chat.title': 'P2P chat',
-  'portal.feature.chat.subtitle': 'Encrypted channels',
+  'portal.feature.chat.title': 'Chat',
+  'portal.feature.chat.subtitle': 'P2P encrypted channels',
   'portal.feature.chat.hero': 'Decentralized channel chat',
   'portal.feature.chat.desc':
     'P2P encrypted messaging powered by Hypercore. Create a channel, invite friends, and chat without a relay server.',
@@ -274,9 +274,9 @@ export const enPortalMessages = {
   'portal.feature.chat.step.send.title': 'Start chatting',
   'portal.feature.chat.step.send.desc':
     'Send messages and the P2P network syncs them to online nodes.',
-  'portal.feature.note.title': 'Notes',
+  'portal.feature.note.title': 'Knowledge Base',
   'portal.feature.note.subtitle': 'Encrypted cloud backup',
-  'portal.feature.note.hero': 'Web3 encrypted notes',
+  'portal.feature.note.hero': 'Web3 encrypted knowledge base',
   'portal.feature.note.desc':
     'Encrypt Markdown notes with local Web3 keys, save them in the browser, and sync encrypted backups when needed.',
   'portal.feature.note.bullet.markdown': 'Markdown block editor',
