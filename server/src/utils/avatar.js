@@ -1,5 +1,5 @@
-import { createAvatar } from '@dicebear/core'
-import { botttsNeutral } from '@dicebear/collection'
+import { Avatar, Style } from '@dicebear/core'
+import botttsNeutralDefinition from '@dicebear/styles/bottts-neutral.json' with { type: 'json' }
 
 export const defaultAvatarIds = [
   'panda',
@@ -50,11 +50,11 @@ export function normalizeDefaultAvatarValue(avatar) {
 }
 
 function createAddressAvatar(address) {
-  return createAvatar(botttsNeutral, {
+  const avatar = new Avatar(new Style(botttsNeutralDefinition), {
     seed: 'most.box@' + address,
-    flip: true,
-    backgroundType: ['gradientLinear'],
-  }).toDataUri()
+    flip: 'horizontal',
+  })
+  return avatar.toDataUri()
 }
 
 export function generateAvatar(address, avatar) {
