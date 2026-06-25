@@ -18,7 +18,7 @@
   "scripts": {
     "start": "vite",
     "server": "node --watch server/index.js",
-    "dev": "vite",
+    "desktop": "npm run electron:dev",
     "build": "vite build && node scripts/prepare-start-static.mjs",
     "preview": "vite preview",
     "serve": "npm run build && node server/index.js",

@@ -7,8 +7,9 @@
 构建前先运行移动端协议测试：
 
 ```bash
-npm run android:test
-npm run android:build
+cd mobile/android
+npm test
+npm run build
 ```
 
 构建成功后检查 `mobile/android/dist/`：

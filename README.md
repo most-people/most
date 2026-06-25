@@ -36,7 +36,15 @@
 
 移动端优先按 Android 前台完整种子 MVP 推进，参考 Keet/Pear 的“P2P 核心端 + 平台 UI 壳”分层：手机端先验证自己能发布、下载、校验并在前台继续做种，再扩展后台能力、iOS 和商店分发。详细范围见 [docs/mobile-android-plan.md](docs/mobile-android-plan.md)。
 
-Android 工程入口在 `mobile/android/`。本地开发先进入该目录运行 `npm install`；`npm start` 会启动 Expo Dev Client 并打开 Android 真机/模拟器；首次安装开发版或原生依赖变更后运行 `npm run build` 生成内部 Alpha APK。
+Android 工程入口以 `mobile/android/` 子包为准，仓库根目录不提供 `android:start`、`android:test` 或 `android:build` 包装脚本。本地开发、测试和打包命令统一在子包目录执行：
+
+```bash
+cd mobile/android
+npm install
+npm start      # 启动 Expo Dev Client 并打开 Android 真机/模拟器
+npm test       # 运行移动端 CID、most:// 协议和 Bare Worklet IPC 测试
+npm run build  # 生成内部 Alpha APK 和 SHA256 校验文件
+```
 
 ### 方式二：npm 包
 
@@ -87,6 +95,9 @@ node server/index.js
 npm test              # 运行全部后端测试
 npm run test:unit     # 只运行后端单元测试
 npm run test:protocol # 运行 CID / 发布 / 下载 / P2P 接力协议回归
+
+cd mobile/android
+npm test              # 运行 Android 子包协议和 IPC 测试
 ```
 
 ## 访问场景

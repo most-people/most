@@ -13,8 +13,8 @@ function printHelp() {
   console.log(`MostBox Android real P2P desktop seed helper
 
 Usage:
-  npm run android:seed
-  npm run android:seed -- --file ./fixtures/small.txt
+  node scripts/android-real-p2p-seed.mjs
+  node scripts/android-real-p2p-seed.mjs --file ./fixtures/small.txt
 
 Options:
   --file <path>       Publish an existing local file instead of a generated fixture.

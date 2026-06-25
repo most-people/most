@@ -73,6 +73,16 @@ Keet 值得参考的是产品和工程分层，而不是照搬聊天、通话或
 - Bare Worklet 后端入口：`mobile/android/backend/backend.mjs`
 - 当前 UI 已接入真实 Bare Worklet P2P core；Hyperswarm/Hyperdrive 发布、下载、CID 校验和 holdings 由 `mobile/android/backend/mobile-core.mjs` 提供。
 
+Android 开发、测试和打包入口统一以 `mobile/android/` 子包脚本为准，仓库根目录不提供 `android:start`、`android:test` 或 `android:build` 包装脚本：
+
+```bash
+cd mobile/android
+npm install
+npm start
+npm test
+npm run build
+```
+
 需要保留的 MostBox 协议不变量：
 
 - `most://<cid>?filename=...` 是原生分享链接格式。
@@ -136,8 +146,8 @@ Phase 0 已在 Android 真机通过。若后续升级 Hyperswarm、Corestore、H
 
 内测包交付入口：
 
-- `npm run android:test`：运行移动端 CID、`most://` 链接协议和 JSONL IPC 解析测试。
-- `npm run android:build`：生成版本化 APK `mobile/android/dist/mostbox-android-<version>-release.apk` 和 SHA256 校验文件。
+- `cd mobile/android && npm test`：运行移动端 CID、`most://` 链接协议和 JSONL IPC 解析测试。
+- `cd mobile/android && npm run build`：生成版本化 APK `mobile/android/dist/mostbox-android-<version>-release.apk` 和 SHA256 校验文件。
 - `docs/mobile-android-alpha.md`：记录每轮真机复测的设备、网络、CID、耗时、结果和失败日志摘要。
 
 ## 验收场景

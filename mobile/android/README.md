@@ -13,7 +13,7 @@ Android app MVP for MostBox file sharing. This package keeps the mobile UI and B
 
 ## Commands
 
-From this package:
+Run Android development, test, and packaging commands from this package. The repository root does not provide `android:start`, `android:test`, or `android:build` wrappers.
 
 ```bash
 cd mobile/android
@@ -52,6 +52,12 @@ Use one Android device and at least one desktop MostBox node:
 10. Paste the same `most://` link again, download it while another seed is online, and confirm Android adds it back to Holdings with `active` and `topicJoined` true.
 11. Stop the original desktop publisher. Keep Android in the foreground, then download the same link from another desktop node.
 12. Restart the Android app and confirm existing holdings rejoin their CID topics.
+
+For a local desktop seed helper, run this from the repository root:
+
+```bash
+node scripts/android-real-p2p-seed.mjs
+```
 
 ## Known Limits
 
