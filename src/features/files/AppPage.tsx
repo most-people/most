@@ -30,6 +30,7 @@ import { SidebarHomeLink } from '~/components/SidebarHomeLink'
 import FilePreviewOverlay from '~/components/FilePreviewOverlay'
 import { MoveModal } from '~/components/MoveModal'
 import { ModalOverlay, ConfirmModal, InputModal } from '~/components/ui'
+import { AccountBackupMenuButton } from '~/features/profile/AccountBackup'
 import {
   getApiErrorMessage,
   getApiRequestHeaders,
@@ -872,6 +873,7 @@ export default function App() {
           >
             {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
           </button>
+          <AccountBackupMenuButton />
         </>
       }
     >

@@ -27,6 +27,7 @@ import {
 } from '~/components/ChatUi'
 import FilePreviewOverlay from '~/components/FilePreviewOverlay'
 import { InputModal, ConfirmModal, ModalOverlay } from '~/components/ui'
+import { AccountBackupMenuButton } from '~/features/profile/AccountBackup'
 import OpenSidebarButton from '~/components/OpenSidebarButton'
 import { SidebarHomeLink } from '~/components/SidebarHomeLink'
 import { LogoIcon } from '~/components/icons/LogoIcon'
@@ -1341,6 +1342,7 @@ function ChatPage() {
               <Settings size={16} />
             </button>
           )}
+          <AccountBackupMenuButton />
         </div>
       }
     >

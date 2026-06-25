@@ -854,7 +854,12 @@ describe('frontend smoke checks', () => {
   it('keeps account backup scoped and restores once after fresh login', () => {
     const appGlobalsSource = readSource('src/components/AppGlobals.tsx')
     const profileSource = readSource('src/features/profile/ProfilePage.tsx')
+    const backupComponentSource = readSource(
+      'src/features/profile/AccountBackup.tsx'
+    )
+    const filesSource = readSource('src/features/files/AppPage.tsx')
     const noteSource = readSource('src/features/note/NotePage.tsx')
+    const chatSource = readSource('src/features/chat/ChatPage.tsx')
     const backupSource = readSource('src/features/profile/useAccountBackup.ts')
     const userStoreSource = readSource('src/stores/userStore.ts')
 
@@ -867,16 +872,35 @@ describe('frontend smoke checks', () => {
       /restoreFromCloud\(\{[\s\S]*onlyWhenLocalEmpty:\s*true/
     )
     assert.match(userStoreSource, /pendingCloudRestoreAddress/)
-    assert.match(profileSource, /useAccountBackup\(\)/)
-    assert.match(profileSource, /accountBackup\.backupToCloud/)
-    assert.match(profileSource, /accountBackup\.restoreFromCloud/)
-    assert.match(profileSource, /accountBackup\.exportLocalBackup/)
-    assert.match(profileSource, /accountBackup\.importLocalBackup/)
-    assert.match(profileSource, /openCloudBackupConfirm/)
-    assert.match(profileSource, /openCloudRestoreConfirm/)
-    assert.match(profileSource, /requestImportBackupConfirm/)
-    assert.match(profileSource, /requestConfirm:\s*requestImportBackupConfirm/)
-    const backupPanelIndex = profileSource.indexOf('profile-backup-panel')
+    assert.match(profileSource, /AccountBackupPanel/)
+    assert.doesNotMatch(profileSource, /accountBackup\./)
+    assert.doesNotMatch(profileSource, /backupConfirm/)
+    assert.match(backupComponentSource, /export function AccountBackupPanel/)
+    assert.match(
+      backupComponentSource,
+      /export function AccountBackupMenuButton/
+    )
+    assert.match(backupComponentSource, /useAccountBackup\(\)/)
+    assert.match(backupComponentSource, /ActionMenu/)
+    assert.match(backupComponentSource, /ConfirmModal/)
+    assert.match(backupComponentSource, /accountBackup\.backupToCloud/)
+    assert.match(backupComponentSource, /accountBackup\.restoreFromCloud/)
+    assert.match(backupComponentSource, /accountBackup\.exportLocalBackup/)
+    assert.match(backupComponentSource, /accountBackup\.importLocalBackup/)
+    assert.match(backupComponentSource, /openCloudBackupConfirm/)
+    assert.match(backupComponentSource, /openCloudRestoreConfirm/)
+    assert.match(backupComponentSource, /requestImportBackupConfirm/)
+    assert.match(
+      backupComponentSource,
+      /requestConfirm:\s*requestImportBackupConfirm/
+    )
+    assert.match(filesSource, /AccountBackupMenuButton/)
+    assert.ok(
+      (noteSource.match(/AccountBackupMenuButton/g) || []).length >= 3,
+      'note page should render account backup in both note header modes'
+    )
+    assert.match(chatSource, /AccountBackupMenuButton/)
+    const backupPanelIndex = profileSource.indexOf('<AccountBackupPanel')
     const profileHeaderIndex = profileSource.indexOf('profile-header')
     assert.ok(
       backupPanelIndex !== -1 &&

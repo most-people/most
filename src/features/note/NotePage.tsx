@@ -29,6 +29,7 @@ import {
 import AppShell from '~/components/AppShell'
 import OpenSidebarButton from '~/components/OpenSidebarButton'
 import { ConfirmModal, InputModal } from '~/components/ui'
+import { AccountBackupMenuButton } from '~/features/profile/AccountBackup'
 import { useAppStore, type NoteItem } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import type { MilkdownEditorRef } from '~/components/MilkdownEditor'
@@ -534,6 +535,7 @@ function NotePageContent() {
       >
         {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
       </button>
+      <AccountBackupMenuButton />
     </div>
   )
 
@@ -1126,6 +1128,7 @@ function VaultNotePageContent() {
       >
         {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
       </button>
+      <AccountBackupMenuButton />
     </div>
   )
 

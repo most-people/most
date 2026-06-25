@@ -3,17 +3,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import {
   Check,
-  CloudDownload,
-  CloudUpload,
-  Download,
   ExternalLink,
   Fingerprint,
   KeyRound,
-  Loader,
   LogOut,
   Save,
   ShieldCheck,
-  Upload,
   User,
   WalletCards,
 } from 'lucide-react'
@@ -24,7 +19,7 @@ import { ConfirmModal } from '~/components/ui'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import { useI18n, type MessageKey } from '~/lib/i18n'
-import { useAccountBackup } from '~/features/profile/useAccountBackup'
+import { AccountBackupPanel } from '~/features/profile/AccountBackup'
 import { api, getApiErrorMessage } from '~server/src/utils/api'
 import {
   defaultAvatarIds,
@@ -39,15 +34,6 @@ import { getIPNS } from '~server/src/utils/mp.js'
 type AvatarOption = {
   value: string
   labelKey: MessageKey
-}
-
-type BackupConfirm = {
-  title: string
-  message: string
-  confirmText: string
-  danger?: boolean
-  onConfirm: () => void | Promise<void>
-  onClose?: () => void
 }
 
 const avatarOptions: AvatarOption[] = [
@@ -79,11 +65,9 @@ export default function ProfilePage() {
   const openLoginModal = useUserStore(s => s.openLoginModal)
   const setUserIdentity = useUserStore(s => s.setUserIdentity)
   const logoutUser = useUserStore(s => s.logoutUser)
-  const accountBackup = useAccountBackup()
   const [displayNameDraft, setDisplayNameDraft] = useState('')
   const [avatarUrlDraft, setAvatarUrlDraft] = useState('')
   const [avatarUrlError, setAvatarUrlError] = useState('')
-  const [backupConfirm, setBackupConfirm] = useState<BackupConfirm | null>(null)
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const header = <MarketingHeader />
 
@@ -211,132 +195,11 @@ export default function ProfilePage() {
     setShowLogoutConfirm(false)
   }
 
-  function openCloudBackupConfirm() {
-    setBackupConfirm({
-      title: t('profile.backup.confirm.backupTitle'),
-      message: t('profile.backup.confirm.backupMessage'),
-      confirmText: t('profile.backup.action.cloudBackup'),
-      onConfirm: async () => {
-        setBackupConfirm(null)
-        await accountBackup.backupToCloud()
-      },
-    })
-  }
-
-  function openCloudRestoreConfirm() {
-    setBackupConfirm({
-      title: t('profile.backup.confirm.restoreTitle'),
-      message: t('profile.backup.confirm.restoreMessage'),
-      confirmText: t('profile.backup.action.cloudRestore'),
-      onConfirm: async () => {
-        setBackupConfirm(null)
-        await accountBackup.restoreFromCloud({ confirm: false })
-      },
-    })
-  }
-
-  function requestImportBackupConfirm() {
-    return new Promise<boolean>(resolve => {
-      const close = (confirmed: boolean) => {
-        setBackupConfirm(null)
-        resolve(confirmed)
-      }
-      setBackupConfirm({
-        title: t('profile.backup.confirm.importTitle'),
-        message: t('profile.backup.confirm.restore'),
-        confirmText: t('profile.backup.action.importLocal'),
-        onConfirm: () => close(true),
-        onClose: () => close(false),
-      })
-    })
-  }
-
-  function handleImportLocalBackup() {
-    accountBackup.importLocalBackup({
-      requestConfirm: requestImportBackupConfirm,
-    })
-  }
-
-  const cloudBackupWorking = accountBackup.action === 'backup'
-  const cloudRestoreWorking = accountBackup.action === 'restore'
-  const exportWorking = accountBackup.action === 'export'
-  const importWorking = accountBackup.action === 'import'
-
   return (
     <MarketingLayout header={header}>
       <section className="profile-page">
         <div className="profile-container">
-          <section className="profile-panel profile-backup-panel">
-            <div className="profile-panel-header">
-              <div>
-                <h2>{t('profile.section.backup')}</h2>
-                <p>{t('profile.section.backup.desc')}</p>
-              </div>
-            </div>
-            <div className="profile-backup-actions">
-              <button
-                type="button"
-                className={`btn btn-secondary ${exportWorking ? 'btn-loading' : ''}`}
-                onClick={accountBackup.exportLocalBackup}
-                disabled={accountBackup.busy}
-              >
-                {exportWorking ? (
-                  <Loader size={16} className="ui-spinner" />
-                ) : (
-                  <Download size={16} />
-                )}
-                {exportWorking
-                  ? t('profile.backup.status.exporting')
-                  : t('profile.backup.action.exportLocal')}
-              </button>
-              <button
-                type="button"
-                className={`btn btn-secondary ${importWorking ? 'btn-loading' : ''}`}
-                onClick={handleImportLocalBackup}
-                disabled={accountBackup.busy}
-              >
-                {importWorking ? (
-                  <Loader size={16} className="ui-spinner" />
-                ) : (
-                  <Upload size={16} />
-                )}
-                {importWorking
-                  ? t('profile.backup.status.importing')
-                  : t('profile.backup.action.importLocal')}
-              </button>
-
-              <button
-                type="button"
-                className={`btn btn-primary ${cloudBackupWorking ? 'btn-loading' : ''}`}
-                onClick={openCloudBackupConfirm}
-                disabled={accountBackup.busy}
-              >
-                {cloudBackupWorking ? (
-                  <Loader size={16} className="ui-spinner" />
-                ) : (
-                  <CloudUpload size={16} />
-                )}
-                {cloudBackupWorking
-                  ? t('profile.backup.status.backingUp')
-                  : t('profile.backup.action.cloudBackup')}
-              </button>
-              <button
-                type="button"
-                className={`btn btn-secondary ${cloudRestoreWorking ? 'btn-loading' : ''}`}
-                onClick={openCloudRestoreConfirm}
-                disabled={accountBackup.busy}
-              >
-                {cloudRestoreWorking ? (
-                  <Loader size={16} className="ui-spinner" />
-                ) : (
-                  <CloudDownload size={16} />
-                )}
-                {cloudRestoreWorking
-                  ? t('profile.backup.status.restoring')
-                  : t('profile.backup.action.cloudRestore')}
-              </button>
-            </div>
-          </section>
+          <AccountBackupPanel />
 
           <header className="profile-header">
             <img className="profile-avatar-large" src={avatarSrc} alt="" />
@@ -521,16 +384,6 @@ export default function ProfilePage() {
           danger
           onConfirm={handleLogout}
           onClose={() => setShowLogoutConfirm(false)}
-        />
-      )}
-      {backupConfirm && (
-        <ConfirmModal
-          title={backupConfirm.title}
-          message={backupConfirm.message}
-          confirmText={backupConfirm.confirmText}
-          danger={backupConfirm.danger}
-          onConfirm={backupConfirm.onConfirm}
-          onClose={backupConfirm.onClose || (() => setBackupConfirm(null))}
         />
       )}
     </MarketingLayout>
