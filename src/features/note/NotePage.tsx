@@ -46,8 +46,11 @@ import {
 } from '~server/src/utils/api.js'
 import {
   configureNoteVault,
+  createNoteVaultFile,
+  deleteNoteVaultFile,
   getNoteVaultStatus,
   listNoteVaultFiles,
+  moveNoteVaultFile,
   readNoteVaultFile,
   saveNoteVaultFile,
   type NoteVaultFile,
@@ -174,6 +177,17 @@ function getVaultNoteItems(files: NoteVaultFile[]): NoteItem[] {
   }))
 }
 
+function ensureMarkdownFileName(input: string) {
+  const name = input.trim()
+  if (!name) return ''
+  return name.toLowerCase().endsWith('.md') ? name : `${name}.md`
+}
+
+function getVaultFilePath(directory: string, name: string) {
+  const fileName = ensureMarkdownFileName(name)
+  return normalizeNotePath(directory ? `${directory}/${fileName}` : fileName)
+}
+
 function isLocalNoteVaultBackend(url: string) {
   const value =
     url ||
@@ -192,6 +206,35 @@ function isLocalNoteVaultBackend(url: string) {
   } catch {
     return false
   }
+}
+
+function useConfiguredNoteVaultBackend(enabled: boolean, walletAddress = '') {
+  const [configured, setConfigured] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+
+    if (!enabled || !walletAddress) {
+      setConfigured(false)
+      return () => {
+        cancelled = true
+      }
+    }
+
+    getNoteVaultStatus()
+      .then(status => {
+        if (!cancelled) setConfigured(status.configured === true)
+      })
+      .catch(() => {
+        if (!cancelled) setConfigured(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [enabled, walletAddress])
+
+  return configured
 }
 
 function NotePageContent() {
@@ -876,7 +919,7 @@ function NotePageContent() {
 }
 
 function VaultNotePageContent() {
-  const { t, formatDate } = useI18n()
+  const { t, formatDate, compareStrings } = useI18n()
   const navigate = useNavigate()
   const searchStr = useLocation({ select: location => location.searchStr })
   const params = useMemo(() => getNoteSearch(searchStr), [searchStr])
@@ -899,13 +942,32 @@ function VaultNotePageContent() {
   const [openingVault, setOpeningVault] = useState(false)
   const [selectedFile, setSelectedFile] =
     useState<NoteVaultFileContent | null>(null)
+  const [previewName, setPreviewName] = useState('')
   const [plainContent, setPlainContent] = useState('')
   const [fileLoading, setFileLoading] = useState(false)
   const [fileError, setFileError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [inputModal, setInputModal] = useState<null | {
+    title: string
+    placeholder?: string
+    defaultValue?: string
+    confirmText: string
+    onConfirm: (value: string) => Promise<void> | void
+  }>(null)
+  const [confirmModal, setConfirmModal] = useState<null | {
+    title: string
+    message: string
+    confirmText: string
+    onConfirm: () => void | Promise<void>
+  }>(null)
+  const [moveTarget, setMoveTarget] = useState<ExplorerItem | null>(null)
 
   const vaultNotes = useMemo(() => getVaultNoteItems(vaultFiles), [vaultFiles])
   const selectedNote = vaultNotes.find(note => note.cid === currentFilePath)
+  const directoryOptions = useMemo(
+    () => getDirectoryOptions(vaultNotes, compareStrings),
+    [compareStrings, vaultNotes]
+  )
   const explorerItems = useMemo(
     () =>
       filterNotesByPath(
@@ -960,6 +1022,10 @@ function VaultNotePageContent() {
   useEffect(() => {
     void refreshVault()
   }, [refreshVault])
+
+  useEffect(() => {
+    setPreviewName(selectedFile?.name || selectedNote?.name || '')
+  }, [selectedFile?.name, selectedNote?.name])
 
   useEffect(() => {
     let cancelled = false
@@ -1056,6 +1122,172 @@ function VaultNotePageContent() {
     } finally {
       setOpeningVault(false)
     }
+  }
+
+  function ensureVaultReady() {
+    if (!wallet) {
+      openLoginModal()
+      return false
+    }
+    if (vaultStatus?.configured !== true) {
+      addToast(t('note.vault.emptyPrompt'), 'warning')
+      return false
+    }
+    return true
+  }
+
+  function openCreateNoteModal() {
+    if (!ensureVaultReady()) return
+    setInputModal({
+      title: t('note.create.title'),
+      placeholder: t('note.namePlaceholder'),
+      confirmText: t('note.create.action'),
+      onConfirm: async value => {
+        if (!ensureVaultReady()) return
+        const targetPath = getVaultFilePath(vaultFolderPath, value)
+        if (!targetPath) {
+          addToast(t('note.toast.nameRequired'), 'warning')
+          return
+        }
+
+        try {
+          const file = await createNoteVaultFile(targetPath, '')
+          setInputModal(null)
+          await refreshVault()
+          navigateToVault({ file: file.path, mode: 'edit' })
+          addToast(t('note.toast.created'), 'success')
+        } catch (err: unknown) {
+          addToast(
+            await getApiErrorMessage(err, t('note.toast.createFailed')),
+            'error'
+          )
+        }
+      },
+    })
+  }
+
+  async function handlePreviewRename() {
+    if (!ensureVaultReady() || !selectedFile) return
+    const nextName = ensureMarkdownFileName(previewName)
+    if (!nextName) {
+      setPreviewName(selectedFile.name)
+      addToast(t('note.toast.nameRequired'), 'warning')
+      return
+    }
+    if (nextName === selectedFile.name) return
+
+    const nextPath = normalizeNotePath(
+      selectedFile.directory
+        ? `${selectedFile.directory}/${nextName}`
+        : nextName
+    )
+
+    try {
+      const file = await moveNoteVaultFile(selectedFile.path, nextPath)
+      setSelectedFile(file)
+      setPreviewName(file.name)
+      await refreshVault()
+      navigateToVault({ file: file.path }, true)
+      addToast(t('note.toast.renamed'), 'success')
+    } catch (err: unknown) {
+      setPreviewName(selectedFile.name)
+      addToast(
+        await getApiErrorMessage(err, t('note.toast.renameFailed')),
+        'error'
+      )
+    }
+  }
+
+  function openMoveModal(item: ExplorerItem) {
+    if (!ensureVaultReady()) return
+    setMoveTarget(item)
+  }
+
+  async function handleMove(targetPath: string) {
+    if (!moveTarget || !ensureVaultReady()) return
+
+    try {
+      let nextCurrentPath = currentFilePath
+
+      if (moveTarget.type === 'directory') {
+        const sourceFolder = getExplorerItemFullPath(moveTarget)
+        const targetFolder = normalizeNotePath(
+          targetPath ? `${targetPath}/${moveTarget.name}` : moveTarget.name
+        )
+        const filesToMove = vaultFiles.filter(file =>
+          file.path.startsWith(`${sourceFolder}/`)
+        )
+
+        for (const file of filesToMove) {
+          const suffix = file.path.slice(sourceFolder.length + 1)
+          const nextPath = normalizeNotePath(`${targetFolder}/${suffix}`)
+          await moveNoteVaultFile(file.path, nextPath)
+          if (currentFilePath === file.path) {
+            nextCurrentPath = nextPath
+          }
+        }
+      } else {
+        const nextPath = normalizeNotePath(
+          targetPath ? `${targetPath}/${moveTarget.name}` : moveTarget.name
+        )
+        const file = await moveNoteVaultFile(moveTarget.cid, nextPath)
+        if (currentFilePath === moveTarget.cid) {
+          nextCurrentPath = file.path
+        }
+      }
+
+      setMoveTarget(null)
+      await refreshVault()
+      navigateToVault(nextCurrentPath ? { file: nextCurrentPath } : {}, true)
+      addToast(t('note.toast.moved'), 'success')
+    } catch (err: unknown) {
+      addToast(
+        await getApiErrorMessage(err, t('note.toast.moveFailed')),
+        'error'
+      )
+    }
+  }
+
+  function openDeleteConfirm(item: ExplorerItem) {
+    if (!ensureVaultReady()) return
+    const isDirectory = item.type === 'directory'
+    setConfirmModal({
+      title: isDirectory
+        ? t('note.delete.folderTitle')
+        : t('note.delete.noteTitle'),
+      message: t('note.delete.message', { name: item.name }),
+      confirmText: t('note.action.delete'),
+      onConfirm: async () => {
+        try {
+          if (item.type === 'directory') {
+            const folderPath = getExplorerItemFullPath(item)
+            const filesToDelete = vaultFiles.filter(file =>
+              file.path.startsWith(`${folderPath}/`)
+            )
+            for (const file of filesToDelete) {
+              await deleteNoteVaultFile(file.path)
+            }
+            if (currentFilePath.startsWith(`${folderPath}/`)) {
+              navigateToVault({}, true)
+            }
+          } else {
+            await deleteNoteVaultFile(item.cid)
+            if (currentFilePath === item.cid) {
+              navigateToVault({}, true)
+            }
+          }
+
+          setConfirmModal(null)
+          await refreshVault()
+          addToast(t('note.toast.deleted'), 'success')
+        } catch (err: unknown) {
+          addToast(
+            await getApiErrorMessage(err, t('note.toast.deleteFailed')),
+            'error'
+          )
+        }
+      },
+    })
   }
 
   async function handleSaveEditor() {
@@ -1175,7 +1407,7 @@ function VaultNotePageContent() {
           {explorerItems.map(item => (
             <article
               key={`${item.type}:${item.cid || getExplorerItemFullPath(item)}`}
-              className={`ui-list-item note-list-item ${item.type === 'file' && item.cid === currentFilePath ? 'active' : ''}`}
+              className={`ui-list-item note-list-item has-actions ${item.type === 'file' && item.cid === currentFilePath ? 'active' : ''}`}
             >
               <button
                 className={`ui-list-item-main note-list-item-main ${item.type === 'directory' ? 'folder' : ''}`}
@@ -1214,8 +1446,37 @@ function VaultNotePageContent() {
                   </span>
                 )}
               </button>
+              <div className="note-list-inline-actions">
+                <button
+                  type="button"
+                  className="btn btn-icon"
+                  onClick={() => openMoveModal(item)}
+                  title={t('note.action.move')}
+                  aria-label={t('note.action.move')}
+                >
+                  <Move size={15} />
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-icon note-editor-action-danger"
+                  onClick={() => openDeleteConfirm(item)}
+                  title={t('note.action.delete')}
+                  aria-label={t('note.action.delete')}
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
             </article>
           ))}
+        </div>
+      )}
+
+      {vaultStatus?.configured === true && (
+        <div className="note-create-btn">
+          <button className="btn" onClick={openCreateNoteModal}>
+            <Plus size={16} />
+            {t('note.newNote')}
+          </button>
         </div>
       )}
     </section>
@@ -1246,7 +1507,23 @@ function VaultNotePageContent() {
               <>
                 <div className="note-editor-panel-header">
                   <div className="note-editor-title-area">
-                    <h3 translate="no">{selectedTitle}</h3>
+                    {selectedFile && !isEditing ? (
+                      <input
+                        className="note-title-input"
+                        value={previewName}
+                        onBlur={handlePreviewRename}
+                        onChange={event => setPreviewName(event.target.value)}
+                        onKeyDown={event => {
+                          if (event.key === 'Enter') {
+                            event.currentTarget.blur()
+                          }
+                        }}
+                        title={t('app.rename')}
+                        translate="no"
+                      />
+                    ) : (
+                      <h3 translate="no">{selectedTitle}</h3>
+                    )}
                     <div className="note-editor-info">
                       <span>
                         {isEditing ? t('note.mode.edit') : t('note.mode.read')}
@@ -1278,17 +1555,41 @@ function VaultNotePageContent() {
                         {saving ? t('note.action.saving') : t('note.action.save')}
                       </button>
                     ) : (
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-primary"
-                        onClick={openEditor}
-                        disabled={!!fileError || !selectedFile}
-                        title={t('note.action.edit')}
-                        aria-label={t('note.action.edit')}
-                      >
-                        <PencilRuler size={16} />
-                        {t('note.action.edit')}
-                      </button>
+                      selectedNote && (
+                        <>
+                          <button
+                            type="button"
+                            className="btn btn-icon"
+                            onClick={() => openMoveModal(selectedNote)}
+                            disabled={!!fileError || !selectedFile}
+                            title={t('note.action.move')}
+                            aria-label={t('note.action.move')}
+                          >
+                            <Move size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-icon note-editor-action-danger"
+                            onClick={() => openDeleteConfirm(selectedNote)}
+                            disabled={!!fileError || !selectedFile}
+                            title={t('note.action.delete')}
+                            aria-label={t('note.action.delete')}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-primary"
+                            onClick={openEditor}
+                            disabled={!!fileError || !selectedFile}
+                            title={t('note.action.edit')}
+                            aria-label={t('note.action.edit')}
+                          >
+                            <PencilRuler size={16} />
+                            {t('note.action.edit')}
+                          </button>
+                        </>
+                      )
                     )}
                   </div>
                 </div>
@@ -1362,6 +1663,37 @@ function VaultNotePageContent() {
           </section>
         </section>
       </main>
+
+      {inputModal && (
+        <InputModal
+          title={inputModal.title}
+          placeholder={inputModal.placeholder}
+          defaultValue={inputModal.defaultValue}
+          confirmText={inputModal.confirmText}
+          onConfirm={inputModal.onConfirm}
+          onClose={() => setInputModal(null)}
+        />
+      )}
+
+      {confirmModal && (
+        <ConfirmModal
+          title={confirmModal.title}
+          message={confirmModal.message}
+          confirmText={confirmModal.confirmText}
+          danger
+          onConfirm={confirmModal.onConfirm}
+          onClose={() => setConfirmModal(null)}
+        />
+      )}
+
+      {moveTarget && (
+        <NoteMoveModal
+          target={moveTarget}
+          directories={directoryOptions}
+          onMove={handleMove}
+          onClose={() => setMoveTarget(null)}
+        />
+      )}
     </AppShell>
   )
 }
@@ -1369,11 +1701,16 @@ function VaultNotePageContent() {
 export default function NotePage() {
   const { t } = useI18n()
   const hasBackend = useAppStore(s => s.hasBackend)
+  const wallet = useUserStore(s => s.wallet)
   const isDesktopClient = useIsDesktopClient()
+  const isLocalBackend =
+    hasBackend === true && isLocalNoteVaultBackend(getBackendUrlExport())
+  const hasConfiguredVaultBackend = useConfiguredNoteVaultBackend(
+    isLocalBackend,
+    wallet?.address || ''
+  )
   const useVaultMode =
-    isDesktopClient &&
-    hasBackend === true &&
-    isLocalNoteVaultBackend(getBackendUrlExport())
+    isLocalBackend && (isDesktopClient || hasConfiguredVaultBackend)
 
   return (
     <Suspense

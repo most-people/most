@@ -1056,7 +1056,25 @@ describe('frontend smoke checks', () => {
     assert.match(backupSource, /\/api\/user\/import/)
     assert.match(backupSource, /readRestoredProfile/)
     assert.match(backupSource, /\/api\/user\/profile/)
-    assert.match(backupSource, /importNotes\(payload\.notes/)
+    assert.match(backupSource, /createNotesFromNoteVaultSnapshot/)
+    assert.match(backupSource, /createNoteVaultSnapshotFromNotes/)
+    assert.match(backupSource, /canRestoreToDesktopNoteVault/)
+    assert.match(
+      backupSource,
+      /payload\.notes\s*=\s*await createNotesFromNoteVaultSnapshot\(noteVault\)/
+    )
+    assert.match(
+      backupSource,
+      /hasNoteVaultPayload\(payload\)[\s\S]*createNoteVaultSnapshotFromNotes/
+    )
+    assert.match(
+      backupSource,
+      /hasNoteVaultPayload\(payload\) \|\| Array\.isArray\(payload\.notes\)/
+    )
+    assert.match(
+      backupSource,
+      /restoredNotes\s*=\s*await createNotesFromNoteVaultSnapshot\(vaultSnapshot\)/
+    )
     assert.match(backupSource, /setUserIdentity/)
     assert.doesNotMatch(backupSource, /profileUpdated\?/)
   })
@@ -1246,6 +1264,7 @@ describe('frontend smoke checks', () => {
       'src/components/MarketingLayout.tsx'
     )
     const portalSource = readSource('src/components/FeaturePortal.tsx')
+    const noteSource = readSource('src/features/note/NotePage.tsx')
 
     assert.match(hookSource, /electronAPI\?\.isElectron === true/)
     assert.match(hookSource, /navigator\?\.userAgent/)
@@ -1263,6 +1282,11 @@ describe('frontend smoke checks', () => {
     assert.match(portalSource, /hideInDesktopClient: true/)
     assert.match(portalSource, /activeFeatureSteps/)
     assert.match(portalSource, /!\s*isDesktopClient &&/)
+    assert.match(noteSource, /useConfiguredNoteVaultBackend/)
+    assert.match(
+      noteSource,
+      /isLocalBackend && \(isDesktopClient \|\| hasConfiguredVaultBackend\)/
+    )
   })
 
   it('does not trigger account backup from note save flows', () => {

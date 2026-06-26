@@ -2,7 +2,7 @@ import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
 import fsSync from 'node:fs'
 import path from 'node:path'
-import { PathSecurityError, ValidationError } from './errors.js'
+import { ConflictError, PathSecurityError, ValidationError } from './errors.js'
 
 const CONFIG_FILE_NAME = 'note-vault.json'
 const MARKDOWN_EXTENSION = '.md'
@@ -34,6 +34,19 @@ async function pathExists(filePath) {
     return true
   } catch {
     return false
+  }
+}
+
+async function removeEmptyParentDirectories(vaultRealPath, startPath) {
+  let currentPath = startPath
+
+  while (isPathInside(vaultRealPath, currentPath) && currentPath !== vaultRealPath) {
+    try {
+      await fs.rmdir(currentPath)
+    } catch {
+      return
+    }
+    currentPath = path.dirname(currentPath)
   }
 }
 
@@ -277,7 +290,7 @@ export async function readMarkdownFile(vaultPath, relativePath) {
   }
 }
 
-export async function writeMarkdownFile(vaultPath, relativePath, content) {
+async function getWritableMarkdownTarget(vaultPath, relativePath) {
   const info = await getVaultDirectoryInfo(vaultPath, { requireWritable: true })
   const normalizedPath = normalizeNoteVaultRelativePath(relativePath)
   const targetPath = path.resolve(info.realPath, toNativePath(normalizedPath))
@@ -308,6 +321,22 @@ export async function writeMarkdownFile(vaultPath, relativePath, content) {
     }
   }
 
+  return { info, normalizedPath, targetPath, parentPath }
+}
+
+export async function createMarkdownFile(vaultPath, relativePath, content) {
+  const { info, normalizedPath, targetPath } =
+    await getWritableMarkdownTarget(vaultPath, relativePath)
+  if (await pathExists(targetPath)) {
+    throw new ConflictError('note vault file already exists')
+  }
+  return writeMarkdownFile(info.realPath, normalizedPath, content)
+}
+
+export async function writeMarkdownFile(vaultPath, relativePath, content) {
+  const { info, normalizedPath, targetPath, parentPath } =
+    await getWritableMarkdownTarget(vaultPath, relativePath)
+
   const tempPath = path.join(
     parentPath,
     `.${path.basename(targetPath)}.${process.pid}.${Date.now()}.${crypto
@@ -324,4 +353,170 @@ export async function writeMarkdownFile(vaultPath, relativePath, content) {
   }
 
   return readMarkdownFile(info.realPath, normalizedPath)
+}
+
+export async function moveMarkdownFile(
+  vaultPath,
+  fromRelativePath,
+  toRelativePath
+) {
+  const info = await getVaultDirectoryInfo(vaultPath, { requireWritable: true })
+  const fromPath = normalizeNoteVaultRelativePath(fromRelativePath)
+  const toPath = normalizeNoteVaultRelativePath(toRelativePath)
+  if (fromPath === toPath) return readMarkdownFile(info.realPath, fromPath)
+
+  const sourcePath = path.resolve(info.realPath, toNativePath(fromPath))
+  const targetPath = path.resolve(info.realPath, toNativePath(toPath))
+  const targetParentPath = path.dirname(targetPath)
+
+  let sourceStat
+  try {
+    sourceStat = await fs.lstat(sourcePath)
+  } catch {
+    throw new ValidationError(
+      'note vault file not found',
+      'NOTE_VAULT_FILE_NOT_FOUND'
+    )
+  }
+
+  if (sourceStat.isSymbolicLink()) {
+    throw new PathSecurityError('Symlink Markdown files are not writable')
+  }
+  if (!sourceStat.isFile()) {
+    throw new ValidationError(
+      'note vault path is not a file',
+      'NOTE_VAULT_NOT_FILE'
+    )
+  }
+
+  const realSourcePath = await fs.realpath(sourcePath)
+  if (!isPathInside(info.realPath, realSourcePath)) {
+    throw new PathSecurityError('Note vault file escapes the configured vault')
+  }
+
+  if (await pathExists(targetPath)) {
+    throw new ConflictError('note vault target already exists')
+  }
+
+  await fs.mkdir(targetParentPath, { recursive: true })
+  const realTargetParentPath = await fs.realpath(targetParentPath)
+  if (!isPathInside(info.realPath, realTargetParentPath)) {
+    throw new PathSecurityError('Note vault file escapes the configured vault')
+  }
+
+  await fs.rename(realSourcePath, targetPath)
+  await removeEmptyParentDirectories(info.realPath, path.dirname(realSourcePath))
+  return readMarkdownFile(info.realPath, toPath)
+}
+
+export async function deleteMarkdownFile(vaultPath, relativePath) {
+  const info = await getVaultDirectoryInfo(vaultPath, { requireWritable: true })
+  const normalizedPath = normalizeNoteVaultRelativePath(relativePath)
+  const targetPath = path.resolve(info.realPath, toNativePath(normalizedPath))
+
+  let stat
+  try {
+    stat = await fs.lstat(targetPath)
+  } catch {
+    throw new ValidationError(
+      'note vault file not found',
+      'NOTE_VAULT_FILE_NOT_FOUND'
+    )
+  }
+
+  if (stat.isSymbolicLink()) {
+    throw new PathSecurityError('Symlink Markdown files are not writable')
+  }
+  if (!stat.isFile()) {
+    throw new ValidationError(
+      'note vault path is not a file',
+      'NOTE_VAULT_NOT_FILE'
+    )
+  }
+
+  const realFilePath = await fs.realpath(targetPath)
+  if (!isPathInside(info.realPath, realFilePath)) {
+    throw new PathSecurityError('Note vault file escapes the configured vault')
+  }
+
+  await fs.unlink(realFilePath)
+  await removeEmptyParentDirectories(info.realPath, path.dirname(realFilePath))
+  return { path: normalizedPath, deleted: true }
+}
+
+export async function createNoteVaultSnapshot(vaultPath) {
+  const files = await listMarkdownFiles(vaultPath)
+  const snapshotFiles = []
+
+  for (const file of files) {
+    const content = await readMarkdownFile(vaultPath, file.path)
+    snapshotFiles.push({
+      path: content.path,
+      content: content.content,
+      size: content.size,
+      mtimeMs: content.mtimeMs,
+    })
+  }
+
+  return { files: snapshotFiles }
+}
+
+function normalizeSnapshotFiles(input) {
+  const files = Array.isArray(input?.files) ? input.files : []
+  const byPath = new Map()
+
+  for (const file of files) {
+    if (!file || typeof file !== 'object') continue
+    const normalizedPath = normalizeNoteVaultRelativePath(file.path)
+    byPath.set(normalizedPath, {
+      path: normalizedPath,
+      content: String(file.content ?? ''),
+    })
+  }
+
+  return [...byPath.values()].sort((left, right) =>
+    left.path.localeCompare(right.path)
+  )
+}
+
+export async function restoreNoteVaultSnapshot(vaultPath, snapshotInput) {
+  const info = await getVaultDirectoryInfo(vaultPath, { requireWritable: true })
+  const snapshotFiles = normalizeSnapshotFiles(snapshotInput)
+  const snapshotPaths = new Set(snapshotFiles.map(file => file.path))
+  const currentFiles = await listMarkdownFiles(info.realPath)
+  const result = {
+    created: 0,
+    updated: 0,
+    deleted: 0,
+    skipped: 0,
+    files: snapshotFiles.length,
+  }
+
+  for (const currentFile of currentFiles) {
+    if (snapshotPaths.has(currentFile.path)) continue
+    await deleteMarkdownFile(info.realPath, currentFile.path)
+    result.deleted += 1
+  }
+
+  for (const snapshotFile of snapshotFiles) {
+    let existing = null
+    try {
+      existing = await readMarkdownFile(info.realPath, snapshotFile.path)
+    } catch {}
+
+    if (existing?.content === snapshotFile.content) {
+      result.skipped += 1
+      continue
+    }
+
+    await writeMarkdownFile(
+      info.realPath,
+      snapshotFile.path,
+      snapshotFile.content
+    )
+    if (existing) result.updated += 1
+    else result.created += 1
+  }
+
+  return result
 }

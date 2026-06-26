@@ -21,6 +21,25 @@ export interface NoteVaultFileContent extends NoteVaultFile {
   content: string
 }
 
+export interface NoteVaultSnapshotFile {
+  path: string
+  content: string
+  size: number
+  mtimeMs: number
+}
+
+export interface NoteVaultSnapshot {
+  files: NoteVaultSnapshotFile[]
+}
+
+export interface NoteVaultRestoreResult {
+  created: number
+  updated: number
+  deleted: number
+  skipped: number
+  files: number
+}
+
 export async function getNoteVaultStatus() {
   return api.get('/api/note-vault/status').json<NoteVaultStatus>()
 }
@@ -49,4 +68,35 @@ export async function saveNoteVaultFile(path: string, content: string) {
     .put('/api/note-vault/file', { json: { path, content } })
     .json<{ success: boolean; file: NoteVaultFileContent }>()
   return data.file
+}
+
+export async function createNoteVaultFile(path: string, content = '') {
+  const data = await api
+    .post('/api/note-vault/file', { json: { path, content } })
+    .json<{ success: boolean; file: NoteVaultFileContent }>()
+  return data.file
+}
+
+export async function moveNoteVaultFile(path: string, newPath: string) {
+  const data = await api
+    .patch('/api/note-vault/file', { json: { path, newPath } })
+    .json<{ success: boolean; file: NoteVaultFileContent }>()
+  return data.file
+}
+
+export async function deleteNoteVaultFile(path: string) {
+  return api
+    .delete('/api/note-vault/file', { searchParams: { path } })
+    .json<{ success: boolean; path: string; deleted: boolean }>()
+}
+
+export async function getNoteVaultSnapshot() {
+  return api.get('/api/note-vault/snapshot').json<NoteVaultSnapshot>()
+}
+
+export async function restoreNoteVaultSnapshot(snapshot: NoteVaultSnapshot) {
+  const data = await api
+    .post('/api/note-vault/restore', { json: snapshot })
+    .json<{ success: boolean; result: NoteVaultRestoreResult }>()
+  return data.result
 }

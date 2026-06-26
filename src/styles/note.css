@@ -336,8 +336,30 @@
   border-radius: 8px;
 }
 
+.note-sidebar-list .note-list-item.has-actions {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
 .note-list-item-main {
   padding: 9px 8px;
+}
+
+.note-list-inline-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 6px;
+}
+
+.note-list-inline-actions .btn {
+  width: 30px;
+  height: 30px;
+  opacity: 0.72;
+}
+
+.note-list-item:hover .note-list-inline-actions .btn,
+.note-list-item.active .note-list-inline-actions .btn {
+  opacity: 1;
 }
 
 .note-list-icon {

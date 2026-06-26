@@ -52,6 +52,7 @@ export const zhCNNoteMessages = {
   'note.toast.moved': '已移动',
   'note.toast.moveFailed': '移动失败',
   'note.toast.deleted': '已删除',
+  'note.toast.deleteFailed': '删除失败',
   'note.error.notFound': '笔记不存在',
   'note.error.loginToDecrypt': '请先登录 Web3 账号以解密此笔记',
   'note.error.decryptFailed': '无法解密，请确认当前 Web3 账号正确',
@@ -146,6 +147,7 @@ export const zhTWNoteMessages = {
   'note.toast.moved': '已移動',
   'note.toast.moveFailed': '移動失敗',
   'note.toast.deleted': '已刪除',
+  'note.toast.deleteFailed': '刪除失敗',
   'note.error.notFound': '筆記不存在',
   'note.error.loginToDecrypt': '請先登入 Web3 帳號以解密此筆記',
   'note.error.decryptFailed': '無法解密，請確認當前 Web3 帳號正確',
@@ -240,6 +242,7 @@ export const enNoteMessages = {
   'note.toast.moved': 'Moved',
   'note.toast.moveFailed': 'Move failed',
   'note.toast.deleted': 'Deleted',
+  'note.toast.deleteFailed': 'Delete failed',
   'note.error.notFound': 'Note not found',
   'note.error.loginToDecrypt': 'Sign in with a Web3 account to decrypt this note',
   'note.error.decryptFailed':

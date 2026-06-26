@@ -5,10 +5,15 @@ import os from 'node:os'
 import path from 'node:path'
 import {
   configureNoteVault,
+  createMarkdownFile,
+  createNoteVaultSnapshot,
+  deleteMarkdownFile,
   getNoteVaultStatus,
   listMarkdownFiles,
+  moveMarkdownFile,
   normalizeNoteVaultRelativePath,
   readMarkdownFile,
+  restoreNoteVaultSnapshot,
   writeMarkdownFile,
 } from '../../src/utils/noteVault.js'
 
@@ -102,6 +107,111 @@ describe('noteVault', () => {
     assert.strictEqual(
       fs.readFileSync(path.join(vaultDir, 'docs', 'note.md'), 'utf8'),
       'after'
+    )
+  })
+
+  it('creates, moves, and deletes Markdown files without overwriting', async () => {
+    const vaultDir = makeTmpDir('note-vault-file-ops')
+    fs.mkdirSync(path.join(vaultDir, 'docs'), { recursive: true })
+
+    const created = await createMarkdownFile(vaultDir, 'docs/new.md', 'new')
+    assert.strictEqual(created.path, 'docs/new.md')
+    assert.strictEqual(
+      fs.readFileSync(path.join(vaultDir, 'docs', 'new.md'), 'utf8'),
+      'new'
+    )
+
+    await assert.rejects(
+      createMarkdownFile(vaultDir, 'docs/new.md', 'again'),
+      /already exists/i
+    )
+
+    const moved = await moveMarkdownFile(
+      vaultDir,
+      'docs/new.md',
+      'archive/new.md'
+    )
+    assert.strictEqual(moved.path, 'archive/new.md')
+    assert.strictEqual(fs.existsSync(path.join(vaultDir, 'docs', 'new.md')), false)
+    assert.strictEqual(
+      fs.readFileSync(path.join(vaultDir, 'archive', 'new.md'), 'utf8'),
+      'new'
+    )
+
+    const deleted = await deleteMarkdownFile(vaultDir, 'archive/new.md')
+    assert.deepStrictEqual(deleted, {
+      path: 'archive/new.md',
+      deleted: true,
+    })
+    assert.strictEqual(
+      fs.existsSync(path.join(vaultDir, 'archive', 'new.md')),
+      false
+    )
+  })
+
+  it('creates snapshots and mirror restores Markdown files', async () => {
+    const vaultDir = makeTmpDir('note-vault-snapshot')
+    fs.mkdirSync(path.join(vaultDir, 'nested'), { recursive: true })
+    fs.mkdirSync(path.join(vaultDir, '.hidden'), { recursive: true })
+    fs.writeFileSync(path.join(vaultDir, 'keep.md'), 'same', 'utf8')
+    fs.writeFileSync(path.join(vaultDir, 'old.md'), 'old', 'utf8')
+    fs.writeFileSync(path.join(vaultDir, 'ignore.txt'), 'ignore', 'utf8')
+    fs.writeFileSync(path.join(vaultDir, 'nested', 'current.md'), 'old', 'utf8')
+    fs.writeFileSync(path.join(vaultDir, '.hidden', 'secret.md'), 'secret', 'utf8')
+
+    const snapshot = await createNoteVaultSnapshot(vaultDir)
+    assert.deepStrictEqual(
+      snapshot.files.map(file => file.path),
+      ['keep.md', 'nested/current.md', 'old.md']
+    )
+
+    const result = await restoreNoteVaultSnapshot(vaultDir, {
+      files: [
+        { path: 'keep.md', content: 'same' },
+        { path: 'nested/new.md', content: 'new' },
+      ],
+    })
+
+    assert.deepStrictEqual(result, {
+      created: 1,
+      updated: 0,
+      deleted: 2,
+      skipped: 1,
+      files: 2,
+    })
+    assert.strictEqual(fs.existsSync(path.join(vaultDir, 'old.md')), false)
+    assert.strictEqual(
+      fs.existsSync(path.join(vaultDir, 'nested', 'current.md')),
+      false
+    )
+    assert.strictEqual(
+      fs.readFileSync(path.join(vaultDir, 'nested', 'new.md'), 'utf8'),
+      'new'
+    )
+    assert.strictEqual(
+      fs.readFileSync(path.join(vaultDir, 'ignore.txt'), 'utf8'),
+      'ignore'
+    )
+    assert.strictEqual(
+      fs.readFileSync(path.join(vaultDir, '.hidden', 'secret.md'), 'utf8'),
+      'secret'
+    )
+  })
+
+  it('rejects unsafe snapshot restore paths', async () => {
+    const vaultDir = makeTmpDir('note-vault-unsafe-snapshot')
+
+    await assert.rejects(
+      restoreNoteVaultSnapshot(vaultDir, {
+        files: [{ path: '../escape.md', content: 'bad' }],
+      }),
+      /traversal|escapes|Absolute/i
+    )
+    await assert.rejects(
+      restoreNoteVaultSnapshot(vaultDir, {
+        files: [{ path: 'image.png', content: 'bad' }],
+      }),
+      /Markdown/i
     )
   })
 })

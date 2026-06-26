@@ -29,6 +29,14 @@ export function validateAccountBackupPayload(input) {
   if (!Array.isArray(input.notes)) {
     throw new Error('账号备份缺少 notes')
   }
+  if (
+    input.noteVault !== undefined &&
+    (!input.noteVault ||
+      typeof input.noteVault !== 'object' ||
+      !Array.isArray(input.noteVault.files))
+  ) {
+    throw new Error('账号备份 noteVault 格式无效')
+  }
   return input
 }
 

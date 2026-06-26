@@ -123,5 +123,77 @@ describe('note vault routes', () => {
       fs.readFileSync(path.join(vaultDir, 'docs', 'hello.md'), 'utf8'),
       '# Saved'
     )
+
+    const createRes = await requestWithAuth(app, '/api/note-vault/file', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: 'docs/new.md', content: '# New' }),
+    })
+    const createData = await createRes.json()
+
+    assert.strictEqual(createRes.status, 200)
+    assert.strictEqual(createData.success, true)
+    assert.strictEqual(createData.file.path, 'docs/new.md')
+
+    const moveRes = await requestWithAuth(app, '/api/note-vault/file', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        path: 'docs/new.md',
+        newPath: 'archive/new.md',
+      }),
+    })
+    const moveData = await moveRes.json()
+
+    assert.strictEqual(moveRes.status, 200)
+    assert.strictEqual(moveData.success, true)
+    assert.strictEqual(moveData.file.path, 'archive/new.md')
+    assert.strictEqual(
+      fs.existsSync(path.join(vaultDir, 'docs', 'new.md')),
+      false
+    )
+
+    const snapshotRes = await requestWithAuth(app, '/api/note-vault/snapshot')
+    const snapshotData = await snapshotRes.json()
+
+    assert.strictEqual(snapshotRes.status, 200)
+    assert.deepStrictEqual(
+      snapshotData.files.map(file => file.path),
+      ['archive/new.md', 'docs/hello.md']
+    )
+
+    const restoreRes = await requestWithAuth(app, '/api/note-vault/restore', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        files: [{ path: 'restored.md', content: '# Restored' }],
+      }),
+    })
+    const restoreData = await restoreRes.json()
+
+    assert.strictEqual(restoreRes.status, 200)
+    assert.strictEqual(restoreData.success, true)
+    assert.strictEqual(restoreData.result.created, 1)
+    assert.strictEqual(restoreData.result.deleted, 2)
+    assert.strictEqual(
+      fs.readFileSync(path.join(vaultDir, 'restored.md'), 'utf8'),
+      '# Restored'
+    )
+    assert.strictEqual(
+      fs.existsSync(path.join(vaultDir, 'docs', 'hello.md')),
+      false
+    )
+
+    const deleteRes = await requestWithAuth(
+      app,
+      '/api/note-vault/file?path=restored.md',
+      { method: 'DELETE' }
+    )
+    const deleteData = await deleteRes.json()
+
+    assert.strictEqual(deleteRes.status, 200)
+    assert.strictEqual(deleteData.success, true)
+    assert.strictEqual(deleteData.deleted, true)
+    assert.strictEqual(fs.existsSync(path.join(vaultDir, 'restored.md')), false)
   })
 })

@@ -63,6 +63,8 @@ POST   /api/note-vault/file
 PUT    /api/note-vault/file
 PATCH  /api/note-vault/file
 DELETE /api/note-vault/file?path=...
+GET    /api/note-vault/snapshot
+POST   /api/note-vault/restore
 ```
 
 建议职责：
@@ -71,6 +73,8 @@ DELETE /api/note-vault/file?path=...
 - `config` 保存用户选择的 vault 目录。
 - `files` 递归列出 `.md` 文件和目录摘要。
 - `file` 读取、创建、覆盖、重命名、移动或删除单个 Markdown 文件。
+- `snapshot` 读取当前 vault 中可备份的 Markdown 文件快照。
+- `restore` 按备份快照镜像覆盖当前 vault。
 
 新增 `server/src/utils/noteVault.js`，集中实现：
 
@@ -136,10 +140,9 @@ noteVault?: {
 - `noteVault` 字段服务桌面端 Markdown 笔记库。
 - 云端备份和本地备份继续使用现有 Web3 钱包加密。
 - 桌面端备份时，从当前 vault 读取 `.md` 快照并写入 `noteVault.files`。
-- 桌面端恢复时，把 `noteVault.files` 写入当前 vault。
-- 自动云端恢复只在 vault 为空或没有冲突时自动写入。
-- 如果本地 vault 已有不同内容，沿用现有确认流程，不静默覆盖。
-- 恢复不删除用户本地额外文件，只创建或覆盖备份中包含的 `.md` 文件。
+- 桌面端恢复时，先确认当前已有 vault；如果尚未选择目录，则调用 Electron 目录选择器让用户显式选择。
+- 桌面端恢复采用镜像覆盖：备份里有的 `.md` 覆盖或创建，备份里没有的本地 `.md` 删除。
+- 恢复只处理允许范围内的 Markdown 文件；非 `.md`、隐藏目录、`node_modules` 和 symlink 不处理。
 
 ## 安全约束
 
@@ -171,7 +174,7 @@ node --test server/tests/unit/noteVault.test.js
 - 重命名和移动。
 - 删除文件。
 - 备份快照。
-- 恢复快照。
+- 镜像恢复快照。
 
 API 集成测试：
 
@@ -186,6 +189,8 @@ node --test server/tests/integration/api.test.js
 - 配置 vault 目录。
 - 列出 Markdown 文件。
 - 读取、创建、保存、移动、删除 Markdown 文件。
+- 生成 vault 快照。
+- 按快照镜像恢复 vault。
 
 账号备份测试：
 
@@ -198,7 +203,7 @@ node --test server/tests/unit/accountBackup.test.js
 - 旧 payload 仍可加密、解密和恢复。
 - 带 `noteVault` 的 payload 可加密、解密和校验。
 - 桌面端导出包含 Markdown 文件快照。
-- 桌面端导入可写回当前 vault。
+- 桌面端导入可镜像恢复当前 vault。
 
 前端检查：
 
@@ -224,9 +229,16 @@ npm run lint
 - 编辑保存后，用外部编辑器打开能看到同样内容。
 - 重命名、移动、删除后，磁盘文件状态一致。
 - 重启应用后，仍能打开上次选择的 vault。
-- 云端备份后清空本地 vault，再恢复，Markdown 文件自动写回。
+- 云端备份后改动本地 vault，再恢复，Markdown 文件与云端备份快照一致。
 - Web 端打开 `/note`，行为仍与当前 IndexedDB 笔记一致。
 
 ## 当前状态
 
-这是计划文档，不代表功能已经实现或验收通过。当前事实来源仍是代码、`README.md` 和 `docs/acceptance.md`。
+当前已实现并通过最小验证：
+
+- Electron 目录选择、vault 配置、列表、读取、创建、保存、移动、删除。
+- vault 快照和镜像恢复。
+- 桌面端 `/note` 使用本地文件夹作为知识库数据源。
+- 桌面端账号备份会包含 `noteVault.files`，恢复会写回当前 vault。
+
+当前事实来源仍是代码、`README.md` 和 `docs/acceptance.md`。
