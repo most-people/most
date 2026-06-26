@@ -115,36 +115,6 @@
     gap: 4px;
   }
 
-  .chat-message-actions-anchor {
-    opacity: 0;
-    transition: opacity var(--transition-fast);
-  }
-
-  &:hover .chat-message-actions-anchor,
-  .chat-message-actions-anchor:focus-within {
-    opacity: 1;
-  }
-
-  .chat-message-actions-trigger {
-    width: 22px;
-    height: 22px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    color: var(--text-muted);
-    background: transparent;
-    border: 0;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-  }
-
-  .chat-message-actions-trigger:hover,
-  .chat-message-actions-trigger:focus-visible {
-    color: var(--text-primary);
-    background: var(--glass-bg-heavy);
-  }
-
   .message-bubble {
     padding: 10px 14px;
     font-size: 14px;
@@ -470,6 +440,13 @@
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.channel-detail-hint {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .channel-members-section {

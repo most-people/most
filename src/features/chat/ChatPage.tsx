@@ -1149,59 +1149,84 @@ function ChatPage() {
     }
   }
 
-  function getChatMessageNoteDraftContent(
-    msg: ChannelMessage,
-    author: string
+  function getMessageDisplayAuthor(msg: ChannelMessage) {
+    const address = normalizeMemberAddress(msg.author)
+    const presence = presenceByAddress.get(address)
+    const messageProfile = messageProfileByAddress.get(address)
+    const authorName =
+      presence?.displayName || messageProfile?.displayName || msg.authorName
+    return formatDisplayName(authorName, msg.author)
+  }
+
+  function isSaveableChannelMessage(msg: ChannelMessage) {
+    return (
+      !msg.pending &&
+      (Boolean(msg.attachment) || Boolean(msg.content.trim()))
+    )
+  }
+
+  function appendChatMessageMarkdown(
+    lines: string[],
+    msg: ChannelMessage
   ) {
-    const roomTitle = activeChannel ? getChannelTitle(activeChannel) : ''
+    const author = getMessageDisplayAuthor(msg)
     const timestamp = `${formatDate(msg.timestamp)} ${formatTime(msg.timestamp)}`
-    const lines = [
-      `# ${t('chat.noteDraft.heading')}`,
-      '',
-      `- ${t('chat.noteDraft.room')}: ${roomTitle}`,
-      `- ${t('chat.noteDraft.author')}: ${author}`,
-      `- ${t('chat.noteDraft.time')}: ${timestamp}`,
-      '',
-    ]
+    const content = msg.content.trim()
+
+    lines.push(`## ${timestamp} ${author}`, '')
+
+    if (content && (!msg.attachment || content !== msg.attachment.link)) {
+      lines.push(formatMarkdownQuote(content), '')
+    }
 
     if (msg.attachment) {
       lines.push(
-        `## ${t('chat.noteDraft.attachment')}`,
+        `**${t('chat.noteDraft.attachment')}**`,
         '',
         `- ${t('chat.noteDraft.file')}: ${formatMarkdownLink(
           getAttachmentBaseFileName(msg.attachment.fileName),
           msg.attachment.link
         )}`,
-        `- CID: \`${msg.attachment.cid}\``
+        `- CID: \`${msg.attachment.cid}\``,
+        ''
       )
-
-      if (msg.content && msg.content !== msg.attachment.link) {
-        lines.push(
-          '',
-          `## ${t('chat.noteDraft.message')}`,
-          '',
-          formatMarkdownQuote(msg.content)
-        )
-      }
-
-      return lines.join('\n')
     }
-
-    lines.push(
-      `## ${t('chat.noteDraft.message')}`,
-      '',
-      formatMarkdownQuote(msg.content)
-    )
-    return lines.join('\n')
   }
 
-  function handleSaveMessageToNote(msg: ChannelMessage, author: string) {
-    const title = t('chat.noteDraft.title', {
-      time: getNoteDraftTimeLabel(msg.timestamp),
+  function getChatHistoryNoteDraftContent(messages: ChannelMessage[]) {
+    const roomTitle = activeChannel ? getChannelTitle(activeChannel) : ''
+    const exportedAt = `${formatDate(Date.now())} ${formatTime(Date.now())}`
+    const lines = [
+      `# ${t('chat.noteDraft.heading')}`,
+      '',
+      `- ${t('chat.noteDraft.room')}: ${roomTitle}`,
+      `- ${t('chat.noteDraft.exportedAt')}: ${exportedAt}`,
+      `- ${t('chat.noteDraft.messageCount')}: ${messages.length}`,
+      '',
+    ]
+
+    messages.forEach(msg => appendChatMessageMarkdown(lines, msg))
+    return `${lines.join('\n').trimEnd()}\n`
+  }
+
+  function handleSaveChannelToNote() {
+    const messages = channelMessages.filter(isSaveableChannelMessage)
+
+    if (messages.length === 0) {
+      addToast(t('chat.noteDraft.empty'), 'warning')
+      return
+    }
+
+    const roomTitle = activeChannel
+      ? getChannelTitle(activeChannel)
+      : t('chat.title')
+    const title = t('chat.noteDraft.historyTitle', {
+      room: roomTitle,
+      time: getNoteDraftTimeLabel(),
     })
     const draft = createChatNoteDraft({
       title,
-      content: getChatMessageNoteDraftContent(msg, author),
+      content: getChatHistoryNoteDraftContent(messages),
     })
 
     if (!draft) {
@@ -1209,6 +1234,7 @@ function ChatPage() {
       return
     }
 
+    setShowChannelDetail(false)
     window.location.assign(getChatNoteDraftHref(draft.id))
   }
 
@@ -1462,16 +1488,12 @@ function ChatPage() {
                 const isOnline = onlineMemberAddressSet.has(
                   normalizeMemberAddress(msg.author)
                 )
-                const authorName =
-                  presence?.displayName ||
-                  messageProfile?.displayName ||
-                  msg.authorName
                 const avatar =
                   presence?.avatar ||
                   messageProfile?.avatar ||
                   msg.avatar ||
                   (isSelf ? userIdentity.avatar : undefined)
-                const displayAuthor = formatDisplayName(authorName, msg.author)
+                const displayAuthor = getMessageDisplayAuthor(msg)
 
                 return (
                   <ChatMessageItem
@@ -1482,19 +1504,6 @@ function ChatPage() {
                     avatarSrc={generateAvatar(msg.author, avatar)}
                     author={displayAuthor}
                     time={formatTime(msg.timestamp)}
-                    actions={
-                      msg.pending
-                        ? []
-                        : [
-                            {
-                              key: 'save-to-note',
-                              label: t('chat.message.saveToNote'),
-                              icon: <NotebookPen size={16} />,
-                              onSelect: () =>
-                                handleSaveMessageToNote(msg, displayAuthor),
-                            },
-                          ]
-                    }
                   >
                     {renderMessageBubble(msg)}
                   </ChatMessageItem>
@@ -1680,6 +1689,23 @@ function ChatPage() {
                   </span>
                 </div>
                 {renderChannelMembers()}
+              </div>
+
+              <div className="channel-detail-section">
+                <div className="channel-detail-label">
+                  <NotebookPen size={14} />
+                  <span>{t('chat.noteDraft.settingsTitle')}</span>
+                </div>
+                <p className="channel-detail-hint">
+                  {t('chat.noteDraft.saveAllDesc')}
+                </p>
+                <button
+                  className="btn btn-secondary btn-block"
+                  onClick={handleSaveChannelToNote}
+                >
+                  <NotebookPen size={16} />
+                  {t('chat.noteDraft.saveAll')}
+                </button>
               </div>
 
               {!isInviteUser && (

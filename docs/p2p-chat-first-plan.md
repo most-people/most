@@ -38,7 +38,7 @@ Channel 是消息、文件附件和知识库入口的共同承载层。
 | 聊天成为第一入口 | 用户打开 Most.Box 后优先看到会话和频道，而不是工具卡片或文件发布面板。 | 首页、桌面入口、README 首屏都明确“聊天优先”。 |
 | 用户之间直接连接 | 首屏文案用“用户之间直接连接”解释 P2P，技术词放到后面。 | 非技术用户能在 30 秒内理解：这是从聊天开始的 P2P 工具箱。 |
 | 文件成为聊天附件 | 文件发布和下载仍走 CID、`most://`、做种和校验，但用户入口优先是聊天附件。 | 在聊天里发送文件后，对方能下载、校验、预览，并默认继续做种。 |
-| 知识库成为聊天沉淀 | Obsidian 风格知识库不再是孤立工具，而是聊天内容、想法和 Markdown 内容的沉淀处。 | 用户能从聊天语境保存到知识库；现有 `/note` 能力保留。 |
+| 知识库成为聊天沉淀 | Obsidian 风格知识库不再是孤立工具，而是聊天内容、想法和 Markdown 内容的沉淀处。 | 用户能从聊天设置把当前聊天记录保存到知识库；现有 `/note` 能力保留。 |
 | 游戏保留独立入口 | 游戏继续复用 Channel 系统，但暂不放进聊天详情。 | 用户能从独立游戏页进入房间，游戏事件仍走 `game.*` channel。 |
 | 保留协议不变量 | 不改变 CID、`most://`、Hyperdrive key、Hyperswarm topic、做种记录等底层规则。 | `npm run test:protocol` 继续通过。 |
 
@@ -85,7 +85,7 @@ Channel 是消息、文件附件和知识库入口的共同承载层。
 | P1：聊天主入口 | 让 `/chat/` 成为用户第一路径。 | 调整首页默认选中聊天；桌面入口优先跳转聊天；导航排序改为聊天、文件、记录、游戏、管理。 | `src/features/portal/HomePage.tsx`、`src/components/FeaturePortal.tsx`、`src/components/AppShell.tsx`、相关 i18n | `npm run typecheck`、`npm run lint`；打开 `/` 和 `/chat/` 检查路径清晰。 |
 | P2：聊天核心体验 | 把频道体验做成真正的聊天主界面。 | 强化会话列表、未读、置顶、成员在线、频道备注、邀请加入；减少“频道”技术感，文案改成“聊天/群/房间”。 | `src/features/chat/ChatPage.tsx`、`src/components/ChatUi.tsx`、`src/lib/chatUnread.js`、`src/lib/i18n/messages/chat.ts` | `npm run test:frontend`、`npm run typecheck`、`npm run lint`；两端创建/加入同一聊天并收发消息。 |
 | P3：文件作为聊天附件 | 让文件传输从聊天自然发生。 | 保留现有附件发布逻辑；优化附件发送、下载检测、无种子提示、下载完成预览；把 `/app/` 降级为文件库/传输管理。 | `src/features/chat/ChatPage.tsx`、`src/components/ChatAttachmentCard.tsx`、`src/lib/fileApi.ts`、`server/src/core/channelAttachment.js`、`src/features/files/AppPage.tsx` | `npm run test:protocol`；两节点聊天发送文件，接收方下载并 CID 校验通过。 |
-| P4：知识库接入聊天 | 把知识库解释为聊天里的内容沉淀处。 | 新增从消息保存到知识库的入口；知识库页继续支持 Obsidian 风格 Markdown vault；不改变现有 vault API。 | `src/features/chat/ChatPage.tsx`、`src/features/note/NotePage.tsx`、`src/features/note/noteVaultApi.ts`、`src/lib/i18n/messages/note.ts` | `node --test server/tests/unit/noteVault.test.js server/tests/unit/accountBackup.test.js`；手动验证保存消息到知识库。 |
+| P4：知识库接入聊天 | 把知识库解释为聊天里的内容沉淀处。 | 在聊天设置里新增保存当前聊天记录到知识库的入口；知识库页继续支持 Obsidian 风格 Markdown vault；不改变现有 vault API。 | `src/features/chat/ChatPage.tsx`、`src/features/note/NotePage.tsx`、`src/features/note/noteVaultApi.ts`、`src/lib/i18n/messages/note.ts` | `node --test server/tests/unit/noteVault.test.js server/tests/unit/accountBackup.test.js`；手动验证从聊天设置保存当前聊天记录到知识库。 |
 | P5：游戏保留独立入口 | 游戏继续复用 Channel，但暂不放进聊天详情。 | 移除聊天详情里的游戏入口；独立游戏页仍使用 `game.<gameId>.<roomCode>` channel，不新增独立后端协议。 | `src/hooks/useGameRoom.ts`、`src/features/game/**`、`server/src/core/gameRoom.js` | `node --test server/tests/unit/gameRoom.test.js server/tests/unit/gandengyan.test.js server/tests/unit/zhajinhua.test.js`；两端从独立游戏页加入房间并同步事件。 |
 | P6：验收口径切换 | 新 MVP 从“文件闭环”升级为“聊天闭环 + 文件附件闭环”。 | 更新 `docs/acceptance.md`，保留原文件协议回归；新增 P2P 聊天、附件、知识库和独立游戏验收路径。 | `docs/acceptance.md`、必要测试文档 | `npm run test:protocol`、`npm run test:frontend`、相关后端单测；人工跑完整聊天场景。 |
 | P7：移动端跟进 | Android 也围绕聊天启动。 | 移动端优先实现频道聊天、附件收发和基础做种状态，再补文件库和游戏。 | `mobile/android/**` | `cd mobile/android && npm test`；真机前台聊天和附件传输。 |
@@ -100,7 +100,7 @@ Channel 是消息、文件附件和知识库入口的共同承载层。
 4. 用户 A 在聊天里发送文件附件。
 5. 用户 B 点击附件下载，下载完成后重算 CID 校验通过，并默认继续做种。
 6. 用户 A 退出后，只要用户 B 仍在线做种，用户 C 仍可通过同一 `most://` 内容完成下载。
-7. 用户能把重要消息或想法保存到知识库。
+7. 用户能从聊天设置把当前聊天记录保存到知识库。
 8. 用户能从独立游戏页面进入房间，游戏事件通过 Channel 同步；聊天详情暂不提供游戏入口。
 
 其中第 4-6 步继续沿用现有文件分享最高验收标准，不能因为聊天主入口改造而降低 CID 和做种要求。

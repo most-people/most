@@ -13,7 +13,7 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react'
-import { ActionMenu, type ActionMenuItem } from '~/components/ui'
+import { ActionMenu } from '~/components/ui'
 import { useI18n, type MessageKey } from '~/lib/i18n'
 
 export type ChatMessageVariant = 'self' | 'other'
@@ -74,7 +74,6 @@ export function ChatMessageItem({
   isOnline = false,
   author,
   time,
-  actions = [],
   children,
 }: {
   variant: ChatMessageVariant
@@ -83,14 +82,11 @@ export function ChatMessageItem({
   isOnline?: boolean
   author: string
   time: string
-  actions?: ActionMenuItem[]
   children: ReactNode
 }) {
-  const { t } = useI18n()
   const className = ['chat-message', variant, pending ? 'pending' : '']
     .filter(Boolean)
     .join(' ')
-  const hasActions = actions.length > 0
 
   return (
     <div className={className}>
@@ -103,24 +99,6 @@ export function ChatMessageItem({
           <span className="message-author" translate="no">
             {author}
           </span>
-          {hasActions && (
-            <ActionMenu
-              ariaLabel={t('chat.messageActions')}
-              className="chat-message-actions-anchor"
-              placement={variant === 'self' ? 'bottom-end' : 'bottom-start'}
-              items={actions}
-              renderTrigger={triggerProps => (
-                <button
-                  {...triggerProps}
-                  className="chat-message-actions-trigger"
-                  title={t('common.moreActions')}
-                  aria-label={t('common.moreActions')}
-                >
-                  <MoreHorizontal size={14} />
-                </button>
-              )}
-            />
-          )}
         </span>
         {children}
         <span className="message-time">{time}</span>
