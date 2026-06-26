@@ -174,7 +174,7 @@
   flex: 1;
   min-height: 0;
   border-right: 0;
-  padding: 12px 8px;
+  padding: 10px 8px 12px;
   background: transparent;
 }
 
@@ -191,14 +191,24 @@
 }
 
 .note-sidebar-list .note-search {
-  margin-top: 12px;
-  height: 36px;
+  height: 34px;
+  margin: 4px 6px 10px;
+  padding: 0 9px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--bg-tertiary) 58%, transparent);
 }
 
 .note-sidebar-list .note-create-btn {
-  margin-top: 10px;
+  margin: 8px 6px 0;
   display: flex;
+  justify-content: stretch;
+}
+
+.note-sidebar-list .note-create-btn .btn {
+  width: 100%;
+  min-height: 34px;
   justify-content: center;
+  padding: 7px 10px;
 }
 
 .note-sidebar-list .note-breadcrumbs {
@@ -228,6 +238,110 @@
 .note-sidebar-list .note-empty-state {
   min-height: 180px;
   padding: 16px 8px;
+}
+
+.note-tree {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 2px 4px 8px;
+}
+
+.note-tree-node {
+  min-width: 0;
+}
+
+.note-tree-row {
+  min-width: 0;
+  min-height: 30px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.note-tree-row.has-actions {
+  grid-template-columns: minmax(0, 1fr) 30px;
+}
+
+.note-tree-row:hover,
+.note-tree-row:focus-within {
+  background: var(--glass-bg-subtle);
+  color: var(--text-primary);
+}
+
+.note-tree-row.is-active {
+  background: var(--accent-soft);
+  color: var(--text-primary);
+}
+
+.note-tree-row.is-folder-active:not(.is-active) {
+  background: color-mix(in srgb, var(--text-muted) 10%, transparent);
+}
+
+.note-tree-item {
+  min-width: 0;
+  width: 100%;
+  height: 30px;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px 0 2px;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.note-tree-toggle {
+  width: 18px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+.note-tree-toggle-placeholder {
+  width: 16px;
+  height: 16px;
+}
+
+.note-tree-label {
+  min-width: 0;
+  overflow: hidden;
+  color: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note-tree-row.is-directory .note-tree-label {
+  font-weight: 700;
+}
+
+.note-tree-row.is-active .note-tree-label {
+  color: var(--text-primary);
+}
+
+.note-tree-lock {
+  color: var(--text-muted);
+}
+
+.note-tree-children {
+  margin-left: 10px;
+  padding-left: 9px;
+  border-left: 1px solid color-mix(in srgb, var(--text-muted) 26%, transparent);
 }
 
 .note-list-header {
@@ -344,22 +458,47 @@
   padding: 9px 8px;
 }
 
-.note-list-inline-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+.note-list-actions-anchor {
+  flex: 0 0 34px;
   padding-right: 6px;
 }
 
-.note-list-inline-actions .btn {
+.note-tree-row .note-list-actions-anchor {
   width: 30px;
-  height: 30px;
-  opacity: 0.72;
+  padding-right: 0;
 }
 
-.note-list-item:hover .note-list-inline-actions .btn,
-.note-list-item.active .note-list-inline-actions .btn {
+.note-list-actions-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  opacity: 0;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast),
+    opacity var(--transition-fast);
+}
+
+.note-list-item:hover .note-list-actions-trigger,
+.note-list-item.active .note-list-actions-trigger,
+.note-tree-row:hover .note-list-actions-trigger,
+.note-tree-row.is-active .note-list-actions-trigger,
+.note-list-actions-anchor:focus-within .note-list-actions-trigger,
+.note-list-actions-trigger[aria-expanded='true'] {
   opacity: 1;
+}
+
+.note-list-actions-trigger:hover {
+  background: var(--glass-bg-subtle);
+  color: var(--text-primary);
 }
 
 .note-list-icon {
@@ -873,6 +1012,10 @@
 
   .note-list-item {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .note-sidebar-list .note-list-item.has-actions {
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .milkdown-editor .ProseMirror {

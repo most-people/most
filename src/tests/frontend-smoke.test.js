@@ -1307,6 +1307,9 @@ describe('frontend smoke checks', () => {
 
     assert.ok(saveIndex >= 0)
     assert.ok(routeIndex > saveIndex)
+    assert.match(noteSource, /ActionMenu/)
+    assert.match(noteSource, /note-list-actions-trigger/)
+    assert.match(noteSource, /MoreHorizontal/)
     assert.doesNotMatch(noteSource, /uploadNow|backupSync|useNoteBackupSync/)
   })
 })

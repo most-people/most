@@ -38,11 +38,13 @@ function getNoteMoveTargetFullPath(target: NoteMoveTarget) {
 
 export function NoteMoveModal({
   target,
+  targetLabel,
   directories,
   onMove,
   onClose,
 }: {
   target: NoteMoveTarget
+  targetLabel?: string
   directories: NoteDirectoryOption[]
   onMove: (targetPath: string) => void | Promise<void>
   onClose: () => void
@@ -63,6 +65,7 @@ export function NoteMoveModal({
   const normalizedCustomPath = normalizeNotePath(customPath)
   const finalPath = customPath.trim() ? normalizedCustomPath : selectedPath
   const isSamePath = normalizeNotePath(finalPath) === currentPath
+  const rootLabel = t('note.move.rootDirectory')
   const childPathsByParent = new Map<string, NoteDirectoryOption[]>()
 
   for (const directory of usableDirectories) {
@@ -80,7 +83,7 @@ export function NoteMoveModal({
   })
 
   const selectedBreadcrumbs = [
-    { label: t('note.root'), path: '' },
+    { label: rootLabel, path: '' },
     ...selectedPath
       .split('/')
       .filter(Boolean)
@@ -130,7 +133,7 @@ export function NoteMoveModal({
         </div>
         <div className="note-move-target">
           <span>{t('note.move.moving')}</span>
-          <strong translate="no">{target.name}</strong>
+          <strong translate="no">{targetLabel || target.name}</strong>
         </div>
         <div className="note-move-path">
           {selectedBreadcrumbs.map((part, index) => (
@@ -150,7 +153,7 @@ export function NoteMoveModal({
           >
             <span className="note-move-folder-spacer" />
             <Folder className="note-move-folder-icon" size={16} />
-            <span>{t('note.root')}</span>
+            <span>{rootLabel}</span>
           </button>
           {usableDirectories.length === 0 ? (
             <p className="note-move-empty">{t('note.move.noFolders')}</p>
@@ -197,7 +200,7 @@ export function NoteMoveModal({
         <div className="note-move-destination">
           <span>{t('note.move.destinationLabel')}</span>
           <span translate={finalPath ? 'no' : 'yes'}>
-            {finalPath || t('note.root')}
+            {finalPath || rootLabel}
           </span>
         </div>
         <div className="modal-actions">

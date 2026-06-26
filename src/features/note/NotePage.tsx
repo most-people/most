@@ -1,6 +1,6 @@
 import {
-  Fragment,
   Suspense,
+  type ReactNode,
   lazy,
   useCallback,
   useEffect,
@@ -10,11 +10,12 @@ import {
 } from 'react'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import {
+  ChevronDown,
+  ChevronRight,
   PencilRuler,
   Eye,
-  FileText,
-  Folder,
   FolderOpen,
+  MoreHorizontal,
   Move,
   Lock,
   NotebookPen,
@@ -26,13 +27,12 @@ import {
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import OpenSidebarButton from '~/components/OpenSidebarButton'
-import { ConfirmModal, InputModal } from '~/components/ui'
+import { ActionMenu, ConfirmModal, InputModal } from '~/components/ui'
 import { useAppStore, type NoteItem } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import type { MilkdownEditorRef } from '~/components/MilkdownEditor'
 import { mostDecode, mostEncode } from '~server/src/utils/mostWallet.js'
 import {
-  filterNotesByPath,
   getNoteFullPath,
   normalizeNotePath,
 } from '~server/src/utils/noteUtils.js'
@@ -65,6 +65,33 @@ const MilkdownEditor = lazy(async () => {
 
 type ExplorerItem = NoteMoveTarget
 
+type NoteTreeNode = {
+  id: string
+  type: 'directory' | 'file'
+  name: string
+  path: string
+  fullPath: string
+  updatedAt: number
+  note?: NoteItem
+  children: NoteTreeNode[]
+}
+
+type NoteTreeProps = {
+  nodes: NoteTreeNode[]
+  searchQuery: string
+  expandedPaths: Set<string>
+  activeFileId: string
+  activeFolderPath: string
+  onToggleDirectory: (node: NoteTreeNode) => void
+  onOpenFile: (note: NoteItem) => void
+  renderActions?: (item: ExplorerItem) => ReactNode
+}
+
+type NoteTreeNodeRowProps = Omit<NoteTreeProps, 'nodes' | 'searchQuery'> & {
+  node: NoteTreeNode
+  forceExpanded: boolean
+}
+
 type NoteSearchParams = {
   cid?: string
   file?: string
@@ -90,22 +117,6 @@ function getNoteHref(search: NoteSearchParams = {}) {
 
   const query = searchParams.toString()
   return query ? `/note/?${query}` : '/note/'
-}
-
-function getNotePreview(note: NoteItem, t: (key: MessageKey) => string) {
-  if (note.isSecret || note.content.startsWith('mp://1')) {
-    return t('note.preview.encrypted')
-  }
-
-  const preview = String(note.content || '')
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/!\[[^\]]*]\([^)]*\)/g, ' ')
-    .replace(/\[([^\]]+)]\([^)]*\)/g, '$1')
-    .replace(/[#>*_`~|-]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-
-  return preview || t('note.preview.empty')
 }
 
 const noteErrorMessageKeys: Record<string, MessageKey> = {
@@ -135,6 +146,306 @@ function getExplorerItemFullPath(item: ExplorerItem) {
     )
   }
   return getNoteFullPath(item)
+}
+
+function getDisplayMarkdownName(input = '') {
+  return String(input).trim().replace(/\.md$/i, '')
+}
+
+function getStorageMarkdownName(input: string) {
+  const name = getDisplayMarkdownName(input)
+  return name ? `${name}.md` : ''
+}
+
+function getDisplayMarkdownPath(input = '') {
+  const path = normalizeNotePath(input)
+  const parts = path.split('/').filter(Boolean)
+  if (parts.length === 0) return ''
+
+  const lastIndex = parts.length - 1
+  parts[lastIndex] = getDisplayMarkdownName(parts[lastIndex])
+  return parts.join('/')
+}
+
+function getTreeNodeDisplayName(node: NoteTreeNode) {
+  return node.type === 'file' ? getDisplayMarkdownName(node.name) : node.name
+}
+
+function getTreeNodeDisplayPath(node: NoteTreeNode) {
+  return node.type === 'file'
+    ? getDisplayMarkdownPath(node.fullPath)
+    : node.fullPath
+}
+
+function getExplorerItemDisplayName(item: ExplorerItem) {
+  return item.type === 'file' ? getDisplayMarkdownName(item.name) : item.name
+}
+
+function getDirectoryPathAncestors(path = '') {
+  const parts = normalizeNotePath(path).split('/').filter(Boolean)
+  return parts.map((_, index) => parts.slice(0, index + 1).join('/'))
+}
+
+function toggleExpandedPath(paths: Set<string>, path: string) {
+  const next = new Set(paths)
+  if (next.has(path)) {
+    next.delete(path)
+  } else {
+    next.add(path)
+  }
+  return next
+}
+
+function mergeExpandedPaths(paths: Set<string>, nextPaths: string[]) {
+  if (nextPaths.length === 0) return paths
+
+  let changed = false
+  const next = new Set(paths)
+  for (const path of nextPaths) {
+    if (!next.has(path)) {
+      next.add(path)
+      changed = true
+    }
+  }
+  return changed ? next : paths
+}
+
+function getDirectoryExplorerItem(node: NoteTreeNode): ExplorerItem {
+  return {
+    name: node.name,
+    cid: `__dir__${node.fullPath}`,
+    path: node.path,
+    type: 'directory',
+    size: 0,
+    created_at: node.updatedAt,
+    updated_at: node.updatedAt,
+  }
+}
+
+function buildNoteTree(
+  notes: NoteItem[],
+  compareStrings: (left: string, right: string) => number
+) {
+  const rootNodes: NoteTreeNode[] = []
+  const directoryMap = new Map<string, NoteTreeNode>()
+
+  function getDirectoryChildren(parentPath: string) {
+    if (!parentPath) return rootNodes
+    return directoryMap.get(parentPath)?.children || rootNodes
+  }
+
+  function getDirectoryNode(
+    name: string,
+    parentPath: string,
+    updatedAt: number
+  ) {
+    const fullPath = normalizeNotePath(parentPath ? `${parentPath}/${name}` : name)
+    const existingNode = directoryMap.get(fullPath)
+    if (existingNode) {
+      existingNode.updatedAt = Math.max(existingNode.updatedAt, updatedAt)
+      return existingNode
+    }
+
+    const node: NoteTreeNode = {
+      id: `directory:${fullPath}`,
+      type: 'directory',
+      name,
+      path: parentPath,
+      fullPath,
+      updatedAt,
+      children: [],
+    }
+    directoryMap.set(fullPath, node)
+    getDirectoryChildren(parentPath).push(node)
+    return node
+  }
+
+  for (const note of notes) {
+    const notePath = normalizeNotePath(note.path || '')
+    const parts = notePath.split('/').filter(Boolean)
+    const updatedAt = note.updated_at || note.created_at || 0
+    let parentPath = ''
+
+    for (const part of parts) {
+      const directory = getDirectoryNode(part, parentPath, updatedAt)
+      parentPath = directory.fullPath
+    }
+
+    getDirectoryChildren(parentPath).push({
+      id: `file:${note.cid}:${getNoteFullPath(note)}`,
+      type: 'file',
+      name: note.name,
+      path: notePath,
+      fullPath: getNoteFullPath(note),
+      updatedAt,
+      note,
+      children: [],
+    })
+  }
+
+  function sortNodes(nodes: NoteTreeNode[]) {
+    nodes.sort((left, right) => {
+      if (left.type !== right.type) {
+        return left.type === 'directory' ? -1 : 1
+      }
+
+      const byName = compareStrings(
+        getTreeNodeDisplayName(left),
+        getTreeNodeDisplayName(right)
+      )
+      if (byName !== 0) return byName
+      return compareStrings(
+        getTreeNodeDisplayPath(left),
+        getTreeNodeDisplayPath(right)
+      )
+    })
+
+    for (const node of nodes) {
+      if (node.type === 'directory') sortNodes(node.children)
+    }
+  }
+
+  sortNodes(rootNodes)
+  return rootNodes
+}
+
+function filterNoteTree(nodes: NoteTreeNode[], query: string): NoteTreeNode[] {
+  const normalizedQuery = query.trim().toLowerCase()
+  if (!normalizedQuery) return nodes
+
+  return nodes.flatMap(node => {
+    const displayName = getTreeNodeDisplayName(node).toLowerCase()
+    const displayPath = getTreeNodeDisplayPath(node).toLowerCase()
+    const ownMatch =
+      displayName.includes(normalizedQuery) ||
+      displayPath.includes(normalizedQuery)
+
+    if (node.type === 'file') {
+      return ownMatch ? [node] : []
+    }
+
+    const children = ownMatch
+      ? node.children
+      : filterNoteTree(node.children, normalizedQuery)
+
+    if (!ownMatch && children.length === 0) return []
+    return [{ ...node, children }]
+  })
+}
+
+function NoteTree({
+  nodes,
+  searchQuery,
+  expandedPaths,
+  activeFileId,
+  activeFolderPath,
+  onToggleDirectory,
+  onOpenFile,
+  renderActions,
+}: NoteTreeProps) {
+  const forceExpanded = searchQuery.trim().length > 0
+
+  return (
+    <div className="note-tree" role="tree">
+      {nodes.map(node => (
+        <NoteTreeNodeRow
+          key={node.id}
+          node={node}
+          forceExpanded={forceExpanded}
+          expandedPaths={expandedPaths}
+          activeFileId={activeFileId}
+          activeFolderPath={activeFolderPath}
+          onToggleDirectory={onToggleDirectory}
+          onOpenFile={onOpenFile}
+          renderActions={renderActions}
+        />
+      ))}
+    </div>
+  )
+}
+
+function NoteTreeNodeRow({
+  node,
+  forceExpanded,
+  expandedPaths,
+  activeFileId,
+  activeFolderPath,
+  onToggleDirectory,
+  onOpenFile,
+  renderActions,
+}: NoteTreeNodeRowProps) {
+  const isDirectory = node.type === 'directory'
+  const isExpanded =
+    isDirectory && (forceExpanded || expandedPaths.has(node.fullPath))
+  const isActiveFile = node.type === 'file' && node.note?.cid === activeFileId
+  const isActiveFolder =
+    isDirectory && normalizeNotePath(activeFolderPath) === node.fullPath
+  const item = isDirectory
+    ? getDirectoryExplorerItem(node)
+    : node.note || null
+  const actions = item && renderActions ? renderActions(item) : null
+
+  return (
+    <div className="note-tree-node" role="none">
+      <div
+        className={`note-tree-row ${isDirectory ? 'is-directory' : 'is-file'} ${
+          isActiveFile ? 'is-active' : ''
+        } ${isActiveFolder ? 'is-folder-active' : ''} ${
+          actions ? 'has-actions' : ''
+        }`}
+      >
+        <button
+          type="button"
+          className="note-tree-item"
+          role="treeitem"
+          aria-expanded={isDirectory ? isExpanded : undefined}
+          onClick={() => {
+            if (isDirectory) {
+              onToggleDirectory(node)
+              return
+            }
+            if (node.note) onOpenFile(node.note)
+          }}
+        >
+          <span className="note-tree-toggle" aria-hidden="true">
+            {isDirectory ? (
+              isExpanded ? (
+                <ChevronDown size={16} />
+              ) : (
+                <ChevronRight size={16} />
+              )
+            ) : (
+              <span className="note-tree-toggle-placeholder" />
+            )}
+          </span>
+          <span className="note-tree-label" translate="no">
+            {getTreeNodeDisplayName(node)}
+          </span>
+          {node.note?.isSecret && (
+            <Lock className="note-tree-lock" size={14} aria-hidden="true" />
+          )}
+        </button>
+        {actions}
+      </div>
+      {isDirectory && isExpanded && node.children.length > 0 && (
+        <div className="note-tree-children" role="group">
+          {node.children.map(child => (
+            <NoteTreeNodeRow
+              key={child.id}
+              node={child}
+              forceExpanded={forceExpanded}
+              expandedPaths={expandedPaths}
+              activeFileId={activeFileId}
+              activeFolderPath={activeFolderPath}
+              onToggleDirectory={onToggleDirectory}
+              onOpenFile={onOpenFile}
+              renderActions={renderActions}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function getDirectoryOptions(
@@ -177,14 +488,8 @@ function getVaultNoteItems(files: NoteVaultFile[]): NoteItem[] {
   }))
 }
 
-function ensureMarkdownFileName(input: string) {
-  const name = input.trim()
-  if (!name) return ''
-  return name.toLowerCase().endsWith('.md') ? name : `${name}.md`
-}
-
 function getVaultFilePath(directory: string, name: string) {
-  const fileName = ensureMarkdownFileName(name)
+  const fileName = getStorageMarkdownName(name)
   return normalizeNotePath(directory ? `${directory}/${fileName}` : fileName)
 }
 
@@ -277,13 +582,15 @@ function NotePageContent() {
   const [moveTarget, setMoveTarget] = useState<ExplorerItem | null>(null)
   const [previewContent, setPreviewContent] = useState('')
   const [previewError, setPreviewError] = useState('')
-  const [previewName, setPreviewName] = useState('')
   const [noteName, setNoteName] = useState('')
   const [notePath, setNotePath] = useState('')
   const [plainContent, setPlainContent] = useState('')
   const [editIsSecret, setEditIsSecret] = useState(false)
   const [editError, setEditError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [expandedTreePaths, setExpandedTreePaths] = useState<Set<string>>(
+    () => new Set(getDirectoryPathAncestors(notesPath))
+  )
 
   useEffect(() => {
     if (!cid) {
@@ -336,7 +643,7 @@ function NotePageContent() {
       return
     }
 
-    setNoteName(selectedNote.name)
+    setNoteName(getDisplayMarkdownName(selectedNote.name))
     setNotePath(selectedNote.path || '')
     setEditIsSecret(
       selectedNote.isSecret === true ||
@@ -366,23 +673,14 @@ function NotePageContent() {
     setEditError('')
   }, [cid, isEditing, localDataReady, selectedNote, t, wallet])
 
-  useEffect(() => {
-    setPreviewName(selectedNote?.name || '')
-  }, [selectedNote?.cid, selectedNote?.name])
-
-  const explorerItems = useMemo(
-    () =>
-      filterNotesByPath(
-        notes,
-        notesPath,
-        searchQuery
-      ) as unknown as ExplorerItem[],
-    [notes, notesPath, searchQuery]
+  const noteTree = useMemo(
+    () => buildNoteTree(notes, compareStrings),
+    [compareStrings, notes]
   )
-
-  const visibleFileCount = explorerItems.filter(
-    item => item.type === 'file'
-  ).length
+  const visibleNoteTree = useMemo(
+    () => filterNoteTree(noteTree, searchQuery),
+    [noteTree, searchQuery]
+  )
   const selectedNoteIsSecret =
     selectedNote?.isSecret === true ||
     selectedNote?.content.startsWith('mp://1') === true
@@ -394,20 +692,20 @@ function NotePageContent() {
       ? t('note.privacy.secret')
       : t('note.privacy.public')
 
-  const breadcrumbs = useMemo(() => {
-    const parts = notesPath.split('/').filter(Boolean)
-    return [
-      { label: t('note.root'), path: '' },
-      ...parts.map((part, index) => ({
-        label: part,
-        path: parts.slice(0, index + 1).join('/'),
-      })),
-    ]
-  }, [notesPath, t])
   const directoryOptions = useMemo(
     () => getDirectoryOptions(notes, compareStrings),
     [compareStrings, notes]
   )
+
+  useEffect(() => {
+    if (!selectedNote?.path) return
+    setExpandedTreePaths(paths =>
+      mergeExpandedPaths(
+        paths,
+        getDirectoryPathAncestors(selectedNote.path)
+      )
+    )
+  }, [selectedNote?.path])
 
   function navigateToNote(
     search: NoteSearchParams = {},
@@ -417,7 +715,13 @@ function NotePageContent() {
   }
 
   function openPreview(note: NoteItem) {
+    setNotesPath(normalizeNotePath(note.path || ''))
     navigateToNote({ cid: note.cid })
+  }
+
+  function toggleTreeDirectory(node: NoteTreeNode) {
+    setNotesPath(node.fullPath)
+    setExpandedTreePaths(paths => toggleExpandedPath(paths, node.fullPath))
   }
 
   function openEditor(note: NoteItem) {
@@ -440,7 +744,8 @@ function NotePageContent() {
       addToast(t('note.toast.notFound'), 'error')
       return
     }
-    if (!noteName.trim()) {
+    const nextName = getStorageMarkdownName(noteName)
+    if (!nextName) {
       addToast(t('note.toast.nameRequired'), 'warning')
       return
     }
@@ -453,7 +758,7 @@ function NotePageContent() {
         : markdown
       const nextCid = await saveNote({
         cid: selectedNote.cid,
-        name: noteName,
+        name: nextName,
         path: notePath,
         content: storedContent,
         isSecret: editIsSecret,
@@ -478,7 +783,7 @@ function NotePageContent() {
         if (!requireWallet()) return
         try {
           const newCid = await saveNote({
-            name: value,
+            name: getStorageMarkdownName(value),
             path: notesPath,
             content: '',
             isSecret: false,
@@ -494,26 +799,6 @@ function NotePageContent() {
         }
       },
     })
-  }
-
-  async function handlePreviewRename() {
-    if (!requireWallet()) return
-    if (!selectedNote) return
-    const nextName = previewName.trim()
-    if (!nextName) {
-      setPreviewName(selectedNote.name)
-      addToast(t('note.toast.nameRequired'), 'warning')
-      return
-    }
-    if (nextName === selectedNote.name) return
-
-    try {
-      renameNote(getNoteFullPath(selectedNote), selectedNote.path, nextName)
-      addToast(t('note.toast.renamed'), 'success')
-    } catch (err: unknown) {
-      setPreviewName(selectedNote.name)
-      addToast(getErrorMessage(err, t('note.toast.renameFailed'), t), 'error')
-    }
   }
 
   function openMoveModal(item: ExplorerItem) {
@@ -543,7 +828,9 @@ function NotePageContent() {
       title: isDirectory
         ? t('note.delete.folderTitle')
         : t('note.delete.noteTitle'),
-      message: t('note.delete.message', { name: item.name }),
+      message: t('note.delete.message', {
+        name: getExplorerItemDisplayName(item),
+      }),
       confirmText: t('note.action.delete'),
       onConfirm: async () => {
         deleteNote(isDirectory ? undefined : item.cid, item.path, item.name)
@@ -572,26 +859,6 @@ function NotePageContent() {
       className="note-list-panel note-sidebar-list"
       aria-label={t('note.listLabel')}
     >
-      <div className="note-list-header">
-        <div className="note-current-location">
-          <div className="note-breadcrumbs">
-            {breadcrumbs.map((part, index) => (
-              <Fragment key={part.path || 'root'}>
-                {index > 0 && <span>/</span>}
-                <button onClick={() => setNotesPath(part.path)}>
-                  <span translate={part.path ? 'no' : 'yes'}>
-                    {part.label}
-                  </span>
-                </button>
-              </Fragment>
-            ))}
-          </div>
-        </div>
-        <span className="note-count">
-          {t('note.count', { count: visibleFileCount })}
-        </span>
-      </div>
-
       <div className="note-search">
         <Search size={16} />
         <input
@@ -602,7 +869,7 @@ function NotePageContent() {
         />
       </div>
 
-      {explorerItems.length === 0 ? (
+      {visibleNoteTree.length === 0 ? (
         <div className="ui-empty-state note-empty-state">
           <NotebookPen size={32} />
           <p>
@@ -610,61 +877,15 @@ function NotePageContent() {
           </p>
         </div>
       ) : (
-        <div className="note-list">
-          {explorerItems.map(item => (
-            <article
-              key={`${item.cid}:${item.path}:${item.name}`}
-              className={`ui-list-item note-list-item ${item.type === 'file' && item.cid === cid ? 'active' : ''}`}
-            >
-              <button
-                className={`ui-list-item-main note-list-item-main ${item.type === 'directory' ? 'folder' : ''}`}
-                onClick={() => {
-                  if (item.type === 'directory') {
-                    setNotesPath(
-                      normalizeNotePath(
-                        item.path ? `${item.path}/${item.name}` : item.name
-                      )
-                    )
-                  } else {
-                    openPreview(item)
-                  }
-                }}
-              >
-                <span className={`ui-list-icon note-list-icon ${item.type === 'directory' ? 'warning' : ''}`}>
-                  {item.type === 'directory' ? (
-                    <Folder size={18} />
-                  ) : item.isSecret ? (
-                    <Lock size={18} />
-                  ) : (
-                    <FileText size={18} />
-                  )}
-                </span>
-                <span className="ui-list-copy note-list-copy">
-                  <span className="ui-list-title note-list-name" translate="no">
-                    {item.name}
-                  </span>
-                  {item.type === 'file' ? (
-                    <span
-                      className="ui-list-desc note-list-preview"
-                      translate="no"
-                    >
-                      {getNotePreview(item, t)}
-                    </span>
-                  ) : (
-                    <span className="ui-list-desc note-list-preview">
-                      {t('note.folder')}
-                    </span>
-                  )}
-                </span>
-                {item.type === 'file' && (
-                  <span className="ui-list-meta note-list-date">
-                    {formatDate(item.updated_at)}
-                  </span>
-                )}
-              </button>
-            </article>
-          ))}
-        </div>
+        <NoteTree
+          nodes={visibleNoteTree}
+          searchQuery={searchQuery}
+          expandedPaths={expandedTreePaths}
+          activeFileId={cid}
+          activeFolderPath={cid ? '' : notesPath}
+          onToggleDirectory={toggleTreeDirectory}
+          onOpenFile={openPreview}
+        />
       )}
 
       <div className="note-create-btn">
@@ -706,24 +927,9 @@ function NotePageContent() {
                         disabled={!selectedNote}
                       />
                     ) : selectedNote ? (
-                      <input
-                        className="note-title-input"
-                        value={previewName}
-                        onBlur={handlePreviewRename}
-                        onChange={event => setPreviewName(event.target.value)}
-                        onKeyDown={event => {
-                          if (event.key === 'Enter') {
-                            event.currentTarget.blur()
-                          }
-                          if (event.key === 'Escape') {
-                            setPreviewName(selectedNote.name)
-                            event.currentTarget.blur()
-                          }
-                        }}
-                        placeholder={t('note.namePlaceholder')}
-                        title={t('app.rename')}
-                        translate="no"
-                      />
+                      <h3 translate="no">
+                        {getDisplayMarkdownName(selectedNote.name)}
+                      </h3>
                     ) : (
                       <h3>{t('note.untitled')}</h3>
                     )}
@@ -909,6 +1115,7 @@ function NotePageContent() {
       {moveTarget && (
         <NoteMoveModal
           target={moveTarget}
+          targetLabel={getExplorerItemDisplayName(moveTarget)}
           directories={directoryOptions}
           onMove={handleMove}
           onClose={() => setMoveTarget(null)}
@@ -947,6 +1154,9 @@ function VaultNotePageContent() {
   const [fileLoading, setFileLoading] = useState(false)
   const [fileError, setFileError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [expandedTreePaths, setExpandedTreePaths] = useState<Set<string>>(
+    () => new Set(getDirectoryPathAncestors(vaultFolderPath))
+  )
   const [inputModal, setInputModal] = useState<null | {
     title: string
     placeholder?: string
@@ -968,28 +1178,24 @@ function VaultNotePageContent() {
     () => getDirectoryOptions(vaultNotes, compareStrings),
     [compareStrings, vaultNotes]
   )
-  const explorerItems = useMemo(
-    () =>
-      filterNotesByPath(
-        vaultNotes,
-        vaultFolderPath,
-        searchQuery
-      ) as unknown as ExplorerItem[],
-    [vaultFolderPath, searchQuery, vaultNotes]
+  const noteTree = useMemo(
+    () => buildNoteTree(vaultNotes, compareStrings),
+    [compareStrings, vaultNotes]
   )
-  const visibleFileCount = explorerItems.filter(
-    item => item.type === 'file'
-  ).length
-  const breadcrumbs = useMemo(() => {
-    const parts = vaultFolderPath.split('/').filter(Boolean)
-    return [
-      { label: t('note.root'), path: '' },
-      ...parts.map((part, index) => ({
-        label: part,
-        path: parts.slice(0, index + 1).join('/'),
-      })),
-    ]
-  }, [vaultFolderPath, t])
+  const visibleNoteTree = useMemo(
+    () => filterNoteTree(noteTree, searchQuery),
+    [noteTree, searchQuery]
+  )
+
+  useEffect(() => {
+    if (!selectedNote?.path) return
+    setExpandedTreePaths(paths =>
+      mergeExpandedPaths(
+        paths,
+        getDirectoryPathAncestors(selectedNote.path)
+      )
+    )
+  }, [selectedNote?.path])
 
   const refreshVault = useCallback(async () => {
     if (!wallet) {
@@ -1024,7 +1230,9 @@ function VaultNotePageContent() {
   }, [refreshVault])
 
   useEffect(() => {
-    setPreviewName(selectedFile?.name || selectedNote?.name || '')
+    setPreviewName(
+      getDisplayMarkdownName(selectedFile?.name || selectedNote?.name || '')
+    )
   }, [selectedFile?.name, selectedNote?.name])
 
   useEffect(() => {
@@ -1084,7 +1292,13 @@ function VaultNotePageContent() {
   }
 
   function openPreview(note: NoteItem) {
+    setVaultFolderPath(normalizeNotePath(note.path || ''))
     navigateToVault({ file: note.cid })
+  }
+
+  function toggleTreeDirectory(node: NoteTreeNode) {
+    setVaultFolderPath(node.fullPath)
+    setExpandedTreePaths(paths => toggleExpandedPath(paths, node.fullPath))
   }
 
   function openEditor() {
@@ -1093,6 +1307,9 @@ function VaultNotePageContent() {
   }
 
   function closeEditor() {
+    setPreviewName(
+      getDisplayMarkdownName(selectedFile?.name || selectedNote?.name || '')
+    )
     navigateToVault(currentFilePath ? { file: currentFilePath } : {})
   }
 
@@ -1166,38 +1383,6 @@ function VaultNotePageContent() {
     })
   }
 
-  async function handlePreviewRename() {
-    if (!ensureVaultReady() || !selectedFile) return
-    const nextName = ensureMarkdownFileName(previewName)
-    if (!nextName) {
-      setPreviewName(selectedFile.name)
-      addToast(t('note.toast.nameRequired'), 'warning')
-      return
-    }
-    if (nextName === selectedFile.name) return
-
-    const nextPath = normalizeNotePath(
-      selectedFile.directory
-        ? `${selectedFile.directory}/${nextName}`
-        : nextName
-    )
-
-    try {
-      const file = await moveNoteVaultFile(selectedFile.path, nextPath)
-      setSelectedFile(file)
-      setPreviewName(file.name)
-      await refreshVault()
-      navigateToVault({ file: file.path }, true)
-      addToast(t('note.toast.renamed'), 'success')
-    } catch (err: unknown) {
-      setPreviewName(selectedFile.name)
-      addToast(
-        await getApiErrorMessage(err, t('note.toast.renameFailed')),
-        'error'
-      )
-    }
-  }
-
   function openMoveModal(item: ExplorerItem) {
     if (!ensureVaultReady()) return
     setMoveTarget(item)
@@ -1255,7 +1440,9 @@ function VaultNotePageContent() {
       title: isDirectory
         ? t('note.delete.folderTitle')
         : t('note.delete.noteTitle'),
-      message: t('note.delete.message', { name: item.name }),
+      message: t('note.delete.message', {
+        name: getExplorerItemDisplayName(item),
+      }),
       confirmText: t('note.action.delete'),
       onConfirm: async () => {
         try {
@@ -1295,16 +1482,35 @@ function VaultNotePageContent() {
       openLoginModal()
       return
     }
-    if (!currentFilePath) {
+    if (!currentFilePath || !selectedFile) {
       addToast(t('note.toast.notFound'), 'error')
+      return
+    }
+    const nextName = getStorageMarkdownName(previewName)
+    if (!nextName) {
+      addToast(t('note.toast.nameRequired'), 'warning')
       return
     }
 
     setSaving(true)
     try {
       const markdown = editorRef.current?.getMarkdown() ?? plainContent
-      const file = await saveNoteVaultFile(currentFilePath, markdown)
+      let targetPath = selectedFile.path
+      if (nextName !== selectedFile.name) {
+        targetPath = normalizeNotePath(
+          selectedFile.directory
+            ? `${selectedFile.directory}/${nextName}`
+            : nextName
+        )
+        const movedFile = await moveNoteVaultFile(selectedFile.path, targetPath)
+        setSelectedFile(movedFile)
+        setPreviewName(getDisplayMarkdownName(movedFile.name))
+        targetPath = movedFile.path
+      }
+
+      const file = await saveNoteVaultFile(targetPath, markdown)
       setSelectedFile(file)
+      setPreviewName(getDisplayMarkdownName(file.name))
       setPlainContent(file.content)
       await refreshVault()
       navigateToVault({ file: file.path }, true)
@@ -1343,26 +1549,6 @@ function VaultNotePageContent() {
       className="note-list-panel note-sidebar-list"
       aria-label={t('note.listLabel')}
     >
-      <div className="note-list-header">
-        <div className="note-current-location">
-          <div className="note-breadcrumbs">
-            {breadcrumbs.map((part, index) => (
-              <Fragment key={part.path || 'root'}>
-                {index > 0 && <span>/</span>}
-                <button onClick={() => setVaultFolderPath(part.path)}>
-                  <span translate={part.path ? 'no' : 'yes'}>
-                    {part.label}
-                  </span>
-                </button>
-              </Fragment>
-            ))}
-          </div>
-        </div>
-        <span className="note-count">
-          {t('note.count', { count: visibleFileCount })}
-        </span>
-      </div>
-
       <div className="note-search">
         <Search size={16} />
         <input
@@ -1395,7 +1581,7 @@ function VaultNotePageContent() {
             {openingVault ? t('note.vault.opening') : t('note.vault.open')}
           </button>
         </div>
-      ) : explorerItems.length === 0 ? (
+      ) : visibleNoteTree.length === 0 ? (
         <div className="ui-empty-state note-empty-state">
           <NotebookPen size={32} />
           <p>
@@ -1403,72 +1589,47 @@ function VaultNotePageContent() {
           </p>
         </div>
       ) : (
-        <div className="note-list">
-          {explorerItems.map(item => (
-            <article
-              key={`${item.type}:${item.cid || getExplorerItemFullPath(item)}`}
-              className={`ui-list-item note-list-item has-actions ${item.type === 'file' && item.cid === currentFilePath ? 'active' : ''}`}
-            >
-              <button
-                className={`ui-list-item-main note-list-item-main ${item.type === 'directory' ? 'folder' : ''}`}
-                onClick={() => {
-                  if (item.type === 'directory') {
-                    setVaultFolderPath(
-                      normalizeNotePath(
-                        item.path ? `${item.path}/${item.name}` : item.name
-                      )
-                    )
-                  } else {
-                    openPreview(item)
-                  }
-                }}
-              >
-                <span className={`ui-list-icon note-list-icon ${item.type === 'directory' ? 'warning' : ''}`}>
-                  {item.type === 'directory' ? (
-                    <Folder size={18} />
-                  ) : (
-                    <FileText size={18} />
-                  )}
-                </span>
-                <span className="ui-list-copy note-list-copy">
-                  <span className="ui-list-title note-list-name" translate="no">
-                    {item.name}
-                  </span>
-                  <span className="ui-list-desc note-list-preview" translate="no">
-                    {item.type === 'file'
-                      ? item.cid
-                      : t('note.folder')}
-                  </span>
-                </span>
-                {item.type === 'file' && (
-                  <span className="ui-list-meta note-list-date">
-                    {formatDate(item.updated_at)}
-                  </span>
-                )}
-              </button>
-              <div className="note-list-inline-actions">
+        <NoteTree
+          nodes={visibleNoteTree}
+          searchQuery={searchQuery}
+          expandedPaths={expandedTreePaths}
+          activeFileId={currentFilePath}
+          activeFolderPath={currentFilePath ? '' : vaultFolderPath}
+          onToggleDirectory={toggleTreeDirectory}
+          onOpenFile={openPreview}
+          renderActions={item => (
+            <ActionMenu
+              ariaLabel={t('common.moreActions')}
+              className="note-list-actions-anchor"
+              placement="bottom-end"
+              items={[
+                {
+                  key: 'move',
+                  label: t('note.action.move'),
+                  icon: <Move size={16} />,
+                  onSelect: () => openMoveModal(item),
+                },
+                {
+                  key: 'delete',
+                  label: t('note.action.delete'),
+                  icon: <Trash2 size={16} />,
+                  danger: true,
+                  onSelect: () => openDeleteConfirm(item),
+                },
+              ]}
+              renderTrigger={triggerProps => (
                 <button
-                  type="button"
-                  className="btn btn-icon"
-                  onClick={() => openMoveModal(item)}
-                  title={t('note.action.move')}
-                  aria-label={t('note.action.move')}
+                  {...triggerProps}
+                  className="note-list-actions-trigger"
+                  title={t('common.moreActions')}
+                  aria-label={t('common.moreActions')}
                 >
-                  <Move size={15} />
+                  <MoreHorizontal size={16} />
                 </button>
-                <button
-                  type="button"
-                  className="btn btn-icon note-editor-action-danger"
-                  onClick={() => openDeleteConfirm(item)}
-                  title={t('note.action.delete')}
-                  aria-label={t('note.action.delete')}
-                >
-                  <Trash2 size={15} />
-                </button>
-              </div>
-            </article>
-          ))}
-        </div>
+              )}
+            />
+          )}
+        />
       )}
 
       {vaultStatus?.configured === true && (
@@ -1485,7 +1646,8 @@ function VaultNotePageContent() {
   const editorMetaTime =
     selectedFile?.mtimeMs || selectedNote?.updated_at || Date.now()
   const selectedTitle =
-    selectedFile?.name || selectedNote?.name || t('note.untitled')
+    getDisplayMarkdownName(selectedFile?.name || selectedNote?.name || '') ||
+    t('note.untitled')
 
   return (
     <AppShell
@@ -1507,18 +1669,24 @@ function VaultNotePageContent() {
               <>
                 <div className="note-editor-panel-header">
                   <div className="note-editor-title-area">
-                    {selectedFile && !isEditing ? (
+                    {isEditing && selectedFile ? (
                       <input
                         className="note-title-input"
                         value={previewName}
-                        onBlur={handlePreviewRename}
                         onChange={event => setPreviewName(event.target.value)}
                         onKeyDown={event => {
                           if (event.key === 'Enter') {
                             event.currentTarget.blur()
+                            return
+                          }
+                          if (event.key === 'Escape') {
+                            setPreviewName(
+                              getDisplayMarkdownName(selectedFile.name)
+                            )
+                            event.currentTarget.blur()
                           }
                         }}
-                        title={t('app.rename')}
+                        placeholder={t('note.namePlaceholder')}
                         translate="no"
                       />
                     ) : (
@@ -1528,7 +1696,9 @@ function VaultNotePageContent() {
                       <span>
                         {isEditing ? t('note.mode.edit') : t('note.mode.read')}
                       </span>
-                      <span translate="no">{currentFilePath}</span>
+                      <span translate="no">
+                        {getDisplayMarkdownPath(currentFilePath)}
+                      </span>
                       <span>{formatDate(editorMetaTime)}</span>
                     </div>
                   </div>
@@ -1556,39 +1726,17 @@ function VaultNotePageContent() {
                       </button>
                     ) : (
                       selectedNote && (
-                        <>
-                          <button
-                            type="button"
-                            className="btn btn-icon"
-                            onClick={() => openMoveModal(selectedNote)}
-                            disabled={!!fileError || !selectedFile}
-                            title={t('note.action.move')}
-                            aria-label={t('note.action.move')}
-                          >
-                            <Move size={16} />
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-icon note-editor-action-danger"
-                            onClick={() => openDeleteConfirm(selectedNote)}
-                            disabled={!!fileError || !selectedFile}
-                            title={t('note.action.delete')}
-                            aria-label={t('note.action.delete')}
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-primary"
-                            onClick={openEditor}
-                            disabled={!!fileError || !selectedFile}
-                            title={t('note.action.edit')}
-                            aria-label={t('note.action.edit')}
-                          >
-                            <PencilRuler size={16} />
-                            {t('note.action.edit')}
-                          </button>
-                        </>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-primary"
+                          onClick={openEditor}
+                          disabled={!!fileError || !selectedFile}
+                          title={t('note.action.edit')}
+                          aria-label={t('note.action.edit')}
+                        >
+                          <PencilRuler size={16} />
+                          {t('note.action.edit')}
+                        </button>
                       )
                     )}
                   </div>
@@ -1689,6 +1837,7 @@ function VaultNotePageContent() {
       {moveTarget && (
         <NoteMoveModal
           target={moveTarget}
+          targetLabel={getExplorerItemDisplayName(moveTarget)}
           directories={directoryOptions}
           onMove={handleMove}
           onClose={() => setMoveTarget(null)}
