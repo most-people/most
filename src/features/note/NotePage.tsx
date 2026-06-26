@@ -39,6 +39,11 @@ import {
 import { NoteMoveModal, type NoteMoveTarget } from '~/components/NoteMoveModal'
 import { NoteSidebar } from '~/components/NoteSidebar'
 import { useI18n, type MessageKey } from '~/lib/i18n'
+import {
+  deleteChatNoteDraft,
+  readChatNoteDraft,
+  type ChatNoteDraft,
+} from '~/lib/chatNoteDraft'
 import { useIsDesktopClient } from '~/hooks'
 import {
   getApiErrorMessage,
@@ -96,6 +101,7 @@ type NoteSearchParams = {
   cid?: string
   file?: string
   path?: string
+  chatDraft?: string
   mode?: 'edit'
 }
 
@@ -115,6 +121,7 @@ function getNoteSearch(searchStr: string): NoteSearchParams {
     cid: searchParams.get('cid') || undefined,
     file: searchParams.get('file') || undefined,
     path: searchParams.get('path') || undefined,
+    chatDraft: searchParams.get('chatDraft') || undefined,
     mode: mode === 'edit' ? 'edit' : undefined,
   }
 }
@@ -124,6 +131,7 @@ function getNoteHref(search: NoteSearchParams = {}) {
   if (search.cid) searchParams.set('cid', search.cid)
   if (search.file) searchParams.set('file', search.file)
   if (search.path) searchParams.set('path', search.path)
+  if (search.chatDraft) searchParams.set('chatDraft', search.chatDraft)
   if (search.mode) searchParams.set('mode', search.mode)
 
   const query = searchParams.toString()
@@ -178,6 +186,24 @@ function getDisplayMarkdownName(input = '') {
 function getStorageMarkdownName(input: string) {
   const name = getDisplayMarkdownName(input)
   return name ? `${name}.md` : ''
+}
+
+function getUniqueStorageMarkdownName(
+  title: string,
+  fallbackTitle: string,
+  exists: (name: string) => boolean
+) {
+  const baseName = getDisplayMarkdownName(title) || fallbackTitle
+
+  for (let index = 0; index < 1000; index += 1) {
+    const name =
+      index === 0
+        ? getStorageMarkdownName(baseName)
+        : getStorageMarkdownName(`${baseName} ${index + 1}`)
+    if (name && !exists(name)) return name
+  }
+
+  return getStorageMarkdownName(`${baseName} ${Date.now()}`)
 }
 
 function getStorageMarkdownPath(input = '') {
@@ -726,6 +752,8 @@ function NotePageContent() {
     onConfirm: () => void | Promise<void>
   }>(null)
   const [moveTarget, setMoveTarget] = useState<ExplorerItem | null>(null)
+  const importedChatDraftRef = useRef('')
+  const blockedChatDraftRef = useRef('')
   const [previewContent, setPreviewContent] = useState('')
   const [previewError, setPreviewError] = useState('')
   const [noteName, setNoteName] = useState('')
@@ -884,6 +912,32 @@ function NotePageContent() {
     navigate({ href: getNoteHref({ cid: note.cid }), replace: true })
   }, [cid, navigate, notes, params.path, setNotesPath])
 
+  useEffect(() => {
+    const draftId = params.chatDraft || ''
+    if (!draftId || importedChatDraftRef.current === draftId) return
+    if (!localDataReady) return
+
+    if (!wallet) {
+      const marker = `${draftId}:auth`
+      if (blockedChatDraftRef.current !== marker) {
+        blockedChatDraftRef.current = marker
+        openLoginModal()
+      }
+      return
+    }
+
+    const draft = readChatNoteDraft(draftId)
+    if (!draft) {
+      importedChatDraftRef.current = draftId
+      addToast(t('note.chatDraft.missing'), 'warning')
+      navigateToNote({}, true)
+      return
+    }
+
+    importedChatDraftRef.current = draftId
+    void importChatDraftToNote(draft)
+  }, [addToast, localDataReady, params.chatDraft, t, wallet])
+
   function navigateToNote(
     search: NoteSearchParams = {},
     replace = false
@@ -913,6 +967,35 @@ function NotePageContent() {
     if (wallet) return true
     openLoginModal()
     return false
+  }
+
+  async function importChatDraftToNote(draft: ChatNoteDraft) {
+    if (!wallet) return
+
+    try {
+      const name = getUniqueStorageMarkdownName(
+        draft.title,
+        t('note.chatDraft.defaultTitle'),
+        candidate =>
+          notes.some(
+            note =>
+              normalizeNotePath(note.path || '') === normalizeNotePath(notesPath) &&
+              note.name === candidate
+          )
+      )
+      const newCid = await saveNote({
+        name,
+        path: notesPath,
+        content: draft.content,
+        isSecret: false,
+      })
+      deleteChatNoteDraft(draft.id)
+      addToast(t('note.chatDraft.created'), 'success')
+      navigateToNote({ cid: newCid, mode: 'edit' }, true)
+    } catch (err: unknown) {
+      importedChatDraftRef.current = ''
+      addToast(getErrorMessage(err, t('note.toast.createFailed'), t), 'error')
+    }
   }
 
   function closeEditor() {
@@ -1354,6 +1437,8 @@ function VaultNotePageContent() {
     onConfirm: () => void | Promise<void>
   }>(null)
   const [moveTarget, setMoveTarget] = useState<ExplorerItem | null>(null)
+  const importedChatDraftRef = useRef('')
+  const blockedChatDraftRef = useRef('')
 
   const vaultNotes = useMemo(() => getVaultNoteItems(vaultFiles), [vaultFiles])
   const selectedNote = vaultNotes.find(note => note.cid === currentFilePath)
@@ -1415,6 +1500,41 @@ function VaultNotePageContent() {
     setVaultFolderPath(normalizeNotePath(note.path || ''))
     navigate({ href: getNoteHref({ file: note.cid }), replace: true })
   }, [currentFilePath, navigate, params.path, vaultNotes])
+
+  useEffect(() => {
+    const draftId = params.chatDraft || ''
+    if (!draftId || importedChatDraftRef.current === draftId) return
+    if (vaultLoading) return
+
+    if (!wallet) {
+      const marker = `${draftId}:auth`
+      if (blockedChatDraftRef.current !== marker) {
+        blockedChatDraftRef.current = marker
+        openLoginModal()
+      }
+      return
+    }
+
+    if (vaultStatus?.configured !== true) {
+      const marker = `${draftId}:vault`
+      if (blockedChatDraftRef.current !== marker) {
+        blockedChatDraftRef.current = marker
+        addToast(t('note.chatDraft.openVaultFirst'), 'warning')
+      }
+      return
+    }
+
+    const draft = readChatNoteDraft(draftId)
+    if (!draft) {
+      importedChatDraftRef.current = draftId
+      addToast(t('note.chatDraft.missing'), 'warning')
+      navigateToVault({}, true)
+      return
+    }
+
+    importedChatDraftRef.current = draftId
+    void importChatDraftToVault(draft)
+  }, [addToast, params.chatDraft, t, vaultLoading, vaultStatus?.configured, wallet])
 
   const refreshVault = useCallback(async () => {
     if (!wallet) {
@@ -1574,6 +1694,37 @@ function VaultNotePageContent() {
       return false
     }
     return true
+  }
+
+  async function importChatDraftToVault(draft: ChatNoteDraft) {
+    if (!ensureVaultReady()) return
+
+    try {
+      const name = getUniqueStorageMarkdownName(
+        draft.title,
+        t('note.chatDraft.defaultTitle'),
+        candidate =>
+          vaultFiles.some(
+            file =>
+              normalizeNotePath(file.directory) ===
+                normalizeNotePath(vaultFolderPath) && file.name === candidate
+          )
+      )
+      const targetPath = normalizeNotePath(
+        vaultFolderPath ? `${vaultFolderPath}/${name}` : name
+      )
+      const file = await createNoteVaultFile(targetPath, draft.content)
+      deleteChatNoteDraft(draft.id)
+      await refreshVault()
+      addToast(t('note.chatDraft.created'), 'success')
+      navigateToVault({ file: file.path, mode: 'edit' }, true)
+    } catch (err: unknown) {
+      importedChatDraftRef.current = ''
+      addToast(
+        await getApiErrorMessage(err, t('note.toast.createFailed')),
+        'error'
+      )
+    }
   }
 
   function openCreateNoteModal() {

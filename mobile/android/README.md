@@ -1,14 +1,15 @@
 # MostBox Android
 
-Android app MVP for MostBox file sharing. This package keeps the mobile UI and Bare Worklet P2P core separate from the desktop/web code.
+Android chat-first alpha for MostBox. This package keeps the React Native UI and Bare Worklet P2P core separate from the desktop/web code while preserving the same `most://`, CID, Hyperdrive, and seeding rules.
 
 ## Current State
 
-- Phase 0 device validation has passed on a real Android device.
+- The first screen is chat-first: node status, a chat room panel, message composer, attachment action, incoming attachment link handling, holdings, transfers, and logs.
+- Channel create/list/messages/presence use the mobile Bare Worklet P2P core over JSONL IPC.
+- Sending an attachment publishes the selected file, creates the `most://<cid>?filename=...` link, posts that link into the active chat room, and keeps the Android node seeding in the foreground.
+- Received chat messages that contain a `most://` link can be moved into the attachment receiver and downloaded by the Android node.
 - Android and desktop MostBox nodes have completed end-to-end publish/download/CID verification/seeding interop in foreground mode.
-- The first screen shows node status, holdings, transfers, and logs.
-- Publish and download actions use the Bare Worklet P2P core.
-- `backend/backend.mjs` starts the real mobile P2P core over JSONL IPC.
+- `backend/backend.mjs` starts the real mobile P2P core.
 - The mobile P2P core uses Hyperswarm, Corestore, Hyperdrive, CID digest topics, `/<cid>` drive paths, and CID verification before downloaded files become holdings.
 
 ## Commands
@@ -36,22 +37,23 @@ If the machine has multiple network adapters and the selected LAN URL is not rea
 
 The release build is an internal alpha artifact. It uses the current local Android signing setup and is not a Play Store production build.
 
-## Real P2P Test
+## Real P2P Chat And Attachment Test
 
 Use one Android device and at least one desktop MostBox node:
 
 1. Start the Android dev client with `npm start`, or install the APK from `mobile/android/dist/`.
-2. Confirm the Android header reaches `Ready`.
-3. Publish a file on Android and confirm the transfer reaches `completed`.
-4. Confirm Holdings shows the CID with `active` and `topicJoined` true.
-5. Copy the `most://` link and download it from a desktop MostBox node. The desktop download must pass CID verification.
-6. Publish a file from desktop, download it on Android, and confirm Android adds it to Holdings.
-7. Use `打开/分享` from the Android holding row and confirm Android shows the system share/open sheet.
-8. Use `保存` from the Android holding row, choose a phone folder, and confirm a user-visible copy is created.
-9. Delete that Android holding and confirm the row disappears, the app stops seeding that CID, and the user-visible copy saved in step 8 still exists.
-10. Paste the same `most://` link again, download it while another seed is online, and confirm Android adds it back to Holdings with `active` and `topicJoined` true.
-11. Stop the original desktop publisher. Keep Android in the foreground, then download the same link from another desktop node.
-12. Restart the Android app and confirm existing holdings rejoin their CID topics.
+2. Confirm the Android header reaches `在线`.
+3. In Android, join or create a chat room such as `chat-android`.
+4. In desktop MostBox, open `/chat/`, join the same room, and send a message both ways.
+5. In Android, tap `发送附件`, choose a file, and confirm a chat message containing a `most://` link appears.
+6. Download that link from the desktop node. The desktop download must pass CID verification.
+7. Send a desktop `most://` attachment link into the chat room, tap `接收附件` on Android, and download it.
+8. Confirm Android adds the downloaded file to Holdings with `active` and `topicJoined` true.
+9. Use `打开/分享` from the Android holding row and confirm Android shows the system share/open sheet.
+10. Use `保存` from the Android holding row, choose a phone folder, and confirm a user-visible copy is created.
+11. Delete that Android holding and confirm the row disappears, the app stops seeding that CID, and the user-visible copy saved in step 10 still exists.
+12. Stop the original desktop publisher. Keep Android in the foreground, then download the same link from another desktop node.
+13. Restart the Android app and confirm existing holdings rejoin their CID topics.
 
 For a local desktop seed helper, run this from the repository root:
 
@@ -62,9 +64,10 @@ node scripts/android-real-p2p-seed.mjs
 ## Known Limits
 
 - Android alpha only promises foreground seeding. It does not promise long-running background availability.
+- Android chat currently focuses on private room messages, presence, and `most://` attachment links; notes, games, and Web3 remain desktop/web-first surfaces.
 - Exported or saved files are user-visible copies. MostBox keeps its internal holding copy for CID verification and seeding.
 - Deleting an Android holding removes only the app-internal holding copy and holding record; user-visible saved/exported copies are not managed by MostBox.
-- iOS, Play Store distribution, cloud relay, account sync, chat, games, notes, and Web3 toolbox migration are outside this alpha.
+- iOS, Play Store distribution, cloud relay, account sync, background seeding guarantees, and full notes/games/Web3 migration are outside this alpha.
 - Large files may expose storage, network interruption, and Android file picker/export edge cases; record those in `docs/mobile-android-alpha.md`.
 
 ## Protocol Invariants

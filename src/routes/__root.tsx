@@ -37,7 +37,7 @@ export const Route = createRootRoute({
       { title: 'MostBox' },
       {
         name: 'description',
-        content: translateMessage('portal.feature.app.hero'),
+        content: translateMessage('portal.meta.description'),
       },
     ],
     links: [{ rel: 'icon', href: '/logo.svg', type: 'image/svg+xml' }],

@@ -328,6 +328,60 @@ describe('frontend smoke checks', () => {
     assert.doesNotMatch(agents, /components\/AppHomeMode\.tsx/)
   })
 
+  it('documents the chat-first MVP acceptance path without weakening protocol regression', () => {
+    const acceptance = readSource('docs/acceptance.md')
+    const plan = readSource('docs/p2p-chat-first-plan.md')
+
+    assert.match(acceptance, /聊天主入口/)
+    assert.match(acceptance, /`http:\/\/localhost:3000\/chat\/`/)
+    assert.match(acceptance, /当前主线验收从 `\/chat\/` 开始/)
+    assert.match(acceptance, /`\/app\/` 现在是文件库和传输管理入口/)
+    assert.match(acceptance, /聊天附件传文件/)
+    assert.match(acceptance, /发布者退出/)
+    assert.match(acceptance, /保存到知识库/)
+    assert.match(acceptance, /`game\.<gameId>\.<roomCode>` Channel/)
+    assert.match(acceptance, /`most:\/\/<cid>\?filename=\.\.\.`/)
+    assert.match(acceptance, /cidVersion: 1/)
+    assert.match(acceptance, /rawLeaves: true/)
+    assert.match(acceptance, /wrapWithDirectory: false/)
+    assert.match(acceptance, /cid\.multihash\.digest/)
+    assert.match(acceptance, /`\/<cid>`/)
+    assert.match(acceptance, /下载完成后必须重算 UnixFS CID v1/)
+    assert.match(acceptance, /Web3 工具箱独立/)
+    assert.match(acceptance, /cd mobile\/android[\s\S]*npm test/)
+    assert.match(plan, /P6：验收口径切换/)
+    assert.doesNotMatch(
+      acceptance,
+      /主应用\s*\|\s*`http:\/\/localhost:3000\/app\/`\s*\|\s*发布文件/
+    )
+  })
+
+  it('keeps Android aligned with the chat-first attachment MVP', () => {
+    const appSource = readSource('mobile/android/App.tsx')
+    const androidReadme = readSource('mobile/android/README.md')
+    const androidPlan = readSource('docs/mobile-android-plan.md')
+    const readme = readSource(SOURCE_PATHS.readme)
+
+    assert.match(appSource, /P2P 聊天节点/)
+    assert.match(appSource, /title="聊天房间"/)
+    assert.match(appSource, /label=\{isReady \? '发送附件' : '等待核心'\}/)
+    assert.match(appSource, /content: `附件 \$\{file\.name\}: \$\{transfer\.link\}`/)
+    assert.match(appSource, /extractMostLinkFromText/)
+    assert.match(appSource, /setDownloadLink\(attachmentLink\)/)
+    assert.match(appSource, /title="接收附件"/)
+    assert.match(appSource, /chat-android/)
+    assert.doesNotMatch(appSource, /Channel Probe|Send Probe Message|No channel messages/)
+    assert.doesNotMatch(appSource, /\{__DEV__ \? \(/)
+    assert.match(androidReadme, /Android chat-first alpha/)
+    assert.match(androidReadme, /Sending an attachment publishes/)
+    assert.match(androidReadme, /Received chat messages that contain a `most:\/\/` link/)
+    assert.match(androidPlan, /Android 聊天优先完整种子 MVP 计划/)
+    assert.match(androidPlan, /生成 most:\/\/ 分享链接并发进聊天/)
+    assert.match(androidPlan, /Android 发送附件会发布文件/)
+    assert.match(readme, /Android 聊天优先完整种子 MVP/)
+    assert.match(readme, /收发消息、用 `most:\/\/` 附件传文件/)
+  })
+
   it('uses TanStack Start static prerender for the web shell', () => {
     const packageJson = readSource(SOURCE_PATHS.packageJson)
     const viteConfig = readSource(SOURCE_PATHS.viteConfig)
@@ -586,9 +640,35 @@ describe('frontend smoke checks', () => {
     assert.doesNotMatch(zhajinhuaSource, /\uFFFD/)
   })
 
+  it('keeps game rooms independent from the chat detail drawer for now', () => {
+    const chatSource = readSource(SOURCE_PATHS.features.chat)
+    const chatCssSource = readSource('src/styles/chat.css')
+    const gameRoomSource = readSource('src/hooks/useGameRoom.ts')
+    const ganDengYanSource = readSource(SOURCE_PATHS.features.ganDengYan)
+    const zhajinhuaSource = readSource(
+      'src/features/game/zhajinhua/ZhajinhuaPage.tsx'
+    )
+
+    assert.doesNotMatch(chatSource, /function getChatGameRoomCode/)
+    assert.doesNotMatch(chatSource, /function getChatGameUrl/)
+    assert.doesNotMatch(chatSource, /\/game\/\$\{gameId\}\/\?room=/)
+    assert.doesNotMatch(chatSource, /chat\.games\./)
+    assert.doesNotMatch(chatSource, /channel-game-section/)
+    assert.doesNotMatch(chatCssSource, /channel-game-actions/)
+    assert.match(gameRoomSource, /gameRoomCodeToChannelName\(gameId, code\)/)
+    assert.match(gameRoomSource, /GAME_CHANNEL_TYPE/)
+    assert.match(gameRoomSource, /useChannelMessages/)
+    assert.doesNotMatch(gameRoomSource, /\/api\/game|gameRoutes/)
+    assert.match(ganDengYanSource, /new URLSearchParams\(window\.location\.search\)/)
+    assert.match(ganDengYanSource, /game\.joinRoom\(code\)/)
+    assert.match(zhajinhuaSource, /new URLSearchParams\(window\.location\.search\)/)
+    assert.match(zhajinhuaSource, /game\.joinRoom\(code\)/)
+  })
+
   it('keeps P2P chat controls shared without the discarded chat extras', () => {
     const chatSource = readSource(SOURCE_PATHS.features.chat)
     const componentSource = readSource('src/components/ChatUi.tsx')
+    const attachmentCardSource = readSource('src/components/ChatAttachmentCard.tsx')
     const uiIndexSource = readSource('src/components/ui/index.ts')
     const chatUnreadSource = readSource('src/lib/chatUnread.js')
     const i18nMessages = readI18nSources()
@@ -621,12 +701,27 @@ describe('frontend smoke checks', () => {
     )
     assert.match(chatSource, /markChannelRead\(/)
     assert.match(chatSource, /btn btn-secondary btn-block/)
+    assert.doesNotMatch(chatSource, /CopyButton|getChatInviteUrl/)
+    assert.doesNotMatch(chatSource, /chat\.invite\./)
+    assert.doesNotMatch(chatSource, /channel-invite-section/)
+    assert.match(
+      chatSource,
+      /status: 'checking' \| 'ready' \| 'downloading' \| 'available' \| 'error'/
+    )
+    assert.match(chatSource, /message=\{downloadState\?\.message\}/)
+    assert.match(attachmentCardSource, /chat\.attachment\.download/)
+    assert.match(attachmentCardSource, /chat\.attachment\.downloading/)
+    assert.match(attachmentCardSource, /chat-attachment-action-label/)
     assert.match(componentSource, /labelKey: 'chat\.attachment\.image'/)
     assert.match(componentSource, /labelKey: 'chat\.attachment\.video'/)
     assert.match(componentSource, /labelKey: 'chat\.attachment\.file'/)
     assert.match(i18nMessages, /'chat\.attachment\.image': '图片'/)
     assert.match(i18nMessages, /'chat\.attachment\.video': '视频'/)
     assert.match(i18nMessages, /'chat\.attachment\.file': '文件'/)
+    assert.match(i18nMessages, /'chat\.attachment\.downloadAvailable': '可下载'/)
+    assert.match(i18nMessages, /'chat\.attachment\.preview': '预览'/)
+    assert.doesNotMatch(i18nMessages, /chat\.invite\.|chat\.games\./)
+    assert.match(i18nMessages, /'chat\.details\.channelId': '房间 ID'/)
     assert.doesNotMatch(componentSource, /application\/pdf/)
     assert.doesNotMatch(componentSource, /video\/mp4/)
     assert.doesNotMatch(
@@ -638,6 +733,47 @@ describe('frontend smoke checks', () => {
       /PINNED_CHANNELS|ChatTypingIndicator|__duplicate/
     )
     assert.doesNotMatch(chatSource, /正在输入|告诉我可以帮你做什么|修改名称/)
+  })
+
+  it('saves chat messages into note drafts without a new backend', () => {
+    const chatSource = readSource(SOURCE_PATHS.features.chat)
+    const chatUiSource = readSource('src/components/ChatUi.tsx')
+    const noteSource = readSource('src/features/note/NotePage.tsx')
+    const noteRouteSource = readSource('src/routes/note/index.tsx')
+    const draftSource = readSource('src/lib/chatNoteDraft.ts')
+    const i18nMessages = readI18nSources()
+
+    assert.match(draftSource, /CHAT_NOTE_DRAFT_STORAGE_PREFIX/)
+    assert.match(draftSource, /window\.localStorage/)
+    assert.match(draftSource, /chatDraft/)
+    assert.doesNotMatch(draftSource, /\/api\/|fetch\(|api\./)
+    assert.match(chatSource, /createChatNoteDraft/)
+    assert.match(chatSource, /getChatNoteDraftHref/)
+    assert.match(chatSource, /handleSaveMessageToNote/)
+    assert.match(chatSource, /chat\.message\.saveToNote/)
+    assert.match(chatSource, /NotebookPen/)
+    assert.match(chatUiSource, /actions\?: ActionMenuItem\[\]/)
+    assert.match(chatUiSource, /chat-message-actions-trigger/)
+    assert.match(noteRouteSource, /chatDraft/)
+    assert.match(noteSource, /readChatNoteDraft/)
+    assert.match(noteSource, /deleteChatNoteDraft/)
+    assert.match(noteSource, /importChatDraftToNote/)
+    assert.match(noteSource, /importChatDraftToVault/)
+    assert.match(
+      noteSource,
+      /saveNote\(\{[\s\S]*content: draft\.content[\s\S]*isSecret: false/
+    )
+    assert.match(noteSource, /createNoteVaultFile\(targetPath, draft\.content\)/)
+    assert.match(
+      noteSource,
+      /navigateToNote\(\{ cid: newCid, mode: 'edit' \}, true\)/
+    )
+    assert.match(
+      noteSource,
+      /navigateToVault\(\{ file: file\.path, mode: 'edit' \}, true\)/
+    )
+    assert.match(i18nMessages, /'chat\.message\.saveToNote': '保存到知识库'/)
+    assert.match(i18nMessages, /'note\.chatDraft\.created': '已保存到知识库'/)
   })
 
   it('uses key-based i18n without DOM translation', () => {
@@ -796,6 +932,30 @@ describe('frontend smoke checks', () => {
     assert.equal(i18n.translateMessage('profile.kicker', 'zh-CN'), '个人资料')
     assert.equal(i18n.translateMessage('profile.kicker', 'zh-TW'), '個人資料')
     assert.equal(i18n.translateMessage('profile.kicker', 'en'), 'Profile')
+    assert.equal(
+      i18n.translateMessage('portal.feature.note.title', 'zh-CN'),
+      '知识库'
+    )
+    assert.equal(
+      i18n.translateMessage('portal.feature.note.title', 'zh-TW'),
+      '知識庫'
+    )
+    assert.equal(
+      i18n.translateMessage('portal.feature.note.title', 'en'),
+      'Knowledge Base'
+    )
+    assert.equal(
+      i18n.translateMessage('app.publishFile', 'zh-CN'),
+      '添加到文件库'
+    )
+    assert.equal(
+      i18n.translateMessage('app.downloadFile', 'en'),
+      'Download to file library'
+    )
+    assert.equal(
+      i18n.translateMessage('app.transfers', 'zh-TW'),
+      '傳輸管理'
+    )
     assert.deepEqual(
       downloadValidation.getMostLinkValidationMessageKey(
         'https://example.com/file'

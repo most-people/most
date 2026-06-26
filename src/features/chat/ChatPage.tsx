@@ -8,6 +8,7 @@ import {
   Hash,
   Settings,
   Loader,
+  NotebookPen,
   Search,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
@@ -47,6 +48,10 @@ import {
 import { getFileSubtype, type FileSubtype } from '~/lib/filePreview'
 import { useI18n } from '~/lib/i18n'
 import { getUserChannelProfile } from '~/lib/userProfile'
+import {
+  createChatNoteDraft,
+  getChatNoteDraftHref,
+} from '~/lib/chatNoteDraft'
 import { getLocalizedDownloadLinkValidationMessage } from '~/lib/i18n/downloadValidation'
 import {
   applyIncomingChannelMessageReadState,
@@ -86,6 +91,25 @@ function getRequestedChannelNameFromLocation() {
   ).trim()
 }
 
+function getNoteDraftTimeLabel(timestamp?: number) {
+  const date = new Date(timestamp || Date.now())
+  if (Number.isNaN(date.getTime())) return String(Date.now())
+  return date.toISOString().slice(0, 16).replace('T', ' ').replace(':', '-')
+}
+
+function escapeMarkdownLinkLabel(label: string) {
+  return label.replace(/\\/g, '\\\\').replace(/\[/g, '\\[').replace(/\]/g, '\\]')
+}
+
+function formatMarkdownLink(label: string, href: string) {
+  return `[${escapeMarkdownLinkLabel(label)}](<${href.replace(/>/g, '%3E')}>)`
+}
+
+function formatMarkdownQuote(content: string) {
+  const lines = String(content || '').trim().split(/\r?\n/)
+  return lines.length > 0 ? lines.map(line => `> ${line}`).join('\n') : '> '
+}
+
 const CHAT_FILE_ROOT = 'chat-file'
 
 function getAttachmentKind(file: File, fileName: string): FileSubtype {
@@ -110,7 +134,7 @@ function normalizeMemberAddress(address?: string) {
 }
 
 type AttachmentDownloadState = {
-  status: 'checking' | 'available' | 'error'
+  status: 'checking' | 'ready' | 'downloading' | 'available' | 'error'
   message?: string
 }
 
@@ -361,7 +385,10 @@ function ChatPage() {
           activeAttachmentDownloadsRef.current.delete(attachment.cid)
           setAttachmentDownloadStatus(prev => ({
             ...prev,
-            [attachment.cid]: { status: 'available' },
+            [attachment.cid]: {
+              status: 'available',
+              message: t('chat.attachment.previewAvailable'),
+            },
           }))
           addToast(
             t('chat.attachment.downloadCompleted', {
@@ -800,10 +827,10 @@ function ChatPage() {
       setAttachmentDownloadStatus(prev => ({
         ...prev,
         [attachment.cid]: {
-          status: 'available',
+          status: checkResult.alreadyExists ? 'available' : 'ready',
           message: checkResult.alreadyExists
             ? t('chat.attachment.localAvailable')
-            : t('chat.attachment.previewAvailable'),
+            : t('chat.attachment.downloadAvailable'),
         },
       }))
       return true
@@ -830,7 +857,10 @@ function ChatPage() {
     activeAttachmentDownloadsRef.current.add(attachment.cid)
     setAttachmentDownloadStatus(prev => ({
       ...prev,
-      [attachment.cid]: { status: 'available' },
+      [attachment.cid]: {
+        status: 'downloading',
+        message: t('chat.attachment.downloading'),
+      },
     }))
     try {
       const result = await fileApi.downloadFile(attachment.link)
@@ -838,7 +868,10 @@ function ChatPage() {
         activeAttachmentDownloadsRef.current.delete(attachment.cid)
         setAttachmentDownloadStatus(prev => ({
           ...prev,
-          [attachment.cid]: { status: 'available' },
+          [attachment.cid]: {
+            status: 'available',
+            message: t('chat.attachment.previewAvailable'),
+          },
         }))
         openAttachmentPreview(
           { ...attachment, fileName: result.fileName || attachment.fileName },
@@ -1087,22 +1120,96 @@ function ChatPage() {
     if (!requireLogin()) return
     if (!requireBackendReady()) return
     const currentState = attachmentDownloadStatus[attachment.cid]
-    if (currentState?.status === 'checking') return
+    if (
+      currentState?.status === 'checking' ||
+      currentState?.status === 'downloading'
+    ) {
+      return
+    }
 
     if (currentState?.status === 'error') {
       setFailedAttachment(attachment)
       return
     }
 
-    if (currentState?.status !== 'available') {
+    if (
+      currentState?.status === 'ready' ||
+      currentState?.status === 'available'
+    ) {
+      await startAttachmentDownload(attachment)
+      return
+    }
+
+    if (!currentState) {
       const ok = await checkAttachmentAvailability(attachment)
       if (ok) {
         await startAttachmentDownload(attachment)
       }
       return
     }
+  }
 
-    await startAttachmentDownload(attachment)
+  function getChatMessageNoteDraftContent(
+    msg: ChannelMessage,
+    author: string
+  ) {
+    const roomTitle = activeChannel ? getChannelTitle(activeChannel) : ''
+    const timestamp = `${formatDate(msg.timestamp)} ${formatTime(msg.timestamp)}`
+    const lines = [
+      `# ${t('chat.noteDraft.heading')}`,
+      '',
+      `- ${t('chat.noteDraft.room')}: ${roomTitle}`,
+      `- ${t('chat.noteDraft.author')}: ${author}`,
+      `- ${t('chat.noteDraft.time')}: ${timestamp}`,
+      '',
+    ]
+
+    if (msg.attachment) {
+      lines.push(
+        `## ${t('chat.noteDraft.attachment')}`,
+        '',
+        `- ${t('chat.noteDraft.file')}: ${formatMarkdownLink(
+          getAttachmentBaseFileName(msg.attachment.fileName),
+          msg.attachment.link
+        )}`,
+        `- CID: \`${msg.attachment.cid}\``
+      )
+
+      if (msg.content && msg.content !== msg.attachment.link) {
+        lines.push(
+          '',
+          `## ${t('chat.noteDraft.message')}`,
+          '',
+          formatMarkdownQuote(msg.content)
+        )
+      }
+
+      return lines.join('\n')
+    }
+
+    lines.push(
+      `## ${t('chat.noteDraft.message')}`,
+      '',
+      formatMarkdownQuote(msg.content)
+    )
+    return lines.join('\n')
+  }
+
+  function handleSaveMessageToNote(msg: ChannelMessage, author: string) {
+    const title = t('chat.noteDraft.title', {
+      time: getNoteDraftTimeLabel(msg.timestamp),
+    })
+    const draft = createChatNoteDraft({
+      title,
+      content: getChatMessageNoteDraftContent(msg, author),
+    })
+
+    if (!draft) {
+      addToast(t('chat.noteDraft.saveFailed'), 'error')
+      return
+    }
+
+    window.location.assign(getChatNoteDraftHref(draft.id))
   }
 
   async function updateChannelRemark(channel: Channel, nextRemark: string) {
@@ -1160,6 +1267,7 @@ function ChatPage() {
         <ChatAttachmentCard
           attachment={attachment}
           status={downloadStatus}
+          message={downloadState?.message}
           pending={msg.pending}
           onOpen={handleOpenAttachment}
         />
@@ -1363,6 +1471,7 @@ function ChatPage() {
                   messageProfile?.avatar ||
                   msg.avatar ||
                   (isSelf ? userIdentity.avatar : undefined)
+                const displayAuthor = formatDisplayName(authorName, msg.author)
 
                 return (
                   <ChatMessageItem
@@ -1371,8 +1480,21 @@ function ChatPage() {
                     pending={msg.pending}
                     isOnline={isOnline}
                     avatarSrc={generateAvatar(msg.author, avatar)}
-                    author={formatDisplayName(authorName, msg.author)}
+                    author={displayAuthor}
                     time={formatTime(msg.timestamp)}
+                    actions={
+                      msg.pending
+                        ? []
+                        : [
+                            {
+                              key: 'save-to-note',
+                              label: t('chat.message.saveToNote'),
+                              icon: <NotebookPen size={16} />,
+                              onSelect: () =>
+                                handleSaveMessageToNote(msg, displayAuthor),
+                            },
+                          ]
+                    }
                   >
                     {renderMessageBubble(msg)}
                   </ChatMessageItem>

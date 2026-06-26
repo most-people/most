@@ -25,11 +25,12 @@ import {
   Copy,
   Download,
   FileCheck,
-  FileUp,
   HardDrive,
   Link2,
   ListChecks,
   Loader,
+  MessageCircle,
+  Paperclip,
   Radio,
   Save,
   Send,
@@ -143,6 +144,11 @@ function shortAddress(address: string) {
 
 function formatPresenceMember(presence: MobileChannelPresence) {
   return presence.displayName?.trim() || shortAddress(presence.address)
+}
+
+function extractMostLinkFromText(content: string) {
+  const match = content.match(/most:\/\/[^\s]+/)
+  return match?.[0] || ''
 }
 
 async function readDevCidBytes(file: DocumentPickerAsset) {
@@ -414,8 +420,8 @@ export default function App() {
   const [exportingCid, setExportingCid] = useState<string | null>(null)
   const [deletingCid, setDeletingCid] = useState<string | null>(null)
   const [copiedCid, setCopiedCid] = useState<string | null>(null)
-  const [channelName, setChannelName] = useState('android-smoke')
-  const [channelDraft, setChannelDraft] = useState('from android')
+  const [channelName, setChannelName] = useState('chat-android')
+  const [channelDraft, setChannelDraft] = useState('')
   const [channelBusy, setChannelBusy] = useState(false)
 
   if (!coreRef.current) {
@@ -479,7 +485,7 @@ export default function App() {
           holding => holding.cid === downloadValidation.parsed.cid
         ) || null
       : null
-  const normalizedChannelName = channelName.trim() || 'android-smoke'
+  const normalizedChannelName = channelName.trim() || 'chat-android'
   const selectedChannel =
     currentSnapshot.channels.find(
       channel =>
@@ -555,7 +561,7 @@ export default function App() {
 
   const guardReady = () => {
     if (isReady) return true
-    Alert.alert('P2P 核心未就绪', '等状态变为“在线”后再执行文件操作。')
+    Alert.alert('P2P 核心未就绪', '等状态变为“在线”后再执行聊天或附件操作。')
     return false
   }
 
@@ -574,16 +580,30 @@ export default function App() {
       const fileSize = file.size || 0
       const contentBytes = await readDevCidBytes(file)
 
-      await core.publishFile({
+      const transfer = await core.publishFile({
         uri: file.uri,
         name: file.name,
         size: fileSize,
         mimeType: file.mimeType,
         contentBytes,
       })
+      if (transfer.link) {
+        if (!selectedChannel) {
+          await core.createChannel({
+            name: normalizedChannelName,
+            type: 'public',
+          })
+        }
+        await core.sendChannelMessage({
+          channelName: normalizedChannelName,
+          content: `附件 ${file.name}: ${transfer.link}`,
+          authorName: 'Android',
+        })
+        await core.getChannelMessages(normalizedChannelName)
+      }
     } catch (error) {
       Alert.alert(
-        '发布失败',
+        '发送附件失败',
         error instanceof Error ? error.message : '请选择可读取的文件'
       )
     }
@@ -635,8 +655,8 @@ export default function App() {
       await core.getChannelMessages(normalizedChannelName)
     } catch (error) {
       Alert.alert(
-        'Channel probe failed',
-        error instanceof Error ? error.message : 'Unable to join channel'
+        '加入聊天失败',
+        error instanceof Error ? error.message : '无法加入这个聊天房间'
       )
     } finally {
       setChannelBusy(false)
@@ -654,8 +674,8 @@ export default function App() {
       await core.listChannels()
     } catch (error) {
       Alert.alert(
-        'Channel refresh failed',
-        error instanceof Error ? error.message : 'Unable to refresh channel'
+        '刷新聊天失败',
+        error instanceof Error ? error.message : '无法刷新聊天消息'
       )
     } finally {
       setChannelBusy(false)
@@ -666,7 +686,7 @@ export default function App() {
     if (!guardReady()) return
     const content = channelDraft.trim()
     if (!content) {
-      Alert.alert('Message required', 'Enter a diagnostic message first.')
+      Alert.alert('请输入消息', '先写一条要发送到聊天房间的消息。')
       return
     }
 
@@ -683,8 +703,8 @@ export default function App() {
       await core.getChannelMessages(normalizedChannelName)
     } catch (error) {
       Alert.alert(
-        'Channel send failed',
-        error instanceof Error ? error.message : 'Unable to send channel message'
+        '发送消息失败',
+        error instanceof Error ? error.message : '无法发送聊天消息'
       )
     } finally {
       setChannelBusy(false)
@@ -811,7 +831,7 @@ export default function App() {
           <View style={styles.header}>
             <View style={styles.brandGroup}>
               <Text style={styles.brand}>MostBox</Text>
-              <Text style={styles.title}>移动做种节点</Text>
+              <Text style={styles.title}>P2P 聊天节点</Text>
             </View>
             <View style={[styles.nodePill, styles[`${nodeTone}Pill`]]}>
               <Radio
@@ -848,12 +868,12 @@ export default function App() {
             />
             <Metric
               icon={<HardDrive size={17} color="#2563eb" />}
-              label="做种文件"
+              label="本机做种"
               value={String(currentSnapshot.holdings.length)}
             />
             <Metric
               icon={<ShieldCheck size={17} color="#b45309" />}
-              label="CID 校验"
+              label="附件校验"
               value="开启"
             />
           </View>
@@ -862,112 +882,115 @@ export default function App() {
         <View style={styles.quickActions}>
           <CommandButton
             variant="primary"
-            label={isReady ? '发布文件' : '等待核心'}
-            helper="生成 most:// 链接"
+            label={isReady ? '发送附件' : '等待核心'}
+            helper="选择文件并生成 most://"
             disabled={!isReady}
             onPress={handlePickFile}
-            icon={<FileUp size={22} color={isReady ? '#f8fafc' : '#94a3b8'} />}
+            icon={
+              <Paperclip size={22} color={isReady ? '#f8fafc' : '#94a3b8'} />
+            }
           />
         </View>
 
-        {__DEV__ ? (
-          <View style={styles.panel}>
-            <SectionHeader
-              icon={<Radio size={18} color="#6d5dfc" />}
-              title="Channel Probe"
-              meta={
-                selectedChannel
-                  ? `${selectedChannel.peerCount} peer / ${onlineChannelPresence.length} online`
-                  : 'dev'
+        <View style={styles.panel}>
+          <SectionHeader
+            icon={<MessageCircle size={18} color="#6d5dfc" />}
+            title="聊天房间"
+            meta={
+              selectedChannel
+                ? `${selectedChannel.peerCount} peer / ${onlineChannelPresence.length} online`
+                : '输入房间名'
+            }
+          />
+
+          <View style={styles.compactInputShell}>
+            <TextInput
+              value={channelName}
+              onChangeText={setChannelName}
+              placeholder="chat-android"
+              placeholderTextColor="#8a9a95"
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={styles.compactInput}
+            />
+          </View>
+
+          <View style={styles.channelActions}>
+            <SmallAction
+              label={selectedChannel ? '已加入' : '加入房间'}
+              disabled={!isReady || channelBusy}
+              onPress={handleCreateChannel}
+              icon={
+                channelBusy ? (
+                  <Loader size={15} color="#94a3b8" />
+                ) : (
+                  <CircleCheck size={15} color="#0f766e" />
+                )
               }
             />
-
-            <View style={styles.compactInputShell}>
-              <TextInput
-                value={channelName}
-                onChangeText={setChannelName}
-                placeholder="android-smoke"
-                placeholderTextColor="#8a9a95"
-                autoCapitalize="none"
-                autoCorrect={false}
-                style={styles.compactInput}
-              />
-            </View>
-
-            <View style={styles.channelActions}>
-              <SmallAction
-                label={selectedChannel ? 'Joined' : 'Join'}
-                disabled={!isReady || channelBusy}
-                onPress={handleCreateChannel}
-                icon={
-                  channelBusy ? (
-                    <Loader size={15} color="#94a3b8" />
-                  ) : (
-                    <CircleCheck size={15} color="#0f766e" />
-                  )
-                }
-              />
-              <SmallAction
-                label="Refresh"
-                disabled={!isReady || channelBusy}
-                onPress={handleRefreshChannel}
-                icon={<ListChecks size={15} color="#0f766e" />}
-              />
-            </View>
-
-            {selectedChannel ? (
-              <View style={styles.channelStats}>
-                <Text style={styles.channelStatText}>
-                  key {selectedChannel.channelKey}
-                </Text>
-                <Text style={styles.channelStatText}>
-                  writers {selectedChannel.writerCoreKeys.length}
-                </Text>
-                <Text style={styles.channelStatText}>
-                  online {onlineChannelPresence.length}
-                </Text>
-              </View>
-            ) : null}
-
-            {onlineChannelPresence.length ? (
-              <View style={styles.channelPresenceList}>
-                {onlineChannelPresence.map(presence => (
-                  <View
-                    key={`${presence.address}:${presence.sessionId || 'default'}`}
-                    style={styles.channelPresencePill}
-                  >
-                    <View style={styles.channelPresenceDot} />
-                    <Text style={styles.channelPresenceText}>
-                      {formatPresenceMember(presence)}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            ) : null}
-
-            <View style={styles.compactInputShell}>
-              <TextInput
-                value={channelDraft}
-                onChangeText={setChannelDraft}
-                placeholder="from android"
-                placeholderTextColor="#8a9a95"
-                autoCapitalize="none"
-                autoCorrect={false}
-                style={styles.compactInput}
-              />
-            </View>
-
             <SmallAction
-              primary
-              label="Send Probe Message"
+              label="刷新"
               disabled={!isReady || channelBusy}
-              onPress={handleSendChannelMessage}
-              icon={<Send size={16} color={isReady ? '#ffffff' : '#94a3b8'} />}
+              onPress={handleRefreshChannel}
+              icon={<ListChecks size={15} color="#0f766e" />}
             />
+          </View>
 
-            {channelMessages.length ? (
-              <View style={styles.channelMessageList}>
-                {channelMessages.map(message => (
+          {selectedChannel ? (
+            <View style={styles.channelStats}>
+              <Text style={styles.channelStatText}>
+                key {selectedChannel.channelKey}
+              </Text>
+              <Text style={styles.channelStatText}>
+                writers {selectedChannel.writerCoreKeys.length}
+              </Text>
+              <Text style={styles.channelStatText}>
+                online {onlineChannelPresence.length}
+              </Text>
+            </View>
+          ) : null}
+
+          {onlineChannelPresence.length ? (
+            <View style={styles.channelPresenceList}>
+              {onlineChannelPresence.map(presence => (
+                <View
+                  key={`${presence.address}:${presence.sessionId || 'default'}`}
+                  style={styles.channelPresencePill}
+                >
+                  <View style={styles.channelPresenceDot} />
+                  <Text style={styles.channelPresenceText}>
+                    {formatPresenceMember(presence)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          <View style={styles.compactInputShell}>
+            <TextInput
+              value={channelDraft}
+              onChangeText={setChannelDraft}
+              placeholder="输入聊天消息"
+              placeholderTextColor="#8a9a95"
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={styles.compactInput}
+            />
+          </View>
+
+          <SmallAction
+            primary
+            label="发送消息"
+            disabled={!isReady || channelBusy}
+            onPress={handleSendChannelMessage}
+            icon={<Send size={16} color={isReady ? '#ffffff' : '#94a3b8'} />}
+          />
+
+          {channelMessages.length ? (
+            <View style={styles.channelMessageList}>
+              {channelMessages.map(message => {
+                const attachmentLink = extractMostLinkFromText(message.content)
+                return (
                   <View
                     key={`${message.author}:${message.timestamp}:${message.content}`}
                     style={styles.channelMessageItem}
@@ -978,22 +1001,29 @@ export default function App() {
                     <Text style={styles.channelMessageText}>
                       {message.content}
                     </Text>
+                    {attachmentLink ? (
+                      <SmallAction
+                        label="接收附件"
+                        onPress={() => setDownloadLink(attachmentLink)}
+                        icon={<Download size={15} color="#0f766e" />}
+                      />
+                    ) : null}
                   </View>
-                ))}
-              </View>
-            ) : (
-              <EmptyState
-                title="No channel messages"
-                body="Join a channel, send a probe, or refresh after a desktop peer sends one."
-              />
-            )}
-          </View>
-        ) : null}
+                )
+              })}
+            </View>
+          ) : (
+            <EmptyState
+              title="还没有聊天消息"
+              body="加入房间后发送一条消息，或刷新等待桌面端同步。"
+            />
+          )}
+        </View>
 
         <View style={styles.panel}>
           <SectionHeader
             icon={<Link2 size={18} color="#2563eb" />}
-            title="接收文件"
+            title="接收附件"
             meta={
               existingDownloadHolding
                 ? '本机已存'
@@ -1056,7 +1086,7 @@ export default function App() {
                 existingDownloadHolding
                   ? '已存'
                   : isReady
-                    ? '开始下载'
+                    ? '下载附件'
                     : '核心启动中'
               }
               disabled={
@@ -1190,8 +1220,8 @@ export default function App() {
             </View>
           ) : (
             <EmptyState
-              title="还没有本机持有文件"
-              body="发布或下载完成后，文件会自动加入做种列表。"
+              title="还没有本机附件"
+              body="发送或下载附件完成后，文件会自动加入做种列表。"
             />
           )}
         </View>
@@ -1239,7 +1269,10 @@ export default function App() {
               })}
             </View>
           ) : (
-            <EmptyState title="暂无传输" body="发布和下载进度会显示在这里。" />
+            <EmptyState
+              title="暂无传输"
+              body="附件发送和下载进度会显示在这里。"
+            />
           )}
         </View>
 

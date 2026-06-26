@@ -233,14 +233,20 @@ const features: FeatureDef[] = [
   },
 ]
 
+const featureOrder = ['chat', 'app', 'note', 'gandengyan', 'web3']
+
 export default function FeaturePortal() {
   const hasBackend = useAppStore(s => s.hasBackend)
   const openConnectModal = useAppStore(s => s.openConnectModal)
-  const [selected, setSelected] = useState<string>('app')
+  const [selected, setSelected] = useState<string>('chat')
   const { t } = useI18n()
   const isDesktopClient = useIsDesktopClient()
+  const orderedFeatures = featureOrder
+    .map(id => features.find(f => f.id === id))
+    .filter((feature): feature is FeatureDef => Boolean(feature))
 
-  const activeFeature = features.find(f => f.id === selected) || features[0]
+  const activeFeature =
+    orderedFeatures.find(f => f.id === selected) || orderedFeatures[0]
   const activeFeatureTitle = t(activeFeature.titleKey)
   const activeFeatureSteps = activeFeature.steps.filter(
     step => !(isDesktopClient && step.hideInDesktopClient)
@@ -258,7 +264,7 @@ export default function FeaturePortal() {
       <section className="portal-cards-section">
         <div className="mkt-container">
           <div className="portal-cards">
-            {features.map(f => {
+            {orderedFeatures.map(f => {
               const isActive = selected === f.id
               const needsBackend = f.requiresBackend
               const backendStatus = needsBackend

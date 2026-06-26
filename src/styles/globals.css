@@ -862,7 +862,7 @@ button {
   width: min(320px, 100%);
   min-height: 64px;
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) 44px;
+  grid-template-columns: 42px minmax(0, 1fr) minmax(64px, max-content);
   align-items: center;
   gap: 10px;
   padding: 10px;
@@ -930,15 +930,19 @@ button.ui-file-card {
 }
 
 .ui-file-meta {
+  overflow: hidden;
   color: var(--text-muted);
   font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ui-file-action {
   min-width: 0;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
+  gap: 4px;
   color: var(--text-secondary);
   font-size: 12px;
   white-space: nowrap;
@@ -959,6 +963,11 @@ button.ui-file-card {
 .chat-message.self .chat-attachment-card {
   background: color-mix(in srgb, var(--accent) 12%, var(--glass-bg-heavy));
   border-color: color-mix(in srgb, var(--accent) 35%, var(--glass-border));
+}
+
+.chat-attachment-action-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .ui-spinner {

@@ -1,7 +1,7 @@
 {
   "name": "most-box",
   "version": "0.3.1",
-  "description": "MostBox - P2P file sharing application",
+  "description": "MostBox - chat-first P2P toolbox for files, notes, and game rooms",
   "type": "module",
   "main": "electron/main.js",
   "bin": {
@@ -44,8 +44,11 @@
   },
   "keywords": [
     "p2p",
+    "chat",
     "file-sharing",
+    "file-transfer",
     "hyperswarm",
+    "hypercore",
     "hyperdrive"
   ],
   "license": "MIT",

@@ -12,7 +12,13 @@ import type { ChannelAttachment } from '~/lib/channelApi'
 import { formatBytes } from '~/lib/format'
 import { useI18n } from '~/lib/i18n'
 
-export type ChatAttachmentStatus = 'idle' | 'checking' | 'available' | 'error'
+export type ChatAttachmentStatus =
+  | 'idle'
+  | 'checking'
+  | 'ready'
+  | 'downloading'
+  | 'available'
+  | 'error'
 
 export function getAttachmentBaseFileName(fileName: string) {
   return String(fileName || '').split('/').pop() || fileName
@@ -28,26 +34,45 @@ function getAttachmentIcon(kind: ChannelAttachment['kind']) {
 export function ChatAttachmentCard({
   attachment,
   status = 'idle',
+  message,
   pending = false,
   onOpen,
 }: {
   attachment: ChannelAttachment
   status?: ChatAttachmentStatus
+  message?: string
   pending?: boolean
   onOpen?: (attachment: ChannelAttachment) => void
 }) {
   const { t } = useI18n()
-  const isBusy = status === 'checking'
+  const isChecking = status === 'checking'
+  const isDownloading = status === 'downloading'
+  const isBusy = pending || isChecking || isDownloading
   const actionClassName =
     `ui-file-action chat-attachment-action ${status === 'error' ? 'error' : status === 'available' ? 'available' : ''}`.trim()
-  const detail = Number.isFinite(attachment.size) && attachment.size > 0 ? formatBytes(attachment.size) : t('chat.mostboxFile')
+  const detail =
+    Number.isFinite(attachment.size) && attachment.size > 0
+      ? formatBytes(attachment.size)
+      : t('chat.mostboxFile')
+  const displayDetail = pending ? t('chat.sending') : message || detail
+  const actionLabel = pending
+    ? t('chat.sending')
+    : isChecking
+      ? t('chat.checking')
+      : isDownloading
+        ? t('chat.attachment.downloading')
+        : status === 'available'
+          ? t('chat.attachment.preview')
+          : status === 'error'
+            ? t('chat.attachment.retry')
+            : t('chat.attachment.download')
 
   return (
     <button
       type="button"
       className="ui-file-card chat-attachment-card"
       onClick={() => onOpen?.(attachment)}
-      disabled={pending || isBusy}
+      disabled={isBusy}
       title={attachment.link}
       translate="no"
     >
@@ -63,12 +88,12 @@ export function ChatAttachmentCard({
           {getAttachmentBaseFileName(attachment.fileName)}
         </span>
         <span className="ui-file-meta chat-attachment-meta" translate="yes">
-          {pending ? t('chat.sending') : detail}
+          {displayDetail}
         </span>
       </span>
       <span className={actionClassName} translate="yes">
         {isBusy ? (
-          t('chat.checking')
+          <Loader size={15} className="ui-spinner chat-attachment-spinner" />
         ) : status === 'available' ? (
           <Eye size={16} />
         ) : status === 'error' ? (
@@ -76,6 +101,7 @@ export function ChatAttachmentCard({
         ) : (
           <Download size={16} />
         )}
+        <span className="chat-attachment-action-label">{actionLabel}</span>
       </span>
     </button>
   )
