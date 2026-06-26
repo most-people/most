@@ -1,5 +1,6 @@
 import {
   forwardRef,
+  type MouseEvent,
   useEffect,
   useImperativeHandle,
   useRef,
@@ -10,10 +11,17 @@ import { linkAttr } from '@milkdown/kit/preset/commonmark'
 import { replaceAll } from '@milkdown/utils'
 import { useI18n } from '~/lib/i18n'
 
+type ResolvedWikiNoteLink = {
+  label: string
+  href: string
+}
+
 interface MilkdownEditorProps {
   content: string
   readOnly?: boolean
   onChange?: (markdown: string) => void
+  onInternalNoteLinkOpen?: (href: string) => void
+  resolveWikiNoteLink?: (body: string) => ResolvedWikiNoteLink | null
   className?: string
 }
 
@@ -22,19 +30,99 @@ export interface MilkdownEditorRef {
   getMarkdown: () => string
 }
 
+function enhanceWikiNoteLinks(
+  root: HTMLElement,
+  resolveWikiNoteLink: (body: string) => ResolvedWikiNoteLink | null
+) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+  const textNodes: Text[] = []
+  let nextNode = walker.nextNode()
+
+  while (nextNode) {
+    if (nextNode instanceof Text && nextNode.nodeValue?.includes('[[')) {
+      const parent = nextNode.parentElement
+      if (!parent?.closest('a, code, pre')) {
+        textNodes.push(nextNode)
+      }
+    }
+    nextNode = walker.nextNode()
+  }
+
+  for (const textNode of textNodes) {
+    replaceWikiNoteLinkText(textNode, resolveWikiNoteLink)
+  }
+}
+
+function replaceWikiNoteLinkText(
+  textNode: Text,
+  resolveWikiNoteLink: (body: string) => ResolvedWikiNoteLink | null
+) {
+  const text = textNode.nodeValue || ''
+  const wikiLinkPattern = /\[\[([^\]\n]+?)\]\]/g
+  const fragment = document.createDocumentFragment()
+  let didReplace = false
+  let lastIndex = 0
+  let match = wikiLinkPattern.exec(text)
+
+  while (match) {
+    const [source, body] = match
+    const link = resolveWikiNoteLink(body)
+
+    if (link) {
+      if (match.index > lastIndex) {
+        fragment.append(document.createTextNode(text.slice(lastIndex, match.index)))
+      }
+
+      const anchor = document.createElement('a')
+      anchor.href = link.href
+      anchor.textContent = link.label
+      anchor.rel = 'noopener noreferrer'
+      anchor.target = '_blank'
+      anchor.setAttribute('data-note-wiki-link', 'true')
+      fragment.append(anchor)
+
+      lastIndex = match.index + source.length
+      didReplace = true
+    }
+
+    match = wikiLinkPattern.exec(text)
+  }
+
+  if (!didReplace) return
+  if (lastIndex < text.length) {
+    fragment.append(document.createTextNode(text.slice(lastIndex)))
+  }
+  textNode.parentNode?.replaceChild(fragment, textNode)
+}
+
 export const MilkdownEditor = forwardRef<
   MilkdownEditorRef,
   MilkdownEditorProps
->(({ content, readOnly, onChange, className }, ref) => {
+>((
+  {
+    content,
+    readOnly,
+    onChange,
+    onInternalNoteLinkOpen,
+    resolveWikiNoteLink,
+    className,
+  },
+  ref
+) => {
   const { locale, t } = useI18n()
   const rootRef = useRef<HTMLDivElement>(null)
   const crepeRef = useRef<Crepe | null>(null)
   const onChangeRef = useRef(onChange)
+  const onInternalNoteLinkOpenRef = useRef(onInternalNoteLinkOpen)
   const [isReady, setIsReady] = useState(false)
 
   useEffect(() => {
     onChangeRef.current = onChange
   }, [onChange])
+
+  useEffect(() => {
+    onInternalNoteLinkOpenRef.current = onInternalNoteLinkOpen
+  }, [onInternalNoteLinkOpen])
 
   useImperativeHandle(ref, () => ({
     setMarkdown: markdown => {
@@ -143,7 +231,65 @@ export const MilkdownEditor = forwardRef<
     }
   }, [content, isReady])
 
-  return <div ref={rootRef} className={className || 'milkdown-editor'} />
+  useEffect(() => {
+    if (!readOnly || !isReady || !resolveWikiNoteLink || !rootRef.current) {
+      return
+    }
+
+    const root = rootRef.current
+    let frame = 0
+    const scheduleEnhance = () => {
+      if (frame) return
+      frame = window.requestAnimationFrame(() => {
+        frame = 0
+        enhanceWikiNoteLinks(root, resolveWikiNoteLink)
+      })
+    }
+    const observer = new MutationObserver(scheduleEnhance)
+
+    scheduleEnhance()
+    observer.observe(root, {
+      childList: true,
+      characterData: true,
+      subtree: true,
+    })
+
+    return () => {
+      observer.disconnect()
+      if (frame) window.cancelAnimationFrame(frame)
+    }
+  }, [content, isReady, readOnly, resolveWikiNoteLink])
+
+  function handleClickCapture(event: MouseEvent<HTMLDivElement>) {
+    if (!readOnly || !onInternalNoteLinkOpenRef.current) return
+    if (!(event.target instanceof HTMLElement)) return
+
+    const link = event.target.closest('a[href]')
+    if (!link || !rootRef.current?.contains(link)) return
+
+    const href = link.getAttribute('href') || ''
+    let url: URL
+    try {
+      url = new URL(href, window.location.origin)
+    } catch {
+      return
+    }
+
+    if (url.origin !== window.location.origin || url.pathname !== '/note/') {
+      return
+    }
+
+    event.preventDefault()
+    onInternalNoteLinkOpenRef.current(`${url.pathname}${url.search}`)
+  }
+
+  return (
+    <div
+      ref={rootRef}
+      className={className || 'milkdown-editor'}
+      onClickCapture={handleClickCapture}
+    />
+  )
 })
 
 MilkdownEditor.displayName = 'MilkdownEditor'

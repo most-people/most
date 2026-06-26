@@ -95,8 +95,17 @@ type NoteTreeNodeRowProps = Omit<NoteTreeProps, 'nodes' | 'searchQuery'> & {
 type NoteSearchParams = {
   cid?: string
   file?: string
+  path?: string
   mode?: 'edit'
 }
+
+type ResolvedWikiNoteLink = {
+  label: string
+  href: string
+}
+
+const WIKI_NOTE_LINK_PATTERN = /\[\[([^\]\n]+?)\]\]/g
+const MARKDOWN_FENCED_CODE_BLOCK_PATTERN = /(```[\s\S]*?```)/g
 
 function getNoteSearch(searchStr: string): NoteSearchParams {
   const searchParams = new URLSearchParams(searchStr)
@@ -105,6 +114,7 @@ function getNoteSearch(searchStr: string): NoteSearchParams {
   return {
     cid: searchParams.get('cid') || undefined,
     file: searchParams.get('file') || undefined,
+    path: searchParams.get('path') || undefined,
     mode: mode === 'edit' ? 'edit' : undefined,
   }
 }
@@ -113,10 +123,23 @@ function getNoteHref(search: NoteSearchParams = {}) {
   const searchParams = new URLSearchParams()
   if (search.cid) searchParams.set('cid', search.cid)
   if (search.file) searchParams.set('file', search.file)
+  if (search.path) searchParams.set('path', search.path)
   if (search.mode) searchParams.set('mode', search.mode)
 
   const query = searchParams.toString()
   return query ? `/note/?${query}` : '/note/'
+}
+
+function getNoteSearchFromHref(href: string): NoteSearchParams {
+  const fallbackIndex = href.indexOf('?')
+  const fallbackSearch = fallbackIndex >= 0 ? href.slice(fallbackIndex) : ''
+  if (typeof window === 'undefined') return getNoteSearch(fallbackSearch)
+
+  try {
+    return getNoteSearch(new URL(href, window.location.origin).search)
+  } catch {
+    return getNoteSearch(fallbackSearch)
+  }
 }
 
 const noteErrorMessageKeys: Record<string, MessageKey> = {
@@ -157,6 +180,16 @@ function getStorageMarkdownName(input: string) {
   return name ? `${name}.md` : ''
 }
 
+function getStorageMarkdownPath(input = '') {
+  const path = normalizeNotePath(input)
+  const parts = path.split('/').filter(Boolean)
+  if (parts.length === 0) return ''
+
+  const lastIndex = parts.length - 1
+  parts[lastIndex] = getStorageMarkdownName(parts[lastIndex])
+  return parts.join('/')
+}
+
 function getDisplayMarkdownPath(input = '') {
   const path = normalizeNotePath(input)
   const parts = path.split('/').filter(Boolean)
@@ -165,6 +198,119 @@ function getDisplayMarkdownPath(input = '') {
   const lastIndex = parts.length - 1
   parts[lastIndex] = getDisplayMarkdownName(parts[lastIndex])
   return parts.join('/')
+}
+
+function getNoteDisplayFullPath(note: NoteItem) {
+  return getDisplayMarkdownPath(getNoteFullPath(note))
+}
+
+function getWikiLinkTargetPath(input: string) {
+  const target = input.trim().replace(/^\/+/, '')
+  const anchorIndex = target.search(/[#^]/)
+  const notePath = anchorIndex >= 0 ? target.slice(0, anchorIndex) : target
+  return getDisplayMarkdownPath(notePath)
+}
+
+function getWikiLinkLabel(targetPath: string, alias?: string) {
+  const trimmedAlias = alias?.trim()
+  if (trimmedAlias) return trimmedAlias
+
+  const parts = targetPath.split('/').filter(Boolean)
+  return parts[parts.length - 1] || targetPath
+}
+
+function escapeMarkdownLinkLabel(label: string) {
+  return label.replace(/\\/g, '\\\\').replace(/\[/g, '\\[').replace(/\]/g, '\\]')
+}
+
+function formatMarkdownLink(label: string, href: string) {
+  return `[${escapeMarkdownLinkLabel(label)}](<${href.replace(/>/g, '%3E')}>)`
+}
+
+function resolveWikiLinkNote(
+  notes: NoteItem[],
+  target: string,
+  currentPath = ''
+) {
+  const targetPath = getWikiLinkTargetPath(target)
+  if (!targetPath) return null
+
+  const targetKey = targetPath.toLowerCase()
+  const getNoteKey = (note: NoteItem) =>
+    getNoteDisplayFullPath(note).toLowerCase()
+
+  if (targetPath.includes('/')) {
+    return notes.find(note => getNoteKey(note) === targetKey) || null
+  }
+
+  const currentDirectory = normalizeNotePath(currentPath)
+  if (currentDirectory) {
+    const sameDirectoryKey = normalizeNotePath(
+      `${currentDirectory}/${targetPath}`
+    ).toLowerCase()
+    const sameDirectoryNote = notes.find(
+      note => getNoteKey(note) === sameDirectoryKey
+    )
+    if (sameDirectoryNote) return sameDirectoryNote
+  }
+
+  return (
+    notes.find(
+      note => getDisplayMarkdownName(note.name).toLowerCase() === targetKey
+    ) || null
+  )
+}
+
+function resolveWikiNoteLinkBody(
+  body: string,
+  notes: NoteItem[],
+  getHref: (note: NoteItem) => string,
+  currentPath = '',
+  getFallbackHref?: (targetPath: string) => string
+): ResolvedWikiNoteLink | null {
+  const separatorIndex = body.indexOf('|')
+  const target = separatorIndex >= 0 ? body.slice(0, separatorIndex) : body
+  const alias =
+    separatorIndex >= 0 ? body.slice(separatorIndex + 1) : undefined
+  const targetPath = getWikiLinkTargetPath(target)
+  if (!targetPath) return null
+
+  const note = resolveWikiLinkNote(notes, target, currentPath)
+  const href = note ? getHref(note) : getFallbackHref?.(targetPath)
+  if (!href) return null
+
+  return {
+    label: getWikiLinkLabel(targetPath, alias),
+    href,
+  }
+}
+
+function renderWikiNoteLinks(
+  markdown: string,
+  notes: NoteItem[],
+  getHref: (note: NoteItem) => string,
+  currentPath = '',
+  getFallbackHref?: (targetPath: string) => string
+) {
+  if (!markdown.includes('[[')) return markdown
+
+  return markdown
+    .split(MARKDOWN_FENCED_CODE_BLOCK_PATTERN)
+    .map(part => {
+      if (part.startsWith('```')) return part
+
+      return part.replace(WIKI_NOTE_LINK_PATTERN, (source, body: string) => {
+        const link = resolveWikiNoteLinkBody(
+          body,
+          notes,
+          getHref,
+          currentPath,
+          getFallbackHref
+        )
+        return link ? formatMarkdownLink(link.label, link.href) : source
+      })
+    })
+    .join('')
 }
 
 function getTreeNodeDisplayName(node: NoteTreeNode) {
@@ -696,6 +842,28 @@ function NotePageContent() {
     () => getDirectoryOptions(notes, compareStrings),
     [compareStrings, notes]
   )
+  const wikiLinkedPreviewContent = useMemo(
+    () =>
+      renderWikiNoteLinks(
+        previewContent,
+        notes,
+        note => getNoteHref({ cid: note.cid }),
+        selectedNote?.path || '',
+        targetPath => getNoteHref({ path: getStorageMarkdownPath(targetPath) })
+      ),
+    [notes, previewContent, selectedNote?.path]
+  )
+  const resolvePreviewWikiLink = useCallback(
+    (body: string) =>
+      resolveWikiNoteLinkBody(
+        body,
+        notes,
+        note => getNoteHref({ cid: note.cid }),
+        selectedNote?.path || '',
+        targetPath => getNoteHref({ path: getStorageMarkdownPath(targetPath) })
+      ),
+    [notes, selectedNote?.path]
+  )
 
   useEffect(() => {
     if (!selectedNote?.path) return
@@ -707,11 +875,24 @@ function NotePageContent() {
     )
   }, [selectedNote?.path])
 
+  useEffect(() => {
+    if (!params.path || cid || notes.length === 0) return
+    const note = resolveWikiLinkNote(notes, params.path)
+    if (!note) return
+
+    setNotesPath(normalizeNotePath(note.path || ''))
+    navigate({ href: getNoteHref({ cid: note.cid }), replace: true })
+  }, [cid, navigate, notes, params.path, setNotesPath])
+
   function navigateToNote(
     search: NoteSearchParams = {},
     replace = false
   ) {
     navigate({ href: getNoteHref(search), replace })
+  }
+
+  function openInternalNoteLink(href: string) {
+    navigateToNote(getNoteSearchFromHref(href))
   }
 
   function openPreview(note: NoteItem) {
@@ -1056,8 +1237,10 @@ function NotePageContent() {
                 ) : selectedNote ? (
                   <div className="note-editor-frame reading">
                     <MilkdownEditor
-                      content={previewContent}
+                      content={wikiLinkedPreviewContent}
                       readOnly
+                      onInternalNoteLinkOpen={openInternalNoteLink}
+                      resolveWikiNoteLink={resolvePreviewWikiLink}
                       className="milkdown-editor"
                     />
                   </div>
@@ -1186,6 +1369,33 @@ function VaultNotePageContent() {
     () => filterNoteTree(noteTree, searchQuery),
     [noteTree, searchQuery]
   )
+  const wikiLinkedSelectedFileContent = useMemo(
+    () =>
+      renderWikiNoteLinks(
+        selectedFile?.content || '',
+        vaultNotes,
+        note => getNoteHref({ file: note.cid }),
+        selectedNote?.path || selectedFile?.directory || '',
+        targetPath => getNoteHref({ path: getStorageMarkdownPath(targetPath) })
+      ),
+    [
+      selectedFile?.content,
+      selectedFile?.directory,
+      selectedNote?.path,
+      vaultNotes,
+    ]
+  )
+  const resolveSelectedFileWikiLink = useCallback(
+    (body: string) =>
+      resolveWikiNoteLinkBody(
+        body,
+        vaultNotes,
+        note => getNoteHref({ file: note.cid }),
+        selectedNote?.path || selectedFile?.directory || '',
+        targetPath => getNoteHref({ path: getStorageMarkdownPath(targetPath) })
+      ),
+    [selectedFile?.directory, selectedNote?.path, vaultNotes]
+  )
 
   useEffect(() => {
     if (!selectedNote?.path) return
@@ -1196,6 +1406,15 @@ function VaultNotePageContent() {
       )
     )
   }, [selectedNote?.path])
+
+  useEffect(() => {
+    if (!params.path || currentFilePath || vaultNotes.length === 0) return
+    const note = resolveWikiLinkNote(vaultNotes, params.path)
+    if (!note) return
+
+    setVaultFolderPath(normalizeNotePath(note.path || ''))
+    navigate({ href: getNoteHref({ file: note.cid }), replace: true })
+  }, [currentFilePath, navigate, params.path, vaultNotes])
 
   const refreshVault = useCallback(async () => {
     if (!wallet) {
@@ -1289,6 +1508,10 @@ function VaultNotePageContent() {
     replace = false
   ) {
     navigate({ href: getNoteHref(search), replace })
+  }
+
+  function openInternalNoteLink(href: string) {
+    navigateToVault(getNoteSearchFromHref(href))
   }
 
   function openPreview(note: NoteItem) {
@@ -1764,8 +1987,10 @@ function VaultNotePageContent() {
                 ) : selectedFile ? (
                   <div className="note-editor-frame reading">
                     <MilkdownEditor
-                      content={selectedFile.content}
+                      content={wikiLinkedSelectedFileContent}
                       readOnly
+                      onInternalNoteLinkOpen={openInternalNoteLink}
+                      resolveWikiNoteLink={resolveSelectedFileWikiLink}
                       className="milkdown-editor"
                     />
                   </div>

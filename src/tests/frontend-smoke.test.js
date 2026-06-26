@@ -1291,6 +1291,7 @@ describe('frontend smoke checks', () => {
 
   it('does not trigger account backup from note save flows', () => {
     const noteSource = readSource('src/features/note/NotePage.tsx')
+    const milkdownSource = readSource('src/components/MilkdownEditor.tsx')
     const saveStart = noteSource.indexOf('async function handleSaveEditor()')
     const createStart = noteSource.indexOf(
       'function openCreateNoteModal()',
@@ -1310,6 +1311,15 @@ describe('frontend smoke checks', () => {
     assert.match(noteSource, /ActionMenu/)
     assert.match(noteSource, /note-list-actions-trigger/)
     assert.match(noteSource, /MoreHorizontal/)
+    assert.match(noteSource, /renderWikiNoteLinks/)
+    assert.match(noteSource, /resolveWikiLinkNote/)
+    assert.match(noteSource, /getNoteHref\(\{ cid: note\.cid \}\)/)
+    assert.match(noteSource, /getNoteHref\(\{ file: note\.cid \}\)/)
+    assert.match(noteSource, /onInternalNoteLinkOpen=\{openInternalNoteLink\}/)
+    assert.match(noteSource, /resolveWikiNoteLink=\{resolvePreviewWikiLink\}/)
+    assert.match(milkdownSource, /onInternalNoteLinkOpen/)
+    assert.match(milkdownSource, /data-note-wiki-link/)
+    assert.match(milkdownSource, /url\.pathname !== '\/note\/'/)
     assert.doesNotMatch(noteSource, /uploadNow|backupSync|useNoteBackupSync/)
   })
 })
