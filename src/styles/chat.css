@@ -544,19 +544,23 @@
   min-height: 0;
 }
 
-.chat-join-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  max-width: 560px;
-  width: 100%;
-}
-
 .chat-join-demo-panel {
   display: flex;
   flex-direction: column;
   gap: 16px;
   width: min(100%, 960px);
+}
+
+.chat-join-loading-page {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.chat-join-loading-panel {
+  width: min(100%, 560px);
 }
 
 .chat-join-helper {
@@ -583,18 +587,6 @@
     font-size: 16px;
     font-weight: 600;
   }
-}
-
-.chat-join-spec {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 24px;
-  border-radius: var(--radius-lg);
-  background: var(--glass-bg);
-  backdrop-filter: var(--blur-md);
-  -webkit-backdrop-filter: var(--blur-md);
-  border: 1px solid var(--glass-border);
 }
 
 .chat-join-demo-section {
@@ -672,45 +664,6 @@
   font-size: 13px;
 }
 
-.chat-join-field-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.chat-join-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 12px;
-  border-radius: var(--radius-md);
-  background: var(--glass-bg-subtle);
-  border: 1px solid var(--glass-border);
-
-  p {
-    margin: 0;
-    color: var(--text-secondary);
-    font-size: 13px;
-    line-height: 1.5;
-  }
-}
-
-.chat-join-field-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  color: var(--text-muted);
-  font-size: 12px;
-}
-
-.chat-join-field-name {
-  color: var(--text-primary);
-  font-family: var(--font-mono);
-  font-size: 13px;
-  overflow-wrap: anywhere;
-}
-
 .chat-join-loading,
 .chat-join-error,
 .chat-join-success {
@@ -749,23 +702,6 @@
 .chat-join-status {
   font-size: 13px;
   color: var(--text-muted);
-}
-
-.chat-join-result {
-  margin-top: 16px;
-  padding: 16px;
-  border-radius: var(--radius-md);
-  background: var(--glass-bg-subtle);
-  border: 1px solid var(--glass-border);
-  font-family: var(--font-mono);
-  font-size: 13px;
-  color: var(--text-primary);
-  white-space: pre-wrap;
-  word-break: break-all;
-  max-height: 240px;
-  overflow-y: auto;
-  width: 100%;
-  text-align: left;
 }
 
 .chat-join-test-account-list {

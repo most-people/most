@@ -1,8 +1,6 @@
 import React, { useState, useEffect, Suspense, useMemo, useRef } from 'react'
 import { useLocation } from '@tanstack/react-router'
 import { KeyRound, Check, AlertCircle } from 'lucide-react'
-import AppShell from '~/components/AppShell'
-import { SidebarHomeLink } from '~/components/SidebarHomeLink'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import { createLoginIdentity } from '~server/src/utils/userIdentity.js'
@@ -18,16 +16,11 @@ import { getUserChannelProfile } from '~/lib/userProfile'
 import { translateMessage, useI18n } from '~/lib/i18n'
 import {
   CHAT_JOIN_DEFAULT_API_BASE,
-  CHAT_JOIN_EA_PUBLIC_KEY,
-  CHAT_JOIN_INVITE_FIELDS,
   normalizeChatJoinInvitePayload,
   type ChatJoinInvitePayload,
 } from '~/lib/chatJoinInvite'
 import { shouldConnectChatJoinInviteNode } from '~/lib/chatJoinRemote'
-import {
-  formatChatJoinTestInvite,
-  getChatJoinTestInvite,
-} from '~/lib/chatJoinTestData.js'
+import { getChatJoinTestInvite } from '~/lib/chatJoinTestData.js'
 
 const CHANNEL_REMARK_MAX_LENGTH = 50
 const CHAT_JOIN_API_BASE =
@@ -39,14 +32,6 @@ function parseJsonText(text: string): unknown | null {
   } catch {
     return null
   }
-}
-
-function formatDecryptedResponse(text: string, parsed: unknown | null) {
-  if (parsed === null) {
-    return text
-  }
-
-  return JSON.stringify(parsed, null, 2)
 }
 
 function getDecryptError(
@@ -89,7 +74,6 @@ function ChatJoinContent() {
   const hasBackend = useAppStore(s => s.hasBackend)
   const setUserIdentity = useUserStore(s => s.setUserIdentity)
 
-  const [decrypted, setDecrypted] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [status, setStatus] = useState('')
@@ -213,7 +197,6 @@ function ChatJoinContent() {
               name: fixtureInvite.name || fixture,
             })
           )
-          setDecrypted(formatChatJoinTestInvite(fixtureInvite))
           await runJoinFlow(fixtureInvite)
           return
         }
@@ -236,7 +219,6 @@ function ChatJoinContent() {
             getDecryptError(responseText, parsed, t('chatJoin.error.decrypt'))
           )
         } else {
-          setDecrypted(formatDecryptedResponse(responseText, parsed))
           const invite = normalizeChatJoinInvitePayload(parsed)
           if (!invite) {
             setError(t('chatJoin.error.invalidInvite'))
@@ -259,78 +241,27 @@ function ChatJoinContent() {
   }, [fixture, hasBackend, pub, setLocale, setUserIdentity, t, token])
 
   return (
-    <AppShell
-      sidebar={() => <SidebarHomeLink />}
-      headerTitle={<h2 className="header-title">{t('chatJoin.title')}</h2>}
-    >
-      <div className="chat-join-container">
-        <div className="chat-join-panel">
-          {loading ? (
-            <div className="chat-join-loading">
-              <KeyRound size={32} />
-              <p>{status || t('chatJoin.status.decrypting')}</p>
-            </div>
-          ) : error ? (
-            <div className="chat-join-error">
-              <AlertCircle size={32} />
-              <p>{error}</p>
-              {status && <p className="chat-join-status">{status}</p>}
-              {decrypted && (
-                <pre className="chat-join-result" translate="no">
-                  {decrypted}
-                </pre>
-              )}
-            </div>
-          ) : (
-            <div className="chat-join-success">
-              <Check size={32} />
-              <p>{status || t('chatJoin.status.decryptSuccess')}</p>
-              <pre className="chat-join-result" translate="no">
-                {decrypted}
-              </pre>
-            </div>
-          )}
-
-          <section
-            className="chat-join-spec"
-            aria-labelledby="chat-join-spec-title"
-          >
-            <div className="chat-join-helper-title">
-              <KeyRound size={18} />
-              <h3 id="chat-join-spec-title">{t('chatJoin.specTitle')}</h3>
-            </div>
-            <div className="chat-join-field-list">
-              {CHAT_JOIN_INVITE_FIELDS.map(field => (
-                <div className="chat-join-field" key={field.name}>
-                  <div className="chat-join-field-meta">
-                    <code className="chat-join-field-name">{field.name}</code>
-                    <span>
-                      {field.required
-                        ? t('chatJoin.field.required')
-                        : t('chatJoin.field.optional')}
-                    </span>
-                  </div>
-                  <p>{t(field.descriptionKey)}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="chat-join-helper" aria-labelledby="ea-test-title">
-            <div className="chat-join-helper-title">
-              <KeyRound size={18} />
-              <h3 id="ea-test-title">{t('chatJoin.testPublicKey')}</h3>
-            </div>
-            <code className="ui-code-box chat-join-public-key" translate="no">
-              {CHAT_JOIN_EA_PUBLIC_KEY}
-            </code>
-            <a className="btn" href="/web3/#EA" target="_blank">
-              {t('chatJoin.openWeb3')}
-            </a>
-          </section>
-        </div>
+    <main className="chat-join-loading-page">
+      <div className="chat-join-loading-panel">
+        {loading ? (
+          <div className="chat-join-loading">
+            <KeyRound size={32} />
+            <p>{status || t('chatJoin.status.decrypting')}</p>
+          </div>
+        ) : error ? (
+          <div className="chat-join-error">
+            <AlertCircle size={32} />
+            <p>{error}</p>
+            {status && <p className="chat-join-status">{status}</p>}
+          </div>
+        ) : (
+          <div className="chat-join-success">
+            <Check size={32} />
+            <p>{status || t('chatJoin.status.decryptSuccess')}</p>
+          </div>
+        )}
       </div>
-    </AppShell>
+    </main>
   )
 }
 
