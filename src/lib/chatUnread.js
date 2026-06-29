@@ -105,10 +105,17 @@ export function applyIncomingChannelMessageReadState(
     String(messageAuthor || '').toLowerCase() ===
     String(userAddress || '').toLowerCase()
 
-  if (isActiveChannel || isSelfMessage) {
+  if (isSelfMessage) {
     return {
       ...markChannelReadInMap(previous, channelName, timestamp, now),
       notify: false,
+    }
+  }
+
+  if (isActiveChannel) {
+    return {
+      ...markChannelReadInMap(previous, channelName, timestamp, now),
+      notify: true,
     }
   }
 

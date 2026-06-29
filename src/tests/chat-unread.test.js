@@ -91,7 +91,7 @@ describe('chat unread state', () => {
     assert.deepEqual(result.value, { general: 3999 })
   })
 
-  it('keeps active-channel and self messages read', () => {
+  it('keeps active-channel messages read and asks for notification', () => {
     const activeResult = applyIncomingChannelMessageReadState(
       { general: 1000 },
       {
@@ -102,6 +102,12 @@ describe('chat unread state', () => {
         userAddress: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
       }
     )
+
+    assert.equal(activeResult.notify, true)
+    assert.equal(activeResult.value.general, 2000)
+  })
+
+  it('keeps self messages read without notification', () => {
     const selfResult = applyIncomingChannelMessageReadState(
       { random: 1000 },
       {
@@ -113,8 +119,6 @@ describe('chat unread state', () => {
       }
     )
 
-    assert.equal(activeResult.notify, false)
-    assert.equal(activeResult.value.general, 2000)
     assert.equal(selfResult.notify, false)
     assert.equal(selfResult.value.random, 3000)
   })
