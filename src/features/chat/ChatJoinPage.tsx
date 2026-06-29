@@ -1,7 +1,8 @@
 import React, { useState, useEffect, Suspense, useMemo, useRef } from 'react'
 import { useLocation } from '@tanstack/react-router'
-import { KeyRound, Check, AlertCircle } from 'lucide-react'
+import { ArrowLeft, KeyRound, Check, AlertCircle, RefreshCw } from 'lucide-react'
 import { AppEmpty } from '~/components/AppEmpty'
+import { useBack } from '~/hooks/useBack'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import { createLoginIdentity } from '~server/src/utils/userIdentity.js'
@@ -63,6 +64,7 @@ function normalizeChannelRemark(value?: string) {
 
 function ChatJoinContent() {
   const { t, setLocale } = useI18n()
+  const back = useBack()
   const searchStr = useLocation({ select: location => location.searchStr })
   const { token, pub, fixture } = useMemo(() => {
     const searchParams = new URLSearchParams(searchStr)
@@ -78,7 +80,16 @@ function ChatJoinContent() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [status, setStatus] = useState('')
+  const [retryAttempt, setRetryAttempt] = useState(0)
   const flowKeyRef = useRef('')
+
+  function retryJoin() {
+    flowKeyRef.current = ''
+    setError('')
+    setStatus('')
+    setLoading(true)
+    setRetryAttempt(attempt => attempt + 1)
+  }
 
   useEffect(() => {
     const fixtureInvite = getChatJoinTestInvite(fixture)
@@ -240,7 +251,16 @@ function ChatJoinContent() {
     }
 
     decrypt()
-  }, [fixture, hasBackend, pub, setLocale, setUserIdentity, t, token])
+  }, [
+    fixture,
+    hasBackend,
+    pub,
+    retryAttempt,
+    setLocale,
+    setUserIdentity,
+    t,
+    token,
+  ])
 
   return (
     <AppEmpty className="chat-join-loading-page">
@@ -255,6 +275,24 @@ function ChatJoinContent() {
             <AlertCircle size={32} />
             <p>{error}</p>
             {status && <p className="chat-join-status">{status}</p>}
+            <div className="chat-join-actions">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={back}
+              >
+                <ArrowLeft size={16} />
+                {t('common.back')}
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={retryJoin}
+              >
+                <RefreshCw size={16} />
+                {t('chatJoin.action.retry')}
+              </button>
+            </div>
           </div>
         ) : (
           <div className="chat-join-success">

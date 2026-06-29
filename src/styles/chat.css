@@ -727,6 +727,14 @@
   color: var(--text-muted);
 }
 
+.chat-join-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .chat-join-test-account-list {
   display: flex;
   flex-direction: column;

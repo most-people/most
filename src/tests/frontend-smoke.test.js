@@ -588,6 +588,31 @@ describe('frontend smoke checks', () => {
     assert.doesNotMatch(headerSource, /<Link to="\/" className="mkt-nav-logo"/)
   })
 
+  it('keeps chat join failure state retryable and navigable', () => {
+    const chatJoinSource = readSource('src/features/chat/ChatJoinPage.tsx')
+    const chatCssSource = readSource('src/styles/chat.css')
+    const i18nMessages = readI18nSources()
+
+    assert.match(chatJoinSource, /const back = useBack\(\)/)
+    assert.match(
+      chatJoinSource,
+      /const \[retryAttempt, setRetryAttempt\] = useState\(0\)/
+    )
+    assert.match(chatJoinSource, /flowKeyRef\.current = ''/)
+    assert.match(chatJoinSource, /setRetryAttempt\(attempt => attempt \+ 1\)/)
+    assert.match(chatJoinSource, /retryAttempt,/)
+    assert.match(chatJoinSource, /className="chat-join-actions"/)
+    assert.match(chatJoinSource, /t\('chatJoin\.action\.retry'\)/)
+    assert.match(chatJoinSource, /t\('common\.back'\)/)
+    assert.match(
+      chatJoinSource,
+      /t\('common\.back'\)[\s\S]*t\('chatJoin\.action\.retry'\)/
+    )
+    assert.match(chatCssSource, /\.chat-join-actions/)
+    assert.match(i18nMessages, /'chatJoin\.action\.retry': '重试'/)
+    assert.match(i18nMessages, /'chatJoin\.action\.retry': 'Retry'/)
+  })
+
   it('keeps Gan Deng Yan game page wired to the server rules and P2P channel', () => {
     const source = readSource(SOURCE_PATHS.features.ganDengYan)
     const gameRoomSource = readSource('src/hooks/useGameRoom.ts')
