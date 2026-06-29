@@ -1,6 +1,7 @@
 import React, { useState, useEffect, Suspense, useMemo, useRef } from 'react'
 import { useLocation } from '@tanstack/react-router'
 import { KeyRound, Check, AlertCircle } from 'lucide-react'
+import { AppEmpty } from '~/components/AppEmpty'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import { createLoginIdentity } from '~server/src/utils/userIdentity.js'
@@ -241,7 +242,7 @@ function ChatJoinContent() {
   }, [fixture, hasBackend, pub, setLocale, setUserIdentity, t, token])
 
   return (
-    <main className="chat-join-loading-page">
+    <AppEmpty className="chat-join-loading-page">
       <div className="chat-join-loading-panel">
         {loading ? (
           <div className="chat-join-loading">
@@ -261,7 +262,7 @@ function ChatJoinContent() {
           </div>
         )}
       </div>
-    </main>
+    </AppEmpty>
   )
 }
 

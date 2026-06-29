@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { SidebarHomeLink } from '~/components/SidebarHomeLink'
+import { AppTop } from '~/components/AppTop'
 
 interface NoteSidebarProps {
   children?: ReactNode
@@ -8,7 +8,7 @@ interface NoteSidebarProps {
 export function NoteSidebar({ children }: NoteSidebarProps) {
   return (
     <>
-      <SidebarHomeLink />
+      <AppTop />
       {children}
     </>
   )

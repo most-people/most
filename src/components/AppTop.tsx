@@ -2,11 +2,11 @@ import { Link } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
 import { useI18n } from '~/lib/i18n'
 
-type SidebarHomeLinkProps = {
+type AppTopProps = {
   onNavigate?: () => void
 }
 
-export function SidebarHomeLink({ onNavigate }: SidebarHomeLinkProps) {
+export function AppTop({ onNavigate }: AppTopProps) {
   const { t } = useI18n()
   const brand = t('common.brand')
 

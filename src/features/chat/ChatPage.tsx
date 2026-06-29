@@ -28,7 +28,7 @@ import {
 import FilePreviewOverlay from '~/components/FilePreviewOverlay'
 import { InputModal, ConfirmModal, ModalOverlay } from '~/components/ui'
 import OpenSidebarButton from '~/components/OpenSidebarButton'
-import { SidebarHomeLink } from '~/components/SidebarHomeLink'
+import { AppTop } from '~/components/AppTop'
 import { LogoIcon } from '~/components/icons/LogoIcon'
 import {
   api,
@@ -1459,7 +1459,7 @@ function ChatPage() {
       defaultHide={isInviteUser}
       sidebar={({ closeSidebar }) => (
         <>
-          <SidebarHomeLink onNavigate={closeSidebar} />
+          <AppTop onNavigate={closeSidebar} />
 
           <div className="chat-channel-search">
             <div className="ui-input-control">

@@ -8,7 +8,7 @@ import {
   Wallet,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
-import { SidebarHomeLink } from '~/components/SidebarHomeLink'
+import { AppTop } from '~/components/AppTop'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import { useI18n, type MessageKey } from '~/lib/i18n'
@@ -335,7 +335,7 @@ export default function Web3Page() {
     <AppShell
       sidebar={({ closeSidebar }) => (
         <>
-          <SidebarHomeLink onNavigate={closeSidebar} />
+          <AppTop onNavigate={closeSidebar} />
           <nav className="sidebar-nav">
             {sidebarNavItems.map(item => (
               <button

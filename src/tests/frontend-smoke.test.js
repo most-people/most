@@ -541,7 +541,7 @@ describe('frontend smoke checks', () => {
     assert.match(messages, /'cid\.startAction': 'Start download'/)
   })
 
-  it('uses a shared home link for app sidebars', () => {
+  it('uses shared app shell components by navigation density', () => {
     const headerSource = readSource('src/components/MarketingHeader.tsx')
     const gameSidebarSource = readSource('src/components/GameSidebar.tsx')
     const noteSidebarSource = readSource('src/components/NoteSidebar.tsx')
@@ -549,9 +549,8 @@ describe('frontend smoke checks', () => {
     const chatPageSource = readSource('src/features/chat/ChatPage.tsx')
     const chatJoinSource = readSource('src/features/chat/ChatJoinPage.tsx')
     const web3PageSource = readSource('src/features/web3/Web3Page.tsx')
-    const sidebarHomeLinkSource = readSource(
-      'src/components/SidebarHomeLink.tsx'
-    )
+    const appTopSource = readSource('src/components/AppTop.tsx')
+    const appEmptySource = readSource('src/components/AppEmpty.tsx')
     const appGlobalsSource = readSource('src/components/AppGlobals.tsx')
     const userStoreSource = readSource('src/stores/userStore.ts')
     const useBackSource = readSource('src/hooks/useBack.ts')
@@ -569,19 +568,23 @@ describe('frontend smoke checks', () => {
       chatPageSource,
       web3PageSource,
     ]) {
-      assert.match(source, /<SidebarHomeLink onNavigate=\{closeSidebar\} \/>/)
+      assert.match(source, /<AppTop onNavigate=\{closeSidebar\} \/>/)
       assert.doesNotMatch(source, /useBack/)
       assert.doesNotMatch(source, /ArrowLeft/)
     }
-    for (const source of [noteSidebarSource, chatJoinSource]) {
-      assert.match(source, /<SidebarHomeLink \/>/)
+    for (const source of [noteSidebarSource]) {
+      assert.match(source, /<AppTop \/>/)
       assert.doesNotMatch(source, /useBack/)
       assert.doesNotMatch(source, /ArrowLeft/)
     }
+    assert.match(chatJoinSource, /<AppEmpty className="chat-join-loading-page">/)
+    assert.doesNotMatch(chatJoinSource, /<AppTop/)
+    assert.doesNotMatch(chatJoinSource, /AppShell/)
     assert.match(
-      sidebarHomeLinkSource,
+      appTopSource,
       /<Link\s+to="\/"\s+className="sidebar-header sidebar-header-link"/
     )
+    assert.match(appEmptySource, /<main className=\{className\}>/)
     assert.doesNotMatch(headerSource, /<Link to="\/" className="mkt-nav-logo"/)
   })
 

@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 import { Spade, Swords } from 'lucide-react'
-import { SidebarHomeLink } from '~/components/SidebarHomeLink'
+import { AppTop } from '~/components/AppTop'
 import { useI18n, type MessageKey } from '~/lib/i18n'
 
 type GameSidebarProps = {
@@ -37,7 +37,7 @@ export default function GameSidebar({
 
   return (
     <>
-      <SidebarHomeLink onNavigate={closeSidebar} />
+      <AppTop onNavigate={closeSidebar} />
       <nav className="sidebar-nav">
         {items.map(item => (
           <Link

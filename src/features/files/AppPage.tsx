@@ -23,7 +23,7 @@ import {
   parseAppFileName,
 } from '~/components/AppFileCards'
 import OpenSidebarButton from '~/components/OpenSidebarButton'
-import { SidebarHomeLink } from '~/components/SidebarHomeLink'
+import { AppTop } from '~/components/AppTop'
 import FilePreviewOverlay from '~/components/FilePreviewOverlay'
 import { MoveModal } from '~/components/MoveModal'
 import { ModalOverlay, ConfirmModal, InputModal } from '~/components/ui'
@@ -798,7 +798,7 @@ export default function App() {
     <AppShell
       sidebar={({ closeSidebar }) => (
         <>
-          <SidebarHomeLink onNavigate={closeSidebar} />
+          <AppTop onNavigate={closeSidebar} />
           <nav className="sidebar-nav">
             {[
               { id: 'all', icon: <Files size={18} />, label: t('app.nav.local') },

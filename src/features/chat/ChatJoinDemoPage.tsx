@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import { CopyButton } from '~/components/CopyButton'
-import { SidebarHomeLink } from '~/components/SidebarHomeLink'
+import { AppTop } from '~/components/AppTop'
 import { useI18n, type Locale } from '~/lib/i18n'
 import {
   CHAT_JOIN_DEFAULT_API_BASE,
@@ -318,7 +318,7 @@ export default function ChatJoinDemoPage() {
 
   return (
     <AppShell
-      sidebar={() => <SidebarHomeLink />}
+      sidebar={() => <AppTop />}
       headerTitle={<h2 className="header-title">{t('chatJoin.demo.title')}</h2>}
     >
       <div className="chat-join-container">
