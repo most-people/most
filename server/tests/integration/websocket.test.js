@@ -109,6 +109,9 @@ describe('WebSocket (integration)', { timeout: 30000 }, () => {
     engine.on('channel:peer:offline', data =>
       wsBroadcast('channel:peer:offline', data)
     )
+    engine.on('channel:sync:available', data =>
+      wsBroadcast('channel:sync:available', data)
+    )
     engine.on('channel:joined', data => wsBroadcast('channel:joined', data))
     engine.on('channel:left', data => wsBroadcast('channel:left', data))
 
@@ -290,6 +293,25 @@ describe('WebSocket (integration)', { timeout: 30000 }, () => {
   })
 
   describe('engine events broadcast via WebSocket', () => {
+    it('receives channel:sync:available event', async () => {
+      const ws = await connectClient()
+      const pendingMessage = waitForMessage(ws)
+
+      engine.emit('channel:sync:available', {
+        channel: 'sync-ws',
+        channelKey: 'sync-ws',
+        channelId: 'sync-ws',
+        writerCoreKey: 'abc123',
+      })
+
+      const message = await pendingMessage
+      assert.strictEqual(message.event, 'channel:sync:available')
+      assert.strictEqual(message.data.channelKey, 'sync-ws')
+      assert.strictEqual(message.data.writerCoreKey, 'abc123')
+
+      ws.close()
+    })
+
     it('receives publish:success event', async () => {
       const ws = await connectClient()
 

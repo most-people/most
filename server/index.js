@@ -137,6 +137,9 @@ function bindEngineEvents({
   engine.on('channel:peer:offline', data =>
     wsBroadcast('channel:peer:offline', data)
   )
+  engine.on('channel:sync:available', data =>
+    wsBroadcast('channel:sync:available', data)
+  )
   engine.on('channel:presence', data =>
     wsSendToChannel(data.channelKey, 'channel:presence', data)
   )

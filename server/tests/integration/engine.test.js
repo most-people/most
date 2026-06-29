@@ -2338,6 +2338,61 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.strictEqual(r1.key, r2.key)
     })
 
+    it('announces sync availability when an empty local channel later learns remote cores', async () => {
+      const syncTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-channel-sync-available-test-')
+      )
+      const sourceDataPath = path.join(syncTmpDir, 'source')
+      const emptyDataPath = path.join(syncTmpDir, 'empty')
+      const channelName = `sync-${uid}`
+      let sourceEngine
+      let emptyEngine
+      let replication
+
+      try {
+        sourceEngine = new MostBoxEngine({
+          dataPath: sourceDataPath,
+          disableNetwork: true,
+        })
+        emptyEngine = new MostBoxEngine({
+          dataPath: emptyDataPath,
+          disableNetwork: true,
+        })
+        await sourceEngine.start()
+        await emptyEngine.start()
+
+        const sourceChannel = await sourceEngine.createChannel(channelName)
+        await sourceEngine.sendMessage(sourceChannel.channelKey, 'before sync')
+        const emptyChannel = await emptyEngine.joinChannel(channelName)
+        const initialMessages = await emptyEngine.getChannelMessages(channelName)
+        assert.ok(
+          !initialMessages.some(message => message.content === 'before sync')
+        )
+
+        const syncEvents = []
+        emptyEngine.on('channel:sync:available', event => {
+          syncEvents.push(event)
+        })
+        await emptyEngine.joinChannel(channelName, toChannelCandidate(sourceChannel))
+
+        assert.strictEqual(syncEvents.length, 1)
+        assert.strictEqual(syncEvents[0].channelKey, emptyChannel.channelKey)
+        assert.strictEqual(syncEvents[0].channelId, channelName)
+        assert.strictEqual(
+          syncEvents[0].writerCoreKey,
+          sourceChannel.localWriterCoreKey
+        )
+
+        replication = sourceEngine.replicateWith(emptyEngine)
+        await waitForChannelMessage(emptyEngine, channelName, 'before sync')
+      } finally {
+        replication?.close()
+        if (sourceEngine) await sourceEngine.stop().catch(() => {})
+        if (emptyEngine) await emptyEngine.stop().catch(() => {})
+        fs.rmSync(syncTmpDir, { recursive: true, force: true })
+      }
+    })
+
     it('creates a writable local writer core when joining another channel', async () => {
       const joinTmpDir = fs.mkdtempSync(
         path.join(os.tmpdir(), 'most-join-channel-test-')

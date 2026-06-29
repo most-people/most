@@ -72,6 +72,7 @@ const CHANNEL_NAME_REGEX = /^[a-zA-Z0-9_-]+$/
 const ATTACHMENT_CHECK_TIMEOUT_MS = 10000
 const ATTACHMENT_CHECK_REQUEST_TIMEOUT_MS = ATTACHMENT_CHECK_TIMEOUT_MS + 2000
 const CHAT_NOTIFICATION_SOUND_MIN_INTERVAL_MS = 1200
+const CHANNEL_HISTORY_SYNC_DEBOUNCE_MS = 800
 
 function getChannelKey(channel?: Pick<Channel, 'channelKey' | 'name'> | null) {
   return channel?.channelKey || channel?.name || ''
@@ -79,6 +80,34 @@ function getChannelKey(channel?: Pick<Channel, 'channelKey' | 'name'> | null) {
 
 function getChannelId(channel?: Pick<Channel, 'channelId' | 'name'> | null) {
   return channel?.channelId || channel?.name || ''
+}
+
+function getObjectRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object'
+    ? (value as Record<string, unknown>)
+    : {}
+}
+
+function getSocketEventChannelKeys(data: unknown) {
+  const record = getObjectRecord(data)
+  const keys = new Set<string>()
+  const addKey = (value: unknown) => {
+    const key = String(value || '').trim()
+    if (key) keys.add(key)
+  }
+
+  addKey(record.channelKey)
+  addKey(record.channel)
+  if (Array.isArray(record.channels)) {
+    record.channels.forEach(channel => {
+      const channelRecord = getObjectRecord(channel)
+      addKey(channelRecord.channelKey)
+      addKey(channelRecord.channel)
+      addKey(channelRecord.name)
+    })
+  }
+
+  return [...keys]
 }
 
 function getChannelTitle(channel?: Pick<Channel, 'remark' | 'channelId' | 'name'> | null) {
@@ -205,6 +234,10 @@ function ChatPage() {
   const notificationAudioContextRef = useRef<AudioContext | null>(null)
   const notificationAudioUnlockedRef = useRef(false)
   const lastNotificationSoundAtRef = useRef(0)
+  const syncMessagesRef = useRef<
+    (name?: string, options?: { replace?: boolean }) => Promise<ChannelMessage[]>
+  >(async () => [])
+  const channelHistorySyncTimersRef = useRef(new Map<string, number>())
   const pendingAttachmentPreviewsRef = useRef(
     new Map<string, ChannelAttachment>()
   )
@@ -321,6 +354,28 @@ function ChatPage() {
     [activeChannel, isBackendReady]
   )
 
+  const scheduleChannelHistorySync = useCallback(
+    (channelKey = '') => {
+      const activeChannelKey = activeChannelNameRef.current
+      if (!channelKey || channelKey !== activeChannelKey || !isBackendReady) {
+        return
+      }
+
+      const timers = channelHistorySyncTimersRef.current
+      const existingTimer = timers.get(channelKey)
+      if (existingTimer) {
+        window.clearTimeout(existingTimer)
+      }
+
+      const timer = window.setTimeout(() => {
+        timers.delete(channelKey)
+        void syncMessagesRef.current(channelKey)
+      }, CHANNEL_HISTORY_SYNC_DEBOUNCE_MS)
+      timers.set(channelKey, timer)
+    },
+    [isBackendReady]
+  )
+
   function handleChannelSocketEvent(event: string, data: any) {
     switch (event) {
       case 'channel:message': {
@@ -355,6 +410,20 @@ function ChatPage() {
             }
             return result.changed ? result.value : prev
           })
+        }
+        break
+      }
+
+      case 'channel:peer:online':
+      case 'channel:sync:available': {
+        const channelKeys = getSocketEventChannelKeys(data)
+        const activeChannelKey = activeChannelNameRef.current
+        void refreshChannels()
+        if (channelKeys.includes(activeChannelKey)) {
+          scheduleChannelHistorySync(activeChannelKey)
+          if (activeChannel) {
+            void refreshChannelPresence(activeChannel)
+          }
         }
         break
       }
@@ -476,6 +545,20 @@ function ChatPage() {
     presenceEnabled: Boolean(activeChannel && userIdentity),
     presenceProfile,
   })
+
+  useEffect(() => {
+    syncMessagesRef.current = syncMessages
+  }, [syncMessages])
+
+  useEffect(() => {
+    const timers = channelHistorySyncTimersRef.current
+    return () => {
+      for (const timer of timers.values()) {
+        window.clearTimeout(timer)
+      }
+      timers.clear()
+    }
+  }, [])
 
   const channelMembers = useMemo(() => {
     const membersByAuthor = new Map<

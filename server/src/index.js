@@ -4818,6 +4818,15 @@ export class MostBoxEngine extends EventEmitter {
         ])
         this.#saveChannelsMetadata()
       }
+      if (channel) {
+        this.emit('channel:sync:available', {
+          channel: channelKey,
+          channelKey,
+          channelId: channel.channelId || '',
+          writerCoreKey: normalizedCoreKey,
+          writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
+        })
+      }
       console.log(
         `[MostBox] Opened remote channel core ${normalizedCoreKey.slice(0, 8)}... for ${channelKey}`
       )
