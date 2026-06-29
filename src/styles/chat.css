@@ -552,6 +552,10 @@
   gap: 4px;
 }
 
+.chat-app-layout .header-right-actions {
+  order: 10;
+}
+
 /* === Chat Join Page === */
 .chat-join-container {
   flex: 1;
