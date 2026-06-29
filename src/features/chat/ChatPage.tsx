@@ -190,7 +190,7 @@ function ChatPage() {
   const [channelLastReadAt, setChannelLastReadAt] =
     useState<ChannelLastReadMap>({})
   const [channelPresence, setChannelPresence] = useState<ChannelPresence[]>([])
-  const isInviteUser = userIdentity?.identity === 'user'
+  const isInviteUser = userIdentity?.theme === 'sparkbit'
   const inviteLogo =
     isInviteUser && !hasInviteLogoError ? userIdentity.logo : ''
 
@@ -1691,22 +1691,24 @@ function ChatPage() {
                 {renderChannelMembers()}
               </div>
 
-              <div className="channel-detail-section">
-                <div className="channel-detail-label">
-                  <NotebookPen size={14} />
-                  <span>{t('chat.noteDraft.settingsTitle')}</span>
+              {!isInviteUser && (
+                <div className="channel-detail-section">
+                  <div className="channel-detail-label">
+                    <NotebookPen size={14} />
+                    <span>{t('chat.noteDraft.settingsTitle')}</span>
+                  </div>
+                  <p className="channel-detail-hint">
+                    {t('chat.noteDraft.saveAllDesc')}
+                  </p>
+                  <button
+                    className="btn btn-secondary btn-block"
+                    onClick={handleSaveChannelToNote}
+                  >
+                    <NotebookPen size={16} />
+                    {t('chat.noteDraft.saveAll')}
+                  </button>
                 </div>
-                <p className="channel-detail-hint">
-                  {t('chat.noteDraft.saveAllDesc')}
-                </p>
-                <button
-                  className="btn btn-secondary btn-block"
-                  onClick={handleSaveChannelToNote}
-                >
-                  <NotebookPen size={16} />
-                  {t('chat.noteDraft.saveAll')}
-                </button>
-              </div>
+              )}
 
               {!isInviteUser && (
                 <div className="channel-detail-section">
@@ -1736,27 +1738,29 @@ function ChatPage() {
                 </div>
               )}
 
-              <div className="channel-detail-section">
-                <div className="channel-detail-label">
-                  <Edit2 size={14} />
-                  <span>{t('chat.remark.placeholder')}</span>
+              {!isInviteUser && (
+                <div className="channel-detail-section">
+                  <div className="channel-detail-label">
+                    <Edit2 size={14} />
+                    <span>{t('chat.remark.placeholder')}</span>
+                  </div>
+                  <input
+                    type="text"
+                    className="input input-compact"
+                    placeholder={t('chat.remark.placeholder')}
+                    value={remarkInput}
+                    onChange={e => setRemarkInput(e.target.value)}
+                    onFocus={() => setRemarkInput(activeChannel.remark || '')}
+                    onBlur={() => handleSetRemark()}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.currentTarget.blur()
+                      }
+                    }}
+                    maxLength={50}
+                  />
                 </div>
-                <input
-                  type="text"
-                  className="input input-compact"
-                  placeholder={t('chat.remark.placeholder')}
-                  value={remarkInput}
-                  onChange={e => setRemarkInput(e.target.value)}
-                  onFocus={() => setRemarkInput(activeChannel.remark || '')}
-                  onBlur={() => handleSetRemark()}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      e.currentTarget.blur()
-                    }
-                  }}
-                  maxLength={50}
-                />
-              </div>
+              )}
 
               <div className="channel-detail-section">
                 <div className="channel-detail-label">

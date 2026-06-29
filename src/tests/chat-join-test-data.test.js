@@ -14,8 +14,8 @@ describe('chat join test data', () => {
       ['user', 'service']
     )
     assert.deepEqual(
-      CHAT_JOIN_TEST_INVITES.map(invite => invite.identity),
-      ['user', 'service']
+      CHAT_JOIN_TEST_INVITES.map(invite => invite.theme),
+      ['sparkbit', undefined]
     )
 
     for (const invite of CHAT_JOIN_TEST_INVITES) {

@@ -23,6 +23,7 @@ import { Route as GameZhajinhuaIndexRouteImport } from './routes/game/zhajinhua/
 import { Route as GameGandengyanIndexRouteImport } from './routes/game/gandengyan/index'
 import { Route as CidCidIndexRouteImport } from './routes/cid/$cid/index'
 import { Route as ChatJoinIndexRouteImport } from './routes/chat/join/index'
+import { Route as ChatJoinDemoIndexRouteImport } from './routes/chat/join/demo/index'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -104,6 +105,13 @@ const ChatJoinIndexRoute = ChatJoinIndexRouteImport.update({
 } as any).lazy(() =>
   import('./routes/chat/join/index.lazy').then((d) => d.Route),
 )
+const ChatJoinDemoIndexRoute = ChatJoinDemoIndexRouteImport.update({
+  id: '/chat/join/demo/',
+  path: '/chat/join/demo/',
+  getParentRoute: () => rootRouteImport,
+} as any).lazy(() =>
+  import('./routes/chat/join/demo/index.lazy').then((d) => d.Route),
+)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -120,6 +128,7 @@ export interface FileRoutesByFullPath {
   '/cid/$cid/': typeof CidCidIndexRoute
   '/game/gandengyan/': typeof GameGandengyanIndexRoute
   '/game/zhajinhua/': typeof GameZhajinhuaIndexRoute
+  '/chat/join/demo/': typeof ChatJoinDemoIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -136,6 +145,7 @@ export interface FileRoutesByTo {
   '/cid/$cid': typeof CidCidIndexRoute
   '/game/gandengyan': typeof GameGandengyanIndexRoute
   '/game/zhajinhua': typeof GameZhajinhuaIndexRoute
+  '/chat/join/demo': typeof ChatJoinDemoIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -153,6 +163,7 @@ export interface FileRoutesById {
   '/cid/$cid/': typeof CidCidIndexRoute
   '/game/gandengyan/': typeof GameGandengyanIndexRoute
   '/game/zhajinhua/': typeof GameZhajinhuaIndexRoute
+  '/chat/join/demo/': typeof ChatJoinDemoIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -171,6 +182,7 @@ export interface FileRouteTypes {
     | '/cid/$cid/'
     | '/game/gandengyan/'
     | '/game/zhajinhua/'
+    | '/chat/join/demo/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -187,6 +199,7 @@ export interface FileRouteTypes {
     | '/cid/$cid'
     | '/game/gandengyan'
     | '/game/zhajinhua'
+    | '/chat/join/demo'
   id:
     | '__root__'
     | '/'
@@ -203,6 +216,7 @@ export interface FileRouteTypes {
     | '/cid/$cid/'
     | '/game/gandengyan/'
     | '/game/zhajinhua/'
+    | '/chat/join/demo/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -220,6 +234,7 @@ export interface RootRouteChildren {
   CidCidIndexRoute: typeof CidCidIndexRoute
   GameGandengyanIndexRoute: typeof GameGandengyanIndexRoute
   GameZhajinhuaIndexRoute: typeof GameZhajinhuaIndexRoute
+  ChatJoinDemoIndexRoute: typeof ChatJoinDemoIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -322,6 +337,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatJoinIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/chat/join/demo/': {
+      id: '/chat/join/demo/'
+      path: '/chat/join/demo'
+      fullPath: '/chat/join/demo/'
+      preLoaderRoute: typeof ChatJoinDemoIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -340,6 +362,7 @@ const rootRouteChildren: RootRouteChildren = {
   CidCidIndexRoute: CidCidIndexRoute,
   GameGandengyanIndexRoute: GameGandengyanIndexRoute,
   GameZhajinhuaIndexRoute: GameZhajinhuaIndexRoute,
+  ChatJoinDemoIndexRoute: ChatJoinDemoIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

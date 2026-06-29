@@ -1,10 +1,6 @@
 import React, { useState, useEffect, Suspense, useMemo, useRef } from 'react'
 import { useLocation } from '@tanstack/react-router'
-import {
-  KeyRound,
-  Check,
-  AlertCircle,
-} from 'lucide-react'
+import { KeyRound, Check, AlertCircle } from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import { SidebarHomeLink } from '~/components/SidebarHomeLink'
 import { useAppStore } from '~/stores/useAppStore'
@@ -21,8 +17,10 @@ import { channelApi } from '~/lib/channelApi'
 import { getUserChannelProfile } from '~/lib/userProfile'
 import { translateMessage, useI18n } from '~/lib/i18n'
 import {
+  CHAT_JOIN_DEFAULT_API_BASE,
+  CHAT_JOIN_EA_PUBLIC_KEY,
   CHAT_JOIN_INVITE_FIELDS,
-  normalizeChatJoinInviteLocale,
+  normalizeChatJoinInvitePayload,
   type ChatJoinInvitePayload,
 } from '~/lib/chatJoinInvite'
 import { shouldConnectChatJoinInviteNode } from '~/lib/chatJoinRemote'
@@ -31,11 +29,9 @@ import {
   getChatJoinTestInvite,
 } from '~/lib/chatJoinTestData.js'
 
-const EA_TEST_PUBLIC_KEY =
-  '0x955fe80bdb8312165471fcacd6a8f83df88a770dda6f38657ca4e62ec28d5b54'
 const CHANNEL_REMARK_MAX_LENGTH = 50
 const CHAT_JOIN_API_BASE =
-  import.meta.env.VITE_CHAT_JOIN_API_BASE || 'https://api.most.box'
+  import.meta.env.VITE_CHAT_JOIN_API_BASE || CHAT_JOIN_DEFAULT_API_BASE
 
 function parseJsonText(text: string): unknown | null {
   try {
@@ -43,11 +39,6 @@ function parseJsonText(text: string): unknown | null {
   } catch {
     return null
   }
-}
-
-function parseNestedJsonText(value: unknown): unknown | null {
-  if (typeof value !== 'string') return value
-  return parseJsonText(value)
 }
 
 function formatDecryptedResponse(text: string, parsed: unknown | null) {
@@ -72,52 +63,6 @@ function getDecryptError(
   }
 
   return text || fallback
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}
-
-function normalizeOptionalString(value: unknown) {
-  return typeof value === 'string' ? value.trim() : ''
-}
-
-function normalizeInviteIdentity(value: unknown) {
-  const identity = normalizeOptionalString(value)
-  return identity === 'user' ||
-    identity === 'service' ||
-    identity === 'service_ai'
-    ? identity
-    : undefined
-}
-
-function normalizeInvitePayload(input: unknown): ChatJoinInvitePayload | null {
-  const value = parseNestedJsonText(input)
-  if (!isRecord(value)) return null
-
-  const uid = normalizeOptionalString(value.uid)
-  const rawChannels = Array.isArray(value.channels) ? value.channels : []
-  const channels = rawChannels
-    .filter(isRecord)
-    .map(channel => ({
-      id: normalizeOptionalString(channel.id),
-      name: normalizeOptionalString(channel.name) || undefined,
-    }))
-    .filter(channel => channel.id)
-
-  if (!uid || channels.length === 0) return null
-
-  return {
-    node_url: normalizeOptionalString(value.node_url) || undefined,
-    node_invite: normalizeOptionalString(value.node_invite) || undefined,
-    locale: normalizeChatJoinInviteLocale(value.locale),
-    uid,
-    identity: normalizeInviteIdentity(value.identity),
-    logo: normalizeOptionalString(value.logo) || undefined,
-    avatar: normalizeOptionalString(value.avatar) || undefined,
-    name: normalizeOptionalString(value.name) || undefined,
-    channels,
-  }
 }
 
 function getJoinChannelUrl(channelId: string) {
@@ -182,7 +127,9 @@ function ChatJoinContent() {
 
     async function runJoinFlow(invite: ChatJoinInvitePayload) {
       const translateForInvite: typeof t = (key, params) =>
-        invite.locale ? translateMessage(key, invite.locale, params) : t(key, params)
+        invite.locale
+          ? translateMessage(key, invite.locale, params)
+          : t(key, params)
 
       if (invite.locale) {
         setLocale(invite.locale)
@@ -209,7 +156,9 @@ function ChatJoinContent() {
         })
 
         if (!result.ok) {
-          throw new Error(translateForInvite('chatJoin.error.remoteConnectFailed'))
+          throw new Error(
+            translateForInvite('chatJoin.error.remoteConnectFailed')
+          )
         }
 
         configureBackend({
@@ -225,7 +174,7 @@ function ChatJoinContent() {
       const identity = createLoginIdentity(invite.uid, '')
       const nextIdentity = {
         ...identity,
-        identity: invite.identity,
+        theme: invite.theme,
         displayName: invite.name || identity.displayName,
         logo: invite.logo,
         avatar: invite.avatar,
@@ -287,7 +236,7 @@ function ChatJoinContent() {
           )
         } else {
           setDecrypted(formatDecryptedResponse(responseText, parsed))
-          const invite = normalizeInvitePayload(parsed)
+          const invite = normalizeChatJoinInvitePayload(parsed)
           if (!invite) {
             setError(t('chatJoin.error.invalidInvite'))
             return
@@ -310,9 +259,7 @@ function ChatJoinContent() {
 
   return (
     <AppShell
-      sidebar={() => (
-        <SidebarHomeLink />
-      )}
+      sidebar={() => <SidebarHomeLink />}
       headerTitle={<h2 className="header-title">{t('chatJoin.title')}</h2>}
     >
       <div className="chat-join-container">
@@ -374,13 +321,12 @@ function ChatJoinContent() {
               <h3 id="ea-test-title">{t('chatJoin.testPublicKey')}</h3>
             </div>
             <code className="ui-code-box chat-join-public-key" translate="no">
-              {EA_TEST_PUBLIC_KEY}
+              {CHAT_JOIN_EA_PUBLIC_KEY}
             </code>
             <a className="btn" href="/web3/#EA" target="_blank">
               {t('chatJoin.openWeb3')}
             </a>
           </section>
-
         </div>
       </div>
     </AppShell>

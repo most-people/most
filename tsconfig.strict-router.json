@@ -22,6 +22,9 @@
       "~/features/chat/ChatJoinPage": [
         "./src/typecheck-stubs/route-component.tsx"
       ],
+      "~/features/chat/ChatJoinDemoPage": [
+        "./src/typecheck-stubs/route-component.tsx"
+      ],
       "~/features/download/DownloadPage": [
         "./src/typecheck-stubs/route-component.tsx"
       ],

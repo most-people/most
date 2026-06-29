@@ -8,7 +8,7 @@ import {
 import type { ChatJoinInvitePayload } from '~/lib/chatJoinInvite'
 import type { MessageKey } from '~/lib/i18n'
 
-type UserIdentityKind = NonNullable<ChatJoinInvitePayload['identity']>
+type UserIdentityTheme = NonNullable<ChatJoinInvitePayload['theme']>
 const LEGACY_ANONYMOUS_USERNAME = '\u533f\u540d'
 const LEGACY_PROFILE_UPDATED_AT = 1
 
@@ -20,7 +20,7 @@ export interface UserIdentity {
   logo?: string
   avatar?: string
   profileUpdatedAt?: number
-  identity?: UserIdentityKind
+  theme?: UserIdentityTheme
 }
 
 interface UserState {
@@ -93,12 +93,7 @@ function normalizeIdentity(input: unknown): UserIdentity | null {
         : hasCustomProfile
           ? LEGACY_PROFILE_UPDATED_AT
           : undefined,
-    identity:
-      value.identity === 'user' ||
-      value.identity === 'service' ||
-      value.identity === 'service_ai'
-        ? value.identity
-        : undefined,
+    theme: value.theme === 'sparkbit' ? value.theme : undefined,
   }
 }
 
