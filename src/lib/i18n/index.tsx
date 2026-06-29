@@ -76,6 +76,11 @@ export function translateMessage(
   return interpolateMessage(messages[locale][key] || messages[DEFAULT_LOCALE][key], params)
 }
 
+export function formatLocalizedTime(locale: Locale, formattedTime: string) {
+  if (locale !== 'zh-TW') return formattedTime
+  return formattedTime.replace(/(上午|下午)(?=\d)/, '$1 ')
+}
+
 function readStoredLocale() {
   if (typeof window === 'undefined') return DEFAULT_LOCALE
   try {
@@ -161,9 +166,12 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
           ? new Intl.DateTimeFormat(locale, options).format(toDate(value))
           : dateFormatter.format(toDate(value)),
       formatTime: (value, options) =>
-        options
-          ? new Intl.DateTimeFormat(locale, options).format(toDate(value))
-          : timeFormatter.format(toDate(value)),
+        formatLocalizedTime(
+          locale,
+          options
+            ? new Intl.DateTimeFormat(locale, options).format(toDate(value))
+            : timeFormatter.format(toDate(value))
+        ),
       formatDateTime: (value, options) =>
         options
           ? new Intl.DateTimeFormat(locale, options).format(toDate(value))

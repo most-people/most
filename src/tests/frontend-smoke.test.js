@@ -935,6 +935,9 @@ describe('frontend smoke checks', () => {
     assert.equal(i18n.getNextLocale('zh-CN'), 'zh-TW')
     assert.equal(i18n.getNextLocale('zh-TW'), 'en')
     assert.equal(i18n.getNextLocale('en'), 'zh-CN')
+    assert.equal(i18n.formatLocalizedTime('zh-CN', '下午04:05'), '下午04:05')
+    assert.equal(i18n.formatLocalizedTime('zh-TW', '下午04:05'), '下午 04:05')
+    assert.equal(i18n.formatLocalizedTime('en', '4:05 PM'), '4:05 PM')
     assert.equal(
       i18n.translateMessage('app.fileAvailable', 'zh-CN', {
         fileName: '计划.md',
