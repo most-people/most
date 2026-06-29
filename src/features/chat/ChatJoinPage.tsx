@@ -162,6 +162,7 @@ function ChatJoinContent() {
         theme: invite.theme,
         displayName: invite.name || identity.displayName,
         logo: invite.logo,
+        logo_dark: invite.logo_dark,
         data: invite.data,
         avatar: invite.avatar,
       }

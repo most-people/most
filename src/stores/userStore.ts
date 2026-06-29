@@ -18,6 +18,7 @@ export interface UserIdentity {
   danger: string
   displayName?: string
   logo?: string
+  logo_dark?: string
   data?: string
   avatar?: string
   profileUpdatedAt?: number
@@ -87,6 +88,8 @@ function normalizeIdentity(input: unknown): UserIdentity | null {
     danger: value.danger,
     displayName,
     logo: typeof value.logo === 'string' ? value.logo : undefined,
+    logo_dark:
+      typeof value.logo_dark === 'string' ? value.logo_dark : undefined,
     data:
       typeof value.data === 'string'
         ? value.data.trim() || undefined

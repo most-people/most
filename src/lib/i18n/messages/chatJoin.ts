@@ -26,6 +26,8 @@ export const zhCNChatJoinMessages = {
   'chatJoin.field.theme':
     '邀请主题标识；sparkbit 会启用 SparkBit 聊天邀请样式。',
   'chatJoin.field.logo': '覆盖邀请用户聊天页顶部 logo。',
+  'chatJoin.field.logoDark':
+    '暗色主题下优先使用的顶部 logo；未提供时回退到 logo。',
   'chatJoin.field.avatar': '覆盖默认头像。',
   'chatJoin.field.name': '覆盖默认昵称。',
   'chatJoin.field.locale':
@@ -109,6 +111,8 @@ export const zhTWChatJoinMessages = {
   'chatJoin.field.theme':
     '邀請主題標識；sparkbit 會啟用 SparkBit 聊天邀請樣式。',
   'chatJoin.field.logo': '覆蓋邀請使用者聊天頁頂部 logo。',
+  'chatJoin.field.logoDark':
+    '暗色主題下優先使用的頂部 logo；未提供時回退到 logo。',
   'chatJoin.field.avatar': '覆蓋預設頭像。',
   'chatJoin.field.name': '覆蓋預設暱稱。',
   'chatJoin.field.locale':
@@ -196,6 +200,8 @@ export const enChatJoinMessages = {
   'chatJoin.field.theme':
     'Invite theme identifier. sparkbit enables the SparkBit chat invite style.',
   'chatJoin.field.logo': 'Overrides the invited user logo in the chat header.',
+  'chatJoin.field.logoDark':
+    'Preferred chat header logo for dark theme. Falls back to logo when missing.',
   'chatJoin.field.avatar': 'Overrides the default avatar.',
   'chatJoin.field.name': 'Overrides the default display name.',
   'chatJoin.field.locale':

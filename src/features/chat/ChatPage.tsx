@@ -184,6 +184,7 @@ function getBrowserAudioContextConstructor():
 
 function ChatPage() {
   const hasBackend = useAppStore(s => s.hasBackend)
+  const isDarkMode = useAppStore(s => s.isDarkMode)
   const addToast = useAppStore(s => s.addToast)
   const openConnectModal = useAppStore(s => s.openConnectModal)
   const userIdentity = useUserStore(s => s.identity)
@@ -217,14 +218,28 @@ function ChatPage() {
     useState<ChannelAttachment | null>(null)
   const [showAddressSuffix, setShowAddressSuffix] = useState(false)
   const [hasInviteLogoError, setHasInviteLogoError] = useState(false)
+  const [hasInviteFallbackLogoError, setHasInviteFallbackLogoError] =
+    useState(false)
   const [channelLastReadAt, setChannelLastReadAt] =
     useState<ChannelLastReadMap>({})
   const [channelPresence, setChannelPresence] = useState<ChannelPresence[]>([])
   const isInviteUser = userIdentity?.theme === 'sparkbit'
   const inviteTicketUrl =
     isInviteUser && userIdentity?.data ? userIdentity.data : ''
+  const inviteBaseLogo = isInviteUser ? userIdentity?.logo || '' : ''
+  const inviteDarkLogo =
+    isInviteUser && isDarkMode ? userIdentity?.logo_dark || '' : ''
+  const invitePreferredLogo = inviteDarkLogo || inviteBaseLogo
+  const inviteFallbackLogo =
+    inviteDarkLogo && inviteBaseLogo && inviteDarkLogo !== inviteBaseLogo
+      ? inviteBaseLogo
+      : ''
   const inviteLogo =
-    isInviteUser && !hasInviteLogoError ? userIdentity.logo : ''
+    invitePreferredLogo && !hasInviteLogoError
+      ? invitePreferredLogo
+      : inviteFallbackLogo && !hasInviteFallbackLogoError
+        ? inviteFallbackLogo
+        : ''
 
   const channelMessagesEndRef = useRef<HTMLDivElement>(null)
   const attachmentInputRef = useRef<HTMLInputElement>(null)
@@ -677,7 +692,8 @@ function ChatPage() {
 
   useEffect(() => {
     setHasInviteLogoError(false)
-  }, [userIdentity?.logo])
+    setHasInviteFallbackLogoError(false)
+  }, [invitePreferredLogo, inviteFallbackLogo])
 
   useEffect(() => {
     activeChannelNameRef.current = getChannelKey(activeChannel)
@@ -1529,7 +1545,13 @@ function ChatPage() {
                 className="sidebar-toggle-static-logo-img"
                 src={inviteLogo}
                 alt=""
-                onError={() => setHasInviteLogoError(true)}
+                onError={() => {
+                  if (inviteLogo === inviteFallbackLogo) {
+                    setHasInviteFallbackLogoError(true)
+                    return
+                  }
+                  setHasInviteLogoError(true)
+                }}
               />
             ) : (
               <LogoIcon size={18} />

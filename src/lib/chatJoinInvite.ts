@@ -56,6 +56,11 @@ export const CHAT_JOIN_INVITE_FIELDS: ChatJoinInviteField[] = [
     descriptionKey: 'chatJoin.field.logo',
   },
   {
+    name: 'logo_dark',
+    required: false,
+    descriptionKey: 'chatJoin.field.logoDark',
+  },
+  {
     name: 'avatar',
     required: false,
     descriptionKey: 'chatJoin.field.avatar',
