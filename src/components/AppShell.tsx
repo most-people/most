@@ -44,6 +44,7 @@ interface AppShellProps {
   headerRight?: React.ReactNode
   sidebarToggleReplacement?: React.ReactNode
   defaultHide?: boolean
+  hideAccountMenu?: boolean
   children: React.ReactNode
 }
 
@@ -54,6 +55,7 @@ export default function AppShell({
   headerRight,
   sidebarToggleReplacement,
   defaultHide = false,
+  hideAccountMenu = false,
   children,
 }: AppShellProps) {
   const [isSidebarOpen, sidebarCtl] = useDisclosure(false)
@@ -147,7 +149,7 @@ export default function AppShell({
               {headerRight}
               <ThemeToggle />
               <LanguageToggle />
-              <AccountMenuButton />
+              {!hideAccountMenu && <AccountMenuButton />}
             </div>
           </header>
 

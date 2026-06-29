@@ -1066,16 +1066,17 @@ describe('frontend smoke checks', () => {
     const themeToggleSource = readSource('src/components/ThemeToggle.tsx')
     const profileSource = readSource('src/features/profile/ProfilePage.tsx')
     const accountMenuSource = readSource('src/features/profile/AccountMenu.tsx')
+    const chatSource = readSource('src/features/chat/ChatPage.tsx')
     const sidebarSources = [
       readSource('src/features/files/AppPage.tsx'),
-      readSource('src/features/chat/ChatPage.tsx'),
+      chatSource,
       readSource('src/components/NoteSidebar.tsx'),
       readSource('src/components/GameSidebar.tsx'),
     ].join('\n')
     const appHeaderPageSources = [
       readSource('src/features/files/AppPage.tsx'),
       readSource('src/features/note/NotePage.tsx'),
-      readSource('src/features/chat/ChatPage.tsx'),
+      chatSource,
       readSource('src/features/chat/ChatJoinPage.tsx'),
       readSource('src/features/web3/Web3Page.tsx'),
       readSource('src/features/game/gandengyan/GanDengYanPage.tsx'),
@@ -1102,8 +1103,12 @@ describe('frontend smoke checks', () => {
     )
     assert.match(userStoreSource, /pendingCloudRestoreAddress/)
     assert.match(appShellSource, /AccountMenuButton/)
+    assert.match(appShellSource, /hideAccountMenu\?: boolean/)
+    assert.match(appShellSource, /hideAccountMenu = false/)
+    assert.match(appShellSource, /\{!hideAccountMenu && <AccountMenuButton \/>\}/)
     assert.match(appShellSource, /ThemeToggle/)
     assert.match(appShellSource, /LanguageToggle/)
+    assert.match(chatSource, /hideAccountMenu=\{isInviteUser\}/)
     assert.match(marketingHeaderSource, /AccountMenuButton/)
     assert.match(marketingHeaderSource, /ThemeToggle/)
     assert.match(marketingHeaderSource, /LanguageToggle/)

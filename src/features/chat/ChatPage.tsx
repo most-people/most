@@ -1457,6 +1457,7 @@ function ChatPage() {
     <AppShell
       className="chat-app-layout"
       defaultHide={isInviteUser}
+      hideAccountMenu={isInviteUser}
       sidebar={({ closeSidebar }) => (
         <>
           <AppTop onNavigate={closeSidebar} />
