@@ -277,8 +277,11 @@ export function ChatComposer({
     event.currentTarget.value = ''
   }
 
-  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key === 'Enter' && message.trim()) onSend()
+  function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== 'Enter') return
+    if (event.shiftKey || event.nativeEvent.isComposing) return
+    event.preventDefault()
+    if (message.trim()) onSend()
   }
 
   function openAttachmentPicker(accept: string) {
@@ -328,12 +331,12 @@ export function ChatComposer({
           </button>
         )}
       />
-      <input
-        type="text"
-        className="input input-pill"
+      <textarea
+        className="textarea chat-composer-input"
         placeholder={placeholder}
         value={message}
         disabled={disabled}
+        rows={1}
         onChange={event => onMessageChange(event.target.value)}
         onKeyDown={handleKeyDown}
       />

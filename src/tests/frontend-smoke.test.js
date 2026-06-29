@@ -669,6 +669,7 @@ describe('frontend smoke checks', () => {
     const chatSource = readSource(SOURCE_PATHS.features.chat)
     const componentSource = readSource('src/components/ChatUi.tsx')
     const attachmentCardSource = readSource('src/components/ChatAttachmentCard.tsx')
+    const chatCssSource = readSource('src/styles/chat.css')
     const uiIndexSource = readSource('src/components/ui/index.ts')
     const chatUnreadSource = readSource('src/lib/chatUnread.js')
     const i18nMessages = readI18nSources()
@@ -678,6 +679,19 @@ describe('frontend smoke checks', () => {
     assert.match(componentSource, /export function ChatMessageItem/)
     assert.match(componentSource, /export function ChatComposer/)
     assert.match(componentSource, /export function ChannelMemberGrid/)
+    assert.match(
+      componentSource,
+      /<textarea[\s\S]*className="textarea chat-composer-input"/
+    )
+    assert.match(componentSource, /KeyboardEvent<HTMLTextAreaElement>/)
+    assert.match(
+      componentSource,
+      /event\.shiftKey \|\| event\.nativeEvent\.isComposing/
+    )
+    assert.match(componentSource, /event\.preventDefault\(\)/)
+    assert.match(chatCssSource, /\.chat-composer-input[\s\S]*field-sizing: content/)
+    assert.match(chatCssSource, /\.message-bubble \{[\s\S]*white-space: pre-wrap/)
+    assert.match(chatCssSource, /&\.has-attachment \{[\s\S]*white-space: normal/)
     assert.match(componentSource, /unread = false/)
     assert.match(componentSource, /chat-channel-unread-dot/)
     assert.match(componentSource, /ActionMenu/)
