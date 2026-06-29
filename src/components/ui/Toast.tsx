@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import { useEffect } from 'react'
 
 export function Toast({ message, type, onDone, index }) {
   useEffect(() => {

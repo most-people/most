@@ -1,6 +1,12 @@
-import React, { useState, useEffect, Suspense, useMemo, useRef } from 'react'
+import { useState, useEffect, Suspense, useMemo, useRef } from 'react'
 import { useLocation } from '@tanstack/react-router'
-import { ArrowLeft, KeyRound, Check, AlertCircle, RefreshCw } from 'lucide-react'
+import {
+  ArrowLeft,
+  KeyRound,
+  Check,
+  AlertCircle,
+  RefreshCw,
+} from 'lucide-react'
 import { AppEmpty } from '~/components/AppEmpty'
 import { useBack } from '~/hooks/useBack'
 import { useAppStore } from '~/stores/useAppStore'

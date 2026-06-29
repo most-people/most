@@ -19,12 +19,9 @@ export const zhCNConnectionMessages = {
   'remote.connectFailed': '远程节点连接失败',
   'remote.cleared': '已清除远程节点，优先使用本地节点',
   'connectModal.title': '连接节点',
-  'account.notSignedIn': '未登录',
   'account.signIn': '登录',
-  'account.actions': '账号操作',
   'account.logout': '退出',
   'account.logoutTitle': '退出登录',
-  'account.logoutConfirm': '确定要退出当前账号吗？',
 } as const
 
 export const zhTWConnectionMessages = {
@@ -48,12 +45,9 @@ export const zhTWConnectionMessages = {
   'remote.connectFailed': '遠端節點連線失敗',
   'remote.cleared': '已清除遠端節點，優先使用本機節點',
   'connectModal.title': '連線節點',
-  'account.notSignedIn': '未登入',
   'account.signIn': '登入',
-  'account.actions': '帳號操作',
   'account.logout': '退出',
   'account.logoutTitle': '登出',
-  'account.logoutConfirm': '確定要退出當前帳號嗎？',
 } as const
 
 export const enConnectionMessages = {
@@ -79,10 +73,7 @@ export const enConnectionMessages = {
   'remote.connectFailed': 'Remote node connection failed',
   'remote.cleared': 'Remote node cleared; local node will be preferred',
   'connectModal.title': 'Connect node',
-  'account.notSignedIn': 'Not signed in',
   'account.signIn': 'Sign in',
-  'account.actions': 'Account actions',
   'account.logout': 'Sign out',
   'account.logoutTitle': 'Sign out',
-  'account.logoutConfirm': 'Sign out of the current account?',
 } as const

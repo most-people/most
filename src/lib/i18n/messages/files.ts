@@ -32,14 +32,16 @@ export const zhCNFilesMessages = {
     '这条链接也可发到聊天里；本机在线时可下载，下载者完成后会默认继续做种。',
   'app.downloadLink.placeholder': '粘贴 most:// 附件或分享链接',
   'app.download.validation.empty': '请先粘贴 most:// 分享链接。',
-  'app.download.validation.invalidUrl': '链接格式不正确，请粘贴完整的 most:// 分享链接。',
+  'app.download.validation.invalidUrl':
+    '链接格式不正确，请粘贴完整的 most:// 分享链接。',
   'app.download.validation.protocol': '链接协议不正确，应以 most:// 开头。',
-  'app.download.validation.path': '链接路径不受支持，请使用 most://<CID>?filename=... 格式。',
+  'app.download.validation.path':
+    '链接路径不受支持，请使用 most://<CID>?filename=... 格式。',
   'app.download.validation.invalidCid': '链接中的 CID 格式不正确。',
   'app.download.validation.cidV1': '链接中的 CID 必须是 CID v1。',
   'app.download.validation.cidDigest': '链接中的 CID digest 长度不正确。',
-  'app.download.validation.filenameRequired': '分享链接缺少 filename 参数。',
-  'app.download.validation.unsupportedParam': '分享链接包含不支持的参数：{param}。',
+  'app.download.validation.unsupportedParam':
+    '分享链接包含不支持的参数：{param}。',
   'app.download.validation.generic': '分享链接无效，请检查后重试。',
   'app.check': '检测',
   'app.checking': '检测中...',
@@ -148,14 +150,16 @@ export const zhTWFilesMessages = {
     '這條連結也可發到聊天裡；本機線上時可下載，下載者完成後預設繼續做種。',
   'app.downloadLink.placeholder': '貼上 most:// 附件或分享連結',
   'app.download.validation.empty': '請先貼上 most:// 分享連結。',
-  'app.download.validation.invalidUrl': '連結格式不正確，請貼上完整的 most:// 分享連結。',
+  'app.download.validation.invalidUrl':
+    '連結格式不正確，請貼上完整的 most:// 分享連結。',
   'app.download.validation.protocol': '連結協議不正確，應以 most:// 開頭。',
-  'app.download.validation.path': '連結路徑不受支援，請使用 most://<CID>?filename=... 格式。',
+  'app.download.validation.path':
+    '連結路徑不受支援，請使用 most://<CID>?filename=... 格式。',
   'app.download.validation.invalidCid': '連結中的 CID 格式不正確。',
   'app.download.validation.cidV1': '連結中的 CID 必須是 CID v1。',
   'app.download.validation.cidDigest': '連結中的 CID digest 長度不正確。',
-  'app.download.validation.filenameRequired': '分享連結缺少 filename 參數。',
-  'app.download.validation.unsupportedParam': '分享連結包含不支援的參數：{param}。',
+  'app.download.validation.unsupportedParam':
+    '分享連結包含不支援的參數：{param}。',
   'app.download.validation.generic': '分享連結無效，請檢查後重試。',
   'app.check': '檢測',
   'app.checking': '檢測中...',
@@ -273,8 +277,6 @@ export const enFilesMessages = {
   'app.download.validation.cidV1': 'The CID in this link must be CID v1.',
   'app.download.validation.cidDigest':
     'The CID digest in this link has the wrong length.',
-  'app.download.validation.filenameRequired':
-    'The share link is missing the filename parameter.',
   'app.download.validation.unsupportedParam':
     'The share link contains an unsupported parameter: {param}.',
   'app.download.validation.generic':

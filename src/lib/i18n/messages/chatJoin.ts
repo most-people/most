@@ -1,5 +1,4 @@
 export const zhCNChatJoinMessages = {
-  'chatJoin.title': '加入聊天',
   'chatJoin.status.checkingBackend': '正在检测后端连接...',
   'chatJoin.status.connectingRemote': '正在连接远程节点...',
   'chatJoin.status.signingIn': '正在登录邀请账号...',
@@ -18,25 +17,6 @@ export const zhCNChatJoinMessages = {
   'chatJoin.error.invalidInvite': '邀请内容缺少 uid 或 channels[].id',
   'chatJoin.error.request': '请求出错: {message}',
   'chatJoin.action.retry': '重试',
-  'chatJoin.specTitle': '支持字段',
-  'chatJoin.field.required': '必填',
-  'chatJoin.field.optional': '可选',
-  'chatJoin.field.nodeUrl': 'Web 端未连接后端时，用于连接远程节点。',
-  'chatJoin.field.nodeInvite': '配合 node_url 作为远程节点邀请码。',
-  'chatJoin.field.uid': '作为用户名，密码为空，用于生成账户并自动登录。',
-  'chatJoin.field.theme':
-    '邀请主题标识；sparkbit 会启用 SparkBit 聊天邀请样式。',
-  'chatJoin.field.logo': '覆盖邀请用户聊天页顶部 logo。',
-  'chatJoin.field.logoDark':
-    '暗色主题下优先使用的顶部 logo；未提供时回退到 logo。',
-  'chatJoin.field.avatar': '覆盖默认头像。',
-  'chatJoin.field.name': '覆盖默认昵称。',
-  'chatJoin.field.locale':
-    '指定邀请流程自动切换的界面语言，支持 zh-CN、zh-TW、en。',
-  'chatJoin.field.channelId': '房间 ID，用于自动加入聊天。',
-  'chatJoin.field.channelName': '聊天备注，不作为房间 ID。',
-  'chatJoin.testPublicKey': '测试公钥',
-  'chatJoin.openWeb3': '前往 Web3 工具箱',
   'chatJoin.demo.title': '聊天邀请 Demo',
   'chatJoin.demo.parseSection': '解析现有链接',
   'chatJoin.demo.inviteSection': '邀请内容',
@@ -85,7 +65,6 @@ export const zhCNChatJoinMessages = {
 } as const
 
 export const zhTWChatJoinMessages = {
-  'chatJoin.title': '加入聊天',
   'chatJoin.status.checkingBackend': '正在檢測後端連線...',
   'chatJoin.status.connectingRemote': '正在連線遠端節點...',
   'chatJoin.status.signingIn': '正在登入邀請帳號...',
@@ -104,25 +83,6 @@ export const zhTWChatJoinMessages = {
   'chatJoin.error.invalidInvite': '邀請內容缺少 uid 或 channels[].id',
   'chatJoin.error.request': '請求出錯: {message}',
   'chatJoin.action.retry': '重試',
-  'chatJoin.specTitle': '支援欄位',
-  'chatJoin.field.required': '必填',
-  'chatJoin.field.optional': '可選',
-  'chatJoin.field.nodeUrl': 'Web 端未連線後端時，用於連線遠端節點。',
-  'chatJoin.field.nodeInvite': '配合 node_url 作為遠端節點邀請碼。',
-  'chatJoin.field.uid': '作為使用者名稱，密碼為空，用於生成帳戶並自動登入。',
-  'chatJoin.field.theme':
-    '邀請主題標識；sparkbit 會啟用 SparkBit 聊天邀請樣式。',
-  'chatJoin.field.logo': '覆蓋邀請使用者聊天頁頂部 logo。',
-  'chatJoin.field.logoDark':
-    '暗色主題下優先使用的頂部 logo；未提供時回退到 logo。',
-  'chatJoin.field.avatar': '覆蓋預設頭像。',
-  'chatJoin.field.name': '覆蓋預設暱稱。',
-  'chatJoin.field.locale':
-    '指定邀請流程自動切換的介面語言，支援 zh-CN、zh-TW、en。',
-  'chatJoin.field.channelId': '房間 ID，用於自動加入聊天。',
-  'chatJoin.field.channelName': '聊天備註，不作為房間 ID。',
-  'chatJoin.testPublicKey': '測試公鑰',
-  'chatJoin.openWeb3': '前往 Web3 工具箱',
   'chatJoin.demo.title': '聊天邀請 Demo',
   'chatJoin.demo.parseSection': '解析現有連結',
   'chatJoin.demo.inviteSection': '邀請內容',
@@ -171,7 +131,6 @@ export const zhTWChatJoinMessages = {
 } as const
 
 export const enChatJoinMessages = {
-  'chatJoin.title': 'Join chat',
   'chatJoin.status.checkingBackend': 'Checking backend connection...',
   'chatJoin.status.connectingRemote': 'Connecting to remote node...',
   'chatJoin.status.signingIn': 'Signing in with invited account...',
@@ -191,28 +150,6 @@ export const enChatJoinMessages = {
   'chatJoin.error.invalidInvite': 'Invite is missing uid or channels[].id',
   'chatJoin.error.request': 'Request failed: {message}',
   'chatJoin.action.retry': 'Retry',
-  'chatJoin.specTitle': 'Supported fields',
-  'chatJoin.field.required': 'Required',
-  'chatJoin.field.optional': 'Optional',
-  'chatJoin.field.nodeUrl':
-    'Used to connect to a remote node when the web app has no backend.',
-  'chatJoin.field.nodeInvite':
-    'Remote node invite code used together with node_url.',
-  'chatJoin.field.uid':
-    'Used as the username. The password is empty for automatic sign-in.',
-  'chatJoin.field.theme':
-    'Invite theme identifier. sparkbit enables the SparkBit chat invite style.',
-  'chatJoin.field.logo': 'Overrides the invited user logo in the chat header.',
-  'chatJoin.field.logoDark':
-    'Preferred chat header logo for dark theme. Falls back to logo when missing.',
-  'chatJoin.field.avatar': 'Overrides the default avatar.',
-  'chatJoin.field.name': 'Overrides the default display name.',
-  'chatJoin.field.locale':
-    'Automatically switches the invite flow UI language. Supported values: zh-CN, zh-TW, en.',
-  'chatJoin.field.channelId': 'Room ID to join automatically.',
-  'chatJoin.field.channelName': 'Chat remark. It is not used as the room ID.',
-  'chatJoin.testPublicKey': 'Test public key',
-  'chatJoin.openWeb3': 'Open Web3 toolbox',
   'chatJoin.demo.title': 'Chat invite demo',
   'chatJoin.demo.parseSection': 'Parse existing link',
   'chatJoin.demo.inviteSection': 'Invite payload',

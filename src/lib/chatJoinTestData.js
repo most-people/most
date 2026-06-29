@@ -40,7 +40,3 @@ export function getChatJoinTestInvite(fixture) {
   const id = String(fixture || '').trim()
   return CHAT_JOIN_TEST_INVITES.find(invite => invite.uid === id) || null
 }
-
-export function formatChatJoinTestInvite(invite) {
-  return JSON.stringify(invite, null, 2)
-}

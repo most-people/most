@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { X } from 'lucide-react'
 import { ModalOverlay } from '~/components/ui/ModalOverlay'
 import { useI18n } from '~/lib/i18n'

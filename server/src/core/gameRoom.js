@@ -19,7 +19,9 @@ export const GAME_IDS = ['gandengyan', 'zhajinhua']
 const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 
 export function normalizeGameId(input) {
-  const value = String(input || '').trim().toLowerCase()
+  const value = String(input || '')
+    .trim()
+    .toLowerCase()
   return GAME_IDS.includes(value) ? value : ''
 }
 
@@ -47,7 +49,9 @@ export function gameRoomCodeToChannelName(gameId, roomCode) {
 }
 
 export function channelNameToGameRoom(input) {
-  const value = String(input || '').trim().toLowerCase()
+  const value = String(input || '')
+    .trim()
+    .toLowerCase()
   const match = /^game\.([a-z0-9]+)\.([a-z0-9]+)$/.exec(value)
   if (!match) return null
   const gameId = normalizeGameId(match[1])
@@ -86,7 +90,8 @@ export function parseGameEvent(content, options = {}) {
     const gameId = normalizeGameId(event.gameId)
     const roomCode = normalizeGameRoomCode(event.roomCode)
     if (!gameId || !isValidGameRoomCode(roomCode)) return null
-    if (options.gameId && gameId !== normalizeGameId(options.gameId)) return null
+    if (options.gameId && gameId !== normalizeGameId(options.gameId))
+      return null
     if (
       options.roomCode &&
       roomCode !== normalizeGameRoomCode(options.roomCode)
@@ -99,9 +104,7 @@ export function parseGameEvent(content, options = {}) {
       gameId,
       roomCode,
       payload:
-        event.payload && typeof event.payload === 'object'
-          ? event.payload
-          : {},
+        event.payload && typeof event.payload === 'object' ? event.payload : {},
     }
   } catch {
     return null
@@ -132,7 +135,9 @@ export function deriveGameRoomLobby(messages = [], options = {}) {
     }
 
     if (event.event === 'player:leave') {
-      const address = normalizeAddress(event.payload?.player?.address || message.author)
+      const address = normalizeAddress(
+        event.payload?.player?.address || message.author
+      )
       if (address) {
         const index = players.findIndex(p => p.address === address)
         if (index !== -1) {
@@ -188,18 +193,6 @@ export function createPlayerFromPayload(input, messageOrAuthor) {
   }
   if (avatar) player.avatar = avatar
   return player
-}
-
-export function normalizeGamePlayer(input) {
-  if (!input || typeof input !== 'object') return null
-  const address = normalizeAddress(input.address)
-  if (!address) return null
-  return {
-    ...input,
-    address,
-    name: String(input.name || shortAddress(address)).slice(0, 50),
-    publicKey: String(input.publicKey || ''),
-  }
 }
 
 function upsertPlayer(players, playerMap, player) {

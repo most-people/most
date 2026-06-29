@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { FileText, Loader, Music, X } from 'lucide-react'
 import type { FileSubtype } from '~/lib/filePreview'
 import { useI18n } from '~/lib/i18n'
@@ -117,7 +117,7 @@ export default function FilePreviewOverlay({
         type="button"
         className="preview-close"
         onClick={onClose}
-      aria-label={t('preview.close')}
+        aria-label={t('preview.close')}
       >
         <X size={20} />
       </button>

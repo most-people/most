@@ -32,11 +32,8 @@ export const zhCNChatMessages = {
   'chat.attachment.retryCheck': '再次检测',
   'chat.noteDraft.settingsTitle': '知识库',
   'chat.noteDraft.historyTitle': '{room} 聊天记录 {time}',
-  'chat.noteDraft.title': '聊天记录 {time}',
   'chat.noteDraft.heading': '聊天记录',
   'chat.noteDraft.room': '聊天',
-  'chat.noteDraft.author': '发送者',
-  'chat.noteDraft.time': '时间',
   'chat.noteDraft.exportedAt': '保存时间',
   'chat.noteDraft.messageCount': '消息数',
   'chat.noteDraft.message': '消息',
@@ -79,7 +76,6 @@ export const zhCNChatMessages = {
   'chat.details.showAddressSuffix': '显示 #地址后四位',
   'chat.details.channelId': '房间 ID',
   'chat.attachment.published': '{fileName} 已发布',
-  'chat.error.members': '无法读取成员',
   'chat.error.messages': '无法读取聊天消息',
   'chat.error.nodeId': '无法读取节点 ID',
   'chat.error.channelList': '无法读取聊天列表',
@@ -94,8 +90,7 @@ export const zhCNChatMessages = {
   'chat.validation.nameMin': '房间名至少 {count} 个字符',
   'chat.validation.nameMax': '房间名最多 {count} 个字符',
   'chat.validation.dotReserved': '点号为系统保留，不能用于手动房间 ID',
-  'chat.validation.allowedChars':
-    '房间名只能包含字母、数字、下划线和连字符',
+  'chat.validation.allowedChars': '房间名只能包含字母、数字、下划线和连字符',
 } as const
 
 export const zhTWChatMessages = {
@@ -132,11 +127,8 @@ export const zhTWChatMessages = {
   'chat.attachment.retryCheck': '再次檢測',
   'chat.noteDraft.settingsTitle': '知識庫',
   'chat.noteDraft.historyTitle': '{room} 聊天記錄 {time}',
-  'chat.noteDraft.title': '聊天記錄 {time}',
   'chat.noteDraft.heading': '聊天記錄',
   'chat.noteDraft.room': '聊天',
-  'chat.noteDraft.author': '傳送者',
-  'chat.noteDraft.time': '時間',
   'chat.noteDraft.exportedAt': '儲存時間',
   'chat.noteDraft.messageCount': '訊息數',
   'chat.noteDraft.message': '訊息',
@@ -179,7 +171,6 @@ export const zhTWChatMessages = {
   'chat.details.showAddressSuffix': '顯示 #地址後四位',
   'chat.details.channelId': '房間 ID',
   'chat.attachment.published': '{fileName} 已發布',
-  'chat.error.members': '無法讀取成員',
   'chat.error.messages': '無法讀取聊天訊息',
   'chat.error.nodeId': '無法讀取節點 ID',
   'chat.error.channelList': '無法讀取聊天列表',
@@ -194,8 +185,7 @@ export const zhTWChatMessages = {
   'chat.validation.nameMin': '房間名至少 {count} 個字元',
   'chat.validation.nameMax': '房間名最多 {count} 個字元',
   'chat.validation.dotReserved': '點號為系統保留，不能用於手動房間 ID',
-  'chat.validation.allowedChars':
-    '房間名只能包含字母、數字、下劃線和連字元',
+  'chat.validation.allowedChars': '房間名只能包含字母、數字、下劃線和連字元',
 } as const
 
 export const enChatMessages = {
@@ -232,11 +222,8 @@ export const enChatMessages = {
   'chat.attachment.retryCheck': 'Check again',
   'chat.noteDraft.settingsTitle': 'Knowledge base',
   'chat.noteDraft.historyTitle': '{room} chat history {time}',
-  'chat.noteDraft.title': 'Chat note {time}',
   'chat.noteDraft.heading': 'Chat note',
   'chat.noteDraft.room': 'Chat',
-  'chat.noteDraft.author': 'Author',
-  'chat.noteDraft.time': 'Time',
   'chat.noteDraft.exportedAt': 'Saved at',
   'chat.noteDraft.messageCount': 'Messages',
   'chat.noteDraft.message': 'Message',
@@ -280,7 +267,6 @@ export const enChatMessages = {
   'chat.details.showAddressSuffix': 'Show #address suffix',
   'chat.details.channelId': 'Room ID',
   'chat.attachment.published': '{fileName} published',
-  'chat.error.members': 'Failed to read members',
   'chat.error.messages': 'Failed to read chat messages',
   'chat.error.nodeId': 'Failed to read node ID',
   'chat.error.channelList': 'Failed to read chat list',

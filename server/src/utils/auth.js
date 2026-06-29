@@ -51,10 +51,3 @@ export function verifyAuthHeader(header, method, path, options = {}) {
     return { ok: false, error: 'Invalid authorization signature' }
   }
 }
-
-export function parseInviteList(value = '') {
-  return String(value || '')
-    .split(',')
-    .map(item => item.trim())
-    .filter(Boolean)
-}

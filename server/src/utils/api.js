@@ -413,10 +413,6 @@ export function getBackendUrlExport() {
   return getBackendUrl()
 }
 
-export function getConfiguredBackendUrlExport() {
-  return getConfiguredBackendUrl()
-}
-
 export function getSameOriginBackendUrlExport() {
   return getSameOriginBackendUrl()
 }
@@ -435,10 +431,6 @@ export function getRemoteNodesExport() {
 
 export function getNodeHistoryExport() {
   return getNodeHistory()
-}
-
-export function getBackendInviteExport() {
-  return getBackendInvite()
 }
 
 export function getApiUrl(path) {
@@ -508,12 +500,6 @@ export async function getAuthenticatedWebSocketUrl(path = '/ws') {
   }
 
   return url.toString()
-}
-
-export async function checkBackendConnection() {
-  const url = getBackendUrl() || getSameOriginBackendUrl()
-  const invite = shouldAttachBackendInvite(url) ? getBackendInvite() : ''
-  return checkBackendConnectionTarget({ url, invite })
 }
 
 async function probeHttp(cleanedUrl, invite, identity) {
