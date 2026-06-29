@@ -4,6 +4,7 @@ import {
   Plus,
   X,
   Edit2,
+  ExternalLink,
   Calendar,
   Hash,
   Settings,
@@ -191,6 +192,8 @@ function ChatPage() {
     useState<ChannelLastReadMap>({})
   const [channelPresence, setChannelPresence] = useState<ChannelPresence[]>([])
   const isInviteUser = userIdentity?.theme === 'sparkbit'
+  const inviteTicketUrl =
+    isInviteUser && userIdentity?.data ? userIdentity.data : ''
   const inviteLogo =
     isInviteUser && !hasInviteLogoError ? userIdentity.logo : ''
 
@@ -1690,6 +1693,20 @@ function ChatPage() {
                 </div>
                 {renderChannelMembers()}
               </div>
+
+              {inviteTicketUrl && (
+                <div className="channel-detail-section">
+                  <a
+                    className="btn btn-primary btn-block"
+                    href={inviteTicketUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <ExternalLink size={16} />
+                    {t('chat.ticket.create')}
+                  </a>
+                </div>
+              )}
 
               {!isInviteUser && (
                 <div className="channel-detail-section">

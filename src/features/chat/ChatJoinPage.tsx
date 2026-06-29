@@ -177,6 +177,7 @@ function ChatJoinContent() {
         theme: invite.theme,
         displayName: invite.name || identity.displayName,
         logo: invite.logo,
+        data: invite.data,
         avatar: invite.avatar,
       }
       setUserIdentity(nextIdentity)
