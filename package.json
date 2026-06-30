@@ -58,6 +58,7 @@
     "@hono/node-server": "^2.0.6",
     "@tanstack/react-router": "^1.170.16",
     "@tanstack/react-start": "^1.168.26",
+    "@tanstack/react-table": "^8.21.3",
     "b4a": "^1.8.1",
     "busboy": "^1.6.0",
     "corestore": "^7.11.0",

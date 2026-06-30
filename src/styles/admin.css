@@ -13,7 +13,10 @@
 .admin-metric,
 .admin-capacity-row,
 .admin-address-list,
-.admin-log-row {
+.admin-log-row,
+.admin-table-pagination,
+.admin-table-page-size,
+.admin-table-page-actions {
   display: flex;
   align-items: center;
 }
@@ -238,8 +241,7 @@
   line-height: 1.5;
 }
 
-.admin-field-hint,
-.admin-table-note {
+.admin-field-hint {
   margin: 0;
   color: var(--text-secondary);
   font-size: 12px;
@@ -249,10 +251,6 @@
 .admin-field-hint {
   margin-top: 2px;
   margin-bottom: 14px;
-}
-
-.admin-table-note {
-  margin-bottom: 10px;
 }
 
 .admin-seed-help {
@@ -352,40 +350,181 @@
   border-radius: 8px;
 }
 
-.admin-table-row {
-  display: grid;
-  grid-template-columns:
-    minmax(160px, 1.4fr) minmax(150px, 1fr) minmax(120px, 0.8fr)
-    minmax(72px, 0.45fr) minmax(120px, 0.8fr) 130px;
-  gap: 12px;
+.admin-data-table {
+  width: 100%;
   min-width: 900px;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+.admin-table-users .admin-data-table {
+  min-width: 720px;
+}
+
+.admin-table-holdings .admin-data-table {
+  min-width: 1080px;
+}
+
+.admin-table-logs .admin-data-table {
+  min-width: 860px;
+}
+
+.admin-data-table th,
+.admin-data-table td {
   padding: 10px 12px;
   border-bottom: 1px solid var(--glass-border);
   font-size: 13px;
+  line-height: 1.35;
+  text-align: left;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
 }
 
-.admin-table-row:last-child {
+.admin-data-table tbody tr:last-child td {
   border-bottom: none;
 }
 
-.admin-table-row span {
+.admin-data-table th {
+  background: var(--glass-bg-subtle);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-data-table .admin-empty-row {
+  padding: 18px 12px;
+  text-align: center;
+}
+
+.admin-table-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 22px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.admin-table-sort span {
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
-.admin-holdings-row {
-  grid-template-columns:
-    minmax(160px, 1.25fr) minmax(150px, 1fr) minmax(110px, 0.7fr)
-    minmax(72px, 0.45fr) minmax(90px, 0.6fr) minmax(120px, 0.75fr)
-    minmax(110px, 0.7fr) minmax(130px, 0.8fr);
+.admin-table-sort svg {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+}
+
+.admin-table-users .admin-col-user {
+  width: 34%;
+}
+
+.admin-table-users .admin-col-user-files,
+.admin-table-users .admin-col-user-trash {
+  width: 20%;
+}
+
+.admin-table-users .admin-col-user-actions {
+  width: 26%;
+}
+
+.admin-table-holdings .admin-col-file {
+  width: 22%;
+}
+
+.admin-table-holdings .admin-col-cid {
+  width: 18%;
+}
+
+.admin-table-holdings .admin-col-size,
+.admin-table-holdings .admin-col-last-served,
+.admin-table-holdings .admin-col-total-served,
+.admin-table-holdings .admin-col-status {
+  width: 12%;
+}
+
+.admin-table-holdings .admin-col-peers {
+  width: 7%;
+}
+
+.admin-table-holdings .admin-col-topic {
+  width: 10%;
+}
+
+.admin-table-logs .admin-col-log-time {
+  width: 110px;
+}
+
+.admin-table-logs .admin-col-log-level {
+  width: 92px;
+}
+
+.admin-table-logs .admin-col-log-event {
+  width: 230px;
+}
+
+.admin-table-logs .admin-col-log-message {
+  width: auto;
+}
+
+.admin-table-pagination {
+  gap: 10px;
+  min-width: 900px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--glass-border);
+  background: var(--glass-bg-subtle);
+  flex-wrap: wrap;
+}
+
+.admin-table-users .admin-table-pagination {
+  min-width: 720px;
+}
+
+.admin-table-holdings .admin-table-pagination {
   min-width: 1080px;
 }
 
-.admin-table-head {
+.admin-table-logs .admin-table-pagination {
+  min-width: 860px;
+}
+
+.admin-table-pagination-status {
   color: var(--text-secondary);
   font-size: 12px;
   font-weight: 700;
-  background: var(--glass-bg-subtle);
+}
+
+.admin-table-page-size {
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-page-size-select {
+  width: auto;
+  min-width: 76px;
+  min-height: 32px;
+  padding: 0 30px 0 10px;
+  font-size: 12px;
+}
+
+.admin-table-page-actions {
+  gap: 4px;
+  margin-left: auto;
+}
+
+.admin-table-page-actions .btn-icon {
+  width: 32px;
+  height: 32px;
 }
 
 .admin-seed-pill {

@@ -1,12 +1,30 @@
 import { useEffect, useMemo, useState } from 'react'
+import {
+  type ColumnDef,
+  type PaginationState,
+  type SortingState,
+  type Table,
+  flexRender,
+  getCoreRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from '@tanstack/react-table'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import 'dayjs/locale/zh-cn'
 import 'dayjs/locale/zh-tw'
 import {
   Activity,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   AlertTriangle,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   Clipboard,
   Database,
   Download,
@@ -122,6 +140,10 @@ interface AdminUserData {
 }
 
 const EMPTY_STATUS: NodeStatus | null = null
+const EMPTY_HOLDINGS: NodeHolding[] = []
+const LOG_LIMIT = 300
+const DEFAULT_ADMIN_TABLE_PAGE_SIZE = 10
+const ADMIN_TABLE_PAGE_SIZE_OPTIONS = [10, 20, 50, 100]
 
 type AdminTranslate = (
   key: MessageKey,
@@ -280,6 +302,204 @@ function nodeLogMatchesFilter(log: NodeLog, filter: string) {
   return terms.some(term => text.includes(term))
 }
 
+type SortState = false | 'asc' | 'desc'
+
+interface AdminDataTableProps<TData> {
+  table: Table<TData>
+  className: string
+  emptyText: string
+  t: AdminTranslate
+}
+
+function getSortTitle(sort: SortState, t: AdminTranslate) {
+  if (sort === 'asc') return t('admin.table.sortDesc')
+  if (sort === 'desc') return t('admin.table.sortClear')
+  return t('admin.table.sortAsc')
+}
+
+function SortIcon({ sort }: { sort: SortState }) {
+  if (sort === 'asc') return <ArrowUp size={13} />
+  if (sort === 'desc') return <ArrowDown size={13} />
+  return <ArrowUpDown size={13} />
+}
+
+function AdminTablePagination<TData>({
+  table,
+  t,
+}: {
+  table: Table<TData>
+  t: AdminTranslate
+}) {
+  const { pageIndex, pageSize } = table.getState().pagination
+  const pageCount = Math.max(1, table.getPageCount())
+  const rowCount = table.getPrePaginationRowModel().rows.length
+
+  return (
+    <div
+      className="admin-table-pagination"
+      aria-label={t('admin.table.pagination')}
+    >
+      <span className="admin-table-pagination-status">
+        {t('admin.table.totalRows', { count: rowCount })}
+      </span>
+      <label className="admin-table-page-size">
+        <span>{t('admin.table.pageSize')}</span>
+        <select
+          className="input admin-page-size-select"
+          value={pageSize}
+          onChange={event => table.setPageSize(Number(event.target.value))}
+        >
+          {ADMIN_TABLE_PAGE_SIZE_OPTIONS.map(option => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      </label>
+      <span className="admin-table-pagination-status">
+        {t('admin.table.pageIndicator', {
+          page: pageIndex + 1,
+          total: pageCount,
+        })}
+      </span>
+      <div className="admin-table-page-actions">
+        <button
+          className="btn btn-icon"
+          type="button"
+          onClick={() => table.setPageIndex(0)}
+          disabled={!table.getCanPreviousPage()}
+          aria-label={t('admin.table.firstPage')}
+          title={t('admin.table.firstPage')}
+        >
+          <ChevronsLeft size={15} />
+        </button>
+        <button
+          className="btn btn-icon"
+          type="button"
+          onClick={() => table.previousPage()}
+          disabled={!table.getCanPreviousPage()}
+          aria-label={t('admin.table.previousPage')}
+          title={t('admin.table.previousPage')}
+        >
+          <ChevronLeft size={15} />
+        </button>
+        <button
+          className="btn btn-icon"
+          type="button"
+          onClick={() => table.nextPage()}
+          disabled={!table.getCanNextPage()}
+          aria-label={t('admin.table.nextPage')}
+          title={t('admin.table.nextPage')}
+        >
+          <ChevronRight size={15} />
+        </button>
+        <button
+          className="btn btn-icon"
+          type="button"
+          onClick={() => table.setPageIndex(Math.max(0, pageCount - 1))}
+          disabled={!table.getCanNextPage()}
+          aria-label={t('admin.table.lastPage')}
+          title={t('admin.table.lastPage')}
+        >
+          <ChevronsRight size={15} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function AdminDataTable<TData>({
+  table,
+  className,
+  emptyText,
+  t,
+}: AdminDataTableProps<TData>) {
+  const rows = table.getRowModel().rows
+  const rowCount = table.getPrePaginationRowModel().rows.length
+  const shouldShowPagination =
+    rowCount > table.getState().pagination.pageSize
+
+  return (
+    <div className={`admin-table ${className}`}>
+      <table className="admin-data-table">
+        <thead>
+          {table.getHeaderGroups().map(headerGroup => (
+            <tr key={headerGroup.id}>
+              {headerGroup.headers.map(header => {
+                const sort = header.column.getIsSorted()
+                const sortTitle = getSortTitle(sort, t)
+                return (
+                  <th
+                    className={`admin-col-${header.column.id}`}
+                    key={header.id}
+                    aria-sort={
+                      sort === 'asc'
+                        ? 'ascending'
+                        : sort === 'desc'
+                          ? 'descending'
+                          : undefined
+                    }
+                  >
+                    {header.isPlaceholder ? null : header.column.getCanSort() ? (
+                      <button
+                        className="admin-table-sort"
+                        type="button"
+                        onClick={header.column.getToggleSortingHandler()}
+                        aria-label={sortTitle}
+                        title={sortTitle}
+                      >
+                        <span>
+                          {flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
+                        </span>
+                        <SortIcon sort={sort} />
+                      </button>
+                    ) : (
+                      <span>
+                        {flexRender(
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
+                      </span>
+                    )}
+                  </th>
+                )
+              })}
+            </tr>
+          ))}
+        </thead>
+        <tbody>
+          {rows.map(row => (
+            <tr key={row.id}>
+              {row.getVisibleCells().map(cell => (
+                <td
+                  className={`admin-col-${cell.column.id}`}
+                  key={cell.id}
+                >
+                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                </td>
+              ))}
+            </tr>
+          ))}
+          {rows.length === 0 && (
+            <tr>
+              <td
+                className="admin-empty-row"
+                colSpan={table.getAllLeafColumns().length}
+              >
+                {emptyText}
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+      {shouldShowPagination && <AdminTablePagination table={table} t={t} />}
+    </div>
+  )
+}
+
 export default function AdminPage() {
   const { t, locale, formatNumber, formatTime } = useI18n()
   const hasBackend = useAppStore(s => s.hasBackend)
@@ -291,6 +511,23 @@ export default function AdminPage() {
   const [isClearingLogs, setIsClearingLogs] = useState(false)
   const [isExportingDiagnostics, setIsExportingDiagnostics] = useState(false)
   const [logFilter, setLogFilter] = useState('all')
+  const [userSorting, setUserSorting] = useState<SortingState>([])
+  const [userPagination, setUserPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: DEFAULT_ADMIN_TABLE_PAGE_SIZE,
+  })
+  const [holdingSorting, setHoldingSorting] = useState<SortingState>([])
+  const [holdingPagination, setHoldingPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: DEFAULT_ADMIN_TABLE_PAGE_SIZE,
+  })
+  const [logSorting, setLogSorting] = useState<SortingState>([
+    { id: 'log-time', desc: true },
+  ])
+  const [logPagination, setLogPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: DEFAULT_ADMIN_TABLE_PAGE_SIZE,
+  })
   const [users, setUsers] = useState<AdminUserData[]>([])
   const [isClearingUser, setIsClearingUser] = useState('')
   const [configForm, setConfigForm] = useState({
@@ -322,16 +559,235 @@ export default function AdminPage() {
     )
   }, [status])
 
-  const visibleHoldings = useMemo(
-    () => (status?.holdings || []).slice(0, 100),
-    [status]
-  )
-  const hiddenHoldingCount = Math.max(0, (status?.holdings.length || 0) - 100)
+  const holdings = status?.holdings || EMPTY_HOLDINGS
   const backendUrl = getBackendUrlExport()
   const isRemoteAdmin =
     Boolean(backendUrl) &&
     !backendUrl.includes('localhost') &&
     !backendUrl.includes('127.0.0.1')
+  const userColumns = useMemo<ColumnDef<AdminUserData>[]>(
+    () => [
+      {
+        id: 'user',
+        accessorKey: 'address',
+        header: t('admin.userData.user'),
+        cell: info => {
+          const address = info.getValue<string>()
+          return (
+            <span title={address} translate="no">
+              {shortText(address)}
+            </span>
+          )
+        },
+      },
+      {
+        id: 'user-files',
+        accessorKey: 'fileCount',
+        header: t('admin.userData.files'),
+        cell: info => formatNumber(info.getValue<number>()),
+      },
+      {
+        id: 'user-trash',
+        accessorKey: 'trashCount',
+        header: t('admin.userData.trash'),
+        cell: info => formatNumber(info.getValue<number>()),
+      },
+      {
+        id: 'user-actions',
+        header: t('admin.userData.actions'),
+        enableSorting: false,
+        cell: info => {
+          const address = info.row.original.address
+          return (
+            <button
+              className="btn btn-ghost"
+              onClick={() => clearUserData(address)}
+              disabled={isClearingUser === address}
+            >
+              <Trash2 size={16} />
+              {t('admin.action.clear')}
+            </button>
+          )
+        },
+      },
+    ],
+    [formatNumber, isClearingUser, t]
+  )
+  const holdingColumns = useMemo<ColumnDef<NodeHolding>[]>(
+    () => [
+      {
+        id: 'file',
+        accessorKey: 'fileName',
+        header: t('admin.holdings.file'),
+        cell: info => (
+          <span translate="no">{info.getValue<string>() || '-'}</span>
+        ),
+      },
+      {
+        id: 'cid',
+        accessorKey: 'cid',
+        header: 'CID',
+        cell: info => {
+          const holding = info.row.original
+          return (
+            <span title={holding.cid} translate="no">
+              {shortText(holding.cid)}
+            </span>
+          )
+        },
+      },
+      {
+        id: 'size',
+        accessorKey: 'size',
+        header: t('admin.holdings.size'),
+        cell: info => formatBytes(info.getValue<number>()),
+      },
+      {
+        id: 'peers',
+        accessorFn: row => row.peerCount ?? 0,
+        header: t('admin.holdings.peers'),
+        cell: info => formatNumber(info.getValue<number>()),
+      },
+      {
+        id: 'topic',
+        accessorFn: row => Number(row.joined),
+        header: t('admin.holdings.topicJoined'),
+        cell: info => {
+          const holding = info.row.original
+          return (
+            <span
+              className={`admin-seed-pill ${holding.joined ? 'active' : ''}`}
+            >
+              {holding.joined
+                ? t('admin.holdings.joinedYes')
+                : t('admin.holdings.joinedNo')}
+            </span>
+          )
+        },
+      },
+      {
+        id: 'last-served',
+        accessorFn: row =>
+          row.lastServedAt ? new Date(row.lastServedAt).getTime() || 0 : 0,
+        header: t('admin.holdings.lastServed'),
+        cell: info => {
+          const lastServedAt = info.row.original.lastServedAt
+          return (
+            <span title={lastServedAt || ''}>
+              {formatRecentTime(lastServedAt, t, locale)}
+            </span>
+          )
+        },
+      },
+      {
+        id: 'total-served',
+        accessorFn: row => row.totalServedBytes || 0,
+        header: t('admin.holdings.totalServed'),
+        cell: info => formatBytes(info.getValue<number>()),
+      },
+      {
+        id: 'status',
+        accessorFn: row =>
+          row.seedStatus || (row.joined ? 'active' : 'not-joined'),
+        header: t('admin.holdings.status'),
+        cell: info => {
+          const holding = info.row.original
+          return (
+            <span
+              className={`admin-seed-pill ${
+                holding.seedStatus === 'error'
+                  ? 'error'
+                  : holding.seedStatus === 'active' || holding.joined
+                    ? 'active'
+                    : ''
+              }`}
+            >
+              {formatSeedStatus(holding, t)}
+            </span>
+          )
+        },
+      },
+    ],
+    [formatNumber, locale, t]
+  )
+  const logColumns = useMemo<ColumnDef<NodeLog>[]>(
+    () => [
+      {
+        id: 'log-time',
+        accessorFn: row => new Date(row.ts).getTime() || 0,
+        header: t('admin.logs.time'),
+        cell: info => <time>{formatTime(info.row.original.ts)}</time>,
+      },
+      {
+        id: 'log-level',
+        accessorKey: 'level',
+        header: t('admin.logs.level'),
+        cell: info => (
+          <span
+            className={`admin-log-level ${info.getValue<string>()}`}
+            translate="no"
+          >
+            {info.getValue<string>()}
+          </span>
+        ),
+      },
+      {
+        id: 'log-event',
+        accessorKey: 'event',
+        header: t('admin.logs.event'),
+        cell: info => <strong translate="no">{info.getValue<string>()}</strong>,
+      },
+      {
+        id: 'log-message',
+        accessorKey: 'message',
+        header: t('admin.logs.message'),
+        cell: info => <span translate="no">{info.getValue<string>()}</span>,
+      },
+    ],
+    [formatTime, t]
+  )
+  const userTable = useReactTable({
+    data: users,
+    columns: userColumns,
+    state: {
+      sorting: userSorting,
+      pagination: userPagination,
+    },
+    onSortingChange: setUserSorting,
+    onPaginationChange: setUserPagination,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getRowId: row => row.address,
+  })
+  const holdingTable = useReactTable({
+    data: holdings,
+    columns: holdingColumns,
+    state: {
+      sorting: holdingSorting,
+      pagination: holdingPagination,
+    },
+    onSortingChange: setHoldingSorting,
+    onPaginationChange: setHoldingPagination,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getRowId: row => row.cid,
+  })
+  const logTable = useReactTable({
+    data: logs,
+    columns: logColumns,
+    state: {
+      sorting: logSorting,
+      pagination: logPagination,
+    },
+    onSortingChange: setLogSorting,
+    onPaginationChange: setLogPagination,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getRowId: row => row.id,
+  })
 
   const loadStatus = async () => {
     if (!isBackendReady) return false
@@ -369,7 +825,7 @@ export default function AdminPage() {
     if (!isBackendReady) return
     try {
       const query = new URLSearchParams({
-        limit: '80',
+        limit: String(LOG_LIMIT),
         filter: nextFilter,
       })
       const result = await api
@@ -479,7 +935,7 @@ export default function AdminPage() {
     }
   }
 
-  const clearUserData = async (address: string) => {
+  async function clearUserData(address: string) {
     if (!requireBackendReady()) return
     const confirmed = window.confirm(
       t('admin.confirm.clearUserData', {
@@ -528,7 +984,7 @@ export default function AdminPage() {
           }
           if (message.event === 'node:log') {
             if (nodeLogMatchesFilter(message.data, logFilter)) {
-              setLogs(prev => [message.data, ...prev].slice(0, 80))
+              setLogs(prev => [message.data, ...prev].slice(0, LOG_LIMIT))
             }
           }
           if (message.event === 'node:logs:cleared') {
@@ -698,38 +1154,12 @@ export default function AdminPage() {
                 </div>
                 <Database size={18} />
               </div>
-              <div className="admin-table">
-                <div className="admin-table-row admin-table-head">
-                  <span>{t('admin.userData.user')}</span>
-                  <span>{t('admin.userData.files')}</span>
-                  <span>{t('admin.userData.trash')}</span>
-                  <span>{t('admin.userData.actions')}</span>
-                </div>
-                {users.map(user => (
-                  <div className="admin-table-row" key={user.address}>
-                    <span title={user.address} translate="no">
-                      {shortText(user.address)}
-                    </span>
-                    <span>{formatNumber(user.fileCount)}</span>
-                    <span>{formatNumber(user.trashCount)}</span>
-                    <span>
-                      <button
-                        className="btn btn-ghost"
-                        onClick={() => clearUserData(user.address)}
-                        disabled={isClearingUser === user.address}
-                      >
-                        <Trash2 size={16} />
-                        {t('admin.action.clear')}
-                      </button>
-                    </span>
-                  </div>
-                ))}
-                {users.length === 0 && (
-                  <div className="admin-empty-row">
-                    {t('admin.userData.empty')}
-                  </div>
-                )}
-              </div>
+              <AdminDataTable
+                table={userTable}
+                className="admin-table-users"
+                emptyText={t('admin.userData.empty')}
+                t={t}
+              />
             </div>
 
             <div className="admin-panel admin-span-2">
@@ -841,67 +1271,12 @@ export default function AdminPage() {
                   </div>
                 ))}
               </div>
-              {hiddenHoldingCount > 0 && (
-                <p className="admin-table-note">
-                  {t('admin.holdings.hiddenCount', {
-                    count: formatNumber(hiddenHoldingCount),
-                  })}
-                </p>
-              )}
-              <div className="admin-table">
-                <div className="admin-table-row admin-table-head admin-holdings-row">
-                  <span>{t('admin.holdings.file')}</span>
-                  <span>CID</span>
-                  <span>{t('admin.holdings.size')}</span>
-                  <span>{t('admin.holdings.peers')}</span>
-                  <span>{t('admin.holdings.topicJoined')}</span>
-                  <span>{t('admin.holdings.lastServed')}</span>
-                  <span>{t('admin.holdings.totalServed')}</span>
-                  <span>{t('admin.holdings.status')}</span>
-                </div>
-                {visibleHoldings.map(holding => (
-                  <div
-                    className="admin-table-row admin-holdings-row"
-                    key={holding.cid}
-                  >
-                    <span translate="no">{holding.fileName || '-'}</span>
-                    <span title={holding.cid} translate="no">
-                      {shortText(holding.cid)}
-                    </span>
-                    <span>{formatBytes(holding.size)}</span>
-                    <span>{formatNumber(holding.peerCount ?? 0)}</span>
-                    <span
-                      className={`admin-seed-pill ${
-                        holding.joined ? 'active' : ''
-                      }`}
-                    >
-                      {holding.joined
-                        ? t('admin.holdings.joinedYes')
-                        : t('admin.holdings.joinedNo')}
-                    </span>
-                    <span title={holding.lastServedAt || ''}>
-                      {formatRecentTime(holding.lastServedAt, t, locale)}
-                    </span>
-                    <span>{formatBytes(holding.totalServedBytes || 0)}</span>
-                    <span
-                      className={`admin-seed-pill ${
-                        holding.seedStatus === 'error'
-                          ? 'error'
-                          : holding.seedStatus === 'active' || holding.joined
-                            ? 'active'
-                            : ''
-                      }`}
-                    >
-                      {formatSeedStatus(holding, t)}
-                    </span>
-                  </div>
-                ))}
-                {(!status || status.holdings.length === 0) && (
-                  <div className="admin-empty-row">
-                    {t('admin.holdings.empty')}
-                  </div>
-                )}
-              </div>
+              <AdminDataTable
+                table={holdingTable}
+                className="admin-table-holdings"
+                emptyText={t('admin.holdings.empty')}
+                t={t}
+              />
             </div>
 
             <div className="admin-panel admin-span-2">
@@ -940,6 +1315,7 @@ export default function AdminPage() {
                     className={logFilter === item.value ? 'active' : ''}
                     onClick={() => {
                       setLogFilter(item.value)
+                      setLogPagination(prev => ({ ...prev, pageIndex: 0 }))
                       loadLogs(item.value)
                     }}
                   >
@@ -947,24 +1323,12 @@ export default function AdminPage() {
                   </button>
                 ))}
               </div>
-              <div className="admin-log-list">
-                {logs.map(log => (
-                  <div className="admin-log-row" key={log.id}>
-                    <time>{formatTime(log.ts)}</time>
-                    <span
-                      className={`admin-log-level ${log.level}`}
-                      translate="no"
-                    >
-                      {log.level}
-                    </span>
-                    <strong translate="no">{log.event}</strong>
-                    <span translate="no">{log.message}</span>
-                  </div>
-                ))}
-                {logs.length === 0 && (
-                  <div className="admin-empty-row">{t('admin.logs.empty')}</div>
-                )}
-              </div>
+              <AdminDataTable
+                table={logTable}
+                className="admin-table-logs"
+                emptyText={t('admin.logs.empty')}
+                t={t}
+              />
             </div>
           </section>
         </>
