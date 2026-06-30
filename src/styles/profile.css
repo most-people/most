@@ -126,7 +126,7 @@
 .profile-logout-backup-actions .btn {
   min-width: 0;
   min-height: 44px;
-  justify-content: flex-start;
+  justify-content: center;
   padding-inline: 12px;
 }
 

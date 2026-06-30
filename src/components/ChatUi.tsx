@@ -112,6 +112,7 @@ export function ChatChannelNavItem({
   pinned = false,
   unread = false,
   title,
+  menuClassName,
   onSelect,
   onTogglePin,
   onRename,
@@ -121,6 +122,7 @@ export function ChatChannelNavItem({
   pinned?: boolean
   unread?: boolean
   title: string
+  menuClassName?: string
   onSelect?: () => void
   onTogglePin?: () => void
   onRename?: () => void
@@ -168,6 +170,7 @@ export function ChatChannelNavItem({
         <ActionMenu
           ariaLabel={t('chat.channelActions')}
           className="channel-actions-anchor"
+          menuClassName={menuClassName}
           placement="bottom-end"
           items={[
             {
@@ -250,6 +253,7 @@ export function ChatComposer({
   isPublishingAttachment = false,
   attachmentButtonTitle,
   attachmentInputRef,
+  attachmentMenuClassName,
   onMessageChange,
   onSend,
   onSelectAttachmentFiles,
@@ -260,6 +264,7 @@ export function ChatComposer({
   isPublishingAttachment?: boolean
   attachmentButtonTitle?: string
   attachmentInputRef?: RefObject<HTMLInputElement | null>
+  attachmentMenuClassName?: string
   onMessageChange: (value: string) => void
   onSend: () => void
   onSelectAttachmentFiles?: (files: FileList | null) => void
@@ -305,6 +310,7 @@ export function ChatComposer({
         ariaLabel={t('chat.attachmentType')}
         placement="top-start"
         disabled={toolsDisabled}
+        menuClassName={attachmentMenuClassName}
         items={ATTACHMENT_MENU_OPTIONS.map(option => {
           const Icon = option.icon
           return {

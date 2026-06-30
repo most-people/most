@@ -635,11 +635,6 @@ export default function ProfilePage() {
                 disabled={accountBackup.busy}
                 onClick={() => void accountBackup.backupToCloud()}
               >
-                {accountBackup.action === 'backup' ? (
-                  <Loader size={16} className="ui-spinner" />
-                ) : (
-                  <CloudUpload size={16} />
-                )}
                 {t('profile.backup.action.cloudBackup')}
               </button>
               <button
@@ -648,11 +643,6 @@ export default function ProfilePage() {
                 disabled={accountBackup.busy}
                 onClick={() => void accountBackup.exportLocalBackup()}
               >
-                {accountBackup.action === 'export' ? (
-                  <Loader size={16} className="ui-spinner" />
-                ) : (
-                  <Download size={16} />
-                )}
                 {t('profile.backup.action.exportLocal')}
               </button>
             </div>

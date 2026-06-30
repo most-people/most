@@ -1436,6 +1436,15 @@ function ChatPage() {
 
   const isRestoringInviteChannel =
     isInviteUser && Boolean(requestedChannelName) && !activeChannel
+  const chatLayoutClassName = [
+    'chat-app-layout',
+    isInviteUser ? 'sparkbit-chat-layout' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+  const sparkbitActionMenuClassName = isInviteUser
+    ? 'sparkbit-chat-action-menu'
+    : undefined
 
   const chatHeaderTitle = activeChannel ? (
     <h2 className="header-title" translate="no">
@@ -1470,7 +1479,7 @@ function ChatPage() {
 
   return (
     <AppShell
-      className="chat-app-layout"
+      className={chatLayoutClassName}
       defaultHide={isInviteUser}
       hideAccountMenu={isInviteUser}
       sidebar={({ closeSidebar }) => (
@@ -1508,6 +1517,7 @@ function ChatPage() {
                   pinned={Boolean(channel.pinned)}
                   unread={hasUnreadChannelMessage(channel, channelLastReadAt)}
                   title={getChannelTitle(channel)}
+                  menuClassName={sparkbitActionMenuClassName}
                   onSelect={() => {
                     handleOpenChannel(channel)
                     closeSidebar()
@@ -1631,6 +1641,7 @@ function ChatPage() {
             disabled={!userIdentity}
             isPublishingAttachment={isPublishingAttachment}
             attachmentInputRef={attachmentInputRef}
+            attachmentMenuClassName={sparkbitActionMenuClassName}
             onMessageChange={setChannelInput}
             onSend={handleSendChannelMessage}
             onSelectAttachmentFiles={files => {
