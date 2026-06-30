@@ -61,6 +61,23 @@ For a local desktop seed helper, run this from the repository root:
 node scripts/android-real-p2p-seed.mjs
 ```
 
+## Foreground Seed Handoff Regression
+
+Before each alpha release, use the handoff helper to replay the highest-value foreground seeding path:
+
+```bash
+node scripts/android-real-p2p-seed.mjs --handoff-check
+```
+
+The script publishes a small desktop fixture, prints the `most://` link, and waits while Android downloads it. Keep Android in the foreground, paste or receive the printed link, then confirm these observations before pressing Enter in the script:
+
+- Android header is `Ready` / `在线`.
+- The download transfer for the printed link is completed.
+- Holdings contains the printed CID, the size matches, `status` is `active`, and `topicJoined` is true.
+- Android logs mention the download completion and seeding/holding update.
+
+After Enter, the helper stops the original desktop publisher, starts a fresh verifier node with clean data, pulls the same link from the remaining Android seed, recomputes the UnixFS CID, and prints `Android foreground seed handoff regression PASSED.` on success. Keep these log lines in the alpha note: `publisher topic joined`, `verifier download status`, `verifier download success`, `verifiedCid`, `verifierHoldingStatus`, and `verifierTopicJoined`.
+
 ## Known Limits
 
 - Android alpha only promises foreground seeding. It does not promise long-running background availability.

@@ -19,6 +19,32 @@ npm run build
 
 安装到真机后，打开 App 并确认首页状态进入 `Ready`。
 
+## 最高验收回归：前台做种交接
+
+每次发 alpha 前，优先用仓库根目录的一键回归脚本复跑“桌面发布 -> Android 下载并做种 -> 发布者退出 -> 新节点仍能从 Android 拉取并通过 CID 校验”：
+
+```bash
+node scripts/android-real-p2p-seed.mjs --handoff-check
+```
+
+脚本会自动完成桌面发布、打印 `most://` 链接、等待人工确认 Android 已经前台做种，然后关闭原桌面发布者，启动一个干净的 verifier 节点继续拉取并重算 CID。
+
+按 Enter 继续前，人工确认 Android 侧观察点：
+
+- App 保持前台，首页状态为 `Ready` / `在线`。
+- 用脚本打印的 `most://` 链接完成下载，transfer 状态为 completed。
+- Holdings 中出现同一个 CID，文件大小与脚本打印一致。
+- Holding 状态为 `active`，`topicJoined` 为 true。
+- Android 日志能看到下载完成、CID 校验/保存 holding、继续做种相关输出。
+
+脚本通过时需要保留这些桌面日志摘要：
+
+- `publisher topic joined`：原发布者已按 CID topic 做种。
+- `Stopping original desktop publisher` 和 `Original desktop publisher is stopped`：验证前发布者已退出。
+- `verifier download status` / `verifier download progress` / `verifier download success`：新节点从剩余种子拉取。
+- `verifiedCid` 与 `cid` 完全一致。
+- `verifierHoldingStatus: active` 且 `verifierTopicJoined: true`。
+
 ## 必测场景
 
 | 场景 | 通过标准 |
@@ -28,7 +54,7 @@ npm run build
 | Android 打开/分享文件 | Holding 行点击 `打开/分享` 后，系统分享或打开面板出现，目标 App 能收到文件副本。 |
 | Android 保存文件 | Holding 行点击 `保存` 后，用户选择目录，目录中出现同名文件副本。 |
 | Android 删除 holding 后重新下载 | Holding 行点击 `删除` 后，该 CID 从 holdings 消失并停止做种；已保存到手机目录的副本仍存在；再次输入同一 `most://` 链接可重新下载、通过 CID 校验，并重新加入 holdings / CID topic。 |
-| 发布者退出后继续传播 | 原桌面发布者退出后，只要 Android 仍在前台做种，新的桌面节点仍可下载并校验。 |
+| 发布者退出后继续传播 | `node scripts/android-real-p2p-seed.mjs --handoff-check` 通过；原桌面发布者退出后，只要 Android 仍在前台做种，新的桌面节点仍可下载、重算 CID 并校验。 |
 | Android 重启恢复 | Android App 重启后恢复 holdings，并重新 join 对应 CID topic。 |
 | 基础可见性 | Android UI 能看到 CID、文件大小、topic join 状态、peer 数或基础日志。 |
 
@@ -53,6 +79,12 @@ APK SHA256:
 测试文件大小:
 CID:
 most:// 链接:
+回归命令:
+脚本 workDir:
+publisher topic:
+verifier 下载路径:
+verifier verifiedCid:
+verifier holding 状态:
 场景:
 开始时间:
 结束时间:
