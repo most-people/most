@@ -625,7 +625,7 @@ export class MostBoxEngine extends EventEmitter {
       })
       return {
         cid: cidString,
-        link: `most://${cidString}?filename=${encodeURIComponent(existing.fileName)}`,
+        link: buildMostLink(cidString, existing.fileName),
         fileName: existing.fileName,
         alreadyExists: true,
       }
@@ -713,7 +713,7 @@ export class MostBoxEngine extends EventEmitter {
 
     const result = {
       cid: cidString,
-      link: `most://${cidString}?filename=${encodeURIComponent(safeFileName)}`,
+      link: buildMostLink(cidString, safeFileName),
       fileName: safeFileName,
     }
 
@@ -1226,7 +1226,7 @@ export class MostBoxEngine extends EventEmitter {
     return files.map(f => ({
       fileName: f.fileName,
       cid: f.cid,
-      link: `most://${f.cid}?filename=${encodeURIComponent(f.fileName)}`,
+      link: buildMostLink(f.cid, f.fileName),
       publishedAt: f.publishedAt,
       size: Number(f.size) || 0,
       starred: f.starred || false,
@@ -1318,7 +1318,7 @@ export class MostBoxEngine extends EventEmitter {
     return files.map(f => ({
       fileName: f.fileName,
       cid: f.cid,
-      link: `most://${f.cid}?filename=${encodeURIComponent(f.fileName)}`,
+      link: buildMostLink(f.cid, f.fileName),
       publishedAt: f.publishedAt,
       size: Number(f.size) || 0,
       starred: f.starred || false,
@@ -1560,7 +1560,7 @@ export class MostBoxEngine extends EventEmitter {
     return {
       cid,
       fileName: safeFileName,
-      link: `most://${cid}?filename=${encodeURIComponent(safeFileName)}`,
+      link: buildMostLink(cid, safeFileName),
     }
   }
 
@@ -1602,7 +1602,7 @@ export class MostBoxEngine extends EventEmitter {
       return {
         cid: file.cid,
         fileName: file.fileName,
-        link: `most://${file.cid}?filename=${encodeURIComponent(file.fileName)}`,
+        link: buildMostLink(file.cid, file.fileName),
       }
     })
 
@@ -1725,7 +1725,7 @@ export class MostBoxEngine extends EventEmitter {
         seedError: seedState?.error,
         seedStatusUpdatedAt: seedState?.updatedAt,
         ...this.#getFileRuntimeStats(holding.cid),
-        link: `most://${holding.cid}?filename=${encodeURIComponent(holding.fileName || holding.cid)}`,
+        link: buildMostLink(holding.cid, holding.fileName || holding.cid),
       }
     })
   }
@@ -1782,7 +1782,7 @@ export class MostBoxEngine extends EventEmitter {
 
     this.#getCidInfo(cid)
     const fileName = sanitizeFilename(input.fileName || `${cid}.bin`)
-    const link = `most://${cid}?filename=${encodeURIComponent(fileName)}`
+    const link = buildMostLink(cid, fileName)
     const result = await this.downloadFile(link, input.taskId || null, {
       timeout: input.timeout,
       ownerAddress: input.ownerAddress,

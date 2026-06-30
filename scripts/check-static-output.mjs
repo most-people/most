@@ -1,10 +1,20 @@
-import { existsSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { requiredStaticEntries } from './static-routes.mjs'
 
 const requiredDirectories = ['assets']
-const forbiddenDirectories = ['client', 'server']
+const allowedTopLevelEntries = new Set(requiredDirectories)
+
+for (const { file } of requiredStaticEntries) {
+  allowedTopLevelEntries.add(file.split('/')[0])
+}
+
+if (existsSync('public')) {
+  for (const entry of readdirSync('public', { withFileTypes: true })) {
+    allowedTopLevelEntries.add(entry.name)
+  }
+}
 
 const missing = []
 const unexpected = []
@@ -21,9 +31,11 @@ for (const dir of requiredDirectories) {
   }
 }
 
-for (const dir of forbiddenDirectories) {
-  if (existsSync(join('out', dir))) {
-    unexpected.push(`out/${dir}`)
+if (existsSync('out')) {
+  for (const entry of readdirSync('out', { withFileTypes: true })) {
+    if (!allowedTopLevelEntries.has(entry.name)) {
+      unexpected.push(`out/${entry.name}`)
+    }
   }
 }
 
@@ -32,7 +44,7 @@ if (missing.length || unexpected.length) {
     console.error(`Missing static output: ${missing.join(', ')}`)
   }
   if (unexpected.length) {
-    console.error(`Unexpected static output directories: ${unexpected.join(', ')}`)
+    console.error(`Unexpected static output entries: ${unexpected.join(', ')}`)
   }
   process.exit(1)
 }

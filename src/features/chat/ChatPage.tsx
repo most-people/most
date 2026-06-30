@@ -33,6 +33,7 @@ import {
   api,
   getApiErrorMessage,
 } from '~server/src/utils/api'
+import { buildMostLink } from '~server/src/core/mostLink.js'
 import { generateAvatar } from '~server/src/utils/avatar.js'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
@@ -1189,9 +1190,7 @@ function ChatPage() {
         )
         const result = await fileApi.publishFile(file, targetFileName)
         const fileName = result.fileName || targetFileName
-        const link =
-          result.link ||
-          `most://${result.cid}?filename=${encodeURIComponent(fileName)}`
+        const link = result.link || buildMostLink(result.cid, fileName)
         const attachment: ChannelAttachment = {
           kind: getAttachmentKind(file, fileName),
           cid: result.cid,

@@ -1,4 +1,4 @@
-import { parseMostLink, validateCidString } from './cid.js'
+import { buildMostLink, parseMostLink, validateCidString } from './cid.js'
 import { sanitizeFilename } from '../utils/security.js'
 import { ValidationError } from '../utils/errors.js'
 
@@ -53,7 +53,7 @@ export function normalizeChannelAttachment(input) {
     kind,
     cid,
     fileName,
-    link: `most://${cid}?filename=${encodeURIComponent(fileName)}`,
+    link: buildMostLink(cid, fileName),
   }
 
   if (typeof input.mimeType === 'string' && input.mimeType.length <= 100) {

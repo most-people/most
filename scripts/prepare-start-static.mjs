@@ -7,6 +7,7 @@ const projectRoot = path.resolve(__dirname, '..')
 const outDir = path.join(projectRoot, 'out')
 const clientDir = path.join(outDir, 'client')
 const serverDir = path.join(outDir, 'server')
+const transientBuildDirs = new Set(['client', 'server'])
 
 async function exists(filePath) {
   try {
@@ -19,6 +20,12 @@ async function exists(filePath) {
 
 if (!(await exists(path.join(clientDir, 'index.html')))) {
   throw new Error('TanStack Start client build is missing out/client/index.html')
+}
+
+const outEntries = await fs.readdir(outDir, { withFileTypes: true })
+for (const entry of outEntries) {
+  if (transientBuildDirs.has(entry.name)) continue
+  await fs.rm(path.join(outDir, entry.name), { recursive: true, force: true })
 }
 
 const entries = await fs.readdir(clientDir, { withFileTypes: true })
