@@ -796,14 +796,20 @@ describe('frontend smoke checks', () => {
     assert.match(chatSource, /getChatHistoryNoteDraftContent/)
     assert.match(chatSource, /isSaveableChannelMessage/)
     assert.match(chatSource, /chat\.noteDraft\.saveAll/)
+    assert.match(chatSource, /chat\.noteDraft\.settingsTitle/)
     assert.match(chatSource, /chat\.noteDraft\.messageCount/)
+    assert.match(
+      chatSource,
+      /chat\.channel\.createdAt[\s\S]*chat\.noteDraft\.settingsTitle/
+    )
     assert.match(chatSource, /channel-detail-hint/)
-    assert.match(chatSource, /NotebookPen/)
+    assert.doesNotMatch(chatSource, /NotebookPen/)
     assert.doesNotMatch(chatSource, /handleSaveMessageToNote/)
     assert.doesNotMatch(chatSource, /chat\.message\.saveToNote/)
     assert.doesNotMatch(chatUiSource, /actions\?: ActionMenuItem\[\]/)
     assert.doesNotMatch(chatUiSource, /chat-message-actions-trigger/)
     assert.doesNotMatch(chatCssSource, /chat-message-actions/)
+    assert.match(chatCssSource, /channel-detail-hint/)
     assert.match(noteRouteSource, /chatDraft/)
     assert.match(noteSource, /readChatNoteDraft/)
     assert.match(noteSource, /deleteChatNoteDraft/)

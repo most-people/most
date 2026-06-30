@@ -9,7 +9,6 @@ import {
   Hash,
   Settings,
   Loader,
-  NotebookPen,
   Search,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
@@ -1816,25 +1815,6 @@ function ChatPage() {
 
               {!isInviteUser && (
                 <div className="channel-detail-section">
-                  <div className="channel-detail-label">
-                    <NotebookPen size={14} />
-                    <span>{t('chat.noteDraft.settingsTitle')}</span>
-                  </div>
-                  <p className="channel-detail-hint">
-                    {t('chat.noteDraft.saveAllDesc')}
-                  </p>
-                  <button
-                    className="btn btn-secondary btn-block"
-                    onClick={handleSaveChannelToNote}
-                  >
-                    <NotebookPen size={16} />
-                    {t('chat.noteDraft.saveAll')}
-                  </button>
-                </div>
-              )}
-
-              {!isInviteUser && (
-                <div className="channel-detail-section">
                   <label className="setting-switch">
                     <span>{t('chat.details.showAddressSuffix')}</span>
                     <input
@@ -1896,6 +1876,23 @@ function ChatPage() {
                     : '-'}
                 </div>
               </div>
+
+              {!isInviteUser && (
+                <div className="channel-detail-section">
+                  <div className="channel-detail-label">
+                    <span>{t('chat.noteDraft.settingsTitle')}</span>
+                  </div>
+                  <p className="channel-detail-hint">
+                    {t('chat.noteDraft.saveAllDesc')}
+                  </p>
+                  <button
+                    className="btn btn-secondary btn-block"
+                    onClick={handleSaveChannelToNote}
+                  >
+                    {t('chat.noteDraft.saveAll')}
+                  </button>
+                </div>
+              )}
             </div>
 
             {!isInviteUser && (
