@@ -330,7 +330,7 @@ describe('frontend smoke checks', () => {
 
   it('documents the chat-first MVP acceptance path without weakening protocol regression', () => {
     const acceptance = readSource('docs/acceptance.md')
-    const plan = readSource('docs/p2p-chat-first-plan.md')
+    const agents = readSource(SOURCE_PATHS.agents)
 
     assert.match(acceptance, /聊天主入口/)
     assert.match(acceptance, /`http:\/\/localhost:3000\/chat\/`/)
@@ -349,7 +349,11 @@ describe('frontend smoke checks', () => {
     assert.match(acceptance, /下载完成后必须重算 UnixFS CID v1/)
     assert.match(acceptance, /Web3 工具箱独立/)
     assert.match(acceptance, /cd mobile\/android[\s\S]*npm test/)
-    assert.match(plan, /P6：验收口径切换/)
+    assert.match(agents, /代码、README 和验收文档是当前事实来源/)
+    assert.match(
+      agents,
+      /\| 新用户、本地验收和 MVP 回归\s*\| `docs\/acceptance\.md`/
+    )
     assert.doesNotMatch(
       acceptance,
       /主应用\s*\|\s*`http:\/\/localhost:3000\/app\/`\s*\|\s*发布文件/
