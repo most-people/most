@@ -242,6 +242,18 @@ describe('frontend smoke checks', () => {
           githubUrl:
             'https://github.com/most-people/most/releases/download/v0.2.0/MostBox-0.2.0-linux-x86_64.AppImage',
         },
+        {
+          platform: 'android',
+          arch: 'universal',
+          kind: 'installer',
+          filename: 'mostbox-android-0.2.0-release.apk',
+          size: 68452352,
+          cid: 'bafkreif4csfzuslg5x6k2z5q4kptmw4cy7rkzpb5z4k5yfll5pnoc3s4ua',
+          r2Url:
+            'https://download.most.box/releases/v0.2.0/mostbox-android-0.2.0-release.apk',
+          githubUrl:
+            'https://github.com/most-people/most/releases/download/v0.2.0/mostbox-android-0.2.0-release.apk',
+        },
       ],
     }
 
@@ -266,12 +278,50 @@ describe('frontend smoke checks', () => {
     assert.equal(linuxState.currentAsset?.filename, manifest.assets[1].filename)
     assert.equal(linuxState.currentDownload?.source, 'github')
     assert.equal(linuxState.currentDownload?.url, manifest.assets[1].githubUrl)
+
+    const androidState = getDownloadOptionsState({
+      manifest,
+      currentKey: 'android:universal',
+      requestedSource: 'r2',
+    })
+    assert.equal(
+      androidState.currentAsset?.filename,
+      'mostbox-android-0.2.0-release.apk'
+    )
+    assert.equal(androidState.currentDownload?.source, 'r2')
+    assert.equal(androidState.currentDownload?.url, manifest.assets[2].r2Url)
     assert.equal(
       getReleaseManifestUrl({
         VITE_R2_PUBLIC_BASE_URL: 'https://cdn.example.com/',
       }),
       'https://cdn.example.com/releases/latest.json'
     )
+  })
+
+  it('offers Android APK downloads instead of listing Android as coming soon', () => {
+    const source = [
+      readSource('src/components/DownloadOptions.tsx'),
+      readSource('src/lib/downloadOptions.ts'),
+    ].join('\n')
+
+    assert.match(source, /android:universal/)
+    assert.match(source, /ext:\s*'\.apk'/)
+    assert.doesNotMatch(source, /key:\s*'android'[\s\S]*comingSoon/)
+  })
+
+  it('builds and uploads Android APK assets during release', () => {
+    const releaseWorkflow = readSource('.github/workflows/release.yml')
+    const buildScript = readSource('mobile/android/scripts/build-apk.mjs')
+
+    assert.match(releaseWorkflow, /build-android:/)
+    assert.match(releaseWorkflow, /npm ci --prefix mobile\/android/)
+    assert.match(releaseWorkflow, /npm test --prefix mobile\/android/)
+    assert.match(releaseWorkflow, /MOST_ANDROID_RELEASE_VERSION/)
+    assert.match(releaseWorkflow, /npm run build --prefix mobile\/android/)
+    assert.match(releaseWorkflow, /mostbox-android-\*-release\.apk/)
+    assert.match(releaseWorkflow, /build-android/)
+    assert.match(buildScript, /MOST_ANDROID_RELEASE_VERSION/)
+    assert.match(buildScript, /expo[\s\S]*prebuild[\s\S]*--platform[\s\S]*android/)
   })
 
   it('documents the dedicated R2 release bucket defaults', () => {
@@ -362,26 +412,39 @@ describe('frontend smoke checks', () => {
 
   it('keeps Android aligned with the chat-first attachment MVP', () => {
     const appSource = readSource('mobile/android/App.tsx')
+    const chatRoomSource = readSource(
+      'mobile/android/src/features/chat/ChatRoomScreen.tsx'
+    )
+    const nodeStatusSource = readSource(
+      'mobile/android/src/features/node/NodeStatusScreen.tsx'
+    )
     const androidReadme = readSource('mobile/android/README.md')
-    const androidPlan = readSource('docs/mobile-android-plan.md')
+    const androidAlpha = readSource('docs/mobile-android-alpha.md')
     const readme = readSource(SOURCE_PATHS.readme)
+    const androidSources = [appSource, chatRoomSource, nodeStatusSource].join(
+      '\n'
+    )
 
-    assert.match(appSource, /P2P 聊天节点/)
-    assert.match(appSource, /title="聊天房间"/)
-    assert.match(appSource, /label=\{isReady \? '发送附件' : '等待核心'\}/)
-    assert.match(appSource, /content: `附件 \$\{file\.name\}: \$\{transfer\.link\}`/)
-    assert.match(appSource, /extractMostLinkFromText/)
-    assert.match(appSource, /setDownloadLink\(attachmentLink\)/)
-    assert.match(appSource, /title="接收附件"/)
-    assert.match(appSource, /chat-android/)
-    assert.doesNotMatch(appSource, /Channel Probe|Send Probe Message|No channel messages/)
-    assert.doesNotMatch(appSource, /\{__DEV__ \? \(/)
+    assert.match(appSource, /createMostBoxCore/)
+    assert.match(appSource, /P2P 核心启动失败/)
+    assert.match(appSource, /content: attachment\.link/)
+    assert.match(appSource, /parseMostLink/)
+    assert.match(appSource, /handleDownloadAttachment/)
+    assert.match(chatRoomSource, /accessibilityLabel="发送附件"/)
+    assert.match(chatRoomSource, /accessibilityLabel="下载附件"/)
+    assert.match(nodeStatusSource, /waitingCore: '等待核心'/)
+    assert.match(androidSources, /chat-android/)
+    assert.doesNotMatch(
+      androidSources,
+      /Channel Probe|Send Probe Message|No channel messages/
+    )
+    assert.doesNotMatch(androidSources, /\{__DEV__ \? \(/)
     assert.match(androidReadme, /Android chat-first alpha/)
     assert.match(androidReadme, /Sending an attachment publishes/)
     assert.match(androidReadme, /Received chat messages that contain a `most:\/\/` link/)
-    assert.match(androidPlan, /Android 聊天优先完整种子 MVP 计划/)
-    assert.match(androidPlan, /生成 most:\/\/ 分享链接并发进聊天/)
-    assert.match(androidPlan, /Android 发送附件会发布文件/)
+    assert.match(androidAlpha, /Android 内测验收清单/)
+    assert.match(androidAlpha, /Android 聊天附件发送/)
+    assert.match(androidAlpha, /发布者退出后继续传播/)
     assert.match(readme, /Android 聊天优先完整种子 MVP/)
     assert.match(readme, /收发消息、用 `most:\/\/` 附件传文件/)
   })

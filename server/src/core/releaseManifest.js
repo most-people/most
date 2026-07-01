@@ -1,5 +1,5 @@
-export const RELEASE_PLATFORMS = ['windows', 'macos', 'linux']
-export const RELEASE_ARCHES = ['x64', 'arm64']
+export const RELEASE_PLATFORMS = ['windows', 'macos', 'linux', 'android']
+export const RELEASE_ARCHES = ['x64', 'arm64', 'universal']
 export const RELEASE_ASSET_KINDS = ['installer']
 
 export const RELEASE_TARGETS = Object.freeze([
@@ -9,11 +9,17 @@ export const RELEASE_TARGETS = Object.freeze([
   { platform: 'macos', arch: 'arm64' },
   { platform: 'linux', arch: 'x64' },
   { platform: 'linux', arch: 'arm64' },
+  { platform: 'android', arch: 'universal' },
 ])
+
+function releaseTargetKey(value) {
+  return `${value.platform}:${value.arch}`
+}
 
 const RELEASE_PLATFORM_SET = new Set(RELEASE_PLATFORMS)
 const RELEASE_ARCH_SET = new Set(RELEASE_ARCHES)
 const RELEASE_ASSET_KIND_SET = new Set(RELEASE_ASSET_KINDS)
+const RELEASE_TARGET_KEY_SET = new Set(RELEASE_TARGETS.map(releaseTargetKey))
 
 function isRecord(value) {
   return typeof value === 'object' && value !== null
@@ -37,6 +43,7 @@ export function isReleaseAsset(value) {
   return (
     RELEASE_PLATFORM_SET.has(value.platform) &&
     RELEASE_ARCH_SET.has(value.arch) &&
+    RELEASE_TARGET_KEY_SET.has(releaseTargetKey(value)) &&
     RELEASE_ASSET_KIND_SET.has(value.kind) &&
     isNonEmptyString(value.filename) &&
     isPositiveFiniteNumber(value.size) &&
@@ -56,7 +63,7 @@ export function isReleaseManifest(value) {
 }
 
 export function getReleaseAssetKey(asset) {
-  return `${asset.platform}:${asset.arch}`
+  return releaseTargetKey(asset)
 }
 
 export function getInstallerReleaseAssets(manifest) {

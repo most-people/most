@@ -11,7 +11,9 @@ const outputDir = path.join(projectDir, 'dist')
 const packageJson = JSON.parse(
   fs.readFileSync(path.join(projectDir, 'package.json'), 'utf8')
 )
-const version = packageJson.version || '0.0.0'
+const version = resolveReleaseVersion(
+  process.env.MOST_ANDROID_RELEASE_VERSION || packageJson.version || '0.0.0'
+)
 const apkSource = path.join(
   androidDir,
   'app',
@@ -26,6 +28,8 @@ const apkTarget = path.join(
   outputDir,
   `mostbox-android-${version}-release.apk`
 )
+const gradleCommand = process.platform === 'win32' ? 'gradlew.bat' : './gradlew'
+const npxCommand = process.platform === 'win32' ? 'npx.cmd' : 'npx'
 
 function run(command, args, options = {}) {
   const useCmd = process.platform === 'win32' && /\.(bat|cmd)$/i.test(command)
@@ -49,6 +53,14 @@ function run(command, args, options = {}) {
   }
 }
 
+function resolveReleaseVersion(value) {
+  const version = String(value).trim().replace(/^v/, '')
+  if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version)) {
+    throw new Error(`Invalid Android release version: ${value}`)
+  }
+  return version
+}
+
 function sha256(filePath) {
   return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex')
 }
@@ -67,6 +79,19 @@ function safeRm(filePath) {
   } catch {}
 }
 
+function hasAndroidProject() {
+  return fs.existsSync(path.join(androidDir, gradleCommand.replace(/^\.\//, '')))
+}
+
+function ensureAndroidProject() {
+  if (hasAndroidProject()) return
+
+  console.log('[android] generating native Android project...')
+  run(npxCommand, ['expo', 'prebuild', '--platform', 'android', '--no-install'])
+}
+
+console.log(`[android] release version: ${version}`)
+ensureAndroidProject()
 console.log('[android] bundling Bare Worklet core...')
 run(process.execPath, [
   path.join(projectDir, 'node_modules', 'bare-pack', 'bin.js'),
@@ -81,7 +106,7 @@ run(process.execPath, [
 ])
 
 console.log('[android] building release APK...')
-run(process.platform === 'win32' ? 'gradlew.bat' : './gradlew', ['assembleRelease'], {
+run(gradleCommand, ['assembleRelease'], {
   cwd: androidDir,
   env: {
     NODE_ENV: 'production',

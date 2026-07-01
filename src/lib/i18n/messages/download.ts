@@ -1,10 +1,10 @@
 export const zhCNDownloadMessages = {
-  'download.meta.title': '下载 MostBox 桌面客户端',
+  'download.meta.title': '下载 MostBox 客户端',
   'download.meta.desc':
-    '下载 MostBox 桌面客户端，获得完整的 P2P 文件分享、下载校验和持续做种能力',
+    '下载 MostBox 桌面或 Android 客户端，获得 P2P 文件分享、下载校验和持续做种能力',
   'download.hero.title': '下载客户端',
   'download.hero.desc':
-    '桌面客户端是当前 MVP 的首选入口，内置本地 P2P 节点，提供发布、下载校验和持续做种的完整能力。Web 端只连接已有 MostBox 节点。',
+    '桌面客户端内置本地 P2P 节点，提供发布、下载校验和持续做种的完整能力；Android Alpha 支持前台聊天附件、下载校验和做种。Web 端只连接已有 MostBox 节点。',
   'download.platforms.title': '选择你的平台',
   'download.comparison.title': 'Web 端 vs 桌面端',
   'download.comparison.feature': '功能',
@@ -41,22 +41,23 @@ export const zhCNDownloadMessages = {
   'download.platform.currentSystem': '当前系统',
   'download.platform.recommended': '推荐下载',
   'download.platform.matchedSystem': '已匹配你的设备',
-  'download.platform.otherPlatforms': '桌面端',
+  'download.platform.otherPlatforms': '其他可下载客户端',
   'download.platform.mobilePlatforms': '移动端',
   'download.platform.comingSoon': '敬请期待',
   'download.platform.ios.name': 'iOS',
   'download.platform.ios.desc': 'iPhone / iPad 客户端规划中',
   'download.platform.android.name': '安卓',
-  'download.platform.android.desc': 'Android 手机和平板客户端规划中',
+  'download.platform.android.desc':
+    'Android Alpha APK，支持前台聊天附件、下载校验和做种',
 } as const
 
 export const zhTWDownloadMessages = {
-  'download.meta.title': '下載 MostBox 桌面用戶端',
+  'download.meta.title': '下載 MostBox 用戶端',
   'download.meta.desc':
-    '下載 MostBox 桌面用戶端，獲得完整的 P2P 檔案分享、下載校驗和持續做種能力',
+    '下載 MostBox 桌面或 Android 用戶端，獲得 P2P 檔案分享、下載校驗和持續做種能力',
   'download.hero.title': '下載用戶端',
   'download.hero.desc':
-    '桌面用戶端是當前 MVP 的首選入口，內建本機 P2P 節點，提供發布、下載校驗和持續做種的完整能力。Web 端只連線已有 MostBox 節點。',
+    '桌面用戶端內建本機 P2P 節點，提供發布、下載校驗和持續做種的完整能力；Android Alpha 支援前台聊天附件、下載校驗和做種。Web 端只連線已有 MostBox 節點。',
   'download.platforms.title': '選擇你的平臺',
   'download.comparison.title': 'Web 端 vs 桌面端',
   'download.comparison.feature': '功能',
@@ -93,22 +94,23 @@ export const zhTWDownloadMessages = {
   'download.platform.currentSystem': '當前系統',
   'download.platform.recommended': '推薦下載',
   'download.platform.matchedSystem': '已匹配你的裝置',
-  'download.platform.otherPlatforms': '桌面端',
+  'download.platform.otherPlatforms': '其他可下載用戶端',
   'download.platform.mobilePlatforms': '行動端',
   'download.platform.comingSoon': '敬請期待',
   'download.platform.ios.name': 'iOS',
   'download.platform.ios.desc': 'iPhone / iPad 用戶端規劃中',
   'download.platform.android.name': 'Android',
-  'download.platform.android.desc': 'Android 手機和平板用戶端規劃中',
+  'download.platform.android.desc':
+    'Android Alpha APK，支援前台聊天附件、下載校驗和做種',
 } as const
 
 export const enDownloadMessages = {
-  'download.meta.title': 'Download the MostBox desktop client',
+  'download.meta.title': 'Download the MostBox client',
   'download.meta.desc':
-    'Download the MostBox desktop client for full P2P sharing, verification, and continuous seeding.',
+    'Download the MostBox desktop or Android client for P2P sharing, verification, and continuous seeding.',
   'download.hero.title': 'Download client',
   'download.hero.desc':
-    'The desktop client is the preferred MVP entry point. It includes a local P2P node and full publish, download verification, and continuous seeding support. The Web entry only connects to existing MostBox nodes.',
+    'The desktop client includes a local P2P node with full publish, download verification, and continuous seeding support. The Android Alpha supports foreground chat attachments, download verification, and seeding. The Web entry only connects to existing MostBox nodes.',
   'download.platforms.title': 'Choose your platform',
   'download.comparison.title': 'Web vs desktop',
   'download.comparison.feature': 'Feature',
@@ -145,11 +147,12 @@ export const enDownloadMessages = {
   'download.platform.currentSystem': 'Current system',
   'download.platform.recommended': 'Recommended download',
   'download.platform.matchedSystem': 'Matched to your device',
-  'download.platform.otherPlatforms': 'Desktop',
+  'download.platform.otherPlatforms': 'Other downloads',
   'download.platform.mobilePlatforms': 'Mobile',
   'download.platform.comingSoon': 'Coming soon',
   'download.platform.ios.name': 'iOS',
   'download.platform.ios.desc': 'iPhone and iPad client is planned.',
   'download.platform.android.name': 'Android',
-  'download.platform.android.desc': 'Android phone and tablet client is planned.',
+  'download.platform.android.desc':
+    'Android Alpha APK with foreground chat attachments, download verification, and seeding.',
 } as const

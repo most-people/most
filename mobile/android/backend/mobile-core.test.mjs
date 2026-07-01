@@ -77,6 +77,16 @@ function waitForTick() {
   return new Promise(resolve => setTimeout(resolve, 0))
 }
 
+async function waitFor(condition, description, timeoutMs = 500) {
+  const start = Date.now()
+  while (Date.now() - start <= timeoutMs) {
+    const value = condition()
+    if (value) return value
+    await new Promise(resolve => setTimeout(resolve, 10))
+  }
+  throw new Error(`Timed out waiting for ${description}`)
+}
+
 function parseStreamWrites(stream, type) {
   return stream.writes
     .join('')
@@ -274,8 +284,8 @@ describe('mobile channel presence', () => {
     const core = new MobileP2PCore({
       storagePath,
       createSwarm: createRecordingSwarmFactory(swarms),
-      channelPresenceTimeoutMs: 10,
-      channelPresenceSweepMs: 5,
+      channelPresenceTimeoutMs: 100,
+      channelPresenceSweepMs: 10,
     })
     t.after(async () => {
       await core.stop()
@@ -307,19 +317,24 @@ describe('mobile channel presence', () => {
         })}\n`
       )
     )
-    await waitForTick()
 
-    let presences = core.getSnapshot().channelPresence[channel.channelKey] || []
+    let presences = await waitFor(
+      () => core.getSnapshot().channelPresence[channel.channelKey]?.length === 1
+        ? core.getSnapshot().channelPresence[channel.channelKey]
+        : null,
+      'remote channel presence'
+    )
     assert.equal(presences.length, 1)
     assert.equal(presences[0].displayName, 'Desktop')
     assert.equal(presences[0].online, true)
     assert.equal(presences[0].local, false)
 
     stream.emit('close')
-    await waitForTick()
-    assert.equal(
-      core.getSnapshot().channelPresence[channel.channelKey]?.length || 0,
-      0
+    await waitFor(
+      () =>
+        (core.getSnapshot().channelPresence[channel.channelKey]?.length || 0) ===
+        0,
+      'remote channel presence disconnect'
     )
 
     const staleStream = new RecordingStream()
@@ -340,14 +355,20 @@ describe('mobile channel presence', () => {
         })}\n`
       )
     )
-    await waitForTick()
-    presences = core.getSnapshot().channelPresence[channel.channelKey] || []
+    presences = await waitFor(
+      () => core.getSnapshot().channelPresence[channel.channelKey]?.length === 1
+        ? core.getSnapshot().channelPresence[channel.channelKey]
+        : null,
+      'stale remote channel presence'
+    )
     assert.equal(presences.length, 1)
 
-    await new Promise(resolve => setTimeout(resolve, 30))
-    assert.equal(
-      core.getSnapshot().channelPresence[channel.channelKey]?.length || 0,
-      0
+    await waitFor(
+      () =>
+        (core.getSnapshot().channelPresence[channel.channelKey]?.length || 0) ===
+        0,
+      'stale remote channel presence expiry',
+      500
     )
   })
 })

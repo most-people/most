@@ -13,6 +13,13 @@ const PLATFORM_BY_TOKEN = {
   linux: 'linux',
 }
 
+const EXPECTED_EXTENSION_BY_PLATFORM = {
+  windows: 'exe',
+  macos: 'dmg',
+  linux: 'AppImage',
+  android: 'apk',
+}
+
 function parseArgs(argv) {
   const args = new Map()
   for (let i = 0; i < argv.length; i += 2) {
@@ -62,6 +69,34 @@ function createAssetRecord({
   }
 }
 
+function parseReleaseAssetFilename(filename, version) {
+  const desktopPattern = new RegExp(
+    `^MostBox-${escapeRegExp(version)}-(win|mac|linux)-(x64|x86_64|arm64)(?:-setup)?\\.(exe|dmg|AppImage)$`
+  )
+  const desktopMatch = filename.match(desktopPattern)
+  if (desktopMatch) {
+    const [, platformToken, archToken, ext] = desktopMatch
+    return {
+      platform: PLATFORM_BY_TOKEN[platformToken],
+      arch: archToken === 'x86_64' ? 'x64' : archToken,
+      ext,
+    }
+  }
+
+  const androidPattern = new RegExp(
+    `^mostbox-android-${escapeRegExp(version)}-release\\.apk$`
+  )
+  if (androidPattern.test(filename)) {
+    return {
+      platform: 'android',
+      arch: 'universal',
+      ext: 'apk',
+    }
+  }
+
+  return null
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2))
   const assetsDir = requireArg(args, 'assets')
@@ -70,26 +105,17 @@ async function main() {
   const publicBaseUrl = normalizeBaseUrl(requireArg(args, 'base-url'))
   const version = tag.replace(/^v/, '')
   const files = await fs.readdir(assetsDir)
-  const assetPattern = new RegExp(
-    `^MostBox-${escapeRegExp(version)}-(win|mac|linux)-(x64|x86_64|arm64)(?:-setup)?\\.(exe|dmg|AppImage)$`
-  )
 
   const assets = []
   for (const filename of files) {
-    const match = filename.match(assetPattern)
-    if (!match) continue
+    const parsed = parseReleaseAssetFilename(filename, version)
+    if (!parsed) continue
 
-    const [, platformToken, archToken, ext] = match
     const filePath = path.join(assetsDir, filename)
     const stat = await fs.stat(filePath)
-    const platform = PLATFORM_BY_TOKEN[platformToken]
-    const arch = archToken === 'x86_64' ? 'x64' : archToken
+    const { platform, arch, ext } = parsed
     const cid = (await calculateCid(filePath)).cid.toString()
-    if (
-      (platform === 'windows' && ext !== 'exe') ||
-      (platform === 'macos' && ext !== 'dmg') ||
-      (platform === 'linux' && ext !== 'AppImage')
-    ) {
+    if (EXPECTED_EXTENSION_BY_PLATFORM[platform] !== ext) {
       continue
     }
 

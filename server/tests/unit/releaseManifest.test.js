@@ -26,6 +26,8 @@ describe('create-release-manifest', () => {
         'MostBox-0.1.3-mac-x64.dmg.blockmap',
         'MostBox-0.1.3-linux-x86_64.AppImage',
         'MostBox-0.1.3-linux-arm64.AppImage',
+        'mostbox-android-0.1.3-release.apk',
+        'mostbox-android-0.1.3-release.apk.sha256.txt',
       ]
 
       await Promise.all(
@@ -55,16 +57,26 @@ describe('create-release-manifest', () => {
           asset.arch === 'x64' &&
           asset.kind === 'installer'
       )
+      const android = manifest.assets.find(
+        asset =>
+          asset.platform === 'android' &&
+          asset.arch === 'universal' &&
+          asset.kind === 'installer'
+      )
 
       assert.equal(isReleaseManifest(manifest), true)
-      assert.equal(manifest.assets.length, 6)
+      assert.equal(manifest.assets.length, 7)
       assert.equal(linuxX64.filename, 'MostBox-0.1.3-linux-x86_64.AppImage')
+      assert.equal(android.filename, 'mostbox-android-0.1.3-release.apk')
       assert.ok(manifest.assets.every(asset => asset.kind === 'installer'))
       assert.ok(
         manifest.assets.every(asset => !asset.filename.endsWith('.zip'))
       )
       assert.ok(
         manifest.assets.every(asset => !asset.filename.endsWith('.blockmap'))
+      )
+      assert.ok(
+        manifest.assets.every(asset => !asset.filename.endsWith('.sha256.txt'))
       )
       assert.ok(manifest.assets.every(asset => typeof asset.cid === 'string'))
       assert.ok(

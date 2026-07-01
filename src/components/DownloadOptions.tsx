@@ -51,6 +51,12 @@ const PLATFORM_META = {
     descKey: 'download.platform.linux.desc',
     icon: Laptop,
   },
+  android: {
+    name: 'Android',
+    ext: '.apk',
+    descKey: 'download.platform.android.desc',
+    icon: TabletSmartphone,
+  },
 } as const
 
 const MOBILE_PLATFORMS = [
@@ -60,13 +66,9 @@ const MOBILE_PLATFORMS = [
     descKey: 'download.platform.ios.desc',
     icon: Smartphone,
   },
-  {
-    key: 'android',
-    nameKey: 'download.platform.android.name',
-    descKey: 'download.platform.android.desc',
-    icon: TabletSmartphone,
-  },
 ] as const
+
+const ANDROID_DOWNLOAD_KEY = 'android:universal'
 
 function getNavigatorPlatform() {
   const navigatorWithData = navigator as Navigator & {
@@ -89,6 +91,7 @@ function detectCurrentKey() {
   const platform = getNavigatorPlatform()
   const arch = /arm|aarch64/.test(platform) ? 'arm64' : 'x64'
 
+  if (/android/.test(platform)) return ANDROID_DOWNLOAD_KEY
   if (/mac|darwin/.test(platform)) return `macos:${arch}`
   if (/linux/.test(platform)) return `linux:${arch}`
   return `windows:${arch}`

@@ -13,7 +13,6 @@ function readJson(relativePath) {
 const androidDocs = [
   ['README.md', '../../../README.md'],
   ['mobile/android/README.md', '../../../mobile/android/README.md'],
-  ['docs/mobile-android-plan.md', '../../../docs/mobile-android-plan.md'],
   ['docs/mobile-android-alpha.md', '../../../docs/mobile-android-alpha.md'],
 ]
 

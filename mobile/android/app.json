@@ -2,7 +2,7 @@
   "expo": {
     "name": "MostBox Android",
     "slug": "mostbox-android",
-    "version": "0.1.0",
+    "version": "0.3.4",
     "orientation": "portrait",
     "scheme": "most",
     "userInterfaceStyle": "automatic",

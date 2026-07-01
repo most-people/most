@@ -5,8 +5,8 @@ import {
   resolveReleaseAssetDownload,
 } from '~server/src/core/releaseManifest.js'
 
-export type DownloadPlatform = 'windows' | 'macos' | 'linux'
-export type DownloadArch = 'x64' | 'arm64'
+export type DownloadPlatform = 'windows' | 'macos' | 'linux' | 'android'
+export type DownloadArch = 'x64' | 'arm64' | 'universal'
 export type DownloadSource = 'r2' | 'github'
 
 export type DownloadAsset = {
@@ -82,6 +82,13 @@ export const FALLBACK_DOWNLOAD_ASSETS: DownloadAsset[] = [
   {
     platform: 'linux',
     arch: 'arm64',
+    kind: 'installer',
+    filename: 'GitHub Releases',
+    githubUrl: GITHUB_LATEST_URL,
+  },
+  {
+    platform: 'android',
+    arch: 'universal',
     kind: 'installer',
     filename: 'GitHub Releases',
     githubUrl: GITHUB_LATEST_URL,

@@ -236,6 +236,60 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
 
+  build-android:
+    name: Build Android
+    runs-on: ubuntu-latest
+    needs: create-release
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: mobile/android/package-lock.json
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android dependencies
+        run: npm ci --prefix mobile/android
+
+      - name: Run Android tests
+        run: npm test --prefix mobile/android
+
+      - name: Build Android APK
+        run: npm run build --prefix mobile/android
+        env:
+          MOST_ANDROID_RELEASE_VERSION: ${{ github.ref_name }}
+
+      - name: Upload Android assets
+        run: |
+          shopt -s nullglob
+          assets=(mobile/android/dist/mostbox-android-*-release.apk)
+          checksums=(mobile/android/dist/mostbox-android-*-release.apk.sha256.txt)
+          if [ ${#assets[@]} -eq 0 ]; then
+            echo "No Android APK assets found"
+            exit 1
+          fi
+          if [ ${#checksums[@]} -eq 0 ]; then
+            echo "No Android APK checksum files found"
+            exit 1
+          fi
+          gh release upload "$GITHUB_REF_NAME" "${assets[@]}" "${checksums[@]}" --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+
   mirror-release:
     name: Mirror release to R2
     runs-on: ubuntu-latest
@@ -244,6 +298,7 @@ jobs:
       - build-win
       - build-mac
       - build-linux
+      - build-android
 
     steps:
       - name: Checkout
