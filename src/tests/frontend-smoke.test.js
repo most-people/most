@@ -30,6 +30,7 @@ const SOURCE_PATHS = {
   },
   features: {
     admin: 'src/features/admin/AdminPage.tsx',
+    about: 'src/features/about/AboutPage.tsx',
     chat: 'src/features/chat/ChatPage.tsx',
     cid: 'src/features/cid/CidPage.tsx',
     download: 'src/features/download/DownloadPage.tsx',
@@ -42,6 +43,7 @@ const SOURCE_PATHS = {
     provider: 'src/lib/i18n/index.tsx',
   },
   routes: {
+    about: 'src/routes/about/index.tsx',
     app: 'src/routes/app/index.tsx',
     admin: 'src/routes/admin/index.tsx',
     cid: 'src/routes/cid/$cid/index.tsx',
@@ -630,6 +632,57 @@ describe('frontend smoke checks', () => {
     assert.doesNotMatch(footer, /commit=|build=/)
     assert.doesNotMatch(admin, /admin\.nodeStatus\.webBuild/)
     assert.doesNotMatch(admin, /buildVersion|buildIdentifier|buildInfo/)
+  })
+
+  it('routes footer About to a product about page', () => {
+    const footer = readSource(SOURCE_PATHS.components.footer)
+    const aboutPage = readSource(SOURCE_PATHS.features.about)
+    const aboutRoute = readSource(SOURCE_PATHS.routes.about)
+    const aboutLazyRoute = readSource('src/routes/about/index.lazy.tsx')
+    const staticManifest = readSource(SOURCE_PATHS.scripts.staticRoutes)
+    const messages = readI18nSources()
+
+    assert.match(footer, /to:\s*'\/about\/'/)
+    assert.match(aboutRoute, /createFileRoute\('\/about\/'\)/)
+    assert.match(aboutLazyRoute, /createLazyFileRoute\('\/about\/'\)/)
+    assert.match(aboutLazyRoute, /AboutPage/)
+    assert.match(staticManifest, /'\/about\/'/)
+    assert.match(aboutPage, /MarketingLayout/)
+    assert.match(aboutPage, /AppTop/)
+    assert.match(aboutPage, /header=\{<AboutHeader \/>/)
+    assert.match(aboutPage, /about\.hero\.title/)
+    assert.match(aboutPage, /about\.summary\.cid/)
+    assert.match(aboutPage, /about\.summary\.opensource/)
+    assert.match(aboutPage, /about\.section\.identity\.title/)
+    assert.match(aboutPage, /about\.section\.spread\.title/)
+    assert.match(aboutPage, /about\.section\.boundary\.title/)
+    assert.match(aboutPage, /about\.section\.chat\.title/)
+    assert.match(aboutPage, /about\.section\.chat\.bullet\.voice/)
+    assert.match(aboutPage, /about\.section\.note\.title/)
+    assert.match(aboutPage, /about\.section\.game\.title/)
+    assert.match(aboutPage, /about\.section\.web3\.title/)
+    assert.match(aboutPage, /featured:\s*true/)
+    assert.match(aboutPage, /about-topic featured/)
+    assert.match(aboutPage, /to="\/chat\/"/)
+    assert.match(aboutPage, /to="\/download\/"/)
+    assert.match(messages, /About MOST PEOPLE/)
+    assert.match(messages, /Decentralized P2P toolbox/)
+    assert.match(messages, /MOST PEOPLE starts from chat/)
+    assert.match(messages, /邀请大家/)
+    assert.doesNotMatch(messages, /像微信一样|先把人连起来|Like familiar chat apps/)
+    assert.match(messages, /Multi-person voice calls/)
+    assert.match(messages, /magnet links and BT torrents/)
+    assert.match(messages, /MOST PEOPLE is fully open source/)
+    assert.match(messages, /most:\/\/<cid>/)
+    assert.match(messages, /not cloud storage/)
+    assert.match(messages, /Knowledge Base/)
+    assert.match(messages, /Open-source account system/)
+    assert.match(messages, /MOST PEOPLE accounts use this local identity system/)
+    assert.match(messages, /Other projects can use it/)
+    assert.match(messages, /'portal\.feature\.web3\.title': 'Web3'/)
+    assert.match(messages, /'portal\.feature\.web3\.subtitle': 'Open-source account system'/)
+    assert.match(messages, /Open source and reusable/)
+    assert.doesNotMatch(messages, /Independent account toolbox/)
   })
 
   it('keeps static output checks aligned with TanStack static routes', () => {

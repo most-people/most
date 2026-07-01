@@ -1,5 +1,6 @@
 export const requiredStaticRoutes = [
   '/',
+  '/about/',
   '/admin/',
   '/app/',
   '/chat/',

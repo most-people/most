@@ -3,7 +3,7 @@ import packageJson from '../../package.json'
 import { useI18n } from '~/lib/i18n'
 
 const footerLinks = [
-  { to: '/', labelKey: 'footer.about' },
+  { to: '/about/', labelKey: 'footer.about' },
   { to: '/ping/', labelKey: 'footer.network' },
   {
     href: 'https://github.com/most-people/most',

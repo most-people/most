@@ -1,4 +1,9 @@
 import {
+  enAboutMessages,
+  zhCNAboutMessages,
+  zhTWAboutMessages,
+} from './messages/about'
+import {
   enCoreMessages,
   zhCNCoreMessages,
   zhTWCoreMessages,
@@ -89,6 +94,7 @@ export const localeNames: Record<Locale, string> = {
 
 export const zhCNMessages = {
   ...zhCNCoreMessages,
+  ...zhCNAboutMessages,
   ...zhCNDownloadMessages,
   ...zhCNCidMessages,
   ...zhCNPingMessages,
@@ -109,6 +115,7 @@ export type MessageKey = keyof typeof zhCNMessages
 
 export const enMessages = {
   ...enCoreMessages,
+  ...enAboutMessages,
   ...enDownloadMessages,
   ...enCidMessages,
   ...enPingMessages,
@@ -127,6 +134,7 @@ export const enMessages = {
 
 export const zhTWMessages = {
   ...zhTWCoreMessages,
+  ...zhTWAboutMessages,
   ...zhTWDownloadMessages,
   ...zhTWCidMessages,
   ...zhTWPingMessages,
