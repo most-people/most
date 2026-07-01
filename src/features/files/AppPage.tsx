@@ -45,6 +45,7 @@ import { getFileSubtype } from '~/lib/filePreview'
 import { formatBytes } from '~/lib/format'
 import { useI18n } from '~/lib/i18n'
 import { getLocalizedDownloadLinkValidationMessage } from '~/lib/i18n/downloadValidation'
+import { saveFileToLocal } from '~/lib/saveLocalFile'
 import { buildCidShareLink } from '~/lib/shareLink'
 
 type DownloadCheckResult = {
@@ -579,32 +580,16 @@ export default function App() {
       return
     }
     try {
-      const res = await fetch(fileApi.getFileDownloadUrl(file.cid), {
-        headers: await getApiRequestHeaders(
-          'GET',
-          `/api/files/${file.cid}/download`
-        ),
+      const result = await saveFileToLocal({
+        cid: file.cid,
+        fileName: file.fileName,
+        getFileDownloadUrl: fileApi.getFileDownloadUrl,
+        getRequestHeaders: getApiRequestHeaders,
+        loadFailedMessage: t('app.toast.getFileFailed'),
       })
-      if (!res.ok) throw new Error(t('app.toast.getFileFailed'))
-      const blob = await res.blob()
-      const showSaveFilePicker = (window as any).showSaveFilePicker
-      if (showSaveFilePicker) {
-        const handle = await showSaveFilePicker({
-          suggestedName: file.fileName,
-        })
-        const writable = await handle.createWritable()
-        await writable.write(blob)
-        await writable.close()
+      if (result.method === 'picker') {
         addToast(t('app.toast.fileSaved'), 'success')
       } else {
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = file.fileName
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        URL.revokeObjectURL(url)
         addToast(t('app.toast.fileDownloaded'), 'success')
       }
     } catch (err) {
@@ -1179,6 +1164,7 @@ export default function App() {
           item={previewItem}
           isBackendReady={isBackendReady}
           getFileDownloadUrl={fileApi.getFileDownloadUrl}
+          onSaveAs={handleSaveAs}
           onClose={() => setPreviewItem(null)}
         />
       )}

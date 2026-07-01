@@ -34,6 +34,7 @@ import { LogoIcon } from '~/components/icons/LogoIcon'
 import {
   api,
   getApiErrorMessage,
+  getApiRequestHeaders,
 } from '~server/src/utils/api'
 import { buildMostLink } from '~server/src/core/mostLink.js'
 import { generateAvatar } from '~server/src/utils/avatar.js'
@@ -57,6 +58,7 @@ import {
 } from '~/lib/chatNoteDraft'
 import { useGlobalVoiceRoom } from '~/features/chat/GlobalVoiceRoom'
 import { getLocalizedDownloadLinkValidationMessage } from '~/lib/i18n/downloadValidation'
+import { saveFileToLocal } from '~/lib/saveLocalFile'
 import {
   applyIncomingChannelMessageReadState,
   getChannelActivityTime,
@@ -927,6 +929,34 @@ function ChatPage() {
       fileName,
       subtype: subtype === 'file' ? attachment.kind : subtype,
     })
+  }
+
+  async function handleSavePreviewItem(item: {
+    cid: string
+    fileName: string
+  }) {
+    if (!requireLogin()) return
+    if (!requireBackendReady()) return
+
+    try {
+      const result = await saveFileToLocal({
+        cid: item.cid,
+        fileName: item.fileName,
+        getFileDownloadUrl: fileApi.getFileDownloadUrl,
+        getRequestHeaders: getApiRequestHeaders,
+        loadFailedMessage: t('app.toast.getFileFailed'),
+      })
+      addToast(
+        result.method === 'picker'
+          ? t('app.toast.fileSaved')
+          : t('app.toast.fileDownloaded'),
+        'success'
+      )
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        addToast(t('app.saveFailedWithError', { error: err.message }), 'error')
+      }
+    }
   }
 
   async function checkAttachmentAvailability(attachment: ChannelAttachment) {
@@ -1855,6 +1885,7 @@ function ChatPage() {
           item={previewItem}
           isBackendReady={isBackendReady}
           getFileDownloadUrl={fileApi.getFileDownloadUrl}
+          onSaveAs={handleSavePreviewItem}
           onClose={() => setPreviewItem(null)}
         />
       )}

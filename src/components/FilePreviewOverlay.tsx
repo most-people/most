@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { FileText, Loader, Music, X } from 'lucide-react'
+import type { MouseEvent } from 'react'
+import { Download, FileText, Loader, Music, X } from 'lucide-react'
 import type { FileSubtype } from '~/lib/filePreview'
 import { useI18n } from '~/lib/i18n'
 import { getApiRequestHeaders } from '~server/src/utils/api'
@@ -15,6 +16,7 @@ interface FilePreviewOverlayProps {
   isBackendReady: boolean
   getFileDownloadUrl: (cid: string) => string
   onClose: () => void
+  onSaveAs?: (item: FilePreviewItem) => void | Promise<void>
 }
 
 function isMediaSubtype(subtype: FileSubtype) {
@@ -26,12 +28,14 @@ export default function FilePreviewOverlay({
   isBackendReady,
   getFileDownloadUrl,
   onClose,
+  onSaveAs,
 }: FilePreviewOverlayProps) {
   const { t } = useI18n()
   const [previewText, setPreviewText] = useState('')
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewBlobUrl, setPreviewBlobUrl] = useState('')
   const [previewError, setPreviewError] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
     if (item.subtype !== 'text') return
@@ -111,16 +115,47 @@ export default function FilePreviewOverlay({
     }
   }, [getFileDownloadUrl, isBackendReady, item.cid, item.subtype])
 
+  async function handleSaveAs(event: MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation()
+    if (!onSaveAs || isSaving) return
+
+    setIsSaving(true)
+    try {
+      await onSaveAs(item)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   return (
     <div className="preview-overlay" onClick={onClose}>
-      <button
-        type="button"
-        className="preview-close"
-        onClick={onClose}
-        aria-label={t('preview.close')}
-      >
-        <X size={20} />
-      </button>
+      <div className="preview-actions">
+        {onSaveAs && (
+          <button
+            type="button"
+            className="preview-save"
+            onClick={handleSaveAs}
+            disabled={!isBackendReady || isSaving}
+            aria-label={t('app.saveAs')}
+            title={t('app.saveAs')}
+          >
+            {isSaving ? (
+              <Loader size={17} className="preview-text-spinner" />
+            ) : (
+              <Download size={17} />
+            )}
+            <span>{t('app.saveAs')}</span>
+          </button>
+        )}
+        <button
+          type="button"
+          className="preview-close"
+          onClick={onClose}
+          aria-label={t('preview.close')}
+        >
+          <X size={20} />
+        </button>
+      </div>
       <div onClick={e => e.stopPropagation()}>
         {item.subtype === 'image' && (
           <div className="preview-media-wrapper">

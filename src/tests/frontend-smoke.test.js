@@ -1315,6 +1315,128 @@ describe('frontend smoke checks', () => {
     assert.match(sources, /title=\{holding\.cid\} translate="no"/)
   })
 
+  it('saves preview files through authenticated fetch and local save APIs', async () => {
+    const { saveFileToLocal } = await importBundledSource(
+      'src/lib/saveLocalFile.ts'
+    )
+    const cid = 'bafy-preview-save'
+    const blob = new Blob(['preview content'])
+    const calls = {
+      fetchInput: '',
+      fetchHeaders: null,
+      suggestedName: '',
+      writtenBlob: null,
+      closed: false,
+    }
+
+    const result = await saveFileToLocal({
+      cid,
+      fileName: 'chat-file/168/preview.txt',
+      getFileDownloadUrl: value => `/api/files/${value}/download`,
+      getRequestHeaders: async (method, path) => ({
+        authorization: `${method} ${path}`,
+      }),
+      fetchFile: async (input, options) => {
+        calls.fetchInput = input
+        calls.fetchHeaders = options.headers
+        return new Response(blob)
+      },
+      showSaveFilePicker: async options => {
+        calls.suggestedName = options.suggestedName
+        return {
+          createWritable: async () => ({
+            write: async value => {
+              calls.writtenBlob = value
+            },
+            close: async () => {
+              calls.closed = true
+            },
+          }),
+        }
+      },
+    })
+
+    assert.equal(result.method, 'picker')
+    assert.equal(calls.fetchInput, `/api/files/${cid}/download`)
+    assert.deepEqual(calls.fetchHeaders, {
+      authorization: `GET /api/files/${cid}/download`,
+    })
+    assert.equal(calls.suggestedName, 'preview.txt')
+    assert.equal(await calls.writtenBlob.text(), 'preview content')
+    assert.equal(calls.closed, true)
+  })
+
+  it('falls back to blob download when the local save picker is unavailable', async () => {
+    const { saveFileToLocal } = await importBundledSource(
+      'src/lib/saveLocalFile.ts'
+    )
+    const blob = new Blob(['fallback content'])
+    const anchor = {
+      href: '',
+      download: '',
+      clicked: false,
+      click() {
+        this.clicked = true
+      },
+    }
+    const calls = []
+
+    const result = await saveFileToLocal({
+      cid: 'bafy-preview-fallback',
+      fileName: 'chat-file\\168\\fallback.txt',
+      getFileDownloadUrl: cid => `/api/files/${cid}/download`,
+      getRequestHeaders: async () => ({}),
+      fetchFile: async () => new Response(blob),
+      showSaveFilePicker: null,
+      documentRef: {
+        body: {
+          appendChild(node) {
+            calls.push(['append', node])
+          },
+          removeChild(node) {
+            calls.push(['remove', node])
+          },
+        },
+        createElement(tagName) {
+          assert.equal(tagName, 'a')
+          return anchor
+        },
+      },
+      urlApi: {
+        createObjectURL(value) {
+          calls.push(['createObjectURL', value])
+          return 'blob:preview'
+        },
+        revokeObjectURL(value) {
+          calls.push(['revokeObjectURL', value])
+        },
+      },
+    })
+
+    assert.equal(result.method, 'download')
+    assert.equal(anchor.href, 'blob:preview')
+    assert.equal(anchor.download, 'fallback.txt')
+    assert.equal(anchor.clicked, true)
+    assert.deepEqual(calls, [
+      ['createObjectURL', blob],
+      ['append', anchor],
+      ['remove', anchor],
+      ['revokeObjectURL', 'blob:preview'],
+    ])
+  })
+
+  it('exposes save-as from file preview overlays in files and chat', () => {
+    const overlaySource = readSource('src/components/FilePreviewOverlay.tsx')
+    const filesSource = readSource('src/features/files/AppPage.tsx')
+    const chatSource = readSource('src/features/chat/ChatPage.tsx')
+
+    assert.match(overlaySource, /onSaveAs\?:/)
+    assert.match(overlaySource, /className="preview-save"/)
+    assert.match(overlaySource, /t\('app\.saveAs'\)/)
+    assert.match(filesSource, /onSaveAs=\{handleSaveAs\}/)
+    assert.match(chatSource, /onSaveAs=\{handleSavePreviewItem\}/)
+  })
+
   it('disables custom avatar save until a URL is entered', () => {
     const profileSource = readSource('src/features/profile/ProfilePage.tsx')
 

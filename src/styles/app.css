@@ -1198,11 +1198,18 @@
   padding: 24px;
   animation: fadeIn 0.2s ease;
 
-  .preview-close {
+  .preview-actions {
     position: absolute;
     top: 20px;
     right: 20px;
-    width: 36px;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .preview-save,
+  .preview-close {
     height: 36px;
     border-radius: var(--radius-md);
     border: 1px solid var(--glass-border);
@@ -1216,10 +1223,27 @@
     justify-content: center;
     transition: all var(--transition-fast);
 
-    &:hover {
+    &:hover:not(:disabled) {
       background: var(--glass-bg);
       transform: scale(1.05);
     }
+
+    &:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+  }
+
+  .preview-save {
+    min-width: 92px;
+    padding: 0 12px;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .preview-close {
+    width: 36px;
   }
 
   img,
