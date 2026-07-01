@@ -197,6 +197,152 @@ describe('frontend smoke checks', () => {
     assert.match(sources, /10GB|10 GB/)
   })
 
+  it('formats publish file size limit messages', async () => {
+    const { getPublishFileLimitViolation } = await importBundledSource(
+      'src/lib/publishLimits.ts'
+    )
+    const t = (key, params) =>
+      `超过最大 ${params.maxSize} 限制`
+
+    assert.equal(
+      getPublishFileLimitViolation(
+        { name: 'large.bin', size: 15 * 1024 * 1024 },
+        { maxFileSizeBytes: 10 * 1024 * 1024 },
+        t
+      ),
+      '超过最大 10 MB 限制'
+    )
+    assert.equal(
+      getPublishFileLimitViolation(
+        { name: 'small.bin', size: 5 * 1024 * 1024 },
+        { maxFileSizeBytes: 10 * 1024 * 1024 },
+        t
+      ),
+      ''
+    )
+
+    assert.match(
+      readSource('src/lib/i18n/messages/files.ts'),
+      /'app\.publish\.fileTooLarge':\s*'超过最大 \{maxSize\} 限制'/
+    )
+  })
+
+  it('parses and normalizes admin storage limit input', async () => {
+    const {
+      parseStorageLimitInput,
+      formatStorageLimitInput,
+      convertStorageLimitUnit,
+      splitStorageLimitInput,
+      storageLimitToBytes,
+    } = await importBundledSource('src/lib/storageLimitInput.ts')
+
+    assert.equal(parseStorageLimitInput('10 MB'), 10 * 1024 * 1024)
+    assert.equal(parseStorageLimitInput('0.01 GiB'), 10737418)
+    assert.equal(parseStorageLimitInput('0.01'), 10737418)
+    assert.equal(formatStorageLimitInput(10737418), '10.24 MB')
+    assert.equal(formatStorageLimitInput(10 * 1024 * 1024 * 1024), '10 GiB')
+    assert.deepEqual(splitStorageLimitInput(10737418), {
+      value: '10.24',
+      unit: 'MB',
+    })
+    assert.deepEqual(splitStorageLimitInput(10 * 1024 * 1024 * 1024), {
+      value: '10',
+      unit: 'GiB',
+    })
+    assert.equal(storageLimitToBytes('10.2', 'MB'), 10695475)
+    assert.equal(storageLimitToBytes('0.01', 'GiB'), 10737418)
+    assert.equal(convertStorageLimitUnit('10', 'MB', 'GiB'), '0.009765625')
+    assert.equal(convertStorageLimitUnit('0.01', 'GiB', 'MB'), '10.24')
+  })
+
+  it('preflights publish size limits before uploading', () => {
+    const fileApiSource = readSource('src/lib/fileApi.ts')
+    const filesSource = readSource(SOURCE_PATHS.features.files)
+    const chatSource = readSource(SOURCE_PATHS.features.chat)
+    const chatUiSource = readSource('src/components/ChatUi.tsx')
+
+    assert.match(fileApiSource, /getNodePolicy/)
+    assert.match(fileApiSource, /getPublishFileLimitViolation/)
+    assert.match(fileApiSource, /getPublishFileErrorMessage/)
+    assert.match(fileApiSource, /throwHttpErrors:\s*false/)
+
+    const filesPolicyIndex = filesSource.indexOf(
+      'const publishPolicy = await fileApi.getNodePolicy()'
+    )
+    const filesCheckIndex = filesSource.indexOf(
+      'const limitMessage = getPublishFileLimitViolation'
+    )
+    const filesNameExistsIndex = filesSource.indexOf('const nameExists =')
+    const filesPublishIndex = filesSource.indexOf(
+      'const result = await fileApi.publishFile'
+    )
+    assert.ok(filesPolicyIndex >= 0)
+    assert.ok(filesCheckIndex > filesPolicyIndex)
+    assert.ok(filesNameExistsIndex > filesCheckIndex)
+    assert.ok(filesPublishIndex > filesCheckIndex)
+    assert.match(filesSource, /e\.target\.value = ''/)
+
+    const chatPolicyIndex = chatSource.indexOf(
+      'const publishPolicy = await fileApi.getNodePolicy()'
+    )
+    const chatCheckIndex = chatSource.indexOf(
+      'const limitMessage = getPublishFileLimitViolation'
+    )
+    const chatPublishIndex = chatSource.indexOf(
+      'const result = await fileApi.publishFile'
+    )
+    assert.ok(chatPolicyIndex >= 0)
+    assert.ok(chatCheckIndex > chatPolicyIndex)
+    assert.ok(chatPublishIndex > chatCheckIndex)
+    assert.match(chatUiSource, /event\.currentTarget\.value = ''/)
+  })
+
+  it('lets the admin max file field accept MB or GiB input', () => {
+    const adminSource = readSource(SOURCE_PATHS.features.admin)
+    const selectControlSource = readSource('src/components/ui/SelectControl.tsx')
+    const globalsSource = readSource('src/styles/globals.css')
+
+    assert.match(adminSource, /SegmentedControl/)
+    assert.match(adminSource, /SelectControl/)
+    assert.match(adminSource, /splitStorageLimitInput/)
+    assert.match(adminSource, /storageLimitToBytes/)
+    assert.match(adminSource, /maxFileSizeValue/)
+    assert.match(adminSource, /maxFileSizeUnit/)
+    assert.match(adminSource, /convertStorageLimitUnit/)
+    assert.match(adminSource, /MAX_FILE_SIZE_UNIT_OPTIONS/)
+    assert.match(adminSource, /className="admin-unit-field"/)
+    assert.match(adminSource, /step="any"/)
+    assert.match(adminSource, /ariaLabel=\{t\('admin\.settings\.maxFileSizeUnit'\)\}/)
+    assert.match(adminSource, /options=\{MAX_FILE_SIZE_UNIT_OPTIONS\}/)
+    assert.match(adminSource, /value=\{configForm\.maxFileSizeUnit\}/)
+    assert.match(adminSource, /onChange=\{nextUnit =>/)
+    assert.match(adminSource, /<SelectControl/)
+    assert.match(adminSource, /ariaLabel=\{t\('admin\.table\.pageSize'\)\}/)
+    assert.match(adminSource, /onChange=\{nextPageSize => table\.setPageSize\(nextPageSize\)\}/)
+    assert.match(adminSource, /size="compact"/)
+    assert.doesNotMatch(adminSource, /<select/)
+    assert.doesNotMatch(adminSource, /admin-unit-segment/)
+    assert.doesNotMatch(adminSource, /admin-unit-select/)
+    assert.doesNotMatch(adminSource, /admin-page-size-select/)
+    assert.doesNotMatch(adminSource, /maxFileSizeGiB/)
+    assert.doesNotMatch(adminSource, /maxFileSizeText/)
+    assert.match(selectControlSource, /export function SelectControl/)
+    assert.match(selectControlSource, /<select/)
+    assert.match(selectControlSource, /ui-select-field/)
+    assert.match(selectControlSource, /ui-select-control/)
+    assert.match(selectControlSource, /ChevronDown/)
+    assert.match(selectControlSource, /ui-select-icon/)
+    assert.doesNotMatch(selectControlSource, /role="listbox"/)
+    assert.doesNotMatch(selectControlSource, /role="option"/)
+    assert.match(globalsSource, /\.ui-select-control/)
+    assert.match(globalsSource, /appearance:\s*none/)
+    assert.match(globalsSource, /\.ui-select-icon/)
+    assert.match(globalsSource, /color-scheme:\s*dark/)
+    assert.match(globalsSource, /\.ui-select-control option/)
+    assert.doesNotMatch(globalsSource, /\.ui-select-menu/)
+    assert.doesNotMatch(globalsSource, /\.ui-select-option/)
+  })
+
   it('lets users choose R2 or GitHub download sources', () => {
     const source = [
       readSource('src/components/DownloadOptions.tsx'),

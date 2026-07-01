@@ -67,7 +67,12 @@ import {
   readStoredChannelLastReadAt,
   writeStoredChannelLastReadAt,
 } from '~/lib/chatUnread.js'
-import { fileApi, getDownloadCheckErrorMessage } from '~/lib/fileApi'
+import {
+  fileApi,
+  getDownloadCheckErrorMessage,
+  getPublishFileErrorMessage,
+  getPublishFileLimitViolation,
+} from '~/lib/fileApi'
 
 const CHANNEL_NAME_MIN_LENGTH = 3
 const CHANNEL_NAME_MAX_LENGTH = 30
@@ -1195,15 +1200,24 @@ function ChatPage() {
     return `${CHAT_FILE_ROOT}/${channelName}/${fileName}`
   }
 
-  async function handleSelectAttachmentFiles(files: FileList | null) {
+  async function handleSelectAttachmentFiles(files: FileList | File[] | null) {
     if (!files || files.length === 0 || !activeChannel) return
     if (!requireLogin()) return
     if (!requireBackendReady()) return
     if (isPublishingAttachment) return
 
     setIsPublishingAttachment(true)
+    let activePublishFileName = ''
     try {
+      const publishPolicy = await fileApi.getNodePolicy().catch(() => null)
       for (const file of Array.from(files)) {
+        activePublishFileName = file.name
+        const limitMessage = getPublishFileLimitViolation(file, publishPolicy, t)
+        if (limitMessage) {
+          addToast(limitMessage, 'error')
+          continue
+        }
+
         const targetFileName = getChatAttachmentFileName(
           getChannelId(activeChannel),
           file.name
@@ -1230,7 +1244,15 @@ function ChatPage() {
         }
       }
     } catch (err) {
-      await showApiError(err, t('chat.error.attachmentSend'))
+      addToast(
+        await getPublishFileErrorMessage(
+          err,
+          t('chat.error.attachmentSend'),
+          t,
+          activePublishFileName
+        ),
+        'error'
+      )
     } finally {
       setIsPublishingAttachment(false)
     }

@@ -1,11 +1,18 @@
 import {
   api,
+  getApiErrorMessage,
   getApiErrorPayload,
   getApiUrl,
 } from '~server/src/utils/api'
 import {
   getDownloadCheckErrorMessageFromPayload,
 } from '~server/src/utils/downloadMessages.js'
+import {
+  getPublishFileLimitViolation,
+  getPublishFileTooLargeMessageFromPayload,
+  type NodePolicy,
+} from '~/lib/publishLimits'
+import type { MessageKey } from '~/lib/i18n'
 
 export interface MostFileRecord {
   cid: string
@@ -69,17 +76,47 @@ export interface CheckDownloadOptions {
   requestTimeout?: number
 }
 
+type Translate = (
+  key: MessageKey,
+  params?: Record<string, string | number>
+) => string
+
 async function publishFile(file: File, customName?: string) {
   const formData = new FormData()
   formData.append('file', file, customName || file.name)
-  const res = await api.post('/api/publish', { body: formData })
+  const res = await api.post('/api/publish', {
+    body: formData,
+    throwHttpErrors: false,
+  })
   if (!res.ok) {
-    const err = await res
-      .json<{ error: string }>()
-      .catch(() => ({ error: res.statusText }))
-    throw new Error(err.error || 'Request failed')
+    const data = (await res
+      .clone()
+      .json()
+      .catch(() => ({ error: res.statusText }))) as { error?: string }
+    const err = new Error(data.error || 'Request failed') as Error & {
+      response?: Response
+    }
+    err.response = res
+    throw err
   }
   return res.json<FilePublishResult>()
+}
+
+async function getPublishFileErrorMessage(
+  err: unknown,
+  fallback: string,
+  t: Translate,
+  fileName = ''
+) {
+  const data = await getApiErrorPayload(err)
+  const sizeMessage = getPublishFileTooLargeMessageFromPayload(
+    data,
+    t,
+    fileName
+  )
+  if (sizeMessage) return sizeMessage
+
+  return getApiErrorMessage(err, fallback)
 }
 
 async function getDownloadCheckErrorMessage(err: unknown) {
@@ -104,6 +141,7 @@ export const fileApi = {
   getConfig: () => api.get('/api/config').json<Record<string, unknown>>(),
   getDataPath: () => api.get<DataPathResponse>('/api/config/data-path').json(),
   getNetworkAddresses: () => api.get<NetworkResponse>('/api/network').json(),
+  getNodePolicy: () => api.get<NodePolicy>('/api/node/policy').json(),
   saveConfig: (config: Record<string, unknown>) =>
     api
       .post('/api/config', {
@@ -133,4 +171,8 @@ export const fileApi = {
     api.post('/api/folder/rename', { json: { oldPath, newPath } }).json(),
 }
 
-export { getDownloadCheckErrorMessage }
+export {
+  getDownloadCheckErrorMessage,
+  getPublishFileErrorMessage,
+  getPublishFileLimitViolation,
+}

@@ -15,10 +15,15 @@ export function registerFileRoutes(app, { engine, configStore, wsBroadcast }) {
 
   app.post('/api/publish', async c => {
     const req = c.env.incoming
-    const result = await parseMultipartBusboy(
-      req,
-      configStore.getNodeConfig().maxFileSizeBytes
-    )
+    let result
+    try {
+      result = await parseMultipartBusboy(
+        req,
+        configStore.getNodeConfig().maxFileSizeBytes
+      )
+    } catch (err) {
+      return badRequestOrAppError(c, err)
+    }
 
     if (!result || !result.filename) {
       return c.json({ error: 'No file provided' }, 400)

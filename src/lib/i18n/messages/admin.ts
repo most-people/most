@@ -51,6 +51,9 @@ export const zhCNAdminMessages = {
   'admin.settings.dataPath': '数据目录',
   'admin.settings.capacityGiB': '容量上限 GiB',
   'admin.settings.maxFileSizeGiB': '单文件最大 GiB',
+  'admin.settings.maxFileSize': '单文件最大',
+  'admin.settings.maxFileSizeUnit': '单文件最大单位',
+  'admin.settings.maxFileSizePlaceholder': '例如 10.2',
   'admin.settings.remoteInvites': '远程访问邀请码',
   'admin.settings.remoteInvitesPlaceholder':
     '每行一个，或用英文逗号分隔',
@@ -168,6 +171,9 @@ export const zhTWAdminMessages = {
   'admin.settings.dataPath': '資料目錄',
   'admin.settings.capacityGiB': '容量上限 GiB',
   'admin.settings.maxFileSizeGiB': '單檔案最大 GiB',
+  'admin.settings.maxFileSize': '單檔案最大',
+  'admin.settings.maxFileSizeUnit': '單檔案最大單位',
+  'admin.settings.maxFileSizePlaceholder': '例如 10.2',
   'admin.settings.remoteInvites': '遠端訪問邀請碼',
   'admin.settings.remoteInvitesPlaceholder':
     '每行一個，或用英文逗號分隔',
@@ -285,6 +291,9 @@ export const enAdminMessages = {
   'admin.settings.dataPath': 'Data directory',
   'admin.settings.capacityGiB': 'Capacity limit GiB',
   'admin.settings.maxFileSizeGiB': 'Max file GiB',
+  'admin.settings.maxFileSize': 'Max file',
+  'admin.settings.maxFileSizeUnit': 'Max file unit',
+  'admin.settings.maxFileSizePlaceholder': 'Example: 10.2',
   'admin.settings.remoteInvites': 'Remote access invites',
   'admin.settings.remoteInvitesPlaceholder':
     'One per line, or separate with commas',

@@ -348,6 +348,10 @@ export async function getApiErrorPayload(err) {
   return {
     status: response.status,
     code: typeof data?.code === 'string' ? data.code : undefined,
+    details:
+      data?.details && typeof data.details === 'object'
+        ? data.details
+        : undefined,
     error:
       typeof data?.error === 'string'
         ? data.error
@@ -398,7 +402,11 @@ export function setBackendInvite(invite) {
 export function configureBackend({ url, invite }) {
   setBackendUrl(url)
   setBackendInvite(invite)
-  saveRemoteNode(url, invite)
+  if (isRemoteBackendUrl(url)) {
+    saveRemoteNode(url, invite)
+  } else if (typeof window !== 'undefined') {
+    clearActiveRemoteNode()
+  }
 }
 
 export function clearBackendConnection() {

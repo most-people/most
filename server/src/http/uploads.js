@@ -3,6 +3,7 @@ import path from 'node:path'
 import os from 'node:os'
 import Busboy from 'busboy'
 import { MAX_FILE_SIZE } from '../config.js'
+import { FileSizeError } from '../utils/errors.js'
 
 export const UPLOAD_TMP_DIR = path.join(os.tmpdir(), 'most-box-uploads')
 
@@ -56,10 +57,34 @@ export async function parseMultipartBusboy(req, maxUploadSize = MAX_FILE_SIZE) {
 
     const result = { filePath: null, filename: null }
     let fileSize = 0
+    let activeFileStream = null
     let writeStream = null
     let tempPath = null
+    let settled = false
+
+    function cleanupTempFile() {
+      if (tempPath) fs.unlink(tempPath, () => {})
+    }
+
+    function fail(err) {
+      if (settled) return
+      settled = true
+      if (activeFileStream && !activeFileStream.destroyed) {
+        activeFileStream.destroy()
+      }
+      if (writeStream && !writeStream.destroyed) writeStream.destroy()
+      cleanupTempFile()
+      reject(err)
+    }
+
+    function succeed(value) {
+      if (settled) return
+      settled = true
+      resolve(value)
+    }
 
     busboy.on('file', (name, stream, info) => {
+      activeFileStream = stream
       result.filename = decodeFilenameFromHeader(`filename="${info.filename}"`)
       tempPath = path.join(
         UPLOAD_TMP_DIR,
@@ -70,45 +95,58 @@ export async function parseMultipartBusboy(req, maxUploadSize = MAX_FILE_SIZE) {
       stream.on('data', chunk => {
         fileSize += chunk.length
         if (fileSize > maxUploadSize) {
-          stream.destroy()
-          writeStream.destroy()
-          fs.unlink(tempPath, () => {})
-          reject(new Error('File too large'))
-          return
+          fail(new FileSizeError('File too large', fileSize, maxUploadSize))
         }
       })
 
-      stream.on('error', () => {
-        if (tempPath) fs.unlink(tempPath, () => {})
+      stream.on('limit', () => {
+        fail(
+          new FileSizeError(
+            'File too large',
+            fileSize || maxUploadSize,
+            maxUploadSize
+          )
+        )
+      })
+
+      stream.on('error', err => {
+        fail(err)
       })
 
       stream.pipe(writeStream)
 
       writeStream.on('finish', () => {
+        if (stream.truncated) {
+          fail(
+            new FileSizeError(
+              'File too large',
+              fileSize || maxUploadSize,
+              maxUploadSize
+            )
+          )
+          return
+        }
         result.filePath = tempPath
-        resolve(result)
+        succeed(result)
       })
 
       writeStream.on('error', err => {
-        if (tempPath) fs.unlink(tempPath, () => {})
-        reject(err)
+        fail(err)
       })
     })
 
     busboy.on('error', err => {
-      if (tempPath) fs.unlink(tempPath, () => {})
-      reject(err)
+      fail(err)
     })
 
     busboy.on('close', () => {
       if (!result.filename) {
-        resolve(null)
+        succeed(null)
       }
     })
 
     req.on('error', err => {
-      if (tempPath) fs.unlink(tempPath, () => {})
-      reject(err)
+      fail(err)
     })
     req.pipe(busboy)
   })

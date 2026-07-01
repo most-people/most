@@ -45,12 +45,19 @@ import {
 } from '~server/src/utils/api'
 import { useAppStore } from '~/stores/useAppStore'
 import { MarketingHeader } from '~/components/MarketingHeader'
+import { SegmentedControl, SelectControl } from '~/components/ui'
 import {
   useI18n,
   type Locale,
   type MessageKey,
 } from '~/lib/i18n'
 import { formatBytes } from '~/lib/format'
+import {
+  convertStorageLimitUnit,
+  splitStorageLimitInput,
+  storageLimitToBytes,
+  type StorageLimitUnit,
+} from '~/lib/storageLimitInput'
 
 dayjs.extend(relativeTime)
 
@@ -144,6 +151,10 @@ const EMPTY_HOLDINGS: NodeHolding[] = []
 const LOG_LIMIT = 300
 const DEFAULT_ADMIN_TABLE_PAGE_SIZE = 10
 const ADMIN_TABLE_PAGE_SIZE_OPTIONS = [10, 20, 50, 100]
+const MAX_FILE_SIZE_UNIT_OPTIONS = [
+  { value: 'MB', label: 'MB' },
+  { value: 'GiB', label: 'GiB' },
+] satisfies Array<{ value: StorageLimitUnit; label: string }>
 
 type AdminTranslate = (
   key: MessageKey,
@@ -342,20 +353,19 @@ function AdminTablePagination<TData>({
       <span className="admin-table-pagination-status">
         {t('admin.table.totalRows', { count: rowCount })}
       </span>
-      <label className="admin-table-page-size">
+      <div className="admin-table-page-size">
         <span>{t('admin.table.pageSize')}</span>
-        <select
-          className="input admin-page-size-select"
+        <SelectControl
+          ariaLabel={t('admin.table.pageSize')}
+          size="compact"
           value={pageSize}
-          onChange={event => table.setPageSize(Number(event.target.value))}
-        >
-          {ADMIN_TABLE_PAGE_SIZE_OPTIONS.map(option => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-      </label>
+          options={ADMIN_TABLE_PAGE_SIZE_OPTIONS.map(option => ({
+            value: option,
+            label: String(option),
+          }))}
+          onChange={nextPageSize => table.setPageSize(nextPageSize)}
+        />
+      </div>
       <span className="admin-table-pagination-status">
         {t('admin.table.pageIndicator', {
           page: pageIndex + 1,
@@ -533,7 +543,8 @@ export default function AdminPage() {
   const [configForm, setConfigForm] = useState({
     dataPath: '',
     capacityGiB: '100',
-    maxFileSizeGiB: '10',
+    maxFileSizeValue: '10',
+    maxFileSizeUnit: 'GiB' as StorageLimitUnit,
     remoteInvites: '',
   })
   const isBackendReady = hasBackend === true
@@ -794,11 +805,13 @@ export default function AdminPage() {
     try {
       const nextStatus = await api.get<NodeStatus>('/api/node/status').json()
       const nodeConfig = await api.get<NodeConfig>('/api/node/config').json()
+      const maxFileSize = splitStorageLimitInput(nodeConfig.maxFileSizeBytes)
       setStatus(nextStatus)
       setConfigForm({
         dataPath: nodeConfig.dataPath || nextStatus.dataPath || '',
         capacityGiB: bytesToGiB(nodeConfig.capacityBytes),
-        maxFileSizeGiB: bytesToGiB(nodeConfig.maxFileSizeBytes),
+        maxFileSizeValue: maxFileSize.value,
+        maxFileSizeUnit: maxFileSize.unit,
         remoteInvites: (nodeConfig.remoteInvites || []).join('\n'),
       })
       setError('')
@@ -854,7 +867,10 @@ export default function AdminPage() {
           json: {
             dataPath: configForm.dataPath,
             capacityBytes: gibToBytes(configForm.capacityGiB),
-            maxFileSizeBytes: gibToBytes(configForm.maxFileSizeGiB),
+            maxFileSizeBytes: storageLimitToBytes(
+              configForm.maxFileSizeValue,
+              configForm.maxFileSizeUnit
+            ),
             remoteInvites: parseInviteText(configForm.remoteInvites),
           },
         })
@@ -1200,20 +1216,40 @@ export default function AdminPage() {
                   />
                 </label>
                 <label className="admin-field">
-                  <span>{t('admin.settings.maxFileSizeGiB')}</span>
-                  <input
-                    className="input"
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={configForm.maxFileSizeGiB}
-                    onChange={event =>
-                      setConfigForm(prev => ({
-                        ...prev,
-                        maxFileSizeGiB: event.target.value,
-                      }))
-                    }
-                  />
+                  <span>{t('admin.settings.maxFileSize')}</span>
+                  <div className="admin-unit-field">
+                    <input
+                      className="input"
+                      type="number"
+                      min="0"
+                      step="any"
+                      inputMode="decimal"
+                      placeholder={t('admin.settings.maxFileSizePlaceholder')}
+                      value={configForm.maxFileSizeValue}
+                      onChange={event =>
+                        setConfigForm(prev => ({
+                          ...prev,
+                          maxFileSizeValue: event.target.value,
+                        }))
+                      }
+                    />
+                    <SegmentedControl
+                      ariaLabel={t('admin.settings.maxFileSizeUnit')}
+                      options={MAX_FILE_SIZE_UNIT_OPTIONS}
+                      value={configForm.maxFileSizeUnit}
+                      onChange={nextUnit =>
+                        setConfigForm(prev => ({
+                          ...prev,
+                          maxFileSizeValue: convertStorageLimitUnit(
+                            prev.maxFileSizeValue,
+                            prev.maxFileSizeUnit,
+                            nextUnit
+                          ),
+                          maxFileSizeUnit: nextUnit,
+                        }))
+                      }
+                    />
+                  </div>
                 </label>
                 <label className="admin-field admin-field-wide">
                   <span>{t('admin.settings.remoteInvites')}</span>

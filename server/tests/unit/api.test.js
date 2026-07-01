@@ -285,6 +285,48 @@ describe('api browser helpers', () => {
       )
     })
 
+    it('clears active remote when explicitly switching to the localhost node', () => {
+      configureBackend({
+        url: 'https://node.example.com/base',
+        invite: 'invite-code',
+      })
+
+      configureBackend({
+        url: 'http://localhost:1976',
+        invite: '',
+      })
+
+      assert.strictEqual(getBackendUrlExport(), 'http://localhost:1976')
+      assert.strictEqual(getRemoteUrlExport(), '')
+      assert.strictEqual(getRemoteInviteExport(), '')
+      assert.deepStrictEqual(
+        getRemoteNodesExport().map(node => ({
+          url: node.url,
+          active: node.active,
+        })),
+        [{ url: 'https://node.example.com/base', active: false }]
+      )
+      assert.deepStrictEqual(
+        getNodeHistoryExport().map(node => ({
+          url: node.url,
+          active: node.active,
+          local: node.local,
+        })),
+        [
+          {
+            url: 'http://localhost:1976',
+            active: true,
+            local: true,
+          },
+          {
+            url: 'https://node.example.com/base',
+            active: false,
+            local: false,
+          },
+        ]
+      )
+    })
+
     it('keeps the node list but clears active remote on explicit disconnect', () => {
       configureBackend({
         url: 'https://node.example.com/base',

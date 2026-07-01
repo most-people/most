@@ -280,7 +280,7 @@ export function ChatComposer({
   onMessageChange: (value: string) => void
   onSend: () => void
   onOpenVoiceRoom?: () => void
-  onSelectAttachmentFiles?: (files: FileList | null) => void
+  onSelectAttachmentFiles?: (files: File[] | null) => void
 }) {
   const { t } = useI18n()
   const toolsDisabled = disabled || isPublishingAttachment
@@ -289,9 +289,12 @@ export function ChatComposer({
 
   function handleFileInput(
     event: ChangeEvent<HTMLInputElement>,
-    onSelect?: (files: FileList | null) => void
+    onSelect?: (files: File[] | null) => void
   ) {
-    onSelect?.(event.currentTarget.files)
+    const selectedFiles = event.currentTarget.files
+      ? Array.from(event.currentTarget.files)
+      : null
+    onSelect?.(selectedFiles)
     event.currentTarget.value = ''
   }
 

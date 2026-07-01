@@ -21,10 +21,20 @@ export class ValidationError extends AppError {
 }
 
 export class FileSizeError extends AppError {
-  constructor(message, size) {
+  constructor(message, size, maxFileSizeBytes) {
     super(message, 'FILE_SIZE_ERROR')
     this.name = 'FileSizeError'
     this.size = size
+    const details = {}
+    if (Number.isFinite(Number(size))) {
+      details.sizeBytes = Number(size)
+    }
+    if (Number.isFinite(Number(maxFileSizeBytes))) {
+      details.maxFileSizeBytes = Number(maxFileSizeBytes)
+    }
+    if (Object.keys(details).length > 0) {
+      this.details = details
+    }
   }
 }
 

@@ -580,6 +580,49 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(res.status, 400)
     })
 
+    it('rejects multipart uploads larger than the configured max file size', async () => {
+      const maxFileSizeBytes = 10
+      const resetMaxFileSizeBytes = 10 * 1024 * 1024 * 1024
+      await fetch(`${baseUrl}/api/node/config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ maxFileSizeBytes }),
+      })
+
+      try {
+        const boundary = '----TestBoundaryMaxFileSize'
+        const body = [
+          `--${boundary}`,
+          'Content-Disposition: form-data; name="file"; filename="too-large.txt"',
+          'Content-Type: text/plain',
+          '',
+          'this payload is longer than ten bytes',
+          `--${boundary}--`,
+        ].join('\r\n')
+
+        const res = await fetch(`${baseUrl}/api/publish`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': `multipart/form-data; boundary=${boundary}`,
+          },
+          body,
+        })
+        const data = await res.json()
+
+        assert.strictEqual(res.status, 400)
+        assert.strictEqual(data.code, 'FILE_SIZE_ERROR')
+        assert.strictEqual(typeof data.details.sizeBytes, 'number')
+        assert.ok(data.details.sizeBytes >= maxFileSizeBytes)
+        assert.strictEqual(data.details.maxFileSizeBytes, maxFileSizeBytes)
+      } finally {
+        await fetch(`${baseUrl}/api/node/config`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ maxFileSizeBytes: resetMaxFileSizeBytes }),
+        })
+      }
+    })
+
     it('handles Chinese filename in multipart form', async () => {
       const boundary = '----TestBoundary456'
       const body = [

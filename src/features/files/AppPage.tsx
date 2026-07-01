@@ -35,7 +35,12 @@ import {
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import { useDisclosure, useClipboard } from '~/hooks'
-import { fileApi, getDownloadCheckErrorMessage } from '~/lib/fileApi'
+import {
+  fileApi,
+  getDownloadCheckErrorMessage,
+  getPublishFileErrorMessage,
+  getPublishFileLimitViolation,
+} from '~/lib/fileApi'
 import { getFileSubtype } from '~/lib/filePreview'
 import { formatBytes } from '~/lib/format'
 import { useI18n } from '~/lib/i18n'
@@ -331,7 +336,7 @@ export default function App() {
     })
   }
 
-  const processFiles = async (files: FileList) => {
+  const processFiles = async (files: FileList | File[]) => {
     if (!userIdentity) {
       openLoginModal()
       addToast(t('app.toast.signInBeforePublish'), 'warning')
@@ -340,9 +345,17 @@ export default function App() {
     if (!requireBackendReady()) return
     const prefix = currentPath ? currentPath + '/' : ''
     const newTransfers = []
+    const publishPolicy = await fileApi.getNodePolicy().catch(() => null)
 
-    for (const file of Array.from(files)) {
+    const selectedFiles = Array.from(files)
+    for (const file of selectedFiles) {
       const fileName = prefix + file.name
+
+      const limitMessage = getPublishFileLimitViolation(file, publishPolicy, t)
+      if (limitMessage) {
+        addToast(limitMessage, 'error')
+        continue
+      }
 
       const nameExists = items.some(item => item.fileName === fileName)
       if (nameExists) {
@@ -388,9 +401,11 @@ export default function App() {
         setTransfers(prev =>
           prev.map(t => (t.id === transferId ? { ...t, status: 'error' } : t))
         )
-        const message = await getApiErrorMessage(
+        const message = await getPublishFileErrorMessage(
           err,
-          t('app.publishFailedWithFile', { fileName: file.name })
+          t('app.publishFailedWithFile', { fileName: file.name }),
+          t,
+          file.name
         )
         addToast(message, 'error')
       }
@@ -887,7 +902,11 @@ export default function App() {
                   e.preventDefault()
                 }
               }}
-              onChange={e => processFiles(e.target.files)}
+              onChange={e => {
+                const selectedFiles = Array.from(e.target.files || [])
+                e.target.value = ''
+                void processFiles(selectedFiles)
+              }}
               className="action-card-input"
             />
             <Upload size={20} className="action-grid-icon" />
