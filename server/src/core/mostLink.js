@@ -24,6 +24,16 @@ function invalidLink(errorCode, details) {
   }
 }
 
+function extractTailTarget(value) {
+  const queryStart = value.indexOf('?')
+  const pathPart = queryStart === -1 ? value : value.slice(0, queryStart)
+  const queryPart = queryStart === -1 ? '' : value.slice(queryStart)
+  const slashIndex = pathPart.lastIndexOf('/')
+  const tailPath = slashIndex === -1 ? pathPart : pathPart.slice(slashIndex + 1)
+
+  return `${tailPath}${queryPart}`
+}
+
 /**
  * 验证 CID 字符串
  * @param {string} cidString - 要验证的 CID 字符串
@@ -62,26 +72,33 @@ export function parseMostLink(link) {
     return invalidLink(MOST_LINK_ERROR_CODES.LINK_EMPTY)
   }
 
-  let url
-  try {
-    url = new URL(link)
-  } catch {
-    return invalidLink(MOST_LINK_ERROR_CODES.INVALID_URL)
+  const value = link.trim()
+  if (!value) {
+    return invalidLink(MOST_LINK_ERROR_CODES.LINK_EMPTY)
   }
 
-  if (url.protocol !== 'most:') {
-    return invalidLink(MOST_LINK_ERROR_CODES.INVALID_PROTOCOL)
+  const tailTarget = extractTailTarget(value)
+  const queryStart = tailTarget.indexOf('?')
+  const cidString =
+    queryStart === -1 ? tailTarget : tailTarget.slice(0, queryStart)
+  const queryString =
+    queryStart === -1 ? '' : tailTarget.slice(queryStart + 1)
+
+  if (!cidString) {
+    return invalidLink(MOST_LINK_ERROR_CODES.INVALID_CID_FORMAT)
   }
 
-  if (url.pathname && url.pathname !== '/') {
-    return invalidLink(MOST_LINK_ERROR_CODES.UNSUPPORTED_PATH)
-  }
-
-  const cidString = url.hostname
-  const rawFileName = url.searchParams.get('filename')
-  const unsupportedParam = [...url.searchParams.keys()].find(
+  const searchParams = new URLSearchParams(queryString)
+  const rawFileName = searchParams.get('filename')
+  const unsupportedParam = [...searchParams.keys()].find(
     key => key !== 'filename'
   )
+
+  if (queryString && ![...searchParams.keys()].length) {
+    return invalidLink(MOST_LINK_ERROR_CODES.UNSUPPORTED_QUERY_PARAM, {
+      param: '',
+    })
+  }
 
   const validation = validateCidString(cidString)
   if (!validation.valid) {

@@ -1123,15 +1123,32 @@
 
 /* === Share Modal === */
 .share-modal {
-  .share-link-box {
+  .share-link-list {
     display: flex;
-    align-items: center;
+    flex-direction: column;
     gap: 10px;
     margin-bottom: 16px;
   }
 
-  .share-link-text {
+  .share-link-box {
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .share-link-content {
     flex: 1;
+    min-width: 0;
+  }
+
+  .share-link-label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  .share-link-text {
     padding: 12px 14px;
     border-radius: var(--radius-md);
     background: var(--glass-bg-subtle);
@@ -1140,6 +1157,10 @@
     font-family: var(--font-mono);
     color: var(--text-primary);
     word-break: break-all;
+  }
+
+  .share-link-box .btn-circle {
+    align-self: flex-end;
   }
 
   .share-storage-note {

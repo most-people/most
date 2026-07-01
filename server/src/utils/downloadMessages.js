@@ -6,7 +6,7 @@ const DOWNLOAD_CHECK_MESSAGES = {
   offline: '无法连接本地节点，请确认 MostBox 后端正在运行后再检测。',
   missingApi: '当前后端还没有检测接口，请重启 MostBox 后端后再试。',
   validation:
-    '链接格式不正确，请粘贴完整的 most://<cid>?filename=... 分享链接。',
+    '链接格式不正确，请粘贴 most://、网页入口或 CID。',
   nameConflict: '下载目录已有同名文件，请先重命名或移走后再检测。',
   noPeer:
     '暂时没有发现在线种子。请确认分享者或其他下载者仍在线做种，稍后再检测。',
@@ -18,15 +18,15 @@ const DOWNLOAD_CHECK_MESSAGES = {
 
 const LINK_VALIDATION_MESSAGES = {
   [MOST_LINK_ERROR_CODES.INVALID_URL]:
-    '链接无法解析，请粘贴完整的 most://<cid>?filename=... 分享链接。',
+    '链接无法解析，请粘贴 most://、网页入口或 CID。',
   [MOST_LINK_ERROR_CODES.INVALID_PROTOCOL]:
-    '链接协议不正确，应以 most:// 开头。',
+    '链接格式不正确，请确认输入末尾是有效的 CID 或 CID?filename=...。',
   [MOST_LINK_ERROR_CODES.UNSUPPORTED_PATH]:
-    '链接里不应包含路径，请使用 most://<cid>?filename=... 格式。',
+    '链接路径不受支持，请确认输入末尾是 CID 或 CID?filename=...。',
   [MOST_LINK_ERROR_CODES.CID_EMPTY]:
-    'CID 无效，请确认 most:// 后面的内容没有缺失或被截断。',
+    'CID 无效，请确认输入末尾是有效的 CID 或 CID?filename=...。',
   [MOST_LINK_ERROR_CODES.INVALID_CID_FORMAT]:
-    'CID 无效，请确认 most:// 后面的内容没有缺失或被截断。',
+    'CID 无效，请确认输入末尾是有效的 CID 或 CID?filename=...。',
   [MOST_LINK_ERROR_CODES.CID_V1_REQUIRED]:
     'CID 格式不符合 MostBox 要求，请确认分享链接完整。',
   [MOST_LINK_ERROR_CODES.CID_DIGEST_LENGTH]:
@@ -69,7 +69,7 @@ export function getDownloadCheckErrorMessageFromPayload(
 
 export function getDownloadLinkValidationMessage(link = '') {
   const value = String(link || '').trim()
-  if (!value) return '请先粘贴 most:// 分享链接。'
+  if (!value) return '请先粘贴分享链接或 CID。'
 
   const result = parseMostLink(value)
   if (!result.errorCode) return null

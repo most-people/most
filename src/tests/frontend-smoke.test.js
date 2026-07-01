@@ -145,9 +145,17 @@ describe('frontend smoke checks', () => {
 
     assert.match(
       source,
+      /buildMostShareLink\(shareItem\.cid, shareItem\.fileName\)/
+    )
+    assert.match(
+      source,
       /buildCidShareLink\(shareItem\.cid, shareItem\.fileName\)/
     )
-    assert.match(source, /\{shareLink\}/)
+    assert.match(source, /\{mostShareLink\}/)
+    assert.match(source, /\{webShareLink\}/)
+    assert.match(source, /app\.shareMostLink/)
+    assert.match(source, /app\.shareWebLink/)
+    assert.match(shareLinkSource, /most:\/\/\$\{cid\}/)
     assert.match(shareLinkSource, /https:\/\/most\.box/)
     assert.match(shareLinkSource, /\/cid\/\$\{encodeURIComponent\(cid\)\}/)
     assert.match(
@@ -162,11 +170,11 @@ describe('frontend smoke checks', () => {
   it('keeps the download modal validation messages user-readable', () => {
     assert.equal(
       getDownloadLinkValidationMessage(''),
-      '请先粘贴 most:// 分享链接。'
+      '请先粘贴分享链接或 CID。'
     )
     assert.equal(
       getDownloadLinkValidationMessage('https://example.com/file'),
-      '链接协议不正确，应以 most:// 开头。'
+      'CID 无效，请确认输入末尾是有效的 CID 或 CID?filename=...。'
     )
     assert.equal(
       getDownloadCheckErrorMessageFromPayload({ status: 503 }),
@@ -1321,7 +1329,23 @@ describe('frontend smoke checks', () => {
       downloadValidation.getMostLinkValidationMessageKey(
         'https://example.com/file'
       ),
-      { key: 'app.download.validation.protocol' }
+      { key: 'app.download.validation.invalidCid' }
+    )
+    assert.equal(
+      downloadValidation.getMostLinkValidationMessageKey(
+        `https://most.box/cid/${validCid}?filename=test.txt`
+      ),
+      null
+    )
+    assert.equal(
+      downloadValidation.getMostLinkValidationMessageKey(validCid),
+      null
+    )
+    assert.equal(
+      downloadValidation.getMostLinkValidationMessageKey(
+        `${validCid}?filename=test.txt`
+      ),
+      null
     )
     assert.equal(
       downloadValidation.getMostLinkValidationMessageKey(`most://${validCid}`),

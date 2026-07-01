@@ -700,6 +700,49 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(data.cid, publishResult.cid)
     })
 
+    it('checks a web entry link before download', async () => {
+      const publishResult = await engine.publishFile(
+        Buffer.from('check-web-download'),
+        'check-web-download.txt'
+      )
+      const webLink = `https://most.box/cid/${publishResult.cid}?filename=${encodeURIComponent('check-web-download.txt')}`
+
+      const res = await fetch(`${baseUrl}/api/download/check`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ link: webLink }),
+      })
+
+      const data = await res.json()
+      assert.strictEqual(res.status, 200)
+      assert.strictEqual(data.success, true)
+      assert.strictEqual(data.available, true)
+      assert.strictEqual(data.alreadyExists, true)
+      assert.strictEqual(data.cid, publishResult.cid)
+      assert.strictEqual(data.fileName, 'check-web-download.txt')
+    })
+
+    it('checks a bare CID with CID as the fallback filename', async () => {
+      const publishResult = await engine.publishFile(
+        Buffer.from('check-bare-cid-download'),
+        'check-bare-cid-download.txt'
+      )
+
+      const res = await fetch(`${baseUrl}/api/download/check`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ link: publishResult.cid }),
+      })
+
+      const data = await res.json()
+      assert.strictEqual(res.status, 200)
+      assert.strictEqual(data.success, true)
+      assert.strictEqual(data.available, true)
+      assert.strictEqual(data.alreadyExists, true)
+      assert.strictEqual(data.cid, publishResult.cid)
+      assert.strictEqual(data.fileName, publishResult.cid)
+    })
+
     it('checks a bare most link with CID as the fallback filename', async () => {
       const publishResult = await engine.publishFile(
         Buffer.from('check-bare-download'),
@@ -780,6 +823,28 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(data.success)
       assert.ok(data.taskId)
       assert.strictEqual(data.alreadyExists, true)
+    })
+
+    it('returns taskId for a web entry link', async () => {
+      const published = await engine.publishFile(
+        Buffer.from('web link task'),
+        'web-task.txt',
+        { ownerAddress: TEST_IDENTITY.address }
+      )
+      const webLink = `https://most.box/cid/${published.cid}?filename=${encodeURIComponent('web-task.txt')}`
+
+      const res = await fetch(`${baseUrl}/api/download`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ link: webLink }),
+      })
+
+      const data = await res.json()
+      assert.strictEqual(res.status, 200)
+      assert.ok(data.success)
+      assert.ok(data.taskId)
+      assert.strictEqual(data.alreadyExists, true)
+      assert.strictEqual(data.fileName, 'web-task.txt')
     })
 
     it('uses engine download path for existing files', async () => {

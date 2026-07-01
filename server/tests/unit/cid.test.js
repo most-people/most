@@ -28,6 +28,10 @@ function mostLink(fileName = 'a.txt') {
   return `most://${VALID_CID}?filename=${encodeURIComponent(fileName)}`
 }
 
+function webTailLink(fileName = 'a.txt') {
+  return `https://most.box/cid/${VALID_CID}?filename=${encodeURIComponent(fileName)}`
+}
+
 describe('validateCidString', () => {
   it('rejects null', () => {
     assertInvalidCid(null, MOST_LINK_ERROR_CODES.CID_EMPTY)
@@ -90,21 +94,48 @@ describe('parseMostLink', () => {
     assert.strictEqual(Object.hasOwn(result, 'error'), false)
   })
 
-  it('rejects CID without most:// prefix', () => {
-    assertInvalidLink(VALID_CID, MOST_LINK_ERROR_CODES.INVALID_URL)
+  it('extracts CID and filename from web entry links', () => {
+    const result = parseMostLink(webTailLink())
+    assert.strictEqual(result.cid, VALID_CID)
+    assert.strictEqual(result.fileName, 'a.txt')
+    assert.strictEqual(result.errorCode, undefined)
+    assert.strictEqual(Object.hasOwn(result, 'error'), false)
   })
 
-  it('rejects trailing slashes', () => {
+  it('extracts CID from bare CID input', () => {
+    const result = parseMostLink(VALID_CID)
+    assert.strictEqual(result.cid, VALID_CID)
+    assert.strictEqual(result.fileName, VALID_CID)
+    assert.strictEqual(result.errorCode, undefined)
+  })
+
+  it('extracts CID and filename from bare CID input with filename query', () => {
+    const result = parseMostLink(
+      `${VALID_CID}?filename=${encodeURIComponent('bare.txt')}`
+    )
+    assert.strictEqual(result.cid, VALID_CID)
+    assert.strictEqual(result.fileName, 'bare.txt')
+    assert.strictEqual(result.errorCode, undefined)
+  })
+
+  it('accepts arbitrary prefixes when the tail is a CID target', () => {
+    const result = parseMostLink(`https://example.com/share/${VALID_CID}`)
+    assert.strictEqual(result.cid, VALID_CID)
+    assert.strictEqual(result.fileName, VALID_CID)
+    assert.strictEqual(result.errorCode, undefined)
+  })
+
+  it('rejects trailing slashes without a CID tail', () => {
     assertInvalidLink(
       `most://${VALID_CID}///`,
-      MOST_LINK_ERROR_CODES.UNSUPPORTED_PATH
+      MOST_LINK_ERROR_CODES.INVALID_CID_FORMAT
     )
   })
 
-  it('rejects extra path components', () => {
+  it('rejects extra path components after the CID tail', () => {
     assertInvalidLink(
       `most://${VALID_CID}/some/path`,
-      MOST_LINK_ERROR_CODES.UNSUPPORTED_PATH
+      MOST_LINK_ERROR_CODES.INVALID_CID_FORMAT
     )
   })
 
@@ -130,8 +161,20 @@ describe('parseMostLink', () => {
     assert.deepStrictEqual(result.details, { param: 'foo' })
   })
 
+  it('rejects unsupported query parameters from web entry links', () => {
+    const result = assertInvalidLink(
+      `https://most.box/cid/${VALID_CID}?filename=a.txt&foo=bar`,
+      MOST_LINK_ERROR_CODES.UNSUPPORTED_QUERY_PARAM
+    )
+    assert.deepStrictEqual(result.details, { param: 'foo' })
+  })
+
   it('rejects invalid CID format', () => {
     assertInvalidLink('most://invalid', MOST_LINK_ERROR_CODES.INVALID_CID_FORMAT)
+    assertInvalidLink(
+      'https://example.com/file',
+      MOST_LINK_ERROR_CODES.INVALID_CID_FORMAT
+    )
   })
 
   it('rejects null/undefined', () => {

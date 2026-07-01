@@ -7,6 +7,7 @@ import {
 
 const VALID_LINK =
   'most://bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e?filename=a.txt'
+const VALID_CID = 'bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e'
 
 describe('getDownloadCheckErrorMessageFromPayload', () => {
   it('explains timeouts as missing online seeds', () => {
@@ -49,10 +50,24 @@ describe('getDownloadLinkValidationMessage', () => {
     assert.strictEqual(getDownloadLinkValidationMessage(VALID_LINK), null)
   })
 
+  it('accepts web entry links and bare CID targets', () => {
+    assert.strictEqual(
+      getDownloadLinkValidationMessage(
+        `https://most.box/cid/${VALID_CID}?filename=a.txt`
+      ),
+      null
+    )
+    assert.strictEqual(getDownloadLinkValidationMessage(VALID_CID), null)
+    assert.strictEqual(
+      getDownloadLinkValidationMessage(`${VALID_CID}?filename=a.txt`),
+      null
+    )
+  })
+
   it('rejects empty links before parsing', () => {
     assert.strictEqual(
       getDownloadLinkValidationMessage(' '),
-      '请先粘贴 most:// 分享链接。'
+      '请先粘贴分享链接或 CID。'
     )
   })
 
@@ -68,7 +83,7 @@ describe('getDownloadLinkValidationMessage', () => {
   it('uses link parser errors for invalid links', () => {
     assert.strictEqual(
       getDownloadLinkValidationMessage('https://example.com'),
-      '链接协议不正确，应以 most:// 开头。'
+      'CID 无效，请确认输入末尾是有效的 CID 或 CID?filename=...。'
     )
     assert.strictEqual(
       getDownloadLinkValidationMessage(`${VALID_LINK}&foo=bar`),

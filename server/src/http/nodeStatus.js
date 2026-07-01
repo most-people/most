@@ -214,13 +214,13 @@ export function buildOpenApiSpec(appPort) {
       '/api/download/check': {
         post: {
           summary:
-            'Check whether a most:// link is locally available or discoverable',
+            'Check whether a CID-tailed share target is locally available or discoverable',
           responses: { 200: { description: 'Download availability result' } },
         },
       },
       '/api/download': {
         post: {
-          summary: 'Start downloading a most:// link',
+          summary: 'Start downloading a CID-tailed share target',
           responses: { 200: { description: 'Download task result' } },
         },
       },

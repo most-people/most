@@ -23,14 +23,14 @@ export const zhCNPortalMessages = {
     '不依赖中心化账号或云端托管，也不承诺永久保存',
   'portal.feature.app.bullet.desktop':
     'Web 端只连接已有节点，桌面端提供完整 P2P 能力',
-  'portal.feature.app.bullet.openSource':
-    'MIT 开源，自托管，数据完全自主掌控',
+  'portal.feature.app.bullet.openSource': 'MIT 开源，自托管，数据完全自主掌控',
   'portal.feature.app.step.download.title': '下载客户端',
   'portal.feature.app.step.download.desc':
     '支持 Windows、macOS 和 Linux，桌面端提供完整的 P2P 能力。',
   'portal.feature.app.step.download.link': '前往下载页',
   'portal.feature.app.step.install.title': '安装并运行',
-  'portal.feature.app.step.install.desc': '安装后打开应用，无需单独安装 Node.js。',
+  'portal.feature.app.step.install.desc':
+    '安装后打开应用，无需单独安装 Node.js。',
   'portal.feature.app.step.share.title': '在聊天里分享',
   'portal.feature.app.step.share.desc':
     '发送文件附件生成 most:// 链接，朋友下载校验通过后也会成为新的种子。',
@@ -48,10 +48,10 @@ export const zhCNPortalMessages = {
   'portal.feature.chat.step.download.desc': '支持 Windows、macOS 和 Linux。',
   'portal.feature.chat.step.download.link': '前往下载页',
   'portal.feature.chat.step.create.title': '创建聊天',
-  'portal.feature.chat.step.create.desc': '输入房间名即可加入或创建，并把房间 ID 发给朋友。',
+  'portal.feature.chat.step.create.desc':
+    '输入房间名即可加入或创建，并把房间 ID 发给朋友。',
   'portal.feature.chat.step.send.title': '开始聊天',
-  'portal.feature.chat.step.send.desc':
-    '先发消息，再发送附件或保存到知识库。',
+  'portal.feature.chat.step.send.desc': '先发消息，再发送附件或保存到知识库。',
   'portal.feature.note.title': '知识库',
   'portal.feature.note.subtitle': 'Markdown 知识库',
   'portal.feature.note.hero': '把聊天整理成知识库',
@@ -63,7 +63,7 @@ export const zhCNPortalMessages = {
   'portal.feature.note.bullet.web3': '本地身份用于数据隔离',
   'portal.feature.note.bullet.backup': '按需备份与恢复',
   'portal.feature.note.bullet.independent': '知识库不是云盘，也不承诺永久同步',
-  'portal.feature.note.step.account.title': '生成本地账户',
+  'portal.feature.note.step.account.title': '生成 Web3 账号',
   'portal.feature.note.step.account.desc': '用用户名和密码派生本地密钥。',
   'portal.feature.note.step.create.title': '创建笔记',
   'portal.feature.note.step.create.desc': '写 Markdown，按需切换为私密内容。',
@@ -79,34 +79,33 @@ export const zhCNPortalMessages = {
     '复用 /chat/ 的频道后端，不新增游戏后端接口',
   'portal.feature.game.bullet.link': '房间链接可手动分享给朋友',
   'portal.feature.game.bullet.rules': '支持 1-2 副牌、2-6 人和人机陪测',
-  'portal.feature.game.bullet.maintain':
-    '游戏规则、频道事件和页面样式拆分维护',
+  'portal.feature.game.bullet.maintain': '游戏规则、频道事件和页面样式拆分维护',
   'portal.feature.game.step.login.title': '登录账号',
   'portal.feature.game.step.login.desc':
-    '使用现有 MostBox 本地账户作为牌桌身份。',
+    '使用现有 MostBox Web3 本地账号作为牌桌身份。',
   'portal.feature.game.step.create.title': '创建房间',
   'portal.feature.game.step.create.desc': '创建房间后复制链接，发给朋友加入。',
   'portal.feature.game.step.test.title': '开始调试',
   'portal.feature.game.step.test.desc':
     '可先用人机补位测试出牌、计分和房间同步。',
   'portal.feature.web3.title': 'Web3',
-  'portal.feature.web3.subtitle': '开源账户系统',
-  'portal.feature.web3.hero': '开源账户系统',
+  'portal.feature.web3.subtitle': '独立账户工具箱',
+  'portal.feature.web3.hero': '确定性密钥派生工具箱',
   'portal.feature.web3.desc':
-    'MOST PEOPLE 账户使用这套本地身份系统：完全开源，可复用，也方便其他项目接入。',
-  'portal.feature.web3.bullet.frontend': '完全开源，可复用接入',
-  'portal.feature.web3.bullet.keys': '本地生成身份和签名密钥',
-  'portal.feature.web3.bullet.mnemonic': '支持密钥、地址和助记词导出',
-  'portal.feature.web3.bullet.eth': '可用于本地登录、签名和数据隔离',
-  'portal.feature.web3.bullet.pem': '纯前端运行，无需后端',
-  'portal.feature.web3.bullet.qr': '不参与文件下载、校验或做种主流程',
-  'portal.feature.web3.step.username.title': '输入账户信息',
-  'portal.feature.web3.step.username.desc': '用户名 + 密码（可选）用于生成本地身份。',
-  'portal.feature.web3.step.keys.title': '生成身份',
+    '纯前端运行的 Web3 账户工具。输入用户名和密码，即可生成 Ed25519 / x25519 密钥对、助记词、以太坊地址，支持 PEM 导出和地址派生。',
+  'portal.feature.web3.bullet.frontend': '纯前端运行，无需后端',
+  'portal.feature.web3.bullet.keys': 'Ed25519 / x25519 密钥对生成',
+  'portal.feature.web3.bullet.mnemonic': 'BIP-39 助记词派生',
+  'portal.feature.web3.bullet.eth': '以太坊地址与私钥导出',
+  'portal.feature.web3.bullet.pem': 'PEM 格式密钥导出',
+  'portal.feature.web3.bullet.qr': '二维码展示地址与助记词',
+  'portal.feature.web3.step.username.title': '输入用户名',
+  'portal.feature.web3.step.username.desc': '用户名 + 密码（可选）作为种子。',
+  'portal.feature.web3.step.keys.title': '查看密钥',
   'portal.feature.web3.step.keys.desc':
-    '即时生成签名密钥、加密密钥和地址。',
-  'portal.feature.web3.step.export.title': '接入项目',
-  'portal.feature.web3.step.export.desc': '导出密钥、地址或助记词，用于其他项目接入。',
+    '即时生成 Ed25519、x25519 公钥与 IPNS ID。',
+  'portal.feature.web3.step.export.title': '导出使用',
+  'portal.feature.web3.step.export.desc': '复制地址、导出 PEM、派生子地址。',
 } as const
 
 export const zhTWPortalMessages = {
@@ -134,14 +133,14 @@ export const zhTWPortalMessages = {
     '不依賴中心化帳號或雲端託管，也不承諾永久保存',
   'portal.feature.app.bullet.desktop':
     'Web 端只連線已有節點，桌面端提供完整 P2P 能力',
-  'portal.feature.app.bullet.openSource':
-    'MIT 開源，自託管，資料完全自主掌控',
+  'portal.feature.app.bullet.openSource': 'MIT 開源，自託管，資料完全自主掌控',
   'portal.feature.app.step.download.title': '下載用戶端',
   'portal.feature.app.step.download.desc':
     '支援 Windows、macOS 和 Linux，桌面端提供完整的 P2P 能力。',
   'portal.feature.app.step.download.link': '前往下載頁',
   'portal.feature.app.step.install.title': '安裝並執行',
-  'portal.feature.app.step.install.desc': '安裝後開啟應用，無需單獨安裝 Node.js。',
+  'portal.feature.app.step.install.desc':
+    '安裝後開啟應用，無需單獨安裝 Node.js。',
   'portal.feature.app.step.share.title': '在聊天裡分享',
   'portal.feature.app.step.share.desc':
     '傳送檔案附件生成 most:// 連結，朋友下載校驗通過後也會成為新的種子。',
@@ -159,7 +158,8 @@ export const zhTWPortalMessages = {
   'portal.feature.chat.step.download.desc': '支援 Windows、macOS 和 Linux。',
   'portal.feature.chat.step.download.link': '前往下載頁',
   'portal.feature.chat.step.create.title': '建立聊天',
-  'portal.feature.chat.step.create.desc': '輸入房間名即可加入或建立，並把房間 ID 發給朋友。',
+  'portal.feature.chat.step.create.desc':
+    '輸入房間名即可加入或建立，並把房間 ID 發給朋友。',
   'portal.feature.chat.step.send.title': '開始聊天',
   'portal.feature.chat.step.send.desc':
     '先傳送訊息，再傳送附件或保存到知識庫。',
@@ -174,7 +174,7 @@ export const zhTWPortalMessages = {
   'portal.feature.note.bullet.web3': '本機身份用於資料隔離',
   'portal.feature.note.bullet.backup': '按需備份與恢復',
   'portal.feature.note.bullet.independent': '知識庫不是雲盤，也不承諾永久同步',
-  'portal.feature.note.step.account.title': '生成本地帳戶',
+  'portal.feature.note.step.account.title': '生成 Web3 帳號',
   'portal.feature.note.step.account.desc': '用使用者名稱和密碼派生本機金鑰。',
   'portal.feature.note.step.create.title': '建立筆記',
   'portal.feature.note.step.create.desc': '寫 Markdown，按需切換為私密內容。',
@@ -190,34 +190,34 @@ export const zhTWPortalMessages = {
     '複用 /chat/ 的頻道後端，不新增遊戲後端介面',
   'portal.feature.game.bullet.link': '房間連結可手動分享給朋友',
   'portal.feature.game.bullet.rules': '支援 1-2 副牌、2-6 人和人機陪測',
-  'portal.feature.game.bullet.maintain':
-    '遊戲規則、頻道事件和頁面樣式拆分維護',
+  'portal.feature.game.bullet.maintain': '遊戲規則、頻道事件和頁面樣式拆分維護',
   'portal.feature.game.step.login.title': '登入帳號',
   'portal.feature.game.step.login.desc':
-    '使用現有 MostBox 本機帳戶作為牌桌身份。',
+    '使用現有 MostBox Web3 本機帳號作為牌桌身份。',
   'portal.feature.game.step.create.title': '建立房間',
   'portal.feature.game.step.create.desc': '建立房間後複製連結，發給朋友加入。',
   'portal.feature.game.step.test.title': '開始除錯',
   'portal.feature.game.step.test.desc':
     '可先用人機補位測試出牌、計分和房間同步。',
   'portal.feature.web3.title': 'Web3',
-  'portal.feature.web3.subtitle': '開源帳戶系統',
-  'portal.feature.web3.hero': '開源帳戶系統',
+  'portal.feature.web3.subtitle': '獨立帳戶工具箱',
+  'portal.feature.web3.hero': '確定性金鑰派生工具箱',
   'portal.feature.web3.desc':
-    'MOST PEOPLE 帳戶使用這套本地身份系統：完全開源，可複用，也方便其他項目接入。',
-  'portal.feature.web3.bullet.frontend': '完全開源，可複用接入',
-  'portal.feature.web3.bullet.keys': '本地生成身份和簽名金鑰',
-  'portal.feature.web3.bullet.mnemonic': '支援金鑰、地址和助記詞匯出',
-  'portal.feature.web3.bullet.eth': '可用於本地登入、簽名和資料隔離',
-  'portal.feature.web3.bullet.pem': '純前端執行，無需後端',
-  'portal.feature.web3.bullet.qr': '不參與檔案下載、校驗或做種主流程',
-  'portal.feature.web3.step.username.title': '輸入帳戶資訊',
-  'portal.feature.web3.step.username.desc': '使用者名稱 + 密碼（可選）用於生成本地身份。',
-  'portal.feature.web3.step.keys.title': '生成身份',
+    '純前端執行的 Web3 帳戶工具。輸入使用者名稱和密碼，即可生成 Ed25519 / x25519 金鑰對、助記詞、以太坊地址，支援 PEM 匯出和地址派生。',
+  'portal.feature.web3.bullet.frontend': '純前端執行，無需後端',
+  'portal.feature.web3.bullet.keys': 'Ed25519 / x25519 金鑰對生成',
+  'portal.feature.web3.bullet.mnemonic': 'BIP-39 助記詞派生',
+  'portal.feature.web3.bullet.eth': '以太坊地址與私鑰匯出',
+  'portal.feature.web3.bullet.pem': 'PEM 格式金鑰匯出',
+  'portal.feature.web3.bullet.qr': '二維碼展示地址與助記詞',
+  'portal.feature.web3.step.username.title': '輸入使用者名稱',
+  'portal.feature.web3.step.username.desc':
+    '使用者名稱 + 密碼（可選）作為種子。',
+  'portal.feature.web3.step.keys.title': '檢視金鑰',
   'portal.feature.web3.step.keys.desc':
-    '即時生成簽名金鑰、加密金鑰和地址。',
-  'portal.feature.web3.step.export.title': '接入項目',
-  'portal.feature.web3.step.export.desc': '匯出金鑰、地址或助記詞，用於其他項目接入。',
+    '即時生成 Ed25519、x25519 公鑰與 IPNS ID。',
+  'portal.feature.web3.step.export.title': '匯出使用',
+  'portal.feature.web3.step.export.desc': '複製地址、匯出 PEM、派生子地址。',
 } as const
 
 export const enPortalMessages = {
@@ -237,8 +237,7 @@ export const enPortalMessages = {
     'Send files directly in chat while the protocol still uses most:// links, CID verification, and seeding after download. MostBox is not cloud storage; availability comes from online seeders.',
   'portal.feature.app.bullet.localIdentity':
     'No cloud account required; local identity keeps data separated',
-  'portal.feature.app.bullet.hyperswarm':
-    'Direct user-to-user file transfer',
+  'portal.feature.app.bullet.hyperswarm': 'Direct user-to-user file transfer',
   'portal.feature.app.bullet.largeFiles':
     'Streaming support for GB-scale files',
   'portal.feature.app.bullet.cid':
@@ -266,12 +265,10 @@ export const enPortalMessages = {
   'portal.feature.chat.hero': 'Start with chat',
   'portal.feature.chat.desc':
     'Create a chat or room and share the room ID with friends; messages, files, and knowledge all start in one flow.',
-  'portal.feature.chat.bullet.encrypted':
-    'Private chat and room messages',
+  'portal.feature.chat.bullet.encrypted': 'Private chat and room messages',
   'portal.feature.chat.bullet.identity':
     'Local login identity protects message signatures',
-  'portal.feature.chat.bullet.sync':
-    'Messages sync through P2P Channels',
+  'portal.feature.chat.bullet.sync': 'Messages sync through P2P Channels',
   'portal.feature.chat.bullet.offline':
     'Files and the knowledge base fit naturally into chat',
   'portal.feature.chat.bullet.noAccount':
@@ -294,12 +291,11 @@ export const enPortalMessages = {
   'portal.feature.note.bullet.markdown': 'Markdown block editor',
   'portal.feature.note.bullet.privacy': 'Public/private note switching',
   'portal.feature.note.bullet.folders': 'Folders, search, and move',
-  'portal.feature.note.bullet.web3':
-    'Local identity keeps data separated',
+  'portal.feature.note.bullet.web3': 'Local identity keeps data separated',
   'portal.feature.note.bullet.backup': 'Backup and restore when needed',
   'portal.feature.note.bullet.independent':
     'The knowledge base is not cloud storage and does not promise permanent sync',
-  'portal.feature.note.step.account.title': 'Generate local account',
+  'portal.feature.note.step.account.title': 'Generate Web3 account',
   'portal.feature.note.step.account.desc':
     'Derive local keys from a username and password.',
   'portal.feature.note.step.create.title': 'Create note',
@@ -325,7 +321,7 @@ export const enPortalMessages = {
     'Game rules, channel events, and page styles are maintained separately',
   'portal.feature.game.step.login.title': 'Sign in',
   'portal.feature.game.step.login.desc':
-    'Use your existing local MostBox account as the table identity.',
+    'Use your existing local MostBox Web3 account as the table identity.',
   'portal.feature.game.step.create.title': 'Create room',
   'portal.feature.game.step.create.desc':
     'Create a room, copy the link, and send it to friends.',
@@ -333,26 +329,24 @@ export const enPortalMessages = {
   'portal.feature.game.step.test.desc':
     'Use bot seats to test plays, scoring, and room sync first.',
   'portal.feature.web3.title': 'Web3',
-  'portal.feature.web3.subtitle': 'Open-source account system',
-  'portal.feature.web3.hero': 'Open-source account system',
+  'portal.feature.web3.subtitle': 'Independent account toolbox',
+  'portal.feature.web3.hero': 'Deterministic key derivation toolbox',
   'portal.feature.web3.desc':
-    'MOST PEOPLE accounts use this local identity system: open source, reusable, and ready for other projects to integrate.',
-  'portal.feature.web3.bullet.frontend': 'Open source and reusable',
-  'portal.feature.web3.bullet.keys':
-    'Generates local identity and signing keys',
-  'portal.feature.web3.bullet.mnemonic': 'Exports keys, addresses, and mnemonics',
-  'portal.feature.web3.bullet.eth':
-    'Useful for local login, signatures, and data separation',
-  'portal.feature.web3.bullet.pem': 'Runs fully in the browser, no backend',
-  'portal.feature.web3.bullet.qr':
-    'Not part of file download, verification, or seeding',
-  'portal.feature.web3.step.username.title': 'Enter account info',
+    'A front-end only Web3 account tool. Enter a username and password to generate Ed25519/x25519 key pairs, a mnemonic, an Ethereum address, PEM exports, and derived addresses.',
+  'portal.feature.web3.bullet.frontend':
+    'Runs fully in the browser, no backend',
+  'portal.feature.web3.bullet.keys': 'Ed25519 / x25519 key pair generation',
+  'portal.feature.web3.bullet.mnemonic': 'BIP-39 mnemonic derivation',
+  'portal.feature.web3.bullet.eth': 'Ethereum address and private key export',
+  'portal.feature.web3.bullet.pem': 'PEM key export',
+  'portal.feature.web3.bullet.qr': 'QR codes for addresses and mnemonics',
+  'portal.feature.web3.step.username.title': 'Enter username',
   'portal.feature.web3.step.username.desc':
-    'Username + password (optional) generate the local identity.',
-  'portal.feature.web3.step.keys.title': 'Generate identity',
+    'Use username plus optional password as the seed.',
+  'portal.feature.web3.step.keys.title': 'View keys',
   'portal.feature.web3.step.keys.desc':
-    'Signing keys, encryption keys, and addresses are generated immediately.',
-  'portal.feature.web3.step.export.title': 'Integrate projects',
+    'Instantly generate Ed25519 and x25519 public keys plus an IPNS ID.',
+  'portal.feature.web3.step.export.title': 'Export and use',
   'portal.feature.web3.step.export.desc':
-    'Export keys, addresses, or mnemonics for other projects to integrate.',
+    'Copy addresses, export PEM, and derive child addresses.',
 } as const

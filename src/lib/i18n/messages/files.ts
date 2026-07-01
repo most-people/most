@@ -27,17 +27,23 @@ export const zhCNFilesMessages = {
   'app.noLocalFiles': '暂无文件库内容',
   'app.openFileNavigation': '打开文件导航',
   'app.deletedOn': '删除于 {date}',
-  'app.shareLink': 'most:// 分享链接',
+  'app.shareLink': '分享链接',
+  'app.shareMostLink': 'MostBox 链接',
+  'app.shareWebLink': '网页入口',
+  'app.copyMostShareLink': '复制 MostBox 链接',
+  'app.copyWebShareLink': '复制网页入口链接',
   'app.shareSeedNote':
-    '这条链接也可发到聊天里；本机在线时可下载，下载者完成后会默认继续做种。',
-  'app.downloadLink.placeholder': '粘贴 most:// 附件或分享链接',
-  'app.download.validation.empty': '请先粘贴 most:// 分享链接。',
+    '两种链接都指向同一个 CID；本机在线时可下载，下载者完成后会默认继续做种。',
+  'app.downloadLink.placeholder': '粘贴 most://、网页入口或 CID',
+  'app.download.validation.empty': '请先粘贴分享链接或 CID。',
   'app.download.validation.invalidUrl':
-    '链接格式不正确，请粘贴完整的 most:// 分享链接。',
-  'app.download.validation.protocol': '链接协议不正确，应以 most:// 开头。',
+    '链接格式不正确，请粘贴 most://、网页入口或 CID。',
+  'app.download.validation.protocol':
+    '链接格式不正确，请确认输入末尾是有效的 CID 或 CID?filename=...。',
   'app.download.validation.path':
-    '链接路径不受支持，请使用 most://<CID>?filename=... 格式。',
-  'app.download.validation.invalidCid': '链接中的 CID 格式不正确。',
+    '链接路径不受支持，请确认输入末尾是 CID 或 CID?filename=...。',
+  'app.download.validation.invalidCid':
+    'CID 无效，请确认输入末尾是有效的 CID 或 CID?filename=...。',
   'app.download.validation.cidV1': '链接中的 CID 必须是 CID v1。',
   'app.download.validation.cidDigest': '链接中的 CID digest 长度不正确。',
   'app.download.validation.unsupportedParam':
@@ -146,17 +152,23 @@ export const zhTWFilesMessages = {
   'app.noLocalFiles': '暫無檔案庫內容',
   'app.openFileNavigation': '開啟檔案導覽',
   'app.deletedOn': '刪除於 {date}',
-  'app.shareLink': 'most:// 分享連結',
+  'app.shareLink': '分享連結',
+  'app.shareMostLink': 'MostBox 連結',
+  'app.shareWebLink': '網頁入口',
+  'app.copyMostShareLink': '複製 MostBox 連結',
+  'app.copyWebShareLink': '複製網頁入口連結',
   'app.shareSeedNote':
-    '這條連結也可發到聊天裡；本機線上時可下載，下載者完成後預設繼續做種。',
-  'app.downloadLink.placeholder': '貼上 most:// 附件或分享連結',
-  'app.download.validation.empty': '請先貼上 most:// 分享連結。',
+    '兩種連結都指向同一個 CID；本機線上時可下載，下載者完成後預設繼續做種。',
+  'app.downloadLink.placeholder': '貼上 most://、網頁入口或 CID',
+  'app.download.validation.empty': '請先貼上分享連結或 CID。',
   'app.download.validation.invalidUrl':
-    '連結格式不正確，請貼上完整的 most:// 分享連結。',
-  'app.download.validation.protocol': '連結協議不正確，應以 most:// 開頭。',
+    '連結格式不正確，請貼上 most://、網頁入口或 CID。',
+  'app.download.validation.protocol':
+    '連結格式不正確，請確認輸入末尾是有效的 CID 或 CID?filename=...。',
   'app.download.validation.path':
-    '連結路徑不受支援，請使用 most://<CID>?filename=... 格式。',
-  'app.download.validation.invalidCid': '連結中的 CID 格式不正確。',
+    '連結路徑不受支援，請確認輸入末尾是 CID 或 CID?filename=...。',
+  'app.download.validation.invalidCid':
+    'CID 無效，請確認輸入末尾是有效的 CID 或 CID?filename=...。',
   'app.download.validation.cidV1': '連結中的 CID 必須是 CID v1。',
   'app.download.validation.cidDigest': '連結中的 CID digest 長度不正確。',
   'app.download.validation.unsupportedParam':
@@ -265,17 +277,23 @@ export const enFilesMessages = {
   'app.noLocalFiles': 'No file library content yet',
   'app.openFileNavigation': 'Open file navigation',
   'app.deletedOn': 'Deleted on {date}',
-  'app.shareLink': 'most:// share link',
+  'app.shareLink': 'Share links',
+  'app.shareMostLink': 'MostBox link',
+  'app.shareWebLink': 'Web entry',
+  'app.copyMostShareLink': 'Copy MostBox link',
+  'app.copyWebShareLink': 'Copy web entry link',
   'app.shareSeedNote':
-    'You can also send this link in chat. It is available while this device is online, and completed downloaders keep seeding by default.',
-  'app.downloadLink.placeholder': 'Paste a most:// attachment or share link',
-  'app.download.validation.empty': 'Paste a most:// share link first.',
+    'Both links point to the same CID. It is available while this device is online, and completed downloaders keep seeding by default.',
+  'app.downloadLink.placeholder': 'Paste most://, a web entry, or a CID',
+  'app.download.validation.empty': 'Paste a share link or CID first.',
   'app.download.validation.invalidUrl':
-    'The link format is invalid. Paste a complete most:// share link.',
-  'app.download.validation.protocol': 'The link must start with most://.',
+    'The link format is invalid. Paste most://, a web entry, or a CID.',
+  'app.download.validation.protocol':
+    'The link is invalid. Make sure it ends with a valid CID or CID?filename=...',
   'app.download.validation.path':
-    'Link paths are not supported. Use most://<CID>?filename=...',
-  'app.download.validation.invalidCid': 'The CID in this link is invalid.',
+    'Link paths are not supported. Make sure it ends with CID or CID?filename=...',
+  'app.download.validation.invalidCid':
+    'The CID is invalid. Make sure the input ends with a valid CID or CID?filename=...',
   'app.download.validation.cidV1': 'The CID in this link must be CID v1.',
   'app.download.validation.cidDigest':
     'The CID digest in this link has the wrong length.',

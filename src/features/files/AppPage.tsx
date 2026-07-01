@@ -46,7 +46,7 @@ import { formatBytes } from '~/lib/format'
 import { useI18n } from '~/lib/i18n'
 import { getLocalizedDownloadLinkValidationMessage } from '~/lib/i18n/downloadValidation'
 import { saveFileToLocal } from '~/lib/saveLocalFile'
-import { buildCidShareLink } from '~/lib/shareLink'
+import { buildCidShareLink, buildMostShareLink } from '~/lib/shareLink'
 
 type DownloadCheckResult = {
   status: 'success' | 'error'
@@ -126,7 +126,12 @@ export default function App() {
   const [transfers, setTransfers] = useState([])
   const [isTransferPanelOpen, transferPanel] = useDisclosure(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const { copy: copyLink, copied: linkCopied } = useClipboard({ timeout: 2000 })
+  const { copy: copyMostLink, copied: mostLinkCopied } = useClipboard({
+    timeout: 2000,
+  })
+  const { copy: copyWebLink, copied: webLinkCopied } = useClipboard({
+    timeout: 2000,
+  })
   const [isMoveModalOpen, moveModal] = useDisclosure(false)
   const [confirmModal, setConfirmModal] = useState(null)
   const [inputModal, setInputModal] = useState(null)
@@ -426,13 +431,21 @@ export default function App() {
     refreshFiles()
   }
 
-  const shareLink = shareItem
+  const mostShareLink = shareItem
+    ? buildMostShareLink(shareItem.cid, shareItem.fileName)
+    : ''
+  const webShareLink = shareItem
     ? buildCidShareLink(shareItem.cid, shareItem.fileName)
     : ''
 
-  const handleCopyLink = () => {
-    if (!shareLink) return
-    copyLink(shareLink)
+  const handleCopyMostLink = () => {
+    if (!mostShareLink) return
+    copyMostLink(mostShareLink)
+  }
+
+  const handleCopyWebLink = () => {
+    if (!webShareLink) return
+    copyWebLink(webShareLink)
   }
 
   const [isDownloading, setIsDownloading] = useState(false)
@@ -1074,16 +1087,43 @@ export default function App() {
                 <X size={18} />
               </button>
             </div>
-            <div className="share-link-box">
-              <div className="share-link-text" translate="no">
-                {shareLink}
+            <div className="share-link-list">
+              <div className="share-link-box">
+                <div className="share-link-content">
+                  <span className="share-link-label">
+                    {t('app.shareMostLink')}
+                  </span>
+                  <div className="share-link-text" translate="no">
+                    {mostShareLink}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  aria-label={t('app.copyMostShareLink')}
+                  onClick={handleCopyMostLink}
+                  className={`btn btn-circle btn-primary ${mostLinkCopied ? 'copied' : ''}`}
+                >
+                  {mostLinkCopied ? <Check size={18} /> : <Copy size={18} />}
+                </button>
               </div>
-              <button
-                onClick={handleCopyLink}
-                className={`btn btn-circle btn-primary ${linkCopied ? 'copied' : ''}`}
-              >
-                {linkCopied ? <Check size={18} /> : <Copy size={18} />}
-              </button>
+              <div className="share-link-box">
+                <div className="share-link-content">
+                  <span className="share-link-label">
+                    {t('app.shareWebLink')}
+                  </span>
+                  <div className="share-link-text" translate="no">
+                    {webShareLink}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  aria-label={t('app.copyWebShareLink')}
+                  onClick={handleCopyWebLink}
+                  className={`btn btn-circle btn-primary ${webLinkCopied ? 'copied' : ''}`}
+                >
+                  {webLinkCopied ? <Check size={18} /> : <Copy size={18} />}
+                </button>
+              </div>
             </div>
             <div className="share-storage-note">
               <span>{t('app.shareSeedNote')}</span>

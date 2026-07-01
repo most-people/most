@@ -81,7 +81,7 @@ auth_header() {
 
 必须保持的不变量：
 
-- `most://<cid>?filename=...` 是 MostBox 原生分享链接。
+- `most://<cid>?filename=...` 是 MostBox 原生分享链接；下载输入也可接受尾部为 `<cid>` 或 `<cid>?filename=...` 的网页入口和裸 CID。
 - CID 使用 UnixFS CID v1，生成参数为 `cidVersion: 1`、`rawLeaves: true`、`wrapWithDirectory: false`。
 - CID 是唯一内容身份；文件名、聊天附件名、保存路径和 metadata 只做展示或路径建议。
 - Hyperswarm topic 使用 `cid.multihash.digest`，不要额外 hash、截断或换 topic 规则。
@@ -94,7 +94,7 @@ auth_header() {
 
 1. 打开 `/app/`。
 2. 点击“发布文件”，选择一个测试文件。
-3. 发布成功后复制 `most://<cid>?filename=...` 分享链接。
+3. 发布成功后确认分享弹窗同时提供 `most://<cid>?filename=...` 和 `https://most.box/cid/<cid>?filename=...` 两种链接。
 4. 保持应用或 daemon 在线。
 5. 打开 `/admin/`，确认 holding 列表里能看到对应 CID，状态为 active 或正在 joining。
 
@@ -111,7 +111,7 @@ curl http://localhost:1976/api/node/holdings
 
 成功时，发布接口返回 `success: true`、`cid` 和 `link`，holding 接口能看到同一个 CID。
 
-直接文件下载路径仍需可用：
+直接文件下载路径仍需可用。`link` 可填 `most://<cid>?filename=<name>`、`https://most.box/cid/<cid>?filename=<name>`、`<cid>` 或 `<cid>?filename=<name>`：
 
 ```bash
 AUTH="$(auth_header POST /api/download/check)"
