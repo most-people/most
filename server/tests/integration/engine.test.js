@@ -2001,6 +2001,51 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
   })
 
   describe('channel presence', () => {
+    it('emits transient voice events without storing them in channel history', async () => {
+      const channelName = `voice-${uid}`
+      const alice = `0x${'e'.repeat(40)}`
+      const events = []
+      const onVoice = event => {
+        if (event.channelKey === channelName) events.push(event)
+      }
+
+      engine.on('channel:voice', onVoice)
+      try {
+        await engine.createChannel(channelName, 'personal', {
+          ownerAddress: alice,
+          displayName: 'Alice',
+        })
+        const messagesBefore = await engine.getChannelMessages(channelName, {
+          ownerAddress: alice,
+        })
+
+        const result = engine.sendChannelVoiceEvent(channelName, {
+          event: 'join',
+          sessionId: 'voice-alice',
+          micMuted: false,
+          displayName: 'Alice',
+          avatar: '/avatars/default/mint.svg',
+        }, {
+          ownerAddress: alice,
+        })
+
+        assert.strictEqual(result.event, 'join')
+        assert.strictEqual(result.sender.address, alice)
+        assert.strictEqual(result.sender.displayName, 'Alice')
+        assert.strictEqual(result.micMuted, false)
+        assert.strictEqual(events.length, 1)
+        assert.strictEqual(events[0].sessionId, 'voice-alice')
+
+        const messages = await engine.getChannelMessages(channelName, {
+          ownerAddress: alice,
+        })
+        assert.strictEqual(messages.length, messagesBefore.length)
+        assert.ok(!messages.some(message => message.type === 'channel-voice'))
+      } finally {
+        engine.off('channel:voice', onVoice)
+      }
+    })
+
     it('tracks local sessions and keeps profile separate from heartbeat', async () => {
       const channelName = `presence-local-${uid}`
       const alice = `0x${'c'.repeat(40)}`

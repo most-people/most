@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  ChevronRight,
   MessageSquare,
+  PhoneCall,
   Plus,
   X,
   Edit2,
@@ -53,6 +55,7 @@ import {
   createChatNoteDraft,
   getChatNoteDraftHref,
 } from '~/lib/chatNoteDraft'
+import { useGlobalVoiceRoom } from '~/features/chat/GlobalVoiceRoom'
 import { getLocalizedDownloadLinkValidationMessage } from '~/lib/i18n/downloadValidation'
 import {
   applyIncomingChannelMessageReadState,
@@ -259,6 +262,7 @@ function ChatPage() {
   const activeAttachmentDownloadsRef = useRef(new Set<string>())
   const isBackendReady = hasBackend === true
   const { t, compareStrings, formatDate, formatTime } = useI18n()
+  const voiceRoom = useGlobalVoiceRoom()
 
   const showApiError = useCallback(
     async (err: unknown, fallback: string) => {
@@ -536,6 +540,13 @@ function ChatPage() {
     userIdentity?.profileUpdatedAt,
     userIdentity?.username,
   ])
+  const activeVoiceRoomInfo = useMemo(() => {
+    if (!activeChannel) return null
+    return {
+      channelName: getChannelKey(activeChannel),
+      title: getChannelTitle(activeChannel),
+    }
+  }, [activeChannel])
 
   const {
     clearMessages: clearChannelMessages,
@@ -698,6 +709,15 @@ function ChatPage() {
   useEffect(() => {
     activeChannelNameRef.current = getChannelKey(activeChannel)
   }, [activeChannel])
+
+  useEffect(() => {
+    voiceRoom.setPreviewRoom(
+      userIdentity && activeVoiceRoomInfo ? activeVoiceRoomInfo : null
+    )
+    return () => {
+      voiceRoom.setPreviewRoom(null)
+    }
+  }, [activeVoiceRoomInfo, userIdentity, voiceRoom.setPreviewRoom])
 
   useEffect(() => {
     setChannelLastReadAt(readStoredChannelLastReadAt(channelReadStorageKey))
@@ -1452,6 +1472,28 @@ function ChatPage() {
   ) : (
     <h2 className="header-title">{t('chat.title')}</h2>
   )
+  const isVoiceRoomForActiveChannel = Boolean(
+    activeVoiceRoomInfo &&
+      voiceRoom.room?.channelName === activeVoiceRoomInfo.channelName
+  )
+  const voiceRemoteParticipantCount = voiceRoom.participants.filter(
+    participant => !participant.local
+  ).length
+  const voiceBannerCount = voiceRoom.joined
+    ? voiceRemoteParticipantCount
+    : voiceRoom.participants.length
+  const shouldShowVoiceBanner =
+    isVoiceRoomForActiveChannel &&
+    (voiceRoom.joined || voiceRoom.participants.length > 0)
+  const voiceBannerLabel = voiceRoom.joined
+    ? t('chat.voice.bannerJoined', { count: voiceBannerCount })
+    : t('chat.voice.bannerActive', { count: voiceBannerCount })
+
+  function handleOpenActiveVoiceRoom() {
+    if (!activeVoiceRoomInfo) return
+    voiceRoom.openRoom(activeVoiceRoomInfo)
+  }
+
   const channelSearchQuery = channelSearchInput.trim().toLowerCase()
   const sortedChannels = useMemo(
     () =>
@@ -1583,6 +1625,22 @@ function ChatPage() {
     >
       {activeChannel ? (
         <>
+          {shouldShowVoiceBanner && (
+            <button
+              type="button"
+              className="chat-voice-banner"
+              onClick={handleOpenActiveVoiceRoom}
+              title={t('chat.voice.expand')}
+            >
+              <span className="chat-voice-banner-icon">
+                <PhoneCall size={18} />
+              </span>
+              <span className="chat-voice-banner-label">
+                {voiceBannerLabel}
+              </span>
+              <ChevronRight size={18} />
+            </button>
+          )}
           <div className="chat-messages">
             {channelMessages.length === 0 ? (
               <div className="ui-empty-state chat-messages-empty">
@@ -1643,6 +1701,7 @@ function ChatPage() {
             attachmentMenuClassName={sparkbitActionMenuClassName}
             onMessageChange={setChannelInput}
             onSend={handleSendChannelMessage}
+            onOpenVoiceRoom={handleOpenActiveVoiceRoom}
             onSelectAttachmentFiles={files => {
               void handleSelectAttachmentFiles(files)
             }}

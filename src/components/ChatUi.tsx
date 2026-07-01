@@ -7,6 +7,7 @@ import {
   Image as ImageIcon,
   Loader,
   MessageSquare,
+  Mic,
   MoreHorizontal,
   Pin,
   PinOff,
@@ -50,6 +51,16 @@ const ATTACHMENT_MENU_OPTIONS = [
   accept: string
   icon: typeof ImageIcon
 }>
+
+const VOICE_MENU_OPTION = {
+  key: 'voice',
+  labelKey: 'chat.voice.menu',
+  icon: Mic,
+} as const satisfies {
+  key: string
+  labelKey: MessageKey
+  icon: typeof ImageIcon
+}
 
 const DEFAULT_ATTACHMENT_ACCEPT = ATTACHMENT_MENU_OPTIONS.map(
   option => option.accept
@@ -256,6 +267,7 @@ export function ChatComposer({
   attachmentMenuClassName,
   onMessageChange,
   onSend,
+  onOpenVoiceRoom,
   onSelectAttachmentFiles,
 }: {
   message: string
@@ -267,6 +279,7 @@ export function ChatComposer({
   attachmentMenuClassName?: string
   onMessageChange: (value: string) => void
   onSend: () => void
+  onOpenVoiceRoom?: () => void
   onSelectAttachmentFiles?: (files: FileList | null) => void
 }) {
   const { t } = useI18n()
@@ -311,15 +324,23 @@ export function ChatComposer({
         placement="top-start"
         disabled={toolsDisabled}
         menuClassName={attachmentMenuClassName}
-        items={ATTACHMENT_MENU_OPTIONS.map(option => {
-          const Icon = option.icon
-          return {
-            key: option.key,
-            label: t(option.labelKey),
-            icon: <Icon size={16} />,
-            onSelect: () => openAttachmentPicker(option.accept),
-          }
-        })}
+        items={[
+          ...ATTACHMENT_MENU_OPTIONS.map(option => {
+            const Icon = option.icon
+            return {
+              key: option.key,
+              label: t(option.labelKey),
+              icon: <Icon size={16} />,
+              onSelect: () => openAttachmentPicker(option.accept),
+            }
+          }),
+          {
+            key: VOICE_MENU_OPTION.key,
+            label: t(VOICE_MENU_OPTION.labelKey),
+            icon: <Mic size={16} />,
+            onSelect: () => onOpenVoiceRoom?.(),
+          },
+        ]}
         renderTrigger={triggerProps => (
           <button
             {...triggerProps}

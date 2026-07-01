@@ -20,6 +20,7 @@ import { Duplex } from 'node:stream'
 
 import { calculateCid, parseMostLink, buildMostLink } from './core/cid.js'
 import { normalizeChannelAttachment } from './core/channelAttachment.js'
+import { normalizeChannelVoiceEvent } from './core/channelVoice.js'
 import { getCidInfo } from './core/cidTopic.js'
 import {
   CHAT_FILE_ROOT,
@@ -201,6 +202,16 @@ export class MostBoxEngine extends EventEmitter {
     const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
     this.#pruneStaleChannelPresence()
     return this.#getChannelPresenceList(channel.channelKey)
+  }
+
+  sendChannelVoiceEvent(channelKeyInput, input = {}, options = {}) {
+    this.#ensureInitialized()
+    this.#assertChannelMember(channelKeyInput, options.ownerAddress)
+    const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
+    const event = normalizeChannelVoiceEvent(channel.channelKey, input, options)
+    this.#broadcastChannelVoice(event)
+    this.emit('channel:voice', event)
+    return event
   }
 
   joinChannelPresence(channelKeyInput, options = {}) {
@@ -4913,6 +4924,32 @@ export class MostBoxEngine extends EventEmitter {
     }
   }
 
+  #sendChannelVoice(stream, event) {
+    if (!stream || stream.destroyed || stream.writableEnded || !event) {
+      this.#channelStreams.delete(stream)
+      return false
+    }
+    try {
+      stream.write(
+        `${JSON.stringify({
+          type: 'channel-voice',
+          peerId: this.getNodeId(),
+          ...event,
+        })}\n`
+      )
+      return true
+    } catch {
+      this.#channelStreams.delete(stream)
+      return false
+    }
+  }
+
+  #broadcastChannelVoice(event) {
+    for (const stream of [...this.#channelStreams]) {
+      this.#sendChannelVoice(stream, event)
+    }
+  }
+
   async #processChannelHelloMessage(msg) {
     if (msg.type !== 'channel-hello') return null
 
@@ -5033,6 +5070,26 @@ export class MostBoxEngine extends EventEmitter {
     return peerId
   }
 
+  #processChannelVoiceMessage(msg) {
+    if (msg.type !== 'channel-voice') return null
+    const peerId = String(msg.peerId || '').trim()
+    if (!peerId || peerId === this.getNodeId()) return null
+    const channelId = normalizeChannelId(msg.channelId || msg.channelKey)
+    const channelKey = buildChannelKey(channelId)
+    const localChannel = this.#channels.find(
+      channel => channel.channelKey === channelKey
+    )
+    if (!localChannel) return peerId
+
+    try {
+      const event = normalizeChannelVoiceEvent(channelKey, msg, {
+        timestamp: msg.timestamp,
+      })
+      this.emit('channel:voice', event)
+    } catch {}
+    return peerId
+  }
+
   async #handleChannelConnection(conn) {
     const stream = conn
     let connectedPeerId = null
@@ -5055,7 +5112,9 @@ export class MostBoxEngine extends EventEmitter {
           const peerId =
             message.type === 'channel-presence'
               ? this.#processChannelPresenceMessage(message)
-              : await this.#processChannelHelloMessage(message)
+              : message.type === 'channel-voice'
+                ? this.#processChannelVoiceMessage(message)
+                : await this.#processChannelHelloMessage(message)
           if (peerId) connectedPeerId = peerId
         } catch (err) {
           console.warn(`[MostBox] Failed to process channel data:`, err.message)

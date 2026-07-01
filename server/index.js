@@ -143,6 +143,9 @@ function bindEngineEvents({
   engine.on('channel:presence', data =>
     wsSendToChannel(data.channelKey, 'channel:presence', data)
   )
+  engine.on('channel:voice', data =>
+    wsSendToChannel(data.channelKey, 'channel:voice', data)
+  )
   engine.on('channel:joined', data => wsBroadcast('channel:joined', data))
   engine.on('channel:left', data => wsBroadcast('channel:left', data))
   engine.on('user:metadata:updated', data => {
@@ -162,7 +165,7 @@ function bindEngineEvents({
   }
 }
 
-function createWebSocketServer({
+export function createWebSocketServer({
   engine,
   serverInstance,
   validateWebSocketRequest,
@@ -244,6 +247,20 @@ function createWebSocketServer({
                 ownerAddress: ws.userAddress,
                 sourceId: ws.presenceSourceId,
                 sessionId: data.sessionId,
+              })
+            }
+            break
+          case 'channel:voice:join':
+          case 'channel:voice:state':
+          case 'channel:voice:heartbeat':
+          case 'channel:voice:leave':
+          case 'channel:voice:signal':
+            if (data.channel && ws.userAddress) {
+              engine.sendChannelVoiceEvent(data.channel, {
+                ...data,
+                event: event.replace('channel:voice:', ''),
+              }, {
+                ownerAddress: ws.userAddress,
               })
             }
             break

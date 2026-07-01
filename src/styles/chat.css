@@ -195,6 +195,267 @@
   }
 }
 
+/* === Voice Room === */
+.chat-voice-banner {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 14px 24px 0;
+  padding: 0 16px;
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  cursor: pointer;
+  text-align: left;
+}
+
+.chat-voice-banner:hover {
+  border-color: color-mix(in srgb, var(--success) 44%, var(--glass-border));
+}
+
+.chat-voice-banner-icon {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--success);
+}
+
+.chat-voice-banner-label {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.chat-voice-room-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 260;
+  width: 100vw;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+}
+
+.chat-voice-room-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.chat-voice-room-heading {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.chat-voice-room-icon {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--glass-border));
+}
+
+.chat-voice-room-heading h3 {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.25;
+}
+
+.chat-voice-room-heading p {
+  margin: 3px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.chat-voice-room-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+.chat-voice-error {
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 22%, var(--glass-border));
+  font-size: 13px;
+}
+
+.chat-voice-member-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(136px, 1fr));
+  gap: 14px;
+}
+
+.chat-voice-member-card {
+  min-height: 154px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px 12px;
+  border-radius: var(--radius-md);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+.chat-voice-avatar-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.chat-voice-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.chat-voice-mic-state {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--success);
+  border: 2px solid var(--bg-primary);
+}
+
+.chat-voice-mic-state.muted {
+  background: var(--danger);
+}
+
+.chat-voice-member-name {
+  max-width: 100%;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-voice-member-status {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.chat-voice-member-card audio {
+  display: none;
+}
+
+.chat-voice-empty {
+  grid-column: 1 / -1;
+  min-height: 280px;
+}
+
+.chat-voice-room-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+}
+
+.chat-voice-control,
+.chat-voice-join {
+  min-width: 128px;
+}
+
+.chat-voice-audio-sink {
+  display: none;
+}
+
+.chat-voice-floating {
+  position: fixed;
+  right: clamp(16px, 4vw, 32px);
+  bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+  z-index: 240;
+  width: 96px;
+  min-height: 108px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 10px 10px;
+  border-radius: 22px;
+  color: var(--success);
+  background: var(--glass-bg-heavy);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow-lg);
+  cursor: pointer;
+  backdrop-filter: var(--blur-lg);
+  -webkit-backdrop-filter: var(--blur-lg);
+}
+
+.chat-voice-floating:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--success) 40%, var(--glass-border));
+}
+
+.chat-voice-floating-phone {
+  line-height: 1;
+}
+
+.chat-voice-floating-main {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.chat-voice-floating-meta {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding-top: 7px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--glass-border);
+}
+
 /* === Welcome State === */
 .chat-welcome {
   flex: 1;
@@ -369,6 +630,18 @@
 
   .chat-messages {
     padding: 16px;
+  }
+
+  .chat-voice-banner {
+    margin: 12px 16px 0;
+  }
+
+  .chat-voice-floating {
+    right: 16px;
+    bottom: calc(104px + env(safe-area-inset-bottom, 0px));
+    width: 88px;
+    min-height: 98px;
+    border-radius: 20px;
   }
 
   .chat-message {
@@ -1104,6 +1377,17 @@
 }
 
 @media (max-width: 560px) {
+  .chat-voice-room-header,
+  .chat-voice-room-body,
+  .chat-voice-room-controls {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .chat-voice-member-grid {
+    grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+  }
+
   .chat-join-demo-grid {
     grid-template-columns: minmax(0, 1fr);
   }

@@ -26,6 +26,7 @@ import {
 import { ErrorBoundary } from '~/features/system/ErrorBoundary'
 import NotFoundPage from '~/features/system/NotFoundPage'
 import AppGlobals from '~/components/AppGlobals'
+import { GlobalVoiceRoomProvider } from '~/features/chat/GlobalVoiceRoom'
 import { I18nProvider, translateMessage } from '~/lib/i18n'
 
 export const Route = createRootRoute({
@@ -51,11 +52,13 @@ function RootRoute() {
     <RootDocument>
       <I18nProvider>
         <ErrorBoundary>
-          <ClientOnly>
-            <AppGlobals />
-          </ClientOnly>
-          <GlobalErrorHandler />
-          <Outlet />
+          <GlobalVoiceRoomProvider>
+            <ClientOnly>
+              <AppGlobals />
+            </ClientOnly>
+            <GlobalErrorHandler />
+            <Outlet />
+          </GlobalVoiceRoomProvider>
         </ErrorBoundary>
       </I18nProvider>
     </RootDocument>
