@@ -4,10 +4,12 @@ Android chat-first alpha for MostBox. This package keeps the React Native UI and
 
 ## Current State
 
-- The first screen is chat-first: node status, a chat room panel, message composer, attachment action, incoming attachment link handling, holdings, transfers, and logs.
+- Android opens on the Chat tab with a native chat list aligned to the Web `/chat/` entry.
+- The Chat tab includes chat room and chat settings screens, message compose, attachment compose, and received `most://` links rendered as chat attachment cards with download actions.
+- The secondary Node tab is for diagnostics: node status, holdings, transfers, logs, and holding export/delete actions.
 - Channel create/list/messages/presence use the mobile Bare Worklet P2P core over JSONL IPC.
 - Sending an attachment publishes the selected file, creates the `most://<cid>?filename=...` link, posts that link into the active chat room, and keeps the Android node seeding in the foreground.
-- Received chat messages that contain a `most://` link can be moved into the attachment receiver and downloaded by the Android node.
+- Received chat messages that contain a `most://` link render as chat attachment cards; tapping the attachment download action downloads and verifies the file with the Android node.
 - Android and desktop MostBox nodes have completed end-to-end publish/download/CID verification/seeding interop in foreground mode.
 - `backend/backend.mjs` starts the real mobile P2P core.
 - The mobile P2P core uses Hyperswarm, Corestore, Hyperdrive, CID digest topics, `/<cid>` drive paths, and CID verification before downloaded files become holdings.
@@ -42,15 +44,15 @@ The release build is an internal alpha artifact. It uses the current local Andro
 Use one Android device and at least one desktop MostBox node:
 
 1. Start the Android dev client with `npm start`, or install the APK from `mobile/android/dist/`.
-2. Confirm the Android header reaches `在线`.
-3. In Android, join or create a chat room such as `chat-android`.
+2. Open the Node tab and confirm the Android node reaches `在线`.
+3. Return to the Chat tab, then join or create a chat room such as `chat-android`.
 4. In desktop MostBox, open `/chat/`, join the same room, and send a message both ways.
 5. In Android, tap `发送附件`, choose a file, and confirm a chat message containing a `most://` link appears.
 6. Download that link from the desktop node. The desktop download must pass CID verification.
-7. Send a desktop `most://` attachment link into the chat room, tap `接收附件` on Android, and download it.
-8. Confirm Android adds the downloaded file to Holdings with `active` and `topicJoined` true.
-9. Use `打开/分享` from the Android holding row and confirm Android shows the system share/open sheet.
-10. Use `保存` from the Android holding row, choose a phone folder, and confirm a user-visible copy is created.
+7. Send a desktop `most://` attachment link into the chat room, confirm Android renders it as an attachment card, then tap the chat attachment download action.
+8. Open the Node tab and confirm Android adds the downloaded file to Holdings with `active` and `topicJoined` true.
+9. In the Node tab, use `打开/分享` from the Android holding row and confirm Android shows the system share/open sheet.
+10. In the Node tab, use `保存` from the Android holding row, choose a phone folder, and confirm a user-visible copy is created.
 11. Delete that Android holding and confirm the row disappears, the app stops seeding that CID, and the user-visible copy saved in step 10 still exists.
 12. Stop the original desktop publisher. Keep Android in the foreground, then download the same link from another desktop node.
 13. Restart the Android app and confirm existing holdings rejoin their CID topics.
@@ -69,9 +71,9 @@ Before each alpha release, use the handoff helper to replay the highest-value fo
 node scripts/android-real-p2p-seed.mjs --handoff-check
 ```
 
-The script publishes a small desktop fixture, prints the `most://` link, and waits while Android downloads it. Keep Android in the foreground, paste or receive the printed link, then confirm these observations before pressing Enter in the script:
+The script publishes a small desktop fixture, prints the `most://` link, and waits while Android downloads it. Keep Android in the foreground, send or receive the printed link in the active chat room, then confirm these observations before pressing Enter in the script:
 
-- Android header is `Ready` / `在线`.
+- The Node tab shows Android as `Ready` / `在线`.
 - The download transfer for the printed link is completed.
 - Holdings contains the printed CID, the size matches, `status` is `active`, and `topicJoined` is true.
 - Android logs mention the download completion and seeding/holding update.

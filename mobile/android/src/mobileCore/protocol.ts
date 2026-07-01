@@ -31,6 +31,40 @@ export function getCidTopicDigest(cid: string) {
   return CID.parse(cid).multihash.digest
 }
 
+function decodeQueryPart(value: string) {
+  try {
+    return decodeURIComponent(value.replace(/\+/g, '%20'))
+  } catch {
+    return value
+  }
+}
+
+function parseMostLinkQuery(search: string) {
+  const query = search.startsWith('?') ? search.slice(1) : search
+  if (!query) return { fileName: '', unsupportedQuery: false }
+
+  let fileName = ''
+  for (const part of query.split('&')) {
+    if (!part) continue
+
+    const separatorIndex = part.indexOf('=')
+    const rawKey =
+      separatorIndex === -1 ? part : part.slice(0, separatorIndex)
+    const rawValue =
+      separatorIndex === -1 ? '' : part.slice(separatorIndex + 1)
+    const key = decodeQueryPart(rawKey)
+    if (key !== 'filename') {
+      return { fileName: '', unsupportedQuery: true }
+    }
+
+    if (!fileName) {
+      fileName = decodeQueryPart(rawValue).trim()
+    }
+  }
+
+  return { fileName, unsupportedQuery: false }
+}
+
 export function parseMostLink(link: string): ParsedMostLink {
   if (!link || typeof link !== 'string') {
     throw new Error(MOST_LINK_ERROR_MESSAGES.linkEmpty)
@@ -51,10 +85,8 @@ export function parseMostLink(link: string): ParsedMostLink {
     throw new Error(MOST_LINK_ERROR_MESSAGES.unsupportedPath)
   }
 
-  const unsupportedParam = [...url.searchParams.keys()].find(
-    key => key !== 'filename'
-  )
-  if (unsupportedParam) {
+  const query = parseMostLinkQuery(url.search)
+  if (query.unsupportedQuery) {
     throw new Error(MOST_LINK_ERROR_MESSAGES.unsupportedQuery)
   }
 
@@ -74,7 +106,7 @@ export function parseMostLink(link: string): ParsedMostLink {
     throw new Error(MOST_LINK_ERROR_MESSAGES.cidDigestLength)
   }
 
-  const fileName = url.searchParams.get('filename')?.trim() || cid
+  const fileName = query.fileName || cid
 
   return { cid, fileName }
 }

@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { CID } from 'multiformats/cid'
 
 export const CHANNELS_FILE = 'mobile-channels.json'
 export const CHANNEL_NAME_PREFIX = 'most-box-room-'
@@ -11,6 +12,18 @@ export const CHANNEL_CANDIDATE_TTL = 30 * 1000
 export const CHANNEL_PRESENCE_HEARTBEAT_MS = 15 * 1000
 export const CHANNEL_PRESENCE_TIMEOUT_MS = 45 * 1000
 export const MAX_CHANNEL_MESSAGE_LENGTH = 2000
+export const MAX_CHANNEL_REMARK_LENGTH = 50
+export const MAX_CHANNEL_ATTACHMENT_CID_LENGTH = 128
+export const MAX_CHANNEL_ATTACHMENT_FILE_NAME_LENGTH = 255
+export const MAX_CHANNEL_ATTACHMENT_LINK_LENGTH = 2048
+export const MAX_CHANNEL_ATTACHMENT_MIME_TYPE_LENGTH = 100
+export const CHANNEL_ATTACHMENT_KINDS = new Set([
+  'image',
+  'video',
+  'audio',
+  'text',
+  'file',
+])
 export const DIAGNOSTIC_AUTHOR =
   '0x0000000000000000000000000000000000000001'
 export const DIAGNOSTIC_AUTHOR_NAME = 'Android'
@@ -48,6 +61,137 @@ export function normalizeChannelPresenceDisplayName(input, fallbackAddress = '')
 
 export function normalizeChannelPresenceAvatar(input) {
   return String(input || '').trim().slice(0, 4096)
+}
+
+export function normalizeChannelRemark(input) {
+  return String(input || '').trim().slice(0, MAX_CHANNEL_REMARK_LENGTH)
+}
+
+export function normalizeBoolean(input) {
+  return input === true
+}
+
+function sanitizeAttachmentFileName(input) {
+  const value = String(input || '')
+    .replace(/\\/g, '/')
+    .replace(/[<>:"|?*\x00-\x1F]/g, '_')
+    .replace(/^[\s.]+|[\s.]+$/g, '')
+    .replace(/\.\./g, '_')
+    .replace(/\/{2,}/g, '/')
+    .replace(/^\/+|\/+$/g, '')
+  return value
+    .split('/')
+    .map(segment => segment.slice(0, MAX_CHANNEL_ATTACHMENT_FILE_NAME_LENGTH))
+    .join('/') || 'unnamed_file'
+}
+
+function decodeQueryPart(value) {
+  try {
+    return decodeURIComponent(value.replace(/\+/g, '%20'))
+  } catch {
+    return value
+  }
+}
+
+function parseMostAttachmentLinkQuery(search) {
+  const query = search.startsWith('?') ? search.slice(1) : search
+  if (!query) return { fileName: '', unsupportedQuery: false }
+
+  let fileName = ''
+  for (const part of query.split('&')) {
+    if (!part) continue
+
+    const separatorIndex = part.indexOf('=')
+    const rawKey =
+      separatorIndex === -1 ? part : part.slice(0, separatorIndex)
+    const rawValue =
+      separatorIndex === -1 ? '' : part.slice(separatorIndex + 1)
+    const key = decodeQueryPart(rawKey)
+    if (key !== 'filename') {
+      return { fileName: '', unsupportedQuery: true }
+    }
+
+    if (!fileName) {
+      fileName = decodeQueryPart(rawValue).trim()
+    }
+  }
+
+  return { fileName, unsupportedQuery: false }
+}
+
+function parseMostAttachmentLink(link) {
+  let url
+  try {
+    url = new URL(link)
+  } catch {
+    return null
+  }
+
+  if (url.protocol !== 'most:') return null
+  if (url.pathname && url.pathname !== '/') return null
+
+  const query = parseMostAttachmentLinkQuery(url.search)
+  if (query.unsupportedQuery) return null
+
+  const cid = url.hostname
+  try {
+    const parsedCid = CID.parse(cid)
+    if (parsedCid.version !== 1) return null
+    if (parsedCid.multihash.digest.length !== 32) return null
+  } catch {
+    return null
+  }
+
+  return {
+    cid,
+    fileName: query.fileName || cid,
+  }
+}
+
+function buildMostAttachmentLink(cid, fileName) {
+  return `most://${cid}?filename=${encodeURIComponent(fileName)}`
+}
+
+export function normalizeChannelAttachment(input = {}) {
+  if (!input || typeof input !== 'object') return undefined
+
+  const kind = String(input.kind || 'file').trim()
+  const cid = String(input.cid || '').trim()
+  const fileName = sanitizeAttachmentFileName(input.fileName)
+  const link = String(input.link || '').trim()
+  const parsedLink = parseMostAttachmentLink(link)
+
+  if (!cid || !fileName || fileName === 'unnamed_file') return undefined
+  if (!link || !parsedLink) return undefined
+  if (cid.length > MAX_CHANNEL_ATTACHMENT_CID_LENGTH) return undefined
+  if (link.length > MAX_CHANNEL_ATTACHMENT_LINK_LENGTH) return undefined
+  if (parsedLink.cid !== cid) return undefined
+  if (sanitizeAttachmentFileName(parsedLink.fileName) !== fileName) {
+    return undefined
+  }
+
+  const attachment = {
+    kind: CHANNEL_ATTACHMENT_KINDS.has(kind) ? kind : 'file',
+    cid,
+    fileName,
+    link: buildMostAttachmentLink(cid, fileName),
+  }
+
+  if (
+    typeof input.mimeType === 'string' &&
+    input.mimeType.trim().length > 0 &&
+    input.mimeType.trim().length <= MAX_CHANNEL_ATTACHMENT_MIME_TYPE_LENGTH
+  ) {
+    attachment.mimeType = input.mimeType.trim()
+  }
+
+  if (input.size !== undefined && input.size !== null) {
+    const size = Number(input.size)
+    if (!Number.isFinite(size) || size < 0) return undefined
+    attachment.size = Math.floor(size)
+  }
+
+  return attachment
 }
 
 export function createChannelWriterId() {
@@ -104,6 +248,8 @@ export function createChannelRecord(channelIdInput, type = 'public', options = {
     type,
     createdAt,
     lastMessageAt: options.lastMessageAt || '',
+    remark: options.remark || '',
+    pinned: options.pinned === true,
     localWriterCoreKey: options.localWriterCoreKey || '',
     writerCoreKeys: options.writerCoreKeys || [],
     writerId: options.writerId || createChannelWriterId(),
@@ -126,6 +272,8 @@ export function normalizeChannelRecord(record = {}) {
         : new Date().toISOString(),
     lastMessageAt:
       typeof record.lastMessageAt === 'string' ? record.lastMessageAt : '',
+    remark: normalizeChannelRemark(record.remark),
+    pinned: normalizeBoolean(record.pinned),
     localWriterCoreKey,
     writerCoreKeys: uniqueStrings([
       ...(Array.isArray(record.writerCoreKeys) ? record.writerCoreKeys : []),
@@ -142,6 +290,8 @@ export function channelToCandidate(channel, local = false) {
     type: channel.type,
     createdAt: channel.createdAt,
     lastMessageAt: channel.lastMessageAt || '',
+    remark: channel.remark || '',
+    pinned: channel.pinned === true,
     writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
     local,
   }
@@ -156,6 +306,8 @@ export function formatChannelForResponse(channel, peerCount = 0) {
     type: channel.type,
     createdAt: channel.createdAt,
     lastMessageAt: channel.lastMessageAt || '',
+    remark: channel.remark || '',
+    pinned: channel.pinned === true,
     localWriterCoreKey: channel.localWriterCoreKey || '',
     writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
     peerCount,
@@ -170,6 +322,24 @@ export function normalizeChannelMessage(input = {}, options = {}) {
       `Channel message content must be at most ${MAX_CHANNEL_MESSAGE_LENGTH} characters`
     )
   }
+  const hasAttachmentInput =
+    input.attachment !== undefined && input.attachment !== null
+  const attachment = normalizeChannelAttachment(input.attachment)
+  if (hasAttachmentInput && !attachment && options.requireAttachment) {
+    throw new Error('Invalid channel attachment')
+  }
+  if (attachment && content !== attachment.link) {
+    if (options.requireAttachment) {
+      throw new Error('attachment content must match link')
+    }
+    return {
+      type: 'message',
+      author: String(input.author || DIAGNOSTIC_AUTHOR).trim(),
+      authorName: String(input.authorName || DIAGNOSTIC_AUTHOR_NAME).trim(),
+      content,
+      timestamp: Number(options.timestamp || input.timestamp || Date.now()),
+    }
+  }
 
   return {
     type: 'message',
@@ -177,6 +347,7 @@ export function normalizeChannelMessage(input = {}, options = {}) {
     authorName: String(input.authorName || DIAGNOSTIC_AUTHOR_NAME).trim(),
     content,
     timestamp: Number(options.timestamp || input.timestamp || Date.now()),
+    ...(attachment ? { attachment } : {}),
   }
 }
 
@@ -186,7 +357,8 @@ export function sortChannelMessages(messages = [], limit = CHANNEL_MESSAGE_LIMIT
 
   for (const message of messages) {
     if (!message || message.type !== 'message') continue
-    const key = `${message._coreKey || ''}:${message.author}:${message.timestamp}:${message.content}`
+    const attachmentLink = message.attachment?.link || ''
+    const key = `${message._coreKey || ''}:${message.author}:${message.timestamp}:${message.content}:${attachmentLink}`
     if (seen.has(key)) continue
     seen.add(key)
     unique.push(message)

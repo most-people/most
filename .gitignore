@@ -25,6 +25,8 @@ most-data/
 # opencode
 .opencode/
 opencode.jsonc
+.superpowers/
+.worktrees/
 .tmp/android-build/
 .tmp/android-real-p2p-seed/
 

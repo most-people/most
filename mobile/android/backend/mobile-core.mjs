@@ -21,6 +21,7 @@ import {
   generateChannelChatDiscoveryKey,
   generateChannelDiscoveryKey,
   generateChannelIdDiscoveryKey,
+  normalizeChannelRemark,
   normalizeChannelId,
   normalizeChannelKey,
   normalizeChannelMessage,
@@ -663,6 +664,76 @@ export class MobileP2PCore {
     return this.#toMobileChannel(channel)
   }
 
+  async leaveChannel(input = {}) {
+    this.#ensureReady()
+    const channel = this.#resolveChannel(input.channelName || input.name)
+    const channelKey = channel.channelKey
+    const coresMap = this.#channelCores.get(channelKey)
+    const discoveries = [
+      this.#channelDiscoveries.get(channelKey),
+      this.#channelChatDiscoveries.get(channelKey),
+      this.#channelIdDiscoveries.get(channel.channelId),
+    ].filter(Boolean)
+
+    for (const discovery of discoveries) {
+      try {
+        await discovery.destroy?.()
+      } catch {}
+    }
+
+    if (coresMap) {
+      await Promise.allSettled([...coresMap.values()].map(core => core.close()))
+    }
+
+    this.#channelDiscoveries.delete(channelKey)
+    this.#channelChatDiscoveries.delete(channelKey)
+    this.#channelIdDiscoveries.delete(channel.channelId)
+    this.#channelCores.delete(channelKey)
+    this.#channelLocalCoreKey.delete(channelKey)
+    this.#channelPeers.delete(channelKey)
+    this.#channelMessageCache.delete(channelKey)
+    this.#clearChannelPresenceForChannel(channelKey)
+    this.#clearChannelCandidate(channel)
+    this.#channels = this.#channels.filter(item => item.channelKey !== channelKey)
+    this.#saveChannels()
+    this.#emitSnapshot()
+    this.#send('channel.left', {
+      channelKey,
+      snapshot: this.getSnapshot(),
+    })
+    this.#log('info', `Left channel ${channelKey}`)
+    return {
+      channelKey,
+      snapshot: this.getSnapshot(),
+    }
+  }
+
+  async setChannelRemark(input = {}) {
+    this.#ensureReady()
+    const channel = this.#resolveChannel(input.channelName || input.name)
+    channel.remark = normalizeChannelRemark(input.remark)
+    this.#saveChannels()
+    this.#emitSnapshot()
+    this.#send('channel.updated', {
+      channel: this.#toMobileChannel(channel),
+      snapshot: this.getSnapshot(),
+    })
+    return this.#toMobileChannel(channel)
+  }
+
+  async setChannelPinned(input = {}) {
+    this.#ensureReady()
+    const channel = this.#resolveChannel(input.channelName || input.name)
+    channel.pinned = input.pinned === true
+    this.#saveChannels()
+    this.#emitSnapshot()
+    this.#send('channel.updated', {
+      channel: this.#toMobileChannel(channel),
+      snapshot: this.getSnapshot(),
+    })
+    return this.#toMobileChannel(channel)
+  }
+
   async getChannelMessages(input = {}) {
     this.#ensureReady()
     const channelName =
@@ -680,25 +751,36 @@ export class MobileP2PCore {
       for (let i = 0; i < core.length; i++) {
         try {
           const entry = await core.get(i)
+          if (!this.#isChannelActive(channel.channelKey)) return []
           if (entry && entry.type === 'message') {
+            const message = this.#normalizeIncomingChannelMessage(entry)
+            if (!message) continue
             allMessages.push({
-              ...entry,
+              ...message,
               _coreKey: coreKeyHex,
               _index: i,
             })
           }
         } catch {
+          if (!this.#isChannelActive(channel.channelKey)) return []
           break
         }
       }
     }
+
+    if (!this.#isChannelActive(channel.channelKey)) return []
 
     const messages = sortChannelMessages(
       allMessages,
       limit || CHANNEL_MESSAGE_LIMIT,
       offset || 0
     )
+    if (!this.#isChannelActive(channel.channelKey)) return []
     this.#cacheChannelMessages(channel.channelKey, messages)
+    if (!this.#isChannelActive(channel.channelKey)) {
+      this.#channelMessageCache.delete(channel.channelKey)
+      return []
+    }
     this.#emitSnapshot()
     return messages
   }
@@ -719,15 +801,19 @@ export class MobileP2PCore {
         content: input.content,
         author: input.author || DIAGNOSTIC_AUTHOR,
         authorName: input.authorName || DIAGNOSTIC_AUTHOR_NAME,
+        attachment: input.attachment,
       },
       {
         timestamp: await this.#getNextChannelMessageTimestamp(
           channel.channelKey
         ),
+        requireAttachment: Boolean(input.attachment),
       }
     )
 
     await core.append(message)
+    if (!this.#isChannelActive(channel.channelKey)) return message
+
     channel.lastMessageAt = new Date(message.timestamp).toISOString()
     this.#saveChannels()
     this.#cacheChannelMessages(channel.channelKey, [
@@ -1349,6 +1435,17 @@ export class MobileP2PCore {
     })
   }
 
+  #clearChannelCandidate(channel) {
+    const channelId = normalizeChannelId(channel?.channelId)
+    const channelKey = normalizeChannelKey(channel?.channelKey || channelId)
+    const cache = this.#channelCandidateCache.get(channelId)
+    if (!cache) return
+    cache.delete(channelKey)
+    if (cache.size === 0) {
+      this.#channelCandidateCache.delete(channelId)
+    }
+  }
+
   #resolveChannel(channelKeyInput) {
     const key = normalizeChannelKey(channelKeyInput)
     const channel = this.#channels.find(
@@ -1364,6 +1461,10 @@ export class MobileP2PCore {
         ? input
         : input.channelName || input.channel || input.name
     return this.#resolveChannel(channelName)
+  }
+
+  #isChannelActive(channelKey) {
+    return this.#channels.some(channel => channel.channelKey === channelKey)
   }
 
   #normalizeLocalPresenceOptions(input = {}, options = {}) {
@@ -1415,32 +1516,72 @@ export class MobileP2PCore {
     return Math.max(Date.now(), maxTimestamp + 1)
   }
 
+  #normalizeIncomingChannelMessage(entry) {
+    if (!entry || entry.type !== 'message') return null
+    try {
+      return normalizeChannelMessage(
+        {
+          author: entry.author,
+          authorName: entry.authorName,
+          content: entry.content,
+          attachment: entry.attachment,
+        },
+        {
+          timestamp: Number(entry.timestamp) || Date.now(),
+        }
+      )
+    } catch {
+      return null
+    }
+  }
+
   #setupChannelAppendListener(core, channelKey) {
     let lastCoreLength = core.length
     core.on('append', async () => {
       if (core.length <= lastCoreLength) return
+      if (!this.#isChannelActive(channelKey)) {
+        lastCoreLength = core.length
+        return
+      }
 
       for (let i = lastCoreLength; i < core.length; i++) {
         try {
           const entry = await core.get(i)
-          if (!entry || entry.type !== 'message') continue
-          const channel = this.#channels.find(c => c.channelKey === channelKey)
-          if (channel) {
-            const entryTime = Number(entry.timestamp) || Date.now()
-            const currentTime = Date.parse(channel.lastMessageAt || '') || 0
-            if (entryTime > currentTime) {
-              channel.lastMessageAt = new Date(entryTime).toISOString()
-              this.#saveChannels()
-            }
+          if (!this.#isChannelActive(channelKey)) {
+            lastCoreLength = core.length
+            return
           }
-          const message = {
-            ...entry,
-            timestamp: Number(entry.timestamp) || Date.now(),
+          if (!entry || entry.type !== 'message') continue
+          const message = this.#normalizeIncomingChannelMessage(entry)
+          if (!message) continue
+          const channel = this.#channels.find(c => c.channelKey === channelKey)
+          if (!channel) {
+            lastCoreLength = core.length
+            return
+          }
+          const entryTime = Number(message.timestamp) || Date.now()
+          const currentTime = Date.parse(channel.lastMessageAt || '') || 0
+          if (entryTime > currentTime) {
+            if (!this.#isChannelActive(channelKey)) {
+              lastCoreLength = core.length
+              return
+            }
+            channel.lastMessageAt = new Date(entryTime).toISOString()
+            this.#saveChannels()
+          }
+          if (!this.#isChannelActive(channelKey)) {
+            lastCoreLength = core.length
+            return
           }
           this.#cacheChannelMessages(channelKey, [
             ...(this.#channelMessageCache.get(channelKey) || []),
             message,
           ])
+          if (!this.#isChannelActive(channelKey)) {
+            this.#channelMessageCache.delete(channelKey)
+            lastCoreLength = core.length
+            return
+          }
           this.#send('channel.message', {
             channel: channelKey,
             channelKey,
@@ -1448,6 +1589,10 @@ export class MobileP2PCore {
             message,
             snapshot: this.getSnapshot(),
           })
+          if (!this.#isChannelActive(channelKey)) {
+            lastCoreLength = core.length
+            return
+          }
           this.#emitSnapshot()
         } catch (err) {
           this.#log('warn', `Failed to read channel message: ${err.message}`)
@@ -1833,6 +1978,24 @@ export class MobileP2PCore {
         )
       )
       .filter(Boolean)
+  }
+
+  #clearChannelPresenceForChannel(channelKey) {
+    const sessions = this.#channelPresenceSessions.get(channelKey)
+    if (sessions) {
+      const localAddresses = uniqueStrings(
+        [...sessions.values()]
+          .filter(session => session.local)
+          .map(session => session.address)
+      )
+      this.#channelPresenceSessions.delete(channelKey)
+      for (const address of localAddresses) {
+        this.#broadcastChannelPresence(
+          this.#formatChannelPresence(channelKey, address, 'offline')
+        )
+      }
+    }
+    this.#channelPresenceProfiles.delete(channelKey)
   }
 
   #removeChannelPresenceSessionsBySource(sourceId) {
@@ -2314,10 +2477,14 @@ export class MobileP2PCore {
   }
 
   #toMobileChannel(channel) {
-    return formatChannelForResponse(
-      channel,
-      (this.#channelPeers.get(channel.channelKey) || new Map()).size
-    )
+    return {
+      ...formatChannelForResponse(
+        channel,
+        (this.#channelPeers.get(channel.channelKey) || new Map()).size
+      ),
+      remark: channel.remark || '',
+      pinned: channel.pinned === true,
+    }
   }
 
   #cacheChannelMessages(channelKey, messages = []) {

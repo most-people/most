@@ -9,6 +9,9 @@ import type {
   DownloadLinkInput,
   ExportHoldingInput,
   ExportHoldingResult,
+  LeaveChannelInput,
+  LeaveChannelResult,
+  MobileChannelAttachment,
   MobileChannel,
   MobileChannelMessage,
   MobileChannelPresence,
@@ -18,6 +21,9 @@ import type {
   MobileTransfer,
   MostBoxMobileCore,
   PublishFileInput,
+  SendChannelMessageInput,
+  SetChannelPinnedInput,
+  SetChannelRemarkInput,
 } from './types'
 
 type BareWorkletMostBoxCoreOptions = {
@@ -116,7 +122,27 @@ function isChannel(value: unknown): value is MobileChannel {
   return (
     typeof record.channelId === 'string' &&
     typeof record.channelKey === 'string' &&
-    Array.isArray(record.writerCoreKeys)
+    Array.isArray(record.writerCoreKeys) &&
+    typeof record.remark === 'string' &&
+    typeof record.pinned === 'boolean'
+  )
+}
+
+function isChannelAttachment(value: unknown): value is MobileChannelAttachment {
+  const record = asRecord(value)
+  const validKind =
+    record.kind === 'image' ||
+    record.kind === 'video' ||
+    record.kind === 'audio' ||
+    record.kind === 'text' ||
+    record.kind === 'file'
+  return (
+    validKind &&
+    typeof record.cid === 'string' &&
+    typeof record.fileName === 'string' &&
+    typeof record.link === 'string' &&
+    (record.mimeType === undefined || typeof record.mimeType === 'string') &&
+    (record.size === undefined || typeof record.size === 'number')
   )
 }
 
@@ -126,7 +152,9 @@ function isChannelMessage(value: unknown): value is MobileChannelMessage {
     typeof record.author === 'string' &&
     typeof record.authorName === 'string' &&
     typeof record.content === 'string' &&
-    typeof record.timestamp === 'number'
+    typeof record.timestamp === 'number' &&
+    (record.attachment === undefined ||
+      isChannelAttachment(record.attachment))
   )
 }
 
@@ -358,6 +386,43 @@ export class BareWorkletMostBoxCore implements MostBoxMobileCore {
     return extractChannel(result)
   }
 
+  async leaveChannel(input: LeaveChannelInput): Promise<LeaveChannelResult> {
+    await this.#ensureStarted()
+    const result = await this.#request(
+      COMMANDS.CHANNEL_LEAVE,
+      input,
+      [EVENTS.CHANNEL_LEFT],
+      30000
+    )
+    const record = asRecord(result)
+    return {
+      channelKey: String(record.channelKey || input.channelName),
+      snapshot: this.#clone(),
+    }
+  }
+
+  async setChannelRemark(input: SetChannelRemarkInput): Promise<MobileChannel> {
+    await this.#ensureStarted()
+    const result = await this.#request(
+      COMMANDS.CHANNEL_REMARK_SET,
+      input,
+      [EVENTS.CHANNEL_UPDATED],
+      10000
+    )
+    return extractChannel(result)
+  }
+
+  async setChannelPinned(input: SetChannelPinnedInput): Promise<MobileChannel> {
+    await this.#ensureStarted()
+    const result = await this.#request(
+      COMMANDS.CHANNEL_PIN_SET,
+      input,
+      [EVENTS.CHANNEL_UPDATED],
+      10000
+    )
+    return extractChannel(result)
+  }
+
   async listChannels(): Promise<MobileChannel[]> {
     if (!this.#worklet) return this.#snapshot.channels
     await this.#request(
@@ -382,12 +447,9 @@ export class BareWorkletMostBoxCore implements MostBoxMobileCore {
     return extractChannelMessages(result)
   }
 
-  async sendChannelMessage(input: {
-    channelName: string
-    content: string
-    author?: string
-    authorName?: string
-  }): Promise<MobileChannelMessage> {
+  async sendChannelMessage(
+    input: SendChannelMessageInput
+  ): Promise<MobileChannelMessage> {
     await this.#ensureStarted()
     const result = await this.#request(
       COMMANDS.CHANNEL_SEND,
@@ -611,7 +673,12 @@ export class BareWorkletMostBoxCore implements MostBoxMobileCore {
         Object.entries(this.#snapshot.channelMessages || {}).map(
           ([channelKey, messages]) => [
             channelKey,
-            messages.map(message => ({ ...message })),
+            messages.map(message => ({
+              ...message,
+              attachment: message.attachment
+                ? { ...message.attachment }
+                : undefined,
+            })),
           ]
         )
       ),

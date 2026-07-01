@@ -138,6 +138,38 @@ async function handleCommand(command) {
       return
     }
 
+    if (command.type === COMMANDS.CHANNEL_LEAVE) {
+      const result = await getCore().leaveChannel(payload)
+      send(EVENTS.CHANNEL_LEFT, result, requestId)
+      return
+    }
+
+    if (command.type === COMMANDS.CHANNEL_REMARK_SET) {
+      const channel = await getCore().setChannelRemark(payload)
+      send(
+        EVENTS.CHANNEL_UPDATED,
+        {
+          channel,
+          snapshot: getCore().getSnapshot(),
+        },
+        requestId
+      )
+      return
+    }
+
+    if (command.type === COMMANDS.CHANNEL_PIN_SET) {
+      const channel = await getCore().setChannelPinned(payload)
+      send(
+        EVENTS.CHANNEL_UPDATED,
+        {
+          channel,
+          snapshot: getCore().getSnapshot(),
+        },
+        requestId
+      )
+      return
+    }
+
     if (command.type === COMMANDS.CHANNEL_PRESENCE_GET) {
       const presences = getCore().getChannelPresence(payload)
       send(

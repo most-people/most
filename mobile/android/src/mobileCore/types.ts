@@ -48,12 +48,23 @@ export type MobileLogEntry = {
   message: string
 }
 
+export type MobileChannelAttachment = {
+  kind: 'image' | 'video' | 'audio' | 'text' | 'file'
+  cid: string
+  fileName: string
+  link: string
+  mimeType?: string
+  size?: number
+}
+
 export type MobileChannel = {
   name: string
   channelId: string
   channelKey: string
   key: string
   type: string
+  remark: string
+  pinned: boolean
   createdAt: string
   lastMessageAt: string
   localWriterCoreKey: string
@@ -67,6 +78,7 @@ export type MobileChannelMessage = {
   authorName: string
   content: string
   timestamp: number
+  attachment?: MobileChannelAttachment
 }
 
 export type MobileChannelPresence = {
@@ -131,11 +143,33 @@ export type CreateChannelInput = {
   type?: string
 }
 
+export type LeaveChannelInput = {
+  channelName: string
+}
+
+export type ChannelMetadataInput = {
+  channelName: string
+}
+
+export type SetChannelRemarkInput = ChannelMetadataInput & {
+  remark: string
+}
+
+export type SetChannelPinnedInput = ChannelMetadataInput & {
+  pinned: boolean
+}
+
+export type LeaveChannelResult = {
+  channelKey: string
+  snapshot: MobileCoreSnapshot
+}
+
 export type SendChannelMessageInput = {
   channelName: string
   content: string
   author?: string
   authorName?: string
+  attachment?: MobileChannelAttachment
 }
 
 export type ChannelPresenceInput = {
@@ -165,6 +199,9 @@ export type MostBoxMobileCore = {
   deleteHolding: (input: DeleteHoldingInput) => Promise<DeleteHoldingResult>
   listHoldings: () => Promise<MobileHolding[]>
   createChannel: (input: CreateChannelInput) => Promise<MobileChannel>
+  leaveChannel: (input: LeaveChannelInput) => Promise<LeaveChannelResult>
+  setChannelRemark: (input: SetChannelRemarkInput) => Promise<MobileChannel>
+  setChannelPinned: (input: SetChannelPinnedInput) => Promise<MobileChannel>
   listChannels: () => Promise<MobileChannel[]>
   getChannelMessages: (
     channelName: string

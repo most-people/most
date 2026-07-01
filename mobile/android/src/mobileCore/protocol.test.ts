@@ -28,6 +28,25 @@ describe('mobile most link protocol', () => {
     assert.equal(parsed.fileName, VALID_CID)
   })
 
+  it('parses links when URLSearchParams.keys is unavailable', () => {
+    const originalKeys = URLSearchParams.prototype.keys
+    Object.defineProperty(URLSearchParams.prototype, 'keys', {
+      configurable: true,
+      value: undefined,
+    })
+
+    try {
+      const parsed = parseMostLink(buildMostLink(VALID_CID, 'android file.txt'))
+      assert.equal(parsed.cid, VALID_CID)
+      assert.equal(parsed.fileName, 'android file.txt')
+    } finally {
+      Object.defineProperty(URLSearchParams.prototype, 'keys', {
+        configurable: true,
+        value: originalKeys,
+      })
+    }
+  })
+
   it('rejects unsupported query parameters and extra paths', () => {
     assert.throws(
       () => parseMostLink(`most://${VALID_CID}?filename=a.txt&foo=bar`),

@@ -1,5 +1,5 @@
 import './src/polyfills/eventTarget'
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import {
   Alert,
   Platform,
@@ -9,7 +9,6 @@ import {
   StatusBar,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native'
 import * as Clipboard from 'expo-clipboard'
@@ -18,41 +17,30 @@ import * as FileSystem from 'expo-file-system/legacy'
 import * as Sharing from 'expo-sharing'
 import b4a from 'b4a'
 import {
-  Activity,
-  CircleAlert,
-  CircleCheck,
-  ClipboardPaste,
-  Copy,
-  Download,
-  FileCheck,
-  HardDrive,
-  Link2,
   ListChecks,
-  Loader,
   MessageCircle,
-  Paperclip,
-  Radio,
-  Save,
-  Send,
-  Share2,
   ShieldCheck,
-  Trash2,
-  Wifi,
 } from 'lucide-react-native'
+import { ChatListScreen } from './src/features/chat/ChatListScreen'
+import { ChatRoomScreen } from './src/features/chat/ChatRoomScreen'
+import { ChatSettingsScreen } from './src/features/chat/ChatSettingsScreen'
+import { NodeStatusScreen } from './src/features/node/NodeStatusScreen'
 import { createMostBoxCore } from './src/mobileCore/createMostBoxCore'
 import { parseMostLink } from './src/mobileCore/protocol'
+import {
+  getChannelKey,
+  getChannelTitle,
+  markChannelRead,
+  type ChannelLastReadMap,
+} from './src/features/chat/chatState'
 import type { DocumentPickerAsset } from 'expo-document-picker'
 import type {
-  LogLevel,
+  MobileChannel,
+  MobileChannelAttachment,
   MobileChannelPresence,
   MobileCoreSnapshot,
-  MobileChannelMessage,
   MobileHolding,
-  MobileTransfer,
   MostBoxMobileCore,
-  NodeRuntimeStatus,
-  SeedStatus,
-  TransferStatus,
 } from './src/mobileCore/types'
 
 const DEV_CID_MAX_BYTES = 20 * 1024 * 1024
@@ -74,69 +62,12 @@ const MIME_BY_EXTENSION: Record<string, string> = {
   zip: 'application/zip',
 }
 
-const NODE_STATUS_LABELS: Record<NodeRuntimeStatus, string> = {
-  idle: '未启动',
-  starting: '启动中',
-  ready: '在线',
-  stopping: '停止中',
-  error: '异常',
-}
+type RootTab = 'chat' | 'node'
 
-const SEED_STATUS_LABELS: Record<SeedStatus, string> = {
-  queued: '排队中',
-  joining: '加入中',
-  active: '做种中',
-  paused: '已暂停',
-  error: '异常',
-}
-
-const TRANSFER_STATUS_LABELS: Record<TransferStatus, string> = {
-  queued: '排队中',
-  running: '传输中',
-  completed: '已完成',
-  failed: '失败',
-  waitingCore: '等待核心',
-}
-
-const TRANSFER_KIND_LABELS: Record<MobileTransfer['kind'], string> = {
-  publish: '发布',
-  download: '下载',
-}
-
-const LOG_LEVEL_LABELS: Record<LogLevel, string> = {
-  info: '信息',
-  warn: '提醒',
-  error: '错误',
-}
-
-function formatBytes(size: number) {
-  if (!Number.isFinite(size) || size <= 0) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB']
-  let value = size
-  let index = 0
-  while (value >= 1024 && index < units.length - 1) {
-    value /= 1024
-    index += 1
-  }
-  return `${value.toFixed(index === 0 ? 0 : 1)} ${units[index]}`
-}
-
-function formatLogTime(value: string) {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '--:--'
-  const hours = date.getHours().toString().padStart(2, '0')
-  const minutes = date.getMinutes().toString().padStart(2, '0')
-  return `${hours}:${minutes}`
-}
-
-function formatChannelMessageTime(message: MobileChannelMessage) {
-  return formatLogTime(new Date(message.timestamp).toISOString())
-}
-
-function shortCid(cid: string, head = 12, tail = 8) {
-  if (cid.length <= head + tail + 1) return cid
-  return `${cid.slice(0, head)}...${cid.slice(-tail)}`
-}
+type ChatRoute =
+  | { name: 'list' }
+  | { name: 'room'; channelKey: string }
+  | { name: 'settings'; channelKey: string }
 
 function shortAddress(address: string) {
   return address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'peer'
@@ -144,11 +75,6 @@ function shortAddress(address: string) {
 
 function formatPresenceMember(presence: MobileChannelPresence) {
   return presence.displayName?.trim() || shortAddress(presence.address)
-}
-
-function extractMostLinkFromText(content: string) {
-  const match = content.match(/most:\/\/[^\s]+/)
-  return match?.[0] || ''
 }
 
 async function readDevCidBytes(file: DocumentPickerAsset) {
@@ -175,6 +101,25 @@ function getCoreStoragePath() {
 function getMimeType(fileName: string) {
   const extension = fileName.split('.').pop()?.toLowerCase() || ''
   return MIME_BY_EXTENSION[extension] || 'application/octet-stream'
+}
+
+function getAttachmentKind(
+  fileName: string,
+  mimeType?: string
+): MobileChannelAttachment['kind'] {
+  const normalizedMimeType = mimeType?.toLowerCase() || ''
+  const extension = fileName.split('.').pop()?.toLowerCase() || ''
+
+  if (normalizedMimeType.startsWith('image/')) return 'image'
+  if (normalizedMimeType.startsWith('video/')) return 'video'
+  if (normalizedMimeType.startsWith('audio/')) return 'audio'
+  if (normalizedMimeType.startsWith('text/')) return 'text'
+  if (normalizedMimeType === 'application/pdf' || extension === 'pdf') {
+    return 'file'
+  }
+  if (['zip', 'rar', '7z', 'tar', 'gz'].includes(extension)) return 'file'
+
+  return 'file'
 }
 
 function toFileUri(filePath: string) {
@@ -210,127 +155,6 @@ async function writeSafFileFromLocalFile(
     {
       encoding: FileSystem.EncodingType.Base64,
     }
-  )
-}
-
-function getNodeTone(status: NodeRuntimeStatus) {
-  if (status === 'ready') return 'success'
-  if (status === 'error') return 'danger'
-  if (status === 'starting' || status === 'stopping') return 'pending'
-  return 'muted'
-}
-
-function getSeedTone(status: SeedStatus) {
-  if (status === 'active') return 'success'
-  if (status === 'error') return 'danger'
-  if (status === 'joining' || status === 'queued') return 'pending'
-  return 'muted'
-}
-
-function getTransferTone(status: TransferStatus) {
-  if (status === 'completed') return 'success'
-  if (status === 'failed') return 'danger'
-  if (status === 'running') return 'pending'
-  return 'muted'
-}
-
-function clampProgress(value: number) {
-  if (!Number.isFinite(value)) return 0
-  return Math.max(0, Math.min(100, value))
-}
-
-type Tone = 'success' | 'danger' | 'pending' | 'muted'
-
-type MetricProps = {
-  icon: ReactNode
-  label: string
-  value: string
-}
-
-function Metric({ icon, label, value }: MetricProps) {
-  return (
-    <View style={styles.metric}>
-      <View style={styles.metricIcon}>{icon}</View>
-      <Text style={styles.metricValue}>{value}</Text>
-      <Text style={styles.metricLabel}>{label}</Text>
-    </View>
-  )
-}
-
-type StatusBadgeProps = {
-  label: string
-  tone: Tone
-}
-
-function StatusBadge({ label, tone }: StatusBadgeProps) {
-  return (
-    <View style={[styles.badge, styles[`${tone}Badge`]]}>
-      <Text style={[styles.badgeText, styles[`${tone}BadgeText`]]}>
-        {label}
-      </Text>
-    </View>
-  )
-}
-
-type CommandButtonProps = {
-  label: string
-  helper?: string
-  icon: ReactNode
-  onPress: () => void
-  variant?: 'primary' | 'secondary'
-  disabled?: boolean
-}
-
-function CommandButton({
-  label,
-  helper,
-  icon,
-  onPress,
-  variant = 'secondary',
-  disabled = false,
-}: CommandButtonProps) {
-  return (
-    <Pressable
-      disabled={disabled}
-      onPress={onPress}
-      style={[
-        styles.commandButton,
-        variant === 'primary' ? styles.commandButtonPrimary : null,
-        disabled ? styles.commandButtonDisabled : null,
-      ]}
-    >
-      <View
-        style={[
-          styles.commandIcon,
-          variant === 'primary' ? styles.commandIconPrimary : null,
-          disabled ? styles.commandIconDisabled : null,
-        ]}
-      >
-        {icon}
-      </View>
-      <View style={styles.commandTextGroup}>
-        <Text
-          style={[
-            styles.commandLabel,
-            variant === 'primary' ? styles.commandLabelPrimary : null,
-            disabled ? styles.disabledText : null,
-          ]}
-        >
-          {label}
-        </Text>
-        {helper ? (
-          <Text
-            style={[
-              styles.commandHelper,
-              variant === 'primary' ? styles.commandHelperPrimary : null,
-              disabled ? styles.disabledText : null,
-            ]}
-          >
-            {helper}
-          </Text>
-        ) : null}
-      </View>
-    </Pressable>
   )
 }
 
@@ -377,52 +201,32 @@ function SmallAction({
   )
 }
 
-type SectionHeaderProps = {
-  icon: ReactNode
-  title: string
-  meta?: string
-}
-
-function SectionHeader({ icon, title, meta }: SectionHeaderProps) {
-  return (
-    <View style={styles.sectionHeader}>
-      <View style={styles.sectionTitleGroup}>
-        {icon}
-        <Text style={styles.sectionTitle}>{title}</Text>
-      </View>
-      {meta ? <Text style={styles.sectionMeta}>{meta}</Text> : null}
-    </View>
-  )
-}
-
-type EmptyStateProps = {
-  title: string
-  body: string
-}
-
-function EmptyState({ title, body }: EmptyStateProps) {
-  return (
-    <View style={styles.emptyState}>
-      <Text style={styles.emptyTitle}>{title}</Text>
-      <Text style={styles.emptyBody}>{body}</Text>
-    </View>
-  )
-}
-
 export default function App() {
   const coreRef = useRef<MostBoxMobileCore | null>(null)
   const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const downloadingAttachmentCidRef = useRef<string | null>(null)
+  const settingsRemarkChannelKeyRef = useRef('')
+  const settingsRemarkBaselineRef = useRef('')
   const channelPresenceSessionRef = useRef(
     `android-${Date.now()}-${Math.random().toString(36).slice(2)}`
   )
   const [snapshot, setSnapshot] = useState<MobileCoreSnapshot | null>(null)
-  const [downloadLink, setDownloadLink] = useState('')
+  const [activeTab, setActiveTab] = useState<RootTab>('chat')
+  const [chatRoute, setChatRoute] = useState<ChatRoute>({ name: 'list' })
   const [exportingCid, setExportingCid] = useState<string | null>(null)
   const [deletingCid, setDeletingCid] = useState<string | null>(null)
   const [copiedCid, setCopiedCid] = useState<string | null>(null)
   const [channelName, setChannelName] = useState('chat-android')
+  const [channelSearchInput, setChannelSearchInput] = useState('')
+  const [channelInput, setChannelInput] = useState('chat-android')
+  const [channelLastReadAt, setChannelLastReadAt] =
+    useState<ChannelLastReadMap>({})
   const [channelDraft, setChannelDraft] = useState('')
+  const [settingsRemarkInput, setSettingsRemarkInput] = useState('')
   const [channelBusy, setChannelBusy] = useState(false)
+  const [downloadingAttachmentCid, setDownloadingAttachmentCid] = useState<
+    string | null
+  >(null)
 
   if (!coreRef.current) {
     coreRef.current = createMostBoxCore({
@@ -433,8 +237,6 @@ export default function App() {
   const core = coreRef.current
   const currentSnapshot = snapshot ?? core.getSnapshot()
   const nodeStatus = currentSnapshot.node.status
-  const nodeStatusLabel = NODE_STATUS_LABELS[nodeStatus]
-  const nodeTone = getNodeTone(nodeStatus)
   const isReady = nodeStatus === 'ready'
   const isCoreBusy = nodeStatus === 'starting' || nodeStatus === 'stopping'
 
@@ -455,48 +257,25 @@ export default function App() {
     }
   }, [core])
 
-  const downloadValidation = useMemo(() => {
-    const link = downloadLink.trim()
-    if (!link) return { state: 'empty' as const }
-    try {
-      return {
-        state: 'valid' as const,
-        parsed: parseMostLink(link),
-      }
-    } catch (error) {
-      return {
-        state: 'invalid' as const,
-        message: error instanceof Error ? error.message : '链接格式不可用',
-      }
-    }
-  }, [downloadLink])
-
-  const latestTransfers = currentSnapshot.transfers.slice(0, 4)
-  const recentLogs = currentSnapshot.logs.slice(0, 6)
-  const activeTransfers = currentSnapshot.transfers.filter(
-    transfer =>
-      transfer.status === 'queued' ||
-      transfer.status === 'running' ||
-      transfer.status === 'waitingCore'
-  )
-  const existingDownloadHolding =
-    downloadValidation.state === 'valid'
-      ? currentSnapshot.holdings.find(
-          holding => holding.cid === downloadValidation.parsed.cid
-        ) || null
-      : null
+  const routeChannelKey =
+    chatRoute.name === 'room' || chatRoute.name === 'settings'
+      ? chatRoute.channelKey
+      : ''
   const normalizedChannelName = channelName.trim() || 'chat-android'
   const selectedChannel =
-    currentSnapshot.channels.find(
-      channel =>
-        channel.channelId === normalizedChannelName ||
-        channel.channelKey === normalizedChannelName
-    ) || null
+    currentSnapshot.channels.find(channel => {
+      const targetChannelKey = routeChannelKey || normalizedChannelName
+      return (
+        getChannelKey(channel) === targetChannelKey ||
+        channel.channelId === targetChannelKey ||
+        channel.name === targetChannelKey
+      )
+    }) || null
   const selectedChannelKey =
-    selectedChannel?.channelKey || normalizedChannelName
+    selectedChannel?.channelKey || routeChannelKey || normalizedChannelName
   const activeChannelPresenceKey = selectedChannel?.channelKey || ''
   const channelMessages =
-    (currentSnapshot.channelMessages || {})[selectedChannelKey]?.slice(-6) || []
+    (currentSnapshot.channelMessages || {})[selectedChannelKey] || []
   const onlineChannelPresence = [
     ...((currentSnapshot.channelPresence || {})[selectedChannelKey] || []),
   ]
@@ -505,6 +284,36 @@ export default function App() {
       if (left.local !== right.local) return left.local ? -1 : 1
       return formatPresenceMember(left).localeCompare(formatPresenceMember(right))
     })
+  const chatTabAccessibilityLabel =
+    chatRoute.name === 'list' ? '聊天' : `聊天 ${chatRoute.channelKey}`
+  const chatTabColor = activeTab === 'chat' ? '#0f766e' : '#63716c'
+  const nodeTabColor = activeTab === 'node' ? '#0f766e' : '#63716c'
+
+  const handleSelectChatTab = () => {
+    setActiveTab('chat')
+    setChatRoute(route => (route.name === 'list' ? route : { name: 'list' }))
+  }
+
+  const handleSelectNodeTab = () => {
+    setActiveTab('node')
+  }
+
+  useEffect(() => {
+    if (chatRoute.name !== 'settings' || !selectedChannel) return
+
+    const channelKey = getChannelKey(selectedChannel)
+    const nextRemark = selectedChannel.remark
+    const channelChanged = settingsRemarkChannelKeyRef.current !== channelKey
+    const remarkClean =
+      settingsRemarkInput === settingsRemarkBaselineRef.current
+
+    if (channelChanged || remarkClean) {
+      setSettingsRemarkInput(nextRemark)
+      settingsRemarkBaselineRef.current = nextRemark
+    }
+
+    settingsRemarkChannelKeyRef.current = channelKey
+  }, [chatRoute.name, selectedChannel, settingsRemarkInput])
 
   useEffect(() => {
     if (!isReady || !activeChannelPresenceKey) return
@@ -565,9 +374,34 @@ export default function App() {
     return false
   }
 
+  const ensureActiveChannel = async () => {
+    const requestedName =
+      selectedChannel?.channelKey || routeChannelKey || normalizedChannelName
+    if (selectedChannel) {
+      return {
+        channel: selectedChannel,
+        channelKey: getChannelKey(selectedChannel) || requestedName,
+      }
+    }
+
+    const channel = await core.createChannel({
+      name: requestedName,
+      type: 'public',
+    })
+    const channelKey = getChannelKey(channel) || requestedName
+    setChannelName(channelKey)
+    setChannelInput(channel.channelId || channel.name || requestedName)
+    if (chatRoute.name !== 'settings') {
+      setChatRoute({ name: 'room', channelKey })
+    }
+
+    return { channel, channelKey }
+  }
+
   const handlePickFile = async () => {
     if (!guardReady()) return
 
+    setChannelBusy(true)
     try {
       const result = await DocumentPicker.getDocumentAsync({
         copyToCacheDirectory: true,
@@ -588,98 +422,254 @@ export default function App() {
         contentBytes,
       })
       if (transfer.link) {
-        if (!selectedChannel) {
-          await core.createChannel({
-            name: normalizedChannelName,
-            type: 'public',
-          })
+        const { channel, channelKey } = await ensureActiveChannel()
+        const parsed = parseMostLink(transfer.link)
+        const attachment: MobileChannelAttachment = {
+          kind: getAttachmentKind(file.name, file.mimeType),
+          cid: transfer.cid || parsed.cid,
+          fileName: file.name,
+          link: transfer.link,
+          mimeType: file.mimeType,
+          size: fileSize,
         }
         await core.sendChannelMessage({
-          channelName: normalizedChannelName,
-          content: `附件 ${file.name}: ${transfer.link}`,
+          channelName: channelKey,
+          content: attachment.link,
+          author: channel.localWriterCoreKey,
           authorName: 'Android',
+          attachment,
         })
-        await core.getChannelMessages(normalizedChannelName)
+        await core.getChannelMessages(channelKey)
+        setChannelLastReadAt(lastReadAt =>
+          markChannelRead(lastReadAt, channelKey)
+        )
       }
     } catch (error) {
       Alert.alert(
         '发送附件失败',
         error instanceof Error ? error.message : '请选择可读取的文件'
       )
+    } finally {
+      setChannelBusy(false)
     }
   }
 
-  const handlePasteLink = async () => {
-    const text = (await Clipboard.getStringAsync()).trim()
-    if (!text) {
-      Alert.alert('剪贴板为空', '复制 most:// 分享链接后再粘贴。')
-      return
-    }
-    setDownloadLink(text)
-  }
-
-  const handleDownload = async () => {
+  const handleDownloadAttachment = async (
+    attachment: MobileChannelAttachment
+  ) => {
+    if (downloadingAttachmentCidRef.current) return
     if (!guardReady()) return
 
-    if (downloadValidation.state !== 'valid') {
-      Alert.alert(
-        '链接不可用',
-        downloadValidation.state === 'invalid'
-          ? downloadValidation.message
-          : '请输入 most:// 分享链接'
-      )
-      return
-    }
-
-    if (existingDownloadHolding) {
-      Alert.alert('本机已存', '这个 CID 已经在本机做种列表中。')
-      return
-    }
+    const channelKey = selectedChannelKey
+    downloadingAttachmentCidRef.current = attachment.cid
+    setDownloadingAttachmentCid(attachment.cid)
 
     try {
-      await core.downloadLink({ link: downloadLink.trim() })
-      setDownloadLink('')
-    } catch (error) {
-      Alert.alert(
-        '下载失败',
-        error instanceof Error ? error.message : '请检查链接或等待种子上线'
-      )
+      try {
+        const existingHolding =
+          currentSnapshot.holdings.find(
+            holding => holding.cid === attachment.cid
+          ) || null
+        if (existingHolding) {
+          Alert.alert('本机已存', '这个附件已经在本机做种列表中。')
+          return
+        }
+
+        await core.downloadLink({ link: attachment.link })
+      } catch (error) {
+        Alert.alert(
+          '下载附件失败',
+          error instanceof Error ? error.message : '请检查链接或等待种子上线'
+        )
+        return
+      }
+
+      try {
+        setChannelLastReadAt(lastReadAt =>
+          markChannelRead(lastReadAt, channelKey)
+        )
+        await core.getChannelMessages(channelKey)
+      } catch {
+        // The attachment is already downloaded; a stale room refresh is non-fatal.
+      }
+    } finally {
+      downloadingAttachmentCidRef.current = null
+      setDownloadingAttachmentCid(null)
     }
   }
 
-  const handleCreateChannel = async () => {
+  const handleJoinChannelFromList = async (name: string) => {
     if (!guardReady()) return
+    const requestedName = name.trim()
+    if (!requestedName) {
+      Alert.alert('无法加入聊天', '请输入要加入的频道名')
+      return
+    }
+
     setChannelBusy(true)
     try {
-      await core.createChannel({ name: normalizedChannelName, type: 'public' })
-      await core.getChannelMessages(normalizedChannelName)
+      const channel = await core.createChannel({
+        name: requestedName,
+        type: 'public',
+      })
+      const channelKey = getChannelKey(channel) || requestedName
+      await core.getChannelMessages(channelKey)
+      setChannelName(channelKey)
+      setChannelInput(channel.channelId || channel.name || requestedName)
+      setChannelDraft('')
+      setChatRoute({ name: 'room', channelKey })
+      setChannelLastReadAt(lastReadAt =>
+        markChannelRead(lastReadAt, channelKey)
+      )
     } catch (error) {
       Alert.alert(
         '加入聊天失败',
-        error instanceof Error ? error.message : '无法加入这个聊天房间'
+        error instanceof Error ? error.message : '无法加入这个聊天频道'
       )
     } finally {
       setChannelBusy(false)
     }
   }
 
-  const handleRefreshChannel = async () => {
+  const handleOpenChannelFromList = (channel: MobileChannel) => {
+    const channelKey = getChannelKey(channel)
+    if (!channelKey) return
+
+    setChannelName(channelKey)
+    setChannelInput(channel.channelId || channel.name || channelKey)
+    setChannelDraft('')
+    setChatRoute({ name: 'room', channelKey })
+    setChannelLastReadAt(lastReadAt =>
+      markChannelRead(lastReadAt, channelKey)
+    )
+
+    if (isReady) {
+      void core.getChannelMessages(channelKey).catch(error => {
+        Alert.alert(
+          '读取聊天失败',
+          error instanceof Error ? error.message : '无法读取这个频道的消息'
+        )
+      })
+    }
+  }
+
+  const handleToggleChannelPin = async (channel: MobileChannel) => {
     if (!guardReady()) return
     setChannelBusy(true)
     try {
-      if (!selectedChannel) {
-        await core.createChannel({ name: normalizedChannelName, type: 'public' })
-      }
-      await core.getChannelMessages(normalizedChannelName)
-      await core.listChannels()
+      await core.setChannelPinned({
+        channelName: channel.channelKey,
+        pinned: !channel.pinned,
+      })
     } catch (error) {
       Alert.alert(
-        '刷新聊天失败',
-        error instanceof Error ? error.message : '无法刷新聊天消息'
+        channel.pinned ? '取消置顶失败' : '置顶失败',
+        error instanceof Error ? error.message : '无法更新这个频道'
       )
     } finally {
       setChannelBusy(false)
     }
+  }
+
+  const handleRenameChannel = async (channel: MobileChannel) => {
+    const channelKey = getChannelKey(channel)
+    if (!channelKey || !channel.channelKey) return
+    if (!guardReady()) {
+      throw new Error('P2P core is not ready')
+    }
+
+    setChannelBusy(true)
+    try {
+      await core.setChannelRemark({
+        channelName: channel.channelKey,
+        remark: channel.remark,
+      })
+    } catch (error) {
+      Alert.alert(
+        '保存备注失败',
+        error instanceof Error ? error.message : '无法保存这个频道备注'
+      )
+      throw error
+    } finally {
+      setChannelBusy(false)
+    }
+  }
+
+  const handleSaveSettingsRemark = async () => {
+    if (!selectedChannel) return
+
+    const remark = settingsRemarkInput.trim()
+    await handleRenameChannel({
+      ...selectedChannel,
+      remark,
+    })
+    settingsRemarkBaselineRef.current = remark
+    setSettingsRemarkInput(remark)
+  }
+
+  const handleConfirmLeaveChannel = (channel: MobileChannel) => {
+    const channelKey = getChannelKey(channel)
+    if (!channelKey) return
+
+    Alert.alert(
+      '退出频道',
+      `确定退出 ${getChannelTitle(channel)} 吗？本机将不再同步这个频道。`,
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '退出',
+          style: 'destructive',
+          onPress: () => {
+            setChannelBusy(true)
+            void core
+              .leaveChannel({ channelName: channel.channelKey })
+              .then(() => {
+                setChannelLastReadAt(lastReadAt => {
+                  const nextLastReadAt = { ...lastReadAt }
+                  delete nextLastReadAt[channelKey]
+                  return nextLastReadAt
+                })
+
+                setChatRoute(currentRoute => {
+                  if (
+                    currentRoute.name === 'list' ||
+                    currentRoute.channelKey !== channelKey
+                  ) {
+                    return currentRoute
+                  }
+
+                  setChannelName('chat-android')
+                  setChannelInput('chat-android')
+                  setChannelDraft('')
+                  return { name: 'list' }
+                })
+              })
+              .catch(error => {
+                Alert.alert(
+                  '退出频道失败',
+                  error instanceof Error ? error.message : '无法退出这个频道'
+                )
+              })
+              .finally(() => {
+                setChannelBusy(false)
+              })
+          },
+        },
+      ]
+    )
+  }
+
+  const handleBackToChannelList = () => {
+    setChatRoute({ name: 'list' })
+  }
+
+  const handleBackToChatRoom = () => {
+    if (!selectedChannelKey) {
+      handleBackToChannelList()
+      return
+    }
+
+    setChatRoute({ name: 'room', channelKey: selectedChannelKey })
   }
 
   const handleSendChannelMessage = async () => {
@@ -692,15 +682,18 @@ export default function App() {
 
     setChannelBusy(true)
     try {
-      if (!selectedChannel) {
-        await core.createChannel({ name: normalizedChannelName, type: 'public' })
-      }
+      const { channel, channelKey } = await ensureActiveChannel()
       await core.sendChannelMessage({
-        channelName: normalizedChannelName,
+        channelName: channelKey,
         content,
+        author: channel.localWriterCoreKey,
         authorName: 'Android',
       })
-      await core.getChannelMessages(normalizedChannelName)
+      setChannelDraft('')
+      setChannelLastReadAt(lastReadAt =>
+        markChannelRead(lastReadAt, channelKey)
+      )
+      await core.getChannelMessages(channelKey)
     } catch (error) {
       Alert.alert(
         '发送消息失败',
@@ -826,491 +819,133 @@ export default function App() {
   return (
     <SafeAreaView style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor="#0d3b35" />
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.hero}>
-          <View style={styles.header}>
-            <View style={styles.brandGroup}>
-              <Text style={styles.brand}>MostBox</Text>
-              <Text style={styles.title}>P2P 聊天节点</Text>
-            </View>
-            <View style={[styles.nodePill, styles[`${nodeTone}Pill`]]}>
-              <Radio
-                size={15}
-                color={nodeTone === 'success' ? '#116149' : '#5b6b66'}
-              />
-              <Text
-                style={[styles.nodePillText, styles[`${nodeTone}PillText`]]}
-              >
-                {nodeStatusLabel}
-              </Text>
-            </View>
-          </View>
-
-          {currentSnapshot.node.error ? (
-            <View style={styles.errorBanner}>
-              <CircleAlert size={18} color="#991b1b" />
-              <Text style={styles.errorText}>{currentSnapshot.node.error}</Text>
-              <Pressable
-                disabled={isCoreBusy}
-                onPress={handleStartCore}
-                style={styles.retryButton}
-              >
-                <Text style={styles.retryButtonText}>重试</Text>
-              </Pressable>
-            </View>
-          ) : null}
-
-          <View style={styles.metricsRow}>
-            <Metric
-              icon={<Activity size={17} color="#0f766e" />}
-              label="在线 Peer"
-              value={String(currentSnapshot.node.peerCount)}
-            />
-            <Metric
-              icon={<HardDrive size={17} color="#2563eb" />}
-              label="本机做种"
-              value={String(currentSnapshot.holdings.length)}
-            />
-            <Metric
-              icon={<ShieldCheck size={17} color="#b45309" />}
-              label="附件校验"
-              value="开启"
-            />
-          </View>
-        </View>
-
-        <View style={styles.quickActions}>
-          <CommandButton
-            variant="primary"
-            label={isReady ? '发送附件' : '等待核心'}
-            helper="选择文件并生成 most://"
-            disabled={!isReady}
-            onPress={handlePickFile}
-            icon={
-              <Paperclip size={22} color={isReady ? '#f8fafc' : '#94a3b8'} />
+      {activeTab === 'node' ? (
+        <NodeStatusScreen
+          snapshot={currentSnapshot}
+          copiedCid={copiedCid}
+          deletingCid={deletingCid}
+          exportingCid={exportingCid}
+          onCopyHoldingLink={handleCopyHoldingLink}
+          onDeleteHolding={handleDeleteHolding}
+          onSaveHolding={handleSaveHolding}
+          onShareHolding={handleShareHolding}
+          onRetryStartCore={handleStartCore}
+          retryStartDisabled={isCoreBusy}
+        />
+      ) : chatRoute.name === 'list' ? (
+        <ChatListScreen
+          channels={currentSnapshot.channels}
+          messagesByChannel={currentSnapshot.channelMessages || {}}
+          lastReadAt={channelLastReadAt}
+          searchInput={channelSearchInput}
+          joinInput={channelInput}
+          busy={channelBusy}
+          onSearchInputChange={setChannelSearchInput}
+          onJoinInputChange={setChannelInput}
+          onOpenChannel={handleOpenChannelFromList}
+          onJoinChannel={handleJoinChannelFromList}
+          onTogglePin={handleToggleChannelPin}
+          onRename={handleRenameChannel}
+          onLeave={handleConfirmLeaveChannel}
+        />
+      ) : chatRoute.name === 'room' && selectedChannel ? (
+        <ChatRoomScreen
+          channel={selectedChannel}
+          messages={channelMessages}
+          localWriterCoreKey={selectedChannel.localWriterCoreKey}
+          draft={channelDraft}
+          busy={!isReady || channelBusy}
+          downloadingCid={downloadingAttachmentCid}
+          onBack={handleBackToChannelList}
+          onOpenSettings={() => {
+            const channelKey = getChannelKey(selectedChannel)
+            if (channelKey) {
+              setSettingsRemarkInput(selectedChannel.remark)
+              settingsRemarkBaselineRef.current = selectedChannel.remark
+              settingsRemarkChannelKeyRef.current = channelKey
+              setChatRoute({ name: 'settings', channelKey })
             }
-          />
-        </View>
-
-        <View style={styles.panel}>
-          <SectionHeader
-            icon={<MessageCircle size={18} color="#6d5dfc" />}
-            title="聊天房间"
-            meta={
-              selectedChannel
-                ? `${selectedChannel.peerCount} peer / ${onlineChannelPresence.length} online`
-                : '输入房间名'
-            }
-          />
-
-          <View style={styles.compactInputShell}>
-            <TextInput
-              value={channelName}
-              onChangeText={setChannelName}
-              placeholder="chat-android"
-              placeholderTextColor="#8a9a95"
-              autoCapitalize="none"
-              autoCorrect={false}
-              style={styles.compactInput}
-            />
-          </View>
-
-          <View style={styles.channelActions}>
+          }}
+          onDraftChange={setChannelDraft}
+          onSend={handleSendChannelMessage}
+          onPickAttachment={handlePickFile}
+          onDownloadAttachment={handleDownloadAttachment}
+        />
+      ) : chatRoute.name === 'settings' && selectedChannel ? (
+        <ChatSettingsScreen
+          channel={selectedChannel}
+          presence={onlineChannelPresence}
+          remarkInput={settingsRemarkInput}
+          busy={!isReady || channelBusy}
+          onBack={handleBackToChatRoom}
+          onRemarkChange={setSettingsRemarkInput}
+          onSaveRemark={handleSaveSettingsRemark}
+          onTogglePin={() => handleToggleChannelPin(selectedChannel)}
+          onLeave={() => handleConfirmLeaveChannel(selectedChannel)}
+        />
+      ) : (
+        <ScrollView contentContainerStyle={styles.fallbackContent}>
+          <View style={styles.fallbackPanel}>
+            <View style={styles.fallbackIcon}>
+              <ListChecks size={22} color="#0f766e" />
+            </View>
+            <Text style={styles.fallbackTitle}>
+              {chatRoute.name === 'settings' ? '频道设置不可用' : '聊天室不可用'}
+            </Text>
+            <Text style={styles.fallbackBody}>
+              返回聊天列表后重新选择频道。
+            </Text>
             <SmallAction
-              label={selectedChannel ? '已加入' : '加入房间'}
-              disabled={!isReady || channelBusy}
-              onPress={handleCreateChannel}
-              icon={
-                channelBusy ? (
-                  <Loader size={15} color="#94a3b8" />
-                ) : (
-                  <CircleCheck size={15} color="#0f766e" />
-                )
-              }
-            />
-            <SmallAction
-              label="刷新"
-              disabled={!isReady || channelBusy}
-              onPress={handleRefreshChannel}
+              label="返回频道列表"
+              onPress={handleBackToChannelList}
               icon={<ListChecks size={15} color="#0f766e" />}
             />
           </View>
+        </ScrollView>
+      )}
 
-          {selectedChannel ? (
-            <View style={styles.channelStats}>
-              <Text style={styles.channelStatText}>
-                key {selectedChannel.channelKey}
-              </Text>
-              <Text style={styles.channelStatText}>
-                writers {selectedChannel.writerCoreKeys.length}
-              </Text>
-              <Text style={styles.channelStatText}>
-                online {onlineChannelPresence.length}
-              </Text>
-            </View>
-          ) : null}
-
-          {onlineChannelPresence.length ? (
-            <View style={styles.channelPresenceList}>
-              {onlineChannelPresence.map(presence => (
-                <View
-                  key={`${presence.address}:${presence.sessionId || 'default'}`}
-                  style={styles.channelPresencePill}
-                >
-                  <View style={styles.channelPresenceDot} />
-                  <Text style={styles.channelPresenceText}>
-                    {formatPresenceMember(presence)}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          ) : null}
-
-          <View style={styles.compactInputShell}>
-            <TextInput
-              value={channelDraft}
-              onChangeText={setChannelDraft}
-              placeholder="输入聊天消息"
-              placeholderTextColor="#8a9a95"
-              autoCapitalize="none"
-              autoCorrect={false}
-              style={styles.compactInput}
-            />
-          </View>
-
-          <SmallAction
-            primary
-            label="发送消息"
-            disabled={!isReady || channelBusy}
-            onPress={handleSendChannelMessage}
-            icon={<Send size={16} color={isReady ? '#ffffff' : '#94a3b8'} />}
-          />
-
-          {channelMessages.length ? (
-            <View style={styles.channelMessageList}>
-              {channelMessages.map(message => {
-                const attachmentLink = extractMostLinkFromText(message.content)
-                return (
-                  <View
-                    key={`${message.author}:${message.timestamp}:${message.content}`}
-                    style={styles.channelMessageItem}
-                  >
-                    <Text style={styles.channelMessageMeta}>
-                      {message.authorName} - {formatChannelMessageTime(message)}
-                    </Text>
-                    <Text style={styles.channelMessageText}>
-                      {message.content}
-                    </Text>
-                    {attachmentLink ? (
-                      <SmallAction
-                        label="接收附件"
-                        onPress={() => setDownloadLink(attachmentLink)}
-                        icon={<Download size={15} color="#0f766e" />}
-                      />
-                    ) : null}
-                  </View>
-                )
-              })}
-            </View>
-          ) : (
-            <EmptyState
-              title="还没有聊天消息"
-              body="加入房间后发送一条消息，或刷新等待桌面端同步。"
-            />
-          )}
-        </View>
-
-        <View style={styles.panel}>
-          <SectionHeader
-            icon={<Link2 size={18} color="#2563eb" />}
-            title="接收附件"
-            meta={
-              existingDownloadHolding
-                ? '本机已存'
-                : downloadValidation.state === 'valid'
-                  ? '链接有效'
-                  : downloadLink.trim()
-                    ? '待检查'
-                    : undefined
-            }
-          />
-
-          <View style={styles.inputShell}>
-            <TextInput
-              value={downloadLink}
-              onChangeText={setDownloadLink}
-              placeholder="most://<cid>?filename=..."
-              placeholderTextColor="#8a9a95"
-              autoCapitalize="none"
-              autoCorrect={false}
-              multiline
-              numberOfLines={3}
-              textAlignVertical="top"
-              style={styles.input}
-            />
-          </View>
-
-          {downloadValidation.state === 'valid' ? (
-            <View style={styles.linkPreview}>
-              <CircleCheck size={17} color="#0f766e" />
-              <View style={styles.previewTextGroup}>
-                <Text style={styles.previewTitle}>
-                  {existingDownloadHolding?.fileName ||
-                    downloadValidation.parsed.fileName}
-                </Text>
-                <Text style={styles.previewMeta}>
-                  {existingDownloadHolding
-                    ? `本机已存 · ${shortCid(downloadValidation.parsed.cid)}`
-                    : shortCid(downloadValidation.parsed.cid)}
-                </Text>
-              </View>
-            </View>
-          ) : downloadValidation.state === 'invalid' ? (
-            <View style={styles.linkPreviewError}>
-              <CircleAlert size={17} color="#b91c1c" />
-              <Text style={styles.previewErrorText}>
-                {downloadValidation.message}
-              </Text>
-            </View>
-          ) : null}
-
-          <View style={styles.downloadActions}>
-            <SmallAction
-              label="粘贴"
-              onPress={handlePasteLink}
-              icon={<ClipboardPaste size={16} color="#0f766e" />}
-            />
-            <SmallAction
-              primary
-              label={
-                existingDownloadHolding
-                  ? '已存'
-                  : isReady
-                    ? '下载附件'
-                    : '核心启动中'
-              }
-              disabled={
-                !isReady ||
-                downloadValidation.state !== 'valid' ||
-                Boolean(existingDownloadHolding)
-              }
-              onPress={handleDownload}
-              icon={
-                <Download
-                  size={16}
-                  color={
-                    isReady &&
-                    downloadValidation.state === 'valid' &&
-                    !existingDownloadHolding
-                      ? '#ffffff'
-                      : '#94a3b8'
-                  }
-                />
-              }
-            />
-          </View>
-        </View>
-
-        <View style={styles.panel}>
-          <SectionHeader
-            icon={<Wifi size={18} color="#0f766e" />}
-            title="正在做种"
-            meta={`${currentSnapshot.holdings.length} 个文件`}
-          />
-
-          {currentSnapshot.holdings.length ? (
-            <View style={styles.holdingList}>
-              {currentSnapshot.holdings.map(holding => {
-                const isExporting = exportingCid === holding.cid
-                const isDeleting = deletingCid === holding.cid
-                const isCopied = copiedCid === holding.cid
-                const seedTone = getSeedTone(holding.status)
-
-                return (
-                  <View key={holding.cid} style={styles.holdingItem}>
-                    <View style={styles.holdingTopRow}>
-                      <View style={styles.fileIcon}>
-                        <FileCheck size={20} color="#0f766e" />
-                      </View>
-                      <View style={styles.holdingMain}>
-                        <Text style={styles.fileName} numberOfLines={2}>
-                          {holding.fileName}
-                        </Text>
-                        <Text style={styles.fileMeta}>
-                          {formatBytes(holding.size)} ·{' '}
-                          {holding.source === 'published' ? '已发布' : '已下载'}
-                        </Text>
-                      </View>
-                      <StatusBadge
-                        label={SEED_STATUS_LABELS[holding.status]}
-                        tone={seedTone}
-                      />
-                    </View>
-
-                    <View style={styles.cidBlock}>
-                      <Text style={styles.cidLabel}>CID</Text>
-                      <Text style={styles.cidText}>
-                        {shortCid(holding.cid, 16, 10)}
-                      </Text>
-                    </View>
-
-                    <View style={styles.topicRow}>
-                      <Text style={styles.topicText}>
-                        {holding.topicJoined
-                          ? 'Topic 已加入'
-                          : '等待加入 topic'}
-                      </Text>
-                      <Text style={styles.topicText}>
-                        {holding.peerCount} peer
-                      </Text>
-                    </View>
-
-                    <View style={styles.holdingActions}>
-                      <SmallAction
-                        label={isCopied ? '已复制' : '复制链接'}
-                        onPress={() => handleCopyHoldingLink(holding)}
-                        icon={
-                          isCopied ? (
-                            <CircleCheck size={15} color="#0f766e" />
-                          ) : (
-                            <Copy size={15} color="#0f766e" />
-                          )
-                        }
-                      />
-                      <SmallAction
-                        label={isExporting ? '处理中' : '分享'}
-                        disabled={isExporting || isDeleting || !isReady}
-                        onPress={() => handleShareHolding(holding)}
-                        icon={
-                          isExporting ? (
-                            <Loader size={15} color="#94a3b8" />
-                          ) : (
-                            <Share2 size={15} color="#0f766e" />
-                          )
-                        }
-                      />
-                      <SmallAction
-                        label="保存"
-                        disabled={isExporting || isDeleting || !isReady}
-                        onPress={() => handleSaveHolding(holding)}
-                        icon={
-                          <Save
-                            size={15}
-                            color={isReady ? '#0f766e' : '#94a3b8'}
-                          />
-                        }
-                      />
-                      <SmallAction
-                        danger
-                        label={isDeleting ? '删除中' : '删除'}
-                        disabled={isDeleting || isExporting || !isReady}
-                        onPress={() => handleDeleteHolding(holding)}
-                        icon={
-                          isDeleting ? (
-                            <Loader size={15} color="#94a3b8" />
-                          ) : (
-                            <Trash2 size={15} color="#b91c1c" />
-                          )
-                        }
-                      />
-                    </View>
-                  </View>
-                )
-              })}
-            </View>
-          ) : (
-            <EmptyState
-              title="还没有本机附件"
-              body="发送或下载附件完成后，文件会自动加入做种列表。"
-            />
-          )}
-        </View>
-
-        <View style={styles.panel}>
-          <SectionHeader
-            icon={<ListChecks size={18} color="#b45309" />}
-            title="传输活动"
-            meta={
-              activeTransfers.length
-                ? `${activeTransfers.length} 个进行中`
-                : '空闲'
-            }
-          />
-
-          {latestTransfers.length ? (
-            <View style={styles.transferList}>
-              {latestTransfers.map(transfer => {
-                const progress = clampProgress(transfer.progress)
-                const filler = Math.max(0, 100 - progress)
-                return (
-                  <View key={transfer.id} style={styles.transferItem}>
-                    <View style={styles.transferTopRow}>
-                      <View style={styles.transferTitleGroup}>
-                        <Text style={styles.transferName} numberOfLines={1}>
-                          {transfer.fileName ||
-                            TRANSFER_KIND_LABELS[transfer.kind]}
-                        </Text>
-                        <Text style={styles.transferMeta}>
-                          {TRANSFER_KIND_LABELS[transfer.kind]} ·{' '}
-                          {transfer.message}
-                        </Text>
-                      </View>
-                      <StatusBadge
-                        label={TRANSFER_STATUS_LABELS[transfer.status]}
-                        tone={getTransferTone(transfer.status)}
-                      />
-                    </View>
-                    <View style={styles.progressTrack}>
-                      <View style={[styles.progressFill, { flex: progress }]} />
-                      <View style={{ flex: filler }} />
-                    </View>
-                  </View>
-                )
-              })}
-            </View>
-          ) : (
-            <EmptyState
-              title="暂无传输"
-              body="附件发送和下载进度会显示在这里。"
-            />
-          )}
-        </View>
-
-        <View style={styles.panel}>
-          <SectionHeader
-            icon={<Radio size={18} color="#6d5dfc" />}
-            title="节点日志"
-            meta={recentLogs.length ? `最近 ${recentLogs.length} 条` : '暂无'}
-          />
-
-          {recentLogs.length ? (
-            <View style={styles.logList}>
-              {recentLogs.map(log => (
-                <View key={log.id} style={styles.logItem}>
-                  <Text style={styles.logTime}>{formatLogTime(log.time)}</Text>
-                  <View style={styles.logBody}>
-                    <Text
-                      style={[
-                        styles.logLevel,
-                        log.level === 'error' ? styles.logLevelError : null,
-                        log.level === 'warn' ? styles.logLevelWarn : null,
-                      ]}
-                    >
-                      {LOG_LEVEL_LABELS[log.level]}
-                    </Text>
-                    <Text style={styles.logMessage}>{log.message}</Text>
-                  </View>
-                </View>
-              ))}
-            </View>
-          ) : (
-            <EmptyState
-              title="日志为空"
-              body="核心状态变化和传输事件会记录在这里。"
-            />
-          )}
-        </View>
-      </ScrollView>
+      <View style={styles.tabBar}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={chatTabAccessibilityLabel}
+          accessibilityState={{ selected: activeTab === 'chat' }}
+          onPress={handleSelectChatTab}
+          style={[
+            styles.tabButton,
+            activeTab === 'chat' ? styles.tabButtonActive : null,
+          ]}
+        >
+          <MessageCircle size={20} color={chatTabColor} />
+          <Text
+            style={[
+              styles.tabButtonText,
+              activeTab === 'chat' ? styles.tabButtonTextActive : null,
+            ]}
+          >
+            聊天
+          </Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="节点"
+          accessibilityState={{ selected: activeTab === 'node' }}
+          onPress={handleSelectNodeTab}
+          style={[
+            styles.tabButton,
+            activeTab === 'node' ? styles.tabButtonActive : null,
+          ]}
+        >
+          <ShieldCheck size={20} color={nodeTabColor} />
+          <Text
+            style={[
+              styles.tabButtonText,
+              activeTab === 'node' ? styles.tabButtonTextActive : null,
+            ]}
+          >
+            节点
+          </Text>
+        </Pressable>
+      </View>
     </SafeAreaView>
   )
 }
@@ -1320,360 +955,48 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f4f7f5',
   },
-  content: {
-    paddingBottom: 32,
-    gap: 14,
-  },
-  hero: {
-    gap: 18,
+  fallbackContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
     paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 20,
-    backgroundColor: '#0d3b35',
+    paddingTop: 28,
+    paddingBottom: 104,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 14,
-  },
-  brandGroup: {
-    flex: 1,
-    gap: 3,
-  },
-  brand: {
-    color: '#a7f3d0',
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  title: {
-    color: '#ffffff',
-    fontSize: 28,
-    fontWeight: '900',
-  },
-  nodePill: {
-    minHeight: 34,
-    flexDirection: 'row',
+  fallbackPanel: {
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingHorizontal: 11,
-    borderRadius: 8,
-    backgroundColor: '#e7ece9',
-  },
-  successPill: {
-    backgroundColor: '#d1fae5',
-  },
-  dangerPill: {
-    backgroundColor: '#fee2e2',
-  },
-  pendingPill: {
-    backgroundColor: '#fef3c7',
-  },
-  mutedPill: {
-    backgroundColor: '#e7ece9',
-  },
-  nodePillText: {
-    color: '#5b6b66',
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  successPillText: {
-    color: '#116149',
-  },
-  dangerPillText: {
-    color: '#991b1b',
-  },
-  pendingPillText: {
-    color: '#92400e',
-  },
-  mutedPillText: {
-    color: '#5b6b66',
-  },
-  errorBanner: {
-    minHeight: 46,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#fef2f2',
-  },
-  errorText: {
-    flex: 1,
-    color: '#991b1b',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  retryButton: {
-    minHeight: 30,
-    justifyContent: 'center',
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    backgroundColor: '#991b1b',
-  },
-  retryButtonText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  metricsRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  metric: {
-    flex: 1,
-    minHeight: 88,
-    justifyContent: 'center',
-    gap: 5,
-    padding: 12,
-    borderRadius: 8,
-    backgroundColor: '#ffffff',
-  },
-  metricIcon: {
-    width: 28,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 8,
-    backgroundColor: '#edf6f2',
-  },
-  metricValue: {
-    color: '#12211d',
-    fontSize: 23,
-    fontWeight: '900',
-  },
-  metricLabel: {
-    color: '#63716c',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  quickActions: {
-    flexDirection: 'row',
-    gap: 10,
-    paddingHorizontal: 16,
-    marginTop: 2,
-  },
-  commandButton: {
-    flex: 1,
-    minHeight: 84,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    padding: 13,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#dbe6e1',
-    backgroundColor: '#ffffff',
-  },
-  commandButtonPrimary: {
-    borderColor: '#0f766e',
-    backgroundColor: '#0f766e',
-  },
-  commandButtonDisabled: {
-    borderColor: '#d5ded9',
-    backgroundColor: '#edf2ef',
-  },
-  commandIcon: {
-    width: 39,
-    height: 39,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 8,
-    backgroundColor: '#edf6f2',
-  },
-  commandIconPrimary: {
-    backgroundColor: '#17877d',
-  },
-  commandIconDisabled: {
-    backgroundColor: '#e3ebe7',
-  },
-  commandTextGroup: {
-    flex: 1,
-    gap: 3,
-  },
-  commandLabel: {
-    color: '#13231f',
-    fontSize: 15,
-    fontWeight: '900',
-  },
-  commandLabelPrimary: {
-    color: '#ffffff',
-  },
-  commandHelper: {
-    color: '#63716c',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  commandHelperPrimary: {
-    color: '#d5f5ec',
-  },
-  panel: {
-    gap: 13,
-    marginHorizontal: 16,
-    padding: 15,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#dbe6e1',
-    backgroundColor: '#ffffff',
-  },
-  sectionHeader: {
-    minHeight: 28,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     gap: 12,
-  },
-  sectionTitleGroup: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  sectionTitle: {
-    color: '#13231f',
-    fontSize: 17,
-    fontWeight: '900',
-  },
-  sectionMeta: {
-    color: '#63716c',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  inputShell: {
-    minHeight: 92,
+    padding: 18,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#cddbd5',
-    backgroundColor: '#f8fbf9',
+    borderColor: '#dbe6e1',
+    backgroundColor: '#ffffff',
   },
-  input: {
-    minHeight: 92,
-    paddingHorizontal: 12,
-    paddingVertical: 11,
-    color: '#13231f',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  compactInputShell: {
-    minHeight: 44,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#cddbd5',
-    backgroundColor: '#f8fbf9',
-  },
-  compactInput: {
-    minHeight: 44,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    color: '#13231f',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  channelActions: {
-    flexDirection: 'row',
-    gap: 9,
-  },
-  channelStats: {
-    gap: 5,
-    padding: 10,
-    borderRadius: 8,
-    backgroundColor: '#f3f0ff',
-  },
-  channelStatText: {
-    color: '#4c3fb0',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  channelPresenceList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 7,
-  },
-  channelPresencePill: {
-    flexDirection: 'row',
+  fallbackIcon: {
+    width: 44,
+    height: 44,
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 9,
-    paddingVertical: 6,
+    justifyContent: 'center',
     borderRadius: 8,
     backgroundColor: '#ecfdf5',
   },
-  channelPresenceDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: '#16a34a',
-  },
-  channelPresenceText: {
-    color: '#116149',
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  channelMessageList: {
-    gap: 9,
-  },
-  channelMessageItem: {
-    gap: 4,
-    padding: 10,
-    borderRadius: 8,
-    backgroundColor: '#f8fbf9',
-  },
-  channelMessageMeta: {
-    color: '#6d5dfc',
-    fontSize: 11,
-    fontWeight: '900',
-  },
-  channelMessageText: {
+  fallbackTitle: {
     color: '#13231f',
+    fontSize: 18,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  fallbackBody: {
+    maxWidth: 260,
+    color: '#63716c',
     fontSize: 13,
     fontWeight: '700',
-  },
-  linkPreview: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    padding: 11,
-    borderRadius: 8,
-    backgroundColor: '#edfdf7',
-  },
-  linkPreviewError: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    padding: 11,
-    borderRadius: 8,
-    backgroundColor: '#fff1f2',
-  },
-  previewTextGroup: {
-    flex: 1,
-    gap: 2,
-  },
-  previewTitle: {
-    color: '#13231f',
-    fontSize: 14,
-    fontWeight: '900',
-  },
-  previewMeta: {
-    color: '#0f766e',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  previewErrorText: {
-    flex: 1,
-    color: '#b91c1c',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  downloadActions: {
-    flexDirection: 'row',
-    gap: 9,
+    lineHeight: 19,
+    textAlign: 'center',
   },
   smallAction: {
-    flex: 1,
+    alignSelf: 'stretch',
     minWidth: 128,
-    minHeight: 40,
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1710,193 +1033,37 @@ const styles = StyleSheet.create({
   disabledText: {
     color: '#94a3a0',
   },
-  holdingList: {
-    gap: 12,
-  },
-  holdingItem: {
-    gap: 11,
-    padding: 13,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#dbe6e1',
-    backgroundColor: '#fbfdfc',
-  },
-  holdingTopRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-  },
-  fileIcon: {
-    width: 38,
-    height: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 8,
-    backgroundColor: '#edfdf7',
-  },
-  holdingMain: {
-    flex: 1,
-    gap: 3,
-  },
-  fileName: {
-    color: '#13231f',
-    fontSize: 15,
-    fontWeight: '900',
-  },
-  fileMeta: {
-    color: '#63716c',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  badge: {
-    minHeight: 27,
-    justifyContent: 'center',
-    paddingHorizontal: 9,
-    borderRadius: 8,
-    backgroundColor: '#e7ece9',
-  },
-  badgeText: {
-    color: '#5b6b66',
-    fontSize: 11,
-    fontWeight: '900',
-  },
-  successBadge: {
-    backgroundColor: '#dff8ec',
-  },
-  dangerBadge: {
-    backgroundColor: '#fee2e2',
-  },
-  pendingBadge: {
-    backgroundColor: '#fef3c7',
-  },
-  mutedBadge: {
-    backgroundColor: '#e7ece9',
-  },
-  successBadgeText: {
-    color: '#116149',
-  },
-  dangerBadgeText: {
-    color: '#991b1b',
-  },
-  pendingBadgeText: {
-    color: '#92400e',
-  },
-  mutedBadgeText: {
-    color: '#5b6b66',
-  },
-  cidBlock: {
-    gap: 4,
-    padding: 10,
-    borderRadius: 8,
-    backgroundColor: '#eef4f1',
-  },
-  cidLabel: {
-    color: '#63716c',
-    fontSize: 10,
-    fontWeight: '900',
-  },
-  cidText: {
-    color: '#13231f',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  topicRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  topicText: {
-    color: '#63716c',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  holdingActions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  transferList: {
-    gap: 10,
-  },
-  transferItem: {
-    gap: 10,
-    paddingVertical: 2,
-  },
-  transferTopRow: {
+  tabBar: {
+    minHeight: 72,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    paddingHorizontal: 14,
+    paddingTop: 8,
+    paddingBottom: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#dbe6e1',
+    backgroundColor: '#ffffff',
   },
-  transferTitleGroup: {
+  tabButton: {
     flex: 1,
-    gap: 3,
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    borderRadius: 8,
+    backgroundColor: '#f8fbf9',
   },
-  transferName: {
-    color: '#13231f',
-    fontSize: 14,
+  tabButtonActive: {
+    backgroundColor: '#ecfdf5',
+  },
+  tabButtonText: {
+    color: '#63716c',
+    fontSize: 13,
     fontWeight: '900',
   },
-  transferMeta: {
-    color: '#63716c',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  progressTrack: {
-    height: 7,
-    flexDirection: 'row',
-    overflow: 'hidden',
-    borderRadius: 8,
-    backgroundColor: '#e6eee9',
-  },
-  progressFill: {
-    minWidth: 3,
-    backgroundColor: '#2563eb',
-  },
-  logList: {
-    gap: 11,
-  },
-  logItem: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  logTime: {
-    width: 42,
-    color: '#63716c',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  logBody: {
-    flex: 1,
-    gap: 2,
-  },
-  logLevel: {
+  tabButtonTextActive: {
     color: '#0f766e',
-    fontSize: 11,
-    fontWeight: '900',
-  },
-  logLevelWarn: {
-    color: '#b45309',
-  },
-  logLevelError: {
-    color: '#b91c1c',
-  },
-  logMessage: {
-    color: '#44514d',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  emptyState: {
-    gap: 4,
-    paddingVertical: 14,
-  },
-  emptyTitle: {
-    color: '#13231f',
-    fontSize: 14,
-    fontWeight: '900',
-  },
-  emptyBody: {
-    color: '#63716c',
-    fontSize: 12,
-    fontWeight: '700',
   },
 })
