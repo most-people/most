@@ -3,10 +3,10 @@ import '~/styles/marketing.css'
 import { Link } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 import { Download } from 'lucide-react'
+import { AppearanceToggle } from '~/components/AppearanceToggle'
 import { Footer } from '~/components/Footer'
 import { LogoIcon } from '~/components/icons/LogoIcon'
 import { LanguageToggle } from '~/components/LanguageToggle'
-import { ThemeToggle } from '~/components/ThemeToggle'
 import { AccountMenuButton } from '~/features/profile/AccountMenu'
 import { useIsDesktopClient } from '~/hooks'
 import { useI18n } from '~/lib/i18n'
@@ -39,7 +39,7 @@ function DefaultMarketingHeader() {
         </Link>
 
         <div className="mkt-nav-cta">
-          <ThemeToggle />
+          <AppearanceToggle />
           <LanguageToggle />
           {!isDesktopClient && (
             <Link to="/download/" className="btn btn-primary mkt-nav-preview">

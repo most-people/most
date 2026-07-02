@@ -2,11 +2,11 @@ import { Moon, Sun } from 'lucide-react'
 import { useI18n } from '~/lib/i18n'
 import { useAppStore } from '~/stores/useAppStore'
 
-export function ThemeToggle() {
+export function AppearanceToggle() {
   const { t } = useI18n()
   const isDarkMode = useAppStore(s => s.isDarkMode)
   const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
-  const label = t('common.theme.toggle')
+  const label = t('common.appearance.toggle')
 
   return (
     <button

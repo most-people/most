@@ -1157,7 +1157,7 @@ describe('frontend smoke checks', () => {
     const marketingHeaderSource = readSource('src/components/MarketingHeader.tsx')
     const appShellSource = readSource('src/components/AppShell.tsx')
     const languageToggleSource = readSource('src/components/LanguageToggle.tsx')
-    const themeToggleSource = readSource('src/components/ThemeToggle.tsx')
+    const appearanceToggleSource = readSource('src/components/AppearanceToggle.tsx')
     const accountMenuSource = readSource('src/features/profile/AccountMenu.tsx')
     const profileSource = readSource('src/features/profile/ProfilePage.tsx')
     const appSource = readSource(SOURCE_PATHS.features.files)
@@ -1166,12 +1166,12 @@ describe('frontend smoke checks', () => {
     assert.match(rootRoute, /I18nProvider/)
     assert.match(rootRoute, /supportedLocales = \['zh-CN', 'zh-TW', 'en'\]/)
     assert.match(appShellSource, /AccountMenuButton/)
-    assert.match(appShellSource, /ThemeToggle/)
+    assert.match(appShellSource, /AppearanceToggle/)
     assert.match(appShellSource, /LanguageToggle/)
     assert.match(marketingLayoutSource, /AccountMenuButton/)
-    assert.match(marketingLayoutSource, /ThemeToggle/)
+    assert.match(marketingLayoutSource, /AppearanceToggle/)
     assert.match(marketingLayoutSource, /LanguageToggle/)
-    assert.match(marketingHeaderSource, /ThemeToggle/)
+    assert.match(marketingHeaderSource, /AppearanceToggle/)
     assert.match(marketingHeaderSource, /LanguageToggle/)
     assert.doesNotMatch(accountMenuSource, /ActionMenu|LOCALES|setLocale|setIsDarkMode/)
     assert.doesNotMatch(
@@ -1183,8 +1183,8 @@ describe('frontend smoke checks', () => {
     assert.match(languageToggleSource, /localeNames\[item\]/)
     assert.match(languageToggleSource, /setLocale\(item\)/)
     assert.match(languageToggleSource, /<Check size=\{16\}/)
-    assert.match(themeToggleSource, /setIsDarkMode\(!isDarkMode\)/)
-    assert.match(themeToggleSource, /t\('common\.theme\.toggle'\)/)
+    assert.match(appearanceToggleSource, /setIsDarkMode\(!isDarkMode\)/)
+    assert.match(appearanceToggleSource, /t\('common\.appearance\.toggle'\)/)
     assert.doesNotMatch(
       messageCatalogs,
       /common\.locale\.current|common\.locale\.switchTo/
@@ -1226,7 +1226,7 @@ describe('frontend smoke checks', () => {
       readSource('src/components/CopyButton.tsx'),
       readSource('src/components/AppGlobals.tsx'),
       readSource('src/components/LanguageToggle.tsx'),
-      readSource('src/components/ThemeToggle.tsx'),
+      readSource('src/components/AppearanceToggle.tsx'),
       readSource('src/components/PingPanel.tsx'),
       readSource('src/components/PemBlock.tsx'),
       readSource('src/components/MilkdownEditor.tsx'),
@@ -1540,7 +1540,7 @@ describe('frontend smoke checks', () => {
     const marketingHeaderSource = readSource('src/components/MarketingHeader.tsx')
     const marketingLayoutSource = readSource('src/components/MarketingLayout.tsx')
     const languageToggleSource = readSource('src/components/LanguageToggle.tsx')
-    const themeToggleSource = readSource('src/components/ThemeToggle.tsx')
+    const appearanceToggleSource = readSource('src/components/AppearanceToggle.tsx')
     const profileSource = readSource('src/features/profile/ProfilePage.tsx')
     const accountMenuSource = readSource('src/features/profile/AccountMenu.tsx')
     const chatSource = readSource('src/features/chat/ChatPage.tsx')
@@ -1583,14 +1583,14 @@ describe('frontend smoke checks', () => {
     assert.match(appShellSource, /hideAccountMenu\?: boolean/)
     assert.match(appShellSource, /hideAccountMenu = false/)
     assert.match(appShellSource, /\{!hideAccountMenu && <AccountMenuButton \/>\}/)
-    assert.match(appShellSource, /ThemeToggle/)
+    assert.match(appShellSource, /AppearanceToggle/)
     assert.match(appShellSource, /LanguageToggle/)
     assert.match(chatSource, /hideAccountMenu=\{isInviteUser\}/)
     assert.match(marketingHeaderSource, /AccountMenuButton/)
-    assert.match(marketingHeaderSource, /ThemeToggle/)
+    assert.match(marketingHeaderSource, /AppearanceToggle/)
     assert.match(marketingHeaderSource, /LanguageToggle/)
     assert.match(marketingLayoutSource, /AccountMenuButton/)
-    assert.match(marketingLayoutSource, /ThemeToggle/)
+    assert.match(marketingLayoutSource, /AppearanceToggle/)
     assert.match(marketingLayoutSource, /LanguageToggle/)
     assert.ok(
       marketingDownloadIndex !== -1 &&
@@ -1620,7 +1620,7 @@ describe('frontend smoke checks', () => {
     assert.match(languageToggleSource, /LOCALES\.map/)
     assert.match(languageToggleSource, /localeNames\[item\]/)
     assert.match(languageToggleSource, /setLocale\(item\)/)
-    assert.match(themeToggleSource, /setIsDarkMode\(!isDarkMode\)/)
+    assert.match(appearanceToggleSource, /setIsDarkMode\(!isDarkMode\)/)
     assert.match(profileSource, /backupConfirm/)
     assert.match(profileSource, /ConfirmModal/)
     assert.match(profileSource, /useAccountBackup\(\)/)

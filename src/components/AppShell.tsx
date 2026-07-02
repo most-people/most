@@ -8,8 +8,8 @@ import React, {
 } from 'react'
 import { useMediaQuery } from '@mantine/hooks'
 import { Menu } from 'lucide-react'
+import { AppearanceToggle } from '~/components/AppearanceToggle'
 import { LanguageToggle } from '~/components/LanguageToggle'
-import { ThemeToggle } from '~/components/ThemeToggle'
 import { AccountMenuButton } from '~/features/profile/AccountMenu'
 import { useDisclosure } from '~/hooks'
 import { useI18n } from '~/lib/i18n'
@@ -147,7 +147,7 @@ export default function AppShell({
             </div>
             <div className="header-right">
               {headerRight}
-              <ThemeToggle />
+              <AppearanceToggle />
               <LanguageToggle />
               {!hideAccountMenu && <AccountMenuButton />}
             </div>
