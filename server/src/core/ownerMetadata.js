@@ -9,10 +9,7 @@ export function getOwnerBucketKey(address) {
 }
 
 export function normalizeMetadataBuckets(input) {
-  if (Array.isArray(input)) {
-    return { [DEFAULT_OWNER_BUCKET]: input.map(record => ({ ...record })) }
-  }
-  if (!input || typeof input !== 'object') {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
     return {}
   }
   const buckets = {}
