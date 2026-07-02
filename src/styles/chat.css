@@ -845,6 +845,9 @@
 [data-theme='dark'] .sparkbit-chat-layout,
 [data-theme='dark'] .sparkbit-chat-action-menu {
   --accent-soft: rgba(106, 96, 255, 0.18);
+  --sparkbit-chat-surface: #08080a;
+  --sparkbit-chat-panel: #121216;
+  --sparkbit-chat-panel-soft: #1a1a20;
   --sparkbit-chat-border: rgba(255, 255, 255, 0.12);
   --sparkbit-chat-border-muted: rgba(255, 255, 255, 0.08);
 }

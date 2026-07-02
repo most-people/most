@@ -142,6 +142,17 @@ function readI18nSources() {
 }
 
 describe('frontend smoke checks', () => {
+  it('keeps the chat join and search labels concise across locales', async () => {
+    const { messages } = await importBundledSource('src/lib/i18n/messages.ts')
+
+    assert.equal(messages['zh-CN']['chat.search.placeholder'], '搜索')
+    assert.equal(messages['zh-CN']['chat.joinChannel'], '加入聊天')
+    assert.equal(messages['zh-TW']['chat.search.placeholder'], '搜尋')
+    assert.equal(messages['zh-TW']['chat.joinChannel'], '加入聊天')
+    assert.equal(messages.en['chat.search.placeholder'], 'Search')
+    assert.equal(messages.en['chat.joinChannel'], 'Join chat')
+  })
+
   it('keeps the share modal aligned with the MVP seeding promise', () => {
     const source = readSource(SOURCE_PATHS.features.files)
     const shareLinkSource = readSource('src/lib/shareLink.ts')

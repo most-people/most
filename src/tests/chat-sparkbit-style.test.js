@@ -19,6 +19,17 @@ function extractSparkbitStyles(source) {
   return source.slice(start, end)
 }
 
+function extractCssBlock(source, selector) {
+  const start = source.indexOf(`${selector} {`)
+  assert.notEqual(start, -1)
+
+  const bodyStart = source.indexOf('{', start) + 1
+  const bodyEnd = source.indexOf('}', bodyStart)
+  assert.notEqual(bodyEnd, -1)
+
+  return source.slice(bodyStart, bodyEnd)
+}
+
 describe('sparkbit chat styling', () => {
   it('wires the SparkBit chat class and portal menus from theme identity', () => {
     const chatPage = readSource('src/features/chat/ChatPage.tsx')
@@ -85,5 +96,19 @@ describe('sparkbit chat styling', () => {
     )
     assert.deepEqual(nonFlatBoxShadowLines, [])
     assert.doesNotMatch(sparkbitStyles, /linear-gradient|radial-gradient/)
+  })
+
+  it('lifts SparkBit dark chat surfaces away from pure black', () => {
+    const chatStyles = readSource('src/styles/chat.css')
+    const sparkbitStyles = extractSparkbitStyles(chatStyles)
+    const darkBlock = extractCssBlock(
+      sparkbitStyles,
+      "[data-theme='dark'] .sparkbit-chat-layout,\n[data-theme='dark'] .sparkbit-chat-action-menu"
+    )
+
+    assert.match(darkBlock, /--sparkbit-chat-surface:\s*#08080a/i)
+    assert.match(darkBlock, /--sparkbit-chat-panel:\s*#121216/i)
+    assert.match(darkBlock, /--sparkbit-chat-panel-soft:\s*#1a1a20/i)
+    assert.doesNotMatch(darkBlock, /--sparkbit-chat-surface:\s*#0{3,6}\b/i)
   })
 })
