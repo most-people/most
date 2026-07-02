@@ -1263,15 +1263,7 @@ function ChatPage() {
           mimeType: file.type || undefined,
           size: file.size,
         }
-        const sent = await sendChannelMessage(link, attachment)
-        if (sent) {
-          addToast(
-            t('chat.attachment.published', {
-              fileName: getAttachmentBaseFileName(fileName),
-            }),
-            'success'
-          )
-        }
+        await sendChannelMessage(link, attachment)
       }
     } catch (err) {
       addToast(

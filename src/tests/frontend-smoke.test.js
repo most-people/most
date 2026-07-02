@@ -322,6 +322,74 @@ describe('frontend smoke checks', () => {
     assert.match(chatUiSource, /event\.currentTarget\.value = ''/)
   })
 
+  it('publishes files and chat attachments without success toasts', () => {
+    const filesSource = readSource(SOURCE_PATHS.features.files)
+    const chatSource = readSource(SOURCE_PATHS.features.chat)
+    const i18nMessages = readI18nSources()
+    const processStart = filesSource.indexOf(
+      'const processFiles = async (files: FileList | File[]) => {'
+    )
+    const processEnd = filesSource.indexOf(
+      '\n  const mostShareLink',
+      processStart
+    )
+    const handlerStart = chatSource.indexOf(
+      'async function handleSelectAttachmentFiles'
+    )
+    const handlerEnd = chatSource.indexOf(
+      '\n  async function handleOpenAttachment',
+      handlerStart
+    )
+    const processSource = filesSource.slice(processStart, processEnd)
+    const handlerSource = chatSource.slice(handlerStart, handlerEnd)
+
+    assert.ok(processStart >= 0)
+    assert.ok(processEnd > processStart)
+    assert.match(processSource, /fileApi\.publishFile/)
+    assert.match(processSource, /status:\s*'completed'/)
+    assert.doesNotMatch(processSource, /app\.fileAddedLocal/)
+
+    assert.ok(handlerStart >= 0)
+    assert.ok(handlerEnd > handlerStart)
+    assert.match(handlerSource, /fileApi\.publishFile/)
+    assert.match(handlerSource, /sendChannelMessage\(link, attachment\)/)
+    assert.doesNotMatch(handlerSource, /chat\.attachment\.published/)
+    assert.doesNotMatch(i18nMessages, /app\.fileAddedLocal/)
+    assert.doesNotMatch(i18nMessages, /chat\.attachment\.published/)
+  })
+
+  it('treats node-local downloads as importable unless the user already has the file', () => {
+    const filesSource = readSource(SOURCE_PATHS.features.files)
+    const apiSource = readSource('src/lib/fileApi.ts')
+    const checkStart = filesSource.indexOf(
+      'const handleCheckDownloadAvailability = async () => {'
+    )
+    const checkEnd = filesSource.indexOf(
+      '\n  const handleDownloadSharedFile',
+      checkStart
+    )
+    const downloadStart = filesSource.indexOf(
+      'const handleDownloadSharedFile = async () => {'
+    )
+    const downloadEnd = filesSource.indexOf(
+      '\n  const handleCancelTransfer',
+      downloadStart
+    )
+    const checkSource = filesSource.slice(checkStart, checkEnd)
+    const downloadSource = filesSource.slice(downloadStart, downloadEnd)
+
+    assert.ok(checkStart >= 0)
+    assert.ok(checkEnd > checkStart)
+    assert.ok(downloadStart >= 0)
+    assert.ok(downloadEnd > downloadStart)
+    assert.match(apiSource, /localAvailable\?: boolean/)
+    assert.match(checkSource, /result\.alreadyExists\s*\?/)
+    assert.match(checkSource, /app\.fileAlreadyLocal/)
+    assert.doesNotMatch(checkSource, /result\.localAvailable[\s\S]*app\.fileAlreadyLocal/)
+    assert.match(downloadSource, /result\.localAvailable/)
+    assert.match(downloadSource, /refreshFiles\(\)/)
+  })
+
   it('lets the admin max file field accept MB or GiB input', () => {
     const adminSource = readSource(SOURCE_PATHS.features.admin)
     const selectControlSource = readSource('src/components/ui/SelectControl.tsx')

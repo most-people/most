@@ -739,7 +739,7 @@ export class MostBoxEngine extends EventEmitter {
    * @param {object} [options] - 下载选项
    * @param {number} [options.timeout] - 等待 P2P 内容的超时时间（毫秒）
    * @param {number} [options.streamReadTimeout] - 下载流无进度超时时间（毫秒）
-   * @returns {Promise<{ taskId: string, fileName: string, savedPath: string, alreadyExists?: boolean }>}
+   * @returns {Promise<{ taskId: string, fileName: string, savedPath?: string, localAvailable?: boolean, alreadyExists?: boolean }>}
    */
   async downloadFile(link, taskId = null, options = {}) {
     this.#ensureInitialized()
@@ -778,12 +778,38 @@ export class MostBoxEngine extends EventEmitter {
       })
       if (localContent) {
         const existingFile = localContent.fileRecord
+        const publishedBucket = this.#getPublishedBucket(ownerAddress, true)
+        const existingIndex = publishedBucket.findIndex(
+          f => f.cid === cidString
+        )
+        const alreadyInOwnerLibrary = existingIndex !== -1
         console.log(
           `[MostBox] CID content already exists locally: ${cidString}`
         )
         const existingHolding = this.#holdings.find(
           item => item.cid === cidString
         )
+        const localSize =
+          Number(existingHolding?.size) ||
+          (Number.isFinite(localContent.size) ? localContent.size : 0)
+        if (!alreadyInOwnerLibrary) {
+          this.#assertDisplayNameAvailable(linkFileName, {
+            ownerAddress,
+            excludeCid: cidString,
+          })
+          const syncUpdatedAt = Date.now()
+          publishedBucket.push({
+            fileName: linkFileName,
+            cid: cidString,
+            driveName: existingFile?.driveName || name,
+            size: localSize,
+            source: 'downloaded',
+            publishedAt: new Date(syncUpdatedAt).toISOString(),
+            starred: false,
+            syncUpdatedAt,
+          })
+          this.#savePublishedMetadata()
+        }
         await this.#joinCidTopicInternal(cidString, {
           server: true,
           client: false,
@@ -791,17 +817,21 @@ export class MostBoxEngine extends EventEmitter {
         this.#upsertHolding({
           cid: cidString,
           fileName:
-            existingHolding?.fileName || existingFile?.fileName || linkFileName,
-          size:
-            existingHolding?.size ??
-            (Number.isFinite(localContent.size) ? localContent.size : 0),
+            existingHolding?.fileName ||
+            (alreadyInOwnerLibrary ? existingFile?.fileName : linkFileName) ||
+            linkFileName,
+          size: localSize,
           driveName: existingFile?.driveName || name,
-          source: existingHolding?.source || 'published',
+          source:
+            existingHolding?.source ||
+            (alreadyInOwnerLibrary ? existingFile?.source : 'downloaded') ||
+            'downloaded',
         })
         return {
           taskId,
           fileName: linkFileName,
-          alreadyExists: true,
+          localAvailable: true,
+          alreadyExists: alreadyInOwnerLibrary,
         }
       }
 
@@ -1131,7 +1161,10 @@ export class MostBoxEngine extends EventEmitter {
       cid: parsed.cid,
       fileName: sanitizeFilename(parsed.fileName),
       size: localContent.size,
-      alreadyExists: true,
+      localAvailable: true,
+      alreadyExists: this.#getPublishedBucket(ownerAddress).some(
+        f => f.cid === parsed.cid
+      ),
     }
   }
 
@@ -1140,7 +1173,7 @@ export class MostBoxEngine extends EventEmitter {
    * @param {string} link - most:// 链接
    * @param {object} [options] - 检测选项
    * @param {number} [options.timeout] - 等待 P2P 内容的超时时间（毫秒）
-   * @returns {Promise<{ available: boolean, cid: string, fileName: string, size: number|null, alreadyExists?: boolean }>}
+   * @returns {Promise<{ available: boolean, cid: string, fileName: string, size: number|null, localAvailable?: boolean, alreadyExists?: boolean }>}
    */
   async checkDownloadAvailability(link, options = {}) {
     this.#ensureInitialized()
@@ -1169,7 +1202,10 @@ export class MostBoxEngine extends EventEmitter {
         cid: cidString,
         fileName: sanitizeFilename(parsed.fileName),
         size: localContent.size,
-        alreadyExists: true,
+        localAvailable: true,
+        alreadyExists: this.#getPublishedBucket(ownerAddress).some(
+          f => f.cid === cidString
+        ),
       }
     }
 

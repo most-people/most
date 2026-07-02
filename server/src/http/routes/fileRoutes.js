@@ -61,11 +61,8 @@ export function registerFileRoutes(app, { engine, configStore, wsBroadcast }) {
     if (localAvailability) {
       return c.json({
         success: true,
-        available: true,
-        cid: parsed.cid,
-        fileName: localAvailability.fileName,
+        ...localAvailability,
         size: Number(localAvailability.size) || null,
-        alreadyExists: true,
       })
     }
 

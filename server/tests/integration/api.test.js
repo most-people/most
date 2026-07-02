@@ -764,6 +764,64 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(data.fileName, publishResult.cid)
     })
 
+    it('does not mark another user file as already in the current file library', async () => {
+      const publishResult = await engine.publishFile(
+        Buffer.from('shared local content'),
+        'shared-local.txt',
+        { ownerAddress: TEST_IDENTITY.address }
+      )
+      const link = `most://${publishResult.cid}?filename=${encodeURIComponent('shared-copy.txt')}`
+
+      const initialFilesRes = await fetchAs(
+        SECOND_IDENTITY,
+        `${baseUrl}/api/files`
+      )
+      const initialFiles = await initialFilesRes.json()
+      assert.strictEqual(initialFilesRes.status, 200)
+      assert.strictEqual(
+        initialFiles.some(file => file.cid === publishResult.cid),
+        false
+      )
+
+      const checkRes = await fetchAs(
+        SECOND_IDENTITY,
+        `${baseUrl}/api/download/check`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ link }),
+        }
+      )
+      const checkData = await checkRes.json()
+
+      assert.strictEqual(checkRes.status, 200)
+      assert.strictEqual(checkData.available, true)
+      assert.strictEqual(checkData.localAvailable, true)
+      assert.notStrictEqual(checkData.alreadyExists, true)
+
+      const downloadRes = await fetchAs(
+        SECOND_IDENTITY,
+        `${baseUrl}/api/download`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ link }),
+        }
+      )
+      const downloadData = await downloadRes.json()
+      assert.strictEqual(downloadRes.status, 200)
+      assert.strictEqual(downloadData.localAvailable, true)
+      assert.notStrictEqual(downloadData.alreadyExists, true)
+
+      const filesRes = await fetchAs(SECOND_IDENTITY, `${baseUrl}/api/files`)
+      const files = await filesRes.json()
+      const added = files.find(file => file.cid === publishResult.cid)
+      assert.strictEqual(filesRes.status, 200)
+      assert.ok(added)
+      assert.strictEqual(added.fileName, 'shared-copy.txt')
+      assert.strictEqual(added.localAvailable, true)
+    })
+
     it('checks remote availability without starting a download task', async () => {
       let checked = false
       let startedDownload = false

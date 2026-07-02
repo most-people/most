@@ -401,7 +401,6 @@ export default function App() {
                 : t
             )
           )
-          addToast(t('app.fileAddedLocal', { fileName: file.name }), 'success')
         }
       } catch (err) {
         setTransfers(prev =>
@@ -543,6 +542,8 @@ export default function App() {
 
       if (result.alreadyExists) {
         addToast(t('app.fileAlreadyExists', { fileName: result.fileName }), 'warning')
+      } else if (result.localAvailable) {
+        refreshFiles()
       } else {
         const transfer = {
           id: result.taskId,

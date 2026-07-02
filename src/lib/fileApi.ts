@@ -54,6 +54,7 @@ export interface DownloadCheckResponse {
   cid: string
   fileName: string
   size: number | null
+  localAvailable?: boolean
   alreadyExists?: boolean
 }
 
@@ -67,6 +68,7 @@ export interface DownloadFileResult {
   success?: boolean
   taskId?: string
   fileName?: string
+  localAvailable?: boolean
   alreadyExists?: boolean
   [key: string]: unknown
 }
