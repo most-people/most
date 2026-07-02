@@ -2026,6 +2026,22 @@ describe('frontend smoke checks', () => {
     assert.doesNotMatch(channelApiSource, /interface ChannelMember/)
   })
 
+  it('renders channel member joins as centered system messages', () => {
+    const chatSource = readSource(SOURCE_PATHS.features.chat)
+    const chatUiSource = readSource('src/components/ChatUi.tsx')
+    const chatCssSource = readSource('src/styles/chat.css')
+    const channelApiSource = readSource('src/lib/channelApi.ts')
+    const messagesSource = readSource('src/lib/i18n/messages/chat.ts')
+
+    assert.match(channelApiSource, /event\?: string/)
+    assert.match(chatSource, /isChannelMemberJoinedSystemMessage/)
+    assert.match(chatSource, /ChatSystemMessageItem/)
+    assert.match(chatSource, /chat\.system\.memberJoined/)
+    assert.match(chatUiSource, /function ChatSystemMessageItem/)
+    assert.match(chatCssSource, /\.chat-system-message/)
+    assert.match(messagesSource, /'chat\.system\.memberJoined'/)
+  })
+
   it('renders chat member online indicators from channel presence', () => {
     const chatSource = readSource(SOURCE_PATHS.features.chat)
     const chatUiSource = readSource('src/components/ChatUi.tsx')

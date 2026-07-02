@@ -143,6 +143,19 @@
   }
 }
 
+.chat-system-message {
+  align-self: center;
+  max-width: min(82%, 420px);
+  padding: 2px 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: center;
+  opacity: 0.72;
+  word-break: break-word;
+  animation: fadeIn 0.2s ease;
+}
+
 /* === Input Area === */
 .chat-input-area {
   display: flex;
@@ -973,6 +986,11 @@
 
 .sparkbit-chat-layout .chat-message {
   animation: none;
+}
+
+.sparkbit-chat-layout .chat-system-message {
+  color: var(--text-muted);
+  opacity: 0.72;
 }
 
 .sparkbit-chat-layout .chat-message .message-bubble {

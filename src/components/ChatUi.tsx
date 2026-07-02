@@ -78,6 +78,10 @@ export function ChatAttachmentBubble({ children }: { children: ReactNode }) {
   return <div className="message-bubble has-attachment">{children}</div>
 }
 
+export function ChatSystemMessageItem({ children }: { children: ReactNode }) {
+  return <div className="chat-system-message">{children}</div>
+}
+
 export function ChatMessageItem({
   variant,
   pending = false,

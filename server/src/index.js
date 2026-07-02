@@ -96,7 +96,11 @@ import {
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 const CHANNEL_PRESENCE_HEARTBEAT_MS = 15 * 1000
 const CHANNEL_PRESENCE_TIMEOUT_MS = 45 * 1000
-const CHANNEL_WELCOME_MESSAGE = '我加入了群聊'
+const CHANNEL_MEMBER_JOINED_EVENT = 'channel.member.joined'
+
+function isChannelHistoryEntry(entry) {
+  return entry?.type === 'message' || entry?.type === 'system'
+}
 
 function createMemoryDuplexPair() {
   let left
@@ -2614,7 +2618,7 @@ export class MostBoxEngine extends EventEmitter {
       for (let i = 0; i < core.length; i++) {
         try {
           const entry = await core.get(i)
-          if (entry && entry.type === 'message') {
+          if (isChannelHistoryEntry(entry)) {
             allMessages.push({
               ...entry,
               _coreKey: coreKeyHex,
@@ -2629,7 +2633,7 @@ export class MostBoxEngine extends EventEmitter {
 
     const seen = new Set()
     const unique = allMessages.filter(m => {
-      const key = `${m._coreKey}:${m.author}:${m.timestamp}:${m.content}`
+      const key = `${m._coreKey}:${m.type}:${m.event || ''}:${m.author}:${m.timestamp}:${m.content}`
       if (seen.has(key)) return false
       seen.add(key)
       return true
@@ -2696,7 +2700,7 @@ export class MostBoxEngine extends EventEmitter {
 
     const normalizedAvatar = normalizeChannelAvatar(options.avatar)
     const message = {
-      type: 'message',
+      type: options.type === 'system' ? 'system' : 'message',
       author,
       authorName: normalizeChannelDisplayName(
         authorName,
@@ -2712,6 +2716,10 @@ export class MostBoxEngine extends EventEmitter {
     }
     if (attachment) {
       message.attachment = attachment
+    }
+    if (message.type === 'system') {
+      const event = String(options.event || '').trim()
+      if (event) message.event = event
     }
 
     await core.append(message)
@@ -3205,11 +3213,13 @@ export class MostBoxEngine extends EventEmitter {
 
     await this.sendMessage(
       channel.channelKey,
-      CHANNEL_WELCOME_MESSAGE,
+      CHANNEL_MEMBER_JOINED_EVENT,
       ownerAddress,
       normalizeChannelDisplayName(options.displayName, ownerAddress),
       {
         ownerAddress,
+        type: 'system',
+        event: CHANNEL_MEMBER_JOINED_EVENT,
         ...(Object.prototype.hasOwnProperty.call(options, 'avatar')
           ? { avatar: options.avatar }
           : {}),
@@ -3564,7 +3574,7 @@ export class MostBoxEngine extends EventEmitter {
         for (let i = 0; i < core.length; i++) {
           try {
             const entry = await core.get(i)
-            if (entry?.type === 'message') {
+            if (isChannelHistoryEntry(entry)) {
               maxTimestamp = Math.max(
                 maxTimestamp,
                 Number(entry.timestamp) || 0
@@ -4807,7 +4817,7 @@ export class MostBoxEngine extends EventEmitter {
         for (let i = lastCoreLength; i < core.length; i++) {
           try {
             const entry = await core.get(i)
-            if (entry && entry.type === 'message') {
+            if (isChannelHistoryEntry(entry)) {
               const channel = this.#channels.find(
                 c => c.channelKey === channelKey
               )

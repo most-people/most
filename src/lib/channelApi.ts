@@ -13,6 +13,7 @@ export interface ChannelAttachment {
 export interface ChannelMessage {
   id?: string | number
   type?: string
+  event?: string
   author: string
   authorName?: string
   avatar?: string

@@ -24,6 +24,7 @@ import {
   ChatChannelNavItem,
   ChatComposer,
   ChatMessageItem,
+  ChatSystemMessageItem,
   ChatTextBubble,
 } from '~/components/ChatUi'
 import FilePreviewOverlay from '~/components/FilePreviewOverlay'
@@ -83,6 +84,7 @@ const ATTACHMENT_CHECK_TIMEOUT_MS = 10000
 const ATTACHMENT_CHECK_REQUEST_TIMEOUT_MS = ATTACHMENT_CHECK_TIMEOUT_MS + 2000
 const CHAT_NOTIFICATION_SOUND_MIN_INTERVAL_MS = 1200
 const CHANNEL_HISTORY_SYNC_DEBOUNCE_MS = 800
+const CHANNEL_MEMBER_JOINED_EVENT = 'channel.member.joined'
 
 function getChannelKey(channel?: Pick<Channel, 'channelKey' | 'name'> | null) {
   return channel?.channelKey || channel?.name || ''
@@ -122,6 +124,10 @@ function getSocketEventChannelKeys(data: unknown) {
 
 function getChannelTitle(channel?: Pick<Channel, 'remark' | 'channelId' | 'name'> | null) {
   return channel?.remark || getChannelId(channel)
+}
+
+function isChannelMemberJoinedSystemMessage(msg: ChannelMessage) {
+  return msg.type === 'system' && msg.event === CHANNEL_MEMBER_JOINED_EVENT
 }
 
 function getRequestedChannelNameFromLocation() {
@@ -1324,6 +1330,7 @@ function ChatPage() {
 
   function isSaveableChannelMessage(msg: ChannelMessage) {
     return (
+      msg.type !== 'system' &&
       !msg.pending &&
       (Boolean(msg.attachment) || Boolean(msg.content.trim()))
     )
@@ -1696,6 +1703,17 @@ function ChatPage() {
               </div>
             ) : (
               channelMessages.map(msg => {
+                if (isChannelMemberJoinedSystemMessage(msg)) {
+                  const displayAuthor = getMessageDisplayAuthor(msg)
+                  return (
+                    <ChatSystemMessageItem
+                      key={msg.id || `${msg.author}-${msg.timestamp}`}
+                    >
+                      {t('chat.system.memberJoined', { name: displayAuthor })}
+                    </ChatSystemMessageItem>
+                  )
+                }
+
                 const isSelf =
                   msg.author?.toLowerCase() ===
                   userIdentity?.address.toLowerCase()

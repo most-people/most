@@ -1453,7 +1453,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
   })
 
   describe('channel welcome messages', () => {
-    it('writes a normal welcome message with the joining profile snapshot', async () => {
+    it('writes a system member-joined message with the joining profile snapshot', async () => {
       const ownerAddress = '0x1234567890abcdef1234567890abcdef12345678'
       const channelName = `welcome-${uid}`
       await engine.createChannel(channelName, 'public', {
@@ -1467,7 +1467,9 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       })
 
       assert.strictEqual(messages.length, 1)
-      assert.strictEqual(messages[0].content, '我加入了群聊')
+      assert.strictEqual(messages[0].type, 'system')
+      assert.strictEqual(messages[0].event, 'channel.member.joined')
+      assert.strictEqual(messages[0].content, 'channel.member.joined')
       assert.strictEqual(messages[0].author, ownerAddress)
       assert.strictEqual(messages[0].authorName, 'Alice#5678')
       assert.strictEqual(messages[0].avatar, 'data:image/png;base64,alice')
@@ -1494,10 +1496,11 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         ownerAddress: alice,
       })
       const welcomeMessages = messages.filter(
-        message => message.content === '我加入了群聊'
+        message => message.event === 'channel.member.joined'
       )
 
       assert.strictEqual(welcomeMessages.length, 1)
+      assert.strictEqual(welcomeMessages[0].type, 'system')
       assert.strictEqual(welcomeMessages[0].authorName, 'Alice')
     })
 

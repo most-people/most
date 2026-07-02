@@ -2314,8 +2314,13 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(res.status, 200)
       assert.ok(Array.isArray(data))
       assert.deepStrictEqual(
-        data.map(message => message.content),
-        ['我加入了群聊', 'msg1', 'msg2']
+        data.map(message => message.type),
+        ['system', 'message', 'message']
+      )
+      assert.strictEqual(data[0].event, 'channel.member.joined')
+      assert.deepStrictEqual(
+        data.slice(1).map(message => message.content),
+        ['msg1', 'msg2']
       )
     })
 
@@ -2339,14 +2344,16 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(data.code, 'PERMISSION_ERROR')
     })
 
-    it('returns the welcome message for a newly joined chat channel', async () => {
+    it('returns a system member-joined message for a newly joined chat channel', async () => {
       await engine.createChannel(`empty-${uid}`)
       const res = await fetch(`${baseUrl}/api/channels/empty-${uid}/messages`)
       const data = await res.json()
       assert.strictEqual(res.status, 200)
       assert.ok(Array.isArray(data))
       assert.strictEqual(data.length, 1)
-      assert.strictEqual(data[0].content, '我加入了群聊')
+      assert.strictEqual(data[0].type, 'system')
+      assert.strictEqual(data[0].event, 'channel.member.joined')
+      assert.strictEqual(data[0].content, 'channel.member.joined')
       assert.strictEqual(data[0].author, TEST_IDENTITY.address.toLowerCase())
     })
 
@@ -2405,13 +2412,17 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const res = await fetch(`${baseUrl}/api/channels/${channelName}/messages`)
       const data = await res.json()
       const welcomeMessages = data.filter(
-        message => message.content === '我加入了群聊'
+        message => message.event === 'channel.member.joined'
       )
 
       assert.strictEqual(res.status, 200)
       assert.deepStrictEqual(
         welcomeMessages.map(message => message.author),
         [TEST_IDENTITY.address.toLowerCase(), SECOND_IDENTITY.address.toLowerCase()]
+      )
+      assert.deepStrictEqual(
+        welcomeMessages.map(message => message.type),
+        ['system', 'system']
       )
       assert.strictEqual(welcomeMessages[0].authorName, 'FirstUser')
       assert.strictEqual(welcomeMessages[0].avatar, 'first.png')
