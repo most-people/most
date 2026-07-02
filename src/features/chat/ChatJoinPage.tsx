@@ -76,6 +76,7 @@ function ChatJoinContent() {
     }
   }, [searchStr])
   const hasBackend = useAppStore(s => s.hasBackend)
+  const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
   const setUserIdentity = useUserStore(s => s.setUserIdentity)
 
   const [error, setError] = useState('')
@@ -127,6 +128,14 @@ function ChatJoinContent() {
 
       if (invite.locale) {
         setLocale(invite.locale)
+      }
+
+      if (invite.appearance === 'dark') {
+        setIsDarkMode(true)
+      }
+
+      if (invite.appearance === 'light') {
+        setIsDarkMode(false)
       }
 
       const remoteUrl = getRemoteUrlExport()
@@ -244,6 +253,7 @@ function ChatJoinContent() {
     hasBackend,
     pub,
     retryAttempt,
+    setIsDarkMode,
     setLocale,
     setUserIdentity,
     t,

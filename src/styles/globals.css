@@ -810,7 +810,7 @@ button {
   color: var(--text-primary);
   font: inherit;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 400;
   appearance: none;
   cursor: pointer;
   transition:

@@ -8,6 +8,7 @@ import {
 import AppShell from '~/components/AppShell'
 import { CopyButton } from '~/components/CopyButton'
 import { AppTop } from '~/components/AppTop'
+import { SelectControl } from '~/components/ui'
 import { useI18n, type Locale } from '~/lib/i18n'
 import {
   CHAT_JOIN_DEFAULT_API_BASE,
@@ -33,6 +34,20 @@ type SenderKeys = {
   publicKey: string
   privateKey: string
 }
+
+const APPEARANCE_OPTIONS: Array<{
+  value: NonNullable<ChatJoinInvitePayload['appearance']>
+  label: string
+}> = [
+  { value: 'dark', label: 'dark' },
+  { value: 'light', label: 'light' },
+]
+
+const LOCALE_OPTIONS: Array<{ value: Locale; label: string }> = [
+  { value: 'zh-CN', label: 'zh-CN' },
+  { value: 'zh-TW', label: 'zh-TW' },
+  { value: 'en', label: 'en' },
+]
 
 type ParsedInviteLink = {
   token: string
@@ -96,18 +111,35 @@ function parseInviteLinkInput(value: string): ParsedInviteLink | null {
   return { token, pub, origin }
 }
 
+function DemoFieldLabel({
+  name,
+  description,
+}: {
+  name: string
+  description: string
+}) {
+  return (
+    <span className="chat-join-demo-label">
+      <span className="chat-join-demo-label-key">{name}</span>
+      <span className="chat-join-demo-label-desc">{description}</span>
+    </span>
+  )
+}
+
 function DemoField({
-  label,
+  name,
+  description,
   children,
   wide = false,
 }: {
-  label: string
+  name: string
+  description: string
   children: ReactNode
   wide?: boolean
 }) {
   return (
     <label className={`chat-join-demo-field ${wide ? 'wide' : ''}`}>
-      <span>{label}</span>
+      <DemoFieldLabel name={name} description={description} />
       {children}
     </label>
   )
@@ -121,7 +153,11 @@ export default function ChatJoinDemoPage() {
   const [channelId, setChannelId] = useState(DEFAULT_CHANNEL_ID)
   const [channelName, setChannelName] = useState('Chat Join Demo')
   const [locale, setLocale] = useState<Locale>('zh-CN')
-  const [useSparkbitTheme, setUseSparkbitTheme] = useState(true)
+  const [theme, setTheme] = useState<ChatJoinInvitePayload['theme']>(
+    'sparkbit'
+  )
+  const [appearance, setAppearance] =
+    useState<ChatJoinInvitePayload['appearance']>()
   const [logo, setLogo] = useState('')
   const [logoDark, setLogoDark] = useState('')
   const [avatar, setAvatar] = useState('')
@@ -157,7 +193,8 @@ export default function ChatJoinDemoPage() {
       ],
     }
 
-    if (useSparkbitTheme) invite.theme = 'sparkbit'
+    if (theme) invite.theme = theme
+    if (appearance) invite.appearance = appearance
     invite.node_url = optionalTrim(nodeUrl)
     invite.node_invite = optionalTrim(nodeInvite)
     invite.logo = optionalTrim(logo)
@@ -167,6 +204,7 @@ export default function ChatJoinDemoPage() {
     invite.name = optionalTrim(displayName)
     return invite
   }, [
+    appearance,
     avatar,
     channelId,
     channelName,
@@ -177,8 +215,8 @@ export default function ChatJoinDemoPage() {
     logoDark,
     nodeInvite,
     nodeUrl,
+    theme,
     uid,
-    useSparkbitTheme,
   ])
 
   const payloadText = useMemo(() => JSON.stringify(payload, null, 2), [payload])
@@ -195,7 +233,8 @@ export default function ChatJoinDemoPage() {
     const firstChannel = invite.channels[0]
     setUid(invite.uid)
     setLocale(invite.locale || 'zh-CN')
-    setUseSparkbitTheme(invite.theme === 'sparkbit')
+    setTheme(invite.theme)
+    setAppearance(invite.appearance)
     setNodeUrl(invite.node_url || '')
     setNodeInvite(invite.node_invite || '')
     setLogo(invite.logo || '')
@@ -329,7 +368,11 @@ export default function ChatJoinDemoPage() {
               <h3>{t('chatJoin.demo.parseSection')}</h3>
             </div>
 
-            <DemoField label={t('chatJoin.demo.field.existingLink')} wide>
+            <DemoField
+              name="link"
+              description={t('chatJoin.demo.field.existingLink')}
+              wide
+            >
               <textarea
                 className="textarea mono"
                 value={existingLink}
@@ -366,7 +409,10 @@ export default function ChatJoinDemoPage() {
             </div>
 
             <div className="chat-join-demo-grid">
-              <DemoField label={t('chatJoin.demo.field.origin')}>
+              <DemoField
+                name="origin"
+                description={t('chatJoin.demo.field.origin')}
+              >
                 <input
                   className="input input-compact"
                   value={linkOrigin}
@@ -376,7 +422,7 @@ export default function ChatJoinDemoPage() {
                   spellCheck="false"
                 />
               </DemoField>
-              <DemoField label={t('chatJoin.demo.field.uid')}>
+              <DemoField name="uid" description={t('chatJoin.demo.field.uid')}>
                 <input
                   className="input input-compact"
                   value={uid}
@@ -386,25 +432,32 @@ export default function ChatJoinDemoPage() {
                   spellCheck="false"
                 />
               </DemoField>
-              <DemoField label={t('chatJoin.demo.field.name')}>
+              <DemoField
+                name="name"
+                description={t('chatJoin.demo.field.name')}
+              >
                 <input
                   className="input input-compact"
                   value={displayName}
                   onChange={event => setDisplayName(event.target.value)}
                 />
               </DemoField>
-              <DemoField label={t('chatJoin.demo.field.locale')}>
-                <select
-                  className="input input-compact"
+              <DemoField
+                name="locale"
+                description={t('chatJoin.demo.field.locale')}
+              >
+                <SelectControl<Locale>
+                  ariaLabel={t('chatJoin.demo.field.locale')}
                   value={locale}
-                  onChange={event => setLocale(event.target.value as Locale)}
-                >
-                  <option value="zh-CN">zh-CN</option>
-                  <option value="zh-TW">zh-TW</option>
-                  <option value="en">en</option>
-                </select>
+                  options={LOCALE_OPTIONS}
+                  onChange={setLocale}
+                  size="compact"
+                />
               </DemoField>
-              <DemoField label={t('chatJoin.demo.field.channelId')}>
+              <DemoField
+                name="channels[0].id"
+                description={t('chatJoin.demo.field.channelId')}
+              >
                 <input
                   className="input input-compact"
                   value={channelId}
@@ -414,14 +467,20 @@ export default function ChatJoinDemoPage() {
                   spellCheck="false"
                 />
               </DemoField>
-              <DemoField label={t('chatJoin.demo.field.channelName')}>
+              <DemoField
+                name="channels[0].name"
+                description={t('chatJoin.demo.field.channelName')}
+              >
                 <input
                   className="input input-compact"
                   value={channelName}
                   onChange={event => setChannelName(event.target.value)}
                 />
               </DemoField>
-              <DemoField label={t('chatJoin.demo.field.nodeUrl')}>
+              <DemoField
+                name="node_url"
+                description={t('chatJoin.demo.field.nodeUrl')}
+              >
                 <input
                   className="input input-compact"
                   value={nodeUrl}
@@ -431,7 +490,10 @@ export default function ChatJoinDemoPage() {
                   spellCheck="false"
                 />
               </DemoField>
-              <DemoField label={t('chatJoin.demo.field.nodeInvite')}>
+              <DemoField
+                name="node_invite"
+                description={t('chatJoin.demo.field.nodeInvite')}
+              >
                 <input
                   className="input input-compact"
                   value={nodeInvite}
@@ -441,7 +503,10 @@ export default function ChatJoinDemoPage() {
                   spellCheck="false"
                 />
               </DemoField>
-              <DemoField label={t('chatJoin.demo.field.logo')}>
+              <DemoField
+                name="logo"
+                description={t('chatJoin.demo.field.logo')}
+              >
                 <input
                   className="input input-compact"
                   value={logo}
@@ -451,7 +516,10 @@ export default function ChatJoinDemoPage() {
                   spellCheck="false"
                 />
               </DemoField>
-              <DemoField label={t('chatJoin.demo.field.logoDark')}>
+              <DemoField
+                name="logo_dark"
+                description={t('chatJoin.demo.field.logoDark')}
+              >
                 <input
                   className="input input-compact"
                   value={logoDark}
@@ -461,7 +529,10 @@ export default function ChatJoinDemoPage() {
                   spellCheck="false"
                 />
               </DemoField>
-              <DemoField label={t('chatJoin.demo.field.avatar')}>
+              <DemoField
+                name="avatar"
+                description={t('chatJoin.demo.field.avatar')}
+              >
                 <input
                   className="input input-compact"
                   value={avatar}
@@ -471,15 +542,60 @@ export default function ChatJoinDemoPage() {
                   spellCheck="false"
                 />
               </DemoField>
-              <label className="chat-join-demo-toggle">
-                <input
-                  type="checkbox"
-                  checked={useSparkbitTheme}
-                  onChange={event => setUseSparkbitTheme(event.target.checked)}
+              <div className="chat-join-demo-field">
+                <DemoFieldLabel
+                  name="theme"
+                  description={t('chatJoin.demo.field.theme')}
                 />
-                <span>{t('chatJoin.demo.field.sparkbitTheme')}</span>
-              </label>
-              <DemoField label={t('chatJoin.demo.field.data')} wide>
+                <label className="chat-join-demo-toggle">
+                  <input
+                    type="radio"
+                    name="chat-join-demo-theme"
+                    value="sparkbit"
+                    checked={theme === 'sparkbit'}
+                    onClick={() =>
+                      setTheme(theme === 'sparkbit' ? undefined : 'sparkbit')
+                    }
+                    readOnly
+                  />
+                  <span>sparkbit</span>
+                </label>
+              </div>
+              <div className="chat-join-demo-field">
+                <DemoFieldLabel
+                  name="appearance"
+                  description={t('chatJoin.demo.field.appearance')}
+                />
+                <div className="chat-join-demo-radio-options">
+                  {APPEARANCE_OPTIONS.map(option => (
+                    <label
+                      className="chat-join-demo-toggle"
+                      key={option.value}
+                    >
+                      <input
+                        type="radio"
+                        name="chat-join-demo-appearance"
+                        value={option.value}
+                        checked={appearance === option.value}
+                        onClick={() =>
+                          setAppearance(
+                            appearance === option.value
+                              ? undefined
+                              : option.value
+                          )
+                        }
+                        readOnly
+                      />
+                      <span>{option.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <DemoField
+                name="data"
+                description={t('chatJoin.demo.field.data')}
+                wide
+              >
                 <textarea
                   className="textarea mono"
                   value={data}
@@ -499,7 +615,8 @@ export default function ChatJoinDemoPage() {
 
             <div className="chat-join-demo-grid">
               <DemoField
-                label={t('chatJoin.demo.field.recipientPublicKey')}
+                name="recipientPublicKey"
+                description={t('chatJoin.demo.field.recipientPublicKey')}
                 wide
               >
                 <input
@@ -512,7 +629,10 @@ export default function ChatJoinDemoPage() {
                   translate="no"
                 />
               </DemoField>
-              <DemoField label={t('chatJoin.demo.field.senderUsername')}>
+              <DemoField
+                name="senderUsername"
+                description={t('chatJoin.demo.field.senderUsername')}
+              >
                 <input
                   className="input input-compact"
                   value={senderUsername}
@@ -522,7 +642,10 @@ export default function ChatJoinDemoPage() {
                   spellCheck="false"
                 />
               </DemoField>
-              <DemoField label={t('chatJoin.demo.field.senderPassword')}>
+              <DemoField
+                name="senderPassword"
+                description={t('chatJoin.demo.field.senderPassword')}
+              >
                 <input
                   className="input input-compact"
                   value={senderPassword}
@@ -548,7 +671,11 @@ export default function ChatJoinDemoPage() {
                   {t('chatJoin.demo.action.generate')}
                 </button>
               </div>
-              <DemoField label={t('chatJoin.demo.field.senderPublicKey')} wide>
+              <DemoField
+                name="pub"
+                description={t('chatJoin.demo.field.senderPublicKey')}
+                wide
+              >
                 <input
                   className="input input-compact"
                   value={senderKeys.publicKey}
@@ -567,7 +694,11 @@ export default function ChatJoinDemoPage() {
               <h3>{t('chatJoin.demo.outputSection')}</h3>
             </div>
 
-            <DemoField label={t('chatJoin.demo.field.payload')} wide>
+            <DemoField
+              name="payload"
+              description={t('chatJoin.demo.field.payload')}
+              wide
+            >
               <textarea
                 className="textarea mono"
                 value={payloadText}
@@ -577,7 +708,11 @@ export default function ChatJoinDemoPage() {
               />
             </DemoField>
 
-            <DemoField label={t('chatJoin.demo.field.token')} wide>
+            <DemoField
+              name="token"
+              description={t('chatJoin.demo.field.token')}
+              wide
+            >
               <textarea
                 className="textarea mono"
                 value={generatedToken}
@@ -587,7 +722,11 @@ export default function ChatJoinDemoPage() {
               />
             </DemoField>
 
-            <DemoField label={t('chatJoin.demo.field.pub')} wide>
+            <DemoField
+              name="pub"
+              description={t('chatJoin.demo.field.pub')}
+              wide
+            >
               <input
                 className="input input-compact"
                 value={generatedPub}
@@ -596,7 +735,11 @@ export default function ChatJoinDemoPage() {
               />
             </DemoField>
 
-            <DemoField label={t('chatJoin.demo.field.link')} wide>
+            <DemoField
+              name="link"
+              description={t('chatJoin.demo.field.link')}
+              wide
+            >
               <textarea
                 className="textarea mono"
                 value={generatedLink}

@@ -15,6 +15,7 @@ export interface ChatJoinInvitePayload {
   locale?: Locale
   uid: string
   theme?: 'sparkbit'
+  appearance?: 'dark' | 'light'
   logo?: string
   logo_dark?: string
   data?: string
@@ -54,6 +55,15 @@ function normalizeInviteTheme(value: unknown): ChatJoinInvitePayload['theme'] {
   return theme === 'sparkbit' ? 'sparkbit' : undefined
 }
 
+function normalizeInviteAppearance(
+  value: unknown
+): ChatJoinInvitePayload['appearance'] {
+  const appearance = normalizeOptionalString(value)
+  return appearance === 'dark' || appearance === 'light'
+    ? appearance
+    : undefined
+}
+
 export function normalizeChatJoinInvitePayload(
   input: unknown
 ): ChatJoinInvitePayload | null {
@@ -78,6 +88,7 @@ export function normalizeChatJoinInvitePayload(
     locale: normalizeChatJoinInviteLocale(value.locale),
     uid,
     theme: normalizeInviteTheme(value.theme),
+    appearance: normalizeInviteAppearance(value.appearance),
     logo: normalizeOptionalString(value.logo) || undefined,
     logo_dark: normalizeOptionalString(value.logo_dark) || undefined,
     data: normalizeOptionalString(value.data) || undefined,

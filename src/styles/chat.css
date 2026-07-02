@@ -1214,6 +1214,24 @@
   }
 }
 
+.chat-join-demo-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.chat-join-demo-label-key {
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+.chat-join-demo-label-desc {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
 .chat-join-demo-field.wide {
   grid-column: 1 / -1;
 }
@@ -1222,7 +1240,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 37px;
+  min-height: 39px;
   padding: 0 2px;
   color: var(--text-secondary);
   font-size: 13px;
@@ -1232,6 +1250,14 @@
     height: 16px;
     accent-color: var(--accent);
   }
+}
+
+.chat-join-demo-radio-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  min-height: 39px;
+  gap: 14px;
 }
 
 .chat-join-demo-actions {

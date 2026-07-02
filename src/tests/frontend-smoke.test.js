@@ -107,6 +107,10 @@ function resolveWithExtensions(resolvedPath) {
     `${resolvedPath}.tsx`,
     `${resolvedPath}.js`,
     `${resolvedPath}.jsx`,
+    path.join(resolvedPath, 'index.ts'),
+    path.join(resolvedPath, 'index.tsx'),
+    path.join(resolvedPath, 'index.js'),
+    path.join(resolvedPath, 'index.jsx'),
   ]
   return (
     candidates.find(
@@ -345,6 +349,10 @@ describe('frontend smoke checks', () => {
     assert.doesNotMatch(selectControlSource, /role="listbox"/)
     assert.doesNotMatch(selectControlSource, /role="option"/)
     assert.match(globalsSource, /\.ui-select-control/)
+    assert.match(
+      globalsSource,
+      /\.ui-select-control \{[\s\S]*font-weight:\s*400;/
+    )
     assert.match(globalsSource, /appearance:\s*none/)
     assert.match(globalsSource, /\.ui-select-icon/)
     assert.match(globalsSource, /color-scheme:\s*dark/)
@@ -907,6 +915,122 @@ describe('frontend smoke checks', () => {
     assert.match(chatCssSource, /box-shadow: 0 0 0 6px var\(--accent-soft\)/)
     assert.match(i18nMessages, /'chatJoin\.action\.retry': '重试'/)
     assert.match(i18nMessages, /'chatJoin\.action\.retry': 'Retry'/)
+  })
+
+  it('keeps chat join invite theme and appearance fields explicit', async () => {
+    const inviteSource = readSource('src/lib/chatJoinInvite.ts')
+    const chatJoinDemoSource = readSource(
+      'src/features/chat/ChatJoinDemoPage.tsx'
+    )
+    const chatJoinSource = readSource('src/features/chat/ChatJoinPage.tsx')
+    const chatStyles = readSource('src/styles/chat.css')
+    const i18nMessages = readI18nSources()
+    const { normalizeChatJoinInvitePayload } = await importBundledSource(
+      'src/lib/chatJoinInvite.ts'
+    )
+    const baseInvite = {
+      uid: 'demo-user',
+      channels: [{ id: 'chatjoin_support' }],
+    }
+
+    assert.equal(
+      normalizeChatJoinInvitePayload({
+        ...baseInvite,
+        appearance: 'dark',
+      })?.appearance,
+      'dark'
+    )
+    assert.equal(
+      normalizeChatJoinInvitePayload({
+        ...baseInvite,
+        appearance: 'light',
+      })?.appearance,
+      'light'
+    )
+    assert.equal(
+      normalizeChatJoinInvitePayload({
+        ...baseInvite,
+        appearance: 'auto',
+      })?.appearance,
+      undefined
+    )
+    assert.equal(
+      normalizeChatJoinInvitePayload({
+        ...baseInvite,
+        appearance: 'sparkbit',
+      })?.appearance,
+      undefined
+    )
+
+    assert.match(inviteSource, /appearance\?: 'dark' \| 'light'/)
+    assert.match(chatJoinDemoSource, /import \{ SelectControl \}/)
+    assert.match(chatJoinDemoSource, /function DemoFieldLabel/)
+    assert.match(chatJoinDemoSource, /const \[theme, setTheme\]/)
+    assert.match(chatJoinDemoSource, /const \[appearance, setAppearance\]/)
+    assert.match(chatJoinDemoSource, /const LOCALE_OPTIONS/)
+    assert.match(chatJoinDemoSource, /const APPEARANCE_OPTIONS/)
+    assert.doesNotMatch(chatJoinDemoSource, /value: 'auto'/)
+    assert.match(chatJoinDemoSource, /value: 'dark'/)
+    assert.match(chatJoinDemoSource, /value: 'light'/)
+    assert.match(chatJoinDemoSource, /type="radio"/)
+    assert.match(chatJoinDemoSource, /value="sparkbit"/)
+    assert.match(chatJoinDemoSource, /checked=\{theme === 'sparkbit'\}/)
+    assert.match(
+      chatJoinDemoSource,
+      /setTheme\(theme === 'sparkbit' \? undefined : 'sparkbit'\)/
+    )
+    assert.match(chatJoinDemoSource, /if \(appearance\)/)
+    assert.match(chatJoinDemoSource, /invite\.appearance = appearance/)
+    assert.match(
+      chatJoinDemoSource,
+      /className="chat-join-demo-radio-options"[\s\S]*name="chat-join-demo-appearance"[\s\S]*value=\{option\.value\}[\s\S]*checked=\{appearance === option\.value\}[\s\S]*onClick=\{\(\) =>[\s\S]*setAppearance\([\s\S]*appearance === option\.value[\s\S]*\? undefined[\s\S]*: option\.value[\s\S]*readOnly/
+    )
+    assert.match(
+      chatJoinDemoSource,
+      /<SelectControl<Locale>[\s\S]*ariaLabel=\{t\('chatJoin\.demo\.field\.locale'\)\}[\s\S]*value=\{locale\}[\s\S]*options=\{LOCALE_OPTIONS\}[\s\S]*onChange=\{setLocale\}[\s\S]*size="compact"/
+    )
+    assert.match(
+      chatStyles,
+      /\.chat-join-demo-radio-options \{[\s\S]*min-height: 39px;/
+    )
+    assert.match(
+      chatStyles,
+      /\.chat-join-demo-toggle \{[\s\S]*min-height: 39px;/
+    )
+    assert.doesNotMatch(
+      chatJoinDemoSource,
+      /<DemoField[\s\S]*name="appearance"[\s\S]*(<select|<SelectControl)/
+    )
+    assert.doesNotMatch(chatJoinDemoSource, /<select/)
+    assert.match(chatJoinDemoSource, /name="origin"[\s\S]*description=\{t\('chatJoin\.demo\.field\.origin'\)\}/)
+    assert.match(chatJoinDemoSource, /name="uid"[\s\S]*description=\{t\('chatJoin\.demo\.field\.uid'\)\}/)
+    assert.match(chatJoinDemoSource, /name="appearance"[\s\S]*description=\{t\('chatJoin\.demo\.field\.appearance'\)\}/)
+    assert.doesNotMatch(chatJoinDemoSource, /type="checkbox"[\s\S]*sparkbit/)
+    assert.match(chatJoinSource, /const setIsDarkMode = useAppStore/)
+    assert.match(
+      chatJoinSource,
+      /if \(invite\.appearance === 'dark'\)[\s\S]*setIsDarkMode\(true\)/
+    )
+    assert.match(
+      chatJoinSource,
+      /if \(invite\.appearance === 'light'\)[\s\S]*setIsDarkMode\(false\)/
+    )
+    assert.match(i18nMessages, /chatJoin\.demo\.field\.theme/)
+    assert.match(i18nMessages, /chatJoin\.demo\.field\.appearance/)
+    assert.match(
+      i18nMessages,
+      /'chatJoin\.demo\.field\.payload': '邀请内容 JSON'/
+    )
+    assert.match(i18nMessages, /'chatJoin\.demo\.field\.token': '加密令牌'/)
+    assert.match(i18nMessages, /'chatJoin\.demo\.field\.pub': '发送方公钥'/)
+    assert.match(
+      i18nMessages,
+      /'chatJoin\.demo\.field\.payload': 'Invite payload JSON'/
+    )
+    assert.match(
+      i18nMessages,
+      /'chatJoin\.demo\.field\.token': 'Encrypted token'/
+    )
   })
 
   it('keeps Gan Deng Yan game page wired to the server rules and P2P channel', () => {
@@ -1579,7 +1703,6 @@ describe('frontend smoke checks', () => {
       readSource('src/features/files/AppPage.tsx'),
       readSource('src/features/note/NotePage.tsx'),
       chatSource,
-      readSource('src/features/chat/ChatJoinPage.tsx'),
       readSource('src/features/web3/Web3Page.tsx'),
       readSource('src/features/game/gandengyan/GanDengYanPage.tsx'),
       readSource('src/features/game/zhajinhua/ZhajinhuaPage.tsx'),
