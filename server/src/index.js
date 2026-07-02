@@ -4606,7 +4606,7 @@ export class MostBoxEngine extends EventEmitter {
         err.message
       )
     }
-    return []
+    return {}
   }
 
   #savePublishedMetadata() {
@@ -4660,7 +4660,7 @@ export class MostBoxEngine extends EventEmitter {
         err.message
       )
     }
-    return []
+    return {}
   }
 
   #saveTrashMetadata() {
