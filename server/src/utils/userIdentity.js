@@ -29,7 +29,6 @@ export function saveIdentity(identity) {
 export function clearIdentity() {
   if (typeof localStorage === 'undefined') return
   localStorage.removeItem('mostbox_identity')
-  localStorage.removeItem('mostbox_guest_identity')
 }
 
 export function getDisplayName(address, username) {

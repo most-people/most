@@ -10,19 +10,10 @@ export const defaultAvatarIds = [
   'snow-mountain',
 ]
 
-const legacyDefaultAvatarIdAliases = {
-  mint: 'panda',
-  violet: 'owl',
-  ocean: 'dolphin',
-  ember: 'tiger',
-  sage: 'turtle',
-  dusk: 'snow-mountain',
-}
-
 function normalizeDefaultAvatarId(id) {
   const value = typeof id === 'string' ? id.trim() : ''
   if (defaultAvatarIds.includes(value)) return value
-  return legacyDefaultAvatarIdAliases[value] || ''
+  return ''
 }
 
 export function getDefaultAvatarValue(id) {

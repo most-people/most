@@ -1990,6 +1990,15 @@ describe('frontend smoke checks', () => {
     )
   })
 
+  it('does not keep removed local identity compatibility branches', () => {
+    const userStoreSource = readSource('src/stores/userStore.ts')
+    const userIdentitySource = readSource('server/src/utils/userIdentity.js')
+
+    assert.doesNotMatch(userStoreSource, /LEGACY_/)
+    assert.doesNotMatch(userStoreSource, /匿名/)
+    assert.doesNotMatch(userIdentitySource, /mostbox_guest_identity/)
+  })
+
   it('auto joins requested chat channels after the channel list loads', () => {
     const chatSource = readSource(SOURCE_PATHS.features.chat)
 

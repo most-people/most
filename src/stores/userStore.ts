@@ -9,8 +9,6 @@ import type { ChatJoinInvitePayload } from '~/lib/chatJoinInvite'
 import type { MessageKey } from '~/lib/i18n'
 
 type UserIdentityTheme = NonNullable<ChatJoinInvitePayload['theme']>
-const LEGACY_ANONYMOUS_USERNAME = '\u533f\u540d'
-const LEGACY_PROFILE_UPDATED_AT = 1
 
 export interface UserIdentity {
   username: string
@@ -67,7 +65,6 @@ function normalizeIdentity(input: unknown): UserIdentity | null {
   if (!input || typeof input !== 'object') return null
   const value = input as Partial<UserIdentity>
   if (!value.username || !value.address || !value.danger) return null
-  if (value.username === LEGACY_ANONYMOUS_USERNAME) return null
   const address = value.address
   const displayName = getDisplayName(value as UserIdentity)
   const avatar =
@@ -75,13 +72,6 @@ function normalizeIdentity(input: unknown): UserIdentity | null {
       ? value.avatar.trim() || undefined
       : undefined
   const profileUpdatedAt = Number(value.profileUpdatedAt)
-  const hasCustomProfile =
-    Boolean(avatar) ||
-    displayName !==
-      getDefaultDisplayName({
-        username: value.username,
-        address,
-      })
   return {
     username: value.username,
     address,
@@ -98,9 +88,7 @@ function normalizeIdentity(input: unknown): UserIdentity | null {
     profileUpdatedAt:
       Number.isFinite(profileUpdatedAt) && profileUpdatedAt > 0
         ? Math.floor(profileUpdatedAt)
-        : hasCustomProfile
-          ? LEGACY_PROFILE_UPDATED_AT
-          : undefined,
+        : undefined,
     theme: value.theme === 'sparkbit' ? value.theme : undefined,
   }
 }

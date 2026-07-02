@@ -31,18 +31,18 @@ describe('generateAvatar', () => {
     )
   })
 
-  it('normalizes legacy default avatar names to semantic filenames', () => {
+  it('does not normalize removed default avatar aliases', () => {
     assert.strictEqual(
       getDefaultAvatarValue('mint'),
-      '/avatars/default/panda.svg'
+      '/avatars/default/mint.svg'
     )
     assert.strictEqual(
       normalizeDefaultAvatarValue('/avatars/default/ocean.svg'),
-      '/avatars/default/dolphin.svg'
+      ''
     )
     assert.strictEqual(
       generateAvatar('0x1234567890abcdef', '/avatars/default/dusk.svg'),
-      '/avatars/default/snow-mountain.svg'
+      '/avatars/default/dusk.svg'
     )
   })
 

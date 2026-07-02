@@ -23,7 +23,6 @@ import { normalizeChannelAttachment } from './core/channelAttachment.js'
 import { normalizeChannelVoiceEvent } from './core/channelVoice.js'
 import { getCidInfo } from './core/cidTopic.js'
 import {
-  CHAT_FILE_ROOT,
   TRANSIENT_CHANNEL_TYPES,
   CHANNEL_DISCOVERY_TIMEOUT,
   CHANNEL_CANDIDATE_TTL,
@@ -3612,42 +3611,7 @@ export class MostBoxEngine extends EventEmitter {
         baseMessage = { ...baseMessage, avatar }
       }
     }
-    const attachment = baseMessage?.attachment
-    if (!attachment?.cid || !attachment.fileName) {
-      return baseMessage
-    }
-
-    const oldFileName = sanitizeFilename(String(attachment.fileName))
-    const channelPathName = channel?.channelId || channelKey
-    const channelPrefix = `${CHAT_FILE_ROOT}/${channelPathName}/`
-    const fileName = oldFileName.startsWith(channelPrefix)
-      ? oldFileName
-      : `${channelPrefix}${getPathBaseName(oldFileName)}`
-    const link = buildMostLink(attachment.cid, fileName)
-    const content =
-      typeof baseMessage.content === 'string' &&
-      (baseMessage.content === attachment.link ||
-        parseMostLink(baseMessage.content).cid === attachment.cid)
-        ? link
-        : baseMessage.content
-
-    if (
-      fileName === attachment.fileName &&
-      link === attachment.link &&
-      content === baseMessage.content
-    ) {
-      return baseMessage
-    }
-
-    return {
-      ...baseMessage,
-      content,
-      attachment: {
-        ...attachment,
-        fileName,
-        link,
-      },
-    }
+    return baseMessage
   }
 
   #getCidInfo(cid) {

@@ -40,17 +40,17 @@ export function normalizeNodeConfig(raw = {}) {
   const rawNode = raw.node && typeof raw.node === 'object' ? raw.node : {}
 
   const capacityBytes = normalizePositiveInteger(
-    rawNode.capacityBytes ?? raw.capacityBytes,
+    rawNode.capacityBytes,
     defaults.capacityBytes
   )
   const maxFileSizeBytes = normalizePositiveInteger(
-    rawNode.maxFileSizeBytes ?? raw.maxFileSizeBytes,
+    rawNode.maxFileSizeBytes,
     defaults.maxFileSizeBytes
   )
   const remoteInvites = normalizeRemoteInvites(
-    rawNode.remoteInvites ?? raw.remoteInvites ?? defaults.remoteInvites
+    rawNode.remoteInvites ?? defaults.remoteInvites
   )
-  const host = normalizeHost(rawNode.host ?? raw.host, defaults.host)
+  const host = normalizeHost(rawNode.host, defaults.host)
   return {
     dataPath:
       typeof raw.dataPath === 'string'

@@ -1717,14 +1717,12 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.deepStrictEqual(messages[0].attachment, msg.attachment)
     })
 
-    it('normalizes old bare chat attachment filenames on read', async () => {
+    it('keeps bare chat attachment filenames unchanged', async () => {
       const ch = `old-attach-${uid}`
       const cid =
         'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
       const fileName = '#18.txt'
       const link = `most://${cid}?filename=${encodeURIComponent(fileName)}`
-      const normalizedFileName = `chat-file/${ch}/#18.txt`
-      const normalizedLink = `most://${cid}?filename=${encodeURIComponent(normalizedFileName)}`
       await msgEngine.createChannel(ch)
 
       await msgEngine.sendMessage(ch, link, undefined, undefined, {
@@ -1738,9 +1736,9 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       })
 
       const messages = await msgEngine.getChannelMessages(ch)
-      assert.strictEqual(messages[0].attachment.fileName, normalizedFileName)
-      assert.strictEqual(messages[0].attachment.link, normalizedLink)
-      assert.strictEqual(messages[0].content, normalizedLink)
+      assert.strictEqual(messages[0].attachment.fileName, fileName)
+      assert.strictEqual(messages[0].attachment.link, link)
+      assert.strictEqual(messages[0].content, link)
     })
 
     it('does not double-prefix normalized chat attachment filenames', async () => {
