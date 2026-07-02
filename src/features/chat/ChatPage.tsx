@@ -1535,6 +1535,7 @@ function ChatPage() {
     ? voiceRemoteParticipantCount
     : voiceRoom.participants.length
   const shouldShowVoiceBanner =
+    !isInviteUser &&
     isVoiceRoomForActiveChannel &&
     (voiceRoom.joined || voiceRoom.participants.length > 0)
   const voiceBannerLabel = voiceRoom.joined
@@ -1751,6 +1752,7 @@ function ChatPage() {
             isPublishingAttachment={isPublishingAttachment}
             attachmentInputRef={attachmentInputRef}
             attachmentMenuClassName={sparkbitActionMenuClassName}
+            showVoiceRoom={!isInviteUser}
             onMessageChange={setChannelInput}
             onSend={handleSendChannelMessage}
             onOpenVoiceRoom={handleOpenActiveVoiceRoom}

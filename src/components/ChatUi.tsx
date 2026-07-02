@@ -265,6 +265,7 @@ export function ChatComposer({
   attachmentButtonTitle,
   attachmentInputRef,
   attachmentMenuClassName,
+  showVoiceRoom = true,
   onMessageChange,
   onSend,
   onOpenVoiceRoom,
@@ -277,6 +278,7 @@ export function ChatComposer({
   attachmentButtonTitle?: string
   attachmentInputRef?: RefObject<HTMLInputElement | null>
   attachmentMenuClassName?: string
+  showVoiceRoom?: boolean
   onMessageChange: (value: string) => void
   onSend: () => void
   onOpenVoiceRoom?: () => void
@@ -337,12 +339,16 @@ export function ChatComposer({
               onSelect: () => openAttachmentPicker(option.accept),
             }
           }),
-          {
-            key: VOICE_MENU_OPTION.key,
-            label: t(VOICE_MENU_OPTION.labelKey),
-            icon: <Mic size={16} />,
-            onSelect: () => onOpenVoiceRoom?.(),
-          },
+          ...(showVoiceRoom
+            ? [
+                {
+                  key: VOICE_MENU_OPTION.key,
+                  label: t(VOICE_MENU_OPTION.labelKey),
+                  icon: <Mic size={16} />,
+                  onSelect: () => onOpenVoiceRoom?.(),
+                },
+              ]
+            : []),
         ]}
         renderTrigger={triggerProps => (
           <button

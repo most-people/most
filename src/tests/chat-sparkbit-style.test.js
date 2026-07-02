@@ -40,6 +40,22 @@ describe('sparkbit chat styling', () => {
     )
   })
 
+  it('hides voice call affordances for the SparkBit chat theme', () => {
+    const chatPage = readSource('src/features/chat/ChatPage.tsx')
+    const chatUi = readSource('src/components/ChatUi.tsx')
+
+    assert.match(
+      chatPage,
+      /const shouldShowVoiceBanner =\s*!isInviteUser &&[\s\S]*isVoiceRoomForActiveChannel/
+    )
+    assert.match(chatPage, /showVoiceRoom=\{!isInviteUser\}/)
+    assert.match(chatUi, /showVoiceRoom = true/)
+    assert.match(
+      chatUi,
+      /\.\.\.\(showVoiceRoom\s*\?\s*\[[\s\S]*VOICE_MENU_OPTION[\s\S]*:\s*\[\]\)/
+    )
+  })
+
   it('keeps the SparkBit chat theme flat, purple, and circular-avatar aligned', () => {
     const chatStyles = readSource('src/styles/chat.css')
     const sparkbitStyles = extractSparkbitStyles(chatStyles)
