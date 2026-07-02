@@ -1,13 +1,4 @@
 export const zhCNChatJoinMessages = {
-  'chatJoin.status.checkingBackend': '正在检测后端连接...',
-  'chatJoin.status.connectingRemote': '正在连接远程节点...',
-  'chatJoin.status.signingIn': '正在登录邀请账号...',
-  'chatJoin.status.joiningChannel': '正在加入聊天...',
-  'chatJoin.status.openingChannel': '加入成功，正在打开聊天...',
-  'chatJoin.status.loadingFixture': '正在载入 {name} 预设邀请...',
-  'chatJoin.status.decryptingInvite': '正在解密邀请...',
-  'chatJoin.status.decrypting': '正在解密...',
-  'chatJoin.status.decryptSuccess': '解密成功',
   'chatJoin.error.unknownFixture': '未知预设邀请：{fixture}',
   'chatJoin.error.missingToken': '缺少 token 参数',
   'chatJoin.error.missingPub': '缺少 pub 参数',
@@ -65,15 +56,6 @@ export const zhCNChatJoinMessages = {
 } as const
 
 export const zhTWChatJoinMessages = {
-  'chatJoin.status.checkingBackend': '正在檢測後端連線...',
-  'chatJoin.status.connectingRemote': '正在連線遠端節點...',
-  'chatJoin.status.signingIn': '正在登入邀請帳號...',
-  'chatJoin.status.joiningChannel': '正在加入聊天...',
-  'chatJoin.status.openingChannel': '加入成功，正在開啟聊天...',
-  'chatJoin.status.loadingFixture': '正在載入 {name} 預設邀請...',
-  'chatJoin.status.decryptingInvite': '正在解密邀請...',
-  'chatJoin.status.decrypting': '正在解密...',
-  'chatJoin.status.decryptSuccess': '解密成功',
   'chatJoin.error.unknownFixture': '未知預設邀請：{fixture}',
   'chatJoin.error.missingToken': '缺少 token 參數',
   'chatJoin.error.missingPub': '缺少 pub 參數',
@@ -131,15 +113,6 @@ export const zhTWChatJoinMessages = {
 } as const
 
 export const enChatJoinMessages = {
-  'chatJoin.status.checkingBackend': 'Checking backend connection...',
-  'chatJoin.status.connectingRemote': 'Connecting to remote node...',
-  'chatJoin.status.signingIn': 'Signing in with invited account...',
-  'chatJoin.status.joiningChannel': 'Joining chat...',
-  'chatJoin.status.openingChannel': 'Joined. Opening chat...',
-  'chatJoin.status.loadingFixture': 'Loading {name} preset invite...',
-  'chatJoin.status.decryptingInvite': 'Decrypting invite...',
-  'chatJoin.status.decrypting': 'Decrypting...',
-  'chatJoin.status.decryptSuccess': 'Decrypted',
   'chatJoin.error.unknownFixture': 'Unknown preset invite: {fixture}',
   'chatJoin.error.missingToken': 'Missing token parameter',
   'chatJoin.error.missingPub': 'Missing pub parameter',

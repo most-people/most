@@ -832,8 +832,8 @@
 /* === SparkBit Chat Theme === */
 .sparkbit-chat-layout,
 .sparkbit-chat-action-menu {
-  --accent: #6A60FF;
-  --accent-hover: #6A60FF;
+  --accent: #6a60ff;
+  --accent-hover: #6a60ff;
   --accent-soft: rgba(106, 96, 255, 0.14);
   --sparkbit-chat-surface: var(--bg-primary);
   --sparkbit-chat-panel: var(--bg-secondary);
@@ -1074,7 +1074,8 @@
 }
 
 .sparkbit-chat-layout .leave-channel-btn.channel-actions-trigger:hover,
-.sparkbit-chat-layout .leave-channel-btn.channel-actions-trigger[aria-expanded='true'] {
+.sparkbit-chat-layout
+  .leave-channel-btn.channel-actions-trigger[aria-expanded='true'] {
   background: var(--sparkbit-chat-panel-soft);
   color: var(--text-primary);
 }
@@ -1264,12 +1265,6 @@
   flex-direction: column;
   align-items: center;
   gap: 16px;
-  padding: 48px;
-  border-radius: var(--radius-lg);
-  background: var(--glass-bg);
-  backdrop-filter: var(--blur-md);
-  -webkit-backdrop-filter: var(--blur-md);
-  border: 1px solid var(--glass-border);
   text-align: center;
   width: 100%;
 
@@ -1292,9 +1287,14 @@
   color: var(--success);
 }
 
-.chat-join-status {
-  font-size: 13px;
-  color: var(--text-muted);
+.chat-join-status-spinner {
+  width: 32px;
+  height: 32px;
+  border: 4px solid var(--accent-soft);
+  border-top-color: var(--accent);
+  border-radius: var(--radius-full);
+  box-shadow: 0 0 0 6px var(--accent-soft);
+  animation: spin 0.8s linear infinite;
 }
 
 .chat-join-actions {

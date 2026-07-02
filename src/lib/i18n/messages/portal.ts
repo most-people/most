@@ -89,11 +89,11 @@ export const zhCNPortalMessages = {
   'portal.feature.game.step.test.desc':
     '可先用人机补位测试出牌、计分和房间同步。',
   'portal.feature.web3.title': 'Web3',
-  'portal.feature.web3.subtitle': '独立账户工具箱',
+  'portal.feature.web3.subtitle': '开源账户系统',
   'portal.feature.web3.hero': '确定性密钥派生工具箱',
   'portal.feature.web3.desc':
     '纯前端运行的 Web3 账户工具。输入用户名和密码，即可生成 Ed25519 / x25519 密钥对、助记词、以太坊地址，支持 PEM 导出和地址派生。',
-  'portal.feature.web3.bullet.frontend': '纯前端运行，无需后端',
+  'portal.feature.web3.bullet.frontend': '开源且可复用',
   'portal.feature.web3.bullet.keys': 'Ed25519 / x25519 密钥对生成',
   'portal.feature.web3.bullet.mnemonic': 'BIP-39 助记词派生',
   'portal.feature.web3.bullet.eth': '以太坊地址与私钥导出',
@@ -200,11 +200,11 @@ export const zhTWPortalMessages = {
   'portal.feature.game.step.test.desc':
     '可先用人機補位測試出牌、計分和房間同步。',
   'portal.feature.web3.title': 'Web3',
-  'portal.feature.web3.subtitle': '獨立帳戶工具箱',
+  'portal.feature.web3.subtitle': '開源帳戶系統',
   'portal.feature.web3.hero': '確定性金鑰派生工具箱',
   'portal.feature.web3.desc':
     '純前端執行的 Web3 帳戶工具。輸入使用者名稱和密碼，即可生成 Ed25519 / x25519 金鑰對、助記詞、以太坊地址，支援 PEM 匯出和地址派生。',
-  'portal.feature.web3.bullet.frontend': '純前端執行，無需後端',
+  'portal.feature.web3.bullet.frontend': '開源且可複用',
   'portal.feature.web3.bullet.keys': 'Ed25519 / x25519 金鑰對生成',
   'portal.feature.web3.bullet.mnemonic': 'BIP-39 助記詞派生',
   'portal.feature.web3.bullet.eth': '以太坊地址與私鑰匯出',
@@ -329,12 +329,11 @@ export const enPortalMessages = {
   'portal.feature.game.step.test.desc':
     'Use bot seats to test plays, scoring, and room sync first.',
   'portal.feature.web3.title': 'Web3',
-  'portal.feature.web3.subtitle': 'Independent account toolbox',
+  'portal.feature.web3.subtitle': 'Open-source account system',
   'portal.feature.web3.hero': 'Deterministic key derivation toolbox',
   'portal.feature.web3.desc':
     'A front-end only Web3 account tool. Enter a username and password to generate Ed25519/x25519 key pairs, a mnemonic, an Ethereum address, PEM exports, and derived addresses.',
-  'portal.feature.web3.bullet.frontend':
-    'Runs fully in the browser, no backend',
+  'portal.feature.web3.bullet.frontend': 'Open source and reusable',
   'portal.feature.web3.bullet.keys': 'Ed25519 / x25519 key pair generation',
   'portal.feature.web3.bullet.mnemonic': 'BIP-39 mnemonic derivation',
   'portal.feature.web3.bullet.eth': 'Ethereum address and private key export',

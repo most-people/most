@@ -862,12 +862,15 @@ describe('frontend smoke checks', () => {
     assert.doesNotMatch(headerSource, /<Link to="\/" className="mkt-nav-logo"/)
   })
 
-  it('keeps chat join failure state retryable and navigable', () => {
+  it('keeps chat join progress spinner-only while errors stay retryable', () => {
     const chatJoinSource = readSource('src/features/chat/ChatJoinPage.tsx')
     const chatCssSource = readSource('src/styles/chat.css')
     const i18nMessages = readI18nSources()
 
-    assert.match(chatJoinSource, /const back = useBack\(\)/)
+    assert.doesNotMatch(chatJoinSource, /useBack/)
+    assert.doesNotMatch(chatJoinSource, /ArrowLeft/)
+    assert.doesNotMatch(chatJoinSource, /KeyRound/)
+    assert.doesNotMatch(chatJoinSource, /Check/)
     assert.match(
       chatJoinSource,
       /const \[retryAttempt, setRetryAttempt\] = useState\(0\)/
@@ -877,12 +880,31 @@ describe('frontend smoke checks', () => {
     assert.match(chatJoinSource, /retryAttempt,/)
     assert.match(chatJoinSource, /className="chat-join-actions"/)
     assert.match(chatJoinSource, /t\('chatJoin\.action\.retry'\)/)
-    assert.match(chatJoinSource, /t\('common\.back'\)/)
+    assert.doesNotMatch(chatJoinSource, /t\('common\.back'\)/)
+    assert.doesNotMatch(chatJoinSource, /chatJoin\.status\./)
+    assert.doesNotMatch(i18nMessages, /'chatJoin\.status\./)
+    assert.doesNotMatch(chatJoinSource, /className="chat-join-status"/)
+    assert.doesNotMatch(chatJoinSource, /<p>\{status/)
+    assert.match(chatJoinSource, /className="chat-join-status-spinner"/)
     assert.match(
       chatJoinSource,
-      /t\('common\.back'\)[\s\S]*t\('chatJoin\.action\.retry'\)/
+      /<div className="chat-join-loading">\s*<span className="chat-join-status-spinner"/
+    )
+    assert.match(
+      chatJoinSource,
+      /<div className="chat-join-success">\s*<span className="chat-join-status-spinner"/
+    )
+    assert.doesNotMatch(
+      chatJoinSource,
+      /<div className="chat-join-error">[\s\S]*chat-join-status-spinner[\s\S]*<div className="chat-join-actions">/
     )
     assert.match(chatCssSource, /\.chat-join-actions/)
+    assert.match(chatCssSource, /\.chat-join-status-spinner/)
+    assert.match(chatCssSource, /width: 32px/)
+    assert.match(chatCssSource, /height: 32px/)
+    assert.match(chatCssSource, /border: 4px solid var\(--accent-soft\)/)
+    assert.match(chatCssSource, /border-top-color: var\(--accent\)/)
+    assert.match(chatCssSource, /box-shadow: 0 0 0 6px var\(--accent-soft\)/)
     assert.match(i18nMessages, /'chatJoin\.action\.retry': '重试'/)
     assert.match(i18nMessages, /'chatJoin\.action\.retry': 'Retry'/)
   })

@@ -1,14 +1,10 @@
 import { useState, useEffect, Suspense, useMemo, useRef } from 'react'
 import { useLocation } from '@tanstack/react-router'
 import {
-  ArrowLeft,
-  KeyRound,
-  Check,
   AlertCircle,
   RefreshCw,
 } from 'lucide-react'
 import { AppEmpty } from '~/components/AppEmpty'
-import { useBack } from '~/hooks/useBack'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import { createLoginIdentity } from '~server/src/utils/userIdentity.js'
@@ -70,7 +66,6 @@ function normalizeChannelRemark(value?: string) {
 
 function ChatJoinContent() {
   const { t, setLocale } = useI18n()
-  const back = useBack()
   const searchStr = useLocation({ select: location => location.searchStr })
   const { token, pub, fixture } = useMemo(() => {
     const searchParams = new URLSearchParams(searchStr)
@@ -85,14 +80,12 @@ function ChatJoinContent() {
 
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
-  const [status, setStatus] = useState('')
   const [retryAttempt, setRetryAttempt] = useState(0)
   const flowKeyRef = useRef('')
 
   function retryJoin() {
     flowKeyRef.current = ''
     setError('')
-    setStatus('')
     setLoading(true)
     setRetryAttempt(attempt => attempt + 1)
   }
@@ -119,7 +112,6 @@ function ChatJoinContent() {
     }
 
     if (hasBackend === null) {
-      setStatus(t('chatJoin.status.checkingBackend'))
       return
     }
 
@@ -151,7 +143,6 @@ function ChatJoinContent() {
           activeRemoteInvite: remoteInvite,
         })
       ) {
-        setStatus(translateForInvite('chatJoin.status.connectingRemote'))
         const result = await checkBackendConnectionTarget({
           url: invite.node_url,
           invite: invite.node_invite || '',
@@ -172,7 +163,6 @@ function ChatJoinContent() {
         throw new Error(translateForInvite('chatJoin.error.noBackend'))
       }
 
-      setStatus(translateForInvite('chatJoin.status.signingIn'))
       const identity = createLoginIdentity(invite.uid, '')
       const nextIdentity = {
         ...identity,
@@ -185,7 +175,6 @@ function ChatJoinContent() {
       }
       setUserIdentity(nextIdentity)
 
-      setStatus(translateForInvite('chatJoin.status.joiningChannel'))
       let firstJoinedChannelKey = ''
       for (const channel of invite.channels) {
         const result = await channelApi.createChannel(
@@ -202,7 +191,6 @@ function ChatJoinContent() {
       }
 
       const firstChannel = invite.channels[0]
-      setStatus(translateForInvite('chatJoin.status.openingChannel'))
       window.location.href = getJoinChannelUrl(
         firstJoinedChannelKey || firstChannel.id
       )
@@ -211,16 +199,10 @@ function ChatJoinContent() {
     async function decrypt() {
       try {
         if (fixtureInvite) {
-          setStatus(
-            t('chatJoin.status.loadingFixture', {
-              name: fixtureInvite.name || fixture,
-            })
-          )
           await runJoinFlow(fixtureInvite)
           return
         }
 
-        setStatus(t('chatJoin.status.decryptingInvite'))
         const response = await fetch(
           `${CHAT_JOIN_API_BASE}/api/chat.join.decrypt`,
           {
@@ -273,23 +255,13 @@ function ChatJoinContent() {
       <div className="chat-join-loading-panel">
         {loading ? (
           <div className="chat-join-loading">
-            <KeyRound size={32} />
-            <p>{status || t('chatJoin.status.decrypting')}</p>
+            <span className="chat-join-status-spinner" aria-hidden="true" />
           </div>
         ) : error ? (
           <div className="chat-join-error">
             <AlertCircle size={32} />
             <p>{error}</p>
-            {status && <p className="chat-join-status">{status}</p>}
             <div className="chat-join-actions">
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={back}
-              >
-                <ArrowLeft size={16} />
-                {t('common.back')}
-              </button>
               <button
                 type="button"
                 className="btn btn-primary"
@@ -302,8 +274,7 @@ function ChatJoinContent() {
           </div>
         ) : (
           <div className="chat-join-success">
-            <Check size={32} />
-            <p>{status || t('chatJoin.status.decryptSuccess')}</p>
+            <span className="chat-join-status-spinner" aria-hidden="true" />
           </div>
         )}
       </div>
