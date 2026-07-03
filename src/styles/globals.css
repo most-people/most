@@ -1375,35 +1375,6 @@ button.ui-file-card {
   line-height: 1.4;
 }
 
-.header-tool-btn {
-  width: 32px;
-  height: 32px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-secondary);
-  transition:
-    color var(--transition-fast),
-    background var(--transition-fast),
-    transform var(--transition-fast);
-}
-
-.header-tool-btn:hover,
-.header-tool-btn:focus-visible,
-.header-tool-btn[aria-expanded='true'] {
-  color: var(--text-primary);
-  background: var(--glass-bg-subtle);
-  outline: none;
-  transform: translateY(-1px);
-}
-
-.header-tool-btn:focus-visible {
-  box-shadow: 0 0 0 2px var(--accent);
-}
-
 .language-toggle-placeholder {
   width: 16px;
   height: 16px;

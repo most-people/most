@@ -10,7 +10,6 @@ import {
   Calendar,
   Hash,
   Settings,
-  Loader,
   Search,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
@@ -58,6 +57,7 @@ import {
   getChatNoteDraftHref,
 } from '~/lib/chatNoteDraft'
 import { useGlobalVoiceRoom } from '~/features/chat/GlobalVoiceRoom'
+import { ChatRestoringIndicator } from '~/features/chat/ChatRestoringIndicator'
 import { getLocalizedDownloadLinkValidationMessage } from '~/lib/i18n/downloadValidation'
 import { saveFileToLocal } from '~/lib/saveLocalFile'
 import {
@@ -541,6 +541,7 @@ function ChatPage() {
     () => channels.map(channel => getChannelKey(channel)),
     [channels]
   )
+  const activeChannelKey = getChannelKey(activeChannel)
   const presenceProfile = useMemo(() => {
     if (!userIdentity) return {}
     return {
@@ -554,22 +555,23 @@ function ChatPage() {
     userIdentity?.username,
   ])
   const activeVoiceRoomInfo = useMemo(() => {
-    if (!activeChannel) return null
+    if (!activeChannel || !activeChannelKey) return null
     return {
-      channelName: getChannelKey(activeChannel),
+      channelName: activeChannelKey,
       title: getChannelTitle(activeChannel),
     }
-  }, [activeChannel])
+  }, [activeChannel, activeChannelKey])
 
   const {
     clearMessages: clearChannelMessages,
     messages: channelMessages,
     sendMessage: sendSharedChannelMessage,
+    syncedChannelName: syncedChannelMessagesName,
     syncMessages,
   } = useChannelMessages({
     isReady: isBackendReady,
     enabled: Boolean(userIdentity),
-    channelName: getChannelKey(activeChannel),
+    channelName: activeChannelKey,
     extraSubscribedChannelNames: subscribedChannelNames,
     peerId: myPeerId,
     waitForPeerId: true,
@@ -1504,8 +1506,13 @@ function ChatPage() {
     )
   }
 
-  const isRestoringInviteChannel =
-    isInviteUser && Boolean(requestedChannelName) && !activeChannel
+  const isLoadingActiveChannelMessages = Boolean(
+    activeChannelKey && activeChannelKey !== syncedChannelMessagesName
+  )
+  const shouldShowChatRestoring =
+    isInviteUser &&
+    Boolean(requestedChannelName) &&
+    (!activeChannel || isLoadingActiveChannelMessages)
   const chatLayoutClassName = [
     'chat-app-layout',
     isInviteUser ? 'sparkbit-chat-layout' : '',
@@ -1675,7 +1682,9 @@ function ChatPage() {
         </div>
       }
     >
-      {activeChannel ? (
+      {shouldShowChatRestoring ? (
+        <ChatRestoringIndicator />
+      ) : activeChannel ? (
         <>
           {shouldShowVoiceBanner && (
             <button
@@ -1771,14 +1780,6 @@ function ChatPage() {
             }}
           />
         </>
-      ) : isRestoringInviteChannel ? (
-        <div className="ui-empty-state chat-welcome">
-          <div className="ui-empty-icon ui-empty-icon-lg welcome-icon">
-            <Loader size={36} className="ui-spinner" />
-          </div>
-          <h2 className="ui-empty-title">{t('chat.restoring.title')}</h2>
-          <p className="ui-empty-desc">{t('chat.restoring.desc')}</p>
-        </div>
       ) : (
         <>
           <div className="ui-empty-state chat-welcome">

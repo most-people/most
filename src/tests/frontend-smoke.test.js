@@ -949,8 +949,12 @@ describe('frontend smoke checks', () => {
     assert.doesNotMatch(headerSource, /<Link to="\/" className="mkt-nav-logo"/)
   })
 
-  it('keeps chat join progress spinner-only while errors stay retryable', () => {
+  it('keeps chat join progress aligned with chat restoring loading', () => {
     const chatJoinSource = readSource('src/features/chat/ChatJoinPage.tsx')
+    const chatSource = readSource(SOURCE_PATHS.features.chat)
+    const chatRestoringSource = readSource(
+      'src/features/chat/ChatRestoringIndicator.tsx'
+    )
     const chatCssSource = readSource('src/styles/chat.css')
     const i18nMessages = readI18nSources()
 
@@ -972,26 +976,44 @@ describe('frontend smoke checks', () => {
     assert.doesNotMatch(i18nMessages, /'chatJoin\.status\./)
     assert.doesNotMatch(chatJoinSource, /className="chat-join-status"/)
     assert.doesNotMatch(chatJoinSource, /<p>\{status/)
-    assert.match(chatJoinSource, /className="chat-join-status-spinner"/)
     assert.match(
       chatJoinSource,
-      /<div className="chat-join-loading">\s*<span className="chat-join-status-spinner"/
+      /import \{ ChatRestoringIndicator \} from '~\/features\/chat\/ChatRestoringIndicator'/
     )
+    assert.match(chatJoinSource, /<ChatRestoringIndicator \/>/)
+    assert.match(chatSource, /<ChatRestoringIndicator \/>/)
+    assert.doesNotMatch(chatJoinSource, /ChatJoinLoadingIndicator/)
+    assert.doesNotMatch(chatJoinSource, /Loader/)
+    assert.doesNotMatch(chatSource, /chat\.restoring\.title/)
+    assert.doesNotMatch(chatSource, /chat\.restoring\.desc/)
     assert.match(
-      chatJoinSource,
-      /<div className="chat-join-success">\s*<span className="chat-join-status-spinner"/
+      chatRestoringSource,
+      /<div className="chat-join-loading">[\s\S]*<span className="chat-join-status-spinner" aria-hidden="true" \/>[\s\S]*<\/div>/
     )
+    assert.doesNotMatch(chatRestoringSource, /Loader/)
+    assert.doesNotMatch(chatRestoringSource, /ui-spinner/)
+    assert.doesNotMatch(chatRestoringSource, /chat-restoring-indicator/)
+    assert.doesNotMatch(chatRestoringSource, /chat-restoring-icon/)
+    assert.doesNotMatch(chatRestoringSource, /ui-empty-title/)
+    assert.doesNotMatch(chatRestoringSource, /ui-empty-desc/)
+    assert.doesNotMatch(chatRestoringSource, /chat\.restoring\.title/)
+    assert.doesNotMatch(chatRestoringSource, /chat\.restoring\.desc/)
+    assert.doesNotMatch(i18nMessages, /'chat\.restoring\.(title|desc)'/)
     assert.doesNotMatch(
       chatJoinSource,
       /<div className="chat-join-error">[\s\S]*chat-join-status-spinner[\s\S]*<div className="chat-join-actions">/
     )
+    assert.doesNotMatch(chatJoinSource, /className="chat-join-loading"/)
+    assert.doesNotMatch(chatJoinSource, /className="chat-join-success"/)
     assert.match(chatCssSource, /\.chat-join-actions/)
+    assert.match(chatCssSource, /\.chat-join-loading/)
     assert.match(chatCssSource, /\.chat-join-status-spinner/)
-    assert.match(chatCssSource, /width: 32px/)
-    assert.match(chatCssSource, /height: 32px/)
-    assert.match(chatCssSource, /border: 4px solid var\(--accent-soft\)/)
-    assert.match(chatCssSource, /border-top-color: var\(--accent\)/)
-    assert.match(chatCssSource, /box-shadow: 0 0 0 6px var\(--accent-soft\)/)
+    assert.match(
+      chatCssSource,
+      /\.chat-join-status-spinner\s*\{[\s\S]*width: 32px;[\s\S]*height: 32px;[\s\S]*border: 4px solid color-mix\(in srgb, #6A60FF 22%, transparent\);[\s\S]*border-top-color: #6A60FF;[\s\S]*box-shadow: 0 0 0 6px color-mix\(in srgb, #6A60FF 14%, transparent\);[\s\S]*animation: spin 0\.8s linear infinite;[\s\S]*\}/
+    )
+    assert.match(chatCssSource, /#6A60FF/)
+    assert.doesNotMatch(chatCssSource, /\.chat-restoring-indicator/)
     assert.match(i18nMessages, /'chatJoin\.action\.retry': '重试'/)
     assert.match(i18nMessages, /'chatJoin\.action\.retry': 'Retry'/)
   })
@@ -1444,6 +1466,16 @@ describe('frontend smoke checks', () => {
       i18nSource,
       /MutationObserver|createTreeWalker|translateDocument/
     )
+  })
+
+  it('uses shared icon button styling for header utility controls', () => {
+    const languageToggleSource = readSource('src/components/LanguageToggle.tsx')
+    const appearanceToggleSource = readSource('src/components/AppearanceToggle.tsx')
+    const globalsSource = readSource('src/styles/globals.css')
+
+    assert.match(languageToggleSource, /className="btn btn-icon"/)
+    assert.match(appearanceToggleSource, /className="btn btn-icon"/)
+    assert.doesNotMatch(globalsSource, /\.header-tool-btn\b/)
   })
 
   it('keeps migrated surfaces free of hardcoded Chinese UI copy', () => {
@@ -2018,6 +2050,23 @@ describe('frontend smoke checks', () => {
       /autoJoinChannelAttemptsRef\.current\.has\(attemptKey\)/
     )
     assert.match(chatSource, /void handleJoinChannel\(requestedChannelName\)/)
+  })
+
+  it('keeps invite chat restoring until active channel messages sync', () => {
+    const chatSource = readSource(SOURCE_PATHS.features.chat)
+    const channelMessagesSource = readSource('src/hooks/useChannelMessages.ts')
+
+    assert.match(channelMessagesSource, /syncedChannelName/)
+    assert.match(chatSource, /syncedChannelName: syncedChannelMessagesName/)
+    assert.match(chatSource, /isLoadingActiveChannelMessages/)
+    assert.match(
+      chatSource,
+      /shouldShowChatRestoring[\s\S]*isLoadingActiveChannelMessages/
+    )
+    assert.match(
+      chatSource,
+      /shouldShowChatRestoring \? \(\s*<ChatRestoringIndicator \/>\s*\) : activeChannel \?/
+    )
   })
 
   it('derives chat members from channel messages without the members API', () => {

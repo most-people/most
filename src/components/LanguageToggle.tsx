@@ -26,7 +26,7 @@ export function LanguageToggle() {
       renderTrigger={triggerProps => (
         <button
           {...triggerProps}
-          className="header-tool-btn"
+          className="btn btn-icon"
           title={label}
           aria-label={label}
         >

@@ -11,7 +11,7 @@ export function AppearanceToggle() {
   return (
     <button
       type="button"
-      className="header-tool-btn"
+      className="btn btn-icon"
       title={label}
       aria-label={label}
       aria-pressed={isDarkMode}

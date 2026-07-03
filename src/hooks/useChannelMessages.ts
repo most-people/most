@@ -96,6 +96,7 @@ export function useChannelMessages({
   const userIdentity = useUserStore(s => s.identity)
   const [messages, setMessages] = useState<ChannelMessage[]>([])
   const [connected, setConnected] = useState(false)
+  const [syncedChannelName, setSyncedChannelName] = useState('')
   const extraSubscribedChannelNamesKey = useMemo(
     () => getChannelSubscriptionKey(extraSubscribedChannelNames),
     [extraSubscribedChannelNames]
@@ -260,9 +261,17 @@ export function useChannelMessages({
             ? sortMessagesForDisplay(result)
             : mergeMessages(prev, result, false)
         )
+        if (options.replace && channelNameRef.current === name) {
+          setSyncedChannelName(name)
+        }
         return result
       } catch (err) {
-        if (options.replace) setMessages([])
+        if (options.replace) {
+          setMessages([])
+          if (channelNameRef.current === name) {
+            setSyncedChannelName(name)
+          }
+        }
         await onSyncErrorRef.current?.(err)
         return []
       }
@@ -291,6 +300,7 @@ export function useChannelMessages({
 
   const clearMessages = useCallback(() => {
     setMessages([])
+    setSyncedChannelName('')
   }, [])
 
   const sendMessage = useCallback(
@@ -538,6 +548,7 @@ export function useChannelMessages({
     messages,
     sendMessage,
     setMessages,
+    syncedChannelName,
     syncMessages,
   }
 }

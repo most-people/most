@@ -5,6 +5,7 @@ import {
   RefreshCw,
 } from 'lucide-react'
 import { AppEmpty } from '~/components/AppEmpty'
+import { ChatRestoringIndicator } from '~/features/chat/ChatRestoringIndicator'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import { createLoginIdentity } from '~server/src/utils/userIdentity.js'
@@ -264,9 +265,7 @@ function ChatJoinContent() {
     <AppEmpty className="chat-join-loading-page">
       <div className="chat-join-loading-panel">
         {loading ? (
-          <div className="chat-join-loading">
-            <span className="chat-join-status-spinner" aria-hidden="true" />
-          </div>
+          <ChatRestoringIndicator />
         ) : error ? (
           <div className="chat-join-error">
             <AlertCircle size={32} />
@@ -283,9 +282,7 @@ function ChatJoinContent() {
             </div>
           </div>
         ) : (
-          <div className="chat-join-success">
-            <span className="chat-join-status-spinner" aria-hidden="true" />
-          </div>
+          <ChatRestoringIndicator />
         )}
       </div>
     </AppEmpty>
