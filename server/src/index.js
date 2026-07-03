@@ -293,6 +293,42 @@ export class MostBoxEngine extends EventEmitter {
     return this.#pruneStaleChannelPresence()
   }
 
+  #isClosedSessionError(err) {
+    if (!err || typeof err !== 'object') return false
+    const code = String(err.code || '')
+    const message = String(err.message || '')
+    return (
+      code === 'SESSION_CLOSED' ||
+      message.includes('SESSION_CLOSED') ||
+      message.includes('closed session')
+    )
+  }
+
+  async #reopenChannelLocalWriter(channel) {
+    const channelKey = channel.channelKey
+    const localKeyHex =
+      this.#channelLocalCoreKey.get(channelKey) || channel.localWriterCoreKey
+    const coresMap = this.#channelCores.get(channelKey)
+    const staleCore = localKeyHex && coresMap ? coresMap.get(localKeyHex) : null
+
+    if (staleCore) {
+      coresMap.delete(localKeyHex)
+      await staleCore.close().catch(() => {})
+    }
+    this.#channelLocalCoreKey.delete(channelKey)
+
+    await this.#openChannelRuntime(channel)
+
+    const reopenedKeyHex = this.#channelLocalCoreKey.get(channelKey)
+    const reopenedCore = reopenedKeyHex
+      ? this.#channelCores.get(channelKey)?.get(reopenedKeyHex)
+      : null
+    if (!reopenedCore) {
+      throw new Error('频道未初始化或无可写 core')
+    }
+    return reopenedCore
+  }
+
   /**
    * 初始化引擎 — 必须在调用其他方法之前调用
    */
@@ -624,29 +660,38 @@ export class MostBoxEngine extends EventEmitter {
     const publishedBucket = this.#getPublishedBucket(ownerAddress, true)
     // 检查相同内容是否已存在
     const existingIndex = publishedBucket.findIndex(f => f.cid === cidString)
+    const repairingMissingContent = existingIndex !== -1
     if (existingIndex !== -1) {
       const existing = publishedBucket[existingIndex]
-      await this.#joinCidTopicInternal(cidString, {
-        server: true,
-        client: false,
+      const existingContent = await this.#getLocalCidContent(cidString, {
+        ownerAddress,
+        public: true,
+        allowHoldingFallback: true,
       })
-      this.#upsertHolding({
-        cid: cidString,
-        fileName: existing.fileName,
-        size: fileSize,
-        driveName: name,
-        source: 'published',
-      })
-      return {
-        cid: cidString,
-        link: buildMostLink(cidString, existing.fileName),
-        fileName: existing.fileName,
-        alreadyExists: true,
+      if (existingContent) {
+        await this.#joinCidTopicInternal(cidString, {
+          server: true,
+          client: false,
+        })
+        this.#upsertHolding({
+          cid: cidString,
+          fileName: existing.fileName,
+          size: fileSize,
+          driveName: name,
+          source: 'published',
+        })
+        return {
+          cid: cidString,
+          link: buildMostLink(cidString, existing.fileName),
+          fileName: existing.fileName,
+          alreadyExists: true,
+        }
       }
     }
 
     this.#assertDisplayNameAvailable(safeFileName, {
       ownerAddress,
+      excludeCid: repairingMissingContent ? cidString : undefined,
     })
 
     // 获取或创建该 CID 对应的 drive
@@ -667,40 +712,17 @@ export class MostBoxEngine extends EventEmitter {
 
     // Hyperdrive 中用 CID 作为 key 存储（解耦目录结构）
     const driveKey = '/' + cidString
-
-    const ws = drive.createWriteStream(driveKey)
-
-    if (Buffer.isBuffer(content)) {
-      let offset = 0
-      const waitForDrain = () =>
-        new Promise(resolve => ws.once('drain', resolve))
-
-      try {
-        while (offset < content.length) {
-          const chunk = content.slice(offset, offset + FILE_WRITE_CHUNK_SIZE)
-          const canContinue = ws.write(chunk)
-          offset += chunk.length
-          if (!canContinue && offset < content.length) {
-            await waitForDrain()
-          }
-        }
-        ws.end()
-        await new Promise((resolve, reject) => {
-          ws.on('finish', resolve)
-          ws.on('error', reject)
-        })
-      } catch (err) {
-        ws.destroy()
+    try {
+      await this.#writeDriveFile(drive, driveKey, content, cleanPath)
+    } catch (err) {
+      if (!this.#isClosedSessionError(err)) {
         throw err
       }
-    } else {
-      const rs = fs.createReadStream(cleanPath)
-      await new Promise((resolve, reject) => {
-        rs.pipe(ws)
-        ws.on('finish', resolve)
-        ws.on('error', reject)
-        rs.on('error', reject)
+      drive = await this.#reopenDrive(name, {
+        server: true,
+        client: false,
       })
+      await this.#writeDriveFile(drive, driveKey, content, cleanPath)
     }
 
     // 存储 displayName（用户看到的文件夹路径），不存储 drivePath
@@ -715,7 +737,11 @@ export class MostBoxEngine extends EventEmitter {
       starred: false,
       syncUpdatedAt: now,
     }
-    publishedBucket.push(fileRecord)
+    if (repairingMissingContent) {
+      publishedBucket[existingIndex] = fileRecord
+    } else {
+      publishedBucket.push(fileRecord)
+    }
     this.#savePublishedMetadata()
     this.#upsertHolding({
       cid: cidString,
@@ -2214,7 +2240,10 @@ export class MostBoxEngine extends EventEmitter {
   async #hasLocalDriveContent(drive, key) {
     try {
       return await drive.has(key)
-    } catch {
+    } catch (err) {
+      if (this.#isClosedSessionError(err)) {
+        throw err
+      }
       return false
     }
   }
@@ -2234,42 +2263,53 @@ export class MostBoxEngine extends EventEmitter {
     }
     const holding = this.#holdings.find(item => item.cid === cid)
     const { driveName } = this.#getCidInfo(cid)
-    const drive = await this.#getOrCreateDrive(
+    let drive = await this.#getOrCreateDrive(
       fileRecord?.driveName || holding?.driveName || driveName,
       { server: true, client: false }
     )
     const driveKey = '/' + cid
 
-    try {
-      const entry = await drive.entry(driveKey, { wait: false })
-      if (!entry?.value?.blob) {
-        return null
-      }
-      const hasContent = await this.#hasLocalDriveContent(drive, driveKey)
-      if (!hasContent) {
-        return null
-      }
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const entry = await drive.entry(driveKey, { wait: false })
+        if (!entry?.value?.blob) {
+          return null
+        }
+        const hasContent = await this.#hasLocalDriveContent(drive, driveKey)
+        if (!hasContent) {
+          return null
+        }
 
-      const size =
-        Number(entry.value.blob.byteLength) ||
-        Number(fileRecord?.size) ||
-        Number(holding?.size) ||
-        0
-      return {
-        drive,
-        entry,
-        size,
-        fileRecord: fileRecord || {
-          cid,
-          fileName: holding?.fileName || cid,
-          driveName: holding?.driveName || driveName,
+        const size =
+          Number(entry.value.blob.byteLength) ||
+          Number(fileRecord?.size) ||
+          Number(holding?.size) ||
+          0
+        return {
+          drive,
+          entry,
           size,
-          ownerAddress,
-        },
+          fileRecord: fileRecord || {
+            cid,
+            fileName: holding?.fileName || cid,
+            driveName: holding?.driveName || driveName,
+            size,
+            ownerAddress,
+          },
+        }
+      } catch (err) {
+        if (attempt === 0 && this.#isClosedSessionError(err)) {
+          drive = await this.#reopenDrive(
+            fileRecord?.driveName || holding?.driveName || driveName,
+            { server: true, client: false }
+          )
+          continue
+        }
+        return null
       }
-    } catch {
-      return null
     }
+
+    return null
   }
 
   // --- 频道管理 ---
@@ -2721,7 +2761,15 @@ export class MostBoxEngine extends EventEmitter {
       if (event) message.event = event
     }
 
-    await core.append(message)
+    try {
+      await core.append(message)
+    } catch (err) {
+      if (!this.#isClosedSessionError(err)) {
+        throw err
+      }
+      const reopenedCore = await this.#reopenChannelLocalWriter(channel)
+      await reopenedCore.append(message)
+    }
     if (channel) {
       channel.lastMessageAt = new Date(message.timestamp).toISOString()
       this.#saveChannelsMetadata()
@@ -4085,6 +4133,19 @@ export class MostBoxEngine extends EventEmitter {
             if (!this.#holdings.some(current => current.cid === holding.cid)) {
               return
             }
+            const localContent = await this.#getLocalCidContent(holding.cid, {
+              public: true,
+              allowHoldingFallback: true,
+            })
+            if (!localContent) {
+              this.#setSeedState(holding.cid, {
+                status: 'error',
+                topic: holding.topic,
+                driveName: holding.driveName,
+                error: 'Local CID content missing',
+              })
+              return
+            }
             await this.#joinCidTopicInternal(holding.cid, {
               server: true,
               client: false,
@@ -4310,6 +4371,60 @@ export class MostBoxEngine extends EventEmitter {
     await drive.close()
     this.#drives.delete(driveName)
     return drive
+  }
+
+  async #reopenDrive(name, options = { server: true, client: false }) {
+    const staleDrive = this.#drives.get(name)
+    if (staleDrive) {
+      this.#drives.delete(name)
+      await staleDrive.close().catch(() => {})
+    }
+    this.#drivePromises.delete(name)
+    return this.#getOrCreateDrive(name, options)
+  }
+
+  async #writeDriveFile(drive, driveKey, content, cleanPath) {
+    const ws = drive.createWriteStream(driveKey)
+
+    if (Buffer.isBuffer(content)) {
+      let offset = 0
+      const waitForDrain = () =>
+        new Promise(resolve => ws.once('drain', resolve))
+
+      try {
+        while (offset < content.length) {
+          const chunk = content.slice(offset, offset + FILE_WRITE_CHUNK_SIZE)
+          const canContinue = ws.write(chunk)
+          offset += chunk.length
+          if (!canContinue && offset < content.length) {
+            await waitForDrain()
+          }
+        }
+        ws.end()
+        await new Promise((resolve, reject) => {
+          ws.on('finish', resolve)
+          ws.on('error', reject)
+        })
+      } catch (err) {
+        ws.destroy()
+        throw err
+      }
+      return
+    }
+
+    const rs = fs.createReadStream(cleanPath)
+    try {
+      await new Promise((resolve, reject) => {
+        rs.pipe(ws)
+        ws.on('finish', resolve)
+        ws.on('error', reject)
+        rs.on('error', reject)
+      })
+    } catch (err) {
+      ws.destroy()
+      rs.destroy()
+      throw err
+    }
   }
 
   #getOwnerKey(ownerAddress) {

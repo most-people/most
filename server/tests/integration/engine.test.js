@@ -6,9 +6,12 @@ import path from 'node:path'
 import b4a from 'b4a'
 import Corestore from 'corestore'
 import Hyperdrive from 'hyperdrive'
+import Hypercore from 'hypercore'
+import HypercoreError from 'hypercore-errors'
 import { CID } from 'multiformats/cid'
 import { MostBoxEngine } from '../../src/index.js'
 import { calculateCid } from '../../src/core/cid.js'
+import { getCidInfo } from '../../src/core/cidTopic.js'
 import {
   GAME_CHANNEL_TYPE,
   createGameEvent,
@@ -202,6 +205,71 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.strictEqual(result2.alreadyExists, true)
     })
 
+    it('reopens the drive when publish sees a closed session', async () => {
+      const content = Buffer.from('publish after closed drive session')
+      const { cid } = await calculateCid(content)
+      const cidString = cid.toString()
+      const originalCreateWriteStream = Hyperdrive.prototype.createWriteStream
+      let injected = false
+
+      Hyperdrive.prototype.createWriteStream =
+        function createWriteStreamWithClosedSession(name, opts) {
+          if (!injected && name === `/${cidString}`) {
+            injected = true
+            throw HypercoreError.SESSION_CLOSED(
+              'Cannot append to a closed session',
+              this.discoveryKey
+            )
+          }
+          return originalCreateWriteStream.call(this, name, opts)
+        }
+
+      try {
+        const result = await engine.publishFile(content, 'closed-drive.txt')
+        const stored = await engine.readFileRaw(result.cid, { public: true })
+
+        assert.strictEqual(injected, true)
+        assert.strictEqual(result.cid, cidString)
+        assert.deepStrictEqual(stored.buffer, content)
+      } finally {
+        Hyperdrive.prototype.createWriteStream = originalCreateWriteStream
+      }
+    })
+
+    it('reopens the drive when checking local CID content sees a closed session', async () => {
+      const result = await engine.publishFile(
+        Buffer.from('local check after closed drive session'),
+        'closed-local-check.txt'
+      )
+      const originalEntry = Hyperdrive.prototype.entry
+      let injected = false
+
+      Hyperdrive.prototype.entry = async function entryWithClosedSession(
+        name,
+        opts
+      ) {
+        if (!injected && name === `/${result.cid}`) {
+          injected = true
+          throw HypercoreError.SESSION_CLOSED(
+            'Cannot append to a closed session',
+            this.discoveryKey
+          )
+        }
+        return originalEntry.call(this, name, opts)
+      }
+
+      try {
+        const availability = await engine.getLocalCidAvailability(result.link)
+
+        assert.strictEqual(injected, true)
+        assert.ok(availability)
+        assert.strictEqual(availability.cid, result.cid)
+        assert.strictEqual(availability.localAvailable, true)
+      } finally {
+        Hyperdrive.prototype.entry = originalEntry
+      }
+    })
+
     it('keeps one published record per CID even when folders differ', async () => {
       const content = Buffer.from(`unique cid record ${Date.now()}`)
 
@@ -215,6 +283,74 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.strictEqual(result2.alreadyExists, true)
       assert.strictEqual(records.length, 1)
       assert.strictEqual(records[0].fileName, 'folder-a/same.txt')
+    })
+
+    it('rewrites content when an existing CID record has no local blocks', async () => {
+      const repairTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-publish-repair-')
+      )
+      const dataPath = path.join(repairTmpDir, 'data')
+      const content = Buffer.from('repair metadata-only duplicate publish')
+      const { cid } = await calculateCid(content)
+      const cidString = cid.toString()
+      const { driveName } = getCidInfo(cidString)
+      let setupEngine
+      let repairEngine
+
+      try {
+        setupEngine = new MostBoxEngine({
+          dataPath,
+          disableNetwork: true,
+          downloadTimeout: 100,
+        })
+        await setupEngine.start()
+        await setupEngine.stop()
+        setupEngine = null
+
+        fs.writeFileSync(
+          path.join(dataPath, 'published-files.json'),
+          JSON.stringify(
+            {
+              __local__: [
+                {
+                  fileName: 'chat-file/old/repair.jpg',
+                  cid: cidString,
+                  driveName,
+                  size: content.length,
+                  source: 'published',
+                  publishedAt: new Date().toISOString(),
+                  starred: false,
+                },
+              ],
+            },
+            null,
+            2
+          )
+        )
+
+        repairEngine = new MostBoxEngine({
+          dataPath,
+          disableNetwork: true,
+          downloadTimeout: 100,
+        })
+        await repairEngine.start()
+
+        const result = await repairEngine.publishFile(
+          content,
+          'chat-file/new/repair.jpg'
+        )
+        const readResult = await repairEngine.readFileRaw(cidString, {
+          public: true,
+        })
+
+        assert.strictEqual(result.cid, cidString)
+        assert.strictEqual(result.fileName, 'chat-file/new/repair.jpg')
+        assert.deepStrictEqual(readResult.buffer, content)
+      } finally {
+        if (setupEngine) await setupEngine.stop().catch(() => {})
+        if (repairEngine) await repairEngine.stop().catch(() => {})
+        fs.rmSync(repairTmpDir, { recursive: true, force: true })
+      }
     })
 
     it('rejects duplicate names in the same folder for different CIDs', async () => {
@@ -697,6 +833,68 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         if (firstEngine) await firstEngine.stop().catch(() => {})
         if (secondEngine) await secondEngine.stop().catch(() => {})
         fs.rmSync(holdingTmpDir, { recursive: true, force: true })
+      }
+    })
+
+    it('does not resume missing local content as an active seed', async () => {
+      const missingTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-missing-holding-')
+      )
+      const dataPath = path.join(missingTmpDir, 'data')
+      const content = Buffer.from('missing holding content')
+      const { cid } = await calculateCid(content)
+      const cidString = cid.toString()
+      const { topicHex, driveName } = getCidInfo(cidString)
+      let setupEngine
+      let missingEngine
+
+      try {
+        setupEngine = new MostBoxEngine({
+          dataPath,
+          disableNetwork: true,
+          downloadTimeout: 100,
+        })
+        await setupEngine.start()
+        await setupEngine.stop()
+        setupEngine = null
+
+        fs.writeFileSync(
+          path.join(dataPath, 'node-holdings.json'),
+          JSON.stringify(
+            [
+              {
+                cid: cidString,
+                fileName: 'missing.txt',
+                size: content.length,
+                topic: topicHex,
+                driveName,
+                source: 'published',
+              },
+            ],
+            null,
+            2
+          )
+        )
+
+        missingEngine = new MostBoxEngine({
+          dataPath,
+          disableNetwork: true,
+          downloadTimeout: 100,
+        })
+        await missingEngine.start()
+
+        const missing = await waitForHoldingStatus(
+          missingEngine,
+          cidString,
+          'error',
+          1000
+        )
+        assert.strictEqual(missing.joined, false)
+        assert.match(missing.seedError, /Local CID content missing/)
+      } finally {
+        if (setupEngine) await setupEngine.stop().catch(() => {})
+        if (missingEngine) await missingEngine.stop().catch(() => {})
+        fs.rmSync(missingTmpDir, { recursive: true, force: true })
       }
     })
 
@@ -1801,6 +1999,43 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         assert.strictEqual(events[0].message.content, 'single event')
       } finally {
         msgEngine.off('channel:message', onMessage)
+      }
+    })
+
+    it('reopens the local writer core when append sees a closed session', async () => {
+      const ch = `closed-session-${uid}`
+      const content = 'message after closed session'
+      await msgEngine.createChannel(ch)
+
+      const originalAppend = Hypercore.prototype.append
+      let injected = false
+      Hypercore.prototype.append = async function appendWithClosedSession(
+        blocks,
+        opts
+      ) {
+        const entries = Array.isArray(blocks) ? blocks : [blocks]
+        if (
+          !injected &&
+          entries.some(entry => entry && entry.content === content)
+        ) {
+          injected = true
+          throw HypercoreError.SESSION_CLOSED(
+            'Cannot append to a closed session',
+            this.discoveryKey
+          )
+        }
+        return originalAppend.call(this, blocks, opts)
+      }
+
+      try {
+        const message = await msgEngine.sendMessage(ch, content)
+        const messages = await msgEngine.getChannelMessages(ch)
+
+        assert.strictEqual(injected, true)
+        assert.strictEqual(message.content, content)
+        assert.ok(messages.some(item => item.content === content))
+      } finally {
+        Hypercore.prototype.append = originalAppend
       }
     })
 
