@@ -1450,9 +1450,12 @@ describe('frontend smoke checks', () => {
     assert.match(languageToggleSource, /localeNames\[item\]/)
     assert.match(languageToggleSource, /setLocale\(item\)/)
     assert.match(languageToggleSource, /<Check size=\{16\}/)
-    assert.match(languageToggleSource, /Globe2/)
-    assert.match(languageToggleSource, /<Globe2 size=\{16\}/)
-    assert.doesNotMatch(languageToggleSource, /Languages/)
+    assert.match(languageToggleSource, /Earth/)
+    assert.match(languageToggleSource, /Languages/)
+    assert.match(
+      languageToggleSource,
+      /theme === 'sparkbit' \? <Earth size=\{16\} \/> : <Languages size=\{16\} \/>/
+    )
     assert.match(appearanceToggleSource, /setIsDarkMode\(!isDarkMode\)/)
     assert.match(appearanceToggleSource, /t\('common\.appearance\.toggle'\)/)
     assert.doesNotMatch(
