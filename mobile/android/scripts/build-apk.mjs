@@ -3,6 +3,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { syncNativeAndroidProject } from './sync-native-android.mjs'
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 const projectDir = path.resolve(scriptDir, '..')
@@ -92,6 +93,7 @@ function ensureAndroidProject() {
 
 console.log(`[android] release version: ${version}`)
 ensureAndroidProject()
+syncNativeAndroidProject({ version })
 console.log('[android] bundling Bare Worklet core...')
 run(process.execPath, [
   path.join(projectDir, 'node_modules', 'bare-pack', 'bin.js'),

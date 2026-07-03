@@ -134,6 +134,55 @@ function deferred() {
   return { promise, resolve, reject }
 }
 
+describe('mobile file downloads', () => {
+  it('recreates the downloads directory before writing a temporary file', async t => {
+    const storagePath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mostbox-mobile-download-dir-')
+    )
+    const cores = []
+    t.after(async () => {
+      await Promise.allSettled(cores.map(core => core.stop()))
+      await fs.rm(storagePath, { recursive: true, force: true })
+    })
+
+    const createCore = swarms => {
+      const core = new MobileP2PCore({
+        storagePath,
+        createSwarm: createRecordingSwarmFactory(swarms),
+      })
+      cores.push(core)
+      return core
+    }
+
+    const content = 'download me after restart'
+    const firstCore = createCore([])
+    await firstCore.start()
+    const published = await firstCore.publishFile({
+      name: 'chat-photo.jpg',
+      contentBase64: b4a.toString(b4a.from(content), 'base64'),
+    })
+    const link = published.transfer.link
+    await firstCore.stop()
+    await fs.rm(path.join(storagePath, 'node-holdings.json'), {
+      force: true,
+    })
+
+    const restartedCore = createCore([])
+    await restartedCore.start()
+    await fs.rm(path.join(storagePath, 'downloads'), {
+      recursive: true,
+      force: true,
+    })
+
+    const result = await restartedCore.downloadLink({ link })
+    assert.equal(result.transfer.status, 'completed')
+    assert.equal(
+      await fs.readFile(result.savedPath, 'utf8'),
+      content
+    )
+  })
+})
+
 describe('mobile channel core restart recovery', () => {
   it('restores persisted channels, rejoins topics, keeps writer cores, and continues messaging', async t => {
     const storagePath = await fs.mkdtemp(

@@ -215,7 +215,7 @@ async function calculateCid(input) {
     content = [input.buffer]
   } else if (input.filePath) {
     const filePath = normalizeFileUri(input.filePath)
-    const stat = await fs.stat(filePath)
+    const stat = fs.statSync(filePath)
     size = stat.size || 0
     content = fs.createReadStream(filePath)
   } else {
@@ -316,6 +316,7 @@ async function pipeFileToDrive(filePath, drive, driveKey) {
 }
 
 async function pipeDriveToFile(stream, targetPath, options = {}) {
+  ensureDirectory(path.dirname(targetPath))
   const ws = fs.createWriteStream(targetPath)
   const timeout = options.timeout ?? STREAM_READ_TIMEOUT
   const onProgress = options.onProgress || (() => {})

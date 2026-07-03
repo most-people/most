@@ -86,7 +86,7 @@
   --bg-tertiary: #141416;
   --text-primary: #f5f5f7;
   --text-secondary: #a1a1a6;
-  --text-muted: #6e6e73;
+  --text-muted: #808080;
   --border-color: rgba(255, 255, 255, 0.08);
 
   --accent: #5e6ad2;
@@ -802,11 +802,7 @@ button {
   padding: 0 30px 0 12px;
   border: 1px solid var(--glass-border);
   border-radius: 12px;
-  background-color: color-mix(
-    in srgb,
-    var(--glass-bg-subtle) 74%,
-    transparent
-  );
+  background-color: color-mix(in srgb, var(--glass-bg-subtle) 74%, transparent);
   color: var(--text-primary);
   font: inherit;
   font-size: 13px;

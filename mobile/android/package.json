@@ -7,6 +7,7 @@
   "scripts": {
     "start": "bare-pack --preset android --linked --imports bare-pack-imports.cjs backend/backend.mjs --out app.bundle.js && node scripts/start-dev-client.mjs",
     "build": "node scripts/build-apk.mjs",
+    "sync:native": "node scripts/sync-native-android.mjs",
     "test": "node --import tsx --test src/mobileCore/cid.test.ts src/mobileCore/protocol.test.ts src/features/chat/chatState.test.ts && node --test backend/protocol.test.mjs backend/holding-records.test.mjs backend/mobile-core.test.mjs"
   },
   "dependencies": {
@@ -15,23 +16,23 @@
     "bare-fs": "4.7.2",
     "bare-rpc": "1.3.3",
     "corestore": "7.11.0",
-    "expo": "56.0.12",
-    "expo-build-properties": "56.0.19",
+    "expo": "56.0.13",
+    "expo-build-properties": "56.0.20",
     "expo-clipboard": "56.0.4",
-    "expo-dev-client": "56.0.20",
+    "expo-dev-client": "56.0.21",
     "expo-document-picker": "56.0.4",
     "expo-file-system": "56.0.8",
     "expo-linking": "56.0.14",
-    "expo-sharing": "56.0.18",
+    "expo-sharing": "56.0.19",
     "hyperdrive": "13.3.2",
     "hyperswarm": "4.17.0",
     "ipfs-unixfs-importer": "17.0.1",
     "lucide-react-native": "1.21.0",
     "multiformats": "14.0.2",
-    "react": "19.2.7",
-    "react-native": "0.86.0",
+    "react": "19.2.3",
+    "react-native": "0.85.3",
     "react-native-bare-kit": "0.15.0",
-    "react-native-svg": "15.15.5"
+    "react-native-svg": "15.15.4"
   },
   "devDependencies": {
     "@types/b4a": "1.6.5",
