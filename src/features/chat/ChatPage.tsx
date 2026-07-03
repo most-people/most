@@ -1582,6 +1582,7 @@ function ChatPage() {
       className={chatLayoutClassName}
       defaultHide={isInviteUser}
       hideAccountMenu={isInviteUser}
+      languageTheme={isInviteUser ? 'sparkbit' : undefined}
       sidebar={({ closeSidebar }) => (
         <>
           <AppTop onNavigate={closeSidebar} />

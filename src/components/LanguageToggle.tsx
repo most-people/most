@@ -1,16 +1,31 @@
 import { Check, Languages } from 'lucide-react'
 import { ActionMenu } from '~/components/ui'
-import { LOCALES, localeNames, useI18n } from '~/lib/i18n'
+import { LOCALES, localeNames, useI18n, type Locale } from '~/lib/i18n'
 
-export function LanguageToggle() {
+export type LanguageToggleTheme = 'sparkbit'
+
+interface LanguageToggleProps {
+  theme?: LanguageToggleTheme
+}
+
+export function getLanguageToggleLocales(
+  theme?: LanguageToggleTheme
+): Locale[] {
+  return theme === 'sparkbit'
+    ? LOCALES.filter(item => item !== 'zh-CN')
+    : [...LOCALES]
+}
+
+export function LanguageToggle({ theme }: LanguageToggleProps) {
   const { locale, setLocale, t } = useI18n()
   const label = t('common.locale.choose')
+  const locales = getLanguageToggleLocales(theme)
 
   return (
     <ActionMenu
       ariaLabel={label}
       className="language-toggle"
-      items={LOCALES.map(item => ({
+      items={locales.map(item => ({
         key: item,
         label: localeNames[item],
         icon:

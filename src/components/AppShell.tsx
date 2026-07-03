@@ -9,7 +9,10 @@ import React, {
 import { useMediaQuery } from '@mantine/hooks'
 import { Menu } from 'lucide-react'
 import { AppearanceToggle } from '~/components/AppearanceToggle'
-import { LanguageToggle } from '~/components/LanguageToggle'
+import {
+  LanguageToggle,
+  type LanguageToggleTheme,
+} from '~/components/LanguageToggle'
 import { AccountMenuButton } from '~/features/profile/AccountMenu'
 import { useDisclosure } from '~/hooks'
 import { useI18n } from '~/lib/i18n'
@@ -43,6 +46,7 @@ interface AppShellProps {
   headerTitle?: React.ReactNode
   headerRight?: React.ReactNode
   sidebarToggleReplacement?: React.ReactNode
+  languageTheme?: LanguageToggleTheme
   defaultHide?: boolean
   hideAccountMenu?: boolean
   children: React.ReactNode
@@ -54,6 +58,7 @@ export default function AppShell({
   headerTitle,
   headerRight,
   sidebarToggleReplacement,
+  languageTheme,
   defaultHide = false,
   hideAccountMenu = false,
   children,
@@ -148,7 +153,7 @@ export default function AppShell({
             <div className="header-right">
               {headerRight}
               <AppearanceToggle />
-              <LanguageToggle />
+              <LanguageToggle theme={languageTheme} />
               {!hideAccountMenu && <AccountMenuButton />}
             </div>
           </header>

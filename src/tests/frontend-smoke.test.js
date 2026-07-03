@@ -1429,7 +1429,8 @@ describe('frontend smoke checks', () => {
       /ProfilePreferencesPanel|profile-preferences-panel|profile-locale-grid|profile-preference-action|LOCALES\.map|localeNames\[item\]|setLocale\(item\)|setIsDarkMode\(!isDarkMode\)/
     )
     assert.match(languageToggleSource, /ActionMenu/)
-    assert.match(languageToggleSource, /LOCALES\.map/)
+    assert.match(languageToggleSource, /getLanguageToggleLocales\(theme\)/)
+    assert.match(languageToggleSource, /items=\{locales\.map/)
     assert.match(languageToggleSource, /localeNames\[item\]/)
     assert.match(languageToggleSource, /setLocale\(item\)/)
     assert.match(languageToggleSource, /<Check size=\{16\}/)
@@ -1476,6 +1477,21 @@ describe('frontend smoke checks', () => {
     assert.match(languageToggleSource, /className="btn btn-icon"/)
     assert.match(appearanceToggleSource, /className="btn btn-icon"/)
     assert.doesNotMatch(globalsSource, /\.header-tool-btn\b/)
+  })
+
+  it('hides simplified Chinese from SparkBit language options', async () => {
+    const { getLanguageToggleLocales } = await importBundledSource(
+      'src/components/LanguageToggle.tsx'
+    )
+    const appShellSource = readSource('src/components/AppShell.tsx')
+    const chatSource = readSource(SOURCE_PATHS.features.chat)
+
+    assert.equal(typeof getLanguageToggleLocales, 'function')
+    assert.deepEqual(getLanguageToggleLocales(), ['zh-CN', 'zh-TW', 'en'])
+    assert.deepEqual(getLanguageToggleLocales('sparkbit'), ['zh-TW', 'en'])
+    assert.match(appShellSource, /languageTheme\?: LanguageToggleTheme/)
+    assert.match(appShellSource, /<LanguageToggle theme=\{languageTheme\} \/>/)
+    assert.match(chatSource, /languageTheme=\{isInviteUser \? 'sparkbit' : undefined\}/)
   })
 
   it('keeps migrated surfaces free of hardcoded Chinese UI copy', () => {
@@ -1876,7 +1892,8 @@ describe('frontend smoke checks', () => {
       /ProfilePreferencesPanel|profile-preferences-panel|profile-locale-grid|profile-preference-action|LOCALES\.map|localeNames\[item\]|setLocale\(item\)|setIsDarkMode\(!isDarkMode\)/
     )
     assert.match(languageToggleSource, /ActionMenu/)
-    assert.match(languageToggleSource, /LOCALES\.map/)
+    assert.match(languageToggleSource, /getLanguageToggleLocales\(theme\)/)
+    assert.match(languageToggleSource, /items=\{locales\.map/)
     assert.match(languageToggleSource, /localeNames\[item\]/)
     assert.match(languageToggleSource, /setLocale\(item\)/)
     assert.match(appearanceToggleSource, /setIsDarkMode\(!isDarkMode\)/)
