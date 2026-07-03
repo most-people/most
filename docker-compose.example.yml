@@ -1,0 +1,10 @@
+services:
+  mostbox:
+    image: ghcr.io/most-people/most-box:0.3.6
+    container_name: mostbox
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      HOME: /data
+    volumes:
+      - /vol1/docker/mostbox/home:/data

@@ -112,7 +112,7 @@ npm test              # 运行 Android 子包协议、Channel 和 IPC 测试
 
 ### 飞牛 OS / NAS 局域网部署
 
-飞牛 OS 自带 Docker，可以把 NAS 变成一台 24 小时在线的 MostBox 做种机。普通用户建议直接用飞牛的 Docker 图形界面，不需要 SSH。
+飞牛 OS 自带 Docker，可以把 NAS 变成一台 24 小时在线的 MostBox 做种机。推荐使用官方 Docker 镜像，容器启动时不会再临时安装 npm 包或 Debian 依赖。
 
 你只需要准备两样东西：
 
@@ -124,28 +124,20 @@ npm test              # 运行 Android 子包协议、Channel 和 IPC 测试
 1. 打开飞牛 OS 桌面的 **Docker**。
 2. 找到 **Compose**、**项目** 或 **创建项目** 入口。
 3. 项目名填写 `mostbox`。
-4. Compose 内容整段复制下面这一块，不需要改里面的命令。
+4. Compose 内容整段复制下面这一块。
 5. 保存并启动项目。
 
 ```yaml
 services:
   mostbox:
-    image: node:22-bookworm-slim
+    image: ghcr.io/most-people/most-box:0.3.6
     container_name: mostbox
     network_mode: host
     restart: unless-stopped
+    environment:
+      HOME: /data
     volumes:
-      - /vol1/docker/mostbox:/data
-    working_dir: /data
-    command: >
-      sh -lc "if [ ! -e /usr/lib/x86_64-linux-gnu/libatomic.so.1 ]; then
-      apt-get update &&
-      DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libatomic1 ca-certificates &&
-      rm -rf /var/lib/apt/lists/*;
-      fi;
-      mkdir -p /data/home /data/npm-cache &&
-      chown -R 1000:1000 /data/home /data/npm-cache &&
-      su node -s /bin/sh -c 'HOME=/data/home npm_config_cache=/data/npm-cache npm_config_audit=false npm_config_fund=false npx -y most-box@latest --host 0.0.0.0'"
+      - /vol1/docker/mostbox/home:/data
 ```
 
 启动后，在同一局域网的电脑或手机浏览器打开：
@@ -162,11 +154,26 @@ http://192.168.31.107:1976
 
 看到 MostBox 页面后，就可以在 NAS 上发布文件。发布后复制生成的 `most://<cid>?filename=...` 链接发给别人；下载者运行自己的 MostBox，粘贴链接下载。你的 NAS 会继续在线做种，关闭浏览器页面也不影响容器做种。
 
+升级到新版本时，把 Compose 里的镜像 tag 改成新版本，然后重新拉取并启动：
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+如果你之前用过旧的临时 `node + npx` 方案，且不需要保留旧数据，可以先停止项目并删除 `/vol1/docker/mostbox`，再按上面的 Compose 重新创建。
+
+验证节点状态：
+
+```bash
+curl --noproxy "*" http://你的NAS地址:1976/api/node/status
+```
+
 常见问题：
 
 - 页面打不开：先确认 Docker 项目状态是“运行中”，再确认访问的是 NAS 的局域网 IP 加 `:1976`。
-- 日志里一直下载失败：可能是 NAS 访问 npm 或 Debian 软件源太慢，可以给 Docker 项目临时加代理。
-- 数据目录：文件和节点数据保存在 NAS 的 `/vol1/docker/mostbox`，通常位于飞牛的第一个存储空间。
+- 镜像拉取失败：确认 NAS 能访问 `ghcr.io`，必要时只给 Docker 拉镜像配置代理；容器启动后不依赖 npm 或 apt。
+- 数据目录：文件和节点数据保存在 NAS 的 `/vol1/docker/mostbox/home`，通常位于飞牛的第一个存储空间。
 - 安全提醒：`--host 0.0.0.0` 是给家庭局域网使用的。不要在路由器里把 `1976` 端口直接暴露到公网；需要公网 Web 入口时，请使用 HTTPS 反向代理，并在管理台配置远程访问邀请码。
 
 ### 远程管理节点

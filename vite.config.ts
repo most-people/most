@@ -12,6 +12,7 @@ export default defineConfig({
         enabled: true,
         autoStaticPathsDiscovery: true,
         autoSubfolderIndex: true,
+        concurrency: 1,
         crawlLinks: true,
         failOnError: true,
       },
@@ -29,6 +30,7 @@ export default defineConfig({
     strictPort: true,
   },
   preview: {
+    host: '127.0.0.1',
     port: 3000,
   },
   build: {
