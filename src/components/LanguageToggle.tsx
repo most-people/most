@@ -1,4 +1,4 @@
-import { Check, Globe2 } from 'lucide-react'
+import { Check, Languages, Earth } from 'lucide-react'
 import { ActionMenu } from '~/components/ui'
 import { LOCALES, localeNames, useI18n, type Locale } from '~/lib/i18n'
 
@@ -45,7 +45,7 @@ export function LanguageToggle({ theme }: LanguageToggleProps) {
           title={label}
           aria-label={label}
         >
-          <Globe2 size={16} />
+          {theme === 'sparkbit' ? <Earth size={16} /> : <Languages size={16} />}
         </button>
       )}
     />
