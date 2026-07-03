@@ -56,6 +56,7 @@ import {
   createChatNoteDraft,
   getChatNoteDraftHref,
 } from '~/lib/chatNoteDraft'
+import { isChannelMemberJoinedSystemMessage } from '~/lib/channelMessages.js'
 import { useGlobalVoiceRoom } from '~/features/chat/GlobalVoiceRoom'
 import { ChatRestoringIndicator } from '~/features/chat/ChatRestoringIndicator'
 import { getLocalizedDownloadLinkValidationMessage } from '~/lib/i18n/downloadValidation'
@@ -72,7 +73,6 @@ import {
 } from '~/lib/chatUnread.js'
 import {
   fileApi,
-  getDownloadCheckErrorMessage,
   getPublishFileErrorMessage,
   getPublishFileLimitViolation,
 } from '~/lib/fileApi'
@@ -84,7 +84,6 @@ const ATTACHMENT_CHECK_TIMEOUT_MS = 10000
 const ATTACHMENT_CHECK_REQUEST_TIMEOUT_MS = ATTACHMENT_CHECK_TIMEOUT_MS + 2000
 const CHAT_NOTIFICATION_SOUND_MIN_INTERVAL_MS = 1200
 const CHANNEL_HISTORY_SYNC_DEBOUNCE_MS = 800
-const CHANNEL_MEMBER_JOINED_EVENT = 'channel.member.joined'
 
 function getChannelKey(channel?: Pick<Channel, 'channelKey' | 'name'> | null) {
   return channel?.channelKey || channel?.name || ''
@@ -124,10 +123,6 @@ function getSocketEventChannelKeys(data: unknown) {
 
 function getChannelTitle(channel?: Pick<Channel, 'remark' | 'channelId' | 'name'> | null) {
   return channel?.remark || getChannelId(channel)
-}
-
-function isChannelMemberJoinedSystemMessage(msg: ChannelMessage) {
-  return msg.type === 'system' && msg.event === CHANNEL_MEMBER_JOINED_EVENT
 }
 
 function getRequestedChannelNameFromLocation() {
@@ -999,11 +994,13 @@ function ChatPage() {
         },
       }))
       return true
-    } catch (err) {
-      const message = await getDownloadCheckErrorMessage(err)
+    } catch {
       setAttachmentDownloadStatus(prev => ({
         ...prev,
-        [attachment.cid]: { status: 'error', message },
+        [attachment.cid]: {
+          status: 'error',
+          message: t('chat.attachment.noSeedsTitle'),
+        },
       }))
       return false
     }
@@ -1049,12 +1046,14 @@ function ChatPage() {
         pendingAttachmentPreviewsRef.current.set(result.taskId, attachment)
         addToast(t('chat.attachment.downloadStarted'), 'success')
       }
-    } catch (err) {
-      const message = await getDownloadCheckErrorMessage(err)
+    } catch {
       activeAttachmentDownloadsRef.current.delete(attachment.cid)
       setAttachmentDownloadStatus(prev => ({
         ...prev,
-        [attachment.cid]: { status: 'error', message },
+        [attachment.cid]: {
+          status: 'error',
+          message: t('chat.attachment.noSeedsTitle'),
+        },
       }))
     }
   }
@@ -1863,10 +1862,7 @@ function ChatPage() {
                 <X size={18} />
               </button>
             </div>
-            <p>
-              {attachmentDownloadStatus[failedAttachment.cid]?.message ||
-                t('chat.attachment.noSeedsFallback')}
-            </p>
+            <p>{t('chat.attachment.noSeedsFallback')}</p>
             <div className="modal-actions">
               <button
                 type="button"

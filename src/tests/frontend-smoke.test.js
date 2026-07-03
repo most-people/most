@@ -1276,6 +1276,12 @@ describe('frontend smoke checks', () => {
       /status: 'checking' \| 'ready' \| 'downloading' \| 'available' \| 'error'/
     )
     assert.match(chatSource, /message=\{downloadState\?\.message\}/)
+    assert.match(chatSource, /t\('chat\.attachment\.noSeedsTitle'\)/)
+    assert.match(chatSource, /t\('chat\.attachment\.noSeedsFallback'\)/)
+    assert.doesNotMatch(
+      chatSource,
+      /attachmentDownloadStatus\[failedAttachment\.cid\]\?\.message/
+    )
     assert.match(attachmentCardSource, /chat\.attachment\.download/)
     assert.match(attachmentCardSource, /chat\.attachment\.downloading/)
     assert.match(attachmentCardSource, /chat-attachment-action-label/)
@@ -1320,6 +1326,7 @@ describe('frontend smoke checks', () => {
     assert.match(i18nMessages, /'chat\.attachment\.file': '文件'/)
     assert.match(i18nMessages, /'chat\.attachment\.downloadAvailable': '可下载'/)
     assert.match(i18nMessages, /'chat\.attachment\.preview': '预览'/)
+    assert.doesNotMatch(i18nMessages, /chat\.attachment\.noSeedsBrief/)
     assert.doesNotMatch(i18nMessages, /chat\.invite\.|chat\.games\./)
     assert.match(i18nMessages, /'chat\.details\.channelId': '房间 ID'/)
     assert.doesNotMatch(componentSource, /application\/pdf/)
@@ -1434,6 +1441,9 @@ describe('frontend smoke checks', () => {
     assert.match(languageToggleSource, /localeNames\[item\]/)
     assert.match(languageToggleSource, /setLocale\(item\)/)
     assert.match(languageToggleSource, /<Check size=\{16\}/)
+    assert.match(languageToggleSource, /Globe2/)
+    assert.match(languageToggleSource, /<Globe2 size=\{16\}/)
+    assert.doesNotMatch(languageToggleSource, /Languages/)
     assert.match(appearanceToggleSource, /setIsDarkMode\(!isDarkMode\)/)
     assert.match(appearanceToggleSource, /t\('common\.appearance\.toggle'\)/)
     assert.doesNotMatch(

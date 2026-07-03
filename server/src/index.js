@@ -101,6 +101,26 @@ function isChannelHistoryEntry(entry) {
   return entry?.type === 'message' || entry?.type === 'system'
 }
 
+function getChannelHistoryDedupeKey(message) {
+  const type = String(message?.type || '')
+  const event = String(message?.event || '')
+  const author = normalizeOwnerAddress(message?.author)
+  const content = String(message?.content || '').trim()
+
+  if (type === 'system' && event === CHANNEL_MEMBER_JOINED_EVENT && author) {
+    return `${type}:${event}:${author}:${content}`
+  }
+
+  return [
+    message?._coreKey || '',
+    type,
+    event,
+    message?.author || '',
+    message?.timestamp || '',
+    content,
+  ].join(':')
+}
+
 function createMemoryDuplexPair() {
   let left
   let right
@@ -2672,7 +2692,7 @@ export class MostBoxEngine extends EventEmitter {
 
     const seen = new Set()
     const unique = allMessages.filter(m => {
-      const key = `${m._coreKey}:${m.type}:${m.event || ''}:${m.author}:${m.timestamp}:${m.content}`
+      const key = getChannelHistoryDedupeKey(m)
       if (seen.has(key)) return false
       seen.add(key)
       return true

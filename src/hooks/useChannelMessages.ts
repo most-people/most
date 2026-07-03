@@ -10,6 +10,10 @@ import {
   getChannelSubscriptionKey,
   getChannelSubscriptionNames,
 } from '~/lib/channelSubscriptions.js'
+import {
+  dedupeChannelMessages,
+  getChannelMessageKey,
+} from '~/lib/channelMessages.js'
 import { getUserMessageIdentity } from '~/lib/userProfile'
 import { useUserStore } from '~/stores/userStore'
 
@@ -47,10 +51,7 @@ export interface SendChannelMessageOptions {
 }
 
 function defaultMessageKey(message: ChannelMessage) {
-  return String(
-    message.id ||
-      `${message.author || ''}-${message.timestamp || ''}-${message.content || ''}`
-  )
+  return getChannelMessageKey(message)
 }
 
 function getMessageTimestamp(message: ChannelMessage) {
@@ -258,7 +259,7 @@ export function useChannelMessages({
         )
         setMessages(prev =>
           options.replace
-            ? sortMessagesForDisplay(result)
+            ? sortMessagesForDisplay(dedupeChannelMessages(result))
             : mergeMessages(prev, result, false)
         )
         if (options.replace && channelNameRef.current === name) {

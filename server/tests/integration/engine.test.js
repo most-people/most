@@ -2783,6 +2783,68 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       }
     })
 
+    it('deduplicates the same member-joined system message from multiple writer cores', async () => {
+      const joinTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-channel-join-dedupe-test-')
+      )
+      const firstDataPath = path.join(joinTmpDir, 'first')
+      const secondDataPath = path.join(joinTmpDir, 'second')
+      const channelName = `join-dedupe-${uid}`
+      const visitor = `0x${'9'.repeat(40)}`
+      let firstEngine
+      let secondEngine
+      let replication
+
+      try {
+        firstEngine = new MostBoxEngine({
+          dataPath: firstDataPath,
+          disableNetwork: true,
+        })
+        secondEngine = new MostBoxEngine({
+          dataPath: secondDataPath,
+          disableNetwork: true,
+        })
+        await firstEngine.start()
+        await secondEngine.start()
+
+        const first = await firstEngine.createChannel(channelName, 'public', {
+          ownerAddress: visitor,
+          displayName: 'Visitor',
+        })
+        const second = await secondEngine.createChannel(channelName, 'public', {
+          ownerAddress: visitor,
+          displayName: 'Visitor',
+        })
+        await firstEngine.joinChannel(channelName, toChannelCandidate(second), {
+          ownerAddress: visitor,
+          displayName: 'Visitor',
+        })
+        await secondEngine.joinChannel(channelName, toChannelCandidate(first), {
+          ownerAddress: visitor,
+          displayName: 'Visitor',
+        })
+
+        replication = firstEngine.replicateWith(secondEngine)
+        await sleep(50)
+
+        const messages = await firstEngine.getChannelMessages(channelName, {
+          ownerAddress: visitor,
+        })
+        const welcomeMessages = messages.filter(
+          message => message.event === 'channel.member.joined'
+        )
+
+        assert.strictEqual(welcomeMessages.length, 1)
+        assert.strictEqual(welcomeMessages[0].author, visitor)
+        assert.strictEqual(welcomeMessages[0].authorName, 'Visitor')
+      } finally {
+        replication?.close()
+        if (firstEngine) await firstEngine.stop().catch(() => {})
+        if (secondEngine) await secondEngine.stop().catch(() => {})
+        fs.rmSync(joinTmpDir, { recursive: true, force: true })
+      }
+    })
+
     it('exchanges new channel writer cores over an existing peer connection', async () => {
       const sequenceTmpDir = fs.mkdtempSync(
         path.join(os.tmpdir(), 'most-channel-sequence-test-')

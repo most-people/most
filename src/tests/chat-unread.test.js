@@ -16,6 +16,10 @@ import {
   getChannelSubscriptionKey,
   getChannelSubscriptionNames,
 } from '../lib/channelSubscriptions.js'
+import {
+  dedupeChannelMessages,
+  getChannelMessageKey,
+} from '../lib/channelMessages.js'
 
 describe('chat unread state', () => {
   it('initializes joined channels as read at their current activity time', () => {
@@ -190,6 +194,80 @@ describe('channel subscriptions', () => {
         subscribe: ['dev'],
         unsubscribe: ['general'],
       }
+    )
+  })
+})
+
+describe('channel message keys', () => {
+  it('deduplicates repeated member-joined system messages by author', () => {
+    const first = getChannelMessageKey({
+      type: 'system',
+      event: 'channel.member.joined',
+      author: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      authorName: 'Visitor',
+      content: 'channel.member.joined',
+      timestamp: 1000,
+    })
+    const second = getChannelMessageKey({
+      type: 'system',
+      event: 'channel.member.joined',
+      author: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      authorName: 'Visitor',
+      content: 'channel.member.joined',
+      timestamp: 2000,
+    })
+    const normalMessage = getChannelMessageKey({
+      type: 'message',
+      author: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      content: 'channel.member.joined',
+      timestamp: 2000,
+    })
+
+    assert.equal(first, second)
+    assert.notEqual(first, normalMessage)
+  })
+
+  it('filters repeated member-joined messages without merging normal chat text', () => {
+    const messages = dedupeChannelMessages([
+      {
+        type: 'system',
+        event: 'channel.member.joined',
+        author: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        content: 'channel.member.joined',
+        timestamp: 1000,
+      },
+      {
+        type: 'system',
+        event: 'channel.member.joined',
+        author: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        content: 'channel.member.joined',
+        timestamp: 2000,
+      },
+      {
+        type: 'system',
+        event: 'channel.member.joined',
+        author: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        authorName: 'Visitor',
+        content: 'channel.member.joined',
+        timestamp: 2500,
+      },
+      {
+        type: 'message',
+        author: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        content: 'hello',
+        timestamp: 3000,
+      },
+      {
+        type: 'message',
+        author: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        content: 'hello',
+        timestamp: 4000,
+      },
+    ])
+
+    assert.deepEqual(
+      messages.map(message => message.timestamp),
+      [1000, 2500, 3000, 4000]
     )
   })
 })
