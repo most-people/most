@@ -359,7 +359,10 @@ if (typeof window !== 'undefined') {
   const prefersDark =
     typeof window !== 'undefined' &&
     window.matchMedia('(prefers-color-scheme: dark)').matches
-  if (saved === 'dark' || (!saved && prefersDark)) {
-    useAppStore.setState({ isDarkMode: true })
-  }
+  const isDarkMode = saved === 'dark' || (!saved && prefersDark)
+  document.documentElement.setAttribute(
+    'data-theme',
+    isDarkMode ? 'dark' : 'light'
+  )
+  useAppStore.setState({ isDarkMode })
 }

@@ -75,9 +75,10 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
             __html: `
               (function() {
                 var theme = localStorage.getItem('theme');
-                if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-                  document.documentElement.setAttribute('data-theme', 'dark');
-                }
+                var resolvedTheme = theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)
+                  ? 'dark'
+                  : 'light';
+                document.documentElement.setAttribute('data-theme', resolvedTheme);
                 var locale = localStorage.getItem('mostbox.locale');
                 var supportedLocales = ['zh-CN', 'zh-TW', 'en'];
                 var normalizedLocale = supportedLocales.indexOf(locale) >= 0 ? locale : 'zh-CN';

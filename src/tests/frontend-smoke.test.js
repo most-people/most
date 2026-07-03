@@ -1024,6 +1024,7 @@ describe('frontend smoke checks', () => {
       'src/features/chat/ChatJoinDemoPage.tsx'
     )
     const chatJoinSource = readSource('src/features/chat/ChatJoinPage.tsx')
+    const rootRoute = readSource(SOURCE_PATHS.routes.root)
     const chatStyles = readSource('src/styles/chat.css')
     const i18nMessages = readI18nSources()
     const { normalizeChatJoinInvitePayload } = await importBundledSource(
@@ -1115,6 +1116,14 @@ describe('frontend smoke checks', () => {
     assert.match(
       chatJoinSource,
       /if \(invite\.appearance === 'light'\)[\s\S]*setIsDarkMode\(false\)/
+    )
+    assert.match(
+      rootRoute,
+      /var resolvedTheme = theme === 'dark' \|\| \(!theme && window\.matchMedia\('\(prefers-color-scheme: dark\)'\)\.matches\)\s*\?\s*'dark'\s*:\s*'light'/
+    )
+    assert.match(
+      rootRoute,
+      /document\.documentElement\.setAttribute\('data-theme', resolvedTheme\)/
     )
     assert.match(i18nMessages, /chatJoin\.demo\.field\.theme/)
     assert.match(i18nMessages, /chatJoin\.demo\.field\.appearance/)
