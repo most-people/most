@@ -301,6 +301,18 @@ export default function ProfilePage() {
       onClick: handleImportLocalBackup,
     },
   ]
+  const backupActionGroups = [
+    {
+      key: 'cloud',
+      label: t('profile.backup.group.cloud'),
+      actions: backupActions.slice(0, 2),
+    },
+    {
+      key: 'local',
+      label: t('profile.backup.group.local'),
+      actions: backupActions.slice(2),
+    },
+  ]
 
   async function saveBackendProfile(nextIdentity) {
     if (hasBackend !== true) return
@@ -406,21 +418,34 @@ export default function ProfilePage() {
               ))}
             </div>
             <div className="profile-backup-actions">
-              {backupActions.map(action => (
-                <button
-                  key={action.key}
-                  type="button"
-                  className={[
-                    'btn',
-                    'profile-backup-action',
-                    `is-${action.tone}`,
-                  ].join(' ')}
-                  disabled={accountBackup.busy}
-                  onClick={action.onClick}
+              {backupActionGroups.map(group => (
+                <section
+                  key={group.key}
+                  className="profile-backup-action-group"
+                  aria-label={group.label}
                 >
-                  {action.icon}
-                  {action.label}
-                </button>
+                  <h3 className="profile-backup-action-group-title">
+                    {group.label}
+                  </h3>
+                  <div className="profile-backup-action-list">
+                    {group.actions.map(action => (
+                      <button
+                        key={action.key}
+                        type="button"
+                        className={[
+                          'btn',
+                          'profile-backup-action',
+                          `is-${action.tone}`,
+                        ].join(' ')}
+                        disabled={accountBackup.busy}
+                        onClick={action.onClick}
+                      >
+                        {action.icon}
+                        {action.label}
+                      </button>
+                    ))}
+                  </div>
+                </section>
               ))}
             </div>
           </section>

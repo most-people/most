@@ -198,8 +198,34 @@
 
 .profile-backup-actions {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(136px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-3);
+}
+
+.profile-backup-action-group {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: var(--glass-bg-subtle);
+}
+
+.profile-backup-action-group-title {
+  margin: 0;
+  width: 100%;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.profile-backup-action-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
 }
 
 .profile-backup-summary {
@@ -239,24 +265,16 @@
 
   min-width: 0;
   min-height: 44px;
-  border-color: color-mix(
-    in srgb,
-    var(--profile-backup-action-color) 34%,
-    var(--glass-border)
-  );
-  background: color-mix(
-    in srgb,
-    var(--profile-backup-action-color) 10%,
-    transparent
-  );
-  color: color-mix(
-    in srgb,
-    var(--profile-backup-action-color) 82%,
-    var(--text-primary)
-  );
+  flex-direction: column;
+  align-items: center;
+  border-color: var(--glass-border);
+  background: var(--glass-bg-heavy);
+  color: var(--text-primary);
+  gap: var(--space-2);
   justify-content: center;
-  padding-inline: 12px;
+  padding: 13px 10px;
   font-weight: 700;
+  line-height: 1.2;
   text-align: center;
   white-space: normal;
 }
@@ -264,15 +282,14 @@
 .profile-backup-action:hover:not(:disabled) {
   border-color: color-mix(
     in srgb,
-    var(--profile-backup-action-color) 62%,
+    var(--profile-backup-action-color) 38%,
     var(--glass-border)
   );
   background: color-mix(
     in srgb,
-    var(--profile-backup-action-color) 17%,
+    var(--profile-backup-action-color) 8%,
     transparent
   );
-  color: var(--profile-backup-action-color);
 }
 
 .profile-backup-action.is-cloud-backup {
@@ -293,6 +310,9 @@
 
 .profile-backup-action svg {
   flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  color: var(--profile-backup-action-color);
 }
 
 .profile-panel-header {
@@ -533,6 +553,10 @@
   .profile-panel-header .btn {
     width: 100%;
   }
+
+  .profile-backup-actions {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 560px) {
@@ -570,6 +594,10 @@
   }
 
   .profile-logout-backup-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-backup-action-list {
     grid-template-columns: 1fr;
   }
 

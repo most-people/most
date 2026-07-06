@@ -1840,6 +1840,8 @@ describe('frontend smoke checks', () => {
     const languageToggleSource = readSource('src/components/LanguageToggle.tsx')
     const appearanceToggleSource = readSource('src/components/AppearanceToggle.tsx')
     const profileSource = readSource('src/features/profile/ProfilePage.tsx')
+    const profileStyles = readSource('src/styles/profile.css')
+    const profileMessagesSource = readSource('src/lib/i18n/messages/profile.ts')
     const accountMenuSource = readSource('src/features/profile/AccountMenu.tsx')
     const chatSource = readSource('src/features/chat/ChatPage.tsx')
     const sidebarSources = [
@@ -1908,6 +1910,27 @@ describe('frontend smoke checks', () => {
     assert.match(profileSource, /profile\.backup\.summary\.channels/)
     assert.match(profileSource, /formatNumber\(item\.value\)/)
     assert.match(profileSource, /profile-backup-actions/)
+    assert.match(profileSource, /profile-backup-action-group/)
+    assert.match(profileSource, /profile-backup-action-group-title/)
+    assert.match(profileSource, /profile\.backup\.group\.cloud/)
+    assert.match(profileSource, /profile\.backup\.group\.local/)
+    assert.match(profileMessagesSource, /'profile\.backup\.group\.cloud': '云端同步'/)
+    assert.match(profileMessagesSource, /'profile\.backup\.group\.local': '本地文件'/)
+    assert.match(profileMessagesSource, /'profile\.backup\.action\.exportLocal': '备份到本地'/)
+    assert.match(profileMessagesSource, /'profile\.backup\.action\.importLocal': '从本地恢复'/)
+    assert.doesNotMatch(profileMessagesSource, /导出到本地|导入到本地/)
+    assert.match(
+      profileStyles,
+      /\.profile-backup-action-group-title\s*\{[\s\S]*text-align:\s*center/
+    )
+    assert.match(
+      profileStyles,
+      /\.profile-backup-action\s*\{[\s\S]*flex-direction:\s*column/
+    )
+    assert.match(
+      profileStyles,
+      /\.profile-backup-action svg\s*\{[\s\S]*width:\s*24px[\s\S]*height:\s*24px/
+    )
     assert.match(profileSource, /`is-\$\{action\.tone\}`/)
     assert.doesNotMatch(
       profileSource,
@@ -2298,6 +2321,50 @@ describe('frontend smoke checks', () => {
     assert.match(
       noteSource,
       /isLocalBackend && \(isDesktopClient \|\| hasConfiguredVaultBackend\)/
+    )
+    assert.match(noteSource, /canSelectNoteVaultDirectory/)
+    assert.match(noteSource, /canOpenVaultDirectory && \(/)
+    assert.match(noteSource, /window\.electronAPI\?\.selectNoteVaultDirectory/)
+  })
+
+  it('keeps note read headers as static titles while editing uses title inputs', () => {
+    const noteSource = readSource('src/features/note/NotePage.tsx')
+    const noteStyles = readSource('src/styles/note.css')
+
+    assert.match(noteSource, /const canEditCurrentVaultFile =/)
+    assert.match(
+      noteStyles,
+      /\.note-editor-title-area h3\s*\{[\s\S]*padding:\s*0 10px/
+    )
+    assert.match(
+      noteStyles,
+      /\.note-editor-info\s*\{[\s\S]*padding:\s*4px 10px/
+    )
+    assert.match(noteSource, /\{isEditing \? \([\s\S]*className="note-title-input"/)
+    assert.match(
+      noteSource,
+      /\{isEditing && selectedFile \? \([\s\S]*className="note-title-input"/
+    )
+    assert.match(noteSource, /<h3 translate="no">\s*\{selectedTitle\}\s*<\/h3>/)
+    assert.doesNotMatch(noteSource, /readOnly=\{!canEditCurrentNote\}/)
+    assert.match(
+      noteSource,
+      /<MilkdownEditor[\s\S]*readOnly=\{!canEditCurrentVaultFile\}/
+    )
+  })
+
+  it('shows note cancel buttons only while editing', () => {
+    const noteSource = readSource('src/features/note/NotePage.tsx')
+    const editOnlyCancelButtons =
+      noteSource.match(
+        /isEditing && \(\s*<button\s+type="button"\s+className="btn btn-sm btn-secondary"\s+onClick=\{closeEditor\}\s+>\s*<X size=\{16\} \/>\s*\{t\('common\.cancel'\)\}/g
+      ) || []
+
+    assert.equal(editOnlyCancelButtons.length, 2)
+    assert.doesNotMatch(noteSource, /common\.close/)
+    assert.doesNotMatch(
+      noteSource,
+      /isEditing \? closeEditor : \(\) => navigateTo(?:Note|Vault)\(\)/
     )
   })
 

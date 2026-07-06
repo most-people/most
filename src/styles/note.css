@@ -538,6 +538,7 @@
 
 .note-editor-title-area h3 {
   overflow: hidden;
+  padding: 0 10px;
   color: var(--text-primary);
   font-size: 22px;
   font-weight: 750;

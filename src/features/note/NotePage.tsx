@@ -714,6 +714,13 @@ function useConfiguredNoteVaultBackend(enabled: boolean, walletAddress = '') {
   return configured
 }
 
+function canSelectNoteVaultDirectory() {
+  return (
+    typeof window !== 'undefined' &&
+    typeof window.electronAPI?.selectNoteVaultDirectory === 'function'
+  )
+}
+
 function NotePageContent() {
   const { t, formatDate, compareStrings } = useI18n()
   const navigate = useNavigate()
@@ -1209,19 +1216,16 @@ function NotePageContent() {
                   </div>
 
                   <div className="note-editor-actions">
-                    <button
-                      type="button"
-                      className="btn btn-icon"
-                      onClick={
-                        isEditing ? closeEditor : () => navigateToNote()
-                      }
-                      title={isEditing ? t('common.cancel') : t('common.close')}
-                      aria-label={
-                        isEditing ? t('common.cancel') : t('common.close')
-                      }
-                    >
-                      <X size={16} />
-                    </button>
+                    {isEditing && (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-secondary"
+                        onClick={closeEditor}
+                      >
+                        <X size={16} />
+                        {t('common.cancel')}
+                      </button>
+                    )}
                     {isEditing ? (
                       <>
                         <button
@@ -1413,6 +1417,7 @@ function VaultNotePageContent() {
   const [vaultError, setVaultError] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [openingVault, setOpeningVault] = useState(false)
+  const [canOpenVaultDirectory, setCanOpenVaultDirectory] = useState(false)
   const [selectedFile, setSelectedFile] =
     useState<NoteVaultFileContent | null>(null)
   const [previewName, setPreviewName] = useState('')
@@ -1481,6 +1486,10 @@ function VaultNotePageContent() {
       ),
     [selectedFile?.directory, selectedNote?.path, vaultNotes]
   )
+
+  useEffect(() => {
+    setCanOpenVaultDirectory(canSelectNoteVaultDirectory())
+  }, [])
 
   useEffect(() => {
     if (!selectedNote?.path) return
@@ -1659,6 +1668,11 @@ function VaultNotePageContent() {
   async function handleOpenVault() {
     if (!wallet) {
       openLoginModal()
+      return
+    }
+
+    if (!canOpenVaultDirectory) {
+      addToast(t('note.vault.selectFailed'), 'error')
       return
     }
 
@@ -1905,16 +1919,18 @@ function VaultNotePageContent() {
 
   const headerRight = (
     <div className="note-theme-wrap">
-      <button
-        className="btn btn-sm"
-        onClick={handleOpenVault}
-        disabled={openingVault}
-        title={t('note.vault.open')}
-        aria-label={t('note.vault.open')}
-      >
-        <FolderOpen size={16} />
-        {openingVault ? t('note.vault.opening') : t('note.vault.open')}
-      </button>
+      {canOpenVaultDirectory && (
+        <button
+          className="btn btn-sm"
+          onClick={handleOpenVault}
+          disabled={openingVault}
+          title={t('note.vault.open')}
+          aria-label={t('note.vault.open')}
+        >
+          <FolderOpen size={16} />
+          {openingVault ? t('note.vault.opening') : t('note.vault.open')}
+        </button>
+      )}
     </div>
   )
 
@@ -1946,14 +1962,16 @@ function VaultNotePageContent() {
       ) : vaultStatus?.configured !== true ? (
         <div className="ui-empty-state note-empty-state">
           <FolderOpen size={32} />
-          <button
-            className="btn btn-primary"
-            onClick={handleOpenVault}
-            disabled={openingVault}
-          >
-            <FolderOpen size={16} />
-            {openingVault ? t('note.vault.opening') : t('note.vault.open')}
-          </button>
+          {canOpenVaultDirectory && (
+            <button
+              className="btn btn-primary"
+              onClick={handleOpenVault}
+              disabled={openingVault}
+            >
+              <FolderOpen size={16} />
+              {openingVault ? t('note.vault.opening') : t('note.vault.open')}
+            </button>
+          )}
         </div>
       ) : visibleNoteTree.length === 0 ? (
         <div className="ui-empty-state note-empty-state">
@@ -2022,6 +2040,7 @@ function VaultNotePageContent() {
   const selectedTitle =
     getDisplayMarkdownName(selectedFile?.name || selectedNote?.name || '') ||
     t('note.untitled')
+  const canEditCurrentVaultFile = isEditing && !!selectedFile
 
   return (
     <AppShell
@@ -2078,17 +2097,16 @@ function VaultNotePageContent() {
                   </div>
 
                   <div className="note-editor-actions">
-                    <button
-                      type="button"
-                      className="btn btn-icon"
-                      onClick={isEditing ? closeEditor : () => navigateToVault()}
-                      title={isEditing ? t('common.cancel') : t('common.close')}
-                      aria-label={
-                        isEditing ? t('common.cancel') : t('common.close')
-                      }
-                    >
-                      <X size={16} />
-                    </button>
+                    {isEditing && (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-secondary"
+                        onClick={closeEditor}
+                      >
+                        <X size={16} />
+                        {t('common.cancel')}
+                      </button>
+                    )}
                     {isEditing ? (
                       <button
                         className="btn btn-sm btn-primary"
@@ -2126,22 +2144,31 @@ function VaultNotePageContent() {
                     <Lock size={36} />
                     <p>{fileError}</p>
                   </div>
-                ) : isEditing ? (
-                  <div className="note-editor-frame editing">
-                    <MilkdownEditor
-                      ref={editorRef}
-                      content={plainContent}
-                      onChange={setPlainContent}
-                      className="milkdown-editor"
-                    />
-                  </div>
                 ) : selectedFile ? (
-                  <div className="note-editor-frame reading">
+                  <div
+                    className={`note-editor-frame ${
+                      canEditCurrentVaultFile ? 'editing' : 'reading'
+                    }`}
+                  >
                     <MilkdownEditor
-                      content={wikiLinkedSelectedFileContent}
-                      readOnly
-                      onInternalNoteLinkOpen={openInternalNoteLink}
-                      resolveWikiNoteLink={resolveSelectedFileWikiLink}
+                      ref={canEditCurrentVaultFile ? editorRef : undefined}
+                      content={
+                        canEditCurrentVaultFile
+                          ? plainContent
+                          : wikiLinkedSelectedFileContent
+                      }
+                      onChange={
+                        canEditCurrentVaultFile ? setPlainContent : undefined
+                      }
+                      readOnly={!canEditCurrentVaultFile}
+                      onInternalNoteLinkOpen={
+                        canEditCurrentVaultFile ? undefined : openInternalNoteLink
+                      }
+                      resolveWikiNoteLink={
+                        canEditCurrentVaultFile
+                          ? undefined
+                          : resolveSelectedFileWikiLink
+                      }
                       className="milkdown-editor"
                     />
                   </div>
@@ -2172,7 +2199,7 @@ function VaultNotePageContent() {
                     label={t('note.openList')}
                     variant="default"
                   />
-                ) : (
+                ) : canOpenVaultDirectory ? (
                   <button
                     className="btn btn-primary"
                     onClick={handleOpenVault}
@@ -2181,7 +2208,7 @@ function VaultNotePageContent() {
                     <FolderOpen size={16} />
                     {openingVault ? t('note.vault.opening') : t('note.vault.open')}
                   </button>
-                )}
+                ) : null}
               </div>
             )}
           </section>
