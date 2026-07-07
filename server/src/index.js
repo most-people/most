@@ -61,6 +61,10 @@ import {
   formatFileSize,
 } from './utils/security.js'
 import {
+  CHAT_VISIBLE_LABEL_MAX_CODE_POINTS,
+  normalizeVisibleChatLabel,
+} from './utils/chatLabels.js'
+import {
   ValidationError,
   PathSecurityError,
   FileSizeError,
@@ -102,6 +106,92 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 const CHANNEL_PRESENCE_HEARTBEAT_MS = 15 * 1000
 const CHANNEL_PRESENCE_TIMEOUT_MS = 45 * 1000
 const CHANNEL_MEMBER_JOINED_EVENT = 'channel.member.joined'
+const CHANNEL_MENTION_LIMIT = 20
+const CLIENT_MESSAGE_ID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function hasOwnProperty(value, key) {
+  return Object.prototype.hasOwnProperty.call(value || {}, key)
+}
+
+function normalizeClientMessageId(input, { strict = false } = {}) {
+  if (input === undefined || input === null || input === '') {
+    if (strict) throw new ValidationError('Invalid clientMessageId')
+    return ''
+  }
+  if (typeof input !== 'string' || !CLIENT_MESSAGE_ID_REGEX.test(input.trim())) {
+    if (strict) {
+      throw new ValidationError('Invalid clientMessageId')
+    }
+    return ''
+  }
+  return input.trim().toLowerCase()
+}
+
+function normalizeAuthorIdentity(input, { strict = false } = {}) {
+  if (input === undefined || input === null) {
+    if (strict) throw new ValidationError('Invalid authorIdentity')
+    return ''
+  }
+  if (typeof input !== 'string') {
+    if (strict) throw new ValidationError('Invalid authorIdentity')
+    return ''
+  }
+  const normalized = normalizeVisibleChatLabel(input)
+  if (!normalized && strict) {
+    throw new ValidationError('Invalid authorIdentity')
+  }
+  return normalized
+}
+
+function normalizeChannelMentionList(input, content, options = {}) {
+  const { strict = false, attachment = null } = options
+  if (input === undefined || input === null) return []
+  if (!Array.isArray(input)) {
+    if (strict) throw new ValidationError('mentions must be an array')
+    return []
+  }
+  if (attachment && input.length > 0) {
+    if (strict) throw new ValidationError('attachment messages cannot include mentions')
+    return []
+  }
+  if (strict && input.length > CHANNEL_MENTION_LIMIT) {
+    throw new ValidationError(`mentions cannot exceed ${CHANNEL_MENTION_LIMIT}`)
+  }
+
+  const normalized = []
+  let previousEnd = -1
+  const sourceContent = String(content || '')
+  const candidates = strict ? input : input.slice(0, CHANNEL_MENTION_LIMIT)
+
+  for (const item of candidates) {
+    const address = normalizeOwnerAddress(item?.address)
+    const label = normalizeVisibleChatLabel(item?.label)
+    const start = Number(item?.start)
+    const end = Number(item?.end)
+    const valid =
+      address &&
+      label &&
+      Array.from(label).length <= CHAT_VISIBLE_LABEL_MAX_CODE_POINTS &&
+      Number.isInteger(start) &&
+      Number.isInteger(end) &&
+      start >= 0 &&
+      end > start &&
+      end <= sourceContent.length &&
+      start >= previousEnd &&
+      sourceContent.slice(start, end) === `@${label}`
+
+    if (!valid) {
+      if (strict) throw new ValidationError('Invalid mention')
+      continue
+    }
+
+    normalized.push({ address, label, start, end })
+    previousEnd = end
+  }
+
+  return normalized
+}
 
 function isChannelHistoryEntry(entry) {
   return entry?.type === 'message' || entry?.type === 'system'
@@ -3549,7 +3639,17 @@ export class MostBoxEngine extends EventEmitter {
     if (trimmed.length > MAX_MESSAGE_LENGTH) {
       throw new Error(`消息内容不能超过 ${MAX_MESSAGE_LENGTH} 字符`)
     }
+    const normalizedAuthorIdentity = hasOwnProperty(options, 'authorIdentity')
+      ? normalizeAuthorIdentity(options.authorIdentity, { strict: true })
+      : ''
+    const clientMessageId = normalizeClientMessageId(options.clientMessageId, {
+      strict: hasOwnProperty(options, 'clientMessageId'),
+    })
     const attachment = normalizeChannelAttachment(options.attachment)
+    const mentions = normalizeChannelMentionList(options.mentions, trimmed, {
+      strict: hasOwnProperty(options, 'mentions'),
+      attachment,
+    })
     if (attachment && trimmed !== attachment.link) {
       throw new ValidationError('attachment content must match link')
     }
@@ -3558,6 +3658,9 @@ export class MostBoxEngine extends EventEmitter {
       this.#upsertChannelMember(channel, {
         ownerAddress: options.ownerAddress,
         displayName: authorName,
+        ...(normalizedAuthorIdentity
+          ? { identity: normalizedAuthorIdentity }
+          : {}),
         ...(Object.prototype.hasOwnProperty.call(options, 'avatar')
           ? { avatar: options.avatar }
           : {}),
@@ -3577,11 +3680,20 @@ export class MostBoxEngine extends EventEmitter {
       content: trimmed,
       timestamp: await this.#getNextChannelMessageTimestamp(channel.channelKey),
     }
+    if (clientMessageId) {
+      message.clientMessageId = clientMessageId
+    }
+    if (normalizedAuthorIdentity) {
+      message.authorIdentity = normalizedAuthorIdentity
+    }
     if (normalizedAvatar) {
       message.avatar = normalizedAvatar
     }
     if (attachment) {
       message.attachment = attachment
+    }
+    if (mentions.length > 0) {
+      message.mentions = mentions
     }
     if (message.type === 'system') {
       const event = String(options.event || '').trim()
@@ -4044,6 +4156,8 @@ export class MostBoxEngine extends EventEmitter {
       address
     )
     const avatar = normalizeChannelAvatar(options.avatar)
+    const hasIdentity = hasOwnProperty(options, 'identity')
+    const identity = normalizeVisibleChatLabel(options.identity)
     const existing = channel.members.find(
       member => normalizeOwnerAddress(member?.address) === address
     )
@@ -4069,6 +4183,14 @@ export class MostBoxEngine extends EventEmitter {
           changed = true
         }
       }
+      if (hasIdentity && existing.identity !== identity) {
+        if (identity) {
+          existing.identity = identity
+        } else {
+          delete existing.identity
+        }
+        changed = true
+      }
       if (!existing.joinedAt) {
         existing.joinedAt = new Date().toISOString()
         changed = true
@@ -4083,6 +4205,9 @@ export class MostBoxEngine extends EventEmitter {
     }
     if (avatar) {
       member.avatar = avatar
+    }
+    if (identity) {
+      member.identity = identity
     }
     channel.members.push(member)
     return true
@@ -4126,6 +4251,7 @@ export class MostBoxEngine extends EventEmitter {
           normalizeOwnerAddress(member?.address)
         ),
         avatar: normalizeChannelAvatar(member?.avatar),
+        identity: normalizeVisibleChatLabel(member?.identity),
         joinedAt: String(member?.joinedAt || ''),
         _index: index,
       }))
@@ -4227,6 +4353,7 @@ export class MostBoxEngine extends EventEmitter {
           ?.channelId || channelKey,
       address: normalizedAddress,
       displayName: profile?.displayName || undefined,
+      identity: profile?.identity || undefined,
       avatar: profile?.avatar || undefined,
       profileUpdatedAt: profile?.profileUpdatedAt || undefined,
       lastSeen,
@@ -4249,10 +4376,14 @@ export class MostBoxEngine extends EventEmitter {
       'displayName'
     )
     const hasAvatar = Object.prototype.hasOwnProperty.call(options, 'avatar')
+    const hasIdentity = hasOwnProperty(options, 'identity')
     const profileUpdatedAt = Number(options.profileUpdatedAt)
     const hasProfileUpdatedAt =
       Number.isFinite(profileUpdatedAt) && profileUpdatedAt > 0
-    if (!hasDisplayName && !hasAvatar && !hasProfileUpdatedAt) return false
+    if (!hasDisplayName && !hasAvatar && !hasIdentity && !hasProfileUpdatedAt) {
+      return false
+    }
+    if (hasIdentity && !hasProfileUpdatedAt) return false
 
     const profiles = this.#getChannelPresenceProfileMap(channelKey)
     const previous = profiles.get(normalizedAddress)
@@ -4270,6 +4401,7 @@ export class MostBoxEngine extends EventEmitter {
     const next = {
       address: normalizedAddress,
       displayName: previous?.displayName || '',
+      identity: previous?.identity || '',
       avatar: previous?.avatar || '',
       profileUpdatedAt: nextUpdatedAt,
       lastSeen: now,
@@ -4283,10 +4415,25 @@ export class MostBoxEngine extends EventEmitter {
     if (hasAvatar) {
       next.avatar = normalizeChannelAvatar(options.avatar)
     }
+    if (hasIdentity) {
+      next.identity = normalizeVisibleChatLabel(options.identity)
+    }
+
+    if (
+      previous?.profileUpdatedAt &&
+      hasProfileUpdatedAt &&
+      nextUpdatedAt === previous.profileUpdatedAt &&
+      (previous.displayName !== next.displayName ||
+        previous.avatar !== next.avatar ||
+        previous.identity !== next.identity)
+    ) {
+      return false
+    }
 
     const changed =
       !previous ||
       previous.displayName !== next.displayName ||
+      previous.identity !== next.identity ||
       previous.avatar !== next.avatar ||
       previous.profileUpdatedAt !== next.profileUpdatedAt
     profiles.set(normalizedAddress, next)
@@ -4506,7 +4653,29 @@ export class MostBoxEngine extends EventEmitter {
           item => normalizeOwnerAddress(item?.address) === authorAddress
         )
       : null
-    let baseMessage = message
+    let baseMessage = { ...message }
+    const clientMessageId = normalizeClientMessageId(baseMessage.clientMessageId)
+    if (clientMessageId) {
+      baseMessage.clientMessageId = clientMessageId
+    } else {
+      delete baseMessage.clientMessageId
+    }
+    const authorIdentity = normalizeAuthorIdentity(baseMessage.authorIdentity)
+    if (authorIdentity) {
+      baseMessage.authorIdentity = authorIdentity
+    } else {
+      delete baseMessage.authorIdentity
+    }
+    const mentions = normalizeChannelMentionList(
+      baseMessage.mentions,
+      String(baseMessage.content || ''),
+      { attachment: baseMessage.attachment }
+    )
+    if (mentions.length > 0) {
+      baseMessage.mentions = mentions
+    } else {
+      delete baseMessage.mentions
+    }
     if (member) {
       const displayName = normalizeChannelDisplayName(
         member.displayName,
@@ -5938,6 +6107,7 @@ export class MostBoxEngine extends EventEmitter {
           address: event.address,
           status: event.status,
           displayName: event.displayName,
+          identity: event.identity,
           avatar: event.avatar,
           profileUpdatedAt: event.profileUpdatedAt,
           lastSeen: event.lastSeen || Date.now(),
@@ -6086,6 +6256,7 @@ export class MostBoxEngine extends EventEmitter {
       sourcePeerId: peerId,
       local: false,
       displayName: msg.displayName,
+      identity: msg.identity,
       avatar: msg.avatar,
       profileUpdatedAt: msg.profileUpdatedAt,
       lastSeen: Number(msg.lastSeen) || Date.now(),

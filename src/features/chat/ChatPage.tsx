@@ -46,6 +46,7 @@ import {
   channelApi,
   type Channel,
   type ChannelAttachment,
+  type ChannelMention,
   type ChannelMessage,
   type ChannelPresence,
 } from '~/lib/channelApi'
@@ -58,15 +59,25 @@ import { ChatRestoringIndicator } from '~/features/chat/ChatRestoringIndicator'
 import { getLocalizedDownloadLinkValidationMessage } from '~/lib/i18n/downloadValidation'
 import { saveFileToLocal } from '~/lib/saveLocalFile'
 import {
+  applyIncomingChannelMentionUnreadState,
   applyIncomingChannelMessageReadState,
+  clearChannelMentionUnreadInMap,
   getChannelActivityTime,
   getChatReadStorageKey,
+  hasUnreadChannelMention,
   hasUnreadChannelMessage,
   initializeChannelLastReadAt,
   markChannelReadInMap,
   readStoredChannelLastReadAt,
   writeStoredChannelLastReadAt,
 } from '~/lib/chatUnread.js'
+import {
+  finalizeMentionDraftForSend,
+  getMentionTrigger,
+  insertMentionIntoDraft,
+  messageMentionsAddress,
+  updateMentionDraft,
+} from '~/lib/chatMentions.js'
 import {
   fileApi,
   getPublishFileErrorMessage,
@@ -155,12 +166,43 @@ function normalizeMemberAddress(address?: string) {
     .toLowerCase()
 }
 
+function getMentionCandidateBaseName(name?: string, address?: string) {
+  const displayName = String(name || '').trim().replace(/#[a-fA-F0-9]{4}$/, '')
+  return displayName || formatAddressShort(address)
+}
+
+function formatMentionCandidateLabel({
+  name,
+  address,
+  duplicateName = false,
+}: {
+  name?: string
+  address?: string
+  duplicateName?: boolean
+}) {
+  const baseName = getMentionCandidateBaseName(name, address)
+  if (!duplicateName || !address || hasAddressSuffix(baseName)) {
+    return baseName
+  }
+  return `${baseName}#${address.slice(-4).toUpperCase()}`
+}
+
 type AttachmentDownloadState = {
   status: 'checking' | 'ready' | 'downloading' | 'available' | 'error'
   message?: string
 }
 
 type ChannelLastReadMap = Record<string, number>
+type ChannelMentionUnreadMap = Record<string, boolean>
+type ComposerSelection = { start: number; end: number }
+type MentionDraft = { content: string; mentions: ChannelMention[] }
+type MentionCandidate = {
+  address: string
+  label: string
+  avatarSrc: string
+  identity?: string
+  online: boolean
+}
 type BrowserAudioContextConstructor = typeof AudioContext
 
 function getBrowserAudioContextConstructor():
@@ -187,6 +229,13 @@ function ChatPage() {
   const [hasLoadedChannels, setHasLoadedChannels] = useState(false)
   const [channelSearchInput, setChannelSearchInput] = useState('')
   const [channelInput, setChannelInput] = useState('')
+  const [channelMentions, setChannelMentions] = useState<ChannelMention[]>([])
+  const [composerSelection, setComposerSelection] =
+    useState<ComposerSelection>({ start: 0, end: 0 })
+  const [isComposerComposing, setIsComposerComposing] = useState(false)
+  const [dismissedMentionTriggerKey, setDismissedMentionTriggerKey] =
+    useState('')
+  const [mentionSelectedIndex, setMentionSelectedIndex] = useState(0)
   const [showJoinChannel, joinChannelModal] = useDisclosure(false)
   const [myPeerId, setMyPeerId] = useState('')
   const [isJoiningChannel, setIsJoiningChannel] = useState(false)
@@ -214,6 +263,8 @@ function ChatPage() {
     useState(false)
   const [channelLastReadAt, setChannelLastReadAt] =
     useState<ChannelLastReadMap>({})
+  const [channelMentionUnread, setChannelMentionUnread] =
+    useState<ChannelMentionUnreadMap>({})
   const [channelPresence, setChannelPresence] = useState<ChannelPresence[]>([])
   const isInviteUser = userIdentity?.theme === 'sparkbit'
   const inviteTicketUrl =
@@ -235,6 +286,7 @@ function ChatPage() {
 
   const channelMessagesEndRef = useRef<HTMLDivElement>(null)
   const attachmentInputRef = useRef<HTMLInputElement>(null)
+  const channelComposerInputRef = useRef<HTMLTextAreaElement>(null)
   const activeChannelNameRef = useRef('')
   const autoJoinChannelAttemptsRef = useRef(new Set<string>())
   const autoLoginPromptedChannelsRef = useRef(new Set<string>())
@@ -271,6 +323,10 @@ function ChatPage() {
   const markChannelRead = useCallback(
     (channelKey: string, timestamp = Date.now()) => {
       if (!channelKey) return
+      setChannelMentionUnread(prev => {
+        const result = clearChannelMentionUnreadInMap(prev, channelKey)
+        return result.changed ? result.value : prev
+      })
       setChannelLastReadAt(prev => {
         const result = markChannelReadInMap(prev, channelKey, timestamp)
         if (!result.changed) return prev
@@ -405,6 +461,15 @@ function ChatPage() {
             )
           )
           const isActiveChannel = channelKey === activeChannelNameRef.current
+          setChannelMentionUnread(prev => {
+            const result = applyIncomingChannelMentionUnreadState(prev, {
+              channelName: channelKey,
+              message,
+              activeChannelName: isActiveChannel ? channelKey : '',
+              userAddress: userIdentity?.address,
+            })
+            return result.changed ? result.value : prev
+          })
           setChannelLastReadAt(prev => {
             const result = applyIncomingChannelMessageReadState(prev, {
               channelName: channelKey,
@@ -530,6 +595,7 @@ function ChatPage() {
   }, [
     userIdentity?.avatar,
     userIdentity?.displayName,
+    userIdentity?.identity,
     userIdentity?.profileUpdatedAt,
     userIdentity?.username,
   ])
@@ -586,6 +652,7 @@ function ChatPage() {
       {
         address: string
         displayName: string
+        identity?: string
         avatar?: string
         firstSeenAt: number
         lastSeenAt: number
@@ -599,6 +666,7 @@ function ChatPage() {
       const key = address.toLowerCase()
       const timestamp = Number(message.timestamp) || 0
       const displayName = String(message.authorName || '').trim()
+      const identity = String(message.authorIdentity || '').trim()
       const avatar = String(message.avatar || '').trim()
       const existing = membersByAuthor.get(key)
 
@@ -606,6 +674,7 @@ function ChatPage() {
         membersByAuthor.set(key, {
           address,
           displayName,
+          ...(identity ? { identity } : {}),
           ...(avatar ? { avatar } : {}),
           firstSeenAt: timestamp,
           lastSeenAt: timestamp,
@@ -617,6 +686,7 @@ function ChatPage() {
       if (timestamp >= existing.lastSeenAt) {
         existing.lastSeenAt = timestamp
         if (displayName) existing.displayName = displayName
+        if (identity) existing.identity = identity
         if (avatar) existing.avatar = avatar
       }
     })
@@ -654,6 +724,7 @@ function ChatPage() {
       membersByAddress.set(address, {
         address: presence.address,
         displayName: presence.displayName || '',
+        ...(presence.identity ? { identity: presence.identity } : {}),
         ...(presence.avatar ? { avatar: presence.avatar } : {}),
         firstSeenAt: presence.lastSeen || Date.now(),
         lastSeenAt: presence.lastSeen || Date.now(),
@@ -694,6 +765,13 @@ function ChatPage() {
     if (!userIdentity) return
     setRequestedChannelName(getRequestedChannelNameFromLocation())
   }, [userIdentity?.address])
+
+  useEffect(() => {
+    setChannelMentions([])
+    setComposerSelection({ start: 0, end: 0 })
+    setDismissedMentionTriggerKey('')
+    setMentionSelectedIndex(0)
+  }, [activeChannelKey])
 
   useEffect(() => {
     setHasInviteLogoError(false)
@@ -866,6 +944,11 @@ function ChatPage() {
     setPreviewItem(null)
     setAttachmentDownloadStatus({})
     setChannelLastReadAt({})
+    setChannelMentionUnread({})
+    setChannelMentions([])
+    setComposerSelection({ start: 0, end: 0 })
+    setDismissedMentionTriggerKey('')
+    setMentionSelectedIndex(0)
     activeAttachmentDownloadsRef.current.clear()
     pendingAttachmentPreviewsRef.current.clear()
   }, [clearChannelMessages, userIdentity?.address])
@@ -1173,7 +1256,8 @@ function ChatPage() {
 
   async function sendChannelMessage(
     content: string,
-    attachment?: ChannelAttachment
+    attachment?: ChannelAttachment,
+    mentions: ChannelMention[] = []
   ) {
     if (!content.trim() || !activeChannel) return false
     if (!requireLogin()) return false
@@ -1186,6 +1270,10 @@ function ChatPage() {
         channelName: activeChannelKey,
         content: trimmedContent,
         attachment,
+        mentions:
+          !attachment && mentions.length > 0
+            ? mentions
+            : undefined,
       })
       setChannels(prev =>
         prev.map(channel =>
@@ -1213,10 +1301,22 @@ function ChatPage() {
   }
 
   async function handleSendChannelMessage() {
-    if (!channelInput.trim()) return
-    const content = channelInput.trim()
+    const finalized = finalizeMentionDraftForSend({
+      content: channelInput,
+      mentions: channelMentions,
+    }) as MentionDraft
+    if (!finalized.content) return
+    const sent = await sendChannelMessage(
+      finalized.content,
+      undefined,
+      finalized.mentions
+    )
+    if (!sent) return
     setChannelInput('')
-    await sendChannelMessage(content)
+    setChannelMentions([])
+    setComposerSelection({ start: 0, end: 0 })
+    setDismissedMentionTriggerKey('')
+    setMentionSelectedIndex(0)
   }
 
   function getChatAttachmentFileName(channelName: string, fileName: string) {
@@ -1353,7 +1453,7 @@ function ChatPage() {
 
   function renderMessageBubble(msg: ChannelMessage) {
     if (!msg.attachment) {
-      return <ChatTextBubble>{msg.content}</ChatTextBubble>
+      return <ChatTextBubble>{renderMessageTextContent(msg)}</ChatTextBubble>
     }
 
     const attachment = msg.attachment
@@ -1395,6 +1495,263 @@ function ChatPage() {
     )
   }
 
+  function handleChannelInputChange(
+    value: string,
+    selectionStart = value.length,
+    selectionEnd = selectionStart
+  ) {
+    const draft = updateMentionDraft(
+      { content: channelInput, mentions: channelMentions },
+      value
+    ) as MentionDraft
+    setChannelInput(draft.content)
+    setChannelMentions(draft.mentions)
+    setComposerSelection({ start: selectionStart, end: selectionEnd })
+    setDismissedMentionTriggerKey('')
+  }
+
+  function handleComposerSelectionChange(selectionStart: number, selectionEnd: number) {
+    setComposerSelection({ start: selectionStart, end: selectionEnd })
+  }
+
+  function focusComposerAt(caret: number) {
+    window.requestAnimationFrame(() => {
+      channelComposerInputRef.current?.focus()
+      channelComposerInputRef.current?.setSelectionRange(caret, caret)
+      setComposerSelection({ start: caret, end: caret })
+    })
+  }
+
+  function selectMentionCandidate(index = mentionSelectedIndex) {
+    if (!mentionTrigger || mentionCandidates.length === 0) return false
+    const candidate =
+      mentionCandidates[Math.max(0, Math.min(index, mentionCandidates.length - 1))]
+    if (!candidate) return false
+
+    const result = insertMentionIntoDraft(
+      { content: channelInput, mentions: channelMentions },
+      candidate,
+      mentionTrigger.start,
+      mentionTrigger.end
+    ) as { draft: MentionDraft; caret: number }
+    setChannelInput(result.draft.content)
+    setChannelMentions(result.draft.mentions)
+    setDismissedMentionTriggerKey('')
+    setMentionSelectedIndex(0)
+    focusComposerAt(result.caret)
+    return true
+  }
+
+  function handleComposerKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (!isMentionMenuOpen) return false
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setMentionSelectedIndex(index => (index + 1) % mentionCandidates.length)
+      return true
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setMentionSelectedIndex(
+        index => (index - 1 + mentionCandidates.length) % mentionCandidates.length
+      )
+      return true
+    }
+
+    if (event.key === 'Enter' || event.key === 'Tab') {
+      event.preventDefault()
+      return selectMentionCandidate()
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      setDismissedMentionTriggerKey(mentionTriggerKey)
+      return true
+    }
+
+    return false
+  }
+
+  function getRenderableMentions(msg: ChannelMessage) {
+    if (!Array.isArray(msg.mentions) || msg.mentions.length === 0) return []
+    const content = String(msg.content || '')
+    const result: ChannelMention[] = []
+
+    for (const mention of [...msg.mentions].sort(
+      (left, right) => left.start - right.start || left.end - right.end
+    )) {
+      if (mention.start < 0 || mention.end <= mention.start) continue
+      if (mention.start < (result[result.length - 1]?.end || 0)) continue
+      if (mention.end > content.length) continue
+      if (content.slice(mention.start, mention.end) !== `@${mention.label}`) {
+        continue
+      }
+      result.push(mention)
+    }
+
+    return result
+  }
+
+  function renderMessageTextContent(msg: ChannelMessage) {
+    const content = String(msg.content || '')
+    const mentions = getRenderableMentions(msg)
+    if (mentions.length === 0) return content
+
+    const parts: React.ReactNode[] = []
+    const isOwnMessage =
+      normalizeMemberAddress(msg.author) === normalizeMemberAddress(userIdentity?.address)
+    let cursor = 0
+    mentions.forEach((mention, index) => {
+      if (mention.start > cursor) {
+        parts.push(content.slice(cursor, mention.start))
+      }
+      const isSelfMention =
+        !isOwnMessage &&
+        normalizeMemberAddress(mention.address) ===
+        normalizeMemberAddress(userIdentity?.address)
+      parts.push(
+        <span
+          className={isSelfMention ? 'chat-mention self' : 'chat-mention'}
+          key={`${mention.address}-${mention.start}-${index}`}
+          translate="no"
+        >
+          {content.slice(mention.start, mention.end)}
+        </span>
+      )
+      cursor = mention.end
+    })
+
+    if (cursor < content.length) {
+      parts.push(content.slice(cursor))
+    }
+
+    return parts
+  }
+
+  function isMessageMentioningCurrentUser(msg: ChannelMessage) {
+    return messageMentionsAddress(msg, userIdentity?.address)
+  }
+
+  function getMessageDisplayIdentity(msg: ChannelMessage) {
+    return String(msg.authorIdentity || '').trim()
+  }
+
+  const mentionTrigger =
+    isComposerComposing || !activeChannel
+      ? null
+      : getMentionTrigger(
+          channelInput,
+          composerSelection.start,
+          composerSelection.end
+        )
+  const mentionTriggerKey = mentionTrigger
+    ? `${activeChannelKey}:${mentionTrigger.start}:${mentionTrigger.query}`
+    : ''
+  const currentUserAddress = normalizeMemberAddress(userIdentity?.address)
+  const mentionQuery = String(mentionTrigger?.query || '').toLowerCase()
+  const mentionCandidateNameCounts = mentionTrigger
+    ? displayedChannelMembers.reduce((counts, member) => {
+        const address = normalizeMemberAddress(member.address)
+        if (!address || address === currentUserAddress) return counts
+        const presence = presenceByAddress.get(address)
+        const displayName = presence?.displayName || member.displayName
+        const baseName = getMentionCandidateBaseName(displayName, member.address)
+        const key = baseName.toLowerCase()
+        counts.set(key, (counts.get(key) || 0) + 1)
+        return counts
+      }, new Map<string, number>())
+    : new Map<string, number>()
+  const mentionCandidates: MentionCandidate[] = mentionTrigger
+    ? displayedChannelMembers
+        .map(member => {
+          const address = normalizeMemberAddress(member.address)
+          const presence = presenceByAddress.get(address)
+          const displayName = presence?.displayName || member.displayName
+          const identity = String(presence?.identity || member.identity || '').trim()
+          const baseName = getMentionCandidateBaseName(displayName, member.address)
+          return {
+            address,
+            label: formatMentionCandidateLabel({
+              name: displayName,
+              address: member.address,
+              duplicateName:
+                (mentionCandidateNameCounts.get(baseName.toLowerCase()) || 0) > 1,
+            }),
+            avatarSrc: generateAvatar(member.address, presence?.avatar || member.avatar),
+            ...(identity ? { identity } : {}),
+            online: onlineMemberAddressSet.has(address),
+          }
+        })
+        .filter(candidate => {
+          if (!candidate.address || candidate.address === currentUserAddress) {
+            return false
+          }
+          if (!mentionQuery) return true
+          return [
+            candidate.label,
+            candidate.identity || '',
+            candidate.address,
+          ].some(value => value.toLowerCase().includes(mentionQuery))
+        })
+        .slice(0, 8)
+    : []
+  const isMentionMenuOpen = Boolean(
+    mentionTrigger &&
+      mentionCandidates.length > 0 &&
+      mentionTriggerKey !== dismissedMentionTriggerKey
+  )
+
+  useEffect(() => {
+    setMentionSelectedIndex(0)
+  }, [mentionTriggerKey, mentionCandidates.length])
+
+  const mentionMenu = isMentionMenuOpen ? (
+    <div
+      className="chat-mention-menu"
+      role="listbox"
+      aria-label={t('chat.mentionSuggestions')}
+    >
+      <span className="chat-mention-menu-title">
+        {t('chat.mentionSuggestions')}
+      </span>
+      {mentionCandidates.map((candidate, index) => (
+        <button
+          type="button"
+          className={[
+            'chat-mention-option',
+            index === mentionSelectedIndex ? 'active' : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+          key={candidate.address}
+          role="option"
+          aria-selected={index === mentionSelectedIndex}
+          onMouseDown={event => {
+            event.preventDefault()
+            selectMentionCandidate(index)
+          }}
+        >
+          <img
+            className="chat-mention-option-avatar"
+            src={candidate.avatarSrc}
+            alt=""
+          />
+          <span className="chat-mention-option-body">
+            <span className="chat-mention-option-name" translate="no">
+              {candidate.label}
+            </span>
+          </span>
+          {candidate.identity && (
+            <span className="chat-identity-tag" translate="no">
+              {candidate.identity}
+            </span>
+          )}
+        </button>
+      ))}
+    </div>
+  ) : null
+
   function renderChannelMembers() {
     return (
       <ChannelMemberGrid
@@ -1403,10 +1760,12 @@ function ChatPage() {
             normalizeMemberAddress(member.address)
           )
           const displayName = presence?.displayName || member.displayName
+          const identity = presence?.identity || member.identity
           const avatar = presence?.avatar || member.avatar
           return {
             id: member.address,
             name: formatDisplayName(displayName, member.address),
+            identity,
             avatarSrc: generateAvatar(member.address, avatar),
             online: onlineMemberAddressSet.has(
               normalizeMemberAddress(member.address)
@@ -1532,6 +1891,10 @@ function ChatPage() {
                   }
                   pinned={Boolean(channel.pinned)}
                   unread={hasUnreadChannelMessage(channel, channelLastReadAt)}
+                  mentionUnread={hasUnreadChannelMention(
+                    channel,
+                    channelMentionUnread
+                  )}
                   title={getChannelTitle(channel)}
                   menuClassName={sparkbitActionMenuClassName}
                   onSelect={() => {
@@ -1657,6 +2020,7 @@ function ChatPage() {
                   msg.avatar ||
                   (isSelf ? userIdentity.avatar : undefined)
                 const displayAuthor = getMessageDisplayAuthor(msg)
+                const displayIdentity = getMessageDisplayIdentity(msg)
 
                 return (
                   <ChatMessageItem
@@ -1666,6 +2030,8 @@ function ChatPage() {
                     isOnline={isOnline}
                     avatarSrc={generateAvatar(msg.author, avatar)}
                     author={displayAuthor}
+                    identity={displayIdentity}
+                    mentioned={!isSelf && isMessageMentioningCurrentUser(msg)}
                     time={formatTime(msg.timestamp)}
                   >
                     {renderMessageBubble(msg)}
@@ -1686,9 +2052,14 @@ function ChatPage() {
             disabled={!userIdentity}
             isPublishingAttachment={isPublishingAttachment}
             attachmentInputRef={attachmentInputRef}
+            inputRef={channelComposerInputRef}
+            mentionMenu={mentionMenu}
             attachmentMenuClassName={sparkbitActionMenuClassName}
             showVoiceRoom={!isInviteUser}
-            onMessageChange={setChannelInput}
+            onMessageChange={handleChannelInputChange}
+            onSelectionChange={handleComposerSelectionChange}
+            onCompositionChange={setIsComposerComposing}
+            onComposerKeyDown={handleComposerKeyDown}
             onSend={handleSendChannelMessage}
             onOpenVoiceRoom={handleOpenActiveVoiceRoom}
             onSelectAttachmentFiles={files => {

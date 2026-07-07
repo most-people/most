@@ -211,6 +211,7 @@ export function createWebSocketServer({
                 sourceId: ws.presenceSourceId,
                 sessionId: data.sessionId,
                 displayName: data.displayName,
+                identity: data.identity,
                 avatar: data.avatar,
                 profileUpdatedAt: data.profileUpdatedAt,
               })
@@ -232,6 +233,7 @@ export function createWebSocketServer({
                 sourceId: ws.presenceSourceId,
                 sessionId: data.sessionId,
                 displayName: data.displayName,
+                identity: data.identity,
                 avatar: data.avatar,
                 profileUpdatedAt: data.profileUpdatedAt,
               })

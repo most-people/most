@@ -15,11 +15,13 @@ export const CHAT_JOIN_TEST_ACCOUNTS = Object.freeze([
     theme: 'sparkbit',
     name: '测试用户',
     avatar: USER_AVATAR,
+    identity: 'user',
   }),
   Object.freeze({
     uid: 'service',
     name: '测试客服',
     avatar: SERVICE_AVATAR,
+    identity: 'service',
   }),
 ])
 
@@ -31,6 +33,7 @@ export const CHAT_JOIN_TEST_INVITES = Object.freeze(
       theme: account.theme,
       avatar: account.avatar,
       name: account.name,
+      identity: account.identity,
       channels: [CHAT_JOIN_TEST_CHANNEL],
     })
   )

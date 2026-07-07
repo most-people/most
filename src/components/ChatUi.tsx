@@ -23,6 +23,7 @@ export type ChatMessageVariant = 'self' | 'other'
 export type ChannelMemberView = {
   id: string
   name: string
+  identity?: string
   avatarSrc: string
   online?: boolean
 }
@@ -89,6 +90,8 @@ export function ChatMessageItem({
   avatarSrc,
   isOnline = false,
   author,
+  identity,
+  mentioned = false,
   time,
   children,
 }: {
@@ -96,11 +99,18 @@ export function ChatMessageItem({
   pending?: boolean
   avatarSrc: string
   isOnline?: boolean
-  author: string
+  author: ReactNode
+  identity?: string
+  mentioned?: boolean
   time: string
   children: ReactNode
 }) {
-  const className = ['chat-message', variant, pending ? 'pending' : '']
+  const className = [
+    'chat-message',
+    variant,
+    pending ? 'pending' : '',
+    mentioned ? 'mentioned' : '',
+  ]
     .filter(Boolean)
     .join(' ')
 
@@ -120,6 +130,11 @@ export function ChatMessageItem({
           <span className="message-author" translate="no">
             {author}
           </span>
+          {identity && (
+            <span className="chat-identity-tag" translate="no">
+              {identity}
+            </span>
+          )}
         </span>
         {children}
         <span className="message-time">{time}</span>
@@ -132,6 +147,7 @@ export function ChatChannelNavItem({
   active = false,
   pinned = false,
   unread = false,
+  mentionUnread = false,
   title,
   menuClassName,
   onSelect,
@@ -142,6 +158,7 @@ export function ChatChannelNavItem({
   active?: boolean
   pinned?: boolean
   unread?: boolean
+  mentionUnread?: boolean
   title: string
   menuClassName?: string
   onSelect?: () => void
@@ -156,6 +173,7 @@ export function ChatChannelNavItem({
     active ? 'active' : '',
     pinned ? 'pinned' : '',
     unread ? 'unread' : '',
+    mentionUnread ? 'mention-unread' : '',
   ]
     .filter(Boolean)
     .join(' ')
@@ -174,13 +192,21 @@ export function ChatChannelNavItem({
     >
       <span className="chat-channel-icon-wrap">
         <MessagesSquare size={16} />
-        {unread && (
+        {mentionUnread ? (
+          <span
+            className="chat-channel-mention-badge"
+            title={t('chat.mentionUnread')}
+            aria-hidden="true"
+          >
+            @
+          </span>
+        ) : unread ? (
           <span
             className="chat-channel-unread-dot"
             title={t('chat.unread')}
             aria-hidden="true"
           />
-        )}
+        ) : null}
       </span>
       <span className="chat-channel-title">
         <span className="chat-channel-title-text" translate="no">
@@ -259,8 +285,15 @@ export function ChannelMemberGrid({
               <span className="chat-online-dot" aria-hidden="true" />
             )}
           </span>
-          <span className="channel-member-name" translate="no">
-            {member.name}
+          <span className="channel-member-label">
+            <span className="channel-member-name" translate="no">
+              {member.name}
+            </span>
+            {member.identity && (
+              <span className="chat-identity-tag" translate="no">
+                {member.identity}
+              </span>
+            )}
           </span>
         </div>
       ))}
@@ -275,9 +308,14 @@ export function ChatComposer({
   isPublishingAttachment = false,
   attachmentButtonTitle,
   attachmentInputRef,
+  inputRef,
+  mentionMenu,
   attachmentMenuClassName,
   showVoiceRoom = true,
   onMessageChange,
+  onSelectionChange,
+  onCompositionChange,
+  onComposerKeyDown,
   onSend,
   onOpenVoiceRoom,
   onSelectAttachmentFiles,
@@ -288,9 +326,18 @@ export function ChatComposer({
   isPublishingAttachment?: boolean
   attachmentButtonTitle?: string
   attachmentInputRef?: RefObject<HTMLInputElement | null>
+  inputRef?: RefObject<HTMLTextAreaElement | null>
+  mentionMenu?: ReactNode
   attachmentMenuClassName?: string
   showVoiceRoom?: boolean
-  onMessageChange: (value: string) => void
+  onMessageChange: (
+    value: string,
+    selectionStart?: number,
+    selectionEnd?: number
+  ) => void
+  onSelectionChange?: (selectionStart: number, selectionEnd: number) => void
+  onCompositionChange?: (isComposing: boolean) => void
+  onComposerKeyDown?: (event: KeyboardEvent<HTMLTextAreaElement>) => boolean | void
   onSend: () => void
   onOpenVoiceRoom?: () => void
   onSelectAttachmentFiles?: (files: File[] | null) => void
@@ -312,6 +359,7 @@ export function ChatComposer({
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (onComposerKeyDown?.(event)) return
     if (event.key !== 'Enter') return
     if (event.shiftKey || event.nativeEvent.isComposing) return
     event.preventDefault()
@@ -378,13 +426,41 @@ export function ChatComposer({
           </button>
         )}
       />
+      {mentionMenu}
       <textarea
+        ref={inputRef}
         className="textarea chat-composer-input"
         placeholder={placeholder}
         value={message}
         disabled={disabled}
         rows={1}
-        onChange={event => onMessageChange(event.target.value)}
+        onChange={event =>
+          onMessageChange(
+            event.target.value,
+            event.target.selectionStart,
+            event.target.selectionEnd
+          )
+        }
+        onSelect={event =>
+          onSelectionChange?.(
+            event.currentTarget.selectionStart,
+            event.currentTarget.selectionEnd
+          )
+        }
+        onKeyUp={event =>
+          onSelectionChange?.(
+            event.currentTarget.selectionStart,
+            event.currentTarget.selectionEnd
+          )
+        }
+        onCompositionStart={() => onCompositionChange?.(true)}
+        onCompositionEnd={event => {
+          onCompositionChange?.(false)
+          onSelectionChange?.(
+            event.currentTarget.selectionStart,
+            event.currentTarget.selectionEnd
+          )
+        }}
         onKeyDown={handleKeyDown}
       />
       <button

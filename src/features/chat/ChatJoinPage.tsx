@@ -14,7 +14,7 @@ import {
   getRemoteUrlExport,
 } from '~server/src/utils/api'
 import { channelApi } from '~/lib/channelApi'
-import { getUserChannelProfile } from '~/lib/userProfile'
+import { getNextProfileUpdatedAt, getUserChannelProfile } from '~/lib/userProfile'
 import { translateMessage, useI18n } from '~/lib/i18n'
 import {
   CHAT_JOIN_DEFAULT_API_BASE,
@@ -75,6 +75,7 @@ function ChatJoinContent() {
   }, [searchStr])
   const hasBackend = useAppStore(s => s.hasBackend)
   const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
+  const currentIdentity = useUserStore(s => s.identity)
   const setUserIdentity = useUserStore(s => s.setUserIdentity)
 
   const [error, setError] = useState('')
@@ -171,14 +172,19 @@ function ChatJoinContent() {
       }
 
       const identity = createLoginIdentity(invite.uid, '')
+      const displayName = invite.name || identity.displayName
       const nextIdentity = {
         ...identity,
         theme: invite.theme,
-        displayName: invite.name || identity.displayName,
+        displayName,
         logo: invite.logo,
         logo_dark: invite.logo_dark,
         data: invite.data,
         avatar: invite.avatar,
+        identity: invite.identity,
+        profileUpdatedAt: getNextProfileUpdatedAt(
+          currentIdentity?.profileUpdatedAt
+        ),
       }
       setUserIdentity(nextIdentity)
 
@@ -247,6 +253,7 @@ function ChatJoinContent() {
 
     decrypt()
   }, [
+    currentIdentity?.profileUpdatedAt,
     fixture,
     hasBackend,
     pub,

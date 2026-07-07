@@ -1,3 +1,5 @@
+import { messageMentionsAddress } from './chatMentions.js'
+
 export const CHAT_READ_STORAGE_PREFIX = 'mostbox.chat.lastReadAt'
 
 export function getChannelActivityTime(channel) {
@@ -149,6 +151,49 @@ export function hasUnreadChannelMessage(channel, channelLastReadAt) {
   const channelKey = channel?.channelKey || channel?.name
   const activityTime = getChannelActivityTime(channel)
   return activityTime > (channelLastReadAt[channelKey] || 0)
+}
+
+export function applyIncomingChannelMentionUnreadState(
+  previous,
+  {
+    channelName,
+    message,
+    activeChannelName = '',
+    userAddress = '',
+  }
+) {
+  if (!channelName) return { changed: false, value: previous }
+  if (channelName === activeChannelName) {
+    return { changed: false, value: previous }
+  }
+
+  const isSelfMessage =
+    String(message?.author || '').toLowerCase() ===
+    String(userAddress || '').toLowerCase()
+  if (isSelfMessage || !messageMentionsAddress(message, userAddress)) {
+    return { changed: false, value: previous }
+  }
+
+  if (previous[channelName]) return { changed: false, value: previous }
+  return {
+    changed: true,
+    value: { ...previous, [channelName]: true },
+  }
+}
+
+export function clearChannelMentionUnreadInMap(previous, channelName) {
+  if (!channelName || !previous[channelName]) {
+    return { changed: false, value: previous }
+  }
+
+  const next = { ...previous }
+  delete next[channelName]
+  return { changed: true, value: next }
+}
+
+export function hasUnreadChannelMention(channel, channelMentionUnread) {
+  const channelKey = channel?.channelKey || channel?.name
+  return Boolean(channelMentionUnread[channelKey])
 }
 
 function getStorage() {
