@@ -2367,6 +2367,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       await engine.createChannel(channelName, 'public', {
         ownerAddress,
         displayName: 'Alice#5678',
+        identity: 'service_ai',
         avatar: 'data:image/png;base64,alice',
       })
 
@@ -2380,6 +2381,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.strictEqual(messages[0].content, 'channel.member.joined')
       assert.strictEqual(messages[0].author, ownerAddress)
       assert.strictEqual(messages[0].authorName, 'Alice#5678')
+      assert.strictEqual(messages[0].authorIdentity, 'service_ai')
       assert.strictEqual(messages[0].avatar, 'data:image/png;base64,alice')
     })
 

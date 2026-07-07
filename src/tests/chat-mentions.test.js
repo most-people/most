@@ -2,6 +2,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
+  completeMentionDraftFromTargets,
   finalizeMentionDraftForSend,
   getMentionTrigger,
   insertMentionIntoDraft,
@@ -208,5 +209,44 @@ describe('chat mention drafts', () => {
       ),
       true
     )
+  })
+
+  it('completes manually typed member mentions before send', () => {
+    const result = completeMentionDraftFromTargets(
+      { content: '@Ruth 看看', mentions: [] },
+      [
+        {
+          address: '0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+          label: 'Ruth',
+        },
+      ]
+    )
+
+    assert.deepEqual(result.mentions, [
+      {
+        address: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        label: 'Ruth',
+        start: 0,
+        end: 5,
+      },
+    ])
+  })
+
+  it('does not guess a manually typed mention when labels are ambiguous', () => {
+    const result = completeMentionDraftFromTargets(
+      { content: 'ping @Ruth', mentions: [] },
+      [
+        {
+          address: '0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+          label: 'Ruth',
+        },
+        {
+          address: '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+          label: 'Ruth',
+        },
+      ]
+    )
+
+    assert.deepEqual(result.mentions, [])
   })
 })

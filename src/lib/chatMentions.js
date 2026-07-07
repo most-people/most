@@ -15,6 +15,49 @@ function isWhitespace(value) {
   return /\s/.test(value)
 }
 
+function isMentionEndBoundary(value) {
+  return (
+    !value ||
+    isWhitespace(value) ||
+    /[.,!?;:，。！？、；：、)\]}」』]/u.test(value)
+  )
+}
+
+function normalizeMentionLabelKey(label) {
+  return normalizeMentionLabel(label).toLowerCase()
+}
+
+function isMentionRangeOverlapping(mentions, start, end) {
+  return mentions.some(mention => start < mention.end && end > mention.start)
+}
+
+function getUniqueMentionTargets(targets) {
+  const byLabel = new Map()
+
+  for (const target of targets || []) {
+    const address = normalizeMentionAddress(target?.address)
+    const label = normalizeMentionLabel(target?.label)
+    const key = normalizeMentionLabelKey(label)
+    if (!address || !label || !key) continue
+
+    const existing = byLabel.get(key)
+    if (existing && existing.address !== address) {
+      byLabel.set(key, { ...existing, ambiguous: true })
+      continue
+    }
+
+    byLabel.set(key, {
+      address,
+      label,
+      ambiguous: existing?.ambiguous === true,
+    })
+  }
+
+  return [...byLabel.values()]
+    .filter(target => !target.ambiguous)
+    .sort((left, right) => right.label.length - left.label.length)
+}
+
 function getEditRange(previousContent, nextContent) {
   let start = 0
   while (
@@ -193,6 +236,50 @@ export function finalizeMentionDraftForSend(draft) {
       }
     })
     .filter(Boolean)
+
+  return {
+    content,
+    mentions: dedupeAndSortMentions(content, mentions),
+  }
+}
+
+export function completeMentionDraftFromTargets(draft, targets = []) {
+  const content = String(draft?.content || '')
+  if (!content) return { content: '', mentions: [] }
+
+  const mentions = dedupeAndSortMentions(content, draft?.mentions || [])
+  const uniqueTargets = getUniqueMentionTargets(targets)
+  if (uniqueTargets.length === 0) {
+    return { content, mentions }
+  }
+
+  for (let index = 0; index < content.length; index += 1) {
+    if (content[index] !== '@') continue
+    if (index > 0 && !isWhitespace(content[index - 1])) continue
+
+    for (const target of uniqueTargets) {
+      const end = index + 1 + target.label.length
+      const typedLabel = content.slice(index + 1, end)
+      if (typedLabel.length !== target.label.length) continue
+      if (
+        normalizeMentionLabelKey(typedLabel) !==
+        normalizeMentionLabelKey(target.label)
+      ) {
+        continue
+      }
+      if (!isMentionEndBoundary(content[end])) continue
+      if (isMentionRangeOverlapping(mentions, index, end)) continue
+
+      mentions.push({
+        address: target.address,
+        label: normalizeMentionLabel(typedLabel),
+        start: index,
+        end,
+      })
+      index = end - 1
+      break
+    }
+  }
 
   return {
     content,

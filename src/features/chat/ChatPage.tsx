@@ -73,6 +73,7 @@ import {
   writeStoredChannelLastReadAt,
 } from '~/lib/chatUnread.js'
 import {
+  completeMentionDraftFromTargets,
   finalizeMentionDraftForSend,
   getMentionTrigger,
   insertMentionIntoDraft,
@@ -198,6 +199,7 @@ type ChannelLastReadMap = Record<string, number>
 type ChannelMentionUnreadMap = Record<string, boolean>
 type ComposerSelection = { start: number; end: number }
 type MentionDraft = { content: string; mentions: ChannelMention[] }
+type MentionTarget = { address: string; label: string }
 type MentionCandidate = {
   address: string
   label: string
@@ -871,6 +873,38 @@ function ChatPage() {
   const onlineMemberAddressSet = useMemo(() => {
     return new Set(presenceByAddress.keys())
   }, [presenceByAddress])
+  const currentUserAddress = normalizeMemberAddress(userIdentity?.address)
+
+  const mentionTargets = useMemo<MentionTarget[]>(() => {
+    const nameCounts = displayedChannelMembers.reduce((counts, member) => {
+      const address = normalizeMemberAddress(member.address)
+      if (!address || address === currentUserAddress) return counts
+      const presence = presenceByAddress.get(address)
+      const displayName = presence?.displayName || member.displayName
+      const baseName = getMentionCandidateBaseName(displayName, member.address)
+      const key = baseName.toLowerCase()
+      counts.set(key, (counts.get(key) || 0) + 1)
+      return counts
+    }, new Map<string, number>())
+
+    return displayedChannelMembers
+      .map(member => {
+        const address = normalizeMemberAddress(member.address)
+        if (!address || address === currentUserAddress) return null
+        const presence = presenceByAddress.get(address)
+        const displayName = presence?.displayName || member.displayName
+        const baseName = getMentionCandidateBaseName(displayName, member.address)
+        return {
+          address,
+          label: formatMentionCandidateLabel({
+            name: displayName,
+            address: member.address,
+            duplicateName: (nameCounts.get(baseName.toLowerCase()) || 0) > 1,
+          }),
+        }
+      })
+      .filter((target): target is MentionTarget => Boolean(target))
+  }, [currentUserAddress, displayedChannelMembers, presenceByAddress])
 
   function requireBackendReady() {
     if (isBackendReady) return true
@@ -1439,11 +1473,15 @@ function ChatPage() {
       content: channelInput,
       mentions: channelMentions,
     }) as MentionDraft
-    if (!finalized.content) return
+    const completed = completeMentionDraftFromTargets(
+      finalized,
+      mentionTargets
+    ) as MentionDraft
+    if (!completed.content) return
     const sent = await sendChannelMessage(
-      finalized.content,
+      completed.content,
       undefined,
-      finalized.mentions
+      completed.mentions
     )
     if (!sent) return
     setChannelInput('')
@@ -1796,7 +1834,6 @@ function ChatPage() {
   const mentionTriggerKey = mentionTrigger
     ? `${activeChannelKey}:${mentionTrigger.start}:${mentionTrigger.query}`
     : ''
-  const currentUserAddress = normalizeMemberAddress(userIdentity?.address)
   const mentionQuery = String(mentionTrigger?.query || '').toLowerCase()
   const mentionCandidateNameCounts = mentionTrigger
     ? displayedChannelMembers.reduce((counts, member) => {
