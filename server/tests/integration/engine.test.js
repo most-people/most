@@ -3463,6 +3463,36 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       }
     })
 
+    it('accepts presence identity without a profile timestamp', async () => {
+      const channelName = `presence-identity-no-ts-${uid}`
+      const service = `0x${'e'.repeat(40)}`
+      const now = Date.now()
+
+      await engine.createChannel(channelName, 'personal', {
+        ownerAddress: service,
+        displayName: 'SparkBit AI Support',
+      })
+
+      await withMockedDateNow(now, async () => {
+        engine.joinChannelPresence(channelName, {
+          ownerAddress: service,
+          sessionId: 'service-ai',
+          displayName: 'SparkBit AI Support',
+          identity: 'service_ai',
+          avatar: 'https://example.test/service.png',
+        })
+      })
+
+      const presence = engine.getChannelPresence(channelName, {
+        ownerAddress: service,
+      })
+      assert.strictEqual(presence.length, 1)
+      assert.strictEqual(presence[0].displayName, 'SparkBit AI Support')
+      assert.strictEqual(presence[0].identity, 'service_ai')
+      assert.strictEqual(presence[0].avatar, 'https://example.test/service.png')
+      assert.strictEqual(presence[0].profileUpdatedAt, now)
+    })
+
     it('expires stale sessions after the presence timeout', async () => {
       const channelName = `presence-timeout-${uid}`
       const alice = `0x${'d'.repeat(40)}`
