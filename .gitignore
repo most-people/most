@@ -32,6 +32,7 @@ opencode.jsonc
 
 # Windows artifacts
 nul
+NUL
 
 # Electron builder cache
 .electron-builder-cache/

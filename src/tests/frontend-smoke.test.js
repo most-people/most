@@ -142,6 +142,14 @@ function readI18nSources() {
 }
 
 describe('frontend smoke checks', () => {
+  it('keeps documented root dev command backed by package scripts', () => {
+    const packageJson = JSON.parse(readSource(SOURCE_PATHS.packageJson))
+
+    assert.equal(packageJson.scripts.dev, 'vite')
+    assert.match(readSource(SOURCE_PATHS.readme), /npm run dev/)
+    assert.match(readSource(SOURCE_PATHS.agents), /npm run dev/)
+  })
+
   it('keeps the chat join and search labels concise across locales', async () => {
     const { messages } = await importBundledSource('src/lib/i18n/messages.ts')
 

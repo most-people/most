@@ -76,7 +76,7 @@ function createDummyBlockstore() {
   return {
     put: async (key, _value) => key,
     get: async () => {
-      throw new Error('Not implemented')
+      throw new Error('CID calculation blockstore is write-only')
     },
     has: async () => false,
   }

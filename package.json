@@ -31,6 +31,7 @@
     "typecheck:strict-router": "tsc -p tsconfig.strict-router.json",
     "check:static-output": "node scripts/check-static-output.mjs",
     "format": "prettier --write .",
+    "dev": "vite",
     "lint": "eslint .",
     "r2:cors": "node scripts/configure-r2-cors.mjs",
     "electron:dev": "concurrently \"npm run build\" \"wait-on out/index.html && electron .\"",
