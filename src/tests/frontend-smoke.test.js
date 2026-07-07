@@ -2368,6 +2368,54 @@ describe('frontend smoke checks', () => {
     )
   })
 
+  it('keeps note editor privacy controls aligned between web and desktop vault flows', () => {
+    const noteSource = readSource('src/features/note/NotePage.tsx')
+    const editorActionSections =
+      noteSource.match(/<div className="note-editor-actions">[\s\S]*?<\/div>/g) ||
+      []
+
+    assert.equal(editorActionSections.length, 2)
+    for (const section of editorActionSections) {
+      assert.match(section, /<Eye size=\{16\} \/>/)
+      assert.match(section, /t\('note\.privacy\.public'\)/)
+    }
+    assert.match(editorActionSections[0], /setEditIsSecret/)
+    assert.match(
+      editorActionSections[1],
+      /aria-label=\{[\s\S]*t\('note\.privacy\.public'\)[\s\S]*\}/
+    )
+    assert.match(editorActionSections[1], /disabled/)
+  })
+
+  it('keeps note move and delete actions in the note tree menu', () => {
+    const noteSource = readSource('src/features/note/NotePage.tsx')
+    const noteStyles = readSource('src/styles/note.css')
+    const editorActionSections =
+      noteSource.match(/<div className="note-editor-actions">[\s\S]*?<\/div>/g) ||
+      []
+    const treeActionMenus =
+      noteSource.match(/<NoteTreeActionsMenu[\s\S]*?onDelete=\{openDeleteConfirm\}[\s\S]*?\/>/g) ||
+      []
+
+    assert.equal(editorActionSections.length, 2)
+    assert.equal(treeActionMenus.length, 2)
+    assert.match(noteSource, /function NoteTreeActionsMenu/)
+    assert.match(noteSource, /key: 'move'[\s\S]*label: t\('note\.action\.move'\)/)
+    assert.match(noteSource, /key: 'delete'[\s\S]*danger: true/)
+    assert.match(noteSource, /className="note-list-actions-trigger"/)
+    for (const section of editorActionSections) {
+      assert.doesNotMatch(section, /note\.action\.move/)
+      assert.doesNotMatch(section, /note\.action\.delete/)
+      assert.doesNotMatch(section, /openMoveModal/)
+      assert.doesNotMatch(section, /openDeleteConfirm/)
+      assert.doesNotMatch(section, /<Move size=\{16\} \/>/)
+      assert.doesNotMatch(section, /<Trash2 size=\{16\} \/>/)
+    }
+    assert.doesNotMatch(noteSource, /openMoveModal\(selectedNote\)/)
+    assert.doesNotMatch(noteSource, /openDeleteConfirm\(selectedNote\)/)
+    assert.doesNotMatch(noteStyles, /note-editor-action-danger/)
+  })
+
   it('does not trigger account backup from note save flows', () => {
     const noteSource = readSource('src/features/note/NotePage.tsx')
     const milkdownSource = readSource('src/components/MilkdownEditor.tsx')

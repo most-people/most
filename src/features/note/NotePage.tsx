@@ -620,6 +620,51 @@ function NoteTreeNodeRow({
   )
 }
 
+function NoteTreeActionsMenu({
+  item,
+  onMove,
+  onDelete,
+}: {
+  item: ExplorerItem
+  onMove: (item: ExplorerItem) => void
+  onDelete: (item: ExplorerItem) => void
+}) {
+  const { t } = useI18n()
+
+  return (
+    <ActionMenu
+      ariaLabel={t('common.moreActions')}
+      className="note-list-actions-anchor"
+      placement="bottom-end"
+      items={[
+        {
+          key: 'move',
+          label: t('note.action.move'),
+          icon: <Move size={16} />,
+          onSelect: () => onMove(item),
+        },
+        {
+          key: 'delete',
+          label: t('note.action.delete'),
+          icon: <Trash2 size={16} />,
+          danger: true,
+          onSelect: () => onDelete(item),
+        },
+      ]}
+      renderTrigger={triggerProps => (
+        <button
+          {...triggerProps}
+          className="note-list-actions-trigger"
+          title={t('common.moreActions')}
+          aria-label={t('common.moreActions')}
+        >
+          <MoreHorizontal size={16} />
+        </button>
+      )}
+    />
+  )
+}
+
 function getDirectoryOptions(
   notes: NoteItem[],
   compareStrings: (left: string, right: string) => number
@@ -1156,6 +1201,13 @@ function NotePageContent() {
           activeFolderPath={cid ? '' : notesPath}
           onToggleDirectory={toggleTreeDirectory}
           onOpenFile={openPreview}
+          renderActions={item => (
+            <NoteTreeActionsMenu
+              item={item}
+              onMove={openMoveModal}
+              onDelete={openDeleteConfirm}
+            />
+          )}
         />
       )}
 
@@ -1229,11 +1281,22 @@ function NotePageContent() {
                     {isEditing ? (
                       <>
                         <button
+                          type="button"
                           className={`btn btn-sm ${
                             editIsSecret ? 'btn-warning' : 'btn-secondary'
                           }`}
                           onClick={() => setEditIsSecret(!editIsSecret)}
                           disabled={!selectedNote}
+                          title={
+                            editIsSecret
+                              ? t('note.privacy.secret')
+                              : t('note.privacy.public')
+                          }
+                          aria-label={
+                            editIsSecret
+                              ? t('note.privacy.secret')
+                              : t('note.privacy.public')
+                          }
                         >
                           {editIsSecret ? (
                             <Lock size={16} />
@@ -1255,37 +1318,17 @@ function NotePageContent() {
                       </>
                     ) : (
                       selectedNote && (
-                        <>
-                          <button
-                            type="button"
-                            className="btn btn-icon"
-                            onClick={() => openMoveModal(selectedNote)}
-                            title={t('note.action.move')}
-                            aria-label={t('note.action.move')}
-                          >
-                            <Move size={16} />
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-icon note-editor-action-danger"
-                            onClick={() => openDeleteConfirm(selectedNote)}
-                            title={t('note.action.delete')}
-                            aria-label={t('note.action.delete')}
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-primary"
-                            onClick={() => openEditor(selectedNote)}
-                            disabled={!!previewError}
-                            title={t('note.action.edit')}
-                            aria-label={t('note.action.edit')}
-                          >
-                            <PencilRuler size={16} />
-                            {t('note.action.edit')}
-                          </button>
-                        </>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-primary"
+                          onClick={() => openEditor(selectedNote)}
+                          disabled={!!previewError}
+                          title={t('note.action.edit')}
+                          aria-label={t('note.action.edit')}
+                        >
+                          <PencilRuler size={16} />
+                          {t('note.action.edit')}
+                        </button>
                       )
                     )}
                   </div>
@@ -1421,7 +1464,9 @@ function VaultNotePageContent() {
   const [selectedFile, setSelectedFile] =
     useState<NoteVaultFileContent | null>(null)
   const [previewName, setPreviewName] = useState('')
+  const [previewContent, setPreviewContent] = useState('')
   const [plainContent, setPlainContent] = useState('')
+  const [editIsSecret, setEditIsSecret] = useState(false)
   const [fileLoading, setFileLoading] = useState(false)
   const [fileError, setFileError] = useState('')
   const [saving, setSaving] = useState(false)
@@ -1462,14 +1507,14 @@ function VaultNotePageContent() {
   const wikiLinkedSelectedFileContent = useMemo(
     () =>
       renderWikiNoteLinks(
-        selectedFile?.content || '',
+        previewContent,
         vaultNotes,
         note => getNoteHref({ file: note.cid }),
         selectedNote?.path || selectedFile?.directory || '',
         targetPath => getNoteHref({ path: getStorageMarkdownPath(targetPath) })
       ),
     [
-      selectedFile?.content,
+      previewContent,
       selectedFile?.directory,
       selectedNote?.path,
       vaultNotes,
@@ -1589,21 +1634,27 @@ function VaultNotePageContent() {
     async function loadFile() {
       if (!currentFilePath) {
         setSelectedFile(null)
+        setPreviewContent('')
         setPlainContent('')
+        setEditIsSecret(false)
         setFileError('')
         setFileLoading(false)
         return
       }
       if (!wallet) {
         setSelectedFile(null)
+        setPreviewContent('')
         setPlainContent('')
+        setEditIsSecret(false)
         setFileError(t('note.vault.loginRequired'))
         setFileLoading(false)
         return
       }
       if (vaultStatus?.configured !== true) {
         setSelectedFile(null)
+        setPreviewContent('')
         setPlainContent('')
+        setEditIsSecret(false)
         setFileError('')
         setFileLoading(false)
         return
@@ -1614,12 +1665,24 @@ function VaultNotePageContent() {
       try {
         const file = await readNoteVaultFile(currentFilePath)
         if (cancelled) return
+        const fileIsSecret = file.content.startsWith('mp://1')
+        const decryptedContent = fileIsSecret
+          ? mostDecode(file.content, wallet.danger)
+          : file.content
+        const nextError =
+          fileIsSecret && !decryptedContent ? t('note.error.decryptFailed') : ''
+
         setSelectedFile(file)
-        setPlainContent(file.content)
+        setPreviewContent(decryptedContent || '')
+        setPlainContent(decryptedContent || '')
+        setEditIsSecret(fileIsSecret)
+        setFileError(nextError)
       } catch (err: unknown) {
         if (cancelled) return
         setSelectedFile(null)
+        setPreviewContent('')
         setPlainContent('')
+        setEditIsSecret(false)
         setFileError(await getApiErrorMessage(err, t('note.error.notFound')))
       } finally {
         if (!cancelled) setFileLoading(false)
@@ -1662,6 +1725,8 @@ function VaultNotePageContent() {
     setPreviewName(
       getDisplayMarkdownName(selectedFile?.name || selectedNote?.name || '')
     )
+    setPlainContent(previewContent)
+    setEditIsSecret(selectedFile?.content.startsWith('mp://1') === true)
     navigateToVault(currentFilePath ? { file: currentFilePath } : {})
   }
 
@@ -1883,6 +1948,9 @@ function VaultNotePageContent() {
     setSaving(true)
     try {
       const markdown = editorRef.current?.getMarkdown() ?? plainContent
+      const storedContent = editIsSecret
+        ? mostEncode(markdown, wallet.danger)
+        : markdown
       let targetPath = selectedFile.path
       if (nextName !== selectedFile.name) {
         targetPath = normalizeNotePath(
@@ -1896,10 +1964,11 @@ function VaultNotePageContent() {
         targetPath = movedFile.path
       }
 
-      const file = await saveNoteVaultFile(targetPath, markdown)
+      const file = await saveNoteVaultFile(targetPath, storedContent)
       setSelectedFile(file)
       setPreviewName(getDisplayMarkdownName(file.name))
-      setPlainContent(file.content)
+      setPreviewContent(markdown)
+      setPlainContent(markdown)
       await refreshVault()
       navigateToVault({ file: file.path }, true)
       addToast(t('note.toast.saved'), 'success')
@@ -1990,35 +2059,10 @@ function VaultNotePageContent() {
           onToggleDirectory={toggleTreeDirectory}
           onOpenFile={openPreview}
           renderActions={item => (
-            <ActionMenu
-              ariaLabel={t('common.moreActions')}
-              className="note-list-actions-anchor"
-              placement="bottom-end"
-              items={[
-                {
-                  key: 'move',
-                  label: t('note.action.move'),
-                  icon: <Move size={16} />,
-                  onSelect: () => openMoveModal(item),
-                },
-                {
-                  key: 'delete',
-                  label: t('note.action.delete'),
-                  icon: <Trash2 size={16} />,
-                  danger: true,
-                  onSelect: () => openDeleteConfirm(item),
-                },
-              ]}
-              renderTrigger={triggerProps => (
-                <button
-                  {...triggerProps}
-                  className="note-list-actions-trigger"
-                  title={t('common.moreActions')}
-                  aria-label={t('common.moreActions')}
-                >
-                  <MoreHorizontal size={16} />
-                </button>
-              )}
+            <NoteTreeActionsMenu
+              item={item}
+              onMove={openMoveModal}
+              onDelete={openDeleteConfirm}
             />
           )}
         />
@@ -2041,6 +2085,15 @@ function VaultNotePageContent() {
     getDisplayMarkdownName(selectedFile?.name || selectedNote?.name || '') ||
     t('note.untitled')
   const canEditCurrentVaultFile = isEditing && !!selectedFile
+  const selectedVaultFileIsSecret =
+    selectedFile?.content.startsWith('mp://1') === true
+  const selectedVaultPrivacyLabel = isEditing
+    ? editIsSecret
+      ? t('note.privacy.secret')
+      : t('note.privacy.public')
+    : selectedVaultFileIsSecret
+      ? t('note.privacy.secret')
+      : t('note.privacy.public')
 
   return (
     <AppShell
@@ -2089,6 +2142,7 @@ function VaultNotePageContent() {
                       <span>
                         {isEditing ? t('note.mode.edit') : t('note.mode.read')}
                       </span>
+                      <span>{selectedVaultPrivacyLabel}</span>
                       <span translate="no">
                         {getDisplayMarkdownPath(currentFilePath)}
                       </span>
@@ -2108,14 +2162,43 @@ function VaultNotePageContent() {
                       </button>
                     )}
                     {isEditing ? (
-                      <button
-                        className="btn btn-sm btn-primary"
-                        onClick={handleSaveEditor}
-                        disabled={saving || !!fileError || !selectedFile}
-                      >
-                        <Save size={16} />
-                        {saving ? t('note.action.saving') : t('note.action.save')}
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          className={`btn btn-sm ${
+                            editIsSecret ? 'btn-warning' : 'btn-secondary'
+                          }`}
+                          onClick={() => setEditIsSecret(!editIsSecret)}
+                          disabled={!!fileError || !selectedFile}
+                          title={
+                            editIsSecret
+                              ? t('note.privacy.secret')
+                              : t('note.privacy.public')
+                          }
+                          aria-label={
+                            editIsSecret
+                              ? t('note.privacy.secret')
+                              : t('note.privacy.public')
+                          }
+                        >
+                          {editIsSecret ? (
+                            <Lock size={16} />
+                          ) : (
+                            <Eye size={16} />
+                          )}
+                          {editIsSecret
+                            ? t('note.privacy.secret')
+                            : t('note.privacy.public')}
+                        </button>
+                        <button
+                          className="btn btn-sm btn-primary"
+                          onClick={handleSaveEditor}
+                          disabled={saving || !!fileError || !selectedFile}
+                        >
+                          <Save size={16} />
+                          {saving ? t('note.action.saving') : t('note.action.save')}
+                        </button>
+                      </>
                     ) : (
                       selectedNote && (
                         <button

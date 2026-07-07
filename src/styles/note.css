@@ -599,19 +599,6 @@
   justify-content: flex-end;
 }
 
-.note-editor-action-danger {
-  border-color: transparent;
-  background: var(--danger);
-  color: #fff;
-}
-
-.note-editor-action-danger:hover:not(:disabled) {
-  border-color: transparent;
-  background: var(--danger);
-  color: #fff;
-  box-shadow: 0 4px 16px rgba(255, 59, 48, 0.3);
-}
-
 .note-editor-frame {
   flex: 1;
   min-height: 0;
