@@ -2585,6 +2585,30 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.deepStrictEqual(saved.mentions, msg.mentions)
     })
 
+    it('uses channel member identity when a message omits author identity', async () => {
+      const ch = `member-identity-msg-${uid}`
+      const author = '0x1234567890abcdef1234567890abcdef12345678'
+      const content = 'member identity fallback'
+
+      await msgEngine.createChannel(ch, 'personal', {
+        ownerAddress: author,
+        displayName: 'Service',
+        identity: 'service_ai',
+      })
+
+      const msg = await msgEngine.sendMessage(ch, content, author, 'Service', {
+        ownerAddress: author,
+      })
+
+      assert.strictEqual(msg.authorIdentity, 'service_ai')
+
+      const messages = await msgEngine.getChannelMessages(ch, {
+        ownerAddress: author,
+      })
+      const saved = messages.find(item => item.content === content)
+      assert.strictEqual(saved.authorIdentity, 'service_ai')
+    })
+
     it('rejects invalid strict mention and client message fields', async () => {
       const ch = `bad-mention-${uid}`
       const author = '0x1234567890abcdef1234567890abcdef12345678'
