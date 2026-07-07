@@ -3972,6 +3972,7 @@ export class MostBoxEngine extends EventEmitter {
       peerCount: (this.#channelPeers.get(channel.channelKey) || new Map()).size,
       remark: owner && channel.remarks ? channel.remarks[owner] || '' : '',
       pinned: Boolean(owner && channel.pinnedBy?.[owner]),
+      members: this.#getChannelMembers(channel),
     }
   }
 
@@ -4874,6 +4875,7 @@ export class MostBoxEngine extends EventEmitter {
         ownerAddress: owner,
         displayName: record.member?.displayName || record.remark || '',
         avatar: record.member?.avatar || '',
+        identity: record.member?.identity,
       })
     ) {
       changed = true

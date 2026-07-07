@@ -33,6 +33,14 @@ export interface ChannelMessage {
   attachment?: ChannelAttachment
 }
 
+export interface ChannelMember {
+  address: string
+  displayName?: string
+  identity?: string
+  avatar?: string
+  joinedAt?: string
+}
+
 export interface Channel {
   name: string
   channelId?: string
@@ -46,6 +54,7 @@ export interface Channel {
   type?: string
   peerCount?: number
   pinned?: boolean
+  members?: ChannelMember[]
 }
 
 export interface ChannelPeer {
