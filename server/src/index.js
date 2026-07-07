@@ -3639,9 +3639,18 @@ export class MostBoxEngine extends EventEmitter {
     if (trimmed.length > MAX_MESSAGE_LENGTH) {
       throw new Error(`消息内容不能超过 ${MAX_MESSAGE_LENGTH} 字符`)
     }
+    const memberAddress = normalizeOwnerAddress(options.ownerAddress || author)
+    const existingMember = Array.isArray(channel?.members)
+      ? channel.members.find(
+          member => normalizeOwnerAddress(member?.address) === memberAddress
+        )
+      : null
+    const fallbackAuthorIdentity = normalizeVisibleChatLabel(
+      existingMember?.identity
+    )
     const normalizedAuthorIdentity = hasOwnProperty(options, 'authorIdentity')
       ? normalizeAuthorIdentity(options.authorIdentity, { strict: true })
-      : ''
+      : fallbackAuthorIdentity
     const clientMessageId = normalizeClientMessageId(options.clientMessageId, {
       strict: hasOwnProperty(options, 'clientMessageId'),
     })
