@@ -504,6 +504,35 @@ describe('frontend smoke checks', () => {
     assert.match(source, /role="tablist"/)
   })
 
+  it('defines expressive theme tokens without flattening dark surfaces', () => {
+    const globalStyles = readSource('src/styles/globals.css')
+    const downloadStyles = readSource('src/styles/download.css')
+    const cardMatch = downloadStyles.match(
+      /\.download-current-card\s*\{([\s\S]*?)\n\}/
+    )
+
+    assert.match(globalStyles, /--surface-page-glow-primary:/)
+    assert.match(globalStyles, /--surface-page-glow-secondary:/)
+    assert.match(globalStyles, /--surface-card-glow-primary:/)
+    assert.match(globalStyles, /--surface-card-glow-secondary:/)
+    assert.match(globalStyles, /--card-bg-expressive:/)
+    assert.match(globalStyles, /--card-border-expressive:/)
+    assert.match(globalStyles, /--card-shadow-expressive:/)
+    assert.match(globalStyles, /--accent-glow:/)
+    assert.match(globalStyles, /--success-glow:/)
+    assert.match(globalStyles, /--info-glow:/)
+    assert.match(globalStyles, /\[data-theme='dark'\][\s\S]*--card-bg-expressive:/)
+    assert.ok(cardMatch)
+    assert.match(cardMatch[1], /background:\s*var\(--card-bg-expressive\);/)
+    assert.match(cardMatch[1], /border:\s*1px solid var\(--card-border-expressive\);/)
+    assert.match(cardMatch[1], /box-shadow:\s*var\(--card-shadow-expressive\);/)
+    assert.match(downloadStyles, /background:\s*var\(--accent-glow\);/)
+    assert.doesNotMatch(
+      downloadStyles,
+      /\[data-theme='light'\]\s+\.download-current-card/
+    )
+  })
+
   it('selects current-system release resources with GitHub fallback', async () => {
     const { getDownloadOptionsState, getReleaseManifestUrl } =
       await importBundledSource('src/lib/downloadOptions.ts')

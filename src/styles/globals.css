@@ -34,6 +34,37 @@
   --glass-shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.12);
   --glass-shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.6);
 
+  /* === Expressive Light Surfaces === */
+  --surface-page-glow-primary: rgba(94, 106, 210, 0.14);
+  --surface-page-glow-secondary: rgba(90, 200, 250, 0.11);
+  --surface-page-glow-tertiary: rgba(52, 199, 89, 0.08);
+  --surface-card-glow-primary: rgba(94, 106, 210, 0.22);
+  --surface-card-glow-secondary: rgba(90, 200, 250, 0.14);
+  --surface-card-glow-tertiary: rgba(52, 199, 89, 0.14);
+  --card-bg-expressive:
+    radial-gradient(
+      circle at 92% 18%,
+      var(--surface-card-glow-tertiary),
+      transparent 34%
+    ),
+    linear-gradient(
+      135deg,
+      var(--surface-card-glow-primary),
+      var(--surface-card-glow-secondary) 42%,
+      var(--glass-bg-heavy)
+    );
+  --card-border-expressive: color-mix(
+    in srgb,
+    var(--accent) 42%,
+    var(--glass-border)
+  );
+  --card-shadow-expressive:
+    0 24px 70px rgba(30, 41, 59, 0.14),
+    0 0 0 4px rgba(94, 106, 210, 0.12);
+  --accent-glow: rgba(94, 106, 210, 0.18);
+  --success-glow: rgba(52, 199, 89, 0.16);
+  --info-glow: rgba(90, 200, 250, 0.14);
+
   /* === Blur Levels === */
   --blur-sm: blur(8px);
   --blur-md: blur(16px);
@@ -108,6 +139,32 @@
   --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   --glass-shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.4);
   --glass-shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+
+  --surface-page-glow-primary: rgba(94, 106, 210, 0.12);
+  --surface-page-glow-secondary: rgba(90, 200, 250, 0.08);
+  --surface-page-glow-tertiary: rgba(52, 199, 89, 0.05);
+  --surface-card-glow-primary: rgba(94, 106, 210, 0.24);
+  --surface-card-glow-secondary: rgba(90, 200, 250, 0.1);
+  --surface-card-glow-tertiary: rgba(52, 199, 89, 0.16);
+  --card-bg-expressive:
+    radial-gradient(
+      circle at 92% 18%,
+      var(--surface-card-glow-tertiary),
+      transparent 34%
+    ),
+    linear-gradient(
+      135deg,
+      var(--surface-card-glow-primary),
+      var(--surface-card-glow-secondary) 42%,
+      var(--glass-bg-heavy)
+    );
+  --card-border-expressive: rgba(94, 106, 210, 0.52);
+  --card-shadow-expressive:
+    0 24px 70px rgba(0, 0, 0, 0.22),
+    0 0 0 4px rgba(94, 106, 210, 0.12);
+  --accent-glow: rgba(94, 106, 210, 0.16);
+  --success-glow: rgba(48, 209, 88, 0.16);
+  --info-glow: rgba(100, 210, 255, 0.12);
 }
 
 /* === Reset === */
@@ -321,39 +378,20 @@ body::before {
   background:
     radial-gradient(
       ellipse 80% 60% at 20% 10%,
-      rgba(94, 106, 210, 0.08) 0%,
+      var(--surface-page-glow-primary) 0%,
       transparent 60%
     ),
     radial-gradient(
       ellipse 60% 80% at 80% 90%,
-      rgba(90, 200, 250, 0.06) 0%,
+      var(--surface-page-glow-secondary) 0%,
       transparent 60%
     ),
     radial-gradient(
       ellipse 50% 50% at 50% 50%,
-      rgba(52, 199, 89, 0.04) 0%,
+      var(--surface-page-glow-tertiary) 0%,
       transparent 60%
     );
   pointer-events: none;
-}
-
-[data-theme='dark'] body::before {
-  background:
-    radial-gradient(
-      ellipse 80% 60% at 20% 10%,
-      rgba(94, 106, 210, 0.12) 0%,
-      transparent 60%
-    ),
-    radial-gradient(
-      ellipse 60% 80% at 80% 90%,
-      rgba(90, 200, 250, 0.08) 0%,
-      transparent 60%
-    ),
-    radial-gradient(
-      ellipse 50% 50% at 50% 50%,
-      rgba(52, 199, 89, 0.05) 0%,
-      transparent 60%
-    );
 }
 
 /* === Scrollbar === */
