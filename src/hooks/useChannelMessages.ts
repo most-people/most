@@ -370,6 +370,9 @@ export function useChannelMessages({
               item.id === optimistic.id
                 ? {
                     ...result.message,
+                    authorIdentity:
+                      result.message.authorIdentity ||
+                      optimistic.authorIdentity,
                     id:
                       result.message.id ||
                       getMessageKeyRef.current(result.message),

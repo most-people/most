@@ -181,6 +181,45 @@ export function applyIncomingChannelMentionUnreadState(
   }
 }
 
+export function applyHistoricalChannelMentionUnreadState(
+  previous,
+  {
+    channelName,
+    messages = [],
+    activeChannelName = '',
+    userAddress = '',
+    lastReadAt = 0,
+  }
+) {
+  if (!channelName) return { changed: false, value: previous }
+  if (channelName === activeChannelName) {
+    return { changed: false, value: previous }
+  }
+  if (previous[channelName]) return { changed: false, value: previous }
+
+  const readAt = Number(lastReadAt)
+  const normalizedReadAt =
+    Number.isFinite(readAt) && readAt > 0 ? Math.floor(readAt) : 0
+  const normalizedUserAddress = String(userAddress || '').toLowerCase()
+  const hasUnreadMention = (Array.isArray(messages) ? messages : []).some(
+    message => {
+      const timestamp = Number(message?.timestamp)
+      if (!Number.isFinite(timestamp) || timestamp <= normalizedReadAt) {
+        return false
+      }
+      const isSelfMessage =
+        String(message?.author || '').toLowerCase() === normalizedUserAddress
+      return !isSelfMessage && messageMentionsAddress(message, userAddress)
+    }
+  )
+
+  if (!hasUnreadMention) return { changed: false, value: previous }
+  return {
+    changed: true,
+    value: { ...previous, [channelName]: true },
+  }
+}
+
 export function clearChannelMentionUnreadInMap(previous, channelName) {
   if (!channelName || !previous[channelName]) {
     return { changed: false, value: previous }

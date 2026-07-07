@@ -2,6 +2,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
+  applyHistoricalChannelMentionUnreadState,
   applyIncomingChannelMentionUnreadState,
   applyIncomingChannelMessageReadState,
   clearChannelMentionUnreadInMap,
@@ -234,6 +235,91 @@ describe('chat unread state', () => {
 
     assert.equal(result.changed, false)
     assert.deepEqual(result.value, {})
+  })
+
+  it('restores mention unread from unread historical messages', () => {
+    const result = applyHistoricalChannelMentionUnreadState(
+      {},
+      {
+        channelName: 'general',
+        lastReadAt: 1500,
+        activeChannelName: 'other',
+        userAddress: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        messages: [
+          {
+            author: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+            content: 'old @Alice',
+            timestamp: 1400,
+            mentions: [
+              {
+                address: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+                label: 'Alice',
+                start: 4,
+                end: 10,
+              },
+            ],
+          },
+          {
+            author: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+            content: 'new @Alice',
+            timestamp: 2000,
+            mentions: [
+              {
+                address: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+                label: 'Alice',
+                start: 4,
+                end: 10,
+              },
+            ],
+          },
+        ],
+      }
+    )
+
+    assert.equal(result.changed, true)
+    assert.deepEqual(result.value, { general: true })
+  })
+
+  it('does not restore historical mention unread for active or self messages', () => {
+    const message = {
+      author: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      content: '@Alice',
+      timestamp: 2000,
+      mentions: [
+        {
+          address: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+          label: 'Alice',
+          start: 0,
+          end: 6,
+        },
+      ],
+    }
+
+    const activeResult = applyHistoricalChannelMentionUnreadState(
+      {},
+      {
+        channelName: 'general',
+        activeChannelName: 'general',
+        userAddress: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        lastReadAt: 1000,
+        messages: [{ ...message, author: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' }],
+      }
+    )
+    const selfResult = applyHistoricalChannelMentionUnreadState(
+      {},
+      {
+        channelName: 'general',
+        activeChannelName: 'other',
+        userAddress: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        lastReadAt: 1000,
+        messages: [message],
+      }
+    )
+
+    assert.equal(activeResult.changed, false)
+    assert.deepEqual(activeResult.value, {})
+    assert.equal(selfResult.changed, false)
+    assert.deepEqual(selfResult.value, {})
   })
 
   it('clears mention unread when a channel is opened', () => {

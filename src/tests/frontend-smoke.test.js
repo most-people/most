@@ -450,6 +450,32 @@ describe('frontend smoke checks', () => {
     )
   })
 
+  it('keeps chat identity snapshots flowing through messages', () => {
+    const chatSource = readSource('src/features/chat/ChatPage.tsx')
+    const gameRoomSource = readSource('src/hooks/useGameRoom.ts')
+    const channelMessagesSource = readSource('src/hooks/useChannelMessages.ts')
+    const userProfileSource = readSource('src/lib/userProfile.ts')
+
+    assert.match(userProfileSource, /getUserMessageIdentity/)
+    assert.match(userProfileSource, /getUserChannelProfile/)
+    assert.match(channelMessagesSource, /useUserStore/)
+    assert.match(
+      channelMessagesSource,
+      /getUserMessageIdentity\(userIdentity\)/
+    )
+    assert.match(
+      channelMessagesSource,
+      /authorIdentity:\s*result\.message\.authorIdentity\s*\|\|\s*optimistic\.authorIdentity/
+    )
+    assert.match(chatSource, /const snapshotIdentity = String\(msg\.authorIdentity/)
+    assert.match(
+      chatSource,
+      /presence\?\.identity \|\| messageProfile\?\.identity \|\| currentUserIdentity/
+    )
+    assert.match(gameRoomSource, /getUserChannelProfile\(userIdentity\)/)
+    assert.match(gameRoomSource, /getUserMessageIdentity\(userIdentity\)/)
+  })
+
   it('keeps the admin console connected to local seeding visibility', () => {
     const source = readSource(SOURCE_PATHS.admin)
 
