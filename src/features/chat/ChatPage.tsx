@@ -59,6 +59,7 @@ import { ChatRestoringIndicator } from '~/features/chat/ChatRestoringIndicator'
 import { getLocalizedDownloadLinkValidationMessage } from '~/lib/i18n/downloadValidation'
 import { saveFileToLocal } from '~/lib/saveLocalFile'
 import {
+  applyHistoricalChannelMentionUnreadState,
   applyIncomingChannelMentionUnreadState,
   applyIncomingChannelMessageReadState,
   clearChannelMentionUnreadInMap,
@@ -91,6 +92,7 @@ const ATTACHMENT_CHECK_TIMEOUT_MS = 10000
 const ATTACHMENT_CHECK_REQUEST_TIMEOUT_MS = ATTACHMENT_CHECK_TIMEOUT_MS + 2000
 const CHAT_NOTIFICATION_SOUND_MIN_INTERVAL_MS = 1200
 const CHANNEL_HISTORY_SYNC_DEBOUNCE_MS = 800
+const CHANNEL_MENTION_UNREAD_SCAN_PAGE_SIZE = 100
 
 function getChannelKey(channel?: Pick<Channel, 'channelKey' | 'name'> | null) {
   return channel?.channelKey || channel?.name || ''
@@ -300,6 +302,7 @@ function ChatPage() {
     ) => Promise<ChannelMessage[]>
   >(async () => [])
   const channelHistorySyncTimersRef = useRef(new Map<string, number>())
+  const mentionUnreadScanKeysRef = useRef(new Map<string, string>())
   const pendingAttachmentPreviewsRef = useRef(
     new Map<string, ChannelAttachment>()
   )
@@ -319,6 +322,11 @@ function ChatPage() {
     () => getChatReadStorageKey(userIdentity?.address),
     [userIdentity?.address]
   )
+
+  useEffect(() => {
+    mentionUnreadScanKeysRef.current.clear()
+    setChannelMentionUnread({})
+  }, [channelReadStorageKey])
 
   const markChannelRead = useCallback(
     (channelKey: string, timestamp = Date.now()) => {
@@ -635,6 +643,132 @@ function ChatPage() {
   useEffect(() => {
     syncMessagesRef.current = syncMessages
   }, [syncMessages])
+
+  useEffect(() => {
+    if (!isBackendReady || !channelReadStorageKey || !userIdentity?.address) {
+      return
+    }
+    if (channels.length === 0) return
+
+    const readStateReady = channels.every(channel => {
+      const channelKey = getChannelKey(channel)
+      return !channelKey || channelLastReadAt[channelKey] !== undefined
+    })
+    if (!readStateReady) return
+
+    const scanEntries = channels
+      .map(channel => {
+        const channelKey = getChannelKey(channel)
+        const readAt = Number(channelLastReadAt[channelKey])
+        const activityTime = getChannelActivityTime(channel)
+        return { channelKey, readAt, activityTime }
+      })
+      .filter(({ channelKey, readAt, activityTime }) => {
+        if (!channelKey || channelKey === activeChannelKey) {
+          if (channelKey) mentionUnreadScanKeysRef.current.delete(channelKey)
+          return false
+        }
+        if (!Number.isFinite(readAt) || activityTime <= readAt) {
+          mentionUnreadScanKeysRef.current.delete(channelKey)
+          return false
+        }
+        if (channelMentionUnread[channelKey]) return false
+
+        const scanKey = `${userIdentity.address}:${readAt}:${activityTime}`
+        if (mentionUnreadScanKeysRef.current.get(channelKey) === scanKey) {
+          return false
+        }
+        mentionUnreadScanKeysRef.current.set(channelKey, scanKey)
+        return true
+      })
+
+    if (scanEntries.length === 0) return
+
+    let cancelled = false
+
+    async function scanChannel({
+      channelKey,
+      readAt,
+    }: {
+      channelKey: string
+      readAt: number
+    }) {
+      let offset = 0
+      while (!cancelled) {
+        const messages = await channelApi.getChannelMessages(
+          channelKey,
+          CHANNEL_MENTION_UNREAD_SCAN_PAGE_SIZE,
+          offset
+        )
+        if (cancelled) return
+
+        const pageResult = applyHistoricalChannelMentionUnreadState(
+          {},
+          {
+            channelName: channelKey,
+            messages,
+            activeChannelName: activeChannelNameRef.current,
+            userAddress: userIdentity?.address,
+            lastReadAt: readAt,
+          }
+        )
+        if (pageResult.value[channelKey]) {
+          setChannelMentionUnread(prev => {
+            const result = applyHistoricalChannelMentionUnreadState(prev, {
+              channelName: channelKey,
+              messages,
+              activeChannelName: activeChannelNameRef.current,
+              userAddress: userIdentity?.address,
+              lastReadAt: readAt,
+            })
+            return result.changed ? result.value : prev
+          })
+          return
+        }
+
+        const oldestTimestamp = messages.reduce((oldest, message) => {
+          const timestamp = Number(message?.timestamp)
+          return Number.isFinite(timestamp) ? Math.min(oldest, timestamp) : oldest
+        }, Number.POSITIVE_INFINITY)
+        if (
+          messages.length < CHANNEL_MENTION_UNREAD_SCAN_PAGE_SIZE ||
+          oldestTimestamp === Number.POSITIVE_INFINITY ||
+          oldestTimestamp <= readAt
+        ) {
+          return
+        }
+        offset += CHANNEL_MENTION_UNREAD_SCAN_PAGE_SIZE
+      }
+    }
+
+    async function scanChannels() {
+      for (const entry of scanEntries) {
+        if (cancelled) return
+        try {
+          await scanChannel(entry)
+        } catch (err) {
+          mentionUnreadScanKeysRef.current.delete(entry.channelKey)
+          console.warn(
+            '[Chat] Failed to scan channel mention unread:',
+            err instanceof Error ? err.message : err
+          )
+        }
+      }
+    }
+
+    void scanChannels()
+    return () => {
+      cancelled = true
+    }
+  }, [
+    activeChannelKey,
+    channelLastReadAt,
+    channelMentionUnread,
+    channelReadStorageKey,
+    channels,
+    isBackendReady,
+    userIdentity?.address,
+  ])
 
   useEffect(() => {
     const timers = channelHistorySyncTimersRef.current
@@ -1634,7 +1768,21 @@ function ChatPage() {
   }
 
   function getMessageDisplayIdentity(msg: ChannelMessage) {
-    return String(msg.authorIdentity || '').trim()
+    const snapshotIdentity = String(msg.authorIdentity || '').trim()
+    if (snapshotIdentity) return snapshotIdentity
+
+    const address = normalizeMemberAddress(msg.author)
+    if (!address) return ''
+
+    const presence = presenceByAddress.get(address)
+    const messageProfile = messageProfileByAddress.get(address)
+    const currentUserIdentity =
+      address === normalizeMemberAddress(userIdentity?.address)
+        ? userIdentity?.identity
+        : ''
+    return String(
+      presence?.identity || messageProfile?.identity || currentUserIdentity || ''
+    ).trim()
   }
 
   const mentionTrigger =
