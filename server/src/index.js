@@ -3686,6 +3686,7 @@ export class MostBoxEngine extends EventEmitter {
       syncUpdatedAt: Date.now(),
     }
 
+    this.#mergeChannelMembers(channelInfo, options.members)
     this.#upsertChannelMember(channelInfo, options)
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
     const remark = String(options.remark || '').trim()
@@ -3746,6 +3747,7 @@ export class MostBoxEngine extends EventEmitter {
         createdAt: candidateInput.createdAt,
         lastMessageAt: candidateInput.lastMessageAt,
         writerCoreKeys: candidateInput.writerCoreKeys,
+        members: candidateInput.members,
         remark,
       }
     )
@@ -3903,6 +3905,7 @@ export class MostBoxEngine extends EventEmitter {
         byKey.set(candidate.channelKey, {
           ...candidate,
           writerCoreKeys: uniqueStrings(candidate.writerCoreKeys),
+          members: this.#mergeChannelMemberProfileLists(candidate.members),
         })
         continue
       }
@@ -3914,6 +3917,10 @@ export class MostBoxEngine extends EventEmitter {
           ...existing.writerCoreKeys,
           ...(candidate.writerCoreKeys || []),
         ]),
+        members: this.#mergeChannelMemberProfileLists(
+          existing.members,
+          candidate.members
+        ),
       })
     }
     return [...byKey.values()]
@@ -3927,6 +3934,7 @@ export class MostBoxEngine extends EventEmitter {
       createdAt: channel.createdAt,
       lastMessageAt: channel.lastMessageAt || '',
       writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
+      members: this.#getChannelMembers(channel),
       local,
     }
   }
@@ -3949,6 +3957,10 @@ export class MostBoxEngine extends EventEmitter {
         ...(existing?.writerCoreKeys || []),
         ...(candidate.writerCoreKeys || []),
       ]),
+      members: this.#mergeChannelMemberProfileLists(
+        existing?.members,
+        candidate.members
+      ),
       lastSeen: Date.now(),
     })
   }
@@ -4132,6 +4144,109 @@ export class MostBoxEngine extends EventEmitter {
       .map(({ _index, ...member }) =>
         member.avatar ? member : { ...member, avatar: undefined }
       )
+  }
+
+  #normalizeChannelMemberProfile(member) {
+    const address = normalizeOwnerAddress(member?.address)
+    if (!address) return null
+    const joinedAt = String(member?.joinedAt || '').trim()
+    const profile = {
+      address,
+      displayName: normalizeChannelDisplayName(member?.displayName, address),
+      joinedAt,
+    }
+    const identity = normalizeVisibleChatLabel(member?.identity)
+    const avatar = normalizeChannelAvatar(member?.avatar)
+    if (identity) profile.identity = identity
+    if (avatar) profile.avatar = avatar
+    return profile
+  }
+
+  #normalizeChannelMemberProfiles(members = []) {
+    if (!Array.isArray(members)) return []
+    const byAddress = new Map()
+    for (const member of members) {
+      const profile = this.#normalizeChannelMemberProfile(member)
+      if (!profile) continue
+      const existing = byAddress.get(profile.address)
+      if (!existing) {
+        byAddress.set(profile.address, profile)
+        continue
+      }
+      const existingJoinedAt = Date.parse(existing.joinedAt || '')
+      const profileJoinedAt = Date.parse(profile.joinedAt || '')
+      if (
+        profile.joinedAt &&
+        (!existing.joinedAt ||
+          (Number.isFinite(profileJoinedAt) &&
+            (!Number.isFinite(existingJoinedAt) ||
+              profileJoinedAt < existingJoinedAt)))
+      ) {
+        existing.joinedAt = profile.joinedAt
+      }
+      if (!existing.displayName && profile.displayName) {
+        existing.displayName = profile.displayName
+      }
+      if (!existing.identity && profile.identity) {
+        existing.identity = profile.identity
+      }
+      if (!existing.avatar && profile.avatar) {
+        existing.avatar = profile.avatar
+      }
+    }
+    return [...byAddress.values()]
+  }
+
+  #mergeChannelMemberProfileLists(...memberLists) {
+    return this.#normalizeChannelMemberProfiles(memberLists.flat())
+  }
+
+  #mergeChannelMembers(channel, members = []) {
+    if (!Array.isArray(channel?.members)) {
+      channel.members = []
+    }
+    let changed = false
+    for (const member of this.#normalizeChannelMemberProfiles(members)) {
+      const existing = channel.members.find(
+        item => normalizeOwnerAddress(item?.address) === member.address
+      )
+      if (!existing) {
+        channel.members.push(member)
+        changed = true
+        continue
+      }
+      if (normalizeOwnerAddress(existing.address) !== member.address) {
+        existing.address = member.address
+        changed = true
+      }
+
+      const existingJoinedAt = Date.parse(existing.joinedAt || '')
+      const memberJoinedAt = Date.parse(member.joinedAt || '')
+      if (
+        member.joinedAt &&
+        (!existing.joinedAt ||
+          (Number.isFinite(memberJoinedAt) &&
+            (!Number.isFinite(existingJoinedAt) ||
+              memberJoinedAt < existingJoinedAt)))
+      ) {
+        existing.joinedAt = member.joinedAt
+        changed = true
+      }
+
+      if (!String(existing.displayName || '').trim() && member.displayName) {
+        existing.displayName = member.displayName
+        changed = true
+      }
+      if (!normalizeVisibleChatLabel(existing.identity) && member.identity) {
+        existing.identity = member.identity
+        changed = true
+      }
+      if (!normalizeChannelAvatar(existing.avatar) && member.avatar) {
+        existing.avatar = member.avatar
+        changed = true
+      }
+    }
+    return changed
   }
 
   #getChannelMemberAddresses(channel) {
@@ -5909,6 +6024,7 @@ export class MostBoxEngine extends EventEmitter {
       type: channel.type,
       createdAt: channel.createdAt,
       lastMessageAt: channel.lastMessageAt || '',
+      members: this.#getChannelMembers(channel),
       memberAddresses: this.#getChannelMemberAddresses(channel),
       writerCoreKeys: uniqueStrings([
         ...(channel.writerCoreKeys || []),
@@ -6013,6 +6129,7 @@ export class MostBoxEngine extends EventEmitter {
           .filter(channel => channel && typeof channel === 'object')
           .map(channel => {
             const channelId = normalizeChannelId(channel.channelId)
+            const members = this.#normalizeChannelMemberProfiles(channel.members)
             return {
               channelId,
               channelKey: buildChannelKey(channelId),
@@ -6023,12 +6140,16 @@ export class MostBoxEngine extends EventEmitter {
                 typeof channel.lastMessageAt === 'string'
                   ? channel.lastMessageAt
                   : '',
+              members,
               memberAddresses: uniqueStrings(
-                Array.isArray(channel.memberAddresses)
-                  ? channel.memberAddresses.map(address =>
-                      normalizeOwnerAddress(address)
-                    )
-                  : []
+                [
+                  ...(Array.isArray(channel.memberAddresses)
+                    ? channel.memberAddresses.map(address =>
+                        normalizeOwnerAddress(address)
+                      )
+                    : []),
+                  ...members.map(member => member.address),
+                ]
               ),
               writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
             }
@@ -6062,6 +6183,12 @@ export class MostBoxEngine extends EventEmitter {
         channelId: localChannel.channelId,
         memberAddresses: remoteChannel.memberAddresses,
       })
+
+      if (this.#mergeChannelMembers(localChannel, remoteChannel.members)) {
+        localChannel.syncUpdatedAt = getNextSyncTimestamp(localChannel.syncUpdatedAt)
+        this.#saveChannelsMetadata()
+        this.#broadcastChannelHello()
+      }
 
       for (const writerCoreKey of remoteChannel.writerCoreKeys) {
         if (

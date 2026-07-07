@@ -95,6 +95,28 @@ async function waitForChannelPeerAddress(
   )
 }
 
+async function waitForChannelMember(
+  engine,
+  channelName,
+  address,
+  options = {},
+  timeout = 5000
+) {
+  const expected = String(address || '').toLowerCase()
+  const start = Date.now()
+  while (Date.now() - start < timeout) {
+    const channel = engine
+      .listChannels(options)
+      .find(item => item.name === channelName || item.channelKey === channelName)
+    const member = channel?.members?.find(
+      item => String(item.address || '').toLowerCase() === expected
+    )
+    if (member) return member
+    await sleep(25)
+  }
+  throw new Error(`Channel ${channelName} did not report member ${address}`)
+}
+
 async function waitForChannelPresenceAddress(
   engine,
   channelName,
@@ -131,6 +153,7 @@ function toChannelCandidate(channel) {
     createdAt: channel.createdAt,
     lastMessageAt: channel.lastMessageAt,
     writerCoreKeys: channel.writerCoreKeys,
+    members: channel.members,
   }
 }
 
@@ -3031,7 +3054,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.strictEqual(peers.length, 0)
     })
 
-    it('includes remote peer member addresses from channel hello', async () => {
+    it('includes remote peer member profiles from channel hello', async () => {
       const peerTmpDir = fs.mkdtempSync(
         path.join(os.tmpdir(), 'most-channel-peer-test-')
       )
@@ -3061,10 +3084,14 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         await firstEngine.createChannel(channelName, 'public', {
           ownerAddress: alice,
           displayName: 'Alice',
+          identity: 'alice_label',
+          avatar: 'alice.png',
         })
         await secondEngine.createChannel(channelName, 'public', {
           ownerAddress: bob,
           displayName: 'Bob',
+          identity: 'bob_label',
+          avatar: 'bob.png',
         })
 
         replication = firstEngine.replicateWith(secondEngine)
@@ -3076,6 +3103,25 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         )
 
         assert.notStrictEqual(remotePeer.peerId, firstEngine.getNodeId())
+        const bobMember = await waitForChannelMember(
+          firstEngine,
+          channelName,
+          bob,
+          { ownerAddress: alice }
+        )
+        assert.strictEqual(bobMember.displayName, 'Bob')
+        assert.strictEqual(bobMember.identity, 'bob_label')
+        assert.strictEqual(bobMember.avatar, 'bob.png')
+
+        const aliceMember = await waitForChannelMember(
+          secondEngine,
+          channelName,
+          alice,
+          { ownerAddress: bob }
+        )
+        assert.strictEqual(aliceMember.displayName, 'Alice')
+        assert.strictEqual(aliceMember.identity, 'alice_label')
+        assert.strictEqual(aliceMember.avatar, 'alice.png')
       } finally {
         replication?.close()
         if (firstEngine) await firstEngine.stop().catch(() => {})
