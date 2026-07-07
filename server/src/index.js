@@ -4366,7 +4366,6 @@ export class MostBoxEngine extends EventEmitter {
     if (!hasDisplayName && !hasAvatar && !hasIdentity && !hasProfileUpdatedAt) {
       return false
     }
-    if (hasIdentity && !hasProfileUpdatedAt) return false
 
     const profiles = this.#getChannelPresenceProfileMap(channelKey)
     const previous = profiles.get(normalizedAddress)
