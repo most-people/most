@@ -201,4 +201,64 @@ describe('voice WebSocket signaling (integration)', { timeout: 30000 }, () => {
 
     ws.close()
   })
+
+  it('reports stale channel WebSocket events without logging backend errors', async () => {
+    const otherOwner = '0x3333333333333333333333333333333333333333'
+    const privateChannel = 'presence-ws-private-room'
+    await engine.createChannel(privateChannel, 'personal', {
+      ownerAddress: otherOwner,
+      displayName: 'Bob',
+    })
+
+    const loggedErrors = []
+    const originalError = console.error
+    console.error = (...args) => {
+      loggedErrors.push(args)
+    }
+
+    const ws = await connectClient()
+    try {
+      const missingChannel = waitForMessage(ws)
+      ws.send(
+        JSON.stringify({
+          event: 'channel:presence:heartbeat',
+          data: {
+            channel: 'presence-ws-missing-room',
+            sessionId: 'stale-tab',
+          },
+        })
+      )
+      const missingMessage = await missingChannel
+      assert.strictEqual(missingMessage.event, 'channel:error')
+      assert.strictEqual(
+        missingMessage.data.event,
+        'channel:presence:heartbeat'
+      )
+      assert.strictEqual(missingMessage.data.channel, 'presence-ws-missing-room')
+      assert.strictEqual(missingMessage.data.code, 'CHANNEL_NOT_FOUND')
+      assert.strictEqual(missingMessage.data.error, '频道不存在')
+
+      const deniedChannel = waitForMessage(ws)
+      ws.send(
+        JSON.stringify({
+          event: 'channel:presence:join',
+          data: {
+            channel: privateChannel,
+            sessionId: 'wrong-owner-tab',
+            displayName: 'Alice',
+          },
+        })
+      )
+      const deniedMessage = await deniedChannel
+      assert.strictEqual(deniedMessage.event, 'channel:error')
+      assert.strictEqual(deniedMessage.data.event, 'channel:presence:join')
+      assert.strictEqual(deniedMessage.data.channel, privateChannel)
+      assert.strictEqual(deniedMessage.data.code, 'PERMISSION_ERROR')
+      assert.strictEqual(deniedMessage.data.error, '未加入该频道')
+      assert.deepStrictEqual(loggedErrors, [])
+    } finally {
+      console.error = originalError
+      ws.close()
+    }
+  })
 })
