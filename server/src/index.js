@@ -4223,6 +4223,7 @@ export class MostBoxEngine extends EventEmitter {
     ) {
       return false
     }
+    const identity = normalizeVisibleChatLabel(options.identity)
 
     await this.sendMessage(
       channel.channelKey,
@@ -4233,6 +4234,7 @@ export class MostBoxEngine extends EventEmitter {
         ownerAddress,
         type: 'system',
         event: CHANNEL_MEMBER_JOINED_EVENT,
+        ...(identity ? { authorIdentity: identity } : {}),
         ...(Object.prototype.hasOwnProperty.call(options, 'avatar')
           ? { avatar: options.avatar }
           : {}),

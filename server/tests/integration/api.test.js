@@ -2538,6 +2538,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
           name: channelName,
           type: 'public',
           displayName: 'FirstUser',
+          identity: 'first_label',
           avatar: 'first.png',
         }),
       })
@@ -2554,6 +2555,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
             name: channelName,
             type: 'public',
             displayName: 'SecondUser',
+            identity: 'second_label',
             avatar: 'second.png',
           }),
         }
@@ -2579,8 +2581,10 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         ['system', 'system']
       )
       assert.strictEqual(welcomeMessages[0].authorName, 'FirstUser')
+      assert.strictEqual(welcomeMessages[0].authorIdentity, 'first_label')
       assert.strictEqual(welcomeMessages[0].avatar, 'first.png')
       assert.strictEqual(welcomeMessages[1].authorName, 'SecondUser')
+      assert.strictEqual(welcomeMessages[1].authorIdentity, 'second_label')
       assert.strictEqual(welcomeMessages[1].avatar, 'second.png')
       assert.ok(
         Number(welcomeMessages[0].timestamp) <=
