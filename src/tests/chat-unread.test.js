@@ -2,9 +2,12 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
+  applyIncomingChannelMentionUnreadState,
   applyIncomingChannelMessageReadState,
+  clearChannelMentionUnreadInMap,
   getChannelActivityTime,
   getChatReadStorageKey,
+  hasUnreadChannelMention,
   hasUnreadChannelMessage,
   initializeChannelLastReadAt,
   markChannelReadInMap,
@@ -164,6 +167,84 @@ describe('chat unread state', () => {
       general: 1234,
     })
   })
+
+  it('tracks mention unread only for non-active remote messages', () => {
+    const message = {
+      type: 'message',
+      author: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      content: 'hi @Alice',
+      timestamp: 2000,
+      mentions: [
+        {
+          address: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+          label: 'Alice',
+          start: 3,
+          end: 9,
+        },
+      ],
+    }
+
+    const result = applyIncomingChannelMentionUnreadState(
+      {},
+      {
+        channelName: 'general',
+        message,
+        activeChannelName: 'other',
+        userAddress: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      }
+    )
+
+    assert.equal(result.changed, true)
+    assert.equal(hasUnreadChannelMention({ name: 'general' }, result.value), true)
+
+    const activeResult = applyIncomingChannelMentionUnreadState(
+      result.value,
+      {
+        channelName: 'general',
+        message,
+        activeChannelName: 'general',
+        userAddress: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      }
+    )
+    assert.equal(activeResult.changed, false)
+    assert.equal(activeResult.value, result.value)
+  })
+
+  it('ignores self mention messages for mention unread', () => {
+    const result = applyIncomingChannelMentionUnreadState(
+      {},
+      {
+        channelName: 'general',
+        activeChannelName: 'other',
+        userAddress: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        message: {
+          author: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+          content: '@Alice',
+          mentions: [
+            {
+              address: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+              label: 'Alice',
+              start: 0,
+              end: 6,
+            },
+          ],
+        },
+      }
+    )
+
+    assert.equal(result.changed, false)
+    assert.deepEqual(result.value, {})
+  })
+
+  it('clears mention unread when a channel is opened', () => {
+    const result = clearChannelMentionUnreadInMap(
+      { general: true, random: true },
+      'general'
+    )
+
+    assert.equal(result.changed, true)
+    assert.deepEqual(result.value, { random: true })
+  })
 })
 
 describe('channel subscriptions', () => {
@@ -202,6 +283,21 @@ describe('channel subscriptions', () => {
 })
 
 describe('channel message keys', () => {
+  it('uses clientMessageId with author as the stable message key when present', () => {
+    const key = getChannelMessageKey({
+      type: 'message',
+      author: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      clientMessageId: '11111111-1111-4111-8111-111111111111',
+      content: 'hello',
+      timestamp: 1000,
+    })
+
+    assert.equal(
+      key,
+      'client:0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:11111111-1111-4111-8111-111111111111'
+    )
+  })
+
   it('deduplicates repeated member-joined system messages by author', () => {
     const first = getChannelMessageKey({
       type: 'system',

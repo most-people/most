@@ -97,6 +97,19 @@ describe('voice WebSocket signaling (integration)', { timeout: 30000 }, () => {
     })
   }
 
+  async function waitForPresence(channelName, predicate, timeout = 3000) {
+    const startedAt = Date.now()
+    while (Date.now() - startedAt < timeout) {
+      const presence = engine.getChannelPresence(channelName, {
+        ownerAddress: OWNER,
+      })
+      const match = presence.find(predicate)
+      if (match) return match
+      await new Promise(r => setTimeout(r, 25))
+    }
+    throw new Error('Timeout waiting for presence')
+  }
+
   it('broadcasts authenticated voice join events to channel subscribers', async () => {
     const channelName = 'voice-ws-room'
     await engine.createChannel(channelName, 'personal', {
@@ -136,6 +149,55 @@ describe('voice WebSocket signaling (integration)', { timeout: 30000 }, () => {
     assert.strictEqual(message.data.sender.address, OWNER)
     assert.strictEqual(message.data.sender.displayName, 'Mallory')
     assert.strictEqual(message.data.micMuted, false)
+
+    ws.close()
+  })
+
+  it('passes presence identity through WebSocket join and profile events', async () => {
+    const channelName = 'presence-ws-room'
+    await engine.createChannel(channelName, 'personal', {
+      ownerAddress: OWNER,
+      displayName: 'Alice',
+    })
+
+    const ws = await connectClient()
+    ws.send(
+      JSON.stringify({
+        event: 'channel:presence:join',
+        data: {
+          channel: channelName,
+          sessionId: 'presence-ws-local',
+          displayName: 'Alice',
+          identity: 'service',
+          profileUpdatedAt: 1,
+        },
+      })
+    )
+
+    const joined = await waitForPresence(
+      channelName,
+      item => item.address === OWNER && item.identity === 'service'
+    )
+    assert.strictEqual(joined.displayName, 'Alice')
+
+    ws.send(
+      JSON.stringify({
+        event: 'channel:presence:profile',
+        data: {
+          channel: channelName,
+          sessionId: 'presence-ws-local',
+          displayName: 'Alice AI',
+          identity: 'service_ai',
+          profileUpdatedAt: 2,
+        },
+      })
+    )
+
+    const updated = await waitForPresence(
+      channelName,
+      item => item.address === OWNER && item.identity === 'service_ai'
+    )
+    assert.strictEqual(updated.displayName, 'Alice AI')
 
     ws.close()
   })

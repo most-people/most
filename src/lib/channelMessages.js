@@ -10,6 +10,10 @@ export function getChannelMessageKey(message) {
   const author = String(message?.author || '')
     .trim()
     .toLowerCase()
+  const clientMessageId = String(message?.clientMessageId || '').trim()
+  if (author && clientMessageId) {
+    return `client:${author}:${clientMessageId}`
+  }
   if (isChannelMemberJoinedSystemMessage(message) && author) {
     return `system:${CHANNEL_MEMBER_JOINED_EVENT}:${author}`
   }

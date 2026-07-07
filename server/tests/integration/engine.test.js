@@ -2525,6 +2525,126 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       )
     })
 
+    it('persists message identity, client id and structured mentions', async () => {
+      const ch = `mention-msg-${uid}`
+      const author = '0x1234567890abcdef1234567890abcdef12345678'
+      const mentioned = '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd'
+      const clientMessageId = '11111111-1111-4111-8111-111111111111'
+      const content = 'hello @Visitor'
+      const mentions = [
+        {
+          address: mentioned,
+          label: 'Visitor',
+          start: 6,
+          end: 14,
+        },
+      ]
+
+      await msgEngine.createChannel(ch, 'personal', {
+        ownerAddress: author,
+        displayName: 'Service',
+        identity: 'service_ai',
+      })
+
+      const msg = await msgEngine.sendMessage(
+        ch,
+        content,
+        author,
+        'Service',
+        {
+          ownerAddress: author,
+          authorIdentity: 'service_ai',
+          clientMessageId,
+          mentions,
+        }
+      )
+
+      assert.strictEqual(msg.authorIdentity, 'service_ai')
+      assert.strictEqual(msg.clientMessageId, clientMessageId)
+      assert.deepStrictEqual(msg.mentions, [
+        {
+          ...mentions[0],
+          address: mentioned.toLowerCase(),
+        },
+      ])
+
+      await msgEngine.createChannel(ch, 'personal', {
+        ownerAddress: author,
+        displayName: 'Service',
+        identity: 'service',
+      })
+
+      const messages = await msgEngine.getChannelMessages(ch, {
+        ownerAddress: author,
+      })
+      const saved = messages.find(item => item.content === content)
+      assert.strictEqual(saved.authorIdentity, 'service_ai')
+      assert.strictEqual(saved.clientMessageId, clientMessageId)
+      assert.deepStrictEqual(saved.mentions, msg.mentions)
+    })
+
+    it('rejects invalid strict mention and client message fields', async () => {
+      const ch = `bad-mention-${uid}`
+      const author = '0x1234567890abcdef1234567890abcdef12345678'
+      const cid =
+        'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
+      const fileName = `chat-file/${ch}/photo.png`
+      const link = `most://${cid}?filename=${encodeURIComponent(fileName)}`
+      await msgEngine.createChannel(ch, 'personal', {
+        ownerAddress: author,
+        displayName: 'Service',
+      })
+
+      await assert.rejects(
+        msgEngine.sendMessage(ch, 'hello', author, 'Service', {
+          ownerAddress: author,
+          clientMessageId: 'not-a-uuid',
+        }),
+        /Invalid clientMessageId/
+      )
+      await assert.rejects(
+        msgEngine.sendMessage(ch, 'hello @Visitor', author, 'Service', {
+          ownerAddress: author,
+          mentions: 'bad',
+        }),
+        /mentions must be an array/
+      )
+      await assert.rejects(
+        msgEngine.sendMessage(ch, 'hello @Visitor', author, 'Service', {
+          ownerAddress: author,
+          mentions: [
+            {
+              address: '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd',
+              label: 'Visitor',
+              start: 0,
+              end: 8,
+            },
+          ],
+        }),
+        /Invalid mention/
+      )
+      await assert.rejects(
+        msgEngine.sendMessage(ch, link, author, 'Service', {
+          ownerAddress: author,
+          attachment: {
+            kind: 'image',
+            cid,
+            fileName,
+            link,
+          },
+          mentions: [
+            {
+              address: '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd',
+              label: 'Visitor',
+              start: 0,
+              end: 8,
+            },
+          ],
+        }),
+        /attachment messages cannot include mentions/
+      )
+    })
+
     it('profile sync does not rewrite saved chat and game message snapshots', async () => {
       const author = '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd'
       const roomCode = 'ABCD'
@@ -3010,6 +3130,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
             ownerAddress: alice,
             sessionId: 'one',
             displayName: 'Alice',
+            identity: 'service',
             avatar: 'https://example.test/a.png',
             profileUpdatedAt: 1,
           })
@@ -3027,6 +3148,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         assert.strictEqual(presence.length, 1)
         assert.strictEqual(presence[0].address, alice)
         assert.strictEqual(presence[0].displayName, 'Alice')
+        assert.strictEqual(presence[0].identity, 'service')
         assert.strictEqual(presence[0].avatar, 'https://example.test/a.png')
         assert.strictEqual(presence[0].lastSeen, now + 1000)
 
@@ -3034,6 +3156,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
           ownerAddress: alice,
           sessionId: 'two',
           displayName: 'Alice new',
+          identity: 'service_ai',
           avatar: 'https://example.test/new.png',
           profileUpdatedAt: 2,
         })
@@ -3046,6 +3169,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         })
         assert.strictEqual(presence.length, 1)
         assert.strictEqual(presence[0].displayName, 'Alice new')
+        assert.strictEqual(presence[0].identity, 'service_ai')
         assert.strictEqual(presence[0].online, true)
 
         engine.leaveChannelPresence(channelName, {
@@ -3131,6 +3255,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
           ownerAddress: alice,
           sessionId: 'alice-tab',
           displayName: 'Alice Live',
+          identity: 'service_ai',
           avatar: 'https://example.test/alice.png',
           profileUpdatedAt: 3,
         })
@@ -3142,6 +3267,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
           { ownerAddress: bob }
         )
         assert.strictEqual(remotePresence.displayName, 'Alice Live')
+        assert.strictEqual(remotePresence.identity, 'service_ai')
         assert.strictEqual(
           remotePresence.avatar,
           'https://example.test/alice.png'

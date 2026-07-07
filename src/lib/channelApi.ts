@@ -10,14 +10,24 @@ export interface ChannelAttachment {
   size?: number
 }
 
+export interface ChannelMention {
+  address: string
+  label: string
+  start: number
+  end: number
+}
+
 export interface ChannelMessage {
   id?: string | number
   type?: string
   event?: string
+  clientMessageId?: string
   author: string
   authorName?: string
+  authorIdentity?: string
   avatar?: string
   content: string
+  mentions?: ChannelMention[]
   timestamp: number
   pending?: boolean
   attachment?: ChannelAttachment
@@ -48,6 +58,7 @@ export interface ChannelPeer {
 export interface ChannelPresence {
   address: string
   displayName?: string
+  identity?: string
   avatar?: string
   profileUpdatedAt?: number
   lastSeen: number
@@ -66,15 +77,20 @@ export interface GetChannelsOptions {
 export interface SendChannelMessageInput {
   channelName: string
   content: string
+  clientMessageId?: string
   author: string
   authorName: string
+  authorIdentity?: string
   avatar?: string
+  mentions?: ChannelMention[]
   attachment?: ChannelAttachment
 }
 
 export interface ChannelProfileInput {
   displayName?: string
+  identity?: string
   avatar?: string
+  profileUpdatedAt?: number
 }
 
 export interface SetChannelRemarkResult {
@@ -129,19 +145,28 @@ export const channelApi = {
   sendChannelMessage({
     channelName,
     content,
+    clientMessageId,
     author,
     authorName,
+    authorIdentity,
     avatar,
+    mentions,
     attachment,
   }: SendChannelMessageInput) {
+    const json = {
+      content,
+      clientMessageId,
+      author,
+      authorName,
+      authorIdentity,
+      avatar,
+      mentions,
+      attachment,
+    }
     return api
       .post<SendMessageResult>(
         `/api/channels/${encodeURIComponent(channelName)}/messages`,
-        {
-          json: attachment
-            ? { content, author, authorName, avatar, attachment }
-            : { content, author, authorName, avatar },
-        }
+        { json }
       )
       .json()
   },

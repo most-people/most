@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   channelApi,
   type ChannelAttachment,
+  type ChannelMention,
   type ChannelMessage,
 } from '~/lib/channelApi'
 import { getAuthenticatedWebSocketUrl } from '~server/src/utils/api'
@@ -21,6 +22,7 @@ const CHANNEL_PRESENCE_HEARTBEAT_MS = 15 * 1000
 
 interface ChannelPresenceProfile {
   displayName?: string
+  identity?: string
   avatar?: string
   profileUpdatedAt?: number
 }
@@ -46,7 +48,9 @@ interface UseChannelMessagesOptions {
 export interface SendChannelMessageOptions {
   channelName?: string
   content: string
+  mentions?: ChannelMention[]
   attachment?: ChannelAttachment
+  clientMessageId?: string
   optimisticId?: string
 }
 
@@ -74,6 +78,19 @@ function sortMessagesForDisplay(items: ChannelMessage[]) {
 
 function createPresenceSessionId() {
   return `presence-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+function createClientMessageId() {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID()
+  }
+  return `00000000-0000-4000-8000-${Math.random().toString(16).slice(2, 14).padEnd(12, '0')}`
+}
+
+function getClientMessageMergeKey(message: ChannelMessage) {
+  const author = String(message.author || '').trim().toLowerCase()
+  const clientMessageId = String(message.clientMessageId || '').trim()
+  return author && clientMessageId ? `${author}:${clientMessageId}` : ''
 }
 
 export function useChannelMessages({
@@ -168,12 +185,18 @@ export function useChannelMessages({
       for (const message of filterMessages(incoming)) {
         const key = getMessageKeyRef.current(message)
         if (replacePending) {
-          const pendingIndex = next.findIndex(
-            item =>
-              item.pending &&
+          const incomingClientKey = getClientMessageMergeKey(message)
+          const pendingIndex = next.findIndex(item => {
+            if (!item.pending) return false
+            const pendingClientKey = getClientMessageMergeKey(item)
+            if (incomingClientKey && pendingClientKey) {
+              return incomingClientKey === pendingClientKey
+            }
+            return (
               item.author?.toLowerCase() === message.author?.toLowerCase() &&
               item.content === message.content
-          )
+            )
+          })
           if (pendingIndex !== -1) {
             next[pendingIndex] = { ...message, id: message.id || key }
             continue
@@ -310,18 +333,23 @@ export function useChannelMessages({
     async ({
       channelName: targetChannel = channelNameRef.current,
       content,
+      mentions,
       attachment,
+      clientMessageId: providedClientMessageId,
       optimisticId,
     }: SendChannelMessageOptions) => {
       const trimmed = content.trim()
       if (!targetChannel || !trimmed || !userIdentity) return null
       const messageIdentity = getUserMessageIdentity(userIdentity)
+      const clientMessageId = providedClientMessageId || createClientMessageId()
       const optimistic: ChannelMessage = {
         id:
           optimisticId ||
-          `${messageIdentity.author}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          `${messageIdentity.author}-${clientMessageId}`,
         ...messageIdentity,
+        clientMessageId,
         content: trimmed,
+        mentions,
         timestamp: Date.now(),
         pending: true,
         attachment,
@@ -331,7 +359,9 @@ export function useChannelMessages({
         const result = await channelApi.sendChannelMessage({
           channelName: targetChannel,
           content: trimmed,
+          clientMessageId,
           ...messageIdentity,
+          mentions,
           attachment,
         })
         setMessages(prev =>
@@ -403,12 +433,14 @@ export function useChannelMessages({
     () =>
       [
         presenceProfile.displayName || '',
+        presenceProfile.identity || '',
         presenceProfile.avatar || '',
         presenceProfile.profileUpdatedAt || '',
       ].join('\n'),
     [
       presenceProfile.avatar,
       presenceProfile.displayName,
+      presenceProfile.identity,
       presenceProfile.profileUpdatedAt,
     ]
   )

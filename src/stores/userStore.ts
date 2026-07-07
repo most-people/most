@@ -5,6 +5,7 @@ import {
   clearIdentity,
   saveIdentity,
 } from '~server/src/utils/userIdentity.js'
+import { normalizeVisibleChatLabel } from '~server/src/utils/chatLabels.js'
 import type { ChatJoinInvitePayload } from '~/lib/chatJoinInvite'
 import type { MessageKey } from '~/lib/i18n'
 
@@ -19,6 +20,7 @@ export interface UserIdentity {
   logo_dark?: string
   data?: string
   avatar?: string
+  identity?: string
   profileUpdatedAt?: number
   theme?: UserIdentityTheme
 }
@@ -72,6 +74,7 @@ function normalizeIdentity(input: unknown): UserIdentity | null {
       ? value.avatar.trim() || undefined
       : undefined
   const profileUpdatedAt = Number(value.profileUpdatedAt)
+  const identity = normalizeVisibleChatLabel(value.identity)
   return {
     username: value.username,
     address,
@@ -85,6 +88,7 @@ function normalizeIdentity(input: unknown): UserIdentity | null {
         ? value.data.trim() || undefined
         : undefined,
     avatar,
+    identity: identity || undefined,
     profileUpdatedAt:
       Number.isFinite(profileUpdatedAt) && profileUpdatedAt > 0
         ? Math.floor(profileUpdatedAt)

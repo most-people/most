@@ -422,6 +422,34 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(spec.paths['/api/channels/{name}/presence'])
       assert.ok(spec.paths['/api/channels/{name}/remark'])
       assert.ok(spec.paths['/api/channels/{name}/pin'])
+      assert.ok(spec.components.schemas.ChannelMention)
+      assert.ok(spec.components.schemas.ChannelMessage)
+      assert.ok(spec.components.schemas.ChannelPresence)
+      assert.ok(
+        spec.components.schemas.ChannelCreateRequest.properties.identity
+      )
+      assert.ok(
+        spec.components.schemas.ChannelMessage.properties.authorIdentity
+      )
+      assert.ok(spec.components.schemas.ChannelMessage.properties.mentions)
+      assert.ok(
+        spec.components.schemas.ChannelMessage.properties.clientMessageId
+      )
+      assert.ok(
+        spec.components.schemas.ChannelPresence.properties.identity
+      )
+      assert.deepStrictEqual(
+        spec.paths['/api/channels'].post.requestBody.content[
+          'application/json'
+        ].schema,
+        { $ref: '#/components/schemas/ChannelCreateRequest' }
+      )
+      assert.deepStrictEqual(
+        spec.paths['/api/channels/{name}/messages'].post.requestBody.content[
+          'application/json'
+        ].schema,
+        { $ref: '#/components/schemas/ChannelMessageRequest' }
+      )
 
       const clearRes = await fetch(`${baseUrl}/api/node/logs`, {
         method: 'DELETE',
@@ -2147,6 +2175,45 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(res.status, 200)
       assert.ok(data.success)
       assert.strictEqual(data.message.content, 'Hello!')
+    })
+
+    it('passes message identity, client id and mentions through HTTP', async () => {
+      const channelName = `http-mention-${uid}`
+      const clientMessageId = '22222222-2222-4222-8222-222222222222'
+      const mentioned = SECOND_IDENTITY.address
+      const mentions = [
+        {
+          address: mentioned,
+          label: 'SecondUser',
+          start: 3,
+          end: 14,
+        },
+      ]
+      await engine.createChannel(channelName)
+
+      const res = await fetch(`${baseUrl}/api/channels/${channelName}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: 'hi @SecondUser',
+          author: TEST_IDENTITY.address,
+          authorName: 'TestUser',
+          authorIdentity: 'service_ai',
+          clientMessageId,
+          mentions,
+        }),
+      })
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 200)
+      assert.strictEqual(data.message.authorIdentity, 'service_ai')
+      assert.strictEqual(data.message.clientMessageId, clientMessageId)
+      assert.deepStrictEqual(data.message.mentions, [
+        {
+          ...mentions[0],
+          address: mentioned.toLowerCase(),
+        },
+      ])
     })
 
     it('persists message author avatar snapshots', async () => {

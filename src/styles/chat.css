@@ -82,6 +82,13 @@
     }
   }
 
+  &.mentioned .message-bubble {
+    border-color: color-mix(in srgb, var(--warning) 62%, var(--glass-border));
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--warning) 32%, transparent),
+      var(--glass-shadow);
+  }
+
   .msg-avatar {
     flex-shrink: 0;
   }
@@ -143,6 +150,50 @@
   }
 }
 
+.chat-identity-tag {
+  display: inline-flex;
+  align-items: center;
+  max-width: 120px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-mention {
+  display: inline;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.chat-mention.self {
+  color: var(--warning);
+}
+
+.chat-message.mentioned .chat-mention {
+  color: var(--warning);
+}
+
+.chat-message.self .chat-mention {
+  color: #fff7cc;
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 5px;
+  padding: 0 3px;
+  text-shadow: 0 1px 8px rgba(24, 31, 58, 0.24);
+}
+
+.chat-message.self .chat-mention.self {
+  color: #ffe48a;
+}
+
 .chat-system-message {
   align-self: center;
   max-width: min(82%, 420px);
@@ -158,6 +209,7 @@
 
 /* === Input Area === */
 .chat-input-area {
+  position: relative;
   display: flex;
   align-items: flex-end;
   gap: 12px;
@@ -206,6 +258,81 @@
       transform: scale(1.05);
     }
   }
+}
+
+.chat-mention-menu {
+  position: absolute;
+  left: 76px;
+  right: 76px;
+  bottom: calc(100% - 8px);
+  z-index: 8;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  background: var(--glass-bg-heavy);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--blur-xl);
+  -webkit-backdrop-filter: var(--blur-xl);
+}
+
+.chat-mention-menu-title {
+  display: block;
+  padding: 4px 8px 8px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.chat-mention-option {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.chat-mention-option:hover,
+.chat-mention-option.active {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.chat-mention-option-avatar {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  border-radius: 50%;
+}
+
+.chat-mention-option-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.chat-mention-option-name {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-mention-option-meta {
+  color: var(--text-muted);
+  font-size: 11px;
 }
 
 /* === Voice Room === */
@@ -570,6 +697,23 @@
   box-shadow: 0 0 0 2px color-mix(in srgb, #ff3b30 16%, transparent);
 }
 
+.chat-channel-mention-badge {
+  position: absolute;
+  top: -7px;
+  right: -9px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--warning);
+  color: #fff;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--warning) 20%, transparent);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+
 /* === Channel Action Menu === */
 .channel-actions-anchor {
   margin-left: auto;
@@ -821,6 +965,19 @@
   white-space: nowrap;
 }
 
+.channel-member-label {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.channel-member-label .chat-identity-tag {
+  max-width: 100%;
+}
+
 .channel-detail-mono {
   font-family: var(--font-mono);
   font-size: 13px;
@@ -1010,6 +1167,11 @@
   color: var(--text-muted);
 }
 
+.sparkbit-chat-layout .chat-message.mentioned .message-bubble {
+  border-color: color-mix(in srgb, var(--warning) 70%, var(--sparkbit-chat-border));
+  box-shadow: none;
+}
+
 .sparkbit-chat-layout .chat-message.other .message-bubble {
   background: var(--sparkbit-chat-panel);
   border-color: var(--sparkbit-chat-border);
@@ -1092,6 +1254,18 @@
 
 .sparkbit-chat-layout .chat-channel-unread-dot {
   box-shadow: none;
+}
+
+.sparkbit-chat-layout .chat-channel-mention-badge {
+  box-shadow: none;
+}
+
+.sparkbit-chat-layout .chat-mention-menu {
+  background: var(--sparkbit-chat-panel);
+  border-color: var(--sparkbit-chat-border);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .sparkbit-chat-layout .leave-channel-btn.channel-actions-trigger:hover,

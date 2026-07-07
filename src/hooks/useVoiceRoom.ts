@@ -27,6 +27,7 @@ const VOICE_WS_EVENTS: Record<VoiceEventName, string> = {
 
 export interface VoiceProfile {
   displayName?: string
+  identity?: string
   avatar?: string
   profileUpdatedAt?: number
 }
