@@ -7,7 +7,7 @@ import {
   Download,
   Fingerprint,
   Gamepad2,
-  MessageSquare,
+  MessagesSquare,
   Network,
   NotebookPen,
   Wallet,
@@ -64,7 +64,7 @@ const sections: AboutSection[] = [
     ],
   },
   {
-    icon: <MessageSquare size={22} />,
+    icon: <MessagesSquare size={22} />,
     titleKey: 'about.section.chat.title',
     bodyKey: 'about.section.chat.body',
     bulletKeys: [

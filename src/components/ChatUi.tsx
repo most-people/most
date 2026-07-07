@@ -6,7 +6,7 @@ import {
   Film,
   Image as ImageIcon,
   Loader,
-  MessageSquare,
+  MessagesSquare,
   Mic,
   MoreHorizontal,
   Pin,
@@ -167,7 +167,7 @@ export function ChatChannelNavItem({
       }}
     >
       <span className="chat-channel-icon-wrap">
-        <MessageSquare size={16} />
+        <MessagesSquare size={16} />
         {unread && (
           <span
             className="chat-channel-unread-dot"

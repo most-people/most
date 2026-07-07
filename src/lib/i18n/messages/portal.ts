@@ -1,18 +1,20 @@
 export const zhCNPortalMessages = {
   'portal.meta.description':
-    'MostBox 是用户之间直连的聊天优先 P2P 工具箱：从聊天开始，传文件、整理知识库。',
+    'MostBox 是用户直连的 P2P 工具箱，文件、聊天、知识库、游戏和 Web3 各自独立。',
   'portal.hero.subtitle':
-    '用户之间直接连接的 P2P 工具箱。从聊天开始，直连传文件，整理知识库。',
+    '用户直连的 P2P 工具箱。文件、聊天、知识库、游戏和 Web3 各自独立。',
   'portal.nodeEntry': '节点入口',
   'portal.webConnectNode': 'Web 连接节点',
   'portal.nodeAdmin': '节点管理',
+  'portal.status.note':
+    'Web 入口只连接已有 MostBox 节点；桌面端内置完整 P2P 能力。知识库是独立工具，不再从聊天设置导入聊天记录。',
   'portal.enterFeature': '进入 {title}',
   'portal.openFeature': '打开{title}',
   'portal.feature.app.title': '文件',
-  'portal.feature.app.subtitle': '聊天附件和传输管理',
-  'portal.feature.app.hero': '文件作为聊天附件',
+  'portal.feature.app.subtitle': 'P2P 文件分享与做种',
+  'portal.feature.app.hero': '发布文件并持续做种',
   'portal.feature.app.desc':
-    '在聊天里直接发送文件，底层仍使用 most:// 链接、CID 校验和下载后做种。MostBox 不是云盘；可用性来自当前在线种子。',
+    '发布 most:// 链接，下载后校验 CID 并继续做种。',
   'portal.feature.app.bullet.localIdentity':
     '无需云端账号，使用本地身份隔离数据',
   'portal.feature.app.bullet.hyperswarm': '用户之间直接连接传输文件',
@@ -31,18 +33,18 @@ export const zhCNPortalMessages = {
   'portal.feature.app.step.install.title': '安装并运行',
   'portal.feature.app.step.install.desc':
     '安装后打开应用，无需单独安装 Node.js。',
-  'portal.feature.app.step.share.title': '在聊天里分享',
+  'portal.feature.app.step.share.title': '分享 most:// 链接',
   'portal.feature.app.step.share.desc':
-    '发送文件附件生成 most:// 链接，朋友下载校验通过后也会成为新的种子。',
+    '朋友下载校验通过后也会成为新的种子。',
   'portal.feature.chat.title': '聊天',
-  'portal.feature.chat.subtitle': '用户之间直接连接',
-  'portal.feature.chat.hero': '从聊天开始',
+  'portal.feature.chat.subtitle': '私域房间消息',
+  'portal.feature.chat.hero': '打开私域房间',
   'portal.feature.chat.desc':
-    '创建聊天或房间，把房间 ID 发给朋友；消息、文件和知识库整理都从这里开始。',
+    '创建或加入房间，消息在在线节点间同步。',
   'portal.feature.chat.bullet.encrypted': '私域聊天和房间消息',
   'portal.feature.chat.bullet.identity': '本地登录身份保护消息署名',
   'portal.feature.chat.bullet.sync': '消息通过 P2P Channel 同步',
-  'portal.feature.chat.bullet.offline': '文件和知识库自然接入聊天流程',
+  'portal.feature.chat.bullet.offline': '文件附件可独立按 CID 校验下载',
   'portal.feature.chat.bullet.noAccount': '无需中心化账号注册',
   'portal.feature.chat.step.download.title': '下载客户端',
   'portal.feature.chat.step.download.desc': '支持 Windows、macOS 和 Linux。',
@@ -51,12 +53,12 @@ export const zhCNPortalMessages = {
   'portal.feature.chat.step.create.desc':
     '输入房间名即可加入或创建，并把房间 ID 发给朋友。',
   'portal.feature.chat.step.send.title': '开始聊天',
-  'portal.feature.chat.step.send.desc': '先发消息，再发送附件或保存到知识库。',
+  'portal.feature.chat.step.send.desc': '发送消息，也可按需发送附件。',
   'portal.feature.note.title': '知识库',
-  'portal.feature.note.subtitle': 'Markdown 知识库',
-  'portal.feature.note.hero': '把聊天整理成知识库',
+  'portal.feature.note.subtitle': 'Markdown 本地知识库',
+  'portal.feature.note.hero': '整理本地资料和笔记',
   'portal.feature.note.desc':
-    '把聊天里的重要内容、想法和附件线索整理成 Markdown 知识库；现有笔记库能力保留，可从聊天消息直接保存草稿。',
+    '整理本地资料、私密笔记和 Markdown 文档。',
   'portal.feature.note.bullet.markdown': 'Markdown 块编辑器',
   'portal.feature.note.bullet.privacy': '公开 / 私密笔记切换',
   'portal.feature.note.bullet.folders': '文件夹、搜索和移动',
@@ -73,12 +75,12 @@ export const zhCNPortalMessages = {
   'portal.feature.game.subtitle': '独立房间游戏',
   'portal.feature.game.hero': '打开独立游戏房间',
   'portal.feature.game.desc':
-    '游戏保留独立入口，继续复用 Channel 系统和 game.* 事件，不新增独立后端协议。',
+    '创建或加入游戏房间，邀请朋友在线对局。',
   'portal.feature.game.bullet.account': '使用 MostBox 本地账号进入房间',
   'portal.feature.game.bullet.channel':
     '复用 /chat/ 的频道后端，不新增游戏后端接口',
   'portal.feature.game.bullet.link': '房间链接可手动分享给朋友',
-  'portal.feature.game.bullet.rules': '支持 1-2 副牌、2-6 人和人机陪测',
+  'portal.feature.game.bullet.rules': '支持干瞪眼、炸金花的多人房间对局',
   'portal.feature.game.bullet.maintain': '游戏规则、频道事件和页面样式拆分维护',
   'portal.feature.game.step.login.title': '登录账号',
   'portal.feature.game.step.login.desc':
@@ -87,12 +89,12 @@ export const zhCNPortalMessages = {
   'portal.feature.game.step.create.desc': '创建房间后复制链接，发给朋友加入。',
   'portal.feature.game.step.test.title': '开始调试',
   'portal.feature.game.step.test.desc':
-    '可先用人机补位测试出牌、计分和房间同步。',
+    '可用多个客户端加入同一房间，验证出牌、计分和房间同步。',
   'portal.feature.web3.title': 'Web3',
   'portal.feature.web3.subtitle': '开源账户系统',
   'portal.feature.web3.hero': '确定性密钥派生工具箱',
   'portal.feature.web3.desc':
-    '纯前端运行的 Web3 账户工具。输入用户名和密码，即可生成 Ed25519 / x25519 密钥对、助记词、以太坊地址，支持 PEM 导出和地址派生。',
+    '本地生成账户、助记词、以太坊地址和 PEM。',
   'portal.feature.web3.bullet.frontend': '开源且可复用',
   'portal.feature.web3.bullet.keys': 'Ed25519 / x25519 密钥对生成',
   'portal.feature.web3.bullet.mnemonic': 'BIP-39 助记词派生',
@@ -110,19 +112,21 @@ export const zhCNPortalMessages = {
 
 export const zhTWPortalMessages = {
   'portal.meta.description':
-    'MostBox 是使用者之間直接連線的聊天優先 P2P 工具箱：從聊天開始，傳檔案、整理知識庫。',
+    'MostBox 是使用者直連的 P2P 工具箱，檔案、聊天、知識庫、遊戲和 Web3 各自獨立。',
   'portal.hero.subtitle':
-    '使用者之間直接連線的 P2P 工具箱。從聊天開始，直連傳檔案，整理知識庫。',
+    '使用者直連的 P2P 工具箱。檔案、聊天、知識庫、遊戲和 Web3 各自獨立。',
   'portal.nodeEntry': '節點入口',
   'portal.webConnectNode': 'Web 連線節點',
   'portal.nodeAdmin': '節點管理',
+  'portal.status.note':
+    'Web 入口只連線已有 MostBox 節點；桌面端內建完整 P2P 能力。知識庫是獨立工具，不再從聊天設定匯入聊天記錄。',
   'portal.enterFeature': '進入 {title}',
   'portal.openFeature': '開啟{title}',
   'portal.feature.app.title': '檔案',
-  'portal.feature.app.subtitle': '聊天附件和傳輸管理',
-  'portal.feature.app.hero': '檔案作為聊天附件',
+  'portal.feature.app.subtitle': 'P2P 檔案分享與做種',
+  'portal.feature.app.hero': '發布檔案並持續做種',
   'portal.feature.app.desc':
-    '在聊天裡直接傳送檔案，底層仍使用 most:// 連結、CID 校驗和下載後做種。MostBox 不是雲盤；可用性來自當前線上種子。',
+    '發布 most:// 連結，下載後校驗 CID 並繼續做種。',
   'portal.feature.app.bullet.localIdentity':
     '無需雲端帳號，使用本機身份隔離資料',
   'portal.feature.app.bullet.hyperswarm': '使用者之間直接連線傳輸檔案',
@@ -141,18 +145,18 @@ export const zhTWPortalMessages = {
   'portal.feature.app.step.install.title': '安裝並執行',
   'portal.feature.app.step.install.desc':
     '安裝後開啟應用，無需單獨安裝 Node.js。',
-  'portal.feature.app.step.share.title': '在聊天裡分享',
+  'portal.feature.app.step.share.title': '分享 most:// 連結',
   'portal.feature.app.step.share.desc':
-    '傳送檔案附件生成 most:// 連結，朋友下載校驗通過後也會成為新的種子。',
+    '朋友下載校驗通過後也會成為新的種子。',
   'portal.feature.chat.title': '聊天',
-  'portal.feature.chat.subtitle': '使用者之間直接連線',
-  'portal.feature.chat.hero': '從聊天開始',
+  'portal.feature.chat.subtitle': '私域房間訊息',
+  'portal.feature.chat.hero': '開啟私域房間',
   'portal.feature.chat.desc':
-    '建立聊天或房間，把房間 ID 發給朋友；訊息、檔案和知識庫整理都從這裡開始。',
+    '建立或加入房間，訊息在線上節點間同步。',
   'portal.feature.chat.bullet.encrypted': '私域聊天和房間訊息',
   'portal.feature.chat.bullet.identity': '本機登入身份保護訊息署名',
   'portal.feature.chat.bullet.sync': '訊息通過 P2P Channel 同步',
-  'portal.feature.chat.bullet.offline': '檔案和知識庫自然接入聊天流程',
+  'portal.feature.chat.bullet.offline': '檔案附件可獨立按 CID 校驗下載',
   'portal.feature.chat.bullet.noAccount': '無需中心化帳號註冊',
   'portal.feature.chat.step.download.title': '下載用戶端',
   'portal.feature.chat.step.download.desc': '支援 Windows、macOS 和 Linux。',
@@ -162,12 +166,12 @@ export const zhTWPortalMessages = {
     '輸入房間名即可加入或建立，並把房間 ID 發給朋友。',
   'portal.feature.chat.step.send.title': '開始聊天',
   'portal.feature.chat.step.send.desc':
-    '先傳送訊息，再傳送附件或保存到知識庫。',
+    '傳送訊息，也可按需傳送附件。',
   'portal.feature.note.title': '知識庫',
-  'portal.feature.note.subtitle': 'Markdown 知識庫',
-  'portal.feature.note.hero': '把聊天整理成知識庫',
+  'portal.feature.note.subtitle': 'Markdown 本地知識庫',
+  'portal.feature.note.hero': '整理本地資料和筆記',
   'portal.feature.note.desc':
-    '把聊天裡的重要內容、想法和附件線索整理成 Markdown 知識庫；現有筆記庫能力保留，可從聊天訊息直接儲存草稿。',
+    '整理本地資料、私密筆記和 Markdown 文件。',
   'portal.feature.note.bullet.markdown': 'Markdown 塊編輯器',
   'portal.feature.note.bullet.privacy': '公開 / 私密筆記切換',
   'portal.feature.note.bullet.folders': '資料夾、搜尋和移動',
@@ -184,12 +188,12 @@ export const zhTWPortalMessages = {
   'portal.feature.game.subtitle': '獨立房間遊戲',
   'portal.feature.game.hero': '開啟獨立遊戲房間',
   'portal.feature.game.desc':
-    '遊戲保留獨立入口，繼續複用 Channel 系統和 game.* 事件，不新增獨立後端協議。',
+    '建立或加入遊戲房間，邀請朋友線上對局。',
   'portal.feature.game.bullet.account': '使用 MostBox 本機帳號進入房間',
   'portal.feature.game.bullet.channel':
     '複用 /chat/ 的頻道後端，不新增遊戲後端介面',
   'portal.feature.game.bullet.link': '房間連結可手動分享給朋友',
-  'portal.feature.game.bullet.rules': '支援 1-2 副牌、2-6 人和人機陪測',
+  'portal.feature.game.bullet.rules': '支援乾瞪眼、炸金花的多人房間對局',
   'portal.feature.game.bullet.maintain': '遊戲規則、頻道事件和頁面樣式拆分維護',
   'portal.feature.game.step.login.title': '登入帳號',
   'portal.feature.game.step.login.desc':
@@ -198,12 +202,12 @@ export const zhTWPortalMessages = {
   'portal.feature.game.step.create.desc': '建立房間後複製連結，發給朋友加入。',
   'portal.feature.game.step.test.title': '開始除錯',
   'portal.feature.game.step.test.desc':
-    '可先用人機補位測試出牌、計分和房間同步。',
+    '可用多個用戶端加入同一房間，驗證出牌、計分和房間同步。',
   'portal.feature.web3.title': 'Web3',
   'portal.feature.web3.subtitle': '開源帳戶系統',
   'portal.feature.web3.hero': '確定性金鑰派生工具箱',
   'portal.feature.web3.desc':
-    '純前端執行的 Web3 帳戶工具。輸入使用者名稱和密碼，即可生成 Ed25519 / x25519 金鑰對、助記詞、以太坊地址，支援 PEM 匯出和地址派生。',
+    '本機生成帳戶、助記詞、以太坊地址和 PEM。',
   'portal.feature.web3.bullet.frontend': '開源且可複用',
   'portal.feature.web3.bullet.keys': 'Ed25519 / x25519 金鑰對生成',
   'portal.feature.web3.bullet.mnemonic': 'BIP-39 助記詞派生',
@@ -222,19 +226,21 @@ export const zhTWPortalMessages = {
 
 export const enPortalMessages = {
   'portal.meta.description':
-    'MostBox is a chat-first P2P toolbox for direct user-to-user connection: start with chat, send files, and grow a knowledge base.',
+    'MostBox is a user-to-user P2P toolbox for files, chat, notes, games, and Web3.',
   'portal.hero.subtitle':
-    'A P2P toolbox for direct user-to-user connection. Start with chat, send files directly, and grow a knowledge base.',
+    'A user-to-user P2P toolbox for files, chat, notes, games, and Web3.',
   'portal.nodeEntry': 'Node entry',
   'portal.webConnectNode': 'Connect Web node',
   'portal.nodeAdmin': 'Node admin',
+  'portal.status.note':
+    'The Web entry connects to existing MostBox nodes; the desktop app includes full P2P capability. The Knowledge Base is independent and no longer imports chat history from chat settings.',
   'portal.enterFeature': 'Open {title}',
   'portal.openFeature': 'Open {title}',
   'portal.feature.app.title': 'Files',
-  'portal.feature.app.subtitle': 'Chat attachments and transfer management',
-  'portal.feature.app.hero': 'Files as chat attachments',
+  'portal.feature.app.subtitle': 'P2P file sharing and seeding',
+  'portal.feature.app.hero': 'Publish files and keep seeding',
   'portal.feature.app.desc':
-    'Send files directly in chat while the protocol still uses most:// links, CID verification, and seeding after download. MostBox is not cloud storage; availability comes from online seeders.',
+    'Publish most:// links, verify CID, and keep seeding.',
   'portal.feature.app.bullet.localIdentity':
     'No cloud account required; local identity keeps data separated',
   'portal.feature.app.bullet.hyperswarm': 'Direct user-to-user file transfer',
@@ -257,20 +263,20 @@ export const enPortalMessages = {
   'portal.feature.app.step.install.title': 'Install and run',
   'portal.feature.app.step.install.desc':
     'Open the app after installation. No separate Node.js install is required.',
-  'portal.feature.app.step.share.title': 'Share in chat',
+  'portal.feature.app.step.share.title': 'Share the most:// link',
   'portal.feature.app.step.share.desc':
-    'Send a file attachment to create a most:// link. Friends who complete and verify the download become new seeders.',
+    'Friends who complete and verify the download become new seeders.',
   'portal.feature.chat.title': 'Chat',
-  'portal.feature.chat.subtitle': 'Direct user-to-user connection',
-  'portal.feature.chat.hero': 'Start with chat',
+  'portal.feature.chat.subtitle': 'Private room messages',
+  'portal.feature.chat.hero': 'Open a private room',
   'portal.feature.chat.desc':
-    'Create a chat or room and share the room ID with friends; messages, files, and knowledge all start in one flow.',
+    'Create or join rooms; messages sync between online peers.',
   'portal.feature.chat.bullet.encrypted': 'Private chat and room messages',
   'portal.feature.chat.bullet.identity':
     'Local login identity protects message signatures',
   'portal.feature.chat.bullet.sync': 'Messages sync through P2P Channels',
   'portal.feature.chat.bullet.offline':
-    'Files and the knowledge base fit naturally into chat',
+    'File attachments can still be verified by CID',
   'portal.feature.chat.bullet.noAccount':
     'No centralized account registration required',
   'portal.feature.chat.step.download.title': 'Download client',
@@ -282,12 +288,12 @@ export const enPortalMessages = {
     'Enter a room name to join or create it, then send the room ID to friends.',
   'portal.feature.chat.step.send.title': 'Start chatting',
   'portal.feature.chat.step.send.desc':
-    'Send messages first, then attach files or save to the knowledge base.',
+    'Send messages and attach files when needed.',
   'portal.feature.note.title': 'Knowledge Base',
-  'portal.feature.note.subtitle': 'Markdown knowledge base',
-  'portal.feature.note.hero': 'Turn chat into a knowledge base',
+  'portal.feature.note.subtitle': 'Local Markdown knowledge base',
+  'portal.feature.note.hero': 'Organize local notes and references',
   'portal.feature.note.desc':
-    'Collect important chat content, ideas, and attachment context into a Markdown knowledge base. The existing note vault stays available, and chat messages can be saved as drafts.',
+    'Organize local references, private notes, and Markdown docs.',
   'portal.feature.note.bullet.markdown': 'Markdown block editor',
   'portal.feature.note.bullet.privacy': 'Public/private note switching',
   'portal.feature.note.bullet.folders': 'Folders, search, and move',
@@ -308,7 +314,7 @@ export const enPortalMessages = {
   'portal.feature.game.subtitle': 'Standalone room games',
   'portal.feature.game.hero': 'Open a standalone game room',
   'portal.feature.game.desc':
-    'Games keep their standalone entry point and continue using the Channel system and game.* events without adding a game-only backend protocol.',
+    'Create game rooms and invite friends to play online.',
   'portal.feature.game.bullet.account':
     'Enter rooms with your local MostBox account',
   'portal.feature.game.bullet.channel':
@@ -316,7 +322,7 @@ export const enPortalMessages = {
   'portal.feature.game.bullet.link':
     'Room links can be shared manually with friends',
   'portal.feature.game.bullet.rules':
-    'Supports 1-2 decks, 2-6 players, and bot testing',
+    'Supports multiplayer rooms for Gan Deng Yan and Zha Jin Hua',
   'portal.feature.game.bullet.maintain':
     'Game rules, channel events, and page styles are maintained separately',
   'portal.feature.game.step.login.title': 'Sign in',
@@ -327,12 +333,12 @@ export const enPortalMessages = {
     'Create a room, copy the link, and send it to friends.',
   'portal.feature.game.step.test.title': 'Start testing',
   'portal.feature.game.step.test.desc':
-    'Use bot seats to test plays, scoring, and room sync first.',
+    'Use multiple clients in one room to verify plays, scoring, and room sync.',
   'portal.feature.web3.title': 'Web3',
   'portal.feature.web3.subtitle': 'Open-source account system',
   'portal.feature.web3.hero': 'Deterministic key derivation toolbox',
   'portal.feature.web3.desc':
-    'A front-end only Web3 account tool. Enter a username and password to generate Ed25519/x25519 key pairs, a mnemonic, an Ethereum address, PEM exports, and derived addresses.',
+    'Generate accounts, mnemonics, Ethereum addresses, and PEM locally.',
   'portal.feature.web3.bullet.frontend': 'Open source and reusable',
   'portal.feature.web3.bullet.keys': 'Ed25519 / x25519 key pair generation',
   'portal.feature.web3.bullet.mnemonic': 'BIP-39 mnemonic derivation',

@@ -85,7 +85,7 @@ function getLocalAppUrl(routePath = '/') {
 }
 
 function getInitialWindowUrl() {
-  const initialUrl = pendingDeepLinkUrl || getLocalAppUrl('/chat/')
+  const initialUrl = pendingDeepLinkUrl || getLocalAppUrl('/')
   pendingDeepLinkUrl = ''
   return initialUrl
 }

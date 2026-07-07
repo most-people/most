@@ -1,13 +1,13 @@
-# MostBox：聊天优先的 P2P 工具箱
+# MostBox：平权入口的 P2P 工具箱
 
 [![npm version](https://img.shields.io/npm/v/most-box)](https://npmjs.com/package/most-box)
 [![Node.js version](https://img.shields.io/badge/node-%3E%3D22.12-brightgreen)](https://nodejs.org)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 > 用户之间直接连接的 P2P 工具箱。
-> 从聊天开始，直连传文件，把重要内容整理成知识库。
+> 文件、聊天、知识库、游戏和 Web3 是同等入口。
 >
-> Channel 承载消息、文件附件和知识库入口。文件分享仍使用 `most://` 链接、CID 校验和下载后做种；游戏和 Web3 工具箱保留独立能力，但暂不进入聊天详情主流程。
+> 文件分享使用 `most://` 链接、CID 校验和下载后做种；聊天、知识库、游戏和 Web3 保持独立工具属性，不互相充当前置条件。
 >
 > CID 是 MostBox 的文件身份：发布、做种、发现、下载和校验都围绕 CID 进行。文件名和目录只用于展示与本地保存路径，不作为内容是否存在或是否可信的依据。
 
@@ -15,11 +15,11 @@
 
 | 入口 | 用户理解 | 协议边界 |
 | ---- | -------- | -------- |
-| 聊天 | 先创建聊天或房间，分享房间 ID 给朋友 | Channel + WebSocket + Corestore/Hypercore |
-| 附件 | 在聊天里直接传文件 | `most://` + CID 校验 + 下载后做种 |
-| 知识库 | 把重要消息和想法沉淀成 Markdown | `/note/` 保留现有本地笔记库能力 |
-| 游戏 | 独立游戏页面保留 | `game.*` channel 事件，不新增独立后端协议 |
-| Web3 | 密钥、钱包和地址工具 | 独立工具箱，不是聊天或文件分享前置条件 |
+| 文件 | 发布文件、复制 `most://` 链接、下载校验并持续做种 | `most://` + CID 校验 + 下载后做种 |
+| 聊天 | 创建聊天或房间，分享房间 ID 给朋友 | Channel + WebSocket + Corestore/Hypercore |
+| 知识库 | 记录想法、整理 Markdown 内容和本地资料 | `/note/` 保留现有本地笔记库能力 |
+| 游戏 | 独立游戏页面和房间 | `game.*` channel 事件，不新增独立后端协议 |
+| Web3 | 密钥、钱包和地址工具 | 独立工具箱，不是聊天、文件、知识库或游戏前置条件 |
 
 ## 演示
 
@@ -31,11 +31,11 @@
 
 ### 方式一：桌面客户端（推荐）与 Android Alpha
 
-前往 [MostBox 下载页](https://Most.Box/download) 下载客户端，支持 Windows、macOS、Linux 和 Android Alpha。桌面端内置本地 MostBox 节点，提供完整 P2P 文件分享、下载校验和持续做种能力，无需单独安装 Node.js；Android Alpha APK 支持前台聊天附件、下载校验和做种。
+前往 [MostBox 下载页](https://Most.Box/download) 下载客户端，支持 Windows、macOS、Linux 和 Android Alpha。桌面端内置本地 MostBox 节点，提供完整 P2P 文件分享、下载校验和持续做种能力，无需单独安装 Node.js；Android Alpha APK 目前聚焦前台 P2P 能力：收发消息、用 `most://` 附件传文件、下载校验并继续做种。
 
 ### Android Alpha
 
-移动端优先按 Android 聊天优先完整种子 MVP 推进，参考 Keet/Pear 的“P2P 核心端 + 平台 UI 壳”分层：手机端先验证自己能加入聊天、收发消息、用 `most://` 附件传文件、下载校验并在前台继续做种，再扩展后台能力、iOS 和商店分发。当前内测验收范围见 [docs/mobile-android-alpha.md](docs/mobile-android-alpha.md)。
+移动端优先按 Android 前台完整种子 Alpha 推进，参考 Keet/Pear 的“P2P 核心端 + 平台 UI 壳”分层：手机端先验证自己能加入聊天、收发消息、用 `most://` 附件传文件、下载校验并在前台继续做种，再扩展后台能力、iOS 和商店分发。当前内测验收范围见 [docs/mobile-android-alpha.md](docs/mobile-android-alpha.md)。
 
 Android 工程入口以 `mobile/android/` 子包为准，仓库根目录不提供 `android:start`、`android:test` 或 `android:build` 包装脚本。本地开发、测试和打包命令统一在子包目录执行：
 
@@ -88,7 +88,7 @@ node server/index.js
 - `src/hooks/`、`src/lib/`、`src/stores/`、`src/styles/`：共享 hooks、工具、状态和样式。
 - `src/lib/i18n/messages/*.ts`：按域拆分的中英文文案 catalog，由 `src/lib/i18n/messages.ts` 聚合。
 - `server/`：daemon、HTTP API、P2P 引擎和协议测试。
-- `mobile/android/`：聊天优先 Android Alpha 应用和 Bare Worklet P2P 核心。
+- `mobile/android/`：Android Alpha 应用和 Bare Worklet P2P 核心。
 
 ## 测试
 

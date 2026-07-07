@@ -8,11 +8,10 @@ import {
   Bot,
   AtSign,
   Camera,
-  MessageSquare,
+  MessagesSquare,
   BookOpen,
   Smartphone,
   Send,
-  MessagesSquare,
   Music,
   Package,
   Triangle,
@@ -80,7 +79,7 @@ const TARGETS: PingTarget[] = [
     name: 'Reddit',
     host: 'reddit.com',
     icon: 'simple-icons:reddit',
-    fallback: <MessageSquare size={20} />,
+    fallback: <MessagesSquare size={20} />,
   },
   {
     name: 'Wikipedia',
@@ -272,9 +271,7 @@ export function PingPanel() {
           <Wifi size={28} className="ping-title-icon" />
           <div>
             <h1 className="ping-title">{t('ping.title')}</h1>
-            <p className="ping-subtitle">
-              {t('ping.subtitle')}
-            </p>
+            <p className="ping-subtitle">{t('ping.subtitle')}</p>
           </div>
         </div>
         <button

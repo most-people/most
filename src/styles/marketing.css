@@ -46,9 +46,9 @@
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  max-width: 960px;
+  max-width: 1440px;
   margin-inline: auto;
-  padding-inline: var(--space-6);
+  padding-inline: clamp(24px, 6vw, 72px);
 }
 
 .mkt-nav-logo {
@@ -109,6 +109,12 @@
   color: var(--text-muted);
 }
 .mkt-footer-build {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  padding: 0 9px;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
   font-size: var(--font-size-xs, 0.75rem);
   color: var(--text-muted);
   overflow-wrap: anywhere;
@@ -462,7 +468,8 @@
 }
 
 .about-app-header .mkt-container {
-  max-width: 1080px;
+  max-width: 1440px;
+  padding-inline: clamp(24px, 6vw, 72px);
 }
 
 .about-app-header .sidebar-header {
@@ -662,6 +669,10 @@
 @media (max-width: 768px) {
   .about-hero {
     padding-top: 40px;
+  }
+
+  .about-app-header .mkt-container {
+    padding-inline: var(--space-4);
   }
 
   .about-title {

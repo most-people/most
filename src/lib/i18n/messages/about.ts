@@ -1,16 +1,16 @@
 export const zhCNAboutMessages = {
   'about.meta.title': '关于 MOST PEOPLE',
   'about.meta.desc':
-    'MOST PEOPLE 是完全开源、以聊天为基础的 P2P 工具箱，包含文件分享、知识库、多人语音、游戏房间和可复用账户系统。',
+    'MOST PEOPLE 是完全开源的 P2P 工具箱，包含文件分享、聊天、知识库、游戏房间和可复用账户系统。',
   'about.hero.kicker': '去中心化 P2P 工具箱',
   'about.hero.title': '关于 MOST PEOPLE',
   'about.hero.desc':
-    'MOST PEOPLE 以聊天为基础展开：邀请大家在房间里发消息、开多人语音、分享 most:// 文件、沉淀知识库和进入游戏。',
+    'MOST PEOPLE 把文件、聊天、知识库、游戏和 Web3 放在同一层：邀请大家直接选择需要的工具，用 most:// 分享文件，用频道同步消息和游戏事件。',
   'about.link.example': 'most://<cid>?filename=...',
   'about.summary.cid':
     'CID 类似磁力链接/BT 种子的内容指纹：链接指向内容，下载后再校验是不是同一份文件。',
   'about.summary.seed': '发布者和下载者都能做种，只要仍有人在线，文件就能继续传播。',
-  'about.summary.toolbox': '聊天是主入口，文件、知识库、游戏和工具箱都从对话里展开。',
+  'about.summary.toolbox': '文件、聊天、知识库、游戏和 Web3 是同等入口，彼此不作为前置条件。',
   'about.summary.opensource': 'MOST PEOPLE 完全开源，账户系统也欢迎其他项目接入。',
   'about.section.identity.title': 'CID 是内容指纹',
   'about.section.identity.body':
@@ -30,28 +30,28 @@ export const zhCNAboutMessages = {
   'about.section.boundary.bullet.keepData': '重要数据仍需自己保存。',
   'about.section.boundary.bullet.noMarket': '没有上链存储、订单、支付或质押流程。',
   'about.section.boundary.bullet.availability': '可用性来自当前在线的人，而不是云端托管。',
-  'about.section.chat.title': '以聊天为基础',
+  'about.section.chat.title': '聊天房间',
   'about.section.chat.body':
-    '业务重点放在聊天：先建房间把人连起来，再从对话里展开文件、知识库、游戏和协作。',
+    '聊天是独立入口：先建房间把人连起来，适合私域消息、多人语音和文件附件。',
   'about.section.chat.bullet.room': '房间适合私域聊天和小团队沟通。',
   'about.section.chat.bullet.voice': '支持多人语音通话。',
   'about.section.chat.bullet.attachments': '文件附件会自然接入 most:// 分享流程。',
   'about.section.note.title': '知识库',
   'about.section.note.body':
-    '把聊天里的重要信息、想法和附件线索整理成 Markdown 笔记，减少信息散落。',
+    '用 Markdown 笔记整理想法、资料和本地知识，减少信息散落。',
   'about.section.note.bullet.markdown': '支持 Markdown 块编辑。',
-  'about.section.note.bullet.fromChat': '聊天内容可以保存成笔记草稿。',
+  'about.section.note.bullet.fromChat': '笔记可以直接新建、编辑和整理。',
   'about.section.note.bullet.backup': '按需备份和恢复，不把它当成永久云盘。',
   'about.section.game.title': '游戏房间',
   'about.section.game.body':
-    '游戏复用同一套房间和频道系统，不需要单独理解另一套连接方式。',
+    '游戏是独立入口，继续复用公共 Channel 系统同步事件。',
   'about.section.game.bullet.channel': '游戏事件通过公共 Channel 同步。',
   'about.section.game.bullet.rooms': '房间链接可以发给朋友一起加入。',
   'about.section.game.bullet.lightweight': '适合朋友间快速开局和测试玩法。',
   'about.section.web3.title': '开源账户系统',
   'about.section.web3.body':
     'MOST PEOPLE 账户使用这套本地身份系统：完全开源，可复用，也方便其他项目接入。',
-  'about.section.web3.bullet.accounts': '聊天、知识库和游戏身份共用这一套。',
+  'about.section.web3.bullet.accounts': '聊天、知识库、游戏和工具身份共用这一套。',
   'about.section.web3.bullet.integrate': '其他项目可用它做本地登录、签名和数据隔离。',
   'about.section.web3.bullet.export': '支持密钥、地址和助记词导出。',
   'about.section.web3.bullet.separate': '它不参与文件下载、校验或做种主流程。',
@@ -62,16 +62,16 @@ export const zhCNAboutMessages = {
 export const zhTWAboutMessages = {
   'about.meta.title': '關於 MOST PEOPLE',
   'about.meta.desc':
-    'MOST PEOPLE 是完全開源、以聊天為基礎的 P2P 工具箱，包含檔案分享、知識庫、多人語音、遊戲房間和可複用帳戶系統。',
+    'MOST PEOPLE 是完全開源的 P2P 工具箱，包含檔案分享、聊天、知識庫、遊戲房間和可複用帳戶系統。',
   'about.hero.kicker': '去中心化 P2P 工具箱',
   'about.hero.title': '關於 MOST PEOPLE',
   'about.hero.desc':
-    'MOST PEOPLE 以聊天為基礎展開：邀請大家在房間裡發訊息、開多人語音、分享 most:// 檔案、沉澱知識庫和進入遊戲。',
+    'MOST PEOPLE 把檔案、聊天、知識庫、遊戲和 Web3 放在同一層：邀請大家直接選擇需要的工具，用 most:// 分享檔案，用頻道同步訊息和遊戲事件。',
   'about.link.example': 'most://<cid>?filename=...',
   'about.summary.cid':
     'CID 類似磁力連結/BT 種子的內容指紋：連結指向內容，下載後再校驗是不是同一份檔案。',
   'about.summary.seed': '發布者和下載者都能做種，只要仍有人在線，檔案就能繼續傳播。',
-  'about.summary.toolbox': '聊天是主入口，檔案、知識庫、遊戲和工具箱都從對話裡展開。',
+  'about.summary.toolbox': '檔案、聊天、知識庫、遊戲和 Web3 是同等入口，彼此不作為前置條件。',
   'about.summary.opensource': 'MOST PEOPLE 完全開源，帳戶系統也歡迎其他項目接入。',
   'about.section.identity.title': 'CID 是內容指紋',
   'about.section.identity.body':
@@ -91,28 +91,28 @@ export const zhTWAboutMessages = {
   'about.section.boundary.bullet.keepData': '重要資料仍需自己保存。',
   'about.section.boundary.bullet.noMarket': '沒有上鏈儲存、訂單、支付或質押流程。',
   'about.section.boundary.bullet.availability': '可用性來自目前線上的人，而不是雲端託管。',
-  'about.section.chat.title': '以聊天為基礎',
+  'about.section.chat.title': '聊天房間',
   'about.section.chat.body':
-    '業務重點放在聊天：先建房間把人連起來，再從對話裡展開檔案、知識庫、遊戲和協作。',
+    '聊天是獨立入口：先建房間把人連起來，適合私域訊息、多人語音和檔案附件。',
   'about.section.chat.bullet.room': '房間適合私域聊天和小團隊溝通。',
   'about.section.chat.bullet.voice': '支援多人語音通話。',
   'about.section.chat.bullet.attachments': '檔案附件會自然接入 most:// 分享流程。',
   'about.section.note.title': '知識庫',
   'about.section.note.body':
-    '把聊天裡的重要資訊、想法和附件線索整理成 Markdown 筆記，減少資訊散落。',
+    '用 Markdown 筆記整理想法、資料和本地知識，減少資訊散落。',
   'about.section.note.bullet.markdown': '支援 Markdown 區塊編輯。',
-  'about.section.note.bullet.fromChat': '聊天內容可以保存成筆記草稿。',
+  'about.section.note.bullet.fromChat': '筆記可以直接新建、編輯和整理。',
   'about.section.note.bullet.backup': '按需備份和恢復，不把它當成永久雲端硬碟。',
   'about.section.game.title': '遊戲房間',
   'about.section.game.body':
-    '遊戲復用同一套房間和頻道系統，不需要單獨理解另一套連接方式。',
+    '遊戲是獨立入口，繼續復用公共 Channel 系統同步事件。',
   'about.section.game.bullet.channel': '遊戲事件透過公共 Channel 同步。',
   'about.section.game.bullet.rooms': '房間連結可以發給朋友一起加入。',
   'about.section.game.bullet.lightweight': '適合朋友間快速開局和測試玩法。',
   'about.section.web3.title': '開源帳戶系統',
   'about.section.web3.body':
     'MOST PEOPLE 帳戶使用這套本地身份系統：完全開源，可複用，也方便其他項目接入。',
-  'about.section.web3.bullet.accounts': '聊天、知識庫和遊戲身份共用這一套。',
+  'about.section.web3.bullet.accounts': '聊天、知識庫、遊戲和工具身份共用這一套。',
   'about.section.web3.bullet.integrate': '其他項目可用它做本地登入、簽名和資料隔離。',
   'about.section.web3.bullet.export': '支援密鑰、地址和助記詞匯出。',
   'about.section.web3.bullet.separate': '它不參與檔案下載、校驗或做種主流程。',
@@ -123,18 +123,18 @@ export const zhTWAboutMessages = {
 export const enAboutMessages = {
   'about.meta.title': 'About MOST PEOPLE',
   'about.meta.desc':
-    'MOST PEOPLE is a fully open source, chat-first P2P toolbox for file sharing, a Knowledge Base, multi-person voice, game rooms, and a reusable account system.',
+    'MOST PEOPLE is a fully open source P2P toolbox for file sharing, chat, a Knowledge Base, game rooms, and a reusable account system.',
   'about.hero.kicker': 'Decentralized P2P toolbox',
   'about.hero.title': 'About MOST PEOPLE',
   'about.hero.desc':
-    'MOST PEOPLE starts from chat: invite everyone into rooms for messages, voice calls, files, notes, games, and tools.',
+    'MOST PEOPLE keeps files, chat, Knowledge Base, games, and Web3 as equal entries: choose the tool you need, share files with most://, and sync messages or game events through channels.',
   'about.link.example': 'most://<cid>?filename=...',
   'about.summary.cid':
     'CID works like a content fingerprint for magnet links and BT torrents: the link points to content, then the download is verified.',
   'about.summary.seed':
     'Publishers and downloaders can both seed, so files keep spreading while peers stay online.',
   'about.summary.toolbox':
-    'Chat is the entry point; files, Knowledge Base, games, and tools unfold from conversations.',
+    'Files, chat, Knowledge Base, games, and Web3 are equal entries, so no surface is a prerequisite for another.',
   'about.summary.opensource':
     'MOST PEOPLE is fully open source, and its account system is meant for other projects to integrate.',
   'about.section.identity.title': 'CID is the content fingerprint',
@@ -164,9 +164,9 @@ export const enAboutMessages = {
     'There is no on-chain storage, order, payment, or staking flow.',
   'about.section.boundary.bullet.availability':
     'Availability comes from online people, not hosted cloud storage.',
-  'about.section.chat.title': 'Chat as the base',
+  'about.section.chat.title': 'Chat rooms',
   'about.section.chat.body':
-    'The product focus is chat: connect people in a room first, then bring files, notes, games, and collaboration into the conversation.',
+    'Chat is an independent entry: create a room to connect people for private messages, multi-person voice, and file attachments.',
   'about.section.chat.bullet.room':
     'Rooms fit private chats and small-team conversations.',
   'about.section.chat.bullet.voice':
@@ -175,16 +175,16 @@ export const enAboutMessages = {
     'File attachments naturally join the most:// sharing flow.',
   'about.section.note.title': 'Knowledge Base',
   'about.section.note.body':
-    'Turn important chat context, ideas, and attachment clues into Markdown notes so they do not scatter.',
+    'Use Markdown notes to organize ideas, references, and local knowledge so they do not scatter.',
   'about.section.note.bullet.markdown':
     'Markdown block editing is supported.',
   'about.section.note.bullet.fromChat':
-    'Chat content can be saved as note drafts.',
+    'Notes can be created, edited, and organized directly.',
   'about.section.note.bullet.backup':
     'Backup and restore are available when needed, but it is not permanent cloud storage.',
   'about.section.game.title': 'Game rooms',
   'about.section.game.body':
-    'Games reuse the same room and channel system, so there is no second connection model to learn.',
+    'Games are an independent entry while still reusing the shared Channel system for events.',
   'about.section.game.bullet.channel':
     'Game events sync through the shared Channel system.',
   'about.section.game.bullet.rooms':
@@ -195,7 +195,7 @@ export const enAboutMessages = {
   'about.section.web3.body':
     'MOST PEOPLE accounts use this local identity system: open source, reusable, and ready for other projects to integrate.',
   'about.section.web3.bullet.accounts':
-    'Chat, Knowledge Base, and game identities share it.',
+    'Chat, Knowledge Base, game, and tool identities share it.',
   'about.section.web3.bullet.integrate':
     'Other projects can use it for local login, signatures, and data separation.',
   'about.section.web3.bullet.export':

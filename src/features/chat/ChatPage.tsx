@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ChevronRight,
-  MessageSquare,
+  MessagesSquare,
   PhoneCall,
   Plus,
   X,
@@ -52,10 +52,6 @@ import {
 import { getFileSubtype, type FileSubtype } from '~/lib/filePreview'
 import { useI18n } from '~/lib/i18n'
 import { getUserChannelProfile } from '~/lib/userProfile'
-import {
-  createChatNoteDraft,
-  getChatNoteDraftHref,
-} from '~/lib/chatNoteDraft'
 import { isChannelMemberJoinedSystemMessage } from '~/lib/channelMessages.js'
 import { useGlobalVoiceRoom } from '~/features/chat/GlobalVoiceRoom'
 import { ChatRestoringIndicator } from '~/features/chat/ChatRestoringIndicator'
@@ -121,7 +117,9 @@ function getSocketEventChannelKeys(data: unknown) {
   return [...keys]
 }
 
-function getChannelTitle(channel?: Pick<Channel, 'remark' | 'channelId' | 'name'> | null) {
+function getChannelTitle(
+  channel?: Pick<Channel, 'remark' | 'channelId' | 'name'> | null
+) {
   return channel?.remark || getChannelId(channel)
 }
 
@@ -130,25 +128,6 @@ function getRequestedChannelNameFromLocation() {
   return (
     new URLSearchParams(window.location.search).get('channel') || ''
   ).trim()
-}
-
-function getNoteDraftTimeLabel(timestamp?: number) {
-  const date = new Date(timestamp || Date.now())
-  if (Number.isNaN(date.getTime())) return String(Date.now())
-  return date.toISOString().slice(0, 16).replace('T', ' ').replace(':', '-')
-}
-
-function escapeMarkdownLinkLabel(label: string) {
-  return label.replace(/\\/g, '\\\\').replace(/\[/g, '\\[').replace(/\]/g, '\\]')
-}
-
-function formatMarkdownLink(label: string, href: string) {
-  return `[${escapeMarkdownLinkLabel(label)}](<${href.replace(/>/g, '%3E')}>)`
-}
-
-function formatMarkdownQuote(content: string) {
-  const lines = String(content || '').trim().split(/\r?\n/)
-  return lines.length > 0 ? lines.map(line => `> ${line}`).join('\n') : '> '
 }
 
 const CHAT_FILE_ROOT = 'chat-file'
@@ -171,7 +150,9 @@ function hasAddressSuffix(name?: string) {
 }
 
 function normalizeMemberAddress(address?: string) {
-  return String(address || '').trim().toLowerCase()
+  return String(address || '')
+    .trim()
+    .toLowerCase()
 }
 
 type AttachmentDownloadState = {
@@ -261,7 +242,10 @@ function ChatPage() {
   const notificationAudioUnlockedRef = useRef(false)
   const lastNotificationSoundAtRef = useRef(0)
   const syncMessagesRef = useRef<
-    (name?: string, options?: { replace?: boolean }) => Promise<ChannelMessage[]>
+    (
+      name?: string,
+      options?: { replace?: boolean }
+    ) => Promise<ChannelMessage[]>
   >(async () => [])
   const channelHistorySyncTimersRef = useRef(new Map<string, number>())
   const pendingAttachmentPreviewsRef = useRef(
@@ -418,7 +402,7 @@ function ChatPage() {
                     lastMessageAt: new Date(messageTime).toISOString(),
                   }
                 : channel
-              )
+            )
           )
           const isActiveChannel = channelKey === activeChannelNameRef.current
           setChannelLastReadAt(prev => {
@@ -1156,13 +1140,15 @@ function ChatPage() {
         ...existingChannel,
         name: result.name || name,
         channelId: result.channelId || result.name || name,
-        channelKey: result.channelKey || result.key || existingChannel?.channelKey,
+        channelKey:
+          result.channelKey || result.key || existingChannel?.channelKey,
         type: result.type || existingChannel?.type || 'public',
         createdAt: result.createdAt || existingChannel?.createdAt,
         coreKey: result.coreKey || result.key || existingChannel?.coreKey,
         localWriterCoreKey:
           result.localWriterCoreKey || existingChannel?.localWriterCoreKey,
-        writerCoreKeys: result.writerCoreKeys || existingChannel?.writerCoreKeys,
+        writerCoreKeys:
+          result.writerCoreKeys || existingChannel?.writerCoreKeys,
         remark: result.remark || existingChannel?.remark,
       }
       const joinedChannelKey = getChannelKey(joinedChannel)
@@ -1249,7 +1235,11 @@ function ChatPage() {
       const publishPolicy = await fileApi.getNodePolicy().catch(() => null)
       for (const file of Array.from(files)) {
         activePublishFileName = file.name
-        const limitMessage = getPublishFileLimitViolation(file, publishPolicy, t)
+        const limitMessage = getPublishFileLimitViolation(
+          file,
+          publishPolicy,
+          t
+        )
         if (limitMessage) {
           addToast(limitMessage, 'error')
           continue
@@ -1318,96 +1308,6 @@ function ChatPage() {
       }
       return
     }
-  }
-
-  function getMessageDisplayAuthor(msg: ChannelMessage) {
-    const address = normalizeMemberAddress(msg.author)
-    const presence = presenceByAddress.get(address)
-    const messageProfile = messageProfileByAddress.get(address)
-    const authorName =
-      presence?.displayName || messageProfile?.displayName || msg.authorName
-    return formatDisplayName(authorName, msg.author)
-  }
-
-  function isSaveableChannelMessage(msg: ChannelMessage) {
-    return (
-      msg.type !== 'system' &&
-      !msg.pending &&
-      (Boolean(msg.attachment) || Boolean(msg.content.trim()))
-    )
-  }
-
-  function appendChatMessageMarkdown(
-    lines: string[],
-    msg: ChannelMessage
-  ) {
-    const author = getMessageDisplayAuthor(msg)
-    const timestamp = `${formatDate(msg.timestamp)} ${formatTime(msg.timestamp)}`
-    const content = msg.content.trim()
-
-    lines.push(`## ${timestamp} ${author}`, '')
-
-    if (content && (!msg.attachment || content !== msg.attachment.link)) {
-      lines.push(formatMarkdownQuote(content), '')
-    }
-
-    if (msg.attachment) {
-      lines.push(
-        `**${t('chat.noteDraft.attachment')}**`,
-        '',
-        `- ${t('chat.noteDraft.file')}: ${formatMarkdownLink(
-          getAttachmentBaseFileName(msg.attachment.fileName),
-          msg.attachment.link
-        )}`,
-        `- CID: \`${msg.attachment.cid}\``,
-        ''
-      )
-    }
-  }
-
-  function getChatHistoryNoteDraftContent(messages: ChannelMessage[]) {
-    const roomTitle = activeChannel ? getChannelTitle(activeChannel) : ''
-    const exportedAt = `${formatDate(Date.now())} ${formatTime(Date.now())}`
-    const lines = [
-      `# ${t('chat.noteDraft.heading')}`,
-      '',
-      `- ${t('chat.noteDraft.room')}: ${roomTitle}`,
-      `- ${t('chat.noteDraft.exportedAt')}: ${exportedAt}`,
-      `- ${t('chat.noteDraft.messageCount')}: ${messages.length}`,
-      '',
-    ]
-
-    messages.forEach(msg => appendChatMessageMarkdown(lines, msg))
-    return `${lines.join('\n').trimEnd()}\n`
-  }
-
-  function handleSaveChannelToNote() {
-    const messages = channelMessages.filter(isSaveableChannelMessage)
-
-    if (messages.length === 0) {
-      addToast(t('chat.noteDraft.empty'), 'warning')
-      return
-    }
-
-    const roomTitle = activeChannel
-      ? getChannelTitle(activeChannel)
-      : t('chat.title')
-    const title = t('chat.noteDraft.historyTitle', {
-      room: roomTitle,
-      time: getNoteDraftTimeLabel(),
-    })
-    const draft = createChatNoteDraft({
-      title,
-      content: getChatHistoryNoteDraftContent(messages),
-    })
-
-    if (!draft) {
-      addToast(t('chat.noteDraft.saveFailed'), 'error')
-      return
-    }
-
-    setShowChannelDetail(false)
-    window.location.assign(getChatNoteDraftHref(draft.id))
   }
 
   async function updateChannelRemark(channel: Channel, nextRemark: string) {
@@ -1483,6 +1383,18 @@ function ChatPage() {
       : displayName
   }
 
+  function getMessageDisplayAuthor(message: ChannelMessage) {
+    const address = normalizeMemberAddress(message.author)
+    const presence = presenceByAddress.get(address)
+    const messageProfile = messageProfileByAddress.get(address)
+    return formatDisplayName(
+      presence?.displayName ||
+        messageProfile?.displayName ||
+        message.authorName,
+      message.author
+    )
+  }
+
   function renderChannelMembers() {
     return (
       <ChannelMemberGrid
@@ -1531,7 +1443,7 @@ function ChatPage() {
   )
   const isVoiceRoomForActiveChannel = Boolean(
     activeVoiceRoomInfo &&
-      voiceRoom.room?.channelName === activeVoiceRoomInfo.channelName
+    voiceRoom.room?.channelName === activeVoiceRoomInfo.channelName
   )
   const voiceRemoteParticipantCount = voiceRoom.participants.filter(
     participant => !participant.local
@@ -1570,9 +1482,11 @@ function ChatPage() {
   const filteredChannels = channelSearchQuery
     ? sortedChannels.filter(channel => {
         const displayName = getChannelTitle(channel)
-        return [displayName, getChannelId(channel), getChannelKey(channel)].some(value =>
-          value.toLowerCase().includes(channelSearchQuery)
-        )
+        return [
+          displayName,
+          getChannelId(channel),
+          getChannelKey(channel),
+        ].some(value => value.toLowerCase().includes(channelSearchQuery))
       })
     : sortedChannels
 
@@ -1613,7 +1527,9 @@ function ChatPage() {
               filteredChannels.map(channel => (
                 <ChatChannelNavItem
                   key={getChannelKey(channel)}
-                  active={getChannelKey(activeChannel) === getChannelKey(channel)}
+                  active={
+                    getChannelKey(activeChannel) === getChannelKey(channel)
+                  }
                   pinned={Boolean(channel.pinned)}
                   unread={hasUnreadChannelMessage(channel, channelLastReadAt)}
                   title={getChannelTitle(channel)}
@@ -1706,7 +1622,7 @@ function ChatPage() {
             {channelMessages.length === 0 ? (
               <div className="ui-empty-state chat-messages-empty">
                 <div className="ui-empty-icon empty-icon">
-                  <MessageSquare size={28} />
+                  <MessagesSquare size={28} />
                 </div>
                 <p>{t('chat.empty.noMessages')}</p>
               </div>
@@ -1784,12 +1700,10 @@ function ChatPage() {
         <>
           <div className="ui-empty-state chat-welcome">
             <div className="ui-empty-icon ui-empty-icon-lg welcome-icon">
-              <MessageSquare size={36} />
+              <MessagesSquare size={36} />
             </div>
             <h2 className="ui-empty-title">{t('chat.select.title')}</h2>
-            <p className="ui-empty-desc">
-              {t('chat.select.desc')}
-            </p>
+            <p className="ui-empty-desc">{t('chat.select.desc')}</p>
             <OpenSidebarButton label={t('chat.openChannelList')} />
           </div>
         </>
@@ -2008,23 +1922,6 @@ function ChatPage() {
                     : '-'}
                 </div>
               </div>
-
-              {!isInviteUser && (
-                <div className="channel-detail-section">
-                  <div className="channel-detail-label">
-                    <span>{t('chat.noteDraft.settingsTitle')}</span>
-                  </div>
-                  <p className="channel-detail-hint">
-                    {t('chat.noteDraft.saveAllDesc')}
-                  </p>
-                  <button
-                    className="btn btn-secondary btn-block"
-                    onClick={handleSaveChannelToNote}
-                  >
-                    {t('chat.noteDraft.saveAll')}
-                  </button>
-                </div>
-              )}
             </div>
 
             {!isInviteUser && (

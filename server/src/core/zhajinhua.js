@@ -451,68 +451,6 @@ export function getAllowedActions(round, address) {
   return actions
 }
 
-export function chooseBotAction(round, address, random = Math.random) {
-  const botAddress = normalizeAddress(address)
-  const allowedActions = getAllowedActions(round, botAddress)
-  if (allowedActions.length === 0) return null
-
-  const player = (round?.players || []).find(item => item.address === botAddress)
-  const handStrength = estimateHandStrength(round?.hands?.[botAddress])
-  const activeOpponents = getActiveRoundPlayers(round).filter(
-    item => item.address !== botAddress
-  )
-
-  function canCompare() {
-    if (!allowedActions.includes('compare') || activeOpponents.length === 0) return false
-    const target = activeOpponents[0].address
-    return validatePlayerAction(round, { action: 'compare', target }, botAddress).ok
-  }
-
-  if (
-    allowedActions.includes('look') &&
-    !player?.looked &&
-    random() < (handStrength >= 0.68 ? 0.52 : 0.82)
-  ) {
-    return { action: 'look' }
-  }
-
-  if (
-    canCompare() &&
-    activeOpponents.length === 1 &&
-    handStrength >= 0.54 &&
-    random() < 0.58
-  ) {
-    return { action: 'compare', target: activeOpponents[0].address }
-  }
-
-  if (allowedActions.includes('raise') && handStrength >= 0.7 && random() < 0.58) {
-    const amount = chooseBotRaiseAmount(round, botAddress, handStrength, random)
-    if (amount) return { action: 'raise', amount }
-  }
-
-  if (
-    canCompare() &&
-    activeOpponents.length > 0 &&
-    handStrength >= 0.82 &&
-    random() < 0.36
-  ) {
-    return {
-      action: 'compare',
-      target: activeOpponents[Math.floor(random() * activeOpponents.length)].address,
-    }
-  }
-
-  if (
-    allowedActions.includes('call') &&
-    (handStrength >= 0.34 || random() < 0.62)
-  ) {
-    return { action: 'call' }
-  }
-
-  if (allowedActions.includes('fold')) return { action: 'fold' }
-  return { action: allowedActions[0] }
-}
-
 function payToCurrentBet(state, player) {
   const need = Math.max(0, state.currentBet - player.bet)
   player.chips -= need
@@ -567,32 +505,6 @@ function nextActiveAddress(state, fromAddress) {
 function advanceSeq(state) {
   state.seq = Number(state.seq || 0) + 1
   return { ok: true, state }
-}
-
-function estimateHandStrength(cards) {
-  try {
-    const result = evaluateHand(cards)
-    const categoryScore = (result.category - CATEGORY.high) / (CATEGORY.triple - CATEGORY.high)
-    const rankScore =
-      result.tiebreakers.reduce((sum, value, index) => {
-        return sum + (Number(value) || 0) / Math.pow(16, index + 1)
-      }, 0) / 1.05
-    return Math.max(0, Math.min(1, categoryScore * 0.72 + rankScore * 0.28))
-  } catch {
-    return 0.45
-  }
-}
-
-function chooseBotRaiseAmount(round, address, handStrength, random) {
-  const validAmounts = ZHJ_RAISE_STEPS.filter(amount =>
-    validatePlayerAction(round, { action: 'raise', amount }, address).ok
-  )
-  if (validAmounts.length === 0) return 0
-
-  const ceiling = handStrength >= 0.9 ? 100 : handStrength >= 0.8 ? 50 : 20
-  const pool = validAmounts.filter(amount => amount <= ceiling)
-  const choices = pool.length > 0 ? pool : validAmounts
-  return choices[Math.floor(random() * choices.length)]
 }
 
 function normalizeRoundPlayer(input) {

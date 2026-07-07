@@ -1,6 +1,6 @@
 # MostBox 验收指南
 
-> 用最少步骤验证“进入聊天 -> 创建/加入房间 -> P2P 收发消息 -> 聊天附件传文件 -> CID 校验 -> 下载者继续做种”的当前 MVP 闭环，并覆盖知识库、游戏、daemon、管理台、Android Alpha 和独立工具箱回归。
+> 用最少步骤验证“首页平权工具箱 -> 文件发布/下载 -> CID 校验 -> 下载者继续做种”的当前 MVP 闭环，并覆盖聊天、知识库、游戏、daemon、管理台、Android Alpha 和独立工具箱回归。
 
 ## 一、快速启动
 
@@ -23,14 +23,15 @@ npm run dev
 
 | 入口 | 地址 | 用途 |
 | --- | --- | --- |
-| 聊天主入口 | `http://localhost:3000/chat/` | 创建/加入聊天房间、收发消息、发送文件附件、进入知识库和游戏 |
-| 文件库 | `http://localhost:3000/app/` | 管理已发布文件、下载任务、holding 和 `most://` 链接 |
-| 知识库 | `http://localhost:3000/note/` | 保存聊天消息、编辑 Markdown 内容和本地笔记库 |
-| 游戏 | `http://localhost:3000/game/gandengyan/`、`http://localhost:3000/game/zhajinhua/` | 独立游戏页面；暂不从聊天详情进入 |
+| 平权工具箱 | `http://localhost:3000/` | 文件、聊天、知识库、游戏和 Web3 是同等入口 |
+| 文件库 | `http://localhost:3000/app/` | `/app/` 保留完整文件发布、下载和做种管理 |
+| 聊天 | `http://localhost:3000/chat/` | 创建/加入聊天房间、收发消息和发送文件附件 |
+| 知识库 | `http://localhost:3000/note/` | 编辑 Markdown 内容和本地笔记库 |
+| 游戏 | `http://localhost:3000/game/gandengyan/`、`http://localhost:3000/game/zhajinhua/` | 独立游戏页面 |
 | 管理台 | `http://localhost:3000/admin/` | 查看节点状态、holding、容量和日志 |
 | API | `http://localhost:1976/api/openapi.json` | daemon HTTP API |
 
-桌面端默认打开聊天主入口。发布包路径：正式桌面安装包和 Android Alpha APK 从 `/download` 或 GitHub Releases latest 下载；本地桌面构建使用 `npm run electron:build:win`、`npm run electron:build:mac` 或 `npm run electron:build:linux`，Android APK 构建在 `mobile/android/` 下运行 `npm run build`。
+桌面端默认打开平权工具箱首页。发布包路径：正式桌面安装包和 Android Alpha APK 从 `/download` 或 GitHub Releases latest 下载；本地桌面构建使用 `npm run electron:build:win`、`npm run electron:build:mac` 或 `npm run electron:build:linux`，Android APK 构建在 `mobile/android/` 下运行 `npm run build`。
 
 Web UI 会自动创建本地身份并给文件 API 请求签名。裸 curl 调用 `/api/publish`、`/api/files`、`/api/download/check`、`/api/download`、`/api/p2p/pull` 等文件管理接口时，需要带 `Authorization` 头；节点状态、holding、日志等本机管理接口可直接 curl。
 
@@ -49,35 +50,34 @@ auth_header() {
 }
 ```
 
-## 二、聊天优先 MVP 验收
+## 二、平权工具箱 MVP 验收
 
-当前主线验收从 `/chat/` 开始，文件能力作为聊天附件进入。建议至少准备两个 MostBox 节点；需要验证“发布者退出后仍可传播”时准备第三个节点。
+当前主线验收从 `/` 开始：文件、聊天、知识库、游戏和 Web3 是同等入口。建议至少准备两个 MostBox 节点；需要验证“发布者退出后仍可传播”时准备第三个节点。
 
-1. 用户 A 启动桌面端，或按源码方式启动后打开 `/chat/`。
-2. 用户 A 创建一个聊天/房间，把房间 ID 发给用户 B。
-3. 用户 B 在另一台机器或另一个 MostBox 节点打开 `/chat/` 并加入同一聊天。
-4. A/B 双方互发文本消息，确认消息通过 P2P Channel 同步，页面不要求先进入文件页。
-5. 用户 A 在聊天里发送文件附件，附件内容生成 `most://<cid>?filename=...` 链接。
-6. 用户 B 点击附件下载；下载完成后重算 UnixFS CID v1，CID 与链接一致才显示成功、允许预览，并默认加入做种列表。
-7. 停止用户 A 的应用或 daemon，保持用户 B 在线做种。
-8. 用户 C 凭同一个聊天附件或 `most://` 链接下载文件；只要 B 仍在线做种，C 应能完成下载并通过 CID 校验。
-9. 用户 A 或 B 从聊天设置里选择“保存聊天记录到知识库”，进入 `/note/` 后生成当前聊天记录的可编辑 Markdown 草稿。
-10. 打开独立游戏页面时，现有游戏仍使用 `game.<gameId>.<roomCode>` Channel 同步事件；聊天详情暂不提供游戏入口。
+1. 用户 A 启动桌面端，或按源码方式启动后打开 `/`，确认首页不是聊天单一路径。
+2. 用户 A 进入 `/app/` 发布测试文件，得到 `most://<cid>?filename=...` 链接。
+3. 用户 B 在另一台机器或另一个 MostBox 节点凭同一个链接下载；下载完成后重算 UnixFS CID v1，CID 与链接一致才显示成功、允许预览，并默认加入做种列表。
+4. 停止用户 A 的应用或 daemon，保持用户 B 在线做种。
+5. 用户 C 凭同一个 `most://` 链接下载文件；只要 B 仍在线做种，C 应能完成下载并通过 CID 校验。
+6. 进入 `/chat/` 创建或加入房间，确认消息和文件附件仍通过 P2P Channel 同步；聊天设置不再提供知识库导出入口。
+7. 进入 `/note/` 新建或编辑 Markdown 内容，确认知识库是独立工具，不依赖聊天设置。
+8. 打开独立游戏页面时，现有游戏仍使用 `game.<gameId>.<roomCode>` Channel 同步事件。
+9. 打开 `/web3/`，确认 Web3 工具箱独立存在，不成为文件、聊天、知识库或游戏前置条件。
 
 | 检查项 | 通过标准 | 入口 |
 | --- | --- | --- |
-| 主入口 | 首页、桌面端和 README 首屏都把聊天作为第一路径 | `/`、桌面端、`README.md` |
-| 加入房间 | 用户能通过房间 ID 加入同一聊天 | `/chat/` |
-| 消息同步 | 双方能收发文本消息，断线重连后能重新订阅频道 | `/chat/`、`/ws` |
-| 附件下载 | 附件展示可下载/下载中/可预览/失败状态，下载成功后 CID 校验通过 | `/chat/`、文件 API |
+| 平权工具箱 | 首页、桌面端和 README 首屏都把文件、聊天、知识库、游戏和 Web3 作为同等入口 | `/`、桌面端、`README.md` |
+| 文件闭环 | `/app/` 保留完整文件发布、下载和做种管理 | `/app/`、文件 API |
 | 下载后做种 | 接收方下载成功后自动写入 holding 并 join 对应 CID topic | `/api/node/holdings`、`/admin/` |
 | 发布者退出 | 原发布者退出后，至少一个下载者在线时，新下载者仍能完成下载 | `npm run test:protocol`、手动三节点 |
-| 保存知识库 | 聊天设置能把当前聊天记录保存为知识库草稿，不新增聊天专用后端接口 | `/chat/`、`/note/` |
-| 独立游戏 | 游戏事件仍走公共 Channel 系统；聊天详情暂不提供游戏入口 | `/game/gandengyan/`、`/game/zhajinhua/` |
+| 聊天独立 | 用户能通过房间 ID 加入同一聊天，双方能收发文本消息和文件附件 | `/chat/`、`/ws` |
+| 知识库独立 | 知识库支持 Markdown 编辑、备份和恢复，不依赖聊天设置入口 | `/note/` |
+| 聊天设置边界 | 聊天设置不再提供知识库导出入口 | `/chat/` |
+| 独立游戏 | 游戏事件仍走公共 Channel 系统 | `/game/gandengyan/`、`/game/zhajinhua/` |
 
 ## 三、文件协议回归
 
-`/app/` 现在是文件库和传输管理入口，不是普通用户的第一路径；但底层文件协议仍是 MVP 的硬约束，不能因为聊天主入口改造而弱化。
+`/app/` 是文件库和传输管理入口，也是平权工具箱的一等入口；底层文件协议仍是 MVP 的硬约束，不能因为首页改造而弱化。
 
 必须保持的不变量：
 
@@ -167,7 +167,7 @@ node --test --test-name-pattern "returns node status|saves daemon config and exp
 
 | 检查项 | 通过标准 | 入口 |
 | --- | --- | --- |
-| 聊天优先 | 首页默认展示聊天，桌面端默认进入 `/chat/`，文件库排在聊天之后 | `src/components/FeaturePortal.tsx`、`electron/main.js` |
+| 平权工具箱 | 首页默认展示文件、聊天、知识库、游戏和 Web3 五个同等入口，桌面端默认进入 `/` | `src/components/FeaturePortal.tsx`、`electron/main.js` |
 | 技术词降噪 | 普通用户首屏说“用户之间直接连接”，不堆 Hyperswarm、Hyperdrive、CID 术语 | `README.md`、首页文案 |
 | 附件状态 | 聊天附件区分可下载、下载中、可预览、失败，并有重试入口 | `src/components/ChatAttachmentCard.tsx` |
 | 文件库定位 | `/app/` 文案是文件库/传输管理，仍说明“下载者完成后会默认继续做种” | `src/features/files/AppPage.tsx` |
@@ -223,13 +223,13 @@ npm run build
 
 | 场景 | 通过标准 |
 | --- | --- |
-| 聊天入口 | 用户打开后第一路径是 `/chat/`，能创建或加入聊天房间 |
+| 平权工具箱 | 用户打开后第一路径是 `/`，能选择文件、聊天、知识库、游戏或 Web3 |
 | P2P 消息 | 两个节点能通过同一 Channel 收发消息 |
 | 聊天附件 | 文件能作为聊天附件发送，接收方能下载、校验、预览 |
 | 下载后做种 | 接收方下载成功后自动成为新种子，holding 可见 |
 | daemon 重启 | 已持有 CID 自动恢复 join topic |
 | 发布者退出 | 至少一个下载者在线做种时，新下载者仍可完成下载 |
-| 知识库 | 当前聊天记录能从聊天设置保存到 `/note/`，知识库能力不依赖文件分享入口 |
+| 知识库 | 能独立新建、编辑和备份 Markdown 内容，不依赖聊天或文件入口 |
 | 游戏 | 独立游戏页面继续使用 `game.*` Channel；聊天详情暂不提供游戏入口 |
 | Web3 | Web3 工具箱独立存在，不成为聊天、文件、记录或游戏前置条件 |
 
@@ -246,7 +246,7 @@ npm run build
 | 1GB 附件 | 文件大小、CID、耗时、失败重试、日志摘要 | 下载和做种稳定；失败时错误可读 |
 | 重启恢复 | 重启前 holding、重启后状态、join 耗时 | daemon 重启后自动 join 已持有 CID topic |
 | 发布者退出 | 发布者退出时间、剩余种子、后续下载者结果 | 至少一个下载者在线时，新下载者仍可完成下载 |
-| 知识库保存 | 原消息、生成标题、保存路径或 CID | 聊天消息能进入知识库编辑态 |
+| 知识库编辑 | 笔记标题、内容、备份路径 | 新建和编辑 Markdown 内容可用 |
 | 独立游戏 | 房间 ID、游戏 ID、参与节点、事件同步结果 | 两端游戏状态能通过 Channel 同步 |
 
 记录模板：

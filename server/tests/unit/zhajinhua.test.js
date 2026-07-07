@@ -1,12 +1,12 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 
+import * as zhajinhuaCore from '../../src/core/zhajinhua.js'
 import {
   ZHJ_ANTE,
   ZHJ_INITIAL_CHIPS,
   applyPlayerAction,
   canStartRound,
-  chooseBotAction,
   compareHands,
   createPlayerActionEvent,
   evaluateHand,
@@ -70,6 +70,10 @@ describe('zhajinhua card ranking', () => {
 })
 
 describe('zhajinhua room events', () => {
+  it('does not expose bot-only helpers without a product entry point', () => {
+    assert.strictEqual('chooseBotAction' in zhajinhuaCore, false)
+  })
+
   it('validates betting and turn order', () => {
     const alice = identity('alice')
     const bob = identity('bob')
@@ -176,36 +180,6 @@ describe('zhajinhua room events', () => {
       ]),
       false
     )
-  })
-
-  it('chooses playable bot actions from the current round state', () => {
-    const alice = identity('alice')
-    const bob = identity('bob')
-    const round = startRound({
-      roomCode: 'ABC123',
-      hostAddress: alice.address,
-      players: [
-        { ...alice, address: alice.address.toLowerCase(), chips: ZHJ_INITIAL_CHIPS },
-        { ...bob, address: bob.address.toLowerCase(), chips: ZHJ_INITIAL_CHIPS },
-      ],
-      previousWinner: bob.address,
-      random: () => 0,
-    })
-    round.hands[bob.address.toLowerCase()] = ['AS', 'AD', 'AC']
-
-    const firstChoice = chooseBotAction(round, bob.address, () => 0.1)
-    assert.deepStrictEqual(firstChoice, { action: 'look' })
-
-    const lookedRound = applyPlayerAction(
-      round,
-      createPlayerActionEvent({
-        roundId: round.roundId,
-        action: 'look',
-      }),
-      bob.address
-    ).state
-    const nextChoice = chooseBotAction(lookedRound, bob.address, () => 0.99)
-    assert.strictEqual(nextChoice.action, 'call')
   })
 })
 

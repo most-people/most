@@ -161,6 +161,36 @@ describe('frontend smoke checks', () => {
     assert.equal(messages.en['chat.joinChannel'], 'Join chat')
   })
 
+  it('keeps the portal landing copy concise across locales', async () => {
+    const { messages } = await importBundledSource('src/lib/i18n/messages.ts')
+    const descriptionKeys = [
+      'portal.feature.app.desc',
+      'portal.feature.chat.desc',
+      'portal.feature.note.desc',
+      'portal.feature.game.desc',
+      'portal.feature.web3.desc',
+    ]
+
+    for (const locale of ['zh-CN', 'zh-TW']) {
+      assert.ok(messages[locale]['portal.hero.subtitle'].length <= 42)
+      for (const key of descriptionKeys) {
+        assert.ok(messages[locale][key].length <= 32, `${locale} ${key}`)
+      }
+    }
+
+    assert.ok(messages.en['portal.hero.subtitle'].length <= 76)
+    for (const key of descriptionKeys) {
+      assert.ok(messages.en[key].length <= 68, `en ${key}`)
+    }
+
+    for (const locale of ['zh-CN', 'zh-TW', 'en']) {
+      assert.doesNotMatch(
+        messages[locale]['portal.feature.web3.desc'],
+        /Ed25519|x25519|key pairs|密钥对|金鑰對|地址派生|derived addresses/
+      )
+    }
+  })
+
   it('keeps the share modal aligned with the MVP seeding promise', () => {
     const source = readSource(SOURCE_PATHS.features.files)
     const shareLinkSource = readSource('src/lib/shareLink.ts')
@@ -234,8 +264,7 @@ describe('frontend smoke checks', () => {
     const { getPublishFileLimitViolation } = await importBundledSource(
       'src/lib/publishLimits.ts'
     )
-    const t = (key, params) =>
-      `超过最大 ${params.maxSize} 限制`
+    const t = (key, params) => `超过最大 ${params.maxSize} 限制`
 
     assert.equal(
       getPublishFileLimitViolation(
@@ -393,14 +422,19 @@ describe('frontend smoke checks', () => {
     assert.match(apiSource, /localAvailable\?: boolean/)
     assert.match(checkSource, /result\.alreadyExists\s*\?/)
     assert.match(checkSource, /app\.fileAlreadyLocal/)
-    assert.doesNotMatch(checkSource, /result\.localAvailable[\s\S]*app\.fileAlreadyLocal/)
+    assert.doesNotMatch(
+      checkSource,
+      /result\.localAvailable[\s\S]*app\.fileAlreadyLocal/
+    )
     assert.match(downloadSource, /result\.localAvailable/)
     assert.match(downloadSource, /refreshFiles\(\)/)
   })
 
   it('lets the admin max file field accept MB or GiB input', () => {
     const adminSource = readSource(SOURCE_PATHS.features.admin)
-    const selectControlSource = readSource('src/components/ui/SelectControl.tsx')
+    const selectControlSource = readSource(
+      'src/components/ui/SelectControl.tsx'
+    )
     const globalsSource = readSource('src/styles/globals.css')
 
     assert.match(adminSource, /SegmentedControl/)
@@ -413,13 +447,19 @@ describe('frontend smoke checks', () => {
     assert.match(adminSource, /MAX_FILE_SIZE_UNIT_OPTIONS/)
     assert.match(adminSource, /className="admin-unit-field"/)
     assert.match(adminSource, /step="any"/)
-    assert.match(adminSource, /ariaLabel=\{t\('admin\.settings\.maxFileSizeUnit'\)\}/)
+    assert.match(
+      adminSource,
+      /ariaLabel=\{t\('admin\.settings\.maxFileSizeUnit'\)\}/
+    )
     assert.match(adminSource, /options=\{MAX_FILE_SIZE_UNIT_OPTIONS\}/)
     assert.match(adminSource, /value=\{configForm\.maxFileSizeUnit\}/)
     assert.match(adminSource, /onChange=\{nextUnit =>/)
     assert.match(adminSource, /<SelectControl/)
     assert.match(adminSource, /ariaLabel=\{t\('admin\.table\.pageSize'\)\}/)
-    assert.match(adminSource, /onChange=\{nextPageSize => table\.setPageSize\(nextPageSize\)\}/)
+    assert.match(
+      adminSource,
+      /onChange=\{nextPageSize => table\.setPageSize\(nextPageSize\)\}/
+    )
     assert.match(adminSource, /size="compact"/)
     assert.doesNotMatch(adminSource, /<select/)
     assert.doesNotMatch(adminSource, /admin-unit-segment/)
@@ -572,7 +612,10 @@ describe('frontend smoke checks', () => {
     assert.match(releaseWorkflow, /mostbox-android-\*-release\.apk/)
     assert.match(releaseWorkflow, /build-android/)
     assert.match(buildScript, /MOST_ANDROID_RELEASE_VERSION/)
-    assert.match(buildScript, /expo[\s\S]*prebuild[\s\S]*--platform[\s\S]*android/)
+    assert.match(
+      buildScript,
+      /expo[\s\S]*prebuild[\s\S]*--platform[\s\S]*android/
+    )
   })
 
   it('documents the dedicated R2 release bucket defaults', () => {
@@ -619,7 +662,8 @@ describe('frontend smoke checks', () => {
     assert.match(messages, /Web 端只连接已有 MostBox 节点/)
     assert.match(messages, /Node\.js >= 22\.12/)
     assert.match(messages, /npx most-box@latest/)
-    assert.match(portal, /portal\.feature\.app\.bullet\.desktop/)
+    assert.doesNotMatch(portal, /portal\.status\.note/)
+    assert.doesNotMatch(portal, /portal-status-band/)
     assert.match(messages, /Web 端只连接已有节点，桌面端提供完整 P2P 能力/)
     assert.match(remoteNodePanel, /remote\.hint/)
     assert.match(messages, /Web 端只连接已有 MostBox 节点/)
@@ -629,17 +673,16 @@ describe('frontend smoke checks', () => {
     assert.doesNotMatch(agents, /components\/AppHomeMode\.tsx/)
   })
 
-  it('documents the chat-first MVP acceptance path without weakening protocol regression', () => {
+  it('documents the equal toolbox acceptance path without weakening protocol regression', () => {
     const acceptance = readSource('docs/acceptance.md')
     const agents = readSource(SOURCE_PATHS.agents)
 
-    assert.match(acceptance, /聊天主入口/)
-    assert.match(acceptance, /`http:\/\/localhost:3000\/chat\/`/)
-    assert.match(acceptance, /当前主线验收从 `\/chat\/` 开始/)
-    assert.match(acceptance, /`\/app\/` 现在是文件库和传输管理入口/)
-    assert.match(acceptance, /聊天附件传文件/)
+    assert.match(acceptance, /平权工具箱/)
+    assert.match(acceptance, /文件、聊天、知识库、游戏和 Web3 是同等入口/)
+    assert.match(acceptance, /`http:\/\/localhost:3000\/`/)
+    assert.match(acceptance, /`\/app\/` 保留完整文件发布、下载和做种管理/)
+    assert.match(acceptance, /聊天设置不再提供知识库导出入口/)
     assert.match(acceptance, /发布者退出/)
-    assert.match(acceptance, /保存聊天记录到知识库/)
     assert.match(acceptance, /`game\.<gameId>\.<roomCode>` Channel/)
     assert.match(acceptance, /`most:\/\/<cid>\?filename=\.\.\.`/)
     assert.match(acceptance, /cidVersion: 1/)
@@ -657,11 +700,16 @@ describe('frontend smoke checks', () => {
     )
     assert.doesNotMatch(
       acceptance,
+      new RegExp('当前主线验收从 `/' + 'chat/` 开始')
+    )
+    assert.doesNotMatch(acceptance, new RegExp('保存聊天记录到' + '知识库'))
+    assert.doesNotMatch(
+      acceptance,
       /主应用\s*\|\s*`http:\/\/localhost:3000\/app\/`\s*\|\s*发布文件/
     )
   })
 
-  it('keeps Android aligned with the chat-first attachment MVP', () => {
+  it('keeps Android aligned with the attachment and seeding MVP', () => {
     const appSource = readSource('mobile/android/App.tsx')
     const chatRoomSource = readSource(
       'mobile/android/src/features/chat/ChatRoomScreen.tsx'
@@ -690,14 +738,18 @@ describe('frontend smoke checks', () => {
       /Channel Probe|Send Probe Message|No channel messages/
     )
     assert.doesNotMatch(androidSources, /\{__DEV__ \? \(/)
-    assert.match(androidReadme, /Android chat-first alpha/)
+    assert.match(androidReadme, /Android foreground P2P alpha/)
     assert.match(androidReadme, /Sending an attachment publishes/)
-    assert.match(androidReadme, /Received chat messages that contain a `most:\/\/` link/)
+    assert.match(
+      androidReadme,
+      /Received chat messages that contain a `most:\/\/` link/
+    )
     assert.match(androidAlpha, /Android 内测验收清单/)
     assert.match(androidAlpha, /Android 聊天附件发送/)
     assert.match(androidAlpha, /发布者退出后继续传播/)
-    assert.match(readme, /Android 聊天优先完整种子 MVP/)
+    assert.match(readme, /Android Alpha/)
     assert.match(readme, /收发消息、用 `most:\/\/` 附件传文件/)
+    assert.doesNotMatch(readme, new RegExp('Android 聊天' + '优先完整种子 MVP'))
   })
 
   it('uses TanStack Start static prerender for the web shell', () => {
@@ -726,11 +778,19 @@ describe('frontend smoke checks', () => {
 
   it('shows the static package version in the footer', () => {
     const footer = readSource(SOURCE_PATHS.components.footer)
+    const portal = readSource('src/components/FeaturePortal.tsx')
     const admin = readSource(SOURCE_PATHS.features.admin)
 
     assert.match(footer, /from '..\/..\/package\.json'/)
+    assert.match(portal, /useAppStore/)
+    assert.match(portal, /getPortalBackendStatus/)
+    assert.match(portal, /portal-node-status/)
+    assert.doesNotMatch(portal, /portal-node-panel/)
     assert.match(footer, /const version = packageJson\.version/)
     assert.match(footer, /v\{version\}/)
+    assert.doesNotMatch(portal, /portal-status-band/)
+    assert.doesNotMatch(footer, /useAppStore/)
+    assert.doesNotMatch(footer, /mkt-footer-status/)
     assert.doesNotMatch(footer, /title=\{version\}/)
     assert.doesNotMatch(footer, /commit=|build=/)
     assert.doesNotMatch(admin, /admin\.nodeStatus\.webBuild/)
@@ -770,9 +830,16 @@ describe('frontend smoke checks', () => {
     assert.match(aboutPage, /to="\/download\/"/)
     assert.match(messages, /About MOST PEOPLE/)
     assert.match(messages, /Decentralized P2P toolbox/)
-    assert.match(messages, /MOST PEOPLE starts from chat/)
+    assert.match(messages, /MOST PEOPLE is a fully open source P2P toolbox/)
+    assert.doesNotMatch(
+      messages,
+      new RegExp('MOST PEOPLE starts from ' + 'chat')
+    )
     assert.match(messages, /邀请大家/)
-    assert.doesNotMatch(messages, /像微信一样|先把人连起来|Like familiar chat apps/)
+    assert.doesNotMatch(
+      messages,
+      /像微信一样|先把人连起来|Like familiar chat apps/
+    )
     assert.match(messages, /Multi-person voice calls/)
     assert.match(messages, /magnet links and BT torrents/)
     assert.match(messages, /MOST PEOPLE is fully open source/)
@@ -780,10 +847,16 @@ describe('frontend smoke checks', () => {
     assert.match(messages, /not cloud storage/)
     assert.match(messages, /Knowledge Base/)
     assert.match(messages, /Open-source account system/)
-    assert.match(messages, /MOST PEOPLE accounts use this local identity system/)
+    assert.match(
+      messages,
+      /MOST PEOPLE accounts use this local identity system/
+    )
     assert.match(messages, /Other projects can use it/)
     assert.match(messages, /'portal\.feature\.web3\.title': 'Web3'/)
-    assert.match(messages, /'portal\.feature\.web3\.subtitle': 'Open-source account system'/)
+    assert.match(
+      messages,
+      /'portal\.feature\.web3\.subtitle': 'Open-source account system'/
+    )
     assert.match(messages, /Open source and reusable/)
     assert.doesNotMatch(messages, /Independent account toolbox/)
   })
@@ -946,7 +1019,10 @@ describe('frontend smoke checks', () => {
       assert.doesNotMatch(source, /useBack/)
       assert.doesNotMatch(source, /ArrowLeft/)
     }
-    assert.match(chatJoinSource, /<AppEmpty className="chat-join-loading-page">/)
+    assert.match(
+      chatJoinSource,
+      /<AppEmpty className="chat-join-loading-page">/
+    )
     assert.doesNotMatch(chatJoinSource, /<AppTop/)
     assert.doesNotMatch(chatJoinSource, /AppShell/)
     assert.match(
@@ -1112,9 +1188,18 @@ describe('frontend smoke checks', () => {
       /<DemoField[\s\S]*name="appearance"[\s\S]*(<select|<SelectControl)/
     )
     assert.doesNotMatch(chatJoinDemoSource, /<select/)
-    assert.match(chatJoinDemoSource, /name="origin"[\s\S]*description=\{t\('chatJoin\.demo\.field\.origin'\)\}/)
-    assert.match(chatJoinDemoSource, /name="uid"[\s\S]*description=\{t\('chatJoin\.demo\.field\.uid'\)\}/)
-    assert.match(chatJoinDemoSource, /name="appearance"[\s\S]*description=\{t\('chatJoin\.demo\.field\.appearance'\)\}/)
+    assert.match(
+      chatJoinDemoSource,
+      /name="origin"[\s\S]*description=\{t\('chatJoin\.demo\.field\.origin'\)\}/
+    )
+    assert.match(
+      chatJoinDemoSource,
+      /name="uid"[\s\S]*description=\{t\('chatJoin\.demo\.field\.uid'\)\}/
+    )
+    assert.match(
+      chatJoinDemoSource,
+      /name="appearance"[\s\S]*description=\{t\('chatJoin\.demo\.field\.appearance'\)\}/
+    )
     assert.doesNotMatch(chatJoinDemoSource, /type="checkbox"[\s\S]*sparkbit/)
     assert.match(chatJoinSource, /const setIsDarkMode = useAppStore/)
     assert.match(
@@ -1225,9 +1310,15 @@ describe('frontend smoke checks', () => {
     assert.match(gameRoomSource, /GAME_CHANNEL_TYPE/)
     assert.match(gameRoomSource, /useChannelMessages/)
     assert.doesNotMatch(gameRoomSource, /\/api\/game|gameRoutes/)
-    assert.match(ganDengYanSource, /new URLSearchParams\(window\.location\.search\)/)
+    assert.match(
+      ganDengYanSource,
+      /new URLSearchParams\(window\.location\.search\)/
+    )
     assert.match(ganDengYanSource, /game\.joinRoom\(code\)/)
-    assert.match(zhajinhuaSource, /new URLSearchParams\(window\.location\.search\)/)
+    assert.match(
+      zhajinhuaSource,
+      /new URLSearchParams\(window\.location\.search\)/
+    )
     assert.match(zhajinhuaSource, /game\.joinRoom\(code\)/)
   })
 
@@ -1235,9 +1326,13 @@ describe('frontend smoke checks', () => {
     const chatSource = readSource(SOURCE_PATHS.features.chat)
     const componentSource = readSource('src/components/ChatUi.tsx')
     const voicePanelSource = readSource('src/components/ChatVoiceRoomPanel.tsx')
-    const globalVoiceSource = readSource('src/features/chat/GlobalVoiceRoom.tsx')
+    const globalVoiceSource = readSource(
+      'src/features/chat/GlobalVoiceRoom.tsx'
+    )
     const voiceHookSource = readSource('src/hooks/useVoiceRoom.ts')
-    const attachmentCardSource = readSource('src/components/ChatAttachmentCard.tsx')
+    const attachmentCardSource = readSource(
+      'src/components/ChatAttachmentCard.tsx'
+    )
     const chatCssSource = readSource('src/styles/chat.css')
     const rootRouteSource = readSource(SOURCE_PATHS.routes.root)
     const uiIndexSource = readSource('src/components/ui/index.ts')
@@ -1259,9 +1354,18 @@ describe('frontend smoke checks', () => {
       /event\.shiftKey \|\| event\.nativeEvent\.isComposing/
     )
     assert.match(componentSource, /event\.preventDefault\(\)/)
-    assert.match(chatCssSource, /\.chat-composer-input[\s\S]*field-sizing: content/)
-    assert.match(chatCssSource, /\.message-bubble \{[\s\S]*white-space: pre-wrap/)
-    assert.match(chatCssSource, /&\.has-attachment \{[\s\S]*white-space: normal/)
+    assert.match(
+      chatCssSource,
+      /\.chat-composer-input[\s\S]*field-sizing: content/
+    )
+    assert.match(
+      chatCssSource,
+      /\.message-bubble \{[\s\S]*white-space: pre-wrap/
+    )
+    assert.match(
+      chatCssSource,
+      /&\.has-attachment \{[\s\S]*white-space: normal/
+    )
     assert.match(componentSource, /unread = false/)
     assert.match(componentSource, /chat-channel-unread-dot/)
     assert.match(componentSource, /ActionMenu/)
@@ -1341,7 +1445,10 @@ describe('frontend smoke checks', () => {
     assert.match(i18nMessages, /'chat\.attachment\.image': '图片'/)
     assert.match(i18nMessages, /'chat\.attachment\.video': '视频'/)
     assert.match(i18nMessages, /'chat\.attachment\.file': '文件'/)
-    assert.match(i18nMessages, /'chat\.attachment\.downloadAvailable': '可下载'/)
+    assert.match(
+      i18nMessages,
+      /'chat\.attachment\.downloadAvailable': '可下载'/
+    )
     assert.match(i18nMessages, /'chat\.attachment\.preview': '预览'/)
     assert.doesNotMatch(i18nMessages, /chat\.attachment\.noSeedsBrief/)
     assert.doesNotMatch(i18nMessages, /chat\.invite\.|chat\.games\./)
@@ -1359,61 +1466,38 @@ describe('frontend smoke checks', () => {
     assert.doesNotMatch(chatSource, /正在输入|告诉我可以帮你做什么|修改名称/)
   })
 
-  it('saves current chat history into note drafts from chat settings', () => {
+  it('keeps chat settings independent from the knowledge base', () => {
     const chatSource = readSource(SOURCE_PATHS.features.chat)
     const chatUiSource = readSource('src/components/ChatUi.tsx')
     const chatCssSource = readSource('src/styles/chat.css')
     const noteSource = readSource('src/features/note/NotePage.tsx')
     const noteRouteSource = readSource('src/routes/note/index.tsx')
-    const draftSource = readSource('src/lib/chatNoteDraft.ts')
     const i18nMessages = readI18nSources()
 
-    assert.match(draftSource, /CHAT_NOTE_DRAFT_STORAGE_PREFIX/)
-    assert.match(draftSource, /window\.localStorage/)
-    assert.match(draftSource, /chatDraft/)
-    assert.doesNotMatch(draftSource, /\/api\/|fetch\(|api\./)
-    assert.match(chatSource, /createChatNoteDraft/)
-    assert.match(chatSource, /getChatNoteDraftHref/)
-    assert.match(chatSource, /handleSaveChannelToNote/)
-    assert.match(chatSource, /getChatHistoryNoteDraftContent/)
-    assert.match(chatSource, /isSaveableChannelMessage/)
-    assert.match(chatSource, /chat\.noteDraft\.saveAll/)
-    assert.match(chatSource, /chat\.noteDraft\.settingsTitle/)
-    assert.match(chatSource, /chat\.noteDraft\.messageCount/)
-    assert.match(
+    assert.doesNotMatch(chatSource, /createChatNoteDraft/)
+    assert.doesNotMatch(chatSource, /getChatNoteDraftHref/)
+    assert.doesNotMatch(chatSource, /handleSaveChannelToNote/)
+    assert.doesNotMatch(chatSource, /getChatHistoryNoteDraftContent/)
+    assert.doesNotMatch(chatSource, /isSaveableChannelMessage/)
+    assert.doesNotMatch(chatSource, /chat\.noteDraft\./)
+    assert.doesNotMatch(
       chatSource,
-      /chat\.channel\.createdAt[\s\S]*chat\.noteDraft\.settingsTitle/
+      /chat\.channel\.createdAt[\s\S]*chat\.noteDraft/
     )
-    assert.match(chatSource, /channel-detail-hint/)
     assert.doesNotMatch(chatSource, /NotebookPen/)
     assert.doesNotMatch(chatSource, /handleSaveMessageToNote/)
     assert.doesNotMatch(chatSource, /chat\.message\.saveToNote/)
     assert.doesNotMatch(chatUiSource, /actions\?: ActionMenuItem\[\]/)
     assert.doesNotMatch(chatUiSource, /chat-message-actions-trigger/)
     assert.doesNotMatch(chatCssSource, /chat-message-actions/)
-    assert.match(chatCssSource, /channel-detail-hint/)
     assert.match(noteRouteSource, /chatDraft/)
     assert.match(noteSource, /readChatNoteDraft/)
-    assert.match(noteSource, /deleteChatNoteDraft/)
-    assert.match(noteSource, /importChatDraftToNote/)
-    assert.match(noteSource, /importChatDraftToVault/)
-    assert.match(
-      noteSource,
-      /saveNote\(\{[\s\S]*content: draft\.content[\s\S]*isSecret: false/
+    assert.doesNotMatch(i18nMessages, /'chat\.noteDraft\./)
+    assert.doesNotMatch(i18nMessages, new RegExp('保存聊天记录到' + '知识库'))
+    assert.doesNotMatch(
+      i18nMessages,
+      /chat\.messageActions|chat\.message\.saveToNote/
     )
-    assert.match(noteSource, /createNoteVaultFile\(targetPath, draft\.content\)/)
-    assert.match(
-      noteSource,
-      /navigateToNote\(\{ cid: newCid, mode: 'edit' \}, true\)/
-    )
-    assert.match(
-      noteSource,
-      /navigateToVault\(\{ file: file\.path, mode: 'edit' \}, true\)/
-    )
-    assert.match(i18nMessages, /'chat\.noteDraft\.saveAll': '保存聊天记录到知识库'/)
-    assert.match(i18nMessages, /'chat\.noteDraft\.empty': '当前聊天还没有可保存的消息'/)
-    assert.doesNotMatch(i18nMessages, /chat\.messageActions|chat\.message\.saveToNote/)
-    assert.match(i18nMessages, /'note\.chatDraft\.created': '已保存到知识库'/)
   })
 
   it('uses key-based i18n without DOM translation', () => {
@@ -1428,10 +1512,14 @@ describe('frontend smoke checks', () => {
     const marketingLayoutSource = readSource(
       'src/components/MarketingLayout.tsx'
     )
-    const marketingHeaderSource = readSource('src/components/MarketingHeader.tsx')
+    const marketingHeaderSource = readSource(
+      'src/components/MarketingHeader.tsx'
+    )
     const appShellSource = readSource('src/components/AppShell.tsx')
     const languageToggleSource = readSource('src/components/LanguageToggle.tsx')
-    const appearanceToggleSource = readSource('src/components/AppearanceToggle.tsx')
+    const appearanceToggleSource = readSource(
+      'src/components/AppearanceToggle.tsx'
+    )
     const accountMenuSource = readSource('src/features/profile/AccountMenu.tsx')
     const profileSource = readSource('src/features/profile/ProfilePage.tsx')
     const appSource = readSource(SOURCE_PATHS.features.files)
@@ -1447,7 +1535,10 @@ describe('frontend smoke checks', () => {
     assert.match(marketingLayoutSource, /LanguageToggle/)
     assert.match(marketingHeaderSource, /AppearanceToggle/)
     assert.match(marketingHeaderSource, /LanguageToggle/)
-    assert.doesNotMatch(accountMenuSource, /ActionMenu|LOCALES|setLocale|setIsDarkMode/)
+    assert.doesNotMatch(
+      accountMenuSource,
+      /ActionMenu|LOCALES|setLocale|setIsDarkMode/
+    )
     assert.doesNotMatch(
       profileSource,
       /ProfilePreferencesPanel|profile-preferences-panel|profile-locale-grid|profile-preference-action|LOCALES\.map|localeNames\[item\]|setLocale\(item\)|setIsDarkMode\(!isDarkMode\)/
@@ -1471,6 +1562,64 @@ describe('frontend smoke checks', () => {
       /common\.locale\.current|common\.locale\.switchTo/
     )
     assert.match(portalSource, /titleKey: 'portal\.feature\.app\.title'/)
+    assert.match(portalSource, /to=\{f\.path\}/)
+    assert.match(portalSource, /portal-feature-card-icon/)
+    assert.match(portalSource, /<FolderOpen size=\{28\}/)
+    assert.match(
+      portalSource,
+      /FolderOpen|MessagesSquare|NotebookPen|Gamepad2|Wallet/
+    )
+    assert.doesNotMatch(portalSource, /useState<string>\('chat'\)/)
+    assert.doesNotMatch(portalSource, /portal-marketing/)
+    assert.doesNotMatch(portalSource, /activeFeature/)
+    assert.doesNotMatch(portalSource, /portal-feature-card-dot/)
+    const portalStyles = readSource('src/styles/portal.css')
+    assert.match(
+      portalStyles,
+      /background:\s*linear-gradient\(135deg,\s*var\(--text-primary\),\s*var\(--accent\)\)/
+    )
+    assert.match(
+      portalStyles,
+      /\.portal-feature-card:hover\s*\{[\s\S]*transform:\s*translateY\(-2px\)/
+    )
+    assert.match(
+      portalStyles,
+      /\.portal-feature-card-icon\s*\{[\s\S]*color:\s*var\(--accent\)/
+    )
+    assert.match(
+      portalStyles,
+      /\.portal-page\s*\{[\s\S]*min-height:\s*calc\(100dvh - 64px - 89px\)/
+    )
+    assert.match(
+      portalStyles,
+      /\.portal-hero\s*\{[\s\S]*display:\s*flex[\s\S]*align-items:\s*center/
+    )
+    const marketingStyles = readSource('src/styles/marketing.css')
+    assert.match(
+      marketingStyles,
+      /\.mkt-nav-inner\s*\{[\s\S]*max-width:\s*1440px[\s\S]*padding-inline:\s*clamp\(24px,\s*6vw,\s*72px\)/
+    )
+    assert.match(
+      marketingStyles,
+      /\.about-app-header \.mkt-container\s*\{[\s\S]*max-width:\s*1440px[\s\S]*padding-inline:\s*clamp\(24px,\s*6vw,\s*72px\)/
+    )
+    const legacyPortalCopyPattern = new RegExp(
+      [
+        'chat-' + 'first',
+        'Start with ' + 'chat',
+        '从聊天' + '开始',
+        '聊天' + '优先',
+      ].join('|')
+    )
+    assert.doesNotMatch(messageCatalogs, legacyPortalCopyPattern)
+    assert.doesNotMatch(
+      messageCatalogs,
+      /portal\.feature\.game\.desc'[\s\S]{0,180}(game\.\*|协议|協議|protocol)/
+    )
+    assert.doesNotMatch(
+      messageCatalogs,
+      /portal\.feature\.game\.[^']*'[\s\S]{0,180}(人机|人機|陪测|陪測|bot seats|bot testing)/
+    )
     assert.match(appSource, /getLocalizedDownloadLinkValidationMessage/)
     assert.match(chatSource, /getLocalizedDownloadLinkValidationMessage/)
     assert.match(downloadValidationSource, /parseMostLink/)
@@ -1501,7 +1650,9 @@ describe('frontend smoke checks', () => {
 
   it('uses shared icon button styling for header utility controls', () => {
     const languageToggleSource = readSource('src/components/LanguageToggle.tsx')
-    const appearanceToggleSource = readSource('src/components/AppearanceToggle.tsx')
+    const appearanceToggleSource = readSource(
+      'src/components/AppearanceToggle.tsx'
+    )
     const globalsSource = readSource('src/styles/globals.css')
 
     assert.match(languageToggleSource, /className="btn btn-icon"/)
@@ -1521,7 +1672,10 @@ describe('frontend smoke checks', () => {
     assert.deepEqual(getLanguageToggleLocales('sparkbit'), ['zh-TW', 'en'])
     assert.match(appShellSource, /languageTheme\?: LanguageToggleTheme/)
     assert.match(appShellSource, /<LanguageToggle theme=\{languageTheme\} \/>/)
-    assert.match(chatSource, /languageTheme=\{isInviteUser \? 'sparkbit' : undefined\}/)
+    assert.match(
+      chatSource,
+      /languageTheme=\{isInviteUser \? 'sparkbit' : undefined\}/
+    )
   })
 
   it('keeps migrated surfaces free of hardcoded Chinese UI copy', () => {
@@ -1627,10 +1781,7 @@ describe('frontend smoke checks', () => {
       i18n.translateMessage('app.downloadFile', 'en'),
       'Download to file library'
     )
-    assert.equal(
-      i18n.translateMessage('app.transfers', 'zh-TW'),
-      '傳輸管理'
-    )
+    assert.equal(i18n.translateMessage('app.transfers', 'zh-TW'), '傳輸管理')
     assert.deepEqual(
       downloadValidation.getMostLinkValidationMessageKey(
         'https://example.com/file'
@@ -1843,10 +1994,16 @@ describe('frontend smoke checks', () => {
   it('keeps account backup scoped and restores once after fresh login', () => {
     const appGlobalsSource = readSource('src/components/AppGlobals.tsx')
     const appShellSource = readSource('src/components/AppShell.tsx')
-    const marketingHeaderSource = readSource('src/components/MarketingHeader.tsx')
-    const marketingLayoutSource = readSource('src/components/MarketingLayout.tsx')
+    const marketingHeaderSource = readSource(
+      'src/components/MarketingHeader.tsx'
+    )
+    const marketingLayoutSource = readSource(
+      'src/components/MarketingLayout.tsx'
+    )
     const languageToggleSource = readSource('src/components/LanguageToggle.tsx')
-    const appearanceToggleSource = readSource('src/components/AppearanceToggle.tsx')
+    const appearanceToggleSource = readSource(
+      'src/components/AppearanceToggle.tsx'
+    )
     const profileSource = readSource('src/features/profile/ProfilePage.tsx')
     const profileStyles = readSource('src/styles/profile.css')
     const profileMessagesSource = readSource('src/lib/i18n/messages/profile.ts')
@@ -1870,7 +2027,8 @@ describe('frontend smoke checks', () => {
     const formatSource = readSource('src/lib/format.ts')
     const profileMessages = readSource('src/lib/i18n/messages/profile.ts')
     const userStoreSource = readSource('src/stores/userStore.ts')
-    const marketingDownloadIndex = marketingLayoutSource.indexOf('to="/download/"')
+    const marketingDownloadIndex =
+      marketingLayoutSource.indexOf('to="/download/"')
     const marketingAccountMenuIndex = marketingLayoutSource.indexOf(
       '<AccountMenuButton />'
     )
@@ -1889,7 +2047,10 @@ describe('frontend smoke checks', () => {
     assert.match(appShellSource, /AccountMenuButton/)
     assert.match(appShellSource, /hideAccountMenu\?: boolean/)
     assert.match(appShellSource, /hideAccountMenu = false/)
-    assert.match(appShellSource, /\{!hideAccountMenu && <AccountMenuButton \/>\}/)
+    assert.match(
+      appShellSource,
+      /\{!hideAccountMenu && <AccountMenuButton \/>\}/
+    )
     assert.match(appShellSource, /AppearanceToggle/)
     assert.match(appShellSource, /LanguageToggle/)
     assert.match(chatSource, /hideAccountMenu=\{isInviteUser\}/)
@@ -1909,7 +2070,10 @@ describe('frontend smoke checks', () => {
         appAccountMenuIndex !== -1 &&
         appHeaderRightIndex < appAccountMenuIndex
     )
-    assert.doesNotMatch(marketingLayoutSource, /mkt-nav-avatar-trigger|nav\.getStarted|openLoginModal/)
+    assert.doesNotMatch(
+      marketingLayoutSource,
+      /mkt-nav-avatar-trigger|nav\.getStarted|openLoginModal/
+    )
     assert.match(profileSource, /profile-backup-card/)
     assert.match(profileSource, /profile-backup-summary/)
     assert.match(profileSource, /profile\.backup\.summary\.notes/)
@@ -1922,10 +2086,22 @@ describe('frontend smoke checks', () => {
     assert.match(profileSource, /profile-backup-action-group-title/)
     assert.match(profileSource, /profile\.backup\.group\.cloud/)
     assert.match(profileSource, /profile\.backup\.group\.local/)
-    assert.match(profileMessagesSource, /'profile\.backup\.group\.cloud': '云端同步'/)
-    assert.match(profileMessagesSource, /'profile\.backup\.group\.local': '本地文件'/)
-    assert.match(profileMessagesSource, /'profile\.backup\.action\.exportLocal': '备份到本地'/)
-    assert.match(profileMessagesSource, /'profile\.backup\.action\.importLocal': '从本地恢复'/)
+    assert.match(
+      profileMessagesSource,
+      /'profile\.backup\.group\.cloud': '云端同步'/
+    )
+    assert.match(
+      profileMessagesSource,
+      /'profile\.backup\.group\.local': '本地文件'/
+    )
+    assert.match(
+      profileMessagesSource,
+      /'profile\.backup\.action\.exportLocal': '备份到本地'/
+    )
+    assert.match(
+      profileMessagesSource,
+      /'profile\.backup\.action\.importLocal': '从本地恢复'/
+    )
     assert.doesNotMatch(profileMessagesSource, /导出到本地|导入到本地/)
     assert.match(
       profileStyles,
@@ -1962,7 +2138,10 @@ describe('frontend smoke checks', () => {
     assert.match(formatSource, /export function formatAddressShort/)
     assert.match(formatSource, /slice\(0, 6\).*slice\(-4\)/s)
     assert.match(accountMenuSource, /export function AccountMenuButton/)
-    assert.doesNotMatch(accountMenuSource, /AccountBackupPanel|AccountBackupMenuButton/)
+    assert.doesNotMatch(
+      accountMenuSource,
+      /AccountBackupPanel|AccountBackupMenuButton/
+    )
     assert.doesNotMatch(
       accountMenuSource,
       /useAccountBackup|ConfirmModal|ActionMenu|LOCALES|setLocale|setIsDarkMode|account-menu-|profile\.section\.backup/
@@ -1973,21 +2152,30 @@ describe('frontend smoke checks', () => {
     assert.match(accountMenuSource, /to="\/profile\/"/)
     assert.match(accountMenuSource, /account-profile-link/)
     assert.match(accountMenuSource, /account-profile-link-avatar/)
-    assert.doesNotMatch(accountMenuSource, /key: 'language-status'|key: 'backup-status'/)
+    assert.doesNotMatch(
+      accountMenuSource,
+      /key: 'language-status'|key: 'backup-status'/
+    )
     assert.match(accountMenuSource, /<User size=\{18\}/)
     assert.match(profileSource, /openCloudBackupConfirm/)
     assert.match(profileSource, /openCloudRestoreConfirm/)
-    assert.match(
-      profileSource,
-      /requestConfirm:\s*requestImportBackupConfirm/
-    )
+    assert.match(profileSource, /requestConfirm:\s*requestImportBackupConfirm/)
     assert.doesNotMatch(
       appHeaderPageSources,
       /AccountBackupMenuButton|AccountBackupPanel|setIsDarkMode|common\.theme\.toggle/
     )
-    assert.doesNotMatch(appHeaderPageSources, /from '~\/features\/profile\/Account/)
-    assert.doesNotMatch(appHeaderPageSources, /Sun size=\{16\}.*Moon size=\{16\}/s)
-    assert.doesNotMatch(appHeaderPageSources, /useNoteBackupSync|NoteMoreMenu|backupSync/)
+    assert.doesNotMatch(
+      appHeaderPageSources,
+      /from '~\/features\/profile\/Account/
+    )
+    assert.doesNotMatch(
+      appHeaderPageSources,
+      /Sun size=\{16\}.*Moon size=\{16\}/s
+    )
+    assert.doesNotMatch(
+      appHeaderPageSources,
+      /useNoteBackupSync|NoteMoreMenu|backupSync/
+    )
     assert.doesNotMatch(sidebarSources, /SidebarAccount/)
     assert.match(backupSource, /backupToCloud/)
     assert.match(backupSource, /restoreFromCloud/)
@@ -2010,7 +2198,10 @@ describe('frontend smoke checks', () => {
     )
     assert.match(backupSource, /preferences:\s*payload\.preferences \|\| null/)
     assert.match(backupSource, /normalizeBackupPreferences/)
-    assert.match(backupSource, /setIsDarkMode\(restoredPreferences\.theme === 'dark'\)/)
+    assert.match(
+      backupSource,
+      /setIsDarkMode\(restoredPreferences\.theme === 'dark'\)/
+    )
     assert.match(backupSource, /setLocale\(restoredPreferences\.locale\)/)
     assert.match(backupSource, /applyProfileToIdentity/)
     assert.match(backupSource, /profile\.displayName \|\| identity\.username/)
@@ -2212,13 +2403,19 @@ describe('frontend smoke checks', () => {
 
     assert.match(gameRoomSource, /getChannelPresence/)
     assert.match(gameRoomSource, /handleGameSocketEvent/)
-    assert.match(gameRoomSource, /presenceEnabled:\s*Boolean\(channelName && userIdentity\)/)
+    assert.match(
+      gameRoomSource,
+      /presenceEnabled:\s*Boolean\(channelName && userIdentity\)/
+    )
     assert.match(gameRoomSource, /presenceProfile/)
     assert.match(gameRoomSource, /presenceByAddress/)
     assert.match(gameRoomSource, /onlineAddresses/)
     assert.match(gameRoomSource, /playerPayload/)
     assert.match(ganDengYanSource, /getGamePlayerDisplay/)
-    assert.match(ganDengYanSource, /presenceByAddress={game\.presenceByAddress}/)
+    assert.match(
+      ganDengYanSource,
+      /presenceByAddress={game\.presenceByAddress}/
+    )
     assert.match(ganDengYanSource, /onlineAddresses={game\.onlineAddresses}/)
     assert.match(ganDengYanSource, /styles\.onlineDot/)
     assert.match(zhaJinHuaSource, /getGamePlayerDisplay/)
@@ -2303,6 +2500,7 @@ describe('frontend smoke checks', () => {
 
   it('hides download client entry points in the desktop client runtime', () => {
     const hookSource = readSource('src/hooks/index.ts')
+    const electronMainSource = readSource('electron/main.js')
     const marketingLayoutSource = readSource(
       'src/components/MarketingLayout.tsx'
     )
@@ -2321,10 +2519,18 @@ describe('frontend smoke checks', () => {
       marketingLayoutSource,
       /const isDesktopClient = useIsDesktopClient\(\)/
     )
+    assert.match(
+      electronMainSource,
+      /pendingDeepLinkUrl \|\| getLocalAppUrl\('\/'\)/
+    )
+    assert.doesNotMatch(
+      electronMainSource,
+      /pendingDeepLinkUrl \|\| getLocalAppUrl\('\/chat\/'\)/
+    )
     assert.match(marketingLayoutSource, /!\s*isDesktopClient &&/)
-    assert.match(portalSource, /hideInDesktopClient: true/)
-    assert.match(portalSource, /activeFeatureSteps/)
     assert.match(portalSource, /!\s*isDesktopClient &&/)
+    assert.doesNotMatch(portalSource, /hideInDesktopClient/)
+    assert.doesNotMatch(portalSource, /activeFeatureSteps/)
     assert.match(noteSource, /useConfiguredNoteVaultBackend/)
     assert.match(
       noteSource,
@@ -2348,7 +2554,10 @@ describe('frontend smoke checks', () => {
       noteStyles,
       /\.note-editor-info\s*\{[\s\S]*padding:\s*4px 10px/
     )
-    assert.match(noteSource, /\{isEditing \? \([\s\S]*className="note-title-input"/)
+    assert.match(
+      noteSource,
+      /\{isEditing \? \([\s\S]*className="note-title-input"/
+    )
     assert.match(
       noteSource,
       /\{isEditing && selectedFile \? \([\s\S]*className="note-title-input"/
@@ -2379,8 +2588,9 @@ describe('frontend smoke checks', () => {
   it('keeps note editor privacy controls aligned between web and desktop vault flows', () => {
     const noteSource = readSource('src/features/note/NotePage.tsx')
     const editorActionSections =
-      noteSource.match(/<div className="note-editor-actions">[\s\S]*?<\/div>/g) ||
-      []
+      noteSource.match(
+        /<div className="note-editor-actions">[\s\S]*?<\/div>/g
+      ) || []
 
     assert.equal(editorActionSections.length, 2)
     for (const section of editorActionSections) {
@@ -2399,16 +2609,21 @@ describe('frontend smoke checks', () => {
     const noteSource = readSource('src/features/note/NotePage.tsx')
     const noteStyles = readSource('src/styles/note.css')
     const editorActionSections =
-      noteSource.match(/<div className="note-editor-actions">[\s\S]*?<\/div>/g) ||
-      []
+      noteSource.match(
+        /<div className="note-editor-actions">[\s\S]*?<\/div>/g
+      ) || []
     const treeActionMenus =
-      noteSource.match(/<NoteTreeActionsMenu[\s\S]*?onDelete=\{openDeleteConfirm\}[\s\S]*?\/>/g) ||
-      []
+      noteSource.match(
+        /<NoteTreeActionsMenu[\s\S]*?onDelete=\{openDeleteConfirm\}[\s\S]*?\/>/g
+      ) || []
 
     assert.equal(editorActionSections.length, 2)
     assert.equal(treeActionMenus.length, 2)
     assert.match(noteSource, /function NoteTreeActionsMenu/)
-    assert.match(noteSource, /key: 'move'[\s\S]*label: t\('note\.action\.move'\)/)
+    assert.match(
+      noteSource,
+      /key: 'move'[\s\S]*label: t\('note\.action\.move'\)/
+    )
     assert.match(noteSource, /key: 'delete'[\s\S]*danger: true/)
     assert.match(noteSource, /className="note-list-actions-trigger"/)
     for (const section of editorActionSections) {
