@@ -147,6 +147,43 @@ export function buildOpenApiSpec(appPort) {
             },
           },
         },
+        ChannelMember: {
+          type: 'object',
+          required: ['address'],
+          properties: {
+            address: { type: 'string' },
+            displayName: { type: 'string' },
+            identity: {
+              type: 'string',
+              description: 'Current known identity label for display only.',
+            },
+            avatar: { type: 'string' },
+            joinedAt: { type: 'string' },
+          },
+        },
+        Channel: {
+          type: 'object',
+          required: ['name', 'channelKey'],
+          properties: {
+            name: { type: 'string' },
+            channelId: { type: 'string' },
+            channelKey: { type: 'string' },
+            key: { type: 'string' },
+            coreKey: { type: 'string' },
+            localWriterCoreKey: { type: 'string' },
+            writerCoreKeys: { type: 'array', items: { type: 'string' } },
+            createdAt: { type: 'string' },
+            lastMessageAt: { type: 'string' },
+            type: { type: 'string' },
+            peerCount: { type: 'number' },
+            remark: { type: 'string' },
+            pinned: { type: 'boolean' },
+            members: {
+              type: 'array',
+              items: { $ref: '#/components/schemas/ChannelMember' },
+            },
+          },
+        },
         ChannelAttachment: {
           type: 'object',
           required: ['kind', 'cid', 'fileName', 'link'],
@@ -423,7 +460,15 @@ export function buildOpenApiSpec(appPort) {
       '/api/channels': {
         get: {
           summary: 'List authenticated user channels',
-          responses: { 200: { description: 'Channel list' } },
+          responses: {
+            200: {
+              description: 'Channel list',
+              ...jsonSchema({
+                type: 'array',
+                items: { $ref: '#/components/schemas/Channel' },
+              }),
+            },
+          },
         },
         post: {
           summary: 'Create or join a P2P channel',
@@ -433,6 +478,7 @@ export function buildOpenApiSpec(appPort) {
           responses: {
             200: {
               description: 'Channel metadata',
+              ...jsonSchema({ $ref: '#/components/schemas/Channel' }),
             },
           },
         },

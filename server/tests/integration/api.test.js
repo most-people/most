@@ -423,6 +423,8 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(spec.paths['/api/channels/{name}/remark'])
       assert.ok(spec.paths['/api/channels/{name}/pin'])
       assert.ok(spec.components.schemas.ChannelMention)
+      assert.ok(spec.components.schemas.ChannelMember)
+      assert.ok(spec.components.schemas.Channel.properties.members)
       assert.ok(spec.components.schemas.ChannelMessage)
       assert.ok(spec.components.schemas.ChannelPresence)
       assert.ok(
@@ -2586,6 +2588,32 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(welcomeMessages[1].authorName, 'SecondUser')
       assert.strictEqual(welcomeMessages[1].authorIdentity, 'second_label')
       assert.strictEqual(welcomeMessages[1].avatar, 'second.png')
+      const listRes = await fetch(`${baseUrl}/api/channels`)
+      const channels = await listRes.json()
+      const channel = channels.find(item => item.name === channelName)
+      assert.strictEqual(listRes.status, 200)
+      assert.deepStrictEqual(
+        channel.members.map(member => ({
+          address: member.address,
+          displayName: member.displayName,
+          identity: member.identity,
+          avatar: member.avatar,
+        })),
+        [
+          {
+            address: TEST_IDENTITY.address.toLowerCase(),
+            displayName: 'FirstUser',
+            identity: 'first_label',
+            avatar: 'first.png',
+          },
+          {
+            address: SECOND_IDENTITY.address.toLowerCase(),
+            displayName: 'SecondUser',
+            identity: 'second_label',
+            avatar: 'second.png',
+          },
+        ]
+      )
       assert.ok(
         Number(welcomeMessages[0].timestamp) <=
           Number(welcomeMessages[1].timestamp)

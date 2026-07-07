@@ -200,6 +200,15 @@ type ChannelMentionUnreadMap = Record<string, boolean>
 type ComposerSelection = { start: number; end: number }
 type MentionDraft = { content: string; mentions: ChannelMention[] }
 type MentionTarget = { address: string; label: string }
+type ChannelMemberProfile = {
+  address: string
+  displayName: string
+  identity?: string
+  avatar?: string
+  firstSeenAt: number
+  lastSeenAt: number
+  index: number
+}
 type MentionCandidate = {
   address: string
   label: string
@@ -782,19 +791,34 @@ function ChatPage() {
     }
   }, [])
 
+  const activeChannelMembers = useMemo(() => {
+    const current =
+      channels.find(channel => getChannelKey(channel) === activeChannelKey) ||
+      activeChannel
+    return Array.isArray(current?.members) ? current.members : []
+  }, [activeChannel, activeChannelKey, channels])
+
   const channelMembers = useMemo(() => {
-    const membersByAuthor = new Map<
-      string,
-      {
-        address: string
-        displayName: string
-        identity?: string
-        avatar?: string
-        firstSeenAt: number
-        lastSeenAt: number
-        index: number
-      }
-    >()
+    const membersByAuthor = new Map<string, ChannelMemberProfile>()
+
+    activeChannelMembers.forEach((member, index) => {
+      const address = String(member.address || '').trim()
+      if (!address) return
+      const key = address.toLowerCase()
+      const joinedAt = Date.parse(String(member.joinedAt || '')) || 0
+      const displayName = String(member.displayName || '').trim()
+      const identity = String(member.identity || '').trim()
+      const avatar = String(member.avatar || '').trim()
+      membersByAuthor.set(key, {
+        address,
+        displayName,
+        ...(identity ? { identity } : {}),
+        ...(avatar ? { avatar } : {}),
+        firstSeenAt: joinedAt,
+        lastSeenAt: joinedAt,
+        index,
+      })
+    })
 
     channelMessages.forEach((message, index) => {
       const address = String(message.author || '').trim()
@@ -814,7 +838,7 @@ function ChatPage() {
           ...(avatar ? { avatar } : {}),
           firstSeenAt: timestamp,
           lastSeenAt: timestamp,
-          index,
+          index: activeChannelMembers.length + index,
         })
         return
       }
@@ -824,6 +848,10 @@ function ChatPage() {
         if (displayName) existing.displayName = displayName
         if (identity) existing.identity = identity
         if (avatar) existing.avatar = avatar
+      } else {
+        if (!existing.displayName && displayName) existing.displayName = displayName
+        if (!existing.identity && identity) existing.identity = identity
+        if (!existing.avatar && avatar) existing.avatar = avatar
       }
     })
 
@@ -831,7 +859,7 @@ function ChatPage() {
       const timeDiff = a.firstSeenAt - b.firstSeenAt
       return timeDiff || a.index - b.index
     })
-  }, [channelMessages])
+  }, [activeChannelMembers, channelMessages])
 
   const messageProfileByAddress = useMemo(() => {
     return new Map(
@@ -856,7 +884,23 @@ function ChatPage() {
     const membersByAddress = new Map(messageProfileByAddress)
     channelPresence.forEach((presence, index) => {
       const address = normalizeMemberAddress(presence.address)
-      if (!address || membersByAddress.has(address)) return
+      if (!address) return
+      const existing = membersByAddress.get(address)
+      if (existing) {
+        const lastSeen = presence.lastSeen || Date.now()
+        membersByAddress.set(address, {
+          ...existing,
+          displayName: presence.displayName || existing.displayName,
+          ...(presence.identity || existing.identity
+            ? { identity: presence.identity || existing.identity }
+            : {}),
+          ...(presence.avatar || existing.avatar
+            ? { avatar: presence.avatar || existing.avatar }
+            : {}),
+          lastSeenAt: Math.max(existing.lastSeenAt, lastSeen),
+        })
+        return
+      }
       membersByAddress.set(address, {
         address: presence.address,
         displayName: presence.displayName || '',
@@ -867,7 +911,10 @@ function ChatPage() {
         index: channelMembers.length + index,
       })
     })
-    return [...membersByAddress.values()]
+    return [...membersByAddress.values()].sort((a, b) => {
+      const timeDiff = a.firstSeenAt - b.firstSeenAt
+      return timeDiff || a.index - b.index
+    })
   }, [channelMembers, channelPresence, messageProfileByAddress])
 
   const onlineMemberAddressSet = useMemo(() => {
@@ -875,10 +922,10 @@ function ChatPage() {
   }, [presenceByAddress])
   const currentUserAddress = normalizeMemberAddress(userIdentity?.address)
 
-  const mentionTargets = useMemo<MentionTarget[]>(() => {
+  const allMentionTargets = useMemo<MentionTarget[]>(() => {
     const nameCounts = displayedChannelMembers.reduce((counts, member) => {
       const address = normalizeMemberAddress(member.address)
-      if (!address || address === currentUserAddress) return counts
+      if (!address) return counts
       const presence = presenceByAddress.get(address)
       const displayName = presence?.displayName || member.displayName
       const baseName = getMentionCandidateBaseName(displayName, member.address)
@@ -890,7 +937,7 @@ function ChatPage() {
     return displayedChannelMembers
       .map(member => {
         const address = normalizeMemberAddress(member.address)
-        if (!address || address === currentUserAddress) return null
+        if (!address) return null
         const presence = presenceByAddress.get(address)
         const displayName = presence?.displayName || member.displayName
         const baseName = getMentionCandidateBaseName(displayName, member.address)
@@ -904,7 +951,15 @@ function ChatPage() {
         }
       })
       .filter((target): target is MentionTarget => Boolean(target))
-  }, [currentUserAddress, displayedChannelMembers, presenceByAddress])
+  }, [displayedChannelMembers, presenceByAddress])
+
+  const composerMentionTargets = useMemo(
+    () =>
+      allMentionTargets.filter(
+        target => normalizeMemberAddress(target.address) !== currentUserAddress
+      ),
+    [allMentionTargets, currentUserAddress]
+  )
 
   function requireBackendReady() {
     if (isBackendReady) return true
@@ -1149,6 +1204,13 @@ function ChatPage() {
     try {
       const result = await channelApi.getChannels()
       setChannels(result)
+      setActiveChannel(prev => {
+        if (!prev) return prev
+        const updated = result.find(
+          channel => getChannelKey(channel) === getChannelKey(prev)
+        )
+        return updated || prev
+      })
       setHasLoadedChannels(true)
     } catch (err) {
       setChannels([])
@@ -1475,7 +1537,7 @@ function ChatPage() {
     }) as MentionDraft
     const completed = completeMentionDraftFromTargets(
       finalized,
-      mentionTargets
+      composerMentionTargets
     ) as MentionDraft
     if (!completed.content) return
     const sent = await sendChannelMessage(
@@ -1746,23 +1808,28 @@ function ChatPage() {
   }
 
   function getRenderableMentions(msg: ChannelMessage) {
-    if (!Array.isArray(msg.mentions) || msg.mentions.length === 0) return []
     const content = String(msg.content || '')
     const result: ChannelMention[] = []
 
-    for (const mention of [...msg.mentions].sort(
-      (left, right) => left.start - right.start || left.end - right.end
-    )) {
-      if (mention.start < 0 || mention.end <= mention.start) continue
-      if (mention.start < (result[result.length - 1]?.end || 0)) continue
-      if (mention.end > content.length) continue
-      if (content.slice(mention.start, mention.end) !== `@${mention.label}`) {
-        continue
+    if (Array.isArray(msg.mentions) && msg.mentions.length > 0) {
+      for (const mention of [...msg.mentions].sort(
+        (left, right) => left.start - right.start || left.end - right.end
+      )) {
+        if (mention.start < 0 || mention.end <= mention.start) continue
+        if (mention.start < (result[result.length - 1]?.end || 0)) continue
+        if (mention.end > content.length) continue
+        if (content.slice(mention.start, mention.end) !== `@${mention.label}`) {
+          continue
+        }
+        result.push(mention)
       }
-      result.push(mention)
+      return result
     }
 
-    return result
+    return completeMentionDraftFromTargets(
+      { content, mentions: [] },
+      allMentionTargets
+    ).mentions
   }
 
   function renderMessageTextContent(msg: ChannelMessage) {
