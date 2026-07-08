@@ -82,13 +82,6 @@
     }
   }
 
-  &.mentioned .message-bubble {
-    border-color: color-mix(in srgb, var(--warning) 62%, var(--glass-border));
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--warning) 32%, transparent),
-      var(--glass-shadow);
-  }
-
   .msg-avatar {
     flex-shrink: 0;
   }
@@ -180,10 +173,6 @@
 }
 
 .chat-mention.self {
-  color: var(--warning);
-}
-
-.chat-message.mentioned .chat-mention {
   color: var(--warning);
 }
 
@@ -1170,11 +1159,6 @@
 
 .sparkbit-chat-layout .chat-message.self .message-author {
   color: var(--text-muted);
-}
-
-.sparkbit-chat-layout .chat-message.mentioned .message-bubble {
-  border-color: color-mix(in srgb, var(--warning) 70%, var(--sparkbit-chat-border));
-  box-shadow: none;
 }
 
 .sparkbit-chat-layout .chat-message.other .message-bubble {
