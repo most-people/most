@@ -2,6 +2,7 @@ import { createPortal } from 'react-dom'
 import { Eye, EyeOff, X } from 'lucide-react'
 import { useUserStore } from '~/stores/userStore'
 import { useAppStore } from '~/stores/useAppStore'
+import { SafeImage } from '~/components/SafeImage'
 import { ModalOverlay } from '~/components/ui'
 import { useI18n } from '~/lib/i18n'
 import { generateAvatar } from '~server/src/utils/avatar.js'
@@ -60,7 +61,7 @@ export default function UserLoginModal() {
           </button>
         </div>
         <div className="login-modal-body">
-          <img
+          <SafeImage
             className="login-avatar-preview"
             src={
               loginPreviewAddress
@@ -68,6 +69,7 @@ export default function UserLoginModal() {
                 : '/avatar.png'
             }
             alt="avatar"
+            referrerPolicy="no-referrer"
           />
           <p className="login-tip">{previewLabel}</p>
           {loginError && <p className="login-error">{t(loginError)}</p>}

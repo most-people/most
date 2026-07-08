@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Copy, Eye, Play, RefreshCcw, Spade } from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import GameSidebar from '~/components/GameSidebar'
+import { SafeImage } from '~/components/SafeImage'
 import { useGameRoom } from '~/hooks/useGameRoom'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore, type UserIdentity } from '~/stores/userStore'
@@ -577,7 +578,7 @@ export default function ZhajinhuaPage() {
                           !display.online && styles.seatAvatarOffline
                         )}
                       >
-                        <img
+                        <SafeImage
                           src={generateAvatar(player.address, display.avatar)}
                           alt=""
                         />

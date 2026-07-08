@@ -127,6 +127,12 @@ export default function FilePreviewOverlay({
     }
   }
 
+  function handleImagePreviewError() {
+    if (previewBlobUrl) URL.revokeObjectURL(previewBlobUrl)
+    setPreviewBlobUrl('')
+    setPreviewError(t('preview.loadFailed'))
+  }
+
   return (
     <div className="preview-overlay" onClick={onClose}>
       <div className="preview-actions">
@@ -160,7 +166,12 @@ export default function FilePreviewOverlay({
         {item.subtype === 'image' && (
           <div className="preview-media-wrapper">
             {previewBlobUrl ? (
-              <img src={previewBlobUrl} alt={item.fileName} translate="no" />
+              <img
+                src={previewBlobUrl}
+                alt={item.fileName}
+                translate="no"
+                onError={handleImagePreviewError}
+              />
             ) : previewError ? (
               <div className="preview-unsupported">
                 <FileText size={48} className="preview-file-icon" />

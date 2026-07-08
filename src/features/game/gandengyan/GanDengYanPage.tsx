@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Copy, Play, RotateCcw, Send } from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import GameSidebar from '~/components/GameSidebar'
+import { SafeImage } from '~/components/SafeImage'
 import { useGameRoom } from '~/hooks/useGameRoom'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
@@ -696,7 +697,7 @@ function PlayerBadge({
         )}
         translate="no"
       >
-        <img src={generateAvatar(player.address, display.avatar)} alt="" />
+        <SafeImage src={generateAvatar(player.address, display.avatar)} alt="" />
         {display.online && <span className={styles.onlineDot} />}
       </div>
       <div>

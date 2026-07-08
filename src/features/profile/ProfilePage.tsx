@@ -1,4 +1,4 @@
-import type { ChangeEvent, ReactNode, SyntheticEvent } from 'react'
+import type { ChangeEvent, ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import {
@@ -23,6 +23,7 @@ import {
 import { CopyButton } from '~/components/CopyButton'
 import { MarketingHeader } from '~/components/MarketingHeader'
 import { MarketingLayout } from '~/components/MarketingLayout'
+import { SafeImage } from '~/components/SafeImage'
 import { ConfirmModal, ModalOverlay } from '~/components/ui'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
@@ -60,8 +61,6 @@ const profileDefaultAvatarIds = [
   'snow-mountain',
 ]
 
-const FALLBACK_AVATAR_SRC = '/avatars/fallback-broken.svg'
-
 type BackupConfirm = {
   title: string
   message: string
@@ -91,19 +90,6 @@ function isSupportedAvatarValue(value: string) {
   } catch {
     return false
   }
-}
-
-function handleAvatarImageError(
-  event: SyntheticEvent<HTMLImageElement, Event>
-) {
-  const image = event.currentTarget
-  if (
-    image.getAttribute('src') === FALLBACK_AVATAR_SRC ||
-    image.src.endsWith(FALLBACK_AVATAR_SRC)
-  ) {
-    return
-  }
-  image.src = FALLBACK_AVATAR_SRC
 }
 
 function getBackupStatusClass(status: string) {
@@ -537,12 +523,11 @@ export default function ProfilePage() {
           </section>
 
           <header className="profile-header">
-            <img
+            <SafeImage
               className="profile-avatar-large"
               src={avatarSrc}
               alt=""
               referrerPolicy="no-referrer"
-              onError={handleAvatarImageError}
             />
             <div className="profile-heading">
               <p className="profile-kicker">{t('profile.kicker')}</p>
@@ -630,11 +615,10 @@ export default function ProfilePage() {
                       aria-pressed={selected}
                       title={t(option.labelKey)}
                     >
-                      <img
+                      <SafeImage
                         src={generateAvatar(identity.address, option.value)}
                         alt=""
                         referrerPolicy="no-referrer"
-                        onError={handleAvatarImageError}
                       />
                       <span>{t(option.labelKey)}</span>
                       {selected && (

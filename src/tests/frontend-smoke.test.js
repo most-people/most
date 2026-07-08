@@ -2116,24 +2116,41 @@ describe('frontend smoke checks', () => {
     assert.match(profileSource, /isSupportedAvatarValue/)
   })
 
-  it('uses native image fallback handling for profile avatars', () => {
+  it('uses SafeImage for avatar fallbacks and scene-specific image errors', () => {
     const safeImagePath = new URL(
       '../../src/components/SafeImage.tsx',
       import.meta.url
     )
+    const safeImageSource = readSource('src/components/SafeImage.tsx')
     const fallbackImageSource = readSource('public/avatars/fallback-broken.svg')
     const profileSource = readSource('src/features/profile/ProfilePage.tsx')
     const accountMenuSource = readSource('src/features/profile/AccountMenu.tsx')
-    const profileStyles = readSource('src/styles/profile.css')
-    const globalsStyles = readSource('src/styles/globals.css')
+    const chatUiSource = readSource('src/components/ChatUi.tsx')
+    const voiceRoomSource = readSource('src/components/ChatVoiceRoomPanel.tsx')
+    const loginModalSource = readSource('src/components/UserLoginModal.tsx')
+    const walletIdentitySource = readSource(
+      'src/features/web3/components/WalletIdentityView.tsx'
+    )
+    const gandengyanSource = readSource(
+      'src/features/game/gandengyan/GanDengYanPage.tsx'
+    )
+    const zhajinhuaSource = readSource(
+      'src/features/game/zhajinhua/ZhajinhuaPage.tsx'
+    )
+    const previewOverlaySource = readSource(
+      'src/components/FilePreviewOverlay.tsx'
+    )
+    const chatPageSource = readSource('src/features/chat/ChatPage.tsx')
 
-    assert.equal(fs.existsSync(safeImagePath), false)
+    assert.equal(fs.existsSync(safeImagePath), true)
+    assert.match(safeImageSource, /DEFAULT_IMAGE_FALLBACK = '\/avatars\/fallback-broken\.svg'/)
+    assert.match(safeImageSource, /event\.defaultPrevented/)
     assert.match(fallbackImageSource, /<svg/)
-    assert.match(fallbackImageSource, /lucide-image-off/)
-    assert.match(profileSource, /FALLBACK_AVATAR_SRC = '\/avatars\/fallback-broken\.svg'/)
-    assert.match(profileSource, /function handleAvatarImageError/)
+    assert.match(fallbackImageSource, /viewBox="0 0 64 64"/)
+    assert.doesNotMatch(fallbackImageSource, /lucide-image-off/)
+    assert.doesNotMatch(fallbackImageSource, /M22 43l20-20/)
     assert.match(profileSource, /referrerPolicy="no-referrer"/)
-    assert.match(profileSource, /onError=\{handleAvatarImageError\}/)
+    assert.match(profileSource, /import \{ SafeImage \} from '~\/components\/SafeImage'/)
     assert.ok(
       profileSource.includes(
         'const customAvatarValue =\n' +
@@ -2151,20 +2168,25 @@ describe('frontend smoke checks', () => {
       /const displayedAvatarOptions = \[\s*avatarOptions\[0\],\s*customAvatarOption,\s*\.\.\.avatarOptions\.slice\(1\),\s*\]/
     )
     assert.match(profileSource, /displayedAvatarOptions\.map/)
-    assert.doesNotMatch(profileSource, /SafeImage/)
     assert.doesNotMatch(profileSource, /getAvatarCrossOrigin/)
     assert.doesNotMatch(profileSource, /crossOrigin=\{getAvatarCrossOrigin/)
-    assert.match(profileSource, /<img\s+className="profile-avatar-large"/)
-    assert.match(accountMenuSource, /FALLBACK_AVATAR_SRC = '\/avatars\/fallback-broken\.svg'/)
-    assert.match(accountMenuSource, /function handleAvatarImageError/)
-    assert.match(accountMenuSource, /<img/)
+    assert.match(profileSource, /<SafeImage\s+className="profile-avatar-large"/)
+    assert.match(profileSource, /<SafeImage\s+src=\{generateAvatar\(identity\.address, option\.value\)\}/)
+    assert.match(accountMenuSource, /import \{ SafeImage \} from '~\/components\/SafeImage'/)
     assert.match(accountMenuSource, /referrerPolicy="no-referrer"/)
-    assert.match(accountMenuSource, /onError=\{handleAvatarImageError\}/)
-    assert.doesNotMatch(accountMenuSource, /SafeImage/)
+    assert.match(accountMenuSource, /<SafeImage/)
     assert.doesNotMatch(accountMenuSource, /getAvatarCrossOrigin/)
     assert.doesNotMatch(accountMenuSource, /crossOrigin=\{getAvatarCrossOrigin/)
-    assert.doesNotMatch(profileStyles, /\.profile-avatar-option \.safe-image/)
-    assert.doesNotMatch(globalsStyles, /\.safe-image/)
+    assert.match(chatUiSource, /<SafeImage\s+className="msg-avatar"/)
+    assert.match(chatUiSource, /<SafeImage\s+className="channel-member-avatar"/)
+    assert.match(voiceRoomSource, /<SafeImage\s+className="chat-voice-avatar"/)
+    assert.match(loginModalSource, /<SafeImage\s+className="login-avatar-preview"/)
+    assert.match(walletIdentitySource, /<SafeImage\s+src=\{avatarSrc\}/)
+    assert.match(gandengyanSource, /<SafeImage src=\{generateAvatar\(player\.address, display\.avatar\)\}/)
+    assert.match(zhajinhuaSource, /<SafeImage\s+src=\{generateAvatar\(player\.address, display\.avatar\)\}/)
+    assert.match(previewOverlaySource, /onError=\{handleImagePreviewError\}/)
+    assert.match(previewOverlaySource, /setPreviewError\(t\('preview\.loadFailed'\)\)/)
+    assert.match(chatPageSource, /onError=\{\(\) => \{/)
   })
 
   it('keeps account backup scoped and restores once after fresh login', () => {

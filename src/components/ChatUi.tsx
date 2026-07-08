@@ -14,6 +14,7 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react'
+import { SafeImage } from '~/components/SafeImage'
 import { ActionMenu } from '~/components/ui'
 import { useI18n, type MessageKey } from '~/lib/i18n'
 
@@ -106,7 +107,12 @@ export function ChatMessageItem({
   return (
     <div className={className}>
       <span className="chat-avatar-wrap">
-        <img className="msg-avatar" src={avatarSrc} alt="avatar" />
+        <SafeImage
+          className="msg-avatar"
+          src={avatarSrc}
+          alt="avatar"
+          referrerPolicy="no-referrer"
+        />
         {isOnline && <span className="chat-online-dot" aria-hidden="true" />}
       </span>
       <div className="msg-content">
@@ -243,10 +249,11 @@ export function ChannelMemberGrid({
       {members.map(member => (
         <div className="channel-member" key={member.id}>
           <span className="channel-member-avatar-wrap">
-            <img
+            <SafeImage
               className="channel-member-avatar"
               src={member.avatarSrc}
               alt="avatar"
+              referrerPolicy="no-referrer"
             />
             {member.online && (
               <span className="chat-online-dot" aria-hidden="true" />

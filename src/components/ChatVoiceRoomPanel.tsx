@@ -6,6 +6,7 @@ import {
   PhoneOff,
   Signal,
 } from 'lucide-react'
+import { SafeImage } from '~/components/SafeImage'
 import { generateAvatar } from '~server/src/utils/avatar.js'
 import { type VoiceParticipant } from '~/hooks/useVoiceRoom'
 import { useI18n } from '~/lib/i18n'
@@ -35,10 +36,11 @@ function VoiceMemberCard({ participant }: { participant: VoiceParticipant }) {
   return (
     <div className="chat-voice-member-card">
       <span className="chat-voice-avatar-wrap">
-        <img
+        <SafeImage
           className="chat-voice-avatar"
           src={generateAvatar(participant.address, participant.avatar)}
           alt="avatar"
+          referrerPolicy="no-referrer"
         />
         <span
           className={[

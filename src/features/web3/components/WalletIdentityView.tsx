@@ -11,6 +11,7 @@ import {
 import { CopyButton } from '~/components/CopyButton'
 import { EmptyState } from '~/components/EmptyState'
 import { KeyCard } from '~/components/KeyCard'
+import { SafeImage } from '~/components/SafeImage'
 import { useI18n } from '~/lib/i18n'
 import type { MostKeySet, WalletResult } from './types'
 
@@ -50,7 +51,12 @@ export function WalletIdentityView({
   return (
     <>
       <div className="web3-identity-card">
-        <img src={avatarSrc} alt="avatar" className="web3-identity-avatar" />
+        <SafeImage
+          src={avatarSrc}
+          alt="avatar"
+          className="web3-identity-avatar"
+          referrerPolicy="no-referrer"
+        />
         <div>
           <h1 className="web3-identity-name">
             {walletResult.username || t('web3.notSignedIn')}
