@@ -140,6 +140,7 @@ export function ChatChannelNavItem({
   pinned = false,
   unread = false,
   mentionUnread = false,
+  mentionPreview = '',
   title,
   menuClassName,
   onSelect,
@@ -151,6 +152,7 @@ export function ChatChannelNavItem({
   pinned?: boolean
   unread?: boolean
   mentionUnread?: boolean
+  mentionPreview?: string
   title: string
   menuClassName?: string
   onSelect?: () => void
@@ -204,6 +206,18 @@ export function ChatChannelNavItem({
         <span className="chat-channel-title-text" translate="no">
           {title}
         </span>
+        {mentionUnread && (
+          <span className="chat-channel-subtitle">
+            <span className="chat-channel-mention-label">
+              [{t('chat.mentionUnreadTag')}]
+            </span>
+            {mentionPreview && (
+              <span className="chat-channel-preview" translate="no">
+                {mentionPreview}
+              </span>
+            )}
+          </span>
+        )}
       </span>
       {hasActions && (
         <ActionMenu

@@ -174,6 +174,16 @@ function getMentionCandidateBaseName(name?: string, address?: string) {
   return displayName || formatAddressShort(address)
 }
 
+type ChannelMentionUnreadPreview = {
+  authorName: string
+  content: string
+  timestamp: number
+}
+type ChannelMentionUnreadPreviewMap = Record<
+  string,
+  ChannelMentionUnreadPreview
+>
+
 function formatMentionCandidateLabel({
   name,
   address,
@@ -188,6 +198,57 @@ function formatMentionCandidateLabel({
     return baseName
   }
   return `${baseName}#${address.slice(-4).toUpperCase()}`
+}
+
+function formatChannelMentionUnreadPreview(message?: ChannelMessage | null) {
+  if (!message) return null
+  const content = String(message.content || '').trim()
+  if (!content) return null
+  const authorName = String(message.authorName || '').trim()
+  return {
+    authorName: authorName || formatAddressShort(message.author),
+    content,
+    timestamp: Number(message.timestamp) || Date.now(),
+  }
+}
+
+function shouldShowChannelMentionUnread(
+  channelKey: string,
+  message: ChannelMessage | undefined,
+  activeChannelName: string,
+  userAddress?: string
+) {
+  if (!channelKey || !message || channelKey === activeChannelName) return false
+  const isSelfMessage =
+    normalizeMemberAddress(message.author) ===
+    normalizeMemberAddress(userAddress)
+  return !isSelfMessage && messageMentionsAddress(message, userAddress)
+}
+
+function getLatestUnreadMentionMessage(
+  messages: ChannelMessage[],
+  readAt: number,
+  userAddress?: string
+) {
+  return messages.reduce<ChannelMessage | null>((latest, message) => {
+    const timestamp = Number(message?.timestamp)
+    if (!Number.isFinite(timestamp) || timestamp <= readAt) return latest
+    const isSelfMessage =
+      normalizeMemberAddress(message.author) ===
+      normalizeMemberAddress(userAddress)
+    if (isSelfMessage || !messageMentionsAddress(message, userAddress)) {
+      return latest
+    }
+    if (!latest || timestamp > (Number(latest.timestamp) || 0)) return message
+    return latest
+  }, null)
+}
+
+function formatChannelMentionPreviewText(
+  preview?: ChannelMentionUnreadPreview
+) {
+  if (!preview) return ''
+  return `${preview.authorName}: ${preview.content}`
 }
 
 type AttachmentDownloadState = {
@@ -276,6 +337,8 @@ function ChatPage() {
     useState<ChannelLastReadMap>({})
   const [channelMentionUnread, setChannelMentionUnread] =
     useState<ChannelMentionUnreadMap>({})
+  const [channelMentionUnreadPreview, setChannelMentionUnreadPreview] =
+    useState<ChannelMentionUnreadPreviewMap>({})
   const [channelPresence, setChannelPresence] = useState<ChannelPresence[]>([])
   const isInviteUser = userIdentity?.theme === 'sparkbit'
   const inviteTicketUrl =
@@ -335,6 +398,7 @@ function ChatPage() {
   useEffect(() => {
     mentionUnreadScanKeysRef.current.clear()
     setChannelMentionUnread({})
+    setChannelMentionUnreadPreview({})
   }, [channelReadStorageKey])
 
   const markChannelRead = useCallback(
@@ -343,6 +407,12 @@ function ChatPage() {
       setChannelMentionUnread(prev => {
         const result = clearChannelMentionUnreadInMap(prev, channelKey)
         return result.changed ? result.value : prev
+      })
+      setChannelMentionUnreadPreview(prev => {
+        if (!prev[channelKey]) return prev
+        const next = { ...prev }
+        delete next[channelKey]
+        return next
       })
       setChannelLastReadAt(prev => {
         const result = markChannelReadInMap(prev, channelKey, timestamp)
@@ -487,6 +557,28 @@ function ChatPage() {
             })
             return result.changed ? result.value : prev
           })
+          if (
+            shouldShowChannelMentionUnread(
+              channelKey,
+              message,
+              isActiveChannel ? channelKey : '',
+              userIdentity?.address
+            )
+          ) {
+            const preview = formatChannelMentionUnreadPreview(message)
+            if (preview) {
+              setChannelMentionUnreadPreview(prev => {
+                const previousPreview = prev[channelKey]
+                if (
+                  previousPreview &&
+                  previousPreview.timestamp >= preview.timestamp
+                ) {
+                  return prev
+                }
+                return { ...prev, [channelKey]: preview }
+              })
+            }
+          }
           setChannelLastReadAt(prev => {
             const result = applyIncomingChannelMessageReadState(prev, {
               channelName: channelKey,
@@ -721,6 +813,13 @@ function ChatPage() {
           }
         )
         if (pageResult.value[channelKey]) {
+          const preview = formatChannelMentionUnreadPreview(
+            getLatestUnreadMentionMessage(
+              messages,
+              readAt,
+              userIdentity?.address
+            )
+          )
           setChannelMentionUnread(prev => {
             const result = applyHistoricalChannelMentionUnreadState(prev, {
               channelName: channelKey,
@@ -731,6 +830,18 @@ function ChatPage() {
             })
             return result.changed ? result.value : prev
           })
+          if (preview) {
+            setChannelMentionUnreadPreview(prev => {
+              const previousPreview = prev[channelKey]
+              if (
+                previousPreview &&
+                previousPreview.timestamp >= preview.timestamp
+              ) {
+                return prev
+              }
+              return { ...prev, [channelKey]: preview }
+            })
+          }
           return
         }
 
@@ -1128,6 +1239,7 @@ function ChatPage() {
     setAttachmentDownloadStatus({})
     setChannelLastReadAt({})
     setChannelMentionUnread({})
+    setChannelMentionUnreadPreview({})
     setChannelMentions([])
     setComposerSelection({ start: 0, end: 0 })
     setDismissedMentionTriggerKey('')
@@ -2010,6 +2122,16 @@ function ChatPage() {
   const sortedChannels = useMemo(
     () =>
       [...channels].sort((a, b) => {
+        const mentionUnreadDiff =
+          Number(hasUnreadChannelMention(b, channelMentionUnread)) -
+          Number(hasUnreadChannelMention(a, channelMentionUnread))
+        if (mentionUnreadDiff !== 0) return mentionUnreadDiff
+
+        const unreadDiff =
+          Number(hasUnreadChannelMessage(b, channelLastReadAt)) -
+          Number(hasUnreadChannelMessage(a, channelLastReadAt))
+        if (unreadDiff !== 0) return unreadDiff
+
         const pinnedDiff = Number(Boolean(b.pinned)) - Number(Boolean(a.pinned))
         if (pinnedDiff !== 0) return pinnedDiff
 
@@ -2019,7 +2141,7 @@ function ChatPage() {
 
         return compareStrings(getChannelTitle(a), getChannelTitle(b))
       }),
-    [channels, compareStrings]
+    [channelLastReadAt, channelMentionUnread, channels, compareStrings]
   )
   const filteredChannels = channelSearchQuery
     ? sortedChannels.filter(channel => {
@@ -2077,6 +2199,9 @@ function ChatPage() {
                   mentionUnread={hasUnreadChannelMention(
                     channel,
                     channelMentionUnread
+                  )}
+                  mentionPreview={formatChannelMentionPreviewText(
+                    channelMentionUnreadPreview[getChannelKey(channel)]
                   )}
                   title={getChannelTitle(channel)}
                   menuClassName={sparkbitActionMenuClassName}

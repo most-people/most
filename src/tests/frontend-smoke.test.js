@@ -482,6 +482,34 @@ describe('frontend smoke checks', () => {
     assert.doesNotMatch(channelApiSource, /interface ChannelMember/)
   })
 
+  it('keeps mention unread channels prioritized and previewed', () => {
+    const chatSource = readSource('src/features/chat/ChatPage.tsx')
+    const chatUiSource = readSource('src/components/ChatUi.tsx')
+    const chatCssSource = readSource('src/styles/chat.css')
+    const i18nMessages = readSource('src/lib/i18n/messages/chat.ts')
+
+    assert.match(chatUiSource, /mentionPreview = ''/)
+    assert.match(chatUiSource, /chat\.mentionUnreadTag/)
+    assert.match(
+      chatSource,
+      /hasUnreadChannelMention\(b, channelMentionUnread\)[\s\S]*hasUnreadChannelMessage\(b, channelLastReadAt\)[\s\S]*Boolean\(b\.pinned\)/
+    )
+    assert.match(chatCssSource, /chat-channel-mention-label[\s\S]*#ff3b30/)
+    assert.match(
+      chatCssSource,
+      /chat-channel-mention-label[\s\S]*flex:\s*0 0 auto/
+    )
+    assert.match(
+      chatCssSource,
+      /chat-channel-preview[\s\S]*text-overflow:\s*ellipsis/
+    )
+    assert.match(i18nMessages, /'chat\.mentionUnreadTag': '有人@我'/)
+    assert.doesNotMatch(
+      i18nMessages,
+      /'chat\.mentionUnreadTag': 'Mentioned me'/
+    )
+  })
+
   it('keeps the admin console connected to local seeding visibility', () => {
     const source = readSource(SOURCE_PATHS.admin)
 
