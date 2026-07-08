@@ -23,7 +23,11 @@ export const zhCNProfileMessages = {
   'profile.label.displayName': '显示名称',
   'profile.label.username': '用户名',
   'profile.label.customAvatar': '自定义头像 URL',
+  'profile.label.uploadAvatar': '上传头像图片',
   'profile.action.save': '保存',
+  'profile.action.chooseAvatar': '选择图片',
+  'profile.action.uploadAvatar': '上传到云端',
+  'profile.action.uploadingAvatar': '上传中',
   'profile.action.openWallet': '打开 Web3 钱包',
   'profile.backup.action.cloudBackup': '备份到云端',
   'profile.backup.action.cloudRestore': '从云端恢复',
@@ -57,6 +61,9 @@ export const zhCNProfileMessages = {
   'profile.backup.error.exportFailed': '导出备份失败',
   'profile.backup.error.importFailed': '导入备份失败',
   'profile.backup.error.profileSaveFailed': '资料已保存到本机，但写入后端 profile 失败',
+  'profile.avatar.uploadFailed': '头像上传失败',
+  'profile.avatar.tooLarge': '图片超过 1MB，且无法自动压缩，请换一张更小的图片',
+  'profile.avatar.compressionFailed': '图片压缩失败，请换一张图片重试',
   'profile.toast.saved': '资料已保存',
   'profile.toast.avatarUpdated': '头像已更新',
   'profile.avatar.address': '地址头像',
@@ -66,6 +73,7 @@ export const zhCNProfileMessages = {
   'profile.avatar.tiger': '老虎',
   'profile.avatar.turtle': '海龟',
   'profile.avatar.snow-mountain': '雪山',
+  'profile.avatar.rocket': '火箭',
 } as const
 
 export const zhTWProfileMessages = {
@@ -93,7 +101,11 @@ export const zhTWProfileMessages = {
   'profile.label.displayName': '顯示名稱',
   'profile.label.username': '使用者名稱',
   'profile.label.customAvatar': '自訂頭像 URL',
+  'profile.label.uploadAvatar': '上傳頭像圖片',
   'profile.action.save': '儲存',
+  'profile.action.chooseAvatar': '選擇圖片',
+  'profile.action.uploadAvatar': '上傳到雲端',
+  'profile.action.uploadingAvatar': '上傳中',
   'profile.action.openWallet': '開啟 Web3 錢包',
   'profile.backup.action.cloudBackup': '備份到雲端',
   'profile.backup.action.cloudRestore': '從雲端恢復',
@@ -127,6 +139,9 @@ export const zhTWProfileMessages = {
   'profile.backup.error.exportFailed': '匯出備份失敗',
   'profile.backup.error.importFailed': '匯入備份失敗',
   'profile.backup.error.profileSaveFailed': '資料已儲存到本機，但寫入後端 profile 失敗',
+  'profile.avatar.uploadFailed': '頭像上傳失敗',
+  'profile.avatar.tooLarge': '圖片超過 1MB，且無法自動壓縮，請換一張更小的圖片',
+  'profile.avatar.compressionFailed': '圖片壓縮失敗，請換一張圖片重試',
   'profile.toast.saved': '資料已儲存',
   'profile.toast.avatarUpdated': '頭像已更新',
   'profile.avatar.address': '地址頭像',
@@ -136,6 +151,7 @@ export const zhTWProfileMessages = {
   'profile.avatar.tiger': '老虎',
   'profile.avatar.turtle': '海龜',
   'profile.avatar.snow-mountain': '雪山',
+  'profile.avatar.rocket': '火箭',
 } as const
 
 export const enProfileMessages = {
@@ -163,7 +179,11 @@ export const enProfileMessages = {
   'profile.label.displayName': 'Display name',
   'profile.label.username': 'Username',
   'profile.label.customAvatar': 'Custom avatar URL',
+  'profile.label.uploadAvatar': 'Upload avatar image',
   'profile.action.save': 'Save',
+  'profile.action.chooseAvatar': 'Choose image',
+  'profile.action.uploadAvatar': 'Upload to cloud',
+  'profile.action.uploadingAvatar': 'Uploading',
   'profile.action.openWallet': 'Open Web3 wallet',
   'profile.backup.action.cloudBackup': 'Back up to cloud',
   'profile.backup.action.cloudRestore': 'Restore from cloud',
@@ -197,6 +217,11 @@ export const enProfileMessages = {
   'profile.backup.error.exportFailed': 'Backup export failed',
   'profile.backup.error.importFailed': 'Backup import failed',
   'profile.backup.error.profileSaveFailed': 'Profile was saved locally, but backend profile save failed',
+  'profile.avatar.uploadFailed': 'Avatar upload failed',
+  'profile.avatar.tooLarge':
+    'Image is over 1 MB and cannot be compressed automatically. Choose a smaller image.',
+  'profile.avatar.compressionFailed':
+    'Image compression failed. Choose another image and try again.',
   'profile.toast.saved': 'Profile saved',
   'profile.toast.avatarUpdated': 'Avatar updated',
   'profile.avatar.address': 'Address avatar',
@@ -206,4 +231,5 @@ export const enProfileMessages = {
   'profile.avatar.tiger': 'Tiger',
   'profile.avatar.turtle': 'Turtle',
   'profile.avatar.snow-mountain': 'Snow mountain',
+  'profile.avatar.rocket': 'Rocket',
 } as const

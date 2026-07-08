@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import type { ChangeEvent, ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import {
   Check,
@@ -28,9 +28,14 @@ import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import { useI18n, type MessageKey } from '~/lib/i18n'
 import { useAccountBackup } from '~/features/profile/useAccountBackup'
+import { uploadAccountAvatar } from '~/lib/avatarCloudUpload.js'
+import {
+  AvatarUploadSizeError,
+  prepareAvatarUploadFile,
+} from '~/lib/avatarUpload.js'
+import { SafeImage } from '~/components/SafeImage'
 import { api, getApiErrorMessage } from '~server/src/utils/api'
 import {
-  defaultAvatarIds,
   generateAvatar,
   getDefaultAvatarValue,
   isDefaultAvatarValue,
@@ -43,6 +48,16 @@ type AvatarOption = {
   value: string
   labelKey: MessageKey
 }
+
+const profileDefaultAvatarIds = [
+  'panda',
+  'owl',
+  'dolphin',
+  'tiger',
+  'turtle',
+  'snow-mountain',
+  'rocket',
+]
 
 type BackupConfirm = {
   title: string
@@ -58,7 +73,7 @@ const avatarOptions: AvatarOption[] = [
     value: '',
     labelKey: 'profile.avatar.address',
   },
-  ...defaultAvatarIds.map(id => ({
+  ...profileDefaultAvatarIds.map(id => ({
     value: getDefaultAvatarValue(id),
     labelKey: `profile.avatar.${id}` as MessageKey,
   })),
@@ -109,8 +124,11 @@ export default function ProfilePage() {
   const [displayNameDraft, setDisplayNameDraft] = useState('')
   const [avatarUrlDraft, setAvatarUrlDraft] = useState('')
   const [avatarUrlError, setAvatarUrlError] = useState('')
+  const [avatarUploadFile, setAvatarUploadFile] = useState<File | null>(null)
+  const [avatarUploading, setAvatarUploading] = useState(false)
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const [backupConfirm, setBackupConfirm] = useState<BackupConfirm | null>(null)
+  const avatarFileInputRef = useRef<HTMLInputElement | null>(null)
   const header = <MarketingHeader />
 
   useEffect(() => {
@@ -118,6 +136,8 @@ export default function ProfilePage() {
       setDisplayNameDraft('')
       setAvatarUrlDraft('')
       setAvatarUrlError('')
+      setAvatarUploadFile(null)
+      if (avatarFileInputRef.current) avatarFileInputRef.current.value = ''
       return
     }
     setDisplayNameDraft(identity.displayName || identity.username)
@@ -173,6 +193,7 @@ export default function ProfilePage() {
   const avatarSrc = generateAvatar(identity.address, identity.avatar)
   const address = identity.address.toLowerCase()
   const canSaveAvatarUrl = avatarUrlDraft.trim().length > 0
+  const canUploadAvatar = Boolean(avatarUploadFile) && !avatarUploading
   const backupStatusClass = getBackupStatusClass(accountBackup.status)
   const cloudBackupWorking = accountBackup.action === 'backup'
   const cloudRestoreWorking = accountBackup.action === 'restore'
@@ -377,6 +398,41 @@ export default function ProfilePage() {
     updateAvatar(nextUrl)
   }
 
+  function handleAvatarFileChange(event: ChangeEvent<HTMLInputElement>) {
+    setAvatarUploadFile(event.target.files?.[0] || null)
+    setAvatarUrlError('')
+  }
+
+  async function handleUploadAvatar() {
+    if (!avatarUploadFile) return
+    setAvatarUploading(true)
+    setAvatarUrlError('')
+    try {
+      const prepared = await prepareAvatarUploadFile(avatarUploadFile)
+      const data = await uploadAccountAvatar(identity, prepared.file)
+      setAvatarUrlDraft(data.url)
+      updateAvatar(data.url)
+      setAvatarUploadFile(null)
+      if (avatarFileInputRef.current) avatarFileInputRef.current.value = ''
+    } catch (err) {
+      if (err instanceof AvatarUploadSizeError) {
+        addToast(t('profile.avatar.tooLarge'), 'error')
+        return
+      }
+      if (err?.code === 'AVATAR_COMPRESSION_FAILED') {
+        addToast(t('profile.avatar.compressionFailed'), 'error')
+        return
+      }
+      const message = await getApiErrorMessage(
+        err,
+        t('profile.avatar.uploadFailed')
+      )
+      addToast(message, 'error')
+    } finally {
+      setAvatarUploading(false)
+    }
+  }
+
   function handleLogout() {
     logoutUser()
     setShowLogoutConfirm(false)
@@ -451,7 +507,11 @@ export default function ProfilePage() {
           </section>
 
           <header className="profile-header">
-            <img className="profile-avatar-large" src={avatarSrc} alt="" />
+            <SafeImage
+              className="profile-avatar-large"
+              src={avatarSrc}
+              alt=""
+            />
             <div className="profile-heading">
               <p className="profile-kicker">{t('profile.kicker')}</p>
               <h1>{identity.displayName || identity.username}</h1>
@@ -538,10 +598,9 @@ export default function ProfilePage() {
                       aria-pressed={selected}
                       title={t(option.labelKey)}
                     >
-                      <img
+                      <SafeImage
                         src={generateAvatar(identity.address, option.value)}
                         alt=""
-                        aria-hidden="true"
                       />
                       <span>{t(option.labelKey)}</span>
                       {selected && (
@@ -581,6 +640,42 @@ export default function ProfilePage() {
                 {avatarUrlError && (
                   <p className="profile-error">{avatarUrlError}</p>
                 )}
+                <div className="profile-field">
+                  <span>{t('profile.label.uploadAvatar')}</span>
+                  <div className="profile-field-row">
+                    <label
+                      className="profile-avatar-file-control"
+                      htmlFor="profile-avatar-file"
+                    >
+                      <input
+                        id="profile-avatar-file"
+                        ref={avatarFileInputRef}
+                        className="profile-avatar-file-input"
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                        onChange={handleAvatarFileChange}
+                      />
+                      <Upload size={16} />
+                      <span className="profile-avatar-file-name">
+                        {avatarUploadFile?.name ||
+                          t('profile.action.chooseAvatar')}
+                      </span>
+                    </label>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={handleUploadAvatar}
+                      disabled={!canUploadAvatar}
+                    >
+                      {avatarUploading && (
+                        <Loader size={16} className="ui-spinner" />
+                      )}
+                      {avatarUploading
+                        ? t('profile.action.uploadingAvatar')
+                        : t('profile.action.uploadAvatar')}
+                    </button>
+                  </div>
+                </div>
               </div>
             </section>
           </div>

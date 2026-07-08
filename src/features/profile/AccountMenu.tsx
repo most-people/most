@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { User } from 'lucide-react'
+import { SafeImage } from '~/components/SafeImage'
 import { useI18n } from '~/lib/i18n'
 import { useUserStore } from '~/stores/userStore'
 import { generateAvatar } from '~server/src/utils/avatar.js'
@@ -18,11 +19,10 @@ export function AccountMenuButton() {
       aria-label={profileLabel}
     >
       {identity ? (
-        <img
+        <SafeImage
           className="account-profile-link-avatar"
           src={avatarSrc}
           alt=""
-          aria-hidden="true"
         />
       ) : (
         <User size={18} />

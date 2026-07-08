@@ -2010,6 +2010,72 @@ describe('frontend smoke checks', () => {
     assert.match(profileSource, /disabled=\{!canSaveAvatarUrl\}/)
   })
 
+  it('keeps recommended profile avatar labels translated', () => {
+    const messages = readI18nSources()
+
+    assert.match(messages, /'profile\.avatar\.rocket':/)
+    assert.doesNotMatch(messages, /'profile\.avatar\.dog':/)
+  })
+
+  it('wires profile avatar uploads through the authenticated cloud API', () => {
+    const profileSource = readSource('src/features/profile/ProfilePage.tsx')
+    const avatarCloudUploadSource = readSource('src/lib/avatarCloudUpload.js')
+    const accountBackupSource = readSource('server/src/utils/accountBackup.js')
+    const profileMessages = readSource('src/lib/i18n/messages/profile.ts')
+    const uploadButtonStart = profileSource.indexOf('onClick={handleUploadAvatar}')
+    const uploadButtonEnd = profileSource.indexOf(
+      "t('profile.action.uploadAvatar')",
+      uploadButtonStart
+    )
+    const uploadButtonBlock = profileSource.slice(
+      uploadButtonStart,
+      uploadButtonEnd
+    )
+
+    assert.match(profileSource, /id="profile-avatar-file"/)
+    assert.match(profileSource, /prepareAvatarUploadFile/)
+    assert.match(
+      profileSource,
+      /from '~\/lib\/avatarCloudUpload\.js'/
+    )
+    assert.match(profileSource, /uploadAccountAvatar\(identity, prepared\.file\)/)
+    assert.doesNotMatch(profileSource, /\/api\/user\/avatar/)
+    assert.match(
+      profileSource,
+      /const canUploadAvatar = Boolean\(avatarUploadFile\) && !avatarUploading/
+    )
+    assert.match(
+      avatarCloudUploadSource,
+      /ACCOUNT_AVATAR_API_URL = 'https:\/\/api\.most\.box\/auth\/avatar'/
+    )
+    assert.match(avatarCloudUploadSource, /FormData/)
+    assert.match(avatarCloudUploadSource, /formData\.append\('file', file\)/)
+    assert.match(
+      avatarCloudUploadSource,
+      /getAccountAvatarAuthHeaders\(wallet, 'POST', url\)/
+    )
+    assert.doesNotMatch(accountBackupSource, /ACCOUNT_AVATAR_API_URL/)
+    assert.doesNotMatch(accountBackupSource, /uploadAccountAvatar/)
+    assert.match(profileSource, /setAvatarUrlDraft\(data\.url\)/)
+    assert.match(profileSource, /updateAvatar\(data\.url\)/)
+    assert.match(
+      profileSource,
+      /const message = await getApiErrorMessage\(\s*err,\s*t\('profile\.avatar\.uploadFailed'\)\s*\)/
+    )
+    assert.doesNotMatch(profileSource, /setAvatarUrlError\(message\)/)
+    assert.match(profileSource, /addToast\(message, 'error'\)/)
+    assert.match(profileSource, /className="profile-avatar-file-input"/)
+    assert.match(profileSource, /className="profile-avatar-file-control"/)
+    assert.match(profileSource, /profile\.action\.chooseAvatar/)
+    assert.doesNotMatch(uploadButtonBlock, /<Upload size=\{16\}/)
+    assert.match(profileMessages, /'profile\.action\.uploadAvatar': '上传到云端'/)
+    assert.match(profileMessages, /'profile\.action\.uploadAvatar': '上傳到雲端'/)
+    assert.match(profileMessages, /'profile\.action\.uploadAvatar': 'Upload to cloud'/)
+    assert.doesNotMatch(profileMessages, /上传到 R2|上傳到 R2|Upload to R2/)
+    assert.match(profileMessages, /'profile\.avatar\.tooLarge':/)
+    assert.match(profileMessages, /'profile\.avatar\.compressionFailed':/)
+  })
+
   it('prefills the profile avatar URL field from the stored avatar value', () => {
     const profileSource = readSource('src/features/profile/ProfilePage.tsx')
 
@@ -2018,6 +2084,43 @@ describe('frontend smoke checks', () => {
       /setAvatarUrlDraft\(\s*normalizeDefaultAvatarValue\(identity\.avatar\) \|\| identity\.avatar \|\| ''\s*\)/
     )
     assert.match(profileSource, /isSupportedAvatarValue/)
+  })
+
+  it('uses a reusable safe image component for profile avatars', () => {
+    const safeImageSource = readSource('src/components/SafeImage.tsx')
+    const fallbackImageSource = readSource('public/avatars/fallback-broken.svg')
+    const profileSource = readSource('src/features/profile/ProfilePage.tsx')
+    const accountMenuSource = readSource('src/features/profile/AccountMenu.tsx')
+    const profileStyles = readSource('src/styles/profile.css')
+    const globalsStyles = readSource('src/styles/globals.css')
+
+    assert.match(safeImageSource, /export function SafeImage/)
+    assert.match(safeImageSource, /FALLBACK_BROKEN_IMAGE_SRC = '\/avatars\/fallback-broken\.svg'/)
+    assert.match(safeImageSource, /referrerPolicy = 'no-referrer'/)
+    assert.match(safeImageSource, /useState\(\s*src \|\| FALLBACK_BROKEN_IMAGE_SRC\s*\)/)
+    assert.match(safeImageSource, /setImageSrc\(FALLBACK_BROKEN_IMAGE_SRC\)/)
+    assert.match(safeImageSource, /useState/)
+    assert.match(safeImageSource, /onError=\{handleError\}/)
+    assert.doesNotMatch(safeImageSource, /new Image\(/)
+    assert.doesNotMatch(safeImageSource, /safeImageRetry/)
+    assert.doesNotMatch(safeImageSource, /ImageOff/)
+    assert.doesNotMatch(safeImageSource, /safe-image-broken/)
+    assert.match(fallbackImageSource, /<svg/)
+    assert.match(fallbackImageSource, /lucide-image-off/)
+    assert.match(profileSource, /import \{ SafeImage \} from '~\/components\/SafeImage'/)
+    assert.match(profileSource, /<SafeImage\s+className="profile-avatar-large"/)
+    assert.match(profileSource, /<SafeImage\s+src=\{generateAvatar\(identity\.address, option\.value\)\}/)
+    assert.doesNotMatch(profileSource, /getAvatarCrossOrigin/)
+    assert.doesNotMatch(profileSource, /crossOrigin=\{getAvatarCrossOrigin/)
+    assert.doesNotMatch(profileSource, /<img\s+className="profile-avatar-large"/)
+    assert.match(accountMenuSource, /<SafeImage/)
+    assert.doesNotMatch(accountMenuSource, /getAvatarCrossOrigin/)
+    assert.doesNotMatch(accountMenuSource, /crossOrigin=\{getAvatarCrossOrigin/)
+    assert.match(profileStyles, /\.profile-avatar-option \.safe-image/)
+    assert.match(globalsStyles, /\.safe-image\.is-loading/)
+    assert.match(globalsStyles, /\.safe-image\.is-broken/)
+    assert.match(globalsStyles, /\.safe-image\.is-broken > img/)
+    assert.doesNotMatch(globalsStyles, /\.safe-image-broken/)
   })
 
   it('keeps account backup scoped and restores once after fresh login', () => {
