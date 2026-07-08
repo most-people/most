@@ -7,10 +7,11 @@ function readSource(path) {
 }
 
 describe('chat mention styling', () => {
-  it('highlights only the current user mention inside mentioned messages', () => {
+  it('keeps inline message mentions visually plain', () => {
     const chatStyles = readSource('src/styles/chat.css')
 
-    assert.match(chatStyles, /\.chat-mention\.self\s*\{[\s\S]*color:\s*var\(--warning\)/)
+    assert.doesNotMatch(chatStyles, /^\.chat-mention\s*\{/m)
+    assert.doesNotMatch(chatStyles, /^\.chat-mention\.self\s*\{/m)
     assert.doesNotMatch(
       chatStyles,
       /(?:\.chat-message\.mentioned|&\.mentioned)\s+\.message-bubble\s*\{[^}]*var\(--warning\)/
