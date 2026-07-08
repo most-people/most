@@ -203,7 +203,6 @@ type MentionTarget = { address: string; label: string }
 type ChannelMemberProfile = {
   address: string
   displayName: string
-  identity?: string
   avatar?: string
   firstSeenAt: number
   lastSeenAt: number
@@ -213,7 +212,6 @@ type MentionCandidate = {
   address: string
   label: string
   avatarSrc: string
-  identity?: string
   online: boolean
 }
 type BrowserAudioContextConstructor = typeof AudioContext
@@ -614,7 +612,6 @@ function ChatPage() {
   }, [
     userIdentity?.avatar,
     userIdentity?.displayName,
-    userIdentity?.identity,
     userIdentity?.profileUpdatedAt,
     userIdentity?.username,
   ])
@@ -791,34 +788,8 @@ function ChatPage() {
     }
   }, [])
 
-  const activeChannelMembers = useMemo(() => {
-    const current =
-      channels.find(channel => getChannelKey(channel) === activeChannelKey) ||
-      activeChannel
-    return Array.isArray(current?.members) ? current.members : []
-  }, [activeChannel, activeChannelKey, channels])
-
   const channelMembers = useMemo(() => {
     const membersByAuthor = new Map<string, ChannelMemberProfile>()
-
-    activeChannelMembers.forEach((member, index) => {
-      const address = String(member.address || '').trim()
-      if (!address) return
-      const key = address.toLowerCase()
-      const joinedAt = Date.parse(String(member.joinedAt || '')) || 0
-      const displayName = String(member.displayName || '').trim()
-      const identity = String(member.identity || '').trim()
-      const avatar = String(member.avatar || '').trim()
-      membersByAuthor.set(key, {
-        address,
-        displayName,
-        ...(identity ? { identity } : {}),
-        ...(avatar ? { avatar } : {}),
-        firstSeenAt: joinedAt,
-        lastSeenAt: joinedAt,
-        index,
-      })
-    })
 
     channelMessages.forEach((message, index) => {
       const address = String(message.author || '').trim()
@@ -826,7 +797,6 @@ function ChatPage() {
       const key = address.toLowerCase()
       const timestamp = Number(message.timestamp) || 0
       const displayName = String(message.authorName || '').trim()
-      const identity = String(message.authorIdentity || '').trim()
       const avatar = String(message.avatar || '').trim()
       const existing = membersByAuthor.get(key)
 
@@ -834,11 +804,10 @@ function ChatPage() {
         membersByAuthor.set(key, {
           address,
           displayName,
-          ...(identity ? { identity } : {}),
           ...(avatar ? { avatar } : {}),
           firstSeenAt: timestamp,
           lastSeenAt: timestamp,
-          index: activeChannelMembers.length + index,
+          index,
         })
         return
       }
@@ -846,12 +815,7 @@ function ChatPage() {
       if (timestamp >= existing.lastSeenAt) {
         existing.lastSeenAt = timestamp
         if (displayName) existing.displayName = displayName
-        if (identity) existing.identity = identity
         if (avatar) existing.avatar = avatar
-      } else {
-        if (!existing.displayName && displayName) existing.displayName = displayName
-        if (!existing.identity && identity) existing.identity = identity
-        if (!existing.avatar && avatar) existing.avatar = avatar
       }
     })
 
@@ -859,7 +823,7 @@ function ChatPage() {
       const timeDiff = a.firstSeenAt - b.firstSeenAt
       return timeDiff || a.index - b.index
     })
-  }, [activeChannelMembers, channelMessages])
+  }, [channelMessages])
 
   const messageProfileByAddress = useMemo(() => {
     return new Map(
@@ -891,9 +855,6 @@ function ChatPage() {
         membersByAddress.set(address, {
           ...existing,
           displayName: presence.displayName || existing.displayName,
-          ...(presence.identity || existing.identity
-            ? { identity: presence.identity || existing.identity }
-            : {}),
           ...(presence.avatar || existing.avatar
             ? { avatar: presence.avatar || existing.avatar }
             : {}),
@@ -904,7 +865,6 @@ function ChatPage() {
       membersByAddress.set(address, {
         address: presence.address,
         displayName: presence.displayName || '',
-        ...(presence.identity ? { identity: presence.identity } : {}),
         ...(presence.avatar ? { avatar: presence.avatar } : {}),
         firstSeenAt: presence.lastSeen || Date.now(),
         lastSeenAt: presence.lastSeen || Date.now(),
@@ -1872,24 +1832,6 @@ function ChatPage() {
     return messageMentionsAddress(msg, userIdentity?.address)
   }
 
-  function getMessageDisplayIdentity(msg: ChannelMessage) {
-    const snapshotIdentity = String(msg.authorIdentity || '').trim()
-    if (snapshotIdentity) return snapshotIdentity
-
-    const address = normalizeMemberAddress(msg.author)
-    if (!address) return ''
-
-    const presence = presenceByAddress.get(address)
-    const messageProfile = messageProfileByAddress.get(address)
-    const currentUserIdentity =
-      address === normalizeMemberAddress(userIdentity?.address)
-        ? userIdentity?.identity
-        : ''
-    return String(
-      presence?.identity || messageProfile?.identity || currentUserIdentity || ''
-    ).trim()
-  }
-
   const mentionTrigger =
     isComposerComposing || !activeChannel
       ? null
@@ -1920,7 +1862,6 @@ function ChatPage() {
           const address = normalizeMemberAddress(member.address)
           const presence = presenceByAddress.get(address)
           const displayName = presence?.displayName || member.displayName
-          const identity = String(presence?.identity || member.identity || '').trim()
           const baseName = getMentionCandidateBaseName(displayName, member.address)
           return {
             address,
@@ -1931,7 +1872,6 @@ function ChatPage() {
                 (mentionCandidateNameCounts.get(baseName.toLowerCase()) || 0) > 1,
             }),
             avatarSrc: generateAvatar(member.address, presence?.avatar || member.avatar),
-            ...(identity ? { identity } : {}),
             online: onlineMemberAddressSet.has(address),
           }
         })
@@ -1940,11 +1880,9 @@ function ChatPage() {
             return false
           }
           if (!mentionQuery) return true
-          return [
-            candidate.label,
-            candidate.identity || '',
-            candidate.address,
-          ].some(value => value.toLowerCase().includes(mentionQuery))
+          return [candidate.label, candidate.address].some(value =>
+            value.toLowerCase().includes(mentionQuery)
+          )
         })
         .slice(0, 8)
     : []
@@ -1994,11 +1932,6 @@ function ChatPage() {
               {candidate.label}
             </span>
           </span>
-          {candidate.identity && (
-            <span className="chat-identity-tag" translate="no">
-              {candidate.identity}
-            </span>
-          )}
         </button>
       ))}
     </div>
@@ -2012,12 +1945,10 @@ function ChatPage() {
             normalizeMemberAddress(member.address)
           )
           const displayName = presence?.displayName || member.displayName
-          const identity = presence?.identity || member.identity
           const avatar = presence?.avatar || member.avatar
           return {
             id: member.address,
             name: formatDisplayName(displayName, member.address),
-            identity,
             avatarSrc: generateAvatar(member.address, avatar),
             online: onlineMemberAddressSet.has(
               normalizeMemberAddress(member.address)
@@ -2272,7 +2203,6 @@ function ChatPage() {
                   msg.avatar ||
                   (isSelf ? userIdentity.avatar : undefined)
                 const displayAuthor = getMessageDisplayAuthor(msg)
-                const displayIdentity = getMessageDisplayIdentity(msg)
 
                 return (
                   <ChatMessageItem
@@ -2282,7 +2212,6 @@ function ChatPage() {
                     isOnline={isOnline}
                     avatarSrc={generateAvatar(msg.author, avatar)}
                     author={displayAuthor}
-                    identity={displayIdentity}
                     mentioned={!isSelf && isMessageMentioningCurrentUser(msg)}
                     time={formatTime(msg.timestamp)}
                   >

@@ -11,8 +11,6 @@ export function registerChannelRoutes(app, { engine }) {
       const channelOptions = {
         ownerAddress: c.get('userAddress'),
         displayName: body.displayName,
-        identity: body.identity,
-        profileUpdatedAt: body.profileUpdatedAt,
         discover: true,
       }
       if (Object.prototype.hasOwnProperty.call(body, 'avatar')) {
@@ -99,9 +97,6 @@ export function registerChannelRoutes(app, { engine }) {
       }
       if (Object.prototype.hasOwnProperty.call(body, 'clientMessageId')) {
         messageOptions.clientMessageId = body.clientMessageId
-      }
-      if (Object.prototype.hasOwnProperty.call(body, 'authorIdentity')) {
-        messageOptions.authorIdentity = body.authorIdentity
       }
       if (Object.prototype.hasOwnProperty.call(body, 'mentions')) {
         messageOptions.mentions = body.mentions

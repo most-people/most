@@ -143,24 +143,6 @@
   }
 }
 
-.chat-identity-tag {
-  display: inline-flex;
-  align-items: center;
-  max-width: 120px;
-  height: 18px;
-  padding: 0 6px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-  color: var(--accent);
-  border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
-  font-size: 10px;
-  font-weight: 600;
-  line-height: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .chat-mention {
   display: inline;
   color: var(--accent);
@@ -957,19 +939,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.channel-member-label {
-  width: 100%;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-
-.channel-member-label .chat-identity-tag {
-  max-width: 100%;
 }
 
 .channel-detail-mono {

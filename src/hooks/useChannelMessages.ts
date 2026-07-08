@@ -22,7 +22,6 @@ const CHANNEL_PRESENCE_HEARTBEAT_MS = 15 * 1000
 
 interface ChannelPresenceProfile {
   displayName?: string
-  identity?: string
   avatar?: string
   profileUpdatedAt?: number
 }
@@ -370,9 +369,6 @@ export function useChannelMessages({
               item.id === optimistic.id
                 ? {
                     ...result.message,
-                    authorIdentity:
-                      result.message.authorIdentity ||
-                      optimistic.authorIdentity,
                     id:
                       result.message.id ||
                       getMessageKeyRef.current(result.message),
@@ -436,14 +432,12 @@ export function useChannelMessages({
     () =>
       [
         presenceProfile.displayName || '',
-        presenceProfile.identity || '',
         presenceProfile.avatar || '',
         presenceProfile.profileUpdatedAt || '',
       ].join('\n'),
     [
       presenceProfile.avatar,
       presenceProfile.displayName,
-      presenceProfile.identity,
       presenceProfile.profileUpdatedAt,
     ]
   )

@@ -59,7 +59,6 @@ export function useGameRoom({
   }, [
     userIdentity?.avatar,
     userIdentity?.displayName,
-    userIdentity?.identity,
     userIdentity?.profileUpdatedAt,
     userIdentity?.username,
   ])

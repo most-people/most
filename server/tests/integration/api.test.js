@@ -423,22 +423,25 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(spec.paths['/api/channels/{name}/remark'])
       assert.ok(spec.paths['/api/channels/{name}/pin'])
       assert.ok(spec.components.schemas.ChannelMention)
-      assert.ok(spec.components.schemas.ChannelMember)
-      assert.ok(spec.components.schemas.Channel.properties.members)
+      assert.strictEqual(spec.components.schemas.ChannelMember, undefined)
+      assert.strictEqual(spec.components.schemas.Channel.properties.members, undefined)
       assert.ok(spec.components.schemas.ChannelMessage)
       assert.ok(spec.components.schemas.ChannelPresence)
-      assert.ok(
-        spec.components.schemas.ChannelCreateRequest.properties.identity
+      assert.strictEqual(
+        spec.components.schemas.ChannelCreateRequest.properties.identity,
+        undefined
       )
-      assert.ok(
-        spec.components.schemas.ChannelMessage.properties.authorIdentity
+      assert.strictEqual(
+        spec.components.schemas.ChannelMessage.properties.authorIdentity,
+        undefined
       )
       assert.ok(spec.components.schemas.ChannelMessage.properties.mentions)
       assert.ok(
         spec.components.schemas.ChannelMessage.properties.clientMessageId
       )
-      assert.ok(
-        spec.components.schemas.ChannelPresence.properties.identity
+      assert.strictEqual(
+        spec.components.schemas.ChannelPresence.properties.identity,
+        undefined
       )
       assert.deepStrictEqual(
         spec.paths['/api/channels'].post.requestBody.content[
@@ -2179,7 +2182,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(data.message.content, 'Hello!')
     })
 
-    it('passes message identity, client id and mentions through HTTP', async () => {
+    it('passes message client id and mentions through HTTP', async () => {
       const channelName = `http-mention-${uid}`
       const clientMessageId = '22222222-2222-4222-8222-222222222222'
       const mentioned = SECOND_IDENTITY.address
@@ -2200,7 +2203,6 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
           content: 'hi @SecondUser',
           author: TEST_IDENTITY.address,
           authorName: 'TestUser',
-          authorIdentity: 'service_ai',
           clientMessageId,
           mentions,
         }),
@@ -2208,7 +2210,6 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const data = await res.json()
 
       assert.strictEqual(res.status, 200)
-      assert.strictEqual(data.message.authorIdentity, 'service_ai')
       assert.strictEqual(data.message.clientMessageId, clientMessageId)
       assert.deepStrictEqual(data.message.mentions, [
         {
@@ -2540,7 +2541,6 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
           name: channelName,
           type: 'public',
           displayName: 'FirstUser',
-          identity: 'first_label',
           avatar: 'first.png',
         }),
       })
@@ -2557,7 +2557,6 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
             name: channelName,
             type: 'public',
             displayName: 'SecondUser',
-            identity: 'second_label',
             avatar: 'second.png',
           }),
         }
@@ -2583,37 +2582,14 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         ['system', 'system']
       )
       assert.strictEqual(welcomeMessages[0].authorName, 'FirstUser')
-      assert.strictEqual(welcomeMessages[0].authorIdentity, 'first_label')
       assert.strictEqual(welcomeMessages[0].avatar, 'first.png')
       assert.strictEqual(welcomeMessages[1].authorName, 'SecondUser')
-      assert.strictEqual(welcomeMessages[1].authorIdentity, 'second_label')
       assert.strictEqual(welcomeMessages[1].avatar, 'second.png')
       const listRes = await fetch(`${baseUrl}/api/channels`)
       const channels = await listRes.json()
       const channel = channels.find(item => item.name === channelName)
       assert.strictEqual(listRes.status, 200)
-      assert.deepStrictEqual(
-        channel.members.map(member => ({
-          address: member.address,
-          displayName: member.displayName,
-          identity: member.identity,
-          avatar: member.avatar,
-        })),
-        [
-          {
-            address: TEST_IDENTITY.address.toLowerCase(),
-            displayName: 'FirstUser',
-            identity: 'first_label',
-            avatar: 'first.png',
-          },
-          {
-            address: SECOND_IDENTITY.address.toLowerCase(),
-            displayName: 'SecondUser',
-            identity: 'second_label',
-            avatar: 'second.png',
-          },
-        ]
-      )
+      assert.strictEqual(channel.members, undefined)
       assert.ok(
         Number(welcomeMessages[0].timestamp) <=
           Number(welcomeMessages[1].timestamp)
