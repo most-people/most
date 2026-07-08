@@ -41,6 +41,10 @@ describe('generateAvatar', () => {
       ''
     )
     assert.strictEqual(
+      normalizeDefaultAvatarValue('/avatars/default/rocket.svg'),
+      ''
+    )
+    assert.strictEqual(
       generateAvatar('0x1234567890abcdef', '/avatars/default/dusk.svg'),
       '/avatars/default/dusk.svg'
     )

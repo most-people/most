@@ -2012,9 +2012,32 @@ describe('frontend smoke checks', () => {
 
   it('keeps recommended profile avatar labels translated', () => {
     const messages = readI18nSources()
+    const profileSource = readSource('src/features/profile/ProfilePage.tsx')
+    const rocketAvatarPath = new URL(
+      '../../public/avatars/default/rocket.svg',
+      import.meta.url
+    )
 
-    assert.match(messages, /'profile\.avatar\.rocket':/)
+    assert.match(messages, /'profile\.avatar\.custom':/)
+    assert.doesNotMatch(messages, /'profile\.avatar\.current':/)
+    assert.doesNotMatch(messages, /'profile\.avatar\.rocket':/)
     assert.doesNotMatch(messages, /'profile\.avatar\.dog':/)
+    assert.doesNotMatch(profileSource, /'rocket'/)
+    assert.equal(fs.existsSync(rocketAvatarPath), false)
+  })
+
+  it('builds stable account avatar URLs for empty custom avatar slots', async () => {
+    const { getAccountAvatarUrl } = await importBundledSource(
+      'src/lib/avatarCloudUpload.js'
+    )
+    const avatarUrl =
+      'https://api.most.box/avatar/0xc8f9e8a7a8c2cdab4b141330d5bef5c7c7df8778'
+
+    assert.equal(
+      getAccountAvatarUrl('0xC8F9E8A7A8C2CDAB4B141330D5BEF5C7C7DF8778'),
+      avatarUrl
+    )
+    assert.equal(getAccountAvatarUrl(''), '')
   })
 
   it('wires profile avatar uploads through the authenticated cloud API', () => {
@@ -2048,6 +2071,12 @@ describe('frontend smoke checks', () => {
       avatarCloudUploadSource,
       /ACCOUNT_AVATAR_API_URL = 'https:\/\/api\.most\.box\/auth\/avatar'/
     )
+    assert.match(
+      avatarCloudUploadSource,
+      /ACCOUNT_AVATAR_BASE_URL = 'https:\/\/api\.most\.box\/avatar'/
+    )
+    assert.match(avatarCloudUploadSource, /export function getAccountAvatarUrl/)
+    assert.doesNotMatch(avatarCloudUploadSource, /getOwnAvatarDisplayUrl/)
     assert.match(avatarCloudUploadSource, /FormData/)
     assert.match(avatarCloudUploadSource, /formData\.append\('file', file\)/)
     assert.match(
@@ -2056,6 +2085,7 @@ describe('frontend smoke checks', () => {
     )
     assert.doesNotMatch(accountBackupSource, /ACCOUNT_AVATAR_API_URL/)
     assert.doesNotMatch(accountBackupSource, /uploadAccountAvatar/)
+    assert.match(profileSource, /const data = await uploadAccountAvatar\(identity, prepared\.file\)/)
     assert.match(profileSource, /setAvatarUrlDraft\(data\.url\)/)
     assert.match(profileSource, /updateAvatar\(data\.url\)/)
     assert.match(
@@ -2086,41 +2116,55 @@ describe('frontend smoke checks', () => {
     assert.match(profileSource, /isSupportedAvatarValue/)
   })
 
-  it('uses a reusable safe image component for profile avatars', () => {
-    const safeImageSource = readSource('src/components/SafeImage.tsx')
+  it('uses native image fallback handling for profile avatars', () => {
+    const safeImagePath = new URL(
+      '../../src/components/SafeImage.tsx',
+      import.meta.url
+    )
     const fallbackImageSource = readSource('public/avatars/fallback-broken.svg')
     const profileSource = readSource('src/features/profile/ProfilePage.tsx')
     const accountMenuSource = readSource('src/features/profile/AccountMenu.tsx')
     const profileStyles = readSource('src/styles/profile.css')
     const globalsStyles = readSource('src/styles/globals.css')
 
-    assert.match(safeImageSource, /export function SafeImage/)
-    assert.match(safeImageSource, /FALLBACK_BROKEN_IMAGE_SRC = '\/avatars\/fallback-broken\.svg'/)
-    assert.match(safeImageSource, /referrerPolicy = 'no-referrer'/)
-    assert.match(safeImageSource, /useState\(\s*src \|\| FALLBACK_BROKEN_IMAGE_SRC\s*\)/)
-    assert.match(safeImageSource, /setImageSrc\(FALLBACK_BROKEN_IMAGE_SRC\)/)
-    assert.match(safeImageSource, /useState/)
-    assert.match(safeImageSource, /onError=\{handleError\}/)
-    assert.doesNotMatch(safeImageSource, /new Image\(/)
-    assert.doesNotMatch(safeImageSource, /safeImageRetry/)
-    assert.doesNotMatch(safeImageSource, /ImageOff/)
-    assert.doesNotMatch(safeImageSource, /safe-image-broken/)
+    assert.equal(fs.existsSync(safeImagePath), false)
     assert.match(fallbackImageSource, /<svg/)
     assert.match(fallbackImageSource, /lucide-image-off/)
-    assert.match(profileSource, /import \{ SafeImage \} from '~\/components\/SafeImage'/)
-    assert.match(profileSource, /<SafeImage\s+className="profile-avatar-large"/)
-    assert.match(profileSource, /<SafeImage\s+src=\{generateAvatar\(identity\.address, option\.value\)\}/)
+    assert.match(profileSource, /FALLBACK_AVATAR_SRC = '\/avatars\/fallback-broken\.svg'/)
+    assert.match(profileSource, /function handleAvatarImageError/)
+    assert.match(profileSource, /referrerPolicy="no-referrer"/)
+    assert.match(profileSource, /onError=\{handleAvatarImageError\}/)
+    assert.ok(
+      profileSource.includes(
+        'const customAvatarValue =\n' +
+          '    activeAvatar && !isDefaultAvatarValue(activeAvatar)\n' +
+          '      ? activeAvatar\n' +
+          '      : getAccountAvatarUrl(identity.address)'
+      )
+    )
+    assert.doesNotMatch(profileSource, /getOwnAvatarDisplayUrl/)
+    assert.doesNotMatch(profileSource, /const customAvatarValue = `\/avatar\/\$\{address\}`/)
+    assert.match(profileSource, /const customAvatarOption =/)
+    assert.match(profileSource, /labelKey: 'profile\.avatar\.custom'/)
+    assert.match(
+      profileSource,
+      /const displayedAvatarOptions = \[\s*avatarOptions\[0\],\s*customAvatarOption,\s*\.\.\.avatarOptions\.slice\(1\),\s*\]/
+    )
+    assert.match(profileSource, /displayedAvatarOptions\.map/)
+    assert.doesNotMatch(profileSource, /SafeImage/)
     assert.doesNotMatch(profileSource, /getAvatarCrossOrigin/)
     assert.doesNotMatch(profileSource, /crossOrigin=\{getAvatarCrossOrigin/)
-    assert.doesNotMatch(profileSource, /<img\s+className="profile-avatar-large"/)
-    assert.match(accountMenuSource, /<SafeImage/)
+    assert.match(profileSource, /<img\s+className="profile-avatar-large"/)
+    assert.match(accountMenuSource, /FALLBACK_AVATAR_SRC = '\/avatars\/fallback-broken\.svg'/)
+    assert.match(accountMenuSource, /function handleAvatarImageError/)
+    assert.match(accountMenuSource, /<img/)
+    assert.match(accountMenuSource, /referrerPolicy="no-referrer"/)
+    assert.match(accountMenuSource, /onError=\{handleAvatarImageError\}/)
+    assert.doesNotMatch(accountMenuSource, /SafeImage/)
     assert.doesNotMatch(accountMenuSource, /getAvatarCrossOrigin/)
     assert.doesNotMatch(accountMenuSource, /crossOrigin=\{getAvatarCrossOrigin/)
-    assert.match(profileStyles, /\.profile-avatar-option \.safe-image/)
-    assert.match(globalsStyles, /\.safe-image\.is-loading/)
-    assert.match(globalsStyles, /\.safe-image\.is-broken/)
-    assert.match(globalsStyles, /\.safe-image\.is-broken > img/)
-    assert.doesNotMatch(globalsStyles, /\.safe-image-broken/)
+    assert.doesNotMatch(profileStyles, /\.profile-avatar-option \.safe-image/)
+    assert.doesNotMatch(globalsStyles, /\.safe-image/)
   })
 
   it('keeps account backup scoped and restores once after fresh login', () => {

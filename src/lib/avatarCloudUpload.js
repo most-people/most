@@ -1,6 +1,16 @@
 import { HDNodeWallet, Mnemonic, getBytes } from 'ethers'
 
 export const ACCOUNT_AVATAR_API_URL = 'https://api.most.box/auth/avatar'
+export const ACCOUNT_AVATAR_BASE_URL = 'https://api.most.box/avatar'
+
+export function getAccountAvatarUrl(address) {
+  const normalizedAddress = String(address || '')
+    .trim()
+    .toLowerCase()
+  return normalizedAddress
+    ? `${ACCOUNT_AVATAR_BASE_URL}/${encodeURIComponent(normalizedAddress)}`
+    : ''
+}
 
 async function readAvatarApiError(response, fallback) {
   const data = await response

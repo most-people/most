@@ -1,4 +1,4 @@
-import type { ChangeEvent, ReactNode } from 'react'
+import type { ChangeEvent, ReactNode, SyntheticEvent } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import {
@@ -28,12 +28,14 @@ import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import { useI18n, type MessageKey } from '~/lib/i18n'
 import { useAccountBackup } from '~/features/profile/useAccountBackup'
-import { uploadAccountAvatar } from '~/lib/avatarCloudUpload.js'
+import {
+  getAccountAvatarUrl,
+  uploadAccountAvatar,
+} from '~/lib/avatarCloudUpload.js'
 import {
   AvatarUploadSizeError,
   prepareAvatarUploadFile,
 } from '~/lib/avatarUpload.js'
-import { SafeImage } from '~/components/SafeImage'
 import { api, getApiErrorMessage } from '~server/src/utils/api'
 import {
   generateAvatar,
@@ -56,8 +58,9 @@ const profileDefaultAvatarIds = [
   'tiger',
   'turtle',
   'snow-mountain',
-  'rocket',
 ]
+
+const FALLBACK_AVATAR_SRC = '/avatars/fallback-broken.svg'
 
 type BackupConfirm = {
   title: string
@@ -81,12 +84,26 @@ const avatarOptions: AvatarOption[] = [
 
 function isSupportedAvatarValue(value: string) {
   if (isDefaultAvatarValue(value)) return true
+  if (value.startsWith('/avatar/')) return true
   try {
     const url = new URL(value)
     return url.protocol === 'http:' || url.protocol === 'https:'
   } catch {
     return false
   }
+}
+
+function handleAvatarImageError(
+  event: SyntheticEvent<HTMLImageElement, Event>
+) {
+  const image = event.currentTarget
+  if (
+    image.getAttribute('src') === FALLBACK_AVATAR_SRC ||
+    image.src.endsWith(FALLBACK_AVATAR_SRC)
+  ) {
+    return
+  }
+  image.src = FALLBACK_AVATAR_SRC
 }
 
 function getBackupStatusClass(status: string) {
@@ -190,8 +207,21 @@ export default function ProfilePage() {
 
   const activeAvatar =
     normalizeDefaultAvatarValue(identity.avatar) || identity.avatar || ''
-  const avatarSrc = generateAvatar(identity.address, identity.avatar)
   const address = identity.address.toLowerCase()
+  const customAvatarValue =
+    activeAvatar && !isDefaultAvatarValue(activeAvatar)
+      ? activeAvatar
+      : getAccountAvatarUrl(identity.address)
+  const customAvatarOption = {
+    value: customAvatarValue,
+    labelKey: 'profile.avatar.custom' as MessageKey,
+  }
+  const displayedAvatarOptions = [
+    avatarOptions[0],
+    customAvatarOption,
+    ...avatarOptions.slice(1),
+  ]
+  const avatarSrc = generateAvatar(identity.address, identity.avatar)
   const canSaveAvatarUrl = avatarUrlDraft.trim().length > 0
   const canUploadAvatar = Boolean(avatarUploadFile) && !avatarUploading
   const backupStatusClass = getBackupStatusClass(accountBackup.status)
@@ -507,10 +537,12 @@ export default function ProfilePage() {
           </section>
 
           <header className="profile-header">
-            <SafeImage
+            <img
               className="profile-avatar-large"
               src={avatarSrc}
               alt=""
+              referrerPolicy="no-referrer"
+              onError={handleAvatarImageError}
             />
             <div className="profile-heading">
               <p className="profile-kicker">{t('profile.kicker')}</p>
@@ -582,7 +614,7 @@ export default function ProfilePage() {
                 </div>
               </div>
               <div className="profile-avatar-grid" role="list">
-                {avatarOptions.map(option => {
+                {displayedAvatarOptions.map(option => {
                   const selected = activeAvatar === option.value
                   return (
                     <button
@@ -598,9 +630,11 @@ export default function ProfilePage() {
                       aria-pressed={selected}
                       title={t(option.labelKey)}
                     >
-                      <SafeImage
+                      <img
                         src={generateAvatar(identity.address, option.value)}
                         alt=""
+                        referrerPolicy="no-referrer"
+                        onError={handleAvatarImageError}
                       />
                       <span>{t(option.labelKey)}</span>
                       {selected && (

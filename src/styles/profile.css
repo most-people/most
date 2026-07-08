@@ -46,10 +46,6 @@
   box-shadow: var(--shadow-md);
 }
 
-.profile-avatar-large.safe-image {
-  display: inline-flex;
-}
-
 .profile-heading {
   min-width: 0;
 }
@@ -436,14 +432,6 @@
   display: block;
   border-radius: var(--radius-md);
   object-fit: cover;
-  background: var(--glass-bg-subtle);
-}
-
-.profile-avatar-option .safe-image {
-  width: 64px;
-  height: 64px;
-  display: inline-flex;
-  border-radius: var(--radius-md);
   background: var(--glass-bg-subtle);
 }
 

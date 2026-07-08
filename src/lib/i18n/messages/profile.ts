@@ -67,13 +67,13 @@ export const zhCNProfileMessages = {
   'profile.toast.saved': '资料已保存',
   'profile.toast.avatarUpdated': '头像已更新',
   'profile.avatar.address': '地址头像',
+  'profile.avatar.custom': '自定义头像',
   'profile.avatar.panda': '熊猫',
   'profile.avatar.owl': '猫头鹰',
   'profile.avatar.dolphin': '海豚',
   'profile.avatar.tiger': '老虎',
   'profile.avatar.turtle': '海龟',
   'profile.avatar.snow-mountain': '雪山',
-  'profile.avatar.rocket': '火箭',
 } as const
 
 export const zhTWProfileMessages = {
@@ -145,13 +145,13 @@ export const zhTWProfileMessages = {
   'profile.toast.saved': '資料已儲存',
   'profile.toast.avatarUpdated': '頭像已更新',
   'profile.avatar.address': '地址頭像',
+  'profile.avatar.custom': '自訂頭像',
   'profile.avatar.panda': '熊貓',
   'profile.avatar.owl': '貓頭鷹',
   'profile.avatar.dolphin': '海豚',
   'profile.avatar.tiger': '老虎',
   'profile.avatar.turtle': '海龜',
   'profile.avatar.snow-mountain': '雪山',
-  'profile.avatar.rocket': '火箭',
 } as const
 
 export const enProfileMessages = {
@@ -225,11 +225,11 @@ export const enProfileMessages = {
   'profile.toast.saved': 'Profile saved',
   'profile.toast.avatarUpdated': 'Avatar updated',
   'profile.avatar.address': 'Address avatar',
+  'profile.avatar.custom': 'Custom avatar',
   'profile.avatar.panda': 'Panda',
   'profile.avatar.owl': 'Owl',
   'profile.avatar.dolphin': 'Dolphin',
   'profile.avatar.tiger': 'Tiger',
   'profile.avatar.turtle': 'Turtle',
   'profile.avatar.snow-mountain': 'Snow mountain',
-  'profile.avatar.rocket': 'Rocket',
 } as const
