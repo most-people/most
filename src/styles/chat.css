@@ -624,6 +624,9 @@
 .chat-channel-title {
   min-width: 0;
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .chat-channel-title-text {
@@ -633,6 +636,38 @@
   text-overflow: ellipsis;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+}
+
+.sidebar-nav-btn.mention-unread .chat-channel-title-text {
+  -webkit-line-clamp: 1;
+}
+
+.chat-channel-subtitle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-channel-mention-label {
+  flex: 0 0 auto;
+  color: #ff3b30;
+  font-weight: 600;
+}
+
+.chat-channel-preview {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .chat-channel-unread-dot {
