@@ -277,7 +277,7 @@ export class MostBoxEngine extends EventEmitter {
   #channelIdDiscoveries = new Map()
   #channelPeers = new Map()
   #channelCandidateCache = new Map()
-  #channelStreams = new Set()
+  #channelStreams = new Map()
   #channelPresenceSessions = new Map()
   #channelPresenceProfiles = new Map()
   #channelPresenceSweepTimer = null
@@ -563,14 +563,14 @@ export class MostBoxEngine extends EventEmitter {
       this.emit('error', err)
     })
 
-    this.#chatSwarm.on('connection', (conn, _info) => {
+    this.#chatSwarm.on('connection', (conn, info) => {
       conn.on('error', err => {
         if (err.code === 'SSL_ERROR' || err.message?.includes('handshake')) {
           return
         }
       })
 
-      this.#handleChannelConnection(conn).catch(() => {})
+      this.#handleChannelConnection(conn, info).catch(() => {})
     })
 
     this.#publishedFiles = this.#loadPublishedMetadata()
@@ -2345,21 +2345,62 @@ export class MostBoxEngine extends EventEmitter {
   /**
    * 用内存复制流连接两个本地引擎，供本地集成测试和诊断使用。
    */
-  replicateWith(peerEngine) {
+  replicateWith(peerEngine, options = {}) {
     this.#ensureInitialized()
     peerEngine.#ensureInitialized()
 
     const left = this.#store.replicate(true, { live: true })
     const right = peerEngine.#store.replicate(false, { live: true })
     const [leftChat, rightChat] = createMemoryDuplexPair()
+    const hasScopedChannelNames = Array.isArray(options.channelNames)
+    const getScopedChannelNames = (sideChannelNames, fallbackChannels) => {
+      if (Array.isArray(sideChannelNames)) return sideChannelNames
+      if (hasScopedChannelNames) return options.channelNames
+      return fallbackChannels.map(channel => channel.channelKey)
+    }
+    const getScopedChannelKeys = (engine, channelNames) =>
+      channelNames
+        .map(name => engine.#resolveChannel(name).channelKey)
+        .filter(Boolean)
+    const getScopedChannelIdTopicHexes = (engine, channelIds = []) =>
+      uniqueStrings(
+        (Array.isArray(channelIds) ? channelIds : [])
+          .map(channelId => normalizeChannelId(channelId))
+          .filter(Boolean)
+          .map(channelId =>
+            b4a.toString(engine.#generateChannelIdDiscoveryKey(channelId), 'hex')
+          )
+      )
+    const leftChannelKeys = getScopedChannelKeys(
+      this,
+      getScopedChannelNames(options.leftChannelNames, this.#channels)
+    )
+    const rightChannelKeys = getScopedChannelKeys(
+      peerEngine,
+      getScopedChannelNames(options.rightChannelNames, peerEngine.#channels)
+    )
+    const leftScopeTopicHexes = getScopedChannelIdTopicHexes(
+      this,
+      options.leftChannelIds || options.channelIds
+    )
+    const rightScopeTopicHexes = getScopedChannelIdTopicHexes(
+      peerEngine,
+      options.rightChannelIds || options.channelIds
+    )
 
     left.on('error', () => {})
     right.on('error', () => {})
     leftChat.on('error', () => {})
     rightChat.on('error', () => {})
     left.pipe(right).pipe(left)
-    this.#handleChannelConnection(leftChat).catch(() => {})
-    peerEngine.#handleChannelConnection(rightChat).catch(() => {})
+    this.#handleChannelConnection(leftChat, {
+      channelKeys: leftChannelKeys,
+      scopeTopicHexes: leftScopeTopicHexes,
+    }).catch(() => {})
+    peerEngine.#handleChannelConnection(rightChat, {
+      channelKeys: rightChannelKeys,
+      scopeTopicHexes: rightScopeTopicHexes,
+    }).catch(() => {})
 
     return {
       close: () => {
@@ -6016,35 +6057,163 @@ export class MostBoxEngine extends EventEmitter {
     }
   }
 
-  #buildChannelHelloMessage() {
-    const channels = this.#channels.map(channel => ({
-      channelId: channel.channelId,
-      channelKey: channel.channelKey,
-      type: channel.type,
-      createdAt: channel.createdAt,
-      lastMessageAt: channel.lastMessageAt || '',
-      members: this.#getChannelMembers(channel),
-      memberAddresses: this.#getChannelMemberAddresses(channel),
-      writerCoreKeys: uniqueStrings([
-        ...(channel.writerCoreKeys || []),
-        this.#channelLocalCoreKey.get(channel.channelKey),
-      ]),
-    }))
+  #normalizeChannelScopeTopicHexes(input = {}) {
+    const topics = [
+      ...(Array.isArray(input?.topics) ? input.topics : []),
+      ...(Array.isArray(input?.topicHexes) ? input.topicHexes : []),
+      ...(Array.isArray(input?.scopeTopicHexes) ? input.scopeTopicHexes : []),
+    ]
+    return uniqueStrings(
+      topics
+        .map(topic => {
+          try {
+            const hex =
+              typeof topic === 'string'
+                ? topic.trim().toLowerCase()
+                : b4a.toString(topic, 'hex')
+            return /^[0-9a-f]{64}$/.test(hex) ? hex : ''
+          } catch {
+            return ''
+          }
+        })
+        .filter(Boolean)
+    )
+  }
+
+  #normalizeChannelScopeKeys(input = []) {
+    return uniqueStrings(
+      (Array.isArray(input) ? input : [])
+        .map(key => normalizeChannelKey(key))
+        .filter(Boolean)
+    )
+  }
+
+  #getChannelScopeTopicHexes(channel) {
+    if (!channel?.channelKey || !channel?.channelId) return []
+    return uniqueStrings([
+      b4a.toString(
+        this.#generateChannelChatDiscoveryKey(channel.channelKey),
+        'hex'
+      ),
+      b4a.toString(this.#generateChannelIdDiscoveryKey(channel.channelId), 'hex'),
+    ])
+  }
+
+  #channelMatchesScopeTopicHexes(channel, topicHexes = []) {
+    if (!channel?.channelKey || !topicHexes.length) return false
+    const topicSet = new Set(topicHexes)
+    return this.#getChannelScopeTopicHexes(channel).some(topicHex =>
+      topicSet.has(topicHex)
+    )
+  }
+
+  #getChannelKeysForScopeTopicHexes(topicHexes = []) {
+    if (!topicHexes.length) return []
+    return this.#channels
+      .filter(channel => this.#channelMatchesScopeTopicHexes(channel, topicHexes))
+      .map(channel => channel.channelKey)
+      .filter(Boolean)
+  }
+
+  #createChannelStreamState(stream, info = {}) {
+    const topicHexes = this.#normalizeChannelScopeTopicHexes(info)
+    const channelKeys = uniqueStrings([
+      ...this.#normalizeChannelScopeKeys(info.channelKeys),
+      ...this.#getChannelKeysForScopeTopicHexes(topicHexes),
+    ])
+    return {
+      stream,
+      topicHexes: new Set(topicHexes),
+      channelKeys: new Set(channelKeys),
+    }
+  }
+
+  #addChannelStreamScope(streamState, options = {}) {
+    if (!streamState) return false
+    let changed = false
+    for (const topicHex of this.#normalizeChannelScopeTopicHexes(options)) {
+      if (streamState.topicHexes.has(topicHex)) continue
+      streamState.topicHexes.add(topicHex)
+      changed = true
+    }
+    const topicChannelKeys = this.#getChannelKeysForScopeTopicHexes([
+      ...streamState.topicHexes,
+    ])
+    for (const channelKey of uniqueStrings([
+      ...this.#normalizeChannelScopeKeys(options.channelKeys),
+      ...topicChannelKeys,
+    ])) {
+      if (streamState.channelKeys.has(channelKey)) continue
+      streamState.channelKeys.add(channelKey)
+      changed = true
+    }
+    return changed
+  }
+
+  #getChannelStreamScopedKeys(streamState) {
+    if (!streamState) return []
+    return uniqueStrings([
+      ...streamState.channelKeys,
+      ...this.#getChannelKeysForScopeTopicHexes([...streamState.topicHexes]),
+    ])
+  }
+
+  #channelStreamIncludesChannel(streamState, channelKeyInput) {
+    const channelKey = normalizeChannelKey(channelKeyInput)
+    if (!channelKey) return false
+    return this.#getChannelStreamScopedKeys(streamState).includes(channelKey)
+  }
+
+  #channelStreamAllowsRemoteChannel(streamState, channel) {
+    if (!streamState) return false
+    const hasScope =
+      streamState.channelKeys.size > 0 || streamState.topicHexes.size > 0
+    if (!hasScope) return false
+    if (this.#channelStreamIncludesChannel(streamState, channel.channelKey)) {
+      return true
+    }
+    return this.#channelMatchesScopeTopicHexes(channel, [
+      ...streamState.topicHexes,
+    ])
+  }
+
+  #buildChannelHelloMessage(streamState = null) {
+    const scopedKeys = streamState
+      ? new Set(this.#getChannelStreamScopedKeys(streamState))
+      : null
+    const channels = this.#channels
+      .filter(channel => !scopedKeys || scopedKeys.has(channel.channelKey))
+      .map(channel => ({
+        channelId: channel.channelId,
+        channelKey: channel.channelKey,
+        type: channel.type,
+        createdAt: channel.createdAt,
+        lastMessageAt: channel.lastMessageAt || '',
+        members: this.#getChannelMembers(channel),
+        memberAddresses: this.#getChannelMemberAddresses(channel),
+        writerCoreKeys: uniqueStrings([
+          ...(channel.writerCoreKeys || []),
+          this.#channelLocalCoreKey.get(channel.channelKey),
+        ]),
+      }))
     return {
       type: 'channel-hello',
       peerId: this.getNodeId(),
       authorName: this.getNodeId().slice(0, 4),
+      scopeTopicHexes: streamState ? [...streamState.topicHexes] : [],
       channels,
     }
   }
 
-  #sendChannelHello(stream) {
+  #sendChannelHello(stream, streamState = this.#channelStreams.get(stream)) {
     if (!stream || stream.destroyed || stream.writableEnded) {
       this.#channelStreams.delete(stream)
       return false
     }
     try {
-      stream.write(`${JSON.stringify(this.#buildChannelHelloMessage())}\n`)
+      stream.write(
+        `${JSON.stringify(this.#buildChannelHelloMessage(streamState))}\n`
+      )
       return true
     } catch {
       this.#channelStreams.delete(stream)
@@ -6052,15 +6221,29 @@ export class MostBoxEngine extends EventEmitter {
     }
   }
 
-  #broadcastChannelHello() {
-    for (const stream of [...this.#channelStreams]) {
-      this.#sendChannelHello(stream)
+  #broadcastChannelHello(channelKey = '') {
+    const scopedChannelKey = normalizeChannelKey(channelKey)
+    for (const streamState of [...this.#channelStreams.values()]) {
+      if (
+        scopedChannelKey &&
+        !this.#channelStreamIncludesChannel(streamState, scopedChannelKey)
+      ) {
+        continue
+      }
+      this.#sendChannelHello(streamState.stream, streamState)
     }
   }
 
-  #sendChannelPresence(stream, event) {
+  #sendChannelPresence(
+    stream,
+    event,
+    streamState = this.#channelStreams.get(stream)
+  ) {
     if (!stream || stream.destroyed || stream.writableEnded || !event) {
       this.#channelStreams.delete(stream)
+      return false
+    }
+    if (!this.#channelStreamIncludesChannel(streamState, event.channelKey)) {
       return false
     }
     try {
@@ -6088,14 +6271,17 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #broadcastChannelPresence(event) {
-    for (const stream of [...this.#channelStreams]) {
-      this.#sendChannelPresence(stream, event)
+    for (const streamState of [...this.#channelStreams.values()]) {
+      this.#sendChannelPresence(streamState.stream, event, streamState)
     }
   }
 
-  #sendChannelVoice(stream, event) {
+  #sendChannelVoice(stream, event, streamState = this.#channelStreams.get(stream)) {
     if (!stream || stream.destroyed || stream.writableEnded || !event) {
       this.#channelStreams.delete(stream)
+      return false
+    }
+    if (!this.#channelStreamIncludesChannel(streamState, event.channelKey)) {
       return false
     }
     try {
@@ -6114,13 +6300,16 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #broadcastChannelVoice(event) {
-    for (const stream of [...this.#channelStreams]) {
-      this.#sendChannelVoice(stream, event)
+    for (const streamState of [...this.#channelStreams.values()]) {
+      this.#sendChannelVoice(streamState.stream, event, streamState)
     }
   }
 
-  async #processChannelHelloMessage(msg) {
+  async #processChannelHelloMessage(msg, streamState = null) {
     if (msg.type !== 'channel-hello') return null
+    let scopeChanged = this.#addChannelStreamScope(streamState, {
+      scopeTopicHexes: msg.scopeTopicHexes,
+    })
 
     const onlineChannels = []
     const remoteChannels = Array.isArray(msg.channels)
@@ -6157,6 +6346,9 @@ export class MostBoxEngine extends EventEmitter {
       : []
 
     for (const remoteChannel of remoteChannels) {
+      if (!this.#channelStreamAllowsRemoteChannel(streamState, remoteChannel)) {
+        continue
+      }
       this.#cacheChannelCandidate({
         ...remoteChannel,
         local: false,
@@ -6167,6 +6359,10 @@ export class MostBoxEngine extends EventEmitter {
         channel => channel.channelKey === remoteChannel.channelKey
       )
       if (!localChannel) continue
+      scopeChanged =
+        this.#addChannelStreamScope(streamState, {
+          channelKeys: [localChannel.channelKey],
+        }) || scopeChanged
 
       const peers = this.#channelPeers.get(localChannel.channelKey)
       if (peers) {
@@ -6203,6 +6399,10 @@ export class MostBoxEngine extends EventEmitter {
       }
     }
 
+    if (scopeChanged && streamState?.stream) {
+      this.#sendChannelHello(streamState.stream, streamState)
+    }
+
     this.emit('channel:peer:online', {
       peerId: msg.peerId,
       authorName: msg.authorName,
@@ -6212,7 +6412,7 @@ export class MostBoxEngine extends EventEmitter {
     return msg.peerId
   }
 
-  #processChannelPresenceMessage(msg) {
+  #processChannelPresenceMessage(msg, streamState = null) {
     if (msg.type !== 'channel-presence') return null
     const peerId = String(msg.peerId || '').trim()
     if (!peerId || peerId === this.getNodeId()) return null
@@ -6222,6 +6422,9 @@ export class MostBoxEngine extends EventEmitter {
       channel => channel.channelKey === channelKey
     )
     if (!localChannel) return peerId
+    if (!this.#channelStreamIncludesChannel(streamState, localChannel.channelKey)) {
+      return peerId
+    }
 
     const address = normalizeOwnerAddress(msg.address)
     if (!address) return peerId
@@ -6252,7 +6455,7 @@ export class MostBoxEngine extends EventEmitter {
     return peerId
   }
 
-  #processChannelVoiceMessage(msg) {
+  #processChannelVoiceMessage(msg, streamState = null) {
     if (msg.type !== 'channel-voice') return null
     const peerId = String(msg.peerId || '').trim()
     if (!peerId || peerId === this.getNodeId()) return null
@@ -6262,6 +6465,9 @@ export class MostBoxEngine extends EventEmitter {
       channel => channel.channelKey === channelKey
     )
     if (!localChannel) return peerId
+    if (!this.#channelStreamIncludesChannel(streamState, localChannel.channelKey)) {
+      return peerId
+    }
 
     try {
       const event = normalizeChannelVoiceEvent(channelKey, msg, {
@@ -6272,14 +6478,15 @@ export class MostBoxEngine extends EventEmitter {
     return peerId
   }
 
-  async #handleChannelConnection(conn) {
+  async #handleChannelConnection(conn, info = {}) {
     const stream = conn
     let connectedPeerId = null
     let readBuffer = ''
     let closed = false
+    const streamState = this.#createChannelStreamState(stream, info)
 
-    this.#channelStreams.add(stream)
-    if (!this.#sendChannelHello(stream)) return
+    this.#channelStreams.set(stream, streamState)
+    if (!this.#sendChannelHello(stream, streamState)) return
 
     stream.on('data', async data => {
       readBuffer += data.toString()
@@ -6293,10 +6500,10 @@ export class MostBoxEngine extends EventEmitter {
           const message = JSON.parse(line)
           const peerId =
             message.type === 'channel-presence'
-              ? this.#processChannelPresenceMessage(message)
+              ? this.#processChannelPresenceMessage(message, streamState)
               : message.type === 'channel-voice'
-                ? this.#processChannelVoiceMessage(message)
-                : await this.#processChannelHelloMessage(message)
+                ? this.#processChannelVoiceMessage(message, streamState)
+                : await this.#processChannelHelloMessage(message, streamState)
           if (peerId) connectedPeerId = peerId
         } catch (err) {
           console.warn(`[MostBox] Failed to process channel data:`, err.message)

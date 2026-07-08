@@ -3129,6 +3129,113 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         fs.rmSync(peerTmpDir, { recursive: true, force: true })
       }
     })
+
+    it('scopes channel hello member profiles to the connected channel', async () => {
+      const peerTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-channel-scope-test-')
+      )
+      const firstDataPath = path.join(peerTmpDir, 'first')
+      const secondDataPath = path.join(peerTmpDir, 'second')
+      const sharedChannelName = `peers-scope-shared-${uid}`
+      const isolatedChannelName = `peers-scope-isolated-${uid}`
+      const alice = `0x${'1'.repeat(40)}`
+      const bob = `0x${'2'.repeat(40)}`
+      const carol = `0x${'3'.repeat(40)}`
+      const dave = `0x${'4'.repeat(40)}`
+      let firstEngine
+      let secondEngine
+      let replication
+
+      try {
+        fs.mkdirSync(firstDataPath, { recursive: true })
+        fs.mkdirSync(secondDataPath, { recursive: true })
+        firstEngine = new MostBoxEngine({
+          dataPath: firstDataPath,
+          disableNetwork: true,
+        })
+        secondEngine = new MostBoxEngine({
+          dataPath: secondDataPath,
+          disableNetwork: true,
+        })
+        await firstEngine.start()
+        await secondEngine.start()
+
+        await firstEngine.createChannel(sharedChannelName, 'public', {
+          ownerAddress: alice,
+          displayName: 'Alice',
+          identity: 'alice_label',
+        })
+        await secondEngine.createChannel(sharedChannelName, 'public', {
+          ownerAddress: bob,
+          displayName: 'Bob',
+          identity: 'bob_label',
+        })
+        await firstEngine.createChannel(isolatedChannelName, 'public', {
+          ownerAddress: carol,
+          displayName: 'Carol',
+          identity: 'carol_label',
+        })
+        await secondEngine.createChannel(isolatedChannelName, 'public', {
+          ownerAddress: dave,
+          displayName: 'Dave',
+          identity: 'dave_label',
+        })
+
+        replication = firstEngine.replicateWith(secondEngine, {
+          channelNames: [sharedChannelName],
+        })
+
+        const bobMember = await waitForChannelMember(
+          firstEngine,
+          sharedChannelName,
+          bob,
+          { ownerAddress: alice }
+        )
+        const aliceMember = await waitForChannelMember(
+          secondEngine,
+          sharedChannelName,
+          alice,
+          { ownerAddress: bob }
+        )
+        assert.strictEqual(bobMember.identity, 'bob_label')
+        assert.strictEqual(aliceMember.identity, 'alice_label')
+
+        await sleep(100)
+        const firstIsolated = firstEngine
+          .listChannels({ ownerAddress: carol })
+          .find(channel => channel.name === isolatedChannelName)
+        const secondIsolated = secondEngine
+          .listChannels({ ownerAddress: dave })
+          .find(channel => channel.name === isolatedChannelName)
+        assert.ok(
+          !firstIsolated.members.some(
+            member => member.address === dave.toLowerCase()
+          )
+        )
+        assert.ok(
+          !secondIsolated.members.some(
+            member => member.address === carol.toLowerCase()
+          )
+        )
+
+        firstEngine.joinChannelPresence(isolatedChannelName, {
+          ownerAddress: carol,
+          sessionId: 'carol-isolated',
+          displayName: 'Carol Live',
+          identity: 'carol_live',
+        })
+        await sleep(100)
+        const leakedPresence = secondEngine
+          .getChannelPresence(isolatedChannelName, { ownerAddress: dave })
+          .find(entry => entry.address === carol.toLowerCase())
+        assert.strictEqual(leakedPresence, undefined)
+      } finally {
+        replication?.close()
+        if (firstEngine) await firstEngine.stop().catch(() => {})
+        if (secondEngine) await secondEngine.stop().catch(() => {})
+        fs.rmSync(peerTmpDir, { recursive: true, force: true })
+      }
+    })
   })
 
   describe('channel presence', () => {
@@ -3666,6 +3773,67 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         assert.strictEqual(channel.channelKey, joined.key)
       } finally {
         await joinEngine.stop().catch(() => {})
+        fs.rmSync(joinTmpDir, { recursive: true, force: true })
+      }
+    })
+
+    it('discovers channel candidates from a scoped channel ID connection', async () => {
+      const joinTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-channel-id-scope-test-')
+      )
+      const sourceDataPath = path.join(joinTmpDir, 'source')
+      const joinDataPath = path.join(joinTmpDir, 'join')
+      const channelName = `id-scope-join-${uid}`
+      const alice = `0x${'5'.repeat(40)}`
+      const bob = `0x${'6'.repeat(40)}`
+      let sourceEngine
+      let joinEngine
+      let replication
+
+      try {
+        sourceEngine = new MostBoxEngine({
+          dataPath: sourceDataPath,
+          disableNetwork: true,
+        })
+        joinEngine = new MostBoxEngine({
+          dataPath: joinDataPath,
+          disableNetwork: true,
+        })
+        await sourceEngine.start()
+        await joinEngine.start()
+
+        const sourceChannel = await sourceEngine.createChannel(
+          channelName,
+          'public',
+          {
+            ownerAddress: alice,
+            displayName: 'Alice',
+            identity: 'alice_label',
+          }
+        )
+
+        replication = sourceEngine.replicateWith(joinEngine, {
+          leftChannelNames: [],
+          rightChannelNames: [],
+          rightChannelIds: [channelName],
+        })
+        await sleep(100)
+
+        const joined = await joinEngine.createChannel(channelName, 'public', {
+          ownerAddress: bob,
+          displayName: 'Bob',
+          identity: 'bob_label',
+          discover: true,
+        })
+        assert.ok(joined.writerCoreKeys.includes(sourceChannel.localWriterCoreKey))
+        assert.strictEqual(
+          joined.members.find(member => member.address === alice)?.identity,
+          'alice_label'
+        )
+      } finally {
+        replication?.close()
+        if (sourceEngine) await sourceEngine.stop().catch(() => {})
+        if (joinEngine) await joinEngine.stop().catch(() => {})
         fs.rmSync(joinTmpDir, { recursive: true, force: true })
       }
     })
