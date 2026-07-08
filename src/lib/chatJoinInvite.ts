@@ -1,5 +1,4 @@
 import { isLocale, type Locale } from '~/lib/i18n'
-import { normalizeVisibleChatLabel } from '~server/src/utils/chatLabels.js'
 
 export const CHAT_JOIN_EA_PUBLIC_KEY =
   '0x955fe80bdb8312165471fcacd6a8f83df88a770dda6f38657ca4e62ec28d5b54'
@@ -22,7 +21,6 @@ export interface ChatJoinInvitePayload {
   data?: string
   avatar?: string
   name?: string
-  identity?: string
   channels: ChatJoinInviteChannel[]
 }
 
@@ -96,7 +94,6 @@ export function normalizeChatJoinInvitePayload(
     data: normalizeOptionalString(value.data) || undefined,
     avatar: normalizeOptionalString(value.avatar) || undefined,
     name: normalizeOptionalString(value.name) || undefined,
-    identity: normalizeVisibleChatLabel(value.identity) || undefined,
     channels,
   }
 }

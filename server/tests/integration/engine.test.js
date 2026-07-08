@@ -96,28 +96,6 @@ async function waitForChannelPeerAddress(
   )
 }
 
-async function waitForChannelMember(
-  engine,
-  channelName,
-  address,
-  options = {},
-  timeout = 5000
-) {
-  const expected = String(address || '').toLowerCase()
-  const start = Date.now()
-  while (Date.now() - start < timeout) {
-    const channel = engine
-      .listChannels(options)
-      .find(item => item.name === channelName || item.channelKey === channelName)
-    const member = channel?.members?.find(
-      item => String(item.address || '').toLowerCase() === expected
-    )
-    if (member) return member
-    await sleep(25)
-  }
-  throw new Error(`Channel ${channelName} did not report member ${address}`)
-}
-
 async function waitForChannelPresenceAddress(
   engine,
   channelName,
@@ -154,7 +132,6 @@ function toChannelCandidate(channel) {
     createdAt: channel.createdAt,
     lastMessageAt: channel.lastMessageAt,
     writerCoreKeys: channel.writerCoreKeys,
-    members: channel.members,
   }
 }
 
@@ -2593,7 +2570,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       await engine.createChannel(channelName, 'public', {
         ownerAddress,
         displayName: 'Alice#5678',
-        identity: 'service_ai',
         avatar: 'data:image/png;base64,alice',
       })
 
@@ -2607,7 +2583,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.strictEqual(messages[0].content, 'channel.member.joined')
       assert.strictEqual(messages[0].author, ownerAddress)
       assert.strictEqual(messages[0].authorName, 'Alice#5678')
-      assert.strictEqual(messages[0].authorIdentity, 'service_ai')
       assert.strictEqual(messages[0].avatar, 'data:image/png;base64,alice')
     })
 
@@ -2753,7 +2728,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       )
     })
 
-    it('persists message identity, client id and structured mentions', async () => {
+    it('persists message client id and structured mentions', async () => {
       const ch = `mention-msg-${uid}`
       const author = '0x1234567890abcdef1234567890abcdef12345678'
       const mentioned = '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd'
@@ -2771,7 +2746,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       await msgEngine.createChannel(ch, 'personal', {
         ownerAddress: author,
         displayName: 'Service',
-        identity: 'service_ai',
       })
 
       const msg = await msgEngine.sendMessage(
@@ -2781,13 +2755,11 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         'Service',
         {
           ownerAddress: author,
-          authorIdentity: 'service_ai',
           clientMessageId,
           mentions,
         }
       )
 
-      assert.strictEqual(msg.authorIdentity, 'service_ai')
       assert.strictEqual(msg.clientMessageId, clientMessageId)
       assert.deepStrictEqual(msg.mentions, [
         {
@@ -2796,43 +2768,12 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         },
       ])
 
-      await msgEngine.createChannel(ch, 'personal', {
-        ownerAddress: author,
-        displayName: 'Service',
-        identity: 'service',
-      })
-
       const messages = await msgEngine.getChannelMessages(ch, {
         ownerAddress: author,
       })
       const saved = messages.find(item => item.content === content)
-      assert.strictEqual(saved.authorIdentity, 'service_ai')
       assert.strictEqual(saved.clientMessageId, clientMessageId)
       assert.deepStrictEqual(saved.mentions, msg.mentions)
-    })
-
-    it('uses channel member identity when a message omits author identity', async () => {
-      const ch = `member-identity-msg-${uid}`
-      const author = '0x1234567890abcdef1234567890abcdef12345678'
-      const content = 'member identity fallback'
-
-      await msgEngine.createChannel(ch, 'personal', {
-        ownerAddress: author,
-        displayName: 'Service',
-        identity: 'service_ai',
-      })
-
-      const msg = await msgEngine.sendMessage(ch, content, author, 'Service', {
-        ownerAddress: author,
-      })
-
-      assert.strictEqual(msg.authorIdentity, 'service_ai')
-
-      const messages = await msgEngine.getChannelMessages(ch, {
-        ownerAddress: author,
-      })
-      const saved = messages.find(item => item.content === content)
-      assert.strictEqual(saved.authorIdentity, 'service_ai')
     })
 
     it('rejects invalid strict mention and client message fields', async () => {
@@ -3257,7 +3198,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.strictEqual(peers.length, 0)
     })
 
-    it('includes remote peer member profiles from channel hello', async () => {
+    it('includes remote peer member addresses from channel hello', async () => {
       const peerTmpDir = fs.mkdtempSync(
         path.join(os.tmpdir(), 'most-channel-peer-test-')
       )
@@ -3287,14 +3228,10 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         await firstEngine.createChannel(channelName, 'public', {
           ownerAddress: alice,
           displayName: 'Alice',
-          identity: 'alice_label',
-          avatar: 'alice.png',
         })
         await secondEngine.createChannel(channelName, 'public', {
           ownerAddress: bob,
           displayName: 'Bob',
-          identity: 'bob_label',
-          avatar: 'bob.png',
         })
 
         replication = firstEngine.replicateWith(secondEngine)
@@ -3306,25 +3243,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         )
 
         assert.notStrictEqual(remotePeer.peerId, firstEngine.getNodeId())
-        const bobMember = await waitForChannelMember(
-          firstEngine,
-          channelName,
-          bob,
-          { ownerAddress: alice }
-        )
-        assert.strictEqual(bobMember.displayName, 'Bob')
-        assert.strictEqual(bobMember.identity, 'bob_label')
-        assert.strictEqual(bobMember.avatar, 'bob.png')
-
-        const aliceMember = await waitForChannelMember(
-          secondEngine,
-          channelName,
-          alice,
-          { ownerAddress: bob }
-        )
-        assert.strictEqual(aliceMember.displayName, 'Alice')
-        assert.strictEqual(aliceMember.identity, 'alice_label')
-        assert.strictEqual(aliceMember.avatar, 'alice.png')
       } finally {
         replication?.close()
         if (firstEngine) await firstEngine.stop().catch(() => {})
@@ -3333,112 +3251,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       }
     })
 
-    it('scopes channel hello member profiles to the connected channel', async () => {
-      const peerTmpDir = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'most-channel-scope-test-')
-      )
-      const firstDataPath = path.join(peerTmpDir, 'first')
-      const secondDataPath = path.join(peerTmpDir, 'second')
-      const sharedChannelName = `peers-scope-shared-${uid}`
-      const isolatedChannelName = `peers-scope-isolated-${uid}`
-      const alice = `0x${'1'.repeat(40)}`
-      const bob = `0x${'2'.repeat(40)}`
-      const carol = `0x${'3'.repeat(40)}`
-      const dave = `0x${'4'.repeat(40)}`
-      let firstEngine
-      let secondEngine
-      let replication
-
-      try {
-        fs.mkdirSync(firstDataPath, { recursive: true })
-        fs.mkdirSync(secondDataPath, { recursive: true })
-        firstEngine = new MostBoxEngine({
-          dataPath: firstDataPath,
-          disableNetwork: true,
-        })
-        secondEngine = new MostBoxEngine({
-          dataPath: secondDataPath,
-          disableNetwork: true,
-        })
-        await firstEngine.start()
-        await secondEngine.start()
-
-        await firstEngine.createChannel(sharedChannelName, 'public', {
-          ownerAddress: alice,
-          displayName: 'Alice',
-          identity: 'alice_label',
-        })
-        await secondEngine.createChannel(sharedChannelName, 'public', {
-          ownerAddress: bob,
-          displayName: 'Bob',
-          identity: 'bob_label',
-        })
-        await firstEngine.createChannel(isolatedChannelName, 'public', {
-          ownerAddress: carol,
-          displayName: 'Carol',
-          identity: 'carol_label',
-        })
-        await secondEngine.createChannel(isolatedChannelName, 'public', {
-          ownerAddress: dave,
-          displayName: 'Dave',
-          identity: 'dave_label',
-        })
-
-        replication = firstEngine.replicateWith(secondEngine, {
-          channelNames: [sharedChannelName],
-        })
-
-        const bobMember = await waitForChannelMember(
-          firstEngine,
-          sharedChannelName,
-          bob,
-          { ownerAddress: alice }
-        )
-        const aliceMember = await waitForChannelMember(
-          secondEngine,
-          sharedChannelName,
-          alice,
-          { ownerAddress: bob }
-        )
-        assert.strictEqual(bobMember.identity, 'bob_label')
-        assert.strictEqual(aliceMember.identity, 'alice_label')
-
-        await sleep(100)
-        const firstIsolated = firstEngine
-          .listChannels({ ownerAddress: carol })
-          .find(channel => channel.name === isolatedChannelName)
-        const secondIsolated = secondEngine
-          .listChannels({ ownerAddress: dave })
-          .find(channel => channel.name === isolatedChannelName)
-        assert.ok(
-          !firstIsolated.members.some(
-            member => member.address === dave.toLowerCase()
-          )
-        )
-        assert.ok(
-          !secondIsolated.members.some(
-            member => member.address === carol.toLowerCase()
-          )
-        )
-
-        firstEngine.joinChannelPresence(isolatedChannelName, {
-          ownerAddress: carol,
-          sessionId: 'carol-isolated',
-          displayName: 'Carol Live',
-          identity: 'carol_live',
-        })
-        await sleep(100)
-        const leakedPresence = secondEngine
-          .getChannelPresence(isolatedChannelName, { ownerAddress: dave })
-          .find(entry => entry.address === carol.toLowerCase())
-        assert.strictEqual(leakedPresence, undefined)
-      } finally {
-        replication?.close()
-        if (firstEngine) await firstEngine.stop().catch(() => {})
-        if (secondEngine) await secondEngine.stop().catch(() => {})
-        fs.rmSync(peerTmpDir, { recursive: true, force: true })
-      }
-    })
   })
 
   describe('channel presence', () => {
@@ -3512,7 +3324,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
             ownerAddress: alice,
             sessionId: 'one',
             displayName: 'Alice',
-            identity: 'service',
             avatar: 'https://example.test/a.png',
             profileUpdatedAt: 1,
           })
@@ -3530,7 +3341,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         assert.strictEqual(presence.length, 1)
         assert.strictEqual(presence[0].address, alice)
         assert.strictEqual(presence[0].displayName, 'Alice')
-        assert.strictEqual(presence[0].identity, 'service')
         assert.strictEqual(presence[0].avatar, 'https://example.test/a.png')
         assert.strictEqual(presence[0].lastSeen, now + 1000)
 
@@ -3538,7 +3348,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
           ownerAddress: alice,
           sessionId: 'two',
           displayName: 'Alice new',
-          identity: 'service_ai',
           avatar: 'https://example.test/new.png',
           profileUpdatedAt: 2,
         })
@@ -3551,7 +3360,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         })
         assert.strictEqual(presence.length, 1)
         assert.strictEqual(presence[0].displayName, 'Alice new')
-        assert.strictEqual(presence[0].identity, 'service_ai')
         assert.strictEqual(presence[0].online, true)
 
         engine.leaveChannelPresence(channelName, {
@@ -3570,8 +3378,8 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       }
     })
 
-    it('accepts presence identity without a profile timestamp', async () => {
-      const channelName = `presence-identity-no-ts-${uid}`
+    it('accepts presence profile without a profile timestamp', async () => {
+      const channelName = `presence-profile-no-ts-${uid}`
       const service = `0x${'e'.repeat(40)}`
       const now = Date.now()
 
@@ -3585,7 +3393,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
           ownerAddress: service,
           sessionId: 'service-ai',
           displayName: 'SparkBit AI Support',
-          identity: 'service_ai',
           avatar: 'https://example.test/service.png',
         })
       })
@@ -3595,7 +3402,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       })
       assert.strictEqual(presence.length, 1)
       assert.strictEqual(presence[0].displayName, 'SparkBit AI Support')
-      assert.strictEqual(presence[0].identity, 'service_ai')
       assert.strictEqual(presence[0].avatar, 'https://example.test/service.png')
       assert.strictEqual(presence[0].profileUpdatedAt, now)
     })
@@ -3667,7 +3473,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
           ownerAddress: alice,
           sessionId: 'alice-tab',
           displayName: 'Alice Live',
-          identity: 'service_ai',
           avatar: 'https://example.test/alice.png',
           profileUpdatedAt: 3,
         })
@@ -3679,7 +3484,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
           { ownerAddress: bob }
         )
         assert.strictEqual(remotePresence.displayName, 'Alice Live')
-        assert.strictEqual(remotePresence.identity, 'service_ai')
         assert.strictEqual(
           remotePresence.avatar,
           'https://example.test/alice.png'
@@ -3976,67 +3780,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         assert.strictEqual(channel.channelKey, joined.key)
       } finally {
         await joinEngine.stop().catch(() => {})
-        fs.rmSync(joinTmpDir, { recursive: true, force: true })
-      }
-    })
-
-    it('discovers channel candidates from a scoped channel ID connection', async () => {
-      const joinTmpDir = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'most-channel-id-scope-test-')
-      )
-      const sourceDataPath = path.join(joinTmpDir, 'source')
-      const joinDataPath = path.join(joinTmpDir, 'join')
-      const channelName = `id-scope-join-${uid}`
-      const alice = `0x${'5'.repeat(40)}`
-      const bob = `0x${'6'.repeat(40)}`
-      let sourceEngine
-      let joinEngine
-      let replication
-
-      try {
-        sourceEngine = new MostBoxEngine({
-          dataPath: sourceDataPath,
-          disableNetwork: true,
-        })
-        joinEngine = new MostBoxEngine({
-          dataPath: joinDataPath,
-          disableNetwork: true,
-        })
-        await sourceEngine.start()
-        await joinEngine.start()
-
-        const sourceChannel = await sourceEngine.createChannel(
-          channelName,
-          'public',
-          {
-            ownerAddress: alice,
-            displayName: 'Alice',
-            identity: 'alice_label',
-          }
-        )
-
-        replication = sourceEngine.replicateWith(joinEngine, {
-          leftChannelNames: [],
-          rightChannelNames: [],
-          rightChannelIds: [channelName],
-        })
-        await sleep(100)
-
-        const joined = await joinEngine.createChannel(channelName, 'public', {
-          ownerAddress: bob,
-          displayName: 'Bob',
-          identity: 'bob_label',
-          discover: true,
-        })
-        assert.ok(joined.writerCoreKeys.includes(sourceChannel.localWriterCoreKey))
-        assert.strictEqual(
-          joined.members.find(member => member.address === alice)?.identity,
-          'alice_label'
-        )
-      } finally {
-        replication?.close()
-        if (sourceEngine) await sourceEngine.stop().catch(() => {})
-        if (joinEngine) await joinEngine.stop().catch(() => {})
         fs.rmSync(joinTmpDir, { recursive: true, force: true })
       }
     })

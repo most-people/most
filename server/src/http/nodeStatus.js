@@ -147,20 +147,6 @@ export function buildOpenApiSpec(appPort) {
             },
           },
         },
-        ChannelMember: {
-          type: 'object',
-          required: ['address'],
-          properties: {
-            address: { type: 'string' },
-            displayName: { type: 'string' },
-            identity: {
-              type: 'string',
-              description: 'Current known identity label for display only.',
-            },
-            avatar: { type: 'string' },
-            joinedAt: { type: 'string' },
-          },
-        },
         Channel: {
           type: 'object',
           required: ['name', 'channelKey'],
@@ -178,10 +164,6 @@ export function buildOpenApiSpec(appPort) {
             peerCount: { type: 'number' },
             remark: { type: 'string' },
             pinned: { type: 'boolean' },
-            members: {
-              type: 'array',
-              items: { $ref: '#/components/schemas/ChannelMember' },
-            },
           },
         },
         ChannelAttachment: {
@@ -208,10 +190,6 @@ export function buildOpenApiSpec(appPort) {
             event: { type: 'string' },
             author: { type: 'string' },
             authorName: { type: 'string' },
-            authorIdentity: {
-              type: 'string',
-              description: 'Sender identity label snapshot for display only.',
-            },
             avatar: { type: 'string' },
             content: { type: 'string' },
             timestamp: { type: 'number' },
@@ -237,10 +215,6 @@ export function buildOpenApiSpec(appPort) {
             channelId: { type: 'string' },
             address: { type: 'string' },
             displayName: { type: 'string' },
-            identity: {
-              type: 'string',
-              description: 'Current identity label for display only.',
-            },
             avatar: { type: 'string' },
             lastSeen: { type: 'number' },
             online: { type: 'boolean' },
@@ -253,13 +227,7 @@ export function buildOpenApiSpec(appPort) {
             name: { type: 'string' },
             type: { type: 'string' },
             displayName: { type: 'string' },
-            identity: {
-              type: 'string',
-              description:
-                'Open identity code from the invite/profile source; not an enum.',
-            },
             avatar: { type: 'string' },
-            profileUpdatedAt: { type: 'number' },
           },
         },
         ChannelMessageRequest: {
@@ -269,10 +237,6 @@ export function buildOpenApiSpec(appPort) {
             content: { type: 'string' },
             author: { type: 'string' },
             authorName: { type: 'string' },
-            authorIdentity: {
-              type: 'string',
-              description: 'Optional sender identity snapshot.',
-            },
             avatar: { type: 'string' },
             clientMessageId: {
               type: 'string',

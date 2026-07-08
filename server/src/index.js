@@ -128,22 +128,6 @@ function normalizeClientMessageId(input, { strict = false } = {}) {
   return input.trim().toLowerCase()
 }
 
-function normalizeAuthorIdentity(input, { strict = false } = {}) {
-  if (input === undefined || input === null) {
-    if (strict) throw new ValidationError('Invalid authorIdentity')
-    return ''
-  }
-  if (typeof input !== 'string') {
-    if (strict) throw new ValidationError('Invalid authorIdentity')
-    return ''
-  }
-  const normalized = normalizeVisibleChatLabel(input)
-  if (!normalized && strict) {
-    throw new ValidationError('Invalid authorIdentity')
-  }
-  return normalized
-}
-
 function normalizeChannelMentionList(input, content, options = {}) {
   const { strict = false, attachment = null } = options
   if (input === undefined || input === null) return []
@@ -279,7 +263,7 @@ export class MostBoxEngine extends EventEmitter {
   #channelIdDiscoveries = new Map()
   #channelPeers = new Map()
   #channelCandidateCache = new Map()
-  #channelStreams = new Map()
+  #channelStreams = new Set()
   #channelPresenceSessions = new Map()
   #channelPresenceProfiles = new Map()
   #channelPresenceSweepTimer = null
@@ -2382,62 +2366,20 @@ export class MostBoxEngine extends EventEmitter {
   /**
    * 用内存复制流连接两个本地引擎，供本地集成测试和诊断使用。
    */
-  replicateWith(peerEngine, options = {}) {
+  replicateWith(peerEngine) {
     this.#ensureInitialized()
     peerEngine.#ensureInitialized()
 
     const left = this.#store.replicate(true, { live: true })
     const right = peerEngine.#store.replicate(false, { live: true })
     const [leftChat, rightChat] = createMemoryDuplexPair()
-    const hasScopedChannelNames = Array.isArray(options.channelNames)
-    const getScopedChannelNames = (sideChannelNames, fallbackChannels) => {
-      if (Array.isArray(sideChannelNames)) return sideChannelNames
-      if (hasScopedChannelNames) return options.channelNames
-      return fallbackChannels.map(channel => channel.channelKey)
-    }
-    const getScopedChannelKeys = (engine, channelNames) =>
-      channelNames
-        .map(name => engine.#resolveChannel(name).channelKey)
-        .filter(Boolean)
-    const getScopedChannelIdTopicHexes = (engine, channelIds = []) =>
-      uniqueStrings(
-        (Array.isArray(channelIds) ? channelIds : [])
-          .map(channelId => normalizeChannelId(channelId))
-          .filter(Boolean)
-          .map(channelId =>
-            b4a.toString(engine.#generateChannelIdDiscoveryKey(channelId), 'hex')
-          )
-      )
-    const leftChannelKeys = getScopedChannelKeys(
-      this,
-      getScopedChannelNames(options.leftChannelNames, this.#channels)
-    )
-    const rightChannelKeys = getScopedChannelKeys(
-      peerEngine,
-      getScopedChannelNames(options.rightChannelNames, peerEngine.#channels)
-    )
-    const leftScopeTopicHexes = getScopedChannelIdTopicHexes(
-      this,
-      options.leftChannelIds || options.channelIds
-    )
-    const rightScopeTopicHexes = getScopedChannelIdTopicHexes(
-      peerEngine,
-      options.rightChannelIds || options.channelIds
-    )
-
     left.on('error', () => {})
     right.on('error', () => {})
     leftChat.on('error', () => {})
     rightChat.on('error', () => {})
     left.pipe(right).pipe(left)
-    this.#handleChannelConnection(leftChat, {
-      channelKeys: leftChannelKeys,
-      scopeTopicHexes: leftScopeTopicHexes,
-    }).catch(() => {})
-    peerEngine.#handleChannelConnection(rightChat, {
-      channelKeys: rightChannelKeys,
-      scopeTopicHexes: rightScopeTopicHexes,
-    }).catch(() => {})
+    this.#handleChannelConnection(leftChat).catch(() => {})
+    peerEngine.#handleChannelConnection(rightChat).catch(() => {})
 
     return {
       close: () => {
@@ -3680,18 +3622,6 @@ export class MostBoxEngine extends EventEmitter {
     if (trimmed.length > MAX_MESSAGE_LENGTH) {
       throw new Error(`消息内容不能超过 ${MAX_MESSAGE_LENGTH} 字符`)
     }
-    const memberAddress = normalizeOwnerAddress(options.ownerAddress || author)
-    const existingMember = Array.isArray(channel?.members)
-      ? channel.members.find(
-          member => normalizeOwnerAddress(member?.address) === memberAddress
-        )
-      : null
-    const fallbackAuthorIdentity = normalizeVisibleChatLabel(
-      existingMember?.identity
-    )
-    const normalizedAuthorIdentity = hasOwnProperty(options, 'authorIdentity')
-      ? normalizeAuthorIdentity(options.authorIdentity, { strict: true })
-      : fallbackAuthorIdentity
     const clientMessageId = normalizeClientMessageId(options.clientMessageId, {
       strict: hasOwnProperty(options, 'clientMessageId'),
     })
@@ -3708,9 +3638,6 @@ export class MostBoxEngine extends EventEmitter {
       this.#upsertChannelMember(channel, {
         ownerAddress: options.ownerAddress,
         displayName: authorName,
-        ...(normalizedAuthorIdentity
-          ? { identity: normalizedAuthorIdentity }
-          : {}),
         ...(Object.prototype.hasOwnProperty.call(options, 'avatar')
           ? { avatar: options.avatar }
           : {}),
@@ -3732,9 +3659,6 @@ export class MostBoxEngine extends EventEmitter {
     }
     if (clientMessageId) {
       message.clientMessageId = clientMessageId
-    }
-    if (normalizedAuthorIdentity) {
-      message.authorIdentity = normalizedAuthorIdentity
     }
     if (normalizedAvatar) {
       message.avatar = normalizedAvatar
@@ -3871,7 +3795,6 @@ export class MostBoxEngine extends EventEmitter {
       syncUpdatedAt: Date.now(),
     }
 
-    this.#mergeChannelMembers(channelInfo, options.members)
     this.#upsertChannelMember(channelInfo, options)
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
     const remark = String(options.remark || '').trim()
@@ -3932,7 +3855,6 @@ export class MostBoxEngine extends EventEmitter {
         createdAt: candidateInput.createdAt,
         lastMessageAt: candidateInput.lastMessageAt,
         writerCoreKeys: candidateInput.writerCoreKeys,
-        members: candidateInput.members,
         remark,
       }
     )
@@ -4090,7 +4012,6 @@ export class MostBoxEngine extends EventEmitter {
         byKey.set(candidate.channelKey, {
           ...candidate,
           writerCoreKeys: uniqueStrings(candidate.writerCoreKeys),
-          members: this.#mergeChannelMemberProfileLists(candidate.members),
         })
         continue
       }
@@ -4102,10 +4023,6 @@ export class MostBoxEngine extends EventEmitter {
           ...existing.writerCoreKeys,
           ...(candidate.writerCoreKeys || []),
         ]),
-        members: this.#mergeChannelMemberProfileLists(
-          existing.members,
-          candidate.members
-        ),
       })
     }
     return [...byKey.values()]
@@ -4119,7 +4036,6 @@ export class MostBoxEngine extends EventEmitter {
       createdAt: channel.createdAt,
       lastMessageAt: channel.lastMessageAt || '',
       writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
-      members: this.#getChannelMembers(channel),
       local,
     }
   }
@@ -4142,10 +4058,6 @@ export class MostBoxEngine extends EventEmitter {
         ...(existing?.writerCoreKeys || []),
         ...(candidate.writerCoreKeys || []),
       ]),
-      members: this.#mergeChannelMemberProfileLists(
-        existing?.members,
-        candidate.members
-      ),
       lastSeen: Date.now(),
     })
   }
@@ -4178,7 +4090,6 @@ export class MostBoxEngine extends EventEmitter {
       peerCount: (this.#channelPeers.get(channel.channelKey) || new Map()).size,
       remark: owner && channel.remarks ? channel.remarks[owner] || '' : '',
       pinned: Boolean(owner && channel.pinnedBy?.[owner]),
-      members: this.#getChannelMembers(channel),
     }
   }
 
@@ -4219,8 +4130,6 @@ export class MostBoxEngine extends EventEmitter {
       address
     )
     const avatar = normalizeChannelAvatar(options.avatar)
-    const hasIdentity = hasOwnProperty(options, 'identity')
-    const identity = normalizeVisibleChatLabel(options.identity)
     const existing = channel.members.find(
       member => normalizeOwnerAddress(member?.address) === address
     )
@@ -4246,14 +4155,6 @@ export class MostBoxEngine extends EventEmitter {
           changed = true
         }
       }
-      if (hasIdentity && existing.identity !== identity) {
-        if (identity) {
-          existing.identity = identity
-        } else {
-          delete existing.identity
-        }
-        changed = true
-      }
       if (!existing.joinedAt) {
         existing.joinedAt = new Date().toISOString()
         changed = true
@@ -4269,9 +4170,6 @@ export class MostBoxEngine extends EventEmitter {
     if (avatar) {
       member.avatar = avatar
     }
-    if (identity) {
-      member.identity = identity
-    }
     channel.members.push(member)
     return true
   }
@@ -4286,8 +4184,6 @@ export class MostBoxEngine extends EventEmitter {
     ) {
       return false
     }
-    const identity = normalizeVisibleChatLabel(options.identity)
-
     await this.sendMessage(
       channel.channelKey,
       CHANNEL_MEMBER_JOINED_EVENT,
@@ -4297,7 +4193,6 @@ export class MostBoxEngine extends EventEmitter {
         ownerAddress,
         type: 'system',
         event: CHANNEL_MEMBER_JOINED_EVENT,
-        ...(identity ? { authorIdentity: identity } : {}),
         ...(Object.prototype.hasOwnProperty.call(options, 'avatar')
           ? { avatar: options.avatar }
           : {}),
@@ -4316,7 +4211,6 @@ export class MostBoxEngine extends EventEmitter {
           normalizeOwnerAddress(member?.address)
         ),
         avatar: normalizeChannelAvatar(member?.avatar),
-        identity: normalizeVisibleChatLabel(member?.identity),
         joinedAt: String(member?.joinedAt || ''),
         _index: index,
       }))
@@ -4329,109 +4223,6 @@ export class MostBoxEngine extends EventEmitter {
       .map(({ _index, ...member }) =>
         member.avatar ? member : { ...member, avatar: undefined }
       )
-  }
-
-  #normalizeChannelMemberProfile(member) {
-    const address = normalizeOwnerAddress(member?.address)
-    if (!address) return null
-    const joinedAt = String(member?.joinedAt || '').trim()
-    const profile = {
-      address,
-      displayName: normalizeChannelDisplayName(member?.displayName, address),
-      joinedAt,
-    }
-    const identity = normalizeVisibleChatLabel(member?.identity)
-    const avatar = normalizeChannelAvatar(member?.avatar)
-    if (identity) profile.identity = identity
-    if (avatar) profile.avatar = avatar
-    return profile
-  }
-
-  #normalizeChannelMemberProfiles(members = []) {
-    if (!Array.isArray(members)) return []
-    const byAddress = new Map()
-    for (const member of members) {
-      const profile = this.#normalizeChannelMemberProfile(member)
-      if (!profile) continue
-      const existing = byAddress.get(profile.address)
-      if (!existing) {
-        byAddress.set(profile.address, profile)
-        continue
-      }
-      const existingJoinedAt = Date.parse(existing.joinedAt || '')
-      const profileJoinedAt = Date.parse(profile.joinedAt || '')
-      if (
-        profile.joinedAt &&
-        (!existing.joinedAt ||
-          (Number.isFinite(profileJoinedAt) &&
-            (!Number.isFinite(existingJoinedAt) ||
-              profileJoinedAt < existingJoinedAt)))
-      ) {
-        existing.joinedAt = profile.joinedAt
-      }
-      if (!existing.displayName && profile.displayName) {
-        existing.displayName = profile.displayName
-      }
-      if (!existing.identity && profile.identity) {
-        existing.identity = profile.identity
-      }
-      if (!existing.avatar && profile.avatar) {
-        existing.avatar = profile.avatar
-      }
-    }
-    return [...byAddress.values()]
-  }
-
-  #mergeChannelMemberProfileLists(...memberLists) {
-    return this.#normalizeChannelMemberProfiles(memberLists.flat())
-  }
-
-  #mergeChannelMembers(channel, members = []) {
-    if (!Array.isArray(channel?.members)) {
-      channel.members = []
-    }
-    let changed = false
-    for (const member of this.#normalizeChannelMemberProfiles(members)) {
-      const existing = channel.members.find(
-        item => normalizeOwnerAddress(item?.address) === member.address
-      )
-      if (!existing) {
-        channel.members.push(member)
-        changed = true
-        continue
-      }
-      if (normalizeOwnerAddress(existing.address) !== member.address) {
-        existing.address = member.address
-        changed = true
-      }
-
-      const existingJoinedAt = Date.parse(existing.joinedAt || '')
-      const memberJoinedAt = Date.parse(member.joinedAt || '')
-      if (
-        member.joinedAt &&
-        (!existing.joinedAt ||
-          (Number.isFinite(memberJoinedAt) &&
-            (!Number.isFinite(existingJoinedAt) ||
-              memberJoinedAt < existingJoinedAt)))
-      ) {
-        existing.joinedAt = member.joinedAt
-        changed = true
-      }
-
-      if (!String(existing.displayName || '').trim() && member.displayName) {
-        existing.displayName = member.displayName
-        changed = true
-      }
-      if (!normalizeVisibleChatLabel(existing.identity) && member.identity) {
-        existing.identity = member.identity
-        changed = true
-      }
-      if (!normalizeChannelAvatar(existing.avatar) && member.avatar) {
-        existing.avatar = member.avatar
-        changed = true
-      }
-    }
-    return changed
   }
 
   #getChannelMemberAddresses(channel) {
@@ -4521,7 +4312,6 @@ export class MostBoxEngine extends EventEmitter {
           ?.channelId || channelKey,
       address: normalizedAddress,
       displayName: profile?.displayName || undefined,
-      identity: profile?.identity || undefined,
       avatar: profile?.avatar || undefined,
       profileUpdatedAt: profile?.profileUpdatedAt || undefined,
       lastSeen,
@@ -4544,11 +4334,10 @@ export class MostBoxEngine extends EventEmitter {
       'displayName'
     )
     const hasAvatar = Object.prototype.hasOwnProperty.call(options, 'avatar')
-    const hasIdentity = hasOwnProperty(options, 'identity')
     const profileUpdatedAt = Number(options.profileUpdatedAt)
     const hasProfileUpdatedAt =
       Number.isFinite(profileUpdatedAt) && profileUpdatedAt > 0
-    if (!hasDisplayName && !hasAvatar && !hasIdentity && !hasProfileUpdatedAt) {
+    if (!hasDisplayName && !hasAvatar && !hasProfileUpdatedAt) {
       return false
     }
 
@@ -4568,7 +4357,6 @@ export class MostBoxEngine extends EventEmitter {
     const next = {
       address: normalizedAddress,
       displayName: previous?.displayName || '',
-      identity: previous?.identity || '',
       avatar: previous?.avatar || '',
       profileUpdatedAt: nextUpdatedAt,
       lastSeen: now,
@@ -4582,17 +4370,12 @@ export class MostBoxEngine extends EventEmitter {
     if (hasAvatar) {
       next.avatar = normalizeChannelAvatar(options.avatar)
     }
-    if (hasIdentity) {
-      next.identity = normalizeVisibleChatLabel(options.identity)
-    }
-
     if (
       previous?.profileUpdatedAt &&
       hasProfileUpdatedAt &&
       nextUpdatedAt === previous.profileUpdatedAt &&
       (previous.displayName !== next.displayName ||
-        previous.avatar !== next.avatar ||
-        previous.identity !== next.identity)
+        previous.avatar !== next.avatar)
     ) {
       return false
     }
@@ -4600,7 +4383,6 @@ export class MostBoxEngine extends EventEmitter {
     const changed =
       !previous ||
       previous.displayName !== next.displayName ||
-      previous.identity !== next.identity ||
       previous.avatar !== next.avatar ||
       previous.profileUpdatedAt !== next.profileUpdatedAt
     profiles.set(normalizedAddress, next)
@@ -4826,12 +4608,6 @@ export class MostBoxEngine extends EventEmitter {
       baseMessage.clientMessageId = clientMessageId
     } else {
       delete baseMessage.clientMessageId
-    }
-    const authorIdentity = normalizeAuthorIdentity(baseMessage.authorIdentity)
-    if (authorIdentity) {
-      baseMessage.authorIdentity = authorIdentity
-    } else {
-      delete baseMessage.authorIdentity
     }
     const mentions = normalizeChannelMentionList(
       baseMessage.mentions,
@@ -5201,7 +4977,6 @@ export class MostBoxEngine extends EventEmitter {
         ownerAddress: owner,
         displayName: record.member?.displayName || record.remark || '',
         avatar: record.member?.avatar || '',
-        identity: record.member?.identity,
       })
     ) {
       changed = true
@@ -6219,163 +5994,34 @@ export class MostBoxEngine extends EventEmitter {
     }
   }
 
-  #normalizeChannelScopeTopicHexes(input = {}) {
-    const topics = [
-      ...(Array.isArray(input?.topics) ? input.topics : []),
-      ...(Array.isArray(input?.topicHexes) ? input.topicHexes : []),
-      ...(Array.isArray(input?.scopeTopicHexes) ? input.scopeTopicHexes : []),
-    ]
-    return uniqueStrings(
-      topics
-        .map(topic => {
-          try {
-            const hex =
-              typeof topic === 'string'
-                ? topic.trim().toLowerCase()
-                : b4a.toString(topic, 'hex')
-            return /^[0-9a-f]{64}$/.test(hex) ? hex : ''
-          } catch {
-            return ''
-          }
-        })
-        .filter(Boolean)
-    )
-  }
-
-  #normalizeChannelScopeKeys(input = []) {
-    return uniqueStrings(
-      (Array.isArray(input) ? input : [])
-        .map(key => normalizeChannelKey(key))
-        .filter(Boolean)
-    )
-  }
-
-  #getChannelScopeTopicHexes(channel) {
-    if (!channel?.channelKey || !channel?.channelId) return []
-    return uniqueStrings([
-      b4a.toString(
-        this.#generateChannelChatDiscoveryKey(channel.channelKey),
-        'hex'
-      ),
-      b4a.toString(this.#generateChannelIdDiscoveryKey(channel.channelId), 'hex'),
-    ])
-  }
-
-  #channelMatchesScopeTopicHexes(channel, topicHexes = []) {
-    if (!channel?.channelKey || !topicHexes.length) return false
-    const topicSet = new Set(topicHexes)
-    return this.#getChannelScopeTopicHexes(channel).some(topicHex =>
-      topicSet.has(topicHex)
-    )
-  }
-
-  #getChannelKeysForScopeTopicHexes(topicHexes = []) {
-    if (!topicHexes.length) return []
-    return this.#channels
-      .filter(channel => this.#channelMatchesScopeTopicHexes(channel, topicHexes))
-      .map(channel => channel.channelKey)
-      .filter(Boolean)
-  }
-
-  #createChannelStreamState(stream, info = {}) {
-    const topicHexes = this.#normalizeChannelScopeTopicHexes(info)
-    const channelKeys = uniqueStrings([
-      ...this.#normalizeChannelScopeKeys(info.channelKeys),
-      ...this.#getChannelKeysForScopeTopicHexes(topicHexes),
-    ])
-    return {
-      stream,
-      topicHexes: new Set(topicHexes),
-      channelKeys: new Set(channelKeys),
-    }
-  }
-
-  #addChannelStreamScope(streamState, options = {}) {
-    if (!streamState) return false
-    let changed = false
-    for (const topicHex of this.#normalizeChannelScopeTopicHexes(options)) {
-      if (streamState.topicHexes.has(topicHex)) continue
-      streamState.topicHexes.add(topicHex)
-      changed = true
-    }
-    const topicChannelKeys = this.#getChannelKeysForScopeTopicHexes([
-      ...streamState.topicHexes,
-    ])
-    for (const channelKey of uniqueStrings([
-      ...this.#normalizeChannelScopeKeys(options.channelKeys),
-      ...topicChannelKeys,
-    ])) {
-      if (streamState.channelKeys.has(channelKey)) continue
-      streamState.channelKeys.add(channelKey)
-      changed = true
-    }
-    return changed
-  }
-
-  #getChannelStreamScopedKeys(streamState) {
-    if (!streamState) return []
-    return uniqueStrings([
-      ...streamState.channelKeys,
-      ...this.#getChannelKeysForScopeTopicHexes([...streamState.topicHexes]),
-    ])
-  }
-
-  #channelStreamIncludesChannel(streamState, channelKeyInput) {
-    const channelKey = normalizeChannelKey(channelKeyInput)
-    if (!channelKey) return false
-    return this.#getChannelStreamScopedKeys(streamState).includes(channelKey)
-  }
-
-  #channelStreamAllowsRemoteChannel(streamState, channel) {
-    if (!streamState) return false
-    const hasScope =
-      streamState.channelKeys.size > 0 || streamState.topicHexes.size > 0
-    if (!hasScope) return false
-    if (this.#channelStreamIncludesChannel(streamState, channel.channelKey)) {
-      return true
-    }
-    return this.#channelMatchesScopeTopicHexes(channel, [
-      ...streamState.topicHexes,
-    ])
-  }
-
-  #buildChannelHelloMessage(streamState = null) {
-    const scopedKeys = streamState
-      ? new Set(this.#getChannelStreamScopedKeys(streamState))
-      : null
-    const channels = this.#channels
-      .filter(channel => !scopedKeys || scopedKeys.has(channel.channelKey))
-      .map(channel => ({
-        channelId: channel.channelId,
-        channelKey: channel.channelKey,
-        type: channel.type,
-        createdAt: channel.createdAt,
-        lastMessageAt: channel.lastMessageAt || '',
-        members: this.#getChannelMembers(channel),
-        memberAddresses: this.#getChannelMemberAddresses(channel),
-        writerCoreKeys: uniqueStrings([
-          ...(channel.writerCoreKeys || []),
-          this.#channelLocalCoreKey.get(channel.channelKey),
-        ]),
-      }))
+  #buildChannelHelloMessage() {
+    const channels = this.#channels.map(channel => ({
+      channelId: channel.channelId,
+      channelKey: channel.channelKey,
+      type: channel.type,
+      createdAt: channel.createdAt,
+      lastMessageAt: channel.lastMessageAt || '',
+      memberAddresses: this.#getChannelMemberAddresses(channel),
+      writerCoreKeys: uniqueStrings([
+        ...(channel.writerCoreKeys || []),
+        this.#channelLocalCoreKey.get(channel.channelKey),
+      ]),
+    }))
     return {
       type: 'channel-hello',
       peerId: this.getNodeId(),
       authorName: this.getNodeId().slice(0, 4),
-      scopeTopicHexes: streamState ? [...streamState.topicHexes] : [],
       channels,
     }
   }
 
-  #sendChannelHello(stream, streamState = this.#channelStreams.get(stream)) {
+  #sendChannelHello(stream) {
     if (!stream || stream.destroyed || stream.writableEnded) {
       this.#channelStreams.delete(stream)
       return false
     }
     try {
-      stream.write(
-        `${JSON.stringify(this.#buildChannelHelloMessage(streamState))}\n`
-      )
+      stream.write(`${JSON.stringify(this.#buildChannelHelloMessage())}\n`)
       return true
     } catch {
       this.#channelStreams.delete(stream)
@@ -6383,29 +6029,15 @@ export class MostBoxEngine extends EventEmitter {
     }
   }
 
-  #broadcastChannelHello(channelKey = '') {
-    const scopedChannelKey = normalizeChannelKey(channelKey)
-    for (const streamState of [...this.#channelStreams.values()]) {
-      if (
-        scopedChannelKey &&
-        !this.#channelStreamIncludesChannel(streamState, scopedChannelKey)
-      ) {
-        continue
-      }
-      this.#sendChannelHello(streamState.stream, streamState)
+  #broadcastChannelHello() {
+    for (const stream of [...this.#channelStreams]) {
+      this.#sendChannelHello(stream)
     }
   }
 
-  #sendChannelPresence(
-    stream,
-    event,
-    streamState = this.#channelStreams.get(stream)
-  ) {
+  #sendChannelPresence(stream, event) {
     if (!stream || stream.destroyed || stream.writableEnded || !event) {
       this.#channelStreams.delete(stream)
-      return false
-    }
-    if (!this.#channelStreamIncludesChannel(streamState, event.channelKey)) {
       return false
     }
     try {
@@ -6418,7 +6050,6 @@ export class MostBoxEngine extends EventEmitter {
           address: event.address,
           status: event.status,
           displayName: event.displayName,
-          identity: event.identity,
           avatar: event.avatar,
           profileUpdatedAt: event.profileUpdatedAt,
           lastSeen: event.lastSeen || Date.now(),
@@ -6433,17 +6064,14 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #broadcastChannelPresence(event) {
-    for (const streamState of [...this.#channelStreams.values()]) {
-      this.#sendChannelPresence(streamState.stream, event, streamState)
+    for (const stream of [...this.#channelStreams]) {
+      this.#sendChannelPresence(stream, event)
     }
   }
 
-  #sendChannelVoice(stream, event, streamState = this.#channelStreams.get(stream)) {
+  #sendChannelVoice(stream, event) {
     if (!stream || stream.destroyed || stream.writableEnded || !event) {
       this.#channelStreams.delete(stream)
-      return false
-    }
-    if (!this.#channelStreamIncludesChannel(streamState, event.channelKey)) {
       return false
     }
     try {
@@ -6462,16 +6090,13 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #broadcastChannelVoice(event) {
-    for (const streamState of [...this.#channelStreams.values()]) {
-      this.#sendChannelVoice(streamState.stream, event, streamState)
+    for (const stream of [...this.#channelStreams]) {
+      this.#sendChannelVoice(stream, event)
     }
   }
 
-  async #processChannelHelloMessage(msg, streamState = null) {
+  async #processChannelHelloMessage(msg) {
     if (msg.type !== 'channel-hello') return null
-    let scopeChanged = this.#addChannelStreamScope(streamState, {
-      scopeTopicHexes: msg.scopeTopicHexes,
-    })
 
     const onlineChannels = []
     const remoteChannels = Array.isArray(msg.channels)
@@ -6479,7 +6104,6 @@ export class MostBoxEngine extends EventEmitter {
           .filter(channel => channel && typeof channel === 'object')
           .map(channel => {
             const channelId = normalizeChannelId(channel.channelId)
-            const members = this.#normalizeChannelMemberProfiles(channel.members)
             return {
               channelId,
               channelKey: buildChannelKey(channelId),
@@ -6490,16 +6114,12 @@ export class MostBoxEngine extends EventEmitter {
                 typeof channel.lastMessageAt === 'string'
                   ? channel.lastMessageAt
                   : '',
-              members,
               memberAddresses: uniqueStrings(
-                [
-                  ...(Array.isArray(channel.memberAddresses)
-                    ? channel.memberAddresses.map(address =>
-                        normalizeOwnerAddress(address)
-                      )
-                    : []),
-                  ...members.map(member => member.address),
-                ]
+                Array.isArray(channel.memberAddresses)
+                  ? channel.memberAddresses.map(address =>
+                      normalizeOwnerAddress(address)
+                    )
+                  : []
               ),
               writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
             }
@@ -6508,9 +6128,6 @@ export class MostBoxEngine extends EventEmitter {
       : []
 
     for (const remoteChannel of remoteChannels) {
-      if (!this.#channelStreamAllowsRemoteChannel(streamState, remoteChannel)) {
-        continue
-      }
       this.#cacheChannelCandidate({
         ...remoteChannel,
         local: false,
@@ -6521,10 +6138,6 @@ export class MostBoxEngine extends EventEmitter {
         channel => channel.channelKey === remoteChannel.channelKey
       )
       if (!localChannel) continue
-      scopeChanged =
-        this.#addChannelStreamScope(streamState, {
-          channelKeys: [localChannel.channelKey],
-        }) || scopeChanged
 
       const peers = this.#channelPeers.get(localChannel.channelKey)
       if (peers) {
@@ -6541,12 +6154,6 @@ export class MostBoxEngine extends EventEmitter {
         memberAddresses: remoteChannel.memberAddresses,
       })
 
-      if (this.#mergeChannelMembers(localChannel, remoteChannel.members)) {
-        localChannel.syncUpdatedAt = getNextSyncTimestamp(localChannel.syncUpdatedAt)
-        this.#saveChannelsMetadata()
-        this.#broadcastChannelHello()
-      }
-
       for (const writerCoreKey of remoteChannel.writerCoreKeys) {
         if (
           writerCoreKey &&
@@ -6561,10 +6168,6 @@ export class MostBoxEngine extends EventEmitter {
       }
     }
 
-    if (scopeChanged && streamState?.stream) {
-      this.#sendChannelHello(streamState.stream, streamState)
-    }
-
     this.emit('channel:peer:online', {
       peerId: msg.peerId,
       authorName: msg.authorName,
@@ -6574,7 +6177,7 @@ export class MostBoxEngine extends EventEmitter {
     return msg.peerId
   }
 
-  #processChannelPresenceMessage(msg, streamState = null) {
+  #processChannelPresenceMessage(msg) {
     if (msg.type !== 'channel-presence') return null
     const peerId = String(msg.peerId || '').trim()
     if (!peerId || peerId === this.getNodeId()) return null
@@ -6584,9 +6187,6 @@ export class MostBoxEngine extends EventEmitter {
       channel => channel.channelKey === channelKey
     )
     if (!localChannel) return peerId
-    if (!this.#channelStreamIncludesChannel(streamState, localChannel.channelKey)) {
-      return peerId
-    }
 
     const address = normalizeOwnerAddress(msg.address)
     if (!address) return peerId
@@ -6598,7 +6198,6 @@ export class MostBoxEngine extends EventEmitter {
       sourcePeerId: peerId,
       local: false,
       displayName: msg.displayName,
-      identity: msg.identity,
       avatar: msg.avatar,
       profileUpdatedAt: msg.profileUpdatedAt,
       lastSeen: Number(msg.lastSeen) || Date.now(),
@@ -6617,7 +6216,7 @@ export class MostBoxEngine extends EventEmitter {
     return peerId
   }
 
-  #processChannelVoiceMessage(msg, streamState = null) {
+  #processChannelVoiceMessage(msg) {
     if (msg.type !== 'channel-voice') return null
     const peerId = String(msg.peerId || '').trim()
     if (!peerId || peerId === this.getNodeId()) return null
@@ -6627,9 +6226,6 @@ export class MostBoxEngine extends EventEmitter {
       channel => channel.channelKey === channelKey
     )
     if (!localChannel) return peerId
-    if (!this.#channelStreamIncludesChannel(streamState, localChannel.channelKey)) {
-      return peerId
-    }
 
     try {
       const event = normalizeChannelVoiceEvent(channelKey, msg, {
@@ -6640,15 +6236,14 @@ export class MostBoxEngine extends EventEmitter {
     return peerId
   }
 
-  async #handleChannelConnection(conn, info = {}) {
+  async #handleChannelConnection(conn) {
     const stream = conn
     let connectedPeerId = null
     let readBuffer = ''
     let closed = false
-    const streamState = this.#createChannelStreamState(stream, info)
 
-    this.#channelStreams.set(stream, streamState)
-    if (!this.#sendChannelHello(stream, streamState)) return
+    this.#channelStreams.add(stream)
+    if (!this.#sendChannelHello(stream)) return
 
     stream.on('data', async data => {
       readBuffer += data.toString()
@@ -6662,10 +6257,10 @@ export class MostBoxEngine extends EventEmitter {
           const message = JSON.parse(line)
           const peerId =
             message.type === 'channel-presence'
-              ? this.#processChannelPresenceMessage(message, streamState)
+              ? this.#processChannelPresenceMessage(message)
               : message.type === 'channel-voice'
-                ? this.#processChannelVoiceMessage(message, streamState)
-                : await this.#processChannelHelloMessage(message, streamState)
+                ? this.#processChannelVoiceMessage(message)
+                : await this.#processChannelHelloMessage(message)
           if (peerId) connectedPeerId = peerId
         } catch (err) {
           console.warn(`[MostBox] Failed to process channel data:`, err.message)

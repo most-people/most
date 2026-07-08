@@ -173,7 +173,6 @@ export function GlobalVoiceRoomProvider({ children }: { children: ReactNode }) {
   }, [
     userIdentity?.avatar,
     userIdentity?.displayName,
-    userIdentity?.identity,
     userIdentity?.profileUpdatedAt,
     userIdentity?.username,
   ])

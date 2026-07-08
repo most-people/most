@@ -24,21 +24,12 @@ export interface ChannelMessage {
   clientMessageId?: string
   author: string
   authorName?: string
-  authorIdentity?: string
   avatar?: string
   content: string
   mentions?: ChannelMention[]
   timestamp: number
   pending?: boolean
   attachment?: ChannelAttachment
-}
-
-export interface ChannelMember {
-  address: string
-  displayName?: string
-  identity?: string
-  avatar?: string
-  joinedAt?: string
 }
 
 export interface Channel {
@@ -54,7 +45,6 @@ export interface Channel {
   type?: string
   peerCount?: number
   pinned?: boolean
-  members?: ChannelMember[]
 }
 
 export interface ChannelPeer {
@@ -67,7 +57,6 @@ export interface ChannelPeer {
 export interface ChannelPresence {
   address: string
   displayName?: string
-  identity?: string
   avatar?: string
   profileUpdatedAt?: number
   lastSeen: number
@@ -89,7 +78,6 @@ export interface SendChannelMessageInput {
   clientMessageId?: string
   author: string
   authorName: string
-  authorIdentity?: string
   avatar?: string
   mentions?: ChannelMention[]
   attachment?: ChannelAttachment
@@ -97,9 +85,7 @@ export interface SendChannelMessageInput {
 
 export interface ChannelProfileInput {
   displayName?: string
-  identity?: string
   avatar?: string
-  profileUpdatedAt?: number
 }
 
 export interface SetChannelRemarkResult {
@@ -157,7 +143,6 @@ export const channelApi = {
     clientMessageId,
     author,
     authorName,
-    authorIdentity,
     avatar,
     mentions,
     attachment,
@@ -167,7 +152,6 @@ export const channelApi = {
       clientMessageId,
       author,
       authorName,
-      authorIdentity,
       avatar,
       mentions,
       attachment,

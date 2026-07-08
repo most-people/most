@@ -463,28 +463,15 @@ describe('frontend smoke checks', () => {
       channelMessagesSource,
       /getUserMessageIdentity\(userIdentity\)/
     )
-    assert.match(
-      channelMessagesSource,
-      /authorIdentity:\s*result\.message\.authorIdentity\s*\|\|\s*optimistic\.authorIdentity/
-    )
-    assert.match(chatSource, /const snapshotIdentity = String\(msg\.authorIdentity/)
-    assert.match(
-      chatSource,
-      /presence\?\.identity \|\| messageProfile\?\.identity \|\| currentUserIdentity/
-    )
     assert.match(gameRoomSource, /getUserChannelProfile\(userIdentity\)/)
     assert.match(gameRoomSource, /getUserMessageIdentity\(userIdentity\)/)
   })
 
-  it('derives chat members from channel metadata and messages', () => {
+  it('derives chat members from channel messages without the members API', () => {
     const chatSource = readSource('src/features/chat/ChatPage.tsx')
     const channelApiSource = readSource('src/lib/channelApi.ts')
 
-    assert.match(channelApiSource, /interface ChannelMember/)
-    assert.match(channelApiSource, /members\?: ChannelMember\[\]/)
-    assert.match(chatSource, /const activeChannelMembers = useMemo/)
     assert.match(chatSource, /const channelMembers = useMemo/)
-    assert.match(chatSource, /current\?\.members/)
     assert.match(chatSource, /channelMessages\.forEach/)
     assert.match(chatSource, /membersByAuthor/)
     assert.match(chatSource, /messageProfileByAddress/)
@@ -492,6 +479,7 @@ describe('frontend smoke checks', () => {
     assert.match(chatSource, /messageProfile\?\.avatar/)
     assert.doesNotMatch(chatSource, /getChannelMembers/)
     assert.doesNotMatch(channelApiSource, /getChannelMembers/)
+    assert.doesNotMatch(channelApiSource, /interface ChannelMember/)
   })
 
   it('keeps the admin console connected to local seeding visibility', () => {

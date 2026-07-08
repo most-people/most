@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { WebSocket, WebSocketServer } from 'ws'
+import { WebSocketServer } from 'ws'
 import { serve } from '@hono/node-server'
 import { MostBoxEngine } from './src/index.js'
 import {
@@ -161,32 +161,6 @@ function bindEngineEvents({
   }
 }
 
-const CHANNEL_WEBSOCKET_EVENTS = new Set([
-  'channel:presence:join',
-  'channel:presence:heartbeat',
-  'channel:presence:profile',
-  'channel:presence:leave',
-  'channel:voice:join',
-  'channel:voice:state',
-  'channel:voice:heartbeat',
-  'channel:voice:leave',
-  'channel:voice:signal',
-])
-
-function getRecoverableChannelWebSocketErrorCode(event, err) {
-  if (!CHANNEL_WEBSOCKET_EVENTS.has(event)) return ''
-  if (err?.code === 'PERMISSION_ERROR') return err.code
-  if (err?.message === '频道不存在') return 'CHANNEL_NOT_FOUND'
-  return ''
-}
-
-function sendWebSocketEvent(ws, event, data) {
-  if (ws.readyState !== WebSocket.OPEN) return
-  try {
-    ws.send(JSON.stringify({ event, data }))
-  } catch {}
-}
-
 export function createWebSocketServer({
   engine,
   serverInstance,
@@ -212,12 +186,9 @@ export function createWebSocketServer({
       } catch {}
     })
     ws.on('message', raw => {
-      let event = ''
-      let data = {}
       try {
         const msg = JSON.parse(raw)
-        event = String(msg.event || '')
-        data = msg.data || {}
+        const { event, data = {} } = msg
 
         switch (event) {
           case 'register':
@@ -240,7 +211,6 @@ export function createWebSocketServer({
                 sourceId: ws.presenceSourceId,
                 sessionId: data.sessionId,
                 displayName: data.displayName,
-                identity: data.identity,
                 avatar: data.avatar,
                 profileUpdatedAt: data.profileUpdatedAt,
               })
@@ -262,7 +232,6 @@ export function createWebSocketServer({
                 sourceId: ws.presenceSourceId,
                 sessionId: data.sessionId,
                 displayName: data.displayName,
-                identity: data.identity,
                 avatar: data.avatar,
                 profileUpdatedAt: data.profileUpdatedAt,
               })
@@ -297,16 +266,6 @@ export function createWebSocketServer({
             break
         }
       } catch (err) {
-        const code = getRecoverableChannelWebSocketErrorCode(event, err)
-        if (code) {
-          sendWebSocketEvent(ws, 'channel:error', {
-            event,
-            channel: String(data?.channel || ''),
-            code,
-            error: err.message,
-          })
-          return
-        }
         console.error('[WS Message Error]', err.message)
       }
     })
