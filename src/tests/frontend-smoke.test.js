@@ -23,6 +23,7 @@ const SOURCE_PATHS = {
   admin: 'src/features/admin/AdminPage.tsx',
   cid: 'src/features/cid/CidPage.tsx',
   files: 'src/features/files/AppPage.tsx',
+  appCss: 'src/styles/app.css',
 }
 
 function readSource(sourcePath) {
@@ -290,5 +291,23 @@ describe('frontend smoke checks', () => {
     assert.match(source, /formatSeedStatus/)
     assert.match(source, /admin\.seedStatus\.active/)
     assert.match(source, /admin\.seedStatus\.queued/)
+  })
+
+  it('keeps the file selection toolbar grouped and compact', () => {
+    const source = readSource(SOURCE_PATHS.files)
+    const appCss = readSource(SOURCE_PATHS.appCss)
+
+    assert.match(source, /className="batch-selection"/)
+    assert.match(source, /className="batch-actions batch-actions-primary"/)
+    assert.match(source, /className="batch-actions batch-actions-danger"/)
+    assert.match(source, /<Eye size=\{14\}/)
+    assert.match(source, /<RotateCcw size=\{14\}/)
+    assert.doesNotMatch(source, /<Share2 size=\{14\}/)
+    assert.doesNotMatch(
+      source,
+      /onClick=\{\(\) => setShareItem\(selectedFile\)\}/
+    )
+    assert.match(appCss, /\.batch-action-label/)
+    assert.match(appCss, /\.batch-actions-danger/)
   })
 })

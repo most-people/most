@@ -8,6 +8,8 @@ import {
   Check,
   Copy,
   Download,
+  Eye,
+  FolderInput,
   ArrowUpDown,
   Star,
   Files,
@@ -15,6 +17,8 @@ import {
   Edit2,
   Loader,
   Info,
+  RotateCcw,
+  Save,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import {
@@ -934,6 +938,14 @@ export default function App() {
       : folders.filter(f =>
           f.name.toLowerCase().includes(searchQuery.toLowerCase())
         )
+  const selectedFile =
+    selectedIds.length === 1
+      ? items.find(i => i.cid === selectedIds[0]) || null
+      : null
+  const canPreviewSelectedFile =
+    !!selectedFile && getFileSubtype(selectedFile.fileName) !== 'file'
+  const shouldPullSelectedFile =
+    !!selectedFile && selectedFile.localAvailable === false
 
   const breadcrumbParts = generateBreadcrumbs(currentPath, t('app.allContent'))
 
@@ -1386,140 +1398,160 @@ export default function App() {
 
       {selectedIds.length > 0 && (
         <div className="batch-bar">
-          <span className="batch-info">
-            {t('app.selectedItems', { count: selectedIds.length })}
-          </span>
-          <button onClick={() => setSelectedIds([])} className="batch-dismiss">
-            <X size={16} />
-          </button>
-          <div className="batch-divider" />
+          <div className="batch-selection">
+            <span className="batch-info">
+              {t('app.selectedItems', { count: selectedIds.length })}
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelectedIds([])}
+              className="batch-dismiss"
+            >
+              <X size={16} />
+            </button>
+          </div>
           {currentView === 'trash' ? (
             <>
-              <button
-                onClick={async () => {
-                  if (!requireLogin()) return
-                  if (!requireBackendReady()) return
-                  await Promise.all(
-                    selectedIds.map(cid => fileApi.restoreTrashFile(cid))
-                  )
-                  setSelectedIds([])
-                  addToast(t('app.toast.restored'), 'success')
-                  refreshFiles()
-                  refreshTrash()
-                }}
-                className="btn btn-sm"
-              >
-                {t('app.restore')}
-              </button>
-              <button
-                onClick={handleBatchDelete}
-                className="btn btn-sm btn-danger"
-              >
-                {t('app.permanentDelete')}
-              </button>
+              <div className="batch-actions batch-actions-primary">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!requireLogin()) return
+                    if (!requireBackendReady()) return
+                    await Promise.all(
+                      selectedIds.map(cid => fileApi.restoreTrashFile(cid))
+                    )
+                    setSelectedIds([])
+                    addToast(t('app.toast.restored'), 'success')
+                    refreshFiles()
+                    refreshTrash()
+                  }}
+                  className="btn btn-sm batch-action"
+                >
+                  <RotateCcw size={14} />
+                  <span className="batch-action-label">{t('app.restore')}</span>
+                </button>
+              </div>
+              <div className="batch-actions batch-actions-danger">
+                <button
+                  type="button"
+                  onClick={handleBatchDelete}
+                  className="btn btn-sm batch-action batch-action-danger"
+                >
+                  <Trash2 size={14} />
+                  <span className="batch-action-label">
+                    {t('app.permanentDelete')}
+                  </span>
+                </button>
+              </div>
             </>
           ) : (
             <>
-              {selectedIds.length === 1 &&
-                (() => {
-                  const file = items.find(i => i.cid === selectedIds[0])
-                  return file && getFileSubtype(file.fileName) !== 'file'
-                })() && (
+              <div className="batch-actions batch-actions-primary">
+                {canPreviewSelectedFile && (
                   <button
+                    type="button"
                     onClick={() => {
-                      const file = items.find(i => i.cid === selectedIds[0])
-                      if (file) {
-                        if (file.localAvailable === false) {
-                          addToast(t('app.toast.fileNotLocal'), 'warning')
-                          return
-                        }
-                        const subtype = getFileSubtype(file.fileName)
-                        setPreviewItem({ ...file, subtype })
+                      if (selectedFile.localAvailable === false) {
+                        addToast(t('app.toast.fileNotLocal'), 'warning')
+                        return
                       }
+                      const subtype = getFileSubtype(selectedFile.fileName)
+                      setPreviewItem({ ...selectedFile, subtype })
                     }}
-                    className="btn btn-sm"
+                    className="btn btn-sm batch-action"
                   >
-                    {t('app.preview')}
+                    <Eye size={14} />
+                    <span className="batch-action-label">
+                      {t('app.preview')}
+                    </span>
                   </button>
                 )}
-              <button
-                onClick={() => {
-                  const hasUnstarred = selectedIds.some(id => {
-                    const item = items.find(i => i.cid === id)
-                    return item && !item.starred
-                  })
-                  selectedIds.forEach(id => {
-                    const item = items.find(i => i.cid === id)
-                    if (item && (hasUnstarred ? !item.starred : item.starred)) {
-                      handleToggleStar(id)
-                    }
-                  })
-                }}
-                className="btn btn-sm btn-star"
-              >
-                {t('app.favorite')}
-              </button>
-              {selectedIds.length === 1 && (
                 <button
+                  type="button"
                   onClick={() => {
-                    const firstSelected = items.find(
-                      i => i.cid === selectedIds[0]
-                    )
-                    if (firstSelected) openRenameModal(firstSelected)
+                    const hasUnstarred = selectedIds.some(id => {
+                      const item = items.find(i => i.cid === id)
+                      return item && !item.starred
+                    })
+                    selectedIds.forEach(id => {
+                      const item = items.find(i => i.cid === id)
+                      if (
+                        item &&
+                        (hasUnstarred ? !item.starred : item.starred)
+                      ) {
+                        handleToggleStar(id)
+                      }
+                    })
                   }}
-                  className="btn btn-sm"
+                  className="btn btn-sm batch-action"
                 >
-                  {t('app.rename')}
+                  <Star size={14} />
+                  <span className="batch-action-label">
+                    {t('app.favorite')}
+                  </span>
                 </button>
-              )}
-              <button
-                onClick={() => moveModal.open()}
-                className="btn btn-sm btn-move"
-              >
-                {t('app.move')}
-              </button>
-              <button
-                onClick={handleBatchDelete}
-                className="btn btn-sm btn-danger"
-              >
-                {t('app.delete')}
-              </button>
-              {selectedIds.length === 1 &&
-                (() => {
-                  const file = items.find(i => i.cid === selectedIds[0])
-                  return file && file.localAvailable === false
-                })() && (
+                {selectedFile && (
                   <button
+                    type="button"
                     onClick={() => {
-                      const file = items.find(i => i.cid === selectedIds[0])
-                      if (file) void handleCacheFile(file)
+                      openRenameModal(selectedFile)
                     }}
-                    className="btn btn-sm"
+                    className="btn btn-sm batch-action"
                   >
-                    {t('app.pullToLocal')}
+                    <Edit2 size={14} />
+                    <span className="batch-action-label">
+                      {t('app.rename')}
+                    </span>
                   </button>
                 )}
-              {selectedIds.length === 1 && (
                 <button
-                  onClick={() =>
-                    setShareItem(items.find(i => i.cid === selectedIds[0]))
-                  }
-                  className="btn btn-sm"
+                  type="button"
+                  onClick={() => moveModal.open()}
+                  className="btn btn-sm batch-action"
                 >
-                  {t('app.share')}
+                  <FolderInput size={14} />
+                  <span className="batch-action-label">{t('app.move')}</span>
                 </button>
-              )}
-              {selectedIds.length === 1 && (
+                {shouldPullSelectedFile && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleCacheFile(selectedFile)
+                    }}
+                    className="btn btn-sm batch-action"
+                  >
+                    <Download size={14} />
+                    <span className="batch-action-label">
+                      {t('app.pullToLocal')}
+                    </span>
+                  </button>
+                )}
+                {selectedFile && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleSaveAs(selectedFile)
+                    }}
+                    className="btn btn-sm batch-action"
+                  >
+                    <Save size={14} />
+                    <span className="batch-action-label">
+                      {t('app.saveAs')}
+                    </span>
+                  </button>
+                )}
+              </div>
+              <div className="batch-actions batch-actions-danger">
                 <button
-                  onClick={() => {
-                    const file = items.find(i => i.cid === selectedIds[0])
-                    if (file) handleSaveAs(file)
-                  }}
-                  className="btn btn-sm"
+                  type="button"
+                  onClick={handleBatchDelete}
+                  className="btn btn-sm batch-action batch-action-danger"
                 >
-                  {t('app.saveAs')}
+                  <Trash2 size={14} />
+                  <span className="batch-action-label">{t('app.delete')}</span>
                 </button>
-              )}
+              </div>
             </>
           )}
         </div>
