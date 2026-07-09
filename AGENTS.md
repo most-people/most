@@ -23,11 +23,12 @@ Web3 产品入口和以太坊钱包工具保留为独立工具箱，不参与 Mo
 
 `docs/plan/` 中的阶段性计划已移除；代码、README 和验收文档是当前事实来源。处理相关需求时优先阅读：
 
-| 需求类型                     | 优先阅读                 |
-| ---------------------------- | ------------------------ |
-| 新用户、本地验收和 MVP 回归  | `docs/acceptance.md`     |
-| 产品定位、使用方式和技术栈   | `README.md`              |
-| 代码结构、协议边界和开发约定 | 本文件，以及相关入口文件 |
+| 需求类型                     | 优先阅读                       |
+| ---------------------------- | ------------------------------ |
+| 新用户、本地验收和 MVP 回归  | `docs/acceptance.md`           |
+| 产品定位、使用方式和技术栈   | `README.md`                    |
+| Android Alpha 内测验收       | `docs/mobile-android-alpha.md` |
+| 代码结构、协议边界和开发约定 | 本文件，以及相关入口文件       |
 
 ## 当前 MVP 口径
 
@@ -117,6 +118,7 @@ npm run build
 
 - 使用 ESM；本地导入带 `.js` 扩展名。
 - 2 空格缩进、单引号、默认不写分号。
+- 修改代码、测试、文档或配置后，经常运行 `npm run format`；提交前必须再运行一次，确保仓库格式统一。
 - 命名：组件 / 类 `PascalCase`，函数 / 变量 `camelCase`，常量 `UPPER_SNAKE_CASE`，私有字段 `#field`。
 - TypeScript 避免 `any`，组件 Props 使用 `{ComponentName}Props`。
 - 前端路由使用 TanStack Router：`src/routes/**/index.tsx` 只做路由注册、SSR 开关、redirect/head/search 等关键配置；页面组件放在同目录 `index.lazy.tsx` 并从 `src/features/**` 引入。

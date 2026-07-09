@@ -90,9 +90,12 @@ node server/index.js
 - `server/`：daemon、HTTP API、P2P 引擎和协议测试。
 - `mobile/android/`：Android Alpha 应用和 Bare Worklet P2P 核心。
 
-## 测试
+## 测试与格式化
 
 ```bash
+npm run format        # 格式化全仓文件
+npm run lint          # 运行 ESLint
+npm run test:frontend # 运行前端轻量回归
 npm test              # 运行全部后端测试
 npm run test:unit     # 只运行后端单元测试
 npm run test:protocol # 运行 CID / 发布 / 下载 / P2P 接力协议回归
