@@ -22,6 +22,7 @@ const SOURCE_PATHS = {
   checkStaticOutput: 'scripts/check-static-output.mjs',
   admin: 'src/features/admin/AdminPage.tsx',
   cid: 'src/features/cid/CidPage.tsx',
+  cidCss: 'src/styles/cid.css',
   files: 'src/features/files/AppPage.tsx',
   appCss: 'src/styles/app.css',
 }
@@ -134,11 +135,14 @@ describe('frontend smoke checks', () => {
   })
 
   it('keeps native and web CID share links compatible with desktop deep links', async () => {
-    const { buildCidShareLink, buildMostShareLink } = await importBundledSource(
-      'src/lib/shareLink.ts'
-    )
+    const { buildCidShareLink, buildCidSharePath, buildMostShareLink } =
+      await importBundledSource('src/lib/shareLink.ts')
     const cid = 'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
 
+    assert.equal(
+      buildCidSharePath(cid, 'hello most.txt'),
+      `/cid/${cid}?filename=hello%20most.txt`
+    )
     assert.equal(
       buildMostShareLink(cid, 'hello most.txt'),
       `most://${cid}?filename=hello%20most.txt`
@@ -174,10 +178,111 @@ describe('frontend smoke checks', () => {
 
     const filesSource = readSource(SOURCE_PATHS.files)
     const cidSource = readSource(SOURCE_PATHS.cid)
-    assert.match(filesSource, /buildMostShareLink\(shareItem\.cid/)
-    assert.match(filesSource, /buildCidShareLink\(shareItem\.cid/)
+    assert.match(filesSource, /buildMostShareLink\(file\.cid, file\.fileName\)/)
+    assert.match(filesSource, /buildCidSharePath\(file\.cid, file\.fileName\)/)
     assert.match(cidSource, /fileApi\.checkDownload\(mostLink\)/)
     assert.match(cidSource, /fileApi\.downloadFile\(mostLink\)/)
+  })
+
+  it('routes file share actions to the CID page and exposes web QR sharing there', async () => {
+    const filesSource = readSource(SOURCE_PATHS.files)
+    const cidSource = readSource(SOURCE_PATHS.cid)
+    const cidCss = readSource(SOURCE_PATHS.cidCss)
+    const { messages } = await importBundledSource('src/lib/i18n/messages.ts')
+
+    assert.match(filesSource, /useNavigate\(/)
+    assert.match(
+      filesSource,
+      /navigate\(\{ href: buildCidSharePath\(file\.cid, file\.fileName\) \}\)/
+    )
+    assert.match(
+      filesSource,
+      /navigate\(\{\s*href: buildCidSharePath\(shareResult\.cid, shareResult\.fileName\),?\s*\}\)/
+    )
+    assert.doesNotMatch(filesSource, /className="share-modal"/)
+
+    assert.match(cidSource, /QRCodeCanvas/)
+    assert.match(cidSource, /buildCidShareLink\(cid, shareFileName\)/)
+    assert.match(cidSource, /handleDownloadQrCode/)
+    assert.match(cidSource, /cid\.copyWebShareLink/)
+    assert.match(cidSource, /cid\.downloadQrAction/)
+    assert.match(cidSource, /cidProcessSteps/)
+    assert.match(cidSource, /className="cid-process-steps"/)
+    assert.match(cidSource, /cid\.transfer\.title/)
+    assert.match(cidSource, /cid\.process\.step\.open\.title/)
+    assert.match(cidSource, /cid\.process\.step\.seed\.desc/)
+    assert.match(cidSource, /className="cid-bottom-handoff"/)
+    assert.match(
+      cidSource,
+      /className="cid-workspace"[\s\S]*className="cid-bottom-handoff"/
+    )
+    assert.match(cidSource, /className="cid-process-action"/)
+    assert.match(
+      cidSource,
+      /<span className="cid-process-desc">\{step\.desc\}<\/span>/
+    )
+    assert.match(cidSource, /case 'open':[\s\S]*cid\.copyLinkAction/)
+    assert.match(cidSource, /case 'open':[\s\S]*handleCopyWebShareLink/)
+    assert.match(cidSource, /case 'check':[\s\S]*runCheck/)
+    assert.match(cidSource, /case 'verify':[\s\S]*handleStartDownload/)
+    assert.match(cidSource, /case 'seed':[\s\S]*cid\.viewFileAction/)
+    assert.match(cidSource, /case 'seed':[\s\S]*<FolderOpen size=\{16\} \/>/)
+    assert.match(cidSource, /case 'seed':[\s\S]*to="\/app\/"/)
+    assert.doesNotMatch(cidSource, /cid\.share\.note/)
+    assert.doesNotMatch(cidCss, /cid-share-note/)
+    assert.doesNotMatch(cidSource, /className="cid-actions"/)
+    assert.doesNotMatch(cidSource, /Share2/)
+    assert.doesNotMatch(cidCss, /\.cid-process-step span:last-child/)
+    assert.match(
+      cidCss,
+      /\.cid-web-link-row\s*{[\s\S]*grid-template-columns: 1fr/
+    )
+    assert.match(
+      cidCss,
+      /\.cid-process-desc\s*{[\s\S]*color: var\(--text-secondary\);/
+    )
+    assert.match(cidCss, /\.cid-process-action/)
+    assert.match(
+      cidCss,
+      /\.cid-process-action \.btn\s*{[\s\S]*min-width: 0;[\s\S]*white-space: normal;/
+    )
+    assert.match(
+      cidCss,
+      /\.cid-process-action \.btn span\s*{[\s\S]*min-width: 0;[\s\S]*overflow-wrap: anywhere;/
+    )
+    assert.match(
+      cidCss,
+      /\.cid-process-action \.btn svg\s*{[\s\S]*flex: 0 0 auto;/
+    )
+
+    for (const locale of ['zh-CN', 'zh-TW', 'en']) {
+      assert.equal(typeof messages[locale]['cid.share.title'], 'string')
+      assert.equal(typeof messages[locale]['cid.copyWebShareLink'], 'string')
+      assert.equal(typeof messages[locale]['cid.downloadQrAction'], 'string')
+      assert.equal(typeof messages[locale]['cid.copyLinkAction'], 'string')
+      assert.equal(typeof messages[locale]['cid.viewFileAction'], 'string')
+      assert.equal(typeof messages[locale]['cid.transfer.title'], 'string')
+      assert.equal(
+        typeof messages[locale]['cid.process.step.open.title'],
+        'string'
+      )
+      assert.equal(
+        typeof messages[locale]['cid.process.step.seed.desc'],
+        'string'
+      )
+    }
+
+    assert.equal(
+      messages['zh-CN']['cid.transfer.title'],
+      '接收并继续传播这个文件'
+    )
+    assert.equal(
+      messages['zh-CN']['cid.process.step.seed.desc'],
+      '下载完成后默认加入传播。'
+    )
+    assert.equal(messages['zh-CN']['cid.share.title'], '转发')
+    assert.equal(messages['zh-CN']['cid.copyLinkAction'], '复制链接')
+    assert.equal(messages['zh-CN']['cid.viewFileAction'], '查看文件')
   })
 
   it('labels the CID page return action as the file library', async () => {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import {
   Upload,
   Trash2,
@@ -6,7 +7,6 @@ import {
   FileText,
   X,
   Check,
-  Copy,
   Download,
   Eye,
   FolderInput,
@@ -38,7 +38,7 @@ import {
 } from '~server/src/utils/api'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
-import { useDisclosure, useClipboard } from '~/hooks'
+import { useDisclosure } from '~/hooks'
 import {
   fileApi,
   getDownloadCheckErrorMessage,
@@ -50,7 +50,7 @@ import { formatBytes } from '~/lib/format'
 import { useI18n } from '~/lib/i18n'
 import { getLocalizedDownloadLinkValidationMessage } from '~/lib/i18n/downloadValidation'
 import { saveFileToLocal } from '~/lib/saveLocalFile'
-import { buildCidShareLink, buildMostShareLink } from '~/lib/shareLink'
+import { buildCidSharePath, buildMostShareLink } from '~/lib/shareLink'
 import { getFolderShareState } from '~/lib/folderShare'
 
 type DownloadCheckResult = {
@@ -120,6 +120,7 @@ function generateBreadcrumbs(currentPath, rootName) {
 }
 
 export default function App() {
+  const navigate = useNavigate()
   const addToast = useAppStore(s => s.addToast)
   const hasBackend = useAppStore(s => s.hasBackend)
   const openConnectModal = useAppStore(s => s.openConnectModal)
@@ -132,7 +133,6 @@ export default function App() {
   const [isDraggingOverUpload, setIsDraggingOverUpload] = useState(false)
   const [selectedIds, setSelectedIds] = useState([])
   const [previewItem, setPreviewItem] = useState(null)
-  const [shareItem, setShareItem] = useState(null)
   const [isDownloadModalOpen, downloadModal] = useDisclosure(false)
   const [downloadLink, setDownloadLink] = useState('')
   const [downloadCheckResult, setDownloadCheckResult] =
@@ -144,12 +144,6 @@ export default function App() {
   const [transfers, setTransfers] = useState([])
   const [isTransferPanelOpen, transferPanel] = useDisclosure(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const { copy: copyMostLink, copied: mostLinkCopied } = useClipboard({
-    timeout: 2000,
-  })
-  const { copy: copyWebLink, copied: webLinkCopied } = useClipboard({
-    timeout: 2000,
-  })
   const [isMoveModalOpen, moveModal] = useDisclosure(false)
   const [confirmModal, setConfirmModal] = useState(null)
   const [inputModal, setInputModal] = useState(null)
@@ -504,8 +498,10 @@ export default function App() {
     }
     try {
       const shareResult = await fileApi.shareFolder(folder.path)
-      setShareItem(shareResult)
       refreshFiles()
+      navigate({
+        href: buildCidSharePath(shareResult.cid, shareResult.fileName),
+      })
     } catch (err) {
       addToast(
         await getApiErrorMessage(err, t('app.toast.actionFailed')),
@@ -514,21 +510,8 @@ export default function App() {
     }
   }
 
-  const mostShareLink = shareItem
-    ? buildMostShareLink(shareItem.cid, shareItem.fileName)
-    : ''
-  const webShareLink = shareItem
-    ? buildCidShareLink(shareItem.cid, shareItem.fileName)
-    : ''
-
-  const handleCopyMostLink = () => {
-    if (!mostShareLink) return
-    copyMostLink(mostShareLink)
-  }
-
-  const handleCopyWebLink = () => {
-    if (!webShareLink) return
-    copyWebLink(webShareLink)
+  const handleOpenCidSharePage = file => {
+    navigate({ href: buildCidSharePath(file.cid, file.fileName) })
   }
 
   const [isDownloading, setIsDownloading] = useState(false)
@@ -923,7 +906,6 @@ export default function App() {
     if (userIdentity) return
     setSelectedIds([])
     setPreviewItem(null)
-    setShareItem(null)
     setDownloadLink('')
     setDownloadCheckResult(null)
     setTransfers([])
@@ -1190,7 +1172,7 @@ export default function App() {
                   file={f}
                   isSelected={selectedIds.includes(f.cid)}
                   onSelect={handleSelect}
-                  onShare={file => setShareItem(file)}
+                  onShare={handleOpenCidSharePage}
                   shareLabel={t('app.share')}
                   onPreview={file => {
                     if (file.localAvailable === false) {
@@ -1244,63 +1226,6 @@ export default function App() {
           onMove={handleMove}
           onClose={() => moveModal.close()}
         />
-      )}
-
-      {shareItem && (
-        <ModalOverlay onClose={() => setShareItem(null)}>
-          <div className="share-modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>{t('app.shareLink')}</h3>
-              <button
-                onClick={() => setShareItem(null)}
-                className="btn btn-icon"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="share-link-list">
-              <div className="share-link-box">
-                <div className="share-link-content">
-                  <span className="share-link-label">
-                    {t('app.shareMostLink')}
-                  </span>
-                  <div className="share-link-text" translate="no">
-                    {mostShareLink}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  aria-label={t('app.copyMostShareLink')}
-                  onClick={handleCopyMostLink}
-                  className={`btn btn-circle btn-primary ${mostLinkCopied ? 'copied' : ''}`}
-                >
-                  {mostLinkCopied ? <Check size={18} /> : <Copy size={18} />}
-                </button>
-              </div>
-              <div className="share-link-box">
-                <div className="share-link-content">
-                  <span className="share-link-label">
-                    {t('app.shareWebLink')}
-                  </span>
-                  <div className="share-link-text" translate="no">
-                    {webShareLink}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  aria-label={t('app.copyWebShareLink')}
-                  onClick={handleCopyWebLink}
-                  className={`btn btn-circle btn-primary ${webLinkCopied ? 'copied' : ''}`}
-                >
-                  {webLinkCopied ? <Check size={18} /> : <Copy size={18} />}
-                </button>
-              </div>
-            </div>
-            <div className="share-storage-note">
-              <span>{t('app.shareSeedNote')}</span>
-            </div>
-          </div>
-        </ModalOverlay>
       )}
 
       {isDownloadModalOpen && (

@@ -31,11 +31,15 @@ export function buildMostShareLink(cid: string, fileName?: string) {
   return `most://${cid}?filename=${encodeURIComponent(trimmedFileName)}`
 }
 
-export function buildCidShareLink(cid: string, fileName?: string) {
+export function buildCidSharePath(cid: string, fileName?: string) {
   const trimmedFileName = getTrimmedFileName(fileName)
-  const cidPath = `${getShareOrigin()}/cid/${encodeURIComponent(cid)}`
+  const cidPath = `/cid/${encodeURIComponent(cid)}`
 
   if (!trimmedFileName) return cidPath
 
   return `${cidPath}?filename=${encodeURIComponent(trimmedFileName)}`
+}
+
+export function buildCidShareLink(cid: string, fileName?: string) {
+  return `${getShareOrigin()}${buildCidSharePath(cid, fileName)}`
 }

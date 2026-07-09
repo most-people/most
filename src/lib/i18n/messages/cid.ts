@@ -5,6 +5,18 @@ export const zhCNCidMessages = {
   'cid.title': '检查分享文件',
   'cid.subtitle':
     'MostBox 会先检查这个 CID 是否能从在线种子下载。确认可用后，你可以手动开始下载。',
+  'cid.transfer.kicker': 'MostBox Transfer',
+  'cid.transfer.title': '接收并继续传播这个文件',
+  'cid.transfer.subtitle':
+    '知道 CID 的人即可下载；完成后你的节点也会成为新的种子。',
+  'cid.process.step.open.title': '打开链接',
+  'cid.process.step.open.desc': '网页链接或 most:// 都指向同一 CID。',
+  'cid.process.step.check.title': '检查种子',
+  'cid.process.step.check.desc': '确认在线 peer 和下载目录。',
+  'cid.process.step.verify.title': '下载校验',
+  'cid.process.step.verify.desc': '重算 CID，匹配后才保存。',
+  'cid.process.step.seed.title': '继续做种',
+  'cid.process.step.seed.desc': '下载完成后默认加入传播。',
   'cid.handoff.title': '用 MostBox 客户端打开',
   'cid.handoff.desc':
     '已安装客户端时，浏览器会交给系统打开这个 most:// 分享，并让 MostBox 接管检测和下载。',
@@ -12,6 +24,14 @@ export const zhCNCidMessages = {
   'cid.handoff.fallback':
     '如果浏览器没有弹出确认，或 MostBox 没有打开，可能还没安装客户端或系统协议未注册。你仍可在本页连接本地节点检测下载。',
   'cid.handoff.downloadAction': '下载客户端',
+  'cid.share.title': '转发',
+  'cid.share.desc': '朋友下载校验通过后，也会成为新的种子。',
+  'cid.share.webLinkLabel': '网页分享链接',
+  'cid.copyLinkAction': '复制链接',
+  'cid.copyWebShareLink': '复制网页分享链接',
+  'cid.downloadQrAction': '下载分享二维码',
+  'cid.qrLabel': '网页分享二维码',
+  'cid.viewFileAction': '查看文件',
   'cid.fileNameLabel': '文件名',
   'cid.cidLabel': 'CID',
   'cid.sizeLabel': '大小',
@@ -56,6 +76,7 @@ export const zhCNCidMessages = {
   'cid.toast.downloadFailed': '下载失败：{error}',
   'cid.toast.cancelled': '下载已取消',
   'cid.toast.alreadyLocal': '本机已有该文件',
+  'cid.toast.qrDownloaded': '分享二维码已下载',
 } as const
 
 export const zhTWCidMessages = {
@@ -65,6 +86,18 @@ export const zhTWCidMessages = {
   'cid.title': '檢查分享檔案',
   'cid.subtitle':
     'MostBox 會先檢查這個 CID 是否能從線上種子下載。確認可用後，你可以手動開始下載。',
+  'cid.transfer.kicker': 'MostBox Transfer',
+  'cid.transfer.title': '接收並繼續傳播這個檔案',
+  'cid.transfer.subtitle':
+    '知道 CID 的人即可下載；完成後你的節點也會成為新的種子。',
+  'cid.process.step.open.title': '開啟連結',
+  'cid.process.step.open.desc': '網頁連結或 most:// 都指向同一 CID。',
+  'cid.process.step.check.title': '檢查種子',
+  'cid.process.step.check.desc': '確認線上 peer 和下載目錄。',
+  'cid.process.step.verify.title': '下載校驗',
+  'cid.process.step.verify.desc': '重算 CID，匹配後才儲存。',
+  'cid.process.step.seed.title': '繼續做種',
+  'cid.process.step.seed.desc': '下載完成後預設加入傳播。',
   'cid.handoff.title': '用 MostBox 用戶端開啟',
   'cid.handoff.desc':
     '已安裝用戶端時，瀏覽器會交給系統開啟這個 most:// 分享，並讓 MostBox 接管檢測和下載。',
@@ -72,6 +105,14 @@ export const zhTWCidMessages = {
   'cid.handoff.fallback':
     '如果瀏覽器沒有跳出確認，或 MostBox 沒有開啟，可能尚未安裝用戶端或系統協議未註冊。你仍可在本頁連線本機節點檢測下載。',
   'cid.handoff.downloadAction': '下載用戶端',
+  'cid.share.title': '轉發',
+  'cid.share.desc': '朋友下載校驗通過後，也會成為新的種子。',
+  'cid.share.webLinkLabel': '網頁分享連結',
+  'cid.copyLinkAction': '複製連結',
+  'cid.copyWebShareLink': '複製網頁分享連結',
+  'cid.downloadQrAction': '下載分享 QR Code',
+  'cid.qrLabel': '網頁分享 QR Code',
+  'cid.viewFileAction': '查看檔案',
   'cid.fileNameLabel': '檔案名稱',
   'cid.cidLabel': 'CID',
   'cid.sizeLabel': '大小',
@@ -116,6 +157,7 @@ export const zhTWCidMessages = {
   'cid.toast.downloadFailed': '下載失敗：{error}',
   'cid.toast.cancelled': '下載已取消',
   'cid.toast.alreadyLocal': '本機已有該檔案',
+  'cid.toast.qrDownloaded': '分享 QR Code 已下載',
 } as const
 
 export const enCidMessages = {
@@ -126,6 +168,22 @@ export const enCidMessages = {
   'cid.title': 'Check shared file',
   'cid.subtitle':
     'MostBox checks whether this CID can be downloaded from online seeders first. Once it is available, you can start the download manually.',
+  'cid.transfer.kicker': 'MostBox Transfer',
+  'cid.transfer.title': 'Receive and keep sharing this file',
+  'cid.transfer.subtitle':
+    'Anyone who knows the CID can download it; once complete, your node also becomes a seeder.',
+  'cid.process.step.open.title': 'Open link',
+  'cid.process.step.open.desc':
+    'The web link and most:// link point to the same CID.',
+  'cid.process.step.check.title': 'Check seeders',
+  'cid.process.step.check.desc':
+    'Confirm online peers and the download directory.',
+  'cid.process.step.verify.title': 'Download and verify',
+  'cid.process.step.verify.desc':
+    'Recompute the CID and save only when it matches.',
+  'cid.process.step.seed.title': 'Keep seeding',
+  'cid.process.step.seed.desc':
+    'After the download completes, it joins sharing by default.',
   'cid.handoff.title': 'Open with the MostBox client',
   'cid.handoff.desc':
     'If the client is installed, your browser will hand this most:// share to the system so MostBox can take over checking and downloading.',
@@ -133,6 +191,15 @@ export const enCidMessages = {
   'cid.handoff.fallback':
     'If the browser did not ask for confirmation or MostBox did not open, the client may not be installed or the system protocol may not be registered. You can still connect a local node on this page to check and download.',
   'cid.handoff.downloadAction': 'Download client',
+  'cid.share.title': 'Forward',
+  'cid.share.desc':
+    'After your friend downloads and verifies it, they also become a new seeder.',
+  'cid.share.webLinkLabel': 'Web share link',
+  'cid.copyLinkAction': 'Copy link',
+  'cid.copyWebShareLink': 'Copy web share link',
+  'cid.downloadQrAction': 'Download share QR',
+  'cid.qrLabel': 'Web share QR code',
+  'cid.viewFileAction': 'View file',
   'cid.fileNameLabel': 'File name',
   'cid.cidLabel': 'CID',
   'cid.sizeLabel': 'Size',
@@ -182,4 +249,5 @@ export const enCidMessages = {
   'cid.toast.downloadFailed': 'Download failed: {error}',
   'cid.toast.cancelled': 'Download cancelled',
   'cid.toast.alreadyLocal': 'This file is already local',
+  'cid.toast.qrDownloaded': 'Share QR downloaded',
 } as const

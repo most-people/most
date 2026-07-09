@@ -1,14 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useParams } from '@tanstack/react-router'
+import { QRCodeCanvas } from 'qrcode.react'
 import {
   AlertTriangle,
+  Check,
   CheckCircle2,
+  Copy,
   Download,
   ExternalLink,
   FileText,
+  FolderOpen,
   HardDrive,
   Loader2,
   LogIn,
+  QrCode,
   RefreshCw,
   WifiOff,
   XCircle,
@@ -22,7 +27,9 @@ import {
 import { formatBytes } from '~/lib/format'
 import { getLocalizedDownloadLinkValidationMessage } from '~/lib/i18n/downloadValidation'
 import { MarketingHeader } from '~/components/MarketingHeader'
+import { useClipboard } from '~/hooks'
 import { useI18n } from '~/lib/i18n'
+import { buildCidShareLink } from '~/lib/shareLink'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import {
@@ -69,10 +76,22 @@ type DownloadEventPayload = {
   error?: string
 }
 
+type CidProcessStepKey = 'open' | 'check' | 'verify' | 'seed'
+
 const HANDOFF_FALLBACK_DELAY_MS = 1800
 
 function buildMostLinkFromRoute(cid: string, searchStr: string) {
   return `most://${cid}${searchStr || ''}`
+}
+
+function getFileNameFromSearch(searchStr: string) {
+  const queryString = searchStr.startsWith('?') ? searchStr.slice(1) : searchStr
+  const fileName = new URLSearchParams(queryString).get('filename')?.trim()
+  return fileName || undefined
+}
+
+function getQrCodeFileName(cid: string) {
+  return `mostbox-${cid.slice(0, 12)}-share-qr.png`
 }
 
 function formatDownloadPath(dataPath: string, fallback: string) {
@@ -129,10 +148,21 @@ export default function CidPage() {
   const openConnectModal = useAppStore(s => s.openConnectModal)
   const userIdentity = useUserStore(s => s.identity)
   const openLoginModal = useUserStore(s => s.openLoginModal)
+  const { copy: copyWebShareLink, copied: webShareLinkCopied } = useClipboard({
+    timeout: 2000,
+  })
 
   const mostLink = useMemo(
     () => buildMostLinkFromRoute(cid, searchStr),
     [cid, searchStr]
+  )
+  const shareFileName = useMemo(
+    () => getFileNameFromSearch(searchStr),
+    [searchStr]
+  )
+  const webShareLink = useMemo(
+    () => buildCidShareLink(cid, shareFileName),
+    [cid, shareFileName]
   )
   const parsedLink = useMemo(() => parseMostLink(mostLink), [mostLink])
   const validationMessage = useMemo(
@@ -160,6 +190,7 @@ export default function CidPage() {
   const [showHandoffFallback, setShowHandoffFallback] = useState(false)
   const checkSeqRef = useRef(0)
   const handoffTimerRef = useRef<number | null>(null)
+  const qrCanvasRef = useRef<HTMLCanvasElement | null>(null)
 
   const fileName = checkResult?.fileName || initialFileName
   const fileSize = checkResult?.size ?? totalBytes
@@ -179,6 +210,36 @@ export default function CidPage() {
   const displayDownloadPath = formatDownloadPath(
     downloadPath,
     t('cid.saveToFallback')
+  )
+  const cidProcessSteps: Array<{
+    key: CidProcessStepKey
+    title: string
+    desc: string
+  }> = [
+    {
+      key: 'open',
+      title: t('cid.process.step.open.title'),
+      desc: t('cid.process.step.open.desc'),
+    },
+    {
+      key: 'check',
+      title: t('cid.process.step.check.title'),
+      desc: t('cid.process.step.check.desc'),
+    },
+    {
+      key: 'verify',
+      title: t('cid.process.step.verify.title'),
+      desc: t('cid.process.step.verify.desc'),
+    },
+    {
+      key: 'seed',
+      title: t('cid.process.step.seed.title'),
+      desc: t('cid.process.step.seed.desc'),
+    },
+  ]
+  const cidProcessActiveIndex = getCidProcessActiveIndex(
+    checkState.status,
+    downloadState.status
   )
 
   const runCheck = useCallback(async () => {
@@ -445,6 +506,110 @@ export default function CidPage() {
     await fileApi.cancelDownload(taskId).catch(() => {})
   }
 
+  const handleCopyWebShareLink = () => {
+    copyWebShareLink(webShareLink)
+    addToast(t('common.copied'), 'success')
+  }
+
+  const handleDownloadQrCode = () => {
+    const canvas = qrCanvasRef.current
+    if (!canvas) return
+
+    const anchor = document.createElement('a')
+    anchor.href = canvas.toDataURL('image/png')
+    anchor.download = getQrCodeFileName(cid)
+    document.body.append(anchor)
+    anchor.click()
+    anchor.remove()
+    addToast(t('cid.toast.qrDownloaded'), 'success')
+  }
+
+  const renderCidProcessAction = (stepKey: CidProcessStepKey) => {
+    switch (stepKey) {
+      case 'open':
+        return (
+          <button
+            type="button"
+            className={`btn btn-secondary ${webShareLinkCopied ? 'copied' : ''}`}
+            aria-label={t('cid.copyWebShareLink')}
+            title={t('cid.copyWebShareLink')}
+            onClick={handleCopyWebShareLink}
+          >
+            {webShareLinkCopied ? <Check size={16} /> : <Copy size={16} />}
+            <span>
+              {webShareLinkCopied
+                ? t('common.copied')
+                : t('cid.copyLinkAction')}
+            </span>
+          </button>
+        )
+      case 'check':
+        if (checkState.status === 'login-required') {
+          return (
+            <button className="btn btn-primary" onClick={openLoginModal}>
+              <LogIn size={16} />
+              <span>{t('cid.loginAction')}</span>
+            </button>
+          )
+        }
+        if (checkState.status === 'backend-missing') {
+          return (
+            <button className="btn btn-primary" onClick={openConnectModal}>
+              <WifiOff size={16} />
+              <span>{t('cid.connectAction')}</span>
+            </button>
+          )
+        }
+        return (
+          <button
+            className="btn btn-secondary"
+            disabled={checkState.status === 'checking'}
+            onClick={runCheck}
+          >
+            <RefreshCw size={16} />
+            <span>{t('cid.retryAction')}</span>
+          </button>
+        )
+      case 'verify':
+        return (
+          <div className="cid-process-action-stack">
+            <button
+              className="btn btn-primary"
+              disabled={!canStartDownload || isDownloading}
+              onClick={handleStartDownload}
+            >
+              {isDownloading ? (
+                <Loader2 className="cid-spin-icon" size={16} />
+              ) : (
+                <Download size={16} />
+              )}
+              <span>
+                {isDownloading
+                  ? t('cid.downloadingAction')
+                  : t('cid.startAction')}
+              </span>
+            </button>
+            {taskId && downloadState.status === 'downloading' && (
+              <button
+                className="btn btn-secondary"
+                onClick={handleCancelDownload}
+              >
+                <XCircle size={16} />
+                <span>{t('cid.cancelAction')}</span>
+              </button>
+            )}
+          </div>
+        )
+      case 'seed':
+        return (
+          <Link to="/app/" className="btn btn-secondary">
+            <FolderOpen size={16} />
+            <span>{t('cid.viewFileAction')}</span>
+          </Link>
+        )
+    }
+  }
+
   const statusIcon = getStatusIcon(checkState.status, downloadState.status)
 
   return (
@@ -453,12 +618,173 @@ export default function CidPage() {
       <main className="cid-page">
         <section className="cid-shell">
           <div className="cid-heading">
-            <span className="cid-kicker">{t('cid.kicker')}</span>
-            <h1>{t('cid.title')}</h1>
-            <p>{t('cid.subtitle')}</p>
+            <span className="cid-kicker">{t('cid.transfer.kicker')}</span>
+            <h1>{t('cid.transfer.title')}</h1>
+            <p>{t('cid.transfer.subtitle')}</p>
           </div>
 
-          <div className="cid-panel">
+          <div className="cid-workspace">
+            <div className="cid-panel cid-main-panel">
+              <ol
+                className="cid-process-steps"
+                aria-label={t('cid.transfer.title')}
+              >
+                {cidProcessSteps.map((step, index) => (
+                  <li
+                    key={step.key}
+                    className={`cid-process-step ${index === cidProcessActiveIndex ? 'active' : ''}`}
+                    aria-current={
+                      index === cidProcessActiveIndex ? 'step' : undefined
+                    }
+                  >
+                    <span className="cid-process-index">{index + 1}</span>
+                    <strong>{step.title}</strong>
+                    <span className="cid-process-desc">{step.desc}</span>
+                    <div className="cid-process-action">
+                      {renderCidProcessAction(step.key)}
+                    </div>
+                  </li>
+                ))}
+              </ol>
+
+              <div className="cid-status">
+                <span className={`cid-status-icon ${checkState.status}`}>
+                  {statusIcon}
+                </span>
+                <div>
+                  <p className="cid-status-label">
+                    {getStatusLabel(checkState.status, t)}
+                  </p>
+                  <p className="cid-status-message">{checkState.message}</p>
+                </div>
+              </div>
+
+              <dl className="cid-details">
+                <div>
+                  <dt>
+                    <FileText size={16} />
+                    {t('cid.fileNameLabel')}
+                  </dt>
+                  <dd>{fileName}</dd>
+                </div>
+                <div>
+                  <dt>{t('cid.cidLabel')}</dt>
+                  <dd className="cid-mono">{cid}</dd>
+                </div>
+                <div>
+                  <dt>{t('cid.sizeLabel')}</dt>
+                  <dd>
+                    {fileSize ? formatBytes(fileSize) : t('cid.unknownSize')}
+                  </dd>
+                </div>
+                <div>
+                  <dt>
+                    <HardDrive size={16} />
+                    {t('cid.saveToLabel')}
+                  </dt>
+                  <dd>{displayDownloadPath}</dd>
+                </div>
+              </dl>
+
+              {isCollectionResult && (
+                <div className="cid-collection-summary">
+                  <p>
+                    {t('cid.collectionSummary', {
+                      fileCount: collectionFileCount,
+                      localAvailableCount: collectionLocalCount,
+                      missingLocalCount: collectionMissingCount,
+                    })}
+                  </p>
+                </div>
+              )}
+
+              {downloadState.status !== 'idle' && (
+                <div className={`cid-download-state ${downloadState.status}`}>
+                  <p>{downloadState.message}</p>
+                  {(downloadState.status === 'starting' ||
+                    downloadState.status === 'downloading') && (
+                    <div className="cid-progress">
+                      <progress
+                        className="cid-progress-bar"
+                        value={progress}
+                        max={100}
+                      />
+                      <span>
+                        {loadedBytes !== null && totalBytes !== null
+                          ? `${formatBytes(loadedBytes)} / ${formatBytes(totalBytes)}`
+                          : `${progress}%`}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <aside
+              className="cid-share-panel"
+              aria-labelledby="cid-share-title"
+            >
+              <div className="cid-share-heading">
+                <div>
+                  <h2 id="cid-share-title">{t('cid.share.title')}</h2>
+                  <p>{t('cid.share.desc')}</p>
+                </div>
+              </div>
+
+              <div className="cid-web-link-box">
+                <span className="cid-share-label">
+                  {t('cid.share.webLinkLabel')}
+                </span>
+                <div className="cid-web-link-row">
+                  <code translate="no">{webShareLink}</code>
+                  <button
+                    type="button"
+                    className={`btn btn-primary cid-copy-link-btn ${webShareLinkCopied ? 'copied' : ''}`}
+                    aria-label={t('cid.copyWebShareLink')}
+                    title={t('cid.copyWebShareLink')}
+                    onClick={handleCopyWebShareLink}
+                  >
+                    {webShareLinkCopied ? (
+                      <Check size={18} />
+                    ) : (
+                      <Copy size={18} />
+                    )}
+                    <span>
+                      {webShareLinkCopied
+                        ? t('common.copied')
+                        : t('cid.copyWebShareLink')}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="cid-qr-block">
+                <div
+                  className="cid-qr-frame"
+                  aria-label={t('cid.qrLabel')}
+                  role="img"
+                >
+                  <QRCodeCanvas
+                    ref={qrCanvasRef}
+                    value={webShareLink}
+                    size={176}
+                    marginSize={2}
+                    title={t('cid.qrLabel')}
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={handleDownloadQrCode}
+                >
+                  <QrCode size={16} />
+                  {t('cid.downloadQrAction')}
+                </button>
+              </div>
+            </aside>
+          </div>
+
+          <div className="cid-bottom-handoff">
             <div className="cid-handoff" aria-label={t('cid.handoff.title')}>
               <div className="cid-handoff-copy">
                 <p className="cid-handoff-title">{t('cid.handoff.title')}</p>
@@ -484,132 +810,23 @@ export default function CidPage() {
                 </Link>
               </div>
             )}
-
-            <div className="cid-status">
-              <span className={`cid-status-icon ${checkState.status}`}>
-                {statusIcon}
-              </span>
-              <div>
-                <p className="cid-status-label">
-                  {getStatusLabel(checkState.status, t)}
-                </p>
-                <p className="cid-status-message">{checkState.message}</p>
-              </div>
-            </div>
-
-            <dl className="cid-details">
-              <div>
-                <dt>
-                  <FileText size={16} />
-                  {t('cid.fileNameLabel')}
-                </dt>
-                <dd>{fileName}</dd>
-              </div>
-              <div>
-                <dt>{t('cid.cidLabel')}</dt>
-                <dd className="cid-mono">{cid}</dd>
-              </div>
-              <div>
-                <dt>{t('cid.sizeLabel')}</dt>
-                <dd>
-                  {fileSize ? formatBytes(fileSize) : t('cid.unknownSize')}
-                </dd>
-              </div>
-              <div>
-                <dt>
-                  <HardDrive size={16} />
-                  {t('cid.saveToLabel')}
-                </dt>
-                <dd>{displayDownloadPath}</dd>
-              </div>
-            </dl>
-
-            {isCollectionResult && (
-              <div className="cid-collection-summary">
-                <p>
-                  {t('cid.collectionSummary', {
-                    fileCount: collectionFileCount,
-                    localAvailableCount: collectionLocalCount,
-                    missingLocalCount: collectionMissingCount,
-                  })}
-                </p>
-              </div>
-            )}
-
-            {downloadState.status !== 'idle' && (
-              <div className={`cid-download-state ${downloadState.status}`}>
-                <p>{downloadState.message}</p>
-                {(downloadState.status === 'starting' ||
-                  downloadState.status === 'downloading') && (
-                  <div className="cid-progress">
-                    <progress
-                      className="cid-progress-bar"
-                      value={progress}
-                      max={100}
-                    />
-                    <span>
-                      {loadedBytes !== null && totalBytes !== null
-                        ? `${formatBytes(loadedBytes)} / ${formatBytes(totalBytes)}`
-                        : `${progress}%`}
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="cid-actions">
-              {checkState.status === 'login-required' && (
-                <button className="btn btn-primary" onClick={openLoginModal}>
-                  <LogIn size={16} />
-                  {t('cid.loginAction')}
-                </button>
-              )}
-              {checkState.status === 'backend-missing' && (
-                <button className="btn btn-primary" onClick={openConnectModal}>
-                  <WifiOff size={16} />
-                  {t('cid.connectAction')}
-                </button>
-              )}
-              <button
-                className="btn btn-primary"
-                disabled={!canStartDownload || isDownloading}
-                onClick={handleStartDownload}
-              >
-                {isDownloading ? (
-                  <Loader2 className="cid-spin-icon" size={16} />
-                ) : (
-                  <Download size={16} />
-                )}
-                {isDownloading
-                  ? t('cid.downloadingAction')
-                  : t('cid.startAction')}
-              </button>
-              {taskId && downloadState.status === 'downloading' && (
-                <button
-                  className="btn btn-secondary"
-                  onClick={handleCancelDownload}
-                >
-                  <XCircle size={16} />
-                  {t('cid.cancelAction')}
-                </button>
-              )}
-              <button
-                className="btn btn-secondary"
-                disabled={checkState.status === 'checking'}
-                onClick={runCheck}
-              >
-                <RefreshCw size={16} />
-                {t('cid.retryAction')}
-              </button>
-              <Link to="/app/" className="btn btn-secondary">
-                {t('cid.openAppAction')}
-              </Link>
-            </div>
           </div>
         </section>
       </main>
     </div>
   )
+}
+
+function getCidProcessActiveIndex(
+  checkStatus: CheckStatus,
+  downloadStatus: DownloadStatus
+) {
+  if (downloadStatus === 'completed') return 3
+  if (downloadStatus === 'starting' || downloadStatus === 'downloading') {
+    return 2
+  }
+  if (checkStatus === 'available' || checkStatus === 'already-local') return 1
+  return 0
 }
 
 function getStatusIcon(
