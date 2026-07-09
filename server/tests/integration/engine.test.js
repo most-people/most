@@ -395,6 +395,517 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
     })
   })
 
+  describe('publishCollection()', () => {
+    it('shares a file-library folder as a UnixFS directory collection', async () => {
+      const folderName = `share-folder-${uid}`
+      const first = await engine.publishFile(
+        Buffer.from(`share folder first ${uid}`),
+        `${folderName}/S01E01.txt`
+      )
+      const second = await engine.publishFile(
+        Buffer.from(`share folder second ${uid}`),
+        `${folderName}/S01E02.txt`
+      )
+
+      const result = await engine.shareFolder(folderName)
+
+      assert.strictEqual(result.kind, 'collection')
+      assert.strictEqual(result.fileName, folderName)
+      assert.strictEqual(result.fileCount, 2)
+      assert.deepStrictEqual(
+        result.files.map(file => file.path),
+        ['S01E01.txt', 'S01E02.txt']
+      )
+      assert.strictEqual(result.link, `most://${result.cid}?filename=${folderName}`)
+
+      const holdings = engine.listHoldings()
+      assert.ok(holdings.some(holding => holding.cid === result.cid))
+      assert.ok(holdings.some(holding => holding.cid === first.cid))
+      assert.ok(holdings.some(holding => holding.cid === second.cid))
+
+      const collection = await engine.getCollection(result.cid)
+      assert.ok(collection.files.every(file => file.localAvailable === true))
+    })
+
+    it('rejects sharing a folder with files that are not locally readable', async () => {
+      const shareTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-share-folder-missing-')
+      )
+      const owner = '0x5151515151515151515151515151515151515151'
+      let sourceEngine
+      let targetEngine
+
+      try {
+        sourceEngine = new MostBoxEngine({
+          dataPath: path.join(shareTmpDir, 'source'),
+          disableNetwork: true,
+        })
+        targetEngine = new MostBoxEngine({
+          dataPath: path.join(shareTmpDir, 'target'),
+          disableNetwork: true,
+        })
+        await sourceEngine.start()
+        await targetEngine.start()
+
+        await sourceEngine.publishFile(
+          Buffer.from('metadata only folder item'),
+          'metadata-only/file.txt',
+          { ownerAddress: owner }
+        )
+        await targetEngine.importUserData(
+          owner,
+          sourceEngine.exportUserData(owner)
+        )
+
+        await assert.rejects(
+          targetEngine.shareFolder('metadata-only', { ownerAddress: owner }),
+          /not locally available/
+        )
+      } finally {
+        if (sourceEngine) await sourceEngine.stop().catch(() => {})
+        if (targetEngine) await targetEngine.stop().catch(() => {})
+        fs.rmSync(shareTmpDir, { recursive: true, force: true })
+      }
+    })
+
+    it('publishes a UnixFS directory collection and seeds child files', async () => {
+      const result = await engine.publishCollection(
+        [
+          { path: 'Show/S01E01.txt', content: Buffer.from('episode 1') },
+          { path: 'Show/S01E02.txt', content: Buffer.from('episode 2') },
+        ],
+        'Show'
+      )
+
+      assert.strictEqual(result.kind, 'collection')
+      assert.strictEqual(result.fileName, 'Show')
+      assert.strictEqual(result.fileCount, 2)
+      assert.strictEqual(result.files.length, 2)
+      assert.ok(result.cid.startsWith('bafy'))
+      assert.strictEqual(result.link, `most://${result.cid}?filename=Show`)
+
+      const records = engine
+        .listPublishedFiles()
+        .filter(file => file.cid === result.cid)
+      assert.strictEqual(records.length, 1)
+      assert.strictEqual(records[0].kind, 'collection')
+      assert.strictEqual(records[0].fileCount, 2)
+      assert.strictEqual(records[0].localAvailable, true)
+
+      const childHoldings = result.files.map(file =>
+        engine.listHoldings().find(holding => holding.cid === file.cid)
+      )
+      assert.ok(childHoldings.every(Boolean))
+      assert.ok(engine.listHoldings().some(holding => holding.cid === result.cid))
+    })
+
+    it('reads collection files with local availability from holdings', async () => {
+      const result = await engine.publishCollection(
+        [
+          { path: 'Show/S01E01.txt', content: Buffer.from('episode 1') },
+          { path: 'Show/S01E02.txt', content: Buffer.from('episode 2') },
+        ],
+        'Show'
+      )
+
+      const collection = await engine.getCollection(result.cid)
+
+      assert.strictEqual(collection.kind, 'collection')
+      assert.strictEqual(collection.cid, result.cid)
+      assert.deepStrictEqual(
+        collection.files.map(file => file.path),
+        ['S01E01.txt', 'S01E02.txt']
+      )
+      assert.ok(collection.files.every(file => file.localAvailable === true))
+      assert.ok(collection.files.every(file => file.seedStatus === 'active'))
+    })
+
+    it('downloads selected collection files and leaves others unavailable', async () => {
+      const collectionTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-collection-partial-')
+      )
+      let publisher
+      let downloader
+      let replication
+
+      try {
+        publisher = new MostBoxEngine({
+          dataPath: path.join(collectionTmpDir, 'publisher'),
+          downloadTimeout: 5000,
+        })
+        downloader = new MostBoxEngine({
+          dataPath: path.join(collectionTmpDir, 'downloader'),
+          downloadTimeout: 5000,
+        })
+        await publisher.start()
+        await downloader.start()
+
+        const publishResult = await publisher.publishCollection(
+          [
+            { path: 'Show/S01E01.txt', content: Buffer.from('episode 1') },
+            { path: 'Show/S01E02.txt', content: Buffer.from('episode 2') },
+          ],
+          'Show'
+        )
+        const download = downloader.downloadFile(publishResult.link, null, {
+          selectedPaths: ['S01E02.txt'],
+        })
+
+        await sleep(100)
+        replication = publisher.replicateWith(downloader)
+        const result = await download
+        const collection = await downloader.getCollection(publishResult.cid)
+
+        assert.strictEqual(result.kind, 'collection')
+        assert.deepStrictEqual(
+          result.files.map(file => file.path),
+          ['S01E02.txt']
+        )
+        assert.strictEqual(
+          collection.files.find(file => file.path === 'S01E01.txt')
+            .localAvailable,
+          false
+        )
+        assert.strictEqual(
+          collection.files.find(file => file.path === 'S01E02.txt')
+            .localAvailable,
+          true
+        )
+      } finally {
+        replication?.close()
+        if (publisher) await publisher.stop().catch(() => {})
+        if (downloader) await downloader.stop().catch(() => {})
+        fs.rmSync(collectionTmpDir, { recursive: true, force: true })
+      }
+    })
+
+    it('adds downloaded collection children to the file library folder', async () => {
+      const folderTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-collection-folder-')
+      )
+      let publisher
+      let downloader
+      let replication
+
+      try {
+        publisher = new MostBoxEngine({
+          dataPath: path.join(folderTmpDir, 'publisher'),
+          downloadTimeout: 5000,
+        })
+        downloader = new MostBoxEngine({
+          dataPath: path.join(folderTmpDir, 'downloader'),
+          downloadTimeout: 5000,
+        })
+        await publisher.start()
+        await downloader.start()
+
+        const publishResult = await publisher.publishCollection(
+          [
+            { path: 'Shots/one.txt', content: Buffer.from('one') },
+            { path: 'Shots/two.txt', content: Buffer.from('two') },
+          ],
+          'Shots'
+        )
+
+        const download = downloader.downloadFile(publishResult.link, null, {
+          timeout: 5000,
+        })
+        await sleep(100)
+        replication = publisher.replicateWith(downloader)
+        await download
+
+        const records = downloader.listPublishedFiles()
+        assert.deepStrictEqual(
+          records.map(file => file.fileName).sort(),
+          ['Shots/one.txt', 'Shots/two.txt']
+        )
+        assert.strictEqual(
+          records.some(file => file.cid === publishResult.cid),
+          false
+        )
+        const rootHolding = downloader
+          .listHoldings()
+          .find(holding => holding.cid === publishResult.cid)
+        assert.ok(rootHolding)
+        assert.strictEqual(rootHolding.size, 0)
+        const localAvailability = await downloader.getLocalCidAvailability(
+          publishResult.link
+        )
+        assert.strictEqual(localAvailability.alreadyExists, true)
+        const downloadAvailability = await downloader.checkDownloadAvailability(
+          publishResult.link,
+          { timeout: 100 }
+        )
+        assert.strictEqual(downloadAvailability.alreadyExists, true)
+        const repeatDownload = await downloader.downloadFile(publishResult.link, null, {
+          timeout: 100,
+        })
+        assert.strictEqual(repeatDownload.alreadyExists, true)
+        assert.strictEqual(repeatDownload.kind, 'collection')
+      } finally {
+        replication?.close()
+        if (publisher) await publisher.stop().catch(() => {})
+        if (downloader) await downloader.stop().catch(() => {})
+        fs.rmSync(folderTmpDir, { recursive: true, force: true })
+      }
+    })
+
+    it('does not leave a collection library record when child download fails', async () => {
+      const failureTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-collection-failure-')
+      )
+      let publisher
+      let downloader
+      let replication
+
+      try {
+        publisher = new MostBoxEngine({
+          dataPath: path.join(failureTmpDir, 'publisher'),
+          downloadTimeout: 100,
+        })
+        downloader = new MostBoxEngine({
+          dataPath: path.join(failureTmpDir, 'downloader'),
+          downloadTimeout: 100,
+        })
+        await publisher.start()
+        await downloader.start()
+
+        const publishResult = await publisher.publishCollection(
+          [{ path: 'Broken/only.txt', content: Buffer.from('missing child') }],
+          'Broken',
+          { seedChildFiles: false }
+        )
+
+        const download = downloader.downloadFile(publishResult.link, null, {
+          timeout: 100,
+        })
+        await sleep(100)
+        replication = publisher.replicateWith(downloader)
+        await assert.rejects(download, /not found|peers|file data/i)
+
+        assert.strictEqual(
+          downloader
+            .listPublishedFiles()
+            .some(file => file.cid === publishResult.cid),
+          false
+        )
+        assert.strictEqual(
+          downloader.listHoldings().some(holding => holding.cid === publishResult.cid),
+          false
+        )
+      } finally {
+        replication?.close()
+        if (publisher) await publisher.stop().catch(() => {})
+        if (downloader) await downloader.stop().catch(() => {})
+        fs.rmSync(failureTmpDir, { recursive: true, force: true })
+      }
+    })
+
+    it('keeps collection children that finished before a later child fails', async () => {
+      const partialTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-collection-partial-')
+      )
+      let publisher
+      let downloader
+      let replication
+
+      try {
+        publisher = new MostBoxEngine({
+          dataPath: path.join(partialTmpDir, 'publisher'),
+          downloadTimeout: 500,
+        })
+        downloader = new MostBoxEngine({
+          dataPath: path.join(partialTmpDir, 'downloader'),
+          downloadTimeout: 500,
+        })
+        await publisher.start()
+        await downloader.start()
+
+        const firstContent = Buffer.from('downloaded child')
+        const publishResult = await publisher.publishCollection(
+          [
+            { path: 'Partial/one.txt', content: firstContent },
+            { path: 'Partial/two.txt', content: Buffer.from('missing child') },
+          ],
+          'Partial',
+          { seedChildFiles: false }
+        )
+        await publisher.publishFile(firstContent, 'one.txt', {
+          addToLibrary: false,
+        })
+
+        const taskId = 'collection-partial-download'
+        const progressEvents = []
+        const successEvents = []
+        downloader.on('download:progress', event => {
+          if (event.taskId === taskId) progressEvents.push(event)
+        })
+        downloader.on('download:success', event => {
+          successEvents.push(event)
+        })
+
+        const download = downloader.downloadFile(publishResult.link, taskId, {
+          timeout: 500,
+        })
+        await sleep(100)
+        replication = publisher.replicateWith(downloader)
+        await assert.rejects(download, /not found|peers|file data/i)
+
+        const records = downloader.listPublishedFiles()
+        assert.deepStrictEqual(
+          records.map(file => file.fileName).sort(),
+          ['Partial/one.txt']
+        )
+        assert.strictEqual(
+          records.some(file => file.cid === publishResult.cid),
+          false
+        )
+        assert.strictEqual(
+          downloader.listHoldings().some(holding => holding.cid === publishResult.cid),
+          false
+        )
+        assert.deepStrictEqual(
+          progressEvents.map(event => ({
+            collection: event.collection,
+            completedFiles: event.completedFiles,
+            totalFiles: event.totalFiles,
+            percent: event.percent,
+          })),
+          [
+            {
+              collection: true,
+              completedFiles: 1,
+              totalFiles: 2,
+              percent: 50,
+            },
+          ]
+        )
+        assert.deepStrictEqual(
+          successEvents.filter(event =>
+            String(event.taskId || '').startsWith(`${taskId}_`)
+          ),
+          []
+        )
+      } finally {
+        replication?.close()
+        if (publisher) await publisher.stop().catch(() => {})
+        if (downloader) await downloader.stop().catch(() => {})
+        fs.rmSync(partialTmpDir, { recursive: true, force: true })
+      }
+    })
+
+    it('relays collection files from downloaded seed nodes after the publisher stops', async () => {
+      const relayTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-collection-relay-')
+      )
+      const engines = []
+      const links = []
+
+      try {
+        const makeEngine = async name => {
+          const nextEngine = new MostBoxEngine({
+            dataPath: path.join(relayTmpDir, name),
+            downloadTimeout: 7000,
+          })
+          await nextEngine.start()
+          engines.push(nextEngine)
+          return nextEngine
+        }
+
+        const publisher = await makeEngine('publisher')
+        const partialSeed = await makeEngine('partial-seed')
+        const partialLeecher = await makeEngine('partial-leecher')
+        const fullSeed = await makeEngine('full-seed')
+        const fullLeecher = await makeEngine('full-leecher')
+
+        const publishResult = await publisher.publishCollection(
+          [
+            { path: 'RelayShow/S01E01.txt', content: Buffer.from('episode 1') },
+            { path: 'RelayShow/S01E02.txt', content: Buffer.from('episode 2') },
+          ],
+          'RelayShow'
+        )
+
+        const partialSeedDownload = partialSeed.downloadFile(
+          publishResult.link,
+          null,
+          {
+            selectedPaths: ['S01E02.txt'],
+            timeout: 7000,
+          }
+        )
+        await sleep(100)
+        links.push(publisher.replicateWith(partialSeed))
+        await partialSeedDownload
+
+        const fullSeedDownload = fullSeed.downloadFile(publishResult.link, null, {
+          timeout: 7000,
+        })
+        await sleep(100)
+        links.push(publisher.replicateWith(fullSeed))
+        await fullSeedDownload
+
+        await publisher.stop()
+        engines.splice(engines.indexOf(publisher), 1)
+
+        const partialRelayDownload = partialLeecher.downloadFile(
+          publishResult.link,
+          null,
+          {
+            selectedPaths: ['S01E02.txt'],
+            timeout: 7000,
+          }
+        )
+        await sleep(100)
+        links.push(partialSeed.replicateWith(partialLeecher))
+        const partialRelayResult = await partialRelayDownload
+
+        const fullRelayDownload = fullLeecher.downloadFile(
+          publishResult.link,
+          null,
+          {
+            timeout: 7000,
+          }
+        )
+        await sleep(100)
+        links.push(fullSeed.replicateWith(fullLeecher))
+        const fullRelayResult = await fullRelayDownload
+
+        assert.deepStrictEqual(
+          partialRelayResult.files.map(file => file.path),
+          ['S01E02.txt']
+        )
+        assert.deepStrictEqual(
+          fullRelayResult.files.map(file => file.path),
+          ['S01E01.txt', 'S01E02.txt']
+        )
+
+        const partialCollection = await partialLeecher.getCollection(
+          publishResult.cid
+        )
+        assert.strictEqual(
+          partialCollection.files.find(file => file.path === 'S01E01.txt')
+            .localAvailable,
+          false
+        )
+        assert.strictEqual(
+          partialCollection.files.find(file => file.path === 'S01E02.txt')
+            .localAvailable,
+          true
+        )
+
+        const fullCollection = await fullLeecher.getCollection(publishResult.cid)
+        assert.ok(
+          fullCollection.files.every(file => file.localAvailable === true)
+        )
+      } finally {
+        for (const link of links) link.close()
+        await Promise.allSettled(engines.map(nextEngine => nextEngine.stop()))
+        fs.rmSync(relayTmpDir, { recursive: true, force: true })
+      }
+    })
+  })
+
   describe('listPublishedFiles()', () => {
     it('returns empty array initially', () => {
       const files = engine.listPublishedFiles()
@@ -891,10 +1402,119 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         )
         assert.strictEqual(missing.joined, false)
         assert.match(missing.seedError, /Local CID content missing/)
+        const listed = missingEngine
+          .listPublishedFiles()
+          .find(file => file.cid === cidString)
+        assert.ok(listed)
+        assert.strictEqual(listed.localAvailable, false)
+        assert.strictEqual(listed.seedStatus, 'error')
       } finally {
         if (setupEngine) await setupEngine.stop().catch(() => {})
         if (missingEngine) await missingEngine.stop().catch(() => {})
         fs.rmSync(missingTmpDir, { recursive: true, force: true })
+      }
+    })
+
+    it('does not report queued holdings as locally available before resume verifies them', async () => {
+      const queuedTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-queued-holding-')
+      )
+      const dataPath = path.join(queuedTmpDir, 'data')
+      let firstEngine
+      let secondEngine
+      const originalEntry = Hyperdrive.prototype.entry
+
+      try {
+        firstEngine = new MostBoxEngine({ dataPath })
+        await firstEngine.start()
+        const published = await firstEngine.publishFile(
+          Buffer.from('queued local availability'),
+          'queued.txt'
+        )
+        await firstEngine.stop()
+        firstEngine = null
+
+        Hyperdrive.prototype.entry = async function delayedEntry(...args) {
+          if (String(args[0] || '') === `/${published.cid}`) {
+            await sleep(200)
+          }
+          return originalEntry.apply(this, args)
+        }
+
+        secondEngine = new MostBoxEngine({ dataPath })
+        await secondEngine.start()
+        const listed = secondEngine
+          .listPublishedFiles()
+          .find(file => file.cid === published.cid)
+
+        assert.ok(listed)
+        assert.strictEqual(listed.seedStatus, 'queued')
+        assert.strictEqual(listed.localAvailable, false)
+      } finally {
+        Hyperdrive.prototype.entry = originalEntry
+        if (firstEngine) await firstEngine.stop().catch(() => {})
+        if (secondEngine) await secondEngine.stop().catch(() => {})
+        fs.rmSync(queuedTmpDir, { recursive: true, force: true })
+      }
+    })
+
+    it('checks remote availability before pulling an imported metadata-only file', async () => {
+      const cacheTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-cache-check-')
+      )
+      const sourcePath = path.join(cacheTmpDir, 'source')
+      const targetPath = path.join(cacheTmpDir, 'target')
+      const cacheOwner = '0x3535353535353535353535353535353535353535'
+      let sourceEngine
+      let targetEngine
+
+      try {
+        sourceEngine = new MostBoxEngine({
+          dataPath: sourcePath,
+          disableNetwork: true,
+        })
+        targetEngine = new MostBoxEngine({
+          dataPath: targetPath,
+          disableNetwork: true,
+        })
+        await sourceEngine.start()
+        await targetEngine.start()
+
+        const published = await sourceEngine.publishFile(
+          Buffer.from('cache check content'),
+          'cache-check.txt',
+          { ownerAddress: cacheOwner }
+        )
+        await targetEngine.importUserData(
+          cacheOwner,
+          sourceEngine.exportUserData(cacheOwner)
+        )
+
+        let checked = false
+        let pulled = false
+        targetEngine.checkDownloadAvailability = async link => {
+          checked = true
+          assert.match(link, new RegExp(`^most://${published.cid}`))
+          throw new Error('checked first')
+        }
+        targetEngine.pullByCid = async () => {
+          pulled = true
+          return { success: true }
+        }
+
+        await assert.rejects(
+          targetEngine.cacheFile(published.cid, {
+            ownerAddress: cacheOwner,
+            timeout: 123,
+          }),
+          /checked first/
+        )
+        assert.strictEqual(checked, true)
+        assert.strictEqual(pulled, false)
+      } finally {
+        if (sourceEngine) await sourceEngine.stop().catch(() => {})
+        if (targetEngine) await targetEngine.stop().catch(() => {})
+        fs.rmSync(cacheTmpDir, { recursive: true, force: true })
       }
     })
 

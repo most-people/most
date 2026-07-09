@@ -47,11 +47,19 @@ import { useI18n } from '~/lib/i18n'
 import { getLocalizedDownloadLinkValidationMessage } from '~/lib/i18n/downloadValidation'
 import { saveFileToLocal } from '~/lib/saveLocalFile'
 import { buildCidShareLink, buildMostShareLink } from '~/lib/shareLink'
+import { getFolderShareState } from '~/lib/folderShare'
 
 type DownloadCheckResult = {
   status: 'success' | 'error'
   link: string
   message: string
+  kind?: 'file' | 'collection'
+  files?: Array<{
+    path: string
+    cid: string
+    size: number
+    localAvailable?: boolean
+  }>
 }
 
 function parseName(fullPath) {
@@ -122,6 +130,9 @@ export default function App() {
   const [downloadLink, setDownloadLink] = useState('')
   const [downloadCheckResult, setDownloadCheckResult] =
     useState<DownloadCheckResult | null>(null)
+  const [selectedCollectionPaths, setSelectedCollectionPaths] = useState<
+    string[]
+  >([])
   const [isCheckingDownload, setIsCheckingDownload] = useState(false)
   const [transfers, setTransfers] = useState([])
   const [isTransferPanelOpen, transferPanel] = useDisclosure(false)
@@ -171,7 +182,26 @@ export default function App() {
     }
     try {
       const result = await fileApi.listPublishedFiles()
-      setItems(result || [])
+      const filesWithCollections = await Promise.all(
+        (result || []).map(async file => {
+          if (file.kind !== 'collection') return file
+          try {
+            const collection = await fileApi.getCollection(file.cid)
+            const collectionFiles = collection.files || []
+            return {
+              ...file,
+              fileCount: file.fileCount || collectionFiles.length,
+              size: file.size ?? collection.size,
+              downloadedCount: collectionFiles.filter(
+                item => item.localAvailable === true
+              ).length,
+            }
+          } catch {
+            return file
+          }
+        })
+      )
+      setItems(filesWithCollections)
     } catch {
       setItems([])
     }
@@ -353,8 +383,7 @@ export default function App() {
     const newTransfers = []
     const publishPolicy = await fileApi.getNodePolicy().catch(() => null)
 
-    const selectedFiles = Array.from(files)
-    for (const file of selectedFiles) {
+    for (const file of Array.from(files)) {
       const fileName = prefix + file.name
 
       const limitMessage = getPublishFileLimitViolation(file, publishPolicy, t)
@@ -430,6 +459,28 @@ export default function App() {
     refreshFiles()
   }
 
+  const handleShareFolder = async (folder: { path: string }) => {
+    if (!requireLogin()) return
+    if (!requireBackendReady()) return
+    const shareState = getFolderShareState(items, folder.path)
+    if (!shareState.canShare) {
+      addToast(
+        shareState.reason === 'missingLocalFiles'
+          ? t('app.folderShareRequiresLocalFiles')
+          : t('app.folderShareEmpty'),
+        'warning'
+      )
+      return
+    }
+    try {
+      const shareResult = await fileApi.shareFolder(folder.path)
+      setShareItem(shareResult)
+      refreshFiles()
+    } catch (err) {
+      addToast(await getApiErrorMessage(err, t('app.toast.actionFailed')), 'error')
+    }
+  }
+
   const mostShareLink = shareItem
     ? buildMostShareLink(shareItem.cid, shareItem.fileName)
     : ''
@@ -452,15 +503,22 @@ export default function App() {
   const isDownloadReady =
     downloadCheckResult?.status === 'success' &&
     downloadCheckResult.link === normalizedDownloadLink
+  const isCollectionDownload =
+    isDownloadReady && downloadCheckResult?.kind === 'collection'
+  const canStartDownload =
+    isDownloadReady &&
+    (!isCollectionDownload || selectedCollectionPaths.length > 0)
 
   const closeDownloadModal = () => {
     downloadModal.close()
     setDownloadCheckResult(null)
+    setSelectedCollectionPaths([])
   }
 
   const handleDownloadLinkChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setDownloadLink(e.target.value)
     setDownloadCheckResult(null)
+    setSelectedCollectionPaths([])
   }
 
   const handleCheckDownloadAvailability = async () => {
@@ -493,7 +551,19 @@ export default function App() {
         status: 'success',
         link: normalizedDownloadLink,
         message,
+        kind: result.kind,
+        files: result.files,
       })
+      if (result.kind === 'collection' && result.files?.length) {
+        const missingPaths = result.files
+          .filter(file => file.localAvailable !== true)
+          .map(file => file.path)
+        setSelectedCollectionPaths(
+          missingPaths.length > 0
+            ? missingPaths
+            : result.files.map(file => file.path)
+        )
+      }
       addToast(
         result.alreadyExists
           ? t('app.fileAlreadyExists', { fileName: result.fileName })
@@ -532,16 +602,28 @@ export default function App() {
       addToast(t('app.toast.checkLinkFirst'), 'warning')
       return
     }
+    if (isCollectionDownload && selectedCollectionPaths.length === 0) return
     if (isDownloading) return
     setIsDownloading(true)
     try {
-      const result = await fileApi.downloadFile(normalizedDownloadLink)
+      const result = await fileApi.downloadFile(
+        normalizedDownloadLink,
+        isCollectionDownload ? selectedCollectionPaths : undefined
+      )
       setDownloadLink('')
       setDownloadCheckResult(null)
       closeDownloadModal()
 
       if (result.alreadyExists) {
         addToast(t('app.fileAlreadyExists', { fileName: result.fileName }), 'warning')
+      } else if (result.kind === 'collection') {
+        refreshFiles()
+        addToast(
+          t('app.fileDownloadCompleted', {
+            fileName: result.fileName || t('app.downloadFallbackName'),
+          }),
+          'success'
+        )
       } else if (result.localAvailable) {
         refreshFiles()
       } else {
@@ -616,13 +698,21 @@ export default function App() {
   const handleCacheFile = async file => {
     if (!requireLogin()) return
     if (!requireBackendReady()) return
+    const link = buildMostShareLink(file.cid, file.fileName)
+    let checked = false
     try {
+      addToast(t('common.status.checking'), 'info')
+      await fileApi.checkDownload(link)
+      checked = true
       addToast(t('app.toast.startPullLocal'), 'info')
       await fileApi.cacheFile(file.cid)
       addToast(t('app.toast.pulledAndSeeding'), 'success')
       refreshFiles()
     } catch (err) {
-      addToast(await getApiErrorMessage(err, t('app.toast.pullFailed')), 'error')
+      const message = checked
+        ? await getApiErrorMessage(err, t('app.toast.pullFailed'))
+        : await getDownloadCheckErrorMessage(err)
+      addToast(message, 'error')
     }
   }
 
@@ -695,11 +785,15 @@ export default function App() {
             )
           }
           if (event === 'download:progress') {
+            if (data.collection === true) {
+              refreshFiles()
+            }
             setTransfers(prev =>
               prev.map(t =>
                 t.id === data.taskId
                   ? {
                       ...t,
+                      fileName: data.file || t.fileName,
                       progress: data.percent || 0,
                       loaded: data.loaded,
                       total: data.total,
@@ -1014,6 +1108,8 @@ export default function App() {
                   key={folder.path}
                   folder={folder}
                   onClick={() => handleNavigate(folder.path)}
+                  onShare={() => void handleShareFolder(folder)}
+                  shareLabel={t('app.share')}
                 />
               ))}
               {displayFiles.map(f => (
@@ -1022,6 +1118,8 @@ export default function App() {
                   file={f}
                   isSelected={selectedIds.includes(f.cid)}
                   onSelect={handleSelect}
+                  onShare={file => setShareItem(file)}
+                  shareLabel={t('app.share')}
                   onPreview={file => {
                     if (file.localAvailable === false) {
                       addToast(t('app.toast.fileNotLocal'), 'warning')
@@ -1184,9 +1282,42 @@ export default function App() {
                 <span>{downloadCheckResult.message}</span>
               </div>
             )}
+            {downloadCheckResult?.kind === 'collection' &&
+              downloadCheckResult.files?.length > 0 && (
+                <div className="collection-download-list">
+                  {downloadCheckResult.files.map(file => {
+                    const checked = selectedCollectionPaths.includes(file.path)
+                    return (
+                      <label
+                        key={file.path}
+                        className="collection-download-item"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            setSelectedCollectionPaths(prev =>
+                              checked
+                                ? prev.filter(path => path !== file.path)
+                                : [...prev, file.path]
+                            )
+                          }}
+                        />
+                        <span className="collection-download-name" translate="no">
+                          {file.path}
+                        </span>
+                        <span className="collection-download-size">
+                          {formatBytes(file.size)}
+                        </span>
+                        {file.localAvailable === true && <Check size={14} />}
+                      </label>
+                    )
+                  })}
+                </div>
+              )}
             <button
               onClick={handleDownloadSharedFile}
-              disabled={!isDownloadReady || isDownloading || isCheckingDownload}
+              disabled={!canStartDownload || isDownloading || isCheckingDownload}
               className="btn btn-info btn-full"
             >
               {isDownloading ? (

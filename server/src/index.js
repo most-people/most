@@ -13,12 +13,19 @@ import Hyperswarm from 'hyperswarm'
 import Corestore from 'corestore'
 import Hyperdrive from 'hyperdrive'
 import b4a from 'b4a'
+import * as dagPb from '@ipld/dag-pb'
+import { UnixFS } from 'ipfs-unixfs'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { Duplex } from 'node:stream'
 
-import { calculateCid, parseMostLink, buildMostLink } from './core/cid.js'
+import {
+  calculateCid,
+  calculateDirectoryCid,
+  parseMostLink,
+  buildMostLink,
+} from './core/cid.js'
 import { normalizeChannelAttachment } from './core/channelAttachment.js'
 import { normalizeChannelVoiceEvent } from './core/channelVoice.js'
 import { getCidInfo } from './core/cidTopic.js'
@@ -628,6 +635,7 @@ export class MostBoxEngine extends EventEmitter {
   async publishFile(content, fileName, options = {}) {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    const addToLibrary = options.addToLibrary !== false
 
     let cleanPath = null
     let safeFileName
@@ -677,7 +685,9 @@ export class MostBoxEngine extends EventEmitter {
     const { cid: rootCid } = await calculateCid(content)
     const cidString = rootCid.toString()
     const { driveName: name } = this.#getCidInfo(cidString)
-    const publishedBucket = this.#getPublishedBucket(ownerAddress, true)
+    const publishedBucket = addToLibrary
+      ? this.#getPublishedBucket(ownerAddress, true)
+      : []
     // 检查相同内容是否已存在
     const existingIndex = publishedBucket.findIndex(f => f.cid === cidString)
     const repairingMissingContent = existingIndex !== -1
@@ -709,10 +719,12 @@ export class MostBoxEngine extends EventEmitter {
       }
     }
 
-    this.#assertDisplayNameAvailable(safeFileName, {
-      ownerAddress,
-      excludeCid: repairingMissingContent ? cidString : undefined,
-    })
+    if (addToLibrary) {
+      this.#assertDisplayNameAvailable(safeFileName, {
+        ownerAddress,
+        excludeCid: repairingMissingContent ? cidString : undefined,
+      })
+    }
 
     // 获取或创建该 CID 对应的 drive
     let drive = this.#drives.get(name)
@@ -757,12 +769,14 @@ export class MostBoxEngine extends EventEmitter {
       starred: false,
       syncUpdatedAt: now,
     }
-    if (repairingMissingContent) {
-      publishedBucket[existingIndex] = fileRecord
-    } else {
-      publishedBucket.push(fileRecord)
+    if (addToLibrary) {
+      if (repairingMissingContent) {
+        publishedBucket[existingIndex] = fileRecord
+      } else {
+        publishedBucket.push(fileRecord)
+      }
+      this.#savePublishedMetadata()
     }
-    this.#savePublishedMetadata()
     this.#upsertHolding({
       cid: cidString,
       fileName: safeFileName,
@@ -781,6 +795,195 @@ export class MostBoxEngine extends EventEmitter {
     return result
   }
 
+  async shareFolder(folderPath, options = {}) {
+    this.#ensureInitialized()
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    const safeFolderPath = sanitizeFilename(folderPath || '')
+    if (!safeFolderPath) {
+      throw new ValidationError('folder path is required')
+    }
+
+    const prefix = `${safeFolderPath}/`
+    const folderRecords = this.#getPublishedBucket(ownerAddress)
+      .filter(file => {
+        if ((file.kind || 'file') === 'collection') return false
+        const safeFileName = sanitizeFilename(file.fileName || '')
+        return (
+          safeFileName.startsWith(prefix) &&
+          safeFileName.slice(prefix.length).length > 0
+        )
+      })
+      .sort((left, right) =>
+        sanitizeFilename(left.fileName || '').localeCompare(
+          sanitizeFilename(right.fileName || '')
+        )
+      )
+
+    if (folderRecords.length === 0) {
+      throw new ValidationError('folder has no files')
+    }
+
+    const files = []
+    for (const file of folderRecords) {
+      const safeFileName = sanitizeFilename(file.fileName || '')
+      const relativePath = safeFileName.slice(prefix.length)
+      let raw
+      try {
+        raw = await this.readFileRaw(file.cid, { ownerAddress })
+      } catch {
+        throw new ValidationError(
+          `Folder file is not locally available: ${safeFileName}`
+        )
+      }
+      files.push({
+        path: `${safeFolderPath}/${relativePath}`,
+        content: raw.buffer,
+      })
+    }
+
+    return this.publishCollection(files, safeFolderPath, {
+      ownerAddress,
+      addToLibrary: false,
+      seedChildFiles: false,
+    })
+  }
+
+  async publishCollection(files, collectionName, options = {}) {
+    this.#ensureInitialized()
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    const addToLibrary = options.addToLibrary !== false
+    const seedChildFiles = options.seedChildFiles !== false
+    if (!Array.isArray(files) || files.length === 0) {
+      throw new ValidationError('collection files are required')
+    }
+
+    const directory = await calculateDirectoryCid(files)
+    const cidString = directory.cid.toString()
+    const safeCollectionName = sanitizeFilename(
+      collectionName || directory.rootPath || cidString
+    )
+    const { driveName: name } = this.#getCidInfo(cidString)
+    const publishedBucket = addToLibrary
+      ? this.#getPublishedBucket(ownerAddress, true)
+      : []
+    const existingIndex = publishedBucket.findIndex(f => f.cid === cidString)
+    const repairingMissingContent = existingIndex !== -1
+
+    if (existingIndex !== -1) {
+      const existingContent = await this.#getLocalCidContent(cidString, {
+        ownerAddress,
+        public: true,
+        allowHoldingFallback: true,
+      })
+      if (existingContent) {
+        await this.#joinCidTopicInternal(cidString, {
+          server: true,
+          client: false,
+        })
+        this.#upsertHolding({
+          cid: cidString,
+          fileName: publishedBucket[existingIndex].fileName,
+          kind: 'collection',
+          size: 0,
+          driveName: name,
+          source: 'published',
+        })
+        return {
+          kind: 'collection',
+          cid: cidString,
+          link: buildMostLink(cidString, publishedBucket[existingIndex].fileName),
+          fileName: publishedBucket[existingIndex].fileName,
+          size: directory.totalSize,
+          fileCount: directory.files.length,
+          files: directory.files,
+          alreadyExists: true,
+        }
+      }
+    }
+
+    if (addToLibrary) {
+      this.#assertDisplayNameAvailable(safeCollectionName, {
+        ownerAddress,
+        excludeCid: repairingMissingContent ? cidString : undefined,
+      })
+    }
+
+    const rootPath = directory.rootPath || ''
+    if (seedChildFiles) {
+      for (const file of files) {
+        const rawPath = String(file?.path || '').replace(/\\/g, '/')
+        const childPath =
+          rootPath && rawPath.startsWith(`${rootPath}/`)
+            ? rawPath.slice(rootPath.length + 1)
+            : rawPath
+        await this.publishFile(file.content, childPath, {
+          ownerAddress,
+          addToLibrary: false,
+        })
+      }
+    }
+
+    let drive = this.#drives.get(name)
+    if (!drive) {
+      drive = await this.#getOrCreateDrive(name, {
+        server: true,
+        client: false,
+      })
+    }
+    await this.#joinCidTopicInternal(cidString, {
+      server: true,
+      client: false,
+    })
+
+    for (const [blockCid, block] of directory.blocks.entries()) {
+      const driveKey = blockCid === cidString ? `/${blockCid}` : `/.unixfs/${blockCid}`
+      await this.#writeDriveFile(drive, driveKey, block)
+    }
+
+    const now = Date.now()
+    const fileRecord = {
+      kind: 'collection',
+      fileName: safeCollectionName,
+      cid: cidString,
+      driveName: name,
+      size: directory.totalSize,
+      fileCount: directory.files.length,
+      source: 'published',
+      publishedAt: new Date(now).toISOString(),
+      starred: false,
+      syncUpdatedAt: now,
+    }
+    if (addToLibrary) {
+      if (repairingMissingContent) {
+        publishedBucket[existingIndex] = fileRecord
+      } else {
+        publishedBucket.push(fileRecord)
+      }
+      this.#savePublishedMetadata()
+    }
+    this.#upsertHolding({
+      cid: cidString,
+      fileName: safeCollectionName,
+      kind: 'collection',
+      size: 0,
+      driveName: name,
+      source: 'published',
+    })
+
+    const result = {
+      kind: 'collection',
+      cid: cidString,
+      link: buildMostLink(cidString, safeCollectionName),
+      fileName: safeCollectionName,
+      size: directory.totalSize,
+      fileCount: directory.files.length,
+      files: directory.files,
+    }
+
+    this.emit('publish:success', result)
+    return result
+  }
+
   /**
    * 从 P2P 网络下载文件
    * @param {string} link - most:// 链接
@@ -793,6 +996,7 @@ export class MostBoxEngine extends EventEmitter {
   async downloadFile(link, taskId = null, options = {}) {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    const addToLibrary = options.addToLibrary !== false
 
     taskId =
       taskId || `dl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
@@ -826,6 +1030,36 @@ export class MostBoxEngine extends EventEmitter {
         allowHoldingFallback: true,
       })
       if (localContent) {
+        const localCollection = await this.#tryReadCollectionFromDrive(
+          cidString,
+          localContent.drive,
+          linkFileName
+        )
+        if (localCollection) {
+          if (
+            this.#isCollectionPublishedInOwnerLibrary(
+              localCollection,
+              ownerAddress
+            )
+          ) {
+            return {
+              kind: 'collection',
+              taskId,
+              cid: localCollection.cid,
+              fileName: localCollection.fileName,
+              fileCount: localCollection.fileCount,
+              files: localCollection.files,
+              localAvailable: true,
+              alreadyExists: true,
+            }
+          }
+          return this.#downloadCollectionFiles(localCollection, taskId, {
+            ...options,
+            ownerAddress,
+            fileName: linkFileName,
+          })
+        }
+
         const existingFile = localContent.fileRecord
         const publishedBucket = this.#getPublishedBucket(ownerAddress, true)
         const existingIndex = publishedBucket.findIndex(
@@ -841,7 +1075,7 @@ export class MostBoxEngine extends EventEmitter {
         const localSize =
           Number(existingHolding?.size) ||
           (Number.isFinite(localContent.size) ? localContent.size : 0)
-        if (!alreadyInOwnerLibrary) {
+        if (addToLibrary && !alreadyInOwnerLibrary) {
           this.#assertDisplayNameAvailable(linkFileName, {
             ownerAddress,
             excludeCid: cidString,
@@ -884,10 +1118,12 @@ export class MostBoxEngine extends EventEmitter {
         }
       }
 
-      this.#assertDisplayNameAvailable(linkFileName, {
-        ownerAddress,
-        excludeCid: cidString,
-      })
+      if (addToLibrary) {
+        this.#assertDisplayNameAvailable(linkFileName, {
+          ownerAddress,
+          excludeCid: cidString,
+        })
+      }
 
       if (taskState.aborted) throw new Error('Download cancelled')
 
@@ -953,6 +1189,19 @@ export class MostBoxEngine extends EventEmitter {
       console.log(
         `[MostBox] Found expected entry ${driveKey}, starting download...`
       )
+
+      const remoteCollection = await this.#tryReadCollectionFromDrive(
+        cidString,
+        drive,
+        linkFileName
+      )
+      if (remoteCollection) {
+        return this.#downloadCollectionFiles(remoteCollection, taskId, {
+          ...options,
+          ownerAddress,
+          fileName: linkFileName,
+        })
+      }
 
       const targetDir = this.#options.downloadPath
 
@@ -1131,40 +1380,46 @@ export class MostBoxEngine extends EventEmitter {
           savedPath: savePath,
         }
 
-        const publishedBucket = this.#getPublishedBucket(ownerAddress, true)
+        const publishedBucket = addToLibrary
+          ? this.#getPublishedBucket(ownerAddress, true)
+          : []
         const existingIndex = publishedBucket.findIndex(
           f => f.cid === cidString
         )
-        this.#assertDisplayNameAvailable(sanitizedFileName, {
-          ownerAddress,
-          excludeCid: cidString,
-        })
+        if (addToLibrary) {
+          this.#assertDisplayNameAvailable(sanitizedFileName, {
+            ownerAddress,
+            excludeCid: cidString,
+          })
+        }
         const savedSize = totalBytes || fs.statSync(savePath).size
         const syncUpdatedAt =
           existingIndex !== -1
             ? getNextSyncTimestamp(publishedBucket[existingIndex].syncUpdatedAt)
             : Date.now()
-        if (existingIndex !== -1) {
-          const existing = publishedBucket[existingIndex]
-          existing.fileName = sanitizedFileName
-          existing.driveName = name
-          existing.size = savedSize
-          existing.source = 'downloaded'
-          existing.publishedAt = new Date(syncUpdatedAt).toISOString()
-          existing.syncUpdatedAt = syncUpdatedAt
-        } else {
-          publishedBucket.push({
-            fileName: sanitizedFileName,
-            cid: cidString,
-            driveName: name,
-            size: savedSize,
-            source: 'downloaded',
-            publishedAt: new Date(syncUpdatedAt).toISOString(),
-            starred: false,
-            syncUpdatedAt,
-          })
+        if (addToLibrary) {
+          if (existingIndex !== -1) {
+            const existing = publishedBucket[existingIndex]
+            existing.fileName = sanitizedFileName
+            existing.driveName = name
+            existing.size = savedSize
+            existing.source = 'downloaded'
+            existing.publishedAt = new Date(syncUpdatedAt).toISOString()
+            existing.syncUpdatedAt = syncUpdatedAt
+          } else {
+            publishedBucket.push({
+              fileName: sanitizedFileName,
+              cid: cidString,
+              driveName: name,
+              size: savedSize,
+              source: 'downloaded',
+              publishedAt: new Date(syncUpdatedAt).toISOString(),
+              starred: false,
+              syncUpdatedAt,
+            })
+          }
+          this.#savePublishedMetadata()
         }
-        this.#savePublishedMetadata()
         this.#upsertHolding({
           cid: cidString,
           fileName: sanitizedFileName,
@@ -1173,7 +1428,9 @@ export class MostBoxEngine extends EventEmitter {
           source: 'downloaded',
         })
 
-        this.emit('download:success', result)
+        if (!options.suppressSuccessEvent) {
+          this.emit('download:success', result)
+        }
         return result
       }
     } finally {
@@ -1205,6 +1462,23 @@ export class MostBoxEngine extends EventEmitter {
       return null
     }
 
+    const collection = await this.#tryReadCollectionFromDrive(
+      parsed.cid,
+      localContent.drive,
+      sanitizeFilename(parsed.fileName)
+    )
+    if (collection) {
+      return {
+        available: true,
+        ...this.#withCollectionFileStates(collection),
+        localAvailable: true,
+        alreadyExists: this.#isCollectionPublishedInOwnerLibrary(
+          collection,
+          ownerAddress
+        ),
+      }
+    }
+
     return {
       available: true,
       cid: parsed.cid,
@@ -1215,6 +1489,26 @@ export class MostBoxEngine extends EventEmitter {
         f => f.cid === parsed.cid
       ),
     }
+  }
+
+  async getCollection(cid, options = {}) {
+    this.#ensureInitialized()
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    const localContent = await this.#getLocalCidContent(cid, {
+      ownerAddress,
+      public: true,
+      allowHoldingFallback: true,
+    })
+    if (!localContent) {
+      throw new Error('Collection not found')
+    }
+
+    const collection = await this.#readCollectionFromDrive(
+      cid,
+      localContent.drive,
+      localContent.fileRecord?.fileName || cid
+    )
+    return this.#withCollectionFileStates(collection)
   }
 
   /**
@@ -1246,6 +1540,23 @@ export class MostBoxEngine extends EventEmitter {
       allowHoldingFallback: true,
     })
     if (localContent) {
+      const collection = await this.#tryReadCollectionFromDrive(
+        cidString,
+        localContent.drive,
+        sanitizeFilename(parsed.fileName)
+      )
+      if (collection) {
+        return {
+          available: true,
+          ...this.#withCollectionFileStates(collection),
+          localAvailable: true,
+          alreadyExists: this.#isCollectionPublishedInOwnerLibrary(
+            collection,
+            ownerAddress
+          ),
+        }
+      }
+
       return {
         available: true,
         cid: cidString,
@@ -1288,6 +1599,22 @@ export class MostBoxEngine extends EventEmitter {
       )
     }
 
+    const collection = await this.#tryReadCollectionFromDrive(
+      cidString,
+      drive,
+      sanitizeFilename(parsed.fileName)
+    )
+    if (collection) {
+      return {
+        available: true,
+        ...this.#withCollectionFileStates(collection),
+        alreadyExists: this.#isCollectionPublishedInOwnerLibrary(
+          collection,
+          ownerAddress
+        ),
+      }
+    }
+
     let size = null
     try {
       const stat = await drive.entry(entry.key)
@@ -1319,20 +1646,26 @@ export class MostBoxEngine extends EventEmitter {
       files = files.filter(f => f.starred === true)
     }
 
-    return files.map(f => ({
-      fileName: f.fileName,
-      cid: f.cid,
-      link: buildMostLink(f.cid, f.fileName),
-      publishedAt: f.publishedAt,
-      size: Number(f.size) || 0,
-      starred: f.starred || false,
-      ownerAddress: ownerAddress || '',
-      localAvailable: this.#holdings.some(holding => holding.cid === f.cid),
-      seedStatus: this.#seedStates.get(f.cid)?.status || '',
-      holdingSize:
-        Number(this.#holdings.find(holding => holding.cid === f.cid)?.size) ||
-        0,
-    }))
+    return files.map(f => {
+      const holding = this.#holdings.find(item => item.cid === f.cid)
+      const seedState = this.#seedStates.get(f.cid)
+      const seedStatus = seedState?.status || ''
+      return {
+        kind: f.kind || 'file',
+        fileName: f.fileName,
+        cid: f.cid,
+        link: buildMostLink(f.cid, f.fileName),
+        publishedAt: f.publishedAt,
+        size: Number(f.size) || 0,
+        fileCount: Number(f.fileCount) || undefined,
+        starred: f.starred || false,
+        ownerAddress: ownerAddress || '',
+        localAvailable: this.#isLocalHoldingAvailable(f.cid),
+        seedStatus,
+        seedError: seedState?.error,
+        holdingSize: Number(holding?.size) || 0,
+      }
+    })
   }
 
   /**
@@ -1411,21 +1744,25 @@ export class MostBoxEngine extends EventEmitter {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
     const files = this.#getTrashBucket(ownerAddress)
-    return files.map(f => ({
-      fileName: f.fileName,
-      cid: f.cid,
-      link: buildMostLink(f.cid, f.fileName),
-      publishedAt: f.publishedAt,
-      size: Number(f.size) || 0,
-      starred: f.starred || false,
-      ownerAddress: ownerAddress || '',
-      deletedAt: f.deletedAt,
-      localAvailable: this.#holdings.some(holding => holding.cid === f.cid),
-      seedStatus: this.#seedStates.get(f.cid)?.status || '',
-      holdingSize:
-        Number(this.#holdings.find(holding => holding.cid === f.cid)?.size) ||
-        0,
-    }))
+    return files.map(f => {
+      const holding = this.#holdings.find(item => item.cid === f.cid)
+      const seedState = this.#seedStates.get(f.cid)
+      const seedStatus = seedState?.status || ''
+      return {
+        fileName: f.fileName,
+        cid: f.cid,
+        link: buildMostLink(f.cid, f.fileName),
+        publishedAt: f.publishedAt,
+        size: Number(f.size) || 0,
+        starred: f.starred || false,
+        ownerAddress: ownerAddress || '',
+        deletedAt: f.deletedAt,
+        localAvailable: this.#isLocalHoldingAvailable(f.cid),
+        seedStatus,
+        seedError: seedState?.error,
+        holdingSize: Number(holding?.size) || 0,
+      }
+    })
   }
 
   /**
@@ -1723,11 +2060,19 @@ export class MostBoxEngine extends EventEmitter {
     }
   }
 
-  hasDownloadNameConflict(fileName) {
+  hasDownloadNameConflict(fileName, options = {}) {
     this.#ensureInitialized()
     const sanitizedFileName = sanitizeFilename(fileName)
     const savePath = path.join(this.#options.downloadPath, sanitizedFileName)
-    return fs.existsSync(savePath)
+    if (!fs.existsSync(savePath)) return false
+    if (options.allowDirectory === true) {
+      try {
+        return !fs.statSync(savePath).isDirectory()
+      } catch {
+        return true
+      }
+    }
+    return true
   }
 
   setMaxFileSize(maxFileSize) {
@@ -2117,6 +2462,11 @@ export class MostBoxEngine extends EventEmitter {
     if (!fileRecord) {
       throw new Error('File not found')
     }
+    const link = buildMostLink(cid, fileRecord.fileName)
+    await this.checkDownloadAvailability(link, {
+      ownerAddress,
+      timeout: options.timeout,
+    })
     const result = await this.pullByCid({
       cid,
       fileName: fileRecord.fileName,
@@ -2255,6 +2605,262 @@ export class MostBoxEngine extends EventEmitter {
 
     const buffer = Buffer.concat(chunks)
     return { buffer, fileName: fileRecord.fileName, totalSize }
+  }
+
+  async #readDriveEntryBuffer(drive, driveKey, timeout = STREAM_READ_TIMEOUT) {
+    const chunks = []
+    const stream = drive.createReadStream(driveKey)
+
+    let timer = null
+    const timeoutPromise = new Promise((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error('Stream read timeout')),
+        timeout
+      )
+    })
+
+    const readPromise = (async () => {
+      for await (const chunk of stream) {
+        chunks.push(chunk)
+      }
+    })()
+
+    try {
+      await Promise.race([readPromise, timeoutPromise])
+      await readPromise
+      return Buffer.concat(chunks)
+    } finally {
+      if (timer) clearTimeout(timer)
+      stream.destroy()
+    }
+  }
+
+  async #readUnixfsBlock(drive, cid, rootCid) {
+    const driveKey = cid === rootCid ? `/${cid}` : `/.unixfs/${cid}`
+    const entry = await this.#waitForDriveEntry(
+      drive,
+      driveKey,
+      STREAM_READ_TIMEOUT
+    )
+    if (!entry) {
+      throw new Error(`UnixFS block not found: ${cid}`)
+    }
+    const block = await this.#readDriveEntryBuffer(drive, driveKey)
+    const node = dagPb.decode(block)
+    const unixfs = UnixFS.unmarshal(node.Data)
+    return { node, unixfs }
+  }
+
+  async #readCollectionFromDrive(rootCid, drive, fileName) {
+    const root = await this.#readUnixfsBlock(drive, rootCid, rootCid)
+    if (!root.unixfs.isDirectory()) {
+      throw new Error('CID is not a UnixFS directory')
+    }
+
+    const files = []
+    await this.#collectUnixfsDirectoryFiles(
+      drive,
+      root.node,
+      '',
+      files,
+      rootCid
+    )
+
+    return {
+      kind: 'collection',
+      cid: rootCid,
+      fileName,
+      fileCount: files.length,
+      size: files.reduce((sum, file) => sum + file.size, 0),
+      files,
+    }
+  }
+
+  async #tryReadCollectionFromDrive(rootCid, drive, fileName) {
+    try {
+      return await this.#readCollectionFromDrive(rootCid, drive, fileName)
+    } catch {
+      return null
+    }
+  }
+
+  async #downloadCollectionFiles(collection, taskId, options = {}) {
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    const collectionName = sanitizeFilename(options.fileName || collection.fileName)
+    const selectedPaths = Array.isArray(options.selectedPaths)
+      ? options.selectedPaths.map(item => String(item || '').replace(/\\/g, '/'))
+      : []
+    const selectedSet = new Set(selectedPaths)
+    const files =
+      selectedSet.size === 0
+        ? collection.files
+        : collection.files.filter(file => selectedSet.has(file.path))
+
+    if (selectedSet.size > 0 && files.length !== selectedSet.size) {
+      throw new ValidationError('selectedPaths contains unknown collection files')
+    }
+
+    const { driveName } = this.#getCidInfo(collection.cid)
+    const childTargets = files.map(file => {
+      const fileName = sanitizeFilename(`${collectionName}/${file.path}`)
+      return { file, fileName }
+    })
+
+    for (const target of childTargets) {
+      this.#assertDisplayNameAvailable(target.fileName, {
+        ownerAddress,
+        excludeCid: target.file.cid,
+      })
+    }
+
+    const downloadedFiles = []
+    for (let index = 0; index < childTargets.length; index += 1) {
+      const { file, fileName } = childTargets[index]
+      const childResult = await this.downloadFile(
+        buildMostLink(file.cid, fileName),
+        `${taskId}_${index}`,
+        {
+          timeout: options.timeout,
+          streamReadTimeout: options.streamReadTimeout,
+          ownerAddress,
+          addToLibrary: true,
+          suppressSuccessEvent: true,
+        }
+      )
+      downloadedFiles.push({
+        ...file,
+        ...childResult,
+        path: file.path,
+        cid: file.cid,
+      })
+      const completedFiles = downloadedFiles.length
+      this.emit('download:progress', {
+        taskId,
+        collection: true,
+        file: fileName,
+        loaded: completedFiles,
+        total: files.length,
+        completedFiles,
+        totalFiles: files.length,
+        percent:
+          files.length > 0 ? Math.round((completedFiles / files.length) * 100) : 0,
+      })
+    }
+
+    await this.#joinCidTopicInternal(collection.cid, {
+      server: true,
+      client: false,
+    })
+    this.#upsertHolding({
+      cid: collection.cid,
+      fileName: collectionName,
+      kind: 'collection',
+      size: 0,
+      driveName,
+      source: 'downloaded',
+    })
+
+    const result = {
+      kind: 'collection',
+      taskId,
+      cid: collection.cid,
+      fileName: collectionName,
+      fileCount: collection.fileCount,
+      files: downloadedFiles,
+    }
+    this.emit('download:success', result)
+    return result
+  }
+
+  async #collectUnixfsDirectoryFiles(drive, directoryNode, prefix, files, rootCid) {
+    const links = [...(directoryNode.Links || [])].sort((left, right) =>
+      String(left.Name || '').localeCompare(String(right.Name || ''))
+    )
+
+    for (const link of links) {
+      const name = String(link.Name || '').trim()
+      if (!name) continue
+      const cid = link.Hash.toString()
+      const childPath = prefix ? `${prefix}/${name}` : name
+
+      if (link.Hash.code === 0x55) {
+        files.push({
+          path: childPath,
+          cid,
+          size: Number(link.Tsize) || 0,
+        })
+        continue
+      }
+
+      const child = await this.#readUnixfsBlock(drive, cid, rootCid)
+      if (child.unixfs.isDirectory()) {
+        await this.#collectUnixfsDirectoryFiles(
+          drive,
+          child.node,
+          childPath,
+          files,
+          rootCid
+        )
+      } else {
+        files.push({
+          path: childPath,
+          cid,
+          size:
+            Number(child.unixfs.fileSize?.()) ||
+            Number(link.Tsize) ||
+            0,
+        })
+      }
+    }
+  }
+
+  #withCollectionFileStates(collection) {
+    return {
+      ...collection,
+      files: collection.files.map(file => {
+        const seedState = this.#seedStates.get(file.cid)
+        const status =
+          seedState?.status ||
+          (this.#fileDiscoveries.has(file.cid) ? 'active' : '')
+        return {
+          ...file,
+          localAvailable: this.#isLocalHoldingAvailable(file.cid),
+          seedStatus: status,
+          seedError: seedState?.error,
+        }
+      }),
+    }
+  }
+
+  #isCollectionPublishedInOwnerLibrary(collection, ownerAddress) {
+    const files = Array.isArray(collection.files) ? collection.files : []
+    if (files.length === 0) return false
+
+    const collectionName = sanitizeFilename(collection.fileName || collection.cid)
+    const publishedBucket = this.#getPublishedBucket(ownerAddress)
+    return files.every(file => {
+      const fileName = sanitizeFilename(`${collectionName}/${file.path}`)
+      return (
+        this.#isLocalHoldingAvailable(file.cid) &&
+        publishedBucket.some(
+          record =>
+            record.cid === file.cid &&
+            sanitizeFilename(record.fileName) === fileName
+        )
+      )
+    })
+  }
+
+  #isLocalHoldingAvailable(cid) {
+    const holding = this.#holdings.find(item => item.cid === cid)
+    if (!holding) return false
+
+    const seedState = this.#seedStates.get(cid)
+    if (seedState?.status) {
+      return seedState.status === 'active'
+    }
+
+    return this.#fileDiscoveries.has(cid)
   }
 
   async #hasLocalDriveContent(drive, key) {
@@ -4206,7 +4812,7 @@ export class MostBoxEngine extends EventEmitter {
       throw new ValidationError('size must be a non-negative number')
     }
 
-    return {
+    const normalized = {
       cid,
       fileName: record.fileName || cid,
       size,
@@ -4214,6 +4820,10 @@ export class MostBoxEngine extends EventEmitter {
       driveName,
       source: record.source || 'manual',
     }
+    if (record.kind === 'collection') {
+      normalized.kind = 'collection'
+    }
+    return normalized
   }
 
   #upsertHolding(record) {
@@ -4627,7 +5237,10 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #getUsedBytes() {
-    return this.#holdings.reduce((sum, h) => sum + (h.size || 0), 0)
+    return this.#holdings.reduce(
+      (sum, h) => sum + (h.kind === 'collection' ? 0 : h.size || 0),
+      0
+    )
   }
 
   #checkCapacity(additionalBytes) {

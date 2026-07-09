@@ -1,7 +1,10 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert'
+import * as dagPb from '@ipld/dag-pb'
+import { UnixFS } from 'ipfs-unixfs'
 import {
   MOST_LINK_ERROR_CODES,
+  calculateDirectoryCid,
   validateCidString,
   parseMostLink,
   buildMostLink,
@@ -200,6 +203,77 @@ describe('buildMostLink', () => {
     assert.strictEqual(
       buildMostLink(VALID_CID, '测试 文件.txt'),
       `most://${VALID_CID}?filename=${encodeURIComponent('测试 文件.txt')}`
+    )
+  })
+})
+
+describe('calculateDirectoryCid', () => {
+  it('creates a standard UnixFS directory root with child file links', async () => {
+    const result = await calculateDirectoryCid([
+      { path: 'Show/S01E01.txt', content: Buffer.from('episode 1') },
+      { path: 'Show/S01E02.txt', content: Buffer.from('episode 2') },
+    ])
+
+    assert.strictEqual(result.rootPath, 'Show')
+    assert.strictEqual(result.cid.code, 0x70)
+    assert.strictEqual(result.files.length, 2)
+    assert.deepStrictEqual(
+      result.files.map(file => file.path),
+      ['S01E01.txt', 'S01E02.txt']
+    )
+
+    const rootBlock = result.blocks.get(result.cid.toString())
+    const rootNode = dagPb.decode(rootBlock)
+    const rootUnixfs = UnixFS.unmarshal(rootNode.Data)
+
+    assert.strictEqual(rootUnixfs.type, 'directory')
+    assert.strictEqual(rootUnixfs.isDirectory(), true)
+    assert.deepStrictEqual(
+      rootNode.Links.map(link => link.Name),
+      ['S01E01.txt', 'S01E02.txt']
+    )
+  })
+
+  it('keeps the directory CID stable for the same paths and contents', async () => {
+    const first = await calculateDirectoryCid([
+      { path: 'Show/b.txt', content: Buffer.from('b') },
+      { path: 'Show/a.txt', content: Buffer.from('a') },
+    ])
+    const second = await calculateDirectoryCid([
+      { path: 'Show/a.txt', content: Buffer.from('a') },
+      { path: 'Show/b.txt', content: Buffer.from('b') },
+    ])
+
+    assert.strictEqual(first.cid.toString(), second.cid.toString())
+  })
+
+  it('changes the directory CID when a child file changes', async () => {
+    const first = await calculateDirectoryCid([
+      { path: 'Show/S01E01.txt', content: Buffer.from('episode 1') },
+    ])
+    const second = await calculateDirectoryCid([
+      { path: 'Show/S01E01.txt', content: Buffer.from('episode 1 updated') },
+    ])
+
+    assert.notStrictEqual(first.cid.toString(), second.cid.toString())
+  })
+
+  it('rejects duplicate normalized paths', async () => {
+    await assert.rejects(
+      calculateDirectoryCid([
+        { path: 'Show/S01E01.txt', content: Buffer.from('a') },
+        { path: 'Show\\S01E01.txt', content: Buffer.from('b') },
+      ]),
+      /Duplicate collection path/
+    )
+  })
+
+  it('rejects path traversal entries', async () => {
+    await assert.rejects(
+      calculateDirectoryCid([
+        { path: 'Show/../secret.txt', content: Buffer.from('nope') },
+      ]),
+      /Path traversal/
     )
   })
 })

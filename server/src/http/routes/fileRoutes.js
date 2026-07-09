@@ -41,6 +41,42 @@ export function registerFileRoutes(app, { engine, configStore, wsBroadcast }) {
     }
   })
 
+  app.post('/api/folder/share', async c => {
+    const body = await c.req.json()
+    if (!body.path) {
+      return c.json({ error: 'path is required' }, 400)
+    }
+
+    try {
+      const shareResult = await engine.shareFolder(body.path, {
+        ownerAddress: c.get('userAddress'),
+      })
+      return c.json({ success: true, ...shareResult })
+    } catch (err) {
+      return badRequestOrAppError(c, err)
+    }
+  })
+
+  app.get('/api/collections/:cid', async c => {
+    const cid = c.req.param('cid')
+    const cidValidation = validateCidString(cid)
+    if (!cidValidation.valid) {
+      return c.json(validationErrorPayload(cidValidation.errorCode), 400)
+    }
+
+    try {
+      const collection = await engine.getCollection(cid, {
+        ownerAddress: c.get('userAddress'),
+      })
+      return c.json(collection)
+    } catch (err) {
+      if (err.message === 'Collection not found') {
+        return c.json({ error: err.message }, 404)
+      }
+      return badRequestOrAppError(c, err)
+    }
+  })
+
   app.post('/api/download/check', async c => {
     const body = await c.req.json()
     if (!body.link) {
@@ -66,7 +102,9 @@ export function registerFileRoutes(app, { engine, configStore, wsBroadcast }) {
       })
     }
 
-    if (engine.hasDownloadNameConflict(parsed.fileName)) {
+    if (
+      engine.hasDownloadNameConflict(parsed.fileName, { allowDirectory: true })
+    ) {
       return c.json(
         {
           error: `已有同名文件: ${parsed.fileName}`,
@@ -113,6 +151,7 @@ export function registerFileRoutes(app, { engine, configStore, wsBroadcast }) {
       try {
         const result = await engine.downloadFile(body.link, taskId, {
           ownerAddress: c.get('userAddress'),
+          selectedPaths: body.selectedPaths,
         })
         return c.json({ success: true, ...result })
       } catch (err) {
@@ -120,7 +159,9 @@ export function registerFileRoutes(app, { engine, configStore, wsBroadcast }) {
       }
     }
 
-    if (engine.hasDownloadNameConflict(parsed.fileName)) {
+    if (
+      engine.hasDownloadNameConflict(parsed.fileName, { allowDirectory: true })
+    ) {
       return c.json(
         {
           error: `已有同名文件: ${parsed.fileName}`,
@@ -131,7 +172,10 @@ export function registerFileRoutes(app, { engine, configStore, wsBroadcast }) {
     }
 
     engine
-      .downloadFile(body.link, taskId, { ownerAddress: c.get('userAddress') })
+      .downloadFile(body.link, taskId, {
+        ownerAddress: c.get('userAddress'),
+        selectedPaths: body.selectedPaths,
+      })
       .catch(err => {
         if (err.message === 'Download cancelled') {
           wsBroadcast('download:cancelled', { taskId })

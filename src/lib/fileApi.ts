@@ -17,8 +17,10 @@ import type { MessageKey } from '~/lib/i18n'
 export interface MostFileRecord {
   cid: string
   fileName: string
+  kind?: 'file' | 'collection'
   link?: string
   size?: number
+  fileCount?: number
   starred?: boolean
   localAvailable?: boolean
   alreadyExists?: boolean
@@ -53,7 +55,10 @@ export interface DownloadCheckResponse {
   available: boolean
   cid: string
   fileName: string
+  kind?: 'file' | 'collection'
   size: number | null
+  fileCount?: number
+  files?: CollectionFileRecord[]
   localAvailable?: boolean
   alreadyExists?: boolean
 }
@@ -67,10 +72,20 @@ export interface FilePublishResult extends MostFileRecord {
 export interface DownloadFileResult {
   success?: boolean
   taskId?: string
+  kind?: 'file' | 'collection'
   fileName?: string
+  files?: CollectionFileRecord[]
   localAvailable?: boolean
   alreadyExists?: boolean
   [key: string]: unknown
+}
+
+export interface CollectionFileRecord {
+  path: string
+  cid: string
+  size: number
+  localAvailable?: boolean
+  seedStatus?: string
 }
 
 export interface CheckDownloadOptions {
@@ -151,6 +166,16 @@ export const fileApi = {
       })
       .json(),
   publishFile,
+  shareFolder: (path: string) =>
+    api
+      .post('/api/folder/share', {
+        json: { path },
+      })
+      .json<FilePublishResult>(),
+  getCollection: (cid: string) =>
+    api.get(`/api/collections/${cid}`).json<MostFileRecord & {
+      files: CollectionFileRecord[]
+    }>(),
   checkDownload: (link: string, options: CheckDownloadOptions = {}) => {
     const json =
       typeof options.timeout === 'number' ? { link, timeout: options.timeout } : { link }
@@ -161,8 +186,12 @@ export const fileApi = {
       })
       .json<DownloadCheckResponse>()
   },
-  downloadFile: (link: string) =>
-    api.post('/api/download', { json: { link } }).json<DownloadFileResult>(),
+  downloadFile: (link: string, selectedPaths?: string[]) =>
+    api
+      .post('/api/download', {
+        json: selectedPaths?.length ? { link, selectedPaths } : { link },
+      })
+      .json<DownloadFileResult>(),
   cacheFile: (cid: string) => api.post(`/api/files/${cid}/cache`).json(),
   cancelDownload: (taskId: string) =>
     api.post('/api/download/cancel', { json: { taskId } }).json(),

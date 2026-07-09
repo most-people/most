@@ -211,16 +211,53 @@ export function buildOpenApiSpec(appPort) {
           responses: { 200: { description: 'Published CID and most:// link' } },
         },
       },
+      '/api/folder/share': {
+        post: {
+          summary:
+            'Share an existing file-library folder as a UnixFS directory collection',
+          requestBody: {
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['path'],
+                  properties: {
+                    path: { type: 'string' },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            200: {
+              description:
+                'Folder collection CID, most:// link, file count, and size',
+            },
+          },
+        },
+      },
+      '/api/collections/{cid}': {
+        get: {
+          summary: 'Read a UnixFS directory collection file list by root CID',
+          responses: {
+            200: {
+              description:
+                'Collection metadata with child file CIDs and local states',
+            },
+          },
+        },
+      },
       '/api/download/check': {
         post: {
           summary:
-            'Check whether a CID-tailed share target is locally available or discoverable',
+            'Check whether a CID-tailed share target is locally available or discoverable, including UnixFS directory file lists',
           responses: { 200: { description: 'Download availability result' } },
         },
       },
       '/api/download': {
         post: {
-          summary: 'Start downloading a CID-tailed share target',
+          summary:
+            'Start downloading a CID-tailed share target, optionally with selected collection paths',
           responses: { 200: { description: 'Download task result' } },
         },
       },

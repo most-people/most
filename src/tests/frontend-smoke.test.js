@@ -191,10 +191,13 @@ describe('frontend smoke checks', () => {
     }
   })
 
-  it('keeps the share modal aligned with the MVP seeding promise', () => {
+  it('keeps the share modal aligned with the MVP seeding promise', async () => {
     const source = readSource(SOURCE_PATHS.features.files)
     const shareLinkSource = readSource('src/lib/shareLink.ts')
     const messages = readI18nSources()
+    const { messages: i18nMessages } = await importBundledSource(
+      'src/lib/i18n/messages.ts'
+    )
 
     assert.match(
       source,
@@ -208,6 +211,12 @@ describe('frontend smoke checks', () => {
     assert.match(source, /\{webShareLink\}/)
     assert.match(source, /app\.shareMostLink/)
     assert.match(source, /app\.shareWebLink/)
+    assert.equal(i18nMessages['zh-CN']['app.shareLink'], '分享')
+    assert.equal(i18nMessages['zh-CN']['app.shareWebLink'], '网页链接')
+    assert.equal(i18nMessages['zh-TW']['app.shareLink'], '分享')
+    assert.equal(i18nMessages['zh-TW']['app.shareWebLink'], '網頁連結')
+    assert.equal(i18nMessages.en['app.shareLink'], 'Share')
+    assert.equal(i18nMessages.en['app.shareWebLink'], 'Web link')
     assert.match(shareLinkSource, /most:\/\/\$\{cid\}/)
     assert.match(shareLinkSource, /https:\/\/most\.box/)
     assert.match(shareLinkSource, /\/cid\/\$\{encodeURIComponent\(cid\)\}/)
@@ -218,6 +227,90 @@ describe('frontend smoke checks', () => {
     assert.match(source, /app\.shareSeedNote/)
     assert.match(messages, /本机在线时可下载/)
     assert.match(messages, /下载者完成后会默认继续做种/)
+  })
+
+  it('does not auto-open the share modal after upload completion', () => {
+    const source = readSource(SOURCE_PATHS.features.files)
+    const styles = readSource('src/styles/app.css')
+
+    assert.match(source, /fileApi\.publishFile/)
+    assert.match(source, /fileApi\.shareFolder/)
+    assert.match(source, /onShare=\{file => setShareItem\(file\)\}/)
+    assert.doesNotMatch(source, /fileApi\.publishCollection/)
+    assert.doesNotMatch(source, /setShareItem\(result\)/)
+    assert.match(
+      source,
+      /setShareItem\(items\.find\(i => i\.cid === selectedIds\[0\]\)\)/
+    )
+    const cardShareBlock =
+      styles.match(/\.card-share-btn\s*\{(?<body>[\s\S]*?)\}/)?.groups
+        ?.body || ''
+    assert.match(cardShareBlock, /opacity:\s*1;/)
+    assert.doesNotMatch(cardShareBlock, /opacity:\s*0;/)
+  })
+
+  it('preflights folder sharing when a folder contains remote-only files', async () => {
+    const { getFolderShareState } = await importBundledSource(
+      'src/lib/folderShare.ts'
+    )
+    const source = readSource(SOURCE_PATHS.features.files)
+    const messages = readI18nSources()
+
+    assert.deepStrictEqual(
+      getFolderShareState(
+        [
+          {
+            fileName: 'Show/S01E01.txt',
+            kind: 'file',
+            localAvailable: true,
+          },
+          {
+            fileName: 'Show/S01E02.txt',
+            kind: 'file',
+            localAvailable: true,
+            seedStatus: 'error',
+          },
+          {
+            fileName: 'Other/S01E03.txt',
+            kind: 'file',
+            localAvailable: false,
+          },
+        ],
+        'Show'
+      ),
+      {
+        canShare: false,
+        reason: 'missingLocalFiles',
+        fileCount: 2,
+        missingCount: 1,
+      }
+    )
+    assert.deepStrictEqual(
+      getFolderShareState(
+        [
+          {
+            fileName: 'Show/S01E01.txt',
+            kind: 'file',
+            localAvailable: true,
+          },
+          {
+            fileName: 'Show/S01E02.txt',
+            kind: 'file',
+            localAvailable: true,
+          },
+        ],
+        'Show'
+      ),
+      {
+        canShare: true,
+        reason: '',
+        fileCount: 2,
+        missingCount: 0,
+      }
+    )
+    assert.match(source, /getFolderShareState\(items, folder\.path\)/)
+    assert.match(source, /app\.folderShareRequiresLocalFiles/)
+    assert.match(messages, /app\.folderShareRequiresLocalFiles/)
   })
 
   it('keeps the download modal validation messages user-readable', () => {
@@ -233,6 +326,36 @@ describe('frontend smoke checks', () => {
       getDownloadCheckErrorMessageFromPayload({ status: 503 }),
       '暂时没有发现在线种子。请确认分享者或其他下载者仍在线做种，稍后再检测。'
     )
+  })
+
+  it('treats synchronous collection downloads as completed', () => {
+    const source = readSource(SOURCE_PATHS.features.files)
+    const downloadHandler = source.slice(
+      source.indexOf('const handleDownloadSharedFile'),
+      source.indexOf('const handleCancelTransfer')
+    )
+    const collectionCompleteIndex = downloadHandler.indexOf(
+      "result.kind === 'collection'"
+    )
+    const transferCreateIndex = downloadHandler.indexOf(
+      'setTransfers(prev => [...prev, transfer])'
+    )
+
+    assert.ok(collectionCompleteIndex !== -1)
+    assert.ok(transferCreateIndex !== -1)
+    assert.ok(collectionCompleteIndex < transferCreateIndex)
+    assert.match(source, /app\.fileDownloadCompleted/)
+  })
+
+  it('refreshes the file library as collection children finish', () => {
+    const source = readSource(SOURCE_PATHS.features.files)
+    const progressHandler = source.slice(
+      source.indexOf("if (event === 'download:progress')"),
+      source.indexOf("if (event === 'download:error')")
+    )
+
+    assert.match(progressHandler, /data\.collection === true/)
+    assert.match(progressHandler, /refreshFiles\(\)/)
   })
 
   it('shows node holdings and seed states in the admin console', () => {
@@ -334,11 +457,16 @@ describe('frontend smoke checks', () => {
     const filesCheckIndex = filesSource.indexOf(
       'const limitMessage = getPublishFileLimitViolation'
     )
-    const filesNameExistsIndex = filesSource.indexOf('const nameExists =')
+    const filesNameExistsIndex = filesSource.indexOf(
+      'const nameExists =',
+      filesCheckIndex
+    )
     const filesPublishIndex = filesSource.indexOf(
       'const result = await fileApi.publishFile'
     )
     assert.ok(filesPolicyIndex >= 0)
+    assert.doesNotMatch(filesSource, /selectedFiles\.length\s*>\s*1/)
+    assert.doesNotMatch(filesSource, /fileApi\.publishCollection/)
     assert.ok(filesCheckIndex > filesPolicyIndex)
     assert.ok(filesNameExistsIndex > filesCheckIndex)
     assert.ok(filesPublishIndex > filesCheckIndex)
@@ -428,6 +556,26 @@ describe('frontend smoke checks', () => {
     )
     assert.match(downloadSource, /result\.localAvailable/)
     assert.match(downloadSource, /refreshFiles\(\)/)
+  })
+
+  it('checks availability before pulling a remote-only library file', () => {
+    const filesSource = readSource(SOURCE_PATHS.features.files)
+    const handlerStart = filesSource.indexOf(
+      'const handleCacheFile = async file => {'
+    )
+    const handlerEnd = filesSource.indexOf(
+      '\n  const handleNavigate',
+      handlerStart
+    )
+    const handlerSource = filesSource.slice(handlerStart, handlerEnd)
+    const checkIndex = handlerSource.indexOf('fileApi.checkDownload')
+    const cacheIndex = handlerSource.indexOf('fileApi.cacheFile')
+
+    assert.ok(handlerStart >= 0)
+    assert.ok(handlerEnd > handlerStart)
+    assert.match(handlerSource, /buildMostShareLink\(file\.cid, file\.fileName\)/)
+    assert.ok(checkIndex >= 0)
+    assert.ok(cacheIndex > checkIndex)
   })
 
   it('lets the admin max file field accept MB or GiB input', () => {

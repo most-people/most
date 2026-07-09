@@ -679,6 +679,70 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     })
   })
 
+  describe('folder share API', () => {
+    it('shares a file-library folder and returns its collection file list', async () => {
+      await engine.publishFile(
+        Buffer.from(`api folder first ${uid}`),
+        'Show/S01E01.txt'
+      )
+      await engine.publishFile(
+        Buffer.from(`api folder second ${uid}`),
+        'Show/S01E02.txt'
+      )
+
+      const publishRes = await fetch(`${baseUrl}/api/folder/share`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: 'Show' }),
+      })
+      const publishData = await publishRes.json()
+
+      assert.strictEqual(publishRes.status, 200)
+      assert.strictEqual(publishData.success, true)
+      assert.strictEqual(publishData.kind, 'collection')
+      assert.strictEqual(publishData.fileName, 'Show')
+      assert.strictEqual(publishData.fileCount, 2)
+
+      const collectionRes = await fetch(
+        `${baseUrl}/api/collections/${publishData.cid}`
+      )
+      const collectionData = await collectionRes.json()
+
+      assert.strictEqual(collectionRes.status, 200)
+      assert.deepStrictEqual(
+        collectionData.files.map(file => file.path),
+        ['S01E01.txt', 'S01E02.txt']
+      )
+      assert.ok(
+        collectionData.files.every(file => file.localAvailable === true)
+      )
+
+      const checkRes = await fetch(`${baseUrl}/api/download/check`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ link: publishData.link }),
+      })
+      const checkData = await checkRes.json()
+
+      assert.strictEqual(checkRes.status, 200)
+      assert.strictEqual(checkData.kind, 'collection')
+      assert.deepStrictEqual(
+        checkData.files.map(file => file.path),
+        ['S01E01.txt', 'S01E02.txt']
+      )
+    })
+
+    it('does not expose multipart collection publishing', async () => {
+      const res = await fetch(`${baseUrl}/api/collections/publish`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+
+      assert.strictEqual(res.status, 404)
+    })
+  })
+
   describe('POST /api/download', () => {
     it('checks an existing link before download', async () => {
       const publishResult = await engine.publishFile(

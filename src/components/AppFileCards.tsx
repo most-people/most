@@ -1,9 +1,21 @@
-import { FileText, Film, Folder, Image as ImageIcon, Music } from 'lucide-react'
+import {
+  FileText,
+  Film,
+  Folder,
+  Image as ImageIcon,
+  Music,
+  Share2,
+} from 'lucide-react'
 import { getFileSubtype, type FileSubtype } from '~/lib/filePreview'
+import { formatBytes } from '~/lib/format'
 
 export interface AppFileItem {
   cid: string
   fileName: string
+  kind?: 'file' | 'collection'
+  size?: number
+  fileCount?: number
+  downloadedCount?: number
   starred?: boolean
   subtype?: FileSubtype
   [key: string]: unknown
@@ -19,11 +31,15 @@ interface FileCardProps {
   isSelected: boolean
   onSelect: (cid: string) => void
   onPreview: (file: AppFileItem) => void
+  onShare?: (file: AppFileItem) => void
+  shareLabel?: string
 }
 
 interface FolderCardProps {
   folder: AppFolderItem
   onClick: () => void
+  onShare?: () => void
+  shareLabel?: string
 }
 
 export function parseAppFileName(fullPath: string) {
@@ -40,11 +56,18 @@ export function FileCard({
   isSelected,
   onSelect,
   onPreview,
+  onShare,
+  shareLabel = 'Share',
 }: FileCardProps) {
   const subtype = getFileSubtype(file.fileName)
   let fileIcon = <FileText size={24} color="#fff" />
+  const isCollection = file.kind === 'collection'
+  const fileCount = Number(file.fileCount) || 0
+  const downloadedCount = Number(file.downloadedCount) || 0
 
-  if (subtype === 'image') {
+  if (isCollection) {
+    fileIcon = <Folder size={24} color="#fff" />
+  } else if (subtype === 'image') {
     fileIcon = <ImageIcon size={24} color="#fff" />
   } else if (subtype === 'video') {
     fileIcon = <Film size={24} color="#fff" />
@@ -57,21 +80,62 @@ export function FileCard({
       data-id={file.cid}
       onClick={() => onSelect(file.cid)}
       onDoubleClick={() => onPreview(file)}
-      className={`card ${isSelected ? 'selected' : ''}`}
+      className={`card shareable-card ${isSelected ? 'selected' : ''}`}
     >
-      <div className={`card-icon ${file.starred ? 'starred' : 'file'}`}>
+      {onShare && (
+        <button
+          type="button"
+          className="card-share-btn"
+          aria-label={shareLabel}
+          title={shareLabel}
+          onClick={event => {
+            event.stopPropagation()
+            onShare(file)
+          }}
+        >
+          <Share2 size={14} />
+        </button>
+      )}
+      <div
+        className={`card-icon ${file.starred ? 'starred' : isCollection ? 'folder' : 'file'}`}
+      >
         {fileIcon}
       </div>
       <p className="card-name" translate="no">
         {parseAppFileName(file.fileName).name}
       </p>
+      {isCollection && (
+        <p className="card-meta">
+          <span>{`${downloadedCount}/${fileCount}`}</span>
+          <span>{formatBytes(Number(file.size) || 0)}</span>
+        </p>
+      )}
     </div>
   )
 }
 
-export function FolderCard({ folder, onClick }: FolderCardProps) {
+export function FolderCard({
+  folder,
+  onClick,
+  onShare,
+  shareLabel = 'Share',
+}: FolderCardProps) {
   return (
-    <div onClick={onClick} className="card">
+    <div onClick={onClick} className="card shareable-card">
+      {onShare && (
+        <button
+          type="button"
+          className="card-share-btn"
+          aria-label={shareLabel}
+          title={shareLabel}
+          onClick={event => {
+            event.stopPropagation()
+            onShare()
+          }}
+        >
+          <Share2 size={14} />
+        </button>
+      )}
       <div className="card-icon folder">
         <Folder size={28} color="#fff" />
       </div>

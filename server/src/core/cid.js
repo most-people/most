@@ -28,6 +28,54 @@ function createDummyBlockstore() {
   }
 }
 
+function normalizeDirectoryEntryPath(inputPath) {
+  const rawPath = String(inputPath || '').replace(/\\/g, '/').trim()
+  if (!rawPath) {
+    throw new Error('Collection path is required')
+  }
+  if (rawPath.startsWith('/') || /^[a-zA-Z]:\//.test(rawPath)) {
+    throw new Error(`Absolute collection paths are not allowed: ${rawPath}`)
+  }
+
+  const parts = []
+  for (const part of rawPath.split('/')) {
+    if (!part || part === '.') continue
+    if (part === '..') {
+      throw new Error(`Path traversal detected: ${rawPath}`)
+    }
+    parts.push(part)
+  }
+
+  if (parts.length === 0) {
+    throw new Error('Collection path is required')
+  }
+
+  return parts.join('/')
+}
+
+function getRootPath(paths) {
+  const first = paths[0]?.split('/')[0] || ''
+  if (first && paths.every(item => item.split('/')[0] === first)) {
+    return first
+  }
+  return ''
+}
+
+function stripRootPath(entryPath, rootPath) {
+  if (!rootPath) return entryPath
+  return entryPath === rootPath ? '' : entryPath.slice(rootPath.length + 1)
+}
+
+function toImporterContent(content) {
+  if (typeof content === 'string') {
+    return fs.createReadStream(content)
+  }
+  if (Buffer.isBuffer(content)) {
+    return Readable.from(content)
+  }
+  return content
+}
+
 /**
  * 计算内容的 IPFS UnixFS CID v1
  * 使用流式方法高效处理大文件
@@ -93,5 +141,91 @@ export async function calculateCid(content) {
   return {
     cid: rootCid,
     size: totalSize,
+  }
+}
+
+export async function calculateDirectoryCid(files) {
+  if (!Array.isArray(files) || files.length === 0) {
+    throw new Error('Collection files are required')
+  }
+
+  const normalizedFiles = files
+    .map(file => {
+      const normalizedPath = normalizeDirectoryEntryPath(file?.path)
+      if (!file || file.content === undefined || file.content === null) {
+        throw new Error(`Collection file content is required: ${normalizedPath}`)
+      }
+      return {
+        path: normalizedPath,
+        content: file.content,
+      }
+    })
+    .sort((left, right) => left.path.localeCompare(right.path))
+
+  const seenPaths = new Set()
+  for (const file of normalizedFiles) {
+    if (seenPaths.has(file.path)) {
+      throw new Error(`Duplicate collection path: ${file.path}`)
+    }
+    seenPaths.add(file.path)
+  }
+
+  const blocks = new Map()
+  const blockstore = {
+    put: async (key, value) => {
+      if (key.code === 0x70) {
+        blocks.set(key.toString(), Buffer.from(value))
+      }
+      return key
+    },
+    get: async key => {
+      const block = blocks.get(key.toString())
+      if (!block) {
+        throw new Error(`Block not found: ${key}`)
+      }
+      return block
+    },
+    has: async key => blocks.has(key.toString()),
+  }
+
+  const source = normalizedFiles.map(file => ({
+    path: file.path,
+    content: toImporterContent(file.content),
+  }))
+
+  const entries = []
+  for await (const entry of importer(source, blockstore, {
+    cidVersion: 1,
+    rawLeaves: true,
+    wrapWithDirectory: false,
+  })) {
+    entries.push(entry)
+  }
+
+  const rootEntry = entries[entries.length - 1]
+  if (!rootEntry?.cid || !rootEntry.unixfs?.isDirectory()) {
+    throw new Error('Failed to calculate directory CID')
+  }
+
+  const rootPath = getRootPath(normalizedFiles.map(file => file.path))
+  const childFiles = entries
+    .filter(entry => entry.path && entry.path !== rootEntry.path)
+    .filter(entry => !entry.unixfs?.isDirectory?.())
+    .map(entry => ({
+      path: stripRootPath(entry.path, rootPath),
+      cid: entry.cid.toString(),
+      size:
+        Number(entry.unixfs?.fileSize?.()) ||
+        Number(entry.size) ||
+        0,
+    }))
+
+  return {
+    cid: rootEntry.cid,
+    rootPath: rootEntry.path || rootPath,
+    size: Number(rootEntry.size) || 0,
+    totalSize: childFiles.reduce((sum, file) => sum + file.size, 0),
+    files: childFiles,
+    blocks,
   }
 }

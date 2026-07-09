@@ -512,6 +512,35 @@
   }
 }
 
+.shareable-card {
+  position: relative;
+}
+
+.card-share-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: var(--text-secondary);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  opacity: 1;
+  transition: all var(--transition-fast);
+}
+
+.card-share-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
 .card-icon {
   width: 56px;
   height: 56px;
@@ -548,6 +577,18 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text-primary);
+}
+
+.card-meta {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  min-height: 16px;
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .card-date {
@@ -1013,6 +1054,37 @@
   border-color: rgba(255, 59, 48, 0.35);
   background: rgba(255, 59, 48, 0.1);
   color: var(--danger);
+}
+
+.collection-download-list {
+  display: grid;
+  gap: 6px;
+  max-height: 220px;
+  overflow: auto;
+  padding: 4px;
+}
+
+.collection-download-item {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto 18px;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 6px 8px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: var(--glass-bg-subtle);
+}
+
+.collection-download-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.collection-download-size {
+  color: var(--text-secondary);
+  font-size: 12px;
 }
 
 .download-modal > .btn-full {
