@@ -99,10 +99,13 @@ export function normalizeChannelVoiceEvent(
 
   const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
   const inputSender =
-    input.sender && typeof input.sender === 'object' && !Array.isArray(input.sender)
+    input.sender &&
+    typeof input.sender === 'object' &&
+    !Array.isArray(input.sender)
       ? input.sender
       : {}
-  const senderAddress = ownerAddress || normalizeOwnerAddress(inputSender.address)
+  const senderAddress =
+    ownerAddress || normalizeOwnerAddress(inputSender.address)
   if (!senderAddress) {
     throw new ValidationError('voice sender is required')
   }

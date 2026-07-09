@@ -16,11 +16,7 @@ import * as DocumentPicker from 'expo-document-picker'
 import * as FileSystem from 'expo-file-system/legacy'
 import * as Sharing from 'expo-sharing'
 import b4a from 'b4a'
-import {
-  ListChecks,
-  MessageCircle,
-  ShieldCheck,
-} from 'lucide-react-native'
+import { ListChecks, MessageCircle, ShieldCheck } from 'lucide-react-native'
 import { ChatListScreen } from './src/features/chat/ChatListScreen'
 import { ChatRoomScreen } from './src/features/chat/ChatRoomScreen'
 import { ChatSettingsScreen } from './src/features/chat/ChatSettingsScreen'
@@ -282,7 +278,9 @@ export default function App() {
     .filter(presence => presence.online)
     .sort((left, right) => {
       if (left.local !== right.local) return left.local ? -1 : 1
-      return formatPresenceMember(left).localeCompare(formatPresenceMember(right))
+      return formatPresenceMember(left).localeCompare(
+        formatPresenceMember(right)
+      )
     })
   const chatTabAccessibilityLabel =
     chatRoute.name === 'list' ? '聊天' : `聊天 ${chatRoute.channelKey}`
@@ -539,9 +537,7 @@ export default function App() {
     setChannelInput(channel.channelId || channel.name || channelKey)
     setChannelDraft('')
     setChatRoute({ name: 'room', channelKey })
-    setChannelLastReadAt(lastReadAt =>
-      markChannelRead(lastReadAt, channelKey)
-    )
+    setChannelLastReadAt(lastReadAt => markChannelRead(lastReadAt, channelKey))
 
     if (isReady) {
       void core.getChannelMessages(channelKey).catch(error => {
@@ -890,7 +886,9 @@ export default function App() {
               <ListChecks size={22} color="#0f766e" />
             </View>
             <Text style={styles.fallbackTitle}>
-              {chatRoute.name === 'settings' ? '频道设置不可用' : '聊天室不可用'}
+              {chatRoute.name === 'settings'
+                ? '频道设置不可用'
+                : '聊天室不可用'}
             </Text>
             <Text style={styles.fallbackBody}>
               返回聊天列表后重新选择频道。

@@ -153,9 +153,7 @@ export default function ChatJoinDemoPage() {
   const [channelId, setChannelId] = useState(DEFAULT_CHANNEL_ID)
   const [channelName, setChannelName] = useState('Chat Join Demo')
   const [locale, setLocale] = useState<Locale>('zh-CN')
-  const [theme, setTheme] = useState<ChatJoinInvitePayload['theme']>(
-    'sparkbit'
-  )
+  const [theme, setTheme] = useState<ChatJoinInvitePayload['theme']>('sparkbit')
   const [appearance, setAppearance] =
     useState<ChatJoinInvitePayload['appearance']>()
   const [logo, setLogo] = useState('')
@@ -568,10 +566,7 @@ export default function ChatJoinDemoPage() {
                 />
                 <div className="chat-join-demo-radio-options">
                   {APPEARANCE_OPTIONS.map(option => (
-                    <label
-                      className="chat-join-demo-toggle"
-                      key={option.value}
-                    >
+                    <label className="chat-join-demo-toggle" key={option.value}>
                       <input
                         type="radio"
                         name="chat-join-demo-appearance"

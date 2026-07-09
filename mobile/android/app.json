@@ -14,11 +14,7 @@
         "backgroundColor": "#FFFFFF"
       },
       "package": "box.most.android",
-      "permissions": [
-        "INTERNET",
-        "ACCESS_NETWORK_STATE",
-        "WAKE_LOCK"
-      ],
+      "permissions": ["INTERNET", "ACCESS_NETWORK_STATE", "WAKE_LOCK"],
       "intentFilters": [
         {
           "action": "VIEW",
@@ -27,10 +23,7 @@
               "scheme": "most"
             }
           ],
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ]
+          "category": ["BROWSABLE", "DEFAULT"]
         }
       ]
     },

@@ -20,14 +20,15 @@ import {
   type DownloadCheckResponse,
 } from '~/lib/fileApi'
 import { formatBytes } from '~/lib/format'
-import {
-  getLocalizedDownloadLinkValidationMessage,
-} from '~/lib/i18n/downloadValidation'
+import { getLocalizedDownloadLinkValidationMessage } from '~/lib/i18n/downloadValidation'
 import { MarketingHeader } from '~/components/MarketingHeader'
 import { useI18n } from '~/lib/i18n'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
-import { getApiErrorMessage, getAuthenticatedWebSocketUrl } from '~server/src/utils/api'
+import {
+  getApiErrorMessage,
+  getAuthenticatedWebSocketUrl,
+} from '~server/src/utils/api'
 import { parseMostLink } from '~server/src/core/mostLink.js'
 
 type CheckStatus =
@@ -88,9 +89,7 @@ function readString(record: Record<string, unknown>, key: string) {
 
 function readNumber(record: Record<string, unknown>, key: string) {
   const value = record[key]
-  return typeof value === 'number' && Number.isFinite(value)
-    ? value
-    : undefined
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
 }
 
 function parseDownloadEvent(raw: string) {
@@ -146,8 +145,9 @@ export default function CidPage() {
     status: 'idle',
     message: '',
   })
-  const [checkResult, setCheckResult] =
-    useState<DownloadCheckResponse | null>(null)
+  const [checkResult, setCheckResult] = useState<DownloadCheckResponse | null>(
+    null
+  )
   const [downloadState, setDownloadState] = useState<DownloadState>({
     status: 'idle',
     message: '',
@@ -166,7 +166,8 @@ export default function CidPage() {
   const canStartDownload =
     checkState.status === 'available' || checkState.status === 'already-local'
   const isDownloading =
-    downloadState.status === 'starting' || downloadState.status === 'downloading'
+    downloadState.status === 'starting' ||
+    downloadState.status === 'downloading'
 
   const displayDownloadPath = formatDownloadPath(
     downloadPath,
@@ -583,7 +584,10 @@ export default function CidPage() {
   )
 }
 
-function getStatusIcon(checkStatus: CheckStatus, downloadStatus: DownloadStatus) {
+function getStatusIcon(
+  checkStatus: CheckStatus,
+  downloadStatus: DownloadStatus
+) {
   if (downloadStatus === 'completed') return <CheckCircle2 size={28} />
   if (downloadStatus === 'error' || checkStatus === 'error') {
     return <AlertTriangle size={28} />
@@ -601,7 +605,10 @@ function getStatusIcon(checkStatus: CheckStatus, downloadStatus: DownloadStatus)
   return <CheckCircle2 size={28} />
 }
 
-function getStatusLabel(checkStatus: CheckStatus, t: ReturnType<typeof useI18n>['t']) {
+function getStatusLabel(
+  checkStatus: CheckStatus,
+  t: ReturnType<typeof useI18n>['t']
+) {
   switch (checkStatus) {
     case 'checking':
       return t('cid.label.checking')

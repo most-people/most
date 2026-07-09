@@ -1,9 +1,6 @@
 import { useState, useEffect, Suspense, useMemo, useRef } from 'react'
 import { useLocation } from '@tanstack/react-router'
-import {
-  AlertCircle,
-  RefreshCw,
-} from 'lucide-react'
+import { AlertCircle, RefreshCw } from 'lucide-react'
 import { AppEmpty } from '~/components/AppEmpty'
 import { ChatRestoringIndicator } from '~/features/chat/ChatRestoringIndicator'
 import { useAppStore } from '~/stores/useAppStore'

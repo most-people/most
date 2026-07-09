@@ -54,10 +54,12 @@ function normalizeRoom(room: VoiceRoomInfo | null) {
   return { channelName, title }
 }
 
-function areRoomsEqual(left: VoiceRoomInfo | null, right: VoiceRoomInfo | null) {
+function areRoomsEqual(
+  left: VoiceRoomInfo | null,
+  right: VoiceRoomInfo | null
+) {
   return (
-    left?.channelName === right?.channelName &&
-    left?.title === right?.title
+    left?.channelName === right?.channelName && left?.title === right?.title
   )
 }
 
@@ -152,7 +154,9 @@ export function GlobalVoiceRoomProvider({ children }: { children: ReactNode }) {
   const hasBackend = useAppStore(s => s.hasBackend)
   const userIdentity = useUserStore(s => s.identity)
   const [activeRoom, setActiveRoom] = useState<VoiceRoomInfo | null>(null)
-  const [previewRoom, setPreviewRoomState] = useState<VoiceRoomInfo | null>(null)
+  const [previewRoom, setPreviewRoomState] = useState<VoiceRoomInfo | null>(
+    null
+  )
   const [isPanelOpen, setIsPanelOpen] = useState(false)
   const [isMinimized, setIsMinimized] = useState(false)
   const [joinedAt, setJoinedAt] = useState<number | null>(null)
@@ -297,7 +301,9 @@ export function GlobalVoiceRoomProvider({ children }: { children: ReactNode }) {
   )
 
   const shouldShowFloating =
-    isMinimized && Boolean(room) && (voice.joined || voice.participants.length > 0)
+    isMinimized &&
+    Boolean(room) &&
+    (voice.joined || voice.participants.length > 0)
 
   return (
     <GlobalVoiceRoomContext.Provider value={value}>
@@ -334,7 +340,9 @@ export function GlobalVoiceRoomProvider({ children }: { children: ReactNode }) {
 export function useGlobalVoiceRoom() {
   const value = useContext(GlobalVoiceRoomContext)
   if (!value) {
-    throw new Error('useGlobalVoiceRoom must be used within GlobalVoiceRoomProvider')
+    throw new Error(
+      'useGlobalVoiceRoom must be used within GlobalVoiceRoomProvider'
+    )
   }
   return value
 }

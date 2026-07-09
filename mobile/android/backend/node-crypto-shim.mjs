@@ -16,8 +16,7 @@ class SodiumHash {
 
   digest(encoding) {
     const input = b4a.concat(this.#chunks)
-    const output =
-      this.#algorithm === 'sha512' ? b4a.alloc(64) : b4a.alloc(32)
+    const output = this.#algorithm === 'sha512' ? b4a.alloc(64) : b4a.alloc(32)
 
     if (this.#algorithm === 'sha512') {
       sodium.crypto_hash_sha512(output, input)

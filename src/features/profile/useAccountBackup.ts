@@ -102,12 +102,12 @@ function getStatusLabel(
 function hasLocalData(payload: AccountBackupPayload) {
   return Boolean(
     payload.notes.length ||
-      payload.profile ||
-      payload.preferences ||
-      payload.files?.length ||
-      payload.trashFiles?.length ||
-      payload.channels?.length ||
-      payload.noteVault?.files.length
+    payload.profile ||
+    payload.preferences ||
+    payload.files?.length ||
+    payload.trashFiles?.length ||
+    payload.channels?.length ||
+    payload.noteVault?.files.length
   )
 }
 
@@ -236,9 +236,8 @@ async function createNotesFromNoteVaultSnapshot(snapshot: NoteVaultSnapshot) {
   for (const file of snapshot.files) {
     const normalizedPath = normalizeNotePath(file.path)
     const lastSlash = normalizedPath.lastIndexOf('/')
-    const name = lastSlash === -1
-      ? normalizedPath
-      : normalizedPath.slice(lastSlash + 1)
+    const name =
+      lastSlash === -1 ? normalizedPath : normalizedPath.slice(lastSlash + 1)
     const directory = lastSlash === -1 ? '' : normalizedPath.slice(0, lastSlash)
     const content = String(file.content ?? '')
     const timestamp = Number(file.mtimeMs) || Date.now()
@@ -269,7 +268,9 @@ async function createNoteVaultSnapshotFromNotes(
     const note = item as Record<string, unknown>
     const name = ensureMarkdownFileName(note.name)
     const directory = normalizeNotePath(String(note.path || ''))
-    const filePath = normalizeNotePath(directory ? `${directory}/${name}` : name)
+    const filePath = normalizeNotePath(
+      directory ? `${directory}/${name}` : name
+    )
     if (!filePath) continue
 
     const content = getBackupNoteContent(note, danger)
@@ -278,10 +279,7 @@ async function createNoteVaultSnapshotFromNotes(
       path: filePath,
       content,
       size: Number(note.size) || encodedSize,
-      mtimeMs:
-        Number(note.updated_at) ||
-        Number(note.created_at) ||
-        Date.now(),
+      mtimeMs: Number(note.updated_at) || Number(note.created_at) || Date.now(),
     })
   }
 
@@ -322,7 +320,9 @@ function applyProfileToIdentity(
     displayName: profile.displayName || identity.username,
     avatar: profile.avatar || undefined,
     profileUpdatedAt:
-      Number.isFinite(updatedAt) && updatedAt > 0 ? Math.floor(updatedAt) : Date.now(),
+      Number.isFinite(updatedAt) && updatedAt > 0
+        ? Math.floor(updatedAt)
+        : Date.now(),
   }
 }
 
@@ -362,7 +362,9 @@ export function useAccountBackup() {
 
     setBackupSummary(summary => ({ ...summary, loading: true }))
     try {
-      const metadata = await api.get<AccountBackupPayload>('/api/user/export').json()
+      const metadata = await api
+        .get<AccountBackupPayload>('/api/user/export')
+        .json()
       setBackupSummary({
         filesCount: countBackupItems(metadata.files),
         trashFilesCount: countBackupItems(metadata.trashFiles),
@@ -397,7 +399,9 @@ export function useAccountBackup() {
     if (!requireBackend()) {
       throw new Error(t('profile.backup.error.backendRequired'))
     }
-    const metadata = await api.get<AccountBackupPayload>('/api/user/export').json()
+    const metadata = await api
+      .get<AccountBackupPayload>('/api/user/export')
+      .json()
     const currentIdentity = useUserStore.getState().identity
     const profile = currentIdentity
       ? {
@@ -428,10 +432,16 @@ export function useAccountBackup() {
   }, [locale, requireBackend, t])
 
   const restorePayload = useCallback(
-    async (payload: AccountBackupPayload, options: RestorePayloadOptions = {}) => {
+    async (
+      payload: AccountBackupPayload,
+      options: RestorePayloadOptions = {}
+    ) => {
       const currentWallet = requireWallet()
       if (!currentWallet || !requireBackend()) return false
-      if (payload.ownerAddress.toLowerCase() !== currentWallet.address.toLowerCase()) {
+      if (
+        payload.ownerAddress.toLowerCase() !==
+        currentWallet.address.toLowerCase()
+      ) {
         throw new Error(t('profile.backup.error.ownerMismatch'))
       }
 
@@ -476,7 +486,9 @@ export function useAccountBackup() {
         .post<{ success: boolean }>('/api/user/import', { json: payload })
         .json()
       importNotes(restoredNotes as Parameters<typeof importNotes>[0])
-      const restoredPreferences = normalizeBackupPreferences(payload.preferences)
+      const restoredPreferences = normalizeBackupPreferences(
+        payload.preferences
+      )
       if (restoredPreferences?.theme) {
         setIsDarkMode(restoredPreferences.theme === 'dark')
       }
@@ -529,7 +541,14 @@ export function useAccountBackup() {
     } finally {
       setAction(null)
     }
-  }, [addToast, buildPayload, refreshBackupSummary, requireBackend, requireWallet, t])
+  }, [
+    addToast,
+    buildPayload,
+    refreshBackupSummary,
+    requireBackend,
+    requireWallet,
+    t,
+  ])
 
   const restoreFromCloud = useCallback(
     async (options: RestoreFromCloudOptions = {}) => {
@@ -610,49 +629,52 @@ export function useAccountBackup() {
     }
   }, [addToast, buildPayload, requireBackend, requireWallet, t])
 
-  const importLocalBackup = useCallback((options: ImportLocalBackupOptions = {}) => {
-    const currentWallet = requireWallet()
-    if (!currentWallet || !requireBackend()) return
+  const importLocalBackup = useCallback(
+    (options: ImportLocalBackupOptions = {}) => {
+      const currentWallet = requireWallet()
+      if (!currentWallet || !requireBackend()) return
 
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = '.txt'
-    input.onchange = event => {
-      const file = (event.target as HTMLInputElement).files?.[0]
-      if (!file) return
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.accept = '.txt'
+      input.onchange = event => {
+        const file = (event.target as HTMLInputElement).files?.[0]
+        if (!file) return
 
-      const reader = new FileReader()
-      reader.onload = async () => {
-        setAction('import')
-        setStatus('working')
-        try {
-          const payload = decryptAccountBackup(
-            String(reader.result || ''),
-            currentWallet.danger
-          ) as AccountBackupPayload
-          const restored = await restorePayload(payload, {
-            requestConfirm: options.requestConfirm,
-          })
-          if (restored) {
-            setStatus('synced')
-            addToast(t('profile.backup.toast.restoredLocal'), 'success')
-          } else {
-            setStatus('idle')
+        const reader = new FileReader()
+        reader.onload = async () => {
+          setAction('import')
+          setStatus('working')
+          try {
+            const payload = decryptAccountBackup(
+              String(reader.result || ''),
+              currentWallet.danger
+            ) as AccountBackupPayload
+            const restored = await restorePayload(payload, {
+              requestConfirm: options.requestConfirm,
+            })
+            if (restored) {
+              setStatus('synced')
+              addToast(t('profile.backup.toast.restoredLocal'), 'success')
+            } else {
+              setStatus('idle')
+            }
+          } catch (err: unknown) {
+            setStatus('error')
+            addToast(
+              getErrorMessage(err, t('profile.backup.error.importFailed')),
+              'error'
+            )
+          } finally {
+            setAction(null)
           }
-        } catch (err: unknown) {
-          setStatus('error')
-          addToast(
-            getErrorMessage(err, t('profile.backup.error.importFailed')),
-            'error'
-          )
-        } finally {
-          setAction(null)
         }
+        reader.readAsText(file)
       }
-      reader.readAsText(file)
-    }
-    input.click()
-  }, [addToast, requireBackend, requireWallet, restorePayload, t])
+      input.click()
+    },
+    [addToast, requireBackend, requireWallet, restorePayload, t]
+  )
 
   const effectiveStatus = wallet
     ? status === 'disabled'

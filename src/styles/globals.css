@@ -59,8 +59,7 @@
     var(--glass-border)
   );
   --card-shadow-expressive:
-    0 24px 70px rgba(30, 41, 59, 0.14),
-    0 0 0 4px rgba(94, 106, 210, 0.12);
+    0 24px 70px rgba(30, 41, 59, 0.14), 0 0 0 4px rgba(94, 106, 210, 0.12);
   --accent-glow: rgba(94, 106, 210, 0.14);
   --success-glow: rgba(52, 199, 89, 0.12);
   --info-glow: rgba(90, 200, 250, 0.1);
@@ -160,8 +159,7 @@
     );
   --card-border-expressive: rgba(94, 106, 210, 0.52);
   --card-shadow-expressive:
-    0 24px 70px rgba(0, 0, 0, 0.22),
-    0 0 0 4px rgba(94, 106, 210, 0.12);
+    0 24px 70px rgba(0, 0, 0, 0.22), 0 0 0 4px rgba(94, 106, 210, 0.12);
   --accent-glow: rgba(94, 106, 210, 0.16);
   --success-glow: rgba(48, 209, 88, 0.16);
   --info-glow: rgba(100, 210, 255, 0.12);

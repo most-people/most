@@ -21,7 +21,11 @@ export type ChatAttachmentStatus =
   | 'error'
 
 export function getAttachmentBaseFileName(fileName: string) {
-  return String(fileName || '').split('/').pop() || fileName
+  return (
+    String(fileName || '')
+      .split('/')
+      .pop() || fileName
+  )
 }
 
 function getAttachmentIcon(kind: ChannelAttachment['kind']) {

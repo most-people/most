@@ -149,16 +149,12 @@ export default function DownloadOptions() {
     }
   }, [status])
 
-  const {
-    currentAsset,
-    otherAssets,
-    hasR2Assets,
-    activeSource,
-  } = getDownloadOptionsState({
-    manifest,
-    currentKey,
-    requestedSource: downloadSource,
-  })
+  const { currentAsset, otherAssets, hasR2Assets, activeSource } =
+    getDownloadOptionsState({
+      manifest,
+      currentKey,
+      requestedSource: downloadSource,
+    })
 
   const getAssetSourceLabel = (asset: DownloadAsset) =>
     resolveDownloadAsset(asset, activeSource).source === 'r2'
@@ -234,10 +230,7 @@ export default function DownloadOptions() {
     return (
       <article
         key={key}
-        className={[
-          'download-platform-card',
-          isCurrent ? 'is-recommended' : '',
-        ]
+        className={['download-platform-card', isCurrent ? 'is-recommended' : '']
           .filter(Boolean)
           .join(' ')}
       >
@@ -284,7 +277,9 @@ export default function DownloadOptions() {
     )
   }
 
-  const renderComingSoonCard = (platform: (typeof MOBILE_PLATFORMS)[number]) => {
+  const renderComingSoonCard = (
+    platform: (typeof MOBILE_PLATFORMS)[number]
+  ) => {
     const Icon = platform.icon
 
     return (

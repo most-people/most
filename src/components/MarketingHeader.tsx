@@ -10,11 +10,7 @@ export function MarketingHeader() {
   return (
     <nav className="mkt-nav">
       <div className="mkt-nav-inner">
-        <button
-          type="button"
-          className="mkt-nav-logo"
-          onClick={back}
-        >
+        <button type="button" className="mkt-nav-logo" onClick={back}>
           <ArrowLeft size={18} />
           <span>MOST PEOPLE</span>
         </button>

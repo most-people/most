@@ -90,7 +90,10 @@ export function WalletExportView({
 
       {mnemonicPhrase && (
         <div className="web3-tools-section">
-          <button className="web3-tools-toggle" onClick={onToggleMnemonicReveal}>
+          <button
+            className="web3-tools-toggle"
+            onClick={onToggleMnemonicReveal}
+          >
             <KeyRound size={14} />
             {showMnemonicReveal
               ? t('web3.action.hideMnemonic')
@@ -113,7 +116,10 @@ export function WalletExportView({
                 <ShieldAlert size={14} />
                 {t('web3.warning.mnemonic')}
               </p>
-              <button className="web3-tools-toggle" onClick={onToggleMnemonicQr}>
+              <button
+                className="web3-tools-toggle"
+                onClick={onToggleMnemonicQr}
+              >
                 {showMnemonicQr
                   ? t('web3.action.hideMnemonicQr')
                   : t('web3.action.showMnemonicQr')}

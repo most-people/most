@@ -57,7 +57,10 @@ describe('Gan Deng Yan rules', () => {
   })
 
   it('rejects joker-only selections', () => {
-    assert.strictEqual(analyzeCards([card('SJ', 'Joker'), card('BJ', 'Joker')]), null)
+    assert.strictEqual(
+      analyzeCards([card('SJ', 'Joker'), card('BJ', 'Joker')]),
+      null
+    )
   })
 
   it('starts each player at 1000 and carries scores into the next round', () => {
@@ -73,8 +76,14 @@ describe('Gan Deng Yan rules', () => {
       ],
     })
 
-    assert.equal(room.players.find(player => player.address === owner).score, 1000)
-    assert.equal(room.players.find(player => player.address === guest).score, 1000)
+    assert.equal(
+      room.players.find(player => player.address === owner).score,
+      1000
+    )
+    assert.equal(
+      room.players.find(player => player.address === guest).score,
+      1000
+    )
 
     const round = startGanDengYanRound(room, makeDeterministicRandom())
     const ownerPlayer = round.players.find(player => player.address === owner)
@@ -92,13 +101,28 @@ describe('Gan Deng Yan rules', () => {
 
     assert.equal(result.ok, true)
     assert.equal(result.state.status, 'finished')
-    assert.equal(result.state.players.find(player => player.address === owner).score, 1001)
-    assert.equal(result.state.players.find(player => player.address === guest).score, 999)
+    assert.equal(
+      result.state.players.find(player => player.address === owner).score,
+      1001
+    )
+    assert.equal(
+      result.state.players.find(player => player.address === guest).score,
+      999
+    )
 
-    const nextRound = startGanDengYanRound(result.state, makeDeterministicRandom())
+    const nextRound = startGanDengYanRound(
+      result.state,
+      makeDeterministicRandom()
+    )
 
-    assert.equal(nextRound.players.find(player => player.address === owner).score, 1001)
-    assert.equal(nextRound.players.find(player => player.address === guest).score, 999)
+    assert.equal(
+      nextRound.players.find(player => player.address === owner).score,
+      1001
+    )
+    assert.equal(
+      nextRound.players.find(player => player.address === guest).score,
+      999
+    )
   })
 
   it('penalizes sealed players with 20 points', () => {
@@ -130,8 +154,14 @@ describe('Gan Deng Yan rules', () => {
 
     assert.equal(result.ok, true)
     assert.equal(result.state.status, 'finished')
-    assert.equal(result.state.players.find(player => player.address === owner).score, 1020)
-    assert.equal(result.state.players.find(player => player.address === guest).score, 980)
+    assert.equal(
+      result.state.players.find(player => player.address === owner).score,
+      1020
+    )
+    assert.equal(
+      result.state.players.find(player => player.address === guest).score,
+      980
+    )
   })
 
   it('doubles base score per bomb when calculating losses', () => {
@@ -164,8 +194,14 @@ describe('Gan Deng Yan rules', () => {
 
     assert.equal(result.ok, true)
     assert.equal(result.state.status, 'finished')
-    assert.equal(result.state.players.find(player => player.address === owner).score, 1002)
-    assert.equal(result.state.players.find(player => player.address === guest).score, 998)
+    assert.equal(
+      result.state.players.find(player => player.address === owner).score,
+      1002
+    )
+    assert.equal(
+      result.state.players.find(player => player.address === guest).score,
+      998
+    )
   })
 })
 

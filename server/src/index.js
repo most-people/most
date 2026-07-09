@@ -49,10 +49,7 @@ import {
   normalizeMetadataBuckets,
   cloneMetadataRecord,
 } from './core/ownerMetadata.js'
-import {
-  getSyncTimestamp,
-  getNextSyncTimestamp,
-} from './core/syncTimestamp.js'
+import { getSyncTimestamp, getNextSyncTimestamp } from './core/syncTimestamp.js'
 import { createOfflineSwarm } from './node/offlineSwarm.js'
 import {
   sanitizeFilename,
@@ -891,7 +888,10 @@ export class MostBoxEngine extends EventEmitter {
         return {
           kind: 'collection',
           cid: cidString,
-          link: buildMostLink(cidString, publishedBucket[existingIndex].fileName),
+          link: buildMostLink(
+            cidString,
+            publishedBucket[existingIndex].fileName
+          ),
           fileName: publishedBucket[existingIndex].fileName,
           size: directory.totalSize,
           fileCount: directory.files.length,
@@ -936,7 +936,8 @@ export class MostBoxEngine extends EventEmitter {
     })
 
     for (const [blockCid, block] of directory.blocks.entries()) {
-      const driveKey = blockCid === cidString ? `/${blockCid}` : `/.unixfs/${blockCid}`
+      const driveKey =
+        blockCid === cidString ? `/${blockCid}` : `/.unixfs/${blockCid}`
       await this.#writeDriveFile(drive, driveKey, block)
     }
 
@@ -1682,7 +1683,9 @@ export class MostBoxEngine extends EventEmitter {
       throw new Error('File not found')
     }
     files[index].starred = !files[index].starred
-    files[index].syncUpdatedAt = getNextSyncTimestamp(files[index].syncUpdatedAt)
+    files[index].syncUpdatedAt = getNextSyncTimestamp(
+      files[index].syncUpdatedAt
+    )
     this.#savePublishedMetadata()
     return {
       cid,
@@ -1987,8 +1990,12 @@ export class MostBoxEngine extends EventEmitter {
       excludeCid: cid,
     })
     files[index].fileName = safeFileName
-    files[index].syncUpdatedAt = getNextSyncTimestamp(files[index].syncUpdatedAt)
-    files[index].publishedAt = new Date(files[index].syncUpdatedAt).toISOString()
+    files[index].syncUpdatedAt = getNextSyncTimestamp(
+      files[index].syncUpdatedAt
+    )
+    files[index].publishedAt = new Date(
+      files[index].syncUpdatedAt
+    ).toISOString()
     this.#savePublishedMetadata()
     return {
       cid,
@@ -2341,7 +2348,9 @@ export class MostBoxEngine extends EventEmitter {
       .filter(Boolean)
     const channels = this.#channels
       .filter(channel => this.#channelHasMember(channel, ownerAddress))
-      .map(channel => this.#formatAccountChannelForBackup(channel, ownerAddress))
+      .map(channel =>
+        this.#formatAccountChannelForBackup(channel, ownerAddress)
+      )
       .filter(Boolean)
 
     return {
@@ -2396,8 +2405,14 @@ export class MostBoxEngine extends EventEmitter {
     if (profileResult.skipped) result.skipped += 1
 
     let filesChanged = false
-    for (const file of Array.isArray(backupInput.files) ? backupInput.files : []) {
-      const mergeResult = this.#mergeAccountFileRecord(ownerAddress, file, 'active')
+    for (const file of Array.isArray(backupInput.files)
+      ? backupInput.files
+      : []) {
+      const mergeResult = this.#mergeAccountFileRecord(
+        ownerAddress,
+        file,
+        'active'
+      )
       if (mergeResult.added) result.filesAdded += 1
       else if (mergeResult.updated) result.filesUpdated += 1
       else result.skipped += 1
@@ -2407,7 +2422,11 @@ export class MostBoxEngine extends EventEmitter {
     for (const file of Array.isArray(backupInput.trashFiles)
       ? backupInput.trashFiles
       : []) {
-      const mergeResult = this.#mergeAccountFileRecord(ownerAddress, file, 'trash')
+      const mergeResult = this.#mergeAccountFileRecord(
+        ownerAddress,
+        file,
+        'trash'
+      )
       if (mergeResult.added) result.trashFilesAdded += 1
       else if (mergeResult.updated) result.trashFilesUpdated += 1
       else result.skipped += 1
@@ -2686,9 +2705,13 @@ export class MostBoxEngine extends EventEmitter {
 
   async #downloadCollectionFiles(collection, taskId, options = {}) {
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
-    const collectionName = sanitizeFilename(options.fileName || collection.fileName)
+    const collectionName = sanitizeFilename(
+      options.fileName || collection.fileName
+    )
     const selectedPaths = Array.isArray(options.selectedPaths)
-      ? options.selectedPaths.map(item => String(item || '').replace(/\\/g, '/'))
+      ? options.selectedPaths.map(item =>
+          String(item || '').replace(/\\/g, '/')
+        )
       : []
     const selectedSet = new Set(selectedPaths)
     const files =
@@ -2697,7 +2720,9 @@ export class MostBoxEngine extends EventEmitter {
         : collection.files.filter(file => selectedSet.has(file.path))
 
     if (selectedSet.size > 0 && files.length !== selectedSet.size) {
-      throw new ValidationError('selectedPaths contains unknown collection files')
+      throw new ValidationError(
+        'selectedPaths contains unknown collection files'
+      )
     }
 
     const { driveName } = this.#getCidInfo(collection.cid)
@@ -2743,7 +2768,9 @@ export class MostBoxEngine extends EventEmitter {
         completedFiles,
         totalFiles: files.length,
         percent:
-          files.length > 0 ? Math.round((completedFiles / files.length) * 100) : 0,
+          files.length > 0
+            ? Math.round((completedFiles / files.length) * 100)
+            : 0,
       })
     }
 
@@ -2772,7 +2799,13 @@ export class MostBoxEngine extends EventEmitter {
     return result
   }
 
-  async #collectUnixfsDirectoryFiles(drive, directoryNode, prefix, files, rootCid) {
+  async #collectUnixfsDirectoryFiles(
+    drive,
+    directoryNode,
+    prefix,
+    files,
+    rootCid
+  ) {
     const links = [...(directoryNode.Links || [])].sort((left, right) =>
       String(left.Name || '').localeCompare(String(right.Name || ''))
     )
@@ -2805,10 +2838,7 @@ export class MostBoxEngine extends EventEmitter {
         files.push({
           path: childPath,
           cid,
-          size:
-            Number(child.unixfs.fileSize?.()) ||
-            Number(link.Tsize) ||
-            0,
+          size: Number(child.unixfs.fileSize?.()) || Number(link.Tsize) || 0,
         })
       }
     }
@@ -2836,7 +2866,9 @@ export class MostBoxEngine extends EventEmitter {
     const files = Array.isArray(collection.files) ? collection.files : []
     if (files.length === 0) return false
 
-    const collectionName = sanitizeFilename(collection.fileName || collection.cid)
+    const collectionName = sanitizeFilename(
+      collection.fileName || collection.cid
+    )
     const publishedBucket = this.#getPublishedBucket(ownerAddress)
     return files.every(file => {
       const fileName = sanitizeFilename(`${collectionName}/${file.path}`)
@@ -2955,7 +2987,10 @@ export class MostBoxEngine extends EventEmitter {
     if (channelId.includes('.') && channelType !== 'game') {
       throw new Error('点号为系统保留，不能用于手动频道 ID')
     }
-    if (channelType === 'game' && !/^game\.[a-z0-9]+\.[a-z0-9]+$/.test(channelId)) {
+    if (
+      channelType === 'game' &&
+      !/^game\.[a-z0-9]+\.[a-z0-9]+$/.test(channelId)
+    ) {
       throw new Error('游戏频道必须使用 game.<gameId>.<roomCode> 格式')
     }
     if (channelType !== 'game' && !CHANNEL_NAME_REGEX.test(channelId)) {
@@ -2993,7 +3028,9 @@ export class MostBoxEngine extends EventEmitter {
           )
           const memberChanged = this.#upsertChannelMember(existing, options)
           if (writerKeysChanged || memberChanged) {
-            existing.syncUpdatedAt = getNextSyncTimestamp(existing.syncUpdatedAt)
+            existing.syncUpdatedAt = getNextSyncTimestamp(
+              existing.syncUpdatedAt
+            )
             this.#saveChannelsMetadata()
             this.#broadcastChannelHello()
           }
@@ -3074,10 +3111,14 @@ export class MostBoxEngine extends EventEmitter {
         channelId,
         normalizeChannelKey(candidate.channelKey)
       ) || this.#getCachedChannelCandidate(channelId, channelKey)
-    const joined = await this.#joinChannelFromCandidate(cached || candidate, 'group', {
-      ...options,
-      channelKey,
-    })
+    const joined = await this.#joinChannelFromCandidate(
+      cached || candidate,
+      'group',
+      {
+        ...options,
+        channelKey,
+      }
+    )
     return joined
   }
 
@@ -3091,7 +3132,9 @@ export class MostBoxEngine extends EventEmitter {
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
 
     const channel = this.#resolveChannel(channelKeyInput, ownerAddress)
-    const index = this.#channels.findIndex(c => c.channelKey === channel.channelKey)
+    const index = this.#channels.findIndex(
+      c => c.channelKey === channel.channelKey
+    )
     if (index === -1) {
       throw new Error('频道不存在')
     }
@@ -3111,12 +3154,14 @@ export class MostBoxEngine extends EventEmitter {
     const appDiscovery = this.#channelDiscoveries.get(channel.channelKey)
     if (appDiscovery && this.#swarm) {
       this.#channelDiscoveries.delete(channel.channelKey)
-      this.#swarm.leave(this.#generateChannelDiscoveryKey(channel.channelKey)).catch(err => {
-        console.warn(
-          `[MostBox] Failed to leave app swarm for ${channel.channelKey}:`,
-          err.message
-        )
-      })
+      this.#swarm
+        .leave(this.#generateChannelDiscoveryKey(channel.channelKey))
+        .catch(err => {
+          console.warn(
+            `[MostBox] Failed to leave app swarm for ${channel.channelKey}:`,
+            err.message
+          )
+        })
     }
 
     const chatDiscovery = this.#channelChatDiscoveries.get(channel.channelKey)
@@ -3326,7 +3371,13 @@ export class MostBoxEngine extends EventEmitter {
    * @param {object} [options.attachment] - 附件元数据
    * @returns {Promise<object>}
    */
-  async sendMessage(channelKeyInput, content, author, authorName, options = {}) {
+  async sendMessage(
+    channelKeyInput,
+    content,
+    author,
+    authorName,
+    options = {}
+  ) {
     this.#ensureInitialized()
     this.#assertChannelMember(channelKeyInput, options.ownerAddress)
     const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
@@ -3372,9 +3423,7 @@ export class MostBoxEngine extends EventEmitter {
         normalizeOwnerAddress(author)
       ),
       content: trimmed,
-      timestamp: await this.#getNextChannelMessageTimestamp(
-        channel.channelKey
-      ),
+      timestamp: await this.#getNextChannelMessageTimestamp(channel.channelKey),
     }
     if (normalizedAvatar) {
       message.avatar = normalizedAvatar
@@ -3422,9 +3471,9 @@ export class MostBoxEngine extends EventEmitter {
     return [...peers.values()].map(p => ({
       peerId: p.peerId,
       authorName: p.authorName,
-      memberAddresses: uniqueStrings(p.memberAddresses).map(address =>
-        normalizeOwnerAddress(address)
-      ).filter(Boolean),
+      memberAddresses: uniqueStrings(p.memberAddresses)
+        .map(address => normalizeOwnerAddress(address))
+        .filter(Boolean),
       lastSeen: p.lastSeen,
     }))
   }
@@ -3481,7 +3530,8 @@ export class MostBoxEngine extends EventEmitter {
 
   async #createLocalChannel(channelId, type = 'personal', options = {}) {
     const channelKey = buildChannelKey(channelId)
-    const writerId = String(options.writerId || '').trim() || createChannelWriterId()
+    const writerId =
+      String(options.writerId || '').trim() || createChannelWriterId()
     const ns = this.#store.namespace(`channel-${channelKey}`)
     const localCore = ns.get({
       name: `messages-${writerId}`,
@@ -3524,7 +3574,11 @@ export class MostBoxEngine extends EventEmitter {
     return channelInfo
   }
 
-  async #joinChannelFromCandidate(candidateInput, type = 'group', options = {}) {
+  async #joinChannelFromCandidate(
+    candidateInput,
+    type = 'group',
+    options = {}
+  ) {
     const channelId = normalizeChannelId(
       candidateInput.channelId || options.channelId
     )
@@ -3554,14 +3608,18 @@ export class MostBoxEngine extends EventEmitter {
       ownerAddress && hasSameIdLocal && !String(options.remark || '').trim()
         ? `${channelId}-网络`
         : options.remark
-    const channelInfo = await this.#createLocalChannel(channelId, candidateInput.type || type, {
-      ...options,
-      ownerAddress,
-      createdAt: candidateInput.createdAt,
-      lastMessageAt: candidateInput.lastMessageAt,
-      writerCoreKeys: candidateInput.writerCoreKeys,
-      remark,
-    })
+    const channelInfo = await this.#createLocalChannel(
+      channelId,
+      candidateInput.type || type,
+      {
+        ...options,
+        ownerAddress,
+        createdAt: candidateInput.createdAt,
+        lastMessageAt: candidateInput.lastMessageAt,
+        writerCoreKeys: candidateInput.writerCoreKeys,
+        remark,
+      }
+    )
 
     console.log(`[MostBox] Joined channel: ${channelInfo.channelKey}`)
     this.emit('channel:joined', {
@@ -3596,7 +3654,9 @@ export class MostBoxEngine extends EventEmitter {
     if (!this.#channelCores.has(channel.channelKey)) {
       this.#channelCores.set(channel.channelKey, new Map())
     }
-    this.#channelCores.get(channel.channelKey).set(localWriterCoreKey, localCore)
+    this.#channelCores
+      .get(channel.channelKey)
+      .set(localWriterCoreKey, localCore)
     this.#channelLocalCoreKey.set(channel.channelKey, localWriterCoreKey)
     if (!this.#channelPeers.has(channel.channelKey)) {
       this.#channelPeers.set(channel.channelKey, new Map())
@@ -3827,7 +3887,10 @@ export class MostBoxEngine extends EventEmitter {
       channel.members = []
     }
 
-    const displayName = normalizeChannelDisplayName(options.displayName, address)
+    const displayName = normalizeChannelDisplayName(
+      options.displayName,
+      address
+    )
     const avatar = normalizeChannelAvatar(options.avatar)
     const existing = channel.members.find(
       member => normalizeOwnerAddress(member?.address) === address
@@ -3933,7 +3996,11 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #normalizePresenceSessionId(sessionId) {
-    return String(sessionId || 'default').trim().slice(0, 120) || 'default'
+    return (
+      String(sessionId || 'default')
+        .trim()
+        .slice(0, 120) || 'default'
+    )
   }
 
   #normalizePresenceSourceId(options = {}) {
@@ -4017,7 +4084,12 @@ export class MostBoxEngine extends EventEmitter {
     }
   }
 
-  #upsertChannelPresenceProfile(channelKey, address, options = {}, now = Date.now()) {
+  #upsertChannelPresenceProfile(
+    channelKey,
+    address,
+    options = {},
+    now = Date.now()
+  ) {
     const normalizedAddress = normalizeOwnerAddress(address)
     if (!normalizedAddress) return false
     const hasDisplayName = Object.prototype.hasOwnProperty.call(
@@ -4142,7 +4214,10 @@ export class MostBoxEngine extends EventEmitter {
       options,
       now
     )
-    if (changed && this.#isChannelPresenceAddressOnline(channel.channelKey, address)) {
+    if (
+      changed &&
+      this.#isChannelPresenceAddressOnline(channel.channelKey, address)
+    ) {
       return this.#emitChannelPresence(channel.channelKey, address, 'profile')
     }
     return null
@@ -4191,7 +4266,11 @@ export class MostBoxEngine extends EventEmitter {
       }
       for (const address of touchedAddresses) {
         if (!this.#isChannelPresenceAddressOnline(channelKey, address)) {
-          const event = this.#emitChannelPresence(channelKey, address, 'offline')
+          const event = this.#emitChannelPresence(
+            channelKey,
+            address,
+            'offline'
+          )
           if (event) events.push(event)
         }
       }
@@ -4213,7 +4292,11 @@ export class MostBoxEngine extends EventEmitter {
       }
       for (const address of touchedAddresses) {
         if (!this.#isChannelPresenceAddressOnline(channelKey, address)) {
-          const event = this.#emitChannelPresence(channelKey, address, 'offline')
+          const event = this.#emitChannelPresence(
+            channelKey,
+            address,
+            'offline'
+          )
           if (event) events.push(event)
         }
       }
@@ -4323,7 +4406,9 @@ export class MostBoxEngine extends EventEmitter {
       fileName: sanitizeFilename(file.fileName || cid),
       driveName: file.driveName || driveName,
       size: Number(file.size) || 0,
-      source: String(file.source || (state === 'active' ? 'published' : 'trash')),
+      source: String(
+        file.source || (state === 'active' ? 'published' : 'trash')
+      ),
       publishedAt:
         typeof file.publishedAt === 'string'
           ? file.publishedAt
@@ -4352,7 +4437,10 @@ export class MostBoxEngine extends EventEmitter {
       return null
     }
     const updatedAt = getSyncTimestamp(
-      channel.updatedAt || channel.syncUpdatedAt || channel.lastMessageAt || channel.createdAt
+      channel.updatedAt ||
+        channel.syncUpdatedAt ||
+        channel.lastMessageAt ||
+        channel.createdAt
     )
     return {
       channelId: channel.channelId,
@@ -4408,7 +4496,10 @@ export class MostBoxEngine extends EventEmitter {
     this.#accountMetadata.profiles = this.#accountMetadata.profiles || {}
     this.#accountMetadata.profiles[owner] = profile
     this.#saveAccountMetadata()
-    const changedChannels = this.#applyUserProfileToJoinedChannels(owner, profile)
+    const changedChannels = this.#applyUserProfileToJoinedChannels(
+      owner,
+      profile
+    )
     if (changedChannels) this.#saveChannelsMetadata()
     return { changed: true, skipped: false }
   }
@@ -4426,14 +4517,19 @@ export class MostBoxEngine extends EventEmitter {
     const fileName = sanitizeFilename(record.fileName || cid)
     if (!fileName || fileName === 'unnamed') return null
     const updatedAt = getSyncTimestamp(
-      record.updatedAt || record.syncUpdatedAt || record.deletedAt || record.publishedAt
+      record.updatedAt ||
+        record.syncUpdatedAt ||
+        record.deletedAt ||
+        record.publishedAt
     )
     return {
       cid,
       fileName,
       driveName: record.driveName || driveName,
       size: Number(record.size) || 0,
-      source: String(record.source || (state === 'active' ? 'synced' : 'trash')),
+      source: String(
+        record.source || (state === 'active' ? 'synced' : 'trash')
+      ),
       publishedAt:
         typeof record.publishedAt === 'string'
           ? record.publishedAt
@@ -4451,7 +4547,10 @@ export class MostBoxEngine extends EventEmitter {
 
   #getRecordUpdatedAt(record) {
     return getSyncTimestamp(
-      record?.updatedAt || record?.syncUpdatedAt || record?.deletedAt || record?.publishedAt,
+      record?.updatedAt ||
+        record?.syncUpdatedAt ||
+        record?.deletedAt ||
+        record?.publishedAt,
       0
     )
   }
@@ -4469,7 +4568,8 @@ export class MostBoxEngine extends EventEmitter {
       file => file.cid === normalized.cid
     )
     const trashIndex = trashFiles.findIndex(file => file.cid === normalized.cid)
-    const existingActive = publishedIndex === -1 ? null : publishedFiles[publishedIndex]
+    const existingActive =
+      publishedIndex === -1 ? null : publishedFiles[publishedIndex]
     const existingTrash = trashIndex === -1 ? null : trashFiles[trashIndex]
     const existingUpdatedAt = Math.max(
       this.#getRecordUpdatedAt(existingActive),
@@ -4508,7 +4608,8 @@ export class MostBoxEngine extends EventEmitter {
         source: localSource,
         publishedAt: normalized.publishedAt,
         starred: normalized.starred,
-        deletedAt: normalized.deletedAt || new Date(normalized.updatedAt).toISOString(),
+        deletedAt:
+          normalized.deletedAt || new Date(normalized.updatedAt).toISOString(),
         syncUpdatedAt: normalized.updatedAt,
       }
       if (trashIndex === -1) trashFiles.push(nextRecord)
@@ -4578,7 +4679,10 @@ export class MostBoxEngine extends EventEmitter {
         channel.writerCoreKeys = nextKeys
         changed = true
       }
-      if (record.lastMessageAt && record.lastMessageAt !== channel.lastMessageAt) {
+      if (
+        record.lastMessageAt &&
+        record.lastMessageAt !== channel.lastMessageAt
+      ) {
         channel.lastMessageAt = record.lastMessageAt
         changed = true
       }
@@ -5136,14 +5240,16 @@ export class MostBoxEngine extends EventEmitter {
         const remarks = channel.remarks
           ? Object.fromEntries(
               Object.entries(channel.remarks).filter(
-                ([address]) => normalizeOwnerAddress(address) !== normalizedOwner
+                ([address]) =>
+                  normalizeOwnerAddress(address) !== normalizedOwner
               )
             )
           : undefined
         const pinnedBy = channel.pinnedBy
           ? Object.fromEntries(
               Object.entries(channel.pinnedBy).filter(
-                ([address]) => normalizeOwnerAddress(address) !== normalizedOwner
+                ([address]) =>
+                  normalizeOwnerAddress(address) !== normalizedOwner
               )
             )
           : undefined
@@ -5208,10 +5314,7 @@ export class MostBoxEngine extends EventEmitter {
     const folder = getDisplayPathFolder(safeFileName)
     const baseName = getPathBaseName(safeFileName)
     const conflict = files.find(file => {
-      if (
-        options.excludeCid &&
-        file.cid === options.excludeCid
-      ) {
+      if (options.excludeCid && file.cid === options.excludeCid) {
         return false
       }
       const existingFileName = sanitizeFilename(file.fileName)
@@ -5459,7 +5562,9 @@ export class MostBoxEngine extends EventEmitter {
               channel.writerId &&
               channel.localWriterCoreKey
           )
-          .map(({ expectedChannelKey: _expectedChannelKey, ...channel }) => channel)
+          .map(
+            ({ expectedChannelKey: _expectedChannelKey, ...channel }) => channel
+          )
       }
     } catch (err) {
       console.warn(
@@ -5770,7 +5875,8 @@ export class MostBoxEngine extends EventEmitter {
       for (const writerCoreKey of remoteChannel.writerCoreKeys) {
         if (
           writerCoreKey &&
-          writerCoreKey !== this.#channelLocalCoreKey.get(localChannel.channelKey)
+          writerCoreKey !==
+            this.#channelLocalCoreKey.get(localChannel.channelKey)
         ) {
           await this.#openRemoteChannelCore(
             localChannel.channelKey,

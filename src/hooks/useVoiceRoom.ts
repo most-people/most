@@ -253,7 +253,9 @@ export function useVoiceRoom({
               sdp: peer.localDescription.sdp,
             })
           })
-          .catch(err => setError(err instanceof Error ? err.message : String(err)))
+          .catch(err =>
+            setError(err instanceof Error ? err.message : String(err))
+          )
       }
 
       return peer
@@ -264,7 +266,11 @@ export function useVoiceRoom({
   const upsertRemoteParticipant = useCallback(
     (event: ChannelVoiceEvent) => {
       const sessionId = String(event.sessionId || '').trim()
-      if (!sessionId || sessionId === localSessionId || !event.sender?.address) {
+      if (
+        !sessionId ||
+        sessionId === localSessionId ||
+        !event.sender?.address
+      ) {
         return null
       }
 
@@ -285,9 +291,11 @@ export function useVoiceRoom({
         return {
           sessionId,
           address: participant.address || previous?.address || '',
-          displayName: participant.displayName || previous?.displayName || sessionId,
+          displayName:
+            participant.displayName || previous?.displayName || sessionId,
           avatar: participant.avatar || previous?.avatar,
-          profileUpdatedAt: participant.profileUpdatedAt || previous?.profileUpdatedAt,
+          profileUpdatedAt:
+            participant.profileUpdatedAt || previous?.profileUpdatedAt,
           micMuted:
             typeof event.micMuted === 'boolean'
               ? event.micMuted
@@ -499,7 +507,12 @@ export function useVoiceRoom({
         return
       }
       ws.onopen = () => {
-        ws.send(JSON.stringify({ event: 'channel:subscribe', data: { channel: channelName } }))
+        ws.send(
+          JSON.stringify({
+            event: 'channel:subscribe',
+            data: { channel: channelName },
+          })
+        )
         if (joinedRef.current) sendVoiceEvent('join')
       }
       ws.onmessage = event => {
@@ -558,7 +571,10 @@ export function useVoiceRoom({
         let changed = false
         const next: Record<string, VoiceParticipant> = {}
         for (const participant of Object.values(prev)) {
-          if (!participant.local && now - participant.lastSeen > VOICE_STALE_MS) {
+          if (
+            !participant.local &&
+            now - participant.lastSeen > VOICE_STALE_MS
+          ) {
             closePeer(participant.sessionId)
             changed = true
             continue

@@ -78,7 +78,11 @@ describe('noteVault', () => {
     fs.writeFileSync(path.join(vaultDir, 'root.md'), 'root', 'utf8')
     fs.writeFileSync(path.join(vaultDir, 'docs', 'child.md'), 'child', 'utf8')
     fs.writeFileSync(path.join(vaultDir, 'docs', 'skip.txt'), 'skip', 'utf8')
-    fs.writeFileSync(path.join(vaultDir, '.hidden', 'hidden.md'), 'hidden', 'utf8')
+    fs.writeFileSync(
+      path.join(vaultDir, '.hidden', 'hidden.md'),
+      'hidden',
+      'utf8'
+    )
     fs.writeFileSync(
       path.join(vaultDir, 'node_modules', 'package.md'),
       'package',
@@ -132,7 +136,10 @@ describe('noteVault', () => {
       'archive/new.md'
     )
     assert.strictEqual(moved.path, 'archive/new.md')
-    assert.strictEqual(fs.existsSync(path.join(vaultDir, 'docs', 'new.md')), false)
+    assert.strictEqual(
+      fs.existsSync(path.join(vaultDir, 'docs', 'new.md')),
+      false
+    )
     assert.strictEqual(
       fs.readFileSync(path.join(vaultDir, 'archive', 'new.md'), 'utf8'),
       'new'
@@ -157,7 +164,11 @@ describe('noteVault', () => {
     fs.writeFileSync(path.join(vaultDir, 'old.md'), 'old', 'utf8')
     fs.writeFileSync(path.join(vaultDir, 'ignore.txt'), 'ignore', 'utf8')
     fs.writeFileSync(path.join(vaultDir, 'nested', 'current.md'), 'old', 'utf8')
-    fs.writeFileSync(path.join(vaultDir, '.hidden', 'secret.md'), 'secret', 'utf8')
+    fs.writeFileSync(
+      path.join(vaultDir, '.hidden', 'secret.md'),
+      'secret',
+      'utf8'
+    )
 
     const snapshot = await createNoteVaultSnapshot(vaultDir)
     assert.deepStrictEqual(

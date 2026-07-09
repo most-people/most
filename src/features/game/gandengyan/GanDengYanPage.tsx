@@ -213,7 +213,6 @@ export default function GanDengYanPage() {
       }
       return
     }
-
   }, [locale, room?.seq, t])
 
   useEffect(() => {
@@ -298,7 +297,9 @@ export default function GanDengYanPage() {
       await publishState(startGanDengYanRound(room))
     } catch (err) {
       addToast(
-        err instanceof Error ? err.message : t('game.zhajinhua.error.startFailed'),
+        err instanceof Error
+          ? err.message
+          : t('game.zhajinhua.error.startFailed'),
         'error'
       )
     }
@@ -345,7 +346,9 @@ export default function GanDengYanPage() {
       sidebar={({ closeSidebar }) => (
         <GameSidebar activeGame="gandengyan" closeSidebar={closeSidebar} />
       )}
-      headerTitle={<h2 className="header-title">{t('game.gandengyan.title')}</h2>}
+      headerTitle={
+        <h2 className="header-title">{t('game.gandengyan.title')}</h2>
+      }
       headerRight={
         <div className={styles.headerActions}>
           {room && (
@@ -364,9 +367,7 @@ export default function GanDengYanPage() {
               <div className={styles.cardMark}>{t('game.gandengyan.mark')}</div>
               <div>
                 <h1>{t('game.gandengyan.hero.title')}</h1>
-                <p>
-                  {t('game.hero.desc')}
-                </p>
+                <p>{t('game.hero.desc')}</p>
               </div>
             </div>
 
@@ -514,24 +515,26 @@ export default function GanDengYanPage() {
                     </div>
                   ) : (
                     t('game.gandengyan.result.winner', {
-                      player: getGamePlayerName(
-                        room.players.find(
-                          player => player.seat === room.winnerSeat
-                        ),
-                        game.presenceByAddress
-                      ) || t('game.player'),
+                      player:
+                        getGamePlayerName(
+                          room.players.find(
+                            player => player.seat === room.winnerSeat
+                          ),
+                          game.presenceByAddress
+                        ) || t('game.player'),
                     })
                   )
                 ) : myTurn ? (
                   t('game.gandengyan.status.yourTurn')
                 ) : (
                   t('game.zhajinhua.status.waitingPlayer', {
-                    player: getGamePlayerName(
-                      room.players.find(
-                        player => player.seat === room.currentSeat
-                      ),
-                      game.presenceByAddress
-                    ) || t('game.player'),
+                    player:
+                      getGamePlayerName(
+                        room.players.find(
+                          player => player.seat === room.currentSeat
+                        ),
+                        game.presenceByAddress
+                      ) || t('game.player'),
                   })
                 )}
               </div>
@@ -697,7 +700,10 @@ function PlayerBadge({
         )}
         translate="no"
       >
-        <SafeImage src={generateAvatar(player.address, display.avatar)} alt="" />
+        <SafeImage
+          src={generateAvatar(player.address, display.avatar)}
+          alt=""
+        />
         {display.online && <span className={styles.onlineDot} />}
       </div>
       <div>
@@ -728,7 +734,9 @@ function hasPlayerSnapshotChanges(
 }
 
 function getPresenceKey(address = '') {
-  return String(address || '').trim().toLowerCase()
+  return String(address || '')
+    .trim()
+    .toLowerCase()
 }
 
 function shortAddress(address = '') {

@@ -146,10 +146,9 @@ export function ActionMenu({
     if (!isOpen) return
 
     const animationId = window.requestAnimationFrame(() => {
-      const firstItem =
-        menuRef.current?.querySelector<HTMLElement>(
-          'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
-        )
+      const firstItem = menuRef.current?.querySelector<HTMLElement>(
+        'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
+      )
       firstItem?.focus({ preventScroll: true })
     })
 
@@ -179,7 +178,11 @@ export function ActionMenu({
     window.addEventListener('scroll', updatePosition, true)
 
     return () => {
-      document.removeEventListener('pointerdown', handleDocumentPointerDown, true)
+      document.removeEventListener(
+        'pointerdown',
+        handleDocumentPointerDown,
+        true
+      )
       document.removeEventListener('keydown', handleDocumentKeyDown)
       window.removeEventListener('resize', updatePosition)
       window.removeEventListener('scroll', updatePosition, true)
@@ -238,9 +241,13 @@ export function ActionMenu({
                     }}
                   >
                     {item.icon && (
-                      <span className="ui-action-menu-item-icon">{item.icon}</span>
+                      <span className="ui-action-menu-item-icon">
+                        {item.icon}
+                      </span>
                     )}
-                    <span className="ui-action-menu-item-label">{item.label}</span>
+                    <span className="ui-action-menu-item-label">
+                      {item.label}
+                    </span>
                     {item.description && (
                       <span className="ui-action-menu-item-description">
                         {item.description}
@@ -254,7 +261,9 @@ export function ActionMenu({
       : null
 
   return (
-    <span className={['ui-action-menu-anchor', className].filter(Boolean).join(' ')}>
+    <span
+      className={['ui-action-menu-anchor', className].filter(Boolean).join(' ')}
+    >
       {renderTrigger({
         ref: setTriggerRef,
         type: 'button',

@@ -2,13 +2,14 @@ export const CHANNEL_MEMBER_JOINED_EVENT = 'channel.member.joined'
 
 export function isChannelMemberJoinedSystemMessage(message) {
   return (
-    message?.type === 'system' &&
-    message?.event === CHANNEL_MEMBER_JOINED_EVENT
+    message?.type === 'system' && message?.event === CHANNEL_MEMBER_JOINED_EVENT
   )
 }
 
 export function getChannelMessageKey(message) {
-  const author = String(message?.author || '').trim().toLowerCase()
+  const author = String(message?.author || '')
+    .trim()
+    .toLowerCase()
   if (isChannelMemberJoinedSystemMessage(message) && author) {
     return `system:${CHANNEL_MEMBER_JOINED_EVENT}:${author}`
   }

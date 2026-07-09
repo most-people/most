@@ -1,12 +1,7 @@
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { HDNodeWallet } from 'ethers'
-import {
-  KeyRound,
-  Lock,
-  User,
-  Wallet,
-} from 'lucide-react'
+import { KeyRound, Lock, User, Wallet } from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import { AppTop } from '~/components/AppTop'
 import { useAppStore } from '~/stores/useAppStore'
@@ -38,12 +33,7 @@ import type {
   WalletResult,
 } from './components/types'
 
-const validViews: readonly ViewId[] = [
-  'wallet',
-  'pem',
-  'export',
-  'EA',
-]
+const validViews: readonly ViewId[] = ['wallet', 'pem', 'export', 'EA']
 
 function getHashView(): ViewId {
   const hash = window.location.hash.replace('#', '')
@@ -408,9 +398,7 @@ export default function Web3Page() {
                 setShowMnemonicReveal(!showMnemonicReveal)
               }
               onToggleMnemonicQr={() => setShowMnemonicQr(!showMnemonicQr)}
-              onToggleDeriveIndex={() =>
-                setDeriveShowIndex(!deriveShowIndex)
-              }
+              onToggleDeriveIndex={() => setDeriveShowIndex(!deriveShowIndex)}
               onToggleDeriveAddress={() =>
                 setDeriveShowAddress(!deriveShowAddress)
               }
@@ -517,9 +505,7 @@ export default function Web3Page() {
                   setError: setBoxBAError,
                 })
               }
-              onBoxEncryptSenderPrivateKeyChange={
-                setBoxEncryptSenderPrivateKey
-              }
+              onBoxEncryptSenderPrivateKeyChange={setBoxEncryptSenderPrivateKey}
               onBoxEncryptRecipientPublicKeyChange={
                 setBoxEncryptRecipientPublicKey
               }

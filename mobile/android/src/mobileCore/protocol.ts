@@ -48,10 +48,8 @@ function parseMostLinkQuery(search: string) {
     if (!part) continue
 
     const separatorIndex = part.indexOf('=')
-    const rawKey =
-      separatorIndex === -1 ? part : part.slice(0, separatorIndex)
-    const rawValue =
-      separatorIndex === -1 ? '' : part.slice(separatorIndex + 1)
+    const rawKey = separatorIndex === -1 ? part : part.slice(0, separatorIndex)
+    const rawValue = separatorIndex === -1 ? '' : part.slice(separatorIndex + 1)
     const key = decodeQueryPart(rawKey)
     if (key !== 'filename') {
       return { fileName: '', unsupportedQuery: true }

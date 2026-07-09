@@ -238,7 +238,10 @@ describe('api browser helpers', () => {
       setBackendInvite('')
 
       assert.strictEqual(getBackendUrlExport(), 'http://localhost:1976')
-      assert.strictEqual(getRemoteUrlExport(), 'https://second.example.com/base')
+      assert.strictEqual(
+        getRemoteUrlExport(),
+        'https://second.example.com/base'
+      )
       assert.strictEqual(getRemoteInviteExport(), 'second-code')
       assert.deepStrictEqual(
         getRemoteNodesExport().map(node => ({
@@ -476,5 +479,4 @@ describe('api browser helpers', () => {
       assert.deepStrictEqual(result, { ok: false, reason: 'http' })
     })
   })
-
 })

@@ -54,9 +54,7 @@ export class ErrorBoundary extends React.Component<
       return (
         <div className="error-boundary-page">
           <h1 className="error-boundary-title">{t('errorBoundary.title')}</h1>
-          <p className="error-boundary-desc">
-            {t('errorBoundary.desc')}
-          </p>
+          <p className="error-boundary-desc">{t('errorBoundary.desc')}</p>
           <button onClick={this.handleReload} className="error-boundary-btn">
             {t('errorBoundary.reload')}
           </button>

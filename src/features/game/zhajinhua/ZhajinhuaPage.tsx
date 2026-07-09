@@ -55,12 +55,13 @@ function cardParts(card: string) {
   const value = String(card || '')
   const suit = value.slice(-1)
   const rank = value.slice(0, -1)
-  const suitSymbol = {
-    S: '\u2660',
-    H: '\u2665',
-    C: '\u2663',
-    D: '\u2666',
-  }[suit] || suit
+  const suitSymbol =
+    {
+      S: '\u2660',
+      H: '\u2665',
+      C: '\u2663',
+      D: '\u2666',
+    }[suit] || suit
   const color = suit === 'H' || suit === 'D' ? 'red' : 'black'
   return { rank, suit: suitSymbol, color }
 }
@@ -169,7 +170,10 @@ export default function ZhajinhuaPage() {
     currentRound?.compareReveal && myAddress
       ? currentRound.compareReveal[myAddress]
       : null
-  const myHand = myShowdownHand || myCompareRevealHand || (myRoundPlayer?.looked ? myDealtHand : null)
+  const myHand =
+    myShowdownHand ||
+    myCompareRevealHand ||
+    (myRoundPlayer?.looked ? myDealtHand : null)
   const allowedActions = getAllowedActions(currentRound, myAddress)
   const activePlayers = getActiveRoundPlayers(currentRound)
   const canHostStart =
@@ -277,7 +281,11 @@ export default function ZhajinhuaPage() {
         if (!result.ok) {
           const authorAddr = item.message.author
           const isBot = !sameAddress(authorAddr, game.userIdentity?.address)
-          if (isBot && fullRound.status === 'playing' && sameAddress(fullRound.turnAddress, authorAddr)) {
+          if (
+            isBot &&
+            fullRound.status === 'playing' &&
+            sameAddress(fullRound.turnAddress, authorAddr)
+          ) {
             const fallbackCall = applyPlayerAction(
               fullRound,
               createPlayerActionEvent({
@@ -399,7 +407,9 @@ export default function ZhajinhuaPage() {
       addToast(t('game.zhajinhua.toast.roundStarted'), 'success')
     } catch (err) {
       addToast(
-        err instanceof Error ? err.message : t('game.zhajinhua.error.startFailed'),
+        err instanceof Error
+          ? err.message
+          : t('game.zhajinhua.error.startFailed'),
         'error'
       )
     }
@@ -445,7 +455,9 @@ export default function ZhajinhuaPage() {
       sidebar={({ closeSidebar }) => (
         <GameSidebar activeGame="zhajinhua" closeSidebar={closeSidebar} />
       )}
-      headerTitle={<h2 className="header-title">{t('game.zhajinhua.title')}</h2>}
+      headerTitle={
+        <h2 className="header-title">{t('game.zhajinhua.title')}</h2>
+      }
       headerRight={
         <div className={styles.headerActions}>
           {game.roomCode && (
@@ -466,9 +478,7 @@ export default function ZhajinhuaPage() {
               </div>
               <div>
                 <h1>{t('game.zhajinhua.hero.title')}</h1>
-                <p>
-                  {t('game.hero.desc')}
-                </p>
+                <p>{t('game.hero.desc')}</p>
               </div>
             </div>
 
@@ -513,21 +523,23 @@ export default function ZhajinhuaPage() {
         ) : (
           <div className={styles.board}>
             <section className={styles.table}>
-              {currentRound?.status === 'finished' && currentRound.winner && showFinishBanner && (
-                <div className={styles.finishBanner}>
-                  <span className={styles.finishBannerIcon}>🏆</span>
-                  <span>
-                    {t('game.zhajinhua.result.winChips', {
-                      player: getPlayerName(
-                        currentRound.winner,
-                        lobby.players,
-                        game.presenceByAddress
-                      ),
-                      amount: currentRound.winAmount ?? 0,
-                    })}
-                  </span>
-                </div>
-              )}
+              {currentRound?.status === 'finished' &&
+                currentRound.winner &&
+                showFinishBanner && (
+                  <div className={styles.finishBanner}>
+                    <span className={styles.finishBannerIcon}>🏆</span>
+                    <span>
+                      {t('game.zhajinhua.result.winChips', {
+                        player: getPlayerName(
+                          currentRound.winner,
+                          lobby.players,
+                          game.presenceByAddress
+                        ),
+                        amount: currentRound.winAmount ?? 0,
+                      })}
+                    </span>
+                  </div>
+                )}
               {currentRound?.lastCompare && showCompareOverlay && (
                 <CompareOverlay
                   lastCompare={currentRound.lastCompare}
@@ -582,11 +594,15 @@ export default function ZhajinhuaPage() {
                           src={generateAvatar(player.address, display.avatar)}
                           alt=""
                         />
-                        {display.online && <span className={styles.onlineDot} />}
+                        {display.online && (
+                          <span className={styles.onlineDot} />
+                        )}
                       </div>
                       <div className={styles.seatMain}>
                         <strong translate="no">{display.name}</strong>
-                        <span translate="no">{shortAddress(player.address)}</span>
+                        <span translate="no">
+                          {shortAddress(player.address)}
+                        </span>
                       </div>
                       <div className={styles.seatMeta}>
                         <span>
@@ -670,11 +686,13 @@ export default function ZhajinhuaPage() {
                 ) : (
                   <p className={styles.muted}>{t('game.waitingHost')}</p>
                 )}
-                {isHost && currentRound?.status === 'finished' && !canHostStart && (
-                  <p className={styles.muted}>
-                    {t('game.zhajinhua.error.tooManyLowChips')}
-                  </p>
-                )}
+                {isHost &&
+                  currentRound?.status === 'finished' &&
+                  !canHostStart && (
+                    <p className={styles.muted}>
+                      {t('game.zhajinhua.error.tooManyLowChips')}
+                    </p>
+                  )}
 
                 <div className={styles.actionGrid}>
                   <button
@@ -711,7 +729,9 @@ export default function ZhajinhuaPage() {
                   >
                     {ZHJ_RAISE_STEPS.map(step => (
                       <option key={step} value={step}>
-                        {t('game.zhajinhua.action.raiseOption', { amount: step })}
+                        {t('game.zhajinhua.action.raiseOption', {
+                          amount: step,
+                        })}
                       </option>
                     ))}
                   </select>
@@ -760,7 +780,9 @@ export default function ZhajinhuaPage() {
               </div>
 
               <div className={styles.panelSection}>
-                <div className={styles.panelTitle}>{t('game.status.title')}</div>
+                <div className={styles.panelTitle}>
+                  {t('game.status.title')}
+                </div>
                 <div className={styles.statusGrid}>
                   <span>{t('game.host')}</span>
                   <strong>
@@ -835,14 +857,25 @@ function CompareOverlay({
   function getDisplayCards(playerAddress: string, playerLooked: boolean) {
     const revealed = compareReveal[playerAddress]
     if (revealed) return revealed
-    if (isParticipant && sameAddress(playerAddress, myAddress) && playerLooked && myDealtHand) {
+    if (
+      isParticipant &&
+      sameAddress(playerAddress, myAddress) &&
+      playerLooked &&
+      myDealtHand
+    ) {
       return myDealtHand
     }
     return null
   }
 
-  const initiatorDisplayCards = getDisplayCards(lastCompare.initiator, lastCompare.initiatorLooked)
-  const targetDisplayCards = getDisplayCards(lastCompare.target, lastCompare.targetLooked)
+  const initiatorDisplayCards = getDisplayCards(
+    lastCompare.initiator,
+    lastCompare.initiatorLooked
+  )
+  const targetDisplayCards = getDisplayCards(
+    lastCompare.target,
+    lastCompare.targetLooked
+  )
 
   return (
     <div className={styles.compareOverlay} onClick={onClose}>
@@ -851,14 +884,23 @@ function CompareOverlay({
           {t('game.zhajinhua.compareResult')}
         </div>
         <div className={styles.comparePlayers}>
-          <div className={classNames(styles.compareSide, sameAddress(lastCompare.winner, lastCompare.initiator) && styles.compareWinner)}>
+          <div
+            className={classNames(
+              styles.compareSide,
+              sameAddress(lastCompare.winner, lastCompare.initiator) &&
+                styles.compareWinner
+            )}
+          >
             <div className={styles.compareName}>{initiatorName}</div>
             <div className={styles.compareCards}>
               {initiatorDisplayCards
                 ? initiatorDisplayCards.map(card => {
                     const parts = cardParts(card)
                     return (
-                      <div key={card} className={classNames(styles.card, styles[parts.color])}>
+                      <div
+                        key={card}
+                        className={classNames(styles.card, styles[parts.color])}
+                      >
                         <span>{parts.rank}</span>
                         <i>{parts.suit}</i>
                       </div>
@@ -871,18 +913,29 @@ function CompareOverlay({
                   ))}
             </div>
             {initiatorDisplayCards && (
-              <div className={styles.compareLabel}>{getHandLabel(initiatorDisplayCards)}</div>
+              <div className={styles.compareLabel}>
+                {getHandLabel(initiatorDisplayCards)}
+              </div>
             )}
           </div>
           <div className={styles.compareVs}>VS</div>
-          <div className={classNames(styles.compareSide, sameAddress(lastCompare.winner, lastCompare.target) && styles.compareWinner)}>
+          <div
+            className={classNames(
+              styles.compareSide,
+              sameAddress(lastCompare.winner, lastCompare.target) &&
+                styles.compareWinner
+            )}
+          >
             <div className={styles.compareName}>{targetName}</div>
             <div className={styles.compareCards}>
               {targetDisplayCards
                 ? targetDisplayCards.map(card => {
                     const parts = cardParts(card)
                     return (
-                      <div key={card} className={classNames(styles.card, styles[parts.color])}>
+                      <div
+                        key={card}
+                        className={classNames(styles.card, styles[parts.color])}
+                      >
                         <span>{parts.rank}</span>
                         <i>{parts.suit}</i>
                       </div>
@@ -895,7 +948,9 @@ function CompareOverlay({
                   ))}
             </div>
             {targetDisplayCards && (
-              <div className={styles.compareLabel}>{getHandLabel(targetDisplayCards)}</div>
+              <div className={styles.compareLabel}>
+                {getHandLabel(targetDisplayCards)}
+              </div>
             )}
           </div>
         </div>
@@ -918,13 +973,16 @@ function getPlayerName(
   const normalized = getPresenceKey(address)
   return (
     presenceByAddress.get(normalized)?.displayName ||
-    players.find(player => getPresenceKey(player.address) === normalized)?.name ||
+    players.find(player => getPresenceKey(player.address) === normalized)
+      ?.name ||
     shortAddress(address)
   )
 }
 
 function getPresenceKey(address = '') {
-  return String(address || '').trim().toLowerCase()
+  return String(address || '')
+    .trim()
+    .toLowerCase()
 }
 
 function getGamePlayerDisplay(

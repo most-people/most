@@ -13,8 +13,7 @@ export const zhCNPortalMessages = {
   'portal.feature.app.title': '文件',
   'portal.feature.app.subtitle': 'P2P 文件分享与做种',
   'portal.feature.app.hero': '发布文件并持续做种',
-  'portal.feature.app.desc':
-    '发布 most:// 链接，下载后校验 CID 并继续做种。',
+  'portal.feature.app.desc': '发布 most:// 链接，下载后校验 CID 并继续做种。',
   'portal.feature.app.bullet.localIdentity':
     '无需云端账号，使用本地身份隔离数据',
   'portal.feature.app.bullet.hyperswarm': '用户之间直接连接传输文件',
@@ -34,13 +33,11 @@ export const zhCNPortalMessages = {
   'portal.feature.app.step.install.desc':
     '安装后打开应用，无需单独安装 Node.js。',
   'portal.feature.app.step.share.title': '分享 most:// 链接',
-  'portal.feature.app.step.share.desc':
-    '朋友下载校验通过后也会成为新的种子。',
+  'portal.feature.app.step.share.desc': '朋友下载校验通过后也会成为新的种子。',
   'portal.feature.chat.title': '聊天',
   'portal.feature.chat.subtitle': '私域房间消息',
   'portal.feature.chat.hero': '打开私域房间',
-  'portal.feature.chat.desc':
-    '创建或加入房间，消息在在线节点间同步。',
+  'portal.feature.chat.desc': '创建或加入房间，消息在在线节点间同步。',
   'portal.feature.chat.bullet.encrypted': '私域聊天和房间消息',
   'portal.feature.chat.bullet.identity': '本地登录身份保护消息署名',
   'portal.feature.chat.bullet.sync': '消息通过 P2P Channel 同步',
@@ -57,8 +54,7 @@ export const zhCNPortalMessages = {
   'portal.feature.note.title': '知识库',
   'portal.feature.note.subtitle': 'Markdown 本地知识库',
   'portal.feature.note.hero': '整理本地资料和笔记',
-  'portal.feature.note.desc':
-    '整理本地资料、私密笔记和 Markdown 文档。',
+  'portal.feature.note.desc': '整理本地资料、私密笔记和 Markdown 文档。',
   'portal.feature.note.bullet.markdown': 'Markdown 块编辑器',
   'portal.feature.note.bullet.privacy': '公开 / 私密笔记切换',
   'portal.feature.note.bullet.folders': '文件夹、搜索和移动',
@@ -74,8 +70,7 @@ export const zhCNPortalMessages = {
   'portal.feature.game.title': '游戏',
   'portal.feature.game.subtitle': '独立房间游戏',
   'portal.feature.game.hero': '打开独立游戏房间',
-  'portal.feature.game.desc':
-    '创建或加入游戏房间，邀请朋友在线对局。',
+  'portal.feature.game.desc': '创建或加入游戏房间，邀请朋友在线对局。',
   'portal.feature.game.bullet.account': '使用 MostBox 本地账号进入房间',
   'portal.feature.game.bullet.channel':
     '复用 /chat/ 的频道后端，不新增游戏后端接口',
@@ -93,8 +88,7 @@ export const zhCNPortalMessages = {
   'portal.feature.web3.title': 'Web3',
   'portal.feature.web3.subtitle': '开源账户系统',
   'portal.feature.web3.hero': '确定性密钥派生工具箱',
-  'portal.feature.web3.desc':
-    '本地生成账户、助记词、以太坊地址和 PEM。',
+  'portal.feature.web3.desc': '本地生成账户、助记词、以太坊地址和 PEM。',
   'portal.feature.web3.bullet.frontend': '开源且可复用',
   'portal.feature.web3.bullet.keys': 'Ed25519 / x25519 密钥对生成',
   'portal.feature.web3.bullet.mnemonic': 'BIP-39 助记词派生',
@@ -125,8 +119,7 @@ export const zhTWPortalMessages = {
   'portal.feature.app.title': '檔案',
   'portal.feature.app.subtitle': 'P2P 檔案分享與做種',
   'portal.feature.app.hero': '發布檔案並持續做種',
-  'portal.feature.app.desc':
-    '發布 most:// 連結，下載後校驗 CID 並繼續做種。',
+  'portal.feature.app.desc': '發布 most:// 連結，下載後校驗 CID 並繼續做種。',
   'portal.feature.app.bullet.localIdentity':
     '無需雲端帳號，使用本機身份隔離資料',
   'portal.feature.app.bullet.hyperswarm': '使用者之間直接連線傳輸檔案',
@@ -146,13 +139,11 @@ export const zhTWPortalMessages = {
   'portal.feature.app.step.install.desc':
     '安裝後開啟應用，無需單獨安裝 Node.js。',
   'portal.feature.app.step.share.title': '分享 most:// 連結',
-  'portal.feature.app.step.share.desc':
-    '朋友下載校驗通過後也會成為新的種子。',
+  'portal.feature.app.step.share.desc': '朋友下載校驗通過後也會成為新的種子。',
   'portal.feature.chat.title': '聊天',
   'portal.feature.chat.subtitle': '私域房間訊息',
   'portal.feature.chat.hero': '開啟私域房間',
-  'portal.feature.chat.desc':
-    '建立或加入房間，訊息在線上節點間同步。',
+  'portal.feature.chat.desc': '建立或加入房間，訊息在線上節點間同步。',
   'portal.feature.chat.bullet.encrypted': '私域聊天和房間訊息',
   'portal.feature.chat.bullet.identity': '本機登入身份保護訊息署名',
   'portal.feature.chat.bullet.sync': '訊息通過 P2P Channel 同步',
@@ -165,13 +156,11 @@ export const zhTWPortalMessages = {
   'portal.feature.chat.step.create.desc':
     '輸入房間名即可加入或建立，並把房間 ID 發給朋友。',
   'portal.feature.chat.step.send.title': '開始聊天',
-  'portal.feature.chat.step.send.desc':
-    '傳送訊息，也可按需傳送附件。',
+  'portal.feature.chat.step.send.desc': '傳送訊息，也可按需傳送附件。',
   'portal.feature.note.title': '知識庫',
   'portal.feature.note.subtitle': 'Markdown 本地知識庫',
   'portal.feature.note.hero': '整理本地資料和筆記',
-  'portal.feature.note.desc':
-    '整理本地資料、私密筆記和 Markdown 文件。',
+  'portal.feature.note.desc': '整理本地資料、私密筆記和 Markdown 文件。',
   'portal.feature.note.bullet.markdown': 'Markdown 塊編輯器',
   'portal.feature.note.bullet.privacy': '公開 / 私密筆記切換',
   'portal.feature.note.bullet.folders': '資料夾、搜尋和移動',
@@ -187,8 +176,7 @@ export const zhTWPortalMessages = {
   'portal.feature.game.title': '遊戲',
   'portal.feature.game.subtitle': '獨立房間遊戲',
   'portal.feature.game.hero': '開啟獨立遊戲房間',
-  'portal.feature.game.desc':
-    '建立或加入遊戲房間，邀請朋友線上對局。',
+  'portal.feature.game.desc': '建立或加入遊戲房間，邀請朋友線上對局。',
   'portal.feature.game.bullet.account': '使用 MostBox 本機帳號進入房間',
   'portal.feature.game.bullet.channel':
     '複用 /chat/ 的頻道後端，不新增遊戲後端介面',
@@ -206,8 +194,7 @@ export const zhTWPortalMessages = {
   'portal.feature.web3.title': 'Web3',
   'portal.feature.web3.subtitle': '開源帳戶系統',
   'portal.feature.web3.hero': '確定性金鑰派生工具箱',
-  'portal.feature.web3.desc':
-    '本機生成帳戶、助記詞、以太坊地址和 PEM。',
+  'portal.feature.web3.desc': '本機生成帳戶、助記詞、以太坊地址和 PEM。',
   'portal.feature.web3.bullet.frontend': '開源且可複用',
   'portal.feature.web3.bullet.keys': 'Ed25519 / x25519 金鑰對生成',
   'portal.feature.web3.bullet.mnemonic': 'BIP-39 助記詞派生',

@@ -62,7 +62,12 @@ module.exports = async function afterPack(context) {
     'node_modules'
   )
 
-  if (!platform || !arch || arch === 'universal' || !fs.existsSync(nodeModulesDir)) {
+  if (
+    !platform ||
+    !arch ||
+    arch === 'universal' ||
+    !fs.existsSync(nodeModulesDir)
+  ) {
     return
   }
 
@@ -82,6 +87,8 @@ module.exports = async function afterPack(context) {
   }
 
   if (removed > 0) {
-    console.log(`[MostBox] Pruned ${removed} native prebuild directories for ${target}`)
+    console.log(
+      `[MostBox] Pruned ${removed} native prebuild directories for ${target}`
+    )
   }
 }

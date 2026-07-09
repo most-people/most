@@ -50,18 +50,22 @@ const androidManifestPath = path.join(
   'main',
   'AndroidManifest.xml'
 )
-const resValuesDir = path.join(androidDir, 'app', 'src', 'main', 'res', 'values')
-const stringsXmlPath = path.join(resValuesDir, 'strings.xml')
-const colorsXmlPath = path.join(resValuesDir, 'colors.xml')
-const nativeHelperJniDir = path.join(
+const resValuesDir = path.join(
   androidDir,
   'app',
   'src',
   'main',
-  'jni'
+  'res',
+  'values'
 )
+const stringsXmlPath = path.join(resValuesDir, 'strings.xml')
+const colorsXmlPath = path.join(resValuesDir, 'colors.xml')
+const nativeHelperJniDir = path.join(androidDir, 'app', 'src', 'main', 'jni')
 const nativeHelperCMakePath = path.join(nativeHelperJniDir, 'CMakeLists.txt')
-const nativeHelperShimPath = path.join(nativeHelperJniDir, 'nativehelper_shim.c')
+const nativeHelperShimPath = path.join(
+  nativeHelperJniDir,
+  'nativehelper_shim.c'
+)
 
 const nativeHelperCMake = `cmake_minimum_required(VERSION 3.13)
 
@@ -362,7 +366,10 @@ function syncLauncherIcons() {
 }
 
 function writeIfChanged(filePath, content) {
-  if (fs.existsSync(filePath) && fs.readFileSync(filePath, 'utf8') === content) {
+  if (
+    fs.existsSync(filePath) &&
+    fs.readFileSync(filePath, 'utf8') === content
+  ) {
     return
   }
 

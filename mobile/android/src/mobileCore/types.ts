@@ -203,15 +203,11 @@ export type MostBoxMobileCore = {
   setChannelRemark: (input: SetChannelRemarkInput) => Promise<MobileChannel>
   setChannelPinned: (input: SetChannelPinnedInput) => Promise<MobileChannel>
   listChannels: () => Promise<MobileChannel[]>
-  getChannelMessages: (
-    channelName: string
-  ) => Promise<MobileChannelMessage[]>
+  getChannelMessages: (channelName: string) => Promise<MobileChannelMessage[]>
   sendChannelMessage: (
     input: SendChannelMessageInput
   ) => Promise<MobileChannelMessage>
-  getChannelPresence: (
-    channelName: string
-  ) => Promise<MobileChannelPresence[]>
+  getChannelPresence: (channelName: string) => Promise<MobileChannelPresence[]>
   joinChannelPresence: (
     input: ChannelPresenceInput
   ) => Promise<MobileChannelPresence[]>

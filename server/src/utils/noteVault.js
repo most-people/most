@@ -40,7 +40,10 @@ async function pathExists(filePath) {
 async function removeEmptyParentDirectories(vaultRealPath, startPath) {
   let currentPath = startPath
 
-  while (isPathInside(vaultRealPath, currentPath) && currentPath !== vaultRealPath) {
+  while (
+    isPathInside(vaultRealPath, currentPath) &&
+    currentPath !== vaultRealPath
+  ) {
     try {
       await fs.rmdir(currentPath)
     } catch {
@@ -144,7 +147,9 @@ export function normalizeNoteVaultRelativePath(input) {
 
   const directoryParts = parts.slice(0, -1)
   if (directoryParts.some(isDisallowedDirectoryName)) {
-    throw new PathSecurityError('Hidden or excluded directories are not allowed')
+    throw new PathSecurityError(
+      'Hidden or excluded directories are not allowed'
+    )
   }
 
   const fileName = parts[parts.length - 1]
@@ -281,9 +286,10 @@ export async function readMarkdownFile(vaultPath, relativePath) {
   return {
     path: normalizedPath,
     name: path.posix.basename(normalizedPath),
-    directory: path.posix.dirname(normalizedPath) === '.'
-      ? ''
-      : path.posix.dirname(normalizedPath),
+    directory:
+      path.posix.dirname(normalizedPath) === '.'
+        ? ''
+        : path.posix.dirname(normalizedPath),
     content: await fs.readFile(realFilePath, 'utf8'),
     size: stat.size,
     mtimeMs: stat.mtimeMs,
@@ -325,8 +331,10 @@ async function getWritableMarkdownTarget(vaultPath, relativePath) {
 }
 
 export async function createMarkdownFile(vaultPath, relativePath, content) {
-  const { info, normalizedPath, targetPath } =
-    await getWritableMarkdownTarget(vaultPath, relativePath)
+  const { info, normalizedPath, targetPath } = await getWritableMarkdownTarget(
+    vaultPath,
+    relativePath
+  )
   if (await pathExists(targetPath)) {
     throw new ConflictError('note vault file already exists')
   }
@@ -405,7 +413,10 @@ export async function moveMarkdownFile(
   }
 
   await fs.rename(realSourcePath, targetPath)
-  await removeEmptyParentDirectories(info.realPath, path.dirname(realSourcePath))
+  await removeEmptyParentDirectories(
+    info.realPath,
+    path.dirname(realSourcePath)
+  )
   return readMarkdownFile(info.realPath, toPath)
 }
 

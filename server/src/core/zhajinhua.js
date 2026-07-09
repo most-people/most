@@ -67,7 +67,9 @@ export function shuffleDeck(inputDeck = createDeck(), random = Math.random) {
 }
 
 export function parseCard(card) {
-  const value = String(card || '').trim().toUpperCase()
+  const value = String(card || '')
+    .trim()
+    .toUpperCase()
   const suit = value.slice(-1)
   const rank = value.slice(0, -1)
   if (!RANK_VALUE.has(rank) || !SUIT_VALUE.has(suit)) {
@@ -136,7 +138,9 @@ export function evaluateHand(cards) {
     tiebreakers = [straightHigh]
   } else if (rankCounts.size === 2) {
     category = CATEGORY.pair
-    const pairRank = [...rankCounts.entries()].find(([, count]) => count === 2)[0]
+    const pairRank = [...rankCounts.entries()].find(
+      ([, count]) => count === 2
+    )[0]
     const kicker = [...rankCounts.entries()].find(([, count]) => count === 1)[0]
     tiebreakers = [pairRank, kicker]
   }
@@ -163,12 +167,7 @@ export function getHandLabel(cards) {
   return evaluateHand(cards).label
 }
 
-export function createPlayerActionEvent({
-  roundId,
-  action,
-  amount,
-  target,
-}) {
+export function createPlayerActionEvent({ roundId, action, amount, target }) {
   return {
     roundId,
     eventId: createEventId('action'),
@@ -180,10 +179,20 @@ export function createPlayerActionEvent({
 
 export function canStartRound(players = []) {
   const eligible = players.filter(player => Number(player.chips) >= ZHJ_ANTE)
-  return eligible.length >= ZHJ_MIN_PLAYERS && eligible.length <= ZHJ_MAX_PLAYERS
+  return (
+    eligible.length >= ZHJ_MIN_PLAYERS && eligible.length <= ZHJ_MAX_PLAYERS
+  )
 }
 
-export function startRound({ roomCode, players, hostAddress, previousSeq = 0, previousWinner = '', roundId = createRoundId(), random = Math.random }) {
+export function startRound({
+  roomCode,
+  players,
+  hostAddress,
+  previousSeq = 0,
+  previousWinner = '',
+  roundId = createRoundId(),
+  random = Math.random,
+}) {
   const participants = players
     .filter(player => Number(player.chips) >= ZHJ_ANTE)
     .slice(0, ZHJ_MAX_PLAYERS)
@@ -278,25 +287,40 @@ export function normalizePublicRoundState(input) {
     players: input.players.map(normalizeRoundPlayer).filter(Boolean),
     lastAction: String(input.lastAction || ''),
     winner: input.winner ? normalizeAddress(input.winner) : null,
-    showdown: input.showdown && typeof input.showdown === 'object' ? clone(input.showdown) : null,
+    showdown:
+      input.showdown && typeof input.showdown === 'object'
+        ? clone(input.showdown)
+        : null,
     appliedEventIds: Array.isArray(input.appliedEventIds)
       ? input.appliedEventIds.map(String)
       : [],
-    actionCounts: input.actionCounts && typeof input.actionCounts === 'object' ? clone(input.actionCounts) : {},
-    compareReveal: input.compareReveal && typeof input.compareReveal === 'object' ? clone(input.compareReveal) : {},
-    lastCompare: input.lastCompare && typeof input.lastCompare === 'object' ? clone(input.lastCompare) : null,
+    actionCounts:
+      input.actionCounts && typeof input.actionCounts === 'object'
+        ? clone(input.actionCounts)
+        : {},
+    compareReveal:
+      input.compareReveal && typeof input.compareReveal === 'object'
+        ? clone(input.compareReveal)
+        : {},
+    lastCompare:
+      input.lastCompare && typeof input.lastCompare === 'object'
+        ? clone(input.lastCompare)
+        : null,
     finishedAt: input.finishedAt ? Number(input.finishedAt) : null,
   }
 }
 
 export function validatePlayerAction(round, actionEvent, authorAddress) {
   const state = normalizePublicRoundState(round)
-  if (!state || state.status !== 'playing') return { ok: false, error: '当前没有进行中的牌局' }
+  if (!state || state.status !== 'playing')
+    return { ok: false, error: '当前没有进行中的牌局' }
 
   const author = normalizeAddress(authorAddress)
   const player = state.players.find(item => item.address === author)
-  if (!player || player.status !== 'active') return { ok: false, error: '玩家不在本轮牌局中' }
-  if (state.turnAddress !== author) return { ok: false, error: '还没有轮到你操作' }
+  if (!player || player.status !== 'active')
+    return { ok: false, error: '玩家不在本轮牌局中' }
+  if (state.turnAddress !== author)
+    return { ok: false, error: '还没有轮到你操作' }
 
   const action = actionEvent?.action
   if (!['look', 'call', 'raise', 'compare', 'fold'].includes(action)) {
@@ -308,7 +332,9 @@ export function validatePlayerAction(round, actionEvent, authorAddress) {
   }
 
   if (action === 'call') {
-    return player.chips >= ZHJ_ANTE ? { ok: true } : { ok: false, error: '筹码不足，不能跟注' }
+    return player.chips >= ZHJ_ANTE
+      ? { ok: true }
+      : { ok: false, error: '筹码不足，不能跟注' }
   }
 
   if (action === 'raise') {
@@ -317,22 +343,33 @@ export function validatePlayerAction(round, actionEvent, authorAddress) {
       return { ok: false, error: '加注档位无效' }
     }
     const need = state.currentBet + amount - player.bet
-    return player.chips >= need ? { ok: true } : { ok: false, error: '筹码不足，不能加注' }
+    return player.chips >= need
+      ? { ok: true }
+      : { ok: false, error: '筹码不足，不能加注' }
   }
 
   if (action === 'compare') {
     const target = normalizeAddress(actionEvent.target)
     const targetPlayer = state.players.find(item => item.address === target)
-    if (!target || target === author || !targetPlayer || targetPlayer.status !== 'active') {
+    if (
+      !target ||
+      target === author ||
+      !targetPlayer ||
+      targetPlayer.status !== 'active'
+    ) {
       return { ok: false, error: '请选择有效的比牌对象' }
     }
     const activePlayers = state.players.filter(p => p.status === 'active')
-    const allActed = activePlayers.every(p => (state.actionCounts?.[p.address] || 0) >= 1)
+    const allActed = activePlayers.every(
+      p => (state.actionCounts?.[p.address] || 0) >= 1
+    )
     if (!allActed) {
       return { ok: false, error: '第一轮不能比牌，请先跟注或加注' }
     }
     const need = Math.max(0, state.currentBet - player.bet)
-    return player.chips >= need ? { ok: true } : { ok: false, error: '筹码不足，不能比牌' }
+    return player.chips >= need
+      ? { ok: true }
+      : { ok: false, error: '筹码不足，不能比牌' }
   }
 
   return { ok: true }
@@ -340,7 +377,8 @@ export function validatePlayerAction(round, actionEvent, authorAddress) {
 
 export function applyPlayerAction(round, actionEvent, authorAddress) {
   const validation = validatePlayerAction(round, actionEvent, authorAddress)
-  if (!validation.ok) return { ok: false, error: validation.error, state: round }
+  if (!validation.ok)
+    return { ok: false, error: validation.error, state: round }
 
   const state = clone(round)
   const author = normalizeAddress(authorAddress)
@@ -388,10 +426,15 @@ export function applyPlayerAction(round, actionEvent, authorAddress) {
   if (actionEvent.action === 'compare') {
     payToCurrentBet(state, player)
     const targetAddress = normalizeAddress(actionEvent.target)
-    const targetPlayer = state.players.find(item => item.address === targetAddress)
+    const targetPlayer = state.players.find(
+      item => item.address === targetAddress
+    )
     const initiatorLooked = player.looked
     const targetLookedBefore = targetPlayer.looked
-    const diff = compareHands(state.hands?.[author] || [], state.hands?.[targetAddress] || [])
+    const diff = compareHands(
+      state.hands?.[author] || [],
+      state.hands?.[targetAddress] || []
+    )
     const winner = diff >= 0 ? player : targetPlayer
     const loser = diff >= 0 ? targetPlayer : player
     loser.status = 'folded'
@@ -407,7 +450,8 @@ export function applyPlayerAction(round, actionEvent, authorAddress) {
     } else {
       const lookedPlayer = initiatorLooked ? player : targetPlayer
       const unlookedPlayer = initiatorLooked ? targetPlayer : player
-      state.compareReveal[lookedPlayer.address] = state.hands?.[unlookedPlayer.address] || []
+      state.compareReveal[lookedPlayer.address] =
+        state.hands?.[unlookedPlayer.address] || []
       state.compareReveal[loser.address] = state.hands?.[winner.address] || []
     }
     state.lastCompare = {
@@ -432,19 +476,36 @@ export function getActiveRoundPlayers(round) {
 }
 
 export function getAllowedActions(round, address) {
-  const player = (round?.players || []).find(item => item.address === normalizeAddress(address))
-  if (!round || round.status !== 'playing' || !player || player.status !== 'active') return []
+  const player = (round?.players || []).find(
+    item => item.address === normalizeAddress(address)
+  )
+  if (
+    !round ||
+    round.status !== 'playing' ||
+    !player ||
+    player.status !== 'active'
+  )
+    return []
   if (round.turnAddress !== player.address) return []
 
   const actions = []
   if (!player.looked) actions.push('look')
-  if (validatePlayerAction(round, { action: 'call' }, player.address).ok) actions.push('call')
-  if (ZHJ_RAISE_STEPS.some(amount => validatePlayerAction(round, { action: 'raise', amount }, player.address).ok)) {
+  if (validatePlayerAction(round, { action: 'call' }, player.address).ok)
+    actions.push('call')
+  if (
+    ZHJ_RAISE_STEPS.some(
+      amount =>
+        validatePlayerAction(round, { action: 'raise', amount }, player.address)
+          .ok
+    )
+  ) {
     actions.push('raise')
   }
   if (getActiveRoundPlayers(round).length > 1) {
     const activePlayers = round.players.filter(p => p.status === 'active')
-    const allActed = activePlayers.every(p => (round.actionCounts?.[p.address] || 0) >= 1)
+    const allActed = activePlayers.every(
+      p => (round.actionCounts?.[p.address] || 0) >= 1
+    )
     if (allActed) actions.push('compare')
   }
   actions.push('fold')
@@ -483,7 +544,9 @@ function finishRound(state, winnerAddress) {
   state.winAmount = winAmount
   state.turnAddress = ''
   state.showdown = state.hands ? clone(state.hands) : null
-  state.lastAction = winner ? `${winner.name} 赢得 ${winAmount} 筹码` : '本局结束'
+  state.lastAction = winner
+    ? `${winner.name} 赢得 ${winAmount} 筹码`
+    : '本局结束'
   state.pot = 0
   state.finishedAt = Date.now()
   return advanceSeq(state)
@@ -493,7 +556,9 @@ function nextActiveAddress(state, fromAddress) {
   const players = state.players
   const start = Math.max(
     0,
-    players.findIndex(player => player.address === normalizeAddress(fromAddress))
+    players.findIndex(
+      player => player.address === normalizeAddress(fromAddress)
+    )
   )
   for (let offset = 1; offset <= players.length; offset++) {
     const player = players[(start + offset) % players.length]

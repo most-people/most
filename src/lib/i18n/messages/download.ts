@@ -32,8 +32,7 @@ export const zhCNDownloadMessages = {
     '无法获取高速镜像信息，已切换到 GitHub Releases 备用下载。',
   'download.platform.windows.desc': 'Windows 10 或更高版本',
   'download.platform.macos.desc': 'macOS 12 Monterey 或更高版本',
-  'download.platform.linux.desc':
-    'Ubuntu 20.04+ / Debian 11+ / 其他主流发行版',
+  'download.platform.linux.desc': 'Ubuntu 20.04+ / Debian 11+ / 其他主流发行版',
   'download.platform.source': '来源',
   'download.platform.size': '大小',
   'download.platform.action': '下载 {ext}',
@@ -85,8 +84,7 @@ export const zhTWDownloadMessages = {
     '無法取得高速映象資訊，已切換到 GitHub Releases 備用下載。',
   'download.platform.windows.desc': 'Windows 10 或更高版本',
   'download.platform.macos.desc': 'macOS 12 Monterey 或更高版本',
-  'download.platform.linux.desc':
-    'Ubuntu 20.04+ / Debian 11+ / 其他主流發行版',
+  'download.platform.linux.desc': 'Ubuntu 20.04+ / Debian 11+ / 其他主流發行版',
   'download.platform.source': '來源',
   'download.platform.size': '大小',
   'download.platform.action': '下載 {ext}',

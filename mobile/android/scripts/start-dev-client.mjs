@@ -247,9 +247,7 @@ function setupReverse(device) {
     'inherit'
   )
   if (result.error || result.status !== 0) {
-    console.warn(
-      '[android] adb reverse failed; using a LAN URL when possible.'
-    )
+    console.warn('[android] adb reverse failed; using a LAN URL when possible.')
     return false
   }
 
@@ -289,7 +287,11 @@ function scoreNetworkInterface(name, address, index) {
   let score = isPrivateIpv4(address) ? 40 : 0
 
   if (/wi-?fi|wlan|ethernet|en\d+|eth\d+/.test(lowerName)) score += 15
-  if (/vethernet|virtual|vmware|virtualbox|docker|wsl|hyper-v|npcap/.test(lowerName)) {
+  if (
+    /vethernet|virtual|vmware|virtualbox|docker|wsl|hyper-v|npcap/.test(
+      lowerName
+    )
+  ) {
     score -= 50
   }
   if (/tailscale|zerotier/.test(lowerName)) score -= 20
@@ -480,16 +482,12 @@ if (devServer.hostMode === 'lan' && devServer.host) {
 console.log(`[android] dev server URL: ${devServer.url}`)
 console.log(`[android] route: ${devServer.description}`)
 
-const expo = spawn(
-  expoBin,
-  expoArgs,
-  {
-    cwd: projectDir,
-    env: expoEnv,
-    shell: process.platform === 'win32',
-    stdio: 'inherit',
-  }
-)
+const expo = spawn(expoBin, expoArgs, {
+  cwd: projectDir,
+  env: expoEnv,
+  shell: process.platform === 'win32',
+  stdio: 'inherit',
+})
 
 let stopping = false
 const stop = signal => {

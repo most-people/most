@@ -25,9 +25,18 @@ interface I18nContextValue {
   nextLocaleName: string
   setLocale: (locale: Locale) => void
   t: (key: MessageKey, params?: TranslationParams) => string
-  formatDate: (value: Date | string | number, options?: Intl.DateTimeFormatOptions) => string
-  formatTime: (value: Date | string | number, options?: Intl.DateTimeFormatOptions) => string
-  formatDateTime: (value: Date | string | number, options?: Intl.DateTimeFormatOptions) => string
+  formatDate: (
+    value: Date | string | number,
+    options?: Intl.DateTimeFormatOptions
+  ) => string
+  formatTime: (
+    value: Date | string | number,
+    options?: Intl.DateTimeFormatOptions
+  ) => string
+  formatDateTime: (
+    value: Date | string | number,
+    options?: Intl.DateTimeFormatOptions
+  ) => string
   formatNumber: (value: number, options?: Intl.NumberFormatOptions) => string
   compareStrings: (left: string, right: string) => number
 }
@@ -73,7 +82,10 @@ export function translateMessage(
   locale: Locale = DEFAULT_LOCALE,
   params?: TranslationParams
 ) {
-  return interpolateMessage(messages[locale][key] || messages[DEFAULT_LOCALE][key], params)
+  return interpolateMessage(
+    messages[locale][key] || messages[DEFAULT_LOCALE][key],
+    params
+  )
 }
 
 export function formatLocalizedTime(locale: Locale, formattedTime: string) {

@@ -7,7 +7,12 @@ interface KeyCardProps {
   accent?: boolean
 }
 
-export function KeyCard({ title, icon, children, accent = false }: KeyCardProps) {
+export function KeyCard({
+  title,
+  icon,
+  children,
+  accent = false,
+}: KeyCardProps) {
   return (
     <div className={`web3-key-card ${accent ? 'accent' : ''}`}>
       <div className="web3-key-card-header">

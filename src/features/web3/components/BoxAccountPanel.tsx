@@ -66,7 +66,11 @@ export function BoxAccountPanel({
             autoCorrect="off"
             spellCheck="false"
           />
-          <button className="input-eye" onClick={onTogglePassword} type="button">
+          <button
+            className="input-eye"
+            onClick={onTogglePassword}
+            type="button"
+          >
             {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
         </div>

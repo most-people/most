@@ -29,7 +29,9 @@ function createDummyBlockstore() {
 }
 
 function normalizeDirectoryEntryPath(inputPath) {
-  const rawPath = String(inputPath || '').replace(/\\/g, '/').trim()
+  const rawPath = String(inputPath || '')
+    .replace(/\\/g, '/')
+    .trim()
   if (!rawPath) {
     throw new Error('Collection path is required')
   }
@@ -153,7 +155,9 @@ export async function calculateDirectoryCid(files) {
     .map(file => {
       const normalizedPath = normalizeDirectoryEntryPath(file?.path)
       if (!file || file.content === undefined || file.content === null) {
-        throw new Error(`Collection file content is required: ${normalizedPath}`)
+        throw new Error(
+          `Collection file content is required: ${normalizedPath}`
+        )
       }
       return {
         path: normalizedPath,
@@ -214,10 +218,7 @@ export async function calculateDirectoryCid(files) {
     .map(entry => ({
       path: stripRootPath(entry.path, rootPath),
       cid: entry.cid.toString(),
-      size:
-        Number(entry.unixfs?.fileSize?.()) ||
-        Number(entry.size) ||
-        0,
+      size: Number(entry.unixfs?.fileSize?.()) || Number(entry.size) || 0,
     }))
 
   return {

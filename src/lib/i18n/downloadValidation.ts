@@ -19,8 +19,7 @@ type DownloadValidationMessage = {
 const downloadValidationErrorKeys: Record<string, MessageKey> = {
   [MOST_LINK_ERROR_CODES.LINK_EMPTY]: 'app.download.validation.empty',
   [MOST_LINK_ERROR_CODES.INVALID_URL]: 'app.download.validation.invalidUrl',
-  [MOST_LINK_ERROR_CODES.INVALID_PROTOCOL]:
-    'app.download.validation.protocol',
+  [MOST_LINK_ERROR_CODES.INVALID_PROTOCOL]: 'app.download.validation.protocol',
   [MOST_LINK_ERROR_CODES.UNSUPPORTED_PATH]: 'app.download.validation.path',
   [MOST_LINK_ERROR_CODES.CID_EMPTY]: 'app.download.validation.invalidCid',
   [MOST_LINK_ERROR_CODES.INVALID_CID_FORMAT]:

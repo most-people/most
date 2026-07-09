@@ -81,8 +81,7 @@ export function parseMostLink(link) {
   const queryStart = tailTarget.indexOf('?')
   const cidString =
     queryStart === -1 ? tailTarget : tailTarget.slice(0, queryStart)
-  const queryString =
-    queryStart === -1 ? '' : tailTarget.slice(queryStart + 1)
+  const queryString = queryStart === -1 ? '' : tailTarget.slice(queryStart + 1)
 
   if (!cidString) {
     return invalidLink(MOST_LINK_ERROR_CODES.INVALID_CID_FORMAT)
@@ -106,10 +105,9 @@ export function parseMostLink(link) {
   }
 
   if (unsupportedParam) {
-    return invalidLink(
-      MOST_LINK_ERROR_CODES.UNSUPPORTED_QUERY_PARAM,
-      { param: unsupportedParam }
-    )
+    return invalidLink(MOST_LINK_ERROR_CODES.UNSUPPORTED_QUERY_PARAM, {
+      param: unsupportedParam,
+    })
   }
 
   const fileName = rawFileName?.trim() || cidString

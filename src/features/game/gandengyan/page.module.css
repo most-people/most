@@ -125,8 +125,8 @@
 .gameGrid {
   display: grid;
   grid-template-areas:
-    "table side"
-    "hand side";
+    'table side'
+    'hand side';
   grid-template-columns: minmax(0, 1fr) 320px;
   grid-template-rows: minmax(360px, 1fr) auto;
   gap: 14px;
@@ -142,7 +142,11 @@
   border-radius: 8px;
   padding: 16px;
   background:
-    radial-gradient(circle at center, rgba(255, 255, 255, 0.18), transparent 46%),
+    radial-gradient(
+      circle at center,
+      rgba(255, 255, 255, 0.18),
+      transparent 46%
+    ),
     #247658;
   color: #fff;
 }
@@ -475,9 +479,9 @@
 
   .gameGrid {
     grid-template-areas:
-      "table"
-      "hand"
-      "side";
+      'table'
+      'hand'
+      'side';
     grid-template-columns: 1fr;
   }
 }

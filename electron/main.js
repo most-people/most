@@ -19,10 +19,7 @@ import {
   getCurrentPlatform,
   getReleaseManifestUrl,
 } from './updateChecker.js'
-import {
-  createMostDeepLinkTarget,
-  findMostDeepLinkArg,
-} from './deepLink.js'
+import { createMostDeepLinkTarget, findMostDeepLinkArg } from './deepLink.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = 1976
@@ -102,10 +99,7 @@ function registerMostProtocolClient() {
 }
 
 function openMostDeepLink(link) {
-  const targetUrl = createMostDeepLinkTarget(
-    link,
-    `http://localhost:${PORT}`
-  )
+  const targetUrl = createMostDeepLinkTarget(link, `http://localhost:${PORT}`)
   if (!targetUrl) return
 
   pendingDeepLinkUrl = targetUrl

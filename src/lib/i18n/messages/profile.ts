@@ -5,11 +5,13 @@ export const zhCNProfileMessages = {
   'profile.signedOut.title': '请先登录',
   'profile.signedOut.desc': '登录后管理头像、名称和身份信息。',
   'profile.section.account': '账号资料',
-  'profile.section.account.desc': '这些信息用于聊天、游戏和工具箱里的身份展示，并会随账号备份同步。',
+  'profile.section.account.desc':
+    '这些信息用于聊天、游戏和工具箱里的身份展示，并会随账号备份同步。',
   'profile.section.avatar': '头像',
   'profile.section.avatar.desc': '选择一个内置头像，或继续使用自己的头像 URL。',
   'profile.section.backup': '账号备份',
-  'profile.section.backup.desc': '手动备份或恢复加密账号数据，包括显示名称、头像、偏好设置、知识库、文件目录、回收站和频道偏好。',
+  'profile.section.backup.desc':
+    '手动备份或恢复加密账号数据，包括显示名称、头像、偏好设置、知识库、文件目录、回收站和频道偏好。',
   'profile.backup.summary.label': '账号备份数据概览',
   'profile.backup.summary.notes': '笔记',
   'profile.backup.summary.files': '文件',
@@ -17,9 +19,11 @@ export const zhCNProfileMessages = {
   'profile.backup.summary.channels': '频道',
   'profile.backup.group.cloud': '云端同步',
   'profile.backup.group.local': '本地文件',
-  'profile.logout.backupReminder': '退出登录前，建议先备份到云端，或备份到本地，避免显示名称、头像、偏好设置和本机资料丢失。',
+  'profile.logout.backupReminder':
+    '退出登录前，建议先备份到云端，或备份到本地，避免显示名称、头像、偏好设置和本机资料丢失。',
   'profile.section.identity': '身份信息',
-  'profile.section.identity.desc': '以下信息来自当前本地账号，可用于识别和复制公开身份。',
+  'profile.section.identity.desc':
+    '以下信息来自当前本地账号，可用于识别和复制公开身份。',
   'profile.label.displayName': '显示名称',
   'profile.label.username': '用户名',
   'profile.label.customAvatar': '自定义头像 URL',
@@ -42,11 +46,14 @@ export const zhCNProfileMessages = {
   'profile.backup.status.done': '已完成',
   'profile.backup.status.error': '操作失败',
   'profile.backup.confirm.backupTitle': '确认备份到云端',
-  'profile.backup.confirm.backupMessage': '这会用当前本机账号数据覆盖云端备份，继续吗？',
+  'profile.backup.confirm.backupMessage':
+    '这会用当前本机账号数据覆盖云端备份，继续吗？',
   'profile.backup.confirm.restoreTitle': '确认从云端恢复',
-  'profile.backup.confirm.restoreMessage': '这会用云端备份覆盖当前本机数据，继续吗？',
+  'profile.backup.confirm.restoreMessage':
+    '这会用云端备份覆盖当前本机数据，继续吗？',
   'profile.backup.confirm.importTitle': '确认导入备份',
-  'profile.backup.confirm.restore': '导入备份会合并账号元数据并替换本地知识库，继续吗？',
+  'profile.backup.confirm.restore':
+    '导入备份会合并账号元数据并替换本地知识库，继续吗？',
   'profile.backup.toast.cloudUpdated': '账号备份已上传',
   'profile.backup.toast.noCloudBackup': '云端暂无账号备份',
   'profile.backup.toast.restoredCloud': '已从云端恢复账号备份',
@@ -60,7 +67,8 @@ export const zhCNProfileMessages = {
   'profile.backup.error.restoreFailed': '账号恢复失败',
   'profile.backup.error.exportFailed': '导出备份失败',
   'profile.backup.error.importFailed': '导入备份失败',
-  'profile.backup.error.profileSaveFailed': '资料已保存到本机，但写入后端 profile 失败',
+  'profile.backup.error.profileSaveFailed':
+    '资料已保存到本机，但写入后端 profile 失败',
   'profile.avatar.uploadFailed': '头像上传失败',
   'profile.avatar.tooLarge': '图片超过 1MB，且无法自动压缩，请换一张更小的图片',
   'profile.avatar.compressionFailed': '图片压缩失败，请换一张图片重试',
@@ -83,11 +91,13 @@ export const zhTWProfileMessages = {
   'profile.signedOut.title': '請先登入',
   'profile.signedOut.desc': '登入後管理頭像、名稱和身份資訊。',
   'profile.section.account': '帳號資料',
-  'profile.section.account.desc': '這些資訊用於聊天、遊戲和工具箱裡的身份展示，並會隨帳號備份同步。',
+  'profile.section.account.desc':
+    '這些資訊用於聊天、遊戲和工具箱裡的身份展示，並會隨帳號備份同步。',
   'profile.section.avatar': '頭像',
   'profile.section.avatar.desc': '選擇一個內建頭像，或繼續使用自己的頭像 URL。',
   'profile.section.backup': '帳號備份',
-  'profile.section.backup.desc': '手動備份或恢復加密帳號資料，包括顯示名稱、頭像、偏好設定、知識庫、檔案目錄、垃圾桶和頻道偏好。',
+  'profile.section.backup.desc':
+    '手動備份或恢復加密帳號資料，包括顯示名稱、頭像、偏好設定、知識庫、檔案目錄、垃圾桶和頻道偏好。',
   'profile.backup.summary.label': '帳號備份資料概覽',
   'profile.backup.summary.notes': '筆記',
   'profile.backup.summary.files': '檔案',
@@ -95,9 +105,11 @@ export const zhTWProfileMessages = {
   'profile.backup.summary.channels': '頻道',
   'profile.backup.group.cloud': '雲端同步',
   'profile.backup.group.local': '本機檔案',
-  'profile.logout.backupReminder': '登出前，建議先備份到雲端，或備份到本機，避免顯示名稱、頭像、偏好設定和本機資料遺失。',
+  'profile.logout.backupReminder':
+    '登出前，建議先備份到雲端，或備份到本機，避免顯示名稱、頭像、偏好設定和本機資料遺失。',
   'profile.section.identity': '身份資訊',
-  'profile.section.identity.desc': '以下資訊來自目前本機帳號，可用於識別和複製公開身份。',
+  'profile.section.identity.desc':
+    '以下資訊來自目前本機帳號，可用於識別和複製公開身份。',
   'profile.label.displayName': '顯示名稱',
   'profile.label.username': '使用者名稱',
   'profile.label.customAvatar': '自訂頭像 URL',
@@ -120,11 +132,14 @@ export const zhTWProfileMessages = {
   'profile.backup.status.done': '已完成',
   'profile.backup.status.error': '操作失敗',
   'profile.backup.confirm.backupTitle': '確認備份到雲端',
-  'profile.backup.confirm.backupMessage': '這會用目前本機帳號資料覆蓋雲端備份，繼續嗎？',
+  'profile.backup.confirm.backupMessage':
+    '這會用目前本機帳號資料覆蓋雲端備份，繼續嗎？',
   'profile.backup.confirm.restoreTitle': '確認從雲端恢復',
-  'profile.backup.confirm.restoreMessage': '這會用雲端備份覆蓋目前本機資料，繼續嗎？',
+  'profile.backup.confirm.restoreMessage':
+    '這會用雲端備份覆蓋目前本機資料，繼續嗎？',
   'profile.backup.confirm.importTitle': '確認匯入備份',
-  'profile.backup.confirm.restore': '匯入備份會合併帳號元資料並取代本機知識庫，繼續嗎？',
+  'profile.backup.confirm.restore':
+    '匯入備份會合併帳號元資料並取代本機知識庫，繼續嗎？',
   'profile.backup.toast.cloudUpdated': '帳號備份已上傳',
   'profile.backup.toast.noCloudBackup': '雲端暫無帳號備份',
   'profile.backup.toast.restoredCloud': '已從雲端恢復帳號備份',
@@ -138,7 +153,8 @@ export const zhTWProfileMessages = {
   'profile.backup.error.restoreFailed': '帳號恢復失敗',
   'profile.backup.error.exportFailed': '匯出備份失敗',
   'profile.backup.error.importFailed': '匯入備份失敗',
-  'profile.backup.error.profileSaveFailed': '資料已儲存到本機，但寫入後端 profile 失敗',
+  'profile.backup.error.profileSaveFailed':
+    '資料已儲存到本機，但寫入後端 profile 失敗',
   'profile.avatar.uploadFailed': '頭像上傳失敗',
   'profile.avatar.tooLarge': '圖片超過 1MB，且無法自動壓縮，請換一張更小的圖片',
   'profile.avatar.compressionFailed': '圖片壓縮失敗，請換一張圖片重試',
@@ -156,16 +172,20 @@ export const zhTWProfileMessages = {
 
 export const enProfileMessages = {
   'profile.meta.title': 'Profile | MostBox',
-  'profile.meta.desc': 'Manage the MostBox account avatar, display name, and local identity.',
+  'profile.meta.desc':
+    'Manage the MostBox account avatar, display name, and local identity.',
   'profile.kicker': 'Profile',
   'profile.signedOut.title': 'Sign in first',
   'profile.signedOut.desc': 'Sign in to manage your profile.',
   'profile.section.account': 'Account',
-  'profile.section.account.desc': 'These details are used for identity display across chat, games, and tools, and sync through account backup.',
+  'profile.section.account.desc':
+    'These details are used for identity display across chat, games, and tools, and sync through account backup.',
   'profile.section.avatar': 'Avatar',
-  'profile.section.avatar.desc': 'Choose a built-in avatar, or keep using your own avatar URL.',
+  'profile.section.avatar.desc':
+    'Choose a built-in avatar, or keep using your own avatar URL.',
   'profile.section.backup': 'Account backup',
-  'profile.section.backup.desc': 'Manually back up or restore encrypted account data, including display name, avatar, preferences, knowledge base, file directories, trash, and channel preferences.',
+  'profile.section.backup.desc':
+    'Manually back up or restore encrypted account data, including display name, avatar, preferences, knowledge base, file directories, trash, and channel preferences.',
   'profile.backup.summary.label': 'Account backup data overview',
   'profile.backup.summary.notes': 'Notes',
   'profile.backup.summary.files': 'Files',
@@ -173,9 +193,11 @@ export const enProfileMessages = {
   'profile.backup.summary.channels': 'Channels',
   'profile.backup.group.cloud': 'Cloud sync',
   'profile.backup.group.local': 'Local file',
-  'profile.logout.backupReminder': 'Before signing out, back up to the cloud or back up locally to avoid losing display name, avatar, preferences, and local data.',
+  'profile.logout.backupReminder':
+    'Before signing out, back up to the cloud or back up locally to avoid losing display name, avatar, preferences, and local data.',
   'profile.section.identity': 'Identity',
-  'profile.section.identity.desc': 'These details come from the current local account and are safe to copy as public identity.',
+  'profile.section.identity.desc':
+    'These details come from the current local account and are safe to copy as public identity.',
   'profile.label.displayName': 'Display name',
   'profile.label.username': 'Username',
   'profile.label.customAvatar': 'Custom avatar URL',
@@ -198,25 +220,31 @@ export const enProfileMessages = {
   'profile.backup.status.done': 'Done',
   'profile.backup.status.error': 'Failed',
   'profile.backup.confirm.backupTitle': 'Confirm cloud backup',
-  'profile.backup.confirm.backupMessage': 'This will replace the cloud backup with this device account data. Continue?',
+  'profile.backup.confirm.backupMessage':
+    'This will replace the cloud backup with this device account data. Continue?',
   'profile.backup.confirm.restoreTitle': 'Confirm cloud restore',
-  'profile.backup.confirm.restoreMessage': 'This will replace this device data with the cloud backup. Continue?',
+  'profile.backup.confirm.restoreMessage':
+    'This will replace this device data with the cloud backup. Continue?',
   'profile.backup.confirm.importTitle': 'Confirm backup import',
-  'profile.backup.confirm.restore': 'Importing a backup will merge account metadata and replace the local knowledge base. Continue?',
+  'profile.backup.confirm.restore':
+    'Importing a backup will merge account metadata and replace the local knowledge base. Continue?',
   'profile.backup.toast.cloudUpdated': 'Account backup uploaded',
   'profile.backup.toast.noCloudBackup': 'No account backup in the cloud',
   'profile.backup.toast.restoredCloud': 'Account backup restored from cloud',
   'profile.backup.toast.exportedLocal': 'Account backup exported',
   'profile.backup.toast.restoredLocal': 'Account backup imported',
   'profile.backup.toast.cancelRestore': 'Restore cancelled',
-  'profile.backup.error.backendRequired': 'Connect to the MostBox backend first',
+  'profile.backup.error.backendRequired':
+    'Connect to the MostBox backend first',
   'profile.backup.error.loginRequired': 'Sign in first',
-  'profile.backup.error.ownerMismatch': 'This backup belongs to another account',
+  'profile.backup.error.ownerMismatch':
+    'This backup belongs to another account',
   'profile.backup.error.backupFailed': 'Account backup failed',
   'profile.backup.error.restoreFailed': 'Account restore failed',
   'profile.backup.error.exportFailed': 'Backup export failed',
   'profile.backup.error.importFailed': 'Backup import failed',
-  'profile.backup.error.profileSaveFailed': 'Profile was saved locally, but backend profile save failed',
+  'profile.backup.error.profileSaveFailed':
+    'Profile was saved locally, but backend profile save failed',
   'profile.avatar.uploadFailed': 'Avatar upload failed',
   'profile.avatar.tooLarge':
     'Image is over 1 MB and cannot be compressed automatically. Choose a smaller image.',

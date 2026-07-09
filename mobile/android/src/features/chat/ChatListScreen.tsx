@@ -119,7 +119,9 @@ export function ChatListScreen({
       <View style={styles.hero}>
         <Text style={styles.brand}>MostBox</Text>
         <Text style={styles.title}>聊天频道</Text>
-        <Text style={styles.subtitle}>选择频道继续聊天，或加入一个新的频道。</Text>
+        <Text style={styles.subtitle}>
+          选择频道继续聊天，或加入一个新的频道。
+        </Text>
       </View>
 
       <View style={styles.panel}>

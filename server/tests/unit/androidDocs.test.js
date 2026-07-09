@@ -28,7 +28,11 @@ describe('Android command documentation', () => {
       )
     }
 
-    for (const scriptName of ['android:start', 'android:test', 'android:build']) {
+    for (const scriptName of [
+      'android:start',
+      'android:test',
+      'android:build',
+    ]) {
       assert.strictEqual(
         rootPackage.scripts?.[scriptName],
         undefined,
@@ -46,7 +50,10 @@ describe('Android command documentation', () => {
     ]
     const checkedFiles = [
       ...androidDocs,
-      ['scripts/android-real-p2p-seed.mjs', '../../../scripts/android-real-p2p-seed.mjs'],
+      [
+        'scripts/android-real-p2p-seed.mjs',
+        '../../../scripts/android-real-p2p-seed.mjs',
+      ],
     ]
 
     for (const [fileName, relativePath] of checkedFiles) {

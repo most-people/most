@@ -73,8 +73,7 @@ export const zhCNGameMessages = {
   'game.gandengyan.position.seatOpponent': '座位 {seat}/对手位',
   'game.zhajinhua.hero.title': '炸金花牌桌',
   'game.zhajinhua.toast.roundStarted': '新一局已开始',
-  'game.zhajinhua.error.notEnoughPlayers':
-    '至少需要 2 名有足够筹码的玩家',
+  'game.zhajinhua.error.notEnoughPlayers': '至少需要 2 名有足够筹码的玩家',
   'game.zhajinhua.error.startFailed': '开局失败',
   'game.zhajinhua.error.tooManyLowChips': '筹码不足的玩家太多，无法开局',
   'game.zhajinhua.status.yourTurn': '轮到你操作',
@@ -176,8 +175,7 @@ export const zhTWGameMessages = {
   'game.gandengyan.position.seatOpponent': '座位 {seat}/對手位',
   'game.zhajinhua.hero.title': '炸金花牌桌',
   'game.zhajinhua.toast.roundStarted': '新一局已開始',
-  'game.zhajinhua.error.notEnoughPlayers':
-    '至少需要 2 名有足夠籌碼的玩家',
+  'game.zhajinhua.error.notEnoughPlayers': '至少需要 2 名有足夠籌碼的玩家',
   'game.zhajinhua.error.startFailed': '開局失敗',
   'game.zhajinhua.error.tooManyLowChips': '籌碼不足的玩家太多，無法開局',
   'game.zhajinhua.status.yourTurn': '輪到你操作',

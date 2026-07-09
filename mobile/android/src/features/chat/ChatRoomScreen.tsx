@@ -114,10 +114,7 @@ export function ChatRoomScreen({
         {sortedMessages.length ? (
           sortedMessages.map(message => {
             const attachment = getAttachmentFromMessage(message)
-            const local = isLocalMessage(
-              message,
-              normalizedLocalWriterCoreKey
-            )
+            const local = isLocalMessage(message, normalizedLocalWriterCoreKey)
 
             return (
               <View
@@ -130,7 +127,9 @@ export function ChatRoomScreen({
                 <View
                   style={[
                     styles.messageBubble,
-                    local ? styles.messageBubbleLocal : styles.messageBubbleRemote,
+                    local
+                      ? styles.messageBubbleLocal
+                      : styles.messageBubbleRemote,
                   ]}
                 >
                   <Text
@@ -244,10 +243,7 @@ function AttachmentCard({
 
   return (
     <View
-      style={[
-        styles.attachmentCard,
-        local ? styles.attachmentCardLocal : null,
-      ]}
+      style={[styles.attachmentCard, local ? styles.attachmentCardLocal : null]}
     >
       <View style={styles.attachmentIcon}>
         <FileText size={19} color="#0f766e" />

@@ -4,9 +4,7 @@ import {
   getApiErrorPayload,
   getApiUrl,
 } from '~server/src/utils/api'
-import {
-  getDownloadCheckErrorMessageFromPayload,
-} from '~server/src/utils/downloadMessages.js'
+import { getDownloadCheckErrorMessageFromPayload } from '~server/src/utils/downloadMessages.js'
 import {
   getPublishFileLimitViolation,
   getPublishFileTooLargeMessageFromPayload,
@@ -149,7 +147,8 @@ export const fileApi = {
   listPublishedFiles: () => api.get('/api/files').json<MostFileRecord[]>(),
   listTrashFiles: () => api.get('/api/trash').json<MostFileRecord[]>(),
   deletePublishedFile: (cid: string) => api.delete(`/api/files/${cid}`).json(),
-  restoreTrashFile: (cid: string) => api.post(`/api/trash/${cid}/restore`).json(),
+  restoreTrashFile: (cid: string) =>
+    api.post(`/api/trash/${cid}/restore`).json(),
   permanentDeleteTrashFile: (cid: string) =>
     api.delete(`/api/trash/${cid}`).json(),
   emptyTrash: () => api.delete('/api/trash').json(),
@@ -173,12 +172,16 @@ export const fileApi = {
       })
       .json<FilePublishResult>(),
   getCollection: (cid: string) =>
-    api.get(`/api/collections/${cid}`).json<MostFileRecord & {
-      files: CollectionFileRecord[]
-    }>(),
+    api.get(`/api/collections/${cid}`).json<
+      MostFileRecord & {
+        files: CollectionFileRecord[]
+      }
+    >(),
   checkDownload: (link: string, options: CheckDownloadOptions = {}) => {
     const json =
-      typeof options.timeout === 'number' ? { link, timeout: options.timeout } : { link }
+      typeof options.timeout === 'number'
+        ? { link, timeout: options.timeout }
+        : { link }
     return api
       .post('/api/download/check', {
         json,

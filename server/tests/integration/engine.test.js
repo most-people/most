@@ -90,7 +90,9 @@ async function waitForChannelPeerAddress(
     if (peer) return peer
     await sleep(25)
   }
-  throw new Error(`Channel ${channelName} did not report online peer ${address}`)
+  throw new Error(
+    `Channel ${channelName} did not report online peer ${address}`
+  )
 }
 
 async function waitForChannelPresenceAddress(
@@ -416,7 +418,10 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         result.files.map(file => file.path),
         ['S01E01.txt', 'S01E02.txt']
       )
-      assert.strictEqual(result.link, `most://${result.cid}?filename=${folderName}`)
+      assert.strictEqual(
+        result.link,
+        `most://${result.cid}?filename=${folderName}`
+      )
 
       const holdings = engine.listHoldings()
       assert.ok(holdings.some(holding => holding.cid === result.cid))
@@ -496,7 +501,9 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         engine.listHoldings().find(holding => holding.cid === file.cid)
       )
       assert.ok(childHoldings.every(Boolean))
-      assert.ok(engine.listHoldings().some(holding => holding.cid === result.cid))
+      assert.ok(
+        engine.listHoldings().some(holding => holding.cid === result.cid)
+      )
     })
 
     it('reads collection files with local availability from holdings', async () => {
@@ -615,10 +622,10 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         await download
 
         const records = downloader.listPublishedFiles()
-        assert.deepStrictEqual(
-          records.map(file => file.fileName).sort(),
-          ['Shots/one.txt', 'Shots/two.txt']
-        )
+        assert.deepStrictEqual(records.map(file => file.fileName).sort(), [
+          'Shots/one.txt',
+          'Shots/two.txt',
+        ])
         assert.strictEqual(
           records.some(file => file.cid === publishResult.cid),
           false
@@ -637,9 +644,13 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
           { timeout: 100 }
         )
         assert.strictEqual(downloadAvailability.alreadyExists, true)
-        const repeatDownload = await downloader.downloadFile(publishResult.link, null, {
-          timeout: 100,
-        })
+        const repeatDownload = await downloader.downloadFile(
+          publishResult.link,
+          null,
+          {
+            timeout: 100,
+          }
+        )
         assert.strictEqual(repeatDownload.alreadyExists, true)
         assert.strictEqual(repeatDownload.kind, 'collection')
       } finally {
@@ -690,7 +701,9 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
           false
         )
         assert.strictEqual(
-          downloader.listHoldings().some(holding => holding.cid === publishResult.cid),
+          downloader
+            .listHoldings()
+            .some(holding => holding.cid === publishResult.cid),
           false
         )
       } finally {
@@ -752,16 +765,17 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         await assert.rejects(download, /not found|peers|file data/i)
 
         const records = downloader.listPublishedFiles()
-        assert.deepStrictEqual(
-          records.map(file => file.fileName).sort(),
-          ['Partial/one.txt']
-        )
+        assert.deepStrictEqual(records.map(file => file.fileName).sort(), [
+          'Partial/one.txt',
+        ])
         assert.strictEqual(
           records.some(file => file.cid === publishResult.cid),
           false
         )
         assert.strictEqual(
-          downloader.listHoldings().some(holding => holding.cid === publishResult.cid),
+          downloader
+            .listHoldings()
+            .some(holding => holding.cid === publishResult.cid),
           false
         )
         assert.deepStrictEqual(
@@ -838,9 +852,13 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         links.push(publisher.replicateWith(partialSeed))
         await partialSeedDownload
 
-        const fullSeedDownload = fullSeed.downloadFile(publishResult.link, null, {
-          timeout: 7000,
-        })
+        const fullSeedDownload = fullSeed.downloadFile(
+          publishResult.link,
+          null,
+          {
+            timeout: 7000,
+          }
+        )
         await sleep(100)
         links.push(publisher.replicateWith(fullSeed))
         await fullSeedDownload
@@ -894,7 +912,9 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
           true
         )
 
-        const fullCollection = await fullLeecher.getCollection(publishResult.cid)
+        const fullCollection = await fullLeecher.getCollection(
+          publishResult.cid
+        )
         assert.ok(
           fullCollection.files.every(file => file.localAvailable === true)
         )
@@ -1180,10 +1200,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
     })
 
     it('rejects empty link', async () => {
-      await assert.rejects(
-        engine.downloadFile(''),
-        /link_empty/
-      )
+      await assert.rejects(engine.downloadFile(''), /link_empty/)
     })
 
     it('rejects content when the recomputed CID does not exactly match the link CID', async () => {
@@ -1881,7 +1898,9 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
     })
 
     it('imports account file metadata without pulling file content automatically', async () => {
-      const syncTmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'most-user-import-'))
+      const syncTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-user-import-')
+      )
       const sourcePath = path.join(syncTmpDir, 'source')
       const targetPath = path.join(syncTmpDir, 'target')
       const syncOwner = '0x3333333333333333333333333333333333333333'
@@ -1907,7 +1926,10 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
           { ownerAddress: syncOwner }
         )
         const backup = sourceEngine.exportUserData(syncOwner)
-        const importResult = await targetEngine.importUserData(syncOwner, backup)
+        const importResult = await targetEngine.importUserData(
+          syncOwner,
+          backup
+        )
         assert.strictEqual(importResult.filesAdded, 1)
 
         const imported = targetEngine
@@ -1972,7 +1994,10 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
           targetEngine.getUserProfile(syncOwner).displayName,
           'Backup Name'
         )
-        assert.strictEqual(targetEngine.getUserProfile(syncOwner).avatar, 'old.png')
+        assert.strictEqual(
+          targetEngine.getUserProfile(syncOwner).avatar,
+          'old.png'
+        )
 
         sourceEngine.saveUserProfile(syncOwner, {
           displayName: 'Fresh Name',
@@ -2039,10 +2064,14 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         await sourceEngine.start()
         await targetEngine.start()
 
-        const created = await sourceEngine.createChannel(channelName, 'personal', {
-          ownerAddress: syncOwner,
-          displayName: 'Sync Owner',
-        })
+        const created = await sourceEngine.createChannel(
+          channelName,
+          'personal',
+          {
+            ownerAddress: syncOwner,
+            displayName: 'Sync Owner',
+          }
+        )
         sourceEngine.setChannelRemark(created.channelKey, '同步频道', {
           ownerAddress: syncOwner,
         })
@@ -2425,7 +2454,9 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       const cleared = await msgEngine.getChannelMessages(ch, {
         ownerAddress: author,
       })
-      const clearedMessage = cleared.find(item => item.content === 'Hello Avatar')
+      const clearedMessage = cleared.find(
+        item => item.content === 'Hello Avatar'
+      )
       assert.strictEqual(clearedMessage.authorName, 'Avatar Sender')
       assert.strictEqual(
         clearedMessage.avatar,
@@ -2510,8 +2541,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
 
     it('stores channel attachment metadata', async () => {
       const ch = `attach-${uid}`
-      const cid =
-        'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
+      const cid = 'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
       const fileName = `chat-file/${ch}/photo.png`
       const link = `most://${cid}?filename=${encodeURIComponent(fileName)}`
       await msgEngine.createChannel(ch)
@@ -2537,8 +2567,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
 
     it('keeps bare chat attachment filenames unchanged', async () => {
       const ch = `old-attach-${uid}`
-      const cid =
-        'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
+      const cid = 'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
       const fileName = '#18.txt'
       const link = `most://${cid}?filename=${encodeURIComponent(fileName)}`
       await msgEngine.createChannel(ch)
@@ -2561,8 +2590,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
 
     it('does not double-prefix normalized chat attachment filenames', async () => {
       const ch = `norm-attach-${uid}`
-      const cid =
-        'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
+      const cid = 'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
       const fileName = `chat-file/${ch}/a.txt`
       const link = `most://${cid}?filename=${encodeURIComponent(fileName)}`
       await msgEngine.createChannel(ch)
@@ -2699,19 +2727,13 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         await secondEngine.createChannel(ch, 'public')
         replication = firstEngine.replicateWith(secondEngine)
 
-        await withMockedDateNow(1000, () =>
-          firstEngine.sendMessage(ch, 'A1')
-        )
+        await withMockedDateNow(1000, () => firstEngine.sendMessage(ch, 'A1'))
         await waitForChannelMessage(secondEngine, ch, 'A1')
 
-        await withMockedDateNow(10000, () =>
-          secondEngine.sendMessage(ch, 'B1')
-        )
+        await withMockedDateNow(10000, () => secondEngine.sendMessage(ch, 'B1'))
         await waitForChannelMessage(firstEngine, ch, 'B1')
 
-        await withMockedDateNow(2000, () =>
-          firstEngine.sendMessage(ch, 'A2')
-        )
+        await withMockedDateNow(2000, () => firstEngine.sendMessage(ch, 'A2'))
         await waitForChannelMessage(secondEngine, ch, 'A2')
 
         const firstMessages = await firstEngine.getChannelMessages(ch)
@@ -2875,15 +2897,19 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
           ownerAddress: alice,
         })
 
-        const result = engine.sendChannelVoiceEvent(channelName, {
-          event: 'join',
-          sessionId: 'voice-alice',
-          micMuted: false,
-          displayName: 'Alice',
-          avatar: '/avatars/default/mint.svg',
-        }, {
-          ownerAddress: alice,
-        })
+        const result = engine.sendChannelVoiceEvent(
+          channelName,
+          {
+            event: 'join',
+            sessionId: 'voice-alice',
+            micMuted: false,
+            displayName: 'Alice',
+            avatar: '/avatars/default/mint.svg',
+          },
+          {
+            ownerAddress: alice,
+          }
+        )
 
         assert.strictEqual(result.event, 'join')
         assert.strictEqual(result.sender.address, alice)
@@ -3055,7 +3081,10 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
           { ownerAddress: bob }
         )
         assert.strictEqual(remotePresence.displayName, 'Alice Live')
-        assert.strictEqual(remotePresence.avatar, 'https://example.test/alice.png')
+        assert.strictEqual(
+          remotePresence.avatar,
+          'https://example.test/alice.png'
+        )
 
         firstEngine.leaveChannelPresence(channelName, {
           ownerAddress: alice,
@@ -3167,7 +3196,9 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       const channelName = `pin-${uid}`
       await engine.createChannel(channelName, 'personal', { ownerAddress })
 
-      const pinned = engine.setChannelPinned(channelName, true, { ownerAddress })
+      const pinned = engine.setChannelPinned(channelName, true, {
+        ownerAddress,
+      })
 
       assert.strictEqual(pinned, true)
       const ownerChannels = engine.listChannels({ ownerAddress })
@@ -3181,7 +3212,9 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         false
       )
 
-      const unpinned = engine.setChannelPinned(channelName, false, { ownerAddress })
+      const unpinned = engine.setChannelPinned(channelName, false, {
+        ownerAddress,
+      })
       assert.strictEqual(unpinned, false)
       assert.strictEqual(
         engine.listChannels({ ownerAddress }).find(c => c.name === channelName)
@@ -3265,7 +3298,8 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         const sourceChannel = await sourceEngine.createChannel(channelName)
         await sourceEngine.sendMessage(sourceChannel.channelKey, 'before sync')
         const emptyChannel = await emptyEngine.joinChannel(channelName)
-        const initialMessages = await emptyEngine.getChannelMessages(channelName)
+        const initialMessages =
+          await emptyEngine.getChannelMessages(channelName)
         assert.ok(
           !initialMessages.some(message => message.content === 'before sync')
         )
@@ -3274,7 +3308,10 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         emptyEngine.on('channel:sync:available', event => {
           syncEvents.push(event)
         })
-        await emptyEngine.joinChannel(channelName, toChannelCandidate(sourceChannel))
+        await emptyEngine.joinChannel(
+          channelName,
+          toChannelCandidate(sourceChannel)
+        )
 
         assert.strictEqual(syncEvents.length, 1)
         assert.strictEqual(syncEvents[0].channelKey, emptyChannel.channelKey)
@@ -3380,10 +3417,20 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         await secondEngine.joinChannel(channelName, toChannelCandidate(first))
 
         replication = firstEngine.replicateWith(secondEngine)
-        await waitForChannelMessage(secondEngine, second.channelKey, 'from first')
-        await waitForChannelMessage(firstEngine, first.channelKey, 'from second')
+        await waitForChannelMessage(
+          secondEngine,
+          second.channelKey,
+          'from first'
+        )
+        await waitForChannelMessage(
+          firstEngine,
+          first.channelKey,
+          'from second'
+        )
 
-        const firstMessages = await firstEngine.getChannelMessages(first.channelKey)
+        const firstMessages = await firstEngine.getChannelMessages(
+          first.channelKey
+        )
         const secondMessages = await secondEngine.getChannelMessages(
           second.channelKey
         )
@@ -3495,10 +3542,14 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
             discoveryTimeout: 25,
           })
           await sleep(25)
-          const second = await secondEngine.createChannel(channelName, 'public', {
-            discover: true,
-            discoveryTimeout: 25,
-          })
+          const second = await secondEngine.createChannel(
+            channelName,
+            'public',
+            {
+              discover: true,
+              discoveryTimeout: 25,
+            }
+          )
 
           assert.strictEqual(first.channelKey, channelName)
           assert.strictEqual(second.channelKey, channelName)
@@ -3561,10 +3612,20 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         await sourceEngine.joinChannel(channelName, toChannelCandidate(joined))
 
         replication = sourceEngine.replicateWith(joinEngine)
-        await waitForChannelMessage(joinEngine, joined.channelKey, 'from source')
-        await waitForChannelMessage(sourceEngine, created.channelKey, 'from joiner')
+        await waitForChannelMessage(
+          joinEngine,
+          joined.channelKey,
+          'from source'
+        )
+        await waitForChannelMessage(
+          sourceEngine,
+          created.channelKey,
+          'from joiner'
+        )
 
-        const messages = await sourceEngine.getChannelMessages(created.channelKey)
+        const messages = await sourceEngine.getChannelMessages(
+          created.channelKey
+        )
         assert.deepStrictEqual(
           messages.map(message => message.content),
           ['from source', 'from joiner']

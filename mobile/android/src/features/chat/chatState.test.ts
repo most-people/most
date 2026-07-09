@@ -136,12 +136,13 @@ describe('Android chat state helpers', () => {
     ]
 
     assert.deepEqual(filterChannelsForQuery(channels, '设计'), [channels[0]])
-    assert.deepEqual(
-      filterChannelsForQuery(channels, 'ROOM-BETA'),
-      [channels[1]]
-    )
+    assert.deepEqual(filterChannelsForQuery(channels, 'ROOM-BETA'), [
+      channels[1],
+    ])
     assert.deepEqual(filterChannelsForQuery(channels, 'special'), [channels[2]])
-    assert.deepEqual(filterChannelsForQuery(channels, 'beta-name'), [channels[1]])
+    assert.deepEqual(filterChannelsForQuery(channels, 'beta-name'), [
+      channels[1],
+    ])
     assert.deepEqual(filterChannelsForQuery(channels, '   '), channels)
   })
 
@@ -157,7 +158,11 @@ describe('Android chat state helpers', () => {
 
     const firstRead = markChannelRead({}, 'chat-key', activityTime - 1000)
     const secondRead = markChannelRead(firstRead, 'chat-key', activityTime)
-    const olderRead = markChannelRead(secondRead, 'chat-key', activityTime - 500)
+    const olderRead = markChannelRead(
+      secondRead,
+      'chat-key',
+      activityTime - 500
+    )
     const ignoredEmptyKey = markChannelRead(secondRead, '', activityTime + 1000)
 
     assert.deepEqual(firstRead, { 'chat-key': activityTime - 1000 })
@@ -190,9 +195,14 @@ describe('Android chat state helpers', () => {
       fileName: 'hello world.txt',
       link: fallbackLink,
     })
-    assert.equal(getAttachmentFromMessage(createMessage({ content: 'no link' })), null)
     assert.equal(
-      getAttachmentFromMessage(createMessage({ content: 'bad most://not-a-cid' })),
+      getAttachmentFromMessage(createMessage({ content: 'no link' })),
+      null
+    )
+    assert.equal(
+      getAttachmentFromMessage(
+        createMessage({ content: 'bad most://not-a-cid' })
+      ),
       null
     )
   })
@@ -223,7 +233,9 @@ describe('Android chat state helpers', () => {
       }
     )
     assert.deepEqual(
-      getAttachmentFromMessage(createMessage({ content: `${namedLink}，继续` })),
+      getAttachmentFromMessage(
+        createMessage({ content: `${namedLink}，继续` })
+      ),
       {
         kind: 'file',
         cid: VALID_CID,
@@ -232,7 +244,9 @@ describe('Android chat state helpers', () => {
       }
     )
     assert.deepEqual(
-      getAttachmentFromMessage(createMessage({ content: `${plainLink}。继续` })),
+      getAttachmentFromMessage(
+        createMessage({ content: `${plainLink}。继续` })
+      ),
       {
         kind: 'file',
         cid: VALID_CID,

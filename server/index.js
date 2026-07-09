@@ -10,11 +10,7 @@ import {
   createNodeConfigStore,
 } from './src/node/config.js'
 import { createNodeLogger } from './src/node/logs.js'
-import {
-  UPLOAD_TMP_DIR,
-  createApp,
-  getDataPath,
-} from './src/http/app.js'
+import { UPLOAD_TMP_DIR, createApp, getDataPath } from './src/http/app.js'
 
 export { createApp } from './src/http/app.js'
 
@@ -256,12 +252,16 @@ export function createWebSocketServer({
           case 'channel:voice:leave':
           case 'channel:voice:signal':
             if (data.channel && ws.userAddress) {
-              engine.sendChannelVoiceEvent(data.channel, {
-                ...data,
-                event: event.replace('channel:voice:', ''),
-              }, {
-                ownerAddress: ws.userAddress,
-              })
+              engine.sendChannelVoiceEvent(
+                data.channel,
+                {
+                  ...data,
+                  event: event.replace('channel:voice:', ''),
+                },
+                {
+                  ownerAddress: ws.userAddress,
+                }
+              )
             }
             break
         }

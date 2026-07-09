@@ -136,9 +136,27 @@ describe('mobile channel protocol helpers', () => {
 
   it('sorts and deduplicates multi-writer channel messages', () => {
     const messages = sortChannelMessages([
-      { type: 'message', _coreKey: 'a', author: '1', content: 'late', timestamp: 3 },
-      { type: 'message', _coreKey: 'b', author: '2', content: 'early', timestamp: 1 },
-      { type: 'message', _coreKey: 'b', author: '2', content: 'early', timestamp: 1 },
+      {
+        type: 'message',
+        _coreKey: 'a',
+        author: '1',
+        content: 'late',
+        timestamp: 3,
+      },
+      {
+        type: 'message',
+        _coreKey: 'b',
+        author: '2',
+        content: 'early',
+        timestamp: 1,
+      },
+      {
+        type: 'message',
+        _coreKey: 'b',
+        author: '2',
+        content: 'early',
+        timestamp: 1,
+      },
     ])
 
     assert.deepEqual(
@@ -350,7 +368,8 @@ describe('mobile channel protocol helpers', () => {
   })
 
   it('keeps structured attachments on channel messages when content matches link', () => {
-    const link = 'most://bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e?filename=photo.png'
+    const link =
+      'most://bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e?filename=photo.png'
     const message = normalizeChannelMessage(
       {
         content: link,
@@ -400,8 +419,10 @@ describe('mobile channel protocol helpers', () => {
   })
 
   it('keeps messages with different attachment links when deduplicating', () => {
-    const firstLink = 'most://bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e?filename=first.png'
-    const secondLink = 'most://bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e?filename=second.png'
+    const firstLink =
+      'most://bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e?filename=first.png'
+    const secondLink =
+      'most://bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e?filename=second.png'
     const messages = sortChannelMessages([
       {
         type: 'message',

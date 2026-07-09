@@ -1,7 +1,11 @@
 export type FileSubtype = 'image' | 'video' | 'audio' | 'text' | 'file'
 
 export function getFileSubtype(fileName: string): FileSubtype {
-  const ext = String(fileName || '').split('.').pop()?.toLowerCase() || ''
+  const ext =
+    String(fileName || '')
+      .split('.')
+      .pop()
+      ?.toLowerCase() || ''
   const imgExts = [
     'jpg',
     'jpeg',

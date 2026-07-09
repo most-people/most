@@ -8,8 +8,16 @@
   overflow: auto;
   padding: 20px;
   background:
-    radial-gradient(circle at 35% 25%, rgba(52, 199, 89, 0.14), transparent 32%),
-    radial-gradient(circle at 78% 18%, rgba(255, 149, 0, 0.12), transparent 28%),
+    radial-gradient(
+      circle at 35% 25%,
+      rgba(52, 199, 89, 0.14),
+      transparent 32%
+    ),
+    radial-gradient(
+      circle at 78% 18%,
+      rgba(255, 149, 0, 0.12),
+      transparent 28%
+    ),
     var(--bg-primary);
 }
 

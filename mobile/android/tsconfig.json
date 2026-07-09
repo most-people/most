@@ -11,10 +11,5 @@
       "~/*": ["./src/*"]
     }
   },
-  "include": [
-    "App.tsx",
-    "src/**/*.ts",
-    "src/**/*.tsx",
-    "rpc-commands.mjs"
-  ]
+  "include": ["App.tsx", "src/**/*.ts", "src/**/*.tsx", "rpc-commands.mjs"]
 }

@@ -485,7 +485,9 @@ export default function ProfilePage() {
                         : '-'
                       : formatNumber(item.value)}
                   </span>
-                  <span className="profile-backup-stat-label">{item.label}</span>
+                  <span className="profile-backup-stat-label">
+                    {item.label}
+                  </span>
                 </div>
               ))}
             </div>

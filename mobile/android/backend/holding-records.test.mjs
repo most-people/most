@@ -81,7 +81,8 @@ describe('mobile holding deletion records', () => {
   })
 
   it('removes only the target CID so the same link can be downloaded again', () => {
-    const otherCid = 'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
+    const otherCid =
+      'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
     const holdings = [
       {
         cid: VALID_CID,

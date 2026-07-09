@@ -91,7 +91,9 @@ export function getChannelTitle(channel?: MobileChannel | null) {
   return remark || getChannelId(channel)
 }
 
-export function validateChannelName(value: string): ChannelNameValidationResult {
+export function validateChannelName(
+  value: string
+): ChannelNameValidationResult {
   const name = value.trim()
 
   if (name.length < CHANNEL_NAME_MIN_LENGTH) {
@@ -134,7 +136,11 @@ export function validateChannelName(value: string): ChannelNameValidationResult 
 }
 
 export function getChannelActivityTime(channel: MobileChannel) {
-  return parseTimestamp(channel.lastMessageAt) ?? parseTimestamp(channel.createdAt) ?? 0
+  return (
+    parseTimestamp(channel.lastMessageAt) ??
+    parseTimestamp(channel.createdAt) ??
+    0
+  )
 }
 
 export function sortChannelsForChatList(channels: MobileChannel[]) {
@@ -145,7 +151,8 @@ export function sortChannelsForChatList(channels: MobileChannel[]) {
       index,
     }))
     .sort((left, right) => {
-      const pinnedDiff = Number(right.channel.pinned) - Number(left.channel.pinned)
+      const pinnedDiff =
+        Number(right.channel.pinned) - Number(left.channel.pinned)
       if (pinnedDiff !== 0) return pinnedDiff
 
       const activityDiff = right.activityTime - left.activityTime

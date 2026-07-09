@@ -173,7 +173,10 @@ describe('parseMostLink', () => {
   })
 
   it('rejects invalid CID format', () => {
-    assertInvalidLink('most://invalid', MOST_LINK_ERROR_CODES.INVALID_CID_FORMAT)
+    assertInvalidLink(
+      'most://invalid',
+      MOST_LINK_ERROR_CODES.INVALID_CID_FORMAT
+    )
     assertInvalidLink(
       'https://example.com/file',
       MOST_LINK_ERROR_CODES.INVALID_CID_FORMAT

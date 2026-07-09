@@ -97,7 +97,9 @@ export function useGameRoom({
   const handleGameSocketEvent = useCallback(
     (event: string, data: any) => {
       if (event !== 'channel:presence') return
-      const eventChannel = String(data?.channelKey || data?.channel || '').trim()
+      const eventChannel = String(
+        data?.channelKey || data?.channel || ''
+      ).trim()
       const currentChannel = channelNameRef.current
       if (!currentChannel) return
       if (!eventChannel || eventChannel === currentChannel) {
@@ -123,27 +125,22 @@ export function useGameRoom({
     [gameId, roomCode]
   )
 
-  const {
-    clearMessages,
-    connected,
-    messages,
-    sendMessage,
-    syncMessages,
-  } = useChannelMessages({
-    isReady: isBackendReady,
-    enabled: Boolean(userIdentity),
-    channelName,
-    limit: 500,
-    acceptMessage: acceptGameMessage,
-    getMessageKey: getGameMessageKey,
-    onSyncError: err => reportError(err, t('game.room.error.readLog')),
-    onSocketEvent: handleGameSocketEvent,
-    onReconnect: () => {
-      void refreshChannelPresence()
-    },
-    presenceEnabled: Boolean(channelName && userIdentity),
-    presenceProfile,
-  })
+  const { clearMessages, connected, messages, sendMessage, syncMessages } =
+    useChannelMessages({
+      isReady: isBackendReady,
+      enabled: Boolean(userIdentity),
+      channelName,
+      limit: 500,
+      acceptMessage: acceptGameMessage,
+      getMessageKey: getGameMessageKey,
+      onSyncError: err => reportError(err, t('game.room.error.readLog')),
+      onSocketEvent: handleGameSocketEvent,
+      onReconnect: () => {
+        void refreshChannelPresence()
+      },
+      presenceEnabled: Boolean(channelName && userIdentity),
+      presenceProfile,
+    })
 
   useEffect(() => {
     if (!channelName || !isBackendReady) {
@@ -198,7 +195,9 @@ export function useGameRoom({
   const enterRoom = useCallback(
     async (codeInput: string, create = false) => {
       if (!ensureReady() || !userIdentity) return false
-      const code = create ? createGameRoomCode() : normalizeGameRoomCode(codeInput)
+      const code = create
+        ? createGameRoomCode()
+        : normalizeGameRoomCode(codeInput)
       const name = gameRoomCodeToChannelName(gameId, code)
       if (!name) {
         if (onError) onError(t('game.room.error.invalidCode'))

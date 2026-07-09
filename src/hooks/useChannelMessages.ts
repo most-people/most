@@ -64,8 +64,7 @@ function sortMessagesForDisplay(items: ChannelMessage[]) {
     .map((message, index) => ({ message, index }))
     .sort((left, right) => {
       const timeDiff =
-        getMessageTimestamp(left.message) -
-        getMessageTimestamp(right.message)
+        getMessageTimestamp(left.message) - getMessageTimestamp(right.message)
       if (timeDiff !== 0) return timeDiff
 
       return left.index - right.index
@@ -251,7 +250,10 @@ export function useChannelMessages({
   }, [])
 
   const syncMessages = useCallback(
-    async (name = channelNameRef.current, options: { replace?: boolean } = {}) => {
+    async (
+      name = channelNameRef.current,
+      options: { replace?: boolean } = {}
+    ) => {
       if (!name || !isReady) return []
       try {
         const result = filterMessages(
@@ -473,9 +475,7 @@ export function useChannelMessages({
             })
           )
         }
-        if (
-          (!waitForPeerId || peerIdRef.current)
-        ) {
+        if (!waitForPeerId || peerIdRef.current) {
           subscribedChannelsRef.current.clear()
           replaceSubscriptions(getSubscriptionNames())
           if (channelNameRef.current) {
@@ -510,10 +510,7 @@ export function useChannelMessages({
         if (closed) return
         const attempt = reconnectAttemptRef.current
         if (attempt >= 20) return
-        const delay = Math.min(
-          reconnectBaseDelay * Math.pow(2, attempt),
-          30000
-        )
+        const delay = Math.min(reconnectBaseDelay * Math.pow(2, attempt), 30000)
         reconnectAttemptRef.current = attempt + 1
         reconnectTimerRef.current = setTimeout(connectWs, delay)
       }

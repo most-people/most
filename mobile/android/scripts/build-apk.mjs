@@ -25,10 +25,7 @@ const apkSource = path.join(
   'app-release.apk'
 )
 const legacyApkTarget = path.join(outputDir, 'mostbox-android-release.apk')
-const apkTarget = path.join(
-  outputDir,
-  `mostbox-android-${version}-release.apk`
-)
+const apkTarget = path.join(outputDir, `mostbox-android-${version}-release.apk`)
 const gradleCommand = process.platform === 'win32' ? 'gradlew.bat' : './gradlew'
 const npxCommand = process.platform === 'win32' ? 'npx.cmd' : 'npx'
 
@@ -63,7 +60,10 @@ function resolveReleaseVersion(value) {
 }
 
 function sha256(filePath) {
-  return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex')
+  return crypto
+    .createHash('sha256')
+    .update(fs.readFileSync(filePath))
+    .digest('hex')
 }
 
 function writeChecksum(filePath) {
@@ -81,7 +81,9 @@ function safeRm(filePath) {
 }
 
 function hasAndroidProject() {
-  return fs.existsSync(path.join(androidDir, gradleCommand.replace(/^\.\//, '')))
+  return fs.existsSync(
+    path.join(androidDir, gradleCommand.replace(/^\.\//, ''))
+  )
 }
 
 function ensureAndroidProject() {

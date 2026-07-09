@@ -9,7 +9,10 @@ export const CHANNEL_CANDIDATE_TTL = 30 * 1000
 const CHANNEL_WRITER_ID_BYTES = 8
 
 export function normalizeChannelDisplayName(input, fallbackAddress = '') {
-  return normalizeDisplayName(input, fallbackAddress ? fallbackAddress.slice(0, 10) : '')
+  return normalizeDisplayName(
+    input,
+    fallbackAddress ? fallbackAddress.slice(0, 10) : ''
+  )
 }
 
 export function normalizeChannelAvatar(input) {
@@ -39,5 +42,7 @@ export function isSpecialChannel(channel = {}) {
 }
 
 export function uniqueStrings(values = []) {
-  return [...new Set(values.map(value => String(value || '').trim()).filter(Boolean))]
+  return [
+    ...new Set(values.map(value => String(value || '').trim()).filter(Boolean)),
+  ]
 }

@@ -153,8 +153,7 @@ function isChannelMessage(value: unknown): value is MobileChannelMessage {
     typeof record.authorName === 'string' &&
     typeof record.content === 'string' &&
     typeof record.timestamp === 'number' &&
-    (record.attachment === undefined ||
-      isChannelAttachment(record.attachment))
+    (record.attachment === undefined || isChannelAttachment(record.attachment))
   )
 }
 

@@ -19,10 +19,7 @@ export function PemExportView({
 
   if (!publicPem || !privatePem) {
     return (
-      <EmptyState
-        icon={<Lock size={36} />}
-        message={t('web3.empty.pem')}
-      />
+      <EmptyState icon={<Lock size={36} />} message={t('web3.empty.pem')} />
     )
   }
 

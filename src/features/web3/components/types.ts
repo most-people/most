@@ -5,11 +5,7 @@ export type BoxAccount = {
   privateKey: string
 }
 
-export type ViewId =
-  | 'wallet'
-  | 'pem'
-  | 'export'
-  | 'EA'
+export type ViewId = 'wallet' | 'pem' | 'export' | 'EA'
 
 export type WalletResult = {
   username: string

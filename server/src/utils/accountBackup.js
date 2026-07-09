@@ -41,7 +41,10 @@ export function validateAccountBackupPayload(input) {
 }
 
 export function encryptAccountBackup(payload, danger) {
-  return mostEncode(JSON.stringify(validateAccountBackupPayload(payload)), danger)
+  return mostEncode(
+    JSON.stringify(validateAccountBackupPayload(payload)),
+    danger
+  )
 }
 
 export function decryptAccountBackup(content, danger) {
@@ -84,7 +87,11 @@ export async function buildAccountBackupUpload(wallet, payload) {
     headers: {
       'Content-Type': 'text/plain',
       'x-backup-cid': cid,
-      ...(await getAccountBackupAuthHeaders(wallet, 'PUT', ACCOUNT_BACKUP_API_URL)),
+      ...(await getAccountBackupAuthHeaders(
+        wallet,
+        'PUT',
+        ACCOUNT_BACKUP_API_URL
+      )),
     },
   }
 }

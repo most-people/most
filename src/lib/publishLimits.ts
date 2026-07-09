@@ -45,7 +45,9 @@ export function getPublishFileTooLargeMessage(
   return t('app.publish.fileTooLarge', {
     fileName,
     maxSize:
-      maxFileSizeBytes === null ? formatBytes(0) : formatBytes(maxFileSizeBytes),
+      maxFileSizeBytes === null
+        ? formatBytes(0)
+        : formatBytes(maxFileSizeBytes),
     fileSize: sizeBytes === null ? formatBytes(0) : formatBytes(sizeBytes),
   })
 }

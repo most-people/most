@@ -55,8 +55,7 @@ export const zhCNAdminMessages = {
   'admin.settings.maxFileSizeUnit': '单文件最大单位',
   'admin.settings.maxFileSizePlaceholder': '例如 10.2',
   'admin.settings.remoteInvites': '远程访问邀请码',
-  'admin.settings.remoteInvitesPlaceholder':
-    '每行一个，或用英文逗号分隔',
+  'admin.settings.remoteInvitesPlaceholder': '每行一个，或用英文逗号分隔',
   'admin.settings.hint':
     '数据目录变更保存后需要重启 daemon。修改邀请码后新请求立即生效。发布和下载成功后会固定做种；MostBox 不设同时做种数或传输限速。',
   'admin.holdings.title': '持有副本',
@@ -75,11 +74,9 @@ export const zhCNAdminMessages = {
   'admin.seedHelp.active.desc':
     '已加入 CID topic，可被其他节点发现并提供完整副本。',
   'admin.seedHelp.pending.label': '队列中 / 加入中',
-  'admin.seedHelp.pending.desc':
-    '正在等待或重连 topic，通常会自动进入做种中。',
+  'admin.seedHelp.pending.desc': '正在等待或重连 topic，通常会自动进入做种中。',
   'admin.seedHelp.paused.label': '已暂停 / 未 join',
-  'admin.seedHelp.paused.desc':
-    '本机仍持有文件，但当前不会对外提供下载。',
+  'admin.seedHelp.paused.desc': '本机仍持有文件，但当前不会对外提供下载。',
   'admin.seedHelp.error.label': '错误',
   'admin.seedHelp.error.desc':
     '加入或做种失败，请查看下方节点日志里的 seed 事件。',
@@ -175,8 +172,7 @@ export const zhTWAdminMessages = {
   'admin.settings.maxFileSizeUnit': '單檔案最大單位',
   'admin.settings.maxFileSizePlaceholder': '例如 10.2',
   'admin.settings.remoteInvites': '遠端訪問邀請碼',
-  'admin.settings.remoteInvitesPlaceholder':
-    '每行一個，或用英文逗號分隔',
+  'admin.settings.remoteInvitesPlaceholder': '每行一個，或用英文逗號分隔',
   'admin.settings.hint':
     '資料目錄變更儲存後需要重啟 daemon。修改邀請碼後新請求立即生效。發布和下載成功後會固定做種；MostBox 不設同時做種數或傳輸限速。',
   'admin.holdings.title': '持有副本',
@@ -195,11 +191,9 @@ export const zhTWAdminMessages = {
   'admin.seedHelp.active.desc':
     '已加入 CID topic，可被其他節點發現並提供完整副本。',
   'admin.seedHelp.pending.label': '佇列中 / 加入中',
-  'admin.seedHelp.pending.desc':
-    '正在等待或重連 topic，通常會自動進入做種中。',
+  'admin.seedHelp.pending.desc': '正在等待或重連 topic，通常會自動進入做種中。',
   'admin.seedHelp.paused.label': '已暫停 / 未 join',
-  'admin.seedHelp.paused.desc':
-    '本機仍持有檔案，但當前不會對外提供下載。',
+  'admin.seedHelp.paused.desc': '本機仍持有檔案，但當前不會對外提供下載。',
   'admin.seedHelp.error.label': '錯誤',
   'admin.seedHelp.error.desc':
     '加入或做種失敗，請檢視下方節點日誌裡的 seed 事件。',

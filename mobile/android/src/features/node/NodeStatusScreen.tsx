@@ -360,9 +360,7 @@ export function NodeStatusScreen({
                       </Text>
                       <Text style={styles.fileMeta}>
                         {formatBytes(holding.size)} ·{' '}
-                        {holding.source === 'published'
-                          ? '已发布'
-                          : '已下载'}
+                        {holding.source === 'published' ? '已发布' : '已下载'}
                       </Text>
                     </View>
                     <StatusBadge
@@ -380,11 +378,11 @@ export function NodeStatusScreen({
 
                   <View style={styles.topicRow}>
                     <Text style={styles.topicText}>
-                      {holding.topicJoined
-                        ? 'Topic 已加入'
-                        : '等待加入 topic'}
+                      {holding.topicJoined ? 'Topic 已加入' : '等待加入 topic'}
                     </Text>
-                    <Text style={styles.topicText}>{holding.peerCount} peer</Text>
+                    <Text style={styles.topicText}>
+                      {holding.peerCount} peer
+                    </Text>
                   </View>
 
                   <View style={styles.holdingActions}>
@@ -469,8 +467,7 @@ export function NodeStatusScreen({
                       {transfer.fileName || TRANSFER_KIND_LABELS[transfer.kind]}
                     </Text>
                     <Text style={styles.transferMeta}>
-                      {TRANSFER_KIND_LABELS[transfer.kind]} ·{' '}
-                      {transfer.message}
+                      {TRANSFER_KIND_LABELS[transfer.kind]} · {transfer.message}
                     </Text>
                   </View>
                   <StatusBadge

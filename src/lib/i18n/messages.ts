@@ -13,11 +13,7 @@ import {
   zhCNDownloadMessages,
   zhTWDownloadMessages,
 } from './messages/download'
-import {
-  enCidMessages,
-  zhCNCidMessages,
-  zhTWCidMessages,
-} from './messages/cid'
+import { enCidMessages, zhCNCidMessages, zhTWCidMessages } from './messages/cid'
 import {
   enPingMessages,
   zhCNPingMessages,

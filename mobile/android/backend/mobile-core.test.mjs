@@ -176,10 +176,7 @@ describe('mobile file downloads', () => {
 
     const result = await restartedCore.downloadLink({ link })
     assert.equal(result.transfer.status, 'completed')
-    assert.equal(
-      await fs.readFile(result.savedPath, 'utf8'),
-      content
-    )
+    assert.equal(await fs.readFile(result.savedPath, 'utf8'), content)
   })
 })
 
@@ -368,9 +365,10 @@ describe('mobile channel presence', () => {
     )
 
     let presences = await waitFor(
-      () => core.getSnapshot().channelPresence[channel.channelKey]?.length === 1
-        ? core.getSnapshot().channelPresence[channel.channelKey]
-        : null,
+      () =>
+        core.getSnapshot().channelPresence[channel.channelKey]?.length === 1
+          ? core.getSnapshot().channelPresence[channel.channelKey]
+          : null,
       'remote channel presence'
     )
     assert.equal(presences.length, 1)
@@ -381,8 +379,8 @@ describe('mobile channel presence', () => {
     stream.emit('close')
     await waitFor(
       () =>
-        (core.getSnapshot().channelPresence[channel.channelKey]?.length || 0) ===
-        0,
+        (core.getSnapshot().channelPresence[channel.channelKey]?.length ||
+          0) === 0,
       'remote channel presence disconnect'
     )
 
@@ -405,17 +403,18 @@ describe('mobile channel presence', () => {
       )
     )
     presences = await waitFor(
-      () => core.getSnapshot().channelPresence[channel.channelKey]?.length === 1
-        ? core.getSnapshot().channelPresence[channel.channelKey]
-        : null,
+      () =>
+        core.getSnapshot().channelPresence[channel.channelKey]?.length === 1
+          ? core.getSnapshot().channelPresence[channel.channelKey]
+          : null,
       'stale remote channel presence'
     )
     assert.equal(presences.length, 1)
 
     await waitFor(
       () =>
-        (core.getSnapshot().channelPresence[channel.channelKey]?.length || 0) ===
-        0,
+        (core.getSnapshot().channelPresence[channel.channelKey]?.length ||
+          0) === 0,
       'stale remote channel presence expiry',
       500
     )
@@ -519,11 +518,17 @@ describe('mobile channel metadata management', () => {
     assert.equal(leaveResult.channelKey, restored.channelKey)
     assert.deepEqual(restartedCore.listChannels(), [])
     assert.equal(
-      Object.hasOwn(restartedCore.getSnapshot().channelMessages, restored.channelKey),
+      Object.hasOwn(
+        restartedCore.getSnapshot().channelMessages,
+        restored.channelKey
+      ),
       false
     )
     assert.equal(
-      Object.hasOwn(restartedCore.getSnapshot().channelPresence, restored.channelKey),
+      Object.hasOwn(
+        restartedCore.getSnapshot().channelPresence,
+        restored.channelKey
+      ),
       false
     )
   })
@@ -547,7 +552,8 @@ describe('mobile channel metadata management', () => {
       name: 'android-attachment',
       discover: false,
     })
-    const link = 'most://bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e?filename=photo.png'
+    const link =
+      'most://bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e?filename=photo.png'
 
     await core.sendChannelMessage({
       channelName: channel.channelKey,
@@ -567,7 +573,10 @@ describe('mobile channel metadata management', () => {
       channelName: channel.channelKey,
     })
     assert.equal(message.content, link)
-    assert.equal(message.attachment.cid, 'bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e')
+    assert.equal(
+      message.attachment.cid,
+      'bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e'
+    )
     assert.equal(message.attachment.fileName, 'photo.png')
     assert.equal(message.attachment.kind, 'image')
   })

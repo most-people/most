@@ -8,7 +8,9 @@ export function shortAddress(address) {
 }
 
 export function normalizeAvatar(value) {
-  return String(value || '').trim().slice(0, 4096)
+  return String(value || '')
+    .trim()
+    .slice(0, 4096)
 }
 
 export function normalizeDisplayName(value, fallback = '', maxLength = 50) {

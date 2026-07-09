@@ -27,10 +27,7 @@ export function errorJson(c, err) {
   if (err.errorCode) payload.errorCode = err.errorCode
   if (err.details) payload.details = err.details
 
-  return c.json(
-    payload,
-    getApiErrorStatus(err)
-  )
+  return c.json(payload, getApiErrorStatus(err))
 }
 
 export function badRequestOrAppError(c, err) {

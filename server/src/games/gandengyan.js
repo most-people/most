@@ -16,7 +16,11 @@ export function createGanDengYanRoom({
   random = Math.random,
 }) {
   const roomPlayers = normalizePlayers(players)
-  if (!roomPlayers.some(player => player.address === normalizeAddress(ownerAddress))) {
+  if (
+    !roomPlayers.some(
+      player => player.address === normalizeAddress(ownerAddress)
+    )
+  ) {
     roomPlayers.unshift({
       address: normalizeAddress(ownerAddress),
       name: cleanName(ownerName),
@@ -60,7 +64,9 @@ export function createGanDengYanRoom({
 export function syncGanDengYanLobby(room, players = []) {
   const state = hydrateGanDengYanRoom(room)
   if (!state || state.status !== 'lobby') return state
-  const currentScores = new Map(state.players.map(player => [player.address, player.score]))
+  const currentScores = new Map(
+    state.players.map(player => [player.address, player.score])
+  )
   state.players = normalizePlayers(players)
     .slice(0, 6)
     .map((player, seat) => ({
@@ -118,19 +124,35 @@ export function playGanDengYanCards(room, address, cardIds) {
   const player = currentPlayer(state)
   const normalizedAddress = normalizeAddress(address)
   if (!player || player.address !== normalizedAddress) {
-    return { ok: false, error: '还没轮到你', state: publicGanDengYanRoom(state) }
+    return {
+      ok: false,
+      error: '还没轮到你',
+      state: publicGanDengYanRoom(state),
+    }
   }
 
   const cards = cardIds.map(id => player.hand.find(card => card.id === id))
   if (cards.length === 0 || cards.some(card => !card)) {
-    return { ok: false, error: '手牌不存在', state: publicGanDengYanRoom(state) }
+    return {
+      ok: false,
+      error: '手牌不存在',
+      state: publicGanDengYanRoom(state),
+    }
   }
   const combo = analyzeCards(cards)
   if (!combo) {
-    return { ok: false, error: '这个牌型不合法', state: publicGanDengYanRoom(state) }
+    return {
+      ok: false,
+      error: '这个牌型不合法',
+      state: publicGanDengYanRoom(state),
+    }
   }
   if (!canBeat(combo, state.table?.combo)) {
-    return { ok: false, error: '出的牌压不过上一手', state: publicGanDengYanRoom(state) }
+    return {
+      ok: false,
+      error: '出的牌压不过上一手',
+      state: publicGanDengYanRoom(state),
+    }
   }
 
   cards.sort(compareCards)
@@ -164,10 +186,18 @@ export function passGanDengYanTurn(room, address) {
   const player = currentPlayer(state)
   const normalizedAddress = normalizeAddress(address)
   if (!player || player.address !== normalizedAddress) {
-    return { ok: false, error: '还没轮到你', state: publicGanDengYanRoom(state) }
+    return {
+      ok: false,
+      error: '还没轮到你',
+      state: publicGanDengYanRoom(state),
+    }
   }
   if (!state.table) {
-    return { ok: false, error: '领出时不能不要', state: publicGanDengYanRoom(state) }
+    return {
+      ok: false,
+      error: '领出时不能不要',
+      state: publicGanDengYanRoom(state),
+    }
   }
 
   if (!state.passSeats.includes(player.seat)) state.passSeats.push(player.seat)
@@ -285,7 +315,9 @@ export function hydrateGanDengYanRoom(input) {
     players: Array.isArray(input.players)
       ? input.players.map(normalizeRoundPlayer).filter(Boolean)
       : [],
-    deck: Array.isArray(input.deck) ? input.deck.map(expandCompactCard).filter(Boolean) : [],
+    deck: Array.isArray(input.deck)
+      ? input.deck.map(expandCompactCard).filter(Boolean)
+      : [],
     discard: Array.isArray(input.discard)
       ? input.discard.map(normalizeCard).filter(Boolean)
       : [],
@@ -304,10 +336,13 @@ export function hydrateGanDengYanRoom(input) {
         ? null
         : Number(input.lastWinnerSeat),
     previousWinnerSeat:
-      input.previousWinnerSeat === null || input.previousWinnerSeat === undefined
+      input.previousWinnerSeat === null ||
+      input.previousWinnerSeat === undefined
         ? null
         : Number(input.previousWinnerSeat),
-    passSeats: Array.isArray(input.passSeats) ? input.passSeats.map(Number) : [],
+    passSeats: Array.isArray(input.passSeats)
+      ? input.passSeats.map(Number)
+      : [],
     baseScore: Number(input.baseScore || 1),
     bombCount: Number(input.bombCount || 0),
     diceRolls: Array.isArray(input.diceRolls) ? input.diceRolls : [],
@@ -339,7 +374,8 @@ export function analyzeCards(cards) {
 }
 
 function analyzeBomb(cards, normals, jokerCount) {
-  if (cards.length < 3 || !canRepresentSameRank(normals, jokerCount)) return null
+  if (cards.length < 3 || !canRepresentSameRank(normals, jokerCount))
+    return null
   const value = sameRankValue(normals)
   return makeCombo(
     'bomb',
@@ -354,7 +390,11 @@ function analyzeStraight(cards) {
   if (cards.length < 3) return null
   const jokerCount = cards.filter(isJoker).length
   const normals = cards.filter(card => !isJoker(card))
-  for (let start = 0; start <= STRAIGHT_RANKS.length - cards.length; start += 1) {
+  for (
+    let start = 0;
+    start <= STRAIGHT_RANKS.length - cards.length;
+    start += 1
+  ) {
     const values = STRAIGHT_RANKS.slice(start, start + cards.length).map(rank =>
       RANK_VALUE.get(rank)
     )
@@ -367,7 +407,10 @@ function analyzeStraight(cards) {
         matched += 1
       }
     }
-    if (matched + jokerCount === cards.length && remaining.length === jokerCount) {
+    if (
+      matched + jokerCount === cards.length &&
+      remaining.length === jokerCount
+    ) {
       return makeCombo('straight', values.at(-1), cards.length, values)
     }
   }
@@ -380,8 +423,8 @@ function analyzePairStraight(cards) {
   const jokerCount = cards.filter(isJoker).length
   const normals = cards.filter(card => !isJoker(card))
   for (let start = 0; start <= STRAIGHT_RANKS.length - pairCount; start += 1) {
-    const pairValues = STRAIGHT_RANKS.slice(start, start + pairCount).map(rank =>
-      RANK_VALUE.get(rank)
+    const pairValues = STRAIGHT_RANKS.slice(start, start + pairCount).map(
+      rank => RANK_VALUE.get(rank)
     )
     const remaining = pairValues.flatMap(value => [value, value])
     let matched = 0
@@ -392,7 +435,10 @@ function analyzePairStraight(cards) {
         matched += 1
       }
     }
-    if (matched + jokerCount === cards.length && remaining.length === jokerCount) {
+    if (
+      matched + jokerCount === cards.length &&
+      remaining.length === jokerCount
+    ) {
       const values = pairValues.flatMap(value => [value, value])
       return makeCombo('pairStraight', pairValues.at(-1), cards.length, values)
     }
@@ -417,7 +463,8 @@ function canBeat(combo, tableCombo) {
   if (combo.type === 'bomb' && tableCombo.type !== 'bomb') return true
   if (combo.type !== tableCombo.type) return false
   if (combo.type === 'bomb') {
-    if (combo.length !== tableCombo.length) return combo.length > tableCombo.length
+    if (combo.length !== tableCombo.length)
+      return combo.length > tableCombo.length
     if (combo.value !== tableCombo.value) return combo.value > tableCombo.value
     return combo.pure && !tableCombo.pure
   }
@@ -425,7 +472,8 @@ function canBeat(combo, tableCombo) {
   if (combo.type === 'single' || combo.type === 'pair') {
     return (
       combo.value === nextValue(tableCombo.value) ||
-      (combo.value === RANK_VALUE.get('2') && tableCombo.value !== RANK_VALUE.get('2'))
+      (combo.value === RANK_VALUE.get('2') &&
+        tableCombo.value !== RANK_VALUE.get('2'))
     )
   }
   return combo.value === nextValue(tableCombo.value)
@@ -455,7 +503,9 @@ function normalizeRoundPlayer(input) {
     name: cleanName(input.name),
     avatar: normalizeAvatar(input.avatar),
     seat: Number(input.seat || 0),
-    hand: Array.isArray(input.hand) ? input.hand.map(normalizeCard).filter(Boolean) : [],
+    hand: Array.isArray(input.hand)
+      ? input.hand.map(normalizeCard).filter(Boolean)
+      : [],
     handCount: Number(input.handCount || 0),
     score: Number(input.score ?? INITIAL_SCORE),
     playedCards: Number(input.playedCards || 0),
@@ -480,7 +530,11 @@ function normalizeCard(card) {
 function chooseStarter(room, random) {
   if (room.previousWinnerSeat !== null) {
     room.diceRolls = []
-    return orderedPlayers(room).find(player => player.seat === room.previousWinnerSeat) || orderedPlayers(room)[0]
+    return (
+      orderedPlayers(room).find(
+        player => player.seat === room.previousWinnerSeat
+      ) || orderedPlayers(room)[0]
+    )
   }
   let candidates = orderedPlayers(room)
   let rolls = []
@@ -513,7 +567,9 @@ function finishGame(room, winner) {
   for (const player of orderedPlayers(room)) {
     if (player.seat === winner.seat) continue
     const sealed = player.playedCards === 0
-    const loss = sealed ? SEALED_PENALTY : player.hand.length * room.baseScore * 0.5
+    const loss = sealed
+      ? SEALED_PENALTY
+      : player.hand.length * room.baseScore * 0.5
     player.score -= loss
     winnerGain += loss
     losers.push({
@@ -595,7 +651,10 @@ function advanceTurn(room) {
 function canRepresentSameRank(normals, jokerCount = 0) {
   if (normals.length === 0) return false
   const first = normals[0].rank
-  return normals.every(card => card.rank === first) && normals.length + jokerCount >= 2
+  return (
+    normals.every(card => card.rank === first) &&
+    normals.length + jokerCount >= 2
+  )
 }
 
 function sameRankValue(normals) {
@@ -656,13 +715,15 @@ function labelCombo(combo) {
   const resolved = combo.resolvedValues?.length
     ? `（${combo.resolvedValues.map(valueLabel).join(' ')}）`
     : ''
-  return `${{
-    single: '单张',
-    pair: '对子',
-    straight: '顺子',
-    pairStraight: '连对',
-    bomb: combo.pure ? '纯炸弹' : '带王炸弹',
-  }[combo.type]}${resolved}`
+  return `${
+    {
+      single: '单张',
+      pair: '对子',
+      straight: '顺子',
+      pairStraight: '连对',
+      bomb: combo.pure ? '纯炸弹' : '带王炸弹',
+    }[combo.type]
+  }${resolved}`
 }
 
 function valueLabel(value) {
@@ -680,5 +741,9 @@ function rollDice(random) {
 }
 
 function cleanName(name) {
-  return String(name || '玩家').trim().slice(0, 16) || '玩家'
+  return (
+    String(name || '玩家')
+      .trim()
+      .slice(0, 16) || '玩家'
+  )
 }

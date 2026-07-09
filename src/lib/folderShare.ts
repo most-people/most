@@ -37,7 +37,9 @@ export function getFolderShareState(
   const folderFiles = files.filter(file => {
     if ((file.kind || 'file') === 'collection') return false
     const fileName = normalizeDisplayPath(file.fileName || '')
-    return fileName.startsWith(prefix) && fileName.slice(prefix.length).length > 0
+    return (
+      fileName.startsWith(prefix) && fileName.slice(prefix.length).length > 0
+    )
   })
 
   if (folderFiles.length === 0) {

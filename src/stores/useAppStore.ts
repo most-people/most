@@ -261,8 +261,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       ? notes.findIndex(note => note.cid === input.cid)
       : notes.findIndex(
           note =>
-            normalizeNotePath(note.path) === path &&
-            note.name === validatedName
+            normalizeNotePath(note.path) === path && note.name === validatedName
         )
     const targetFullPath = normalizeNotePath(
       path ? `${path}/${validatedName}` : validatedName

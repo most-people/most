@@ -82,7 +82,10 @@ export function ChatVoiceRoomPanel({
   const { t } = useI18n()
 
   return (
-    <section className="chat-voice-room-panel" aria-label={t('chat.voice.title')}>
+    <section
+      className="chat-voice-room-panel"
+      aria-label={t('chat.voice.title')}
+    >
       <header className="chat-voice-room-header">
         <div className="chat-voice-room-heading">
           <span className="chat-voice-room-icon">

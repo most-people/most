@@ -246,7 +246,10 @@ function getWikiLinkLabel(targetPath: string, alias?: string) {
 }
 
 function escapeMarkdownLinkLabel(label: string) {
-  return label.replace(/\\/g, '\\\\').replace(/\[/g, '\\[').replace(/\]/g, '\\]')
+  return label
+    .replace(/\\/g, '\\\\')
+    .replace(/\[/g, '\\[')
+    .replace(/\]/g, '\\]')
 }
 
 function formatMarkdownLink(label: string, href: string) {
@@ -296,8 +299,7 @@ function resolveWikiNoteLinkBody(
 ): ResolvedWikiNoteLink | null {
   const separatorIndex = body.indexOf('|')
   const target = separatorIndex >= 0 ? body.slice(0, separatorIndex) : body
-  const alias =
-    separatorIndex >= 0 ? body.slice(separatorIndex + 1) : undefined
+  const alias = separatorIndex >= 0 ? body.slice(separatorIndex + 1) : undefined
   const targetPath = getWikiLinkTargetPath(target)
   if (!targetPath) return null
 
@@ -411,7 +413,9 @@ function buildNoteTree(
     parentPath: string,
     updatedAt: number
   ) {
-    const fullPath = normalizeNotePath(parentPath ? `${parentPath}/${name}` : name)
+    const fullPath = normalizeNotePath(
+      parentPath ? `${parentPath}/${name}` : name
+    )
     const existingNode = directoryMap.get(fullPath)
     if (existingNode) {
       existingNode.updatedAt = Math.max(existingNode.updatedAt, updatedAt)
@@ -552,9 +556,7 @@ function NoteTreeNodeRow({
   const isActiveFile = node.type === 'file' && node.note?.cid === activeFileId
   const isActiveFolder =
     isDirectory && normalizeNotePath(activeFolderPath) === node.fullPath
-  const item = isDirectory
-    ? getDirectoryExplorerItem(node)
-    : node.note || null
+  const item = isDirectory ? getDirectoryExplorerItem(node) : node.note || null
   const actions = item && renderActions ? renderActions(item) : null
 
   return (
@@ -712,8 +714,7 @@ function getVaultFilePath(directory: string, name: string) {
 
 function isLocalNoteVaultBackend(url: string) {
   const value =
-    url ||
-    (typeof window !== 'undefined' ? window.location.origin || '' : '')
+    url || (typeof window !== 'undefined' ? window.location.origin || '' : '')
   if (!value) return false
 
   try {
@@ -948,10 +949,7 @@ function NotePageContent() {
   useEffect(() => {
     if (!selectedNote?.path) return
     setExpandedTreePaths(paths =>
-      mergeExpandedPaths(
-        paths,
-        getDirectoryPathAncestors(selectedNote.path)
-      )
+      mergeExpandedPaths(paths, getDirectoryPathAncestors(selectedNote.path))
     )
   }, [selectedNote?.path])
 
@@ -990,10 +988,7 @@ function NotePageContent() {
     void importChatDraftToNote(draft)
   }, [addToast, localDataReady, params.chatDraft, t, wallet])
 
-  function navigateToNote(
-    search: NoteSearchParams = {},
-    replace = false
-  ) {
+  function navigateToNote(search: NoteSearchParams = {}, replace = false) {
     navigate({ href: getNoteHref(search), replace })
   }
 
@@ -1031,8 +1026,8 @@ function NotePageContent() {
         candidate =>
           notes.some(
             note =>
-              normalizeNotePath(note.path || '') === normalizeNotePath(notesPath) &&
-              note.name === candidate
+              normalizeNotePath(note.path || '') ===
+                normalizeNotePath(notesPath) && note.name === candidate
           )
       )
       const newCid = await saveNote({
@@ -1166,9 +1161,7 @@ function NotePageContent() {
     </div>
   )
 
-  const headerRight = (
-    <div className="note-theme-wrap" />
-  )
+  const headerRight = <div className="note-theme-wrap" />
 
   const noteExplorer = (
     <section
@@ -1233,7 +1226,9 @@ function NotePageContent() {
           <section
             className="note-editor-panel"
             aria-label={
-              isEditing ? t('note.editorLabel.edit') : t('note.editorLabel.read')
+              isEditing
+                ? t('note.editorLabel.edit')
+                : t('note.editorLabel.read')
             }
           >
             {showPreview ? (
@@ -1259,7 +1254,9 @@ function NotePageContent() {
                     {selectedNote && (
                       <div className="note-editor-info">
                         <span>
-                          {isEditing ? t('note.mode.edit') : t('note.mode.read')}
+                          {isEditing
+                            ? t('note.mode.edit')
+                            : t('note.mode.read')}
                         </span>
                         <span>{selectedNotePrivacyLabel}</span>
                         <span>{formatDate(selectedNote.updated_at)}</span>
@@ -1313,7 +1310,9 @@ function NotePageContent() {
                           disabled={saving || !!editError || !selectedNote}
                         >
                           <Save size={16} />
-                          {saving ? t('note.action.saving') : t('note.action.save')}
+                          {saving
+                            ? t('note.action.saving')
+                            : t('note.action.save')}
                         </button>
                       </>
                     ) : (
@@ -1396,7 +1395,10 @@ function NotePageContent() {
                     ? t('note.noOpen.select')
                     : t('note.noOpen.createFirst')}
                 </p>
-                <OpenSidebarButton label={t('note.openList')} variant="default" />
+                <OpenSidebarButton
+                  label={t('note.openList')}
+                  variant="default"
+                />
               </div>
             )}
           </section>
@@ -1461,8 +1463,9 @@ function VaultNotePageContent() {
   const [searchQuery, setSearchQuery] = useState('')
   const [openingVault, setOpeningVault] = useState(false)
   const [canOpenVaultDirectory, setCanOpenVaultDirectory] = useState(false)
-  const [selectedFile, setSelectedFile] =
-    useState<NoteVaultFileContent | null>(null)
+  const [selectedFile, setSelectedFile] = useState<NoteVaultFileContent | null>(
+    null
+  )
   const [previewName, setPreviewName] = useState('')
   const [previewContent, setPreviewContent] = useState('')
   const [plainContent, setPlainContent] = useState('')
@@ -1513,12 +1516,7 @@ function VaultNotePageContent() {
         selectedNote?.path || selectedFile?.directory || '',
         targetPath => getNoteHref({ path: getStorageMarkdownPath(targetPath) })
       ),
-    [
-      previewContent,
-      selectedFile?.directory,
-      selectedNote?.path,
-      vaultNotes,
-    ]
+    [previewContent, selectedFile?.directory, selectedNote?.path, vaultNotes]
   )
   const resolveSelectedFileWikiLink = useCallback(
     (body: string) =>
@@ -1539,10 +1537,7 @@ function VaultNotePageContent() {
   useEffect(() => {
     if (!selectedNote?.path) return
     setExpandedTreePaths(paths =>
-      mergeExpandedPaths(
-        paths,
-        getDirectoryPathAncestors(selectedNote.path)
-      )
+      mergeExpandedPaths(paths, getDirectoryPathAncestors(selectedNote.path))
     )
   }, [selectedNote?.path])
 
@@ -1588,7 +1583,14 @@ function VaultNotePageContent() {
 
     importedChatDraftRef.current = draftId
     void importChatDraftToVault(draft)
-  }, [addToast, params.chatDraft, t, vaultLoading, vaultStatus?.configured, wallet])
+  }, [
+    addToast,
+    params.chatDraft,
+    t,
+    vaultLoading,
+    vaultStatus?.configured,
+    wallet,
+  ])
 
   const refreshVault = useCallback(async () => {
     if (!wallet) {
@@ -1695,10 +1697,7 @@ function VaultNotePageContent() {
     }
   }, [currentFilePath, t, vaultStatus?.configured, wallet])
 
-  function navigateToVault(
-    search: NoteSearchParams = {},
-    replace = false
-  ) {
+  function navigateToVault(search: NoteSearchParams = {}, replace = false) {
     navigate({ href: getNoteHref(search), replace })
   }
 
@@ -1757,7 +1756,10 @@ function VaultNotePageContent() {
       navigateToVault({}, true)
       addToast(t('note.vault.opened'), 'success')
     } catch (err: unknown) {
-      addToast(await getApiErrorMessage(err, t('note.vault.selectFailed')), 'error')
+      addToast(
+        await getApiErrorMessage(err, t('note.vault.selectFailed')),
+        'error'
+      )
     } finally {
       setOpeningVault(false)
     }
@@ -1973,7 +1975,10 @@ function VaultNotePageContent() {
       navigateToVault({ file: file.path }, true)
       addToast(t('note.toast.saved'), 'success')
     } catch (err: unknown) {
-      addToast(await getApiErrorMessage(err, t('note.toast.saveFailed')), 'error')
+      addToast(
+        await getApiErrorMessage(err, t('note.toast.saveFailed')),
+        'error'
+      )
     } finally {
       setSaving(false)
     }
@@ -2108,7 +2113,9 @@ function VaultNotePageContent() {
           <section
             className="note-editor-panel"
             aria-label={
-              isEditing ? t('note.editorLabel.edit') : t('note.editorLabel.read')
+              isEditing
+                ? t('note.editorLabel.edit')
+                : t('note.editorLabel.read')
             }
           >
             {showPreview ? (
@@ -2196,7 +2203,9 @@ function VaultNotePageContent() {
                           disabled={saving || !!fileError || !selectedFile}
                         >
                           <Save size={16} />
-                          {saving ? t('note.action.saving') : t('note.action.save')}
+                          {saving
+                            ? t('note.action.saving')
+                            : t('note.action.save')}
                         </button>
                       </>
                     ) : (
@@ -2245,7 +2254,9 @@ function VaultNotePageContent() {
                       }
                       readOnly={!canEditCurrentVaultFile}
                       onInternalNoteLinkOpen={
-                        canEditCurrentVaultFile ? undefined : openInternalNoteLink
+                        canEditCurrentVaultFile
+                          ? undefined
+                          : openInternalNoteLink
                       }
                       resolveWikiNoteLink={
                         canEditCurrentVaultFile
@@ -2289,7 +2300,9 @@ function VaultNotePageContent() {
                     disabled={openingVault}
                   >
                     <FolderOpen size={16} />
-                    {openingVault ? t('note.vault.opening') : t('note.vault.open')}
+                    {openingVault
+                      ? t('note.vault.opening')
+                      : t('note.vault.open')}
                   </button>
                 ) : null}
               </div>

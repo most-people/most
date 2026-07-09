@@ -194,7 +194,9 @@ export function AsymmetricBoxView(props: AsymmetricBoxViewProps) {
           <textarea
             className="textarea"
             value={props.boxEncryptMessage}
-            onChange={event => props.onBoxEncryptMessageChange(event.target.value)}
+            onChange={event =>
+              props.onBoxEncryptMessageChange(event.target.value)
+            }
             rows={4}
             placeholder={t('web3.box.messagePlaceholder')}
             translate="no"
@@ -288,7 +290,9 @@ export function AsymmetricBoxView(props: AsymmetricBoxViewProps) {
           <textarea
             className="textarea mono"
             value={props.boxDecryptCipherText}
-            onChange={event => props.onBoxDecryptCipherTextChange(event.target.value)}
+            onChange={event =>
+              props.onBoxDecryptCipherTextChange(event.target.value)
+            }
             rows={5}
             placeholder={t('web3.box.cipherDecryptPlaceholder')}
             translate="no"

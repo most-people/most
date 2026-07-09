@@ -2,8 +2,9 @@ const MOST_PROTOCOL_PREFIX = /^most:\/\//i
 
 export function findMostDeepLinkArg(argv = []) {
   return (
-    argv.find(arg => typeof arg === 'string' && MOST_PROTOCOL_PREFIX.test(arg)) ||
-    ''
+    argv.find(
+      arg => typeof arg === 'string' && MOST_PROTOCOL_PREFIX.test(arg)
+    ) || ''
   )
 }
 

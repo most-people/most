@@ -34,7 +34,9 @@ export function getNetworkAddresses(appPort, appHost = DEFAULT_NODE_HOST) {
   ]
 
   if (isWildcardHost(appHost)) {
-    for (const [iface, entries = []] of Object.entries(os.networkInterfaces())) {
+    for (const [iface, entries = []] of Object.entries(
+      os.networkInterfaces()
+    )) {
       for (const entry of entries) {
         if (entry.internal) continue
         addresses.push({
@@ -184,7 +186,9 @@ export function buildOpenApiSpec(appPort) {
       '/api/user/export': {
         get: {
           summary: 'Export authenticated account metadata for encrypted backup',
-          responses: { 200: { description: 'Account metadata backup payload' } },
+          responses: {
+            200: { description: 'Account metadata backup payload' },
+          },
         },
       },
       '/api/user/import': {

@@ -12,10 +12,7 @@ const VALID_CID = 'bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e'
 describe('Electron most:// deep links', () => {
   it('finds most links in process arguments', () => {
     const link = `most://${VALID_CID}`
-    assert.strictEqual(
-      findMostDeepLinkArg(['electron.exe', '.', link]),
-      link
-    )
+    assert.strictEqual(findMostDeepLinkArg(['electron.exe', '.', link]), link)
   })
 
   it('maps bare CID links to the CID page', () => {

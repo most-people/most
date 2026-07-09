@@ -142,7 +142,10 @@ describe('chat unread state', () => {
     const activity = getChannelActivityTime(channel)
 
     assert.equal(hasUnreadChannelMessage(channel, { general: activity }), false)
-    assert.equal(hasUnreadChannelMessage(channel, { general: activity - 1 }), true)
+    assert.equal(
+      hasUnreadChannelMessage(channel, { general: activity - 1 }),
+      true
+    )
   })
 
   it('persists last-read maps under the normalized wallet address', () => {

@@ -1238,9 +1238,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
 
         const holdingsRes = await fetch(`${baseUrl}/api/node/holdings`)
         const holdings = await holdingsRes.json()
-        assert.ok(
-          !holdings.some(holding => holding.cid === publishResult.cid)
-        )
+        assert.ok(!holdings.some(holding => holding.cid === publishResult.cid))
       } finally {
         replication?.close()
         if (publisher) await publisher.stop().catch(() => {})
@@ -1385,7 +1383,10 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     })
 
     it('returns 409 when moving onto an existing same-folder name', async () => {
-      await engine.publishFile(Buffer.from('api move conflict one'), 'api/a.txt')
+      await engine.publishFile(
+        Buffer.from('api move conflict one'),
+        'api/a.txt'
+      )
       const second = await engine.publishFile(
         Buffer.from('api move conflict two'),
         'api/b.txt'
@@ -1629,10 +1630,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(putData.profile.avatar, '/avatars/default/panda.svg')
       assert.strictEqual(putData.profile.updatedAt, updatedAt)
 
-      const getRes = await fetchAs(
-        TEST_IDENTITY,
-        `${baseUrl}/api/user/profile`
-      )
+      const getRes = await fetchAs(TEST_IDENTITY, `${baseUrl}/api/user/profile`)
       const getData = await getRes.json()
       assert.strictEqual(getRes.status, 200)
       assert.strictEqual(getData.displayName, 'Backed Up API User')
@@ -1660,13 +1658,15 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(res.status, 200)
       assert.strictEqual(data.type, 'mostbox.account-backup')
       assert.strictEqual(data.schemaVersion, 1)
-      assert.strictEqual(
-        data.ownerAddress,
-        TEST_IDENTITY.address.toLowerCase()
-      )
+      assert.strictEqual(data.ownerAddress, TEST_IDENTITY.address.toLowerCase())
       assert.ok(data.files.some(file => file.cid === published.cid))
-      assert.ok(data.channels.some(item => item.channelKey === channel.channelKey))
-      assert.strictEqual(JSON.stringify(data).includes(TEST_IDENTITY.danger), false)
+      assert.ok(
+        data.channels.some(item => item.channelKey === channel.channelKey)
+      )
+      assert.strictEqual(
+        JSON.stringify(data).includes(TEST_IDENTITY.danger),
+        false
+      )
       assert.strictEqual(JSON.stringify(data).includes(tmpDir), false)
     })
 
@@ -1868,11 +1868,15 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         nodeLogger,
       })
 
-      const res = await app.request('/api/node/config', {
-        headers: { host: '192.168.31.171:1976' },
-      }, {
-        incoming: { socket: { remoteAddress: '::ffff:192.168.31.239' } },
-      })
+      const res = await app.request(
+        '/api/node/config',
+        {
+          headers: { host: '192.168.31.171:1976' },
+        },
+        {
+          incoming: { socket: { remoteAddress: '::ffff:192.168.31.239' } },
+        }
+      )
       const data = await res.json()
 
       assert.strictEqual(res.status, 200)
@@ -1889,11 +1893,15 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         trustPrivateNetwork: true,
       })
 
-      const res = await app.request('/api/node-id', {
-        headers: { host: '192.168.31.171:1976' },
-      }, {
-        incoming: { socket: { remoteAddress: '203.0.113.20' } },
-      })
+      const res = await app.request(
+        '/api/node-id',
+        {
+          headers: { host: '192.168.31.171:1976' },
+        },
+        {
+          incoming: { socket: { remoteAddress: '203.0.113.20' } },
+        }
+      )
       const data = await res.json()
 
       assert.strictEqual(res.status, 403)
@@ -2141,16 +2149,19 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     it('persists message author avatar snapshots', async () => {
       const channelName = `member-avatar-${uid}`
       await engine.createChannel(channelName)
-      const res = await fetch(`${baseUrl}/api/channels/${channelName}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content: 'avatar update',
-          author: TEST_IDENTITY.address,
-          authorName: 'AvatarUser',
-          avatar: 'data:image/png;base64,avatar',
-        }),
-      })
+      const res = await fetch(
+        `${baseUrl}/api/channels/${channelName}/messages`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: 'avatar update',
+            author: TEST_IDENTITY.address,
+            authorName: 'AvatarUser',
+            avatar: 'data:image/png;base64,avatar',
+          }),
+        }
+      )
       const data = await res.json()
       assert.strictEqual(res.status, 200)
       assert.strictEqual(data.message.avatar, 'data:image/png;base64,avatar')
@@ -2203,23 +2214,26 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const link = `most://${VALID_MISSING_CID}?filename=${encodeURIComponent(fileName)}`
       await engine.createChannel(channelName)
 
-      const res = await fetch(`${baseUrl}/api/channels/${channelName}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content: link,
-          author: TEST_IDENTITY.address,
-          authorName: 'TestUser',
-          attachment: {
-            kind: 'video',
-            cid: VALID_MISSING_CID,
-            fileName,
-            link,
-            mimeType: 'video/mp4',
-            size: 456,
-          },
-        }),
-      })
+      const res = await fetch(
+        `${baseUrl}/api/channels/${channelName}/messages`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: link,
+            author: TEST_IDENTITY.address,
+            authorName: 'TestUser',
+            attachment: {
+              kind: 'video',
+              cid: VALID_MISSING_CID,
+              fileName,
+              link,
+              mimeType: 'video/mp4',
+              size: 456,
+            },
+          }),
+        }
+      )
       const data = await res.json()
 
       assert.strictEqual(res.status, 200)
@@ -2238,21 +2252,24 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       const channelName = `badat-${uid}`
       await engine.createChannel(channelName)
 
-      const res = await fetch(`${baseUrl}/api/channels/${channelName}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content: `most://${VALID_MISSING_CID}?filename=chat-file%2Fbad%2Ffile.txt`,
-          author: TEST_IDENTITY.address,
-          authorName: 'TestUser',
-          attachment: {
-            kind: 'unknown',
-            cid: VALID_MISSING_CID,
-            fileName: 'chat-file/bad/file.txt',
-            link: `most://${VALID_MISSING_CID}?filename=chat-file%2Fbad%2Ffile.txt`,
-          },
-        }),
-      })
+      const res = await fetch(
+        `${baseUrl}/api/channels/${channelName}/messages`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: `most://${VALID_MISSING_CID}?filename=chat-file%2Fbad%2Ffile.txt`,
+            author: TEST_IDENTITY.address,
+            authorName: 'TestUser',
+            attachment: {
+              kind: 'unknown',
+              cid: VALID_MISSING_CID,
+              fileName: 'chat-file/bad/file.txt',
+              link: `most://${VALID_MISSING_CID}?filename=chat-file%2Fbad%2Ffile.txt`,
+            },
+          }),
+        }
+      )
       const data = await res.json()
 
       assert.strictEqual(res.status, 400)
@@ -2482,7 +2499,10 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(res.status, 200)
       assert.deepStrictEqual(
         welcomeMessages.map(message => message.author),
-        [TEST_IDENTITY.address.toLowerCase(), SECOND_IDENTITY.address.toLowerCase()]
+        [
+          TEST_IDENTITY.address.toLowerCase(),
+          SECOND_IDENTITY.address.toLowerCase(),
+        ]
       )
       assert.deepStrictEqual(
         welcomeMessages.map(message => message.type),

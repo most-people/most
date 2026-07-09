@@ -24,8 +24,7 @@ export const CHANNEL_ATTACHMENT_KINDS = new Set([
   'text',
   'file',
 ])
-export const DIAGNOSTIC_AUTHOR =
-  '0x0000000000000000000000000000000000000001'
+export const DIAGNOSTIC_AUTHOR = '0x0000000000000000000000000000000000000001'
 export const DIAGNOSTIC_AUTHOR_NAME = 'Android'
 
 export function normalizeChannelId(input) {
@@ -51,7 +50,10 @@ export function normalizeChannelPresenceAddress(value) {
   return /^0x[a-fA-F0-9]{40}$/.test(address) ? address.toLowerCase() : ''
 }
 
-export function normalizeChannelPresenceDisplayName(input, fallbackAddress = '') {
+export function normalizeChannelPresenceDisplayName(
+  input,
+  fallbackAddress = ''
+) {
   const displayName = String(input || '').trim()
   const fallback = fallbackAddress
     ? `${fallbackAddress.slice(0, 6)}...${fallbackAddress.slice(-4)}`
@@ -60,11 +62,15 @@ export function normalizeChannelPresenceDisplayName(input, fallbackAddress = '')
 }
 
 export function normalizeChannelPresenceAvatar(input) {
-  return String(input || '').trim().slice(0, 4096)
+  return String(input || '')
+    .trim()
+    .slice(0, 4096)
 }
 
 export function normalizeChannelRemark(input) {
-  return String(input || '').trim().slice(0, MAX_CHANNEL_REMARK_LENGTH)
+  return String(input || '')
+    .trim()
+    .slice(0, MAX_CHANNEL_REMARK_LENGTH)
 }
 
 export function normalizeBoolean(input) {
@@ -79,10 +85,12 @@ function sanitizeAttachmentFileName(input) {
     .replace(/\.\./g, '_')
     .replace(/\/{2,}/g, '/')
     .replace(/^\/+|\/+$/g, '')
-  return value
-    .split('/')
-    .map(segment => segment.slice(0, MAX_CHANNEL_ATTACHMENT_FILE_NAME_LENGTH))
-    .join('/') || 'unnamed_file'
+  return (
+    value
+      .split('/')
+      .map(segment => segment.slice(0, MAX_CHANNEL_ATTACHMENT_FILE_NAME_LENGTH))
+      .join('/') || 'unnamed_file'
+  )
 }
 
 function decodeQueryPart(value) {
@@ -102,10 +110,8 @@ function parseMostAttachmentLinkQuery(search) {
     if (!part) continue
 
     const separatorIndex = part.indexOf('=')
-    const rawKey =
-      separatorIndex === -1 ? part : part.slice(0, separatorIndex)
-    const rawValue =
-      separatorIndex === -1 ? '' : part.slice(separatorIndex + 1)
+    const rawKey = separatorIndex === -1 ? part : part.slice(0, separatorIndex)
+    const rawValue = separatorIndex === -1 ? '' : part.slice(separatorIndex + 1)
     const key = decodeQueryPart(rawKey)
     if (key !== 'filename') {
       return { fileName: '', unsupportedQuery: true }
@@ -211,10 +217,14 @@ export function assertValidChannelId(channelId, type = 'public') {
     throw new Error('Channel names may only contain letters, numbers, _ and -')
   }
   if (normalized.length < CHANNEL_NAME_MIN_LENGTH) {
-    throw new Error(`Channel name must be at least ${CHANNEL_NAME_MIN_LENGTH} characters`)
+    throw new Error(
+      `Channel name must be at least ${CHANNEL_NAME_MIN_LENGTH} characters`
+    )
   }
   if (normalized.length > CHANNEL_NAME_MAX_LENGTH) {
-    throw new Error(`Channel name must be at most ${CHANNEL_NAME_MAX_LENGTH} characters`)
+    throw new Error(
+      `Channel name must be at most ${CHANNEL_NAME_MAX_LENGTH} characters`
+    )
   }
   return normalized
 }
@@ -237,7 +247,11 @@ export function generateChannelIdDiscoveryKey(channelId) {
     .digest()
 }
 
-export function createChannelRecord(channelIdInput, type = 'public', options = {}) {
+export function createChannelRecord(
+  channelIdInput,
+  type = 'public',
+  options = {}
+) {
   const channelId = assertValidChannelId(channelIdInput, type)
   const channelKey = buildChannelKey(channelId)
   const createdAt = options.createdAt || new Date().toISOString()
@@ -351,7 +365,11 @@ export function normalizeChannelMessage(input = {}, options = {}) {
   }
 }
 
-export function sortChannelMessages(messages = [], limit = CHANNEL_MESSAGE_LIMIT, offset = 0) {
+export function sortChannelMessages(
+  messages = [],
+  limit = CHANNEL_MESSAGE_LIMIT,
+  offset = 0
+) {
   const seen = new Set()
   const unique = []
 
@@ -372,5 +390,7 @@ export function sortChannelMessages(messages = [], limit = CHANNEL_MESSAGE_LIMIT
   const start = Math.max(0, total - safeOffset - safeLimit)
   const end = total - safeOffset
 
-  return unique.slice(start, end).map(({ _coreKey, _index, ...message }) => message)
+  return unique
+    .slice(start, end)
+    .map(({ _coreKey, _index, ...message }) => message)
 }

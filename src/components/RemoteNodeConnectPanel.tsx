@@ -59,14 +59,10 @@ export default function RemoteNodeConnectPanel({
   const currentBackendUrl = hasBackend === true ? activeBackendUrl : ''
   const [urlInput, setUrlInput] = useState(activeUrl)
   const [inviteInput, setInviteInput] = useState(getRemoteInviteExport())
-  const [nodes, setNodes] = useState<RemoteNode[]>(() =>
-    getNodeHistoryExport()
-  )
+  const [nodes, setNodes] = useState<RemoteNode[]>(() => getNodeHistoryExport())
   const [isConnecting, setIsConnecting] = useState(false)
   const { t } = useI18n()
-  const title = activeUrl
-    ? t('remote.title.edit')
-    : t('remote.title.connect')
+  const title = activeUrl ? t('remote.title.edit') : t('remote.title.connect')
   const hint = t('remote.hint')
   const isPage = variant === 'page'
 

@@ -37,12 +37,14 @@ import {
   removeHoldingRecord,
 } from './holding-records.mjs'
 
-const fs = typeof globalThis.Bare === 'undefined'
-  ? (await import('node:fs')).default
-  : (await import('bare-fs')).default
-const path = typeof globalThis.Bare === 'undefined'
-  ? (await import('node:path')).default
-  : (await import('bare-path')).default
+const fs =
+  typeof globalThis.Bare === 'undefined'
+    ? (await import('node:fs')).default
+    : (await import('bare-fs')).default
+const path =
+  typeof globalThis.Bare === 'undefined'
+    ? (await import('node:path')).default
+    : (await import('bare-path')).default
 
 const GLOBAL_SHARED_SEED_STRING = 'most-box-global-shared-seed-v1'
 const MAX_PEERS = 64
@@ -622,7 +624,10 @@ export class MobileP2PCore {
   async createChannel(input = {}) {
     this.#ensureReady()
     const requestedType = String(input.type || 'public').trim() || 'public'
-    const channelId = assertValidChannelId(input.name || input.channelId, requestedType)
+    const channelId = assertValidChannelId(
+      input.name || input.channelId,
+      requestedType
+    )
     const channelKey = buildChannelKey(channelId)
     const existing = this.#channels.find(
       channel => channel.channelKey === channelKey
@@ -636,11 +641,12 @@ export class MobileP2PCore {
     }
 
     const localCandidates = this.#getLocalChannelCandidates(channelId)
-    const remoteCandidates = input.discover === false
-      ? []
-      : await this.#discoverChannelCandidates(channelId, {
-          timeout: input.discoveryTimeout,
-        })
+    const remoteCandidates =
+      input.discover === false
+        ? []
+        : await this.#discoverChannelCandidates(channelId, {
+            timeout: input.discoveryTimeout,
+          })
     const candidates = this.#mergeChannelCandidates([
       ...localCandidates,
       ...remoteCandidates,
@@ -695,7 +701,9 @@ export class MobileP2PCore {
     this.#channelMessageCache.delete(channelKey)
     this.#clearChannelPresenceForChannel(channelKey)
     this.#clearChannelCandidate(channel)
-    this.#channels = this.#channels.filter(item => item.channelKey !== channelKey)
+    this.#channels = this.#channels.filter(
+      item => item.channelKey !== channelKey
+    )
     this.#saveChannels()
     this.#emitSnapshot()
     this.#send('channel.left', {
@@ -1194,7 +1202,10 @@ export class MobileP2PCore {
 
   async #joinChannelFromCandidate(candidateInput, type = 'public') {
     const channelType = candidateInput.type || type
-    const channelId = assertValidChannelId(candidateInput.channelId, channelType)
+    const channelId = assertValidChannelId(
+      candidateInput.channelId,
+      channelType
+    )
     const channelKey = buildChannelKey(channelId)
     const existing = this.#channels.find(
       channel => channel.channelKey === channelKey
@@ -1274,7 +1285,9 @@ export class MobileP2PCore {
     if (!this.#channelCores.has(channel.channelKey)) {
       this.#channelCores.set(channel.channelKey, new Map())
     }
-    this.#channelCores.get(channel.channelKey).set(localWriterCoreKey, localCore)
+    this.#channelCores
+      .get(channel.channelKey)
+      .set(localWriterCoreKey, localCore)
     this.#channelLocalCoreKey.set(channel.channelKey, localWriterCoreKey)
     if (!this.#channelPeers.has(channel.channelKey)) {
       this.#channelPeers.set(channel.channelKey, new Map())
@@ -1384,7 +1397,9 @@ export class MobileP2PCore {
     const candidates = getCachedCandidates()
     if (!hadDiscovery && !this.#channels.some(c => c.channelId === channelId)) {
       this.#channelIdDiscoveries.delete(channelId)
-      this.#chatSwarm.leave(generateChannelIdDiscoveryKey(channelId)).catch(() => {})
+      this.#chatSwarm
+        .leave(generateChannelIdDiscoveryKey(channelId))
+        .catch(() => {})
     }
     return candidates
   }
@@ -1505,7 +1520,10 @@ export class MobileP2PCore {
           try {
             const entry = await core.get(i)
             if (entry?.type === 'message') {
-              maxTimestamp = Math.max(maxTimestamp, Number(entry.timestamp) || 0)
+              maxTimestamp = Math.max(
+                maxTimestamp,
+                Number(entry.timestamp) || 0
+              )
             }
           } catch {
             break
@@ -1727,7 +1745,9 @@ export class MobileP2PCore {
   }
 
   #normalizePresenceSessionId(sessionId) {
-    const value = String(sessionId || 'default').trim().slice(0, 100)
+    const value = String(sessionId || 'default')
+      .trim()
+      .slice(0, 100)
     return value || 'default'
   }
 
@@ -1822,7 +1842,12 @@ export class MobileP2PCore {
     }
   }
 
-  #upsertChannelPresenceProfile(channelKey, address, options = {}, now = Date.now()) {
+  #upsertChannelPresenceProfile(
+    channelKey,
+    address,
+    options = {},
+    now = Date.now()
+  ) {
     const normalizedAddress = normalizeChannelPresenceAddress(address)
     if (!normalizedAddress) return false
     const hasDisplayName = Object.prototype.hasOwnProperty.call(
@@ -1939,7 +1964,10 @@ export class MobileP2PCore {
       options,
       now
     )
-    if (changed && this.#isChannelPresenceAddressOnline(channel.channelKey, address)) {
+    if (
+      changed &&
+      this.#isChannelPresenceAddressOnline(channel.channelKey, address)
+    ) {
       return this.#formatChannelPresence(channel.channelKey, address, 'profile')
     }
     return null
@@ -2080,7 +2108,9 @@ export class MobileP2PCore {
       this.#channelPresenceSweepTimer = null
     }
     if (options.broadcast) {
-      for (const event of this.#removeChannelPresenceSessionsBySource('local')) {
+      for (const event of this.#removeChannelPresenceSessionsBySource(
+        'local'
+      )) {
         this.#broadcastChannelPresence(event)
       }
     }

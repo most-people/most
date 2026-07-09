@@ -19,7 +19,9 @@ async function exists(filePath) {
 }
 
 if (!(await exists(path.join(clientDir, 'index.html')))) {
-  throw new Error('TanStack Start client build is missing out/client/index.html')
+  throw new Error(
+    'TanStack Start client build is missing out/client/index.html'
+  )
 }
 
 const outEntries = await fs.readdir(outDir, { withFileTypes: true })

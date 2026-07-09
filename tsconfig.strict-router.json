@@ -13,12 +13,8 @@
       "~/features/admin/AdminPage": [
         "./src/typecheck-stubs/route-component.tsx"
       ],
-      "~/features/files/AppPage": [
-        "./src/typecheck-stubs/route-component.tsx"
-      ],
-      "~/features/chat/ChatPage": [
-        "./src/typecheck-stubs/route-component.tsx"
-      ],
+      "~/features/files/AppPage": ["./src/typecheck-stubs/route-component.tsx"],
+      "~/features/chat/ChatPage": ["./src/typecheck-stubs/route-component.tsx"],
       "~/features/chat/ChatJoinPage": [
         "./src/typecheck-stubs/route-component.tsx"
       ],
@@ -34,18 +30,12 @@
       "~/features/game/zhajinhua/ZhajinhuaPage": [
         "./src/typecheck-stubs/route-component.tsx"
       ],
-      "~/features/note/NotePage": [
-        "./src/typecheck-stubs/route-component.tsx"
-      ],
-      "~/features/ping/PingPage": [
-        "./src/typecheck-stubs/route-component.tsx"
-      ],
+      "~/features/note/NotePage": ["./src/typecheck-stubs/route-component.tsx"],
+      "~/features/ping/PingPage": ["./src/typecheck-stubs/route-component.tsx"],
       "~/features/profile/ProfilePage": [
         "./src/typecheck-stubs/route-component.tsx"
       ],
-      "~/features/web3/Web3Page": [
-        "./src/typecheck-stubs/route-component.tsx"
-      ],
+      "~/features/web3/Web3Page": ["./src/typecheck-stubs/route-component.tsx"],
       "~/features/system/ErrorBoundary": [
         "./src/typecheck-stubs/error-boundary.tsx"
       ],

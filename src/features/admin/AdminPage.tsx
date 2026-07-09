@@ -46,11 +46,7 @@ import {
 import { useAppStore } from '~/stores/useAppStore'
 import { MarketingHeader } from '~/components/MarketingHeader'
 import { SegmentedControl, SelectControl } from '~/components/ui'
-import {
-  useI18n,
-  type Locale,
-  type MessageKey,
-} from '~/lib/i18n'
+import { useI18n, type Locale, type MessageKey } from '~/lib/i18n'
 import { formatBytes } from '~/lib/format'
 import {
   convertStorageLimitUnit,
@@ -426,8 +422,7 @@ function AdminDataTable<TData>({
 }: AdminDataTableProps<TData>) {
   const rows = table.getRowModel().rows
   const rowCount = table.getPrePaginationRowModel().rows.length
-  const shouldShowPagination =
-    rowCount > table.getState().pagination.pageSize
+  const shouldShowPagination = rowCount > table.getState().pagination.pageSize
 
   return (
     <div className={`admin-table ${className}`}>
@@ -484,10 +479,7 @@ function AdminDataTable<TData>({
           {rows.map(row => (
             <tr key={row.id}>
               {row.getVisibleCells().map(cell => (
-                <td
-                  className={`admin-col-${cell.column.id}`}
-                  key={cell.id}
-                >
+                <td className={`admin-col-${cell.column.id}`} key={cell.id}>
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
                 </td>
               ))}
@@ -817,10 +809,7 @@ export default function AdminPage() {
       setError('')
       return true
     } catch (err) {
-      const message = await getApiErrorMessage(
-        err,
-        t('admin.error.readStatus')
-      )
+      const message = await getApiErrorMessage(err, t('admin.error.readStatus'))
       setError(message)
       addToast(message, 'error')
       return false
@@ -885,10 +874,7 @@ export default function AdminPage() {
       await loadStatus()
       await loadLogs()
     } catch (err) {
-      const message = await getApiErrorMessage(
-        err,
-        t('admin.error.saveConfig')
-      )
+      const message = await getApiErrorMessage(err, t('admin.error.saveConfig'))
       addToast(message, 'error')
       setError(message)
     } finally {
@@ -910,10 +896,7 @@ export default function AdminPage() {
       setLogs([])
       addToast(t('admin.toast.logsCleared'), 'success')
     } catch (err) {
-      const message = await getApiErrorMessage(
-        err,
-        t('admin.error.clearLogs')
-      )
+      const message = await getApiErrorMessage(err, t('admin.error.clearLogs'))
       addToast(message, 'error')
       setError(message)
     } finally {
@@ -1046,329 +1029,325 @@ export default function AdminPage() {
           </div>
         </header>
 
-      {hasBackend === false && (
-        <section className="admin-panel admin-error">
-          <Server size={20} />
-          <span>{t('admin.error.localDaemonDisconnected')}</span>
-        </section>
-      )}
+        {hasBackend === false && (
+          <section className="admin-panel admin-error">
+            <Server size={20} />
+            <span>{t('admin.error.localDaemonDisconnected')}</span>
+          </section>
+        )}
 
-      {isRemoteAdmin && (
-        <section className="admin-panel admin-error">
-          <AlertTriangle size={18} />
-          <div>
-            <h2>{t('admin.remoteUnavailable.title')}</h2>
-            <p>
-              {t('admin.remoteUnavailable.desc')}
-            </p>
-          </div>
-        </section>
-      )}
-
-      {!isRemoteAdmin && error && (
-        <section className="admin-panel admin-error">
-          <FileText size={20} />
-          <span>{error}</span>
-        </section>
-      )}
-
-      {!isRemoteAdmin && (
-        <>
-          <section className="admin-overview">
-            <div className="admin-metric">
-              <div className="admin-metric-icon">
-                <ShieldCheck size={18} />
-              </div>
-              <div>
-                <span>{t('admin.metric.nodeId')}</span>
-                <strong translate="no">
-                  {shortText(status?.nodeId || '')}
-                </strong>
-              </div>
-              <button
-                className="btn btn-icon admin-metric-action"
-                onClick={copyNodeId}
-                aria-label={t('admin.action.copyNodeId')}
-              >
-                <Clipboard size={15} />
-              </button>
-            </div>
-            <div className="admin-metric">
-              <div className="admin-metric-icon">
-                <Wifi size={18} />
-              </div>
-              <div>
-                <span>{t('admin.metric.connections')}</span>
-                <strong>
-                  {status
-                    ? t('admin.metric.peers', {
-                        count: status.network.peers,
-                      })
-                    : '-'}
-                </strong>
-              </div>
-            </div>
-            <div className="admin-metric">
-              <div className="admin-metric-icon">
-                <HardDrive size={18} />
-              </div>
-              <div>
-                <span>{t('admin.metric.capacity')}</span>
-                <strong>{capacityPercent}%</strong>
-              </div>
-            </div>
-            <div className="admin-metric">
-              <div className="admin-metric-icon">
-                <Server size={18} />
-              </div>
-              <div>
-                <span>{t('admin.metric.uptime')}</span>
-                <strong>
-                  {status ? formatUptime(status.uptimeSeconds, t) : '-'}
-                </strong>
-              </div>
+        {isRemoteAdmin && (
+          <section className="admin-panel admin-error">
+            <AlertTriangle size={18} />
+            <div>
+              <h2>{t('admin.remoteUnavailable.title')}</h2>
+              <p>{t('admin.remoteUnavailable.desc')}</p>
             </div>
           </section>
+        )}
 
-          <section className="admin-grid">
-            <div className="admin-panel admin-span-2">
-              <div className="admin-panel-header">
-                <div>
-                  <h2>{t('admin.nodeStatus.title')}</h2>
+        {!isRemoteAdmin && error && (
+          <section className="admin-panel admin-error">
+            <FileText size={20} />
+            <span>{error}</span>
+          </section>
+        )}
+
+        {!isRemoteAdmin && (
+          <>
+            <section className="admin-overview">
+              <div className="admin-metric">
+                <div className="admin-metric-icon">
+                  <ShieldCheck size={18} />
                 </div>
-                <CheckCircle2 size={18} />
-              </div>
-              <div className="admin-status-grid">
                 <div>
-                  <span>{t('admin.nodeStatus.version')}</span>
-                  <strong translate="no">{status?.version || '-'}</strong>
-                </div>
-                <div>
-                  <span>{t('admin.nodeStatus.listen')}</span>
+                  <span>{t('admin.metric.nodeId')}</span>
                   <strong translate="no">
-                    {status ? `${status.host}:${status.port}` : '-'}
+                    {shortText(status?.nodeId || '')}
                   </strong>
                 </div>
+                <button
+                  className="btn btn-icon admin-metric-action"
+                  onClick={copyNodeId}
+                  aria-label={t('admin.action.copyNodeId')}
+                >
+                  <Clipboard size={15} />
+                </button>
+              </div>
+              <div className="admin-metric">
+                <div className="admin-metric-icon">
+                  <Wifi size={18} />
+                </div>
                 <div>
-                  <span>{t('admin.nodeStatus.dataPath')}</span>
-                  <strong translate="no">{status?.dataPath || '-'}</strong>
+                  <span>{t('admin.metric.connections')}</span>
+                  <strong>
+                    {status
+                      ? t('admin.metric.peers', {
+                          count: status.network.peers,
+                        })
+                      : '-'}
+                  </strong>
                 </div>
               </div>
-              <div className="admin-address-list">
-                {(status?.listen.addresses || []).map(address => (
-                  <span key={`${address.type}-${address.ip}`} translate="no">
-                    {address.label}: {address.ip}:{status?.port}
-                  </span>
-                ))}
+              <div className="admin-metric">
+                <div className="admin-metric-icon">
+                  <HardDrive size={18} />
+                </div>
+                <div>
+                  <span>{t('admin.metric.capacity')}</span>
+                  <strong>{capacityPercent}%</strong>
+                </div>
               </div>
-            </div>
+              <div className="admin-metric">
+                <div className="admin-metric-icon">
+                  <Server size={18} />
+                </div>
+                <div>
+                  <span>{t('admin.metric.uptime')}</span>
+                  <strong>
+                    {status ? formatUptime(status.uptimeSeconds, t) : '-'}
+                  </strong>
+                </div>
+              </div>
+            </section>
 
-            <div className="admin-panel admin-span-2">
-              <div className="admin-panel-header">
-                <div>
-                  <h2>{t('admin.userData.title')}</h2>
+            <section className="admin-grid">
+              <div className="admin-panel admin-span-2">
+                <div className="admin-panel-header">
+                  <div>
+                    <h2>{t('admin.nodeStatus.title')}</h2>
+                  </div>
+                  <CheckCircle2 size={18} />
                 </div>
-                <Database size={18} />
+                <div className="admin-status-grid">
+                  <div>
+                    <span>{t('admin.nodeStatus.version')}</span>
+                    <strong translate="no">{status?.version || '-'}</strong>
+                  </div>
+                  <div>
+                    <span>{t('admin.nodeStatus.listen')}</span>
+                    <strong translate="no">
+                      {status ? `${status.host}:${status.port}` : '-'}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>{t('admin.nodeStatus.dataPath')}</span>
+                    <strong translate="no">{status?.dataPath || '-'}</strong>
+                  </div>
+                </div>
+                <div className="admin-address-list">
+                  {(status?.listen.addresses || []).map(address => (
+                    <span key={`${address.type}-${address.ip}`} translate="no">
+                      {address.label}: {address.ip}:{status?.port}
+                    </span>
+                  ))}
+                </div>
               </div>
-              <AdminDataTable
-                table={userTable}
-                className="admin-table-users"
-                emptyText={t('admin.userData.empty')}
-                t={t}
-              />
-            </div>
 
-            <div className="admin-panel admin-span-2">
-              <div className="admin-panel-header">
-                <div>
-                  <h2>{t('admin.settings.title')}</h2>
+              <div className="admin-panel admin-span-2">
+                <div className="admin-panel-header">
+                  <div>
+                    <h2>{t('admin.userData.title')}</h2>
+                  </div>
+                  <Database size={18} />
                 </div>
-                <Database size={18} />
+                <AdminDataTable
+                  table={userTable}
+                  className="admin-table-users"
+                  emptyText={t('admin.userData.empty')}
+                  t={t}
+                />
               </div>
-              <div className="admin-settings-fields">
-                <label className="admin-field admin-field-wide">
-                  <span>{t('admin.settings.dataPath')}</span>
-                  <input
-                    className="input"
-                    value={configForm.dataPath}
-                    onChange={event =>
-                      setConfigForm(prev => ({
-                        ...prev,
-                        dataPath: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-                <label className="admin-field">
-                  <span>{t('admin.settings.capacityGiB')}</span>
-                  <input
-                    className="input"
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={configForm.capacityGiB}
-                    onChange={event =>
-                      setConfigForm(prev => ({
-                        ...prev,
-                        capacityGiB: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-                <label className="admin-field">
-                  <span>{t('admin.settings.maxFileSize')}</span>
-                  <div className="admin-unit-field">
+
+              <div className="admin-panel admin-span-2">
+                <div className="admin-panel-header">
+                  <div>
+                    <h2>{t('admin.settings.title')}</h2>
+                  </div>
+                  <Database size={18} />
+                </div>
+                <div className="admin-settings-fields">
+                  <label className="admin-field admin-field-wide">
+                    <span>{t('admin.settings.dataPath')}</span>
+                    <input
+                      className="input"
+                      value={configForm.dataPath}
+                      onChange={event =>
+                        setConfigForm(prev => ({
+                          ...prev,
+                          dataPath: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <label className="admin-field">
+                    <span>{t('admin.settings.capacityGiB')}</span>
                     <input
                       className="input"
                       type="number"
                       min="0"
-                      step="any"
-                      inputMode="decimal"
-                      placeholder={t('admin.settings.maxFileSizePlaceholder')}
-                      value={configForm.maxFileSizeValue}
+                      step="1"
+                      value={configForm.capacityGiB}
                       onChange={event =>
                         setConfigForm(prev => ({
                           ...prev,
-                          maxFileSizeValue: event.target.value,
+                          capacityGiB: event.target.value,
                         }))
                       }
                     />
-                    <SegmentedControl
-                      ariaLabel={t('admin.settings.maxFileSizeUnit')}
-                      options={MAX_FILE_SIZE_UNIT_OPTIONS}
-                      value={configForm.maxFileSizeUnit}
-                      onChange={nextUnit =>
+                  </label>
+                  <label className="admin-field">
+                    <span>{t('admin.settings.maxFileSize')}</span>
+                    <div className="admin-unit-field">
+                      <input
+                        className="input"
+                        type="number"
+                        min="0"
+                        step="any"
+                        inputMode="decimal"
+                        placeholder={t('admin.settings.maxFileSizePlaceholder')}
+                        value={configForm.maxFileSizeValue}
+                        onChange={event =>
+                          setConfigForm(prev => ({
+                            ...prev,
+                            maxFileSizeValue: event.target.value,
+                          }))
+                        }
+                      />
+                      <SegmentedControl
+                        ariaLabel={t('admin.settings.maxFileSizeUnit')}
+                        options={MAX_FILE_SIZE_UNIT_OPTIONS}
+                        value={configForm.maxFileSizeUnit}
+                        onChange={nextUnit =>
+                          setConfigForm(prev => ({
+                            ...prev,
+                            maxFileSizeValue: convertStorageLimitUnit(
+                              prev.maxFileSizeValue,
+                              prev.maxFileSizeUnit,
+                              nextUnit
+                            ),
+                            maxFileSizeUnit: nextUnit,
+                          }))
+                        }
+                      />
+                    </div>
+                  </label>
+                  <label className="admin-field admin-field-wide">
+                    <span>{t('admin.settings.remoteInvites')}</span>
+                    <textarea
+                      className="input admin-textarea"
+                      value={configForm.remoteInvites}
+                      placeholder={t('admin.settings.remoteInvitesPlaceholder')}
+                      onChange={event =>
                         setConfigForm(prev => ({
                           ...prev,
-                          maxFileSizeValue: convertStorageLimitUnit(
-                            prev.maxFileSizeValue,
-                            prev.maxFileSizeUnit,
-                            nextUnit
-                          ),
-                          maxFileSizeUnit: nextUnit,
+                          remoteInvites: event.target.value,
                         }))
                       }
                     />
-                  </div>
-                </label>
-                <label className="admin-field admin-field-wide">
-                  <span>{t('admin.settings.remoteInvites')}</span>
-                  <textarea
-                    className="input admin-textarea"
-                    value={configForm.remoteInvites}
-                    placeholder={t('admin.settings.remoteInvitesPlaceholder')}
-                    onChange={event =>
-                      setConfigForm(prev => ({
-                        ...prev,
-                        remoteInvites: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-              </div>
-              <p className="admin-field-hint">
-                {t('admin.settings.hint')}
-              </p>
-              <button
-                className="btn btn-primary btn-full"
-                onClick={saveConfig}
-                disabled={isSavingConfig}
-              >
-                <Save size={16} />
-                {t('admin.action.saveConfig')}
-              </button>
-            </div>
-
-            <div className="admin-panel admin-span-2">
-              <div className="admin-panel-header">
-                <div>
-                  <h2>{t('admin.holdings.title')}</h2>
+                  </label>
                 </div>
-                <HardDrive size={18} />
+                <p className="admin-field-hint">{t('admin.settings.hint')}</p>
+                <button
+                  className="btn btn-primary btn-full"
+                  onClick={saveConfig}
+                  disabled={isSavingConfig}
+                >
+                  <Save size={16} />
+                  {t('admin.action.saveConfig')}
+                </button>
               </div>
-              <div className="admin-capacity-row">
-                <progress value={capacityPercent} max="100" />
-                <span>
-                  {formatBytes(status?.capacity.usedBytes || 0)} /{' '}
-                  {formatBytes(status?.capacity.configuredBytes || 0)}
-                </span>
-              </div>
-              <div
-                className="admin-seed-help"
-                aria-label={t('admin.seedHelp.label')}
-              >
-                {SEED_STATUS_HELP.map(item => (
-                  <div className="admin-seed-help-item" key={item.labelKey}>
-                    <span className={`admin-seed-dot ${item.tone}`} />
-                    <div>
-                      <strong>{t(item.labelKey)}</strong>
-                      <span>{t(item.descKey)}</span>
+
+              <div className="admin-panel admin-span-2">
+                <div className="admin-panel-header">
+                  <div>
+                    <h2>{t('admin.holdings.title')}</h2>
+                  </div>
+                  <HardDrive size={18} />
+                </div>
+                <div className="admin-capacity-row">
+                  <progress value={capacityPercent} max="100" />
+                  <span>
+                    {formatBytes(status?.capacity.usedBytes || 0)} /{' '}
+                    {formatBytes(status?.capacity.configuredBytes || 0)}
+                  </span>
+                </div>
+                <div
+                  className="admin-seed-help"
+                  aria-label={t('admin.seedHelp.label')}
+                >
+                  {SEED_STATUS_HELP.map(item => (
+                    <div className="admin-seed-help-item" key={item.labelKey}>
+                      <span className={`admin-seed-dot ${item.tone}`} />
+                      <div>
+                        <strong>{t(item.labelKey)}</strong>
+                        <span>{t(item.descKey)}</span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
+                <AdminDataTable
+                  table={holdingTable}
+                  className="admin-table-holdings"
+                  emptyText={t('admin.holdings.empty')}
+                  t={t}
+                />
               </div>
-              <AdminDataTable
-                table={holdingTable}
-                className="admin-table-holdings"
-                emptyText={t('admin.holdings.empty')}
-                t={t}
-              />
-            </div>
 
-            <div className="admin-panel admin-span-2">
-              <div className="admin-panel-header">
-                <div>
-                  <h2>{t('admin.logs.title')}</h2>
+              <div className="admin-panel admin-span-2">
+                <div className="admin-panel-header">
+                  <div>
+                    <h2>{t('admin.logs.title')}</h2>
+                  </div>
+                  <div className="admin-panel-actions">
+                    <button
+                      className="btn btn-secondary"
+                      onClick={exportDiagnostics}
+                      disabled={isExportingDiagnostics}
+                    >
+                      <Download size={16} />
+                      {t('admin.action.exportDiagnostics')}
+                    </button>
+                    <button
+                      className="btn btn-ghost"
+                      onClick={clearLogs}
+                      disabled={isClearingLogs || logs.length === 0}
+                    >
+                      <Trash2 size={16} />
+                      {t('admin.action.clearLogs')}
+                    </button>
+                    <FileText size={18} />
+                  </div>
                 </div>
-                <div className="admin-panel-actions">
-                  <button
-                    className="btn btn-secondary"
-                    onClick={exportDiagnostics}
-                    disabled={isExportingDiagnostics}
-                  >
-                    <Download size={16} />
-                    {t('admin.action.exportDiagnostics')}
-                  </button>
-                  <button
-                    className="btn btn-ghost"
-                    onClick={clearLogs}
-                    disabled={isClearingLogs || logs.length === 0}
-                  >
-                    <Trash2 size={16} />
-                    {t('admin.action.clearLogs')}
-                  </button>
-                  <FileText size={18} />
+                <div
+                  className="admin-log-filter"
+                  aria-label={t('admin.logs.filterLabel')}
+                >
+                  {LOG_FILTER_OPTIONS.map(item => (
+                    <button
+                      key={item.value}
+                      type="button"
+                      className={logFilter === item.value ? 'active' : ''}
+                      onClick={() => {
+                        setLogFilter(item.value)
+                        setLogPagination(prev => ({ ...prev, pageIndex: 0 }))
+                        loadLogs(item.value)
+                      }}
+                    >
+                      {t(item.labelKey)}
+                    </button>
+                  ))}
                 </div>
+                <AdminDataTable
+                  table={logTable}
+                  className="admin-table-logs"
+                  emptyText={t('admin.logs.empty')}
+                  t={t}
+                />
               </div>
-              <div
-                className="admin-log-filter"
-                aria-label={t('admin.logs.filterLabel')}
-              >
-                {LOG_FILTER_OPTIONS.map(item => (
-                  <button
-                    key={item.value}
-                    type="button"
-                    className={logFilter === item.value ? 'active' : ''}
-                    onClick={() => {
-                      setLogFilter(item.value)
-                      setLogPagination(prev => ({ ...prev, pageIndex: 0 }))
-                      loadLogs(item.value)
-                    }}
-                  >
-                    {t(item.labelKey)}
-                  </button>
-                ))}
-              </div>
-              <AdminDataTable
-                table={logTable}
-                className="admin-table-logs"
-                emptyText={t('admin.logs.empty')}
-                t={t}
-              />
-            </div>
-          </section>
-        </>
-      )}
+            </section>
+          </>
+        )}
       </main>
     </>
   )

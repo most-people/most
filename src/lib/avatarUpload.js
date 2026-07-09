@@ -26,7 +26,9 @@ export class AvatarCompressionError extends Error {
 }
 
 function normalizeMimeType(file) {
-  return String(file?.type || '').trim().toLowerCase()
+  return String(file?.type || '')
+    .trim()
+    .toLowerCase()
 }
 
 function isAvatarFileTooLarge(file, maxBytes = AVATAR_UPLOAD_MAX_BYTES) {
@@ -130,7 +132,8 @@ export async function prepareAvatarUploadFile(file, options = {}) {
   }
 
   const compress =
-    options.compressAvatarImage || (input => compressAvatarImageWithCanvas(input, options))
+    options.compressAvatarImage ||
+    (input => compressAvatarImageWithCanvas(input, options))
   const compressedFile = await compress(file)
   if (isAvatarFileTooLarge(compressedFile, maxBytes)) {
     throw new AvatarUploadSizeError()

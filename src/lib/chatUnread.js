@@ -9,7 +9,9 @@ export function getChannelActivityTime(channel) {
 }
 
 export function getChatReadStorageKey(address) {
-  const normalizedAddress = String(address || '').trim().toLowerCase()
+  const normalizedAddress = String(address || '')
+    .trim()
+    .toLowerCase()
   return normalizedAddress
     ? `${CHAT_READ_STORAGE_PREFIX}:${normalizedAddress}`
     : ''
@@ -21,7 +23,10 @@ export function getChannelReadTimestamp(timestamp, now = Date.now()) {
   return Math.max(0, Math.floor(nextValue))
 }
 
-export function readStoredChannelLastReadAt(storageKey, storage = getStorage()) {
+export function readStoredChannelLastReadAt(
+  storageKey,
+  storage = getStorage()
+) {
   if (!storageKey || !storage) return {}
   try {
     const value = storage.getItem(storageKey)
@@ -69,7 +74,11 @@ export function markChannelReadInMap(
   }
 }
 
-export function initializeChannelLastReadAt(previous, channels, now = Date.now()) {
+export function initializeChannelLastReadAt(
+  previous,
+  channels,
+  now = Date.now()
+) {
   let changed = false
   const next = { ...previous }
   for (const channel of channels) {

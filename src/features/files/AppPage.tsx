@@ -233,7 +233,10 @@ export default function App() {
       refreshFiles()
       refreshTrash()
     } catch (err) {
-      addToast(await getApiErrorMessage(err, t('app.toast.restoreFailed')), 'error')
+      addToast(
+        await getApiErrorMessage(err, t('app.toast.restoreFailed')),
+        'error'
+      )
     }
   }
 
@@ -252,7 +255,10 @@ export default function App() {
           addToast(t('app.toast.trashEmptied'), 'success')
           refreshTrash()
         } catch (err) {
-          addToast(await getApiErrorMessage(err, t('app.toast.emptyFailed')), 'error')
+          addToast(
+            await getApiErrorMessage(err, t('app.toast.emptyFailed')),
+            'error'
+          )
         }
       },
     })
@@ -271,7 +277,10 @@ export default function App() {
         'success'
       )
     } catch (err) {
-      addToast(await getApiErrorMessage(err, t('app.toast.actionFailed')), 'error')
+      addToast(
+        await getApiErrorMessage(err, t('app.toast.actionFailed')),
+        'error'
+      )
     }
   }
 
@@ -298,13 +307,18 @@ export default function App() {
           }
           setSelectedIds([])
           addToast(
-            isTrash ? t('app.toast.deletedPermanently') : t('app.toast.deleted'),
+            isTrash
+              ? t('app.toast.deletedPermanently')
+              : t('app.toast.deleted'),
             'success'
           )
           refreshFiles()
           refreshTrash()
         } catch (err) {
-          addToast(await getApiErrorMessage(err, t('app.toast.deleteFailed')), 'error')
+          addToast(
+            await getApiErrorMessage(err, t('app.toast.deleteFailed')),
+            'error'
+          )
         }
       },
     })
@@ -328,7 +342,10 @@ export default function App() {
       addToast(t('app.toast.moved'), 'success')
       refreshFiles()
     } catch (err) {
-      addToast(await getApiErrorMessage(err, t('app.toast.moveFailed')), 'error')
+      addToast(
+        await getApiErrorMessage(err, t('app.toast.moveFailed')),
+        'error'
+      )
     }
   }
 
@@ -364,7 +381,10 @@ export default function App() {
           }
           setInputModal(null)
         } catch (err) {
-          addToast(await getApiErrorMessage(err, t('app.toast.renameFailed')), 'error')
+          addToast(
+            await getApiErrorMessage(err, t('app.toast.renameFailed')),
+            'error'
+          )
         } finally {
           setInputLoading(false)
         }
@@ -421,7 +441,10 @@ export default function App() {
               t.id === transferId ? { ...t, status: 'completed' } : t
             )
           )
-          addToast(t('app.fileAlreadyExists', { fileName: file.name }), 'warning')
+          addToast(
+            t('app.fileAlreadyExists', { fileName: file.name }),
+            'warning'
+          )
         } else {
           setTransfers(prev =>
             prev.map(t =>
@@ -477,7 +500,10 @@ export default function App() {
       setShareItem(shareResult)
       refreshFiles()
     } catch (err) {
-      addToast(await getApiErrorMessage(err, t('app.toast.actionFailed')), 'error')
+      addToast(
+        await getApiErrorMessage(err, t('app.toast.actionFailed')),
+        'error'
+      )
     }
   }
 
@@ -615,7 +641,10 @@ export default function App() {
       closeDownloadModal()
 
       if (result.alreadyExists) {
-        addToast(t('app.fileAlreadyExists', { fileName: result.fileName }), 'warning')
+        addToast(
+          t('app.fileAlreadyExists', { fileName: result.fileName }),
+          'warning'
+        )
       } else if (result.kind === 'collection') {
         refreshFiles()
         addToast(
@@ -639,7 +668,10 @@ export default function App() {
         addToast(t('app.toast.downloadStarted'), 'info')
       }
     } catch (err) {
-      const message = await getApiErrorMessage(err, t('app.toast.downloadFailed'))
+      const message = await getApiErrorMessage(
+        err,
+        t('app.toast.downloadFailed')
+      )
       addToast(message, 'error')
     } finally {
       setIsDownloading(false)
@@ -663,7 +695,10 @@ export default function App() {
             t.id === transfer.id ? { ...t, status: 'downloading' } : t
           )
         )
-        addToast(await getApiErrorMessage(err, t('app.toast.cancelFailed')), 'error')
+        addToast(
+          await getApiErrorMessage(err, t('app.toast.cancelFailed')),
+          'error'
+        )
       }
     }
   }
@@ -909,7 +944,11 @@ export default function App() {
           <AppTop onNavigate={closeSidebar} />
           <nav className="sidebar-nav">
             {[
-              { id: 'all', icon: <Files size={18} />, label: t('app.nav.local') },
+              {
+                id: 'all',
+                icon: <Files size={18} />,
+                label: t('app.nav.local'),
+              },
               {
                 id: 'starred',
                 icon: <Star size={18} />,
@@ -937,7 +976,6 @@ export default function App() {
               </button>
             ))}
           </nav>
-
         </>
       )}
       headerTitle={<h2 className="header-title">{viewTitle}</h2>}
@@ -1303,7 +1341,10 @@ export default function App() {
                             )
                           }}
                         />
-                        <span className="collection-download-name" translate="no">
+                        <span
+                          className="collection-download-name"
+                          translate="no"
+                        >
                           {file.path}
                         </span>
                         <span className="collection-download-size">
@@ -1317,7 +1358,9 @@ export default function App() {
               )}
             <button
               onClick={handleDownloadSharedFile}
-              disabled={!canStartDownload || isDownloading || isCheckingDownload}
+              disabled={
+                !canStartDownload || isDownloading || isCheckingDownload
+              }
               className="btn btn-info btn-full"
             >
               {isDownloading ? (
@@ -1483,9 +1526,7 @@ export default function App() {
       )}
 
       {isTransferPanelOpen && (
-        <ModalOverlay
-          onClose={() => transferPanel.close()}
-        >
+        <ModalOverlay onClose={() => transferPanel.close()}>
           <div className="transfer-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3>{t('app.transfers')}</h3>
@@ -1512,13 +1553,13 @@ export default function App() {
                     </span>
                     {transfer.status === 'downloading' &&
                       transfer.type === 'download' && (
-                      <button
-                        onClick={() => handleCancelTransfer(transfer)}
-                        className="transfer-item-cancel"
-                      >
-                        <X size={14} />
-                      </button>
-                    )}
+                        <button
+                          onClick={() => handleCancelTransfer(transfer)}
+                          className="transfer-item-cancel"
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
                   </div>
                   <div className="transfer-progress-row">
                     <progress

@@ -21,15 +21,15 @@ npm run dev
 
 打开：
 
-| 入口 | 地址 | 用途 |
-| --- | --- | --- |
-| 平权工具箱 | `http://localhost:3000/` | 文件、聊天、知识库、游戏和 Web3 是同等入口 |
-| 文件库 | `http://localhost:3000/app/` | `/app/` 保留完整文件发布、下载和做种管理 |
-| 聊天 | `http://localhost:3000/chat/` | 创建/加入聊天房间、收发消息和发送文件附件 |
-| 知识库 | `http://localhost:3000/note/` | 编辑 Markdown 内容和本地笔记库 |
-| 游戏 | `http://localhost:3000/game/gandengyan/`、`http://localhost:3000/game/zhajinhua/` | 独立游戏页面 |
-| 管理台 | `http://localhost:3000/admin/` | 查看节点状态、holding、容量和日志 |
-| API | `http://localhost:1976/api/openapi.json` | daemon HTTP API |
+| 入口       | 地址                                                                              | 用途                                       |
+| ---------- | --------------------------------------------------------------------------------- | ------------------------------------------ |
+| 平权工具箱 | `http://localhost:3000/`                                                          | 文件、聊天、知识库、游戏和 Web3 是同等入口 |
+| 文件库     | `http://localhost:3000/app/`                                                      | `/app/` 保留完整文件发布、下载和做种管理   |
+| 聊天       | `http://localhost:3000/chat/`                                                     | 创建/加入聊天房间、收发消息和发送文件附件  |
+| 知识库     | `http://localhost:3000/note/`                                                     | 编辑 Markdown 内容和本地笔记库             |
+| 游戏       | `http://localhost:3000/game/gandengyan/`、`http://localhost:3000/game/zhajinhua/` | 独立游戏页面                               |
+| 管理台     | `http://localhost:3000/admin/`                                                    | 查看节点状态、holding、容量和日志          |
+| API        | `http://localhost:1976/api/openapi.json`                                          | daemon HTTP API                            |
 
 桌面端默认打开平权工具箱首页。发布包路径：正式桌面安装包和 Android Alpha APK 从 `/download` 或 GitHub Releases latest 下载；本地桌面构建使用 `npm run electron:build:win`、`npm run electron:build:mac` 或 `npm run electron:build:linux`，Android APK 构建在 `mobile/android/` 下运行 `npm run build`。
 
@@ -64,16 +64,16 @@ auth_header() {
 8. 打开独立游戏页面时，现有游戏仍使用 `game.<gameId>.<roomCode>` Channel 同步事件。
 9. 打开 `/web3/`，确认 Web3 工具箱独立存在，不成为文件、聊天、知识库或游戏前置条件。
 
-| 检查项 | 通过标准 | 入口 |
-| --- | --- | --- |
-| 平权工具箱 | 首页、桌面端和 README 首屏都把文件、聊天、知识库、游戏和 Web3 作为同等入口 | `/`、桌面端、`README.md` |
-| 文件闭环 | `/app/` 保留完整文件发布、下载和做种管理 | `/app/`、文件 API |
-| 下载后做种 | 接收方下载成功后自动写入 holding 并 join 对应 CID topic | `/api/node/holdings`、`/admin/` |
-| 发布者退出 | 原发布者退出后，至少一个下载者在线时，新下载者仍能完成下载 | `npm run test:protocol`、手动三节点 |
-| 聊天独立 | 用户能通过房间 ID 加入同一聊天，双方能收发文本消息和文件附件 | `/chat/`、`/ws` |
-| 知识库独立 | 知识库支持 Markdown 编辑、备份和恢复，不依赖聊天设置入口 | `/note/` |
-| 聊天设置边界 | 聊天设置不再提供知识库导出入口 | `/chat/` |
-| 独立游戏 | 游戏事件仍走公共 Channel 系统 | `/game/gandengyan/`、`/game/zhajinhua/` |
+| 检查项       | 通过标准                                                                   | 入口                                    |
+| ------------ | -------------------------------------------------------------------------- | --------------------------------------- |
+| 平权工具箱   | 首页、桌面端和 README 首屏都把文件、聊天、知识库、游戏和 Web3 作为同等入口 | `/`、桌面端、`README.md`                |
+| 文件闭环     | `/app/` 保留完整文件发布、下载和做种管理                                   | `/app/`、文件 API                       |
+| 下载后做种   | 接收方下载成功后自动写入 holding 并 join 对应 CID topic                    | `/api/node/holdings`、`/admin/`         |
+| 发布者退出   | 原发布者退出后，至少一个下载者在线时，新下载者仍能完成下载                 | `npm run test:protocol`、手动三节点     |
+| 聊天独立     | 用户能通过房间 ID 加入同一聊天，双方能收发文本消息和文件附件               | `/chat/`、`/ws`                         |
+| 知识库独立   | 知识库支持 Markdown 编辑、备份和恢复，不依赖聊天设置入口                   | `/note/`                                |
+| 聊天设置边界 | 聊天设置不再提供知识库导出入口                                             | `/chat/`                                |
+| 独立游戏     | 游戏事件仍走公共 Channel 系统                                              | `/game/gandengyan/`、`/game/zhajinhua/` |
 
 ## 三、文件协议回归
 
@@ -147,15 +147,15 @@ curl http://localhost:1976/api/node/diagnostics
 
 配置数据目录和容量后，重启 daemon，再查看 `/api/node/holdings` 或 `/admin/`。已持有 CID 应自动恢复 join topic。
 
-| 检查项 | 通过标准 | 入口 |
-| --- | --- | --- |
-| 安全策略 | 固定监听 `127.0.0.1:1976`，远程管理通过 SSH 隧道或反向代理 | `server/index.js` |
-| 状态解释 | holding 显示 queued、joining、active、paused、error 对应中文状态 | `formatSeedStatus()` |
-| 日志可读 | 管理台展示时间、level、event、message，支持清空日志 | `/api/node/logs`、`src/features/admin/AdminPage.tsx` |
-| 设置落盘 | 数据目录、容量上限、单文件上限保存后，API 和管理台能读回 | `/api/node/config` |
-| holding 可见 | 发布或下载成功后，`/api/node/holdings` 与管理台都能看到 CID、大小、状态 | `/api/node/holdings` |
-| CID 派生 | 手动 holding 的 topic 与 driveName 都必须由 CID digest 派生，传入不匹配值不能污染记录 | `server/src/index.js` |
-| API 文档 | OpenAPI 同时包含节点管理、holding、P2P pull、发布、下载检测、下载和按 CID 读取文件路径 | `/api/openapi.json` |
+| 检查项       | 通过标准                                                                               | 入口                                                 |
+| ------------ | -------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| 安全策略     | 固定监听 `127.0.0.1:1976`，远程管理通过 SSH 隧道或反向代理                             | `server/index.js`                                    |
+| 状态解释     | holding 显示 queued、joining、active、paused、error 对应中文状态                       | `formatSeedStatus()`                                 |
+| 日志可读     | 管理台展示时间、level、event、message，支持清空日志                                    | `/api/node/logs`、`src/features/admin/AdminPage.tsx` |
+| 设置落盘     | 数据目录、容量上限、单文件上限保存后，API 和管理台能读回                               | `/api/node/config`                                   |
+| holding 可见 | 发布或下载成功后，`/api/node/holdings` 与管理台都能看到 CID、大小、状态                | `/api/node/holdings`                                 |
+| CID 派生     | 手动 holding 的 topic 与 driveName 都必须由 CID digest 派生，传入不匹配值不能污染记录  | `server/src/index.js`                                |
+| API 文档     | OpenAPI 同时包含节点管理、holding、P2P pull、发布、下载检测、下载和按 CID 读取文件路径 | `/api/openapi.json`                                  |
 
 推荐检查：
 
@@ -165,16 +165,16 @@ node --test --test-name-pattern "returns node status|saves daemon config and exp
 
 ## 五、前端体验回归
 
-| 检查项 | 通过标准 | 入口 |
-| --- | --- | --- |
-| 平权工具箱 | 首页默认展示文件、聊天、知识库、游戏和 Web3 五个同等入口，桌面端默认进入 `/` | `src/components/FeaturePortal.tsx`、`electron/main.js` |
-| 技术词降噪 | 普通用户首屏说“用户之间直接连接”，不堆 Hyperswarm、Hyperdrive、CID 术语 | `README.md`、首页文案 |
-| 附件状态 | 聊天附件区分可下载、下载中、可预览、失败，并有重试入口 | `src/components/ChatAttachmentCard.tsx` |
-| 文件库定位 | `/app/` 文案是文件库/传输管理，仍说明“下载者完成后会默认继续做种” | `src/features/files/AppPage.tsx` |
-| 下载前检测 | 无链接、错误协议、非法 CID、缺少 filename 都有本地提示 | `getDownloadLinkValidationMessage()` |
-| 下载失败文案 | 超时、无 peer、同名冲突、权限错误、节点未初始化、服务端错误各有可读文案 | `getDownloadCheckErrorMessage()` |
-| 工具箱隔离 | `/note`、`/web3`、`/game/*` 可独立打开，不是文件分享的前置条件 | 首页工具箱、各独立页面 |
-| 云盘误解清理 | 主应用不出现云端订单、赔付、付费保种市场叙事 | `src/features`、`src/components` |
+| 检查项       | 通过标准                                                                     | 入口                                                   |
+| ------------ | ---------------------------------------------------------------------------- | ------------------------------------------------------ |
+| 平权工具箱   | 首页默认展示文件、聊天、知识库、游戏和 Web3 五个同等入口，桌面端默认进入 `/` | `src/components/FeaturePortal.tsx`、`electron/main.js` |
+| 技术词降噪   | 普通用户首屏说“用户之间直接连接”，不堆 Hyperswarm、Hyperdrive、CID 术语      | `README.md`、首页文案                                  |
+| 附件状态     | 聊天附件区分可下载、下载中、可预览、失败，并有重试入口                       | `src/components/ChatAttachmentCard.tsx`                |
+| 文件库定位   | `/app/` 文案是文件库/传输管理，仍说明“下载者完成后会默认继续做种”            | `src/features/files/AppPage.tsx`                       |
+| 下载前检测   | 无链接、错误协议、非法 CID、缺少 filename 都有本地提示                       | `getDownloadLinkValidationMessage()`                   |
+| 下载失败文案 | 超时、无 peer、同名冲突、权限错误、节点未初始化、服务端错误各有可读文案      | `getDownloadCheckErrorMessage()`                       |
+| 工具箱隔离   | `/note`、`/web3`、`/game/*` 可独立打开，不是文件分享的前置条件               | 首页工具箱、各独立页面                                 |
+| 云盘误解清理 | 主应用不出现云端订单、赔付、付费保种市场叙事                                 | `src/features`、`src/components`                       |
 
 推荐检查：
 
@@ -221,17 +221,17 @@ npm run build
 
 ## 七、MVP 通过标准
 
-| 场景 | 通过标准 |
-| --- | --- |
-| 平权工具箱 | 用户打开后第一路径是 `/`，能选择文件、聊天、知识库、游戏或 Web3 |
-| P2P 消息 | 两个节点能通过同一 Channel 收发消息 |
-| 聊天附件 | 文件能作为聊天附件发送，接收方能下载、校验、预览 |
-| 下载后做种 | 接收方下载成功后自动成为新种子，holding 可见 |
-| daemon 重启 | 已持有 CID 自动恢复 join topic |
-| 发布者退出 | 至少一个下载者在线做种时，新下载者仍可完成下载 |
-| 知识库 | 能独立新建、编辑和备份 Markdown 内容，不依赖聊天或文件入口 |
-| 游戏 | 独立游戏页面继续使用 `game.*` Channel；聊天详情暂不提供游戏入口 |
-| Web3 | Web3 工具箱独立存在，不成为聊天、文件、记录或游戏前置条件 |
+| 场景        | 通过标准                                                        |
+| ----------- | --------------------------------------------------------------- |
+| 平权工具箱  | 用户打开后第一路径是 `/`，能选择文件、聊天、知识库、游戏或 Web3 |
+| P2P 消息    | 两个节点能通过同一 Channel 收发消息                             |
+| 聊天附件    | 文件能作为聊天附件发送，接收方能下载、校验、预览                |
+| 下载后做种  | 接收方下载成功后自动成为新种子，holding 可见                    |
+| daemon 重启 | 已持有 CID 自动恢复 join topic                                  |
+| 发布者退出  | 至少一个下载者在线做种时，新下载者仍可完成下载                  |
+| 知识库      | 能独立新建、编辑和备份 Markdown 内容，不依赖聊天或文件入口      |
+| 游戏        | 独立游戏页面继续使用 `game.*` Channel；聊天详情暂不提供游戏入口 |
+| Web3        | Web3 工具箱独立存在，不成为聊天、文件、记录或游戏前置条件       |
 
 如果下载失败，优先检查：聊天双方是否加入同一房间、附件链接是否完整、发布者或下载者种子是否在线、端口和防火墙是否允许 P2P 连接、管理台日志中是否出现 `PEER_NOT_FOUND` 或 `INTEGRITY_ERROR`。
 
@@ -239,15 +239,15 @@ npm run build
 
 这部分必须在真实机器上执行，不能只靠本地单测关闭。
 
-| 场景 | 记录内容 | 通过标准 |
-| --- | --- | --- |
-| 聊天收发 | 房间 ID、参与节点、消息时间、断线重连情况 | 双方能稳定收发，重连后继续同步 |
-| 100MB 附件 | 文件大小、CID、发布节点、下载节点、耗时、校验结果 | 聊天发送、下载、校验、下载后做种全通过 |
-| 1GB 附件 | 文件大小、CID、耗时、失败重试、日志摘要 | 下载和做种稳定；失败时错误可读 |
-| 重启恢复 | 重启前 holding、重启后状态、join 耗时 | daemon 重启后自动 join 已持有 CID topic |
-| 发布者退出 | 发布者退出时间、剩余种子、后续下载者结果 | 至少一个下载者在线时，新下载者仍可完成下载 |
-| 知识库编辑 | 笔记标题、内容、备份路径 | 新建和编辑 Markdown 内容可用 |
-| 独立游戏 | 房间 ID、游戏 ID、参与节点、事件同步结果 | 两端游戏状态能通过 Channel 同步 |
+| 场景       | 记录内容                                          | 通过标准                                   |
+| ---------- | ------------------------------------------------- | ------------------------------------------ |
+| 聊天收发   | 房间 ID、参与节点、消息时间、断线重连情况         | 双方能稳定收发，重连后继续同步             |
+| 100MB 附件 | 文件大小、CID、发布节点、下载节点、耗时、校验结果 | 聊天发送、下载、校验、下载后做种全通过     |
+| 1GB 附件   | 文件大小、CID、耗时、失败重试、日志摘要           | 下载和做种稳定；失败时错误可读             |
+| 重启恢复   | 重启前 holding、重启后状态、join 耗时             | daemon 重启后自动 join 已持有 CID topic    |
+| 发布者退出 | 发布者退出时间、剩余种子、后续下载者结果          | 至少一个下载者在线时，新下载者仍可完成下载 |
+| 知识库编辑 | 笔记标题、内容、备份路径                          | 新建和编辑 Markdown 内容可用               |
+| 独立游戏   | 房间 ID、游戏 ID、参与节点、事件同步结果          | 两端游戏状态能通过 Channel 同步            |
 
 记录模板：
 
@@ -270,13 +270,13 @@ CID:
 
 Android 第一阶段也应围绕聊天启动，但文件协议不变量保持不变。当前 Android Alpha 仍以真机前台完整种子能力为基础验收。
 
-| 检查项 | 通过标准 | 入口 |
-| --- | --- | --- |
-| 启动口径 | 移动端文档说明优先补齐聊天、附件收发和基础做种状态 | `mobile/android/README.md` |
-| P2P core | Android 前台能启动真实 P2P core，并显示 ready 状态 | Android App |
-| 附件/文件互通 | Android 与桌面节点能完成发布、下载、CID 校验和前台做种互通 | Android App、桌面端 |
-| holding 管理 | Android holding 删除只移除内部做种副本，不删除用户另存副本 | Android App |
-| 真机记录 | 内测记录写明设备、系统、网络、CID、耗时和日志摘要 | `docs/mobile-android-alpha.md` |
+| 检查项        | 通过标准                                                   | 入口                           |
+| ------------- | ---------------------------------------------------------- | ------------------------------ |
+| 启动口径      | 移动端文档说明优先补齐聊天、附件收发和基础做种状态         | `mobile/android/README.md`     |
+| P2P core      | Android 前台能启动真实 P2P core，并显示 ready 状态         | Android App                    |
+| 附件/文件互通 | Android 与桌面节点能完成发布、下载、CID 校验和前台做种互通 | Android App、桌面端            |
+| holding 管理  | Android holding 删除只移除内部做种副本，不删除用户另存副本 | Android App                    |
+| 真机记录      | 内测记录写明设备、系统、网络、CID、耗时和日志摘要          | `docs/mobile-android-alpha.md` |
 
 推荐检查：
 
@@ -290,15 +290,15 @@ npm run build
 
 ## 十、独立工具箱与知识库回归
 
-| 检查项 | 通过标准 | 入口 |
-| --- | --- | --- |
-| 知识库定位文案 | README/界面文案明确知识库云备份只覆盖知识库数据，不是 MostBox 文件云盘 | `README.md`、`src/features/note/NotePage.tsx` |
-| 私密笔记 | 未登录时不可解密；正确 Web3 账号登录后可阅读、编辑、重新保存 | `/note`、`mostEncode()`、`mostDecode()` |
-| 备份恢复 | 云端缺失、冲突、失败、本地导入导出都有反馈 | `useNoteBackupSync()` |
-| 资源管理 | 新建、重命名、移动、删除文件夹、搜索不丢数据 | `noteUtils`、`src/features/note/NotePage.tsx` |
-| 桌面 Markdown 笔记库 | Electron + 本地 daemon 下可选择目录、列出 `.md`、打开并保存当前文件；Web 端仍使用 IndexedDB | `/note`、`/api/note-vault/*` |
-| CID 边界 | `calculateNoteCid()` 只用于笔记 raw CID，不进入 `most://` 文件分享协议 | `server/src/core/cid.js`、笔记测试 |
-| Web3 独立 | 钱包、PEM、地址和签名工具不参与聊天、附件、知识库或游戏主流程 | `/web3/` |
+| 检查项               | 通过标准                                                                                    | 入口                                          |
+| -------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| 知识库定位文案       | README/界面文案明确知识库云备份只覆盖知识库数据，不是 MostBox 文件云盘                      | `README.md`、`src/features/note/NotePage.tsx` |
+| 私密笔记             | 未登录时不可解密；正确 Web3 账号登录后可阅读、编辑、重新保存                                | `/note`、`mostEncode()`、`mostDecode()`       |
+| 备份恢复             | 云端缺失、冲突、失败、本地导入导出都有反馈                                                  | `useNoteBackupSync()`                         |
+| 资源管理             | 新建、重命名、移动、删除文件夹、搜索不丢数据                                                | `noteUtils`、`src/features/note/NotePage.tsx` |
+| 桌面 Markdown 笔记库 | Electron + 本地 daemon 下可选择目录、列出 `.md`、打开并保存当前文件；Web 端仍使用 IndexedDB | `/note`、`/api/note-vault/*`                  |
+| CID 边界             | `calculateNoteCid()` 只用于笔记 raw CID，不进入 `most://` 文件分享协议                      | `server/src/core/cid.js`、笔记测试            |
+| Web3 独立            | 钱包、PEM、地址和签名工具不参与聊天、附件、知识库或游戏主流程                               | `/web3/`                                      |
 
 推荐检查：
 

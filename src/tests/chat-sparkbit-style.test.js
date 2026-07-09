@@ -34,7 +34,10 @@ describe('sparkbit chat styling', () => {
   it('wires the SparkBit chat class and portal menus from theme identity', () => {
     const chatPage = readSource('src/features/chat/ChatPage.tsx')
 
-    assert.match(chatPage, /const isInviteUser = userIdentity\?\.theme === 'sparkbit'/)
+    assert.match(
+      chatPage,
+      /const isInviteUser = userIdentity\?\.theme === 'sparkbit'/
+    )
     assert.match(
       chatPage,
       /const chatLayoutClassName = \[[\s\S]*'chat-app-layout'[\s\S]*isInviteUser \? 'sparkbit-chat-layout' : ''/
@@ -74,7 +77,8 @@ describe('sparkbit chat styling', () => {
       .split('\n')
       .map(line => line.trim())
       .filter(
-        line => line.includes('box-shadow:') && !/^box-shadow:\s*none;?$/.test(line)
+        line =>
+          line.includes('box-shadow:') && !/^box-shadow:\s*none;?$/.test(line)
       )
 
     assert.match(sparkbitStyles, /--accent:\s*#6A60FF/i)

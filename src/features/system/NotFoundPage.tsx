@@ -14,9 +14,7 @@ export default function NotFound() {
           <Compass size={48} strokeWidth={1.5} />
         </div>
         <h1 className="not-found-title">{t('notFound.title')}</h1>
-        <p className="not-found-desc">
-          {t('notFound.desc')}
-        </p>
+        <p className="not-found-desc">{t('notFound.desc')}</p>
         <div className="not-found-actions">
           <button onClick={back} className="btn btn-secondary">
             <ArrowLeft size={16} />

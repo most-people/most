@@ -6,9 +6,5 @@ type AppEmptyProps = {
 }
 
 export function AppEmpty({ children, className = '' }: AppEmptyProps) {
-  return (
-    <main className={className}>
-      {children}
-    </main>
-  )
+  return <main className={className}>{children}</main>
 }

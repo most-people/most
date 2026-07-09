@@ -100,16 +100,22 @@ describe('zhajinhua room events', () => {
       amount: 15,
     })
 
-    assert.deepStrictEqual(validatePlayerAction(publicRound, bobAction, bob.address), {
-      ok: true,
-    })
+    assert.deepStrictEqual(
+      validatePlayerAction(publicRound, bobAction, bob.address),
+      {
+        ok: true,
+      }
+    )
     assert.strictEqual(
       validatePlayerAction(publicRound, aliceAction, alice.address).ok,
       false
     )
     assert.strictEqual(
-      validatePlayerAction(publicRound, { action: 'raise', amount: 15 }, bob.address)
-        .ok,
+      validatePlayerAction(
+        publicRound,
+        { action: 'raise', amount: 15 },
+        bob.address
+      ).ok,
       false
     )
   })
@@ -143,7 +149,11 @@ describe('zhajinhua room events', () => {
       roundId: round.roundId,
       action: 'call',
     })
-    const aliceCallResult = applyPlayerAction(round, aliceCallEvent, alice.address)
+    const aliceCallResult = applyPlayerAction(
+      round,
+      aliceCallEvent,
+      alice.address
+    )
     round = aliceCallResult.state
     const action = createPlayerActionEvent({
       roundId: round.roundId,
@@ -155,17 +165,21 @@ describe('zhajinhua room events', () => {
     assert.strictEqual(result.ok, true)
     assert.strictEqual(result.state.status, 'finished')
     assert.strictEqual(result.state.winner, alice.address.toLowerCase())
-    assert.deepStrictEqual(
-      result.state.showdown[alice.address.toLowerCase()],
-      ['AS', 'AD', 'AC']
-    )
+    assert.deepStrictEqual(result.state.showdown[alice.address.toLowerCase()], [
+      'AS',
+      'AD',
+      'AC',
+    ])
   })
 
   it('requires two eligible players before starting a round', () => {
     const alice = identity('alice')
     const bob = identity('bob')
 
-    assert.strictEqual(canStartRound([{ ...alice, chips: ZHJ_INITIAL_CHIPS }]), false)
+    assert.strictEqual(
+      canStartRound([{ ...alice, chips: ZHJ_INITIAL_CHIPS }]),
+      false
+    )
     assert.strictEqual(
       canStartRound([
         { ...alice, chips: ZHJ_INITIAL_CHIPS },
