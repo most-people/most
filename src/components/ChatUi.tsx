@@ -317,6 +317,7 @@ export function ChatComposer({
   message,
   placeholder,
   disabled = false,
+  isSendingMessage = false,
   isPublishingAttachment = false,
   attachmentButtonTitle,
   attachmentInputRef,
@@ -335,6 +336,7 @@ export function ChatComposer({
   message: string
   placeholder: string
   disabled?: boolean
+  isSendingMessage?: boolean
   isPublishingAttachment?: boolean
   attachmentButtonTitle?: string
   attachmentInputRef?: RefObject<HTMLInputElement | null>
@@ -356,7 +358,7 @@ export function ChatComposer({
 }) {
   const { t } = useI18n()
   const toolsDisabled = disabled || isPublishingAttachment
-  const sendDisabled = disabled || !message.trim()
+  const sendDisabled = disabled || isSendingMessage || !message.trim()
   const attachmentTitle = attachmentButtonTitle || t('chat.attachment.add')
 
   function handleFileInput(
@@ -375,7 +377,7 @@ export function ChatComposer({
     if (event.key !== 'Enter') return
     if (event.shiftKey || event.nativeEvent.isComposing) return
     event.preventDefault()
-    if (message.trim()) onSend()
+    if (!sendDisabled) onSend()
   }
 
   function openAttachmentPicker(accept: string) {
@@ -477,12 +479,22 @@ export function ChatComposer({
       />
       <button
         type="button"
-        className="btn btn-circle btn-primary send-btn"
+        className={
+          isSendingMessage
+            ? 'btn btn-circle btn-primary send-btn btn-loading'
+            : 'btn btn-circle btn-primary send-btn'
+        }
         onClick={onSend}
         disabled={sendDisabled}
+        aria-label={t('chat.sendMessage')}
+        aria-busy={isSendingMessage}
         title={t('chat.sendMessage')}
       >
-        <ArrowRight size={18} />
+        {isSendingMessage ? (
+          <Loader size={18} className="ui-spinner" />
+        ) : (
+          <ArrowRight size={18} />
+        )}
       </button>
     </div>
   )

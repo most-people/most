@@ -342,6 +342,7 @@ function ChatPage() {
     fileName: string
     subtype: FileSubtype
   } | null>(null)
+  const [isSendingChannelMessage, setIsSendingChannelMessage] = useState(false)
   const [isPublishingAttachment, setIsPublishingAttachment] = useState(false)
   const [attachmentDownloadStatus, setAttachmentDownloadStatus] = useState<
     Record<string, AttachmentDownloadState>
@@ -404,6 +405,7 @@ function ChatPage() {
     new Map<string, ChannelAttachment>()
   )
   const activeAttachmentDownloadsRef = useRef(new Set<string>())
+  const isSendingChannelMessageRef = useRef(false)
   const isBackendReady = hasBackend === true
   const { t, compareStrings, formatDate, formatTime, locale } = useI18n()
   const voiceRoom = useGlobalVoiceRoom()
@@ -1825,6 +1827,7 @@ function ChatPage() {
   }
 
   async function handleSendChannelMessage() {
+    if (isSendingChannelMessageRef.current) return
     const finalized = finalizeMentionDraftForSend({
       content: channelInput,
       mentions: channelMentions,
@@ -1834,17 +1837,24 @@ function ChatPage() {
       composerMentionTargets
     ) as MentionDraft
     if (!completed.content) return
-    const sent = await sendChannelMessage(
-      completed.content,
-      undefined,
-      completed.mentions
-    )
-    if (!sent) return
-    setChannelInput('')
-    setChannelMentions([])
-    setComposerSelection({ start: 0, end: 0 })
-    setDismissedMentionTriggerKey('')
-    setMentionSelectedIndex(0)
+    isSendingChannelMessageRef.current = true
+    setIsSendingChannelMessage(true)
+    try {
+      const sent = await sendChannelMessage(
+        completed.content,
+        undefined,
+        completed.mentions
+      )
+      if (!sent) return
+      setChannelInput('')
+      setChannelMentions([])
+      setComposerSelection({ start: 0, end: 0 })
+      setDismissedMentionTriggerKey('')
+      setMentionSelectedIndex(0)
+    } finally {
+      isSendingChannelMessageRef.current = false
+      setIsSendingChannelMessage(false)
+    }
   }
 
   function getChatAttachmentFileName(channelName: string, fileName: string) {
@@ -2622,6 +2632,7 @@ function ChatPage() {
                 : t('chat.composer.signInPlaceholder')
             }
             disabled={!userIdentity}
+            isSendingMessage={isSendingChannelMessage}
             isPublishingAttachment={isPublishingAttachment}
             attachmentInputRef={attachmentInputRef}
             inputRef={channelComposerInputRef}
