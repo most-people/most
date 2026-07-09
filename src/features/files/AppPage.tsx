@@ -58,6 +58,9 @@ type DownloadCheckResult = {
   link: string
   message: string
   kind?: 'file' | 'collection'
+  availabilityScope?: 'collection-manifest'
+  localAvailableCount?: number
+  missingLocalCount?: number
   files?: Array<{
     path: string
     cid: string
@@ -574,14 +577,26 @@ export default function App() {
     setDownloadCheckResult(null)
     try {
       const result = await fileApi.checkDownload(normalizedDownloadLink)
-      const message = result.alreadyExists
-        ? t('app.fileAlreadyLocal', { fileName: result.fileName })
-        : t('app.fileAvailable', { fileName: result.fileName })
+      const isCollection = result.kind === 'collection'
+      const message = isCollection
+        ? result.alreadyExists
+          ? t('app.collectionManifestAlreadyLocal', {
+              fileName: result.fileName,
+            })
+          : t('app.collectionManifestAvailable', {
+              fileName: result.fileName,
+            })
+        : result.alreadyExists
+          ? t('app.fileAlreadyLocal', { fileName: result.fileName })
+          : t('app.fileAvailable', { fileName: result.fileName })
       setDownloadCheckResult({
         status: 'success',
         link: normalizedDownloadLink,
         message,
         kind: result.kind,
+        availabilityScope: result.availabilityScope,
+        localAvailableCount: result.localAvailableCount,
+        missingLocalCount: result.missingLocalCount,
         files: result.files,
       })
       if (result.kind === 'collection' && result.files?.length) {
@@ -674,9 +689,16 @@ export default function App() {
     } catch (err) {
       const message = await getApiErrorMessage(
         err,
-        t('app.toast.downloadFailed')
+        isCollectionDownload
+          ? t('app.collectionDownloadFailed')
+          : t('app.toast.downloadFailed')
       )
-      addToast(message, 'error')
+      addToast(
+        isCollectionDownload
+          ? t('app.collectionDownloadFailedWithError', { error: message })
+          : message,
+        'error'
+      )
     } finally {
       setIsDownloading(false)
     }
@@ -1362,7 +1384,18 @@ export default function App() {
                         <span className="collection-download-size">
                           {formatBytes(file.size)}
                         </span>
-                        {file.localAvailable === true && <Check size={14} />}
+                        <span
+                          className={`collection-download-status ${
+                            file.localAvailable === true
+                              ? 'is-local'
+                              : 'is-pending'
+                          }`}
+                        >
+                          {file.localAvailable === true && <Check size={14} />}
+                          {file.localAvailable === true
+                            ? t('app.collectionChildLocal')
+                            : t('app.collectionChildDownloadCheck')}
+                        </span>
                       </label>
                     )
                   })}

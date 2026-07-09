@@ -54,9 +54,12 @@ export interface DownloadCheckResponse {
   cid: string
   fileName: string
   kind?: 'file' | 'collection'
+  availabilityScope?: 'collection-manifest'
   size: number | null
   fileCount?: number
   files?: CollectionFileRecord[]
+  localAvailableCount?: number
+  missingLocalCount?: number
   localAvailable?: boolean
   alreadyExists?: boolean
 }
@@ -84,6 +87,7 @@ export interface CollectionFileRecord {
   size: number
   localAvailable?: boolean
   seedStatus?: string
+  seedError?: string
 }
 
 export interface CheckDownloadOptions {

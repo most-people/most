@@ -143,6 +143,19 @@ describe('frontend smoke checks', () => {
       buildMostShareLink(cid, 'hello most.txt'),
       `most://${cid}?filename=hello%20most.txt`
     )
+    globalThis.window = {
+      location: {
+        origin: 'http://localhost:3000',
+      },
+    }
+    try {
+      assert.equal(
+        buildCidShareLink(cid, 'hello most.txt'),
+        `http://localhost:3000/cid/${cid}?filename=hello%20most.txt`
+      )
+    } finally {
+      delete globalThis.window
+    }
     assert.equal(
       buildCidShareLink(cid, 'hello most.txt'),
       `https://most.box/cid/${cid}?filename=hello%20most.txt`
@@ -165,6 +178,54 @@ describe('frontend smoke checks', () => {
     assert.match(filesSource, /buildCidShareLink\(shareItem\.cid/)
     assert.match(cidSource, /fileApi\.checkDownload\(mostLink\)/)
     assert.match(cidSource, /fileApi\.downloadFile\(mostLink\)/)
+  })
+
+  it('labels the CID page return action as the file library', async () => {
+    const { messages } = await importBundledSource('src/lib/i18n/messages.ts')
+
+    assert.equal(messages['zh-CN']['cid.openAppAction'], '打开文件库')
+    assert.equal(messages['zh-TW']['cid.openAppAction'], '開啟檔案庫')
+    assert.equal(messages.en['cid.openAppAction'], 'Open file library')
+  })
+
+  it('uses collection-specific download check semantics in the UI', async () => {
+    const filesSource = readSource(SOURCE_PATHS.files)
+    const cidSource = readSource(SOURCE_PATHS.cid)
+    const { messages } = await importBundledSource('src/lib/i18n/messages.ts')
+
+    assert.match(filesSource, /app\.collectionManifestAvailable/)
+    assert.match(filesSource, /app\.collectionChildDownloadCheck/)
+    assert.match(cidSource, /cid\.status\.collectionAvailable/)
+    assert.match(cidSource, /cid\.collectionSummary/)
+
+    for (const locale of ['zh-CN', 'zh-TW', 'en']) {
+      assert.equal(
+        typeof messages[locale]['app.collectionManifestAvailable'],
+        'string'
+      )
+      assert.equal(
+        typeof messages[locale]['app.collectionChildDownloadCheck'],
+        'string'
+      )
+      assert.equal(
+        typeof messages[locale]['cid.status.collectionAvailable'],
+        'string'
+      )
+      assert.equal(typeof messages[locale]['cid.collectionSummary'], 'string')
+    }
+
+    assert.equal(
+      messages.en['app.collectionManifestAvailable'],
+      '{fileName} manifest is readable. Child files will be checked for online seeders when downloaded.'
+    )
+    assert.equal(
+      messages.en['app.collectionChildDownloadCheck'],
+      'Checked during download'
+    )
+    assert.equal(
+      messages.en['cid.status.collectionAvailable'],
+      '{fileName} manifest is readable. Child files will be checked one by one when downloading.'
+    )
   })
 
   it('preflights folder sharing against local complete copies', async () => {

@@ -1066,7 +1066,7 @@
 
 .collection-download-item {
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) auto 18px;
+  grid-template-columns: 18px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 8px;
   min-height: 34px;
@@ -1085,6 +1085,21 @@
 .collection-download-size {
   color: var(--text-secondary);
   font-size: 12px;
+}
+
+.collection-download-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  min-width: 76px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.collection-download-status.is-local {
+  color: var(--success);
 }
 
 .download-modal > .btn-full {

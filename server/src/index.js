@@ -2845,20 +2845,28 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #withCollectionFileStates(collection) {
+    const files = collection.files.map(file => {
+      const seedState = this.#seedStates.get(file.cid)
+      const status =
+        seedState?.status ||
+        (this.#fileDiscoveries.has(file.cid) ? 'active' : '')
+      return {
+        ...file,
+        localAvailable: this.#isLocalHoldingAvailable(file.cid),
+        seedStatus: status,
+        seedError: seedState?.error,
+      }
+    })
+    const localAvailableCount = files.filter(
+      file => file.localAvailable === true
+    ).length
+
     return {
       ...collection,
-      files: collection.files.map(file => {
-        const seedState = this.#seedStates.get(file.cid)
-        const status =
-          seedState?.status ||
-          (this.#fileDiscoveries.has(file.cid) ? 'active' : '')
-        return {
-          ...file,
-          localAvailable: this.#isLocalHoldingAvailable(file.cid),
-          seedStatus: status,
-          seedError: seedState?.error,
-        }
-      }),
+      availabilityScope: 'collection-manifest',
+      localAvailableCount,
+      missingLocalCount: Math.max(files.length - localAvailableCount, 0),
+      files,
     }
   }
 

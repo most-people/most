@@ -163,6 +163,13 @@ export default function CidPage() {
 
   const fileName = checkResult?.fileName || initialFileName
   const fileSize = checkResult?.size ?? totalBytes
+  const isCollectionResult = checkResult?.kind === 'collection'
+  const collectionFileCount =
+    checkResult?.fileCount ?? checkResult?.files?.length ?? 0
+  const collectionLocalCount = checkResult?.localAvailableCount ?? 0
+  const collectionMissingCount =
+    checkResult?.missingLocalCount ??
+    Math.max(collectionFileCount - collectionLocalCount, 0)
   const canStartDownload =
     checkState.status === 'available' || checkState.status === 'already-local'
   const isDownloading =
@@ -223,11 +230,20 @@ export default function CidPage() {
       const result = await fileApi.checkDownload(mostLink)
       if (checkSeqRef.current !== seq) return
       setCheckResult(result)
+      const isCollection = result.kind === 'collection'
       setCheckState({
         status: result.alreadyExists ? 'already-local' : 'available',
-        message: result.alreadyExists
-          ? t('cid.status.alreadyLocal', { fileName: result.fileName })
-          : t('cid.status.available', { fileName: result.fileName }),
+        message: isCollection
+          ? result.alreadyExists
+            ? t('cid.status.collectionAlreadyLocal', {
+                fileName: result.fileName,
+              })
+            : t('cid.status.collectionAvailable', {
+                fileName: result.fileName,
+              })
+          : result.alreadyExists
+            ? t('cid.status.alreadyLocal', { fileName: result.fileName })
+            : t('cid.status.available', { fileName: result.fileName }),
       })
     } catch (err) {
       if (checkSeqRef.current !== seq) return
@@ -507,6 +523,18 @@ export default function CidPage() {
                 <dd>{displayDownloadPath}</dd>
               </div>
             </dl>
+
+            {isCollectionResult && (
+              <div className="cid-collection-summary">
+                <p>
+                  {t('cid.collectionSummary', {
+                    fileCount: collectionFileCount,
+                    localAvailableCount: collectionLocalCount,
+                    missingLocalCount: collectionMissingCount,
+                  })}
+                </p>
+              </div>
+            )}
 
             {downloadState.status !== 'idle' && (
               <div className={`cid-download-state ${downloadState.status}`}>

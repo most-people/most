@@ -726,6 +726,9 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
 
       assert.strictEqual(checkRes.status, 200)
       assert.strictEqual(checkData.kind, 'collection')
+      assert.strictEqual(checkData.availabilityScope, 'collection-manifest')
+      assert.strictEqual(checkData.localAvailableCount, 2)
+      assert.strictEqual(checkData.missingLocalCount, 0)
       assert.deepStrictEqual(
         checkData.files.map(file => file.path),
         ['S01E01.txt', 'S01E02.txt']

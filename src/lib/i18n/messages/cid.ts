@@ -31,7 +31,12 @@ export const zhCNCidMessages = {
   'cid.status.loginRequired': '请先登录本地身份，然后再检查这个 CID。',
   'cid.status.checking': '正在查找在线种子并确认下载目录可写。',
   'cid.status.available': '{fileName} 当前可以下载。',
+  'cid.status.collectionAvailable':
+    '{fileName} 目录清单可读。子文件会在下载时逐个检查在线种子。',
+  'cid.status.collectionAlreadyLocal': '{fileName} 目录已在本机，可继续做种。',
   'cid.status.alreadyLocal': '{fileName} 已在本机，可继续做种。',
+  'cid.collectionSummary':
+    '共 {fileCount} 个文件，本机已有 {localAvailableCount} 个，{missingLocalCount} 个会在下载时检查。',
   'cid.status.startingDownload': '正在创建下载任务。',
   'cid.status.downloading': '正在下载并校验文件。',
   'cid.status.downloadingFile': '正在下载 {fileName}。',
@@ -45,7 +50,7 @@ export const zhCNCidMessages = {
   'cid.downloadingAction': '下载中',
   'cid.cancelAction': '取消下载',
   'cid.retryAction': '重新检测',
-  'cid.openAppAction': '打开文件列表',
+  'cid.openAppAction': '打开文件库',
   'cid.toast.downloadStarted': '下载已开始',
   'cid.toast.downloadComplete': '下载完成',
   'cid.toast.downloadFailed': '下载失败：{error}',
@@ -86,7 +91,12 @@ export const zhTWCidMessages = {
   'cid.status.loginRequired': '請先登入本機身份，然後再檢查這個 CID。',
   'cid.status.checking': '正在尋找線上種子並確認下載目錄可寫。',
   'cid.status.available': '{fileName} 目前可以下載。',
+  'cid.status.collectionAvailable':
+    '{fileName} 目錄清單可讀。子檔案會在下載時逐一檢查線上種子。',
+  'cid.status.collectionAlreadyLocal': '{fileName} 目錄已在本機，可繼續做種。',
   'cid.status.alreadyLocal': '{fileName} 已在本機，可繼續做種。',
+  'cid.collectionSummary':
+    '共 {fileCount} 個檔案，本機已有 {localAvailableCount} 個，{missingLocalCount} 個會在下載時檢查。',
   'cid.status.startingDownload': '正在建立下載任務。',
   'cid.status.downloading': '正在下載並校驗檔案。',
   'cid.status.downloadingFile': '正在下載 {fileName}。',
@@ -100,7 +110,7 @@ export const zhTWCidMessages = {
   'cid.downloadingAction': '下載中',
   'cid.cancelAction': '取消下載',
   'cid.retryAction': '重新檢測',
-  'cid.openAppAction': '開啟檔案列表',
+  'cid.openAppAction': '開啟檔案庫',
   'cid.toast.downloadStarted': '下載已開始',
   'cid.toast.downloadComplete': '下載完成',
   'cid.toast.downloadFailed': '下載失敗：{error}',
@@ -144,8 +154,14 @@ export const enCidMessages = {
   'cid.status.checking':
     'Looking for online seeders and checking that the download directory is writable.',
   'cid.status.available': '{fileName} is available to download.',
+  'cid.status.collectionAvailable':
+    '{fileName} manifest is readable. Child files will be checked one by one when downloading.',
+  'cid.status.collectionAlreadyLocal':
+    '{fileName} is already on this device and can keep seeding.',
   'cid.status.alreadyLocal':
     '{fileName} is already on this device and can keep seeding.',
+  'cid.collectionSummary':
+    '{fileCount} files total. {localAvailableCount} are on this device; {missingLocalCount} will be checked during download.',
   'cid.status.startingDownload': 'Creating the download task.',
   'cid.status.downloading': 'Downloading and verifying the file.',
   'cid.status.downloadingFile': 'Downloading {fileName}.',
@@ -160,7 +176,7 @@ export const enCidMessages = {
   'cid.downloadingAction': 'Downloading',
   'cid.cancelAction': 'Cancel download',
   'cid.retryAction': 'Check again',
-  'cid.openAppAction': 'Open file list',
+  'cid.openAppAction': 'Open file library',
   'cid.toast.downloadStarted': 'Download started',
   'cid.toast.downloadComplete': 'Download complete',
   'cid.toast.downloadFailed': 'Download failed: {error}',

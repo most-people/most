@@ -432,6 +432,73 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.ok(collection.files.every(file => file.localAvailable === true))
     })
 
+    it('keeps a collection manifest seeded after all child files are deleted', async () => {
+      const folderName = `virtual-folder-${uid}`
+      const first = await engine.publishFile(
+        Buffer.from(`virtual folder first ${uid}`),
+        `${folderName}/one.txt`
+      )
+      const second = await engine.publishFile(
+        Buffer.from(`virtual folder second ${uid}`),
+        `${folderName}/two.txt`
+      )
+
+      const result = await engine.shareFolder(folderName)
+
+      await engine.deletePublishedFile(first.cid)
+      await engine.deletePublishedFile(second.cid)
+
+      const holdings = engine.listHoldings()
+      assert.ok(
+        holdings.some(
+          holding => holding.cid === result.cid && holding.kind === 'collection'
+        )
+      )
+      assert.ok(!holdings.some(holding => holding.cid === first.cid))
+      assert.ok(!holdings.some(holding => holding.cid === second.cid))
+
+      const collection = await engine.getCollection(result.cid)
+      assert.deepStrictEqual(
+        collection.files.map(file => file.path),
+        ['one.txt', 'two.txt']
+      )
+      assert.ok(collection.files.every(file => file.localAvailable === false))
+
+      const availability = await engine.checkDownloadAvailability(result.link, {
+        timeout: 100,
+      })
+      assert.strictEqual(availability.available, true)
+      assert.strictEqual(availability.kind, 'collection')
+      assert.strictEqual(availability.availabilityScope, 'collection-manifest')
+      assert.strictEqual(availability.localAvailableCount, 0)
+      assert.strictEqual(availability.missingLocalCount, 2)
+      assert.ok(availability.files.every(file => file.localAvailable === false))
+
+      const publishedCollection = await engine.publishCollection(
+        [
+          {
+            path: 'Published/only.txt',
+            content: Buffer.from(`published collection ${uid}`),
+          },
+        ],
+        `published-collection-${uid}`
+      )
+
+      assert.ok(
+        engine
+          .listHoldings()
+          .some(holding => holding.cid === publishedCollection.cid)
+      )
+
+      await engine.deletePublishedFile(publishedCollection.cid)
+
+      assert.ok(
+        !engine
+          .listHoldings()
+          .some(holding => holding.cid === publishedCollection.cid)
+      )
+    })
+
     it('rejects sharing a folder with files that are not locally readable', async () => {
       const shareTmpDir = fs.mkdtempSync(
         path.join(os.tmpdir(), 'most-share-folder-missing-')

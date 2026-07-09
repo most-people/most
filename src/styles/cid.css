@@ -179,6 +179,19 @@
   line-height: 1.5;
 }
 
+.cid-collection-summary {
+  padding: 12px 14px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  background: var(--glass-bg-subtle);
+  line-height: 1.5;
+}
+
+.cid-collection-summary p {
+  margin: 0;
+}
+
 .cid-mono {
   font-family: var(--font-mono);
   font-size: 13px;

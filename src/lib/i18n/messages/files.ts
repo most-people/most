@@ -88,6 +88,15 @@ export const zhCNFilesMessages = {
   'app.fileAlreadyExists': '{fileName} 已存在',
   'app.fileAlreadyLocal': '{fileName} 已在本机',
   'app.fileAvailable': '{fileName} 可下载',
+  'app.collectionManifestAvailable':
+    '{fileName} 目录清单可读，子文件会在下载时逐个查找在线种子。',
+  'app.collectionManifestAlreadyLocal':
+    '{fileName} 目录已在本机，子文件可继续做种。',
+  'app.collectionChildLocal': '本机已有',
+  'app.collectionChildDownloadCheck': '下载时检查',
+  'app.collectionDownloadFailed':
+    '目录下载失败，可能有子文件当前没有在线种子。',
+  'app.collectionDownloadFailedWithError': '目录下载失败：{error}',
   'app.fileDownloadCompleted': '{fileName} 下载完成',
   'app.publishFailedWithFile': '添加失败: {fileName}',
   'app.publish.fileTooLarge': '超过最大 {maxSize} 限制',
@@ -215,6 +224,15 @@ export const zhTWFilesMessages = {
   'app.fileAlreadyExists': '{fileName} 已存在',
   'app.fileAlreadyLocal': '{fileName} 已在本機',
   'app.fileAvailable': '{fileName} 可下載',
+  'app.collectionManifestAvailable':
+    '{fileName} 目錄清單可讀，子檔案會在下載時逐一尋找線上種子。',
+  'app.collectionManifestAlreadyLocal':
+    '{fileName} 目錄已在本機，子檔案可繼續做種。',
+  'app.collectionChildLocal': '本機已有',
+  'app.collectionChildDownloadCheck': '下載時檢查',
+  'app.collectionDownloadFailed':
+    '目錄下載失敗，可能有子檔案目前沒有線上種子。',
+  'app.collectionDownloadFailedWithError': '目錄下載失敗：{error}',
   'app.fileDownloadCompleted': '{fileName} 下載完成',
   'app.publishFailedWithFile': '新增失敗: {fileName}',
   'app.publish.fileTooLarge': '超過最大 {maxSize} 限制',
@@ -344,6 +362,15 @@ export const enFilesMessages = {
   'app.fileAlreadyExists': '{fileName} already exists',
   'app.fileAlreadyLocal': '{fileName} is already on this device',
   'app.fileAvailable': '{fileName} is available to download',
+  'app.collectionManifestAvailable':
+    '{fileName} manifest is readable. Child files will be checked for online seeders when downloaded.',
+  'app.collectionManifestAlreadyLocal':
+    '{fileName} is already on this device and can keep seeding.',
+  'app.collectionChildLocal': 'On this device',
+  'app.collectionChildDownloadCheck': 'Checked during download',
+  'app.collectionDownloadFailed':
+    'Folder download failed. A child file may not have online seeders right now.',
+  'app.collectionDownloadFailedWithError': 'Folder download failed: {error}',
   'app.fileDownloadCompleted': '{fileName} download completed',
   'app.publishFailedWithFile': 'Add failed: {fileName}',
   'app.publish.fileTooLarge': 'Exceeds the {maxSize} limit',
