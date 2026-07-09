@@ -550,6 +550,43 @@ describe('frontend smoke checks', () => {
     assert.match(voiceRoomSource, /getUserPresenceProfile/)
   })
 
+  it('locks the chat composer while a text message is being sent', () => {
+    const chatSource = readSource('src/features/chat/ChatPage.tsx')
+    const componentSource = readSource('src/components/ChatUi.tsx')
+    const sendHandlerSource = chatSource.slice(
+      chatSource.indexOf('async function handleSendChannelMessage'),
+      chatSource.indexOf('async function handleSelectAttachmentFiles')
+    )
+
+    assert.match(chatSource, /const \[isSendingChannelMessage/)
+    assert.match(chatSource, /const isSendingChannelMessageRef = useRef\(false\)/)
+    assert.match(
+      sendHandlerSource,
+      /if \(isSendingChannelMessageRef\.current\) return/
+    )
+    assert.match(
+      sendHandlerSource,
+      /isSendingChannelMessageRef\.current = true[\s\S]*setIsSendingChannelMessage\(true\)[\s\S]*await sendChannelMessage/
+    )
+    assert.match(
+      sendHandlerSource,
+      /finally \{[\s\S]*isSendingChannelMessageRef\.current = false[\s\S]*setIsSendingChannelMessage\(false\)/
+    )
+    assert.match(chatSource, /isSendingMessage=\{isSendingChannelMessage\}/)
+    assert.match(componentSource, /isSendingMessage = false/)
+    assert.match(
+      componentSource,
+      /const sendDisabled = disabled \|\| isSendingMessage \|\| !message\.trim\(\)/
+    )
+    assert.match(componentSource, /if \(!sendDisabled\) onSend\(\)/)
+    assert.match(componentSource, /disabled=\{sendDisabled\}/)
+    assert.match(componentSource, /aria-busy=\{isSendingMessage\}/)
+    assert.match(
+      componentSource,
+      /isSendingMessage \? \([\s\S]*<Loader size=\{18\} className="ui-spinner" \/>/
+    )
+  })
+
   it('keeps the admin console connected to local seeding visibility', () => {
     const source = readSource(SOURCE_PATHS.admin)
 
