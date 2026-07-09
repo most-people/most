@@ -16,7 +16,7 @@ import {
   type VoiceProfile,
 } from '~/hooks/useVoiceRoom'
 import { useI18n } from '~/lib/i18n'
-import { getUserChannelProfile } from '~/lib/userProfile'
+import { getUserPresenceProfile } from '~/lib/userProfile'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 
@@ -167,7 +167,7 @@ export function GlobalVoiceRoomProvider({ children }: { children: ReactNode }) {
   const profile = useMemo<VoiceProfile>(() => {
     if (!userIdentity) return {}
     return {
-      ...getUserChannelProfile(userIdentity),
+      ...getUserPresenceProfile(userIdentity),
       profileUpdatedAt: userIdentity.profileUpdatedAt,
     }
   }, [

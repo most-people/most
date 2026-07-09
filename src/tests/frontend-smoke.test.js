@@ -477,9 +477,11 @@ describe('frontend smoke checks', () => {
     assert.match(chatSource, /messageProfileByAddress/)
     assert.match(chatSource, /messageProfile\?\.displayName/)
     assert.match(chatSource, /messageProfile\?\.avatar/)
+    assert.match(channelApiSource, /interface ChannelMemberProfile/)
+    assert.match(channelApiSource, /getChannelMemberProfiles/)
     assert.doesNotMatch(chatSource, /getChannelMembers/)
     assert.doesNotMatch(channelApiSource, /getChannelMembers/)
-    assert.doesNotMatch(channelApiSource, /interface ChannelMember/)
+    assert.doesNotMatch(channelApiSource, /interface ChannelMember\s*\{/)
   })
 
   it('keeps mention unread channels prioritized and previewed', () => {
@@ -508,6 +510,44 @@ describe('frontend smoke checks', () => {
       i18nMessages,
       /'chat\.mentionUnreadTag': 'Mentioned me'/
     )
+  })
+
+  it('renders localized chat member tags from member profiles', async () => {
+    const chatSource = readSource('src/features/chat/ChatPage.tsx')
+    const chatUiSource = readSource('src/components/ChatUi.tsx')
+    const chatCssSource = readSource('src/styles/chat.css')
+    const channelApiSource = readSource('src/lib/channelApi.ts')
+    const userProfileSource = readSource('src/lib/userProfile.ts')
+    const gameRoomSource = readSource('src/hooks/useGameRoom.ts')
+    const voiceRoomSource = readSource('src/features/chat/GlobalVoiceRoom.tsx')
+    const { normalizeLocalizedTag, selectLocalizedTag } =
+      await importBundledSource('src/lib/localizedTag.ts')
+
+    assert.deepEqual(normalizeLocalizedTag(' 有人@我 '), {
+      default: '有人@我',
+    })
+    assert.equal(
+      selectLocalizedTag({ 'zh-CN': '有人@我', en: 'Mentioned' }, 'en'),
+      'Mentioned'
+    )
+    assert.equal(selectLocalizedTag(null, 'zh-CN'), '')
+    assert.match(channelApiSource, /interface ChannelMemberProfile/)
+    assert.match(channelApiSource, /authorTag\?: LocalizedTag/)
+    assert.match(channelApiSource, /getChannelMemberProfiles/)
+    assert.match(channelApiSource, /updateChannelMemberProfile/)
+    assert.match(chatSource, /selectLocalizedTag/)
+    assert.match(chatSource, /channelMemberProfiles/)
+    assert.match(chatSource, /channel:member-profile/)
+    assert.match(chatSource, /getMessageDisplayTag/)
+    assert.match(chatSource, /getMemberDisplayTag/)
+    assert.match(chatUiSource, /authorTag\?: string/)
+    assert.match(chatUiSource, /channel-member-tag/)
+    assert.match(chatCssSource, /\.message-author-tag/)
+    assert.match(chatCssSource, /\.channel-member-tag/)
+    assert.match(userProfileSource, /getUserPresenceProfile/)
+    assert.match(userProfileSource, /authorTag/)
+    assert.match(gameRoomSource, /getUserPresenceProfile/)
+    assert.match(voiceRoomSource, /getUserPresenceProfile/)
   })
 
   it('keeps the admin console connected to local seeding visibility', () => {

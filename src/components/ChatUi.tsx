@@ -23,6 +23,7 @@ export type ChatMessageVariant = 'self' | 'other'
 export type ChannelMemberView = {
   id: string
   name: string
+  tag?: string
   avatarSrc: string
   online?: boolean
 }
@@ -89,6 +90,7 @@ export function ChatMessageItem({
   avatarSrc,
   isOnline = false,
   author,
+  authorTag = '',
   mentioned = false,
   time,
   children,
@@ -98,6 +100,7 @@ export function ChatMessageItem({
   avatarSrc: string
   isOnline?: boolean
   author: string
+  authorTag?: string
   mentioned?: boolean
   time: string
   children: ReactNode
@@ -127,6 +130,11 @@ export function ChatMessageItem({
           <span className="message-author" translate="no">
             {author}
           </span>
+          {authorTag && (
+            <span className="message-author-tag" translate="no">
+              [{authorTag}]
+            </span>
+          )}
         </span>
         {children}
         <span className="message-time">{time}</span>
@@ -294,6 +302,11 @@ export function ChannelMemberGrid({
           <span className="channel-member-name" translate="no">
             {member.name}
           </span>
+          {member.tag && (
+            <span className="channel-member-tag" translate="no">
+              [{member.tag}]
+            </span>
+          )}
         </div>
       ))}
     </div>

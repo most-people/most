@@ -139,6 +139,9 @@ function bindEngineEvents({
   engine.on('channel:presence', data =>
     wsSendToChannel(data.channelKey, 'channel:presence', data)
   )
+  engine.on('channel:member-profile', data =>
+    wsSendToChannel(data.channelKey, 'channel:member-profile', data)
+  )
   engine.on('channel:voice', data =>
     wsSendToChannel(data.channelKey, 'channel:voice', data)
   )

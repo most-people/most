@@ -7,6 +7,7 @@ import {
 } from '~server/src/utils/userIdentity.js'
 import type { ChatJoinInvitePayload } from '~/lib/chatJoinInvite'
 import type { MessageKey } from '~/lib/i18n'
+import { normalizeLocalizedTag, type LocalizedTag } from '~/lib/localizedTag'
 
 type UserIdentityTheme = NonNullable<ChatJoinInvitePayload['theme']>
 
@@ -19,6 +20,7 @@ export interface UserIdentity {
   logo_dark?: string
   data?: string
   avatar?: string
+  tag?: LocalizedTag | null
   profileUpdatedAt?: number
   theme?: UserIdentityTheme
 }
@@ -72,6 +74,11 @@ function normalizeIdentity(input: unknown): UserIdentity | null {
       ? value.avatar.trim() || undefined
       : undefined
   const profileUpdatedAt = Number(value.profileUpdatedAt)
+  const tag = Object.prototype.hasOwnProperty.call(value, 'tag')
+    ? value.tag === null
+      ? null
+      : normalizeLocalizedTag(value.tag)
+    : undefined
   return {
     username: value.username,
     address,
@@ -85,6 +92,7 @@ function normalizeIdentity(input: unknown): UserIdentity | null {
         ? value.data.trim() || undefined
         : undefined,
     avatar,
+    tag,
     profileUpdatedAt:
       Number.isFinite(profileUpdatedAt) && profileUpdatedAt > 0
         ? Math.floor(profileUpdatedAt)

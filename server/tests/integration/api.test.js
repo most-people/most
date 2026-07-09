@@ -420,9 +420,16 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(spec.paths['/api/channels/{name}/members'], undefined)
       assert.ok(spec.paths['/api/channels/{name}/peers'])
       assert.ok(spec.paths['/api/channels/{name}/presence'])
+      assert.ok(spec.paths['/api/channels/{name}/member-profiles'])
+      assert.ok(spec.paths['/api/channels/{name}/member-profile'])
       assert.ok(spec.paths['/api/channels/{name}/remark'])
       assert.ok(spec.paths['/api/channels/{name}/pin'])
       assert.ok(spec.components.schemas.ChannelMention)
+      assert.ok(spec.components.schemas.LocalizedTag)
+      assert.ok(spec.components.schemas.LocalizedTagInput)
+      assert.ok(spec.components.schemas.MemberTag)
+      assert.ok(spec.components.schemas.MemberTagInput)
+      assert.ok(spec.components.schemas.ChannelMemberProfile)
       assert.strictEqual(spec.components.schemas.ChannelMember, undefined)
       assert.strictEqual(spec.components.schemas.Channel.properties.members, undefined)
       assert.ok(spec.components.schemas.ChannelMessage)
@@ -434,6 +441,19 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(
         spec.components.schemas.ChannelMessage.properties.authorIdentity,
         undefined
+      )
+      assert.ok(spec.components.schemas.ChannelMessage.properties.authorTag)
+      assert.deepStrictEqual(
+        spec.components.schemas.ChannelCreateRequest.properties.tag,
+        { $ref: '#/components/schemas/MemberTagInput' }
+      )
+      assert.deepStrictEqual(
+        spec.components.schemas.ChannelMessageRequest.properties.authorTag,
+        { $ref: '#/components/schemas/LocalizedTagInput' }
+      )
+      assert.deepStrictEqual(
+        spec.components.schemas.ChannelMemberProfileRequest.properties.tag,
+        { $ref: '#/components/schemas/MemberTagInput' }
       )
       assert.ok(spec.components.schemas.ChannelMessage.properties.mentions)
       assert.ok(
@@ -454,6 +474,11 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
           'application/json'
         ].schema,
         { $ref: '#/components/schemas/ChannelMessageRequest' }
+      )
+      assert.deepStrictEqual(
+        spec.paths['/api/channels/{name}/member-profile'].post.requestBody
+          .content['application/json'].schema,
+        { $ref: '#/components/schemas/ChannelMemberProfileRequest' }
       )
 
       const clearRes = await fetch(`${baseUrl}/api/node/logs`, {
@@ -2040,6 +2065,36 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(!data.channelKey.includes(':'))
     })
 
+    it('creates a channel with a localized member tag', async () => {
+      const channelName = `tag-create-${uid}`
+      const res = await fetch(`${baseUrl}/api/channels`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: channelName,
+          displayName: 'Tagged API User',
+          tag: {
+            'zh-CN': '有人@我',
+            en: 'Mentioned',
+          },
+        }),
+      })
+      const data = await res.json()
+      assert.strictEqual(res.status, 200)
+      assert.ok(data.success)
+
+      const profileRes = await fetch(
+        `${baseUrl}/api/channels/${channelName}/member-profiles`
+      )
+      const profiles = await profileRes.json()
+      assert.strictEqual(profileRes.status, 200)
+      assert.deepStrictEqual(profiles[0].tag, {
+        'zh-CN': '有人@我',
+        en: 'Mentioned',
+      })
+      assert.ok(profiles[0].profileUpdatedAt)
+    })
+
     it('creates shared game room channels', async () => {
       for (const gameId of ['gandengyan', 'zhajinhua']) {
         const name = gameRoomCodeToChannelName(gameId, 'ABC123')
@@ -2180,6 +2235,60 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(res.status, 200)
       assert.ok(data.success)
       assert.strictEqual(data.message.content, 'Hello!')
+    })
+
+    it('uses persisted member tags for message snapshots and supports clearing', async () => {
+      const channelName = `http-tag-${uid}`
+      await engine.createChannel(channelName, 'personal', {
+        ownerAddress: TEST_IDENTITY.address,
+        displayName: 'Tagged API User',
+        tag: {
+          default: '有人@我',
+          en: 'Mentioned',
+        },
+      })
+
+      const messageRes = await fetch(
+        `${baseUrl}/api/channels/${channelName}/messages`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: 'tagged hello',
+            author: TEST_IDENTITY.address,
+            authorName: 'Tagged API User',
+          }),
+        }
+      )
+      const messageData = await messageRes.json()
+      assert.strictEqual(messageRes.status, 200)
+      assert.deepStrictEqual(messageData.message.authorTag, {
+        default: '有人@我',
+        en: 'Mentioned',
+      })
+
+      const clearRes = await fetch(
+        `${baseUrl}/api/channels/${channelName}/member-profile`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            author: TEST_IDENTITY.address,
+            displayName: 'Tagged API User',
+            tag: null,
+          }),
+        }
+      )
+      const clearData = await clearRes.json()
+      assert.strictEqual(clearRes.status, 200)
+      assert.strictEqual(clearData.member.tag, null)
+
+      const profileRes = await fetch(
+        `${baseUrl}/api/channels/${channelName}/member-profiles`
+      )
+      const profiles = await profileRes.json()
+      assert.strictEqual(profileRes.status, 200)
+      assert.strictEqual(profiles[0].tag, null)
     })
 
     it('passes message client id and mentions through HTTP', async () => {
