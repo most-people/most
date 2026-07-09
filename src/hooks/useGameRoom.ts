@@ -21,6 +21,7 @@ import { useUserStore, type UserIdentity } from '~/stores/userStore'
 import {
   getUserChannelProfile,
   getUserDisplayName,
+  getUserPresenceProfile,
   getUserMessageIdentity,
 } from '~/lib/userProfile'
 
@@ -53,7 +54,7 @@ export function useGameRoom({
   const presenceProfile = useMemo(() => {
     if (!userIdentity) return {}
     return {
-      ...getUserChannelProfile(userIdentity),
+      ...getUserPresenceProfile(userIdentity),
       profileUpdatedAt: userIdentity.profileUpdatedAt,
     }
   }, [

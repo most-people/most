@@ -46,13 +46,18 @@ import {
   channelApi,
   type Channel,
   type ChannelAttachment,
+  type ChannelMemberProfile as PersistedChannelMemberProfile,
   type ChannelMention,
   type ChannelMessage,
   type ChannelPresence,
 } from '~/lib/channelApi'
 import { getFileSubtype, type FileSubtype } from '~/lib/filePreview'
 import { useI18n } from '~/lib/i18n'
-import { getUserChannelProfile } from '~/lib/userProfile'
+import {
+  getUserChannelProfile,
+  getUserPresenceProfile,
+} from '~/lib/userProfile'
+import { selectLocalizedTag, type MemberTag } from '~/lib/localizedTag'
 import { isChannelMemberJoinedSystemMessage } from '~/lib/channelMessages.js'
 import { useGlobalVoiceRoom } from '~/features/chat/GlobalVoiceRoom'
 import { ChatRestoringIndicator } from '~/features/chat/ChatRestoringIndicator'
@@ -251,6 +256,16 @@ function formatChannelMentionPreviewText(
   return `${preview.authorName}: ${preview.content}`
 }
 
+function stringifyMemberTag(tag: MemberTag | undefined) {
+  if (tag === null) return 'null'
+  if (!tag) return 'undefined'
+  return JSON.stringify(
+    Object.keys(tag)
+      .sort((a, b) => a.localeCompare(b))
+      .map(key => [key, tag[key]])
+  )
+}
+
 type AttachmentDownloadState = {
   status: 'checking' | 'ready' | 'downloading' | 'available' | 'error'
   message?: string
@@ -261,10 +276,13 @@ type ChannelMentionUnreadMap = Record<string, boolean>
 type ComposerSelection = { start: number; end: number }
 type MentionDraft = { content: string; mentions: ChannelMention[] }
 type MentionTarget = { address: string; label: string }
-type ChannelMemberProfile = {
+type DisplayedChannelMemberProfile = {
   address: string
   displayName: string
   avatar?: string
+  tag?: MemberTag
+  hasPersistedProfile?: boolean
+  profileUpdatedAt?: number
   firstSeenAt: number
   lastSeenAt: number
   index: number
@@ -272,6 +290,7 @@ type ChannelMemberProfile = {
 type MentionCandidate = {
   address: string
   label: string
+  tag?: string
   avatarSrc: string
   online: boolean
 }
@@ -340,6 +359,11 @@ function ChatPage() {
   const [channelMentionUnreadPreview, setChannelMentionUnreadPreview] =
     useState<ChannelMentionUnreadPreviewMap>({})
   const [channelPresence, setChannelPresence] = useState<ChannelPresence[]>([])
+  const [channelMemberProfiles, setChannelMemberProfiles] = useState<
+    PersistedChannelMemberProfile[]
+  >([])
+  const [channelMemberProfilesLoadedKey, setChannelMemberProfilesLoadedKey] =
+    useState('')
   const isInviteUser = userIdentity?.theme === 'sparkbit'
   const inviteTicketUrl =
     isInviteUser && userIdentity?.data ? userIdentity.data : ''
@@ -374,13 +398,14 @@ function ChatPage() {
     ) => Promise<ChannelMessage[]>
   >(async () => [])
   const channelHistorySyncTimersRef = useRef(new Map<string, number>())
+  const lastSubmittedMemberProfileKeyRef = useRef('')
   const mentionUnreadScanKeysRef = useRef(new Map<string, string>())
   const pendingAttachmentPreviewsRef = useRef(
     new Map<string, ChannelAttachment>()
   )
   const activeAttachmentDownloadsRef = useRef(new Set<string>())
   const isBackendReady = hasBackend === true
-  const { t, compareStrings, formatDate, formatTime } = useI18n()
+  const { t, compareStrings, formatDate, formatTime, locale } = useI18n()
   const voiceRoom = useGlobalVoiceRoom()
 
   const showApiError = useCallback(
@@ -508,6 +533,30 @@ function ChatPage() {
     [activeChannel, isBackendReady]
   )
 
+  const refreshChannelMemberProfiles = useCallback(
+    async (channel = activeChannel) => {
+      const channelKey = getChannelKey(channel)
+      if (!channelKey || !isBackendReady) {
+        setChannelMemberProfiles([])
+        setChannelMemberProfilesLoadedKey('')
+        return
+      }
+
+      try {
+        const profiles = await channelApi.getChannelMemberProfiles(channelKey)
+        if (activeChannelNameRef.current !== channelKey) return
+        setChannelMemberProfiles(profiles)
+        setChannelMemberProfilesLoadedKey(channelKey)
+      } catch (err) {
+        console.warn(
+          '[Chat] Failed to fetch channel member profiles:',
+          err instanceof Error ? err.message : err
+        )
+      }
+    },
+    [activeChannel, isBackendReady]
+  )
+
   const scheduleChannelHistorySync = useCallback(
     (channelKey = '') => {
       const activeChannelKey = activeChannelNameRef.current
@@ -608,7 +657,19 @@ function ChatPage() {
           scheduleChannelHistorySync(activeChannelKey)
           if (activeChannel) {
             void refreshChannelPresence(activeChannel)
+            void refreshChannelMemberProfiles(activeChannel)
           }
+        }
+        break
+      }
+
+      case 'channel:member-profile': {
+        const channelKey = data?.channelKey || data?.channel
+        if (
+          activeChannel &&
+          (!channelKey || channelKey === getChannelKey(activeChannel))
+        ) {
+          void refreshChannelMemberProfiles(activeChannel)
         }
         break
       }
@@ -698,7 +759,7 @@ function ChatPage() {
   const presenceProfile = useMemo(() => {
     if (!userIdentity) return {}
     return {
-      ...getUserChannelProfile(userIdentity),
+      ...getUserPresenceProfile(userIdentity),
       profileUpdatedAt: userIdentity.profileUpdatedAt,
     }
   }, [
@@ -734,6 +795,7 @@ function ChatPage() {
       refreshChannels()
       if (activeChannel) {
         void refreshChannelPresence(activeChannel)
+        void refreshChannelMemberProfiles(activeChannel)
       }
     },
     presenceEnabled: Boolean(activeChannel && userIdentity),
@@ -900,7 +962,7 @@ function ChatPage() {
   }, [])
 
   const channelMembers = useMemo(() => {
-    const membersByAuthor = new Map<string, ChannelMemberProfile>()
+    const membersByAuthor = new Map<string, DisplayedChannelMemberProfile>()
 
     channelMessages.forEach((message, index) => {
       const address = String(message.author || '').trim()
@@ -916,6 +978,7 @@ function ChatPage() {
           address,
           displayName,
           ...(avatar ? { avatar } : {}),
+          ...(message.authorTag ? { tag: message.authorTag } : {}),
           firstSeenAt: timestamp,
           lastSeenAt: timestamp,
           index,
@@ -927,6 +990,7 @@ function ChatPage() {
         existing.lastSeenAt = timestamp
         if (displayName) existing.displayName = displayName
         if (avatar) existing.avatar = avatar
+        if (message.authorTag) existing.tag = message.authorTag
       }
     })
 
@@ -945,6 +1009,16 @@ function ChatPage() {
     )
   }, [channelMembers])
 
+  const persistedProfileByAddress = useMemo(() => {
+    const map = new Map<string, PersistedChannelMemberProfile>()
+    channelMemberProfiles.forEach(profile => {
+      const address = normalizeMemberAddress(profile.address)
+      if (!address) return
+      map.set(address, profile)
+    })
+    return map
+  }, [channelMemberProfiles])
+
   const presenceByAddress = useMemo(() => {
     const map = new Map<string, ChannelPresence>()
     channelPresence.forEach(presence => {
@@ -957,6 +1031,31 @@ function ChatPage() {
 
   const displayedChannelMembers = useMemo(() => {
     const membersByAddress = new Map(messageProfileByAddress)
+    channelMemberProfiles.forEach((profile, index) => {
+      const address = normalizeMemberAddress(profile.address)
+      if (!address) return
+      const existing = membersByAddress.get(address)
+      const profileTime = Number(profile.profileUpdatedAt) || Date.now()
+      membersByAddress.set(address, {
+        ...(existing || {
+          address: profile.address,
+          firstSeenAt: profileTime,
+          lastSeenAt: profileTime,
+          index: channelMembers.length + index,
+        }),
+        address: profile.address,
+        displayName: profile.displayName || existing?.displayName || '',
+        ...(profile.avatar || existing?.avatar
+          ? { avatar: profile.avatar || existing?.avatar }
+          : {}),
+        tag: profile.tag,
+        hasPersistedProfile: true,
+        profileUpdatedAt: Number(profile.profileUpdatedAt) || undefined,
+        firstSeenAt: existing?.firstSeenAt || profileTime,
+        lastSeenAt: Math.max(existing?.lastSeenAt || 0, profileTime),
+        index: existing?.index ?? channelMembers.length + index,
+      })
+    })
     channelPresence.forEach((presence, index) => {
       const address = normalizeMemberAddress(presence.address)
       if (!address) return
@@ -969,6 +1068,9 @@ function ChatPage() {
           ...(presence.avatar || existing.avatar
             ? { avatar: presence.avatar || existing.avatar }
             : {}),
+          tag: existing.tag,
+          hasPersistedProfile: existing.hasPersistedProfile,
+          profileUpdatedAt: existing.profileUpdatedAt,
           lastSeenAt: Math.max(existing.lastSeenAt, lastSeen),
         })
         return
@@ -979,19 +1081,126 @@ function ChatPage() {
         ...(presence.avatar ? { avatar: presence.avatar } : {}),
         firstSeenAt: presence.lastSeen || Date.now(),
         lastSeenAt: presence.lastSeen || Date.now(),
-        index: channelMembers.length + index,
+        index: channelMembers.length + channelMemberProfiles.length + index,
       })
     })
     return [...membersByAddress.values()].sort((a, b) => {
       const timeDiff = a.firstSeenAt - b.firstSeenAt
       return timeDiff || a.index - b.index
     })
-  }, [channelMembers, channelPresence, messageProfileByAddress])
+  }, [
+    channelMemberProfiles,
+    channelMembers,
+    channelPresence,
+    messageProfileByAddress,
+  ])
 
   const onlineMemberAddressSet = useMemo(() => {
     return new Set(presenceByAddress.keys())
   }, [presenceByAddress])
   const currentUserAddress = normalizeMemberAddress(userIdentity?.address)
+
+  useEffect(() => {
+    if (
+      !isBackendReady ||
+      !activeChannelKey ||
+      !userIdentity?.address ||
+      channelMemberProfilesLoadedKey !== activeChannelKey
+    ) {
+      return
+    }
+
+    const desiredProfile = getUserChannelProfile(userIdentity)
+    const desiredAuthor = userIdentity.address
+    const persistedProfile = persistedProfileByAddress.get(currentUserAddress)
+    const shouldSyncTag = userIdentity.tag !== undefined
+    const displayNameMatches =
+      (persistedProfile?.displayName || '') === desiredProfile.displayName
+    const avatarMatches =
+      (persistedProfile?.avatar || '') === (desiredProfile.avatar || '')
+    const tagMatches =
+      !shouldSyncTag ||
+      stringifyMemberTag(persistedProfile?.tag) ===
+        stringifyMemberTag(desiredProfile.tag)
+
+    if (persistedProfile && displayNameMatches && avatarMatches && tagMatches) {
+      return
+    }
+
+    const submitKey = JSON.stringify([
+      activeChannelKey,
+      desiredAuthor,
+      desiredProfile.displayName || '',
+      desiredProfile.avatar || '',
+      shouldSyncTag ? stringifyMemberTag(desiredProfile.tag) : 'tag:unchanged',
+    ])
+    if (lastSubmittedMemberProfileKeyRef.current === submitKey) {
+      return
+    }
+    lastSubmittedMemberProfileKeyRef.current = submitKey
+
+    let cancelled = false
+    const profilePayload = {
+      channelName: activeChannelKey,
+      author: desiredAuthor,
+      displayName: desiredProfile.displayName,
+      avatar: desiredProfile.avatar,
+      ...(shouldSyncTag ? { tag: desiredProfile.tag } : {}),
+    }
+
+    channelApi
+      .updateChannelMemberProfile(profilePayload)
+      .then(result => {
+        if (cancelled || activeChannelNameRef.current !== activeChannelKey) {
+          return
+        }
+        if (result.member) {
+          setChannelMemberProfiles(prev => {
+            const address = normalizeMemberAddress(result.member?.address)
+            if (!address) return prev
+            const exists = prev.some(
+              item => normalizeMemberAddress(item.address) === address
+            )
+            return exists
+              ? prev.map(item =>
+                  normalizeMemberAddress(item.address) === address
+                    ? (result.member as PersistedChannelMemberProfile)
+                    : item
+                )
+              : [...prev, result.member as PersistedChannelMemberProfile]
+          })
+          setChannelMemberProfilesLoadedKey(activeChannelKey)
+        } else {
+          void refreshChannelMemberProfiles(activeChannel)
+        }
+      })
+      .catch(err => {
+        if (lastSubmittedMemberProfileKeyRef.current === submitKey) {
+          lastSubmittedMemberProfileKeyRef.current = ''
+        }
+        console.warn(
+          '[Chat] Failed to update channel member profile:',
+          err instanceof Error ? err.message : err
+        )
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    activeChannel,
+    activeChannelKey,
+    channelMemberProfilesLoadedKey,
+    currentUserAddress,
+    isBackendReady,
+    persistedProfileByAddress,
+    refreshChannelMemberProfiles,
+    userIdentity?.address,
+    userIdentity?.avatar,
+    userIdentity?.displayName,
+    userIdentity?.tag,
+    userIdentity?.username,
+  ])
 
   const allMentionTargets = useMemo<MentionTarget[]>(() => {
     const nameCounts = displayedChannelMembers.reduce((counts, member) => {
@@ -1153,13 +1362,24 @@ function ChatPage() {
       if (isBackendReady) {
         const activeChannelKey = getChannelKey(activeChannel)
         setChannelPresence([])
+        setChannelMemberProfiles([])
+        setChannelMemberProfilesLoadedKey('')
         void syncMessages(activeChannelKey, { replace: true })
         void refreshChannelPresence(activeChannel)
+        void refreshChannelMemberProfiles(activeChannel)
       }
     } else {
       setChannelPresence([])
+      setChannelMemberProfiles([])
+      setChannelMemberProfilesLoadedKey('')
     }
-  }, [activeChannel, isBackendReady, refreshChannelPresence, syncMessages])
+  }, [
+    activeChannel,
+    isBackendReady,
+    refreshChannelMemberProfiles,
+    refreshChannelPresence,
+    syncMessages,
+  ])
 
   useEffect(() => {
     if (!requestedChannelName) return
@@ -1240,6 +1460,8 @@ function ChatPage() {
     setChannelLastReadAt({})
     setChannelMentionUnread({})
     setChannelMentionUnreadPreview({})
+    setChannelMemberProfiles([])
+    setChannelMemberProfilesLoadedKey('')
     setChannelMentions([])
     setComposerSelection({ start: 0, end: 0 })
     setDismissedMentionTriggerKey('')
@@ -1792,13 +2014,43 @@ function ChatPage() {
   function getMessageDisplayAuthor(message: ChannelMessage) {
     const address = normalizeMemberAddress(message.author)
     const presence = presenceByAddress.get(address)
+    const persistedProfile = persistedProfileByAddress.get(address)
     const messageProfile = messageProfileByAddress.get(address)
     return formatDisplayName(
       presence?.displayName ||
+        persistedProfile?.displayName ||
         messageProfile?.displayName ||
         message.authorName,
       message.author
     )
+  }
+
+  function hasCurrentUserTag() {
+    return userIdentity?.tag !== undefined
+  }
+
+  function getMemberDisplayTag(member?: DisplayedChannelMemberProfile | null) {
+    const address = normalizeMemberAddress(member?.address)
+    const persistedProfile = persistedProfileByAddress.get(address)
+    if (persistedProfile) {
+      return selectLocalizedTag(persistedProfile.tag, locale)
+    }
+    if (address && address === currentUserAddress && hasCurrentUserTag()) {
+      return selectLocalizedTag(userIdentity?.tag, locale)
+    }
+    return selectLocalizedTag(member?.tag, locale)
+  }
+
+  function getMessageDisplayTag(message: ChannelMessage) {
+    const address = normalizeMemberAddress(message.author)
+    const persistedProfile = persistedProfileByAddress.get(address)
+    if (persistedProfile) {
+      return selectLocalizedTag(persistedProfile.tag, locale)
+    }
+    if (address && address === currentUserAddress && hasCurrentUserTag()) {
+      return selectLocalizedTag(userIdentity?.tag, locale)
+    }
+    return selectLocalizedTag(message.authorTag, locale)
   }
 
   function handleChannelInputChange(
@@ -1975,6 +2227,7 @@ function ChatPage() {
           const presence = presenceByAddress.get(address)
           const displayName = presence?.displayName || member.displayName
           const baseName = getMentionCandidateBaseName(displayName, member.address)
+          const tag = getMemberDisplayTag(member)
           return {
             address,
             label: formatMentionCandidateLabel({
@@ -1983,6 +2236,7 @@ function ChatPage() {
               duplicateName:
                 (mentionCandidateNameCounts.get(baseName.toLowerCase()) || 0) > 1,
             }),
+            tag,
             avatarSrc: generateAvatar(member.address, presence?.avatar || member.avatar),
             online: onlineMemberAddressSet.has(address),
           }
@@ -1992,7 +2246,7 @@ function ChatPage() {
             return false
           }
           if (!mentionQuery) return true
-          return [candidate.label, candidate.address].some(value =>
+          return [candidate.label, candidate.tag || '', candidate.address].some(value =>
             value.toLowerCase().includes(mentionQuery)
           )
         })
@@ -2043,6 +2297,11 @@ function ChatPage() {
             <span className="chat-mention-option-name" translate="no">
               {candidate.label}
             </span>
+            {candidate.tag && (
+              <span className="chat-mention-option-meta" translate="no">
+                [{candidate.tag}]
+              </span>
+            )}
           </span>
         </button>
       ))}
@@ -2061,6 +2320,7 @@ function ChatPage() {
           return {
             id: member.address,
             name: formatDisplayName(displayName, member.address),
+            tag: getMemberDisplayTag(member),
             avatarSrc: generateAvatar(member.address, avatar),
             online: onlineMemberAddressSet.has(
               normalizeMemberAddress(member.address)
@@ -2316,6 +2576,9 @@ function ChatPage() {
                 const presence = presenceByAddress.get(
                   normalizeMemberAddress(msg.author)
                 )
+                const persistedProfile = persistedProfileByAddress.get(
+                  normalizeMemberAddress(msg.author)
+                )
                 const messageProfile = messageProfileByAddress.get(
                   normalizeMemberAddress(msg.author)
                 )
@@ -2324,10 +2587,12 @@ function ChatPage() {
                 )
                 const avatar =
                   presence?.avatar ||
+                  persistedProfile?.avatar ||
                   messageProfile?.avatar ||
                   msg.avatar ||
                   (isSelf ? userIdentity.avatar : undefined)
                 const displayAuthor = getMessageDisplayAuthor(msg)
+                const displayTag = getMessageDisplayTag(msg)
 
                 return (
                   <ChatMessageItem
@@ -2337,6 +2602,7 @@ function ChatPage() {
                     isOnline={isOnline}
                     avatarSrc={generateAvatar(msg.author, avatar)}
                     author={displayAuthor}
+                    authorTag={displayTag}
                     mentioned={!isSelf && isMessageMentioningCurrentUser(msg)}
                     time={formatTime(msg.timestamp)}
                   >

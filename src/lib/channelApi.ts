@@ -1,4 +1,5 @@
 import type { FileSubtype } from '~/lib/filePreview'
+import type { LocalizedTag, MemberTag } from '~/lib/localizedTag'
 import { api, getApiUrl } from '~server/src/utils/api'
 
 export interface ChannelAttachment {
@@ -25,6 +26,7 @@ export interface ChannelMessage {
   author: string
   authorName?: string
   avatar?: string
+  authorTag?: LocalizedTag
   content: string
   mentions?: ChannelMention[]
   timestamp: number
@@ -64,6 +66,15 @@ export interface ChannelPresence {
   local?: boolean
 }
 
+export interface ChannelMemberProfile {
+  address: string
+  displayName?: string
+  avatar?: string
+  tag?: MemberTag
+  profileUpdatedAt?: number
+  joinedAt?: string
+}
+
 export interface SendMessageResult {
   message: ChannelMessage
 }
@@ -79,6 +90,7 @@ export interface SendChannelMessageInput {
   author: string
   authorName: string
   avatar?: string
+  authorTag?: LocalizedTag
   mentions?: ChannelMention[]
   attachment?: ChannelAttachment
 }
@@ -86,6 +98,18 @@ export interface SendChannelMessageInput {
 export interface ChannelProfileInput {
   displayName?: string
   avatar?: string
+  tag?: MemberTag
+}
+
+export interface UpdateMemberProfileInput extends ChannelProfileInput {
+  channelName: string
+  author: string
+}
+
+export interface UpdateMemberProfileResult {
+  success: boolean
+  member?: ChannelMemberProfile
+  event?: ChannelMessage
 }
 
 export interface SetChannelRemarkResult {
@@ -144,6 +168,7 @@ export const channelApi = {
     author,
     authorName,
     avatar,
+    authorTag,
     mentions,
     attachment,
   }: SendChannelMessageInput) {
@@ -153,6 +178,7 @@ export const channelApi = {
       author,
       authorName,
       avatar,
+      authorTag,
       mentions,
       attachment,
     }
@@ -175,6 +201,36 @@ export const channelApi = {
       .get<
         ChannelPresence[]
       >(`/api/channels/${encodeURIComponent(name)}/presence`)
+      .json()
+  },
+
+  getChannelMemberProfiles(name: string) {
+    return api
+      .get<ChannelMemberProfile[]>(
+        `/api/channels/${encodeURIComponent(name)}/member-profiles`
+      )
+      .json()
+  },
+
+  updateChannelMemberProfile({
+    channelName,
+    author,
+    displayName,
+    avatar,
+    tag,
+  }: UpdateMemberProfileInput) {
+    return api
+      .post<UpdateMemberProfileResult>(
+        `/api/channels/${encodeURIComponent(channelName)}/member-profile`,
+        {
+          json: {
+            author,
+            displayName,
+            avatar,
+            tag,
+          },
+        }
+      )
       .json()
   },
 

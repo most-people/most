@@ -1,4 +1,5 @@
 import { isLocale, type Locale } from '~/lib/i18n'
+import { normalizeLocalizedTag, type LocalizedTag } from '~/lib/localizedTag'
 
 export const CHAT_JOIN_EA_PUBLIC_KEY =
   '0x955fe80bdb8312165471fcacd6a8f83df88a770dda6f38657ca4e62ec28d5b54'
@@ -20,6 +21,7 @@ export interface ChatJoinInvitePayload {
   logo_dark?: string
   data?: string
   avatar?: string
+  tag?: LocalizedTag
   name?: string
   channels: ChatJoinInviteChannel[]
 }
@@ -93,6 +95,7 @@ export function normalizeChatJoinInvitePayload(
     logo_dark: normalizeOptionalString(value.logo_dark) || undefined,
     data: normalizeOptionalString(value.data) || undefined,
     avatar: normalizeOptionalString(value.avatar) || undefined,
+    tag: normalizeLocalizedTag(value.tag),
     name: normalizeOptionalString(value.name) || undefined,
     channels,
   }

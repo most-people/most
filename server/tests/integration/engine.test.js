@@ -2525,6 +2525,169 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       )
     })
 
+    it('syncs member tags through profile events without showing control messages', async () => {
+      const ch = `tag-msg-${uid}`
+      const author = '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd'
+      const profileEvent = 'channel.member.profile.updated'
+      await msgEngine.createChannel(ch, 'personal', {
+        ownerAddress: author,
+        displayName: 'Tagged Sender',
+        tag: {
+          'zh-CN': '有人@我',
+          en: 'Mentioned',
+        },
+      })
+
+      let profiles = msgEngine.getChannelMemberProfiles(ch, {
+        ownerAddress: author,
+      })
+      assert.deepStrictEqual(profiles[0].tag, {
+        'zh-CN': '有人@我',
+        en: 'Mentioned',
+      })
+      assert.ok(profiles[0].profileUpdatedAt)
+
+      const msg = await msgEngine.sendMessage(
+        ch,
+        'hello with tag',
+        author,
+        'Tagged Sender',
+        { ownerAddress: author }
+      )
+      assert.deepStrictEqual(msg.authorTag, {
+        'zh-CN': '有人@我',
+        en: 'Mentioned',
+      })
+
+      const messages = await msgEngine.getChannelMessages(ch, {
+        ownerAddress: author,
+      })
+      assert.ok(messages.some(item => item.content === 'hello with tag'))
+      assert.ok(messages.every(item => item.content !== profileEvent))
+
+      await msgEngine.updateChannelMemberProfile(ch, {
+        ownerAddress: author,
+        author,
+        displayName: 'Tagged Sender',
+        tag: null,
+      })
+      profiles = msgEngine.getChannelMemberProfiles(ch, {
+        ownerAddress: author,
+      })
+      assert.strictEqual(profiles[0].tag, null)
+
+      const currentUpdatedAt = profiles[0].profileUpdatedAt
+      await msgEngine.sendMessage(
+        ch,
+        profileEvent,
+        author,
+        'Tagged Sender',
+        {
+          ownerAddress: author,
+          type: 'system',
+          event: profileEvent,
+          memberProfile: {
+            address: author,
+            displayName: 'Stale Sender',
+            tag: { default: 'stale' },
+            profileUpdatedAt: currentUpdatedAt,
+          },
+        }
+      )
+      await msgEngine.getChannelMessages(ch, { ownerAddress: author })
+      profiles = msgEngine.getChannelMemberProfiles(ch, {
+        ownerAddress: author,
+      })
+      assert.strictEqual(profiles[0].tag, null)
+      assert.strictEqual(profiles[0].displayName, 'Tagged Sender')
+
+      await msgEngine.sendMessage(
+        ch,
+        profileEvent,
+        author,
+        'Tagged Sender',
+        {
+          ownerAddress: author,
+          type: 'system',
+          event: profileEvent,
+          memberProfile: {
+            address: author,
+            displayName: 'Future Sender',
+            tag: { default: 'future' },
+            profileUpdatedAt: Date.now() + 10 * 60 * 1000,
+          },
+        }
+      )
+      await msgEngine.getChannelMessages(ch, { ownerAddress: author })
+      profiles = msgEngine.getChannelMemberProfiles(ch, {
+        ownerAddress: author,
+      })
+      assert.strictEqual(profiles[0].tag, null)
+      assert.strictEqual(profiles[0].displayName, 'Tagged Sender')
+    })
+
+    it('replays the latest member tag after restart', async () => {
+      const restartTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-member-tag-restart-')
+      )
+      const dataPath = path.join(restartTmpDir, 'data')
+      const ch = `tag-restart-${uid}`
+      const author = '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd'
+      let restartEngine
+
+      try {
+        restartEngine = new MostBoxEngine({
+          dataPath,
+          disableNetwork: true,
+        })
+        await restartEngine.start()
+        await restartEngine.createChannel(ch, 'personal', {
+          ownerAddress: author,
+          displayName: 'Restart Tagged',
+          tag: { default: 'old', en: 'Old' },
+        })
+        await restartEngine.updateChannelMemberProfile(ch, {
+          ownerAddress: author,
+          author,
+          displayName: 'Restart Tagged',
+          tag: { default: 'new', en: 'New' },
+        })
+        await restartEngine.stop()
+
+        restartEngine = new MostBoxEngine({
+          dataPath,
+          disableNetwork: true,
+        })
+        await restartEngine.start()
+        let profiles = restartEngine.getChannelMemberProfiles(ch, {
+          ownerAddress: author,
+        })
+        assert.deepStrictEqual(profiles[0].tag, { default: 'new', en: 'New' })
+
+        await restartEngine.updateChannelMemberProfile(ch, {
+          ownerAddress: author,
+          author,
+          displayName: 'Restart Tagged',
+          tag: null,
+        })
+        await restartEngine.stop()
+
+        restartEngine = new MostBoxEngine({
+          dataPath,
+          disableNetwork: true,
+        })
+        await restartEngine.start()
+        profiles = restartEngine.getChannelMemberProfiles(ch, {
+          ownerAddress: author,
+        })
+        assert.strictEqual(profiles[0].tag, null)
+        assert.strictEqual(profiles[0].displayName, 'Restart Tagged')
+      } finally {
+        if (restartEngine) await restartEngine.stop().catch(() => {})
+        fs.rmSync(restartTmpDir, { recursive: true, force: true })
+      }
+    })
+
     it('persists message client id and structured mentions', async () => {
       const ch = `mention-msg-${uid}`
       const author = '0x1234567890abcdef1234567890abcdef12345678'

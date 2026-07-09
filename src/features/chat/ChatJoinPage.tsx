@@ -180,6 +180,7 @@ function ChatJoinContent() {
         logo_dark: invite.logo_dark,
         data: invite.data,
         avatar: invite.avatar,
+        tag: invite.tag,
       }
       setUserIdentity(nextIdentity)
 

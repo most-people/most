@@ -16,6 +16,9 @@ export function registerChannelRoutes(app, { engine }) {
       if (Object.prototype.hasOwnProperty.call(body, 'avatar')) {
         channelOptions.avatar = body.avatar
       }
+      if (Object.prototype.hasOwnProperty.call(body, 'tag')) {
+        channelOptions.tag = body.tag
+      }
       const result = await engine.createChannel(
         body.name.trim(),
         body.type || 'personal',
@@ -104,6 +107,9 @@ export function registerChannelRoutes(app, { engine }) {
       if (Object.prototype.hasOwnProperty.call(body, 'avatar')) {
         messageOptions.avatar = body.avatar
       }
+      if (Object.prototype.hasOwnProperty.call(body, 'authorTag')) {
+        messageOptions.authorTag = body.authorTag
+      }
       const message = await engine.sendMessage(
         name,
         body.content,
@@ -112,6 +118,57 @@ export function registerChannelRoutes(app, { engine }) {
         messageOptions
       )
       return c.json({ success: true, message })
+    } catch (err) {
+      return badRequestOrAppError(c, err)
+    }
+  })
+
+  app.get('/api/channels/:name/member-profiles', c => {
+    try {
+      return c.json(
+        engine.getChannelMemberProfiles(c.req.param('name'), {
+          ownerAddress: c.get('userAddress'),
+        })
+      )
+    } catch (err) {
+      return badRequestOrAppError(c, err)
+    }
+  })
+
+  app.post('/api/channels/:name/member-profile', async c => {
+    const name = c.req.param('name')
+    const body = await c.req.json()
+    if (!body.author) {
+      return c.json({ error: 'author is required' }, 400)
+    }
+    if (!/^0x[a-fA-F0-9]{40}$/.test(body.author)) {
+      return c.json({ error: 'Invalid author format' }, 400)
+    }
+    if (normalizeAddress(body.author) !== c.get('userAddress')) {
+      return c.json(
+        { error: 'member profile author must match logged-in user' },
+        403
+      )
+    }
+    try {
+      const profileOptions = {
+        ownerAddress: c.get('userAddress'),
+        author: body.author,
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'displayName')) {
+        profileOptions.displayName = body.displayName
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'avatar')) {
+        profileOptions.avatar = body.avatar
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'tag')) {
+        profileOptions.tag = body.tag
+      }
+      const result = await engine.updateChannelMemberProfile(
+        name,
+        profileOptions
+      )
+      return c.json({ success: true, ...result })
     } catch (err) {
       return badRequestOrAppError(c, err)
     }
