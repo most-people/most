@@ -108,9 +108,8 @@ npm run build
 
 ## 发布约定
 
-- 发布新版本时，根目录 `package.json` / `package-lock.json`、`mobile/android/package.json` / `mobile/android/package-lock.json` 和 `mobile/android/app.json` 必须同步更新到同一个版本。
-- Android Alpha 的 APK 文件名由发布 tag 驱动，但 Android 子包自身版本和 Expo 可见版本也必须每次发布一起更新，不能滞后于根包版本。
-- README 中示例 Docker 镜像 tag 应随发布版本同步更新。
+- 发版流程和版本同步清单以 `README.md` 的 CI/CD 小节为准；处理发版任务前必须先核对该小节。
+- 特别注意 Android 子包版本和 Expo 可见版本必须随根包版本一起更新，不能只依赖 CI tag 生成 APK 文件名。
 
 ## 验证策略
 

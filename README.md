@@ -298,13 +298,14 @@ npx most-box@latest
 
 ## CI/CD
 
-发版前必须同步版本号：根目录 `package.json` / `package-lock.json`、`mobile/android/package.json` / `mobile/android/package-lock.json` 和 `mobile/android/app.json` 都要更新到同一个版本。Android Alpha 虽然在 CI 打包时会读取 tag 作为 APK 文件名版本，但 Android 子包自身版本和 Expo 可见版本也必须每次发布同步更新，避免本地构建、测试记录和发布产物版本脱节。
+发布前先完成发版提交，再推送 tag 触发自动构建。版本号必须同步到根目录 `package.json` / `package-lock.json`、`mobile/android/package.json` / `mobile/android/package-lock.json`、`mobile/android/app.json` 和文档里的 Docker 示例 tag；Android APK 文件名虽然由发布 tag 驱动，但 Android 子包版本和 Expo 可见版本也要每次一起更新。
 
-发布新版本时，推送 tag 即可自动构建：
+发布新版本：
 
 ```bash
-git tag vx.x.x
-git push origin vx.x.x
+# 更新版本文件并提交后
+git tag -a vx.x.x -m "MostBox vx.x.x"
+git push origin main vx.x.x
 ```
 
 触发后自动执行：

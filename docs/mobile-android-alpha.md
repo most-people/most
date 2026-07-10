@@ -4,7 +4,7 @@
 
 ## 构建与安装
 
-每次仓库发版都必须同步 Android 子包版本：`mobile/android/package.json`、`mobile/android/package-lock.json` 和 `mobile/android/app.json` 的版本要与根目录 `package.json`、发布 tag、APK 文件名保持一致。CI 会把发布 tag 传给 Android 打包脚本生成 `mostbox-android-<version>-release.apk`，但子包版本和 Expo 可见版本仍要在发版提交里更新，不能长期停留在旧版本。
+发版版本同步以 README 的 CI/CD 说明为准；本清单只记录 Android APK 构建、安装和真机验收。
 
 构建前先运行移动端协议测试：
 
@@ -105,67 +105,4 @@ Android topic join 状态:
 桌面日志摘要:
 Android 日志摘要:
 备注:
-```
-
-## 回归记录
-
-| 日期       | APK    | 设备       | 场景                        | CID    | 结果     | 备注                                                                                                                 |
-| ---------- | ------ | ---------- | --------------------------- | ------ | -------- | -------------------------------------------------------------------------------------------------------------------- |
-| 2026-06-23 | 待填写 | 待填写     | Android 与桌面端到端互通    | 待填写 | 通过     | 真机测试已确认，补充具体设备和 CID。                                                                                 |
-| 2026-06-30 | 未生成 | 未连接设备 | Android chat-first 自动验收 | 不适用 | 部分通过 | `npm test`、`npx tsc --noEmit`、`git diff --check` 通过；APK 构建和真机 handoff 待具备 Android 原生工程/设备后补测。 |
-
-## 2026-06-30 Android chat-first 自动验收记录
-
-```text
-日期: 2026-06-30
-测试人: Codex
-Android 设备型号: 未连接设备；adb devices 输出为空
-Android 系统版本: 未执行真机测试
-APK 文件名: 未生成
-APK SHA256: 未生成
-桌面节点平台: Windows / Codex workspace
-桌面 MostBox 版本或 commit: 当前分支 HEAD
-网络环境: 本地开发环境
-测试文件大小: 不适用
-CID: 不适用
-most:// 链接: 不适用
-回归命令:
-  cd mobile/android && npm test
-  cd mobile/android && npx tsc --noEmit
-  git diff --check
-  cd mobile/android && npm run build
-  adb devices
-脚本 workDir: 未运行 handoff 脚本
-publisher topic: 未执行
-verifier 下载路径: 未执行
-verifier verifiedCid: 未执行
-verifier holding 状态: 未执行
-场景: Android chat-first 客户端自动检查与构建可用性检查
-开始时间: 2026-06-30
-结束时间: 2026-06-30
-耗时: 未记录
-结果: 部分通过 / 待真机补测
-失败错误:
-  npm run build 未生成 APK。构建脚本完成 Bare Worklet bundle 后在 release APK 阶段失败：
-  spawnSync cmd.exe ENOENT；同时当前 worktree 未包含 mobile/android/android/Gradle 原生工程目录，
-  无法直接执行 android/gradlew.bat assembleRelease。
-Android holdings 状态: 未执行真机测试
-Android topic join 状态: 未执行真机测试
-打开/分享结果: 未执行真机测试
-保存到手机结果: 未执行真机测试
-删除 holding 结果: 未执行真机测试
-删除后手机另存副本是否仍存在: 未执行真机测试
-同一 most:// 链接重新下载结果: 未执行真机测试
-重新加入 topic 状态: 未执行真机测试
-桌面日志摘要:
-  npm test 通过：两段 node test 共 44 个测试通过，0 失败。
-  npx tsc --noEmit 通过。
-  git diff --check 通过。
-  adb devices 输出 List of devices attached，未列出设备。
-Android 日志摘要: 未执行真机测试
-备注:
-  本轮确认 Android chat-first 代码、类型、协议/移动核心测试通过；
-  未启动 npm start，避免在无已连接设备时留下长运行 Expo dev server；
-  未运行 node scripts/android-real-p2p-seed.mjs --handoff-check，因为脚本需要人工确认 Android 前台做种后按 Enter，
-  且当前没有连接 Android 设备。
 ```

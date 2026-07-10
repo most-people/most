@@ -32,8 +32,6 @@ If the machine has multiple network adapters and the selected LAN URL is not rea
 
 ## Alpha APK
 
-For every repository release, keep the Android package version in sync with the root release version. Update `mobile/android/package.json`, `mobile/android/package-lock.json`, and `mobile/android/app.json` to the same version as the root `package.json` and release tag before tagging. CI passes the tag into the APK build, but the Android package and Expo-visible versions must still move with each release so local builds, test notes, and release artifacts do not drift.
-
 `npm run build` builds a release APK for device installation and writes these files to `mobile/android/dist/`:
 
 - `mostbox-android-<version>-release.apk`
@@ -41,46 +39,13 @@ For every repository release, keep the Android package version in sync with the 
 
 The release build is an internal alpha artifact. It uses the current local Android signing setup and is not a Play Store production build.
 
-## Real P2P Chat And Attachment Test
+## Alpha Acceptance
 
-Use one Android device and at least one desktop MostBox node:
-
-1. Start the Android dev client with `npm start`, or install the APK from `mobile/android/dist/`.
-2. Open the Node tab and confirm the Android node reaches `在线`.
-3. Return to the Chat tab, then join or create a chat room such as `chat-android`.
-4. In desktop MostBox, open `/chat/`, join the same room, and send a message both ways.
-5. In Android, tap `发送附件`, choose a file, and confirm a chat message containing a `most://` link appears.
-6. Download that link from the desktop node. The desktop download must pass CID verification.
-7. Send a desktop `most://` attachment link into the chat room, confirm Android renders it as an attachment card, then tap the chat attachment download action.
-8. Open the Node tab and confirm Android adds the downloaded file to Holdings with `active` and `topicJoined` true.
-9. In the Node tab, use `打开/分享` from the Android holding row and confirm Android shows the system share/open sheet.
-10. In the Node tab, use `保存` from the Android holding row, choose a phone folder, and confirm a user-visible copy is created.
-11. Delete that Android holding and confirm the row disappears, the app stops seeding that CID, and the user-visible copy saved in step 10 still exists.
-12. Stop the original desktop publisher. Keep Android in the foreground, then download the same link from another desktop node.
-13. Restart the Android app and confirm existing holdings rejoin their CID topics.
-
-For a local desktop seed helper, run this from the repository root:
-
-```bash
-node scripts/android-real-p2p-seed.mjs
-```
-
-## Foreground Seed Handoff Regression
-
-Before each alpha release, use the handoff helper to replay the highest-value foreground seeding path:
+Use `../../docs/mobile-android-alpha.md` for the current Android alpha acceptance checklist. The highest-value foreground seeding regression is:
 
 ```bash
 node scripts/android-real-p2p-seed.mjs --handoff-check
 ```
-
-The script publishes a small desktop fixture, prints the `most://` link, and waits while Android downloads it. Keep Android in the foreground, send or receive the printed link in the active chat room, then confirm these observations before pressing Enter in the script:
-
-- The Node tab shows Android as `Ready` / `在线`.
-- The download transfer for the printed link is completed.
-- Holdings contains the printed CID, the size matches, `status` is `active`, and `topicJoined` is true.
-- Android logs mention the download completion and seeding/holding update.
-
-After Enter, the helper stops the original desktop publisher, starts a fresh verifier node with clean data, pulls the same link from the remaining Android seed, recomputes the UnixFS CID, and prints `Android foreground seed handoff regression PASSED.` on success. Keep these log lines in the alpha note: `publisher topic joined`, `verifier download status`, `verifier download success`, `verifiedCid`, `verifierHoldingStatus`, and `verifierTopicJoined`.
 
 ## Known Limits
 
