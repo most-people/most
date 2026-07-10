@@ -3,11 +3,20 @@
    Apple Liquid Glass Design System
    ============================================= */
 
+:root {
+  --chat-tag-text: var(--text-secondary);
+  --chat-tag-bg: rgba(29, 29, 31, 0.06);
+  --chat-tag-border: rgba(29, 29, 31, 0.1);
+}
+
 /* === Dark Theme Support === */
 [data-theme='dark'] {
   --chat-bg-secondary: rgba(28, 28, 30, 0.6);
   --chat-bg-tertiary: rgba(44, 44, 46, 0.4);
   --chat-border: rgba(255, 255, 255, 0.08);
+  --chat-tag-text: #c1c1c6;
+  --chat-tag-bg: rgba(255, 255, 255, 0.12);
+  --chat-tag-border: rgba(255, 255, 255, 0.2);
 }
 
 /* === Messages Area === */
@@ -122,10 +131,16 @@
 
   .message-author-tag {
     min-width: 0;
+    display: inline-block;
     overflow: hidden;
-    color: var(--text-muted);
+    padding: 1px 5px;
+    border: 1px solid var(--chat-tag-border);
+    border-radius: 5px;
+    background: var(--chat-tag-bg);
+    color: var(--chat-tag-text);
     font-size: 11px;
     font-weight: 500;
+    line-height: 1.25;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -314,10 +329,19 @@
 }
 
 .chat-mention-option-meta {
-  color: var(--text-muted);
+  width: fit-content;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 1px 5px;
+  border: 1px solid var(--chat-tag-border);
+  border-radius: 5px;
+  background: var(--chat-tag-bg);
+  color: var(--chat-tag-text);
   font-size: 11px;
   font-weight: 500;
   line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* === Voice Room === */
@@ -986,10 +1010,15 @@
 }
 
 .channel-member-tag {
-  width: 100%;
+  width: fit-content;
+  max-width: 100%;
   min-width: 0;
   overflow: hidden;
-  color: var(--text-muted);
+  padding: 1px 5px;
+  border: 1px solid var(--chat-tag-border);
+  border-radius: 5px;
+  background: var(--chat-tag-bg);
+  color: var(--chat-tag-text);
   font-size: 11px;
   font-weight: 500;
   line-height: 1.15;

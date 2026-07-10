@@ -451,7 +451,6 @@ describe('frontend smoke checks', () => {
   })
 
   it('keeps chat identity snapshots flowing through messages', () => {
-    const chatSource = readSource('src/features/chat/ChatPage.tsx')
     const gameRoomSource = readSource('src/hooks/useGameRoom.ts')
     const channelMessagesSource = readSource('src/hooks/useChannelMessages.ts')
     const userProfileSource = readSource('src/lib/userProfile.ts')
@@ -540,20 +539,50 @@ describe('frontend smoke checks', () => {
     assert.match(chatSource, /channel:member-profile/)
     assert.match(chatSource, /getMessageDisplayTag/)
     assert.match(chatSource, /getMemberDisplayTag/)
+    assert.match(chatSource, /useState\(-1\)/)
+    assert.match(chatSource, /if \(index < 0\) return false/)
+    assert.match(chatSource, /setMentionSelectedIndex\(-1\)/)
+    assert.match(chatSource, /if \(mentionSelectedIndex < 0\) return false/)
+    assert.match(
+      chatSource,
+      /index < 0 \? 0 : \(index \+ 1\) % mentionCandidates\.length/
+    )
     assert.match(chatUiSource, /authorTag\?: string/)
     assert.match(chatUiSource, /channel-member-tag/)
     assert.doesNotMatch(chatSource, /\[\{candidate\.tag\}\]/)
     assert.doesNotMatch(chatUiSource, /\[\{authorTag\}\]/)
     assert.doesNotMatch(chatUiSource, /\[\{member\.tag\}\]/)
+    assert.match(chatCssSource, /--chat-tag-text:\s*var\(--text-secondary\)/)
+    assert.match(chatCssSource, /--chat-tag-bg:\s*rgba\(29,\s*29,\s*31,\s*0\.06\)/)
+    assert.match(
+      chatCssSource,
+      /\[data-theme='dark'\]\s*\{[^}]*--chat-tag-bg:\s*rgba\(255,\s*255,\s*255,\s*0\.12\)/
+    )
+    assert.match(
+      chatCssSource,
+      /\[data-theme='dark'\]\s*\{[^}]*--chat-tag-border:\s*rgba\(255,\s*255,\s*255,\s*0\.2\)/
+    )
     assert.match(chatCssSource, /\.message-author-tag/)
     assert.match(chatCssSource, /\.channel-member-tag/)
     assert.match(
       chatCssSource,
-      /\.message-author-tag\s*\{[^}]*color:\s*var\(--text-muted\)/
+      /\.message-author-tag\s*\{[^}]*color:\s*var\(--chat-tag-text\)/
     )
     assert.match(
       chatCssSource,
-      /\.channel-member-tag\s*\{[^}]*color:\s*var\(--text-muted\)/
+      /\.message-author-tag\s*\{[^}]*background:\s*var\(--chat-tag-bg\)/
+    )
+    assert.match(
+      chatCssSource,
+      /\.chat-mention-option-meta\s*\{[^}]*background:\s*var\(--chat-tag-bg\)/
+    )
+    assert.match(
+      chatCssSource,
+      /\.channel-member-tag\s*\{[^}]*color:\s*var\(--chat-tag-text\)/
+    )
+    assert.match(
+      chatCssSource,
+      /\.channel-member-tag\s*\{[^}]*background:\s*var\(--chat-tag-bg\)/
     )
     assert.match(chatSource, /chat-mention-menu-list/)
     assert.match(
