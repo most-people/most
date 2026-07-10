@@ -15,6 +15,8 @@ import Hyperdrive from 'hyperdrive'
 import b4a from 'b4a'
 import * as dagPb from '@ipld/dag-pb'
 import { UnixFS } from 'ipfs-unixfs'
+import { CID } from 'multiformats/cid'
+import { sha256 } from 'multiformats/hashes/sha2'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -1031,11 +1033,18 @@ export class MostBoxEngine extends EventEmitter {
         allowHoldingFallback: true,
       })
       if (localContent) {
-        const localCollection = await this.#tryReadCollectionFromDrive(
-          cidString,
-          localContent.drive,
-          linkFileName
-        )
+        const localCollection =
+          localContent.fileRecord?.kind === 'collection'
+            ? await this.#readCollectionFromDrive(
+                cidString,
+                localContent.drive,
+                linkFileName
+              )
+            : await this.#tryReadCollectionFromDrive(
+                cidString,
+                localContent.drive,
+                linkFileName
+              )
         if (localCollection) {
           if (
             this.#isCollectionPublishedInOwnerLibrary(
@@ -1541,11 +1550,18 @@ export class MostBoxEngine extends EventEmitter {
       allowHoldingFallback: true,
     })
     if (localContent) {
-      const collection = await this.#tryReadCollectionFromDrive(
-        cidString,
-        localContent.drive,
-        sanitizeFilename(parsed.fileName)
-      )
+      const collection =
+        localContent.fileRecord?.kind === 'collection'
+          ? await this.#readCollectionFromDrive(
+              cidString,
+              localContent.drive,
+              sanitizeFilename(parsed.fileName)
+            )
+          : await this.#tryReadCollectionFromDrive(
+              cidString,
+              localContent.drive,
+              sanitizeFilename(parsed.fileName)
+            )
       if (collection) {
         return {
           available: true,
@@ -1721,6 +1737,10 @@ export class MostBoxEngine extends EventEmitter {
         deletedAt: new Date(syncUpdatedAt).toISOString(),
         syncUpdatedAt,
       }
+      if (fileRecord.kind === 'collection') {
+        trashRecord.kind = 'collection'
+        trashRecord.fileCount = Number(fileRecord.fileCount) || 0
+      }
       trashFiles.push(trashRecord)
       this.#saveTrashMetadata()
 
@@ -1735,6 +1755,10 @@ export class MostBoxEngine extends EventEmitter {
         )
         this.#removeHolding(fileRecord.cid)
       }
+      await this.#stopCollectionChildHoldings(fileRecord, {
+        ownerAddress,
+        excludeCid: fileRecord.cid,
+      })
     }
     return this.listPublishedFiles({ ownerAddress })
   }
@@ -1752,11 +1776,13 @@ export class MostBoxEngine extends EventEmitter {
       const seedState = this.#seedStates.get(f.cid)
       const seedStatus = seedState?.status || ''
       return {
+        kind: f.kind || 'file',
         fileName: f.fileName,
         cid: f.cid,
         link: buildMostLink(f.cid, f.fileName),
         publishedAt: f.publishedAt,
         size: Number(f.size) || 0,
+        fileCount: Number(f.fileCount) || undefined,
         starred: f.starred || false,
         ownerAddress: ownerAddress || '',
         deletedAt: f.deletedAt,
@@ -1813,6 +1839,10 @@ export class MostBoxEngine extends EventEmitter {
       source: fileRecord.source || 'synced',
       syncUpdatedAt,
     }
+    if (fileRecord.kind === 'collection') {
+      publishedRecord.kind = 'collection'
+      publishedRecord.fileCount = Number(fileRecord.fileCount) || 0
+    }
     publishedFiles.push(publishedRecord)
     this.#savePublishedMetadata()
 
@@ -1832,11 +1862,18 @@ export class MostBoxEngine extends EventEmitter {
       this.#upsertHolding({
         cid: fileRecord.cid,
         fileName: fileRecord.fileName,
-        size: localContent.size || Number(fileRecord.size) || 0,
+        size:
+          fileRecord.kind === 'collection'
+            ? 0
+            : localContent.size || Number(fileRecord.size) || 0,
         driveName,
         source: fileRecord.source || 'published',
+        kind: fileRecord.kind === 'collection' ? 'collection' : undefined,
       })
     }
+    await this.#restoreCollectionChildHoldings(fileRecord, {
+      ownerAddress,
+    })
 
     return this.listPublishedFiles({ ownerAddress })
   }
@@ -2665,12 +2702,24 @@ export class MostBoxEngine extends EventEmitter {
       throw new Error(`UnixFS block not found: ${cid}`)
     }
     const block = await this.#readDriveEntryBuffer(drive, driveKey)
+    const actualCid = CID.create(1, 0x70, await sha256.digest(block)).toString()
+    if (actualCid !== cid) {
+      const err = new IntegrityError(
+        `UnixFS block CID mismatch: expected ${cid}, got ${actualCid}`
+      )
+      err.cid = cid
+      err.rootCid = rootCid
+      throw err
+    }
     const node = dagPb.decode(block)
     const unixfs = UnixFS.unmarshal(node.Data)
     return { node, unixfs }
   }
 
   async #readCollectionFromDrive(rootCid, drive, fileName) {
+    if (CID.parse(rootCid).code !== 0x70) {
+      throw new Error('CID is not a UnixFS directory')
+    }
     const root = await this.#readUnixfsBlock(drive, rootCid, rootCid)
     if (!root.unixfs.isDirectory()) {
       throw new Error('CID is not a UnixFS directory')
@@ -2697,9 +2746,103 @@ export class MostBoxEngine extends EventEmitter {
 
   async #tryReadCollectionFromDrive(rootCid, drive, fileName) {
     try {
-      return await this.#readCollectionFromDrive(rootCid, drive, fileName)
+      if (CID.parse(rootCid).code !== 0x70) return null
     } catch {
       return null
+    }
+    try {
+      return await this.#readCollectionFromDrive(rootCid, drive, fileName)
+    } catch (err) {
+      if (err instanceof IntegrityError || err?.code === 'INTEGRITY_ERROR') {
+        if (err.cid === rootCid) return null
+        throw err
+      }
+      return null
+    }
+  }
+
+  async #readLocalCollectionChildFiles(fileRecord, options = {}) {
+    if ((fileRecord?.kind || 'file') !== 'collection') {
+      return []
+    }
+    try {
+      const localContent = await this.#getLocalCidContent(fileRecord.cid, {
+        ownerAddress: options.ownerAddress,
+        public: true,
+        allowHoldingFallback: true,
+      })
+      if (!localContent) return []
+      const collection = await this.#readCollectionFromDrive(
+        fileRecord.cid,
+        localContent.drive,
+        fileRecord.fileName
+      )
+      return collection.files
+    } catch {
+      return []
+    }
+  }
+
+  async #collectionRecordIncludesCid(fileRecord, cid) {
+    const files = await this.#readLocalCollectionChildFiles(fileRecord, {
+      ownerAddress: fileRecord.ownerAddress,
+    })
+    return files.some(file => file.cid === cid)
+  }
+
+  async #hasPublishedCollectionChildReference(cid, options = {}) {
+    for (const fileRecord of this.#allPublishedRecords()) {
+      if ((fileRecord.kind || 'file') !== 'collection') continue
+      if (options.excludeCid && fileRecord.cid === options.excludeCid) continue
+      if (await this.#collectionRecordIncludesCid(fileRecord, cid)) {
+        return true
+      }
+    }
+    return false
+  }
+
+  async #stopHoldingIfUnreferenced(cid, options = {}) {
+    if (!this.#holdings.some(holding => holding.cid === cid)) return false
+    if (this.#hasPublishedReference(cid)) return false
+    if (await this.#hasPublishedCollectionChildReference(cid, options)) {
+      return false
+    }
+    const { driveName } = this.#getCidInfo(cid)
+    await this.#leaveCidTopic(cid)
+    await this.#closeDriveForSeed(driveName)
+    this.#removeHolding(cid)
+    return true
+  }
+
+  async #stopCollectionChildHoldings(fileRecord, options = {}) {
+    const files = await this.#readLocalCollectionChildFiles(fileRecord, options)
+    for (const file of files) {
+      await this.#stopHoldingIfUnreferenced(file.cid, {
+        excludeCid: options.excludeCid,
+      })
+    }
+  }
+
+  async #restoreCollectionChildHoldings(fileRecord, options = {}) {
+    const files = await this.#readLocalCollectionChildFiles(fileRecord, options)
+    for (const file of files) {
+      const localContent = await this.#getLocalCidContent(file.cid, {
+        ownerAddress: options.ownerAddress,
+        public: true,
+        allowHoldingFallback: true,
+      })
+      if (!localContent) continue
+      await this.#joinCidTopicInternal(file.cid, {
+        server: true,
+        client: false,
+      })
+      this.#upsertHolding({
+        cid: file.cid,
+        fileName: sanitizeFilename(`${fileRecord.fileName}/${file.path}`),
+        size: localContent.size || Number(file.size) || 0,
+        driveName: this.#getCidInfo(file.cid).driveName,
+        source: fileRecord.source || 'published',
+      })
     }
   }
 
@@ -2959,6 +3102,7 @@ export class MostBoxEngine extends EventEmitter {
             cid,
             fileName: holding?.fileName || cid,
             driveName: holding?.driveName || driveName,
+            kind: holding?.kind,
             size,
             ownerAddress,
           },
@@ -4409,7 +4553,7 @@ export class MostBoxEngine extends EventEmitter {
     const updatedAt = getSyncTimestamp(
       file.updatedAt || file.syncUpdatedAt || file.deletedAt || file.publishedAt
     )
-    return {
+    const record = {
       cid,
       fileName: sanitizeFilename(file.fileName || cid),
       driveName: file.driveName || driveName,
@@ -4432,6 +4576,11 @@ export class MostBoxEngine extends EventEmitter {
       starred: Boolean(file.starred),
       updatedAt,
     }
+    if (file.kind === 'collection') {
+      record.kind = 'collection'
+      record.fileCount = Number(file.fileCount) || 0
+    }
+    return record
   }
 
   #formatAccountChannelForBackup(channel, ownerAddress) {
@@ -4530,7 +4679,7 @@ export class MostBoxEngine extends EventEmitter {
         record.deletedAt ||
         record.publishedAt
     )
-    return {
+    const normalized = {
       cid,
       fileName,
       driveName: record.driveName || driveName,
@@ -4551,6 +4700,11 @@ export class MostBoxEngine extends EventEmitter {
       starred: Boolean(record.starred),
       updatedAt,
     }
+    if (record.kind === 'collection') {
+      normalized.kind = 'collection'
+      normalized.fileCount = Number(record.fileCount) || 0
+    }
+    return normalized
   }
 
   #getRecordUpdatedAt(record) {
@@ -4604,6 +4758,10 @@ export class MostBoxEngine extends EventEmitter {
         starred: normalized.starred,
         syncUpdatedAt: normalized.updatedAt,
       }
+      if (normalized.kind === 'collection') {
+        nextRecord.kind = 'collection'
+        nextRecord.fileCount = Number(normalized.fileCount) || 0
+      }
       if (publishedIndex === -1) publishedFiles.push(nextRecord)
       else publishedFiles[publishedIndex] = nextRecord
       if (trashIndex !== -1) trashFiles.splice(trashIndex, 1)
@@ -4619,6 +4777,10 @@ export class MostBoxEngine extends EventEmitter {
         deletedAt:
           normalized.deletedAt || new Date(normalized.updatedAt).toISOString(),
         syncUpdatedAt: normalized.updatedAt,
+      }
+      if (normalized.kind === 'collection') {
+        nextRecord.kind = 'collection'
+        nextRecord.fileCount = Number(normalized.fileCount) || 0
       }
       if (trashIndex === -1) trashFiles.push(nextRecord)
       else trashFiles[trashIndex] = nextRecord

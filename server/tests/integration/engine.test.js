@@ -3,6 +3,7 @@ import assert from 'node:assert'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { Readable } from 'node:stream'
 import b4a from 'b4a'
 import Corestore from 'corestore'
 import Hyperdrive from 'hyperdrive'
@@ -10,7 +11,7 @@ import Hypercore from 'hypercore'
 import HypercoreError from 'hypercore-errors'
 import { CID } from 'multiformats/cid'
 import { MostBoxEngine } from '../../src/index.js'
-import { calculateCid } from '../../src/core/cid.js'
+import { calculateCid, calculateDirectoryCid } from '../../src/core/cid.js'
 import { getCidInfo } from '../../src/core/cidTopic.js'
 import {
   GAME_CHANNEL_TYPE,
@@ -489,6 +490,11 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
           .listHoldings()
           .some(holding => holding.cid === publishedCollection.cid)
       )
+      assert.ok(
+        publishedCollection.files.every(file =>
+          engine.listHoldings().some(holding => holding.cid === file.cid)
+        )
+      )
 
       await engine.deletePublishedFile(publishedCollection.cid)
 
@@ -496,6 +502,40 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         !engine
           .listHoldings()
           .some(holding => holding.cid === publishedCollection.cid)
+      )
+      assert.ok(
+        publishedCollection.files.every(
+          file =>
+            !engine.listHoldings().some(holding => holding.cid === file.cid)
+        )
+      )
+
+      const trashedCollection = engine
+        .listTrashFiles()
+        .find(file => file.cid === publishedCollection.cid)
+      assert.strictEqual(trashedCollection.kind, 'collection')
+      assert.strictEqual(trashedCollection.fileCount, 1)
+
+      await engine.restoreTrashFile(publishedCollection.cid)
+
+      const restoredCollection = engine
+        .listPublishedFiles()
+        .find(file => file.cid === publishedCollection.cid)
+      assert.strictEqual(restoredCollection.kind, 'collection')
+      assert.strictEqual(restoredCollection.fileCount, 1)
+      assert.ok(
+        engine
+          .listHoldings()
+          .some(
+            holding =>
+              holding.cid === publishedCollection.cid &&
+              holding.kind === 'collection'
+          )
+      )
+      assert.ok(
+        publishedCollection.files.every(file =>
+          engine.listHoldings().some(holding => holding.cid === file.cid)
+        )
       )
     })
 
@@ -592,6 +632,81 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       )
       assert.ok(collection.files.every(file => file.localAvailable === true))
       assert.ok(collection.files.every(file => file.seedStatus === 'active'))
+    })
+
+    it('rejects collection DAG-PB blocks whose content does not match the CID', async () => {
+      const result = await engine.publishCollection(
+        [{ path: 'Tamper/good.txt', content: Buffer.from('good content') }],
+        `tamper-${uid}`
+      )
+      const tampered = await calculateDirectoryCid([
+        { path: 'Tamper/bad.txt', content: Buffer.from('bad content') },
+      ])
+      assert.notStrictEqual(tampered.cid.toString(), result.cid)
+      const tamperedBlock = tampered.blocks.get(tampered.cid.toString())
+      const originalCreateReadStream = Hyperdrive.prototype.createReadStream
+      Hyperdrive.prototype.createReadStream = function createTamperedStream(
+        key,
+        ...args
+      ) {
+        if (String(key) === `/${result.cid}`) {
+          return Readable.from([tamperedBlock])
+        }
+        return originalCreateReadStream.call(this, key, ...args)
+      }
+
+      try {
+        await assert.rejects(
+          () => engine.getCollection(result.cid),
+          /UnixFS block CID mismatch/
+        )
+      } finally {
+        Hyperdrive.prototype.createReadStream = originalCreateReadStream
+      }
+    })
+
+    it('rejects nested collection DAG-PB blocks whose content does not match the CID', async () => {
+      const files = [
+        {
+          path: 'Nested/Sub/good.txt',
+          content: Buffer.from('nested good content'),
+        },
+      ]
+      const result = await engine.publishCollection(files, `nested-${uid}`)
+      const directory = await calculateDirectoryCid(files)
+      const childCid = [...directory.blocks.keys()].find(
+        blockCid => blockCid !== result.cid
+      )
+      const tampered = await calculateDirectoryCid([
+        {
+          path: 'Nested/Sub/bad.txt',
+          content: Buffer.from('nested bad content'),
+        },
+      ])
+      const tamperedBlock = [...tampered.blocks.entries()].find(
+        ([blockCid]) => blockCid !== tampered.cid.toString()
+      )?.[1]
+      assert.ok(childCid)
+      assert.ok(tamperedBlock)
+      const originalCreateReadStream = Hyperdrive.prototype.createReadStream
+      Hyperdrive.prototype.createReadStream = function createTamperedStream(
+        key,
+        ...args
+      ) {
+        if (String(key) === `/.unixfs/${childCid}`) {
+          return Readable.from([tamperedBlock])
+        }
+        return originalCreateReadStream.call(this, key, ...args)
+      }
+
+      try {
+        await assert.rejects(
+          () => engine.getCollection(result.cid),
+          /UnixFS block CID mismatch/
+        )
+      } finally {
+        Hyperdrive.prototype.createReadStream = originalCreateReadStream
+      }
     })
 
     it('downloads selected collection files and leaves others unavailable', async () => {
@@ -2013,6 +2128,94 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         )
       } finally {
         replication?.close()
+        if (sourceEngine) await sourceEngine.stop().catch(() => {})
+        if (targetEngine) await targetEngine.stop().catch(() => {})
+        fs.rmSync(syncTmpDir, { recursive: true, force: true })
+      }
+    })
+
+    it('preserves collection metadata in account backup imports', async () => {
+      const syncTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-user-collection-import-')
+      )
+      const sourcePath = path.join(syncTmpDir, 'source')
+      const targetPath = path.join(syncTmpDir, 'target')
+      const syncOwner = '0x3636363636363636363636363636363636363636'
+      let sourceEngine
+      let targetEngine
+
+      try {
+        sourceEngine = new MostBoxEngine({
+          dataPath: sourcePath,
+          disableNetwork: true,
+        })
+        targetEngine = new MostBoxEngine({
+          dataPath: targetPath,
+          disableNetwork: true,
+        })
+        await sourceEngine.start()
+        await targetEngine.start()
+
+        const collection = await sourceEngine.publishCollection(
+          [
+            {
+              path: 'Backup/one.txt',
+              content: Buffer.from('backup collection one'),
+            },
+            {
+              path: 'Backup/two.txt',
+              content: Buffer.from('backup collection two'),
+            },
+          ],
+          'Backup',
+          { ownerAddress: syncOwner }
+        )
+        const backup = sourceEngine.exportUserData(syncOwner)
+        const backupFile = backup.files.find(
+          file => file.cid === collection.cid
+        )
+        assert.strictEqual(backupFile.kind, 'collection')
+        assert.strictEqual(backupFile.fileCount, 2)
+
+        const importResult = await targetEngine.importUserData(
+          syncOwner,
+          backup
+        )
+        assert.strictEqual(importResult.filesAdded, 1)
+
+        const imported = targetEngine
+          .listPublishedFiles({ ownerAddress: syncOwner })
+          .find(file => file.cid === collection.cid)
+        assert.strictEqual(imported.kind, 'collection')
+        assert.strictEqual(imported.fileCount, 2)
+        assert.strictEqual(imported.localAvailable, false)
+
+        await sourceEngine.deletePublishedFile(collection.cid, {
+          ownerAddress: syncOwner,
+        })
+        const trashBackup = sourceEngine.exportUserData(syncOwner)
+        const trashBackupFile = trashBackup.trashFiles.find(
+          file => file.cid === collection.cid
+        )
+        assert.strictEqual(trashBackupFile.kind, 'collection')
+        assert.strictEqual(trashBackupFile.fileCount, 2)
+
+        const trashImportResult = await targetEngine.importUserData(
+          syncOwner,
+          trashBackup
+        )
+        assert.strictEqual(trashImportResult.trashFilesUpdated, 1)
+        assert.ok(
+          !targetEngine
+            .listPublishedFiles({ ownerAddress: syncOwner })
+            .some(file => file.cid === collection.cid)
+        )
+        const importedTrash = targetEngine
+          .listTrashFiles({ ownerAddress: syncOwner })
+          .find(file => file.cid === collection.cid)
+        assert.strictEqual(importedTrash.kind, 'collection')
+        assert.strictEqual(importedTrash.fileCount, 2)
+      } finally {
         if (sourceEngine) await sourceEngine.stop().catch(() => {})
         if (targetEngine) await targetEngine.stop().catch(() => {})
         fs.rmSync(syncTmpDir, { recursive: true, force: true })
