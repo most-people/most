@@ -133,7 +133,7 @@ npm test              # 运行 Android 子包协议、Channel 和 IPC 测试
 ```yaml
 services:
   mostbox:
-    image: ghcr.io/most-people/most-box:0.3.9
+    image: ghcr.io/most-people/most-box:0.4.0
     container_name: mostbox
     network_mode: host
     restart: unless-stopped
@@ -297,6 +297,8 @@ npx most-box@latest
 - **测试**: Node.js built-in test runner
 
 ## CI/CD
+
+发版前必须同步版本号：根目录 `package.json` / `package-lock.json`、`mobile/android/package.json` / `mobile/android/package-lock.json` 和 `mobile/android/app.json` 都要更新到同一个版本。Android Alpha 虽然在 CI 打包时会读取 tag 作为 APK 文件名版本，但 Android 子包自身版本和 Expo 可见版本也必须每次发布同步更新，避免本地构建、测试记录和发布产物版本脱节。
 
 发布新版本时，推送 tag 即可自动构建：
 

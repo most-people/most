@@ -32,6 +32,8 @@ If the machine has multiple network adapters and the selected LAN URL is not rea
 
 ## Alpha APK
 
+For every repository release, keep the Android package version in sync with the root release version. Update `mobile/android/package.json`, `mobile/android/package-lock.json`, and `mobile/android/app.json` to the same version as the root `package.json` and release tag before tagging. CI passes the tag into the APK build, but the Android package and Expo-visible versions must still move with each release so local builds, test notes, and release artifacts do not drift.
+
 `npm run build` builds a release APK for device installation and writes these files to `mobile/android/dist/`:
 
 - `mostbox-android-<version>-release.apk`

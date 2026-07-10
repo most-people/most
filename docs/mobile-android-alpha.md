@@ -4,6 +4,8 @@
 
 ## 构建与安装
 
+每次仓库发版都必须同步 Android 子包版本：`mobile/android/package.json`、`mobile/android/package-lock.json` 和 `mobile/android/app.json` 的版本要与根目录 `package.json`、发布 tag、APK 文件名保持一致。CI 会把发布 tag 传给 Android 打包脚本生成 `mostbox-android-<version>-release.apk`，但子包版本和 Expo 可见版本仍要在发版提交里更新，不能长期停留在旧版本。
+
 构建前先运行移动端协议测试：
 
 ```bash

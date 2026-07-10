@@ -402,19 +402,19 @@ describe('frontend smoke checks', () => {
       getReleaseManifestUrl,
     } = await importBundledSource('src/lib/downloadOptions.ts')
     const manifest = {
-      version: '0.3.9',
+      version: '0.4.0',
       publishedAt: '2026-01-01T00:00:00.000Z',
       assets: [
         {
           platform: 'windows',
           arch: 'x64',
           kind: 'installer',
-          filename: 'MostBox-0.3.9-win-x64-setup.exe',
+          filename: 'MostBox-0.4.0-win-x64-setup.exe',
           size: 1024,
           cid: 'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku',
           r2Url: 'https://download.most.box/releases/MostBox.exe',
           githubUrl:
-            'https://github.com/most-people/most/releases/download/v0.3.9/MostBox.exe',
+            'https://github.com/most-people/most/releases/download/v0.4.0/MostBox.exe',
         },
       ],
     }
@@ -553,7 +553,10 @@ describe('frontend smoke checks', () => {
     assert.doesNotMatch(chatUiSource, /\[\{authorTag\}\]/)
     assert.doesNotMatch(chatUiSource, /\[\{member\.tag\}\]/)
     assert.match(chatCssSource, /--chat-tag-text:\s*var\(--text-secondary\)/)
-    assert.match(chatCssSource, /--chat-tag-bg:\s*rgba\(29,\s*29,\s*31,\s*0\.06\)/)
+    assert.match(
+      chatCssSource,
+      /--chat-tag-bg:\s*rgba\(29,\s*29,\s*31,\s*0\.06\)/
+    )
     assert.match(
       chatCssSource,
       /\[data-theme='dark'\]\s*\{[^}]*--chat-tag-bg:\s*rgba\(255,\s*255,\s*255,\s*0\.12\)/
@@ -589,10 +592,7 @@ describe('frontend smoke checks', () => {
       chatCssSource,
       /\.chat-mention-menu\s*\{[^}]*overflow:\s*hidden/
     )
-    assert.match(
-      chatCssSource,
-      /\.chat-mention-menu-list\s*\{[^}]*gap:\s*4px/
-    )
+    assert.match(chatCssSource, /\.chat-mention-menu-list\s*\{[^}]*gap:\s*4px/)
     assert.match(
       chatCssSource,
       /\.chat-mention-menu-list\s*\{[^}]*scrollbar-width:\s*none/
@@ -616,7 +616,10 @@ describe('frontend smoke checks', () => {
     )
 
     assert.match(chatSource, /const \[isSendingChannelMessage/)
-    assert.match(chatSource, /const isSendingChannelMessageRef = useRef\(false\)/)
+    assert.match(
+      chatSource,
+      /const isSendingChannelMessageRef = useRef\(false\)/
+    )
     assert.match(
       sendHandlerSource,
       /if \(isSendingChannelMessageRef\.current\) return/
