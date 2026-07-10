@@ -326,7 +326,7 @@ function ChatPage() {
   const [isComposerComposing, setIsComposerComposing] = useState(false)
   const [dismissedMentionTriggerKey, setDismissedMentionTriggerKey] =
     useState('')
-  const [mentionSelectedIndex, setMentionSelectedIndex] = useState(0)
+  const [mentionSelectedIndex, setMentionSelectedIndex] = useState(-1)
   const [showJoinChannel, joinChannelModal] = useDisclosure(false)
   const [myPeerId, setMyPeerId] = useState('')
   const [isJoiningChannel, setIsJoiningChannel] = useState(false)
@@ -2092,6 +2092,7 @@ function ChatPage() {
 
   function selectMentionCandidate(index = mentionSelectedIndex) {
     if (!mentionTrigger || mentionCandidates.length === 0) return false
+    if (index < 0) return false
     const candidate =
       mentionCandidates[Math.max(0, Math.min(index, mentionCandidates.length - 1))]
     if (!candidate) return false
@@ -2105,7 +2106,7 @@ function ChatPage() {
     setChannelInput(result.draft.content)
     setChannelMentions(result.draft.mentions)
     setDismissedMentionTriggerKey('')
-    setMentionSelectedIndex(0)
+    setMentionSelectedIndex(-1)
     focusComposerAt(result.caret)
     return true
   }
@@ -2115,19 +2116,25 @@ function ChatPage() {
 
     if (event.key === 'ArrowDown') {
       event.preventDefault()
-      setMentionSelectedIndex(index => (index + 1) % mentionCandidates.length)
+      setMentionSelectedIndex(index =>
+        index < 0 ? 0 : (index + 1) % mentionCandidates.length
+      )
       return true
     }
 
     if (event.key === 'ArrowUp') {
       event.preventDefault()
       setMentionSelectedIndex(
-        index => (index - 1 + mentionCandidates.length) % mentionCandidates.length
+        index =>
+          index < 0
+            ? mentionCandidates.length - 1
+            : (index - 1 + mentionCandidates.length) % mentionCandidates.length
       )
       return true
     }
 
     if (event.key === 'Enter' || event.key === 'Tab') {
+      if (mentionSelectedIndex < 0) return false
       event.preventDefault()
       return selectMentionCandidate()
     }
@@ -2269,7 +2276,7 @@ function ChatPage() {
   )
 
   useEffect(() => {
-    setMentionSelectedIndex(0)
+    setMentionSelectedIndex(-1)
   }, [mentionTriggerKey, mentionCandidates.length])
 
   const mentionMenu = isMentionMenuOpen ? (
