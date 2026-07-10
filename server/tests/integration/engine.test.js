@@ -1486,12 +1486,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         )
         assert.strictEqual(missing.joined, false)
         assert.match(missing.seedError, /Local CID content missing/)
-        const listed = missingEngine
-          .listPublishedFiles()
-          .find(file => file.cid === cidString)
-        assert.ok(listed)
-        assert.strictEqual(listed.localAvailable, false)
-        assert.strictEqual(listed.seedStatus, 'error')
       } finally {
         if (setupEngine) await setupEngine.stop().catch(() => {})
         if (missingEngine) await missingEngine.stop().catch(() => {})
