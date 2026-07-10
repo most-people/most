@@ -542,8 +542,36 @@ describe('frontend smoke checks', () => {
     assert.match(chatSource, /getMemberDisplayTag/)
     assert.match(chatUiSource, /authorTag\?: string/)
     assert.match(chatUiSource, /channel-member-tag/)
+    assert.doesNotMatch(chatSource, /\[\{candidate\.tag\}\]/)
+    assert.doesNotMatch(chatUiSource, /\[\{authorTag\}\]/)
+    assert.doesNotMatch(chatUiSource, /\[\{member\.tag\}\]/)
     assert.match(chatCssSource, /\.message-author-tag/)
     assert.match(chatCssSource, /\.channel-member-tag/)
+    assert.match(
+      chatCssSource,
+      /\.message-author-tag\s*\{[^}]*color:\s*var\(--text-muted\)/
+    )
+    assert.match(
+      chatCssSource,
+      /\.channel-member-tag\s*\{[^}]*color:\s*var\(--text-muted\)/
+    )
+    assert.match(chatSource, /chat-mention-menu-list/)
+    assert.match(
+      chatCssSource,
+      /\.chat-mention-menu\s*\{[^}]*overflow:\s*hidden/
+    )
+    assert.match(
+      chatCssSource,
+      /\.chat-mention-menu-list\s*\{[^}]*gap:\s*4px/
+    )
+    assert.match(
+      chatCssSource,
+      /\.chat-mention-menu-list\s*\{[^}]*scrollbar-width:\s*none/
+    )
+    assert.match(
+      chatCssSource,
+      /\.chat-mention-menu-list::\-webkit-scrollbar\s*\{[^}]*display:\s*none/
+    )
     assert.match(userProfileSource, /getUserPresenceProfile/)
     assert.match(userProfileSource, /authorTag/)
     assert.match(gameRoomSource, /getUserPresenceProfile/)

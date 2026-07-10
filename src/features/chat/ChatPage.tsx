@@ -2281,40 +2281,42 @@ function ChatPage() {
       <span className="chat-mention-menu-title">
         {t('chat.mentionSuggestions')}
       </span>
-      {mentionCandidates.map((candidate, index) => (
-        <button
-          type="button"
-          className={[
-            'chat-mention-option',
-            index === mentionSelectedIndex ? 'active' : '',
-          ]
-            .filter(Boolean)
-            .join(' ')}
-          key={candidate.address}
-          role="option"
-          aria-selected={index === mentionSelectedIndex}
-          onMouseDown={event => {
-            event.preventDefault()
-            selectMentionCandidate(index)
-          }}
-        >
-          <img
-            className="chat-mention-option-avatar"
-            src={candidate.avatarSrc}
-            alt=""
-          />
-          <span className="chat-mention-option-body">
-            <span className="chat-mention-option-name" translate="no">
-              {candidate.label}
-            </span>
-            {candidate.tag && (
-              <span className="chat-mention-option-meta" translate="no">
-                [{candidate.tag}]
+      <div className="chat-mention-menu-list" role="presentation">
+        {mentionCandidates.map((candidate, index) => (
+          <button
+            type="button"
+            className={[
+              'chat-mention-option',
+              index === mentionSelectedIndex ? 'active' : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+            key={candidate.address}
+            role="option"
+            aria-selected={index === mentionSelectedIndex}
+            onMouseDown={event => {
+              event.preventDefault()
+              selectMentionCandidate(index)
+            }}
+          >
+            <img
+              className="chat-mention-option-avatar"
+              src={candidate.avatarSrc}
+              alt=""
+            />
+            <span className="chat-mention-option-body">
+              <span className="chat-mention-option-name" translate="no">
+                {candidate.label}
               </span>
-            )}
-          </span>
-        </button>
-      ))}
+              {candidate.tag && (
+                <span className="chat-mention-option-meta" translate="no">
+                  {candidate.tag}
+                </span>
+              )}
+            </span>
+          </button>
+        ))}
+      </div>
     </div>
   ) : null
 

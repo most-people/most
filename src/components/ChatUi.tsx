@@ -132,7 +132,7 @@ export function ChatMessageItem({
           </span>
           {authorTag && (
             <span className="message-author-tag" translate="no">
-              [{authorTag}]
+              {authorTag}
             </span>
           )}
         </span>
@@ -304,7 +304,7 @@ export function ChannelMemberGrid({
           </span>
           {member.tag && (
             <span className="channel-member-tag" translate="no">
-              [{member.tag}]
+              {member.tag}
             </span>
           )}
         </div>
