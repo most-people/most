@@ -1,5 +1,6 @@
 import { normalizeAddress } from '../../core/shared.js'
 import { evaluateStorageLimits } from '../../node/config.js'
+import { PersistenceError } from '../../utils/errors.js'
 import {
   isLoopbackRemoteAddress,
   isPublicListenHost,
@@ -14,6 +15,12 @@ import {
   getNetworkAddresses,
   getPackageVersion,
 } from '../nodeStatus.js'
+
+function configPersistenceError(result) {
+  return new PersistenceError('Failed to persist node configuration', {
+    reason: result.reason || 'CONFIG_SAVE_FAILED',
+  })
+}
 
 export function registerNodeRoutes(
   app,
@@ -122,14 +129,15 @@ export function registerNodeRoutes(
       patch.dataPath = resolved.dataPath
     }
 
-    const { success } = configStore.saveNodeConfigPatch(patch)
+    const result = configStore.saveNodeConfigPatch(patch)
+    if (!result.success) return errorJson(c, configPersistenceError(result))
     appendNodeLog({
       event: 'node:config:updated',
       message: 'Node config updated',
       data: { dataPath: getDataPath(configStore) },
     })
     await broadcastNodeStatus()
-    return c.json({ success, dataPath: getDataPath(configStore) })
+    return c.json({ success: true, dataPath: getDataPath(configStore) })
   })
 
   app.get('/api/config/data-path', c => {
@@ -174,7 +182,9 @@ export function registerNodeRoutes(
       patch.dataPath = resolved.dataPath
     }
 
-    const { success, config } = configStore.saveNodeConfigPatch(patch)
+    const result = configStore.saveNodeConfigPatch(patch)
+    if (!result.success) return errorJson(c, configPersistenceError(result))
+    const { config } = result
     engine.setMaxFileSize(config.maxFileSizeBytes)
     appendNodeLog({
       event: 'node:config:updated',
@@ -187,7 +197,11 @@ export function registerNodeRoutes(
       },
     })
     await broadcastNodeStatus()
-    return c.json({ success, ...config, dataPath: getDataPath(configStore) })
+    return c.json({
+      success: true,
+      ...config,
+      dataPath: getDataPath(configStore),
+    })
   })
 
   app.get('/api/node/policy', c => {
@@ -199,9 +213,11 @@ export function registerNodeRoutes(
 
   app.post('/api/node/policy', async c => {
     const body = await c.req.json()
-    const { success, config } = configStore.saveNodeConfigPatch({
+    const result = configStore.saveNodeConfigPatch({
       maxFileSizeBytes: body.maxFileSizeBytes,
     })
+    if (!result.success) return errorJson(c, configPersistenceError(result))
+    const { config } = result
     engine.setMaxFileSize(config.maxFileSizeBytes)
     const policy = {
       maxFileSizeBytes: config.maxFileSizeBytes,
@@ -212,7 +228,7 @@ export function registerNodeRoutes(
       data: policy,
     })
     await broadcastNodeStatus()
-    return c.json({ success, ...policy })
+    return c.json({ success: true, ...policy })
   })
 
   app.post('/api/node/policy/evaluate', async c => {

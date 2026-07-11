@@ -29,6 +29,7 @@ import {
   buildMostLink,
 } from './core/cid.js'
 import { normalizeChannelAttachment } from './core/channelAttachment.js'
+import { consumeChannelFrames } from './core/channelFrames.js'
 import { normalizeChannelVoiceEvent } from './core/channelVoice.js'
 import { getCidInfo } from './core/cidTopic.js'
 import {
@@ -6781,19 +6782,25 @@ export class MostBoxEngine extends EventEmitter {
   async #handleChannelConnection(conn) {
     const stream = conn
     let connectedPeerId = null
-    let readBuffer = ''
+    let readBuffer = Buffer.alloc(0)
     let closed = false
 
     this.#channelStreams.add(stream)
     if (!this.#sendChannelHello(stream)) return
 
     stream.on('data', async data => {
-      readBuffer += data.toString()
-      let newlineIndex = readBuffer.indexOf('\n')
-      while (newlineIndex !== -1) {
-        const line = readBuffer.slice(0, newlineIndex).trim()
-        readBuffer = readBuffer.slice(newlineIndex + 1)
-        newlineIndex = readBuffer.indexOf('\n')
+      let lines
+      try {
+        const result = consumeChannelFrames(readBuffer, data)
+        readBuffer = result.remainder
+        lines = result.frames
+      } catch (err) {
+        console.warn(`[MostBox] Rejected channel data:`, err.message)
+        stream.destroy()
+        return
+      }
+
+      for (const line of lines) {
         if (!line) continue
         try {
           const message = JSON.parse(line)

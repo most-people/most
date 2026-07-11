@@ -320,6 +320,63 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual('allowOrders' in decision.policy, false)
     })
 
+    it('returns persistence failures without applying config side effects', async () => {
+      const failureLogger = createNodeLogger(
+        path.join(tmpDir, 'failed-config-write')
+      )
+      const failingConfigStore = {
+        ...configStore,
+        saveNodeConfigPatch: () => ({
+          success: false,
+          reason: 'CONFIG_LOCK_TIMEOUT',
+          config: configStore.getNodeConfig(),
+        }),
+      }
+      const hadOwnSetMaxFileSize = Object.hasOwn(engine, 'setMaxFileSize')
+      const originalSetMaxFileSize = engine.setMaxFileSize
+      let setMaxFileSizeCalls = 0
+      engine.setMaxFileSize = () => {
+        setMaxFileSizeCalls += 1
+      }
+
+      try {
+        const { app } = createApp(engine, {
+          port: TEST_PORT + 30,
+          configStore: failingConfigStore,
+          nodeLogger: failureLogger,
+        })
+        const requests = [
+          ['/api/config', { dataPath: '' }],
+          ['/api/node/config', { maxFileSizeBytes: 1024 }],
+          ['/api/node/policy', { maxFileSizeBytes: 1024 }],
+        ]
+
+        for (const [requestPath, body] of requests) {
+          const res = await requestWithAuth(app, requestPath, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          })
+          const data = await res.json()
+
+          assert.strictEqual(res.status, 500)
+          assert.strictEqual(data.code, 'PERSISTENCE_ERROR')
+          assert.strictEqual(data.details.reason, 'CONFIG_LOCK_TIMEOUT')
+        }
+
+        assert.strictEqual(setMaxFileSizeCalls, 0)
+        assert.ok(
+          failureLogger.list(20).every(log => !log.event.endsWith(':updated'))
+        )
+      } finally {
+        if (hadOwnSetMaxFileSize) {
+          engine.setMaxFileSize = originalSetMaxFileSize
+        } else {
+          delete engine.setMaxFileSize
+        }
+      }
+    })
+
     it('uses saved remote invites for remote access checks', async () => {
       const { success } = configStore.saveNodeConfigPatch({
         remoteInvites: ['saved-invite'],
