@@ -1,8 +1,9 @@
 export const zhCNPortalMessages = {
   'portal.meta.description':
-    'MostBox 是用户直连的 P2P 工具箱，文件、聊天、知识库、游戏和 Web3 各自独立。',
+    'MostBox 是用户自己运行的 P2P 节点，通过本地界面提供文件、聊天、知识库、游戏和 Web3 工具。',
+  'portal.hero.kicker': '自己运行的 P2P 节点',
   'portal.hero.subtitle':
-    '用户直连的 P2P 工具箱。文件、聊天、知识库、游戏和 Web3 各自独立。',
+    '安装、打开、分享链接，让设备直接参与 P2P 网络；文件、聊天、知识库、游戏和 Web3 各自独立。',
   'portal.nodeEntry': '节点入口',
   'portal.webConnectNode': 'Web 连接节点',
   'portal.nodeAdmin': '节点管理',
@@ -106,9 +107,10 @@ export const zhCNPortalMessages = {
 
 export const zhTWPortalMessages = {
   'portal.meta.description':
-    'MostBox 是使用者直連的 P2P 工具箱，檔案、聊天、知識庫、遊戲和 Web3 各自獨立。',
+    'MostBox 是使用者自己執行的 P2P 節點，透過本機介面提供檔案、聊天、知識庫、遊戲和 Web3 工具。',
+  'portal.hero.kicker': '自己執行的 P2P 節點',
   'portal.hero.subtitle':
-    '使用者直連的 P2P 工具箱。檔案、聊天、知識庫、遊戲和 Web3 各自獨立。',
+    '安裝、開啟、分享連結，讓裝置直接參與 P2P 網路；檔案、聊天、知識庫、遊戲和 Web3 各自獨立。',
   'portal.nodeEntry': '節點入口',
   'portal.webConnectNode': 'Web 連線節點',
   'portal.nodeAdmin': '節點管理',
@@ -213,9 +215,10 @@ export const zhTWPortalMessages = {
 
 export const enPortalMessages = {
   'portal.meta.description':
-    'MostBox is a user-to-user P2P toolbox for files, chat, notes, games, and Web3.',
+    'MostBox is a P2P node you run yourself, with local tools for files, chat, notes, games, and Web3.',
+  'portal.hero.kicker': 'Run your own P2P node',
   'portal.hero.subtitle':
-    'A user-to-user P2P toolbox for files, chat, notes, games, and Web3.',
+    'Install it, open it, share a link, and let your device participate directly in the P2P network.',
   'portal.nodeEntry': 'Node entry',
   'portal.webConnectNode': 'Connect Web node',
   'portal.nodeAdmin': 'Node admin',

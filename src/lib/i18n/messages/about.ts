@@ -1,11 +1,11 @@
 export const zhCNAboutMessages = {
   'about.meta.title': '关于 MOST PEOPLE',
   'about.meta.desc':
-    'MOST PEOPLE 是完全开源的 P2P 工具箱，包含文件分享、聊天、知识库、游戏房间和可复用账户系统。',
-  'about.hero.kicker': '去中心化 P2P 工具箱',
+    'MOST PEOPLE 是完全开源的 P2P 节点应用：用户在自己的设备上运行节点，用 most:// 分享文件，并把聊天、知识库、游戏和 Web3 作为独立工具。',
+  'about.hero.kicker': '自己运行的 P2P 节点',
   'about.hero.title': '关于 MOST PEOPLE',
   'about.hero.desc':
-    'MOST PEOPLE 把文件、聊天、知识库、游戏和 Web3 放在同一层：邀请大家直接选择需要的工具，用 most:// 分享文件，用频道同步消息和游戏事件。',
+    'MOST PEOPLE 让设备直接参与网络：安装、打开、分享 most:// 链接；文件、聊天、知识库、游戏和 Web3 各自独立，不要求用户加入某个平台。',
   'about.link.example': 'most://<cid>?filename=...',
   'about.summary.cid':
     'CID 类似磁力链接/BT 种子的内容指纹：链接指向内容，下载后再校验是不是同一份文件。',
@@ -73,11 +73,11 @@ export const zhCNAboutMessages = {
 export const zhTWAboutMessages = {
   'about.meta.title': '關於 MOST PEOPLE',
   'about.meta.desc':
-    'MOST PEOPLE 是完全開源的 P2P 工具箱，包含檔案分享、聊天、知識庫、遊戲房間和可複用帳戶系統。',
-  'about.hero.kicker': '去中心化 P2P 工具箱',
+    'MOST PEOPLE 是完全開源的 P2P 節點應用：使用者在自己的裝置上執行節點，用 most:// 分享檔案，並把聊天、知識庫、遊戲和 Web3 作為獨立工具。',
+  'about.hero.kicker': '自己執行的 P2P 節點',
   'about.hero.title': '關於 MOST PEOPLE',
   'about.hero.desc':
-    'MOST PEOPLE 把檔案、聊天、知識庫、遊戲和 Web3 放在同一層：邀請大家直接選擇需要的工具，用 most:// 分享檔案，用頻道同步訊息和遊戲事件。',
+    'MOST PEOPLE 讓裝置直接參與網路：安裝、開啟、分享 most:// 連結；檔案、聊天、知識庫、遊戲和 Web3 各自獨立，不要求使用者加入某個平台。',
   'about.link.example': 'most://<cid>?filename=...',
   'about.summary.cid':
     'CID 類似磁力連結/BT 種子的內容指紋：連結指向內容，下載後再校驗是不是同一份檔案。',
@@ -146,11 +146,11 @@ export const zhTWAboutMessages = {
 export const enAboutMessages = {
   'about.meta.title': 'About MOST PEOPLE',
   'about.meta.desc':
-    'MOST PEOPLE is a fully open source P2P toolbox for file sharing, chat, a Knowledge Base, game rooms, and a reusable account system.',
-  'about.hero.kicker': 'Decentralized P2P toolbox',
+    'MOST PEOPLE is a fully open source P2P node app: run the node on your own device, share files with most://, and use chat, notes, games, and Web3 as separate tools.',
+  'about.hero.kicker': 'Run your own P2P node',
   'about.hero.title': 'About MOST PEOPLE',
   'about.hero.desc':
-    'MOST PEOPLE keeps files, chat, Knowledge Base, games, and Web3 as equal entries: choose the tool you need, share files with most://, and sync messages or game events through channels.',
+    'MOST PEOPLE lets your device participate directly in the network: install it, open it, share a most:// link; files, chat, Knowledge Base, games, and Web3 stay independent.',
   'about.link.example': 'most://<cid>?filename=...',
   'about.summary.cid':
     'CID works like a content fingerprint for magnet links and BT torrents: the link points to content, then the download is verified.',

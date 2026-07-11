@@ -1,11 +1,12 @@
-# MostBox：平权入口的 P2P 工具箱
+# MostBox：普通人能运行的 P2P 节点
 
 [![npm version](https://img.shields.io/npm/v/most-box)](https://npmjs.com/package/most-box)
 [![Node.js version](https://img.shields.io/badge/node-%3E%3D22.12-brightgreen)](https://nodejs.org)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-> 用户之间直接连接的 P2P 工具箱。
-> 文件、聊天、知识库、游戏和 Web3 是同等入口。
+> MostBox 是一个用户自己运行的 P2P 节点，通过简单的本地界面提供文件分享、通信和个人工具；它不要求用户加入某个平台，而是让设备直接参与网络。
+>
+> 真正有价值的不是“又一个聊天软件”或“又一个网盘”，而是把 P2P 能力压缩成普通人能完成的流程：安装 -> 打开 -> 分享 `most://` 链接。
 >
 > 文件分享使用 `most://` 链接、CID 校验和下载后做种；聊天、知识库、游戏和 Web3 保持独立工具属性，不互相充当前置条件。
 >

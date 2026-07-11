@@ -113,7 +113,7 @@ export default function FeaturePortal() {
           <div className="portal-hero-copy">
             <div className="portal-hero-rule" aria-hidden="true" />
             <div className="portal-hero-kicker-row">
-              <p className="portal-hero-kicker">Direct P2P toolbox</p>
+              <p className="portal-hero-kicker">{t('portal.hero.kicker')}</p>
               <span
                 className={`portal-node-status ${backendStatus}`}
                 aria-live="polite"
