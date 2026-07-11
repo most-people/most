@@ -1064,6 +1064,59 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(called, true)
     })
 
+    it('starts locally discovered collection downloads without waiting for child files', async () => {
+      let called = false
+      let capturedOptions = null
+      let resolveDownload
+      const pendingDownload = new Promise(resolve => {
+        resolveDownload = resolve
+      })
+      const fakeEngine = {
+        getLocalCidAvailability: async () => ({
+          kind: 'collection',
+          cid: VALID_MISSING_CID,
+          fileName: 'exists-folder',
+          fileCount: 2,
+          alreadyExists: false,
+        }),
+        downloadFile: async (_link, taskId, options) => {
+          called = true
+          capturedOptions = options
+          await pendingDownload
+          return { taskId, kind: 'collection', fileName: 'exists-folder' }
+        },
+      }
+      const { app } = createApp(fakeEngine, {
+        port: TEST_PORT + 4,
+        configStore,
+        nodeLogger,
+      })
+
+      const res = await Promise.race([
+        requestWithAuth(app, '/api/download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            link: `most://${VALID_MISSING_CID}?filename=exists-folder`,
+            selectedPaths: ['one.txt'],
+          }),
+        }),
+        sleep(50).then(() => null),
+      ])
+      resolveDownload()
+
+      assert.ok(res, 'response should return before child download finishes')
+      const data = await res.json()
+      assert.strictEqual(res.status, 200)
+      assert.strictEqual(data.success, true)
+      assert.ok(data.taskId)
+      assert.strictEqual(data.kind, 'collection')
+      assert.strictEqual(data.fileName, 'exists-folder')
+      assert.strictEqual(data.fileCount, 2)
+      assert.strictEqual(called, true)
+      assert.deepStrictEqual(capturedOptions.selectedPaths, ['one.txt'])
+    })
+
     it('uses local CID availability before filename conflict checks', async () => {
       const publishResult = await engine.publishFile(
         Buffer.from('cid-first chat attachment'),

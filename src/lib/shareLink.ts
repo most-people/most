@@ -1,23 +1,5 @@
 const MOST_BOX_SHARE_ORIGIN = 'https://most.box'
 
-function normalizeShareOrigin(origin?: string) {
-  const normalizedOrigin = String(origin || '')
-    .trim()
-    .replace(/\/+$/, '')
-
-  if (!normalizedOrigin || normalizedOrigin === 'null') {
-    return MOST_BOX_SHARE_ORIGIN
-  }
-
-  return normalizedOrigin
-}
-
-function getShareOrigin() {
-  if (typeof window === 'undefined') return MOST_BOX_SHARE_ORIGIN
-
-  return normalizeShareOrigin(window.location?.origin)
-}
-
 function getTrimmedFileName(fileName?: string) {
   const trimmedFileName = String(fileName || '').trim()
   return trimmedFileName
@@ -41,5 +23,5 @@ export function buildCidSharePath(cid: string, fileName?: string) {
 }
 
 export function buildCidShareLink(cid: string, fileName?: string) {
-  return `${getShareOrigin()}${buildCidSharePath(cid, fileName)}`
+  return `${MOST_BOX_SHARE_ORIGIN}${buildCidSharePath(cid, fileName)}`
 }

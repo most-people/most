@@ -6,6 +6,16 @@ import { validationErrorPayload } from '../routePolicy.js'
 import { parseMultipartBusboy } from '../uploads.js'
 import { getMimeType } from '../staticFiles.js'
 
+function startDownloadTask(engine, link, taskId, options, wsBroadcast) {
+  engine.downloadFile(link, taskId, options).catch(err => {
+    if (err.message === 'Download cancelled') {
+      wsBroadcast('download:cancelled', { taskId })
+    } else {
+      wsBroadcast('download:error', { taskId, error: err.message })
+    }
+  })
+}
+
 export function registerFileRoutes(app, { engine, configStore, wsBroadcast }) {
   app.get('/api/files', c => {
     return c.json(
@@ -148,6 +158,29 @@ export function registerFileRoutes(app, { engine, configStore, wsBroadcast }) {
     })
     if (localAvailability) {
       console.log(`[MostBox] CID content already exists locally: ${parsed.cid}`)
+      if (
+        localAvailability.kind === 'collection' &&
+        localAvailability.alreadyExists !== true
+      ) {
+        startDownloadTask(
+          engine,
+          body.link,
+          taskId,
+          {
+            ownerAddress: c.get('userAddress'),
+            selectedPaths: body.selectedPaths,
+          },
+          wsBroadcast
+        )
+        return c.json({
+          success: true,
+          taskId,
+          kind: 'collection',
+          cid: localAvailability.cid,
+          fileName: localAvailability.fileName,
+          fileCount: localAvailability.fileCount,
+        })
+      }
       try {
         const result = await engine.downloadFile(body.link, taskId, {
           ownerAddress: c.get('userAddress'),
@@ -171,18 +204,16 @@ export function registerFileRoutes(app, { engine, configStore, wsBroadcast }) {
       )
     }
 
-    engine
-      .downloadFile(body.link, taskId, {
+    startDownloadTask(
+      engine,
+      body.link,
+      taskId,
+      {
         ownerAddress: c.get('userAddress'),
         selectedPaths: body.selectedPaths,
-      })
-      .catch(err => {
-        if (err.message === 'Download cancelled') {
-          wsBroadcast('download:cancelled', { taskId })
-        } else {
-          wsBroadcast('download:error', { taskId, error: err.message })
-        }
-      })
+      },
+      wsBroadcast
+    )
 
     return c.json({ success: true, taskId })
   })

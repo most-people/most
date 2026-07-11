@@ -647,20 +647,12 @@ export default function App() {
           t('app.fileAlreadyExists', { fileName: result.fileName }),
           'warning'
         )
-      } else if (result.kind === 'collection') {
-        refreshFiles()
-        addToast(
-          t('app.fileDownloadCompleted', {
-            fileName: result.fileName || t('app.downloadFallbackName'),
-          }),
-          'success'
-        )
       } else if (result.localAvailable) {
         refreshFiles()
       } else {
         const transfer = {
           id: result.taskId,
-          fileName: t('app.downloadFallbackName'),
+          fileName: result.fileName || t('app.downloadFallbackName'),
           progress: 0,
           type: 'download',
           status: 'downloading',

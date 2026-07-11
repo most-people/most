@@ -155,7 +155,7 @@ describe('frontend smoke checks', () => {
     try {
       assert.equal(
         buildCidShareLink(cid, 'hello most.txt'),
-        `http://localhost:3000/cid/${cid}?filename=hello%20most.txt`
+        `https://most.box/cid/${cid}?filename=hello%20most.txt`
       )
     } finally {
       delete globalThis.window
