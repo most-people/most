@@ -508,6 +508,33 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.ok(collection.files.every(file => file.localAvailable === true))
     })
 
+    it('shares a file-library folder without buffering files through readFileRaw', async () => {
+      const folderName = `stream-folder-${uid}`
+      await engine.publishFile(
+        Buffer.from(`stream folder first ${uid}`),
+        `${folderName}/one.txt`
+      )
+      await engine.publishFile(
+        Buffer.from(`stream folder second ${uid}`),
+        `${folderName}/two.txt`
+      )
+      const originalReadFileRaw = engine.readFileRaw
+      engine.readFileRaw = async () => {
+        throw new Error('readFileRaw should not be used for folder sharing')
+      }
+
+      try {
+        const result = await engine.shareFolder(folderName)
+        assert.strictEqual(result.kind, 'collection')
+        assert.deepStrictEqual(
+          result.files.map(file => file.path),
+          ['one.txt', 'two.txt']
+        )
+      } finally {
+        engine.readFileRaw = originalReadFileRaw
+      }
+    })
+
     it('keeps a collection manifest seeded after all child files are deleted', async () => {
       const folderName = `virtual-folder-${uid}`
       const first = await engine.publishFile(

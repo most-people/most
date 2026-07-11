@@ -917,17 +917,12 @@ export class MostBoxEngine extends EventEmitter {
     for (const file of folderRecords) {
       const safeFileName = sanitizeFilename(file.fileName || '')
       const relativePath = safeFileName.slice(prefix.length)
-      let raw
-      try {
-        raw = await this.readFileRaw(file.cid, { ownerAddress })
-      } catch {
-        throw new ValidationError(
-          `Folder file is not locally available: ${safeFileName}`
-        )
-      }
       files.push({
         path: `${safeFolderPath}/${relativePath}`,
-        content: raw.buffer,
+        content: this.#streamFolderFileContent(file.cid, {
+          ownerAddress,
+          fileName: safeFileName,
+        }),
       })
     }
 
@@ -1076,6 +1071,25 @@ export class MostBoxEngine extends EventEmitter {
 
     this.emit('publish:success', result)
     return result
+  }
+
+  async *#streamFolderFileContent(cid, options = {}) {
+    let result = null
+    try {
+      result = await this.openFileReadStream(cid, {
+        ownerAddress: options.ownerAddress,
+      })
+      for await (const chunk of result.stream) {
+        yield chunk
+      }
+    } catch {
+      const safeFileName = sanitizeFilename(options.fileName || '')
+      throw new ValidationError(
+        `Folder file is not locally available: ${safeFileName || cid}`
+      )
+    } finally {
+      result?.stream?.destroy()
+    }
   }
 
   /**
