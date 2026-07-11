@@ -359,6 +359,8 @@ function normalizeApiErrorPayload(response, data) {
   return {
     status: response?.status,
     code: typeof payload?.code === 'string' ? payload.code : undefined,
+    errorCode:
+      typeof payload?.errorCode === 'string' ? payload.errorCode : undefined,
     details:
       payload?.details && typeof payload.details === 'object'
         ? payload.details

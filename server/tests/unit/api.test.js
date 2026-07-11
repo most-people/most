@@ -382,6 +382,7 @@ describe('api browser helpers', () => {
         assert.deepStrictEqual(await getApiErrorPayload(err), {
           status: 400,
           code: 'VALIDATION_ERROR',
+          errorCode: undefined,
           details: undefined,
           error: 'Folder file is not locally available',
         })

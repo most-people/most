@@ -61,7 +61,13 @@ export const zhCNCidMessages = {
   'cid.status.downloading': '正在下载并校验文件。',
   'cid.status.downloadingFile': '正在下载 {fileName}。',
   'cid.status.downloadComplete': '{fileName} 下载完成，已默认继续做种。',
+  'cid.status.collectionPartialComplete':
+    '已下载 {downloadedFileCount}/{totalFiles} 个子文件，{unavailableFileCount} 个暂无在线种子；已下载的文件已保存并继续做种。',
+  'cid.status.collectionNoFilesDownloaded':
+    '目录清单已保存，但当前 {totalFiles} 个子文件都没有可用在线种子。请稍后重试，或让发布者/已下载者上线。',
   'cid.status.downloadFailed': '下载失败：{error}',
+  'cid.status.collectionChildUnavailable':
+    '目录“{collectionName}”清单可读，但子文件“{fileName}”没有可用在线种子。请让发布者或任一已完整下载者上线，或重新发布该目录。',
   'cid.status.cancelled': '下载已取消。',
   'cid.errorFallback': '未知错误',
   'cid.loginAction': '登录',
@@ -73,7 +79,11 @@ export const zhCNCidMessages = {
   'cid.openAppAction': '打开文件库',
   'cid.toast.downloadStarted': '下载已开始',
   'cid.toast.downloadComplete': '下载完成',
+  'cid.toast.collectionPartialComplete':
+    '已下载 {downloadedFileCount}/{totalFiles} 个子文件',
+  'cid.toast.collectionNoFilesDownloaded': '目录已加入，暂无可下载子文件',
   'cid.toast.downloadFailed': '下载失败：{error}',
+  'cid.toast.collectionChildUnavailable': '子文件没有在线种子：{fileName}',
   'cid.toast.cancelled': '下载已取消',
   'cid.toast.alreadyLocal': '本机已有该文件',
   'cid.toast.qrDownloaded': '分享二维码已下载',
@@ -142,7 +152,13 @@ export const zhTWCidMessages = {
   'cid.status.downloading': '正在下載並校驗檔案。',
   'cid.status.downloadingFile': '正在下載 {fileName}。',
   'cid.status.downloadComplete': '{fileName} 下載完成，已預設繼續做種。',
+  'cid.status.collectionPartialComplete':
+    '已下載 {downloadedFileCount}/{totalFiles} 個子檔案，{unavailableFileCount} 個暫無線上種子；已下載的檔案已保存並繼續做種。',
+  'cid.status.collectionNoFilesDownloaded':
+    '目錄清單已保存，但目前 {totalFiles} 個子檔案都沒有可用線上種子。請稍後重試，或讓發布者/已下載者上線。',
   'cid.status.downloadFailed': '下載失敗：{error}',
+  'cid.status.collectionChildUnavailable':
+    '目錄「{collectionName}」清單可讀，但子檔案「{fileName}」沒有可用線上種子。請讓發布者或任一已完整下載者上線，或重新發布該目錄。',
   'cid.status.cancelled': '下載已取消。',
   'cid.errorFallback': '未知錯誤',
   'cid.loginAction': '登入',
@@ -154,7 +170,11 @@ export const zhTWCidMessages = {
   'cid.openAppAction': '開啟檔案庫',
   'cid.toast.downloadStarted': '下載已開始',
   'cid.toast.downloadComplete': '下載完成',
+  'cid.toast.collectionPartialComplete':
+    '已下載 {downloadedFileCount}/{totalFiles} 個子檔案',
+  'cid.toast.collectionNoFilesDownloaded': '目錄已加入，暫無可下載子檔案',
   'cid.toast.downloadFailed': '下載失敗：{error}',
+  'cid.toast.collectionChildUnavailable': '子檔案沒有線上種子：{fileName}',
   'cid.toast.cancelled': '下載已取消',
   'cid.toast.alreadyLocal': '本機已有該檔案',
   'cid.toast.qrDownloaded': '分享 QR Code 已下載',
@@ -234,7 +254,13 @@ export const enCidMessages = {
   'cid.status.downloadingFile': 'Downloading {fileName}.',
   'cid.status.downloadComplete':
     '{fileName} downloaded and is seeding by default.',
+  'cid.status.collectionPartialComplete':
+    'Downloaded {downloadedFileCount}/{totalFiles} child files. {unavailableFileCount} currently have no online seeders; downloaded files were saved and are seeding.',
+  'cid.status.collectionNoFilesDownloaded':
+    'The folder manifest was saved, but none of the {totalFiles} child files currently have available online seeders. Try again later, or ask the publisher/completed downloaders to come online.',
   'cid.status.downloadFailed': 'Download failed: {error}',
+  'cid.status.collectionChildUnavailable':
+    'The "{collectionName}" manifest is readable, but child file "{fileName}" has no available online seeders. Ask the publisher or any completed downloader to come online, or publish the folder again.',
   'cid.status.cancelled': 'Download cancelled.',
   'cid.errorFallback': 'Unknown error',
   'cid.loginAction': 'Sign in',
@@ -246,7 +272,13 @@ export const enCidMessages = {
   'cid.openAppAction': 'Open file library',
   'cid.toast.downloadStarted': 'Download started',
   'cid.toast.downloadComplete': 'Download complete',
+  'cid.toast.collectionPartialComplete':
+    'Downloaded {downloadedFileCount}/{totalFiles} child files',
+  'cid.toast.collectionNoFilesDownloaded':
+    'Folder added; no child files are downloadable yet',
   'cid.toast.downloadFailed': 'Download failed: {error}',
+  'cid.toast.collectionChildUnavailable':
+    'No online seeders for child file: {fileName}',
   'cid.toast.cancelled': 'Download cancelled',
   'cid.toast.alreadyLocal': 'This file is already local',
   'cid.toast.qrDownloaded': 'Share QR downloaded',
