@@ -1,12 +1,17 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { randomUUID } from 'node:crypto'
 import { MAX_FILE_SIZE } from '../config.js'
 import { normalizeAddress } from '../core/shared.js'
 
 const DEFAULT_CONFIG_DIR_NAME = '.most-box'
 const DEFAULT_DATA_DIR_NAME = 'most-data'
 const DEFAULT_CAPACITY_BYTES = 100 * 1024 * 1024 * 1024
+const DEFAULT_LOCK_TIMEOUT_MS = 2_000
+const DEFAULT_LOCK_STALE_MS = 30_000
+const DEFAULT_LOCK_RETRY_MS = 10
+const LOCK_SLEEP_BUFFER = new Int32Array(new SharedArrayBuffer(4))
 export const DEFAULT_NODE_PORT = 1976
 export const DEFAULT_NODE_HOST = '127.0.0.1'
 
@@ -68,29 +73,142 @@ export function normalizeNodeConfig(raw = {}) {
   }
 }
 
-export function createNodeConfigStore(configDir = getDefaultConfigDir()) {
+export function createNodeConfigStore(
+  configDir = getDefaultConfigDir(),
+  options = {}
+) {
   const resolvedConfigDir = path.resolve(configDir)
   const configFile = path.join(resolvedConfigDir, 'config.json')
+  const lockFile = `${configFile}.lock`
+  const lockTimeoutMs = options.lockTimeoutMs ?? DEFAULT_LOCK_TIMEOUT_MS
+  const lockStaleMs = options.lockStaleMs ?? DEFAULT_LOCK_STALE_MS
+  const lockRetryMs = options.lockRetryMs ?? DEFAULT_LOCK_RETRY_MS
+
+  function ensureConfigDir() {
+    if (!fs.existsSync(resolvedConfigDir)) {
+      fs.mkdirSync(resolvedConfigDir, { recursive: true })
+    }
+  }
+
+  function readRawConfig() {
+    if (!fs.existsSync(configFile)) return {}
+    return JSON.parse(fs.readFileSync(configFile, 'utf-8'))
+  }
 
   function loadRawConfig() {
     try {
-      if (fs.existsSync(configFile)) {
-        return JSON.parse(fs.readFileSync(configFile, 'utf-8'))
-      }
+      return readRawConfig()
     } catch (err) {
       console.error('[Config] Load error:', err.message)
     }
     return {}
   }
 
+  function removeStaleLock() {
+    try {
+      const stat = fs.statSync(lockFile)
+      if (Date.now() - stat.mtimeMs <= lockStaleMs) return false
+      fs.unlinkSync(lockFile)
+      return true
+    } catch (err) {
+      return err.code === 'ENOENT'
+    }
+  }
+
+  function acquireConfigLock() {
+    ensureConfigDir()
+    const token = `${process.pid}:${randomUUID()}`
+    const deadline = Date.now() + lockTimeoutMs
+
+    while (true) {
+      let descriptor
+      let created = false
+      try {
+        descriptor = fs.openSync(lockFile, 'wx')
+        created = true
+        try {
+          fs.writeFileSync(descriptor, token, 'utf-8')
+          fs.fsyncSync(descriptor)
+        } finally {
+          fs.closeSync(descriptor)
+          descriptor = undefined
+        }
+        return token
+      } catch (err) {
+        if (descriptor !== undefined) {
+          fs.closeSync(descriptor)
+          descriptor = undefined
+        }
+        if (created) {
+          try {
+            fs.unlinkSync(lockFile)
+          } catch {}
+        }
+        if (err.code !== 'EEXIST') throw err
+        if (removeStaleLock()) continue
+        if (Date.now() >= deadline) {
+          const timeoutError = new Error('Timed out waiting for config lock')
+          timeoutError.code = 'CONFIG_LOCK_TIMEOUT'
+          throw timeoutError
+        }
+        Atomics.wait(LOCK_SLEEP_BUFFER, 0, 0, lockRetryMs)
+      }
+    }
+  }
+
+  function releaseConfigLock(token) {
+    try {
+      if (fs.readFileSync(lockFile, 'utf-8') === token) {
+        fs.unlinkSync(lockFile)
+      }
+    } catch (err) {
+      if (err.code !== 'ENOENT') {
+        console.warn('[Config] Failed to release lock:', err.message)
+      }
+    }
+  }
+
+  function withConfigLock(operation) {
+    const token = acquireConfigLock()
+    try {
+      return operation()
+    } finally {
+      releaseConfigLock(token)
+    }
+  }
+
+  function persistRawConfig(config) {
+    ensureConfigDir()
+    const tmpPath = `${configFile}.${process.pid}.${randomUUID()}.tmp`
+    let descriptor
+    try {
+      descriptor = fs.openSync(tmpPath, 'wx')
+      fs.writeFileSync(descriptor, JSON.stringify(config, null, 2), 'utf-8')
+      fs.fsyncSync(descriptor)
+      fs.closeSync(descriptor)
+      descriptor = undefined
+      fs.renameSync(tmpPath, configFile)
+
+      try {
+        const directoryDescriptor = fs.openSync(resolvedConfigDir, 'r')
+        try {
+          fs.fsyncSync(directoryDescriptor)
+        } finally {
+          fs.closeSync(directoryDescriptor)
+        }
+      } catch {}
+    } catch (err) {
+      if (descriptor !== undefined) fs.closeSync(descriptor)
+      try {
+        fs.unlinkSync(tmpPath)
+      } catch {}
+      throw err
+    }
+  }
+
   function saveRawConfig(config) {
     try {
-      if (!fs.existsSync(resolvedConfigDir)) {
-        fs.mkdirSync(resolvedConfigDir, { recursive: true })
-      }
-      const tmpPath = configFile + '.tmp'
-      fs.writeFileSync(tmpPath, JSON.stringify(config, null, 2), 'utf-8')
-      fs.renameSync(tmpPath, configFile)
+      withConfigLock(() => persistRawConfig(config))
       return true
     } catch (err) {
       console.error('[Config] Save error:', err.message)
@@ -106,8 +224,7 @@ export function createNodeConfigStore(configDir = getDefaultConfigDir()) {
     return getNodeConfig().dataPath || getDefaultDataPath()
   }
 
-  function saveNodeConfigPatchInternal(patch = {}, adminAddressOverride) {
-    const raw = loadRawConfig()
+  function buildSavedConfig(raw, patch = {}, adminAddressOverride) {
     const current = normalizeNodeConfig(raw)
     const next = normalizeNodeConfig({
       ...raw,
@@ -136,9 +253,11 @@ export function createNodeConfigStore(configDir = getDefaultConfigDir()) {
       },
     })
 
-    const saved = {
+    return {
+      ...raw,
       dataPath: next.dataPath,
       node: {
+        ...(raw.node && typeof raw.node === 'object' ? raw.node : {}),
         host: next.host,
         port: next.port,
         capacityBytes: next.capacityBytes,
@@ -148,8 +267,24 @@ export function createNodeConfigStore(configDir = getDefaultConfigDir()) {
         updatedAt: new Date().toISOString(),
       },
     }
+  }
 
-    return { success: saveRawConfig(saved), config: normalizeNodeConfig(saved) }
+  function saveNodeConfigPatchInternal(patch = {}, adminAddressOverride) {
+    try {
+      return withConfigLock(() => {
+        const raw = readRawConfig()
+        const saved = buildSavedConfig(raw, patch, adminAddressOverride)
+        persistRawConfig(saved)
+        return { success: true, config: normalizeNodeConfig(saved) }
+      })
+    } catch (err) {
+      console.error('[Config] Save error:', err.message)
+      return {
+        success: false,
+        reason: err.code || 'CONFIG_SAVE_FAILED',
+        config: getNodeConfig(),
+      }
+    }
   }
 
   function saveNodeConfigPatch(patch = {}) {
@@ -162,26 +297,42 @@ export function createNodeConfigStore(configDir = getDefaultConfigDir()) {
       return { success: false, claimed: false, reason: 'INVALID_ADDRESS' }
     }
 
-    const current = getNodeConfig()
-    if (current.adminAddress) {
-      return {
-        success: true,
-        claimed: false,
-        adminAddress: current.adminAddress,
-      }
-    }
+    try {
+      return withConfigLock(() => {
+        const raw = readRawConfig()
+        const current = normalizeNodeConfig(raw)
+        if (current.adminAddress) {
+          return {
+            success: true,
+            claimed: false,
+            adminAddress: current.adminAddress,
+          }
+        }
 
-    const result = saveNodeConfigPatchInternal({}, address)
-    return {
-      ...result,
-      claimed: result.success,
-      adminAddress: result.config.adminAddress,
+        const saved = buildSavedConfig(raw, {}, address)
+        persistRawConfig(saved)
+        return {
+          success: true,
+          claimed: true,
+          config: normalizeNodeConfig(saved),
+          adminAddress: address,
+        }
+      })
+    } catch (err) {
+      console.error('[Config] Claim admin error:', err.message)
+      return {
+        success: false,
+        claimed: false,
+        reason: err.code || 'CONFIG_SAVE_FAILED',
+        adminAddress: getNodeConfig().adminAddress,
+      }
     }
   }
 
   return {
     configDir: resolvedConfigDir,
     configFile,
+    lockFile,
     loadRawConfig,
     saveRawConfig,
     getNodeConfig,

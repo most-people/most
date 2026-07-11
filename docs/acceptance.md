@@ -154,7 +154,7 @@ curl http://localhost:1976/api/node/diagnostics
 | API 防滥用   | 重复认证失败、无效邀请码或高成本写入超过额度时返回 `429`、`RATE_LIMITED` 和 `Retry-After` | `server/src/http/rateLimit.js`                       |
 | 状态解释     | holding 显示 queued、joining、active、paused、error 对应中文状态                          | `formatSeedStatus()`                                 |
 | 日志可读     | 管理台展示时间、level、event、message，支持清空日志                                       | `/api/node/logs`、`src/features/admin/AdminPage.tsx` |
-| 设置落盘     | 数据目录、容量上限、单文件上限保存后，API 和管理台能读回                                  | `/api/node/config`                                   |
+| 设置落盘     | 配置 patch 在跨进程锁内原子落盘；并发更新保留其他字段，锁超时或 JSON 损坏时不覆盖原文件   | `/api/node/config`、`server/src/node/config.js`      |
 | holding 可见 | 发布或下载成功后，`/api/node/holdings` 与管理台都能看到 CID、大小、状态                   | `/api/node/holdings`                                 |
 | CID 派生     | 手动 holding 的 topic 与 driveName 都必须由 CID digest 派生，传入不匹配值不能污染记录     | `server/src/index.js`                                |
 | API 文档     | OpenAPI 同时包含节点管理、holding、P2P pull、发布、下载检测、下载和按 CID 读取文件路径    | `/api/openapi.json`                                  |
