@@ -118,11 +118,15 @@ interface NodeStatus {
     configuredBytes: number
     usedBytes: number
     freeBytes: number
+    physicalFreeBytes: number
   }
   storage: {
     total: number
     used: number
     free: number
+    logicalUsedBytes: number
+    physicalTotalBytes: number
+    physicalFreeBytes: number
     fileCount: number
     trashCount: number
   }

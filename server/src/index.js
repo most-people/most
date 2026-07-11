@@ -59,6 +59,10 @@ import {
   writeMetadataFile,
 } from './node/metadataFile.js'
 import {
+  evaluateStorageReservations,
+  getFilesystemSpace,
+} from './node/storageSpace.js'
+import {
   sanitizeFilename,
   validateAndSanitizePath,
   validateFileSize,
@@ -334,8 +338,8 @@ export class MostBoxEngine extends EventEmitter {
       dataPath: options.dataPath,
       downloadPath:
         options.downloadPath || path.join(options.dataPath, 'downloads'),
-      maxFileSize: options.maxFileSize || MAX_FILE_SIZE,
-      capacityBytes: options.capacityBytes || 100 * 1024 * 1024 * 1024,
+      maxFileSize: options.maxFileSize ?? MAX_FILE_SIZE,
+      capacityBytes: options.capacityBytes ?? 100 * 1024 * 1024 * 1024,
       downloadTimeout: options.downloadTimeout || DOWNLOAD_TIMEOUT,
       disableNetwork: options.disableNetwork === true,
     }
@@ -796,8 +800,6 @@ export class MostBoxEngine extends EventEmitter {
       )
     }
 
-    this.#checkCapacity(fileSize)
-
     this.emit('publish:progress', {
       stage: 'calculating-cid',
       file: safeFileName,
@@ -812,13 +814,17 @@ export class MostBoxEngine extends EventEmitter {
     // 检查相同内容是否已存在
     const existingIndex = publishedBucket.findIndex(f => f.cid === cidString)
     const repairingMissingContent = existingIndex !== -1
-    if (existingIndex !== -1) {
-      const existing = publishedBucket[existingIndex]
-      const existingContent = await this.#getLocalCidContent(cidString, {
+    const existingHolding = this.#holdings.find(item => item.cid === cidString)
+    let existingContent = null
+    if (existingIndex !== -1 || existingHolding) {
+      existingContent = await this.#getLocalCidContent(cidString, {
         ownerAddress,
         public: true,
         allowHoldingFallback: true,
       })
+    }
+    if (existingIndex !== -1) {
+      const existing = publishedBucket[existingIndex]
       if (existingContent) {
         await this.#joinCidTopicInternal(cidString, {
           server: true,
@@ -846,6 +852,14 @@ export class MostBoxEngine extends EventEmitter {
         excludeCid: repairingMissingContent ? cidString : undefined,
       })
     }
+
+    this.#checkCapacity(existingHolding ? 0 : fileSize, [
+      {
+        path: this.#options.dataPath,
+        bytes: fileSize,
+        label: 'hyperdrive',
+      },
+    ])
 
     // 获取或创建该 CID 对应的 drive
     let drive = this.#drives.get(name)
@@ -1026,6 +1040,14 @@ export class MostBoxEngine extends EventEmitter {
         excludeCid: repairingMissingContent ? cidString : undefined,
       })
     }
+
+    this.#checkCapacity(seedChildFiles ? directory.totalSize : 0, [
+      {
+        path: this.#options.dataPath,
+        bytes: directory.totalSize * (seedChildFiles ? 2 : 1),
+        label: 'collection',
+      },
+    ])
 
     const rootPath = directory.rootPath || ''
     if (seedChildFiles) {
@@ -1374,8 +1396,12 @@ export class MostBoxEngine extends EventEmitter {
           // 忽略
         }
 
-        if (totalBytes > 0) {
-          this.#checkCapacity(totalBytes)
+        if (totalBytes > this.#options.maxFileSize) {
+          throw new FileSizeError(
+            'Downloaded file exceeds the configured maximum file size',
+            totalBytes,
+            this.#options.maxFileSize
+          )
         }
 
         const savePath = path.join(targetDir, sanitizedFileName)
@@ -1383,6 +1409,21 @@ export class MostBoxEngine extends EventEmitter {
         if (fs.existsSync(savePath)) {
           throw new ConflictError(`已有同名文件: ${sanitizedFileName}`)
         }
+        const existingHolding = this.#holdings.find(
+          item => item.cid === cidString
+        )
+        this.#checkCapacity(existingHolding ? 0 : totalBytes, [
+          {
+            path: this.#options.dataPath,
+            bytes: totalBytes,
+            label: 'hyperdrive',
+          },
+          {
+            path: targetDir,
+            bytes: totalBytes,
+            label: 'download',
+          },
+        ])
 
         this.emit('download:status', {
           taskId,
@@ -2104,55 +2145,27 @@ export class MostBoxEngine extends EventEmitter {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
 
-    let totalSize = 0
-    let freeSize = 0
+    let physicalTotalBytes = 0
+    let physicalFreeBytes = 0
     const { dataPath } = this.#options
 
     try {
-      const stats = fs.statfsSync(dataPath)
-      totalSize = stats.bsize * stats.blocks
-      freeSize = stats.bsize * stats.bfree
+      const space = getFilesystemSpace(dataPath)
+      physicalTotalBytes = space.totalBytes
+      physicalFreeBytes = space.availableBytes
     } catch {
-      try {
-        fs.statSync(dataPath)
-        totalSize = 0
-        freeSize = 0
-      } catch {
-        totalSize = 0
-        freeSize = 0
-      }
+      physicalTotalBytes = 0
+      physicalFreeBytes = 0
     }
-
-    let usedSize = 0
-    const calculateDirSize = dirPath => {
-      try {
-        const entries = fs.readdirSync(dirPath, { withFileTypes: true })
-        for (const entry of entries) {
-          const fullPath = path.join(dirPath, entry.name)
-          if (entry.isDirectory()) {
-            if (entry.name !== 'db') {
-              calculateDirSize(fullPath)
-            }
-          } else {
-            try {
-              const stat = fs.statSync(fullPath)
-              usedSize += stat.size
-            } catch {
-              // 跳过无法访问的文件
-            }
-          }
-        }
-      } catch {
-        // 跳过无法访问的目录
-      }
-    }
-
-    calculateDirSize(dataPath)
+    const logicalUsedBytes = this.#getUsedBytes()
 
     return {
-      total: totalSize,
-      used: usedSize,
-      free: freeSize,
+      total: physicalTotalBytes,
+      used: logicalUsedBytes,
+      free: physicalFreeBytes,
+      logicalUsedBytes,
+      physicalTotalBytes,
+      physicalFreeBytes,
       fileCount: ownerAddress
         ? this.#getPublishedBucket(ownerAddress).length
         : this.#countBucketRecords(this.#publishedFiles),
@@ -2281,6 +2294,14 @@ export class MostBoxEngine extends EventEmitter {
       throw new ValidationError('maxFileSize must be a non-negative number')
     }
     this.#options.maxFileSize = Math.floor(parsed)
+  }
+
+  setCapacityBytes(capacityBytes) {
+    const parsed = Number(capacityBytes)
+    if (!Number.isSafeInteger(parsed) || parsed < 0) {
+      throw new ValidationError('capacityBytes must be a non-negative integer')
+    }
+    this.#options.capacityBytes = parsed
   }
 
   getPublishedFiles(options = {}) {
@@ -6180,14 +6201,47 @@ export class MostBoxEngine extends EventEmitter {
     )
   }
 
-  #checkCapacity(additionalBytes) {
+  #checkCapacity(additionalBytes, reservations = []) {
     const used = this.#getUsedBytes()
     const capacity = this.#options.capacityBytes
     if (used + additionalBytes > capacity) {
       const usedGB = (used / (1024 * 1024 * 1024)).toFixed(2)
       const capacityGB = (capacity / (1024 * 1024 * 1024)).toFixed(2)
       throw new StorageCapacityError(
-        `Storage capacity exceeded: used ${usedGB} GB, capacity ${capacityGB} GB`
+        `Storage capacity exceeded: used ${usedGB} GB, capacity ${capacityGB} GB`,
+        {
+          reason: 'CONFIGURED_CAPACITY_EXCEEDED',
+          usedBytes: used,
+          additionalBytes,
+          capacityBytes: capacity,
+        }
+      )
+    }
+
+    let reservationResult
+    try {
+      reservationResult = evaluateStorageReservations(reservations)
+    } catch (err) {
+      console.warn(
+        '[MostBox] Failed to check filesystem capacity:',
+        err.message
+      )
+      throw new StorageCapacityError('Unable to determine available disk space', {
+        reason: 'DISK_SPACE_CHECK_FAILED',
+      })
+    }
+    const insufficientVolume = reservationResult.volumes.find(
+      volume => !volume.accepted
+    )
+    if (insufficientVolume) {
+      throw new StorageCapacityError(
+        `Insufficient disk space: ${formatFileSize(insufficientVolume.requiredBytes)} required, ${formatFileSize(insufficientVolume.availableBytes)} available`,
+        {
+          reason: 'INSUFFICIENT_DISK_SPACE',
+          requiredBytes: insufficientVolume.requiredBytes,
+          availableBytes: insufficientVolume.availableBytes,
+          labels: insufficientVolume.labels,
+        }
       )
     }
   }

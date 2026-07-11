@@ -186,6 +186,7 @@ export function registerNodeRoutes(
     if (!result.success) return errorJson(c, configPersistenceError(result))
     const { config } = result
     engine.setMaxFileSize(config.maxFileSizeBytes)
+    engine.setCapacityBytes(config.capacityBytes)
     appendNodeLog({
       event: 'node:config:updated',
       message: 'Node daemon config updated',

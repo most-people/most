@@ -262,6 +262,10 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(data.config.maxFileSizeBytes, 10 * 1024 * 1024 * 1024)
       assert.ok(Array.isArray(data.listen.addresses))
       assert.strictEqual(typeof data.capacity.configuredBytes, 'number')
+      assert.strictEqual(typeof data.capacity.physicalFreeBytes, 'number')
+      assert.strictEqual(typeof data.storage.logicalUsedBytes, 'number')
+      assert.strictEqual(typeof data.storage.physicalTotalBytes, 'number')
+      assert.strictEqual(typeof data.storage.physicalFreeBytes, 'number')
       assert.ok(Array.isArray(data.holdings))
       assert.strictEqual('remoteInvites' in data.config, false)
       assert.strictEqual(typeof data.config.remoteInviteCount, 'number')
@@ -333,10 +337,16 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         }),
       }
       const hadOwnSetMaxFileSize = Object.hasOwn(engine, 'setMaxFileSize')
+      const hadOwnSetCapacityBytes = Object.hasOwn(engine, 'setCapacityBytes')
       const originalSetMaxFileSize = engine.setMaxFileSize
+      const originalSetCapacityBytes = engine.setCapacityBytes
       let setMaxFileSizeCalls = 0
+      let setCapacityBytesCalls = 0
       engine.setMaxFileSize = () => {
         setMaxFileSizeCalls += 1
+      }
+      engine.setCapacityBytes = () => {
+        setCapacityBytesCalls += 1
       }
 
       try {
@@ -365,6 +375,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         }
 
         assert.strictEqual(setMaxFileSizeCalls, 0)
+        assert.strictEqual(setCapacityBytesCalls, 0)
         assert.ok(
           failureLogger.list(20).every(log => !log.event.endsWith(':updated'))
         )
@@ -373,6 +384,11 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
           engine.setMaxFileSize = originalSetMaxFileSize
         } else {
           delete engine.setMaxFileSize
+        }
+        if (hadOwnSetCapacityBytes) {
+          engine.setCapacityBytes = originalSetCapacityBytes
+        } else {
+          delete engine.setCapacityBytes
         }
       }
     })

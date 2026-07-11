@@ -106,8 +106,12 @@ export async function buildNodeStatus(
     },
     capacity: {
       configuredBytes: config.capacityBytes,
-      usedBytes: storage.used,
-      freeBytes: Math.max(0, config.capacityBytes - storage.used),
+      usedBytes: storage.logicalUsedBytes,
+      freeBytes: Math.max(
+        0,
+        config.capacityBytes - storage.logicalUsedBytes
+      ),
+      physicalFreeBytes: storage.physicalFreeBytes,
     },
     storage,
     network,

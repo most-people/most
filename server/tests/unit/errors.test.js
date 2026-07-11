@@ -9,6 +9,7 @@ import {
   IntegrityError,
   PermissionError,
   ConflictError,
+  StorageCapacityError,
   EngineNotInitializedError,
   PersistenceError,
   isErrorWithCode,
@@ -147,6 +148,20 @@ describe('PersistenceError', () => {
     assert.strictEqual(err.name, 'PersistenceError')
     assert.strictEqual(err.message, 'save failed')
     assert.deepStrictEqual(err.details, { metadata: 'files' })
+  })
+})
+
+describe('StorageCapacityError details', () => {
+  it('preserves machine-readable capacity details', () => {
+    const err = new StorageCapacityError('disk full', {
+      reason: 'INSUFFICIENT_DISK_SPACE',
+      requiredBytes: 10,
+    })
+
+    assert.deepStrictEqual(err.details, {
+      reason: 'INSUFFICIENT_DISK_SPACE',
+      requiredBytes: 10,
+    })
   })
 })
 

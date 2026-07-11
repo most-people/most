@@ -78,9 +78,10 @@ export class ConflictError extends AppError {
 }
 
 export class StorageCapacityError extends AppError {
-  constructor(message = 'Storage capacity exceeded') {
+  constructor(message = 'Storage capacity exceeded', details = undefined) {
     super(message, 'STORAGE_CAPACITY_ERROR')
     this.name = 'StorageCapacityError'
+    if (details) this.details = details
   }
 }
 

@@ -1477,6 +1477,9 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.strictEqual(typeof stats.total, 'number')
       assert.strictEqual(typeof stats.used, 'number')
       assert.strictEqual(typeof stats.free, 'number')
+      assert.strictEqual(stats.used, stats.logicalUsedBytes)
+      assert.strictEqual(typeof stats.physicalTotalBytes, 'number')
+      assert.strictEqual(typeof stats.physicalFreeBytes, 'number')
       assert.strictEqual(typeof stats.fileCount, 'number')
     })
   })
@@ -2254,6 +2257,132 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         assert.ok(result.cid)
       } finally {
         if (capacityEngine) await capacityEngine.stop().catch(() => {})
+        fs.rmSync(capacityTmpDir, { recursive: true, force: true })
+      }
+    })
+
+    it('applies capacity updates without restarting the engine', async () => {
+      const capacityTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-capacity-update-')
+      )
+      const dataPath = path.join(capacityTmpDir, 'data')
+      let capacityEngine
+
+      try {
+        capacityEngine = new MostBoxEngine({
+          dataPath,
+          disableNetwork: true,
+        })
+        await capacityEngine.start()
+        capacityEngine.setCapacityBytes(5)
+
+        await assert.rejects(
+          capacityEngine.publishFile(Buffer.alloc(10), 'updated-limit.txt'),
+          error =>
+            error.code === 'STORAGE_CAPACITY_ERROR' &&
+            error.details?.reason === 'CONFIGURED_CAPACITY_EXCEEDED' &&
+            error.details?.capacityBytes === 5
+        )
+      } finally {
+        if (capacityEngine) await capacityEngine.stop().catch(() => {})
+        fs.rmSync(capacityTmpDir, { recursive: true, force: true })
+      }
+    })
+
+    it('rejects publish when the filesystem has insufficient free space', async () => {
+      const capacityTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-physical-capacity-')
+      )
+      const dataPath = path.join(capacityTmpDir, 'data')
+      let capacityEngine
+      const originalStatfsSync = fs.statfsSync
+
+      try {
+        capacityEngine = new MostBoxEngine({
+          dataPath,
+          disableNetwork: true,
+        })
+        await capacityEngine.start()
+        fs.statfsSync = () => ({
+          bsize: 1n,
+          blocks: 1000n,
+          bfree: 5n,
+          bavail: 5n,
+        })
+
+        await assert.rejects(
+          capacityEngine.publishFile(Buffer.alloc(10), 'no-space.txt'),
+          error =>
+            error.code === 'STORAGE_CAPACITY_ERROR' &&
+            error.details?.reason === 'INSUFFICIENT_DISK_SPACE' &&
+            error.details?.requiredBytes === 10 &&
+            error.details?.availableBytes === 5
+        )
+      } finally {
+        fs.statfsSync = originalStatfsSync
+        if (capacityEngine) await capacityEngine.stop().catch(() => {})
+        fs.rmSync(capacityTmpDir, { recursive: true, force: true })
+      }
+    })
+
+    it('enforces remote file size and same-volume download reservations', async () => {
+      const capacityTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-download-capacity-')
+      )
+      const publisherPath = path.join(capacityTmpDir, 'publisher')
+      const downloaderPath = path.join(capacityTmpDir, 'downloader')
+      const content = Buffer.alloc(80, 'x')
+      let publisher
+      let downloader
+      let replication
+      const originalStatfsSync = fs.statfsSync
+
+      try {
+        publisher = new MostBoxEngine({
+          dataPath: publisherPath,
+          disableNetwork: true,
+        })
+        downloader = new MostBoxEngine({
+          dataPath: downloaderPath,
+          disableNetwork: true,
+          maxFileSize: 40,
+          downloadTimeout: 5000,
+        })
+        await publisher.start()
+        await downloader.start()
+        const published = await publisher.publishFile(content, 'remote.bin')
+        replication = publisher.replicateWith(downloader)
+
+        await assert.rejects(
+          downloader.downloadFile(published.link, null, { timeout: 5000 }),
+          error =>
+            error.code === 'FILE_SIZE_ERROR' &&
+            error.details?.sizeBytes === content.length &&
+            error.details?.maxFileSizeBytes === 40
+        )
+
+        downloader.setMaxFileSize(1000)
+        fs.statfsSync = () => ({
+          bsize: 1n,
+          blocks: 1000n,
+          bfree: 120n,
+          bavail: 120n,
+        })
+        await assert.rejects(
+          downloader.downloadFile(published.link, null, { timeout: 5000 }),
+          error =>
+            error.code === 'STORAGE_CAPACITY_ERROR' &&
+            error.details?.reason === 'INSUFFICIENT_DISK_SPACE' &&
+            error.details?.requiredBytes === content.length * 2 &&
+            error.details?.availableBytes === 120 &&
+            error.details?.labels?.includes('hyperdrive') &&
+            error.details?.labels?.includes('download')
+        )
+      } finally {
+        fs.statfsSync = originalStatfsSync
+        replication?.close()
+        if (publisher) await publisher.stop().catch(() => {})
+        if (downloader) await downloader.stop().catch(() => {})
         fs.rmSync(capacityTmpDir, { recursive: true, force: true })
       }
     })

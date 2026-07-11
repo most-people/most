@@ -363,7 +363,11 @@ export function evaluateStorageLimits(config, input = {}) {
 
 function normalizePositiveInteger(value, fallback) {
   const parsed = Number(value)
-  if (!Number.isFinite(parsed) || parsed < 0) {
+  if (
+    !Number.isFinite(parsed) ||
+    parsed < 0 ||
+    parsed > Number.MAX_SAFE_INTEGER
+  ) {
     return fallback
   }
   return Math.floor(parsed)

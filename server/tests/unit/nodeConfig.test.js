@@ -86,6 +86,18 @@ describe('normalizeNodeConfig', () => {
     assert.strictEqual(config.adminAddress, '')
   })
 
+  it('rejects capacity values outside the safe integer range', () => {
+    const config = normalizeNodeConfig({
+      node: {
+        capacityBytes: Number.MAX_SAFE_INTEGER + 1,
+        maxFileSizeBytes: Number.POSITIVE_INFINITY,
+      },
+    })
+
+    assert.strictEqual(config.capacityBytes, 100 * 1024 * 1024 * 1024)
+    assert.strictEqual(config.maxFileSizeBytes, MAX_FILE_SIZE)
+  })
+
   it('claims one administrator and preserves it across config patches', () => {
     const configDir = fs.mkdtempSync(
       path.join(os.tmpdir(), 'most-node-admin-config-')
