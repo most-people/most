@@ -11,7 +11,13 @@ function startDownloadTask(engine, link, taskId, options, wsBroadcast) {
     if (err.message === 'Download cancelled') {
       wsBroadcast('download:cancelled', { taskId })
     } else {
-      wsBroadcast('download:error', { taskId, error: err.message })
+      wsBroadcast('download:error', {
+        taskId,
+        error: err.message,
+        code: err.code || 'UNKNOWN',
+        errorCode: err.errorCode,
+        details: err.details,
+      })
     }
   })
 }

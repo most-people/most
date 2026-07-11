@@ -348,6 +348,7 @@ export async function getApiErrorPayload(err) {
   return {
     status: response.status,
     code: typeof data?.code === 'string' ? data.code : undefined,
+    errorCode: typeof data?.errorCode === 'string' ? data.errorCode : undefined,
     details:
       data?.details && typeof data.details === 'object'
         ? data.details

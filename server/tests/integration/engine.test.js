@@ -843,7 +843,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       }
     })
 
-    it('does not leave a collection library record when child download fails', async () => {
+    it('keeps a collection task when no child files are currently downloadable', async () => {
       const failureTmpDir = fs.mkdtempSync(
         path.join(os.tmpdir(), 'most-collection-failure-')
       )
@@ -869,12 +869,33 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
           { seedChildFiles: false }
         )
 
-        const download = downloader.downloadFile(publishResult.link, null, {
+        const taskId = 'collection-missing-child-download'
+        const parentStatusEvents = []
+        downloader.on('download:status', event => {
+          if (event.taskId === taskId) parentStatusEvents.push(event)
+        })
+
+        const download = downloader.downloadFile(publishResult.link, taskId, {
           timeout: 100,
         })
         await sleep(100)
         replication = publisher.replicateWith(downloader)
-        await assert.rejects(download, /not found|peers|file data/i)
+        const result = await download
+        assert.strictEqual(result.kind, 'collection')
+        assert.strictEqual(result.partial, true)
+        assert.strictEqual(result.downloadedFileCount, 0)
+        assert.strictEqual(result.unavailableFileCount, 1)
+        assert.deepStrictEqual(
+          result.unavailableFiles.map(file => file.path),
+          ['only.txt']
+        )
+        assert.ok(
+          parentStatusEvents.some(
+            event =>
+              event.status === 'finding-peers' &&
+              event.file === 'Broken/only.txt'
+          )
+        )
 
         assert.strictEqual(
           downloader
@@ -884,10 +905,17 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         )
         assert.strictEqual(
           downloader
-            .listHoldings()
-            .some(holding => holding.cid === publishResult.cid),
+            .listPublishedFiles()
+            .some(file => file.cid === publishResult.files[0].cid),
           false
         )
+        assert.ok(
+          downloader
+            .listHoldings()
+            .some(holding => holding.cid === publishResult.cid)
+        )
+        const collection = await downloader.getCollection(publishResult.cid)
+        assert.strictEqual(collection.files[0].localAvailable, false)
       } finally {
         replication?.close()
         if (publisher) await publisher.stop().catch(() => {})
@@ -944,7 +972,20 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         })
         await sleep(100)
         replication = publisher.replicateWith(downloader)
-        await assert.rejects(download, /not found|peers|file data/i)
+        const result = await download
+
+        assert.strictEqual(result.kind, 'collection')
+        assert.strictEqual(result.partial, true)
+        assert.strictEqual(result.downloadedFileCount, 1)
+        assert.strictEqual(result.unavailableFileCount, 1)
+        assert.deepStrictEqual(
+          result.files.map(file => file.path),
+          ['one.txt']
+        )
+        assert.deepStrictEqual(
+          result.unavailableFiles.map(file => file.path),
+          ['two.txt']
+        )
 
         const records = downloader.listPublishedFiles()
         assert.deepStrictEqual(records.map(file => file.fileName).sort(), [
@@ -954,10 +995,18 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
           records.some(file => file.cid === publishResult.cid),
           false
         )
-        assert.strictEqual(
+        assert.ok(
           downloader
             .listHoldings()
-            .some(holding => holding.cid === publishResult.cid),
+            .some(holding => holding.cid === publishResult.cid)
+        )
+        const collection = await downloader.getCollection(publishResult.cid)
+        assert.strictEqual(
+          collection.files.find(file => file.path === 'one.txt').localAvailable,
+          true
+        )
+        assert.strictEqual(
+          collection.files.find(file => file.path === 'two.txt').localAvailable,
           false
         )
         assert.deepStrictEqual(
@@ -965,6 +1014,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
             collection: event.collection,
             completedFiles: event.completedFiles,
             totalFiles: event.totalFiles,
+            unavailableFileCount: event.unavailableFileCount,
             percent: event.percent,
           })),
           [
@@ -972,7 +1022,15 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
               collection: true,
               completedFiles: 1,
               totalFiles: 2,
+              unavailableFileCount: 0,
               percent: 50,
+            },
+            {
+              collection: true,
+              completedFiles: 1,
+              totalFiles: 2,
+              unavailableFileCount: 1,
+              percent: 100,
             },
           ]
         )
@@ -982,6 +1040,13 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
           ),
           []
         )
+        const parentSuccess = successEvents.find(
+          event => event.taskId === taskId
+        )
+        assert.ok(parentSuccess)
+        assert.strictEqual(parentSuccess.partial, true)
+        assert.strictEqual(parentSuccess.downloadedFileCount, 1)
+        assert.strictEqual(parentSuccess.unavailableFileCount, 1)
       } finally {
         replication?.close()
         if (publisher) await publisher.stop().catch(() => {})

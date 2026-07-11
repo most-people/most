@@ -2975,19 +2975,55 @@ export class MostBoxEngine extends EventEmitter {
     }
 
     const downloadedFiles = []
+    const unavailableFiles = []
     for (let index = 0; index < childTargets.length; index += 1) {
       const { file, fileName } = childTargets[index]
-      const childResult = await this.downloadFile(
-        buildMostLink(file.cid, fileName),
-        `${taskId}_${index}`,
-        {
-          timeout: options.timeout,
-          streamReadTimeout: options.streamReadTimeout,
-          ownerAddress,
-          addToLibrary: true,
-          suppressSuccessEvent: true,
-        }
-      )
+      this.emit('download:status', {
+        taskId,
+        status: 'finding-peers',
+        file: fileName,
+      })
+      let childResult
+      try {
+        childResult = await this.downloadFile(
+          buildMostLink(file.cid, fileName),
+          `${taskId}_${index}`,
+          {
+            timeout: options.timeout ?? DRIVE_ENTRY_TIMEOUT,
+            streamReadTimeout: options.streamReadTimeout,
+            ownerAddress,
+            addToLibrary: true,
+            suppressSuccessEvent: true,
+          }
+        )
+      } catch (err) {
+        if (err?.code !== 'PEER_NOT_FOUND') throw err
+
+        unavailableFiles.push({
+          ...file,
+          path: file.path,
+          cid: file.cid,
+          fileName,
+          errorCode: 'COLLECTION_CHILD_UNAVAILABLE',
+          error: 'No online seeders currently have this collection child file.',
+        })
+        this.emit('download:progress', {
+          taskId,
+          collection: true,
+          file: fileName,
+          loaded: downloadedFiles.length,
+          total: files.length,
+          completedFiles: downloadedFiles.length,
+          totalFiles: files.length,
+          processedFiles: index + 1,
+          unavailableFileCount: unavailableFiles.length,
+          percent:
+            files.length > 0
+              ? Math.round(((index + 1) / files.length) * 100)
+              : 0,
+        })
+        continue
+      }
       downloadedFiles.push({
         ...file,
         ...childResult,
@@ -3003,10 +3039,10 @@ export class MostBoxEngine extends EventEmitter {
         total: files.length,
         completedFiles,
         totalFiles: files.length,
+        processedFiles: index + 1,
+        unavailableFileCount: unavailableFiles.length,
         percent:
-          files.length > 0
-            ? Math.round((completedFiles / files.length) * 100)
-            : 0,
+          files.length > 0 ? Math.round(((index + 1) / files.length) * 100) : 0,
       })
     }
 
@@ -3029,7 +3065,12 @@ export class MostBoxEngine extends EventEmitter {
       cid: collection.cid,
       fileName: collectionName,
       fileCount: collection.fileCount,
+      selectedFileCount: files.length,
+      downloadedFileCount: downloadedFiles.length,
+      unavailableFileCount: unavailableFiles.length,
+      partial: unavailableFiles.length > 0,
       files: downloadedFiles,
+      unavailableFiles,
     }
     this.emit('download:success', result)
     return result

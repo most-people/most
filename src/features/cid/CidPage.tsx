@@ -34,6 +34,7 @@ import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import {
   getApiErrorMessage,
+  getApiErrorPayload,
   getAuthenticatedWebSocketUrl,
 } from '~server/src/utils/api'
 import { parseMostLink } from '~server/src/core/mostLink.js'
@@ -68,12 +69,39 @@ type DownloadState = {
 
 type DownloadEventPayload = {
   taskId?: string
+  status?: string
+  kind?: string
+  code?: string
+  errorCode?: string
+  collection?: boolean
+  partial?: boolean
   percent?: number
   loaded?: number
   total?: number
+  fileCount?: number
+  selectedFileCount?: number
+  downloadedFileCount?: number
+  unavailableFileCount?: number
+  processedFiles?: number
+  completedFiles?: number
+  totalFiles?: number
   file?: string
   fileName?: string
   error?: string
+  details?: DownloadErrorDetails
+}
+
+type DownloadErrorDetails = {
+  kind?: string
+  collectionName?: string
+  childCid?: string
+  childPath?: string
+  fileName?: string
+}
+
+type CollectionProgress = {
+  completedFiles: number
+  totalFiles: number
 }
 
 type CidProcessStepKey = 'open' | 'check' | 'verify' | 'seed'
@@ -111,6 +139,118 @@ function readNumber(record: Record<string, unknown>, key: string) {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined
 }
 
+function readBoolean(record: Record<string, unknown>, key: string) {
+  const value = record[key]
+  return typeof value === 'boolean' ? value : undefined
+}
+
+function readDownloadErrorDetails(
+  value: unknown
+): DownloadErrorDetails | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    return undefined
+
+  const record = value as Record<string, unknown>
+  return {
+    kind: readString(record, 'kind'),
+    collectionName: readString(record, 'collectionName'),
+    childCid: readString(record, 'childCid'),
+    childPath: readString(record, 'childPath'),
+    fileName: readString(record, 'fileName'),
+  }
+}
+
+function normalizeDownloadErrorPayload(value: unknown): DownloadEventPayload {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+
+  const record = value as Record<string, unknown>
+  return {
+    code: readString(record, 'code'),
+    errorCode: readString(record, 'errorCode'),
+    error: readString(record, 'error'),
+    details: readDownloadErrorDetails(record.details),
+  }
+}
+
+function getDownloadErrorCopy(
+  payload: DownloadEventPayload,
+  fallbackMessage: string,
+  t: ReturnType<typeof useI18n>['t']
+) {
+  if (
+    payload.errorCode === 'COLLECTION_CHILD_UNAVAILABLE' ||
+    payload.details?.kind === 'collection-child'
+  ) {
+    const fileName =
+      payload.details?.childPath ||
+      payload.details?.fileName ||
+      payload.details?.childCid ||
+      t('cid.errorFallback')
+    const collectionName = payload.details?.collectionName || fileName
+
+    return {
+      message: t('cid.status.collectionChildUnavailable', {
+        collectionName,
+        fileName,
+      }),
+      toast: t('cid.toast.collectionChildUnavailable', { fileName }),
+    }
+  }
+
+  const error = payload.error || t('cid.errorFallback')
+  return {
+    message: payload.error || fallbackMessage,
+    toast: t('cid.toast.downloadFailed', { error }),
+  }
+}
+
+function getDownloadSuccessCopy(
+  payload: DownloadEventPayload,
+  fallbackFileName: string,
+  t: ReturnType<typeof useI18n>['t']
+) {
+  if (payload.kind === 'collection' && payload.partial === true) {
+    const totalFiles =
+      payload.selectedFileCount ?? payload.totalFiles ?? payload.fileCount ?? 0
+    const downloadedFileCount =
+      payload.downloadedFileCount ?? payload.completedFiles ?? 0
+    const unavailableFileCount =
+      payload.unavailableFileCount ??
+      Math.max(totalFiles - downloadedFileCount, 0)
+
+    if (downloadedFileCount > 0) {
+      return {
+        message: t('cid.status.collectionPartialComplete', {
+          downloadedFileCount,
+          totalFiles,
+          unavailableFileCount,
+        }),
+        toast: t('cid.toast.collectionPartialComplete', {
+          downloadedFileCount,
+          totalFiles,
+        }),
+        toastType: 'warning',
+      }
+    }
+
+    return {
+      message: t('cid.status.collectionNoFilesDownloaded', {
+        totalFiles,
+      }),
+      toast: t('cid.toast.collectionNoFilesDownloaded'),
+      toastType: 'warning',
+    }
+  }
+
+  return {
+    message: t('cid.status.downloadComplete', {
+      fileName: payload.fileName || fallbackFileName,
+    }),
+    toast: t('cid.toast.downloadComplete'),
+    toastType: 'success',
+  }
+}
+
 function parseDownloadEvent(raw: string) {
   let parsed: unknown
   try {
@@ -128,12 +268,26 @@ function parseDownloadEvent(raw: string) {
   const payloadRecord = data as Record<string, unknown>
   const payload: DownloadEventPayload = {
     taskId: readString(payloadRecord, 'taskId'),
+    status: readString(payloadRecord, 'status'),
+    kind: readString(payloadRecord, 'kind'),
+    code: readString(payloadRecord, 'code'),
+    errorCode: readString(payloadRecord, 'errorCode'),
+    collection: readBoolean(payloadRecord, 'collection'),
+    partial: readBoolean(payloadRecord, 'partial'),
     percent: readNumber(payloadRecord, 'percent'),
     loaded: readNumber(payloadRecord, 'loaded'),
     total: readNumber(payloadRecord, 'total'),
+    fileCount: readNumber(payloadRecord, 'fileCount'),
+    selectedFileCount: readNumber(payloadRecord, 'selectedFileCount'),
+    downloadedFileCount: readNumber(payloadRecord, 'downloadedFileCount'),
+    unavailableFileCount: readNumber(payloadRecord, 'unavailableFileCount'),
+    processedFiles: readNumber(payloadRecord, 'processedFiles'),
+    completedFiles: readNumber(payloadRecord, 'completedFiles'),
+    totalFiles: readNumber(payloadRecord, 'totalFiles'),
     file: readString(payloadRecord, 'file'),
     fileName: readString(payloadRecord, 'fileName'),
     error: readString(payloadRecord, 'error'),
+    details: readDownloadErrorDetails(payloadRecord.details),
   }
 
   return { event, payload }
@@ -186,6 +340,8 @@ export default function CidPage() {
   const [progress, setProgress] = useState(0)
   const [loadedBytes, setLoadedBytes] = useState<number | null>(null)
   const [totalBytes, setTotalBytes] = useState<number | null>(null)
+  const [collectionProgress, setCollectionProgress] =
+    useState<CollectionProgress | null>(null)
   const [downloadPath, setDownloadPath] = useState('')
   const [showHandoffFallback, setShowHandoffFallback] = useState(false)
   const checkSeqRef = useRef(0)
@@ -379,8 +535,20 @@ export default function CidPage() {
 
         if (parsed.event === 'download:progress') {
           setProgress(parsed.payload.percent || 0)
-          setLoadedBytes(parsed.payload.loaded ?? null)
-          setTotalBytes(parsed.payload.total ?? null)
+          if (parsed.payload.collection === true) {
+            setLoadedBytes(null)
+            setTotalBytes(null)
+            setCollectionProgress({
+              completedFiles:
+                parsed.payload.completedFiles ?? parsed.payload.loaded ?? 0,
+              totalFiles:
+                parsed.payload.totalFiles ?? parsed.payload.total ?? 0,
+            })
+          } else {
+            setCollectionProgress(null)
+            setLoadedBytes(parsed.payload.loaded ?? null)
+            setTotalBytes(parsed.payload.total ?? null)
+          }
         }
 
         if (parsed.event === 'download:status') {
@@ -395,29 +563,30 @@ export default function CidPage() {
         }
 
         if (parsed.event === 'download:success') {
+          const successCopy = getDownloadSuccessCopy(
+            parsed.payload,
+            fileName,
+            t
+          )
           setProgress(100)
           setDownloadState({
             status: 'completed',
-            message: t('cid.status.downloadComplete', {
-              fileName: parsed.payload.fileName || fileName,
-            }),
+            message: successCopy.message,
           })
-          addToast(t('cid.toast.downloadComplete'), 'success')
+          addToast(successCopy.toast, successCopy.toastType)
         }
 
         if (parsed.event === 'download:error') {
+          const errorCopy = getDownloadErrorCopy(
+            parsed.payload,
+            t('cid.status.downloadFailed', { error: t('cid.errorFallback') }),
+            t
+          )
           setDownloadState({
             status: 'error',
-            message:
-              parsed.payload.error ||
-              t('cid.status.downloadFailed', { error: '' }),
+            message: errorCopy.message,
           })
-          addToast(
-            t('cid.toast.downloadFailed', {
-              error: parsed.payload.error || t('cid.errorFallback'),
-            }),
-            'error'
-          )
+          addToast(errorCopy.toast, 'error')
         }
 
         if (parsed.event === 'download:cancelled') {
@@ -454,6 +623,9 @@ export default function CidPage() {
       message: t('cid.status.startingDownload'),
     })
     setProgress(0)
+    setLoadedBytes(null)
+    setTotalBytes(null)
+    setCollectionProgress(null)
 
     try {
       const result = await fileApi.downloadFile(mostLink)
@@ -477,12 +649,17 @@ export default function CidPage() {
         addToast(t('cid.toast.downloadStarted'), 'info')
       }
     } catch (err) {
-      const message = await getApiErrorMessage(
-        err,
-        t('cid.status.downloadFailed', { error: t('cid.errorFallback') })
+      const fallbackMessage = t('cid.status.downloadFailed', {
+        error: t('cid.errorFallback'),
+      })
+      const apiErrorPayload = await getApiErrorPayload(err)
+      const errorCopy = getDownloadErrorCopy(
+        normalizeDownloadErrorPayload(apiErrorPayload),
+        await getApiErrorMessage(err, fallbackMessage),
+        t
       )
-      setDownloadState({ status: 'error', message })
-      addToast(message, 'error')
+      setDownloadState({ status: 'error', message: errorCopy.message })
+      addToast(errorCopy.toast, 'error')
     }
   }
 
@@ -712,7 +889,9 @@ export default function CidPage() {
                       <span>
                         {loadedBytes !== null && totalBytes !== null
                           ? `${formatBytes(loadedBytes)} / ${formatBytes(totalBytes)}`
-                          : `${progress}%`}
+                          : collectionProgress
+                            ? `${collectionProgress.completedFiles} / ${collectionProgress.totalFiles}`
+                            : `${progress}%`}
                       </span>
                     </div>
                   )}
