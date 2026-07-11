@@ -59,8 +59,8 @@ import {
   writeMetadataFile,
 } from './node/metadataFile.js'
 import {
-  evaluateStorageReservations,
   getFilesystemSpace,
+  StorageReservationLedger,
 } from './node/storageSpace.js'
 import {
   sanitizeFilename,
@@ -300,6 +300,7 @@ export class MostBoxEngine extends EventEmitter {
   #fileMonitors = new Map()
   #seedStates = new Map()
   #holdingResumeTask = null
+  #storageReservations = new StorageReservationLedger()
 
   #channels = []
   #channelCores = new Map()
@@ -719,6 +720,7 @@ export class MostBoxEngine extends EventEmitter {
       this.#store = null
     }
 
+    this.#storageReservations.clear()
     this.#initialized = false
     this.emit('stopped')
   }
@@ -853,81 +855,88 @@ export class MostBoxEngine extends EventEmitter {
       })
     }
 
-    this.#checkCapacity(existingHolding ? 0 : fileSize, [
-      {
-        path: this.#options.dataPath,
-        bytes: fileSize,
-        label: 'hyperdrive',
-      },
-    ])
+    const releaseCapacity = this.#reserveCapacity(
+      existingHolding ? 0 : fileSize,
+      [
+        {
+          path: this.#options.dataPath,
+          bytes: fileSize,
+          label: 'hyperdrive',
+        },
+      ]
+    )
 
     // 获取或创建该 CID 对应的 drive
-    let drive = this.#drives.get(name)
-
-    if (!drive) {
-      drive = await this.#getOrCreateDrive(name, {
-        server: true,
-        client: false,
-      })
-    }
-    await this.#joinCidTopicInternal(cidString, {
-      server: true,
-      client: false,
-    })
-
-    this.emit('publish:progress', { stage: 'uploading', file: safeFileName })
-
-    // Hyperdrive 中用 CID 作为 key 存储（解耦目录结构）
-    const driveKey = '/' + cidString
     try {
-      await this.#writeDriveFile(drive, driveKey, content, cleanPath)
-    } catch (err) {
-      if (!this.#isClosedSessionError(err)) {
-        throw err
+      let drive = this.#drives.get(name)
+
+      if (!drive) {
+        drive = await this.#getOrCreateDrive(name, {
+          server: true,
+          client: false,
+        })
       }
-      drive = await this.#reopenDrive(name, {
+      await this.#joinCidTopicInternal(cidString, {
         server: true,
         client: false,
       })
-      await this.#writeDriveFile(drive, driveKey, content, cleanPath)
-    }
 
-    // 存储 displayName（用户看到的文件夹路径），不存储 drivePath
-    const now = Date.now()
-    const fileRecord = {
-      fileName: safeFileName,
-      cid: cidString,
-      driveName: name,
-      size: fileSize,
-      source: 'published',
-      publishedAt: new Date(now).toISOString(),
-      starred: false,
-      syncUpdatedAt: now,
-    }
-    if (addToLibrary) {
-      if (repairingMissingContent) {
-        publishedBucket[existingIndex] = fileRecord
-      } else {
-        publishedBucket.push(fileRecord)
+      this.emit('publish:progress', { stage: 'uploading', file: safeFileName })
+
+      // Hyperdrive 中用 CID 作为 key 存储（解耦目录结构）
+      const driveKey = '/' + cidString
+      try {
+        await this.#writeDriveFile(drive, driveKey, content, cleanPath)
+      } catch (err) {
+        if (!this.#isClosedSessionError(err)) {
+          throw err
+        }
+        drive = await this.#reopenDrive(name, {
+          server: true,
+          client: false,
+        })
+        await this.#writeDriveFile(drive, driveKey, content, cleanPath)
       }
-      this.#savePublishedMetadata()
-    }
-    this.#upsertHolding({
-      cid: cidString,
-      fileName: safeFileName,
-      size: fileSize,
-      driveName: name,
-      source: 'published',
-    })
 
-    const result = {
-      cid: cidString,
-      link: buildMostLink(cidString, safeFileName),
-      fileName: safeFileName,
-    }
+      // 存储 displayName（用户看到的文件夹路径），不存储 drivePath
+      const now = Date.now()
+      const fileRecord = {
+        fileName: safeFileName,
+        cid: cidString,
+        driveName: name,
+        size: fileSize,
+        source: 'published',
+        publishedAt: new Date(now).toISOString(),
+        starred: false,
+        syncUpdatedAt: now,
+      }
+      if (addToLibrary) {
+        if (repairingMissingContent) {
+          publishedBucket[existingIndex] = fileRecord
+        } else {
+          publishedBucket.push(fileRecord)
+        }
+        this.#savePublishedMetadata()
+      }
+      this.#upsertHolding({
+        cid: cidString,
+        fileName: safeFileName,
+        size: fileSize,
+        driveName: name,
+        source: 'published',
+      })
 
-    this.emit('publish:success', result)
-    return result
+      const result = {
+        cid: cidString,
+        link: buildMostLink(cidString, safeFileName),
+        fileName: safeFileName,
+      }
+
+      this.emit('publish:success', result)
+      return result
+    } finally {
+      releaseCapacity()
+    }
   }
 
   async shareFolder(folderPath, options = {}) {
@@ -1064,66 +1073,78 @@ export class MostBoxEngine extends EventEmitter {
       }
     }
 
-    let drive = this.#drives.get(name)
-    if (!drive) {
-      drive = await this.#getOrCreateDrive(name, {
+    const releaseCapacity = this.#reserveCapacity(0, [
+      {
+        path: this.#options.dataPath,
+        bytes: directory.totalSize,
+        label: 'collection',
+      },
+    ])
+
+    try {
+      let drive = this.#drives.get(name)
+      if (!drive) {
+        drive = await this.#getOrCreateDrive(name, {
+          server: true,
+          client: false,
+        })
+      }
+      await this.#joinCidTopicInternal(cidString, {
         server: true,
         client: false,
       })
-    }
-    await this.#joinCidTopicInternal(cidString, {
-      server: true,
-      client: false,
-    })
 
-    for (const [blockCid, block] of directory.blocks.entries()) {
-      const driveKey =
-        blockCid === cidString ? `/${blockCid}` : `/.unixfs/${blockCid}`
-      await this.#writeDriveFile(drive, driveKey, block)
-    }
-
-    const now = Date.now()
-    const fileRecord = {
-      kind: 'collection',
-      fileName: safeCollectionName,
-      cid: cidString,
-      driveName: name,
-      size: directory.totalSize,
-      fileCount: directory.files.length,
-      source: 'published',
-      publishedAt: new Date(now).toISOString(),
-      starred: false,
-      syncUpdatedAt: now,
-    }
-    if (addToLibrary) {
-      if (repairingMissingContent) {
-        publishedBucket[existingIndex] = fileRecord
-      } else {
-        publishedBucket.push(fileRecord)
+      for (const [blockCid, block] of directory.blocks.entries()) {
+        const driveKey =
+          blockCid === cidString ? `/${blockCid}` : `/.unixfs/${blockCid}`
+        await this.#writeDriveFile(drive, driveKey, block)
       }
-      this.#savePublishedMetadata()
-    }
-    this.#upsertHolding({
-      cid: cidString,
-      fileName: safeCollectionName,
-      kind: 'collection',
-      size: 0,
-      driveName: name,
-      source: 'published',
-    })
 
-    const result = {
-      kind: 'collection',
-      cid: cidString,
-      link: buildMostLink(cidString, safeCollectionName),
-      fileName: safeCollectionName,
-      size: directory.totalSize,
-      fileCount: directory.files.length,
-      files: directory.files,
-    }
+      const now = Date.now()
+      const fileRecord = {
+        kind: 'collection',
+        fileName: safeCollectionName,
+        cid: cidString,
+        driveName: name,
+        size: directory.totalSize,
+        fileCount: directory.files.length,
+        source: 'published',
+        publishedAt: new Date(now).toISOString(),
+        starred: false,
+        syncUpdatedAt: now,
+      }
+      if (addToLibrary) {
+        if (repairingMissingContent) {
+          publishedBucket[existingIndex] = fileRecord
+        } else {
+          publishedBucket.push(fileRecord)
+        }
+        this.#savePublishedMetadata()
+      }
+      this.#upsertHolding({
+        cid: cidString,
+        fileName: safeCollectionName,
+        kind: 'collection',
+        size: 0,
+        driveName: name,
+        source: 'published',
+      })
 
-    this.emit('publish:success', result)
-    return result
+      const result = {
+        kind: 'collection',
+        cid: cidString,
+        link: buildMostLink(cidString, safeCollectionName),
+        fileName: safeCollectionName,
+        size: directory.totalSize,
+        fileCount: directory.files.length,
+        files: directory.files,
+      }
+
+      this.emit('publish:success', result)
+      return result
+    } finally {
+      releaseCapacity()
+    }
   }
 
   async *#streamFolderFileContent(cid, options = {}) {
@@ -1168,7 +1189,12 @@ export class MostBoxEngine extends EventEmitter {
       `[MostBox] Starting download for link: ${link} (taskId: ${taskId})`
     )
 
-    const taskState = { aborted: false, readStream: null, writeStream: null }
+    const taskState = {
+      aborted: false,
+      readStream: null,
+      writeStream: null,
+      releaseCapacity: null,
+    }
     this.#activeDownloads.set(taskId, taskState)
 
     try {
@@ -1412,18 +1438,21 @@ export class MostBoxEngine extends EventEmitter {
         const existingHolding = this.#holdings.find(
           item => item.cid === cidString
         )
-        this.#checkCapacity(existingHolding ? 0 : totalBytes, [
-          {
-            path: this.#options.dataPath,
-            bytes: totalBytes,
-            label: 'hyperdrive',
-          },
-          {
-            path: targetDir,
-            bytes: totalBytes,
-            label: 'download',
-          },
-        ])
+        taskState.releaseCapacity = this.#reserveCapacity(
+          existingHolding ? 0 : totalBytes,
+          [
+            {
+              path: this.#options.dataPath,
+              bytes: totalBytes,
+              label: 'hyperdrive',
+            },
+            {
+              path: targetDir,
+              bytes: totalBytes,
+              label: 'download',
+            },
+          ]
+        )
 
         this.emit('download:status', {
           taskId,
@@ -1621,6 +1650,7 @@ export class MostBoxEngine extends EventEmitter {
         return result
       }
     } finally {
+      taskState.releaseCapacity?.()
       this.#activeDownloads.delete(taskId)
     }
   }
@@ -6202,37 +6232,53 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #checkCapacity(additionalBytes, reservations = []) {
-    const used = this.#getUsedBytes()
-    const capacity = this.#options.capacityBytes
-    if (used + additionalBytes > capacity) {
-      const usedGB = (used / (1024 * 1024 * 1024)).toFixed(2)
-      const capacityGB = (capacity / (1024 * 1024 * 1024)).toFixed(2)
-      throw new StorageCapacityError(
-        `Storage capacity exceeded: used ${usedGB} GB, capacity ${capacityGB} GB`,
-        {
-          reason: 'CONFIGURED_CAPACITY_EXCEEDED',
-          usedBytes: used,
-          additionalBytes,
-          capacityBytes: capacity,
-        }
-      )
-    }
+    const release = this.#reserveCapacity(additionalBytes, reservations)
+    release()
+  }
 
-    let reservationResult
+  #reserveCapacity(additionalBytes, reservations = []) {
+    let result
     try {
-      reservationResult = evaluateStorageReservations(reservations)
+      result = this.#storageReservations.reserve({
+        usedBytes: this.#getUsedBytes(),
+        capacityBytes: this.#options.capacityBytes,
+        logicalBytes: additionalBytes,
+        reservations,
+      })
     } catch (err) {
       console.warn(
         '[MostBox] Failed to check filesystem capacity:',
         err.message
       )
-      throw new StorageCapacityError('Unable to determine available disk space', {
-        reason: 'DISK_SPACE_CHECK_FAILED',
-      })
+      throw new StorageCapacityError(
+        'Unable to determine available disk space',
+        {
+          reason: 'DISK_SPACE_CHECK_FAILED',
+        }
+      )
     }
-    const insufficientVolume = reservationResult.volumes.find(
-      volume => !volume.accepted
-    )
+
+    if (!result.logical.accepted) {
+      const accountedBytes =
+        result.logical.usedBytes + result.logical.pendingBytes
+      const usedGB = (accountedBytes / (1024 * 1024 * 1024)).toFixed(2)
+      const capacityGB = (
+        result.logical.capacityBytes /
+        (1024 * 1024 * 1024)
+      ).toFixed(2)
+      throw new StorageCapacityError(
+        `Storage capacity exceeded: used ${usedGB} GB, capacity ${capacityGB} GB`,
+        {
+          reason: 'CONFIGURED_CAPACITY_EXCEEDED',
+          usedBytes: result.logical.usedBytes,
+          pendingBytes: result.logical.pendingBytes,
+          additionalBytes,
+          capacityBytes: result.logical.capacityBytes,
+        }
+      )
+    }
+
+    const insufficientVolume = result.volumes.find(volume => !volume.accepted)
     if (insufficientVolume) {
       throw new StorageCapacityError(
         `Insufficient disk space: ${formatFileSize(insufficientVolume.requiredBytes)} required, ${formatFileSize(insufficientVolume.availableBytes)} available`,
@@ -6240,10 +6286,14 @@ export class MostBoxEngine extends EventEmitter {
           reason: 'INSUFFICIENT_DISK_SPACE',
           requiredBytes: insufficientVolume.requiredBytes,
           availableBytes: insufficientVolume.availableBytes,
+          pendingBytes: insufficientVolume.pendingBytes,
+          requestedBytes: insufficientVolume.requestedBytes,
           labels: insufficientVolume.labels,
         }
       )
     }
+
+    return result.release
   }
 
   async #getOrCreateDrive(name, _options = { server: true, client: false }) {

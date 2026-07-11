@@ -2289,6 +2289,53 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       }
     })
 
+    it('releases reserved capacity after a publish write fails', async () => {
+      const capacityTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-capacity-release-')
+      )
+      const dataPath = path.join(capacityTmpDir, 'data')
+      const failedContent = Buffer.from('abcdefghij')
+      const replacementContent = Buffer.from('0123456789')
+      const { cid } = await calculateCid(failedContent)
+      const originalCreateWriteStream = Hyperdrive.prototype.createWriteStream
+      let capacityEngine
+
+      try {
+        capacityEngine = new MostBoxEngine({
+          dataPath,
+          capacityBytes: failedContent.length,
+          disableNetwork: true,
+        })
+        await capacityEngine.start()
+
+        Hyperdrive.prototype.createWriteStream = function failFirstWrite(
+          name,
+          options
+        ) {
+          if (name === `/${cid}`) {
+            throw new Error('injected publish failure')
+          }
+          return originalCreateWriteStream.call(this, name, options)
+        }
+
+        await assert.rejects(
+          capacityEngine.publishFile(failedContent, 'failed.txt'),
+          /injected publish failure/
+        )
+        Hyperdrive.prototype.createWriteStream = originalCreateWriteStream
+
+        const result = await capacityEngine.publishFile(
+          replacementContent,
+          'replacement.txt'
+        )
+        assert.ok(result.cid)
+      } finally {
+        Hyperdrive.prototype.createWriteStream = originalCreateWriteStream
+        if (capacityEngine) await capacityEngine.stop().catch(() => {})
+        fs.rmSync(capacityTmpDir, { recursive: true, force: true })
+      }
+    })
+
     it('rejects publish when the filesystem has insufficient free space', async () => {
       const capacityTmpDir = fs.mkdtempSync(
         path.join(os.tmpdir(), 'most-physical-capacity-')
@@ -2379,6 +2426,99 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
             error.details?.labels?.includes('download')
         )
       } finally {
+        fs.statfsSync = originalStatfsSync
+        replication?.close()
+        if (publisher) await publisher.stop().catch(() => {})
+        if (downloader) await downloader.stop().catch(() => {})
+        fs.rmSync(capacityTmpDir, { recursive: true, force: true })
+      }
+    })
+
+    it('releases reserved capacity after an active download is cancelled', async () => {
+      const capacityTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-download-release-')
+      )
+      const publisherPath = path.join(capacityTmpDir, 'publisher')
+      const downloaderPath = path.join(capacityTmpDir, 'downloader')
+      const content = Buffer.alloc(80, 'x')
+      const replacementContent = Buffer.alloc(80, 'y')
+      const taskId = `capacity-cancel-${Date.now()}`
+      const originalCreateReadStream = Hyperdrive.prototype.createReadStream
+      const originalStatfsSync = fs.statfsSync
+      let publisher
+      let downloader
+      let replication
+
+      try {
+        publisher = new MostBoxEngine({
+          dataPath: publisherPath,
+          disableNetwork: true,
+        })
+        downloader = new MostBoxEngine({
+          dataPath: downloaderPath,
+          disableNetwork: true,
+          downloadTimeout: 5000,
+        })
+        await publisher.start()
+        await downloader.start()
+        const published = await publisher.publishFile(content, 'cancel.bin')
+        replication = publisher.replicateWith(downloader)
+        fs.statfsSync = () => ({
+          bsize: 1n,
+          blocks: 1000n,
+          bfree: 200n,
+          bavail: 200n,
+        })
+
+        Hyperdrive.prototype.createReadStream = function createSlowReadStream(
+          name,
+          options
+        ) {
+          if (name !== `/${published.cid}`) {
+            return originalCreateReadStream.call(this, name, options)
+          }
+          let offset = 0
+          return new Readable({
+            read() {
+              setTimeout(() => {
+                if (this.destroyed) return
+                if (offset >= content.length) {
+                  this.push(null)
+                  return
+                }
+                this.push(content.subarray(offset, offset + 1))
+                offset += 1
+              }, 25)
+            },
+          })
+        }
+
+        let markDownloadStarted
+        const downloadStarted = new Promise(resolve => {
+          markDownloadStarted = resolve
+        })
+        const handleStatus = event => {
+          if (event.taskId === taskId && event.status === 'downloading') {
+            markDownloadStarted()
+          }
+        }
+        downloader.on('download:status', handleStatus)
+        const download = downloader.downloadFile(published.link, taskId, {
+          timeout: 5000,
+        })
+        await downloadStarted
+        downloader.cancelDownload(taskId)
+        await assert.rejects(download, /Download cancelled/)
+        downloader.off('download:status', handleStatus)
+        Hyperdrive.prototype.createReadStream = originalCreateReadStream
+
+        const result = await downloader.publishFile(
+          replacementContent,
+          'replacement.bin'
+        )
+        assert.ok(result.cid)
+      } finally {
+        Hyperdrive.prototype.createReadStream = originalCreateReadStream
         fs.statfsSync = originalStatfsSync
         replication?.close()
         if (publisher) await publisher.stop().catch(() => {})
