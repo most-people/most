@@ -1550,6 +1550,41 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(text, 'download-content')
     })
 
+    it('streams file content without using readFileRaw', async () => {
+      const pub = await engine.publishFile(
+        Buffer.from('streamed-download-content'),
+        'streamed.txt'
+      )
+      const originalReadFileRaw = engine.readFileRaw
+      engine.readFileRaw = async () => {
+        throw new Error('readFileRaw should not be used for HTTP downloads')
+      }
+
+      try {
+        const res = await fetch(`${baseUrl}/api/files/${pub.cid}/download`)
+        assert.strictEqual(res.status, 200)
+        assert.strictEqual(await res.text(), 'streamed-download-content')
+      } finally {
+        engine.readFileRaw = originalReadFileRaw
+      }
+    })
+
+    it('streams requested byte ranges', async () => {
+      const pub = await engine.publishFile(
+        Buffer.from('range-download-content'),
+        'range.txt'
+      )
+
+      const res = await fetch(`${baseUrl}/api/files/${pub.cid}/download`, {
+        headers: { Range: 'bytes=6-13' },
+      })
+
+      assert.strictEqual(res.status, 206)
+      assert.strictEqual(res.headers.get('content-range'), 'bytes 6-13/22')
+      assert.strictEqual(res.headers.get('accept-ranges'), 'bytes')
+      assert.strictEqual(await res.text(), 'download')
+    })
+
     it('returns 404 for non-existent CID', async () => {
       const res = await fetch(
         `${baseUrl}/api/files/${VALID_MISSING_CID}/download`

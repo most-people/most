@@ -20,7 +20,7 @@ import { sha256 } from 'multiformats/hashes/sha2'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
-import { Duplex } from 'node:stream'
+import { Duplex, Readable } from 'node:stream'
 
 import {
   calculateCid,
@@ -2771,6 +2771,60 @@ export class MostBoxEngine extends EventEmitter {
 
     const buffer = Buffer.concat(chunks)
     return { buffer, fileName: fileRecord.fileName, totalSize }
+  }
+
+  async openFileReadStream(cid, options = {}) {
+    this.#ensureInitialized()
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+
+    const localContent = await this.#getLocalCidContent(cid, {
+      ownerAddress,
+      public: options.public,
+    })
+    if (!localContent) {
+      throw new Error('File not found')
+    }
+
+    const driveKey = '/' + cid
+    const { drive, entry, fileRecord } = localContent
+    const totalSize = entry.value.blob.byteLength || 0
+    const offsetInput = Number(options.offset ?? 0)
+    const offset =
+      Number.isFinite(offsetInput) && offsetInput > 0
+        ? Math.floor(offsetInput)
+        : 0
+    const limitInput = Number(options.limit)
+    const requestedLimit =
+      options.limit === undefined ||
+      options.limit === null ||
+      !Number.isFinite(limitInput)
+        ? totalSize - offset
+        : Math.max(0, Math.floor(limitInput))
+    const contentLength = Math.max(
+      0,
+      Math.min(requestedLimit, totalSize - offset)
+    )
+
+    if (contentLength <= 0) {
+      return {
+        stream: Readable.from([]),
+        fileName: fileRecord.fileName,
+        totalSize,
+        offset,
+        contentLength: 0,
+      }
+    }
+
+    return {
+      stream: drive.createReadStream(driveKey, {
+        start: offset,
+        end: offset + contentLength - 1,
+      }),
+      fileName: fileRecord.fileName,
+      totalSize,
+      offset,
+      contentLength,
+    }
   }
 
   async #readDriveEntryBuffer(drive, driveKey, timeout = STREAM_READ_TIMEOUT) {

@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { stream as streamResponse } from 'hono/streaming'
 import { parseMostLink, validateCidString } from '../../core/cid.js'
 import { sanitizeFilename } from '../../utils/security.js'
 import { badRequestOrAppError, errorJson } from '../errors.js'
@@ -18,6 +19,19 @@ function startDownloadTask(engine, link, taskId, options, wsBroadcast) {
         errorCode: err.errorCode,
         details: err.details,
       })
+    }
+  })
+}
+
+function streamReadableResponse(c, readable) {
+  return streamResponse(c, async output => {
+    output.onAbort(() => readable.destroy())
+    try {
+      for await (const chunk of readable) {
+        await output.write(chunk)
+      }
+    } finally {
+      readable.destroy()
     }
   })
 }
@@ -310,29 +324,40 @@ export function registerFileRoutes(app, { engine, configStore, wsBroadcast }) {
         if (rangeMatch) {
           const start = parseInt(rangeMatch[1], 10)
           const end = rangeMatch[2] ? parseInt(rangeMatch[2], 10) : undefined
+          if (end !== undefined && end < start) {
+            c.status(416)
+            return c.body(null)
+          }
           const offset = start
           const limit = end !== undefined ? end - start + 1 : undefined
 
-          const result = await engine.readFileRaw(cid, {
+          const result = await engine.openFileReadStream(cid, {
             offset,
             limit,
             public: true,
           })
+          if (result.offset >= result.totalSize) {
+            result.stream.destroy()
+            c.header('Content-Range', `bytes */${result.totalSize}`)
+            c.status(416)
+            return c.body(null)
+          }
           const contentType = getMimeType(result.fileName)
+          const rangeEnd = result.offset + result.contentLength - 1
 
           c.header('Content-Type', contentType)
-          c.header('Content-Length', String(result.buffer.length))
+          c.header('Content-Length', String(result.contentLength))
           c.header(
             'Content-Range',
-            `bytes ${offset}-${offset + result.buffer.length - 1}/${result.totalSize}`
+            `bytes ${result.offset}-${rangeEnd}/${result.totalSize}`
           )
           c.header('Accept-Ranges', 'bytes')
           c.status(206)
-          return c.body(result.buffer)
+          return streamReadableResponse(c, result.stream)
         }
       }
 
-      const result = await engine.readFileRaw(cid, {
+      const result = await engine.openFileReadStream(cid, {
         public: true,
       })
       const contentType = getMimeType(result.fileName)
@@ -343,7 +368,7 @@ export function registerFileRoutes(app, { engine, configStore, wsBroadcast }) {
         'Content-Disposition',
         `inline; filename="${encodeURIComponent(result.fileName)}"`
       )
-      return c.body(result.buffer)
+      return streamReadableResponse(c, result.stream)
     } catch (err) {
       if (err.message === 'File not found') {
         return c.json({ error: err.message }, 404)
