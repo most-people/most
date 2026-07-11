@@ -678,6 +678,8 @@ describe('frontend smoke checks', () => {
     assert.match(source, /formatSeedStatus/)
     assert.match(source, /admin\.seedStatus\.active/)
     assert.match(source, /admin\.seedStatus\.queued/)
+    assert.match(source, /\/api\/admin\/access/)
+    assert.match(source, /claimAdminAccess/)
   })
 
   it('keeps the file selection toolbar grouped and compact', () => {

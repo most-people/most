@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { MAX_FILE_SIZE } from '../config.js'
+import { normalizeAddress } from '../core/shared.js'
 
 const DEFAULT_CONFIG_DIR_NAME = '.most-box'
 const DEFAULT_DATA_DIR_NAME = 'most-data'
@@ -25,6 +26,7 @@ export function getDefaultNodeConfig() {
     capacityBytes: DEFAULT_CAPACITY_BYTES,
     maxFileSizeBytes: MAX_FILE_SIZE,
     remoteInvites: [],
+    adminAddress: '',
   }
 }
 
@@ -51,6 +53,7 @@ export function normalizeNodeConfig(raw = {}) {
     rawNode.remoteInvites ?? defaults.remoteInvites
   )
   const host = normalizeHost(rawNode.host, defaults.host)
+  const adminAddress = normalizeAddress(rawNode.adminAddress)
   return {
     dataPath:
       typeof raw.dataPath === 'string'
@@ -61,6 +64,7 @@ export function normalizeNodeConfig(raw = {}) {
     capacityBytes,
     maxFileSizeBytes,
     remoteInvites,
+    adminAddress,
   }
 }
 
@@ -102,7 +106,7 @@ export function createNodeConfigStore(configDir = getDefaultConfigDir()) {
     return getNodeConfig().dataPath || getDefaultDataPath()
   }
 
-  function saveNodeConfigPatch(patch = {}) {
+  function saveNodeConfigPatchInternal(patch = {}, adminAddressOverride) {
     const raw = loadRawConfig()
     const current = normalizeNodeConfig(raw)
     const next = normalizeNodeConfig({
@@ -125,6 +129,10 @@ export function createNodeConfigStore(configDir = getDefaultConfigDir()) {
           patch.remoteInvites === undefined
             ? current.remoteInvites
             : patch.remoteInvites,
+        adminAddress:
+          adminAddressOverride === undefined
+            ? current.adminAddress
+            : adminAddressOverride,
       },
     })
 
@@ -136,11 +144,39 @@ export function createNodeConfigStore(configDir = getDefaultConfigDir()) {
         capacityBytes: next.capacityBytes,
         maxFileSizeBytes: next.maxFileSizeBytes,
         remoteInvites: next.remoteInvites,
+        adminAddress: next.adminAddress,
         updatedAt: new Date().toISOString(),
       },
     }
 
     return { success: saveRawConfig(saved), config: normalizeNodeConfig(saved) }
+  }
+
+  function saveNodeConfigPatch(patch = {}) {
+    return saveNodeConfigPatchInternal(patch)
+  }
+
+  function claimAdminAddress(addressInput) {
+    const address = normalizeAddress(addressInput)
+    if (!address) {
+      return { success: false, claimed: false, reason: 'INVALID_ADDRESS' }
+    }
+
+    const current = getNodeConfig()
+    if (current.adminAddress) {
+      return {
+        success: true,
+        claimed: false,
+        adminAddress: current.adminAddress,
+      }
+    }
+
+    const result = saveNodeConfigPatchInternal({}, address)
+    return {
+      ...result,
+      claimed: result.success,
+      adminAddress: result.config.adminAddress,
+    }
   }
 
   return {
@@ -151,6 +187,7 @@ export function createNodeConfigStore(configDir = getDefaultConfigDir()) {
     getNodeConfig,
     getDataPath,
     saveNodeConfigPatch,
+    claimAdminAddress,
   }
 }
 

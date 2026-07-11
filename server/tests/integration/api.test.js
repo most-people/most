@@ -23,6 +23,9 @@ const VALID_MISSING_CID =
 const TEST_IDENTITY = createLoginIdentity('api-user', 'api-password')
 const SECOND_IDENTITY = createLoginIdentity('second-user', 'second-password')
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+const LOCAL_REQUEST_CONTEXT = {
+  incoming: { socket: { remoteAddress: '::ffff:127.0.0.1' } },
+}
 
 function assertNoLegacyNodeSettingFields(value) {
   const legacyPattern = /Seed|Concurrent|RateLimit/
@@ -64,16 +67,33 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
   }
 
   async function requestWithAuth(app, path, init = {}) {
-    const headers = new Headers(init.headers || {})
-    const authHeaders = await buildAuthHeaders(
+    return requestAsWithContext(
       TEST_IDENTITY,
+      app,
+      path,
+      init,
+      LOCAL_REQUEST_CONTEXT
+    )
+  }
+
+  async function requestAsWithContext(
+    identity,
+    app,
+    path,
+    init = {},
+    context = LOCAL_REQUEST_CONTEXT
+  ) {
+    const headers = new Headers(init.headers || {})
+    if (!headers.has('host')) headers.set('host', 'localhost:1976')
+    const authHeaders = await buildAuthHeaders(
+      identity,
       init.method || 'GET',
       path
     )
     for (const [key, value] of Object.entries(authHeaders)) {
       headers.set(key, value)
     }
-    return app.request(path, { ...init, headers })
+    return app.request(path, { ...init, headers }, context)
   }
 
   before(async () => {
@@ -237,6 +257,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(data.port, TEST_PORT)
       assert.strictEqual(data.host, '127.0.0.1')
       assert.strictEqual(data.config.host, '127.0.0.1')
+      assert.strictEqual('adminAddress' in data.config, false)
       assert.strictEqual(data.config.port, 1976)
       assert.strictEqual(data.config.maxFileSizeBytes, 10 * 1024 * 1024 * 1024)
       assert.ok(Array.isArray(data.listen.addresses))
@@ -343,12 +364,16 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         nodeLogger,
       })
 
-      const res = await app.request('/api/node-id', {
-        headers: {
-          host: 'localhost:1976',
-          origin: 'https://most.box',
+      const res = await app.request(
+        '/api/node-id',
+        {
+          headers: {
+            host: 'localhost:1976',
+            origin: 'https://most.box',
+          },
         },
-      })
+        LOCAL_REQUEST_CONTEXT
+      )
       const data = await res.json()
 
       assert.strictEqual(res.status, 200)
@@ -368,12 +393,16 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         nodeLogger,
       })
 
-      const res = await app.request('/api/node-id', {
-        headers: {
-          host: 'localhost:1976',
-          origin: 'https://most-people.com',
+      const res = await app.request(
+        '/api/node-id',
+        {
+          headers: {
+            host: 'localhost:1976',
+            origin: 'https://most-people.com',
+          },
         },
-      })
+        LOCAL_REQUEST_CONTEXT
+      )
       const data = await res.json()
 
       assert.strictEqual(res.status, 200)
@@ -431,7 +460,10 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(spec.components.schemas.MemberTagInput)
       assert.ok(spec.components.schemas.ChannelMemberProfile)
       assert.strictEqual(spec.components.schemas.ChannelMember, undefined)
-      assert.strictEqual(spec.components.schemas.Channel.properties.members, undefined)
+      assert.strictEqual(
+        spec.components.schemas.Channel.properties.members,
+        undefined
+      )
       assert.ok(spec.components.schemas.ChannelMessage)
       assert.ok(spec.components.schemas.ChannelPresence)
       assert.strictEqual(
@@ -464,9 +496,8 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         undefined
       )
       assert.deepStrictEqual(
-        spec.paths['/api/channels'].post.requestBody.content[
-          'application/json'
-        ].schema,
+        spec.paths['/api/channels'].post.requestBody.content['application/json']
+          .schema,
         { $ref: '#/components/schemas/ChannelCreateRequest' }
       )
       assert.deepStrictEqual(
@@ -1991,6 +2022,81 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(data.code, 'INVALID_INVITE')
     })
 
+    it('rate limits repeated missing authentication without charging valid signatures', async () => {
+      const { app } = createApp(engine, {
+        port: TEST_PORT + 21,
+        configStore,
+        nodeLogger,
+        rateLimit: {
+          policies: {
+            global: { windowMs: 60_000, maxRequests: 100 },
+            authFailure: { windowMs: 60_000, maxRequests: 2 },
+          },
+        },
+      })
+      const requestInit = { headers: { host: 'localhost:1976' } }
+
+      const authenticated = await requestAsWithContext(
+        TEST_IDENTITY,
+        app,
+        '/api/files'
+      )
+      const first = await app.request(
+        '/api/files',
+        requestInit,
+        LOCAL_REQUEST_CONTEXT
+      )
+      const second = await app.request(
+        '/api/files',
+        requestInit,
+        LOCAL_REQUEST_CONTEXT
+      )
+      const blocked = await app.request(
+        '/api/files',
+        requestInit,
+        LOCAL_REQUEST_CONTEXT
+      )
+      const blockedData = await blocked.json()
+
+      assert.strictEqual(authenticated.status, 200)
+      assert.strictEqual(first.status, 401)
+      assert.strictEqual(second.status, 401)
+      assert.strictEqual(blocked.status, 429)
+      assert.strictEqual(blockedData.code, 'RATE_LIMITED')
+      assert.strictEqual(blockedData.policy, 'authFailure')
+      assert.ok(Number(blocked.headers.get('retry-after')) >= 1)
+    })
+
+    it('rate limits repeated invalid remote invites', async () => {
+      const { app } = createApp(engine, {
+        port: TEST_PORT + 22,
+        host: '127.0.0.1',
+        configStore,
+        nodeLogger,
+        remoteInvites: [],
+        rateLimit: {
+          policies: {
+            global: { windowMs: 60_000, maxRequests: 100 },
+            inviteFailure: { windowMs: 60_000, maxRequests: 2 },
+          },
+        },
+      })
+      const context = {
+        incoming: { socket: { remoteAddress: '203.0.113.25' } },
+      }
+      const requestInit = { headers: { host: 'mostbox.example.com' } }
+
+      const first = await app.request('/api/node-id', requestInit, context)
+      const second = await app.request('/api/node-id', requestInit, context)
+      const blocked = await app.request('/api/node-id', requestInit, context)
+      const blockedData = await blocked.json()
+
+      assert.strictEqual(first.status, 403)
+      assert.strictEqual(second.status, 403)
+      assert.strictEqual(blocked.status, 429)
+      assert.strictEqual(blockedData.policy, 'inviteFailure')
+    })
+
     it('does not trust LAN host headers by themselves', async () => {
       const { app } = createApp(engine, {
         port: TEST_PORT + 15,
@@ -2009,27 +2115,90 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(data.code, 'INVALID_INVITE')
     })
 
-    it('allows LAN administration when listening on all interfaces', async () => {
+    it('requires a claimed administrator for LAN management', async () => {
+      const lanConfigStore = createNodeConfigStore(
+        path.join(tmpDir, `lan-admin-${Date.now()}`)
+      )
       const { app } = createApp(engine, {
         port: TEST_PORT + 16,
         host: '0.0.0.0',
-        configStore,
+        configStore: lanConfigStore,
         nodeLogger,
       })
+      const lanContext = {
+        incoming: { socket: { remoteAddress: '::ffff:192.168.31.239' } },
+      }
+      const lanHeaders = {
+        host: '192.168.31.171:1976',
+        origin: 'http://192.168.31.171:1976',
+      }
 
-      const res = await app.request(
-        '/api/node/config',
-        {
-          headers: { host: '192.168.31.171:1976' },
-        },
-        {
-          incoming: { socket: { remoteAddress: '::ffff:192.168.31.239' } },
-        }
+      const accessBefore = await app.request(
+        '/api/admin/access',
+        { headers: lanHeaders },
+        lanContext
       )
-      const data = await res.json()
+      const accessBeforeData = await accessBefore.json()
+      assert.strictEqual(accessBefore.status, 200)
+      assert.strictEqual(accessBeforeData.mode, 'lan')
+      assert.strictEqual(accessBeforeData.claimed, false)
+      assert.strictEqual(accessBeforeData.authorized, false)
 
-      assert.strictEqual(res.status, 200)
-      assert.strictEqual(data.currentHost, '0.0.0.0')
+      const blocked = await app.request(
+        '/api/node/config',
+        { headers: lanHeaders },
+        lanContext
+      )
+      const blockedData = await blocked.json()
+      assert.strictEqual(blocked.status, 401)
+      assert.strictEqual(blockedData.code, 'ADMIN_LOGIN_REQUIRED')
+
+      const claim = await requestAsWithContext(
+        TEST_IDENTITY,
+        app,
+        '/api/admin/access',
+        {
+          method: 'POST',
+          headers: lanHeaders,
+        },
+        lanContext
+      )
+      const claimData = await claim.json()
+      assert.strictEqual(claim.status, 200)
+      assert.strictEqual(claimData.authorized, true)
+      assert.strictEqual(
+        claimData.adminAddress,
+        TEST_IDENTITY.address.toLowerCase()
+      )
+
+      const allowed = await requestAsWithContext(
+        TEST_IDENTITY,
+        app,
+        '/api/node/config',
+        { headers: lanHeaders },
+        lanContext
+      )
+      assert.strictEqual(allowed.status, 200)
+
+      const legacyAllowed = await requestAsWithContext(
+        TEST_IDENTITY,
+        app,
+        '/api/config',
+        { headers: lanHeaders },
+        lanContext
+      )
+      assert.strictEqual(legacyAllowed.status, 200)
+
+      const wrongIdentity = await requestAsWithContext(
+        SECOND_IDENTITY,
+        app,
+        '/api/node/config',
+        { headers: lanHeaders },
+        lanContext
+      )
+      const wrongIdentityData = await wrongIdentity.json()
+      assert.strictEqual(wrongIdentity.status, 403)
+      assert.strictEqual(wrongIdentityData.code, 'ADMIN_FORBIDDEN')
     })
 
     it('does not trust spoofed LAN host headers', async () => {
@@ -2047,6 +2216,28 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         {
           headers: { host: '192.168.31.171:1976' },
         },
+        {
+          incoming: { socket: { remoteAddress: '203.0.113.20' } },
+        }
+      )
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 403)
+      assert.strictEqual(data.code, 'INVALID_INVITE')
+    })
+
+    it('does not trust a localhost Host header from a remote socket', async () => {
+      const { app } = createApp(engine, {
+        port: TEST_PORT + 18,
+        host: '0.0.0.0',
+        configStore,
+        nodeLogger,
+        remoteInvites: [],
+      })
+
+      const res = await app.request(
+        '/api/node/config',
+        { headers: { host: 'localhost:1976' } },
         {
           incoming: { socket: { remoteAddress: '203.0.113.20' } },
         }
@@ -2087,11 +2278,38 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         remoteInvites: [],
       })
 
-      const res = await app.request('/api/node/config', {
-        headers: { host: 'localhost:1976' },
-      })
+      const res = await app.request(
+        '/api/node/config',
+        { headers: { host: 'localhost:1976' } },
+        LOCAL_REQUEST_CONTEXT
+      )
 
       assert.strictEqual(res.status, 200)
+    })
+
+    it('rejects an untrusted browser origin on the loopback daemon', async () => {
+      const { app } = createApp(engine, {
+        port: TEST_PORT + 19,
+        host: '127.0.0.1',
+        configStore,
+        nodeLogger,
+        remoteInvites: [],
+      })
+
+      const res = await app.request(
+        '/api/node-id',
+        {
+          headers: {
+            host: 'localhost:1976',
+            origin: 'https://attacker.example',
+          },
+        },
+        LOCAL_REQUEST_CONTEXT
+      )
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 403)
+      assert.strictEqual(data.code, 'INVALID_INVITE')
     })
   })
 
@@ -2393,17 +2611,20 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       ]
       await engine.createChannel(channelName)
 
-      const res = await fetch(`${baseUrl}/api/channels/${channelName}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content: 'hi @SecondUser',
-          author: TEST_IDENTITY.address,
-          authorName: 'TestUser',
-          clientMessageId,
-          mentions,
-        }),
-      })
+      const res = await fetch(
+        `${baseUrl}/api/channels/${channelName}/messages`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: 'hi @SecondUser',
+            author: TEST_IDENTITY.address,
+            authorName: 'TestUser',
+            clientMessageId,
+            mentions,
+          }),
+        }
+      )
       const data = await res.json()
 
       assert.strictEqual(res.status, 200)

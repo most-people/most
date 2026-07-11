@@ -198,8 +198,13 @@ export function createWebSocketServer({
             ws.peerId = data.peerId
             break
           case 'channel:subscribe':
-            if (data.channel) {
-              subscribeToChannel(ws, data.channel)
+            if (data.channel && ws.userAddress) {
+              try {
+                engine.getChannelPeers(data.channel, {
+                  ownerAddress: ws.userAddress,
+                })
+                subscribeToChannel(ws, data.channel)
+              } catch {}
             }
             break
           case 'channel:unsubscribe':

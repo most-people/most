@@ -9,6 +9,9 @@ import { buildAuthHeaders } from '../../src/utils/auth.js'
 import { createLoginIdentity } from '../../src/utils/userIdentity.js'
 
 const TEST_IDENTITY = createLoginIdentity('vault-user', 'vault-password')
+const LOCAL_REQUEST_CONTEXT = {
+  incoming: { socket: { remoteAddress: '::ffff:127.0.0.1' } },
+}
 
 function createFakeEngine() {
   return {}
@@ -16,6 +19,7 @@ function createFakeEngine() {
 
 async function requestWithAuth(app, requestPath, init = {}) {
   const headers = new Headers(init.headers || {})
+  if (!headers.has('host')) headers.set('host', 'localhost:1976')
   const method = init.method || 'GET'
   const authHeaders = await buildAuthHeaders(
     TEST_IDENTITY,
@@ -25,7 +29,7 @@ async function requestWithAuth(app, requestPath, init = {}) {
   for (const [key, value] of Object.entries(authHeaders)) {
     headers.set(key, value)
   }
-  return app.request(requestPath, { ...init, headers })
+  return app.request(requestPath, { ...init, headers }, LOCAL_REQUEST_CONTEXT)
 }
 
 describe('note vault routes', () => {
@@ -56,7 +60,11 @@ describe('note vault routes', () => {
   })
 
   it('requires login for note vault APIs', async () => {
-    const res = await app.request('/api/note-vault/status')
+    const res = await app.request(
+      '/api/note-vault/status',
+      { headers: { host: 'localhost:1976' } },
+      LOCAL_REQUEST_CONTEXT
+    )
     const data = await res.json()
 
     assert.strictEqual(res.status, 401)

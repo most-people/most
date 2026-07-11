@@ -15,6 +15,41 @@ export function getAllowedOrigins(appPort) {
   ]
 }
 
+export function isAllowedOrigin(origin, allowedOrigins = []) {
+  const input = String(origin || '').trim()
+  if (!input) return true
+
+  try {
+    const normalized = new URL(input).origin
+    return allowedOrigins.some(value => {
+      try {
+        return new URL(value).origin === normalized
+      } catch {
+        return false
+      }
+    })
+  } catch {
+    return false
+  }
+}
+
+export function isAllowedRequestOrigin(
+  origin,
+  allowedOrigins = [],
+  hostHeader = ''
+) {
+  const input = String(origin || '').trim()
+  if (!input || isAllowedOrigin(input, allowedOrigins)) return true
+
+  try {
+    const originUrl = new URL(input)
+    const requestUrl = new URL(`http://${String(hostHeader || '').trim()}`)
+    return originUrl.host.toLowerCase() === requestUrl.host.toLowerCase()
+  } catch {
+    return false
+  }
+}
+
 export function getRequestPath(c) {
   return new URL(c.req.url).pathname
 }
@@ -91,21 +126,15 @@ export function isPublicListenHost(listenHost) {
   return value === '0.0.0.0' || value === '::' || !isLocalHostname(value)
 }
 
-function isExternalOrigin(origin) {
-  if (!origin) return false
-  const hostname = extractHostname(origin)
-  if (!hostname) {
-    return true
-  }
-  return !isLocalHostname(hostname)
-}
-
-function isLocalRequestHost(hostHeader) {
+function isTrustedRequestHost(hostHeader, trustPrivateNetwork = false) {
   const hostname = extractHostname(hostHeader)
   if (!hostname) {
     return false
   }
-  return isLocalHostname(hostname)
+  return (
+    isLocalHostname(hostname) ||
+    (trustPrivateNetwork && isPrivateNetworkHostname(hostname))
+  )
 }
 
 export function isLoopbackRemoteAddress(address) {
@@ -125,37 +154,36 @@ export function isLoopbackRemoteAddress(address) {
 
 export function isLocalRequest(c, options = {}) {
   const host = c.req.header('host')
-  if (host && isLocalRequestHost(host)) {
-    return true
-  }
   const clientIp = c.env?.incoming?.socket?.remoteAddress || ''
-  return (
+  const trustedClient =
     isLoopbackRemoteAddress(clientIp) ||
-    (options.trustPrivateNetwork && isPrivateNetworkHostname(clientIp))
+    (options.trustPrivateNetwork === true && isPrivateNetworkHostname(clientIp))
+  return (
+    trustedClient &&
+    isTrustedRequestHost(host, options.trustPrivateNetwork === true)
   )
 }
 
 export function isLocalUpgradeRequest(req, options = {}) {
-  if (req.headers.host && isLocalRequestHost(req.headers.host)) {
-    return true
-  }
   const remoteAddress = req.socket?.remoteAddress
-  return (
+  const trustedClient =
     isLoopbackRemoteAddress(remoteAddress) ||
-    (options.trustPrivateNetwork && isPrivateNetworkHostname(remoteAddress))
+    (options.trustPrivateNetwork === true &&
+      isPrivateNetworkHostname(remoteAddress))
+  return (
+    trustedClient &&
+    isTrustedRequestHost(req.headers.host, options.trustPrivateNetwork === true)
   )
 }
 
-export function isRemoteAccessRequest({ invite, origin, listenHost, local }) {
-  if (local) {
-    return false
-  }
-
-  return (
-    Boolean(invite) ||
-    isExternalOrigin(origin) ||
-    (isPublicListenHost(listenHost) && !local)
-  )
+export function isRemoteAccessRequest({
+  origin,
+  host,
+  local,
+  allowedOrigins = [],
+}) {
+  if (!isAllowedRequestOrigin(origin, allowedOrigins, host)) return true
+  return !local
 }
 
 export function remoteInviteConfigured(inviteSet) {

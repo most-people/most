@@ -147,15 +147,17 @@ curl http://localhost:1976/api/node/diagnostics
 
 配置数据目录和容量后，重启 daemon，再查看 `/api/node/holdings` 或 `/admin/`。已持有 CID 应自动恢复 join topic。
 
-| 检查项       | 通过标准                                                                               | 入口                                                 |
-| ------------ | -------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| 安全策略     | 固定监听 `127.0.0.1:1976`，远程管理通过 SSH 隧道或反向代理                             | `server/index.js`                                    |
-| 状态解释     | holding 显示 queued、joining、active、paused、error 对应中文状态                       | `formatSeedStatus()`                                 |
-| 日志可读     | 管理台展示时间、level、event、message，支持清空日志                                    | `/api/node/logs`、`src/features/admin/AdminPage.tsx` |
-| 设置落盘     | 数据目录、容量上限、单文件上限保存后，API 和管理台能读回                               | `/api/node/config`                                   |
-| holding 可见 | 发布或下载成功后，`/api/node/holdings` 与管理台都能看到 CID、大小、状态                | `/api/node/holdings`                                 |
-| CID 派生     | 手动 holding 的 topic 与 driveName 都必须由 CID digest 派生，传入不匹配值不能污染记录  | `server/src/index.js`                                |
-| API 文档     | OpenAPI 同时包含节点管理、holding、P2P pull、发布、下载检测、下载和按 CID 读取文件路径 | `/api/openapi.json`                                  |
+| 检查项       | 通过标准                                                                                  | 入口                                                 |
+| ------------ | ----------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| 安全策略     | 固定监听 `127.0.0.1:1976`，远程管理通过 SSH 隧道或反向代理                                | `server/index.js`                                    |
+| 局域网管理   | 首个签名身份可认领节点；认领后仅该身份可从局域网访问管理 API，本机回环访问仍可恢复        | `/api/admin/access`、`/admin/`                       |
+| API 防滥用   | 重复认证失败、无效邀请码或高成本写入超过额度时返回 `429`、`RATE_LIMITED` 和 `Retry-After` | `server/src/http/rateLimit.js`                       |
+| 状态解释     | holding 显示 queued、joining、active、paused、error 对应中文状态                          | `formatSeedStatus()`                                 |
+| 日志可读     | 管理台展示时间、level、event、message，支持清空日志                                       | `/api/node/logs`、`src/features/admin/AdminPage.tsx` |
+| 设置落盘     | 数据目录、容量上限、单文件上限保存后，API 和管理台能读回                                  | `/api/node/config`                                   |
+| holding 可见 | 发布或下载成功后，`/api/node/holdings` 与管理台都能看到 CID、大小、状态                   | `/api/node/holdings`                                 |
+| CID 派生     | 手动 holding 的 topic 与 driveName 都必须由 CID digest 派生，传入不匹配值不能污染记录     | `server/src/index.js`                                |
+| API 文档     | OpenAPI 同时包含节点管理、holding、P2P pull、发布、下载检测、下载和按 CID 读取文件路径    | `/api/openapi.json`                                  |
 
 推荐检查：
 

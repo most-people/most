@@ -32,6 +32,61 @@ export function registerNodeRoutes(
     serverInstanceRef,
   }
 ) {
+  app.get('/api/admin/access', c => {
+    const mode = c.get('requestAccessMode') || 'remote'
+    const userAddress = c.get('userAddress') || ''
+    const adminAddress = configStore.getNodeConfig().adminAddress
+    const authorized =
+      mode === 'loopback' ||
+      (mode === 'lan' && Boolean(adminAddress) && userAddress === adminAddress)
+
+    return c.json({
+      mode,
+      claimed: Boolean(adminAddress),
+      authorized,
+      adminAddress: authorized ? adminAddress : '',
+    })
+  })
+
+  app.post('/api/admin/access', c => {
+    const userAddress = c.get('userAddress')
+    const current = configStore.getNodeConfig().adminAddress
+    if (current && current !== userAddress) {
+      return c.json(
+        {
+          error: 'Node administration is already owned by another identity',
+          code: 'ADMIN_ALREADY_CLAIMED',
+        },
+        409
+      )
+    }
+
+    const result = current
+      ? { success: true, claimed: false, adminAddress: current }
+      : configStore.claimAdminAddress(userAddress)
+    if (!result.success) {
+      return c.json(
+        { error: 'Failed to persist node administrator', code: result.reason },
+        500
+      )
+    }
+
+    if (result.claimed) {
+      appendNodeLog({
+        event: 'node:admin:claimed',
+        message: 'Node administrator claimed',
+        data: { adminAddress: result.adminAddress },
+      })
+    }
+    return c.json({
+      success: true,
+      mode: c.get('requestAccessMode') || 'remote',
+      claimed: true,
+      authorized: true,
+      adminAddress: result.adminAddress,
+    })
+  })
+
   app.get('/api/node-id', c => {
     return c.json({ id: engine.getNodeId() })
   })

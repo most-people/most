@@ -40,9 +40,18 @@ export function requiresUserAuth(path) {
 export function isAdminApi(path) {
   return (
     path.startsWith('/api/admin/') ||
+    path === '/api/config' ||
+    path.startsWith('/api/config/') ||
+    path === '/api/display-name' ||
     path === '/api/node/config' ||
+    path === '/api/node/diagnostics' ||
+    path === '/api/node/holdings' ||
     path === '/api/node/policy' ||
     path === '/api/node/logs' ||
     path === '/api/shutdown'
   )
+}
+
+export function isAdminAccessApi(path) {
+  return path === '/api/admin/access'
 }

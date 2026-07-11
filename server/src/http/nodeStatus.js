@@ -78,7 +78,10 @@ export async function buildNodeStatus(
   appHost = DEFAULT_NODE_HOST
 ) {
   const config = configStore.getNodeConfig()
-  const { remoteInvites, ...publicConfig } = config
+  const { remoteInvites } = config
+  const publicConfig = { ...config }
+  delete publicConfig.remoteInvites
+  delete publicConfig.adminAddress
   const remoteInviteCount = remoteInvites.length
   const storage = await engine.getStorageStats()
   const network = engine.getNetworkStatus()
@@ -305,6 +308,19 @@ export function buildOpenApiSpec(appPort) {
       },
     },
     paths: {
+      '/api/admin/access': {
+        get: {
+          summary: 'Read node administration access state',
+          responses: { 200: { description: 'Administration access state' } },
+        },
+        post: {
+          summary: 'Claim LAN node administration with a signed identity',
+          responses: {
+            200: { description: 'Administration access claimed' },
+            409: { description: 'Administration already claimed' },
+          },
+        },
+      },
       '/api/node/status': {
         get: {
           summary: 'Get node daemon status',

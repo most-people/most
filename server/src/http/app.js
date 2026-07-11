@@ -15,16 +15,18 @@ import {
   getInvalidInviteResponse,
   getRequestPath,
   hasValidInvite,
+  isAllowedRequestOrigin,
   isLocalRequest,
   isLocalUpgradeRequest,
   isPublicListenHost,
   isRemoteAccessRequest,
 } from './access.js'
 import { buildNodeStatus } from './nodeStatus.js'
-import { createRateLimitMiddleware } from './rateLimit.js'
+import { createRateLimitGuard } from './rateLimit.js'
 import {
   isPublicFileDownloadPath,
   requiresUserAuth,
+  isAdminAccessApi,
   isAdminApi,
 } from './routePolicy.js'
 import { registerStaticRoutes } from './staticFiles.js'
@@ -57,6 +59,9 @@ export function createApp(engine, options = {}) {
   const serverInstanceRef = options.serverInstanceRef || { current: null }
   const trustPrivateNetwork =
     options.trustPrivateNetwork ?? isPublicListenHost(appHost)
+  const allowedOrigins = getAllowedOrigins(appPort)
+  const rateLimitGuard =
+    options.rateLimitGuard || createRateLimitGuard(options.rateLimit)
   function getRemoteInviteSet() {
     const invites =
       options.remoteInvites === undefined
@@ -72,29 +77,32 @@ export function createApp(engine, options = {}) {
 
   function isRemoteRequest(c) {
     return isRemoteAccessRequest({
-      invite: c.req.header('x-mostbox-invite'),
       origin: c.req.header('origin'),
-      listenHost: appHost,
+      host: c.req.header('host'),
       local: isLocalRequest(c, { trustPrivateNetwork }),
+      allowedOrigins,
     })
+  }
+
+  function getRequestAccessMode(c) {
+    if (isRemoteRequest(c)) return 'remote'
+    return isLocalRequest(c) ? 'loopback' : 'lan'
   }
 
   function authMiddleware() {
     return async (c, next) => {
       const path = getRequestPath(c)
+      const accessMode = getRequestAccessMode(c)
+      c.set('requestAccessMode', accessMode)
 
-      if (isRemoteRequest(c) && !isValidInvite(c)) {
-        return getInvalidInviteResponse(c)
-      }
-
-      if (isRemoteRequest(c) && isAdminApi(path)) {
-        return c.json(
-          {
-            error: 'Remote users cannot access node administration',
-            code: 'REMOTE_ADMIN_FORBIDDEN',
-          },
-          403
-        )
+      if (accessMode === 'remote') {
+        const blocked = rateLimitGuard.rejectIfBlocked(c, ['inviteFailure'])
+        if (blocked) return blocked
+        if (!isValidInvite(c)) {
+          const limited = rateLimitGuard.enforce(c, ['inviteFailure'])
+          if (limited) return limited
+          return getInvalidInviteResponse(c)
+        }
       }
 
       const authHeader = c.req.header('authorization')
@@ -104,14 +112,88 @@ export function createApp(engine, options = {}) {
           return
         }
 
+        const blocked = rateLimitGuard.rejectIfBlocked(c, ['authFailure'])
+        if (blocked) return blocked
         const auth = verifyAuthHeader(authHeader, c.req.method, path)
         if (!auth.ok) {
+          const limited = rateLimitGuard.enforce(c, ['authFailure'])
+          if (limited) return limited
           return c.json({ error: auth.error, code: 'UNAUTHORIZED' }, 401)
         }
         c.set('userAddress', auth.address)
       }
 
+      if (isAdminApi(path)) {
+        if (isAdminAccessApi(path) && c.req.method === 'GET') {
+          await next()
+          return
+        }
+
+        if (accessMode === 'remote') {
+          return c.json(
+            {
+              error: 'Remote users cannot access node administration',
+              code: 'REMOTE_ADMIN_FORBIDDEN',
+            },
+            403
+          )
+        }
+
+        if (isAdminAccessApi(path) && c.req.method === 'POST') {
+          if (!c.get('userAddress')) {
+            const limited = rateLimitGuard.enforce(c, ['authFailure'])
+            if (limited) return limited
+            return c.json(
+              {
+                error: 'Login required to claim node administration',
+                code: 'ADMIN_LOGIN_REQUIRED',
+              },
+              401
+            )
+          }
+          await next()
+          return
+        }
+
+        if (accessMode === 'lan') {
+          const userAddress = c.get('userAddress')
+          if (!userAddress) {
+            const limited = rateLimitGuard.enforce(c, ['authFailure'])
+            if (limited) return limited
+            return c.json(
+              {
+                error: 'Node administrator login required',
+                code: 'ADMIN_LOGIN_REQUIRED',
+              },
+              401
+            )
+          }
+
+          const adminAddress = configStore.getNodeConfig().adminAddress
+          if (!adminAddress) {
+            return c.json(
+              {
+                error: 'Node administrator has not been claimed',
+                code: 'ADMIN_UNCLAIMED',
+              },
+              403
+            )
+          }
+          if (userAddress !== adminAddress) {
+            return c.json(
+              {
+                error: 'Node administration is owned by another identity',
+                code: 'ADMIN_FORBIDDEN',
+              },
+              403
+            )
+          }
+        }
+      }
+
       if (requiresUserAuth(path) && !c.get('userAddress')) {
+        const limited = rateLimitGuard.enforce(c, ['authFailure'])
+        if (limited) return limited
         return c.json({ error: 'Login required', code: 'LOGIN_REQUIRED' }, 401)
       }
 
@@ -214,10 +296,10 @@ export function createApp(engine, options = {}) {
     const url = new URL(req.url, `http://localhost:${appPort}`)
     const invite = String(url.searchParams.get('invite') || '').trim()
     const remote = isRemoteAccessRequest({
-      invite,
       origin: req.headers.origin,
-      listenHost: appHost,
+      host: req.headers.host,
       local: isLocalUpgradeRequest(req, { trustPrivateNetwork }),
+      allowedOrigins,
     })
     if (!remote) return true
 
@@ -259,13 +341,16 @@ export function createApp(engine, options = {}) {
   app.use(
     '/api/*',
     cors({
-      origin: getAllowedOrigins(appPort),
+      origin: (origin, c) =>
+        isAllowedRequestOrigin(origin, allowedOrigins, c.req.header('host'))
+          ? origin
+          : null,
       credentials: true,
     })
   )
 
   // 速率限制中间件
-  app.use('/api/*', createRateLimitMiddleware())
+  app.use('/api/*', rateLimitGuard.middleware())
   app.use('/api/*', authMiddleware())
 
   // 全局错误处理
@@ -318,5 +403,6 @@ export function createApp(engine, options = {}) {
     cleanupWsSubscriptions,
     validateWebSocketRequest,
     getWebSocketUserAddress,
+    rateLimitGuard,
   }
 }

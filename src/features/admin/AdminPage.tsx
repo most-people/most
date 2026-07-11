@@ -41,9 +41,9 @@ import {
   api,
   getApiErrorMessage,
   getAuthenticatedWebSocketUrl,
-  getBackendUrlExport,
 } from '~server/src/utils/api'
 import { useAppStore } from '~/stores/useAppStore'
+import { useUserStore } from '~/stores/userStore'
 import { MarketingHeader } from '~/components/MarketingHeader'
 import { SegmentedControl, SelectControl } from '~/components/ui'
 import { useI18n, type Locale, type MessageKey } from '~/lib/i18n'
@@ -140,6 +140,13 @@ interface AdminUserData {
   fileCount: number
   trashCount: number
   cidCount: number
+}
+
+interface AdminAccess {
+  mode: 'loopback' | 'lan' | 'remote'
+  claimed: boolean
+  authorized: boolean
+  adminAddress: string
 }
 
 const EMPTY_STATUS: NodeStatus | null = null
@@ -506,6 +513,10 @@ export default function AdminPage() {
   const { t, locale, formatNumber, formatTime } = useI18n()
   const hasBackend = useAppStore(s => s.hasBackend)
   const addToast = useAppStore(s => s.addToast)
+  const userIdentity = useUserStore(s => s.identity)
+  const openLoginModal = useUserStore(s => s.openLoginModal)
+  const [adminAccess, setAdminAccess] = useState<AdminAccess | null>(null)
+  const [isClaimingAdmin, setIsClaimingAdmin] = useState(false)
   const [status, setStatus] = useState<NodeStatus | null>(EMPTY_STATUS)
   const [logs, setLogs] = useState<NodeLog[]>([])
   const [error, setError] = useState('')
@@ -563,11 +574,8 @@ export default function AdminPage() {
   }, [status])
 
   const holdings = status?.holdings || EMPTY_HOLDINGS
-  const backendUrl = getBackendUrlExport()
-  const isRemoteAdmin =
-    Boolean(backendUrl) &&
-    !backendUrl.includes('localhost') &&
-    !backendUrl.includes('127.0.0.1')
+  const isRemoteAdmin = adminAccess?.mode === 'remote'
+  const isAdminAuthorized = adminAccess?.authorized === true
   const userColumns = useMemo<ColumnDef<AdminUserData>[]>(
     () => [
       {
@@ -793,7 +801,7 @@ export default function AdminPage() {
   })
 
   const loadStatus = async () => {
-    if (!isBackendReady) return false
+    if (!isBackendReady || !isAdminAuthorized) return false
     try {
       const nextStatus = await api.get<NodeStatus>('/api/node/status').json()
       const nodeConfig = await api.get<NodeConfig>('/api/node/config').json()
@@ -845,6 +853,44 @@ export default function AdminPage() {
         .json()
       setUsers(result.users || [])
     } catch {}
+  }
+
+  const loadAdminAccess = async () => {
+    if (!isBackendReady) return null
+    try {
+      const result = await api.get<AdminAccess>('/api/admin/access').json()
+      setAdminAccess(result)
+      return result
+    } catch (err) {
+      const message = await getApiErrorMessage(err, t('admin.error.readAccess'))
+      setAdminAccess(null)
+      setError(message)
+      return null
+    }
+  }
+
+  const claimAdminAccess = async () => {
+    if (!userIdentity) {
+      openLoginModal()
+      return
+    }
+
+    setIsClaimingAdmin(true)
+    try {
+      const result = await api.post<AdminAccess>('/api/admin/access').json()
+      setAdminAccess(result)
+      setError('')
+      addToast(t('admin.toast.accessClaimed'), 'success')
+    } catch (err) {
+      const message = await getApiErrorMessage(
+        err,
+        t('admin.error.claimAccess')
+      )
+      setError(message)
+      addToast(message, 'error')
+    } finally {
+      setIsClaimingAdmin(false)
+    }
   }
 
   const saveConfig = async () => {
@@ -961,8 +1007,16 @@ export default function AdminPage() {
   }
 
   useEffect(() => {
+    if (!isBackendReady) {
+      setAdminAccess(null)
+      return
+    }
+    loadAdminAccess()
+  }, [isBackendReady, userIdentity?.address])
+
+  useEffect(() => {
     if (!isBackendReady) return
-    if (isRemoteAdmin) return
+    if (!isAdminAuthorized) return
     loadStatus()
     loadLogs()
     loadUsers()
@@ -1003,7 +1057,7 @@ export default function AdminPage() {
       cancelled = true
       ws?.close()
     }
-  }, [isBackendReady, isRemoteAdmin, logFilter])
+  }, [isAdminAuthorized, isBackendReady, logFilter, userIdentity?.address])
 
   return (
     <>
@@ -1022,7 +1076,11 @@ export default function AdminPage() {
                 ? t('admin.status.online')
                 : t('admin.status.waiting')}
             </span>
-            <button className="btn btn-secondary" onClick={refreshStatus}>
+            <button
+              className="btn btn-secondary"
+              onClick={refreshStatus}
+              disabled={!isAdminAuthorized}
+            >
               <RefreshCw size={16} />
               {t('admin.action.refresh')}
             </button>
@@ -1046,6 +1104,41 @@ export default function AdminPage() {
           </section>
         )}
 
+        {adminAccess?.mode === 'lan' && !adminAccess.authorized && (
+          <section className="admin-panel admin-warning admin-security-warning">
+            <ShieldCheck size={20} />
+            <div>
+              <strong>
+                {adminAccess.claimed
+                  ? t('admin.access.ownerRequiredTitle')
+                  : t('admin.access.claimTitle')}
+              </strong>
+              <span>
+                {adminAccess.claimed
+                  ? t('admin.access.ownerRequiredDesc')
+                  : t('admin.access.claimDesc')}
+              </span>
+              <button
+                className="btn btn-primary"
+                onClick={
+                  userIdentity ? claimAdminAccess : () => openLoginModal()
+                }
+                disabled={
+                  isClaimingAdmin ||
+                  (adminAccess.claimed && Boolean(userIdentity))
+                }
+              >
+                <ShieldCheck size={16} />
+                {userIdentity
+                  ? adminAccess.claimed
+                    ? t('admin.access.wrongIdentity')
+                    : t('admin.access.claim')
+                  : t('admin.access.login')}
+              </button>
+            </div>
+          </section>
+        )}
+
         {!isRemoteAdmin && error && (
           <section className="admin-panel admin-error">
             <FileText size={20} />
@@ -1053,7 +1146,7 @@ export default function AdminPage() {
           </section>
         )}
 
-        {!isRemoteAdmin && (
+        {isAdminAuthorized && (
           <>
             <section className="admin-overview">
               <div className="admin-metric">

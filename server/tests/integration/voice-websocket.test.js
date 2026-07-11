@@ -18,6 +18,7 @@ describe('voice WebSocket signaling (integration)', { timeout: 30000 }, () => {
   let serverInstance
   let wss
   let engine
+  let appRuntime
 
   before(async () => {
     const dataPath = path.join(tmpDir, 'data')
@@ -27,14 +28,14 @@ describe('voice WebSocket signaling (integration)', { timeout: 30000 }, () => {
 
     const wssRef = { current: null }
     const serverInstanceRef = { current: null }
-    const result = createApp(engine, {
+    appRuntime = createApp(engine, {
       port: TEST_PORT,
       wssRef,
       serverInstanceRef,
     })
 
     serverInstance = serve({
-      fetch: result.app.fetch,
+      fetch: appRuntime.app.fetch,
       port: TEST_PORT,
       hostname: 'localhost',
     })
@@ -44,15 +45,18 @@ describe('voice WebSocket signaling (integration)', { timeout: 30000 }, () => {
       engine,
       serverInstance,
       validateWebSocketRequest: () => true,
-      getWebSocketUserAddress: () => OWNER,
-      subscribeToChannel: result.subscribeToChannel,
-      unsubscribeFromChannel: result.unsubscribeFromChannel,
-      cleanupWsSubscriptions: result.cleanupWsSubscriptions,
+      getWebSocketUserAddress: req => {
+        const url = new URL(req.url, baseUrl)
+        return url.searchParams.get('owner') || ''
+      },
+      subscribeToChannel: appRuntime.subscribeToChannel,
+      unsubscribeFromChannel: appRuntime.unsubscribeFromChannel,
+      cleanupWsSubscriptions: appRuntime.cleanupWsSubscriptions,
     })
     wssRef.current = wss
 
     engine.on('channel:voice', data =>
-      result.wsSendToChannel(data.channelKey, 'channel:voice', data)
+      appRuntime.wsSendToChannel(data.channelKey, 'channel:voice', data)
     )
 
     let ready = false
@@ -76,11 +80,23 @@ describe('voice WebSocket signaling (integration)', { timeout: 30000 }, () => {
     fs.rmSync(tmpDir, { recursive: true, force: true })
   })
 
-  function connectClient() {
+  function connectClient(owner = OWNER) {
     return new Promise((resolve, reject) => {
-      const ws = new WebSocket(wsUrl)
+      const url = new URL(wsUrl)
+      if (owner) url.searchParams.set('owner', owner)
+      const ws = new WebSocket(url)
       ws.on('open', () => resolve(ws))
       ws.on('error', reject)
+    })
+  }
+
+  function receivesMessage(ws, timeout = 200) {
+    return new Promise(resolve => {
+      const timer = setTimeout(() => resolve(false), timeout)
+      ws.once('message', () => {
+        clearTimeout(timer)
+        resolve(true)
+      })
     })
   }
 
@@ -140,4 +156,53 @@ describe('voice WebSocket signaling (integration)', { timeout: 30000 }, () => {
     ws.close()
   })
 
+  it('does not subscribe unauthenticated WebSocket clients to channels', async () => {
+    const channelName = 'voice-ws-unauthenticated'
+    await engine.createChannel(channelName, 'personal', {
+      ownerAddress: OWNER,
+      displayName: 'Alice',
+    })
+
+    const ws = await connectClient('')
+    ws.send(
+      JSON.stringify({
+        event: 'channel:subscribe',
+        data: { channel: channelName },
+      })
+    )
+    await new Promise(resolve => setTimeout(resolve, 50))
+
+    const pending = receivesMessage(ws)
+    appRuntime.wsSendToChannel(channelName, 'channel:message', {
+      content: 'private',
+    })
+
+    assert.strictEqual(await pending, false)
+    ws.close()
+  })
+
+  it('does not subscribe authenticated non-members to channels', async () => {
+    const channelName = 'voice-ws-non-member'
+    await engine.createChannel(channelName, 'personal', {
+      ownerAddress: OWNER,
+      displayName: 'Alice',
+    })
+
+    const ws = await connectClient('0x3333333333333333333333333333333333333333')
+    ws.send(
+      JSON.stringify({
+        event: 'channel:subscribe',
+        data: { channel: channelName },
+      })
+    )
+    await new Promise(resolve => setTimeout(resolve, 50))
+
+    const pending = receivesMessage(ws)
+    appRuntime.wsSendToChannel(channelName, 'channel:message', {
+      content: 'private',
+    })
+
+    assert.strictEqual(await pending, false)
+    ws.close()
+  })
 })
