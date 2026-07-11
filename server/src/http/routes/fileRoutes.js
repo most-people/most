@@ -17,9 +17,11 @@ function startDownloadTask(engine, link, taskId, options, wsBroadcast) {
 }
 
 export function registerFileRoutes(app, { engine, configStore, wsBroadcast }) {
-  app.get('/api/files', c => {
+  app.get('/api/files', async c => {
     return c.json(
-      engine.listPublishedFiles({ ownerAddress: c.get('userAddress') })
+      await engine.listPublishedFilesWithAvailability({
+        ownerAddress: c.get('userAddress'),
+      })
     )
   })
 

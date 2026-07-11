@@ -1293,20 +1293,30 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       let metadataEngine
 
       try {
-        fs.mkdirSync(dataPath, { recursive: true })
+        metadataEngine = new MostBoxEngine({
+          dataPath,
+          disableNetwork: true,
+          downloadTimeout: 100,
+        })
+        await metadataEngine.start()
+        await metadataEngine.stop()
+        metadataEngine = null
+
         fs.writeFileSync(
           path.join(dataPath, 'published-files.json'),
           JSON.stringify(
-            [
-              {
-                fileName: '#18.txt',
-                cid: cidString,
-                driveName,
-                publishedAt: new Date().toISOString(),
-                starred: false,
-                ownerAddress: '',
-              },
-            ],
+            {
+              __local__: [
+                {
+                  fileName: '#18.txt',
+                  cid: cidString,
+                  driveName,
+                  publishedAt: new Date().toISOString(),
+                  starred: false,
+                  ownerAddress: '',
+                },
+              ],
+            },
             null,
             2
           )
@@ -1318,6 +1328,10 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
           downloadTimeout: 100,
         })
         await metadataEngine.start()
+
+        const listed = await metadataEngine.listPublishedFilesWithAvailability()
+        assert.strictEqual(listed.length, 1)
+        assert.strictEqual(listed[0].localAvailable, false)
 
         const availability = await metadataEngine.getLocalCidAvailability(
           `most://${cidString}?filename=${encodeURIComponent('chat-file/no-seed/#18.txt')}`

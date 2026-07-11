@@ -1779,6 +1779,26 @@ export class MostBoxEngine extends EventEmitter {
     })
   }
 
+  async listPublishedFilesWithAvailability(options = {}) {
+    this.#ensureInitialized()
+    const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    const files = this.listPublishedFiles(options)
+
+    return Promise.all(
+      files.map(async file => {
+        const localContent = await this.#getLocalCidContent(file.cid, {
+          ownerAddress,
+          public: true,
+          allowHoldingFallback: true,
+        })
+        return {
+          ...file,
+          localAvailable: localContent !== null,
+        }
+      })
+    )
+  }
+
   /**
    * 切换文件的收藏状态
    * @param {string} cid - 文件的 CID

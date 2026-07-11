@@ -52,7 +52,7 @@ export function getFolderShareState(
   }
 
   const missingCount = folderFiles.filter(
-    file => file.localAvailable === false || file.seedStatus === 'error'
+    file => file.localAvailable !== true || file.seedStatus === 'error'
   ).length
   if (missingCount > 0) {
     return {

@@ -6,6 +6,8 @@ import {
   clearBackendConnection,
   configureBackend,
   getAuthenticatedWebSocketUrl,
+  getApiErrorMessage,
+  getApiErrorPayload,
   getBackendUrlExport,
   getNodeHistoryExport,
   getRemoteInviteExport,
@@ -351,6 +353,41 @@ describe('api browser helpers', () => {
   })
 
   describe('api request auth', () => {
+    it('reads ky HTTPError data after the response body is consumed', async () => {
+      installBrowserEnv({
+        hostname: 'localhost',
+        origin: 'http://localhost:3000',
+      })
+      globalThis.fetch = async () =>
+        new Response(
+          JSON.stringify({
+            error: 'Folder file is not locally available',
+            code: 'VALIDATION_ERROR',
+          }),
+          {
+            status: 400,
+            headers: { 'content-type': 'application/json' },
+          }
+        )
+
+      try {
+        await api.post('/api/folder/share', { json: { path: 'Show' } }).json()
+        assert.fail('expected request to fail')
+      } catch (err) {
+        assert.strictEqual(err.response.bodyUsed, true)
+        assert.strictEqual(
+          await getApiErrorMessage(err, 'fallback'),
+          'Folder file is not locally available'
+        )
+        assert.deepStrictEqual(await getApiErrorPayload(err), {
+          status: 400,
+          code: 'VALIDATION_ERROR',
+          details: undefined,
+          error: 'Folder file is not locally available',
+        })
+      }
+    })
+
     it('signs the rewritten backend path behind a reverse proxy prefix', async () => {
       configureBackend({
         url: 'https://node.example.com/fe-customer-api',

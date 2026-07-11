@@ -336,6 +336,12 @@ export async function getApiErrorPayload(err) {
         ? err
         : null
 
+  const errorData =
+    err && typeof err === 'object' && 'data' in err ? err.data : undefined
+  if (errorData !== undefined) {
+    return normalizeApiErrorPayload(response, errorData)
+  }
+
   if (!response) return {}
 
   const data = response.bodyUsed
@@ -345,19 +351,26 @@ export async function getApiErrorPayload(err) {
         .json()
         .catch(() => null)
 
+  return normalizeApiErrorPayload(response, data)
+}
+
+function normalizeApiErrorPayload(response, data) {
+  const payload = data && typeof data === 'object' ? data : null
   return {
-    status: response.status,
-    code: typeof data?.code === 'string' ? data.code : undefined,
+    status: response?.status,
+    code: typeof payload?.code === 'string' ? payload.code : undefined,
     details:
-      data?.details && typeof data.details === 'object'
-        ? data.details
+      payload?.details && typeof payload.details === 'object'
+        ? payload.details
         : undefined,
     error:
-      typeof data?.error === 'string'
-        ? data.error
-        : typeof data?.message === 'string'
-          ? data.message
-          : undefined,
+      typeof payload?.error === 'string'
+        ? payload.error
+        : typeof payload?.message === 'string'
+          ? payload.message
+          : typeof data === 'string'
+            ? data
+            : undefined,
   }
 }
 

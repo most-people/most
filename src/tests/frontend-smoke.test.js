@@ -349,7 +349,7 @@ describe('frontend smoke checks', () => {
           {
             fileName: 'Show/S01E02.txt',
             kind: 'file',
-            seedStatus: 'error',
+            localAvailable: undefined,
           },
           {
             fileName: 'Other/S01E03.txt',
@@ -387,6 +387,30 @@ describe('frontend smoke checks', () => {
         reason: '',
         fileCount: 2,
         missingCount: 0,
+      }
+    )
+    assert.deepEqual(
+      getFolderShareState(
+        [
+          {
+            fileName: 'Show/S01E01.txt',
+            kind: 'file',
+            localAvailable: true,
+          },
+          {
+            fileName: 'Show/S01E02.txt',
+            kind: 'file',
+            localAvailable: true,
+            seedStatus: 'error',
+          },
+        ],
+        'Show'
+      ),
+      {
+        canShare: false,
+        reason: 'missingLocalFiles',
+        fileCount: 2,
+        missingCount: 1,
       }
     )
     assert.match(
