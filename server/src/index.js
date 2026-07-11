@@ -55,6 +55,10 @@ import {
 import { getSyncTimestamp, getNextSyncTimestamp } from './core/syncTimestamp.js'
 import { createOfflineSwarm } from './node/offlineSwarm.js'
 import {
+  readMetadataFile,
+  writeMetadataFile,
+} from './node/metadataFile.js'
+import {
   sanitizeFilename,
   validateAndSanitizePath,
   validateFileSize,
@@ -118,6 +122,22 @@ const CLIENT_MESSAGE_ID_REGEX =
 
 function hasOwnProperty(value, key) {
   return Object.prototype.hasOwnProperty.call(value || {}, key)
+}
+
+function parseMetadataBuckets(data, label) {
+  const parsed = JSON.parse(data)
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new TypeError(`${label} metadata must be an object`)
+  }
+  return normalizeMetadataBuckets(parsed)
+}
+
+function parseMetadataObject(data, label) {
+  const parsed = JSON.parse(data)
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new TypeError(`${label} metadata must be an object`)
+  }
+  return parsed
 }
 
 function normalizeClientMessageId(input, { strict = false } = {}) {
@@ -577,44 +597,49 @@ export class MostBoxEngine extends EventEmitter {
       this.#handleChannelConnection(conn, info).catch(() => {})
     })
 
-    this.#publishedFiles = this.#loadPublishedMetadata()
-    console.log(
-      `[MostBox] Loaded ${this.#countBucketRecords(this.#publishedFiles)} published files`
-    )
+    try {
+      this.#publishedFiles = this.#loadPublishedMetadata()
+      console.log(
+        `[MostBox] Loaded ${this.#countBucketRecords(this.#publishedFiles)} published files`
+      )
 
-    this.#holdings = this.#loadHoldingsMetadata()
-    console.log(`[MostBox] Loaded ${this.#holdings.length} node holdings`)
+      this.#holdings = this.#loadHoldingsMetadata()
+      console.log(`[MostBox] Loaded ${this.#holdings.length} node holdings`)
 
-    for (const holding of this.#holdings) {
-      this.#setSeedState(holding.cid, {
-        status: 'queued',
-        topic: holding.topic,
-        driveName: holding.driveName,
-      })
-    }
-
-    this.#trashFiles = this.#loadTrashMetadata()
-    console.log(
-      `[MostBox] Loaded ${this.#countBucketRecords(this.#trashFiles)} trash files`
-    )
-
-    this.#channels = this.#loadChannelsMetadata()
-    console.log(`[MostBox] Loaded ${this.#channels.length} channels`)
-
-    for (const channel of this.#channels) {
-      try {
-        await this.#openChannelRuntime(channel)
-        await this.#joinChannelDiscoveryTopics(channel)
-        console.log(`[MostBox] Rejoined channel: ${channel.channelKey}`)
-      } catch (err) {
-        console.warn(
-          `[MostBox] Failed to rejoin channel ${channel.channelKey}:`,
-          err.message
-        )
+      for (const holding of this.#holdings) {
+        this.#setSeedState(holding.cid, {
+          status: 'queued',
+          topic: holding.topic,
+          driveName: holding.driveName,
+        })
       }
-    }
 
-    this.#accountMetadata = this.#loadAccountMetadata()
+      this.#trashFiles = this.#loadTrashMetadata()
+      console.log(
+        `[MostBox] Loaded ${this.#countBucketRecords(this.#trashFiles)} trash files`
+      )
+
+      this.#channels = this.#loadChannelsMetadata()
+      console.log(`[MostBox] Loaded ${this.#channels.length} channels`)
+
+      for (const channel of this.#channels) {
+        try {
+          await this.#openChannelRuntime(channel)
+          await this.#joinChannelDiscoveryTopics(channel)
+          console.log(`[MostBox] Rejoined channel: ${channel.channelKey}`)
+        } catch (err) {
+          console.warn(
+            `[MostBox] Failed to rejoin channel ${channel.channelKey}:`,
+            err.message
+          )
+        }
+      }
+
+      this.#accountMetadata = this.#loadAccountMetadata()
+    } catch (err) {
+      await this.stop()
+      throw err
+    }
 
     this.#initialized = true
     console.log(`[MostBox] Engine initialized successfully`)
@@ -629,7 +654,12 @@ export class MostBoxEngine extends EventEmitter {
    * 停止引擎并清理资源
    */
   async stop() {
-    if (!this.#initialized) {
+    if (
+      !this.#initialized &&
+      !this.#store &&
+      !this.#swarm &&
+      !this.#chatSwarm
+    ) {
       return
     }
 
@@ -3938,11 +3968,8 @@ export class MostBoxEngine extends EventEmitter {
    */
   getDisplayName() {
     try {
-      const configPath = this.#getConfigPath()
-      if (fs.existsSync(configPath)) {
-        const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-        return config.displayName || null
-      }
+      const config = this.#loadChannelConfig()
+      return config.displayName || null
     } catch {}
     return null
   }
@@ -3954,13 +3981,9 @@ export class MostBoxEngine extends EventEmitter {
   setDisplayName(name) {
     try {
       const configPath = this.#getConfigPath()
-      const config = fs.existsSync(configPath)
-        ? JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-        : {}
+      const config = this.#loadChannelConfig()
       config.displayName = name.trim()
-      const tmpPath = configPath + '.tmp'
-      fs.writeFileSync(tmpPath, JSON.stringify(config, null, 2), 'utf-8')
-      fs.renameSync(tmpPath, configPath)
+      writeMetadataFile(configPath, JSON.stringify(config, null, 2))
       return true
     } catch {
       return false
@@ -6206,15 +6229,9 @@ export class MostBoxEngine extends EventEmitter {
     return path.join(this.#options.dataPath, 'account-metadata.json')
   }
 
-  #atomicWrite(filePath, data) {
-    const tmpPath = filePath + '.tmp'
-    fs.writeFileSync(tmpPath, data, 'utf-8')
-    fs.renameSync(tmpPath, filePath)
-  }
-
   #saveMetadataFile(label, filePath, data) {
     try {
-      this.#atomicWrite(filePath, data)
+      writeMetadataFile(filePath, data)
     } catch (err) {
       console.error(
         `[MostBox] Failed to save ${label} metadata at ${filePath}:`,
@@ -6227,26 +6244,19 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #loadPublishedMetadata() {
-    try {
-      const metadataPath = this.#getMetadataPath()
-      if (fs.existsSync(metadataPath)) {
-        const data = fs.readFileSync(metadataPath, 'utf-8')
-        const parsed = JSON.parse(data)
-        const buckets = normalizeMetadataBuckets(parsed)
+    return readMetadataFile(this.#getMetadataPath(), {
+      label: 'published files',
+      fallback: () => ({}),
+      parse: data => {
+        const buckets = parseMetadataBuckets(data, 'published files')
         for (const records of Object.values(buckets)) {
           for (const record of records) {
             record.starred = record.starred || false
           }
         }
         return buckets
-      }
-    } catch (err) {
-      console.warn(
-        'Failed to load published metadata, using empty list:',
-        err.message
-      )
-    }
-    return {}
+      },
+    })
   }
 
   #savePublishedMetadata() {
@@ -6258,20 +6268,17 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #loadHoldingsMetadata() {
-    try {
-      const metadataPath = this.#getHoldingsMetadataPath()
-      if (fs.existsSync(metadataPath)) {
-        const data = fs.readFileSync(metadataPath, 'utf-8')
+    return readMetadataFile(this.#getHoldingsMetadataPath(), {
+      label: 'node holdings',
+      fallback: () => [],
+      parse: data => {
         const parsed = JSON.parse(data)
+        if (!Array.isArray(parsed)) {
+          throw new TypeError('node holdings metadata must be an array')
+        }
         return parsed.map(record => this.#normalizeHolding(record))
-      }
-    } catch (err) {
-      console.warn(
-        'Failed to load node holdings metadata, using empty list:',
-        err.message
-      )
-    }
-    return []
+      },
+    })
   }
 
   #saveHoldingsMetadata() {
@@ -6283,19 +6290,11 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #loadTrashMetadata() {
-    try {
-      const metadataPath = this.#getTrashMetadataPath()
-      if (fs.existsSync(metadataPath)) {
-        const data = fs.readFileSync(metadataPath, 'utf-8')
-        return normalizeMetadataBuckets(JSON.parse(data))
-      }
-    } catch (err) {
-      console.warn(
-        'Failed to load trash metadata, using empty list:',
-        err.message
-      )
-    }
-    return {}
+    return readMetadataFile(this.#getTrashMetadataPath(), {
+      label: 'trash',
+      fallback: () => ({}),
+      parse: data => parseMetadataBuckets(data, 'trash'),
+    })
   }
 
   #saveTrashMetadata() {
@@ -6307,10 +6306,19 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #loadAccountMetadata() {
-    try {
-      const metadataPath = this.#getAccountMetadataPath()
-      if (fs.existsSync(metadataPath)) {
-        const parsed = JSON.parse(fs.readFileSync(metadataPath, 'utf-8'))
+    return readMetadataFile(this.#getAccountMetadataPath(), {
+      label: 'account',
+      fallback: () => ({ profiles: {} }),
+      parse: data => {
+        const parsed = parseMetadataObject(data, 'account')
+        if (
+          parsed.profiles !== undefined &&
+          (!parsed.profiles ||
+            typeof parsed.profiles !== 'object' ||
+            Array.isArray(parsed.profiles))
+        ) {
+          throw new TypeError('account profiles metadata must be an object')
+        }
         const profiles = {}
         for (const [owner, profile] of Object.entries(parsed.profiles || {})) {
           const ownerAddress = normalizeOwnerAddress(owner)
@@ -6322,14 +6330,8 @@ export class MostBoxEngine extends EventEmitter {
           if (normalized) profiles[ownerAddress] = normalized
         }
         return { profiles }
-      }
-    } catch (err) {
-      console.warn(
-        'Failed to load account metadata, using empty state:',
-        err.message
-      )
-    }
-    return { profiles: {} }
+      },
+    })
   }
 
   #saveAccountMetadata() {
@@ -6348,13 +6350,23 @@ export class MostBoxEngine extends EventEmitter {
     return path.join(this.#options.dataPath, 'channel-config.json')
   }
 
+  #loadChannelConfig() {
+    return readMetadataFile(this.#getConfigPath(), {
+      label: 'channel config',
+      fallback: () => ({}),
+      parse: data => parseMetadataObject(data, 'channel config'),
+    })
+  }
+
   #loadChannelsMetadata() {
-    try {
-      const metadataPath = this.#getChannelsMetadataPath()
-      if (fs.existsSync(metadataPath)) {
-        const data = fs.readFileSync(metadataPath, 'utf-8')
+    return readMetadataFile(this.#getChannelsMetadataPath(), {
+      label: 'channels',
+      fallback: () => [],
+      parse: data => {
         const channels = JSON.parse(data)
-        if (!Array.isArray(channels)) return []
+        if (!Array.isArray(channels)) {
+          throw new TypeError('channels metadata must be an array')
+        }
         return channels
           .filter(channel => channel && typeof channel === 'object')
           .map(channel => {
@@ -6380,14 +6392,8 @@ export class MostBoxEngine extends EventEmitter {
           .map(
             ({ expectedChannelKey: _expectedChannelKey, ...channel }) => channel
           )
-      }
-    } catch (err) {
-      console.warn(
-        'Failed to load channels metadata, using empty list:',
-        err.message
-      )
-    }
-    return []
+      },
+    })
   }
 
   #saveChannelsMetadata() {

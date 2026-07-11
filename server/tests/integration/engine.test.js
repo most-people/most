@@ -242,19 +242,19 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         dataPath,
         disableNetwork: true,
       })
-      const originalWriteFileSync = fs.writeFileSync
+      const originalOpenSync = fs.openSync
 
       try {
         await persistenceEngine.start()
-        fs.writeFileSync = function writeFileSyncWithFailure(
-          target,
-          data,
-          options
-        ) {
-          if (String(target).endsWith('published-files.json.tmp')) {
+        fs.openSync = function openSyncWithFailure(target, flags, mode) {
+          const targetPath = String(target)
+          if (
+            targetPath.includes('published-files.json') &&
+            targetPath.endsWith('.tmp')
+          ) {
             throw new Error('disk full')
           }
-          return originalWriteFileSync.call(this, target, data, options)
+          return originalOpenSync.call(this, target, flags, mode)
         }
 
         await assert.rejects(
@@ -267,9 +267,110 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
             err.details?.metadata === 'published files'
         )
       } finally {
-        fs.writeFileSync = originalWriteFileSync
+        fs.openSync = originalOpenSync
         await persistenceEngine.stop().catch(() => {})
         fs.rmSync(persistenceTmpDir, { recursive: true, force: true })
+      }
+    })
+
+    it('recovers published metadata from the last valid backup', async () => {
+      const recoveryTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-metadata-recovery-')
+      )
+      const dataPath = path.join(recoveryTmpDir, 'data')
+      const metadataPath = path.join(dataPath, 'published-files.json')
+      let firstEngine
+      let recoveredEngine
+
+      try {
+        firstEngine = new MostBoxEngine({ dataPath, disableNetwork: true })
+        await firstEngine.start()
+        const published = await firstEngine.publishFile(
+          Buffer.from('recover published metadata'),
+          'recovered.txt'
+        )
+        await firstEngine.stop()
+        firstEngine = null
+
+        assert.ok(fs.existsSync(`${metadataPath}.bak`))
+        fs.writeFileSync(metadataPath, '{broken', 'utf-8')
+
+        recoveredEngine = new MostBoxEngine({
+          dataPath,
+          disableNetwork: true,
+        })
+        await recoveredEngine.start()
+
+        assert.ok(
+          recoveredEngine
+            .listPublishedFiles()
+            .some(file => file.cid === published.cid)
+        )
+        assert.doesNotThrow(() =>
+          JSON.parse(fs.readFileSync(metadataPath, 'utf-8'))
+        )
+        assert.strictEqual(
+          fs
+            .readdirSync(dataPath)
+            .filter(name =>
+              name.startsWith('published-files.json.corrupt-')
+            ).length,
+          1
+        )
+      } finally {
+        if (firstEngine) await firstEngine.stop().catch(() => {})
+        if (recoveredEngine) await recoveredEngine.stop().catch(() => {})
+        fs.rmSync(recoveryTmpDir, { recursive: true, force: true })
+      }
+    })
+
+    it('fails closed and releases resources when metadata generations are corrupt', async () => {
+      const corruptTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-metadata-corrupt-')
+      )
+      const dataPath = path.join(corruptTmpDir, 'data')
+      const metadataPath = path.join(dataPath, 'published-files.json')
+      let setupEngine
+      let damagedEngine
+      let replacementEngine
+
+      try {
+        setupEngine = new MostBoxEngine({ dataPath, disableNetwork: true })
+        await setupEngine.start()
+        await setupEngine.stop()
+        setupEngine = null
+
+        fs.writeFileSync(metadataPath, '{primary', 'utf-8')
+        fs.writeFileSync(`${metadataPath}.bak`, '{backup', 'utf-8')
+        damagedEngine = new MostBoxEngine({
+          dataPath,
+          disableNetwork: true,
+        })
+
+        await assert.rejects(
+          damagedEngine.start(),
+          error =>
+            error.code === 'PERSISTENCE_ERROR' &&
+            error.details?.metadata === 'published files'
+        )
+        assert.strictEqual(fs.readFileSync(metadataPath, 'utf-8'), '{primary')
+        assert.strictEqual(
+          fs.readFileSync(`${metadataPath}.bak`, 'utf-8'),
+          '{backup'
+        )
+
+        fs.rmSync(metadataPath, { force: true })
+        fs.rmSync(`${metadataPath}.bak`, { force: true })
+        replacementEngine = new MostBoxEngine({
+          dataPath,
+          disableNetwork: true,
+        })
+        await replacementEngine.start()
+      } finally {
+        if (setupEngine) await setupEngine.stop().catch(() => {})
+        if (damagedEngine) await damagedEngine.stop().catch(() => {})
+        if (replacementEngine) await replacementEngine.stop().catch(() => {})
+        fs.rmSync(corruptTmpDir, { recursive: true, force: true })
       }
     })
 
@@ -1533,6 +1634,9 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         firstEngine = null
 
         fs.rmSync(path.join(dataPath, 'node-holdings.json'), { force: true })
+        fs.rmSync(path.join(dataPath, 'node-holdings.json.bak'), {
+          force: true,
+        })
 
         repairEngine = new MostBoxEngine({ dataPath })
         await repairEngine.start()
