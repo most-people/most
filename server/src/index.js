@@ -75,6 +75,7 @@ import {
   PermissionError,
   ConflictError,
   StorageCapacityError,
+  PersistenceError,
   EngineNotInitializedError,
 } from './utils/errors.js'
 import {
@@ -480,15 +481,11 @@ export class MostBoxEngine extends EventEmitter {
         err.message &&
         err.message.includes('Another corestore is stored here')
       ) {
-        console.log(`[MostBox] Resetting corrupt storage...`)
-        fs.rmSync(dataPath, { recursive: true, force: true })
-        fs.mkdirSync(dataPath, { recursive: true })
-        this.#store = new Corestore(dataPath, {
-          primaryKey: GLOBAL_SHARED_SEED,
-          unsafe: true,
-        })
-        await this.#store.ready()
-        console.log(`[MostBox] Corestore reset and ready`)
+        this.#store = null
+        throw new PersistenceError(
+          `Storage path uses a different Corestore identity. MostBox will not delete existing data automatically. Move the directory aside or choose a new dataPath before restarting: ${dataPath}`,
+          { reason: 'CORESTORE_IDENTITY_MISMATCH' }
+        )
       } else if (err.message && err.message.includes('Invalid device file')) {
         throw new Error(`存储文件损坏，请关闭其他访问 ${dataPath} 的程序后重试`)
       } else if (
@@ -6146,6 +6143,20 @@ export class MostBoxEngine extends EventEmitter {
     fs.renameSync(tmpPath, filePath)
   }
 
+  #saveMetadataFile(label, filePath, data) {
+    try {
+      this.#atomicWrite(filePath, data)
+    } catch (err) {
+      console.error(
+        `[MostBox] Failed to save ${label} metadata at ${filePath}:`,
+        err.message
+      )
+      throw new PersistenceError(`Failed to save ${label} metadata`, {
+        metadata: label,
+      })
+    }
+  }
+
   #loadPublishedMetadata() {
     try {
       const metadataPath = this.#getMetadataPath()
@@ -6170,15 +6181,11 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #savePublishedMetadata() {
-    try {
-      const metadataPath = this.#getMetadataPath()
-      this.#atomicWrite(
-        metadataPath,
-        JSON.stringify(this.#publishedFiles, null, 2)
-      )
-    } catch (err) {
-      console.error('Failed to save published metadata:', err.message)
-    }
+    this.#saveMetadataFile(
+      'published files',
+      this.#getMetadataPath(),
+      JSON.stringify(this.#publishedFiles, null, 2)
+    )
   }
 
   #loadHoldingsMetadata() {
@@ -6199,12 +6206,11 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #saveHoldingsMetadata() {
-    try {
-      const metadataPath = this.#getHoldingsMetadataPath()
-      this.#atomicWrite(metadataPath, JSON.stringify(this.#holdings, null, 2))
-    } catch (err) {
-      console.error('Failed to save node holdings metadata:', err.message)
-    }
+    this.#saveMetadataFile(
+      'node holdings',
+      this.#getHoldingsMetadataPath(),
+      JSON.stringify(this.#holdings, null, 2)
+    )
   }
 
   #loadTrashMetadata() {
@@ -6224,12 +6230,11 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #saveTrashMetadata() {
-    try {
-      const metadataPath = this.#getTrashMetadataPath()
-      this.#atomicWrite(metadataPath, JSON.stringify(this.#trashFiles, null, 2))
-    } catch (err) {
-      console.error('Failed to save trash metadata:', err.message)
-    }
+    this.#saveMetadataFile(
+      'trash',
+      this.#getTrashMetadataPath(),
+      JSON.stringify(this.#trashFiles, null, 2)
+    )
   }
 
   #loadAccountMetadata() {
@@ -6259,15 +6264,11 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #saveAccountMetadata() {
-    try {
-      const metadataPath = this.#getAccountMetadataPath()
-      this.#atomicWrite(
-        metadataPath,
-        JSON.stringify(this.#accountMetadata, null, 2)
-      )
-    } catch (err) {
-      console.error('Failed to save account metadata:', err.message)
-    }
+    this.#saveMetadataFile(
+      'account',
+      this.#getAccountMetadataPath(),
+      JSON.stringify(this.#accountMetadata, null, 2)
+    )
   }
 
   #getChannelsMetadataPath() {
@@ -6321,31 +6322,27 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #saveChannelsMetadata() {
-    try {
-      const metadataPath = this.#getChannelsMetadataPath()
-      const persistentChannels = this.#channels
-        .filter(channel => !TRANSIENT_CHANNEL_TYPES.has(channel?.type))
-        .map(channel => ({
-          channelId: channel.channelId,
-          channelKey: channel.channelKey,
-          name: channel.channelId,
-          type: channel.type,
-          createdAt: channel.createdAt,
-          lastMessageAt: channel.lastMessageAt || '',
-          writerId: channel.writerId,
-          localWriterCoreKey: channel.localWriterCoreKey,
-          writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
-          members: Array.isArray(channel.members) ? channel.members : [],
-          remarks: channel.remarks,
-          pinnedBy: channel.pinnedBy,
-        }))
-      this.#atomicWrite(
-        metadataPath,
-        JSON.stringify(persistentChannels, null, 2)
-      )
-    } catch (err) {
-      console.error('Failed to save channels metadata:', err.message)
-    }
+    const persistentChannels = this.#channels
+      .filter(channel => !TRANSIENT_CHANNEL_TYPES.has(channel?.type))
+      .map(channel => ({
+        channelId: channel.channelId,
+        channelKey: channel.channelKey,
+        name: channel.channelId,
+        type: channel.type,
+        createdAt: channel.createdAt,
+        lastMessageAt: channel.lastMessageAt || '',
+        writerId: channel.writerId,
+        localWriterCoreKey: channel.localWriterCoreKey,
+        writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
+        members: Array.isArray(channel.members) ? channel.members : [],
+        remarks: channel.remarks,
+        pinnedBy: channel.pinnedBy,
+      }))
+    this.#saveMetadataFile(
+      'channels',
+      this.#getChannelsMetadataPath(),
+      JSON.stringify(persistentChannels, null, 2)
+    )
   }
 
   #generateChannelDiscoveryKey(channelKey) {

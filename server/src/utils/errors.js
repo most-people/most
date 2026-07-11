@@ -84,6 +84,14 @@ export class StorageCapacityError extends AppError {
   }
 }
 
+export class PersistenceError extends AppError {
+  constructor(message = 'Failed to persist data', details = undefined) {
+    super(message, 'PERSISTENCE_ERROR')
+    this.name = 'PersistenceError'
+    if (details) this.details = details
+  }
+}
+
 export class EngineNotInitializedError extends AppError {
   constructor(message = 'Engine not initialized. Call start() first.') {
     super(message, 'ENGINE_NOT_INITIALIZED')

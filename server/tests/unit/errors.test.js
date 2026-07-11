@@ -10,6 +10,7 @@ import {
   PermissionError,
   ConflictError,
   EngineNotInitializedError,
+  PersistenceError,
   isErrorWithCode,
 } from '../../src/utils/errors.js'
 
@@ -136,6 +137,16 @@ describe('EngineNotInitializedError', () => {
   it('has default message about start()', () => {
     const err = new EngineNotInitializedError()
     assert.ok(err.message.includes('start()'))
+  })
+})
+
+describe('PersistenceError', () => {
+  it('has PERSISTENCE_ERROR code and optional details', () => {
+    const err = new PersistenceError('save failed', { metadata: 'files' })
+    assert.strictEqual(err.code, 'PERSISTENCE_ERROR')
+    assert.strictEqual(err.name, 'PersistenceError')
+    assert.strictEqual(err.message, 'save failed')
+    assert.deepStrictEqual(err.details, { metadata: 'files' })
   })
 })
 

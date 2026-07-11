@@ -98,3 +98,26 @@ jobs:
 
       - name: Check formatting
         run: npm run lint
+
+  android-test:
+    name: Android Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: mobile/android/package-lock.json
+
+      - name: Install Android package dependencies
+        working-directory: mobile/android
+        run: npm ci
+
+      - name: Run Android package tests
+        working-directory: mobile/android
+        run: npm test

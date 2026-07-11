@@ -162,6 +162,41 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.ok(engine)
     })
 
+    it('fails closed instead of deleting data when Corestore identity differs', async () => {
+      const mismatchTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-corestore-mismatch-')
+      )
+      const dataPath = path.join(mismatchTmpDir, 'data')
+      fs.mkdirSync(dataPath, { recursive: true })
+
+      const originalReady = Corestore.prototype.ready
+      const originalRmSync = fs.rmSync
+      const rmTargets = []
+
+      Corestore.prototype.ready = async function readyWithMismatchedIdentity() {
+        throw new Error('Another corestore is stored here')
+      }
+      fs.rmSync = function trackedRmSync(target, options) {
+        rmTargets.push(path.resolve(String(target)))
+        return originalRmSync.call(this, target, options)
+      }
+
+      try {
+        const mismatchEngine = new MostBoxEngine({ dataPath })
+        await assert.rejects(
+          mismatchEngine.start(),
+          err =>
+            err.code === 'PERSISTENCE_ERROR' &&
+            err.details?.reason === 'CORESTORE_IDENTITY_MISMATCH'
+        )
+        assert.strictEqual(rmTargets.includes(path.resolve(dataPath)), false)
+      } finally {
+        Corestore.prototype.ready = originalReady
+        fs.rmSync = originalRmSync
+        fs.rmSync(mismatchTmpDir, { recursive: true, force: true })
+      }
+    })
+
     it('getNodeId returns a hex string', () => {
       const nodeId = engine.getNodeId()
       assert.strictEqual(typeof nodeId, 'string')
@@ -196,6 +231,46 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
 
       assert.ok(result.cid)
       assert.strictEqual(result.fileName, 'from-path.txt')
+    })
+
+    it('surfaces metadata persistence failures while publishing', async () => {
+      const persistenceTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-persist-failure-')
+      )
+      const dataPath = path.join(persistenceTmpDir, 'data')
+      const persistenceEngine = new MostBoxEngine({
+        dataPath,
+        disableNetwork: true,
+      })
+      const originalWriteFileSync = fs.writeFileSync
+
+      try {
+        await persistenceEngine.start()
+        fs.writeFileSync = function writeFileSyncWithFailure(
+          target,
+          data,
+          options
+        ) {
+          if (String(target).endsWith('published-files.json.tmp')) {
+            throw new Error('disk full')
+          }
+          return originalWriteFileSync.call(this, target, data, options)
+        }
+
+        await assert.rejects(
+          persistenceEngine.publishFile(
+            Buffer.from('metadata persistence failure'),
+            'persist-failure.txt'
+          ),
+          err =>
+            err.code === 'PERSISTENCE_ERROR' &&
+            err.details?.metadata === 'published files'
+        )
+      } finally {
+        fs.writeFileSync = originalWriteFileSync
+        await persistenceEngine.stop().catch(() => {})
+        fs.rmSync(persistenceTmpDir, { recursive: true, force: true })
+      }
     })
 
     it('same content produces same CID', async () => {
