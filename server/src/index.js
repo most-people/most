@@ -1354,6 +1354,7 @@ export class MostBoxEngine extends EventEmitter {
       readStream: null,
       writeStream: null,
       releaseCapacity: null,
+      childTaskIds: new Set(),
     }
     this.#activeDownloads.set(taskId, taskState)
 
@@ -1407,11 +1408,17 @@ export class MostBoxEngine extends EventEmitter {
               alreadyExists: true,
             }
           }
-          return this.#downloadCollectionFiles(localCollection, taskId, {
-            ...options,
-            ownerAddress,
-            fileName: linkFileName,
-          })
+          const result = await this.#downloadCollectionFiles(
+            localCollection,
+            taskId,
+            {
+              ...options,
+              ownerAddress,
+              fileName: linkFileName,
+              taskState,
+            }
+          )
+          return result
         }
 
         const existingFile = localContent.fileRecord
@@ -1550,11 +1557,17 @@ export class MostBoxEngine extends EventEmitter {
         linkFileName
       )
       if (remoteCollection) {
-        return this.#downloadCollectionFiles(remoteCollection, taskId, {
-          ...options,
-          ownerAddress,
-          fileName: linkFileName,
-        })
+        const result = await this.#downloadCollectionFiles(
+          remoteCollection,
+          taskId,
+          {
+            ...options,
+            ownerAddress,
+            fileName: linkFileName,
+            taskState,
+          }
+        )
+        return result
       }
 
       const targetDir = this.#options.downloadPath
@@ -2457,6 +2470,9 @@ export class MostBoxEngine extends EventEmitter {
     const task = this.#activeDownloads.get(taskId)
     if (task) {
       task.aborted = true
+      for (const childTaskId of [...(task.childTaskIds || [])]) {
+        this.cancelDownload(childTaskId)
+      }
       const err = new Error('Download cancelled')
       if (task.readStream) task.readStream.destroy(err)
       if (task.writeStream) task.writeStream.destroy()
@@ -3268,6 +3284,12 @@ export class MostBoxEngine extends EventEmitter {
 
   async #downloadCollectionFiles(collection, taskId, options = {}) {
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
+    const parentTaskState = options.taskState || null
+    const throwIfCancelled = () => {
+      if (parentTaskState?.aborted) {
+        throw new Error('Download cancelled')
+      }
+    }
     const collectionName = sanitizeFilename(
       options.fileName || collection.fileName
     )
@@ -3304,6 +3326,7 @@ export class MostBoxEngine extends EventEmitter {
     const downloadedFiles = []
     const unavailableFiles = []
     for (let index = 0; index < childTargets.length; index += 1) {
+      throwIfCancelled()
       const { file, fileName } = childTargets[index]
       this.emit('download:status', {
         taskId,
@@ -3311,10 +3334,12 @@ export class MostBoxEngine extends EventEmitter {
         file: fileName,
       })
       let childResult
+      const childTaskId = `${taskId}_${index}`
+      parentTaskState?.childTaskIds?.add(childTaskId)
       try {
         childResult = await this.downloadFile(
           buildMostLink(file.cid, fileName),
-          `${taskId}_${index}`,
+          childTaskId,
           {
             timeout: options.timeout ?? DRIVE_ENTRY_TIMEOUT,
             streamReadTimeout: options.streamReadTimeout,
@@ -3350,6 +3375,8 @@ export class MostBoxEngine extends EventEmitter {
               : 0,
         })
         continue
+      } finally {
+        parentTaskState?.childTaskIds?.delete(childTaskId)
       }
       downloadedFiles.push({
         ...file,
@@ -3372,6 +3399,8 @@ export class MostBoxEngine extends EventEmitter {
           files.length > 0 ? Math.round(((index + 1) / files.length) * 100) : 0,
       })
     }
+
+    throwIfCancelled()
 
     await this.#joinCidTopicInternal(collection.cid, {
       server: true,

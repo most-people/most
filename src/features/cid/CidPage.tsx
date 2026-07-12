@@ -680,7 +680,31 @@ export default function CidPage() {
 
   const handleCancelDownload = async () => {
     if (!taskId) return
-    await fileApi.cancelDownload(taskId).catch(() => {})
+    const cancelledTaskId = taskId
+    setTaskId('')
+    setDownloadState({
+      status: 'cancelled',
+      message: t('cid.status.cancelled'),
+    })
+    setProgress(0)
+    setLoadedBytes(null)
+    setTotalBytes(null)
+    setCollectionProgress(null)
+    addToast(t('cid.toast.cancelled'), 'warning')
+
+    try {
+      await fileApi.cancelDownload(cancelledTaskId)
+    } catch (err) {
+      setTaskId(cancelledTaskId)
+      setDownloadState({
+        status: 'downloading',
+        message: t('cid.status.downloading'),
+      })
+      addToast(
+        await getApiErrorMessage(err, t('app.toast.cancelFailed')),
+        'error'
+      )
+    }
   }
 
   const handleCopyWebShareLink = () => {

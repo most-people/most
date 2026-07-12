@@ -58,6 +58,29 @@ async function waitForHoldingMetric(
   throw new Error(`Holding ${cid} did not report ${description}`)
 }
 
+async function waitForDownloadStatus(engine, predicate, timeout = 5000) {
+  return new Promise((resolve, reject) => {
+    let timer = null
+
+    function cleanup() {
+      if (timer) clearTimeout(timer)
+      engine.off('download:status', handleStatus)
+    }
+
+    function handleStatus(event) {
+      if (!predicate(event)) return
+      cleanup()
+      resolve(event)
+    }
+
+    timer = setTimeout(() => {
+      cleanup()
+      reject(new Error('Download status event was not emitted'))
+    }, timeout)
+    engine.on('download:status', handleStatus)
+  })
+}
+
 async function waitForChannelMessage(
   engine,
   channelName,
@@ -2163,6 +2186,63 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       engine.cancelDownload(taskId)
 
       await assert.rejects(download, /Download cancelled/)
+    })
+
+    it('cancels an active collection child download through the root task', async () => {
+      const collectionTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-collection-cancel-')
+      )
+      const taskId = `collection-cancel-${Date.now()}`
+      let publisher
+      let downloader
+      let replication
+
+      try {
+        publisher = new MostBoxEngine({
+          dataPath: path.join(collectionTmpDir, 'publisher'),
+          disableNetwork: true,
+        })
+        downloader = new MostBoxEngine({
+          dataPath: path.join(collectionTmpDir, 'downloader'),
+          disableNetwork: true,
+          downloadTimeout: 10000,
+        })
+        await publisher.start()
+        await downloader.start()
+
+        const publishResult = await publisher.publishCollection(
+          [
+            {
+              path: 'Missing/child.txt',
+              content: Buffer.from('child has no seed'),
+            },
+          ],
+          'Missing',
+          { seedChildFiles: false }
+        )
+        replication = publisher.replicateWith(downloader)
+
+        const childWait = waitForDownloadStatus(
+          downloader,
+          event =>
+            event.taskId === taskId &&
+            event.status === 'finding-peers' &&
+            event.file === 'Missing/child.txt',
+          5000
+        )
+        const download = downloader.downloadFile(publishResult.link, taskId, {
+          timeout: 10000,
+        })
+
+        await childWait
+        downloader.cancelDownload(taskId)
+        await assert.rejects(download, /Download cancelled/)
+      } finally {
+        replication?.close()
+        if (publisher) await publisher.stop().catch(() => {})
+        if (downloader) await downloader.stop().catch(() => {})
+        fs.rmSync(collectionTmpDir, { recursive: true, force: true })
+      }
     })
   })
 
