@@ -95,6 +95,9 @@ export interface CheckDownloadOptions {
   requestTimeout?: number
 }
 
+const DEFAULT_DOWNLOAD_CHECK_TIMEOUT_MS = 60000
+const DOWNLOAD_CHECK_REQUEST_GRACE_MS = 5000
+
 type Translate = (
   key: MessageKey,
   params?: Record<string, string | number>
@@ -183,14 +186,15 @@ export const fileApi = {
       }
     >(),
   checkDownload: (link: string, options: CheckDownloadOptions = {}) => {
-    const json =
+    const timeout =
       typeof options.timeout === 'number'
-        ? { link, timeout: options.timeout }
-        : { link }
+        ? options.timeout
+        : DEFAULT_DOWNLOAD_CHECK_TIMEOUT_MS
     return api
       .post('/api/download/check', {
-        json,
-        timeout: options.requestTimeout ?? 15000,
+        json: { link, timeout },
+        timeout:
+          options.requestTimeout ?? timeout + DOWNLOAD_CHECK_REQUEST_GRACE_MS,
       })
       .json<DownloadCheckResponse>()
   },

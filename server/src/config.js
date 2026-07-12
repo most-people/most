@@ -16,7 +16,7 @@ export const SWARM_KEEP_ALIVE_INTERVAL = 5000
 export const SWARM_RANDOM_PUNCH_INTERVAL = 20000
 
 // 驱动器超时（毫秒）
-export const DRIVE_ENTRY_TIMEOUT = 10000
+export const DRIVE_ENTRY_TIMEOUT = 60000
 export const STREAM_READ_TIMEOUT = 10000
 
 // 文件写入块大小（字节）

@@ -343,6 +343,17 @@ describe('frontend smoke checks', () => {
     )
   })
 
+  it('gives P2P download checks enough time for cold peer discovery', () => {
+    const fileApiSource = readSource(SOURCE_PATHS.fileApi)
+
+    assert.match(fileApiSource, /DEFAULT_DOWNLOAD_CHECK_TIMEOUT_MS = 60000/)
+    assert.match(fileApiSource, /DOWNLOAD_CHECK_REQUEST_GRACE_MS = 5000/)
+    assert.match(
+      fileApiSource,
+      /json: \{ link, timeout \},[\s\S]*options\.requestTimeout \?\? timeout \+ DOWNLOAD_CHECK_REQUEST_GRACE_MS,/
+    )
+  })
+
   it('preflights folder sharing against local complete copies', async () => {
     const { getFolderShareState } = await importBundledSource(
       'src/lib/folderShare.ts'

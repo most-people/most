@@ -14,10 +14,12 @@ import {
   getRemoteNodesExport,
   getRemoteUrlExport,
   getWebSocketUrl,
+  setCurrentApiIdentity,
   setBackendInvite,
   setBackendUrl,
 } from '../../src/utils/api.js'
 import { verifyAuthHeader } from '../../src/utils/auth.js'
+import { createLoginIdentity } from '../../src/utils/userIdentity.js'
 
 class MemoryStorage {
   #items = new Map()
@@ -70,11 +72,15 @@ function installWebSocketProbe({ opens = true, urls = [] } = {}) {
   }
 }
 
-function installStoredIdentity() {
-  localStorage.setItem(
-    'mostbox_identity',
-    JSON.stringify({ danger: '0x' + '11'.repeat(32) })
-  )
+function installStoredIdentity(identity = { danger: '0x' + '11'.repeat(32) }) {
+  localStorage.setItem('mostbox_identity', JSON.stringify(identity))
+}
+
+function installRuntimeIdentity(
+  identity = createLoginIdentity('runtime-api-user', 'password')
+) {
+  setCurrentApiIdentity(identity)
+  return identity
 }
 
 function capabilitiesResponse() {
@@ -107,6 +113,7 @@ describe('api browser helpers', () => {
 
   afterEach(() => {
     clearBackendConnection()
+    setCurrentApiIdentity(null)
 
     if (originalWindow === undefined) {
       delete globalThis.window
@@ -394,7 +401,7 @@ describe('api browser helpers', () => {
         url: 'https://node.example.com/fe-customer-api',
         invite: 'invite-code',
       })
-      installStoredIdentity()
+      installRuntimeIdentity()
       globalThis.fetch = async request => {
         assert.strictEqual(
           request.url,
@@ -417,6 +424,47 @@ describe('api browser helpers', () => {
 
       await api.post('/api/channels', { json: { name: 'test' } }).json()
     })
+
+    it('does not sign requests from local storage alone', async () => {
+      configureBackend({
+        url: 'https://node.example.com/fe-customer-api',
+        invite: 'invite-code',
+      })
+      installStoredIdentity()
+      globalThis.fetch = async request => {
+        assert.strictEqual(request.headers.get('authorization'), null)
+        return new Response('{}', { status: 200 })
+      }
+
+      await api.post('/api/channels', { json: { name: 'test' } }).json()
+    })
+
+    it('prefers the current runtime identity over stale local storage', async () => {
+      configureBackend({
+        url: 'https://node.example.com/fe-customer-api',
+        invite: 'invite-code',
+      })
+      const staleIdentity = createLoginIdentity('stale-api-user', 'password')
+      const runtimeIdentity = createLoginIdentity(
+        'runtime-api-user',
+        'password'
+      )
+      installStoredIdentity(staleIdentity)
+      installRuntimeIdentity(runtimeIdentity)
+      globalThis.fetch = async request => {
+        const auth = verifyAuthHeader(
+          request.headers.get('authorization'),
+          'POST',
+          '/api/channels'
+        )
+        assert.strictEqual(auth.ok, true)
+        assert.strictEqual(auth.address, runtimeIdentity.address.toLowerCase())
+        assert.notStrictEqual(auth.address, staleIdentity.address.toLowerCase())
+        return new Response('{}', { status: 200 })
+      }
+
+      await api.post('/api/channels', { json: { name: 'test' } }).json()
+    })
   })
 
   describe('checkBackendConnectionTarget()', () => {
@@ -424,7 +472,7 @@ describe('api browser helpers', () => {
       const wsUrls = []
       globalThis.fetch = async () => new Response('{}', { status: 503 })
       installWebSocketProbe({ urls: wsUrls })
-      installStoredIdentity()
+      installRuntimeIdentity()
 
       const result = await checkBackendConnectionTarget({
         url: 'https://node.example.com/base',
@@ -450,7 +498,7 @@ describe('api browser helpers', () => {
         return capabilitiesResponse()
       }
       installWebSocketProbe({ opens: false, urls: wsUrls })
-      installStoredIdentity()
+      installRuntimeIdentity()
 
       const result = await checkBackendConnectionTarget({
         url: 'https://node.example.com/base',
@@ -469,7 +517,7 @@ describe('api browser helpers', () => {
     it('returns ok only when HTTP and WebSocket both work', async () => {
       globalThis.fetch = async () => capabilitiesResponse()
       installWebSocketProbe()
-      installStoredIdentity()
+      installRuntimeIdentity()
 
       const result = await checkBackendConnectionTarget({
         url: 'https://node.example.com/base',
