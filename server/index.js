@@ -82,7 +82,19 @@ function bindEngineEvents({
   engine.on('download:cancelled', data =>
     wsBroadcast('download:cancelled', data)
   )
-  engine.on('publish:progress', data => wsBroadcast('publish:progress', data))
+  engine.on('publish:progress', data => {
+    wsBroadcast('publish:progress', data)
+    appendNodeLog({
+      event: 'node:publish:progress',
+      message: `Publish progress: ${data.stage || 'unknown'}`,
+      data: {
+        stage: data.stage,
+        cid: data.cid,
+        file: data.file,
+        size: data.size,
+      },
+    })
+  })
   engine.on('publish:success', data => {
     wsBroadcast('publish:success', data)
     appendNodeLog({

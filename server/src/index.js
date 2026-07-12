@@ -21,6 +21,7 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { Duplex, Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 
 import {
   calculateCid,
@@ -54,10 +55,7 @@ import {
 } from './core/ownerMetadata.js'
 import { getSyncTimestamp, getNextSyncTimestamp } from './core/syncTimestamp.js'
 import { createOfflineSwarm } from './node/offlineSwarm.js'
-import {
-  readMetadataFile,
-  writeMetadataFile,
-} from './node/metadataFile.js'
+import { readMetadataFile, writeMetadataFile } from './node/metadataFile.js'
 import {
   getFilesystemSpace,
   StorageReservationLedger,
@@ -121,6 +119,10 @@ const CHANNEL_MEMBER_JOINED_EVENT = 'channel.member.joined'
 const CHANNEL_MEMBER_PROFILE_UPDATED_EVENT = 'channel.member.profile.updated'
 const CHANNEL_MEMBER_PROFILE_TIME_FUTURE_TOLERANCE_MS = 5 * 60 * 1000
 const CHANNEL_MENTION_LIMIT = 20
+const PUBLISH_WRITE_STALL_TIMEOUT = 15 * 1000
+const PUBLISH_DRIVE_RESET_TIMEOUT = 5 * 1000
+const PUBLISH_BUFFER_WRITE_LIMIT = 32 * 1024 * 1024
+const PUBLISH_BUFFER_WRITE_BYTES_PER_SECOND = 2 * 1024 * 1024
 const CLIENT_MESSAGE_ID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -149,7 +151,10 @@ function normalizeClientMessageId(input, { strict = false } = {}) {
     if (strict) throw new ValidationError('Invalid clientMessageId')
     return ''
   }
-  if (typeof input !== 'string' || !CLIENT_MESSAGE_ID_REGEX.test(input.trim())) {
+  if (
+    typeof input !== 'string' ||
+    !CLIENT_MESSAGE_ID_REGEX.test(input.trim())
+  ) {
     if (strict) {
       throw new ValidationError('Invalid clientMessageId')
     }
@@ -166,7 +171,8 @@ function normalizeChannelMentionList(input, content, options = {}) {
     return []
   }
   if (attachment && input.length > 0) {
-    if (strict) throw new ValidationError('attachment messages cannot include mentions')
+    if (strict)
+      throw new ValidationError('attachment messages cannot include mentions')
     return []
   }
   if (strict && input.length > CHANNEL_MENTION_LIMIT) {
@@ -214,7 +220,8 @@ function isChannelHistoryEntry(entry) {
 function isChannelMemberProfileEventEntry(entry) {
   return (
     entry?.type === 'system' &&
-    String(entry?.event || '').trim() === CHANNEL_MEMBER_PROFILE_UPDATED_EVENT &&
+    String(entry?.event || '').trim() ===
+      CHANNEL_MEMBER_PROFILE_UPDATED_EVENT &&
     String(entry?.content || '').trim() === CHANNEL_MEMBER_PROFILE_UPDATED_EVENT
   )
 }
@@ -298,6 +305,7 @@ export class MostBoxEngine extends EventEmitter {
   #drivePromises = new Map()
   #fileDiscoveries = new Map()
   #fileMonitors = new Map()
+  #activePublishes = new Map()
   #seedStates = new Map()
   #holdingResumeTask = null
   #storageReservations = new StorageReservationLedger()
@@ -342,6 +350,10 @@ export class MostBoxEngine extends EventEmitter {
       maxFileSize: options.maxFileSize ?? MAX_FILE_SIZE,
       capacityBytes: options.capacityBytes ?? 100 * 1024 * 1024 * 1024,
       downloadTimeout: options.downloadTimeout || DOWNLOAD_TIMEOUT,
+      publishWriteStallTimeout:
+        options.publishWriteStallTimeout ?? PUBLISH_WRITE_STALL_TIMEOUT,
+      publishBufferWriteLimit:
+        options.publishBufferWriteLimit ?? PUBLISH_BUFFER_WRITE_LIMIT,
       disableNetwork: options.disableNetwork === true,
     }
   }
@@ -449,6 +461,73 @@ export class MostBoxEngine extends EventEmitter {
       message.includes('SESSION_CLOSED') ||
       message.includes('closed session')
     )
+  }
+
+  #isPublishWriteTimeoutError(err) {
+    return err?.code === 'PUBLISH_WRITE_TIMEOUT'
+  }
+
+  #isRecoverablePublishWriteError(err) {
+    return (
+      this.#isClosedSessionError(err) || this.#isPublishWriteTimeoutError(err)
+    )
+  }
+
+  #createPublishWriteTimeoutError(driveKey) {
+    const err = new Error(`Publish write timed out while writing ${driveKey}`)
+    err.code = 'PUBLISH_WRITE_TIMEOUT'
+    return err
+  }
+
+  #getPublishBufferWriteTimeout(byteLength) {
+    const baseTimeout = Number(this.#options.publishWriteStallTimeout)
+    if (!Number.isFinite(baseTimeout) || baseTimeout <= 0) return 0
+
+    const scaledTimeout =
+      Math.ceil(
+        Math.max(0, Number(byteLength) || 0) /
+          PUBLISH_BUFFER_WRITE_BYTES_PER_SECOND
+      ) *
+        1000 +
+      baseTimeout
+    return Math.max(baseTimeout, scaledTimeout)
+  }
+
+  #createPublishWriteWatchdog(streams, driveKey) {
+    const timeout = Number(this.#options.publishWriteStallTimeout)
+    if (!Number.isFinite(timeout) || timeout <= 0) {
+      return { promise: new Promise(() => {}), reset() {}, stop() {} }
+    }
+
+    let timer = null
+    let stopped = false
+    let rejectStalledWrite
+    const promise = new Promise((_, reject) => {
+      rejectStalledWrite = reject
+    })
+    const reset = () => {
+      if (stopped) return
+      clearTimeout(timer)
+      timer = setTimeout(() => {
+        if (stopped) return
+        const err = this.#createPublishWriteTimeoutError(driveKey)
+        for (const stream of streams) {
+          stream?.destroy?.(err)
+        }
+        rejectStalledWrite(err)
+      }, timeout)
+      timer.unref?.()
+    }
+
+    reset()
+    return {
+      promise,
+      reset,
+      stop() {
+        stopped = true
+        clearTimeout(timer)
+      },
+    }
   }
 
   async #reopenChannelLocalWriter(channel) {
@@ -682,6 +761,7 @@ export class MostBoxEngine extends EventEmitter {
     await Promise.allSettled([...this.#drives.values()].map(d => d.close()))
     this.#drives.clear()
     this.#fileDiscoveries.clear()
+    this.#activePublishes.clear()
     this.#seedStates.clear()
     this.#holdingResumeTask = null
 
@@ -759,6 +839,28 @@ export class MostBoxEngine extends EventEmitter {
    * @param {object} [options] - 发布选项
    * @returns {Promise<{ cid: string, link: string, fileName: string }>}
    */
+  async #acquirePublishLock(cid) {
+    const previous = this.#activePublishes.get(cid) || Promise.resolve()
+    let release
+    const current = new Promise(resolve => {
+      release = resolve
+    })
+    const next = previous.catch(() => {}).then(() => current)
+    this.#activePublishes.set(cid, next)
+
+    await previous.catch(() => {})
+
+    let released = false
+    return () => {
+      if (released) return
+      released = true
+      release()
+      if (this.#activePublishes.get(cid) === next) {
+        this.#activePublishes.delete(cid)
+      }
+    }
+  }
+
   async publishFile(content, fileName, options = {}) {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
@@ -809,133 +911,191 @@ export class MostBoxEngine extends EventEmitter {
 
     const { cid: rootCid } = await calculateCid(content)
     const cidString = rootCid.toString()
-    const { driveName: name } = this.#getCidInfo(cidString)
-    const publishedBucket = addToLibrary
-      ? this.#getPublishedBucket(ownerAddress, true)
-      : []
-    // 检查相同内容是否已存在
-    const existingIndex = publishedBucket.findIndex(f => f.cid === cidString)
-    const repairingMissingContent = existingIndex !== -1
-    const existingHolding = this.#holdings.find(item => item.cid === cidString)
-    let existingContent = null
-    if (existingIndex !== -1 || existingHolding) {
-      existingContent = await this.#getLocalCidContent(cidString, {
-        ownerAddress,
-        public: true,
-        allowHoldingFallback: true,
+    const releasePublishLock = await this.#acquirePublishLock(cidString)
+    try {
+      this.emit('publish:progress', {
+        stage: 'checking-local',
+        file: safeFileName,
+        cid: cidString,
+        size: fileSize,
       })
-    }
-    if (existingIndex !== -1) {
-      const existing = publishedBucket[existingIndex]
-      if (existingContent) {
+      const { driveName: name } = this.#getCidInfo(cidString)
+      const publishedBucket = addToLibrary
+        ? this.#getPublishedBucket(ownerAddress, true)
+        : []
+      // 检查相同内容是否已存在
+      const existingIndex = publishedBucket.findIndex(f => f.cid === cidString)
+      const repairingMissingContent = existingIndex !== -1
+      const existingHolding = this.#holdings.find(
+        item => item.cid === cidString
+      )
+      let existingContent = null
+      if (existingIndex !== -1 || existingHolding) {
+        existingContent = await this.#getLocalCidContent(cidString, {
+          ownerAddress,
+          public: true,
+          allowHoldingFallback: true,
+        })
+      }
+      if (existingIndex !== -1) {
+        const existing = publishedBucket[existingIndex]
+        if (existingContent) {
+          await this.#joinCidTopicInternal(cidString, {
+            server: true,
+            client: false,
+          })
+          this.#upsertHolding({
+            cid: cidString,
+            fileName: existing.fileName,
+            size: fileSize,
+            driveName: name,
+            source: 'published',
+          })
+          return {
+            cid: cidString,
+            link: buildMostLink(cidString, existing.fileName),
+            fileName: existing.fileName,
+            alreadyExists: true,
+          }
+        }
+      }
+
+      if (addToLibrary) {
+        this.#assertDisplayNameAvailable(safeFileName, {
+          ownerAddress,
+          excludeCid: repairingMissingContent ? cidString : undefined,
+        })
+      }
+
+      const releaseCapacity = this.#reserveCapacity(
+        existingHolding ? 0 : fileSize,
+        [
+          {
+            path: this.#options.dataPath,
+            bytes: fileSize,
+            label: 'hyperdrive',
+          },
+        ]
+      )
+
+      // 获取或创建该 CID 对应的 drive
+      try {
+        let drive = this.#drives.get(name)
+
+        if (!drive) {
+          this.emit('publish:progress', {
+            stage: 'opening-drive',
+            file: safeFileName,
+            cid: cidString,
+            size: fileSize,
+          })
+          drive = await this.#getOrCreateDrive(name, {
+            server: true,
+            client: false,
+          })
+        }
+        this.emit('publish:progress', {
+          stage: 'uploading',
+          file: safeFileName,
+        })
+
+        // Hyperdrive 中用 CID 作为 key 存储（解耦目录结构）
+        const driveKey = '/' + cidString
+        this.emit('publish:progress', {
+          stage: 'writing-drive',
+          file: safeFileName,
+          cid: cidString,
+          size: fileSize,
+        })
+        try {
+          await this.#writeDriveFile(drive, driveKey, content, cleanPath)
+        } catch (err) {
+          if (!this.#isRecoverablePublishWriteError(err)) {
+            throw err
+          }
+          this.emit('publish:progress', {
+            stage: this.#isPublishWriteTimeoutError(err)
+              ? 'resetting-drive'
+              : 'reopening-drive',
+            file: safeFileName,
+            cid: cidString,
+            size: fileSize,
+          })
+          drive = this.#isPublishWriteTimeoutError(err)
+            ? await this.#resetDriveAfterPublishTimeout(name, drive, {
+                server: true,
+                client: false,
+              })
+            : await this.#reopenDrive(name, {
+                server: true,
+                client: false,
+              })
+          await this.#writeDriveFile(drive, driveKey, content, cleanPath)
+        }
+
+        // 存储 displayName（用户看到的文件夹路径），不存储 drivePath
+        this.emit('publish:progress', {
+          stage: 'drive-written',
+          file: safeFileName,
+          cid: cidString,
+          size: fileSize,
+        })
+        this.emit('publish:progress', {
+          stage: 'joining-topic',
+          file: safeFileName,
+          cid: cidString,
+          size: fileSize,
+        })
         await this.#joinCidTopicInternal(cidString, {
           server: true,
           client: false,
         })
+        this.emit('publish:progress', {
+          stage: 'saving-metadata',
+          file: safeFileName,
+          cid: cidString,
+          size: fileSize,
+        })
+        const now = Date.now()
+        const fileRecord = {
+          fileName: safeFileName,
+          cid: cidString,
+          driveName: name,
+          size: fileSize,
+          source: 'published',
+          publishedAt: new Date(now).toISOString(),
+          starred: false,
+          syncUpdatedAt: now,
+        }
+        if (addToLibrary) {
+          if (repairingMissingContent) {
+            publishedBucket[existingIndex] = fileRecord
+          } else {
+            publishedBucket.push(fileRecord)
+          }
+          this.#savePublishedMetadata()
+        }
         this.#upsertHolding({
           cid: cidString,
-          fileName: existing.fileName,
+          fileName: safeFileName,
           size: fileSize,
           driveName: name,
           source: 'published',
         })
-        return {
+
+        const result = {
           cid: cidString,
-          link: buildMostLink(cidString, existing.fileName),
-          fileName: existing.fileName,
-          alreadyExists: true,
+          link: buildMostLink(cidString, safeFileName),
+          fileName: safeFileName,
         }
+
+        this.emit('publish:success', result)
+        return result
+      } finally {
+        releaseCapacity()
       }
-    }
-
-    if (addToLibrary) {
-      this.#assertDisplayNameAvailable(safeFileName, {
-        ownerAddress,
-        excludeCid: repairingMissingContent ? cidString : undefined,
-      })
-    }
-
-    const releaseCapacity = this.#reserveCapacity(
-      existingHolding ? 0 : fileSize,
-      [
-        {
-          path: this.#options.dataPath,
-          bytes: fileSize,
-          label: 'hyperdrive',
-        },
-      ]
-    )
-
-    // 获取或创建该 CID 对应的 drive
-    try {
-      let drive = this.#drives.get(name)
-
-      if (!drive) {
-        drive = await this.#getOrCreateDrive(name, {
-          server: true,
-          client: false,
-        })
-      }
-      await this.#joinCidTopicInternal(cidString, {
-        server: true,
-        client: false,
-      })
-
-      this.emit('publish:progress', { stage: 'uploading', file: safeFileName })
-
-      // Hyperdrive 中用 CID 作为 key 存储（解耦目录结构）
-      const driveKey = '/' + cidString
-      try {
-        await this.#writeDriveFile(drive, driveKey, content, cleanPath)
-      } catch (err) {
-        if (!this.#isClosedSessionError(err)) {
-          throw err
-        }
-        drive = await this.#reopenDrive(name, {
-          server: true,
-          client: false,
-        })
-        await this.#writeDriveFile(drive, driveKey, content, cleanPath)
-      }
-
-      // 存储 displayName（用户看到的文件夹路径），不存储 drivePath
-      const now = Date.now()
-      const fileRecord = {
-        fileName: safeFileName,
-        cid: cidString,
-        driveName: name,
-        size: fileSize,
-        source: 'published',
-        publishedAt: new Date(now).toISOString(),
-        starred: false,
-        syncUpdatedAt: now,
-      }
-      if (addToLibrary) {
-        if (repairingMissingContent) {
-          publishedBucket[existingIndex] = fileRecord
-        } else {
-          publishedBucket.push(fileRecord)
-        }
-        this.#savePublishedMetadata()
-      }
-      this.#upsertHolding({
-        cid: cidString,
-        fileName: safeFileName,
-        size: fileSize,
-        driveName: name,
-        source: 'published',
-      })
-
-      const result = {
-        cid: cidString,
-        link: buildMostLink(cidString, safeFileName),
-        fileName: safeFileName,
-      }
-
-      this.emit('publish:success', result)
-      return result
     } finally {
-      releaseCapacity()
+      releasePublishLock()
     }
   }
 
@@ -3884,10 +4044,7 @@ export class MostBoxEngine extends EventEmitter {
       if (!normalizedAuthorTag) {
         throw new ValidationError('Invalid authorTag')
       }
-    } else if (
-      existingMember?.tag &&
-      typeof existingMember.tag === 'object'
-    ) {
+    } else if (existingMember?.tag && typeof existingMember.tag === 'object') {
       normalizedAuthorTag = normalizeLocalizedChatTag(existingMember.tag)
     }
     if (
@@ -3995,7 +4152,9 @@ export class MostBoxEngine extends EventEmitter {
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
     const author = normalizeOwnerAddress(options.author)
     if (!ownerAddress || !author || ownerAddress !== author) {
-      throw new PermissionError('member profile author must match logged-in user')
+      throw new PermissionError(
+        'member profile author must match logged-in user'
+      )
     }
     this.#assertChannelMember(channelKeyInput, ownerAddress)
     const channel = this.#resolveChannel(channelKeyInput, ownerAddress)
@@ -4424,7 +4583,10 @@ export class MostBoxEngine extends EventEmitter {
     }
 
     const hasDisplayName = hasOwnProperty(options, 'displayName')
-    const displayName = normalizeChannelDisplayName(options.displayName, address)
+    const displayName = normalizeChannelDisplayName(
+      options.displayName,
+      address
+    )
     const hasTag = hasOwnProperty(options, 'tag')
     const tagPatch = normalizeChatMemberTagPatch(options.tag, hasTag)
     if (tagPatch.action === 'invalid') {
@@ -4445,7 +4607,11 @@ export class MostBoxEngine extends EventEmitter {
         existing.address = address
         changed = true
       }
-      if (hasDisplayName && displayName && existing.displayName !== displayName) {
+      if (
+        hasDisplayName &&
+        displayName &&
+        existing.displayName !== displayName
+      ) {
         existing.displayName = displayName
         changed = true
       }
@@ -4560,8 +4726,14 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   async #appendChannelMemberProfileMessage(channel, options = {}) {
-    const ownerAddress = normalizeOwnerAddress(options.ownerAddress || options.author)
-    if (!ownerAddress || !channel || TRANSIENT_CHANNEL_TYPES.has(channel.type)) {
+    const ownerAddress = normalizeOwnerAddress(
+      options.ownerAddress || options.author
+    )
+    if (
+      !ownerAddress ||
+      !channel ||
+      TRANSIENT_CHANNEL_TYPES.has(channel.type)
+    ) {
       return null
     }
 
@@ -4730,16 +4902,15 @@ export class MostBoxEngine extends EventEmitter {
       }
     }
 
-    const member =
-      this.#getChannelMembers(channel).find(
-        item => item.address === profile.address
-      ) || {
-        address: profile.address,
-        displayName: profile.displayName,
-        avatar: profile.avatar,
-        tag: hasTag ? profile.tag : undefined,
-        profileUpdatedAt: profile.profileUpdatedAt,
-      }
+    const member = this.#getChannelMembers(channel).find(
+      item => item.address === profile.address
+    ) || {
+      address: profile.address,
+      displayName: profile.displayName,
+      avatar: profile.avatar,
+      tag: hasTag ? profile.tag : undefined,
+      profileUpdatedAt: profile.profileUpdatedAt,
+    }
     const event = {
       channel: channel.channelKey,
       channelKey: channel.channelKey,
@@ -4801,7 +4972,8 @@ export class MostBoxEngine extends EventEmitter {
           normalizeOwnerAddress(member?.address)
         ),
         avatar: normalizeChannelAvatar(member?.avatar),
-        tag: member?.tag === null ? null : normalizeLocalizedChatTag(member?.tag),
+        tag:
+          member?.tag === null ? null : normalizeLocalizedChatTag(member?.tag),
         profileUpdatedAt: this.#normalizeMemberProfileUpdatedAt(
           member?.profileUpdatedAt
         ),
@@ -5200,7 +5372,9 @@ export class MostBoxEngine extends EventEmitter {
         )
       : null
     let baseMessage = { ...message }
-    const clientMessageId = normalizeClientMessageId(baseMessage.clientMessageId)
+    const clientMessageId = normalizeClientMessageId(
+      baseMessage.clientMessageId
+    )
     if (clientMessageId) {
       baseMessage.clientMessageId = clientMessageId
     } else {
@@ -6002,47 +6176,128 @@ export class MostBoxEngine extends EventEmitter {
     return this.#getOrCreateDrive(name, options)
   }
 
-  async #writeDriveFile(drive, driveKey, content, cleanPath) {
-    const ws = drive.createWriteStream(driveKey)
+  async #resetDriveAfterPublishTimeout(
+    name,
+    staleDrive,
+    options = { server: true, client: false }
+  ) {
+    const drive = staleDrive || this.#drives.get(name)
+    this.#drives.delete(name)
+    this.#drivePromises.delete(name)
 
-    if (Buffer.isBuffer(content)) {
-      let offset = 0
-      const waitForDrain = () =>
-        new Promise(resolve => ws.once('drain', resolve))
+    if (drive) {
+      const resetPromise = drive.close()
+      resetPromise.catch(() => {})
+      let timeoutId
+      const timeoutPromise = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => {
+          const err = new Error(`Timed out while resetting drive ${name}`)
+          err.code = 'PUBLISH_DRIVE_RESET_TIMEOUT'
+          reject(err)
+        }, PUBLISH_DRIVE_RESET_TIMEOUT)
+        timeoutId.unref?.()
+      })
 
       try {
+        await Promise.race([resetPromise, timeoutPromise])
+      } finally {
+        clearTimeout(timeoutId)
+      }
+    }
+
+    return this.#getOrCreateDrive(name, options)
+  }
+
+  async #writeDriveBuffer(drive, driveKey, buffer) {
+    const timeout = this.#getPublishBufferWriteTimeout(buffer.length)
+    if (!Number.isFinite(timeout) || timeout <= 0) {
+      await drive.put(driveKey, buffer)
+      return
+    }
+
+    const writePromise = drive.put(driveKey, buffer)
+    writePromise.catch(() => {})
+    let timeoutId
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(this.#createPublishWriteTimeoutError(driveKey))
+      }, timeout)
+      timeoutId.unref?.()
+    })
+
+    try {
+      await Promise.race([writePromise, timeoutPromise])
+    } finally {
+      clearTimeout(timeoutId)
+    }
+  }
+
+  async #writeDriveFile(drive, driveKey, content, cleanPath) {
+    const bufferWriteLimit = Number(this.#options.publishBufferWriteLimit)
+    if (!Buffer.isBuffer(content)) {
+      const stat = await fs.promises.stat(cleanPath)
+      if (
+        Number.isFinite(bufferWriteLimit) &&
+        bufferWriteLimit > 0 &&
+        stat.size <= bufferWriteLimit
+      ) {
+        await this.#writeDriveBuffer(
+          drive,
+          driveKey,
+          await fs.promises.readFile(cleanPath)
+        )
+        return
+      }
+    }
+
+    const ws = drive.createWriteStream(driveKey)
+    const streams = [ws]
+    const watchdog = this.#createPublishWriteWatchdog(streams, driveKey)
+    const resetWatchdog = () => watchdog.reset()
+
+    if (Buffer.isBuffer(content)) {
+      const chunks = async function* bufferChunks() {
+        let offset = 0
         while (offset < content.length) {
+          watchdog.reset()
           const chunk = content.slice(offset, offset + FILE_WRITE_CHUNK_SIZE)
-          const canContinue = ws.write(chunk)
           offset += chunk.length
-          if (!canContinue && offset < content.length) {
-            await waitForDrain()
-          }
+          yield chunk
         }
-        ws.end()
-        await new Promise((resolve, reject) => {
-          ws.on('finish', resolve)
-          ws.on('error', reject)
-        })
+      }
+      const rs = Readable.from(chunks())
+      streams.push(rs)
+
+      const writePromise = pipeline(rs, ws)
+      try {
+        await Promise.race([writePromise, watchdog.promise])
       } catch (err) {
         ws.destroy()
+        rs.destroy?.()
         throw err
+      } finally {
+        writePromise.catch(() => {})
+        watchdog.stop()
       }
       return
     }
 
     const rs = fs.createReadStream(cleanPath)
+    streams.push(rs)
+    rs.on('data', resetWatchdog)
+    rs.on('end', resetWatchdog)
+    const writePromise = pipeline(rs, ws)
     try {
-      await new Promise((resolve, reject) => {
-        rs.pipe(ws)
-        ws.on('finish', resolve)
-        ws.on('error', reject)
-        rs.on('error', reject)
-      })
+      await Promise.race([writePromise, watchdog.promise])
     } catch (err) {
       ws.destroy()
       rs.destroy()
       throw err
+    } finally {
+      writePromise.catch(() => {})
+      rs.off('data', resetWatchdog)
+      rs.off('end', resetWatchdog)
+      watchdog.stop()
     }
   }
 

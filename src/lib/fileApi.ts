@@ -105,6 +105,7 @@ async function publishFile(file: File, customName?: string) {
   formData.append('file', file, customName || file.name)
   const res = await api.post('/api/publish', {
     body: formData,
+    timeout: false,
     throwHttpErrors: false,
   })
   if (!res.ok) {

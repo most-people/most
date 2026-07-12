@@ -23,6 +23,7 @@ const SOURCE_PATHS = {
   admin: 'src/features/admin/AdminPage.tsx',
   cid: 'src/features/cid/CidPage.tsx',
   cidCss: 'src/styles/cid.css',
+  fileApi: 'src/lib/fileApi.ts',
   files: 'src/features/files/AppPage.tsx',
   appCss: 'src/styles/app.css',
 }
@@ -330,6 +331,15 @@ describe('frontend smoke checks', () => {
     assert.equal(
       messages.en['cid.status.collectionAvailable'],
       '{fileName} manifest is readable. Child files will be checked one by one when downloading.'
+    )
+  })
+
+  it('does not apply the default ky timeout to file publishing', () => {
+    const fileApiSource = readSource(SOURCE_PATHS.fileApi)
+
+    assert.match(
+      fileApiSource,
+      /api\.post\('\/api\/publish',\s*\{[\s\S]*body: formData,[\s\S]*timeout: false,[\s\S]*throwHttpErrors: false,/
     )
   })
 

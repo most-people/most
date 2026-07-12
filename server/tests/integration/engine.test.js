@@ -3,7 +3,7 @@ import assert from 'node:assert'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { Readable } from 'node:stream'
+import { Readable, Writable } from 'node:stream'
 import b4a from 'b4a'
 import Corestore from 'corestore'
 import Hyperdrive from 'hyperdrive'
@@ -233,6 +233,26 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.strictEqual(result.fileName, 'from-path.txt')
     })
 
+    it('serializes concurrent publishes for the same CID', async () => {
+      const filePath = path.join(tmpDir, `concurrent-publish-${uid}.bin`)
+      const fileName = `concurrent-publish-${uid}.bin`
+      fs.writeFileSync(filePath, Buffer.alloc(1024 * 1024, 7))
+
+      const [first, second] = await Promise.all([
+        engine.publishFile(filePath, fileName),
+        engine.publishFile(filePath, `${fileName}.copy`),
+      ])
+
+      assert.strictEqual(first.cid, second.cid)
+      assert.strictEqual(second.fileName, first.fileName)
+      assert.ok([first, second].some(result => result.alreadyExists === true))
+
+      const records = engine
+        .listPublishedFiles()
+        .filter(file => file.cid === first.cid)
+      assert.strictEqual(records.length, 1)
+    })
+
     it('surfaces metadata persistence failures while publishing', async () => {
       const persistenceTmpDir = fs.mkdtempSync(
         path.join(os.tmpdir(), 'most-persist-failure-')
@@ -312,9 +332,8 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         assert.strictEqual(
           fs
             .readdirSync(dataPath)
-            .filter(name =>
-              name.startsWith('published-files.json.corrupt-')
-            ).length,
+            .filter(name => name.startsWith('published-files.json.corrupt-'))
+            .length,
           1
         )
       } finally {
@@ -412,6 +431,58 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         assert.deepStrictEqual(stored.buffer, content)
       } finally {
         Hyperdrive.prototype.createWriteStream = originalCreateWriteStream
+      }
+    })
+
+    it('retries publish when a drive write stalls', async () => {
+      const stallTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-publish-stall-')
+      )
+      const dataPath = path.join(stallTmpDir, 'data')
+      const content = Buffer.from('publish after stalled drive write')
+      const { cid } = await calculateCid(content)
+      const cidString = cid.toString()
+      const originalCreateWriteStream = Hyperdrive.prototype.createWriteStream
+      let stallEngine
+      let injected = false
+
+      Hyperdrive.prototype.createWriteStream =
+        function createWriteStreamWithStalledFinal(name, opts) {
+          if (!injected && name === `/${cidString}`) {
+            injected = true
+            return new Writable({
+              write(_chunk, _encoding, callback) {
+                callback()
+              },
+              final() {},
+              destroy(_err, callback) {
+                callback()
+              },
+            })
+          }
+          return originalCreateWriteStream.call(this, name, opts)
+        }
+
+      try {
+        stallEngine = new MostBoxEngine({
+          dataPath,
+          disableNetwork: true,
+          publishWriteStallTimeout: 50,
+        })
+        await stallEngine.start()
+
+        const result = await stallEngine.publishFile(content, 'stalled.txt')
+        const stored = await stallEngine.readFileRaw(result.cid, {
+          public: true,
+        })
+
+        assert.strictEqual(injected, true)
+        assert.strictEqual(result.cid, cidString)
+        assert.deepStrictEqual(stored.buffer, content)
+      } finally {
+        Hyperdrive.prototype.createWriteStream = originalCreateWriteStream
+        if (stallEngine) await stallEngine.stop().catch(() => {})
+        fs.rmSync(stallTmpDir, { recursive: true, force: true })
       }
     })
 
@@ -3334,23 +3405,17 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.strictEqual(profiles[0].tag, null)
 
       const currentUpdatedAt = profiles[0].profileUpdatedAt
-      await msgEngine.sendMessage(
-        ch,
-        profileEvent,
-        author,
-        'Tagged Sender',
-        {
-          ownerAddress: author,
-          type: 'system',
-          event: profileEvent,
-          memberProfile: {
-            address: author,
-            displayName: 'Stale Sender',
-            tag: { default: 'stale' },
-            profileUpdatedAt: currentUpdatedAt,
-          },
-        }
-      )
+      await msgEngine.sendMessage(ch, profileEvent, author, 'Tagged Sender', {
+        ownerAddress: author,
+        type: 'system',
+        event: profileEvent,
+        memberProfile: {
+          address: author,
+          displayName: 'Stale Sender',
+          tag: { default: 'stale' },
+          profileUpdatedAt: currentUpdatedAt,
+        },
+      })
       await msgEngine.getChannelMessages(ch, { ownerAddress: author })
       profiles = msgEngine.getChannelMemberProfiles(ch, {
         ownerAddress: author,
@@ -3358,23 +3423,17 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.strictEqual(profiles[0].tag, null)
       assert.strictEqual(profiles[0].displayName, 'Tagged Sender')
 
-      await msgEngine.sendMessage(
-        ch,
-        profileEvent,
-        author,
-        'Tagged Sender',
-        {
-          ownerAddress: author,
-          type: 'system',
-          event: profileEvent,
-          memberProfile: {
-            address: author,
-            displayName: 'Future Sender',
-            tag: { default: 'future' },
-            profileUpdatedAt: Date.now() + 10 * 60 * 1000,
-          },
-        }
-      )
+      await msgEngine.sendMessage(ch, profileEvent, author, 'Tagged Sender', {
+        ownerAddress: author,
+        type: 'system',
+        event: profileEvent,
+        memberProfile: {
+          address: author,
+          displayName: 'Future Sender',
+          tag: { default: 'future' },
+          profileUpdatedAt: Date.now() + 10 * 60 * 1000,
+        },
+      })
       await msgEngine.getChannelMessages(ch, { ownerAddress: author })
       profiles = msgEngine.getChannelMemberProfiles(ch, {
         ownerAddress: author,
@@ -3465,17 +3524,11 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         displayName: 'Service',
       })
 
-      const msg = await msgEngine.sendMessage(
-        ch,
-        content,
-        author,
-        'Service',
-        {
-          ownerAddress: author,
-          clientMessageId,
-          mentions,
-        }
-      )
+      const msg = await msgEngine.sendMessage(ch, content, author, 'Service', {
+        ownerAddress: author,
+        clientMessageId,
+        mentions,
+      })
 
       assert.strictEqual(msg.clientMessageId, clientMessageId)
       assert.deepStrictEqual(msg.mentions, [
@@ -3496,8 +3549,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
     it('rejects invalid strict mention and client message fields', async () => {
       const ch = `bad-mention-${uid}`
       const author = '0x1234567890abcdef1234567890abcdef12345678'
-      const cid =
-        'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
+      const cid = 'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
       const fileName = `chat-file/${ch}/photo.png`
       const link = `most://${cid}?filename=${encodeURIComponent(fileName)}`
       await msgEngine.createChannel(ch, 'personal', {
@@ -3967,7 +4019,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         fs.rmSync(peerTmpDir, { recursive: true, force: true })
       }
     })
-
   })
 
   describe('channel presence', () => {

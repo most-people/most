@@ -60,10 +60,15 @@ export async function parseMultipartBusboy(req, maxUploadSize = MAX_FILE_SIZE) {
     let activeFileStream = null
     let writeStream = null
     let tempPath = null
+    let cleanupRequested = false
     let settled = false
 
     function cleanupTempFile() {
-      if (tempPath) fs.unlink(tempPath, () => {})
+      if (!tempPath) return
+      cleanupRequested = true
+      if (!writeStream || writeStream.closed) {
+        fs.unlink(tempPath, () => {})
+      }
     }
 
     function fail(err) {
@@ -91,6 +96,9 @@ export async function parseMultipartBusboy(req, maxUploadSize = MAX_FILE_SIZE) {
         `upload_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
       )
       writeStream = fs.createWriteStream(tempPath)
+      writeStream.on('close', () => {
+        if (cleanupRequested && tempPath) fs.unlink(tempPath, () => {})
+      })
 
       stream.on('data', chunk => {
         fileSize += chunk.length
@@ -145,6 +153,9 @@ export async function parseMultipartBusboy(req, maxUploadSize = MAX_FILE_SIZE) {
       }
     })
 
+    req.on('aborted', () => {
+      fail(new Error('Upload aborted'))
+    })
     req.on('error', err => {
       fail(err)
     })

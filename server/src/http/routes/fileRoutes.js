@@ -36,6 +36,16 @@ function streamReadableResponse(c, readable) {
   })
 }
 
+function unlinkUploadTempFile(filePath, attempt = 0) {
+  if (!filePath) return
+  fs.unlink(filePath, err => {
+    if (!err || err.code === 'ENOENT') return
+    if (attempt < 20) {
+      setTimeout(() => unlinkUploadTempFile(filePath, attempt + 1), 25)
+    }
+  })
+}
+
 export function registerFileRoutes(app, { engine, configStore, wsBroadcast }) {
   app.get('/api/files', async c => {
     return c.json(
@@ -48,17 +58,41 @@ export function registerFileRoutes(app, { engine, configStore, wsBroadcast }) {
   app.post('/api/publish', async c => {
     const req = c.env.incoming
     let result
+    let uploadTempPath = null
+    let requestAborted = false
+    let uploadTempCleanupScheduled = false
+
+    function cleanupUploadTempFile() {
+      if (!uploadTempPath || uploadTempCleanupScheduled) return
+      uploadTempCleanupScheduled = true
+      unlinkUploadTempFile(uploadTempPath)
+    }
+
+    function handleRequestAborted() {
+      requestAborted = true
+    }
+
+    req.on('aborted', handleRequestAborted)
     try {
       result = await parseMultipartBusboy(
         req,
         configStore.getNodeConfig().maxFileSizeBytes
       )
+      uploadTempPath = result?.filePath || null
     } catch (err) {
+      req.off('aborted', handleRequestAborted)
       return badRequestOrAppError(c, err)
     }
 
     if (!result || !result.filename) {
+      req.off('aborted', handleRequestAborted)
       return c.json({ error: 'No file provided' }, 400)
+    }
+
+    if (requestAborted) {
+      req.off('aborted', handleRequestAborted)
+      cleanupUploadTempFile()
+      return c.json({ error: 'Upload aborted', code: 'UPLOAD_ABORTED' }, 499)
     }
 
     try {
@@ -69,7 +103,8 @@ export function registerFileRoutes(app, { engine, configStore, wsBroadcast }) {
       )
       return c.json({ success: true, ...publishResult })
     } finally {
-      fs.unlink(result.filePath, () => {})
+      req.off('aborted', handleRequestAborted)
+      cleanupUploadTempFile()
     }
   })
 
