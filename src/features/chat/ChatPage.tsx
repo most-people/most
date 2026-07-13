@@ -175,7 +175,9 @@ function normalizeMemberAddress(address?: string) {
 }
 
 function getMentionCandidateBaseName(name?: string, address?: string) {
-  const displayName = String(name || '').trim().replace(/#[a-fA-F0-9]{4}$/, '')
+  const displayName = String(name || '')
+    .trim()
+    .replace(/#[a-fA-F0-9]{4}$/, '')
   return displayName || formatAddressShort(address)
 }
 
@@ -321,8 +323,9 @@ function ChatPage() {
   const [channelSearchInput, setChannelSearchInput] = useState('')
   const [channelInput, setChannelInput] = useState('')
   const [channelMentions, setChannelMentions] = useState<ChannelMention[]>([])
-  const [composerSelection, setComposerSelection] =
-    useState<ComposerSelection>({ start: 0, end: 0 })
+  const [composerSelection, setComposerSelection] = useState<ComposerSelection>(
+    { start: 0, end: 0 }
+  )
   const [isComposerComposing, setIsComposerComposing] = useState(false)
   const [dismissedMentionTriggerKey, setDismissedMentionTriggerKey] =
     useState('')
@@ -911,7 +914,9 @@ function ChatPage() {
 
         const oldestTimestamp = messages.reduce((oldest, message) => {
           const timestamp = Number(message?.timestamp)
-          return Number.isFinite(timestamp) ? Math.min(oldest, timestamp) : oldest
+          return Number.isFinite(timestamp)
+            ? Math.min(oldest, timestamp)
+            : oldest
         }, Number.POSITIVE_INFINITY)
         if (
           messages.length < CHANNEL_MENTION_UNREAD_SCAN_PAGE_SIZE ||
@@ -1222,7 +1227,10 @@ function ChatPage() {
         if (!address) return null
         const presence = presenceByAddress.get(address)
         const displayName = presence?.displayName || member.displayName
-        const baseName = getMentionCandidateBaseName(displayName, member.address)
+        const baseName = getMentionCandidateBaseName(
+          displayName,
+          member.address
+        )
         return {
           address,
           label: formatMentionCandidateLabel({
@@ -1796,10 +1804,7 @@ function ChatPage() {
         channelName: activeChannelKey,
         content: trimmedContent,
         attachment,
-        mentions:
-          !attachment && mentions.length > 0
-            ? mentions
-            : undefined,
+        mentions: !attachment && mentions.length > 0 ? mentions : undefined,
       })
       setChannels(prev =>
         prev.map(channel =>
@@ -2078,7 +2083,10 @@ function ChatPage() {
     setDismissedMentionTriggerKey('')
   }
 
-  function handleComposerSelectionChange(selectionStart: number, selectionEnd: number) {
+  function handleComposerSelectionChange(
+    selectionStart: number,
+    selectionEnd: number
+  ) {
     setComposerSelection({ start: selectionStart, end: selectionEnd })
   }
 
@@ -2094,7 +2102,9 @@ function ChatPage() {
     if (!mentionTrigger || mentionCandidates.length === 0) return false
     if (index < 0) return false
     const candidate =
-      mentionCandidates[Math.max(0, Math.min(index, mentionCandidates.length - 1))]
+      mentionCandidates[
+        Math.max(0, Math.min(index, mentionCandidates.length - 1))
+      ]
     if (!candidate) return false
 
     const result = insertMentionIntoDraft(
@@ -2111,7 +2121,9 @@ function ChatPage() {
     return true
   }
 
-  function handleComposerKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+  function handleComposerKeyDown(
+    event: React.KeyboardEvent<HTMLTextAreaElement>
+  ) {
     if (!isMentionMenuOpen) return false
 
     if (event.key === 'ArrowDown') {
@@ -2124,11 +2136,10 @@ function ChatPage() {
 
     if (event.key === 'ArrowUp') {
       event.preventDefault()
-      setMentionSelectedIndex(
-        index =>
-          index < 0
-            ? mentionCandidates.length - 1
-            : (index - 1 + mentionCandidates.length) % mentionCandidates.length
+      setMentionSelectedIndex(index =>
+        index < 0
+          ? mentionCandidates.length - 1
+          : (index - 1 + mentionCandidates.length) % mentionCandidates.length
       )
       return true
     }
@@ -2180,7 +2191,8 @@ function ChatPage() {
 
     const parts: React.ReactNode[] = []
     const isOwnMessage =
-      normalizeMemberAddress(msg.author) === normalizeMemberAddress(userIdentity?.address)
+      normalizeMemberAddress(msg.author) ===
+      normalizeMemberAddress(userIdentity?.address)
     let cursor = 0
     mentions.forEach((mention, index) => {
       if (mention.start > cursor) {
@@ -2189,7 +2201,7 @@ function ChatPage() {
       const isSelfMention =
         !isOwnMessage &&
         normalizeMemberAddress(mention.address) ===
-        normalizeMemberAddress(userIdentity?.address)
+          normalizeMemberAddress(userIdentity?.address)
       parts.push(
         <span
           className={isSelfMention ? 'chat-mention self' : 'chat-mention'}
@@ -2231,7 +2243,10 @@ function ChatPage() {
         if (!address || address === currentUserAddress) return counts
         const presence = presenceByAddress.get(address)
         const displayName = presence?.displayName || member.displayName
-        const baseName = getMentionCandidateBaseName(displayName, member.address)
+        const baseName = getMentionCandidateBaseName(
+          displayName,
+          member.address
+        )
         const key = baseName.toLowerCase()
         counts.set(key, (counts.get(key) || 0) + 1)
         return counts
@@ -2243,7 +2258,10 @@ function ChatPage() {
           const address = normalizeMemberAddress(member.address)
           const presence = presenceByAddress.get(address)
           const displayName = presence?.displayName || member.displayName
-          const baseName = getMentionCandidateBaseName(displayName, member.address)
+          const baseName = getMentionCandidateBaseName(
+            displayName,
+            member.address
+          )
           const tag = getMemberDisplayTag(member)
           return {
             address,
@@ -2251,10 +2269,14 @@ function ChatPage() {
               name: displayName,
               address: member.address,
               duplicateName:
-                (mentionCandidateNameCounts.get(baseName.toLowerCase()) || 0) > 1,
+                (mentionCandidateNameCounts.get(baseName.toLowerCase()) || 0) >
+                1,
             }),
             tag,
-            avatarSrc: generateAvatar(member.address, presence?.avatar || member.avatar),
+            avatarSrc: generateAvatar(
+              member.address,
+              presence?.avatar || member.avatar
+            ),
             online: onlineMemberAddressSet.has(address),
           }
         })
@@ -2263,16 +2285,16 @@ function ChatPage() {
             return false
           }
           if (!mentionQuery) return true
-          return [candidate.label, candidate.tag || '', candidate.address].some(value =>
-            value.toLowerCase().includes(mentionQuery)
+          return [candidate.label, candidate.tag || '', candidate.address].some(
+            value => value.toLowerCase().includes(mentionQuery)
           )
         })
         .slice(0, 8)
     : []
   const isMentionMenuOpen = Boolean(
     mentionTrigger &&
-      mentionCandidates.length > 0 &&
-      mentionTriggerKey !== dismissedMentionTriggerKey
+    mentionCandidates.length > 0 &&
+    mentionTriggerKey !== dismissedMentionTriggerKey
   )
 
   useEffect(() => {

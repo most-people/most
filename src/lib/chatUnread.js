@@ -155,12 +155,7 @@ export function hasUnreadChannelMessage(channel, channelLastReadAt) {
 
 export function applyIncomingChannelMentionUnreadState(
   previous,
-  {
-    channelName,
-    message,
-    activeChannelName = '',
-    userAddress = '',
-  }
+  { channelName, message, activeChannelName = '', userAddress = '' }
 ) {
   if (!channelName) return { changed: false, value: previous }
   if (channelName === activeChannelName) {

@@ -87,7 +87,9 @@ function createClientMessageId() {
 }
 
 function getClientMessageMergeKey(message: ChannelMessage) {
-  const author = String(message.author || '').trim().toLowerCase()
+  const author = String(message.author || '')
+    .trim()
+    .toLowerCase()
   const clientMessageId = String(message.clientMessageId || '').trim()
   return author && clientMessageId ? `${author}:${clientMessageId}` : ''
 }
@@ -342,9 +344,7 @@ export function useChannelMessages({
       const messageIdentity = getUserMessageIdentity(userIdentity)
       const clientMessageId = providedClientMessageId || createClientMessageId()
       const optimistic: ChannelMessage = {
-        id:
-          optimisticId ||
-          `${messageIdentity.author}-${clientMessageId}`,
+        id: optimisticId || `${messageIdentity.author}-${clientMessageId}`,
         ...messageIdentity,
         clientMessageId,
         content: trimmed,

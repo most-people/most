@@ -206,9 +206,9 @@ export const channelApi = {
 
   getChannelMemberProfiles(name: string) {
     return api
-      .get<ChannelMemberProfile[]>(
-        `/api/channels/${encodeURIComponent(name)}/member-profiles`
-      )
+      .get<
+        ChannelMemberProfile[]
+      >(`/api/channels/${encodeURIComponent(name)}/member-profiles`)
       .json()
   },
 

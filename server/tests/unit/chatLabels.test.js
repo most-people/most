@@ -17,7 +17,9 @@ describe('chat label normalization', () => {
     assert.equal(normalizeVisibleChatLabel(null), '')
     assert.equal(normalizeVisibleChatLabel('\u200B'), '')
     assert.equal(
-      normalizeVisibleChatLabel('x'.repeat(CHAT_VISIBLE_LABEL_MAX_CODE_POINTS + 1)),
+      normalizeVisibleChatLabel(
+        'x'.repeat(CHAT_VISIBLE_LABEL_MAX_CODE_POINTS + 1)
+      ),
       ''
     )
   })

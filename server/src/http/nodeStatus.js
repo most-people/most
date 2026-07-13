@@ -107,10 +107,7 @@ export async function buildNodeStatus(
     capacity: {
       configuredBytes: config.capacityBytes,
       usedBytes: storage.logicalUsedBytes,
-      freeBytes: Math.max(
-        0,
-        config.capacityBytes - storage.logicalUsedBytes
-      ),
+      freeBytes: Math.max(0, config.capacityBytes - storage.logicalUsedBytes),
       physicalFreeBytes: storage.physicalFreeBytes,
     },
     storage,

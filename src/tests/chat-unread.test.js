@@ -196,17 +196,17 @@ describe('chat unread state', () => {
     )
 
     assert.equal(result.changed, true)
-    assert.equal(hasUnreadChannelMention({ name: 'general' }, result.value), true)
-
-    const activeResult = applyIncomingChannelMentionUnreadState(
-      result.value,
-      {
-        channelName: 'general',
-        message,
-        activeChannelName: 'general',
-        userAddress: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-      }
+    assert.equal(
+      hasUnreadChannelMention({ name: 'general' }, result.value),
+      true
     )
+
+    const activeResult = applyIncomingChannelMentionUnreadState(result.value, {
+      channelName: 'general',
+      message,
+      activeChannelName: 'general',
+      userAddress: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    })
     assert.equal(activeResult.changed, false)
     assert.equal(activeResult.value, result.value)
   })
@@ -302,7 +302,9 @@ describe('chat unread state', () => {
         activeChannelName: 'general',
         userAddress: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
         lastReadAt: 1000,
-        messages: [{ ...message, author: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' }],
+        messages: [
+          { ...message, author: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' },
+        ],
       }
     )
     const selfResult = applyHistoricalChannelMentionUnreadState(

@@ -351,7 +351,9 @@ export function ChatComposer({
   ) => void
   onSelectionChange?: (selectionStart: number, selectionEnd: number) => void
   onCompositionChange?: (isComposing: boolean) => void
-  onComposerKeyDown?: (event: KeyboardEvent<HTMLTextAreaElement>) => boolean | void
+  onComposerKeyDown?: (
+    event: KeyboardEvent<HTMLTextAreaElement>
+  ) => boolean | void
   onSend: () => void
   onOpenVoiceRoom?: () => void
   onSelectAttachmentFiles?: (files: File[] | null) => void

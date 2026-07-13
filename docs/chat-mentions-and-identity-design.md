@@ -308,7 +308,9 @@ interface ChannelMemberProfileEvent {
 ```ts
 type LocalizedTagInput = string | Record<string, unknown> | undefined
 
-function normalizeLocalizedTag(input: LocalizedTagInput): LocalizedTag | undefined
+function normalizeLocalizedTag(
+  input: LocalizedTagInput
+): LocalizedTag | undefined
 ```
 
 规则：
@@ -348,7 +350,10 @@ default
 新增一个纯函数，例如 `selectLocalizedTag(tag, locale)`：
 
 ```ts
-function selectLocalizedTag(tag: LocalizedTag | undefined | null, locale: Locale): string
+function selectLocalizedTag(
+  tag: LocalizedTag | undefined | null,
+  locale: Locale
+): string
 ```
 
 候选顺序：

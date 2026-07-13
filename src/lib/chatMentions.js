@@ -3,7 +3,9 @@ import { normalizeVisibleChatLabel } from '../../server/src/utils/chatLabels.js'
 const WALLET_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/
 
 function normalizeMentionAddress(address) {
-  const normalized = String(address || '').trim().toLowerCase()
+  const normalized = String(address || '')
+    .trim()
+    .toLowerCase()
   return WALLET_ADDRESS_REGEX.test(normalized) ? normalized : ''
 }
 
@@ -117,7 +119,11 @@ function dedupeAndSortMentions(content, mentions) {
   return result
 }
 
-export function getMentionTrigger(content, selectionStart, selectionEnd = selectionStart) {
+export function getMentionTrigger(
+  content,
+  selectionStart,
+  selectionEnd = selectionStart
+) {
   if (selectionStart !== selectionEnd) return null
   const caret = Number(selectionStart)
   if (!Number.isInteger(caret) || caret < 0 || caret > content.length) {
@@ -173,11 +179,17 @@ export function insertMentionIntoDraft(previousDraft, target, start, end) {
   const address = normalizeMentionAddress(target?.address)
   const label = normalizeMentionLabel(target?.label)
   if (!address || !label) {
-    return { draft: { content, mentions: previousDraft?.mentions || [] }, caret: end }
+    return {
+      draft: { content, mentions: previousDraft?.mentions || [] },
+      caret: end,
+    }
   }
 
   const insertStart = Math.max(0, Math.min(Number(start) || 0, content.length))
-  const insertEnd = Math.max(insertStart, Math.min(Number(end) || insertStart, content.length))
+  const insertEnd = Math.max(
+    insertStart,
+    Math.min(Number(end) || insertStart, content.length)
+  )
   const mentionText = `@${label}`
   const replacement = `${mentionText} `
   const nextContent =
@@ -224,7 +236,8 @@ export function finalizeMentionDraftForSend(draft) {
   const content = originalContent.trim()
   if (!content) return { content: '', mentions: [] }
 
-  const leadingTrimmedLength = originalContent.length - originalContent.trimStart().length
+  const leadingTrimmedLength =
+    originalContent.length - originalContent.trimStart().length
   const mentions = (draft?.mentions || [])
     .map(mention => {
       const normalized = normalizeMention(mention)

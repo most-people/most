@@ -44,7 +44,9 @@ function normalizeLocaleKey(input: unknown) {
   return LOCALE_KEY_RE.test(key) ? key : ''
 }
 
-export function normalizeLocalizedTag(input: unknown): LocalizedTag | undefined {
+export function normalizeLocalizedTag(
+  input: unknown
+): LocalizedTag | undefined {
   if (input === undefined) return undefined
 
   if (typeof input === 'string') {
@@ -94,11 +96,7 @@ function getTagValue(tag: LocalizedTag, key: string) {
 function getLocaleCandidateKeys(locale: Locale) {
   const base = locale.split('-')[0] || locale
   const aliases =
-    locale === 'zh-CN'
-      ? ['zh-Hans']
-      : locale === 'zh-TW'
-        ? ['zh-Hant']
-        : []
+    locale === 'zh-CN' ? ['zh-Hans'] : locale === 'zh-TW' ? ['zh-Hant'] : []
   return Array.from(new Set([locale, base, ...aliases, 'default', 'en']))
 }
 
