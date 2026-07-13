@@ -2334,12 +2334,7 @@ export class MostBoxEngine extends EventEmitter {
       this.#saveTrashMetadata()
 
       if (!this.#hasAnyUserReference(fileRecord.cid)) {
-        try {
-          const drive = await this.#getOrCreateDrive(driveName)
-          await drive.del('/' + fileRecord.cid)
-        } catch {
-          // 文件可能不存在于驱动器中
-        }
+        await this.#clearLocalCidContent(fileRecord.cid, driveName)
         await this.#closeDriveForSeed(driveName)
         await this.#leaveCidTopic(fileRecord.cid)
         this.#removeHolding(fileRecord.cid)
@@ -2362,12 +2357,7 @@ export class MostBoxEngine extends EventEmitter {
       if (this.#hasAnyUserReference(fileRecord.cid)) continue
       const driveName =
         fileRecord.driveName || this.#getCidInfo(fileRecord.cid).driveName
-      try {
-        const drive = await this.#getOrCreateDrive(driveName)
-        await drive.del('/' + fileRecord.cid)
-      } catch {
-        // 文件可能不存在
-      }
+      await this.#clearLocalCidContent(fileRecord.cid, driveName)
       await this.#closeDriveForSeed(driveName)
       await this.#leaveCidTopic(fileRecord.cid)
       this.#removeHolding(fileRecord.cid)
@@ -6497,15 +6487,22 @@ export class MostBoxEngine extends EventEmitter {
       .filter(channel => channel.members.length > 0)
   }
 
+  async #clearLocalCidContent(cid, driveName) {
+    try {
+      const drive = await this.#getOrCreateDrive(driveName)
+      // Hyperdrive metadata is replicated; del() would publish a tombstone to peers.
+      await drive.clear('/' + cid)
+    } catch {
+      // Content may not exist locally.
+    }
+  }
+
   async #cleanupUnreferencedCids(cids) {
     let removedReplicas = 0
     for (const cid of cids) {
       if (this.#hasAnyUserReference(cid)) continue
       const driveName = this.#getCidInfo(cid).driveName
-      try {
-        const drive = await this.#getOrCreateDrive(driveName)
-        await drive.del('/' + cid)
-      } catch {}
+      await this.#clearLocalCidContent(cid, driveName)
       await this.#closeDriveForSeed(driveName)
       await this.#leaveCidTopic(cid)
       this.#removeHolding(cid)

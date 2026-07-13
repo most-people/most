@@ -1116,8 +1116,7 @@ export class MobileP2PCore {
     }
 
     await this.#leaveCidTopic(cid)
-    const drive = await this.#getOrCreateDrive(existing.driveName || driveName)
-    await drive.del(`/${cid}`).catch(() => {})
+    await this.#clearLocalCidContent(cid, existing.driveName || driveName)
 
     for (const cleanupPath of getInternalHoldingCleanupPaths(
       {
@@ -2331,6 +2330,16 @@ export class MobileP2PCore {
       return await promise
     } finally {
       this.#drivePromises.delete(name)
+    }
+  }
+
+  async #clearLocalCidContent(cid, driveName) {
+    try {
+      const drive = await this.#getOrCreateDrive(driveName)
+      // Hyperdrive metadata is replicated; del() would publish a tombstone to peers.
+      await drive.clear(`/${cid}`)
+    } catch {
+      // Content may not exist locally.
     }
   }
 

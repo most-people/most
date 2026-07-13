@@ -7,6 +7,7 @@ import assert from 'node:assert/strict'
 import b4a from 'b4a'
 import Corestore from 'corestore'
 import Hypercore from 'hypercore'
+import Hyperdrive from 'hyperdrive'
 import {
   CHANNELS_FILE,
   DIAGNOSTIC_AUTHOR,
@@ -177,6 +178,51 @@ describe('mobile file downloads', () => {
     const result = await restartedCore.downloadLink({ link })
     assert.equal(result.transfer.status, 'completed')
     assert.equal(await fs.readFile(result.savedPath, 'utf8'), content)
+  })
+})
+
+describe('mobile local holding deletion', () => {
+  it('clears local Hyperdrive content without publishing a tombstone', async t => {
+    const storagePath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mostbox-mobile-delete-holding-')
+    )
+    const swarms = []
+    const core = new MobileP2PCore({
+      storagePath,
+      createSwarm: createRecordingSwarmFactory(swarms),
+    })
+    const originalDel = Hyperdrive.prototype.del
+    const originalClear = Hyperdrive.prototype.clear
+    let delCalls = 0
+    let clearCalls = 0
+
+    t.after(async () => {
+      Hyperdrive.prototype.del = originalDel
+      Hyperdrive.prototype.clear = originalClear
+      await core.stop()
+      await fs.rm(storagePath, { recursive: true, force: true })
+    })
+
+    await core.start()
+    const published = await core.publishFile({
+      name: 'local-delete.txt',
+      contentBase64: b4a.toString(b4a.from('local content'), 'base64'),
+    })
+
+    Hyperdrive.prototype.del = async function (...args) {
+      delCalls += 1
+      return originalDel.apply(this, args)
+    }
+    Hyperdrive.prototype.clear = async function (...args) {
+      clearCalls += 1
+      return originalClear.apply(this, args)
+    }
+
+    await core.deleteHolding({ cid: published.transfer.cid })
+
+    assert.equal(delCalls, 0)
+    assert.equal(clearCalls, 1)
+    assert.equal(core.getSnapshot().holdings.length, 0)
   })
 })
 

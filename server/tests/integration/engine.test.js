@@ -2296,6 +2296,112 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
     })
   })
 
+  it('keeps publisher content after a downloaded peer deletes and clears its copy', async () => {
+    const cleanupTmpDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'most-peer-delete-cleanup-')
+    )
+    const publisherOwner = '0x5555555555555555555555555555555555555555'
+    const downloaderOwner = '0x6666666666666666666666666666666666666666'
+    let publisher
+    let downloader
+    let replication
+
+    try {
+      publisher = new MostBoxEngine({
+        dataPath: path.join(cleanupTmpDir, 'publisher'),
+        disableNetwork: true,
+        downloadTimeout: 5000,
+      })
+      downloader = new MostBoxEngine({
+        dataPath: path.join(cleanupTmpDir, 'downloader'),
+        disableNetwork: true,
+        downloadTimeout: 5000,
+      })
+      await publisher.start()
+      await downloader.start()
+
+      const expectedContents = ['yueyue one', 'yueyue two']
+      const publishedFiles = await Promise.all([
+        publisher.publishFile(Buffer.from('yueyue one'), 'yueyue/one.txt', {
+          ownerAddress: publisherOwner,
+        }),
+        publisher.publishFile(Buffer.from('yueyue two'), 'yueyue/two.txt', {
+          ownerAddress: publisherOwner,
+        }),
+      ])
+      replication = publisher.replicateWith(downloader)
+
+      for (const file of publishedFiles) {
+        await downloader.downloadFile(file.link, null, {
+          ownerAddress: downloaderOwner,
+          timeout: 5000,
+        })
+      }
+
+      for (const file of publishedFiles) {
+        await downloader.deletePublishedFile(file.cid, {
+          ownerAddress: downloaderOwner,
+        })
+      }
+      await downloader.emptyTrash({ ownerAddress: downloaderOwner })
+      fs.rmSync(path.join(cleanupTmpDir, 'downloader', 'downloads', 'yueyue'), {
+        recursive: true,
+        force: true,
+      })
+
+      for (const [index, file] of publishedFiles.entries()) {
+        const sourceContent = await publisher.readFileRaw(file.cid, {
+          public: true,
+        })
+        assert.strictEqual(
+          sourceContent.buffer.toString(),
+          expectedContents[index]
+        )
+        assert.ok(
+          publisher.listHoldings().some(holding => holding.cid === file.cid)
+        )
+        assert.ok(
+          !downloader.listHoldings().some(holding => holding.cid === file.cid)
+        )
+      }
+
+      const redownloaded = await downloader.downloadFile(
+        publishedFiles[0].link,
+        null,
+        {
+          ownerAddress: downloaderOwner,
+          timeout: 5000,
+        }
+      )
+      assert.strictEqual(redownloaded.fileName, 'yueyue/one.txt')
+      assert.ok(
+        downloader
+          .listPublishedFiles({ ownerAddress: downloaderOwner })
+          .some(file => file.cid === publishedFiles[0].cid)
+      )
+      assert.ok(
+        downloader
+          .listHoldings()
+          .some(holding => holding.cid === publishedFiles[0].cid)
+      )
+
+      await downloader.clearUserData(downloaderOwner)
+      const sourceContentAfterClear = await publisher.readFileRaw(
+        publishedFiles[0].cid,
+        { public: true }
+      )
+      assert.strictEqual(
+        sourceContentAfterClear.buffer.toString(),
+        'yueyue one'
+      )
+    } finally {
+      replication?.close()
+      if (publisher) await publisher.stop().catch(() => {})
+      if (downloader) await downloader.stop().catch(() => {})
+      fs.rmSync(cleanupTmpDir, { recursive: true, force: true })
+    }
+  })
+
   describe('emptyTrash()', () => {
     it('permanently deletes all trash files', async () => {
       const result = await engine.publishFile(
