@@ -227,6 +227,29 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.ok(/^[0-9a-f]+$/i.test(nodeId))
     })
 
+    it('keeps the node ID stable across engine restarts', async () => {
+      const dataPath = path.join(tmpDir, 'node-id-restart-data')
+      let firstEngine
+      let secondEngine
+
+      try {
+        firstEngine = new MostBoxEngine({ dataPath })
+        await firstEngine.start()
+        const firstNodeId = firstEngine.getNodeId()
+        await firstEngine.stop()
+        firstEngine = null
+
+        secondEngine = new MostBoxEngine({ dataPath })
+        await secondEngine.start()
+
+        assert.strictEqual(secondEngine.getNodeId(), firstNodeId)
+      } finally {
+        if (firstEngine) await firstEngine.stop().catch(() => {})
+        if (secondEngine) await secondEngine.stop().catch(() => {})
+        fs.rmSync(dataPath, { recursive: true, force: true })
+      }
+    })
+
     it('getNetworkStatus returns correct structure', () => {
       const status = engine.getNetworkStatus()
       assert.strictEqual(typeof status.peers, 'number')

@@ -56,6 +56,7 @@ import {
 import { getSyncTimestamp, getNextSyncTimestamp } from './core/syncTimestamp.js'
 import { createOfflineSwarm } from './node/offlineSwarm.js'
 import { readMetadataFile, writeMetadataFile } from './node/metadataFile.js'
+import { loadOrCreateNodeSeed } from './node/nodeIdentity.js'
 import {
   getFilesystemSpace,
   StorageReservationLedger,
@@ -639,12 +640,15 @@ export class MostBoxEngine extends EventEmitter {
       }
     }
 
+    const nodeSeed = loadOrCreateNodeSeed(dataPath)
+
     console.log(`[MostBox] Initializing Hyperswarm...`)
     if (this.#options.disableNetwork) {
-      this.#swarm = createOfflineSwarm()
-      this.#chatSwarm = createOfflineSwarm()
+      this.#swarm = createOfflineSwarm(nodeSeed)
+      this.#chatSwarm = createOfflineSwarm(nodeSeed)
     } else {
       this.#swarm = new Hyperswarm({
+        seed: nodeSeed,
         maxPeers: MAX_PEERS,
         bootstrap: SWARM_BOOTSTRAP,
         firewall: () => false,
