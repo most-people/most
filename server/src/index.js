@@ -340,7 +340,6 @@ export class MostBoxEngine extends EventEmitter {
    * 创建新的 MostBoxEngine 实例
    * @param {object} options - 配置选项
    * @param {string} options.dataPath - 存储 P2P 数据的路径（必填）
-   * @param {string} [options.downloadPath] - 默认下载路径（可选，默认为 dataPath/downloads）
    * @param {number} [options.maxFileSize] - 最大文件大小（字节）（默认：10GB）
    * @param {number} [options.capacityBytes] - 节点存储容量上限（字节）（默认：100GB）
    * @param {boolean} [options.disableNetwork] - 测试用：跳过真实 Hyperswarm 网络
@@ -354,8 +353,6 @@ export class MostBoxEngine extends EventEmitter {
 
     this.#options = {
       dataPath: options.dataPath,
-      downloadPath:
-        options.downloadPath || path.join(options.dataPath, 'downloads'),
       maxFileSize: options.maxFileSize ?? MAX_FILE_SIZE,
       capacityBytes: options.capacityBytes ?? 100 * 1024 * 1024 * 1024,
       downloadTimeout: options.downloadTimeout || DOWNLOAD_TIMEOUT,
@@ -1610,9 +1607,7 @@ export class MostBoxEngine extends EventEmitter {
         return result
       }
 
-      const targetDir = this.#options.downloadPath
-
-      const writableCheck = await checkDirectoryWritable(targetDir)
+      const writableCheck = await checkDirectoryWritable(this.#options.dataPath)
       if (!writableCheck.writable) {
         throw new PermissionError(writableCheck.error)
       }
@@ -1643,11 +1638,10 @@ export class MostBoxEngine extends EventEmitter {
           )
         }
 
-        const savePath = path.join(targetDir, sanitizedFileName)
-        fs.mkdirSync(path.dirname(savePath), { recursive: true })
-        if (fs.existsSync(savePath)) {
-          throw new ConflictError(`已有同名文件: ${sanitizedFileName}`)
-        }
+        const tempDir = fs.mkdtempSync(
+          path.join(this.#options.dataPath, '.download-tmp-')
+        )
+        const tempPath = path.join(tempDir, 'content')
         const existingHolding = this.#holdings.find(
           item => item.cid === cidString
         )
@@ -1660,207 +1654,217 @@ export class MostBoxEngine extends EventEmitter {
               label: 'hyperdrive',
             },
             {
-              path: targetDir,
+              path: this.#options.dataPath,
               bytes: totalBytes,
-              label: 'download',
+              label: 'download-temp',
             },
           ]
         )
 
-        this.emit('download:status', {
-          taskId,
-          status: 'downloading',
-          file: sanitizedFileName,
-          size: totalBytes ? formatFileSize(totalBytes) : null,
-        })
-
-        const rs = drive.createReadStream(entry.key)
-        const ws = fs.createWriteStream(savePath)
-
-        taskState.readStream = rs
-        taskState.writeStream = ws
-
-        let loadedBytes = 0
-        let lastProgressUpdate = 0
-
-        await new Promise((resolve, reject) => {
-          let settled = false
-          let readTimer = null
-
-          const clearReadTimer = () => {
-            if (readTimer) {
-              clearTimeout(readTimer)
-              readTimer = null
-            }
-          }
-
-          const fail = err => {
-            if (settled) return
-            settled = true
-            clearReadTimer()
-            rs.destroy(err)
-            ws.destroy()
-            fs.unlink(savePath, () => {})
-            reject(err)
-          }
-
-          const complete = () => {
-            if (settled) return
-            settled = true
-            clearReadTimer()
-            resolve()
-          }
-
-          const resetReadTimer = () => {
-            clearReadTimer()
-            if (streamReadTimeout > 0) {
-              readTimer = setTimeout(() => {
-                fail(
-                  new Error(
-                    `Download stalled: no data received for ${streamReadTimeout / 1000}s`
-                  )
-                )
-              }, streamReadTimeout)
-            }
-          }
-
-          resetReadTimer()
-
-          rs.on('data', chunk => {
-            if (taskState.aborted) {
-              fail(new Error('Download cancelled'))
-              return
-            }
-            resetReadTimer()
-            loadedBytes += chunk.length
-            const now = Date.now()
-            if (
-              totalBytes > 0 &&
-              now - lastProgressUpdate > PROGRESS_THROTTLE
-            ) {
-              lastProgressUpdate = now
-              const percent = Math.round((loadedBytes / totalBytes) * 100)
-              this.emit('download:progress', {
-                taskId,
-                loaded: loadedBytes,
-                total: totalBytes,
-                percent,
-              })
-            }
+        try {
+          this.emit('download:status', {
+            taskId,
+            status: 'downloading',
+            file: sanitizedFileName,
+            size: totalBytes ? formatFileSize(totalBytes) : null,
           })
 
-          rs.pipe(ws)
-          ws.on('finish', complete)
-          ws.on('error', fail)
-          rs.on('error', fail)
-          rs.on('close', () => {
-            if (taskState.aborted) {
-              fail(new Error('Download cancelled'))
-            }
-          })
-          ws.on('close', () => {
-            if (taskState.aborted) {
-              fail(new Error('Download cancelled'))
-            }
-          })
-        })
+          const rs = drive.createReadStream(entry.key)
+          const ws = fs.createWriteStream(tempPath)
 
-        if (taskState.aborted) throw new Error('Download cancelled')
+          taskState.readStream = rs
+          taskState.writeStream = ws
 
-        this.emit('download:status', { taskId, status: 'verifying' })
+          let loadedBytes = 0
+          let lastProgressUpdate = 0
 
-        const { cid: downloadedCid } = await calculateCid(savePath)
-        const downloadedCidString = downloadedCid.toString()
-
-        if (downloadedCidString !== cidString) {
-          fs.unlinkSync(savePath)
-          throw new IntegrityError(
-            `File content CID mismatch. Expected ${cidString}, got ${downloadedCidString}.`
-          )
-        }
-
-        // Write file content to Hyperdrive for seeding to other peers
-        const driveKey = '/' + cidString
-        const existingEntry = await drive.entry(driveKey)
-        if (!existingEntry) {
-          const readStream = fs.createReadStream(savePath)
-          const writeStream = drive.createWriteStream(driveKey)
           await new Promise((resolve, reject) => {
-            readStream.pipe(writeStream)
-            writeStream.on('finish', resolve)
-            writeStream.on('error', reject)
-            readStream.on('error', reject)
+            let settled = false
+            let readTimer = null
+
+            const clearReadTimer = () => {
+              if (readTimer) {
+                clearTimeout(readTimer)
+                readTimer = null
+              }
+            }
+
+            const fail = err => {
+              if (settled) return
+              settled = true
+              clearReadTimer()
+              rs.destroy(err)
+              ws.destroy()
+              fs.unlink(tempPath, () => {})
+              reject(err)
+            }
+
+            const complete = () => {
+              if (settled) return
+              settled = true
+              clearReadTimer()
+              resolve()
+            }
+
+            const resetReadTimer = () => {
+              clearReadTimer()
+              if (streamReadTimeout > 0) {
+                readTimer = setTimeout(() => {
+                  fail(
+                    new Error(
+                      `Download stalled: no data received for ${streamReadTimeout / 1000}s`
+                    )
+                  )
+                }, streamReadTimeout)
+              }
+            }
+
+            resetReadTimer()
+
+            rs.on('data', chunk => {
+              if (taskState.aborted) {
+                fail(new Error('Download cancelled'))
+                return
+              }
+              resetReadTimer()
+              loadedBytes += chunk.length
+              const now = Date.now()
+              if (
+                totalBytes > 0 &&
+                now - lastProgressUpdate > PROGRESS_THROTTLE
+              ) {
+                lastProgressUpdate = now
+                const percent = Math.round((loadedBytes / totalBytes) * 100)
+                this.emit('download:progress', {
+                  taskId,
+                  loaded: loadedBytes,
+                  total: totalBytes,
+                  percent,
+                })
+              }
+            })
+
+            rs.pipe(ws)
+            ws.on('finish', complete)
+            ws.on('error', fail)
+            rs.on('error', fail)
+            rs.on('close', () => {
+              if (taskState.aborted) {
+                fail(new Error('Download cancelled'))
+              }
+            })
+            ws.on('close', () => {
+              if (taskState.aborted) {
+                fail(new Error('Download cancelled'))
+              }
+            })
           })
-          const verifyEntry = await drive.entry(driveKey)
-          if (!verifyEntry || !verifyEntry.value || !verifyEntry.value.blob) {
+
+          if (taskState.aborted) throw new Error('Download cancelled')
+
+          this.emit('download:status', { taskId, status: 'verifying' })
+
+          const { cid: downloadedCid, size: downloadedSize } =
+            await calculateCid(tempPath)
+          const downloadedCidString = downloadedCid.toString()
+
+          if (downloadedCidString !== cidString) {
+            throw new IntegrityError(
+              `File content CID mismatch. Expected ${cidString}, got ${downloadedCidString}.`
+            )
+          }
+
+          const driveKey = '/' + cidString
+          const existingEntry = await drive.entry(driveKey, { wait: false })
+          const hasDriveContent =
+            Boolean(existingEntry?.value?.blob) &&
+            (await this.#hasLocalDriveContent(drive, driveKey))
+          if (!hasDriveContent) {
+            await pipeline(
+              fs.createReadStream(tempPath),
+              drive.createWriteStream(driveKey)
+            )
+          }
+          const verifyEntry = await drive.entry(driveKey, { wait: false })
+          const verifiedDriveContent =
+            Boolean(verifyEntry?.value?.blob) &&
+            (await this.#hasLocalDriveContent(drive, driveKey))
+          if (!verifiedDriveContent) {
             throw new IntegrityError(
               `Failed to write file to Hyperdrive for seeding: ${driveKey}`
             )
           }
-        }
-        await this.#joinCidTopicInternal(cidString, {
-          server: true,
-          client: false,
-        })
-
-        const result = {
-          taskId,
-          fileName: sanitizedFileName,
-          savedPath: savePath,
-        }
-
-        const publishedBucket = addToLibrary
-          ? this.#getPublishedBucket(ownerAddress, true)
-          : []
-        const existingIndex = publishedBucket.findIndex(
-          f => f.cid === cidString
-        )
-        if (addToLibrary) {
-          this.#assertDisplayNameAvailable(sanitizedFileName, {
-            ownerAddress,
-            excludeCid: cidString,
+          await this.#joinCidTopicInternal(cidString, {
+            server: true,
+            client: false,
           })
-        }
-        const savedSize = totalBytes || fs.statSync(savePath).size
-        const syncUpdatedAt =
-          existingIndex !== -1
-            ? getNextSyncTimestamp(publishedBucket[existingIndex].syncUpdatedAt)
-            : Date.now()
-        if (addToLibrary) {
-          if (existingIndex !== -1) {
-            const existing = publishedBucket[existingIndex]
-            existing.fileName = sanitizedFileName
-            existing.driveName = name
-            existing.size = savedSize
-            existing.source = 'downloaded'
-            existing.publishedAt = new Date(syncUpdatedAt).toISOString()
-            existing.syncUpdatedAt = syncUpdatedAt
-          } else {
-            publishedBucket.push({
-              fileName: sanitizedFileName,
-              cid: cidString,
-              driveName: name,
-              size: savedSize,
-              source: 'downloaded',
-              publishedAt: new Date(syncUpdatedAt).toISOString(),
-              starred: false,
-              syncUpdatedAt,
+
+          const result = {
+            taskId,
+            fileName: sanitizedFileName,
+            localAvailable: true,
+          }
+
+          const publishedBucket = addToLibrary
+            ? this.#getPublishedBucket(ownerAddress, true)
+            : []
+          const existingIndex = publishedBucket.findIndex(
+            f => f.cid === cidString
+          )
+          if (addToLibrary) {
+            this.#assertDisplayNameAvailable(sanitizedFileName, {
+              ownerAddress,
+              excludeCid: cidString,
             })
           }
-          this.#savePublishedMetadata()
-        }
-        this.#upsertHolding({
-          cid: cidString,
-          fileName: sanitizedFileName,
-          size: savedSize,
-          driveName: name,
-          source: 'downloaded',
-        })
+          const savedSize =
+            totalBytes || downloadedSize || fs.statSync(tempPath).size
+          const syncUpdatedAt =
+            existingIndex !== -1
+              ? getNextSyncTimestamp(
+                  publishedBucket[existingIndex].syncUpdatedAt
+                )
+              : Date.now()
+          if (addToLibrary) {
+            if (existingIndex !== -1) {
+              const existing = publishedBucket[existingIndex]
+              existing.fileName = sanitizedFileName
+              existing.driveName = name
+              existing.size = savedSize
+              existing.source = 'downloaded'
+              existing.publishedAt = new Date(syncUpdatedAt).toISOString()
+              existing.syncUpdatedAt = syncUpdatedAt
+            } else {
+              publishedBucket.push({
+                fileName: sanitizedFileName,
+                cid: cidString,
+                driveName: name,
+                size: savedSize,
+                source: 'downloaded',
+                publishedAt: new Date(syncUpdatedAt).toISOString(),
+                starred: false,
+                syncUpdatedAt,
+              })
+            }
+            this.#savePublishedMetadata()
+          }
+          this.#upsertHolding({
+            cid: cidString,
+            fileName: sanitizedFileName,
+            size: savedSize,
+            driveName: name,
+            source: 'downloaded',
+          })
 
-        if (!options.suppressSuccessEvent) {
-          this.emit('download:success', result)
+          if (!options.suppressSuccessEvent) {
+            this.emit('download:success', result)
+          }
+          return result
+        } finally {
+          taskState.readStream = null
+          taskState.writeStream = null
+          fs.rmSync(tempDir, { recursive: true, force: true })
         }
-        return result
       }
     } finally {
       taskState.releaseCapacity?.()
@@ -2006,9 +2010,7 @@ export class MostBoxEngine extends EventEmitter {
       }
     }
 
-    const writableCheck = await checkDirectoryWritable(
-      this.#options.downloadPath
-    )
+    const writableCheck = await checkDirectoryWritable(this.#options.dataPath)
     if (!writableCheck.writable) {
       throw new PermissionError(writableCheck.error)
     }
@@ -2112,11 +2114,16 @@ export class MostBoxEngine extends EventEmitter {
 
     return Promise.all(
       files.map(async file => {
-        const localContent = await this.#getLocalCidContent(file.cid, {
-          ownerAddress,
-          public: true,
-          allowHoldingFallback: true,
-        })
+        let localContent = null
+        try {
+          localContent = await this.#getLocalCidContent(file.cid, {
+            ownerAddress,
+            public: true,
+            allowHoldingFallback: true,
+          })
+        } catch {
+          localContent = null
+        }
         return {
           ...file,
           localAvailable: localContent !== null,
@@ -2507,21 +2514,6 @@ export class MostBoxEngine extends EventEmitter {
       if (task.readStream) task.readStream.destroy(err)
       if (task.writeStream) task.writeStream.destroy()
     }
-  }
-
-  hasDownloadNameConflict(fileName, options = {}) {
-    this.#ensureInitialized()
-    const sanitizedFileName = sanitizeFilename(fileName)
-    const savePath = path.join(this.#options.downloadPath, sanitizedFileName)
-    if (!fs.existsSync(savePath)) return false
-    if (options.allowDirectory === true) {
-      try {
-        return !fs.statSync(savePath).isDirectory()
-      } catch {
-        return true
-      }
-    }
-    return true
   }
 
   setMaxFileSize(maxFileSize) {
@@ -2931,16 +2923,9 @@ export class MostBoxEngine extends EventEmitter {
       throw new Error('File not found')
     }
     const link = buildMostLink(cid, fileRecord.fileName)
-    await this.checkDownloadAvailability(link, {
+    const result = await this.downloadFile(link, options.taskId, {
       ownerAddress,
       timeout: options.timeout,
-    })
-    const result = await this.pullByCid({
-      cid,
-      fileName: fileRecord.fileName,
-      ownerAddress,
-      timeout: options.timeout,
-      taskId: options.taskId,
     })
     return result
   }

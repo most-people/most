@@ -125,8 +125,7 @@ function getQrCodeFileName(cid: string) {
 function formatDownloadPath(dataPath: string, fallback: string) {
   const cleaned = dataPath.trim().replace(/[\\/]+$/, '')
   if (!cleaned) return fallback
-  const separator = cleaned.includes('\\') ? '\\' : '/'
-  return `${cleaned}${separator}downloads`
+  return cleaned
 }
 
 function readString(record: Record<string, unknown>, key: string) {

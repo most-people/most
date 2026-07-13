@@ -6,10 +6,10 @@ const DOWNLOAD_CHECK_MESSAGES = {
   offline: '无法连接本地节点，请确认 MostBox 后端正在运行后再检测。',
   missingApi: '当前后端还没有检测接口，请重启 MostBox 后端后再试。',
   validation: '链接格式不正确，请粘贴 most://、网页入口或 CID。',
-  nameConflict: '下载目录已有同名文件，请先重命名或移走后再检测。',
+  nameConflict: '文件库已有同名文件，请先重命名或移走后再检测。',
   noPeer:
     '暂时没有发现在线种子。请确认分享者或其他下载者仍在线做种，稍后再检测。',
-  permission: '下载目录不可写，请检查目录权限后再检测。',
+  permission: '本机做种库不可写，请检查数据目录权限后再检测。',
   starting: '本地节点还没有启动完成，请稍等几秒后重新检测。',
   server: '本地节点检测时出错，请稍后重试或查看节点日志。',
   fallback: '检测未通过，请确认链接完整、发布者在线且本机网络正常。',
@@ -51,7 +51,7 @@ export function getDownloadCheckErrorMessageFromPayload(
       return DOWNLOAD_CHECK_MESSAGES.noPeer
     case 'PERMISSION_ERROR':
       return data.error
-        ? `下载目录不可写：${data.error}`
+        ? `本机做种库不可写：${data.error}`
         : DOWNLOAD_CHECK_MESSAGES.permission
     case 'ENGINE_NOT_INITIALIZED':
       return DOWNLOAD_CHECK_MESSAGES.starting

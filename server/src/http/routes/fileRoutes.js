@@ -169,18 +169,6 @@ export function registerFileRoutes(app, { engine, configStore, wsBroadcast }) {
       })
     }
 
-    if (
-      engine.hasDownloadNameConflict(parsed.fileName, { allowDirectory: true })
-    ) {
-      return c.json(
-        {
-          error: `已有同名文件: ${parsed.fileName}`,
-          code: 'CONFLICT',
-        },
-        409
-      )
-    }
-
     try {
       const timeout =
         body.timeout === undefined ? undefined : Number(body.timeout)
@@ -247,18 +235,6 @@ export function registerFileRoutes(app, { engine, configStore, wsBroadcast }) {
       } catch (err) {
         return errorJson(c, err)
       }
-    }
-
-    if (
-      engine.hasDownloadNameConflict(parsed.fileName, { allowDirectory: true })
-    ) {
-      return c.json(
-        {
-          error: `已有同名文件: ${parsed.fileName}`,
-          code: 'CONFLICT',
-        },
-        409
-      )
     }
 
     startDownloadTask(

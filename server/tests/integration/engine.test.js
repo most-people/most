@@ -1556,6 +1556,58 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       const files = engine.listPublishedFiles()
       assert.strictEqual(files.length, initialCount + 1)
     })
+
+    it('keeps listing when one file availability probe fails', async () => {
+      const listTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-list-availability-')
+      )
+      const dataPath = path.join(listTmpDir, 'data')
+      let listEngine
+
+      try {
+        listEngine = new MostBoxEngine({
+          dataPath,
+          disableNetwork: true,
+        })
+        await listEngine.start()
+        await listEngine.stop()
+        listEngine = null
+
+        fs.writeFileSync(
+          path.join(dataPath, 'published-files.json'),
+          JSON.stringify(
+            {
+              __local__: [
+                {
+                  fileName: 'broken.txt',
+                  cid: 'not-a-cid',
+                  driveName: 'drive-not-a-cid',
+                  publishedAt: new Date().toISOString(),
+                  starred: false,
+                  ownerAddress: '',
+                },
+              ],
+            },
+            null,
+            2
+          )
+        )
+
+        listEngine = new MostBoxEngine({
+          dataPath,
+          disableNetwork: true,
+        })
+        await listEngine.start()
+
+        const files = await listEngine.listPublishedFilesWithAvailability()
+        assert.strictEqual(files.length, 1)
+        assert.strictEqual(files[0].cid, 'not-a-cid')
+        assert.strictEqual(files[0].localAvailable, false)
+      } finally {
+        if (listEngine) await listEngine.stop().catch(() => {})
+        fs.rmSync(listTmpDir, { recursive: true, force: true })
+      }
+    })
   })
 
   describe('toggleStarred()', () => {
@@ -1691,8 +1743,16 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         const result = await download
 
         assert.strictEqual(result.fileName, publishResult.cid)
-        assert.strictEqual(path.basename(result.savedPath), publishResult.cid)
-        assert.deepStrictEqual(fs.readFileSync(result.savedPath), content)
+        assert.strictEqual(result.localAvailable, true)
+        assert.strictEqual(result.savedPath, undefined)
+        assert.strictEqual(
+          fs.existsSync(
+            path.join(bareTmpDir, 'downloader', 'downloads', publishResult.cid)
+          ),
+          false
+        )
+        const readResult = await downloader.readFileRaw(publishResult.cid)
+        assert.deepStrictEqual(readResult.buffer, content)
       } finally {
         replication?.close()
         if (publisher) await publisher.stop().catch(() => {})
@@ -2106,7 +2166,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       }
     })
 
-    it('checks remote availability before pulling an imported metadata-only file', async () => {
+    it('uses the shared download flow for an imported metadata-only file', async () => {
       const cacheTmpDir = fs.mkdtempSync(
         path.join(os.tmpdir(), 'most-cache-check-')
       )
@@ -2138,27 +2198,21 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
           sourceEngine.exportUserData(cacheOwner)
         )
 
-        let checked = false
-        let pulled = false
-        targetEngine.checkDownloadAvailability = async link => {
-          checked = true
+        let delegated = false
+        targetEngine.downloadFile = async (link, taskId, options) => {
+          delegated = true
           assert.match(link, new RegExp(`^most://${published.cid}`))
-          throw new Error('checked first')
-        }
-        targetEngine.pullByCid = async () => {
-          pulled = true
+          assert.strictEqual(taskId, undefined)
+          assert.strictEqual(options.ownerAddress, cacheOwner)
+          assert.strictEqual(options.timeout, 123)
           return { success: true }
         }
 
-        await assert.rejects(
-          targetEngine.cacheFile(published.cid, {
-            ownerAddress: cacheOwner,
-            timeout: 123,
-          }),
-          /checked first/
-        )
-        assert.strictEqual(checked, true)
-        assert.strictEqual(pulled, false)
+        await targetEngine.cacheFile(published.cid, {
+          ownerAddress: cacheOwner,
+          timeout: 123,
+        })
+        assert.strictEqual(delegated, true)
       } finally {
         if (sourceEngine) await sourceEngine.stop().catch(() => {})
         if (targetEngine) await targetEngine.stop().catch(() => {})
@@ -2200,7 +2254,11 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         await sleep(100)
         links.push(uploader.replicateWith(seedB))
         const resultB = await pullB
-        assert.deepStrictEqual(fs.readFileSync(resultB.savedPath), content)
+        assert.strictEqual(resultB.localAvailable, true)
+        assert.deepStrictEqual(
+          (await seedB.readFileRaw(publishResult.cid)).buffer,
+          content
+        )
         const uploaderServed = await waitForHoldingMetric(
           uploader,
           publishResult.cid,
@@ -2213,7 +2271,11 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         await sleep(100)
         links.push(uploader.replicateWith(seedC))
         const resultC = await pullC
-        assert.deepStrictEqual(fs.readFileSync(resultC.savedPath), content)
+        assert.strictEqual(resultC.localAvailable, true)
+        assert.deepStrictEqual(
+          (await seedC.readFileRaw(publishResult.cid)).buffer,
+          content
+        )
 
         await uploader.stop()
         const uploaderIndex = engines.indexOf(uploader)
@@ -2225,7 +2287,11 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         links.push(seedC.replicateWith(downloader))
         const resultD = await pullD
 
-        assert.deepStrictEqual(fs.readFileSync(resultD.savedPath), content)
+        assert.strictEqual(resultD.localAvailable, true)
+        assert.deepStrictEqual(
+          (await downloader.readFileRaw(publishResult.cid)).buffer,
+          content
+        )
         assert.ok(seedB.listHoldings().some(h => h.cid === publishResult.cid))
         assert.ok(seedC.listHoldings().some(h => h.cid === publishResult.cid))
         assert.ok(
@@ -2753,7 +2819,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
             error.details?.requiredBytes === content.length * 2 &&
             error.details?.availableBytes === 120 &&
             error.details?.labels?.includes('hyperdrive') &&
-            error.details?.labels?.includes('download')
+            error.details?.labels?.includes('download-temp')
         )
       } finally {
         fs.statfsSync = originalStatfsSync

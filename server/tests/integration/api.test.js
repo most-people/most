@@ -1056,7 +1056,6 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       let startedDownload = false
       const fakeEngine = {
         getLocalCidAvailability: async () => null,
-        hasDownloadNameConflict: () => false,
         checkDownloadAvailability: async link => {
           checked = true
           return {
@@ -1246,10 +1245,11 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(data.fileName, chatFileName)
     })
 
-    it('returns 409 when another CID would save over an existing filename', async () => {
+    it('does not treat old download-path files as a download target conflict', async () => {
       const downloadsDir = path.join(tmpDir, 'api', 'downloads')
       fs.mkdirSync(downloadsDir, { recursive: true })
-      fs.writeFileSync(path.join(downloadsDir, 'same-name.txt'), 'local file')
+      const oldDownloadFile = path.join(downloadsDir, 'same-name.txt')
+      fs.writeFileSync(oldDownloadFile, 'local file')
 
       const res = await fetch(`${baseUrl}/api/download`, {
         method: 'POST',
@@ -1260,9 +1260,13 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       })
       const data = await res.json()
 
-      assert.strictEqual(res.status, 409)
-      assert.strictEqual(data.code, 'CONFLICT')
-      assert.match(data.error, /已有同名文件/)
+      assert.strictEqual(res.status, 200)
+      assert.strictEqual(data.success, true)
+      assert.ok(data.taskId)
+      assert.strictEqual(
+        fs.readFileSync(oldDownloadFile, 'utf-8'),
+        'local file'
+      )
     })
 
     it('returns 400 for missing link', async () => {

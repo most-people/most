@@ -44,6 +44,7 @@ import {
   getDownloadCheckErrorMessage,
   getPublishFileErrorMessage,
   getPublishFileLimitViolation,
+  type DownloadFileResult,
 } from '~/lib/fileApi'
 import { getFileSubtype } from '~/lib/filePreview'
 import { formatBytes } from '~/lib/format'
@@ -537,15 +538,13 @@ export default function App() {
     setSelectedCollectionPaths([])
   }
 
-  const handleCheckDownloadAvailability = async () => {
-    const validationMessage = getLocalizedDownloadLinkValidationMessage(
-      normalizedDownloadLink,
-      t
-    )
+  const checkDownloadAvailability = async (linkInput = downloadLink) => {
+    const link = linkInput.trim()
+    const validationMessage = getLocalizedDownloadLinkValidationMessage(link, t)
     if (validationMessage) {
       setDownloadCheckResult({
         status: 'error',
-        link: normalizedDownloadLink,
+        link,
         message: validationMessage,
       })
       addToast(validationMessage, 'warning')
@@ -559,7 +558,7 @@ export default function App() {
     setIsCheckingDownload(true)
     setDownloadCheckResult(null)
     try {
-      const result = await fileApi.checkDownload(normalizedDownloadLink)
+      const result = await fileApi.checkDownload(link)
       const isCollection = result.kind === 'collection'
       const message = isCollection
         ? result.alreadyExists
@@ -574,7 +573,7 @@ export default function App() {
           : t('app.fileAvailable', { fileName: result.fileName })
       setDownloadCheckResult({
         status: 'success',
-        link: normalizedDownloadLink,
+        link,
         message,
         kind: result.kind,
         availabilityScope: result.availabilityScope,
@@ -602,13 +601,43 @@ export default function App() {
       const message = await getDownloadCheckErrorMessage(err)
       setDownloadCheckResult({
         status: 'error',
-        link: normalizedDownloadLink,
+        link,
         message,
       })
       addToast(message, 'error')
     } finally {
       setIsCheckingDownload(false)
     }
+  }
+
+  const handleCheckDownloadAvailability = async () => {
+    await checkDownloadAvailability()
+  }
+
+  const handleDownloadToLibraryResult = (result: DownloadFileResult) => {
+    if (result.alreadyExists) {
+      addToast(
+        t('app.fileAlreadyExists', { fileName: result.fileName }),
+        'warning'
+      )
+      return
+    }
+
+    if (result.localAvailable) {
+      refreshFiles()
+      return
+    }
+
+    const transfer = {
+      id: result.taskId,
+      fileName: result.fileName || t('app.downloadFallbackName'),
+      progress: 0,
+      type: 'download',
+      status: 'downloading',
+    }
+    setTransfers(prev => [...prev, transfer])
+    transferPanel.open()
+    addToast(t('app.toast.downloadStarted'), 'info')
   }
 
   const handleDownloadSharedFile = async () => {
@@ -641,26 +670,7 @@ export default function App() {
       setDownloadLink('')
       setDownloadCheckResult(null)
       closeDownloadModal()
-
-      if (result.alreadyExists) {
-        addToast(
-          t('app.fileAlreadyExists', { fileName: result.fileName }),
-          'warning'
-        )
-      } else if (result.localAvailable) {
-        refreshFiles()
-      } else {
-        const transfer = {
-          id: result.taskId,
-          fileName: result.fileName || t('app.downloadFallbackName'),
-          progress: 0,
-          type: 'download',
-          status: 'downloading',
-        }
-        setTransfers(prev => [...prev, transfer])
-        transferPanel.open()
-        addToast(t('app.toast.downloadStarted'), 'info')
-      }
+      handleDownloadToLibraryResult(result)
     } catch (err) {
       const message = await getApiErrorMessage(
         err,
@@ -735,21 +745,11 @@ export default function App() {
     if (!requireLogin()) return
     if (!requireBackendReady()) return
     const link = buildMostShareLink(file.cid, file.fileName)
-    let checked = false
-    try {
-      addToast(t('common.status.checking'), 'info')
-      await fileApi.checkDownload(link)
-      checked = true
-      addToast(t('app.toast.startPullLocal'), 'info')
-      await fileApi.cacheFile(file.cid)
-      addToast(t('app.toast.pulledAndSeeding'), 'success')
-      refreshFiles()
-    } catch (err) {
-      const message = checked
-        ? await getApiErrorMessage(err, t('app.toast.pullFailed'))
-        : await getDownloadCheckErrorMessage(err)
-      addToast(message, 'error')
-    }
+    setDownloadLink(link)
+    setDownloadCheckResult(null)
+    setSelectedCollectionPaths([])
+    downloadModal.open()
+    await checkDownloadAvailability(link)
   }
 
   const handleNavigate = path => {
@@ -1259,6 +1259,12 @@ export default function App() {
                     : t('app.check')}
               </button>
             </div>
+            {isCheckingDownload && (
+              <div className="download-check-status pending" role="status">
+                <Loader size={14} className="spin" />
+                <span>{t('app.downloadAutoChecking')}</span>
+              </div>
+            )}
             {downloadCheckResult && (
               <div
                 className={`download-check-status ${downloadCheckResult.status}`}

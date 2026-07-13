@@ -12,7 +12,7 @@ export const zhCNCidMessages = {
   'cid.process.step.open.title': '打开链接',
   'cid.process.step.open.desc': '网页链接或 most:// 都指向同一 CID。',
   'cid.process.step.check.title': '检查种子',
-  'cid.process.step.check.desc': '确认在线 peer 和下载目录。',
+  'cid.process.step.check.desc': '确认在线 peer 和本机做种库。',
   'cid.process.step.verify.title': '下载校验',
   'cid.process.step.verify.desc': '重算 CID，匹配后才保存。',
   'cid.process.step.seed.title': '继续做种',
@@ -36,7 +36,7 @@ export const zhCNCidMessages = {
   'cid.cidLabel': 'CID',
   'cid.sizeLabel': '大小',
   'cid.saveToLabel': '保存到',
-  'cid.saveToFallback': 'MostBox 数据目录/downloads',
+  'cid.saveToFallback': 'MostBox 本机做种库',
   'cid.unknownSize': '检测到后显示',
   'cid.label.idle': '准备检测',
   'cid.label.checking': '正在检测',
@@ -49,7 +49,7 @@ export const zhCNCidMessages = {
   'cid.status.waitingBackend': '正在等待本地节点状态。',
   'cid.status.backendMissing': '没有连接到 MostBox 本地节点。',
   'cid.status.loginRequired': '请先登录本地身份，然后再检查这个 CID。',
-  'cid.status.checking': '正在查找在线种子并确认下载目录可写。',
+  'cid.status.checking': '正在查找在线种子并确认本机做种库可写。',
   'cid.status.available': '{fileName} 当前可以下载。',
   'cid.status.collectionAvailable':
     '{fileName} 目录清单可读。子文件会在下载时逐个检查在线种子。',
@@ -103,7 +103,7 @@ export const zhTWCidMessages = {
   'cid.process.step.open.title': '開啟連結',
   'cid.process.step.open.desc': '網頁連結或 most:// 都指向同一 CID。',
   'cid.process.step.check.title': '檢查種子',
-  'cid.process.step.check.desc': '確認線上 peer 和下載目錄。',
+  'cid.process.step.check.desc': '確認線上 peer 和本機做種庫。',
   'cid.process.step.verify.title': '下載校驗',
   'cid.process.step.verify.desc': '重算 CID，匹配後才儲存。',
   'cid.process.step.seed.title': '繼續做種',
@@ -127,7 +127,7 @@ export const zhTWCidMessages = {
   'cid.cidLabel': 'CID',
   'cid.sizeLabel': '大小',
   'cid.saveToLabel': '儲存到',
-  'cid.saveToFallback': 'MostBox 資料目錄/downloads',
+  'cid.saveToFallback': 'MostBox 本機做種庫',
   'cid.unknownSize': '檢測到後顯示',
   'cid.label.idle': '準備檢測',
   'cid.label.checking': '正在檢測',
@@ -140,7 +140,7 @@ export const zhTWCidMessages = {
   'cid.status.waitingBackend': '正在等待本機節點狀態。',
   'cid.status.backendMissing': '沒有連線到 MostBox 本機節點。',
   'cid.status.loginRequired': '請先登入本機身份，然後再檢查這個 CID。',
-  'cid.status.checking': '正在尋找線上種子並確認下載目錄可寫。',
+  'cid.status.checking': '正在尋找線上種子並確認本機做種庫可寫。',
   'cid.status.available': '{fileName} 目前可以下載。',
   'cid.status.collectionAvailable':
     '{fileName} 目錄清單可讀。子檔案會在下載時逐一檢查線上種子。',
@@ -197,7 +197,7 @@ export const enCidMessages = {
     'The web link and most:// link point to the same CID.',
   'cid.process.step.check.title': 'Check seeders',
   'cid.process.step.check.desc':
-    'Confirm online peers and the download directory.',
+    'Confirm online peers and the local seeding store.',
   'cid.process.step.verify.title': 'Download and verify',
   'cid.process.step.verify.desc':
     'Recompute the CID and save only when it matches.',
@@ -224,7 +224,7 @@ export const enCidMessages = {
   'cid.cidLabel': 'CID',
   'cid.sizeLabel': 'Size',
   'cid.saveToLabel': 'Save to',
-  'cid.saveToFallback': 'MostBox data directory/downloads',
+  'cid.saveToFallback': 'MostBox local seeding store',
   'cid.unknownSize': 'Shown after checking',
   'cid.label.idle': 'Ready to check',
   'cid.label.checking': 'Checking',
@@ -239,7 +239,7 @@ export const enCidMessages = {
   'cid.status.loginRequired':
     'Sign in with a local identity before checking this CID.',
   'cid.status.checking':
-    'Looking for online seeders and checking that the download directory is writable.',
+    'Looking for online seeders and checking that the local seeding store is writable.',
   'cid.status.available': '{fileName} is available to download.',
   'cid.status.collectionAvailable':
     '{fileName} manifest is readable. Child files will be checked one by one when downloading.',

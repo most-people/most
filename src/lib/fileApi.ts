@@ -95,7 +95,7 @@ export interface CheckDownloadOptions {
   requestTimeout?: number
 }
 
-const DEFAULT_DOWNLOAD_CHECK_TIMEOUT_MS = 60000
+const DEFAULT_DOWNLOAD_CHECK_TIMEOUT_MS = 10000
 const DOWNLOAD_CHECK_REQUEST_GRACE_MS = 5000
 
 type Translate = (
@@ -204,7 +204,6 @@ export const fileApi = {
         json: selectedPaths?.length ? { link, selectedPaths } : { link },
       })
       .json<DownloadFileResult>(),
-  cacheFile: (cid: string) => api.post(`/api/files/${cid}/cache`).json(),
   cancelDownload: (taskId: string) =>
     api.post('/api/download/cancel', { json: { taskId } }).json(),
   getFileDownloadUrl: (cid: string) => getApiUrl(`/api/files/${cid}/download`),

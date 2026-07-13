@@ -1056,6 +1056,12 @@
   color: var(--danger);
 }
 
+.download-check-status.pending {
+  border-color: rgba(0, 122, 255, 0.28);
+  background: rgba(0, 122, 255, 0.08);
+  color: var(--info);
+}
+
 .collection-download-list {
   display: grid;
   gap: 6px;
