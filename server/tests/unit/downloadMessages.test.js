@@ -62,6 +62,12 @@ describe('getDownloadLinkValidationMessage', () => {
       getDownloadLinkValidationMessage(`${VALID_CID}?filename=a.txt`),
       null
     )
+    assert.strictEqual(
+      getDownloadLinkValidationMessage(
+        `http://localhost:3000/cid/${VALID_CID}/?filename=chat-file`
+      ),
+      null
+    )
   })
 
   it('rejects empty links before parsing', () => {

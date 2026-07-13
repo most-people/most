@@ -24,14 +24,35 @@ function invalidLink(errorCode, details) {
   }
 }
 
-function extractTailTarget(value) {
-  const queryStart = value.indexOf('?')
-  const pathPart = queryStart === -1 ? value : value.slice(0, queryStart)
-  const queryPart = queryStart === -1 ? '' : value.slice(queryStart)
-  const slashIndex = pathPart.lastIndexOf('/')
-  const tailPath = slashIndex === -1 ? pathPart : pathPart.slice(slashIndex + 1)
+const LINK_PARSE_BASE_URL = 'https://most.box/'
 
-  return `${tailPath}${queryPart}`
+function parseLinkUrl(value) {
+  try {
+    return new URL(value)
+  } catch {
+    try {
+      return new URL(value, LINK_PARSE_BASE_URL)
+    } catch {
+      return null
+    }
+  }
+}
+
+function extractTailTarget(value) {
+  const url = parseLinkUrl(value)
+  if (!url) return value
+
+  if (
+    url.protocol === 'most:' &&
+    (!url.pathname || (url.search && /^\/+$/.test(url.pathname)))
+  ) {
+    return `${url.hostname}${url.search}`
+  }
+
+  const pathName = url.search ? url.pathname.replace(/\/+$/, '') : url.pathname
+  const tailPath = pathName.split('/').filter(Boolean).at(-1) || ''
+
+  return `${tailPath}${url.search}`
 }
 
 /**

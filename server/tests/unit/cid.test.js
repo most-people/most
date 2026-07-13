@@ -105,6 +105,16 @@ describe('parseMostLink', () => {
     assert.strictEqual(Object.hasOwn(result, 'error'), false)
   })
 
+  it('extracts CID and filename from web entry links with path trailing slash', () => {
+    const result = parseMostLink(
+      `http://localhost:3000/cid/${VALID_CID}/?filename=chat-file`
+    )
+    assert.strictEqual(result.cid, VALID_CID)
+    assert.strictEqual(result.fileName, 'chat-file')
+    assert.strictEqual(result.errorCode, undefined)
+    assert.strictEqual(Object.hasOwn(result, 'error'), false)
+  })
+
   it('extracts CID from bare CID input', () => {
     const result = parseMostLink(VALID_CID)
     assert.strictEqual(result.cid, VALID_CID)
@@ -118,6 +128,13 @@ describe('parseMostLink', () => {
     )
     assert.strictEqual(result.cid, VALID_CID)
     assert.strictEqual(result.fileName, 'bare.txt')
+    assert.strictEqual(result.errorCode, undefined)
+  })
+
+  it('extracts CID and filename from bare CID path with filename query', () => {
+    const result = parseMostLink(`${VALID_CID}/?filename=chat-file`)
+    assert.strictEqual(result.cid, VALID_CID)
+    assert.strictEqual(result.fileName, 'chat-file')
     assert.strictEqual(result.errorCode, undefined)
   })
 
