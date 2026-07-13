@@ -6,12 +6,6 @@ const INVITE_STORAGE_KEY = 'mostbox_backend_invite'
 const REMOTE_NODES_KEY = 'mostbox_remote_nodes'
 const LOCALHOST_BACKEND_URL = 'http://localhost:1976'
 const MAX_REMOTE_NODES = 8
-let currentApiIdentity = null
-
-export function setCurrentApiIdentity(identity) {
-  currentApiIdentity =
-    identity && typeof identity === 'object' ? identity : null
-}
 
 function isLocalFrontendOrigin() {
   if (typeof window === 'undefined') return false
@@ -239,9 +233,14 @@ function shouldAttachBackendInvite(url = getBackendUrl()) {
   return Boolean(getBackendInvite()) && !isLocalBackendUrl(url)
 }
 
-function getCurrentApiIdentity() {
-  if (currentApiIdentity?.danger) return currentApiIdentity
-  return null
+function getStoredIdentity() {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = localStorage.getItem('mostbox_identity')
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
 }
 
 function normalizePath(path) {
@@ -292,7 +291,7 @@ function createApiInstance() {
             headers.set('x-mostbox-invite', invite)
           }
 
-          const identity = getCurrentApiIdentity()
+          const identity = getStoredIdentity()
           if (identity?.danger) {
             try {
               const authHeaders = await buildAuthHeaders(
@@ -473,7 +472,7 @@ export async function getApiRequestHeaders(method = 'GET', path = '/') {
     Object.assign(
       headers,
       await buildAuthHeaders(
-        getCurrentApiIdentity(),
+        getStoredIdentity(),
         method,
         normalizeAuthPath(path)
       )
@@ -502,7 +501,7 @@ export async function getAuthenticatedWebSocketUrl(path = '/ws') {
     url.searchParams.set('invite', invite)
   }
 
-  const identity = getCurrentApiIdentity()
+  const identity = getStoredIdentity()
   if (identity?.danger) {
     try {
       const auth = await buildAuthHeaders(
@@ -519,7 +518,7 @@ export async function getAuthenticatedWebSocketUrl(path = '/ws') {
         url.searchParams.set('signature', signature)
       }
     } catch {
-      // Leave WebSocket unauthenticated when current identity data is invalid.
+      // Leave WebSocket unauthenticated when local identity data is invalid.
     }
   }
 
@@ -536,7 +535,7 @@ async function probeHttp(cleanedUrl, invite, identity) {
         await buildAuthHeaders(identity, 'GET', '/api/remote/capabilities')
       )
     } catch {
-      // Backend detection should still work when current identity data is invalid.
+      // Backend detection should still work when old identity data is invalid.
     }
     const res = await fetch(`${cleanedUrl}/api/remote/capabilities`, {
       method: 'GET',
@@ -590,7 +589,7 @@ async function probeWebSocket(cleanedUrl, invite, identity) {
           wsUrl.searchParams.set('signature', signature)
         }
       } catch {
-        // Leave WebSocket unauthenticated when current identity data is invalid.
+        // Leave WebSocket unauthenticated when local identity data is invalid.
       }
     }
 
@@ -621,7 +620,7 @@ export async function checkBackendConnectionTarget({ url, invite = '' }) {
   const cleanedUrl = normalizeBackendUrl(url)
   if (!cleanedUrl) return { ok: false, reason: 'http' }
 
-  const identity = getCurrentApiIdentity()
+  const identity = getStoredIdentity()
 
   const [httpResult, wsResult] = await Promise.all([
     probeHttp(cleanedUrl, invite, identity),

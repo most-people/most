@@ -3910,6 +3910,51 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       }
     })
 
+    it('replaces the local writer core when append sees a readonly session', async () => {
+      const ch = `readonly-session-${uid}`
+      const content = 'message after readonly session'
+      const created = await msgEngine.createChannel(ch)
+
+      const originalAppend = Hypercore.prototype.append
+      let injected = false
+      Hypercore.prototype.append = async function appendWithReadonlySession(
+        blocks,
+        opts
+      ) {
+        const entries = Array.isArray(blocks) ? blocks : [blocks]
+        if (
+          !injected &&
+          entries.some(entry => entry && entry.content === content)
+        ) {
+          injected = true
+          const err = new Error(
+            'SESSION_NOT_WRITABLE: cannot append to a readonly core'
+          )
+          err.code = 'SESSION_NOT_WRITABLE'
+          throw err
+        }
+        return originalAppend.call(this, blocks, opts)
+      }
+
+      try {
+        const message = await msgEngine.sendMessage(ch, content)
+        const messages = await msgEngine.getChannelMessages(ch)
+        const channel = msgEngine.listChannels().find(item => item.name === ch)
+
+        assert.strictEqual(injected, true)
+        assert.strictEqual(message.content, content)
+        assert.ok(messages.some(item => item.content === content))
+        assert.ok(channel)
+        assert.notStrictEqual(
+          channel.localWriterCoreKey,
+          created.localWriterCoreKey
+        )
+        assert.ok(channel.writerCoreKeys.includes(created.localWriterCoreKey))
+      } finally {
+        Hypercore.prototype.append = originalAppend
+      }
+    })
+
     it('retrieves messages in order', async () => {
       const ch = `order-${uid}`
       await msgEngine.createChannel(ch)
@@ -5002,6 +5047,69 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         assert.deepStrictEqual(
           messages.map(message => message.content),
           ['before restart', 'after restart']
+        )
+      } finally {
+        await joinEngine.stop().catch(() => {})
+        fs.rmSync(restartTmpDir, { recursive: true, force: true })
+      }
+    })
+
+    it('recovers a joined channel whose local writer metadata points at a remote core', async () => {
+      const restartTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-join-readonly-writer-test-')
+      )
+      const restartDataPath = path.join(restartTmpDir, 'data')
+      fs.mkdirSync(restartDataPath, { recursive: true })
+      const channelName = `join-readonly-${uid}`
+      const created = await engine.createChannel(channelName)
+      let joinedWriterKey
+      let joinEngine = new MostBoxEngine({
+        dataPath: restartDataPath,
+        disableNetwork: true,
+      })
+
+      try {
+        await joinEngine.start()
+        const joined = await joinEngine.joinChannel(
+          channelName,
+          toChannelCandidate(created)
+        )
+        joinedWriterKey = joined.localWriterCoreKey
+        await joinEngine.stop()
+
+        const metadataPath = path.join(restartDataPath, 'channels.json')
+        const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf-8'))
+        const channel = metadata.find(item => item.channelId === channelName)
+        channel.localWriterCoreKey = created.localWriterCoreKey
+        fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2))
+
+        joinEngine = new MostBoxEngine({
+          dataPath: restartDataPath,
+          disableNetwork: true,
+        })
+        await joinEngine.start()
+
+        const message = await joinEngine.sendMessage(
+          channelName,
+          'after readonly metadata',
+          '0x1234567890abcdef1234567890abcdef12345678',
+          'Joiner'
+        )
+        assert.strictEqual(message.content, 'after readonly metadata')
+
+        const channels = joinEngine.listChannels()
+        const recovered = channels.find(item => item.name === channelName)
+        assert.ok(recovered)
+        assert.strictEqual(recovered.localWriterCoreKey, joinedWriterKey)
+        assert.notStrictEqual(
+          recovered.localWriterCoreKey,
+          created.localWriterCoreKey
+        )
+        assert.ok(recovered.writerCoreKeys.includes(created.localWriterCoreKey))
+
+        const messages = await joinEngine.getChannelMessages(channelName)
+        assert.ok(
+          messages.some(item => item.content === 'after readonly metadata')
         )
       } finally {
         await joinEngine.stop().catch(() => {})

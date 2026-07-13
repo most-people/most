@@ -5,7 +5,6 @@ import {
   clearIdentity,
   saveIdentity,
 } from '~server/src/utils/userIdentity.js'
-import { setCurrentApiIdentity } from '~server/src/utils/api'
 import type { ChatJoinInvitePayload } from '~/lib/chatJoinInvite'
 import type { MessageKey } from '~/lib/i18n'
 import { normalizeLocalizedTag, type LocalizedTag } from '~/lib/localizedTag'
@@ -137,7 +136,6 @@ export const useUserStore = create<UserState>((set, get) => ({
     if (!identity) {
       clearIdentity()
     }
-    setCurrentApiIdentity(identity)
     set({ identity, wallet: identity || undefined })
   },
 
@@ -204,7 +202,6 @@ export const useUserStore = create<UserState>((set, get) => ({
         loginPassword
       )
       saveIdentity(nextIdentity)
-      setCurrentApiIdentity(nextIdentity)
       set({
         identity: nextIdentity,
         wallet: nextIdentity,
@@ -226,7 +223,6 @@ export const useUserStore = create<UserState>((set, get) => ({
     const nextIdentity = normalizeIdentity(identity)
     if (!nextIdentity) return
     saveIdentity(nextIdentity)
-    setCurrentApiIdentity(nextIdentity)
     set({ identity: nextIdentity, wallet: nextIdentity })
   },
 
@@ -240,7 +236,6 @@ export const useUserStore = create<UserState>((set, get) => ({
 
   logoutUser: () => {
     clearIdentity()
-    setCurrentApiIdentity(null)
     set({ identity: null, wallet: undefined, pendingCloudRestoreAddress: null })
   },
 }))

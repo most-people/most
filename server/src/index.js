@@ -463,6 +463,22 @@ export class MostBoxEngine extends EventEmitter {
     )
   }
 
+  #isReadOnlySessionError(err) {
+    if (!err || typeof err !== 'object') return false
+    const code = String(err.code || '')
+    const message = String(err.message || '').toLowerCase()
+    return (
+      code === 'SESSION_NOT_WRITABLE' ||
+      message.includes('session_not_writable') ||
+      message.includes('readonly core') ||
+      message.includes('not writable')
+    )
+  }
+
+  #isRecoverableChannelAppendError(err) {
+    return this.#isClosedSessionError(err) || this.#isReadOnlySessionError(err)
+  }
+
   #isPublishWriteTimeoutError(err) {
     return err?.code === 'PUBLISH_WRITE_TIMEOUT'
   }
@@ -530,7 +546,7 @@ export class MostBoxEngine extends EventEmitter {
     }
   }
 
-  async #reopenChannelLocalWriter(channel) {
+  async #reopenChannelLocalWriter(channel, options = {}) {
     const channelKey = channel.channelKey
     const localKeyHex =
       this.#channelLocalCoreKey.get(channelKey) || channel.localWriterCoreKey
@@ -542,6 +558,16 @@ export class MostBoxEngine extends EventEmitter {
       await staleCore.close().catch(() => {})
     }
     this.#channelLocalCoreKey.delete(channelKey)
+    if (options.forceNamedWriter) {
+      channel.writerCoreKeys = uniqueStrings([
+        ...(Array.isArray(channel.writerCoreKeys)
+          ? channel.writerCoreKeys
+          : []),
+        localKeyHex,
+      ])
+      channel.writerId = createChannelWriterId()
+      channel.localWriterCoreKey = ''
+    }
 
     await this.#openChannelRuntime(channel)
 
@@ -4130,10 +4156,12 @@ export class MostBoxEngine extends EventEmitter {
     try {
       await core.append(message)
     } catch (err) {
-      if (!this.#isClosedSessionError(err)) {
+      if (!this.#isRecoverableChannelAppendError(err)) {
         throw err
       }
-      const reopenedCore = await this.#reopenChannelLocalWriter(channel)
+      const reopenedCore = await this.#reopenChannelLocalWriter(channel, {
+        forceNamedWriter: this.#isReadOnlySessionError(err),
+      })
       await reopenedCore.append(message)
     }
     if (channel && !isChannelMemberProfileEventEntry(message)) {
@@ -4355,20 +4383,36 @@ export class MostBoxEngine extends EventEmitter {
 
   async #openChannelRuntime(channel) {
     const ns = this.#store.namespace(`channel-${channel.channelKey}`)
-    const localCore = channel.localWriterCoreKey
-      ? ns.get({
-          key: b4a.from(channel.localWriterCoreKey, 'hex'),
-          valueEncoding: 'json',
-        })
-      : ns.get({
-          name: `messages-${channel.writerId || createChannelWriterId()}`,
-          valueEncoding: 'json',
-        })
+    let localCore = null
+    let previousLocalWriterCoreKey = ''
+    if (channel.localWriterCoreKey) {
+      previousLocalWriterCoreKey = channel.localWriterCoreKey
+      localCore = ns.get({
+        key: b4a.from(channel.localWriterCoreKey, 'hex'),
+        valueEncoding: 'json',
+      })
+      await localCore.ready()
+      if (localCore.writable === false) {
+        await localCore.close().catch(() => {})
+        localCore = null
+      }
+    }
+    if (!localCore) {
+      if (!channel.writerId) {
+        channel.writerId = createChannelWriterId()
+      }
+      localCore = ns.get({
+        name: `messages-${channel.writerId}`,
+        valueEncoding: 'json',
+      })
+    }
     await localCore.ready()
     const localWriterCoreKey = b4a.toString(localCore.key, 'hex')
+    const localWriterChanged = channel.localWriterCoreKey !== localWriterCoreKey
     channel.localWriterCoreKey = localWriterCoreKey
     channel.writerCoreKeys = uniqueStrings([
       ...(Array.isArray(channel.writerCoreKeys) ? channel.writerCoreKeys : []),
+      previousLocalWriterCoreKey,
       localWriterCoreKey,
     ])
 
@@ -4391,6 +4435,10 @@ export class MostBoxEngine extends EventEmitter {
       if (writerCoreKey && writerCoreKey !== localWriterCoreKey) {
         await this.#openRemoteChannelCore(channel.channelKey, writerCoreKey)
       }
+    }
+    if (localWriterChanged) {
+      this.#saveChannelsMetadata()
+      this.#broadcastChannelHello()
     }
   }
 
