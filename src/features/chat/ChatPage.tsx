@@ -62,6 +62,7 @@ import { isChannelMemberJoinedSystemMessage } from '~/lib/channelMessages.js'
 import { useGlobalVoiceRoom } from '~/features/chat/GlobalVoiceRoom'
 import { ChatRestoringIndicator } from '~/features/chat/ChatRestoringIndicator'
 import { getLocalizedDownloadLinkValidationMessage } from '~/lib/i18n/downloadValidation'
+import { shortAddress } from '~/lib/format'
 import { saveFileToLocal } from '~/lib/saveLocalFile'
 import {
   applyHistoricalChannelMentionUnreadState,
@@ -159,11 +160,6 @@ function getAttachmentKind(file: File, fileName: string): FileSubtype {
   return getFileSubtype(fileName)
 }
 
-function formatAddressShort(address?: string) {
-  if (!address) return 'Unknown'
-  return `${address.slice(0, 6)}...${address.slice(-4)}`
-}
-
 function hasAddressSuffix(name?: string) {
   return /#[a-fA-F0-9]{4}$/.test(String(name || '').trim())
 }
@@ -178,7 +174,7 @@ function getMentionCandidateBaseName(name?: string, address?: string) {
   const displayName = String(name || '')
     .trim()
     .replace(/#[a-fA-F0-9]{4}$/, '')
-  return displayName || formatAddressShort(address)
+  return displayName || shortAddress(address) || 'Unknown'
 }
 
 type ChannelMentionUnreadPreview = {
@@ -213,7 +209,7 @@ function formatChannelMentionUnreadPreview(message?: ChannelMessage | null) {
   if (!content) return null
   const authorName = String(message.authorName || '').trim()
   return {
-    authorName: authorName || formatAddressShort(message.author),
+    authorName: authorName || shortAddress(message.author) || 'Unknown',
     content,
     timestamp: Number(message.timestamp) || Date.now(),
   }
@@ -2018,7 +2014,7 @@ function ChatPage() {
 
   function formatDisplayName(name?: string, address?: string) {
     const displayName = String(name || '').trim()
-    if (!displayName) return formatAddressShort(address)
+    if (!displayName) return shortAddress(address) || 'Unknown'
     if (!showAddressSuffix) return displayName.replace(/#[a-fA-F0-9]{4}$/, '')
     if (hasAddressSuffix(displayName)) return displayName
     return address

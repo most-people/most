@@ -4,7 +4,9 @@ export function normalizeAddress(value) {
 }
 
 export function shortAddress(address) {
-  return address ? `${address.slice(0, 6)}...${address.slice(-4)}` : ''
+  const value = String(address || '')
+  if (value.length <= 10) return value
+  return `${value.slice(0, 6)}...${value.slice(-4)}`
 }
 
 export function normalizeAvatar(value) {

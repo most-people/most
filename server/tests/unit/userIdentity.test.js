@@ -39,6 +39,10 @@ describe('userIdentity', () => {
       assert.strictEqual(name, '0xabcd...7890')
     })
 
+    it('keeps an already short address unchanged', () => {
+      assert.strictEqual(getDisplayName('0x1234'), '0x1234')
+    })
+
     it('returns username with suffix for named user', () => {
       const name = getDisplayName('0xabcdef1234567890', 'alice')
       assert.ok(name.startsWith('alice#'))

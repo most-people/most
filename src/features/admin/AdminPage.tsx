@@ -47,7 +47,7 @@ import { useUserStore } from '~/stores/userStore'
 import { MarketingHeader } from '~/components/MarketingHeader'
 import { SegmentedControl, SelectControl } from '~/components/ui'
 import { useI18n, type Locale, type MessageKey } from '~/lib/i18n'
-import { formatBytes } from '~/lib/format'
+import { formatBytes, shortAddress } from '~/lib/format'
 import {
   convertStorageLimitUnit,
   splitStorageLimitInput,
@@ -988,7 +988,7 @@ export default function AdminPage() {
     if (!requireBackendReady()) return
     const confirmed = window.confirm(
       t('admin.confirm.clearUserData', {
-        address: `${address.slice(0, 6)}...${address.slice(-4)}`,
+        address: shortAddress(address),
       })
     )
     if (!confirmed) return

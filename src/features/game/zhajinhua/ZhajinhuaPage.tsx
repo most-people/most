@@ -8,6 +8,7 @@ import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore, type UserIdentity } from '~/stores/userStore'
 import { useI18n } from '~/lib/i18n'
 import type { ChannelPresence } from '~/lib/channelApi'
+import { shortAddress } from '~/lib/format'
 import {
   ZHJ_INITIAL_CHIPS,
   ZHJ_RAISE_STEPS,
@@ -41,10 +42,6 @@ function classNames(...items: Array<string | false | null | undefined>) {
 
 function sameAddress(left?: string, right?: string) {
   return String(left || '').toLowerCase() === String(right || '').toLowerCase()
-}
-
-function shortAddress(address = '') {
-  return address ? `${address.slice(0, 6)}...${address.slice(-4)}` : ''
 }
 
 function displayName(identity: UserIdentity) {

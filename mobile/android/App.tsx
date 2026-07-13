@@ -38,6 +38,7 @@ import type {
   MobileHolding,
   MostBoxMobileCore,
 } from './src/mobileCore/types'
+import { shortAddress } from './shared/format-address.mjs'
 
 const DEV_CID_MAX_BYTES = 20 * 1024 * 1024
 const CHANNEL_PRESENCE_HEARTBEAT_MS = 15 * 1000
@@ -65,12 +66,10 @@ type ChatRoute =
   | { name: 'room'; channelKey: string }
   | { name: 'settings'; channelKey: string }
 
-function shortAddress(address: string) {
-  return address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'peer'
-}
-
 function formatPresenceMember(presence: MobileChannelPresence) {
-  return presence.displayName?.trim() || shortAddress(presence.address)
+  return (
+    presence.displayName?.trim() || shortAddress(presence.address) || 'peer'
+  )
 }
 
 async function readDevCidBytes(file: DocumentPickerAsset) {

@@ -24,6 +24,7 @@ import type {
   MobileChannelPresence,
 } from '../../mobileCore/types'
 import { getChannelKey, getChannelTitle } from './chatState'
+import { shortAddress } from '../../../shared/format-address.mjs'
 
 export type ChatSettingsScreenProps = {
   channel: MobileChannel
@@ -308,13 +309,9 @@ function InfoRow({ icon, label, value }: InfoRowProps) {
 }
 
 function getPresenceName(presence: MobileChannelPresence) {
-  return presence.displayName?.trim() || shortAddress(presence.address)
-}
-
-function shortAddress(address: string) {
-  if (!address) return 'peer'
-  if (address.length <= 14) return address
-  return `${address.slice(0, 6)}...${address.slice(-4)}`
+  return (
+    presence.displayName?.trim() || shortAddress(presence.address) || 'peer'
+  )
 }
 
 function formatPresenceLastSeen(value: number) {

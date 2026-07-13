@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { CID } from 'multiformats/cid'
+import { shortAddress } from '../shared/format-address.mjs'
 
 export const CHANNELS_FILE = 'mobile-channels.json'
 export const CHANNEL_NAME_PREFIX = 'most-box-room-'
@@ -55,9 +56,7 @@ export function normalizeChannelPresenceDisplayName(
   fallbackAddress = ''
 ) {
   const displayName = String(input || '').trim()
-  const fallback = fallbackAddress
-    ? `${fallbackAddress.slice(0, 6)}...${fallbackAddress.slice(-4)}`
-    : ''
+  const fallback = shortAddress(fallbackAddress)
   return (displayName || fallback).slice(0, 50)
 }
 

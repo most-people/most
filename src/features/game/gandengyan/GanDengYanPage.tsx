@@ -8,6 +8,7 @@ import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import { useI18n, type Locale, type MessageKey } from '~/lib/i18n'
 import type { ChannelPresence } from '~/lib/channelApi'
+import { shortAddress } from '~/lib/format'
 import {
   analyzeCards,
   createGanDengYanRoom,
@@ -737,10 +738,6 @@ function getPresenceKey(address = '') {
   return String(address || '')
     .trim()
     .toLowerCase()
-}
-
-function shortAddress(address = '') {
-  return address ? `${address.slice(0, 6)}...${address.slice(-4)}` : ''
 }
 
 function getGamePlayerName(

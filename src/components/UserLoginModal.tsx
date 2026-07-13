@@ -5,6 +5,7 @@ import { useAppStore } from '~/stores/useAppStore'
 import { SafeImage } from '~/components/SafeImage'
 import { ModalOverlay } from '~/components/ui'
 import { useI18n } from '~/lib/i18n'
+import { shortAddress } from '~/lib/format'
 import { generateAvatar } from '~server/src/utils/avatar.js'
 
 export default function UserLoginModal() {
@@ -28,7 +29,7 @@ export default function UserLoginModal() {
   if (!showLoginModal) return null
 
   const previewLabel = loginPreviewAddress
-    ? `${loginPreviewAddress.slice(0, 6)}...${loginPreviewAddress.slice(-4)}`
+    ? shortAddress(loginPreviewAddress)
     : 'Most People'
 
   function handleLogin() {

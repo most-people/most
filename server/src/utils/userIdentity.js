@@ -1,4 +1,5 @@
 import { mostWallet } from './mostWallet.js'
+import { shortAddress } from '../core/shared.js'
 
 export function createLoginIdentity(username, password) {
   const { address, danger } = mostWallet(username, password)
@@ -33,7 +34,7 @@ export function clearIdentity() {
 
 export function getDisplayName(address, username) {
   if (!username) {
-    return address ? `${address.slice(0, 6)}...${address.slice(-4)}` : ''
+    return shortAddress(address)
   }
   return `${username}#${address.slice(-4).toUpperCase()}`
 }

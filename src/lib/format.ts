@@ -19,3 +19,9 @@ export function formatMegabytes(bytes?: number | null) {
   const mb = value / 1024 / 1024
   return `${formatFixed(mb, mb >= 100 ? 0 : 1)} MB`
 }
+
+export function shortAddress(address?: string | null) {
+  const value = String(address || '')
+  if (value.length <= 10) return value
+  return `${value.slice(0, 6)}...${value.slice(-4)}`
+}
