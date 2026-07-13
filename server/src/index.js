@@ -130,6 +130,14 @@ function hasOwnProperty(value, key) {
   return Object.prototype.hasOwnProperty.call(value || {}, key)
 }
 
+function getDirectoryBlockBytes(directory) {
+  let bytes = 0
+  for (const block of directory?.blocks?.values?.() || []) {
+    bytes += Number(block?.byteLength ?? block?.length ?? 0)
+  }
+  return bytes
+}
+
 function parseMetadataBuckets(data, label) {
   const parsed = JSON.parse(data)
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
@@ -1236,10 +1244,12 @@ export class MostBoxEngine extends EventEmitter {
       })
     }
 
+    const directoryBlockBytes = getDirectoryBlockBytes(directory)
+    const childPhysicalBytes = seedChildFiles ? directory.totalSize : 0
     this.#checkCapacity(seedChildFiles ? directory.totalSize : 0, [
       {
         path: this.#options.dataPath,
-        bytes: directory.totalSize * (seedChildFiles ? 2 : 1),
+        bytes: childPhysicalBytes + directoryBlockBytes,
         label: 'collection',
       },
     ])
@@ -1262,7 +1272,7 @@ export class MostBoxEngine extends EventEmitter {
     const releaseCapacity = this.#reserveCapacity(0, [
       {
         path: this.#options.dataPath,
-        bytes: directory.totalSize,
+        bytes: directoryBlockBytes,
         label: 'collection',
       },
     ])

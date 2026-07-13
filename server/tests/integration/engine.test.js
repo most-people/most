@@ -730,6 +730,56 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       }
     })
 
+    it('shares an existing folder when only collection manifest space is available', async () => {
+      const capacityTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-folder-manifest-capacity-')
+      )
+      const dataPath = path.join(capacityTmpDir, 'data')
+      const folderName = `manifest-capacity-${uid}`
+      const firstContent = Buffer.alloc(4096, 'a')
+      const secondContent = Buffer.alloc(4096, 'b')
+      const originalStatfsSync = fs.statfsSync
+      let capacityEngine
+
+      try {
+        capacityEngine = new MostBoxEngine({
+          dataPath,
+          disableNetwork: true,
+        })
+        await capacityEngine.start()
+        await capacityEngine.publishFile(firstContent, `${folderName}/one.bin`)
+        await capacityEngine.publishFile(secondContent, `${folderName}/two.bin`)
+
+        const directory = await calculateDirectoryCid([
+          { path: `${folderName}/one.bin`, content: firstContent },
+          { path: `${folderName}/two.bin`, content: secondContent },
+        ])
+        const manifestBytes = [...directory.blocks.values()].reduce(
+          (sum, block) => sum + block.length,
+          0
+        )
+        assert.ok(manifestBytes > 0)
+        assert.ok(manifestBytes < directory.totalSize)
+
+        const availableBytes = BigInt(manifestBytes + 1)
+        fs.statfsSync = () => ({
+          bsize: 1n,
+          blocks: availableBytes,
+          bfree: availableBytes,
+          bavail: availableBytes,
+        })
+
+        const result = await capacityEngine.shareFolder(folderName)
+
+        assert.strictEqual(result.kind, 'collection')
+        assert.strictEqual(result.cid, directory.cid.toString())
+      } finally {
+        fs.statfsSync = originalStatfsSync
+        if (capacityEngine) await capacityEngine.stop().catch(() => {})
+        fs.rmSync(capacityTmpDir, { recursive: true, force: true })
+      }
+    })
+
     it('keeps a collection manifest seeded after all child files are deleted', async () => {
       const folderName = `virtual-folder-${uid}`
       const first = await engine.publishFile(
