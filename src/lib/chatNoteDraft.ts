@@ -36,25 +36,6 @@ function normalizeDraft(input: unknown): ChatNoteDraft | null {
   return { id, title, content, createdAt }
 }
 
-export function createChatNoteDraft(input: {
-  title: string
-  content: string
-}): ChatNoteDraft | null {
-  const storage = getStorage()
-  if (!storage) return null
-
-  const createdAt = Date.now()
-  const id = `chat-${createdAt}-${Math.random().toString(36).slice(2, 8)}`
-  const draft: ChatNoteDraft = {
-    id,
-    title: input.title,
-    content: input.content,
-    createdAt,
-  }
-  storage.setItem(getDraftStorageKey(id), JSON.stringify(draft))
-  return draft
-}
-
 export function readChatNoteDraft(id: string) {
   const storage = getStorage()
   if (!storage) return null
@@ -69,11 +50,4 @@ export function readChatNoteDraft(id: string) {
 
 export function deleteChatNoteDraft(id: string) {
   getStorage()?.removeItem(getDraftStorageKey(id))
-}
-
-export function getChatNoteDraftHref(id: string) {
-  const searchParams = new URLSearchParams()
-  searchParams.set('chatDraft', id)
-  searchParams.set('mode', 'edit')
-  return `/note/?${searchParams.toString()}`
 }

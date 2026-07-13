@@ -197,7 +197,3 @@ export function createRateLimitGuard(options = {}) {
     getEntryCount: () => counters.size,
   }
 }
-
-export function createRateLimitMiddleware(options = {}) {
-  return createRateLimitGuard(options).middleware()
-}

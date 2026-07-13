@@ -7,12 +7,6 @@ export type LocalizedTag = {
 
 export type MemberTag = LocalizedTag | null
 
-export type MemberTagPatch =
-  | { action: 'unchanged' }
-  | { action: 'clear'; tag: null }
-  | { action: 'set'; tag: LocalizedTag }
-  | { action: 'invalid' }
-
 const CHAT_VISIBLE_LABEL_MAX_CODE_POINTS = 50
 const INVISIBLE_UNICODE_RE = /[\p{Cc}\p{Cf}]/gu
 const LOCALE_KEY_RE = /^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$/
@@ -67,19 +61,6 @@ export function normalizeLocalizedTag(
   }
 
   return Object.keys(normalized).length > 0 ? normalized : undefined
-}
-
-export function normalizeMemberTagPatch(
-  input: unknown,
-  hasTag: boolean
-): MemberTagPatch {
-  if (!hasTag) return { action: 'unchanged' }
-  if (input === null) return { action: 'clear', tag: null }
-  if (typeof input !== 'string' && !isLocalizedTagObject(input)) {
-    return { action: 'invalid' }
-  }
-  const tag = normalizeLocalizedTag(input)
-  return tag ? { action: 'set', tag } : { action: 'invalid' }
 }
 
 function getTagValue(tag: LocalizedTag, key: string) {

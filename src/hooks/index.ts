@@ -1,10 +1,5 @@
 import { useEffect, useState } from 'react'
-import {
-  useMediaQuery,
-  useDisclosure,
-  useClipboard,
-  useHotkeys,
-} from '@mantine/hooks'
+import { useDisclosure, useClipboard, useHotkeys } from '@mantine/hooks'
 
 type ElectronRuntimeWindow = Window & {
   electronAPI?: {
@@ -30,4 +25,4 @@ export function useIsDesktopClient() {
   return isDesktopClient
 }
 
-export { useMediaQuery, useDisclosure, useClipboard, useHotkeys }
+export { useDisclosure, useClipboard, useHotkeys }
