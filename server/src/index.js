@@ -124,6 +124,7 @@ const PUBLISH_WRITE_STALL_TIMEOUT = 15 * 1000
 const PUBLISH_DRIVE_RESET_TIMEOUT = 5 * 1000
 const PUBLISH_BUFFER_WRITE_LIMIT = 32 * 1024 * 1024
 const PUBLISH_BUFFER_WRITE_BYTES_PER_SECOND = 2 * 1024 * 1024
+const LOCAL_CONTENT_PROBE_TIMEOUT = 2 * 1000
 const CLIENT_MESSAGE_ID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -360,6 +361,8 @@ export class MostBoxEngine extends EventEmitter {
         options.publishWriteStallTimeout ?? PUBLISH_WRITE_STALL_TIMEOUT,
       publishBufferWriteLimit:
         options.publishBufferWriteLimit ?? PUBLISH_BUFFER_WRITE_LIMIT,
+      localContentProbeTimeout:
+        options.localContentProbeTimeout ?? LOCAL_CONTENT_PROBE_TIMEOUT,
       disableNetwork: options.disableNetwork === true,
     }
   }
@@ -513,6 +516,28 @@ export class MostBoxEngine extends EventEmitter {
         1000 +
       baseTimeout
     return Math.max(baseTimeout, scaledTimeout)
+  }
+
+  #withTimeout(promise, timeoutMs, message, code = 'OPERATION_TIMEOUT') {
+    const timeout = Number(timeoutMs)
+    if (!Number.isFinite(timeout) || timeout <= 0) {
+      return promise
+    }
+
+    promise.catch(() => {})
+    let timeoutId
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => {
+        const err = new Error(message)
+        err.code = code
+        reject(err)
+      }, timeout)
+      timeoutId.unref?.()
+    })
+
+    return Promise.race([promise, timeoutPromise]).finally(() => {
+      clearTimeout(timeoutId)
+    })
   }
 
   #createPublishWriteWatchdog(streams, driveKey) {
@@ -2120,6 +2145,7 @@ export class MostBoxEngine extends EventEmitter {
             ownerAddress,
             public: true,
             allowHoldingFallback: true,
+            probeTimeoutMs: this.#options.localContentProbeTimeout,
           })
         } catch {
           localContent = null
@@ -3577,19 +3603,35 @@ export class MostBoxEngine extends EventEmitter {
     }
     const holding = this.#holdings.find(item => item.cid === cid)
     const { driveName } = this.#getCidInfo(cid)
-    let drive = await this.#getOrCreateDrive(
-      fileRecord?.driveName || holding?.driveName || driveName,
-      { server: true, client: false }
-    )
+    const probeTimeoutMs = Number(options.probeTimeoutMs)
+    const timeoutEnabled = Number.isFinite(probeTimeoutMs) && probeTimeoutMs > 0
+    const timeoutCode = 'LOCAL_CONTENT_PROBE_TIMEOUT'
+    const withProbeTimeout = (promise, message) =>
+      timeoutEnabled
+        ? this.#withTimeout(promise, probeTimeoutMs, message, timeoutCode)
+        : promise
+    const targetDriveName =
+      fileRecord?.driveName || holding?.driveName || driveName
+    let drive = await this.#getOrCreateDrive(targetDriveName, {
+      server: true,
+      client: false,
+      openTimeoutMs: probeTimeoutMs,
+    })
     const driveKey = '/' + cid
 
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
-        const entry = await drive.entry(driveKey, { wait: false })
+        const entry = await withProbeTimeout(
+          drive.entry(driveKey, { wait: false }),
+          `Timed out while checking local content for ${cid}`
+        )
         if (!entry?.value?.blob) {
           return null
         }
-        const hasContent = await this.#hasLocalDriveContent(drive, driveKey)
+        const hasContent = await withProbeTimeout(
+          this.#hasLocalDriveContent(drive, driveKey),
+          `Timed out while checking local blocks for ${cid}`
+        )
         if (!hasContent) {
           return null
         }
@@ -3614,10 +3656,11 @@ export class MostBoxEngine extends EventEmitter {
         }
       } catch (err) {
         if (attempt === 0 && this.#isClosedSessionError(err)) {
-          drive = await this.#reopenDrive(
-            fileRecord?.driveName || holding?.driveName || driveName,
-            { server: true, client: false }
-          )
+          drive = await this.#reopenDrive(targetDriveName, {
+            server: true,
+            client: false,
+            openTimeoutMs: probeTimeoutMs,
+          })
           continue
         }
         return null
@@ -6626,7 +6669,26 @@ export class MostBoxEngine extends EventEmitter {
 
   async #getOrCreateDrive(name, _options = { server: true, client: false }) {
     if (this.#drives.has(name)) return this.#drives.get(name)
-    if (this.#drivePromises.has(name)) return this.#drivePromises.get(name)
+    const openTimeoutMs = Number(_options.openTimeoutMs)
+    if (this.#drivePromises.has(name)) {
+      const pending = this.#drivePromises.get(name)
+      try {
+        return await this.#withTimeout(
+          pending,
+          openTimeoutMs,
+          `Timed out while opening drive ${name}`,
+          'DRIVE_OPEN_TIMEOUT'
+        )
+      } catch (err) {
+        if (
+          err?.code === 'DRIVE_OPEN_TIMEOUT' &&
+          this.#drivePromises.get(name) === pending
+        ) {
+          this.#drivePromises.delete(name)
+        }
+        throw err
+      }
+    }
 
     const promise = (async () => {
       const drive = new Hyperdrive(this.#store.namespace(name))
@@ -6634,14 +6696,22 @@ export class MostBoxEngine extends EventEmitter {
       this.#drives.set(name, drive)
       return drive
     })()
+    promise.catch(() => {})
 
     this.#drivePromises.set(name, promise)
 
     try {
-      const drive = await promise
+      const drive = await this.#withTimeout(
+        promise,
+        openTimeoutMs,
+        `Timed out while opening drive ${name}`,
+        'DRIVE_OPEN_TIMEOUT'
+      )
       return drive
     } finally {
-      this.#drivePromises.delete(name)
+      if (this.#drivePromises.get(name) === promise) {
+        this.#drivePromises.delete(name)
+      }
     }
   }
 
