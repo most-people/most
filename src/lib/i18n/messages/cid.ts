@@ -15,6 +15,8 @@ export const zhCNCidMessages = {
   'cid.process.step.check.desc': '确认在线 peer 和本机做种库。',
   'cid.process.step.verify.title': '下载校验',
   'cid.process.step.verify.desc': '重算 CID，匹配后才保存。',
+  'cid.process.step.addLocal.title': '添加入库',
+  'cid.process.step.addLocal.desc': '本机已有完整内容，只登记到文件库。',
   'cid.process.step.seed.title': '继续做种',
   'cid.process.step.seed.desc': '下载完成后默认加入传播。',
   'cid.handoff.title': '用 MostBox 客户端打开',
@@ -41,6 +43,7 @@ export const zhCNCidMessages = {
   'cid.label.idle': '准备检测',
   'cid.label.checking': '正在检测',
   'cid.label.available': '可以下载',
+  'cid.label.localAvailable': '本机已有内容',
   'cid.label.alreadyLocal': '本机已有',
   'cid.label.loginRequired': '需要登录',
   'cid.label.backendMissing': '节点未连接',
@@ -49,15 +52,23 @@ export const zhCNCidMessages = {
   'cid.status.waitingBackend': '正在等待本地节点状态。',
   'cid.status.backendMissing': '没有连接到 MostBox 本地节点。',
   'cid.status.loginRequired': '请先登录本地身份，然后再检查这个 CID。',
-  'cid.status.checking': '正在查找在线种子并确认本机做种库可写。',
+  'cid.status.checking':
+    '正在查找在线种子并确认本机做种库可写，剩余 {seconds} 秒。',
   'cid.status.available': '{fileName} 当前可以下载。',
   'cid.status.collectionAvailable':
     '{fileName} 目录清单可读。子文件会在下载时逐个检查在线种子。',
+  'cid.status.collectionLocalAvailable':
+    '{fileName} 目录内容已在本机做种库，无需重新下载。',
   'cid.status.collectionAlreadyLocal': '{fileName} 目录已在本机，可继续做种。',
+  'cid.status.localAvailable': '{fileName} 已在本机做种库，无需重新下载。',
   'cid.status.alreadyLocal': '{fileName} 已在本机，可继续做种。',
   'cid.collectionSummary':
     '共 {fileCount} 个文件，本机已有 {localAvailableCount} 个，{missingLocalCount} 个会在下载时检查。',
+  'cid.collectionSummaryLocal':
+    '共 {fileCount} 个文件，全部已在本机并继续做种。',
   'cid.status.startingDownload': '正在创建下载任务。',
+  'cid.status.addingToLibrary': '正在将本机已有内容添加到文件库。',
+  'cid.status.addedToLibrary': '{fileName} 已添加到文件库，可继续做种。',
   'cid.status.downloading': '正在下载并校验文件。',
   'cid.status.downloadingFile': '正在下载 {fileName}。',
   'cid.status.downloadComplete': '{fileName} 下载完成，已默认继续做种。',
@@ -73,6 +84,9 @@ export const zhCNCidMessages = {
   'cid.loginAction': '登录',
   'cid.connectAction': '连接节点',
   'cid.startAction': '开始下载',
+  'cid.addToLibraryAction': '添加到文件库',
+  'cid.addingToLibraryAction': '添加中',
+  'cid.inLibraryAction': '已在文件库',
   'cid.downloadingAction': '下载中',
   'cid.cancelAction': '取消下载',
   'cid.retryAction': '重新检测',
@@ -86,6 +100,7 @@ export const zhCNCidMessages = {
   'cid.toast.collectionChildUnavailable': '子文件没有在线种子：{fileName}',
   'cid.toast.cancelled': '下载已取消',
   'cid.toast.alreadyLocal': '本机已有该文件',
+  'cid.toast.addedToLibrary': '已添加到文件库',
   'cid.toast.qrDownloaded': '分享二维码已下载',
 } as const
 
@@ -106,6 +121,8 @@ export const zhTWCidMessages = {
   'cid.process.step.check.desc': '確認線上 peer 和本機做種庫。',
   'cid.process.step.verify.title': '下載校驗',
   'cid.process.step.verify.desc': '重算 CID，匹配後才儲存。',
+  'cid.process.step.addLocal.title': '加入檔案庫',
+  'cid.process.step.addLocal.desc': '本機已有完整內容，只登記到檔案庫。',
   'cid.process.step.seed.title': '繼續做種',
   'cid.process.step.seed.desc': '下載完成後預設加入傳播。',
   'cid.handoff.title': '用 MostBox 用戶端開啟',
@@ -132,6 +149,7 @@ export const zhTWCidMessages = {
   'cid.label.idle': '準備檢測',
   'cid.label.checking': '正在檢測',
   'cid.label.available': '可以下載',
+  'cid.label.localAvailable': '本機已有內容',
   'cid.label.alreadyLocal': '本機已有',
   'cid.label.loginRequired': '需要登入',
   'cid.label.backendMissing': '節點未連線',
@@ -140,15 +158,23 @@ export const zhTWCidMessages = {
   'cid.status.waitingBackend': '正在等待本機節點狀態。',
   'cid.status.backendMissing': '沒有連線到 MostBox 本機節點。',
   'cid.status.loginRequired': '請先登入本機身份，然後再檢查這個 CID。',
-  'cid.status.checking': '正在尋找線上種子並確認本機做種庫可寫。',
+  'cid.status.checking':
+    '正在尋找線上種子並確認本機做種庫可寫，剩餘 {seconds} 秒。',
   'cid.status.available': '{fileName} 目前可以下載。',
   'cid.status.collectionAvailable':
     '{fileName} 目錄清單可讀。子檔案會在下載時逐一檢查線上種子。',
+  'cid.status.collectionLocalAvailable':
+    '{fileName} 目錄內容已在本機做種庫，無需重新下載。',
   'cid.status.collectionAlreadyLocal': '{fileName} 目錄已在本機，可繼續做種。',
+  'cid.status.localAvailable': '{fileName} 已在本機做種庫，無需重新下載。',
   'cid.status.alreadyLocal': '{fileName} 已在本機，可繼續做種。',
   'cid.collectionSummary':
     '共 {fileCount} 個檔案，本機已有 {localAvailableCount} 個，{missingLocalCount} 個會在下載時檢查。',
+  'cid.collectionSummaryLocal':
+    '共 {fileCount} 個檔案，全部已在本機並繼續做種。',
   'cid.status.startingDownload': '正在建立下載任務。',
+  'cid.status.addingToLibrary': '正在將本機已有內容加入檔案庫。',
+  'cid.status.addedToLibrary': '{fileName} 已加入檔案庫，可繼續做種。',
   'cid.status.downloading': '正在下載並校驗檔案。',
   'cid.status.downloadingFile': '正在下載 {fileName}。',
   'cid.status.downloadComplete': '{fileName} 下載完成，已預設繼續做種。',
@@ -164,6 +190,9 @@ export const zhTWCidMessages = {
   'cid.loginAction': '登入',
   'cid.connectAction': '連線節點',
   'cid.startAction': '開始下載',
+  'cid.addToLibraryAction': '加入檔案庫',
+  'cid.addingToLibraryAction': '加入中',
+  'cid.inLibraryAction': '已在檔案庫',
   'cid.downloadingAction': '下載中',
   'cid.cancelAction': '取消下載',
   'cid.retryAction': '重新檢測',
@@ -177,6 +206,7 @@ export const zhTWCidMessages = {
   'cid.toast.collectionChildUnavailable': '子檔案沒有線上種子：{fileName}',
   'cid.toast.cancelled': '下載已取消',
   'cid.toast.alreadyLocal': '本機已有該檔案',
+  'cid.toast.addedToLibrary': '已加入檔案庫',
   'cid.toast.qrDownloaded': '分享 QR Code 已下載',
 } as const
 
@@ -201,6 +231,9 @@ export const enCidMessages = {
   'cid.process.step.verify.title': 'Download and verify',
   'cid.process.step.verify.desc':
     'Recompute the CID and save only when it matches.',
+  'cid.process.step.addLocal.title': 'Add to library',
+  'cid.process.step.addLocal.desc':
+    'The complete content is already local; only register it in the file library.',
   'cid.process.step.seed.title': 'Keep seeding',
   'cid.process.step.seed.desc':
     'After the download completes, it joins sharing by default.',
@@ -229,6 +262,7 @@ export const enCidMessages = {
   'cid.label.idle': 'Ready to check',
   'cid.label.checking': 'Checking',
   'cid.label.available': 'Ready to download',
+  'cid.label.localAvailable': 'Content on this device',
   'cid.label.alreadyLocal': 'Already local',
   'cid.label.loginRequired': 'Login required',
   'cid.label.backendMissing': 'Node disconnected',
@@ -239,17 +273,27 @@ export const enCidMessages = {
   'cid.status.loginRequired':
     'Sign in with a local identity before checking this CID.',
   'cid.status.checking':
-    'Looking for online seeders and checking that the local seeding store is writable.',
+    'Looking for online seeders and checking that the local seeding store is writable. {seconds}s remaining.',
   'cid.status.available': '{fileName} is available to download.',
   'cid.status.collectionAvailable':
     '{fileName} manifest is readable. Child files will be checked one by one when downloading.',
+  'cid.status.collectionLocalAvailable':
+    '{fileName} contents are already in the local seeding store. No download is needed.',
   'cid.status.collectionAlreadyLocal':
     '{fileName} is already on this device and can keep seeding.',
+  'cid.status.localAvailable':
+    '{fileName} is already in the local seeding store. No download is needed.',
   'cid.status.alreadyLocal':
     '{fileName} is already on this device and can keep seeding.',
   'cid.collectionSummary':
     '{fileCount} files total. {localAvailableCount} are on this device; {missingLocalCount} will be checked during download.',
+  'cid.collectionSummaryLocal':
+    '{fileCount} files total. All are on this device and continue seeding.',
   'cid.status.startingDownload': 'Creating the download task.',
+  'cid.status.addingToLibrary':
+    'Adding the existing local content to the file library.',
+  'cid.status.addedToLibrary':
+    '{fileName} was added to the file library and can keep seeding.',
   'cid.status.downloading': 'Downloading and verifying the file.',
   'cid.status.downloadingFile': 'Downloading {fileName}.',
   'cid.status.downloadComplete':
@@ -266,6 +310,9 @@ export const enCidMessages = {
   'cid.loginAction': 'Sign in',
   'cid.connectAction': 'Connect node',
   'cid.startAction': 'Start download',
+  'cid.addToLibraryAction': 'Add to file library',
+  'cid.addingToLibraryAction': 'Adding',
+  'cid.inLibraryAction': 'In file library',
   'cid.downloadingAction': 'Downloading',
   'cid.cancelAction': 'Cancel download',
   'cid.retryAction': 'Check again',
@@ -281,5 +328,6 @@ export const enCidMessages = {
     'No online seeders for child file: {fileName}',
   'cid.toast.cancelled': 'Download cancelled',
   'cid.toast.alreadyLocal': 'This file is already local',
+  'cid.toast.addedToLibrary': 'Added to file library',
   'cid.toast.qrDownloaded': 'Share QR downloaded',
 } as const

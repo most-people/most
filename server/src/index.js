@@ -3302,23 +3302,53 @@ export class MostBoxEngine extends EventEmitter {
 
   #isCollectionPublishedInOwnerLibrary(collection, ownerAddress) {
     const files = Array.isArray(collection.files) ? collection.files : []
+    const publishedBucket = this.#getPublishedBucket(ownerAddress)
+    if (
+      publishedBucket.some(
+        record =>
+          record.cid === collection.cid &&
+          ((record.kind || 'file') === 'collection' ||
+            Number(record.fileCount) > 0)
+      )
+    ) {
+      return true
+    }
     if (files.length === 0) return false
 
-    const collectionName = sanitizeFilename(
-      collection.fileName || collection.cid
-    )
-    const publishedBucket = this.#getPublishedBucket(ownerAddress)
     return files.every(file => {
-      const fileName = sanitizeFilename(`${collectionName}/${file.path}`)
+      const fileNames = this.#getCollectionChildPublishedNames(collection, file)
       return (
         this.#isLocalHoldingAvailable(file.cid) &&
         publishedBucket.some(
           record =>
             record.cid === file.cid &&
-            sanitizeFilename(record.fileName) === fileName
+            fileNames.has(sanitizeFilename(record.fileName))
         )
       )
     })
+  }
+
+  #getCollectionChildPublishedNames(collection, file) {
+    const collectionName = sanitizeFilename(
+      collection.fileName || collection.cid
+    )
+    const childPath = sanitizeFilename(file?.path || '')
+    const fileNames = new Set([
+      sanitizeFilename(`${collectionName}/${childPath}`),
+    ])
+    const collectionParts = collectionName.split('/').filter(Boolean)
+    const childParts = childPath.split('/').filter(Boolean)
+    const collectionTail = collectionParts[collectionParts.length - 1] || ''
+    if (
+      collectionTail &&
+      childParts.length > 1 &&
+      childParts[0] === collectionTail
+    ) {
+      fileNames.add(
+        sanitizeFilename(`${collectionName}/${childParts.slice(1).join('/')}`)
+      )
+    }
+    return fileNames
   }
 
   #isLocalHoldingAvailable(cid) {

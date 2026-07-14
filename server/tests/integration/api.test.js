@@ -883,12 +883,42 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(checkRes.status, 200)
       assert.strictEqual(checkData.kind, 'collection')
       assert.strictEqual(checkData.availabilityScope, 'collection-manifest')
+      assert.strictEqual(checkData.alreadyExists, true)
       assert.strictEqual(checkData.localAvailableCount, 2)
       assert.strictEqual(checkData.missingLocalCount, 0)
       assert.deepStrictEqual(
         checkData.files.map(file => file.path),
         ['S01E01.txt', 'S01E02.txt']
       )
+    })
+
+    it('recognizes collection children stored under the visible folder path', async () => {
+      const collectionName = `chat-file/${uid}`
+      const firstContent = Buffer.from(`api nested folder first ${uid}`)
+      const secondContent = Buffer.from(`api nested folder second ${uid}`)
+      await engine.publishFile(firstContent, `${collectionName}/4u.jpg`)
+      await engine.publishFile(secondContent, `${collectionName}/other.txt`)
+
+      const publishData = await engine.publishCollection(
+        [
+          { path: `bundle/${uid}/4u.jpg`, content: firstContent },
+          { path: 'bundle/other.txt', content: secondContent },
+        ],
+        collectionName,
+        { addToLibrary: false }
+      )
+      const checkRes = await fetch(`${baseUrl}/api/download/check`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ link: publishData.link }),
+      })
+      const checkData = await checkRes.json()
+
+      assert.strictEqual(checkRes.status, 200)
+      assert.strictEqual(checkData.kind, 'collection')
+      assert.strictEqual(checkData.localAvailableCount, 2)
+      assert.strictEqual(checkData.missingLocalCount, 0)
+      assert.strictEqual(checkData.alreadyExists, true)
     })
 
     it('does not expose multipart collection publishing', async () => {
@@ -1212,6 +1242,59 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(data.fileCount, 2)
       assert.strictEqual(called, true)
       assert.deepStrictEqual(capturedOptions.selectedPaths, ['one.txt'])
+    })
+
+    it('completes fully local collection imports before responding', async () => {
+      let called = false
+      const localFile = {
+        path: 'one.txt',
+        cid: VALID_MISSING_CID,
+        size: 3,
+        localAvailable: true,
+      }
+      const fakeEngine = {
+        getLocalCidAvailability: async () => ({
+          kind: 'collection',
+          cid: VALID_MISSING_CID,
+          fileName: 'local-folder',
+          fileCount: 1,
+          files: [localFile],
+          localAvailableCount: 1,
+          missingLocalCount: 0,
+          alreadyExists: false,
+        }),
+        downloadFile: async (_link, taskId) => {
+          called = true
+          return {
+            taskId,
+            kind: 'collection',
+            fileName: 'local-folder',
+            fileCount: 1,
+            downloadedFileCount: 1,
+            files: [localFile],
+          }
+        },
+      }
+      const { app } = createApp(fakeEngine, {
+        port: TEST_PORT + 5,
+        configStore,
+        nodeLogger,
+      })
+
+      const res = await requestWithAuth(app, '/api/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          link: `most://${VALID_MISSING_CID}?filename=local-folder`,
+        }),
+      })
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 200)
+      assert.strictEqual(called, true)
+      assert.strictEqual(data.kind, 'collection')
+      assert.strictEqual(data.downloadedFileCount, 1)
+      assert.deepStrictEqual(data.files, [localFile])
     })
 
     it('uses local CID availability before filename conflict checks', async () => {

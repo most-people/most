@@ -36,8 +36,9 @@ import {
 } from '~server/src/utils/api'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
-import { useDisclosure } from '~/hooks'
+import { useCountdownSeconds, useDisclosure } from '~/hooks'
 import {
+  DEFAULT_DOWNLOAD_CHECK_TIMEOUT_MS,
   fileApi,
   getDownloadCheckErrorMessage,
   getPublishFileErrorMessage,
@@ -139,6 +140,10 @@ export default function App() {
     string[]
   >([])
   const [isCheckingDownload, setIsCheckingDownload] = useState(false)
+  const downloadCheckRemainingSeconds = useCountdownSeconds(
+    isCheckingDownload,
+    DEFAULT_DOWNLOAD_CHECK_TIMEOUT_MS
+  )
   const [transfers, setTransfers] = useState([])
   const [isTransferPanelOpen, transferPanel] = useDisclosure(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -553,7 +558,7 @@ export default function App() {
       return
     }
 
-    if (result.localAvailable) {
+    if (result.localAvailable || Array.isArray(result.files)) {
       refreshFiles()
       return
     }
@@ -1128,7 +1133,11 @@ export default function App() {
             {isCheckingDownload && (
               <div className="download-check-status pending" role="status">
                 <Loader size={14} className="spin" />
-                <span>{t('app.downloadAutoChecking')}</span>
+                <span>
+                  {t('app.downloadAutoChecking', {
+                    seconds: downloadCheckRemainingSeconds,
+                  })}
+                </span>
               </div>
             )}
             {downloadCheckResult && (

@@ -205,7 +205,8 @@ export function registerFileRoutes(app, { engine, configStore, wsBroadcast }) {
       console.log(`[MostBox] CID content already exists locally: ${parsed.cid}`)
       if (
         localAvailability.kind === 'collection' &&
-        localAvailability.alreadyExists !== true
+        localAvailability.alreadyExists !== true &&
+        localAvailability.missingLocalCount !== 0
       ) {
         startDownloadTask(
           engine,

@@ -9,6 +9,7 @@ import {
   Download,
   ExternalLink,
   FileText,
+  FolderInput,
   FolderOpen,
   HardDrive,
   Loader2,
@@ -20,6 +21,7 @@ import {
 } from 'lucide-react'
 
 import {
+  DEFAULT_DOWNLOAD_CHECK_TIMEOUT_MS,
   fileApi,
   getDownloadCheckErrorMessage,
   type DownloadCheckResponse,
@@ -27,7 +29,7 @@ import {
 import { formatBytes } from '~/lib/format'
 import { getLocalizedDownloadLinkValidationMessage } from '~/lib/i18n/downloadValidation'
 import { MarketingHeader } from '~/components/MarketingHeader'
-import { useClipboard } from '~/hooks'
+import { useClipboard, useCountdownSeconds } from '~/hooks'
 import { useI18n } from '~/lib/i18n'
 import { buildCidShareLink } from '~/lib/shareLink'
 import { useAppStore } from '~/stores/useAppStore'
@@ -46,6 +48,7 @@ type CheckStatus =
   | 'backend-missing'
   | 'checking'
   | 'available'
+  | 'local-available'
   | 'already-local'
   | 'error'
 
@@ -107,6 +110,15 @@ type CollectionProgress = {
 type CidProcessStepKey = 'open' | 'check' | 'verify' | 'seed'
 
 const HANDOFF_FALLBACK_DELAY_MS = 1800
+
+function isDownloadCheckFullyLocal(result: DownloadCheckResponse) {
+  if (result.alreadyExists === true) return true
+  if (result.kind === 'collection') {
+    const fileCount = result.fileCount ?? result.files?.length ?? 0
+    return fileCount > 0 && result.missingLocalCount === 0
+  }
+  return result.localAvailable === true
+}
 
 function buildMostLinkFromRoute(cid: string, searchStr: string) {
   return `most://${cid}${searchStr || ''}`
@@ -328,6 +340,10 @@ export default function CidPage() {
     status: 'idle',
     message: '',
   })
+  const checkRemainingSeconds = useCountdownSeconds(
+    checkState.status === 'checking',
+    DEFAULT_DOWNLOAD_CHECK_TIMEOUT_MS
+  )
   const [checkResult, setCheckResult] = useState<DownloadCheckResponse | null>(
     null
   )
@@ -356,8 +372,9 @@ export default function CidPage() {
   const collectionMissingCount =
     checkResult?.missingLocalCount ??
     Math.max(collectionFileCount - collectionLocalCount, 0)
+  const isAddingLocalContent = checkState.status === 'local-available'
   const canStartDownload =
-    checkState.status === 'available' || checkState.status === 'already-local'
+    checkState.status === 'available' || isAddingLocalContent
   const isDownloading =
     downloadState.status === 'starting' ||
     downloadState.status === 'downloading'
@@ -383,8 +400,12 @@ export default function CidPage() {
     },
     {
       key: 'verify',
-      title: t('cid.process.step.verify.title'),
-      desc: t('cid.process.step.verify.desc'),
+      title: isAddingLocalContent
+        ? t('cid.process.step.addLocal.title')
+        : t('cid.process.step.verify.title'),
+      desc: isAddingLocalContent
+        ? t('cid.process.step.addLocal.desc')
+        : t('cid.process.step.verify.desc'),
     },
     {
       key: 'seed',
@@ -394,7 +415,8 @@ export default function CidPage() {
   ]
   const cidProcessActiveIndex = getCidProcessActiveIndex(
     checkState.status,
-    downloadState.status
+    downloadState.status,
+    isAddingLocalContent
   )
 
   const runCheck = useCallback(async () => {
@@ -439,7 +461,7 @@ export default function CidPage() {
       return
     }
 
-    setCheckState({ status: 'checking', message: t('cid.status.checking') })
+    setCheckState({ status: 'checking', message: '' })
     setCheckResult(null)
 
     try {
@@ -447,19 +469,30 @@ export default function CidPage() {
       if (checkSeqRef.current !== seq) return
       setCheckResult(result)
       const isCollection = result.kind === 'collection'
+      const isFullyLocal = isDownloadCheckFullyLocal(result)
       setCheckState({
-        status: result.alreadyExists ? 'already-local' : 'available',
+        status: result.alreadyExists
+          ? 'already-local'
+          : isFullyLocal
+            ? 'local-available'
+            : 'available',
         message: isCollection
           ? result.alreadyExists
             ? t('cid.status.collectionAlreadyLocal', {
                 fileName: result.fileName,
               })
-            : t('cid.status.collectionAvailable', {
-                fileName: result.fileName,
-              })
+            : isFullyLocal
+              ? t('cid.status.collectionLocalAvailable', {
+                  fileName: result.fileName,
+                })
+              : t('cid.status.collectionAvailable', {
+                  fileName: result.fileName,
+                })
           : result.alreadyExists
             ? t('cid.status.alreadyLocal', { fileName: result.fileName })
-            : t('cid.status.available', { fileName: result.fileName }),
+            : isFullyLocal
+              ? t('cid.status.localAvailable', { fileName: result.fileName })
+              : t('cid.status.available', { fileName: result.fileName }),
       })
     } catch (err) {
       if (checkSeqRef.current !== seq) return
@@ -619,7 +652,9 @@ export default function CidPage() {
 
     setDownloadState({
       status: 'starting',
-      message: t('cid.status.startingDownload'),
+      message: isAddingLocalContent
+        ? t('cid.status.addingToLibrary')
+        : t('cid.status.startingDownload'),
     })
     setProgress(0)
     setLoadedBytes(null)
@@ -628,6 +663,28 @@ export default function CidPage() {
 
     try {
       const result = await fileApi.downloadFile(mostLink)
+      if (
+        isAddingLocalContent &&
+        (!isCollectionResult ||
+          result.alreadyExists === true ||
+          Array.isArray(result.files))
+      ) {
+        const message = isCollectionResult
+          ? t('cid.status.collectionAlreadyLocal', { fileName })
+          : t('cid.status.alreadyLocal', { fileName })
+        setCheckResult(current =>
+          current ? { ...current, alreadyExists: true } : current
+        )
+        setCheckState({ status: 'already-local', message })
+        setProgress(100)
+        setDownloadState({
+          status: 'completed',
+          message: t('cid.status.addedToLibrary', { fileName }),
+        })
+        addToast(t('cid.toast.addedToLibrary'), 'success')
+        return
+      }
+
       if (result.alreadyExists) {
         setDownloadState({
           status: 'completed',
@@ -643,9 +700,16 @@ export default function CidPage() {
         setTaskId(result.taskId)
         setDownloadState({
           status: 'downloading',
-          message: t('cid.status.downloading'),
+          message: isAddingLocalContent
+            ? t('cid.status.addingToLibrary')
+            : t('cid.status.downloading'),
         })
-        addToast(t('cid.toast.downloadStarted'), 'info')
+        addToast(
+          isAddingLocalContent
+            ? t('cid.status.addingToLibrary')
+            : t('cid.toast.downloadStarted'),
+          'info'
+        )
       }
     } catch (err) {
       const fallbackMessage = t('cid.status.downloadFailed', {
@@ -780,13 +844,23 @@ export default function CidPage() {
             >
               {isDownloading ? (
                 <Loader2 className="cid-spin-icon" size={16} />
+              ) : checkState.status === 'already-local' ? (
+                <Check size={16} />
+              ) : isAddingLocalContent ? (
+                <FolderInput size={16} />
               ) : (
                 <Download size={16} />
               )}
               <span>
                 {isDownloading
-                  ? t('cid.downloadingAction')
-                  : t('cid.startAction')}
+                  ? isAddingLocalContent
+                    ? t('cid.addingToLibraryAction')
+                    : t('cid.downloadingAction')
+                  : checkState.status === 'already-local'
+                    ? t('cid.inLibraryAction')
+                    : isAddingLocalContent
+                      ? t('cid.addToLibraryAction')
+                      : t('cid.startAction')}
               </span>
             </button>
             {taskId && downloadState.status === 'downloading' && (
@@ -855,7 +929,13 @@ export default function CidPage() {
                   <p className="cid-status-label">
                     {getStatusLabel(checkState.status, t)}
                   </p>
-                  <p className="cid-status-message">{checkState.message}</p>
+                  <p className="cid-status-message">
+                    {checkState.status === 'checking'
+                      ? t('cid.status.checking', {
+                          seconds: checkRemainingSeconds,
+                        })
+                      : checkState.message}
+                  </p>
                 </div>
               </div>
 
@@ -889,11 +969,15 @@ export default function CidPage() {
               {isCollectionResult && (
                 <div className="cid-collection-summary">
                   <p>
-                    {t('cid.collectionSummary', {
-                      fileCount: collectionFileCount,
-                      localAvailableCount: collectionLocalCount,
-                      missingLocalCount: collectionMissingCount,
-                    })}
+                    {collectionMissingCount === 0
+                      ? t('cid.collectionSummaryLocal', {
+                          fileCount: collectionFileCount,
+                        })
+                      : t('cid.collectionSummary', {
+                          fileCount: collectionFileCount,
+                          localAvailableCount: collectionLocalCount,
+                          missingLocalCount: collectionMissingCount,
+                        })}
                   </p>
                 </div>
               )}
@@ -1021,13 +1105,16 @@ export default function CidPage() {
 
 function getCidProcessActiveIndex(
   checkStatus: CheckStatus,
-  downloadStatus: DownloadStatus
+  downloadStatus: DownloadStatus,
+  isAddingLocalContent: boolean
 ) {
   if (downloadStatus === 'completed') return 3
   if (downloadStatus === 'starting' || downloadStatus === 'downloading') {
     return 2
   }
-  if (checkStatus === 'available' || checkStatus === 'already-local') return 1
+  if (checkStatus === 'already-local') return 3
+  if (isAddingLocalContent) return 2
+  if (checkStatus === 'available') return 1
   return 0
 }
 
@@ -1061,6 +1148,8 @@ function getStatusLabel(
       return t('cid.label.checking')
     case 'available':
       return t('cid.label.available')
+    case 'local-available':
+      return t('cid.label.localAvailable')
     case 'already-local':
       return t('cid.label.alreadyLocal')
     case 'login-required':

@@ -25,4 +25,28 @@ export function useIsDesktopClient() {
   return isDesktopClient
 }
 
+export function useCountdownSeconds(active: boolean, durationMs: number) {
+  const totalSeconds = Math.ceil(durationMs / 1000)
+  const [remainingSeconds, setRemainingSeconds] = useState(totalSeconds)
+
+  useEffect(() => {
+    if (!active) {
+      setRemainingSeconds(totalSeconds)
+      return
+    }
+
+    const deadline = Date.now() + durationMs
+    const updateRemaining = () => {
+      setRemainingSeconds(
+        Math.max(0, Math.ceil((deadline - Date.now()) / 1000))
+      )
+    }
+    updateRemaining()
+    const timer = window.setInterval(updateRemaining, 1000)
+    return () => window.clearInterval(timer)
+  }, [active, durationMs, totalSeconds])
+
+  return remainingSeconds
+}
+
 export { useDisclosure, useClipboard, useHotkeys }

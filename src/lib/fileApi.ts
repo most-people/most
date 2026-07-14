@@ -95,7 +95,7 @@ export interface CheckDownloadOptions {
   requestTimeout?: number
 }
 
-const DEFAULT_DOWNLOAD_CHECK_TIMEOUT_MS = 60000
+export const DEFAULT_DOWNLOAD_CHECK_TIMEOUT_MS = 60000
 const DOWNLOAD_CHECK_REQUEST_GRACE_MS = 5000
 
 type Translate = (

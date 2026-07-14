@@ -25,6 +25,7 @@ const SOURCE_PATHS = {
   cidCss: 'src/styles/cid.css',
   fileApi: 'src/lib/fileApi.ts',
   files: 'src/features/files/AppPage.tsx',
+  hooks: 'src/hooks/index.ts',
   appCss: 'src/styles/app.css',
 }
 
@@ -268,6 +269,10 @@ describe('frontend smoke checks', () => {
         'string'
       )
       assert.equal(
+        typeof messages[locale]['cid.process.step.addLocal.title'],
+        'string'
+      )
+      assert.equal(
         typeof messages[locale]['cid.process.step.seed.desc'],
         'string'
       )
@@ -301,6 +306,10 @@ describe('frontend smoke checks', () => {
 
     assert.match(filesSource, /app\.collectionManifestAvailable/)
     assert.match(filesSource, /app\.collectionChildDownloadCheck/)
+    assert.match(
+      filesSource,
+      /result\.localAvailable \|\| Array\.isArray\(result\.files\)/
+    )
     assert.match(cidSource, /cid\.status\.collectionAvailable/)
     assert.match(cidSource, /cid\.collectionSummary/)
 
@@ -334,6 +343,37 @@ describe('frontend smoke checks', () => {
     )
   })
 
+  it('does not present fully local collection content as a download', async () => {
+    const cidSource = readSource(SOURCE_PATHS.cid)
+    const { messages } = await importBundledSource('src/lib/i18n/messages.ts')
+
+    assert.match(cidSource, /function isDownloadCheckFullyLocal/)
+    assert.match(cidSource, /fileCount > 0 && result\.missingLocalCount === 0/)
+    assert.match(
+      cidSource,
+      /status: result\.alreadyExists[\s\S]*'local-available'/
+    )
+    assert.match(
+      cidSource,
+      /checkState\.status === 'available' \|\| isAddingLocalContent/
+    )
+    assert.match(cidSource, /cid\.process\.step\.addLocal\.title/)
+    assert.match(cidSource, /t\('cid\.addToLibraryAction'\)/)
+    assert.match(cidSource, /t\('cid\.inLibraryAction'\)/)
+
+    for (const locale of ['zh-CN', 'zh-TW', 'en']) {
+      assert.equal(
+        typeof messages[locale]['cid.status.collectionLocalAvailable'],
+        'string'
+      )
+      assert.equal(typeof messages[locale]['cid.addToLibraryAction'], 'string')
+      assert.equal(
+        typeof messages[locale]['cid.collectionSummaryLocal'],
+        'string'
+      )
+    }
+  })
+
   it('does not apply the default ky timeout to file publishing', () => {
     const fileApiSource = readSource(SOURCE_PATHS.fileApi)
 
@@ -352,6 +392,40 @@ describe('frontend smoke checks', () => {
       fileApiSource,
       /json: \{ link, timeout \},[\s\S]*options\.requestTimeout \?\? timeout \+ DOWNLOAD_CHECK_REQUEST_GRACE_MS,/
     )
+  })
+
+  it('shows an accurate countdown during the default download check', async () => {
+    const fileApiSource = readSource(SOURCE_PATHS.fileApi)
+    const filesSource = readSource(SOURCE_PATHS.files)
+    const cidSource = readSource(SOURCE_PATHS.cid)
+    const hooksSource = readSource(SOURCE_PATHS.hooks)
+    const { messages } = await importBundledSource('src/lib/i18n/messages.ts')
+
+    assert.match(
+      fileApiSource,
+      /export const DEFAULT_DOWNLOAD_CHECK_TIMEOUT_MS = 60000/
+    )
+    assert.match(hooksSource, /export function useCountdownSeconds/)
+    assert.match(hooksSource, /const deadline = Date\.now\(\) \+ durationMs/)
+    assert.match(
+      hooksSource,
+      /Math\.max\(0, Math\.ceil\(\(deadline - Date\.now\(\)\) \/ 1000\)\)/
+    )
+    assert.match(
+      filesSource,
+      /useCountdownSeconds\(\s*isCheckingDownload,\s*DEFAULT_DOWNLOAD_CHECK_TIMEOUT_MS\s*\)/
+    )
+    assert.match(filesSource, /seconds: downloadCheckRemainingSeconds/)
+    assert.match(
+      cidSource,
+      /useCountdownSeconds\(\s*checkState\.status === 'checking',\s*DEFAULT_DOWNLOAD_CHECK_TIMEOUT_MS\s*\)/
+    )
+    assert.match(cidSource, /seconds: checkRemainingSeconds/)
+
+    for (const locale of ['zh-CN', 'zh-TW', 'en']) {
+      assert.match(messages[locale]['app.downloadAutoChecking'], /\{seconds\}/)
+      assert.match(messages[locale]['cid.status.checking'], /\{seconds\}/)
+    }
   })
 
   it('preflights folder sharing against local complete copies', async () => {
