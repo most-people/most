@@ -61,7 +61,6 @@
       );
       color: #fff;
       border-radius: 18px 4px 18px 18px;
-      box-shadow: 0 4px 16px rgba(94, 106, 210, 0.25);
       border: 1px solid rgba(255, 255, 255, 0.1);
     }
 
@@ -87,7 +86,6 @@
       -webkit-backdrop-filter: var(--blur-md);
       border: 1px solid var(--glass-border);
       border-radius: 4px 18px 18px 18px;
-      box-shadow: var(--glass-shadow), var(--glass-shadow-inset);
     }
   }
 
@@ -734,28 +732,10 @@
   width: 8px;
   height: 8px;
   position: absolute;
-  top: -2px;
-  right: -3px;
+  top: -4px;
+  right: -5px;
   border-radius: 50%;
   background: #ff3b30;
-  box-shadow: 0 0 0 2px color-mix(in srgb, #ff3b30 16%, transparent);
-}
-
-.chat-channel-mention-badge {
-  position: absolute;
-  top: -7px;
-  right: -9px;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  border-radius: 999px;
-  background: var(--warning);
-  color: #fff;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--warning) 20%, transparent);
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 16px;
-  text-align: center;
 }
 
 /* === Channel Action Menu === */
@@ -1294,14 +1274,6 @@
 .sparkbit-chat-layout .sidebar-nav-btn.pinned:not(.active) {
   background: var(--accent-soft);
   color: var(--accent);
-}
-
-.sparkbit-chat-layout .chat-channel-unread-dot {
-  box-shadow: none;
-}
-
-.sparkbit-chat-layout .chat-channel-mention-badge {
-  box-shadow: none;
 }
 
 .sparkbit-chat-layout .chat-mention-menu {

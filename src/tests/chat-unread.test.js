@@ -99,7 +99,7 @@ describe('chat unread state', () => {
     assert.deepEqual(result.value, { general: 3999 })
   })
 
-  it('keeps active-channel messages read and asks for notification', () => {
+  it('marks active-channel remote messages unread and asks for notification', () => {
     const activeResult = applyIncomingChannelMessageReadState(
       { general: 1000 },
       {
@@ -112,7 +112,15 @@ describe('chat unread state', () => {
     )
 
     assert.equal(activeResult.notify, true)
-    assert.equal(activeResult.value.general, 2000)
+    assert.equal(activeResult.changed, false)
+    assert.deepEqual(activeResult.value, { general: 1000 })
+    assert.equal(
+      hasUnreadChannelMessage(
+        { name: 'general', lastMessageAt: '1970-01-01T00:00:02.000Z' },
+        activeResult.value
+      ),
+      true
+    )
   })
 
   it('keeps self messages read without notification', () => {
@@ -169,7 +177,7 @@ describe('chat unread state', () => {
     })
   })
 
-  it('tracks mention unread only for non-active remote messages', () => {
+  it('tracks mention unread for remote messages regardless of active channel', () => {
     const message = {
       type: 'message',
       author: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
@@ -209,6 +217,18 @@ describe('chat unread state', () => {
     })
     assert.equal(activeResult.changed, false)
     assert.equal(activeResult.value, result.value)
+
+    const freshActiveResult = applyIncomingChannelMentionUnreadState(
+      {},
+      {
+        channelName: 'general',
+        message,
+        activeChannelName: 'general',
+        userAddress: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      }
+    )
+    assert.equal(freshActiveResult.changed, true)
+    assert.deepEqual(freshActiveResult.value, { general: true })
   })
 
   it('ignores self mention messages for mention unread', () => {
@@ -280,7 +300,7 @@ describe('chat unread state', () => {
     assert.deepEqual(result.value, { general: true })
   })
 
-  it('does not restore historical mention unread for active or self messages', () => {
+  it('restores historical mention unread for active remote messages but not self messages', () => {
     const message = {
       author: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
       content: '@Alice',
@@ -318,8 +338,8 @@ describe('chat unread state', () => {
       }
     )
 
-    assert.equal(activeResult.changed, false)
-    assert.deepEqual(activeResult.value, {})
+    assert.equal(activeResult.changed, true)
+    assert.deepEqual(activeResult.value, { general: true })
     assert.equal(selfResult.changed, false)
     assert.deepEqual(selfResult.value, {})
   })

@@ -100,7 +100,6 @@ export function applyIncomingChannelMessageReadState(
   {
     channelName,
     messageTime,
-    activeChannelName = '',
     messageAuthor = '',
     userAddress = '',
     now = Date.now(),
@@ -111,7 +110,6 @@ export function applyIncomingChannelMessageReadState(
   }
 
   const timestamp = getChannelReadTimestamp(messageTime, now)
-  const isActiveChannel = channelName === activeChannelName
   const isSelfMessage =
     String(messageAuthor || '').toLowerCase() ===
     String(userAddress || '').toLowerCase()
@@ -120,13 +118,6 @@ export function applyIncomingChannelMessageReadState(
     return {
       ...markChannelReadInMap(previous, channelName, timestamp, now),
       notify: false,
-    }
-  }
-
-  if (isActiveChannel) {
-    return {
-      ...markChannelReadInMap(previous, channelName, timestamp, now),
-      notify: true,
     }
   }
 
@@ -155,12 +146,9 @@ export function hasUnreadChannelMessage(channel, channelLastReadAt) {
 
 export function applyIncomingChannelMentionUnreadState(
   previous,
-  { channelName, message, activeChannelName = '', userAddress = '' }
+  { channelName, message, userAddress = '' }
 ) {
   if (!channelName) return { changed: false, value: previous }
-  if (channelName === activeChannelName) {
-    return { changed: false, value: previous }
-  }
 
   const isSelfMessage =
     String(message?.author || '').toLowerCase() ===
@@ -178,18 +166,9 @@ export function applyIncomingChannelMentionUnreadState(
 
 export function applyHistoricalChannelMentionUnreadState(
   previous,
-  {
-    channelName,
-    messages = [],
-    activeChannelName = '',
-    userAddress = '',
-    lastReadAt = 0,
-  }
+  { channelName, messages = [], userAddress = '', lastReadAt = 0 }
 ) {
   if (!channelName) return { changed: false, value: previous }
-  if (channelName === activeChannelName) {
-    return { changed: false, value: previous }
-  }
   if (previous[channelName]) return { changed: false, value: previous }
 
   const readAt = Number(lastReadAt)

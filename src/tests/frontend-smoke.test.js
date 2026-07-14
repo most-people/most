@@ -610,6 +610,8 @@ describe('frontend smoke checks', () => {
 
     assert.match(chatUiSource, /mentionPreview = ''/)
     assert.match(chatUiSource, /chat\.mentionUnreadTag/)
+    assert.doesNotMatch(chatUiSource, /chat-channel-mention-badge/)
+    assert.doesNotMatch(chatCssSource, /chat-channel-mention-badge/)
     assert.match(
       chatSource,
       /hasUnreadChannelMention\(b, channelMentionUnread\)[\s\S]*hasUnreadChannelMessage\(b, channelLastReadAt\)[\s\S]*Boolean\(b\.pinned\)/

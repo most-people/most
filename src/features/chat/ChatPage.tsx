@@ -218,10 +218,9 @@ function formatChannelMentionUnreadPreview(message?: ChannelMessage | null) {
 function shouldShowChannelMentionUnread(
   channelKey: string,
   message: ChannelMessage | undefined,
-  activeChannelName: string,
   userAddress?: string
 ) {
-  if (!channelKey || !message || channelKey === activeChannelName) return false
+  if (!channelKey || !message) return false
   const isSelfMessage =
     normalizeMemberAddress(message.author) ===
     normalizeMemberAddress(userAddress)
@@ -597,12 +596,10 @@ function ChatPage() {
                 : channel
             )
           )
-          const isActiveChannel = channelKey === activeChannelNameRef.current
           setChannelMentionUnread(prev => {
             const result = applyIncomingChannelMentionUnreadState(prev, {
               channelName: channelKey,
               message,
-              activeChannelName: isActiveChannel ? channelKey : '',
               userAddress: userIdentity?.address,
             })
             return result.changed ? result.value : prev
@@ -611,7 +608,6 @@ function ChatPage() {
             shouldShowChannelMentionUnread(
               channelKey,
               message,
-              isActiveChannel ? channelKey : '',
               userIdentity?.address
             )
           ) {
@@ -633,7 +629,6 @@ function ChatPage() {
             const result = applyIncomingChannelMessageReadState(prev, {
               channelName: channelKey,
               messageTime,
-              activeChannelName: isActiveChannel ? channelKey : '',
               messageAuthor: message?.author,
               userAddress: userIdentity?.address,
             })
@@ -827,7 +822,7 @@ function ChatPage() {
         return { channelKey, readAt, activityTime }
       })
       .filter(({ channelKey, readAt, activityTime }) => {
-        if (!channelKey || channelKey === activeChannelKey) {
+        if (!channelKey) {
           if (channelKey) mentionUnreadScanKeysRef.current.delete(channelKey)
           return false
         }
@@ -870,7 +865,6 @@ function ChatPage() {
           {
             channelName: channelKey,
             messages,
-            activeChannelName: activeChannelNameRef.current,
             userAddress: userIdentity?.address,
             lastReadAt: readAt,
           }
@@ -887,7 +881,6 @@ function ChatPage() {
             const result = applyHistoricalChannelMentionUnreadState(prev, {
               channelName: channelKey,
               messages,
-              activeChannelName: activeChannelNameRef.current,
               userAddress: userIdentity?.address,
               lastReadAt: readAt,
             })
@@ -945,7 +938,6 @@ function ChatPage() {
       cancelled = true
     }
   }, [
-    activeChannelKey,
     channelLastReadAt,
     channelMentionUnread,
     channelReadStorageKey,

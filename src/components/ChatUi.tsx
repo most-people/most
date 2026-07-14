@@ -194,15 +194,7 @@ export function ChatChannelNavItem({
     >
       <span className="chat-channel-icon-wrap">
         <MessagesSquare size={16} />
-        {mentionUnread ? (
-          <span
-            className="chat-channel-mention-badge"
-            title={t('chat.mentionUnread')}
-            aria-hidden="true"
-          >
-            @
-          </span>
-        ) : unread ? (
+        {unread ? (
           <span
             className="chat-channel-unread-dot"
             title={t('chat.unread')}
