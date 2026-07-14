@@ -711,7 +711,7 @@ describe('frontend smoke checks', () => {
     assert.match(source, /className="batch-actions batch-actions-primary"/)
     assert.match(source, /className="batch-actions batch-actions-danger"/)
     assert.match(source, /<Eye size=\{14\}/)
-    assert.match(source, /<RotateCcw size=\{14\}/)
+    assert.match(source, /<Trash2 size=\{14\}/)
     assert.doesNotMatch(source, /<Share2 size=\{14\}/)
     assert.doesNotMatch(
       source,

@@ -5,6 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import {
+  ensureNodeSeedPersisted,
   getNodeIdentityPath,
   loadOrCreateNodeSeed,
 } from '../../src/node/nodeIdentity.js'
@@ -30,21 +31,44 @@ describe('node identity persistence', () => {
       assert.deepStrictEqual(second, first)
       assert.ok(fs.existsSync(getNodeIdentityPath(dataPath)))
       assert.ok(!fs.existsSync(`${getNodeIdentityPath(dataPath)}.bak`))
+      assert.ok(
+        fs.readdirSync(dataPath).every(fileName => !fileName.endsWith('.tmp'))
+      )
+      if (process.platform !== 'win32') {
+        assert.strictEqual(
+          fs.statSync(getNodeIdentityPath(dataPath)).mode & 0o777,
+          0o600
+        )
+      }
     })
   })
 
-  it('replaces a corrupt identity and keeps the replacement stable', () => {
+  it('fails closed when an existing identity is corrupt', () => {
     withTempDir(dataPath => {
       const identityPath = getNodeIdentityPath(dataPath)
-      const first = loadOrCreateNodeSeed(dataPath)
+      loadOrCreateNodeSeed(dataPath)
       fs.writeFileSync(identityPath, '{corrupt', 'utf-8')
 
-      const replacement = loadOrCreateNodeSeed(dataPath)
-      const reloaded = loadOrCreateNodeSeed(dataPath)
+      assert.throws(
+        () => loadOrCreateNodeSeed(dataPath),
+        err =>
+          err.code === 'PERSISTENCE_ERROR' &&
+          err.details?.reason === 'NODE_IDENTITY_INVALID'
+      )
+      assert.strictEqual(fs.readFileSync(identityPath, 'utf-8'), '{corrupt')
+    })
+  })
 
-      assert.notDeepStrictEqual(replacement, first)
-      assert.deepStrictEqual(reloaded, replacement)
-      assert.ok(!fs.existsSync(`${identityPath}.bak`))
+  it('restores the active identity when storage initialization removes its file', () => {
+    withTempDir(dataPath => {
+      const seed = loadOrCreateNodeSeed(dataPath)
+      const identityPath = getNodeIdentityPath(dataPath)
+      fs.unlinkSync(identityPath)
+
+      const restoredSeed = ensureNodeSeedPersisted(dataPath, seed)
+
+      assert.deepStrictEqual(restoredSeed, seed)
+      assert.deepStrictEqual(loadOrCreateNodeSeed(dataPath), seed)
     })
   })
 })

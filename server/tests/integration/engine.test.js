@@ -220,6 +220,46 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       }
     })
 
+    it('does not lock Corestore when node identity persistence fails', async () => {
+      const identityTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-node-identity-failure-')
+      )
+      const dataPath = path.join(identityTmpDir, 'data')
+      const originalLinkSync = fs.linkSync
+      let retryEngine
+
+      fs.linkSync = function failNodeIdentityLink(existingPath, newPath) {
+        if (String(newPath).endsWith('node-identity.json')) {
+          const err = new Error('simulated read-only filesystem')
+          err.code = 'EACCES'
+          throw err
+        }
+        return originalLinkSync.call(this, existingPath, newPath)
+      }
+
+      try {
+        const failingEngine = new MostBoxEngine({
+          dataPath,
+          disableNetwork: true,
+        })
+        await assert.rejects(
+          failingEngine.start(),
+          err =>
+            err.code === 'PERSISTENCE_ERROR' &&
+            err.details?.reason === 'NODE_IDENTITY_SAVE_FAILED'
+        )
+
+        fs.linkSync = originalLinkSync
+        retryEngine = new MostBoxEngine({ dataPath, disableNetwork: true })
+        await retryEngine.start()
+        assert.ok(retryEngine.getNodeId())
+      } finally {
+        fs.linkSync = originalLinkSync
+        if (retryEngine) await retryEngine.stop().catch(() => {})
+        fs.rmSync(identityTmpDir, { recursive: true, force: true })
+      }
+    })
+
     it('getNodeId returns a hex string', () => {
       const nodeId = engine.getNodeId()
       assert.strictEqual(typeof nodeId, 'string')
@@ -1655,6 +1695,67 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         assert.strictEqual(files[0].cid, 'not-a-cid')
         assert.strictEqual(files[0].localAvailable, false)
       } finally {
+        if (listEngine) await listEngine.stop().catch(() => {})
+        fs.rmSync(listTmpDir, { recursive: true, force: true })
+      }
+    })
+
+    it('reuses one slow drive open across timed-out availability probes', async () => {
+      const listTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-list-drive-timeout-')
+      )
+      const dataPath = path.join(listTmpDir, 'data')
+      const cid = 'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
+      const originalReady = Hyperdrive.prototype.ready
+      const openedDrives = new Set()
+      let setupEngine
+      let listEngine
+
+      try {
+        setupEngine = new MostBoxEngine({ dataPath, disableNetwork: true })
+        await setupEngine.start()
+        await setupEngine.stop()
+        setupEngine = null
+
+        fs.writeFileSync(
+          path.join(dataPath, 'published-files.json'),
+          JSON.stringify({
+            __local__: [
+              {
+                fileName: 'slow-open.txt',
+                cid,
+                driveName: getCidInfo(cid).driveName,
+                size: 0,
+                publishedAt: new Date().toISOString(),
+                starred: false,
+              },
+            ],
+          })
+        )
+
+        listEngine = new MostBoxEngine({
+          dataPath,
+          disableNetwork: true,
+          localContentProbeTimeout: 20,
+        })
+        await listEngine.start()
+
+        Hyperdrive.prototype.ready = async function delayedReady() {
+          openedDrives.add(this)
+          await sleep(100)
+          return originalReady.call(this)
+        }
+
+        const first = await listEngine.listPublishedFilesWithAvailability()
+        const second = await listEngine.listPublishedFilesWithAvailability()
+
+        assert.strictEqual(first[0].localAvailable, false)
+        assert.strictEqual(second[0].localAvailable, false)
+        await sleep(200)
+        assert.strictEqual(openedDrives.size, 1)
+      } finally {
+        Hyperdrive.prototype.ready = originalReady
+        if (setupEngine) await setupEngine.stop().catch(() => {})
         if (listEngine) await listEngine.stop().catch(() => {})
         fs.rmSync(listTmpDir, { recursive: true, force: true })
       }

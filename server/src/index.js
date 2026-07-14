@@ -60,7 +60,10 @@ import {
   readMetadataFile,
   writeMetadataFile,
 } from './node/metadataFile.js'
-import { loadOrCreateNodeSeed } from './node/nodeIdentity.js'
+import {
+  ensureNodeSeedPersisted,
+  loadOrCreateNodeSeed,
+} from './node/nodeIdentity.js'
 import {
   getFilesystemSpace,
   StorageReservationLedger,
@@ -632,6 +635,7 @@ export class MostBoxEngine extends EventEmitter {
       fs.mkdirSync(dataPath, { recursive: true })
     }
 
+    const nodeSeed = loadOrCreateNodeSeed(dataPath)
     const GLOBAL_SHARED_SEED = b4a.alloc(32).fill(GLOBAL_SHARED_SEED_STRING)
     this.#store = new Corestore(dataPath, {
       primaryKey: GLOBAL_SHARED_SEED,
@@ -665,7 +669,16 @@ export class MostBoxEngine extends EventEmitter {
       }
     }
 
-    const nodeSeed = loadOrCreateNodeSeed(dataPath)
+    try {
+      ensureNodeSeedPersisted(dataPath, nodeSeed)
+    } catch (err) {
+      const store = this.#store
+      this.#store = null
+      try {
+        await store.close()
+      } catch {}
+      throw err
+    }
 
     console.log(`[MostBox] Initializing Hyperswarm...`)
     if (this.#options.disableNetwork) {
@@ -6327,49 +6340,32 @@ export class MostBoxEngine extends EventEmitter {
   async #getOrCreateDrive(name, _options = { server: true, client: false }) {
     if (this.#drives.has(name)) return this.#drives.get(name)
     const openTimeoutMs = Number(_options.openTimeoutMs)
-    if (this.#drivePromises.has(name)) {
-      const pending = this.#drivePromises.get(name)
-      try {
-        return await this.#withTimeout(
-          pending,
-          openTimeoutMs,
-          `Timed out while opening drive ${name}`,
-          'DRIVE_OPEN_TIMEOUT'
-        )
-      } catch (err) {
-        if (
-          err?.code === 'DRIVE_OPEN_TIMEOUT' &&
-          this.#drivePromises.get(name) === pending
-        ) {
-          this.#drivePromises.delete(name)
-        }
-        throw err
-      }
+    let pending = this.#drivePromises.get(name)
+
+    if (!pending) {
+      pending = (async () => {
+        const drive = new Hyperdrive(this.#store.namespace(name))
+        await drive.ready()
+        this.#drives.set(name, drive)
+        return drive
+      })()
+      pending.catch(() => {})
+      this.#drivePromises.set(name, pending)
+      pending
+        .finally(() => {
+          if (this.#drivePromises.get(name) === pending) {
+            this.#drivePromises.delete(name)
+          }
+        })
+        .catch(() => {})
     }
 
-    const promise = (async () => {
-      const drive = new Hyperdrive(this.#store.namespace(name))
-      await drive.ready()
-      this.#drives.set(name, drive)
-      return drive
-    })()
-    promise.catch(() => {})
-
-    this.#drivePromises.set(name, promise)
-
-    try {
-      const drive = await this.#withTimeout(
-        promise,
-        openTimeoutMs,
-        `Timed out while opening drive ${name}`,
-        'DRIVE_OPEN_TIMEOUT'
-      )
-      return drive
-    } finally {
-      if (this.#drivePromises.get(name) === promise) {
-        this.#drivePromises.delete(name)
-      }
-    }
+    return this.#withTimeout(
+      pending,
+      openTimeoutMs,
+      `Timed out while opening drive ${name}`,
+      'DRIVE_OPEN_TIMEOUT'
+    )
   }
 
   #getMetadataPath() {
