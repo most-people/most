@@ -128,7 +128,6 @@ interface NodeStatus {
     physicalTotalBytes: number
     physicalFreeBytes: number
     fileCount: number
-    trashCount: number
   }
   network: {
     peers: number
@@ -142,7 +141,6 @@ interface NodeStatus {
 interface AdminUserData {
   address: string
   fileCount: number
-  trashCount: number
   cidCount: number
 }
 
@@ -599,12 +597,6 @@ export default function AdminPage() {
         id: 'user-files',
         accessorKey: 'fileCount',
         header: t('admin.userData.files'),
-        cell: info => formatNumber(info.getValue<number>()),
-      },
-      {
-        id: 'user-trash',
-        accessorKey: 'trashCount',
-        header: t('admin.userData.trash'),
         cell: info => formatNumber(info.getValue<number>()),
       },
       {

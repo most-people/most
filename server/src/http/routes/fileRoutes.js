@@ -388,45 +388,6 @@ export function registerFileRoutes(app, { engine, configStore, wsBroadcast }) {
     }
   })
 
-  app.get('/api/trash', c => {
-    return c.json(engine.listTrashFiles({ ownerAddress: c.get('userAddress') }))
-  })
-
-  app.post('/api/trash/:cid/restore', async c => {
-    const cid = c.req.param('cid')
-    const cidValidation = validateCidString(cid)
-    if (!cidValidation.valid) {
-      return c.json(validationErrorPayload(cidValidation.errorCode), 400)
-    }
-    try {
-      const result = await engine.restoreTrashFile(cid, {
-        ownerAddress: c.get('userAddress'),
-      })
-      return c.json({ success: true, files: result })
-    } catch (err) {
-      return c.json({ error: err.message }, 400)
-    }
-  })
-
-  app.delete('/api/trash/:cid', async c => {
-    const cid = c.req.param('cid')
-    const cidValidation = validateCidString(cid)
-    if (!cidValidation.valid) {
-      return c.json(validationErrorPayload(cidValidation.errorCode), 400)
-    }
-    const result = await engine.permanentDeleteTrashFile(cid, {
-      ownerAddress: c.get('userAddress'),
-    })
-    return c.json({ success: true, trashFiles: result })
-  })
-
-  app.delete('/api/trash', async c => {
-    const result = await engine.emptyTrash({
-      ownerAddress: c.get('userAddress'),
-    })
-    return c.json({ success: true, trashFiles: result })
-  })
-
   app.post('/api/files/:cid/star', async c => {
     const cid = c.req.param('cid')
     const cidValidation = validateCidString(cid)

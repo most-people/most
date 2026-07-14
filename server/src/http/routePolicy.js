@@ -25,14 +25,12 @@ export function requiresUserAuth(path) {
     path === '/api/user/profile' ||
     path === '/api/user/export' ||
     path === '/api/user/import' ||
-    path === '/api/trash' ||
     path === '/api/move' ||
     path === '/api/folder/rename' ||
     path === '/api/folder/share' ||
     path.startsWith('/api/note-vault') ||
     path.startsWith('/api/collections/') ||
     path.startsWith('/api/files/') ||
-    path.startsWith('/api/trash/') ||
     path.startsWith('/api/channels')
   )
 }

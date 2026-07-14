@@ -153,13 +153,7 @@ async function getDownloadCheckErrorMessage(err: unknown) {
 
 export const fileApi = {
   listPublishedFiles: () => api.get('/api/files').json<MostFileRecord[]>(),
-  listTrashFiles: () => api.get('/api/trash').json<MostFileRecord[]>(),
   deletePublishedFile: (cid: string) => api.delete(`/api/files/${cid}`).json(),
-  restoreTrashFile: (cid: string) =>
-    api.post(`/api/trash/${cid}/restore`).json(),
-  permanentDeleteTrashFile: (cid: string) =>
-    api.delete(`/api/trash/${cid}`).json(),
-  emptyTrash: () => api.delete('/api/trash').json(),
   toggleStar: (cid: string) =>
     api.post<ToggleStarResponse>(`/api/files/${cid}/star`).json(),
   getConfig: () => api.get('/api/config').json<Record<string, unknown>>(),

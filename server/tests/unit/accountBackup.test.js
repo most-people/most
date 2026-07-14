@@ -23,7 +23,6 @@ function createPayload(ownerAddress) {
       updatedAt: 1000,
     },
     files: [],
-    trashFiles: [],
     channels: [],
   }
 }

@@ -389,6 +389,75 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       }
     })
 
+    it('migrates legacy trash metadata into permanent deletion on start', async () => {
+      const legacyTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-legacy-trash-migration-')
+      )
+      const dataPath = path.join(legacyTmpDir, 'data')
+      const publishedPath = path.join(dataPath, 'published-files.json')
+      const trashPath = path.join(dataPath, 'trash-files.json')
+      let setupEngine
+      let migratedEngine
+
+      try {
+        setupEngine = new MostBoxEngine({ dataPath, disableNetwork: true })
+        await setupEngine.start()
+        const stale = await setupEngine.publishFile(
+          Buffer.from('legacy trash stale'),
+          'legacy-stale.txt'
+        )
+        const active = await setupEngine.publishFile(
+          Buffer.from('legacy trash active'),
+          'legacy-active.txt'
+        )
+        await setupEngine.stop()
+        setupEngine = null
+
+        const published = JSON.parse(fs.readFileSync(publishedPath, 'utf-8'))
+        const localRecords = published.__local__
+        const staleRecord = localRecords.find(file => file.cid === stale.cid)
+        const activeRecord = localRecords.find(file => file.cid === active.cid)
+        published.__local__ = localRecords.filter(
+          file => file.cid !== stale.cid
+        )
+        fs.writeFileSync(
+          publishedPath,
+          JSON.stringify(published, null, 2),
+          'utf-8'
+        )
+        fs.writeFileSync(
+          trashPath,
+          JSON.stringify({ __local__: [staleRecord, activeRecord] }, null, 2),
+          'utf-8'
+        )
+
+        migratedEngine = new MostBoxEngine({ dataPath, disableNetwork: true })
+        await migratedEngine.start()
+
+        assert.strictEqual(fs.existsSync(trashPath), false)
+        assert.ok(
+          !migratedEngine
+            .listHoldings()
+            .some(holding => holding.cid === stale.cid)
+        )
+        assert.ok(
+          migratedEngine
+            .listHoldings()
+            .some(holding => holding.cid === active.cid)
+        )
+        await assert.rejects(
+          migratedEngine.readFileRaw(stale.cid),
+          /File not found/
+        )
+        const raw = await migratedEngine.readFileRaw(active.cid)
+        assert.strictEqual(raw.buffer.toString(), 'legacy trash active')
+      } finally {
+        if (setupEngine) await setupEngine.stop().catch(() => {})
+        if (migratedEngine) await migratedEngine.stop().catch(() => {})
+        fs.rmSync(legacyTmpDir, { recursive: true, force: true })
+      }
+    })
+
     it('fails closed and releases resources when metadata generations are corrupt', async () => {
       const corruptTmpDir = fs.mkdtempSync(
         path.join(os.tmpdir(), 'most-metadata-corrupt-')
@@ -880,32 +949,14 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         )
       )
 
-      const trashedCollection = engine
-        .listTrashFiles()
-        .find(file => file.cid === publishedCollection.cid)
-      assert.strictEqual(trashedCollection.kind, 'collection')
-      assert.strictEqual(trashedCollection.fileCount, 1)
-
-      await engine.restoreTrashFile(publishedCollection.cid)
-
-      const restoredCollection = engine
-        .listPublishedFiles()
-        .find(file => file.cid === publishedCollection.cid)
-      assert.strictEqual(restoredCollection.kind, 'collection')
-      assert.strictEqual(restoredCollection.fileCount, 1)
       assert.ok(
-        engine
-          .listHoldings()
-          .some(
-            holding =>
-              holding.cid === publishedCollection.cid &&
-              holding.kind === 'collection'
-          )
+        !engine
+          .listPublishedFiles()
+          .some(file => file.cid === publishedCollection.cid)
       )
-      assert.ok(
-        publishedCollection.files.every(file =>
-          engine.listHoldings().some(holding => holding.cid === file.cid)
-        )
+      await assert.rejects(
+        engine.readFileRaw(publishedCollection.cid),
+        /File not found/
       )
     })
 
@@ -1656,8 +1707,8 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
     })
   })
 
-  describe('deletePublishedFile() and trash', () => {
-    it('moves file to trash', async () => {
+  describe('deletePublishedFile()', () => {
+    it('permanently deletes file content and holding', async () => {
       const result = await engine.publishFile(
         Buffer.from('test'),
         'to-delete.txt'
@@ -1666,26 +1717,53 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
 
       await engine.deletePublishedFile(cid)
 
-      const trash = engine.listTrashFiles()
-      assert.ok(trash.some(f => f.cid === cid))
+      const files = engine.listPublishedFiles()
+      assert.ok(!files.some(f => f.cid === cid))
       assert.ok(!engine.listHoldings().some(f => f.cid === cid))
+      await assert.rejects(engine.readFileRaw(cid), /File not found/)
     })
 
-    it('restores file from trash', async () => {
-      const result = await engine.publishFile(
-        Buffer.from('test'),
-        'to-restore.txt'
+    it('does not resume deleted holdings after restart', async () => {
+      const restartTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-delete-restart-')
       )
-      const cid = result.cid
+      const dataPath = path.join(restartTmpDir, 'data')
+      let deleteEngine
+      let restartedEngine
 
-      await engine.deletePublishedFile(cid)
-      await engine.restoreTrashFile(cid)
+      try {
+        deleteEngine = new MostBoxEngine({ dataPath, disableNetwork: true })
+        await deleteEngine.start()
+        const result = await deleteEngine.publishFile(
+          Buffer.from('restart delete test'),
+          'restart-delete.txt'
+        )
+        await deleteEngine.deletePublishedFile(result.cid)
+        await deleteEngine.stop()
+        deleteEngine = null
 
-      const files = engine.listPublishedFiles()
-      assert.ok(files.some(f => f.cid === cid))
-      const holding = engine.listHoldings().find(f => f.cid === cid)
-      assert.ok(holding)
-      assert.strictEqual(holding.seedStatus, 'active')
+        restartedEngine = new MostBoxEngine({ dataPath, disableNetwork: true })
+        await restartedEngine.start()
+
+        assert.ok(
+          !restartedEngine
+            .listPublishedFiles()
+            .some(file => file.cid === result.cid)
+        )
+        assert.ok(
+          !restartedEngine
+            .listHoldings()
+            .some(holding => holding.cid === result.cid)
+        )
+        await assert.rejects(
+          restartedEngine.readFileRaw(result.cid),
+          /File not found/
+        )
+      } finally {
+        if (deleteEngine) await deleteEngine.stop().catch(() => {})
+        if (restartedEngine) await restartedEngine.stop().catch(() => {})
+        fs.rmSync(restartTmpDir, { recursive: true, force: true })
+      }
     })
   })
 
@@ -2385,7 +2463,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
     })
   })
 
-  it('keeps publisher content after a downloaded peer deletes and clears its copy', async () => {
+  it('keeps publisher content after a downloaded peer deletes its copy', async () => {
     const cleanupTmpDir = fs.mkdtempSync(
       path.join(os.tmpdir(), 'most-peer-delete-cleanup-')
     )
@@ -2432,7 +2510,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
           ownerAddress: downloaderOwner,
         })
       }
-      await downloader.emptyTrash({ ownerAddress: downloaderOwner })
       fs.rmSync(path.join(cleanupTmpDir, 'downloader', 'downloads', 'yueyue'), {
         recursive: true,
         force: true,
@@ -2489,30 +2566,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       if (downloader) await downloader.stop().catch(() => {})
       fs.rmSync(cleanupTmpDir, { recursive: true, force: true })
     }
-  })
-
-  describe('emptyTrash()', () => {
-    it('permanently deletes all trash files', async () => {
-      const result = await engine.publishFile(
-        Buffer.from('trash-test'),
-        'empty-trash.txt'
-      )
-      const cid = result.cid
-
-      await engine.deletePublishedFile(cid)
-      const trashBefore = engine.listTrashFiles()
-      assert.ok(trashBefore.some(f => f.cid === cid))
-
-      await engine.emptyTrash()
-
-      const trashAfter = engine.listTrashFiles()
-      assert.strictEqual(trashAfter.length, 0)
-    })
-
-    it('returns empty array after emptying', async () => {
-      const result = await engine.emptyTrash()
-      assert.deepStrictEqual(result, [])
-    })
   })
 
   describe('readFileContent()', () => {
@@ -2973,54 +3026,39 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       const filesA = isoEngine.listPublishedFiles({ ownerAddress: ownerA })
       assert.ok(filesA.some(f => f.cid === result.cid))
 
-      const trashB = isoEngine.listTrashFiles({ ownerAddress: ownerB })
-      assert.ok(!trashB.some(f => f.cid === result.cid))
+      const filesB = isoEngine.listPublishedFiles({ ownerAddress: ownerB })
+      assert.ok(!filesB.some(f => f.cid === result.cid))
     })
 
-    it('restoreTrashFile only affects owner files', async () => {
-      const result = await isoEngine.publishFile(
-        Buffer.from('restore isolation'),
-        'restore-iso.txt',
-        { ownerAddress: ownerA }
-      )
-      await isoEngine.deletePublishedFile(result.cid, {
+    it('deletePublishedFile preserves content referenced by another owner', async () => {
+      const content = Buffer.from('shared owner delete isolation')
+      const resultA = await isoEngine.publishFile(content, 'shared-a.txt', {
         ownerAddress: ownerA,
       })
-
-      await assert.rejects(
-        isoEngine.restoreTrashFile(result.cid, { ownerAddress: ownerB }),
-        /File not found in trash/
-      )
-
-      const trashA = isoEngine.listTrashFiles({ ownerAddress: ownerA })
-      assert.ok(trashA.some(f => f.cid === result.cid))
-    })
-
-    it('emptyTrash only affects owner files', async () => {
-      await isoEngine.publishFile(Buffer.from('trash A'), 'trash-a.txt', {
-        ownerAddress: ownerA,
-      })
-      const resultB = await isoEngine.publishFile(
-        Buffer.from('trash B'),
-        'trash-b.txt',
-        { ownerAddress: ownerB }
-      )
-
-      const trashA = isoEngine.listTrashFiles({ ownerAddress: ownerA })
-      for (const f of trashA) {
-        await isoEngine.deletePublishedFile(f.cid, { ownerAddress: ownerA })
-      }
-
-      await isoEngine.emptyTrash({ ownerAddress: ownerA })
-
-      const trashAfterA = isoEngine.listTrashFiles({ ownerAddress: ownerA })
-      assert.strictEqual(trashAfterA.length, 0)
-
-      await isoEngine.deletePublishedFile(resultB.cid, {
+      const resultB = await isoEngine.publishFile(content, 'shared-b.txt', {
         ownerAddress: ownerB,
       })
-      const trashAfterB = isoEngine.listTrashFiles({ ownerAddress: ownerB })
-      assert.ok(trashAfterB.some(f => f.cid === resultB.cid))
+
+      assert.strictEqual(resultA.cid, resultB.cid)
+      await isoEngine.deletePublishedFile(resultA.cid, {
+        ownerAddress: ownerA,
+      })
+
+      assert.ok(
+        !isoEngine
+          .listPublishedFiles({ ownerAddress: ownerA })
+          .some(f => f.cid === resultA.cid)
+      )
+      assert.ok(
+        isoEngine
+          .listPublishedFiles({ ownerAddress: ownerB })
+          .some(f => f.cid === resultA.cid)
+      )
+      assert.ok(isoEngine.listHoldings().some(f => f.cid === resultA.cid))
+      const raw = await isoEngine.readFileRaw(resultA.cid, {
+        ownerAddress: ownerB,
+      })
+      assert.strictEqual(raw.buffer.toString(), content.toString())
     })
 
     it('imports account file metadata without pulling file content automatically', async () => {
@@ -3143,28 +3181,28 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         await sourceEngine.deletePublishedFile(collection.cid, {
           ownerAddress: syncOwner,
         })
-        const trashBackup = sourceEngine.exportUserData(syncOwner)
-        const trashBackupFile = trashBackup.trashFiles.find(
-          file => file.cid === collection.cid
+        const deletedBackup = sourceEngine.exportUserData(syncOwner)
+        assert.strictEqual(deletedBackup.trashFiles, undefined)
+        assert.ok(
+          !deletedBackup.files.some(file => file.cid === collection.cid)
         )
-        assert.strictEqual(trashBackupFile.kind, 'collection')
-        assert.strictEqual(trashBackupFile.fileCount, 2)
 
-        const trashImportResult = await targetEngine.importUserData(
+        await targetEngine.clearUserData(syncOwner)
+        const legacyImportResult = await targetEngine.importUserData(
           syncOwner,
-          trashBackup
+          {
+            ...deletedBackup,
+            files: [],
+            trashFiles: [backupFile],
+          }
         )
-        assert.strictEqual(trashImportResult.trashFilesUpdated, 1)
+        assert.strictEqual(legacyImportResult.filesAdded, 0)
         assert.ok(
           !targetEngine
             .listPublishedFiles({ ownerAddress: syncOwner })
             .some(file => file.cid === collection.cid)
         )
-        const importedTrash = targetEngine
-          .listTrashFiles({ ownerAddress: syncOwner })
-          .find(file => file.cid === collection.cid)
-        assert.strictEqual(importedTrash.kind, 'collection')
-        assert.strictEqual(importedTrash.fileCount, 2)
+        assert.strictEqual('trashFilesUpdated' in legacyImportResult, false)
       } finally {
         if (sourceEngine) await sourceEngine.stop().catch(() => {})
         if (targetEngine) await targetEngine.stop().catch(() => {})
@@ -3407,14 +3445,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.throws(
         () => engine.renameFolder('rename-src', 'rename-target'),
         /已有同名文件/
-      )
-    })
-  })
-
-  describe('permanentDeleteTrashFile()', () => {
-    it('does not throw for non-existent CID', async () => {
-      await assert.doesNotReject(
-        engine.permanentDeleteTrashFile('bafkreidontexist')
       )
     })
   })

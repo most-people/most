@@ -433,13 +433,12 @@
   width: 34%;
 }
 
-.admin-table-users .admin-col-user-files,
-.admin-table-users .admin-col-user-trash {
+.admin-table-users .admin-col-user-files {
   width: 20%;
 }
 
 .admin-table-users .admin-col-user-actions {
-  width: 26%;
+  width: 46%;
 }
 
 .admin-table-holdings .admin-col-file {

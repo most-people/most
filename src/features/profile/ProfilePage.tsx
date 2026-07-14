@@ -227,11 +227,6 @@ export default function ProfilePage() {
       value: accountBackup.backupSummary.filesCount,
     },
     {
-      key: 'trash',
-      label: t('profile.backup.summary.trash'),
-      value: accountBackup.backupSummary.trashFilesCount,
-    },
-    {
       key: 'channels',
       label: t('profile.backup.summary.channels'),
       value: accountBackup.backupSummary.channelsCount,

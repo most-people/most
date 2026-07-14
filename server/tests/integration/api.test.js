@@ -134,13 +134,6 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         ownerAddress: TEST_IDENTITY.address,
         ...options,
       })
-    const permanentDeleteTrashFile =
-      engine.permanentDeleteTrashFile.bind(engine)
-    engine.permanentDeleteTrashFile = (cid, options = {}) =>
-      permanentDeleteTrashFile(cid, {
-        ownerAddress: TEST_IDENTITY.address,
-        ...options,
-      })
     configStore = createNodeConfigStore(path.join(tmpDir, 'config'))
     nodeLogger = createNodeLogger(configStore.configDir)
 
@@ -512,6 +505,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(spec.paths['/api/download'])
       assert.ok(spec.paths['/api/download/cancel'])
       assert.ok(spec.paths['/api/files/{cid}/download'])
+      assert.strictEqual(spec.paths['/api/trash'], undefined)
       assert.ok(spec.paths['/api/channels'])
       assert.ok(spec.paths['/api/channels'].get)
       assert.ok(spec.paths['/api/channels'].post)
@@ -1452,12 +1446,6 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         )
         assert.strictEqual(deleteRes.status, 200)
 
-        const permanentDeleteRes = await fetch(
-          `${baseUrl}/api/trash/${publishResult.cid}`,
-          { method: 'DELETE' }
-        )
-        assert.strictEqual(permanentDeleteRes.status, 200)
-
         const holdingsRes = await fetch(`${baseUrl}/api/node/holdings`)
         const holdings = await holdingsRes.json()
         assert.ok(!holdings.some(holding => holding.cid === publishResult.cid))
@@ -1559,7 +1547,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
   })
 
   describe('DELETE /api/files/:cid', () => {
-    it('moves file to trash', async () => {
+    it('permanently deletes a file', async () => {
       const pub = await engine.publishFile(
         Buffer.from('delete-test'),
         'delete.txt'
@@ -1574,6 +1562,13 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(res.status, 200)
       assert.ok(Array.isArray(data))
       assert.ok(!data.some(f => f.cid === cid))
+
+      const holdingsRes = await fetch(`${baseUrl}/api/node/holdings`)
+      const holdings = await holdingsRes.json()
+      assert.ok(!holdings.some(holding => holding.cid === cid))
+
+      const downloadRes = await fetch(`${baseUrl}/api/files/${cid}/download`)
+      assert.strictEqual(downloadRes.status, 404)
     })
   })
 
@@ -1720,107 +1715,25 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     })
   })
 
-  describe('GET /api/trash', () => {
-    it('returns trash files', async () => {
-      const published = await engine.publishFile(
-        Buffer.from('trash-test'),
-        'trash.txt',
-        { ownerAddress: TEST_IDENTITY.address }
+  describe('/api/trash routes', () => {
+    it('does not expose legacy trash endpoints', async () => {
+      const listRes = await fetch(`${baseUrl}/api/trash`)
+      const restoreRes = await fetch(
+        `${baseUrl}/api/trash/${VALID_MISSING_CID}/restore`,
+        { method: 'POST' }
       )
-      await engine.deletePublishedFile(published.cid, {
-        ownerAddress: TEST_IDENTITY.address,
-      })
-
-      const res = await fetch(`${baseUrl}/api/trash`)
-      const data = await res.json()
-
-      assert.strictEqual(res.status, 200)
-      assert.ok(Array.isArray(data))
-      assert.strictEqual(data.length, 1)
-      assert.strictEqual(data[0].fileName, 'trash.txt')
-    })
-  })
-
-  describe('POST /api/trash/:cid/restore', () => {
-    it('restores file from trash', async () => {
-      const published = await engine.publishFile(
-        Buffer.from('restore-test'),
-        'restore.txt',
-        { ownerAddress: TEST_IDENTITY.address }
+      const itemDeleteRes = await fetch(
+        `${baseUrl}/api/trash/${VALID_MISSING_CID}`,
+        { method: 'DELETE' }
       )
-      const cid = published.cid
-      await engine.deletePublishedFile(cid, {
-        ownerAddress: TEST_IDENTITY.address,
-      })
-
-      const res = await fetch(`${baseUrl}/api/trash/${cid}/restore`, {
-        method: 'POST',
-      })
-
-      const data = await res.json()
-      assert.strictEqual(res.status, 200)
-      assert.ok(data.success)
-      assert.strictEqual(
-        engine.listTrashFiles({ ownerAddress: TEST_IDENTITY.address }).length,
-        0
-      )
-    })
-  })
-
-  describe('DELETE /api/trash/:cid', () => {
-    it('permanently deletes a trash file', async () => {
-      const published = await engine.publishFile(
-        Buffer.from('perm-delete'),
-        'perm.txt',
-        { ownerAddress: TEST_IDENTITY.address }
-      )
-      const cid = published.cid
-      await engine.deletePublishedFile(cid, {
-        ownerAddress: TEST_IDENTITY.address,
-      })
-
-      const res = await fetch(`${baseUrl}/api/trash/${cid}`, {
+      const clearRes = await fetch(`${baseUrl}/api/trash`, {
         method: 'DELETE',
       })
-      const data = await res.json()
 
-      assert.strictEqual(res.status, 200)
-      assert.ok(data.success)
-      assert.strictEqual(
-        engine.listTrashFiles({ ownerAddress: TEST_IDENTITY.address }).length,
-        0
-      )
-    })
-  })
-
-  describe('DELETE /api/trash', () => {
-    it('empties the trash', async () => {
-      const first = await engine.publishFile(
-        Buffer.from('empty1'),
-        'empty1.txt',
-        { ownerAddress: TEST_IDENTITY.address }
-      )
-      const second = await engine.publishFile(
-        Buffer.from('empty2'),
-        'empty2.txt',
-        { ownerAddress: TEST_IDENTITY.address }
-      )
-      await engine.deletePublishedFile(first.cid, {
-        ownerAddress: TEST_IDENTITY.address,
-      })
-      await engine.deletePublishedFile(second.cid, {
-        ownerAddress: TEST_IDENTITY.address,
-      })
-
-      const res = await fetch(`${baseUrl}/api/trash`, { method: 'DELETE' })
-      const data = await res.json()
-
-      assert.strictEqual(res.status, 200)
-      assert.ok(data.success)
-      assert.strictEqual(
-        engine.listTrashFiles({ ownerAddress: TEST_IDENTITY.address }).length,
-        0
-      )
+      assert.strictEqual(listRes.status, 404)
+      assert.strictEqual(restoreRes.status, 404)
+      assert.strictEqual(itemDeleteRes.status, 404)
+      assert.strictEqual(clearRes.status, 404)
     })
   })
 
@@ -1950,7 +1863,6 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
             updatedAt,
           },
         ],
-        trashFiles: [],
         channels: [],
       }
 
@@ -2001,7 +1913,6 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
             updatedAt: backupUpdatedAt,
           },
           files: [],
-          trashFiles: [],
           channels: [],
         }),
       })
@@ -2026,7 +1937,6 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
           exportedAt: new Date().toISOString(),
           notes: [],
           files: [],
-          trashFiles: [],
           channels: [],
         }),
       })

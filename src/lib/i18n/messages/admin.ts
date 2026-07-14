@@ -38,7 +38,7 @@ export const zhCNAdminMessages = {
   'admin.remoteUnavailable.desc':
     '当前连接的是别人部署的远程节点，普通邀请码不能查看或修改节点管理数据。',
   'admin.confirm.clearUserData':
-    '确定清除用户 {address} 的文件记录和回收站吗？无人引用的副本也会被清理。',
+    '确定清除用户 {address} 的文件记录吗？无人引用的副本也会被清理。',
   'admin.metric.nodeId': '节点 ID',
   'admin.metric.connections': '连接',
   'admin.metric.peers': '{count} peers',
@@ -54,7 +54,6 @@ export const zhCNAdminMessages = {
   'admin.userData.title': '用户数据',
   'admin.userData.user': '用户',
   'admin.userData.files': '文件',
-  'admin.userData.trash': '回收站',
   'admin.userData.actions': '操作',
   'admin.userData.empty': '暂无用户数据',
   'admin.settings.title': '节点设置',
@@ -165,7 +164,7 @@ export const zhTWAdminMessages = {
   'admin.remoteUnavailable.desc':
     '當前連線的是別人部署的遠端節點，普通邀請碼不能檢視或修改節點管理資料。',
   'admin.confirm.clearUserData':
-    '確定清除使用者 {address} 的檔案記錄和垃圾桶嗎？無人引用的副本也會被清理。',
+    '確定清除使用者 {address} 的檔案記錄嗎？無人引用的副本也會被清理。',
   'admin.metric.nodeId': '節點 ID',
   'admin.metric.connections': '連線',
   'admin.metric.peers': '{count} peers',
@@ -181,7 +180,6 @@ export const zhTWAdminMessages = {
   'admin.userData.title': '使用者資料',
   'admin.userData.user': '使用者',
   'admin.userData.files': '檔案',
-  'admin.userData.trash': '垃圾桶',
   'admin.userData.actions': '操作',
   'admin.userData.empty': '暫無使用者資料',
   'admin.settings.title': '節點設定',
@@ -293,7 +291,7 @@ export const enAdminMessages = {
   'admin.remoteUnavailable.desc':
     'You are connected to a remote node deployed by someone else. A regular invite cannot view or edit node admin data.',
   'admin.confirm.clearUserData':
-    'Clear file records and trash for user {address}? Unreferenced local copies may also be removed.',
+    'Clear file records for user {address}? Unreferenced local copies may also be removed.',
   'admin.metric.nodeId': 'Node ID',
   'admin.metric.connections': 'Connections',
   'admin.metric.peers': '{count} peers',
@@ -309,7 +307,6 @@ export const enAdminMessages = {
   'admin.userData.title': 'User data',
   'admin.userData.user': 'User',
   'admin.userData.files': 'Files',
-  'admin.userData.trash': 'Trash',
   'admin.userData.actions': 'Actions',
   'admin.userData.empty': 'No user data',
   'admin.settings.title': 'Node settings',

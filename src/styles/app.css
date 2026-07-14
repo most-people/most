@@ -564,10 +564,6 @@
   background: linear-gradient(135deg, #fbbf24, #f59e0b);
 }
 
-.card-icon.trash {
-  background: linear-gradient(135deg, #94a3b8, #64748b);
-}
-
 .card-name {
   font-size: 12px;
   font-weight: 500;
@@ -2040,15 +2036,6 @@
   color: var(--text-muted);
   padding: 24px;
   font-size: 13px;
-}
-
-.btn-empty-trash {
-  background: rgba(255, 59, 48, 0.1);
-  color: var(--danger);
-
-  &:hover:not(:disabled) {
-    background: rgba(255, 59, 48, 0.15);
-  }
 }
 
 .btn-star {

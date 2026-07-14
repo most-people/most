@@ -43,7 +43,6 @@ type ImportLocalBackupOptions = {
 }
 type AccountBackupSummary = {
   filesCount: number | null
-  trashFilesCount: number | null
   channelsCount: number | null
   loading: boolean
 }
@@ -105,7 +104,6 @@ function hasLocalData(payload: AccountBackupPayload) {
     payload.profile ||
     payload.preferences ||
     payload.files?.length ||
-    payload.trashFiles?.length ||
     payload.channels?.length ||
     payload.noteVault?.files.length
   )
@@ -115,7 +113,6 @@ function hasLocalAccountContent(payload: AccountBackupPayload) {
   return Boolean(
     payload.notes.length ||
     payload.files?.length ||
-    payload.trashFiles?.length ||
     payload.channels?.length ||
     payload.noteVault?.files.length
   )
@@ -138,7 +135,6 @@ function getComparablePayload(payload: AccountBackupPayload) {
     profile: payload.profile || null,
     preferences: payload.preferences || null,
     files: sortByStringField(payload.files, 'cid'),
-    trashFiles: sortByStringField(payload.trashFiles, 'cid'),
     channels: sortByStringField(payload.channels, 'channelKey'),
     noteVault: payload.noteVault
       ? {
@@ -343,7 +339,6 @@ export function useAccountBackup() {
   )
   const [backupSummary, setBackupSummary] = useState<AccountBackupSummary>({
     filesCount: null,
-    trashFilesCount: null,
     channelsCount: null,
     loading: false,
   })
@@ -353,7 +348,6 @@ export function useAccountBackup() {
     if (!currentWallet) {
       setBackupSummary({
         filesCount: null,
-        trashFilesCount: null,
         channelsCount: null,
         loading: false,
       })
@@ -367,7 +361,6 @@ export function useAccountBackup() {
         .json()
       setBackupSummary({
         filesCount: countBackupItems(metadata.files),
-        trashFilesCount: countBackupItems(metadata.trashFiles),
         channelsCount: countBackupItems(metadata.channels),
         loading: false,
       })
