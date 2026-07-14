@@ -31,7 +31,7 @@ describe('Docker packaging', () => {
   test('ships a Feiniu OS compose example with host networking and persistent data', () => {
     const compose = readRepoFile('docker-compose.example.yml')
 
-    assert.match(compose, /image: ghcr\.io\/most-people\/most-box:0\.4\.1/)
+    assert.match(compose, /image: ghcr\.io\/most-people\/most-box:0\.4\.2/)
     assert.match(compose, /container_name: mostbox/)
     assert.match(compose, /network_mode: host/)
     assert.match(compose, /restart: unless-stopped/)

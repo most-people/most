@@ -134,7 +134,7 @@ npm test              # 运行 Android 子包协议、Channel 和 IPC 测试
 ```yaml
 services:
   mostbox:
-    image: ghcr.io/most-people/most-box:0.4.1
+    image: ghcr.io/most-people/most-box:0.4.2
     container_name: mostbox
     network_mode: host
     restart: unless-stopped
