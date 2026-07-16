@@ -10,7 +10,6 @@ export const CONNECTION_TIMEOUT = 120000
 export const DOWNLOAD_TIMEOUT = 900000
 
 // P2P 设置
-export const GLOBAL_SHARED_SEED_STRING = 'most-box-global-shared-seed-v1'
 export const MAX_PEERS = 64
 export const SWARM_KEEP_ALIVE_INTERVAL = 5000
 export const SWARM_RANDOM_PUNCH_INTERVAL = 20000

@@ -345,9 +345,6 @@
   text-align: center;
   cursor: pointer;
   position: relative;
-  background: var(--glass-bg-subtle);
-  backdrop-filter: var(--blur-sm);
-  -webkit-backdrop-filter: var(--blur-sm);
   transition: all var(--transition);
 
   &:hover {
@@ -489,12 +486,7 @@
   padding: 16px;
   border-radius: var(--radius-lg);
   cursor: pointer;
-  background: var(--glass-bg-subtle);
-  backdrop-filter: var(--blur-md);
-  -webkit-backdrop-filter: var(--blur-md);
-  border: 1px solid var(--glass-border);
   transition: all var(--transition);
-  box-shadow: var(--glass-shadow-inset);
 
   &:hover {
     border-color: var(--glass-border-strong);
@@ -591,75 +583,6 @@
   font-size: 10px;
   color: var(--text-muted);
   margin-top: 2px;
-}
-
-/* === Modal Overlay === */
-.modal-overlay {
-  position: fixed;
-  top: var(--modal-visual-top, 0px);
-  right: 0;
-  left: 0;
-  height: var(--modal-visual-height, 100dvh);
-  z-index: 200;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  animation: fadeIn 0.2s ease;
-}
-
-.modal-overlay-backdrop {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  background: rgba(0, 0, 0, 0.3);
-  pointer-events: none;
-}
-
-/* === Glass Modal Base === */
-.modal-glass {
-  position: relative;
-  z-index: 1;
-  width: 380px;
-  max-width: calc(100vw - 32px);
-  padding: 24px;
-  border-radius: var(--radius-lg);
-  background: var(--glass-bg-heavy);
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow-lg), var(--glass-shadow-inset);
-  animation: scaleIn 0.25s ease;
-}
-
-.modal-overlay.login-modal-overlay {
-  align-items: center;
-  padding: 16px;
-}
-
-.modal-overlay.login-modal-overlay .modal-glass {
-  width: 380px;
-  max-width: calc(100vw - 32px);
-  max-height: calc(var(--modal-visual-height, 100dvh) - 32px);
-  border-radius: var(--radius-md);
-  overflow: auto;
-  overscroll-behavior: contain;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-
-  h3 {
-    font-size: 16px;
-    font-weight: 600;
-  }
-
-  button {
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--text-muted);
-  }
 }
 
 /* === Welcome Guide === */
@@ -984,19 +907,6 @@
   line-height: 1.5;
 }
 
-.modal-actions {
-  margin-top: 16px;
-  display: flex;
-  gap: 8px;
-
-  .btn {
-    flex: 1;
-    padding-inline: 12px;
-    border-radius: var(--radius-md);
-    font-size: 13px;
-  }
-}
-
 .download-modal {
   display: flex;
   flex-direction: column;
@@ -1008,100 +918,14 @@
 }
 
 .download-link-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: center;
+  display: block;
 }
 
-.download-check-btn {
-  min-width: 88px;
-  justify-content: center;
-  gap: 6px;
-  padding: 10px 14px;
-}
-
-.download-check-status {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  min-height: 38px;
-  padding: 10px 12px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--glass-border);
-  background: var(--glass-bg-subtle);
-  color: var(--text-secondary);
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-.download-check-status svg {
-  flex: 0 0 auto;
-  margin-top: 1px;
-}
-
-.download-check-status.success {
-  border-color: rgba(52, 199, 89, 0.35);
-  background: rgba(52, 199, 89, 0.1);
-  color: var(--success);
-}
-
-.download-check-status.error {
-  border-color: rgba(255, 59, 48, 0.35);
-  background: rgba(255, 59, 48, 0.1);
+.download-link-error {
+  margin: 0;
   color: var(--danger);
-}
-
-.download-check-status.pending {
-  border-color: rgba(0, 122, 255, 0.28);
-  background: rgba(0, 122, 255, 0.08);
-  color: var(--info);
-}
-
-.collection-download-list {
-  display: grid;
-  gap: 6px;
-  max-height: 220px;
-  overflow: auto;
-  padding: 4px;
-}
-
-.collection-download-item {
-  display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 8px;
-  min-height: 34px;
-  padding: 6px 8px;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md);
-  background: var(--glass-bg-subtle);
-}
-
-.collection-download-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.collection-download-size {
-  color: var(--text-secondary);
   font-size: 12px;
-}
-
-.collection-download-status {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 4px;
-  min-width: 76px;
-  color: var(--text-secondary);
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.collection-download-status.is-local {
-  color: var(--success);
+  line-height: 1.5;
 }
 
 .download-modal > .btn-full {
@@ -1539,14 +1363,6 @@
     white-space: nowrap;
   }
 
-  .transfer-item-cancel {
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--danger);
-    padding: 2px;
-  }
-
   .transfer-progress-row {
     display: flex;
     align-items: center;
@@ -1578,28 +1394,12 @@
     background: var(--accent);
   }
 
-  .transfer-progress-meter.download::-webkit-progress-value {
-    background: var(--info);
-  }
-
-  .transfer-progress-meter.download::-moz-progress-bar {
-    background: var(--info);
-  }
-
   .transfer-progress-meter.error::-webkit-progress-value {
     background: var(--danger);
   }
 
   .transfer-progress-meter.error::-moz-progress-bar {
     background: var(--danger);
-  }
-
-  .transfer-progress-meter.cancelled::-webkit-progress-value {
-    background: var(--warning);
-  }
-
-  .transfer-progress-meter.cancelled::-moz-progress-bar {
-    background: var(--warning);
   }
 
   .transfer-progress-text {
@@ -1719,34 +1519,11 @@
 }
 
 .login-modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   margin-bottom: 20px;
-
-  h3 {
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--text-primary);
-  }
 }
 
 .login-modal-close {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--text-muted);
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-sm);
-  transition: all var(--transition-fast);
-
-  &:hover {
-    color: var(--text-primary);
-    background: var(--glass-bg-subtle);
-  }
+  flex-shrink: 0;
 }
 
 .login-avatar-preview {
@@ -1835,34 +1612,11 @@
 }
 
 .connect-modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   margin-bottom: 20px;
-
-  h3 {
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--text-primary);
-  }
 }
 
 .connect-modal-close {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--text-muted);
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-sm);
-  transition: all var(--transition-fast);
-
-  &:hover {
-    color: var(--text-primary);
-    background: var(--glass-bg-subtle);
-  }
+  flex-shrink: 0;
 }
 
 .connect-modal-body {
@@ -2118,21 +1872,6 @@
     }
   }
 
-  .modal-overlay {
-    z-index: 301;
-    align-items: flex-end;
-    padding: 0;
-  }
-
-  .modal-glass {
-    width: 100%;
-    max-width: 100%;
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-    max-height: calc(var(--modal-visual-height, 100dvh) - 12px);
-    overflow: auto;
-    overscroll-behavior: contain;
-  }
-
   .sidebar-toggle-btn {
     display: flex;
   }
@@ -2217,14 +1956,6 @@
     width: 100%;
     max-width: 100%;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  }
-
-  .download-link-row {
-    grid-template-columns: 1fr;
-  }
-
-  .download-check-btn {
-    width: 100%;
   }
 
   /* Toast */
@@ -2589,7 +2320,7 @@
 }
 
 .drawer-status.status-error {
-  color: var(--error);
+  color: var(--danger);
 }
 
 /* spin animation for loader */

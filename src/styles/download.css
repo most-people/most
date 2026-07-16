@@ -302,8 +302,6 @@
   min-height: 148px;
   padding: 28px 24px;
   border: 1px dashed var(--glass-border-strong);
-  border-radius: var(--radius-lg);
-  background: var(--glass-bg-subtle);
   color: var(--text-primary);
 }
 
@@ -330,20 +328,7 @@
   align-items: flex-start;
   gap: 18px;
   padding: 32px 24px;
-  background: var(--glass-bg);
-  backdrop-filter: var(--blur-md);
-  -webkit-backdrop-filter: var(--blur-md);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-lg);
   color: var(--text-primary);
-  transition: all var(--transition);
-}
-
-.download-platform-card:hover {
-  background: var(--glass-bg-heavy);
-  transform: translateY(-2px);
-  box-shadow: var(--glass-shadow);
-  border-color: var(--accent);
 }
 
 .download-platform-icon {

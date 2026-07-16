@@ -2,7 +2,7 @@
   "expo": {
     "name": "MostBox",
     "slug": "mostbox-android",
-    "version": "0.4.2",
+    "version": "0.5.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "most",
@@ -27,6 +27,14 @@
         }
       ]
     },
+    "ios": {
+      "bundleIdentifier": "box.most.ios",
+      "buildNumber": "1",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSLocalNetworkUsageDescription": "MostBox 使用本地网络发现并连接其他设备，以传输消息和文件。"
+      }
+    },
     "plugins": [
       "expo-document-picker",
       [
@@ -36,7 +44,8 @@
             "minSdkVersion": 29
           }
         }
-      ]
+      ],
+      "expo-sharing"
     ]
   }
 }

@@ -1,10 +1,12 @@
 # MostBox 验收指南
 
+> v0.5.0 运行时不直接读取 v0.4.2 P2P 数据，也不能与 v0.4.2 节点互通。开始本轮验收前，桌面/daemon 应使用 `most-box migrate-v0.5` 显式迁移旧库，或选择新的空目录；Android Alpha 应清除应用数据。程序启动时不得自动迁移或删除旧目录。
+
 > 用最少步骤验证“运行自己的 P2P 节点 -> 分享 `most://` 链接 -> 文件发布/下载 -> CID 校验 -> 下载者继续做种”的当前 MVP 闭环，并覆盖聊天、知识库、游戏、daemon、管理台、Android Alpha 和独立工具箱回归。
 
 ## 一、快速启动
 
-本地源码验收建议使用 Node.js >= 22.12。当前 TanStack Start static prerender 前端和 Electron 42 开发/打包都建议 Node.js >= 22.12。
+本地源码验收建议使用 Node.js >= 22.13。当前 TanStack Start static prerender 前端、Electron 43 和 Expo 57 移动端开发/打包都建议 Node.js >= 22.13。
 
 本地源码验收需要两个进程：
 
@@ -64,16 +66,16 @@ auth_header() {
 8. 打开独立游戏页面时，现有游戏仍使用 `game.<gameId>.<roomCode>` Channel 同步事件。
 9. 打开 `/web3/`，确认 Web3 工具箱独立存在，不成为文件、聊天、知识库或游戏前置条件。
 
-| 检查项       | 通过标准                                                                                                       | 入口                                    |
-| ------------ | -------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| 节点定位     | 首页、桌面端和 README 首屏都说明 MostBox 是用户自己运行的 P2P 节点；文件、聊天、知识库、游戏和 Web3 是独立入口 | `/`、桌面端、`README.md`                |
-| 文件闭环     | `/app/` 保留完整文件发布、下载和做种管理                                                                       | `/app/`、文件 API                       |
-| 下载后做种   | 接收方下载成功后自动写入 holding 并 join 对应 CID topic                                                        | `/api/node/holdings`、`/admin/`         |
-| 发布者退出   | 原发布者退出后，至少一个下载者在线时，新下载者仍能完成下载                                                     | `npm run test:protocol`、手动三节点     |
-| 聊天独立     | 用户能通过房间 ID 加入同一聊天，双方能收发文本消息和文件附件                                                   | `/chat/`、`/ws`                         |
-| 知识库独立   | 知识库支持 Markdown 编辑、备份和恢复，不依赖聊天设置入口                                                       | `/note/`                                |
-| 聊天设置边界 | 聊天设置不再提供知识库导出入口                                                                                 | `/chat/`                                |
-| 独立游戏     | 游戏事件仍走公共 Channel 系统                                                                                  | `/game/gandengyan/`、`/game/zhajinhua/` |
+| 检查项       | 通过标准                                                                                                            | 入口                                    |
+| ------------ | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| 节点定位     | 首页、桌面端和 README 首屏都说明 MostBox 是用户自己运行的 P2P 节点；文件、聊天、知识库、游戏和 Web3 是独立入口      | `/`、桌面端、`README.md`                |
+| 文件闭环     | `/app/` 负责文件发布、文件库与下载链接入口，`/cid/<cid>` 统一负责检测和发起下载；活动进度可通过全局任务条跨页面查看 | `/app/`、`/cid/<cid>`、文件 API         |
+| 下载后做种   | 接收方下载成功后自动写入 holding 并 join 对应 CID topic                                                             | `/api/node/holdings`、`/admin/`         |
+| 发布者退出   | 原发布者退出后，至少一个下载者在线时，新下载者仍能完成下载                                                          | `npm run test:protocol`、手动三节点     |
+| 聊天独立     | 用户能通过房间 ID 加入同一聊天，双方能收发文本消息和文件附件                                                        | `/chat/`、`/ws`                         |
+| 知识库独立   | 知识库支持 Markdown 编辑、备份和恢复，不依赖聊天设置入口                                                            | `/note/`                                |
+| 聊天设置边界 | 聊天设置不再提供知识库导出入口                                                                                      | `/chat/`                                |
+| 独立游戏     | 游戏事件仍走公共 Channel 系统                                                                                       | `/game/gandengyan/`、`/game/zhajinhua/` |
 
 ## 三、文件协议回归
 
@@ -94,9 +96,20 @@ auth_header() {
 
 1. 打开 `/app/`。
 2. 点击“发布文件”，选择一个测试文件。
-3. 发布成功后确认分享弹窗同时提供 `most://<cid>?filename=...` 和 `https://most.box/cid/<cid>?filename=...` 两种链接。
+3. 发布成功后确认进入 `/cid/<cid>?filename=...`，页面提供网页分享链接、二维码和 `most://` 客户端打开入口。
 4. 保持应用或 daemon 在线。
 5. 打开 `/admin/`，确认 holding 列表里能看到对应 CID，状态为 active 或正在 joining。
+
+直接文件下载 UI 仍需可用：
+
+1. 打开 `/app/`，点击“下载到文件库”。
+2. 弹窗只显示链接输入和“查看并下载”；粘贴无效链接时留在弹窗并显示格式错误。
+3. 分别粘贴 `most://<cid>?filename=<name>`、网页入口和裸 CID，确认都进入对应 `/cid/<cid>` 页面。
+4. CID 页面自动检测可用性；目录集合默认选中本机缺失的子文件，并允许调整后开始下载。
+5. 开始下载后确认全局下载任务条出现；离开 CID 页面后 daemon 继续下载，任务条仍显示进度并可取消或返回 CID 详情。
+6. 在任务仍运行时刷新页面，确认任务条通过 `GET /api/download/tasks` 重新附着活动任务，CID 页面不会重复检测或发起。
+7. 确认成功、部分完成、失败和取消会立即从活动任务接口移除；当前会话显示对应提示，刷新后以 CID 检测、文件库和 holding 为最终状态。
+8. 下载成功后文件进入文件库并默认继续做种；文件发布进度和聊天附件快捷下载保持原有流程。
 
 API 验证：
 
@@ -114,17 +127,30 @@ curl http://localhost:1976/api/node/holdings
 直接文件下载路径仍需可用。`link` 可填 `most://<cid>?filename=<name>`、`https://most.box/cid/<cid>?filename=<name>`、`<cid>` 或 `<cid>?filename=<name>`：
 
 ```bash
+BODY='{"link":"most://<cid>?filename=<name>"}'
 AUTH="$(auth_header POST /api/download/check)"
 curl -X POST http://localhost:1976/api/download/check \
   -H "Content-Type: application/json" \
   -H "Authorization: $AUTH" \
-  -d '{"link":"most://<cid>?filename=<name>"}'
+  -d "$BODY"
 
+BODY='{"link":"most://<cid>?filename=<name>","background":true}'
+AUTH="$(auth_header POST /api/download)"
+curl -X POST http://localhost:1976/api/download \
+  -H "Content-Type: application/json" \
+  -H "Authorization: $AUTH" \
+  -d "$BODY"
+
+AUTH="$(auth_header GET /api/download/tasks)"
+curl http://localhost:1976/api/download/tasks \
+  -H "Authorization: $AUTH"
+
+BODY='{"link":"most://<cid>?filename=<name>","timeout":60000}'
 AUTH="$(auth_header POST /api/p2p/pull)"
 curl -X POST http://localhost:1976/api/p2p/pull \
   -H "Content-Type: application/json" \
   -H "Authorization: $AUTH" \
-  -d '{"link":"most://<cid>?filename=<name>","timeout":60000}'
+  -d "$BODY"
 ```
 
 ## 四、daemon 与管理台验收
@@ -147,22 +173,22 @@ curl http://localhost:1976/api/node/diagnostics
 
 配置数据目录和容量后，重启 daemon，再查看 `/api/node/holdings` 或 `/admin/`。已持有 CID 应自动恢复 join topic。
 
-| 检查项       | 通过标准                                                                                  | 入口                                                 |
-| ------------ | ----------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| 安全策略     | 固定监听 `127.0.0.1:1976`，远程管理通过 SSH 隧道或反向代理                                | `server/index.js`                                    |
-| 局域网管理   | 首个签名身份可认领节点；认领后仅该身份可从局域网访问管理 API，本机回环访问仍可恢复        | `/api/admin/access`、`/admin/`                       |
-| API 防滥用   | 重复认证失败、无效邀请码或高成本写入超过额度时返回 `429`、`RATE_LIMITED` 和 `Retry-After` | `server/src/http/rateLimit.js`                       |
-| 状态解释     | holding 显示 queued、joining、active、paused、error 对应中文状态                          | `formatSeedStatus()`                                 |
-| 日志可读     | 管理台展示时间、level、event、message，支持清空日志                                       | `/api/node/logs`、`src/features/admin/AdminPage.tsx` |
-| 设置落盘     | 配置 patch 在跨进程锁内原子落盘；并发更新保留其他字段，锁超时或 JSON 损坏时不覆盖原文件   | `/api/node/config`、`server/src/node/config.js`      |
-| holding 可见 | 发布或下载成功后，`/api/node/holdings` 与管理台都能看到 CID、大小、状态                   | `/api/node/holdings`                                 |
-| CID 派生     | 手动 holding 的 topic 与 driveName 都必须由 CID digest 派生，传入不匹配值不能污染记录     | `server/src/index.js`                                |
-| API 文档     | OpenAPI 同时包含节点管理、holding、P2P pull、发布、下载检测、下载和按 CID 读取文件路径    | `/api/openapi.json`                                  |
+| 检查项       | 通过标准                                                                                        | 入口                                                 |
+| ------------ | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| 安全策略     | 固定监听 `127.0.0.1:1976`，远程管理通过 SSH 隧道或反向代理                                      | `server/index.js`                                    |
+| 局域网管理   | 首个签名身份可认领节点；认领后仅该身份可从局域网访问管理 API，本机回环访问仍可恢复              | `/api/admin/access`、`/admin/`                       |
+| API 防滥用   | 重复认证失败、无效邀请码或高成本写入超过额度时返回 `429`、`RATE_LIMITED` 和 `Retry-After`       | `server/src/http/rateLimit.js`                       |
+| 状态解释     | holding 显示 queued、joining、active、paused、error 对应中文状态                                | `formatSeedStatus()`                                 |
+| 日志可读     | 管理台展示时间、level、event、message，支持清空日志                                             | `/api/node/logs`、`src/features/admin/AdminPage.tsx` |
+| 设置落盘     | 配置 patch 在跨进程锁内原子落盘；并发更新保留其他字段，锁超时或 JSON 损坏时不覆盖原文件         | `/api/node/config`、`server/src/node/config.js`      |
+| holding 可见 | 发布或下载成功后，`/api/node/holdings` 与管理台都能看到 CID、大小、状态                         | `/api/node/holdings`                                 |
+| holding 隐私 | holding 的 topic 必须由 CID digest 派生；公共响应不得包含 driveName、transport 或状态机内部字段 | `server/src/index.js`                                |
+| API 文档     | OpenAPI 同时包含节点管理、holding、P2P pull、发布、下载检测、下载和按 CID 读取文件路径          | `/api/openapi.json`                                  |
 
 推荐检查：
 
 ```bash
-node --test --test-name-pattern "returns node status|saves daemon config and exposes policy locally|returns node logs and OpenAPI spec|lists node holdings after publish|creates a manual holding record|normalizes manual holding driveName from the CID" server/tests/integration/api.test.js
+node --test --test-name-pattern "returns node status|saves daemon config and exposes policy locally|returns node logs and OpenAPI spec|lists node holdings after publish|does not expose a manual holding creation endpoint" server/tests/integration/api.test.js
 ```
 
 ## 五、前端体验回归

@@ -3,9 +3,12 @@ import {
   isReleaseManifest,
   resolveReleaseAssetDownload,
 } from '../server/src/core/releaseManifest.js'
+import { isAllowedExternalHost } from './security.js'
 
 export const DEFAULT_RELEASE_MANIFEST_URL =
   'https://download.most.box/releases/latest.json'
+
+const DEFAULT_RELEASE_DOWNLOAD_HOSTS = ['download.most.box', 'github.com']
 
 const PLATFORM_BY_PROCESS = {
   darwin: 'macos',
@@ -57,6 +60,17 @@ export function findUpdateAsset(manifest, platform, arch) {
   )
 }
 
+export function isSafeReleaseDownloadUrl(
+  value,
+  manifestUrl = DEFAULT_RELEASE_MANIFEST_URL
+) {
+  const allowedHosts = new Set(DEFAULT_RELEASE_DOWNLOAD_HOSTS)
+  try {
+    allowedHosts.add(new URL(manifestUrl).hostname.toLowerCase())
+  } catch {}
+  return isAllowedExternalHost(value, allowedHosts)
+}
+
 export function formatBytes(size) {
   if (!Number.isFinite(size) || size <= 0) return ''
 
@@ -80,7 +94,12 @@ export function getAvailableUpdate(manifest, options = {}) {
   if (!asset) return null
 
   const { url: downloadUrl } = resolveReleaseAssetDownload(asset, 'r2')
-  if (!downloadUrl) return null
+  if (
+    !downloadUrl ||
+    !isSafeReleaseDownloadUrl(downloadUrl, options.manifestUrl)
+  ) {
+    return null
+  }
 
   return {
     version: manifest.version,

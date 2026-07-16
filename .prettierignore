@@ -6,3 +6,5 @@ public/bundle.js
 public/bundle.js.map
 public/index.js
 public/chat-page.js
+src/routeTree.gen.ts
+mobile/android/release.gradle

@@ -51,12 +51,14 @@ export default function UserLoginModal() {
           handleLogin()
         }}
       >
-        <div className="login-modal-header">
+        <div className="modal-header login-modal-header">
           <h3>{t('login.title')}</h3>
           <button
-            className="login-modal-close"
+            className="btn btn-icon login-modal-close"
             onClick={closeLoginModal}
             type="button"
+            aria-label={t('common.close')}
+            title={t('common.close')}
           >
             <X size={18} />
           </button>

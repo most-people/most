@@ -87,24 +87,10 @@
 /* === Card === */
 
 .ping-card {
-  background: var(--glass-bg);
-  backdrop-filter: var(--blur-lg);
-  -webkit-backdrop-filter: var(--blur-lg);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-lg);
   padding: 16px;
-  box-shadow: var(--glass-shadow);
-  transition:
-    transform var(--transition-fast),
-    box-shadow var(--transition-fast);
   display: flex;
   flex-direction: column;
   gap: 20px;
-}
-
-.ping-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--glass-shadow-lg);
 }
 
 .ping-card-top {

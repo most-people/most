@@ -23,12 +23,13 @@ Web3 产品入口和以太坊钱包工具保留为独立工具箱，不参与 Mo
 
 `docs/plan/` 中的阶段性计划已移除；代码、README 和验收文档是当前事实来源。处理相关需求时优先阅读：
 
-| 需求类型                     | 优先阅读                       |
-| ---------------------------- | ------------------------------ |
-| 新用户、本地验收和 MVP 回归  | `docs/acceptance.md`           |
-| 产品定位、使用方式和技术栈   | `README.md`                    |
-| Android Alpha 内测验收       | `docs/mobile-android-alpha.md` |
-| 代码结构、协议边界和开发约定 | 本文件，以及相关入口文件       |
+| 需求类型                     | 优先阅读                         |
+| ---------------------------- | -------------------------------- |
+| 新用户、本地验收和 MVP 回归  | `docs/acceptance.md`             |
+| 产品定位、使用方式和技术栈   | `README.md`                      |
+| Android Alpha 内测验收       | `docs/mobile-android-alpha.md`   |
+| iOS 真机可行性验证           | `docs/mobile-ios-feasibility.md` |
+| 代码结构、协议边界和开发约定 | 本文件，以及相关入口文件         |
 
 ## 当前 MVP 口径
 
@@ -70,11 +71,11 @@ MVP 成功标准：
 - 后端：Hono, `@hono/node-server`, WebSocket
 - P2P：Hyperswarm 4.x, Hyperdrive 13.x, Corestore 7.x
 - Web3 工具箱：ethers.js
-- 桌面：Electron 42, electron-builder
-- 移动端：Expo 56, React Native 0.85, react-native-bare-kit / Bare Worklet
+- 桌面：Electron 43, electron-builder
+- 移动端：Expo 57, React Native 0.86, react-native-bare-kit / Bare Worklet
 - 测试：Node.js built-in test runner
 
-本地源码开发建议 Node.js >= 22.12。当前 TanStack Start static prerender 前端和 Electron 42 开发/打包都建议 Node.js >= 22.12。
+本地源码开发建议 Node.js >= 22.13。当前 TanStack Start static prerender 前端、Electron 43 和 Expo 57 移动端开发/打包都建议 Node.js >= 22.13。
 
 ## 核心实现约束
 

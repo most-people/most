@@ -15,8 +15,8 @@ describe('Docker packaging', () => {
   test('builds an amd64 runtime image that starts the daemon without npm at runtime', () => {
     const dockerfile = readRepoFile('Dockerfile')
 
-    assert.match(dockerfile, /^FROM node:22-bookworm AS build/m)
-    assert.match(dockerfile, /^FROM node:22-bookworm AS runtime/m)
+    assert.match(dockerfile, /^FROM node:24-bookworm AS build/m)
+    assert.match(dockerfile, /^FROM node:24-bookworm AS runtime/m)
     assert.match(dockerfile, /RUN npm ci\b/)
     assert.match(dockerfile, /RUN npm run build\b/)
     assert.match(dockerfile, /RUN npm ci --omit=dev\b/)
@@ -30,8 +30,11 @@ describe('Docker packaging', () => {
 
   test('ships a Feiniu OS compose example with host networking and persistent data', () => {
     const compose = readRepoFile('docker-compose.example.yml')
+    const version = JSON.parse(readRepoFile('package.json')).version
 
-    assert.match(compose, /image: ghcr\.io\/most-people\/most-box:0\.4\.2/)
+    assert.ok(
+      compose.includes(`image: ghcr.io/most-people/most-box:${version}`)
+    )
     assert.match(compose, /container_name: mostbox/)
     assert.match(compose, /network_mode: host/)
     assert.match(compose, /restart: unless-stopped/)

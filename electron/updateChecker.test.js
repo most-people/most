@@ -9,6 +9,7 @@ import {
   getCurrentPlatform,
   getReleaseManifestUrl,
   isNewerVersion,
+  isSafeReleaseDownloadUrl,
 } from './updateChecker.js'
 
 const manifest = {
@@ -136,6 +137,52 @@ describe('desktop update checker', () => {
     })
 
     assert.equal(update?.downloadUrl, manifest.assets[1].githubUrl)
+  })
+
+  it('rejects unsafe or untrusted update download URLs', () => {
+    assert.equal(isSafeReleaseDownloadUrl('custom-scheme://payload'), false)
+    assert.equal(
+      isSafeReleaseDownloadUrl('https://download.most.box.evil.test/x'),
+      false
+    )
+
+    const unsafeManifest = {
+      ...manifest,
+      assets: [
+        {
+          ...manifest.assets[0],
+          r2Url: 'custom-scheme://payload',
+        },
+      ],
+    }
+    assert.equal(
+      getAvailableUpdate(unsafeManifest, {
+        currentVersion: '0.1.2',
+        platform: 'windows',
+        arch: 'x64',
+      }),
+      null
+    )
+  })
+
+  it('allows HTTPS downloads from an explicitly configured manifest host', () => {
+    const customManifest = {
+      ...manifest,
+      assets: [
+        {
+          ...manifest.assets[0],
+          r2Url: 'https://updates.example.test/MostBox.exe',
+        },
+      ],
+    }
+    const update = getAvailableUpdate(customManifest, {
+      currentVersion: '0.1.2',
+      platform: 'windows',
+      arch: 'x64',
+      manifestUrl: 'https://updates.example.test/latest.json',
+    })
+
+    assert.equal(update?.downloadUrl, customManifest.assets[0].r2Url)
   })
 
   it('formats installer sizes for update prompts', () => {

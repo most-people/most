@@ -20,7 +20,7 @@ import { sha256 } from 'multiformats/hashes/sha2'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
-import { Duplex, Readable } from 'node:stream'
+import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 
 import {
@@ -30,9 +30,13 @@ import {
   buildMostLink,
 } from './core/cid.js'
 import { normalizeChannelAttachment } from './core/channelAttachment.js'
-import { consumeChannelFrames } from './core/channelFrames.js'
+import { openChannelControlProtocol } from './core/channelControlProtocol.js'
 import { normalizeChannelVoiceEvent } from './core/channelVoice.js'
 import { getCidInfo } from './core/cidTopic.js'
+import {
+  getConnectionTopicSet,
+  openFileDriveProtocol,
+} from './core/fileDriveProtocol.js'
 import {
   TRANSIENT_CHANNEL_TYPES,
   CHANNEL_DISCOVERY_TIMEOUT,
@@ -55,6 +59,7 @@ import {
 } from './core/ownerMetadata.js'
 import { getSyncTimestamp, getNextSyncTimestamp } from './core/syncTimestamp.js'
 import { createOfflineSwarm } from './node/offlineSwarm.js'
+import { ensureStorageSchema } from './node/storageSchema.js'
 import {
   METADATA_BACKUP_SUFFIX,
   readMetadataFile,
@@ -94,7 +99,6 @@ import {
   EngineNotInitializedError,
 } from './utils/errors.js'
 import {
-  GLOBAL_SHARED_SEED_STRING,
   MAX_FILE_SIZE,
   CONNECTION_TIMEOUT,
   DOWNLOAD_TIMEOUT,
@@ -126,6 +130,32 @@ const CHANNEL_PRESENCE_TIMEOUT_MS = 45 * 1000
 const CHANNEL_MEMBER_JOINED_EVENT = 'channel.member.joined'
 const CHANNEL_MEMBER_PROFILE_UPDATED_EVENT = 'channel.member.profile.updated'
 const CHANNEL_MEMBER_PROFILE_TIME_FUTURE_TOLERANCE_MS = 5 * 60 * 1000
+const FILE_CORESTORE_DIR = path.join('stores', 'files')
+const CHANNEL_CORESTORE_DIR = path.join('stores', 'channels')
+const DRIVE_ENTRY_SOURCE = Symbol('driveEntrySource')
+const DRIVE_TRANSPORT = Symbol('driveTransport')
+const DRIVE_BASE_SESSION = Symbol('driveBaseSession')
+const DRIVE_REMOTE_SNAPSHOT = Symbol('driveRemoteSnapshot')
+const HOLDINGS_SCHEMA_VERSION = 1
+const PENDING_PURGES_FILE = 'pending-drive-purges.json'
+
+async function purgeDriveLocalBlocks(drive) {
+  await drive.ready()
+  await drive.clearAll()
+  await drive.core.clear(0, drive.core.length)
+  await drive.close()
+}
+
+async function closeDriveSessions(drive) {
+  if (!drive) return
+  const baseDrive = drive[DRIVE_BASE_SESSION]
+  await drive.close().catch(() => {})
+  if (baseDrive && baseDrive !== drive) {
+    await baseDrive.close().catch(() => {})
+  }
+}
+const MAX_REMOTE_CANDIDATES_PER_CID = 4
+const MAX_UNVERIFIED_DRIVE_OPENS = 8
 const CHANNEL_MENTION_LIMIT = 20
 const PUBLISH_WRITE_STALL_TIMEOUT = 15 * 1000
 const PUBLISH_DRIVE_RESET_TIMEOUT = 5 * 1000
@@ -141,7 +171,8 @@ function hasOwnProperty(value, key) {
 
 function getDirectoryBlockBytes(directory) {
   let bytes = 0
-  for (const block of directory?.blocks?.values?.() || []) {
+  for (const [blockCid, block] of directory?.blocks?.entries?.() || []) {
+    if (CID.parse(blockCid).code !== 0x70) continue
     bytes += Number(block?.byteLength ?? block?.length ?? 0)
   }
   return bytes
@@ -271,54 +302,26 @@ function getChannelHistoryDedupeKey(message) {
   ].join(':')
 }
 
-function createMemoryDuplexPair() {
-  let left
-  let right
-
-  left = new Duplex({
-    read() {},
-    write(chunk, _encoding, callback) {
-      if (!right.destroyed) right.push(chunk)
-      callback()
-    },
-    final(callback) {
-      if (!right.destroyed) right.push(null)
-      callback()
-    },
-  })
-
-  right = new Duplex({
-    read() {},
-    write(chunk, _encoding, callback) {
-      if (!left.destroyed) left.push(chunk)
-      callback()
-    },
-    final(callback) {
-      if (!left.destroyed) left.push(null)
-      callback()
-    },
-  })
-
-  left.on('close', () => {
-    if (!right.destroyed) right.destroy()
-  })
-  right.on('close', () => {
-    if (!left.destroyed) left.destroy()
-  })
-
-  return [left, right]
-}
-
 export class MostBoxEngine extends EventEmitter {
-  #store = null
+  #fileStore = null
+  #channelStore = null
   #swarm = null
   #drives = new Map()
   #publishedFiles = {}
   #holdings = []
   #initialized = false
+  #stopping = false
   #options = null
   #activeDownloads = new Map()
   #drivePromises = new Map()
+  #remoteDrives = new Map()
+  #remoteOffers = new Map()
+  #remoteDrivePromises = new Map()
+  #remoteDriveOpenCount = 0
+  #remoteDriveOpenWaiters = []
+  #pendingDrivePurges = new Set()
+  #pendingDrivePurgeSessions = new Map()
+  #fileProtocols = new Set()
   #fileDiscoveries = new Map()
   #fileMonitors = new Map()
   #activePublishes = new Map()
@@ -625,32 +628,40 @@ export class MostBoxEngine extends EventEmitter {
     if (this.#initialized) {
       return
     }
+    this.#stopping = false
 
     const { dataPath } = this.#options
 
     console.log(`[MostBox] Initializing engine...`)
     console.log(`[MostBox] Storage path: ${dataPath}`)
 
-    if (!fs.existsSync(dataPath)) {
-      fs.mkdirSync(dataPath, { recursive: true })
+    try {
+      ensureStorageSchema(dataPath)
+    } catch (error) {
+      error.dataPath = dataPath
+      throw error
     }
-
     const nodeSeed = loadOrCreateNodeSeed(dataPath)
-    const GLOBAL_SHARED_SEED = b4a.alloc(32).fill(GLOBAL_SHARED_SEED_STRING)
-    this.#store = new Corestore(dataPath, {
-      primaryKey: GLOBAL_SHARED_SEED,
-      unsafe: true,
-    })
+    this.#fileStore = new Corestore(path.join(dataPath, FILE_CORESTORE_DIR))
+    this.#channelStore = new Corestore(
+      path.join(dataPath, CHANNEL_CORESTORE_DIR)
+    )
 
     try {
-      await this.#store.ready()
-      console.log(`[MostBox] Corestore ready`)
+      await Promise.all([this.#fileStore.ready(), this.#channelStore.ready()])
+      console.log(`[MostBox] File and channel Corestores ready`)
+      this.#loadPendingDrivePurges()
+      this.#holdings = this.#loadHoldingsMetadata()
+      await this.#flushPendingDrivePurges()
     } catch (err) {
+      const stores = [this.#fileStore, this.#channelStore]
+      this.#fileStore = null
+      this.#channelStore = null
+      await Promise.allSettled(stores.map(store => store?.close()))
       if (
         err.message &&
         err.message.includes('Another corestore is stored here')
       ) {
-        this.#store = null
         throw new PersistenceError(
           `Storage path uses a different Corestore identity. MostBox will not delete existing data automatically. Move the directory aside or choose a new dataPath before restarting: ${dataPath}`,
           { reason: 'CORESTORE_IDENTITY_MISMATCH' }
@@ -672,11 +683,10 @@ export class MostBoxEngine extends EventEmitter {
     try {
       ensureNodeSeedPersisted(dataPath, nodeSeed)
     } catch (err) {
-      const store = this.#store
-      this.#store = null
-      try {
-        await store.close()
-      } catch {}
+      const stores = [this.#fileStore, this.#channelStore]
+      this.#fileStore = null
+      this.#channelStore = null
+      await Promise.allSettled(stores.map(store => store?.close()))
       throw err
     }
 
@@ -709,15 +719,24 @@ export class MostBoxEngine extends EventEmitter {
       this.emit('error', err)
     })
 
-    this.#swarm.on('connection', (conn, _info) => {
+    this.#swarm.on('connection', (conn, info) => {
       conn.on('error', err => {
         if (err.code === 'SSL_ERROR' || err.message?.includes('handshake')) {
           return
         }
       })
 
-      this.#store.replicate(conn)
-      this.emit('connection', conn)
+      if (this.#stopping || !this.#fileStore) {
+        conn.destroy()
+        return
+      }
+      try {
+        this.#fileStore.replicate(conn)
+        this.#openFileDriveConnection(conn, info)
+        this.emit('connection', conn)
+      } catch {
+        conn.destroy()
+      }
     })
 
     if (!this.#options.disableNetwork) {
@@ -754,7 +773,16 @@ export class MostBoxEngine extends EventEmitter {
         }
       })
 
-      this.#handleChannelConnection(conn, info).catch(() => {})
+      if (this.#stopping || !this.#channelStore) {
+        conn.destroy()
+        return
+      }
+      try {
+        this.#channelStore.replicate(conn)
+        this.#openChannelConnection(conn, info)
+      } catch {
+        conn.destroy()
+      }
     })
 
     try {
@@ -763,14 +791,17 @@ export class MostBoxEngine extends EventEmitter {
         `[MostBox] Loaded ${this.#countBucketRecords(this.#publishedFiles)} published files`
       )
 
-      this.#holdings = this.#loadHoldingsMetadata()
+      await this.#recoverStagingHoldings()
       console.log(`[MostBox] Loaded ${this.#holdings.length} node holdings`)
 
-      for (const holding of this.#holdings) {
+      for (const holding of this.#holdings.filter(
+        item => item.state === 'ready'
+      )) {
+        const { topicHex, driveName } = this.#getCidInfo(holding.cid)
         this.#setSeedState(holding.cid, {
           status: 'queued',
-          topic: holding.topic,
-          driveName: holding.driveName,
+          topic: topicHex,
+          driveName,
         })
       }
 
@@ -813,12 +844,14 @@ export class MostBoxEngine extends EventEmitter {
   async stop() {
     if (
       !this.#initialized &&
-      !this.#store &&
+      !this.#fileStore &&
+      !this.#channelStore &&
       !this.#swarm &&
       !this.#chatSwarm
     ) {
       return
     }
+    this.#stopping = true
 
     for (const task of this.#activeDownloads.values()) {
       task.aborted = true
@@ -831,8 +864,24 @@ export class MostBoxEngine extends EventEmitter {
       [...this.#fileMonitors.values()].map(item => this.#closeFileMonitor(item))
     )
     this.#fileMonitors.clear()
-    await Promise.allSettled([...this.#drives.values()].map(d => d.close()))
+    const fileDrives = new Set([
+      ...this.#drives.values(),
+      ...[...this.#remoteDrives.values()].flatMap(drives => [
+        ...drives.values(),
+      ]),
+      ...this.#pendingDrivePurgeSessions.values(),
+    ])
+    await Promise.allSettled([...fileDrives].map(closeDriveSessions))
     this.#drives.clear()
+    this.#remoteDrives.clear()
+    this.#remoteOffers.clear()
+    this.#remoteDrivePromises.clear()
+    this.#pendingDrivePurgeSessions.clear()
+    this.#remoteDriveOpenCount = 0
+    while (this.#remoteDriveOpenWaiters.length) {
+      this.#remoteDriveOpenWaiters.shift()?.()
+    }
+    this.#fileProtocols.clear()
     this.#fileDiscoveries.clear()
     this.#activePublishes.clear()
     this.#seedStates.clear()
@@ -868,13 +917,16 @@ export class MostBoxEngine extends EventEmitter {
     this.#clearChannelPresenceRuntime()
     this.#channels = []
 
-    if (this.#store) {
-      await this.#store.close()
-      this.#store = null
-    }
+    await Promise.allSettled([
+      this.#fileStore?.close(),
+      this.#channelStore?.close(),
+    ])
+    this.#fileStore = null
+    this.#channelStore = null
 
     this.#storageReservations.clear()
     this.#initialized = false
+    this.#stopping = false
     this.emit('stopped')
   }
 
@@ -999,9 +1051,7 @@ export class MostBoxEngine extends EventEmitter {
       // 检查相同内容是否已存在
       const existingIndex = publishedBucket.findIndex(f => f.cid === cidString)
       const repairingMissingContent = existingIndex !== -1
-      const existingHolding = this.#holdings.find(
-        item => item.cid === cidString
-      )
+      let existingHolding = this.#holdings.find(item => item.cid === cidString)
       let existingContent = null
       if (existingIndex !== -1 || existingHolding) {
         existingContent = await this.#getLocalCidContent(cidString, {
@@ -1031,6 +1081,42 @@ export class MostBoxEngine extends EventEmitter {
             alreadyExists: true,
           }
         }
+      }
+
+      if (existingContent && existingHolding) {
+        if (addToLibrary) {
+          this.#assertDisplayNameAvailable(safeFileName, {
+            ownerAddress,
+            excludeCid: cidString,
+          })
+          const syncUpdatedAt = Date.now()
+          publishedBucket.push({
+            fileName: safeFileName,
+            cid: cidString,
+            driveName: name,
+            size: fileSize,
+            source: 'published',
+            publishedAt: new Date(syncUpdatedAt).toISOString(),
+            starred: false,
+            syncUpdatedAt,
+          })
+          this.#savePublishedMetadata()
+        }
+        await this.#joinCidTopicInternal(cidString, {
+          server: true,
+          client: false,
+        })
+        return {
+          cid: cidString,
+          link: buildMostLink(cidString, safeFileName),
+          fileName: safeFileName,
+          alreadyExists: true,
+        }
+      }
+
+      if (existingHolding && !existingContent) {
+        await this.#purgeHoldingDrive(existingHolding)
+        existingHolding = null
       }
 
       if (addToLibrary) {
@@ -1067,6 +1153,18 @@ export class MostBoxEngine extends EventEmitter {
             client: false,
           })
         }
+        this.#upsertHolding({
+          cid: cidString,
+          fileName: safeFileName,
+          size: fileSize,
+          source: 'published',
+          state: 'staging',
+          transport: {
+            type: 'hyperdrive',
+            key: b4a.toString(drive.key, 'hex'),
+            version: 0,
+          },
+        })
         this.emit('publish:progress', {
           stage: 'uploading',
           file: safeFileName,
@@ -1103,8 +1201,23 @@ export class MostBoxEngine extends EventEmitter {
                 server: true,
                 client: false,
               })
+          this.#upsertHolding({
+            cid: cidString,
+            fileName: safeFileName,
+            size: fileSize,
+            source: 'published',
+            state: 'staging',
+            transport: {
+              type: 'hyperdrive',
+              key: b4a.toString(drive.key, 'hex'),
+              version: 0,
+            },
+          })
           await this.#writeDriveFile(drive, driveKey, content, cleanPath)
         }
+
+        const sealed = this.#sealDrive(name, drive)
+        drive = sealed.drive
 
         // 存储 displayName（用户看到的文件夹路径），不存储 drivePath
         this.emit('publish:progress', {
@@ -1118,6 +1231,14 @@ export class MostBoxEngine extends EventEmitter {
           file: safeFileName,
           cid: cidString,
           size: fileSize,
+        })
+        this.#upsertHolding({
+          cid: cidString,
+          fileName: safeFileName,
+          size: fileSize,
+          source: 'published',
+          state: 'ready',
+          transport: sealed.transport,
         })
         await this.#joinCidTopicInternal(cidString, {
           server: true,
@@ -1148,14 +1269,6 @@ export class MostBoxEngine extends EventEmitter {
           }
           this.#savePublishedMetadata()
         }
-        this.#upsertHolding({
-          cid: cidString,
-          fileName: safeFileName,
-          size: fileSize,
-          driveName: name,
-          source: 'published',
-        })
-
         const result = {
           cid: cidString,
           link: buildMostLink(cidString, safeFileName),
@@ -1164,6 +1277,9 @@ export class MostBoxEngine extends EventEmitter {
 
         this.emit('publish:success', result)
         return result
+      } catch (err) {
+        await this.#discardStagingHolding(cidString)
+        throw err
       } finally {
         releaseCapacity()
       }
@@ -1240,6 +1356,7 @@ export class MostBoxEngine extends EventEmitter {
       : []
     const existingIndex = publishedBucket.findIndex(f => f.cid === cidString)
     const repairingMissingContent = existingIndex !== -1
+    let existingHolding = this.#holdings.find(item => item.cid === cidString)
 
     if (existingIndex !== -1) {
       const existingContent = await this.#getLocalCidContent(cidString, {
@@ -1273,6 +1390,10 @@ export class MostBoxEngine extends EventEmitter {
           files: directory.files,
           alreadyExists: true,
         }
+      }
+      if (existingHolding) {
+        await this.#purgeHoldingDrive(existingHolding)
+        existingHolding = null
       }
     }
 
@@ -1324,16 +1445,41 @@ export class MostBoxEngine extends EventEmitter {
           client: false,
         })
       }
-      await this.#joinCidTopicInternal(cidString, {
-        server: true,
-        client: false,
+      this.#upsertHolding({
+        cid: cidString,
+        fileName: safeCollectionName,
+        kind: 'collection',
+        size: 0,
+        source: 'published',
+        state: 'staging',
+        transport: {
+          type: 'hyperdrive',
+          key: b4a.toString(drive.key, 'hex'),
+          version: 0,
+        },
       })
 
       for (const [blockCid, block] of directory.blocks.entries()) {
+        if (CID.parse(blockCid).code !== 0x70) continue
         const driveKey =
           blockCid === cidString ? `/${blockCid}` : `/.unixfs/${blockCid}`
         await this.#writeDriveFile(drive, driveKey, block)
       }
+      const sealed = this.#sealDrive(name, drive)
+      drive = sealed.drive
+      this.#upsertHolding({
+        cid: cidString,
+        fileName: safeCollectionName,
+        kind: 'collection',
+        size: 0,
+        source: 'published',
+        state: 'ready',
+        transport: sealed.transport,
+      })
+      await this.#joinCidTopicInternal(cidString, {
+        server: true,
+        client: false,
+      })
 
       const now = Date.now()
       const fileRecord = {
@@ -1356,15 +1502,6 @@ export class MostBoxEngine extends EventEmitter {
         }
         this.#savePublishedMetadata()
       }
-      this.#upsertHolding({
-        cid: cidString,
-        fileName: safeCollectionName,
-        kind: 'collection',
-        size: 0,
-        driveName: name,
-        source: 'published',
-      })
-
       const result = {
         kind: 'collection',
         cid: cidString,
@@ -1377,6 +1514,9 @@ export class MostBoxEngine extends EventEmitter {
 
       this.emit('publish:success', result)
       return result
+    } catch (err) {
+      await this.#discardStagingHolding(cidString)
+      throw err
     } finally {
       releaseCapacity()
     }
@@ -1563,19 +1703,8 @@ export class MostBoxEngine extends EventEmitter {
 
       if (taskState.aborted) throw new Error('Download cancelled')
 
-      let drive = this.#drives.get(name)
-
-      if (!drive) {
-        console.log(`[MostBox] Creating new drive: ${name}`)
-        drive = await this.#getOrCreateDrive(name, {
-          server: true,
-          client: true,
-        })
-
-        this.emit('download:status', { taskId, status: 'connecting' })
-      } else {
-        console.log(`[MostBox] Using existing drive: ${name}`)
-      }
+      let drive = this.#drives.get(name) || null
+      this.emit('download:status', { taskId, status: 'connecting' })
       await this.#joinCidTopicInternal(cidString, {
         server: false,
         client: true,
@@ -1589,319 +1718,354 @@ export class MostBoxEngine extends EventEmitter {
         `[MostBox] Waiting for drive entry /${cidString} (timeout: ${downloadTimeout / 1000}s)...`
       )
       const driveKey = '/' + cidString
-      const entry = await this.#waitForDriveEntry(
-        drive,
-        driveKey,
-        downloadTimeout,
-        taskId,
-        taskState
-      )
-
-      if (!entry) {
-        console.log(`[MostBox] Expected drive entry ${driveKey} not found`)
-
-        const peerCount = this.#swarm.connections.size
-        let errorMessage = `Expected file ${driveKey} was not found. `
-
-        if (peerCount === 0) {
-          errorMessage +=
-            'Could not connect to any peers. This may be due to:\n'
-          errorMessage += '1. Network firewall blocking P2P connections\n'
-          errorMessage += '2. DHT bootstrap nodes unreachable\n'
-          errorMessage += '3. NAT traversal failed (try port forwarding)\n'
-          errorMessage += '4. No peers are currently sharing this file'
-        } else {
-          errorMessage += `Connected to ${peerCount} peers but no file data was found. This may be due to:\n`
-          errorMessage += '1. Publisher node offline\n'
-          errorMessage += '2. File may have been removed by publisher\n'
-          errorMessage += '3. File link may be invalid or corrupted'
-        }
-
-        throw new PeerNotFoundError(errorMessage)
-      }
-
-      if (taskState.aborted) throw new Error('Download cancelled')
-
-      console.log(
-        `[MostBox] Found expected entry ${driveKey}, starting download...`
-      )
-
-      const remoteCollection = await this.#tryReadCollectionFromDrive(
-        cidString,
-        drive,
-        linkFileName
-      )
-      if (remoteCollection) {
-        const result = await this.#downloadCollectionFiles(
-          remoteCollection,
+      let lastCandidateError = null
+      candidateLoop: while (true) {
+        const entry = await this.#waitForDriveEntry(
+          drive,
+          driveKey,
+          downloadTimeout,
           taskId,
-          {
-            ...options,
-            ownerAddress,
-            fileName: linkFileName,
-            taskState,
-          }
+          taskState,
+          cidString
         )
-        return result
-      }
 
-      const writableCheck = await checkDirectoryWritable(this.#options.dataPath)
-      if (!writableCheck.writable) {
-        throw new PermissionError(writableCheck.error)
-      }
+        if (!entry) {
+          if (lastCandidateError) throw lastCandidateError
+          console.log(`[MostBox] Expected drive entry ${driveKey} not found`)
 
-      // 下载文件
-      const entries = [entry]
-      for (const entry of entries) {
-        const cleanKey = entry.key.replace(/^[\/\\]/, '')
-        const sanitizedFileName = linkFileName
-          ? sanitizeFilename(linkFileName)
-          : sanitizeFilename(cleanKey)
+          const peerCount = this.#swarm.connections.size
+          let errorMessage = `Expected file ${driveKey} was not found. `
 
-        let totalBytes = 0
-        try {
-          const stat = await drive.entry(entry.key)
-          if (stat && stat.value && stat.value.blob) {
-            totalBytes = stat.value.blob.byteLength || 0
+          if (peerCount === 0) {
+            errorMessage +=
+              'Could not connect to any peers. This may be due to:\n'
+            errorMessage += '1. Network firewall blocking P2P connections\n'
+            errorMessage += '2. DHT bootstrap nodes unreachable\n'
+            errorMessage += '3. NAT traversal failed (try port forwarding)\n'
+            errorMessage += '4. No peers are currently sharing this file'
+          } else {
+            errorMessage += `Connected to ${peerCount} peers but no file data was found. This may be due to:\n`
+            errorMessage += '1. Publisher node offline\n'
+            errorMessage += '2. File may have been removed by publisher\n'
+            errorMessage += '3. File link may be invalid or corrupted'
           }
-        } catch {
-          // 忽略
+
+          throw new PeerNotFoundError(errorMessage)
         }
 
-        if (totalBytes > this.#options.maxFileSize) {
-          throw new FileSizeError(
-            'Downloaded file exceeds the configured maximum file size',
-            totalBytes,
-            this.#options.maxFileSize
+        if (taskState.aborted) throw new Error('Download cancelled')
+
+        console.log(
+          `[MostBox] Found expected entry ${driveKey}, starting download...`
+        )
+        const sourceDrive = this.#getDriveEntrySource(entry, drive)
+        const sourceTransport = this.#getDriveTransport(sourceDrive)
+        if (!sourceTransport) {
+          throw new IntegrityError(
+            'Peer did not provide a valid drive snapshot'
           )
         }
+        this.#drives.set(name, sourceDrive)
 
-        const tempDir = fs.mkdtempSync(
-          path.join(this.#options.dataPath, '.download-tmp-')
-        )
-        const tempPath = path.join(tempDir, 'content')
-        const existingHolding = this.#holdings.find(
-          item => item.cid === cidString
-        )
-        taskState.releaseCapacity = this.#reserveCapacity(
-          existingHolding ? 0 : totalBytes,
-          [
-            {
-              path: this.#options.dataPath,
-              bytes: totalBytes,
-              label: 'hyperdrive',
-            },
-            {
-              path: this.#options.dataPath,
-              bytes: totalBytes,
-              label: 'download-temp',
-            },
-          ]
-        )
-
+        let remoteCollection
         try {
-          this.emit('download:status', {
-            taskId,
-            status: 'downloading',
-            file: sanitizedFileName,
-            size: totalBytes ? formatFileSize(totalBytes) : null,
+          remoteCollection = await this.#tryReadCollectionFromDrive(
+            cidString,
+            sourceDrive,
+            linkFileName
+          )
+        } catch (error) {
+          lastCandidateError = error
+          await this.#rejectRemoteDriveCandidate(cidString, sourceDrive)
+          continue candidateLoop
+        }
+        if (remoteCollection) {
+          this.#upsertHolding({
+            cid: cidString,
+            fileName: linkFileName,
+            kind: 'collection',
+            size: 0,
+            source: 'downloaded',
+            state: 'ready',
+            transport: sourceTransport,
           })
-
-          const rs = drive.createReadStream(entry.key)
-          const ws = fs.createWriteStream(tempPath)
-
-          taskState.readStream = rs
-          taskState.writeStream = ws
-
-          let loadedBytes = 0
-          let lastProgressUpdate = 0
-
-          await new Promise((resolve, reject) => {
-            let settled = false
-            let readTimer = null
-
-            const clearReadTimer = () => {
-              if (readTimer) {
-                clearTimeout(readTimer)
-                readTimer = null
-              }
-            }
-
-            const fail = err => {
-              if (settled) return
-              settled = true
-              clearReadTimer()
-              rs.destroy(err)
-              ws.destroy()
-              fs.unlink(tempPath, () => {})
-              reject(err)
-            }
-
-            const complete = () => {
-              if (settled) return
-              settled = true
-              clearReadTimer()
-              resolve()
-            }
-
-            const resetReadTimer = () => {
-              clearReadTimer()
-              if (streamReadTimeout > 0) {
-                readTimer = setTimeout(() => {
-                  fail(
-                    new Error(
-                      `Download stalled: no data received for ${streamReadTimeout / 1000}s`
-                    )
-                  )
-                }, streamReadTimeout)
-              }
-            }
-
-            resetReadTimer()
-
-            rs.on('data', chunk => {
-              if (taskState.aborted) {
-                fail(new Error('Download cancelled'))
-                return
-              }
-              resetReadTimer()
-              loadedBytes += chunk.length
-              const now = Date.now()
-              if (
-                totalBytes > 0 &&
-                now - lastProgressUpdate > PROGRESS_THROTTLE
-              ) {
-                lastProgressUpdate = now
-                const percent = Math.round((loadedBytes / totalBytes) * 100)
-                this.emit('download:progress', {
-                  taskId,
-                  loaded: loadedBytes,
-                  total: totalBytes,
-                  percent,
-                })
-              }
-            })
-
-            rs.pipe(ws)
-            ws.on('finish', complete)
-            ws.on('error', fail)
-            rs.on('error', fail)
-            rs.on('close', () => {
-              if (taskState.aborted) {
-                fail(new Error('Download cancelled'))
-              }
-            })
-            ws.on('close', () => {
-              if (taskState.aborted) {
-                fail(new Error('Download cancelled'))
-              }
-            })
-          })
-
-          if (taskState.aborted) throw new Error('Download cancelled')
-
-          this.emit('download:status', { taskId, status: 'verifying' })
-
-          const { cid: downloadedCid, size: downloadedSize } =
-            await calculateCid(tempPath)
-          const downloadedCidString = downloadedCid.toString()
-
-          if (downloadedCidString !== cidString) {
-            throw new IntegrityError(
-              `File content CID mismatch. Expected ${cidString}, got ${downloadedCidString}.`
-            )
-          }
-
-          const driveKey = '/' + cidString
-          const existingEntry = await drive.entry(driveKey, { wait: false })
-          const hasDriveContent =
-            Boolean(existingEntry?.value?.blob) &&
-            (await this.#hasLocalDriveContent(drive, driveKey))
-          if (!hasDriveContent) {
-            await pipeline(
-              fs.createReadStream(tempPath),
-              drive.createWriteStream(driveKey)
-            )
-          }
-          const verifyEntry = await drive.entry(driveKey, { wait: false })
-          const verifiedDriveContent =
-            Boolean(verifyEntry?.value?.blob) &&
-            (await this.#hasLocalDriveContent(drive, driveKey))
-          if (!verifiedDriveContent) {
-            throw new IntegrityError(
-              `Failed to write file to Hyperdrive for seeding: ${driveKey}`
-            )
-          }
           await this.#joinCidTopicInternal(cidString, {
             server: true,
             client: false,
           })
-
-          const result = {
+          const result = await this.#downloadCollectionFiles(
+            remoteCollection,
             taskId,
-            fileName: sanitizedFileName,
-            localAvailable: true,
+            {
+              ...options,
+              ownerAddress,
+              fileName: linkFileName,
+              taskState,
+            }
+          )
+          return result
+        }
+
+        const writableCheck = await checkDirectoryWritable(
+          this.#options.dataPath
+        )
+        if (!writableCheck.writable) {
+          throw new PermissionError(writableCheck.error)
+        }
+
+        // 下载文件
+        const entries = [entry]
+        for (const entry of entries) {
+          const cleanKey = entry.key.replace(/^[\/\\]/, '')
+          const sanitizedFileName = linkFileName
+            ? sanitizeFilename(linkFileName)
+            : sanitizeFilename(cleanKey)
+
+          let totalBytes = 0
+          try {
+            const stat = await sourceDrive.entry(entry.key)
+            if (stat && stat.value && stat.value.blob) {
+              totalBytes = stat.value.blob.byteLength || 0
+            }
+          } catch {
+            // 忽略
           }
 
-          const publishedBucket = addToLibrary
-            ? this.#getPublishedBucket(ownerAddress, true)
-            : []
-          const existingIndex = publishedBucket.findIndex(
-            f => f.cid === cidString
+          if (totalBytes > this.#options.maxFileSize) {
+            throw new FileSizeError(
+              'Downloaded file exceeds the configured maximum file size',
+              totalBytes,
+              this.#options.maxFileSize
+            )
+          }
+
+          const tempDir = fs.mkdtempSync(
+            path.join(this.#options.dataPath, '.download-tmp-')
           )
-          if (addToLibrary) {
-            this.#assertDisplayNameAvailable(sanitizedFileName, {
-              ownerAddress,
-              excludeCid: cidString,
-            })
-          }
-          const savedSize =
-            totalBytes || downloadedSize || fs.statSync(tempPath).size
-          const syncUpdatedAt =
-            existingIndex !== -1
-              ? getNextSyncTimestamp(
-                  publishedBucket[existingIndex].syncUpdatedAt
-                )
-              : Date.now()
-          if (addToLibrary) {
-            if (existingIndex !== -1) {
-              const existing = publishedBucket[existingIndex]
-              existing.fileName = sanitizedFileName
-              existing.driveName = name
-              existing.size = savedSize
-              existing.source = 'downloaded'
-              existing.publishedAt = new Date(syncUpdatedAt).toISOString()
-              existing.syncUpdatedAt = syncUpdatedAt
-            } else {
-              publishedBucket.push({
-                fileName: sanitizedFileName,
-                cid: cidString,
-                driveName: name,
-                size: savedSize,
-                source: 'downloaded',
-                publishedAt: new Date(syncUpdatedAt).toISOString(),
-                starred: false,
-                syncUpdatedAt,
-              })
-            }
-            this.#savePublishedMetadata()
-          }
+          const tempPath = path.join(tempDir, 'content')
+          const existingHolding = this.#holdings.find(
+            item => item.cid === cidString
+          )
           this.#upsertHolding({
             cid: cidString,
             fileName: sanitizedFileName,
-            size: savedSize,
-            driveName: name,
+            size: totalBytes,
             source: 'downloaded',
+            state: 'staging',
+            transport: sourceTransport,
           })
+          taskState.releaseCapacity = this.#reserveCapacity(
+            existingHolding ? 0 : totalBytes,
+            [
+              {
+                path: this.#options.dataPath,
+                bytes: totalBytes,
+                label: 'hyperdrive',
+              },
+              {
+                path: this.#options.dataPath,
+                bytes: totalBytes,
+                label: 'download-temp',
+              },
+            ]
+          )
 
-          if (!options.suppressSuccessEvent) {
-            this.emit('download:success', result)
+          try {
+            this.emit('download:status', {
+              taskId,
+              status: 'downloading',
+              file: sanitizedFileName,
+              size: totalBytes ? formatFileSize(totalBytes) : null,
+            })
+
+            const rs = sourceDrive.createReadStream(entry.key)
+            const ws = fs.createWriteStream(tempPath)
+
+            taskState.readStream = rs
+            taskState.writeStream = ws
+
+            let loadedBytes = 0
+            let lastProgressUpdate = 0
+
+            await new Promise((resolve, reject) => {
+              let settled = false
+              let readTimer = null
+
+              const clearReadTimer = () => {
+                if (readTimer) {
+                  clearTimeout(readTimer)
+                  readTimer = null
+                }
+              }
+
+              const fail = err => {
+                if (settled) return
+                settled = true
+                clearReadTimer()
+                rs.destroy(err)
+                ws.destroy()
+                fs.unlink(tempPath, () => {})
+                reject(err)
+              }
+
+              const complete = () => {
+                if (settled) return
+                settled = true
+                clearReadTimer()
+                resolve()
+              }
+
+              const resetReadTimer = () => {
+                clearReadTimer()
+                if (streamReadTimeout > 0) {
+                  readTimer = setTimeout(() => {
+                    fail(
+                      new Error(
+                        `Download stalled: no data received for ${streamReadTimeout / 1000}s`
+                      )
+                    )
+                  }, streamReadTimeout)
+                }
+              }
+
+              resetReadTimer()
+
+              rs.on('data', chunk => {
+                if (taskState.aborted) {
+                  fail(new Error('Download cancelled'))
+                  return
+                }
+                resetReadTimer()
+                loadedBytes += chunk.length
+                const now = Date.now()
+                if (
+                  totalBytes > 0 &&
+                  now - lastProgressUpdate > PROGRESS_THROTTLE
+                ) {
+                  lastProgressUpdate = now
+                  const percent = Math.round((loadedBytes / totalBytes) * 100)
+                  this.emit('download:progress', {
+                    taskId,
+                    loaded: loadedBytes,
+                    total: totalBytes,
+                    percent,
+                  })
+                }
+              })
+
+              rs.pipe(ws)
+              ws.on('finish', complete)
+              ws.on('error', fail)
+              rs.on('error', fail)
+              rs.on('close', () => {
+                if (taskState.aborted) {
+                  fail(new Error('Download cancelled'))
+                }
+              })
+              ws.on('close', () => {
+                if (taskState.aborted) {
+                  fail(new Error('Download cancelled'))
+                }
+              })
+            })
+
+            if (taskState.aborted) throw new Error('Download cancelled')
+
+            this.emit('download:status', { taskId, status: 'verifying' })
+
+            const { cid: downloadedCid, size: downloadedSize } =
+              await calculateCid(tempPath)
+            const downloadedCidString = downloadedCid.toString()
+
+            if (downloadedCidString !== cidString) {
+              lastCandidateError = new IntegrityError(
+                `File content CID mismatch. Expected ${cidString}, got ${downloadedCidString}.`
+              )
+              await this.#rejectRemoteDriveCandidate(cidString, sourceDrive)
+              continue candidateLoop
+            }
+
+            const result = {
+              taskId,
+              fileName: sanitizedFileName,
+              localAvailable: true,
+            }
+
+            const publishedBucket = addToLibrary
+              ? this.#getPublishedBucket(ownerAddress, true)
+              : []
+            const existingIndex = publishedBucket.findIndex(
+              f => f.cid === cidString
+            )
+            if (addToLibrary) {
+              this.#assertDisplayNameAvailable(sanitizedFileName, {
+                ownerAddress,
+                excludeCid: cidString,
+              })
+            }
+            const savedSize =
+              totalBytes || downloadedSize || fs.statSync(tempPath).size
+            const syncUpdatedAt =
+              existingIndex !== -1
+                ? getNextSyncTimestamp(
+                    publishedBucket[existingIndex].syncUpdatedAt
+                  )
+                : Date.now()
+            if (addToLibrary) {
+              if (existingIndex !== -1) {
+                const existing = publishedBucket[existingIndex]
+                existing.fileName = sanitizedFileName
+                existing.driveName = name
+                existing.size = savedSize
+                existing.source = 'downloaded'
+                existing.publishedAt = new Date(syncUpdatedAt).toISOString()
+                existing.syncUpdatedAt = syncUpdatedAt
+              } else {
+                publishedBucket.push({
+                  fileName: sanitizedFileName,
+                  cid: cidString,
+                  driveName: name,
+                  size: savedSize,
+                  source: 'downloaded',
+                  publishedAt: new Date(syncUpdatedAt).toISOString(),
+                  starred: false,
+                  syncUpdatedAt,
+                })
+              }
+              this.#savePublishedMetadata()
+            }
+            this.#upsertHolding({
+              cid: cidString,
+              fileName: sanitizedFileName,
+              size: savedSize,
+              source: 'downloaded',
+              state: 'ready',
+              transport: sourceTransport,
+            })
+            await this.#joinCidTopicInternal(cidString, {
+              server: true,
+              client: false,
+            })
+
+            if (!options.suppressSuccessEvent) {
+              this.emit('download:success', result)
+            }
+            return result
+          } finally {
+            taskState.readStream = null
+            taskState.writeStream = null
+            taskState.releaseCapacity?.()
+            taskState.releaseCapacity = null
+            fs.rmSync(tempDir, { recursive: true, force: true })
+            if (
+              this.#holdings.some(
+                holding =>
+                  holding.cid === cidString && holding.state === 'staging'
+              )
+            ) {
+              await this.#discardStagingHolding(cidString)
+            }
           }
-          return result
-        } finally {
-          taskState.readStream = null
-          taskState.writeStream = null
-          fs.rmSync(tempDir, { recursive: true, force: true })
         }
       }
     } finally {
@@ -2053,14 +2217,7 @@ export class MostBoxEngine extends EventEmitter {
       throw new PermissionError(writableCheck.error)
     }
 
-    let drive = this.#drives.get(name)
-
-    if (!drive) {
-      drive = await this.#getOrCreateDrive(name, {
-        server: true,
-        client: true,
-      })
-    }
+    const drive = this.#drives.get(name) || null
 
     await this.#joinCidTopicInternal(cidString, {
       server: false,
@@ -2068,7 +2225,14 @@ export class MostBoxEngine extends EventEmitter {
     })
 
     const driveKey = '/' + cidString
-    const entry = await this.#waitForDriveEntry(drive, driveKey, timeout)
+    const entry = await this.#waitForDriveEntry(
+      drive,
+      driveKey,
+      timeout,
+      null,
+      null,
+      cidString
+    )
 
     if (!entry) {
       throw new PeerNotFoundError(
@@ -2076,9 +2240,10 @@ export class MostBoxEngine extends EventEmitter {
       )
     }
 
+    const sourceDrive = this.#getDriveEntrySource(entry, drive)
     const collection = await this.#tryReadCollectionFromDrive(
       cidString,
-      drive,
+      sourceDrive,
       sanitizeFilename(parsed.fileName)
     )
     if (collection) {
@@ -2094,7 +2259,7 @@ export class MostBoxEngine extends EventEmitter {
 
     let size = null
     try {
-      const stat = await drive.entry(entry.key)
+      const stat = await sourceDrive.entry(entry.key)
       if (stat?.value?.blob) {
         size = stat.value.blob.byteLength || 0
       }
@@ -2432,37 +2597,35 @@ export class MostBoxEngine extends EventEmitter {
    */
   listHoldings() {
     this.#ensureInitialized()
-    return this.#holdings.map(holding => {
-      const seedState = this.#seedStates.get(holding.cid)
-      const status =
-        seedState?.status ||
-        (this.#fileDiscoveries.has(holding.cid) ? 'active' : 'queued')
-      return {
-        ...holding,
-        joined: status === 'active' && this.#fileDiscoveries.has(holding.cid),
-        seedStatus: status,
-        seedError: seedState?.error,
-        seedStatusUpdatedAt: seedState?.updatedAt,
-        ...this.#getFileRuntimeStats(holding.cid),
-        link: buildMostLink(holding.cid, holding.fileName || holding.cid),
-      }
-    })
+    return this.#holdings
+      .filter(holding => holding.state === 'ready')
+      .map(holding => {
+        const seedState = this.#seedStates.get(holding.cid)
+        const { topicHex } = this.#getCidInfo(holding.cid)
+        const status =
+          seedState?.status ||
+          (this.#fileDiscoveries.has(holding.cid) ? 'active' : 'queued')
+        return {
+          cid: holding.cid,
+          fileName: holding.fileName,
+          size: holding.size,
+          source: holding.source,
+          ...(holding.kind === 'collection' ? { kind: 'collection' } : {}),
+          topic: topicHex,
+          joined: status === 'active' && this.#fileDiscoveries.has(holding.cid),
+          seedStatus: status,
+          seedError: seedState?.error,
+          seedStatusUpdatedAt: seedState?.updatedAt,
+          ...this.#getFileRuntimeStats(holding.cid),
+          link: buildMostLink(holding.cid, holding.fileName || holding.cid),
+        }
+      })
   }
 
   /**
    * 手动记录节点已持有的文件副本
    * @param {object} record - 持有记录
    */
-  async addHolding(record) {
-    this.#ensureInitialized()
-    const holding = this.#normalizeHolding(record)
-    await this.#joinCidTopicInternal(holding.cid, {
-      server: true,
-      client: false,
-    })
-    return this.#upsertHolding(holding)
-  }
-
   /**
    * 按 CID digest topic 拉取完整文件副本
    * @param {object} input - 拉取参数
@@ -2530,16 +2693,20 @@ export class MostBoxEngine extends EventEmitter {
     this.#ensureInitialized()
     peerEngine.#ensureInitialized()
 
-    const left = this.#store.replicate(true, { live: true })
-    const right = peerEngine.#store.replicate(false, { live: true })
-    const [leftChat, rightChat] = createMemoryDuplexPair()
+    const left = this.#fileStore.replicate(true, { live: true })
+    const right = peerEngine.#fileStore.replicate(false, { live: true })
+    const leftChat = this.#channelStore.replicate(true, { live: true })
+    const rightChat = peerEngine.#channelStore.replicate(false, { live: true })
     left.on('error', () => {})
     right.on('error', () => {})
     leftChat.on('error', () => {})
     rightChat.on('error', () => {})
     left.pipe(right).pipe(left)
-    this.#handleChannelConnection(leftChat).catch(() => {})
-    peerEngine.#handleChannelConnection(rightChat).catch(() => {})
+    leftChat.pipe(rightChat).pipe(leftChat)
+    this.#openFileDriveConnection(left)
+    peerEngine.#openFileDriveConnection(right)
+    this.#openChannelConnection(leftChat)
+    peerEngine.#openChannelConnection(rightChat)
 
     return {
       close: () => {
@@ -2970,8 +3137,18 @@ export class MostBoxEngine extends EventEmitter {
       err.rootCid = rootCid
       throw err
     }
-    const node = dagPb.decode(block)
-    const unixfs = UnixFS.unmarshal(node.Data)
+    let node
+    let unixfs
+    try {
+      node = dagPb.decode(block)
+      unixfs = UnixFS.unmarshal(node.Data)
+    } catch (cause) {
+      const err = new IntegrityError(`Invalid UnixFS block: ${cid}`)
+      err.cid = cid
+      err.rootCid = rootCid
+      err.cause = cause
+      throw err
+    }
     return { node, unixfs }
   }
 
@@ -3016,7 +3193,8 @@ export class MostBoxEngine extends EventEmitter {
         if (err.cid === rootCid) return null
         throw err
       }
-      return null
+      if (err?.message === 'CID is not a UnixFS directory') return null
+      throw err
     }
   }
 
@@ -3352,7 +3530,9 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #isLocalHoldingAvailable(cid) {
-    const holding = this.#holdings.find(item => item.cid === cid)
+    const holding = this.#holdings.find(
+      item => item.cid === cid && item.state === 'ready'
+    )
     if (!holding) return false
 
     const seedState = this.#seedStates.get(cid)
@@ -3387,7 +3567,10 @@ export class MostBoxEngine extends EventEmitter {
     if (!options.allowHoldingFallback && !fileRecord) {
       return null
     }
-    const holding = this.#holdings.find(item => item.cid === cid)
+    const holding = this.#holdings.find(
+      item => item.cid === cid && item.state === 'ready'
+    )
+    if (!holding) return null
     const { driveName } = this.#getCidInfo(cid)
     const probeTimeoutMs = Number(options.probeTimeoutMs)
     const timeoutEnabled = Number.isFinite(probeTimeoutMs) && probeTimeoutMs > 0
@@ -3396,8 +3579,7 @@ export class MostBoxEngine extends EventEmitter {
       timeoutEnabled
         ? this.#withTimeout(promise, probeTimeoutMs, message, timeoutCode)
         : promise
-    const targetDriveName =
-      fileRecord?.driveName || holding?.driveName || driveName
+    const targetDriveName = driveName
     let drive = await this.#getOrCreateDrive(targetDriveName, {
       server: true,
       client: false,
@@ -3434,7 +3616,7 @@ export class MostBoxEngine extends EventEmitter {
           fileRecord: fileRecord || {
             cid,
             fileName: holding?.fileName || cid,
-            driveName: holding?.driveName || driveName,
+            driveName,
             kind: holding?.kind,
             size,
             ownerAddress,
@@ -3644,9 +3826,9 @@ export class MostBoxEngine extends EventEmitter {
     }
 
     const appDiscovery = this.#channelDiscoveries.get(channel.channelKey)
-    if (appDiscovery && this.#swarm) {
+    if (appDiscovery && this.#chatSwarm) {
       this.#channelDiscoveries.delete(channel.channelKey)
-      this.#swarm
+      this.#chatSwarm
         .leave(this.#generateChannelDiscoveryKey(channel.channelKey))
         .catch(err => {
           console.warn(
@@ -4094,7 +4276,7 @@ export class MostBoxEngine extends EventEmitter {
     const channelKey = buildChannelKey(channelId)
     const writerId =
       String(options.writerId || '').trim() || createChannelWriterId()
-    const ns = this.#store.namespace(`channel-${channelKey}`)
+    const ns = this.#channelStore.namespace(`channel-${channelKey}`)
     const localCore = ns.get({
       name: `messages-${writerId}`,
       valueEncoding: 'json',
@@ -4200,7 +4382,7 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   async #openChannelRuntime(channel) {
-    const ns = this.#store.namespace(`channel-${channel.channelKey}`)
+    const ns = this.#channelStore.namespace(`channel-${channel.channelKey}`)
     let localCore = null
     let previousLocalWriterCoreKey = ''
     if (channel.localWriterCoreKey) {
@@ -4284,7 +4466,7 @@ export class MostBoxEngine extends EventEmitter {
 
   async #joinChannelDiscoveryTopics(channel) {
     if (!this.#channelDiscoveries.has(channel.channelKey)) {
-      const appDiscovery = this.#swarm.join(
+      const appDiscovery = this.#chatSwarm.join(
         this.#generateChannelDiscoveryKey(channel.channelKey),
         { server: true, client: true }
       )
@@ -5756,7 +5938,7 @@ export class MostBoxEngine extends EventEmitter {
       return
     }
 
-    const holdings = [...this.#holdings]
+    const holdings = this.#holdings.filter(holding => holding.state === 'ready')
     this.#holdingResumeTask = (async () => {
       for (
         let index = 0;
@@ -5774,10 +5956,11 @@ export class MostBoxEngine extends EventEmitter {
               allowHoldingFallback: true,
             })
             if (!localContent) {
+              const { topicHex, driveName } = this.#getCidInfo(holding.cid)
               this.#setSeedState(holding.cid, {
                 status: 'error',
-                topic: holding.topic,
-                driveName: holding.driveName,
+                topic: topicHex,
+                driveName,
                 error: 'Local CID content missing',
               })
               return
@@ -5806,29 +5989,99 @@ export class MostBoxEngine extends EventEmitter {
       })
   }
 
+  async #recoverStagingHoldings() {
+    const retained = []
+    let changed = false
+    for (const holding of this.#holdings) {
+      if (holding.state !== 'staging') {
+        retained.push(holding)
+        continue
+      }
+      const { driveName } = this.#getCidInfo(holding.cid)
+      let valid = false
+      try {
+        if (holding.transport.version > 0) {
+          const drive = await this.#getOrCreateDrive(driveName)
+          if (holding.kind === 'collection') {
+            await this.#readCollectionFromDrive(
+              holding.cid,
+              drive,
+              holding.fileName
+            )
+            valid = true
+          } else {
+            const key = `/${holding.cid}`
+            const entry = await drive.entry(key, { wait: false })
+            if (
+              entry?.value?.blob &&
+              (await this.#hasLocalDriveContent(drive, key))
+            ) {
+              const content = await this.#readDriveEntryBuffer(drive, key)
+              const calculated = await calculateCid(content)
+              valid = calculated.cid.toString() === holding.cid
+            }
+          }
+        }
+      } catch {}
+
+      if (valid) {
+        retained.push({ ...holding, state: 'ready' })
+      } else {
+        this.#drives.delete(driveName)
+        try {
+          const drive = new Hyperdrive(
+            this.#fileStore.session(),
+            b4a.from(holding.transport.key, 'hex')
+          )
+          await purgeDriveLocalBlocks(drive)
+        } catch {}
+      }
+      changed = true
+    }
+    this.#holdings = retained
+    if (changed) this.#saveHoldingsMetadata()
+  }
+
   #normalizeHolding(record = {}) {
-    const cid = record.cid
+    const cid = String(record.cid || '').trim()
     if (!cid) {
       throw new ValidationError('cid is required')
     }
 
-    const { topicHex, driveName } = this.#getCidInfo(cid)
-    if (record.topic && record.topic !== topicHex) {
-      throw new ValidationError('topic must match CID digest')
-    }
+    this.#getCidInfo(cid)
+    const canonicalCid = CID.parse(cid).toString()
 
     const size = Number(record.size)
     if (!Number.isFinite(size) || size < 0) {
       throw new ValidationError('size must be a non-negative number')
     }
 
+    const state = record.state === 'staging' ? 'staging' : 'ready'
+    const driveName = this.#getCidInfo(canonicalCid).driveName
+    const transport =
+      record.transport || this.#getDriveTransport(this.#drives.get(driveName))
+    const key = String(transport?.key || '')
+      .trim()
+      .toLowerCase()
+    const version = Number(transport?.version)
+    if (!/^[a-f0-9]{64}$/.test(key)) {
+      throw new ValidationError('holding transport key is required')
+    }
+    if (
+      !Number.isSafeInteger(version) ||
+      version < 0 ||
+      (state === 'ready' && version <= 0)
+    ) {
+      throw new ValidationError('holding transport version is invalid')
+    }
+
     const normalized = {
-      cid,
-      fileName: record.fileName || cid,
+      cid: canonicalCid,
+      fileName: record.fileName || canonicalCid,
       size,
-      topic: topicHex,
-      driveName,
-      source: record.source || 'manual',
+      source: record.source === 'downloaded' ? 'downloaded' : 'published',
+      state,
+      transport: { type: 'hyperdrive', key, version },
     }
     if (record.kind === 'collection') {
       normalized.kind = 'collection'
@@ -5852,13 +6105,24 @@ export class MostBoxEngine extends EventEmitter {
     }
 
     this.#saveHoldingsMetadata()
-    this.emit('holding:updated', next)
-    this.#ensureFileMonitor(next.cid).catch(err => {
-      this.#setSeedState(next.cid, {
-        status: 'error',
-        error: err.message,
+    if (next.state === 'ready') {
+      if (this.#pendingDrivePurges.delete(next.transport.key)) {
+        this.#savePendingDrivePurges()
+      }
+      const pendingSession = this.#pendingDrivePurgeSessions.get(
+        next.transport.key
+      )
+      pendingSession?.setActive(true)
+      this.#pendingDrivePurgeSessions.delete(next.transport.key)
+      this.emit('holding:updated', next)
+      this.#advertiseFileHolding(next.cid)
+      this.#ensureFileMonitor(next.cid).catch(err => {
+        this.#setSeedState(next.cid, {
+          status: 'error',
+          error: err.message,
+        })
       })
-    })
+    }
     const seedState = this.#seedStates.get(next.cid)
     return {
       ...next,
@@ -5884,6 +6148,94 @@ export class MostBoxEngine extends EventEmitter {
     this.#clearSeedState(cid)
   }
 
+  async #discardStagingHolding(cid) {
+    const holding = this.#holdings.find(
+      record => record.cid === cid && record.state === 'staging'
+    )
+    if (!holding) return
+    await this.#purgeHoldingDrive(holding)
+  }
+
+  async #flushPendingDrivePurges() {
+    const retainedKeys = new Set(
+      this.#holdings.map(holding => holding.transport.key)
+    )
+    for (const key of [...this.#pendingDrivePurges]) {
+      if (retainedKeys.has(key)) {
+        this.#pendingDrivePurges.delete(key)
+        continue
+      }
+      try {
+        const drive = new Hyperdrive(
+          this.#fileStore.session(),
+          b4a.from(key, 'hex')
+        )
+        await purgeDriveLocalBlocks(drive)
+        this.#pendingDrivePurges.delete(key)
+      } catch {}
+    }
+    this.#savePendingDrivePurges()
+  }
+
+  #loadPendingDrivePurges() {
+    const filePath = path.join(this.#options.dataPath, PENDING_PURGES_FILE)
+    try {
+      if (!fs.existsSync(filePath)) return
+      const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'))
+      this.#pendingDrivePurges = new Set(
+        Array.isArray(parsed?.keys)
+          ? parsed.keys.filter(key => /^[a-f0-9]{64}$/.test(key))
+          : []
+      )
+    } catch {
+      this.#pendingDrivePurges.clear()
+    }
+  }
+
+  #savePendingDrivePurges() {
+    const filePath = path.join(this.#options.dataPath, PENDING_PURGES_FILE)
+    if (this.#pendingDrivePurges.size === 0) {
+      fs.rmSync(filePath, { force: true })
+      return
+    }
+    writeMetadataFile(
+      filePath,
+      JSON.stringify({ schemaVersion: 1, keys: [...this.#pendingDrivePurges] })
+    )
+  }
+
+  async #purgeHoldingDrive(holdingInput) {
+    const holding =
+      typeof holdingInput === 'string'
+        ? this.#holdings.find(record => record.cid === holdingInput)
+        : holdingInput
+    if (!holding) return
+    const cid = holding.cid
+    const { driveName } = this.#getCidInfo(cid)
+    let detached = this.#drives.get(driveName)
+    this.#drives.delete(driveName)
+    const candidates = this.#remoteDrives.get(cid)
+    if (candidates) {
+      for (const [id, candidate] of candidates) {
+        const transport = this.#getDriveTransport(candidate)
+        if (
+          transport?.key === holding.transport.key &&
+          transport.version === holding.transport.version
+        ) {
+          detached ||= candidate
+          candidates.delete(id)
+        }
+      }
+    }
+    this.#removeHolding(cid)
+    this.#pendingDrivePurges.add(holding.transport.key)
+    if (detached) {
+      detached.setActive(false)
+      this.#pendingDrivePurgeSessions.set(holding.transport.key, detached)
+    }
+    this.#savePendingDrivePurges()
+  }
+
   async #joinCidTopicInternal(cid, options = {}) {
     const { topic, topicHex, driveName } = this.#getCidInfo(cid)
     const requestedServer = options.server !== false
@@ -5896,7 +6248,10 @@ export class MostBoxEngine extends EventEmitter {
     })
 
     try {
-      const drive = await this.#getOrCreateDrive(driveName)
+      const holding = this.#holdings.find(
+        item => item.cid === cid && item.state === 'ready'
+      )
+      const drive = holding ? await this.#getOrCreateDrive(driveName) : null
 
       const existing = this.#fileDiscoveries.get(cid)
       if (existing) {
@@ -5906,7 +6261,7 @@ export class MostBoxEngine extends EventEmitter {
           nextServer !== existing.server || nextClient !== existing.client
 
         if (!needsRoleUpgrade) {
-          if (this.#holdings.some(holding => holding.cid === cid)) {
+          if (drive) {
             this.#ensureFileMonitor(cid, drive).catch(err => {
               this.#setSeedState(cid, {
                 status: 'error',
@@ -5951,13 +6306,14 @@ export class MostBoxEngine extends EventEmitter {
         server,
         client,
       })
+      this.#requestRemoteFileDrives(cid)
       this.#setSeedState(cid, {
         status: 'active',
         topic: topicHex,
         driveName,
         error: undefined,
       })
-      if (this.#holdings.some(holding => holding.cid === cid)) {
+      if (drive) {
         this.#ensureFileMonitor(cid, drive).catch(err => {
           this.#setSeedState(cid, {
             status: 'error',
@@ -6000,17 +6356,6 @@ export class MostBoxEngine extends EventEmitter {
       topic: existing.topic,
       driveName: existing.driveName,
     })
-  }
-
-  async #closeDriveForSeed(driveName) {
-    const drive = this.#drives.get(driveName)
-    if (!drive) {
-      return null
-    }
-
-    await drive.close()
-    this.#drives.delete(driveName)
-    return drive
   }
 
   async #reopenDrive(name, options = { server: true, client: false }) {
@@ -6230,25 +6575,14 @@ export class MostBoxEngine extends EventEmitter {
       .filter(channel => channel.members.length > 0)
   }
 
-  async #clearLocalCidContent(cid, driveName) {
-    try {
-      const drive = await this.#getOrCreateDrive(driveName)
-      // Hyperdrive metadata is replicated; del() would publish a tombstone to peers.
-      await drive.clear('/' + cid)
-    } catch {
-      // Content may not exist locally.
-    }
-  }
-
   async #cleanupUnreferencedCids(cids) {
     let removedReplicas = 0
     for (const cid of cids) {
       if (await this.#hasPublishedContentReference(cid)) continue
-      const driveName = this.#getCidInfo(cid).driveName
-      await this.#clearLocalCidContent(cid, driveName)
-      await this.#closeDriveForSeed(driveName)
+      const holding = this.#holdings.find(record => record.cid === cid)
+      if (!holding) continue
       await this.#leaveCidTopic(cid)
-      this.#removeHolding(cid)
+      await this.#purgeHoldingDrive(holding)
       removedReplicas += 1
     }
     return removedReplicas
@@ -6297,7 +6631,9 @@ export class MostBoxEngine extends EventEmitter {
 
   #getUsedBytes() {
     return this.#holdings.reduce(
-      (sum, h) => sum + (h.kind === 'collection' ? 0 : h.size || 0),
+      (sum, h) =>
+        sum +
+        (h.state === 'ready' && h.kind !== 'collection' ? h.size || 0 : 0),
       0
     )
   }
@@ -6374,8 +6710,38 @@ export class MostBoxEngine extends EventEmitter {
 
     if (!pending) {
       pending = (async () => {
-        const drive = new Hyperdrive(this.#store.namespace(name))
-        await drive.ready()
+        const holding = this.#holdings.find(record => {
+          try {
+            return this.#getCidInfo(record.cid).driveName === name
+          } catch {
+            return false
+          }
+        })
+        let drive
+        if (holding?.transport?.key) {
+          const baseDrive = new Hyperdrive(
+            this.#fileStore.session(),
+            b4a.from(holding.transport.key, 'hex')
+          )
+          await baseDrive.ready()
+          drive = baseDrive
+          if (holding.transport.version > 0) {
+            drive = baseDrive.checkout(holding.transport.version)
+            Object.defineProperty(drive, DRIVE_BASE_SESSION, {
+              value: baseDrive,
+              configurable: true,
+            })
+          }
+          Object.defineProperty(drive, DRIVE_TRANSPORT, {
+            value: { ...holding.transport },
+            configurable: true,
+          })
+        } else {
+          drive = new Hyperdrive(
+            this.#fileStore.namespace(`file-${crypto.randomUUID()}`)
+          )
+          await drive.ready()
+        }
         this.#drives.set(name, drive)
         return drive
       })()
@@ -6396,6 +6762,279 @@ export class MostBoxEngine extends EventEmitter {
       `Timed out while opening drive ${name}`,
       'DRIVE_OPEN_TIMEOUT'
     )
+  }
+
+  #sealDrive(name, drive, version = drive.version) {
+    const transport = {
+      type: 'hyperdrive',
+      key: b4a.toString(drive.key, 'hex'),
+      version,
+    }
+    const snapshot = drive.checkout(version)
+    Object.defineProperty(snapshot, DRIVE_BASE_SESSION, {
+      value: drive,
+      configurable: true,
+    })
+    Object.defineProperty(snapshot, DRIVE_TRANSPORT, {
+      value: transport,
+      configurable: true,
+    })
+    this.#drives.set(name, snapshot)
+    return { drive: snapshot, transport }
+  }
+
+  #getDriveTransport(drive) {
+    if (drive?.[DRIVE_TRANSPORT]) return { ...drive[DRIVE_TRANSPORT] }
+    if (
+      !drive?.key ||
+      !Number.isSafeInteger(drive.version) ||
+      drive.version <= 0
+    ) {
+      return null
+    }
+    return {
+      type: 'hyperdrive',
+      key: b4a.toString(drive.key, 'hex'),
+      version: drive.version,
+    }
+  }
+
+  #openFileDriveConnection(conn, info) {
+    const record = { protocol: null, info }
+    const protocol = openFileDriveProtocol(conn, {
+      onRequest: cid => this.#getLocalFileOffer(cid, info),
+      onOffer: offer => this.#registerRemoteDriveOffer(offer, record),
+    })
+    if (!protocol) return
+
+    record.protocol = protocol
+    this.#fileProtocols.add(record)
+    const topicSet = getConnectionTopicSet(info)
+    for (const [cid, discovery] of this.#fileDiscoveries) {
+      if (!topicSet || topicSet.has(discovery.topic)) protocol.request(cid)
+    }
+    conn.once('close', () => {
+      this.#fileProtocols.delete(record)
+      this.#removeRemoteOffersForConnection(record)
+    })
+  }
+
+  #getLocalFileOffer(cid, info) {
+    let cidInfo
+    try {
+      cidInfo = this.#getCidInfo(cid)
+    } catch {
+      return null
+    }
+    const canonicalCid = CID.parse(cid).toString()
+    const topicSet = getConnectionTopicSet(info)
+    if (topicSet && !topicSet.has(cidInfo.topicHex)) return null
+    const holding = this.#holdings.find(
+      record => record.cid === canonicalCid && record.state === 'ready'
+    )
+    if (!holding?.transport) return null
+    return {
+      type: 'offer',
+      cid: holding.cid,
+      driveKey: holding.transport.key,
+      driveVersion: holding.transport.version,
+    }
+  }
+
+  #registerRemoteDriveOffer(offer, record) {
+    const cid = String(offer?.cid || '')
+    const driveKeyHex = String(offer?.driveKey || '').toLowerCase()
+    const driveVersion = Number(offer?.driveVersion)
+    if (!/^[a-f0-9]{64}$/.test(driveKeyHex)) return
+    if (!Number.isSafeInteger(driveVersion) || driveVersion <= 0) return
+
+    let cidInfo
+    try {
+      cidInfo = this.#getCidInfo(cid)
+    } catch {
+      return
+    }
+    const canonicalCid = CID.parse(cid).toString()
+    if (!this.#fileDiscoveries.has(canonicalCid)) return
+    const topicSet = getConnectionTopicSet(record.info)
+    if (topicSet && !topicSet.has(cidInfo.topicHex)) return
+
+    const localHolding = this.#holdings.find(item => item.cid === canonicalCid)
+    if (
+      localHolding?.transport?.key === driveKeyHex &&
+      localHolding.transport.version === driveVersion
+    ) {
+      return
+    }
+
+    const conflictsWithLocalHolding = this.#holdings.some(
+      item => item.transport?.key === driveKeyHex && item.cid !== canonicalCid
+    )
+    if (conflictsWithLocalHolding) return
+
+    for (const [offeredCid, offeredCandidates] of this.#remoteOffers) {
+      const conflictsWithRemoteOffer = [...offeredCandidates.values()].some(
+        candidate =>
+          candidate.offer.driveKey === driveKeyHex &&
+          offeredCid !== canonicalCid
+      )
+      if (conflictsWithRemoteOffer) return
+    }
+
+    let offers = this.#remoteOffers.get(canonicalCid)
+    if (!offers) {
+      offers = new Map()
+      this.#remoteOffers.set(canonicalCid, offers)
+    }
+    const id = `${driveKeyHex}:${driveVersion}`
+    const existing = offers.get(id)
+    if (existing) {
+      existing.sources.add(record)
+      return
+    }
+    if (offers.size >= MAX_REMOTE_CANDIDATES_PER_CID) return
+    offers.set(id, {
+      offer: { cid: canonicalCid, driveKey: driveKeyHex, driveVersion },
+      sources: new Set([record]),
+    })
+  }
+
+  #getRemoteDriveCandidates(cid) {
+    return [...(this.#remoteDrives.get(cid)?.values() || [])]
+  }
+
+  async #ensureRemoteDriveCandidates(cid) {
+    const offers = this.#remoteOffers.get(cid)
+    if (!offers?.size) return
+    let drives = this.#remoteDrives.get(cid)
+    if (!drives) {
+      drives = new Map()
+      this.#remoteDrives.set(cid, drives)
+    }
+    for (const [id, candidate] of offers) {
+      if (drives.has(id) || this.#remoteDrivePromises.has(`${cid}:${id}`)) {
+        continue
+      }
+      const pending = this.#pendingDrivePurgeSessions.get(
+        candidate.offer.driveKey
+      )
+      if (pending) {
+        drives.set(id, pending)
+        continue
+      }
+      const promiseKey = `${cid}:${id}`
+      const openPromise = this.#withRemoteDriveOpenSlot(async () => {
+        const baseDrive = new Hyperdrive(
+          this.#fileStore.session(),
+          b4a.from(candidate.offer.driveKey, 'hex')
+        )
+        await baseDrive.ready()
+        const drive = baseDrive.checkout(candidate.offer.driveVersion)
+        Object.defineProperty(drive, DRIVE_BASE_SESSION, {
+          value: baseDrive,
+          configurable: true,
+        })
+        Object.defineProperty(drive, DRIVE_TRANSPORT, {
+          value: {
+            type: 'hyperdrive',
+            key: candidate.offer.driveKey,
+            version: candidate.offer.driveVersion,
+          },
+          configurable: true,
+        })
+        Object.defineProperty(drive, DRIVE_REMOTE_SNAPSHOT, {
+          value: true,
+          configurable: true,
+        })
+        drives.set(id, drive)
+      })
+      this.#remoteDrivePromises.set(promiseKey, openPromise)
+      try {
+        await openPromise
+      } finally {
+        this.#remoteDrivePromises.delete(promiseKey)
+      }
+    }
+  }
+
+  async #withRemoteDriveOpenSlot(operation) {
+    if (this.#remoteDriveOpenCount >= MAX_UNVERIFIED_DRIVE_OPENS) {
+      await new Promise(resolve => this.#remoteDriveOpenWaiters.push(resolve))
+    }
+    this.#remoteDriveOpenCount += 1
+    try {
+      return await operation()
+    } finally {
+      this.#remoteDriveOpenCount -= 1
+      this.#remoteDriveOpenWaiters.shift()?.()
+    }
+  }
+
+  #removeRemoteOffersForConnection(record) {
+    for (const [cid, offers] of this.#remoteOffers) {
+      for (const [id, candidate] of offers) {
+        candidate.sources.delete(record)
+        if (candidate.sources.size !== 0) continue
+        offers.delete(id)
+        const drives = this.#remoteDrives.get(cid)
+        const drive = drives?.get(id)
+        const selected = this.#drives.get(this.#getCidInfo(cid).driveName)
+        if (drive && drive !== selected) {
+          drives.delete(id)
+          closeDriveSessions(drive).catch(() => {})
+        }
+        if (drives?.size === 0) this.#remoteDrives.delete(cid)
+      }
+      if (offers.size === 0) this.#remoteOffers.delete(cid)
+    }
+  }
+
+  async #rejectRemoteDriveCandidate(cid, drive) {
+    const transport = this.#getDriveTransport(drive)
+    if (!transport) {
+      await closeDriveSessions(drive)
+      return
+    }
+    const id = `${transport.key}:${transport.version}`
+    const drives = this.#remoteDrives.get(cid)
+    drives?.delete(id)
+    if (drives?.size === 0) this.#remoteDrives.delete(cid)
+    const offers = this.#remoteOffers.get(cid)
+    offers?.delete(id)
+    if (offers?.size === 0) this.#remoteOffers.delete(cid)
+    const { driveName } = this.#getCidInfo(cid)
+    if (this.#drives.get(driveName) === drive) {
+      this.#drives.delete(driveName)
+    }
+    const staging = this.#holdings.find(
+      holding =>
+        holding.cid === cid &&
+        holding.state === 'staging' &&
+        holding.transport.key === transport.key &&
+        holding.transport.version === transport.version
+    )
+    if (staging) this.#removeHolding(cid)
+    this.#pendingDrivePurgeSessions.delete(transport.key)
+    this.#pendingDrivePurges.add(transport.key)
+    this.#savePendingDrivePurges()
+    await closeDriveSessions(drive)
+  }
+
+  #advertiseFileHolding(cid) {
+    for (const record of this.#fileProtocols) {
+      const offer = this.#getLocalFileOffer(cid, record.info)
+      if (offer) record.protocol.offer(offer)
+    }
+  }
+
+  #requestRemoteFileDrives(cid) {
+    for (const record of this.#fileProtocols) {
+      record.protocol.request(cid)
+    }
+  }
+
+  #getDriveEntrySource(entry, fallbackDrive) {
+    return entry?.[DRIVE_ENTRY_SOURCE] || fallbackDrive
   }
 
   #getMetadataPath() {
@@ -6453,24 +7092,54 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #loadHoldingsMetadata() {
-    return readMetadataFile(this.#getHoldingsMetadataPath(), {
+    const metadata = readMetadataFile(this.#getHoldingsMetadataPath(), {
       label: 'node holdings',
-      fallback: () => [],
+      fallback: () => ({
+        schemaVersion: HOLDINGS_SCHEMA_VERSION,
+        holdings: [],
+      }),
       parse: data => {
         const parsed = JSON.parse(data)
-        if (!Array.isArray(parsed)) {
-          throw new TypeError('node holdings metadata must be an array')
+        if (
+          parsed?.schemaVersion !== HOLDINGS_SCHEMA_VERSION ||
+          !Array.isArray(parsed.holdings)
+        ) {
+          throw new TypeError('unsupported node holdings metadata')
         }
-        return parsed.map(record => this.#normalizeHolding(record))
+        const holdings = parsed.holdings.map(record =>
+          this.#normalizeHolding(record)
+        )
+        const transportOwners = new Map()
+        for (const holding of holdings) {
+          const existingCid = transportOwners.get(holding.transport.key)
+          if (existingCid && existingCid !== holding.cid) {
+            throw new TypeError(
+              'snapshot drive key must not be shared across holdings'
+            )
+          }
+          transportOwners.set(holding.transport.key, holding.cid)
+        }
+        return {
+          schemaVersion: HOLDINGS_SCHEMA_VERSION,
+          holdings,
+        }
       },
     })
+    return metadata.holdings
   }
 
   #saveHoldingsMetadata() {
     this.#saveMetadataFile(
       'node holdings',
       this.#getHoldingsMetadataPath(),
-      JSON.stringify(this.#holdings, null, 2)
+      JSON.stringify(
+        {
+          schemaVersion: HOLDINGS_SCHEMA_VERSION,
+          holdings: this.#holdings,
+        },
+        null,
+        2
+      )
     )
   }
 
@@ -6717,7 +7386,7 @@ export class MostBoxEngine extends EventEmitter {
     if (coresMap.has(coreKeyHex)) return
 
     try {
-      const ns = this.#store.namespace(`channel-${channelKey}`)
+      const ns = this.#channelStore.namespace(`channel-${channelKey}`)
       const core = ns.get({
         key: b4a.from(coreKeyHex, 'hex'),
         valueEncoding: 'json',
@@ -6759,19 +7428,30 @@ export class MostBoxEngine extends EventEmitter {
     }
   }
 
-  #buildChannelHelloMessage() {
-    const channels = this.#channels.map(channel => ({
-      channelId: channel.channelId,
-      channelKey: channel.channelKey,
-      type: channel.type,
-      createdAt: channel.createdAt,
-      lastMessageAt: channel.lastMessageAt || '',
-      memberAddresses: this.#getChannelMemberAddresses(channel),
-      writerCoreKeys: uniqueStrings([
-        ...(channel.writerCoreKeys || []),
-        this.#channelLocalCoreKey.get(channel.channelKey),
-      ]),
-    }))
+  #buildChannelHelloMessage(info) {
+    const topicSet = getConnectionTopicSet(info)
+    const channels = this.#channels
+      .filter(channel => {
+        if (!topicSet) return true
+        const topics = [
+          this.#generateChannelDiscoveryKey(channel.channelKey),
+          this.#generateChannelChatDiscoveryKey(channel.channelKey),
+          this.#generateChannelIdDiscoveryKey(channel.channelId),
+        ]
+        return topics.some(topic => topicSet.has(b4a.toString(topic, 'hex')))
+      })
+      .map(channel => ({
+        channelId: channel.channelId,
+        channelKey: channel.channelKey,
+        type: channel.type,
+        createdAt: channel.createdAt,
+        lastMessageAt: channel.lastMessageAt || '',
+        memberAddresses: this.#getChannelMemberAddresses(channel),
+        writerCoreKeys: uniqueStrings([
+          ...(channel.writerCoreKeys || []),
+          this.#channelLocalCoreKey.get(channel.channelKey),
+        ]),
+      }))
     return {
       type: 'channel-hello',
       peerId: this.getNodeId(),
@@ -6780,84 +7460,77 @@ export class MostBoxEngine extends EventEmitter {
     }
   }
 
-  #sendChannelHello(stream) {
-    if (!stream || stream.destroyed || stream.writableEnded) {
-      this.#channelStreams.delete(stream)
-      return false
-    }
-    try {
-      stream.write(`${JSON.stringify(this.#buildChannelHelloMessage())}\n`)
-      return true
-    } catch {
-      this.#channelStreams.delete(stream)
-      return false
-    }
+  #sendChannelHello(record) {
+    return Boolean(
+      record?.protocol?.send(this.#buildChannelHelloMessage(record.info))
+    )
   }
 
   #broadcastChannelHello() {
-    for (const stream of [...this.#channelStreams]) {
-      this.#sendChannelHello(stream)
+    for (const record of [...this.#channelStreams]) {
+      this.#sendChannelHello(record)
     }
   }
 
-  #sendChannelPresence(stream, event) {
-    if (!stream || stream.destroyed || stream.writableEnded || !event) {
-      this.#channelStreams.delete(stream)
+  #sendChannelPresence(record, event) {
+    if (!event || !this.#connectionSharesChannel(record?.info, event)) {
       return false
     }
-    try {
-      stream.write(
-        `${JSON.stringify({
-          type: 'channel-presence',
-          peerId: this.getNodeId(),
-          channelId: event.channelId,
-          channelKey: event.channelKey,
-          address: event.address,
-          status: event.status,
-          displayName: event.displayName,
-          avatar: event.avatar,
-          profileUpdatedAt: event.profileUpdatedAt,
-          lastSeen: event.lastSeen || Date.now(),
-          sessionId: event.sessionId || 'default',
-        })}\n`
-      )
-      return true
-    } catch {
-      this.#channelStreams.delete(stream)
-      return false
-    }
+    return Boolean(
+      record?.protocol?.send({
+        type: 'channel-presence',
+        peerId: this.getNodeId(),
+        channelId: event.channelId,
+        channelKey: event.channelKey,
+        address: event.address,
+        status: event.status,
+        displayName: event.displayName,
+        avatar: event.avatar,
+        profileUpdatedAt: event.profileUpdatedAt,
+        lastSeen: event.lastSeen || Date.now(),
+        sessionId: event.sessionId || 'default',
+      })
+    )
   }
 
   #broadcastChannelPresence(event) {
-    for (const stream of [...this.#channelStreams]) {
-      this.#sendChannelPresence(stream, event)
+    for (const record of [...this.#channelStreams]) {
+      this.#sendChannelPresence(record, event)
     }
   }
 
-  #sendChannelVoice(stream, event) {
-    if (!stream || stream.destroyed || stream.writableEnded || !event) {
-      this.#channelStreams.delete(stream)
+  #sendChannelVoice(record, event) {
+    if (!event || !this.#connectionSharesChannel(record?.info, event)) {
       return false
     }
-    try {
-      stream.write(
-        `${JSON.stringify({
-          type: 'channel-voice',
-          peerId: this.getNodeId(),
-          ...event,
-        })}\n`
-      )
-      return true
-    } catch {
-      this.#channelStreams.delete(stream)
-      return false
-    }
+    return Boolean(
+      record?.protocol?.send({
+        type: 'channel-voice',
+        peerId: this.getNodeId(),
+        ...event,
+      })
+    )
   }
 
   #broadcastChannelVoice(event) {
-    for (const stream of [...this.#channelStreams]) {
-      this.#sendChannelVoice(stream, event)
+    for (const record of [...this.#channelStreams]) {
+      this.#sendChannelVoice(record, event)
     }
+  }
+
+  #connectionSharesChannel(info, channelInput) {
+    const topicSet = getConnectionTopicSet(info)
+    if (!topicSet) return true
+    const channelId = normalizeChannelId(
+      channelInput?.channelId || channelInput?.channelKey || channelInput
+    )
+    if (!channelId) return false
+    const channelKey = buildChannelKey(channelId)
+    return [
+      this.#generateChannelDiscoveryKey(channelKey),
+      this.#generateChannelChatDiscoveryKey(channelKey),
+      this.#generateChannelIdDiscoveryKey(channelId),
+    ].some(topic => topicSet.has(b4a.toString(topic, 'hex')))
   }
 
   async #processChannelHelloMessage(msg) {
@@ -7001,58 +7674,27 @@ export class MostBoxEngine extends EventEmitter {
     return peerId
   }
 
-  async #handleChannelConnection(conn) {
-    const stream = conn
-    let connectedPeerId = null
-    let readBuffer = Buffer.alloc(0)
-    let closed = false
-
-    this.#channelStreams.add(stream)
-    if (!this.#sendChannelHello(stream)) return
-
-    stream.on('data', async data => {
-      let lines
-      try {
-        const result = consumeChannelFrames(readBuffer, data)
-        readBuffer = result.remainder
-        lines = result.frames
-      } catch (err) {
-        console.warn(`[MostBox] Rejected channel data:`, err.message)
-        stream.destroy()
-        return
-      }
-
-      for (const line of lines) {
-        if (!line) continue
-        try {
-          const message = JSON.parse(line)
-          const peerId =
-            message.type === 'channel-presence'
-              ? this.#processChannelPresenceMessage(message)
-              : message.type === 'channel-voice'
-                ? this.#processChannelVoiceMessage(message)
-                : await this.#processChannelHelloMessage(message)
-          if (peerId) connectedPeerId = peerId
-        } catch (err) {
-          console.warn(`[MostBox] Failed to process channel data:`, err.message)
-        }
-      }
-    })
-
+  #openChannelConnection(conn, info) {
+    const record = {
+      protocol: null,
+      info,
+      connectedPeerId: null,
+      closed: false,
+    }
     const cleanup = () => {
-      if (closed) return
-      closed = true
-      this.#channelStreams.delete(stream)
-      if (connectedPeerId) {
+      if (record.closed) return
+      record.closed = true
+      this.#channelStreams.delete(record)
+      if (record.connectedPeerId) {
         for (const [channelKey, peers] of this.#channelPeers) {
-          if (peers.has(connectedPeerId)) {
-            const peer = peers.get(connectedPeerId)
-            peers.delete(connectedPeerId)
+          if (peers.has(record.connectedPeerId)) {
+            const peer = peers.get(record.connectedPeerId)
+            peers.delete(record.connectedPeerId)
             const channel = this.#channels.find(
               item => item.channelKey === channelKey
             )
             this.emit('channel:peer:offline', {
-              peerId: connectedPeerId,
+              peerId: record.connectedPeerId,
               authorName: peer?.authorName,
               channelKey,
               channelId: channel?.channelId || '',
@@ -7060,12 +7702,33 @@ export class MostBoxEngine extends EventEmitter {
             })
           }
         }
-        this.#removeChannelPresenceSessionsBySource(`peer:${connectedPeerId}`)
+        this.#removeChannelPresenceSessionsBySource(
+          `peer:${record.connectedPeerId}`
+        )
       }
     }
-
-    stream.on('close', cleanup)
-    stream.on('error', cleanup)
+    record.protocol = openChannelControlProtocol(conn, {
+      onOpen: () => this.#sendChannelHello(record),
+      onClose: cleanup,
+      onMessage: async message => {
+        try {
+          const peerId =
+            message.type === 'channel-presence'
+              ? this.#processChannelPresenceMessage(message)
+              : message.type === 'channel-voice'
+                ? this.#processChannelVoiceMessage(message)
+                : await this.#processChannelHelloMessage(message)
+          if (peerId) record.connectedPeerId = peerId
+        } catch (err) {
+          console.warn(`[MostBox] Failed to process channel data:`, err.message)
+        }
+      },
+    })
+    if (!record.protocol) return null
+    this.#channelStreams.add(record)
+    conn.once('close', cleanup)
+    conn.once('error', cleanup)
+    return record
   }
 
   /**
@@ -7082,7 +7745,8 @@ export class MostBoxEngine extends EventEmitter {
     key,
     timeout,
     taskId = null,
-    taskState = null
+    taskState = null,
+    cid = null
   ) {
     const startTime = Date.now()
     let pollInterval = DOWNLOAD_POLL_INTERVAL_MIN
@@ -7091,22 +7755,81 @@ export class MostBoxEngine extends EventEmitter {
     let bootstrapNodesChecked = false
     let lastUpdateTime = 0
 
-    try {
-      const localEntry = await drive.entry(key)
-      if (localEntry) {
-        console.log(`[MostBox] Found expected entry ${key} locally`)
-        if (taskId) this.emit('download:status', { taskId, status: 'syncing' })
-        return localEntry
+    const getCandidateDrives = () =>
+      [drive, ...(cid ? this.#getRemoteDriveCandidates(cid) : [])].filter(
+        Boolean
+      )
+    const pendingUpdates = new WeakMap()
+    const pendingEntries = new WeakMap()
+    const updateCandidate = candidate => {
+      const updateDrive = candidate[DRIVE_BASE_SESSION] || candidate
+      let pending = pendingUpdates.get(updateDrive)
+      if (!pending) {
+        pending = updateDrive
+          .update()
+          .catch(() => {})
+          .finally(() => pendingUpdates.delete(updateDrive))
+        pendingUpdates.set(updateDrive, pending)
       }
-    } catch {}
+      return Promise.race([pending, sleep(DOWNLOAD_POLL_INTERVAL_MIN)])
+    }
+    const markEntrySource = (entry, sourceDrive) => {
+      if (entry) {
+        Object.defineProperty(entry, DRIVE_ENTRY_SOURCE, {
+          value: sourceDrive,
+          configurable: true,
+        })
+      }
+      return entry
+    }
+    const isReadableCandidate = async (candidate, entry) => {
+      if (!entry?.value?.blob) return false
+      if (candidate[DRIVE_REMOTE_SNAPSHOT]) return true
+      if (![...this.#drives.values()].includes(candidate)) return true
+      return this.#hasLocalDriveContent(candidate, key)
+    }
+    const readCandidateEntry = candidate => {
+      let pending = pendingEntries.get(candidate)
+      if (!pending) {
+        pending = candidate
+          .entry(key)
+          .catch(() => null)
+          .finally(() => pendingEntries.delete(candidate))
+        pendingEntries.set(candidate, pending)
+      }
+      return Promise.race([
+        pending,
+        sleep(DOWNLOAD_POLL_INTERVAL_MIN).then(() => null),
+      ])
+    }
+    const findReadableEntry = async () => {
+      const candidates = getCandidateDrives()
+      const entries = await Promise.all(candidates.map(readCandidateEntry))
+      for (let index = 0; index < candidates.length; index += 1) {
+        const candidate = candidates[index]
+        const entry = entries[index]
+        if (await isReadableCandidate(candidate, entry)) {
+          return markEntrySource(entry, candidate)
+        }
+      }
+      return null
+    }
+
+    if (cid) await this.#ensureRemoteDriveCandidates(cid)
+    const localEntry = await findReadableEntry()
+    if (localEntry) {
+      console.log(`[MostBox] Found expected entry ${key} locally`)
+      if (taskId) {
+        this.emit('download:status', { taskId, status: 'syncing' })
+      }
+      return localEntry
+    }
 
     const tryUpdateDrive = async () => {
       const now = Date.now()
       if (now - lastUpdateTime > DRIVE_UPDATE_INTERVAL) {
         lastUpdateTime = now
-        try {
-          await drive.update()
-        } catch {}
+        await Promise.allSettled(getCandidateDrives().map(updateCandidate))
       }
     }
 
@@ -7128,18 +7851,17 @@ export class MostBoxEngine extends EventEmitter {
         lastPeerCount = currentPeerCount
       }
 
+      if (cid) await this.#ensureRemoteDriveCandidates(cid)
       await tryUpdateDrive()
 
-      try {
-        const entry = await drive.entry(key)
-        if (entry) {
-          console.log(`[MostBox] Found ${key} after ${elapsed}s`)
-          if (taskId) {
-            this.emit('download:status', { taskId, status: 'syncing' })
-          }
-          return entry
+      const entry = await findReadableEntry()
+      if (entry) {
+        console.log(`[MostBox] Found ${key} after ${elapsed}s`)
+        if (taskId) {
+          this.emit('download:status', { taskId, status: 'syncing' })
         }
-      } catch {}
+        return entry
+      }
 
       if (hasPeers) {
         const newStatus = 'syncing'
@@ -7187,16 +7909,13 @@ export class MostBoxEngine extends EventEmitter {
       `[MostBox] Timeout reached after ${timeout / 1000}s, making final attempt...`
     )
 
+    if (cid) await this.#ensureRemoteDriveCandidates(cid)
     await tryUpdateDrive()
 
-    try {
-      const entry = await drive.entry(key)
-      if (entry) {
-        console.log(`[MostBox] Found ${key} on final attempt`)
-        return entry
-      }
-    } catch (err) {
-      console.log(`[MostBox] Final attempt failed: ${err.message}`)
+    const finalEntry = await findReadableEntry()
+    if (finalEntry) {
+      console.log(`[MostBox] Found ${key} on final attempt`)
+      return finalEntry
     }
 
     const peerCount = this.#swarm.connections.size

@@ -1,8 +1,20 @@
 # MostBox：普通人能运行的 P2P 节点
 
 [![npm version](https://img.shields.io/npm/v/most-box)](https://npmjs.com/package/most-box)
-[![Node.js version](https://img.shields.io/badge/node-%3E%3D22.12-brightgreen)](https://nodejs.org)
+[![Node.js version](https://img.shields.io/badge/node-%3E%3D22.13-brightgreen)](https://nodejs.org)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
+## v0.5.0 存储与协议切换
+
+完整升级公告和安全迁移命令见 [更新日志](CHANGELOG.md#v050---2026-07-20)。
+
+v0.5.0 是不兼容 v0.4.2 节点的协议版本，但桌面端和 daemon 可以通过 `most-box migrate-v0.5` 显式导入旧库中可验证的文件 snapshot、集合清单和频道历史。脚本默认只读验证；加 `--apply` 后先构建并验收独立 staging，成功才原子切换，旧目录始终保留。验收完成后运行 `npm run cleanup:v0.5`，程序会自动找到数据目录并在删除旧归档前询问确认。程序启动时不会自动迁移或删除 Corestore。Android Alpha 仍需清除旧版本应用数据后再启动 v0.5.0。
+
+- `storage-schema.json` 固定为 schema `1`；缺少 schema 但目录中已有旧 metadata/Corestore，或 schema 来自未来版本时，节点拒绝启动。
+- 文件和频道分别使用 `stores/files/`、`stores/channels/` 私有 Corestore；两者的主密钥独立生成，也不复用节点身份 seed。
+- 文件网络只使用 CID digest topic 和 `mostbox/file/1` 请求式描述符协议。发布者封存不可变 Hyperdrive snapshot，下载者校验 CID 后保留并复制同一个 `drive key + version`。
+- 频道网络独立复制 channel store，并通过 `mostbox/channel/1` Protomux 协议交换 hello、presence 和 voice 控制消息。
+- `node-holdings.json` 使用 `{ "schemaVersion": 1, "holdings": [...] }`。`GET /api/node/holdings` 只公开 CID、派生 topic、展示信息和做种指标；内部 snapshot 定位符不通过公共 API 暴露，也不再提供手工创建 holding 的 API。
 
 > MostBox 是一个用户自己运行的 P2P 节点，通过简单的本地界面提供文件分享、通信和个人工具；它不要求用户加入某个平台，而是让设备直接参与网络。
 >
@@ -36,7 +48,7 @@
 
 ### Android Alpha
 
-移动端优先按 Android 前台完整种子 Alpha 推进，参考 Keet/Pear 的“P2P 核心端 + 平台 UI 壳”分层：手机端先验证自己能加入聊天、收发消息、用 `most://` 附件传文件、下载校验并在前台继续做种，再扩展后台能力、iOS 和商店分发。当前内测验收范围见 [docs/mobile-android-alpha.md](docs/mobile-android-alpha.md)。
+移动端优先按 Android 前台完整种子 Alpha 推进，参考 Keet/Pear 的“P2P 核心端 + 平台 UI 壳”分层：手机端先验证自己能加入聊天、收发消息、用 `most://` 附件传文件、下载校验并在前台继续做种，再扩展后台能力、iOS 和商店分发。当前 Android 内测验收范围见 [docs/mobile-android-alpha.md](docs/mobile-android-alpha.md)；iOS 在投入完整移植和商店合规建设前，先按 [docs/mobile-ios-feasibility.md](docs/mobile-ios-feasibility.md) 完成真机可行性验证。
 
 Android 工程入口以 `mobile/android/` 子包为准，仓库根目录不提供 `android:start`、`android:test` 或 `android:build` 包装脚本。本地开发、测试和打包命令统一在子包目录执行：
 
@@ -50,7 +62,7 @@ npm run build  # 生成内部 Alpha APK 和 SHA256 校验文件
 
 ### 方式二：npm 包
 
-适合开发、自托管或临时启动本机节点。请先安装 Node.js >= 22.12，然后运行：
+适合开发、自托管或临时启动本机节点。请先安装 Node.js >= 22.13，然后运行：
 
 ```bash
 npx most-box@latest
@@ -63,7 +75,7 @@ npx most-box@latest
 ## 需求
 
 - 使用桌面客户端：无需单独安装 Node.js。
-- 使用 `npx most-box@latest` 或本地源码开发：建议 Node.js >= 22.12。当前 TanStack Start static prerender 前端和 Electron 42 开发/打包都建议 Node.js >= 22.12。
+- 使用 `npx most-box@latest` 或本地源码开发：建议 Node.js >= 22.13。当前 TanStack Start static prerender 前端、Electron 43 和 Expo 57 移动端开发/打包都建议 Node.js >= 22.13。
 - MostBox Web 界面只连接已有节点；在线入口或单独打开的浏览器页面不会替你启动 P2P 节点。
 - MostBox 会创建本地身份用于本机数据隔离和 API 签名；这不是云端注册账号。
 
@@ -134,7 +146,7 @@ npm test              # 运行 Android 子包协议、Channel 和 IPC 测试
 ```yaml
 services:
   mostbox:
-    image: ghcr.io/most-people/most-box:0.4.2
+    image: ghcr.io/most-people/most-box:0.5.0
     container_name: mostbox
     network_mode: host
     restart: unless-stopped
@@ -280,7 +292,7 @@ mostbox.example.com {
 
 优先安装桌面客户端；桌面端内置完整 P2P 节点，无需 Node.js。
 
-如果要用 npm 入口，请确保设备已安装 Node.js >= 22.12 后运行：
+如果要用 npm 入口，请确保设备已安装 Node.js >= 22.13 后运行：
 
 ```bash
 npx most-box@latest
@@ -295,13 +307,15 @@ npx most-box@latest
 - **前端**: React 19, Vite, TanStack Start static prerender, TanStack Router, TypeScript, Zustand, Lucide React
 - **后端**: Hono + @hono/node-server + WebSocket
 - **P2P**: Hyperswarm 4.x, Hyperdrive 13.x, Corestore 7.x
-- **桌面**: Electron 42, electron-builder
-- **移动端**: Expo 56, React Native 0.85, react-native-bare-kit / Bare Worklet
+- **桌面**: Electron 43, electron-builder
+- **移动端**: Expo 57, React Native 0.86, react-native-bare-kit / Bare Worklet
 - **测试**: Node.js built-in test runner
 
 ## CI/CD
 
 发布前先完成发版提交，再推送 tag 触发自动构建。版本号必须同步到根目录 `package.json` / `package-lock.json`、`mobile/android/package.json` / `mobile/android/package-lock.json`、`mobile/android/app.json` 和文档里的 Docker 示例 tag；Android APK 文件名虽然由发布 tag 驱动，但 Android 子包版本和 Expo 可见版本也要每次一起更新。
+
+Android release 需要配置 GitHub Actions Secrets：`ANDROID_RELEASE_KEYSTORE_BASE64`、`ANDROID_RELEASE_STORE_PASSWORD`、`ANDROID_RELEASE_KEY_ALIAS`、`ANDROID_RELEASE_KEY_PASSWORD` 和 `ANDROID_RELEASE_CERT_SHA256`。工作流会拒绝缺少正式签名的构建，并核对每个 ABI APK 的证书 SHA-256。
 
 发布新版本：
 

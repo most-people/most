@@ -20,6 +20,7 @@ import {
   getReleaseManifestUrl,
 } from './updateChecker.js'
 import { createMostDeepLinkTarget, findMostDeepLinkArg } from './deepLink.js'
+import { isSafeExternalUrl, isTrustedAppUrl } from './security.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = 1976
@@ -87,6 +88,14 @@ function getInitialWindowUrl() {
   return initialUrl
 }
 
+function openSafeExternalUrl(url) {
+  if (!isSafeExternalUrl(url)) return false
+  shell.openExternal(url).catch(error => {
+    console.warn('[Electron] Failed to open external URL:', error)
+  })
+  return true
+}
+
 function registerMostProtocolClient() {
   if (process.defaultApp && process.argv.length >= 2) {
     app.setAsDefaultProtocolClient('most', process.execPath, [
@@ -140,7 +149,10 @@ function createTray() {
 }
 
 function registerNoteVaultIpc() {
-  ipcMain.handle('note-vault:select-directory', async () => {
+  ipcMain.handle('note-vault:select-directory', async event => {
+    if (!isTrustedAppUrl(event.senderFrame?.url, PORT)) {
+      throw new Error('Untrusted note vault IPC sender')
+    }
     const result = await dialog.showOpenDialog(mainWindow, {
       title: '选择 Markdown 笔记库',
       properties: ['openDirectory', 'createDirectory'],
@@ -172,6 +184,24 @@ function createWindow() {
     },
   })
 
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    openSafeExternalUrl(url)
+    return { action: 'deny' }
+  })
+
+  const handleNavigation = (event, url) => {
+    if (isTrustedAppUrl(url, PORT)) return
+
+    event.preventDefault()
+    if (createMostDeepLinkTarget(url, `http://localhost:${PORT}`)) {
+      openMostDeepLink(url)
+      return
+    }
+    openSafeExternalUrl(url)
+  }
+  mainWindow.webContents.on('will-navigate', handleNavigation)
+  mainWindow.webContents.on('will-redirect', handleNavigation)
+
   mainWindow.loadURL(getInitialWindowUrl())
 
   mainWindow.on('close', event => {
@@ -193,6 +223,35 @@ async function startServer() {
 
   const { main } = await import('../server/index.js')
   engine = await main()
+}
+
+async function showStorageSchemaFailure(error) {
+  if (
+    error?.code !== 'STORAGE_SCHEMA_RESET_REQUIRED' &&
+    error?.code !== 'STORAGE_SCHEMA_UNSUPPORTED'
+  ) {
+    return
+  }
+  const resetRequired = error.code === 'STORAGE_SCHEMA_RESET_REQUIRED'
+  const result = await dialog.showMessageBox({
+    type: 'warning',
+    buttons: ['打开数据目录', '打开设置目录', '退出'],
+    defaultId: 0,
+    cancelId: 2,
+    title: 'MostBox P2P 存储需要处理',
+    message: resetRequired
+      ? 'v0.5.0 使用新的私有存储格式'
+      : '当前数据来自更新的 MostBox 存储格式',
+    detail: resetRequired
+      ? 'MostBox 不会自动删除旧数据。请退出后清空该 P2P 数据目录，或在设置中更换数据目录，然后重新启动。'
+      : '为避免损坏数据，请升级 MostBox，或在设置中选择新的空数据目录。',
+    noLink: true,
+  })
+  if (result.response === 0 && error.dataPath) {
+    await shell.openPath(error.dataPath)
+  } else if (result.response === 1) {
+    await shell.openPath(app.getPath('userData'))
+  }
 }
 
 async function fetchReleaseManifest(manifestUrl) {
@@ -220,11 +279,13 @@ async function checkForUpdates() {
     const arch = getCurrentArch()
     if (!platform || !arch) return
 
-    const manifest = await fetchReleaseManifest(getReleaseManifestUrl())
+    const manifestUrl = getReleaseManifestUrl()
+    const manifest = await fetchReleaseManifest(manifestUrl)
     const update = getAvailableUpdate(manifest, {
       currentVersion: app.getVersion(),
       platform,
       arch,
+      manifestUrl,
     })
 
     if (!update) return
@@ -252,7 +313,7 @@ async function checkForUpdates() {
     })
 
     if (result.response === 0) {
-      await shell.openExternal(update.downloadUrl)
+      openSafeExternalUrl(update.downloadUrl)
     }
   } catch (error) {
     console.warn('[Electron] Update check skipped:', error)
@@ -296,6 +357,7 @@ if (!gotSingleInstanceLock) {
       })
     } catch (err) {
       console.error('[Electron] Failed to start server:', err)
+      await showStorageSchemaFailure(err)
       isQuitting = true
       app.quit()
     }

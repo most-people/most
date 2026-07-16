@@ -16,16 +16,6 @@
   width: min(100%, 560px);
 }
 
-.profile-header,
-.profile-panel,
-.profile-empty {
-  border: 1px solid var(--glass-border);
-  background: var(--glass-bg);
-  backdrop-filter: var(--blur-lg);
-  -webkit-backdrop-filter: var(--blur-lg);
-  box-shadow: var(--glass-shadow);
-}
-
 .profile-header {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -617,14 +607,8 @@
 }
 
 @media (max-width: 560px) {
-  .profile-logout-overlay.modal-overlay {
-    align-items: center;
-    padding: 16px;
-  }
-
   .profile-logout-overlay .modal-glass {
     width: 100%;
-    max-width: 420px;
   }
 
   .profile-page {

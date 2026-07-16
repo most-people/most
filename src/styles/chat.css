@@ -248,12 +248,7 @@
   flex-direction: column;
   overflow: hidden;
   padding: 8px 6px 8px 8px;
-  border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
-  background: var(--glass-bg-heavy);
-  box-shadow: var(--glass-shadow);
-  backdrop-filter: var(--blur-xl);
-  -webkit-backdrop-filter: var(--blur-xl);
 }
 
 .chat-mention-menu-title {

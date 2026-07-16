@@ -1,5 +1,7 @@
 # MostBox Android 内测验收清单
 
+> v0.5.0 Android Alpha 必须先清除旧版本应用数据。v0.5.0 不迁移旧 Corestore，也不能与 v0.4.2 桌面或移动节点互通；启动提示要求清除应用数据时，不得通过重试绕过。
+
 本清单用于记录 Android 内测 APK 的真机复测结果。当前 Android 版本只承诺前台完整种子能力：App 在前台时可以发布、下载、CID 校验，并在发布或下载完成后继续做种。
 
 ## 构建与安装
@@ -59,6 +61,13 @@ node scripts/android-real-p2p-seed.mjs --handoff-check
 | 发布者退出后继续传播            | `node scripts/android-real-p2p-seed.mjs --handoff-check` 通过；原桌面发布者退出后，只要 Android 仍在前台做种，新的桌面节点仍可下载、重算 CID 并校验。                              |
 | Android 重启恢复                | Android App 重启后恢复 holdings，并重新 join 对应 CID topic。                                                                                                                      |
 | 基础可见性                      | Android UI 能看到 CID、文件大小、topic join 状态、peer 数或基础日志。                                                                                                              |
+
+### v0.5.0 专项检查
+
+- 未清除旧应用数据时，节点必须拒绝启动并明确提示清除应用数据；清除后生成 storage schema 1，文件与频道 Corestore 独立。
+- 桌面发布、Android 下载并校验后，Android holding 内部必须沿用发布者的同一 drive key/version；公共 UI 和 API 不显示 key/version。
+- 原桌面发布者退出后，verifier 仅连接 Android 种子仍能完成下载并重算相同 CID。
+- 删除 holding 后立即离开 CID topic；已导出的用户文件仍保留，内部 snapshot blocks 在下次 swarm 启动前回收。
 
 ## 已知边界
 

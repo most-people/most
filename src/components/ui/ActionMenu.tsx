@@ -15,10 +15,7 @@ import {
 import { createPortal } from 'react-dom'
 
 export type ActionMenuPlacement =
-  | 'top-start'
-  | 'top-end'
-  | 'bottom-start'
-  | 'bottom-end'
+  'top-start' | 'top-end' | 'bottom-start' | 'bottom-end'
 
 export type ActionMenuItem = {
   key: string
@@ -209,6 +206,8 @@ export function ActionMenu({
             id={menuId}
             className={[
               'ui-action-menu',
+              'ui-glass-surface',
+              'ui-glass-surface-elevated',
               isPositioned ? 'is-positioned' : '',
               menuClassName,
             ]

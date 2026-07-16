@@ -32,7 +32,7 @@ export function getCidInfo(cid) {
     return {
       topic,
       topicHex,
-      driveName: `drive-${topicHex}`,
+      driveName: `drive-${parsedCid.toString()}`,
     }
   } catch (err) {
     if (err instanceof ValidationError) {
