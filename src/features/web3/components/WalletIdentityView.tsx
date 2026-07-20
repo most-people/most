@@ -50,7 +50,7 @@ export function WalletIdentityView({
 
   return (
     <>
-      <div className="web3-identity-card">
+      <div className="web3-identity-card ui-glass-surface">
         <SafeImage
           src={avatarSrc}
           alt="avatar"

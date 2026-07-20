@@ -64,16 +64,16 @@ auth_header() {
 8. 打开独立游戏页面时，现有游戏仍使用 `game.<gameId>.<roomCode>` Channel 同步事件。
 9. 打开 `/web3/`，确认 Web3 工具箱独立存在，不成为文件、聊天、知识库或游戏前置条件。
 
-| 检查项       | 通过标准                                                                                                       | 入口                                    |
-| ------------ | -------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| 节点定位     | 首页、桌面端和 README 首屏都说明 MostBox 是用户自己运行的 P2P 节点；文件、聊天、知识库、游戏和 Web3 是独立入口 | `/`、桌面端、`README.md`                |
-| 文件闭环     | `/app/` 保留完整文件发布、下载和做种管理                                                                       | `/app/`、文件 API                       |
-| 下载后做种   | 接收方下载成功后自动写入 holding 并 join 对应 CID topic                                                        | `/api/node/holdings`、`/admin/`         |
-| 发布者退出   | 原发布者退出后，至少一个下载者在线时，新下载者仍能完成下载                                                     | `npm run test:protocol`、手动三节点     |
-| 聊天独立     | 用户能通过房间 ID 加入同一聊天，双方能收发文本消息和文件附件                                                   | `/chat/`、`/ws`                         |
-| 知识库独立   | 知识库支持 Markdown 编辑、备份和恢复，不依赖聊天设置入口                                                       | `/note/`                                |
-| 聊天设置边界 | 聊天设置不再提供知识库导出入口                                                                                 | `/chat/`                                |
-| 独立游戏     | 游戏事件仍走公共 Channel 系统                                                                                  | `/game/gandengyan/`、`/game/zhajinhua/` |
+| 检查项       | 通过标准                                                                                                            | 入口                                    |
+| ------------ | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| 节点定位     | 首页、桌面端和 README 首屏都说明 MostBox 是用户自己运行的 P2P 节点；文件、聊天、知识库、游戏和 Web3 是独立入口      | `/`、桌面端、`README.md`                |
+| 文件闭环     | `/app/` 负责文件发布、文件库与下载链接入口，`/cid/<cid>` 统一负责检测和发起下载；活动进度可通过全局任务条跨页面查看 | `/app/`、`/cid/<cid>`、文件 API         |
+| 下载后做种   | 接收方下载成功后自动写入 holding 并 join 对应 CID topic                                                             | `/api/node/holdings`、`/admin/`         |
+| 发布者退出   | 原发布者退出后，至少一个下载者在线时，新下载者仍能完成下载                                                          | `npm run test:protocol`、手动三节点     |
+| 聊天独立     | 用户能通过房间 ID 加入同一聊天，双方能收发文本消息和文件附件                                                        | `/chat/`、`/ws`                         |
+| 知识库独立   | 知识库支持 Markdown 编辑、备份和恢复，不依赖聊天设置入口                                                            | `/note/`                                |
+| 聊天设置边界 | 聊天设置不再提供知识库导出入口                                                                                      | `/chat/`                                |
+| 独立游戏     | 游戏事件仍走公共 Channel 系统                                                                                       | `/game/gandengyan/`、`/game/zhajinhua/` |
 
 ## 三、文件协议回归
 
@@ -94,9 +94,20 @@ auth_header() {
 
 1. 打开 `/app/`。
 2. 点击“发布文件”，选择一个测试文件。
-3. 发布成功后确认分享弹窗同时提供 `most://<cid>?filename=...` 和 `https://most.box/cid/<cid>?filename=...` 两种链接。
+3. 发布成功后确认进入 `/cid/<cid>?filename=...`，页面提供网页分享链接、二维码和 `most://` 客户端打开入口。
 4. 保持应用或 daemon 在线。
 5. 打开 `/admin/`，确认 holding 列表里能看到对应 CID，状态为 active 或正在 joining。
+
+直接文件下载 UI 仍需可用：
+
+1. 打开 `/app/`，点击“下载到文件库”。
+2. 弹窗只显示链接输入和“查看并下载”；粘贴无效链接时留在弹窗并显示格式错误。
+3. 分别粘贴 `most://<cid>?filename=<name>`、网页入口和裸 CID，确认都进入对应 `/cid/<cid>` 页面。
+4. CID 页面自动检测可用性；目录集合默认选中本机缺失的子文件，并允许调整后开始下载。
+5. 开始下载后确认全局下载任务条出现；离开 CID 页面后 daemon 继续下载，任务条仍显示进度并可取消或返回 CID 详情。
+6. 在任务仍运行时刷新页面，确认任务条通过 `GET /api/download/tasks` 重新附着活动任务，CID 页面不会重复检测或发起。
+7. 确认成功、部分完成、失败和取消会立即从活动任务接口移除；当前会话显示对应提示，刷新后以 CID 检测、文件库和 holding 为最终状态。
+8. 下载成功后文件进入文件库并默认继续做种；文件发布进度和聊天附件快捷下载保持原有流程。
 
 API 验证：
 
@@ -114,17 +125,30 @@ curl http://localhost:1976/api/node/holdings
 直接文件下载路径仍需可用。`link` 可填 `most://<cid>?filename=<name>`、`https://most.box/cid/<cid>?filename=<name>`、`<cid>` 或 `<cid>?filename=<name>`：
 
 ```bash
+BODY='{"link":"most://<cid>?filename=<name>"}'
 AUTH="$(auth_header POST /api/download/check)"
 curl -X POST http://localhost:1976/api/download/check \
   -H "Content-Type: application/json" \
   -H "Authorization: $AUTH" \
-  -d '{"link":"most://<cid>?filename=<name>"}'
+  -d "$BODY"
 
+BODY='{"link":"most://<cid>?filename=<name>","background":true}'
+AUTH="$(auth_header POST /api/download)"
+curl -X POST http://localhost:1976/api/download \
+  -H "Content-Type: application/json" \
+  -H "Authorization: $AUTH" \
+  -d "$BODY"
+
+AUTH="$(auth_header GET /api/download/tasks)"
+curl http://localhost:1976/api/download/tasks \
+  -H "Authorization: $AUTH"
+
+BODY='{"link":"most://<cid>?filename=<name>","timeout":60000}'
 AUTH="$(auth_header POST /api/p2p/pull)"
 curl -X POST http://localhost:1976/api/p2p/pull \
   -H "Content-Type: application/json" \
   -H "Authorization: $AUTH" \
-  -d '{"link":"most://<cid>?filename=<name>","timeout":60000}'
+  -d "$BODY"
 ```
 
 ## 四、daemon 与管理台验收

@@ -478,6 +478,14 @@ export function buildOpenApiSpec(appPort) {
           responses: { 200: { description: 'Download task result' } },
         },
       },
+      '/api/download/tasks': {
+        get: {
+          summary: 'List active CID download tasks for the signed-in user',
+          responses: {
+            200: { description: 'Active download task snapshots' },
+          },
+        },
+      },
       '/api/download/cancel': {
         post: {
           summary: 'Cancel an active download task',

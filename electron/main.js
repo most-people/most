@@ -20,6 +20,7 @@ import {
   getReleaseManifestUrl,
 } from './updateChecker.js'
 import { createMostDeepLinkTarget, findMostDeepLinkArg } from './deepLink.js'
+import { isSafeExternalUrl, isTrustedAppUrl } from './security.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = 1976
@@ -87,6 +88,14 @@ function getInitialWindowUrl() {
   return initialUrl
 }
 
+function openSafeExternalUrl(url) {
+  if (!isSafeExternalUrl(url)) return false
+  shell.openExternal(url).catch(error => {
+    console.warn('[Electron] Failed to open external URL:', error)
+  })
+  return true
+}
+
 function registerMostProtocolClient() {
   if (process.defaultApp && process.argv.length >= 2) {
     app.setAsDefaultProtocolClient('most', process.execPath, [
@@ -140,7 +149,10 @@ function createTray() {
 }
 
 function registerNoteVaultIpc() {
-  ipcMain.handle('note-vault:select-directory', async () => {
+  ipcMain.handle('note-vault:select-directory', async event => {
+    if (!isTrustedAppUrl(event.senderFrame?.url, PORT)) {
+      throw new Error('Untrusted note vault IPC sender')
+    }
     const result = await dialog.showOpenDialog(mainWindow, {
       title: '选择 Markdown 笔记库',
       properties: ['openDirectory', 'createDirectory'],
@@ -171,6 +183,24 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.cjs'),
     },
   })
+
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    openSafeExternalUrl(url)
+    return { action: 'deny' }
+  })
+
+  const handleNavigation = (event, url) => {
+    if (isTrustedAppUrl(url, PORT)) return
+
+    event.preventDefault()
+    if (createMostDeepLinkTarget(url, `http://localhost:${PORT}`)) {
+      openMostDeepLink(url)
+      return
+    }
+    openSafeExternalUrl(url)
+  }
+  mainWindow.webContents.on('will-navigate', handleNavigation)
+  mainWindow.webContents.on('will-redirect', handleNavigation)
 
   mainWindow.loadURL(getInitialWindowUrl())
 
@@ -220,11 +250,13 @@ async function checkForUpdates() {
     const arch = getCurrentArch()
     if (!platform || !arch) return
 
-    const manifest = await fetchReleaseManifest(getReleaseManifestUrl())
+    const manifestUrl = getReleaseManifestUrl()
+    const manifest = await fetchReleaseManifest(manifestUrl)
     const update = getAvailableUpdate(manifest, {
       currentVersion: app.getVersion(),
       platform,
       arch,
+      manifestUrl,
     })
 
     if (!update) return
@@ -252,7 +284,7 @@ async function checkForUpdates() {
     })
 
     if (result.response === 0) {
-      await shell.openExternal(update.downloadUrl)
+      openSafeExternalUrl(update.downloadUrl)
     }
   } catch (error) {
     console.warn('[Electron] Update check skipped:', error)

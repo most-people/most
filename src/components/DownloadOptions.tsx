@@ -230,7 +230,12 @@ export default function DownloadOptions() {
     return (
       <article
         key={key}
-        className={['download-platform-card', isCurrent ? 'is-recommended' : '']
+        className={[
+          'download-platform-card',
+          'ui-glass-surface',
+          'ui-glass-surface-interactive',
+          isCurrent ? 'is-recommended' : '',
+        ]
           .filter(Boolean)
           .join(' ')}
       >
@@ -283,7 +288,10 @@ export default function DownloadOptions() {
     const Icon = platform.icon
 
     return (
-      <article key={platform.key} className="download-coming-soon-card">
+      <article
+        key={platform.key}
+        className="download-coming-soon-card ui-glass-surface ui-glass-surface-subtle"
+      >
         <div className="download-platform-icon download-coming-soon-icon">
           <Icon size={32} />
         </div>

@@ -147,7 +147,7 @@ export default function FeaturePortal() {
               <Link
                 key={f.id}
                 to={f.path}
-                className={`portal-feature-card ${f.id}`}
+                className={`portal-feature-card ui-glass-surface ui-glass-surface-subtle ui-glass-surface-interactive ${f.id}`}
               >
                 <div className="portal-feature-card-head">
                   <div className="portal-feature-card-title">

@@ -48,7 +48,7 @@ export function BoxFlowPanel({
   const tokenInfo = parseMostBoxToken(cipherText)
 
   return (
-    <section className="web3-box-flow">
+    <section className="web3-box-flow ui-glass-surface">
       <div className="web3-box-flow-header">
         <div>
           <h2>{title}</h2>

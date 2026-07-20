@@ -1,0 +1,20 @@
+{
+  "build": {
+    "ios-development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "environment": "development",
+      "ios": {
+        "simulator": false
+      }
+    },
+    "ios-preview": {
+      "distribution": "internal",
+      "environment": "preview"
+    },
+    "ios-production": {
+      "autoIncrement": true,
+      "environment": "production"
+    }
+  }
+}

@@ -294,7 +294,7 @@ export function PingPanel() {
           return (
             <div
               key={target.host}
-              className={`ping-card ${isPending ? 'pending' : ''}`}
+              className={`ping-card ui-glass-surface ui-glass-surface-interactive ${isPending ? 'pending' : ''}`}
             >
               <div className="ping-card-top">
                 <span className="ping-card-icon">

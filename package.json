@@ -10,7 +10,12 @@
   "files": [
     "out",
     "public",
-    "electron",
+    "electron/afterPack.cjs",
+    "electron/deepLink.js",
+    "electron/main.js",
+    "electron/preload.cjs",
+    "electron/security.js",
+    "electron/updateChecker.js",
     "server/src",
     "server/index.js",
     "server/cli.js"
@@ -30,7 +35,9 @@
     "typecheck": "tsc -p tsconfig.typecheck.json",
     "typecheck:strict-router": "tsc -p tsconfig.strict-router.json",
     "check:static-output": "node scripts/check-static-output.mjs",
+    "check:versions": "node scripts/check-versions.mjs",
     "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "dev": "vite",
     "lint": "eslint .",
     "r2:cors": "node scripts/configure-r2-cors.mjs",

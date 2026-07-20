@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import {
   Upload,
   Trash2,
   ChevronRight,
   X,
-  Check,
   Download,
   Eye,
   FolderInput,
@@ -14,9 +13,9 @@ import {
   Files,
   Search,
   Edit2,
-  Loader,
-  Info,
   Save,
+  ArrowRight,
+  Loader2,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import {
@@ -36,38 +35,21 @@ import {
 } from '~server/src/utils/api'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
-import { useCountdownSeconds, useDisclosure } from '~/hooks'
+import { useDisclosure } from '~/hooks'
 import {
-  DEFAULT_DOWNLOAD_CHECK_TIMEOUT_MS,
   fileApi,
-  getDownloadCheckErrorMessage,
   getPublishFileErrorMessage,
   getPublishFileLimitViolation,
-  type DownloadFileResult,
 } from '~/lib/fileApi'
 import { getFileSubtype } from '~/lib/filePreview'
-import { formatBytes } from '~/lib/format'
 import { useI18n } from '~/lib/i18n'
 import { getLocalizedDownloadLinkValidationMessage } from '~/lib/i18n/downloadValidation'
 import { saveFileToLocal } from '~/lib/saveLocalFile'
-import { buildCidSharePath, buildMostShareLink } from '~/lib/shareLink'
+import {
+  buildCidSharePath,
+  createCidRoutePathFromDownloadInput,
+} from '~/lib/shareLink'
 import { getFolderShareState } from '~/lib/folderShare'
-
-type DownloadCheckResult = {
-  status: 'success' | 'error'
-  link: string
-  message: string
-  kind?: 'file' | 'collection'
-  availabilityScope?: 'collection-manifest'
-  localAvailableCount?: number
-  missingLocalCount?: number
-  files?: Array<{
-    path: string
-    cid: string
-    size: number
-    localAvailable?: boolean
-  }>
-}
 
 function parseName(fullPath) {
   return parseAppFileName(fullPath)
@@ -124,9 +106,11 @@ export default function App() {
   const addToast = useAppStore(s => s.addToast)
   const hasBackend = useAppStore(s => s.hasBackend)
   const openConnectModal = useAppStore(s => s.openConnectModal)
+  const activeDownloadCount = useAppStore(s => s.downloadTasks.length)
   const userIdentity = useUserStore(s => s.identity)
   const openLoginModal = useUserStore(s => s.openLoginModal)
   const [items, setItems] = useState([])
+  const [isFileListLoading, setIsFileListLoading] = useState(true)
   const [currentFolderId, setCurrentFolderId] = useState(null)
   const [currentView, setCurrentView] = useState('all')
   const [isDraggingOverUpload, setIsDraggingOverUpload] = useState(false)
@@ -134,16 +118,7 @@ export default function App() {
   const [previewItem, setPreviewItem] = useState(null)
   const [isDownloadModalOpen, downloadModal] = useDisclosure(false)
   const [downloadLink, setDownloadLink] = useState('')
-  const [downloadCheckResult, setDownloadCheckResult] =
-    useState<DownloadCheckResult | null>(null)
-  const [selectedCollectionPaths, setSelectedCollectionPaths] = useState<
-    string[]
-  >([])
-  const [isCheckingDownload, setIsCheckingDownload] = useState(false)
-  const downloadCheckRemainingSeconds = useCountdownSeconds(
-    isCheckingDownload,
-    DEFAULT_DOWNLOAD_CHECK_TIMEOUT_MS
-  )
+  const [downloadLinkError, setDownloadLinkError] = useState('')
   const [transfers, setTransfers] = useState([])
   const [isTransferPanelOpen, transferPanel] = useDisclosure(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -151,6 +126,7 @@ export default function App() {
   const [confirmModal, setConfirmModal] = useState(null)
   const [inputModal, setInputModal] = useState(null)
   const [inputLoading, setInputLoading] = useState(false)
+  const previousActiveDownloadCountRef = useRef(activeDownloadCount)
   const { t } = useI18n()
   const isBackendReady = hasBackend === true
 
@@ -407,12 +383,7 @@ export default function App() {
 
     setTimeout(() => {
       setTransfers(prev =>
-        prev.filter(
-          t =>
-            t.status !== 'completed' &&
-            t.status !== 'error' &&
-            t.status !== 'cancelled'
-        )
+        prev.filter(t => t.status !== 'completed' && t.status !== 'error')
       )
     }, 3000)
 
@@ -450,203 +421,38 @@ export default function App() {
     navigate({ href: buildCidSharePath(file.cid, file.fileName) })
   }
 
-  const [isDownloading, setIsDownloading] = useState(false)
   const normalizedDownloadLink = downloadLink.trim()
-  const isDownloadReady =
-    downloadCheckResult?.status === 'success' &&
-    downloadCheckResult.link === normalizedDownloadLink
-  const isCollectionDownload =
-    isDownloadReady && downloadCheckResult?.kind === 'collection'
-  const canStartDownload =
-    isDownloadReady &&
-    (!isCollectionDownload || selectedCollectionPaths.length > 0)
 
   const closeDownloadModal = () => {
     downloadModal.close()
-    setDownloadCheckResult(null)
-    setSelectedCollectionPaths([])
+    setDownloadLink('')
+    setDownloadLinkError('')
   }
 
   const handleDownloadLinkChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setDownloadLink(e.target.value)
-    setDownloadCheckResult(null)
-    setSelectedCollectionPaths([])
+    setDownloadLinkError('')
   }
 
-  const checkDownloadAvailability = async (linkInput = downloadLink) => {
-    const link = linkInput.trim()
-    const validationMessage = getLocalizedDownloadLinkValidationMessage(link, t)
-    if (validationMessage) {
-      setDownloadCheckResult({
-        status: 'error',
-        link,
-        message: validationMessage,
-      })
-      addToast(validationMessage, 'warning')
-      return
-    }
-
-    if (isCheckingDownload || isDownloading) return
-    if (!requireLogin()) return
-    if (!requireBackendReady()) return
-
-    setIsCheckingDownload(true)
-    setDownloadCheckResult(null)
-    try {
-      const result = await fileApi.checkDownload(link)
-      const isCollection = result.kind === 'collection'
-      const message = isCollection
-        ? result.alreadyExists
-          ? t('app.collectionManifestAlreadyLocal', {
-              fileName: result.fileName,
-            })
-          : t('app.collectionManifestAvailable', {
-              fileName: result.fileName,
-            })
-        : result.alreadyExists
-          ? t('app.fileAlreadyLocal', { fileName: result.fileName })
-          : t('app.fileAvailable', { fileName: result.fileName })
-      setDownloadCheckResult({
-        status: 'success',
-        link,
-        message,
-        kind: result.kind,
-        availabilityScope: result.availabilityScope,
-        localAvailableCount: result.localAvailableCount,
-        missingLocalCount: result.missingLocalCount,
-        files: result.files,
-      })
-      if (result.kind === 'collection' && result.files?.length) {
-        const missingPaths = result.files
-          .filter(file => file.localAvailable !== true)
-          .map(file => file.path)
-        setSelectedCollectionPaths(
-          missingPaths.length > 0
-            ? missingPaths
-            : result.files.map(file => file.path)
-        )
-      }
-      addToast(
-        result.alreadyExists
-          ? t('app.fileAlreadyExists', { fileName: result.fileName })
-          : t('app.toast.checkPassed'),
-        result.alreadyExists ? 'warning' : 'success'
-      )
-    } catch (err) {
-      const message = await getDownloadCheckErrorMessage(err)
-      setDownloadCheckResult({
-        status: 'error',
-        link,
-        message,
-      })
-      addToast(message, 'error')
-    } finally {
-      setIsCheckingDownload(false)
-    }
-  }
-
-  const handleCheckDownloadAvailability = async () => {
-    await checkDownloadAvailability()
-  }
-
-  const handleDownloadToLibraryResult = (result: DownloadFileResult) => {
-    if (result.alreadyExists) {
-      addToast(
-        t('app.fileAlreadyExists', { fileName: result.fileName }),
-        'warning'
-      )
-      return
-    }
-
-    if (result.localAvailable || Array.isArray(result.files)) {
-      refreshFiles()
-      return
-    }
-
-    const transfer = {
-      id: result.taskId,
-      fileName: result.fileName || t('app.downloadFallbackName'),
-      progress: 0,
-      type: 'download',
-      status: 'downloading',
-    }
-    setTransfers(prev => [...prev, transfer])
-    transferPanel.open()
-    addToast(t('app.toast.downloadStarted'), 'info')
-  }
-
-  const handleDownloadSharedFile = async () => {
-    if (!userIdentity) {
-      openLoginModal()
-      addToast(t('app.toast.signInBeforeDownload'), 'warning')
-      return
-    }
-    if (!requireBackendReady()) return
+  const handleOpenDownloadPage = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
     const validationMessage = getLocalizedDownloadLinkValidationMessage(
       normalizedDownloadLink,
       t
     )
     if (validationMessage) {
-      addToast(validationMessage, 'warning')
+      setDownloadLinkError(validationMessage)
       return
     }
-    if (!isDownloadReady) {
-      addToast(t('app.toast.checkLinkFirst'), 'warning')
-      return
-    }
-    if (isCollectionDownload && selectedCollectionPaths.length === 0) return
-    if (isDownloading) return
-    setIsDownloading(true)
-    try {
-      const result = await fileApi.downloadFile(
-        normalizedDownloadLink,
-        isCollectionDownload ? selectedCollectionPaths : undefined
-      )
-      setDownloadLink('')
-      setDownloadCheckResult(null)
-      closeDownloadModal()
-      handleDownloadToLibraryResult(result)
-    } catch (err) {
-      const message = await getApiErrorMessage(
-        err,
-        isCollectionDownload
-          ? t('app.collectionDownloadFailed')
-          : t('app.toast.downloadFailed')
-      )
-      addToast(
-        isCollectionDownload
-          ? t('app.collectionDownloadFailedWithError', { error: message })
-          : message,
-        'error'
-      )
-    } finally {
-      setIsDownloading(false)
-    }
-  }
 
-  const handleCancelTransfer = async transfer => {
-    if (!requireLogin()) return
-    if (!requireBackendReady()) return
-    if (transfer.type === 'download' && transfer.status === 'downloading') {
-      setTransfers(prev =>
-        prev.map(t =>
-          t.id === transfer.id ? { ...t, status: 'cancelling' } : t
-        )
-      )
-      try {
-        await fileApi.cancelDownload(transfer.id)
-      } catch (err) {
-        setTransfers(prev =>
-          prev.map(t =>
-            t.id === transfer.id ? { ...t, status: 'downloading' } : t
-          )
-        )
-        addToast(
-          await getApiErrorMessage(err, t('app.toast.cancelFailed')),
-          'error'
-        )
-      }
+    const href = createCidRoutePathFromDownloadInput(normalizedDownloadLink)
+    if (!href) {
+      setDownloadLinkError(t('app.download.validation.generic'))
+      return
     }
+
+    downloadModal.close()
+    navigate({ href })
   }
 
   const handleSaveAs = async file => {
@@ -676,15 +482,8 @@ export default function App() {
     }
   }
 
-  const handleCacheFile = async file => {
-    if (!requireLogin()) return
-    if (!requireBackendReady()) return
-    const link = buildMostShareLink(file.cid, file.fileName)
-    setDownloadLink(link)
-    setDownloadCheckResult(null)
-    setSelectedCollectionPaths([])
-    downloadModal.open()
-    await checkDownloadAvailability(link)
+  const handleCacheFile = file => {
+    navigate({ href: buildCidSharePath(file.cid, file.fileName) })
   }
 
   const handleNavigate = path => {
@@ -706,7 +505,7 @@ export default function App() {
       ws.onmessage = e => {
         try {
           const { event, data } = JSON.parse(e.data)
-          if (event === 'publish:success' || event === 'download:success') {
+          if (event === 'publish:success') {
             refreshFiles()
             const taskId = data.taskId || data.fileName
             setTransfers(prev =>
@@ -716,26 +515,6 @@ export default function App() {
                   : t
               )
             )
-            if (event === 'download:success') {
-              if (data.alreadyExists) {
-                addToast(
-                  t('app.fileAlreadyExists', { fileName: data.fileName }),
-                  'warning'
-                )
-              } else {
-                addToast(
-                  t('app.fileDownloadCompleted', { fileName: data.fileName }),
-                  'success'
-                )
-              }
-              setTimeout(() => {
-                setTransfers(prev =>
-                  prev.filter(
-                    t => !(t.id === taskId && t.status === 'completed')
-                  )
-                )
-              }, 3000)
-            }
           }
           if (event === 'publish:progress') {
             setTransfers(prev =>
@@ -755,53 +534,10 @@ export default function App() {
               })
             )
           }
-          if (event === 'download:progress') {
-            if (data.collection === true) {
-              refreshFiles()
-            }
-            setTransfers(prev =>
-              prev.map(t =>
-                t.id === data.taskId
-                  ? {
-                      ...t,
-                      fileName: data.file || t.fileName,
-                      progress: data.percent || 0,
-                      loaded: data.loaded,
-                      total: data.total,
-                    }
-                  : t
-              )
-            )
-          }
-          if (event === 'download:error') {
-            setTransfers(prev =>
-              prev.map(t =>
-                t.id === data.taskId ? { ...t, status: 'error' } : t
-              )
-            )
-            addToast(
-              t('app.downloadFailedWithError', { error: data.error }),
-              'error'
-            )
-          }
-          if (event === 'download:status') {
-            setTransfers(prev =>
-              prev.map(t =>
-                t.id === data.taskId
-                  ? { ...t, fileName: data.file || t.fileName }
-                  : t
-              )
-            )
-          }
-          if (event === 'download:cancelled') {
-            setTransfers(prev =>
-              prev.map(t =>
-                t.id === data.taskId ? { ...t, status: 'cancelled' } : t
-              )
-            )
-            addToast(t('app.toast.downloadCancelled'), 'warning')
-          }
-          if (event === 'user:metadata:updated') {
+          if (
+            event === 'download:success' ||
+            event === 'user:metadata:updated'
+          ) {
             refreshFiles()
           }
         } catch (err) {
@@ -816,22 +552,45 @@ export default function App() {
   }, [hasBackend, userIdentity?.address])
 
   useEffect(() => {
+    let cancelled = false
+
     if (hasBackend === true && userIdentity) {
-      refreshFiles()
-      return
+      setIsFileListLoading(true)
+      void refreshFiles().finally(() => {
+        if (!cancelled) setIsFileListLoading(false)
+      })
+      return () => {
+        cancelled = true
+      }
     }
 
-    if (hasBackend === false) {
+    if (hasBackend !== null) {
       setItems([])
+      setIsFileListLoading(false)
+    }
+
+    return () => {
+      cancelled = true
     }
   }, [hasBackend, userIdentity?.address])
+
+  useEffect(() => {
+    if (
+      activeDownloadCount < previousActiveDownloadCountRef.current &&
+      hasBackend === true &&
+      userIdentity
+    ) {
+      refreshFiles()
+    }
+    previousActiveDownloadCountRef.current = activeDownloadCount
+  }, [activeDownloadCount])
 
   useEffect(() => {
     if (userIdentity) return
     setSelectedIds([])
     setPreviewItem(null)
     setDownloadLink('')
-    setDownloadCheckResult(null)
+    setDownloadLinkError('')
     setTransfers([])
     setSearchQuery('')
     setCurrentFolderId(null)
@@ -915,12 +674,23 @@ export default function App() {
               placeholder={t('app.search.placeholder')}
             />
             {searchQuery && (
-              <button onClick={() => setSearchQuery('')}>
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                aria-label={t('app.search.clear')}
+                title={t('app.search.clear')}
+              >
                 <X size={12} />
               </button>
             )}
           </div>
-          <button onClick={() => transferPanel.open()} className="btn btn-icon">
+          <button
+            type="button"
+            onClick={() => transferPanel.open()}
+            className="btn btn-icon"
+            aria-label={t('app.transfers')}
+            title={t('app.transfers')}
+          >
             <ArrowUpDown size={16} />
           </button>
         </>
@@ -929,7 +699,7 @@ export default function App() {
       {currentView === 'all' && (
         <div className="action-grid">
           <div
-            className={`action-card upload ${isDraggingOverUpload ? 'drag-over' : ''}`}
+            className={`action-card upload ui-glass-surface ui-glass-surface-subtle ${isDraggingOverUpload ? 'drag-over' : ''}`}
             onDragOver={e => {
               e.preventDefault()
               setIsDraggingOverUpload(true)
@@ -961,11 +731,8 @@ export default function App() {
             <p>{t('app.publishFile')}</p>
           </div>
           <div
-            className="action-card action-card-download"
-            onClick={() => {
-              if (!requireLogin() || !requireBackendReady()) return
-              downloadModal.open()
-            }}
+            className="action-card action-card-download ui-glass-surface ui-glass-surface-subtle"
+            onClick={() => downloadModal.open()}
           >
             <Download size={20} className="action-grid-icon" />
             <p>{t('app.downloadFile')}</p>
@@ -1007,7 +774,15 @@ export default function App() {
       )}
 
       <div className="content-grid">
-        {displayFiles.length === 0 && displayFolders.length === 0 ? (
+        {isFileListLoading ? (
+          <div
+            className="empty-state app-empty-state"
+            role="status"
+            aria-live="polite"
+          >
+            <Loader2 className="spin" size={20} />
+          </div>
+        ) : displayFiles.length === 0 && displayFolders.length === 0 ? (
           <div className="empty-state app-empty-state">
             <p>
               {searchQuery
@@ -1093,7 +868,11 @@ export default function App() {
 
       {isDownloadModalOpen && (
         <ModalOverlay onClose={closeDownloadModal}>
-          <div className="download-modal" onClick={e => e.stopPropagation()}>
+          <form
+            className="download-modal"
+            onSubmit={handleOpenDownloadPage}
+            onClick={e => e.stopPropagation()}
+          >
             <div className="modal-header">
               <h3>{t('app.downloadFile')}</h3>
               <button onClick={closeDownloadModal} className="btn btn-icon">
@@ -1107,113 +886,23 @@ export default function App() {
                 value={downloadLink}
                 onChange={handleDownloadLinkChange}
                 placeholder={t('app.downloadLink.placeholder')}
+                autoFocus
               />
-              <button
-                type="button"
-                onClick={handleCheckDownloadAvailability}
-                disabled={
-                  !normalizedDownloadLink || isCheckingDownload || isDownloading
-                }
-                className="btn btn-secondary download-check-btn"
-              >
-                {isCheckingDownload ? (
-                  <Loader size={14} className="spin" />
-                ) : isDownloadReady ? (
-                  <Check size={14} />
-                ) : (
-                  <Search size={14} />
-                )}
-                {isCheckingDownload
-                  ? t('app.checking')
-                  : isDownloadReady
-                    ? t('app.passed')
-                    : t('app.check')}
-              </button>
             </div>
-            {isCheckingDownload && (
-              <div className="download-check-status pending" role="status">
-                <Loader size={14} className="spin" />
-                <span>
-                  {t('app.downloadAutoChecking', {
-                    seconds: downloadCheckRemainingSeconds,
-                  })}
-                </span>
-              </div>
+            {downloadLinkError && (
+              <p className="download-link-error" role="alert">
+                {downloadLinkError}
+              </p>
             )}
-            {downloadCheckResult && (
-              <div
-                className={`download-check-status ${downloadCheckResult.status}`}
-              >
-                {downloadCheckResult.status === 'success' ? (
-                  <Check size={14} />
-                ) : (
-                  <Info size={14} />
-                )}
-                <span>{downloadCheckResult.message}</span>
-              </div>
-            )}
-            {downloadCheckResult?.kind === 'collection' &&
-              downloadCheckResult.files?.length > 0 && (
-                <div className="collection-download-list">
-                  {downloadCheckResult.files.map(file => {
-                    const checked = selectedCollectionPaths.includes(file.path)
-                    return (
-                      <label
-                        key={file.path}
-                        className="collection-download-item"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => {
-                            setSelectedCollectionPaths(prev =>
-                              checked
-                                ? prev.filter(path => path !== file.path)
-                                : [...prev, file.path]
-                            )
-                          }}
-                        />
-                        <span
-                          className="collection-download-name"
-                          translate="no"
-                        >
-                          {file.path}
-                        </span>
-                        <span className="collection-download-size">
-                          {formatBytes(file.size)}
-                        </span>
-                        <span
-                          className={`collection-download-status ${
-                            file.localAvailable === true
-                              ? 'is-local'
-                              : 'is-pending'
-                          }`}
-                        >
-                          {file.localAvailable === true && <Check size={14} />}
-                          {file.localAvailable === true
-                            ? t('app.collectionChildLocal')
-                            : t('app.collectionChildDownloadCheck')}
-                        </span>
-                      </label>
-                    )
-                  })}
-                </div>
-              )}
             <button
-              onClick={handleDownloadSharedFile}
-              disabled={
-                !canStartDownload || isDownloading || isCheckingDownload
-              }
+              type="submit"
+              disabled={!normalizedDownloadLink}
               className="btn btn-info btn-full"
             >
-              {isDownloading ? (
-                <Loader size={14} className="spin" />
-              ) : (
-                <Download size={14} />
-              )}
-              {isDownloading ? t('app.downloading') : t('app.startDownload')}
+              <ArrowRight size={16} />
+              {t('app.viewAndDownload')}
             </button>
-          </div>
+          </form>
         </ModalOverlay>
       )}
 
@@ -1346,8 +1035,11 @@ export default function App() {
             <div className="modal-header">
               <h3>{t('app.transfers')}</h3>
               <button
+                type="button"
                 onClick={() => transferPanel.close()}
                 className="btn btn-icon"
+                aria-label={t('common.close')}
+                title={t('common.close')}
               >
                 <X size={18} />
               </button>
@@ -1358,27 +1050,14 @@ export default function App() {
               transfers.map(transfer => (
                 <div key={transfer.id} className="transfer-item">
                   <div className="transfer-item-header">
-                    {transfer.type === 'upload' ? (
-                      <Upload size={14} />
-                    ) : (
-                      <Download size={14} />
-                    )}
+                    <Upload size={14} />
                     <span className="transfer-item-name" translate="no">
                       {transfer.fileName}
                     </span>
-                    {transfer.status === 'downloading' &&
-                      transfer.type === 'download' && (
-                        <button
-                          onClick={() => handleCancelTransfer(transfer)}
-                          className="transfer-item-cancel"
-                        >
-                          <X size={14} />
-                        </button>
-                      )}
                   </div>
                   <div className="transfer-progress-row">
                     <progress
-                      className={`transfer-progress-meter ${transfer.type === 'download' ? 'download' : ''} ${transfer.status === 'error' ? 'error' : ''} ${transfer.status === 'cancelled' ? 'cancelled' : ''}`}
+                      className={`transfer-progress-meter ${transfer.status === 'error' ? 'error' : ''}`}
                       value={Math.max(0, Math.min(100, transfer.progress))}
                       max={100}
                       aria-label={t('app.transferProgress', {
@@ -1390,13 +1069,7 @@ export default function App() {
                         ? t('app.completed')
                         : transfer.status === 'error'
                           ? t('app.failed')
-                          : transfer.status === 'cancelled'
-                            ? t('app.cancelled')
-                            : transfer.status === 'cancelling'
-                              ? t('app.cancelling')
-                              : transfer.loaded && transfer.total
-                                ? `${formatBytes(transfer.loaded)}/${formatBytes(transfer.total)}`
-                                : `${transfer.progress}%`}
+                          : `${transfer.progress}%`}
                     </span>
                   </div>
                 </div>

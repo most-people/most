@@ -36,7 +36,7 @@
 
 ### Android Alpha
 
-移动端优先按 Android 前台完整种子 Alpha 推进，参考 Keet/Pear 的“P2P 核心端 + 平台 UI 壳”分层：手机端先验证自己能加入聊天、收发消息、用 `most://` 附件传文件、下载校验并在前台继续做种，再扩展后台能力、iOS 和商店分发。当前内测验收范围见 [docs/mobile-android-alpha.md](docs/mobile-android-alpha.md)。
+移动端优先按 Android 前台完整种子 Alpha 推进，参考 Keet/Pear 的“P2P 核心端 + 平台 UI 壳”分层：手机端先验证自己能加入聊天、收发消息、用 `most://` 附件传文件、下载校验并在前台继续做种，再扩展后台能力和商店分发。当前 Android 内测验收范围见 [docs/mobile-android-alpha.md](docs/mobile-android-alpha.md)；iOS 在投入完整移植和商店合规建设前，先按 [docs/mobile-ios-feasibility.md](docs/mobile-ios-feasibility.md) 完成真机可行性验证。
 
 Android 工程入口以 `mobile/android/` 子包为准，仓库根目录不提供 `android:start`、`android:test` 或 `android:build` 包装脚本。本地开发、测试和打包命令统一在子包目录执行：
 
@@ -45,8 +45,11 @@ cd mobile/android
 npm install
 npm start      # 启动 Expo Dev Client 并打开 Android 真机/模拟器
 npm test       # 运行移动端 CID、most://、Channel 和 Bare Worklet IPC 测试
+npm run typecheck
 npm run build  # 生成内部 Alpha APK 和 SHA256 校验文件
 ```
+
+Expo 57 移动端子包建议使用 Node.js >= 22.13。
 
 ### 方式二：npm 包
 
@@ -296,7 +299,7 @@ npx most-box@latest
 - **后端**: Hono + @hono/node-server + WebSocket
 - **P2P**: Hyperswarm 4.x, Hyperdrive 13.x, Corestore 7.x
 - **桌面**: Electron 42, electron-builder
-- **移动端**: Expo 56, React Native 0.85, react-native-bare-kit / Bare Worklet
+- **移动端**: Expo 57, React Native 0.86, react-native-bare-kit / Bare Worklet
 - **测试**: Node.js built-in test runner
 
 ## CI/CD

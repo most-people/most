@@ -1,6 +1,6 @@
-# MostBox Android
+# MostBox Mobile
 
-Android foreground P2P alpha for MostBox. This package keeps the React Native UI and Bare Worklet P2P core separate from the desktop/web code while preserving the same `most://`, CID, Hyperdrive, and seeding rules.
+Android foreground P2P alpha and iOS feasibility build for MostBox. This package keeps the React Native UI and Bare Worklet P2P core separate from the desktop/web code while preserving the same `most://`, CID, Hyperdrive, and seeding rules. The directory remains `mobile/android/` until the iOS real-device validation passes.
 
 ## Current State
 
@@ -30,6 +30,36 @@ npm run build
 
 If the machine has multiple network adapters and the selected LAN URL is not reachable from the phone, set `MOST_ANDROID_HOST` to the host IP address on the same Wi-Fi/LAN before running `npm start`. The script prints the dev server URL it is opening; manual entry in the Expo Development Servers screen should only be needed when no device is connected or Android rejects the automatic intent.
 
+## iOS Feasibility Build From Windows
+
+The iOS build uses EAS Build's remote macOS worker. A physical iPhone build requires an Expo account, an active Apple Developer Program membership, and a registered device.
+
+Run the one-time account and device setup from this package:
+
+```bash
+cd mobile/android
+npx eas-cli@latest login
+npx eas-cli@latest init
+npx eas-cli@latest device:create
+```
+
+Create and install the development client on the registered iPhone:
+
+```bash
+npx eas-cli@latest build --platform ios --profile ios-development
+npm run start:ios
+```
+
+The iPhone and Windows machine must be able to reach the same Metro development server. After installing the development build, enable Developer Mode under iPhone Settings > Privacy & Security when iOS prompts for it.
+
+For Wi-Fi/cellular P2P tests that must run without Metro, create an internal preview build with the JavaScript bundle embedded:
+
+```bash
+npx eas-cli@latest build --platform ios --profile ios-preview
+```
+
+EAS runs `scripts/bundle-bare.mjs` after installing native dependencies so the Xcode build always receives a Bare bundle for the selected platform. The `ios-production` profile is reserved for the later TestFlight validation and is not proof of App Store approval.
+
 ## Alpha APK
 
 `npm run build` builds a release APK for device installation and writes these files to `mobile/android/dist/`:
@@ -53,7 +83,7 @@ node scripts/android-real-p2p-seed.mjs --handoff-check
 - Android chat currently focuses on private room messages, presence, and `most://` attachment links; notes, games, and Web3 remain desktop/web-first surfaces.
 - Exported or saved files are user-visible copies. MostBox keeps its internal holding copy for CID verification and seeding.
 - Deleting an Android holding removes only the app-internal holding copy and holding record; user-visible saved/exported copies are not managed by MostBox.
-- iOS, Play Store distribution, cloud relay, account sync, background seeding guarantees, and full notes/games/Web3 migration are outside this alpha.
+- App Store/Play Store approval, cloud relay, account sync, background seeding guarantees, and full notes/games/Web3 migration are outside this alpha.
 - Large files may expose storage, network interruption, and Android file picker/export edge cases; record those in `docs/mobile-android-alpha.md`.
 
 ## Protocol Invariants

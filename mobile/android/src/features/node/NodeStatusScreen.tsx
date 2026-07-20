@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react'
 import {
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -410,7 +411,7 @@ export function NodeStatusScreen({
                       }
                     />
                     <SmallAction
-                      label="保存"
+                      label={Platform.OS === 'ios' ? '存到文件' : '保存'}
                       disabled={isExporting || isDeleting || !isReady}
                       onPress={() => onSaveHolding(holding)}
                       icon={

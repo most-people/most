@@ -2291,7 +2291,7 @@ function ChatPage() {
 
   const mentionMenu = isMentionMenuOpen ? (
     <div
-      className="chat-mention-menu"
+      className="chat-mention-menu ui-glass-surface ui-glass-surface-elevated"
       role="listbox"
       aria-label={t('chat.mentionSuggestions')}
     >

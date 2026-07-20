@@ -42,6 +42,9 @@ import { shortAddress } from './shared/format-address.mjs'
 
 const DEV_CID_MAX_BYTES = 20 * 1024 * 1024
 const CHANNEL_PRESENCE_HEARTBEAT_MS = 15 * 1000
+const MOBILE_PLATFORM_ID = Platform.OS === 'ios' ? 'ios' : 'android'
+const MOBILE_PLATFORM_LABEL = Platform.OS === 'ios' ? 'iOS' : 'Android'
+const DEFAULT_CHANNEL_NAME = `chat-${MOBILE_PLATFORM_ID}`
 const MIME_BY_EXTENSION: Record<string, string> = {
   apk: 'application/vnd.android.package-archive',
   csv: 'text/csv',
@@ -203,7 +206,7 @@ export default function App() {
   const settingsRemarkChannelKeyRef = useRef('')
   const settingsRemarkBaselineRef = useRef('')
   const channelPresenceSessionRef = useRef(
-    `android-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    `${MOBILE_PLATFORM_ID}-${Date.now()}-${Math.random().toString(36).slice(2)}`
   )
   const [snapshot, setSnapshot] = useState<MobileCoreSnapshot | null>(null)
   const [activeTab, setActiveTab] = useState<RootTab>('chat')
@@ -211,9 +214,9 @@ export default function App() {
   const [exportingCid, setExportingCid] = useState<string | null>(null)
   const [deletingCid, setDeletingCid] = useState<string | null>(null)
   const [copiedCid, setCopiedCid] = useState<string | null>(null)
-  const [channelName, setChannelName] = useState('chat-android')
+  const [channelName, setChannelName] = useState(DEFAULT_CHANNEL_NAME)
   const [channelSearchInput, setChannelSearchInput] = useState('')
-  const [channelInput, setChannelInput] = useState('chat-android')
+  const [channelInput, setChannelInput] = useState(DEFAULT_CHANNEL_NAME)
   const [channelLastReadAt, setChannelLastReadAt] =
     useState<ChannelLastReadMap>({})
   const [channelDraft, setChannelDraft] = useState('')
@@ -256,7 +259,7 @@ export default function App() {
     chatRoute.name === 'room' || chatRoute.name === 'settings'
       ? chatRoute.channelKey
       : ''
-  const normalizedChannelName = channelName.trim() || 'chat-android'
+  const normalizedChannelName = channelName.trim() || DEFAULT_CHANNEL_NAME
   const selectedChannel =
     currentSnapshot.channels.find(channel => {
       const targetChannelKey = routeChannelKey || normalizedChannelName
@@ -325,7 +328,7 @@ export default function App() {
     void core
       .joinChannelPresence({
         ...basePayload,
-        displayName: 'Android',
+        displayName: MOBILE_PLATFORM_LABEL,
       })
       .catch(() => {})
 
@@ -433,7 +436,7 @@ export default function App() {
           channelName: channelKey,
           content: attachment.link,
           author: channel.localWriterCoreKey,
-          authorName: 'Android',
+          authorName: MOBILE_PLATFORM_LABEL,
           attachment,
         })
         await core.getChannelMessages(channelKey)
@@ -633,8 +636,8 @@ export default function App() {
                     return currentRoute
                   }
 
-                  setChannelName('chat-android')
-                  setChannelInput('chat-android')
+                  setChannelName(DEFAULT_CHANNEL_NAME)
+                  setChannelInput(DEFAULT_CHANNEL_NAME)
                   setChannelDraft('')
                   return { name: 'list' }
                 })
@@ -682,7 +685,7 @@ export default function App() {
         channelName: channelKey,
         content,
         author: channel.localWriterCoreKey,
-        authorName: 'Android',
+        authorName: MOBILE_PLATFORM_LABEL,
       })
       setChannelDraft('')
       setChannelLastReadAt(lastReadAt =>
@@ -780,8 +783,22 @@ export default function App() {
     if (!guardReady()) return
     setExportingCid(holding.cid)
     try {
+      if (Platform.OS === 'ios') {
+        const available = await Sharing.isAvailableAsync()
+        if (!available) {
+          throw new Error('当前设备不支持导出到“文件”')
+        }
+
+        const exported = await prepareHoldingFile(holding)
+        await Sharing.shareAsync(exported.fileUri, {
+          mimeType: exported.mimeType,
+          dialogTitle: `存储 ${exported.fileName}`,
+        })
+        return
+      }
+
       if (Platform.OS !== 'android') {
-        throw new Error('保存到手机目录目前仅支持 Android')
+        throw new Error('当前平台暂不支持保存文件')
       }
 
       const exported = await prepareHoldingFile(holding)
@@ -834,6 +851,7 @@ export default function App() {
           lastReadAt={channelLastReadAt}
           searchInput={channelSearchInput}
           joinInput={channelInput}
+          joinPlaceholder={DEFAULT_CHANNEL_NAME}
           busy={channelBusy}
           onSearchInputChange={setChannelSearchInput}
           onJoinInputChange={setChannelInput}

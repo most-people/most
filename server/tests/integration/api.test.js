@@ -1,5 +1,6 @@
 import { describe, it, before, after, beforeEach } from 'node:test'
 import assert from 'node:assert'
+import { EventEmitter } from 'node:events'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -503,6 +504,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(spec.paths['/api/publish'])
       assert.ok(spec.paths['/api/download/check'])
       assert.ok(spec.paths['/api/download'])
+      assert.ok(spec.paths['/api/download/tasks'])
       assert.ok(spec.paths['/api/download/cancel'])
       assert.ok(spec.paths['/api/files/{cid}/download'])
       assert.strictEqual(spec.paths['/api/trash'], undefined)
@@ -1367,6 +1369,70 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
 
       assert.strictEqual(res.status, 400)
     })
+
+    it('lists only the signed-in user active background downloads', async () => {
+      const fakeEngine = new EventEmitter()
+      let resolveDownload
+      const pendingDownload = new Promise(resolve => {
+        resolveDownload = resolve
+      })
+      Object.assign(fakeEngine, {
+        getLocalCidAvailability: async () => null,
+        downloadFile: async () => {
+          await pendingDownload
+          return { taskId: 'finished' }
+        },
+      })
+      const { app } = createApp(fakeEngine, {
+        port: TEST_PORT + 40,
+        configStore,
+        nodeLogger,
+      })
+
+      const startRes = await requestWithAuth(app, '/api/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          link: `most://${VALID_MISSING_CID}?filename=large.bin`,
+          background: true,
+        }),
+      })
+      const started = await startRes.json()
+      assert.strictEqual(startRes.status, 200)
+
+      fakeEngine.emit('download:progress', {
+        taskId: started.taskId,
+        loaded: 25,
+        total: 100,
+        percent: 25,
+      })
+
+      const ownerRes = await requestWithAuth(app, '/api/download/tasks')
+      const ownerTasks = await ownerRes.json()
+      assert.strictEqual(ownerRes.status, 200)
+      assert.strictEqual(ownerTasks.length, 1)
+      assert.strictEqual(ownerTasks[0].taskId, started.taskId)
+      assert.strictEqual(ownerTasks[0].cid, VALID_MISSING_CID)
+      assert.strictEqual(ownerTasks[0].fileName, 'large.bin')
+      assert.strictEqual(ownerTasks[0].progress, 25)
+
+      const otherRes = await requestAsWithContext(
+        SECOND_IDENTITY,
+        app,
+        '/api/download/tasks'
+      )
+      assert.deepStrictEqual(await otherRes.json(), [])
+
+      resolveDownload()
+      await sleep(0)
+      const completedRes = await requestWithAuth(app, '/api/download/tasks')
+      assert.deepStrictEqual(await completedRes.json(), [])
+    })
+
+    it('requires login to list active background downloads', async () => {
+      const res = await fetchWithoutAuth(`${baseUrl}/api/download/tasks`)
+      assert.strictEqual(res.status, 401)
+    })
   })
 
   describe('node holdings and P2P pull API', () => {
@@ -1606,16 +1672,70 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
   })
 
   describe('POST /api/download/cancel', () => {
-    it('cancels a download by taskId', async () => {
-      const res = await fetch(`${baseUrl}/api/download/cancel`, {
+    it('only cancels an active task owned by the signed-in user', async () => {
+      const fakeEngine = new EventEmitter()
+      let cancelledTaskId = ''
+      let rejectDownload
+      const pendingDownload = new Promise((_resolve, reject) => {
+        rejectDownload = reject
+      })
+      Object.assign(fakeEngine, {
+        getLocalCidAvailability: async () => null,
+        downloadFile: async () => pendingDownload,
+        cancelDownload: taskId => {
+          cancelledTaskId = taskId
+          rejectDownload(new Error('Download cancelled'))
+        },
+      })
+      const { app } = createApp(fakeEngine, {
+        port: TEST_PORT + 41,
+        configStore,
+        nodeLogger,
+      })
+      const startRes = await requestWithAuth(app, '/api/download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ taskId: 'fake-task-id' }),
+        body: JSON.stringify({
+          link: `most://${VALID_MISSING_CID}?filename=cancel.bin`,
+          background: true,
+        }),
+      })
+      const started = await startRes.json()
+
+      const otherRes = await requestAsWithContext(
+        SECOND_IDENTITY,
+        app,
+        '/api/download/cancel',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ taskId: started.taskId }),
+        }
+      )
+      assert.strictEqual(otherRes.status, 404)
+
+      const res = await requestWithAuth(app, '/api/download/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId: started.taskId }),
       })
 
       assert.strictEqual(res.status, 200)
       const data = await res.json()
       assert.ok(data.success)
+      assert.strictEqual(cancelledTaskId, started.taskId)
+      await sleep(0)
+      const tasksRes = await requestWithAuth(app, '/api/download/tasks')
+      assert.deepStrictEqual(await tasksRes.json(), [])
+    })
+
+    it('returns 404 for an unknown taskId', async () => {
+      const res = await fetch(`${baseUrl}/api/download/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId: 'fake-task-id' }),
+      })
+      assert.strictEqual(res.status, 404)
     })
 
     it('returns 400 for missing taskId', async () => {

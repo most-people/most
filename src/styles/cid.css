@@ -54,10 +54,7 @@
   display: grid;
   gap: 22px;
   padding: 24px;
-  border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
-  background: var(--glass-bg-heavy);
-  box-shadow: var(--glass-shadow);
 }
 
 .cid-main-panel {
@@ -310,7 +307,8 @@
 
 .cid-status-icon.backend-missing,
 .cid-status-icon.login-required,
-.cid-status-icon.waiting-backend {
+.cid-status-icon.waiting-backend,
+.cid-status-icon.partial {
   color: var(--warning);
   background: rgba(255, 149, 0, 0.14);
 }
@@ -380,6 +378,71 @@
   margin: 0;
 }
 
+.cid-collection-files {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.cid-collection-files h2 {
+  color: var(--text-primary);
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.cid-collection-list {
+  display: grid;
+  gap: 6px;
+  max-height: 280px;
+  overflow: auto;
+  padding: 2px;
+}
+
+.cid-collection-item {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 7px 9px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  background: var(--glass-bg-subtle);
+}
+
+.cid-collection-item input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.cid-collection-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cid-collection-size,
+.cid-collection-status {
+  color: var(--text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.cid-collection-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  min-width: 76px;
+}
+
+.cid-collection-status.is-local {
+  color: var(--success);
+}
+
 .cid-mono {
   font-family: var(--font-mono);
   font-size: 13px;
@@ -408,6 +471,12 @@
   background: rgba(255, 59, 48, 0.1);
 }
 
+.cid-download-state.partial {
+  color: var(--warning);
+  border-color: rgba(255, 149, 0, 0.35);
+  background: rgba(255, 149, 0, 0.1);
+}
+
 .cid-progress {
   display: grid;
   gap: 8px;
@@ -430,6 +499,157 @@
   }
 }
 
+.global-download-tray {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 180;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-end;
+  gap: 8px;
+  width: min(360px, calc(100vw - 36px));
+}
+
+.global-download-panel {
+  width: 100%;
+  max-height: min(520px, calc(100dvh - 110px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+}
+
+.global-download-panel-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 58px;
+  padding: 10px 12px 10px 16px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.global-download-panel-header > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.global-download-panel-header strong {
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.global-download-panel-header span {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.global-download-list {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.global-download-item {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.global-download-item:last-child {
+  border-bottom: 0;
+}
+
+.global-download-item-heading {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--text-secondary);
+}
+
+.global-download-item-heading > span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.global-download-item-heading strong {
+  color: var(--accent);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.global-download-progress-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.global-download-progress-row .ui-progress {
+  min-width: 0;
+}
+
+.global-download-progress-row span {
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.global-download-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.global-download-toggle {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 10px;
+  width: min(320px, 100%);
+  min-height: 54px;
+  padding: 8px 12px 8px 10px;
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.global-download-toggle-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  text-align: left;
+}
+
+.global-download-toggle-copy strong,
+.global-download-toggle-copy span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.global-download-toggle-copy strong {
+  font-size: 13px;
+}
+
+.global-download-toggle-copy span {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
 @media (max-width: 900px) {
   .cid-workspace {
     grid-template-columns: 1fr;
@@ -445,6 +665,36 @@
 }
 
 @media (max-width: 640px) {
+  .global-download-tray {
+    right: calc(12px + env(safe-area-inset-right));
+    left: calc(12px + env(safe-area-inset-left));
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    width: auto;
+  }
+
+  .global-download-toggle {
+    width: 100%;
+  }
+
+  .global-download-panel {
+    max-height: min(
+      70dvh,
+      calc(
+        100dvh - 96px - env(safe-area-inset-top) - env(safe-area-inset-bottom)
+      )
+    );
+  }
+
+  .global-download-panel-header .btn-icon {
+    width: 44px;
+    height: 44px;
+  }
+
+  .global-download-actions .btn {
+    flex: 1;
+    min-height: 44px;
+  }
+
   .cid-page {
     place-items: stretch;
     padding: 24px 14px;
@@ -474,6 +724,16 @@
   .cid-details div {
     grid-template-columns: 1fr;
     gap: 6px;
+  }
+
+  .cid-collection-item {
+    grid-template-columns: 18px minmax(0, 1fr) auto;
+  }
+
+  .cid-collection-status {
+    grid-column: 2 / -1;
+    justify-self: start;
+    min-width: 0;
   }
 
   .cid-handoff,

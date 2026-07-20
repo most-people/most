@@ -209,6 +209,8 @@ export function ActionMenu({
             id={menuId}
             className={[
               'ui-action-menu',
+              'ui-glass-surface',
+              'ui-glass-surface-elevated',
               isPositioned ? 'is-positioned' : '',
               menuClassName,
             ]

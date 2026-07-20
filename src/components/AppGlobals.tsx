@@ -6,6 +6,7 @@ import { Toast } from '~/components/ui'
 import UserLoginModal from '~/components/UserLoginModal'
 import ConnectModal from '~/components/ConnectModal'
 import { useAccountBackup } from '~/features/profile/useAccountBackup'
+import GlobalDownloadTasks from '~/features/cid/GlobalDownloadTasks'
 
 export default function AppGlobals() {
   const pathname = useLocation({ select: location => location.pathname })
@@ -75,6 +76,8 @@ export default function AppGlobals() {
           index={i}
         />
       ))}
+
+      <GlobalDownloadTasks />
 
       <UserLoginModal />
 
