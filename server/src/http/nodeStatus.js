@@ -359,6 +359,10 @@ export function buildOpenApiSpec(appPort) {
           summary: 'List CID replicas held by this node',
           responses: { 200: { description: 'Node holdings' } },
         },
+        post: {
+          summary: 'Add a held CID replica record and join its topic',
+          responses: { 200: { description: 'Created holding' } },
+        },
       },
       '/api/node/logs': {
         get: {
@@ -472,14 +476,6 @@ export function buildOpenApiSpec(appPort) {
           summary:
             'Start downloading a CID-tailed share target, optionally with selected collection paths',
           responses: { 200: { description: 'Download task result' } },
-        },
-      },
-      '/api/download/tasks': {
-        get: {
-          summary: 'List active CID download tasks for the signed-in user',
-          responses: {
-            200: { description: 'Active download task snapshots' },
-          },
         },
       },
       '/api/download/cancel': {

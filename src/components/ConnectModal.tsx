@@ -15,14 +15,12 @@ export default function ConnectModal() {
   const modal = (
     <ModalOverlay onClose={closeConnectModal}>
       <div className="connect-modal">
-        <div className="modal-header connect-modal-header">
+        <div className="connect-modal-header">
           <h3>{t('connectModal.title')}</h3>
           <button
-            className="btn btn-icon connect-modal-close"
+            className="connect-modal-close"
             onClick={closeConnectModal}
             type="button"
-            aria-label={t('common.close')}
-            title={t('common.close')}
           >
             <X size={18} />
           </button>

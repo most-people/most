@@ -1,5 +1,3 @@
-import { parseMostLink } from '~server/src/core/mostLink.js'
-
 const MOST_BOX_SHARE_ORIGIN = 'https://most.box'
 
 function getTrimmedFileName(fileName?: string) {
@@ -26,14 +24,4 @@ export function buildCidSharePath(cid: string, fileName?: string) {
 
 export function buildCidShareLink(cid: string, fileName?: string) {
   return `${MOST_BOX_SHARE_ORIGIN}${buildCidSharePath(cid, fileName)}`
-}
-
-export function createCidRoutePathFromDownloadInput(input: string) {
-  const parsed = parseMostLink(input)
-  if (parsed.errorCode || !parsed.cid) return ''
-
-  return buildCidSharePath(
-    parsed.cid,
-    parsed.fileName === parsed.cid ? undefined : parsed.fileName
-  )
 }

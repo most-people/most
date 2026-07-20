@@ -1222,7 +1222,7 @@ function NotePageContent() {
       <main
         className={`note-page note-browser-page ${showPreview ? 'has-editor' : ''}`}
       >
-        <section className="note-workspace ui-glass-surface ui-glass-surface-elevated">
+        <section className="note-workspace">
           <section
             className="note-editor-panel"
             aria-label={
@@ -2109,7 +2109,7 @@ function VaultNotePageContent() {
       <main
         className={`note-page note-browser-page ${showPreview ? 'has-editor' : ''}`}
       >
-        <section className="note-workspace ui-glass-surface ui-glass-surface-elevated">
+        <section className="note-workspace">
           <section
             className="note-editor-panel"
             aria-label={

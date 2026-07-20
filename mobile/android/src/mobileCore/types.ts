@@ -1,10 +1,18 @@
 export type NodeRuntimeStatus =
-  'idle' | 'starting' | 'ready' | 'stopping' | 'error'
+  | 'idle'
+  | 'starting'
+  | 'ready'
+  | 'stopping'
+  | 'error'
 
 export type SeedStatus = 'queued' | 'joining' | 'active' | 'paused' | 'error'
 
 export type TransferStatus =
-  'queued' | 'running' | 'completed' | 'failed' | 'waitingCore'
+  | 'queued'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'waitingCore'
 
 export type TransferKind = 'publish' | 'download'
 
@@ -14,7 +22,6 @@ export type MobileHolding = {
   cid: string
   fileName: string
   size: number
-  topic: string
   status: SeedStatus
   topicJoined: boolean
   peerCount: number

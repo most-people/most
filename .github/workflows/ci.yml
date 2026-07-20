@@ -16,10 +16,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v5
 
       - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v5
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
@@ -30,14 +30,8 @@ jobs:
       - name: Run tests
         run: npm test
 
-      - name: Check synchronized versions
-        run: npm run check:versions
-
       - name: Run frontend smoke tests
         run: npm run test:frontend
-
-      - name: Run desktop tests
-        run: npm run test:desktop
 
   build:
     name: Build
@@ -45,10 +39,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v5
         with:
           node-version: '24'
           cache: 'npm'
@@ -68,10 +62,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v5
         with:
           node-version: '24'
           cache: 'npm'
@@ -91,10 +85,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v5
         with:
           node-version: '24'
           cache: 'npm'
@@ -103,9 +97,6 @@ jobs:
         run: npm ci
 
       - name: Check formatting
-        run: npm run format:check
-
-      - name: Lint
         run: npm run lint
 
   android-test:
@@ -114,10 +105,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v5
         with:
           node-version: '24'
           cache: 'npm'
@@ -130,7 +121,3 @@ jobs:
       - name: Run Android package tests
         working-directory: mobile/android
         run: npm test
-
-      - name: Typecheck Android package
-        working-directory: mobile/android
-        run: npm run typecheck

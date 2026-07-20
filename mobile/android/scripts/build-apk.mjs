@@ -15,15 +15,17 @@ const packageJson = JSON.parse(
 const version = resolveReleaseVersion(
   process.env.MOST_ANDROID_RELEASE_VERSION || packageJson.version || '0.0.0'
 )
-const apkSourceDir = path.join(
+const apkSource = path.join(
   androidDir,
   'app',
   'build',
   'outputs',
   'apk',
-  'release'
+  'release',
+  'app-release.apk'
 )
-const releaseAbis = ['arm64-v8a', 'armeabi-v7a', 'x86_64']
+const legacyApkTarget = path.join(outputDir, 'mostbox-android-release.apk')
+const apkTarget = path.join(outputDir, `mostbox-android-${version}-release.apk`)
 const gradleCommand = process.platform === 'win32' ? 'gradlew.bat' : './gradlew'
 const npxCommand = process.platform === 'win32' ? 'npx.cmd' : 'npx'
 
@@ -78,26 +80,6 @@ function safeRm(filePath) {
   } catch {}
 }
 
-function requireReleaseSigning() {
-  const required = [
-    'MOST_ANDROID_KEYSTORE_PATH',
-    'MOST_ANDROID_STORE_PASSWORD',
-    'MOST_ANDROID_KEY_ALIAS',
-    'MOST_ANDROID_KEY_PASSWORD',
-  ]
-  const missing = required.filter(
-    name => !String(process.env[name] || '').trim()
-  )
-  if (missing.length > 0) {
-    throw new Error(
-      `Android release signing is required. Missing: ${missing.join(', ')}`
-    )
-  }
-  if (!fs.existsSync(process.env.MOST_ANDROID_KEYSTORE_PATH)) {
-    throw new Error('Android release keystore does not exist')
-  }
-}
-
 function hasAndroidProject() {
   return fs.existsSync(
     path.join(androidDir, gradleCommand.replace(/^\.\//, ''))
@@ -112,7 +94,6 @@ function ensureAndroidProject() {
 }
 
 console.log(`[android] release version: ${version}`)
-requireReleaseSigning()
 ensureAndroidProject()
 syncNativeAndroidProject({ version })
 console.log('[android] bundling Bare Worklet core...')
@@ -136,23 +117,16 @@ run(gradleCommand, ['assembleRelease'], {
   },
 })
 
-fs.mkdirSync(outputDir, { recursive: true })
-for (const abi of releaseAbis) {
-  const apkSource = path.join(apkSourceDir, `app-${abi}-release.apk`)
-  if (!fs.existsSync(apkSource)) {
-    throw new Error(`APK was not created at ${apkSource}`)
-  }
-
-  const apkTarget = path.join(
-    outputDir,
-    `mostbox-android-${version}-${abi}-release.apk`
-  )
-  safeRm(apkTarget)
-  safeRm(`${apkTarget}.sha256.txt`)
-  fs.copyFileSync(apkSource, apkTarget)
-  console.log(`[android] APK ready: ${apkTarget}`)
-
-  const { checksumPath, digest } = writeChecksum(apkTarget)
-  console.log(`[android] SHA256 ${digest}  ${path.basename(apkTarget)}`)
-  console.log(`[android] Checksum ready: ${checksumPath}`)
+if (!fs.existsSync(apkSource)) {
+  throw new Error(`APK was not created at ${apkSource}`)
 }
+
+fs.mkdirSync(outputDir, { recursive: true })
+safeRm(legacyApkTarget)
+safeRm(`${legacyApkTarget}.sha256.txt`)
+fs.copyFileSync(apkSource, apkTarget)
+console.log(`[android] APK ready: ${apkTarget}`)
+
+const { checksumPath, digest } = writeChecksum(apkTarget)
+console.log(`[android] SHA256 ${digest}  ${path.basename(apkTarget)}`)
+console.log(`[android] Checksum ready: ${checksumPath}`)

@@ -155,9 +155,9 @@ export const channelApi = {
 
   getChannelMessages(name: string, limit = 100, offset = 0) {
     return api
-      .get<ChannelMessage[]>(
-        `/api/channels/${encodeURIComponent(name)}/messages?limit=${limit}&offset=${offset}`
-      )
+      .get<
+        ChannelMessage[]
+      >(`/api/channels/${encodeURIComponent(name)}/messages?limit=${limit}&offset=${offset}`)
       .json()
   },
 
@@ -198,17 +198,17 @@ export const channelApi = {
 
   getChannelPresence(name: string) {
     return api
-      .get<ChannelPresence[]>(
-        `/api/channels/${encodeURIComponent(name)}/presence`
-      )
+      .get<
+        ChannelPresence[]
+      >(`/api/channels/${encodeURIComponent(name)}/presence`)
       .json()
   },
 
   getChannelMemberProfiles(name: string) {
     return api
-      .get<ChannelMemberProfile[]>(
-        `/api/channels/${encodeURIComponent(name)}/member-profiles`
-      )
+      .get<
+        ChannelMemberProfile[]
+      >(`/api/channels/${encodeURIComponent(name)}/member-profiles`)
       .json()
   },
 

@@ -8,7 +8,6 @@ import b4a from 'b4a'
 import Corestore from 'corestore'
 import Hypercore from 'hypercore'
 import Hyperdrive from 'hyperdrive'
-import { CID } from 'multiformats/cid'
 import {
   CHANNELS_FILE,
   DIAGNOSTIC_AUTHOR,
@@ -16,8 +15,9 @@ import {
   generateChannelDiscoveryKey,
   generateChannelIdDiscoveryKey,
 } from './channel-protocol.mjs'
-import { openChannelControlProtocol } from './channel-control-protocol.mjs'
 import { MobileP2PCore } from './mobile-core.mjs'
+
+const GLOBAL_SHARED_SEED_STRING = 'most-box-global-shared-seed-v1'
 
 class RecordingSwarm extends EventEmitter {
   constructor(publicKeyByte) {
@@ -60,6 +60,20 @@ function createRecordingSwarmFactory(swarms) {
   }
 }
 
+class RecordingStream extends EventEmitter {
+  constructor() {
+    super()
+    this.destroyed = false
+    this.writableEnded = false
+    this.writes = []
+  }
+
+  write(data) {
+    this.writes.push(b4a.toString(data))
+    return true
+  }
+}
+
 function waitForTick() {
   return new Promise(resolve => setTimeout(resolve, 0))
 }
@@ -74,19 +88,13 @@ async function waitFor(condition, description, timeoutMs = 500) {
   throw new Error(`Timed out waiting for ${description}`)
 }
 
-function connectChannelControl(swarm, streams = []) {
-  const localStream = Hypercore.createProtocolStream(false)
-  const remoteStream = Hypercore.createProtocolStream(true)
-  const messages = []
-  localStream.pipe(remoteStream).pipe(localStream)
-  streams.push(localStream, remoteStream)
-  const protocol = openChannelControlProtocol(remoteStream, {
-    onMessage(message) {
-      messages.push(message)
-    },
-  })
-  swarm.emit('connection', localStream)
-  return { localStream, remoteStream, protocol, messages }
+function parseStreamWrites(stream, type) {
+  return stream.writes
+    .join('')
+    .split('\n')
+    .filter(Boolean)
+    .map(line => JSON.parse(line))
+    .filter(message => message.type === type)
 }
 
 function expectedChannelJoinTopics(channelId) {
@@ -128,288 +136,7 @@ function deferred() {
 }
 
 describe('mobile file downloads', () => {
-  it('retains the peer snapshot key and version while seeding', async t => {
-    const rootPath = await fs.mkdtemp(
-      path.join(os.tmpdir(), 'mostbox-mobile-private-drive-')
-    )
-    const publisherSwarms = []
-    const downloaderSwarms = []
-    const verifierSwarms = []
-    const publisher = new MobileP2PCore({
-      storagePath: path.join(rootPath, 'publisher'),
-      createSwarm: createRecordingSwarmFactory(publisherSwarms),
-    })
-    const downloader = new MobileP2PCore({
-      storagePath: path.join(rootPath, 'downloader'),
-      createSwarm: createRecordingSwarmFactory(downloaderSwarms),
-    })
-    const verifier = new MobileP2PCore({
-      storagePath: path.join(rootPath, 'verifier'),
-      createSwarm: createRecordingSwarmFactory(verifierSwarms),
-    })
-    const streams = []
-    t.after(async () => {
-      streams.forEach(stream => stream.destroy())
-      await Promise.allSettled([
-        publisher.stop(),
-        downloader.stop(),
-        verifier.stop(),
-      ])
-      await fs.rm(rootPath, { recursive: true, force: true })
-    })
-
-    await publisher.start()
-    await downloader.start()
-    const content = 'private mobile writer drive'
-    const published = await publisher.publishFile({
-      name: 'private.txt',
-      contentBase64: b4a.toString(b4a.from(content), 'base64'),
-    })
-    const cid = published.transfer.cid
-    const topic = b4a.from(CID.parse(cid).multihash.digest)
-    const download = downloader.downloadLink({
-      link: published.transfer.link,
-      timeout: 5000,
-    })
-    await waitFor(
-      () => downloaderSwarms[0].joins.length > 0,
-      'downloader CID topic join'
-    )
-
-    const publisherStream = Hypercore.createProtocolStream(true)
-    const downloaderStream = Hypercore.createProtocolStream(false)
-    streams.push(publisherStream, downloaderStream)
-    publisherStream.pipe(downloaderStream).pipe(publisherStream)
-    const publisherInfo = new EventEmitter()
-    publisherInfo.topics = [topic]
-    const downloaderInfo = new EventEmitter()
-    downloaderInfo.topics = [topic]
-    publisherSwarms[0].emit('connection', publisherStream, publisherInfo)
-    downloaderSwarms[0].emit('connection', downloaderStream, downloaderInfo)
-
-    const result = await download
-    assert.equal(await fs.readFile(result.savedPath, 'utf8'), content)
-    const publicHolding = downloader.listHoldings()[0]
-    assert.equal(publicHolding.cid, cid)
-    assert.equal(Object.hasOwn(publicHolding, 'driveName'), false)
-    assert.equal(Object.hasOwn(publicHolding, 'transport'), false)
-    const publisherHolding = JSON.parse(
-      await fs.readFile(
-        path.join(rootPath, 'publisher', 'node-holdings.json'),
-        'utf8'
-      )
-    ).holdings[0]
-    const downloadedHolding = JSON.parse(
-      await fs.readFile(
-        path.join(rootPath, 'downloader', 'node-holdings.json'),
-        'utf8'
-      )
-    ).holdings[0]
-    assert.deepEqual(downloadedHolding.transport, publisherHolding.transport)
-
-    await downloader.deleteHolding({ cid })
-    const redownloaded = await downloader.downloadLink({
-      link: published.transfer.link,
-      timeout: 5000,
-    })
-    assert.equal(await fs.readFile(redownloaded.savedPath, 'utf8'), content)
-    const redownloadedHolding = JSON.parse(
-      await fs.readFile(
-        path.join(rootPath, 'downloader', 'node-holdings.json'),
-        'utf8'
-      )
-    ).holdings[0]
-    assert.deepEqual(redownloadedHolding.transport, publisherHolding.transport)
-
-    publisherStream.destroy()
-    downloaderStream.destroy()
-    await publisher.stop()
-    await verifier.start()
-    const relayedDownload = verifier.downloadLink({
-      link: published.transfer.link,
-      timeout: 5000,
-    })
-    await waitFor(
-      () => verifierSwarms[0].joins.length > 0,
-      'verifier CID topic join'
-    )
-
-    const relayStream = Hypercore.createProtocolStream(true)
-    const verifierStream = Hypercore.createProtocolStream(false)
-    streams.push(relayStream, verifierStream)
-    relayStream.pipe(verifierStream).pipe(relayStream)
-    const relayInfo = new EventEmitter()
-    relayInfo.topics = [topic]
-    const verifierInfo = new EventEmitter()
-    verifierInfo.topics = [topic]
-    downloaderSwarms[0].emit('connection', relayStream, relayInfo)
-    verifierSwarms[0].emit('connection', verifierStream, verifierInfo)
-
-    const relayed = await relayedDownload
-    assert.equal(await fs.readFile(relayed.savedPath, 'utf8'), content)
-    const verifierHolding = JSON.parse(
-      await fs.readFile(
-        path.join(rootPath, 'verifier', 'node-holdings.json'),
-        'utf8'
-      )
-    ).holdings[0]
-    assert.deepEqual(verifierHolding.transport, publisherHolding.transport)
-  })
-
-  it('refuses legacy storage without deleting it', async t => {
-    const storagePath = await fs.mkdtemp(
-      path.join(os.tmpdir(), 'mostbox-mobile-storage-reset-')
-    )
-    const legacyMetadataPath = path.join(storagePath, 'node-holdings.json')
-    await fs.writeFile(legacyMetadataPath, '[]')
-    const core = new MobileP2PCore({
-      storagePath,
-      createSwarm: createRecordingSwarmFactory([]),
-    })
-    t.after(async () => {
-      await core.stop()
-      await fs.rm(storagePath, { recursive: true, force: true })
-    })
-
-    await assert.rejects(core.start(), error => {
-      assert.equal(error.code, 'STORAGE_SCHEMA_RESET_REQUIRED')
-      return true
-    })
-    assert.equal(await fs.readFile(legacyMetadataPath, 'utf8'), '[]')
-  })
-
-  it('refuses an unknown future storage schema', async t => {
-    const storagePath = await fs.mkdtemp(
-      path.join(os.tmpdir(), 'mostbox-mobile-storage-future-')
-    )
-    await fs.writeFile(
-      path.join(storagePath, 'storage-schema.json'),
-      JSON.stringify({ version: 2 })
-    )
-    const core = new MobileP2PCore({
-      storagePath,
-      createSwarm: createRecordingSwarmFactory([]),
-    })
-    t.after(async () => {
-      await core.stop()
-      await fs.rm(storagePath, { recursive: true, force: true })
-    })
-
-    await assert.rejects(core.start(), error => {
-      assert.equal(error.code, 'STORAGE_SCHEMA_UNSUPPORTED')
-      return true
-    })
-  })
-
-  it('persists the private transport but only exposes the derived CID topic', async t => {
-    const storagePath = await fs.mkdtemp(
-      path.join(os.tmpdir(), 'mostbox-mobile-private-holding-')
-    )
-    const firstCore = new MobileP2PCore({
-      storagePath,
-      createSwarm: createRecordingSwarmFactory([]),
-    })
-    const core = new MobileP2PCore({
-      storagePath,
-      createSwarm: createRecordingSwarmFactory([]),
-    })
-    t.after(async () => {
-      await firstCore.stop()
-      await core.stop()
-      await fs.rm(storagePath, { recursive: true, force: true })
-    })
-
-    await firstCore.start()
-    const published = await firstCore.publishFile({
-      name: 'private-holding.txt',
-      contentBase64: b4a.toString(b4a.from('private holding'), 'base64'),
-    })
-    const cid = published.transfer.cid
-    const persisted = JSON.parse(
-      await fs.readFile(path.join(storagePath, 'node-holdings.json'), 'utf8')
-    )
-    assert.equal(persisted.schemaVersion, 1)
-    assert.match(persisted.holdings[0].transport.key, /^[a-f0-9]{64}$/)
-    assert.ok(persisted.holdings[0].transport.version > 0)
-    assert.equal(Object.hasOwn(persisted.holdings[0], 'topic'), false)
-    assert.equal(Object.hasOwn(persisted.holdings[0], 'driveName'), false)
-    await firstCore.stop()
-
-    await core.start()
-
-    const [holding] = core.listHoldings()
-    assert.ok(holding)
-    const expectedTopic = b4a.toString(CID.parse(cid).multihash.digest, 'hex')
-    assert.equal(holding.topic, expectedTopic)
-    assert.equal(Object.hasOwn(holding, 'driveName'), false)
-    assert.equal(Object.hasOwn(holding, 'transport'), false)
-  })
-
-  it('recovers complete staging snapshots and removes incomplete ones', async t => {
-    const storagePath = await fs.mkdtemp(
-      path.join(os.tmpdir(), 'mostbox-mobile-staging-')
-    )
-    const cores = []
-    const createCore = () => {
-      const core = new MobileP2PCore({
-        storagePath,
-        createSwarm: createRecordingSwarmFactory([]),
-      })
-      cores.push(core)
-      return core
-    }
-    t.after(async () => {
-      await Promise.allSettled(cores.map(core => core.stop()))
-      await fs.rm(storagePath, { recursive: true, force: true })
-    })
-
-    const firstCore = createCore()
-    await firstCore.start()
-    const complete = await firstCore.publishFile({
-      name: 'complete.txt',
-      contentBase64: b4a.toString(b4a.from('complete staging'), 'base64'),
-    })
-    const incomplete = await firstCore.publishFile({
-      name: 'incomplete.txt',
-      contentBase64: b4a.toString(b4a.from('incomplete staging'), 'base64'),
-    })
-    await firstCore.stop()
-
-    const metadataPath = path.join(storagePath, 'node-holdings.json')
-    const metadata = JSON.parse(await fs.readFile(metadataPath, 'utf8'))
-    for (const holding of metadata.holdings) {
-      holding.state = 'staging'
-      if (holding.cid === incomplete.transfer.cid) {
-        holding.transport.version = 0
-      }
-    }
-    await fs.writeFile(metadataPath, JSON.stringify(metadata))
-
-    const recovered = createCore()
-    await recovered.start()
-    const holdings = recovered.listHoldings()
-    assert.equal(
-      holdings.some(holding => holding.cid === complete.transfer.cid),
-      true
-    )
-    assert.equal(
-      holdings.some(holding => holding.cid === incomplete.transfer.cid),
-      false
-    )
-    const exported = await recovered.exportHolding({
-      cid: complete.transfer.cid,
-    })
-    assert.equal(
-      await fs.readFile(exported.filePath, 'utf8'),
-      'complete staging'
-    )
-    await assert.rejects(
-      recovered.exportHolding({ cid: incomplete.transfer.cid }),
-      /not available in local holdings/
-    )
-  })
-
-  it('recreates the downloads directory when exporting a retained snapshot', async t => {
+  it('recreates the downloads directory before writing a temporary file', async t => {
     const storagePath = await fs.mkdtemp(
       path.join(os.tmpdir(), 'mostbox-mobile-download-dir-')
     )
@@ -436,8 +163,10 @@ describe('mobile file downloads', () => {
       contentBase64: b4a.toString(b4a.from(content), 'base64'),
     })
     const link = published.transfer.link
-    const cid = published.transfer.cid
     await firstCore.stop()
+    await fs.rm(path.join(storagePath, 'node-holdings.json'), {
+      force: true,
+    })
 
     const restartedCore = createCore([])
     await restartedCore.start()
@@ -446,15 +175,14 @@ describe('mobile file downloads', () => {
       force: true,
     })
 
-    const result = await restartedCore.exportHolding({ cid })
-    assert.equal(result.holding.cid, cid)
-    assert.equal(await fs.readFile(result.filePath, 'utf8'), content)
-    assert.equal(link.startsWith(`most://${cid}`), true)
+    const result = await restartedCore.downloadLink({ link })
+    assert.equal(result.transfer.status, 'completed')
+    assert.equal(await fs.readFile(result.savedPath, 'utf8'), content)
   })
 })
 
 describe('mobile local holding deletion', () => {
-  it('queues snapshot purge and reclaims it before the next swarm starts', async t => {
+  it('clears local Hyperdrive content without publishing a tombstone', async t => {
     const storagePath = await fs.mkdtemp(
       path.join(os.tmpdir(), 'mostbox-mobile-delete-holding-')
     )
@@ -463,13 +191,15 @@ describe('mobile local holding deletion', () => {
       storagePath,
       createSwarm: createRecordingSwarmFactory(swarms),
     })
-    const cores = [core]
-    const originalClearAll = Hyperdrive.prototype.clearAll
-    let clearAllCalls = 0
+    const originalDel = Hyperdrive.prototype.del
+    const originalClear = Hyperdrive.prototype.clear
+    let delCalls = 0
+    let clearCalls = 0
 
     t.after(async () => {
-      Hyperdrive.prototype.clearAll = originalClearAll
-      await Promise.allSettled(cores.map(item => item.stop()))
+      Hyperdrive.prototype.del = originalDel
+      Hyperdrive.prototype.clear = originalClear
+      await core.stop()
       await fs.rm(storagePath, { recursive: true, force: true })
     })
 
@@ -479,125 +209,20 @@ describe('mobile local holding deletion', () => {
       contentBase64: b4a.toString(b4a.from('local content'), 'base64'),
     })
 
-    Hyperdrive.prototype.clearAll = async function (...args) {
-      clearAllCalls += 1
-      return originalClearAll.apply(this, args)
+    Hyperdrive.prototype.del = async function (...args) {
+      delCalls += 1
+      return originalDel.apply(this, args)
+    }
+    Hyperdrive.prototype.clear = async function (...args) {
+      clearCalls += 1
+      return originalClear.apply(this, args)
     }
 
     await core.deleteHolding({ cid: published.transfer.cid })
 
-    assert.equal(clearAllCalls, 0)
+    assert.equal(delCalls, 0)
+    assert.equal(clearCalls, 1)
     assert.equal(core.getSnapshot().holdings.length, 0)
-    const pendingPath = path.join(storagePath, 'pending-drive-purges.json')
-    const pending = JSON.parse(await fs.readFile(pendingPath, 'utf8'))
-    assert.equal(pending.keys.length, 1)
-
-    await core.stop()
-    const restarted = new MobileP2PCore({
-      storagePath,
-      createSwarm: createRecordingSwarmFactory([]),
-    })
-    cores.push(restarted)
-    await restarted.start()
-    assert.equal(clearAllCalls, 1)
-    assert.equal(await fs.readFile(pendingPath, 'utf8').catch(() => ''), '')
-    const republished = await restarted.publishFile({
-      name: 'republished.txt',
-      contentBase64: b4a.toString(b4a.from('local content'), 'base64'),
-    })
-    assert.equal(republished.transfer.cid, published.transfer.cid)
-    const republishedTransport = JSON.parse(
-      await fs.readFile(path.join(storagePath, 'node-holdings.json'), 'utf8')
-    ).holdings[0].transport
-    assert.notEqual(republishedTransport.key, pending.keys[0])
-  })
-
-  it('does not purge a snapshot key that is still referenced', async t => {
-    const storagePath = await fs.mkdtemp(
-      path.join(os.tmpdir(), 'mostbox-mobile-retained-purge-')
-    )
-    const cores = []
-    t.after(async () => {
-      await Promise.allSettled(cores.map(item => item.stop()))
-      await fs.rm(storagePath, { recursive: true, force: true })
-    })
-
-    const first = new MobileP2PCore({
-      storagePath,
-      createSwarm: createRecordingSwarmFactory([]),
-    })
-    cores.push(first)
-    await first.start()
-    const content = 'keep mobile referenced snapshot'
-    const published = await first.publishFile({
-      name: 'retained.txt',
-      contentBase64: b4a.toString(b4a.from(content), 'base64'),
-    })
-    const metadataPath = path.join(storagePath, 'node-holdings.json')
-    const metadata = JSON.parse(await fs.readFile(metadataPath, 'utf8'))
-    const transport = metadata.holdings[0].transport
-    await first.stop()
-
-    const pendingPath = path.join(storagePath, 'pending-drive-purges.json')
-    await fs.writeFile(
-      pendingPath,
-      JSON.stringify({ schemaVersion: 1, keys: [transport.key] })
-    )
-
-    const restarted = new MobileP2PCore({
-      storagePath,
-      createSwarm: createRecordingSwarmFactory([]),
-    })
-    cores.push(restarted)
-    await restarted.start()
-
-    const exported = await restarted.exportHolding({
-      cid: published.transfer.cid,
-    })
-    assert.equal(await fs.readFile(exported.filePath, 'utf8'), content)
-    assert.equal(await fs.readFile(pendingPath, 'utf8').catch(() => ''), '')
-  })
-
-  it('rejects holdings that share a snapshot key across CIDs', async t => {
-    const storagePath = await fs.mkdtemp(
-      path.join(os.tmpdir(), 'mostbox-mobile-duplicate-key-')
-    )
-    const cores = []
-    t.after(async () => {
-      await Promise.allSettled(cores.map(item => item.stop()))
-      await fs.rm(storagePath, { recursive: true, force: true })
-    })
-
-    const first = new MobileP2PCore({
-      storagePath,
-      createSwarm: createRecordingSwarmFactory([]),
-    })
-    cores.push(first)
-    await first.start()
-    await first.publishFile({
-      name: 'a.txt',
-      contentBase64: b4a.toString(b4a.from('duplicate mobile A'), 'base64'),
-    })
-    await first.publishFile({
-      name: 'b.txt',
-      contentBase64: b4a.toString(b4a.from('duplicate mobile B'), 'base64'),
-    })
-    await first.stop()
-
-    const metadataPath = path.join(storagePath, 'node-holdings.json')
-    const metadata = JSON.parse(await fs.readFile(metadataPath, 'utf8'))
-    metadata.holdings[1].transport = metadata.holdings[0].transport
-    await fs.writeFile(metadataPath, JSON.stringify(metadata))
-
-    const restarted = new MobileP2PCore({
-      storagePath,
-      createSwarm: createRecordingSwarmFactory([]),
-    })
-    cores.push(restarted)
-    await assert.rejects(
-      restarted.start(),
-      /Snapshot drive key must not be shared across holdings/
-    )
   })
 })
 
@@ -693,13 +318,11 @@ describe('mobile channel presence', () => {
       path.join(os.tmpdir(), 'mostbox-mobile-presence-')
     )
     const swarms = []
-    const streams = []
     const core = new MobileP2PCore({
       storagePath,
       createSwarm: createRecordingSwarmFactory(swarms),
     })
     t.after(async () => {
-      streams.forEach(stream => stream.destroy())
       await core.stop()
       await fs.rm(storagePath, { recursive: true, force: true })
     })
@@ -711,7 +334,8 @@ describe('mobile channel presence', () => {
     })
 
     const chatSwarm = swarms[1]
-    const connection = connectChannelControl(chatSwarm, streams)
+    const stream = new RecordingStream()
+    chatSwarm.emit('connection', stream)
 
     const joined = core.joinChannelPresence({
       channelName: channel.channelKey,
@@ -733,12 +357,7 @@ describe('mobile channel presence', () => {
       sessionId: 'android-test',
     })
 
-    const presenceWrites = await waitFor(() => {
-      const messages = connection.messages.filter(
-        message => message.type === 'channel-presence'
-      )
-      return messages.length === 3 ? messages : null
-    }, 'channel presence control messages')
+    const presenceWrites = parseStreamWrites(stream, 'channel-presence')
     assert.deepEqual(
       presenceWrites.map(message => message.status),
       ['online', 'heartbeat', 'offline']
@@ -754,7 +373,6 @@ describe('mobile channel presence', () => {
       path.join(os.tmpdir(), 'mostbox-mobile-presence-')
     )
     const swarms = []
-    const streams = []
     const core = new MobileP2PCore({
       storagePath,
       createSwarm: createRecordingSwarmFactory(swarms),
@@ -762,7 +380,6 @@ describe('mobile channel presence', () => {
       channelPresenceSweepMs: 10,
     })
     t.after(async () => {
-      streams.forEach(stream => stream.destroy())
       await core.stop()
       await fs.rm(storagePath, { recursive: true, force: true })
     })
@@ -774,18 +391,24 @@ describe('mobile channel presence', () => {
     })
 
     const chatSwarm = swarms[1]
-    const connection = connectChannelControl(chatSwarm, streams)
-    connection.protocol.send({
-      type: 'channel-presence',
-      peerId: 'desktop-peer',
-      channelId: channel.channelId,
-      channelKey: channel.channelKey,
-      address: '0x0000000000000000000000000000000000000002',
-      displayName: 'Desktop',
-      status: 'online',
-      sessionId: 'web',
-      lastSeen: Date.now(),
-    })
+    const stream = new RecordingStream()
+    chatSwarm.emit('connection', stream)
+    stream.emit(
+      'data',
+      b4a.from(
+        `${JSON.stringify({
+          type: 'channel-presence',
+          peerId: 'desktop-peer',
+          channelId: channel.channelId,
+          channelKey: channel.channelKey,
+          address: '0x0000000000000000000000000000000000000002',
+          displayName: 'Desktop',
+          status: 'online',
+          sessionId: 'web',
+          lastSeen: Date.now(),
+        })}\n`
+      )
+    )
 
     let presences = await waitFor(
       () =>
@@ -799,7 +422,7 @@ describe('mobile channel presence', () => {
     assert.equal(presences[0].online, true)
     assert.equal(presences[0].local, false)
 
-    connection.remoteStream.destroy()
+    stream.emit('close')
     await waitFor(
       () =>
         (core.getSnapshot().channelPresence[channel.channelKey]?.length ||
@@ -807,18 +430,24 @@ describe('mobile channel presence', () => {
       'remote channel presence disconnect'
     )
 
-    const staleConnection = connectChannelControl(chatSwarm, streams)
-    staleConnection.protocol.send({
-      type: 'channel-presence',
-      peerId: 'stale-peer',
-      channelId: channel.channelId,
-      channelKey: channel.channelKey,
-      address: '0x0000000000000000000000000000000000000003',
-      displayName: 'Stale',
-      status: 'online',
-      sessionId: 'web',
-      lastSeen: Date.now(),
-    })
+    const staleStream = new RecordingStream()
+    chatSwarm.emit('connection', staleStream)
+    staleStream.emit(
+      'data',
+      b4a.from(
+        `${JSON.stringify({
+          type: 'channel-presence',
+          peerId: 'stale-peer',
+          channelId: channel.channelId,
+          channelKey: channel.channelKey,
+          address: '0x0000000000000000000000000000000000000003',
+          displayName: 'Stale',
+          status: 'online',
+          sessionId: 'web',
+          lastSeen: Date.now(),
+        })}\n`
+      )
+    )
     presences = await waitFor(
       () =>
         core.getSnapshot().channelPresence[channel.channelKey]?.length === 1
@@ -844,9 +473,7 @@ describe('mobile channel metadata management', () => {
       path.join(os.tmpdir(), 'mostbox-mobile-channel-meta-')
     )
     const cores = []
-    const streams = []
     t.after(async () => {
-      streams.forEach(stream => stream.destroy())
       await Promise.allSettled(cores.map(core => core.stop()))
       await fs.rm(storagePath, { recursive: true, force: true })
     })
@@ -895,18 +522,24 @@ describe('mobile channel metadata management', () => {
       displayName: 'Android',
     })
     const chatSwarm = restartedSwarms[1]
-    const connection = connectChannelControl(chatSwarm, streams)
-    connection.protocol.send({
-      type: 'channel-presence',
-      peerId: 'desktop-peer',
-      channelId: restored.channelId,
-      channelKey: restored.channelKey,
-      address: '0x0000000000000000000000000000000000000002',
-      displayName: 'Desktop',
-      status: 'online',
-      sessionId: 'web',
-      lastSeen: Date.now(),
-    })
+    const stream = new RecordingStream()
+    chatSwarm.emit('connection', stream)
+    stream.emit(
+      'data',
+      b4a.from(
+        `${JSON.stringify({
+          type: 'channel-presence',
+          peerId: 'desktop-peer',
+          channelId: restored.channelId,
+          channelKey: restored.channelKey,
+          address: '0x0000000000000000000000000000000000000002',
+          displayName: 'Desktop',
+          status: 'online',
+          sessionId: 'web',
+          lastSeen: Date.now(),
+        })}\n`
+      )
+    )
     await waitForTick()
     await restartedCore.sendChannelMessage({
       channelName: restored.channelKey,
@@ -1063,7 +696,10 @@ describe('mobile channel metadata management', () => {
     )
     await core.stop()
 
-    externalStore = new Corestore(path.join(storagePath, 'stores', 'channels'))
+    externalStore = new Corestore(storagePath, {
+      primaryKey: b4a.alloc(32).fill(GLOBAL_SHARED_SEED_STRING),
+      unsafe: true,
+    })
     await externalStore.ready()
     const externalCore = externalStore
       .namespace(`channel-${channel.channelKey}`)

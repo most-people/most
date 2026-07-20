@@ -72,7 +72,12 @@
 
 .admin-metric,
 .admin-panel {
-  border-radius: var(--radius-xs);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  background: var(--glass-bg-heavy);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: var(--blur-md);
+  -webkit-backdrop-filter: var(--blur-md);
 }
 
 .admin-panel-header h2 {

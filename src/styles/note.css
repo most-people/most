@@ -143,7 +143,10 @@
   height: 100%;
   display: flex;
   overflow: hidden;
-  border-radius: var(--radius-xs);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  background: var(--glass-bg-heavy);
+  box-shadow: var(--shadow-sm);
 }
 
 .note-edit-workspace {
@@ -773,6 +776,18 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.modal-glass:has(.note-move-modal) {
+  background: var(--bg-secondary);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-color: var(--glass-border-strong);
+}
+
+[data-theme='dark'] .modal-glass:has(.note-move-modal) {
+  background: #17171a;
+  box-shadow: 0 24px 72px rgba(0, 0, 0, 0.62);
 }
 
 .note-move-target {

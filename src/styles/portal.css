@@ -122,12 +122,27 @@
   min-height: 152px;
   flex-direction: column;
   padding: 24px 22px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  background: var(--glass-bg-subtle);
+  -webkit-backdrop-filter: var(--blur-sm);
+  backdrop-filter: var(--blur-sm);
   color: var(--text-primary);
   text-decoration: none;
+  transition:
+    border-color var(--transition),
+    background var(--transition),
+    opacity var(--transition),
+    box-shadow var(--transition),
+    transform var(--transition);
 }
 
 .portal-feature-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--glass-border));
+  background: var(--glass-bg);
+  box-shadow: var(--glass-shadow);
   color: var(--text-primary);
+  transform: translateY(-2px);
 }
 
 .portal-feature-card.app {

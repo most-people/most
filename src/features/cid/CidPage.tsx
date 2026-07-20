@@ -32,13 +32,13 @@ import { MarketingHeader } from '~/components/MarketingHeader'
 import { useClipboard, useCountdownSeconds } from '~/hooks'
 import { useI18n } from '~/lib/i18n'
 import { buildCidShareLink } from '~/lib/shareLink'
-import {
-  normalizeDownloadErrorPayload,
-  type DownloadEventPayload,
-} from '~/lib/downloadTasks'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
-import { getApiErrorMessage, getApiErrorPayload } from '~server/src/utils/api'
+import {
+  getApiErrorMessage,
+  getApiErrorPayload,
+  getAuthenticatedWebSocketUrl,
+} from '~server/src/utils/api'
 import { parseMostLink } from '~server/src/core/mostLink.js'
 
 type CheckStatus =
@@ -56,7 +56,6 @@ type DownloadStatus =
   | 'idle'
   | 'starting'
   | 'downloading'
-  | 'partial'
   | 'completed'
   | 'error'
   | 'cancelled'
@@ -71,10 +70,46 @@ type DownloadState = {
   message: string
 }
 
+type DownloadEventPayload = {
+  taskId?: string
+  status?: string
+  kind?: string
+  code?: string
+  errorCode?: string
+  collection?: boolean
+  partial?: boolean
+  percent?: number
+  loaded?: number
+  total?: number
+  fileCount?: number
+  selectedFileCount?: number
+  downloadedFileCount?: number
+  unavailableFileCount?: number
+  processedFiles?: number
+  completedFiles?: number
+  totalFiles?: number
+  file?: string
+  fileName?: string
+  error?: string
+  details?: DownloadErrorDetails
+}
+
+type DownloadErrorDetails = {
+  kind?: string
+  collectionName?: string
+  childCid?: string
+  childPath?: string
+  fileName?: string
+}
+
+type CollectionProgress = {
+  completedFiles: number
+  totalFiles: number
+}
+
 type CidProcessStepKey = 'open' | 'check' | 'verify' | 'seed'
 
 const HANDOFF_FALLBACK_DELAY_MS = 1800
-const EMPTY_COLLECTION_FILES: NonNullable<DownloadCheckResponse['files']> = []
 
 function isDownloadCheckFullyLocal(result: DownloadCheckResponse) {
   if (result.alreadyExists === true) return true
@@ -103,6 +138,49 @@ function formatDownloadPath(dataPath: string, fallback: string) {
   const cleaned = dataPath.trim().replace(/[\\/]+$/, '')
   if (!cleaned) return fallback
   return cleaned
+}
+
+function readString(record: Record<string, unknown>, key: string) {
+  const value = record[key]
+  return typeof value === 'string' ? value : undefined
+}
+
+function readNumber(record: Record<string, unknown>, key: string) {
+  const value = record[key]
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function readBoolean(record: Record<string, unknown>, key: string) {
+  const value = record[key]
+  return typeof value === 'boolean' ? value : undefined
+}
+
+function readDownloadErrorDetails(
+  value: unknown
+): DownloadErrorDetails | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    return undefined
+
+  const record = value as Record<string, unknown>
+  return {
+    kind: readString(record, 'kind'),
+    collectionName: readString(record, 'collectionName'),
+    childCid: readString(record, 'childCid'),
+    childPath: readString(record, 'childPath'),
+    fileName: readString(record, 'fileName'),
+  }
+}
+
+function normalizeDownloadErrorPayload(value: unknown): DownloadEventPayload {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+
+  const record = value as Record<string, unknown>
+  return {
+    code: readString(record, 'code'),
+    errorCode: readString(record, 'errorCode'),
+    error: readString(record, 'error'),
+    details: readDownloadErrorDetails(record.details),
+  }
 }
 
 function getDownloadErrorCopy(
@@ -184,6 +262,48 @@ function getDownloadSuccessCopy(
   }
 }
 
+function parseDownloadEvent(raw: string) {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return null
+  }
+
+  if (!parsed || typeof parsed !== 'object') return null
+  const root = parsed as Record<string, unknown>
+  const event = readString(root, 'event')
+  const data = root.data
+  if (!event || !data || typeof data !== 'object') return null
+
+  const payloadRecord = data as Record<string, unknown>
+  const payload: DownloadEventPayload = {
+    taskId: readString(payloadRecord, 'taskId'),
+    status: readString(payloadRecord, 'status'),
+    kind: readString(payloadRecord, 'kind'),
+    code: readString(payloadRecord, 'code'),
+    errorCode: readString(payloadRecord, 'errorCode'),
+    collection: readBoolean(payloadRecord, 'collection'),
+    partial: readBoolean(payloadRecord, 'partial'),
+    percent: readNumber(payloadRecord, 'percent'),
+    loaded: readNumber(payloadRecord, 'loaded'),
+    total: readNumber(payloadRecord, 'total'),
+    fileCount: readNumber(payloadRecord, 'fileCount'),
+    selectedFileCount: readNumber(payloadRecord, 'selectedFileCount'),
+    downloadedFileCount: readNumber(payloadRecord, 'downloadedFileCount'),
+    unavailableFileCount: readNumber(payloadRecord, 'unavailableFileCount'),
+    processedFiles: readNumber(payloadRecord, 'processedFiles'),
+    completedFiles: readNumber(payloadRecord, 'completedFiles'),
+    totalFiles: readNumber(payloadRecord, 'totalFiles'),
+    file: readString(payloadRecord, 'file'),
+    fileName: readString(payloadRecord, 'fileName'),
+    error: readString(payloadRecord, 'error'),
+    details: readDownloadErrorDetails(payloadRecord.details),
+  }
+
+  return { event, payload }
+}
+
 export default function CidPage() {
   const { t } = useI18n()
   const { cid } = useParams({ from: '/cid/$cid/' })
@@ -191,19 +311,6 @@ export default function CidPage() {
   const hasBackend = useAppStore(s => s.hasBackend)
   const addToast = useAppStore(s => s.addToast)
   const openConnectModal = useAppStore(s => s.openConnectModal)
-  const downloadTasksHydrated = useAppStore(s => s.downloadTasksHydrated)
-  const activeDownloadTask = useAppStore(
-    s => s.downloadTasks.find(task => task.cid === cid) ?? null
-  )
-  const latestDownloadOutcome = useAppStore(
-    s => s.downloadTaskOutcomes.find(outcome => outcome.cid === cid) ?? null
-  )
-  const loadDownloadTasks = useAppStore(s => s.loadDownloadTasks)
-  const upsertDownloadTask = useAppStore(s => s.upsertDownloadTask)
-  const markDownloadTaskCancelling = useAppStore(
-    s => s.markDownloadTaskCancelling
-  )
-  const dismissDownloadOutcome = useAppStore(s => s.dismissDownloadOutcome)
   const userIdentity = useUserStore(s => s.identity)
   const openLoginModal = useUserStore(s => s.openLoginModal)
   const { copy: copyWebShareLink, copied: webShareLinkCopied } = useClipboard({
@@ -244,50 +351,33 @@ export default function CidPage() {
     status: 'idle',
     message: '',
   })
-  const [selectedCollectionPaths, setSelectedCollectionPaths] = useState<
-    string[]
-  >([])
+  const [taskId, setTaskId] = useState('')
+  const [progress, setProgress] = useState(0)
+  const [loadedBytes, setLoadedBytes] = useState<number | null>(null)
+  const [totalBytes, setTotalBytes] = useState<number | null>(null)
+  const [collectionProgress, setCollectionProgress] =
+    useState<CollectionProgress | null>(null)
   const [downloadPath, setDownloadPath] = useState('')
   const [showHandoffFallback, setShowHandoffFallback] = useState(false)
   const checkSeqRef = useRef(0)
   const handoffTimerRef = useRef<number | null>(null)
   const qrCanvasRef = useRef<HTMLCanvasElement | null>(null)
-  const processedOutcomeRef = useRef('')
 
-  const taskId = activeDownloadTask?.taskId || ''
-  const progress = activeDownloadTask?.progress ?? 0
-  const loadedBytes = activeDownloadTask?.loadedBytes ?? null
-  const totalBytes = activeDownloadTask?.totalBytes ?? null
-  const collectionProgress =
-    activeDownloadTask && activeDownloadTask.totalFiles > 0
-      ? {
-          completedFiles: activeDownloadTask.completedFiles,
-          totalFiles: activeDownloadTask.totalFiles,
-        }
-      : null
-  const fileName =
-    checkResult?.fileName ||
-    activeDownloadTask?.fileName ||
-    latestDownloadOutcome?.fileName ||
-    initialFileName
+  const fileName = checkResult?.fileName || initialFileName
   const fileSize = checkResult?.size ?? totalBytes
-  const isCollectionResult =
-    checkResult?.kind === 'collection' ||
-    activeDownloadTask?.kind === 'collection' ||
-    latestDownloadOutcome?.kind === 'collection'
-  const collectionFiles = checkResult?.files ?? EMPTY_COLLECTION_FILES
-  const collectionFileCount = checkResult?.fileCount ?? collectionFiles.length
+  const isCollectionResult = checkResult?.kind === 'collection'
+  const collectionFileCount =
+    checkResult?.fileCount ?? checkResult?.files?.length ?? 0
   const collectionLocalCount = checkResult?.localAvailableCount ?? 0
   const collectionMissingCount =
     checkResult?.missingLocalCount ??
     Math.max(collectionFileCount - collectionLocalCount, 0)
   const isAddingLocalContent = checkState.status === 'local-available'
   const canStartDownload =
-    (checkState.status === 'available' || isAddingLocalContent) &&
-    (!isCollectionResult || selectedCollectionPaths.length > 0)
+    checkState.status === 'available' || isAddingLocalContent
   const isDownloading =
-    Boolean(activeDownloadTask) || downloadState.status === 'starting'
-  const isPartialDownload = downloadState.status === 'partial'
+    downloadState.status === 'starting' ||
+    downloadState.status === 'downloading'
 
   const displayDownloadPath = formatDownloadPath(
     downloadPath,
@@ -329,100 +419,88 @@ export default function CidPage() {
     isAddingLocalContent
   )
 
-  const runCheck = useCallback(
-    async (preserveDownloadState = false) => {
-      const seq = checkSeqRef.current + 1
-      checkSeqRef.current = seq
-      setSelectedCollectionPaths([])
-      if (!preserveDownloadState) {
-        setDownloadState({ status: 'idle', message: '' })
-      }
+  const runCheck = useCallback(async () => {
+    const seq = checkSeqRef.current + 1
+    checkSeqRef.current = seq
+    setTaskId('')
+    setProgress(0)
+    setLoadedBytes(null)
+    setTotalBytes(null)
+    setDownloadState({ status: 'idle', message: '' })
 
-      if (validationMessage) {
-        setCheckResult(null)
-        setCheckState({ status: 'error', message: validationMessage })
-        return
-      }
-
-      if (hasBackend === null) {
-        setCheckResult(null)
-        setCheckState({
-          status: 'waiting-backend',
-          message: t('cid.status.waitingBackend'),
-        })
-        return
-      }
-
-      if (hasBackend !== true) {
-        setCheckResult(null)
-        setCheckState({
-          status: 'backend-missing',
-          message: t('cid.status.backendMissing'),
-        })
-        return
-      }
-
-      if (!userIdentity) {
-        setCheckResult(null)
-        setCheckState({
-          status: 'login-required',
-          message: t('cid.status.loginRequired'),
-        })
-        return
-      }
-
-      setCheckState({ status: 'checking', message: '' })
+    if (validationMessage) {
       setCheckResult(null)
+      setCheckState({ status: 'error', message: validationMessage })
+      return
+    }
 
-      try {
-        const result = await fileApi.checkDownload(mostLink)
-        if (checkSeqRef.current !== seq) return
-        setCheckResult(result)
-        if (result.kind === 'collection' && result.files?.length) {
-          const missingPaths = result.files
-            .filter(file => file.localAvailable !== true)
-            .map(file => file.path)
-          setSelectedCollectionPaths(
-            missingPaths.length > 0
-              ? missingPaths
-              : result.files.map(file => file.path)
-          )
-        }
-        const isCollection = result.kind === 'collection'
-        const isFullyLocal = isDownloadCheckFullyLocal(result)
-        setCheckState({
-          status: result.alreadyExists
-            ? 'already-local'
+    if (hasBackend === null) {
+      setCheckResult(null)
+      setCheckState({
+        status: 'waiting-backend',
+        message: t('cid.status.waitingBackend'),
+      })
+      return
+    }
+
+    if (hasBackend !== true) {
+      setCheckResult(null)
+      setCheckState({
+        status: 'backend-missing',
+        message: t('cid.status.backendMissing'),
+      })
+      return
+    }
+
+    if (!userIdentity) {
+      setCheckResult(null)
+      setCheckState({
+        status: 'login-required',
+        message: t('cid.status.loginRequired'),
+      })
+      return
+    }
+
+    setCheckState({ status: 'checking', message: '' })
+    setCheckResult(null)
+
+    try {
+      const result = await fileApi.checkDownload(mostLink)
+      if (checkSeqRef.current !== seq) return
+      setCheckResult(result)
+      const isCollection = result.kind === 'collection'
+      const isFullyLocal = isDownloadCheckFullyLocal(result)
+      setCheckState({
+        status: result.alreadyExists
+          ? 'already-local'
+          : isFullyLocal
+            ? 'local-available'
+            : 'available',
+        message: isCollection
+          ? result.alreadyExists
+            ? t('cid.status.collectionAlreadyLocal', {
+                fileName: result.fileName,
+              })
             : isFullyLocal
-              ? 'local-available'
-              : 'available',
-          message: isCollection
-            ? result.alreadyExists
-              ? t('cid.status.collectionAlreadyLocal', {
+              ? t('cid.status.collectionLocalAvailable', {
                   fileName: result.fileName,
                 })
-              : isFullyLocal
-                ? t('cid.status.collectionLocalAvailable', {
-                    fileName: result.fileName,
-                  })
-                : t('cid.status.collectionAvailable', {
-                    fileName: result.fileName,
-                  })
-            : result.alreadyExists
-              ? t('cid.status.alreadyLocal', { fileName: result.fileName })
-              : isFullyLocal
-                ? t('cid.status.localAvailable', { fileName: result.fileName })
-                : t('cid.status.available', { fileName: result.fileName }),
-        })
-      } catch (err) {
-        if (checkSeqRef.current !== seq) return
-        const message = await getDownloadCheckErrorMessage(err)
-        setCheckState({ status: 'error', message })
-        setCheckResult(null)
-      }
-    },
-    [hasBackend, mostLink, t, userIdentity, validationMessage]
-  )
+              : t('cid.status.collectionAvailable', {
+                  fileName: result.fileName,
+                })
+          : result.alreadyExists
+            ? t('cid.status.alreadyLocal', { fileName: result.fileName })
+            : isFullyLocal
+              ? t('cid.status.localAvailable', { fileName: result.fileName })
+              : t('cid.status.available', { fileName: result.fileName }),
+      })
+    } catch (err) {
+      if (checkSeqRef.current !== seq) return
+      const message = await getDownloadCheckErrorMessage(err)
+      setCheckState({ status: 'error', message })
+      setCheckResult(null)
+    }
+  }, [hasBackend, mostLink, t, userIdentity, validationMessage])
 
   useEffect(() => {
     document.title = t('cid.meta.title')
@@ -452,14 +530,8 @@ export default function CidPage() {
   }, [])
 
   useEffect(() => {
-    if (!downloadTasksHydrated || activeDownloadTask) return
-    void runCheck(Boolean(latestDownloadOutcome))
-  }, [
-    activeDownloadTask,
-    downloadTasksHydrated,
-    latestDownloadOutcome,
-    runCheck,
-  ])
+    runCheck()
+  }, [runCheck])
 
   useEffect(() => {
     if (hasBackend !== true) return
@@ -478,133 +550,92 @@ export default function CidPage() {
   }, [hasBackend])
 
   useEffect(() => {
-    if (!activeDownloadTask) return
-    setDownloadState({
-      status: 'downloading',
-      message:
-        activeDownloadTask.status === 'downloading'
-          ? t('cid.status.downloading')
-          : t(`cid.tasks.status.${activeDownloadTask.status}`),
-    })
-    setCheckState(current =>
-      current.status === 'already-local'
-        ? current
-        : { status: 'available', message: t('cid.status.downloading') }
-    )
-  }, [activeDownloadTask, t])
+    if (!taskId || !userIdentity) return
 
-  useEffect(() => {
-    if (
-      !latestDownloadOutcome ||
-      processedOutcomeRef.current === latestDownloadOutcome.taskId
-    ) {
-      return
-    }
-    processedOutcomeRef.current = latestDownloadOutcome.taskId
-    const payload = latestDownloadOutcome.payload
-
-    if (
-      latestDownloadOutcome.status === 'completed' ||
-      latestDownloadOutcome.status === 'partial'
-    ) {
-      const successCopy = getDownloadSuccessCopy(payload, fileName, t)
-      const completedCollection =
-        isCollectionResult || payload.kind === 'collection'
-      const unavailablePathList = payload.unavailablePaths ?? []
-      const downloadedPaths = new Set(payload.downloadedPaths)
-      const unavailablePaths = new Set(unavailablePathList)
-      const nextCollectionFiles = completedCollection
-        ? collectionFiles.map(file => ({
-            ...file,
-            localAvailable: downloadedPaths.has(file.path)
-              ? true
-              : unavailablePaths.has(file.path)
-                ? false
-                : file.localAvailable,
-          }))
-        : collectionFiles
-      const nextLocalCount = nextCollectionFiles.filter(
-        file => file.localAvailable === true
-      ).length
-      const expectedCollectionFileCount =
-        payload.fileCount ?? collectionFileCount
-      const collectionFullyLocal = completedCollection
-        ? nextCollectionFiles.length > 0
-          ? nextLocalCount === nextCollectionFiles.length
-          : payload.partial !== true &&
-            (payload.downloadedFileCount ?? 0) >= expectedCollectionFileCount
-        : false
-      const fullyLocal = !completedCollection || collectionFullyLocal
-
-      setDownloadState({
-        status:
-          completedCollection && payload.partial === true && !fullyLocal
-            ? 'partial'
-            : 'completed',
-        message: successCopy.message,
-      })
-      setCheckResult(current =>
-        current
-          ? {
-              ...current,
-              alreadyExists: fullyLocal,
-              localAvailable: fullyLocal,
-              ...(completedCollection
-                ? {
-                    files: nextCollectionFiles,
-                    localAvailableCount: nextLocalCount,
-                    missingLocalCount: Math.max(
-                      nextCollectionFiles.length - nextLocalCount,
-                      0
-                    ),
-                  }
-                : {}),
-            }
-          : current
-      )
-
-      if (fullyLocal) {
-        setSelectedCollectionPaths([])
-        setCheckState({
-          status: 'already-local',
-          message: completedCollection
-            ? t('cid.status.collectionAlreadyLocal', { fileName })
-            : t('cid.status.alreadyLocal', { fileName }),
-        })
-      } else if (payload.partial === true) {
-        const retryPaths =
-          unavailablePathList.length > 0
-            ? unavailablePathList
-            : nextCollectionFiles
-                .filter(file => file.localAvailable !== true)
-                .map(file => file.path)
-        setSelectedCollectionPaths(retryPaths)
+    let ws: WebSocket | null = null
+    let cancelled = false
+    ;(async () => {
+      ws = new WebSocket(await getAuthenticatedWebSocketUrl('/ws'))
+      if (cancelled) {
+        ws.close()
+        return
       }
-      return
-    }
 
-    if (latestDownloadOutcome.status === 'failed') {
-      const errorCopy = getDownloadErrorCopy(
-        payload,
-        t('cid.status.downloadFailed', { error: t('cid.errorFallback') }),
-        t
-      )
-      setDownloadState({ status: 'error', message: errorCopy.message })
-      return
-    }
+      ws.onmessage = event => {
+        const parsed = parseDownloadEvent(event.data)
+        if (!parsed || parsed.payload.taskId !== taskId) return
 
-    setDownloadState({
-      status: 'cancelled',
-      message: t('cid.status.cancelled'),
-    })
-  }, [
-    collectionFileCount,
-    collectionFiles,
-    fileName,
-    isCollectionResult,
-    latestDownloadOutcome,
-    t,
-  ])
+        if (parsed.event === 'download:progress') {
+          setProgress(parsed.payload.percent || 0)
+          if (parsed.payload.collection === true) {
+            setLoadedBytes(null)
+            setTotalBytes(null)
+            setCollectionProgress({
+              completedFiles:
+                parsed.payload.completedFiles ?? parsed.payload.loaded ?? 0,
+              totalFiles:
+                parsed.payload.totalFiles ?? parsed.payload.total ?? 0,
+            })
+          } else {
+            setCollectionProgress(null)
+            setLoadedBytes(parsed.payload.loaded ?? null)
+            setTotalBytes(parsed.payload.total ?? null)
+          }
+        }
+
+        if (parsed.event === 'download:status') {
+          setDownloadState({
+            status: 'downloading',
+            message: parsed.payload.file
+              ? t('cid.status.downloadingFile', {
+                  fileName: parsed.payload.file,
+                })
+              : t('cid.status.downloading'),
+          })
+        }
+
+        if (parsed.event === 'download:success') {
+          const successCopy = getDownloadSuccessCopy(
+            parsed.payload,
+            fileName,
+            t
+          )
+          setProgress(100)
+          setDownloadState({
+            status: 'completed',
+            message: successCopy.message,
+          })
+          addToast(successCopy.toast, successCopy.toastType)
+        }
+
+        if (parsed.event === 'download:error') {
+          const errorCopy = getDownloadErrorCopy(
+            parsed.payload,
+            t('cid.status.downloadFailed', { error: t('cid.errorFallback') }),
+            t
+          )
+          setDownloadState({
+            status: 'error',
+            message: errorCopy.message,
+          })
+          addToast(errorCopy.toast, 'error')
+        }
+
+        if (parsed.event === 'download:cancelled') {
+          setDownloadState({
+            status: 'cancelled',
+            message: t('cid.status.cancelled'),
+          })
+          addToast(t('cid.toast.cancelled'), 'warning')
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+      ws?.close()
+    }
+  }, [addToast, fileName, t, taskId, userIdentity])
 
   const handleStartDownload = async () => {
     if (!userIdentity) {
@@ -619,23 +650,19 @@ export default function CidPage() {
 
     if (!canStartDownload || isDownloading) return
 
-    if (latestDownloadOutcome) {
-      dismissDownloadOutcome(latestDownloadOutcome.taskId)
-      processedOutcomeRef.current = ''
-    }
-
     setDownloadState({
       status: 'starting',
       message: isAddingLocalContent
         ? t('cid.status.addingToLibrary')
         : t('cid.status.startingDownload'),
     })
+    setProgress(0)
+    setLoadedBytes(null)
+    setTotalBytes(null)
+    setCollectionProgress(null)
 
     try {
-      const result = await fileApi.downloadFileInBackground(
-        mostLink,
-        isCollectionResult ? selectedCollectionPaths : undefined
-      )
+      const result = await fileApi.downloadFile(mostLink)
       if (
         isAddingLocalContent &&
         (!isCollectionResult ||
@@ -649,6 +676,7 @@ export default function CidPage() {
           current ? { ...current, alreadyExists: true } : current
         )
         setCheckState({ status: 'already-local', message })
+        setProgress(100)
         setDownloadState({
           status: 'completed',
           message: t('cid.status.addedToLibrary', { fileName }),
@@ -658,22 +686,6 @@ export default function CidPage() {
       }
 
       if (result.alreadyExists) {
-        setCheckResult(current =>
-          current
-            ? { ...current, alreadyExists: true, localAvailable: true }
-            : current
-        )
-        setCheckState({
-          status: 'already-local',
-          message: isCollectionResult
-            ? t('cid.status.collectionAlreadyLocal', {
-                fileName: result.fileName || fileName,
-              })
-            : t('cid.status.alreadyLocal', {
-                fileName: result.fileName || fileName,
-              }),
-        })
-        setSelectedCollectionPaths([])
         setDownloadState({
           status: 'completed',
           message: t('cid.status.alreadyLocal', {
@@ -685,43 +697,19 @@ export default function CidPage() {
       }
 
       if (result.taskId) {
-        const now = Date.now()
-        upsertDownloadTask({
-          taskId: result.taskId,
-          cid,
-          fileName: result.fileName || fileName,
-          kind: isCollectionResult ? 'collection' : 'file',
-          status: 'starting',
-          progress: 0,
-          loadedBytes: 0,
-          totalBytes: 0,
-          completedFiles: 0,
-          totalFiles: isCollectionResult ? collectionFileCount : 0,
-          startedAt: now,
-          updatedAt: now,
-        })
+        setTaskId(result.taskId)
         setDownloadState({
           status: 'downloading',
           message: isAddingLocalContent
             ? t('cid.status.addingToLibrary')
             : t('cid.status.downloading'),
         })
-        addToast(t('cid.toast.backgroundStarted'), 'info')
-        void loadDownloadTasks()
-          .then(tasks => {
-            if (tasks.some(task => task.taskId === result.taskId)) return
-            if (
-              useAppStore
-                .getState()
-                .downloadTaskOutcomes.some(
-                  outcome => outcome.taskId === result.taskId
-                )
-            ) {
-              return
-            }
-            void runCheck()
-          })
-          .catch(() => {})
+        addToast(
+          isAddingLocalContent
+            ? t('cid.status.addingToLibrary')
+            : t('cid.toast.downloadStarted'),
+          'info'
+        )
       }
     } catch (err) {
       const fallbackMessage = t('cid.status.downloadFailed', {
@@ -756,14 +744,27 @@ export default function CidPage() {
   const handleCancelDownload = async () => {
     if (!taskId) return
     const cancelledTaskId = taskId
-    markDownloadTaskCancelling(cancelledTaskId)
+    setTaskId('')
+    setDownloadState({
+      status: 'cancelled',
+      message: t('cid.status.cancelled'),
+    })
+    setProgress(0)
+    setLoadedBytes(null)
+    setTotalBytes(null)
+    setCollectionProgress(null)
+    addToast(t('cid.toast.cancelled'), 'warning')
 
     try {
       await fileApi.cancelDownload(cancelledTaskId)
     } catch (err) {
-      await loadDownloadTasks().catch(() => {})
+      setTaskId(cancelledTaskId)
+      setDownloadState({
+        status: 'downloading',
+        message: t('cid.status.downloading'),
+      })
       addToast(
-        await getApiErrorMessage(err, t('cid.toast.cancelFailed')),
+        await getApiErrorMessage(err, t('app.toast.cancelFailed')),
         'error'
       )
     }
@@ -827,7 +828,7 @@ export default function CidPage() {
           <button
             className="btn btn-secondary"
             disabled={checkState.status === 'checking'}
-            onClick={() => runCheck()}
+            onClick={runCheck}
           >
             <RefreshCw size={16} />
             <span>{t('cid.retryAction')}</span>
@@ -843,8 +844,6 @@ export default function CidPage() {
             >
               {isDownloading ? (
                 <Loader2 className="cid-spin-icon" size={16} />
-              ) : isPartialDownload ? (
-                <RefreshCw size={16} />
               ) : checkState.status === 'already-local' ? (
                 <Check size={16} />
               ) : isAddingLocalContent ? (
@@ -857,19 +856,16 @@ export default function CidPage() {
                   ? isAddingLocalContent
                     ? t('cid.addingToLibraryAction')
                     : t('cid.downloadingAction')
-                  : isPartialDownload
-                    ? t('cid.retryUnavailableAction')
-                    : checkState.status === 'already-local'
-                      ? t('cid.inLibraryAction')
-                      : isAddingLocalContent
-                        ? t('cid.addToLibraryAction')
-                        : t('cid.startAction')}
+                  : checkState.status === 'already-local'
+                    ? t('cid.inLibraryAction')
+                    : isAddingLocalContent
+                      ? t('cid.addToLibraryAction')
+                      : t('cid.startAction')}
               </span>
             </button>
-            {activeDownloadTask && downloadState.status === 'downloading' && (
+            {taskId && downloadState.status === 'downloading' && (
               <button
                 className="btn btn-secondary"
-                disabled={activeDownloadTask.status === 'cancelling'}
                 onClick={handleCancelDownload}
               >
                 <XCircle size={16} />
@@ -889,7 +885,6 @@ export default function CidPage() {
   }
 
   const statusIcon = getStatusIcon(checkState.status, downloadState.status)
-  const statusClass = isPartialDownload ? 'partial' : checkState.status
 
   return (
     <div className="cid-layout">
@@ -903,7 +898,7 @@ export default function CidPage() {
           </div>
 
           <div className="cid-workspace">
-            <div className="cid-panel cid-main-panel ui-glass-surface ui-glass-surface-elevated">
+            <div className="cid-panel cid-main-panel">
               <ol
                 className="cid-process-steps"
                 aria-label={t('cid.transfer.title')}
@@ -927,7 +922,7 @@ export default function CidPage() {
               </ol>
 
               <div className="cid-status">
-                <span className={`cid-status-icon ${statusClass}`}>
+                <span className={`cid-status-icon ${checkState.status}`}>
                   {statusIcon}
                 </span>
                 <div>
@@ -987,53 +982,6 @@ export default function CidPage() {
                 </div>
               )}
 
-              {isCollectionResult && collectionFiles.length > 0 && (
-                <div className="cid-collection-files">
-                  <h2>{t('cid.collectionSelectionTitle')}</h2>
-                  <div className="cid-collection-list">
-                    {collectionFiles.map(file => {
-                      const checked = selectedCollectionPaths.includes(
-                        file.path
-                      )
-                      return (
-                        <label key={file.path} className="cid-collection-item">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            disabled={isDownloading}
-                            onChange={() => {
-                              setSelectedCollectionPaths(current =>
-                                checked
-                                  ? current.filter(path => path !== file.path)
-                                  : [...current, file.path]
-                              )
-                            }}
-                          />
-                          <span className="cid-collection-name" translate="no">
-                            {file.path}
-                          </span>
-                          <span className="cid-collection-size">
-                            {formatBytes(file.size)}
-                          </span>
-                          <span
-                            className={`cid-collection-status ${
-                              file.localAvailable === true ? 'is-local' : ''
-                            }`}
-                          >
-                            {file.localAvailable === true && (
-                              <Check size={14} />
-                            )}
-                            {file.localAvailable === true
-                              ? t('cid.collectionChildLocal')
-                              : t('cid.collectionChildDownloadCheck')}
-                          </span>
-                        </label>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-
               {downloadState.status !== 'idle' && (
                 <div className={`cid-download-state ${downloadState.status}`}>
                   <p>{downloadState.message}</p>
@@ -1059,7 +1007,7 @@ export default function CidPage() {
             </div>
 
             <aside
-              className="cid-share-panel ui-glass-surface ui-glass-surface-elevated"
+              className="cid-share-panel"
               aria-labelledby="cid-share-title"
             >
               <div className="cid-share-heading">
@@ -1161,7 +1109,6 @@ function getCidProcessActiveIndex(
   isAddingLocalContent: boolean
 ) {
   if (downloadStatus === 'completed') return 3
-  if (downloadStatus === 'partial') return 2
   if (downloadStatus === 'starting' || downloadStatus === 'downloading') {
     return 2
   }
@@ -1176,7 +1123,6 @@ function getStatusIcon(
   downloadStatus: DownloadStatus
 ) {
   if (downloadStatus === 'completed') return <CheckCircle2 size={28} />
-  if (downloadStatus === 'partial') return <AlertTriangle size={28} />
   if (downloadStatus === 'error' || checkStatus === 'error') {
     return <AlertTriangle size={28} />
   }

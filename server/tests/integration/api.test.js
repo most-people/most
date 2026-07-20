@@ -1,6 +1,5 @@
 import { describe, it, before, after, beforeEach } from 'node:test'
 import assert from 'node:assert'
-import { EventEmitter } from 'node:events'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -495,7 +494,6 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
 
       assert.strictEqual(specRes.status, 200)
       assert.strictEqual(spec.openapi, '3.1.0')
-      assert.ok(!spec.paths['/api/auth/nonce'])
       assert.ok(spec.paths['/api/node/status'])
       assert.ok(spec.paths['/api/node/logs'])
       assert.ok(spec.paths['/api/node/logs'].delete)
@@ -505,7 +503,6 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(spec.paths['/api/publish'])
       assert.ok(spec.paths['/api/download/check'])
       assert.ok(spec.paths['/api/download'])
-      assert.ok(spec.paths['/api/download/tasks'])
       assert.ok(spec.paths['/api/download/cancel'])
       assert.ok(spec.paths['/api/files/{cid}/download'])
       assert.strictEqual(spec.paths['/api/trash'], undefined)
@@ -861,18 +858,6 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(publishData.kind, 'collection')
       assert.strictEqual(publishData.fileName, 'Show')
       assert.strictEqual(publishData.fileCount, 2)
-
-      const repeatRes = await fetch(`${baseUrl}/api/folder/share`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: 'Show' }),
-      })
-      const repeatData = await repeatRes.json()
-
-      assert.strictEqual(repeatRes.status, 200)
-      assert.strictEqual(repeatData.success, true)
-      assert.strictEqual(repeatData.cid, publishData.cid)
-      assert.strictEqual(repeatData.alreadyExists, true)
 
       const collectionRes = await fetch(
         `${baseUrl}/api/collections/${publishData.cid}`
@@ -1382,70 +1367,6 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
 
       assert.strictEqual(res.status, 400)
     })
-
-    it('lists only the signed-in user active background downloads', async () => {
-      const fakeEngine = new EventEmitter()
-      let resolveDownload
-      const pendingDownload = new Promise(resolve => {
-        resolveDownload = resolve
-      })
-      Object.assign(fakeEngine, {
-        getLocalCidAvailability: async () => null,
-        downloadFile: async () => {
-          await pendingDownload
-          return { taskId: 'finished' }
-        },
-      })
-      const { app } = createApp(fakeEngine, {
-        port: TEST_PORT + 40,
-        configStore,
-        nodeLogger,
-      })
-
-      const startRes = await requestWithAuth(app, '/api/download', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          link: `most://${VALID_MISSING_CID}?filename=large.bin`,
-          background: true,
-        }),
-      })
-      const started = await startRes.json()
-      assert.strictEqual(startRes.status, 200)
-
-      fakeEngine.emit('download:progress', {
-        taskId: started.taskId,
-        loaded: 25,
-        total: 100,
-        percent: 25,
-      })
-
-      const ownerRes = await requestWithAuth(app, '/api/download/tasks')
-      const ownerTasks = await ownerRes.json()
-      assert.strictEqual(ownerRes.status, 200)
-      assert.strictEqual(ownerTasks.length, 1)
-      assert.strictEqual(ownerTasks[0].taskId, started.taskId)
-      assert.strictEqual(ownerTasks[0].cid, VALID_MISSING_CID)
-      assert.strictEqual(ownerTasks[0].fileName, 'large.bin')
-      assert.strictEqual(ownerTasks[0].progress, 25)
-
-      const otherRes = await requestAsWithContext(
-        SECOND_IDENTITY,
-        app,
-        '/api/download/tasks'
-      )
-      assert.deepStrictEqual(await otherRes.json(), [])
-
-      resolveDownload()
-      await sleep(0)
-      const completedRes = await requestWithAuth(app, '/api/download/tasks')
-      assert.deepStrictEqual(await completedRes.json(), [])
-    })
-
-    it('requires login to list active background downloads', async () => {
-      const res = await fetchWithoutAuth(`${baseUrl}/api/download/tasks`)
-      assert.strictEqual(res.status, 401)
-    })
   })
 
   describe('node holdings and P2P pull API', () => {
@@ -1480,18 +1401,48 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(typeof holding.peerCount, 'number')
       assert.strictEqual(holding.lastServedAt, null)
       assert.strictEqual(holding.totalServedBytes, 0)
-      assert.strictEqual(Object.hasOwn(holding, 'driveName'), false)
-      assert.strictEqual(Object.hasOwn(holding, 'transport'), false)
-      assert.strictEqual(Object.hasOwn(holding, 'state'), false)
     })
 
-    it('does not expose a manual holding creation endpoint', async () => {
+    it('creates a manual holding record', async () => {
+      const content = Buffer.from('manual holding')
+      const { cid } = await calculateCid(content)
+
       const res = await fetch(`${baseUrl}/api/node/holdings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cid: VALID_MISSING_CID, size: 1 }),
+        body: JSON.stringify({
+          cid: cid.toString(),
+          size: content.length,
+        }),
       })
-      assert.strictEqual(res.status, 404)
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 200)
+      assert.strictEqual(data.success, true)
+      assert.strictEqual(data.holding.cid, cid.toString())
+      assert.strictEqual(data.holding.joined, true)
+    })
+
+    it('normalizes manual holding driveName from the CID', async () => {
+      const content = Buffer.from('api manual driveName normalization')
+      const { cid } = await calculateCid(content)
+
+      const res = await fetch(`${baseUrl}/api/node/holdings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cid: cid.toString(),
+          fileName: 'manual-drive.txt',
+          size: content.length,
+          driveName: 'drive-not-from-cid',
+        }),
+      })
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 200)
+      assert.match(data.holding.driveName, /^drive-[0-9a-f]{64}$/)
+      assert.notStrictEqual(data.holding.driveName, 'drive-not-from-cid')
+      assert.strictEqual(data.holding.driveName, `drive-${data.holding.topic}`)
     })
 
     it('passes the authenticated user to P2P pull downloads', async () => {
@@ -1655,70 +1606,16 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
   })
 
   describe('POST /api/download/cancel', () => {
-    it('only cancels an active task owned by the signed-in user', async () => {
-      const fakeEngine = new EventEmitter()
-      let cancelledTaskId = ''
-      let rejectDownload
-      const pendingDownload = new Promise((_resolve, reject) => {
-        rejectDownload = reject
-      })
-      Object.assign(fakeEngine, {
-        getLocalCidAvailability: async () => null,
-        downloadFile: async () => pendingDownload,
-        cancelDownload: taskId => {
-          cancelledTaskId = taskId
-          rejectDownload(new Error('Download cancelled'))
-        },
-      })
-      const { app } = createApp(fakeEngine, {
-        port: TEST_PORT + 41,
-        configStore,
-        nodeLogger,
-      })
-      const startRes = await requestWithAuth(app, '/api/download', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          link: `most://${VALID_MISSING_CID}?filename=cancel.bin`,
-          background: true,
-        }),
-      })
-      const started = await startRes.json()
-
-      const otherRes = await requestAsWithContext(
-        SECOND_IDENTITY,
-        app,
-        '/api/download/cancel',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ taskId: started.taskId }),
-        }
-      )
-      assert.strictEqual(otherRes.status, 404)
-
-      const res = await requestWithAuth(app, '/api/download/cancel', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ taskId: started.taskId }),
-      })
-
-      assert.strictEqual(res.status, 200)
-      const data = await res.json()
-      assert.ok(data.success)
-      assert.strictEqual(cancelledTaskId, started.taskId)
-      await sleep(0)
-      const tasksRes = await requestWithAuth(app, '/api/download/tasks')
-      assert.deepStrictEqual(await tasksRes.json(), [])
-    })
-
-    it('returns 404 for an unknown taskId', async () => {
+    it('cancels a download by taskId', async () => {
       const res = await fetch(`${baseUrl}/api/download/cancel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ taskId: 'fake-task-id' }),
       })
-      assert.strictEqual(res.status, 404)
+
+      assert.strictEqual(res.status, 200)
+      const data = await res.json()
+      assert.ok(data.success)
     })
 
     it('returns 400 for missing taskId', async () => {

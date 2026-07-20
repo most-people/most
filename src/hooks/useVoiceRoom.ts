@@ -10,7 +10,12 @@ const RTC_CONFIGURATION: RTCConfiguration = {
 type VoiceEventName = 'join' | 'state' | 'heartbeat' | 'leave' | 'signal'
 type VoiceSignalType = 'offer' | 'answer' | 'candidate'
 type VoiceConnectionState =
-  'new' | 'connecting' | 'connected' | 'disconnected' | 'failed' | 'closed'
+  | 'new'
+  | 'connecting'
+  | 'connected'
+  | 'disconnected'
+  | 'failed'
+  | 'closed'
 
 const VOICE_WS_EVENTS: Record<VoiceEventName, string> = {
   join: 'channel:voice:join',

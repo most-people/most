@@ -294,7 +294,8 @@ type MentionCandidate = {
 type BrowserAudioContextConstructor = typeof AudioContext
 
 function getBrowserAudioContextConstructor():
-  BrowserAudioContextConstructor | undefined {
+  | BrowserAudioContextConstructor
+  | undefined {
   if (typeof window === 'undefined') return undefined
   const audioWindow = window as Window &
     typeof globalThis & {
@@ -2290,7 +2291,7 @@ function ChatPage() {
 
   const mentionMenu = isMentionMenuOpen ? (
     <div
-      className="chat-mention-menu ui-glass-surface ui-glass-surface-elevated"
+      className="chat-mention-menu"
       role="listbox"
       aria-label={t('chat.mentionSuggestions')}
     >

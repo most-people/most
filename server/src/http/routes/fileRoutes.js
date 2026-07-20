@@ -7,31 +7,20 @@ import { validationErrorPayload } from '../routePolicy.js'
 import { parseMultipartBusboy } from '../uploads.js'
 import { getMimeType } from '../staticFiles.js'
 
-function startDownloadTask(
-  engine,
-  link,
-  taskId,
-  options,
-  wsBroadcast,
-  downloadTasks
-) {
-  Promise.resolve()
-    .then(() => engine.downloadFile(link, taskId, options))
-    .then(() => downloadTasks?.remove(taskId))
-    .catch(err => {
-      downloadTasks?.remove(taskId)
-      if (err.message === 'Download cancelled') {
-        wsBroadcast('download:cancelled', { taskId })
-      } else {
-        wsBroadcast('download:error', {
-          taskId,
-          error: err.message,
-          code: err.code || 'UNKNOWN',
-          errorCode: err.errorCode,
-          details: err.details,
-        })
-      }
-    })
+function startDownloadTask(engine, link, taskId, options, wsBroadcast) {
+  engine.downloadFile(link, taskId, options).catch(err => {
+    if (err.message === 'Download cancelled') {
+      wsBroadcast('download:cancelled', { taskId })
+    } else {
+      wsBroadcast('download:error', {
+        taskId,
+        error: err.message,
+        code: err.code || 'UNKNOWN',
+        errorCode: err.errorCode,
+        details: err.details,
+      })
+    }
+  })
 }
 
 function streamReadableResponse(c, readable) {
@@ -57,10 +46,7 @@ function unlinkUploadTempFile(filePath, attempt = 0) {
   })
 }
 
-export function registerFileRoutes(
-  app,
-  { engine, configStore, wsBroadcast, downloadTasks }
-) {
+export function registerFileRoutes(app, { engine, configStore, wsBroadcast }) {
   app.get('/api/files', async c => {
     return c.json(
       await engine.listPublishedFilesWithAvailability({
@@ -196,10 +182,6 @@ export function registerFileRoutes(
     }
   })
 
-  app.get('/api/download/tasks', c => {
-    return c.json(downloadTasks.list(c.get('userAddress')))
-  })
-
   app.post('/api/download', async c => {
     const body = await c.req.json()
     if (!body.link) {
@@ -216,21 +198,8 @@ export function registerFileRoutes(
       )
     }
 
-    const ownerAddress = c.get('userAddress')
-    const registerBackgroundTask = input => {
-      if (body.background !== true) return
-      downloadTasks.register({
-        taskId,
-        ownerAddress,
-        cid: parsed.cid,
-        fileName: sanitizeFilename(parsed.fileName || parsed.cid),
-        kind: input?.kind,
-        totalFiles: body.selectedPaths?.length || input?.fileCount,
-      })
-    }
-
     const localAvailability = await engine.getLocalCidAvailability(body.link, {
-      ownerAddress,
+      ownerAddress: c.get('userAddress'),
     })
     if (localAvailability) {
       console.log(`[MostBox] CID content already exists locally: ${parsed.cid}`)
@@ -239,17 +208,15 @@ export function registerFileRoutes(
         localAvailability.alreadyExists !== true &&
         localAvailability.missingLocalCount !== 0
       ) {
-        registerBackgroundTask(localAvailability)
         startDownloadTask(
           engine,
           body.link,
           taskId,
           {
-            ownerAddress,
+            ownerAddress: c.get('userAddress'),
             selectedPaths: body.selectedPaths,
           },
-          wsBroadcast,
-          downloadTasks
+          wsBroadcast
         )
         return c.json({
           success: true,
@@ -262,7 +229,7 @@ export function registerFileRoutes(
       }
       try {
         const result = await engine.downloadFile(body.link, taskId, {
-          ownerAddress,
+          ownerAddress: c.get('userAddress'),
           selectedPaths: body.selectedPaths,
         })
         return c.json({ success: true, ...result })
@@ -271,17 +238,15 @@ export function registerFileRoutes(
       }
     }
 
-    registerBackgroundTask()
     startDownloadTask(
       engine,
       body.link,
       taskId,
       {
-        ownerAddress,
+        ownerAddress: c.get('userAddress'),
         selectedPaths: body.selectedPaths,
       },
-      wsBroadcast,
-      downloadTasks
+      wsBroadcast
     )
 
     return c.json({ success: true, taskId })
@@ -291,16 +256,6 @@ export function registerFileRoutes(
     const body = await c.req.json()
     if (!body.taskId) {
       return c.json({ error: 'taskId is required' }, 400)
-    }
-    const task = downloadTasks.markCancelling(body.taskId, c.get('userAddress'))
-    if (!task) {
-      return c.json(
-        {
-          error: 'Download task not found',
-          code: 'DOWNLOAD_TASK_NOT_FOUND',
-        },
-        404
-      )
     }
     engine.cancelDownload(body.taskId)
     return c.json({ success: true })

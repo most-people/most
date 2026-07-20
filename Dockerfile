@@ -1,4 +1,4 @@
-FROM node:24-bookworm AS build
+FROM node:22-bookworm AS build
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -7,7 +7,7 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-FROM node:24-bookworm AS runtime
+FROM node:22-bookworm AS runtime
 WORKDIR /app
 
 ENV NODE_ENV=production

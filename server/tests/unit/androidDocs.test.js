@@ -87,25 +87,4 @@ describe('Android command documentation', () => {
       )
     }
   })
-
-  it('requires stable release signing and produces per-ABI APKs', () => {
-    const releaseGradle = readText('../../../mobile/android/release.gradle')
-    const buildScript = readText(
-      '../../../mobile/android/scripts/build-apk.mjs'
-    )
-    const syncScript = readText(
-      '../../../mobile/android/scripts/sync-native-android.mjs'
-    )
-    const releaseWorkflow = readText('../../../.github/workflows/release.yml')
-
-    assert.doesNotMatch(releaseGradle, /signingConfigs\.debug/)
-    assert.match(releaseGradle, /MOST_ANDROID_KEYSTORE_PATH/)
-    assert.match(releaseGradle, /include 'arm64-v8a', 'armeabi-v7a', 'x86_64'/)
-    assert.match(releaseGradle, /universalApk false/)
-    assert.match(buildScript, /Android release signing is required/)
-    assert.match(syncScript, /signingConfig signingConfigs\\\.debug/)
-    assert.match(releaseWorkflow, /ANDROID_RELEASE_KEYSTORE_BASE64/)
-    assert.match(releaseWorkflow, /ANDROID_RELEASE_CERT_SHA256/)
-    assert.match(releaseWorkflow, /apksigner_path/)
-  })
 })

@@ -80,9 +80,13 @@
 
 /* === Identity Card === */
 .web3-identity-card {
+  background: var(--glass-bg);
+  backdrop-filter: var(--blur-lg);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-xl);
   padding: var(--space-8);
   text-align: center;
+  box-shadow: var(--glass-shadow);
   margin-bottom: var(--space-6);
 }
 
@@ -135,7 +139,17 @@
 }
 
 .web3-key-card {
+  background: var(--glass-bg);
+  backdrop-filter: var(--blur-md);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
   padding: var(--space-5);
+  box-shadow: var(--glass-shadow);
+  transition: transform var(--transition-fast);
+}
+
+.web3-key-card:hover {
+  transform: translateY(-2px);
 }
 
 .web3-key-card.accent {
@@ -198,12 +212,12 @@
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   padding: var(--space-3);
-  background: var(--glass-bg-subtle);
+  background: var(--surface);
 }
 
 .web3-data-grid span {
   display: block;
-  color: var(--text-muted);
+  color: var(--text-tertiary);
   font-size: 12px;
   margin-bottom: var(--space-1);
 }
@@ -214,7 +228,7 @@
 }
 
 .web3-data-muted {
-  color: var(--text-muted);
+  color: var(--text-tertiary);
   font-size: 13px;
 }
 
@@ -227,7 +241,7 @@
   justify-content: center;
   gap: var(--space-3);
   cursor: pointer;
-  background: var(--glass-bg-subtle);
+  background: var(--surface);
 }
 
 .web3-import-drop input {
@@ -239,7 +253,7 @@
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   padding: var(--space-4);
-  background: var(--glass-bg-subtle);
+  background: var(--surface);
 }
 
 .web3-import-failures p,
@@ -274,7 +288,12 @@
 }
 
 .web3-pem-block {
+  background: var(--glass-bg);
+  backdrop-filter: var(--blur-md);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
   padding: var(--space-4);
+  box-shadow: var(--glass-shadow);
 }
 
 .web3-pem-header {
@@ -614,10 +633,7 @@
 }
 
 .web3-box-account,
-.web3-box-flow {
-  padding: var(--space-5);
-}
-
+.web3-box-flow,
 .web3-box-source-panel {
   background: var(--glass-bg);
   backdrop-filter: var(--blur-md);

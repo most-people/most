@@ -146,7 +146,6 @@ export function syncNativeAndroidProject({
   const releaseVersionCode = resolveVersionCode(versionCode, releaseVersion)
 
   syncVersion(releaseVersion, releaseVersionCode)
-  syncReleaseGradle()
   syncAppName()
   syncIconBackgroundColor()
   syncGradleJvmArgs()
@@ -205,19 +204,6 @@ function syncVersion(version, versionCode) {
   if (nextBuildGradle !== buildGradle) {
     fs.writeFileSync(buildGradlePath, nextBuildGradle)
   }
-}
-
-function syncReleaseGradle() {
-  const applyLine = 'apply from: file("../../release.gradle")'
-  const buildGradle = fs.readFileSync(buildGradlePath, 'utf8')
-  const withoutDebugReleaseSigning = buildGradle.replace(
-    /(release\s*\{[\s\S]*?)\s*signingConfig signingConfigs\.debug/,
-    '$1'
-  )
-  const nextBuildGradle = withoutDebugReleaseSigning.includes(applyLine)
-    ? withoutDebugReleaseSigning
-    : `${withoutDebugReleaseSigning.trimEnd()}\n\n${applyLine}\n`
-  writeIfChanged(buildGradlePath, nextBuildGradle)
 }
 
 function syncAppName() {

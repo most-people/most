@@ -32,13 +32,10 @@ import {
   sortChannelMessages,
   uniqueStrings,
 } from './channel-protocol.mjs'
-import { removeHoldingRecord } from './holding-records.mjs'
 import {
-  getConnectionTopicSet,
-  openFileDriveProtocol,
-} from './file-drive-protocol.mjs'
-import { openChannelControlProtocol } from './channel-control-protocol.mjs'
-import { ensureStorageSchema } from './storage-schema.mjs'
+  getInternalHoldingCleanupPaths,
+  removeHoldingRecord,
+} from './holding-records.mjs'
 
 const fs =
   typeof globalThis.Bare === 'undefined'
@@ -49,14 +46,7 @@ const path =
     ? (await import('node:path')).default
     : (await import('bare-path')).default
 
-const FILE_CORESTORE_DIR = path.join('stores', 'files')
-const CHANNEL_CORESTORE_DIR = path.join('stores', 'channels')
-const DRIVE_ENTRY_SOURCE = Symbol('driveEntrySource')
-const DRIVE_TRANSPORT = Symbol('driveTransport')
-const DRIVE_BASE_SESSION = Symbol('driveBaseSession')
-const HOLDINGS_SCHEMA_VERSION = 1
-const MAX_REMOTE_CANDIDATES_PER_CID = 4
-const MAX_UNVERIFIED_DRIVE_OPENS = 8
+const GLOBAL_SHARED_SEED_STRING = 'most-box-global-shared-seed-v1'
 const MAX_PEERS = 64
 const CONNECTION_TIMEOUT = 120000
 const DOWNLOAD_TIMEOUT = 900000
@@ -67,23 +57,6 @@ const DOWNLOAD_POLL_INTERVAL_MAX = 2000
 const DRIVE_UPDATE_INTERVAL = 2000
 const PROGRESS_THROTTLE = 500
 const HOLDINGS_FILE = 'node-holdings.json'
-const PENDING_PURGES_FILE = 'pending-drive-purges.json'
-
-async function purgeDriveLocalBlocks(drive) {
-  await drive.ready()
-  await drive.clearAll()
-  await drive.core.clear(0, drive.core.length)
-  await drive.close()
-}
-
-async function closeDriveSessions(drive) {
-  if (!drive) return
-  const baseDrive = drive[DRIVE_BASE_SESSION]
-  await drive.close().catch(() => {})
-  if (baseDrive && baseDrive !== drive) {
-    await baseDrive.close().catch(() => {})
-  }
-}
 
 const SWARM_BOOTSTRAP = [
   '88.99.3.86@node1.hyperdht.org:49737',
@@ -215,7 +188,7 @@ function getCidInfo(cid) {
     cid: parsed.toString(),
     topic,
     topicHex,
-    driveName: `drive-${parsed.toString()}`,
+    driveName: `drive-${topicHex}`,
   }
 }
 
@@ -430,20 +403,11 @@ export class MobileP2PCore {
   #storagePath
   #downloadPath
   #send
-  #fileStore = null
-  #channelStore = null
+  #store = null
   #swarm = null
   #chatSwarm = null
   #drives = new Map()
   #drivePromises = new Map()
-  #remoteDrives = new Map()
-  #remoteOffers = new Map()
-  #remoteDrivePromises = new Map()
-  #remoteDriveOpenCount = 0
-  #remoteDriveOpenWaiters = []
-  #pendingDrivePurges = new Set()
-  #pendingDrivePurgeSessions = new Map()
-  #fileProtocols = new Set()
   #discoveries = new Map()
   #channels = []
   #channelCores = new Map()
@@ -488,9 +452,7 @@ export class MobileP2PCore {
   getSnapshot() {
     return {
       node: { ...this.#node, peerCount: this.#peerCount() },
-      holdings: this.#holdings
-        .filter(holding => holding.state === 'ready')
-        .map(holding => this.#toMobileHolding(holding)),
+      holdings: this.#holdings.map(holding => this.#toMobileHolding(holding)),
       transfers: this.#transfers.map(transfer => ({ ...transfer })),
       channels: this.#channels.map(channel => this.#toMobileChannel(channel)),
       channelMessages: this.#snapshotChannelMessages(),
@@ -513,27 +475,15 @@ export class MobileP2PCore {
       throw new Error('P2P core storagePath is required')
     }
 
-    ensureStorageSchema(this.#storagePath)
+    ensureDirectory(this.#storagePath)
     ensureDirectory(this.#downloadPath)
 
-    this.#fileStore = new Corestore(
-      path.join(this.#storagePath, FILE_CORESTORE_DIR)
-    )
-    this.#channelStore = new Corestore(
-      path.join(this.#storagePath, CHANNEL_CORESTORE_DIR)
-    )
-    try {
-      await Promise.all([this.#fileStore.ready(), this.#channelStore.ready()])
-      this.#holdings = this.#loadHoldings()
-      this.#loadPendingDrivePurges()
-      await this.#flushPendingDrivePurges()
-    } catch (error) {
-      const stores = [this.#fileStore, this.#channelStore]
-      this.#fileStore = null
-      this.#channelStore = null
-      await Promise.allSettled(stores.map(store => store?.close()))
-      throw error
-    }
+    const primaryKey = b4a.alloc(32).fill(GLOBAL_SHARED_SEED_STRING)
+    this.#store = new Corestore(this.#storagePath, {
+      primaryKey,
+      unsafe: true,
+    })
+    await this.#store.ready()
 
     this.#swarm = this.#createSwarm({
       maxPeers: MAX_PEERS,
@@ -544,10 +494,9 @@ export class MobileP2PCore {
       handshakeTimeout: CONNECTION_TIMEOUT,
     })
 
-    this.#swarm.on('connection', (conn, info) => {
+    this.#swarm.on('connection', conn => {
       conn.on('error', () => {})
-      this.#fileStore.replicate(conn)
-      this.#openFileDriveConnection(conn, info)
+      this.#store.replicate(conn)
       this.#emitNetworkStatus()
     })
     this.#swarm.on('update', () => this.#emitNetworkStatus())
@@ -565,10 +514,9 @@ export class MobileP2PCore {
       handshakeTimeout: CONNECTION_TIMEOUT,
     })
 
-    this.#chatSwarm.on('connection', (conn, info) => {
+    this.#chatSwarm.on('connection', conn => {
       conn.on('error', () => {})
-      this.#channelStore.replicate(conn)
-      this.#openChannelConnection(conn, info)
+      this.#handleChannelConnection(conn).catch(() => {})
       this.#emitNetworkStatus()
     })
     this.#chatSwarm.on('update', () => this.#emitNetworkStatus())
@@ -577,15 +525,12 @@ export class MobileP2PCore {
       this.#log('warn', message)
     })
 
-    await this.#recoverStagingHoldings()
-    for (const holding of this.#holdings.filter(
-      item => item.state === 'ready'
-    )) {
-      const { topicHex, driveName } = getCidInfo(holding.cid)
+    this.#holdings = this.#loadHoldings()
+    for (const holding of this.#holdings) {
       this.#seedStates.set(holding.cid, {
         status: 'queued',
-        topic: topicHex,
-        driveName,
+        topic: holding.topic,
+        driveName: holding.driveName,
       })
     }
 
@@ -601,12 +546,10 @@ export class MobileP2PCore {
       status: 'ready',
       error: '',
     }
-    this.#log('info', 'MostBox mobile P2P core is ready')
+    this.#log('info', 'MostBox Android P2P core is ready')
     this.#emitSnapshot()
 
-    for (const holding of this.#holdings.filter(
-      item => item.state === 'ready'
-    )) {
+    for (const holding of [...this.#holdings]) {
       this.#joinCidTopic(holding.cid, { server: true, client: false }).catch(
         err => {
           this.#setSeedState(holding.cid, {
@@ -648,33 +591,17 @@ export class MobileP2PCore {
     this.#channelStreams.clear()
     this.#channelMessageCache.clear()
 
-    const fileDrives = new Set([
-      ...this.#drives.values(),
-      ...[...this.#remoteDrives.values()].flatMap(drives => [
-        ...drives.values(),
-      ]),
-      ...this.#pendingDrivePurgeSessions.values(),
-    ])
-    await Promise.allSettled([...fileDrives].map(closeDriveSessions))
+    await Promise.allSettled(
+      [...this.#drives.values()].map(drive => drive.close())
+    )
     this.#drives.clear()
     this.#drivePromises.clear()
-    this.#remoteDrives.clear()
-    this.#remoteOffers.clear()
-    this.#remoteDrivePromises.clear()
-    this.#pendingDrivePurgeSessions.clear()
-    this.#remoteDriveOpenCount = 0
-    while (this.#remoteDriveOpenWaiters.length) {
-      this.#remoteDriveOpenWaiters.shift()?.()
-    }
-    this.#fileProtocols.clear()
     this.#discoveries.clear()
 
-    await Promise.allSettled([
-      this.#fileStore?.close(),
-      this.#channelStore?.close(),
-    ])
-    this.#fileStore = null
-    this.#channelStore = null
+    if (this.#store) {
+      await this.#store.close()
+      this.#store = null
+    }
 
     this.#node = {
       ...this.#node,
@@ -972,20 +899,15 @@ export class MobileP2PCore {
       progress: 5,
       message: 'Calculating UnixFS CID',
     })
-    let operationCid = ''
 
     try {
       const source = this.#createFileSource(input)
       const result = await calculateCid(source)
       const cid = result.cid
-      operationCid = cid
       const size = result.size || Number(input.size) || 0
       const { driveName } = getCidInfo(cid)
       const driveKey = `/${cid}`
-      let existingHolding = this.#holdings.find(
-        holding => holding.cid === cid && holding.state === 'ready'
-      )
-      let drive = await this.#getOrCreateDrive(driveName)
+      const drive = await this.#getOrCreateDrive(driveName)
 
       this.#upsertTransfer({
         ...transfer,
@@ -995,68 +917,24 @@ export class MobileP2PCore {
         message: 'Writing file into Hyperdrive',
       })
 
-      const existingEntry = existingHolding
-        ? await drive.entry(driveKey).catch(() => null)
-        : null
-      if (
-        existingHolding &&
-        existingEntry?.value?.blob &&
-        (await drive.has(driveKey).catch(() => false))
-      ) {
-        await this.#joinCidTopic(cid, { server: true, client: false })
-        const holding = this.#upsertHolding({
-          ...existingHolding,
-          fileName,
-          localPath: source.filePath,
-          source: 'published',
-        })
-        const completed = this.#upsertTransfer({
-          ...transfer,
-          cid,
-          link: buildMostLink(cid, fileName),
-          status: 'completed',
-          progress: 100,
-          message: 'Already published and seeding',
-        })
-        return { transfer: completed, holding: this.#toMobileHolding(holding) }
+      const existingEntry = await drive.entry(driveKey).catch(() => null)
+      if (!existingEntry) {
+        if (source.buffer) {
+          await writeBufferToDrive(drive, driveKey, source.buffer)
+        } else {
+          await pipeFileToDrive(source.filePath, drive, driveKey)
+        }
       }
 
-      if (existingHolding) {
-        await this.#purgeHolding(existingHolding)
-        existingHolding = null
-        drive = await this.#getOrCreateDrive(driveName)
-      }
-      this.#upsertHolding({
-        cid,
-        fileName,
-        size,
-        localPath: source.filePath,
-        source: 'published',
-        state: 'staging',
-        transport: {
-          type: 'hyperdrive',
-          key: b4a.toString(drive.key, 'hex'),
-          version: 0,
-        },
-      })
-      if (source.buffer) {
-        await writeBufferToDrive(drive, driveKey, source.buffer)
-      } else {
-        await pipeFileToDrive(source.filePath, drive, driveKey)
-      }
-      const sealed = this.#sealDrive(driveName, drive)
-      drive = sealed.drive
-
+      await this.#joinCidTopic(cid, { server: true, client: false })
       const holding = this.#upsertHolding({
         cid,
         fileName,
         size,
+        driveName,
         localPath: source.filePath,
         source: 'published',
-        state: 'ready',
-        transport: sealed.transport,
       })
-      await this.#joinCidTopic(cid, { server: true, client: false })
 
       const completed = this.#upsertTransfer({
         ...transfer,
@@ -1073,7 +951,6 @@ export class MobileP2PCore {
         holding: this.#toMobileHolding(holding),
       }
     } catch (err) {
-      await this.#discardStagingHolding(operationCid).catch(() => {})
       const failed = this.#upsertTransfer({
         ...transfer,
         status: 'failed',
@@ -1105,21 +982,15 @@ export class MobileP2PCore {
     })
 
     try {
+      const drive = await this.#getOrCreateDrive(driveName)
       const existingHolding = this.#holdings.find(
-        holding => holding.cid === cid && holding.state === 'ready'
+        holding => holding.cid === cid
       )
-      const drive = existingHolding
-        ? await this.#getOrCreateDrive(driveName)
-        : null
       const existingEntry = existingHolding
         ? await drive.entry(driveKey).catch(() => null)
         : null
 
-      if (
-        existingHolding &&
-        existingEntry?.value?.blob &&
-        (await drive.has(driveKey).catch(() => false))
-      ) {
+      if (existingHolding && existingEntry) {
         await this.#joinCidTopic(cid, { server: true, client: false })
         const completed = this.#upsertTransfer({
           ...transfer,
@@ -1144,113 +1015,87 @@ export class MobileP2PCore {
         message: 'Finding peers',
       })
 
-      let lastCandidateError = null
-      candidateLoop: while (true) {
-        const entry = await this.#waitForDriveEntry(
-          drive,
-          driveKey,
-          input.timeout || DOWNLOAD_TIMEOUT,
-          requestId,
-          cid
-        )
+      const entry = await this.#waitForDriveEntry(
+        drive,
+        driveKey,
+        input.timeout || DOWNLOAD_TIMEOUT,
+        requestId
+      )
 
-        if (!entry) {
-          if (lastCandidateError) throw lastCandidateError
-          throw new Error('No online seed was found for this CID')
-        }
+      if (!entry) {
+        throw new Error('No online seed was found for this CID')
+      }
 
-        const sourceDrive = this.#getDriveEntrySource(entry, drive)
-        const sourceTransport = this.#getDriveTransport(sourceDrive)
-        if (!sourceTransport) {
-          throw new Error('Peer did not provide a valid drive snapshot')
-        }
-        this.#drives.set(driveName, sourceDrive)
-        const totalBytes = Number(entry?.value?.blob?.byteLength) || 0
-        const savePath = uniqueSavePath(this.#downloadPath, fileName)
-        const tempPath = `${savePath}.part`
+      const totalBytes = Number(entry?.value?.blob?.byteLength) || 0
+      const savePath = uniqueSavePath(this.#downloadPath, fileName)
+      const tempPath = `${savePath}.part`
+      safeRm(tempPath)
+
+      this.#upsertTransfer({
+        ...transfer,
+        progress: 20,
+        message: 'Downloading file',
+      })
+
+      const readStream = drive.createReadStream(driveKey)
+      let loaded = 0
+      await pipeDriveToFile(readStream, tempPath, {
+        timeout: STREAM_READ_TIMEOUT,
+        onProgress: nextLoaded => {
+          loaded = nextLoaded
+          if (totalBytes > 0) {
+            const progress = 20 + Math.round((loaded / totalBytes) * 60)
+            this.#upsertTransfer({
+              ...transfer,
+              progress: Math.min(progress, 80),
+              message: 'Downloading file',
+            })
+          }
+        },
+      })
+
+      this.#upsertTransfer({
+        ...transfer,
+        progress: 85,
+        message: 'Verifying CID',
+      })
+
+      const downloaded = await calculateCid({ filePath: tempPath })
+      if (downloaded.cid !== cid) {
         safeRm(tempPath)
-        try {
-          this.#upsertHolding({
-            cid,
-            fileName,
-            size: totalBytes,
-            localPath: savePath,
-            source: 'downloaded',
-            state: 'staging',
-            transport: sourceTransport,
-          })
+        throw new Error(
+          `File content CID mismatch. Expected ${cid}, got ${downloaded.cid}.`
+        )
+      }
 
-          this.#upsertTransfer({
-            ...transfer,
-            progress: 20,
-            message: 'Downloading file',
-          })
+      fs.renameSync(tempPath, savePath)
 
-          const readStream = sourceDrive.createReadStream(driveKey)
-          let loaded = 0
-          await pipeDriveToFile(readStream, tempPath, {
-            timeout: STREAM_READ_TIMEOUT,
-            onProgress: nextLoaded => {
-              loaded = nextLoaded
-              if (totalBytes > 0) {
-                const progress = 20 + Math.round((loaded / totalBytes) * 60)
-                this.#upsertTransfer({
-                  ...transfer,
-                  progress: Math.min(progress, 80),
-                  message: 'Downloading file',
-                })
-              }
-            },
-          })
+      await this.#joinCidTopic(cid, { server: true, client: false })
+      const savedSize =
+        downloaded.size || totalBytes || fs.statSync(savePath).size || 0
+      const holding = this.#upsertHolding({
+        cid,
+        fileName,
+        size: savedSize,
+        driveName,
+        localPath: savePath,
+        source: 'downloaded',
+      })
 
-          this.#upsertTransfer({
-            ...transfer,
-            progress: 85,
-            message: 'Verifying CID',
-          })
+      const completed = this.#upsertTransfer({
+        ...transfer,
+        status: 'completed',
+        progress: 100,
+        message: `Downloaded to ${savePath}`,
+      })
 
-          const downloaded = await calculateCid({ filePath: tempPath })
-          if (downloaded.cid !== cid) {
-            lastCandidateError = new Error(
-              `File content CID mismatch. Expected ${cid}, got ${downloaded.cid}.`
-            )
-            await this.#rejectRemoteDriveCandidate(cid, sourceDrive)
-            continue candidateLoop
-          }
-
-          fs.renameSync(tempPath, savePath)
-          const savedSize =
-            downloaded.size || totalBytes || fs.statSync(savePath).size || 0
-          const holding = this.#upsertHolding({
-            cid,
-            fileName,
-            size: savedSize,
-            localPath: savePath,
-            source: 'downloaded',
-            state: 'ready',
-            transport: sourceTransport,
-          })
-          await this.#joinCidTopic(cid, { server: true, client: false })
-
-          const completed = this.#upsertTransfer({
-            ...transfer,
-            status: 'completed',
-            progress: 100,
-            message: `Downloaded to ${savePath}`,
-          })
-
-          this.#log('info', `Downloaded and seeding ${cid.slice(0, 16)}`)
-          return {
-            transfer: completed,
-            holding: this.#toMobileHolding(holding),
-            savedPath: savePath,
-          }
-        } finally {
-          safeRm(tempPath)
-        }
+      this.#log('info', `Downloaded and seeding ${cid.slice(0, 16)}`)
+      return {
+        transfer: completed,
+        holding: this.#toMobileHolding(holding),
+        savedPath: savePath,
       }
     } catch (err) {
-      await this.#discardStagingHolding(cid).catch(() => {})
       const failed = this.#upsertTransfer({
         ...transfer,
         status: 'failed',
@@ -1264,14 +1109,26 @@ export class MobileP2PCore {
 
   async deleteHolding(input = {}) {
     this.#ensureReady()
-    const { cid } = getCidInfo(input.cid)
+    const { cid, driveName } = getCidInfo(input.cid)
     const existing = this.#holdings.find(holding => holding.cid === cid)
     if (!existing) {
       throw new Error('This CID is not available in local holdings')
     }
 
     await this.#leaveCidTopic(cid)
-    await this.#purgeHolding(existing)
+    await this.#clearLocalCidContent(cid, existing.driveName || driveName)
+
+    for (const cleanupPath of getInternalHoldingCleanupPaths(
+      {
+        localPath: existing.localPath,
+        downloadPath: this.#downloadPath,
+      },
+      path
+    )) {
+      if (fileExists(cleanupPath)) safeRm(cleanupPath)
+    }
+
+    this.#removeHolding(cid)
     this.#log('info', `Deleted local holding ${cid.slice(0, 16)}`)
 
     return {
@@ -1295,7 +1152,9 @@ export class MobileP2PCore {
     let holding = existing
 
     if (!fileExists(exportPath)) {
-      const drive = await this.#getOrCreateDrive(driveName)
+      const drive = await this.#getOrCreateDrive(
+        existing.driveName || driveName
+      )
       const driveKey = `/${cid}`
       const entry = await drive.entry(driveKey).catch(() => null)
       if (!entry) {
@@ -1403,7 +1262,7 @@ export class MobileP2PCore {
       return
     }
 
-    const ns = this.#channelStore.namespace(`channel-${channel.channelKey}`)
+    const ns = this.#store.namespace(`channel-${channel.channelKey}`)
     const localCore = channel.localWriterCoreKey
       ? ns.get({
           key: b4a.from(channel.localWriterCoreKey, 'hex'),
@@ -1465,7 +1324,7 @@ export class MobileP2PCore {
 
   async #joinChannelDiscoveryTopics(channel) {
     if (!this.#channelDiscoveries.has(channel.channelKey)) {
-      const discovery = this.#chatSwarm.join(
+      const discovery = this.#swarm.join(
         generateChannelDiscoveryKey(channel.channelKey),
         { server: true, client: true }
       )
@@ -1628,7 +1487,7 @@ export class MobileP2PCore {
       normalizeChannelPresenceAddress(input.address) || DIAGNOSTIC_AUTHOR
     const result = {
       address,
-      sessionId: input.sessionId || 'mobile-default',
+      sessionId: input.sessionId || 'android-default',
       sourceId: 'local',
       lastSeen: Number(input.lastSeen) || Date.now(),
     }
@@ -1767,7 +1626,7 @@ export class MobileP2PCore {
     if (!coresMap || !coreKeyHex || coresMap.has(coreKeyHex)) return
 
     try {
-      const ns = this.#channelStore.namespace(`channel-${channelKey}`)
+      const ns = this.#store.namespace(`channel-${channelKey}`)
       const core = ns.get({
         key: b4a.from(coreKeyHex, 'hex'),
         valueEncoding: 'json',
@@ -1789,29 +1648,18 @@ export class MobileP2PCore {
     }
   }
 
-  #buildChannelHelloMessage(info) {
-    const topicSet = getConnectionTopicSet(info)
-    const channels = this.#channels
-      .filter(channel => {
-        if (!topicSet) return true
-        const topics = [
-          generateChannelDiscoveryKey(channel.channelKey),
-          generateChannelChatDiscoveryKey(channel.channelKey),
-          generateChannelIdDiscoveryKey(channel.channelId),
-        ]
-        return topics.some(topic => topicSet.has(b4a.toString(topic, 'hex')))
-      })
-      .map(channel => ({
-        channelId: channel.channelId,
-        channelKey: channel.channelKey,
-        type: channel.type,
-        createdAt: channel.createdAt,
-        lastMessageAt: channel.lastMessageAt || '',
-        writerCoreKeys: uniqueStrings([
-          ...(channel.writerCoreKeys || []),
-          this.#channelLocalCoreKey.get(channel.channelKey),
-        ]),
-      }))
+  #buildChannelHelloMessage() {
+    const channels = this.#channels.map(channel => ({
+      channelId: channel.channelId,
+      channelKey: channel.channelKey,
+      type: channel.type,
+      createdAt: channel.createdAt,
+      lastMessageAt: channel.lastMessageAt || '',
+      writerCoreKeys: uniqueStrings([
+        ...(channel.writerCoreKeys || []),
+        this.#channelLocalCoreKey.get(channel.channelKey),
+      ]),
+    }))
 
     return {
       type: 'channel-hello',
@@ -1821,45 +1669,64 @@ export class MobileP2PCore {
     }
   }
 
-  #sendChannelHello(record) {
-    return Boolean(
-      record?.protocol?.send(this.#buildChannelHelloMessage(record.info))
-    )
+  #sendChannelHello(stream) {
+    if (!stream || stream.destroyed || stream.writableEnded) {
+      this.#channelStreams.delete(stream)
+      return false
+    }
+    try {
+      stream.write(
+        b4a.from(`${JSON.stringify(this.#buildChannelHelloMessage())}\n`)
+      )
+      return true
+    } catch {
+      this.#channelStreams.delete(stream)
+      return false
+    }
   }
 
   #broadcastChannelHello() {
-    for (const record of [...this.#channelStreams]) {
-      this.#sendChannelHello(record)
+    for (const stream of [...this.#channelStreams]) {
+      this.#sendChannelHello(stream)
     }
   }
 
-  #sendChannelPresence(record, event) {
-    if (!event || !this.#connectionSharesChannel(record?.info, event)) {
+  #sendChannelPresence(stream, event) {
+    if (!stream || stream.destroyed || stream.writableEnded || !event) {
+      this.#channelStreams.delete(stream)
       return false
     }
-    return Boolean(
-      record?.protocol?.send({
-        type: 'channel-presence',
-        peerId: this.#nodeId(),
-        channelId: event.channelId,
-        channelKey: event.channelKey,
-        address: event.address,
-        status: event.status,
-        displayName: event.displayName,
-        avatar: event.avatar,
-        profileUpdatedAt: event.profileUpdatedAt,
-        lastSeen: event.lastSeen || Date.now(),
-        sessionId: event.sessionId || 'default',
-      })
-    )
+    try {
+      stream.write(
+        b4a.from(
+          `${JSON.stringify({
+            type: 'channel-presence',
+            peerId: this.#nodeId(),
+            channelId: event.channelId,
+            channelKey: event.channelKey,
+            address: event.address,
+            status: event.status,
+            displayName: event.displayName,
+            avatar: event.avatar,
+            profileUpdatedAt: event.profileUpdatedAt,
+            lastSeen: event.lastSeen || Date.now(),
+            sessionId: event.sessionId || 'default',
+          })}\n`
+        )
+      )
+      return true
+    } catch {
+      this.#channelStreams.delete(stream)
+      return false
+    }
   }
 
-  #sendCurrentChannelPresence(record) {
+  #sendCurrentChannelPresence(stream) {
     for (const presences of this.#channelPresenceSessions.values()) {
       for (const session of presences.values()) {
         if (!session.local) continue
         this.#sendChannelPresence(
-          record,
+          stream,
           this.#formatChannelPresence(
             session.channelKey,
             session.address,
@@ -1871,24 +1738,9 @@ export class MobileP2PCore {
   }
 
   #broadcastChannelPresence(event) {
-    for (const record of [...this.#channelStreams]) {
-      this.#sendChannelPresence(record, event)
+    for (const stream of [...this.#channelStreams]) {
+      this.#sendChannelPresence(stream, event)
     }
-  }
-
-  #connectionSharesChannel(info, channelInput) {
-    const topicSet = getConnectionTopicSet(info)
-    if (!topicSet) return true
-    const channelId = normalizeChannelId(
-      channelInput?.channelId || channelInput?.channelKey || channelInput
-    )
-    if (!channelId) return false
-    const channelKey = buildChannelKey(channelId)
-    return [
-      generateChannelDiscoveryKey(channelKey),
-      generateChannelChatDiscoveryKey(channelKey),
-      generateChannelIdDiscoveryKey(channelId),
-    ].some(topic => topicSet.has(b4a.toString(topic, 'hex')))
   }
 
   #normalizePresenceSessionId(sessionId) {
@@ -2385,23 +2237,47 @@ export class MobileP2PCore {
     return msg.peerId
   }
 
-  #openChannelConnection(conn, info) {
-    const record = {
-      protocol: null,
-      info,
-      connectedPeerId: null,
-      closed: false,
-    }
+  async #handleChannelConnection(conn) {
+    const stream = conn
+    let connectedPeerId = null
+    let readBuffer = ''
+    let closed = false
+
+    this.#channelStreams.add(stream)
+    if (!this.#sendChannelHello(stream)) return
+    this.#sendCurrentChannelPresence(stream)
+
+    stream.on('data', async data => {
+      readBuffer += b4a.toString(data)
+      let newlineIndex = readBuffer.indexOf('\n')
+      while (newlineIndex !== -1) {
+        const line = readBuffer.slice(0, newlineIndex).trim()
+        readBuffer = readBuffer.slice(newlineIndex + 1)
+        newlineIndex = readBuffer.indexOf('\n')
+        if (!line) continue
+        try {
+          const message = JSON.parse(line)
+          const peerId =
+            message.type === 'channel-presence'
+              ? this.#processChannelPresenceMessage(message)
+              : await this.#processChannelHelloMessage(message)
+          if (peerId) connectedPeerId = peerId
+        } catch (err) {
+          this.#log('warn', `Failed to process channel hello: ${err.message}`)
+        }
+      }
+    })
+
     const cleanup = () => {
-      if (record.closed) return
-      record.closed = true
-      this.#channelStreams.delete(record)
-      if (!record.connectedPeerId) return
+      if (closed) return
+      closed = true
+      this.#channelStreams.delete(stream)
+      if (!connectedPeerId) return
       for (const [, peers] of this.#channelPeers) {
-        peers.delete(record.connectedPeerId)
+        peers.delete(connectedPeerId)
       }
       const events = this.#removeChannelPresenceSessionsBySource(
-        `peer:${record.connectedPeerId}`
+        `peer:${connectedPeerId}`
       )
       if (events.length > 0) {
         this.#send('channel.presence', {
@@ -2412,36 +2288,15 @@ export class MobileP2PCore {
       this.#send('channel.status', { snapshot: this.getSnapshot() })
       this.#emitSnapshot()
     }
-    record.protocol = openChannelControlProtocol(conn, {
-      onOpen: () => {
-        this.#sendChannelHello(record)
-        this.#sendCurrentChannelPresence(record)
-      },
-      onClose: cleanup,
-      onMessage: async message => {
-        try {
-          const peerId =
-            message.type === 'channel-presence'
-              ? this.#processChannelPresenceMessage(message)
-              : await this.#processChannelHelloMessage(message)
-          if (peerId) record.connectedPeerId = peerId
-        } catch (err) {
-          this.#log('warn', `Failed to process channel hello: ${err.message}`)
-        }
-      },
-    })
-    if (!record.protocol) return null
-    this.#channelStreams.add(record)
-    conn.once('close', cleanup)
-    conn.once('error', cleanup)
-    return record
+
+    stream.on('close', cleanup)
+    stream.on('error', cleanup)
   }
 
   #ensureReady() {
     if (
       this.#node.status !== 'ready' ||
-      !this.#fileStore ||
-      !this.#channelStore ||
+      !this.#store ||
       !this.#swarm ||
       !this.#chatSwarm
     ) {
@@ -2464,38 +2319,8 @@ export class MobileP2PCore {
     if (this.#drivePromises.has(name)) return this.#drivePromises.get(name)
 
     const promise = (async () => {
-      const holding = this.#holdings.find(record => {
-        try {
-          return getCidInfo(record.cid).driveName === name
-        } catch {
-          return false
-        }
-      })
-      let drive
-      if (holding?.transport?.key) {
-        const baseDrive = new Hyperdrive(
-          this.#fileStore.session(),
-          b4a.from(holding.transport.key, 'hex')
-        )
-        await baseDrive.ready()
-        drive = baseDrive
-        if (holding.transport.version > 0) {
-          drive = baseDrive.checkout(holding.transport.version)
-          Object.defineProperty(drive, DRIVE_BASE_SESSION, {
-            value: baseDrive,
-            configurable: true,
-          })
-        }
-        Object.defineProperty(drive, DRIVE_TRANSPORT, {
-          value: { ...holding.transport },
-          configurable: true,
-        })
-      } else {
-        drive = new Hyperdrive(
-          this.#fileStore.namespace(`file-${createId('drive')}`)
-        )
-        await drive.ready()
-      }
+      const drive = new Hyperdrive(this.#store.namespace(name))
+      await drive.ready()
       this.#drives.set(name, drive)
       return drive
     })()
@@ -2508,268 +2333,13 @@ export class MobileP2PCore {
     }
   }
 
-  #sealDrive(name, drive, version = drive.version) {
-    const transport = {
-      type: 'hyperdrive',
-      key: b4a.toString(drive.key, 'hex'),
-      version,
-    }
-    const snapshot = drive.checkout(version)
-    Object.defineProperty(snapshot, DRIVE_BASE_SESSION, {
-      value: drive,
-      configurable: true,
-    })
-    Object.defineProperty(snapshot, DRIVE_TRANSPORT, {
-      value: transport,
-      configurable: true,
-    })
-    this.#drives.set(name, snapshot)
-    return { drive: snapshot, transport }
-  }
-
-  #getDriveTransport(drive) {
-    if (drive?.[DRIVE_TRANSPORT]) return { ...drive[DRIVE_TRANSPORT] }
-    if (
-      !drive?.key ||
-      !Number.isSafeInteger(drive.version) ||
-      drive.version <= 0
-    ) {
-      return null
-    }
-    return {
-      type: 'hyperdrive',
-      key: b4a.toString(drive.key, 'hex'),
-      version: drive.version,
-    }
-  }
-
-  #openFileDriveConnection(conn, info) {
-    const record = { protocol: null, info }
-    const protocol = openFileDriveProtocol(conn, {
-      onRequest: cid => this.#getLocalFileOffer(cid, info),
-      onOffer: offer => this.#registerRemoteDriveOffer(offer, record),
-    })
-    if (!protocol) return
-
-    record.protocol = protocol
-    this.#fileProtocols.add(record)
-    const topicSet = getConnectionTopicSet(info)
-    for (const [cid, discovery] of this.#discoveries) {
-      if (!topicSet || topicSet.has(discovery.topic)) protocol.request(cid)
-    }
-    conn.once('close', () => {
-      this.#fileProtocols.delete(record)
-      this.#removeRemoteOffersForConnection(record)
-    })
-  }
-
-  #getLocalFileOffer(cid, info) {
-    let cidInfo
+  async #clearLocalCidContent(cid, driveName) {
     try {
-      cidInfo = getCidInfo(cid)
+      const drive = await this.#getOrCreateDrive(driveName)
+      // Hyperdrive metadata is replicated; del() would publish a tombstone to peers.
+      await drive.clear(`/${cid}`)
     } catch {
-      return null
-    }
-    const topicSet = getConnectionTopicSet(info)
-    if (topicSet && !topicSet.has(cidInfo.topicHex)) return null
-    const holding = this.#holdings.find(
-      record => record.cid === cidInfo.cid && record.state === 'ready'
-    )
-    if (!holding?.transport) return null
-    return {
-      type: 'offer',
-      cid: holding.cid,
-      driveKey: holding.transport.key,
-      driveVersion: holding.transport.version,
-    }
-  }
-
-  #registerRemoteDriveOffer(offer, record) {
-    const cid = String(offer?.cid || '')
-    const driveKeyHex = String(offer?.driveKey || '').toLowerCase()
-    const driveVersion = Number(offer?.driveVersion)
-    if (!/^[a-f0-9]{64}$/.test(driveKeyHex)) return
-    if (!Number.isSafeInteger(driveVersion) || driveVersion <= 0) return
-
-    let cidInfo
-    try {
-      cidInfo = getCidInfo(cid)
-    } catch {
-      return
-    }
-    if (!this.#discoveries.has(cidInfo.cid)) return
-    const topicSet = getConnectionTopicSet(record.info)
-    if (topicSet && !topicSet.has(cidInfo.topicHex)) return
-
-    const localHolding = this.#holdings.find(item => item.cid === cidInfo.cid)
-    if (
-      localHolding?.transport?.key === driveKeyHex &&
-      localHolding.transport.version === driveVersion
-    ) {
-      return
-    }
-
-    const conflictsWithLocalHolding = this.#holdings.some(
-      item => item.transport?.key === driveKeyHex && item.cid !== cidInfo.cid
-    )
-    if (conflictsWithLocalHolding) return
-
-    for (const [offeredCid, offeredCandidates] of this.#remoteOffers) {
-      const conflictsWithRemoteOffer = [...offeredCandidates.values()].some(
-        candidate =>
-          candidate.offer.driveKey === driveKeyHex && offeredCid !== cidInfo.cid
-      )
-      if (conflictsWithRemoteOffer) return
-    }
-
-    let offers = this.#remoteOffers.get(cidInfo.cid)
-    if (!offers) {
-      offers = new Map()
-      this.#remoteOffers.set(cidInfo.cid, offers)
-    }
-    const id = `${driveKeyHex}:${driveVersion}`
-    const existing = offers.get(id)
-    if (existing) {
-      existing.sources.add(record)
-      return
-    }
-    if (offers.size >= MAX_REMOTE_CANDIDATES_PER_CID) return
-    offers.set(id, {
-      offer: { cid: cidInfo.cid, driveKey: driveKeyHex, driveVersion },
-      sources: new Set([record]),
-    })
-  }
-
-  #getRemoteDriveCandidates(cid) {
-    return [...(this.#remoteDrives.get(cid)?.values() || [])]
-  }
-
-  async #ensureRemoteDriveCandidates(cid) {
-    const offers = this.#remoteOffers.get(cid)
-    if (!offers?.size) return
-    let drives = this.#remoteDrives.get(cid)
-    if (!drives) {
-      drives = new Map()
-      this.#remoteDrives.set(cid, drives)
-    }
-    for (const [id, candidate] of offers) {
-      if (drives.has(id) || this.#remoteDrivePromises.has(`${cid}:${id}`))
-        continue
-      const pending = this.#pendingDrivePurgeSessions.get(
-        candidate.offer.driveKey
-      )
-      if (pending) {
-        drives.set(id, pending)
-        continue
-      }
-      const promiseKey = `${cid}:${id}`
-      const openPromise = this.#withRemoteDriveOpenSlot(async () => {
-        const baseDrive = new Hyperdrive(
-          this.#fileStore.session(),
-          b4a.from(candidate.offer.driveKey, 'hex')
-        )
-        await baseDrive.ready()
-        const drive = baseDrive.checkout(candidate.offer.driveVersion)
-        Object.defineProperty(drive, DRIVE_BASE_SESSION, {
-          value: baseDrive,
-          configurable: true,
-        })
-        Object.defineProperty(drive, DRIVE_TRANSPORT, {
-          value: {
-            type: 'hyperdrive',
-            key: candidate.offer.driveKey,
-            version: candidate.offer.driveVersion,
-          },
-          configurable: true,
-        })
-        drives.set(id, drive)
-      })
-      this.#remoteDrivePromises.set(promiseKey, openPromise)
-      try {
-        await openPromise
-      } finally {
-        this.#remoteDrivePromises.delete(promiseKey)
-      }
-    }
-  }
-
-  async #withRemoteDriveOpenSlot(operation) {
-    if (this.#remoteDriveOpenCount >= MAX_UNVERIFIED_DRIVE_OPENS) {
-      await new Promise(resolve => this.#remoteDriveOpenWaiters.push(resolve))
-    }
-    this.#remoteDriveOpenCount += 1
-    try {
-      return await operation()
-    } finally {
-      this.#remoteDriveOpenCount -= 1
-      this.#remoteDriveOpenWaiters.shift()?.()
-    }
-  }
-
-  #removeRemoteOffersForConnection(record) {
-    for (const [cid, offers] of this.#remoteOffers) {
-      for (const [id, candidate] of offers) {
-        candidate.sources.delete(record)
-        if (candidate.sources.size !== 0) continue
-        offers.delete(id)
-        const drives = this.#remoteDrives.get(cid)
-        const drive = drives?.get(id)
-        const selected = this.#drives.get(getCidInfo(cid).driveName)
-        if (drive && drive !== selected) {
-          drives.delete(id)
-          closeDriveSessions(drive).catch(() => {})
-        }
-        if (drives?.size === 0) this.#remoteDrives.delete(cid)
-      }
-      if (offers.size === 0) this.#remoteOffers.delete(cid)
-    }
-  }
-
-  async #rejectRemoteDriveCandidate(cid, drive) {
-    const transport = this.#getDriveTransport(drive)
-    if (!transport) {
-      await closeDriveSessions(drive)
-      return
-    }
-    const id = `${transport.key}:${transport.version}`
-    const drives = this.#remoteDrives.get(cid)
-    drives?.delete(id)
-    if (drives?.size === 0) this.#remoteDrives.delete(cid)
-    const offers = this.#remoteOffers.get(cid)
-    offers?.delete(id)
-    if (offers?.size === 0) this.#remoteOffers.delete(cid)
-    const { driveName } = getCidInfo(cid)
-    if (this.#drives.get(driveName) === drive) {
-      this.#drives.delete(driveName)
-    }
-    const staging = this.#holdings.find(
-      holding =>
-        holding.cid === cid &&
-        holding.state === 'staging' &&
-        holding.transport.key === transport.key &&
-        holding.transport.version === transport.version
-    )
-    if (staging) this.#removeHolding(cid)
-    this.#pendingDrivePurgeSessions.delete(transport.key)
-    this.#pendingDrivePurges.add(transport.key)
-    this.#savePendingDrivePurges()
-    await closeDriveSessions(drive)
-  }
-
-  #getDriveEntrySource(entry, fallbackDrive) {
-    return entry?.[DRIVE_ENTRY_SOURCE] || fallbackDrive
-  }
-
-  #advertiseFileHolding(cid) {
-    for (const record of this.#fileProtocols) {
-      const offer = this.#getLocalFileOffer(cid, record.info)
-      if (offer) record.protocol.offer(offer)
-    }
-  }
-
-  #requestRemoteFileDrives(cid) {
-    for (const record of this.#fileProtocols) {
-      record.protocol.request(cid)
+      // Content may not exist locally.
     }
   }
 
@@ -2784,6 +2354,8 @@ export class MobileP2PCore {
       driveName,
       error: '',
     })
+
+    await this.#getOrCreateDrive(driveName)
 
     const existing = this.#discoveries.get(cid)
     if (existing) {
@@ -2815,7 +2387,6 @@ export class MobileP2PCore {
       client: existing?.client || requestedClient,
     }
     this.#discoveries.set(cid, record)
-    this.#requestRemoteFileDrives(cid)
     this.#setSeedState(cid, {
       status: 'active',
       topic: topicHex,
@@ -2831,79 +2402,19 @@ export class MobileP2PCore {
     return record
   }
 
-  async #waitForDriveEntry(drive, driveKey, timeout, transferId, cid = null) {
+  async #waitForDriveEntry(drive, driveKey, timeout, transferId) {
     const startedAt = Date.now()
     let pollInterval = DOWNLOAD_POLL_INTERVAL_MIN
     let lastDriveUpdate = 0
-    const getCandidateDrives = () =>
-      [drive, ...(cid ? this.#getRemoteDriveCandidates(cid) : [])].filter(
-        Boolean
-      )
-    const pendingUpdates = new WeakMap()
-    const pendingEntries = new WeakMap()
-    const updateCandidate = candidate => {
-      const updateDrive = candidate[DRIVE_BASE_SESSION] || candidate
-      let pending = pendingUpdates.get(updateDrive)
-      if (!pending) {
-        pending = updateDrive
-          .update()
-          .catch(() => {})
-          .finally(() => pendingUpdates.delete(updateDrive))
-        pendingUpdates.set(updateDrive, pending)
-      }
-      return Promise.race([pending, sleep(DOWNLOAD_POLL_INTERVAL_MIN)])
-    }
-    const markEntrySource = (entry, sourceDrive) => {
-      if (entry) {
-        Object.defineProperty(entry, DRIVE_ENTRY_SOURCE, {
-          value: sourceDrive,
-          configurable: true,
-        })
-      }
-      return entry
-    }
-    const isReadableCandidate = async (candidate, entry) => {
-      if (!entry?.value?.blob) return false
-      if (candidate !== drive) return true
-      return candidate.has(driveKey).catch(() => false)
-    }
-    const readCandidateEntry = candidate => {
-      let pending = pendingEntries.get(candidate)
-      if (!pending) {
-        pending = candidate
-          .entry(driveKey)
-          .catch(() => null)
-          .finally(() => pendingEntries.delete(candidate))
-        pendingEntries.set(candidate, pending)
-      }
-      return Promise.race([
-        pending,
-        sleep(DOWNLOAD_POLL_INTERVAL_MIN).then(() => null),
-      ])
-    }
-    const findReadableEntry = async () => {
-      const candidates = getCandidateDrives()
-      const entries = await Promise.all(candidates.map(readCandidateEntry))
-      for (let index = 0; index < candidates.length; index += 1) {
-        const candidate = candidates[index]
-        const entry = entries[index]
-        if (await isReadableCandidate(candidate, entry)) {
-          return markEntrySource(entry, candidate)
-        }
-      }
-      return null
-    }
 
-    if (cid) await this.#ensureRemoteDriveCandidates(cid)
     while (Date.now() - startedAt < timeout) {
       const now = Date.now()
-      if (cid) await this.#ensureRemoteDriveCandidates(cid)
       if (now - lastDriveUpdate > DRIVE_UPDATE_INTERVAL) {
         lastDriveUpdate = now
-        await Promise.allSettled(getCandidateDrives().map(updateCandidate))
+        await drive.update().catch(() => {})
       }
 
-      const entry = await findReadableEntry()
+      const entry = await drive.entry(driveKey).catch(() => null)
       if (entry) return entry
 
       const hasPeers = this.#peerCount() > 0
@@ -2921,9 +2432,8 @@ export class MobileP2PCore {
       await sleep(pollInterval)
     }
 
-    await Promise.allSettled(getCandidateDrives().map(updateCandidate))
-    if (cid) await this.#ensureRemoteDriveCandidates(cid)
-    return findReadableEntry()
+    await drive.update().catch(() => {})
+    return drive.entry(driveKey).catch(() => null)
   }
 
   async #leaveCidTopic(cid) {
@@ -2939,170 +2449,20 @@ export class MobileP2PCore {
     this.#clearSeedState(cid)
   }
 
-  async #recoverStagingHoldings() {
-    for (const holding of [...this.#holdings]) {
-      if (holding.state !== 'staging') continue
-      let valid = false
-      let verifiedSize = holding.size
-      const tempPath = path.join(
-        this.#downloadPath,
-        `.recover-${holding.cid}.part`
-      )
-      safeRm(tempPath)
-      try {
-        if (holding.transport.version > 0) {
-          const drive = await this.#getOrCreateDrive(
-            getCidInfo(holding.cid).driveName
-          )
-          const driveKey = `/${holding.cid}`
-          const entry = await drive.entry(driveKey, { wait: false })
-          if (
-            entry?.value?.blob &&
-            (await drive.has(driveKey).catch(() => false))
-          ) {
-            await pipeDriveToFile(drive.createReadStream(driveKey), tempPath, {
-              timeout: STREAM_READ_TIMEOUT,
-            })
-            const calculated = await calculateCid({ filePath: tempPath })
-            valid = calculated.cid === holding.cid
-            verifiedSize = calculated.size || holding.size
-          }
-        }
-      } catch {
-        valid = false
-      } finally {
-        safeRm(tempPath)
-      }
-      if (valid) {
-        this.#upsertHolding({
-          ...holding,
-          state: 'ready',
-          size: verifiedSize,
-        })
-      } else {
-        await this.#purgeHolding(holding)
-      }
-    }
-  }
-
-  async #discardStagingHolding(cid) {
-    if (!cid) return
-    const holding = this.#holdings.find(
-      record => record.cid === cid && record.state === 'staging'
-    )
-    if (holding) await this.#purgeHolding(holding)
-  }
-
-  async #flushPendingDrivePurges() {
-    const retainedKeys = new Set(
-      this.#holdings.map(holding => holding.transport.key)
-    )
-    for (const key of [...this.#pendingDrivePurges]) {
-      if (retainedKeys.has(key)) {
-        this.#pendingDrivePurges.delete(key)
-        continue
-      }
-      try {
-        const drive = new Hyperdrive(
-          this.#fileStore.session(),
-          b4a.from(key, 'hex')
-        )
-        await purgeDriveLocalBlocks(drive)
-        this.#pendingDrivePurges.delete(key)
-      } catch {}
-    }
-    this.#savePendingDrivePurges()
-  }
-
-  #loadPendingDrivePurges() {
-    const filePath = path.join(this.#storagePath, PENDING_PURGES_FILE)
-    try {
-      if (!fs.existsSync(filePath)) return
-      const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'))
-      this.#pendingDrivePurges = new Set(
-        Array.isArray(parsed?.keys)
-          ? parsed.keys.filter(key => /^[a-f0-9]{64}$/.test(key))
-          : []
-      )
-    } catch {
-      this.#pendingDrivePurges.clear()
-    }
-  }
-
-  #savePendingDrivePurges() {
-    const filePath = path.join(this.#storagePath, PENDING_PURGES_FILE)
-    if (this.#pendingDrivePurges.size === 0) {
-      safeRm(filePath)
-      return
-    }
-    atomicWrite(
-      filePath,
-      JSON.stringify({ schemaVersion: 1, keys: [...this.#pendingDrivePurges] })
-    )
-  }
-
-  async #purgeHolding(holdingInput) {
-    const holding =
-      typeof holdingInput === 'string'
-        ? this.#holdings.find(record => record.cid === holdingInput)
-        : holdingInput
-    if (!holding) return
-    const { cid, driveName } = getCidInfo(holding.cid)
-    let detached = this.#drives.get(driveName)
-    this.#drives.delete(driveName)
-    const candidates = this.#remoteDrives.get(cid)
-    if (candidates) {
-      for (const [id, candidate] of candidates) {
-        const transport = this.#getDriveTransport(candidate)
-        if (
-          transport?.key === holding.transport.key &&
-          transport.version === holding.transport.version
-        ) {
-          detached ||= candidate
-          candidates.delete(id)
-        }
-      }
-    }
-    this.#removeHolding(cid)
-    this.#pendingDrivePurges.add(holding.transport.key)
-    if (detached) {
-      detached.setActive(false)
-      this.#pendingDrivePurgeSessions.set(holding.transport.key, detached)
-    }
-    this.#savePendingDrivePurges()
-  }
-
   #normalizeHolding(record = {}) {
-    const { cid, driveName } = getCidInfo(record.cid)
+    const { cid, topicHex, driveName } = getCidInfo(record.cid)
     const size = Number(record.size)
     if (!Number.isFinite(size) || size < 0) {
       throw new Error('Holding size must be a non-negative number')
-    }
-    const state = record.state === 'staging' ? 'staging' : 'ready'
-    const transport =
-      record.transport || this.#getDriveTransport(this.#drives.get(driveName))
-    const key = String(transport?.key || '')
-      .trim()
-      .toLowerCase()
-    const version = Number(transport?.version)
-    if (!/^[a-f0-9]{64}$/.test(key)) {
-      throw new Error('Holding transport key is required')
-    }
-    if (
-      !Number.isSafeInteger(version) ||
-      version < 0 ||
-      (state === 'ready' && version <= 0)
-    ) {
-      throw new Error('Holding transport version is invalid')
     }
     return {
       cid,
       fileName: sanitizeFilename(record.fileName || cid),
       size,
+      topic: record.topic || topicHex,
+      driveName: record.driveName || driveName,
       localPath: normalizeFileUri(record.localPath || ''),
       source: record.source === 'downloaded' ? 'downloaded' : 'published',
-      state,
-      transport: { type: 'hyperdrive', key, version },
       createdAt: record.createdAt || nowIso(),
       updatedAt: record.updatedAt || nowIso(),
     }
@@ -3125,17 +2485,6 @@ export class MobileP2PCore {
 
     this.#saveHoldings()
     this.#emitSnapshot()
-    if (next.state === 'ready') {
-      if (this.#pendingDrivePurges.delete(next.transport.key)) {
-        this.#savePendingDrivePurges()
-      }
-      const pendingSession = this.#pendingDrivePurgeSessions.get(
-        next.transport.key
-      )
-      pendingSession?.setActive(true)
-      this.#pendingDrivePurgeSessions.delete(next.transport.key)
-      this.#advertiseFileHolding(next.cid)
-    }
     return next
   }
 
@@ -3158,7 +2507,6 @@ export class MobileP2PCore {
       cid: holding.cid,
       fileName: holding.fileName,
       size: holding.size,
-      topic: getCidInfo(holding.cid).topicHex,
       status,
       topicJoined: status === 'active' && this.#discoveries.has(holding.cid),
       peerCount: this.#peerCount(),
@@ -3260,41 +2608,17 @@ export class MobileP2PCore {
     try {
       if (!fs.existsSync(filePath)) return []
       const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'))
-      if (
-        parsed?.schemaVersion !== HOLDINGS_SCHEMA_VERSION ||
-        !Array.isArray(parsed.holdings)
-      ) {
-        throw new Error('Unsupported node holdings metadata')
-      }
-      const holdings = parsed.holdings.map(record =>
-        this.#normalizeHolding(record)
-      )
-      const transportOwners = new Map()
-      for (const holding of holdings) {
-        const existingCid = transportOwners.get(holding.transport.key)
-        if (existingCid && existingCid !== holding.cid) {
-          throw new Error(
-            'Snapshot drive key must not be shared across holdings'
-          )
-        }
-        transportOwners.set(holding.transport.key, holding.cid)
-      }
-      return holdings
+      if (!Array.isArray(parsed)) return []
+      return parsed.map(record => this.#normalizeHolding(record))
     } catch (err) {
-      throw new Error(`Failed to load holdings: ${err.message}`)
+      this.#log('warn', `Failed to load holdings: ${err.message}`)
+      return []
     }
   }
 
   #saveHoldings() {
     const filePath = path.join(this.#storagePath, HOLDINGS_FILE)
-    atomicWrite(
-      filePath,
-      JSON.stringify(
-        { schemaVersion: HOLDINGS_SCHEMA_VERSION, holdings: this.#holdings },
-        null,
-        2
-      )
-    )
+    atomicWrite(filePath, JSON.stringify(this.#holdings, null, 2))
   }
 
   #loadChannels() {
@@ -3320,7 +2644,7 @@ export class MobileP2PCore {
     try {
       return b4a.toString(this.#swarm.keyPair.publicKey, 'hex')
     } catch {
-      return 'mobile'
+      return 'android'
     }
   }
 

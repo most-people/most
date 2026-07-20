@@ -39,7 +39,6 @@ export type ChatListScreenProps = {
   lastReadAt: ChannelLastReadMap
   searchInput: string
   joinInput: string
-  joinPlaceholder: string
   busy: boolean
   onSearchInputChange: (value: string) => void
   onJoinInputChange: (value: string) => void
@@ -56,7 +55,6 @@ export function ChatListScreen({
   lastReadAt,
   searchInput,
   joinInput,
-  joinPlaceholder,
   busy,
   onSearchInputChange,
   onJoinInputChange,
@@ -154,7 +152,7 @@ export function ChatListScreen({
             <TextInput
               value={joinInput}
               onChangeText={onJoinInputChange}
-              placeholder={joinPlaceholder}
+              placeholder="chat-android"
               placeholderTextColor="#7b8c86"
               autoCapitalize="none"
               autoCorrect={false}

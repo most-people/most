@@ -16,7 +16,11 @@ import { useAppStore } from '~/stores/useAppStore'
 import { useI18n, type MessageKey } from '~/lib/i18n'
 
 type InternalRoutePath =
-  '/app/' | '/chat/' | '/note/' | '/game/gandengyan/' | '/web3/'
+  | '/app/'
+  | '/chat/'
+  | '/note/'
+  | '/game/gandengyan/'
+  | '/web3/'
 
 interface FeatureDef {
   id: string
@@ -143,7 +147,7 @@ export default function FeaturePortal() {
               <Link
                 key={f.id}
                 to={f.path}
-                className={`portal-feature-card ui-glass-surface ui-glass-surface-subtle ui-glass-surface-interactive ${f.id}`}
+                className={`portal-feature-card ${f.id}`}
               >
                 <div className="portal-feature-card-head">
                   <div className="portal-feature-card-title">

@@ -11,7 +11,6 @@ import {
   type NodePolicy,
 } from '~/lib/publishLimits'
 import type { MessageKey } from '~/lib/i18n'
-import type { ActiveDownloadTask } from '~/lib/downloadTasks'
 
 export interface MostFileRecord {
   cid: string
@@ -199,16 +198,6 @@ export const fileApi = {
         json: selectedPaths?.length ? { link, selectedPaths } : { link },
       })
       .json<DownloadFileResult>(),
-  downloadFileInBackground: (link: string, selectedPaths?: string[]) =>
-    api
-      .post('/api/download', {
-        json: selectedPaths?.length
-          ? { link, selectedPaths, background: true }
-          : { link, background: true },
-      })
-      .json<DownloadFileResult>(),
-  listDownloadTasks: () =>
-    api.get('/api/download/tasks').json<ActiveDownloadTask[]>(),
   cancelDownload: (taskId: string) =>
     api.post('/api/download/cancel', { json: { taskId } }).json(),
   getFileDownloadUrl: (cid: string) => getApiUrl(`/api/files/${cid}/download`),

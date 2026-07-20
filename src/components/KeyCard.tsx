@@ -14,9 +14,7 @@ export function KeyCard({
   accent = false,
 }: KeyCardProps) {
   return (
-    <div
-      className={`web3-key-card ui-glass-surface ui-glass-surface-interactive ${accent ? 'accent' : ''}`}
-    >
+    <div className={`web3-key-card ${accent ? 'accent' : ''}`}>
       <div className="web3-key-card-header">
         <span className="web3-key-card-icon">{icon}</span>
         <span className="web3-key-card-title">{title}</span>

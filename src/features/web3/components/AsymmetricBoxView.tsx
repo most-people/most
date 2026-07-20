@@ -136,7 +136,7 @@ export function AsymmetricBoxView(props: AsymmetricBoxViewProps) {
       </div>
 
       <div className="web3-box-flow-grid">
-        <section className="web3-box-flow ui-glass-surface">
+        <section className="web3-box-flow">
           <div className="web3-box-flow-header">
             <div>
               <h2>{t('web3.box.encryptTitle')}</h2>
@@ -232,7 +232,7 @@ export function AsymmetricBoxView(props: AsymmetricBoxViewProps) {
           </div>
         </section>
 
-        <section className="web3-box-flow ui-glass-surface">
+        <section className="web3-box-flow">
           <div className="web3-box-flow-header">
             <div>
               <h2>{t('web3.box.decryptTitle')}</h2>

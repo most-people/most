@@ -19,59 +19,9 @@ import {
   deriveGameRoomLobby,
   gameRoomCodeToChannelName,
 } from '../../src/core/gameRoom.js'
+import { GLOBAL_SHARED_SEED_STRING } from '../../src/config.js'
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
-
-function readHoldingTransport(dataPath, cid) {
-  const metadata = JSON.parse(
-    fs.readFileSync(path.join(dataPath, 'node-holdings.json'), 'utf8')
-  )
-  return metadata.holdings.find(holding => holding.cid === cid)?.transport
-}
-
-async function writeFabricatedHolding(dataPath, cid, content, options = {}) {
-  fs.mkdirSync(dataPath, { recursive: true })
-  fs.writeFileSync(
-    path.join(dataPath, 'storage-schema.json'),
-    JSON.stringify({ version: 1 })
-  )
-  const store = new Corestore(path.join(dataPath, 'stores', 'files'))
-  await store.ready()
-  const drive = new Hyperdrive(
-    store.namespace(`fabricated-${Date.now()}-${Math.random()}`)
-  )
-  await drive.ready()
-  const output = drive.createWriteStream(`/${cid}`)
-  output.end(content)
-  await new Promise((resolve, reject) => {
-    output.on('finish', resolve)
-    output.on('error', reject)
-  })
-  const transport = {
-    type: 'hyperdrive',
-    key: b4a.toString(drive.key, 'hex'),
-    version: drive.version + Number(options.versionOffset || 0),
-  }
-  await drive.close()
-  await store.close().catch(() => {})
-  fs.writeFileSync(
-    path.join(dataPath, 'node-holdings.json'),
-    JSON.stringify({
-      schemaVersion: 1,
-      holdings: [
-        {
-          cid,
-          fileName: options.fileName || 'fabricated.bin',
-          size: content.length,
-          source: 'published',
-          state: 'ready',
-          transport,
-        },
-      ],
-    })
-  )
-  return transport
-}
 
 async function waitForHoldingStatus(
   engine,
@@ -235,46 +185,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.ok(engine)
     })
 
-    it('uses independent private keys for file, channel, and node identity', async () => {
-      const privateTmpDir = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'most-private-stores-')
-      )
-      const dataPath = path.join(privateTmpDir, 'data')
-      const privateEngine = new MostBoxEngine({
-        dataPath,
-        disableNetwork: true,
-      })
-      let fileStore
-      let channelStore
-      try {
-        await privateEngine.start()
-        await privateEngine.stop()
-        fileStore = new Corestore(path.join(dataPath, 'stores', 'files'))
-        channelStore = new Corestore(path.join(dataPath, 'stores', 'channels'))
-        await Promise.all([fileStore.ready(), channelStore.ready()])
-        const nodeSeed = b4a.from(
-          JSON.parse(
-            fs.readFileSync(path.join(dataPath, 'node-identity.json'), 'utf8')
-          ).seed,
-          'hex'
-        )
-
-        assert.strictEqual(b4a.equals(fileStore.primaryKey, nodeSeed), false)
-        assert.strictEqual(b4a.equals(channelStore.primaryKey, nodeSeed), false)
-        assert.strictEqual(
-          b4a.equals(fileStore.primaryKey, channelStore.primaryKey),
-          false
-        )
-      } finally {
-        await Promise.allSettled([
-          privateEngine.stop(),
-          fileStore?.close(),
-          channelStore?.close(),
-        ])
-        fs.rmSync(privateTmpDir, { recursive: true, force: true })
-      }
-    })
-
     it('fails closed instead of deleting data when Corestore identity differs', async () => {
       const mismatchTmpDir = fs.mkdtempSync(
         path.join(os.tmpdir(), 'most-corestore-mismatch-')
@@ -397,51 +307,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.ok(result.cid.startsWith('bafkrei'))
       assert.strictEqual(result.fileName, 'test.txt')
       assert.strictEqual(result.link, `most://${result.cid}?filename=test.txt`)
-    })
-
-    it('seals a single-file snapshot containing only /<cid>', async () => {
-      const snapshotTmpDir = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'most-file-snapshot-')
-      )
-      const dataPath = path.join(snapshotTmpDir, 'data')
-      let snapshotEngine
-      let store
-      try {
-        snapshotEngine = new MostBoxEngine({
-          dataPath,
-          disableNetwork: true,
-        })
-        await snapshotEngine.start()
-        const published = await snapshotEngine.publishFile(
-          Buffer.from('immutable snapshot'),
-          'immutable.txt'
-        )
-        const transport = readHoldingTransport(dataPath, published.cid)
-        await snapshotEngine.stop()
-        snapshotEngine = null
-
-        store = new Corestore(path.join(dataPath, 'stores', 'files'))
-        await store.ready()
-        const baseDrive = new Hyperdrive(
-          store.session(),
-          b4a.from(transport.key, 'hex')
-        )
-        await baseDrive.ready()
-        const snapshot = baseDrive.checkout(transport.version)
-        const keys = []
-        for await (const entry of snapshot.list('/')) keys.push(entry.key)
-
-        assert.deepStrictEqual(keys, [`/${published.cid}`])
-        await assert.rejects(
-          snapshot.put('/unexpected', Buffer.from('mutable'))
-        )
-        await snapshot.close()
-        await baseDrive.close()
-      } finally {
-        if (snapshotEngine) await snapshotEngine.stop().catch(() => {})
-        await store?.close().catch(() => {})
-        fs.rmSync(snapshotTmpDir, { recursive: true, force: true })
-      }
     })
 
     it('publishes a file from path and returns CID', async () => {
@@ -970,62 +835,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.ok(collection.files.every(file => file.localAvailable === true))
     })
 
-    it('stores only the root and DAG-PB metadata in a collection snapshot', async () => {
-      const collectionTmpDir = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'most-collection-snapshot-')
-      )
-      const dataPath = path.join(collectionTmpDir, 'data')
-      let collectionEngine
-      let store
-      try {
-        collectionEngine = new MostBoxEngine({
-          dataPath,
-          disableNetwork: true,
-        })
-        await collectionEngine.start()
-        const result = await collectionEngine.publishCollection(
-          [
-            { path: 'Album/one.txt', content: Buffer.from('one') },
-            { path: 'Album/two.txt', content: Buffer.from('two') },
-          ],
-          'Album',
-          { seedChildFiles: false }
-        )
-        const transport = readHoldingTransport(dataPath, result.cid)
-        await collectionEngine.stop()
-        collectionEngine = null
-
-        store = new Corestore(path.join(dataPath, 'stores', 'files'))
-        await store.ready()
-        const baseDrive = new Hyperdrive(
-          store.session(),
-          b4a.from(transport.key, 'hex')
-        )
-        await baseDrive.ready()
-        const snapshot = baseDrive.checkout(transport.version)
-        const keys = []
-        for await (const entry of snapshot.list('/')) keys.push(entry.key)
-
-        assert.ok(keys.includes(`/${result.cid}`))
-        for (const key of keys.filter(key => key !== `/${result.cid}`)) {
-          assert.match(key, /^\/\.unixfs\//)
-          assert.strictEqual(
-            CID.parse(key.slice('/.unixfs/'.length)).code,
-            0x70
-          )
-        }
-        for (const file of result.files) {
-          assert.strictEqual(keys.includes(`/.unixfs/${file.cid}`), false)
-        }
-        await snapshot.close()
-        await baseDrive.close()
-      } finally {
-        if (collectionEngine) await collectionEngine.stop().catch(() => {})
-        await store?.close().catch(() => {})
-        fs.rmSync(collectionTmpDir, { recursive: true, force: true })
-      }
-    })
-
     it('shares a file-library folder without buffering files through readFileRaw', async () => {
       const folderName = `stream-folder-${uid}`
       await engine.publishFile(
@@ -1077,9 +886,10 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
           { path: `${folderName}/one.bin`, content: firstContent },
           { path: `${folderName}/two.bin`, content: secondContent },
         ])
-        const manifestBytes = [...directory.blocks.entries()]
-          .filter(([blockCid]) => CID.parse(blockCid).code === 0x70)
-          .reduce((sum, [, block]) => sum + block.length, 0)
+        const manifestBytes = [...directory.blocks.values()].reduce(
+          (sum, block) => sum + block.length,
+          0
+        )
         assert.ok(manifestBytes > 0)
         assert.ok(manifestBytes < directory.totalSize)
 
@@ -1890,7 +1700,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       }
     })
 
-    it('does not open a drive for metadata-only availability probes', async () => {
+    it('reuses one slow drive open across timed-out availability probes', async () => {
       const listTmpDir = fs.mkdtempSync(
         path.join(os.tmpdir(), 'most-list-drive-timeout-')
       )
@@ -1942,7 +1752,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         assert.strictEqual(first[0].localAvailable, false)
         assert.strictEqual(second[0].localAvailable, false)
         await sleep(200)
-        assert.strictEqual(openedDrives.size, 0)
+        assert.strictEqual(openedDrives.size, 1)
       } finally {
         Hyperdrive.prototype.ready = originalReady
         if (setupEngine) await setupEngine.stop().catch(() => {})
@@ -2054,32 +1864,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         if (deleteEngine) await deleteEngine.stop().catch(() => {})
         if (restartedEngine) await restartedEngine.stop().catch(() => {})
         fs.rmSync(restartTmpDir, { recursive: true, force: true })
-      }
-    })
-
-    it('creates a new snapshot key when deleted content is published again', async () => {
-      const republishTmpDir = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'most-republish-snapshot-')
-      )
-      const dataPath = path.join(republishTmpDir, 'data')
-      const republishEngine = new MostBoxEngine({
-        dataPath,
-        disableNetwork: true,
-      })
-      try {
-        await republishEngine.start()
-        const content = Buffer.from('republished snapshot')
-        const first = await republishEngine.publishFile(content, 'first.txt')
-        const firstTransport = readHoldingTransport(dataPath, first.cid)
-        await republishEngine.deletePublishedFile(first.cid)
-        const second = await republishEngine.publishFile(content, 'second.txt')
-        const secondTransport = readHoldingTransport(dataPath, second.cid)
-
-        assert.strictEqual(first.cid, second.cid)
-        assert.notStrictEqual(firstTransport.key, secondTransport.key)
-      } finally {
-        await republishEngine.stop().catch(() => {})
-        fs.rmSync(republishTmpDir, { recursive: true, force: true })
       }
     })
   })
@@ -2236,27 +2020,25 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       }
     })
 
-    it('does not infer a holding when transport metadata is missing', async () => {
+    it('repairs missing holding when an existing file is downloaded again', async () => {
       const repairTmpDir = fs.mkdtempSync(
         path.join(os.tmpdir(), 'most-existing-repair-')
       )
       const dataPath = path.join(repairTmpDir, 'data')
-      let originalTransport
+      let publishedLink
       let publishedCid
       let repairEngine
       let firstEngine
 
       try {
-        firstEngine = new MostBoxEngine({ dataPath, disableNetwork: true })
+        firstEngine = new MostBoxEngine({ dataPath })
         await firstEngine.start()
         const publishResult = await firstEngine.publishFile(
           Buffer.from('existing metadata repair'),
           'repair.txt'
         )
+        publishedLink = publishResult.link
         publishedCid = publishResult.cid
-        originalTransport = JSON.parse(
-          fs.readFileSync(path.join(dataPath, 'node-holdings.json'), 'utf8')
-        ).holdings[0].transport
         await firstEngine.stop()
         firstEngine = null
 
@@ -2265,79 +2047,24 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
           force: true,
         })
 
-        repairEngine = new MostBoxEngine({ dataPath, disableNetwork: true })
+        repairEngine = new MostBoxEngine({ dataPath })
         await repairEngine.start()
         assert.ok(
           !repairEngine.listHoldings().some(item => item.cid === publishedCid)
         )
 
-        assert.strictEqual(
-          await repairEngine.getLocalCidAvailability(publishResult.link),
-          null
-        )
+        const result = await repairEngine.downloadFile(publishedLink)
 
-        await repairEngine.publishFile(
-          Buffer.from('existing metadata repair'),
-          'repair.txt'
-        )
-        const repairedTransport = JSON.parse(
-          fs.readFileSync(path.join(dataPath, 'node-holdings.json'), 'utf8')
-        ).holdings[0].transport
-        assert.notStrictEqual(repairedTransport.key, originalTransport.key)
+        assert.strictEqual(result.alreadyExists, true)
+        const holding = repairEngine
+          .listHoldings()
+          .find(item => item.cid === publishedCid)
+        assert.ok(holding)
+        assert.strictEqual(holding.seedStatus, 'active')
       } finally {
         if (firstEngine) await firstEngine.stop().catch(() => {})
         if (repairEngine) await repairEngine.stop().catch(() => {})
         fs.rmSync(repairTmpDir, { recursive: true, force: true })
-      }
-    })
-
-    it('refuses legacy storage without deleting it', async () => {
-      const migrationTmpDir = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'most-storage-reset-required-')
-      )
-      const dataPath = path.join(migrationTmpDir, 'data')
-      const legacyMetadataPath = path.join(dataPath, 'node-holdings.json')
-      let engine
-
-      try {
-        fs.mkdirSync(dataPath, { recursive: true })
-        fs.writeFileSync(legacyMetadataPath, '[]')
-
-        engine = new MostBoxEngine({ dataPath, disableNetwork: true })
-        await assert.rejects(engine.start(), error => {
-          assert.strictEqual(error.code, 'STORAGE_SCHEMA_RESET_REQUIRED')
-          return true
-        })
-        assert.strictEqual(fs.readFileSync(legacyMetadataPath, 'utf8'), '[]')
-      } finally {
-        if (engine) await engine.stop().catch(() => {})
-        fs.rmSync(migrationTmpDir, { recursive: true, force: true })
-      }
-    })
-
-    it('refuses an unknown future storage schema', async () => {
-      const schemaTmpDir = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'most-storage-schema-future-')
-      )
-      const dataPath = path.join(schemaTmpDir, 'data')
-      fs.mkdirSync(dataPath, { recursive: true })
-      fs.writeFileSync(
-        path.join(dataPath, 'storage-schema.json'),
-        JSON.stringify({ version: 2 })
-      )
-      const schemaEngine = new MostBoxEngine({
-        dataPath,
-        disableNetwork: true,
-      })
-
-      try {
-        await assert.rejects(schemaEngine.start(), error => {
-          assert.strictEqual(error.code, 'STORAGE_SCHEMA_UNSUPPORTED')
-          return true
-        })
-      } finally {
-        await schemaEngine.stop().catch(() => {})
-        fs.rmSync(schemaTmpDir, { recursive: true, force: true })
       }
     })
 
@@ -2361,19 +2088,20 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       const content = Buffer.from('same digest is not the same CID')
       const { cid: realCid } = await calculateCid(content)
       const fakeCid = CID.createV1(0x70, realCid.multihash).toString()
-      fs.mkdirSync(attackerPath, { recursive: true })
-      fs.writeFileSync(
-        path.join(attackerPath, 'storage-schema.json'),
-        JSON.stringify({ version: 1 })
-      )
-      const store = new Corestore(path.join(attackerPath, 'stores', 'files'))
+      const topicHex = b4a.toString(realCid.multihash.digest, 'hex')
+      const driveName = `drive-${topicHex}`
+      const seed = b4a.alloc(32).fill(GLOBAL_SHARED_SEED_STRING)
+      const store = new Corestore(attackerPath, {
+        primaryKey: seed,
+        unsafe: true,
+      })
       let attacker
       let downloader
       let link
 
       try {
         await store.ready()
-        const drive = new Hyperdrive(store.namespace(`attacker-${Date.now()}`))
+        const drive = new Hyperdrive(store.namespace(driveName))
         await drive.ready()
         const ws = drive.createWriteStream('/' + fakeCid)
         ws.end(content)
@@ -2381,29 +2109,8 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
           ws.on('finish', resolve)
           ws.on('error', reject)
         })
-        const transport = {
-          type: 'hyperdrive',
-          key: b4a.toString(drive.key, 'hex'),
-          version: drive.version,
-        }
         await drive.close()
         await store.close()
-        fs.writeFileSync(
-          path.join(attackerPath, 'node-holdings.json'),
-          JSON.stringify({
-            schemaVersion: 1,
-            holdings: [
-              {
-                cid: fakeCid,
-                fileName: 'mismatch.txt',
-                size: content.length,
-                source: 'published',
-                state: 'ready',
-                transport,
-              },
-            ],
-          })
-        )
 
         attacker = new MostBoxEngine({ dataPath: attackerPath })
         downloader = new MostBoxEngine({
@@ -2412,6 +2119,11 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         })
         await attacker.start()
         await downloader.start()
+        await attacker.addHolding({
+          cid: fakeCid,
+          fileName: 'mismatch.txt',
+          size: content.length,
+        })
 
         link = attacker.replicateWith(downloader)
         await assert.rejects(
@@ -2430,414 +2142,50 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         fs.rmSync(mismatchTmpDir, { recursive: true, force: true })
       }
     })
-
-    it('falls back after malicious content and an invalid snapshot version', async () => {
-      const fallbackTmpDir = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'most-candidate-fallback-')
-      )
-      const publisherPath = path.join(fallbackTmpDir, 'publisher')
-      const attackerPath = path.join(fallbackTmpDir, 'attacker')
-      const wrongVersionPath = path.join(fallbackTmpDir, 'wrong-version')
-      const downloaderPath = path.join(fallbackTmpDir, 'downloader')
-      const expected = Buffer.from('valid candidate content')
-      const malicious = Buffer.from('malicious candidate content')
-      const publisher = new MostBoxEngine({
-        dataPath: publisherPath,
-        disableNetwork: true,
-        downloadTimeout: 5000,
-      })
-      const links = []
-      let attacker
-      let wrongVersionPeer
-      let downloader
-
-      try {
-        await publisher.start()
-        const published = await publisher.publishFile(expected, 'valid.txt')
-        const maliciousTransport = await writeFabricatedHolding(
-          attackerPath,
-          published.cid,
-          malicious,
-          { fileName: 'malicious.txt' }
-        )
-        await writeFabricatedHolding(
-          wrongVersionPath,
-          published.cid,
-          expected,
-          { fileName: 'wrong-version.txt', versionOffset: 100 }
-        )
-        attacker = new MostBoxEngine({
-          dataPath: attackerPath,
-          disableNetwork: true,
-          downloadTimeout: 5000,
-        })
-        wrongVersionPeer = new MostBoxEngine({
-          dataPath: wrongVersionPath,
-          disableNetwork: true,
-          downloadTimeout: 5000,
-        })
-        downloader = new MostBoxEngine({
-          dataPath: downloaderPath,
-          disableNetwork: true,
-          downloadTimeout: 5000,
-        })
-        await attacker.start()
-        await wrongVersionPeer.start()
-        await downloader.start()
-
-        const download = downloader.downloadFile(published.link, null, {
-          timeout: 5000,
-        })
-        await sleep(50)
-        links.push(attacker.replicateWith(downloader))
-        await sleep(100)
-        links.push(wrongVersionPeer.replicateWith(downloader))
-        await sleep(100)
-        links.push(publisher.replicateWith(downloader))
-        const result = await download
-
-        assert.strictEqual(result.localAvailable, true)
-        assert.deepStrictEqual(
-          (await downloader.readFileRaw(published.cid)).buffer,
-          expected
-        )
-        assert.deepStrictEqual(
-          readHoldingTransport(downloaderPath, published.cid),
-          readHoldingTransport(publisherPath, published.cid)
-        )
-        const pending = JSON.parse(
-          fs.readFileSync(
-            path.join(downloaderPath, 'pending-drive-purges.json'),
-            'utf8'
-          )
-        )
-        assert.ok(pending.keys.includes(maliciousTransport.key))
-      } finally {
-        links.forEach(link => link.close())
-        await Promise.allSettled([
-          publisher.stop(),
-          attacker?.stop(),
-          wrongVersionPeer?.stop(),
-          downloader?.stop(),
-        ])
-        fs.rmSync(fallbackTmpDir, { recursive: true, force: true })
-      }
-    })
-
-    it('ignores a snapshot key already retained for another CID', async () => {
-      const collisionTmpDir = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'most-candidate-key-collision-')
-      )
-      const firstPublisherPath = path.join(collisionTmpDir, 'first-publisher')
-      const secondPublisherPath = path.join(collisionTmpDir, 'second-publisher')
-      const attackerPath = path.join(collisionTmpDir, 'attacker')
-      const downloaderPath = path.join(collisionTmpDir, 'downloader')
-      const firstPublisher = new MostBoxEngine({
-        dataPath: firstPublisherPath,
-        disableNetwork: true,
-        downloadTimeout: 5000,
-      })
-      const secondPublisher = new MostBoxEngine({
-        dataPath: secondPublisherPath,
-        disableNetwork: true,
-        downloadTimeout: 5000,
-      })
-      const links = []
-      let attacker
-      let downloader
-
-      try {
-        await Promise.all([firstPublisher.start(), secondPublisher.start()])
-        const first = await firstPublisher.publishFile(
-          Buffer.from('first retained snapshot'),
-          'first.txt'
-        )
-        const secondContent = Buffer.from('second valid snapshot')
-        const second = await secondPublisher.publishFile(
-          secondContent,
-          'second.txt'
-        )
-        const reusedTransport = readHoldingTransport(
-          firstPublisherPath,
-          first.cid
-        )
-
-        fs.mkdirSync(attackerPath, { recursive: true })
-        fs.writeFileSync(
-          path.join(attackerPath, 'storage-schema.json'),
-          JSON.stringify({ version: 1 })
-        )
-        fs.writeFileSync(
-          path.join(attackerPath, 'node-holdings.json'),
-          JSON.stringify({
-            schemaVersion: 1,
-            holdings: [
-              {
-                cid: second.cid,
-                fileName: 'collision.txt',
-                size: secondContent.length,
-                source: 'published',
-                state: 'ready',
-                transport: reusedTransport,
-              },
-            ],
-          })
-        )
-
-        attacker = new MostBoxEngine({
-          dataPath: attackerPath,
-          disableNetwork: true,
-          downloadTimeout: 5000,
-        })
-        downloader = new MostBoxEngine({
-          dataPath: downloaderPath,
-          disableNetwork: true,
-          downloadTimeout: 5000,
-        })
-        await Promise.all([attacker.start(), downloader.start()])
-
-        const firstDownload = downloader.downloadFile(first.link, null, {
-          timeout: 5000,
-        })
-        await sleep(50)
-        const firstLink = firstPublisher.replicateWith(downloader)
-        links.push(firstLink)
-        await firstDownload
-        firstLink.close()
-
-        const secondDownload = downloader.downloadFile(second.link, null, {
-          timeout: 5000,
-        })
-        await sleep(50)
-        links.push(attacker.replicateWith(downloader))
-        await sleep(100)
-        links.push(secondPublisher.replicateWith(downloader))
-
-        const result = await secondDownload
-        assert.strictEqual(result.localAvailable, true)
-        assert.deepStrictEqual(
-          (await downloader.readFileRaw(second.cid)).buffer,
-          secondContent
-        )
-        assert.deepStrictEqual(
-          readHoldingTransport(downloaderPath, second.cid),
-          readHoldingTransport(secondPublisherPath, second.cid)
-        )
-      } finally {
-        links.forEach(link => link.close())
-        await Promise.allSettled([
-          firstPublisher.stop(),
-          secondPublisher.stop(),
-          attacker?.stop(),
-          downloader?.stop(),
-        ])
-        fs.rmSync(collisionTmpDir, { recursive: true, force: true })
-      }
-    })
   })
 
   describe('node holdings and CID topic pull', () => {
-    it('keeps snapshot transport private in public holding responses', async () => {
-      const published = await engine.publishFile(
-        Buffer.from(`private holding ${Date.now()}`),
-        'private-holding.txt'
+    it('rejects holdings for non-v1 CID strings', async () => {
+      await assert.rejects(
+        engine.addHolding({
+          cid: 'QmT5NvUtoM5nWFfrQdVrFtvGfKFmG7AHE8P34isapyhCxX',
+          fileName: 'legacy.txt',
+          size: 1,
+        }),
+        /CID v1 required/
       )
-      const holding = engine
-        .listHoldings()
-        .find(item => item.cid === published.cid)
-      const persisted = JSON.parse(
-        fs.readFileSync(path.join(tmpDir, 'data', 'node-holdings.json'), 'utf8')
-      )
-      const internal = persisted.holdings.find(
-        item => item.cid === published.cid
-      )
-
-      assert.strictEqual(persisted.schemaVersion, 1)
-      assert.ok(holding)
-      assert.match(holding.topic, /^[a-f0-9]{64}$/)
-      assert.strictEqual(Object.hasOwn(holding, 'driveName'), false)
-      assert.strictEqual(Object.hasOwn(holding, 'transport'), false)
-      assert.strictEqual(Object.hasOwn(holding, 'state'), false)
-      assert.match(internal.transport.key, /^[a-f0-9]{64}$/)
-      assert.ok(internal.transport.version > 0)
-      assert.strictEqual(Object.hasOwn(internal, 'topic'), false)
-      assert.strictEqual(Object.hasOwn(internal, 'driveName'), false)
     })
 
-    it('uses different snapshot keys for independent publications of the same CID', async () => {
-      const independentTmpDir = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'most-independent-snapshots-')
+    it('rejects manual holdings whose topic does not match the CID digest', async () => {
+      const content = Buffer.from('holding topic mismatch')
+      const { cid } = await calculateCid(content)
+
+      await assert.rejects(
+        engine.addHolding({
+          cid: cid.toString(),
+          fileName: 'bad-topic.txt',
+          size: content.length,
+          topic: '00'.repeat(32),
+        }),
+        /topic must match CID digest/
       )
-      const engines = ['left', 'right'].map(
-        name =>
-          new MostBoxEngine({
-            dataPath: path.join(independentTmpDir, name),
-            disableNetwork: true,
-          })
-      )
-      try {
-        await Promise.all(engines.map(item => item.start()))
-        const content = Buffer.from('same CID, independent snapshots')
-        const [left, right] = await Promise.all([
-          engines[0].publishFile(content, 'left.txt'),
-          engines[1].publishFile(content, 'right.txt'),
-        ])
-        assert.strictEqual(left.cid, right.cid)
-        const transports = ['left', 'right'].map(
-          name =>
-            JSON.parse(
-              fs.readFileSync(
-                path.join(independentTmpDir, name, 'node-holdings.json'),
-                'utf8'
-              )
-            ).holdings[0].transport
-        )
-        assert.notStrictEqual(transports[0].key, transports[1].key)
-      } finally {
-        await Promise.allSettled(engines.map(item => item.stop()))
-        fs.rmSync(independentTmpDir, { recursive: true, force: true })
-      }
     })
 
-    it('does not purge a snapshot key that is still referenced by a holding', async () => {
-      const retainedTmpDir = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'most-retained-snapshot-purge-')
-      )
-      const dataPath = path.join(retainedTmpDir, 'data')
-      let retainedEngine
+    it('normalizes manual holding driveName from the CID digest', async () => {
+      const content = Buffer.from('holding drive name normalization')
+      const { cid } = await calculateCid(content)
+      const cidString = cid.toString()
 
-      try {
-        retainedEngine = new MostBoxEngine({
-          dataPath,
-          disableNetwork: true,
-        })
-        await retainedEngine.start()
-        const content = Buffer.from('keep referenced snapshot')
-        const published = await retainedEngine.publishFile(
-          content,
-          'retained.txt'
-        )
-        const transport = readHoldingTransport(dataPath, published.cid)
-        await retainedEngine.stop()
-        retainedEngine = null
+      const holding = await engine.addHolding({
+        cid: cidString,
+        fileName: 'wrong-drive.txt',
+        size: content.length,
+        driveName: 'drive-not-from-cid',
+      })
 
-        fs.writeFileSync(
-          path.join(dataPath, 'pending-drive-purges.json'),
-          JSON.stringify({ schemaVersion: 1, keys: [transport.key] })
-        )
-
-        retainedEngine = new MostBoxEngine({
-          dataPath,
-          disableNetwork: true,
-        })
-        await retainedEngine.start()
-
-        assert.deepStrictEqual(
-          (await retainedEngine.readFileRaw(published.cid)).buffer,
-          content
-        )
-        assert.strictEqual(
-          fs.existsSync(path.join(dataPath, 'pending-drive-purges.json')),
-          false
-        )
-      } finally {
-        await retainedEngine?.stop().catch(() => {})
-        fs.rmSync(retainedTmpDir, { recursive: true, force: true })
-      }
-    })
-
-    it('rejects persisted holdings that share a snapshot key across CIDs', async () => {
-      const duplicateTmpDir = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'most-duplicate-snapshot-key-')
-      )
-      const dataPath = path.join(duplicateTmpDir, 'data')
-      let duplicateEngine
-
-      try {
-        duplicateEngine = new MostBoxEngine({
-          dataPath,
-          disableNetwork: true,
-        })
-        await duplicateEngine.start()
-        await duplicateEngine.publishFile(Buffer.from('duplicate A'), 'a.txt')
-        await duplicateEngine.publishFile(Buffer.from('duplicate B'), 'b.txt')
-        await duplicateEngine.stop()
-        duplicateEngine = null
-
-        const metadataPath = path.join(dataPath, 'node-holdings.json')
-        const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'))
-        metadata.holdings[1].transport = metadata.holdings[0].transport
-        const duplicateMetadata = JSON.stringify(metadata)
-        fs.writeFileSync(metadataPath, duplicateMetadata)
-        fs.writeFileSync(`${metadataPath}.bak`, duplicateMetadata)
-
-        duplicateEngine = new MostBoxEngine({
-          dataPath,
-          disableNetwork: true,
-        })
-        await assert.rejects(
-          duplicateEngine.start(),
-          error => error.code === 'PERSISTENCE_ERROR'
-        )
-      } finally {
-        await duplicateEngine?.stop().catch(() => {})
-        fs.rmSync(duplicateTmpDir, { recursive: true, force: true })
-      }
-    })
-
-    it('promotes complete staging snapshots and purges incomplete ones on restart', async () => {
-      const stagingTmpDir = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'most-staging-recovery-')
-      )
-      const dataPath = path.join(stagingTmpDir, 'data')
-      let firstEngine
-      let recoveredEngine
-      try {
-        firstEngine = new MostBoxEngine({ dataPath, disableNetwork: true })
-        await firstEngine.start()
-        const complete = await firstEngine.publishFile(
-          Buffer.from('complete staging snapshot'),
-          'complete.txt'
-        )
-        const incomplete = await firstEngine.publishFile(
-          Buffer.from('incomplete staging snapshot'),
-          'incomplete.txt'
-        )
-        await firstEngine.stop()
-        firstEngine = null
-
-        const metadataPath = path.join(dataPath, 'node-holdings.json')
-        const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'))
-        for (const holding of metadata.holdings) {
-          holding.state = 'staging'
-          if (holding.cid === incomplete.cid) holding.transport.version = 0
-        }
-        fs.writeFileSync(metadataPath, JSON.stringify(metadata))
-
-        recoveredEngine = new MostBoxEngine({
-          dataPath,
-          disableNetwork: true,
-        })
-        await recoveredEngine.start()
-        const holdings = recoveredEngine.listHoldings()
-        assert.ok(holdings.some(holding => holding.cid === complete.cid))
-        assert.strictEqual(
-          holdings.some(holding => holding.cid === incomplete.cid),
-          false
-        )
-        assert.deepStrictEqual(
-          (await recoveredEngine.readFileRaw(complete.cid)).buffer,
-          Buffer.from('complete staging snapshot')
-        )
-        await assert.rejects(
-          recoveredEngine.readFileRaw(incomplete.cid),
-          /File not found/
-        )
-      } finally {
-        if (firstEngine) await firstEngine.stop().catch(() => {})
-        if (recoveredEngine) await recoveredEngine.stop().catch(() => {})
-        fs.rmSync(stagingTmpDir, { recursive: true, force: true })
-      }
+      assert.match(holding.driveName, /^drive-[0-9a-f]{64}$/)
+      assert.notStrictEqual(holding.driveName, 'drive-not-from-cid')
+      assert.strictEqual(holding.driveName, `drive-${holding.topic}`)
     })
 
     it('persists holdings and rejoins CID topics after restart', async () => {
@@ -2898,7 +2246,9 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       )
       const dataPath = path.join(missingTmpDir, 'data')
       const content = Buffer.from('missing holding content')
-      let cidString
+      const { cid } = await calculateCid(content)
+      const cidString = cid.toString()
+      const { topicHex, driveName } = getCidInfo(cidString)
       let setupEngine
       let missingEngine
 
@@ -2909,20 +2259,26 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
           downloadTimeout: 100,
         })
         await setupEngine.start()
-        const published = await setupEngine.publishFile(content, 'missing.txt')
-        cidString = published.cid
         await setupEngine.stop()
         setupEngine = null
 
-        const transport = JSON.parse(
-          fs.readFileSync(path.join(dataPath, 'node-holdings.json'), 'utf8')
-        ).holdings[0].transport
-        const store = new Corestore(path.join(dataPath, 'stores', 'files'))
-        const drive = new Hyperdrive(store, b4a.from(transport.key, 'hex'))
-        await drive.ready()
-        await drive.clearAll()
-        await drive.close()
-        await store.close().catch(() => {})
+        fs.writeFileSync(
+          path.join(dataPath, 'node-holdings.json'),
+          JSON.stringify(
+            [
+              {
+                cid: cidString,
+                fileName: 'missing.txt',
+                size: content.length,
+                topic: topicHex,
+                driveName,
+                source: 'published',
+              },
+            ],
+            null,
+            2
+          )
+        )
 
         missingEngine = new MostBoxEngine({
           dataPath,
@@ -3061,16 +2417,12 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         }
 
         const uploader = await makeEngine('uploader')
-        let seedB = await makeEngine('seed-b')
+        const seedB = await makeEngine('seed-b')
         const seedC = await makeEngine('seed-c')
         const downloader = await makeEngine('downloader')
 
         const content = Buffer.alloc(1024 * 1024, 'a')
         const publishResult = await uploader.publishFile(content, 'seed.bin')
-        const uploaderTransport = readHoldingTransport(
-          path.join(p2pTmpDir, 'uploader'),
-          publishResult.cid
-        )
         const pullInput = {
           cid: publishResult.cid,
           fileName: publishResult.fileName,
@@ -3085,13 +2437,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         assert.deepStrictEqual(
           (await seedB.readFileRaw(publishResult.cid)).buffer,
           content
-        )
-        assert.deepStrictEqual(
-          readHoldingTransport(
-            path.join(p2pTmpDir, 'seed-b'),
-            publishResult.cid
-          ),
-          uploaderTransport
         )
         const uploaderServed = await waitForHoldingMetric(
           uploader,
@@ -3110,25 +2455,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
           (await seedC.readFileRaw(publishResult.cid)).buffer,
           content
         )
-        assert.deepStrictEqual(
-          readHoldingTransport(
-            path.join(p2pTmpDir, 'seed-c'),
-            publishResult.cid
-          ),
-          uploaderTransport
-        )
-
-        await seedB.stop()
-        engines.splice(engines.indexOf(seedB), 1)
-        seedB = await makeEngine('seed-b')
-        await waitForHoldingStatus(seedB, publishResult.cid)
-        assert.deepStrictEqual(
-          readHoldingTransport(
-            path.join(p2pTmpDir, 'seed-b'),
-            publishResult.cid
-          ),
-          uploaderTransport
-        )
 
         await uploader.stop()
         const uploaderIndex = engines.indexOf(uploader)
@@ -3144,13 +2470,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         assert.deepStrictEqual(
           (await downloader.readFileRaw(publishResult.cid)).buffer,
           content
-        )
-        assert.deepStrictEqual(
-          readHoldingTransport(
-            path.join(p2pTmpDir, 'downloader'),
-            publishResult.cid
-          ),
-          uploaderTransport
         )
         assert.ok(seedB.listHoldings().some(h => h.cid === publishResult.cid))
         assert.ok(seedC.listHoldings().some(h => h.cid === publishResult.cid))
@@ -4168,6 +3487,42 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       } finally {
         if (starEngine) await starEngine.stop().catch(() => {})
         fs.rmSync(starTmpDir, { recursive: true, force: true })
+      }
+    })
+  })
+
+  describe('addHolding() happy path', () => {
+    it('adds a holding and joins CID topic', async () => {
+      const holdingTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-add-holding-')
+      )
+      const dataPath = path.join(holdingTmpDir, 'data')
+      let holdingEngine
+
+      try {
+        holdingEngine = new MostBoxEngine({ dataPath })
+        await holdingEngine.start()
+
+        const content = Buffer.from('addHolding test content')
+        const { cid } = await calculateCid(content)
+
+        await holdingEngine.addHolding({
+          cid: cid.toString(),
+          fileName: 'manual-holding.txt',
+          size: content.length,
+        })
+
+        const holdings = holdingEngine.listHoldings()
+        const holding = holdings.find(h => h.cid === cid.toString())
+
+        assert.ok(holding)
+        assert.strictEqual(holding.fileName, 'manual-holding.txt')
+        assert.strictEqual(holding.size, content.length)
+        assert.strictEqual(holding.source, 'manual')
+        assert.match(holding.topic, /^[0-9a-f]{64}$/)
+      } finally {
+        if (holdingEngine) await holdingEngine.stop().catch(() => {})
+        fs.rmSync(holdingTmpDir, { recursive: true, force: true })
       }
     })
   })

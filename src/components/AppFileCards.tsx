@@ -80,7 +80,7 @@ export function FileCard({
       data-id={file.cid}
       onClick={() => onSelect(file.cid)}
       onDoubleClick={() => onPreview(file)}
-      className={`card shareable-card ui-glass-surface ui-glass-surface-subtle ${isSelected ? 'selected' : ''}`}
+      className={`card shareable-card ${isSelected ? 'selected' : ''}`}
     >
       {onShare && (
         <button
@@ -121,10 +121,7 @@ export function FolderCard({
   shareLabel = 'Share',
 }: FolderCardProps) {
   return (
-    <div
-      onClick={onClick}
-      className="card shareable-card ui-glass-surface ui-glass-surface-subtle"
-    >
+    <div onClick={onClick} className="card shareable-card">
       {onShare && (
         <button
           type="button"

@@ -35,7 +35,6 @@ import { registerFileRoutes } from './routes/fileRoutes.js'
 import { registerNodeRoutes } from './routes/nodeRoutes.js'
 import { registerNoteVaultRoutes } from './routes/noteVaultRoutes.js'
 import { registerSeedRoutes } from './routes/seedRoutes.js'
-import { createDownloadTaskRegistry } from './downloadTasks.js'
 
 export { UPLOAD_TMP_DIR } from './uploads.js'
 
@@ -63,7 +62,6 @@ export function createApp(engine, options = {}) {
   const allowedOrigins = getAllowedOrigins(appPort)
   const rateLimitGuard =
     options.rateLimitGuard || createRateLimitGuard(options.rateLimit)
-  const downloadTasks = createDownloadTaskRegistry(engine)
   function getRemoteInviteSet() {
     const invites =
       options.remoteInvites === undefined
@@ -388,12 +386,7 @@ export function createApp(engine, options = {}) {
     serverInstanceRef,
   })
   registerSeedRoutes(app, { engine, appendNodeLog, broadcastNodeStatus })
-  registerFileRoutes(app, {
-    engine,
-    configStore,
-    wsBroadcast,
-    downloadTasks,
-  })
+  registerFileRoutes(app, { engine, configStore, wsBroadcast })
   registerChannelRoutes(app, { engine })
   registerNoteVaultRoutes(app, { configStore, isRemoteRequest })
 
@@ -411,6 +404,5 @@ export function createApp(engine, options = {}) {
     validateWebSocketRequest,
     getWebSocketUserAddress,
     rateLimitGuard,
-    downloadTasks,
   }
 }

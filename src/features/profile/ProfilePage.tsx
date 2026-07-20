@@ -170,7 +170,7 @@ export default function ProfilePage() {
       <MarketingLayout header={header}>
         <section className="profile-page">
           <div className="profile-container narrow">
-            <div className="profile-empty ui-glass-surface">
+            <div className="profile-empty glass">
               <div className="profile-empty-icon">
                 <User size={34} />
               </div>
@@ -453,7 +453,7 @@ export default function ProfilePage() {
     <MarketingLayout header={header}>
       <section className="profile-page">
         <div className="profile-container">
-          <section className="profile-panel profile-backup-card ui-glass-surface">
+          <section className="profile-panel profile-backup-card">
             <div className="profile-panel-header profile-backup-header">
               <div>
                 <h2>{t('profile.section.backup')}</h2>
@@ -519,7 +519,7 @@ export default function ProfilePage() {
             </div>
           </section>
 
-          <header className="profile-header ui-glass-surface">
+          <header className="profile-header">
             <SafeImage
               className="profile-avatar-large"
               src={avatarSrc}
@@ -554,7 +554,7 @@ export default function ProfilePage() {
           </header>
 
           <div className="profile-grid">
-            <section className="profile-panel ui-glass-surface">
+            <section className="profile-panel">
               <div className="profile-panel-header">
                 <div>
                   <h2>{t('profile.section.account')}</h2>
@@ -588,7 +588,7 @@ export default function ProfilePage() {
               </div>
             </section>
 
-            <section className="profile-panel ui-glass-surface">
+            <section className="profile-panel">
               <div className="profile-panel-header">
                 <div>
                   <h2>{t('profile.section.avatar')}</h2>
@@ -695,7 +695,7 @@ export default function ProfilePage() {
             </section>
           </div>
 
-          <section className="profile-panel profile-identity-panel ui-glass-surface">
+          <section className="profile-panel profile-identity-panel">
             <div className="profile-panel-header">
               <div>
                 <h2>{t('profile.section.identity')}</h2>

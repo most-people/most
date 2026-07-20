@@ -22,14 +22,9 @@ const SOURCE_PATHS = {
   checkStaticOutput: 'scripts/check-static-output.mjs',
   admin: 'src/features/admin/AdminPage.tsx',
   cid: 'src/features/cid/CidPage.tsx',
-  globalDownloads: 'src/features/cid/GlobalDownloadTasks.tsx',
-  downloadTasks: 'src/lib/downloadTasks.ts',
-  appGlobals: 'src/components/AppGlobals.tsx',
-  appStore: 'src/stores/useAppStore.ts',
   cidCss: 'src/styles/cid.css',
   fileApi: 'src/lib/fileApi.ts',
   files: 'src/features/files/AppPage.tsx',
-  chat: 'src/features/chat/ChatPage.tsx',
   hooks: 'src/hooks/index.ts',
   appCss: 'src/styles/app.css',
 }
@@ -142,12 +137,8 @@ describe('frontend smoke checks', () => {
   })
 
   it('keeps native and web CID share links compatible with desktop deep links', async () => {
-    const {
-      buildCidShareLink,
-      buildCidSharePath,
-      buildMostShareLink,
-      createCidRoutePathFromDownloadInput,
-    } = await importBundledSource('src/lib/shareLink.ts')
+    const { buildCidShareLink, buildCidSharePath, buildMostShareLink } =
+      await importBundledSource('src/lib/shareLink.ts')
     const cid = 'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
 
     assert.equal(
@@ -158,20 +149,6 @@ describe('frontend smoke checks', () => {
       buildMostShareLink(cid, 'hello most.txt'),
       `most://${cid}?filename=hello%20most.txt`
     )
-    assert.equal(
-      createCidRoutePathFromDownloadInput(
-        `most://${cid}?filename=hello%20most.txt`
-      ),
-      `/cid/${cid}?filename=hello%20most.txt`
-    )
-    assert.equal(
-      createCidRoutePathFromDownloadInput(
-        `https://most.box/cid/${cid}?filename=hello%20most.txt`
-      ),
-      `/cid/${cid}?filename=hello%20most.txt`
-    )
-    assert.equal(createCidRoutePathFromDownloadInput(cid), `/cid/${cid}`)
-    assert.equal(createCidRoutePathFromDownloadInput('not-a-cid'), '')
     globalThis.window = {
       location: {
         origin: 'http://localhost:3000',
@@ -203,17 +180,10 @@ describe('frontend smoke checks', () => {
 
     const filesSource = readSource(SOURCE_PATHS.files)
     const cidSource = readSource(SOURCE_PATHS.cid)
-    const chatSource = readSource(SOURCE_PATHS.chat)
-    assert.match(filesSource, /createCidRoutePathFromDownloadInput/)
+    assert.match(filesSource, /buildMostShareLink\(file\.cid, file\.fileName\)/)
     assert.match(filesSource, /buildCidSharePath\(file\.cid, file\.fileName\)/)
-    assert.doesNotMatch(filesSource, /fileApi\.checkDownload/)
-    assert.doesNotMatch(filesSource, /fileApi\.downloadFile/)
     assert.match(cidSource, /fileApi\.checkDownload\(mostLink\)/)
-    assert.match(
-      cidSource,
-      /fileApi\.downloadFileInBackground\(\s*mostLink,\s*isCollectionResult \? selectedCollectionPaths : undefined\s*\)/
-    )
-    assert.match(chatSource, /fileApi\.downloadFile\(attachment\.link\)/)
+    assert.match(cidSource, /fileApi\.downloadFile\(mostLink\)/)
   })
 
   it('routes file share actions to the CID page and exposes web QR sharing there', async () => {
@@ -334,20 +304,22 @@ describe('frontend smoke checks', () => {
     const cidSource = readSource(SOURCE_PATHS.cid)
     const { messages } = await importBundledSource('src/lib/i18n/messages.ts')
 
-    assert.doesNotMatch(filesSource, /selectedCollectionPaths/)
+    assert.match(filesSource, /app\.collectionManifestAvailable/)
+    assert.match(filesSource, /app\.collectionChildDownloadCheck/)
+    assert.match(
+      filesSource,
+      /result\.localAvailable \|\| Array\.isArray\(result\.files\)/
+    )
     assert.match(cidSource, /cid\.status\.collectionAvailable/)
     assert.match(cidSource, /cid\.collectionSummary/)
-    assert.match(cidSource, /setSelectedCollectionPaths/)
-    assert.match(cidSource, /\.filter\(file => file\.localAvailable !== true\)/)
-    assert.match(cidSource, /className="cid-collection-list"/)
 
     for (const locale of ['zh-CN', 'zh-TW', 'en']) {
       assert.equal(
-        typeof messages[locale]['cid.collectionSelectionTitle'],
+        typeof messages[locale]['app.collectionManifestAvailable'],
         'string'
       )
       assert.equal(
-        typeof messages[locale]['cid.collectionChildDownloadCheck'],
+        typeof messages[locale]['app.collectionChildDownloadCheck'],
         'string'
       )
       assert.equal(
@@ -358,12 +330,12 @@ describe('frontend smoke checks', () => {
     }
 
     assert.equal(
-      messages.en['cid.collectionSelectionTitle'],
-      'Choose files to download'
+      messages.en['app.collectionManifestAvailable'],
+      '{fileName} manifest is readable. Child files will be checked for online seeders when downloaded.'
     )
     assert.equal(
-      messages.en['cid.collectionChildDownloadCheck'],
-      'Check on download'
+      messages.en['app.collectionChildDownloadCheck'],
+      'Checked during download'
     )
     assert.equal(
       messages.en['cid.status.collectionAvailable'],
@@ -402,165 +374,6 @@ describe('frontend smoke checks', () => {
     }
   })
 
-  it('marks completed CID downloads as local and keeps partial collections retryable', async () => {
-    const cidSource = readSource(SOURCE_PATHS.cid)
-    const tasksSource = readSource(SOURCE_PATHS.downloadTasks)
-    const { messages } = await importBundledSource('src/lib/i18n/messages.ts')
-
-    assert.match(
-      cidSource,
-      /latestDownloadOutcome\.status === 'completed'[\s\S]*setCheckState\(\{[\s\S]*status: 'already-local'/
-    )
-    assert.match(
-      cidSource,
-      /payload\.partial === true[\s\S]*\? 'partial'[\s\S]*: 'completed'/
-    )
-    assert.match(tasksSource, /readDownloadEventPaths\(payloadRecord\.files\)/)
-    assert.match(
-      tasksSource,
-      /readDownloadEventPaths\(payloadRecord\.unavailableFiles\)/
-    )
-    assert.match(cidSource, /t\('cid\.retryUnavailableAction'\)/)
-
-    for (const locale of ['zh-CN', 'zh-TW', 'en']) {
-      assert.equal(
-        typeof messages[locale]['cid.retryUnavailableAction'],
-        'string'
-      )
-    }
-  })
-
-  it('tracks CID downloads globally without taking over chat attachments', async () => {
-    const cidSource = readSource(SOURCE_PATHS.cid)
-    const globalSource = readSource(SOURCE_PATHS.globalDownloads)
-    const cidCssSource = readSource(SOURCE_PATHS.cidCss)
-    const storeSource = readSource(SOURCE_PATHS.appStore)
-    const appGlobalsSource = readSource(SOURCE_PATHS.appGlobals)
-    const chatSource = readSource(SOURCE_PATHS.chat)
-    const { messages } = await importBundledSource('src/lib/i18n/messages.ts')
-
-    assert.match(cidSource, /downloadTasksHydrated/)
-    assert.match(cidSource, /activeDownloadTask/)
-    assert.match(cidSource, /downloadFileInBackground/)
-    assert.doesNotMatch(cidSource, /new WebSocket/)
-    const autoCheckEffect = cidSource.match(
-      /useEffect\(\(\) => \{\s*if \(!downloadTasksHydrated \|\| activeDownloadTask\) return[\s\S]*?\}, \[([\s\S]*?)\]\)/
-    )
-    assert.ok(autoCheckEffect)
-    assert.doesNotMatch(autoCheckEffect[1], /checkResult/)
-    assert.match(storeSource, /fileApi\.listDownloadTasks\(\)/)
-    assert.match(globalSource, /getAuthenticatedWebSocketUrl\('\/ws'\)/)
-    assert.match(globalSource, /fileApi\.cancelDownload\(task\.taskId\)/)
-    assert.match(globalSource, /buildCidSharePath\(task\.cid, task\.fileName\)/)
-    assert.match(globalSource, /socket\.onclose/)
-    assert.match(globalSource, /const panelId = useId\(\)/)
-    assert.match(
-      globalSource,
-      /const toggleRef = useRef<HTMLButtonElement>\(null\)/
-    )
-    assert.match(globalSource, /event\.key !== 'Escape'/)
-    assert.match(globalSource, /aria-controls=\{panelId\}/)
-    assert.match(globalSource, /aria-label=\{toggleLabel\}/)
-    assert.match(
-      globalSource,
-      /aria-valuetext=\{getTaskProgressLabel\(task, t\)\}/
-    )
-    assert.match(
-      globalSource,
-      /global-download-toggle ui-glass-surface ui-glass-surface-interactive/
-    )
-    assert.match(
-      globalSource,
-      /global-download-panel ui-glass-surface ui-glass-surface-elevated/
-    )
-    assert.match(globalSource, /className="ui-progress"/)
-    assert.match(globalSource, /className="ui-spinner"/)
-    assert.match(cidCssSource, /z-index:\s*180/)
-    assert.match(cidCssSource, /env\(safe-area-inset-right\)/)
-    assert.match(cidCssSource, /env\(safe-area-inset-left\)/)
-    assert.match(cidCssSource, /env\(safe-area-inset-bottom\)/)
-    assert.match(appGlobalsSource, /<GlobalDownloadTasks \/>/)
-    assert.match(chatSource, /fileApi\.downloadFile\(attachment\.link\)/)
-
-    for (const locale of ['zh-CN', 'zh-TW', 'en']) {
-      assert.equal(typeof messages[locale]['cid.tasks.title'], 'string')
-      assert.equal(typeof messages[locale]['cid.tasks.viewFile'], 'string')
-      assert.equal(typeof messages[locale]['cid.tasks.cancelFile'], 'string')
-      assert.equal(
-        typeof messages[locale]['cid.tasks.status.verifying'],
-        'string'
-      )
-      assert.equal(
-        typeof messages[locale]['cid.toast.backgroundStarted'],
-        'string'
-      )
-    }
-  })
-
-  it('normalizes download progress and collection terminal payloads', async () => {
-    const { parseDownloadEvent } = await importBundledSource(
-      'src/lib/downloadTasks.ts'
-    )
-
-    assert.deepEqual(
-      parseDownloadEvent(
-        JSON.stringify({
-          event: 'download:progress',
-          data: {
-            taskId: 'task-1',
-            collection: true,
-            completedFiles: 2,
-            totalFiles: 4,
-            percent: 50,
-          },
-        })
-      ),
-      {
-        event: 'download:progress',
-        payload: {
-          taskId: 'task-1',
-          collection: true,
-          completedFiles: 2,
-          totalFiles: 4,
-          percent: 50,
-          downloadedPaths: [],
-          unavailablePaths: [],
-          status: undefined,
-          kind: undefined,
-          code: undefined,
-          errorCode: undefined,
-          partial: undefined,
-          loaded: undefined,
-          total: undefined,
-          fileCount: undefined,
-          selectedFileCount: undefined,
-          downloadedFileCount: undefined,
-          unavailableFileCount: undefined,
-          processedFiles: undefined,
-          file: undefined,
-          fileName: undefined,
-          error: undefined,
-          details: undefined,
-        },
-      }
-    )
-
-    const completed = parseDownloadEvent(
-      JSON.stringify({
-        event: 'download:success',
-        data: {
-          taskId: 'task-1',
-          kind: 'collection',
-          partial: true,
-          files: [{ path: 'ready.txt' }],
-          unavailableFiles: [{ path: 'later.txt' }],
-        },
-      })
-    )
-    assert.deepEqual(completed.payload.downloadedPaths, ['ready.txt'])
-    assert.deepEqual(completed.payload.unavailablePaths, ['later.txt'])
-  })
-
   it('does not apply the default ky timeout to file publishing', () => {
     const fileApiSource = readSource(SOURCE_PATHS.fileApi)
 
@@ -583,6 +396,7 @@ describe('frontend smoke checks', () => {
 
   it('shows an accurate countdown during the default download check', async () => {
     const fileApiSource = readSource(SOURCE_PATHS.fileApi)
+    const filesSource = readSource(SOURCE_PATHS.files)
     const cidSource = readSource(SOURCE_PATHS.cid)
     const hooksSource = readSource(SOURCE_PATHS.hooks)
     const { messages } = await importBundledSource('src/lib/i18n/messages.ts')
@@ -598,12 +412,18 @@ describe('frontend smoke checks', () => {
       /Math\.max\(0, Math\.ceil\(\(deadline - Date\.now\(\)\) \/ 1000\)\)/
     )
     assert.match(
+      filesSource,
+      /useCountdownSeconds\(\s*isCheckingDownload,\s*DEFAULT_DOWNLOAD_CHECK_TIMEOUT_MS\s*\)/
+    )
+    assert.match(filesSource, /seconds: downloadCheckRemainingSeconds/)
+    assert.match(
       cidSource,
       /useCountdownSeconds\(\s*checkState\.status === 'checking',\s*DEFAULT_DOWNLOAD_CHECK_TIMEOUT_MS\s*\)/
     )
     assert.match(cidSource, /seconds: checkRemainingSeconds/)
 
     for (const locale of ['zh-CN', 'zh-TW', 'en']) {
+      assert.match(messages[locale]['app.downloadAutoChecking'], /\{seconds\}/)
       assert.match(messages[locale]['cid.status.checking'], /\{seconds\}/)
     }
   })
@@ -975,13 +795,5 @@ describe('frontend smoke checks', () => {
     )
     assert.match(appCss, /\.batch-action-label/)
     assert.match(appCss, /\.batch-actions-danger/)
-  })
-
-  it('labels icon-only file library controls', () => {
-    const source = readSource(SOURCE_PATHS.files)
-
-    assert.match(source, /aria-label=\{t\('app\.search\.clear'\)\}/)
-    assert.match(source, /aria-label=\{t\('app\.transfers'\)\}/)
-    assert.match(source, /aria-label=\{t\('common\.close'\)\}/)
   })
 })

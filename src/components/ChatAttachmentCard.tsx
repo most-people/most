@@ -13,7 +13,12 @@ import { formatBytes } from '~/lib/format'
 import { useI18n } from '~/lib/i18n'
 
 export type ChatAttachmentStatus =
-  'idle' | 'checking' | 'ready' | 'downloading' | 'available' | 'error'
+  | 'idle'
+  | 'checking'
+  | 'ready'
+  | 'downloading'
+  | 'available'
+  | 'error'
 
 export function getAttachmentBaseFileName(fileName: string) {
   return (

@@ -1084,14 +1084,14 @@ export default function AdminPage() {
         </header>
 
         {hasBackend === false && (
-          <section className="admin-panel admin-error ui-glass-surface">
+          <section className="admin-panel admin-error">
             <Server size={20} />
             <span>{t('admin.error.localDaemonDisconnected')}</span>
           </section>
         )}
 
         {isRemoteAdmin && (
-          <section className="admin-panel admin-error ui-glass-surface">
+          <section className="admin-panel admin-error">
             <AlertTriangle size={18} />
             <div>
               <h2>{t('admin.remoteUnavailable.title')}</h2>
@@ -1101,7 +1101,7 @@ export default function AdminPage() {
         )}
 
         {adminAccess?.mode === 'lan' && !adminAccess.authorized && (
-          <section className="admin-panel admin-warning admin-security-warning ui-glass-surface">
+          <section className="admin-panel admin-warning admin-security-warning">
             <ShieldCheck size={20} />
             <div>
               <strong>
@@ -1136,7 +1136,7 @@ export default function AdminPage() {
         )}
 
         {!isRemoteAdmin && error && (
-          <section className="admin-panel admin-error ui-glass-surface">
+          <section className="admin-panel admin-error">
             <FileText size={20} />
             <span>{error}</span>
           </section>
@@ -1145,7 +1145,7 @@ export default function AdminPage() {
         {isAdminAuthorized && (
           <>
             <section className="admin-overview">
-              <div className="admin-metric ui-glass-surface">
+              <div className="admin-metric">
                 <div className="admin-metric-icon">
                   <ShieldCheck size={18} />
                 </div>
@@ -1163,7 +1163,7 @@ export default function AdminPage() {
                   <Clipboard size={15} />
                 </button>
               </div>
-              <div className="admin-metric ui-glass-surface">
+              <div className="admin-metric">
                 <div className="admin-metric-icon">
                   <Wifi size={18} />
                 </div>
@@ -1178,7 +1178,7 @@ export default function AdminPage() {
                   </strong>
                 </div>
               </div>
-              <div className="admin-metric ui-glass-surface">
+              <div className="admin-metric">
                 <div className="admin-metric-icon">
                   <HardDrive size={18} />
                 </div>
@@ -1187,7 +1187,7 @@ export default function AdminPage() {
                   <strong>{capacityPercent}%</strong>
                 </div>
               </div>
-              <div className="admin-metric ui-glass-surface">
+              <div className="admin-metric">
                 <div className="admin-metric-icon">
                   <Server size={18} />
                 </div>
@@ -1201,7 +1201,7 @@ export default function AdminPage() {
             </section>
 
             <section className="admin-grid">
-              <div className="admin-panel admin-span-2 ui-glass-surface">
+              <div className="admin-panel admin-span-2">
                 <div className="admin-panel-header">
                   <div>
                     <h2>{t('admin.nodeStatus.title')}</h2>
@@ -1233,7 +1233,7 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="admin-panel admin-span-2 ui-glass-surface">
+              <div className="admin-panel admin-span-2">
                 <div className="admin-panel-header">
                   <div>
                     <h2>{t('admin.userData.title')}</h2>
@@ -1248,7 +1248,7 @@ export default function AdminPage() {
                 />
               </div>
 
-              <div className="admin-panel admin-span-2 ui-glass-surface">
+              <div className="admin-panel admin-span-2">
                 <div className="admin-panel-header">
                   <div>
                     <h2>{t('admin.settings.title')}</h2>
@@ -1347,7 +1347,7 @@ export default function AdminPage() {
                 </button>
               </div>
 
-              <div className="admin-panel admin-span-2 ui-glass-surface">
+              <div className="admin-panel admin-span-2">
                 <div className="admin-panel-header">
                   <div>
                     <h2>{t('admin.holdings.title')}</h2>
@@ -1383,7 +1383,7 @@ export default function AdminPage() {
                 />
               </div>
 
-              <div className="admin-panel admin-span-2 ui-glass-surface">
+              <div className="admin-panel admin-span-2">
                 <div className="admin-panel-header">
                   <div>
                     <h2>{t('admin.logs.title')}</h2>

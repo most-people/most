@@ -18,13 +18,6 @@ import {
   getSameOriginBackendUrlExport,
 } from '~server/src/utils/api'
 import { getNotes, putNotes } from '~/lib/notesDb'
-import { fileApi } from '~/lib/fileApi'
-import type {
-  ActiveDownloadStatus,
-  ActiveDownloadTask,
-  DownloadTaskOutcome,
-  ParsedDownloadEvent,
-} from '~/lib/downloadTasks'
 
 interface ToastItem {
   id: number
@@ -62,18 +55,6 @@ interface AppState {
   showConnectModal: boolean
   openConnectModal: () => void
   closeConnectModal: () => void
-
-  // Background CID downloads
-  downloadTasks: ActiveDownloadTask[]
-  downloadTaskOutcomes: DownloadTaskOutcome[]
-  downloadTasksHydrated: boolean
-  setDownloadTasksHydrated: (hydrated: boolean) => void
-  loadDownloadTasks: () => Promise<ActiveDownloadTask[]>
-  upsertDownloadTask: (task: ActiveDownloadTask) => void
-  applyDownloadEvent: (event: ParsedDownloadEvent) => DownloadTaskOutcome | null
-  markDownloadTaskCancelling: (taskId: string) => void
-  dismissDownloadOutcome: (taskId: string) => void
-  clearDownloadTasks: () => void
 
   localDataReady: boolean
   initializeLocalData: () => void
@@ -221,147 +202,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   openConnectModal: () => set({ showConnectModal: true }),
   closeConnectModal: () => set({ showConnectModal: false }),
 
-  // Background CID downloads
-  downloadTasks: [],
-  downloadTaskOutcomes: [],
-  downloadTasksHydrated: false,
-  setDownloadTasksHydrated: downloadTasksHydrated => {
-    set({ downloadTasksHydrated })
-  },
-  loadDownloadTasks: async () => {
-    const tasks = await fileApi.listDownloadTasks()
-    set({ downloadTasks: tasks, downloadTasksHydrated: true })
-    return tasks
-  },
-  upsertDownloadTask: task => {
-    set(state => ({
-      downloadTasks: [
-        task,
-        ...state.downloadTasks.filter(item => item.taskId !== task.taskId),
-      ],
-    }))
-  },
-  applyDownloadEvent: parsed => {
-    const taskId = parsed.payload.taskId
-    if (!taskId) return null
-    const currentTask = get().downloadTasks.find(task => task.taskId === taskId)
-    if (!currentTask) return null
-
-    if (parsed.event === 'download:status') {
-      const allowedStatuses: ActiveDownloadStatus[] = [
-        'connecting',
-        'finding-peers',
-        'downloading',
-        'verifying',
-      ]
-      const nextStatus = allowedStatuses.includes(
-        parsed.payload.status as ActiveDownloadStatus
-      )
-        ? (parsed.payload.status as ActiveDownloadStatus)
-        : currentTask.status
-      set(state => ({
-        downloadTasks: state.downloadTasks.map(task =>
-          task.taskId === taskId
-            ? { ...task, status: nextStatus, updatedAt: Date.now() }
-            : task
-        ),
-      }))
-      return null
-    }
-
-    if (parsed.event === 'download:progress') {
-      set(state => ({
-        downloadTasks: state.downloadTasks.map(task =>
-          task.taskId === taskId
-            ? {
-                ...task,
-                status: 'downloading',
-                kind:
-                  parsed.payload.collection === true ? 'collection' : task.kind,
-                progress: parsed.payload.percent ?? task.progress,
-                loadedBytes:
-                  parsed.payload.collection === true
-                    ? 0
-                    : (parsed.payload.loaded ?? task.loadedBytes),
-                totalBytes:
-                  parsed.payload.collection === true
-                    ? 0
-                    : (parsed.payload.total ?? task.totalBytes),
-                completedFiles:
-                  parsed.payload.collection === true
-                    ? (parsed.payload.completedFiles ??
-                      parsed.payload.loaded ??
-                      task.completedFiles)
-                    : task.completedFiles,
-                totalFiles:
-                  parsed.payload.collection === true
-                    ? (parsed.payload.totalFiles ??
-                      parsed.payload.total ??
-                      task.totalFiles)
-                    : task.totalFiles,
-                updatedAt: Date.now(),
-              }
-            : task
-        ),
-      }))
-      return null
-    }
-
-    const outcomeStatus =
-      parsed.event === 'download:success'
-        ? parsed.payload.partial === true
-          ? 'partial'
-          : 'completed'
-        : parsed.event === 'download:error'
-          ? 'failed'
-          : parsed.event === 'download:cancelled'
-            ? 'cancelled'
-            : null
-    if (!outcomeStatus) return null
-
-    const outcome: DownloadTaskOutcome = {
-      taskId,
-      cid: currentTask.cid,
-      fileName: parsed.payload.fileName || currentTask.fileName,
-      kind:
-        parsed.payload.kind === 'collection' ? 'collection' : currentTask.kind,
-      status: outcomeStatus,
-      payload: parsed.payload,
-      finishedAt: Date.now(),
-    }
-    set(state => ({
-      downloadTasks: state.downloadTasks.filter(task => task.taskId !== taskId),
-      downloadTaskOutcomes: [
-        outcome,
-        ...state.downloadTaskOutcomes.filter(item => item.taskId !== taskId),
-      ].slice(0, 20),
-    }))
-    return outcome
-  },
-  markDownloadTaskCancelling: taskId => {
-    set(state => ({
-      downloadTasks: state.downloadTasks.map(task =>
-        task.taskId === taskId
-          ? { ...task, status: 'cancelling', updatedAt: Date.now() }
-          : task
-      ),
-    }))
-  },
-  dismissDownloadOutcome: taskId => {
-    set(state => ({
-      downloadTaskOutcomes: state.downloadTaskOutcomes.filter(
-        outcome => outcome.taskId !== taskId
-      ),
-    }))
-  },
-  clearDownloadTasks: () => {
-    set({
-      downloadTasks: [],
-      downloadTaskOutcomes: [],
-      downloadTasksHydrated: true,
-    })
-  },
-
   localDataReady: false,
   initializeLocalData: () => {
     set({
@@ -396,9 +236,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       notesAddress: '',
       toasts: [],
       showConnectModal: false,
-      downloadTasks: [],
-      downloadTaskOutcomes: [],
-      downloadTasksHydrated: true,
     })
   },
   setNotesPath: path => {

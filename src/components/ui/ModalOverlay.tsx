@@ -45,9 +45,7 @@ export function ModalOverlay({
   const overlay = (
     <div className={['modal-overlay', className].filter(Boolean).join(' ')}>
       <div className="modal-overlay-backdrop" />
-      <div className="modal-glass ui-glass-surface ui-glass-surface-elevated">
-        {children}
-      </div>
+      <div className="modal-glass">{children}</div>
     </div>
   )
 

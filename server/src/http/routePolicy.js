@@ -19,7 +19,6 @@ export function requiresUserAuth(path) {
     path === '/api/files' ||
     path === '/api/publish' ||
     path === '/api/download/check' ||
-    path === '/api/download/tasks' ||
     path === '/api/download' ||
     path === '/api/download/cancel' ||
     path === '/api/p2p/pull' ||

@@ -22,7 +22,7 @@ export function PemBlock({ label, pem, filename }: PemBlockProps) {
   }
 
   return (
-    <div className="web3-pem-block ui-glass-surface">
+    <div className="web3-pem-block">
       <div className="web3-pem-header">
         <span className="web3-pem-label">{label}</span>
         <div className="web3-pem-actions">

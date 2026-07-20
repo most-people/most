@@ -37,7 +37,7 @@ export function BoxAccountPanel({
   const { t } = useI18n()
 
   return (
-    <div className="web3-box-account ui-glass-surface">
+    <div className="web3-box-account">
       <div className="web3-box-account-header">
         <div>
           <h2>{title}</h2>
