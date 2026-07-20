@@ -7,10 +7,7 @@ export type ActiveDownloadStatus =
   | 'cancelling'
 
 export type DownloadOutcomeStatus =
-  | 'completed'
-  | 'partial'
-  | 'failed'
-  | 'cancelled'
+  'completed' | 'partial' | 'failed' | 'cancelled'
 
 export interface ActiveDownloadTask {
   taskId: string
@@ -74,6 +71,14 @@ export interface DownloadTaskOutcome {
 export interface ParsedDownloadEvent {
   event: string
   payload: DownloadEventPayload
+}
+
+export function excludeTerminalDownloadTasks(
+  tasks: ActiveDownloadTask[],
+  outcomes: DownloadTaskOutcome[]
+) {
+  const terminalTaskIds = new Set(outcomes.map(outcome => outcome.taskId))
+  return tasks.filter(task => !terminalTaskIds.has(task.taskId))
 }
 
 function readString(record: Record<string, unknown>, key: string) {

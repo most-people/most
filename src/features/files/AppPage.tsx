@@ -875,7 +875,13 @@ export default function App() {
           >
             <div className="modal-header">
               <h3>{t('app.downloadFile')}</h3>
-              <button onClick={closeDownloadModal} className="btn btn-icon">
+              <button
+                type="button"
+                onClick={closeDownloadModal}
+                className="btn btn-icon"
+                aria-label={t('common.close')}
+                title={t('common.close')}
+              >
                 <X size={18} />
               </button>
             </div>

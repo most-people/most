@@ -15,10 +15,7 @@ import {
 import { createPortal } from 'react-dom'
 
 export type ActionMenuPlacement =
-  | 'top-start'
-  | 'top-end'
-  | 'bottom-start'
-  | 'bottom-end'
+  'top-start' | 'top-end' | 'bottom-start' | 'bottom-end'
 
 export type ActionMenuItem = {
   key: string

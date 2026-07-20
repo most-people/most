@@ -16,11 +16,7 @@ import { useAppStore } from '~/stores/useAppStore'
 import { useI18n, type MessageKey } from '~/lib/i18n'
 
 type InternalRoutePath =
-  | '/app/'
-  | '/chat/'
-  | '/note/'
-  | '/game/gandengyan/'
-  | '/web3/'
+  '/app/' | '/chat/' | '/note/' | '/game/gandengyan/' | '/web3/'
 
 interface FeatureDef {
   id: string

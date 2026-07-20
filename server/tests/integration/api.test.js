@@ -1697,10 +1697,12 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           link: `most://${VALID_MISSING_CID}?filename=cancel.bin`,
-          background: true,
         }),
       })
       const started = await startRes.json()
+
+      const hiddenTasksRes = await requestWithAuth(app, '/api/download/tasks')
+      assert.deepStrictEqual(await hiddenTasksRes.json(), [])
 
       const otherRes = await requestAsWithContext(
         SECOND_IDENTITY,

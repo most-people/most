@@ -87,4 +87,22 @@ describe('download task registry', () => {
       'cancelling'
     )
   })
+
+  it('keeps non-visible tasks cancellable without listing them', () => {
+    const engine = new EventEmitter()
+    const registry = createDownloadTaskRegistry(engine)
+    registry.register({
+      taskId: 'download-hidden',
+      ownerAddress: '0xabc',
+      cid: 'cid-hidden',
+      fileName: 'attachment.bin',
+      visible: false,
+    })
+
+    assert.deepStrictEqual(registry.list('0xabc'), [])
+    assert.strictEqual(
+      registry.markCancelling('download-hidden', '0xabc')?.status,
+      'cancelling'
+    )
+  })
 })

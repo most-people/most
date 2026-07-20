@@ -217,11 +217,11 @@ export function registerFileRoutes(
     }
 
     const ownerAddress = c.get('userAddress')
-    const registerBackgroundTask = input => {
-      if (body.background !== true) return
+    const registerDownloadTask = input => {
       downloadTasks.register({
         taskId,
         ownerAddress,
+        visible: body.background === true,
         cid: parsed.cid,
         fileName: sanitizeFilename(parsed.fileName || parsed.cid),
         kind: input?.kind,
@@ -239,7 +239,7 @@ export function registerFileRoutes(
         localAvailability.alreadyExists !== true &&
         localAvailability.missingLocalCount !== 0
       ) {
-        registerBackgroundTask(localAvailability)
+        registerDownloadTask(localAvailability)
         startDownloadTask(
           engine,
           body.link,
@@ -271,7 +271,7 @@ export function registerFileRoutes(
       }
     }
 
-    registerBackgroundTask()
+    registerDownloadTask()
     startDownloadTask(
       engine,
       body.link,

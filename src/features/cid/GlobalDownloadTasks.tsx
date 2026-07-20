@@ -150,11 +150,7 @@ function DownloadTaskSync() {
             parsed.payload.taskId &&
             !useAppStore
               .getState()
-              .downloadTasks.some(
-                task => task.taskId === parsed.payload.taskId
-              ) &&
-            (parsed.event === 'download:status' ||
-              parsed.event === 'download:progress')
+              .downloadTasks.some(task => task.taskId === parsed.payload.taskId)
           ) {
             void hydrate()
           }

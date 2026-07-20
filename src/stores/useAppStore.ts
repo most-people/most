@@ -25,6 +25,7 @@ import type {
   DownloadTaskOutcome,
   ParsedDownloadEvent,
 } from '~/lib/downloadTasks'
+import { excludeTerminalDownloadTasks } from '~/lib/downloadTasks'
 
 interface ToastItem {
   id: number
@@ -148,6 +149,8 @@ function getNoteNameErrorKey(errorCode?: string) {
   }
 }
 
+let downloadTasksRevision = 0
+
 export const useAppStore = create<AppState>((set, get) => ({
   // Backend
   hasBackend: null,
@@ -229,16 +232,30 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ downloadTasksHydrated })
   },
   loadDownloadTasks: async () => {
+    const revision = ++downloadTasksRevision
     const tasks = await fileApi.listDownloadTasks()
-    set({ downloadTasks: tasks, downloadTasksHydrated: true })
-    return tasks
+    if (revision !== downloadTasksRevision) {
+      return get().downloadTasks
+    }
+
+    let activeTasks = tasks
+    set(state => {
+      activeTasks = excludeTerminalDownloadTasks(
+        tasks,
+        state.downloadTaskOutcomes
+      )
+      return { downloadTasks: activeTasks, downloadTasksHydrated: true }
+    })
+    return activeTasks
   },
   upsertDownloadTask: task => {
+    downloadTasksRevision += 1
     set(state => ({
       downloadTasks: [
         task,
         ...state.downloadTasks.filter(item => item.taskId !== task.taskId),
       ],
+      downloadTasksHydrated: true,
     }))
   },
   applyDownloadEvent: parsed => {
@@ -246,6 +263,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!taskId) return null
     const currentTask = get().downloadTasks.find(task => task.taskId === taskId)
     if (!currentTask) return null
+    downloadTasksRevision += 1
 
     if (parsed.event === 'download:status') {
       const allowedStatuses: ActiveDownloadStatus[] = [
@@ -265,6 +283,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             ? { ...task, status: nextStatus, updatedAt: Date.now() }
             : task
         ),
+        downloadTasksHydrated: true,
       }))
       return null
     }
@@ -303,6 +322,7 @@ export const useAppStore = create<AppState>((set, get) => ({
               }
             : task
         ),
+        downloadTasksHydrated: true,
       }))
       return null
     }
@@ -335,10 +355,12 @@ export const useAppStore = create<AppState>((set, get) => ({
         outcome,
         ...state.downloadTaskOutcomes.filter(item => item.taskId !== taskId),
       ].slice(0, 20),
+      downloadTasksHydrated: true,
     }))
     return outcome
   },
   markDownloadTaskCancelling: taskId => {
+    downloadTasksRevision += 1
     set(state => ({
       downloadTasks: state.downloadTasks.map(task =>
         task.taskId === taskId
@@ -355,6 +377,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }))
   },
   clearDownloadTasks: () => {
+    downloadTasksRevision += 1
     set({
       downloadTasks: [],
       downloadTaskOutcomes: [],

@@ -42,6 +42,7 @@ const platformConstantsPackagePath = path.join(
   'PlatformConstantsPackage.kt'
 )
 const buildGradlePath = path.join(androidDir, 'app', 'build.gradle')
+const releaseGradlePath = path.join(projectDir, 'release.gradle')
 const gradlePropertiesPath = path.join(androidDir, 'gradle.properties')
 const androidManifestPath = path.join(
   androidDir,
@@ -146,6 +147,7 @@ export function syncNativeAndroidProject({
   const releaseVersionCode = resolveVersionCode(versionCode, releaseVersion)
 
   syncVersion(releaseVersion, releaseVersionCode)
+  repairMissingReleaseGradle()
   syncAppName()
   syncIconBackgroundColor()
   syncGradleJvmArgs()
@@ -156,6 +158,38 @@ export function syncNativeAndroidProject({
 
   console.log(
     `[android] native project synced: versionName=${releaseVersion}, versionCode=${releaseVersionCode}`
+  )
+}
+
+function repairMissingReleaseGradle() {
+  const buildGradle = fs.readFileSync(buildGradlePath, 'utf8')
+  const nextBuildGradle = repairMissingReleaseGradleConfig(
+    buildGradle,
+    fs.existsSync(releaseGradlePath)
+  )
+  writeIfChanged(buildGradlePath, nextBuildGradle)
+}
+
+export function repairMissingReleaseGradleConfig(
+  buildGradle,
+  releaseGradleExists
+) {
+  if (releaseGradleExists) return buildGradle
+
+  const withoutDanglingApply = buildGradle.replace(
+    /\napply from: file\(["']\.\.\/\.\.\/release\.gradle["']\)\s*\n?/,
+    '\n'
+  )
+  const releaseBlock = withoutDanglingApply.match(
+    /^([ \t]*)release\s*\{(\r?\n)([\s\S]*?)^\1\}/m
+  )
+  if (!releaseBlock || /^\s*signingConfig\s+/m.test(releaseBlock[3])) {
+    return withoutDanglingApply
+  }
+
+  return withoutDanglingApply.replace(
+    /^([ \t]*)release\s*\{(\r?\n)/m,
+    `$&$1    signingConfig signingConfigs.debug$2`
   )
 }
 

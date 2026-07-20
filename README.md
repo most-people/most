@@ -137,7 +137,7 @@ npm test              # 运行 Android 子包协议、Channel 和 IPC 测试
 ```yaml
 services:
   mostbox:
-    image: ghcr.io/most-people/most-box:0.4.2
+    image: ghcr.io/most-people/most-box:0.4.3
     container_name: mostbox
     network_mode: host
     restart: unless-stopped
@@ -159,7 +159,7 @@ http://你的NAS地址:1976
 http://192.168.31.107:1976
 ```
 
-看到 MostBox 页面后，就可以在 NAS 上发布文件。发布后复制生成的 `most://<cid>?filename=...` 链接发给别人；下载者运行自己的 MostBox，粘贴链接下载。你的 NAS 会继续在线做种，关闭浏览器页面也不影响容器做种。
+看到 MostBox 页面后，就可以在 NAS 上发布文件。发布后点击文件卡片上的分享按钮，在 CID 页面复制 `most://<cid>?filename=...` 链接发给别人；下载者运行自己的 MostBox，粘贴链接下载。你的 NAS 会继续在线做种，关闭浏览器页面也不影响容器做种。
 
 首次从局域网打开 `/admin/` 时，需要先用本地身份登录并认领节点管理权限。认领信息保存在节点数据目录中；之后只有同一身份可以从局域网查看或修改管理配置。本机回环地址仍可用于恢复管理权限。
 

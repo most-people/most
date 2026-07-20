@@ -220,6 +220,7 @@ describe('frontend smoke checks', () => {
     const filesSource = readSource(SOURCE_PATHS.files)
     const cidSource = readSource(SOURCE_PATHS.cid)
     const cidCss = readSource(SOURCE_PATHS.cidCss)
+    const acceptanceSource = readSource(SOURCE_PATHS.acceptance)
     const { messages } = await importBundledSource('src/lib/i18n/messages.ts')
 
     assert.match(filesSource, /useNavigate\(/)
@@ -232,6 +233,12 @@ describe('frontend smoke checks', () => {
       /navigate\(\{\s*href: buildCidSharePath\(shareResult\.cid, shareResult\.fileName\),?\s*\}\)/
     )
     assert.doesNotMatch(filesSource, /className="share-modal"/)
+    assert.match(acceptanceSource, /发布成功后确认仍停留在文件库/)
+    const publishFlow = filesSource.match(
+      /const result = await fileApi\.publishFile\(file, fileName\)[\s\S]*?\}\s*catch \(err\)/
+    )
+    assert.ok(publishFlow)
+    assert.doesNotMatch(publishFlow[0], /navigate\(/)
 
     assert.match(cidSource, /QRCodeCanvas/)
     assert.match(cidSource, /buildCidShareLink\(cid, shareFileName\)/)
@@ -461,6 +468,10 @@ describe('frontend smoke checks', () => {
     assert.match(globalSource, /event\.key !== 'Escape'/)
     assert.match(globalSource, /aria-controls=\{panelId\}/)
     assert.match(globalSource, /aria-label=\{toggleLabel\}/)
+    assert.doesNotMatch(
+      globalSource,
+      /parsed\.event === 'download:status'[\s\S]{0,120}parsed\.event === 'download:progress'/
+    )
     assert.match(
       globalSource,
       /aria-valuetext=\{getTaskProgressLabel\(task, t\)\}/
@@ -498,9 +509,8 @@ describe('frontend smoke checks', () => {
   })
 
   it('normalizes download progress and collection terminal payloads', async () => {
-    const { parseDownloadEvent } = await importBundledSource(
-      'src/lib/downloadTasks.ts'
-    )
+    const { excludeTerminalDownloadTasks, parseDownloadEvent } =
+      await importBundledSource('src/lib/downloadTasks.ts')
 
     assert.deepEqual(
       parseDownloadEvent(
@@ -559,6 +569,31 @@ describe('frontend smoke checks', () => {
     )
     assert.deepEqual(completed.payload.downloadedPaths, ['ready.txt'])
     assert.deepEqual(completed.payload.unavailablePaths, ['later.txt'])
+
+    const activeTask = {
+      taskId: 'task-active',
+      cid: 'cid-active',
+      fileName: 'active.bin',
+    }
+    const finishedTask = {
+      taskId: 'task-finished',
+      cid: 'cid-finished',
+      fileName: 'finished.bin',
+    }
+    assert.deepEqual(
+      excludeTerminalDownloadTasks(
+        [activeTask, finishedTask],
+        [{ taskId: 'task-finished' }]
+      ),
+      [activeTask]
+    )
+
+    const storeSource = readSource(SOURCE_PATHS.appStore)
+    assert.match(storeSource, /let downloadTasksRevision = 0/)
+    assert.match(
+      storeSource,
+      /if \(revision !== downloadTasksRevision\) \{\s*return get\(\)\.downloadTasks/
+    )
   })
 
   it('does not apply the default ky timeout to file publishing', () => {
@@ -983,5 +1018,9 @@ describe('frontend smoke checks', () => {
     assert.match(source, /aria-label=\{t\('app\.search\.clear'\)\}/)
     assert.match(source, /aria-label=\{t\('app\.transfers'\)\}/)
     assert.match(source, /aria-label=\{t\('common\.close'\)\}/)
+    assert.match(
+      source,
+      /onClick=\{closeDownloadModal\}[\s\S]{0,160}aria-label=\{t\('common\.close'\)\}/
+    )
   })
 })

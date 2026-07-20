@@ -294,8 +294,7 @@ type MentionCandidate = {
 type BrowserAudioContextConstructor = typeof AudioContext
 
 function getBrowserAudioContextConstructor():
-  | BrowserAudioContextConstructor
-  | undefined {
+  BrowserAudioContextConstructor | undefined {
   if (typeof window === 'undefined') return undefined
   const audioWindow = window as Window &
     typeof globalThis & {

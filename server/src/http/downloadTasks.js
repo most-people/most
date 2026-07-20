@@ -116,6 +116,7 @@ export function createDownloadTaskRegistry(engine) {
       tasks.set(taskId, {
         taskId,
         ownerAddress,
+        visible: input.visible !== false,
         cid: String(input.cid || ''),
         fileName: String(input.fileName || input.cid || ''),
         kind: input.kind === 'collection' ? 'collection' : 'file',
@@ -135,7 +136,7 @@ export function createDownloadTaskRegistry(engine) {
     list(ownerAddress) {
       const owner = normalizeOwnerAddress(ownerAddress)
       return [...tasks.values()]
-        .filter(task => task.ownerAddress === owner)
+        .filter(task => task.ownerAddress === owner && task.visible)
         .sort((left, right) => right.startedAt - left.startedAt)
         .map(toSnapshot)
     },

@@ -1,6 +1,6 @@
 {
   "name": "@mostbox/android",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "private": true,
   "type": "module",
   "engines": {
@@ -15,7 +15,7 @@
     "bundle:ios": "node scripts/bundle-bare.mjs --platform ios",
     "eas-build-post-install": "node scripts/bundle-bare.mjs",
     "sync:native": "node scripts/sync-native-android.mjs",
-    "test": "node --import tsx --test src/mobileCore/cid.test.ts src/mobileCore/protocol.test.ts src/features/chat/chatState.test.ts && node --test backend/protocol.test.mjs backend/holding-records.test.mjs backend/mobile-core.test.mjs",
+    "test": "node --import tsx --test src/mobileCore/cid.test.ts src/mobileCore/protocol.test.ts src/features/chat/chatState.test.ts && node --test backend/protocol.test.mjs backend/holding-records.test.mjs backend/mobile-core.test.mjs scripts/sync-native-android.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

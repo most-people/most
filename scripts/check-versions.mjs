@@ -17,16 +17,20 @@ function getTagArgument() {
     : process.argv[index + 1]
 }
 
+const rootPackageLock = readJson('package-lock.json')
+const androidPackageLock = readJson('mobile/android/package-lock.json')
 const rootVersion = readJson('package.json').version
 const versions = new Map([
-  ['package-lock.json', readJson('package-lock.json').version],
+  ['package-lock.json', rootPackageLock.version],
+  ['package-lock.json packages root', rootPackageLock.packages?.['']?.version],
   [
     'mobile/android/package.json',
     readJson('mobile/android/package.json').version,
   ],
+  ['mobile/android/package-lock.json', androidPackageLock.version],
   [
-    'mobile/android/package-lock.json',
-    readJson('mobile/android/package-lock.json').version,
+    'mobile/android/package-lock.json packages root',
+    androidPackageLock.packages?.['']?.version,
   ],
   ['mobile/android/app.json', readJson('mobile/android/app.json').expo.version],
   [
