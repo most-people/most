@@ -99,7 +99,7 @@
     "globals": "^17.7.0",
     "ky": "^2.0.2",
     "lucide-react": "^1.21.0",
-    "prettier": "^3.8.4",
+    "prettier": "3.9.5",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
