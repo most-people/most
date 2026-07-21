@@ -12,19 +12,19 @@ function readJson(relativePath) {
 
 const androidDocs = [
   ['README.md', '../../../README.md'],
-  ['mobile/android/README.md', '../../../mobile/android/README.md'],
+  ['mobile/app/README.md', '../../../mobile/app/README.md'],
   ['docs/mobile-android-alpha.md', '../../../docs/mobile-android-alpha.md'],
 ]
 
 describe('Android command documentation', () => {
   it('keeps Android dev/test/build scripts in the mobile package', () => {
     const rootPackage = readJson('../../../package.json')
-    const androidPackage = readJson('../../../mobile/android/package.json')
+    const mobilePackage = readJson('../../../mobile/app/package.json')
 
     for (const scriptName of ['start', 'test', 'build']) {
       assert.ok(
-        androidPackage.scripts?.[scriptName],
-        `mobile/android/package.json must define ${scriptName}`
+        mobilePackage.scripts?.[scriptName],
+        `mobile/app/package.json must define ${scriptName}`
       )
     }
 
@@ -67,13 +67,13 @@ describe('Android command documentation', () => {
     }
   })
 
-  it('documents Android test and build commands from mobile/android', () => {
+  it('documents Android test and build commands from mobile/app', () => {
     for (const [fileName, relativePath] of androidDocs) {
       const content = readText(relativePath)
       assert.match(
         content,
-        /cd mobile\/android/,
-        `${fileName} should tell contributors to enter mobile/android`
+        /cd mobile\/app/,
+        `${fileName} should tell contributors to enter mobile/app`
       )
       assert.match(
         content,

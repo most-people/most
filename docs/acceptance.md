@@ -31,7 +31,7 @@ npm run dev
 | 管理台       | `http://localhost:3000/admin/`                                                    | 查看节点状态、holding、容量和日志                                 |
 | API          | `http://localhost:1976/api/openapi.json`                                          | daemon HTTP API                                                   |
 
-桌面端默认打开本机节点首页。发布包路径：正式桌面安装包和 Android Alpha APK 从 `/download` 或 GitHub Releases latest 下载；本地桌面构建使用 `npm run electron:build:win`、`npm run electron:build:mac` 或 `npm run electron:build:linux`，Android APK 构建在 `mobile/android/` 下运行 `npm run build`。
+桌面端默认打开本机节点首页。发布包路径：正式桌面安装包和 Android Alpha APK 从 `/download` 或 GitHub Releases latest 下载；本地桌面构建使用 `npm run electron:build:win`、`npm run electron:build:mac` 或 `npm run electron:build:linux`，Android APK 构建在 `mobile/app/` 下运行 `npm run build`。
 
 Web UI 会自动创建本地身份并给文件 API 请求签名。裸 curl 调用 `/api/publish`、`/api/files`、`/api/download/check`、`/api/download`、`/api/p2p/pull` 等文件管理接口时，需要带 `Authorization` 头；节点状态、holding、日志等本机管理接口可直接 curl。
 
@@ -298,7 +298,7 @@ Android 第一阶段也应围绕聊天启动，但文件协议不变量保持不
 
 | 检查项        | 通过标准                                                   | 入口                           |
 | ------------- | ---------------------------------------------------------- | ------------------------------ |
-| 启动口径      | 移动端文档说明优先补齐聊天、附件收发和基础做种状态         | `mobile/android/README.md`     |
+| 启动口径      | 移动端文档说明优先补齐聊天、附件收发和基础做种状态         | `mobile/app/README.md`         |
 | P2P core      | Android 前台能启动真实 P2P core，并显示 ready 状态         | Android App                    |
 | 附件/文件互通 | Android 与桌面节点能完成发布、下载、CID 校验和前台做种互通 | Android App、桌面端            |
 | holding 管理  | Android holding 删除只移除内部做种副本，不删除用户另存副本 | Android App                    |
@@ -307,7 +307,7 @@ Android 第一阶段也应围绕聊天启动，但文件协议不变量保持不
 推荐检查：
 
 ```bash
-cd mobile/android
+cd mobile/app
 npm test
 npm run build
 ```

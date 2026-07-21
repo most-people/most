@@ -27,10 +27,10 @@ iOS 技术验证只有同时满足以下条件才算通过：
 
 - Android 现有行为是回归基线，iOS 验证不得破坏 `docs/mobile-android-alpha.md` 中的最高验收回归。
 - `react-native-bare-kit` 当前依赖包含 iOS Pod、真机 framework 和模拟器 framework，但完整 MostBox 依赖链仍需真机构建验证。
-- 当前移动端位于 `mobile/android/`，构建脚本使用 Android preset，Expo 配置只有 Android 包名和权限，保存文件使用 Android Storage Access Framework。
+- 当前移动端位于 `mobile/app/`，Android 与 iOS 共享 React Native UI 和 Bare Worklet P2P 核心；原生配置、构建 preset、签名和文件流程仍按平台区分。
 - 本轮保持 `most://`、CID、topic、Hyperdrive key 和下载后自动做种等协议不变量，不为 iOS 引入第二套协议。
 - 本轮只承诺 App 在前台时做种。后台测试用于记录系统挂起与恢复行为，不以长期后台常驻为通过条件。
-- 验证阶段不先把 `mobile/android/` 改名，也不先抽取推测性的跨平台架构；真机闭环通过后再决定目录和共享模块调整。
+- 移动端共享包已经统一为 `mobile/app/`；验证阶段不拆分两套业务工程，也不先抽取推测性的跨平台架构。
 
 ## Windows 与 macOS 开发边界
 
@@ -75,7 +75,7 @@ iOS 技术验证只有同时满足以下条件才算通过：
 执行移动端现有测试，并复跑 Android 前台做种交接：
 
 ```bash
-cd mobile/android
+cd mobile/app
 npm test
 
 cd ../..

@@ -1,5 +1,5 @@
 {
-  "name": "@mostbox/android",
+  "name": "@most-box/app",
   "version": "0.4.3",
   "private": true,
   "type": "module",
@@ -10,6 +10,7 @@
   "scripts": {
     "start": "npm run bundle:android && node scripts/start-dev-client.mjs",
     "start:ios": "npm run bundle:ios && expo start --dev-client --host lan",
+    "ios": "npm run bundle:ios && expo run:ios",
     "build": "node scripts/build-apk.mjs",
     "bundle:android": "node scripts/bundle-bare.mjs --platform android",
     "bundle:ios": "node scripts/bundle-bare.mjs --platform ios",

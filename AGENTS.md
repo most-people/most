@@ -100,7 +100,7 @@ npm run test:protocol
 npm run lint
 
 # Android 子包
-cd mobile/android
+cd mobile/app
 npm install
 npm start
 npm test
@@ -168,7 +168,7 @@ npm run build
 - Web3 工具箱：`src/features/web3/Web3Page.tsx`
 - 笔记模块：`src/features/note/NotePage.tsx`、`src/components/MilkdownEditor.tsx`
 - 管理后台：`src/features/admin/AdminPage.tsx`
-- Android Alpha：`mobile/android/`
+- 移动端应用：`mobile/app/`
 - 全局状态：`src/stores/useAppStore.ts`
 - 后端 daemon 启动入口：`server/index.js`
 - HTTP 应用和路由：`server/src/http/app.js`

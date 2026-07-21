@@ -7,7 +7,6 @@
     "icon": "./assets/icon.png",
     "scheme": "most",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon-foreground.png",

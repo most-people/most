@@ -121,16 +121,16 @@ jobs:
         with:
           node-version: '24'
           cache: 'npm'
-          cache-dependency-path: mobile/android/package-lock.json
+          cache-dependency-path: mobile/app/package-lock.json
 
       - name: Install Android package dependencies
-        working-directory: mobile/android
+        working-directory: mobile/app
         run: npm ci
 
       - name: Run Android package tests
-        working-directory: mobile/android
+        working-directory: mobile/app
         run: npm test
 
       - name: Typecheck Android package
-        working-directory: mobile/android
+        working-directory: mobile/app
         run: npm run typecheck

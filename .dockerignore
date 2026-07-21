@@ -26,13 +26,13 @@ yarn-error.log*
 most-data
 server/tests/temp-write-test-*
 
-mobile/android/node_modules
-mobile/android/.expo
-mobile/android/android
-mobile/android/ios
-mobile/android/dist
-mobile/android/app.bundle.mjs
-mobile/android/app.bundle.js
+mobile/app/node_modules
+mobile/app/.expo
+mobile/app/android
+mobile/app/ios
+mobile/app/dist
+mobile/app/app.bundle.mjs
+mobile/app/app.bundle.js
 *.apk
 *.aab
 *.dmg

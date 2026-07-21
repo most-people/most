@@ -9,12 +9,12 @@
 构建前先运行移动端协议测试：
 
 ```bash
-cd mobile/android
+cd mobile/app
 npm test
 npm run build
 ```
 
-构建成功后检查 `mobile/android/dist/`：
+构建成功后检查 `mobile/app/dist/`：
 
 - `mostbox-android-<version>-release.apk`
 - `mostbox-android-<version>-release.apk.sha256.txt`

@@ -18,21 +18,18 @@ function getTagArgument() {
 }
 
 const rootPackageLock = readJson('package-lock.json')
-const androidPackageLock = readJson('mobile/android/package-lock.json')
+const mobilePackageLock = readJson('mobile/app/package-lock.json')
 const rootVersion = readJson('package.json').version
 const versions = new Map([
   ['package-lock.json', rootPackageLock.version],
   ['package-lock.json packages root', rootPackageLock.packages?.['']?.version],
+  ['mobile/app/package.json', readJson('mobile/app/package.json').version],
+  ['mobile/app/package-lock.json', mobilePackageLock.version],
   [
-    'mobile/android/package.json',
-    readJson('mobile/android/package.json').version,
+    'mobile/app/package-lock.json packages root',
+    mobilePackageLock.packages?.['']?.version,
   ],
-  ['mobile/android/package-lock.json', androidPackageLock.version],
-  [
-    'mobile/android/package-lock.json packages root',
-    androidPackageLock.packages?.['']?.version,
-  ],
-  ['mobile/android/app.json', readJson('mobile/android/app.json').expo.version],
+  ['mobile/app/app.json', readJson('mobile/app/app.json').expo.version],
   [
     'docker-compose.example.yml',
     readMatch(
