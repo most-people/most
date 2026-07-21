@@ -29,9 +29,9 @@ const SOURCE_PATHS = {
   cidCss: 'src/styles/cid.css',
   fileApi: 'src/lib/fileApi.ts',
   files: 'src/features/files/AppPage.tsx',
-  chat: 'src/features/chat/ChannelMessagingPage.tsx',
-  chatPage: 'src/features/chat/ChatPage.tsx',
+  chat: 'src/features/chat/ChatPage.tsx',
   friendPage: 'src/features/friend/FriendPage.tsx',
+  friendMessaging: 'src/features/chat/ChannelMessagingPage.tsx',
   friendMessages: 'src/lib/i18n/messages/friend.ts',
   hooks: 'src/hooks/index.ts',
   appCss: 'src/styles/app.css',
@@ -992,26 +992,33 @@ describe('frontend smoke checks', () => {
     )
   })
 
-  it('keeps public channels and encrypted friends on separate pages', () => {
-    const chatPageSource = readSource(SOURCE_PATHS.chatPage)
-    const friendPageSource = readSource(SOURCE_PATHS.friendPage)
+  it('keeps chat and encrypted friends on separate pages', () => {
     const chatSource = readSource(SOURCE_PATHS.chat)
+    const friendPageSource = readSource(SOURCE_PATHS.friendPage)
+    const friendMessagingSource = readSource(SOURCE_PATHS.friendMessaging)
 
-    assert.match(chatPageSource, /<ChannelMessagingPage mode="public" \/>/)
     assert.match(friendPageSource, /<ChannelMessagingPage mode="friend" \/>/)
-    assert.match(chatSource, /const isFriendMode = mode === 'friend'/)
-    assert.match(
+    assert.doesNotMatch(
       chatSource,
+      /useDirectContacts|DIRECT_CHANNEL_TYPE|directPeerAddress/
+    )
+    assert.match(
+      friendMessagingSource,
+      /const isFriendMode = mode === 'friend'/
+    )
+    assert.match(
+      friendMessagingSource,
       /isFriendMode\s*\? \(await channelApi\.getChannels\(\{ type: 'direct' \}\)\)/
     )
-    assert.match(chatSource, /: await channelApi\.getChannels\(\)/)
-    assert.match(chatSource, /isReady: isFriendMode && isBackendReady/)
-    assert.match(chatSource, /\?address=/)
-    assert.match(chatSource, /\?channel=/)
+    assert.match(
+      friendMessagingSource,
+      /isReady: isFriendMode && isBackendReady/
+    )
+    assert.match(friendMessagingSource, /\?address=/)
   })
 
   it('keeps direct chats encrypted across text, attachments, and voice', () => {
-    const chatSource = readSource(SOURCE_PATHS.chat)
+    const chatSource = readSource(SOURCE_PATHS.friendMessaging)
     const chatCssSource = readSource('src/styles/chat.css')
     const friendMessagesSource = readSource(SOURCE_PATHS.friendMessages)
 
