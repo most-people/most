@@ -15,6 +15,7 @@ import { Route as ProfileIndexRouteImport } from './routes/profile/index'
 import { Route as PingIndexRouteImport } from './routes/ping/index'
 import { Route as NoteIndexRouteImport } from './routes/note/index'
 import { Route as GameIndexRouteImport } from './routes/game/index'
+import { Route as FriendIndexRouteImport } from './routes/friend/index'
 import { Route as DownloadIndexRouteImport } from './routes/download/index'
 import { Route as ChatIndexRouteImport } from './routes/chat/index'
 import { Route as AppIndexRouteImport } from './routes/app/index'
@@ -56,6 +57,11 @@ const GameIndexRoute = GameIndexRouteImport.update({
   path: '/game/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FriendIndexRoute = FriendIndexRouteImport.update({
+  id: '/friend/',
+  path: '/friend/',
+  getParentRoute: () => rootRouteImport,
+} as any).lazy(() => import('./routes/friend/index.lazy').then((d) => d.Route))
 const DownloadIndexRoute = DownloadIndexRouteImport.update({
   id: '/download/',
   path: '/download/',
@@ -126,6 +132,7 @@ export interface FileRoutesByFullPath {
   '/app/': typeof AppIndexRoute
   '/chat/': typeof ChatIndexRoute
   '/download/': typeof DownloadIndexRoute
+  '/friend/': typeof FriendIndexRoute
   '/game/': typeof GameIndexRoute
   '/note/': typeof NoteIndexRoute
   '/ping/': typeof PingIndexRoute
@@ -144,6 +151,7 @@ export interface FileRoutesByTo {
   '/app': typeof AppIndexRoute
   '/chat': typeof ChatIndexRoute
   '/download': typeof DownloadIndexRoute
+  '/friend': typeof FriendIndexRoute
   '/game': typeof GameIndexRoute
   '/note': typeof NoteIndexRoute
   '/ping': typeof PingIndexRoute
@@ -163,6 +171,7 @@ export interface FileRoutesById {
   '/app/': typeof AppIndexRoute
   '/chat/': typeof ChatIndexRoute
   '/download/': typeof DownloadIndexRoute
+  '/friend/': typeof FriendIndexRoute
   '/game/': typeof GameIndexRoute
   '/note/': typeof NoteIndexRoute
   '/ping/': typeof PingIndexRoute
@@ -183,6 +192,7 @@ export interface FileRouteTypes {
     | '/app/'
     | '/chat/'
     | '/download/'
+    | '/friend/'
     | '/game/'
     | '/note/'
     | '/ping/'
@@ -201,6 +211,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/chat'
     | '/download'
+    | '/friend'
     | '/game'
     | '/note'
     | '/ping'
@@ -219,6 +230,7 @@ export interface FileRouteTypes {
     | '/app/'
     | '/chat/'
     | '/download/'
+    | '/friend/'
     | '/game/'
     | '/note/'
     | '/ping/'
@@ -238,6 +250,7 @@ export interface RootRouteChildren {
   AppIndexRoute: typeof AppIndexRoute
   ChatIndexRoute: typeof ChatIndexRoute
   DownloadIndexRoute: typeof DownloadIndexRoute
+  FriendIndexRoute: typeof FriendIndexRoute
   GameIndexRoute: typeof GameIndexRoute
   NoteIndexRoute: typeof NoteIndexRoute
   PingIndexRoute: typeof PingIndexRoute
@@ -292,6 +305,13 @@ declare module '@tanstack/react-router' {
       path: '/game'
       fullPath: '/game/'
       preLoaderRoute: typeof GameIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/friend/': {
+      id: '/friend/'
+      path: '/friend'
+      fullPath: '/friend/'
+      preLoaderRoute: typeof FriendIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/download/': {
@@ -374,6 +394,7 @@ const rootRouteChildren: RootRouteChildren = {
   AppIndexRoute: AppIndexRoute,
   ChatIndexRoute: ChatIndexRoute,
   DownloadIndexRoute: DownloadIndexRoute,
+  FriendIndexRoute: FriendIndexRoute,
   GameIndexRoute: GameIndexRoute,
   NoteIndexRoute: NoteIndexRoute,
   PingIndexRoute: PingIndexRoute,

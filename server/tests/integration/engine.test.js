@@ -14,12 +14,21 @@ import { MostBoxEngine } from '../../src/index.js'
 import { calculateCid, calculateDirectoryCid } from '../../src/core/cid.js'
 import { getCidInfo } from '../../src/core/cidTopic.js'
 import {
+  buildDirectChannelId,
+  decryptDirectMessage,
+  encryptDirectMessage,
+  encryptDirectVoiceEvent,
+  normalizeDirectAddress,
+} from '../../src/core/directChat.js'
+import {
   GAME_CHANNEL_TYPE,
   createGameEvent,
   deriveGameRoomLobby,
   gameRoomCodeToChannelName,
 } from '../../src/core/gameRoom.js'
 import { GLOBAL_SHARED_SEED_STRING } from '../../src/config.js'
+import { createLoginIdentity } from '../../src/utils/userIdentity.js'
+import { most25519 } from '../../src/utils/mostWallet.js'
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -5122,6 +5131,151 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       }
     })
 
+    it('replicates only ciphertext that the direct recipient can decrypt', async () => {
+      const directTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-direct-channel-replication-')
+      )
+      const alice = createLoginIdentity(`direct-alice-${uid}`, 'password-a')
+      const bob = createLoginIdentity(`direct-bob-${uid}`, 'password-b')
+      const channelName = buildDirectChannelId(alice.address, bob.address)
+      let aliceEngine
+      let bobEngine
+      let replication
+
+      try {
+        aliceEngine = new MostBoxEngine({
+          dataPath: path.join(directTmpDir, 'alice'),
+          disableNetwork: true,
+        })
+        bobEngine = new MostBoxEngine({
+          dataPath: path.join(directTmpDir, 'bob'),
+          disableNetwork: true,
+        })
+        await aliceEngine.start()
+        await bobEngine.start()
+
+        const aliceChannel = await aliceEngine.createChannel(
+          channelName,
+          'direct',
+          { ownerAddress: alice.address, displayName: 'Alice' }
+        )
+        const bobChannel = await bobEngine.createChannel(
+          channelName,
+          'direct',
+          {
+            ownerAddress: bob.address,
+            displayName: 'Bob',
+          }
+        )
+        await aliceEngine.joinChannel(
+          channelName,
+          toChannelCandidate(bobChannel),
+          { ownerAddress: alice.address, displayName: 'Alice' }
+        )
+        await bobEngine.joinChannel(
+          channelName,
+          toChannelCandidate(aliceChannel),
+          { ownerAddress: bob.address, displayName: 'Bob' }
+        )
+
+        const ciphertext = encryptDirectMessage(
+          'p2p direct secret',
+          alice,
+          most25519(bob.danger).public_key
+        )
+        await aliceEngine.sendMessage(
+          channelName,
+          ciphertext,
+          alice.address,
+          'Alice',
+          { ownerAddress: alice.address }
+        )
+
+        replication = aliceEngine.replicateWith(bobEngine)
+        await waitForChannelMessage(bobEngine, channelName, ciphertext)
+        const messages = await bobEngine.getChannelMessages(channelName, {
+          ownerAddress: bob.address,
+        })
+        const directMessage = messages.find(
+          message => message.content === ciphertext
+        )
+
+        assert.ok(directMessage)
+        assert.ok(!directMessage.content.includes('p2p direct secret'))
+        assert.strictEqual(
+          decryptDirectMessage(directMessage.content, {
+            identity: bob,
+            peerPublicKey: most25519(alice.danger).public_key,
+            authorAddress: alice.address,
+          }),
+          'p2p direct secret'
+        )
+
+        assert.throws(
+          () =>
+            aliceEngine.sendChannelVoiceEvent(
+              channelName,
+              { event: 'join', sessionId: 'voice-alice' },
+              { ownerAddress: alice.address }
+            ),
+          /must be encrypted/
+        )
+        const voiceCiphertext = encryptDirectVoiceEvent(
+          {
+            event: 'join',
+            sessionId: 'voice-alice',
+            sender: { address: alice.address },
+            timestamp: Date.now(),
+          },
+          alice,
+          most25519(bob.danger).public_key
+        )
+        const replicatedVoiceEvent = new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            bobEngine.off('channel:voice', onVoice)
+            reject(new Error('Timed out waiting for encrypted voice event'))
+          }, 2000)
+          const onVoice = event => {
+            if (
+              event.channelKey !== channelName ||
+              event.ciphertext !== voiceCiphertext
+            ) {
+              return
+            }
+            clearTimeout(timeout)
+            bobEngine.off('channel:voice', onVoice)
+            resolve(event)
+          }
+          bobEngine.on('channel:voice', onVoice)
+        })
+        const voiceEvent = aliceEngine.sendChannelVoiceEvent(
+          channelName,
+          {
+            event: 'join',
+            sessionId: 'voice-alice',
+            ciphertext: voiceCiphertext,
+          },
+          { ownerAddress: alice.address }
+        )
+        assert.strictEqual(voiceEvent.ciphertext, voiceCiphertext)
+        assert.strictEqual(
+          voiceEvent.sender.address,
+          normalizeDirectAddress(alice.address)
+        )
+        const remoteVoiceEvent = await replicatedVoiceEvent
+        assert.strictEqual(remoteVoiceEvent.ciphertext, voiceCiphertext)
+        assert.strictEqual(
+          remoteVoiceEvent.sender.address,
+          normalizeDirectAddress(alice.address)
+        )
+      } finally {
+        replication?.close()
+        if (aliceEngine) await aliceEngine.stop().catch(() => {})
+        if (bobEngine) await bobEngine.stop().catch(() => {})
+        fs.rmSync(directTmpDir, { recursive: true, force: true })
+      }
+    })
+
     it('deduplicates the same member-joined system message from multiple writer cores', async () => {
       const joinTmpDir = fs.mkdtempSync(
         path.join(os.tmpdir(), 'most-channel-join-dedupe-test-')
@@ -5516,6 +5670,47 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         assert.ok(!metadata.some(c => c.name === gameChannelName))
       } finally {
         await restartEngine.stop().catch(() => {})
+        fs.rmSync(restartTmpDir, { recursive: true, force: true })
+      }
+    })
+
+    it('persists direct system channels across restart', async () => {
+      const restartTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-direct-channel-persist-')
+      )
+      const restartDataPath = path.join(restartTmpDir, 'data')
+      const directName = `direct.${'a'.repeat(64)}`
+      const inboxName = `direct-inbox.${'b'.repeat(40)}`
+      let restartEngine
+
+      try {
+        restartEngine = new MostBoxEngine({
+          dataPath: restartDataPath,
+          disableNetwork: true,
+        })
+        await restartEngine.start()
+        await restartEngine.createChannel(directName, 'direct')
+        await restartEngine.createChannel(inboxName, 'direct-inbox')
+        await restartEngine.stop()
+
+        restartEngine = new MostBoxEngine({
+          dataPath: restartDataPath,
+          disableNetwork: true,
+        })
+        await restartEngine.start()
+
+        assert.ok(
+          restartEngine
+            .listChannels({ type: 'direct' })
+            .some(channel => channel.name === directName)
+        )
+        assert.ok(
+          restartEngine
+            .listChannels({ type: 'direct-inbox' })
+            .some(channel => channel.name === inboxName)
+        )
+      } finally {
+        if (restartEngine) await restartEngine.stop().catch(() => {})
         fs.rmSync(restartTmpDir, { recursive: true, force: true })
       }
     })

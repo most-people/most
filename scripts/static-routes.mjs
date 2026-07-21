@@ -7,6 +7,7 @@ export const requiredStaticRoutes = [
   '/chat/join/',
   '/chat/join/demo/',
   '/download/',
+  '/friend/',
   '/game/',
   '/game/gandengyan/',
   '/game/zhajinhua/',

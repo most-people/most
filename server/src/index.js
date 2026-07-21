@@ -32,6 +32,15 @@ import {
 import { normalizeChannelAttachment } from './core/channelAttachment.js'
 import { consumeChannelFrames } from './core/channelFrames.js'
 import { normalizeChannelVoiceEvent } from './core/channelVoice.js'
+import {
+  buildDirectInboxChannelId,
+  DIRECT_CHANNEL_TYPE,
+  DIRECT_INBOX_CHANNEL_TYPE,
+  DIRECT_MESSAGE_MAX_CIPHERTEXT_LENGTH,
+  isDirectMessageCiphertext,
+  isDirectSystemChannel,
+  verifyDirectKeyEnvelope,
+} from './core/directChat.js'
 import { getCidInfo } from './core/cidTopic.js'
 import {
   TRANSIENT_CHANNEL_TYPES,
@@ -385,7 +394,10 @@ export class MostBoxEngine extends EventEmitter {
     this.#ensureInitialized()
     this.#assertChannelMember(channelKeyInput, options.ownerAddress)
     const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
-    const event = normalizeChannelVoiceEvent(channel.channelKey, input, options)
+    const event = normalizeChannelVoiceEvent(channel.channelKey, input, {
+      ...options,
+      encrypted: channel.type === DIRECT_CHANNEL_TYPE,
+    })
     this.#broadcastChannelVoice(event)
     this.emit('channel:voice', event)
     return event
@@ -3469,8 +3481,22 @@ export class MostBoxEngine extends EventEmitter {
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
     const channelId = normalizeChannelId(channelIdInput)
     const channelType = String(type || 'personal').trim() || 'personal'
+    const isDirectChannelType =
+      channelType === DIRECT_CHANNEL_TYPE ||
+      channelType === DIRECT_INBOX_CHANNEL_TYPE
+    const validDirectSystemChannel = isDirectSystemChannel(
+      channelId,
+      channelType
+    )
 
-    if (channelId.includes('.') && channelType !== 'game') {
+    if (isDirectChannelType && !validDirectSystemChannel) {
+      throw new Error('无效的 1V1 系统频道')
+    }
+    if (
+      channelId.includes('.') &&
+      channelType !== 'game' &&
+      !validDirectSystemChannel
+    ) {
       throw new Error('点号为系统保留，不能用于手动频道 ID')
     }
     if (
@@ -3479,13 +3505,17 @@ export class MostBoxEngine extends EventEmitter {
     ) {
       throw new Error('游戏频道必须使用 game.<gameId>.<roomCode> 格式')
     }
-    if (channelType !== 'game' && !CHANNEL_NAME_REGEX.test(channelId)) {
+    if (
+      channelType !== 'game' &&
+      !isDirectChannelType &&
+      !CHANNEL_NAME_REGEX.test(channelId)
+    ) {
       throw new Error('频道名只能包含字母、数字、下划线和连字符')
     }
-    if (channelId.length < CHANNEL_NAME_MIN_LENGTH) {
+    if (!isDirectChannelType && channelId.length < CHANNEL_NAME_MIN_LENGTH) {
       throw new Error(`频道名至少 ${CHANNEL_NAME_MIN_LENGTH} 个字符`)
     }
-    if (channelId.length > CHANNEL_NAME_MAX_LENGTH) {
+    if (!isDirectChannelType && channelId.length > CHANNEL_NAME_MAX_LENGTH) {
       throw new Error(`频道名最多 ${CHANNEL_NAME_MAX_LENGTH} 个字符`)
     }
 
@@ -3891,8 +3921,39 @@ export class MostBoxEngine extends EventEmitter {
     }
 
     const trimmed = content.trim()
-    if (trimmed.length > MAX_MESSAGE_LENGTH) {
-      throw new Error(`消息内容不能超过 ${MAX_MESSAGE_LENGTH} 字符`)
+    const authorAddress = normalizeOwnerAddress(author)
+    if (options.type !== 'system' && channel.type === DIRECT_CHANNEL_TYPE) {
+      if (options.attachment) {
+        throw new ValidationError(
+          'direct attachment links must be encrypted as messages'
+        )
+      }
+      if (!isDirectMessageCiphertext(trimmed)) {
+        throw new ValidationError('direct messages must be encrypted')
+      }
+      if (options.mentions?.length) {
+        throw new ValidationError('direct messages do not support mentions')
+      }
+    }
+    if (
+      options.type !== 'system' &&
+      channel.type === DIRECT_INBOX_CHANNEL_TYPE
+    ) {
+      const envelope = verifyDirectKeyEnvelope(trimmed)
+      if (
+        !envelope ||
+        envelope.fromAddress !== authorAddress ||
+        buildDirectInboxChannelId(envelope.toAddress) !== channel.channelId
+      ) {
+        throw new ValidationError('invalid direct key envelope')
+      }
+    }
+    const messageMaxLength =
+      channel.type === DIRECT_CHANNEL_TYPE
+        ? DIRECT_MESSAGE_MAX_CIPHERTEXT_LENGTH
+        : MAX_MESSAGE_LENGTH
+    if (trimmed.length > messageMaxLength) {
+      throw new Error(`消息内容不能超过 ${messageMaxLength} 字符`)
     }
     const clientMessageId = normalizeClientMessageId(options.clientMessageId, {
       strict: hasOwnProperty(options, 'clientMessageId'),
@@ -3905,7 +3966,6 @@ export class MostBoxEngine extends EventEmitter {
     if (attachment && trimmed !== attachment.link) {
       throw new ValidationError('attachment content must match link')
     }
-    const authorAddress = normalizeOwnerAddress(author)
     const existingMember = Array.isArray(channel?.members)
       ? channel.members.find(
           member => normalizeOwnerAddress(member?.address) === authorAddress
@@ -6600,7 +6660,8 @@ export class MostBoxEngine extends EventEmitter {
           })
           .filter(
             channel =>
-              CHANNEL_NAME_REGEX.test(channel.channelId) &&
+              (CHANNEL_NAME_REGEX.test(channel.channelId) ||
+                isDirectSystemChannel(channel.channelId, channel.type)) &&
               channel.channelKey === channel.expectedChannelKey &&
               channel.writerId &&
               channel.localWriterCoreKey
@@ -6994,6 +7055,7 @@ export class MostBoxEngine extends EventEmitter {
 
     try {
       const event = normalizeChannelVoiceEvent(channelKey, msg, {
+        encrypted: localChannel.type === DIRECT_CHANNEL_TYPE,
         timestamp: msg.timestamp,
       })
       this.emit('channel:voice', event)

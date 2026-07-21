@@ -29,7 +29,10 @@ const SOURCE_PATHS = {
   cidCss: 'src/styles/cid.css',
   fileApi: 'src/lib/fileApi.ts',
   files: 'src/features/files/AppPage.tsx',
-  chat: 'src/features/chat/ChatPage.tsx',
+  chat: 'src/features/chat/ChannelMessagingPage.tsx',
+  chatPage: 'src/features/chat/ChatPage.tsx',
+  friendPage: 'src/features/friend/FriendPage.tsx',
+  friendMessages: 'src/lib/i18n/messages/friend.ts',
   hooks: 'src/hooks/index.ts',
   appCss: 'src/styles/app.css',
 }
@@ -125,11 +128,17 @@ describe('frontend smoke checks', () => {
 
     assert.deepEqual(
       routes.filter(route =>
-        ['/', '/app/', '/chat/', '/download/', '/note/', '/web3/'].includes(
-          route
-        )
+        [
+          '/',
+          '/app/',
+          '/chat/',
+          '/download/',
+          '/friend/',
+          '/note/',
+          '/web3/',
+        ].includes(route)
       ),
-      ['/', '/app/', '/chat/', '/download/', '/note/', '/web3/']
+      ['/', '/app/', '/chat/', '/download/', '/friend/', '/note/', '/web3/']
     )
     assert.ok(routes.includes('/game/gandengyan/'))
     assert.ok(routes.includes('/game/zhajinhua/'))
@@ -801,7 +810,7 @@ describe('frontend smoke checks', () => {
   })
 
   it('derives chat members from channel messages without the members API', () => {
-    const chatSource = readSource('src/features/chat/ChatPage.tsx')
+    const chatSource = readSource(SOURCE_PATHS.chat)
     const channelApiSource = readSource('src/lib/channelApi.ts')
 
     assert.match(chatSource, /const channelMembers = useMemo/)
@@ -818,7 +827,7 @@ describe('frontend smoke checks', () => {
   })
 
   it('keeps mention unread channels prioritized and previewed', () => {
-    const chatSource = readSource('src/features/chat/ChatPage.tsx')
+    const chatSource = readSource(SOURCE_PATHS.chat)
     const chatUiSource = readSource('src/components/ChatUi.tsx')
     const chatCssSource = readSource('src/styles/chat.css')
     const i18nMessages = readSource('src/lib/i18n/messages/chat.ts')
@@ -848,7 +857,7 @@ describe('frontend smoke checks', () => {
   })
 
   it('renders localized chat member tags from member profiles', async () => {
-    const chatSource = readSource('src/features/chat/ChatPage.tsx')
+    const chatSource = readSource(SOURCE_PATHS.chat)
     const chatUiSource = readSource('src/components/ChatUi.tsx')
     const chatCssSource = readSource('src/styles/chat.css')
     const channelApiSource = readSource('src/lib/channelApi.ts')
@@ -944,7 +953,7 @@ describe('frontend smoke checks', () => {
   })
 
   it('locks the chat composer while a text message is being sent', () => {
-    const chatSource = readSource('src/features/chat/ChatPage.tsx')
+    const chatSource = readSource(SOURCE_PATHS.chat)
     const componentSource = readSource('src/components/ChatUi.tsx')
     const sendHandlerSource = chatSource.slice(
       chatSource.indexOf('async function handleSendChannelMessage'),
@@ -980,6 +989,59 @@ describe('frontend smoke checks', () => {
     assert.match(
       componentSource,
       /isSendingMessage \? \([\s\S]*<Loader size=\{18\} className="ui-spinner" \/>/
+    )
+  })
+
+  it('keeps public channels and encrypted friends on separate pages', () => {
+    const chatPageSource = readSource(SOURCE_PATHS.chatPage)
+    const friendPageSource = readSource(SOURCE_PATHS.friendPage)
+    const chatSource = readSource(SOURCE_PATHS.chat)
+
+    assert.match(chatPageSource, /<ChannelMessagingPage mode="public" \/>/)
+    assert.match(friendPageSource, /<ChannelMessagingPage mode="friend" \/>/)
+    assert.match(chatSource, /const isFriendMode = mode === 'friend'/)
+    assert.match(
+      chatSource,
+      /isFriendMode\s*\? \(await channelApi\.getChannels\(\{ type: 'direct' \}\)\)/
+    )
+    assert.match(chatSource, /: await channelApi\.getChannels\(\)/)
+    assert.match(chatSource, /isReady: isFriendMode && isBackendReady/)
+    assert.match(chatSource, /\?address=/)
+    assert.match(chatSource, /\?channel=/)
+  })
+
+  it('keeps direct chats encrypted across text, attachments, and voice', () => {
+    const chatSource = readSource(SOURCE_PATHS.chat)
+    const chatCssSource = readSource('src/styles/chat.css')
+    const friendMessagesSource = readSource(SOURCE_PATHS.friendMessages)
+
+    assert.match(
+      friendMessagesSource,
+      /'friend\.pending': '等待对方上线完成密钥交换'/
+    )
+    assert.match(
+      friendMessagesSource,
+      /'friend\.composer\.pending': '密钥交换完成后即可发送消息'/
+    )
+    assert.match(
+      chatCssSource,
+      /\.chat-create-actions\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/
+    )
+    assert.match(
+      chatSource,
+      /transmittedContent = encryptDirectMessage\([\s\S]*transmittedAttachment = undefined/
+    )
+    assert.match(chatSource, /getDirectAttachmentFromLink\(content\)/)
+    assert.match(chatSource, /directPeerPublicKey:/)
+    assert.match(chatSource, /showVoiceRoom=\{!isInviteUser\}/)
+    assert.doesNotMatch(chatSource, /showAttachments=\{!isDirectChat\}/)
+    assert.match(
+      chatSource,
+      /isDirectSystemChannel\(requestedChannelName, DIRECT_CHANNEL_TYPE\)[\s\S]*return[\s\S]*const attemptKey/
+    )
+    assert.match(
+      chatSource,
+      /validate=\{getChannelNameValidationError\}[\s\S]*onConfirm=\{handleJoinChannel\}/
     )
   })
 

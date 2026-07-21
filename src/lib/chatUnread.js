@@ -164,6 +164,10 @@ export function applyIncomingChannelMentionUnreadState(
   }
 }
 
+/**
+ * @param {Record<string, boolean>} previous
+ * @param {{ channelName: string, messages?: Array<{ author?: string, timestamp?: number, mentions?: Array<{ address?: string }> }>, userAddress?: string, lastReadAt?: number }} options
+ */
 export function applyHistoricalChannelMentionUnreadState(
   previous,
   { channelName, messages = [], userAddress = '', lastReadAt = 0 }

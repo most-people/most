@@ -49,9 +49,10 @@ export function ChatAttachmentCard({
   const isBusy = pending || isChecking || isDownloading
   const actionClassName =
     `ui-file-action chat-attachment-action ${status === 'error' ? 'error' : status === 'available' ? 'available' : ''}`.trim()
+  const attachmentSize = Number(attachment.size)
   const detail =
-    Number.isFinite(attachment.size) && attachment.size > 0
-      ? formatBytes(attachment.size)
+    Number.isFinite(attachmentSize) && attachmentSize > 0
+      ? formatBytes(attachmentSize)
       : t('chat.mostboxFile')
   const displayDetail = pending ? t('chat.sending') : message || detail
   const actionLabel = pending

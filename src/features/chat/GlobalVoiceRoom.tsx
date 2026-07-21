@@ -23,6 +23,8 @@ import { useUserStore } from '~/stores/userStore'
 export interface VoiceRoomInfo {
   channelName: string
   title: string
+  directPeerAddress?: string
+  directPeerPublicKey?: string
 }
 
 interface GlobalVoiceRoomContextValue {
@@ -51,7 +53,15 @@ function normalizeRoom(room: VoiceRoomInfo | null) {
   const channelName = String(room?.channelName || '').trim()
   if (!channelName) return null
   const title = String(room?.title || channelName).trim() || channelName
-  return { channelName, title }
+  const directPeerAddress = String(room?.directPeerAddress || '').trim()
+  const directPeerPublicKey = String(room?.directPeerPublicKey || '').trim()
+  return {
+    channelName,
+    title,
+    ...(directPeerAddress && directPeerPublicKey
+      ? { directPeerAddress, directPeerPublicKey }
+      : {}),
+  }
 }
 
 function areRoomsEqual(
@@ -59,7 +69,10 @@ function areRoomsEqual(
   right: VoiceRoomInfo | null
 ) {
   return (
-    left?.channelName === right?.channelName && left?.title === right?.title
+    left?.channelName === right?.channelName &&
+    left?.title === right?.title &&
+    left?.directPeerAddress === right?.directPeerAddress &&
+    left?.directPeerPublicKey === right?.directPeerPublicKey
   )
 }
 
@@ -182,6 +195,9 @@ export function GlobalVoiceRoomProvider({ children }: { children: ReactNode }) {
     enabled: Boolean(userIdentity && room),
     channelName: room?.channelName || '',
     profile,
+    identity: userIdentity,
+    directPeerAddress: room?.directPeerAddress,
+    directPeerPublicKey: room?.directPeerPublicKey,
   })
 
   const remoteParticipantCount = useMemo(

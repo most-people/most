@@ -6,6 +6,7 @@ import {
   Film,
   Image as ImageIcon,
   Loader,
+  LockKeyhole,
   MessagesSquare,
   Mic,
   MoreHorizontal,
@@ -149,6 +150,7 @@ export function ChatChannelNavItem({
   unread = false,
   mentionUnread = false,
   mentionPreview = '',
+  encrypted = false,
   title,
   menuClassName,
   onSelect,
@@ -161,6 +163,7 @@ export function ChatChannelNavItem({
   unread?: boolean
   mentionUnread?: boolean
   mentionPreview?: string
+  encrypted?: boolean
   title: string
   menuClassName?: string
   onSelect?: () => void
@@ -193,7 +196,7 @@ export function ChatChannelNavItem({
       }}
     >
       <span className="chat-channel-icon-wrap">
-        <MessagesSquare size={16} />
+        {encrypted ? <LockKeyhole size={16} /> : <MessagesSquare size={16} />}
         {unread ? (
           <span
             className="chat-channel-unread-dot"

@@ -7,6 +7,12 @@ import path from 'node:path'
 import { serve } from '@hono/node-server'
 import { createApp } from '../../index.js'
 import { calculateCid } from '../../src/core/cid.js'
+import {
+  buildDirectChannelId,
+  buildDirectInboxChannelId,
+  createDirectKeyEnvelope,
+  encryptDirectMessage,
+} from '../../src/core/directChat.js'
 import { MostBoxEngine } from '../../src/index.js'
 import {
   GAME_CHANNEL_TYPE,
@@ -16,6 +22,7 @@ import { createNodeConfigStore } from '../../src/node/config.js'
 import { createNodeLogger } from '../../src/node/logs.js'
 import { buildAuthHeaders } from '../../src/utils/auth.js'
 import { createLoginIdentity } from '../../src/utils/userIdentity.js'
+import { most25519 } from '../../src/utils/mostWallet.js'
 
 const TEST_PORT = 19771
 const baseUrl = 'http://localhost:' + TEST_PORT
@@ -2610,6 +2617,47 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       }
     })
 
+    it('creates hidden direct chat system channels', async () => {
+      const channels = [
+        {
+          name: buildDirectChannelId(
+            TEST_IDENTITY.address,
+            SECOND_IDENTITY.address
+          ),
+          type: 'direct',
+        },
+        {
+          name: buildDirectInboxChannelId(SECOND_IDENTITY.address),
+          type: 'direct-inbox',
+        },
+      ]
+
+      for (const channel of channels) {
+        const res = await fetch(`${baseUrl}/api/channels`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(channel),
+        })
+        const data = await res.json()
+
+        assert.strictEqual(res.status, 200)
+        assert.strictEqual(data.name, channel.name)
+        assert.strictEqual(data.type, channel.type)
+      }
+    })
+
+    it('rejects malformed direct chat system channels', async () => {
+      const res = await fetch(`${baseUrl}/api/channels`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'direct.not-a-hash', type: 'direct' }),
+      })
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 400)
+      assert.match(data.error, /1V1/)
+    })
+
     it('returns existing channel if already created', async () => {
       await engine.createChannel(`dup-${uid}`)
       const res = await fetch(`${baseUrl}/api/channels`, {
@@ -2681,6 +2729,11 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     it('filters dotted system channels by default while preserving type queries', async () => {
       await engine.createChannel(`chat-${uid}`, 'public')
       await engine.createChannel(`game.zhajinhua.${uid}`, 'game')
+      const directName = buildDirectChannelId(
+        TEST_IDENTITY.address,
+        SECOND_IDENTITY.address
+      )
+      await engine.createChannel(directName, 'direct')
 
       const gameRes = await fetch(`${baseUrl}/api/channels?type=game`)
       const gameData = await gameRes.json()
@@ -2693,7 +2746,13 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(chatRes.status, 200)
       assert.ok(chatData.some(c => c.name === `chat-${uid}`))
       assert.ok(!chatData.some(c => c.name === `game.zhajinhua.${uid}`))
+      assert.ok(!chatData.some(c => c.name === directName))
       assert.ok(chatData.every(c => !String(c.name || '').includes('.')))
+
+      const directRes = await fetch(`${baseUrl}/api/channels?type=direct`)
+      const directData = await directRes.json()
+      assert.strictEqual(directRes.status, 200)
+      assert.ok(directData.some(c => c.name === directName))
     })
   })
 
@@ -2716,6 +2775,158 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
 
       assert.strictEqual(res.status, 401)
       assert.strictEqual(data.code, 'LOGIN_REQUIRED')
+    })
+
+    it('requires encrypted direct text and attachment links', async () => {
+      const channelName = buildDirectChannelId(
+        TEST_IDENTITY.address,
+        SECOND_IDENTITY.address
+      )
+      await engine.createChannel(channelName, 'direct')
+
+      const plaintextRes = await fetch(
+        `${baseUrl}/api/channels/${channelName}/messages`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: 'must not be stored',
+            author: TEST_IDENTITY.address,
+            authorName: 'API User',
+          }),
+        }
+      )
+      assert.strictEqual(plaintextRes.status, 400)
+
+      const ciphertext = encryptDirectMessage(
+        'encrypted only',
+        TEST_IDENTITY,
+        most25519(SECOND_IDENTITY.danger).public_key
+      )
+      const encryptedRes = await fetch(
+        `${baseUrl}/api/channels/${channelName}/messages`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: ciphertext,
+            author: TEST_IDENTITY.address,
+            authorName: 'API User',
+          }),
+        }
+      )
+      const data = await encryptedRes.json()
+
+      assert.strictEqual(encryptedRes.status, 200)
+      assert.strictEqual(data.message.content, ciphertext)
+      assert.ok(!data.message.content.includes('encrypted only'))
+
+      for (const plaintext of ['中'.repeat(7000), '😀'.repeat(7000)]) {
+        const unicodeCiphertext = encryptDirectMessage(
+          plaintext,
+          TEST_IDENTITY,
+          most25519(SECOND_IDENTITY.danger).public_key
+        )
+        const unicodeRes = await fetch(
+          `${baseUrl}/api/channels/${channelName}/messages`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              content: unicodeCiphertext,
+              author: TEST_IDENTITY.address,
+              authorName: 'API User',
+            }),
+          }
+        )
+        assert.strictEqual(unicodeRes.status, 200)
+      }
+
+      const fileName = `chat-file/${channelName}/direct.txt`
+      const link = `most://${VALID_MISSING_CID}?filename=${encodeURIComponent(fileName)}`
+      const attachmentRes = await fetch(
+        `${baseUrl}/api/channels/${channelName}/messages`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: link,
+            author: TEST_IDENTITY.address,
+            authorName: 'API User',
+            attachment: {
+              kind: 'file',
+              cid: VALID_MISSING_CID,
+              fileName,
+              link,
+              mimeType: 'text/plain',
+              size: 12,
+            },
+          }),
+        }
+      )
+      assert.strictEqual(attachmentRes.status, 400)
+
+      const encryptedLink = encryptDirectMessage(
+        link,
+        TEST_IDENTITY,
+        most25519(SECOND_IDENTITY.danger).public_key
+      )
+      const encryptedAttachmentRes = await fetch(
+        `${baseUrl}/api/channels/${channelName}/messages`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: encryptedLink,
+            author: TEST_IDENTITY.address,
+            authorName: 'API User',
+          }),
+        }
+      )
+      const attachmentData = await encryptedAttachmentRes.json()
+
+      assert.strictEqual(encryptedAttachmentRes.status, 200)
+      assert.strictEqual(attachmentData.message.content, encryptedLink)
+      assert.strictEqual(attachmentData.message.attachment, undefined)
+      assert.ok(!attachmentData.message.content.includes(link))
+    })
+
+    it('accepts only signed key envelopes in direct inbox channels', async () => {
+      const channelName = buildDirectInboxChannelId(SECOND_IDENTITY.address)
+      await engine.createChannel(channelName, 'direct-inbox')
+
+      const invalidRes = await fetch(
+        `${baseUrl}/api/channels/${channelName}/messages`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: '{}',
+            author: TEST_IDENTITY.address,
+            authorName: 'API User',
+          }),
+        }
+      )
+      assert.strictEqual(invalidRes.status, 400)
+
+      const envelope = await createDirectKeyEnvelope(
+        TEST_IDENTITY,
+        SECOND_IDENTITY.address
+      )
+      const validRes = await fetch(
+        `${baseUrl}/api/channels/${channelName}/messages`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: JSON.stringify(envelope),
+            author: TEST_IDENTITY.address,
+            authorName: 'API User',
+          }),
+        }
+      )
+
+      assert.strictEqual(validRes.status, 200)
     })
 
     it('sends a message to a channel', async () => {
