@@ -5211,6 +5211,19 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
           'p2p direct secret'
         )
 
+        aliceEngine.joinChannelPresence(channelName, {
+          ownerAddress: alice.address,
+          sessionId: 'direct-alice-tab',
+          displayName: 'Alice Direct',
+        })
+        const directPresence = await waitForChannelPresenceAddress(
+          bobEngine,
+          channelName,
+          alice.address,
+          { ownerAddress: bob.address }
+        )
+        assert.strictEqual(directPresence.displayName, 'Alice Direct')
+
         assert.throws(
           () =>
             aliceEngine.sendChannelVoiceEvent(
@@ -5268,6 +5281,68 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
           remoteVoiceEvent.sender.address,
           normalizeDirectAddress(alice.address)
         )
+      } finally {
+        replication?.close()
+        if (aliceEngine) await aliceEngine.stop().catch(() => {})
+        if (bobEngine) await bobEngine.stop().catch(() => {})
+        fs.rmSync(directTmpDir, { recursive: true, force: true })
+      }
+    })
+
+    it('authorizes a direct topic added to an existing peer connection', async () => {
+      const directTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-direct-channel-topic-update-')
+      )
+      const alice = createLoginIdentity(
+        `direct-topic-alice-${uid}`,
+        'password-a'
+      )
+      const bob = createLoginIdentity(`direct-topic-bob-${uid}`, 'password-b')
+      const channelName = buildDirectChannelId(alice.address, bob.address)
+      let aliceEngine
+      let bobEngine
+      let replication
+
+      try {
+        aliceEngine = new MostBoxEngine({
+          dataPath: path.join(directTmpDir, 'alice'),
+          disableNetwork: true,
+        })
+        bobEngine = new MostBoxEngine({
+          dataPath: path.join(directTmpDir, 'bob'),
+          disableNetwork: true,
+        })
+        await aliceEngine.start()
+        await bobEngine.start()
+        replication = aliceEngine.replicateWith(bobEngine)
+
+        await aliceEngine.createChannel(channelName, 'direct', {
+          ownerAddress: alice.address,
+          displayName: 'Alice',
+        })
+        await bobEngine.createChannel(channelName, 'direct', {
+          ownerAddress: bob.address,
+          displayName: 'Bob',
+        })
+
+        const ciphertext = encryptDirectMessage(
+          'direct topic update',
+          alice,
+          most25519(bob.danger).public_key
+        )
+        await aliceEngine.sendMessage(
+          channelName,
+          ciphertext,
+          alice.address,
+          'Alice',
+          { ownerAddress: alice.address }
+        )
+        await waitForChannelMessage(bobEngine, channelName, ciphertext)
+
+        const messages = await bobEngine.getChannelMessages(channelName, {
+          ownerAddress: bob.address,
+        })
+        assert.ok(messages.some(message => message.content === ciphertext))
       } finally {
         replication?.close()
         if (aliceEngine) await aliceEngine.stop().catch(() => {})

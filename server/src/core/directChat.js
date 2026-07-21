@@ -52,6 +52,15 @@ export function isDirectSystemChannel(channelId, type) {
   return false
 }
 
+export function getDirectSystemChannelType(channelId) {
+  const value = String(channelId || '').trim()
+  if (DIRECT_CHANNEL_REGEX.test(value)) return DIRECT_CHANNEL_TYPE
+  if (DIRECT_INBOX_CHANNEL_REGEX.test(value)) {
+    return DIRECT_INBOX_CHANNEL_TYPE
+  }
+  return ''
+}
+
 export function isDirectMessageCiphertext(value) {
   return Boolean(parseMostBoxToken(String(value || '').trim()))
 }

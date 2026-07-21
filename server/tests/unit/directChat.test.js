@@ -10,6 +10,7 @@ import {
   DIRECT_MESSAGE_MAX_LENGTH,
   encryptDirectMessage,
   encryptDirectVoiceEvent,
+  getDirectSystemChannelType,
   isDirectSystemChannel,
   verifyDirectKeyEnvelope,
 } from '../../src/core/directChat.js'
@@ -33,6 +34,9 @@ describe('direct chat protocol', () => {
     assert.match(inbox, /^direct-inbox\.[a-f0-9]{40}$/)
     assert.ok(isDirectSystemChannel(direct, 'direct'))
     assert.ok(isDirectSystemChannel(inbox, 'direct-inbox'))
+    assert.strictEqual(getDirectSystemChannelType(direct), 'direct')
+    assert.strictEqual(getDirectSystemChannelType(inbox), 'direct-inbox')
+    assert.strictEqual(getDirectSystemChannelType('direct.invalid'), '')
   })
 
   it('verifies that an exchanged X25519 key belongs to the address', async () => {
