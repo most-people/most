@@ -40,11 +40,6 @@ import {
   zhTWChatJoinMessages,
 } from './messages/chatJoin'
 import {
-  enFriendMessages,
-  zhCNFriendMessages,
-  zhTWFriendMessages,
-} from './messages/friend'
-import {
   enFilesMessages,
   zhCNFilesMessages,
   zhTWFilesMessages,
@@ -103,7 +98,6 @@ export const zhCNMessages = {
   ...zhCNConnectionMessages,
   ...zhCNChatMessages,
   ...zhCNChatJoinMessages,
-  ...zhCNFriendMessages,
   ...zhCNFilesMessages,
   ...zhCNNoteMessages,
   ...zhCNIdentityMessages,
@@ -125,7 +119,6 @@ export const enMessages = {
   ...enConnectionMessages,
   ...enChatMessages,
   ...enChatJoinMessages,
-  ...enFriendMessages,
   ...enFilesMessages,
   ...enNoteMessages,
   ...enIdentityMessages,
@@ -145,7 +138,6 @@ export const zhTWMessages = {
   ...zhTWConnectionMessages,
   ...zhTWChatMessages,
   ...zhTWChatJoinMessages,
-  ...zhTWFriendMessages,
   ...zhTWFilesMessages,
   ...zhTWNoteMessages,
   ...zhTWIdentityMessages,

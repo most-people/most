@@ -2,7 +2,13 @@
 
 import './text-encoding-shim.mjs'
 import { COMMANDS, EVENTS } from '../rpc-commands.mjs'
-import { createEvent, createJsonLineParser, encodeEvent } from './protocol.mjs'
+import sodium from 'sodium-native'
+import {
+  createEvent,
+  createJsonLineParser,
+  createRandomChannelId,
+  encodeEvent,
+} from './protocol.mjs'
 import { MobileP2PCore } from './mobile-core.mjs'
 
 const { IPC } = BareKit
@@ -94,6 +100,15 @@ async function handleCommand(command) {
           channel,
           snapshot: getCore().getSnapshot(),
         },
+        requestId
+      )
+      return
+    }
+
+    if (command.type === COMMANDS.CHANNEL_ID_CREATE) {
+      send(
+        EVENTS.CHANNEL_ID_CREATED,
+        { channelId: createRandomChannelId(sodium.randombytes_buf) },
         requestId
       )
       return

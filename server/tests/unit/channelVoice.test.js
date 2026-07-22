@@ -104,49 +104,6 @@ describe('channel voice event normalization', () => {
     assert.strictEqual(event.signal.sdp, sdp)
   })
 
-  it('requires opaque encrypted envelopes for direct voice events', () => {
-    const event = normalizeChannelVoiceEvent(
-      `direct.${'a'.repeat(64)}`,
-      {
-        event: 'signal',
-        sessionId: 'voice-local',
-        ciphertext: 'encrypted-token',
-      },
-      {
-        encrypted: true,
-        ownerAddress: OWNER,
-        timestamp: 1700000000300,
-      }
-    )
-
-    assert.strictEqual(event.ciphertext, 'encrypted-token')
-    assert.strictEqual(event.sender.address, OWNER)
-    assert.strictEqual(event.signal, undefined)
-    assert.strictEqual(event.targetSessionId, undefined)
-    assert.throws(
-      () =>
-        normalizeChannelVoiceEvent(
-          `direct.${'a'.repeat(64)}`,
-          { event: 'join', sessionId: 'voice-local' },
-          { encrypted: true, ownerAddress: OWNER }
-        ),
-      /must be encrypted/
-    )
-    assert.throws(
-      () =>
-        normalizeChannelVoiceEvent(
-          'room-168',
-          {
-            event: 'join',
-            sessionId: 'voice-local',
-            ciphertext: 'encrypted-token',
-          },
-          { ownerAddress: OWNER }
-        ),
-      /require a direct channel/
-    )
-  })
-
   it('rejects unsupported events and malformed session identifiers', () => {
     assert.throws(
       () =>

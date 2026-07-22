@@ -99,7 +99,7 @@ export function validateChannelName(
   if (name.length < CHANNEL_NAME_MIN_LENGTH) {
     return {
       valid: false,
-      message: '房间名至少 3 个字符',
+      message: '频道 ID 至少 3 个字符',
       name,
     }
   }
@@ -107,7 +107,7 @@ export function validateChannelName(
   if (name.length > CHANNEL_NAME_MAX_LENGTH) {
     return {
       valid: false,
-      message: '房间名最多 30 个字符',
+      message: '频道 ID 最多 30 个字符',
       name,
     }
   }
@@ -115,7 +115,7 @@ export function validateChannelName(
   if (name.includes('.')) {
     return {
       valid: false,
-      message: '点号为系统保留，不能用于手动房间 ID',
+      message: '点号为系统保留，不能用于手动频道 ID',
       name,
     }
   }
@@ -123,7 +123,7 @@ export function validateChannelName(
   if (!CHANNEL_NAME_REGEX.test(name)) {
     return {
       valid: false,
-      message: '房间名只能包含字母、数字、下划线和连字符',
+      message: '频道 ID 只能包含字母、数字、下划线和连字符',
       name,
     }
   }
@@ -132,6 +132,35 @@ export function validateChannelName(
     valid: true,
     message: '',
     name,
+  }
+}
+
+export function parseChannelJoinInput(value: string) {
+  const input = value.trim()
+  if (!input) return ''
+  if (input.startsWith('#')) return decodeChannelHash(input)
+
+  if (input.includes('://') || input.startsWith('/')) {
+    try {
+      const url = new URL(input, 'https://localhost')
+      if (url.pathname.replace(/\/+$/, '') !== '/chat') return ''
+      return decodeChannelHash(url.hash)
+    } catch {
+      return ''
+    }
+  }
+
+  return input
+}
+
+function decodeChannelHash(hash: string) {
+  const encodedId = hash.replace(/^#/, '')
+  if (!encodedId) return ''
+
+  try {
+    return decodeURIComponent(encodedId).trim()
+  } catch {
+    return ''
   }
 }
 

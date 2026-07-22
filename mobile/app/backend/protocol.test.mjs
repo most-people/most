@@ -16,9 +16,21 @@ import {
   normalizeChannelRecord,
   sortChannelMessages,
 } from './channel-protocol.mjs'
-import { createJsonLineParser } from './protocol.mjs'
+import { createJsonLineParser, createRandomChannelId } from './protocol.mjs'
 
 describe('backend JSON line parser', () => {
+  it('creates a 22-character base64url ID from 16 random bytes', () => {
+    let requestedLength = 0
+    const channelId = createRandomChannelId(bytes => {
+      requestedLength = bytes.length
+      bytes.fill(255)
+    })
+
+    assert.equal(requestedLength, 16)
+    assert.equal(channelId, '_____________________w')
+    assert.match(channelId, /^[A-Za-z0-9_-]{22}$/)
+  })
+
   it('waits for a full newline-delimited command across IPC chunks', () => {
     const messages = []
     const errors = []

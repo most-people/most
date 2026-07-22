@@ -32,7 +32,6 @@ export interface ChannelMessage {
   timestamp: number
   pending?: boolean
   attachment?: ChannelAttachment
-  decryptionFailed?: boolean
 }
 
 export interface Channel {
@@ -48,9 +47,6 @@ export interface Channel {
   type?: string
   peerCount?: number
   pinned?: boolean
-  directPeerAddress?: string
-  directPeerName?: string
-  directStatus?: 'pending' | 'ready'
 }
 
 export interface ChannelPeer {

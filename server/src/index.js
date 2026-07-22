@@ -36,16 +36,6 @@ import {
   selectChannelsForHello,
 } from './core/channelHello.js'
 import { normalizeChannelVoiceEvent } from './core/channelVoice.js'
-import {
-  buildDirectInboxChannelId,
-  DIRECT_CHANNEL_TYPE,
-  DIRECT_INBOX_CHANNEL_TYPE,
-  DIRECT_MESSAGE_MAX_CIPHERTEXT_LENGTH,
-  getDirectSystemChannelType,
-  isDirectMessageCiphertext,
-  isDirectSystemChannel,
-  verifyDirectKeyEnvelope,
-} from './core/directChat.js'
 import { getCidInfo } from './core/cidTopic.js'
 import {
   TRANSIENT_CHANNEL_TYPES,
@@ -399,10 +389,7 @@ export class MostBoxEngine extends EventEmitter {
     this.#ensureInitialized()
     this.#assertChannelMember(channelKeyInput, options.ownerAddress)
     const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
-    const event = normalizeChannelVoiceEvent(channel.channelKey, input, {
-      ...options,
-      encrypted: channel.type === DIRECT_CHANNEL_TYPE,
-    })
+    const event = normalizeChannelVoiceEvent(channel.channelKey, input, options)
     this.#broadcastChannelVoice(event)
     this.emit('channel:voice', event)
     return event
@@ -2557,39 +2544,11 @@ export class MostBoxEngine extends EventEmitter {
     leftChat.on('error', () => {})
     rightChat.on('error', () => {})
     left.pipe(right).pipe(left)
-    const leftPeerInfo = new EventEmitter()
-    leftPeerInfo.topics = []
-    const announcedDirectTopics = new Set()
-    const syncSharedDirectTopics = () => {
-      for (const channel of this.#channels) {
-        const directType = getDirectSystemChannelType(channel.channelId)
-        if (!directType || channel.type !== directType) continue
-        const shared = peerEngine.#channels.some(
-          candidate =>
-            candidate.channelId === channel.channelId &&
-            candidate.type === directType
-        )
-        if (!shared) continue
-
-        const topic = this.#generateChannelChatDiscoveryKey(channel.channelId)
-        const topicHex = b4a.toString(topic, 'hex')
-        if (announcedDirectTopics.has(topicHex)) continue
-        announcedDirectTopics.add(topicHex)
-        leftPeerInfo.topics.push(topic)
-        leftPeerInfo.emit('topic', topic)
-      }
-    }
-    const onChannelJoined = () => syncSharedDirectTopics()
-    this.on('channel:joined', onChannelJoined)
-    peerEngine.on('channel:joined', onChannelJoined)
-    syncSharedDirectTopics()
-    this.#handleChannelConnection(leftChat, leftPeerInfo).catch(() => {})
+    this.#handleChannelConnection(leftChat).catch(() => {})
     peerEngine.#handleChannelConnection(rightChat).catch(() => {})
 
     return {
       close: () => {
-        this.off('channel:joined', onChannelJoined)
-        peerEngine.off('channel:joined', onChannelJoined)
         left.destroy()
         right.destroy()
         leftChat.destroy()
@@ -3516,22 +3475,7 @@ export class MostBoxEngine extends EventEmitter {
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
     const channelId = normalizeChannelId(channelIdInput)
     const channelType = String(type || 'personal').trim() || 'personal'
-    const isDirectChannelType =
-      channelType === DIRECT_CHANNEL_TYPE ||
-      channelType === DIRECT_INBOX_CHANNEL_TYPE
-    const validDirectSystemChannel = isDirectSystemChannel(
-      channelId,
-      channelType
-    )
-
-    if (isDirectChannelType && !validDirectSystemChannel) {
-      throw new Error('无效的 1V1 系统频道')
-    }
-    if (
-      channelId.includes('.') &&
-      channelType !== 'game' &&
-      !validDirectSystemChannel
-    ) {
+    if (channelId.includes('.') && channelType !== 'game') {
       throw new Error('点号为系统保留，不能用于手动频道 ID')
     }
     if (
@@ -3540,17 +3484,13 @@ export class MostBoxEngine extends EventEmitter {
     ) {
       throw new Error('游戏频道必须使用 game.<gameId>.<roomCode> 格式')
     }
-    if (
-      channelType !== 'game' &&
-      !isDirectChannelType &&
-      !CHANNEL_NAME_REGEX.test(channelId)
-    ) {
+    if (channelType !== 'game' && !CHANNEL_NAME_REGEX.test(channelId)) {
       throw new Error('频道名只能包含字母、数字、下划线和连字符')
     }
-    if (!isDirectChannelType && channelId.length < CHANNEL_NAME_MIN_LENGTH) {
+    if (channelType !== 'game' && channelId.length < CHANNEL_NAME_MIN_LENGTH) {
       throw new Error(`频道名至少 ${CHANNEL_NAME_MIN_LENGTH} 个字符`)
     }
-    if (!isDirectChannelType && channelId.length > CHANNEL_NAME_MAX_LENGTH) {
+    if (channelType !== 'game' && channelId.length > CHANNEL_NAME_MAX_LENGTH) {
       throw new Error(`频道名最多 ${CHANNEL_NAME_MAX_LENGTH} 个字符`)
     }
 
@@ -3957,38 +3897,8 @@ export class MostBoxEngine extends EventEmitter {
 
     const trimmed = content.trim()
     const authorAddress = normalizeOwnerAddress(author)
-    if (options.type !== 'system' && channel.type === DIRECT_CHANNEL_TYPE) {
-      if (options.attachment) {
-        throw new ValidationError(
-          'direct attachment links must be encrypted as messages'
-        )
-      }
-      if (!isDirectMessageCiphertext(trimmed)) {
-        throw new ValidationError('direct messages must be encrypted')
-      }
-      if (options.mentions?.length) {
-        throw new ValidationError('direct messages do not support mentions')
-      }
-    }
-    if (
-      options.type !== 'system' &&
-      channel.type === DIRECT_INBOX_CHANNEL_TYPE
-    ) {
-      const envelope = verifyDirectKeyEnvelope(trimmed)
-      if (
-        !envelope ||
-        envelope.fromAddress !== authorAddress ||
-        buildDirectInboxChannelId(envelope.toAddress) !== channel.channelId
-      ) {
-        throw new ValidationError('invalid direct key envelope')
-      }
-    }
-    const messageMaxLength =
-      channel.type === DIRECT_CHANNEL_TYPE
-        ? DIRECT_MESSAGE_MAX_CIPHERTEXT_LENGTH
-        : MAX_MESSAGE_LENGTH
-    if (trimmed.length > messageMaxLength) {
-      throw new Error(`消息内容不能超过 ${messageMaxLength} 字符`)
+    if (trimmed.length > MAX_MESSAGE_LENGTH) {
+      throw new Error(`消息内容不能超过 ${MAX_MESSAGE_LENGTH} 字符`)
     }
     const clientMessageId = normalizeClientMessageId(options.clientMessageId, {
       strict: hasOwnProperty(options, 'clientMessageId'),
@@ -6695,8 +6605,7 @@ export class MostBoxEngine extends EventEmitter {
           })
           .filter(
             channel =>
-              (CHANNEL_NAME_REGEX.test(channel.channelId) ||
-                isDirectSystemChannel(channel.channelId, channel.type)) &&
+              CHANNEL_NAME_REGEX.test(channel.channelId) &&
               channel.channelKey === channel.expectedChannelKey &&
               channel.writerId &&
               channel.localWriterCoreKey
@@ -6855,76 +6764,8 @@ export class MostBoxEngine extends EventEmitter {
     }
   }
 
-  #isLocallyRelevantDirectChannel(channelIdInput) {
-    const channelId = normalizeChannelId(channelIdInput)
-    const directType = getDirectSystemChannelType(channelId)
-    if (!directType) return false
-    return (
-      this.#channelIdDiscoveries.has(channelId) ||
-      this.#channels.some(
-        channel =>
-          channel.channelId === channelId && channel.type === directType
-      )
-    )
-  }
-
-  #getDirectChannelIdsForTopics(topics = []) {
-    const topicHexes = new Set()
-    for (const topic of topics) {
-      try {
-        const topicHex =
-          typeof topic === 'string'
-            ? topic.trim().toLowerCase()
-            : b4a.toString(topic, 'hex')
-        if (/^[a-f0-9]{64}$/.test(topicHex)) topicHexes.add(topicHex)
-      } catch {}
-    }
-    if (topicHexes.size === 0) return []
-
-    const directChannelIds = uniqueStrings([
-      ...this.#channels.flatMap(channel =>
-        channel.type === getDirectSystemChannelType(channel.channelId)
-          ? [channel.channelId]
-          : []
-      ),
-      ...[...this.#channelIdDiscoveries.keys()].filter(channelId =>
-        getDirectSystemChannelType(channelId)
-      ),
-    ])
-
-    return directChannelIds.filter(channelId => {
-      const chatTopic = b4a.toString(
-        this.#generateChannelChatDiscoveryKey(channelId),
-        'hex'
-      )
-      const idTopic = b4a.toString(
-        this.#generateChannelIdDiscoveryKey(channelId),
-        'hex'
-      )
-      return topicHexes.has(chatTopic) || topicHexes.has(idTopic)
-    })
-  }
-
-  #authorizeDirectChannelIds(connectionState, channelIds = []) {
-    let changed = false
-    for (const channelIdInput of channelIds) {
-      const channelId = normalizeChannelId(channelIdInput)
-      if (
-        !connectionState.directChannelIds.has(channelId) &&
-        this.#isLocallyRelevantDirectChannel(channelId)
-      ) {
-        connectionState.directChannelIds.add(channelId)
-        changed = true
-      }
-    }
-    return changed
-  }
-
-  #buildChannelHelloMessage(authorizedDirectChannelIds = new Set()) {
-    const selectedChannels = selectChannelsForHello(
-      this.#channels,
-      authorizedDirectChannelIds
-    )
+  #buildChannelHelloMessage() {
+    const selectedChannels = selectChannelsForHello(this.#channels)
     const channels = selectedChannels.map(channel => ({
       channelId: channel.channelId,
       channelKey: channel.channelKey,
@@ -6937,28 +6778,6 @@ export class MostBoxEngine extends EventEmitter {
         this.#channelLocalCoreKey.get(channel.channelKey),
       ]),
     }))
-    const includedChannelIds = new Set(
-      selectedChannels.map(channel => channel.channelId)
-    )
-    for (const channelId of authorizedDirectChannelIds) {
-      const directType = getDirectSystemChannelType(channelId)
-      if (
-        !directType ||
-        includedChannelIds.has(channelId) ||
-        !this.#isLocallyRelevantDirectChannel(channelId)
-      ) {
-        continue
-      }
-      channels.push({
-        channelId,
-        channelKey: buildChannelKey(channelId),
-        type: directType,
-        createdAt: '',
-        lastMessageAt: '',
-        memberAddresses: [],
-        writerCoreKeys: [],
-      })
-    }
     return {
       type: 'channel-hello',
       peerId: this.getNodeId(),
@@ -6968,13 +6787,6 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #removeChannelStream(stream) {
-    const connectionState = this.#channelStreams.get(stream)
-    if (
-      connectionState?.onTopic &&
-      typeof connectionState.peerInfo?.off === 'function'
-    ) {
-      connectionState.peerInfo.off('topic', connectionState.onTopic)
-    }
     this.#channelStreams.delete(stream)
   }
 
@@ -6984,12 +6796,7 @@ export class MostBoxEngine extends EventEmitter {
       return false
     }
     try {
-      const connectionState = this.#channelStreams.get(stream)
-      stream.write(
-        `${JSON.stringify(
-          this.#buildChannelHelloMessage(connectionState?.directChannelIds)
-        )}\n`
-      )
+      stream.write(`${JSON.stringify(this.#buildChannelHelloMessage())}\n`)
       return true
     } catch {
       this.#removeChannelStream(stream)
@@ -7033,13 +6840,8 @@ export class MostBoxEngine extends EventEmitter {
 
   #broadcastChannelPresence(event) {
     const channelId = normalizeChannelId(event?.channelId || event?.channelKey)
-    for (const [stream, connectionState] of [...this.#channelStreams]) {
-      if (
-        !isChannelAllowedForConnection(
-          channelId,
-          connectionState.directChannelIds
-        )
-      ) {
+    for (const stream of [...this.#channelStreams.keys()]) {
+      if (!isChannelAllowedForConnection(channelId)) {
         continue
       }
       this.#sendChannelPresence(stream, event)
@@ -7068,49 +6870,35 @@ export class MostBoxEngine extends EventEmitter {
 
   #broadcastChannelVoice(event) {
     const channelId = normalizeChannelId(event?.channelId || event?.channelKey)
-    for (const [stream, connectionState] of [...this.#channelStreams]) {
-      if (
-        !isChannelAllowedForConnection(
-          channelId,
-          connectionState.directChannelIds
-        )
-      ) {
+    for (const stream of [...this.#channelStreams.keys()]) {
+      if (!isChannelAllowedForConnection(channelId)) {
         continue
       }
       this.#sendChannelVoice(stream, event)
     }
   }
 
-  async #processChannelHelloMessage(msg, stream, connectionState) {
+  async #processChannelHelloMessage(msg) {
     if (msg.type !== 'channel-hello') return null
 
     const onlineChannels = []
     const remoteChannels = []
-    let directAuthorizationChanged = false
     for (const channel of Array.isArray(msg.channels) ? msg.channels : []) {
       if (!channel || typeof channel !== 'object') continue
       const channelId = normalizeChannelId(channel.channelId)
       const declaredType = String(channel.type || 'public').trim() || 'public'
-      const directType = getDirectSystemChannelType(channelId)
-      const claimsDirect =
-        declaredType === DIRECT_CHANNEL_TYPE ||
-        declaredType === DIRECT_INBOX_CHANNEL_TYPE
       if (
         !channelId ||
-        (directType && declaredType !== directType) ||
-        (!directType && claimsDirect)
+        !isChannelAllowedForConnection(channelId) ||
+        declaredType === 'direct' ||
+        declaredType === 'direct-inbox'
       ) {
         continue
-      }
-      if (directType && !connectionState.directChannelIds.has(channelId)) {
-        if (!this.#isLocallyRelevantDirectChannel(channelId)) continue
-        connectionState.directChannelIds.add(channelId)
-        directAuthorizationChanged = true
       }
       remoteChannels.push({
         channelId,
         channelKey: buildChannelKey(channelId),
-        type: directType || declaredType,
+        type: declaredType,
         createdAt:
           typeof channel.createdAt === 'string' ? channel.createdAt : '',
         lastMessageAt:
@@ -7175,12 +6963,10 @@ export class MostBoxEngine extends EventEmitter {
       channels: onlineChannels,
     })
 
-    if (directAuthorizationChanged) this.#sendChannelHello(stream)
-
     return msg.peerId
   }
 
-  #processChannelPresenceMessage(msg, connectionState) {
+  #processChannelPresenceMessage(msg) {
     if (msg.type !== 'channel-presence') return null
     const peerId = String(msg.peerId || '').trim()
     if (!peerId || peerId === this.getNodeId()) return null
@@ -7190,12 +6976,7 @@ export class MostBoxEngine extends EventEmitter {
       channel => channel.channelKey === channelKey
     )
     if (!localChannel) return peerId
-    if (
-      !isChannelAllowedForConnection(
-        localChannel.channelId,
-        connectionState.directChannelIds
-      )
-    ) {
+    if (!isChannelAllowedForConnection(localChannel.channelId)) {
       return peerId
     }
 
@@ -7227,7 +7008,7 @@ export class MostBoxEngine extends EventEmitter {
     return peerId
   }
 
-  #processChannelVoiceMessage(msg, connectionState) {
+  #processChannelVoiceMessage(msg) {
     if (msg.type !== 'channel-voice') return null
     const peerId = String(msg.peerId || '').trim()
     if (!peerId || peerId === this.getNodeId()) return null
@@ -7237,18 +7018,12 @@ export class MostBoxEngine extends EventEmitter {
       channel => channel.channelKey === channelKey
     )
     if (!localChannel) return peerId
-    if (
-      !isChannelAllowedForConnection(
-        localChannel.channelId,
-        connectionState.directChannelIds
-      )
-    ) {
+    if (!isChannelAllowedForConnection(localChannel.channelId)) {
       return peerId
     }
 
     try {
       const event = normalizeChannelVoiceEvent(channelKey, msg, {
-        encrypted: localChannel.type === DIRECT_CHANNEL_TYPE,
         timestamp: msg.timestamp,
       })
       this.emit('channel:voice', event)
@@ -7256,32 +7031,12 @@ export class MostBoxEngine extends EventEmitter {
     return peerId
   }
 
-  async #handleChannelConnection(conn, peerInfo = null) {
+  async #handleChannelConnection(conn) {
     const stream = conn
     let connectedPeerId = null
     let readBuffer = Buffer.alloc(0)
     let closed = false
-    const connectionState = {
-      directChannelIds: new Set(),
-      peerInfo,
-      onTopic: null,
-    }
-
-    this.#authorizeDirectChannelIds(
-      connectionState,
-      this.#getDirectChannelIdsForTopics(peerInfo?.topics)
-    )
-    if (typeof peerInfo?.on === 'function') {
-      connectionState.onTopic = topic => {
-        const changed = this.#authorizeDirectChannelIds(
-          connectionState,
-          this.#getDirectChannelIdsForTopics([topic])
-        )
-        if (changed) this.#sendChannelHello(stream)
-      }
-      peerInfo.on('topic', connectionState.onTopic)
-    }
-    this.#channelStreams.set(stream, connectionState)
+    this.#channelStreams.set(stream, true)
     if (!this.#sendChannelHello(stream)) return
 
     stream.on('data', async data => {
@@ -7302,14 +7057,10 @@ export class MostBoxEngine extends EventEmitter {
           const message = JSON.parse(line)
           const peerId =
             message.type === 'channel-presence'
-              ? this.#processChannelPresenceMessage(message, connectionState)
+              ? this.#processChannelPresenceMessage(message)
               : message.type === 'channel-voice'
-                ? this.#processChannelVoiceMessage(message, connectionState)
-                : await this.#processChannelHelloMessage(
-                    message,
-                    stream,
-                    connectionState
-                  )
+                ? this.#processChannelVoiceMessage(message)
+                : await this.#processChannelHelloMessage(message)
           if (peerId) connectedPeerId = peerId
         } catch (err) {
           console.warn(`[MostBox] Failed to process channel data:`, err.message)

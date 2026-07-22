@@ -9,7 +9,6 @@ import {
   MessagesSquare,
   NotebookPen,
   Server,
-  UserRound,
   Wallet,
 } from 'lucide-react'
 import { useIsDesktopClient } from '~/hooks'
@@ -17,7 +16,7 @@ import { useAppStore } from '~/stores/useAppStore'
 import { useI18n, type MessageKey } from '~/lib/i18n'
 
 type InternalRoutePath =
-  '/app/' | '/chat/' | '/friend/' | '/note/' | '/game/gandengyan/' | '/web3/'
+  '/app/' | '/chat/' | '/note/' | '/game/gandengyan/' | '/web3/'
 
 interface FeatureDef {
   id: string
@@ -49,15 +48,6 @@ const features: FeatureDef[] = [
     requiresBackend: true,
   },
   {
-    id: 'friend',
-    titleKey: 'portal.feature.friend.title',
-    subtitleKey: 'portal.feature.friend.subtitle',
-    descKey: 'portal.feature.friend.desc',
-    icon: <UserRound size={28} />,
-    path: '/friend/',
-    requiresBackend: true,
-  },
-  {
     id: 'note',
     titleKey: 'portal.feature.note.title',
     subtitleKey: 'portal.feature.note.subtitle',
@@ -86,7 +76,7 @@ const features: FeatureDef[] = [
   },
 ]
 
-const featureOrder = ['app', 'chat', 'friend', 'note', 'gandengyan', 'web3']
+const featureOrder = ['app', 'chat', 'note', 'gandengyan', 'web3']
 
 type PortalBackendStatus = 'checking' | 'connected' | 'disconnected'
 

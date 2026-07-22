@@ -13,6 +13,7 @@ import {
   getMessageSummary,
   hasUnreadChannel,
   markChannelRead,
+  parseChannelJoinInput,
   sortChannelsForChatList,
   sortMessagesForDisplay,
   validateChannelName,
@@ -59,24 +60,37 @@ describe('Android chat state helpers', () => {
     })
     assert.deepEqual(validateChannelName('ab'), {
       valid: false,
-      message: '房间名至少 3 个字符',
+      message: '频道 ID 至少 3 个字符',
       name: 'ab',
     })
     assert.deepEqual(validateChannelName('a'.repeat(31)), {
       valid: false,
-      message: '房间名最多 30 个字符',
+      message: '频道 ID 最多 30 个字符',
       name: 'a'.repeat(31),
     })
     assert.deepEqual(validateChannelName('room.01'), {
       valid: false,
-      message: '点号为系统保留，不能用于手动房间 ID',
+      message: '点号为系统保留，不能用于手动频道 ID',
       name: 'room.01',
     })
     assert.deepEqual(validateChannelName('中文房间'), {
       valid: false,
-      message: '房间名只能包含字母、数字、下划线和连字符',
+      message: '频道 ID 只能包含字母、数字、下划线和连字符',
       name: '中文房间',
     })
+  })
+
+  it('parses raw channel IDs and /chat/# share links', () => {
+    assert.equal(parseChannelJoinInput(' room_01-A '), 'room_01-A')
+    assert.equal(
+      parseChannelJoinInput('https://most.example/chat/#room_01-A'),
+      'room_01-A'
+    )
+    assert.equal(parseChannelJoinInput('/chat/#room_01-A'), 'room_01-A')
+    assert.equal(
+      parseChannelJoinInput('https://most.example/files/#room_01-A'),
+      ''
+    )
   })
 
   it('sorts pinned channels before recent channels without mutating input', () => {

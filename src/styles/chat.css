@@ -623,10 +623,20 @@
 }
 
 .chat-create-actions {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 6px;
   padding: 8px;
+}
+
+.channel-detail-copy-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.channel-detail-copy-actions .btn {
+  min-width: 0;
+  padding-inline: 8px;
+  font-size: 12px;
 }
 
 .chat-create-actions .create-channel-btn {
@@ -657,11 +667,6 @@
 
 .chat-header-title-row svg.is-ready {
   color: var(--success);
-}
-
-.chat-direct-decryption-error {
-  color: var(--text-muted);
-  font-style: italic;
 }
 
 /* === Channel List === */

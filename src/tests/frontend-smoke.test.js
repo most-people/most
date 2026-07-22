@@ -30,9 +30,11 @@ const SOURCE_PATHS = {
   fileApi: 'src/lib/fileApi.ts',
   files: 'src/features/files/AppPage.tsx',
   chat: 'src/features/chat/ChatPage.tsx',
-  friendPage: 'src/features/friend/FriendPage.tsx',
-  friendMessaging: 'src/features/chat/ChannelMessagingPage.tsx',
-  friendMessages: 'src/lib/i18n/messages/friend.ts',
+  chatJoin: 'src/features/chat/ChatJoinPage.tsx',
+  chatRoom: 'src/lib/chatRoom.js',
+  inputModal: 'src/components/ui/InputModal.tsx',
+  mobileChatList: 'mobile/app/src/features/chat/ChatListScreen.tsx',
+  featurePortal: 'src/components/FeaturePortal.tsx',
   hooks: 'src/hooks/index.ts',
   appCss: 'src/styles/app.css',
 }
@@ -128,17 +130,11 @@ describe('frontend smoke checks', () => {
 
     assert.deepEqual(
       routes.filter(route =>
-        [
-          '/',
-          '/app/',
-          '/chat/',
-          '/download/',
-          '/friend/',
-          '/note/',
-          '/web3/',
-        ].includes(route)
+        ['/', '/app/', '/chat/', '/download/', '/note/', '/web3/'].includes(
+          route
+        )
       ),
-      ['/', '/app/', '/chat/', '/download/', '/friend/', '/note/', '/web3/']
+      ['/', '/app/', '/chat/', '/download/', '/note/', '/web3/']
     )
     assert.ok(routes.includes('/game/gandengyan/'))
     assert.ok(routes.includes('/game/zhajinhua/'))
@@ -992,64 +988,51 @@ describe('frontend smoke checks', () => {
     )
   })
 
-  it('keeps chat and encrypted friends on separate pages', () => {
+  it('uses one open-channel flow for hash-based chat capabilities', () => {
     const chatSource = readSource(SOURCE_PATHS.chat)
-    const friendPageSource = readSource(SOURCE_PATHS.friendPage)
-    const friendMessagingSource = readSource(SOURCE_PATHS.friendMessaging)
+    const chatJoinSource = readSource(SOURCE_PATHS.chatJoin)
+    const chatRoomSource = readSource(SOURCE_PATHS.chatRoom)
+    const inputModalSource = readSource(SOURCE_PATHS.inputModal)
+    const mobileChatListSource = readSource(SOURCE_PATHS.mobileChatList)
 
-    assert.match(friendPageSource, /<ChannelMessagingPage mode="friend" \/>/)
+    assert.match(chatRoomSource, /new Uint8Array\(16\)/)
+    assert.match(chatRoomSource, /buildChatSharePath/)
+    assert.match(
+      chatRoomSource,
+      /`\/chat\/#\$\{encodeURIComponent\(channelId\)\}`/
+    )
+    assert.match(chatSource, /getChannelIdFromHash\(window\.location\.hash\)/)
+    assert.match(chatSource, /window\.addEventListener\('hashchange'/)
+    assert.match(chatSource, /createRandomChannelId\(\)/)
+    assert.match(chatSource, /parseChatChannelInput/)
+    assert.match(chatSource, /chat\.openChannel/)
+    assert.match(inputModalSource, /onGenerateValue/)
+    assert.match(mobileChatListSource, /onGenerateChannelId/)
+    assert.match(mobileChatListSource, /onOpenChannelId/)
     assert.doesNotMatch(
-      chatSource,
-      /useDirectContacts|DIRECT_CHANNEL_TYPE|directPeerAddress/
+      `${chatSource}\n${mobileChatListSource}`,
+      /chat\.createChannel|chat\.joinChannel|onCreateChannel|onJoinChannel/
     )
-    assert.match(
-      friendMessagingSource,
-      /const isFriendMode = mode === 'friend'/
-    )
-    assert.match(
-      friendMessagingSource,
-      /isFriendMode\s*\? \(await channelApi\.getChannels\(\{ type: 'direct' \}\)\)/
-    )
-    assert.match(
-      friendMessagingSource,
-      /isReady: isFriendMode && isBackendReady/
-    )
-    assert.match(friendMessagingSource, /\?address=/)
+    assert.doesNotMatch(`${chatSource}\n${chatJoinSource}`, /\?channel=/)
   })
 
-  it('keeps direct chats encrypted across text, attachments, and voice', () => {
-    const chatSource = readSource(SOURCE_PATHS.friendMessaging)
-    const chatCssSource = readSource('src/styles/chat.css')
-    const friendMessagesSource = readSource(SOURCE_PATHS.friendMessages)
+  it('removes the friend feature without a redirect', () => {
+    const portalSource = readSource(SOURCE_PATHS.featurePortal)
 
-    assert.match(
-      friendMessagesSource,
-      /'friend\.pending': '等待对方上线完成密钥交换'/
+    assert.ok(
+      !fs.existsSync(path.join(repoRootPath, 'src/routes/friend/index.tsx'))
     )
-    assert.match(
-      friendMessagesSource,
-      /'friend\.composer\.pending': '密钥交换完成后即可发送消息'/
+    assert.ok(
+      !fs.existsSync(
+        path.join(repoRootPath, 'src/features/friend/FriendPage.tsx')
+      )
     )
-    assert.match(
-      chatCssSource,
-      /\.chat-create-actions\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/
+    assert.ok(
+      !fs.existsSync(
+        path.join(repoRootPath, 'src/features/chat/ChannelMessagingPage.tsx')
+      )
     )
-    assert.match(
-      chatSource,
-      /transmittedContent = encryptDirectMessage\([\s\S]*transmittedAttachment = undefined/
-    )
-    assert.match(chatSource, /getDirectAttachmentFromLink\(content\)/)
-    assert.match(chatSource, /directPeerPublicKey:/)
-    assert.match(chatSource, /showVoiceRoom=\{!isInviteUser\}/)
-    assert.doesNotMatch(chatSource, /showAttachments=\{!isDirectChat\}/)
-    assert.match(
-      chatSource,
-      /isDirectSystemChannel\(requestedChannelName, DIRECT_CHANNEL_TYPE\)[\s\S]*return[\s\S]*const attemptKey/
-    )
-    assert.match(
-      chatSource,
-      /validate=\{getChannelNameValidationError\}[\s\S]*onConfirm=\{handleJoinChannel\}/
-    )
+    assert.doesNotMatch(portalSource, /friend|\/friend\//i)
   })
 
   it('keeps the admin console connected to local seeding visibility', () => {

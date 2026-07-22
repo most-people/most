@@ -129,19 +129,6 @@ export function normalizeChannelVoiceEvent(
     timestamp: Number(options.timestamp) || Date.now(),
   }
 
-  const ciphertext = String(input.ciphertext || '').trim()
-  if (options.encrypted === true) {
-    if (!ciphertext) {
-      throw new ValidationError('direct voice events must be encrypted')
-    }
-    normalized.ciphertext = ciphertext
-    assertPayloadSize(normalized, 'encrypted voice event is too large')
-    return normalized
-  }
-  if (ciphertext) {
-    throw new ValidationError('encrypted voice events require a direct channel')
-  }
-
   const displayName = normalizeChannelDisplayName(
     input.displayName ?? inputSender.displayName,
     senderAddress

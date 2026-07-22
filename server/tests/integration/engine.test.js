@@ -14,21 +14,12 @@ import { MostBoxEngine } from '../../src/index.js'
 import { calculateCid, calculateDirectoryCid } from '../../src/core/cid.js'
 import { getCidInfo } from '../../src/core/cidTopic.js'
 import {
-  buildDirectChannelId,
-  decryptDirectMessage,
-  encryptDirectMessage,
-  encryptDirectVoiceEvent,
-  normalizeDirectAddress,
-} from '../../src/core/directChat.js'
-import {
   GAME_CHANNEL_TYPE,
   createGameEvent,
   deriveGameRoomLobby,
   gameRoomCodeToChannelName,
 } from '../../src/core/gameRoom.js'
 import { GLOBAL_SHARED_SEED_STRING } from '../../src/config.js'
-import { createLoginIdentity } from '../../src/utils/userIdentity.js'
-import { most25519 } from '../../src/utils/mostWallet.js'
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -5131,226 +5122,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       }
     })
 
-    it('replicates only ciphertext that the direct recipient can decrypt', async () => {
-      const directTmpDir = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'most-direct-channel-replication-')
-      )
-      const alice = createLoginIdentity(`direct-alice-${uid}`, 'password-a')
-      const bob = createLoginIdentity(`direct-bob-${uid}`, 'password-b')
-      const channelName = buildDirectChannelId(alice.address, bob.address)
-      let aliceEngine
-      let bobEngine
-      let replication
-
-      try {
-        aliceEngine = new MostBoxEngine({
-          dataPath: path.join(directTmpDir, 'alice'),
-          disableNetwork: true,
-        })
-        bobEngine = new MostBoxEngine({
-          dataPath: path.join(directTmpDir, 'bob'),
-          disableNetwork: true,
-        })
-        await aliceEngine.start()
-        await bobEngine.start()
-
-        const aliceChannel = await aliceEngine.createChannel(
-          channelName,
-          'direct',
-          { ownerAddress: alice.address, displayName: 'Alice' }
-        )
-        const bobChannel = await bobEngine.createChannel(
-          channelName,
-          'direct',
-          {
-            ownerAddress: bob.address,
-            displayName: 'Bob',
-          }
-        )
-        await aliceEngine.joinChannel(
-          channelName,
-          toChannelCandidate(bobChannel),
-          { ownerAddress: alice.address, displayName: 'Alice' }
-        )
-        await bobEngine.joinChannel(
-          channelName,
-          toChannelCandidate(aliceChannel),
-          { ownerAddress: bob.address, displayName: 'Bob' }
-        )
-
-        const ciphertext = encryptDirectMessage(
-          'p2p direct secret',
-          alice,
-          most25519(bob.danger).public_key
-        )
-        await aliceEngine.sendMessage(
-          channelName,
-          ciphertext,
-          alice.address,
-          'Alice',
-          { ownerAddress: alice.address }
-        )
-
-        replication = aliceEngine.replicateWith(bobEngine)
-        await waitForChannelMessage(bobEngine, channelName, ciphertext)
-        const messages = await bobEngine.getChannelMessages(channelName, {
-          ownerAddress: bob.address,
-        })
-        const directMessage = messages.find(
-          message => message.content === ciphertext
-        )
-
-        assert.ok(directMessage)
-        assert.ok(!directMessage.content.includes('p2p direct secret'))
-        assert.strictEqual(
-          decryptDirectMessage(directMessage.content, {
-            identity: bob,
-            peerPublicKey: most25519(alice.danger).public_key,
-            authorAddress: alice.address,
-          }),
-          'p2p direct secret'
-        )
-
-        aliceEngine.joinChannelPresence(channelName, {
-          ownerAddress: alice.address,
-          sessionId: 'direct-alice-tab',
-          displayName: 'Alice Direct',
-        })
-        const directPresence = await waitForChannelPresenceAddress(
-          bobEngine,
-          channelName,
-          alice.address,
-          { ownerAddress: bob.address }
-        )
-        assert.strictEqual(directPresence.displayName, 'Alice Direct')
-
-        assert.throws(
-          () =>
-            aliceEngine.sendChannelVoiceEvent(
-              channelName,
-              { event: 'join', sessionId: 'voice-alice' },
-              { ownerAddress: alice.address }
-            ),
-          /must be encrypted/
-        )
-        const voiceCiphertext = encryptDirectVoiceEvent(
-          {
-            event: 'join',
-            sessionId: 'voice-alice',
-            sender: { address: alice.address },
-            timestamp: Date.now(),
-          },
-          alice,
-          most25519(bob.danger).public_key
-        )
-        const replicatedVoiceEvent = new Promise((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            bobEngine.off('channel:voice', onVoice)
-            reject(new Error('Timed out waiting for encrypted voice event'))
-          }, 2000)
-          const onVoice = event => {
-            if (
-              event.channelKey !== channelName ||
-              event.ciphertext !== voiceCiphertext
-            ) {
-              return
-            }
-            clearTimeout(timeout)
-            bobEngine.off('channel:voice', onVoice)
-            resolve(event)
-          }
-          bobEngine.on('channel:voice', onVoice)
-        })
-        const voiceEvent = aliceEngine.sendChannelVoiceEvent(
-          channelName,
-          {
-            event: 'join',
-            sessionId: 'voice-alice',
-            ciphertext: voiceCiphertext,
-          },
-          { ownerAddress: alice.address }
-        )
-        assert.strictEqual(voiceEvent.ciphertext, voiceCiphertext)
-        assert.strictEqual(
-          voiceEvent.sender.address,
-          normalizeDirectAddress(alice.address)
-        )
-        const remoteVoiceEvent = await replicatedVoiceEvent
-        assert.strictEqual(remoteVoiceEvent.ciphertext, voiceCiphertext)
-        assert.strictEqual(
-          remoteVoiceEvent.sender.address,
-          normalizeDirectAddress(alice.address)
-        )
-      } finally {
-        replication?.close()
-        if (aliceEngine) await aliceEngine.stop().catch(() => {})
-        if (bobEngine) await bobEngine.stop().catch(() => {})
-        fs.rmSync(directTmpDir, { recursive: true, force: true })
-      }
-    })
-
-    it('authorizes a direct topic added to an existing peer connection', async () => {
-      const directTmpDir = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'most-direct-channel-topic-update-')
-      )
-      const alice = createLoginIdentity(
-        `direct-topic-alice-${uid}`,
-        'password-a'
-      )
-      const bob = createLoginIdentity(`direct-topic-bob-${uid}`, 'password-b')
-      const channelName = buildDirectChannelId(alice.address, bob.address)
-      let aliceEngine
-      let bobEngine
-      let replication
-
-      try {
-        aliceEngine = new MostBoxEngine({
-          dataPath: path.join(directTmpDir, 'alice'),
-          disableNetwork: true,
-        })
-        bobEngine = new MostBoxEngine({
-          dataPath: path.join(directTmpDir, 'bob'),
-          disableNetwork: true,
-        })
-        await aliceEngine.start()
-        await bobEngine.start()
-        replication = aliceEngine.replicateWith(bobEngine)
-
-        await aliceEngine.createChannel(channelName, 'direct', {
-          ownerAddress: alice.address,
-          displayName: 'Alice',
-        })
-        await bobEngine.createChannel(channelName, 'direct', {
-          ownerAddress: bob.address,
-          displayName: 'Bob',
-        })
-
-        const ciphertext = encryptDirectMessage(
-          'direct topic update',
-          alice,
-          most25519(bob.danger).public_key
-        )
-        await aliceEngine.sendMessage(
-          channelName,
-          ciphertext,
-          alice.address,
-          'Alice',
-          { ownerAddress: alice.address }
-        )
-        await waitForChannelMessage(bobEngine, channelName, ciphertext)
-
-        const messages = await bobEngine.getChannelMessages(channelName, {
-          ownerAddress: bob.address,
-        })
-        assert.ok(messages.some(message => message.content === ciphertext))
-      } finally {
-        replication?.close()
-        if (aliceEngine) await aliceEngine.stop().catch(() => {})
-        if (bobEngine) await bobEngine.stop().catch(() => {})
-        fs.rmSync(directTmpDir, { recursive: true, force: true })
-      }
-    })
-
     it('deduplicates the same member-joined system message from multiple writer cores', async () => {
       const joinTmpDir = fs.mkdtempSync(
         path.join(os.tmpdir(), 'most-channel-join-dedupe-test-')
@@ -5749,13 +5520,12 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       }
     })
 
-    it('persists direct system channels across restart', async () => {
+    it('ignores legacy direct channel metadata without deleting it', async () => {
       const restartTmpDir = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'most-direct-channel-persist-')
+        path.join(os.tmpdir(), 'most-legacy-direct-channel-')
       )
       const restartDataPath = path.join(restartTmpDir, 'data')
-      const directName = `direct.${'a'.repeat(64)}`
-      const inboxName = `direct-inbox.${'b'.repeat(40)}`
+      const metadataPath = path.join(restartDataPath, 'channels.json')
       let restartEngine
 
       try {
@@ -5764,9 +5534,25 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
           disableNetwork: true,
         })
         await restartEngine.start()
-        await restartEngine.createChannel(directName, 'direct')
-        await restartEngine.createChannel(inboxName, 'direct-inbox')
+        await restartEngine.createChannel(`persist-chat-${uid}`, 'public')
         await restartEngine.stop()
+
+        const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf-8'))
+        const template = metadata[0]
+        const legacyChannels = [
+          { id: `direct.${'a'.repeat(64)}`, type: 'direct' },
+          { id: `direct-inbox.${'b'.repeat(40)}`, type: 'direct-inbox' },
+        ]
+        for (const legacy of legacyChannels) {
+          metadata.push({
+            ...template,
+            channelId: legacy.id,
+            channelKey: legacy.id,
+            name: legacy.id,
+            type: legacy.type,
+          })
+        }
+        fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2))
 
         restartEngine = new MostBoxEngine({
           dataPath: restartDataPath,
@@ -5776,14 +5562,12 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
 
         assert.ok(
           restartEngine
-            .listChannels({ type: 'direct' })
-            .some(channel => channel.name === directName)
+            .listChannels({ includeSystem: true })
+            .every(channel => !channel.name.startsWith('direct'))
         )
-        assert.ok(
-          restartEngine
-            .listChannels({ type: 'direct-inbox' })
-            .some(channel => channel.name === inboxName)
-        )
+        const persisted = JSON.parse(fs.readFileSync(metadataPath, 'utf-8'))
+        assert.ok(persisted.some(channel => channel.type === 'direct'))
+        assert.ok(persisted.some(channel => channel.type === 'direct-inbox'))
       } finally {
         if (restartEngine) await restartEngine.stop().catch(() => {})
         fs.rmSync(restartTmpDir, { recursive: true, force: true })

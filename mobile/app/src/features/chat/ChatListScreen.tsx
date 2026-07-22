@@ -9,11 +9,12 @@ import {
   View,
 } from 'react-native'
 import {
+  Hash,
   LogOut,
   MessageCircle,
   Pin,
   PinOff,
-  Plus,
+  RefreshCw,
   Search,
   Settings,
   Users,
@@ -30,6 +31,7 @@ import {
   hasUnreadChannel,
   sortChannelsForChatList,
   validateChannelName,
+  parseChannelJoinInput,
   type ChannelLastReadMap,
 } from './chatState'
 
@@ -38,13 +40,13 @@ export type ChatListScreenProps = {
   messagesByChannel: Record<string, MobileChannelMessage[]>
   lastReadAt: ChannelLastReadMap
   searchInput: string
-  joinInput: string
-  joinPlaceholder: string
+  channelInput: string
   busy: boolean
   onSearchInputChange: (value: string) => void
-  onJoinInputChange: (value: string) => void
+  onChannelInputChange: (value: string) => void
+  onGenerateChannelId: () => void | Promise<void>
   onOpenChannel: (channel: MobileChannel) => void
-  onJoinChannel: (name: string) => void | Promise<void>
+  onOpenChannelId: (name: string) => void | Promise<void>
   onTogglePin: (channel: MobileChannel) => void | Promise<void>
   onRename: (channel: MobileChannel) => void | Promise<void>
   onLeave: (channel: MobileChannel) => void
@@ -55,13 +57,13 @@ export function ChatListScreen({
   messagesByChannel,
   lastReadAt,
   searchInput,
-  joinInput,
-  joinPlaceholder,
+  channelInput,
   busy,
   onSearchInputChange,
-  onJoinInputChange,
+  onChannelInputChange,
+  onGenerateChannelId,
   onOpenChannel,
-  onJoinChannel,
+  onOpenChannelId,
   onTogglePin,
   onRename,
   onLeave,
@@ -76,14 +78,14 @@ export function ChatListScreen({
     )
   }, [channels, searchInput])
 
-  const handleJoinPress = () => {
-    const validation = validateChannelName(joinInput)
+  const handleOpenPress = () => {
+    const validation = validateChannelName(parseChannelJoinInput(channelInput))
     if (!validation.valid) {
-      Alert.alert('无法加入聊天', validation.message)
+      Alert.alert('无法打开聊天', validation.message)
       return
     }
 
-    void onJoinChannel(validation.name)
+    void onOpenChannelId(validation.name)
   }
 
   const handleStartRename = (channel: MobileChannel) => {
@@ -122,7 +124,7 @@ export function ChatListScreen({
         <Text style={styles.brand}>MostBox</Text>
         <Text style={styles.title}>聊天频道</Text>
         <Text style={styles.subtitle}>
-          选择频道继续聊天，或加入一个新的频道。
+          选择已有频道，或按频道 ID 打开频道。
         </Text>
       </View>
 
@@ -146,15 +148,18 @@ export function ChatListScreen({
 
       <View style={styles.panel}>
         <View style={styles.inputHeader}>
-          <Plus size={18} color="#2563eb" />
-          <Text style={styles.inputHeaderText}>加入或新建频道</Text>
+          <Hash size={18} color="#2563eb" />
+          <Text style={styles.inputHeaderText}>打开频道</Text>
         </View>
+        <Text style={styles.inputHint}>
+          自定义短 ID 更容易被猜到；知道频道 ID 的人即可进入。
+        </Text>
         <View style={styles.joinRow}>
           <View style={styles.joinInputShell}>
             <TextInput
-              value={joinInput}
-              onChangeText={onJoinInputChange}
-              placeholder={joinPlaceholder}
+              value={channelInput}
+              onChangeText={onChannelInputChange}
+              placeholder="频道 ID 或 /chat/# 分享链接"
               placeholderTextColor="#7b8c86"
               autoCapitalize="none"
               autoCorrect={false}
@@ -163,8 +168,19 @@ export function ChatListScreen({
           </View>
           <Pressable
             accessibilityRole="button"
+            accessibilityLabel="生成随机频道 ID"
             disabled={busy}
-            onPress={handleJoinPress}
+            onPress={() => {
+              void onGenerateChannelId()
+            }}
+            style={[styles.generateButton, busy ? styles.actionDisabled : null]}
+          >
+            <RefreshCw size={17} color={busy ? '#94a3a0' : '#2563eb'} />
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            disabled={busy}
+            onPress={handleOpenPress}
             style={[styles.joinButton, busy ? styles.actionDisabled : null]}
           >
             <Text
@@ -173,7 +189,7 @@ export function ChatListScreen({
                 busy ? styles.actionDisabledText : null,
               ]}
             >
-              加入
+              打开
             </Text>
           </Pressable>
         </View>
@@ -376,7 +392,7 @@ export function ChatListScreen({
           <MessageCircle size={28} color="#0f766e" />
           <Text style={styles.emptyTitle}>还没有可显示的频道</Text>
           <Text style={styles.emptyBody}>
-            可以清空搜索条件，或输入频道名加入一个新频道。
+            可以清空搜索条件，或按频道 ID 打开频道。
           </Text>
         </View>
       )}
@@ -432,6 +448,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '900',
   },
+  inputHint: {
+    color: '#63716c',
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 18,
+  },
   inputShell: {
     minHeight: 44,
     borderRadius: 8,
@@ -468,6 +490,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 8,
     backgroundColor: '#2563eb',
+  },
+  generateButton: {
+    width: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    backgroundColor: '#eff6ff',
   },
   joinButtonText: {
     color: '#ffffff',

@@ -1,45 +1,26 @@
-import {
-  DIRECT_CHANNEL_TYPE,
-  DIRECT_INBOX_CHANNEL_TYPE,
-  getDirectSystemChannelType,
-} from './directChat.js'
-
 function getChannelId(channel) {
   return String(
     channel?.channelId || channel?.channelKey || channel?.name || ''
   ).trim()
 }
 
-export function selectChannelsForHello(
-  channels = [],
-  authorizedDirectChannelIds = []
-) {
-  const authorized =
-    authorizedDirectChannelIds instanceof Set
-      ? authorizedDirectChannelIds
-      : new Set(authorizedDirectChannelIds)
+function isLegacyDirectChannel(channelId, type = '') {
+  return (
+    /^direct(?:-inbox)?\./.test(channelId) ||
+    type === 'direct' ||
+    type === 'direct-inbox'
+  )
+}
 
+export function selectChannelsForHello(channels = []) {
   return channels.filter(channel => {
     const channelId = getChannelId(channel)
     const type = String(channel?.type || '').trim()
-    const directType = getDirectSystemChannelType(channelId)
-    const claimsDirect =
-      type === DIRECT_CHANNEL_TYPE || type === DIRECT_INBOX_CHANNEL_TYPE
-
-    if (!directType) return !claimsDirect
-    return type === directType && authorized.has(channelId)
+    return channelId && !isLegacyDirectChannel(channelId, type)
   })
 }
 
-export function isChannelAllowedForConnection(
-  channelIdInput,
-  authorizedDirectChannelIds = []
-) {
+export function isChannelAllowedForConnection(channelIdInput) {
   const channelId = String(channelIdInput || '').trim()
-  if (!getDirectSystemChannelType(channelId)) return true
-  const authorized =
-    authorizedDirectChannelIds instanceof Set
-      ? authorizedDirectChannelIds
-      : new Set(authorizedDirectChannelIds)
-  return authorized.has(channelId)
+  return Boolean(channelId) && !isLegacyDirectChannel(channelId)
 }

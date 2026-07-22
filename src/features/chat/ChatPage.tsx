@@ -3,7 +3,6 @@ import {
   ChevronRight,
   MessagesSquare,
   PhoneCall,
-  Plus,
   X,
   Edit2,
   ExternalLink,
@@ -27,6 +26,7 @@ import {
   ChatTextBubble,
 } from '~/components/ChatUi'
 import FilePreviewOverlay from '~/components/FilePreviewOverlay'
+import { CopyButton } from '~/components/CopyButton'
 import { InputModal, ConfirmModal, ModalOverlay } from '~/components/ui'
 import OpenSidebarButton from '~/components/OpenSidebarButton'
 import { AppTop } from '~/components/AppTop'
@@ -91,10 +91,17 @@ import {
   getPublishFileErrorMessage,
   getPublishFileLimitViolation,
 } from '~/lib/fileApi'
+import {
+  CHANNEL_ID_MAX_LENGTH,
+  CHANNEL_ID_MIN_LENGTH,
+  CHANNEL_ID_REGEX,
+  buildChatSharePath,
+  buildChatShareUrl,
+  createRandomChannelId,
+  getChannelIdFromHash,
+  parseChatChannelInput,
+} from '~/lib/chatRoom.js'
 
-const CHANNEL_NAME_MIN_LENGTH = 3
-const CHANNEL_NAME_MAX_LENGTH = 30
-const CHANNEL_NAME_REGEX = /^[a-zA-Z0-9_-]+$/
 const ATTACHMENT_CHECK_TIMEOUT_MS = 10000
 const ATTACHMENT_CHECK_REQUEST_TIMEOUT_MS = ATTACHMENT_CHECK_TIMEOUT_MS + 2000
 const CHAT_NOTIFICATION_SOUND_MIN_INTERVAL_MS = 1200
@@ -145,9 +152,7 @@ function getChannelTitle(
 
 function getRequestedChannelNameFromLocation() {
   if (typeof window === 'undefined') return ''
-  return (
-    new URLSearchParams(window.location.search).get('channel') || ''
-  ).trim()
+  return getChannelIdFromHash(window.location.hash)
 }
 
 const CHAT_FILE_ROOT = 'chat-file'
@@ -324,9 +329,9 @@ function ChatPage() {
   const [dismissedMentionTriggerKey, setDismissedMentionTriggerKey] =
     useState('')
   const [mentionSelectedIndex, setMentionSelectedIndex] = useState(-1)
-  const [showJoinChannel, joinChannelModal] = useDisclosure(false)
+  const [showOpenChannel, openChannelModal] = useDisclosure(false)
   const [myPeerId, setMyPeerId] = useState('')
-  const [isJoiningChannel, setIsJoiningChannel] = useState(false)
+  const [isOpeningChannel, setIsOpeningChannel] = useState(false)
   const [isLeavingChannel, setIsLeavingChannel] = useState(false)
   const [showLeaveChannelConfirm, leaveChannelModal] = useDisclosure(false)
   const [channelToLeave, setChannelToLeave] = useState<Channel | null>(null)
@@ -1257,8 +1262,11 @@ function ChatPage() {
 
     updateRequestedChannelName()
     window.addEventListener('popstate', updateRequestedChannelName)
-    return () =>
+    window.addEventListener('hashchange', updateRequestedChannelName)
+    return () => {
       window.removeEventListener('popstate', updateRequestedChannelName)
+      window.removeEventListener('hashchange', updateRequestedChannelName)
+    }
   }, [])
 
   useEffect(() => {
@@ -1421,7 +1429,7 @@ function ChatPage() {
 
     const attemptKey = `${userIdentity.address}:${requestedChannelName}`
     if (autoJoinChannelAttemptsRef.current.has(attemptKey)) return
-    if (isJoiningChannel) return
+    if (isOpeningChannel) return
 
     const validationError = getChannelNameValidationError(requestedChannelName)
     autoJoinChannelAttemptsRef.current.add(attemptKey)
@@ -1430,14 +1438,14 @@ function ChatPage() {
       return
     }
 
-    void handleJoinChannel(requestedChannelName)
+    void handleOpenChannelId(requestedChannelName)
   }, [
     channels,
     activeChannel,
     requestedChannelName,
     hasLoadedChannels,
     isBackendReady,
-    isJoiningChannel,
+    isOpeningChannel,
     userIdentity?.address,
   ])
 
@@ -1468,20 +1476,20 @@ function ChatPage() {
   }, [clearChannelMessages, userIdentity?.address])
 
   function getChannelNameValidationError(name) {
-    if (name.length < CHANNEL_NAME_MIN_LENGTH) {
+    if (name.length < CHANNEL_ID_MIN_LENGTH) {
       return t('chat.validation.nameMin', {
-        count: CHANNEL_NAME_MIN_LENGTH,
+        count: CHANNEL_ID_MIN_LENGTH,
       })
     }
-    if (name.length > CHANNEL_NAME_MAX_LENGTH) {
+    if (name.length > CHANNEL_ID_MAX_LENGTH) {
       return t('chat.validation.nameMax', {
-        count: CHANNEL_NAME_MAX_LENGTH,
+        count: CHANNEL_ID_MAX_LENGTH,
       })
     }
     if (name.includes('.')) {
       return t('chat.validation.dotReserved')
     }
-    if (!CHANNEL_NAME_REGEX.test(name)) {
+    if (!CHANNEL_ID_REGEX.test(name)) {
       return t('chat.validation.allowedChars')
     }
     return ''
@@ -1655,12 +1663,9 @@ function ChatPage() {
       Math.max(getChannelActivityTime(channel), Date.now())
     )
     setActiveChannel(channel)
-    setRequestedChannelName(channelKey)
-    window.history.pushState(
-      {},
-      '',
-      `?channel=${encodeURIComponent(channelKey)}`
-    )
+    const channelId = getChannelId(channel)
+    setRequestedChannelName(channelId)
+    window.history.pushState({}, '', buildChatSharePath(channelId))
   }
 
   async function handleLeaveChannel(
@@ -1678,9 +1683,7 @@ function ChatPage() {
         setActiveChannel(null)
         setRequestedChannelName('')
         clearChannelMessages()
-        const url = new URL(window.location.href)
-        url.searchParams.delete('channel')
-        window.history.pushState({}, '', url.pathname)
+        window.history.pushState({}, '', '/chat/')
       }
       refreshChannels()
       leaveChannelModal.close()
@@ -1719,9 +1722,12 @@ function ChatPage() {
     }
   }
 
-  async function handleJoinChannel(channelName: string) {
-    const name = channelName.trim()
-    if (!name || isJoiningChannel) return
+  async function handleOpenChannelId(channelName: string) {
+    const name = parseChatChannelInput(
+      channelName,
+      typeof window === 'undefined' ? undefined : window.location.origin
+    )
+    if (!name || isOpeningChannel) return
     const validationError = getChannelNameValidationError(name)
     if (validationError) {
       addToast(validationError, 'error')
@@ -1729,7 +1735,7 @@ function ChatPage() {
     }
     if (!requireLogin()) return
     if (!requireBackendReady()) return
-    setIsJoiningChannel(true)
+    setIsOpeningChannel(true)
     try {
       const result = await channelApi.createChannel(
         name,
@@ -1765,13 +1771,31 @@ function ChatPage() {
             )
           : [...prev, joinedChannel]
       )
-      joinChannelModal.close()
+      openChannelModal.close()
       await handleOpenChannel(joinedChannel)
       refreshChannels()
     } catch (err) {
-      await showApiError(err, t('chat.error.join'))
+      await showApiError(err, t('chat.error.open'))
     } finally {
-      setIsJoiningChannel(false)
+      setIsOpeningChannel(false)
+    }
+  }
+
+  function getOpenChannelValidationError(value: string) {
+    const channelId = parseChatChannelInput(
+      value,
+      typeof window === 'undefined' ? undefined : window.location.origin
+    )
+    if (!channelId) return t('chat.validation.invalidShareLink')
+    return getChannelNameValidationError(channelId)
+  }
+
+  function generateChannelId() {
+    try {
+      return createRandomChannelId()
+    } catch {
+      addToast(t('chat.error.randomId'), 'error')
+      return ''
     }
   }
 
@@ -2508,16 +2532,18 @@ function ChatPage() {
             )}
           </nav>
 
-          <button
-            className="ui-action-dashed create-channel-btn"
-            onClick={() => {
-              if (!requireLogin() || !requireBackendReady()) return
-              joinChannelModal.open()
-            }}
-          >
-            <Plus size={16} />
-            {t('chat.joinChannel')}
-          </button>
+          <div className="chat-create-actions">
+            <button
+              className="ui-action-dashed create-channel-btn"
+              onClick={() => {
+                if (!requireLogin() || !requireBackendReady()) return
+                openChannelModal.open()
+              }}
+            >
+              <Hash size={16} />
+              {t('chat.openChannel')}
+            </button>
+          </div>
         </>
       )}
       headerTitle={chatHeaderTitle}
@@ -2681,16 +2707,19 @@ function ChatPage() {
         </>
       )}
 
-      {showJoinChannel && (
+      {showOpenChannel && (
         <InputModal
-          title={t('chat.joinChannel')}
-          placeholder={t('chat.join.placeholder')}
-          confirmText={t('chat.join.confirm')}
-          validate={getChannelNameValidationError}
-          onConfirm={handleJoinChannel}
-          onClose={() => joinChannelModal.close()}
-          isLoading={isJoiningChannel}
-          loadingText={t('chat.join.joining')}
+          title={t('chat.openChannel')}
+          hint={t('chat.open.hint')}
+          placeholder={t('chat.open.placeholder')}
+          confirmText={t('chat.open.confirm')}
+          validate={getOpenChannelValidationError}
+          onGenerateValue={generateChannelId}
+          generateValueLabel={t('chat.open.generateId')}
+          onConfirm={handleOpenChannelId}
+          onClose={() => openChannelModal.close()}
+          isLoading={isOpeningChannel}
+          loadingText={t('chat.open.opening')}
         />
       )}
 
@@ -2855,6 +2884,25 @@ function ChatPage() {
                     translate="no"
                   >
                     {getChannelId(activeChannel)}
+                  </div>
+                  <div className="channel-detail-copy-actions">
+                    <CopyButton
+                      text={getChannelId(activeChannel)}
+                      label={t('chat.details.copyId')}
+                      className="btn btn-secondary"
+                    />
+                    <CopyButton
+                      text={
+                        typeof window === 'undefined'
+                          ? buildChatSharePath(getChannelId(activeChannel))
+                          : buildChatShareUrl(
+                              getChannelId(activeChannel),
+                              window.location.origin
+                            )
+                      }
+                      label={t('chat.details.copyLink')}
+                      className="btn btn-secondary"
+                    />
                   </div>
                 </div>
               )}

@@ -44,7 +44,6 @@ const DEV_CID_MAX_BYTES = 20 * 1024 * 1024
 const CHANNEL_PRESENCE_HEARTBEAT_MS = 15 * 1000
 const MOBILE_PLATFORM_ID = Platform.OS === 'ios' ? 'ios' : 'android'
 const MOBILE_PLATFORM_LABEL = Platform.OS === 'ios' ? 'iOS' : 'Android'
-const DEFAULT_CHANNEL_NAME = `chat-${MOBILE_PLATFORM_ID}`
 const MIME_BY_EXTENSION: Record<string, string> = {
   apk: 'application/vnd.android.package-archive',
   csv: 'text/csv',
@@ -214,9 +213,9 @@ export default function App() {
   const [exportingCid, setExportingCid] = useState<string | null>(null)
   const [deletingCid, setDeletingCid] = useState<string | null>(null)
   const [copiedCid, setCopiedCid] = useState<string | null>(null)
-  const [channelName, setChannelName] = useState(DEFAULT_CHANNEL_NAME)
+  const [channelName, setChannelName] = useState('')
   const [channelSearchInput, setChannelSearchInput] = useState('')
-  const [channelInput, setChannelInput] = useState(DEFAULT_CHANNEL_NAME)
+  const [channelOpenInput, setChannelOpenInput] = useState('')
   const [channelLastReadAt, setChannelLastReadAt] =
     useState<ChannelLastReadMap>({})
   const [channelDraft, setChannelDraft] = useState('')
@@ -259,7 +258,7 @@ export default function App() {
     chatRoute.name === 'room' || chatRoute.name === 'settings'
       ? chatRoute.channelKey
       : ''
-  const normalizedChannelName = channelName.trim() || DEFAULT_CHANNEL_NAME
+  const normalizedChannelName = channelName.trim()
   const selectedChannel =
     currentSnapshot.channels.find(channel => {
       const targetChannelKey = routeChannelKey || normalizedChannelName
@@ -390,7 +389,6 @@ export default function App() {
     })
     const channelKey = getChannelKey(channel) || requestedName
     setChannelName(channelKey)
-    setChannelInput(channel.channelId || channel.name || requestedName)
     if (chatRoute.name !== 'settings') {
       setChatRoute({ name: 'room', channelKey })
     }
@@ -498,12 +496,12 @@ export default function App() {
     }
   }
 
-  const handleJoinChannelFromList = async (name: string) => {
-    if (!guardReady()) return
+  const openChannelFromList = async (name: string) => {
+    if (!guardReady()) return false
     const requestedName = name.trim()
     if (!requestedName) {
-      Alert.alert('无法加入聊天', '请输入要加入的频道名')
-      return
+      Alert.alert('无法打开聊天', '请输入频道 ID 或分享链接')
+      return false
     }
 
     setChannelBusy(true)
@@ -515,16 +513,38 @@ export default function App() {
       const channelKey = getChannelKey(channel) || requestedName
       await core.getChannelMessages(channelKey)
       setChannelName(channelKey)
-      setChannelInput(channel.channelId || channel.name || requestedName)
       setChannelDraft('')
       setChatRoute({ name: 'room', channelKey })
       setChannelLastReadAt(lastReadAt =>
         markChannelRead(lastReadAt, channelKey)
       )
+      return true
     } catch (error) {
       Alert.alert(
-        '加入聊天失败',
-        error instanceof Error ? error.message : '无法加入这个聊天频道'
+        '打开聊天失败',
+        error instanceof Error ? error.message : '无法打开这个聊天频道'
+      )
+      return false
+    } finally {
+      setChannelBusy(false)
+    }
+  }
+
+  const handleOpenChannelIdFromList = async (name: string) => {
+    if (await openChannelFromList(name)) {
+      setChannelOpenInput('')
+    }
+  }
+
+  const handleGenerateChannelId = async () => {
+    if (!guardReady()) return
+    setChannelBusy(true)
+    try {
+      setChannelOpenInput(await core.createRandomChannelId())
+    } catch (error) {
+      Alert.alert(
+        '无法生成频道 ID',
+        error instanceof Error ? error.message : '安全随机源不可用'
       )
     } finally {
       setChannelBusy(false)
@@ -536,7 +556,6 @@ export default function App() {
     if (!channelKey) return
 
     setChannelName(channelKey)
-    setChannelInput(channel.channelId || channel.name || channelKey)
     setChannelDraft('')
     setChatRoute({ name: 'room', channelKey })
     setChannelLastReadAt(lastReadAt => markChannelRead(lastReadAt, channelKey))
@@ -636,8 +655,7 @@ export default function App() {
                     return currentRoute
                   }
 
-                  setChannelName(DEFAULT_CHANNEL_NAME)
-                  setChannelInput(DEFAULT_CHANNEL_NAME)
+                  setChannelName('')
                   setChannelDraft('')
                   return { name: 'list' }
                 })
@@ -850,13 +868,13 @@ export default function App() {
           messagesByChannel={currentSnapshot.channelMessages || {}}
           lastReadAt={channelLastReadAt}
           searchInput={channelSearchInput}
-          joinInput={channelInput}
-          joinPlaceholder={DEFAULT_CHANNEL_NAME}
-          busy={channelBusy}
+          channelInput={channelOpenInput}
+          busy={!isReady || channelBusy}
           onSearchInputChange={setChannelSearchInput}
-          onJoinInputChange={setChannelInput}
+          onChannelInputChange={setChannelOpenInput}
+          onGenerateChannelId={handleGenerateChannelId}
           onOpenChannel={handleOpenChannelFromList}
-          onJoinChannel={handleJoinChannelFromList}
+          onOpenChannelId={handleOpenChannelIdFromList}
           onTogglePin={handleToggleChannelPin}
           onRename={handleRenameChannel}
           onLeave={handleConfirmLeaveChannel}

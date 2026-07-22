@@ -22,15 +22,14 @@ function directChannel(index, type = 'direct') {
 }
 
 describe('channel hello scoping', () => {
-  it('keeps ordinary channels and requires explicit direct authorization', () => {
+  it('keeps ordinary channels and rejects legacy direct channels', () => {
     const ordinary = {
       channelId: 'public-room',
       channelKey: 'public-room',
       type: 'public',
     }
-    const allowedDirect = directChannel(1)
-    const blockedDirect = directChannel(2)
-    const allowedInbox = directChannel(3, 'direct-inbox')
+    const direct = directChannel(1)
+    const inbox = directChannel(2, 'direct-inbox')
     const malformedDirect = {
       channelId: 'direct.invalid',
       type: 'direct',
@@ -40,35 +39,24 @@ describe('channel hello scoping', () => {
       type: 'public',
     }
 
-    const selected = selectChannelsForHello(
-      [
-        ordinary,
-        allowedDirect,
-        blockedDirect,
-        allowedInbox,
-        malformedDirect,
-        disguisedDirect,
-      ],
-      new Set([allowedDirect.channelId, allowedInbox.channelId])
-    )
+    const selected = selectChannelsForHello([
+      ordinary,
+      direct,
+      inbox,
+      malformedDirect,
+      disguisedDirect,
+    ])
 
     assert.deepStrictEqual(
       selected.map(channel => channel.channelId),
-      [ordinary.channelId, allowedDirect.channelId, allowedInbox.channelId]
+      [ordinary.channelId]
     )
-    assert.ok(isChannelAllowedForConnection(ordinary.channelId, new Set()))
-    assert.ok(
-      isChannelAllowedForConnection(
-        allowedDirect.channelId,
-        new Set([allowedDirect.channelId])
-      )
-    )
-    assert.ok(
-      !isChannelAllowedForConnection(blockedDirect.channelId, new Set())
-    )
+    assert.ok(isChannelAllowedForConnection(ordinary.channelId))
+    assert.ok(!isChannelAllowedForConnection(direct.channelId))
+    assert.ok(!isChannelAllowedForConnection(inbox.channelId))
   })
 
-  it('keeps unrelated direct channels out of the frame size budget', () => {
+  it('keeps legacy direct channels out of the frame size budget', () => {
     const ordinary = {
       channelId: 'public-room',
       channelKey: 'public-room',

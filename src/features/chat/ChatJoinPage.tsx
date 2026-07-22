@@ -23,6 +23,7 @@ import {
 } from '~/lib/chatJoinInvite'
 import { shouldConnectChatJoinInviteNode } from '~/lib/chatJoinRemote'
 import { getChatJoinTestInvite } from '~/lib/chatJoinTestData.js'
+import { buildChatSharePath } from '~/lib/chatRoom.js'
 
 const CHANNEL_REMARK_MAX_LENGTH = 50
 const CHAT_JOIN_API_BASE =
@@ -53,7 +54,7 @@ function getDecryptError(
 }
 
 function getJoinChannelUrl(channelId: string) {
-  return `/chat?channel=${encodeURIComponent(channelId)}`
+  return buildChatSharePath(channelId)
 }
 
 function normalizeChannelRemark(value?: string) {

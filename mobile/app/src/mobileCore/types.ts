@@ -191,6 +191,7 @@ export type MostBoxMobileCore = {
   deleteHolding: (input: DeleteHoldingInput) => Promise<DeleteHoldingResult>
   listHoldings: () => Promise<MobileHolding[]>
   createChannel: (input: CreateChannelInput) => Promise<MobileChannel>
+  createRandomChannelId: () => Promise<string>
   leaveChannel: (input: LeaveChannelInput) => Promise<LeaveChannelResult>
   setChannelRemark: (input: SetChannelRemarkInput) => Promise<MobileChannel>
   setChannelPinned: (input: SetChannelPinnedInput) => Promise<MobileChannel>

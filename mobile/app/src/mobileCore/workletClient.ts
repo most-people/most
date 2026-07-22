@@ -385,6 +385,21 @@ export class BareWorkletMostBoxCore implements MostBoxMobileCore {
     return extractChannel(result)
   }
 
+  async createRandomChannelId(): Promise<string> {
+    await this.#ensureStarted()
+    const result = await this.#request(
+      COMMANDS.CHANNEL_ID_CREATE,
+      {},
+      [EVENTS.CHANNEL_ID_CREATED],
+      10000
+    )
+    const channelId = String(asRecord(result).channelId || '')
+    if (!/^[A-Za-z0-9_-]{22}$/.test(channelId)) {
+      throw new Error('P2P core returned an invalid channel ID')
+    }
+    return channelId
+  }
+
   async leaveChannel(input: LeaveChannelInput): Promise<LeaveChannelResult> {
     await this.#ensureStarted()
     const result = await this.#request(

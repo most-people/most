@@ -281,6 +281,28 @@
   font-size: 13px;
 }
 
+.input-modal-hint {
+  margin: var(--space-2) 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.input-modal-input-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+
+.input-modal-input-row .input {
+  min-width: 0;
+  flex: 1;
+}
+
+.input-modal-input-row .btn-icon {
+  flex: 0 0 40px;
+}
+
 /* === Buttons === */
 .btn {
   display: inline-flex;

@@ -1,15 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getAuthenticatedWebSocketUrl } from '~server/src/utils/api'
-import {
-  decryptDirectVoiceEvent,
-  encryptDirectVoiceEvent,
-  normalizeDirectAddress,
-} from '~server/src/core/directChat.js'
-import type { UserIdentity } from '~/stores/userStore'
 
 const VOICE_HEARTBEAT_MS = 15000
 const VOICE_STALE_MS = 45000
-const DIRECT_VOICE_EVENT_MAX_AGE_MS = 5 * 60 * 1000
 const RTC_CONFIGURATION: RTCConfiguration = {
   iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
 }
@@ -53,7 +46,6 @@ interface ChannelVoiceEvent {
   sender?: VoiceSender
   micMuted?: boolean
   signal?: VoiceSignal
-  ciphertext?: string
   timestamp?: number
 }
 
@@ -76,9 +68,6 @@ interface UseVoiceRoomOptions {
   enabled: boolean
   channelName: string
   profile: VoiceProfile
-  identity?: UserIdentity | null
-  directPeerAddress?: string
-  directPeerPublicKey?: string
 }
 
 function createVoiceSessionId() {
@@ -102,9 +91,6 @@ export function useVoiceRoom({
   enabled,
   channelName,
   profile,
-  identity,
-  directPeerAddress = '',
-  directPeerPublicKey = '',
 }: UseVoiceRoomOptions) {
   const sessionIdRef = useRef(createVoiceSessionId())
   const wsRef = useRef<WebSocket | null>(null)
@@ -124,18 +110,6 @@ export function useVoiceRoom({
   const [error, setError] = useState('')
 
   const localSessionId = sessionIdRef.current
-  const normalizedSelfAddress = normalizeDirectAddress(identity?.address)
-  const normalizedPeerAddress = normalizeDirectAddress(directPeerAddress)
-  const directVoiceEnabled = Boolean(
-    identity?.danger &&
-    normalizedSelfAddress &&
-    normalizedPeerAddress &&
-    /^0x[a-fA-F0-9]{64}$/.test(directPeerPublicKey)
-  )
-  const directVoiceKey = directVoiceEnabled
-    ? `${normalizedPeerAddress}:${directPeerPublicKey.toLowerCase()}`
-    : ''
-
   useEffect(() => {
     profileRef.current = profile
   }, [profile])
@@ -152,8 +126,7 @@ export function useVoiceRoom({
   const sendVoiceEvent = useCallback(
     (event: VoiceEventName, data: Record<string, unknown> = {}) => {
       if (!channelName || !isOpen(wsRef.current)) return
-      const timestamp = Date.now()
-      let voiceData: Record<string, unknown> = {
+      const voiceData: Record<string, unknown> = {
         channel: channelName,
         sessionId: localSessionId,
         displayName: profileRef.current.displayName,
@@ -162,36 +135,6 @@ export function useVoiceRoom({
         micMuted: micMutedRef.current,
         ...data,
       }
-      if (directVoiceEnabled && identity) {
-        try {
-          const ciphertext = encryptDirectVoiceEvent(
-            {
-              event,
-              sessionId: localSessionId,
-              sender: {
-                address: normalizedSelfAddress,
-                displayName: profileRef.current.displayName,
-                avatar: profileRef.current.avatar,
-                profileUpdatedAt: profileRef.current.profileUpdatedAt,
-              },
-              micMuted: micMutedRef.current,
-              timestamp,
-              ...data,
-            },
-            identity,
-            directPeerPublicKey
-          )
-          if (!ciphertext) return
-          voiceData = {
-            channel: channelName,
-            sessionId: localSessionId,
-            ciphertext,
-          }
-        } catch (error) {
-          setError(error instanceof Error ? error.message : String(error))
-          return
-        }
-      }
       wsRef.current?.send(
         JSON.stringify({
           event: VOICE_WS_EVENTS[event],
@@ -199,61 +142,7 @@ export function useVoiceRoom({
         })
       )
     },
-    [
-      channelName,
-      directPeerPublicKey,
-      directVoiceEnabled,
-      identity,
-      localSessionId,
-      normalizedSelfAddress,
-    ]
-  )
-
-  const decodeVoiceEvent = useCallback(
-    (event: ChannelVoiceEvent) => {
-      if (!directVoiceEnabled || !identity) {
-        return event.ciphertext ? null : event
-      }
-      if (!event.ciphertext || !event.sender?.address) return null
-
-      const authorAddress = normalizeDirectAddress(event.sender.address)
-      if (
-        authorAddress !== normalizedSelfAddress &&
-        authorAddress !== normalizedPeerAddress
-      ) {
-        return null
-      }
-      const payload = decryptDirectVoiceEvent(event.ciphertext, {
-        identity,
-        peerPublicKey: directPeerPublicKey,
-        authorAddress,
-      }) as ChannelVoiceEvent | null
-      const payloadAuthor = normalizeDirectAddress(payload?.sender?.address)
-      const timestamp = Number(payload?.timestamp)
-      if (
-        !payload ||
-        payloadAuthor !== authorAddress ||
-        payload.event !== event.event ||
-        payload.sessionId !== event.sessionId ||
-        !Number.isFinite(timestamp) ||
-        Math.abs(Date.now() - timestamp) > DIRECT_VOICE_EVENT_MAX_AGE_MS
-      ) {
-        return null
-      }
-      return {
-        ...payload,
-        channel: event.channel,
-        channelKey: event.channelKey,
-        channelId: event.channelId,
-      }
-    },
-    [
-      directPeerPublicKey,
-      directVoiceEnabled,
-      identity,
-      normalizedPeerAddress,
-      normalizedSelfAddress,
-    ]
+    [channelName, localSessionId]
   )
 
   const updateParticipant = useCallback(
@@ -290,7 +179,7 @@ export function useVoiceRoom({
     setError('')
     setParticipantsBySession({})
     pendingCandidatesRef.current.clear()
-  }, [channelName, directVoiceKey])
+  }, [channelName])
 
   useEffect(() => {
     if (enabled && isReady && channelName) return
@@ -466,8 +355,7 @@ export function useVoiceRoom({
 
   const handleVoiceEvent = useCallback(
     (rawEvent: ChannelVoiceEvent) => {
-      const event = decodeVoiceEvent(rawEvent)
-      if (!event) return
+      const event = rawEvent
       if (getEventChannelKey(event) !== channelName) return
       const sessionId = String(event.sessionId || '').trim()
       if (!sessionId || sessionId === localSessionId) return
@@ -502,7 +390,6 @@ export function useVoiceRoom({
     [
       channelName,
       closePeer,
-      decodeVoiceEvent,
       ensurePeer,
       handleSignal,
       localSessionId,
