@@ -8,6 +8,7 @@ import {
   ExternalLink,
   Calendar,
   Hash,
+  Plus,
   Settings,
   Search,
 } from 'lucide-react'
@@ -330,6 +331,7 @@ function ChatPage() {
     useState('')
   const [mentionSelectedIndex, setMentionSelectedIndex] = useState(-1)
   const [showOpenChannel, openChannelModal] = useDisclosure(false)
+  const [openChatDefaultValue, setOpenChatDefaultValue] = useState('')
   const [myPeerId, setMyPeerId] = useState('')
   const [isOpeningChannel, setIsOpeningChannel] = useState(false)
   const [isLeavingChannel, setIsLeavingChannel] = useState(false)
@@ -1817,6 +1819,14 @@ function ChatPage() {
     }
   }
 
+  function handleShowOpenChatModal() {
+    if (!requireLogin() || !requireBackendReady()) return
+    const generatedChatId = generateChannelId()
+    if (!generatedChatId) return
+    setOpenChatDefaultValue(generatedChatId)
+    openChannelModal.open()
+  }
+
   async function sendChannelMessage(
     content: string,
     attachment?: ChannelAttachment,
@@ -2550,18 +2560,13 @@ function ChatPage() {
             )}
           </nav>
 
-          <div className="chat-create-actions">
-            <button
-              className="ui-action-dashed create-channel-btn"
-              onClick={() => {
-                if (!requireLogin() || !requireBackendReady()) return
-                openChannelModal.open()
-              }}
-            >
-              <Hash size={16} />
-              {t('chat.openChannel')}
-            </button>
-          </div>
+          <button
+            className="ui-action-dashed create-channel-btn"
+            onClick={handleShowOpenChatModal}
+          >
+            <Plus size={16} />
+            {t('chat.joinChat')}
+          </button>
         </>
       )}
       headerTitle={chatHeaderTitle}
@@ -2727,9 +2732,10 @@ function ChatPage() {
 
       {showOpenChannel && (
         <InputModal
-          title={t('chat.openChannel')}
+          title={t('chat.joinChat')}
           hint={t('chat.open.hint')}
           placeholder={t('chat.open.placeholder')}
+          defaultValue={openChatDefaultValue}
           confirmText={t('chat.open.confirm')}
           validate={getOpenChannelValidationError}
           onGenerateValue={generateChannelId}

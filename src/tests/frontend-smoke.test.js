@@ -999,11 +999,13 @@ describe('frontend smoke checks', () => {
     assert.match(chatRoomSource, /buildChatSharePath/)
     assert.match(
       chatRoomSource,
-      /`\/chat\/#\$\{encodeURIComponent\(channelId\)\}`/
+      /`\/chat\/#\$\{encodeURIComponent\(normalizeChatChannelId\(channelId\)\)\}`/
     )
     assert.match(chatSource, /getChannelIdFromHash\(window\.location\.hash\)/)
     assert.match(chatSource, /window\.addEventListener\('hashchange'/)
     assert.match(chatSource, /createRandomChannelId\(\)/)
+    assert.match(chatSource, /setOpenChatDefaultValue\(generatedChatId\)/)
+    assert.match(chatSource, /defaultValue=\{openChatDefaultValue\}/)
     assert.match(chatSource, /parseChatChannelInput/)
     assert.match(chatSource, /chat\.openChannel/)
     assert.match(inputModalSource, /onGenerateValue/)

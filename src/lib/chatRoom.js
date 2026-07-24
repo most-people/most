@@ -1,30 +1,32 @@
 export const CHANNEL_ID_MIN_LENGTH = 3
 export const CHANNEL_ID_MAX_LENGTH = 30
-export const CHANNEL_ID_REGEX = /^[A-Za-z0-9_-]+$/
+export const CHANNEL_ID_REGEX = /^[a-z0-9_-]+$/
 
-const BASE64URL_ALPHABET =
-  'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
+const BASE32_ALPHABET = 'abcdefghijklmnopqrstuvwxyz234567'
 
-function encodeBase64Url(bytes) {
+function encodeBase32(bytes) {
   let result = ''
+  const bitLength = bytes.length * 8
 
-  for (let index = 0; index < bytes.length; index += 3) {
-    const first = bytes[index]
-    const second = bytes[index + 1]
-    const third = bytes[index + 2]
-    const block = (first << 16) | ((second || 0) << 8) | (third || 0)
-
-    result += BASE64URL_ALPHABET[(block >> 18) & 63]
-    result += BASE64URL_ALPHABET[(block >> 12) & 63]
-    if (index + 1 < bytes.length) {
-      result += BASE64URL_ALPHABET[(block >> 6) & 63]
+  for (let bitOffset = 0; bitOffset < bitLength; bitOffset += 5) {
+    let value = 0
+    for (let bit = 0; bit < 5; bit += 1) {
+      const sourceBit = bitOffset + bit
+      value <<= 1
+      if (sourceBit < bitLength) {
+        value |= (bytes[Math.floor(sourceBit / 8)] >> (7 - (sourceBit % 8))) & 1
+      }
     }
-    if (index + 2 < bytes.length) {
-      result += BASE64URL_ALPHABET[block & 63]
-    }
+    result += BASE32_ALPHABET[value]
   }
 
   return result
+}
+
+export function normalizeChatChannelId(input) {
+  return String(input || '')
+    .trim()
+    .toLowerCase()
 }
 
 export function createRandomChannelId(getRandomValues) {
@@ -35,7 +37,9 @@ export function createRandomChannelId(getRandomValues) {
     throw new Error('Secure random number generation is unavailable')
   }
 
-  return encodeBase64Url(fillRandomValues(new Uint8Array(16)))
+  const bytes = new Uint8Array(16)
+  fillRandomValues(bytes)
+  return encodeBase32(bytes)
 }
 
 export function getChannelIdFromHash(hash) {
@@ -43,7 +47,7 @@ export function getChannelIdFromHash(hash) {
   if (!encodedId) return ''
 
   try {
-    return decodeURIComponent(encodedId).trim()
+    return normalizeChatChannelId(decodeURIComponent(encodedId))
   } catch {
     return ''
   }
@@ -65,11 +69,11 @@ export function parseChatChannelInput(value, baseUrl = 'http://localhost') {
     }
   }
 
-  return input
+  return normalizeChatChannelId(input)
 }
 
 export function buildChatSharePath(channelId) {
-  return `/chat/#${encodeURIComponent(channelId)}`
+  return `/chat/#${encodeURIComponent(normalizeChatChannelId(channelId))}`
 }
 
 export function buildChatShareUrl(channelId, origin) {

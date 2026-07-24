@@ -19,12 +19,14 @@ import {
   normalizeChannelScopeTopics,
   normalizeChannelMessage,
   normalizeChannelRecord,
+  normalizeChannelId,
+  normalizeChannelKey,
   sortChannelMessages,
 } from './channel-protocol.mjs'
 import { createJsonLineParser, createRandomChannelId } from './protocol.mjs'
 
 describe('backend JSON line parser', () => {
-  it('creates a 22-character base64url ID from 16 random bytes', () => {
+  it('creates a 26-character lowercase base32 ID from 16 random bytes', () => {
     let requestedLength = 0
     const channelId = createRandomChannelId(bytes => {
       requestedLength = bytes.length
@@ -32,8 +34,8 @@ describe('backend JSON line parser', () => {
     })
 
     assert.equal(requestedLength, 16)
-    assert.equal(channelId, '_____________________w')
-    assert.match(channelId, /^[A-Za-z0-9_-]{22}$/)
+    assert.equal(channelId, `${'7'.repeat(25)}4`)
+    assert.match(channelId, /^[a-z2-7]{26}$/)
   })
 
   it('waits for a full newline-delimited command across IPC chunks', () => {
@@ -148,23 +150,26 @@ describe('mobile channel protocol helpers', () => {
   })
 
   it('derives channel discovery topics with the desktop-compatible prefix', () => {
+    const channelInput = 'Android-Smoke'
     const channelKey = 'android-smoke'
 
-    assert.equal(buildChannelKey(channelKey), channelKey)
+    assert.equal(normalizeChannelId(channelInput), channelKey)
+    assert.equal(normalizeChannelKey(channelInput), channelKey)
+    assert.equal(buildChannelKey(channelInput), channelKey)
     assert.equal(
-      b4a.toString(generateChannelDiscoveryKey(channelKey), 'hex'),
+      b4a.toString(generateChannelDiscoveryKey(channelInput), 'hex'),
       createHash('sha256')
         .update(`most-box-room-channel:${channelKey}`)
         .digest('hex')
     )
     assert.equal(
-      b4a.toString(generateChannelChatDiscoveryKey(channelKey), 'hex'),
+      b4a.toString(generateChannelChatDiscoveryKey(channelInput), 'hex'),
       createHash('sha256')
         .update(`most-box-room-channel:${channelKey}:chat`)
         .digest('hex')
     )
     assert.equal(
-      b4a.toString(generateChannelIdDiscoveryKey(channelKey), 'hex'),
+      b4a.toString(generateChannelIdDiscoveryKey(channelInput), 'hex'),
       createHash('sha256')
         .update(`most-box-room-id:${channelKey}:candidates`)
         .digest('hex')

@@ -3573,6 +3573,14 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.ok(!result.channelKey.includes(':'))
     })
 
+    it('uses one canonical channel identity regardless of input case', async () => {
+      const upper = await engine.createChannel(`Case-${uid}`)
+      const lower = await engine.createChannel(`case-${uid}`)
+
+      assert.strictEqual(upper.channelId, `case-${uid}`)
+      assert.strictEqual(upper.channelKey, lower.channelKey)
+    })
+
     it('creates a channel with type', async () => {
       const result = await engine.createChannel(`group-${uid}`, 'group')
       assert.strictEqual(result.name, `group-${uid}`)

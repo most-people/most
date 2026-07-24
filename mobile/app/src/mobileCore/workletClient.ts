@@ -394,7 +394,7 @@ export class BareWorkletMostBoxCore implements MostBoxMobileCore {
       10000
     )
     const channelId = String(asRecord(result).channelId || '')
-    if (!/^[A-Za-z0-9_-]{22}$/.test(channelId)) {
+    if (!/^[a-z2-7]{26}$/.test(channelId)) {
       throw new Error('P2P core returned an invalid channel ID')
     }
     return channelId

@@ -9,7 +9,7 @@ export type ChannelLastReadMap = Record<string, number>
 
 export const CHANNEL_NAME_MIN_LENGTH = 3
 export const CHANNEL_NAME_MAX_LENGTH = 30
-export const CHANNEL_NAME_REGEX = /^[a-zA-Z0-9_-]+$/
+export const CHANNEL_NAME_REGEX = /^[a-z0-9_-]+$/
 
 const MOST_LINK_PREFIX = 'most://'
 const MOST_LINK_REGEX = /most:\/\/[^\s]+/u
@@ -94,7 +94,7 @@ export function getChannelTitle(channel?: MobileChannel | null) {
 export function validateChannelName(
   value: string
 ): ChannelNameValidationResult {
-  const name = value.trim()
+  const name = value.trim().toLowerCase()
 
   if (name.length < CHANNEL_NAME_MIN_LENGTH) {
     return {
@@ -150,7 +150,7 @@ export function parseChannelJoinInput(value: string) {
     }
   }
 
-  return input
+  return input.toLowerCase()
 }
 
 function decodeChannelHash(hash: string) {
@@ -158,7 +158,7 @@ function decodeChannelHash(hash: string) {
   if (!encodedId) return ''
 
   try {
-    return decodeURIComponent(encodedId).trim()
+    return decodeURIComponent(encodedId).trim().toLowerCase()
   } catch {
     return ''
   }

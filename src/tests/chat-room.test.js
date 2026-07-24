@@ -5,38 +5,39 @@ import {
   buildChatShareUrl,
   createRandomChannelId,
   getChannelIdFromHash,
+  normalizeChatChannelId,
   parseChatChannelInput,
 } from '../lib/chatRoom.js'
 
-test('creates a 22-character base64url channel ID from 16 random bytes', () => {
+test('creates a 26-character lowercase base32 channel ID from 16 random bytes', () => {
   let requestedLength = 0
   const id = createRandomChannelId(bytes => {
     requestedLength = bytes.length
     bytes.fill(255)
-    return bytes
   })
 
   assert.equal(requestedLength, 16)
-  assert.equal(id.length, 22)
-  assert.match(id, /^[A-Za-z0-9_-]{22}$/)
-  assert.equal(id, '_____________________w')
+  assert.equal(id.length, 26)
+  assert.match(id, /^[a-z2-7]{26}$/)
+  assert.equal(id, `${'7'.repeat(25)}4`)
 })
 
-test('builds and parses hash-based chat share links', () => {
-  assert.equal(buildChatSharePath('room_123'), '/chat/#room_123')
+test('normalizes case when building and parsing chat share links', () => {
+  assert.equal(normalizeChatChannelId(' Room_123 '), 'room_123')
+  assert.equal(buildChatSharePath('Room_123'), '/chat/#room_123')
   assert.equal(
-    buildChatShareUrl('room_123', 'https://most.example/'),
+    buildChatShareUrl('ROOM_123', 'https://most.example/'),
     'https://most.example/chat/#room_123'
   )
-  assert.equal(getChannelIdFromHash('#room_123'), 'room_123')
+  assert.equal(getChannelIdFromHash('#Room_123'), 'room_123')
   assert.equal(
     parseChatChannelInput(
-      'https://most.example/chat/#room_123',
+      'https://most.example/chat/#ROOM_123',
       'https://most.example'
     ),
     'room_123'
   )
-  assert.equal(parseChatChannelInput('room_123'), 'room_123')
+  assert.equal(parseChatChannelInput('Room_123'), 'room_123')
   assert.equal(
     parseChatChannelInput('https://most.example/files/#room_123'),
     ''

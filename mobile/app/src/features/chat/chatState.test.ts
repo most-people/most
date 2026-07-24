@@ -56,7 +56,7 @@ describe('Android chat state helpers', () => {
     assert.deepEqual(validateChannelName(' room_01-A '), {
       valid: true,
       message: '',
-      name: 'room_01-A',
+      name: 'room_01-a',
     })
     assert.deepEqual(validateChannelName('ab'), {
       valid: false,
@@ -81,12 +81,12 @@ describe('Android chat state helpers', () => {
   })
 
   it('parses raw channel IDs and /chat/# share links', () => {
-    assert.equal(parseChannelJoinInput(' room_01-A '), 'room_01-A')
+    assert.equal(parseChannelJoinInput(' room_01-A '), 'room_01-a')
     assert.equal(
       parseChannelJoinInput('https://most.example/chat/#room_01-A'),
-      'room_01-A'
+      'room_01-a'
     )
-    assert.equal(parseChannelJoinInput('/chat/#room_01-A'), 'room_01-A')
+    assert.equal(parseChannelJoinInput('/chat/#room_01-A'), 'room_01-a')
     assert.equal(
       parseChannelJoinInput('https://most.example/files/#room_01-A'),
       ''

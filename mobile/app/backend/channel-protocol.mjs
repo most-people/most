@@ -7,7 +7,7 @@ export const CHANNELS_FILE = 'mobile-channels.json'
 export const CHANNEL_NAME_PREFIX = 'most-box-room-'
 export const CHANNEL_NAME_MIN_LENGTH = 3
 export const CHANNEL_NAME_MAX_LENGTH = 30
-export const CHANNEL_NAME_REGEX = /^[a-zA-Z0-9_-]+$/
+export const CHANNEL_NAME_REGEX = /^[a-z0-9_-]+$/
 export const CHANNEL_MESSAGE_LIMIT = 100
 export const CHANNEL_DISCOVERY_TIMEOUT = 600
 export const CHANNEL_CANDIDATE_TTL = 30 * 1000
@@ -34,7 +34,9 @@ export const DIAGNOSTIC_AUTHOR_NAME = 'Android'
 const CHANNEL_TOPIC_HEX_REGEX = /^[0-9a-f]{64}$/
 
 export function normalizeChannelId(input) {
-  return String(input || '').trim()
+  return String(input || '')
+    .trim()
+    .toLowerCase()
 }
 
 export function buildChannelKey(channelId) {
@@ -42,7 +44,7 @@ export function buildChannelKey(channelId) {
 }
 
 export function normalizeChannelKey(input) {
-  return String(input || '').trim()
+  return normalizeChannelId(input)
 }
 
 export function uniqueStrings(values = []) {
@@ -372,20 +374,23 @@ export function assertValidChannelId(channelId, type = 'public') {
 }
 
 export function generateChannelDiscoveryKey(channelKey) {
+  const normalizedChannelKey = normalizeChannelKey(channelKey)
   return createHash('sha256')
-    .update(`${CHANNEL_NAME_PREFIX}channel:${channelKey}`)
+    .update(`${CHANNEL_NAME_PREFIX}channel:${normalizedChannelKey}`)
     .digest()
 }
 
 export function generateChannelChatDiscoveryKey(channelKey) {
+  const normalizedChannelKey = normalizeChannelKey(channelKey)
   return createHash('sha256')
-    .update(`${CHANNEL_NAME_PREFIX}channel:${channelKey}:chat`)
+    .update(`${CHANNEL_NAME_PREFIX}channel:${normalizedChannelKey}:chat`)
     .digest()
 }
 
 export function generateChannelIdDiscoveryKey(channelId) {
+  const normalizedChannelId = normalizeChannelId(channelId)
   return createHash('sha256')
-    .update(`${CHANNEL_NAME_PREFIX}id:${channelId}:candidates`)
+    .update(`${CHANNEL_NAME_PREFIX}id:${normalizedChannelId}:candidates`)
     .digest()
 }
 

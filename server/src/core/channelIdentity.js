@@ -20,7 +20,9 @@ export function normalizeChannelAvatar(input) {
 }
 
 export function normalizeChannelId(input) {
-  return String(input || '').trim()
+  return String(input || '')
+    .trim()
+    .toLowerCase()
 }
 
 export function createChannelWriterId() {
@@ -32,7 +34,7 @@ export function buildChannelKey(channelId) {
 }
 
 export function normalizeChannelKey(input) {
-  return String(input || '').trim()
+  return normalizeChannelId(input)
 }
 
 export function isSpecialChannel(channel = {}) {

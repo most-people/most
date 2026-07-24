@@ -6661,25 +6661,28 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #generateChannelDiscoveryKey(channelKey) {
+    const normalizedChannelKey = normalizeChannelKey(channelKey)
     const hash = crypto
       .createHash('sha256')
-      .update(`${CHANNEL_NAME_PREFIX}channel:${channelKey}`)
+      .update(`${CHANNEL_NAME_PREFIX}channel:${normalizedChannelKey}`)
       .digest()
     return hash
   }
 
   #generateChannelChatDiscoveryKey(channelKey) {
+    const normalizedChannelKey = normalizeChannelKey(channelKey)
     const hash = crypto
       .createHash('sha256')
-      .update(`${CHANNEL_NAME_PREFIX}channel:${channelKey}:chat`)
+      .update(`${CHANNEL_NAME_PREFIX}channel:${normalizedChannelKey}:chat`)
       .digest()
     return hash
   }
 
   #generateChannelIdDiscoveryKey(channelId) {
+    const normalizedChannelId = normalizeChannelId(channelId)
     const hash = crypto
       .createHash('sha256')
-      .update(`${CHANNEL_NAME_PREFIX}id:${channelId}:candidates`)
+      .update(`${CHANNEL_NAME_PREFIX}id:${normalizedChannelId}:candidates`)
       .digest()
     return hash
   }
