@@ -622,7 +622,7 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         stallEngine = new MostBoxEngine({
           dataPath,
           disableNetwork: true,
-          publishWriteStallTimeout: 50,
+          publishWriteStallTimeout: 500,
         })
         await stallEngine.start()
 
