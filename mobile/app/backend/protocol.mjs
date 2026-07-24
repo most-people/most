@@ -1,4 +1,3 @@
-export const MOST_PROTOCOL = 'most:'
 export const HYPERDRIVE_CID_PATH_PREFIX = '/'
 const BASE32_ALPHABET = 'abcdefghijklmnopqrstuvwxyz234567'
 

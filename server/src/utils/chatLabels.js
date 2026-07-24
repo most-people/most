@@ -17,10 +17,6 @@ export function normalizeVisibleChatLabel(input) {
   return normalized
 }
 
-export function hasVisibleChatLabel(input) {
-  return Boolean(normalizeVisibleChatLabel(input))
-}
-
 function isRecord(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
