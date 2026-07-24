@@ -21,6 +21,14 @@ const rootPackageLock = readJson('package-lock.json')
 const mobilePackageLock = readJson('mobile/app/package-lock.json')
 const rootVersion = readJson('package.json').version
 const versions = new Map([
+  [
+    'CHANGELOG.md latest release',
+    readMatch(
+      'CHANGELOG.md',
+      /^## \[(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)\](?: - \d{4}-\d{2}-\d{2})?$/m,
+      'latest changelog release version'
+    ),
+  ],
   ['package-lock.json', rootPackageLock.version],
   ['package-lock.json packages root', rootPackageLock.packages?.['']?.version],
   ['mobile/app/package.json', readJson('mobile/app/package.json').version],
