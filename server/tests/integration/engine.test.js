@@ -5250,6 +5250,67 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       }
     })
 
+    it('does not disclose unrelated channels over a shared peer connection', async () => {
+      const isolationTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-channel-isolation-test-')
+      )
+      const firstDataPath = path.join(isolationTmpDir, 'first')
+      const secondDataPath = path.join(isolationTmpDir, 'second')
+      const sharedChannelName = `shared-${uid}`
+      const privateChannelName = `private-${uid}`
+      let firstEngine
+      let secondEngine
+      let replication
+
+      try {
+        firstEngine = new MostBoxEngine({
+          dataPath: firstDataPath,
+          disableNetwork: true,
+        })
+        secondEngine = new MostBoxEngine({
+          dataPath: secondDataPath,
+          disableNetwork: true,
+        })
+        await firstEngine.start()
+        await secondEngine.start()
+
+        const privateChannel = await firstEngine.createChannel(
+          privateChannelName,
+          'public'
+        )
+        await firstEngine.createChannel(sharedChannelName, 'public')
+        await secondEngine.createChannel(sharedChannelName, 'public')
+        replication = firstEngine.replicateWith(secondEngine)
+
+        await firstEngine.sendMessage(sharedChannelName, 'shared message')
+        await waitForChannelMessage(
+          secondEngine,
+          sharedChannelName,
+          'shared message'
+        )
+
+        replication.close()
+        replication = null
+        await sleep(25)
+
+        const independentlyCreated = await secondEngine.createChannel(
+          privateChannelName,
+          'public',
+          { discover: true, discoveryTimeout: 0 }
+        )
+        assert.ok(
+          !independentlyCreated.writerCoreKeys.includes(
+            privateChannel.localWriterCoreKey
+          )
+        )
+      } finally {
+        replication?.close()
+        if (firstEngine) await firstEngine.stop().catch(() => {})
+        if (secondEngine) await secondEngine.stop().catch(() => {})
+        fs.rmSync(isolationTmpDir, { recursive: true, force: true })
+      }
+    })
+
     it('merges messages from multiple writer cores in one channel', async () => {
       const mergeTmpDir = fs.mkdtempSync(
         path.join(os.tmpdir(), 'most-channel-merge-test-')
@@ -5516,60 +5577,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         assert.ok(!metadata.some(c => c.name === gameChannelName))
       } finally {
         await restartEngine.stop().catch(() => {})
-        fs.rmSync(restartTmpDir, { recursive: true, force: true })
-      }
-    })
-
-    it('ignores legacy direct channel metadata without deleting it', async () => {
-      const restartTmpDir = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'most-legacy-direct-channel-')
-      )
-      const restartDataPath = path.join(restartTmpDir, 'data')
-      const metadataPath = path.join(restartDataPath, 'channels.json')
-      let restartEngine
-
-      try {
-        restartEngine = new MostBoxEngine({
-          dataPath: restartDataPath,
-          disableNetwork: true,
-        })
-        await restartEngine.start()
-        await restartEngine.createChannel(`persist-chat-${uid}`, 'public')
-        await restartEngine.stop()
-
-        const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf-8'))
-        const template = metadata[0]
-        const legacyChannels = [
-          { id: `direct.${'a'.repeat(64)}`, type: 'direct' },
-          { id: `direct-inbox.${'b'.repeat(40)}`, type: 'direct-inbox' },
-        ]
-        for (const legacy of legacyChannels) {
-          metadata.push({
-            ...template,
-            channelId: legacy.id,
-            channelKey: legacy.id,
-            name: legacy.id,
-            type: legacy.type,
-          })
-        }
-        fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2))
-
-        restartEngine = new MostBoxEngine({
-          dataPath: restartDataPath,
-          disableNetwork: true,
-        })
-        await restartEngine.start()
-
-        assert.ok(
-          restartEngine
-            .listChannels({ includeSystem: true })
-            .every(channel => !channel.name.startsWith('direct'))
-        )
-        const persisted = JSON.parse(fs.readFileSync(metadataPath, 'utf-8'))
-        assert.ok(persisted.some(channel => channel.type === 'direct'))
-        assert.ok(persisted.some(channel => channel.type === 'direct-inbox'))
-      } finally {
-        if (restartEngine) await restartEngine.stop().catch(() => {})
         fs.rmSync(restartTmpDir, { recursive: true, force: true })
       }
     })

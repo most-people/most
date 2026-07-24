@@ -3,7 +3,6 @@ import assert from 'node:assert'
 import { verifyMessage } from 'ethers'
 import {
   mostBoxDecrypt,
-  mostBoxDecryptSent,
   mostBoxEncrypt,
   mostDecode,
   mostEncode,
@@ -128,13 +127,6 @@ describe('mostBoxEncrypt / mostBoxDecrypt', () => {
       mostBoxDecrypt(encrypted, {
         senderPublicKey: alice.public_key,
         recipientPrivateKey: bob.private_key,
-      }),
-      'hello bob'
-    )
-    assert.strictEqual(
-      mostBoxDecryptSent(encrypted, {
-        senderPrivateKey: alice.private_key,
-        recipientPublicKey: bob.public_key,
       }),
       'hello bob'
     )

@@ -4,14 +4,19 @@ import { createHash } from 'node:crypto'
 import b4a from 'b4a'
 import {
   DIAGNOSTIC_AUTHOR,
+  MAX_CHANNEL_FRAME_BYTES,
+  buildChannelHelloMessages,
   buildChannelKey,
   channelToCandidate,
+  chunkChannelScopeTopics,
+  consumeChannelFrames,
   createChannelRecord,
   formatChannelForResponse,
   generateChannelChatDiscoveryKey,
   generateChannelDiscoveryKey,
   generateChannelIdDiscoveryKey,
   normalizeChannelAttachment,
+  normalizeChannelScopeTopics,
   normalizeChannelMessage,
   normalizeChannelRecord,
   sortChannelMessages,
@@ -87,6 +92,61 @@ describe('backend JSON line parser', () => {
 })
 
 describe('mobile channel protocol helpers', () => {
+  it('scopes and chunks channel connection metadata', () => {
+    const firstTopic = 'a'.repeat(64)
+    const secondTopic = 'B'.repeat(64)
+    assert.deepEqual(
+      chunkChannelScopeTopics(
+        normalizeChannelScopeTopics([
+          firstTopic,
+          secondTopic,
+          firstTopic,
+          'invalid',
+        ]),
+        1
+      ),
+      [[firstTopic], [secondTopic.toLowerCase()]]
+    )
+
+    const channels = Array.from({ length: 1500 }, (_, index) => {
+      const channelId = (index + 1).toString(36).padStart(22, '0')
+      return {
+        channelId,
+        channelKey: channelId,
+        type: 'public',
+        writerCoreKeys: ['a'.repeat(64)],
+      }
+    })
+    const messages = buildChannelHelloMessages(
+      { type: 'channel-hello', peerId: 'mobile', authorName: 'Android' },
+      channels,
+      MAX_CHANNEL_FRAME_BYTES
+    )
+
+    assert.ok(messages.length > 1)
+    assert.equal(
+      messages.reduce((total, message) => total + message.channels.length, 0),
+      channels.length
+    )
+    assert.ok(
+      messages.every(
+        message =>
+          b4a.byteLength(JSON.stringify(message)) <= MAX_CHANNEL_FRAME_BYTES
+      )
+    )
+  })
+
+  it('rejects channel frames above the shared byte limit', () => {
+    assert.throws(
+      () =>
+        consumeChannelFrames(
+          b4a.alloc(0),
+          b4a.alloc(MAX_CHANNEL_FRAME_BYTES + 1, 0x61)
+        ),
+      error => error.code === 'CHANNEL_FRAME_TOO_LARGE'
+    )
+  })
+
   it('derives channel discovery topics with the desktop-compatible prefix', () => {
     const channelKey = 'android-smoke'
 

@@ -97,6 +97,12 @@ function parseStreamWrites(stream, type) {
     .filter(message => message.type === type)
 }
 
+function channelPeerInfo(channelId) {
+  const info = new EventEmitter()
+  info.topics = [generateChannelChatDiscoveryKey(channelId)]
+  return info
+}
+
 function expectedChannelJoinTopics(channelId) {
   return [
     b4a.toString(generateChannelDiscoveryKey(channelId), 'hex'),
@@ -335,7 +341,7 @@ describe('mobile channel presence', () => {
 
     const chatSwarm = swarms[1]
     const stream = new RecordingStream()
-    chatSwarm.emit('connection', stream)
+    chatSwarm.emit('connection', stream, channelPeerInfo(channel.channelId))
 
     const joined = core.joinChannelPresence({
       channelName: channel.channelKey,
@@ -392,7 +398,7 @@ describe('mobile channel presence', () => {
 
     const chatSwarm = swarms[1]
     const stream = new RecordingStream()
-    chatSwarm.emit('connection', stream)
+    chatSwarm.emit('connection', stream, channelPeerInfo(channel.channelId))
     stream.emit(
       'data',
       b4a.from(
@@ -431,7 +437,11 @@ describe('mobile channel presence', () => {
     )
 
     const staleStream = new RecordingStream()
-    chatSwarm.emit('connection', staleStream)
+    chatSwarm.emit(
+      'connection',
+      staleStream,
+      channelPeerInfo(channel.channelId)
+    )
     staleStream.emit(
       'data',
       b4a.from(
@@ -463,6 +473,179 @@ describe('mobile channel presence', () => {
           0) === 0,
       'stale remote channel presence expiry',
       500
+    )
+  })
+})
+
+describe('mobile channel connection scoping', () => {
+  it('does not exchange unrelated channel metadata or presence', async t => {
+    const storagePath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mostbox-mobile-channel-scope-')
+    )
+    const swarms = []
+    const core = new MobileP2PCore({
+      storagePath,
+      createSwarm: createRecordingSwarmFactory(swarms),
+    })
+    t.after(async () => {
+      await core.stop()
+      await fs.rm(storagePath, { recursive: true, force: true })
+    })
+
+    await core.start()
+    const sharedChannel = await core.createChannel({
+      name: 'android-shared',
+      discover: false,
+    })
+    const privateChannel = await core.createChannel({
+      name: 'android-private',
+      discover: false,
+    })
+
+    const stream = new RecordingStream()
+    const peerInfo = channelPeerInfo(sharedChannel.channelId)
+    swarms[1].emit('connection', stream, peerInfo)
+
+    const helloChannels = parseStreamWrites(stream, 'channel-hello').flatMap(
+      message => message.channels.map(channel => channel.channelId)
+    )
+    assert.deepEqual(helloChannels, [sharedChannel.channelId])
+
+    core.joinChannelPresence({
+      channelName: sharedChannel.channelKey,
+      sessionId: 'shared-session',
+      displayName: 'Android',
+    })
+    core.joinChannelPresence({
+      channelName: privateChannel.channelKey,
+      sessionId: 'private-session',
+      displayName: 'Android',
+    })
+    assert.deepEqual(
+      parseStreamWrites(stream, 'channel-presence').map(
+        message => message.channelId
+      ),
+      [sharedChannel.channelId]
+    )
+
+    const unrelatedWriterKey = 'f'.repeat(64)
+    stream.emit(
+      'data',
+      b4a.from(
+        `${JSON.stringify({
+          type: 'channel-hello',
+          peerId: 'unrelated-peer',
+          channels: [
+            {
+              channelId: privateChannel.channelId,
+              channelKey: privateChannel.channelKey,
+              type: 'public',
+              writerCoreKeys: [unrelatedWriterKey],
+            },
+          ],
+        })}\n`
+      )
+    )
+    await waitForTick()
+
+    const currentPrivateChannel = core
+      .listChannels()
+      .find(channel => channel.channelId === privateChannel.channelId)
+    assert.ok(
+      !currentPrivateChannel.writerCoreKeys.includes(unrelatedWriterKey)
+    )
+
+    const privateTopic = generateChannelChatDiscoveryKey(
+      privateChannel.channelId
+    )
+    peerInfo.topics.push(privateTopic)
+    peerInfo.emit('topic', privateTopic)
+
+    const latestHello = parseStreamWrites(stream, 'channel-hello').at(-1)
+    assert.deepEqual(
+      latestHello.channels.map(channel => channel.channelId).sort(),
+      [privateChannel.channelId, sharedChannel.channelId].sort()
+    )
+  })
+
+  it('does not let an unauthorized stream clear accepted presence', async t => {
+    const storagePath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mostbox-mobile-presence-scope-')
+    )
+    const swarms = []
+    const core = new MobileP2PCore({
+      storagePath,
+      createSwarm: createRecordingSwarmFactory(swarms),
+    })
+    t.after(async () => {
+      await core.stop()
+      await fs.rm(storagePath, { recursive: true, force: true })
+    })
+
+    await core.start()
+    const sharedChannel = await core.createChannel({
+      name: 'presence-shared',
+      discover: false,
+    })
+    const privateChannel = await core.createChannel({
+      name: 'presence-private',
+      discover: false,
+    })
+    const remoteAddress = '0x0000000000000000000000000000000000000002'
+    const remotePeerId = 'desktop-peer'
+
+    const acceptedStream = new RecordingStream()
+    swarms[1].emit(
+      'connection',
+      acceptedStream,
+      channelPeerInfo(sharedChannel.channelId)
+    )
+    acceptedStream.emit(
+      'data',
+      b4a.from(
+        `${JSON.stringify({
+          type: 'channel-presence',
+          peerId: remotePeerId,
+          channelId: sharedChannel.channelId,
+          address: remoteAddress,
+          status: 'online',
+          sessionId: 'desktop',
+        })}\n`
+      )
+    )
+    await waitFor(
+      () =>
+        core.getSnapshot().channelPresence[sharedChannel.channelKey]?.length ===
+        1,
+      'accepted remote presence'
+    )
+
+    const unauthorizedStream = new RecordingStream()
+    swarms[1].emit(
+      'connection',
+      unauthorizedStream,
+      channelPeerInfo(privateChannel.channelId)
+    )
+    unauthorizedStream.emit(
+      'data',
+      b4a.from(
+        `${JSON.stringify({
+          type: 'channel-presence',
+          peerId: remotePeerId,
+          channelId: sharedChannel.channelId,
+          address: remoteAddress,
+          status: 'offline',
+          sessionId: 'desktop',
+        })}\n`
+      )
+    )
+    await waitForTick()
+    unauthorizedStream.emit('close')
+    await waitForTick()
+
+    assert.equal(
+      core.getSnapshot().channelPresence[sharedChannel.channelKey]?.length,
+      1
     )
   })
 })
@@ -523,7 +706,7 @@ describe('mobile channel metadata management', () => {
     })
     const chatSwarm = restartedSwarms[1]
     const stream = new RecordingStream()
-    chatSwarm.emit('connection', stream)
+    chatSwarm.emit('connection', stream, channelPeerInfo(restored.channelId))
     stream.emit(
       'data',
       b4a.from(

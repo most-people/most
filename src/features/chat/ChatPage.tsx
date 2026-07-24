@@ -390,6 +390,7 @@ function ChatPage() {
   const channelComposerInputRef = useRef<HTMLTextAreaElement>(null)
   const activeChannelNameRef = useRef('')
   const autoJoinChannelAttemptsRef = useRef(new Set<string>())
+  const previousBackendReadyRef = useRef(false)
   const autoLoginPromptedChannelsRef = useRef(new Set<string>())
   const notificationAudioContextRef = useRef<AudioContext | null>(null)
   const notificationAudioUnlockedRef = useRef(false)
@@ -1387,6 +1388,13 @@ function ChatPage() {
   ])
 
   useEffect(() => {
+    if (isBackendReady && !previousBackendReadyRef.current) {
+      autoJoinChannelAttemptsRef.current.clear()
+    }
+    previousBackendReadyRef.current = isBackendReady
+  }, [isBackendReady])
+
+  useEffect(() => {
     if (!requestedChannelName) return
 
     if (!userIdentity) {
@@ -1406,7 +1414,7 @@ function ChatPage() {
       found &&
       (!activeChannel || getChannelKey(activeChannel) !== getChannelKey(found))
     ) {
-      handleOpenChannel(found)
+      handleOpenChannel(found, { replaceHistory: true })
       return
     }
 
@@ -1432,13 +1440,13 @@ function ChatPage() {
     if (isOpeningChannel) return
 
     const validationError = getChannelNameValidationError(requestedChannelName)
-    autoJoinChannelAttemptsRef.current.add(attemptKey)
     if (validationError) {
       addToast(validationError, 'error')
       return
     }
+    autoJoinChannelAttemptsRef.current.add(attemptKey)
 
-    void handleOpenChannelId(requestedChannelName)
+    void handleOpenChannelId(requestedChannelName, { replaceHistory: true })
   }, [
     channels,
     activeChannel,
@@ -1654,7 +1662,10 @@ function ChatPage() {
     }
   }
 
-  async function handleOpenChannel(channel: Channel) {
+  async function handleOpenChannel(
+    channel: Channel,
+    options: { replaceHistory?: boolean } = {}
+  ) {
     if (!requireLogin()) return
     if (!requireBackendReady()) return
     const channelKey = getChannelKey(channel)
@@ -1665,7 +1676,11 @@ function ChatPage() {
     setActiveChannel(channel)
     const channelId = getChannelId(channel)
     setRequestedChannelName(channelId)
-    window.history.pushState({}, '', buildChatSharePath(channelId))
+    if (options.replaceHistory) {
+      window.history.replaceState({}, '', buildChatSharePath(channelId))
+    } else {
+      window.history.pushState({}, '', buildChatSharePath(channelId))
+    }
   }
 
   async function handleLeaveChannel(
@@ -1722,7 +1737,10 @@ function ChatPage() {
     }
   }
 
-  async function handleOpenChannelId(channelName: string) {
+  async function handleOpenChannelId(
+    channelName: string,
+    options: { replaceHistory?: boolean } = {}
+  ) {
     const name = parseChatChannelInput(
       channelName,
       typeof window === 'undefined' ? undefined : window.location.origin
@@ -1772,7 +1790,7 @@ function ChatPage() {
           : [...prev, joinedChannel]
       )
       openChannelModal.close()
-      await handleOpenChannel(joinedChannel)
+      await handleOpenChannel(joinedChannel, options)
       refreshChannels()
     } catch (err) {
       await showApiError(err, t('chat.error.open'))

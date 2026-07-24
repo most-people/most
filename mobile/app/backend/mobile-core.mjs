@@ -13,14 +13,20 @@ import {
   CHANNELS_FILE,
   DIAGNOSTIC_AUTHOR,
   DIAGNOSTIC_AUTHOR_NAME,
+  MAX_CHANNEL_FRAME_BYTES,
+  MAX_CHANNEL_SCOPE_TOPICS_PER_FRAME,
   assertValidChannelId,
+  buildChannelHelloMessages,
   buildChannelKey,
   channelToCandidate,
+  chunkChannelScopeTopics,
+  consumeChannelFrames,
   createChannelRecord,
   formatChannelForResponse,
   generateChannelChatDiscoveryKey,
   generateChannelDiscoveryKey,
   generateChannelIdDiscoveryKey,
+  isChannelAllowedForConnection,
   normalizeChannelRemark,
   normalizeChannelId,
   normalizeChannelKey,
@@ -29,6 +35,8 @@ import {
   normalizeChannelPresenceAvatar,
   normalizeChannelPresenceDisplayName,
   normalizeChannelRecord,
+  normalizeChannelScopeTopics,
+  selectChannelsForHello,
   sortChannelMessages,
   uniqueStrings,
 } from './channel-protocol.mjs'
@@ -417,7 +425,7 @@ export class MobileP2PCore {
   #channelIdDiscoveries = new Map()
   #channelPeers = new Map()
   #channelCandidateCache = new Map()
-  #channelStreams = new Set()
+  #channelStreams = new Map()
   #channelMessageCache = new Map()
   #channelPresenceSessions = new Map()
   #channelPresenceProfiles = new Map()
@@ -514,9 +522,9 @@ export class MobileP2PCore {
       handshakeTimeout: CONNECTION_TIMEOUT,
     })
 
-    this.#chatSwarm.on('connection', conn => {
+    this.#chatSwarm.on('connection', (conn, info) => {
       conn.on('error', () => {})
-      this.#handleChannelConnection(conn).catch(() => {})
+      this.#handleChannelConnection(conn, info).catch(() => {})
       this.#emitNetworkStatus()
     })
     this.#chatSwarm.on('update', () => this.#emitNetworkStatus())
@@ -1648,8 +1656,81 @@ export class MobileP2PCore {
     }
   }
 
-  #buildChannelHelloMessage() {
-    const channels = this.#channels.map(channel => ({
+  #addChannelTopicMapping(topicMap, topic, channelIdInput) {
+    const channelId = normalizeChannelId(channelIdInput)
+    const [topicHex] = normalizeChannelScopeTopics([b4a.toString(topic, 'hex')])
+    if (!channelId || !topicHex) return
+    const channelIds = topicMap.get(topicHex) || new Set()
+    channelIds.add(channelId)
+    topicMap.set(topicHex, channelIds)
+  }
+
+  #getChannelTopicMap() {
+    const topicMap = new Map()
+    for (const [channelKey] of this.#channelChatDiscoveries) {
+      const channel = this.#channels.find(
+        item => item.channelKey === channelKey
+      )
+      if (!channel) continue
+      this.#addChannelTopicMapping(
+        topicMap,
+        generateChannelChatDiscoveryKey(channelKey),
+        channel.channelId
+      )
+    }
+    for (const [channelId] of this.#channelIdDiscoveries) {
+      this.#addChannelTopicMapping(
+        topicMap,
+        generateChannelIdDiscoveryKey(channelId),
+        channelId
+      )
+    }
+    return topicMap
+  }
+
+  #getVerifiedChannelTopics(stream) {
+    const record = this.#channelStreams.get(stream)
+    const topicMap = this.#getChannelTopicMap()
+    let topics = []
+    try {
+      topics = Array.isArray(record?.info?.topics) ? record.info.topics : []
+    } catch {}
+    return normalizeChannelScopeTopics(
+      topics.map(topic =>
+        typeof topic === 'string' ? topic : b4a.toString(topic, 'hex')
+      )
+    ).filter(topicHex => topicMap.has(topicHex))
+  }
+
+  #getAuthorizedChannelIds(stream) {
+    const record = this.#channelStreams.get(stream)
+    const topicMap = this.#getChannelTopicMap()
+    const topicHexes = new Set([
+      ...this.#getVerifiedChannelTopics(stream),
+      ...(record?.remoteTopics || []),
+    ])
+    const channelIds = new Set()
+    for (const topicHex of topicHexes) {
+      for (const channelId of topicMap.get(topicHex) || []) {
+        channelIds.add(channelId)
+      }
+    }
+    return channelIds
+  }
+
+  #isChannelAllowedForStream(stream, channelId) {
+    return isChannelAllowedForConnection(
+      channelId,
+      this.#getAuthorizedChannelIds(stream)
+    )
+  }
+
+  #buildChannelHelloMessages(stream) {
+    const selectedChannels = selectChannelsForHello(
+      this.#channels,
+      this.#getAuthorizedChannelIds(stream)
+    )
+    const channels = selectedChannels.map(channel => ({
       channelId: channel.channelId,
       channelKey: channel.channelKey,
       type: channel.type,
@@ -1661,41 +1742,73 @@ export class MobileP2PCore {
       ]),
     }))
 
-    return {
-      type: 'channel-hello',
-      peerId: this.#nodeId(),
-      authorName: this.#nodeId().slice(0, 4),
+    return buildChannelHelloMessages(
+      {
+        type: 'channel-hello',
+        peerId: this.#nodeId(),
+        authorName: this.#nodeId().slice(0, 4),
+      },
       channels,
-    }
+      MAX_CHANNEL_FRAME_BYTES
+    )
   }
 
-  #sendChannelHello(stream) {
+  #removeChannelStream(stream) {
+    this.#channelStreams.delete(stream)
+  }
+
+  #sendChannelScopes(stream) {
     if (!stream || stream.destroyed || stream.writableEnded) {
-      this.#channelStreams.delete(stream)
+      this.#removeChannelStream(stream)
       return false
     }
     try {
-      stream.write(
-        b4a.from(`${JSON.stringify(this.#buildChannelHelloMessage())}\n`)
-      )
+      for (const topics of chunkChannelScopeTopics(
+        this.#getVerifiedChannelTopics(stream)
+      )) {
+        stream.write(
+          b4a.from(`${JSON.stringify({ type: 'channel-scope', topics })}\n`)
+        )
+      }
       return true
     } catch {
-      this.#channelStreams.delete(stream)
+      this.#removeChannelStream(stream)
+      return false
+    }
+  }
+
+  #sendChannelHello(stream, options = {}) {
+    if (!stream || stream.destroyed || stream.writableEnded) {
+      this.#removeChannelStream(stream)
+      return false
+    }
+    if (options.sendScope !== false && !this.#sendChannelScopes(stream)) {
+      return false
+    }
+    try {
+      for (const message of this.#buildChannelHelloMessages(stream)) {
+        stream.write(b4a.from(`${JSON.stringify(message)}\n`))
+      }
+      return true
+    } catch {
+      this.#removeChannelStream(stream)
       return false
     }
   }
 
   #broadcastChannelHello() {
-    for (const stream of [...this.#channelStreams]) {
+    for (const stream of [...this.#channelStreams.keys()]) {
       this.#sendChannelHello(stream)
     }
   }
 
   #sendChannelPresence(stream, event) {
     if (!stream || stream.destroyed || stream.writableEnded || !event) {
-      this.#channelStreams.delete(stream)
+      this.#removeChannelStream(stream)
       return false
     }
+    const channelId = normalizeChannelId(event.channelId || event.channelKey)
+    if (!this.#isChannelAllowedForStream(stream, channelId)) return true
     try {
       stream.write(
         b4a.from(
@@ -1716,7 +1829,7 @@ export class MobileP2PCore {
       )
       return true
     } catch {
-      this.#channelStreams.delete(stream)
+      this.#removeChannelStream(stream)
       return false
     }
   }
@@ -1738,7 +1851,7 @@ export class MobileP2PCore {
   }
 
   #broadcastChannelPresence(event) {
-    for (const stream of [...this.#channelStreams]) {
+    for (const stream of [...this.#channelStreams.keys()]) {
       this.#sendChannelPresence(stream, event)
     }
   }
@@ -2125,7 +2238,32 @@ export class MobileP2PCore {
     this.#emitSnapshot()
   }
 
-  #processChannelPresenceMessage(msg) {
+  #processChannelScopeMessage(stream, msg) {
+    if (msg.type !== 'channel-scope') return false
+    if (
+      !Array.isArray(msg.topics) ||
+      msg.topics.length > MAX_CHANNEL_SCOPE_TOPICS_PER_FRAME
+    ) {
+      throw new RangeError('Invalid channel scope frame')
+    }
+
+    const record = this.#channelStreams.get(stream)
+    if (!record) return true
+    const topicMap = this.#getChannelTopicMap()
+    let changed = false
+    for (const topicHex of normalizeChannelScopeTopics(msg.topics)) {
+      if (!topicMap.has(topicHex) || record.remoteTopics.has(topicHex)) continue
+      record.remoteTopics.add(topicHex)
+      changed = true
+    }
+    if (changed) {
+      this.#sendChannelHello(stream, { sendScope: false })
+      this.#sendCurrentChannelPresence(stream)
+    }
+    return true
+  }
+
+  #processChannelPresenceMessage(stream, msg) {
     if (msg.type !== 'channel-presence') return null
     const peerId = String(msg.peerId || '').trim()
     if (!peerId || peerId === this.#nodeId()) return null
@@ -2134,10 +2272,13 @@ export class MobileP2PCore {
     const localChannel = this.#channels.find(
       channel => channel.channelKey === channelKey
     )
-    if (!localChannel) return peerId
+    if (!localChannel) return null
+    if (!this.#isChannelAllowedForStream(stream, localChannel.channelId)) {
+      return null
+    }
 
     const address = normalizeChannelPresenceAddress(msg.address)
-    if (!address) return peerId
+    if (!address) return null
 
     const status = String(msg.status || '').trim()
     const options = {
@@ -2175,12 +2316,15 @@ export class MobileP2PCore {
       this.#emitChannelPresenceSnapshot(event)
     }
 
-    return peerId
+    return changed ? peerId : null
   }
 
-  async #processChannelHelloMessage(msg) {
+  async #processChannelHelloMessage(stream, msg) {
     if (msg.type !== 'channel-hello') return null
+    const peerId = String(msg.peerId || '').trim()
+    if (!peerId || peerId === this.#nodeId()) return null
 
+    const allowedChannelIds = this.#getAuthorizedChannelIds(stream)
     const remoteChannels = Array.isArray(msg.channels)
       ? msg.channels
           .filter(channel => channel && typeof channel === 'object')
@@ -2200,14 +2344,23 @@ export class MobileP2PCore {
               writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
             }
           })
-          .filter(channel => channel.channelId && channel.channelKey)
+          .filter(
+            channel =>
+              channel.channelId &&
+              channel.channelKey &&
+              isChannelAllowedForConnection(
+                channel.channelId,
+                allowedChannelIds
+              )
+          )
       : []
+    if (remoteChannels.length === 0) return null
 
     for (const remoteChannel of remoteChannels) {
       this.#cacheChannelCandidate({
         ...remoteChannel,
         local: false,
-        peerId: msg.peerId,
+        peerId,
       })
 
       const localChannel = this.#channels.find(
@@ -2216,9 +2369,9 @@ export class MobileP2PCore {
       if (!localChannel) continue
 
       const peers = this.#channelPeers.get(localChannel.channelKey)
-      if (peers && msg.peerId) {
-        peers.set(msg.peerId, {
-          peerId: msg.peerId,
+      if (peers) {
+        peers.set(peerId, {
+          peerId,
           authorName: msg.authorName,
           lastSeen: Date.now(),
         })
@@ -2231,36 +2384,50 @@ export class MobileP2PCore {
     }
 
     this.#send('channel.status', {
-      peerId: msg.peerId,
+      peerId,
       snapshot: this.getSnapshot(),
     })
-    return msg.peerId
+    return peerId
   }
 
-  async #handleChannelConnection(conn) {
+  async #handleChannelConnection(conn, info = {}) {
     const stream = conn
     let connectedPeerId = null
-    let readBuffer = ''
+    let readBuffer = b4a.alloc(0)
     let closed = false
 
-    this.#channelStreams.add(stream)
-    if (!this.#sendChannelHello(stream)) return
+    this.#channelStreams.set(stream, { info, remoteTopics: new Set() })
+    const handleTopic = () => {
+      if (!closed) this.#sendChannelHello(stream)
+    }
+    info?.on?.('topic', handleTopic)
+    if (!this.#sendChannelHello(stream)) {
+      info?.removeListener?.('topic', handleTopic)
+      return
+    }
     this.#sendCurrentChannelPresence(stream)
 
     stream.on('data', async data => {
-      readBuffer += b4a.toString(data)
-      let newlineIndex = readBuffer.indexOf('\n')
-      while (newlineIndex !== -1) {
-        const line = readBuffer.slice(0, newlineIndex).trim()
-        readBuffer = readBuffer.slice(newlineIndex + 1)
-        newlineIndex = readBuffer.indexOf('\n')
+      let lines
+      try {
+        const result = consumeChannelFrames(readBuffer, data)
+        readBuffer = result.remainder
+        lines = result.frames
+      } catch (err) {
+        this.#log('warn', `Rejected channel data: ${err.message}`)
+        stream.destroy?.()
+        return
+      }
+
+      for (const line of lines) {
         if (!line) continue
         try {
           const message = JSON.parse(line)
+          if (this.#processChannelScopeMessage(stream, message)) continue
           const peerId =
             message.type === 'channel-presence'
-              ? this.#processChannelPresenceMessage(message)
-              : await this.#processChannelHelloMessage(message)
+              ? this.#processChannelPresenceMessage(stream, message)
+              : await this.#processChannelHelloMessage(stream, message)
           if (peerId) connectedPeerId = peerId
         } catch (err) {
           this.#log('warn', `Failed to process channel hello: ${err.message}`)
@@ -2271,7 +2438,8 @@ export class MobileP2PCore {
     const cleanup = () => {
       if (closed) return
       closed = true
-      this.#channelStreams.delete(stream)
+      info?.removeListener?.('topic', handleTopic)
+      this.#removeChannelStream(stream)
       if (!connectedPeerId) return
       for (const [, peers] of this.#channelPeers) {
         peers.delete(connectedPeerId)

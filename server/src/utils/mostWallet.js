@@ -224,33 +224,3 @@ export function mostBoxDecrypt(data, { senderPublicKey, recipientPrivateKey }) {
     return ''
   }
 }
-
-export function mostBoxDecryptSent(
-  data,
-  { senderPrivateKey, recipientPublicKey }
-) {
-  const payload = readBoxTokenPayload(data)
-  if (!payload) return ''
-
-  try {
-    const senderSecretKey = getBytes(senderPrivateKey)
-    const senderPublicKey =
-      nacl.box.keyPair.fromSecretKey(senderSecretKey).publicKey
-    const recipientPublicKeyBytes = getBytes(recipientPublicKey)
-    const sharedKey = nacl.box.before(recipientPublicKeyBytes, senderSecretKey)
-    const boxKey = deriveDirectionalBoxKey(
-      senderPublicKey,
-      recipientPublicKeyBytes,
-      sharedKey
-    )
-    const decrypted = nacl.secretbox.open(
-      payload.encrypted,
-      payload.nonce,
-      boxKey
-    )
-
-    return decrypted ? new TextDecoder().decode(decrypted) : ''
-  } catch {
-    return ''
-  }
-}

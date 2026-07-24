@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import b4a from 'b4a'
 import { CID } from 'multiformats/cid'
 import { shortAddress } from '../shared/format-address.mjs'
 
@@ -12,6 +13,8 @@ export const CHANNEL_DISCOVERY_TIMEOUT = 600
 export const CHANNEL_CANDIDATE_TTL = 30 * 1000
 export const CHANNEL_PRESENCE_HEARTBEAT_MS = 15 * 1000
 export const CHANNEL_PRESENCE_TIMEOUT_MS = 45 * 1000
+export const MAX_CHANNEL_FRAME_BYTES = 128 * 1024
+export const MAX_CHANNEL_SCOPE_TOPICS_PER_FRAME = 256
 export const MAX_CHANNEL_MESSAGE_LENGTH = 2000
 export const MAX_CHANNEL_REMARK_LENGTH = 50
 export const MAX_CHANNEL_ATTACHMENT_CID_LENGTH = 128
@@ -27,6 +30,8 @@ export const CHANNEL_ATTACHMENT_KINDS = new Set([
 ])
 export const DIAGNOSTIC_AUTHOR = '0x0000000000000000000000000000000000000001'
 export const DIAGNOSTIC_AUTHOR_NAME = 'Android'
+
+const CHANNEL_TOPIC_HEX_REGEX = /^[0-9a-f]{64}$/
 
 export function normalizeChannelId(input) {
   return String(input || '').trim()
@@ -44,6 +49,144 @@ export function uniqueStrings(values = []) {
   return [
     ...new Set(values.map(value => String(value || '').trim()).filter(Boolean)),
   ]
+}
+
+function getChannelId(channel) {
+  return String(
+    channel?.channelId || channel?.channelKey || channel?.name || ''
+  ).trim()
+}
+
+function getAllowedChannelIds(values = []) {
+  if (values instanceof Set) return values
+  return new Set(
+    [...values].map(value => String(value || '').trim()).filter(Boolean)
+  )
+}
+
+export function normalizeChannelScopeTopics(topics = []) {
+  const normalized = []
+  const seen = new Set()
+  for (const topic of Array.isArray(topics) ? topics : []) {
+    const topicHex = String(topic || '')
+      .trim()
+      .toLowerCase()
+    if (!CHANNEL_TOPIC_HEX_REGEX.test(topicHex) || seen.has(topicHex)) continue
+    seen.add(topicHex)
+    normalized.push(topicHex)
+  }
+  return normalized
+}
+
+export function chunkChannelScopeTopics(
+  topics = [],
+  chunkSize = MAX_CHANNEL_SCOPE_TOPICS_PER_FRAME
+) {
+  const normalized = normalizeChannelScopeTopics(topics)
+  const size = Math.max(1, Number(chunkSize) || 1)
+  const chunks = []
+  for (let index = 0; index < normalized.length; index += size) {
+    chunks.push(normalized.slice(index, index + size))
+  }
+  return chunks
+}
+
+export function selectChannelsForHello(channels = [], allowedChannelIds = []) {
+  const allowed = getAllowedChannelIds(allowedChannelIds)
+  return channels.filter(channel => allowed.has(getChannelId(channel)))
+}
+
+export function isChannelAllowedForConnection(
+  channelIdInput,
+  allowedChannelIds = []
+) {
+  const channelId = String(channelIdInput || '').trim()
+  return (
+    Boolean(channelId) && getAllowedChannelIds(allowedChannelIds).has(channelId)
+  )
+}
+
+export function buildChannelHelloMessages(
+  baseMessage,
+  channels = [],
+  maxFrameBytes = MAX_CHANNEL_FRAME_BYTES
+) {
+  const frameLimit = Math.max(1, Number(maxFrameBytes) || 1)
+  const messages = []
+  let batch = []
+
+  const buildMessage = nextChannels => ({
+    ...baseMessage,
+    channels: nextChannels,
+  })
+  const getFrameBytes = nextChannels =>
+    b4a.byteLength(JSON.stringify(buildMessage(nextChannels)))
+
+  if (getFrameBytes([]) > frameLimit) {
+    throw new RangeError('Channel hello header exceeds the frame limit')
+  }
+
+  for (const channel of channels) {
+    const nextBatch = [...batch, channel]
+    if (getFrameBytes(nextBatch) <= frameLimit) {
+      batch = nextBatch
+      continue
+    }
+
+    if (batch.length > 0) messages.push(buildMessage(batch))
+    if (getFrameBytes([channel]) > frameLimit) {
+      throw new RangeError('Channel hello entry exceeds the frame limit')
+    }
+    batch = [channel]
+  }
+
+  if (batch.length > 0 || messages.length === 0) {
+    messages.push(buildMessage(batch))
+  }
+  return messages
+}
+
+function channelFrameTooLargeError(maxFrameBytes) {
+  const error = new RangeError(
+    `Channel frame exceeds the ${maxFrameBytes} byte limit`
+  )
+  error.code = 'CHANNEL_FRAME_TOO_LARGE'
+  return error
+}
+
+export function consumeChannelFrames(
+  remainder,
+  chunk,
+  maxFrameBytes = MAX_CHANNEL_FRAME_BYTES
+) {
+  let pending = remainder ? b4a.from(remainder) : b4a.alloc(0)
+  const input = b4a.from(chunk || '')
+  const frames = []
+  let offset = 0
+
+  while (offset < input.length) {
+    const newlineIndex = input.indexOf(0x0a, offset)
+    if (newlineIndex === -1) break
+
+    const segment = input.subarray(offset, newlineIndex)
+    if (pending.length + segment.length > maxFrameBytes) {
+      throw channelFrameTooLargeError(maxFrameBytes)
+    }
+    const frame = pending.length ? b4a.concat([pending, segment]) : segment
+    frames.push(b4a.toString(frame, 'utf8').trim())
+    pending = b4a.alloc(0)
+    offset = newlineIndex + 1
+  }
+
+  const tail = input.subarray(offset)
+  if (pending.length + tail.length > maxFrameBytes) {
+    throw channelFrameTooLargeError(maxFrameBytes)
+  }
+
+  return {
+    frames,
+    remainder: pending.length ? b4a.concat([pending, tail]) : b4a.from(tail),
+  }
 }
 
 export function normalizeChannelPresenceAddress(value) {

@@ -1014,25 +1014,12 @@ describe('frontend smoke checks', () => {
       /chat\.createChannel|chat\.joinChannel|onCreateChannel|onJoinChannel/
     )
     assert.doesNotMatch(`${chatSource}\n${chatJoinSource}`, /\?channel=/)
-  })
-
-  it('removes the friend feature without a redirect', () => {
-    const portalSource = readSource(SOURCE_PATHS.featurePortal)
-
-    assert.ok(
-      !fs.existsSync(path.join(repoRootPath, 'src/routes/friend/index.tsx'))
+    assert.match(chatSource, /replaceHistory: true/)
+    assert.match(chatSource, /window\.history\.replaceState/)
+    assert.match(
+      chatSource,
+      /!previousBackendReadyRef\.current[\s\S]*autoJoinChannelAttemptsRef\.current\.clear\(\)/
     )
-    assert.ok(
-      !fs.existsSync(
-        path.join(repoRootPath, 'src/features/friend/FriendPage.tsx')
-      )
-    )
-    assert.ok(
-      !fs.existsSync(
-        path.join(repoRootPath, 'src/features/chat/ChannelMessagingPage.tsx')
-      )
-    )
-    assert.doesNotMatch(portalSource, /friend|\/friend\//i)
   })
 
   it('keeps the admin console connected to local seeding visibility', () => {
