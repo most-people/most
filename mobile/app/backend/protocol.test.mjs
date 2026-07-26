@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import b4a from 'b4a'
 import {
+  CHANNEL_PROOF_CHALLENGE_BYTES,
   DIAGNOSTIC_AUTHOR,
   MAX_CHANNEL_FRAME_BYTES,
   buildChannelHelloMessages,
@@ -10,7 +11,9 @@ import {
   channelToCandidate,
   chunkChannelScopeTopics,
   consumeChannelFrames,
+  createChannelProofChallenge,
   createChannelRecord,
+  createChannelTopicProof,
   formatChannelForResponse,
   generateChannelChatDiscoveryKey,
   generateChannelDiscoveryKey,
@@ -22,6 +25,7 @@ import {
   normalizeChannelId,
   normalizeChannelKey,
   sortChannelMessages,
+  verifyChannelTopicProof,
 } from './channel-protocol.mjs'
 import { createJsonLineParser, createRandomChannelId } from './protocol.mjs'
 
@@ -94,6 +98,51 @@ describe('backend JSON line parser', () => {
 })
 
 describe('mobile channel protocol helpers', () => {
+  it('proves channel ID knowledge for one challenge and Noise connection', () => {
+    const channelId = 'secret-channel'
+    const topic = 'a'.repeat(64)
+    const challenge = createChannelProofChallenge(size => {
+      assert.equal(size, CHANNEL_PROOF_CHALLENGE_BYTES)
+      return b4a.alloc(size, 0xab)
+    })
+    const proverPublicKey = b4a.alloc(32, 0x11)
+    const verifierPublicKey = b4a.alloc(32, 0x22)
+    const input = {
+      channelId,
+      topic,
+      challenge,
+      proverPublicKey,
+      verifierPublicKey,
+    }
+    const proof = createChannelTopicProof(input)
+
+    assert.match(challenge, /^[0-9a-f]{64}$/)
+    assert.equal(
+      proof,
+      '521a163591570275bd704ddcf99acfea9d28c66ef7116a1c5484481e2c0133e2'
+    )
+    assert.equal(verifyChannelTopicProof(input, proof), true)
+    assert.equal(
+      verifyChannelTopicProof({ ...input, channelId: 'wrong-channel' }, proof),
+      false
+    )
+    assert.equal(
+      verifyChannelTopicProof(
+        {
+          ...input,
+          proverPublicKey: verifierPublicKey,
+          verifierPublicKey: proverPublicKey,
+        },
+        proof
+      ),
+      false
+    )
+    assert.equal(
+      verifyChannelTopicProof({ ...input, challenge: 'cd'.repeat(32) }, proof),
+      false
+    )
+  })
+
   it('scopes and chunks channel connection metadata', () => {
     const firstTopic = 'a'.repeat(64)
     const secondTopic = 'B'.repeat(64)

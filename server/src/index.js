@@ -35,12 +35,17 @@ import {
   consumeChannelFrames,
 } from './core/channelFrames.js'
 import {
+  CHANNEL_PROOF_VERSION,
   MAX_CHANNEL_SCOPE_TOPICS_PER_FRAME,
   buildChannelHelloMessages,
   chunkChannelScopeTopics,
+  createChannelProofChallenge,
+  createChannelTopicProof,
   isChannelAllowedForConnection,
+  normalizeChannelProofChallenge,
   normalizeChannelScopeTopics,
   selectChannelsForHello,
+  verifyChannelTopicProof,
 } from './core/channelHello.js'
 import { normalizeChannelVoiceEvent } from './core/channelVoice.js'
 import { getCidInfo } from './core/cidTopic.js'
@@ -2552,8 +2557,17 @@ export class MostBoxEngine extends EventEmitter {
         .filter(topicHex => remoteTopics.has(topicHex))
         .map(topicHex => b4a.from(topicHex, 'hex'))
     }
-    const peerInfo = {}
-    Object.defineProperty(peerInfo, 'topics', {
+    const localPeerInfo = {
+      publicKey: peerEngine.#chatSwarm.keyPair.publicKey,
+    }
+    const remotePeerInfo = {
+      publicKey: this.#chatSwarm.keyPair.publicKey,
+    }
+    Object.defineProperty(localPeerInfo, 'topics', {
+      enumerable: true,
+      get: getSharedChannelTopics,
+    })
+    Object.defineProperty(remotePeerInfo, 'topics', {
       enumerable: true,
       get: getSharedChannelTopics,
     })
@@ -2562,8 +2576,10 @@ export class MostBoxEngine extends EventEmitter {
     leftChat.on('error', () => {})
     rightChat.on('error', () => {})
     left.pipe(right).pipe(left)
-    this.#handleChannelConnection(leftChat, peerInfo).catch(() => {})
-    peerEngine.#handleChannelConnection(rightChat, peerInfo).catch(() => {})
+    this.#handleChannelConnection(leftChat, localPeerInfo).catch(() => {})
+    peerEngine
+      .#handleChannelConnection(rightChat, remotePeerInfo)
+      .catch(() => {})
 
     return {
       close: () => {
@@ -6709,17 +6725,103 @@ export class MostBoxEngine extends EventEmitter {
   #getAuthorizedChannelIds(stream) {
     const record = this.#channelStreams.get(stream)
     const topicMap = this.#getChannelTopicMap()
-    const topicHexes = new Set([
-      ...this.#getVerifiedChannelTopics(stream),
-      ...(record?.remoteTopics || []),
-    ])
     const channelIds = new Set()
-    for (const topicHex of topicHexes) {
+    for (const topicHex of record?.authorizedTopics || []) {
       for (const channelId of topicMap.get(topicHex) || []) {
         channelIds.add(channelId)
       }
     }
     return channelIds
+  }
+
+  #getChannelProofPublicKeys(stream) {
+    const record = this.#channelStreams.get(stream)
+    return {
+      localPublicKey: this.#chatSwarm?.keyPair?.publicKey,
+      remotePublicKey: stream?.remotePublicKey || record?.info?.publicKey,
+    }
+  }
+
+  #sendChannelProofChallenge(stream) {
+    const record = this.#channelStreams.get(stream)
+    if (!record) return false
+    if (record.localChallenge) return true
+    if (!stream || stream.destroyed || stream.writableEnded) {
+      this.#removeChannelStream(stream)
+      return false
+    }
+
+    try {
+      record.localChallenge = createChannelProofChallenge()
+      stream.write(
+        `${JSON.stringify({
+          type: 'channel-proof-challenge',
+          version: CHANNEL_PROOF_VERSION,
+          challenge: record.localChallenge,
+        })}\n`
+      )
+      return true
+    } catch {
+      this.#removeChannelStream(stream)
+      return false
+    }
+  }
+
+  #sendAvailableChannelProofs(stream) {
+    const record = this.#channelStreams.get(stream)
+    if (!record?.remoteChallenge) return true
+    if (!stream || stream.destroyed || stream.writableEnded) {
+      this.#removeChannelStream(stream)
+      return false
+    }
+
+    const topicMap = this.#getChannelTopicMap()
+    const topics = new Set([
+      ...this.#getVerifiedChannelTopics(stream),
+      ...record.remoteClaimedTopics,
+    ])
+    const { localPublicKey, remotePublicKey } =
+      this.#getChannelProofPublicKeys(stream)
+    const proofs = []
+    for (const topic of topics) {
+      if (record.proofSentTopics.has(topic)) continue
+      const channelId = topicMap.get(topic)?.values().next().value
+      if (!channelId) continue
+      const proof = createChannelTopicProof({
+        channelId,
+        topic,
+        challenge: record.remoteChallenge,
+        proverPublicKey: localPublicKey,
+        verifierPublicKey: remotePublicKey,
+      })
+      if (!proof) continue
+      record.proofSentTopics.add(topic)
+      proofs.push({ topic, proof })
+    }
+
+    try {
+      for (
+        let index = 0;
+        index < proofs.length;
+        index += MAX_CHANNEL_SCOPE_TOPICS_PER_FRAME
+      ) {
+        stream.write(
+          `${JSON.stringify({
+            type: 'channel-proof',
+            version: CHANNEL_PROOF_VERSION,
+            challenge: record.remoteChallenge,
+            proofs: proofs.slice(
+              index,
+              index + MAX_CHANNEL_SCOPE_TOPICS_PER_FRAME
+            ),
+          })}\n`
+        )
+      }
+      return true
+    } catch {
+      this.#removeChannelStream(stream)
+      return false
+    }
   }
 
   #isChannelAllowedForStream(stream, channelId) {
@@ -6883,9 +6985,12 @@ export class MostBoxEngine extends EventEmitter {
       this.#removeChannelStream(stream)
       return false
     }
-    if (options.sendScope !== false && !this.#sendChannelScopes(stream)) {
-      return false
+    if (options.sendScope !== false) {
+      if (!this.#sendChannelProofChallenge(stream)) return false
+      if (!this.#sendChannelScopes(stream)) return false
+      if (!this.#sendAvailableChannelProofs(stream)) return false
     }
+    if (this.#getAuthorizedChannelIds(stream).size === 0) return true
     try {
       for (const message of this.#buildChannelHelloMessages(stream)) {
         stream.write(`${JSON.stringify(message)}\n`)
@@ -6999,12 +7104,77 @@ export class MostBoxEngine extends EventEmitter {
     const record = this.#channelStreams.get(stream)
     if (!record) return true
     const topicMap = this.#getChannelTopicMap()
-    let changed = false
     for (const topicHex of normalizeChannelScopeTopics(msg.topics)) {
-      if (!topicMap.has(topicHex) || record.remoteTopics.has(topicHex)) continue
-      record.remoteTopics.add(topicHex)
+      if (!topicMap.has(topicHex)) continue
+      record.remoteClaimedTopics.add(topicHex)
+    }
+    this.#sendAvailableChannelProofs(stream)
+    return true
+  }
+
+  #processChannelProofChallengeMessage(stream, msg) {
+    if (msg.type !== 'channel-proof-challenge') return false
+    const record = this.#channelStreams.get(stream)
+    if (!record || msg.version !== CHANNEL_PROOF_VERSION) return true
+
+    const challenge = normalizeChannelProofChallenge(msg.challenge)
+    if (!challenge) return true
+    if (record.remoteChallenge && record.remoteChallenge !== challenge) {
+      return true
+    }
+    record.remoteChallenge = challenge
+    this.#sendAvailableChannelProofs(stream)
+    return true
+  }
+
+  #processChannelProofMessage(stream, msg) {
+    if (msg.type !== 'channel-proof') return false
+    const record = this.#channelStreams.get(stream)
+    if (
+      !record ||
+      msg.version !== CHANNEL_PROOF_VERSION ||
+      normalizeChannelProofChallenge(msg.challenge) !== record.localChallenge ||
+      !Array.isArray(msg.proofs) ||
+      msg.proofs.length > MAX_CHANNEL_SCOPE_TOPICS_PER_FRAME
+    ) {
+      return true
+    }
+
+    const topicMap = this.#getChannelTopicMap()
+    const expectedTopics = new Set([
+      ...this.#getVerifiedChannelTopics(stream),
+      ...record.remoteClaimedTopics,
+    ])
+    const { localPublicKey, remotePublicKey } =
+      this.#getChannelProofPublicKeys(stream)
+    let changed = false
+    for (const item of msg.proofs) {
+      const [topic] = normalizeChannelScopeTopics([item?.topic])
+      if (
+        !topic ||
+        !expectedTopics.has(topic) ||
+        record.authorizedTopics.has(topic)
+      ) {
+        continue
+      }
+      const channelIds = topicMap.get(topic) || []
+      const valid = [...channelIds].some(channelId =>
+        verifyChannelTopicProof(
+          {
+            channelId,
+            topic,
+            challenge: record.localChallenge,
+            proverPublicKey: remotePublicKey,
+            verifierPublicKey: localPublicKey,
+          },
+          item?.proof
+        )
+      )
+      if (!valid) continue
+      record.authorizedTopics.add(topic)
       changed = true
     }
+
     if (changed) {
       this.#sendChannelHello(stream, { sendScope: false })
       this.#sendCurrentChannelPresence(stream)
@@ -7177,7 +7347,14 @@ export class MostBoxEngine extends EventEmitter {
     let connectedPeerId = null
     let readBuffer = Buffer.alloc(0)
     let closed = false
-    this.#channelStreams.set(stream, { info, remoteTopics: new Set() })
+    this.#channelStreams.set(stream, {
+      info,
+      remoteClaimedTopics: new Set(),
+      authorizedTopics: new Set(),
+      proofSentTopics: new Set(),
+      localChallenge: '',
+      remoteChallenge: '',
+    })
     const handleTopic = () => {
       if (!closed) this.#sendChannelHello(stream)
     }
@@ -7205,6 +7382,10 @@ export class MostBoxEngine extends EventEmitter {
         try {
           const message = JSON.parse(line)
           if (this.#processChannelScopeMessage(stream, message)) continue
+          if (this.#processChannelProofChallengeMessage(stream, message)) {
+            continue
+          }
+          if (this.#processChannelProofMessage(stream, message)) continue
           const peerId =
             message.type === 'channel-presence'
               ? this.#processChannelPresenceMessage(stream, message)

@@ -9,8 +9,10 @@ import Corestore from 'corestore'
 import Hypercore from 'hypercore'
 import Hyperdrive from 'hyperdrive'
 import {
+  CHANNEL_PROOF_VERSION,
   CHANNELS_FILE,
   DIAGNOSTIC_AUTHOR,
+  createChannelTopicProof,
   generateChannelChatDiscoveryKey,
   generateChannelDiscoveryKey,
   generateChannelIdDiscoveryKey,
@@ -97,10 +99,48 @@ function parseStreamWrites(stream, type) {
     .filter(message => message.type === type)
 }
 
-function channelPeerInfo(channelId) {
+function channelPeerInfo(channelId, publicKeyByte = 0x63) {
   const info = new EventEmitter()
   info.topics = [generateChannelChatDiscoveryKey(channelId)]
+  info.publicKey = b4a.alloc(32, publicKeyByte)
   return info
+}
+
+async function proveChannelKnowledge({
+  stream,
+  peerInfo,
+  chatSwarm,
+  channelIds,
+}) {
+  const challenge = parseStreamWrites(stream, 'channel-proof-challenge').at(
+    -1
+  )?.challenge
+  assert.match(challenge, /^[0-9a-f]{64}$/)
+
+  const message = {
+    type: 'channel-proof',
+    version: CHANNEL_PROOF_VERSION,
+    challenge,
+    proofs: channelIds.map(channelId => {
+      const topic = b4a.toString(
+        generateChannelChatDiscoveryKey(channelId),
+        'hex'
+      )
+      return {
+        topic,
+        proof: createChannelTopicProof({
+          channelId,
+          topic,
+          challenge,
+          proverPublicKey: peerInfo.publicKey,
+          verifierPublicKey: chatSwarm.keyPair.publicKey,
+        }),
+      }
+    }),
+  }
+  stream.emit('data', b4a.from(`${JSON.stringify(message)}\n`))
+  await waitForTick()
+  return message
 }
 
 function expectedChannelJoinTopics(channelId) {
@@ -341,7 +381,14 @@ describe('mobile channel presence', () => {
 
     const chatSwarm = swarms[1]
     const stream = new RecordingStream()
-    chatSwarm.emit('connection', stream, channelPeerInfo(channel.channelId))
+    const peerInfo = channelPeerInfo(channel.channelId)
+    chatSwarm.emit('connection', stream, peerInfo)
+    await proveChannelKnowledge({
+      stream,
+      peerInfo,
+      chatSwarm,
+      channelIds: [channel.channelId],
+    })
 
     const joined = core.joinChannelPresence({
       channelName: channel.channelKey,
@@ -398,7 +445,14 @@ describe('mobile channel presence', () => {
 
     const chatSwarm = swarms[1]
     const stream = new RecordingStream()
-    chatSwarm.emit('connection', stream, channelPeerInfo(channel.channelId))
+    const peerInfo = channelPeerInfo(channel.channelId)
+    chatSwarm.emit('connection', stream, peerInfo)
+    await proveChannelKnowledge({
+      stream,
+      peerInfo,
+      chatSwarm,
+      channelIds: [channel.channelId],
+    })
     stream.emit(
       'data',
       b4a.from(
@@ -437,11 +491,14 @@ describe('mobile channel presence', () => {
     )
 
     const staleStream = new RecordingStream()
-    chatSwarm.emit(
-      'connection',
-      staleStream,
-      channelPeerInfo(channel.channelId)
-    )
+    const stalePeerInfo = channelPeerInfo(channel.channelId, 0x64)
+    chatSwarm.emit('connection', staleStream, stalePeerInfo)
+    await proveChannelKnowledge({
+      stream: staleStream,
+      peerInfo: stalePeerInfo,
+      chatSwarm,
+      channelIds: [channel.channelId],
+    })
     staleStream.emit(
       'data',
       b4a.from(
@@ -504,12 +561,52 @@ describe('mobile channel connection scoping', () => {
 
     const stream = new RecordingStream()
     const peerInfo = channelPeerInfo(sharedChannel.channelId)
-    swarms[1].emit('connection', stream, peerInfo)
+    const chatSwarm = swarms[1]
+    chatSwarm.emit('connection', stream, peerInfo)
 
-    const helloChannels = parseStreamWrites(stream, 'channel-hello').flatMap(
-      message => message.channels.map(channel => channel.channelId)
+    assert.equal(parseStreamWrites(stream, 'channel-hello').length, 0)
+
+    const privateTopic = b4a.toString(
+      generateChannelChatDiscoveryKey(privateChannel.channelId),
+      'hex'
     )
-    assert.deepEqual(helloChannels, [sharedChannel.channelId])
+    stream.emit(
+      'data',
+      b4a.from(
+        `${JSON.stringify({
+          type: 'channel-scope',
+          topics: [privateTopic],
+        })}\n`
+      )
+    )
+    const challenge = parseStreamWrites(stream, 'channel-proof-challenge').at(
+      -1
+    ).challenge
+    stream.emit(
+      'data',
+      b4a.from(
+        `${JSON.stringify({
+          type: 'channel-proof',
+          version: CHANNEL_PROOF_VERSION,
+          challenge,
+          proofs: [{ topic: privateTopic, proof: '0'.repeat(64) }],
+        })}\n`
+      )
+    )
+    await waitForTick()
+    assert.equal(parseStreamWrites(stream, 'channel-hello').length, 0)
+
+    await proveChannelKnowledge({
+      stream,
+      peerInfo,
+      chatSwarm,
+      channelIds: [sharedChannel.channelId],
+    })
+    const sharedHello = parseStreamWrites(stream, 'channel-hello').at(-1)
+    assert.deepEqual(
+      sharedHello.channels.map(channel => channel.channelId),
+      [sharedChannel.channelId]
+    )
 
     core.joinChannelPresence({
       channelName: sharedChannel.channelKey,
@@ -555,17 +652,34 @@ describe('mobile channel connection scoping', () => {
       !currentPrivateChannel.writerCoreKeys.includes(unrelatedWriterKey)
     )
 
-    const privateTopic = generateChannelChatDiscoveryKey(
+    const privateTopicBuffer = generateChannelChatDiscoveryKey(
       privateChannel.channelId
     )
-    peerInfo.topics.push(privateTopic)
-    peerInfo.emit('topic', privateTopic)
+    peerInfo.topics.push(privateTopicBuffer)
+    peerInfo.emit('topic', privateTopicBuffer)
 
-    const latestHello = parseStreamWrites(stream, 'channel-hello').at(-1)
+    let latestHello = parseStreamWrites(stream, 'channel-hello').at(-1)
+    assert.deepEqual(
+      latestHello.channels.map(channel => channel.channelId),
+      [sharedChannel.channelId]
+    )
+
+    const proofMessage = await proveChannelKnowledge({
+      stream,
+      peerInfo,
+      chatSwarm,
+      channelIds: [privateChannel.channelId],
+    })
+    latestHello = parseStreamWrites(stream, 'channel-hello').at(-1)
     assert.deepEqual(
       latestHello.channels.map(channel => channel.channelId).sort(),
       [privateChannel.channelId, sharedChannel.channelId].sort()
     )
+
+    const helloCount = parseStreamWrites(stream, 'channel-hello').length
+    stream.emit('data', b4a.from(`${JSON.stringify(proofMessage)}\n`))
+    await waitForTick()
+    assert.equal(parseStreamWrites(stream, 'channel-hello').length, helloCount)
   })
 
   it('does not let an unauthorized stream clear accepted presence', async t => {
@@ -593,13 +707,17 @@ describe('mobile channel connection scoping', () => {
     })
     const remoteAddress = '0x0000000000000000000000000000000000000002'
     const remotePeerId = 'desktop-peer'
+    const chatSwarm = swarms[1]
 
     const acceptedStream = new RecordingStream()
-    swarms[1].emit(
-      'connection',
-      acceptedStream,
-      channelPeerInfo(sharedChannel.channelId)
-    )
+    const acceptedPeerInfo = channelPeerInfo(sharedChannel.channelId)
+    chatSwarm.emit('connection', acceptedStream, acceptedPeerInfo)
+    await proveChannelKnowledge({
+      stream: acceptedStream,
+      peerInfo: acceptedPeerInfo,
+      chatSwarm,
+      channelIds: [sharedChannel.channelId],
+    })
     acceptedStream.emit(
       'data',
       b4a.from(
@@ -621,11 +739,14 @@ describe('mobile channel connection scoping', () => {
     )
 
     const unauthorizedStream = new RecordingStream()
-    swarms[1].emit(
-      'connection',
-      unauthorizedStream,
-      channelPeerInfo(privateChannel.channelId)
-    )
+    const unauthorizedPeerInfo = channelPeerInfo(privateChannel.channelId)
+    chatSwarm.emit('connection', unauthorizedStream, unauthorizedPeerInfo)
+    await proveChannelKnowledge({
+      stream: unauthorizedStream,
+      peerInfo: unauthorizedPeerInfo,
+      chatSwarm,
+      channelIds: [privateChannel.channelId],
+    })
     unauthorizedStream.emit(
       'data',
       b4a.from(
@@ -706,7 +827,14 @@ describe('mobile channel metadata management', () => {
     })
     const chatSwarm = restartedSwarms[1]
     const stream = new RecordingStream()
-    chatSwarm.emit('connection', stream, channelPeerInfo(restored.channelId))
+    const peerInfo = channelPeerInfo(restored.channelId)
+    chatSwarm.emit('connection', stream, peerInfo)
+    await proveChannelKnowledge({
+      stream,
+      peerInfo,
+      chatSwarm,
+      channelIds: [restored.channelId],
+    })
     stream.emit(
       'data',
       b4a.from(

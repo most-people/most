@@ -226,6 +226,7 @@ mostbox.example.com {
 5. **P2P 频道聊天**
    - 默认创建 128 位、26 位小写 base32 随机频道 ID，也可使用 3-30 位自定义 ID；输入不区分大小写并统一转为小写
    - 通过 `/chat/#<channelId>` 分享，知道频道 ID 的人即可读取历史、发送消息和加入语音
+   - peer 必须先完成绑定当前连接的频道 ID 挑战证明；仅知道派生 topic 不能获取频道 metadata 或 writer core key
    - 消息、附件和语音信令通过 P2P Channel 明文复制，不提供应用层端到端加密
 
 6. **网络连通性测试**
@@ -271,7 +272,7 @@ mostbox.example.com {
 - 房间备注只保存在本地用于展示，不参与频道发现
 - 消息通过 P2P Channel 明文复制，附件仍按 `most://` CID 下载和校验
 
-频道 ID 是 bearer capability：知道 ID 就拥有读取历史、发送消息和加入语音的能力。随机 ID 难以猜测，但自定义短 ID 的强度由创建者负责；ID 泄露后只能创建新频道。MostBox 不防拥有 daemon、数据目录访问权或已经加入频道的 peer 读取消息。
+频道 ID 是 bearer capability：peer 需要通过绑定当前连接双方公钥和随机挑战的持有证明，才能接收频道 metadata 和 writer core key；单独拿到派生 topic 不会被授权。知道原始 ID 仍拥有读取历史、发送消息和加入语音的能力。随机 ID 难以猜测，但自定义短 ID 的强度由创建者负责；ID 泄露后只能创建新频道。MostBox 不防拥有 daemon、数据目录访问权或已经加入频道的 peer 读取消息。
 
 ### 如何使用频道聊天？
 

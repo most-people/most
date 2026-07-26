@@ -1,11 +1,15 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert'
 import {
+  CHANNEL_PROOF_CHALLENGE_BYTES,
   buildChannelHelloMessages,
   chunkChannelScopeTopics,
+  createChannelProofChallenge,
+  createChannelTopicProof,
   isChannelAllowedForConnection,
   normalizeChannelScopeTopics,
   selectChannelsForHello,
+  verifyChannelTopicProof,
 } from '../../src/core/channelHello.js'
 import { MAX_CHANNEL_FRAME_BYTES } from '../../src/core/channelFrames.js'
 
@@ -23,6 +27,48 @@ function ordinaryChannel(index) {
 }
 
 describe('channel hello scoping', () => {
+  it('proves channel ID knowledge for one challenge and Noise connection', () => {
+    const channelId = 'secret-channel'
+    const topic = 'a'.repeat(64)
+    const challenge = createChannelProofChallenge(size => {
+      assert.strictEqual(size, CHANNEL_PROOF_CHALLENGE_BYTES)
+      return Buffer.alloc(size, 0xab)
+    })
+    const proverPublicKey = Buffer.alloc(32, 0x11)
+    const verifierPublicKey = Buffer.alloc(32, 0x22)
+    const input = {
+      channelId,
+      topic,
+      challenge,
+      proverPublicKey,
+      verifierPublicKey,
+    }
+    const proof = createChannelTopicProof(input)
+
+    assert.match(challenge, /^[0-9a-f]{64}$/)
+    assert.strictEqual(
+      proof,
+      '521a163591570275bd704ddcf99acfea9d28c66ef7116a1c5484481e2c0133e2'
+    )
+    assert.ok(verifyChannelTopicProof(input, proof))
+    assert.ok(
+      !verifyChannelTopicProof({ ...input, channelId: 'wrong-channel' }, proof)
+    )
+    assert.ok(
+      !verifyChannelTopicProof(
+        {
+          ...input,
+          proverPublicKey: verifierPublicKey,
+          verifierPublicKey: proverPublicKey,
+        },
+        proof
+      )
+    )
+    assert.ok(
+      !verifyChannelTopicProof({ ...input, challenge: 'cd'.repeat(32) }, proof)
+    )
+  })
+
   it('selects only channels authorized for one peer stream', () => {
     const first = ordinaryChannel(1)
     const second = ordinaryChannel(2)

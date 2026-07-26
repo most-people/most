@@ -1,4 +1,9 @@
-import { createHash } from 'node:crypto'
+import {
+  createHash,
+  createHmac,
+  randomBytes,
+  timingSafeEqual,
+} from 'node:crypto'
 import b4a from 'b4a'
 import { CID } from 'multiformats/cid'
 import { shortAddress } from '../shared/format-address.mjs'
@@ -15,6 +20,8 @@ export const CHANNEL_PRESENCE_HEARTBEAT_MS = 15 * 1000
 export const CHANNEL_PRESENCE_TIMEOUT_MS = 45 * 1000
 export const MAX_CHANNEL_FRAME_BYTES = 128 * 1024
 export const MAX_CHANNEL_SCOPE_TOPICS_PER_FRAME = 256
+export const CHANNEL_PROOF_VERSION = 1
+export const CHANNEL_PROOF_CHALLENGE_BYTES = 32
 export const MAX_CHANNEL_MESSAGE_LENGTH = 2000
 export const MAX_CHANNEL_REMARK_LENGTH = 50
 export const MAX_CHANNEL_ATTACHMENT_CID_LENGTH = 128
@@ -32,6 +39,85 @@ export const DIAGNOSTIC_AUTHOR = '0x0000000000000000000000000000000000000001'
 export const DIAGNOSTIC_AUTHOR_NAME = 'Android'
 
 const CHANNEL_TOPIC_HEX_REGEX = /^[0-9a-f]{64}$/
+const CHANNEL_PROOF_HEX_REGEX = /^[0-9a-f]{64}$/
+const CHANNEL_PROOF_KEY_DOMAIN = 'most-box-channel-proof-key-v1'
+const CHANNEL_PROOF_RESPONSE_DOMAIN = 'most-box-channel-proof-response-v1'
+
+function normalizePublicKey(value) {
+  let key = null
+  if (typeof value === 'string' && CHANNEL_PROOF_HEX_REGEX.test(value)) {
+    key = b4a.from(value, 'hex')
+  } else if (value && typeof value === 'object') {
+    key = b4a.from(value)
+  }
+  return key?.length === 32 ? key : null
+}
+
+export function normalizeChannelProofChallenge(input) {
+  const challenge = String(input || '')
+    .trim()
+    .toLowerCase()
+  return CHANNEL_PROOF_HEX_REGEX.test(challenge) ? challenge : ''
+}
+
+export function createChannelProofChallenge(createBytes = randomBytes) {
+  const challenge = createBytes(CHANNEL_PROOF_CHALLENGE_BYTES)
+  if (!challenge || challenge.length !== CHANNEL_PROOF_CHALLENGE_BYTES) {
+    throw new Error('Secure channel proof challenge generation failed')
+  }
+  return b4a.toString(challenge, 'hex')
+}
+
+export function createChannelTopicProof({
+  channelId,
+  topic,
+  challenge,
+  proverPublicKey,
+  verifierPublicKey,
+}) {
+  const normalizedChannelId = String(channelId || '')
+    .trim()
+    .toLowerCase()
+  const [normalizedTopic] = normalizeChannelScopeTopics([topic])
+  const normalizedChallenge = normalizeChannelProofChallenge(challenge)
+  const proverKey = normalizePublicKey(proverPublicKey)
+  const verifierKey = normalizePublicKey(verifierPublicKey)
+  if (
+    !normalizedChannelId ||
+    !normalizedTopic ||
+    !normalizedChallenge ||
+    !proverKey ||
+    !verifierKey
+  ) {
+    return ''
+  }
+
+  const proofKey = createHash('sha256')
+    .update(CHANNEL_PROOF_KEY_DOMAIN)
+    .update('\0')
+    .update(normalizedChannelId)
+    .digest()
+
+  return createHmac('sha256', proofKey)
+    .update(CHANNEL_PROOF_RESPONSE_DOMAIN)
+    .update('\0')
+    .update(b4a.from(normalizedTopic, 'hex'))
+    .update(b4a.from(normalizedChallenge, 'hex'))
+    .update(proverKey)
+    .update(verifierKey)
+    .digest('hex')
+}
+
+export function verifyChannelTopicProof(input, proofInput) {
+  const proof = String(proofInput || '')
+    .trim()
+    .toLowerCase()
+  if (!CHANNEL_PROOF_HEX_REGEX.test(proof)) return false
+
+  const expected = createChannelTopicProof(input)
+  if (!expected) return false
+  return timingSafeEqual(b4a.from(proof, 'hex'), b4a.from(expected, 'hex'))
+}
 
 export function normalizeChannelId(input) {
   return String(input || '')
