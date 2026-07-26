@@ -25,6 +25,11 @@ const SOURCE_PATHS = {
   globalDownloads: 'src/features/cid/GlobalDownloadTasks.tsx',
   downloadTasks: 'src/lib/downloadTasks.ts',
   appGlobals: 'src/components/AppGlobals.tsx',
+  accountBackup: 'src/features/profile/useAccountBackup.ts',
+  noteVaultLocationModal: 'src/features/profile/NoteVaultLocationModal.tsx',
+  profile: 'src/features/profile/ProfilePage.tsx',
+  electronMain: 'electron/main.js',
+  electronPreload: 'electron/preload.cjs',
   appStore: 'src/stores/useAppStore.ts',
   cidCss: 'src/styles/cid.css',
   fileApi: 'src/lib/fileApi.ts',
@@ -123,6 +128,49 @@ describe('frontend smoke checks', () => {
     )
     assert.match(readSource(SOURCE_PATHS.readme), /npm run dev/)
     assert.match(readSource(SOURCE_PATHS.acceptance), /npm run test:frontend/)
+  })
+
+  it('asks for a note folder before the first cloud restore', async () => {
+    const accountBackupSource = readSource(SOURCE_PATHS.accountBackup)
+    const appGlobalsSource = readSource(SOURCE_PATHS.appGlobals)
+    const profileSource = readSource(SOURCE_PATHS.profile)
+    const modalSource = readSource(SOURCE_PATHS.noteVaultLocationModal)
+    const electronMainSource = readSource(SOURCE_PATHS.electronMain)
+    const electronPreloadSource = readSource(SOURCE_PATHS.electronPreload)
+    const { messages } = await importBundledSource('src/lib/i18n/messages.ts')
+
+    assert.match(
+      accountBackupSource,
+      /const restored = await restorePayload\(payload, \{[\s\S]*requestNoteVaultDirectory,/
+    )
+    assert.match(
+      accountBackupSource,
+      /requestDirectory\s*\? await requestDirectory\(\)/
+    )
+    assert.match(appGlobalsSource, /<NoteVaultLocationModal/)
+    assert.match(profileSource, /<NoteVaultLocationModal/)
+    assert.match(modalSource, /profile\.backup\.noteVault\.useDefault/)
+    assert.match(modalSource, /profile\.backup\.noteVault\.selectFolder/)
+    assert.match(
+      electronMainSource,
+      /path\.join\(\s*app\.getPath\('documents'\),\s*'MostBox',\s*'Notes'\s*\)/
+    )
+    assert.match(electronPreloadSource, /note-vault:get-default-directory/)
+
+    for (const locale of ['zh-CN', 'zh-TW', 'en']) {
+      assert.equal(
+        typeof messages[locale]['profile.backup.noteVault.message'],
+        'string'
+      )
+      assert.equal(
+        typeof messages[locale]['profile.backup.noteVault.useDefault'],
+        'string'
+      )
+      assert.equal(
+        typeof messages[locale]['profile.backup.noteVault.selectFolder'],
+        'string'
+      )
+    }
   })
 
   it('keeps the static web shell route list focused on public entry points', () => {
@@ -260,6 +308,11 @@ describe('frontend smoke checks', () => {
     assert.match(cidSource, /cid\.process\.step\.open\.title/)
     assert.match(cidSource, /cid\.process\.step\.seed\.desc/)
     assert.match(cidSource, /className="cid-bottom-handoff"/)
+    assert.match(cidSource, /const isDesktopClient = useIsDesktopClient\(\)/)
+    assert.match(
+      cidSource,
+      /!isDesktopClient && \([\s\S]*className="cid-bottom-handoff"/
+    )
     assert.match(
       cidSource,
       /className="cid-workspace"[\s\S]*className="cid-bottom-handoff"/

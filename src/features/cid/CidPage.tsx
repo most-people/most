@@ -29,7 +29,7 @@ import {
 import { formatBytes } from '~/lib/format'
 import { getLocalizedDownloadLinkValidationMessage } from '~/lib/i18n/downloadValidation'
 import { MarketingHeader } from '~/components/MarketingHeader'
-import { useClipboard, useCountdownSeconds } from '~/hooks'
+import { useClipboard, useCountdownSeconds, useIsDesktopClient } from '~/hooks'
 import { useI18n } from '~/lib/i18n'
 import { buildCidShareLink } from '~/lib/shareLink'
 import {
@@ -186,6 +186,7 @@ function getDownloadSuccessCopy(
 
 export default function CidPage() {
   const { t } = useI18n()
+  const isDesktopClient = useIsDesktopClient()
   const { cid } = useParams({ from: '/cid/$cid/' })
   const searchStr = useLocation({ select: location => location.searchStr })
   const hasBackend = useAppStore(s => s.hasBackend)
@@ -1122,33 +1123,35 @@ export default function CidPage() {
             </aside>
           </div>
 
-          <div className="cid-bottom-handoff">
-            <div className="cid-handoff" aria-label={t('cid.handoff.title')}>
-              <div className="cid-handoff-copy">
-                <p className="cid-handoff-title">{t('cid.handoff.title')}</p>
-                <p>{t('cid.handoff.desc')}</p>
+          {!isDesktopClient && (
+            <div className="cid-bottom-handoff">
+              <div className="cid-handoff" aria-label={t('cid.handoff.title')}>
+                <div className="cid-handoff-copy">
+                  <p className="cid-handoff-title">{t('cid.handoff.title')}</p>
+                  <p>{t('cid.handoff.desc')}</p>
+                </div>
+                <a
+                  className="btn btn-primary"
+                  href={mostLink}
+                  onClick={handleOpenMostBox}
+                >
+                  <ExternalLink size={16} />
+                  {t('cid.handoff.action')}
+                </a>
               </div>
-              <a
-                className="btn btn-primary"
-                href={mostLink}
-                onClick={handleOpenMostBox}
-              >
-                <ExternalLink size={16} />
-                {t('cid.handoff.action')}
-              </a>
-            </div>
 
-            {showHandoffFallback && (
-              <div className="cid-handoff-fallback" role="status">
-                <AlertTriangle size={18} />
-                <p>{t('cid.handoff.fallback')}</p>
-                <Link to="/download/" className="btn btn-secondary">
-                  <Download size={16} />
-                  {t('cid.handoff.downloadAction')}
-                </Link>
-              </div>
-            )}
-          </div>
+              {showHandoffFallback && (
+                <div className="cid-handoff-fallback" role="status">
+                  <AlertTriangle size={18} />
+                  <p>{t('cid.handoff.fallback')}</p>
+                  <Link to="/download/" className="btn btn-secondary">
+                    <Download size={16} />
+                    {t('cid.handoff.downloadAction')}
+                  </Link>
+                </div>
+              )}
+            </div>
+          )}
         </section>
       </main>
     </div>

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '~server/src/utils/api'
 import {
   calculateNoteCid,
@@ -37,9 +37,15 @@ type RestoreConfirmRequest = () => boolean | Promise<boolean>
 type RestorePayloadOptions = {
   confirm?: boolean
   requestConfirm?: RestoreConfirmRequest
+  requestNoteVaultDirectory?: NoteVaultDirectoryRequest
 }
 type ImportLocalBackupOptions = {
   requestConfirm?: RestoreConfirmRequest
+}
+type NoteVaultDirectoryRequest = () => Promise<string | null>
+type PendingNoteVaultLocationRequest = {
+  resolve: (directory: string | null) => void
+  reject: (error: Error) => void
 }
 type AccountBackupSummary = {
   filesCount: number | null
@@ -214,12 +220,16 @@ async function canRestoreToDesktopNoteVault() {
   }
 }
 
-async function ensureDesktopNoteVaultConfigured() {
+async function ensureDesktopNoteVaultConfigured(
+  requestDirectory?: NoteVaultDirectoryRequest
+) {
   const status = await getNoteVaultStatus()
   if (status.configured) return true
 
   if (!canSelectDesktopNoteVaultDirectory()) return false
-  const directory = await window.electronAPI?.selectNoteVaultDirectory?.()
+  const directory = requestDirectory
+    ? await requestDirectory()
+    : await window.electronAPI?.selectNoteVaultDirectory?.()
   if (!directory) return false
 
   await configureNoteVault(directory)
@@ -342,6 +352,99 @@ export function useAccountBackup() {
     channelsCount: null,
     loading: false,
   })
+  const noteVaultLocationRequestRef =
+    useRef<PendingNoteVaultLocationRequest | null>(null)
+  const [noteVaultLocationRequired, setNoteVaultLocationRequired] =
+    useState(false)
+  const [noteVaultLocationWorking, setNoteVaultLocationWorking] =
+    useState(false)
+
+  const finishNoteVaultLocationRequest = useCallback(
+    (directory: string | null) => {
+      const request = noteVaultLocationRequestRef.current
+      noteVaultLocationRequestRef.current = null
+      setNoteVaultLocationRequired(false)
+      setNoteVaultLocationWorking(false)
+      request?.resolve(directory)
+    },
+    []
+  )
+
+  const failNoteVaultLocationRequest = useCallback((error: Error) => {
+    const request = noteVaultLocationRequestRef.current
+    noteVaultLocationRequestRef.current = null
+    setNoteVaultLocationRequired(false)
+    setNoteVaultLocationWorking(false)
+    request?.reject(error)
+  }, [])
+
+  const requestNoteVaultDirectory = useCallback(
+    () =>
+      new Promise<string | null>((resolve, reject) => {
+        noteVaultLocationRequestRef.current?.resolve(null)
+        noteVaultLocationRequestRef.current = { resolve, reject }
+        setNoteVaultLocationWorking(false)
+        setNoteVaultLocationRequired(true)
+      }),
+    []
+  )
+
+  const cancelNoteVaultLocation = useCallback(() => {
+    if (noteVaultLocationWorking) return
+    finishNoteVaultLocationRequest(null)
+  }, [finishNoteVaultLocationRequest, noteVaultLocationWorking])
+
+  const useDefaultNoteVaultLocation = useCallback(async () => {
+    const getDefaultDirectory = window.electronAPI?.getDefaultNoteVaultDirectory
+    if (!getDefaultDirectory) {
+      failNoteVaultLocationRequest(
+        new Error(t('profile.backup.error.noteVaultLocationFailed'))
+      )
+      return
+    }
+
+    setNoteVaultLocationWorking(true)
+    try {
+      const directory = await getDefaultDirectory()
+      finishNoteVaultLocationRequest(directory)
+    } catch {
+      failNoteVaultLocationRequest(
+        new Error(t('profile.backup.error.noteVaultLocationFailed'))
+      )
+    }
+  }, [failNoteVaultLocationRequest, finishNoteVaultLocationRequest, t])
+
+  const selectNoteVaultLocation = useCallback(async () => {
+    const selectDirectory = window.electronAPI?.selectNoteVaultDirectory
+    if (!selectDirectory) {
+      failNoteVaultLocationRequest(
+        new Error(t('profile.backup.error.noteVaultLocationFailed'))
+      )
+      return
+    }
+
+    setNoteVaultLocationWorking(true)
+    try {
+      const directory = await selectDirectory()
+      if (directory) {
+        finishNoteVaultLocationRequest(directory)
+      } else {
+        setNoteVaultLocationWorking(false)
+      }
+    } catch {
+      failNoteVaultLocationRequest(
+        new Error(t('profile.backup.error.noteVaultLocationFailed'))
+      )
+    }
+  }, [failNoteVaultLocationRequest, finishNoteVaultLocationRequest, t])
+
+  useEffect(
+    () => () => {
+      noteVaultLocationRequestRef.current?.resolve(null)
+      noteVaultLocationRequestRef.current = null
+    },
+    []
+  )
 
   const refreshBackupSummary = useCallback(async () => {
     const currentWallet = useUserStore.getState().wallet
@@ -465,7 +568,9 @@ export function useAccountBackup() {
         const shouldRestoreVault =
           hasNoteVaultPayload(payload) || Array.isArray(payload.notes)
         if (shouldRestoreVault) {
-          const configured = await ensureDesktopNoteVaultConfigured()
+          const configured = await ensureDesktopNoteVaultConfigured(
+            options.requestNoteVaultDirectory
+          )
           if (!configured) {
             addToast(t('profile.backup.toast.cancelRestore'), 'info')
             return false
@@ -572,6 +677,7 @@ export function useAccountBackup() {
         const restored = await restorePayload(payload, {
           confirm: options.confirm,
           requestConfirm: options.requestConfirm,
+          requestNoteVaultDirectory,
         })
         if (restored) {
           setStatus('synced')
@@ -591,7 +697,15 @@ export function useAccountBackup() {
         setAction(null)
       }
     },
-    [addToast, buildPayload, requireBackend, requireWallet, restorePayload, t]
+    [
+      addToast,
+      buildPayload,
+      requestNoteVaultDirectory,
+      requireBackend,
+      requireWallet,
+      restorePayload,
+      t,
+    ]
   )
 
   const exportLocalBackup = useCallback(async () => {
@@ -693,5 +807,10 @@ export function useAccountBackup() {
     backupSummary,
     refreshBackupSummary,
     notesCount: notes.length,
+    noteVaultLocationRequired,
+    noteVaultLocationWorking,
+    cancelNoteVaultLocation,
+    useDefaultNoteVaultLocation,
+    selectNoteVaultLocation,
   }
 }

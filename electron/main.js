@@ -149,6 +149,20 @@ function createTray() {
 }
 
 function registerNoteVaultIpc() {
+  ipcMain.handle('note-vault:get-default-directory', async event => {
+    if (!isTrustedAppUrl(event.senderFrame?.url, PORT)) {
+      throw new Error('Untrusted note vault IPC sender')
+    }
+
+    const defaultDirectory = path.join(
+      app.getPath('documents'),
+      'MostBox',
+      'Notes'
+    )
+    fs.mkdirSync(defaultDirectory, { recursive: true })
+    return defaultDirectory
+  })
+
   ipcMain.handle('note-vault:select-directory', async event => {
     if (!isTrustedAppUrl(event.senderFrame?.url, PORT)) {
       throw new Error('Untrusted note vault IPC sender')

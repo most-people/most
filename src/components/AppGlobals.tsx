@@ -6,11 +6,19 @@ import { Toast } from '~/components/ui'
 import UserLoginModal from '~/components/UserLoginModal'
 import ConnectModal from '~/components/ConnectModal'
 import { useAccountBackup } from '~/features/profile/useAccountBackup'
+import { NoteVaultLocationModal } from '~/features/profile/NoteVaultLocationModal'
 import GlobalDownloadTasks from '~/features/cid/GlobalDownloadTasks'
 
 export default function AppGlobals() {
   const pathname = useLocation({ select: location => location.pathname })
-  const { restoreFromCloud } = useAccountBackup()
+  const {
+    cancelNoteVaultLocation,
+    noteVaultLocationRequired,
+    noteVaultLocationWorking,
+    restoreFromCloud,
+    selectNoteVaultLocation,
+    useDefaultNoteVaultLocation,
+  } = useAccountBackup()
   const checkBackend = useAppStore(s => s.checkBackend)
   const hasBackend = useAppStore(s => s.hasBackend)
   const initializeLocalData = useAppStore(s => s.initializeLocalData)
@@ -82,6 +90,15 @@ export default function AppGlobals() {
       <UserLoginModal />
 
       <ConnectModal />
+
+      {noteVaultLocationRequired && (
+        <NoteVaultLocationModal
+          working={noteVaultLocationWorking}
+          onUseDefault={useDefaultNoteVaultLocation}
+          onSelectFolder={selectNoteVaultLocation}
+          onClose={cancelNoteVaultLocation}
+        />
+      )}
     </>
   )
 }
