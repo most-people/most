@@ -9,6 +9,7 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 const projectDir = path.resolve(scriptDir, '..')
 const androidDir = path.join(projectDir, 'android')
 const outputDir = path.join(projectDir, 'dist')
+const releaseArchitecture = 'arm64-v8a'
 const packageJson = JSON.parse(
   fs.readFileSync(path.join(projectDir, 'package.json'), 'utf8')
 )
@@ -110,12 +111,20 @@ run(process.execPath, [
 ])
 
 console.log('[android] building release APK...')
-run(gradleCommand, ['assembleRelease'], {
-  cwd: androidDir,
-  env: {
-    NODE_ENV: 'production',
-  },
-})
+run(
+  gradleCommand,
+  [
+    'assembleRelease',
+    `-PreactNativeArchitectures=${releaseArchitecture}`,
+    '-Pexpo.useLegacyPackaging=true',
+  ],
+  {
+    cwd: androidDir,
+    env: {
+      NODE_ENV: 'production',
+    },
+  }
+)
 
 if (!fs.existsSync(apkSource)) {
   throw new Error(`APK was not created at ${apkSource}`)
@@ -125,7 +134,11 @@ fs.mkdirSync(outputDir, { recursive: true })
 safeRm(legacyApkTarget)
 safeRm(`${legacyApkTarget}.sha256.txt`)
 fs.copyFileSync(apkSource, apkTarget)
-console.log(`[android] APK ready: ${apkTarget}`)
+const apkSizeBytes = fs.statSync(apkTarget).size
+const apkSizeMiB = apkSizeBytes / 1024 / 1024
+console.log(
+  `[android] APK ready: ${apkTarget} (${apkSizeMiB.toFixed(2)} MiB, ${releaseArchitecture})`
+)
 
 const { checksumPath, digest } = writeChecksum(apkTarget)
 console.log(`[android] SHA256 ${digest}  ${path.basename(apkTarget)}`)

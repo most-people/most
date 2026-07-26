@@ -4,6 +4,10 @@ All notable changes to MostBox are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Reduced the Android alpha download by shipping an arm64-only APK with compressed native libraries.
+
 ## [0.4.4] - 2026-07-24
 
 ### Added

@@ -19,6 +19,8 @@ npm run build
 - `mostbox-android-<version>-release.apk`
 - `mostbox-android-<version>-release.apk.sha256.txt`
 
+该直装 Alpha APK 仅包含 `arm64-v8a`，面向 64 位 ARM 真机；发布脚本会压缩原生库。x86/x86_64 模拟器继续使用开发构建，不包含在用户下载包中。
+
 安装到真机后，打开 App 并确认默认进入聊天 Tab；切到节点 Tab 后状态进入 `Ready` / `在线`。
 
 ## 最高验收回归：前台做种交接

@@ -87,6 +87,8 @@ EAS runs `scripts/bundle-bare.mjs` after installing native dependencies so the X
 
 The release build is an internal alpha artifact. It uses the current local Android signing setup and is not a Play Store production build.
 
+The downloadable alpha APK targets 64-bit ARM devices (`arm64-v8a`) and compresses native libraries to reduce the download size. Local development keeps the native project's multi-architecture configuration for physical devices and emulators.
+
 ## Alpha Acceptance
 
 Use `../../docs/mobile-android-alpha.md` for the current Android alpha acceptance checklist. The highest-value foreground seeding regression is:
