@@ -1,246 +1,181 @@
 export const zhCNAboutMessages = {
-  'about.meta.title': '关于 MOST PEOPLE',
+  'about.meta.title': '关于 Most.Box',
   'about.meta.desc':
-    'MOST PEOPLE 是完全开源的 P2P 节点应用：用户在自己的设备上运行节点，用 most:// 分享文件，并把聊天、知识库和 Web3 作为独立工具。',
-  'about.hero.kicker': '自己运行的 P2P 节点',
-  'about.hero.title': '关于 MOST PEOPLE',
+    'Most.Box 让文件通过 most:// 链接在在线用户之间传播，下载完成的人会继续做种。',
+  'about.hero.kicker': '由在线的人共同保存与传播',
+  'about.hero.title': '文件离开发布者，也能继续传下去',
   'about.hero.desc':
-    'MOST PEOPLE 让设备直接参与网络：安装、打开、分享 most:// 链接；文件、聊天、知识库和 Web3 各自独立，不要求用户加入某个平台。',
-  'about.link.example': 'most://<cid>?filename=...',
-  'about.summary.cid':
-    'CID 类似磁力链接/BT 种子的内容指纹：链接指向内容，下载后再校验是不是同一份文件。',
-  'about.summary.seed':
-    '发布者和下载者都能做种，只要仍有人在线，文件就能继续传播。',
-  'about.summary.toolbox':
-    '文件、聊天、知识库和 Web3 是同等入口，彼此不作为前置条件。',
-  'about.summary.opensource':
-    'MOST PEOPLE 完全开源，账户系统也欢迎其他项目接入。',
-  'about.section.identity.title': 'CID 是内容指纹',
-  'about.section.identity.body':
-    '可以把 most:// 理解成 MOST PEOPLE 的 P2P 分享链接，思路接近磁力链接和 BT 种子：先按内容找文件，再从在线种子下载并校验。',
-  'about.section.identity.bullet.filename': '文件名只负责展示，不能代替 CID。',
-  'about.section.identity.bullet.verify': 'CID 校验通过后才保存为可信文件。',
-  'about.section.identity.bullet.local':
-    '判断本地已有时必须能按 CID 读到内容。',
-  'about.section.spread.title': '在线的人共同传播',
-  'about.section.spread.body':
-    '文件不是上传到一个中心服务器，而是在当前在线的完整副本之间传播。',
-  'about.section.spread.bullet.seedAfterDownload':
-    '下载完成后默认成为新的种子。',
-  'about.section.spread.bullet.restart': '应用或 daemon 重启后会恢复做种记录。',
-  'about.section.spread.bullet.status':
-    '本机能看到正在做种的 CID、大小和 join 状态。',
-  'about.section.boundary.title': '不是云盘，也不是存储市场',
-  'about.section.boundary.body':
-    'MOST PEOPLE 不承诺永久保存或离线可用；文件能不能下载，取决于是否还有在线种子。',
-  'about.section.boundary.bullet.keepData': '重要数据仍需自己保存。',
-  'about.section.boundary.bullet.noMarket':
-    '没有上链存储、订单、支付或质押流程。',
-  'about.section.boundary.bullet.availability':
-    '可用性来自当前在线的人，而不是云端托管。',
-  'about.section.chat.title': '聊天房间',
-  'about.section.chat.body':
-    '聊天是独立入口：先建房间把人连起来，适合私域消息、多人语音和文件附件。',
-  'about.section.chat.bullet.room': '房间适合私域聊天和小团队沟通。',
-  'about.section.chat.bullet.voice': '支持多人语音通话。',
-  'about.section.chat.bullet.attachments':
-    '文件附件会自然接入 most:// 分享流程。',
-  'about.section.note.title': '知识库',
-  'about.section.note.body':
-    '用 Markdown 笔记整理想法、资料和本地知识，减少信息散落。',
-  'about.section.note.bullet.markdown': '支持 Markdown 块编辑。',
-  'about.section.note.bullet.fromChat': '笔记可以直接新建、编辑和整理。',
-  'about.section.note.bullet.backup': '按需备份和恢复，不把它当成永久云盘。',
-  'about.section.web3.title': '开源账户系统',
-  'about.section.web3.body':
-    'MOST PEOPLE 账户使用这套本地身份系统：完全开源，可复用，也方便其他项目接入。',
-  'about.section.web3.bullet.accounts': '聊天、知识库和工具身份共用这一套。',
-  'about.section.web3.bullet.integrate':
-    '其他项目可用它做本地登录、签名和数据隔离。',
-  'about.section.web3.bullet.export': '支持密钥、地址和助记词导出。',
-  'about.section.web3.bullet.separate': '它不参与文件下载、校验或做种主流程。',
-  'about.cta.chat': '进入聊天',
+    '发布文件，分享一条 most:// 链接。收到文件的人完成校验后会成为新的种子，只要仍有人在线，下一位就能继续下载。',
   'about.cta.download': '下载客户端',
-  'about.related.kicker': '同路项目与我们的不同',
-  'about.related.title': '我们不是第一个让通信摆脱中心服务器的项目',
-  'about.related.intro':
-    '这些项目分别验证了 P2P 通信、断网聊天、私密连接和群体文件传播。MostBox 从它们已经走过的路继续向前。',
-  'about.related.keet': '证明完整的 P2P 通信体验可以进入大众客户端。',
-  'about.related.jami': '探索无服务器聊天，以及由其他设备继续提供已下载文件。',
-  'about.related.bitchat': '证明“没有网络也能聊天”本身就是一个强烈场景。',
-  'about.related.briar': '展示面向高风险环境、断网与审查压力的通信设计。',
-  'about.related.retroshare':
-    '把私密社交、聊天与类似 BT 的群体文件传输结合起来。',
-  'about.related.promise':
-    'BitChat 解决“网络没了还能聊”，Keet 解决“通信不经过平台”，MostBox 解决“聊天里的大文件不依赖网盘，而且会在人群中继续传播”。',
+  'about.cta.files': '打开文件库',
+  'about.flow.kicker': '一次分享，一条清楚的路径',
+  'about.flow.title': '从链接到新的种子',
+  'about.flow.intro':
+    'Most.Box 的文件主线只有三个动作，没有云端上传、存储订单或钱包前置条件。',
+  'about.flow.publish.title': '发布并分享',
+  'about.flow.publish.body':
+    '选择本机文件，Most.Box 计算内容 CID，并生成原生 most:// 分享链接。',
+  'about.flow.verify.title': '发现、下载、校验',
+  'about.flow.verify.body':
+    '接收者凭链接寻找在线种子，下载完整文件，并重新计算 CID 确认内容一致。',
+  'about.flow.seed.title': '继续做种',
+  'about.flow.seed.body':
+    '校验成功后，本机默认持有完整副本并继续传播；重启应用也会恢复做种。',
+  'about.difference.kicker': '为什么不同',
+  'about.difference.title': '内容属于网络中的人，不属于一个云端账户',
+  'about.difference.intro':
+    'Most.Box 不替你托管文件。它让每台持有完整副本的设备，都能直接参与下一次传输。',
+  'about.difference.boundary':
+    '重要数据仍需自己保存；没有在线种子时，Most.Box 不承诺文件可下载。',
+  'about.difference.cid.title': 'CID 是唯一内容身份',
+  'about.difference.cid.body':
+    '文件名只负责展示。下载、已有判断和完整性校验都以 CID 为准。',
+  'about.difference.copy.title': '每个种子持有完整副本',
+  'about.difference.copy.body':
+    '不分片、不做纠删码。任何在线种子都能独立提供完整文件。',
+  'about.difference.people.title': '可用性来自在线的人',
+  'about.difference.people.body':
+    '发布者退出后，只要下载者仍在线做种，文件就能继续传播。',
+  'about.toolbox.kicker': '独立工具箱',
+  'about.toolbox.title': '需要时打开，不成为分享文件的门槛',
+  'about.toolbox.intro':
+    '聊天、知识库和 Web3 保留为独立入口；使用 most:// 下载与做种不要求先使用其中任何一个。',
+  'about.toolbox.chat.title': '聊天',
+  'about.toolbox.chat.body':
+    '为私域沟通、小团队消息、多人语音和文件附件提供独立房间。',
+  'about.toolbox.note.title': '知识库',
+  'about.toolbox.note.body':
+    '用 Markdown 整理本地笔记，按需备份和恢复，不冒充永久云盘。',
+  'about.toolbox.web3.title': 'Web3 工具箱',
+  'about.toolbox.web3.body':
+    '本地账户、签名和钱包工具独立存在，不参与文件发现、校验或做种。',
+  'about.opensource.kicker': '开放源代码',
+  'about.opensource.title': 'Most.Box 是一个开源项目',
+  'about.opensource.body':
+    '源代码与开发过程公开，并采用 MIT License。你可以检查实现、提出问题，或参与改进这个由用户共同运行的网络。',
+  'about.opensource.cta': '查看源代码',
+  'about.related.kicker': '向同行者致意',
+  'about.related.title': '这些项目也在把通信交还给用户',
 } as const
 
 export const zhTWAboutMessages = {
-  'about.meta.title': '關於 MOST PEOPLE',
+  'about.meta.title': '關於 Most.Box',
   'about.meta.desc':
-    'MOST PEOPLE 是完全開源的 P2P 節點應用：使用者在自己的裝置上執行節點，用 most:// 分享檔案，並把聊天、知識庫和 Web3 作為獨立工具。',
-  'about.hero.kicker': '自己執行的 P2P 節點',
-  'about.hero.title': '關於 MOST PEOPLE',
+    'Most.Box 讓檔案透過 most:// 連結在線上使用者之間傳播，下載完成的人會繼續做種。',
+  'about.hero.kicker': '由線上的人共同保存與傳播',
+  'about.hero.title': '檔案離開發布者，也能繼續傳下去',
   'about.hero.desc':
-    'MOST PEOPLE 讓裝置直接參與網路：安裝、開啟、分享 most:// 連結；檔案、聊天、知識庫和 Web3 各自獨立，不要求使用者加入某個平台。',
-  'about.link.example': 'most://<cid>?filename=...',
-  'about.summary.cid':
-    'CID 類似磁力連結/BT 種子的內容指紋：連結指向內容，下載後再校驗是不是同一份檔案。',
-  'about.summary.seed':
-    '發布者和下載者都能做種，只要仍有人在線，檔案就能繼續傳播。',
-  'about.summary.toolbox':
-    '檔案、聊天、知識庫和 Web3 是同等入口，彼此不作為前置條件。',
-  'about.summary.opensource':
-    'MOST PEOPLE 完全開源，帳戶系統也歡迎其他項目接入。',
-  'about.section.identity.title': 'CID 是內容指紋',
-  'about.section.identity.body':
-    '可以把 most:// 理解成 MOST PEOPLE 的 P2P 分享連結，思路接近磁力連結和 BT 種子：先按內容找檔案，再從線上種子下載並校驗。',
-  'about.section.identity.bullet.filename': '檔名只負責展示，不能代替 CID。',
-  'about.section.identity.bullet.verify': 'CID 校驗通過後才保存為可信檔案。',
-  'about.section.identity.bullet.local':
-    '判斷本機已有時必須能按 CID 讀到內容。',
-  'about.section.spread.title': '線上的人共同傳播',
-  'about.section.spread.body':
-    '檔案不是上傳到一個中心伺服器，而是在目前線上的完整副本之間傳播。',
-  'about.section.spread.bullet.seedAfterDownload':
-    '下載完成後預設成為新的種子。',
-  'about.section.spread.bullet.restart': '應用或 daemon 重啟後會恢復做種記錄。',
-  'about.section.spread.bullet.status':
-    '本機能看到正在做種的 CID、大小和 join 狀態。',
-  'about.section.boundary.title': '不是雲端硬碟，也不是儲存市場',
-  'about.section.boundary.body':
-    'MOST PEOPLE 不承諾永久保存或離線可用；檔案能不能下載，取決於是否還有線上種子。',
-  'about.section.boundary.bullet.keepData': '重要資料仍需自己保存。',
-  'about.section.boundary.bullet.noMarket':
-    '沒有上鏈儲存、訂單、支付或質押流程。',
-  'about.section.boundary.bullet.availability':
-    '可用性來自目前線上的人，而不是雲端託管。',
-  'about.section.chat.title': '聊天房間',
-  'about.section.chat.body':
-    '聊天是獨立入口：先建房間把人連起來，適合私域訊息、多人語音和檔案附件。',
-  'about.section.chat.bullet.room': '房間適合私域聊天和小團隊溝通。',
-  'about.section.chat.bullet.voice': '支援多人語音通話。',
-  'about.section.chat.bullet.attachments':
-    '檔案附件會自然接入 most:// 分享流程。',
-  'about.section.note.title': '知識庫',
-  'about.section.note.body':
-    '用 Markdown 筆記整理想法、資料和本地知識，減少資訊散落。',
-  'about.section.note.bullet.markdown': '支援 Markdown 區塊編輯。',
-  'about.section.note.bullet.fromChat': '筆記可以直接新建、編輯和整理。',
-  'about.section.note.bullet.backup':
-    '按需備份和恢復，不把它當成永久雲端硬碟。',
-  'about.section.web3.title': '開源帳戶系統',
-  'about.section.web3.body':
-    'MOST PEOPLE 帳戶使用這套本地身份系統：完全開源，可複用，也方便其他項目接入。',
-  'about.section.web3.bullet.accounts': '聊天、知識庫和工具身份共用這一套。',
-  'about.section.web3.bullet.integrate':
-    '其他項目可用它做本地登入、簽名和資料隔離。',
-  'about.section.web3.bullet.export': '支援密鑰、地址和助記詞匯出。',
-  'about.section.web3.bullet.separate': '它不參與檔案下載、校驗或做種主流程。',
-  'about.cta.chat': '進入聊天',
+    '發布檔案，分享一條 most:// 連結。收到檔案的人完成校驗後會成為新的種子，只要仍有人在線，下一位就能繼續下載。',
   'about.cta.download': '下載用戶端',
-  'about.related.kicker': '同路專案與我們的不同',
-  'about.related.title': '我們不是第一個讓通訊擺脫中心伺服器的專案',
-  'about.related.intro':
-    '這些專案分別驗證了 P2P 通訊、斷網聊天、私密連線和群體檔案傳播。MostBox 從它們已經走過的路繼續向前。',
-  'about.related.keet': '證明完整的 P2P 通訊體驗可以進入大眾用戶端。',
-  'about.related.jami': '探索無伺服器聊天，以及由其他裝置繼續提供已下載檔案。',
-  'about.related.bitchat': '證明「沒有網路也能聊天」本身就是一個強烈場景。',
-  'about.related.briar': '展示面向高風險環境、斷網與審查壓力的通訊設計。',
-  'about.related.retroshare':
-    '把私密社交、聊天與類似 BT 的群體檔案傳輸結合起來。',
-  'about.related.promise':
-    'BitChat 解決「網路沒了還能聊」，Keet 解決「通訊不經過平台」，MostBox 解決「聊天裡的大檔案不依賴網路硬碟，而且會在人群中繼續傳播」。',
+  'about.cta.files': '開啟檔案庫',
+  'about.flow.kicker': '一次分享，一條清楚的路徑',
+  'about.flow.title': '從連結到新的種子',
+  'about.flow.intro':
+    'Most.Box 的檔案主線只有三個動作，沒有雲端上傳、儲存訂單或錢包前置條件。',
+  'about.flow.publish.title': '發布並分享',
+  'about.flow.publish.body':
+    '選擇本機檔案，Most.Box 計算內容 CID，並產生原生 most:// 分享連結。',
+  'about.flow.verify.title': '發現、下載、校驗',
+  'about.flow.verify.body':
+    '接收者憑連結尋找線上種子，下載完整檔案，並重新計算 CID 確認內容一致。',
+  'about.flow.seed.title': '繼續做種',
+  'about.flow.seed.body':
+    '校驗成功後，本機預設持有完整副本並繼續傳播；重新啟動應用程式也會恢復做種。',
+  'about.difference.kicker': '為什麼不同',
+  'about.difference.title': '內容屬於網路中的人，不屬於一個雲端帳戶',
+  'about.difference.intro':
+    'Most.Box 不替你託管檔案。它讓每台持有完整副本的裝置，都能直接參與下一次傳輸。',
+  'about.difference.boundary':
+    '重要資料仍需自行保存；沒有線上種子時，Most.Box 不承諾檔案可下載。',
+  'about.difference.cid.title': 'CID 是唯一內容身分',
+  'about.difference.cid.body':
+    '檔名只負責展示。下載、已有判斷和完整性校驗都以 CID 為準。',
+  'about.difference.copy.title': '每個種子持有完整副本',
+  'about.difference.copy.body':
+    '不分片、不做糾刪碼。任何線上種子都能獨立提供完整檔案。',
+  'about.difference.people.title': '可用性來自線上的人',
+  'about.difference.people.body':
+    '發布者退出後，只要下載者仍在線做種，檔案就能繼續傳播。',
+  'about.toolbox.kicker': '獨立工具箱',
+  'about.toolbox.title': '需要時開啟，不成為分享檔案的門檻',
+  'about.toolbox.intro':
+    '聊天、知識庫和 Web3 保留為獨立入口；使用 most:// 下載與做種不要求先使用其中任何一個。',
+  'about.toolbox.chat.title': '聊天',
+  'about.toolbox.chat.body':
+    '為私域溝通、小團隊訊息、多人語音和檔案附件提供獨立房間。',
+  'about.toolbox.note.title': '知識庫',
+  'about.toolbox.note.body':
+    '用 Markdown 整理本機筆記，按需備份和恢復，不冒充永久雲端硬碟。',
+  'about.toolbox.web3.title': 'Web3 工具箱',
+  'about.toolbox.web3.body':
+    '本機帳戶、簽名和錢包工具獨立存在，不參與檔案發現、校驗或做種。',
+  'about.opensource.kicker': '開放原始碼',
+  'about.opensource.title': 'Most.Box 是一個開源專案',
+  'about.opensource.body':
+    '原始碼與開發過程公開，並採用 MIT License。你可以檢查實作、提出問題，或參與改進這個由使用者共同執行的網路。',
+  'about.opensource.cta': '查看原始碼',
+  'about.related.kicker': '向同行者致意',
+  'about.related.title': '這些專案也在把通訊交還給使用者',
 } as const
 
 export const enAboutMessages = {
-  'about.meta.title': 'About MOST PEOPLE',
+  'about.meta.title': 'About Most.Box',
   'about.meta.desc':
-    'MOST PEOPLE is a fully open source P2P node app: run the node on your own device, share files with most://, and use chat, notes, and Web3 as separate tools.',
-  'about.hero.kicker': 'Run your own P2P node',
-  'about.hero.title': 'About MOST PEOPLE',
+    'Most.Box moves files between online peers through most:// links, and completed downloads keep seeding by default.',
+  'about.hero.kicker': 'Kept and shared by the people online',
+  'about.hero.title': 'Files keep moving after the publisher leaves',
   'about.hero.desc':
-    'MOST PEOPLE lets your device participate directly in the network: install it, open it, share a most:// link; files, chat, Knowledge Base, and Web3 stay independent.',
-  'about.link.example': 'most://<cid>?filename=...',
-  'about.summary.cid':
-    'CID works like a content fingerprint for magnet links and BT torrents: the link points to content, then the download is verified.',
-  'about.summary.seed':
-    'Publishers and downloaders can both seed, so files keep spreading while peers stay online.',
-  'about.summary.toolbox':
-    'Files, chat, Knowledge Base, and Web3 are equal entries, so no surface is a prerequisite for another.',
-  'about.summary.opensource':
-    'MOST PEOPLE is fully open source, and its account system is meant for other projects to integrate.',
-  'about.section.identity.title': 'CID is the content fingerprint',
-  'about.section.identity.body':
-    "Think of most:// as MOST PEOPLE's P2P share link. It is close to magnet links and BT torrents: find content by identity, download from online seeders, then verify the CID.",
-  'about.section.identity.bullet.filename':
-    'File names are for display; they do not replace the CID.',
-  'about.section.identity.bullet.verify':
-    'A file is trusted only after CID verification passes.',
-  'about.section.identity.bullet.local':
-    'Local availability must be proven by reading content by CID.',
-  'about.section.spread.title': 'Online peers spread files together',
-  'about.section.spread.body':
-    'Files are not uploaded to one central server; they move between online peers that hold complete copies.',
-  'about.section.spread.bullet.seedAfterDownload':
-    'A completed download becomes a new seed by default.',
-  'about.section.spread.bullet.restart':
-    'The app or daemon restores seeding records after restart.',
-  'about.section.spread.bullet.status':
-    'You can see seeded CIDs, file sizes, and topic join status locally.',
-  'about.section.boundary.title': 'Not cloud storage or a storage market',
-  'about.section.boundary.body':
-    'MOST PEOPLE is not cloud storage and does not promise permanent or offline availability; downloads depend on online seeders.',
-  'about.section.boundary.bullet.keepData':
-    'You still need to keep important data yourself.',
-  'about.section.boundary.bullet.noMarket':
-    'There is no on-chain storage, order, payment, or staking flow.',
-  'about.section.boundary.bullet.availability':
-    'Availability comes from online people, not hosted cloud storage.',
-  'about.section.chat.title': 'Chat rooms',
-  'about.section.chat.body':
-    'Chat is an independent entry: create a room to connect people for private messages, multi-person voice, and file attachments.',
-  'about.section.chat.bullet.room':
-    'Rooms fit private chats and small-team conversations.',
-  'about.section.chat.bullet.voice': 'Multi-person voice calls are supported.',
-  'about.section.chat.bullet.attachments':
-    'File attachments naturally join the most:// sharing flow.',
-  'about.section.note.title': 'Knowledge Base',
-  'about.section.note.body':
-    'Use Markdown notes to organize ideas, references, and local knowledge so they do not scatter.',
-  'about.section.note.bullet.markdown': 'Markdown block editing is supported.',
-  'about.section.note.bullet.fromChat':
-    'Notes can be created, edited, and organized directly.',
-  'about.section.note.bullet.backup':
-    'Backup and restore are available when needed, but it is not permanent cloud storage.',
-  'about.section.web3.title': 'Open-source account system',
-  'about.section.web3.body':
-    'MOST PEOPLE accounts use this local identity system: open source, reusable, and ready for other projects to integrate.',
-  'about.section.web3.bullet.accounts':
-    'Chat, Knowledge Base, and tool identities share it.',
-  'about.section.web3.bullet.integrate':
-    'Other projects can use it for local login, signatures, and data separation.',
-  'about.section.web3.bullet.export':
-    'Keys, addresses, and mnemonics can be exported.',
-  'about.section.web3.bullet.separate':
-    'It does not participate in file download, verification, or seeding.',
-  'about.cta.chat': 'Enter chat',
+    'Publish a file and share one most:// link. After recipients verify the download, they become new seeders. As long as someone stays online, the next person can download it.',
   'about.cta.download': 'Download client',
-  'about.related.kicker': 'Projects on the same path',
+  'about.cta.files': 'Open file library',
+  'about.flow.kicker': 'One share, one clear path',
+  'about.flow.title': 'From a link to a new seeder',
+  'about.flow.intro':
+    'The Most.Box file flow has three actions, with no cloud upload, storage order, or wallet prerequisite.',
+  'about.flow.publish.title': 'Publish and share',
+  'about.flow.publish.body':
+    'Choose a local file. Most.Box calculates its CID and creates a native most:// share link.',
+  'about.flow.verify.title': 'Discover, download, verify',
+  'about.flow.verify.body':
+    'The recipient finds online seeders, downloads the complete file, and recalculates its CID to verify the content.',
+  'about.flow.seed.title': 'Keep seeding',
+  'about.flow.seed.body':
+    'After verification, the device keeps a complete copy and shares it by default. Seeding resumes after restart.',
+  'about.difference.kicker': 'What makes it different',
+  'about.difference.title':
+    'Content belongs to the people in the network, not a cloud account',
+  'about.difference.intro':
+    'Most.Box does not host files for you. Every device holding a complete copy can participate directly in the next transfer.',
+  'about.difference.boundary':
+    'Keep your own important data. When no seeder is online, Most.Box does not promise that a file can be downloaded.',
+  'about.difference.cid.title': 'CID is the only content identity',
+  'about.difference.cid.body':
+    'File names are for display. Downloads, local availability, and integrity checks all use the CID.',
+  'about.difference.copy.title': 'Every seeder holds a complete copy',
+  'about.difference.copy.body':
+    'There is no sharding or erasure coding. Any online seeder can provide the complete file.',
+  'about.difference.people.title': 'Availability comes from people online',
+  'about.difference.people.body':
+    'After the publisher leaves, the file keeps moving while at least one downloader remains online and seeding.',
+  'about.toolbox.kicker': 'Independent toolbox',
+  'about.toolbox.title': 'Open tools when needed, never as a gate to sharing',
+  'about.toolbox.intro':
+    'Chat, Knowledge Base, and Web3 remain independent entries. Downloading and seeding through most:// requires none of them.',
+  'about.toolbox.chat.title': 'Chat',
+  'about.toolbox.chat.body':
+    'Independent rooms for private groups, small-team messages, multi-person voice, and file attachments.',
+  'about.toolbox.note.title': 'Knowledge Base',
+  'about.toolbox.note.body':
+    'Organize local Markdown notes with optional backup and restore, without pretending to be permanent cloud storage.',
+  'about.toolbox.web3.title': 'Web3 toolbox',
+  'about.toolbox.web3.body':
+    'Local accounts, signatures, and wallet tools stay separate from file discovery, verification, and seeding.',
+  'about.opensource.kicker': 'Open source',
+  'about.opensource.title': 'Most.Box is an open-source project',
+  'about.opensource.body':
+    'The source code and development process are public under the MIT License. Inspect the implementation, report an issue, or help improve this user-run network.',
+  'about.opensource.cta': 'View source code',
+  'about.related.kicker': 'With respect to fellow travelers',
   'about.related.title':
-    'We are not the first project to move communication beyond central servers',
-  'about.related.intro':
-    'These projects have each proven part of the path: P2P communication, offline chat, private connections, and collective file distribution. MostBox builds on what they have learned.',
-  'about.related.keet':
-    'Proves that a complete P2P communication experience can reach mainstream clients.',
-  'about.related.jami':
-    'Explores serverless chat and lets other devices continue hosting downloaded files.',
-  'about.related.bitchat':
-    'Proves that “chat when the network is gone” is a powerful scenario by itself.',
-  'about.related.briar':
-    'Shows how communication can be designed for outages, censorship, and high-risk environments.',
-  'about.related.retroshare':
-    'Combines private social spaces and chat with BitTorrent-like swarming file transfers.',
-  'about.related.promise':
-    'BitChat answers “can we still chat when the network is gone?” Keet removes the platform from communication. MostBox keeps large files out of cloud drives and spreading through the people in the chat.',
+    'These projects also return communication to its users',
 } as const

@@ -5,12 +5,6 @@ import { useI18n } from '~/lib/i18n'
 const footerLinks = [
   { to: '/about/', labelKey: 'footer.about' },
   { to: '/ping/', labelKey: 'footer.network' },
-  {
-    href: 'https://github.com/most-people/most',
-    labelKey: null,
-    label: 'GitHub',
-    external: true,
-  },
 ] as const
 
 const version = packageJson.version
@@ -23,22 +17,11 @@ export function Footer() {
       <div className="mkt-container">
         <div className="mkt-footer-inner">
           <div className="mkt-footer-links">
-            {footerLinks.map(link =>
-              'external' in link ? (
-                <a
-                  key={link.href}
-                  href={link.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {link.label}
-                </a>
-              ) : (
-                <Link key={link.to} to={link.to}>
-                  {t(link.labelKey)}
-                </Link>
-              )
-            )}
+            {footerLinks.map(link => (
+              <Link key={link.to} to={link.to}>
+                {t(link.labelKey)}
+              </Link>
+            ))}
           </div>
           <span className="mkt-footer-copy">
             © {new Date().getFullYear()} MOST PEOPLE · MIT License
