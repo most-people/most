@@ -61,6 +61,18 @@ export const zhCNAboutMessages = {
   'about.section.web3.bullet.separate': '它不参与文件下载、校验或做种主流程。',
   'about.cta.chat': '进入聊天',
   'about.cta.download': '下载客户端',
+  'about.related.kicker': '同路项目与我们的不同',
+  'about.related.title': '我们不是第一个让通信摆脱中心服务器的项目',
+  'about.related.intro':
+    '这些项目分别验证了 P2P 通信、断网聊天、私密连接和群体文件传播。MostBox 从它们已经走过的路继续向前。',
+  'about.related.keet': '证明完整的 P2P 通信体验可以进入大众客户端。',
+  'about.related.jami': '探索无服务器聊天，以及由其他设备继续提供已下载文件。',
+  'about.related.bitchat': '证明“没有网络也能聊天”本身就是一个强烈场景。',
+  'about.related.briar': '展示面向高风险环境、断网与审查压力的通信设计。',
+  'about.related.retroshare':
+    '把私密社交、聊天与类似 BT 的群体文件传输结合起来。',
+  'about.related.promise':
+    'BitChat 解决“网络没了还能聊”，Keet 解决“通信不经过平台”，MostBox 解决“聊天里的大文件不依赖网盘，而且会在人群中继续传播”。',
 } as const
 
 export const zhTWAboutMessages = {
@@ -127,6 +139,18 @@ export const zhTWAboutMessages = {
   'about.section.web3.bullet.separate': '它不參與檔案下載、校驗或做種主流程。',
   'about.cta.chat': '進入聊天',
   'about.cta.download': '下載用戶端',
+  'about.related.kicker': '同路專案與我們的不同',
+  'about.related.title': '我們不是第一個讓通訊擺脫中心伺服器的專案',
+  'about.related.intro':
+    '這些專案分別驗證了 P2P 通訊、斷網聊天、私密連線和群體檔案傳播。MostBox 從它們已經走過的路繼續向前。',
+  'about.related.keet': '證明完整的 P2P 通訊體驗可以進入大眾用戶端。',
+  'about.related.jami': '探索無伺服器聊天，以及由其他裝置繼續提供已下載檔案。',
+  'about.related.bitchat': '證明「沒有網路也能聊天」本身就是一個強烈場景。',
+  'about.related.briar': '展示面向高風險環境、斷網與審查壓力的通訊設計。',
+  'about.related.retroshare':
+    '把私密社交、聊天與類似 BT 的群體檔案傳輸結合起來。',
+  'about.related.promise':
+    'BitChat 解決「網路沒了還能聊」，Keet 解決「通訊不經過平台」，MostBox 解決「聊天裡的大檔案不依賴網路硬碟，而且會在人群中繼續傳播」。',
 } as const
 
 export const enAboutMessages = {
@@ -202,4 +226,21 @@ export const enAboutMessages = {
     'It does not participate in file download, verification, or seeding.',
   'about.cta.chat': 'Enter chat',
   'about.cta.download': 'Download client',
+  'about.related.kicker': 'Projects on the same path',
+  'about.related.title':
+    'We are not the first project to move communication beyond central servers',
+  'about.related.intro':
+    'These projects have each proven part of the path: P2P communication, offline chat, private connections, and collective file distribution. MostBox builds on what they have learned.',
+  'about.related.keet':
+    'Proves that a complete P2P communication experience can reach mainstream clients.',
+  'about.related.jami':
+    'Explores serverless chat and lets other devices continue hosting downloaded files.',
+  'about.related.bitchat':
+    'Proves that “chat when the network is gone” is a powerful scenario by itself.',
+  'about.related.briar':
+    'Shows how communication can be designed for outages, censorship, and high-risk environments.',
+  'about.related.retroshare':
+    'Combines private social spaces and chat with BitTorrent-like swarming file transfers.',
+  'about.related.promise':
+    'BitChat answers “can we still chat when the network is gone?” Keet removes the platform from communication. MostBox keeps large files out of cloud drives and spreading through the people in the chat.',
 } as const

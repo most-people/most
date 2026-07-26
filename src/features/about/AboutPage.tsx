@@ -5,6 +5,7 @@ import {
   Check,
   CloudOff,
   Download,
+  ExternalLink,
   Fingerprint,
   MessagesSquare,
   Network,
@@ -22,6 +23,12 @@ interface AboutSection {
   bodyKey: MessageKey
   bulletKeys: MessageKey[]
   featured?: boolean
+}
+
+interface RelatedProject {
+  name: string
+  href: string
+  descriptionKey: MessageKey
 }
 
 const summaryKeys: MessageKey[] = [
@@ -96,6 +103,34 @@ const sections: AboutSection[] = [
   },
 ]
 
+const relatedProjects: RelatedProject[] = [
+  {
+    name: 'Keet',
+    href: 'https://keet.io/',
+    descriptionKey: 'about.related.keet',
+  },
+  {
+    name: 'Jami',
+    href: 'https://jami.net/',
+    descriptionKey: 'about.related.jami',
+  },
+  {
+    name: 'bitchat',
+    href: 'https://bitchat.free/',
+    descriptionKey: 'about.related.bitchat',
+  },
+  {
+    name: 'Briar',
+    href: 'https://briarproject.org/',
+    descriptionKey: 'about.related.briar',
+  },
+  {
+    name: 'RetroShare',
+    href: 'https://retroshare.cc/',
+    descriptionKey: 'about.related.retroshare',
+  },
+]
+
 export default function AboutPage() {
   const { t } = useI18n()
 
@@ -160,6 +195,38 @@ export default function AboutPage() {
                 {t('about.cta.download')}
               </Link>
             </div>
+          </div>
+        </section>
+
+        <section className="about-related-band">
+          <div className="mkt-container">
+            <div className="about-related-heading">
+              <p className="about-kicker">{t('about.related.kicker')}</p>
+              <h2>{t('about.related.title')}</h2>
+              <p>{t('about.related.intro')}</p>
+            </div>
+
+            <div className="about-related-grid">
+              {relatedProjects.map(project => (
+                <a
+                  key={project.name}
+                  className="about-related-project"
+                  href={project.href}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <span className="about-related-project-name">
+                    {project.name}
+                    <ExternalLink size={15} />
+                  </span>
+                  <span>{t(project.descriptionKey)}</span>
+                </a>
+              ))}
+            </div>
+
+            <p className="about-related-promise">
+              {t('about.related.promise')}
+            </p>
           </div>
         </section>
       </div>

@@ -139,7 +139,8 @@
 
   .mkt-footer-inner {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
+    text-align: center;
   }
 }
 
@@ -659,9 +660,94 @@
   margin-top: 24px;
 }
 
+.about-related-band {
+  padding: 56px 0 72px;
+  border-top: 1px solid var(--glass-border);
+  background: var(--glass-bg-subtle);
+}
+
+.about-related-heading {
+  max-width: 760px;
+  margin-bottom: 24px;
+}
+
+.about-related-heading h2 {
+  margin-bottom: 12px;
+  color: var(--text-primary);
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.25;
+}
+
+.about-related-heading > p:last-child {
+  color: var(--text-secondary);
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+.about-related-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.about-related-project {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.55;
+  text-decoration: none;
+  transition:
+    border-color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.about-related-project:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+
+.about-related-project-name {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.about-related-project-name svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.about-related-promise {
+  max-width: 960px;
+  margin-top: 24px;
+  padding-left: 16px;
+  border-left: 3px solid var(--accent);
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.65;
+}
+
 @media (max-width: 980px) {
   .about-summary,
   .about-section-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .about-related-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -684,7 +770,8 @@
   }
 
   .about-summary,
-  .about-section-grid {
+  .about-section-grid,
+  .about-related-grid {
     grid-template-columns: 1fr;
   }
 
