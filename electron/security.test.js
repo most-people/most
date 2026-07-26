@@ -9,11 +9,11 @@ import {
 
 describe('desktop URL security', () => {
   it('trusts only the local MostBox app origin', () => {
-    assert.equal(isTrustedAppUrl('http://localhost:1976/app/'), true)
+    assert.equal(isTrustedAppUrl('http://localhost:1976/file/'), true)
     assert.equal(isTrustedAppUrl('http://127.0.0.1:1976/admin/'), true)
     assert.equal(isTrustedAppUrl('http://[::1]:1976/chat/'), true)
-    assert.equal(isTrustedAppUrl('http://localhost:3000/app/'), false)
-    assert.equal(isTrustedAppUrl('https://localhost:1976/app/'), false)
+    assert.equal(isTrustedAppUrl('http://localhost:3000/file/'), false)
+    assert.equal(isTrustedAppUrl('https://localhost:1976/file/'), false)
     assert.equal(isTrustedAppUrl('http://localhost.evil.test:1976/'), false)
   })
 

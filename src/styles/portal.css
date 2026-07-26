@@ -130,7 +130,7 @@
   color: var(--text-primary);
 }
 
-.portal-feature-card.app {
+.portal-feature-card.chat {
   grid-column: span 2;
 }
 
@@ -245,7 +245,7 @@
     grid-template-columns: 1fr;
   }
 
-  .portal-feature-card.app {
+  .portal-feature-card.chat {
     grid-column: auto;
   }
 }

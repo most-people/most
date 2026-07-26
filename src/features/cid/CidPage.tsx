@@ -880,7 +880,7 @@ export default function CidPage() {
         )
       case 'seed':
         return (
-          <Link to="/app/" className="btn btn-secondary">
+          <Link to="/file/" className="btn btn-secondary">
             <FolderOpen size={16} />
             <span>{t('cid.viewFileAction')}</span>
           </Link>

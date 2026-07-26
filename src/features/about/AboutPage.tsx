@@ -112,7 +112,7 @@ export default function AboutPage() {
                 <Download size={16} />
                 {t('about.cta.download')}
               </Link>
-              <Link to="/app/" className="btn btn-secondary">
+              <Link to="/file/" className="btn btn-secondary">
                 <FolderOpen size={16} />
                 {t('about.cta.files')}
               </Link>

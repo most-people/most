@@ -2,7 +2,7 @@ export const requiredStaticRoutes = [
   '/',
   '/about/',
   '/admin/',
-  '/app/',
+  '/file/',
   '/chat/',
   '/chat/join/',
   '/chat/join/demo/',

@@ -38,7 +38,7 @@ export const zhCNPortalMessages = {
   'portal.feature.chat.title': '聊天',
   'portal.feature.chat.subtitle': '频道 ID 即权限',
   'portal.feature.chat.hero': '打开能力频道',
-  'portal.feature.chat.desc': '按频道 ID 打开频道，消息在在线节点间明文同步。',
+  'portal.feature.chat.desc': '按频道 ID 打开频道，消息在在线节点间同步。',
   'portal.feature.chat.bullet.identity': '本地登录身份保护消息署名',
   'portal.feature.chat.bullet.sync': '消息通过 P2P Channel 同步',
   'portal.feature.chat.bullet.offline': '文件附件可独立按 CID 校验下载',
@@ -126,7 +126,7 @@ export const zhTWPortalMessages = {
   'portal.feature.chat.title': '聊天',
   'portal.feature.chat.subtitle': '頻道 ID 即權限',
   'portal.feature.chat.hero': '開啟能力頻道',
-  'portal.feature.chat.desc': '按頻道 ID 開啟頻道，訊息在線上節點間明文同步。',
+  'portal.feature.chat.desc': '按頻道 ID 開啟頻道，訊息在線上節點間同步。',
   'portal.feature.chat.bullet.identity': '本機登入身份保護訊息署名',
   'portal.feature.chat.bullet.sync': '訊息通過 P2P Channel 同步',
   'portal.feature.chat.bullet.offline': '檔案附件可獨立按 CID 校驗下載',
@@ -222,7 +222,7 @@ export const enPortalMessages = {
   'portal.feature.chat.subtitle': 'Channel ID as access',
   'portal.feature.chat.hero': 'Open a capability channel',
   'portal.feature.chat.desc':
-    'Open channels by ID; messages sync in plaintext between online peers.',
+    'Open channels by ID; messages sync between online peers.',
   'portal.feature.chat.bullet.identity':
     'Local login identity protects message signatures',
   'portal.feature.chat.bullet.sync': 'Messages sync through P2P Channels',

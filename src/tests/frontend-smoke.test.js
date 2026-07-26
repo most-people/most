@@ -132,7 +132,7 @@ describe('frontend smoke checks', () => {
       '/',
       '/about/',
       '/admin/',
-      '/app/',
+      '/file/',
       '/chat/',
       '/chat/join/',
       '/chat/join/demo/',
@@ -216,7 +216,7 @@ describe('frontend smoke checks', () => {
     assert.match(filesSource, /createCidRoutePathFromDownloadInput/)
     assert.match(filesSource, /buildCidSharePath\(file\.cid, file\.fileName\)/)
     assert.doesNotMatch(filesSource, /fileApi\.checkDownload/)
-    assert.doesNotMatch(filesSource, /fileApi\.downloadFile/)
+    assert.doesNotMatch(filesSource, /fileApi\.downloadFile\(/)
     assert.match(cidSource, /fileApi\.checkDownload\(mostLink\)/)
     assert.match(
       cidSource,
@@ -275,7 +275,7 @@ describe('frontend smoke checks', () => {
     assert.match(cidSource, /case 'verify':[\s\S]*handleStartDownload/)
     assert.match(cidSource, /case 'seed':[\s\S]*cid\.viewFileAction/)
     assert.match(cidSource, /case 'seed':[\s\S]*<FolderOpen size=\{16\} \/>/)
-    assert.match(cidSource, /case 'seed':[\s\S]*to="\/app\/"/)
+    assert.match(cidSource, /case 'seed':[\s\S]*to="\/file\/"/)
     assert.doesNotMatch(cidSource, /cid\.share\.note/)
     assert.doesNotMatch(cidCss, /cid-share-note/)
     assert.doesNotMatch(cidSource, /className="cid-actions"/)

@@ -14,7 +14,7 @@ import { useIsDesktopClient } from '~/hooks'
 import { useAppStore } from '~/stores/useAppStore'
 import { useI18n, type MessageKey } from '~/lib/i18n'
 
-type InternalRoutePath = '/app/' | '/chat/' | '/note/' | '/web3/'
+type InternalRoutePath = '/file/' | '/chat/' | '/note/' | '/web3/'
 
 interface FeatureDef {
   id: string
@@ -33,7 +33,7 @@ const features: FeatureDef[] = [
     subtitleKey: 'portal.feature.app.subtitle',
     descKey: 'portal.feature.app.desc',
     icon: <FolderOpen size={28} />,
-    path: '/app/',
+    path: '/file/',
     requiresBackend: true,
   },
   {
@@ -65,7 +65,7 @@ const features: FeatureDef[] = [
   },
 ]
 
-const featureOrder = ['app', 'chat', 'note', 'web3']
+const featureOrder = ['chat', 'app', 'note', 'web3']
 
 type PortalBackendStatus = 'checking' | 'connected' | 'disconnected'
 
