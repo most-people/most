@@ -46,6 +46,7 @@ import { useI18n } from '~/lib/i18n'
 import { getLocalizedDownloadLinkValidationMessage } from '~/lib/i18n/downloadValidation'
 import { saveFileToLocal } from '~/lib/saveLocalFile'
 import {
+  buildMostShareLink,
   buildCidSharePath,
   createCidRoutePathFromDownloadInput,
 } from '~/lib/shareLink'
@@ -107,6 +108,8 @@ export default function App() {
   const hasBackend = useAppStore(s => s.hasBackend)
   const openConnectModal = useAppStore(s => s.openConnectModal)
   const activeDownloadCount = useAppStore(s => s.downloadTasks.length)
+  const upsertDownloadTask = useAppStore(s => s.upsertDownloadTask)
+  const loadDownloadTasks = useAppStore(s => s.loadDownloadTasks)
   const userIdentity = useUserStore(s => s.identity)
   const openLoginModal = useUserStore(s => s.openLoginModal)
   const [items, setItems] = useState([])
@@ -482,8 +485,43 @@ export default function App() {
     }
   }
 
-  const handleCacheFile = file => {
-    navigate({ href: buildCidSharePath(file.cid, file.fileName) })
+  const handleCacheFile = async file => {
+    if (!requireLogin()) return
+    if (!requireBackendReady()) return
+
+    try {
+      const result = await fileApi.downloadFileInBackground(
+        buildMostShareLink(file.cid, file.fileName)
+      )
+      if (result.alreadyExists || !result.taskId) {
+        await refreshFiles()
+        return
+      }
+
+      const now = Date.now()
+      upsertDownloadTask({
+        taskId: result.taskId,
+        cid: file.cid,
+        fileName: result.fileName || file.fileName,
+        kind: file.kind === 'collection' ? 'collection' : 'file',
+        status: 'starting',
+        progress: 0,
+        loadedBytes: 0,
+        totalBytes: 0,
+        completedFiles: 0,
+        totalFiles:
+          file.kind === 'collection' ? Number(file.fileCount) || 0 : 0,
+        startedAt: now,
+        updatedAt: now,
+      })
+      addToast(t('cid.toast.backgroundStarted'), 'info')
+      void loadDownloadTasks().catch(() => {})
+    } catch (err) {
+      addToast(
+        await getApiErrorMessage(err, t('app.toast.actionFailed')),
+        'error'
+      )
+    }
   }
 
   const handleNavigate = path => {
@@ -621,9 +659,6 @@ export default function App() {
       : null
   const canPreviewSelectedFile =
     !!selectedFile && getFileSubtype(selectedFile.fileName) !== 'file'
-  const shouldPullSelectedFile =
-    !!selectedFile && selectedFile.localAvailable === false
-
   const breadcrumbParts = generateBreadcrumbs(currentPath, t('app.allContent'))
 
   return (
@@ -810,8 +845,18 @@ export default function App() {
                 file={f}
                 isSelected={selectedIds.includes(f.cid)}
                 onSelect={handleSelect}
-                onShare={handleOpenCidSharePage}
+                onShare={
+                  f.localAvailable === false
+                    ? undefined
+                    : handleOpenCidSharePage
+                }
+                onDownload={
+                  f.localAvailable === false
+                    ? file => void handleCacheFile(file)
+                    : undefined
+                }
                 shareLabel={t('app.share')}
+                downloadLabel={t('app.pullToLocal')}
                 onPreview={file => {
                   if (file.localAvailable === false) {
                     addToast(t('app.toast.fileNotLocal'), 'warning')
@@ -994,21 +1039,7 @@ export default function App() {
                 <FolderInput size={14} />
                 <span className="batch-action-label">{t('app.move')}</span>
               </button>
-              {shouldPullSelectedFile && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    void handleCacheFile(selectedFile)
-                  }}
-                  className="btn btn-sm batch-action"
-                >
-                  <Download size={14} />
-                  <span className="batch-action-label">
-                    {t('app.pullToLocal')}
-                  </span>
-                </button>
-              )}
-              {selectedFile && (
+              {selectedFile && selectedFile.localAvailable !== false && (
                 <button
                   type="button"
                   onClick={() => {

@@ -7,7 +7,7 @@ export const MAX_FILE_SIZE = 10 * 1024 * 1024 * 1024 // 10 GB
 
 // 网络超时（毫秒）
 export const CONNECTION_TIMEOUT = 120000
-export const DOWNLOAD_TIMEOUT = 900000
+export const DOWNLOAD_TIMEOUT = 60000
 
 // P2P 设置
 export const GLOBAL_SHARED_SEED_STRING = 'most-box-global-shared-seed-v1'

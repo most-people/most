@@ -15,7 +15,6 @@ import { formatBytes } from '~/lib/format'
 import { useI18n } from '~/lib/i18n'
 import {
   parseDownloadEvent,
-  type ActiveDownloadStatus,
   type ActiveDownloadTask,
   type DownloadTaskOutcome,
 } from '~/lib/downloadTasks'
@@ -26,6 +25,7 @@ import {
   getApiErrorMessage,
   getAuthenticatedWebSocketUrl,
 } from '~server/src/utils/api'
+import { DOWNLOAD_TIMEOUT } from '~server/src/config.js'
 
 const DOWNLOAD_EVENTS = new Set([
   'download:progress',
@@ -196,8 +196,16 @@ function DownloadTaskTray() {
   const loadDownloadTasks = useAppStore(state => state.loadDownloadTasks)
   const markCancelling = useAppStore(state => state.markDownloadTaskCancelling)
   const [isOpen, setIsOpen] = useState(false)
+  const [now, setNow] = useState(() => Date.now())
   const panelId = useId()
   const toggleRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (!tasks.some(task => task.status === 'finding-peers')) return
+    setNow(Date.now())
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [tasks])
 
   useEffect(() => {
     if (!isOpen) return
@@ -259,7 +267,7 @@ function DownloadTaskTray() {
           </strong>
           <span>
             {tasks.length === 1
-              ? `${primaryTask.progress}%`
+              ? getTaskSummaryLabel(primaryTask, now, t)
               : t('cid.tasks.running')}
           </span>
         </span>
@@ -297,7 +305,7 @@ function DownloadTaskTray() {
                 <div className="global-download-item-heading">
                   <Download size={16} />
                   <span translate="no">{task.fileName}</span>
-                  <strong>{getTaskStatusLabel(task.status, t)}</strong>
+                  <strong>{getTaskStatusLabel(task, now, t)}</strong>
                 </div>
                 <div className="global-download-progress-row">
                   <progress
@@ -350,10 +358,34 @@ function DownloadTaskTray() {
 }
 
 function getTaskStatusLabel(
-  status: ActiveDownloadStatus,
+  task: ActiveDownloadTask,
+  now: number,
   t: ReturnType<typeof useI18n>['t']
 ) {
-  return t(`cid.tasks.status.${status}`)
+  if (task.status === 'finding-peers') {
+    return t('cid.tasks.status.finding-peersCountdown', {
+      seconds: getDiscoverySecondsRemaining(task, now),
+    })
+  }
+  return t(`cid.tasks.status.${task.status}`)
+}
+
+function getTaskSummaryLabel(
+  task: ActiveDownloadTask,
+  now: number,
+  t: ReturnType<typeof useI18n>['t']
+) {
+  if (task.status === 'finding-peers') {
+    return getTaskStatusLabel(task, now, t)
+  }
+  return `${task.progress}%`
+}
+
+function getDiscoverySecondsRemaining(task: ActiveDownloadTask, now: number) {
+  return Math.max(
+    0,
+    Math.ceil((task.startedAt + DOWNLOAD_TIMEOUT - now) / 1000)
+  )
 }
 
 function getTaskProgressLabel(

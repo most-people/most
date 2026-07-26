@@ -2,6 +2,7 @@ import {
   FileText,
   Film,
   Folder,
+  Download,
   Image as ImageIcon,
   Music,
   Share2,
@@ -32,7 +33,9 @@ interface FileCardProps {
   onSelect: (cid: string) => void
   onPreview: (file: AppFileItem) => void
   onShare?: (file: AppFileItem) => void
+  onDownload?: (file: AppFileItem) => void
   shareLabel?: string
+  downloadLabel?: string
 }
 
 interface FolderCardProps {
@@ -57,7 +60,9 @@ export function FileCard({
   onSelect,
   onPreview,
   onShare,
+  onDownload,
   shareLabel = 'Share',
+  downloadLabel = 'Download',
 }: FileCardProps) {
   const subtype = getFileSubtype(file.fileName)
   let fileIcon = <FileText size={24} color="#fff" />
@@ -82,18 +87,22 @@ export function FileCard({
       onDoubleClick={() => onPreview(file)}
       className={`card shareable-card ui-glass-surface ui-glass-surface-subtle ${isSelected ? 'selected' : ''}`}
     >
-      {onShare && (
+      {(onDownload || onShare) && (
         <button
           type="button"
           className="card-share-btn"
-          aria-label={shareLabel}
-          title={shareLabel}
+          aria-label={onDownload ? downloadLabel : shareLabel}
+          title={onDownload ? downloadLabel : shareLabel}
           onClick={event => {
             event.stopPropagation()
-            onShare(file)
+            if (onDownload) {
+              onDownload(file)
+            } else {
+              onShare?.(file)
+            }
           }}
         >
-          <Share2 size={14} />
+          {onDownload ? <Download size={14} /> : <Share2 size={14} />}
         </button>
       )}
       <div
