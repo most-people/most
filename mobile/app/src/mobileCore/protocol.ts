@@ -5,6 +5,10 @@ export type ParsedMostLink = {
   fileName: string
 }
 
+export type IncomingMostLink = ParsedMostLink & {
+  link: string
+}
+
 export const MOST_LINK_PROTOCOL = 'most:'
 export const MOST_LINK_ERROR_MESSAGES = {
   linkEmpty: '请输入 most:// 分享链接',
@@ -107,6 +111,28 @@ export function parseMostLink(link: string): ParsedMostLink {
   const fileName = query.fileName || cid
 
   return { cid, fileName }
+}
+
+export function parseIncomingMostLink(
+  input: string | null | undefined
+): IncomingMostLink | null {
+  const link = input?.trim() || ''
+  if (!link) return null
+
+  let url: URL
+  try {
+    url = new URL(link)
+  } catch {
+    if (!link.toLowerCase().startsWith(MOST_LINK_PROTOCOL)) return null
+    throw new Error(MOST_LINK_ERROR_MESSAGES.invalidUrl)
+  }
+
+  if (url.protocol !== MOST_LINK_PROTOCOL) return null
+
+  return {
+    link,
+    ...parseMostLink(link),
+  }
 }
 
 export function createProtocolSummary(cid: string) {

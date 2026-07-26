@@ -10,6 +10,7 @@ Android foreground P2P alpha and iOS feasibility build for MostBox. This shared 
 - Channel create/list/messages/presence use the mobile Bare Worklet P2P core over JSONL IPC.
 - Sending an attachment publishes the selected file, creates the `most://<cid>?filename=...` link, posts that link into the active chat room, and keeps the Android node seeding in the foreground.
 - Received chat messages that contain a `most://` link render as chat attachment cards; tapping the attachment download action downloads and verifies the file with the Android node.
+- Android and iOS accept external `most://` links on cold start and while running; the shared mobile flow downloads, verifies, records the holding, and starts seeding after the P2P core is ready.
 - Android and desktop MostBox nodes have completed end-to-end publish/download/CID verification/seeding interop in foreground mode.
 - `backend/backend.mjs` starts the real mobile P2P core.
 - The mobile P2P core uses Hyperswarm, Corestore, Hyperdrive, CID digest topics, `/<cid>` drive paths, and CID verification before downloaded files become holdings.

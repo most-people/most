@@ -2,15 +2,16 @@ import './src/polyfills/eventTarget'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import {
   Alert,
+  Linking,
   Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   View,
 } from 'react-native'
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 import * as Clipboard from 'expo-clipboard'
 import * as DocumentPicker from 'expo-document-picker'
 import * as FileSystem from 'expo-file-system/legacy'
@@ -22,7 +23,11 @@ import { ChatRoomScreen } from './src/features/chat/ChatRoomScreen'
 import { ChatSettingsScreen } from './src/features/chat/ChatSettingsScreen'
 import { NodeStatusScreen } from './src/features/node/NodeStatusScreen'
 import { createMostBoxCore } from './src/mobileCore/createMostBoxCore'
-import { parseMostLink } from './src/mobileCore/protocol'
+import {
+  parseIncomingMostLink,
+  parseMostLink,
+  type IncomingMostLink,
+} from './src/mobileCore/protocol'
 import {
   getChannelKey,
   getChannelTitle,
@@ -201,7 +206,9 @@ function SmallAction({
 export default function App() {
   const coreRef = useRef<MostBoxMobileCore | null>(null)
   const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const downloadingAttachmentCidRef = useRef<string | null>(null)
+  const downloadingCidRef = useRef<string | null>(null)
+  const pendingMostLinkRef = useRef<IncomingMostLink | null>(null)
+  const incomingMostLinkHandlerRef = useRef<(url: string) => void>(() => {})
   const settingsRemarkChannelKeyRef = useRef('')
   const settingsRemarkBaselineRef = useRef('')
   const channelPresenceSessionRef = useRef(
@@ -253,6 +260,30 @@ export default function App() {
       void core.stop()
     }
   }, [core])
+
+  useEffect(() => {
+    let active = true
+    const subscription = Linking.addEventListener('url', event => {
+      incomingMostLinkHandlerRef.current(event.url)
+    })
+
+    void Linking.getInitialURL()
+      .then(url => {
+        if (active && url) incomingMostLinkHandlerRef.current(url)
+      })
+      .catch(error => {
+        if (!active) return
+        Alert.alert(
+          '无法读取分享链接',
+          error instanceof Error ? error.message : '请重新打开 most:// 链接'
+        )
+      })
+
+    return () => {
+      active = false
+      subscription.remove()
+    }
+  }, [])
 
   const routeChannelKey =
     chatRoute.name === 'room' || chatRoute.name === 'settings'
@@ -452,47 +483,111 @@ export default function App() {
     }
   }
 
+  const performMostLinkDownload = async (
+    intent: IncomingMostLink,
+    source: 'attachment' | 'deep-link'
+  ) => {
+    const activeDownloadCid = downloadingCidRef.current
+    if (activeDownloadCid) {
+      if (source === 'deep-link' && activeDownloadCid !== intent.cid) {
+        Alert.alert('已有下载进行中', '请等待当前附件下载完成后再打开新链接。')
+      }
+      return false
+    }
+
+    if (!isReady) {
+      if (source === 'deep-link') pendingMostLinkRef.current = intent
+      return false
+    }
+
+    downloadingCidRef.current = intent.cid
+    setDownloadingAttachmentCid(intent.cid)
+    if (source === 'deep-link') setActiveTab('node')
+
+    try {
+      const existingHolding =
+        core
+          .getSnapshot()
+          .holdings.find(holding => holding.cid === intent.cid) || null
+      if (existingHolding) {
+        Alert.alert('本机已存', '这个 CID 已经在本机做种列表中。')
+        return false
+      }
+
+      await core.downloadLink({ link: intent.link })
+      if (source === 'deep-link') {
+        Alert.alert(
+          '下载完成',
+          `${intent.fileName} 已通过 CID 校验并开始做种。`
+        )
+      }
+      return true
+    } catch (error) {
+      Alert.alert(
+        source === 'deep-link' ? '下载分享链接失败' : '下载附件失败',
+        error instanceof Error ? error.message : '请检查链接或等待种子上线'
+      )
+      return false
+    } finally {
+      downloadingCidRef.current = null
+      setDownloadingAttachmentCid(null)
+    }
+  }
+
+  incomingMostLinkHandlerRef.current = url => {
+    let intent: IncomingMostLink | null
+    try {
+      intent = parseIncomingMostLink(url)
+    } catch (error) {
+      Alert.alert(
+        '分享链接无效',
+        error instanceof Error ? error.message : '请输入有效的 most:// 分享链接'
+      )
+      return
+    }
+
+    if (!intent) return
+
+    setActiveTab('node')
+    if (!isReady) {
+      pendingMostLinkRef.current = intent
+      return
+    }
+
+    pendingMostLinkRef.current = null
+    void performMostLinkDownload(intent, 'deep-link')
+  }
+
+  useEffect(() => {
+    if (!isReady || !pendingMostLinkRef.current) return
+    const pendingIntent = pendingMostLinkRef.current
+    pendingMostLinkRef.current = null
+    incomingMostLinkHandlerRef.current(pendingIntent.link)
+  }, [isReady])
+
   const handleDownloadAttachment = async (
     attachment: MobileChannelAttachment
   ) => {
-    if (downloadingAttachmentCidRef.current) return
     if (!guardReady()) return
 
     const channelKey = selectedChannelKey
-    downloadingAttachmentCidRef.current = attachment.cid
-    setDownloadingAttachmentCid(attachment.cid)
+    const downloaded = await performMostLinkDownload(
+      {
+        link: attachment.link,
+        cid: attachment.cid,
+        fileName: attachment.fileName,
+      },
+      'attachment'
+    )
+    if (!downloaded) return
 
     try {
-      try {
-        const existingHolding =
-          currentSnapshot.holdings.find(
-            holding => holding.cid === attachment.cid
-          ) || null
-        if (existingHolding) {
-          Alert.alert('本机已存', '这个附件已经在本机做种列表中。')
-          return
-        }
-
-        await core.downloadLink({ link: attachment.link })
-      } catch (error) {
-        Alert.alert(
-          '下载附件失败',
-          error instanceof Error ? error.message : '请检查链接或等待种子上线'
-        )
-        return
-      }
-
-      try {
-        setChannelLastReadAt(lastReadAt =>
-          markChannelRead(lastReadAt, channelKey)
-        )
-        await core.getChannelMessages(channelKey)
-      } catch {
-        // The attachment is already downloaded; a stale room refresh is non-fatal.
-      }
-    } finally {
-      downloadingAttachmentCidRef.current = null
-      setDownloadingAttachmentCid(null)
+      setChannelLastReadAt(lastReadAt =>
+        markChannelRead(lastReadAt, channelKey)
+      )
+      await core.getChannelMessages(channelKey)
+    } catch {
+      // The attachment is downloaded; a stale room refresh is non-fatal.
     }
   }
 
@@ -847,139 +942,144 @@ export default function App() {
   }
 
   return (
-    <SafeAreaView style={styles.screen}>
-      <StatusBar barStyle="light-content" backgroundColor="#0d3b35" />
-      {activeTab === 'node' ? (
-        <NodeStatusScreen
-          snapshot={currentSnapshot}
-          copiedCid={copiedCid}
-          deletingCid={deletingCid}
-          exportingCid={exportingCid}
-          onCopyHoldingLink={handleCopyHoldingLink}
-          onDeleteHolding={handleDeleteHolding}
-          onSaveHolding={handleSaveHolding}
-          onShareHolding={handleShareHolding}
-          onRetryStartCore={handleStartCore}
-          retryStartDisabled={isCoreBusy}
-        />
-      ) : chatRoute.name === 'list' ? (
-        <ChatListScreen
-          channels={currentSnapshot.channels}
-          messagesByChannel={currentSnapshot.channelMessages || {}}
-          lastReadAt={channelLastReadAt}
-          searchInput={channelSearchInput}
-          channelInput={channelOpenInput}
-          busy={!isReady || channelBusy}
-          onSearchInputChange={setChannelSearchInput}
-          onChannelInputChange={setChannelOpenInput}
-          onGenerateChannelId={handleGenerateChannelId}
-          onOpenChannel={handleOpenChannelFromList}
-          onOpenChannelId={handleOpenChannelIdFromList}
-          onTogglePin={handleToggleChannelPin}
-          onRename={handleRenameChannel}
-          onLeave={handleConfirmLeaveChannel}
-        />
-      ) : chatRoute.name === 'room' && selectedChannel ? (
-        <ChatRoomScreen
-          channel={selectedChannel}
-          messages={channelMessages}
-          localWriterCoreKey={selectedChannel.localWriterCoreKey}
-          draft={channelDraft}
-          busy={!isReady || channelBusy}
-          downloadingCid={downloadingAttachmentCid}
-          onBack={handleBackToChannelList}
-          onOpenSettings={() => {
-            const channelKey = getChannelKey(selectedChannel)
-            if (channelKey) {
-              setSettingsRemarkInput(selectedChannel.remark)
-              settingsRemarkBaselineRef.current = selectedChannel.remark
-              settingsRemarkChannelKeyRef.current = channelKey
-              setChatRoute({ name: 'settings', channelKey })
-            }
-          }}
-          onDraftChange={setChannelDraft}
-          onSend={handleSendChannelMessage}
-          onPickAttachment={handlePickFile}
-          onDownloadAttachment={handleDownloadAttachment}
-        />
-      ) : chatRoute.name === 'settings' && selectedChannel ? (
-        <ChatSettingsScreen
-          channel={selectedChannel}
-          presence={onlineChannelPresence}
-          remarkInput={settingsRemarkInput}
-          busy={!isReady || channelBusy}
-          onBack={handleBackToChatRoom}
-          onRemarkChange={setSettingsRemarkInput}
-          onSaveRemark={handleSaveSettingsRemark}
-          onTogglePin={() => handleToggleChannelPin(selectedChannel)}
-          onLeave={() => handleConfirmLeaveChannel(selectedChannel)}
-        />
-      ) : (
-        <ScrollView contentContainerStyle={styles.fallbackContent}>
-          <View style={styles.fallbackPanel}>
-            <View style={styles.fallbackIcon}>
-              <ListChecks size={22} color="#0f766e" />
+    <SafeAreaProvider>
+      <SafeAreaView
+        style={styles.screen}
+        edges={['top', 'right', 'bottom', 'left']}
+      >
+        <StatusBar barStyle="light-content" backgroundColor="#0d3b35" />
+        {activeTab === 'node' ? (
+          <NodeStatusScreen
+            snapshot={currentSnapshot}
+            copiedCid={copiedCid}
+            deletingCid={deletingCid}
+            exportingCid={exportingCid}
+            onCopyHoldingLink={handleCopyHoldingLink}
+            onDeleteHolding={handleDeleteHolding}
+            onSaveHolding={handleSaveHolding}
+            onShareHolding={handleShareHolding}
+            onRetryStartCore={handleStartCore}
+            retryStartDisabled={isCoreBusy}
+          />
+        ) : chatRoute.name === 'list' ? (
+          <ChatListScreen
+            channels={currentSnapshot.channels}
+            messagesByChannel={currentSnapshot.channelMessages || {}}
+            lastReadAt={channelLastReadAt}
+            searchInput={channelSearchInput}
+            channelInput={channelOpenInput}
+            busy={!isReady || channelBusy}
+            onSearchInputChange={setChannelSearchInput}
+            onChannelInputChange={setChannelOpenInput}
+            onGenerateChannelId={handleGenerateChannelId}
+            onOpenChannel={handleOpenChannelFromList}
+            onOpenChannelId={handleOpenChannelIdFromList}
+            onTogglePin={handleToggleChannelPin}
+            onRename={handleRenameChannel}
+            onLeave={handleConfirmLeaveChannel}
+          />
+        ) : chatRoute.name === 'room' && selectedChannel ? (
+          <ChatRoomScreen
+            channel={selectedChannel}
+            messages={channelMessages}
+            localWriterCoreKey={selectedChannel.localWriterCoreKey}
+            draft={channelDraft}
+            busy={!isReady || channelBusy}
+            downloadingCid={downloadingAttachmentCid}
+            onBack={handleBackToChannelList}
+            onOpenSettings={() => {
+              const channelKey = getChannelKey(selectedChannel)
+              if (channelKey) {
+                setSettingsRemarkInput(selectedChannel.remark)
+                settingsRemarkBaselineRef.current = selectedChannel.remark
+                settingsRemarkChannelKeyRef.current = channelKey
+                setChatRoute({ name: 'settings', channelKey })
+              }
+            }}
+            onDraftChange={setChannelDraft}
+            onSend={handleSendChannelMessage}
+            onPickAttachment={handlePickFile}
+            onDownloadAttachment={handleDownloadAttachment}
+          />
+        ) : chatRoute.name === 'settings' && selectedChannel ? (
+          <ChatSettingsScreen
+            channel={selectedChannel}
+            presence={onlineChannelPresence}
+            remarkInput={settingsRemarkInput}
+            busy={!isReady || channelBusy}
+            onBack={handleBackToChatRoom}
+            onRemarkChange={setSettingsRemarkInput}
+            onSaveRemark={handleSaveSettingsRemark}
+            onTogglePin={() => handleToggleChannelPin(selectedChannel)}
+            onLeave={() => handleConfirmLeaveChannel(selectedChannel)}
+          />
+        ) : (
+          <ScrollView contentContainerStyle={styles.fallbackContent}>
+            <View style={styles.fallbackPanel}>
+              <View style={styles.fallbackIcon}>
+                <ListChecks size={22} color="#0f766e" />
+              </View>
+              <Text style={styles.fallbackTitle}>
+                {chatRoute.name === 'settings'
+                  ? '频道设置不可用'
+                  : '聊天室不可用'}
+              </Text>
+              <Text style={styles.fallbackBody}>
+                返回聊天列表后重新选择频道。
+              </Text>
+              <SmallAction
+                label="返回频道列表"
+                onPress={handleBackToChannelList}
+                icon={<ListChecks size={15} color="#0f766e" />}
+              />
             </View>
-            <Text style={styles.fallbackTitle}>
-              {chatRoute.name === 'settings'
-                ? '频道设置不可用'
-                : '聊天室不可用'}
-            </Text>
-            <Text style={styles.fallbackBody}>
-              返回聊天列表后重新选择频道。
-            </Text>
-            <SmallAction
-              label="返回频道列表"
-              onPress={handleBackToChannelList}
-              icon={<ListChecks size={15} color="#0f766e" />}
-            />
-          </View>
-        </ScrollView>
-      )}
+          </ScrollView>
+        )}
 
-      <View style={styles.tabBar}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={chatTabAccessibilityLabel}
-          accessibilityState={{ selected: activeTab === 'chat' }}
-          onPress={handleSelectChatTab}
-          style={[
-            styles.tabButton,
-            activeTab === 'chat' ? styles.tabButtonActive : null,
-          ]}
-        >
-          <MessageCircle size={20} color={chatTabColor} />
-          <Text
+        <View style={styles.tabBar}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={chatTabAccessibilityLabel}
+            accessibilityState={{ selected: activeTab === 'chat' }}
+            onPress={handleSelectChatTab}
             style={[
-              styles.tabButtonText,
-              activeTab === 'chat' ? styles.tabButtonTextActive : null,
+              styles.tabButton,
+              activeTab === 'chat' ? styles.tabButtonActive : null,
             ]}
           >
-            聊天
-          </Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="节点"
-          accessibilityState={{ selected: activeTab === 'node' }}
-          onPress={handleSelectNodeTab}
-          style={[
-            styles.tabButton,
-            activeTab === 'node' ? styles.tabButtonActive : null,
-          ]}
-        >
-          <ShieldCheck size={20} color={nodeTabColor} />
-          <Text
+            <MessageCircle size={20} color={chatTabColor} />
+            <Text
+              style={[
+                styles.tabButtonText,
+                activeTab === 'chat' ? styles.tabButtonTextActive : null,
+              ]}
+            >
+              聊天
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="节点"
+            accessibilityState={{ selected: activeTab === 'node' }}
+            onPress={handleSelectNodeTab}
             style={[
-              styles.tabButtonText,
-              activeTab === 'node' ? styles.tabButtonTextActive : null,
+              styles.tabButton,
+              activeTab === 'node' ? styles.tabButtonActive : null,
             ]}
           >
-            节点
-          </Text>
-        </Pressable>
-      </View>
-    </SafeAreaView>
+            <ShieldCheck size={20} color={nodeTabColor} />
+            <Text
+              style={[
+                styles.tabButtonText,
+                activeTab === 'node' ? styles.tabButtonTextActive : null,
+              ]}
+            >
+              节点
+            </Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    </SafeAreaProvider>
   )
 }
 

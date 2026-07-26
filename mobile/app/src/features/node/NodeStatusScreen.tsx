@@ -177,6 +177,8 @@ type SmallActionProps = {
   label: string
   icon: ReactNode
   onPress: () => void | Promise<void>
+  accessibilityLabel?: string
+  testID?: string
   disabled?: boolean
   danger?: boolean
 }
@@ -185,11 +187,16 @@ function SmallAction({
   label,
   icon,
   onPress,
+  accessibilityLabel,
+  testID,
   disabled = false,
   danger = false,
 }: SmallActionProps) {
   return (
     <Pressable
+      accessibilityLabel={accessibilityLabel || label}
+      accessibilityRole="button"
+      testID={testID}
       disabled={disabled}
       onPress={onPress}
       style={[
@@ -389,6 +396,8 @@ export function NodeStatusScreen({
                   <View style={styles.holdingActions}>
                     <SmallAction
                       label={isCopied ? '已复制' : '复制链接'}
+                      accessibilityLabel="复制链接"
+                      testID={`holding-${holding.cid}-copy-link`}
                       onPress={() => onCopyHoldingLink(holding)}
                       icon={
                         isCopied ? (
@@ -400,6 +409,8 @@ export function NodeStatusScreen({
                     />
                     <SmallAction
                       label={isExporting ? '处理中' : '分享'}
+                      accessibilityLabel="分享"
+                      testID={`holding-${holding.cid}-share`}
                       disabled={isExporting || isDeleting || !isReady}
                       onPress={() => onShareHolding(holding)}
                       icon={
@@ -412,6 +423,10 @@ export function NodeStatusScreen({
                     />
                     <SmallAction
                       label={Platform.OS === 'ios' ? '存到文件' : '保存'}
+                      accessibilityLabel={
+                        Platform.OS === 'ios' ? '存到文件' : '保存'
+                      }
+                      testID={`holding-${holding.cid}-save`}
                       disabled={isExporting || isDeleting || !isReady}
                       onPress={() => onSaveHolding(holding)}
                       icon={
@@ -424,6 +439,8 @@ export function NodeStatusScreen({
                     <SmallAction
                       danger
                       label={isDeleting ? '删除中' : '删除'}
+                      accessibilityLabel="删除"
+                      testID={`holding-${holding.cid}-delete`}
                       disabled={isDeleting || isExporting || !isReady}
                       onPress={() => onDeleteHolding(holding)}
                       icon={

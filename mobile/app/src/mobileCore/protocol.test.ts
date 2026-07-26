@@ -4,6 +4,7 @@ import {
   buildMostLink,
   createProtocolSummary,
   getHyperdriveCidPath,
+  parseIncomingMostLink,
   parseMostLink,
 } from './protocol'
 
@@ -53,6 +54,28 @@ describe('mobile most link protocol', () => {
       /只支持 filename/
     )
     assert.throws(() => parseMostLink(`most://${VALID_CID}/extra`), /额外路径/)
+  })
+
+  it('accepts native most link intents and ignores unrelated app URLs', () => {
+    const link = buildMostLink(VALID_CID, 'phone file.txt')
+    assert.deepEqual(parseIncomingMostLink(`  ${link}  `), {
+      link,
+      cid: VALID_CID,
+      fileName: 'phone file.txt',
+    })
+    assert.equal(parseIncomingMostLink(null), null)
+    assert.equal(
+      parseIncomingMostLink('exp+mostbox-android://expo-development-client'),
+      null
+    )
+    assert.equal(parseIncomingMostLink('https://most.box/download'), null)
+  })
+
+  it('rejects malformed native most link intents', () => {
+    assert.throws(
+      () => parseIncomingMostLink('most://not-a-cid?filename=a.txt'),
+      /CID 无效/
+    )
   })
 
   it('derives protocol paths and topic digest details from CID', () => {
