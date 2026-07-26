@@ -63,7 +63,7 @@ node scripts/android-real-p2p-seed.mjs --handoff-check
 ## 已知边界
 
 - 不承诺 Android 长期后台做种；测试传播能力时保持 App 在前台。
-- 本轮不覆盖 iOS、Play Store 分发、云端中转、账号同步、游戏、笔记或 Web3 工具箱。
+- 本轮不覆盖 iOS、Play Store 分发、云端中转、账号同步、笔记或 Web3 工具箱。
 - 聊天测试覆盖频道消息、presence、备注/置顶/退出和 `most://` 附件主流程。
 - 大文件测试失败时优先记录存储空间、网络切换、Android 文件选择器/导出行为和 App 日志。
 

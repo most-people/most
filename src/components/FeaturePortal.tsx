@@ -4,7 +4,6 @@ import {
   ArrowUpRight,
   Download,
   FolderOpen,
-  Gamepad2,
   HardDrive,
   MessagesSquare,
   NotebookPen,
@@ -15,8 +14,7 @@ import { useIsDesktopClient } from '~/hooks'
 import { useAppStore } from '~/stores/useAppStore'
 import { useI18n, type MessageKey } from '~/lib/i18n'
 
-type InternalRoutePath =
-  '/app/' | '/chat/' | '/note/' | '/game/gandengyan/' | '/web3/'
+type InternalRoutePath = '/app/' | '/chat/' | '/note/' | '/web3/'
 
 interface FeatureDef {
   id: string
@@ -57,15 +55,6 @@ const features: FeatureDef[] = [
     requiresBackend: false,
   },
   {
-    id: 'gandengyan',
-    titleKey: 'portal.feature.game.title',
-    subtitleKey: 'portal.feature.game.subtitle',
-    descKey: 'portal.feature.game.desc',
-    icon: <Gamepad2 size={28} />,
-    path: '/game/gandengyan/',
-    requiresBackend: true,
-  },
-  {
     id: 'web3',
     titleKey: 'portal.feature.web3.title',
     subtitleKey: 'portal.feature.web3.subtitle',
@@ -76,7 +65,7 @@ const features: FeatureDef[] = [
   },
 ]
 
-const featureOrder = ['app', 'chat', 'note', 'gandengyan', 'web3']
+const featureOrder = ['app', 'chat', 'note', 'web3']
 
 type PortalBackendStatus = 'checking' | 'connected' | 'disconnected'
 

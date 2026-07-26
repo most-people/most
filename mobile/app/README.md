@@ -97,10 +97,10 @@ node scripts/android-real-p2p-seed.mjs --handoff-check
 ## Known Limits
 
 - Android alpha only promises foreground seeding. It does not promise long-running background availability.
-- Android chat currently focuses on private room messages, presence, and `most://` attachment links; notes, games, and Web3 remain desktop/web-first surfaces.
+- Android chat currently focuses on private room messages, presence, and `most://` attachment links; notes and Web3 remain desktop/web-first surfaces.
 - Exported or saved files are user-visible copies. MostBox keeps its internal holding copy for CID verification and seeding.
 - Deleting an Android holding removes only the app-internal holding copy and holding record; user-visible saved/exported copies are not managed by MostBox.
-- App Store/Play Store approval, cloud relay, account sync, background seeding guarantees, and full notes/games/Web3 migration are outside this alpha.
+- App Store/Play Store approval, cloud relay, account sync, background seeding guarantees, and full notes/Web3 migration are outside this alpha.
 - Large files may expose storage, network interruption, and Android file picker/export edge cases; record those in `docs/mobile-android-alpha.md`.
 
 ## Protocol Invariants

@@ -60,11 +60,6 @@ import {
   zhTWWeb3Messages,
 } from './messages/web3'
 import {
-  enGameMessages,
-  zhCNGameMessages,
-  zhTWGameMessages,
-} from './messages/game'
-import {
   enAdminMessages,
   zhCNAdminMessages,
   zhTWAdminMessages,
@@ -102,7 +97,6 @@ export const zhCNMessages = {
   ...zhCNNoteMessages,
   ...zhCNIdentityMessages,
   ...zhCNWeb3Messages,
-  ...zhCNGameMessages,
   ...zhCNAdminMessages,
   ...zhCNProfileMessages,
 } as const
@@ -123,7 +117,6 @@ export const enMessages = {
   ...enNoteMessages,
   ...enIdentityMessages,
   ...enWeb3Messages,
-  ...enGameMessages,
   ...enAdminMessages,
   ...enProfileMessages,
 } satisfies Record<MessageKey, string>
@@ -142,7 +135,6 @@ export const zhTWMessages = {
   ...zhTWNoteMessages,
   ...zhTWIdentityMessages,
   ...zhTWWeb3Messages,
-  ...zhTWGameMessages,
   ...zhTWAdminMessages,
   ...zhTWProfileMessages,
 } satisfies Record<MessageKey, string>

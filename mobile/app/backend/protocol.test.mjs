@@ -211,6 +211,16 @@ describe('mobile channel protocol helpers', () => {
     assert.equal(response.localWriterCoreKey, '')
   })
 
+  it('does not let channel types bypass reserved dotted names', () => {
+    const removedType = ['ga', 'me'].join('')
+    const dottedName = [removedType, 'legacy', 'room'].join('.')
+
+    assert.throws(
+      () => createChannelRecord(dottedName, removedType),
+      /Dotted channel names are reserved/
+    )
+  })
+
   it('sorts and deduplicates multi-writer channel messages', () => {
     const messages = sortChannelMessages([
       {

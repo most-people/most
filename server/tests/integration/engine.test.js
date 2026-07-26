@@ -13,12 +13,6 @@ import { CID } from 'multiformats/cid'
 import { MostBoxEngine } from '../../src/index.js'
 import { calculateCid, calculateDirectoryCid } from '../../src/core/cid.js'
 import { getCidInfo } from '../../src/core/cidTopic.js'
-import {
-  GAME_CHANNEL_TYPE,
-  createGameEvent,
-  deriveGameRoomLobby,
-  gameRoomCodeToChannelName,
-} from '../../src/core/gameRoom.js'
 import { GLOBAL_SHARED_SEED_STRING } from '../../src/config.js'
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
@@ -3587,13 +3581,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.ok(result.key)
     })
 
-    it('creates game room channels with shared game type', async () => {
-      const name = gameRoomCodeToChannelName('gandengyan', 'ABC123')
-      const result = await engine.createChannel(name, GAME_CHANNEL_TYPE)
-      assert.strictEqual(result.name, name)
-      assert.ok(result.key)
-    })
-
     it('returns existing channel if already created', async () => {
       const first = await engine.createChannel(`dup-${uid}`)
       const second = await engine.createChannel(`dup-${uid}`)
@@ -3608,6 +3595,16 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       await assert.rejects(
         engine.createChannel('invalid name!'),
         /只能包含字母/
+      )
+    })
+
+    it('does not let channel types bypass reserved dotted names', async () => {
+      const removedType = ['ga', 'me'].join('')
+      const dottedName = [removedType, 'legacy', uid].join('.')
+
+      await assert.rejects(
+        engine.createChannel(dottedName, removedType),
+        /点号为系统保留/
       )
     })
 
@@ -3627,28 +3624,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       const channels = engine.listChannels()
       assert.ok(channels.some(c => c.name === `list-${uid}`))
       assert.strictEqual(typeof channels[0].peerCount, 'number')
-    })
-
-    it('filters dotted system channels by default', async () => {
-      const chatName = `list-chat-${uid}`
-      const gameName = `game.gandengyan.${uid}`
-      await engine.createChannel(chatName, 'public')
-      await engine.createChannel(gameName, GAME_CHANNEL_TYPE)
-
-      const channels = engine.listChannels()
-      assert.ok(channels.some(c => c.name === chatName))
-      assert.ok(!channels.some(c => c.name === gameName))
-      assert.ok(
-        channels.every(
-          c =>
-            ![c.name, c.channelId, c.channelKey].some(value =>
-              String(value || '').includes('.')
-            )
-        )
-      )
-
-      const gameChannels = engine.listChannels({ type: GAME_CHANNEL_TYPE })
-      assert.ok(gameChannels.some(c => c.name === gameName))
     })
   })
 
@@ -3702,22 +3677,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.strictEqual(welcomeMessages.length, 1)
       assert.strictEqual(welcomeMessages[0].type, 'system')
       assert.strictEqual(welcomeMessages[0].authorName, 'Alice')
-    })
-
-    it('does not write chat welcome messages for game channels', async () => {
-      const ownerAddress = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
-      const channelName = gameRoomCodeToChannelName('gandengyan', `G${uid}`)
-      await engine.createChannel(channelName, GAME_CHANNEL_TYPE, {
-        ownerAddress,
-        displayName: 'Game User',
-        avatar: 'game.png',
-      })
-
-      const messages = await engine.getChannelMessages(channelName, {
-        ownerAddress,
-      })
-
-      assert.deepStrictEqual(messages, [])
     })
   })
 
@@ -4071,11 +4030,9 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       )
     })
 
-    it('profile sync does not rewrite saved chat and game message snapshots', async () => {
+    it('profile sync does not rewrite saved chat message snapshots', async () => {
       const author = '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd'
-      const roomCode = 'ABCD'
       const chatChannel = `profile-chat-${uid}`
-      const gameChannel = gameRoomCodeToChannelName('gandengyan', roomCode)
       const oldProfile = {
         ownerAddress: author,
         displayName: 'Old Profile',
@@ -4097,27 +4054,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         oldProfile
       )
 
-      await msgEngine.createChannel(gameChannel, GAME_CHANNEL_TYPE, oldProfile)
-      const joinEvent = createGameEvent({
-        gameId: 'gandengyan',
-        roomCode,
-        event: 'player:join',
-        payload: {
-          player: {
-            address: author,
-            name: oldProfile.displayName,
-            avatar: oldProfile.avatar,
-          },
-        },
-      })
-      await msgEngine.sendMessage(
-        gameChannel,
-        JSON.stringify(joinEvent),
-        author,
-        oldProfile.displayName,
-        oldProfile
-      )
-
       msgEngine.saveUserProfile(author, freshProfile)
 
       const chatMessages = await msgEngine.getChannelMessages(chatChannel, {
@@ -4128,22 +4064,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       )
       assert.strictEqual(chatMessage.authorName, oldProfile.displayName)
       assert.strictEqual(chatMessage.avatar, oldProfile.avatar)
-
-      const gameMessages = await msgEngine.getChannelMessages(gameChannel, {
-        ownerAddress: author,
-      })
-      const gameMessage = gameMessages.find(
-        message => message.content === JSON.stringify(joinEvent)
-      )
-      assert.strictEqual(gameMessage.authorName, oldProfile.displayName)
-      assert.strictEqual(gameMessage.avatar, oldProfile.avatar)
-
-      const lobby = deriveGameRoomLobby(gameMessages, {
-        gameId: 'gandengyan',
-        roomCode,
-      })
-      assert.strictEqual(lobby.players[0].name, oldProfile.displayName)
-      assert.strictEqual(lobby.players[0].avatar, oldProfile.avatar)
     })
 
     it('stores channel attachment metadata', async () => {
@@ -5558,33 +5478,6 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         )
       } finally {
         await joinEngine.stop().catch(() => {})
-        fs.rmSync(restartTmpDir, { recursive: true, force: true })
-      }
-    })
-
-    it('does not persist transient game channels', async () => {
-      const restartTmpDir = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'most-game-channel-persist-')
-      )
-      const restartDataPath = path.join(restartTmpDir, 'data')
-      const chatChannelName = `persist-chat-${uid}`
-      const gameChannelName = gameRoomCodeToChannelName('gandengyan', 'ABCD12')
-      const restartEngine = new MostBoxEngine({
-        dataPath: restartDataPath,
-        disableNetwork: true,
-      })
-
-      try {
-        await restartEngine.start()
-        await restartEngine.createChannel(chatChannelName, 'public')
-        await restartEngine.createChannel(gameChannelName, GAME_CHANNEL_TYPE)
-        let metadata = JSON.parse(
-          fs.readFileSync(path.join(restartDataPath, 'channels.json'), 'utf-8')
-        )
-        assert.ok(metadata.some(c => c.name === chatChannelName))
-        assert.ok(!metadata.some(c => c.name === gameChannelName))
-      } finally {
-        await restartEngine.stop().catch(() => {})
         fs.rmSync(restartTmpDir, { recursive: true, force: true })
       }
     })

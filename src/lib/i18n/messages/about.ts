@@ -1,18 +1,18 @@
 export const zhCNAboutMessages = {
   'about.meta.title': '关于 MOST PEOPLE',
   'about.meta.desc':
-    'MOST PEOPLE 是完全开源的 P2P 节点应用：用户在自己的设备上运行节点，用 most:// 分享文件，并把聊天、知识库、游戏和 Web3 作为独立工具。',
+    'MOST PEOPLE 是完全开源的 P2P 节点应用：用户在自己的设备上运行节点，用 most:// 分享文件，并把聊天、知识库和 Web3 作为独立工具。',
   'about.hero.kicker': '自己运行的 P2P 节点',
   'about.hero.title': '关于 MOST PEOPLE',
   'about.hero.desc':
-    'MOST PEOPLE 让设备直接参与网络：安装、打开、分享 most:// 链接；文件、聊天、知识库、游戏和 Web3 各自独立，不要求用户加入某个平台。',
+    'MOST PEOPLE 让设备直接参与网络：安装、打开、分享 most:// 链接；文件、聊天、知识库和 Web3 各自独立，不要求用户加入某个平台。',
   'about.link.example': 'most://<cid>?filename=...',
   'about.summary.cid':
     'CID 类似磁力链接/BT 种子的内容指纹：链接指向内容，下载后再校验是不是同一份文件。',
   'about.summary.seed':
     '发布者和下载者都能做种，只要仍有人在线，文件就能继续传播。',
   'about.summary.toolbox':
-    '文件、聊天、知识库、游戏和 Web3 是同等入口，彼此不作为前置条件。',
+    '文件、聊天、知识库和 Web3 是同等入口，彼此不作为前置条件。',
   'about.summary.opensource':
     'MOST PEOPLE 完全开源，账户系统也欢迎其他项目接入。',
   'about.section.identity.title': 'CID 是内容指纹',
@@ -51,17 +51,10 @@ export const zhCNAboutMessages = {
   'about.section.note.bullet.markdown': '支持 Markdown 块编辑。',
   'about.section.note.bullet.fromChat': '笔记可以直接新建、编辑和整理。',
   'about.section.note.bullet.backup': '按需备份和恢复，不把它当成永久云盘。',
-  'about.section.game.title': '游戏房间',
-  'about.section.game.body':
-    '游戏是独立入口，继续复用公共 Channel 系统同步事件。',
-  'about.section.game.bullet.channel': '游戏事件通过公共 Channel 同步。',
-  'about.section.game.bullet.rooms': '房间链接可以发给朋友一起加入。',
-  'about.section.game.bullet.lightweight': '适合朋友间快速开局和测试玩法。',
   'about.section.web3.title': '开源账户系统',
   'about.section.web3.body':
     'MOST PEOPLE 账户使用这套本地身份系统：完全开源，可复用，也方便其他项目接入。',
-  'about.section.web3.bullet.accounts':
-    '聊天、知识库、游戏和工具身份共用这一套。',
+  'about.section.web3.bullet.accounts': '聊天、知识库和工具身份共用这一套。',
   'about.section.web3.bullet.integrate':
     '其他项目可用它做本地登录、签名和数据隔离。',
   'about.section.web3.bullet.export': '支持密钥、地址和助记词导出。',
@@ -73,18 +66,18 @@ export const zhCNAboutMessages = {
 export const zhTWAboutMessages = {
   'about.meta.title': '關於 MOST PEOPLE',
   'about.meta.desc':
-    'MOST PEOPLE 是完全開源的 P2P 節點應用：使用者在自己的裝置上執行節點，用 most:// 分享檔案，並把聊天、知識庫、遊戲和 Web3 作為獨立工具。',
+    'MOST PEOPLE 是完全開源的 P2P 節點應用：使用者在自己的裝置上執行節點，用 most:// 分享檔案，並把聊天、知識庫和 Web3 作為獨立工具。',
   'about.hero.kicker': '自己執行的 P2P 節點',
   'about.hero.title': '關於 MOST PEOPLE',
   'about.hero.desc':
-    'MOST PEOPLE 讓裝置直接參與網路：安裝、開啟、分享 most:// 連結；檔案、聊天、知識庫、遊戲和 Web3 各自獨立，不要求使用者加入某個平台。',
+    'MOST PEOPLE 讓裝置直接參與網路：安裝、開啟、分享 most:// 連結；檔案、聊天、知識庫和 Web3 各自獨立，不要求使用者加入某個平台。',
   'about.link.example': 'most://<cid>?filename=...',
   'about.summary.cid':
     'CID 類似磁力連結/BT 種子的內容指紋：連結指向內容，下載後再校驗是不是同一份檔案。',
   'about.summary.seed':
     '發布者和下載者都能做種，只要仍有人在線，檔案就能繼續傳播。',
   'about.summary.toolbox':
-    '檔案、聊天、知識庫、遊戲和 Web3 是同等入口，彼此不作為前置條件。',
+    '檔案、聊天、知識庫和 Web3 是同等入口，彼此不作為前置條件。',
   'about.summary.opensource':
     'MOST PEOPLE 完全開源，帳戶系統也歡迎其他項目接入。',
   'about.section.identity.title': 'CID 是內容指紋',
@@ -124,17 +117,10 @@ export const zhTWAboutMessages = {
   'about.section.note.bullet.fromChat': '筆記可以直接新建、編輯和整理。',
   'about.section.note.bullet.backup':
     '按需備份和恢復，不把它當成永久雲端硬碟。',
-  'about.section.game.title': '遊戲房間',
-  'about.section.game.body':
-    '遊戲是獨立入口，繼續復用公共 Channel 系統同步事件。',
-  'about.section.game.bullet.channel': '遊戲事件透過公共 Channel 同步。',
-  'about.section.game.bullet.rooms': '房間連結可以發給朋友一起加入。',
-  'about.section.game.bullet.lightweight': '適合朋友間快速開局和測試玩法。',
   'about.section.web3.title': '開源帳戶系統',
   'about.section.web3.body':
     'MOST PEOPLE 帳戶使用這套本地身份系統：完全開源，可複用，也方便其他項目接入。',
-  'about.section.web3.bullet.accounts':
-    '聊天、知識庫、遊戲和工具身份共用這一套。',
+  'about.section.web3.bullet.accounts': '聊天、知識庫和工具身份共用這一套。',
   'about.section.web3.bullet.integrate':
     '其他項目可用它做本地登入、簽名和資料隔離。',
   'about.section.web3.bullet.export': '支援密鑰、地址和助記詞匯出。',
@@ -146,18 +132,18 @@ export const zhTWAboutMessages = {
 export const enAboutMessages = {
   'about.meta.title': 'About MOST PEOPLE',
   'about.meta.desc':
-    'MOST PEOPLE is a fully open source P2P node app: run the node on your own device, share files with most://, and use chat, notes, games, and Web3 as separate tools.',
+    'MOST PEOPLE is a fully open source P2P node app: run the node on your own device, share files with most://, and use chat, notes, and Web3 as separate tools.',
   'about.hero.kicker': 'Run your own P2P node',
   'about.hero.title': 'About MOST PEOPLE',
   'about.hero.desc':
-    'MOST PEOPLE lets your device participate directly in the network: install it, open it, share a most:// link; files, chat, Knowledge Base, games, and Web3 stay independent.',
+    'MOST PEOPLE lets your device participate directly in the network: install it, open it, share a most:// link; files, chat, Knowledge Base, and Web3 stay independent.',
   'about.link.example': 'most://<cid>?filename=...',
   'about.summary.cid':
     'CID works like a content fingerprint for magnet links and BT torrents: the link points to content, then the download is verified.',
   'about.summary.seed':
     'Publishers and downloaders can both seed, so files keep spreading while peers stay online.',
   'about.summary.toolbox':
-    'Files, chat, Knowledge Base, games, and Web3 are equal entries, so no surface is a prerequisite for another.',
+    'Files, chat, Knowledge Base, and Web3 are equal entries, so no surface is a prerequisite for another.',
   'about.summary.opensource':
     'MOST PEOPLE is fully open source, and its account system is meant for other projects to integrate.',
   'about.section.identity.title': 'CID is the content fingerprint',
@@ -203,20 +189,11 @@ export const enAboutMessages = {
     'Notes can be created, edited, and organized directly.',
   'about.section.note.bullet.backup':
     'Backup and restore are available when needed, but it is not permanent cloud storage.',
-  'about.section.game.title': 'Game rooms',
-  'about.section.game.body':
-    'Games are an independent entry while still reusing the shared Channel system for events.',
-  'about.section.game.bullet.channel':
-    'Game events sync through the shared Channel system.',
-  'about.section.game.bullet.rooms':
-    'Room links can be sent to friends so they can join.',
-  'about.section.game.bullet.lightweight':
-    'Good for quick friend games and testing table rules.',
   'about.section.web3.title': 'Open-source account system',
   'about.section.web3.body':
     'MOST PEOPLE accounts use this local identity system: open source, reusable, and ready for other projects to integrate.',
   'about.section.web3.bullet.accounts':
-    'Chat, Knowledge Base, game, and tool identities share it.',
+    'Chat, Knowledge Base, and tool identities share it.',
   'about.section.web3.bullet.integrate':
     'Other projects can use it for local login, signatures, and data separation.',
   'about.section.web3.bullet.export':

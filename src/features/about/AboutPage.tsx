@@ -6,7 +6,6 @@ import {
   CloudOff,
   Download,
   Fingerprint,
-  Gamepad2,
   MessagesSquare,
   Network,
   NotebookPen,
@@ -81,16 +80,6 @@ const sections: AboutSection[] = [
       'about.section.note.bullet.markdown',
       'about.section.note.bullet.fromChat',
       'about.section.note.bullet.backup',
-    ],
-  },
-  {
-    icon: <Gamepad2 size={22} />,
-    titleKey: 'about.section.game.title',
-    bodyKey: 'about.section.game.body',
-    bulletKeys: [
-      'about.section.game.bullet.channel',
-      'about.section.game.bullet.rooms',
-      'about.section.game.bullet.lightweight',
     ],
   },
   {

@@ -128,16 +128,20 @@ describe('frontend smoke checks', () => {
   it('keeps the static web shell route list focused on public entry points', () => {
     const routes = getStaticRoutes()
 
-    assert.deepEqual(
-      routes.filter(route =>
-        ['/', '/app/', '/chat/', '/download/', '/note/', '/web3/'].includes(
-          route
-        )
-      ),
-      ['/', '/app/', '/chat/', '/download/', '/note/', '/web3/']
-    )
-    assert.ok(routes.includes('/game/gandengyan/'))
-    assert.ok(routes.includes('/game/zhajinhua/'))
+    assert.deepEqual(routes, [
+      '/',
+      '/about/',
+      '/admin/',
+      '/app/',
+      '/chat/',
+      '/chat/join/',
+      '/chat/join/demo/',
+      '/download/',
+      '/note/',
+      '/ping/',
+      '/profile/',
+      '/web3/',
+    ])
     assert.ok(!routes.some(route => route.includes('$')))
     assert.match(
       readSource(SOURCE_PATHS.checkStaticOutput),
@@ -790,7 +794,6 @@ describe('frontend smoke checks', () => {
   })
 
   it('keeps chat identity snapshots flowing through messages', () => {
-    const gameRoomSource = readSource('src/hooks/useGameRoom.ts')
     const channelMessagesSource = readSource('src/hooks/useChannelMessages.ts')
     const userProfileSource = readSource('src/lib/userProfile.ts')
 
@@ -801,8 +804,6 @@ describe('frontend smoke checks', () => {
       channelMessagesSource,
       /getUserMessageIdentity\(userIdentity\)/
     )
-    assert.match(gameRoomSource, /getUserChannelProfile\(userIdentity\)/)
-    assert.match(gameRoomSource, /getUserMessageIdentity\(userIdentity\)/)
   })
 
   it('derives chat members from channel messages without the members API', () => {
@@ -858,7 +859,6 @@ describe('frontend smoke checks', () => {
     const chatCssSource = readSource('src/styles/chat.css')
     const channelApiSource = readSource('src/lib/channelApi.ts')
     const userProfileSource = readSource('src/lib/userProfile.ts')
-    const gameRoomSource = readSource('src/hooks/useGameRoom.ts')
     const voiceRoomSource = readSource('src/features/chat/GlobalVoiceRoom.tsx')
     const { normalizeLocalizedTag, selectLocalizedTag } =
       await importBundledSource('src/lib/localizedTag.ts')
@@ -944,7 +944,6 @@ describe('frontend smoke checks', () => {
     )
     assert.match(userProfileSource, /getUserPresenceProfile/)
     assert.match(userProfileSource, /authorTag/)
-    assert.match(gameRoomSource, /getUserPresenceProfile/)
     assert.match(voiceRoomSource, /getUserPresenceProfile/)
   })
 

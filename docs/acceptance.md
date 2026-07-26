@@ -1,6 +1,6 @@
 # MostBox 验收指南
 
-> 用最少步骤验证“运行自己的 P2P 节点 -> 分享 `most://` 链接 -> 文件发布/下载 -> CID 校验 -> 下载者继续做种”的当前 MVP 闭环，并覆盖聊天、知识库、游戏、daemon、管理台、Android Alpha 和独立工具箱回归。
+> 用最少步骤验证“运行自己的 P2P 节点 -> 分享 `most://` 链接 -> 文件发布/下载 -> CID 校验 -> 下载者继续做种”的当前 MVP 闭环，并覆盖聊天、知识库、daemon、管理台、Android Alpha 和独立工具箱回归。
 
 ## 一、快速启动
 
@@ -21,15 +21,14 @@ npm run dev
 
 打开：
 
-| 入口         | 地址                                                                              | 用途                                                              |
-| ------------ | --------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| 本机节点首页 | `http://localhost:3000/`                                                          | 用户自己运行 P2P 节点，文件、聊天、知识库、游戏和 Web3 是独立入口 |
-| 文件库       | `http://localhost:3000/app/`                                                      | `/app/` 保留完整文件发布、下载和做种管理                          |
-| 聊天         | `http://localhost:3000/chat/`                                                     | 按频道 ID 打开聊天、收发消息和发送文件附件                        |
-| 知识库       | `http://localhost:3000/note/`                                                     | 编辑 Markdown 内容和本地笔记库                                    |
-| 游戏         | `http://localhost:3000/game/gandengyan/`、`http://localhost:3000/game/zhajinhua/` | 独立游戏页面                                                      |
-| 管理台       | `http://localhost:3000/admin/`                                                    | 查看节点状态、holding、容量和日志                                 |
-| API          | `http://localhost:1976/api/openapi.json`                                          | daemon HTTP API                                                   |
+| 入口         | 地址                                     | 用途                                                        |
+| ------------ | ---------------------------------------- | ----------------------------------------------------------- |
+| 本机节点首页 | `http://localhost:3000/`                 | 用户自己运行 P2P 节点，文件、聊天、知识库和 Web3 是独立入口 |
+| 文件库       | `http://localhost:3000/app/`             | `/app/` 保留完整文件发布、下载和做种管理                    |
+| 聊天         | `http://localhost:3000/chat/`            | 按频道 ID 打开聊天、收发消息和发送文件附件                  |
+| 知识库       | `http://localhost:3000/note/`            | 编辑 Markdown 内容和本地笔记库                              |
+| 管理台       | `http://localhost:3000/admin/`           | 查看节点状态、holding、容量和日志                           |
+| API          | `http://localhost:1976/api/openapi.json` | daemon HTTP API                                             |
 
 桌面端默认打开本机节点首页。发布包路径：正式桌面安装包和 Android Alpha APK 从 `/download` 或 GitHub Releases latest 下载；本地桌面构建使用 `npm run electron:build:win`、`npm run electron:build:mac` 或 `npm run electron:build:linux`，Android APK 构建在 `mobile/app/` 下运行 `npm run build`。
 
@@ -52,7 +51,7 @@ auth_header() {
 
 ## 二、本机节点 MVP 验收
 
-当前主线验收从 `/` 开始：用户先运行自己的 MostBox P2P 节点，再通过本地界面进入文件、聊天、知识库、游戏或 Web3。建议至少准备两个 MostBox 节点；需要验证“发布者退出后仍可传播”时准备第三个节点。
+当前主线验收从 `/` 开始：用户先运行自己的 MostBox P2P 节点，再通过本地界面进入文件、聊天、知识库或 Web3。建议至少准备两个 MostBox 节点；需要验证“发布者退出后仍可传播”时准备第三个节点。
 
 1. 用户 A 启动桌面端，或按源码方式启动后打开 `/`，确认首页表达“用户自己运行 P2P 节点”的定位，而不是聊天或网盘单一路径。
 2. 用户 A 进入 `/app/` 发布测试文件，得到 `most://<cid>?filename=...` 链接。
@@ -61,19 +60,17 @@ auth_header() {
 5. 用户 C 凭同一个 `most://` 链接下载文件；只要 B 仍在线做种，C 应能完成下载并通过 CID 校验。
 6. 进入 `/chat/` 加入聊天，确认自动生成 26 位小写 base32 ID；复制 `/chat/#<channelId>` 链接并在另一节点用任意大小写形式直接打开，确认文本、附件和语音仍通过同一 P2P Channel 同步。
 7. 进入 `/note/` 新建或编辑 Markdown 内容，确认知识库是独立工具，不依赖聊天设置。
-8. 打开独立游戏页面时，现有游戏仍使用 `game.<gameId>.<roomCode>` Channel 同步事件。
-9. 打开 `/web3/`，确认 Web3 工具箱独立存在，不成为文件、聊天、知识库或游戏前置条件。
+8. 打开 `/web3/`，确认 Web3 工具箱独立存在，不成为文件、聊天或知识库的前置条件。
 
-| 检查项       | 通过标准                                                                                                            | 入口                                    |
-| ------------ | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| 节点定位     | 首页、桌面端和 README 首屏都说明 MostBox 是用户自己运行的 P2P 节点；文件、聊天、知识库、游戏和 Web3 是独立入口      | `/`、桌面端、`README.md`                |
-| 文件闭环     | `/app/` 负责文件发布、文件库与下载链接入口，`/cid/<cid>` 统一负责检测和发起下载；活动进度可通过全局任务条跨页面查看 | `/app/`、`/cid/<cid>`、文件 API         |
-| 下载后做种   | 接收方下载成功后自动写入 holding 并 join 对应 CID topic                                                             | `/api/node/holdings`、`/admin/`         |
-| 发布者退出   | 原发布者退出后，至少一个下载者在线时，新下载者仍能完成下载                                                          | `npm run test:protocol`、手动三节点     |
-| 聊天独立     | 用户能通过频道 ID 或 `/chat/#<channelId>` 加入同一聊天，双方能收发文本消息和文件附件                                | `/chat/`、`/ws`                         |
-| 知识库独立   | 知识库支持 Markdown 编辑、备份和恢复，不依赖聊天设置入口                                                            | `/note/`                                |
-| 聊天设置边界 | 聊天设置不再提供知识库导出入口                                                                                      | `/chat/`                                |
-| 独立游戏     | 游戏事件仍走公共 Channel 系统                                                                                       | `/game/gandengyan/`、`/game/zhajinhua/` |
+| 检查项       | 通过标准                                                                                                            | 入口                                |
+| ------------ | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| 节点定位     | 首页、桌面端和 README 首屏都说明 MostBox 是用户自己运行的 P2P 节点；文件、聊天、知识库和 Web3 是独立入口            | `/`、桌面端、`README.md`            |
+| 文件闭环     | `/app/` 负责文件发布、文件库与下载链接入口，`/cid/<cid>` 统一负责检测和发起下载；活动进度可通过全局任务条跨页面查看 | `/app/`、`/cid/<cid>`、文件 API     |
+| 下载后做种   | 接收方下载成功后自动写入 holding 并 join 对应 CID topic                                                             | `/api/node/holdings`、`/admin/`     |
+| 发布者退出   | 原发布者退出后，至少一个下载者在线时，新下载者仍能完成下载                                                          | `npm run test:protocol`、手动三节点 |
+| 聊天独立     | 用户能通过频道 ID 或 `/chat/#<channelId>` 加入同一聊天，双方能收发文本消息和文件附件                                | `/chat/`、`/ws`                     |
+| 知识库独立   | 知识库支持 Markdown 编辑、备份和恢复，不依赖聊天设置入口                                                            | `/note/`                            |
+| 聊天设置边界 | 聊天设置不再提供知识库导出入口                                                                                      | `/chat/`                            |
 
 ## 三、文件协议回归
 
@@ -201,17 +198,17 @@ node --test --test-name-pattern "returns node status|saves daemon config and exp
 6. 两个节点加入同一 ID 后验证文本、附件和语音；加入不同 ID 的节点不应收到消息或进入同一 topic。
 7. 明确安全边界：消息记录和语音信令不做应用层加密；知道频道 ID 的人、已加入 peer、daemon 和数据目录访问者均可读取明文，ID 泄露后需新建频道。
 
-| 检查项       | 通过标准                                                                                                  | 入口                                                    |
-| ------------ | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| 节点首页     | 首页默认说明设备直接参与 P2P 网络，并展示文件、聊天、知识库、游戏和 Web3 五个独立入口；桌面端默认进入 `/` | `src/components/FeaturePortal.tsx`、`electron/main.js`  |
-| 技术词降噪   | 普通用户首屏说“自己运行节点”和“设备直接参与网络”，不堆 Hyperswarm、Hyperdrive、CID 术语                   | `README.md`、首页文案                                   |
-| 能力频道     | 单一“加入聊天”入口；可输入 ID/链接或生成 128 位随机 ID；ID 不区分大小写；不宣称端到端加密                 | `src/features/chat/ChatPage.tsx`、`src/lib/chatRoom.js` |
-| 附件状态     | 聊天附件区分可下载、下载中、可预览、失败，并有重试入口                                                    | `src/components/ChatAttachmentCard.tsx`                 |
-| 文件库定位   | `/app/` 文案是文件库/传输管理，仍说明“下载者完成后会默认继续做种”                                         | `src/features/files/AppPage.tsx`                        |
-| 下载前检测   | 无链接、错误协议、非法 CID、缺少 filename 都有本地提示                                                    | `getDownloadLinkValidationMessage()`                    |
-| 下载失败文案 | 超时、无 peer、同名冲突、权限错误、节点未初始化、服务端错误各有可读文案                                   | `getDownloadCheckErrorMessage()`                        |
-| 工具箱隔离   | `/note`、`/web3`、`/game/*` 可独立打开，不是文件分享的前置条件                                            | 首页工具箱、各独立页面                                  |
-| 云盘误解清理 | 主应用不出现云端订单、赔付、付费保种市场叙事                                                              | `src/features`、`src/components`                        |
+| 检查项       | 通过标准                                                                                            | 入口                                                    |
+| ------------ | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| 节点首页     | 首页默认说明设备直接参与 P2P 网络，并展示文件、聊天、知识库和 Web3 四个独立入口；桌面端默认进入 `/` | `src/components/FeaturePortal.tsx`、`electron/main.js`  |
+| 技术词降噪   | 普通用户首屏说“自己运行节点”和“设备直接参与网络”，不堆 Hyperswarm、Hyperdrive、CID 术语             | `README.md`、首页文案                                   |
+| 能力频道     | 单一“加入聊天”入口；可输入 ID/链接或生成 128 位随机 ID；ID 不区分大小写；不宣称端到端加密           | `src/features/chat/ChatPage.tsx`、`src/lib/chatRoom.js` |
+| 附件状态     | 聊天附件区分可下载、下载中、可预览、失败，并有重试入口                                              | `src/components/ChatAttachmentCard.tsx`                 |
+| 文件库定位   | `/app/` 文案是文件库/传输管理，仍说明“下载者完成后会默认继续做种”                                   | `src/features/files/AppPage.tsx`                        |
+| 下载前检测   | 无链接、错误协议、非法 CID、缺少 filename 都有本地提示                                              | `getDownloadLinkValidationMessage()`                    |
+| 下载失败文案 | 超时、无 peer、同名冲突、权限错误、节点未初始化、服务端错误各有可读文案                             | `getDownloadCheckErrorMessage()`                        |
+| 工具箱隔离   | `/note`、`/web3` 可独立打开，不是文件分享的前置条件                                                 | 首页工具箱、各独立页面                                  |
+| 云盘误解清理 | 主应用不出现云端订单、赔付、付费保种市场叙事                                                        | `src/features`、`src/components`                        |
 
 推荐检查：
 
@@ -239,12 +236,11 @@ node --test --test-name-pattern "pulls through local seed nodes after the upload
 
 这个测试会启动多个本地 `MostBoxEngine`，让 uploader 发布文件，seed-b 和 seed-c 拉取后成为种子，再停止 uploader，最后验证 downloader 仍能从下载者种子拉取并通过 CID 校验。
 
-聊天、知识库和游戏入口的轻量回归：
+聊天和知识库入口的轻量回归：
 
 ```bash
 npm run test:frontend
 node --test server/tests/unit/noteVault.test.js server/tests/unit/accountBackup.test.js
-node --test server/tests/unit/gameRoom.test.js server/tests/unit/gandengyan.test.js server/tests/unit/zhajinhua.test.js
 ```
 
 构建前完整检查：
@@ -258,17 +254,16 @@ npm run build
 
 ## 七、MVP 通过标准
 
-| 场景         | 通过标准                                                                                                |
-| ------------ | ------------------------------------------------------------------------------------------------------- |
-| 本机节点首页 | 用户打开后第一路径是 `/`，能理解 MostBox 是自己运行的 P2P 节点，并能选择文件、聊天、知识库、游戏或 Web3 |
-| P2P 消息     | 两个节点能凭同一频道 ID 收发消息，不同 ID 不互通；分享链接为 `/chat/#<channelId>`                       |
-| 聊天附件     | 文件能作为聊天附件发送，接收方能下载、校验、预览                                                        |
-| 下载后做种   | 接收方下载成功后自动成为新种子，holding 可见                                                            |
-| daemon 重启  | 已持有 CID 自动恢复 join topic                                                                          |
-| 发布者退出   | 至少一个下载者在线做种时，新下载者仍可完成下载                                                          |
-| 知识库       | 能独立新建、编辑和备份 Markdown 内容，不依赖聊天或文件入口                                              |
-| 游戏         | 独立游戏页面继续使用 `game.*` Channel；聊天详情暂不提供游戏入口                                         |
-| Web3         | Web3 工具箱独立存在，不成为聊天、文件、记录或游戏前置条件                                               |
+| 场景         | 通过标准                                                                                          |
+| ------------ | ------------------------------------------------------------------------------------------------- |
+| 本机节点首页 | 用户打开后第一路径是 `/`，能理解 MostBox 是自己运行的 P2P 节点，并能选择文件、聊天、知识库或 Web3 |
+| P2P 消息     | 两个节点能凭同一频道 ID 收发消息，不同 ID 不互通；分享链接为 `/chat/#<channelId>`                 |
+| 聊天附件     | 文件能作为聊天附件发送，接收方能下载、校验、预览                                                  |
+| 下载后做种   | 接收方下载成功后自动成为新种子，holding 可见                                                      |
+| daemon 重启  | 已持有 CID 自动恢复 join topic                                                                    |
+| 发布者退出   | 至少一个下载者在线做种时，新下载者仍可完成下载                                                    |
+| 知识库       | 能独立新建、编辑和备份 Markdown 内容，不依赖聊天或文件入口                                        |
+| Web3         | Web3 工具箱独立存在，不成为聊天、文件或记录的前置条件                                             |
 
 如果下载失败，优先检查：聊天双方是否加入同一房间、附件链接是否完整、发布者或下载者种子是否在线、端口和防火墙是否允许 P2P 连接、管理台日志中是否出现 `PEER_NOT_FOUND` 或 `INTEGRITY_ERROR`。
 
@@ -284,7 +279,6 @@ npm run build
 | 重启恢复   | 重启前 holding、重启后状态、join 耗时             | daemon 重启后自动 join 已持有 CID topic    |
 | 发布者退出 | 发布者退出时间、剩余种子、后续下载者结果          | 至少一个下载者在线时，新下载者仍可完成下载 |
 | 知识库编辑 | 笔记标题、内容、备份路径                          | 新建和编辑 Markdown 内容可用               |
-| 独立游戏   | 房间 ID、游戏 ID、参与节点、事件同步结果          | 两端游戏状态能通过 Channel 同步            |
 
 记录模板：
 
@@ -335,7 +329,7 @@ npm run build
 | 资源管理             | 新建、重命名、移动、删除文件夹、搜索不丢数据                                                | `noteUtils`、`src/features/note/NotePage.tsx` |
 | 桌面 Markdown 笔记库 | Electron + 本地 daemon 下可选择目录、列出 `.md`、打开并保存当前文件；Web 端仍使用 IndexedDB | `/note`、`/api/note-vault/*`                  |
 | CID 边界             | `calculateNoteCid()` 只用于笔记 raw CID，不进入 `most://` 文件分享协议                      | `server/src/core/cid.js`、笔记测试            |
-| Web3 独立            | 钱包、PEM、地址和签名工具不参与聊天、附件、知识库或游戏主流程                               | `/web3/`                                      |
+| Web3 独立            | 钱包、PEM、地址和签名工具不参与聊天、附件或知识库主流程                                     | `/web3/`                                      |
 
 推荐检查：
 

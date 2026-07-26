@@ -632,10 +632,7 @@ export class MobileP2PCore {
   async createChannel(input = {}) {
     this.#ensureReady()
     const requestedType = String(input.type || 'public').trim() || 'public'
-    const channelId = assertValidChannelId(
-      input.name || input.channelId,
-      requestedType
-    )
+    const channelId = assertValidChannelId(input.name || input.channelId)
     const channelKey = buildChannelKey(channelId)
     const existing = this.#channels.find(
       channel => channel.channelKey === channelKey
@@ -1209,10 +1206,7 @@ export class MobileP2PCore {
 
   async #joinChannelFromCandidate(candidateInput, type = 'public') {
     const channelType = candidateInput.type || type
-    const channelId = assertValidChannelId(
-      candidateInput.channelId,
-      channelType
-    )
+    const channelId = assertValidChannelId(candidateInput.channelId)
     const channelKey = buildChannelKey(channelId)
     const existing = this.#channels.find(
       channel => channel.channelKey === channelKey

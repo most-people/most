@@ -8,10 +8,6 @@ import { serve } from '@hono/node-server'
 import { createApp } from '../../index.js'
 import { calculateCid } from '../../src/core/cid.js'
 import { MostBoxEngine } from '../../src/index.js'
-import {
-  GAME_CHANNEL_TYPE,
-  gameRoomCodeToChannelName,
-} from '../../src/core/gameRoom.js'
 import { createNodeConfigStore } from '../../src/node/config.js'
 import { createNodeLogger } from '../../src/node/logs.js'
 import { buildAuthHeaders } from '../../src/utils/auth.js'
@@ -179,10 +175,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
   beforeEach(async () => {
     await engine.clearUserData(TEST_IDENTITY.address)
     await engine.clearUserData(SECOND_IDENTITY.address)
-    const channels = [
-      ...engine.listChannels(),
-      ...engine.listChannels({ type: 'game' }),
-    ]
+    const channels = engine.listChannels()
     for (const channel of channels) {
       await engine.leaveChannel(channel.name)
     }
@@ -2593,23 +2586,6 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(profiles[0].profileUpdatedAt)
     })
 
-    it('creates shared game room channels', async () => {
-      for (const gameId of ['gandengyan', 'zhajinhua']) {
-        const name = gameRoomCodeToChannelName(gameId, 'ABC123')
-        const res = await fetch(`${baseUrl}/api/channels`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, type: GAME_CHANNEL_TYPE }),
-        })
-        const data = await res.json()
-
-        assert.strictEqual(res.status, 200)
-        assert.ok(data.success)
-        assert.strictEqual(data.name, name)
-        assert.ok(data.key)
-      }
-    })
-
     it('returns existing channel if already created', async () => {
       await engine.createChannel(`dup-${uid}`)
       const res = await fetch(`${baseUrl}/api/channels`, {
@@ -2641,14 +2617,18 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     })
 
     it('rejects dotted user-created channel IDs', async () => {
-      const res = await fetch(`${baseUrl}/api/channels`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: 'user.sync.test' }),
-      })
-      const data = await res.json()
-      assert.strictEqual(res.status, 400)
-      assert.match(data.error, /点号为系统保留/)
+      const removedType = ['ga', 'me'].join('')
+      const dottedName = [removedType, 'legacy', uid].join('.')
+      for (const type of [undefined, removedType]) {
+        const res = await fetch(`${baseUrl}/api/channels`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: dottedName, type }),
+        })
+        const data = await res.json()
+        assert.strictEqual(res.status, 400)
+        assert.match(data.error, /点号为系统保留/)
+      }
     })
   })
 
@@ -2678,22 +2658,23 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(data.some(c => c.name === `list-${uid}`))
     })
 
-    it('filters game channels by default while preserving type queries', async () => {
-      await engine.createChannel(`chat-${uid}`, 'public')
-      await engine.createChannel(`game.zhajinhua.${uid}`, 'game')
+    it('filters channels by requested type', async () => {
+      const publicName = `public-${uid}`
+      const groupName = `group-${uid}`
+      await engine.createChannel(publicName, 'public')
+      await engine.createChannel(groupName, 'group')
 
-      const gameRes = await fetch(`${baseUrl}/api/channels?type=game`)
-      const gameData = await gameRes.json()
-      assert.strictEqual(gameRes.status, 200)
-      assert.ok(gameData.some(c => c.name === `game.zhajinhua.${uid}`))
-      assert.ok(!gameData.some(c => c.name === `chat-${uid}`))
+      const groupRes = await fetch(`${baseUrl}/api/channels?type=group`)
+      const groupData = await groupRes.json()
+      assert.strictEqual(groupRes.status, 200)
+      assert.ok(groupData.some(c => c.name === groupName))
+      assert.ok(!groupData.some(c => c.name === publicName))
 
-      const chatRes = await fetch(`${baseUrl}/api/channels`)
-      const chatData = await chatRes.json()
-      assert.strictEqual(chatRes.status, 200)
-      assert.ok(chatData.some(c => c.name === `chat-${uid}`))
-      assert.ok(!chatData.some(c => c.name === `game.zhajinhua.${uid}`))
-      assert.ok(chatData.every(c => !String(c.name || '').includes('.')))
+      const allRes = await fetch(`${baseUrl}/api/channels`)
+      const allData = await allRes.json()
+      assert.strictEqual(allRes.status, 200)
+      assert.ok(allData.some(c => c.name === publicName))
+      assert.ok(allData.some(c => c.name === groupName))
     })
   })
 

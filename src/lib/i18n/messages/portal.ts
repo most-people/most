@@ -1,9 +1,9 @@
 export const zhCNPortalMessages = {
   'portal.meta.description':
-    'MostBox 是用户自己运行的 P2P 节点，通过本地界面提供文件、聊天、知识库、游戏和 Web3 工具。',
+    'MostBox 是用户自己运行的 P2P 节点，通过本地界面提供文件、聊天、知识库和 Web3 工具。',
   'portal.hero.kicker': '自己运行的 P2P 节点',
   'portal.hero.subtitle':
-    '安装、打开、分享链接，让设备直接参与 P2P 网络；文件、聊天、知识库、游戏和 Web3 各自独立。',
+    '安装、打开、分享链接，让设备直接参与 P2P 网络；文件、聊天、知识库和 Web3 各自独立。',
   'portal.nodeEntry': '节点入口',
   'portal.webConnectNode': 'Web 连接节点',
   'portal.nodeAdmin': '节点管理',
@@ -67,24 +67,6 @@ export const zhCNPortalMessages = {
   'portal.feature.note.step.create.desc': '写 Markdown，按需切换为私密内容。',
   'portal.feature.note.step.backup.title': '备份恢复',
   'portal.feature.note.step.backup.desc': '登录后可把加密笔记同步到云端。',
-  'portal.feature.game.title': '游戏',
-  'portal.feature.game.subtitle': '独立房间游戏',
-  'portal.feature.game.hero': '打开独立游戏房间',
-  'portal.feature.game.desc': '创建或加入游戏房间，邀请朋友在线对局。',
-  'portal.feature.game.bullet.account': '使用 MostBox 本地账号进入房间',
-  'portal.feature.game.bullet.channel':
-    '复用 /chat/ 的频道后端，不新增游戏后端接口',
-  'portal.feature.game.bullet.link': '房间链接可手动分享给朋友',
-  'portal.feature.game.bullet.rules': '支持干瞪眼、炸金花的多人房间对局',
-  'portal.feature.game.bullet.maintain': '游戏规则、频道事件和页面样式拆分维护',
-  'portal.feature.game.step.login.title': '登录账号',
-  'portal.feature.game.step.login.desc':
-    '使用现有 MostBox Web3 本地账号作为牌桌身份。',
-  'portal.feature.game.step.create.title': '创建房间',
-  'portal.feature.game.step.create.desc': '创建房间后复制链接，发给朋友加入。',
-  'portal.feature.game.step.test.title': '开始调试',
-  'portal.feature.game.step.test.desc':
-    '可用多个客户端加入同一房间，验证出牌、计分和房间同步。',
   'portal.feature.web3.title': 'Web3',
   'portal.feature.web3.subtitle': '开源账户系统',
   'portal.feature.web3.hero': '确定性密钥派生工具箱',
@@ -106,10 +88,10 @@ export const zhCNPortalMessages = {
 
 export const zhTWPortalMessages = {
   'portal.meta.description':
-    'MostBox 是使用者自己執行的 P2P 節點，透過本機介面提供檔案、聊天、知識庫、遊戲和 Web3 工具。',
+    'MostBox 是使用者自己執行的 P2P 節點，透過本機介面提供檔案、聊天、知識庫和 Web3 工具。',
   'portal.hero.kicker': '自己執行的 P2P 節點',
   'portal.hero.subtitle':
-    '安裝、開啟、分享連結，讓裝置直接參與 P2P 網路；檔案、聊天、知識庫、遊戲和 Web3 各自獨立。',
+    '安裝、開啟、分享連結，讓裝置直接參與 P2P 網路；檔案、聊天、知識庫和 Web3 各自獨立。',
   'portal.nodeEntry': '節點入口',
   'portal.webConnectNode': 'Web 連線節點',
   'portal.nodeAdmin': '節點管理',
@@ -173,24 +155,6 @@ export const zhTWPortalMessages = {
   'portal.feature.note.step.create.desc': '寫 Markdown，按需切換為私密內容。',
   'portal.feature.note.step.backup.title': '備份恢復',
   'portal.feature.note.step.backup.desc': '登入後可把加密筆記同步到雲端。',
-  'portal.feature.game.title': '遊戲',
-  'portal.feature.game.subtitle': '獨立房間遊戲',
-  'portal.feature.game.hero': '開啟獨立遊戲房間',
-  'portal.feature.game.desc': '建立或加入遊戲房間，邀請朋友線上對局。',
-  'portal.feature.game.bullet.account': '使用 MostBox 本機帳號進入房間',
-  'portal.feature.game.bullet.channel':
-    '複用 /chat/ 的頻道後端，不新增遊戲後端介面',
-  'portal.feature.game.bullet.link': '房間連結可手動分享給朋友',
-  'portal.feature.game.bullet.rules': '支援乾瞪眼、炸金花的多人房間對局',
-  'portal.feature.game.bullet.maintain': '遊戲規則、頻道事件和頁面樣式拆分維護',
-  'portal.feature.game.step.login.title': '登入帳號',
-  'portal.feature.game.step.login.desc':
-    '使用現有 MostBox Web3 本機帳號作為牌桌身份。',
-  'portal.feature.game.step.create.title': '建立房間',
-  'portal.feature.game.step.create.desc': '建立房間後複製連結，發給朋友加入。',
-  'portal.feature.game.step.test.title': '開始除錯',
-  'portal.feature.game.step.test.desc':
-    '可用多個用戶端加入同一房間，驗證出牌、計分和房間同步。',
   'portal.feature.web3.title': 'Web3',
   'portal.feature.web3.subtitle': '開源帳戶系統',
   'portal.feature.web3.hero': '確定性金鑰派生工具箱',
@@ -213,7 +177,7 @@ export const zhTWPortalMessages = {
 
 export const enPortalMessages = {
   'portal.meta.description':
-    'MostBox is a P2P node you run yourself, with local tools for files, chat, notes, games, and Web3.',
+    'MostBox is a P2P node you run yourself, with local tools for files, chat, notes, and Web3.',
   'portal.hero.kicker': 'Run your own P2P node',
   'portal.hero.subtitle':
     'Install it, open it, share a link, and let your device participate directly in the P2P network.',
@@ -297,30 +261,6 @@ export const enPortalMessages = {
   'portal.feature.note.step.backup.title': 'Backup and restore',
   'portal.feature.note.step.backup.desc':
     'After login, encrypted notes can sync to the cloud.',
-  'portal.feature.game.title': 'Games',
-  'portal.feature.game.subtitle': 'Standalone room games',
-  'portal.feature.game.hero': 'Open a standalone game room',
-  'portal.feature.game.desc':
-    'Create game rooms and invite friends to play online.',
-  'portal.feature.game.bullet.account':
-    'Enter rooms with your local MostBox account',
-  'portal.feature.game.bullet.channel':
-    'Reuses the /chat/ channel backend without adding game-only APIs',
-  'portal.feature.game.bullet.link':
-    'Room links can be shared manually with friends',
-  'portal.feature.game.bullet.rules':
-    'Supports multiplayer rooms for Gan Deng Yan and Zha Jin Hua',
-  'portal.feature.game.bullet.maintain':
-    'Game rules, channel events, and page styles are maintained separately',
-  'portal.feature.game.step.login.title': 'Sign in',
-  'portal.feature.game.step.login.desc':
-    'Use your existing local MostBox Web3 account as the table identity.',
-  'portal.feature.game.step.create.title': 'Create room',
-  'portal.feature.game.step.create.desc':
-    'Create a room, copy the link, and send it to friends.',
-  'portal.feature.game.step.test.title': 'Start testing',
-  'portal.feature.game.step.test.desc':
-    'Use multiple clients in one room to verify plays, scoring, and room sync.',
   'portal.feature.web3.title': 'Web3',
   'portal.feature.web3.subtitle': 'Open-source account system',
   'portal.feature.web3.hero': 'Deterministic key derivation toolbox',

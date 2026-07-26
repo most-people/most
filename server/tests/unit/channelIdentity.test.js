@@ -16,7 +16,7 @@ describe('channel identity helpers', () => {
   })
 
   it('treats any dotted channel identifier as special', () => {
-    assert.strictEqual(isSpecialChannel({ name: 'game.gandengyan.abcd' }), true)
+    assert.strictEqual(isSpecialChannel({ name: 'user.sync.abcdef' }), true)
     assert.strictEqual(
       isSpecialChannel({ channelId: 'user.sync.abcdef' }),
       true

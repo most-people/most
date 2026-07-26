@@ -348,16 +348,13 @@ export function createChannelWriterId() {
   return Math.random().toString(16).slice(2, 10) + Date.now().toString(16)
 }
 
-export function assertValidChannelId(channelId, type = 'public') {
+export function assertValidChannelId(channelId) {
   const normalized = normalizeChannelId(channelId)
   if (!normalized) throw new Error('Channel name is required')
-  if (normalized.includes('.') && type !== 'game') {
+  if (normalized.includes('.')) {
     throw new Error('Dotted channel names are reserved for system channels')
   }
-  if (type === 'game' && !/^game\.[a-z0-9]+\.[a-z0-9]+$/.test(normalized)) {
-    throw new Error('Game channels must use game.<gameId>.<roomCode>')
-  }
-  if (type !== 'game' && !CHANNEL_NAME_REGEX.test(normalized)) {
+  if (!CHANNEL_NAME_REGEX.test(normalized)) {
     throw new Error('Channel names may only contain letters, numbers, _ and -')
   }
   if (normalized.length < CHANNEL_NAME_MIN_LENGTH) {
@@ -399,7 +396,7 @@ export function createChannelRecord(
   type = 'public',
   options = {}
 ) {
-  const channelId = assertValidChannelId(channelIdInput, type)
+  const channelId = assertValidChannelId(channelIdInput)
   const channelKey = buildChannelKey(channelId)
   const createdAt = options.createdAt || new Date().toISOString()
 
@@ -419,7 +416,7 @@ export function createChannelRecord(
 
 export function normalizeChannelRecord(record = {}) {
   const type = String(record.type || 'public').trim() || 'public'
-  const channelId = assertValidChannelId(record.channelId, type)
+  const channelId = assertValidChannelId(record.channelId)
   const channelKey = buildChannelKey(channelId)
   const localWriterCoreKey = String(record.localWriterCoreKey || '').trim()
 

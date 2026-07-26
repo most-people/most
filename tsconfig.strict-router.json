@@ -24,12 +24,6 @@
       "~/features/download/DownloadPage": [
         "./src/typecheck-stubs/route-component.tsx"
       ],
-      "~/features/game/gandengyan/GanDengYanPage": [
-        "./src/typecheck-stubs/route-component.tsx"
-      ],
-      "~/features/game/zhajinhua/ZhajinhuaPage": [
-        "./src/typecheck-stubs/route-component.tsx"
-      ],
       "~/features/note/NotePage": ["./src/typecheck-stubs/route-component.tsx"],
       "~/features/ping/PingPage": ["./src/typecheck-stubs/route-component.tsx"],
       "~/features/profile/ProfilePage": [

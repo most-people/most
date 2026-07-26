@@ -14,14 +14,11 @@ import { Route as Web3IndexRouteImport } from './routes/web3/index'
 import { Route as ProfileIndexRouteImport } from './routes/profile/index'
 import { Route as PingIndexRouteImport } from './routes/ping/index'
 import { Route as NoteIndexRouteImport } from './routes/note/index'
-import { Route as GameIndexRouteImport } from './routes/game/index'
 import { Route as DownloadIndexRouteImport } from './routes/download/index'
 import { Route as ChatIndexRouteImport } from './routes/chat/index'
 import { Route as AppIndexRouteImport } from './routes/app/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AboutIndexRouteImport } from './routes/about/index'
-import { Route as GameZhajinhuaIndexRouteImport } from './routes/game/zhajinhua/index'
-import { Route as GameGandengyanIndexRouteImport } from './routes/game/gandengyan/index'
 import { Route as CidCidIndexRouteImport } from './routes/cid/$cid/index'
 import { Route as ChatJoinIndexRouteImport } from './routes/chat/join/index'
 import { Route as ChatJoinDemoIndexRouteImport } from './routes/chat/join/demo/index'
@@ -51,11 +48,6 @@ const NoteIndexRoute = NoteIndexRouteImport.update({
   path: '/note/',
   getParentRoute: () => rootRouteImport,
 } as any).lazy(() => import('./routes/note/index.lazy').then((d) => d.Route))
-const GameIndexRoute = GameIndexRouteImport.update({
-  id: '/game/',
-  path: '/game/',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const DownloadIndexRoute = DownloadIndexRouteImport.update({
   id: '/download/',
   path: '/download/',
@@ -83,20 +75,6 @@ const AboutIndexRoute = AboutIndexRouteImport.update({
   path: '/about/',
   getParentRoute: () => rootRouteImport,
 } as any).lazy(() => import('./routes/about/index.lazy').then((d) => d.Route))
-const GameZhajinhuaIndexRoute = GameZhajinhuaIndexRouteImport.update({
-  id: '/game/zhajinhua/',
-  path: '/game/zhajinhua/',
-  getParentRoute: () => rootRouteImport,
-} as any).lazy(() =>
-  import('./routes/game/zhajinhua/index.lazy').then((d) => d.Route),
-)
-const GameGandengyanIndexRoute = GameGandengyanIndexRouteImport.update({
-  id: '/game/gandengyan/',
-  path: '/game/gandengyan/',
-  getParentRoute: () => rootRouteImport,
-} as any).lazy(() =>
-  import('./routes/game/gandengyan/index.lazy').then((d) => d.Route),
-)
 const CidCidIndexRoute = CidCidIndexRouteImport.update({
   id: '/cid/$cid/',
   path: '/cid/$cid/',
@@ -126,15 +104,12 @@ export interface FileRoutesByFullPath {
   '/app/': typeof AppIndexRoute
   '/chat/': typeof ChatIndexRoute
   '/download/': typeof DownloadIndexRoute
-  '/game/': typeof GameIndexRoute
   '/note/': typeof NoteIndexRoute
   '/ping/': typeof PingIndexRoute
   '/profile/': typeof ProfileIndexRoute
   '/web3/': typeof Web3IndexRoute
   '/chat/join/': typeof ChatJoinIndexRoute
   '/cid/$cid/': typeof CidCidIndexRoute
-  '/game/gandengyan/': typeof GameGandengyanIndexRoute
-  '/game/zhajinhua/': typeof GameZhajinhuaIndexRoute
   '/chat/join/demo/': typeof ChatJoinDemoIndexRoute
 }
 export interface FileRoutesByTo {
@@ -144,15 +119,12 @@ export interface FileRoutesByTo {
   '/app': typeof AppIndexRoute
   '/chat': typeof ChatIndexRoute
   '/download': typeof DownloadIndexRoute
-  '/game': typeof GameIndexRoute
   '/note': typeof NoteIndexRoute
   '/ping': typeof PingIndexRoute
   '/profile': typeof ProfileIndexRoute
   '/web3': typeof Web3IndexRoute
   '/chat/join': typeof ChatJoinIndexRoute
   '/cid/$cid': typeof CidCidIndexRoute
-  '/game/gandengyan': typeof GameGandengyanIndexRoute
-  '/game/zhajinhua': typeof GameZhajinhuaIndexRoute
   '/chat/join/demo': typeof ChatJoinDemoIndexRoute
 }
 export interface FileRoutesById {
@@ -163,15 +135,12 @@ export interface FileRoutesById {
   '/app/': typeof AppIndexRoute
   '/chat/': typeof ChatIndexRoute
   '/download/': typeof DownloadIndexRoute
-  '/game/': typeof GameIndexRoute
   '/note/': typeof NoteIndexRoute
   '/ping/': typeof PingIndexRoute
   '/profile/': typeof ProfileIndexRoute
   '/web3/': typeof Web3IndexRoute
   '/chat/join/': typeof ChatJoinIndexRoute
   '/cid/$cid/': typeof CidCidIndexRoute
-  '/game/gandengyan/': typeof GameGandengyanIndexRoute
-  '/game/zhajinhua/': typeof GameZhajinhuaIndexRoute
   '/chat/join/demo/': typeof ChatJoinDemoIndexRoute
 }
 export interface FileRouteTypes {
@@ -183,15 +152,12 @@ export interface FileRouteTypes {
     | '/app/'
     | '/chat/'
     | '/download/'
-    | '/game/'
     | '/note/'
     | '/ping/'
     | '/profile/'
     | '/web3/'
     | '/chat/join/'
     | '/cid/$cid/'
-    | '/game/gandengyan/'
-    | '/game/zhajinhua/'
     | '/chat/join/demo/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -201,15 +167,12 @@ export interface FileRouteTypes {
     | '/app'
     | '/chat'
     | '/download'
-    | '/game'
     | '/note'
     | '/ping'
     | '/profile'
     | '/web3'
     | '/chat/join'
     | '/cid/$cid'
-    | '/game/gandengyan'
-    | '/game/zhajinhua'
     | '/chat/join/demo'
   id:
     | '__root__'
@@ -219,15 +182,12 @@ export interface FileRouteTypes {
     | '/app/'
     | '/chat/'
     | '/download/'
-    | '/game/'
     | '/note/'
     | '/ping/'
     | '/profile/'
     | '/web3/'
     | '/chat/join/'
     | '/cid/$cid/'
-    | '/game/gandengyan/'
-    | '/game/zhajinhua/'
     | '/chat/join/demo/'
   fileRoutesById: FileRoutesById
 }
@@ -238,15 +198,12 @@ export interface RootRouteChildren {
   AppIndexRoute: typeof AppIndexRoute
   ChatIndexRoute: typeof ChatIndexRoute
   DownloadIndexRoute: typeof DownloadIndexRoute
-  GameIndexRoute: typeof GameIndexRoute
   NoteIndexRoute: typeof NoteIndexRoute
   PingIndexRoute: typeof PingIndexRoute
   ProfileIndexRoute: typeof ProfileIndexRoute
   Web3IndexRoute: typeof Web3IndexRoute
   ChatJoinIndexRoute: typeof ChatJoinIndexRoute
   CidCidIndexRoute: typeof CidCidIndexRoute
-  GameGandengyanIndexRoute: typeof GameGandengyanIndexRoute
-  GameZhajinhuaIndexRoute: typeof GameZhajinhuaIndexRoute
   ChatJoinDemoIndexRoute: typeof ChatJoinDemoIndexRoute
 }
 
@@ -287,13 +244,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NoteIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/game/': {
-      id: '/game/'
-      path: '/game'
-      fullPath: '/game/'
-      preLoaderRoute: typeof GameIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/download/': {
       id: '/download/'
       path: '/download'
@@ -329,20 +279,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AboutIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/game/zhajinhua/': {
-      id: '/game/zhajinhua/'
-      path: '/game/zhajinhua'
-      fullPath: '/game/zhajinhua/'
-      preLoaderRoute: typeof GameZhajinhuaIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/game/gandengyan/': {
-      id: '/game/gandengyan/'
-      path: '/game/gandengyan'
-      fullPath: '/game/gandengyan/'
-      preLoaderRoute: typeof GameGandengyanIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/cid/$cid/': {
       id: '/cid/$cid/'
       path: '/cid/$cid'
@@ -374,15 +310,12 @@ const rootRouteChildren: RootRouteChildren = {
   AppIndexRoute: AppIndexRoute,
   ChatIndexRoute: ChatIndexRoute,
   DownloadIndexRoute: DownloadIndexRoute,
-  GameIndexRoute: GameIndexRoute,
   NoteIndexRoute: NoteIndexRoute,
   PingIndexRoute: PingIndexRoute,
   ProfileIndexRoute: ProfileIndexRoute,
   Web3IndexRoute: Web3IndexRoute,
   ChatJoinIndexRoute: ChatJoinIndexRoute,
   CidCidIndexRoute: CidCidIndexRoute,
-  GameGandengyanIndexRoute: GameGandengyanIndexRoute,
-  GameZhajinhuaIndexRoute: GameZhajinhuaIndexRoute,
   ChatJoinDemoIndexRoute: ChatJoinDemoIndexRoute,
 }
 export const routeTree = rootRouteImport

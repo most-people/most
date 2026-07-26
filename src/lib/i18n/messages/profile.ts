@@ -6,7 +6,7 @@ export const zhCNProfileMessages = {
   'profile.signedOut.desc': '登录后管理头像、名称和身份信息。',
   'profile.section.account': '账号资料',
   'profile.section.account.desc':
-    '这些信息用于聊天、游戏和工具箱里的身份展示，并会随账号备份同步。',
+    '这些信息用于聊天和工具箱里的身份展示，并会随账号备份同步。',
   'profile.section.avatar': '头像',
   'profile.section.avatar.desc': '选择一个内置头像，或继续使用自己的头像 URL。',
   'profile.section.backup': '账号备份',
@@ -91,7 +91,7 @@ export const zhTWProfileMessages = {
   'profile.signedOut.desc': '登入後管理頭像、名稱和身份資訊。',
   'profile.section.account': '帳號資料',
   'profile.section.account.desc':
-    '這些資訊用於聊天、遊戲和工具箱裡的身份展示，並會隨帳號備份同步。',
+    '這些資訊用於聊天和工具箱裡的身份展示，並會隨帳號備份同步。',
   'profile.section.avatar': '頭像',
   'profile.section.avatar.desc': '選擇一個內建頭像，或繼續使用自己的頭像 URL。',
   'profile.section.backup': '帳號備份',
@@ -177,7 +177,7 @@ export const enProfileMessages = {
   'profile.signedOut.desc': 'Sign in to manage your profile.',
   'profile.section.account': 'Account',
   'profile.section.account.desc':
-    'These details are used for identity display across chat, games, and tools, and sync through account backup.',
+    'These details are used for identity display across chat and tools, and sync through account backup.',
   'profile.section.avatar': 'Avatar',
   'profile.section.avatar.desc':
     'Choose a built-in avatar, or keep using your own avatar URL.',
