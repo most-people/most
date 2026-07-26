@@ -59,6 +59,15 @@
   color: var(--text-primary);
 }
 
+.download-section-desc {
+  max-width: 68ch;
+  margin: -16px auto 32px;
+  color: var(--text-secondary);
+  font-size: 15px;
+  line-height: 1.6;
+  text-align: center;
+}
+
 .download-options {
   display: grid;
   gap: 20px;
@@ -438,11 +447,114 @@
   border-color: var(--accent);
 }
 
+/* Deployment methods */
+.download-deployments {
+  padding: 56px 24px;
+  background: var(--glass-bg-subtle);
+  border-top: 1px solid var(--glass-border);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.download-deployment-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.download-deployment-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+  padding: 24px;
+}
+
+.download-deployment-heading {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.download-deployment-heading > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.download-deployment-heading h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.download-deployment-heading span:not(.download-deployment-icon) {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.download-deployment-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.download-deployment-card > p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.download-deployment-command {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 4px 4px 4px 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: var(--bg-tertiary);
+}
+
+.download-deployment-command code {
+  min-width: 0;
+  overflow-x: auto;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: nowrap;
+  scrollbar-width: thin;
+}
+
+.download-deployment-command .btn-icon {
+  width: 36px;
+  height: 36px;
+}
+
+.download-deployment-action {
+  justify-self: start;
+  gap: 8px;
+  align-self: flex-start;
+  margin-top: auto;
+}
+
 /* Comparison Table */
 .download-comparison {
   padding: 48px 24px;
-  background: var(--glass-bg-subtle);
-  border-top: 1px solid var(--glass-border);
   border-bottom: 1px solid var(--glass-border);
 }
 
@@ -505,6 +617,15 @@
   .download-platform-grid {
     grid-template-columns: 1fr;
     gap: 16px;
+  }
+
+  .download-deployment-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .download-deployment-card {
+    padding: 20px;
   }
 
   .download-coming-soon-grid {

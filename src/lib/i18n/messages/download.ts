@@ -1,15 +1,33 @@
 export const zhCNDownloadMessages = {
-  'download.meta.title': '下载 MostBox 客户端',
+  'download.meta.title': '下载与部署 MostBox',
   'download.meta.desc':
-    '下载 MostBox 桌面或 Android 客户端，获得 P2P 文件分享、下载校验和持续做种能力',
-  'download.hero.title': '下载客户端',
+    '下载 MostBox 客户端，或通过 npm、Docker 在本机、服务器和 NAS 部署完整 P2P 节点',
+  'download.hero.title': '下载与部署 MostBox',
   'download.hero.desc':
-    '桌面客户端内置本地 P2P 节点，提供发布、下载校验和持续做种的完整能力；Android Alpha 支持前台聊天附件、下载校验和做种。Web 端只连接已有 MostBox 节点。',
+    '选择适合当前设备的客户端，或通过 npm、Docker 在本机、服务器和 NAS 运行完整节点。Web 端只连接已有 MostBox 节点。',
   'download.platforms.title': '选择你的平台',
-  'download.comparison.title': 'Web 端 vs 桌面端',
+  'download.deployment.title': '部署完整节点',
+  'download.deployment.desc':
+    '桌面客户端适合日常使用；npm 和 Docker 适合开发、自托管、远程服务器与长期在线的 NAS。',
+  'download.deployment.desktop.title': '桌面客户端',
+  'download.deployment.desktop.tag': 'Windows / macOS / Linux',
+  'download.deployment.desktop.desc':
+    '安装后直接获得本地节点、管理界面、文件分享、CID 校验和持续做种能力，无需单独安装 Node.js。',
+  'download.deployment.desktop.action': '选择安装包',
+  'download.deployment.npm.title': 'npm / CLI',
+  'download.deployment.npm.tag': 'Node.js >= 22.12',
+  'download.deployment.npm.desc':
+    '适合开发机、远程服务器或临时启动完整节点；默认监听本机 1976 端口。',
+  'download.deployment.npm.action': '查看 npm 包',
+  'download.deployment.docker.title': 'Docker / NAS',
+  'download.deployment.docker.tag': 'Linux x64',
+  'download.deployment.docker.desc':
+    '使用官方 GHCR 镜像和持久化 /data 卷，适合飞牛 OS、NAS 与长期在线的 Linux 节点。',
+  'download.deployment.docker.action': '查看 Compose 部署',
+  'download.comparison.title': 'Web 端 vs 完整节点',
   'download.comparison.feature': '功能',
   'download.comparison.web': 'Web 端',
-  'download.comparison.desktop': '桌面端',
+  'download.comparison.desktop': '完整节点',
   'download.comparison.node': '节点能力',
   'download.comparison.fileSharing': 'P2P 文件分享',
   'download.comparison.verification': '下载校验',
@@ -17,12 +35,10 @@ export const zhCNDownloadMessages = {
   'download.comparison.largeFiles': '大文件传输',
   'download.comparison.webConnectsNode': '连接已有节点',
   'download.comparison.webDependsNode': '依赖所连节点',
-  'download.comparison.desktopBuiltinNode': '内置本地节点',
+  'download.comparison.desktopBuiltinNode': '本机运行 P2P 节点',
   'download.comparison.desktopFull': '完整支持',
   'download.comparison.desktopDefaultOn': '默认开启',
   'download.comparison.desktop10gb': '10GB 上限内',
-  'download.npmNote':
-    '使用 npm 入口请先安装 Node.js >= 22.12，然后运行 npx most-box@latest 启动本机完整节点。',
   'download.source.label': '下载来源',
   'download.source.r2Mirror': 'Cloudflare R2 高速镜像',
   'download.source.loading': '正在获取 Cloudflare R2 高速镜像。',
@@ -51,17 +67,35 @@ export const zhCNDownloadMessages = {
 } as const
 
 export const zhTWDownloadMessages = {
-  'download.meta.title': '下載 MostBox 用戶端',
+  'download.meta.title': '下載與部署 MostBox',
   'download.meta.desc':
-    '下載 MostBox 桌面或 Android 用戶端，獲得 P2P 檔案分享、下載校驗和持續做種能力',
-  'download.hero.title': '下載用戶端',
+    '下載 MostBox 用戶端，或透過 npm、Docker 在本機、伺服器和 NAS 部署完整 P2P 節點',
+  'download.hero.title': '下載與部署 MostBox',
   'download.hero.desc':
-    '桌面用戶端內建本機 P2P 節點，提供發布、下載校驗和持續做種的完整能力；Android Alpha 支援前台聊天附件、下載校驗和做種。Web 端只連線已有 MostBox 節點。',
+    '選擇適合目前裝置的用戶端，或透過 npm、Docker 在本機、伺服器和 NAS 執行完整節點。Web 端只連線已有 MostBox 節點。',
   'download.platforms.title': '選擇你的平臺',
-  'download.comparison.title': 'Web 端 vs 桌面端',
+  'download.deployment.title': '部署完整節點',
+  'download.deployment.desc':
+    '桌面用戶端適合日常使用；npm 和 Docker 適合開發、自託管、遠端伺服器與長期在線的 NAS。',
+  'download.deployment.desktop.title': '桌面用戶端',
+  'download.deployment.desktop.tag': 'Windows / macOS / Linux',
+  'download.deployment.desktop.desc':
+    '安裝後直接獲得本機節點、管理介面、檔案分享、CID 校驗和持續做種能力，無需另外安裝 Node.js。',
+  'download.deployment.desktop.action': '選擇安裝包',
+  'download.deployment.npm.title': 'npm / CLI',
+  'download.deployment.npm.tag': 'Node.js >= 22.12',
+  'download.deployment.npm.desc':
+    '適合開發機、遠端伺服器或臨時啟動完整節點；預設監聽本機 1976 連接埠。',
+  'download.deployment.npm.action': '查看 npm 套件',
+  'download.deployment.docker.title': 'Docker / NAS',
+  'download.deployment.docker.tag': 'Linux x64',
+  'download.deployment.docker.desc':
+    '使用官方 GHCR 映像和持久化 /data 儲存卷，適合飛牛 OS、NAS 與長期在線的 Linux 節點。',
+  'download.deployment.docker.action': '查看 Compose 部署',
+  'download.comparison.title': 'Web 端 vs 完整節點',
   'download.comparison.feature': '功能',
   'download.comparison.web': 'Web 端',
-  'download.comparison.desktop': '桌面端',
+  'download.comparison.desktop': '完整節點',
   'download.comparison.node': '節點能力',
   'download.comparison.fileSharing': 'P2P 檔案分享',
   'download.comparison.verification': '下載校驗',
@@ -69,12 +103,10 @@ export const zhTWDownloadMessages = {
   'download.comparison.largeFiles': '大檔案傳輸',
   'download.comparison.webConnectsNode': '連線已有節點',
   'download.comparison.webDependsNode': '依賴所連節點',
-  'download.comparison.desktopBuiltinNode': '內建本機節點',
+  'download.comparison.desktopBuiltinNode': '本機執行 P2P 節點',
   'download.comparison.desktopFull': '完整支援',
   'download.comparison.desktopDefaultOn': '預設開啟',
   'download.comparison.desktop10gb': '10GB 上限內',
-  'download.npmNote':
-    '使用 npm 入口請先安裝 Node.js >= 22.12，然後執行 npx most-box@latest 啟動本機完整節點。',
   'download.source.label': '下載來源',
   'download.source.r2Mirror': 'Cloudflare R2 高速映象',
   'download.source.loading': '正在取得 Cloudflare R2 高速映象。',
@@ -103,17 +135,35 @@ export const zhTWDownloadMessages = {
 } as const
 
 export const enDownloadMessages = {
-  'download.meta.title': 'Download the MostBox client',
+  'download.meta.title': 'Download and deploy MostBox',
   'download.meta.desc':
-    'Download the MostBox desktop or Android client for P2P sharing, verification, and continuous seeding.',
-  'download.hero.title': 'Download client',
+    'Download a MostBox client or deploy a full P2P node with npm or Docker on a computer, server, or NAS.',
+  'download.hero.title': 'Download and deploy MostBox',
   'download.hero.desc':
-    'The desktop client includes a local P2P node with full publish, download verification, and continuous seeding support. The Android Alpha supports foreground chat attachments, download verification, and seeding. The Web entry only connects to existing MostBox nodes.',
+    'Choose a client for this device, or run a full node with npm or Docker on a computer, server, or NAS. The Web entry only connects to existing MostBox nodes.',
   'download.platforms.title': 'Choose your platform',
-  'download.comparison.title': 'Web vs desktop',
+  'download.deployment.title': 'Deploy a full node',
+  'download.deployment.desc':
+    'The desktop client is best for daily use. npm and Docker cover development, self-hosting, remote servers, and always-on NAS devices.',
+  'download.deployment.desktop.title': 'Desktop client',
+  'download.deployment.desktop.tag': 'Windows / macOS / Linux',
+  'download.deployment.desktop.desc':
+    'Install a local node, management UI, file sharing, CID verification, and continuous seeding without installing Node.js separately.',
+  'download.deployment.desktop.action': 'Choose an installer',
+  'download.deployment.npm.title': 'npm / CLI',
+  'download.deployment.npm.tag': 'Node.js >= 22.12',
+  'download.deployment.npm.desc':
+    'Run a full node on a development machine or remote server, or start one temporarily. It listens locally on port 1976 by default.',
+  'download.deployment.npm.action': 'View npm package',
+  'download.deployment.docker.title': 'Docker / NAS',
+  'download.deployment.docker.tag': 'Linux x64',
+  'download.deployment.docker.desc':
+    'Use the official GHCR image with a persistent /data volume for FNOS, NAS devices, and always-on Linux nodes.',
+  'download.deployment.docker.action': 'View Compose setup',
+  'download.comparison.title': 'Web vs full node',
   'download.comparison.feature': 'Feature',
   'download.comparison.web': 'Web',
-  'download.comparison.desktop': 'Desktop',
+  'download.comparison.desktop': 'Full node',
   'download.comparison.node': 'Node capability',
   'download.comparison.fileSharing': 'P2P file sharing',
   'download.comparison.verification': 'Download verification',
@@ -121,12 +171,10 @@ export const enDownloadMessages = {
   'download.comparison.largeFiles': 'Large file transfer',
   'download.comparison.webConnectsNode': 'Connects to existing nodes',
   'download.comparison.webDependsNode': 'Depends on the connected node',
-  'download.comparison.desktopBuiltinNode': 'Built-in local node',
+  'download.comparison.desktopBuiltinNode': 'Runs a local P2P node',
   'download.comparison.desktopFull': 'Fully supported',
   'download.comparison.desktopDefaultOn': 'On by default',
   'download.comparison.desktop10gb': 'Within the 10GB limit',
-  'download.npmNote':
-    'For the npm entry, install Node.js >= 22.12 first, then run npx most-box@latest to start a full local node.',
   'download.source.label': 'Download source',
   'download.source.r2Mirror': 'Cloudflare R2 mirror',
   'download.source.loading': 'Fetching the Cloudflare R2 mirror.',

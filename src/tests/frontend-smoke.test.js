@@ -793,6 +793,23 @@ describe('frontend smoke checks', () => {
     )
   })
 
+  it('keeps desktop, npm, and Docker deployment methods on the download page', () => {
+    const downloadPageSource = readSource(
+      'src/features/download/DownloadPage.tsx'
+    )
+    const downloadMessagesSource = readSource(
+      'src/lib/i18n/messages/download.ts'
+    )
+
+    assert.match(downloadPageSource, /key: 'desktop'/)
+    assert.match(downloadPageSource, /key: 'npm'/)
+    assert.match(downloadPageSource, /key: 'docker'/)
+    assert.match(downloadPageSource, /npx most-box@latest/)
+    assert.match(downloadPageSource, /ghcr\.io\/most-people\/most-box:latest/)
+    assert.match(downloadMessagesSource, /download\.deployment\.title/)
+    assert.match(downloadMessagesSource, /download\.deployment\.docker\.desc/)
+  })
+
   it('keeps chat identity snapshots flowing through messages', () => {
     const channelMessagesSource = readSource('src/hooks/useChannelMessages.ts')
     const userProfileSource = readSource('src/lib/userProfile.ts')

@@ -2,10 +2,57 @@ import '~/styles/marketing.css'
 import '~/styles/download.css'
 import { useEffect } from 'react'
 import { Link } from '@tanstack/react-router'
-import { Download } from 'lucide-react'
+import {
+  Container,
+  Download,
+  ExternalLink,
+  Monitor,
+  Terminal,
+} from 'lucide-react'
+import { CopyButton } from '~/components/CopyButton'
 import DownloadOptions from '~/components/DownloadOptions'
 import { MarketingHeader } from '~/components/MarketingHeader'
 import { useI18n } from '~/lib/i18n'
+
+const NPM_COMMAND = 'npx most-box@latest'
+const DOCKER_COMMAND =
+  'docker run -d --name mostbox --network host --restart unless-stopped -e HOME=/data -v "$PWD/mostbox-data:/data" ghcr.io/most-people/most-box:latest'
+
+const deploymentOptions = [
+  {
+    key: 'desktop',
+    titleKey: 'download.deployment.desktop.title',
+    tagKey: 'download.deployment.desktop.tag',
+    descKey: 'download.deployment.desktop.desc',
+    actionKey: 'download.deployment.desktop.action',
+    href: '#client-downloads',
+    command: null,
+    icon: Monitor,
+    external: false,
+  },
+  {
+    key: 'npm',
+    titleKey: 'download.deployment.npm.title',
+    tagKey: 'download.deployment.npm.tag',
+    descKey: 'download.deployment.npm.desc',
+    actionKey: 'download.deployment.npm.action',
+    href: 'https://www.npmjs.com/package/most-box',
+    command: NPM_COMMAND,
+    icon: Terminal,
+    external: true,
+  },
+  {
+    key: 'docker',
+    titleKey: 'download.deployment.docker.title',
+    tagKey: 'download.deployment.docker.tag',
+    descKey: 'download.deployment.docker.desc',
+    actionKey: 'download.deployment.docker.action',
+    href: 'https://github.com/most-people/most#飞牛-os--nas-局域网部署',
+    command: DOCKER_COMMAND,
+    icon: Container,
+    external: true,
+  },
+] as const
 
 const webVsDesktop = [
   {
@@ -56,12 +103,69 @@ export default function DownloadPage() {
         </div>
       </section>
 
-      <section className="download-platforms">
+      <section id="client-downloads" className="download-platforms">
         <div className="mkt-container">
           <h2 className="download-section-title">
             {t('download.platforms.title')}
           </h2>
           <DownloadOptions />
+        </div>
+      </section>
+
+      <section className="download-deployments">
+        <div className="mkt-container">
+          <h2 className="download-section-title">
+            {t('download.deployment.title')}
+          </h2>
+          <p className="download-section-desc">
+            {t('download.deployment.desc')}
+          </p>
+
+          <div className="download-deployment-grid">
+            {deploymentOptions.map(option => {
+              const Icon = option.icon
+
+              return (
+                <article
+                  key={option.key}
+                  className="download-deployment-card ui-glass-surface"
+                >
+                  <div className="download-deployment-heading">
+                    <span className="download-deployment-icon">
+                      <Icon size={24} />
+                    </span>
+                    <div>
+                      <h3>{t(option.titleKey)}</h3>
+                      <span>{t(option.tagKey)}</span>
+                    </div>
+                  </div>
+
+                  <p>{t(option.descKey)}</p>
+
+                  {option.command ? (
+                    <div className="download-deployment-command">
+                      <code>{option.command}</code>
+                      <CopyButton text={option.command} />
+                    </div>
+                  ) : null}
+
+                  <a
+                    href={option.href}
+                    className="btn btn-secondary download-deployment-action"
+                    target={option.external ? '_blank' : undefined}
+                    rel={option.external ? 'noreferrer' : undefined}
+                  >
+                    {option.external ? (
+                      <ExternalLink size={16} />
+                    ) : (
+                      <Download size={16} />
+                    )}
+                    {t(option.actionKey)}
+                  </a>
+                </article>
+              )
+            })}
+          </div>
         </div>
       </section>
 
@@ -90,12 +194,6 @@ export default function DownloadPage() {
               </tbody>
             </table>
           </div>
-        </div>
-      </section>
-
-      <section className="download-cta">
-        <div className="mkt-container">
-          <p className="download-hero-desc">{t('download.npmNote')}</p>
         </div>
       </section>
 
