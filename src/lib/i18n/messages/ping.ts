@@ -9,6 +9,11 @@ export const zhCNPingMessages = {
   'ping.available': '可用',
   'ping.unavailable': '不可用',
   'ping.timeout': '超时',
+  'ping.category.essential': '基础',
+  'ping.category.developer': '开发',
+  'ping.category.ai': 'AI',
+  'ping.category.social': '社交',
+  'ping.category.messaging': '通信',
 } as const
 
 export const zhTWPingMessages = {
@@ -22,6 +27,11 @@ export const zhTWPingMessages = {
   'ping.available': '可用',
   'ping.unavailable': '不可用',
   'ping.timeout': '超時',
+  'ping.category.essential': '基礎',
+  'ping.category.developer': '開發',
+  'ping.category.ai': 'AI',
+  'ping.category.social': '社交',
+  'ping.category.messaging': '通訊',
 } as const
 
 export const enPingMessages = {
@@ -36,4 +46,9 @@ export const enPingMessages = {
   'ping.available': 'Available',
   'ping.unavailable': 'Unavailable',
   'ping.timeout': 'Timeout',
+  'ping.category.essential': 'Core',
+  'ping.category.developer': 'Developer',
+  'ping.category.ai': 'AI',
+  'ping.category.social': 'Social',
+  'ping.category.messaging': 'Messaging',
 } as const

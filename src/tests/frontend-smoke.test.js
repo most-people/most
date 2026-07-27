@@ -49,6 +49,7 @@ const SOURCE_PATHS = {
   featurePortal: 'src/components/FeaturePortal.tsx',
   hooks: 'src/hooks/index.ts',
   appCss: 'src/styles/app.css',
+  ping: 'src/components/PingPanel.tsx',
 }
 
 function readSource(sourcePath) {
@@ -1182,5 +1183,14 @@ describe('frontend smoke checks', () => {
       source,
       /onClick=\{closeDownloadModal\}[\s\S]{0,160}aria-label=\{t\('common\.close'\)\}/
     )
+  })
+
+  it('uses lightweight GET probes for every connectivity target', () => {
+    const source = readSource(SOURCE_PATHS.ping)
+
+    assert.match(source, /`https:\/\/\$\{host\}\/robots\.txt`/)
+    assert.match(source, /method: 'GET' as const/)
+    assert.match(source, /mode: 'no-cors'/)
+    assert.doesNotMatch(source, /method: 'HEAD'/)
   })
 })

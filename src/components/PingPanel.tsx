@@ -23,9 +23,12 @@ import { useI18n } from '~/lib/i18n'
 interface PingTarget {
   name: string
   host: string
+  category: PingCategory
   icon: string
   fallback: React.ReactNode
 }
+
+type PingCategory = 'essential' | 'developer' | 'ai' | 'social' | 'messaging'
 
 interface PingResult {
   status: 'pending' | 'ok' | 'timeout'
@@ -36,60 +39,84 @@ const TARGETS: PingTarget[] = [
   {
     name: 'Google',
     host: 'google.com',
+    category: 'essential',
     icon: 'simple-icons:google',
     fallback: <Search size={20} />,
   },
   {
     name: 'Cloudflare',
     host: 'cloudflare.com',
+    category: 'essential',
     icon: 'simple-icons:cloudflare',
     fallback: <Cloud size={20} />,
   },
   {
     name: 'YouTube',
     host: 'youtube.com',
+    category: 'social',
     icon: 'simple-icons:youtube',
     fallback: <Play size={20} />,
   },
   {
     name: 'GitHub',
     host: 'github.com',
+    category: 'developer',
     icon: 'simple-icons:github',
     fallback: <Terminal size={20} />,
   },
   {
     name: 'ChatGPT',
     host: 'chatgpt.com',
+    category: 'ai',
     icon: 'simple-icons:openai',
+    fallback: <Bot size={20} />,
+  },
+  {
+    name: 'Claude',
+    host: 'claude.ai',
+    category: 'ai',
+    icon: 'simple-icons:anthropic',
+    fallback: <Bot size={20} />,
+  },
+  {
+    name: '豆包',
+    host: 'www.doubao.com',
+    category: 'ai',
+    icon: 'simple-icons:bytedance',
     fallback: <Bot size={20} />,
   },
   {
     name: 'X',
     host: 'x.com',
+    category: 'social',
     icon: 'simple-icons:x',
     fallback: <AtSign size={20} />,
   },
   {
     name: 'Instagram',
     host: 'instagram.com',
+    category: 'social',
     icon: 'simple-icons:instagram',
     fallback: <Camera size={20} />,
   },
   {
     name: 'Reddit',
     host: 'reddit.com',
+    category: 'social',
     icon: 'simple-icons:reddit',
     fallback: <MessagesSquare size={20} />,
   },
   {
     name: 'Wikipedia',
     host: 'wikipedia.org',
+    category: 'social',
     icon: 'simple-icons:wikipedia',
     fallback: <BookOpen size={20} />,
   },
   {
     name: 'Apple',
     host: 'apple.com',
+    category: 'essential',
     icon: 'simple-icons:apple',
     fallback: <Smartphone size={20} />,
   },
@@ -97,36 +124,56 @@ const TARGETS: PingTarget[] = [
   {
     name: 'Telegram',
     host: 'telegram.org',
+    category: 'messaging',
     icon: 'simple-icons:telegram',
     fallback: <Send size={20} />,
   },
   {
     name: 'Discord',
     host: 'discord.com',
+    category: 'messaging',
     icon: 'simple-icons:discord',
     fallback: <MessagesSquare size={20} />,
   },
   {
     name: 'TikTok',
     host: 'tiktok.com',
+    category: 'social',
     icon: 'simple-icons:tiktok',
     fallback: <Music size={20} />,
   },
   {
     name: 'npm',
     host: 'npmjs.com',
+    category: 'developer',
     icon: 'simple-icons:npm',
     fallback: <Package size={20} />,
   },
   {
     name: 'Vercel',
     host: 'vercel.com',
+    category: 'developer',
     icon: 'simple-icons:vercel',
     fallback: <Triangle size={20} />,
   },
 ]
 
+const CATEGORIES: PingCategory[] = [
+  'essential',
+  'developer',
+  'ai',
+  'social',
+  'messaging',
+]
+
 const TIMEOUT = 5000
+
+function getProbeOptions(host: string) {
+  return {
+    url: `https://${host}/robots.txt`,
+    method: 'GET' as const,
+  }
+}
 
 function BrandIcon({
   icon,
@@ -190,8 +237,9 @@ export function PingPanel() {
       controller.abort()
     }, TIMEOUT)
 
-    fetch(`https://${host}/`, {
-      method: 'HEAD',
+    const probe = getProbeOptions(host)
+    fetch(probe.url, {
+      method: probe.method,
       mode: 'no-cors',
       cache: 'no-store',
       signal: controller.signal,
@@ -239,8 +287,9 @@ export function PingPanel() {
         controller.abort()
       }, TIMEOUT)
 
-      fetch(`https://${target.host}/`, {
-        method: 'HEAD',
+      const probe = getProbeOptions(target.host)
+      fetch(probe.url, {
+        method: probe.method,
         mode: 'no-cors',
         cache: 'no-store',
         signal: controller.signal,
@@ -272,6 +321,11 @@ export function PingPanel() {
           <div>
             <h1 className="ping-title">{t('ping.title')}</h1>
             <p className="ping-subtitle">{t('ping.subtitle')}</p>
+            <p className="ping-reference">
+              <a href="https://ipcheck.ing/" target="_blank" rel="noreferrer">
+                ipcheck.ing
+              </a>
+            </p>
           </div>
         </div>
         <button
@@ -285,73 +339,89 @@ export function PingPanel() {
         </button>
       </div>
 
-      <div className="ping-grid">
-        {TARGETS.map(target => {
-          const result = results.get(target.host)
-          const isPending = !result || result.status === 'pending'
-          const isTimeout = result?.status === 'timeout'
+      <div className="ping-categories">
+        {CATEGORIES.map(category => (
+          <section key={category} className="ping-category">
+            <h2 className="ping-category-title">
+              {t(`ping.category.${category}`)}
+            </h2>
+            <div className="ping-grid">
+              {TARGETS.filter(target => target.category === category).map(
+                target => {
+                  const result = results.get(target.host)
+                  const isPending = !result || result.status === 'pending'
+                  const isTimeout = result?.status === 'timeout'
 
-          return (
-            <div
-              key={target.host}
-              className={`ping-card ui-glass-surface ui-glass-surface-interactive ${isPending ? 'pending' : ''}`}
-            >
-              <div className="ping-card-top">
-                <span className="ping-card-icon">
-                  <BrandIcon icon={target.icon} fallback={target.fallback} />
-                </span>
-                <a
-                  href={`https://${target.host}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="ping-card-name"
-                >
-                  {target.name}
-                </a>
-                <button
-                  className="ping-card-refresh"
-                  onClick={() => runSingleTest(target.host)}
-                  disabled={isPending}
-                  aria-label={t('ping.retryOne', { name: target.name })}
-                  title={t('ping.retry')}
-                >
-                  <RotateCw
-                    size={13}
-                    className={isPending ? 'ping-spin' : ''}
-                  />
-                </button>
-              </div>
+                  return (
+                    <div
+                      key={target.host}
+                      className={`ping-card ui-glass-surface ui-glass-surface-interactive ${isPending ? 'pending' : ''}`}
+                    >
+                      <div className="ping-card-top">
+                        <span className="ping-card-icon">
+                          <BrandIcon
+                            icon={target.icon}
+                            fallback={target.fallback}
+                          />
+                        </span>
+                        <a
+                          href={`https://${target.host}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="ping-card-name"
+                        >
+                          {target.name}
+                        </a>
+                        <button
+                          className="ping-card-refresh"
+                          onClick={() => runSingleTest(target.host)}
+                          disabled={isPending}
+                          aria-label={t('ping.retryOne', { name: target.name })}
+                          title={t('ping.retry')}
+                        >
+                          <RotateCw
+                            size={13}
+                            className={isPending ? 'ping-spin' : ''}
+                          />
+                        </button>
+                      </div>
 
-              <div className="ping-card-bottom">
-                {isPending ? (
-                  <span className="ping-pulse-dot" />
-                ) : (
-                  <span
-                    className={`ping-status-label ${isTimeout ? 'is-error' : 'is-success'}`}
-                  >
-                    {isTimeout ? t('ping.unavailable') : t('ping.available')}
-                  </span>
-                )}
+                      <div className="ping-card-bottom">
+                        {isPending ? (
+                          <span className="ping-pulse-dot" />
+                        ) : (
+                          <span
+                            className={`ping-status-label ${isTimeout ? 'is-error' : 'is-success'}`}
+                          >
+                            {isTimeout
+                              ? t('ping.unavailable')
+                              : t('ping.available')}
+                          </span>
+                        )}
 
-                <span
-                  className={`ping-latency ${
-                    isPending
-                      ? 'is-muted'
-                      : isTimeout
-                        ? 'is-error'
-                        : 'is-success'
-                  }`}
-                >
-                  {isPending
-                    ? '--'
-                    : isTimeout
-                      ? t('ping.timeout')
-                      : `${formatNumber(result!.latency)} ms`}
-                </span>
-              </div>
+                        <span
+                          className={`ping-latency ${
+                            isPending
+                              ? 'is-muted'
+                              : isTimeout
+                                ? 'is-error'
+                                : 'is-success'
+                          }`}
+                        >
+                          {isPending
+                            ? '--'
+                            : isTimeout
+                              ? t('ping.timeout')
+                              : `${formatNumber(result!.latency)} ms`}
+                        </span>
+                      </div>
+                    </div>
+                  )
+                }
+              )}
             </div>
-          )
-        })}
+          </section>
+        ))}
       </div>
     </div>
   )
