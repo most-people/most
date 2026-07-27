@@ -17,6 +17,7 @@ import { Route as NoteIndexRouteImport } from './routes/note/index'
 import { Route as FileIndexRouteImport } from './routes/file/index'
 import { Route as DownloadIndexRouteImport } from './routes/download/index'
 import { Route as ChatIndexRouteImport } from './routes/chat/index'
+import { Route as AppIndexRouteImport } from './routes/app/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AboutIndexRouteImport } from './routes/about/index'
 import { Route as CidCidIndexRouteImport } from './routes/cid/$cid/index'
@@ -65,6 +66,11 @@ const ChatIndexRoute = ChatIndexRouteImport.update({
   path: '/chat/',
   getParentRoute: () => rootRouteImport,
 } as any).lazy(() => import('./routes/chat/index.lazy').then((d) => d.Route))
+const AppIndexRoute = AppIndexRouteImport.update({
+  id: '/app/',
+  path: '/app/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/admin/',
   path: '/admin/',
@@ -101,6 +107,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about/': typeof AboutIndexRoute
   '/admin/': typeof AdminIndexRoute
+  '/app/': typeof AppIndexRoute
   '/chat/': typeof ChatIndexRoute
   '/download/': typeof DownloadIndexRoute
   '/file/': typeof FileIndexRoute
@@ -116,6 +123,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutIndexRoute
   '/admin': typeof AdminIndexRoute
+  '/app': typeof AppIndexRoute
   '/chat': typeof ChatIndexRoute
   '/download': typeof DownloadIndexRoute
   '/file': typeof FileIndexRoute
@@ -132,6 +140,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/about/': typeof AboutIndexRoute
   '/admin/': typeof AdminIndexRoute
+  '/app/': typeof AppIndexRoute
   '/chat/': typeof ChatIndexRoute
   '/download/': typeof DownloadIndexRoute
   '/file/': typeof FileIndexRoute
@@ -149,6 +158,7 @@ export interface FileRouteTypes {
     | '/'
     | '/about/'
     | '/admin/'
+    | '/app/'
     | '/chat/'
     | '/download/'
     | '/file/'
@@ -164,6 +174,7 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/admin'
+    | '/app'
     | '/chat'
     | '/download'
     | '/file'
@@ -179,6 +190,7 @@ export interface FileRouteTypes {
     | '/'
     | '/about/'
     | '/admin/'
+    | '/app/'
     | '/chat/'
     | '/download/'
     | '/file/'
@@ -195,6 +207,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutIndexRoute: typeof AboutIndexRoute
   AdminIndexRoute: typeof AdminIndexRoute
+  AppIndexRoute: typeof AppIndexRoute
   ChatIndexRoute: typeof ChatIndexRoute
   DownloadIndexRoute: typeof DownloadIndexRoute
   FileIndexRoute: typeof FileIndexRoute
@@ -265,6 +278,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/app/': {
+      id: '/app/'
+      path: '/app'
+      fullPath: '/app/'
+      preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/': {
       id: '/admin/'
       path: '/admin'
@@ -307,6 +327,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutIndexRoute: AboutIndexRoute,
   AdminIndexRoute: AdminIndexRoute,
+  AppIndexRoute: AppIndexRoute,
   ChatIndexRoute: ChatIndexRoute,
   DownloadIndexRoute: DownloadIndexRoute,
   FileIndexRoute: FileIndexRoute,

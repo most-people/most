@@ -31,6 +31,7 @@ const SOURCE_PATHS = {
   profileAppearance: 'src/features/profile/ProfileAppearanceSettings.tsx',
   appearance: 'src/lib/appearance.ts',
   rootRoute: 'src/routes/__root.tsx',
+  legacyAppRoute: 'src/routes/app/index.tsx',
   accountBackup: 'src/features/profile/useAccountBackup.ts',
   noteVaultLocationModal: 'src/features/profile/NoteVaultLocationModal.tsx',
   profile: 'src/features/profile/ProfilePage.tsx',
@@ -224,6 +225,7 @@ describe('frontend smoke checks', () => {
       '/',
       '/about/',
       '/admin/',
+      '/app/',
       '/file/',
       '/chat/',
       '/chat/join/',
@@ -240,6 +242,10 @@ describe('frontend smoke checks', () => {
       /requiredStaticEntries/
     )
     assert.match(readSource(SOURCE_PATHS.viteConfig), /prerender/)
+    assert.match(
+      readSource(SOURCE_PATHS.legacyAppRoute),
+      /redirect\(\{ to: '\/file\/' \}\)/
+    )
   })
 
   it('keeps native and web CID share links compatible with desktop deep links', async () => {
