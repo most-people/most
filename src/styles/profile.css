@@ -195,6 +195,7 @@
 
 .profile-signed-out-card {
   width: min(100%, 560px);
+  margin-bottom: var(--space-6);
   margin-inline: auto;
 }
 

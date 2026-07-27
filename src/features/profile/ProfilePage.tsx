@@ -542,7 +542,7 @@ export default function ProfilePage() {
             </div>
             <button
               type="button"
-              className="btn btn-secondary profile-logout-btn"
+              className="btn btn-danger profile-logout-btn"
               onClick={() => setShowLogoutConfirm(true)}
             >
               <LogOut size={16} />
@@ -771,6 +771,7 @@ export default function ProfilePage() {
                 disabled={accountBackup.busy}
                 onClick={() => void accountBackup.backupToCloud()}
               >
+                <CloudUpload size={16} />
                 {t('profile.backup.action.cloudBackup')}
               </button>
               <button
@@ -779,6 +780,7 @@ export default function ProfilePage() {
                 disabled={accountBackup.busy}
                 onClick={() => void accountBackup.exportLocalBackup()}
               >
+                <Download size={16} />
                 {t('profile.backup.action.exportLocal')}
               </button>
             </div>
@@ -788,6 +790,7 @@ export default function ProfilePage() {
                 className="btn btn-secondary"
                 onClick={() => setShowLogoutConfirm(false)}
               >
+                <X size={16} />
                 {t('common.cancel')}
               </button>
               <button
@@ -795,6 +798,7 @@ export default function ProfilePage() {
                 className="btn btn-danger"
                 onClick={handleLogout}
               >
+                <LogOut size={16} />
                 {t('account.logout')}
               </button>
             </div>
