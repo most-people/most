@@ -4,9 +4,24 @@ All notable changes to MostBox are documented in this file.
 
 ## [Unreleased]
 
+## [0.4.5] - 2026-07-27
+
+### Added
+
+- Added Docker, npm, and desktop deployment choices to the download page.
+- Added native `most://` link handling and verified attachment downloads to Android.
+- Added a note-vault location prompt before the first desktop restore and profile theme controls.
+
 ### Changed
 
 - Reduced the Android alpha download by shipping an arm64-only APK with compressed native libraries.
+- Bound chat synchronization to a per-connection proof of channel ID knowledge.
+- Moved the file library to `/file/` while preserving `/app/` as a compatibility redirect.
+- Refined the file download flow, site navigation, About page, and profile actions.
+
+### Removed
+
+- Removed the game routes, UI, protocol handlers, and unused mobile dependencies.
 
 ## [0.4.4] - 2026-07-24
 
