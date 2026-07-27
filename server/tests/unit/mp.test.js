@@ -1,11 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert'
-import {
-  avatar,
-  formatTime,
-  getEdKeyPair,
-  getIPNS,
-} from '../../src/utils/mp.js'
+import { avatar, formatTime, getEdKeyPair } from '../../src/utils/mp.js'
 
 describe('avatar', () => {
   it('returns avatar URL for valid address', () => {
@@ -28,25 +23,6 @@ describe('formatTime', () => {
     const result = formatTime(old)
     assert.strictEqual(typeof result, 'string')
     assert.ok(result.length > 0)
-  })
-})
-
-describe('getIPNS', () => {
-  it('generates valid IPNS key from seed', () => {
-    const privateKey = '0x' + 'ab'.repeat(32)
-    const edPublicKey = '0x' + 'cd'.repeat(32)
-    const ipns = getIPNS(privateKey, edPublicKey)
-    assert.strictEqual(typeof ipns, 'string')
-    assert.ok(ipns.length > 0)
-    assert.ok(ipns.startsWith('k'))
-  })
-
-  it('produces consistent IPNS from same seed', () => {
-    const privateKey = '0x' + 'ab'.repeat(32)
-    const edPublicKey = '0x' + 'cd'.repeat(32)
-    const i1 = getIPNS(privateKey, edPublicKey)
-    const i2 = getIPNS(privateKey, edPublicKey)
-    assert.strictEqual(i1, i2)
   })
 })
 

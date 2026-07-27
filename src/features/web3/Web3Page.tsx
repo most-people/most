@@ -14,7 +14,7 @@ import {
   mostMnemonic,
   most25519,
 } from '~server/src/utils/mostWallet.js'
-import { getEdKeyPair, getIPNS } from '~server/src/utils/mp.js'
+import { getEdKeyPair } from '~server/src/utils/mp.js'
 import { generateAvatar } from '~server/src/utils/avatar.js'
 import { AsymmetricBoxView } from './components/AsymmetricBoxView'
 import { PemExportView } from './components/PemExportView'
@@ -51,7 +51,6 @@ export default function Web3Page() {
   const [showPassword, setShowPassword] = useState(false)
   const [walletResult, setWalletResult] = useState<WalletResult | null>(null)
   const [keys, setKeys] = useState<MostKeySet | null>(null)
-  const [ipns, setIpns] = useState('')
   const [privatePem, setPrivatePem] = useState('')
   const [publicPem, setPublicPem] = useState('')
   const [mnemonicPhrase, setMnemonicPhrase] = useState('')
@@ -129,7 +128,6 @@ export default function Web3Page() {
     setMnemonicPhrase(mostMnemonic(result.danger))
     const nextKeys = most25519(result.danger)
     setKeys(nextKeys)
-    setIpns(getIPNS(nextKeys.private_key, nextKeys.ed_public_key))
     const pair = getEdKeyPair(nextKeys.private_key, nextKeys.ed_public_key)
     setPrivatePem(ed25519ToPKCS8PEM(pair.secretKey))
     setPublicPem(ed25519PublicKeyToPEM(pair.publicKey))
@@ -364,7 +362,6 @@ export default function Web3Page() {
             <WalletIdentityView
               walletResult={walletResult}
               keys={keys}
-              ipns={ipns}
               avatarSrc={avatarSrc}
               showPrivateKey={showX25519Private}
               onTogglePrivateKey={() =>

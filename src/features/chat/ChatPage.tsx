@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useMediaQuery } from '@mantine/hooks'
 import {
   ChevronRight,
   MessagesSquare,
@@ -54,6 +55,7 @@ import {
 } from '~/lib/channelApi'
 import { getFileSubtype, type FileSubtype } from '~/lib/filePreview'
 import { useI18n } from '~/lib/i18n'
+import { resolveAppearancePreference } from '~/lib/appearance'
 import {
   getUserChannelProfile,
   getUserPresenceProfile,
@@ -311,7 +313,12 @@ function getBrowserAudioContextConstructor():
 
 function ChatPage() {
   const hasBackend = useAppStore(s => s.hasBackend)
-  const isDarkMode = useAppStore(s => s.isDarkMode)
+  const appearance = useAppStore(s => s.appearance)
+  const prefersDark = useMediaQuery('(prefers-color-scheme: dark)')
+  const resolvedAppearance = resolveAppearancePreference(
+    appearance,
+    prefersDark
+  )
   const addToast = useAppStore(s => s.addToast)
   const openConnectModal = useAppStore(s => s.openConnectModal)
   const userIdentity = useUserStore(s => s.identity)
@@ -374,7 +381,9 @@ function ChatPage() {
     isInviteUser && userIdentity?.data ? userIdentity.data : ''
   const inviteBaseLogo = isInviteUser ? userIdentity?.logo || '' : ''
   const inviteDarkLogo =
-    isInviteUser && isDarkMode ? userIdentity?.logo_dark || '' : ''
+    isInviteUser && resolvedAppearance === 'dark'
+      ? userIdentity?.logo_dark || ''
+      : ''
   const invitePreferredLogo = inviteDarkLogo || inviteBaseLogo
   const inviteFallbackLogo =
     inviteDarkLogo && inviteBaseLogo && inviteDarkLogo !== inviteBaseLogo

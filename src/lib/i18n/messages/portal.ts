@@ -80,8 +80,7 @@ export const zhCNPortalMessages = {
   'portal.feature.web3.step.username.title': '输入用户名',
   'portal.feature.web3.step.username.desc': '用户名 + 密码（可选）作为种子。',
   'portal.feature.web3.step.keys.title': '查看密钥',
-  'portal.feature.web3.step.keys.desc':
-    '即时生成 Ed25519、x25519 公钥与 IPNS ID。',
+  'portal.feature.web3.step.keys.desc': '即时生成 Ed25519 与 x25519 公钥。',
   'portal.feature.web3.step.export.title': '导出使用',
   'portal.feature.web3.step.export.desc': '复制地址、导出 PEM、派生子地址。',
 } as const
@@ -169,8 +168,7 @@ export const zhTWPortalMessages = {
   'portal.feature.web3.step.username.desc':
     '使用者名稱 + 密碼（可選）作為種子。',
   'portal.feature.web3.step.keys.title': '檢視金鑰',
-  'portal.feature.web3.step.keys.desc':
-    '即時生成 Ed25519、x25519 公鑰與 IPNS ID。',
+  'portal.feature.web3.step.keys.desc': '即時生成 Ed25519 與 x25519 公鑰。',
   'portal.feature.web3.step.export.title': '匯出使用',
   'portal.feature.web3.step.export.desc': '複製地址、匯出 PEM、派生子地址。',
 } as const
@@ -277,7 +275,7 @@ export const enPortalMessages = {
     'Use username plus optional password as the seed.',
   'portal.feature.web3.step.keys.title': 'View keys',
   'portal.feature.web3.step.keys.desc':
-    'Instantly generate Ed25519 and x25519 public keys plus an IPNS ID.',
+    'Instantly generate Ed25519 and x25519 public keys.',
   'portal.feature.web3.step.export.title': 'Export and use',
   'portal.feature.web3.step.export.desc':
     'Copy addresses, export PEM, and derive child addresses.',

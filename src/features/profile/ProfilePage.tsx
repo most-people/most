@@ -30,6 +30,7 @@ import { useUserStore } from '~/stores/userStore'
 import { useI18n, type MessageKey } from '~/lib/i18n'
 import { useAccountBackup } from '~/features/profile/useAccountBackup'
 import { NoteVaultLocationModal } from '~/features/profile/NoteVaultLocationModal'
+import { ProfileAppearanceSettings } from '~/features/profile/ProfileAppearanceSettings'
 import {
   getAccountAvatarUrl,
   uploadAccountAvatar,
@@ -46,7 +47,6 @@ import {
   normalizeDefaultAvatarValue,
 } from '~server/src/utils/avatar.js'
 import { most25519 } from '~server/src/utils/mostWallet.js'
-import { getIPNS } from '~server/src/utils/mp.js'
 
 type AvatarOption = {
   value: string
@@ -161,17 +161,12 @@ export default function ProfilePage() {
     return most25519(identity.danger)
   }, [identity])
 
-  const ipns = useMemo(() => {
-    if (!keys) return ''
-    return getIPNS(keys.private_key, keys.ed_public_key)
-  }, [keys])
-
   if (!identity) {
     return (
       <MarketingLayout header={header}>
         <section className="profile-page">
-          <div className="profile-container narrow">
-            <div className="profile-empty ui-glass-surface">
+          <div className="profile-container">
+            <div className="profile-empty profile-signed-out-card ui-glass-surface">
               <div className="profile-empty-icon">
                 <User size={34} />
               </div>
@@ -186,6 +181,7 @@ export default function ProfilePage() {
                 {t('account.signIn')}
               </button>
             </div>
+            <ProfileAppearanceSettings />
           </div>
         </section>
       </MarketingLayout>
@@ -722,13 +718,9 @@ export default function ProfilePage() {
                   />
                 </>
               )}
-              <ProfileKeyCard
-                title="IPNS ID"
-                icon={<ShieldCheck size={18} />}
-                value={ipns || '-'}
-              />
             </div>
           </section>
+          <ProfileAppearanceSettings />
         </div>
       </section>
       {backupConfirm && (

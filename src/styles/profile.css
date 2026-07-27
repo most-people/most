@@ -16,6 +16,188 @@
   width: min(100%, 560px);
 }
 
+.profile-appearance-section {
+  margin-bottom: var(--space-8);
+}
+
+.profile-appearance-title {
+  margin: 0 0 var(--space-4);
+  color: var(--text-primary);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.profile-appearance-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.profile-appearance-option {
+  position: relative;
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.profile-theme-preview {
+  --profile-theme-shell: #eeeeef;
+  --profile-theme-surface: #ffffff;
+  --profile-theme-line: #d9d9dc;
+  --profile-theme-rule: #ececef;
+  --profile-theme-selection: var(--text-primary);
+
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1.45;
+  display: block;
+  overflow: hidden;
+  border: 1px solid var(--glass-border-strong);
+  border-radius: var(--radius-xs);
+  background: var(--profile-theme-shell);
+  box-shadow: var(--shadow-sm);
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.profile-theme-preview.is-dark {
+  --profile-theme-shell: #5b5b5d;
+  --profile-theme-surface: #1e1e20;
+  --profile-theme-line: #8d8d91;
+  --profile-theme-rule: #343438;
+  --profile-theme-selection: #ffffff;
+}
+
+.profile-theme-preview.is-light {
+  --profile-theme-selection: #1d1d1f;
+}
+
+.profile-theme-preview.is-system {
+  background: linear-gradient(90deg, #a7a7a9 0 50%, #5b5b5d 50% 100%);
+}
+
+.profile-theme-preview-handle,
+.profile-theme-preview-rule,
+.profile-theme-preview-row {
+  position: absolute;
+  display: block;
+  border-radius: var(--radius-full);
+  background: var(--profile-theme-line);
+}
+
+.profile-theme-preview-handle {
+  top: 21%;
+  left: 50%;
+  width: 24%;
+  height: 6px;
+  transform: translateX(-50%);
+}
+
+.profile-theme-preview-rule {
+  top: 31%;
+  left: 15%;
+  width: 70%;
+  height: 5px;
+}
+
+.profile-theme-preview-window {
+  position: absolute;
+  inset: 40% 8% 6%;
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  padding: 11px 10px;
+  overflow: hidden;
+  border-radius: var(--radius-xs);
+  background: var(--profile-theme-surface);
+}
+
+.profile-theme-preview-window .profile-theme-preview-row,
+.profile-theme-preview-divider {
+  position: relative;
+}
+
+.profile-theme-preview-row {
+  width: 100%;
+  height: 6px;
+}
+
+.profile-theme-preview-row.is-short {
+  width: 32%;
+}
+
+.profile-theme-preview-divider {
+  width: calc(100% + 20px);
+  height: 1px;
+  margin-left: -10px;
+  background: var(--profile-theme-rule);
+}
+
+.profile-theme-preview.is-system .profile-theme-preview-window {
+  background: linear-gradient(90deg, #ffffff 0 50%, #1e1e20 50% 100%);
+}
+
+.profile-theme-preview.is-system .profile-theme-preview-handle,
+.profile-theme-preview.is-system .profile-theme-preview-rule,
+.profile-theme-preview.is-system .profile-theme-preview-row {
+  background: linear-gradient(90deg, #d7d7da 0 50%, #8d8d91 50% 100%);
+}
+
+.profile-theme-preview.is-system .profile-theme-preview-divider {
+  background: linear-gradient(90deg, #ececef 0 50%, #343438 50% 100%);
+}
+
+.profile-appearance-option:hover .profile-theme-preview {
+  transform: translateY(-1px);
+  border-color: var(--glass-border-strong);
+  box-shadow: var(--shadow);
+}
+
+.profile-appearance-option:focus-visible {
+  outline: none;
+}
+
+.profile-appearance-option:focus-visible .profile-theme-preview {
+  border-color: var(--accent);
+  box-shadow:
+    inset 0 0 0 2px var(--accent),
+    var(--shadow);
+}
+
+.profile-appearance-option.selected .profile-theme-preview {
+  border-color: var(--profile-theme-selection);
+  box-shadow:
+    inset 0 0 0 2px var(--profile-theme-selection),
+    var(--shadow);
+}
+
+.profile-appearance-option.selected {
+  color: var(--text-primary);
+}
+
+.profile-appearance-option-label {
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.profile-signed-out-card {
+  width: min(100%, 560px);
+  margin-inline: auto;
+}
+
 .profile-header {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -613,6 +795,10 @@
 
   .profile-page {
     padding-inline: var(--space-3);
+  }
+
+  .profile-appearance-options {
+    grid-template-columns: 1fr;
   }
 
   .profile-header,

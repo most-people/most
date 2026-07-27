@@ -15,6 +15,10 @@ import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore, type UserIdentity } from '~/stores/userStore'
 import { isLocale, useI18n, type Locale, type MessageKey } from '~/lib/i18n'
 import {
+  isAppearancePreference,
+  type AppearancePreference,
+} from '~/lib/appearance'
+import {
   configureNoteVault,
   getNoteVaultSnapshot,
   getNoteVaultStatus,
@@ -26,7 +30,7 @@ type AccountBackupAction = 'backup' | 'restore' | 'export' | 'import' | null
 type AccountBackupStatus = 'idle' | 'disabled' | 'working' | 'synced' | 'error'
 type AccountBackupProfile = AccountBackupPayload['profile']
 type AccountBackupPreferences = AccountBackupPayload['preferences']
-type AccountBackupTheme = 'dark' | 'light'
+type AccountBackupTheme = AppearancePreference
 type RestoreFromCloudOptions = {
   confirm?: boolean
   onlyWhenLocalEmpty?: boolean
@@ -307,10 +311,7 @@ async function readRestoredProfile(fallback: AccountBackupProfile) {
 function normalizeBackupPreferences(input: AccountBackupPreferences) {
   if (!input || typeof input !== 'object') return null
   return {
-    theme:
-      input.theme === 'dark' || input.theme === 'light'
-        ? input.theme
-        : undefined,
+    theme: isAppearancePreference(input.theme) ? input.theme : undefined,
     locale: isLocale(input.locale) ? input.locale : undefined,
   }
 }
@@ -339,7 +340,7 @@ export function useAccountBackup() {
   const openConnectModal = useAppStore(s => s.openConnectModal)
   const notes = useAppStore(s => s.notes)
   const importNotes = useAppStore(s => s.importNotes)
-  const setIsDarkMode = useAppStore(s => s.setIsDarkMode)
+  const setAppearance = useAppStore(s => s.setAppearance)
   const wallet = useUserStore(s => s.wallet)
   const openLoginModal = useUserStore(s => s.openLoginModal)
   const setUserIdentity = useUserStore(s => s.setUserIdentity)
@@ -514,7 +515,7 @@ export function useAccountBackup() {
       exportedAt: new Date().toISOString(),
       profile,
       preferences: {
-        theme: useAppStore.getState().isDarkMode ? 'dark' : 'light',
+        theme: useAppStore.getState().appearance,
         locale,
       },
       notes: useAppStore.getState().notes,
@@ -588,7 +589,7 @@ export function useAccountBackup() {
         payload.preferences
       )
       if (restoredPreferences?.theme) {
-        setIsDarkMode(restoredPreferences.theme === 'dark')
+        setAppearance(restoredPreferences.theme)
       }
       if (restoredPreferences?.locale) {
         setLocale(restoredPreferences.locale)
@@ -611,7 +612,7 @@ export function useAccountBackup() {
       requireWallet,
       refreshBackupSummary,
       setUserIdentity,
-      setIsDarkMode,
+      setAppearance,
       setLocale,
       t,
     ]

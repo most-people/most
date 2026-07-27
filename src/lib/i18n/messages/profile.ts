@@ -4,6 +4,7 @@ export const zhCNProfileMessages = {
   'profile.kicker': '个人资料',
   'profile.signedOut.title': '请先登录',
   'profile.signedOut.desc': '登录后管理头像、名称和身份信息。',
+  'profile.section.theme': '主题',
   'profile.section.account': '账号资料',
   'profile.section.account.desc':
     '这些信息用于聊天和工具箱里的身份展示，并会随账号备份同步。',
@@ -95,6 +96,7 @@ export const zhTWProfileMessages = {
   'profile.kicker': '個人資料',
   'profile.signedOut.title': '請先登入',
   'profile.signedOut.desc': '登入後管理頭像、名稱和身份資訊。',
+  'profile.section.theme': '主題',
   'profile.section.account': '帳號資料',
   'profile.section.account.desc':
     '這些資訊用於聊天和工具箱裡的身份展示，並會隨帳號備份同步。',
@@ -187,6 +189,7 @@ export const enProfileMessages = {
   'profile.kicker': 'Profile',
   'profile.signedOut.title': 'Sign in first',
   'profile.signedOut.desc': 'Sign in to manage your profile.',
+  'profile.section.theme': 'Theme',
   'profile.section.account': 'Account',
   'profile.section.account.desc':
     'These details are used for identity display across chat and tools, and sync through account backup.',

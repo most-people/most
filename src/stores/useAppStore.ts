@@ -26,6 +26,11 @@ import type {
   ParsedDownloadEvent,
 } from '~/lib/downloadTasks'
 import { excludeTerminalDownloadTasks } from '~/lib/downloadTasks'
+import {
+  normalizeAppearancePreference,
+  resolveAppearancePreference,
+  type AppearancePreference,
+} from '~/lib/appearance'
 
 interface ToastItem {
   id: number
@@ -51,8 +56,8 @@ interface AppState {
   checkBackend: () => Promise<void>
 
   // Theme
-  isDarkMode: boolean
-  setIsDarkMode: (v: boolean) => void
+  appearance: AppearancePreference
+  setAppearance: (appearance: AppearancePreference) => void
 
   // Toast
   toasts: ToastItem[]
@@ -199,11 +204,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   // Theme
-  isDarkMode: false,
-  setIsDarkMode: v => {
-    set({ isDarkMode: v })
-    document.documentElement.setAttribute('data-theme', v ? 'dark' : 'light')
-    localStorage.setItem('theme', v ? 'dark' : 'light')
+  appearance: 'system',
+  setAppearance: appearance => {
+    const resolvedAppearance = resolveAppearancePreference(
+      appearance,
+      window.matchMedia('(prefers-color-scheme: dark)').matches
+    )
+    set({ appearance })
+    document.documentElement.setAttribute('data-theme', resolvedAppearance)
+    document.documentElement.setAttribute('data-theme-preference', appearance)
+    localStorage.setItem('theme', appearance)
   },
 
   // Toast
@@ -540,14 +550,22 @@ export const useAppStore = create<AppState>((set, get) => ({
 
 // Initialize theme on module load (client-side only)
 if (typeof window !== 'undefined') {
-  const saved = localStorage.getItem('theme')
-  const prefersDark =
-    typeof window !== 'undefined' &&
-    window.matchMedia('(prefers-color-scheme: dark)').matches
-  const isDarkMode = saved === 'dark' || (!saved && prefersDark)
-  document.documentElement.setAttribute(
-    'data-theme',
-    isDarkMode ? 'dark' : 'light'
+  const systemTheme = window.matchMedia('(prefers-color-scheme: dark)')
+  const appearance = normalizeAppearancePreference(
+    localStorage.getItem('theme')
   )
-  useAppStore.setState({ isDarkMode })
+  const resolvedAppearance = resolveAppearancePreference(
+    appearance,
+    systemTheme.matches
+  )
+
+  document.documentElement.setAttribute('data-theme', resolvedAppearance)
+  document.documentElement.setAttribute('data-theme-preference', appearance)
+  useAppStore.setState({ appearance })
+
+  systemTheme.addEventListener('change', event => {
+    if (useAppStore.getState().appearance !== 'system') return
+    const nextAppearance = event.matches ? 'dark' : 'light'
+    document.documentElement.setAttribute('data-theme', nextAppearance)
+  })
 }

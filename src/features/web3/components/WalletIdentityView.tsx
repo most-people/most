@@ -3,7 +3,6 @@ import {
   EyeOff,
   ExternalLink,
   Fingerprint,
-  Globe,
   KeyRound,
   Shield,
   User,
@@ -18,7 +17,6 @@ import type { MostKeySet, WalletResult } from './types'
 type WalletIdentityViewProps = {
   walletResult: WalletResult | null
   keys: MostKeySet | null
-  ipns: string
   avatarSrc: string
   showPrivateKey: boolean
   onTogglePrivateKey: () => void
@@ -31,7 +29,6 @@ function maskSecret(value: string) {
 export function WalletIdentityView({
   walletResult,
   keys,
-  ipns,
   avatarSrc,
   showPrivateKey,
   onTogglePrivateKey,
@@ -126,15 +123,6 @@ export function WalletIdentityView({
               >
                 {showPrivateKey ? <Eye size={14} /> : <EyeOff size={14} />}
               </button>
-            </div>
-          </KeyCard>
-
-          <KeyCard title="IPNS ID" icon={<Globe size={18} />}>
-            <div className="mono-row">
-              <code className="mono" translate="no">
-                {ipns}
-              </code>
-              <CopyButton text={ipns} />
             </div>
           </KeyCard>
         </div>

@@ -25,6 +25,12 @@ const SOURCE_PATHS = {
   globalDownloads: 'src/features/cid/GlobalDownloadTasks.tsx',
   downloadTasks: 'src/lib/downloadTasks.ts',
   appGlobals: 'src/components/AppGlobals.tsx',
+  appShell: 'src/components/AppShell.tsx',
+  marketingHeader: 'src/components/MarketingHeader.tsx',
+  marketingLayout: 'src/components/MarketingLayout.tsx',
+  profileAppearance: 'src/features/profile/ProfileAppearanceSettings.tsx',
+  appearance: 'src/lib/appearance.ts',
+  rootRoute: 'src/routes/__root.tsx',
   accountBackup: 'src/features/profile/useAccountBackup.ts',
   noteVaultLocationModal: 'src/features/profile/NoteVaultLocationModal.tsx',
   profile: 'src/features/profile/ProfilePage.tsx',
@@ -128,6 +134,44 @@ describe('frontend smoke checks', () => {
     )
     assert.match(readSource(SOURCE_PATHS.readme), /npm run dev/)
     assert.match(readSource(SOURCE_PATHS.acceptance), /npm run test:frontend/)
+  })
+
+  it('keeps persisted dark, light, and system appearance preferences in profile', async () => {
+    const profileAppearanceSource = readSource(SOURCE_PATHS.profileAppearance)
+    const appStoreSource = readSource(SOURCE_PATHS.appStore)
+    const rootRouteSource = readSource(SOURCE_PATHS.rootRoute)
+    const navigationSource = [
+      readSource(SOURCE_PATHS.appShell),
+      readSource(SOURCE_PATHS.marketingHeader),
+      readSource(SOURCE_PATHS.marketingLayout),
+    ].join('\n')
+    const {
+      isAppearancePreference,
+      normalizeAppearancePreference,
+      resolveAppearancePreference,
+    } = await importBundledSource(SOURCE_PATHS.appearance)
+
+    assert.equal(isAppearancePreference('system'), true)
+    assert.equal(isAppearancePreference('unexpected'), false)
+    assert.equal(normalizeAppearancePreference('dark'), 'dark')
+    assert.equal(normalizeAppearancePreference('light'), 'light')
+    assert.equal(normalizeAppearancePreference('system'), 'system')
+    assert.equal(normalizeAppearancePreference('unexpected'), 'system')
+    assert.equal(resolveAppearancePreference('system', true), 'dark')
+    assert.equal(resolveAppearancePreference('system', false), 'light')
+    assert.equal(resolveAppearancePreference('light', true), 'light')
+    assert.equal(resolveAppearancePreference('dark', false), 'dark')
+
+    assert.match(profileAppearanceSource, /value: 'dark'/)
+    assert.match(profileAppearanceSource, /value: 'light'/)
+    assert.match(profileAppearanceSource, /value: 'system'/)
+    assert.match(profileAppearanceSource, /role="radiogroup"/)
+    assert.match(profileAppearanceSource, /aria-checked=\{selected\}/)
+    assert.match(readSource(SOURCE_PATHS.profile), /<ProfileAppearanceSettings/)
+    assert.doesNotMatch(navigationSource, /AppearanceToggle/)
+    assert.match(appStoreSource, /systemTheme\.addEventListener\('change'/)
+    assert.match(appStoreSource, /localStorage\.setItem\('theme', appearance\)/)
+    assert.match(rootRouteSource, /data-theme-preference/)
   })
 
   it('asks for a note folder before the first cloud restore', async () => {
