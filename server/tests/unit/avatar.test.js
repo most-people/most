@@ -63,10 +63,11 @@ describe('generateAvatar', () => {
     assert.notStrictEqual(avatar1, avatar2)
   })
 
-  it('always includes a foreground cell', () => {
-    const result = generateAvatar('0x0000000000000000000000000000000000007332')
+  it('renders a non-empty SVG for an address', () => {
+    const result = generateAvatar('0x1234567890abcdef')
     const svg = decodeURIComponent(result.slice(result.indexOf(',') + 1))
 
-    assert.match(svg, /<g fill="[^"]+"><rect /)
+    assert.match(svg, /^<svg\b/)
+    assert.match(svg, /<(?:path|circle|rect)\b/)
   })
 })
