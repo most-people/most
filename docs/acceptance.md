@@ -263,7 +263,7 @@ npm run build
 | 下载后做种   | 接收方下载成功后自动成为新种子，holding 可见                                                      |
 | daemon 重启  | 已持有 CID 自动恢复 join topic                                                                    |
 | 发布者退出   | 至少一个下载者在线做种时，新下载者仍可完成下载                                                    |
-| 知识库       | 能独立新建、编辑和备份 Markdown 内容，不依赖聊天或文件入口                                        |
+| 知识库       | 能编辑和备份 Markdown，并以 `most://` CID 引用文件模块中的附件                                    |
 | Web3         | Web3 工具箱独立存在，不成为聊天、文件或记录的前置条件                                             |
 
 如果下载失败，优先检查：聊天双方是否加入同一房间、附件链接是否完整、发布者或下载者种子是否在线、端口和防火墙是否允许 P2P 连接、管理台日志中是否出现 `PEER_NOT_FOUND` 或 `INTEGRITY_ERROR`。
@@ -330,6 +330,7 @@ npm run build
 | 资源管理             | 新建、重命名、移动、删除文件夹、搜索不丢数据                                                | `noteUtils`、`src/features/note/NotePage.tsx` |
 | 桌面 Markdown 笔记库 | Electron + 本地 daemon 下可选择目录、列出 `.md`、打开并保存当前文件；Web 端仍使用 IndexedDB | `/note`、`/api/note-vault/*`                  |
 | CID 边界             | `calculateNoteCid()` 只用于笔记 raw CID，不进入 `most://` 文件分享协议                      | `server/src/core/cid.js`、笔记测试            |
+| Markdown CID 引用    | 图片和文件引用只保存标准 Markdown `most://<cid>?filename=...`；不保存本地路径或复制附件     | `/note`、`/api/publish`、`/api/download`      |
 | Web3 独立            | 钱包、PEM、地址和签名工具不参与聊天、附件或知识库主流程                                     | `/web3/`                                      |
 
 推荐检查：
@@ -344,3 +345,11 @@ node --test server/tests/unit/noteUtils.test.js server/tests/unit/accountBackup.
 2. 点击“打开笔记库”，选择一个本地目录；目录内递归 `.md` 文件应出现在左侧列表。
 3. 打开任一 `.md` 文件，进入编辑模式修改内容并保存；用外部编辑器打开同一文件，应能看到保存后的 Markdown。
 4. 在普通 Web 浏览器打开 `/note`，不应出现本地目录选择入口，原 IndexedDB 笔记行为保持不变。
+
+Markdown 与 CID 附件联动验收：
+
+1. 在笔记编辑模式点击附件按钮上传图片和普通文件；保存后检查 Markdown，内容应分别为 `![名称](most://<cid>?filename=...)` 和 `[名称](most://<cid>?filename=...)`，不得出现本地路径。
+2. 在另一节点打开包含这些引用的笔记；图片应自动通过 P2P 下载、CID 校验后显示，普通文件在点击时下载并打开现有预览/另存为界面。
+3. 下载完成后检查 holding 和 topic 状态，确认下载节点已经持续做种。
+4. 关闭原发布节点，保留第二节点在线；第三节点打开同一引用，仍应完成下载、CID 校验和预览。
+5. 对无种子、非法 CID 或完整性校验失败场景，确认 Markdown 原文保持不变且界面给出失败反馈。

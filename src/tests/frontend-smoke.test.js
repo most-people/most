@@ -40,6 +40,10 @@ const SOURCE_PATHS = {
   appStore: 'src/stores/useAppStore.ts',
   cidCss: 'src/styles/cid.css',
   fileApi: 'src/lib/fileApi.ts',
+  milkdownEditor: 'src/components/MilkdownEditor.tsx',
+  mostMarkdown: 'src/lib/mostMarkdown.ts',
+  mostMarkdownEditor: 'src/features/note/MostMarkdownEditor.tsx',
+  note: 'src/features/note/NotePage.tsx',
   files: 'src/features/files/AppPage.tsx',
   chat: 'src/features/chat/ChatPage.tsx',
   chatJoin: 'src/features/chat/ChatJoinPage.tsx',
@@ -322,6 +326,117 @@ describe('frontend smoke checks', () => {
       /fileApi\.downloadFileInBackground\(\s*mostLink,\s*isCollectionResult \? selectedCollectionPaths : undefined\s*\)/
     )
     assert.match(chatSource, /fileApi\.downloadFile\(attachment\.link\)/)
+  })
+
+  it('keeps knowledge-base attachments as parseable most:// Markdown references', async () => {
+    const { buildMostMarkdownAttachment, parseMostMarkdownReference } =
+      await importBundledSource(SOURCE_PATHS.mostMarkdown)
+    const cid = 'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
+    const imageName = '旅行(原图)[1].jpg'
+    const imageLink = `most://${cid}?filename=${encodeURIComponent(imageName)}`
+    const imageMarkdown = buildMostMarkdownAttachment({
+      link: imageLink,
+      fileName: imageName,
+      image: true,
+    })
+
+    assert.match(imageMarkdown, /^!\[旅行\(原图\)\\\[1\\\]\.jpg\]\(most:\/\//)
+    assert.match(imageMarkdown, /%28/)
+    assert.match(imageMarkdown, /%29/)
+    assert.equal(
+      parseMostMarkdownReference(
+        imageMarkdown.slice(imageMarkdown.indexOf('](') + 2, -1)
+      ).fileName,
+      imageName
+    )
+    assert.equal(
+      buildMostMarkdownAttachment({
+        link: `most://${cid}`,
+        fileName: 'GPS轨迹.gpx',
+        image: false,
+      }),
+      `[GPS轨迹.gpx](most://${cid})`
+    )
+    assert.equal(parseMostMarkdownReference(`most://${cid}`).cid, cid)
+    assert.equal(parseMostMarkdownReference('https://example.com/file'), null)
+    assert.equal(parseMostMarkdownReference('most://invalid'), null)
+  })
+
+  it('reuses Markdown image URLs until the editor cache is disposed', async () => {
+    const { createMostMarkdownImageUrlCache } = await importBundledSource(
+      SOURCE_PATHS.mostMarkdown
+    )
+    const cid = 'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
+
+    const createdUrls = []
+    const revokedUrls = []
+    const imageUrlCache = createMostMarkdownImageUrlCache({
+      createObjectURL() {
+        const url = `blob:test-${createdUrls.length + 1}`
+        createdUrls.push(url)
+        return url
+      },
+      revokeObjectURL(url) {
+        revokedUrls.push(url)
+      },
+    })
+    let blobLoads = 0
+    const loadBlob = async () => {
+      blobLoads += 1
+      return new Blob(['image'])
+    }
+
+    const [firstImageUrl, repeatedImageUrl] = await Promise.all([
+      imageUrlCache.getOrCreate(cid, loadBlob),
+      imageUrlCache.getOrCreate(cid, loadBlob),
+    ])
+    assert.equal(firstImageUrl, 'blob:test-1')
+    assert.equal(repeatedImageUrl, firstImageUrl)
+    assert.equal(await imageUrlCache.getOrCreate(cid, loadBlob), firstImageUrl)
+    assert.equal(blobLoads, 1)
+    assert.deepEqual(revokedUrls, [])
+
+    imageUrlCache.dispose()
+    assert.deepEqual(revokedUrls, [firstImageUrl])
+
+    let finishPendingLoad
+    const pendingCache = createMostMarkdownImageUrlCache({
+      createObjectURL() {
+        return 'blob:pending'
+      },
+      revokeObjectURL(url) {
+        revokedUrls.push(url)
+      },
+    })
+    const pendingImageUrl = pendingCache.getOrCreate(
+      'pending-cid',
+      () =>
+        new Promise(resolve => {
+          finishPendingLoad = resolve
+        })
+    )
+    pendingCache.dispose()
+    finishPendingLoad(new Blob(['pending-image']))
+    assert.equal(await pendingImageUrl, '')
+    assert.deepEqual(revokedUrls, [firstImageUrl, 'blob:pending'])
+  })
+
+  it('wires MostBox attachments into every knowledge-base editor', () => {
+    const milkdownSource = readSource(SOURCE_PATHS.milkdownEditor)
+    const mostEditorSource = readSource(SOURCE_PATHS.mostMarkdownEditor)
+    const noteSource = readSource(SOURCE_PATHS.note)
+
+    assert.match(milkdownSource, /editor\.action\(insert\(markdown\)\)/)
+    assert.match(milkdownSource, /proxyDomURL:/)
+    assert.match(milkdownSource, /parseMostMarkdownReference\(href\)/)
+    assert.match(milkdownSource, /onInternalNoteLinkOpenRef/)
+    assert.match(mostEditorSource, /fileApi\.publishFile\(file\)/)
+    assert.match(mostEditorSource, /fileApi\.downloadFileInBackground/)
+    assert.match(mostEditorSource, /getApiRequestHeaders\('GET', requestPath\)/)
+    assert.match(mostEditorSource, /<FilePreviewOverlay/)
+    assert.equal(noteSource.match(/<MostMarkdownEditor/g)?.length, 3)
+    assert.match(noteSource, /resolveWikiNoteLink=\{resolvePreviewWikiLink\}/)
+    assert.match(noteSource, /resolveWikiNoteLink=\{/)
   })
 
   it('routes file share actions to the CID page and exposes web QR sharing there', async () => {

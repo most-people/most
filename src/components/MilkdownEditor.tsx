@@ -8,8 +8,9 @@ import {
 } from 'react'
 import { Crepe } from '@milkdown/crepe'
 import { linkAttr } from '@milkdown/kit/preset/commonmark'
-import { replaceAll } from '@milkdown/utils'
+import { insert, replaceAll } from '@milkdown/utils'
 import { useI18n } from '~/lib/i18n'
+import { parseMostMarkdownReference } from '~/lib/mostMarkdown'
 
 type ResolvedWikiNoteLink = {
   label: string
@@ -21,6 +22,9 @@ interface MilkdownEditorProps {
   readOnly?: boolean
   onChange?: (markdown: string) => void
   onInternalNoteLinkOpen?: (href: string) => void
+  onMostLinkOpen?: (href: string) => void | Promise<void>
+  onImageUpload?: (file: File) => Promise<string>
+  resolveImageUrl?: (url: string) => Promise<string> | string
   resolveWikiNoteLink?: (body: string) => ResolvedWikiNoteLink | null
   className?: string
 }
@@ -28,6 +32,7 @@ interface MilkdownEditorProps {
 export interface MilkdownEditorRef {
   setMarkdown: (markdown: string) => void
   getMarkdown: () => string
+  insertMarkdown: (markdown: string) => void
 }
 
 function enhanceWikiNoteLinks(
@@ -107,6 +112,9 @@ export const MilkdownEditor = forwardRef<
       readOnly,
       onChange,
       onInternalNoteLinkOpen,
+      onMostLinkOpen,
+      onImageUpload,
+      resolveImageUrl,
       resolveWikiNoteLink,
       className,
     },
@@ -117,6 +125,9 @@ export const MilkdownEditor = forwardRef<
     const crepeRef = useRef<Crepe | null>(null)
     const onChangeRef = useRef(onChange)
     const onInternalNoteLinkOpenRef = useRef(onInternalNoteLinkOpen)
+    const onMostLinkOpenRef = useRef(onMostLinkOpen)
+    const onImageUploadRef = useRef(onImageUpload)
+    const resolveImageUrlRef = useRef(resolveImageUrl)
     const [isReady, setIsReady] = useState(false)
 
     useEffect(() => {
@@ -127,6 +138,18 @@ export const MilkdownEditor = forwardRef<
       onInternalNoteLinkOpenRef.current = onInternalNoteLinkOpen
     }, [onInternalNoteLinkOpen])
 
+    useEffect(() => {
+      onMostLinkOpenRef.current = onMostLinkOpen
+    }, [onMostLinkOpen])
+
+    useEffect(() => {
+      onImageUploadRef.current = onImageUpload
+    }, [onImageUpload])
+
+    useEffect(() => {
+      resolveImageUrlRef.current = resolveImageUrl
+    }, [resolveImageUrl])
+
     useImperativeHandle(ref, () => ({
       setMarkdown: markdown => {
         if (crepeRef.current && isReady) {
@@ -134,6 +157,11 @@ export const MilkdownEditor = forwardRef<
         }
       },
       getMarkdown: () => crepeRef.current?.getMarkdown() || '',
+      insertMarkdown: markdown => {
+        if (crepeRef.current && isReady) {
+          crepeRef.current.editor.action(insert(markdown))
+        }
+      },
     }))
 
     useEffect(() => {
@@ -147,6 +175,14 @@ export const MilkdownEditor = forwardRef<
             text: t('milkdown.placeholder'),
           },
           [Crepe.Feature.ImageBlock]: {
+            onUpload: file =>
+              onImageUploadRef.current
+                ? onImageUploadRef.current(file)
+                : Promise.resolve(URL.createObjectURL(file)),
+            proxyDomURL: url =>
+              resolveImageUrlRef.current
+                ? resolveImageUrlRef.current(url)
+                : url,
             inlineUploadButton: t('milkdown.image.upload'),
             inlineUploadPlaceholderText: t('milkdown.image.placeholder'),
             blockUploadButton: t('milkdown.image.upload'),
@@ -264,13 +300,20 @@ export const MilkdownEditor = forwardRef<
     }, [content, isReady, readOnly, resolveWikiNoteLink])
 
     function handleClickCapture(event: MouseEvent<HTMLDivElement>) {
-      if (!readOnly || !onInternalNoteLinkOpenRef.current) return
+      if (!readOnly) return
       if (!(event.target instanceof HTMLElement)) return
 
       const link = event.target.closest('a[href]')
       if (!link || !rootRef.current?.contains(link)) return
 
       const href = link.getAttribute('href') || ''
+      if (onMostLinkOpenRef.current && parseMostMarkdownReference(href)) {
+        event.preventDefault()
+        void onMostLinkOpenRef.current(href)
+        return
+      }
+
+      if (!onInternalNoteLinkOpenRef.current) return
       let url: URL
       try {
         url = new URL(href, window.location.origin)

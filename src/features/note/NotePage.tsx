@@ -63,9 +63,9 @@ import {
   type NoteVaultStatus,
 } from './noteVaultApi'
 
-const MilkdownEditor = lazy(async () => {
-  const mod = await import('~/components/MilkdownEditor')
-  return { default: mod.MilkdownEditor }
+const MostMarkdownEditor = lazy(async () => {
+  const mod = await import('./MostMarkdownEditor')
+  return { default: mod.MostMarkdownEditor }
 })
 
 type ExplorerItem = NoteMoveTarget
@@ -1341,7 +1341,7 @@ function NotePageContent() {
                     </div>
                   ) : selectedNote ? (
                     <div className="note-editor-frame editing">
-                      <MilkdownEditor
+                      <MostMarkdownEditor
                         ref={editorRef}
                         content={plainContent}
                         onChange={setPlainContent}
@@ -1365,7 +1365,7 @@ function NotePageContent() {
                   </div>
                 ) : selectedNote ? (
                   <div className="note-editor-frame reading">
-                    <MilkdownEditor
+                    <MostMarkdownEditor
                       content={wikiLinkedPreviewContent}
                       readOnly
                       onInternalNoteLinkOpen={openInternalNoteLink}
@@ -2242,7 +2242,7 @@ function VaultNotePageContent() {
                       canEditCurrentVaultFile ? 'editing' : 'reading'
                     }`}
                   >
-                    <MilkdownEditor
+                    <MostMarkdownEditor
                       ref={canEditCurrentVaultFile ? editorRef : undefined}
                       content={
                         canEditCurrentVaultFile

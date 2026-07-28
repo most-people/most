@@ -614,6 +614,22 @@
   min-height: 100%;
 }
 
+.most-markdown-editor {
+  min-height: 100%;
+}
+
+.note-attachment-toolbar {
+  display: flex;
+  width: min(760px, 100%);
+  margin: 0 auto;
+  padding: 14px 36px 0;
+  justify-content: flex-end;
+}
+
+.note-attachment-toolbar + .milkdown-editor .ProseMirror {
+  padding-top: 18px;
+}
+
 .milkdown-editor .milkdown {
   min-height: 100%;
   --crepe-font-default: var(--font-sans);

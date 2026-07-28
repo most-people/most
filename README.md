@@ -4,6 +4,8 @@
 [![Node.js version](https://img.shields.io/badge/node-%3E%3D22.12-brightgreen)](https://nodejs.org)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
+[隐私政策](PRIVACY.md) · [安全政策](SECURITY.md) · [代码签名政策](CODE_SIGNING_POLICY.md)
+
 > MostBox 是一个用户自己运行的 P2P 节点，通过简单的本地界面提供文件分享、通信和个人工具；它不要求用户加入某个平台，而是让设备直接参与网络。
 >
 > 真正有价值的不是“又一个聊天软件”或“又一个网盘”，而是把 P2P 能力压缩成普通人能完成的流程：安装 -> 打开 -> 分享 `most://` 链接。
@@ -18,7 +20,7 @@
 | ------ | ------------------------------------------------- | ----------------------------------------------- |
 | 文件   | 发布文件、复制 `most://` 链接、下载校验并持续做种 | `most://` + CID 校验 + 下载后做种               |
 | 聊天   | 按频道 ID 打开聊天，以 `/chat/#<channelId>` 分享  | 频道 ID 即权限；Channel + WebSocket + Hypercore |
-| 知识库 | 记录想法、整理 Markdown 内容和本地资料            | `/note/` 保留现有本地笔记库能力                 |
+| 知识库 | 记录想法、整理 Markdown 内容并引用 P2P 文件       | Markdown + `most://` CID 引用                   |
 | Web3   | 密钥、钱包和地址工具                              | 独立工具箱，不是聊天、文件或知识库的前置条件    |
 
 ## 演示
@@ -256,7 +258,7 @@ mostbox.example.com {
 
 ### 知识库云备份和文件分享是什么关系？
 
-知识库、笔记和账号备份属于独立工具箱能力；云备份只覆盖对应工具箱数据，不会把 MostBox 发布的文件上传成云盘，也不参与 `most://` 文件下载、CID 校验或做种传播闭环。
+知识库、笔记和账号备份仍属于独立工具箱能力；云备份只覆盖对应工具箱数据，不会把 MostBox 发布的文件上传成云盘。Markdown 可以用标准图片或链接语法保存 `most://<cid>?filename=...` 引用，例如 `![照片](most://<cid>?filename=photo.jpg)` 或 `[附件](most://<cid>?filename=file.pdf)`。附件仍由文件模块发布、下载、CID 校验和持续做种，不会复制进知识库目录。
 
 ### 支持大文件吗？
 
@@ -308,6 +310,10 @@ npx most-box@latest
 ## CI/CD
 
 发布前先完成发版提交，再推送 tag 触发自动构建。每次发版必须更新 `CHANGELOG.md`，并将版本号同步到根目录 `package.json` / `package-lock.json`、`mobile/app/package.json` / `mobile/app/package-lock.json`、`mobile/app/app.json` 和文档里的 Docker 示例 tag；Android APK 文件名虽然由发布 tag 驱动，但移动端子包版本和 Expo 可见版本也要每次一起更新。`npm run check:versions -- --tag vx.x.x` 会检查这些版本是否一致。
+
+### Code signing policy
+
+MostBox 的 Windows 发布签名按 [代码签名政策](CODE_SIGNING_POLICY.md) 管理。项目正在申请 SignPath Foundation 开源代码签名；只有带有有效 Authenticode 签名的产物才会标记为已签名。Free code signing provided by SignPath.io, certificate by SignPath Foundation.
 
 发布新版本：
 
