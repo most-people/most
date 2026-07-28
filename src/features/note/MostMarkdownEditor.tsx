@@ -8,7 +8,6 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Loader, Paperclip } from 'lucide-react'
 import {
   MilkdownEditor,
   type MilkdownEditorRef,
@@ -40,13 +39,20 @@ import {
 type MostMarkdownEditorProps = Omit<
   ComponentProps<typeof MilkdownEditor>,
   'onImageUpload' | 'onMostLinkOpen' | 'ref' | 'resolveImageUrl'
->
+> & {
+  onAttachmentPublishingChange?: (isPublishing: boolean) => void
+}
+
+export interface MostMarkdownEditorRef extends MilkdownEditorRef {
+  openAttachmentPicker: () => void
+}
 
 type PublishedAttachment = {
   fileName: string
   link: string
 }
 
+const NOTE_FILE_ROOT = 'note-file'
 const activeCidDownloads = new Map<string, Promise<void>>()
 const DOWNLOAD_EVENT_GRACE_MS = 10000
 
@@ -186,10 +192,10 @@ async function ensureCidReferenceLocal(link: string, identityAddress: string) {
 }
 
 export const MostMarkdownEditor = forwardRef<
-  MilkdownEditorRef,
+  MostMarkdownEditorRef,
   MostMarkdownEditorProps
 >(function MostMarkdownEditor(
-  { content, readOnly, onChange, ...editorProps },
+  { content, readOnly, onChange, onAttachmentPublishingChange, ...editorProps },
   forwardedRef
 ) {
   const { t } = useI18n()
@@ -206,11 +212,18 @@ export const MostMarkdownEditor = forwardRef<
   const identity = useUserStore(state => state.identity)
   const openLoginModal = useUserStore(state => state.openLoginModal)
 
-  useImperativeHandle(forwardedRef, () => ({
-    setMarkdown: markdown => editorRef.current?.setMarkdown(markdown),
-    getMarkdown: () => editorRef.current?.getMarkdown() || '',
-    insertMarkdown: markdown => editorRef.current?.insertMarkdown(markdown),
-  }))
+  useImperativeHandle(
+    forwardedRef,
+    () => ({
+      setMarkdown: markdown => editorRef.current?.setMarkdown(markdown),
+      getMarkdown: () => editorRef.current?.getMarkdown() || '',
+      insertMarkdown: markdown => editorRef.current?.insertMarkdown(markdown),
+      openAttachmentPicker: () => {
+        if (!isPublishing) attachmentInputRef.current?.click()
+      },
+    }),
+    [isPublishing]
+  )
 
   useEffect(() => {
     if (!imageUrlCacheRef.current) {
@@ -246,11 +259,12 @@ export const MostMarkdownEditor = forwardRef<
         const limitMessage = getPublishFileLimitViolation(file, policy, t)
         if (limitMessage) throw new Error(limitMessage)
 
-        const result = await fileApi.publishFile(file)
-        const fileName = result.fileName || file.name
-        const link = result.link || buildMostLink(result.cid, fileName)
+        const targetFileName = `${NOTE_FILE_ROOT}/${file.name}`
+        const result = await fileApi.publishFile(file, targetFileName)
+        const publishedFileName = result.fileName || targetFileName
+        const link = result.link || buildMostLink(result.cid, publishedFileName)
         addToast(t('note.attachment.published'), 'success')
-        return { fileName, link }
+        return { fileName: file.name, link }
       } catch (error) {
         const message = await getPublishFileErrorMessage(
           error,
@@ -325,7 +339,7 @@ export const MostMarkdownEditor = forwardRef<
         await ensureCidReferenceLocal(reference.link, identity.address)
         setPreviewItem({
           cid: reference.cid,
-          fileName: reference.fileName,
+          fileName: reference.fileName.split('/').pop() || reference.fileName,
           subtype: getFileSubtype(reference.fileName),
         })
       } catch (error) {
@@ -345,6 +359,7 @@ export const MostMarkdownEditor = forwardRef<
       if (!file || isPublishing) return
 
       setIsPublishing(true)
+      onAttachmentPublishingChange?.(true)
       try {
         const attachment = await publishAttachment(file)
         editorRef.current?.insertMarkdown(
@@ -358,9 +373,10 @@ export const MostMarkdownEditor = forwardRef<
         // publishAttachment already reports the actionable error.
       } finally {
         setIsPublishing(false)
+        onAttachmentPublishingChange?.(false)
       }
     },
-    [isPublishing, publishAttachment]
+    [isPublishing, onAttachmentPublishingChange, publishAttachment]
   )
 
   const handleSavePreviewItem = useCallback(
@@ -393,28 +409,12 @@ export const MostMarkdownEditor = forwardRef<
   return (
     <div className="most-markdown-editor">
       {!readOnly && onChange && (
-        <div className="note-attachment-toolbar">
-          <input
-            ref={attachmentInputRef}
-            type="file"
-            hidden
-            onChange={event => void handleAttachmentChange(event)}
-          />
-          <button
-            type="button"
-            className="btn btn-icon btn-secondary"
-            disabled={isPublishing}
-            onClick={() => attachmentInputRef.current?.click()}
-            aria-label={t('note.attachment.add')}
-            title={t('note.attachment.add')}
-          >
-            {isPublishing ? (
-              <Loader size={17} className="ui-spinner" />
-            ) : (
-              <Paperclip size={17} />
-            )}
-          </button>
-        </div>
+        <input
+          ref={attachmentInputRef}
+          type="file"
+          hidden
+          onChange={event => void handleAttachmentChange(event)}
+        />
       )}
 
       <MilkdownEditor

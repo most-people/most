@@ -12,9 +12,7 @@ function readMatch(filePath, pattern, label) {
 
 function getTagArgument() {
   const index = process.argv.indexOf('--tag')
-  return index === -1
-    ? process.env.GITHUB_REF_NAME || ''
-    : process.argv[index + 1]
+  return index === -1 ? '' : process.argv[index + 1]
 }
 
 const rootPackageLock = readJson('package-lock.json')

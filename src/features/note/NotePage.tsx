@@ -18,7 +18,9 @@ import {
   MoreHorizontal,
   Move,
   Lock,
+  Loader,
   NotebookPen,
+  Paperclip,
   Plus,
   Save,
   Search,
@@ -30,7 +32,6 @@ import OpenSidebarButton from '~/components/OpenSidebarButton'
 import { ActionMenu, ConfirmModal, InputModal } from '~/components/ui'
 import { useAppStore, type NoteItem } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
-import type { MilkdownEditorRef } from '~/components/MilkdownEditor'
 import { mostDecode, mostEncode } from '~server/src/utils/mostWallet.js'
 import {
   getNoteFullPath,
@@ -62,6 +63,7 @@ import {
   type NoteVaultFileContent,
   type NoteVaultStatus,
 } from './noteVaultApi'
+import type { MostMarkdownEditorRef } from './MostMarkdownEditor'
 
 const MostMarkdownEditor = lazy(async () => {
   const mod = await import('./MostMarkdownEditor')
@@ -772,7 +774,7 @@ function NotePageContent() {
   const navigate = useNavigate()
   const searchStr = useLocation({ select: location => location.searchStr })
   const params = useMemo(() => getNoteSearch(searchStr), [searchStr])
-  const editorRef = useRef<MilkdownEditorRef>(null)
+  const editorRef = useRef<MostMarkdownEditorRef>(null)
 
   const addToast = useAppStore(s => s.addToast)
   const wallet = useUserStore(s => s.wallet)
@@ -814,6 +816,7 @@ function NotePageContent() {
   const [plainContent, setPlainContent] = useState('')
   const [editIsSecret, setEditIsSecret] = useState(false)
   const [editError, setEditError] = useState('')
+  const [isPublishingAttachment, setIsPublishingAttachment] = useState(false)
   const [saving, setSaving] = useState(false)
   const [expandedTreePaths, setExpandedTreePaths] = useState<Set<string>>(
     () => new Set(getDirectoryPathAncestors(notesPath))
@@ -1341,10 +1344,41 @@ function NotePageContent() {
                     </div>
                   ) : selectedNote ? (
                     <div className="note-editor-frame editing">
+                      <div className="note-editor-attachment-fab">
+                        <button
+                          type="button"
+                          className="btn btn-icon btn-secondary note-editor-attachment-button"
+                          onClick={() =>
+                            editorRef.current?.openAttachmentPicker()
+                          }
+                          disabled={
+                            isPublishingAttachment ||
+                            !!editError ||
+                            !selectedNote
+                          }
+                          aria-label={
+                            isPublishingAttachment
+                              ? t('note.attachment.publishing')
+                              : t('note.attachment.add')
+                          }
+                          title={
+                            isPublishingAttachment
+                              ? t('note.attachment.publishing')
+                              : t('note.attachment.add')
+                          }
+                        >
+                          {isPublishingAttachment ? (
+                            <Loader size={17} className="ui-spinner" />
+                          ) : (
+                            <Paperclip size={17} />
+                          )}
+                        </button>
+                      </div>
                       <MostMarkdownEditor
                         ref={editorRef}
                         content={plainContent}
                         onChange={setPlainContent}
+                        onAttachmentPublishingChange={setIsPublishingAttachment}
                         className="milkdown-editor"
                       />
                     </div>
@@ -1445,7 +1479,7 @@ function VaultNotePageContent() {
   const navigate = useNavigate()
   const searchStr = useLocation({ select: location => location.searchStr })
   const params = useMemo(() => getNoteSearch(searchStr), [searchStr])
-  const editorRef = useRef<MilkdownEditorRef>(null)
+  const editorRef = useRef<MostMarkdownEditorRef>(null)
 
   const addToast = useAppStore(s => s.addToast)
   const wallet = useUserStore(s => s.wallet)
@@ -1472,6 +1506,7 @@ function VaultNotePageContent() {
   const [editIsSecret, setEditIsSecret] = useState(false)
   const [fileLoading, setFileLoading] = useState(false)
   const [fileError, setFileError] = useState('')
+  const [isPublishingAttachment, setIsPublishingAttachment] = useState(false)
   const [saving, setSaving] = useState(false)
   const [expandedTreePaths, setExpandedTreePaths] = useState<Set<string>>(
     () => new Set(getDirectoryPathAncestors(vaultFolderPath))
@@ -2242,6 +2277,39 @@ function VaultNotePageContent() {
                       canEditCurrentVaultFile ? 'editing' : 'reading'
                     }`}
                   >
+                    {canEditCurrentVaultFile && (
+                      <div className="note-editor-attachment-fab">
+                        <button
+                          type="button"
+                          className="btn btn-icon btn-secondary note-editor-attachment-button"
+                          onClick={() =>
+                            editorRef.current?.openAttachmentPicker()
+                          }
+                          disabled={
+                            isPublishingAttachment ||
+                            fileLoading ||
+                            !!fileError ||
+                            !canEditCurrentVaultFile
+                          }
+                          aria-label={
+                            isPublishingAttachment
+                              ? t('note.attachment.publishing')
+                              : t('note.attachment.add')
+                          }
+                          title={
+                            isPublishingAttachment
+                              ? t('note.attachment.publishing')
+                              : t('note.attachment.add')
+                          }
+                        >
+                          {isPublishingAttachment ? (
+                            <Loader size={17} className="ui-spinner" />
+                          ) : (
+                            <Paperclip size={17} />
+                          )}
+                        </button>
+                      </div>
+                    )}
                     <MostMarkdownEditor
                       ref={canEditCurrentVaultFile ? editorRef : undefined}
                       content={
@@ -2253,6 +2321,7 @@ function VaultNotePageContent() {
                         canEditCurrentVaultFile ? setPlainContent : undefined
                       }
                       readOnly={!canEditCurrentVaultFile}
+                      onAttachmentPublishingChange={setIsPublishingAttachment}
                       onInternalNoteLinkOpen={
                         canEditCurrentVaultFile
                           ? undefined

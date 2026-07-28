@@ -506,6 +506,7 @@
 }
 
 .note-editor-panel {
+  container: note-editor / inline-size;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -602,6 +603,28 @@
   background: var(--bg-secondary);
 }
 
+.note-editor-attachment-fab {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  display: flex;
+  height: 0;
+  padding-right: 14px;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+.note-editor-attachment-button {
+  width: 36px;
+  height: 36px;
+  margin-top: 14px;
+  flex: 0 0 36px;
+  border-radius: 50%;
+  background: var(--glass-bg-heavy);
+  box-shadow: var(--shadow-sm);
+  pointer-events: auto;
+}
+
 [data-theme='dark'] .note-editor-frame.editing {
   background: #121214;
 }
@@ -616,18 +639,6 @@
 
 .most-markdown-editor {
   min-height: 100%;
-}
-
-.note-attachment-toolbar {
-  display: flex;
-  width: min(760px, 100%);
-  margin: 0 auto;
-  padding: 14px 36px 0;
-  justify-content: flex-end;
-}
-
-.note-attachment-toolbar + .milkdown-editor .ProseMirror {
-  padding-top: 18px;
 }
 
 .milkdown-editor .milkdown {
@@ -922,6 +933,54 @@
   background: var(--glass-bg-subtle);
 }
 
+@container note-editor (max-width: 820px) {
+  .note-editor-panel-header {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 14px;
+  }
+
+  .note-editor-title-area,
+  .note-editor-actions {
+    width: 100%;
+  }
+
+  .note-editor-actions {
+    justify-content: flex-start;
+  }
+
+  .note-editor-info {
+    flex-wrap: wrap;
+    overflow-x: visible;
+    row-gap: 6px;
+  }
+
+  .note-editor-info span {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .note-editor-frame .milkdown-editor .ProseMirror {
+    padding: 28px 18px 56px;
+  }
+}
+
+@container note-editor (max-width: 600px) {
+  .milkdown-editor .milkdown .milkdown-image-block,
+  .milkdown-editor .milkdown .milkdown-image-block > .image-wrapper,
+  .milkdown-editor .milkdown .milkdown-image-block > .image-wrapper img {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .milkdown-editor .milkdown .milkdown-image-block > .image-wrapper img {
+    height: auto !important;
+    object-fit: contain;
+  }
+}
+
 @media (max-width: 1180px) {
   .note-list-date {
     display: none;
@@ -931,6 +990,12 @@
 @media (max-width: 900px) {
   .note-page {
     overflow: auto;
+  }
+
+  .note-workspace,
+  .note-edit-workspace,
+  .note-editor-panel {
+    overflow: clip;
   }
 
   .note-workspace {
@@ -954,6 +1019,10 @@
 
   .note-editor-panel {
     min-height: 70dvh;
+  }
+
+  .note-editor-frame.editing {
+    overflow: visible;
   }
 }
 
@@ -988,26 +1057,11 @@
     right: -4px;
   }
 
-  .note-editor-panel-header {
-    flex-direction: column;
-    padding: 14px;
-  }
-
-  .note-editor-actions {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
   .note-list-item {
     grid-template-columns: minmax(0, 1fr);
   }
 
   .note-sidebar-list .note-list-item.has-actions {
     grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .milkdown-editor .ProseMirror {
-    /* min-height: calc(100dvh - 280px); */
-    padding: 28px 18px 56px;
   }
 }

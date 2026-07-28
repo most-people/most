@@ -44,6 +44,7 @@ const SOURCE_PATHS = {
   mostMarkdown: 'src/lib/mostMarkdown.ts',
   mostMarkdownEditor: 'src/features/note/MostMarkdownEditor.tsx',
   note: 'src/features/note/NotePage.tsx',
+  noteCss: 'src/styles/note.css',
   files: 'src/features/files/AppPage.tsx',
   chat: 'src/features/chat/ChatPage.tsx',
   chatJoin: 'src/features/chat/ChatJoinPage.tsx',
@@ -360,6 +361,18 @@ describe('frontend smoke checks', () => {
     assert.equal(parseMostMarkdownReference(`most://${cid}`).cid, cid)
     assert.equal(parseMostMarkdownReference('https://example.com/file'), null)
     assert.equal(parseMostMarkdownReference('most://invalid'), null)
+
+    const noteFileName = 'note-file/photo.png'
+    const noteLink = `most://${cid}?filename=${encodeURIComponent(noteFileName)}`
+    assert.equal(
+      buildMostMarkdownAttachment({
+        link: noteLink,
+        fileName: 'photo.png',
+        image: false,
+      }),
+      `[photo.png](${noteLink})`
+    )
+    assert.equal(parseMostMarkdownReference(noteLink).fileName, noteFileName)
   })
 
   it('reuses Markdown image URLs until the editor cache is disposed', async () => {
@@ -425,18 +438,38 @@ describe('frontend smoke checks', () => {
     const milkdownSource = readSource(SOURCE_PATHS.milkdownEditor)
     const mostEditorSource = readSource(SOURCE_PATHS.mostMarkdownEditor)
     const noteSource = readSource(SOURCE_PATHS.note)
+    const noteCssSource = readSource(SOURCE_PATHS.noteCss)
 
     assert.match(milkdownSource, /editor\.action\(insert\(markdown\)\)/)
     assert.match(milkdownSource, /proxyDomURL:/)
     assert.match(milkdownSource, /parseMostMarkdownReference\(href\)/)
     assert.match(milkdownSource, /onInternalNoteLinkOpenRef/)
-    assert.match(mostEditorSource, /fileApi\.publishFile\(file\)/)
+    assert.match(mostEditorSource, /const NOTE_FILE_ROOT = 'note-file'/)
+    assert.match(
+      mostEditorSource,
+      /fileApi\.publishFile\(file, targetFileName\)/
+    )
+    assert.match(mostEditorSource, /return \{ fileName: file\.name, link \}/)
+    assert.match(mostEditorSource, /openAttachmentPicker:/)
+    assert.match(noteSource, /editorRef\.current\?\.openAttachmentPicker\(\)/)
+    assert.equal(noteSource.match(/onAttachmentPublishingChange=/g)?.length, 2)
+    assert.equal(
+      noteSource.match(/className="note-editor-attachment-fab"/g)?.length,
+      2
+    )
+    assert.equal(noteSource.match(/note-editor-attachment-button/g)?.length, 2)
     assert.match(mostEditorSource, /fileApi\.downloadFileInBackground/)
     assert.match(mostEditorSource, /getApiRequestHeaders\('GET', requestPath\)/)
     assert.match(mostEditorSource, /<FilePreviewOverlay/)
-    assert.equal(noteSource.match(/<MostMarkdownEditor/g)?.length, 3)
+    assert.equal(noteSource.match(/<MostMarkdownEditor\s/g)?.length, 3)
     assert.match(noteSource, /resolveWikiNoteLink=\{resolvePreviewWikiLink\}/)
     assert.match(noteSource, /resolveWikiNoteLink=\{/)
+    assert.match(noteCssSource, /container: note-editor \/ inline-size/)
+    assert.match(noteCssSource, /@container note-editor \(max-width: 820px\)/)
+    assert.match(
+      noteCssSource,
+      /\.note-editor-attachment-fab \{[\s\S]*?position: sticky/
+    )
   })
 
   it('routes file share actions to the CID page and exposes web QR sharing there', async () => {
