@@ -743,7 +743,7 @@ export default function ProfilePage() {
       )}
       {showLogoutConfirm && (
         <ModalOverlay
-          className="profile-logout-overlay"
+          className="modal-overlay-wide"
           onClose={() => setShowLogoutConfirm(false)}
         >
           <div

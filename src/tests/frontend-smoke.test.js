@@ -286,6 +286,84 @@ describe('frontend smoke checks', () => {
       ),
       false
     )
+    const localSupersetPayload = {
+      ...basePayload,
+      files: [
+        {
+          cid: 'shared-file',
+          fileName: 'local-newer.txt',
+          size: 10,
+          starred: true,
+          updatedAt: 30,
+        },
+        { cid: 'local-only-file', fileName: 'local.txt', updatedAt: 30 },
+      ],
+      channels: [
+        {
+          channelId: 'same-room',
+          channelKey: 'same-room',
+          type: 'personal',
+          writerCoreKeys: ['cloud-writer', 'local-writer'],
+          member: { joinedAt: 20, profileUpdatedAt: 20 },
+          remark: 'same remark',
+          pinned: false,
+          updatedAt: 10,
+        },
+        {
+          channelId: 'local-only-room',
+          channelKey: 'local-only-room',
+          updatedAt: 30,
+        },
+      ],
+    }
+    const cloudSubsetPayload = {
+      ...basePayload,
+      files: [
+        {
+          cid: 'shared-file',
+          fileName: 'cloud-older.txt',
+          size: 10,
+          starred: false,
+          updatedAt: 20,
+        },
+      ],
+      channels: [
+        {
+          channelId: 'same-room',
+          channelKey: 'same-room',
+          type: 'personal',
+          writerCoreKeys: ['cloud-writer'],
+          member: { joinedAt: 10, profileUpdatedAt: 10 },
+          remark: 'same remark',
+          pinned: false,
+          updatedAt: 20,
+        },
+      ],
+    }
+    assert.equal(
+      await hasDifferentAccountData(localSupersetPayload, cloudSubsetPayload),
+      false
+    )
+    assert.equal(
+      await hasDifferentAccountData(
+        {
+          ...basePayload,
+          channels: [{ ...cloudSubsetPayload.channels[0], updatedAt: 10 }],
+        },
+        {
+          ...basePayload,
+          channels: [{ ...cloudSubsetPayload.channels[0], pinned: true }],
+        }
+      ),
+      true
+    )
+    assert.equal(
+      await hasDifferentAccountData(basePayload, {
+        ...basePayload,
+        files: [{ cid: 'cloud-only-file', fileName: 'cloud.txt' }],
+      }),
+      true
+    )
     assert.equal(
       await hasDifferentAccountData(
         { ...basePayload, notes: [{ name: 'local' }] },
