@@ -136,7 +136,7 @@ jobs:
         id: account-version
         run: |
           VERSION=$(node -p "require('./packages/account/package.json').version")
-          if npm view "@mostbox/account@$VERSION" version >/dev/null 2>&1; then
+          if npm view "@most-box/account@$VERSION" version >/dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"

@@ -376,7 +376,7 @@ node --test server/tests/integration/api.test.js \
 | 精确来源     | HTTP、PNA 和 WebSocket 接受 `https://game.most.box`、本地 `3001` 开发来源，其他来源仍被拒绝  |
 | 频道命名     | 只接受 `game.gandengyan.<code>` 与 `game.zhajinhua.<code>`；普通频道不能冒用点号命名         |
 | 临时生命周期 | 游戏频道无欢迎消息、不出现在默认聊天列表、不进入账号备份、不落盘，daemon 重启后不自动恢复    |
-| 账号一致     | 固定用户名和密码在主站、`@mostbox/account` 与游戏站生成相同 address、签名和 X25519 密钥      |
+| 账号一致     | 固定用户名和密码在主站、`@most-box/account` 与游戏站生成相同 address、签名和 X25519 密钥     |
 | 协议版本     | 只接受 `mostbox.game.event` v2；首个合法创建者为房主，非房主发布的权威状态与私密发牌均被忽略 |
 | 手牌保密     | 公开状态只包含手牌数量；频道内逐人发牌为密文，错误收件人无法解密                             |
 | 房主离线     | 对局暂停，不迁移房主、不自动代打；房主丢失私密状态后只能重新开局                             |

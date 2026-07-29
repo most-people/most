@@ -1,5 +1,5 @@
 {
-  "name": "@mostbox/account",
+  "name": "@most-box/account",
   "version": "0.1.0",
   "description": "Browser account identity and request signing for MostBox clients",
   "type": "module",

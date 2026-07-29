@@ -11,7 +11,7 @@ import {
 } from '../../../packages/account/src/index.js'
 import { verifyAuthHeader } from '../../src/utils/auth.js'
 
-describe('@mostbox/account public entry', () => {
+describe('@most-box/account public entry', () => {
   it('preserves the current deterministic identity and request signature', async () => {
     const identity = createLoginIdentity('alice', 'secret')
     assert.strictEqual(

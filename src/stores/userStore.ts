@@ -4,7 +4,7 @@ import {
   loadIdentity,
   clearIdentity,
   saveIdentity,
-} from '@mostbox/account'
+} from '@most-box/account'
 import type { ChatJoinInvitePayload } from '~/lib/chatJoinInvite'
 import type { MessageKey } from '~/lib/i18n'
 import { normalizeLocalizedTag, type LocalizedTag } from '~/lib/localizedTag'
