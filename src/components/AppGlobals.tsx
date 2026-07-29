@@ -2,20 +2,25 @@ import { useEffect } from 'react'
 import { useLocation } from '@tanstack/react-router'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
-import { Toast } from '~/components/ui'
+import { ConfirmModal, Toast } from '~/components/ui'
 import UserLoginModal from '~/components/UserLoginModal'
 import ConnectModal from '~/components/ConnectModal'
 import { useAccountBackup } from '~/features/profile/useAccountBackup'
 import { NoteVaultLocationModal } from '~/features/profile/NoteVaultLocationModal'
 import GlobalDownloadTasks from '~/features/cid/GlobalDownloadTasks'
+import { useI18n } from '~/lib/i18n'
 
 export default function AppGlobals() {
+  const { t } = useI18n()
   const pathname = useLocation({ select: location => location.pathname })
   const {
     cancelNoteVaultLocation,
+    checkCloudBackupAfterLogin,
+    confirmLoginCloudRestore,
+    dismissLoginCloudRestore,
+    loginCloudRestorePending,
     noteVaultLocationRequired,
     noteVaultLocationWorking,
-    restoreFromCloud,
     selectNoteVaultLocation,
     useDefaultNoteVaultLocation,
   } = useAccountBackup()
@@ -60,17 +65,13 @@ export default function AppGlobals() {
     if (notesAddress.toLowerCase() !== identityAddress.toLowerCase()) return
     if (!consumePendingCloudRestore(identityAddress)) return
 
-    void restoreFromCloud({
-      confirm: false,
-      onlyWhenLocalEmpty: true,
-      silentNoBackup: true,
-    })
+    void checkCloudBackupAfterLogin()
   }, [
     hasBackend,
     identityAddress,
     notesAddress,
     consumePendingCloudRestore,
-    restoreFromCloud,
+    checkCloudBackupAfterLogin,
   ])
 
   return (
@@ -90,6 +91,18 @@ export default function AppGlobals() {
       <UserLoginModal />
 
       <ConnectModal />
+
+      {loginCloudRestorePending && (
+        <ConfirmModal
+          title={t('profile.backup.loginRestore.title')}
+          message={t('profile.backup.loginRestore.message')}
+          confirmText={t('profile.backup.action.cloudRestore')}
+          onConfirm={async () => {
+            await confirmLoginCloudRestore()
+          }}
+          onClose={dismissLoginCloudRestore}
+        />
+      )}
 
       {noteVaultLocationRequired && (
         <NoteVaultLocationModal

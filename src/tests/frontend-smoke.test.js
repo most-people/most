@@ -33,6 +33,7 @@ const SOURCE_PATHS = {
   rootRoute: 'src/routes/__root.tsx',
   legacyAppRoute: 'src/routes/app/index.tsx',
   accountBackup: 'src/features/profile/useAccountBackup.ts',
+  accountBackupSync: 'src/features/profile/accountBackupSync.ts',
   noteVaultLocationModal: 'src/features/profile/NoteVaultLocationModal.tsx',
   profile: 'src/features/profile/ProfilePage.tsx',
   electronMain: 'electron/main.js',
@@ -222,6 +223,59 @@ describe('frontend smoke checks', () => {
         'string'
       )
     }
+  })
+
+  it('syncs newer cloud profile separately from account data after login', async () => {
+    const accountBackupSource = readSource(SOURCE_PATHS.accountBackup)
+    const appGlobalsSource = readSource(SOURCE_PATHS.appGlobals)
+    const { hasDifferentAccountData, shouldRestoreCloudProfile } =
+      await importBundledSource(SOURCE_PATHS.accountBackupSync)
+    const baseIdentity = {
+      username: 'alice',
+      address: '0xabc',
+      danger: 'secret',
+      displayName: 'Alice',
+    }
+    const basePayload = {
+      type: 'mostbox.account-backup',
+      schemaVersion: 1,
+      ownerAddress: '0xabc',
+      exportedAt: '2026-07-29T00:00:00.000Z',
+      notes: [],
+      profile: { displayName: 'Alice', avatar: 'cloud.png', updatedAt: 20 },
+      preferences: { theme: 'dark', locale: 'zh-CN' },
+      files: [],
+      channels: [],
+    }
+
+    assert.equal(
+      shouldRestoreCloudProfile(baseIdentity, basePayload.profile),
+      true
+    )
+    assert.equal(
+      shouldRestoreCloudProfile(
+        { ...baseIdentity, profileUpdatedAt: 30 },
+        basePayload.profile
+      ),
+      false
+    )
+    assert.equal(
+      hasDifferentAccountData(
+        { ...basePayload, profile: { displayName: 'Local', updatedAt: 40 } },
+        basePayload
+      ),
+      false
+    )
+    assert.equal(
+      hasDifferentAccountData(
+        { ...basePayload, notes: [{ name: 'local' }] },
+        basePayload
+      ),
+      true
+    )
+    assert.match(accountBackupSource, /downloadAccountBackup\(currentWallet\)/)
+    assert.match(appGlobalsSource, /loginCloudRestorePending/)
+    assert.match(appGlobalsSource, /<ConfirmModal/)
   })
 
   it('keeps the static web shell route list focused on public entry points', () => {

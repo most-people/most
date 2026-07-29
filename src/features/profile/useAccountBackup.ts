@@ -25,6 +25,10 @@ import {
   restoreNoteVaultSnapshot,
   type NoteVaultSnapshot,
 } from '~/features/note/noteVaultApi'
+import {
+  hasDifferentAccountData,
+  shouldRestoreCloudProfile,
+} from '~/features/profile/accountBackupSync'
 
 type AccountBackupAction = 'backup' | 'restore' | 'export' | 'import' | null
 type AccountBackupStatus = 'idle' | 'disabled' | 'working' | 'synced' | 'error'
@@ -33,8 +37,6 @@ type AccountBackupPreferences = AccountBackupPayload['preferences']
 type AccountBackupTheme = AppearancePreference
 type RestoreFromCloudOptions = {
   confirm?: boolean
-  onlyWhenLocalEmpty?: boolean
-  silentNoBackup?: boolean
   requestConfirm?: RestoreConfirmRequest
 }
 type RestoreConfirmRequest = () => boolean | Promise<boolean>
@@ -55,6 +57,11 @@ type AccountBackupSummary = {
   filesCount: number | null
   channelsCount: number | null
   loading: boolean
+}
+
+type LoginCloudRestoreState = {
+  payload: AccountBackupPayload | null
+  checking: boolean
 }
 type BackupNoteRecord = {
   name: string
@@ -113,15 +120,6 @@ function hasLocalData(payload: AccountBackupPayload) {
     payload.notes.length ||
     payload.profile ||
     payload.preferences ||
-    payload.files?.length ||
-    payload.channels?.length ||
-    payload.noteVault?.files.length
-  )
-}
-
-function hasLocalAccountContent(payload: AccountBackupPayload) {
-  return Boolean(
-    payload.notes.length ||
     payload.files?.length ||
     payload.channels?.length ||
     payload.noteVault?.files.length
@@ -353,6 +351,8 @@ export function useAccountBackup() {
     channelsCount: null,
     loading: false,
   })
+  const [loginCloudRestore, setLoginCloudRestore] =
+    useState<LoginCloudRestoreState>({ payload: null, checking: false })
   const noteVaultLocationRequestRef =
     useRef<PendingNoteVaultLocationRequest | null>(null)
   const [noteVaultLocationRequired, setNoteVaultLocationRequired] =
@@ -658,23 +658,11 @@ export function useAccountBackup() {
       try {
         const backup = await downloadAccountBackup(currentWallet)
         if (!backup.found || !backup.payload) {
-          if (!options.silentNoBackup) {
-            addToast(t('profile.backup.toast.noCloudBackup'), 'info')
-          }
+          addToast(t('profile.backup.toast.noCloudBackup'), 'info')
           setStatus('idle')
           return false
         }
         const payload = backup.payload as AccountBackupPayload
-        if (options.onlyWhenLocalEmpty) {
-          const localPayload = await buildPayload()
-          if (
-            hasLocalAccountContent(localPayload) &&
-            hasDifferentBackupData(localPayload, payload)
-          ) {
-            setStatus('idle')
-            return false
-          }
-        }
         const restored = await restorePayload(payload, {
           confirm: options.confirm,
           requestConfirm: options.requestConfirm,
@@ -708,6 +696,99 @@ export function useAccountBackup() {
       t,
     ]
   )
+
+  const checkCloudBackupAfterLogin = useCallback(async () => {
+    const currentWallet = useUserStore.getState().wallet
+    if (!currentWallet || useAppStore.getState().hasBackend !== true) return
+
+    setLoginCloudRestore({ payload: null, checking: true })
+    try {
+      const backup = await downloadAccountBackup(currentWallet)
+      if (!backup.found || !backup.payload) return
+
+      const payload = backup.payload as AccountBackupPayload
+      if (
+        payload.ownerAddress.toLowerCase() !==
+        currentWallet.address.toLowerCase()
+      ) {
+        return
+      }
+
+      const activeWallet = useUserStore.getState().wallet
+      if (
+        !activeWallet ||
+        activeWallet.address.toLowerCase() !==
+          currentWallet.address.toLowerCase()
+      ) {
+        return
+      }
+
+      const localPayload = await buildPayload()
+      const currentIdentity = useUserStore.getState().identity
+      if (
+        !currentIdentity ||
+        currentIdentity.address.toLowerCase() !==
+          currentWallet.address.toLowerCase()
+      ) {
+        return
+      }
+      if (shouldRestoreCloudProfile(currentIdentity, payload.profile)) {
+        setUserIdentity(
+          applyProfileToIdentity(currentIdentity, payload.profile)
+        )
+        addToast(t('profile.backup.toast.profileSynced'), 'success')
+      }
+
+      if (hasDifferentAccountData(localPayload, payload)) {
+        setLoginCloudRestore({ payload, checking: false })
+      }
+    } catch {
+      // Login must remain usable when cloud backup is unavailable.
+    } finally {
+      setLoginCloudRestore(state => ({ ...state, checking: false }))
+    }
+  }, [addToast, buildPayload, setUserIdentity, t])
+
+  const dismissLoginCloudRestore = useCallback(() => {
+    setLoginCloudRestore({ payload: null, checking: false })
+  }, [])
+
+  const confirmLoginCloudRestore = useCallback(async () => {
+    const payload = loginCloudRestore.payload
+    if (!payload) return false
+
+    setLoginCloudRestore({ payload: null, checking: false })
+    setAction('restore')
+    setStatus('working')
+    try {
+      const restored = await restorePayload(payload, {
+        confirm: false,
+        requestNoteVaultDirectory,
+      })
+      if (restored) {
+        setStatus('synced')
+        addToast(t('profile.backup.toast.restoredCloud'), 'success')
+      } else {
+        setStatus('idle')
+      }
+      return restored
+    } catch (err: unknown) {
+      setStatus('error')
+      addToast(
+        getErrorMessage(err, t('profile.backup.error.restoreFailed')),
+        'error'
+      )
+      return false
+    } finally {
+      setAction(null)
+    }
+  }, [
+    addToast,
+    loginCloudRestore.payload,
+    requestNoteVaultDirectory,
+    restorePayload,
+    t,
+  ])
 
   const exportLocalBackup = useCallback(async () => {
     const currentWallet = requireWallet()
@@ -802,6 +883,11 @@ export function useAccountBackup() {
     statusLabel,
     backupToCloud,
     restoreFromCloud,
+    checkCloudBackupAfterLogin,
+    confirmLoginCloudRestore,
+    dismissLoginCloudRestore,
+    loginCloudRestorePending: Boolean(loginCloudRestore.payload),
+    loginCloudRestoreChecking: loginCloudRestore.checking,
     exportLocalBackup,
     importLocalBackup,
     hasBackend,
