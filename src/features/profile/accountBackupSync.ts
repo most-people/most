@@ -1,4 +1,5 @@
 import type { UserIdentity } from '~/stores/userStore'
+import { calculateNoteCid } from '~server/src/utils/noteUtils.js'
 
 type AccountBackupProfile =
   | {
@@ -28,6 +29,17 @@ function sortByStringField(items: unknown[] | undefined, field: string) {
   )
 }
 
+function normalizeCidValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(normalizeCidValue)
+  if (!value || typeof value !== 'object') return value
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => [key, normalizeCidValue(entry)])
+  )
+}
+
 function getComparableAccountData(payload: AccountBackupData) {
   return {
     type: payload.type,
@@ -43,14 +55,21 @@ function getComparableAccountData(payload: AccountBackupData) {
   }
 }
 
-export function hasDifferentAccountData(
+async function getAccountDataCid(payload: AccountBackupData) {
+  return calculateNoteCid(
+    JSON.stringify(normalizeCidValue(getComparableAccountData(payload)))
+  )
+}
+
+export async function hasDifferentAccountData(
   localPayload: AccountBackupData,
   backupPayload: AccountBackupData
 ) {
-  return (
-    JSON.stringify(getComparableAccountData(localPayload)) !==
-    JSON.stringify(getComparableAccountData(backupPayload))
-  )
+  const [localCid, backupCid] = await Promise.all([
+    getAccountDataCid(localPayload),
+    getAccountDataCid(backupPayload),
+  ])
+  return localCid !== backupCid
 }
 
 export function shouldRestoreCloudProfile(
@@ -58,8 +77,9 @@ export function shouldRestoreCloudProfile(
   profile: AccountBackupProfile
 ) {
   if (!profile) return false
+  const cloudUpdatedAt = Number(profile.updatedAt)
+  if (!Number.isFinite(cloudUpdatedAt) || cloudUpdatedAt <= 0) return false
   const localUpdatedAt = Number(identity.profileUpdatedAt)
   if (!Number.isFinite(localUpdatedAt) || localUpdatedAt <= 0) return true
-  const cloudUpdatedAt = Number(profile.updatedAt)
-  return Number.isFinite(cloudUpdatedAt) && cloudUpdatedAt > localUpdatedAt
+  return cloudUpdatedAt > localUpdatedAt
 }

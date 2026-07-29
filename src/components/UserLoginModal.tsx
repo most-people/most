@@ -1,7 +1,6 @@
 import { createPortal } from 'react-dom'
 import { Eye, EyeOff, X } from 'lucide-react'
 import { useUserStore } from '~/stores/userStore'
-import { useAppStore } from '~/stores/useAppStore'
 import { SafeImage } from '~/components/SafeImage'
 import { ModalOverlay } from '~/components/ui'
 import { useI18n } from '~/lib/i18n'
@@ -10,7 +9,6 @@ import { generateAvatar } from '~server/src/utils/avatar.js'
 
 export default function UserLoginModal() {
   const { t } = useI18n()
-  const addToast = useAppStore(s => s.addToast)
   const showLoginModal = useUserStore(s => s.showLoginModal)
   const closeLoginModal = useUserStore(s => s.closeLoginModal)
   const loginUsername = useUserStore(s => s.loginUsername)
@@ -33,13 +31,7 @@ export default function UserLoginModal() {
     : 'Most People'
 
   function handleLogin() {
-    const identity = loginUser()
-    if (identity) {
-      addToast(
-        t('login.toast.signedIn', { username: identity.username }),
-        'success'
-      )
-    }
+    loginUser()
   }
 
   const modal = (

@@ -736,10 +736,21 @@ export function useAccountBackup() {
         setUserIdentity(
           applyProfileToIdentity(currentIdentity, payload.profile)
         )
-        addToast(t('profile.backup.toast.profileSynced'), 'success')
       }
 
-      if (hasDifferentAccountData(localPayload, payload)) {
+      const accountDataDiffers = await hasDifferentAccountData(
+        localPayload,
+        payload
+      )
+      const activeWalletAfterCid = useUserStore.getState().wallet
+      if (
+        !activeWalletAfterCid ||
+        activeWalletAfterCid.address.toLowerCase() !==
+          currentWallet.address.toLowerCase()
+      ) {
+        return
+      }
+      if (accountDataDiffers) {
         setLoginCloudRestore({ payload, checking: false })
       }
     } catch {
@@ -747,7 +758,7 @@ export function useAccountBackup() {
     } finally {
       setLoginCloudRestore(state => ({ ...state, checking: false }))
     }
-  }, [addToast, buildPayload, setUserIdentity, t])
+  }, [buildPayload, setUserIdentity])
 
   const dismissLoginCloudRestore = useCallback(() => {
     setLoginCloudRestore({ payload: null, checking: false })

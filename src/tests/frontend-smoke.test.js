@@ -260,20 +260,44 @@ describe('frontend smoke checks', () => {
       false
     )
     assert.equal(
-      hasDifferentAccountData(
+      shouldRestoreCloudProfile(baseIdentity, {
+        displayName: 'Legacy cloud profile',
+      }),
+      false
+    )
+    assert.equal(
+      await hasDifferentAccountData(
         { ...basePayload, profile: { displayName: 'Local', updatedAt: 40 } },
         basePayload
       ),
       false
     )
     assert.equal(
-      hasDifferentAccountData(
+      await hasDifferentAccountData(
+        {
+          ...basePayload,
+          notes: [{ content: 'same', name: 'note' }],
+        },
+        {
+          ...basePayload,
+          exportedAt: '2026-07-29T01:00:00.000Z',
+          notes: [{ name: 'note', content: 'same' }],
+        }
+      ),
+      false
+    )
+    assert.equal(
+      await hasDifferentAccountData(
         { ...basePayload, notes: [{ name: 'local' }] },
         basePayload
       ),
       true
     )
     assert.match(accountBackupSource, /downloadAccountBackup\(currentWallet\)/)
+    assert.match(
+      accountBackupSource,
+      /await hasDifferentAccountData[\s\S]+activeWalletAfterCid/
+    )
     assert.match(appGlobalsSource, /loginCloudRestorePending/)
     assert.match(appGlobalsSource, /<ConfirmModal/)
   })
