@@ -25,6 +25,7 @@ const SOURCE_PATHS = {
   globalDownloads: 'src/features/cid/GlobalDownloadTasks.tsx',
   downloadTasks: 'src/lib/downloadTasks.ts',
   appGlobals: 'src/components/AppGlobals.tsx',
+  userLoginModal: 'src/components/UserLoginModal.tsx',
   appShell: 'src/components/AppShell.tsx',
   marketingHeader: 'src/components/MarketingHeader.tsx',
   marketingLayout: 'src/components/MarketingLayout.tsx',
@@ -132,6 +133,15 @@ function getStaticRoutes() {
 }
 
 describe('frontend smoke checks', () => {
+  it('reveals login confirmation only after identity preview', () => {
+    const loginModalSource = readSource(SOURCE_PATHS.userLoginModal)
+
+    assert.match(
+      loginModalSource,
+      /\{hasPreviewedAvatar && \([\s\S]*type="submit"[\s\S]*\)\}/
+    )
+  })
+
   it('keeps the documented frontend commands wired to package scripts', () => {
     const packageJson = JSON.parse(readSource(SOURCE_PATHS.packageJson))
 
