@@ -3581,6 +3581,17 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.ok(result.key)
     })
 
+    it('creates supported game room channels', async () => {
+      for (const gameId of ['gandengyan', 'zhajinhua']) {
+        const result = await engine.createChannel(
+          `game.${gameId}.abc123`,
+          'game'
+        )
+        assert.strictEqual(result.name, `game.${gameId}.abc123`)
+        assert.strictEqual(result.type, 'game')
+      }
+    })
+
     it('returns existing channel if already created', async () => {
       const first = await engine.createChannel(`dup-${uid}`)
       const second = await engine.createChannel(`dup-${uid}`)
@@ -3599,12 +3610,13 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
     })
 
     it('does not let channel types bypass reserved dotted names', async () => {
-      const removedType = ['ga', 'me'].join('')
-      const dottedName = [removedType, 'legacy', uid].join('.')
-
       await assert.rejects(
-        engine.createChannel(dottedName, removedType),
+        engine.createChannel(`game.legacy.${uid}`, 'personal'),
         /点号为系统保留/
+      )
+      await assert.rejects(
+        engine.createChannel(`game.unknown.${uid}`, 'game'),
+        /游戏频道必须/
       )
     })
 
@@ -3624,6 +3636,18 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       const channels = engine.listChannels()
       assert.ok(channels.some(c => c.name === `list-${uid}`))
       assert.strictEqual(typeof channels[0].peerCount, 'number')
+    })
+
+    it('hides game channels unless the game type is requested', async () => {
+      const gameName = `game.gandengyan.g${uid}`
+      await engine.createChannel(gameName, 'game')
+
+      assert.ok(!engine.listChannels().some(item => item.name === gameName))
+      assert.ok(
+        engine
+          .listChannels({ type: 'game' })
+          .some(item => item.name === gameName)
+      )
     })
   })
 
@@ -3677,6 +3701,21 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
       assert.strictEqual(welcomeMessages.length, 1)
       assert.strictEqual(welcomeMessages[0].type, 'system')
       assert.strictEqual(welcomeMessages[0].authorName, 'Alice')
+    })
+
+    it('does not write chat profile messages for game channels', async () => {
+      const ownerAddress = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+      const channelName = `game.gandengyan.w${uid}`
+      await engine.createChannel(channelName, 'game', {
+        ownerAddress,
+        displayName: 'Game User',
+        avatar: 'game.png',
+      })
+
+      const messages = await engine.getChannelMessages(channelName, {
+        ownerAddress,
+      })
+      assert.deepStrictEqual(messages, [])
     })
   })
 
@@ -4327,6 +4366,64 @@ describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
         if (firstEngine) await firstEngine.stop().catch(() => {})
         if (secondEngine) await secondEngine.stop().catch(() => {})
         fs.rmSync(clockTmpDir, { recursive: true, force: true })
+      }
+    })
+
+    it('replicates authored v2 events between two game channel nodes', async () => {
+      const gameTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-game-channel-replication-')
+      )
+      const channelName = `game.gandengyan.g${uid}`
+      const host = `0x${'7'.repeat(40)}`
+      const guest = `0x${'8'.repeat(40)}`
+      const event = JSON.stringify({
+        kind: 'mostbox.game.event',
+        version: 2,
+        gameId: 'gandengyan',
+        roomCode: `G${uid}`.toUpperCase(),
+        event: 'room:create',
+        eventId: `event-${uid}`,
+        payload: { player: { address: host } },
+      })
+      let hostEngine
+      let guestEngine
+      let replication
+
+      try {
+        hostEngine = new MostBoxEngine({
+          dataPath: path.join(gameTmpDir, 'host'),
+          disableNetwork: true,
+        })
+        guestEngine = new MostBoxEngine({
+          dataPath: path.join(gameTmpDir, 'guest'),
+          disableNetwork: true,
+        })
+        await hostEngine.start()
+        await guestEngine.start()
+        await hostEngine.createChannel(channelName, 'game', {
+          ownerAddress: host,
+        })
+        await guestEngine.createChannel(channelName, 'game', {
+          ownerAddress: guest,
+        })
+
+        replication = hostEngine.replicateWith(guestEngine)
+        await hostEngine.sendMessage(channelName, event, host, 'Host', {
+          ownerAddress: host,
+        })
+
+        const received = await waitForChannelMessage(
+          guestEngine,
+          channelName,
+          event
+        )
+        assert.strictEqual(received.author, host)
+        assert.strictEqual(JSON.parse(received.content).version, 2)
+      } finally {
+        replication?.close()
+        if (hostEngine) await hostEngine.stop().catch(() => {})
+        if (guestEngine) await guestEngine.stop().catch(() => {})
+        fs.rmSync(gameTmpDir, { recursive: true, force: true })
       }
     })
 

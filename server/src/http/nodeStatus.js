@@ -90,6 +90,9 @@ export async function buildNodeStatus(
   return {
     status: 'online',
     version: PACKAGE_JSON.version,
+    capabilities: {
+      gameChannels: true,
+    },
     uptimeSeconds: Math.floor(process.uptime()),
     nodeId: engine.getNodeId(),
     host: appHost,

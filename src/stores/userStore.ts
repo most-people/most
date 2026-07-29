@@ -4,7 +4,7 @@ import {
   loadIdentity,
   clearIdentity,
   saveIdentity,
-} from '~server/src/utils/userIdentity.js'
+} from '@mostbox/account'
 import type { ChatJoinInvitePayload } from '~/lib/chatJoinInvite'
 import type { MessageKey } from '~/lib/i18n'
 import { normalizeLocalizedTag, type LocalizedTag } from '~/lib/localizedTag'

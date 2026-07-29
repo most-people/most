@@ -6,6 +6,7 @@ export default [
   {
     ignores: [
       'dist/**',
+      'packages/account/dist/**',
       'out/**',
       '.tmp/**',
       '.tanstack/tmp/**',

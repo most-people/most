@@ -1,0 +1,30 @@
+{
+  "name": "@mostbox/account",
+  "version": "0.1.0",
+  "description": "Browser account identity and request signing for MostBox clients",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "prepack": "npm run build"
+  },
+  "dependencies": {
+    "ethers": "^6.17.0",
+    "tweetnacl": "^1.0.3"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1"
+  },
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  }
+}

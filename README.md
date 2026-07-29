@@ -10,7 +10,7 @@
 >
 > 真正有价值的不是“又一个聊天软件”或“又一个网盘”，而是把 P2P 能力压缩成普通人能完成的流程：安装 -> 打开 -> 分享 `most://` 链接。
 >
-> 文件分享使用 `most://` 链接、CID 校验和下载后做种；聊天、知识库和 Web3 保持独立工具属性，不互相充当前置条件。
+> 文件分享使用 `most://` 链接、CID 校验和下载后做种；聊天、知识库、独立游戏站和 Web3 保持独立工具属性，不互相充当前置条件。
 >
 > CID 是 MostBox 的文件身份：发布、做种、发现、下载和校验都围绕 CID 进行。文件名和目录只用于展示与本地保存路径，不作为内容是否存在或是否可信的依据。
 
@@ -21,11 +21,14 @@
 | 文件   | 发布文件、复制 `most://` 链接、下载校验并持续做种 | `most://` + CID 校验 + 下载后做种               |
 | 聊天   | 按频道 ID 打开聊天，以 `/chat/#<channelId>` 分享  | 频道 ID 即权限；Channel + WebSocket + Hypercore |
 | 知识库 | 记录想法、整理 Markdown 内容并引用 P2P 文件       | Markdown + `most://` CID 引用                   |
+| 游戏   | 在熟人房间玩干瞪眼或炸金花                        | 独立站点；复用通信账号、Channel 和在线状态      |
 | Web3   | 密钥、钱包和地址工具                              | 独立工具箱，不是聊天、文件或知识库的前置条件    |
 
 ## 演示
 
 在线 Web 入口：[MostBox](https://Most.Box)
+
+独立游戏站：[Most Game](https://game.most.box)。游戏站需要先运行或连接支持游戏频道的 MostBox 节点，并在该子域使用相同用户名和密码重新登录；主站不提供 `/game/**` 路由。
 
 > Web 入口只负责连接已有 MostBox 节点；要在本机发布、下载、校验和持续做种，优先使用桌面客户端，或在本机运行 `npx most-box@latest` 启动完整节点。
 
@@ -94,6 +97,9 @@ node server/index.js
 - `src/lib/i18n/messages/*.ts`：按域拆分的中英文文案 catalog，由 `src/lib/i18n/messages.ts` 聚合。
 - `server/`：daemon、HTTP API、P2P 引擎和协议测试。
 - `mobile/app/`：Android/iOS 移动端应用和共享 Bare Worklet P2P 核心。
+- `packages/account/`：供主站和独立游戏站复用的 browser-only 通信账号、请求签名与 X25519 加密包。
+
+独立游戏界面和规则位于 [most-people/most-game](https://github.com/most-people/most-game)，不放在本仓库的前端路由中。daemon 只提供临时 `game.<gameId>.<roomCode>` Channel 传输能力；游戏频道不写欢迎消息、不进入聊天默认列表、不备份，也不在重启时恢复。
 
 ## 测试与格式化
 

@@ -21,14 +21,15 @@ npm run dev
 
 打开：
 
-| 入口         | 地址                                     | 用途                                                        |
-| ------------ | ---------------------------------------- | ----------------------------------------------------------- |
-| 本机节点首页 | `http://localhost:3000/`                 | 用户自己运行 P2P 节点，文件、聊天、知识库和 Web3 是独立入口 |
-| 文件库       | `http://localhost:3000/file/`            | `/file/` 保留完整文件发布、下载和做种管理                   |
-| 聊天         | `http://localhost:3000/chat/`            | 按频道 ID 打开聊天、收发消息和发送文件附件                  |
-| 知识库       | `http://localhost:3000/note/`            | 编辑 Markdown 内容和本地笔记库                              |
-| 管理台       | `http://localhost:3000/admin/`           | 查看节点状态、holding、容量和日志                           |
-| API          | `http://localhost:1976/api/openapi.json` | daemon HTTP API                                             |
+| 入口         | 地址                                     | 用途                                        |
+| ------------ | ---------------------------------------- | ------------------------------------------- |
+| 本机节点首页 | `http://localhost:3000/`                 | 用户自己运行 P2P 节点，游戏入口指向独立站点 |
+| 文件库       | `http://localhost:3000/file/`            | `/file/` 保留完整文件发布、下载和做种管理   |
+| 聊天         | `http://localhost:3000/chat/`            | 按频道 ID 打开聊天、收发消息和发送文件附件  |
+| 知识库       | `http://localhost:3000/note/`            | 编辑 Markdown 内容和本地笔记库              |
+| 管理台       | `http://localhost:3000/admin/`           | 查看节点状态、holding、容量和日志           |
+| 独立游戏站   | `http://localhost:3001/`                 | 复用现有账号与节点的干瞪眼、炸金花熟人房    |
+| API          | `http://localhost:1976/api/openapi.json` | daemon HTTP API                             |
 
 桌面端默认打开本机节点首页。发布包路径：正式桌面安装包和 Android Alpha APK 从 `/download` 或 GitHub Releases latest 下载；本地桌面构建使用 `npm run electron:build:win`、`npm run electron:build:mac` 或 `npm run electron:build:linux`，Android APK 构建在 `mobile/app/` 下运行 `npm run build`。
 
@@ -61,6 +62,7 @@ auth_header() {
 6. 进入 `/chat/` 加入聊天，确认自动生成 26 位小写 base32 ID；复制 `/chat/#<channelId>` 链接并在另一节点用任意大小写形式直接打开，确认文本、附件和语音仍通过同一 P2P Channel 同步。
 7. 进入 `/note/` 新建或编辑 Markdown 内容，确认知识库是独立工具，不依赖聊天设置。
 8. 打开 `/web3/`，确认 Web3 工具箱独立存在，不成为文件、聊天或知识库的前置条件。
+9. 从首页“游戏”外链打开 `game.most.box`，确认主站没有恢复 `/game/**` 路由；游戏站要求单独登录并连接支持游戏频道的现有节点。
 
 | 检查项       | 通过标准                                                                                                             | 入口                                |
 | ------------ | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
@@ -199,17 +201,17 @@ node --test --test-name-pattern "returns node status|saves daemon config and exp
 7. 明确安全边界：仅声明派生 topic 或发送错误、旧连接的证明时，不返回频道 metadata、writer core key 或 presence；完成绑定当前连接的原始频道 ID 持有证明后才同步。
 8. 消息记录和语音信令不做应用层加密；知道频道 ID 的人、已加入 peer、daemon 和数据目录访问者均可读取明文，ID 泄露后需新建频道。
 
-| 检查项       | 通过标准                                                                                            | 入口                                                    |
-| ------------ | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| 节点首页     | 首页默认说明设备直接参与 P2P 网络，并展示文件、聊天、知识库和 Web3 四个独立入口；桌面端默认进入 `/` | `src/components/FeaturePortal.tsx`、`electron/main.js`  |
-| 技术词降噪   | 普通用户首屏说“自己运行节点”和“设备直接参与网络”，不堆 Hyperswarm、Hyperdrive、CID 术语             | `README.md`、首页文案                                   |
-| 能力频道     | 单一“加入聊天”入口；可输入 ID/链接或生成 128 位随机 ID；ID 不区分大小写；不宣称端到端加密           | `src/features/chat/ChatPage.tsx`、`src/lib/chatRoom.js` |
-| 附件状态     | 聊天附件区分可下载、下载中、可预览、失败，并有重试入口                                              | `src/components/ChatAttachmentCard.tsx`                 |
-| 文件库定位   | `/file/` 文案是文件库/传输管理，仍说明“下载者完成后会默认继续做种”                                  | `src/features/files/AppPage.tsx`                        |
-| 下载前检测   | 无链接、错误协议、非法 CID、缺少 filename 都有本地提示                                              | `getDownloadLinkValidationMessage()`                    |
-| 下载失败文案 | 超时、无 peer、同名冲突、权限错误、节点未初始化、服务端错误各有可读文案                             | `getDownloadCheckErrorMessage()`                        |
-| 工具箱隔离   | `/note`、`/web3` 可独立打开，不是文件分享的前置条件                                                 | 首页工具箱、各独立页面                                  |
-| 云盘误解清理 | 主应用不出现云端订单、赔付、付费保种市场叙事                                                        | `src/features`、`src/components`                        |
+| 检查项       | 通过标准                                                                                         | 入口                                                    |
+| ------------ | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------- |
+| 节点首页     | 首页说明设备直接参与 P2P 网络，并展示文件、聊天、知识库、Web3 与独立游戏外链；桌面端默认进入 `/` | `src/components/FeaturePortal.tsx`、`electron/main.js`  |
+| 技术词降噪   | 普通用户首屏说“自己运行节点”和“设备直接参与网络”，不堆 Hyperswarm、Hyperdrive、CID 术语          | `README.md`、首页文案                                   |
+| 能力频道     | 单一“加入聊天”入口；可输入 ID/链接或生成 128 位随机 ID；ID 不区分大小写；不宣称端到端加密        | `src/features/chat/ChatPage.tsx`、`src/lib/chatRoom.js` |
+| 附件状态     | 聊天附件区分可下载、下载中、可预览、失败，并有重试入口                                           | `src/components/ChatAttachmentCard.tsx`                 |
+| 文件库定位   | `/file/` 文案是文件库/传输管理，仍说明“下载者完成后会默认继续做种”                               | `src/features/files/AppPage.tsx`                        |
+| 下载前检测   | 无链接、错误协议、非法 CID、缺少 filename 都有本地提示                                           | `getDownloadLinkValidationMessage()`                    |
+| 下载失败文案 | 超时、无 peer、同名冲突、权限错误、节点未初始化、服务端错误各有可读文案                          | `getDownloadCheckErrorMessage()`                        |
+| 工具箱隔离   | `/note`、`/web3` 可独立打开，不是文件分享的前置条件                                              | 首页工具箱、各独立页面                                  |
+| 云盘误解清理 | 主应用不出现云端订单、赔付、付费保种市场叙事                                                     | `src/features`、`src/components`                        |
 
 推荐检查：
 
@@ -255,16 +257,16 @@ npm run build
 
 ## 七、MVP 通过标准
 
-| 场景         | 通过标准                                                                                          |
-| ------------ | ------------------------------------------------------------------------------------------------- |
-| 本机节点首页 | 用户打开后第一路径是 `/`，能理解 MostBox 是自己运行的 P2P 节点，并能选择文件、聊天、知识库或 Web3 |
-| P2P 消息     | 两个节点能凭同一频道 ID 收发消息，不同 ID 不互通；分享链接为 `/chat/#<channelId>`                 |
-| 聊天附件     | 文件能作为聊天附件发送，接收方能下载、校验、预览                                                  |
-| 下载后做种   | 接收方下载成功后自动成为新种子，holding 可见                                                      |
-| daemon 重启  | 已持有 CID 自动恢复 join topic                                                                    |
-| 发布者退出   | 至少一个下载者在线做种时，新下载者仍可完成下载                                                    |
-| 知识库       | 能编辑和备份 Markdown，并以 `most://` CID 引用文件模块中的附件                                    |
-| Web3         | Web3 工具箱独立存在，不成为聊天、文件或记录的前置条件                                             |
+| 场景         | 通过标准                                                                                                |
+| ------------ | ------------------------------------------------------------------------------------------------------- |
+| 本机节点首页 | 用户打开后第一路径是 `/`，能理解 MostBox 是自己运行的 P2P 节点，并能选择文件、聊天、知识库、游戏或 Web3 |
+| P2P 消息     | 两个节点能凭同一频道 ID 收发消息，不同 ID 不互通；分享链接为 `/chat/#<channelId>`                       |
+| 聊天附件     | 文件能作为聊天附件发送，接收方能下载、校验、预览                                                        |
+| 下载后做种   | 接收方下载成功后自动成为新种子，holding 可见                                                            |
+| daemon 重启  | 已持有 CID 自动恢复 join topic                                                                          |
+| 发布者退出   | 至少一个下载者在线做种时，新下载者仍可完成下载                                                          |
+| 知识库       | 能编辑和备份 Markdown，并以 `most://` CID 引用文件模块中的附件                                          |
+| Web3         | Web3 工具箱独立存在，不成为聊天、文件或记录的前置条件                                                   |
 
 如果下载失败，优先检查：聊天双方是否加入同一房间、附件链接是否完整、发布者或下载者种子是否在线、端口和防火墙是否允许 P2P 连接、管理台日志中是否出现 `PEER_NOT_FOUND` 或 `INTEGRITY_ERROR`。
 
@@ -353,3 +355,38 @@ Markdown 与 CID 附件联动验收：
 3. 下载完成后检查 holding 和 topic 状态，确认下载节点已经持续做种。
 4. 关闭原发布节点，保留第二节点在线；第三节点打开同一引用，仍应完成下载、CID 校验和预览。
 5. 对无种子、非法 CID 或完整性校验失败场景，确认 Markdown 原文保持不变且界面给出失败反馈。
+
+## 十一、独立游戏站验收
+
+游戏界面和规则位于独立仓库 `most-people/most-game`，生产入口固定为 `https://game.most.box`。MostBox 主仓库只提供账号共享包、临时游戏频道传输能力和门户外链，不包含 `/game/**` 页面。
+
+daemon 协议检查：
+
+```bash
+node --test server/tests/unit/accountPackage.test.js \
+  server/tests/unit/gameChannel.test.js \
+  server/tests/unit/access.test.js
+node --test server/tests/integration/api.test.js \
+  server/tests/integration/engine.test.js
+```
+
+| 检查项       | 通过标准                                                                                     |
+| ------------ | -------------------------------------------------------------------------------------------- |
+| 能力声明     | 签名请求读取 `/api/node/status`，返回 `capabilities.gameChannels: true`                      |
+| 精确来源     | HTTP、PNA 和 WebSocket 接受 `https://game.most.box`、本地 `3001` 开发来源，其他来源仍被拒绝  |
+| 频道命名     | 只接受 `game.gandengyan.<code>` 与 `game.zhajinhua.<code>`；普通频道不能冒用点号命名         |
+| 临时生命周期 | 游戏频道无欢迎消息、不出现在默认聊天列表、不进入账号备份、不落盘，daemon 重启后不自动恢复    |
+| 账号一致     | 固定用户名和密码在主站、`@mostbox/account` 与游戏站生成相同 address、签名和 X25519 密钥      |
+| 协议版本     | 只接受 `mostbox.game.event` v2；首个合法创建者为房主，非房主发布的权威状态与私密发牌均被忽略 |
+| 手牌保密     | 公开状态只包含手牌数量；频道内逐人发牌为密文，错误收件人无法解密                             |
+| 房主离线     | 对局暂停，不迁移房主、不自动代打；房主丢失私密状态后只能重新开局                             |
+
+双节点端到端步骤：
+
+1. 启动两个使用独立数据目录和端口的新版 MostBox daemon，并分别准备账号 A、B。
+2. 用两个独立浏览器上下文打开游戏站；在子域分别用与主站相同的用户名、密码登录，确认显示地址与主站一致。
+3. A 创建干瞪眼房间并复制 `https://game.most.box/gandengyan?room=<code>`；B 直接打开链接并加入。
+4. 验证两端在线状态、开始游戏、轮次动作、计分和完整一局；检查频道消息不得出现任一玩家明文手牌。
+5. 对炸金花重复第 3、4 步，并确认不存在机器人或无效动作自动代打。
+6. 对局中停止 A 的 daemon，B 应看到房主离线暂停；恢复 A 后可继续同步。刷新导致房主私密状态丢失时，只允许结束当前轮并重新开局。
+7. 两个仓库分别执行 format check、lint、typecheck、单元测试和生产构建，并检查游戏站桌面与移动视口无重叠、深层链接可回退加载。

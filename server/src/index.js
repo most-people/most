@@ -50,6 +50,7 @@ import {
 import { normalizeChannelVoiceEvent } from './core/channelVoice.js'
 import { getCidInfo } from './core/cidTopic.js'
 import {
+  TRANSIENT_CHANNEL_TYPES,
   CHANNEL_DISCOVERY_TIMEOUT,
   CHANNEL_CANDIDATE_TTL,
   normalizeChannelDisplayName,
@@ -3509,16 +3510,22 @@ export class MostBoxEngine extends EventEmitter {
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
     const channelId = normalizeChannelId(channelIdInput)
     const channelType = String(type || 'personal').trim() || 'personal'
-    if (channelId.includes('.')) {
+    if (channelId.includes('.') && channelType !== 'game') {
       throw new Error('点号为系统保留，不能用于手动频道 ID')
     }
-    if (!CHANNEL_NAME_REGEX.test(channelId)) {
+    if (
+      channelType === 'game' &&
+      !/^game\.(gandengyan|zhajinhua)\.[a-z0-9]{4,8}$/.test(channelId)
+    ) {
+      throw new Error('游戏频道必须使用 game.<gameId>.<roomCode> 格式')
+    }
+    if (channelType !== 'game' && !CHANNEL_NAME_REGEX.test(channelId)) {
       throw new Error('频道名只能包含字母、数字、下划线和连字符')
     }
-    if (channelId.length < CHANNEL_NAME_MIN_LENGTH) {
+    if (channelType !== 'game' && channelId.length < CHANNEL_NAME_MIN_LENGTH) {
       throw new Error(`频道名至少 ${CHANNEL_NAME_MIN_LENGTH} 个字符`)
     }
-    if (channelId.length > CHANNEL_NAME_MAX_LENGTH) {
+    if (channelType !== 'game' && channelId.length > CHANNEL_NAME_MAX_LENGTH) {
       throw new Error(`频道名最多 ${CHANNEL_NAME_MAX_LENGTH} 个字符`)
     }
 
@@ -4628,7 +4635,12 @@ export class MostBoxEngine extends EventEmitter {
 
   async #appendChannelWelcomeMessage(channel, options = {}, wasMember = false) {
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
-    if (wasMember || !ownerAddress || !channel) {
+    if (
+      wasMember ||
+      !ownerAddress ||
+      !channel ||
+      TRANSIENT_CHANNEL_TYPES.has(channel.type)
+    ) {
       return false
     }
     await this.sendMessage(
@@ -4652,7 +4664,11 @@ export class MostBoxEngine extends EventEmitter {
     const ownerAddress = normalizeOwnerAddress(
       options.ownerAddress || options.author
     )
-    if (!ownerAddress || !channel) {
+    if (
+      !ownerAddress ||
+      !channel ||
+      TRANSIENT_CHANNEL_TYPES.has(channel.type)
+    ) {
       return null
     }
 
@@ -5383,7 +5399,12 @@ export class MostBoxEngine extends EventEmitter {
 
   #formatAccountChannelForBackup(channel, ownerAddress) {
     const owner = normalizeOwnerAddress(ownerAddress)
-    if (!channel || !owner || !this.#channelHasMember(channel, owner)) {
+    if (
+      !channel ||
+      !owner ||
+      TRANSIENT_CHANNEL_TYPES.has(channel.type) ||
+      !this.#channelHasMember(channel, owner)
+    ) {
       return null
     }
     const updatedAt = getSyncTimestamp(
@@ -5558,7 +5579,11 @@ export class MostBoxEngine extends EventEmitter {
     }
     const channelId = normalizeChannelId(record.channelId)
     const channelKey = buildChannelKey(channelId)
-    if (!channelId || !channelKey) {
+    if (
+      !channelId ||
+      !channelKey ||
+      TRANSIENT_CHANNEL_TYPES.has(String(record.type || ''))
+    ) {
       return { changed: false, added: false, updated: false }
     }
 
@@ -6628,20 +6653,22 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #saveChannelsMetadata() {
-    const persistentChannels = this.#channels.map(channel => ({
-      channelId: channel.channelId,
-      channelKey: channel.channelKey,
-      name: channel.channelId,
-      type: channel.type,
-      createdAt: channel.createdAt,
-      lastMessageAt: channel.lastMessageAt || '',
-      writerId: channel.writerId,
-      localWriterCoreKey: channel.localWriterCoreKey,
-      writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
-      members: Array.isArray(channel.members) ? channel.members : [],
-      remarks: channel.remarks,
-      pinnedBy: channel.pinnedBy,
-    }))
+    const persistentChannels = this.#channels
+      .filter(channel => !TRANSIENT_CHANNEL_TYPES.has(channel?.type))
+      .map(channel => ({
+        channelId: channel.channelId,
+        channelKey: channel.channelKey,
+        name: channel.channelId,
+        type: channel.type,
+        createdAt: channel.createdAt,
+        lastMessageAt: channel.lastMessageAt || '',
+        writerId: channel.writerId,
+        localWriterCoreKey: channel.localWriterCoreKey,
+        writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
+        members: Array.isArray(channel.members) ? channel.members : [],
+        remarks: channel.remarks,
+        pinnedBy: channel.pinnedBy,
+      }))
     this.#saveMetadataFile(
       'channels',
       this.#getChannelsMetadataPath(),

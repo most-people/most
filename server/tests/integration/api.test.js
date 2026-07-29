@@ -175,7 +175,10 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
   beforeEach(async () => {
     await engine.clearUserData(TEST_IDENTITY.address)
     await engine.clearUserData(SECOND_IDENTITY.address)
-    const channels = engine.listChannels()
+    const channels = [
+      ...engine.listChannels(),
+      ...engine.listChannels({ type: 'game' }),
+    ]
     for (const channel of channels) {
       await engine.leaveChannel(channel.name)
     }
@@ -204,6 +207,27 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(
         res.headers.get('access-control-allow-origin'),
         'https://most.box'
+      )
+      assert.strictEqual(
+        res.headers.get('access-control-allow-private-network'),
+        'true'
+      )
+    })
+
+    it('allows private network preflight from game.most.box', async () => {
+      const res = await fetchWithoutAuth(`${baseUrl}/api/node-id`, {
+        method: 'OPTIONS',
+        headers: {
+          Origin: 'https://game.most.box',
+          'Access-Control-Request-Method': 'GET',
+          'Access-Control-Request-Private-Network': 'true',
+        },
+      })
+
+      assert.strictEqual(res.status, 204)
+      assert.strictEqual(
+        res.headers.get('access-control-allow-origin'),
+        'https://game.most.box'
       )
       assert.strictEqual(
         res.headers.get('access-control-allow-private-network'),
@@ -240,6 +264,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
 
       assert.strictEqual(res.status, 200)
       assert.strictEqual(data.status, 'online')
+      assert.strictEqual(data.capabilities.gameChannels, true)
       assert.ok(data.nodeId)
       assert.strictEqual(data.port, TEST_PORT)
       assert.strictEqual(data.host, '127.0.0.1')
@@ -2616,18 +2641,30 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(res.status, 400)
     })
 
-    it('rejects dotted user-created channel IDs', async () => {
-      const removedType = ['ga', 'me'].join('')
-      const dottedName = [removedType, 'legacy', uid].join('.')
-      for (const type of [undefined, removedType]) {
+    it('creates supported game channels and rejects dotted user channels', async () => {
+      const gameName = `game.gandengyan.g${uid}`
+      const gameRes = await fetch(`${baseUrl}/api/channels`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: gameName, type: 'game' }),
+      })
+      const gameData = await gameRes.json()
+      assert.strictEqual(gameRes.status, 200)
+      assert.strictEqual(gameData.name, gameName)
+      assert.strictEqual(gameData.type, 'game')
+
+      for (const input of [
+        { name: `game.legacy.${uid}` },
+        { name: `game.unknown.${uid}`, type: 'game' },
+      ]) {
         const res = await fetch(`${baseUrl}/api/channels`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: dottedName, type }),
+          body: JSON.stringify(input),
         })
         const data = await res.json()
         assert.strictEqual(res.status, 400)
-        assert.match(data.error, /点号为系统保留/)
+        assert.match(data.error, /点号为系统保留|游戏频道必须/)
       }
     })
   })
@@ -2675,6 +2712,21 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(allRes.status, 200)
       assert.ok(allData.some(c => c.name === publicName))
       assert.ok(allData.some(c => c.name === groupName))
+    })
+
+    it('hides game channels by default and returns them by type', async () => {
+      const gameName = `game.zhajinhua.z${uid}`
+      await engine.createChannel(gameName, 'game', {
+        ownerAddress: TEST_IDENTITY.address,
+      })
+
+      const allRes = await fetch(`${baseUrl}/api/channels`)
+      const allData = await allRes.json()
+      assert.ok(!allData.some(channel => channel.name === gameName))
+
+      const gameRes = await fetch(`${baseUrl}/api/channels?type=game`)
+      const gameData = await gameRes.json()
+      assert.ok(gameData.some(channel => channel.name === gameName))
     })
   })
 

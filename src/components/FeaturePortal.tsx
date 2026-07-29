@@ -4,6 +4,7 @@ import {
   ArrowUpRight,
   Download,
   FolderOpen,
+  Gamepad2,
   HardDrive,
   MessagesSquare,
   NotebookPen,
@@ -22,7 +23,8 @@ interface FeatureDef {
   subtitleKey: MessageKey
   descKey: MessageKey
   icon: React.ReactNode
-  path: InternalRoutePath
+  path?: InternalRoutePath
+  href?: string
   requiresBackend: boolean
 }
 
@@ -63,9 +65,18 @@ const features: FeatureDef[] = [
     path: '/web3/',
     requiresBackend: false,
   },
+  {
+    id: 'game',
+    titleKey: 'portal.feature.game.title',
+    subtitleKey: 'portal.feature.game.subtitle',
+    descKey: 'portal.feature.game.desc',
+    icon: <Gamepad2 size={28} />,
+    href: 'https://game.most.box',
+    requiresBackend: true,
+  },
 ]
 
-const featureOrder = ['chat', 'app', 'note', 'web3']
+const featureOrder = ['chat', 'app', 'note', 'game', 'web3']
 
 type PortalBackendStatus = 'checking' | 'connected' | 'disconnected'
 
@@ -128,24 +139,38 @@ export default function FeaturePortal() {
           </div>
 
           <div className="portal-feature-grid">
-            {orderedFeatures.map(f => (
-              <Link
-                key={f.id}
-                to={f.path}
-                className={`portal-feature-card ui-glass-surface ui-glass-surface-subtle ui-glass-surface-interactive ${f.id}`}
-              >
-                <div className="portal-feature-card-head">
-                  <div className="portal-feature-card-title">
-                    <span className="portal-feature-card-icon">{f.icon}</span>
-                    <h2>{t(f.titleKey)}</h2>
+            {orderedFeatures.map(f => {
+              const content = (
+                <>
+                  <div className="portal-feature-card-head">
+                    <div className="portal-feature-card-title">
+                      <span className="portal-feature-card-icon">{f.icon}</span>
+                      <h2>{t(f.titleKey)}</h2>
+                    </div>
+                    <span className="portal-feature-card-arrow">
+                      <ArrowUpRight size={16} />
+                    </span>
                   </div>
-                  <span className="portal-feature-card-arrow">
-                    <ArrowUpRight size={16} />
-                  </span>
-                </div>
-                <p>{t(f.descKey)}</p>
-              </Link>
-            ))}
+                  <p>{t(f.descKey)}</p>
+                </>
+              )
+              const className = `portal-feature-card ui-glass-surface ui-glass-surface-subtle ui-glass-surface-interactive ${f.id}`
+              return f.href ? (
+                <a
+                  key={f.id}
+                  href={f.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={className}
+                >
+                  {content}
+                </a>
+              ) : (
+                <Link key={f.id} to={f.path!} className={className}>
+                  {content}
+                </Link>
+              )
+            })}
           </div>
         </div>
       </section>

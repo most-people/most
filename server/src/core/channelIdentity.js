@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import { normalizeAvatar, normalizeDisplayName } from './shared.js'
 
 export const CHAT_FILE_ROOT = 'chat-file'
+export const TRANSIENT_CHANNEL_TYPES = new Set(['game'])
 export const CHANNEL_DISCOVERY_TIMEOUT = 600
 export const CHANNEL_CANDIDATE_TTL = 30 * 1000
 
