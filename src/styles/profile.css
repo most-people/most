@@ -258,21 +258,9 @@
   justify-self: end;
 }
 
-.profile-logout-overlay .modal-glass {
-  width: min(520px, calc(100vw - 32px));
-  max-height: calc(var(--modal-visual-height, 100dvh) - 32px);
-  padding: 0;
-  border-radius: var(--radius-lg);
-  overflow: auto;
-  overscroll-behavior: contain;
-}
-
 .profile-logout-modal {
-  width: 100%;
-  max-width: none;
   display: grid;
   gap: var(--space-4);
-  padding: var(--space-6);
 }
 
 .profile-logout-modal .modal-header {
@@ -790,10 +778,6 @@
 }
 
 @media (max-width: 560px) {
-  .profile-logout-overlay .modal-glass {
-    width: 100%;
-  }
-
   .profile-page {
     padding-inline: var(--space-3);
   }
