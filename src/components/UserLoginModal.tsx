@@ -101,13 +101,15 @@ export default function UserLoginModal() {
             >
               {hasPreviewedAvatar ? t('login.previewed') : t('login.preview')}
             </button>
-            <button
-              className="btn btn-primary"
-              disabled={!hasPreviewedAvatar || loginLoading}
-              type="submit"
-            >
-              {loginLoading ? t('login.loading') : t('common.confirm')}
-            </button>
+            {hasPreviewedAvatar && (
+              <button
+                className="btn btn-primary"
+                disabled={loginLoading}
+                type="submit"
+              >
+                {loginLoading ? t('login.loading') : t('common.confirm')}
+              </button>
+            )}
           </div>
         </div>
       </form>
