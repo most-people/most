@@ -10,7 +10,6 @@ import {
   encryptAccountBackup,
   uploadAccountBackup,
 } from '~server/src/utils/accountBackup.js'
-import { mostDecode } from '~server/src/utils/mostWallet.js'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore, type UserIdentity } from '~/stores/userStore'
 import { isLocale, useI18n, type Locale, type MessageKey } from '~/lib/i18n'
@@ -72,7 +71,6 @@ type BackupNoteRecord = {
   type: 'file'
   created_at: number
   updated_at: number
-  isSecret?: boolean
 }
 
 interface AccountBackupPayload {
@@ -195,12 +193,6 @@ function ensureMarkdownFileName(input: unknown) {
   return name.toLowerCase().endsWith('.md') ? name : `${name}.md`
 }
 
-function getBackupNoteContent(note: Record<string, unknown>, danger?: string) {
-  const content = String(note.content || '')
-  if (!danger || !content.startsWith('mp://1')) return content
-  return mostDecode(content, danger) || content
-}
-
 async function readDesktopNoteVaultSnapshot() {
   try {
     const status = await getNoteVaultStatus()
@@ -258,7 +250,6 @@ async function createNotesFromNoteVaultSnapshot(snapshot: NoteVaultSnapshot) {
       type: 'file',
       created_at: timestamp,
       updated_at: timestamp,
-      isSecret: false,
     })
   }
 
@@ -266,8 +257,7 @@ async function createNotesFromNoteVaultSnapshot(snapshot: NoteVaultSnapshot) {
 }
 
 async function createNoteVaultSnapshotFromNotes(
-  notesInput: unknown[],
-  danger?: string
+  notesInput: unknown[]
 ): Promise<NoteVaultSnapshot> {
   const files = new Map<string, NoteVaultSnapshot['files'][number]>()
 
@@ -281,7 +271,7 @@ async function createNoteVaultSnapshotFromNotes(
     )
     if (!filePath) continue
 
-    const content = getBackupNoteContent(note, danger)
+    const content = String(note.content || '')
     const encodedSize = new TextEncoder().encode(content).length
     files.set(filePath, {
       path: filePath,
@@ -562,10 +552,7 @@ export function useAccountBackup() {
       if (await canRestoreToDesktopNoteVault()) {
         const vaultSnapshot = hasNoteVaultPayload(payload)
           ? payload.noteVault
-          : await createNoteVaultSnapshotFromNotes(
-              payload.notes,
-              currentWallet.danger
-            )
+          : await createNoteVaultSnapshotFromNotes(payload.notes)
         const shouldRestoreVault =
           hasNoteVaultPayload(payload) || Array.isArray(payload.notes)
         if (shouldRestoreVault) {

@@ -572,6 +572,21 @@ describe('frontend smoke checks', () => {
     assert.equal(parseMostMarkdownReference(noteLink).fileName, noteFileName)
   })
 
+  it('stores knowledge-base articles as plain Markdown without article encryption', () => {
+    const noteSource = readSource(SOURCE_PATHS.note)
+    const appStoreSource = readSource(SOURCE_PATHS.appStore)
+    const accountBackupSource = readSource(SOURCE_PATHS.accountBackup)
+
+    assert.doesNotMatch(noteSource, /mostEncode|mostDecode|isSecret/)
+    assert.doesNotMatch(noteSource, /note\.privacy\.(?:public|secret)/)
+    assert.doesNotMatch(appStoreSource, /isSecret/)
+    assert.doesNotMatch(accountBackupSource, /mostDecode/)
+    assert.match(
+      accountBackupSource,
+      /const content = String\(note\.content \|\| ''\)/
+    )
+  })
+
   it('reuses Markdown image URLs until the editor cache is disposed', async () => {
     const { createMostMarkdownImageUrlCache } = await importBundledSource(
       SOURCE_PATHS.mostMarkdown

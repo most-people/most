@@ -325,8 +325,8 @@ npm run build
 | 检查项               | 通过标准                                                                                    | 入口                                          |
 | -------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------- |
 | 知识库定位文案       | README/界面文案明确知识库云备份只覆盖知识库数据，不是 MostBox 文件云盘                      | `README.md`、`src/features/note/NotePage.tsx` |
-| 私密笔记             | 未登录时不可解密；正确 Web3 账号登录后可阅读、编辑、重新保存                                | `/note`、`mostEncode()`、`mostDecode()`       |
-| 备份恢复             | 云端缺失、冲突、失败、本地导入导出都有反馈                                                  | `useNoteBackupSync()`                         |
+| Markdown 明文存储    | 新建、读取和保存文章均直接使用普通 Markdown，不提供逐篇加密或公开/私密切换                  | `/note`、`NoteItem`                           |
+| 备份恢复             | 账号备份整体保持加密；云端缺失、冲突、失败、本地导入导出都有反馈                            | `useNoteBackupSync()`                         |
 | 资源管理             | 新建、重命名、移动、删除文件夹、搜索不丢数据                                                | `noteUtils`、`src/features/note/NotePage.tsx` |
 | 桌面 Markdown 笔记库 | Electron + 本地 daemon 下可选择目录、列出 `.md`、打开并保存当前文件；Web 端仍使用 IndexedDB | `/note`、`/api/note-vault/*`                  |
 | CID 边界             | `calculateNoteCid()` 只用于笔记 raw CID，不进入 `most://` 文件分享协议                      | `server/src/core/cid.js`、笔记测试            |

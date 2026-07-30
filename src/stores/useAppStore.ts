@@ -47,7 +47,6 @@ export interface NoteItem {
   type: 'file'
   created_at: number
   updated_at: number
-  isSecret?: boolean
 }
 
 interface AppState {
@@ -96,7 +95,6 @@ interface AppState {
     name: string
     path?: string
     content?: string
-    isSecret?: boolean
   }) => Promise<string>
   deleteNote: (cid?: string, path?: string, name?: string) => void
   renameNote: (oldFullPath: string, newPath: string, newName: string) => void
@@ -128,9 +126,6 @@ function normalizeNotes(input: unknown): NoteItem[] {
           (note as Partial<NoteItem>).created_at ||
           Date.now()
       ),
-      isSecret:
-        (note as Partial<NoteItem>).isSecret === true ||
-        String((note as Partial<NoteItem>).content || '').startsWith('mp://1'),
     }))
 }
 
@@ -479,7 +474,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       type: 'file',
       created_at: existing?.created_at || now,
       updated_at: now,
-      isSecret: input.isSecret === true || content.startsWith('mp://1'),
     }
     const nextNotes =
       existingIndex >= 0

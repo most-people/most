@@ -37,6 +37,17 @@ describe('accountBackup', () => {
     assert.deepStrictEqual(decrypted, payload)
   })
 
+  it('preserves opaque legacy article content inside the encrypted backup', () => {
+    const wallet = mostWallet('alice', 'secret')
+    const payload = createPayload(wallet.address)
+    payload.notes[0].content = 'mp://1.legacy-article-ciphertext'
+
+    const encrypted = encryptAccountBackup(payload, wallet.danger)
+    const decrypted = decryptAccountBackup(encrypted, wallet.danger)
+
+    assert.deepStrictEqual(decrypted.notes, payload.notes)
+  })
+
   it('encrypts and decrypts account backups with note vault snapshots', () => {
     const wallet = mostWallet('alice', 'secret')
     const payload = {

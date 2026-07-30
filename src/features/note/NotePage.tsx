@@ -13,11 +13,9 @@ import {
   ChevronDown,
   ChevronRight,
   PencilRuler,
-  Eye,
   FolderOpen,
   MoreHorizontal,
   Move,
-  Lock,
   Loader,
   NotebookPen,
   Paperclip,
@@ -32,7 +30,6 @@ import OpenSidebarButton from '~/components/OpenSidebarButton'
 import { ActionMenu, ConfirmModal, InputModal } from '~/components/ui'
 import { useAppStore, type NoteItem } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
-import { mostDecode, mostEncode } from '~server/src/utils/mostWallet.js'
 import {
   getNoteFullPath,
   normalizeNotePath,
@@ -597,9 +594,6 @@ function NoteTreeNodeRow({
           <span className="note-tree-label" translate="no">
             {getTreeNodeDisplayName(node)}
           </span>
-          {node.note?.isSecret && (
-            <Lock className="note-tree-lock" size={14} aria-hidden="true" />
-          )}
         </button>
         {actions}
       </div>
@@ -705,7 +699,6 @@ function getVaultNoteItems(files: NoteVaultFile[]): NoteItem[] {
     type: 'file',
     created_at: Number(file.mtimeMs) || Date.now(),
     updated_at: Number(file.mtimeMs) || Date.now(),
-    isSecret: false,
   }))
 }
 
@@ -814,7 +807,6 @@ function NotePageContent() {
   const [noteName, setNoteName] = useState('')
   const [notePath, setNotePath] = useState('')
   const [plainContent, setPlainContent] = useState('')
-  const [editIsSecret, setEditIsSecret] = useState(false)
   const [editError, setEditError] = useState('')
   const [isPublishingAttachment, setIsPublishingAttachment] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -835,28 +827,9 @@ function NotePageContent() {
       return
     }
 
-    if (selectedNote.content.startsWith('mp://1')) {
-      if (!wallet) {
-        setPreviewContent('')
-        setPreviewError(t('note.error.loginToDecrypt'))
-        return
-      }
-
-      const decrypted = mostDecode(selectedNote.content, wallet.danger)
-      if (!decrypted) {
-        setPreviewContent('')
-        setPreviewError(t('note.error.decryptFailed'))
-        return
-      }
-
-      setPreviewContent(decrypted)
-      setPreviewError('')
-      return
-    }
-
     setPreviewContent(selectedNote.content || '')
     setPreviewError('')
-  }, [cid, localDataReady, selectedNote, t, wallet])
+  }, [cid, localDataReady, selectedNote, t])
 
   useEffect(() => {
     if (!isEditing) {
@@ -868,40 +841,15 @@ function NotePageContent() {
       setNoteName('')
       setNotePath('')
       setPlainContent('')
-      setEditIsSecret(false)
       setEditError(localDataReady ? t('note.error.notFound') : '')
       return
     }
 
     setNoteName(getDisplayMarkdownName(selectedNote.name))
     setNotePath(selectedNote.path || '')
-    setEditIsSecret(
-      selectedNote.isSecret === true ||
-        selectedNote.content.startsWith('mp://1')
-    )
-
-    if (selectedNote.content.startsWith('mp://1')) {
-      if (!wallet) {
-        setPlainContent('')
-        setEditError(t('note.error.loginToDecrypt'))
-        return
-      }
-
-      const decrypted = mostDecode(selectedNote.content, wallet.danger)
-      if (!decrypted) {
-        setPlainContent('')
-        setEditError(t('note.error.decryptFailed'))
-        return
-      }
-
-      setPlainContent(decrypted)
-      setEditError('')
-      return
-    }
-
     setPlainContent(selectedNote.content || '')
     setEditError('')
-  }, [cid, isEditing, localDataReady, selectedNote, t, wallet])
+  }, [cid, isEditing, localDataReady, selectedNote, t])
 
   const noteTree = useMemo(
     () => buildNoteTree(notes, compareStrings),
@@ -911,17 +859,6 @@ function NotePageContent() {
     () => filterNoteTree(noteTree, searchQuery),
     [noteTree, searchQuery]
   )
-  const selectedNoteIsSecret =
-    selectedNote?.isSecret === true ||
-    selectedNote?.content.startsWith('mp://1') === true
-  const selectedNotePrivacyLabel = isEditing
-    ? editIsSecret
-      ? t('note.privacy.secret')
-      : t('note.privacy.public')
-    : selectedNoteIsSecret
-      ? t('note.privacy.secret')
-      : t('note.privacy.public')
-
   const directoryOptions = useMemo(
     () => getDirectoryOptions(notes, compareStrings),
     [compareStrings, notes]
@@ -1037,7 +974,6 @@ function NotePageContent() {
         name,
         path: notesPath,
         content: draft.content,
-        isSecret: false,
       })
       deleteChatNoteDraft(draft.id)
       addToast(t('note.chatDraft.created'), 'success')
@@ -1067,15 +1003,11 @@ function NotePageContent() {
     setSaving(true)
     try {
       const markdown = editorRef.current?.getMarkdown() ?? plainContent
-      const storedContent = editIsSecret
-        ? mostEncode(markdown, wallet.danger)
-        : markdown
       const nextCid = await saveNote({
         cid: selectedNote.cid,
         name: nextName,
         path: notePath,
-        content: storedContent,
-        isSecret: editIsSecret,
+        content: markdown,
       })
       setPlainContent(markdown)
       navigateToNote({ cid: nextCid }, true)
@@ -1100,7 +1032,6 @@ function NotePageContent() {
             name: getStorageMarkdownName(value),
             path: notesPath,
             content: '',
-            isSecret: false,
           })
           setInputModal(null)
           addToast(t('note.toast.created'), 'success')
@@ -1261,7 +1192,6 @@ function NotePageContent() {
                             ? t('note.mode.edit')
                             : t('note.mode.read')}
                         </span>
-                        <span>{selectedNotePrivacyLabel}</span>
                         <span>{formatDate(selectedNote.updated_at)}</span>
                       </div>
                     )}
@@ -1279,45 +1209,16 @@ function NotePageContent() {
                       </button>
                     )}
                     {isEditing ? (
-                      <>
-                        <button
-                          type="button"
-                          className={`btn btn-sm ${
-                            editIsSecret ? 'btn-warning' : 'btn-secondary'
-                          }`}
-                          onClick={() => setEditIsSecret(!editIsSecret)}
-                          disabled={!selectedNote}
-                          title={
-                            editIsSecret
-                              ? t('note.privacy.secret')
-                              : t('note.privacy.public')
-                          }
-                          aria-label={
-                            editIsSecret
-                              ? t('note.privacy.secret')
-                              : t('note.privacy.public')
-                          }
-                        >
-                          {editIsSecret ? (
-                            <Lock size={16} />
-                          ) : (
-                            <Eye size={16} />
-                          )}
-                          {editIsSecret
-                            ? t('note.privacy.secret')
-                            : t('note.privacy.public')}
-                        </button>
-                        <button
-                          className="btn btn-sm btn-primary"
-                          onClick={handleSaveEditor}
-                          disabled={saving || !!editError || !selectedNote}
-                        >
-                          <Save size={16} />
-                          {saving
-                            ? t('note.action.saving')
-                            : t('note.action.save')}
-                        </button>
-                      </>
+                      <button
+                        className="btn btn-sm btn-primary"
+                        onClick={handleSaveEditor}
+                        disabled={saving || !!editError || !selectedNote}
+                      >
+                        <Save size={16} />
+                        {saving
+                          ? t('note.action.saving')
+                          : t('note.action.save')}
+                      </button>
                     ) : (
                       selectedNote && (
                         <button
@@ -1339,7 +1240,7 @@ function NotePageContent() {
                 {isEditing ? (
                   editError ? (
                     <div className="note-empty-state editor-error">
-                      <Lock size={36} />
+                      <NotebookPen size={36} />
                       <p>{editError}</p>
                     </div>
                   ) : selectedNote ? (
@@ -1394,7 +1295,7 @@ function NotePageContent() {
                   )
                 ) : previewError ? (
                   <div className="ui-empty-state note-empty-state editor-error">
-                    <Lock size={36} />
+                    <NotebookPen size={36} />
                     <p>{previewError}</p>
                   </div>
                 ) : selectedNote ? (
@@ -1503,7 +1404,6 @@ function VaultNotePageContent() {
   const [previewName, setPreviewName] = useState('')
   const [previewContent, setPreviewContent] = useState('')
   const [plainContent, setPlainContent] = useState('')
-  const [editIsSecret, setEditIsSecret] = useState(false)
   const [fileLoading, setFileLoading] = useState(false)
   const [fileError, setFileError] = useState('')
   const [isPublishingAttachment, setIsPublishingAttachment] = useState(false)
@@ -1673,7 +1573,6 @@ function VaultNotePageContent() {
         setSelectedFile(null)
         setPreviewContent('')
         setPlainContent('')
-        setEditIsSecret(false)
         setFileError('')
         setFileLoading(false)
         return
@@ -1682,7 +1581,6 @@ function VaultNotePageContent() {
         setSelectedFile(null)
         setPreviewContent('')
         setPlainContent('')
-        setEditIsSecret(false)
         setFileError(t('note.vault.loginRequired'))
         setFileLoading(false)
         return
@@ -1691,7 +1589,6 @@ function VaultNotePageContent() {
         setSelectedFile(null)
         setPreviewContent('')
         setPlainContent('')
-        setEditIsSecret(false)
         setFileError('')
         setFileLoading(false)
         return
@@ -1702,24 +1599,15 @@ function VaultNotePageContent() {
       try {
         const file = await readNoteVaultFile(currentFilePath)
         if (cancelled) return
-        const fileIsSecret = file.content.startsWith('mp://1')
-        const decryptedContent = fileIsSecret
-          ? mostDecode(file.content, wallet.danger)
-          : file.content
-        const nextError =
-          fileIsSecret && !decryptedContent ? t('note.error.decryptFailed') : ''
-
         setSelectedFile(file)
-        setPreviewContent(decryptedContent || '')
-        setPlainContent(decryptedContent || '')
-        setEditIsSecret(fileIsSecret)
-        setFileError(nextError)
+        setPreviewContent(file.content || '')
+        setPlainContent(file.content || '')
+        setFileError('')
       } catch (err: unknown) {
         if (cancelled) return
         setSelectedFile(null)
         setPreviewContent('')
         setPlainContent('')
-        setEditIsSecret(false)
         setFileError(await getApiErrorMessage(err, t('note.error.notFound')))
       } finally {
         if (!cancelled) setFileLoading(false)
@@ -1760,7 +1648,6 @@ function VaultNotePageContent() {
       getDisplayMarkdownName(selectedFile?.name || selectedNote?.name || '')
     )
     setPlainContent(previewContent)
-    setEditIsSecret(selectedFile?.content.startsWith('mp://1') === true)
     navigateToVault(currentFilePath ? { file: currentFilePath } : {})
   }
 
@@ -1985,9 +1872,6 @@ function VaultNotePageContent() {
     setSaving(true)
     try {
       const markdown = editorRef.current?.getMarkdown() ?? plainContent
-      const storedContent = editIsSecret
-        ? mostEncode(markdown, wallet.danger)
-        : markdown
       let targetPath = selectedFile.path
       if (nextName !== selectedFile.name) {
         targetPath = normalizeNotePath(
@@ -2001,7 +1885,7 @@ function VaultNotePageContent() {
         targetPath = movedFile.path
       }
 
-      const file = await saveNoteVaultFile(targetPath, storedContent)
+      const file = await saveNoteVaultFile(targetPath, markdown)
       setSelectedFile(file)
       setPreviewName(getDisplayMarkdownName(file.name))
       setPreviewContent(markdown)
@@ -2065,7 +1949,7 @@ function VaultNotePageContent() {
         </div>
       ) : vaultError ? (
         <div className="ui-empty-state note-empty-state">
-          <Lock size={32} />
+          <NotebookPen size={32} />
           <p>{vaultError}</p>
         </div>
       ) : vaultStatus?.configured !== true ? (
@@ -2125,16 +2009,6 @@ function VaultNotePageContent() {
     getDisplayMarkdownName(selectedFile?.name || selectedNote?.name || '') ||
     t('note.untitled')
   const canEditCurrentVaultFile = isEditing && !!selectedFile
-  const selectedVaultFileIsSecret =
-    selectedFile?.content.startsWith('mp://1') === true
-  const selectedVaultPrivacyLabel = isEditing
-    ? editIsSecret
-      ? t('note.privacy.secret')
-      : t('note.privacy.public')
-    : selectedVaultFileIsSecret
-      ? t('note.privacy.secret')
-      : t('note.privacy.public')
-
   return (
     <AppShell
       sidebar={() => <NoteSidebar>{noteExplorer}</NoteSidebar>}
@@ -2184,7 +2058,6 @@ function VaultNotePageContent() {
                       <span>
                         {isEditing ? t('note.mode.edit') : t('note.mode.read')}
                       </span>
-                      <span>{selectedVaultPrivacyLabel}</span>
                       <span translate="no">
                         {getDisplayMarkdownPath(currentFilePath)}
                       </span>
@@ -2204,45 +2077,16 @@ function VaultNotePageContent() {
                       </button>
                     )}
                     {isEditing ? (
-                      <>
-                        <button
-                          type="button"
-                          className={`btn btn-sm ${
-                            editIsSecret ? 'btn-warning' : 'btn-secondary'
-                          }`}
-                          onClick={() => setEditIsSecret(!editIsSecret)}
-                          disabled={!!fileError || !selectedFile}
-                          title={
-                            editIsSecret
-                              ? t('note.privacy.secret')
-                              : t('note.privacy.public')
-                          }
-                          aria-label={
-                            editIsSecret
-                              ? t('note.privacy.secret')
-                              : t('note.privacy.public')
-                          }
-                        >
-                          {editIsSecret ? (
-                            <Lock size={16} />
-                          ) : (
-                            <Eye size={16} />
-                          )}
-                          {editIsSecret
-                            ? t('note.privacy.secret')
-                            : t('note.privacy.public')}
-                        </button>
-                        <button
-                          className="btn btn-sm btn-primary"
-                          onClick={handleSaveEditor}
-                          disabled={saving || !!fileError || !selectedFile}
-                        >
-                          <Save size={16} />
-                          {saving
-                            ? t('note.action.saving')
-                            : t('note.action.save')}
-                        </button>
-                      </>
+                      <button
+                        className="btn btn-sm btn-primary"
+                        onClick={handleSaveEditor}
+                        disabled={saving || !!fileError || !selectedFile}
+                      >
+                        <Save size={16} />
+                        {saving
+                          ? t('note.action.saving')
+                          : t('note.action.save')}
+                      </button>
                     ) : (
                       selectedNote && (
                         <button
@@ -2268,7 +2112,7 @@ function VaultNotePageContent() {
                   </div>
                 ) : fileError ? (
                   <div className="ui-empty-state note-empty-state editor-error">
-                    <Lock size={36} />
+                    <NotebookPen size={36} />
                     <p>{fileError}</p>
                   </div>
                 ) : selectedFile ? (
