@@ -23,6 +23,7 @@ import { useI18n } from '~/lib/i18n'
 interface PingTarget {
   name: string
   host: string
+  probeUrl?: string
   category: PingCategory
   icon: string
   fallback: React.ReactNode
@@ -74,6 +75,7 @@ const TARGETS: PingTarget[] = [
   {
     name: 'Claude',
     host: 'claude.ai',
+    probeUrl: 'https://api.anthropic.com/',
     category: 'ai',
     icon: 'simple-icons:anthropic',
     fallback: <Bot size={20} />,
@@ -169,8 +171,10 @@ const CATEGORIES: PingCategory[] = [
 const TIMEOUT = 5000
 
 function getProbeOptions(host: string) {
+  const target = TARGETS.find(candidate => candidate.host === host)
+
   return {
-    url: `https://${host}/robots.txt`,
+    url: target?.probeUrl ?? `https://${host}/robots.txt`,
     method: 'GET' as const,
   }
 }

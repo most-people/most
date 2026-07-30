@@ -1533,10 +1533,15 @@ describe('frontend smoke checks', () => {
     )
   })
 
-  it('uses lightweight GET probes for every connectivity target', () => {
+  it('uses lightweight GET probes with a stable Anthropic endpoint', () => {
     const source = readSource(SOURCE_PATHS.ping)
 
     assert.match(source, /`https:\/\/\$\{host\}\/robots\.txt`/)
+    assert.match(source, /probeUrl: 'https:\/\/api\.anthropic\.com\/'/)
+    assert.match(
+      source,
+      /target\?\.probeUrl \?\? `https:\/\/\$\{host\}\/robots\.txt`/
+    )
     assert.match(source, /method: 'GET' as const/)
     assert.match(source, /mode: 'no-cors'/)
     assert.doesNotMatch(source, /method: 'HEAD'/)
