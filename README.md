@@ -31,13 +31,13 @@
 
 ## 🚀 立即使用
 
-### 方式一：桌面客户端（推荐）与 Android Alpha
+### 方式一：桌面客户端（推荐）与 Android App
 
-前往 [MostBox 下载页](https://Most.Box/download) 下载客户端，支持 Windows、macOS、Linux 和 Android Alpha。桌面端内置本地 MostBox 节点，提供完整 P2P 文件分享、下载校验和持续做种能力，无需单独安装 Node.js；Android Alpha APK 目前聚焦前台 P2P 能力：收发消息、用 `most://` 附件传文件、下载校验并继续做种。
+前往 [MostBox 下载页](https://Most.Box/download) 下载客户端，支持 Windows、macOS、Linux 和 Android。桌面端内置本地 MostBox 节点，提供完整 P2P 文件分享、下载校验和持续做种能力，无需单独安装 Node.js；Android 商店版聚焦用户主动的文件发布、`most://` 链接接收、CID 校验和前台做种。
 
-### Android Alpha
+### Android
 
-移动端优先按 Android 前台完整种子 Alpha 推进，参考 Keet/Pear 的“P2P 核心端 + 平台 UI 壳”分层：手机端先验证自己能加入聊天、收发消息、用 `most://` 附件传文件、下载校验并在前台继续做种，再扩展后台能力和商店分发。当前 Android 内测验收范围见 [docs/mobile-android-alpha.md](docs/mobile-android-alpha.md)；iOS 在投入完整移植和商店合规建设前，先按 [docs/mobile-ios-feasibility.md](docs/mobile-ios-feasibility.md) 完成真机可行性验证。
+Android 使用“P2P 核心端 + 平台 UI 壳”分层，并以文件传输工具身份准备 Google Play 分发。商店版不包含聊天、账号、广告、付费、Web3、公开内容目录或长期后台做种；下载必须由用户在确认页明确触发。Android 验收范围见 [docs/mobile-android-alpha.md](docs/mobile-android-alpha.md)，Google Play 提交清单见 [docs/google-play-submission.md](docs/google-play-submission.md)。iOS 当前不进入本轮测试和上架范围。
 
 移动端工程入口以 `mobile/app/` 子包为准，Android 与 iOS 共享 React Native UI 和 Bare Worklet P2P 核心。仓库根目录不提供 `android:start`、`android:test` 或 `android:build` 包装脚本，本地开发、测试和打包命令统一在子包目录执行：
 
@@ -48,6 +48,7 @@ npm start      # 启动 Expo Dev Client 并打开 Android 真机/模拟器
 npm test       # 运行移动端 CID、most://、Channel 和 Bare Worklet IPC 测试
 npm run typecheck
 npm run build  # 生成内部 Alpha APK 和 SHA256 校验文件
+npm run build:play # 使用独立 upload key 生成 Google Play AAB
 ```
 
 Expo 57 移动端子包建议使用 Node.js >= 22.13。

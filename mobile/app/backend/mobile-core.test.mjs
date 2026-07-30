@@ -225,6 +225,44 @@ describe('mobile file downloads', () => {
     assert.equal(result.transfer.status, 'completed')
     assert.equal(await fs.readFile(result.savedPath, 'utf8'), content)
   })
+
+  it('does not treat holding metadata alone as local content', async t => {
+    const storagePath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mostbox-mobile-stale-holding-')
+    )
+    const core = new MobileP2PCore({
+      storagePath,
+      createSwarm: createRecordingSwarmFactory([]),
+    })
+    const originalEntry = Hyperdrive.prototype.entry
+
+    t.after(async () => {
+      Hyperdrive.prototype.entry = originalEntry
+      await core.stop()
+      await fs.rm(storagePath, { recursive: true, force: true })
+    })
+
+    await core.start()
+    const content = 'content behind stale holding metadata'
+    const published = await core.publishFile({
+      name: 'stale-holding.txt',
+      contentBase64: b4a.toString(b4a.from(content), 'base64'),
+    })
+
+    let hideNextEntry = true
+    Hyperdrive.prototype.entry = function (...args) {
+      if (hideNextEntry) {
+        hideNextEntry = false
+        return Promise.resolve(null)
+      }
+      return originalEntry.apply(this, args)
+    }
+
+    const result = await core.downloadLink({ link: published.transfer.link })
+    assert.equal(result.alreadyExists, undefined)
+    assert.equal(result.transfer.status, 'completed')
+    assert.equal(await fs.readFile(result.savedPath, 'utf8'), content)
+  })
 })
 
 describe('mobile local holding deletion', () => {

@@ -8,12 +8,20 @@
     "scheme": "most",
     "userInterfaceStyle": "automatic",
     "android": {
+      "versionCode": 406,
+      "allowBackup": false,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon-foreground.png",
         "backgroundColor": "#FFFFFF"
       },
-      "package": "box.most.android",
+      "package": "most.box",
       "permissions": ["INTERNET", "ACCESS_NETWORK_STATE", "WAKE_LOCK"],
+      "blockedPermissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.VIBRATE"
+      ],
       "intentFilters": [
         {
           "action": "VIEW",
@@ -40,7 +48,9 @@
         "expo-build-properties",
         {
           "android": {
-            "minSdkVersion": 29
+            "minSdkVersion": 29,
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36
           }
         }
       ],

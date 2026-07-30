@@ -1,5 +1,19 @@
 {
   "build": {
+    "android-preview": {
+      "distribution": "internal",
+      "environment": "preview",
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "android-production": {
+      "autoIncrement": true,
+      "environment": "production",
+      "android": {
+        "buildType": "app-bundle"
+      }
+    },
     "ios-development": {
       "developmentClient": true,
       "distribution": "internal",

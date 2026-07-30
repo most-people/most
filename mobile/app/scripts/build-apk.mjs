@@ -10,23 +10,38 @@ const projectDir = path.resolve(scriptDir, '..')
 const androidDir = path.join(projectDir, 'android')
 const outputDir = path.join(projectDir, 'dist')
 const releaseArchitecture = 'arm64-v8a'
+const buildAppBundle = process.argv.includes('--aab')
 const packageJson = JSON.parse(
   fs.readFileSync(path.join(projectDir, 'package.json'), 'utf8')
 )
 const version = resolveReleaseVersion(
   process.env.MOST_ANDROID_RELEASE_VERSION || packageJson.version || '0.0.0'
 )
-const apkSource = path.join(
-  androidDir,
-  'app',
-  'build',
-  'outputs',
-  'apk',
-  'release',
-  'app-release.apk'
-)
+const packageExtension = buildAppBundle ? 'aab' : 'apk'
+const packageSource = buildAppBundle
+  ? path.join(
+      androidDir,
+      'app',
+      'build',
+      'outputs',
+      'bundle',
+      'release',
+      'app-release.aab'
+    )
+  : path.join(
+      androidDir,
+      'app',
+      'build',
+      'outputs',
+      'apk',
+      'release',
+      'app-release.apk'
+    )
 const legacyApkTarget = path.join(outputDir, 'mostbox-android-release.apk')
-const apkTarget = path.join(outputDir, `mostbox-android-${version}-release.apk`)
+const packageTarget = path.join(
+  outputDir,
+  `mostbox-android-${version}-release.${packageExtension}`
+)
 const gradleCommand = process.platform === 'win32' ? 'gradlew.bat' : './gradlew'
 const npxCommand = process.platform === 'win32' ? 'npx.cmd' : 'npx'
 
@@ -94,9 +109,39 @@ function ensureAndroidProject() {
   run(npxCommand, ['expo', 'prebuild', '--platform', 'android', '--no-install'])
 }
 
+function getPlaySigningEnvironment() {
+  if (!buildAppBundle) return null
+
+  const signing = {
+    storeFile: process.env.MOSTBOX_ANDROID_KEYSTORE,
+    storePassword: process.env.MOSTBOX_ANDROID_KEYSTORE_PASSWORD,
+    keyAlias: process.env.MOSTBOX_ANDROID_KEY_ALIAS,
+    keyPassword: process.env.MOSTBOX_ANDROID_KEY_PASSWORD,
+  }
+  const missing = Object.entries(signing)
+    .filter(([, value]) => !value)
+    .map(([key]) => key)
+  if (missing.length) {
+    throw new Error(
+      `Google Play AAB requires release signing values: ${missing.join(', ')}`
+    )
+  }
+
+  const storeFile = path.resolve(signing.storeFile)
+  if (!fs.existsSync(storeFile)) {
+    throw new Error(`Android upload keystore was not found: ${storeFile}`)
+  }
+
+  return { ...signing, storeFile }
+}
+
+const playSigning = getPlaySigningEnvironment()
 console.log(`[android] release version: ${version}`)
 ensureAndroidProject()
-syncNativeAndroidProject({ version })
+syncNativeAndroidProject({
+  version,
+  playSigningRequired: buildAppBundle,
+})
 console.log('[android] bundling Bare Worklet core...')
 run(process.execPath, [
   path.join(projectDir, 'node_modules', 'bare-pack', 'bin.js'),
@@ -110,11 +155,13 @@ run(process.execPath, [
   'app.bundle.js',
 ])
 
-console.log('[android] building release APK...')
+console.log(
+  `[android] building release ${buildAppBundle ? 'App Bundle' : 'APK'}...`
+)
 run(
   gradleCommand,
   [
-    'assembleRelease',
+    buildAppBundle ? 'bundleRelease' : 'assembleRelease',
     `-PreactNativeArchitectures=${releaseArchitecture}`,
     '-Pexpo.useLegacyPackaging=true',
   ],
@@ -122,24 +169,36 @@ run(
     cwd: androidDir,
     env: {
       NODE_ENV: 'production',
+      ...(playSigning
+        ? {
+            MOSTBOX_ANDROID_KEYSTORE: playSigning.storeFile,
+            MOSTBOX_ANDROID_KEYSTORE_PASSWORD: playSigning.storePassword,
+            MOSTBOX_ANDROID_KEY_ALIAS: playSigning.keyAlias,
+            MOSTBOX_ANDROID_KEY_PASSWORD: playSigning.keyPassword,
+          }
+        : {}),
     },
   }
 )
 
-if (!fs.existsSync(apkSource)) {
-  throw new Error(`APK was not created at ${apkSource}`)
+if (!fs.existsSync(packageSource)) {
+  throw new Error(
+    `${buildAppBundle ? 'AAB' : 'APK'} was not created at ${packageSource}`
+  )
 }
 
 fs.mkdirSync(outputDir, { recursive: true })
-safeRm(legacyApkTarget)
-safeRm(`${legacyApkTarget}.sha256.txt`)
-fs.copyFileSync(apkSource, apkTarget)
-const apkSizeBytes = fs.statSync(apkTarget).size
-const apkSizeMiB = apkSizeBytes / 1024 / 1024
+if (!buildAppBundle) {
+  safeRm(legacyApkTarget)
+  safeRm(`${legacyApkTarget}.sha256.txt`)
+}
+fs.copyFileSync(packageSource, packageTarget)
+const packageSizeBytes = fs.statSync(packageTarget).size
+const packageSizeMiB = packageSizeBytes / 1024 / 1024
 console.log(
-  `[android] APK ready: ${apkTarget} (${apkSizeMiB.toFixed(2)} MiB, ${releaseArchitecture})`
+  `[android] ${buildAppBundle ? 'AAB' : 'APK'} ready: ${packageTarget} (${packageSizeMiB.toFixed(2)} MiB, ${releaseArchitecture})`
 )
 
-const { checksumPath, digest } = writeChecksum(apkTarget)
-console.log(`[android] SHA256 ${digest}  ${path.basename(apkTarget)}`)
+const { checksumPath, digest } = writeChecksum(packageTarget)
+console.log(`[android] SHA256 ${digest}  ${path.basename(packageTarget)}`)
 console.log(`[android] Checksum ready: ${checksumPath}`)

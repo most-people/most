@@ -4,6 +4,7 @@ import {
   buildMostLink,
   createProtocolSummary,
   getHyperdriveCidPath,
+  hasExplicitMostLinkFilename,
   parseIncomingMostLink,
   parseMostLink,
 } from './protocol'
@@ -21,12 +22,18 @@ describe('mobile most link protocol', () => {
     const parsed = parseMostLink(link)
     assert.equal(parsed.cid, VALID_CID)
     assert.equal(parsed.fileName, 'hello world.txt')
+    assert.equal(hasExplicitMostLinkFilename(link), true)
   })
 
   it('uses CID as file name when filename is omitted', () => {
     const parsed = parseMostLink(`most://${VALID_CID}`)
     assert.equal(parsed.cid, VALID_CID)
     assert.equal(parsed.fileName, VALID_CID)
+    assert.equal(hasExplicitMostLinkFilename(`most://${VALID_CID}`), false)
+    assert.equal(
+      hasExplicitMostLinkFilename(`most://${VALID_CID}?filename=%20`),
+      false
+    )
   })
 
   it('parses links when URLSearchParams.keys is unavailable', () => {

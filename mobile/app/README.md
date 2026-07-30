@@ -1,115 +1,85 @@
 # MostBox Mobile
 
-Android foreground P2P alpha and iOS feasibility build for MostBox. This shared mobile package keeps the React Native UI and Bare Worklet P2P core separate from the desktop/web code while preserving the same `most://`, CID, Hyperdrive, and seeding rules. Platform-specific native projects, configuration, signing, and file APIs remain separate inside the package.
+MostBox 的 Android 商店版和共享 Bare Worklet P2P 核心。移动工程与桌面/Web UI 分离，但保持相同的 `most://`、CID、Hyperdrive 和做种协议。
 
-## Current State
+## 当前状态
 
-- Android opens on the Chat tab with a native chat list aligned to the Web `/chat/` entry.
-- The Chat tab includes chat room and chat settings screens, message compose, attachment compose, and received `most://` links rendered as chat attachment cards with download actions.
-- The secondary Node tab is for diagnostics: node status, holdings, transfers, logs, and holding export/delete actions.
-- Channel create/list/messages/presence use the mobile Bare Worklet P2P core over JSONL IPC.
-- Sending an attachment publishes the selected file, creates the `most://<cid>?filename=...` link, posts that link into the active chat room, and keeps the Android node seeding in the foreground.
-- Received chat messages that contain a `most://` link render as chat attachment cards; tapping the attachment download action downloads and verifies the file with the Android node.
-- Android and iOS accept external `most://` links on cold start and while running; the shared mobile flow downloads, verifies, records the holding, and starts seeding after the P2P core is ready.
-- Android and desktop MostBox nodes have completed end-to-end publish/download/CID verification/seeding interop in foreground mode.
-- `backend/backend.mjs` starts the real mobile P2P core.
-- The mobile P2P core uses Hyperswarm, Corestore, Hyperdrive, CID digest topics, `/<cid>` drive paths, and CID verification before downloaded files become holdings.
+- Android 使用原生 React Native 文件工具界面，包含“文件 / 传输 / 设置”三个入口。
+- 用户可选择文件发布，得到 `most://<cid>?filename=...` 链接并在前台做种。
+- 外部 `most://` 深链只打开下载确认页，不会自动开始下载。
+- 下载完成后重算 UnixFS CID v1，校验通过才写入 holding 并加入 CID topic。
+- holding 支持复制链接、系统分享、保存副本和删除；删除 holding 后停止本机做种。
+- Google Play 版本不暴露聊天、账号、广告、付费、Web3、公开内容目录或后台常驻能力。
+- 已知应用安装包、脚本和可执行文件类型会在发布或下载前被拒绝。
 
-## Commands
+## 命令
 
-Run Android development, test, and packaging commands from this package. The repository root does not provide `android:start`, `android:test`, or `android:build` wrappers.
+所有移动端命令都从本目录执行：
 
 ```bash
 cd mobile/app
 npm install
 npm start
-npm run ios
 npm test
+npm run typecheck
 npm run build
 ```
 
-`npm start` bundles the Bare Worklet core, starts the Expo dev server, picks the first connected Android target unless `ANDROID_SERIAL` is set, starts the first available emulator when no target is connected, and opens the dev client automatically. Emulators use `adb reverse` with `http://127.0.0.1:8081`; physical devices use an automatically selected LAN URL.
+`npm start` 会打包 Bare Worklet、启动 Expo 开发服务器并打开已连接的 Android 设备或模拟器。
 
-`npm run ios` is the local macOS preview path. It bundles the same P2P core with the iOS preset, generates the native project when needed, installs CocoaPods dependencies, builds the development app, and opens it in iOS Simulator. It requires a full Xcode installation with an iOS Simulator runtime; Command Line Tools alone are not sufficient. The first run can take several minutes while Expo generates `ios/` and Xcode compiles the native addons.
+## 内部 APK
 
-If the machine has multiple network adapters and the selected LAN URL is not reachable from the phone, set `MOST_ANDROID_HOST` to the host IP address on the same Wi-Fi/LAN before running `npm start`. The script prints the dev server URL it is opening; manual entry in the Expo Development Servers screen should only be needed when no device is connected or Android rejects the automatic intent.
+`npm run build` 生成用于真机内测的 arm64 APK 和 SHA256：
 
-## Local iOS Simulator Preview
+- `dist/mostbox-android-<version>-release.apk`
+- `dist/mostbox-android-<version>-release.apk.sha256.txt`
 
-Install the current Xcode version supported by Expo 57, launch Xcode once to finish its component setup, and select it as the active developer directory. Then run:
+该 APK 使用本地 Alpha 签名配置，不能上传 Google Play。
 
-```bash
-cd mobile/app
-npm install
-npm run ios
+## Google Play AAB
+
+本地 AAB 构建必须提供独立 upload key；缺少任一变量时脚本会在构建前失败，不会回退到 debug key：
+
+```powershell
+$env:MOSTBOX_ANDROID_KEYSTORE='C:\secure\mostbox-upload.jks'
+$env:MOSTBOX_ANDROID_KEYSTORE_PASSWORD='<keystore password>'
+$env:MOSTBOX_ANDROID_KEY_ALIAS='mostbox-upload'
+$env:MOSTBOX_ANDROID_KEY_PASSWORD='<key password>'
+npm run build:play
 ```
 
-The generated `ios/` directory and `app.bundle.js` are local build outputs and remain ignored by Git. Use `npm run start:ios` only after a development client is already installed and you only need to restart Metro.
+产物：
 
-The Simulator is suitable for checking the native build, Bare Worklet startup, navigation, and basic file UI. It does not replace the real-iPhone Wi-Fi, cellular, lifecycle, signing, and foreground seeding checks in `../../docs/mobile-ios-feasibility.md`.
+- `dist/mostbox-android-<version>-release.aab`
+- `dist/mostbox-android-<version>-release.aab.sha256.txt`
 
-## iOS Feasibility Build From Windows
-
-The iOS build uses EAS Build's remote macOS worker. A physical iPhone build requires an Expo account, an active Apple Developer Program membership, and a registered device.
-
-Run the one-time account and device setup from this package:
+也可以使用 EAS `android-production` profile 构建 App Bundle，由 EAS credentials 管理 upload key：
 
 ```bash
-cd mobile/app
-npx eas-cli@latest login
-npx eas-cli@latest init
-npx eas-cli@latest device:create
+npx eas-cli@latest build --platform android --profile android-production
 ```
 
-Create and install the development client on the registered iPhone:
+Play Console 填报、审核说明和素材要求见 `../../docs/google-play-submission.md`。
 
-```bash
-npx eas-cli@latest build --platform ios --profile ios-development
-npm run start:ios
-```
+## 验收
 
-The iPhone and Windows machine must be able to reach the same Metro development server. After installing the development build, enable Developer Mode under iPhone Settings > Privacy & Security when iOS prompts for it.
-
-For Wi-Fi/cellular P2P tests that must run without Metro, create an internal preview build with the JavaScript bundle embedded:
-
-```bash
-npx eas-cli@latest build --platform ios --profile ios-preview
-```
-
-EAS runs `scripts/bundle-bare.mjs` after installing native dependencies so the Xcode build always receives a Bare bundle for the selected platform. The `ios-production` profile is reserved for the later TestFlight validation and is not proof of App Store approval.
-
-## Alpha APK
-
-`npm run build` builds a release APK for device installation and writes these files to `mobile/app/dist/`:
-
-- `mostbox-android-<version>-release.apk`
-- `mostbox-android-<version>-release.apk.sha256.txt`
-
-The release build is an internal alpha artifact. It uses the current local Android signing setup and is not a Play Store production build.
-
-The downloadable alpha APK targets 64-bit ARM devices (`arm64-v8a`) and compresses native libraries to reduce the download size. Local development keeps the native project's multi-architecture configuration for physical devices and emulators.
-
-## Alpha Acceptance
-
-Use `../../docs/mobile-android-alpha.md` for the current Android alpha acceptance checklist. The highest-value foreground seeding regression is:
+Android 真机验收清单见 `../../docs/mobile-android-alpha.md`。最高优先级回归仍是原发布者退出后，由 Android 前台种子继续向新节点传播：
 
 ```bash
 node scripts/android-real-p2p-seed.mjs --handoff-check
 ```
 
-## Known Limits
+## 边界
 
-- Android alpha only promises foreground seeding. It does not promise long-running background availability.
-- Android chat currently focuses on private room messages, presence, and `most://` attachment links; notes and Web3 remain desktop/web-first surfaces.
-- Exported or saved files are user-visible copies. MostBox keeps its internal holding copy for CID verification and seeding.
-- Deleting an Android holding removes only the app-internal holding copy and holding record; user-visible saved/exported copies are not managed by MostBox.
-- App Store/Play Store approval, cloud relay, account sync, background seeding guarantees, and full notes/Web3 migration are outside this alpha.
-- Large files may expose storage, network interruption, and Android file picker/export edge cases; record those in `docs/mobile-android-alpha.md`.
+- Android 只承诺前台做种，返回前台后恢复节点和 topic。
+- 保存或分享产生的是用户可见副本；MostBox 内部 holding 副本用于 CID 校验和做种。
+- CID 即权限，链接泄露后无法从 P2P 网络统一撤回。
+- 本轮不测试或发布 iOS。
 
-## Protocol Invariants
+## 协议不变量
 
-- `most://<cid>?filename=...` remains the native share link.
-- CID remains the only content identity.
-- Hyperswarm topic must use `cid.multihash.digest`.
-- Hyperdrive stores the file at `/<cid>`.
-- Downloaded content must be re-hashed as UnixFS CID v1 before it is saved or seeded.
+- 原生链接固定为 `most://<cid>?filename=...`。
+- CID 是唯一内容身份。
+- Hyperswarm topic 使用 `cid.multihash.digest`。
+- Hyperdrive 文件路径固定为 `/<cid>`。
+- 下载内容必须重算 UnixFS CID v1，校验通过后才保存和做种。

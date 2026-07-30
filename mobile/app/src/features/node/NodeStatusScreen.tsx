@@ -12,7 +12,10 @@ import {
   Activity,
   CircleCheck,
   Copy,
+  Download,
+  ExternalLink,
   FileCheck,
+  FileText,
   HardDrive,
   ListChecks,
   Loader,
@@ -21,6 +24,7 @@ import {
   Share2,
   ShieldCheck,
   Trash2,
+  Upload,
   Wifi,
 } from 'lucide-react-native'
 import type {
@@ -34,14 +38,21 @@ import type {
 } from '../../mobileCore/types'
 
 export type NodeStatusScreenProps = {
+  section: 'files' | 'transfers' | 'settings'
   snapshot: MobileCoreSnapshot
   copiedCid: string | null
   deletingCid: string | null
   exportingCid: string | null
+  actionDisabled: boolean
+  onPublishFile: () => void | Promise<void>
+  onReceiveLink: () => void
   onCopyHoldingLink: (holding: MobileHolding) => void | Promise<void>
   onDeleteHolding: (holding: MobileHolding) => void
   onSaveHolding: (holding: MobileHolding) => void | Promise<void>
   onShareHolding: (holding: MobileHolding) => void | Promise<void>
+  onOpenPrivacy: () => void | Promise<void>
+  onOpenTerms: () => void | Promise<void>
+  onOpenSupport: () => void | Promise<void>
   onRetryStartCore: () => void | Promise<void>
   retryStartDisabled: boolean
 }
@@ -269,19 +280,26 @@ function getProgressWidthStyle(progress: number) {
 }
 
 export function NodeStatusScreen({
+  section,
   snapshot,
   copiedCid,
   deletingCid,
   exportingCid,
+  actionDisabled,
+  onPublishFile,
+  onReceiveLink,
   onCopyHoldingLink,
   onDeleteHolding,
   onSaveHolding,
   onShareHolding,
+  onOpenPrivacy,
+  onOpenTerms,
+  onOpenSupport,
   onRetryStartCore,
   retryStartDisabled,
 }: NodeStatusScreenProps) {
   const isReady = snapshot.node.status === 'ready'
-  const latestTransfers = snapshot.transfers.slice(0, 4)
+  const latestTransfers = snapshot.transfers
   const recentLogs = snapshot.logs.slice(0, 6)
   const activeTransfers = snapshot.transfers.filter(
     transfer =>
@@ -292,253 +310,323 @@ export function NodeStatusScreen({
 
   return (
     <ScrollView contentContainerStyle={styles.content}>
-      <View style={styles.panel}>
-        <SectionHeader
-          icon={<Radio size={18} color="#0f766e" />}
-          title="节点状态"
-          meta={NODE_STATUS_LABELS[snapshot.node.status]}
-        />
+      {section === 'files' ? (
+        <View style={styles.actionPanel}>
+          <Pressable
+            accessibilityRole="button"
+            disabled={actionDisabled}
+            onPress={onPublishFile}
+            style={[
+              styles.primaryAction,
+              actionDisabled ? styles.primaryActionDisabled : null,
+            ]}
+          >
+            <Upload size={21} color="#ffffff" />
+            <Text style={styles.primaryActionText}>发布文件</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={onReceiveLink}
+            style={styles.secondaryAction}
+          >
+            <Download size={21} color="#0f766e" />
+            <Text style={styles.secondaryActionText}>接收文件</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
-        {snapshot.node.error ? (
-          <View style={styles.nodeErrorBanner}>
-            <Text style={styles.nodeErrorText}>{snapshot.node.error}</Text>
-            <Pressable
-              disabled={retryStartDisabled}
-              onPress={onRetryStartCore}
-              style={[
-                styles.retryButton,
-                retryStartDisabled ? styles.retryButtonDisabled : null,
-              ]}
-            >
-              <Text
+      {section === 'settings' ? (
+        <View style={styles.panel}>
+          <SectionHeader
+            icon={<Radio size={18} color="#0f766e" />}
+            title="节点状态"
+            meta={NODE_STATUS_LABELS[snapshot.node.status]}
+          />
+
+          {snapshot.node.error ? (
+            <View style={styles.nodeErrorBanner}>
+              <Text style={styles.nodeErrorText}>{snapshot.node.error}</Text>
+              <Pressable
+                disabled={retryStartDisabled}
+                onPress={onRetryStartCore}
                 style={[
-                  styles.retryButtonText,
-                  retryStartDisabled ? styles.retryButtonTextDisabled : null,
+                  styles.retryButton,
+                  retryStartDisabled ? styles.retryButtonDisabled : null,
                 ]}
               >
-                重试
-              </Text>
-            </Pressable>
+                <Text
+                  style={[
+                    styles.retryButtonText,
+                    retryStartDisabled ? styles.retryButtonTextDisabled : null,
+                  ]}
+                >
+                  重试
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          <View style={styles.metricsRow}>
+            <Metric
+              icon={<Activity size={17} color="#0f766e" />}
+              label="在线 Peer"
+              value={String(snapshot.node.peerCount)}
+            />
+            <Metric
+              icon={<HardDrive size={17} color="#2563eb" />}
+              label="本机做种"
+              value={String(snapshot.holdings.length)}
+            />
+            <Metric
+              icon={<ShieldCheck size={17} color="#b45309" />}
+              label="附件校验"
+              value="开启"
+            />
           </View>
-        ) : null}
-
-        <View style={styles.metricsRow}>
-          <Metric
-            icon={<Activity size={17} color="#0f766e" />}
-            label="在线 Peer"
-            value={String(snapshot.node.peerCount)}
-          />
-          <Metric
-            icon={<HardDrive size={17} color="#2563eb" />}
-            label="本机做种"
-            value={String(snapshot.holdings.length)}
-          />
-          <Metric
-            icon={<ShieldCheck size={17} color="#b45309" />}
-            label="附件校验"
-            value="开启"
-          />
         </View>
-      </View>
+      ) : null}
 
-      <View style={styles.panel}>
-        <SectionHeader
-          icon={<Wifi size={18} color="#0f766e" />}
-          title="正在做种"
-          meta={`${snapshot.holdings.length} 个文件`}
-        />
+      {section === 'files' ? (
+        <View style={styles.panel}>
+          <SectionHeader
+            icon={<Wifi size={18} color="#0f766e" />}
+            title="正在做种"
+            meta={`${snapshot.holdings.length} 个文件`}
+          />
 
-        {snapshot.holdings.length ? (
-          <View style={styles.holdingList}>
-            {snapshot.holdings.map(holding => {
-              const isExporting = exportingCid === holding.cid
-              const isDeleting = deletingCid === holding.cid
-              const isCopied = copiedCid === holding.cid
-              const seedTone = getSeedTone(holding.status)
+          {snapshot.holdings.length ? (
+            <View style={styles.holdingList}>
+              {snapshot.holdings.map(holding => {
+                const isExporting = exportingCid === holding.cid
+                const isDeleting = deletingCid === holding.cid
+                const isCopied = copiedCid === holding.cid
+                const seedTone = getSeedTone(holding.status)
 
-              return (
-                <View key={holding.cid} style={styles.holdingItem}>
-                  <View style={styles.holdingTopRow}>
-                    <View style={styles.fileIcon}>
-                      <FileCheck size={20} color="#0f766e" />
+                return (
+                  <View key={holding.cid} style={styles.holdingItem}>
+                    <View style={styles.holdingTopRow}>
+                      <View style={styles.fileIcon}>
+                        <FileCheck size={20} color="#0f766e" />
+                      </View>
+                      <View style={styles.holdingMain}>
+                        <Text style={styles.fileName} numberOfLines={2}>
+                          {holding.fileName}
+                        </Text>
+                        <Text style={styles.fileMeta}>
+                          {formatBytes(holding.size)} ·{' '}
+                          {holding.source === 'published' ? '已发布' : '已下载'}
+                        </Text>
+                      </View>
+                      <StatusBadge
+                        label={SEED_STATUS_LABELS[holding.status]}
+                        tone={seedTone}
+                      />
                     </View>
-                    <View style={styles.holdingMain}>
-                      <Text style={styles.fileName} numberOfLines={2}>
-                        {holding.fileName}
+
+                    <View style={styles.cidBlock}>
+                      <Text style={styles.cidLabel}>CID</Text>
+                      <Text style={styles.cidText}>
+                        {shortCid(holding.cid, 16, 10)}
                       </Text>
-                      <Text style={styles.fileMeta}>
-                        {formatBytes(holding.size)} ·{' '}
-                        {holding.source === 'published' ? '已发布' : '已下载'}
+                    </View>
+
+                    <View style={styles.topicRow}>
+                      <Text style={styles.topicText}>
+                        {holding.topicJoined
+                          ? 'Topic 已加入'
+                          : '等待加入 topic'}
+                      </Text>
+                      <Text style={styles.topicText}>
+                        {holding.peerCount} peer
+                      </Text>
+                    </View>
+
+                    <View style={styles.holdingActions}>
+                      <SmallAction
+                        label={isCopied ? '已复制' : '复制链接'}
+                        accessibilityLabel="复制链接"
+                        testID={`holding-${holding.cid}-copy-link`}
+                        onPress={() => onCopyHoldingLink(holding)}
+                        icon={
+                          isCopied ? (
+                            <CircleCheck size={15} color="#0f766e" />
+                          ) : (
+                            <Copy size={15} color="#0f766e" />
+                          )
+                        }
+                      />
+                      <SmallAction
+                        label={isExporting ? '处理中' : '分享'}
+                        accessibilityLabel="分享"
+                        testID={`holding-${holding.cid}-share`}
+                        disabled={isExporting || isDeleting || !isReady}
+                        onPress={() => onShareHolding(holding)}
+                        icon={
+                          isExporting ? (
+                            <Loader size={15} color="#94a3b8" />
+                          ) : (
+                            <Share2 size={15} color="#0f766e" />
+                          )
+                        }
+                      />
+                      <SmallAction
+                        label={Platform.OS === 'ios' ? '存到文件' : '保存'}
+                        accessibilityLabel={
+                          Platform.OS === 'ios' ? '存到文件' : '保存'
+                        }
+                        testID={`holding-${holding.cid}-save`}
+                        disabled={isExporting || isDeleting || !isReady}
+                        onPress={() => onSaveHolding(holding)}
+                        icon={
+                          <Save
+                            size={15}
+                            color={isReady ? '#0f766e' : '#94a3b8'}
+                          />
+                        }
+                      />
+                      <SmallAction
+                        danger
+                        label={isDeleting ? '删除中' : '删除'}
+                        accessibilityLabel="删除"
+                        testID={`holding-${holding.cid}-delete`}
+                        disabled={isDeleting || isExporting || !isReady}
+                        onPress={() => onDeleteHolding(holding)}
+                        icon={
+                          isDeleting ? (
+                            <Loader size={15} color="#94a3b8" />
+                          ) : (
+                            <Trash2 size={15} color="#b91c1c" />
+                          )
+                        }
+                      />
+                    </View>
+                  </View>
+                )
+              })}
+            </View>
+          ) : (
+            <EmptyState
+              title="还没有本机附件"
+              body="发送或下载附件完成后，文件会自动加入做种列表。"
+            />
+          )}
+        </View>
+      ) : null}
+
+      {section === 'transfers' ? (
+        <View style={styles.panel}>
+          <SectionHeader
+            icon={<ListChecks size={18} color="#b45309" />}
+            title="传输活动"
+            meta={
+              activeTransfers.length
+                ? `${activeTransfers.length} 个进行中`
+                : '空闲'
+            }
+          />
+
+          {latestTransfers.length ? (
+            <View style={styles.transferList}>
+              {latestTransfers.map(transfer => (
+                <View key={transfer.id} style={styles.transferItem}>
+                  <View style={styles.transferTopRow}>
+                    <View style={styles.transferTitleGroup}>
+                      <Text style={styles.transferName} numberOfLines={1}>
+                        {transfer.fileName ||
+                          TRANSFER_KIND_LABELS[transfer.kind]}
+                      </Text>
+                      <Text style={styles.transferMeta}>
+                        {TRANSFER_KIND_LABELS[transfer.kind]} ·{' '}
+                        {transfer.message}
                       </Text>
                     </View>
                     <StatusBadge
-                      label={SEED_STATUS_LABELS[holding.status]}
-                      tone={seedTone}
+                      label={TRANSFER_STATUS_LABELS[transfer.status]}
+                      tone={getTransferTone(transfer.status)}
                     />
                   </View>
+                  <ProgressBar progress={transfer.progress} />
+                </View>
+              ))}
+            </View>
+          ) : (
+            <EmptyState
+              title="暂无传输"
+              body="文件发布和下载进度会显示在这里。"
+            />
+          )}
+        </View>
+      ) : null}
 
-                  <View style={styles.cidBlock}>
-                    <Text style={styles.cidLabel}>CID</Text>
-                    <Text style={styles.cidText}>
-                      {shortCid(holding.cid, 16, 10)}
-                    </Text>
-                  </View>
+      {section === 'settings' ? (
+        <View style={styles.panel}>
+          <SectionHeader
+            icon={<Radio size={18} color="#6d5dfc" />}
+            title="节点日志"
+            meta={recentLogs.length ? `最近 ${recentLogs.length} 条` : '暂无'}
+          />
 
-                  <View style={styles.topicRow}>
-                    <Text style={styles.topicText}>
-                      {holding.topicJoined ? 'Topic 已加入' : '等待加入 topic'}
+          {recentLogs.length ? (
+            <View style={styles.logList}>
+              {recentLogs.map(log => (
+                <View key={log.id} style={styles.logItem}>
+                  <Text style={styles.logTime}>{formatLogTime(log.time)}</Text>
+                  <View style={styles.logBody}>
+                    <Text
+                      style={[
+                        styles.logLevel,
+                        log.level === 'error' ? styles.logLevelError : null,
+                        log.level === 'warn' ? styles.logLevelWarn : null,
+                      ]}
+                    >
+                      {LOG_LEVEL_LABELS[log.level]}
                     </Text>
-                    <Text style={styles.topicText}>
-                      {holding.peerCount} peer
-                    </Text>
-                  </View>
-
-                  <View style={styles.holdingActions}>
-                    <SmallAction
-                      label={isCopied ? '已复制' : '复制链接'}
-                      accessibilityLabel="复制链接"
-                      testID={`holding-${holding.cid}-copy-link`}
-                      onPress={() => onCopyHoldingLink(holding)}
-                      icon={
-                        isCopied ? (
-                          <CircleCheck size={15} color="#0f766e" />
-                        ) : (
-                          <Copy size={15} color="#0f766e" />
-                        )
-                      }
-                    />
-                    <SmallAction
-                      label={isExporting ? '处理中' : '分享'}
-                      accessibilityLabel="分享"
-                      testID={`holding-${holding.cid}-share`}
-                      disabled={isExporting || isDeleting || !isReady}
-                      onPress={() => onShareHolding(holding)}
-                      icon={
-                        isExporting ? (
-                          <Loader size={15} color="#94a3b8" />
-                        ) : (
-                          <Share2 size={15} color="#0f766e" />
-                        )
-                      }
-                    />
-                    <SmallAction
-                      label={Platform.OS === 'ios' ? '存到文件' : '保存'}
-                      accessibilityLabel={
-                        Platform.OS === 'ios' ? '存到文件' : '保存'
-                      }
-                      testID={`holding-${holding.cid}-save`}
-                      disabled={isExporting || isDeleting || !isReady}
-                      onPress={() => onSaveHolding(holding)}
-                      icon={
-                        <Save
-                          size={15}
-                          color={isReady ? '#0f766e' : '#94a3b8'}
-                        />
-                      }
-                    />
-                    <SmallAction
-                      danger
-                      label={isDeleting ? '删除中' : '删除'}
-                      accessibilityLabel="删除"
-                      testID={`holding-${holding.cid}-delete`}
-                      disabled={isDeleting || isExporting || !isReady}
-                      onPress={() => onDeleteHolding(holding)}
-                      icon={
-                        isDeleting ? (
-                          <Loader size={15} color="#94a3b8" />
-                        ) : (
-                          <Trash2 size={15} color="#b91c1c" />
-                        )
-                      }
-                    />
+                    <Text style={styles.logMessage}>{log.message}</Text>
                   </View>
                 </View>
-              )
-            })}
-          </View>
-        ) : (
-          <EmptyState
-            title="还没有本机附件"
-            body="发送或下载附件完成后，文件会自动加入做种列表。"
+              ))}
+            </View>
+          ) : (
+            <EmptyState
+              title="日志为空"
+              body="核心状态变化和传输事件会记录在这里。"
+            />
+          )}
+        </View>
+      ) : null}
+
+      {section === 'settings' ? (
+        <View style={styles.panel}>
+          <SectionHeader
+            icon={<FileText size={18} color="#2563eb" />}
+            title="关于与政策"
           />
-        )}
-      </View>
-
-      <View style={styles.panel}>
-        <SectionHeader
-          icon={<ListChecks size={18} color="#b45309" />}
-          title="传输活动"
-          meta={
-            activeTransfers.length
-              ? `${activeTransfers.length} 个进行中`
-              : '空闲'
-          }
-        />
-
-        {latestTransfers.length ? (
-          <View style={styles.transferList}>
-            {latestTransfers.map(transfer => (
-              <View key={transfer.id} style={styles.transferItem}>
-                <View style={styles.transferTopRow}>
-                  <View style={styles.transferTitleGroup}>
-                    <Text style={styles.transferName} numberOfLines={1}>
-                      {transfer.fileName || TRANSFER_KIND_LABELS[transfer.kind]}
-                    </Text>
-                    <Text style={styles.transferMeta}>
-                      {TRANSFER_KIND_LABELS[transfer.kind]} · {transfer.message}
-                    </Text>
-                  </View>
-                  <StatusBadge
-                    label={TRANSFER_STATUS_LABELS[transfer.status]}
-                    tone={getTransferTone(transfer.status)}
-                  />
-                </View>
-                <ProgressBar progress={transfer.progress} />
-              </View>
-            ))}
-          </View>
-        ) : (
-          <EmptyState
-            title="暂无传输"
-            body="附件发送和下载进度会显示在这里。"
-          />
-        )}
-      </View>
-
-      <View style={styles.panel}>
-        <SectionHeader
-          icon={<Radio size={18} color="#6d5dfc" />}
-          title="节点日志"
-          meta={recentLogs.length ? `最近 ${recentLogs.length} 条` : '暂无'}
-        />
-
-        {recentLogs.length ? (
-          <View style={styles.logList}>
-            {recentLogs.map(log => (
-              <View key={log.id} style={styles.logItem}>
-                <Text style={styles.logTime}>{formatLogTime(log.time)}</Text>
-                <View style={styles.logBody}>
-                  <Text
-                    style={[
-                      styles.logLevel,
-                      log.level === 'error' ? styles.logLevelError : null,
-                      log.level === 'warn' ? styles.logLevelWarn : null,
-                    ]}
-                  >
-                    {LOG_LEVEL_LABELS[log.level]}
-                  </Text>
-                  <Text style={styles.logMessage}>{log.message}</Text>
-                </View>
-              </View>
-            ))}
-          </View>
-        ) : (
-          <EmptyState
-            title="日志为空"
-            body="核心状态变化和传输事件会记录在这里。"
-          />
-        )}
-      </View>
+          <Pressable
+            accessibilityRole="link"
+            onPress={onOpenPrivacy}
+            style={styles.linkRow}
+          >
+            <Text style={styles.linkText}>隐私政策</Text>
+            <ExternalLink size={16} color="#63716c" />
+          </Pressable>
+          <Pressable
+            accessibilityRole="link"
+            onPress={onOpenTerms}
+            style={styles.linkRow}
+          >
+            <Text style={styles.linkText}>使用条款</Text>
+            <ExternalLink size={16} color="#63716c" />
+          </Pressable>
+          <Pressable
+            accessibilityRole="link"
+            onPress={onOpenSupport}
+            style={styles.linkRow}
+          >
+            <Text style={styles.linkText}>问题反馈</Text>
+            <ExternalLink size={16} color="#63716c" />
+          </Pressable>
+        </View>
+      ) : null}
     </ScrollView>
   )
 }
@@ -557,6 +645,48 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#dbe6e1',
     backgroundColor: '#ffffff',
+  },
+  actionPanel: {
+    flexDirection: 'row',
+    gap: 10,
+    marginHorizontal: 16,
+  },
+  primaryAction: {
+    flex: 1,
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: '#0f766e',
+  },
+  primaryActionDisabled: {
+    backgroundColor: '#8fb9b2',
+  },
+  primaryActionText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  secondaryAction: {
+    flex: 1,
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#bcd4cc',
+    backgroundColor: '#ffffff',
+  },
+  secondaryActionText: {
+    color: '#0f5f58',
+    fontSize: 15,
+    fontWeight: '900',
   },
   sectionHeader: {
     minHeight: 28,
@@ -783,6 +913,22 @@ const styles = StyleSheet.create({
   },
   disabledText: {
     color: '#94a3a0',
+  },
+  linkRow: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#dbe6e1',
+    backgroundColor: '#f8fbf9',
+  },
+  linkText: {
+    color: '#13231f',
+    fontSize: 14,
+    fontWeight: '800',
   },
   transferList: {
     gap: 10,

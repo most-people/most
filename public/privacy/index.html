@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light" />
+    <title>MostBox 隐私政策</title>
+    <style>
+      :root {
+        color: #15231f;
+        background: #f5f8f6;
+        font-family:
+          Inter,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+      }
+      main {
+        width: min(760px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 48px 0 72px;
+      }
+      header {
+        padding-bottom: 24px;
+        border-bottom: 1px solid #cfddd7;
+      }
+      h1,
+      h2 {
+        margin: 0;
+        letter-spacing: 0;
+      }
+      h1 {
+        font-size: clamp(30px, 6vw, 44px);
+      }
+      h2 {
+        margin-top: 32px;
+        font-size: 20px;
+      }
+      p,
+      li {
+        color: #465650;
+        font-size: 15px;
+        line-height: 1.75;
+      }
+      ul {
+        padding-left: 22px;
+      }
+      a {
+        color: #0f766e;
+      }
+      .updated {
+        margin: 8px 0 0;
+        color: #6b7974;
+      }
+      .notice {
+        margin-top: 24px;
+        padding: 16px;
+        border-left: 4px solid #0f766e;
+        background: #eaf5f1;
+      }
+      code {
+        overflow-wrap: anywhere;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>MostBox 隐私政策</h1>
+        <p class="updated">生效日期：2026 年 7 月 30 日</p>
+      </header>
+
+      <p class="notice">
+        MostBox 是通过用户主动操作进行文件传输的 P2P 工具。Google Play
+        版本不包含账号、广告、行为分析或中心化文件存储服务。
+      </p>
+
+      <h2>1. 本机数据</h2>
+      <p>
+        MostBox
+        会在设备本地处理和保存用户主动选择的文件、CID、分享链接、做种持有记录、传输状态和基础运行日志。这些数据用于发布、下载、完整性校验、恢复做种和故障诊断。
+      </p>
+
+      <h2>2. P2P 网络数据</h2>
+      <p>
+        当用户明确发布或下载文件时，应用会通过 Hyperswarm
+        网络发现并连接其他节点。参与连接的节点和分布式网络基础设施可能处理 IP
+        地址、连接时间、CID topic
+        派生值及其他建立连接所必需的网络元数据。文件内容直接在参与传输的节点之间传输，MostBox
+        项目不运营中心化文件存储服务器。
+      </p>
+
+      <h2>3. 用户主动分享</h2>
+      <p>
+        用户发布文件或将文件交给系统分享面板时，会把所选文件或分享链接提供给用户指定的接收方。知道
+        <code>most://</code>
+        链接的人可以尝试下载对应内容，因此用户应像保护文件本身一样保护分享链接。
+      </p>
+
+      <h2>4. 权限</h2>
+      <ul>
+        <li>网络权限：发现并连接 P2P 节点、传输文件。</li>
+        <li>网络状态：在网络变化后恢复节点状态。</li>
+        <li>唤醒锁：仅在应用前台的活动传输期间维持任务运行。</li>
+        <li>系统文件选择器和分享面板：由用户主动选择、保存或分享文件。</li>
+      </ul>
+      <p>
+        MostBox 不申请通讯录、短信、通话记录、位置、相机、麦克风或全盘存储权限。
+      </p>
+
+      <h2>5. 保留与删除</h2>
+      <p>
+        本机数据保留到用户删除对应 holding、清除应用数据或卸载应用为止。删除本机
+        holding
+        会停止本机做种，但不能撤回其他节点已经下载的完整副本，也不能使已经泄露的分享链接失效。
+      </p>
+
+      <h2>6. 儿童</h2>
+      <p>
+        MostBox 不以 13
+        岁以下儿童为目标用户，也不主动收集儿童个人信息。用户不应通过本应用传播违法、有害或侵犯他人权利的内容。
+      </p>
+
+      <h2>7. 变更与联系</h2>
+      <p>
+        本政策会随应用的数据处理方式更新。一般问题可通过
+        <a href="https://github.com/most-people/most/issues">MostBox Issues</a>
+        联系项目维护者；涉及隐私或安全信息时，请使用
+        <a href="https://github.com/most-people/most/security/advisories/new"
+          >GitHub 私密安全报告</a
+        >，不要在公开 Issue 中提交个人数据。
+      </p>
+    </main>
+  </body>
+</html>

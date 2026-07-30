@@ -113,6 +113,16 @@ export function parseMostLink(link: string): ParsedMostLink {
   return { cid, fileName }
 }
 
+export function hasExplicitMostLinkFilename(link: string) {
+  try {
+    const url = new URL(link)
+    const query = parseMostLinkQuery(url.search)
+    return !query.unsupportedQuery && Boolean(query.fileName)
+  } catch {
+    return false
+  }
+}
+
 export function parseIncomingMostLink(
   input: string | null | undefined
 ): IncomingMostLink | null {

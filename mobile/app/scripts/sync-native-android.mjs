@@ -19,29 +19,32 @@ const adaptiveForegroundSource = resolveProjectAsset(
 )
 const iconBackgroundColor =
   String(adaptiveIcon.backgroundColor || '#FFFFFF').trim() || '#FFFFFF'
-const mainApplicationPath = path.join(
-  androidDir,
-  'app',
-  'src',
-  'main',
-  'java',
-  'box',
-  'most',
-  'android',
-  'MainApplication.kt'
+const androidPackage = resolveAndroidPackage(appJson.android?.package)
+const androidJavaDir = path.join(androidDir, 'app', 'src', 'main', 'java')
+const androidPackageDir = path.join(
+  androidJavaDir,
+  ...androidPackage.split('.')
 )
+const mainApplicationPath = path.join(androidPackageDir, 'MainApplication.kt')
 const platformConstantsPackagePath = path.join(
-  androidDir,
-  'app',
-  'src',
-  'main',
-  'java',
-  'box',
-  'most',
-  'android',
+  androidPackageDir,
   'PlatformConstantsPackage.kt'
 )
 const buildGradlePath = path.join(androidDir, 'app', 'build.gradle')
+const autolinkingCacheDir = path.join(
+  androidDir,
+  'build',
+  'generated',
+  'autolinking'
+)
+const autolinkingConfigPath = path.join(autolinkingCacheDir, 'autolinking.json')
+const appAutolinkingGeneratedDir = path.join(
+  androidDir,
+  'app',
+  'build',
+  'generated',
+  'autolinking'
+)
 const releaseGradlePath = path.join(projectDir, 'release.gradle')
 const gradlePropertiesPath = path.join(androidDir, 'gradle.properties')
 const androidManifestPath = path.join(
@@ -129,7 +132,10 @@ export function syncNativeAndroidProject({
     appJson.version ||
     packageJson.version ||
     '0.0.0',
-  versionCode = process.env.MOST_ANDROID_VERSION_CODE,
+  versionCode = process.env.MOST_ANDROID_VERSION_CODE ||
+    appJson.android?.versionCode,
+  playSigningRequired = false,
+  syncVersionValues = true,
 } = {}) {
   if (!fs.existsSync(androidDir)) {
     throw new Error(`Native Android project is missing: ${androidDir}`)
@@ -146,28 +152,287 @@ export function syncNativeAndroidProject({
   const releaseVersion = resolveReleaseVersion(version)
   const releaseVersionCode = resolveVersionCode(versionCode, releaseVersion)
 
-  syncVersion(releaseVersion, releaseVersionCode)
-  repairMissingReleaseGradle()
+  syncAndroidPackage()
+  if (syncVersionValues) {
+    syncVersion(releaseVersion, releaseVersionCode)
+  }
+  if (playSigningRequired) {
+    syncPlayReleaseSigning()
+  } else {
+    repairMissingReleaseGradle()
+  }
   syncAppName()
   syncIconBackgroundColor()
   syncGradleJvmArgs()
   syncNativeHelperShim()
   cleanupPlatformConstantsPackage()
   cleanupNativeHelperManifestDeclaration()
+  syncAndroidManifestPolicy()
   syncLauncherIcons()
 
   console.log(
-    `[android] native project synced: versionName=${releaseVersion}, versionCode=${releaseVersionCode}`
+    syncVersionValues
+      ? `[android] native project synced: package=${androidPackage}, versionName=${releaseVersion}, versionCode=${releaseVersionCode}`
+      : `[android] native project synced: package=${androidPackage}, version values preserved`
   )
+}
+
+function syncAndroidPackage() {
+  const buildGradle = fs.readFileSync(buildGradlePath, 'utf8')
+  const nextBuildGradle = applyAndroidPackageConfig(buildGradle, androidPackage)
+  writeIfChanged(buildGradlePath, nextBuildGradle)
+  cleanupStaleAutolinkingPackage()
+
+  for (const fileName of ['MainActivity.kt', 'MainApplication.kt']) {
+    const targetPath = path.join(androidPackageDir, fileName)
+    const sourcePath = fs.existsSync(targetPath)
+      ? targetPath
+      : findJavaSourceFile(androidJavaDir, fileName)
+    if (!sourcePath) {
+      throw new Error(`Android source is missing: ${fileName}`)
+    }
+
+    const source = fs.readFileSync(sourcePath, 'utf8')
+    const nextSource = applyKotlinPackageDeclaration(source, androidPackage)
+    fs.mkdirSync(androidPackageDir, { recursive: true })
+    writeIfChanged(targetPath, nextSource)
+
+    if (sourcePath !== targetPath) {
+      fs.rmSync(sourcePath)
+      removeEmptyJavaParents(path.dirname(sourcePath))
+    }
+  }
+}
+
+function cleanupStaleAutolinkingPackage() {
+  if (!fs.existsSync(autolinkingConfigPath)) return
+
+  let cachedPackage = ''
+  try {
+    const config = JSON.parse(fs.readFileSync(autolinkingConfigPath, 'utf8'))
+    cachedPackage = String(config.project?.android?.packageName || '')
+  } catch {
+    cachedPackage = ''
+  }
+
+  if (!isStaleAndroidPackage(cachedPackage, androidPackage)) return
+  fs.rmSync(autolinkingCacheDir, { recursive: true, force: true })
+  fs.rmSync(appAutolinkingGeneratedDir, { recursive: true, force: true })
+}
+
+export function isStaleAndroidPackage(cachedPackage, expectedPackage) {
+  const expected = resolveAndroidPackage(expectedPackage)
+  const cached = String(cachedPackage || '').trim()
+  return Boolean(cached) && cached !== expected
+}
+
+export function applyAndroidPackageConfig(buildGradle, packageName) {
+  const value = resolveAndroidPackage(packageName)
+  const namespacePattern = /namespace\s+['"][^'"]+['"]/
+  const applicationIdPattern = /applicationId\s+['"][^'"]+['"]/
+  if (
+    !namespacePattern.test(buildGradle) ||
+    !applicationIdPattern.test(buildGradle)
+  ) {
+    throw new Error('Unable to update Android package configuration')
+  }
+
+  const withNamespace = buildGradle.replace(
+    namespacePattern,
+    `namespace '${value}'`
+  )
+  const result = withNamespace.replace(
+    applicationIdPattern,
+    `applicationId '${value}'`
+  )
+  return result
+}
+
+export function applyKotlinPackageDeclaration(source, packageName) {
+  const value = resolveAndroidPackage(packageName)
+  const result = source.replace(
+    /^package\s+[A-Za-z0-9_.]+/m,
+    `package ${value}`
+  )
+  if (result === source && !source.startsWith(`package ${value}`)) {
+    throw new Error('Unable to update Kotlin package declaration')
+  }
+  return result
+}
+
+function resolveAndroidPackage(value) {
+  const packageName = String(value || '').trim()
+  if (
+    !/^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$/.test(packageName)
+  ) {
+    throw new Error(`Invalid Android package name: ${value}`)
+  }
+  return packageName
+}
+
+function findJavaSourceFile(directory, fileName) {
+  if (!fs.existsSync(directory)) return ''
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const entryPath = path.join(directory, entry.name)
+    if (entry.isDirectory()) {
+      const match = findJavaSourceFile(entryPath, fileName)
+      if (match) return match
+    } else if (entry.name === fileName) {
+      return entryPath
+    }
+  }
+  return ''
+}
+
+function removeEmptyJavaParents(directory) {
+  let current = path.resolve(directory)
+  const root = path.resolve(androidJavaDir)
+  while (current.startsWith(`${root}${path.sep}`)) {
+    if (fs.readdirSync(current).length > 0) return
+    fs.rmdirSync(current)
+    current = path.dirname(current)
+  }
+}
+
+function syncAndroidManifestPolicy() {
+  if (!fs.existsSync(androidManifestPath)) return
+  const androidManifest = fs.readFileSync(androidManifestPath, 'utf8')
+  const nextAndroidManifest = applyAndroidManifestPolicy(
+    androidManifest,
+    appJson.android || {}
+  )
+  writeIfChanged(androidManifestPath, nextAndroidManifest)
+}
+
+export function applyAndroidManifestPolicy(androidManifest, androidConfig) {
+  let nextAndroidManifest = androidManifest
+  const blockedPermissions = Array.isArray(androidConfig.blockedPermissions)
+    ? androidConfig.blockedPermissions
+    : []
+
+  for (const permission of blockedPermissions) {
+    const escapedPermission = escapeRegExp(String(permission))
+    nextAndroidManifest = nextAndroidManifest.replace(
+      new RegExp(
+        `\\s*<uses-permission\\s+[^>]*android:name=["']${escapedPermission}["'][^>]*/>`,
+        'g'
+      ),
+      ''
+    )
+    const removalDeclaration = `  <uses-permission android:name="${permission}" tools:node="remove"/>`
+    if (!nextAndroidManifest.includes(removalDeclaration)) {
+      nextAndroidManifest = nextAndroidManifest.replace(
+        /(<manifest\b[^>]*>)/,
+        `$1\n${removalDeclaration}`
+      )
+    }
+  }
+
+  if (typeof androidConfig.allowBackup === 'boolean') {
+    const value = String(androidConfig.allowBackup)
+    if (/android:allowBackup=["'][^"']*["']/.test(nextAndroidManifest)) {
+      nextAndroidManifest = nextAndroidManifest.replace(
+        /android:allowBackup=["'][^"']*["']/,
+        `android:allowBackup="${value}"`
+      )
+    } else {
+      nextAndroidManifest = nextAndroidManifest.replace(
+        /<application\b/,
+        `<application android:allowBackup="${value}"`
+      )
+    }
+  }
+
+  return nextAndroidManifest
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function syncPlayReleaseSigning() {
+  const buildGradle = fs.readFileSync(buildGradlePath, 'utf8')
+  writeIfChanged(buildGradlePath, applyPlayReleaseSigningConfig(buildGradle))
+}
+
+export function applyPlayReleaseSigningConfig(buildGradle) {
+  const signingEnvironment = `def mostboxUploadStoreFile = System.getenv("MOSTBOX_ANDROID_KEYSTORE")
+def mostboxUploadStorePassword = System.getenv("MOSTBOX_ANDROID_KEYSTORE_PASSWORD")
+def mostboxUploadKeyAlias = System.getenv("MOSTBOX_ANDROID_KEY_ALIAS")
+def mostboxUploadKeyPassword = System.getenv("MOSTBOX_ANDROID_KEY_PASSWORD")
+
+`
+  let nextBuildGradle = buildGradle.includes('mostboxUploadStoreFile')
+    ? buildGradle
+    : buildGradle.replace(/android\s*\{/, `${signingEnvironment}android {`)
+
+  if (!nextBuildGradle.includes('mostboxUploadStoreFile')) {
+    throw new Error('Unable to insert Google Play signing environment')
+  }
+
+  if (!nextBuildGradle.includes('storeFile file(mostboxUploadStoreFile)')) {
+    nextBuildGradle = nextBuildGradle.replace(
+      /(signingConfigs\s*\{[\s\S]*?\n\s*debug\s*\{[\s\S]*?\n\s*\})/m,
+      `$1
+        release {
+            storeFile file(mostboxUploadStoreFile)
+            storePassword mostboxUploadStorePassword
+            keyAlias mostboxUploadKeyAlias
+            keyPassword mostboxUploadKeyPassword
+        }`
+    )
+  }
+
+  const buildTypesIndex = nextBuildGradle.search(/\n\s*buildTypes\s*\{/m)
+  if (buildTypesIndex === -1) {
+    throw new Error('Android build types block is missing')
+  }
+
+  const buildTypesPrefix = nextBuildGradle.slice(0, buildTypesIndex)
+  const buildTypes = nextBuildGradle.slice(buildTypesIndex)
+  const releaseBlockPattern = /(\n\s*release\s*\{\n)([\s\S]*?)(\n\s*\})/m
+  const releaseBlock = buildTypes.match(releaseBlockPattern)
+  if (!releaseBlock) throw new Error('Android release build type is missing')
+
+  const releaseBody = releaseBlock[2]
+  const signedReleaseBody = /^\s*signingConfig\s+/m.test(releaseBody)
+    ? releaseBody.replace(
+        /^([ \t]*)signingConfig\s+signingConfigs\.\w+/m,
+        '$1signingConfig signingConfigs.release'
+      )
+    : `        signingConfig signingConfigs.release\n${releaseBody}`
+
+  return `${buildTypesPrefix}${buildTypes.replace(
+    releaseBlockPattern,
+    `$1${signedReleaseBody}$3`
+  )}`
 }
 
 function repairMissingReleaseGradle() {
   const buildGradle = fs.readFileSync(buildGradlePath, 'utf8')
   const nextBuildGradle = repairMissingReleaseGradleConfig(
-    buildGradle,
+    removePlayReleaseSigningConfig(buildGradle),
     fs.existsSync(releaseGradlePath)
   )
   writeIfChanged(buildGradlePath, nextBuildGradle)
+}
+
+export function removePlayReleaseSigningConfig(buildGradle) {
+  if (!buildGradle.includes('mostboxUploadStoreFile')) return buildGradle
+
+  return buildGradle
+    .replace(
+      /^def mostboxUploadStoreFile = System\.getenv\("MOSTBOX_ANDROID_KEYSTORE"\)\r?\ndef mostboxUploadStorePassword = System\.getenv\("MOSTBOX_ANDROID_KEYSTORE_PASSWORD"\)\r?\ndef mostboxUploadKeyAlias = System\.getenv\("MOSTBOX_ANDROID_KEY_ALIAS"\)\r?\ndef mostboxUploadKeyPassword = System\.getenv\("MOSTBOX_ANDROID_KEY_PASSWORD"\)\r?\n\r?\n/m,
+      ''
+    )
+    .replace(
+      /\r?\n[ \t]*release\s*\{\r?\n[ \t]*storeFile file\(mostboxUploadStoreFile\)\r?\n[ \t]*storePassword mostboxUploadStorePassword\r?\n[ \t]*keyAlias mostboxUploadKeyAlias\r?\n[ \t]*keyPassword mostboxUploadKeyPassword\r?\n[ \t]*\}/m,
+      ''
+    )
+    .replace(
+      /signingConfig signingConfigs\.release/g,
+      'signingConfig signingConfigs.debug'
+    )
 }
 
 export function repairMissingReleaseGradleConfig(
@@ -201,7 +466,7 @@ function resolveReleaseVersion(value) {
   return version
 }
 
-function resolveVersionCode(value, version) {
+export function resolveVersionCode(value, version) {
   if (value !== undefined && value !== '') {
     const code = Number(value)
     if (!Number.isInteger(code) || code <= 0) {

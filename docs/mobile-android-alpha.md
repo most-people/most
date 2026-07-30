@@ -1,110 +1,99 @@
 # MostBox Android 内测验收清单
 
-本清单用于记录 Android 内测 APK 的真机复测结果。当前 Android 版本只承诺前台完整种子能力：App 在前台时可以发布、下载、CID 校验，并在发布或下载完成后继续做种。
+本清单用于 Android Google Play 候选版真机验收。当前 Android 版本只承诺用户主动的文件发布、确认下载、CID 校验和前台做种，不包含聊天、账号、公开内容目录或长期后台服务。
 
 ## 构建与安装
 
-发版版本同步以 README 的 CI/CD 说明为准；本清单只记录 Android APK 构建、安装和真机验收。
-
-构建前先运行移动端协议测试：
+先运行移动端测试和内部 APK 构建：
 
 ```bash
 cd mobile/app
 npm test
+npm run typecheck
 npm run build
 ```
 
-构建成功后检查 `mobile/app/dist/`：
+内部 APK 位于 `mobile/app/dist/`，用于真机功能回归。Google Play 候选包必须使用独立 upload key 运行 `npm run build:play` 生成 `.aab`，不得上传 debug 签名 APK。
 
-- `mostbox-android-<version>-release.apk`
-- `mostbox-android-<version>-release.apk.sha256.txt`
+安装后确认默认进入“文件”页，底部只有“文件 / 传输 / 设置”三个入口，节点最终进入“在线”。
 
-该直装 Alpha APK 仅包含 `arm64-v8a`，面向 64 位 ARM 真机；发布脚本会压缩原生库。x86/x86_64 模拟器继续使用开发构建，不包含在用户下载包中。
+## 最高优先级：前台做种交接
 
-安装到真机后，打开 App 并确认默认进入聊天 Tab；切到节点 Tab 后状态进入 `Ready` / `在线`。
-
-## 最高验收回归：前台做种交接
-
-每次发 alpha 前，优先用仓库根目录的一键回归脚本复跑“桌面发布 -> Android 下载并做种 -> 发布者退出 -> 新节点仍能从 Android 拉取并通过 CID 校验”：
+从仓库根目录运行：
 
 ```bash
 node scripts/android-real-p2p-seed.mjs --handoff-check
 ```
 
-脚本会自动完成桌面发布、打印 `most://` 链接、等待人工确认 Android 已经前台做种，然后关闭原桌面发布者，启动一个干净的 verifier 节点继续拉取并重算 CID。
+验收步骤：
 
-按 Enter 继续前，人工确认 Android 侧观察点：
-
-- App 保持前台，节点 Tab 状态为 `Ready` / `在线`。
-- 在聊天 Tab 的活动房间中收到脚本打印的 `most://` 链接，点附件下载动作后完成下载，transfer 状态为 completed。
-- Holdings 中出现同一个 CID，文件大小与脚本打印一致。
-- Holding 状态为 `active`，`topicJoined` 为 true。
-- Android 日志能看到下载完成、CID 校验/保存 holding、继续做种相关输出。
-
-脚本通过时需要保留这些桌面日志摘要：
-
-- `publisher topic joined`：原发布者已按 CID topic 做种。
-- `Stopping original desktop publisher` 和 `Original desktop publisher is stopped`：验证前发布者已退出。
-- `verifier download status` / `verifier download progress` / `verifier download success`：新节点从剩余种子拉取。
-- `verifiedCid` 与 `cid` 完全一致。
-- `verifierHoldingStatus: active` 且 `verifierTopicJoined: true`。
+1. 桌面发布者发布文件并打印 `most://` 链接。
+2. Android 点击“接收文件”，输入链接并先执行“检查链接”。
+3. 确认页展示文件名和 CID；只有点击“确认下载”后才开始传输。
+4. 下载完成后 holding 状态为“做种中”，topic 已加入，CID 与桌面一致。
+5. 关闭原桌面发布者，保持 Android 在前台。
+6. 让脚本启动干净 verifier；verifier 必须从 Android 下载并重算出相同 CID。
 
 ## 必测场景
 
-| 场景                            | 通过标准                                                                                                                                                                           |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Android 聊天附件发送，桌面下载  | Android 在聊天房间发送附件消息，消息内容为 `most://` 链接；桌面 /chat 显示附件并下载通过 CID 校验。                                                                                |
-| 桌面聊天附件发送，Android 下载  | 桌面 /chat 发送附件消息；Android 聊天房间显示附件卡片，下载完成后 CID 校验通过，并自动加入 holdings。                                                                              |
-| Android 打开/分享文件           | Holding 行点击 `打开/分享` 后，系统分享或打开面板出现，目标 App 能收到文件副本。                                                                                                   |
-| Android 保存文件                | Holding 行点击 `保存` 后，用户选择目录，目录中出现同名文件副本。                                                                                                                   |
-| Android 删除 holding 后重新下载 | Holding 行点击 `删除` 后，该 CID 从 holdings 消失并停止做种；已保存到手机目录的副本仍存在；再次输入同一 `most://` 链接可重新下载、通过 CID 校验，并重新加入 holdings / CID topic。 |
-| 发布者退出后继续传播            | `node scripts/android-real-p2p-seed.mjs --handoff-check` 通过；原桌面发布者退出后，只要 Android 仍在前台做种，新的桌面节点仍可下载、重算 CID 并校验。                              |
-| Android 重启恢复                | Android App 重启后恢复 holdings，并重新 join 对应 CID topic。                                                                                                                      |
-| 基础可见性                      | Android UI 能看到 CID、文件大小、topic join 状态、peer 数或基础日志。                                                                                                              |
+| 场景             | 通过标准                                                                        |
+| ---------------- | ------------------------------------------------------------------------------- |
+| Android 发布文件 | 系统文件选择器出现；发布完成后生成 holding、复制 `most://` 链接并加入 CID topic |
+| 手工输入链接     | 非法 CID、缺失 filename、额外路径和额外参数被拒绝；有效链接先展示确认信息       |
+| 外部深链         | 冷启动和运行中打开 `most://` 都只进入确认页；用户点击确认后才开始下载           |
+| 下载校验         | 下载完成后重算 CID；不一致时不得保存或做种                                      |
+| 已有文件         | 同一 CID 已在本机时不重复下载                                                   |
+| 文件策略         | 用户选择或链接声明的 APK、AAB、XAPK、DEX、EXE、脚本等类型在传输前被拒绝         |
+| 保存和分享       | 系统分享面板可接收文件；Storage Access Framework 可把副本保存到用户选择的目录   |
+| 删除 holding     | holding 消失并停止做种；已保存到用户目录的副本保留；相同链接之后可重新下载      |
+| 重启恢复         | App 重启后恢复 holdings，并重新 join 对应 CID topic                             |
+| 前后台切换       | 返回前台后节点和 topic 自动恢复；不宣称或依赖长期后台做种                       |
+| 可见性           | 能查看 CID、文件大小、做种状态、topic 状态、peer 数、传输进度和基础日志         |
+| 政策入口         | 设置页可打开隐私政策、使用条款和问题反馈页面                                    |
+| 权限             | 系统设置中不出现通讯录、短信、位置、相机、麦克风、悬浮窗或全盘存储权限          |
 
-## 已知边界
+## Google Play 候选包检查
 
-- 不承诺 Android 长期后台做种；测试传播能力时保持 App 在前台。
-- 本轮不覆盖 iOS、Play Store 分发、云端中转、账号同步、笔记或 Web3 工具箱。
-- 聊天测试覆盖频道消息、presence、备注/置顶/退出和 `most://` 附件主流程。
-- 大文件测试失败时优先记录存储空间、网络切换、Android 文件选择器/导出行为和 App 日志。
+上传 Internal testing 前确认：
+
+- `.aab` 的 package name 是 `most.box`。
+- `versionCode` 大于 Play Console 中已上传的所有版本。
+- `targetSdkVersion` 和 `compileSdkVersion` 均为 36。
+- AAB 使用独立 upload key 签名，不是 Android debug key。
+- Play App Signing 已启用。
+- `https://most.box/privacy/` 和 `https://most.box/terms/` 可从公网无登录访问。
+- 提供至少两个有在线种子的审核测试链接，并在审核期间保持可下载。
+- 商店截图只展示当前 AAB 实际存在的文件、传输和设置能力。
+
+详细提交字段见 `docs/google-play-submission.md`。
 
 ## 单轮记录模板
 
 ```text
 日期:
 测试人:
-Android 设备型号:
-Android 系统版本:
-APK 文件名:
-APK SHA256:
-桌面节点平台:
-桌面 MostBox 版本或 commit:
-网络环境:
-测试文件大小:
+设备型号:
+Android 版本:
+MostBox 版本:
+versionCode:
+包类型: APK / AAB Internal testing
+包 SHA256:
+签名证书 SHA256:
+网络环境: Wi-Fi / 蜂窝 / 跨网络
+测试文件名与大小:
 CID:
 most:// 链接:
-回归命令:
-脚本 workDir:
-publisher topic:
-verifier 下载路径:
-verifier verifiedCid:
-verifier holding 状态:
-场景:
+深链是否先确认:
+Android holding 状态:
+Android topic join 状态:
+发布者退出后 verifier CID:
+重启恢复结果:
+保存/分享/删除结果:
+可执行文件拦截结果:
+隐私政策公网结果:
+Pre-launch report:
 开始时间:
 结束时间:
-耗时:
 结果: 通过 / 失败
-失败错误:
-Android holdings 状态:
-Android topic join 状态:
-打开/分享结果:
-保存到手机结果:
-删除 holding 结果:
-删除后手机另存副本是否仍存在:
-同一 most:// 链接重新下载结果:
-重新加入 topic 状态:
-桌面日志摘要:
-Android 日志摘要:
-备注:
+错误与日志摘要:
 ```
