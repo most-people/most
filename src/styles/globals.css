@@ -215,6 +215,8 @@
 
 /* === Modal Overlay === */
 .modal-overlay {
+  --modal-content-width: 380px;
+
   position: fixed;
   top: var(--modal-visual-top, 0px);
   right: 0;
@@ -225,6 +227,10 @@
   align-items: center;
   justify-content: center;
   animation: fadeIn 0.2s ease;
+}
+
+.modal-overlay-wide {
+  --modal-content-width: 520px;
 }
 
 .modal-overlay-backdrop {
@@ -238,7 +244,7 @@
 .modal-glass {
   position: relative;
   z-index: 1;
-  width: 380px;
+  width: var(--modal-content-width);
   max-width: calc(100vw - 32px);
   padding: 24px;
   border-radius: var(--radius-lg);
@@ -246,8 +252,6 @@
 }
 
 .modal-overlay.login-modal-overlay .modal-glass {
-  width: 380px;
-  max-width: calc(100vw - 32px);
   max-height: calc(var(--modal-visual-height, 100dvh) - 32px);
   overflow: auto;
   overscroll-behavior: contain;

@@ -1514,10 +1514,6 @@
   }
 }
 
-.login-modal {
-  width: 100%;
-}
-
 .login-modal-header {
   margin-bottom: 20px;
 }
@@ -1607,10 +1603,6 @@
 }
 
 /* === Connect Modal === */
-.connect-modal {
-  width: 100%;
-}
-
 .connect-modal-header {
   margin-bottom: 20px;
 }
@@ -1942,20 +1934,6 @@
 
   .card-name {
     font-size: 11px;
-  }
-
-  /* Modals: bottom sheet style */
-  .welcome-modal,
-  .settings-modal,
-  .input-modal,
-  .confirm-modal,
-  .move-modal,
-  .share-modal,
-  .download-modal,
-  .transfer-modal {
-    width: 100%;
-    max-width: 100%;
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   }
 
   /* Toast */

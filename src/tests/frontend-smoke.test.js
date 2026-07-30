@@ -358,6 +358,30 @@ describe('frontend smoke checks', () => {
       await hasDifferentAccountData(
         {
           ...basePayload,
+          channels: [
+            {
+              ...cloudSubsetPayload.channels[0],
+              writerCoreKeys: ['cloud-writer'],
+              updatedAt: 10,
+            },
+          ],
+        },
+        {
+          ...basePayload,
+          channels: [
+            {
+              ...cloudSubsetPayload.channels[0],
+              writerCoreKeys: ['cloud-writer', 'new-cloud-writer'],
+            },
+          ],
+        }
+      ),
+      true
+    )
+    assert.equal(
+      await hasDifferentAccountData(
+        {
+          ...basePayload,
           channels: [{ ...cloudSubsetPayload.channels[0], updatedAt: 10 }],
         },
         {
@@ -496,8 +520,11 @@ describe('frontend smoke checks', () => {
   })
 
   it('keeps knowledge-base attachments as parseable most:// Markdown references', async () => {
-    const { buildMostMarkdownAttachment, parseMostMarkdownReference } =
-      await importBundledSource(SOURCE_PATHS.mostMarkdown)
+    const {
+      buildNoteAttachmentFileName,
+      buildMostMarkdownAttachment,
+      parseMostMarkdownReference,
+    } = await importBundledSource(SOURCE_PATHS.mostMarkdown)
     const cid = 'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
     const imageName = '旅行(原图)[1].jpg'
     const imageLink = `most://${cid}?filename=${encodeURIComponent(imageName)}`
@@ -528,7 +555,11 @@ describe('frontend smoke checks', () => {
     assert.equal(parseMostMarkdownReference('https://example.com/file'), null)
     assert.equal(parseMostMarkdownReference('most://invalid'), null)
 
-    const noteFileName = 'note-file/photo.png'
+    const noteFileName = buildNoteAttachmentFileName('photo.png', 'upload-one')
+    const repeatedName = buildNoteAttachmentFileName('photo.png', 'upload-two')
+    assert.equal(noteFileName, 'note-file/upload-one/photo.png')
+    assert.equal(repeatedName, 'note-file/upload-two/photo.png')
+    assert.notEqual(noteFileName, repeatedName)
     const noteLink = `most://${cid}?filename=${encodeURIComponent(noteFileName)}`
     assert.equal(
       buildMostMarkdownAttachment({
@@ -610,7 +641,10 @@ describe('frontend smoke checks', () => {
     assert.match(milkdownSource, /proxyDomURL:/)
     assert.match(milkdownSource, /parseMostMarkdownReference\(href\)/)
     assert.match(milkdownSource, /onInternalNoteLinkOpenRef/)
-    assert.match(mostEditorSource, /const NOTE_FILE_ROOT = 'note-file'/)
+    assert.match(
+      mostEditorSource,
+      /buildNoteAttachmentFileName\(\s*file\.name,\s*crypto\.randomUUID\(\)\s*\)/
+    )
     assert.match(
       mostEditorSource,
       /fileApi\.publishFile\(file, targetFileName\)/
