@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Last updated: July 28, 2026
+Last updated: July 30, 2026
 
 MostBox is an open-source, peer-to-peer application. This policy describes the
 data flows implemented by the software in this repository. It does not make
@@ -36,13 +36,17 @@ Downloading an update sends the ordinary information associated with an HTTPS
 request, such as the requesting IP address and user-agent information, to the
 download host and its infrastructure providers.
 
-The account backup and avatar tools are optional and separate from the P2P file
-sharing flow. When a user explicitly uses them, the application contacts
-`api.most.box`:
+The account backup and avatar tools are separate from the P2P file-sharing
+flow. The application contacts `api.most.box` in the following cases:
 
-- Account backup uploads a wallet-address-authenticated encrypted backup and
-  its content identifier. The service receives the encrypted payload, address,
-  signature, request time, and ordinary connection metadata.
+- After a user completes a login, the application automatically sends a signed
+  request to check whether an account backup exists and may offer to restore
+  it. This check does not upload local backup content, but the service receives
+  the wallet address, signature, request time, and ordinary connection metadata.
+- When a user creates or updates a cloud backup, account backup uploads a
+  wallet-address-authenticated encrypted payload and its content identifier.
+  The service receives the encrypted payload and the authentication and
+  connection data described above.
 - Avatar upload sends the selected image together with wallet-address
   authentication and ordinary connection metadata. Published avatar URLs are
   intended to be retrievable by other users.
@@ -71,9 +75,9 @@ obligations.
 ## User choices
 
 Users can stop P2P participation by closing the node or application, remove
-local data using operating-system file controls, refrain from using optional
-cloud and Web3 tools, and stop sharing capability links. Data already received
-by independent peers cannot be recalled by MostBox.
+local data using operating-system file controls, refrain from uploading account
+backups or avatars, refrain from using Web3 tools, and stop sharing capability
+links. Data already received by independent peers cannot be recalled by MostBox.
 
 ## Contact
 

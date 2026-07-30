@@ -19,6 +19,7 @@ import { fileApi, getPublishFileErrorMessage } from '~/lib/fileApi'
 import { getFileSubtype } from '~/lib/filePreview'
 import { useI18n } from '~/lib/i18n'
 import {
+  buildNoteAttachmentFileName,
   buildMostMarkdownAttachment,
   createMostMarkdownImageUrlCache,
   parseMostMarkdownReference,
@@ -52,7 +53,6 @@ type PublishedAttachment = {
   link: string
 }
 
-const NOTE_FILE_ROOT = 'note-file'
 const activeCidDownloads = new Map<string, Promise<void>>()
 const DOWNLOAD_EVENT_GRACE_MS = 10000
 
@@ -259,7 +259,10 @@ export const MostMarkdownEditor = forwardRef<
         const limitMessage = getPublishFileLimitViolation(file, policy, t)
         if (limitMessage) throw new Error(limitMessage)
 
-        const targetFileName = `${NOTE_FILE_ROOT}/${file.name}`
+        const targetFileName = buildNoteAttachmentFileName(
+          file.name,
+          crypto.randomUUID()
+        )
         const result = await fileApi.publishFile(file, targetFileName)
         const publishedFileName = result.fileName || targetFileName
         const link = result.link || buildMostLink(result.cid, publishedFileName)

@@ -12,11 +12,20 @@ export interface BuildMostMarkdownAttachmentOptions {
   image: boolean
 }
 
+const NOTE_FILE_ROOT = 'note-file'
+
 type ObjectUrlApi = Pick<typeof URL, 'createObjectURL' | 'revokeObjectURL'>
 
 export interface MostMarkdownImageUrlCache {
   getOrCreate: (cid: string, loadBlob: () => Promise<Blob>) => Promise<string>
   dispose: () => void
+}
+
+export function buildNoteAttachmentFileName(
+  fileName: string,
+  attachmentId: string
+) {
+  return `${NOTE_FILE_ROOT}/${attachmentId}/${fileName}`
 }
 
 export function createMostMarkdownImageUrlCache(
