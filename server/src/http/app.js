@@ -10,6 +10,9 @@ import {
   normalizeRemoteInvites,
 } from '../node/config.js'
 import { createNodeLogger } from '../node/logs.js'
+import { authorizeMcpApiRequest } from '../mcp/access.js'
+import { createMcpClientStore } from '../mcp/clientStore.js'
+import { createMostBoxMcpHttpHandler } from '../mcp/http.js'
 import {
   getAllowedOrigins,
   getInvalidInviteResponse,
@@ -33,6 +36,7 @@ import { registerStaticRoutes } from './staticFiles.js'
 import { registerChannelRoutes } from './routes/channelRoutes.js'
 import { registerFileRoutes } from './routes/fileRoutes.js'
 import { registerNodeRoutes } from './routes/nodeRoutes.js'
+import { registerMcpRoutes } from './routes/mcpRoutes.js'
 import { registerNoteVaultRoutes } from './routes/noteVaultRoutes.js'
 import { registerSeedRoutes } from './routes/seedRoutes.js'
 import { createDownloadTaskRegistry } from './downloadTasks.js'
@@ -56,6 +60,9 @@ export function createApp(engine, options = {}) {
   const configStore = options.configStore || defaultConfigStore
   const nodeLogger =
     options.nodeLogger || createNodeLogger(configStore.configDir || CONFIG_DIR)
+  const mcpClientStore =
+    options.mcpClientStore ||
+    createMcpClientStore(configStore.configDir || CONFIG_DIR)
   const wssRef = options.wssRef || { current: null }
   const serverInstanceRef = options.serverInstanceRef || { current: null }
   const trustPrivateNetwork =
@@ -108,7 +115,45 @@ export function createApp(engine, options = {}) {
       }
 
       const authHeader = c.req.header('authorization')
-      if (authHeader) {
+      const mcpTokenMatch = String(authHeader || '').match(/^Bearer\s+(.+)$/i)
+      if (mcpTokenMatch) {
+        if (accessMode !== 'loopback') {
+          return c.json(
+            {
+              error: 'MCP API access is limited to loopback requests',
+              code: 'MCP_LOOPBACK_REQUIRED',
+            },
+            403
+          )
+        }
+
+        const principal = mcpClientStore.authenticate(mcpTokenMatch[1].trim())
+        if (!principal) {
+          const limited = rateLimitGuard.enforce(c, ['authFailure'])
+          if (limited) return limited
+          return c.json(
+            { error: 'Invalid or expired MCP token', code: 'MCP_UNAUTHORIZED' },
+            401
+          )
+        }
+        const authorization = authorizeMcpApiRequest(
+          principal,
+          c.req.method,
+          path
+        )
+        if (!authorization.allowed) {
+          return c.json(
+            {
+              error: 'MCP client cannot access this API',
+              code: authorization.reason,
+              requiredScope: authorization.requiredScope,
+            },
+            403
+          )
+        }
+        c.set('mcpPrincipal', principal)
+        c.set('userAddress', principal.ownerAddress)
+      } else if (authHeader) {
         if (isPublicFileDownloadPath(path)) {
           await next()
           return
@@ -331,6 +376,23 @@ export function createApp(engine, options = {}) {
   engine.wsSendToChannel = wsSendToChannel
 
   const app = new Hono()
+  const mcpHttp = createMostBoxMcpHttpHandler({
+    appPort,
+    mcpClientStore,
+    rateLimitGuard,
+    appendNodeLog,
+    fetchImpl: (url, init = {}) => {
+      const headers = new Headers(init.headers)
+      headers.set('host', new URL(url).host)
+      return app.request(
+        url,
+        { ...init, headers },
+        { incoming: { socket: { remoteAddress: '127.0.0.1' } } }
+      )
+    },
+  })
+
+  app.all('/mcp', c => mcpHttp.handle(c))
 
   app.use('/api/*', async (c, next) => {
     if (c.req.header('access-control-request-private-network') === 'true') {
@@ -387,6 +449,13 @@ export function createApp(engine, options = {}) {
     wsBroadcast,
     serverInstanceRef,
   })
+  registerMcpRoutes(app, {
+    engine,
+    appPort,
+    configStore,
+    mcpClientStore,
+    appendNodeLog,
+  })
   registerSeedRoutes(app, { engine, appendNodeLog, broadcastNodeStatus })
   registerFileRoutes(app, {
     engine,
@@ -412,5 +481,7 @@ export function createApp(engine, options = {}) {
     getWebSocketUserAddress,
     rateLimitGuard,
     downloadTasks,
+    mcpClientStore,
+    closeMcp: mcpHttp.close,
   }
 }

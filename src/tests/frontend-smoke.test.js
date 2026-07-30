@@ -1518,6 +1518,18 @@ describe('frontend smoke checks', () => {
     assert.match(source, /claimAdminAccess/)
   })
 
+  it('keeps MCP client credentials scoped and revocable in node admin', () => {
+    const source = readSource(SOURCE_PATHS.admin)
+
+    assert.match(source, /\/api\/admin\/mcp\/clients/)
+    assert.match(source, /createMcpClient/)
+    assert.match(source, /revokeMcpClient/)
+    assert.match(source, /files:publish/)
+    assert.match(source, /allowedRoots/)
+    assert.match(source, /createdMcpCredential\.token/)
+    assert.match(source, /admin\.mcp\.credentialOnce/)
+  })
+
   it('keeps the file selection toolbar grouped and compact', () => {
     const source = readSource(SOURCE_PATHS.files)
     const appCss = readSource(SOURCE_PATHS.appCss)

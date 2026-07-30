@@ -254,6 +254,160 @@
   margin-bottom: 14px;
 }
 
+.admin-mcp-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(160px, 240px);
+  gap: 12px;
+}
+
+.admin-mcp-form .admin-field {
+  margin-bottom: 0;
+}
+
+.admin-mcp-scopes,
+.admin-mcp-roots {
+  grid-column: 1 / -1;
+}
+
+.admin-mcp-scopes {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.admin-mcp-scopes legend {
+  margin-bottom: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.admin-mcp-scope-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.admin-mcp-scope {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.admin-mcp-scope input {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  accent-color: var(--accent);
+}
+
+.admin-mcp-credential {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border-left: 3px solid var(--warning);
+  background: rgba(255, 149, 0, 0.08);
+}
+
+.admin-mcp-credential-header,
+.admin-mcp-value-row,
+.admin-mcp-client-row,
+.admin-mcp-client-name {
+  display: flex;
+  align-items: center;
+}
+
+.admin-mcp-credential-header {
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.admin-mcp-credential-header > div {
+  display: grid;
+  gap: 2px;
+}
+
+.admin-mcp-credential-header strong {
+  font-size: 14px;
+}
+
+.admin-mcp-credential-header span,
+.admin-mcp-value-row span,
+.admin-mcp-client-main > span,
+.admin-mcp-empty {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.admin-mcp-value-row {
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px 0;
+  border-top: 1px solid var(--glass-border);
+}
+
+.admin-mcp-value-row > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.admin-mcp-value-row code,
+.admin-mcp-client-main code {
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.admin-mcp-client-list {
+  margin-top: 18px;
+  border-top: 1px solid var(--glass-border);
+}
+
+.admin-mcp-client-list h3 {
+  margin: 14px 0 4px;
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+.admin-mcp-empty {
+  margin: 12px 0 0;
+}
+
+.admin-mcp-client-row {
+  justify-content: space-between;
+  gap: 14px;
+  min-width: 0;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.admin-mcp-client-main {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.admin-mcp-client-name {
+  gap: 8px;
+  min-width: 0;
+}
+
+.admin-mcp-client-name strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .admin-seed-help {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -708,6 +862,10 @@
     grid-column: span 1;
   }
 
+  .admin-mcp-scope-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .admin-span-2 {
     grid-column: span 1;
   }
@@ -735,6 +893,16 @@
   .admin-capacity-row {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .admin-mcp-form,
+  .admin-mcp-scope-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-mcp-value-row,
+  .admin-mcp-client-row {
+    align-items: flex-start;
   }
 
   .admin-log-row {

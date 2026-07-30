@@ -125,6 +125,19 @@ export function buildOpenApiSpec(appPort) {
     },
     servers: [{ url: `http://localhost:${appPort}` }],
     components: {
+      securitySchemes: {
+        MostBoxSignature: {
+          type: 'apiKey',
+          in: 'header',
+          name: 'Authorization',
+          description: 'MostBox signed local identity header.',
+        },
+        McpBearer: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'MostBox MCP token',
+        },
+      },
       schemas: {
         ChannelMention: {
           type: 'object',
@@ -320,6 +333,47 @@ export function buildOpenApiSpec(appPort) {
             200: { description: 'Administration access claimed' },
             409: { description: 'Administration already claimed' },
           },
+        },
+      },
+      '/api/admin/mcp/clients': {
+        get: {
+          summary: 'List MCP clients without token secrets',
+          security: [{ MostBoxSignature: [] }],
+          responses: { 200: { description: 'MCP client list' } },
+        },
+        post: {
+          summary: 'Create a scoped MCP client and return its token once',
+          security: [{ MostBoxSignature: [] }],
+          responses: { 201: { description: 'Created MCP client credential' } },
+        },
+      },
+      '/api/admin/mcp/clients/{id}': {
+        delete: {
+          summary: 'Revoke an MCP client',
+          security: [{ MostBoxSignature: [] }],
+          parameters: [
+            {
+              name: 'id',
+              in: 'path',
+              required: true,
+              schema: { type: 'string', format: 'uuid' },
+            },
+          ],
+          responses: { 200: { description: 'Revoked MCP client' } },
+        },
+      },
+      '/api/mcp/me': {
+        get: {
+          summary: 'Read the authenticated MCP principal',
+          security: [{ McpBearer: [] }],
+          responses: { 200: { description: 'MCP client principal' } },
+        },
+      },
+      '/api/mcp/publish-local': {
+        post: {
+          summary: 'Publish a regular file from an MCP allowed directory',
+          security: [{ McpBearer: [] }],
+          responses: { 200: { description: 'Published CID and most:// link' } },
         },
       },
       '/api/node/status': {

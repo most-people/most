@@ -22,6 +22,7 @@ export function requiresUserAuth(path) {
     path === '/api/download/tasks' ||
     path === '/api/download' ||
     path === '/api/download/cancel' ||
+    path.startsWith('/api/admin/mcp/clients') ||
     path === '/api/p2p/pull' ||
     path === '/api/user/profile' ||
     path === '/api/user/export' ||

@@ -4,7 +4,7 @@
 [![Node.js version](https://img.shields.io/badge/node-%3E%3D22.12-brightgreen)](https://nodejs.org)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-[隐私政策](PRIVACY.md) · [安全政策](SECURITY.md) · [代码签名政策](CODE_SIGNING_POLICY.md)
+[隐私政策](PRIVACY.md) · [安全政策](SECURITY.md) · [代码签名政策](CODE_SIGNING_POLICY.md) · [MCP 接入](docs/mcp.md)
 
 > MostBox 是一个用户自己运行的 P2P 节点，通过简单的本地界面提供文件分享、通信和个人工具；它不要求用户加入某个平台，而是让设备直接参与网络。
 >
@@ -83,6 +83,69 @@ node server/index.js
 ```
 
 开发模式需要两个进程：`npm run dev` 启动 TanStack Start 前端，默认访问 `http://localhost:3000`；`node server/index.js` 启动本地 daemon，默认监听 `http://localhost:1976`。
+
+## MCP（AI 客户端）
+
+先启动 MostBox daemon，在 `/admin/` 的“MCP 客户端”中创建凭证。每个凭证绑定当前
+MostBox 身份、独立 scope、过期时间和允许发布的目录；token 只显示一次。Streamable HTTP
+端点固定为 `http://127.0.0.1:1976/mcp`，只接受本机回环请求。
+
+Codex 使用 Streamable HTTP：
+
+```bash
+export MOSTBOX_MCP_TOKEN='<管理台创建的 token>'
+codex mcp add mostbox \
+  --url http://127.0.0.1:1976/mcp \
+  --bearer-token-env-var MOSTBOX_MCP_TOKEN
+codex mcp list
+```
+
+Claude Desktop 使用 stdio，在 `claude_desktop_config.json` 的 `mcpServers` 中加入：
+
+```json
+{
+  "mcpServers": {
+    "mostbox": {
+      "command": "npx",
+      "args": ["-y", "most-box@latest", "mcp"],
+      "env": {
+        "MOSTBOX_URL": "http://127.0.0.1:1976",
+        "MOSTBOX_MCP_TOKEN": "<管理台创建的 token>"
+      }
+    }
+  }
+}
+```
+
+VS Code 在用户配置或工作区 `.vscode/mcp.json` 中使用密码输入，避免把 token 提交到仓库：
+
+```json
+{
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "mostbox-token",
+      "description": "MostBox MCP token",
+      "password": true
+    }
+  ],
+  "servers": {
+    "mostbox": {
+      "type": "http",
+      "url": "http://127.0.0.1:1976/mcp",
+      "headers": {
+        "Authorization": "Bearer ${input:mostbox-token}"
+      }
+    }
+  }
+}
+```
+
+源码运行 stdio 时，可将 `command` 改为 Node.js，`args` 设为 MostBox 仓库绝对路径下的
+`server/cli.js` 和 `mcp`。完整 scope、工具合同、安全边界与验收矩阵见
+[MCP 方案](docs/mcp.md)。客户端格式参考 [Codex MCP 配置](https://developers.openai.com/codex/mcp/)、
+[VS Code MCP 配置](https://code.visualstudio.com/docs/agents/reference/mcp-configuration) 和
+[Anthropic MCP 文档](https://docs.anthropic.com/en/docs/mcp)。
 
 ## 项目结构
 
@@ -234,6 +297,10 @@ mostbox.example.com {
 
 6. **网络连通性测试**
    - 内置 Ping 工具检测 P2P 网络状态
+
+7. **受控 MCP 接入**
+   - Codex、Claude Desktop 和 VS Code 可读取节点与文件元数据，并按 scope 发布或下载
+   - 本地文件发布受目录白名单约束，下载仍执行 CID 校验并在成功后默认做种
 
 ## 常见问题
 

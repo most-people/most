@@ -310,9 +310,14 @@ export function createWebSocketServer({
   return wss
 }
 
-function bindShutdownSignals({ engine, wssRef, serverInstanceRef }) {
+function bindShutdownSignals({ engine, wssRef, serverInstanceRef, closeMcp }) {
   async function shutdown(message) {
     if (message) console.log(message)
+    try {
+      await closeMcp()
+    } catch (err) {
+      console.warn('[MostBox] Failed to close MCP transports:', err.message)
+    }
     await engine.stop()
     if (wssRef.current) wssRef.current.close()
     serverInstanceRef.current.close()
@@ -399,7 +404,12 @@ export async function main() {
     cleanupWsSubscriptions: appRuntime.cleanupWsSubscriptions,
   })
 
-  bindShutdownSignals({ engine, wssRef, serverInstanceRef })
+  bindShutdownSignals({
+    engine,
+    wssRef,
+    serverInstanceRef,
+    closeMcp: appRuntime.closeMcp,
+  })
 
   return engine
 }

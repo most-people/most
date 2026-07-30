@@ -27,8 +27,9 @@ npm run dev
 | 文件库       | `http://localhost:3000/file/`            | `/file/` 保留完整文件发布、下载和做种管理                   |
 | 聊天         | `http://localhost:3000/chat/`            | 按频道 ID 打开聊天、收发消息和发送文件附件                  |
 | 知识库       | `http://localhost:3000/note/`            | 编辑 Markdown 内容和本地笔记库                              |
-| 管理台       | `http://localhost:3000/admin/`           | 查看节点状态、holding、容量和日志                           |
+| 管理台       | `http://localhost:3000/admin/`           | 查看节点、holding、日志并管理 MCP 客户端                    |
 | API          | `http://localhost:1976/api/openapi.json` | daemon HTTP API                                             |
+| MCP          | `http://127.0.0.1:1976/mcp`              | 仅本机回环的 Streamable HTTP MCP                            |
 
 桌面端默认打开本机节点首页。发布包路径：正式桌面安装包和 Android Alpha APK 从 `/download` 或 GitHub Releases latest 下载；本地桌面构建使用 `npm run electron:build:win`、`npm run electron:build:mac` 或 `npm run electron:build:linux`，Android APK 构建在 `mobile/app/` 下运行 `npm run build`。
 
@@ -184,6 +185,28 @@ curl http://localhost:1976/api/node/diagnostics
 
 ```bash
 node --test --test-name-pattern "returns node status|saves daemon config and exposes policy locally|returns node logs and OpenAPI spec|lists node holdings after publish|creates a manual holding record|normalizes manual holding driveName from the CID" server/tests/integration/api.test.js
+```
+
+### MCP 验收
+
+1. 登录节点管理员身份，在 `/admin/` 创建只含 `node:read` 的客户端；确认 token 只显示一次，
+   列表中不出现明文 token。
+2. 用 token 连接 `http://127.0.0.1:1976/mcp`，确认只能发现
+   `mostbox_node_status` 和 `mostbox_list_holdings`。
+3. 创建带 `files:publish` 的客户端并填写临时允许目录；目录内普通文件可以发布，目录外文件、
+   目录本身和符号链接逃逸必须拒绝。
+4. 通过 `mostbox_publish_local_file` 发布后，结果包含相同 CID 的 `most://` 链接，holding
+   显示已持有并自动做种。
+5. 用另一客户端调用 `mostbox_start_download`，轮询 `mostbox_list_downloads`；成功后文件进入
+   当前用户文件库并成为 holding。
+6. 吊销 token 后，已有和新建连接都不能继续调用；从非回环地址直接请求 `/mcp` 返回拒绝。
+
+自动回归：
+
+```bash
+node --test server/tests/unit/mcpAccess.test.js server/tests/unit/mcpClientStore.test.js
+node --test server/tests/integration/mcp.test.js
+npm run test:protocol
 ```
 
 ## 五、前端体验回归

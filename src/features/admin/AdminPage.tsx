@@ -26,16 +26,19 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Clipboard,
+  Copy,
   Database,
   Download,
   FileText,
   HardDrive,
+  KeyRound,
   RefreshCw,
   Save,
   Server,
   ShieldCheck,
   Trash2,
   Wifi,
+  X,
 } from 'lucide-react'
 import {
   api,
@@ -151,6 +154,32 @@ interface AdminAccess {
   adminAddress: string
 }
 
+type McpScope =
+  | 'node:read'
+  | 'files:read'
+  | 'files:publish'
+  | 'files:download'
+  | 'downloads:cancel'
+
+interface McpClientRecord {
+  id: string
+  name: string
+  ownerAddress: string
+  scopes: McpScope[]
+  allowedRoots: string[]
+  createdAt: string
+  expiresAt: string | null
+  lastUsedAt: string | null
+  revokedAt: string | null
+  active: boolean
+}
+
+interface CreatedMcpCredential {
+  client: McpClientRecord
+  token: string
+  endpoint: string
+}
+
 const EMPTY_STATUS: NodeStatus | null = null
 const EMPTY_HOLDINGS: NodeHolding[] = []
 const LOG_LIMIT = 300
@@ -160,6 +189,19 @@ const MAX_FILE_SIZE_UNIT_OPTIONS = [
   { value: 'MB', label: 'MB' },
   { value: 'GiB', label: 'GiB' },
 ] satisfies Array<{ value: StorageLimitUnit; label: string }>
+const MCP_SCOPE_OPTIONS = [
+  { value: 'node:read', labelKey: 'admin.mcp.scope.nodeRead' },
+  { value: 'files:read', labelKey: 'admin.mcp.scope.filesRead' },
+  { value: 'files:publish', labelKey: 'admin.mcp.scope.filesPublish' },
+  { value: 'files:download', labelKey: 'admin.mcp.scope.filesDownload' },
+  { value: 'downloads:cancel', labelKey: 'admin.mcp.scope.downloadsCancel' },
+] satisfies Array<{ value: McpScope; labelKey: MessageKey }>
+const DEFAULT_MCP_SCOPES: McpScope[] = [
+  'node:read',
+  'files:read',
+  'files:download',
+  'downloads:cancel',
+]
 
 type AdminTranslate = (
   key: MessageKey,
@@ -192,6 +234,17 @@ function parseInviteText(value: string) {
     new Set(
       String(value || '')
         .split(/[\n,]/)
+        .map(item => item.trim())
+        .filter(Boolean)
+    )
+  )
+}
+
+function parsePathText(value: string) {
+  return Array.from(
+    new Set(
+      String(value || '')
+        .split('\n')
         .map(item => item.trim())
         .filter(Boolean)
     )
@@ -545,6 +598,17 @@ export default function AdminPage() {
   })
   const [users, setUsers] = useState<AdminUserData[]>([])
   const [isClearingUser, setIsClearingUser] = useState('')
+  const [mcpClients, setMcpClients] = useState<McpClientRecord[]>([])
+  const [isCreatingMcpClient, setIsCreatingMcpClient] = useState(false)
+  const [revokingMcpClientId, setRevokingMcpClientId] = useState('')
+  const [createdMcpCredential, setCreatedMcpCredential] =
+    useState<CreatedMcpCredential | null>(null)
+  const [mcpForm, setMcpForm] = useState({
+    name: '',
+    expiresInDays: '90',
+    allowedRoots: '',
+    scopes: DEFAULT_MCP_SCOPES,
+  })
   const [configForm, setConfigForm] = useState({
     dataPath: '',
     capacityGiB: '100',
@@ -851,6 +915,94 @@ export default function AdminPage() {
     } catch {}
   }
 
+  const loadMcpClients = async () => {
+    if (!isBackendReady || !isAdminAuthorized) return
+    try {
+      const result = await api
+        .get<{ clients: McpClientRecord[] }>('/api/admin/mcp/clients')
+        .json()
+      setMcpClients(result.clients || [])
+    } catch (err) {
+      const message = await getApiErrorMessage(
+        err,
+        t('admin.error.readMcpClients')
+      )
+      addToast(message, 'error')
+    }
+  }
+
+  const toggleMcpScope = (scope: McpScope) => {
+    setMcpForm(prev => ({
+      ...prev,
+      scopes: prev.scopes.includes(scope)
+        ? prev.scopes.filter(item => item !== scope)
+        : [...prev.scopes, scope],
+    }))
+  }
+
+  const createMcpClient = async () => {
+    if (!requireBackendReady()) return
+    setIsCreatingMcpClient(true)
+    try {
+      const result = await api
+        .post<CreatedMcpCredential & { success: boolean }>(
+          '/api/admin/mcp/clients',
+          {
+            json: {
+              name: mcpForm.name,
+              scopes: mcpForm.scopes,
+              allowedRoots: mcpForm.scopes.includes('files:publish')
+                ? parsePathText(mcpForm.allowedRoots)
+                : [],
+              expiresInDays: Number(mcpForm.expiresInDays),
+            },
+          }
+        )
+        .json()
+      setCreatedMcpCredential(result)
+      setMcpForm(prev => ({ ...prev, name: '' }))
+      await loadMcpClients()
+      addToast(t('admin.toast.mcpClientCreated'), 'success')
+    } catch (err) {
+      const message = await getApiErrorMessage(
+        err,
+        t('admin.error.createMcpClient')
+      )
+      addToast(message, 'error')
+    } finally {
+      setIsCreatingMcpClient(false)
+    }
+  }
+
+  const revokeMcpClient = async (client: McpClientRecord) => {
+    const confirmed = window.confirm(
+      t('admin.confirm.revokeMcpClient', { name: client.name })
+    )
+    if (!confirmed) return
+    setRevokingMcpClientId(client.id)
+    try {
+      await api.delete(`/api/admin/mcp/clients/${client.id}`).json()
+      if (createdMcpCredential?.client.id === client.id) {
+        setCreatedMcpCredential(null)
+      }
+      await loadMcpClients()
+      addToast(t('admin.toast.mcpClientRevoked'), 'success')
+    } catch (err) {
+      const message = await getApiErrorMessage(
+        err,
+        t('admin.error.revokeMcpClient')
+      )
+      addToast(message, 'error')
+    } finally {
+      setRevokingMcpClientId('')
+    }
+  }
+
+  const copyMcpValue = async (value: string) => {
+    await navigator.clipboard.writeText(value)
+    addToast(t('admin.toast.mcpValueCopied'), 'success')
+  }
+
   const loadAdminAccess = async () => {
     if (!isBackendReady) return null
     try {
@@ -1016,6 +1168,7 @@ export default function AdminPage() {
     loadStatus()
     loadLogs()
     loadUsers()
+    loadMcpClients()
 
     let ws: WebSocket | null = null
     let cancelled = false
@@ -1345,6 +1498,220 @@ export default function AdminPage() {
                   <Save size={16} />
                   {t('admin.action.saveConfig')}
                 </button>
+              </div>
+
+              <div className="admin-panel admin-span-2 ui-glass-surface">
+                <div className="admin-panel-header">
+                  <div>
+                    <h2>{t('admin.mcp.title')}</h2>
+                  </div>
+                  <KeyRound size={18} />
+                </div>
+
+                {createdMcpCredential && (
+                  <div className="admin-mcp-credential">
+                    <div className="admin-mcp-credential-header">
+                      <div>
+                        <strong>{t('admin.mcp.credentialTitle')}</strong>
+                        <span>{t('admin.mcp.credentialOnce')}</span>
+                      </div>
+                      <button
+                        className="btn btn-icon"
+                        type="button"
+                        onClick={() => setCreatedMcpCredential(null)}
+                        aria-label={t('admin.mcp.dismissCredential')}
+                        title={t('admin.mcp.dismissCredential')}
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                    <div className="admin-mcp-value-row">
+                      <div>
+                        <span>{t('admin.mcp.endpoint')}</span>
+                        <code translate="no">
+                          {createdMcpCredential.endpoint}
+                        </code>
+                      </div>
+                      <button
+                        className="btn btn-icon"
+                        type="button"
+                        onClick={() =>
+                          copyMcpValue(createdMcpCredential.endpoint)
+                        }
+                        aria-label={t('admin.action.copy')}
+                        title={t('admin.action.copy')}
+                      >
+                        <Copy size={16} />
+                      </button>
+                    </div>
+                    <div className="admin-mcp-value-row">
+                      <div>
+                        <span>{t('admin.mcp.token')}</span>
+                        <code translate="no">{createdMcpCredential.token}</code>
+                      </div>
+                      <button
+                        className="btn btn-icon"
+                        type="button"
+                        onClick={() => copyMcpValue(createdMcpCredential.token)}
+                        aria-label={t('admin.action.copy')}
+                        title={t('admin.action.copy')}
+                      >
+                        <Copy size={16} />
+                      </button>
+                    </div>
+                    <div className="admin-mcp-value-row">
+                      <div>
+                        <span>{t('admin.mcp.stdioCommand')}</span>
+                        <code translate="no">npx most-box mcp</code>
+                      </div>
+                      <button
+                        className="btn btn-icon"
+                        type="button"
+                        onClick={() => copyMcpValue('npx most-box mcp')}
+                        aria-label={t('admin.action.copy')}
+                        title={t('admin.action.copy')}
+                      >
+                        <Copy size={16} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="admin-mcp-form">
+                  <label className="admin-field">
+                    <span>{t('admin.mcp.clientName')}</span>
+                    <input
+                      className="input"
+                      value={mcpForm.name}
+                      maxLength={80}
+                      placeholder={t('admin.mcp.clientNamePlaceholder')}
+                      onChange={event =>
+                        setMcpForm(prev => ({
+                          ...prev,
+                          name: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <label className="admin-field">
+                    <span>{t('admin.mcp.expiresInDays')}</span>
+                    <input
+                      className="input"
+                      type="number"
+                      min="1"
+                      max="365"
+                      step="1"
+                      value={mcpForm.expiresInDays}
+                      onChange={event =>
+                        setMcpForm(prev => ({
+                          ...prev,
+                          expiresInDays: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <fieldset className="admin-mcp-scopes">
+                    <legend>{t('admin.mcp.scopes')}</legend>
+                    <div className="admin-mcp-scope-grid">
+                      {MCP_SCOPE_OPTIONS.map(option => (
+                        <label className="admin-mcp-scope" key={option.value}>
+                          <input
+                            type="checkbox"
+                            checked={mcpForm.scopes.includes(option.value)}
+                            onChange={() => toggleMcpScope(option.value)}
+                          />
+                          <span>{t(option.labelKey)}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
+                  <label className="admin-field admin-mcp-roots">
+                    <span>{t('admin.mcp.allowedRoots')}</span>
+                    <textarea
+                      className="input admin-textarea"
+                      value={mcpForm.allowedRoots}
+                      placeholder={t('admin.mcp.allowedRootsPlaceholder')}
+                      onChange={event =>
+                        setMcpForm(prev => ({
+                          ...prev,
+                          allowedRoots: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                </div>
+                <button
+                  className="btn btn-primary"
+                  type="button"
+                  onClick={createMcpClient}
+                  disabled={
+                    isCreatingMcpClient ||
+                    !mcpForm.name.trim() ||
+                    mcpForm.scopes.length === 0 ||
+                    !Number.isInteger(Number(mcpForm.expiresInDays)) ||
+                    Number(mcpForm.expiresInDays) < 1 ||
+                    Number(mcpForm.expiresInDays) > 365 ||
+                    (mcpForm.scopes.includes('files:publish') &&
+                      parsePathText(mcpForm.allowedRoots).length === 0)
+                  }
+                >
+                  <KeyRound size={16} />
+                  {t('admin.action.createMcpClient')}
+                </button>
+
+                <div className="admin-mcp-client-list">
+                  <h3>{t('admin.mcp.clients')}</h3>
+                  {mcpClients.length === 0 ? (
+                    <p className="admin-mcp-empty">{t('admin.mcp.empty')}</p>
+                  ) : (
+                    mcpClients.map(client => {
+                      const statusKey: MessageKey = client.revokedAt
+                        ? 'admin.mcp.statusRevoked'
+                        : client.active
+                          ? 'admin.mcp.statusActive'
+                          : 'admin.mcp.statusExpired'
+                      return (
+                        <div className="admin-mcp-client-row" key={client.id}>
+                          <div className="admin-mcp-client-main">
+                            <div className="admin-mcp-client-name">
+                              <strong>{client.name}</strong>
+                              <span
+                                className={`admin-seed-pill ${client.active ? 'active' : ''}`}
+                              >
+                                {t(statusKey)}
+                              </span>
+                            </div>
+                            <code translate="no">
+                              {client.scopes.join(', ')}
+                            </code>
+                            <span>
+                              {t('admin.mcp.expiresAt')}:{' '}
+                              {client.expiresAt
+                                ? formatTime(client.expiresAt)
+                                : t('admin.time.never')}
+                              {' · '}
+                              {t('admin.mcp.lastUsed')}:{' '}
+                              {formatRecentTime(client.lastUsedAt, t, locale)}
+                            </span>
+                          </div>
+                          <button
+                            className="btn btn-icon btn-danger"
+                            type="button"
+                            onClick={() => revokeMcpClient(client)}
+                            disabled={
+                              !client.active ||
+                              revokingMcpClientId === client.id
+                            }
+                            aria-label={t('admin.action.revokeMcpClient')}
+                            title={t('admin.action.revokeMcpClient')}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
               </div>
 
               <div className="admin-panel admin-span-2 ui-glass-surface">
