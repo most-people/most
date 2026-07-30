@@ -4,6 +4,27 @@ All notable changes to MostBox are documented in this file.
 
 ## [Unreleased]
 
+## [0.4.6] - 2026-07-30
+
+### Added
+
+- Added CID-backed file and image attachments to Markdown notes.
+- Added grouped connectivity checks for MostBox services and external dependencies.
+- Added privacy, security, and code-signing policy documentation.
+
+### Changed
+
+- Reconciled newer account profiles after login and asked before restoring differing cloud account data.
+- Required users to preview the derived account address before confirming login.
+- Reduced Android launcher icon artwork to fit platform safe areas.
+
+### Fixed
+
+- Restored deterministic DiceBear address avatars.
+- Prevented same-named note attachments from conflicting in the file library.
+- Detected cloud channel backups that contain locally missing writer cores.
+- Documented the authenticated cloud-backup lookup performed after login.
+
 ## [0.4.5] - 2026-07-27
 
 ### Added

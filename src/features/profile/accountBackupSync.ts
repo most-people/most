@@ -60,6 +60,21 @@ function normalizeChannel(value: unknown) {
   }
 }
 
+function getWriterCoreKeys(value: unknown) {
+  const writerCoreKeys = asRecord(value).writerCoreKeys
+  if (!Array.isArray(writerCoreKeys)) return []
+  return [
+    ...new Set(writerCoreKeys.map(key => String(key || '').trim())),
+  ].filter(Boolean)
+}
+
+function hasCloudOnlyWriterCoreKeys(localValue: unknown, backupValue: unknown) {
+  const localWriterCoreKeys = new Set(getWriterCoreKeys(localValue))
+  return getWriterCoreKeys(backupValue).some(
+    writerCoreKey => !localWriterCoreKeys.has(writerCoreKey)
+  )
+}
+
 function normalizeCidValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(normalizeCidValue)
   if (!value || typeof value !== 'object') return value
@@ -107,7 +122,8 @@ function hasRestorableRecordChanges(
   localItems: unknown[] | undefined,
   backupItems: unknown[] | undefined,
   keyField: string,
-  normalize: (value: unknown) => unknown
+  normalize: (value: unknown) => unknown,
+  hasMergeChanges?: (localValue: unknown, backupValue: unknown) => boolean
 ) {
   const localByKey = new Map(
     (Array.isArray(localItems) ? localItems : []).map(item => [
@@ -125,8 +141,9 @@ function hasRestorableRecordChanges(
       return false
     }
     return (
+      hasMergeChanges?.(localItem, backupItem) === true ||
       JSON.stringify(normalizeCidValue(normalize(localItem))) !==
-      JSON.stringify(normalizeCidValue(normalize(backupItem)))
+        JSON.stringify(normalizeCidValue(normalize(backupItem)))
     )
   })
 }
@@ -152,7 +169,8 @@ export async function hasDifferentAccountData(
       localPayload.channels,
       backupPayload.channels,
       'channelKey',
-      normalizeChannel
+      normalizeChannel,
+      hasCloudOnlyWriterCoreKeys
     )
   )
 }
