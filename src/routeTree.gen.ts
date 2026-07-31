@@ -20,7 +20,6 @@ import { Route as ChatIndexRouteImport } from './routes/chat/index'
 import { Route as AppIndexRouteImport } from './routes/app/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AboutIndexRouteImport } from './routes/about/index'
-import { Route as NoteDecryptIndexRouteImport } from './routes/note/decrypt/index'
 import { Route as CidCidIndexRouteImport } from './routes/cid/$cid/index'
 import { Route as ChatJoinIndexRouteImport } from './routes/chat/join/index'
 import { Route as ChatJoinDemoIndexRouteImport } from './routes/chat/join/demo/index'
@@ -82,13 +81,6 @@ const AboutIndexRoute = AboutIndexRouteImport.update({
   path: '/about/',
   getParentRoute: () => rootRouteImport,
 } as any).lazy(() => import('./routes/about/index.lazy').then((d) => d.Route))
-const NoteDecryptIndexRoute = NoteDecryptIndexRouteImport.update({
-  id: '/note/decrypt/',
-  path: '/note/decrypt/',
-  getParentRoute: () => rootRouteImport,
-} as any).lazy(() =>
-  import('./routes/note/decrypt/index.lazy').then((d) => d.Route),
-)
 const CidCidIndexRoute = CidCidIndexRouteImport.update({
   id: '/cid/$cid/',
   path: '/cid/$cid/',
@@ -125,7 +117,6 @@ export interface FileRoutesByFullPath {
   '/web3/': typeof Web3IndexRoute
   '/chat/join/': typeof ChatJoinIndexRoute
   '/cid/$cid/': typeof CidCidIndexRoute
-  '/note/decrypt/': typeof NoteDecryptIndexRoute
   '/chat/join/demo/': typeof ChatJoinDemoIndexRoute
 }
 export interface FileRoutesByTo {
@@ -142,7 +133,6 @@ export interface FileRoutesByTo {
   '/web3': typeof Web3IndexRoute
   '/chat/join': typeof ChatJoinIndexRoute
   '/cid/$cid': typeof CidCidIndexRoute
-  '/note/decrypt': typeof NoteDecryptIndexRoute
   '/chat/join/demo': typeof ChatJoinDemoIndexRoute
 }
 export interface FileRoutesById {
@@ -160,7 +150,6 @@ export interface FileRoutesById {
   '/web3/': typeof Web3IndexRoute
   '/chat/join/': typeof ChatJoinIndexRoute
   '/cid/$cid/': typeof CidCidIndexRoute
-  '/note/decrypt/': typeof NoteDecryptIndexRoute
   '/chat/join/demo/': typeof ChatJoinDemoIndexRoute
 }
 export interface FileRouteTypes {
@@ -179,7 +168,6 @@ export interface FileRouteTypes {
     | '/web3/'
     | '/chat/join/'
     | '/cid/$cid/'
-    | '/note/decrypt/'
     | '/chat/join/demo/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -196,7 +184,6 @@ export interface FileRouteTypes {
     | '/web3'
     | '/chat/join'
     | '/cid/$cid'
-    | '/note/decrypt'
     | '/chat/join/demo'
   id:
     | '__root__'
@@ -213,7 +200,6 @@ export interface FileRouteTypes {
     | '/web3/'
     | '/chat/join/'
     | '/cid/$cid/'
-    | '/note/decrypt/'
     | '/chat/join/demo/'
   fileRoutesById: FileRoutesById
 }
@@ -231,7 +217,6 @@ export interface RootRouteChildren {
   Web3IndexRoute: typeof Web3IndexRoute
   ChatJoinIndexRoute: typeof ChatJoinIndexRoute
   CidCidIndexRoute: typeof CidCidIndexRoute
-  NoteDecryptIndexRoute: typeof NoteDecryptIndexRoute
   ChatJoinDemoIndexRoute: typeof ChatJoinDemoIndexRoute
 }
 
@@ -314,13 +299,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AboutIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/note/decrypt/': {
-      id: '/note/decrypt/'
-      path: '/note/decrypt'
-      fullPath: '/note/decrypt/'
-      preLoaderRoute: typeof NoteDecryptIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/cid/$cid/': {
       id: '/cid/$cid/'
       path: '/cid/$cid'
@@ -359,7 +337,6 @@ const rootRouteChildren: RootRouteChildren = {
   Web3IndexRoute: Web3IndexRoute,
   ChatJoinIndexRoute: ChatJoinIndexRoute,
   CidCidIndexRoute: CidCidIndexRoute,
-  NoteDecryptIndexRoute: NoteDecryptIndexRoute,
   ChatJoinDemoIndexRoute: ChatJoinDemoIndexRoute,
 }
 export const routeTree = rootRouteImport

@@ -132,23 +132,6 @@ describe('note vault routes', () => {
       '# Saved'
     )
 
-    const conflictRes = await requestWithAuth(app, '/api/note-vault/file', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        path: 'docs/hello.md',
-        content: '# Migrated',
-        expectedContent: '# Hello',
-      }),
-    })
-
-    assert.strictEqual(conflictRes.status, 409)
-    assert.strictEqual((await conflictRes.json()).code, 'CONFLICT')
-    assert.strictEqual(
-      fs.readFileSync(path.join(vaultDir, 'docs', 'hello.md'), 'utf8'),
-      '# Saved'
-    )
-
     const createRes = await requestWithAuth(app, '/api/note-vault/file', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

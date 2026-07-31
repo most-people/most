@@ -21,15 +21,29 @@ export function getNoteFullPath(note) {
 export function findNoteIndexByIdentity(notes, identity = {}) {
   const files = Array.isArray(notes) ? notes : []
   const fullPath = normalizeNotePath(identity.path || '')
-  if (fullPath) {
-    const pathIndex = files.findIndex(
-      note => getNoteFullPath(note) === fullPath
-    )
-    if (pathIndex >= 0) return pathIndex
+  const cid = String(identity.cid || '').trim()
+
+  if (cid) {
+    if (fullPath) {
+      const exactIndex = files.findIndex(
+        note => note?.cid === cid && getNoteFullPath(note) === fullPath
+      )
+      if (exactIndex >= 0) return exactIndex
+    }
+
+    const cidMatches = files.reduce((indexes, note, index) => {
+      if (note?.cid === cid) indexes.push(index)
+      return indexes
+    }, [])
+    if (!fullPath || cidMatches.length === 1) return cidMatches[0] ?? -1
+    return -1
   }
 
-  const cid = String(identity.cid || '').trim()
-  return cid ? files.findIndex(note => note?.cid === cid) : -1
+  if (fullPath) {
+    return files.findIndex(note => getNoteFullPath(note) === fullPath)
+  }
+
+  return -1
 }
 
 export function findNoteByIdentity(notes, identity = {}) {
@@ -44,7 +58,9 @@ export function removeNotesByIdentity(notes, identity = {}) {
 
   if (fullPath) {
     if (cid) {
-      return files.filter(note => getNoteFullPath(note) !== fullPath)
+      return files.filter(
+        note => note?.cid !== cid || getNoteFullPath(note) !== fullPath
+      )
     }
     return files.filter(note => {
       const notePath = getNoteFullPath(note)

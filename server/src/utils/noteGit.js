@@ -12,6 +12,8 @@ import {
 
 const DEFAULT_BRANCH = 'main'
 const MAX_HISTORY_DEPTH = 100
+const MAX_HISTORY_SCAN_DEPTH = 2000
+const HISTORY_CHANGE_BATCH_SIZE = 25
 const MAX_COMMIT_MESSAGE_LENGTH = 500
 const MAX_AUTHOR_FIELD_LENGTH = 200
 const GIT_FILE_TYPE_MASK = 0o170000
@@ -410,31 +412,56 @@ export async function listNoteGitHistory(vaultPath, limitInput) {
   const headOid = await getHeadOid(vaultPath)
   if (!headOid) return []
   const limit = normalizeHistoryLimit(limitInput)
-
-  const commits = await git.log({
+  const commitRefs = await git.log({
     fs,
     dir: vaultPath,
-    includeChanges: true,
+    depth: MAX_HISTORY_SCAN_DEPTH,
   })
+  const history = []
 
-  return commits
-    .map(entry => ({
-      oid: entry.oid,
-      message: entry.commit.message.trim(),
-      author: {
-        name: entry.commit.author.name,
-        email: entry.commit.author.email,
-      },
-      timestamp: entry.commit.author.timestamp * 1000,
-      changes: (entry.commit.changes || [])
+  for (
+    let offset = 0;
+    offset < commitRefs.length && history.length < limit;
+    offset += HISTORY_CHANGE_BATCH_SIZE
+  ) {
+    const batch = commitRefs.slice(offset, offset + HISTORY_CHANGE_BATCH_SIZE)
+    const entries = await Promise.all(
+      batch.map(async commit => {
+        const [entry] = await git.log({
+          fs,
+          dir: vaultPath,
+          ref: commit.oid,
+          depth: 1,
+          includeChanges: true,
+        })
+        return entry
+      })
+    )
+
+    for (const entry of entries) {
+      const changes = (entry?.commit.changes || [])
         .filter(([, , filepath]) => isMarkdownStatusPath(filepath))
         .map(([newOid, oldOid, filepath]) => ({
           path: filepath,
           status: !oldOid ? 'added' : !newOid ? 'deleted' : 'modified',
-        })),
-    }))
-    .filter(commit => commit.changes.length > 0)
-    .slice(0, limit)
+        }))
+      if (changes.length === 0) continue
+
+      history.push({
+        oid: entry.oid,
+        message: entry.commit.message.trim(),
+        author: {
+          name: entry.commit.author.name,
+          email: entry.commit.author.email,
+        },
+        timestamp: entry.commit.author.timestamp * 1000,
+        changes,
+      })
+      if (history.length === limit) break
+    }
+  }
+
+  return history
 }
 
 export async function getNoteGitDiff(vaultPath, filepathInput, oidInput = '') {

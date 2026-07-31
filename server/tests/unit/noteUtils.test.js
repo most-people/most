@@ -49,6 +49,43 @@ describe('noteUtils', () => {
     )
   })
 
+  it('never lets a reused path override the requested CID', () => {
+    const notes = [
+      { name: 'old-path.md', path: '', cid: 'new-cid' },
+      { name: 'renamed.md', path: '', cid: 'original-cid' },
+    ]
+
+    assert.strictEqual(
+      findNoteByIdentity(notes, {
+        cid: 'original-cid',
+        path: 'old-path.md',
+      }),
+      notes[1]
+    )
+    assert.deepStrictEqual(
+      removeNotesByIdentity(notes, {
+        cid: 'original-cid',
+        path: 'old-path.md',
+      }),
+      notes
+    )
+  })
+
+  it('rejects an outdated path when a CID identifies multiple notes', () => {
+    const notes = [
+      { name: 'first.md', path: 'one', cid: 'same-cid' },
+      { name: 'second.md', path: 'two', cid: 'same-cid' },
+    ]
+
+    assert.strictEqual(
+      findNoteByIdentity(notes, {
+        cid: 'same-cid',
+        path: 'missing.md',
+      }),
+      undefined
+    )
+  })
+
   it('infers directories for the current path', () => {
     const notes = [
       makeNote('root', '', 1),

@@ -7,26 +7,6 @@ import { ConflictError, PathSecurityError, ValidationError } from './errors.js'
 const CONFIG_FILE_NAME = 'note-vault.json'
 const MARKDOWN_EXTENSION = '.md'
 const EXCLUDED_DIRECTORY_NAMES = new Set(['node_modules'])
-const markdownWriteLocks = new Map()
-
-async function withMarkdownWriteLock(targetPath, operation) {
-  const previous = markdownWriteLocks.get(targetPath) || Promise.resolve()
-  let release
-  const current = new Promise(resolve => {
-    release = resolve
-  })
-  markdownWriteLocks.set(targetPath, current)
-
-  await previous.catch(() => {})
-  try {
-    return await operation()
-  } finally {
-    release()
-    if (markdownWriteLocks.get(targetPath) === current) {
-      markdownWriteLocks.delete(targetPath)
-    }
-  }
-}
 
 function getNoteVaultConfigPath(configDir) {
   return path.join(configDir, CONFIG_FILE_NAME)
@@ -361,59 +341,26 @@ export async function createMarkdownFile(vaultPath, relativePath, content) {
   return writeMarkdownFile(info.realPath, normalizedPath, content)
 }
 
-export async function writeMarkdownFile(
-  vaultPath,
-  relativePath,
-  content,
-  options = {}
-) {
-  const info = await getVaultDirectoryInfo(vaultPath, { requireWritable: true })
-  const normalizedPath = normalizeNoteVaultRelativePath(relativePath)
-  const lockPath = path.resolve(info.realPath, toNativePath(normalizedPath))
+export async function writeMarkdownFile(vaultPath, relativePath, content) {
+  const { info, normalizedPath, targetPath, parentPath } =
+    await getWritableMarkdownTarget(vaultPath, relativePath)
 
-  return withMarkdownWriteLock(lockPath, async () => {
-    const { targetPath, parentPath } = await getWritableMarkdownTarget(
-      info.realPath,
-      normalizedPath
-    )
-    const tempPath = path.join(
-      parentPath,
-      `.${path.basename(targetPath)}.${process.pid}.${Date.now()}.${crypto
-        .randomBytes(4)
-        .toString('hex')}.tmp`
-    )
+  const tempPath = path.join(
+    parentPath,
+    `.${path.basename(targetPath)}.${process.pid}.${Date.now()}.${crypto
+      .randomBytes(4)
+      .toString('hex')}.tmp`
+  )
 
-    try {
-      await fs.writeFile(tempPath, String(content ?? ''), 'utf8')
+  try {
+    await fs.writeFile(tempPath, String(content ?? ''), 'utf8')
+    await fs.rename(tempPath, targetPath)
+  } catch (err) {
+    await fs.rm(tempPath, { force: true }).catch(() => {})
+    throw err
+  }
 
-      if (Object.hasOwn(options, 'expectedContent')) {
-        await getWritableMarkdownTarget(info.realPath, normalizedPath)
-        let currentContent
-        try {
-          currentContent = await fs.readFile(targetPath, 'utf8')
-        } catch (err) {
-          if (err?.code === 'ENOENT') {
-            throw new ConflictError(
-              'note vault file changed since it was scanned'
-            )
-          }
-          throw err
-        }
-        if (currentContent !== String(options.expectedContent ?? '')) {
-          throw new ConflictError(
-            'note vault file changed since it was scanned'
-          )
-        }
-      }
-
-      await fs.rename(tempPath, targetPath)
-    } catch (err) {
-      await fs.rm(tempPath, { force: true }).catch(() => {})
-      throw err
-    }
-
-    return readMarkdownFile(info.realPath, normalizedPath)
-  })
+  return readMarkdownFile(info.realPath, normalizedPath)
 }
 
 export async function moveMarkdownFile(

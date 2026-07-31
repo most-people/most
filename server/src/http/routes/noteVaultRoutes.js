@@ -96,10 +96,7 @@ export function registerNoteVaultRoutes(app, { configStore, isRemoteRequest }) {
       const file = await writeMarkdownFile(
         vaultPath,
         String(body.path || ''),
-        String(body.content || ''),
-        Object.hasOwn(body, 'expectedContent')
-          ? { expectedContent: String(body.expectedContent || '') }
-          : undefined
+        String(body.content || '')
       )
       return c.json({ success: true, file })
     } catch (err) {

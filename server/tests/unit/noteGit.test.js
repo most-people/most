@@ -171,10 +171,32 @@ describe('noteGit', () => {
       })
     }
 
-    const history = await listNoteGitHistory(vaultDir, 1)
+    const originalLog = git.log
+    const logOptions = []
+    git.log = options => {
+      logOptions.push(options)
+      return originalLog(options)
+    }
+
+    let history
+    try {
+      history = await listNoteGitHistory(vaultDir, 1)
+    } finally {
+      git.log = originalLog
+    }
+
     assert.deepStrictEqual(
       history.map(commit => commit.message),
       ['Markdown commit']
+    )
+    assert.ok(logOptions.every(options => Number.isInteger(options.depth)))
+    assert.strictEqual(logOptions[0].includeChanges, undefined)
+    assert.ok(
+      logOptions
+        .slice(1)
+        .every(
+          options => options.depth === 1 && options.includeChanges === true
+        )
     )
   })
 

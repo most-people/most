@@ -102,7 +102,6 @@ interface AppState {
   deleteNote: (cid?: string, path?: string, name?: string) => void
   renameNote: (oldFullPath: string, newPath: string, newName: string) => void
   importNotes: (notes: NoteItem[]) => void
-  replaceNotes: (notes: NoteItem[]) => Promise<void>
 }
 
 function normalizeNotes(input: unknown): NoteItem[] {
@@ -544,15 +543,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     const nextNotes = normalizeNotes(notes)
     set({ notes: nextNotes })
     persistNotes(get().notesAddress, nextNotes, get().notesPath)
-  },
-  replaceNotes: async notes => {
-    const address = get().notesAddress
-    const notesPath = get().notesPath
-    if (!address) throw new Error('note.error.loginRequired')
-
-    const nextNotes = normalizeNotes(notes)
-    await putNotes(address, nextNotes, notesPath)
-    if (get().notesAddress === address) set({ notes: nextNotes })
   },
 }))
 

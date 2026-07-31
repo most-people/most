@@ -68,16 +68,9 @@ export function mostEncode(text, danger) {
 }
 
 export function mostDecode(data, danger) {
-  const result = tryMostDecode(data, danger)
-  return result.ok ? result.content : ''
-}
-
-export function tryMostDecode(data, danger) {
   try {
     const [prefix, nonce64, encrypted64] = String(data || '').split('.')
-    if (prefix !== 'mp://1' || !nonce64 || !encrypted64) {
-      return { ok: false, content: '' }
-    }
+    if (prefix !== 'mp://1' || !nonce64 || !encrypted64) return ''
 
     const key = getBytes(danger).slice(0, nacl.secretbox.keyLength)
     const decrypted = nacl.secretbox.open(
@@ -86,11 +79,9 @@ export function tryMostDecode(data, danger) {
       key
     )
 
-    return decrypted
-      ? { ok: true, content: new TextDecoder().decode(decrypted) }
-      : { ok: false, content: '' }
+    return decrypted ? new TextDecoder().decode(decrypted) : ''
   } catch {
-    return { ok: false, content: '' }
+    return ''
   }
 }
 

@@ -11,7 +11,6 @@ import {
   mostSignMessage,
   most25519,
   parseMostBoxToken,
-  tryMostDecode,
 } from '../../src/utils/mostWallet.js'
 
 describe('mostWallet', () => {
@@ -101,17 +100,10 @@ describe('mostEncode / mostDecode', () => {
     assert.strictEqual(mostDecode(encrypted, mostWallet('a', 'c').danger), '')
   })
 
-  it('distinguishes an encrypted empty note from a decryption failure', () => {
-    const wallet = mostWallet('empty-note', 'pass')
-    const encrypted = mostEncode('', wallet.danger)
-
-    assert.deepStrictEqual(tryMostDecode(encrypted, wallet.danger), {
-      ok: true,
-      content: '',
-    })
-    assert.deepStrictEqual(
-      tryMostDecode(encrypted, mostWallet('empty-note', 'wrong').danger),
-      { ok: false, content: '' }
+  it('returns an empty string for malformed encrypted content', () => {
+    assert.strictEqual(
+      mostDecode('mp://1.invalid.invalid', mostWallet('a', 'b').danger),
+      ''
     )
   })
 })

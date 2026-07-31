@@ -9,7 +9,6 @@ export const requiredStaticRoutes = [
   '/chat/join/demo/',
   '/download/',
   '/note/',
-  '/note/decrypt/',
   '/ping/',
   '/profile/',
   '/web3/',
