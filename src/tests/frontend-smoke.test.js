@@ -47,6 +47,8 @@ const SOURCE_PATHS = {
   mostMarkdownEditor: 'src/features/note/MostMarkdownEditor.tsx',
   note: 'src/features/note/NotePage.tsx',
   noteGit: 'src/features/note/NoteGitModal.tsx',
+  noteMigration: 'src/features/note/NoteDecryptionMigrationPage.tsx',
+  noteMigrationLogic: 'server/src/utils/noteMigration.js',
   noteVaultApi: 'src/features/note/noteVaultApi.ts',
   noteCss: 'src/styles/note.css',
   files: 'src/features/files/AppPage.tsx',
@@ -430,6 +432,7 @@ describe('frontend smoke checks', () => {
       '/chat/join/demo/',
       '/download/',
       '/note/',
+      '/note/decrypt/',
       '/ping/',
       '/profile/',
       '/web3/',
@@ -587,6 +590,81 @@ describe('frontend smoke checks', () => {
       accountBackupSource,
       /const content = String\(note\.content \|\| ''\)/
     )
+  })
+
+  it('migrates legacy encrypted notes without restoring article encryption', async () => {
+    const migrationSource = readSource(SOURCE_PATHS.noteMigration)
+    const noteSource = readSource(SOURCE_PATHS.note)
+    const { mostEncode, mostWallet } =
+      await import('../../server/src/utils/mostWallet.js')
+    const { decryptLegacyBrowserNotes } =
+      await import('../../server/src/utils/noteMigration.js')
+    const wallet = mostWallet('migration-user', 'migration-password')
+    const now = 1_800_000_000_000
+    const encrypted = mostEncode('# recovered', wallet.danger)
+    const encryptedEmpty = mostEncode('', wallet.danger)
+    const notes = [
+      {
+        name: 'secret.md',
+        cid: 'encrypted-cid',
+        path: 'archive',
+        content: encrypted,
+        size: encrypted.length,
+        type: 'file',
+        created_at: 1,
+        updated_at: 2,
+      },
+      {
+        name: 'empty.md',
+        cid: 'empty-encrypted-cid',
+        path: '',
+        content: encryptedEmpty,
+        size: encryptedEmpty.length,
+        type: 'file',
+        created_at: 3,
+        updated_at: 4,
+      },
+      {
+        name: 'broken.md',
+        cid: 'broken-cid',
+        path: '',
+        content: 'mp://1.invalid.payload',
+        size: 22,
+        type: 'file',
+        created_at: 5,
+        updated_at: 6,
+      },
+      {
+        name: 'plain.md',
+        cid: 'plain-cid',
+        path: '',
+        content: '# already plain',
+        size: 15,
+        type: 'file',
+        created_at: 7,
+        updated_at: 8,
+      },
+    ]
+
+    const result = await decryptLegacyBrowserNotes(notes, wallet.danger, now)
+
+    assert.deepEqual(result.decryptedPaths, ['archive/secret.md', 'empty.md'])
+    assert.deepEqual(result.failedPaths, ['broken.md'])
+    assert.equal(result.notes[0].content, '# recovered')
+    assert.notEqual(result.notes[0].cid, 'encrypted-cid')
+    assert.equal(result.notes[0].updated_at, now)
+    assert.equal(result.notes[1].content, '')
+    assert.equal(result.notes[1].size, 0)
+    assert.equal(result.notes[2].content, 'mp://1.invalid.payload')
+    assert.equal(result.notes[3], notes[3])
+
+    assert.match(noteSource, /to="\/note\/decrypt\/"/)
+    assert.match(migrationSource, /backupConfirmed/)
+    assert.match(migrationSource, /getNoteVaultSnapshot/)
+    assert.match(migrationSource, /current\.content !== item\.originalContent/)
+    assert.match(migrationSource, /<ConfirmModal/)
+    assert.doesNotMatch(migrationSource, /mostEncode/)
+    assert.ok(getStaticRoutes().includes('/note/decrypt/'))
   })
 
   it('keeps local knowledge-base Git manual and Markdown-scoped', () => {

@@ -8,13 +8,14 @@ import {
   useRef,
   useState,
 } from 'react'
-import { useLocation, useNavigate } from '@tanstack/react-router'
+import { Link, useLocation, useNavigate } from '@tanstack/react-router'
 import {
   ChevronDown,
   ChevronRight,
   PencilRuler,
   FolderOpen,
   GitBranch,
+  KeyRound,
   MoreHorizontal,
   Move,
   Loader,
@@ -171,6 +172,22 @@ function getErrorMessage(
   const messageKey = noteErrorMessageKeys[message]
   if (messageKey) return t(messageKey)
   return message || fallback
+}
+
+function LegacyNoteMigrationLink() {
+  const { t } = useI18n()
+
+  return (
+    <Link
+      to="/note/decrypt/"
+      className="btn btn-sm"
+      title={t('note.migration.entry')}
+      aria-label={t('note.migration.entry')}
+    >
+      <KeyRound size={16} />
+      <span>{t('note.migration.entryShort')}</span>
+    </Link>
+  )
 }
 
 function getExplorerItemFullPath(item: ExplorerItem) {
@@ -1099,7 +1116,11 @@ function NotePageContent() {
     </div>
   )
 
-  const headerRight = <div className="note-theme-wrap" />
+  const headerRight = (
+    <div className="note-theme-wrap">
+      <LegacyNoteMigrationLink />
+    </div>
+  )
 
   const noteExplorer = (
     <section
@@ -1941,6 +1962,7 @@ function VaultNotePageContent() {
 
   const headerRight = (
     <div className="note-theme-wrap">
+      <LegacyNoteMigrationLink />
       {vaultStatus?.configured === true && (
         <button
           type="button"

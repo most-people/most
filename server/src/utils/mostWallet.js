@@ -68,17 +68,30 @@ export function mostEncode(text, danger) {
 }
 
 export function mostDecode(data, danger) {
-  const [prefix, nonce64, encrypted64] = String(data || '').split('.')
-  if (prefix !== 'mp://1' || !nonce64 || !encrypted64) return ''
+  const result = tryMostDecode(data, danger)
+  return result.ok ? result.content : ''
+}
 
-  const key = getBytes(danger).slice(0, nacl.secretbox.keyLength)
-  const decrypted = nacl.secretbox.open(
-    decodeBase64(encrypted64),
-    decodeBase64(nonce64),
-    key
-  )
+export function tryMostDecode(data, danger) {
+  try {
+    const [prefix, nonce64, encrypted64] = String(data || '').split('.')
+    if (prefix !== 'mp://1' || !nonce64 || !encrypted64) {
+      return { ok: false, content: '' }
+    }
 
-  return decrypted ? new TextDecoder().decode(decrypted) : ''
+    const key = getBytes(danger).slice(0, nacl.secretbox.keyLength)
+    const decrypted = nacl.secretbox.open(
+      decodeBase64(encrypted64),
+      decodeBase64(nonce64),
+      key
+    )
+
+    return decrypted
+      ? { ok: true, content: new TextDecoder().decode(decrypted) }
+      : { ok: false, content: '' }
+  } catch {
+    return { ok: false, content: '' }
+  }
 }
 
 function concatBytes(parts) {
