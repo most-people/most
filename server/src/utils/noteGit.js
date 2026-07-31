@@ -6,6 +6,7 @@ import { ConflictError, PathSecurityError, ValidationError } from './errors.js'
 import {
   deleteMarkdownFile,
   normalizeNoteVaultRelativePath,
+  readMarkdownFile,
   writeMarkdownFile,
 } from './noteVault.js'
 
@@ -13,6 +14,8 @@ const DEFAULT_BRANCH = 'main'
 const MAX_HISTORY_DEPTH = 100
 const MAX_COMMIT_MESSAGE_LENGTH = 500
 const MAX_AUTHOR_FIELD_LENGTH = 200
+const GIT_FILE_TYPE_MASK = 0o170000
+const GIT_REGULAR_FILE_MODE = 0o100000
 
 function getGitDirectory(vaultPath) {
   return path.join(vaultPath, '.git')
@@ -52,6 +55,10 @@ function normalizeGitMarkdownPath(input) {
   return normalizeNoteVaultRelativePath(input)
 }
 
+function isNoteVaultFileNotFound(err) {
+  return err?.errorCode === 'NOTE_VAULT_FILE_NOT_FOUND'
+}
+
 function getGitChangeType(head, workdir) {
   if (head === 0 && workdir === 2) return 'added'
   if (head === 1 && workdir === 0) return 'deleted'
@@ -63,6 +70,52 @@ function isMarkdownStatusPath(filepath) {
     return normalizeGitMarkdownPath(filepath) === filepath
   } catch {
     return false
+  }
+}
+
+async function isRegularWorkingMarkdownPath(vaultPath, filepath) {
+  let currentPath = path.resolve(vaultPath)
+  const parts = filepath.split('/')
+
+  for (let index = 0; index < parts.length; index += 1) {
+    currentPath = path.join(currentPath, parts[index])
+    let stat
+    try {
+      stat = await fs.promises.lstat(currentPath)
+    } catch (err) {
+      if (err?.code === 'ENOENT') return false
+      throw err
+    }
+    if (stat.isSymbolicLink()) return false
+    if (index < parts.length - 1 && !stat.isDirectory()) return false
+    if (index === parts.length - 1) return stat.isFile()
+  }
+
+  return false
+}
+
+async function assertStagedMarkdownFilesAreRegular(vaultPath, filepaths) {
+  const expectedPaths = new Set(filepaths)
+  if (expectedPaths.size === 0) return
+
+  const stagedModes = new Map()
+  await git.walk({
+    fs,
+    dir: vaultPath,
+    trees: [git.STAGE()],
+    map: async (filepath, [entry]) => {
+      if (!entry || !expectedPaths.has(filepath)) return
+      stagedModes.set(filepath, await entry.mode())
+    },
+  })
+
+  for (const filepath of expectedPaths) {
+    const mode = stagedModes.get(filepath)
+    if ((mode & GIT_FILE_TYPE_MASK) !== GIT_REGULAR_FILE_MODE) {
+      throw new PathSecurityError(
+        `Markdown Git changes must be regular files: ${filepath}`
+      )
+    }
   }
 }
 
@@ -149,30 +202,40 @@ async function getStatusMatrix(vaultPath) {
   return git.statusMatrix({ fs, dir: vaultPath })
 }
 
-function getStatusChanges(matrix) {
-  return matrix
-    .filter(
-      ([filepath, head, workdir, stage]) =>
-        isMarkdownStatusPath(filepath) && (head !== workdir || head !== stage)
-    )
-    .map(([filepath, head, workdir, stage]) => ({
-      path: filepath,
-      status: getGitChangeType(head, workdir),
-      staged: stage !== head,
-    }))
+async function getStatusChanges(vaultPath, matrix) {
+  const changes = await Promise.all(
+    matrix.map(async ([filepath, head, workdir, stage]) => {
+      if (
+        !isMarkdownStatusPath(filepath) ||
+        (head === workdir && head === stage)
+      ) {
+        return null
+      }
+      if (
+        workdir !== 0 &&
+        !(await isRegularWorkingMarkdownPath(vaultPath, filepath))
+      ) {
+        return null
+      }
+      return {
+        path: filepath,
+        status: getGitChangeType(head, workdir),
+        staged: stage !== head,
+      }
+    })
+  )
+  return changes.filter(Boolean)
 }
 
 async function readWorkingMarkdown(vaultPath, filepath) {
   try {
+    const file = await readMarkdownFile(vaultPath, filepath)
     return {
       exists: true,
-      content: await fs.promises.readFile(
-        path.join(vaultPath, filepath),
-        'utf8'
-      ),
+      content: file.content,
     }
   } catch (err) {
-    if (err?.code === 'ENOENT') return { exists: false, content: '' }
+    if (isNoteVaultFileNotFound(err)) return { exists: false, content: '' }
     throw err
   }
 }
@@ -237,7 +300,7 @@ export async function getNoteGitStatus(vaultPath) {
     initialized: true,
     branch: branch || (headOid ? 'HEAD' : DEFAULT_BRANCH),
     headOid,
-    changes: getStatusChanges(matrix),
+    changes: await getStatusChanges(vaultPath, matrix),
     stagedCount: matrix.filter(([, head, , stage]) => stage !== head).length,
     author,
   }
@@ -286,10 +349,21 @@ export async function commitNoteGitChanges(vaultPath, messageInput) {
     )
   }
 
-  const changes = matrix.filter(
-    ([filepath, head, workdir]) =>
-      isMarkdownStatusPath(filepath) && head !== workdir
-  )
+  const changes = (
+    await Promise.all(
+      matrix.map(async row => {
+        const [filepath, head, workdir] = row
+        if (!isMarkdownStatusPath(filepath) || head === workdir) return null
+        if (
+          workdir !== 0 &&
+          !(await isRegularWorkingMarkdownPath(vaultPath, filepath))
+        ) {
+          return null
+        }
+        return row
+      })
+    )
+  ).filter(Boolean)
   if (changes.length === 0) {
     throw new ValidationError(
       'There are no Markdown changes to commit',
@@ -312,6 +386,13 @@ export async function commitNoteGitChanges(vaultPath, messageInput) {
       }
     }
 
+    await assertStagedMarkdownFilesAreRegular(
+      vaultPath,
+      changes
+        .filter(([, , workdir]) => workdir !== 0)
+        .map(([filepath]) => filepath)
+    )
+
     const oid = await git.commit({ fs, dir: vaultPath, message, author })
     return { oid, status: await getNoteGitStatus(vaultPath) }
   } catch (err) {
@@ -328,11 +409,11 @@ export async function listNoteGitHistory(vaultPath, limitInput) {
   await requireRepository(vaultPath)
   const headOid = await getHeadOid(vaultPath)
   if (!headOid) return []
+  const limit = normalizeHistoryLimit(limitInput)
 
   const commits = await git.log({
     fs,
     dir: vaultPath,
-    depth: normalizeHistoryLimit(limitInput),
     includeChanges: true,
   })
 
@@ -353,6 +434,7 @@ export async function listNoteGitHistory(vaultPath, limitInput) {
         })),
     }))
     .filter(commit => commit.changes.length > 0)
+    .slice(0, limit)
 }
 
 export async function getNoteGitDiff(vaultPath, filepathInput, oidInput = '') {
@@ -407,7 +489,11 @@ export async function restoreNoteGitFile(vaultPath, filepathInput, oidInput) {
   if (version.exists) {
     await writeMarkdownFile(vaultPath, filepath, version.content)
   } else {
-    await deleteMarkdownFile(vaultPath, filepath)
+    try {
+      await deleteMarkdownFile(vaultPath, filepath)
+    } catch (err) {
+      if (!isNoteVaultFileNotFound(err)) throw err
+    }
   }
 
   return {

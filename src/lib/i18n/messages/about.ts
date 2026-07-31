@@ -39,13 +39,16 @@ export const zhCNAboutMessages = {
   'about.toolbox.kicker': '独立工具箱',
   'about.toolbox.title': '需要时打开，不成为分享文件的门槛',
   'about.toolbox.intro':
-    '聊天、知识库和 Web3 保留为独立入口；使用 most:// 下载与做种不要求先使用其中任何一个。',
+    '聊天、知识库、MCP 和 Web3 保留为独立工具；知识库的 Git 历史只管理本地笔记，使用 most:// 下载与做种不依赖它们。',
   'about.toolbox.chat.title': '聊天',
   'about.toolbox.chat.body':
     '为私域沟通、小团队消息、多人语音和文件附件提供独立房间。',
-  'about.toolbox.note.title': '知识库',
+  'about.toolbox.note.title': '知识库与 Git',
   'about.toolbox.note.body':
-    '用 Markdown 整理本地笔记，按需备份和恢复，不冒充永久云盘。',
+    '用 Markdown 整理本地笔记，通过内置 Git 查看差异、提交版本和恢复文件。',
+  'about.toolbox.mcp.title': 'MCP（AI 客户端）',
+  'about.toolbox.mcp.body':
+    '通过受限、可过期的本机凭证，让 AI 客户端读取节点状态并调用文件能力。',
   'about.toolbox.web3.title': 'Web3 工具箱',
   'about.toolbox.web3.body':
     '本地账户、签名和钱包工具独立存在，不参与文件发现、校验或做种。',
@@ -99,13 +102,16 @@ export const zhTWAboutMessages = {
   'about.toolbox.kicker': '獨立工具箱',
   'about.toolbox.title': '需要時開啟，不成為分享檔案的門檻',
   'about.toolbox.intro':
-    '聊天、知識庫和 Web3 保留為獨立入口；使用 most:// 下載與做種不要求先使用其中任何一個。',
+    '聊天、知識庫、MCP 和 Web3 保留為獨立工具；知識庫的 Git 歷史只管理本機筆記，使用 most:// 下載與做種不依賴它們。',
   'about.toolbox.chat.title': '聊天',
   'about.toolbox.chat.body':
     '為私域溝通、小團隊訊息、多人語音和檔案附件提供獨立房間。',
-  'about.toolbox.note.title': '知識庫',
+  'about.toolbox.note.title': '知識庫與 Git',
   'about.toolbox.note.body':
-    '用 Markdown 整理本機筆記，按需備份和恢復，不冒充永久雲端硬碟。',
+    '用 Markdown 整理本機筆記，透過內建 Git 查看差異、提交版本和還原檔案。',
+  'about.toolbox.mcp.title': 'MCP（AI 用戶端）',
+  'about.toolbox.mcp.body':
+    '透過受限、可過期的本機憑證，讓 AI 用戶端讀取節點狀態並呼叫檔案能力。',
   'about.toolbox.web3.title': 'Web3 工具箱',
   'about.toolbox.web3.body':
     '本機帳戶、簽名和錢包工具獨立存在，不參與檔案發現、校驗或做種。',
@@ -160,13 +166,16 @@ export const enAboutMessages = {
   'about.toolbox.kicker': 'Independent toolbox',
   'about.toolbox.title': 'Open tools when needed, never as a gate to sharing',
   'about.toolbox.intro':
-    'Chat, Knowledge Base, and Web3 remain independent entries. Downloading and seeding through most:// requires none of them.',
+    'Chat, Knowledge Base, MCP, and Web3 remain independent tools. Git history only manages local notes, and most:// downloads and seeding depend on none of them.',
   'about.toolbox.chat.title': 'Chat',
   'about.toolbox.chat.body':
     'Independent rooms for private groups, small-team messages, multi-person voice, and file attachments.',
-  'about.toolbox.note.title': 'Knowledge Base',
+  'about.toolbox.note.title': 'Knowledge Base and Git',
   'about.toolbox.note.body':
-    'Organize local Markdown notes with optional backup and restore, without pretending to be permanent cloud storage.',
+    'Organize local Markdown notes, then use built-in Git to review changes, commit versions, and restore files.',
+  'about.toolbox.mcp.title': 'MCP for AI clients',
+  'about.toolbox.mcp.body':
+    'Scoped, expiring local credentials let AI clients read node status and use file capabilities.',
   'about.toolbox.web3.title': 'Web3 toolbox',
   'about.toolbox.web3.body':
     'Local accounts, signatures, and wallet tools stay separate from file discovery, verification, and seeding.',

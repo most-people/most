@@ -114,6 +114,21 @@ describe('noteVault', () => {
     )
   })
 
+  it('rejects a conditional write when the Markdown file changed', async () => {
+    const vaultDir = makeTmpDir('note-vault-conditional-write')
+    const filePath = path.join(vaultDir, 'note.md')
+    fs.writeFileSync(filePath, 'scanned', 'utf8')
+    fs.writeFileSync(filePath, 'external edit', 'utf8')
+
+    await assert.rejects(
+      writeMarkdownFile(vaultDir, 'note.md', 'decrypted', {
+        expectedContent: 'scanned',
+      }),
+      err => err.code === 'CONFLICT'
+    )
+    assert.strictEqual(fs.readFileSync(filePath, 'utf8'), 'external edit')
+  })
+
   it('creates, moves, and deletes Markdown files without overwriting', async () => {
     const vaultDir = makeTmpDir('note-vault-file-ops')
     fs.mkdirSync(path.join(vaultDir, 'docs'), { recursive: true })

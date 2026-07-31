@@ -33,6 +33,7 @@ import { ActionMenu, ConfirmModal, InputModal } from '~/components/ui'
 import { useAppStore, type NoteItem } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import {
+  findNoteByIdentity,
   getNoteFullPath,
   normalizeNotePath,
 } from '~server/src/utils/noteUtils.js'
@@ -90,6 +91,7 @@ type NoteTreeProps = {
   searchQuery: string
   expandedPaths: Set<string>
   activeFileId: string
+  activeFilePath?: string
   activeFolderPath: string
   onToggleDirectory: (node: NoteTreeNode) => void
   onOpenFile: (note: NoteItem) => void
@@ -534,6 +536,7 @@ function NoteTree({
   searchQuery,
   expandedPaths,
   activeFileId,
+  activeFilePath,
   activeFolderPath,
   onToggleDirectory,
   onOpenFile,
@@ -550,6 +553,7 @@ function NoteTree({
           forceExpanded={forceExpanded}
           expandedPaths={expandedPaths}
           activeFileId={activeFileId}
+          activeFilePath={activeFilePath}
           activeFolderPath={activeFolderPath}
           onToggleDirectory={onToggleDirectory}
           onOpenFile={onOpenFile}
@@ -565,6 +569,7 @@ function NoteTreeNodeRow({
   forceExpanded,
   expandedPaths,
   activeFileId,
+  activeFilePath,
   activeFolderPath,
   onToggleDirectory,
   onOpenFile,
@@ -573,7 +578,10 @@ function NoteTreeNodeRow({
   const isDirectory = node.type === 'directory'
   const isExpanded =
     isDirectory && (forceExpanded || expandedPaths.has(node.fullPath))
-  const isActiveFile = node.type === 'file' && node.note?.cid === activeFileId
+  const isActiveFile =
+    node.type === 'file' &&
+    node.note?.cid === activeFileId &&
+    (!activeFilePath || node.fullPath === activeFilePath)
   const isActiveFolder =
     isDirectory && normalizeNotePath(activeFolderPath) === node.fullPath
   const item = isDirectory ? getDirectoryExplorerItem(node) : node.note || null
@@ -627,6 +635,7 @@ function NoteTreeNodeRow({
               forceExpanded={forceExpanded}
               expandedPaths={expandedPaths}
               activeFileId={activeFileId}
+              activeFilePath={activeFilePath}
               activeFolderPath={activeFolderPath}
               onToggleDirectory={onToggleDirectory}
               onOpenFile={onOpenFile}
@@ -802,7 +811,10 @@ function NotePageContent() {
   const localDataReady = useAppStore(s => s.localDataReady)
 
   const cid = params.cid || ''
-  const selectedNote = notes.find(note => note.cid === cid)
+  const selectedNote = findNoteByIdentity(notes, {
+    cid,
+    path: params.path,
+  })
   const showPreview = !!cid
   const isEditing = showPreview && params.mode === 'edit'
 
@@ -889,7 +901,7 @@ function NotePageContent() {
       renderWikiNoteLinks(
         previewContent,
         notes,
-        note => getNoteHref({ cid: note.cid }),
+        note => getNoteHref({ cid: note.cid, path: getNoteFullPath(note) }),
         selectedNote?.path || '',
         targetPath => getNoteHref({ path: getStorageMarkdownPath(targetPath) })
       ),
@@ -900,7 +912,7 @@ function NotePageContent() {
       resolveWikiNoteLinkBody(
         body,
         notes,
-        note => getNoteHref({ cid: note.cid }),
+        note => getNoteHref({ cid: note.cid, path: getNoteFullPath(note) }),
         selectedNote?.path || '',
         targetPath => getNoteHref({ path: getStorageMarkdownPath(targetPath) })
       ),
@@ -920,7 +932,10 @@ function NotePageContent() {
     if (!note) return
 
     setNotesPath(normalizeNotePath(note.path || ''))
-    navigate({ href: getNoteHref({ cid: note.cid }), replace: true })
+    navigate({
+      href: getNoteHref({ cid: note.cid, path: getNoteFullPath(note) }),
+      replace: true,
+    })
   }, [cid, navigate, notes, params.path, setNotesPath])
 
   useEffect(() => {
@@ -959,7 +974,7 @@ function NotePageContent() {
 
   function openPreview(note: NoteItem) {
     setNotesPath(normalizeNotePath(note.path || ''))
-    navigateToNote({ cid: note.cid })
+    navigateToNote({ cid: note.cid, path: getNoteFullPath(note) })
   }
 
   function toggleTreeDirectory(node: NoteTreeNode) {
@@ -968,7 +983,11 @@ function NotePageContent() {
   }
 
   function openEditor(note: NoteItem) {
-    navigateToNote({ cid: note.cid, mode: 'edit' })
+    navigateToNote({
+      cid: note.cid,
+      path: getNoteFullPath(note),
+      mode: 'edit',
+    })
   }
 
   function requireWallet() {
@@ -998,7 +1017,14 @@ function NotePageContent() {
       })
       deleteChatNoteDraft(draft.id)
       addToast(t('note.chatDraft.created'), 'success')
-      navigateToNote({ cid: newCid, mode: 'edit' }, true)
+      navigateToNote(
+        {
+          cid: newCid,
+          path: getNoteFullPath({ name, path: notesPath }),
+          mode: 'edit',
+        },
+        true
+      )
     } catch (err: unknown) {
       importedChatDraftRef.current = ''
       addToast(getErrorMessage(err, t('note.toast.createFailed'), t), 'error')
@@ -1006,7 +1032,11 @@ function NotePageContent() {
   }
 
   function closeEditor() {
-    navigateToNote(selectedNote ? { cid: selectedNote.cid } : {})
+    navigateToNote(
+      selectedNote
+        ? { cid: selectedNote.cid, path: getNoteFullPath(selectedNote) }
+        : {}
+    )
   }
 
   async function handleSaveEditor() {
@@ -1026,12 +1056,19 @@ function NotePageContent() {
       const markdown = editorRef.current?.getMarkdown() ?? plainContent
       const nextCid = await saveNote({
         cid: selectedNote.cid,
+        existingPath: getNoteFullPath(selectedNote),
         name: nextName,
         path: notePath,
         content: markdown,
       })
       setPlainContent(markdown)
-      navigateToNote({ cid: nextCid }, true)
+      navigateToNote(
+        {
+          cid: nextCid,
+          path: getNoteFullPath({ name: nextName, path: notePath }),
+        },
+        true
+      )
       addToast(t('note.toast.saved'), 'success')
     } catch (err: unknown) {
       addToast(getErrorMessage(err, t('note.toast.saveFailed'), t), 'error')
@@ -1049,14 +1086,19 @@ function NotePageContent() {
       onConfirm: async value => {
         if (!requireWallet()) return
         try {
+          const name = getStorageMarkdownName(value)
           const newCid = await saveNote({
-            name: getStorageMarkdownName(value),
+            name,
             path: notesPath,
             content: '',
           })
           setInputModal(null)
           addToast(t('note.toast.created'), 'success')
-          navigateToNote({ cid: newCid, mode: 'edit' })
+          navigateToNote({
+            cid: newCid,
+            path: getNoteFullPath({ name, path: notesPath }),
+            mode: 'edit',
+          })
         } catch (err: unknown) {
           addToast(
             getErrorMessage(err, t('note.toast.createFailed'), t),
@@ -1150,6 +1192,7 @@ function NotePageContent() {
           searchQuery={searchQuery}
           expandedPaths={expandedTreePaths}
           activeFileId={cid}
+          activeFilePath={selectedNote ? getNoteFullPath(selectedNote) : ''}
           activeFolderPath={cid ? '' : notesPath}
           onToggleDirectory={toggleTreeDirectory}
           onOpenFile={openPreview}
@@ -2045,6 +2088,7 @@ function VaultNotePageContent() {
           searchQuery={searchQuery}
           expandedPaths={expandedTreePaths}
           activeFileId={currentFilePath}
+          activeFilePath={currentFilePath}
           activeFolderPath={currentFilePath ? '' : vaultFolderPath}
           onToggleDirectory={toggleTreeDirectory}
           onOpenFile={openPreview}

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import {
+  Bot,
   CheckCircle2,
   Code2,
   Download,
@@ -78,6 +79,11 @@ const tools: StoryItem[] = [
     icon: <NotebookPen size={22} />,
     titleKey: 'about.toolbox.note.title',
     bodyKey: 'about.toolbox.note.body',
+  },
+  {
+    icon: <Bot size={22} />,
+    titleKey: 'about.toolbox.mcp.title',
+    bodyKey: 'about.toolbox.mcp.body',
   },
   {
     icon: <Wallet size={22} />,

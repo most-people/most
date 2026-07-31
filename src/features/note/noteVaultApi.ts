@@ -108,9 +108,19 @@ export async function readNoteVaultFile(path: string) {
     .json<NoteVaultFileContent>()
 }
 
-export async function saveNoteVaultFile(path: string, content: string) {
+export async function saveNoteVaultFile(
+  path: string,
+  content: string,
+  expectedContent?: string
+) {
   const data = await api
-    .put('/api/note-vault/file', { json: { path, content } })
+    .put('/api/note-vault/file', {
+      json: {
+        path,
+        content,
+        ...(expectedContent === undefined ? {} : { expectedContent }),
+      },
+    })
     .json<{ success: boolean; file: NoteVaultFileContent }>()
   return data.file
 }

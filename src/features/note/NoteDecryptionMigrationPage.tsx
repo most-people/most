@@ -22,7 +22,6 @@ import { useUserStore } from '~/stores/userStore'
 import {
   getNoteVaultStatus,
   getNoteVaultSnapshot,
-  readNoteVaultFile,
   saveNoteVaultFile,
 } from './noteVaultApi'
 import {
@@ -172,17 +171,19 @@ export default function NoteDecryptionMigrationPage() {
     for (const item of items) {
       if (item.source !== 'vault' || !item.decryptable) continue
       try {
-        const current = await readNoteVaultFile(item.path)
-        if (current.content !== item.originalContent) {
-          failed += 1
-          continue
-        }
-        const inspection = inspectLegacyEncryptedNote(current.content, danger)
+        const inspection = inspectLegacyEncryptedNote(
+          item.originalContent,
+          danger
+        )
         if (!inspection.decryptable) {
           failed += 1
           continue
         }
-        await saveNoteVaultFile(item.path, inspection.content)
+        await saveNoteVaultFile(
+          item.path,
+          inspection.content,
+          item.originalContent
+        )
         saved += 1
       } catch {
         failed += 1

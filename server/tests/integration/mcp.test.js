@@ -301,6 +301,20 @@ describe('MostBox MCP integration', { timeout: 180_000 }, () => {
     assert.strictEqual(invalidHost.status, 403)
     assert.strictEqual((await invalidHost.json()).code, 'MCP_HOST_FORBIDDEN')
 
+    const prefixedDomain = await appRuntime.app.request(
+      '/mcp',
+      {
+        method: 'GET',
+        headers: {
+          host: '127.attacker.example',
+          Authorization: `Bearer ${fullToken}`,
+        },
+      },
+      LOCAL_CONTEXT
+    )
+    assert.strictEqual(prefixedDomain.status, 403)
+    assert.strictEqual((await prefixedDomain.json()).code, 'MCP_HOST_FORBIDDEN')
+
     const invalidOrigin = await appRuntime.app.request(
       '/mcp',
       {

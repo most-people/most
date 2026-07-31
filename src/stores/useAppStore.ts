@@ -1,8 +1,10 @@
 import {
   calculateNoteCid,
+  findNoteIndexByIdentity,
   getNoteFullPath,
   NOTE_NAME_ERROR_CODES,
   normalizeNotePath,
+  removeNotesByIdentity,
   renameNotesByPath,
   validateNoteName,
 } from '~server/src/utils/noteUtils.js'
@@ -92,6 +94,7 @@ interface AppState {
   setNotesPath: (path: string) => void
   saveNote: (input: {
     cid?: string
+    existingPath?: string
     name: string
     path?: string
     content?: string
@@ -449,12 +452,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     const now = Date.now()
 
     const notes = get().notes
-    const existingIndex = input.cid
-      ? notes.findIndex(note => note.cid === input.cid)
-      : notes.findIndex(
-          note =>
-            normalizeNotePath(note.path) === path && note.name === validatedName
-        )
+    const existingIndex =
+      input.cid || input.existingPath
+        ? findNoteIndexByIdentity(notes, {
+            cid: input.cid,
+            path: input.existingPath,
+          })
+        : notes.findIndex(
+            note =>
+              normalizeNotePath(note.path) === path &&
+              note.name === validatedName
+          )
     const targetFullPath = normalizeNotePath(
       path ? `${path}/${validatedName}` : validatedName
     )
@@ -492,13 +500,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       path !== undefined && name !== undefined
         ? normalizeNotePath(`${path}/${name}`)
         : ''
-    const nextNotes = get().notes.filter(note => {
-      if (cid && note.cid === cid) return false
-      if (targetPath) {
-        const fullPath = getNoteFullPath(note)
-        return fullPath !== targetPath && !fullPath.startsWith(`${targetPath}/`)
-      }
-      return true
+    const nextNotes = removeNotesByIdentity(get().notes, {
+      cid,
+      path: targetPath,
     })
     set({ notes: nextNotes })
     persistNotes(get().notesAddress, nextNotes, get().notesPath)

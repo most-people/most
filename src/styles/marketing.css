@@ -1036,7 +1036,7 @@
 
 .about-toolbox-list {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0;
   border-block: 1px solid var(--glass-border);
 }
@@ -1150,6 +1150,31 @@
 
   .about-difference-heading {
     position: static;
+  }
+
+  .about-toolbox-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .about-toolbox-item,
+  .about-toolbox-item:first-child,
+  .about-toolbox-item:last-child {
+    padding: 28px;
+    border-right: 1px solid var(--glass-border);
+    border-bottom: 1px solid var(--glass-border);
+  }
+
+  .about-toolbox-item:nth-child(odd) {
+    padding-left: 0;
+  }
+
+  .about-toolbox-item:nth-child(even) {
+    padding-right: 0;
+    border-right: 0;
+  }
+
+  .about-toolbox-item:nth-last-child(-n + 2) {
+    border-bottom: 0;
   }
 }
 

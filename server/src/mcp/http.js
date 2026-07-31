@@ -1,3 +1,4 @@
+import { isIP } from 'node:net'
 import { createMcpHandler } from '@modelcontextprotocol/server'
 import { isLoopbackRemoteAddress } from '../http/access.js'
 import { MostBoxMcpApiClient } from './apiClient.js'
@@ -17,13 +18,10 @@ function getHostname(value) {
 
 function isLoopbackHostname(value) {
   const hostname = getHostname(value)
-  return (
-    hostname === 'localhost' ||
-    hostname === '::1' ||
-    hostname === '[::1]' ||
-    hostname === '127.0.0.1' ||
-    hostname.startsWith('127.')
-  )
+  if (hostname === 'localhost' || hostname === '::1' || hostname === '[::1]') {
+    return true
+  }
+  return isIP(hostname) === 4 && hostname.split('.')[0] === '127'
 }
 
 function getInternalBaseUrl(appPort) {

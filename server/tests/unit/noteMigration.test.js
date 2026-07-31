@@ -75,4 +75,24 @@ describe('legacy note migration', () => {
     assert.equal(result.notes[2], broken)
     assert.equal(result.notes[3], plain)
   })
+
+  it('preserves separate paths when decrypted notes share a CID', async () => {
+    const wallet = mostWallet('legacy-duplicate', 'pass')
+    const notes = [
+      createNote('first.md', mostEncode('same', wallet.danger), {
+        path: 'one',
+      }),
+      createNote('second.md', mostEncode('same', wallet.danger), {
+        path: 'two',
+      }),
+    ]
+
+    const result = await decryptLegacyBrowserNotes(notes, wallet.danger)
+
+    assert.equal(result.notes[0].cid, result.notes[1].cid)
+    assert.deepEqual(
+      result.notes.map(note => `${note.path}/${note.name}`),
+      ['one/first.md', 'two/second.md']
+    )
+  })
 })

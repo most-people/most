@@ -661,7 +661,11 @@ describe('frontend smoke checks', () => {
     assert.match(noteSource, /to="\/note\/decrypt\/"/)
     assert.match(migrationSource, /backupConfirmed/)
     assert.match(migrationSource, /getNoteVaultSnapshot/)
-    assert.match(migrationSource, /current\.content !== item\.originalContent/)
+    assert.match(
+      migrationSource,
+      /saveNoteVaultFile\([\s\S]*item\.originalContent/
+    )
+    assert.match(noteSource, /path: getNoteFullPath\(note\)/)
     assert.match(migrationSource, /<ConfirmModal/)
     assert.doesNotMatch(migrationSource, /mostEncode/)
     assert.ok(getStaticRoutes().includes('/note/decrypt/'))

@@ -18,6 +18,43 @@ export function getNoteFullPath(note) {
   return path ? `${path}/${name}` : name
 }
 
+export function findNoteIndexByIdentity(notes, identity = {}) {
+  const files = Array.isArray(notes) ? notes : []
+  const fullPath = normalizeNotePath(identity.path || '')
+  if (fullPath) {
+    const pathIndex = files.findIndex(
+      note => getNoteFullPath(note) === fullPath
+    )
+    if (pathIndex >= 0) return pathIndex
+  }
+
+  const cid = String(identity.cid || '').trim()
+  return cid ? files.findIndex(note => note?.cid === cid) : -1
+}
+
+export function findNoteByIdentity(notes, identity = {}) {
+  const index = findNoteIndexByIdentity(notes, identity)
+  return index >= 0 ? notes[index] : undefined
+}
+
+export function removeNotesByIdentity(notes, identity = {}) {
+  const files = Array.isArray(notes) ? notes : []
+  const fullPath = normalizeNotePath(identity.path || '')
+  const cid = String(identity.cid || '').trim()
+
+  if (fullPath) {
+    if (cid) {
+      return files.filter(note => getNoteFullPath(note) !== fullPath)
+    }
+    return files.filter(note => {
+      const notePath = getNoteFullPath(note)
+      return notePath !== fullPath && !notePath.startsWith(`${fullPath}/`)
+    })
+  }
+
+  return cid ? files.filter(note => note?.cid !== cid) : [...files]
+}
+
 export const NOTE_NAME_ERROR_CODES = {
   EMPTY: 'empty',
   SLASH: 'slash',

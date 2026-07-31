@@ -3,8 +3,10 @@ import assert from 'node:assert'
 import {
   calculateNoteCid,
   filterNotesByPath,
+  findNoteByIdentity,
   getNoteFullPath,
   normalizeNotePath,
+  removeNotesByIdentity,
   renameNotesByPath,
   validateNoteName,
 } from '../../src/utils/noteUtils.js'
@@ -23,6 +25,28 @@ describe('noteUtils', () => {
 
     assert.strictEqual(cid1, cid2)
     assert.notStrictEqual(cid1, cid3)
+  })
+
+  it('uses full paths to distinguish note records with the same CID', () => {
+    const notes = [
+      { name: 'first.md', path: 'one', cid: 'same-cid' },
+      { name: 'second.md', path: 'two', cid: 'same-cid' },
+    ]
+
+    assert.strictEqual(
+      findNoteByIdentity(notes, {
+        cid: 'same-cid',
+        path: 'two/second.md',
+      }),
+      notes[1]
+    )
+    assert.deepStrictEqual(
+      removeNotesByIdentity(notes, {
+        cid: 'same-cid',
+        path: 'one/first.md',
+      }),
+      [notes[1]]
+    )
   })
 
   it('infers directories for the current path', () => {
