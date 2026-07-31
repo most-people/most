@@ -1,6 +1,7 @@
 import { after, before, describe, it } from 'node:test'
 import assert from 'node:assert'
 import fs from 'node:fs'
+import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -20,12 +21,28 @@ import { createNodeLogger } from '../../src/node/logs.js'
 import { buildAuthHeaders } from '../../src/utils/auth.js'
 import { createLoginIdentity } from '../../src/utils/userIdentity.js'
 
-const TEST_PORT = 19772
-const BASE_URL = `http://127.0.0.1:${TEST_PORT}`
 const TEST_IDENTITY = createLoginIdentity('mcp-user', 'mcp-password')
 const LOCAL_CONTEXT = {
   incoming: { socket: { remoteAddress: '127.0.0.1' } },
 }
+
+async function findAvailablePort() {
+  const probe = net.createServer()
+  await new Promise((resolve, reject) => {
+    probe.once('error', reject)
+    probe.listen(0, '127.0.0.1', resolve)
+  })
+  const address = probe.address()
+  const port = typeof address === 'object' && address ? address.port : 0
+  await new Promise((resolve, reject) => {
+    probe.close(err => (err ? reject(err) : resolve()))
+  })
+  if (!port) throw new Error('Failed to allocate an MCP test port')
+  return port
+}
+
+let testPort = 0
+let baseUrl = ''
 
 async function fetchAs(identity, requestPath, init = {}) {
   const headers = new Headers(init.headers || {})
@@ -35,12 +52,12 @@ async function fetchAs(identity, requestPath, init = {}) {
     requestPath
   )
   for (const [key, value] of Object.entries(auth)) headers.set(key, value)
-  return fetch(`${BASE_URL}${requestPath}`, { ...init, headers })
+  return fetch(`${baseUrl}${requestPath}`, { ...init, headers })
 }
 
 function createHttpClient(token, name = 'mostbox-mcp-http-test') {
   const transport = new StreamableHTTPClientTransport(
-    new URL(`${BASE_URL}/mcp`),
+    new URL(`${baseUrl}/mcp`),
     { authProvider: { token: async () => token } }
   )
   const client = new Client(
@@ -80,26 +97,33 @@ describe('MostBox MCP integration', { timeout: 180_000 }, () => {
   }
 
   before(async () => {
+    testPort = await findAvailablePort()
+    baseUrl = `http://127.0.0.1:${testPort}`
     fs.mkdirSync(publishRoot)
     fs.mkdirSync(outsideRoot)
     engine = new MostBoxEngine({ dataPath: path.join(tmpDir, 'data') })
     await engine.start()
     const configStore = createNodeConfigStore(path.join(tmpDir, 'config'))
     appRuntime = createApp(engine, {
-      port: TEST_PORT,
+      port: testPort,
       host: '127.0.0.1',
       configStore,
       nodeLogger: createNodeLogger(configStore.configDir),
     })
     serverInstance = serve({
       fetch: appRuntime.app.fetch,
-      port: TEST_PORT,
+      port: testPort,
       hostname: '127.0.0.1',
+    })
+
+    await new Promise((resolve, reject) => {
+      serverInstance.once('listening', resolve)
+      serverInstance.once('error', reject)
     })
 
     for (let attempt = 0; attempt < 50; attempt += 1) {
       try {
-        const response = await fetch(`${BASE_URL}/api/node-id`)
+        const response = await fetch(`${baseUrl}/api/node-id`)
         if (response.ok) break
       } catch {}
       await new Promise(resolve => setTimeout(resolve, 50))
@@ -109,7 +133,9 @@ describe('MostBox MCP integration', { timeout: 180_000 }, () => {
 
   after(async () => {
     await appRuntime?.closeMcp()
-    await new Promise(resolve => serverInstance?.close(resolve))
+    if (serverInstance?.listening) {
+      await new Promise(resolve => serverInstance.close(resolve))
+    }
     await engine?.stop()
     fs.rmSync(tmpDir, { recursive: true, force: true })
   })
@@ -143,7 +169,7 @@ describe('MostBox MCP integration', { timeout: 180_000 }, () => {
   })
 
   it('documents MCP administration APIs in OpenAPI', async () => {
-    const response = await fetch(`${BASE_URL}/api/openapi.json`)
+    const response = await fetch(`${baseUrl}/api/openapi.json`)
     assert.strictEqual(response.status, 200)
     const spec = await response.json()
     assert.ok(spec.paths['/api/admin/mcp/clients'])
@@ -232,13 +258,13 @@ describe('MostBox MCP integration', { timeout: 180_000 }, () => {
       await client.close()
     }
 
-    const forbidden = await fetch(`${BASE_URL}/api/files`, {
+    const forbidden = await fetch(`${baseUrl}/api/files`, {
       headers: { Authorization: `Bearer ${credential.token}` },
     })
     assert.strictEqual(forbidden.status, 403)
     assert.strictEqual((await forbidden.json()).code, 'MCP_SCOPE_FORBIDDEN')
 
-    const shutdown = await fetch(`${BASE_URL}/api/shutdown`, {
+    const shutdown = await fetch(`${baseUrl}/api/shutdown`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${credential.token}` },
     })
@@ -252,7 +278,7 @@ describe('MostBox MCP integration', { timeout: 180_000 }, () => {
       {
         method: 'GET',
         headers: {
-          host: `localhost:${TEST_PORT}`,
+          host: `localhost:${testPort}`,
           Authorization: `Bearer ${fullToken}`,
         },
       },
@@ -280,7 +306,7 @@ describe('MostBox MCP integration', { timeout: 180_000 }, () => {
       {
         method: 'GET',
         headers: {
-          host: `localhost:${TEST_PORT}`,
+          host: `localhost:${testPort}`,
           origin: 'https://attacker.example',
           Authorization: `Bearer ${fullToken}`,
         },
@@ -304,11 +330,11 @@ describe('MostBox MCP integration', { timeout: 180_000 }, () => {
       { method: 'DELETE' }
     )
     assert.strictEqual(revoke.status, 200)
-    const revokedTransport = await fetch(`${BASE_URL}/mcp`, {
+    const revokedTransport = await fetch(`${baseUrl}/mcp`, {
       headers: { Authorization: `Bearer ${credential.token}` },
     })
     assert.strictEqual(revokedTransport.status, 401)
-    const denied = await fetch(`${BASE_URL}/api/mcp/me`, {
+    const denied = await fetch(`${baseUrl}/api/mcp/me`, {
       headers: { Authorization: `Bearer ${credential.token}` },
     })
     assert.strictEqual(denied.status, 401)
@@ -327,7 +353,7 @@ describe('MostBox MCP integration', { timeout: 180_000 }, () => {
       cwd: repoRoot,
       env: {
         ...getDefaultEnvironment(),
-        MOSTBOX_URL: BASE_URL,
+        MOSTBOX_URL: baseUrl,
         MOSTBOX_MCP_TOKEN: fullToken,
       },
       stderr: 'pipe',

@@ -26,6 +26,341 @@
   white-space: nowrap;
 }
 
+.note-git-trigger {
+  position: relative;
+}
+
+.note-git-trigger strong {
+  min-width: 18px;
+  height: 18px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.note-git-overlay {
+  --modal-content-width: min(1080px, calc(100vw - 32px));
+}
+
+.note-git-overlay .modal-glass {
+  height: min(760px, calc(var(--modal-visual-height, 100dvh) - 32px));
+  padding: 0;
+  overflow: hidden;
+}
+
+.note-git-modal {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.note-git-header {
+  min-height: 66px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.note-git-header h2,
+.note-git-header-actions,
+.note-git-tabs button,
+.note-git-diff-header,
+.note-git-commit-bar {
+  display: flex;
+  align-items: center;
+}
+
+.note-git-header h2 {
+  gap: 8px;
+  font-size: 17px;
+}
+
+.note-git-header p {
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.note-git-header-actions {
+  gap: 6px;
+}
+
+.note-git-error,
+.note-git-warning {
+  padding: 9px 18px;
+  border-bottom: 1px solid var(--glass-border);
+  font-size: 12px;
+}
+
+.note-git-error {
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  color: var(--danger);
+}
+
+.note-git-warning {
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+  color: var(--text-primary);
+}
+
+.note-git-setup {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: min(480px, 100%);
+  margin: 0 auto;
+  padding: 28px;
+  text-align: center;
+}
+
+.note-git-setup h3 {
+  font-size: 17px;
+}
+
+.note-git-setup > p {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.note-git-settings {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.note-git-author-form {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  text-align: left;
+}
+
+.note-git-author-form label {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.note-git-author-form label span {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.note-git-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 7px 18px 0;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.note-git-tabs button {
+  height: 38px;
+  gap: 7px;
+  padding: 0 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.note-git-tabs button:hover,
+.note-git-tabs button.is-active {
+  color: var(--text-primary);
+}
+
+.note-git-tabs button.is-active {
+  border-bottom-color: var(--accent);
+}
+
+.note-git-tabs button span {
+  min-width: 18px;
+  text-align: center;
+  font-size: 11px;
+}
+
+.note-git-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(240px, 32%) minmax(0, 1fr);
+}
+
+.note-git-list {
+  min-height: 0;
+  overflow: auto;
+  border-right: 1px solid var(--glass-border);
+}
+
+.note-git-list button {
+  width: 100%;
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--glass-border);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.note-git-list button:hover,
+.note-git-list button.is-active {
+  background: var(--accent-soft);
+}
+
+.note-git-list button.is-active {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.note-git-list button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note-git-list button small {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.note-git-list-empty,
+.note-git-empty {
+  min-height: 160px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.note-git-commit {
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.note-git-commit-meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 8px;
+  padding: 12px 14px 8px;
+}
+
+.note-git-commit-meta strong {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.note-git-commit-meta span,
+.note-git-commit-meta code {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.note-git-commit-meta code {
+  grid-column: 1;
+}
+
+.note-git-commit button {
+  min-height: 38px;
+  padding-left: 24px;
+  border-bottom: 0;
+}
+
+.note-git-diff {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.note-git-diff-header {
+  min-height: 46px;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.note-git-diff-header > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.note-git-diff pre {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 12px 0;
+  overflow: auto;
+  background: color-mix(in srgb, var(--bg-secondary) 80%, transparent);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.note-git-diff pre span {
+  display: block;
+  min-height: 1.55em;
+  padding: 0 14px;
+}
+
+.note-git-diff pre span.is-added {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: var(--success);
+}
+
+.note-git-diff pre span.is-removed {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+}
+
+.note-git-commit-bar {
+  gap: 10px;
+  padding: 11px 18px;
+  border-top: 1px solid var(--glass-border);
+}
+
+.note-git-commit-bar .input {
+  flex: 1;
+  min-width: 0;
+}
+
 .note-more {
   position: relative;
   flex: 0 0 auto;
@@ -1055,6 +1390,35 @@
 
   .note-list-item {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .note-git-overlay {
+    --modal-content-width: calc(100vw - 20px);
+  }
+
+  .note-git-overlay .modal-glass {
+    height: calc(var(--modal-visual-height, 100dvh) - 20px);
+    max-width: calc(100vw - 20px);
+  }
+
+  .note-git-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(140px, 38%) minmax(0, 1fr);
+  }
+
+  .note-git-list {
+    border-right: 0;
+    border-bottom: 1px solid var(--glass-border);
+  }
+
+  .note-git-settings,
+  .note-git-commit-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .note-git-author-form {
+    grid-template-columns: 1fr;
   }
 
   .note-sidebar-list .note-list-item.has-actions {

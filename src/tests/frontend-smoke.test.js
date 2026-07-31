@@ -46,6 +46,8 @@ const SOURCE_PATHS = {
   mostMarkdown: 'src/lib/mostMarkdown.ts',
   mostMarkdownEditor: 'src/features/note/MostMarkdownEditor.tsx',
   note: 'src/features/note/NotePage.tsx',
+  noteGit: 'src/features/note/NoteGitModal.tsx',
+  noteVaultApi: 'src/features/note/noteVaultApi.ts',
   noteCss: 'src/styles/note.css',
   files: 'src/features/files/AppPage.tsx',
   chat: 'src/features/chat/ChatPage.tsx',
@@ -585,6 +587,21 @@ describe('frontend smoke checks', () => {
       accountBackupSource,
       /const content = String\(note\.content \|\| ''\)/
     )
+  })
+
+  it('keeps local knowledge-base Git manual and Markdown-scoped', () => {
+    const noteSource = readSource(SOURCE_PATHS.note)
+    const gitSource = readSource(SOURCE_PATHS.noteGit)
+    const apiSource = readSource(SOURCE_PATHS.noteVaultApi)
+
+    assert.match(noteSource, /<NoteGitModal/)
+    assert.match(noteSource, /gitStatus\.changes\.length/)
+    assert.match(gitSource, /commitNoteGitChanges\(commitMessage\.trim\(\)\)/)
+    assert.match(gitSource, /restoreNoteGitFile/)
+    assert.match(gitSource, /note\.git\.stagedWarning/)
+    assert.doesNotMatch(gitSource, /push|pull|clone|remote/)
+    assert.match(apiSource, /\/api\/note-vault\/git\/history/)
+    assert.match(apiSource, /\/api\/note-vault\/git\/diff/)
   })
 
   it('reuses Markdown image URLs until the editor cache is disposed', async () => {

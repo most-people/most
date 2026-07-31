@@ -37,6 +37,7 @@ import { registerChannelRoutes } from './routes/channelRoutes.js'
 import { registerFileRoutes } from './routes/fileRoutes.js'
 import { registerNodeRoutes } from './routes/nodeRoutes.js'
 import { registerMcpRoutes } from './routes/mcpRoutes.js'
+import { registerNoteGitRoutes } from './routes/noteGitRoutes.js'
 import { registerNoteVaultRoutes } from './routes/noteVaultRoutes.js'
 import { registerSeedRoutes } from './routes/seedRoutes.js'
 import { createDownloadTaskRegistry } from './downloadTasks.js'
@@ -465,6 +466,7 @@ export function createApp(engine, options = {}) {
   })
   registerChannelRoutes(app, { engine })
   registerNoteVaultRoutes(app, { configStore, isRemoteRequest })
+  registerNoteGitRoutes(app, { configStore, isRemoteRequest })
 
   registerStaticRoutes(app)
 

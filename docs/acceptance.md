@@ -349,6 +349,7 @@ npm run build
 | -------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------- |
 | 知识库定位文案       | README/界面文案明确知识库云备份只覆盖知识库数据，不是 MostBox 文件云盘                      | `README.md`、`src/features/note/NotePage.tsx` |
 | Markdown 明文存储    | 新建、读取和保存文章均直接使用普通 Markdown，不提供逐篇加密或公开/私密切换                  | `/note`、`NoteItem`                           |
+| Git 本地版本管理     | 桌面知识库可初始化仓库、查看 Markdown diff、手动提交、浏览历史并按文件恢复，不依赖系统 Git  | `/note`、`/api/note-vault/git/*`              |
 | 备份恢复             | 账号备份整体保持加密；云端缺失、冲突、失败、本地导入导出都有反馈                            | `useNoteBackupSync()`                         |
 | 资源管理             | 新建、重命名、移动、删除文件夹、搜索不丢数据                                                | `noteUtils`、`src/features/note/NotePage.tsx` |
 | 桌面 Markdown 笔记库 | Electron + 本地 daemon 下可选择目录、列出 `.md`、打开并保存当前文件；Web 端仍使用 IndexedDB | `/note`、`/api/note-vault/*`                  |
@@ -368,6 +369,14 @@ node --test server/tests/unit/noteUtils.test.js server/tests/unit/accountBackup.
 2. 点击“打开笔记库”，选择一个本地目录；目录内递归 `.md` 文件应出现在左侧列表。
 3. 打开任一 `.md` 文件，进入编辑模式修改内容并保存；用外部编辑器打开同一文件，应能看到保存后的 Markdown。
 4. 在普通 Web 浏览器打开 `/note`，不应出现本地目录选择入口，原 IndexedDB 笔记行为保持不变。
+
+Git 本地版本管理验收：
+
+1. 在桌面知识库点击 Git，填写仅用于当前仓库的作者名称和邮箱并初始化；已有 Markdown 应显示为未提交变更。
+2. 选择变更查看逐行 diff，填写提交说明并提交；提交完成后变更数归零，历史中出现对应 commit、作者和文件。
+3. 外部修改、新建、移动或删除 `.md` 文件后重新打开 Git，状态应分别显示修改、新增或删除；目录内非 Markdown 文件不进入 MostBox 提交。
+4. 在历史中选择文件并确认恢复；文件内容应回到所选 commit 的版本，`HEAD` 不移动，恢复结果作为新的未提交变更等待用户再次提交。
+5. 仓库已有 staged 内容时，MostBox 必须拒绝提交并提示用户先用外部 Git 工具处理；`.git` 为文件或符号链接时必须拒绝操作。
 
 Markdown 与 CID 附件联动验收：
 

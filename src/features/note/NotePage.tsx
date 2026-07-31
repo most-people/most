@@ -14,6 +14,7 @@ import {
   ChevronRight,
   PencilRuler,
   FolderOpen,
+  GitBranch,
   MoreHorizontal,
   Move,
   Loader,
@@ -48,6 +49,7 @@ import {
   getBackendUrlExport,
 } from '~server/src/utils/api.js'
 import {
+  getNoteGitStatus,
   configureNoteVault,
   createNoteVaultFile,
   deleteNoteVaultFile,
@@ -59,8 +61,10 @@ import {
   type NoteVaultFile,
   type NoteVaultFileContent,
   type NoteVaultStatus,
+  type NoteGitStatus,
 } from './noteVaultApi'
 import type { MostMarkdownEditorRef } from './MostMarkdownEditor'
+import { NoteGitModal } from './NoteGitModal'
 
 const MostMarkdownEditor = lazy(async () => {
   const mod = await import('./MostMarkdownEditor')
@@ -1391,12 +1395,14 @@ function VaultNotePageContent() {
   const isEditing = showPreview && params.mode === 'edit'
 
   const [vaultStatus, setVaultStatus] = useState<NoteVaultStatus | null>(null)
+  const [gitStatus, setGitStatus] = useState<NoteGitStatus | null>(null)
   const [vaultFiles, setVaultFiles] = useState<NoteVaultFile[]>([])
   const [vaultFolderPath, setVaultFolderPath] = useState('')
   const [vaultLoading, setVaultLoading] = useState(true)
   const [vaultError, setVaultError] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [openingVault, setOpeningVault] = useState(false)
+  const [showGitModal, setShowGitModal] = useState(false)
   const [canOpenVaultDirectory, setCanOpenVaultDirectory] = useState(false)
   const [selectedFile, setSelectedFile] = useState<NoteVaultFileContent | null>(
     null
@@ -1530,6 +1536,7 @@ function VaultNotePageContent() {
   const refreshVault = useCallback(async () => {
     if (!wallet) {
       setVaultStatus(null)
+      setGitStatus(null)
       setVaultFiles([])
       setVaultError(t('note.vault.loginRequired'))
       setVaultLoading(false)
@@ -1543,11 +1550,14 @@ function VaultNotePageContent() {
       setVaultStatus(status)
       if (status.configured) {
         setVaultFiles(await listNoteVaultFiles())
+        setGitStatus(await getNoteGitStatus().catch(() => null))
       } else {
         setVaultFiles([])
+        setGitStatus(null)
       }
     } catch (err: unknown) {
       setVaultStatus(null)
+      setGitStatus(null)
       setVaultFiles([])
       setVaultError(await getApiErrorMessage(err, t('note.vault.loadFailed')))
     } finally {
@@ -1903,6 +1913,25 @@ function VaultNotePageContent() {
     }
   }
 
+  async function handleGitFilesChanged() {
+    await refreshVault()
+    if (!currentFilePath) return
+
+    try {
+      const file = await readNoteVaultFile(currentFilePath)
+      setSelectedFile(file)
+      setPreviewName(getDisplayMarkdownName(file.name))
+      setPreviewContent(file.content || '')
+      setPlainContent(file.content || '')
+      setFileError('')
+    } catch {
+      setSelectedFile(null)
+      setPreviewContent('')
+      setPlainContent('')
+      navigateToVault({}, true)
+    }
+  }
+
   const headerTitle = (
     <div className="note-header-title">
       <h2 className="header-title">{t('note.title')}</h2>
@@ -1912,6 +1941,21 @@ function VaultNotePageContent() {
 
   const headerRight = (
     <div className="note-theme-wrap">
+      {vaultStatus?.configured === true && (
+        <button
+          type="button"
+          className="btn btn-sm note-git-trigger"
+          onClick={() => setShowGitModal(true)}
+          title={t('note.git.title')}
+          aria-label={t('note.git.title')}
+        >
+          <GitBranch size={16} />
+          <span>Git</span>
+          {gitStatus?.initialized && gitStatus.changes.length > 0 && (
+            <strong>{gitStatus.changes.length}</strong>
+          )}
+        </button>
+      )}
       {canOpenVaultDirectory && (
         <button
           className="btn btn-sm"
@@ -2253,6 +2297,19 @@ function VaultNotePageContent() {
           directories={directoryOptions}
           onMove={handleMove}
           onClose={() => setMoveTarget(null)}
+        />
+      )}
+
+      {showGitModal && wallet && (
+        <NoteGitModal
+          status={gitStatus}
+          defaultAuthor={{
+            name: wallet.displayName || wallet.username,
+            email: `${wallet.address.slice(2, 14).toLowerCase()}@mostbox.local`,
+          }}
+          onClose={() => setShowGitModal(false)}
+          onStatusChange={setGitStatus}
+          onFilesChanged={handleGitFilesChanged}
         />
       )}
     </AppShell>
