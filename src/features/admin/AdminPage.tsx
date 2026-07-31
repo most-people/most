@@ -32,6 +32,7 @@ import {
   FileText,
   HardDrive,
   KeyRound,
+  LogIn,
   RefreshCw,
   Save,
   Server,
@@ -916,6 +917,11 @@ export default function AdminPage() {
   }
 
   const loadMcpClients = async () => {
+    if (!userIdentity) {
+      setMcpClients([])
+      setCreatedMcpCredential(null)
+      return
+    }
     if (!isBackendReady || !isAdminAuthorized) return
     try {
       const result = await api
@@ -941,6 +947,10 @@ export default function AdminPage() {
   }
 
   const createMcpClient = async () => {
+    if (!userIdentity) {
+      openLoginModal()
+      return
+    }
     if (!requireBackendReady()) return
     setIsCreatingMcpClient(true)
     try {
@@ -1640,24 +1650,37 @@ export default function AdminPage() {
                     />
                   </label>
                 </div>
-                <button
-                  className="btn btn-primary"
-                  type="button"
-                  onClick={createMcpClient}
-                  disabled={
-                    isCreatingMcpClient ||
-                    !mcpForm.name.trim() ||
-                    mcpForm.scopes.length === 0 ||
-                    !Number.isInteger(Number(mcpForm.expiresInDays)) ||
-                    Number(mcpForm.expiresInDays) < 1 ||
-                    Number(mcpForm.expiresInDays) > 365 ||
-                    (mcpForm.scopes.includes('files:publish') &&
-                      parsePathText(mcpForm.allowedRoots).length === 0)
-                  }
-                >
-                  <KeyRound size={16} />
-                  {t('admin.action.createMcpClient')}
-                </button>
+                <div className="admin-mcp-actions">
+                  {!userIdentity && (
+                    <button
+                      className="btn btn-primary"
+                      type="button"
+                      onClick={openLoginModal}
+                    >
+                      <LogIn size={16} />
+                      {t('admin.access.login')}
+                    </button>
+                  )}
+                  <button
+                    className="btn btn-primary"
+                    type="button"
+                    onClick={createMcpClient}
+                    disabled={
+                      !userIdentity ||
+                      isCreatingMcpClient ||
+                      !mcpForm.name.trim() ||
+                      mcpForm.scopes.length === 0 ||
+                      !Number.isInteger(Number(mcpForm.expiresInDays)) ||
+                      Number(mcpForm.expiresInDays) < 1 ||
+                      Number(mcpForm.expiresInDays) > 365 ||
+                      (mcpForm.scopes.includes('files:publish') &&
+                        parsePathText(mcpForm.allowedRoots).length === 0)
+                    }
+                  >
+                    <KeyRound size={16} />
+                    {t('admin.action.createMcpClient')}
+                  </button>
+                </div>
 
                 <div className="admin-mcp-client-list">
                   <h3>{t('admin.mcp.clients')}</h3>

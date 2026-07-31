@@ -1537,6 +1537,8 @@ describe('frontend smoke checks', () => {
 
   it('keeps MCP client credentials scoped and revocable in node admin', () => {
     const source = readSource(SOURCE_PATHS.admin)
+    const adminCss = readSource('src/styles/admin.css')
+    const adminMessages = readSource('src/lib/i18n/messages/admin.ts')
 
     assert.match(source, /\/api\/admin\/mcp\/clients/)
     assert.match(source, /createMcpClient/)
@@ -1545,6 +1547,29 @@ describe('frontend smoke checks', () => {
     assert.match(source, /allowedRoots/)
     assert.match(source, /createdMcpCredential\.token/)
     assert.match(source, /admin\.mcp\.credentialOnce/)
+    assert.match(
+      source,
+      /const loadMcpClients = async \(\) => \{[\s\S]*if \(!userIdentity\) \{[\s\S]*setMcpClients\(\[\]\)[\s\S]*return/
+    )
+    assert.match(
+      source,
+      /const createMcpClient = async \(\) => \{[\s\S]*if \(!userIdentity\) \{[\s\S]*openLoginModal\(\)[\s\S]*return/
+    )
+    assert.match(
+      source,
+      /\{!userIdentity && \([\s\S]*admin\.access\.login[\s\S]*admin\.action\.createMcpClient/
+    )
+    assert.match(source, /<LogIn size=\{16\} \/>/)
+    assert.match(
+      source,
+      /onClick=\{createMcpClient\}[\s\S]*disabled=\{[\s\S]*!userIdentity \|\|/
+    )
+    assert.match(
+      adminCss,
+      /\.admin-mcp-actions \{[\s\S]*margin-top: var\(--space-4\)/
+    )
+    assert.match(adminMessages, /'创建 MCP 密钥'/)
+    assert.match(adminMessages, /'Create MCP key'/)
   })
 
   it('keeps the file selection toolbar grouped and compact', () => {
