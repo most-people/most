@@ -224,6 +224,15 @@ export function createMcpClientStore(configDir, options = {}) {
     return publicClient(client, now())
   }
 
+  function deleteClient(id) {
+    const clients = loadClients()
+    const clientIndex = clients.findIndex(item => item.id === String(id || ''))
+    if (clientIndex === -1) return null
+    const [client] = clients.splice(clientIndex, 1)
+    persistClients(clients)
+    return publicClient(client, now())
+  }
+
   function authenticate(token) {
     const digest = tokenDigest(token)
     const clients = loadClients()
@@ -285,6 +294,7 @@ export function createMcpClientStore(configDir, options = {}) {
     createClient,
     listClients,
     revokeClient,
+    deleteClient,
     authenticate,
     resolvePublishPath,
   }

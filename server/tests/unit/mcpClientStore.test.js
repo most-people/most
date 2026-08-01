@@ -87,6 +87,14 @@ describe('MCP client store', () => {
       })
       assert.ok(store.revokeClient(revoked.client.id)?.revokedAt)
       assert.strictEqual(store.authenticate(revoked.token), null)
+      assert.strictEqual(
+        store.deleteClient(revoked.client.id)?.id,
+        revoked.client.id
+      )
+      assert.ok(
+        !store.listClients().some(client => client.id === revoked.client.id)
+      )
+      assert.strictEqual(store.deleteClient(revoked.client.id), null)
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true })
     }

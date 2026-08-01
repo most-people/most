@@ -49,7 +49,7 @@ import {
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import { MarketingHeader } from '~/components/MarketingHeader'
-import { SegmentedControl, SelectControl } from '~/components/ui'
+import { ConfirmModal, SegmentedControl, SelectControl } from '~/components/ui'
 import { useI18n, type Locale, type MessageKey } from '~/lib/i18n'
 import { formatBytes, shortAddress } from '~/lib/format'
 import {
@@ -301,6 +301,14 @@ function formatRecentTime(
   if (time.isAfter(dayjs())) return t('admin.time.justNow')
   const dayjsLocale = getDayjsLocale(locale)
   return time.locale(dayjsLocale).from(dayjs().locale(dayjsLocale))
+}
+
+function formatDateTime(value: string | null | undefined, t: AdminTranslate) {
+  if (!value) return t('admin.time.never')
+  const time = dayjs(value)
+  return time.isValid()
+    ? time.format('YYYY-MM-DD HH:mm')
+    : t('admin.time.never')
 }
 
 const SEED_STATUS_HELP = [
@@ -601,7 +609,9 @@ export default function AdminPage() {
   const [isClearingUser, setIsClearingUser] = useState('')
   const [mcpClients, setMcpClients] = useState<McpClientRecord[]>([])
   const [isCreatingMcpClient, setIsCreatingMcpClient] = useState(false)
-  const [revokingMcpClientId, setRevokingMcpClientId] = useState('')
+  const [deletingMcpClientId, setDeletingMcpClientId] = useState('')
+  const [mcpClientToDelete, setMcpClientToDelete] =
+    useState<McpClientRecord | null>(null)
   const [createdMcpCredential, setCreatedMcpCredential] =
     useState<CreatedMcpCredential | null>(null)
   const [mcpForm, setMcpForm] = useState({
@@ -984,27 +994,24 @@ export default function AdminPage() {
     }
   }
 
-  const revokeMcpClient = async (client: McpClientRecord) => {
-    const confirmed = window.confirm(
-      t('admin.confirm.revokeMcpClient', { name: client.name })
-    )
-    if (!confirmed) return
-    setRevokingMcpClientId(client.id)
+  const deleteMcpClient = async (client: McpClientRecord) => {
+    setMcpClientToDelete(null)
+    setDeletingMcpClientId(client.id)
     try {
-      await api.delete(`/api/admin/mcp/clients/${client.id}`).json()
+      await api.delete(`/api/admin/mcp/clients/${client.id}?purge=true`).json()
       if (createdMcpCredential?.client.id === client.id) {
         setCreatedMcpCredential(null)
       }
       await loadMcpClients()
-      addToast(t('admin.toast.mcpClientRevoked'), 'success')
+      addToast(t('admin.toast.mcpClientDeleted'), 'success')
     } catch (err) {
       const message = await getApiErrorMessage(
         err,
-        t('admin.error.revokeMcpClient')
+        t('admin.error.deleteMcpClient')
       )
       addToast(message, 'error')
     } finally {
-      setRevokingMcpClientId('')
+      setDeletingMcpClientId('')
     }
   }
 
@@ -1709,9 +1716,7 @@ export default function AdminPage() {
                             </code>
                             <span>
                               {t('admin.mcp.expiresAt')}:{' '}
-                              {client.expiresAt
-                                ? formatTime(client.expiresAt)
-                                : t('admin.time.never')}
+                              {formatDateTime(client.expiresAt, t)}
                               {' · '}
                               {t('admin.mcp.lastUsed')}:{' '}
                               {formatRecentTime(client.lastUsedAt, t, locale)}
@@ -1720,13 +1725,10 @@ export default function AdminPage() {
                           <button
                             className="btn btn-icon btn-danger"
                             type="button"
-                            onClick={() => revokeMcpClient(client)}
-                            disabled={
-                              !client.active ||
-                              revokingMcpClientId === client.id
-                            }
-                            aria-label={t('admin.action.revokeMcpClient')}
-                            title={t('admin.action.revokeMcpClient')}
+                            onClick={() => setMcpClientToDelete(client)}
+                            disabled={deletingMcpClientId === client.id}
+                            aria-label={t('admin.action.deleteMcpClient')}
+                            title={t('admin.action.deleteMcpClient')}
                           >
                             <Trash2 size={16} />
                           </button>
@@ -1828,6 +1830,18 @@ export default function AdminPage() {
           </>
         )}
       </main>
+      {mcpClientToDelete && (
+        <ConfirmModal
+          title={t('admin.action.deleteMcpClient')}
+          message={t('admin.confirm.deleteMcpClient', {
+            name: mcpClientToDelete.name,
+          })}
+          confirmText={t('admin.action.deleteMcpClient')}
+          danger
+          onConfirm={() => deleteMcpClient(mcpClientToDelete)}
+          onClose={() => setMcpClientToDelete(null)}
+        />
+      )}
     </>
   )
 }

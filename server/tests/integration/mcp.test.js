@@ -334,24 +334,50 @@ describe('MostBox MCP integration', { timeout: 180_000 }, () => {
     )
 
     const credential = await createCredential({
-      name: 'Revocation test',
+      name: 'Deletion test',
+      scopes: ['node:read'],
+      allowedRoots: [],
+    })
+    const activePurge = await fetchAs(
+      TEST_IDENTITY,
+      `/api/admin/mcp/clients/${credential.client.id}?purge=true`,
+      { method: 'DELETE' }
+    )
+    assert.strictEqual(activePurge.status, 200)
+    assert.strictEqual((await activePurge.json()).deleted, true)
+    const deletedTransport = await fetch(`${baseUrl}/mcp`, {
+      headers: { Authorization: `Bearer ${credential.token}` },
+    })
+    assert.strictEqual(deletedTransport.status, 401)
+    const clientsAfterPurge = await fetchAs(
+      TEST_IDENTITY,
+      '/api/admin/mcp/clients'
+    ).then(response => response.json())
+    assert.ok(
+      !clientsAfterPurge.clients.some(
+        client => client.id === credential.client.id
+      )
+    )
+    const denied = await fetch(`${baseUrl}/api/mcp/me`, {
+      headers: { Authorization: `Bearer ${credential.token}` },
+    })
+    assert.strictEqual(denied.status, 401)
+
+    const revocableCredential = await createCredential({
+      name: 'Revocation compatibility test',
       scopes: ['node:read'],
       allowedRoots: [],
     })
     const revoke = await fetchAs(
       TEST_IDENTITY,
-      `/api/admin/mcp/clients/${credential.client.id}`,
+      `/api/admin/mcp/clients/${revocableCredential.client.id}`,
       { method: 'DELETE' }
     )
     assert.strictEqual(revoke.status, 200)
     const revokedTransport = await fetch(`${baseUrl}/mcp`, {
-      headers: { Authorization: `Bearer ${credential.token}` },
+      headers: { Authorization: `Bearer ${revocableCredential.token}` },
     })
     assert.strictEqual(revokedTransport.status, 401)
-    const denied = await fetch(`${baseUrl}/api/mcp/me`, {
-      headers: { Authorization: `Bearer ${credential.token}` },
-    })
-    assert.strictEqual(denied.status, 401)
   })
 
   it('serves the same scoped tools through the CLI stdio bridge', async () => {

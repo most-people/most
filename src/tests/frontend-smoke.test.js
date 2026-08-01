@@ -1535,14 +1535,17 @@ describe('frontend smoke checks', () => {
     assert.match(source, /claimAdminAccess/)
   })
 
-  it('keeps MCP client credentials scoped and revocable in node admin', () => {
+  it('keeps MCP client credentials scoped and deletable in node admin', () => {
     const source = readSource(SOURCE_PATHS.admin)
     const adminCss = readSource('src/styles/admin.css')
     const adminMessages = readSource('src/lib/i18n/messages/admin.ts')
 
     assert.match(source, /\/api\/admin\/mcp\/clients/)
     assert.match(source, /createMcpClient/)
-    assert.match(source, /revokeMcpClient/)
+    assert.match(source, /deleteMcpClient/)
+    assert.match(source, /\?purge=true/)
+    assert.match(source, /<ConfirmModal/)
+    assert.doesNotMatch(source, /admin\.action\.revokeMcpClient/)
     assert.match(source, /files:publish/)
     assert.match(source, /allowedRoots/)
     assert.match(source, /createdMcpCredential\.token/)
@@ -1570,6 +1573,11 @@ describe('frontend smoke checks', () => {
     )
     assert.match(adminMessages, /'创建 MCP 密钥'/)
     assert.match(adminMessages, /'Create MCP key'/)
+    assert.match(adminMessages, /admin\.action\.deleteMcpClient/)
+    assert.match(source, /format\('YYYY-MM-DD HH:mm'\)/)
+    assert.match(source, /aria-label=\{t\('admin\.action\.deleteMcpClient'\)\}/)
+    assert.match(source, /<Trash2 size=\{16\} \/>/)
+    assert.doesNotMatch(source, /<Ban size=\{16\}/)
   })
 
   it('keeps the file selection toolbar grouped and compact', () => {
@@ -1602,15 +1610,12 @@ describe('frontend smoke checks', () => {
     )
   })
 
-  it('uses lightweight GET probes with a stable Anthropic endpoint', () => {
+  it('uses lightweight GET probes without the Claude target', () => {
     const source = readSource(SOURCE_PATHS.ping)
 
     assert.match(source, /`https:\/\/\$\{host\}\/robots\.txt`/)
-    assert.match(source, /probeUrl: 'https:\/\/api\.anthropic\.com\/'/)
-    assert.match(
-      source,
-      /target\?\.probeUrl \?\? `https:\/\/\$\{host\}\/robots\.txt`/
-    )
+    assert.doesNotMatch(source, /Claude/)
+    assert.doesNotMatch(source, /anthropic/)
     assert.match(source, /method: 'GET' as const/)
     assert.match(source, /mode: 'no-cors'/)
     assert.doesNotMatch(source, /method: 'HEAD'/)

@@ -349,7 +349,7 @@ export function buildOpenApiSpec(appPort) {
       },
       '/api/admin/mcp/clients/{id}': {
         delete: {
-          summary: 'Revoke an MCP client',
+          summary: 'Revoke an MCP client or permanently delete its record',
           security: [{ MostBoxSignature: [] }],
           parameters: [
             {
@@ -358,8 +358,16 @@ export function buildOpenApiSpec(appPort) {
               required: true,
               schema: { type: 'string', format: 'uuid' },
             },
+            {
+              name: 'purge',
+              in: 'query',
+              schema: { type: 'boolean', default: false },
+              description: 'Permanently delete the client record',
+            },
           ],
-          responses: { 200: { description: 'Revoked MCP client' } },
+          responses: {
+            200: { description: 'Revoked or deleted MCP client' },
+          },
         },
       },
       '/api/mcp/me': {

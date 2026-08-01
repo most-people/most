@@ -32,7 +32,7 @@ function DefaultMarketingHeader() {
   return (
     <nav className="mkt-nav">
       <div className="mkt-nav-inner">
-        <Link to="/" className="mkt-nav-logo">
+        <Link to="/about/" className="mkt-nav-logo">
           <LogoIcon />
           MOST PEOPLE
         </Link>

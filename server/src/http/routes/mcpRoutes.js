@@ -83,6 +83,25 @@ export function registerMcpRoutes(
   app.delete('/api/admin/mcp/clients/:id', c => {
     const denied = requireMcpAdmin(c)
     if (denied) return denied
+    if (c.req.query('purge') === 'true') {
+      const existing = mcpClientStore
+        .listClients()
+        .find(item => item.id === c.req.param('id'))
+      if (!existing) {
+        return c.json(
+          { error: 'MCP client not found', code: 'MCP_CLIENT_NOT_FOUND' },
+          404
+        )
+      }
+      const client = mcpClientStore.deleteClient(existing.id)
+      appendNodeLog({
+        event: 'mcp:client:deleted',
+        message: 'MCP client record deleted',
+        data: { clientId: client.id, ownerAddress: client.ownerAddress },
+      })
+      return c.json({ success: true, deleted: true, client })
+    }
+
     const client = mcpClientStore.revokeClient(c.req.param('id'))
     if (!client) {
       return c.json(
