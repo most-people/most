@@ -5,7 +5,7 @@ export const zhCNPortalMessages = {
   'portal.hero.subtitle':
     '安装、打开、分享链接，让设备直接参与 P2P 网络；文件、聊天、知识库和 Web3 各自独立。',
   'portal.nodeEntry': '节点入口',
-  'portal.webConnectNode': 'Web 连接节点',
+  'portal.webConnectNode': '连接节点',
   'portal.nodeAdmin': '节点管理',
   'portal.status.note':
     'Web 入口只连接已有 MostBox 节点；桌面端内置完整 P2P 能力。知识库是独立工具，不再从聊天设置导入聊天记录。',
@@ -92,7 +92,7 @@ export const zhTWPortalMessages = {
   'portal.hero.subtitle':
     '安裝、開啟、分享連結，讓裝置直接參與 P2P 網路；檔案、聊天、知識庫和 Web3 各自獨立。',
   'portal.nodeEntry': '節點入口',
-  'portal.webConnectNode': 'Web 連線節點',
+  'portal.webConnectNode': '連線節點',
   'portal.nodeAdmin': '節點管理',
   'portal.status.note':
     'Web 入口只連線已有 MostBox 節點；桌面端內建完整 P2P 能力。知識庫是獨立工具，不再從聊天設定匯入聊天記錄。',
@@ -180,7 +180,7 @@ export const enPortalMessages = {
   'portal.hero.subtitle':
     'Install it, open it, share a link, and let your device participate directly in the P2P network.',
   'portal.nodeEntry': 'Node entry',
-  'portal.webConnectNode': 'Connect Web node',
+  'portal.webConnectNode': 'Connect node',
   'portal.nodeAdmin': 'Node admin',
   'portal.status.note':
     'The Web entry connects to existing MostBox nodes; the desktop app includes full P2P capability. The Knowledge Base is independent and no longer imports chat history from chat settings.',
