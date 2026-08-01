@@ -21,6 +21,7 @@ const SOURCE_PATHS = {
   viteConfig: 'vite.config.ts',
   checkStaticOutput: 'scripts/check-static-output.mjs',
   admin: 'src/features/admin/AdminPage.tsx',
+  feature: 'src/features/feature/FeaturePage.tsx',
   cid: 'src/features/cid/CidPage.tsx',
   globalDownloads: 'src/features/cid/GlobalDownloadTasks.tsx',
   downloadTasks: 'src/lib/downloadTasks.ts',
@@ -429,6 +430,7 @@ describe('frontend smoke checks', () => {
       '/chat/join/',
       '/chat/join/demo/',
       '/download/',
+      '/feature/',
       '/note/',
       '/ping/',
       '/profile/',
@@ -1578,6 +1580,19 @@ describe('frontend smoke checks', () => {
     assert.match(source, /aria-label=\{t\('admin\.action\.deleteMcpClient'\)\}/)
     assert.match(source, /<Trash2 size=\{16\} \/>/)
     assert.doesNotMatch(source, /<Ban size=\{16\}/)
+  })
+
+  it('ships the Agent-era feature comparison page independently', () => {
+    const featureSource = readSource(SOURCE_PATHS.feature)
+    const featureMessages = readSource('src/lib/i18n/messages/feature.ts')
+
+    assert.match(featureSource, /about-artemis\.webp/)
+    assert.match(featureSource, /feature\.architecture\.future\.title/)
+    assert.match(featureSource, /feature\.vision\.final/)
+    assert.match(
+      featureMessages,
+      /MostBox is a decentralized personal knowledge operating system built for the agent era\./
+    )
   })
 
   it('keeps the file selection toolbar grouped and compact', () => {

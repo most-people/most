@@ -4,6 +4,11 @@ import {
   zhTWAboutMessages,
 } from './messages/about'
 import {
+  enFeatureMessages,
+  zhCNFeatureMessages,
+  zhTWFeatureMessages,
+} from './messages/feature'
+import {
   enCoreMessages,
   zhCNCoreMessages,
   zhTWCoreMessages,
@@ -86,6 +91,7 @@ export const localeNames: Record<Locale, string> = {
 export const zhCNMessages = {
   ...zhCNCoreMessages,
   ...zhCNAboutMessages,
+  ...zhCNFeatureMessages,
   ...zhCNDownloadMessages,
   ...zhCNCidMessages,
   ...zhCNPingMessages,
@@ -106,6 +112,7 @@ export type MessageKey = keyof typeof zhCNMessages
 export const enMessages = {
   ...enCoreMessages,
   ...enAboutMessages,
+  ...enFeatureMessages,
   ...enDownloadMessages,
   ...enCidMessages,
   ...enPingMessages,
@@ -124,6 +131,7 @@ export const enMessages = {
 export const zhTWMessages = {
   ...zhTWCoreMessages,
   ...zhTWAboutMessages,
+  ...zhTWFeatureMessages,
   ...zhTWDownloadMessages,
   ...zhTWCidMessages,
   ...zhTWPingMessages,

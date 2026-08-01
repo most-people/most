@@ -8,6 +8,7 @@ export const requiredStaticRoutes = [
   '/chat/join/',
   '/chat/join/demo/',
   '/download/',
+  '/feature/',
   '/note/',
   '/ping/',
   '/profile/',
