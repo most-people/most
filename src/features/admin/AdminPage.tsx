@@ -20,6 +20,7 @@ import {
   ArrowUp,
   ArrowUpDown,
   AlertTriangle,
+  BookOpen,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -41,6 +42,7 @@ import {
   Wifi,
   X,
 } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
 import {
   api,
   getApiErrorMessage,
@@ -1522,7 +1524,13 @@ export default function AdminPage() {
                   <div>
                     <h2>{t('admin.mcp.title')}</h2>
                   </div>
-                  <KeyRound size={18} />
+                  <div className="admin-panel-actions">
+                    <Link to="/docs/" className="btn btn-secondary">
+                      <BookOpen size={16} />
+                      {t('docs.nav.openMcp')}
+                    </Link>
+                    <KeyRound size={18} />
+                  </div>
                 </div>
 
                 {createdMcpCredential && (

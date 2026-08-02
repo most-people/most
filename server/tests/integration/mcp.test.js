@@ -176,6 +176,27 @@ describe('MostBox MCP integration', { timeout: 180_000 }, () => {
     assert.ok(spec.paths['/api/admin/mcp/clients/{id}'])
     assert.ok(spec.paths['/api/mcp/me'])
     assert.ok(spec.paths['/api/mcp/publish-local'])
+    assert.deepStrictEqual(spec.paths['/api/mcp/me'].get.security, [
+      { McpBearer: [] },
+    ])
+    assert.deepStrictEqual(
+      spec.paths['/api/admin/mcp/clients/{id}'].delete.parameters.find(
+        parameter => parameter.name === 'purge'
+      ).schema,
+      { type: 'boolean', default: false }
+    )
+    assert.strictEqual(
+      spec.paths['/api/admin/mcp/clients/{id}'].delete[
+        'x-mostbox-confirmation'
+      ],
+      true
+    )
+    assert.deepStrictEqual(
+      spec.paths['/api/mcp/publish-local'].post.requestBody.content[
+        'application/json'
+      ].schema,
+      { $ref: '#/components/schemas/McpPublishRequest' }
+    )
     assert.strictEqual(
       spec.components.securitySchemes.McpBearer.scheme,
       'bearer'

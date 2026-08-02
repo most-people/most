@@ -65,6 +65,7 @@
     "@dicebear/styles": "^10.2.0",
     "@hono/node-server": "^2.0.6",
     "@modelcontextprotocol/server": "^2.0.0",
+    "@scalar/api-reference-react": "^0.9.60",
     "@tanstack/react-router": "^1.170.16",
     "@tanstack/react-start": "^1.168.26",
     "@tanstack/react-table": "^8.21.3",

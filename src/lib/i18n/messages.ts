@@ -18,6 +18,11 @@ import {
   zhCNDownloadMessages,
   zhTWDownloadMessages,
 } from './messages/download'
+import {
+  enDocsMessages,
+  zhCNDocsMessages,
+  zhTWDocsMessages,
+} from './messages/docs'
 import { enCidMessages, zhCNCidMessages, zhTWCidMessages } from './messages/cid'
 import {
   enPingMessages,
@@ -93,6 +98,7 @@ export const zhCNMessages = {
   ...zhCNAboutMessages,
   ...zhCNFeatureMessages,
   ...zhCNDownloadMessages,
+  ...zhCNDocsMessages,
   ...zhCNCidMessages,
   ...zhCNPingMessages,
   ...zhCNPortalMessages,
@@ -114,6 +120,7 @@ export const enMessages = {
   ...enAboutMessages,
   ...enFeatureMessages,
   ...enDownloadMessages,
+  ...enDocsMessages,
   ...enCidMessages,
   ...enPingMessages,
   ...enPortalMessages,
@@ -133,6 +140,7 @@ export const zhTWMessages = {
   ...zhTWAboutMessages,
   ...zhTWFeatureMessages,
   ...zhTWDownloadMessages,
+  ...zhTWDocsMessages,
   ...zhTWCidMessages,
   ...zhTWPingMessages,
   ...zhTWPortalMessages,

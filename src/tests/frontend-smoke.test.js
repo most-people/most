@@ -21,6 +21,9 @@ const SOURCE_PATHS = {
   viteConfig: 'vite.config.ts',
   checkStaticOutput: 'scripts/check-static-output.mjs',
   admin: 'src/features/admin/AdminPage.tsx',
+  docs: 'src/features/docs/DocsPage.tsx',
+  openApiReference: 'src/features/docs/OpenApiReference.tsx',
+  openApiRequest: 'src/features/docs/openapiRequest.js',
   feature: 'src/features/feature/FeaturePage.tsx',
   cid: 'src/features/cid/CidPage.tsx',
   globalDownloads: 'src/features/cid/GlobalDownloadTasks.tsx',
@@ -430,6 +433,7 @@ describe('frontend smoke checks', () => {
       '/chat/join/',
       '/chat/join/demo/',
       '/download/',
+      '/docs/',
       '/feature/',
       '/note/',
       '/ping/',
@@ -1580,6 +1584,31 @@ describe('frontend smoke checks', () => {
     assert.match(source, /aria-label=\{t\('admin\.action\.deleteMcpClient'\)\}/)
     assert.match(source, /<Trash2 size=\{16\} \/>/)
     assert.doesNotMatch(source, /<Ban size=\{16\}/)
+  })
+
+  it('ships the public MCP and OpenAPI documentation center', () => {
+    const docsSource = readSource(SOURCE_PATHS.docs)
+    const referenceSource = readSource(SOURCE_PATHS.openApiReference)
+    const requestSource = readSource(SOURCE_PATHS.openApiRequest)
+    const docsMessages = readSource('src/lib/i18n/messages/docs.ts')
+
+    assert.match(docsSource, /mostbox:\/\/node\/status/)
+    assert.match(docsSource, /mostbox_publish_local_file/)
+    assert.match(docsSource, /MOSTBOX_MCP_TOKEN/)
+    assert.match(docsSource, /<CopyButton/)
+    assert.match(docsSource, /<ClientOnly/)
+    assert.match(referenceSource, /createOpenApiSpec/)
+    assert.match(referenceSource, /@scalar\/api-reference-react\/style\.css/)
+    assert.match(referenceSource, /persistAuth: false/)
+    assert.match(referenceSource, /forceDarkModeState: colorMode/)
+    assert.match(referenceSource, /telemetry: false/)
+    assert.match(referenceSource, /proxyUrl: ''/)
+    assert.match(referenceSource, /<ConfirmModal/)
+    assert.match(requestSource, /getRequestHeaders/)
+    assert.match(requestSource, /explicitAuthorization/)
+    assert.match(docsMessages, /export const zhCNDocsMessages/)
+    assert.match(docsMessages, /export const zhTWDocsMessages/)
+    assert.match(docsMessages, /export const enDocsMessages/)
   })
 
   it('ships the Agent-era feature comparison page independently', () => {

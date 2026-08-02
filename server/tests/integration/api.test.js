@@ -488,6 +488,26 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
 
       assert.strictEqual(specRes.status, 200)
       assert.strictEqual(spec.openapi, '3.1.0')
+      const documentedOperations = Object.values(spec.paths).flatMap(pathItem =>
+        Object.entries(pathItem)
+          .filter(([method]) =>
+            ['get', 'post', 'put', 'patch', 'delete'].includes(method)
+          )
+          .map(([, operation]) => operation)
+      )
+      assert.strictEqual(documentedOperations.length, 44)
+      assert.strictEqual(
+        new Set(documentedOperations.map(operation => operation.operationId))
+          .size,
+        44
+      )
+      assert.ok(
+        documentedOperations.every(
+          operation =>
+            Array.isArray(operation.security) &&
+            typeof operation['x-mostbox-side-effect'] === 'string'
+        )
+      )
       assert.ok(spec.paths['/api/node/status'])
       assert.ok(spec.paths['/api/node/logs'])
       assert.ok(spec.paths['/api/node/logs'].delete)
@@ -501,6 +521,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(spec.paths['/api/download/cancel'])
       assert.ok(spec.paths['/api/files/{cid}/download'])
       assert.strictEqual(spec.paths['/api/trash'], undefined)
+      assert.strictEqual(spec.paths['/api/note-vault/status'], undefined)
       assert.ok(spec.paths['/api/channels'])
       assert.ok(spec.paths['/api/channels'].get)
       assert.ok(spec.paths['/api/channels'].post)
