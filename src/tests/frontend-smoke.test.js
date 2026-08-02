@@ -51,6 +51,7 @@ const SOURCE_PATHS = {
   note: 'src/features/note/NotePage.tsx',
   noteGit: 'src/features/note/NoteGitModal.tsx',
   noteVaultApi: 'src/features/note/noteVaultApi.ts',
+  noteMigration: 'server/src/utils/noteMigration.js',
   noteCss: 'src/styles/note.css',
   files: 'src/features/files/AppPage.tsx',
   chat: 'src/features/chat/ChatPage.tsx',
@@ -589,12 +590,20 @@ describe('frontend smoke checks', () => {
   it('stores knowledge-base articles as plain Markdown without article encryption', () => {
     const noteSource = readSource(SOURCE_PATHS.note)
     const appStoreSource = readSource(SOURCE_PATHS.appStore)
+    const appGlobalsSource = readSource(SOURCE_PATHS.appGlobals)
     const accountBackupSource = readSource(SOURCE_PATHS.accountBackup)
+    const noteMigrationSource = readSource(SOURCE_PATHS.noteMigration)
+    const noteVaultApiSource = readSource(SOURCE_PATHS.noteVaultApi)
 
     assert.doesNotMatch(noteSource, /mostEncode|mostDecode|isSecret/)
     assert.doesNotMatch(noteSource, /note\.privacy\.(?:public|secret)/)
     assert.doesNotMatch(appStoreSource, /isSecret/)
     assert.doesNotMatch(accountBackupSource, /mostDecode/)
+    assert.match(appStoreSource, /decryptLegacyBrowserNotes/)
+    assert.match(appGlobalsSource, /migrateLegacyNoteVault/)
+    assert.match(accountBackupSource, /decryptLegacyAccountBackupNotes/)
+    assert.match(noteMigrationSource, /tryMostDecode/)
+    assert.match(noteVaultApiSource, /inspectLegacyEncryptedNote/)
     assert.match(
       accountBackupSource,
       /const content = String\(note\.content \|\| ''\)/

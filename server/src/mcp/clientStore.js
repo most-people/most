@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { normalizeAddress } from '../core/shared.js'
 import { PathSecurityError, PermissionError } from '../utils/errors.js'
+import { MCP_CLIENT_MAX_EXPIRES_IN_DAYS } from './constants.js'
 
 export const MCP_SCOPES = Object.freeze([
   'node:read',
@@ -14,7 +15,6 @@ export const MCP_SCOPES = Object.freeze([
 
 const MCP_SCOPE_SET = new Set(MCP_SCOPES)
 const DEFAULT_EXPIRES_IN_DAYS = 90
-const MAX_EXPIRES_IN_DAYS = 365
 const LAST_USED_WRITE_INTERVAL_MS = 60_000
 
 function normalizeScopes(value) {
@@ -183,10 +183,21 @@ export function createMcpClientStore(configDir, options = {}) {
       )
     }
 
-    const expiresInDays = Math.min(
-      MAX_EXPIRES_IN_DAYS,
-      Math.max(1, Number(input.expiresInDays) || DEFAULT_EXPIRES_IN_DAYS)
-    )
+    const expiresInDays =
+      input.expiresInDays === undefined ||
+      input.expiresInDays === null ||
+      input.expiresInDays === ''
+        ? DEFAULT_EXPIRES_IN_DAYS
+        : Number(input.expiresInDays)
+    if (
+      !Number.isInteger(expiresInDays) ||
+      expiresInDays < 1 ||
+      expiresInDays > MCP_CLIENT_MAX_EXPIRES_IN_DAYS
+    ) {
+      throw new TypeError(
+        `MCP client expiration must be an integer between 1 and ${MCP_CLIENT_MAX_EXPIRES_IN_DAYS} days`
+      )
+    }
     const token = `mbx_mcp_${crypto.randomBytes(32).toString('base64url')}`
     const createdAt = new Date(now()).toISOString()
     const client = {

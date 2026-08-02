@@ -20,6 +20,7 @@ import {
   getSameOriginBackendUrlExport,
 } from '~server/src/utils/api'
 import { getNotes, putNotes } from '~/lib/notesDb'
+import { decryptLegacyBrowserNotes } from '~server/src/utils/noteMigration.js'
 import { fileApi } from '~/lib/fileApi'
 import type {
   ActiveDownloadStatus,
@@ -89,7 +90,7 @@ interface AppState {
   notes: NoteItem[]
   notesPath: string
   notesAddress: string
-  loadUserNotes: (address: string) => Promise<void>
+  loadUserNotes: (address: string, danger?: string) => Promise<void>
   resetAppState: () => void
   setNotesPath: (path: string) => void
   saveNote: (input: {
@@ -153,6 +154,7 @@ function getNoteNameErrorKey(errorCode?: string) {
 }
 
 let downloadTasksRevision = 0
+let notesLoadRevision = 0
 
 export const useAppStore = create<AppState>((set, get) => ({
   // Backend
@@ -407,20 +409,45 @@ export const useAppStore = create<AppState>((set, get) => ({
   notes: [],
   notesPath: '',
   notesAddress: '',
-  loadUserNotes: async address => {
+  loadUserNotes: async (address, danger = '') => {
+    const revision = ++notesLoadRevision
+    let data
     try {
-      const data = await getNotes(address)
-      set({
-        notes: data ? normalizeNotes(data.notes) : [],
-        notesPath: normalizeNotePath(data?.notesPath || ''),
-        notesAddress: address,
-      })
+      data = await getNotes(address)
     } catch (err) {
       console.warn('Failed to load notes from IndexedDB:', err)
-      set({ notes: [], notesPath: '', notesAddress: address })
+      if (revision === notesLoadRevision) {
+        set({ notes: [], notesPath: '', notesAddress: address })
+      }
+      return
+    }
+
+    const notes = data ? normalizeNotes(data.notes) : []
+    const notesPath = normalizeNotePath(data?.notesPath || '')
+    let nextNotes = notes
+
+    if (danger) {
+      try {
+        const migration = await decryptLegacyBrowserNotes(notes, danger)
+        if (migration.decryptedPaths.length > 0) {
+          await putNotes(address, migration.notes, notesPath)
+          nextNotes = normalizeNotes(migration.notes)
+        }
+      } catch (err) {
+        console.warn('Failed to migrate legacy note content:', err)
+      }
+    }
+
+    if (revision === notesLoadRevision) {
+      set({
+        notes: nextNotes,
+        notesPath,
+        notesAddress: address,
+      })
     }
   },
   resetAppState: () => {
+    notesLoadRevision += 1
     set({
       notes: [],
       notesPath: '',

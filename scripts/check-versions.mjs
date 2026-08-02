@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { resolveVersionCode } from '../mobile/app/scripts/sync-native-android.mjs'
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'))
@@ -17,6 +18,7 @@ function getTagArgument() {
 
 const rootPackageLock = readJson('package-lock.json')
 const mobilePackageLock = readJson('mobile/app/package-lock.json')
+const mobileApp = readJson('mobile/app/app.json')
 const rootVersion = readJson('package.json').version
 const versions = new Map([
   [
@@ -35,7 +37,7 @@ const versions = new Map([
     'mobile/app/package-lock.json packages root',
     mobilePackageLock.packages?.['']?.version,
   ],
-  ['mobile/app/app.json', readJson('mobile/app/app.json').expo.version],
+  ['mobile/app/app.json', mobileApp.expo.version],
   [
     'docker-compose.example.yml',
     readMatch(
@@ -63,6 +65,13 @@ if (mismatches.length > 0) {
     .join('\n')
   throw new Error(
     `Expected version ${rootVersion} in every release file:\n${details}`
+  )
+}
+
+const expectedAndroidVersionCode = resolveVersionCode(undefined, rootVersion)
+if (mobileApp.expo.android?.versionCode !== expectedAndroidVersionCode) {
+  throw new Error(
+    `Expected Android versionCode ${expectedAndroidVersionCode} for ${rootVersion}, received ${mobileApp.expo.android?.versionCode}`
   )
 }
 

@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { createMcpClientStore } from '../../src/mcp/clientStore.js'
+import { MCP_CLIENT_MAX_EXPIRES_IN_DAYS } from '../../src/mcp/constants.js'
 
 const OWNER = '0x1111111111111111111111111111111111111111'
 
@@ -95,6 +96,53 @@ describe('MCP client store', () => {
         !store.listClients().some(client => client.id === revoked.client.id)
       )
       assert.strictEqual(store.deleteClient(revoked.client.id), null)
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('enforces the documented client expiration range', () => {
+    const tmpDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'most-mcp-expiry-limit-')
+    )
+    try {
+      const now = Date.parse('2026-08-02T00:00:00.000Z')
+      const store = createMcpClientStore(path.join(tmpDir, 'config'), {
+        now: () => now,
+      })
+      const maximum = store.createClient({
+        name: 'Maximum lifetime',
+        ownerAddress: OWNER,
+        scopes: ['node:read'],
+        expiresInDays: MCP_CLIENT_MAX_EXPIRES_IN_DAYS,
+      })
+
+      assert.strictEqual(
+        maximum.client.expiresAt,
+        new Date(
+          now + MCP_CLIENT_MAX_EXPIRES_IN_DAYS * 86_400_000
+        ).toISOString()
+      )
+      assert.throws(
+        () =>
+          store.createClient({
+            name: 'Too long',
+            ownerAddress: OWNER,
+            scopes: ['node:read'],
+            expiresInDays: MCP_CLIENT_MAX_EXPIRES_IN_DAYS + 1,
+          }),
+        /between 1 and 365 days/
+      )
+      assert.throws(
+        () =>
+          store.createClient({
+            name: 'Fractional',
+            ownerAddress: OWNER,
+            scopes: ['node:read'],
+            expiresInDays: 1.5,
+          }),
+        /between 1 and 365 days/
+      )
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true })
     }

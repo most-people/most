@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useLocation } from '@tanstack/react-router'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
@@ -8,6 +8,7 @@ import ConnectModal from '~/components/ConnectModal'
 import { useAccountBackup } from '~/features/profile/useAccountBackup'
 import GlobalDownloadTasks from '~/features/cid/GlobalDownloadTasks'
 import { useI18n } from '~/lib/i18n'
+import { migrateLegacyNoteVault } from '~/features/note/noteVaultApi'
 
 export default function AppGlobals() {
   const { t } = useI18n()
@@ -34,6 +35,7 @@ export default function AppGlobals() {
   const toasts = useAppStore(s => s.toasts)
   const removeToast = useAppStore(s => s.removeToast)
   const identityAddress = identity?.address || ''
+  const migratedVaultAddressRef = useRef('')
 
   useEffect(() => {
     initializeLocalData()
@@ -48,11 +50,33 @@ export default function AppGlobals() {
 
   useEffect(() => {
     if (identity) {
-      loadUserNotes(identity.address)
+      loadUserNotes(identity.address, identity.danger)
     } else {
       resetAppState()
     }
-  }, [identity?.address, loadUserNotes, resetAppState])
+  }, [identity?.address, identity?.danger, loadUserNotes, resetAppState])
+
+  useEffect(() => {
+    if (
+      !identity ||
+      hasBackend !== true ||
+      notesAddress.toLowerCase() !== identityAddress.toLowerCase() ||
+      typeof window === 'undefined' ||
+      window.electronAPI?.isElectron !== true ||
+      migratedVaultAddressRef.current === identityAddress.toLowerCase()
+    ) {
+      return
+    }
+
+    const address = identityAddress.toLowerCase()
+    migratedVaultAddressRef.current = address
+    void migrateLegacyNoteVault(identity.danger).catch(err => {
+      if (migratedVaultAddressRef.current === address) {
+        migratedVaultAddressRef.current = ''
+      }
+      console.warn('Failed to migrate legacy note vault content:', err)
+    })
+  }, [hasBackend, identity, identityAddress, notesAddress])
 
   useEffect(() => {
     if (!identityAddress || hasBackend !== true) return

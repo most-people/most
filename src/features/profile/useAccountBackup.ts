@@ -4,6 +4,7 @@ import {
   calculateNoteCid,
   normalizeNotePath,
 } from '~server/src/utils/noteUtils.js'
+import { decryptLegacyAccountBackupNotes } from '~server/src/utils/noteMigration.js'
 import {
   decryptAccountBackup,
   downloadAccountBackup,
@@ -395,11 +396,17 @@ export function useAccountBackup() {
         throw new Error(t('profile.backup.error.ownerMismatch'))
       }
 
+      const legacyMigration = await decryptLegacyAccountBackupNotes(
+        payload,
+        currentWallet.danger
+      )
+      const migratedPayload = legacyMigration.payload as AccountBackupPayload
+
       if (options.confirm !== false) {
         const localPayload = await buildPayload()
         if (
           hasLocalData(localPayload) &&
-          hasDifferentBackupData(localPayload, payload)
+          hasDifferentBackupData(localPayload, migratedPayload)
         ) {
           const confirmed = options.requestConfirm
             ? await options.requestConfirm()
@@ -411,17 +418,18 @@ export function useAccountBackup() {
         }
       }
 
-      let restoredNotes = payload.notes
+      let restoredNotes = migratedPayload.notes
       if (isDesktopNoteVaultClient()) {
         const status = await getNoteVaultStatus()
         if (!status.configured || !status.writable) {
           throw new Error(t('profile.backup.error.restoreFailed'))
         }
-        const vaultSnapshot = hasNoteVaultPayload(payload)
-          ? payload.noteVault
-          : await createNoteVaultSnapshotFromNotes(payload.notes)
+        const vaultSnapshot = hasNoteVaultPayload(migratedPayload)
+          ? migratedPayload.noteVault
+          : await createNoteVaultSnapshotFromNotes(migratedPayload.notes)
         const shouldRestoreVault =
-          hasNoteVaultPayload(payload) || Array.isArray(payload.notes)
+          hasNoteVaultPayload(migratedPayload) ||
+          Array.isArray(migratedPayload.notes)
         if (shouldRestoreVault) {
           await restoreNoteVaultSnapshot(vaultSnapshot)
           restoredNotes = await createNotesFromNoteVaultSnapshot(vaultSnapshot)
@@ -429,11 +437,13 @@ export function useAccountBackup() {
       }
 
       await api
-        .post<{ success: boolean }>('/api/user/import', { json: payload })
+        .post<{ success: boolean }>('/api/user/import', {
+          json: migratedPayload,
+        })
         .json()
       importNotes(restoredNotes as Parameters<typeof importNotes>[0])
       const restoredPreferences = normalizeBackupPreferences(
-        payload.preferences
+        migratedPayload.preferences
       )
       if (restoredPreferences?.theme) {
         setAppearance(restoredPreferences.theme)
@@ -442,7 +452,7 @@ export function useAccountBackup() {
         setLocale(restoredPreferences.locale)
       }
       const currentIdentity = useUserStore.getState().identity
-      const restoredProfile = await readRestoredProfile(payload.profile)
+      const restoredProfile = await readRestoredProfile(migratedPayload.profile)
       if (currentIdentity && restoredProfile) {
         setUserIdentity(
           applyProfileToIdentity(currentIdentity, restoredProfile)
@@ -544,7 +554,11 @@ export function useAccountBackup() {
       const backup = await downloadAccountBackup(currentWallet)
       if (!backup.found || !backup.payload) return
 
-      const payload = backup.payload as AccountBackupPayload
+      const legacyMigration = await decryptLegacyAccountBackupNotes(
+        backup.payload,
+        currentWallet.danger
+      )
+      const payload = legacyMigration.payload as AccountBackupPayload
       if (
         payload.ownerAddress.toLowerCase() !==
         currentWallet.address.toLowerCase()

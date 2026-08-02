@@ -1,3 +1,5 @@
+import { MCP_CLIENT_MAX_EXPIRES_IN_DAYS } from '../mcp/constants.js'
+
 const JSON_CONTENT_TYPE = 'application/json'
 
 const ref = name => ({ $ref: `#/components/schemas/${name}` })
@@ -200,7 +202,11 @@ const schemas = {
         },
       },
       allowedRoots: { type: 'array', items: { type: 'string' } },
-      expiresInDays: { type: 'integer', minimum: 1, maximum: 3650 },
+      expiresInDays: {
+        type: 'integer',
+        minimum: 1,
+        maximum: MCP_CLIENT_MAX_EXPIRES_IN_DAYS,
+      },
     },
   },
   McpClientList: {

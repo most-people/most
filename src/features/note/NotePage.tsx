@@ -1654,7 +1654,7 @@ function VaultNotePageContent() {
       setFileLoading(true)
       setFileError('')
       try {
-        const file = await readNoteVaultFile(currentFilePath)
+        const file = await readNoteVaultFile(currentFilePath, wallet.danger)
         if (cancelled) return
         setSelectedFile(file)
         setPreviewContent(file.content || '')
@@ -1929,7 +1929,7 @@ function VaultNotePageContent() {
     if (!currentFilePath) return
 
     try {
-      const file = await readNoteVaultFile(currentFilePath)
+      const file = await readNoteVaultFile(currentFilePath, wallet.danger)
       setSelectedFile(file)
       setPreviewName(getDisplayMarkdownName(file.name))
       setPreviewContent(file.content || '')

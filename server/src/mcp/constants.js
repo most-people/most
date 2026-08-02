@@ -1,0 +1,1 @@
+export const MCP_CLIENT_MAX_EXPIRES_IN_DAYS = 365

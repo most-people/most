@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
 import { describe, it } from 'node:test'
 
 import {
@@ -20,6 +21,17 @@ describe('Android native project synchronization', () => {
     assert.equal(shouldSyncEasAndroidNativeProject('android', 'android'), true)
     assert.equal(shouldSyncEasAndroidNativeProject('ios', 'ios'), false)
     assert.equal(shouldSyncEasAndroidNativeProject('android', undefined), false)
+  })
+
+  it('keeps the Expo version code synchronized with the release version', () => {
+    const appJson = JSON.parse(
+      fs.readFileSync(new URL('../app.json', import.meta.url), 'utf8')
+    ).expo
+
+    assert.equal(
+      appJson.android.versionCode,
+      resolveVersionCode(undefined, appJson.version)
+    )
   })
 
   it('synchronizes the application ID, namespace, and Kotlin package', () => {

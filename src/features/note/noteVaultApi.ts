@@ -1,4 +1,8 @@
 import { api } from '~server/src/utils/api'
+import {
+  inspectLegacyEncryptedNote,
+  isLegacyEncryptedNoteContent,
+} from '~server/src/utils/noteMigration.js'
 
 export interface NoteVaultStatus {
   configured: boolean
@@ -96,10 +100,19 @@ export async function listNoteVaultFiles() {
   return Array.isArray(data.files) ? data.files : []
 }
 
-export async function readNoteVaultFile(path: string) {
+async function readRawNoteVaultFile(path: string) {
   return api
     .get('/api/note-vault/file', { searchParams: { path } })
     .json<NoteVaultFileContent>()
+}
+
+export async function readNoteVaultFile(path: string, danger = '') {
+  const file = await readRawNoteVaultFile(path)
+  if (!danger) return file
+
+  const inspection = inspectLegacyEncryptedNote(file.content, danger)
+  if (!inspection.decryptable) return file
+  return saveNoteVaultFile(path, inspection.content)
 }
 
 export async function saveNoteVaultFile(path: string, content: string) {
@@ -131,6 +144,27 @@ export async function deleteNoteVaultFile(path: string) {
 
 export async function getNoteVaultSnapshot() {
   return api.get('/api/note-vault/snapshot').json<NoteVaultSnapshot>()
+}
+
+export async function migrateLegacyNoteVault(danger: string) {
+  const snapshot = await getNoteVaultSnapshot()
+  const candidates = snapshot.files.filter(file =>
+    isLegacyEncryptedNoteContent(file.content)
+  )
+  let migrated = 0
+  let failed = 0
+
+  for (const candidate of candidates) {
+    try {
+      const file = await readNoteVaultFile(candidate.path, danger)
+      if (isLegacyEncryptedNoteContent(file.content)) failed += 1
+      else migrated += 1
+    } catch {
+      failed += 1
+    }
+  }
+
+  return { migrated, failed }
 }
 
 export async function restoreNoteVaultSnapshot(snapshot: NoteVaultSnapshot) {

@@ -147,6 +147,14 @@ describe('MostBox OpenAPI contract', () => {
     assert.deepEqual(spec.paths['/api/files/{cid}/download'].get.security, [])
   })
 
+  it('documents the enforced MCP client expiration limit', () => {
+    assert.equal(
+      spec.components.schemas.McpClientCreateRequest.properties.expiresInDays
+        .maximum,
+      365
+    )
+  })
+
   it('matches concrete request paths back to their operation metadata', () => {
     assert.equal(
       findOpenApiOperation(

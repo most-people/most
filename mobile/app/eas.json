@@ -8,7 +8,6 @@
       }
     },
     "android-production": {
-      "autoIncrement": true,
       "environment": "production",
       "android": {
         "buildType": "app-bundle"
