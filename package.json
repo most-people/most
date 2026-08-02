@@ -1,6 +1,6 @@
 {
   "name": "most-box",
-  "version": "0.4.6",
+  "version": "0.4.7",
   "description": "MostBox - CID-first P2P file sharing, seeding, chat, and notes",
   "type": "module",
   "main": "electron/main.js",

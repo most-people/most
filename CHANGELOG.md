@@ -4,6 +4,28 @@ All notable changes to MostBox are documented in this file.
 
 ## [Unreleased]
 
+## [0.4.7] - 2026-08-03
+
+### Added
+
+- Added scoped, revocable MCP clients for node inspection, file publishing, and downloads, with management controls and dedicated documentation.
+- Added an interactive OpenAPI reference and separate product, MCP, and API documentation routes.
+- Added Git-backed history and restore workflows for desktop Markdown note vaults.
+- Added Google Play build configuration, store assets, privacy and terms pages, and Android release documentation.
+
+### Changed
+
+- Stored knowledge-base articles as plain Markdown and automatically migrated decryptable legacy encrypted notes to plaintext.
+- Isolated desktop note vaults by account address and removed the manual vault-location workflow.
+- Reworked the About page around MostBox's agent-era product vision.
+- Enforced synchronized Android version codes and capped MCP client credentials at 365 days.
+
+### Fixed
+
+- Hardened note-vault paths, Git operations, MCP authorization, and client lifecycle handling.
+- Refined MCP key creation and deletion flows in the admin interface.
+- Switched the Anthropic connectivity check to a stable probe and corrected the portal node connection label.
+
 ## [0.4.6] - 2026-07-30
 
 ### Added
