@@ -24,7 +24,7 @@ const SOURCE_PATHS = {
   docs: 'src/features/docs/DocsPage.tsx',
   openApiReference: 'src/features/docs/OpenApiReference.tsx',
   openApiRequest: 'src/features/docs/openapiRequest.js',
-  feature: 'src/features/feature/FeaturePage.tsx',
+  about: 'src/features/about/AboutPage.tsx',
   cid: 'src/features/cid/CidPage.tsx',
   globalDownloads: 'src/features/cid/GlobalDownloadTasks.tsx',
   downloadTasks: 'src/lib/downloadTasks.ts',
@@ -436,7 +436,6 @@ describe('frontend smoke checks', () => {
       '/docs/',
       '/docs/mcp/',
       '/docs/api/',
-      '/feature/',
       '/note/',
       '/ping/',
       '/profile/',
@@ -1627,15 +1626,15 @@ describe('frontend smoke checks', () => {
     assert.match(docsMessages, /export const enDocsMessages/)
   })
 
-  it('ships the Agent-era feature comparison page independently', () => {
-    const featureSource = readSource(SOURCE_PATHS.feature)
-    const featureMessages = readSource('src/lib/i18n/messages/feature.ts')
+  it('ships the Agent-era About page', () => {
+    const aboutSource = readSource(SOURCE_PATHS.about)
+    const aboutMessages = readSource('src/lib/i18n/messages/about.ts')
 
-    assert.match(featureSource, /about-artemis\.webp/)
-    assert.match(featureSource, /feature\.architecture\.future\.title/)
-    assert.match(featureSource, /feature\.vision\.final/)
+    assert.match(aboutSource, /about-artemis\.webp/)
+    assert.match(aboutSource, /about\.architecture\.future\.title/)
+    assert.match(aboutSource, /about\.vision\.final/)
     assert.match(
-      featureMessages,
+      aboutMessages,
       /MostBox is a decentralized personal knowledge operating system built for the agent era\./
     )
   })
