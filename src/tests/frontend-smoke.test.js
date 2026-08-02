@@ -434,6 +434,8 @@ describe('frontend smoke checks', () => {
       '/chat/join/demo/',
       '/download/',
       '/docs/',
+      '/docs/mcp/',
+      '/docs/api/',
       '/feature/',
       '/note/',
       '/ping/',
@@ -1590,6 +1592,7 @@ describe('frontend smoke checks', () => {
     const docsSource = readSource(SOURCE_PATHS.docs)
     const referenceSource = readSource(SOURCE_PATHS.openApiReference)
     const requestSource = readSource(SOURCE_PATHS.openApiRequest)
+    const coreMessages = readSource('src/lib/i18n/messages/core.ts')
     const docsMessages = readSource('src/lib/i18n/messages/docs.ts')
 
     assert.match(docsSource, /mostbox:\/\/node\/status/)
@@ -1597,6 +1600,15 @@ describe('frontend smoke checks', () => {
     assert.match(docsSource, /MOSTBOX_MCP_TOKEN/)
     assert.match(docsSource, /<CopyButton/)
     assert.match(docsSource, /<ClientOnly/)
+    assert.match(docsSource, /to="\/docs\/mcp\/"/)
+    assert.match(docsSource, /to="\/docs\/api\/"/)
+    assert.equal(
+      docsSource.match(/<MarketingLayout header=\{<MarketingHeader \/>\}>/g)
+        ?.length,
+      2
+    )
+    assert.doesNotMatch(docsSource, /SegmentedControl/)
+    assert.doesNotMatch(docsSource, /\/docs\/\?tab=/)
     assert.match(referenceSource, /createOpenApiSpec/)
     assert.match(referenceSource, /@scalar\/api-reference-react\/style\.css/)
     assert.match(referenceSource, /persistAuth: false/)
@@ -1604,8 +1616,12 @@ describe('frontend smoke checks', () => {
     assert.match(referenceSource, /telemetry: false/)
     assert.match(referenceSource, /proxyUrl: ''/)
     assert.match(referenceSource, /<ConfirmModal/)
+    assert.match(readSource('src/styles/docs.css'), /\.darklight-reference/)
     assert.match(requestSource, /getRequestHeaders/)
     assert.match(requestSource, /explicitAuthorization/)
+    assert.match(coreMessages, /'footer\.docs': '文档'/)
+    assert.match(coreMessages, /'footer\.docs': '文件'/)
+    assert.match(coreMessages, /'footer\.docs': 'Docs'/)
     assert.match(docsMessages, /export const zhCNDocsMessages/)
     assert.match(docsMessages, /export const zhTWDocsMessages/)
     assert.match(docsMessages, /export const enDocsMessages/)

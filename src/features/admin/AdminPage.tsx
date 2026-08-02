@@ -1525,7 +1525,7 @@ export default function AdminPage() {
                     <h2>{t('admin.mcp.title')}</h2>
                   </div>
                   <div className="admin-panel-actions">
-                    <Link to="/docs/" className="btn btn-secondary">
+                    <Link to="/docs/mcp/" className="btn btn-secondary">
                       <BookOpen size={16} />
                       {t('docs.nav.openMcp')}
                     </Link>

@@ -40,6 +40,7 @@
   color: var(--accent);
   font-size: 13px;
   font-weight: 700;
+  text-decoration: none;
 }
 
 .docs-heading h1 {
@@ -57,13 +58,60 @@
   line-height: 1.7;
 }
 
-.docs-tabs {
-  flex: 0 0 auto;
+.docs-home {
+  padding-block: 40px 72px;
 }
 
-.docs-tabs .ui-segmented-option {
-  gap: var(--space-2);
-  white-space: nowrap;
+.docs-home-nav {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-block: 1px solid var(--border-color);
+}
+
+.docs-home-link {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 20px;
+  gap: 16px;
+  align-items: start;
+  min-width: 0;
+  padding: 28px 24px;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.docs-home-link + .docs-home-link {
+  border-left: 1px solid var(--border-color);
+}
+
+.docs-home-link:hover,
+.docs-home-link:focus-visible {
+  background: var(--bg-secondary);
+}
+
+.docs-home-icon,
+.docs-home-link > svg {
+  color: var(--accent);
+}
+
+.docs-home-copy {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.docs-home-copy strong {
+  font-size: 20px;
+  line-height: 1.3;
+}
+
+.docs-home-copy > span {
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.docs-home-link > svg {
+  margin-top: 3px;
 }
 
 .docs-shell {
@@ -444,6 +492,10 @@
   display: none !important;
 }
 
+.docs-scalar .darklight-reference {
+  display: none !important;
+}
+
 @media (max-width: 900px) {
   .docs-header-inner {
     min-height: 220px;
@@ -507,13 +559,21 @@
     font-size: 15px;
   }
 
-  .docs-tabs {
-    width: 100%;
+  .docs-home {
+    padding-block: 24px 48px;
   }
 
-  .docs-tabs .ui-segmented-option {
-    flex: 1 1 0;
-    justify-content: center;
+  .docs-home-nav {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .docs-home-link {
+    padding-inline: 0;
+  }
+
+  .docs-home-link + .docs-home-link {
+    border-top: 1px solid var(--border-color);
+    border-left: 0;
   }
 
   .docs-shell {

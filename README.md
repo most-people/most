@@ -86,7 +86,8 @@ node server/index.js
 
 ## MCP（AI 客户端）
 
-公开使用指南与交互式接口参考见 [MCP 与 OpenAPI 文档中心](https://most.box/docs/)。
+公开使用指南见 [MCP 文档](https://most.box/docs/mcp/)，交互式接口参考见
+[OpenAPI 文档](https://most.box/docs/api/)。
 
 先启动 MostBox daemon，在 `/admin/` 的“MCP 客户端”中创建凭证。每个凭证绑定当前
 MostBox 身份、独立 scope、过期时间和允许发布的目录；token 只显示一次。Streamable HTTP

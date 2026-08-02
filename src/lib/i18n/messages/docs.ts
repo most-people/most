@@ -6,6 +6,9 @@ export const zhCNDocsMessages = {
   'docs.hero.title': '连接 MostBox 节点',
   'docs.hero.desc':
     '为 AI 客户端配置受控 MCP 权限，或通过完整的 OpenAPI 合同检查和调用 daemon。',
+  'docs.home.mcp.desc':
+    '配置受控凭证，并连接 Codex、Claude Desktop 或 VS Code。',
+  'docs.home.api.desc': '离线浏览完整接口合同，并连接当前 daemon 调试请求。',
   'docs.tabs.label': '文档类型',
   'docs.tabs.mcp': 'MCP 接入',
   'docs.tabs.openapi': 'OpenAPI 参考',
@@ -110,6 +113,9 @@ export const zhTWDocsMessages = {
   'docs.hero.title': '連接 MostBox 節點',
   'docs.hero.desc':
     '為 AI 用戶端設定受控 MCP 權限，或透過完整的 OpenAPI 合約檢查和呼叫 daemon。',
+  'docs.home.mcp.desc':
+    '設定受控憑證，並連接 Codex、Claude Desktop 或 VS Code。',
+  'docs.home.api.desc': '離線瀏覽完整介面合約，並連接目前 daemon 偵錯請求。',
   'docs.tabs.label': '文件類型',
   'docs.tabs.mcp': 'MCP 接入',
   'docs.tabs.openapi': 'OpenAPI 參考',
@@ -214,6 +220,10 @@ export const enDocsMessages = {
   'docs.hero.title': 'Connect to a MostBox node',
   'docs.hero.desc':
     'Give AI clients controlled MCP access, or inspect and call the daemon through its complete OpenAPI contract.',
+  'docs.home.mcp.desc':
+    'Create scoped credentials and connect Codex, Claude Desktop, or VS Code.',
+  'docs.home.api.desc':
+    'Browse the complete contract offline and debug requests against your daemon.',
   'docs.tabs.label': 'Documentation type',
   'docs.tabs.mcp': 'MCP setup',
   'docs.tabs.openapi': 'OpenAPI reference',

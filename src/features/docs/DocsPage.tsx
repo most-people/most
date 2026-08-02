@@ -1,8 +1,9 @@
 import '~/styles/docs.css'
 
-import { lazy, Suspense, useEffect, useState } from 'react'
-import { ClientOnly, Link, useRouter } from '@tanstack/react-router'
+import { lazy, Suspense } from 'react'
+import { ClientOnly, Link } from '@tanstack/react-router'
 import {
+  ArrowRight,
   BookOpen,
   Bot,
   Braces,
@@ -15,11 +16,9 @@ import {
 } from 'lucide-react'
 
 import { CopyButton } from '~/components/CopyButton'
+import { MarketingHeader } from '~/components/MarketingHeader'
 import { MarketingLayout } from '~/components/MarketingLayout'
-import { SegmentedControl } from '~/components/ui'
 import { useI18n, type MessageKey } from '~/lib/i18n'
-
-type DocsTab = 'mcp' | 'openapi'
 
 const OpenApiReference = lazy(() => import('./OpenApiReference'))
 
@@ -120,68 +119,102 @@ const PROBLEMS = [
 
 function DocsPage() {
   const { t } = useI18n()
-  const router = useRouter()
-  const [tab, setActiveTab] = useState<DocsTab>('mcp')
-  const toc = tab === 'mcp' ? MCP_TOC : OPENAPI_TOC
-
-  useEffect(() => {
-    const syncTab = () => {
-      const search = new URLSearchParams(window.location.search)
-      setActiveTab(search.get('tab') === 'openapi' ? 'openapi' : 'mcp')
-    }
-
-    syncTab()
-    window.addEventListener('popstate', syncTab)
-    return () => window.removeEventListener('popstate', syncTab)
-  }, [])
-
-  function setTab(nextTab: DocsTab) {
-    setActiveTab(nextTab)
-    router.history.replace(`/docs/?tab=${nextTab}`)
-  }
 
   return (
-    <MarketingLayout>
+    <MarketingLayout header={<MarketingHeader />}>
       <div className="docs-page">
-        <header className="docs-header">
-          <div className="docs-container docs-header-inner">
-            <div className="docs-heading">
-              <span className="docs-kicker">
-                <BookOpen size={15} />
-                {t('docs.hero.kicker')}
-              </span>
-              <h1>{t('docs.hero.title')}</h1>
-              <p>{t('docs.hero.desc')}</p>
-            </div>
-            <SegmentedControl
-              className="docs-tabs"
-              value={tab}
-              onChange={setTab}
-              ariaLabel={t('docs.tabs.label')}
-              options={[
-                {
-                  value: 'mcp',
-                  label: (
-                    <>
-                      <Bot size={16} />
-                      {t('docs.tabs.mcp')}
-                    </>
-                  ),
-                },
-                {
-                  value: 'openapi',
-                  label: (
-                    <>
-                      <Braces size={16} />
-                      {t('docs.tabs.openapi')}
-                    </>
-                  ),
-                },
-              ]}
+        <DocsHeader
+          title={t('docs.hero.title')}
+          description={t('docs.hero.desc')}
+        />
+        <main className="docs-container docs-home">
+          <nav className="docs-home-nav" aria-label={t('docs.tabs.label')}>
+            <DocsHomeLink
+              to="/docs/mcp/"
+              icon={<Bot size={22} />}
+              title={t('docs.tabs.mcp')}
+              description={t('docs.home.mcp.desc')}
             />
-          </div>
-        </header>
+            <DocsHomeLink
+              to="/docs/api/"
+              icon={<Braces size={22} />}
+              title={t('docs.tabs.openapi')}
+              description={t('docs.home.api.desc')}
+            />
+          </nav>
+        </main>
+      </div>
+    </MarketingLayout>
+  )
+}
 
+export function McpDocsPage() {
+  const { t } = useI18n()
+
+  return (
+    <DocsGuidePage
+      title={t('docs.tabs.mcp')}
+      description={t('docs.hero.desc')}
+      toc={MCP_TOC}
+    >
+      <McpGuide />
+    </DocsGuidePage>
+  )
+}
+
+export function ApiDocsPage() {
+  const { t } = useI18n()
+
+  return (
+    <DocsGuidePage
+      title={t('docs.tabs.openapi')}
+      description={t('docs.openapi.desc')}
+      toc={OPENAPI_TOC}
+    >
+      <OpenApiGuide />
+    </DocsGuidePage>
+  )
+}
+
+function DocsHeader({
+  title,
+  description,
+}: Readonly<{ title: string; description: string }>) {
+  const { t } = useI18n()
+
+  return (
+    <header className="docs-header">
+      <div className="docs-container docs-header-inner">
+        <div className="docs-heading">
+          <Link to="/docs/" className="docs-kicker">
+            <BookOpen size={15} />
+            {t('docs.hero.kicker')}
+          </Link>
+          <h1>{title}</h1>
+          <p>{description}</p>
+        </div>
+      </div>
+    </header>
+  )
+}
+
+function DocsGuidePage({
+  title,
+  description,
+  toc,
+  children,
+}: Readonly<{
+  title: string
+  description: string
+  toc: ReadonlyArray<readonly [string, MessageKey]>
+  children: React.ReactNode
+}>) {
+  const { t } = useI18n()
+
+  return (
+    <MarketingLayout header={<MarketingHeader />}>
+      <div className="docs-page">
+        <DocsHeader title={title} description={description} />
         <div className="docs-container docs-shell">
           <aside className="docs-toc" aria-label={t('docs.toc.label')}>
             <strong>{t('docs.toc.label')}</strong>
@@ -193,12 +226,33 @@ function DocsPage() {
               ))}
             </nav>
           </aside>
-          <main className="docs-content">
-            {tab === 'mcp' ? <McpGuide /> : <OpenApiGuide />}
-          </main>
+          <main className="docs-content">{children}</main>
         </div>
       </div>
     </MarketingLayout>
+  )
+}
+
+function DocsHomeLink({
+  to,
+  icon,
+  title,
+  description,
+}: Readonly<{
+  to: '/docs/mcp/' | '/docs/api/'
+  icon: React.ReactNode
+  title: string
+  description: string
+}>) {
+  return (
+    <Link to={to} className="docs-home-link">
+      <span className="docs-home-icon">{icon}</span>
+      <span className="docs-home-copy">
+        <strong>{title}</strong>
+        <span>{description}</span>
+      </span>
+      <ArrowRight size={20} />
+    </Link>
   )
 }
 

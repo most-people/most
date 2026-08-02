@@ -22,6 +22,8 @@ import { Route as ChatIndexRouteImport } from './routes/chat/index'
 import { Route as AppIndexRouteImport } from './routes/app/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AboutIndexRouteImport } from './routes/about/index'
+import { Route as DocsMcpIndexRouteImport } from './routes/docs/mcp/index'
+import { Route as DocsApiIndexRouteImport } from './routes/docs/api/index'
 import { Route as CidCidIndexRouteImport } from './routes/cid/$cid/index'
 import { Route as ChatJoinIndexRouteImport } from './routes/chat/join/index'
 import { Route as ChatJoinDemoIndexRouteImport } from './routes/chat/join/demo/index'
@@ -93,6 +95,20 @@ const AboutIndexRoute = AboutIndexRouteImport.update({
   path: '/about/',
   getParentRoute: () => rootRouteImport,
 } as any).lazy(() => import('./routes/about/index.lazy').then((d) => d.Route))
+const DocsMcpIndexRoute = DocsMcpIndexRouteImport.update({
+  id: '/docs/mcp/',
+  path: '/docs/mcp/',
+  getParentRoute: () => rootRouteImport,
+} as any).lazy(() =>
+  import('./routes/docs/mcp/index.lazy').then((d) => d.Route),
+)
+const DocsApiIndexRoute = DocsApiIndexRouteImport.update({
+  id: '/docs/api/',
+  path: '/docs/api/',
+  getParentRoute: () => rootRouteImport,
+} as any).lazy(() =>
+  import('./routes/docs/api/index.lazy').then((d) => d.Route),
+)
 const CidCidIndexRoute = CidCidIndexRouteImport.update({
   id: '/cid/$cid/',
   path: '/cid/$cid/',
@@ -131,6 +147,8 @@ export interface FileRoutesByFullPath {
   '/web3/': typeof Web3IndexRoute
   '/chat/join/': typeof ChatJoinIndexRoute
   '/cid/$cid/': typeof CidCidIndexRoute
+  '/docs/api/': typeof DocsApiIndexRoute
+  '/docs/mcp/': typeof DocsMcpIndexRoute
   '/chat/join/demo/': typeof ChatJoinDemoIndexRoute
 }
 export interface FileRoutesByTo {
@@ -149,6 +167,8 @@ export interface FileRoutesByTo {
   '/web3': typeof Web3IndexRoute
   '/chat/join': typeof ChatJoinIndexRoute
   '/cid/$cid': typeof CidCidIndexRoute
+  '/docs/api': typeof DocsApiIndexRoute
+  '/docs/mcp': typeof DocsMcpIndexRoute
   '/chat/join/demo': typeof ChatJoinDemoIndexRoute
 }
 export interface FileRoutesById {
@@ -168,6 +188,8 @@ export interface FileRoutesById {
   '/web3/': typeof Web3IndexRoute
   '/chat/join/': typeof ChatJoinIndexRoute
   '/cid/$cid/': typeof CidCidIndexRoute
+  '/docs/api/': typeof DocsApiIndexRoute
+  '/docs/mcp/': typeof DocsMcpIndexRoute
   '/chat/join/demo/': typeof ChatJoinDemoIndexRoute
 }
 export interface FileRouteTypes {
@@ -188,6 +210,8 @@ export interface FileRouteTypes {
     | '/web3/'
     | '/chat/join/'
     | '/cid/$cid/'
+    | '/docs/api/'
+    | '/docs/mcp/'
     | '/chat/join/demo/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -206,6 +230,8 @@ export interface FileRouteTypes {
     | '/web3'
     | '/chat/join'
     | '/cid/$cid'
+    | '/docs/api'
+    | '/docs/mcp'
     | '/chat/join/demo'
   id:
     | '__root__'
@@ -224,6 +250,8 @@ export interface FileRouteTypes {
     | '/web3/'
     | '/chat/join/'
     | '/cid/$cid/'
+    | '/docs/api/'
+    | '/docs/mcp/'
     | '/chat/join/demo/'
   fileRoutesById: FileRoutesById
 }
@@ -243,6 +271,8 @@ export interface RootRouteChildren {
   Web3IndexRoute: typeof Web3IndexRoute
   ChatJoinIndexRoute: typeof ChatJoinIndexRoute
   CidCidIndexRoute: typeof CidCidIndexRoute
+  DocsApiIndexRoute: typeof DocsApiIndexRoute
+  DocsMcpIndexRoute: typeof DocsMcpIndexRoute
   ChatJoinDemoIndexRoute: typeof ChatJoinDemoIndexRoute
 }
 
@@ -339,6 +369,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AboutIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/docs/mcp/': {
+      id: '/docs/mcp/'
+      path: '/docs/mcp'
+      fullPath: '/docs/mcp/'
+      preLoaderRoute: typeof DocsMcpIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs/api/': {
+      id: '/docs/api/'
+      path: '/docs/api'
+      fullPath: '/docs/api/'
+      preLoaderRoute: typeof DocsApiIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/cid/$cid/': {
       id: '/cid/$cid/'
       path: '/cid/$cid'
@@ -379,6 +423,8 @@ const rootRouteChildren: RootRouteChildren = {
   Web3IndexRoute: Web3IndexRoute,
   ChatJoinIndexRoute: ChatJoinIndexRoute,
   CidCidIndexRoute: CidCidIndexRoute,
+  DocsApiIndexRoute: DocsApiIndexRoute,
+  DocsMcpIndexRoute: DocsMcpIndexRoute,
   ChatJoinDemoIndexRoute: ChatJoinDemoIndexRoute,
 }
 export const routeTree = rootRouteImport
