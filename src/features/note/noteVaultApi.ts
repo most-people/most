@@ -89,12 +89,6 @@ export async function getNoteVaultStatus() {
   return api.get('/api/note-vault/status').json<NoteVaultStatus>()
 }
 
-export async function configureNoteVault(path: string) {
-  return api
-    .post('/api/note-vault/config', { json: { path } })
-    .json<NoteVaultStatus & { success: boolean }>()
-}
-
 export async function listNoteVaultFiles() {
   const data = await api
     .get('/api/note-vault/files')

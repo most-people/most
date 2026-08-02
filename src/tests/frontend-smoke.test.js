@@ -39,7 +39,6 @@ const SOURCE_PATHS = {
   legacyAppRoute: 'src/routes/app/index.tsx',
   accountBackup: 'src/features/profile/useAccountBackup.ts',
   accountBackupSync: 'src/features/profile/accountBackupSync.ts',
-  noteVaultLocationModal: 'src/features/profile/NoteVaultLocationModal.tsx',
   profile: 'src/features/profile/ProfilePage.tsx',
   electronMain: 'electron/main.js',
   electronPreload: 'electron/preload.cjs',
@@ -198,45 +197,51 @@ describe('frontend smoke checks', () => {
     assert.match(rootRouteSource, /data-theme-preference/)
   })
 
-  it('asks for a note folder before the first cloud restore', async () => {
+  it('uses an automatic address-scoped note vault in Electron', async () => {
     const accountBackupSource = readSource(SOURCE_PATHS.accountBackup)
     const appGlobalsSource = readSource(SOURCE_PATHS.appGlobals)
     const profileSource = readSource(SOURCE_PATHS.profile)
-    const modalSource = readSource(SOURCE_PATHS.noteVaultLocationModal)
+    const noteSource = readSource(SOURCE_PATHS.note)
+    const noteVaultApiSource = readSource(SOURCE_PATHS.noteVaultApi)
     const electronMainSource = readSource(SOURCE_PATHS.electronMain)
     const electronPreloadSource = readSource(SOURCE_PATHS.electronPreload)
     const { messages } = await importBundledSource('src/lib/i18n/messages.ts')
 
+    assert.match(accountBackupSource, /isDesktopNoteVaultClient\(\)/)
+    assert.match(accountBackupSource, /await getNoteVaultStatus\(\)/)
+    assert.match(accountBackupSource, /await restoreNoteVaultSnapshot\(/)
+    assert.doesNotMatch(accountBackupSource, /requestNoteVaultDirectory/)
+    assert.doesNotMatch(appGlobalsSource, /NoteVaultLocationModal/)
+    assert.doesNotMatch(profileSource, /NoteVaultLocationModal/)
+    assert.doesNotMatch(noteSource, /selectNoteVaultDirectory/)
     assert.match(
-      accountBackupSource,
-      /const restored = await restorePayload\(payload, \{[\s\S]*requestNoteVaultDirectory,/
+      noteSource,
+      /vaultFiles\.some\(file => file\.path === currentFilePath\)/
     )
     assert.match(
-      accountBackupSource,
-      /requestDirectory\s*\? await requestDirectory\(\)/
+      noteSource,
+      /navigate\(\{ to: '\/note\/', search: \{\} as never, replace: true \}\)/
     )
-    assert.match(appGlobalsSource, /<NoteVaultLocationModal/)
-    assert.match(profileSource, /<NoteVaultLocationModal/)
-    assert.match(modalSource, /profile\.backup\.noteVault\.useDefault/)
-    assert.match(modalSource, /profile\.backup\.noteVault\.selectFolder/)
+    assert.doesNotMatch(noteVaultApiSource, /\/api\/note-vault\/config/)
     assert.match(
       electronMainSource,
-      /path\.join\(\s*app\.getPath\('documents'\),\s*'MostBox',\s*'Notes'\s*\)/
+      /noteVaultRoot:\s*path\.join\(app\.getPath\('documents'\), 'MostBox', 'Notes'\)/
     )
-    assert.match(electronPreloadSource, /note-vault:get-default-directory/)
+    assert.doesNotMatch(electronMainSource, /note-vault:select-directory/)
+    assert.doesNotMatch(electronPreloadSource, /note-vault:/)
 
     for (const locale of ['zh-CN', 'zh-TW', 'en']) {
       assert.equal(
-        typeof messages[locale]['profile.backup.noteVault.message'],
-        'string'
+        messages[locale]['profile.backup.noteVault.message'],
+        undefined
       )
       assert.equal(
-        typeof messages[locale]['profile.backup.noteVault.useDefault'],
-        'string'
+        messages[locale]['profile.backup.noteVault.useDefault'],
+        undefined
       )
       assert.equal(
-        typeof messages[locale]['profile.backup.noteVault.selectFolder'],
-        'string'
+        messages[locale]['profile.backup.noteVault.selectFolder'],
+        undefined
       )
     }
   })

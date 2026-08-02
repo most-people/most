@@ -29,7 +29,6 @@ import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import { useI18n, type MessageKey } from '~/lib/i18n'
 import { useAccountBackup } from '~/features/profile/useAccountBackup'
-import { NoteVaultLocationModal } from '~/features/profile/NoteVaultLocationModal'
 import { ProfileAppearanceSettings } from '~/features/profile/ProfileAppearanceSettings'
 import {
   getAccountAvatarUrl,
@@ -731,14 +730,6 @@ export default function ProfilePage() {
           danger={backupConfirm.danger}
           onConfirm={backupConfirm.onConfirm}
           onClose={backupConfirm.onClose || (() => setBackupConfirm(null))}
-        />
-      )}
-      {accountBackup.noteVaultLocationRequired && (
-        <NoteVaultLocationModal
-          working={accountBackup.noteVaultLocationWorking}
-          onUseDefault={accountBackup.useDefaultNoteVaultLocation}
-          onSelectFolder={accountBackup.selectNoteVaultLocation}
-          onClose={accountBackup.cancelNoteVaultLocation}
         />
       )}
       {showLogoutConfirm && (

@@ -1,7 +1,6 @@
 import {
   app,
   BrowserWindow,
-  ipcMain,
   Menu,
   Tray,
   dialog,
@@ -148,38 +147,6 @@ function createTray() {
   tray.on('double-click', showMainWindow)
 }
 
-function registerNoteVaultIpc() {
-  ipcMain.handle('note-vault:get-default-directory', async event => {
-    if (!isTrustedAppUrl(event.senderFrame?.url, PORT)) {
-      throw new Error('Untrusted note vault IPC sender')
-    }
-
-    const defaultDirectory = path.join(
-      app.getPath('documents'),
-      'MostBox',
-      'Notes'
-    )
-    fs.mkdirSync(defaultDirectory, { recursive: true })
-    return defaultDirectory
-  })
-
-  ipcMain.handle('note-vault:select-directory', async event => {
-    if (!isTrustedAppUrl(event.senderFrame?.url, PORT)) {
-      throw new Error('Untrusted note vault IPC sender')
-    }
-    const result = await dialog.showOpenDialog(mainWindow, {
-      title: '选择 Markdown 笔记库',
-      properties: ['openDirectory', 'createDirectory'],
-    })
-
-    if (result.canceled || result.filePaths.length === 0) {
-      return null
-    }
-
-    return result.filePaths[0]
-  })
-}
-
 function createWindow() {
   const iconPath = getIconPath()
 
@@ -236,7 +203,9 @@ async function startServer() {
   process.env.ELECTRON_APP = 'true'
 
   const { main } = await import('../server/index.js')
-  engine = await main()
+  engine = await main({
+    noteVaultRoot: path.join(app.getPath('documents'), 'MostBox', 'Notes'),
+  })
 }
 
 async function fetchReleaseManifest(manifestUrl) {
@@ -329,7 +298,6 @@ if (!gotSingleInstanceLock) {
   app.whenReady().then(async () => {
     try {
       await startServer()
-      registerNoteVaultIpc()
       createWindow()
       createTray()
       Menu.setApplicationMenu(null)

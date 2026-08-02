@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { api } from '~server/src/utils/api'
 import {
   calculateNoteCid,
@@ -18,7 +18,6 @@ import {
   type AppearancePreference,
 } from '~/lib/appearance'
 import {
-  configureNoteVault,
   getNoteVaultSnapshot,
   getNoteVaultStatus,
   restoreNoteVaultSnapshot,
@@ -42,15 +41,9 @@ type RestoreConfirmRequest = () => boolean | Promise<boolean>
 type RestorePayloadOptions = {
   confirm?: boolean
   requestConfirm?: RestoreConfirmRequest
-  requestNoteVaultDirectory?: NoteVaultDirectoryRequest
 }
 type ImportLocalBackupOptions = {
   requestConfirm?: RestoreConfirmRequest
-}
-type NoteVaultDirectoryRequest = () => Promise<string | null>
-type PendingNoteVaultLocationRequest = {
-  resolve: (directory: string | null) => void
-  reject: (error: Error) => void
 }
 type AccountBackupSummary = {
   filesCount: number | null
@@ -166,16 +159,7 @@ function countBackupItems(items: unknown[] | undefined) {
 
 function isDesktopNoteVaultClient() {
   return (
-    typeof window !== 'undefined' &&
-    window.electronAPI?.isElectron === true &&
-    typeof window.electronAPI.selectNoteVaultDirectory === 'function'
-  )
-}
-
-function canSelectDesktopNoteVaultDirectory() {
-  return (
-    typeof window !== 'undefined' &&
-    typeof window.electronAPI?.selectNoteVaultDirectory === 'function'
+    typeof window !== 'undefined' && window.electronAPI?.isElectron === true
   )
 }
 
@@ -201,33 +185,6 @@ async function readDesktopNoteVaultSnapshot() {
   } catch {
     return undefined
   }
-}
-
-async function canRestoreToDesktopNoteVault() {
-  if (isDesktopNoteVaultClient()) return true
-
-  try {
-    const status = await getNoteVaultStatus()
-    return status.configured
-  } catch {
-    return false
-  }
-}
-
-async function ensureDesktopNoteVaultConfigured(
-  requestDirectory?: NoteVaultDirectoryRequest
-) {
-  const status = await getNoteVaultStatus()
-  if (status.configured) return true
-
-  if (!canSelectDesktopNoteVaultDirectory()) return false
-  const directory = requestDirectory
-    ? await requestDirectory()
-    : await window.electronAPI?.selectNoteVaultDirectory?.()
-  if (!directory) return false
-
-  await configureNoteVault(directory)
-  return true
 }
 
 async function createNotesFromNoteVaultSnapshot(snapshot: NoteVaultSnapshot) {
@@ -343,100 +300,6 @@ export function useAccountBackup() {
   })
   const [loginCloudRestore, setLoginCloudRestore] =
     useState<LoginCloudRestoreState>({ payload: null, checking: false })
-  const noteVaultLocationRequestRef =
-    useRef<PendingNoteVaultLocationRequest | null>(null)
-  const [noteVaultLocationRequired, setNoteVaultLocationRequired] =
-    useState(false)
-  const [noteVaultLocationWorking, setNoteVaultLocationWorking] =
-    useState(false)
-
-  const finishNoteVaultLocationRequest = useCallback(
-    (directory: string | null) => {
-      const request = noteVaultLocationRequestRef.current
-      noteVaultLocationRequestRef.current = null
-      setNoteVaultLocationRequired(false)
-      setNoteVaultLocationWorking(false)
-      request?.resolve(directory)
-    },
-    []
-  )
-
-  const failNoteVaultLocationRequest = useCallback((error: Error) => {
-    const request = noteVaultLocationRequestRef.current
-    noteVaultLocationRequestRef.current = null
-    setNoteVaultLocationRequired(false)
-    setNoteVaultLocationWorking(false)
-    request?.reject(error)
-  }, [])
-
-  const requestNoteVaultDirectory = useCallback(
-    () =>
-      new Promise<string | null>((resolve, reject) => {
-        noteVaultLocationRequestRef.current?.resolve(null)
-        noteVaultLocationRequestRef.current = { resolve, reject }
-        setNoteVaultLocationWorking(false)
-        setNoteVaultLocationRequired(true)
-      }),
-    []
-  )
-
-  const cancelNoteVaultLocation = useCallback(() => {
-    if (noteVaultLocationWorking) return
-    finishNoteVaultLocationRequest(null)
-  }, [finishNoteVaultLocationRequest, noteVaultLocationWorking])
-
-  const useDefaultNoteVaultLocation = useCallback(async () => {
-    const getDefaultDirectory = window.electronAPI?.getDefaultNoteVaultDirectory
-    if (!getDefaultDirectory) {
-      failNoteVaultLocationRequest(
-        new Error(t('profile.backup.error.noteVaultLocationFailed'))
-      )
-      return
-    }
-
-    setNoteVaultLocationWorking(true)
-    try {
-      const directory = await getDefaultDirectory()
-      finishNoteVaultLocationRequest(directory)
-    } catch {
-      failNoteVaultLocationRequest(
-        new Error(t('profile.backup.error.noteVaultLocationFailed'))
-      )
-    }
-  }, [failNoteVaultLocationRequest, finishNoteVaultLocationRequest, t])
-
-  const selectNoteVaultLocation = useCallback(async () => {
-    const selectDirectory = window.electronAPI?.selectNoteVaultDirectory
-    if (!selectDirectory) {
-      failNoteVaultLocationRequest(
-        new Error(t('profile.backup.error.noteVaultLocationFailed'))
-      )
-      return
-    }
-
-    setNoteVaultLocationWorking(true)
-    try {
-      const directory = await selectDirectory()
-      if (directory) {
-        finishNoteVaultLocationRequest(directory)
-      } else {
-        setNoteVaultLocationWorking(false)
-      }
-    } catch {
-      failNoteVaultLocationRequest(
-        new Error(t('profile.backup.error.noteVaultLocationFailed'))
-      )
-    }
-  }, [failNoteVaultLocationRequest, finishNoteVaultLocationRequest, t])
-
-  useEffect(
-    () => () => {
-      noteVaultLocationRequestRef.current?.resolve(null)
-      noteVaultLocationRequestRef.current = null
-    },
-    []
-  )
-
   const refreshBackupSummary = useCallback(async () => {
     const currentWallet = useUserStore.getState().wallet
     if (!currentWallet) {
@@ -549,20 +412,17 @@ export function useAccountBackup() {
       }
 
       let restoredNotes = payload.notes
-      if (await canRestoreToDesktopNoteVault()) {
+      if (isDesktopNoteVaultClient()) {
+        const status = await getNoteVaultStatus()
+        if (!status.configured || !status.writable) {
+          throw new Error(t('profile.backup.error.restoreFailed'))
+        }
         const vaultSnapshot = hasNoteVaultPayload(payload)
           ? payload.noteVault
           : await createNoteVaultSnapshotFromNotes(payload.notes)
         const shouldRestoreVault =
           hasNoteVaultPayload(payload) || Array.isArray(payload.notes)
         if (shouldRestoreVault) {
-          const configured = await ensureDesktopNoteVaultConfigured(
-            options.requestNoteVaultDirectory
-          )
-          if (!configured) {
-            addToast(t('profile.backup.toast.cancelRestore'), 'info')
-            return false
-          }
           await restoreNoteVaultSnapshot(vaultSnapshot)
           restoredNotes = await createNotesFromNoteVaultSnapshot(vaultSnapshot)
         }
@@ -653,7 +513,6 @@ export function useAccountBackup() {
         const restored = await restorePayload(payload, {
           confirm: options.confirm,
           requestConfirm: options.requestConfirm,
-          requestNoteVaultDirectory,
         })
         if (restored) {
           setStatus('synced')
@@ -673,15 +532,7 @@ export function useAccountBackup() {
         setAction(null)
       }
     },
-    [
-      addToast,
-      buildPayload,
-      requestNoteVaultDirectory,
-      requireBackend,
-      requireWallet,
-      restorePayload,
-      t,
-    ]
+    [addToast, buildPayload, requireBackend, requireWallet, restorePayload, t]
   )
 
   const checkCloudBackupAfterLogin = useCallback(async () => {
@@ -761,7 +612,6 @@ export function useAccountBackup() {
     try {
       const restored = await restorePayload(payload, {
         confirm: false,
-        requestNoteVaultDirectory,
       })
       if (restored) {
         setStatus('synced')
@@ -780,13 +630,7 @@ export function useAccountBackup() {
     } finally {
       setAction(null)
     }
-  }, [
-    addToast,
-    loginCloudRestore.payload,
-    requestNoteVaultDirectory,
-    restorePayload,
-    t,
-  ])
+  }, [addToast, loginCloudRestore.payload, restorePayload, t])
 
   const exportLocalBackup = useCallback(async () => {
     const currentWallet = requireWallet()
@@ -892,10 +736,5 @@ export function useAccountBackup() {
     backupSummary,
     refreshBackupSummary,
     notesCount: notes.length,
-    noteVaultLocationRequired,
-    noteVaultLocationWorking,
-    cancelNoteVaultLocation,
-    useDefaultNoteVaultLocation,
-    selectNoteVaultLocation,
   }
 }

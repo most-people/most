@@ -6,7 +6,6 @@ import { ConfirmModal, Toast } from '~/components/ui'
 import UserLoginModal from '~/components/UserLoginModal'
 import ConnectModal from '~/components/ConnectModal'
 import { useAccountBackup } from '~/features/profile/useAccountBackup'
-import { NoteVaultLocationModal } from '~/features/profile/NoteVaultLocationModal'
 import GlobalDownloadTasks from '~/features/cid/GlobalDownloadTasks'
 import { useI18n } from '~/lib/i18n'
 
@@ -14,15 +13,10 @@ export default function AppGlobals() {
   const { t } = useI18n()
   const pathname = useLocation({ select: location => location.pathname })
   const {
-    cancelNoteVaultLocation,
     checkCloudBackupAfterLogin,
     confirmLoginCloudRestore,
     dismissLoginCloudRestore,
     loginCloudRestorePending,
-    noteVaultLocationRequired,
-    noteVaultLocationWorking,
-    selectNoteVaultLocation,
-    useDefaultNoteVaultLocation,
   } = useAccountBackup()
   const checkBackend = useAppStore(s => s.checkBackend)
   const hasBackend = useAppStore(s => s.hasBackend)
@@ -101,15 +95,6 @@ export default function AppGlobals() {
             await confirmLoginCloudRestore()
           }}
           onClose={dismissLoginCloudRestore}
-        />
-      )}
-
-      {noteVaultLocationRequired && (
-        <NoteVaultLocationModal
-          working={noteVaultLocationWorking}
-          onUseDefault={useDefaultNoteVaultLocation}
-          onSelectFolder={selectNoteVaultLocation}
-          onClose={cancelNoteVaultLocation}
         />
       )}
     </>

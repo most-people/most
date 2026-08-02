@@ -59,6 +59,7 @@ export function createApp(engine, options = {}) {
   const appPort = options.port || PORT
   const appHost = options.host || HOST
   const configStore = options.configStore || defaultConfigStore
+  const noteVaultRoot = options.noteVaultRoot
   const nodeLogger =
     options.nodeLogger || createNodeLogger(configStore.configDir || CONFIG_DIR)
   const mcpClientStore =
@@ -465,8 +466,8 @@ export function createApp(engine, options = {}) {
     downloadTasks,
   })
   registerChannelRoutes(app, { engine })
-  registerNoteVaultRoutes(app, { configStore, isRemoteRequest })
-  registerNoteGitRoutes(app, { configStore, isRemoteRequest })
+  registerNoteVaultRoutes(app, { noteVaultRoot, isRemoteRequest })
+  registerNoteGitRoutes(app, { noteVaultRoot, isRemoteRequest })
 
   registerStaticRoutes(app)
 

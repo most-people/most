@@ -9,6 +9,7 @@ import { buildAuthHeaders } from '../../src/utils/auth.js'
 import { createLoginIdentity } from '../../src/utils/userIdentity.js'
 
 const TEST_IDENTITY = createLoginIdentity('vault-user', 'vault-password')
+const OTHER_IDENTITY = createLoginIdentity('other-vault-user', 'vault-password')
 const LOCAL_REQUEST_CONTEXT = {
   incoming: { socket: { remoteAddress: '::ffff:127.0.0.1' } },
 }
@@ -17,12 +18,17 @@ function createFakeEngine() {
   return {}
 }
 
-async function requestWithAuth(app, requestPath, init = {}) {
+async function requestWithAuth(
+  app,
+  requestPath,
+  init = {},
+  identity = TEST_IDENTITY
+) {
   const headers = new Headers(init.headers || {})
   if (!headers.has('host')) headers.set('host', 'localhost:1976')
   const method = init.method || 'GET'
   const authHeaders = await buildAuthHeaders(
-    TEST_IDENTITY,
+    identity,
     method,
     new URL(requestPath, 'http://localhost').pathname
   )
@@ -34,6 +40,7 @@ async function requestWithAuth(app, requestPath, init = {}) {
 
 describe('note vault routes', () => {
   let tmpDir
+  let vaultRoot
   let configStore
   let app
   let originalElectronApp
@@ -42,11 +49,14 @@ describe('note vault routes', () => {
     originalElectronApp = process.env.ELECTRON_APP
     process.env.ELECTRON_APP = 'true'
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'most-note-vault-api-'))
+    vaultRoot = path.join(tmpDir, 'vaults')
     configStore = createNodeConfigStore(path.join(tmpDir, 'config'))
     app = createApp(createFakeEngine(), {
       configStore,
+      noteVaultRoot: vaultRoot,
       port: 1976,
       host: '127.0.0.1',
+      remoteInvites: ['invite-ok'],
     }).app
   })
 
@@ -81,8 +91,29 @@ describe('note vault routes', () => {
     assert.strictEqual(data.code, 'PERMISSION_ERROR')
   })
 
-  it('configures, lists, reads, and saves Markdown files', async () => {
-    const vaultDir = path.join(tmpDir, 'vault')
+  it('rejects authenticated remote invite access', async () => {
+    const res = await requestWithAuth(app, '/api/note-vault/status', {
+      headers: {
+        host: '203.0.113.10:1976',
+        'x-mostbox-invite': 'invite-ok',
+      },
+    })
+    const data = await res.json()
+
+    assert.strictEqual(res.status, 403)
+    assert.strictEqual(data.code, 'PERMISSION_ERROR')
+  })
+
+  it('automatically creates, lists, reads, and saves the user vault', async () => {
+    const statusRes = await requestWithAuth(app, '/api/note-vault/status')
+    const statusData = await statusRes.json()
+    const vaultDir = path.join(vaultRoot, TEST_IDENTITY.address.toLowerCase())
+
+    assert.strictEqual(statusRes.status, 200)
+    assert.strictEqual(statusData.configured, true)
+    assert.strictEqual(statusData.vaultPath, fs.realpathSync(vaultDir))
+    assert.strictEqual(statusData.fileCount, 0)
+
     fs.mkdirSync(path.join(vaultDir, 'docs'), { recursive: true })
     fs.writeFileSync(path.join(vaultDir, 'docs', 'hello.md'), '# Hello', 'utf8')
     fs.writeFileSync(path.join(vaultDir, 'ignore.txt'), 'ignore', 'utf8')
@@ -92,12 +123,7 @@ describe('note vault routes', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: vaultDir }),
     })
-    const configData = await configRes.json()
-
-    assert.strictEqual(configRes.status, 200)
-    assert.strictEqual(configData.success, true)
-    assert.strictEqual(configData.configured, true)
-    assert.strictEqual(configData.fileCount, 1)
+    assert.strictEqual(configRes.status, 404)
 
     const listRes = await requestWithAuth(app, '/api/note-vault/files')
     const listData = await listRes.json()
@@ -203,5 +229,67 @@ describe('note vault routes', () => {
     assert.strictEqual(deleteData.success, true)
     assert.strictEqual(deleteData.deleted, true)
     assert.strictEqual(fs.existsSync(path.join(vaultDir, 'restored.md')), false)
+  })
+
+  it('isolates files and snapshots by authenticated user address', async () => {
+    for (const [identity, content] of [
+      [TEST_IDENTITY, '# First'],
+      [OTHER_IDENTITY, '# Second'],
+    ]) {
+      const createRes = await requestWithAuth(
+        app,
+        '/api/note-vault/file',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: 'same.md', content }),
+        },
+        identity
+      )
+      assert.strictEqual(createRes.status, 200)
+    }
+
+    const firstFile = await requestWithAuth(
+      app,
+      '/api/note-vault/file?path=same.md'
+    ).then(response => response.json())
+    const secondFile = await requestWithAuth(
+      app,
+      '/api/note-vault/file?path=same.md',
+      {},
+      OTHER_IDENTITY
+    ).then(response => response.json())
+    const firstSnapshot = await requestWithAuth(
+      app,
+      '/api/note-vault/snapshot'
+    ).then(response => response.json())
+    const secondSnapshot = await requestWithAuth(
+      app,
+      '/api/note-vault/snapshot',
+      {},
+      OTHER_IDENTITY
+    ).then(response => response.json())
+
+    const restoreRes = await requestWithAuth(app, '/api/note-vault/restore', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        files: [{ path: 'same.md', content: '# First restored' }],
+      }),
+    })
+    const secondFileAfterRestore = await requestWithAuth(
+      app,
+      '/api/note-vault/file?path=same.md',
+      {},
+      OTHER_IDENTITY
+    ).then(response => response.json())
+
+    assert.strictEqual(firstFile.content, '# First')
+    assert.strictEqual(secondFile.content, '# Second')
+    assert.strictEqual(firstSnapshot.files[0].content, '# First')
+    assert.strictEqual(secondSnapshot.files[0].content, '# Second')
+    assert.strictEqual(restoreRes.status, 200)
+    assert.strictEqual(secondFileAfterRestore.content, '# Second')
+    assert.strictEqual(fs.readdirSync(vaultRoot).length, 2)
   })
 })

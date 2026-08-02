@@ -1,15 +1,14 @@
 import { errorJson } from '../errors.js'
 import { PermissionError } from '../../utils/errors.js'
 import {
-  configureNoteVault,
   createMarkdownFile,
   createNoteVaultSnapshot,
   deleteMarkdownFile,
-  getConfiguredNoteVaultPath,
   getNoteVaultStatus,
   listMarkdownFiles,
   moveMarkdownFile,
   readMarkdownFile,
+  resolveUserNoteVaultPath,
   restoreNoteVaultSnapshot,
   writeMarkdownFile,
 } from '../../utils/noteVault.js'
@@ -23,29 +22,21 @@ function assertNoteVaultAccess(c, isRemoteRequest) {
   }
 }
 
-function getBodyPath(body) {
-  return String(body.path || body.vaultPath || '').trim()
+async function getVaultPath(c, noteVaultRoot, isRemoteRequest) {
+  assertNoteVaultAccess(c, isRemoteRequest)
+  return resolveUserNoteVaultPath(noteVaultRoot, c.get('userAddress'))
 }
 
-export function registerNoteVaultRoutes(app, { configStore, isRemoteRequest }) {
+export function registerNoteVaultRoutes(
+  app,
+  { noteVaultRoot, isRemoteRequest }
+) {
   app.get('/api/note-vault/status', async c => {
     try {
       assertNoteVaultAccess(c, isRemoteRequest)
-      return c.json(await getNoteVaultStatus(configStore.configDir))
-    } catch (err) {
-      return errorJson(c, err)
-    }
-  })
-
-  app.post('/api/note-vault/config', async c => {
-    try {
-      assertNoteVaultAccess(c, isRemoteRequest)
-      const body = await c.req.json()
-      const status = await configureNoteVault(
-        configStore.configDir,
-        getBodyPath(body)
+      return c.json(
+        await getNoteVaultStatus(noteVaultRoot, c.get('userAddress'))
       )
-      return c.json({ success: true, ...status })
     } catch (err) {
       return errorJson(c, err)
     }
@@ -54,7 +45,7 @@ export function registerNoteVaultRoutes(app, { configStore, isRemoteRequest }) {
   app.get('/api/note-vault/files', async c => {
     try {
       assertNoteVaultAccess(c, isRemoteRequest)
-      const vaultPath = await getConfiguredNoteVaultPath(configStore.configDir)
+      const vaultPath = await getVaultPath(c, noteVaultRoot, isRemoteRequest)
       return c.json({ files: await listMarkdownFiles(vaultPath) })
     } catch (err) {
       return errorJson(c, err)
@@ -64,7 +55,7 @@ export function registerNoteVaultRoutes(app, { configStore, isRemoteRequest }) {
   app.get('/api/note-vault/file', async c => {
     try {
       assertNoteVaultAccess(c, isRemoteRequest)
-      const vaultPath = await getConfiguredNoteVaultPath(configStore.configDir)
+      const vaultPath = await getVaultPath(c, noteVaultRoot, isRemoteRequest)
       const file = await readMarkdownFile(vaultPath, c.req.query('path'))
       return c.json(file)
     } catch (err) {
@@ -76,7 +67,7 @@ export function registerNoteVaultRoutes(app, { configStore, isRemoteRequest }) {
     try {
       assertNoteVaultAccess(c, isRemoteRequest)
       const body = await c.req.json()
-      const vaultPath = await getConfiguredNoteVaultPath(configStore.configDir)
+      const vaultPath = await getVaultPath(c, noteVaultRoot, isRemoteRequest)
       const file = await createMarkdownFile(
         vaultPath,
         String(body.path || ''),
@@ -92,7 +83,7 @@ export function registerNoteVaultRoutes(app, { configStore, isRemoteRequest }) {
     try {
       assertNoteVaultAccess(c, isRemoteRequest)
       const body = await c.req.json()
-      const vaultPath = await getConfiguredNoteVaultPath(configStore.configDir)
+      const vaultPath = await getVaultPath(c, noteVaultRoot, isRemoteRequest)
       const file = await writeMarkdownFile(
         vaultPath,
         String(body.path || ''),
@@ -108,7 +99,7 @@ export function registerNoteVaultRoutes(app, { configStore, isRemoteRequest }) {
     try {
       assertNoteVaultAccess(c, isRemoteRequest)
       const body = await c.req.json()
-      const vaultPath = await getConfiguredNoteVaultPath(configStore.configDir)
+      const vaultPath = await getVaultPath(c, noteVaultRoot, isRemoteRequest)
       const file = await moveMarkdownFile(
         vaultPath,
         String(body.path || body.fromPath || ''),
@@ -123,7 +114,7 @@ export function registerNoteVaultRoutes(app, { configStore, isRemoteRequest }) {
   app.delete('/api/note-vault/file', async c => {
     try {
       assertNoteVaultAccess(c, isRemoteRequest)
-      const vaultPath = await getConfiguredNoteVaultPath(configStore.configDir)
+      const vaultPath = await getVaultPath(c, noteVaultRoot, isRemoteRequest)
       const result = await deleteMarkdownFile(vaultPath, c.req.query('path'))
       return c.json({ success: true, ...result })
     } catch (err) {
@@ -134,7 +125,7 @@ export function registerNoteVaultRoutes(app, { configStore, isRemoteRequest }) {
   app.get('/api/note-vault/snapshot', async c => {
     try {
       assertNoteVaultAccess(c, isRemoteRequest)
-      const vaultPath = await getConfiguredNoteVaultPath(configStore.configDir)
+      const vaultPath = await getVaultPath(c, noteVaultRoot, isRemoteRequest)
       return c.json(await createNoteVaultSnapshot(vaultPath))
     } catch (err) {
       return errorJson(c, err)
@@ -145,7 +136,7 @@ export function registerNoteVaultRoutes(app, { configStore, isRemoteRequest }) {
     try {
       assertNoteVaultAccess(c, isRemoteRequest)
       const body = await c.req.json()
-      const vaultPath = await getConfiguredNoteVaultPath(configStore.configDir)
+      const vaultPath = await getVaultPath(c, noteVaultRoot, isRemoteRequest)
       const result = await restoreNoteVaultSnapshot(vaultPath, body)
       return c.json({ success: true, result })
     } catch (err) {

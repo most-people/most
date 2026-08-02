@@ -53,11 +53,6 @@ export const zhCNProfileMessages = {
     '这会用云端备份覆盖当前本机数据，继续吗？',
   'profile.backup.loginRestore.title': '发现云端账号数据',
   'profile.backup.loginRestore.message': '这会覆盖当前本机数据。',
-  'profile.backup.noteVault.title': '选择笔记文件夹位置',
-  'profile.backup.noteVault.message':
-    '云端备份包含笔记。请选择笔记在本机的保存文件夹，或使用默认位置“文档/MostBox/Notes”。',
-  'profile.backup.noteVault.selectFolder': '选择文件夹',
-  'profile.backup.noteVault.useDefault': '使用默认位置',
   'profile.backup.confirm.importTitle': '确认导入备份',
   'profile.backup.confirm.restore':
     '导入备份会合并账号元数据并替换本地知识库，继续吗？',
@@ -72,7 +67,6 @@ export const zhCNProfileMessages = {
   'profile.backup.error.ownerMismatch': '备份不属于当前账号',
   'profile.backup.error.backupFailed': '账号备份失败',
   'profile.backup.error.restoreFailed': '账号恢复失败',
-  'profile.backup.error.noteVaultLocationFailed': '无法设置笔记文件夹位置',
   'profile.backup.error.exportFailed': '导出备份失败',
   'profile.backup.error.importFailed': '导入备份失败',
   'profile.backup.error.profileSaveFailed':
@@ -147,11 +141,6 @@ export const zhTWProfileMessages = {
     '這會用雲端備份覆蓋目前本機資料，繼續嗎？',
   'profile.backup.loginRestore.title': '發現雲端帳號資料',
   'profile.backup.loginRestore.message': '這會覆蓋目前本機資料。',
-  'profile.backup.noteVault.title': '選擇筆記資料夾位置',
-  'profile.backup.noteVault.message':
-    '雲端備份包含筆記。請選擇筆記在本機的儲存資料夾，或使用預設位置「文件/MostBox/Notes」。',
-  'profile.backup.noteVault.selectFolder': '選擇資料夾',
-  'profile.backup.noteVault.useDefault': '使用預設位置',
   'profile.backup.confirm.importTitle': '確認匯入備份',
   'profile.backup.confirm.restore':
     '匯入備份會合併帳號元資料並取代本機知識庫，繼續嗎？',
@@ -166,7 +155,6 @@ export const zhTWProfileMessages = {
   'profile.backup.error.ownerMismatch': '備份不屬於目前帳號',
   'profile.backup.error.backupFailed': '帳號備份失敗',
   'profile.backup.error.restoreFailed': '帳號恢復失敗',
-  'profile.backup.error.noteVaultLocationFailed': '無法設定筆記資料夾位置',
   'profile.backup.error.exportFailed': '匯出備份失敗',
   'profile.backup.error.importFailed': '匯入備份失敗',
   'profile.backup.error.profileSaveFailed':
@@ -243,11 +231,6 @@ export const enProfileMessages = {
     'This will replace this device data with the cloud backup. Continue?',
   'profile.backup.loginRestore.title': 'Cloud account data found',
   'profile.backup.loginRestore.message': 'This will replace local data.',
-  'profile.backup.noteVault.title': 'Choose a notes folder',
-  'profile.backup.noteVault.message':
-    'The cloud backup contains notes. Choose where to store them on this device, or use the default Documents/MostBox/Notes folder.',
-  'profile.backup.noteVault.selectFolder': 'Choose folder',
-  'profile.backup.noteVault.useDefault': 'Use default location',
   'profile.backup.confirm.importTitle': 'Confirm backup import',
   'profile.backup.confirm.restore':
     'Importing a backup will merge account metadata and replace the local knowledge base. Continue?',
@@ -264,8 +247,6 @@ export const enProfileMessages = {
     'This backup belongs to another account',
   'profile.backup.error.backupFailed': 'Account backup failed',
   'profile.backup.error.restoreFailed': 'Account restore failed',
-  'profile.backup.error.noteVaultLocationFailed':
-    'Could not set the notes folder location',
   'profile.backup.error.exportFailed': 'Backup export failed',
   'profile.backup.error.importFailed': 'Backup import failed',
   'profile.backup.error.profileSaveFailed':

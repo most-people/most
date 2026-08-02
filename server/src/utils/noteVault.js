@@ -2,15 +2,11 @@ import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
 import fsSync from 'node:fs'
 import path from 'node:path'
+import { normalizeAddress } from '../core/shared.js'
 import { ConflictError, PathSecurityError, ValidationError } from './errors.js'
 
-const CONFIG_FILE_NAME = 'note-vault.json'
 const MARKDOWN_EXTENSION = '.md'
 const EXCLUDED_DIRECTORY_NAMES = new Set(['node_modules'])
-
-function getNoteVaultConfigPath(configDir) {
-  return path.join(configDir, CONFIG_FILE_NAME)
-}
 
 function isPathInside(parentPath, childPath) {
   const relative = path.relative(parentPath, childPath)
@@ -89,29 +85,6 @@ async function getVaultDirectoryInfo(vaultPath, options = {}) {
   return { path: resolvedPath, realPath }
 }
 
-async function readNoteVaultConfig(configDir) {
-  try {
-    const raw = await fs.readFile(getNoteVaultConfigPath(configDir), 'utf8')
-    const parsed = JSON.parse(raw)
-    return {
-      vaultPath:
-        typeof parsed.vaultPath === 'string' ? parsed.vaultPath.trim() : '',
-      updatedAt:
-        typeof parsed.updatedAt === 'string' ? parsed.updatedAt : undefined,
-    }
-  } catch {
-    return { vaultPath: '' }
-  }
-}
-
-async function writeNoteVaultConfig(configDir, config) {
-  await fs.mkdir(configDir, { recursive: true })
-  const configPath = getNoteVaultConfigPath(configDir)
-  const tempPath = `${configPath}.${process.pid}.${Date.now()}.tmp`
-  await fs.writeFile(tempPath, JSON.stringify(config, null, 2), 'utf8')
-  await fs.rename(tempPath, configPath)
-}
-
 export function normalizeNoteVaultRelativePath(input) {
   const raw = String(input || '').trim()
   if (!raw) {
@@ -163,55 +136,50 @@ export function normalizeNoteVaultRelativePath(input) {
   return parts.join('/')
 }
 
-export async function configureNoteVault(configDir, vaultPath) {
-  const info = await getVaultDirectoryInfo(vaultPath, { requireWritable: true })
-  const config = {
-    vaultPath: info.realPath,
-    updatedAt: new Date().toISOString(),
-  }
-  await writeNoteVaultConfig(configDir, config)
-  return getNoteVaultStatus(configDir)
-}
-
-export async function getConfiguredNoteVaultPath(configDir) {
-  const config = await readNoteVaultConfig(configDir)
-  const info = await getVaultDirectoryInfo(config.vaultPath)
-  return info.realPath
-}
-
-export async function getNoteVaultStatus(configDir) {
-  const config = await readNoteVaultConfig(configDir)
-  if (!config.vaultPath) {
-    return {
-      configured: false,
-      vaultPath: '',
-      fileCount: 0,
-      writable: false,
-    }
+export async function resolveUserNoteVaultPath(noteVaultRoot, userAddress) {
+  const rootPath = String(noteVaultRoot || '').trim()
+  if (!rootPath) {
+    throw new ValidationError(
+      'note vault root is not configured',
+      'NOTE_VAULT_ROOT_NOT_CONFIGURED'
+    )
   }
 
-  try {
-    const info = await getVaultDirectoryInfo(config.vaultPath)
-    const files = await listMarkdownFiles(info.realPath)
-    const writable = await fs
-      .access(info.realPath, fsSync.constants.W_OK)
-      .then(() => true)
-      .catch(() => false)
-    return {
-      configured: true,
-      vaultPath: info.realPath,
-      fileCount: files.length,
-      writable,
-      updatedAt: config.updatedAt,
-    }
-  } catch (err) {
-    return {
-      configured: false,
-      vaultPath: config.vaultPath,
-      fileCount: 0,
-      writable: false,
-      error: err instanceof Error ? err.message : 'note vault unavailable',
-    }
+  const address = normalizeAddress(userAddress)
+  if (!address) {
+    throw new ValidationError(
+      'valid user address is required',
+      'NOTE_VAULT_USER_ADDRESS_REQUIRED'
+    )
+  }
+
+  const resolvedRoot = path.resolve(rootPath)
+  await fs.mkdir(resolvedRoot, { recursive: true })
+  const realRoot = await fs.realpath(resolvedRoot)
+  await fs.access(realRoot, fsSync.constants.R_OK | fsSync.constants.W_OK)
+
+  const vaultPath = path.join(realRoot, address)
+  if (!isPathInside(realRoot, vaultPath) || vaultPath === realRoot) {
+    throw new PathSecurityError('Invalid user note vault path')
+  }
+
+  await fs.mkdir(vaultPath, { recursive: true })
+  const realVaultPath = await fs.realpath(vaultPath)
+  if (!isPathInside(realRoot, realVaultPath) || realVaultPath === realRoot) {
+    throw new PathSecurityError('User note vault escapes the configured root')
+  }
+  await fs.access(realVaultPath, fsSync.constants.R_OK | fsSync.constants.W_OK)
+  return realVaultPath
+}
+
+export async function getNoteVaultStatus(noteVaultRoot, userAddress) {
+  const vaultPath = await resolveUserNoteVaultPath(noteVaultRoot, userAddress)
+  const files = await listMarkdownFiles(vaultPath)
+  return {
+    configured: true,
+    vaultPath,
+    fileCount: files.length,
+    writable: true,
   }
 }
 

@@ -1,6 +1,6 @@
 import { errorJson } from '../errors.js'
 import { PermissionError } from '../../utils/errors.js'
-import { getConfiguredNoteVaultPath } from '../../utils/noteVault.js'
+import { resolveUserNoteVaultPath } from '../../utils/noteVault.js'
 import {
   commitNoteGitChanges,
   configureNoteGitAuthor,
@@ -22,15 +22,15 @@ function assertNoteGitAccess(c, isRemoteRequest) {
   }
 }
 
-async function getVaultPath(c, configStore, isRemoteRequest) {
+async function getVaultPath(c, noteVaultRoot, isRemoteRequest) {
   assertNoteGitAccess(c, isRemoteRequest)
-  return getConfiguredNoteVaultPath(configStore.configDir)
+  return resolveUserNoteVaultPath(noteVaultRoot, c.get('userAddress'))
 }
 
-export function registerNoteGitRoutes(app, { configStore, isRemoteRequest }) {
+export function registerNoteGitRoutes(app, { noteVaultRoot, isRemoteRequest }) {
   app.get('/api/note-vault/git/status', async c => {
     try {
-      const vaultPath = await getVaultPath(c, configStore, isRemoteRequest)
+      const vaultPath = await getVaultPath(c, noteVaultRoot, isRemoteRequest)
       return c.json(await getNoteGitStatus(vaultPath))
     } catch (err) {
       return errorJson(c, err)
@@ -39,7 +39,7 @@ export function registerNoteGitRoutes(app, { configStore, isRemoteRequest }) {
 
   app.post('/api/note-vault/git/init', async c => {
     try {
-      const vaultPath = await getVaultPath(c, configStore, isRemoteRequest)
+      const vaultPath = await getVaultPath(c, noteVaultRoot, isRemoteRequest)
       const body = await c.req.json()
       return c.json({
         success: true,
@@ -52,7 +52,7 @@ export function registerNoteGitRoutes(app, { configStore, isRemoteRequest }) {
 
   app.put('/api/note-vault/git/author', async c => {
     try {
-      const vaultPath = await getVaultPath(c, configStore, isRemoteRequest)
+      const vaultPath = await getVaultPath(c, noteVaultRoot, isRemoteRequest)
       const body = await c.req.json()
       return c.json({
         success: true,
@@ -65,7 +65,7 @@ export function registerNoteGitRoutes(app, { configStore, isRemoteRequest }) {
 
   app.post('/api/note-vault/git/commit', async c => {
     try {
-      const vaultPath = await getVaultPath(c, configStore, isRemoteRequest)
+      const vaultPath = await getVaultPath(c, noteVaultRoot, isRemoteRequest)
       const body = await c.req.json()
       return c.json({
         success: true,
@@ -78,7 +78,7 @@ export function registerNoteGitRoutes(app, { configStore, isRemoteRequest }) {
 
   app.get('/api/note-vault/git/history', async c => {
     try {
-      const vaultPath = await getVaultPath(c, configStore, isRemoteRequest)
+      const vaultPath = await getVaultPath(c, noteVaultRoot, isRemoteRequest)
       return c.json({
         commits: await listNoteGitHistory(vaultPath, c.req.query('limit')),
       })
@@ -89,7 +89,7 @@ export function registerNoteGitRoutes(app, { configStore, isRemoteRequest }) {
 
   app.get('/api/note-vault/git/diff', async c => {
     try {
-      const vaultPath = await getVaultPath(c, configStore, isRemoteRequest)
+      const vaultPath = await getVaultPath(c, noteVaultRoot, isRemoteRequest)
       return c.json(
         await getNoteGitDiff(vaultPath, c.req.query('path'), c.req.query('oid'))
       )
@@ -100,7 +100,7 @@ export function registerNoteGitRoutes(app, { configStore, isRemoteRequest }) {
 
   app.post('/api/note-vault/git/restore', async c => {
     try {
-      const vaultPath = await getVaultPath(c, configStore, isRemoteRequest)
+      const vaultPath = await getVaultPath(c, noteVaultRoot, isRemoteRequest)
       const body = await c.req.json()
       return c.json({
         success: true,

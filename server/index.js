@@ -334,7 +334,7 @@ function bindShutdownSignals({ engine, wssRef, serverInstanceRef, closeMcp }) {
 }
 
 // --- 主函数 ---
-export async function main() {
+export async function main(options = {}) {
   console.log('[MostBox] Starting core daemon...')
   cleanUploadTempDir()
 
@@ -361,6 +361,7 @@ export async function main() {
     host,
     configStore,
     nodeLogger,
+    noteVaultRoot: options.noteVaultRoot,
     wssRef,
     serverInstanceRef,
   })

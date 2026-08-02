@@ -345,30 +345,31 @@ npm run build
 
 ## 十、独立工具箱与知识库回归
 
-| 检查项               | 通过标准                                                                                    | 入口                                          |
-| -------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| 知识库定位文案       | README/界面文案明确知识库云备份只覆盖知识库数据，不是 MostBox 文件云盘                      | `README.md`、`src/features/note/NotePage.tsx` |
-| Markdown 明文存储    | 新建、读取和保存文章均直接使用普通 Markdown，不提供逐篇加密或公开/私密切换                  | `/note`、`NoteItem`                           |
-| Git 本地版本管理     | 桌面知识库可初始化仓库、查看 Markdown diff、手动提交、浏览历史并按文件恢复，不依赖系统 Git  | `/note`、`/api/note-vault/git/*`              |
-| 备份恢复             | 账号备份整体保持加密；云端缺失、冲突、失败、本地导入导出都有反馈                            | `useNoteBackupSync()`                         |
-| 资源管理             | 新建、重命名、移动、删除文件夹、搜索不丢数据                                                | `noteUtils`、`src/features/note/NotePage.tsx` |
-| 桌面 Markdown 笔记库 | Electron + 本地 daemon 下可选择目录、列出 `.md`、打开并保存当前文件；Web 端仍使用 IndexedDB | `/note`、`/api/note-vault/*`                  |
-| CID 边界             | `calculateNoteCid()` 只用于笔记 raw CID，不进入 `most://` 文件分享协议                      | `server/src/core/cid.js`、笔记测试            |
-| Markdown CID 引用    | 图片和文件引用只保存标准 Markdown `most://<cid>?filename=...`；不保存本地路径或复制附件     | `/note`、`/api/publish`、`/api/download`      |
-| Web3 独立            | 钱包、PEM、地址和签名工具不参与聊天、附件或知识库主流程                                     | `/web3/`                                      |
+| 检查项               | 通过标准                                                                                                                              | 入口                                          |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| 知识库定位文案       | README/界面文案明确知识库云备份只覆盖知识库数据，不是 MostBox 文件云盘                                                                | `README.md`、`src/features/note/NotePage.tsx` |
+| Markdown 明文存储    | 新建、读取和保存文章均直接使用普通 Markdown，不提供逐篇加密或公开/私密切换                                                            | `/note`、`NoteItem`                           |
+| Git 本地版本管理     | 桌面知识库可初始化仓库、查看 Markdown diff、手动提交、浏览历史并按文件恢复，不依赖系统 Git                                            | `/note`、`/api/note-vault/git/*`              |
+| 备份恢复             | 账号备份整体保持加密；云端缺失、冲突、失败、本地导入导出都有反馈                                                                      | `useNoteBackupSync()`                         |
+| 资源管理             | 新建、重命名、移动、删除文件夹、搜索不丢数据                                                                                          | `noteUtils`、`src/features/note/NotePage.tsx` |
+| 桌面 Markdown 笔记库 | Electron + 本地 daemon 自动使用 `Documents/MostBox/Notes/<登录地址>`；不同地址的 Markdown 和 Git 仓库相互隔离；Web 端仍使用 IndexedDB | `/note`、`/api/note-vault/*`                  |
+| CID 边界             | `calculateNoteCid()` 只用于笔记 raw CID，不进入 `most://` 文件分享协议                                                                | `server/src/core/cid.js`、笔记测试            |
+| Markdown CID 引用    | 图片和文件引用只保存标准 Markdown `most://<cid>?filename=...`；不保存本地路径或复制附件                                               | `/note`、`/api/publish`、`/api/download`      |
+| Web3 独立            | 钱包、PEM、地址和签名工具不参与聊天、附件或知识库主流程                                                                               | `/web3/`                                      |
 
 推荐检查：
 
 ```bash
-node --test server/tests/unit/noteUtils.test.js server/tests/unit/accountBackup.test.js server/tests/unit/noteVault.test.js server/tests/unit/noteVaultRoutes.test.js
+node --test server/tests/unit/noteUtils.test.js server/tests/unit/accountBackup.test.js server/tests/unit/noteVault.test.js server/tests/unit/noteVaultRoutes.test.js server/tests/unit/noteGitRoutes.test.js
 ```
 
 桌面 Markdown 笔记库最小闭环手动验收：
 
-1. 启动 Electron 包或 `npm run electron:dev`，登录 Web3 账号后打开 `/note`。
-2. 点击“打开笔记库”，选择一个本地目录；目录内递归 `.md` 文件应出现在左侧列表。
-3. 打开任一 `.md` 文件，进入编辑模式修改内容并保存；用外部编辑器打开同一文件，应能看到保存后的 Markdown。
-4. 在普通 Web 浏览器打开 `/note`，不应出现本地目录选择入口，原 IndexedDB 笔记行为保持不变。
+1. 启动 Electron 包或 `npm run electron:dev`，登录账号 A 后打开 `/note`；界面不应出现本地目录选择入口。
+2. 新建并编辑一篇 Markdown；文件应写入 `Documents/MostBox/Notes/<账号 A 地址>`，外部编辑器可以直接读取保存后的内容。
+3. 切换到账号 B；账号 A 的文件不应出现。在账号 B 下创建同名文件并初始化 Git，仓库应位于账号 B 的地址目录。
+4. 切回账号 A；原文件与 Git 历史保持不变，不包含账号 B 的内容或提交。
+5. 在普通 Web 浏览器打开 `/note`，原 IndexedDB 笔记行为保持不变。
 
 Git 本地版本管理验收：
 

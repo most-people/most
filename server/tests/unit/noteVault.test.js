@@ -4,7 +4,6 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import {
-  configureNoteVault,
   createMarkdownFile,
   createNoteVaultSnapshot,
   deleteMarkdownFile,
@@ -13,6 +12,7 @@ import {
   moveMarkdownFile,
   normalizeNoteVaultRelativePath,
   readMarkdownFile,
+  resolveUserNoteVaultPath,
   restoreNoteVaultSnapshot,
   writeMarkdownFile,
 } from '../../src/utils/noteVault.js'
@@ -55,19 +55,31 @@ describe('noteVault', () => {
     )
   })
 
-  it('configures a vault and reports status', async () => {
-    const configDir = makeTmpDir('note-vault-config')
-    const vaultDir = makeTmpDir('note-vault-files')
-    fs.writeFileSync(path.join(vaultDir, 'index.md'), '# Hello', 'utf8')
+  it('creates and reports an address-scoped vault', async () => {
+    const vaultRoot = path.join(makeTmpDir('note-vault-root'), 'notes')
+    const address = '0xABCDEFabcdefABCDEFabcdefABCDEFabcdefABCD'
+    const vaultPath = await resolveUserNoteVaultPath(vaultRoot, address)
+    fs.writeFileSync(path.join(vaultPath, 'index.md'), '# Hello', 'utf8')
 
-    const status = await configureNoteVault(configDir, vaultDir)
-    const savedStatus = await getNoteVaultStatus(configDir)
+    const status = await getNoteVaultStatus(vaultRoot, address)
 
     assert.strictEqual(status.configured, true)
-    assert.strictEqual(savedStatus.configured, true)
-    assert.strictEqual(savedStatus.fileCount, 1)
-    assert.strictEqual(savedStatus.vaultPath, fs.realpathSync(vaultDir))
-    assert.strictEqual(savedStatus.writable, true)
+    assert.strictEqual(status.fileCount, 1)
+    assert.strictEqual(
+      status.vaultPath,
+      path.join(fs.realpathSync(vaultRoot), address.toLowerCase())
+    )
+    assert.strictEqual(status.writable, true)
+  })
+
+  it('rejects invalid user addresses and keeps vaults inside the root', async () => {
+    const vaultRoot = makeTmpDir('note-vault-address')
+
+    await assert.rejects(
+      resolveUserNoteVaultPath(vaultRoot, '../shared'),
+      /valid user address/i
+    )
+    assert.deepStrictEqual(fs.readdirSync(vaultRoot), [])
   })
 
   it('recursively lists Markdown files and skips excluded directories', async () => {

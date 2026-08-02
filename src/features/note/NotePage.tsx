@@ -13,7 +13,6 @@ import {
   ChevronDown,
   ChevronRight,
   PencilRuler,
-  FolderOpen,
   GitBranch,
   MoreHorizontal,
   Move,
@@ -51,7 +50,6 @@ import {
 } from '~server/src/utils/api.js'
 import {
   getNoteGitStatus,
-  configureNoteVault,
   createNoteVaultFile,
   deleteNoteVaultFile,
   getNoteVaultStatus,
@@ -768,13 +766,6 @@ function useConfiguredNoteVaultBackend(enabled: boolean, walletAddress = '') {
   return configured
 }
 
-function canSelectNoteVaultDirectory() {
-  return (
-    typeof window !== 'undefined' &&
-    typeof window.electronAPI?.selectNoteVaultDirectory === 'function'
-  )
-}
-
 function NotePageContent() {
   const { t, formatDate, compareStrings } = useI18n()
   const navigate = useNavigate()
@@ -1424,7 +1415,7 @@ function NotePageContent() {
 
 function VaultNotePageContent() {
   const { t, formatDate, compareStrings } = useI18n()
-  const navigate = useNavigate()
+  const navigate = useNavigate({ from: '/note/' })
   const searchStr = useLocation({ select: location => location.searchStr })
   const params = useMemo(() => getNoteSearch(searchStr), [searchStr])
   const editorRef = useRef<MostMarkdownEditorRef>(null)
@@ -1444,9 +1435,7 @@ function VaultNotePageContent() {
   const [vaultLoading, setVaultLoading] = useState(true)
   const [vaultError, setVaultError] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
-  const [openingVault, setOpeningVault] = useState(false)
   const [showGitModal, setShowGitModal] = useState(false)
-  const [canOpenVaultDirectory, setCanOpenVaultDirectory] = useState(false)
   const [selectedFile, setSelectedFile] = useState<NoteVaultFileContent | null>(
     null
   )
@@ -1515,10 +1504,6 @@ function VaultNotePageContent() {
   )
 
   useEffect(() => {
-    setCanOpenVaultDirectory(canSelectNoteVaultDirectory())
-  }, [])
-
-  useEffect(() => {
     if (!selectedNote?.path) return
     setExpandedTreePaths(paths =>
       mergeExpandedPaths(paths, getDirectoryPathAncestors(selectedNote.path))
@@ -1552,7 +1537,7 @@ function VaultNotePageContent() {
       const marker = `${draftId}:vault`
       if (blockedChatDraftRef.current !== marker) {
         blockedChatDraftRef.current = marker
-        addToast(t('note.chatDraft.openVaultFirst'), 'warning')
+        addToast(t('note.chatDraft.vaultUnavailable'), 'warning')
       }
       return
     }
@@ -1611,6 +1596,25 @@ function VaultNotePageContent() {
   useEffect(() => {
     void refreshVault()
   }, [refreshVault])
+
+  useEffect(() => {
+    if (
+      vaultLoading ||
+      !currentFilePath ||
+      vaultStatus?.configured !== true ||
+      vaultFiles.some(file => file.path === currentFilePath)
+    ) {
+      return
+    }
+
+    navigate({ to: '/note/', search: {} as never, replace: true })
+  }, [
+    currentFilePath,
+    navigate,
+    vaultFiles,
+    vaultLoading,
+    vaultStatus?.configured,
+  ])
 
   useEffect(() => {
     setPreviewName(
@@ -1704,49 +1708,13 @@ function VaultNotePageContent() {
     navigateToVault(currentFilePath ? { file: currentFilePath } : {})
   }
 
-  async function handleOpenVault() {
-    if (!wallet) {
-      openLoginModal()
-      return
-    }
-
-    if (!canOpenVaultDirectory) {
-      addToast(t('note.vault.selectFailed'), 'error')
-      return
-    }
-
-    const picker = window.electronAPI?.selectNoteVaultDirectory
-    if (!picker) {
-      addToast(t('note.vault.selectFailed'), 'error')
-      return
-    }
-
-    setOpeningVault(true)
-    try {
-      const directory = await picker()
-      if (!directory) return
-
-      await configureNoteVault(directory)
-      await refreshVault()
-      navigateToVault({}, true)
-      addToast(t('note.vault.opened'), 'success')
-    } catch (err: unknown) {
-      addToast(
-        await getApiErrorMessage(err, t('note.vault.selectFailed')),
-        'error'
-      )
-    } finally {
-      setOpeningVault(false)
-    }
-  }
-
   function ensureVaultReady() {
     if (!wallet) {
       openLoginModal()
       return false
     }
     if (vaultStatus?.configured !== true) {
-      addToast(t('note.vault.emptyPrompt'), 'warning')
+      addToast(t('note.vault.loadFailed'), 'error')
       return false
     }
     return true
@@ -1999,18 +1967,6 @@ function VaultNotePageContent() {
           )}
         </button>
       )}
-      {canOpenVaultDirectory && (
-        <button
-          className="btn btn-sm"
-          onClick={handleOpenVault}
-          disabled={openingVault}
-          title={t('note.vault.open')}
-          aria-label={t('note.vault.open')}
-        >
-          <FolderOpen size={16} />
-          {openingVault ? t('note.vault.opening') : t('note.vault.open')}
-        </button>
-      )}
     </div>
   )
 
@@ -2041,17 +1997,8 @@ function VaultNotePageContent() {
         </div>
       ) : vaultStatus?.configured !== true ? (
         <div className="ui-empty-state note-empty-state">
-          <FolderOpen size={32} />
-          {canOpenVaultDirectory && (
-            <button
-              className="btn btn-primary"
-              onClick={handleOpenVault}
-              disabled={openingVault}
-            >
-              <FolderOpen size={16} />
-              {openingVault ? t('note.vault.opening') : t('note.vault.open')}
-            </button>
-          )}
+          <NotebookPen size={32} />
+          <p>{t('note.vault.loadFailed')}</p>
         </div>
       ) : visibleNoteTree.length === 0 ? (
         <div className="ui-empty-state note-empty-state">
@@ -2282,30 +2229,19 @@ function VaultNotePageContent() {
                 <h3 className="ui-empty-title">
                   {vaultStatus?.configured
                     ? t('note.noOpen.title')
-                    : t('note.vault.open')}
+                    : t('note.title')}
                 </h3>
                 <p className="ui-empty-desc">
                   {vaultStatus?.configured
                     ? t('note.noOpen.select')
-                    : t('note.vault.emptyPrompt')}
+                    : t('note.vault.loadFailed')}
                 </p>
-                {vaultStatus?.configured ? (
+                {vaultStatus?.configured && (
                   <OpenSidebarButton
                     label={t('note.openList')}
                     variant="default"
                   />
-                ) : canOpenVaultDirectory ? (
-                  <button
-                    className="btn btn-primary"
-                    onClick={handleOpenVault}
-                    disabled={openingVault}
-                  >
-                    <FolderOpen size={16} />
-                    {openingVault
-                      ? t('note.vault.opening')
-                      : t('note.vault.open')}
-                  </button>
-                ) : null}
+                )}
               </div>
             )}
           </section>
