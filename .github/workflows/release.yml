@@ -476,40 +476,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: auto
 
-      - name: Configure R2 CORS
-        continue-on-error: true
-        run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          endpoint="https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
-          cat > r2-cors.json <<'JSON'
-          {
-            "CORSRules": [
-              {
-                "AllowedOrigins": [
-                  "https://most.box",
-                  "https://most-people.com"
-                ],
-                "AllowedMethods": ["GET", "HEAD"],
-                "AllowedHeaders": ["*"],
-                "ExposeHeaders": [
-                  "Cache-Control",
-                  "Content-Length",
-                  "Content-Type",
-                  "ETag",
-                  "Last-Modified"
-                ],
-                "MaxAgeSeconds": 3600
-              }
-            ]
-          }
-          JSON
-          aws --endpoint-url "$endpoint" s3api put-bucket-cors \
-            --bucket "$R2_RELEASE_BUCKET" \
-            --cors-configuration file://r2-cors.json
-          aws --endpoint-url "$endpoint" s3api get-bucket-cors \
-            --bucket "$R2_RELEASE_BUCKET"
-        env:
-          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: auto
+      - name: Verify public R2 CORS
+        run: >-
+          node scripts/verify-release-cors.mjs
+          --url "$R2_PUBLIC_BASE_URL/releases/latest.json"

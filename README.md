@@ -413,6 +413,10 @@ Release workflow 不设置 Infrequent Access，R2 对象保持默认 Standard �
 `head-object` 校验存储层与缓存头。版本化安装包使用
 `public, max-age=31536000, immutable`；`releases/latest.json` 使用
 `public, max-age=60, stale-while-revalidate=300`。
+桶级 CORS 是持久基础设施配置，只在规则变更时使用具备 `PutBucketCors` 权限的管理密钥运行
+`npm run r2:cors`。Release workflow 不需要桶级管理权限，而是在上传完成后严格验证公开域名对
+`https://most.box` 和 `https://most-people.com` 的 GET 与 OPTIONS 响应；也可以随时运行
+`npm run r2:verify-cors` 复查当前配置。
 新发版只在 manifest 和 R2 中发布当前系统可手动打开的 installer（Windows `.exe`、
 macOS `.dmg`、Linux `.AppImage`、Android `.apk`），不再发布 updater / blockmap 资产。
 需要临时复查线上对象时，可手动运行 GitHub Actions 的 `Verify R2 Release` workflow；

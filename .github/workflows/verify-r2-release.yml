@@ -29,6 +29,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
       - name: Validate R2 credentials
         run: |
           missing=0
@@ -53,6 +61,11 @@ jobs:
 
       - name: Download public release manifest
         run: curl --fail --location --silent --show-error "$MANIFEST_URL" --output release-manifest.json
+        env:
+          MANIFEST_URL: ${{ inputs.manifest_url }}
+
+      - name: Verify public release CORS
+        run: node scripts/verify-release-cors.mjs --url "$MANIFEST_URL"
         env:
           MANIFEST_URL: ${{ inputs.manifest_url }}
 

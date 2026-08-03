@@ -41,6 +41,7 @@
     "dev": "vite",
     "lint": "eslint .",
     "r2:cors": "node scripts/configure-r2-cors.mjs",
+    "r2:verify-cors": "node scripts/verify-release-cors.mjs",
     "electron:dev": "concurrently \"npm run build\" \"wait-on out/index.html && electron .\"",
     "electron:rebuild": "electron-rebuild -f -w sodium-native",
     "electron:build": "npm run build && npm run electron:rebuild && electron-builder",
