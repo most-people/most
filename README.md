@@ -1,20 +1,35 @@
-# MostBox：普通人能运行的 P2P 节点
+# MostBox：下载完成即接力做种的 P2P 文件分享
 
+[![CI](https://github.com/most-people/most/actions/workflows/ci.yml/badge.svg)](https://github.com/most-people/most/actions/workflows/ci.yml)
+[![GitHub release](https://img.shields.io/github/v/release/most-people/most)](https://github.com/most-people/most/releases/latest)
 [![npm version](https://img.shields.io/npm/v/most-box)](https://npmjs.com/package/most-box)
 [![Node.js version](https://img.shields.io/badge/node-%3E%3D22.12-brightgreen)](https://nodejs.org)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-[隐私政策](PRIVACY.md) · [安全政策](SECURITY.md) · [代码签名政策](CODE_SIGNING_POLICY.md) · [MCP 接入](docs/mcp.md)
+[下载客户端](https://most.box/download) · [在线入口](https://most.box) · [验收指南](docs/acceptance.md) · [参与贡献](CONTRIBUTING.md) · [问题讨论](https://github.com/most-people/most/discussions)
 
-> MostBox 是一个用户自己运行的 P2P 节点，通过简单的本地界面提供文件分享、通信和个人工具；它不要求用户加入某个平台，而是让设备直接参与网络。
->
-> 真正有价值的不是“又一个聊天软件”或“又一个网盘”，而是把 P2P 能力压缩成普通人能完成的流程：安装 -> 打开 -> 分享 `most://` 链接。
->
-> 文件分享使用 `most://` 链接、CID 校验和下载后做种；聊天、知识库和 Web3 保持独立工具属性，不互相充当前置条件。
->
-> CID 是 MostBox 的文件身份：发布、做种、发现、下载和校验都围绕 CID 进行。文件名和目录只用于展示与本地保存路径，不作为内容是否存在或是否可信的依据。
+MostBox 不要求先把文件上传到中心化网盘。发布者发送一个 `most://` 链接，接收者从在线节点下载完整文件并重算 CID；校验通过后，接收者默认继续做种。
 
-## 为什么用 MostBox？
+因此，原发布者退出后，只要仍有至少一个下载者在线，新的接收者就可以继续下载同一份内容。
+
+```text
+发布文件 -> most:// 链接 -> 下载并校验 CID -> 下载者继续做种 -> 接力传播
+```
+
+> CID 是 MostBox 唯一的内容身份。文件名和目录只用于展示与本地保存，不替代 CID 判断内容是否存在或可信。
+>
+> MostBox 不承诺永久保存或离线可用；可用性来自当前在线种子。知道 `most://` 链接的人即可尝试下载对应内容。
+
+## 验证核心闭环
+
+1. 在两台设备上安装 [MostBox 客户端](https://most.box/download)，或运行 `npx most-box@latest`
+2. 设备 A 发布一个文件并复制生成的 `most://` 链接
+3. 设备 B 粘贴链接下载，确认 CID 校验通过并进入做种列表
+4. 关闭设备 A；保持 B 在线，再用设备 C 下载同一链接
+
+完整的本地回归步骤和通过标准见 [验收指南](docs/acceptance.md)。
+
+## 核心能力与工具边界
 
 | 入口   | 用户理解                                              | 协议边界                                        |
 | ------ | ----------------------------------------------------- | ----------------------------------------------- |
@@ -23,13 +38,13 @@
 | 知识库 | 记录想法、整理 Markdown、保留 Git 历史并引用 P2P 文件 | Markdown + 本地 Git + `most://` CID 引用        |
 | Web3   | 密钥、钱包和地址工具                                  | 独立工具箱，不是聊天、文件或知识库的前置条件    |
 
-## 演示
+## 在线入口
 
-在线 Web 入口：[MostBox](https://Most.Box)
+在线 Web 入口：[MostBox](https://most.box)
 
 > Web 入口只负责连接已有 MostBox 节点；要在本机发布、下载、校验和持续做种，优先使用桌面客户端，或在本机运行 `npx most-box@latest` 启动完整节点。
 
-## 🚀 立即使用
+## 立即使用
 
 ### 方式一：桌面客户端（推荐）与 Android App
 
@@ -439,8 +454,12 @@ macOS `.dmg`、Linux `.AppImage`、Android `.apk`），不再发布 updater / bl
 
 ## 社区
 
-- **GitHub Discussions**：[提出需求 & 技术讨论](../../discussions)
-- **问题反馈**：[Github issues](../../issues)
+- **使用帮助与讨论**：[GitHub Discussions](https://github.com/most-people/most/discussions)
+- **确认过的 Bug**：[GitHub Issues](https://github.com/most-people/most/issues)
+- **参与开发**：[贡献指南](CONTRIBUTING.md)
+- **支持范围**：[支持说明](SUPPORT.md)
+- **安全问题**：[私密报告漏洞](https://github.com/most-people/most/security/advisories/new)
+- **社区规范**：[贡献者公约](docs/CODE_OF_CONDUCT.md)
 
 ## 许可证
 

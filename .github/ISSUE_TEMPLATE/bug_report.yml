@@ -2,6 +2,8 @@ name: Bug 报告
 
 description: 报告 Bug 帮助我们改进
 
+title: '[Bug] '
+
 body:
   - type: markdown
     attributes:
@@ -43,14 +45,12 @@ body:
       description: 实际发生了什么。
       placeholder: 描述实际发生的行为...
 
-  - type: dropdown
+  - type: input
     id: version
     attributes:
       label: 版本
-      description: 你使用的是哪个版本的 MostBox？
-      options:
-        - latest (npm)
-        - master (开发版)
+      description: 请填写 MostBox 版本号；源码运行请填写 commit SHA。
+      placeholder: 例如 0.4.7 或 d0686a8
     validations:
       required: true
 
@@ -62,11 +62,28 @@ body:
         - Windows
         - macOS
         - Linux
+        - Android
         - 其他
+
+  - type: dropdown
+    id: network
+    attributes:
+      label: 网络环境
+      options:
+        - 同一局域网
+        - 不同公网网络
+        - VPN / 代理环境
+        - 无法确定
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: 诊断信息
+      description: 请提供相关 CID、节点状态、topic join 状态或错误码；不要提交私人文件或凭证。
 
   - type: textarea
     id: logs
     attributes:
       label: 相关日志
-      description: 请包含任何相关的错误消息或日志。
+      description: 请包含相关错误消息或日志，并删除私钥、助记词、token、邀请码和本地敏感路径。
       placeholder: 在此粘贴你的日志...

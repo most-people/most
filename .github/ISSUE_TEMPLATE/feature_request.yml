@@ -2,11 +2,13 @@ name: 功能请求
 
 description: 为本项目提出想法
 
+title: '[功能] '
+
 body:
   - type: markdown
     attributes:
       value: |
-        感谢你提出功能建议！请描述你希望看到的内容。
+        感谢你提出功能建议！请先确认该建议符合 README 中的产品边界；较大的方案也可以先在 Discussions 中讨论。
 
   - type: textarea
     id: description

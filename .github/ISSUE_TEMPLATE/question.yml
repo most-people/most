@@ -1,0 +1,34 @@
+name: 问题咨询
+
+description: 咨询无法在文档或 Discussions 中解决的问题
+
+title: '[问题] '
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        一般使用问题优先前往 GitHub Discussions；需要维护者跟踪处理的问题可继续填写此表单。
+
+  - type: textarea
+    id: question
+    attributes:
+      label: 你的问题
+      description: 请说明你正在尝试完成什么，以及具体卡在哪一步。
+      placeholder: 详细描述你的问题...
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: 已尝试的方法
+      description: 请列出已经查阅的文档、执行的命令或排查结果。
+
+  - type: input
+    id: version
+    attributes:
+      label: MostBox 版本
+      placeholder: 例如 0.4.7 或 commit SHA
+    validations:
+      required: true
