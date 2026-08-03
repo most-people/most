@@ -35,7 +35,7 @@
       ]
     },
     "ios": {
-      "bundleIdentifier": "box.most.ios",
+      "bundleIdentifier": "most.box",
       "buildNumber": "1",
       "supportsTablet": false,
       "infoPlist": {
