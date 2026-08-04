@@ -29,6 +29,8 @@ const SOURCE_PATHS = {
   openApiReference: 'src/features/docs/OpenApiReference.tsx',
   openApiRequest: 'src/features/docs/openapiRequest.js',
   about: 'src/features/about/AboutPage.tsx',
+  future: 'src/features/future/FuturePage.tsx',
+  footer: 'src/components/Footer.tsx',
   cid: 'src/features/cid/CidPage.tsx',
   globalDownloads: 'src/features/cid/GlobalDownloadTasks.tsx',
   downloadTasks: 'src/lib/downloadTasks.ts',
@@ -436,6 +438,7 @@ describe('frontend smoke checks', () => {
     assert.deepEqual(routes, [
       '/',
       '/about/',
+      '/future/',
       '/admin/',
       '/app/',
       '/file/',
@@ -466,10 +469,7 @@ describe('frontend smoke checks', () => {
       readSource(SOURCE_PATHS.prepareStartStatic),
       /copyFile\(clientShellPath, clientIndexPath\)/
     )
-    assert.equal(
-      readSource('public/_redirects').trim(),
-      '/cid/* /_shell.html 200'
-    )
+    assert.equal(readSource('public/_redirects').trim(), '/cid/* /_shell 200')
     assert.match(
       readSource(SOURCE_PATHS.legacyAppRoute),
       /redirect\(\{ to: '\/file\/' \}\)/
@@ -1692,17 +1692,34 @@ describe('frontend smoke checks', () => {
     assert.match(docsMessages, /export const enDocsMessages/)
   })
 
-  it('ships the Agent-era About page', () => {
+  it('keeps About focused on the current P2P file-sharing loop', () => {
     const aboutSource = readSource(SOURCE_PATHS.about)
     const aboutMessages = readSource('src/lib/i18n/messages/about.ts')
 
-    assert.match(aboutSource, /about-artemis\.webp/)
-    assert.match(aboutSource, /about\.architecture\.future\.title/)
-    assert.match(aboutSource, /about\.vision\.final/)
-    assert.match(
-      aboutMessages,
-      /MostBox is a decentralized personal knowledge operating system built for the agent era\./
-    )
+    assert.match(aboutSource, /about\.flow\.publish\.title/)
+    assert.match(aboutSource, /about\.flow\.verify\.title/)
+    assert.match(aboutSource, /about\.flow\.relay\.title/)
+    assert.match(aboutSource, /about\.boundaries\.cloud\.title/)
+    assert.match(aboutSource, /to="\/future\/"/)
+    assert.doesNotMatch(aboutSource, /about-artemis\.webp/)
+    assert.doesNotMatch(aboutSource, /about\.architecture/)
+    assert.doesNotMatch(aboutMessages, /Personal Knowledge OS/)
+    assert.doesNotMatch(aboutMessages, /Knowledge Graph/)
+    assert.doesNotMatch(aboutMessages, /Scoped MCP Interface/)
+  })
+
+  it('separates shipped foundations from the Future vision', () => {
+    const futureSource = readSource(SOURCE_PATHS.future)
+    const futureMessages = readSource('src/lib/i18n/messages/future.ts')
+    const footerSource = readSource(SOURCE_PATHS.footer)
+
+    assert.match(futureSource, /about-artemis\.webp/)
+    assert.match(futureSource, /future\.foundation\.kicker/)
+    assert.match(futureSource, /future\.direction\.kicker/)
+    assert.match(futureSource, /future\.hero\.disclaimer/)
+    assert.match(futureMessages, /这是探索方向，不代表功能已经上线。/)
+    assert.match(futureMessages, /These directions have no public timeline\./)
+    assert.match(footerSource, /to: '\/future\/'/)
   })
 
   it('keeps the file selection toolbar grouped and compact', () => {
