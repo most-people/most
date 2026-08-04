@@ -18,10 +18,16 @@ async function exists(filePath) {
   }
 }
 
-if (!(await exists(path.join(clientDir, 'index.html')))) {
-  throw new Error(
-    'TanStack Start client build is missing out/client/index.html'
-  )
+const clientIndexPath = path.join(clientDir, 'index.html')
+const clientShellPath = path.join(clientDir, '_shell.html')
+
+if (!(await exists(clientIndexPath))) {
+  if (!(await exists(clientShellPath))) {
+    throw new Error(
+      'TanStack Start client build is missing out/client/index.html and out/client/_shell.html'
+    )
+  }
+  await fs.copyFile(clientShellPath, clientIndexPath)
 }
 
 const outEntries = await fs.readdir(outDir, { withFileTypes: true })

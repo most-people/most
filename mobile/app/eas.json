@@ -21,6 +21,12 @@
         "simulator": false
       }
     },
+    "ios-simulator": {
+      "extends": "ios-development",
+      "ios": {
+        "simulator": true
+      }
+    },
     "ios-preview": {
       "distribution": "internal",
       "environment": "preview"

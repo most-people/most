@@ -1,10 +1,11 @@
 import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { requiredStaticEntries } from './static-routes.mjs'
+import { requiredStaticEntries, staticShellFile } from './static-routes.mjs'
 
 const requiredDirectories = ['assets']
 const allowedTopLevelEntries = new Set(requiredDirectories)
+allowedTopLevelEntries.add(staticShellFile)
 
 for (const { file } of requiredStaticEntries) {
   allowedTopLevelEntries.add(file.split('/')[0])
@@ -18,6 +19,10 @@ if (existsSync('public')) {
 
 const missing = []
 const unexpected = []
+
+if (!existsSync(join('out', staticShellFile))) {
+  missing.push(`out/${staticShellFile}`)
+}
 
 for (const { route, file } of requiredStaticEntries) {
   if (!existsSync(join('out', file))) {

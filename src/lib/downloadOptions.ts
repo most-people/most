@@ -38,10 +38,37 @@ export type DownloadOptionsState = {
   } | null
 }
 
+export type DownloadPlatformDetectionInput = {
+  userAgentDataPlatform?: string
+  navigatorPlatform?: string
+  userAgent?: string
+  maxTouchPoints?: number
+}
+
 export const GITHUB_LATEST_URL =
   'https://github.com/most-people/most/releases/latest'
 
 export const DEFAULT_R2_PUBLIC_BASE_URL = 'https://download.most.box'
+
+export function detectDownloadPlatformKey({
+  userAgentDataPlatform = '',
+  navigatorPlatform = '',
+  userAgent = '',
+  maxTouchPoints = 0,
+}: DownloadPlatformDetectionInput) {
+  const platform = [userAgentDataPlatform, navigatorPlatform, userAgent]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+  const arch = /arm|aarch64/.test(platform) ? 'arm64' : 'x64'
+  const isIpadOs = /mac/.test(platform) && maxTouchPoints > 1
+
+  if (/iphone|ipad|ipod/.test(platform) || isIpadOs) return 'ios:universal'
+  if (/android/.test(platform)) return 'android:universal'
+  if (/mac|darwin/.test(platform)) return `macos:${arch}`
+  if (/linux/.test(platform)) return `linux:${arch}`
+  return `windows:${arch}`
+}
 
 export const FALLBACK_DOWNLOAD_ASSETS: DownloadAsset[] = [
   {

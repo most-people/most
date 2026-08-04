@@ -35,6 +35,14 @@ export function getMimeType(fileName) {
   return MIME_TYPES[ext] || 'application/octet-stream'
 }
 
+export function getStaticFallbackPath(publicDir) {
+  const shellPath = path.join(publicDir, '_shell.html')
+  if (fs.existsSync(shellPath)) return shellPath
+
+  const indexPath = path.join(publicDir, 'index.html')
+  return fs.existsSync(indexPath) ? indexPath : ''
+}
+
 export function registerStaticRoutes(app) {
   const publicDir = path.join(__dirname, '..', '..', '..', 'out')
 
@@ -73,10 +81,10 @@ export function registerStaticRoutes(app) {
       }
     }
 
-    const indexPath = path.join(publicDir, 'index.html')
-    if (fs.existsSync(indexPath)) {
+    const fallbackPath = getStaticFallbackPath(publicDir)
+    if (fallbackPath) {
       c.header('Content-Type', 'text/html; charset=utf-8')
-      return c.body(fs.readFileSync(indexPath, 'utf-8'))
+      return c.body(fs.readFileSync(fallbackPath, 'utf-8'))
     }
 
     return c.json({ error: 'Not found' }, 404)

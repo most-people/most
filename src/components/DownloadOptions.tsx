@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from '@tanstack/react-router'
 import {
   Apple,
   CheckCircle2,
@@ -6,6 +7,7 @@ import {
   Code,
   Download,
   Laptop,
+  Loader2,
   Monitor,
   Smartphone,
   TabletSmartphone,
@@ -15,6 +17,7 @@ import {
   isReleaseManifest,
 } from '~server/src/core/releaseManifest.js'
 import {
+  detectDownloadPlatformKey,
   getDownloadOptionsState,
   getReleaseManifestUrl,
   resolveDownloadAsset,
@@ -27,9 +30,15 @@ import { useI18n } from '~/lib/i18n'
 
 type DownloadStatus = 'loading' | 'ready' | 'fallback'
 
+const viteEnv = (
+  import.meta as ImportMeta & {
+    readonly env?: Record<string, string | undefined>
+  }
+).env
+
 const RELEASE_MANIFEST_URL = getReleaseManifestUrl({
-  VITE_RELEASE_MANIFEST_URL: import.meta.env.VITE_RELEASE_MANIFEST_URL,
-  VITE_R2_PUBLIC_BASE_URL: import.meta.env.VITE_R2_PUBLIC_BASE_URL,
+  VITE_RELEASE_MANIFEST_URL: viteEnv?.VITE_RELEASE_MANIFEST_URL,
+  VITE_R2_PUBLIC_BASE_URL: viteEnv?.VITE_R2_PUBLIC_BASE_URL,
 })
 
 const PLATFORM_META = {
@@ -68,37 +77,22 @@ const MOBILE_PLATFORMS = [
   },
 ] as const
 
-const ANDROID_DOWNLOAD_KEY = 'android:universal'
+function detectCurrentKey() {
+  if (typeof navigator === 'undefined') return 'windows:x64'
 
-function getNavigatorPlatform() {
   const navigatorWithData = navigator as Navigator & {
     userAgentData?: { platform?: string }
   }
 
-  return [
-    navigatorWithData.userAgentData?.platform,
-    navigator.platform,
-    navigator.userAgent,
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase()
+  return detectDownloadPlatformKey({
+    userAgentDataPlatform: navigatorWithData.userAgentData?.platform,
+    navigatorPlatform: navigator.platform,
+    userAgent: navigator.userAgent,
+    maxTouchPoints: navigator.maxTouchPoints,
+  })
 }
 
-function detectCurrentKey() {
-  if (typeof navigator === 'undefined') return 'windows:x64'
-
-  const platform = getNavigatorPlatform()
-  const arch = /arm|aarch64/.test(platform) ? 'arm64' : 'x64'
-
-  if (/android/.test(platform)) return ANDROID_DOWNLOAD_KEY
-  if (/mac|darwin/.test(platform)) return `macos:${arch}`
-  if (/linux/.test(platform)) return `linux:${arch}`
-  return `windows:${arch}`
-}
-
-export default function DownloadOptions() {
-  const { t } = useI18n()
+function useDownloadOptionsController() {
   const [manifest, setManifest] = useState<DownloadManifest | null>(null)
   const [status, setStatus] = useState<DownloadStatus>(
     RELEASE_MANIFEST_URL ? 'loading' : 'fallback'
@@ -155,6 +149,96 @@ export default function DownloadOptions() {
       currentKey,
       requestedSource: downloadSource,
     })
+
+  return {
+    activeSource,
+    currentAsset,
+    currentKey,
+    hasR2Assets,
+    manifest,
+    otherAssets,
+    setDownloadSource,
+    status,
+  }
+}
+
+export function ReceiverDownloadOption() {
+  const { t } = useI18n()
+  const { activeSource, currentAsset, status } = useDownloadOptionsController()
+
+  if (status === 'loading') {
+    return (
+      <div className="cid-client-download is-loading" role="status">
+        <Loader2 className="cid-spin-icon" size={18} />
+        <span>{t('cid.client.install.loading')}</span>
+      </div>
+    )
+  }
+
+  if (!currentAsset) {
+    return (
+      <div className="cid-client-download is-unsupported">
+        <div className="cid-client-download-copy">
+          <Smartphone size={20} />
+          <div>
+            <strong>{t('cid.client.install.unsupportedTitle')}</strong>
+            <span>{t('cid.client.install.unsupportedDesc')}</span>
+          </div>
+        </div>
+        <Link to="/download/" className="btn btn-secondary">
+          {t('cid.client.install.otherPlatforms')}
+        </Link>
+      </div>
+    )
+  }
+
+  const meta = PLATFORM_META[currentAsset.platform]
+  const Icon = meta.icon
+  const resolvedAsset = resolveDownloadAsset(currentAsset, activeSource)
+  const details = [
+    `${meta.name} ${currentAsset.arch}`,
+    currentAsset.size ? formatMegabytes(currentAsset.size) : null,
+    resolvedAsset.source === 'r2'
+      ? t('download.source.r2Mirror')
+      : 'GitHub Releases',
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
+  return (
+    <div className="cid-client-download">
+      <div className="cid-client-download-copy">
+        <Icon size={22} />
+        <div>
+          <strong>{t('cid.client.install.detected')}</strong>
+          <span>{details}</span>
+        </div>
+      </div>
+      <div className="cid-client-download-actions">
+        <a href={resolvedAsset.url} className="btn btn-secondary">
+          <Download size={16} />
+          {t('cid.client.install.action', { platform: meta.name })}
+        </a>
+        <Link to="/download/" className="cid-client-other-platforms">
+          {t('cid.client.install.otherPlatforms')}
+        </Link>
+      </div>
+    </div>
+  )
+}
+
+export default function DownloadOptions() {
+  const { t } = useI18n()
+  const {
+    activeSource,
+    currentAsset,
+    currentKey,
+    hasR2Assets,
+    manifest,
+    otherAssets,
+    setDownloadSource,
+    status,
+  } = useDownloadOptionsController()
 
   const getAssetSourceLabel = (asset: DownloadAsset) =>
     resolveDownloadAsset(asset, activeSource).source === 'r2'

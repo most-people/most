@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   Copy,
   Download,
-  ExternalLink,
   FileText,
   FolderInput,
   FolderOpen,
@@ -16,6 +15,7 @@ import {
   LogIn,
   QrCode,
   RefreshCw,
+  Server,
   WifiOff,
   XCircle,
 } from 'lucide-react'
@@ -29,6 +29,7 @@ import {
 import { formatBytes } from '~/lib/format'
 import { getLocalizedDownloadLinkValidationMessage } from '~/lib/i18n/downloadValidation'
 import { MarketingHeader } from '~/components/MarketingHeader'
+import { ReceiverDownloadOption } from '~/components/DownloadOptions'
 import { useClipboard, useCountdownSeconds, useIsDesktopClient } from '~/hooks'
 import { useI18n } from '~/lib/i18n'
 import { buildCidShareLink } from '~/lib/shareLink'
@@ -73,7 +74,6 @@ type DownloadState = {
 
 type CidProcessStepKey = 'open' | 'check' | 'verify' | 'seed'
 
-const HANDOFF_FALLBACK_DELAY_MS = 1800
 const EMPTY_COLLECTION_FILES: NonNullable<DownloadCheckResponse['files']> = []
 
 function isDownloadCheckFullyLocal(result: DownloadCheckResponse) {
@@ -249,9 +249,7 @@ export default function CidPage() {
     string[]
   >([])
   const [downloadPath, setDownloadPath] = useState('')
-  const [showHandoffFallback, setShowHandoffFallback] = useState(false)
   const checkSeqRef = useRef(0)
-  const handoffTimerRef = useRef<number | null>(null)
   const qrCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const processedOutcomeRef = useRef('')
 
@@ -289,6 +287,7 @@ export default function CidPage() {
   const isDownloading =
     Boolean(activeDownloadTask) || downloadState.status === 'starting'
   const isPartialDownload = downloadState.status === 'partial'
+  const requiresClient = !isDesktopClient && hasBackend !== true
 
   const displayDownloadPath = formatDownloadPath(
     downloadPath,
@@ -426,31 +425,8 @@ export default function CidPage() {
   )
 
   useEffect(() => {
-    document.title = t('cid.meta.title')
-  }, [t])
-
-  useEffect(() => {
-    const clearHandoffTimer = () => {
-      if (handoffTimerRef.current === null) return
-      window.clearTimeout(handoffTimerRef.current)
-      handoffTimerRef.current = null
-    }
-
-    const handlePageHidden = () => {
-      if (document.visibilityState !== 'hidden') return
-      clearHandoffTimer()
-      setShowHandoffFallback(false)
-    }
-
-    document.addEventListener('visibilitychange', handlePageHidden)
-    window.addEventListener('pagehide', handlePageHidden)
-
-    return () => {
-      clearHandoffTimer()
-      document.removeEventListener('visibilitychange', handlePageHidden)
-      window.removeEventListener('pagehide', handlePageHidden)
-    }
-  }, [])
+    document.title = t('cid.meta.fileTitle', { fileName })
+  }, [fileName, t])
 
   useEffect(() => {
     if (!downloadTasksHydrated || activeDownloadTask) return
@@ -739,21 +715,6 @@ export default function CidPage() {
     }
   }
 
-  const handleOpenMostBox = () => {
-    setShowHandoffFallback(false)
-
-    if (handoffTimerRef.current !== null) {
-      window.clearTimeout(handoffTimerRef.current)
-    }
-
-    handoffTimerRef.current = window.setTimeout(() => {
-      handoffTimerRef.current = null
-      if (document.visibilityState !== 'hidden') {
-        setShowHandoffFallback(true)
-      }
-    }, HANDOFF_FALLBACK_DELAY_MS)
-  }
-
   const handleCancelDownload = async () => {
     if (!taskId) return
     const cancelledTaskId = taskId
@@ -789,6 +750,8 @@ export default function CidPage() {
   }
 
   const renderCidProcessAction = (stepKey: CidProcessStepKey) => {
+    if (requiresClient) return null
+
     switch (stepKey) {
       case 'open':
         return (
@@ -891,6 +854,18 @@ export default function CidPage() {
 
   const statusIcon = getStatusIcon(checkState.status, downloadState.status)
   const statusClass = isPartialDownload ? 'partial' : checkState.status
+  const statusLabel =
+    requiresClient && checkState.status === 'backend-missing'
+      ? t('cid.label.clientRequired')
+      : getStatusLabel(checkState.status, t)
+  const statusMessage =
+    requiresClient && checkState.status === 'backend-missing'
+      ? t('cid.status.clientRequired')
+      : checkState.status === 'checking'
+        ? t('cid.status.checking', {
+            seconds: checkRemainingSeconds,
+          })
+        : checkState.message
 
   return (
     <div className="cid-layout">
@@ -899,15 +874,41 @@ export default function CidPage() {
         <section className="cid-shell">
           <div className="cid-heading">
             <span className="cid-kicker">{t('cid.transfer.kicker')}</span>
-            <h1>{t('cid.transfer.title')}</h1>
+            <h1>{t('cid.transfer.title', { fileName })}</h1>
             <p>{t('cid.transfer.subtitle')}</p>
           </div>
+
+          {requiresClient && (
+            <section
+              className="cid-receiver-start ui-glass-surface ui-glass-surface-elevated"
+              aria-labelledby="cid-client-title"
+            >
+              <div className="cid-receiver-start-main">
+                <div className="cid-receiver-start-copy">
+                  <h2 id="cid-client-title">{t('cid.client.title')}</h2>
+                  <p>{t('cid.client.desc')}</p>
+                </div>
+                <div className="cid-receiver-start-actions">
+                  <button
+                    type="button"
+                    className="btn btn-primary cid-connect-remote-btn"
+                    onClick={openConnectModal}
+                  >
+                    <Server size={17} />
+                    {t('remote.title.connect')}
+                  </button>
+                </div>
+              </div>
+
+              <ReceiverDownloadOption />
+            </section>
+          )}
 
           <div className="cid-workspace">
             <div className="cid-panel cid-main-panel ui-glass-surface ui-glass-surface-elevated">
               <ol
-                className="cid-process-steps"
-                aria-label={t('cid.transfer.title')}
+                className={`cid-process-steps ${requiresClient ? 'is-preview' : ''}`}
+                aria-label={t('cid.transfer.title', { fileName })}
               >
                 {cidProcessSteps.map((step, index) => (
                   <li
@@ -920,9 +921,11 @@ export default function CidPage() {
                     <span className="cid-process-index">{index + 1}</span>
                     <strong>{step.title}</strong>
                     <span className="cid-process-desc">{step.desc}</span>
-                    <div className="cid-process-action">
-                      {renderCidProcessAction(step.key)}
-                    </div>
+                    {!requiresClient && (
+                      <div className="cid-process-action">
+                        {renderCidProcessAction(step.key)}
+                      </div>
+                    )}
                   </li>
                 ))}
               </ol>
@@ -932,16 +935,8 @@ export default function CidPage() {
                   {statusIcon}
                 </span>
                 <div>
-                  <p className="cid-status-label">
-                    {getStatusLabel(checkState.status, t)}
-                  </p>
-                  <p className="cid-status-message">
-                    {checkState.status === 'checking'
-                      ? t('cid.status.checking', {
-                          seconds: checkRemainingSeconds,
-                        })
-                      : checkState.message}
-                  </p>
+                  <p className="cid-status-label">{statusLabel}</p>
+                  <p className="cid-status-message">{statusMessage}</p>
                 </div>
               </div>
 
@@ -1122,36 +1117,6 @@ export default function CidPage() {
               </div>
             </aside>
           </div>
-
-          {!isDesktopClient && (
-            <div className="cid-bottom-handoff">
-              <div className="cid-handoff" aria-label={t('cid.handoff.title')}>
-                <div className="cid-handoff-copy">
-                  <p className="cid-handoff-title">{t('cid.handoff.title')}</p>
-                  <p>{t('cid.handoff.desc')}</p>
-                </div>
-                <a
-                  className="btn btn-primary"
-                  href={mostLink}
-                  onClick={handleOpenMostBox}
-                >
-                  <ExternalLink size={16} />
-                  {t('cid.handoff.action')}
-                </a>
-              </div>
-
-              {showHandoffFallback && (
-                <div className="cid-handoff-fallback" role="status">
-                  <AlertTriangle size={18} />
-                  <p>{t('cid.handoff.fallback')}</p>
-                  <Link to="/download/" className="btn btn-secondary">
-                    <Download size={16} />
-                    {t('cid.handoff.downloadAction')}
-                  </Link>
-                </div>
-              )}
-            </div>
-          )}
         </section>
       </main>
     </div>

@@ -17,6 +17,8 @@ export const requiredStaticRoutes = [
   '/web3/',
 ]
 
+export const staticShellFile = '_shell.html'
+
 export function getStaticOutputFile(route) {
   if (route === '/') return 'index.html'
   return `${route.replace(/^\/|\/$/g, '')}/index.html`

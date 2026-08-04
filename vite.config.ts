@@ -8,6 +8,9 @@ export default defineConfig({
   plugins: [
     tanstackStart({
       pages: requiredStaticRoutes.map(path => ({ path })),
+      spa: {
+        enabled: true,
+      },
       prerender: {
         enabled: true,
         autoStaticPathsDiscovery: true,

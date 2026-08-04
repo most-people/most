@@ -10,7 +10,10 @@ import {
   createCidRoutePathFromMostLink,
   createMostDeepLinkTarget,
 } from '../../electron/deepLink.js'
-import { requiredStaticEntries } from '../../scripts/static-routes.mjs'
+import {
+  requiredStaticEntries,
+  staticShellFile,
+} from '../../scripts/static-routes.mjs'
 
 const repoRootPath = fileURLToPath(new URL('../../', import.meta.url))
 
@@ -20,6 +23,7 @@ const SOURCE_PATHS = {
   acceptance: 'docs/acceptance.md',
   viteConfig: 'vite.config.ts',
   checkStaticOutput: 'scripts/check-static-output.mjs',
+  prepareStartStatic: 'scripts/prepare-start-static.mjs',
   admin: 'src/features/admin/AdminPage.tsx',
   docs: 'src/features/docs/DocsPage.tsx',
   openApiReference: 'src/features/docs/OpenApiReference.tsx',
@@ -454,6 +458,19 @@ describe('frontend smoke checks', () => {
     )
     assert.match(readSource(SOURCE_PATHS.viteConfig), /prerender/)
     assert.match(
+      readSource(SOURCE_PATHS.viteConfig),
+      /spa:\s*\{\s*enabled: true/
+    )
+    assert.equal(staticShellFile, '_shell.html')
+    assert.match(
+      readSource(SOURCE_PATHS.prepareStartStatic),
+      /copyFile\(clientShellPath, clientIndexPath\)/
+    )
+    assert.equal(
+      readSource('public/_redirects').trim(),
+      '/cid/* /_shell.html 200'
+    )
+    assert.match(
       readSource(SOURCE_PATHS.legacyAppRoute),
       /redirect\(\{ to: '\/file\/' \}\)/
     )
@@ -755,19 +772,27 @@ describe('frontend smoke checks', () => {
     assert.match(cidSource, /cid\.copyWebShareLink/)
     assert.match(cidSource, /cid\.downloadQrAction/)
     assert.match(cidSource, /cidProcessSteps/)
-    assert.match(cidSource, /className="cid-process-steps"/)
+    assert.match(cidSource, /className=\{`cid-process-steps/)
     assert.match(cidSource, /cid\.transfer\.title/)
     assert.match(cidSource, /cid\.process\.step\.open\.title/)
     assert.match(cidSource, /cid\.process\.step\.seed\.desc/)
-    assert.match(cidSource, /className="cid-bottom-handoff"/)
+    assert.match(cidSource, /<ReceiverDownloadOption \/>/)
+    assert.match(cidSource, /className="cid-receiver-start/)
+    assert.match(
+      cidSource,
+      /className="btn btn-primary cid-connect-remote-btn"/
+    )
+    assert.match(cidSource, /onClick=\{openConnectModal\}/)
+    assert.match(cidSource, /remote\.title\.connect/)
+    assert.doesNotMatch(cidSource, /cid\.handoff\.action/)
     assert.match(cidSource, /const isDesktopClient = useIsDesktopClient\(\)/)
     assert.match(
       cidSource,
-      /!isDesktopClient && \([\s\S]*className="cid-bottom-handoff"/
+      /const requiresClient = !isDesktopClient && hasBackend !== true/
     )
     assert.match(
       cidSource,
-      /className="cid-workspace"[\s\S]*className="cid-bottom-handoff"/
+      /className="cid-receiver-start[\s\S]*className="cid-workspace"/
     )
     assert.match(cidSource, /className="cid-process-action"/)
     assert.match(
@@ -815,6 +840,16 @@ describe('frontend smoke checks', () => {
       assert.equal(typeof messages[locale]['cid.copyLinkAction'], 'string')
       assert.equal(typeof messages[locale]['cid.viewFileAction'], 'string')
       assert.equal(typeof messages[locale]['cid.transfer.title'], 'string')
+      assert.equal(typeof messages[locale]['cid.client.title'], 'string')
+      assert.equal(typeof messages[locale]['remote.title.connect'], 'string')
+      assert.equal(
+        typeof messages[locale]['cid.client.install.action'],
+        'string'
+      )
+      assert.equal(
+        typeof messages[locale]['cid.status.clientRequired'],
+        'string'
+      )
       assert.equal(
         typeof messages[locale]['cid.process.step.open.title'],
         'string'
@@ -829,10 +864,7 @@ describe('frontend smoke checks', () => {
       )
     }
 
-    assert.equal(
-      messages['zh-CN']['cid.transfer.title'],
-      '接收并继续传播这个文件'
-    )
+    assert.equal(messages['zh-CN']['cid.transfer.title'], '{fileName}')
     assert.equal(
       messages['zh-CN']['cid.process.step.seed.desc'],
       '下载完成后默认加入传播。'
@@ -1246,6 +1278,7 @@ describe('frontend smoke checks', () => {
   it('keeps download choices backed by release manifests with GitHub fallback', async () => {
     const {
       FALLBACK_DOWNLOAD_ASSETS,
+      detectDownloadPlatformKey,
       getDownloadOptionsState,
       getReleaseManifestUrl,
     } = await importBundledSource('src/lib/downloadOptions.ts')
@@ -1275,6 +1308,25 @@ describe('frontend smoke checks', () => {
       FALLBACK_DOWNLOAD_ASSETS.some(
         asset => asset.platform === 'android' && asset.arch === 'universal'
       )
+    )
+    assert.equal(
+      detectDownloadPlatformKey({ userAgent: 'Mozilla/5.0 (iPhone)' }),
+      'ios:universal'
+    )
+    assert.equal(
+      detectDownloadPlatformKey({
+        navigatorPlatform: 'MacIntel',
+        maxTouchPoints: 5,
+      }),
+      'ios:universal'
+    )
+    assert.equal(
+      detectDownloadPlatformKey({ userAgent: 'Android 16; Linux arm64' }),
+      'android:universal'
+    )
+    assert.equal(
+      detectDownloadPlatformKey({ userAgentDataPlatform: 'macOS arm64' }),
+      'macos:arm64'
     )
 
     assert.deepEqual(
