@@ -494,10 +494,24 @@ describe('frontend smoke checks', () => {
       `most://${cid}?filename=hello%20most.txt`
     )
     assert.equal(
+      buildCidSharePath(cid, 'chat-file/alice/private/report.zip'),
+      `/cid/${cid}?filename=report.zip`
+    )
+    assert.equal(
+      buildMostShareLink(cid, 'C:\\Users\\alice\\private\\report.zip'),
+      `most://${cid}?filename=report.zip`
+    )
+    assert.equal(
       createCidRoutePathFromDownloadInput(
         `most://${cid}?filename=hello%20most.txt`
       ),
       `/cid/${cid}?filename=hello%20most.txt`
+    )
+    assert.equal(
+      createCidRoutePathFromDownloadInput(
+        `most://${cid}?filename=chat-file%2Falice%2Fprivate%2Freport.zip`
+      ),
+      `/cid/${cid}?filename=report.zip`
     )
     assert.equal(
       createCidRoutePathFromDownloadInput(

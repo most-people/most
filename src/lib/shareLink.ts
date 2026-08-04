@@ -2,13 +2,15 @@ import { parseMostLink } from '~server/src/core/mostLink.js'
 
 const MOST_BOX_SHARE_ORIGIN = 'https://most.box'
 
-function getTrimmedFileName(fileName?: string) {
+function getShareFileName(fileName?: string) {
   const trimmedFileName = String(fileName || '').trim()
-  return trimmedFileName
+  if (!trimmedFileName) return ''
+
+  return trimmedFileName.split(/[\\/]/).at(-1)?.trim() || ''
 }
 
 export function buildMostShareLink(cid: string, fileName?: string) {
-  const trimmedFileName = getTrimmedFileName(fileName)
+  const trimmedFileName = getShareFileName(fileName)
 
   if (!trimmedFileName) return `most://${cid}`
 
@@ -16,7 +18,7 @@ export function buildMostShareLink(cid: string, fileName?: string) {
 }
 
 export function buildCidSharePath(cid: string, fileName?: string) {
-  const trimmedFileName = getTrimmedFileName(fileName)
+  const trimmedFileName = getShareFileName(fileName)
   const cidPath = `/cid/${encodeURIComponent(cid)}`
 
   if (!trimmedFileName) return cidPath
