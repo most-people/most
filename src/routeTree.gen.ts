@@ -10,22 +10,22 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as Web3IndexRouteImport } from './routes/web3/index'
-import { Route as ProfileIndexRouteImport } from './routes/profile/index'
-import { Route as PingIndexRouteImport } from './routes/ping/index'
-import { Route as NoteIndexRouteImport } from './routes/note/index'
-import { Route as FutureIndexRouteImport } from './routes/future/index'
-import { Route as FileIndexRouteImport } from './routes/file/index'
-import { Route as DownloadIndexRouteImport } from './routes/download/index'
-import { Route as DocsIndexRouteImport } from './routes/docs/index'
-import { Route as ChatIndexRouteImport } from './routes/chat/index'
-import { Route as AppIndexRouteImport } from './routes/app/index'
-import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AboutIndexRouteImport } from './routes/about/index'
-import { Route as DocsMcpIndexRouteImport } from './routes/docs/mcp/index'
-import { Route as DocsApiIndexRouteImport } from './routes/docs/api/index'
-import { Route as CidCidIndexRouteImport } from './routes/cid/$cid/index'
+import { Route as AdminIndexRouteImport } from './routes/admin/index'
+import { Route as AppIndexRouteImport } from './routes/app/index'
+import { Route as ChatIndexRouteImport } from './routes/chat/index'
+import { Route as DocsIndexRouteImport } from './routes/docs/index'
+import { Route as DownloadIndexRouteImport } from './routes/download/index'
+import { Route as FileIndexRouteImport } from './routes/file/index'
+import { Route as FutureIndexRouteImport } from './routes/future/index'
+import { Route as NoteIndexRouteImport } from './routes/note/index'
+import { Route as PingIndexRouteImport } from './routes/ping/index'
+import { Route as ProfileIndexRouteImport } from './routes/profile/index'
+import { Route as Web3IndexRouteImport } from './routes/web3/index'
 import { Route as ChatJoinIndexRouteImport } from './routes/chat/join/index'
+import { Route as CidCidIndexRouteImport } from './routes/cid/$cid/index'
+import { Route as DocsApiIndexRouteImport } from './routes/docs/api/index'
+import { Route as DocsMcpIndexRouteImport } from './routes/docs/mcp/index'
 import { Route as ChatJoinDemoIndexRouteImport } from './routes/chat/join/demo/index'
 
 const IndexRoute = IndexRouteImport.update({
@@ -33,36 +33,31 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any).lazy(() => import('./routes/index.lazy').then((d) => d.Route))
-const Web3IndexRoute = Web3IndexRouteImport.update({
-  id: '/web3/',
-  path: '/web3/',
+const AboutIndexRoute = AboutIndexRouteImport.update({
+  id: '/about/',
+  path: '/about/',
   getParentRoute: () => rootRouteImport,
-} as any).lazy(() => import('./routes/web3/index.lazy').then((d) => d.Route))
-const ProfileIndexRoute = ProfileIndexRouteImport.update({
-  id: '/profile/',
-  path: '/profile/',
+} as any).lazy(() => import('./routes/about/index.lazy').then((d) => d.Route))
+const AdminIndexRoute = AdminIndexRouteImport.update({
+  id: '/admin/',
+  path: '/admin/',
   getParentRoute: () => rootRouteImport,
-} as any).lazy(() => import('./routes/profile/index.lazy').then((d) => d.Route))
-const PingIndexRoute = PingIndexRouteImport.update({
-  id: '/ping/',
-  path: '/ping/',
+} as any).lazy(() => import('./routes/admin/index.lazy').then((d) => d.Route))
+const AppIndexRoute = AppIndexRouteImport.update({
+  id: '/app/',
+  path: '/app/',
   getParentRoute: () => rootRouteImport,
-} as any).lazy(() => import('./routes/ping/index.lazy').then((d) => d.Route))
-const NoteIndexRoute = NoteIndexRouteImport.update({
-  id: '/note/',
-  path: '/note/',
+} as any)
+const ChatIndexRoute = ChatIndexRouteImport.update({
+  id: '/chat/',
+  path: '/chat/',
   getParentRoute: () => rootRouteImport,
-} as any).lazy(() => import('./routes/note/index.lazy').then((d) => d.Route))
-const FutureIndexRoute = FutureIndexRouteImport.update({
-  id: '/future/',
-  path: '/future/',
+} as any).lazy(() => import('./routes/chat/index.lazy').then((d) => d.Route))
+const DocsIndexRoute = DocsIndexRouteImport.update({
+  id: '/docs/',
+  path: '/docs/',
   getParentRoute: () => rootRouteImport,
-} as any).lazy(() => import('./routes/future/index.lazy').then((d) => d.Route))
-const FileIndexRoute = FileIndexRouteImport.update({
-  id: '/file/',
-  path: '/file/',
-  getParentRoute: () => rootRouteImport,
-} as any).lazy(() => import('./routes/file/index.lazy').then((d) => d.Route))
+} as any).lazy(() => import('./routes/docs/index.lazy').then((d) => d.Route))
 const DownloadIndexRoute = DownloadIndexRouteImport.update({
   id: '/download/',
   path: '/download/',
@@ -70,44 +65,42 @@ const DownloadIndexRoute = DownloadIndexRouteImport.update({
 } as any).lazy(() =>
   import('./routes/download/index.lazy').then((d) => d.Route),
 )
-const DocsIndexRoute = DocsIndexRouteImport.update({
-  id: '/docs/',
-  path: '/docs/',
+const FileIndexRoute = FileIndexRouteImport.update({
+  id: '/file/',
+  path: '/file/',
   getParentRoute: () => rootRouteImport,
-} as any).lazy(() => import('./routes/docs/index.lazy').then((d) => d.Route))
-const ChatIndexRoute = ChatIndexRouteImport.update({
-  id: '/chat/',
-  path: '/chat/',
+} as any).lazy(() => import('./routes/file/index.lazy').then((d) => d.Route))
+const FutureIndexRoute = FutureIndexRouteImport.update({
+  id: '/future/',
+  path: '/future/',
   getParentRoute: () => rootRouteImport,
-} as any).lazy(() => import('./routes/chat/index.lazy').then((d) => d.Route))
-const AppIndexRoute = AppIndexRouteImport.update({
-  id: '/app/',
-  path: '/app/',
+} as any).lazy(() => import('./routes/future/index.lazy').then((d) => d.Route))
+const NoteIndexRoute = NoteIndexRouteImport.update({
+  id: '/note/',
+  path: '/note/',
   getParentRoute: () => rootRouteImport,
-} as any)
-const AdminIndexRoute = AdminIndexRouteImport.update({
-  id: '/admin/',
-  path: '/admin/',
+} as any).lazy(() => import('./routes/note/index.lazy').then((d) => d.Route))
+const PingIndexRoute = PingIndexRouteImport.update({
+  id: '/ping/',
+  path: '/ping/',
   getParentRoute: () => rootRouteImport,
-} as any).lazy(() => import('./routes/admin/index.lazy').then((d) => d.Route))
-const AboutIndexRoute = AboutIndexRouteImport.update({
-  id: '/about/',
-  path: '/about/',
+} as any).lazy(() => import('./routes/ping/index.lazy').then((d) => d.Route))
+const ProfileIndexRoute = ProfileIndexRouteImport.update({
+  id: '/profile/',
+  path: '/profile/',
   getParentRoute: () => rootRouteImport,
-} as any).lazy(() => import('./routes/about/index.lazy').then((d) => d.Route))
-const DocsMcpIndexRoute = DocsMcpIndexRouteImport.update({
-  id: '/docs/mcp/',
-  path: '/docs/mcp/',
+} as any).lazy(() => import('./routes/profile/index.lazy').then((d) => d.Route))
+const Web3IndexRoute = Web3IndexRouteImport.update({
+  id: '/web3/',
+  path: '/web3/',
   getParentRoute: () => rootRouteImport,
-} as any).lazy(() =>
-  import('./routes/docs/mcp/index.lazy').then((d) => d.Route),
-)
-const DocsApiIndexRoute = DocsApiIndexRouteImport.update({
-  id: '/docs/api/',
-  path: '/docs/api/',
+} as any).lazy(() => import('./routes/web3/index.lazy').then((d) => d.Route))
+const ChatJoinIndexRoute = ChatJoinIndexRouteImport.update({
+  id: '/chat/join/',
+  path: '/chat/join/',
   getParentRoute: () => rootRouteImport,
 } as any).lazy(() =>
-  import('./routes/docs/api/index.lazy').then((d) => d.Route),
+  import('./routes/chat/join/index.lazy').then((d) => d.Route),
 )
 const CidCidIndexRoute = CidCidIndexRouteImport.update({
   id: '/cid/$cid/',
@@ -116,12 +109,19 @@ const CidCidIndexRoute = CidCidIndexRouteImport.update({
 } as any).lazy(() =>
   import('./routes/cid/$cid/index.lazy').then((d) => d.Route),
 )
-const ChatJoinIndexRoute = ChatJoinIndexRouteImport.update({
-  id: '/chat/join/',
-  path: '/chat/join/',
+const DocsApiIndexRoute = DocsApiIndexRouteImport.update({
+  id: '/docs/api/',
+  path: '/docs/api/',
   getParentRoute: () => rootRouteImport,
 } as any).lazy(() =>
-  import('./routes/chat/join/index.lazy').then((d) => d.Route),
+  import('./routes/docs/api/index.lazy').then((d) => d.Route),
+)
+const DocsMcpIndexRoute = DocsMcpIndexRouteImport.update({
+  id: '/docs/mcp/',
+  path: '/docs/mcp/',
+  getParentRoute: () => rootRouteImport,
+} as any).lazy(() =>
+  import('./routes/docs/mcp/index.lazy').then((d) => d.Route),
 )
 const ChatJoinDemoIndexRoute = ChatJoinDemoIndexRouteImport.update({
   id: '/chat/join/demo/',
@@ -285,74 +285,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/web3/': {
-      id: '/web3/'
-      path: '/web3'
-      fullPath: '/web3/'
-      preLoaderRoute: typeof Web3IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/profile/': {
-      id: '/profile/'
-      path: '/profile'
-      fullPath: '/profile/'
-      preLoaderRoute: typeof ProfileIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/ping/': {
-      id: '/ping/'
-      path: '/ping'
-      fullPath: '/ping/'
-      preLoaderRoute: typeof PingIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/note/': {
-      id: '/note/'
-      path: '/note'
-      fullPath: '/note/'
-      preLoaderRoute: typeof NoteIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/future/': {
-      id: '/future/'
-      path: '/future'
-      fullPath: '/future/'
-      preLoaderRoute: typeof FutureIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/file/': {
-      id: '/file/'
-      path: '/file'
-      fullPath: '/file/'
-      preLoaderRoute: typeof FileIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/download/': {
-      id: '/download/'
-      path: '/download'
-      fullPath: '/download/'
-      preLoaderRoute: typeof DownloadIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/docs/': {
-      id: '/docs/'
-      path: '/docs'
-      fullPath: '/docs/'
-      preLoaderRoute: typeof DocsIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/chat/': {
-      id: '/chat/'
-      path: '/chat'
-      fullPath: '/chat/'
-      preLoaderRoute: typeof ChatIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/app/': {
-      id: '/app/'
-      path: '/app'
-      fullPath: '/app/'
-      preLoaderRoute: typeof AppIndexRouteImport
+    '/about/': {
+      id: '/about/'
+      path: '/about'
+      fullPath: '/about/'
+      preLoaderRoute: typeof AboutIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/': {
@@ -362,25 +299,81 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/about/': {
-      id: '/about/'
-      path: '/about'
-      fullPath: '/about/'
-      preLoaderRoute: typeof AboutIndexRouteImport
+    '/app/': {
+      id: '/app/'
+      path: '/app'
+      fullPath: '/app/'
+      preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/docs/mcp/': {
-      id: '/docs/mcp/'
-      path: '/docs/mcp'
-      fullPath: '/docs/mcp/'
-      preLoaderRoute: typeof DocsMcpIndexRouteImport
+    '/chat/': {
+      id: '/chat/'
+      path: '/chat'
+      fullPath: '/chat/'
+      preLoaderRoute: typeof ChatIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/docs/api/': {
-      id: '/docs/api/'
-      path: '/docs/api'
-      fullPath: '/docs/api/'
-      preLoaderRoute: typeof DocsApiIndexRouteImport
+    '/docs/': {
+      id: '/docs/'
+      path: '/docs'
+      fullPath: '/docs/'
+      preLoaderRoute: typeof DocsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/download/': {
+      id: '/download/'
+      path: '/download'
+      fullPath: '/download/'
+      preLoaderRoute: typeof DownloadIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/file/': {
+      id: '/file/'
+      path: '/file'
+      fullPath: '/file/'
+      preLoaderRoute: typeof FileIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/future/': {
+      id: '/future/'
+      path: '/future'
+      fullPath: '/future/'
+      preLoaderRoute: typeof FutureIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/note/': {
+      id: '/note/'
+      path: '/note'
+      fullPath: '/note/'
+      preLoaderRoute: typeof NoteIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ping/': {
+      id: '/ping/'
+      path: '/ping'
+      fullPath: '/ping/'
+      preLoaderRoute: typeof PingIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile/': {
+      id: '/profile/'
+      path: '/profile'
+      fullPath: '/profile/'
+      preLoaderRoute: typeof ProfileIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/web3/': {
+      id: '/web3/'
+      path: '/web3'
+      fullPath: '/web3/'
+      preLoaderRoute: typeof Web3IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chat/join/': {
+      id: '/chat/join/'
+      path: '/chat/join'
+      fullPath: '/chat/join/'
+      preLoaderRoute: typeof ChatJoinIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cid/$cid/': {
@@ -390,11 +383,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CidCidIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/chat/join/': {
-      id: '/chat/join/'
-      path: '/chat/join'
-      fullPath: '/chat/join/'
-      preLoaderRoute: typeof ChatJoinIndexRouteImport
+    '/docs/api/': {
+      id: '/docs/api/'
+      path: '/docs/api'
+      fullPath: '/docs/api/'
+      preLoaderRoute: typeof DocsApiIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs/mcp/': {
+      id: '/docs/mcp/'
+      path: '/docs/mcp'
+      fullPath: '/docs/mcp/'
+      preLoaderRoute: typeof DocsMcpIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/chat/join/demo/': {
