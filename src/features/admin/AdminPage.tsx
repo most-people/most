@@ -2,13 +2,15 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   type ColumnDef,
   type PaginationState,
+  type ReactTable,
   type SortingState,
-  type Table,
+  createPaginatedRowModel,
+  createSortedRowModel,
   flexRender,
-  getCoreRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  useReactTable,
+  rowPaginationFeature,
+  rowSortingFeature,
+  tableFeatures,
+  useTable,
 } from '@tanstack/react-table'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -62,6 +64,15 @@ import {
 } from '~/lib/storageLimitInput'
 
 dayjs.extend(relativeTime)
+
+const ADMIN_TABLE_FEATURES = tableFeatures({
+  rowSortingFeature,
+  rowPaginationFeature,
+  sortedRowModel: createSortedRowModel(),
+  paginatedRowModel: createPaginatedRowModel(),
+})
+
+type AdminTableFeatures = typeof ADMIN_TABLE_FEATURES
 
 interface NodeAddress {
   type: string
@@ -385,7 +396,7 @@ function nodeLogMatchesFilter(log: NodeLog, filter: string) {
 type SortState = false | 'asc' | 'desc'
 
 interface AdminDataTableProps<TData> {
-  table: Table<TData>
+  table: ReactTable<AdminTableFeatures, TData>
   className: string
   emptyText: string
   t: AdminTranslate
@@ -407,12 +418,12 @@ function AdminTablePagination<TData>({
   table,
   t,
 }: {
-  table: Table<TData>
+  table: ReactTable<AdminTableFeatures, TData>
   t: AdminTranslate
 }) {
-  const { pageIndex, pageSize } = table.getState().pagination
+  const { pageIndex, pageSize } = table.state.pagination
   const pageCount = Math.max(1, table.getPageCount())
-  const rowCount = table.getPrePaginationRowModel().rows.length
+  const rowCount = table.getPrePaginatedRowModel().rows.length
 
   return (
     <div
@@ -494,8 +505,8 @@ function AdminDataTable<TData>({
   t,
 }: AdminDataTableProps<TData>) {
   const rows = table.getRowModel().rows
-  const rowCount = table.getPrePaginationRowModel().rows.length
-  const shouldShowPagination = rowCount > table.getState().pagination.pageSize
+  const rowCount = table.getPrePaginatedRowModel().rows.length
+  const shouldShowPagination = rowCount > table.state.pagination.pageSize
 
   return (
     <div className={`admin-table ${className}`}>
@@ -551,7 +562,7 @@ function AdminDataTable<TData>({
         <tbody>
           {rows.map(row => (
             <tr key={row.id}>
-              {row.getVisibleCells().map(cell => (
+              {row.getAllCells().map(cell => (
                 <td className={`admin-col-${cell.column.id}`} key={cell.id}>
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
                 </td>
@@ -655,7 +666,7 @@ export default function AdminPage() {
   const holdings = status?.holdings || EMPTY_HOLDINGS
   const isRemoteAdmin = adminAccess?.mode === 'remote'
   const isAdminAuthorized = adminAccess?.authorized === true
-  const userColumns = useMemo<ColumnDef<AdminUserData>[]>(
+  const userColumns = useMemo<ColumnDef<AdminTableFeatures, AdminUserData>[]>(
     () => [
       {
         id: 'user',
@@ -697,7 +708,7 @@ export default function AdminPage() {
     ],
     [formatNumber, isClearingUser, t]
   )
-  const holdingColumns = useMemo<ColumnDef<NodeHolding>[]>(
+  const holdingColumns = useMemo<ColumnDef<AdminTableFeatures, NodeHolding>[]>(
     () => [
       {
         id: 'file',
@@ -794,7 +805,7 @@ export default function AdminPage() {
     ],
     [formatNumber, locale, t]
   )
-  const logColumns = useMemo<ColumnDef<NodeLog>[]>(
+  const logColumns = useMemo<ColumnDef<AdminTableFeatures, NodeLog>[]>(
     () => [
       {
         id: 'log-time',
@@ -830,7 +841,8 @@ export default function AdminPage() {
     ],
     [formatTime, t]
   )
-  const userTable = useReactTable({
+  const userTable = useTable({
+    features: ADMIN_TABLE_FEATURES,
     data: users,
     columns: userColumns,
     state: {
@@ -839,12 +851,10 @@ export default function AdminPage() {
     },
     onSortingChange: setUserSorting,
     onPaginationChange: setUserPagination,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     getRowId: row => row.address,
   })
-  const holdingTable = useReactTable({
+  const holdingTable = useTable({
+    features: ADMIN_TABLE_FEATURES,
     data: holdings,
     columns: holdingColumns,
     state: {
@@ -853,12 +863,10 @@ export default function AdminPage() {
     },
     onSortingChange: setHoldingSorting,
     onPaginationChange: setHoldingPagination,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     getRowId: row => row.cid,
   })
-  const logTable = useReactTable({
+  const logTable = useTable({
+    features: ADMIN_TABLE_FEATURES,
     data: logs,
     columns: logColumns,
     state: {
@@ -867,9 +875,6 @@ export default function AdminPage() {
     },
     onSortingChange: setLogSorting,
     onPaginationChange: setLogPagination,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     getRowId: row => row.id,
   })
 

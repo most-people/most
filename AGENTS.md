@@ -71,7 +71,7 @@ MVP 成功标准：
 - 后端：Hono, `@hono/node-server`, WebSocket
 - P2P：Hyperswarm 4.x, Hyperdrive 13.x, Corestore 7.x
 - Web3 工具箱：ethers.js
-- 桌面：Electron 42, electron-builder
+- 桌面：Electron 43, electron-builder
 - 移动端：Expo 57, React Native 0.86, react-native-bare-kit / Bare Worklet
 - 测试：Node.js built-in test runner
 

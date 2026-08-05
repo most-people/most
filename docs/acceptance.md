@@ -4,7 +4,7 @@
 
 ## 一、快速启动
 
-本地源码验收建议使用 Node.js >= 22.12。当前 TanStack Start static prerender 前端和 Electron 42 开发/打包都建议 Node.js >= 22.12。
+本地源码验收建议使用 Node.js >= 22.12。当前 TanStack Start static prerender 前端和 Electron 43 开发/打包都建议 Node.js >= 22.12。
 
 本地源码验收需要两个进程：
 

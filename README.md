@@ -83,7 +83,7 @@ npx most-box@latest
 ## 需求
 
 - 使用桌面客户端：无需单独安装 Node.js。
-- 使用 `npx most-box@latest` 或本地源码开发：建议 Node.js >= 22.12。当前 TanStack Start static prerender 前端和 Electron 42 开发/打包都建议 Node.js >= 22.12。
+- 使用 `npx most-box@latest` 或本地源码开发：建议 Node.js >= 22.12。当前 TanStack Start static prerender 前端和 Electron 43 开发/打包都建议 Node.js >= 22.12。
 - MostBox Web 界面只连接已有节点；在线入口或单独打开的浏览器页面不会替你启动 P2P 节点。
 - MostBox 会创建本地身份用于本机数据隔离和 API 签名；这不是云端注册账号。
 
@@ -389,7 +389,7 @@ npx most-box@latest
 - **前端**: React 19, Vite, TanStack Start static prerender, TanStack Router, TypeScript, Zustand, Lucide React
 - **后端**: Hono + @hono/node-server + WebSocket
 - **P2P**: Hyperswarm 4.x, Hyperdrive 13.x, Corestore 7.x
-- **桌面**: Electron 42, electron-builder
+- **桌面**: Electron 43, electron-builder
 - **移动端**: Expo 57, React Native 0.86, react-native-bare-kit / Bare Worklet
 - **测试**: Node.js built-in test runner
 
