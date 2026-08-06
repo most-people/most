@@ -36,6 +36,12 @@ import type {
   SeedStatus,
   TransferStatus,
 } from '../../mobileCore/types'
+import {
+  darkTheme,
+  lightTheme,
+  type MostBoxTheme,
+  useMostBoxTheme,
+} from '../../ui/theme'
 
 export type NodeStatusScreenProps = {
   section: 'files' | 'transfers' | 'settings'
@@ -149,6 +155,8 @@ type MetricProps = {
 }
 
 function Metric({ icon, label, value }: MetricProps) {
+  const styles = useNodeStyles()
+
   return (
     <View style={styles.metric}>
       <View style={styles.metricIcon}>{icon}</View>
@@ -164,6 +172,7 @@ type StatusBadgeProps = {
 }
 
 function StatusBadge({ label, tone }: StatusBadgeProps) {
+  const styles = useNodeStyles()
   const badgeStyle = {
     success: styles.successBadge,
     danger: styles.dangerBadge,
@@ -203,29 +212,25 @@ function SmallAction({
   disabled = false,
   danger = false,
 }: SmallActionProps) {
+  const styles = useNodeStyles()
+
   return (
     <Pressable
       accessibilityLabel={accessibilityLabel || label}
       accessibilityRole="button"
+      accessibilityState={{ disabled }}
       testID={testID}
       disabled={disabled}
+      hitSlop={4}
       onPress={onPress}
-      style={[
+      style={({ pressed }) => [
         styles.smallAction,
         danger ? styles.smallActionDanger : null,
         disabled ? styles.smallActionDisabled : null,
+        pressed ? styles.pressablePressed : null,
       ]}
     >
       {icon}
-      <Text
-        style={[
-          styles.smallActionText,
-          danger ? styles.smallActionDangerText : null,
-          disabled ? styles.disabledText : null,
-        ]}
-      >
-        {label}
-      </Text>
     </Pressable>
   )
 }
@@ -237,6 +242,8 @@ type SectionHeaderProps = {
 }
 
 function SectionHeader({ icon, title, meta }: SectionHeaderProps) {
+  const styles = useNodeStyles()
+
   return (
     <View style={styles.sectionHeader}>
       <View style={styles.sectionTitleGroup}>
@@ -254,6 +261,8 @@ type EmptyStateProps = {
 }
 
 function EmptyState({ title, body }: EmptyStateProps) {
+  const styles = useNodeStyles()
+
   return (
     <View style={styles.emptyState}>
       <Text style={styles.emptyTitle}>{title}</Text>
@@ -267,6 +276,8 @@ type ProgressBarProps = {
 }
 
 function ProgressBar({ progress }: ProgressBarProps) {
+  const styles = useNodeStyles()
+
   return (
     <View style={styles.progressTrack}>
       <View style={[styles.progressFill, getProgressWidthStyle(progress)]} />
@@ -298,6 +309,8 @@ export function NodeStatusScreen({
   onRetryStartCore,
   retryStartDisabled,
 }: NodeStatusScreenProps) {
+  const theme = useMostBoxTheme()
+  const styles = nodeStyles[theme.mode]
   const isReady = snapshot.node.status === 'ready'
   const latestTransfers = snapshot.transfers
   const recentLogs = snapshot.logs.slice(0, 6)
@@ -309,36 +322,46 @@ export function NodeStatusScreen({
   )
 
   return (
-    <ScrollView contentContainerStyle={styles.content}>
+    <ScrollView
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+    >
       {section === 'files' ? (
         <View style={styles.actionPanel}>
           <Pressable
             accessibilityRole="button"
+            accessibilityState={{ disabled: actionDisabled }}
             disabled={actionDisabled}
             onPress={onPublishFile}
-            style={[
-              styles.primaryAction,
-              actionDisabled ? styles.primaryActionDisabled : null,
+            style={({ pressed }) => [
+              styles.actionCard,
+              actionDisabled ? styles.actionCardDisabled : null,
+              pressed ? styles.actionCardPressed : null,
             ]}
           >
-            <Upload size={21} color="#ffffff" />
-            <Text style={styles.primaryActionText}>发布文件</Text>
+            <Upload size={21} color={theme.colors.accent} />
+            <Text style={styles.actionLabel}>发布文件</Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
             onPress={onReceiveLink}
-            style={styles.secondaryAction}
+            style={({ pressed }) => [
+              styles.actionCard,
+              pressed ? styles.actionCardPressed : null,
+            ]}
           >
-            <Download size={21} color="#0f766e" />
-            <Text style={styles.secondaryActionText}>接收文件</Text>
+            <Download size={21} color={theme.colors.info} />
+            <Text style={[styles.actionLabel, styles.actionLabelInfo]}>
+              接收文件
+            </Text>
           </Pressable>
         </View>
       ) : null}
 
       {section === 'settings' ? (
-        <View style={styles.panel}>
+        <View style={styles.section}>
           <SectionHeader
-            icon={<Radio size={18} color="#0f766e" />}
+            icon={<Radio size={18} color={theme.colors.accent} />}
             title="节点状态"
             meta={NODE_STATUS_LABELS[snapshot.node.status]}
           />
@@ -349,9 +372,10 @@ export function NodeStatusScreen({
               <Pressable
                 disabled={retryStartDisabled}
                 onPress={onRetryStartCore}
-                style={[
+                style={({ pressed }) => [
                   styles.retryButton,
                   retryStartDisabled ? styles.retryButtonDisabled : null,
+                  pressed ? styles.pressablePressed : null,
                 ]}
               >
                 <Text
@@ -368,17 +392,17 @@ export function NodeStatusScreen({
 
           <View style={styles.metricsRow}>
             <Metric
-              icon={<Activity size={17} color="#0f766e" />}
+              icon={<Activity size={17} color={theme.colors.accent} />}
               label="在线 Peer"
               value={String(snapshot.node.peerCount)}
             />
             <Metric
-              icon={<HardDrive size={17} color="#2563eb" />}
+              icon={<HardDrive size={17} color={theme.colors.info} />}
               label="本机做种"
               value={String(snapshot.holdings.length)}
             />
             <Metric
-              icon={<ShieldCheck size={17} color="#b45309" />}
+              icon={<ShieldCheck size={17} color={theme.colors.warning} />}
               label="附件校验"
               value="开启"
             />
@@ -387,9 +411,9 @@ export function NodeStatusScreen({
       ) : null}
 
       {section === 'files' ? (
-        <View style={styles.panel}>
+        <View style={styles.section}>
           <SectionHeader
-            icon={<Wifi size={18} color="#0f766e" />}
+            icon={<Wifi size={18} color={theme.colors.accent} />}
             title="正在做种"
             meta={`${snapshot.holdings.length} 个文件`}
           />
@@ -406,7 +430,7 @@ export function NodeStatusScreen({
                   <View key={holding.cid} style={styles.holdingItem}>
                     <View style={styles.holdingTopRow}>
                       <View style={styles.fileIcon}>
-                        <FileCheck size={20} color="#0f766e" />
+                        <FileCheck size={20} color={theme.colors.accent} />
                       </View>
                       <View style={styles.holdingMain}>
                         <Text style={styles.fileName} numberOfLines={2}>
@@ -449,9 +473,12 @@ export function NodeStatusScreen({
                         onPress={() => onCopyHoldingLink(holding)}
                         icon={
                           isCopied ? (
-                            <CircleCheck size={15} color="#0f766e" />
+                            <CircleCheck
+                              size={18}
+                              color={theme.colors.success}
+                            />
                           ) : (
-                            <Copy size={15} color="#0f766e" />
+                            <Copy size={18} color={theme.colors.accent} />
                           )
                         }
                       />
@@ -463,9 +490,9 @@ export function NodeStatusScreen({
                         onPress={() => onShareHolding(holding)}
                         icon={
                           isExporting ? (
-                            <Loader size={15} color="#94a3b8" />
+                            <Loader size={18} color={theme.colors.textMuted} />
                           ) : (
-                            <Share2 size={15} color="#0f766e" />
+                            <Share2 size={18} color={theme.colors.accent} />
                           )
                         }
                       />
@@ -479,8 +506,12 @@ export function NodeStatusScreen({
                         onPress={() => onSaveHolding(holding)}
                         icon={
                           <Save
-                            size={15}
-                            color={isReady ? '#0f766e' : '#94a3b8'}
+                            size={18}
+                            color={
+                              isReady
+                                ? theme.colors.accent
+                                : theme.colors.textMuted
+                            }
                           />
                         }
                       />
@@ -493,9 +524,9 @@ export function NodeStatusScreen({
                         onPress={() => onDeleteHolding(holding)}
                         icon={
                           isDeleting ? (
-                            <Loader size={15} color="#94a3b8" />
+                            <Loader size={18} color={theme.colors.textMuted} />
                           ) : (
-                            <Trash2 size={15} color="#b91c1c" />
+                            <Trash2 size={18} color={theme.colors.danger} />
                           )
                         }
                       />
@@ -514,9 +545,9 @@ export function NodeStatusScreen({
       ) : null}
 
       {section === 'transfers' ? (
-        <View style={styles.panel}>
+        <View style={styles.section}>
           <SectionHeader
-            icon={<ListChecks size={18} color="#b45309" />}
+            icon={<ListChecks size={18} color={theme.colors.warning} />}
             title="传输活动"
             meta={
               activeTransfers.length
@@ -559,9 +590,9 @@ export function NodeStatusScreen({
       ) : null}
 
       {section === 'settings' ? (
-        <View style={styles.panel}>
+        <View style={styles.section}>
           <SectionHeader
-            icon={<Radio size={18} color="#6d5dfc" />}
+            icon={<Radio size={18} color={theme.colors.accent} />}
             title="节点日志"
             meta={recentLogs.length ? `最近 ${recentLogs.length} 条` : '暂无'}
           />
@@ -596,425 +627,490 @@ export function NodeStatusScreen({
       ) : null}
 
       {section === 'settings' ? (
-        <View style={styles.panel}>
+        <View style={styles.section}>
           <SectionHeader
-            icon={<FileText size={18} color="#2563eb" />}
+            icon={<FileText size={18} color={theme.colors.info} />}
             title="关于与政策"
           />
-          <Pressable
-            accessibilityRole="link"
-            onPress={onOpenPrivacy}
-            style={styles.linkRow}
-          >
-            <Text style={styles.linkText}>隐私政策</Text>
-            <ExternalLink size={16} color="#63716c" />
-          </Pressable>
-          <Pressable
-            accessibilityRole="link"
-            onPress={onOpenTerms}
-            style={styles.linkRow}
-          >
-            <Text style={styles.linkText}>使用条款</Text>
-            <ExternalLink size={16} color="#63716c" />
-          </Pressable>
-          <Pressable
-            accessibilityRole="link"
-            onPress={onOpenSupport}
-            style={styles.linkRow}
-          >
-            <Text style={styles.linkText}>问题反馈</Text>
-            <ExternalLink size={16} color="#63716c" />
-          </Pressable>
+          <View style={styles.linkList}>
+            <Pressable
+              accessibilityRole="link"
+              onPress={onOpenPrivacy}
+              style={({ pressed }) => [
+                styles.linkRow,
+                pressed ? styles.linkRowPressed : null,
+              ]}
+            >
+              <Text style={styles.linkText}>隐私政策</Text>
+              <ExternalLink size={16} color={theme.colors.textSecondary} />
+            </Pressable>
+            <View style={styles.linkDivider} />
+            <Pressable
+              accessibilityRole="link"
+              onPress={onOpenTerms}
+              style={({ pressed }) => [
+                styles.linkRow,
+                pressed ? styles.linkRowPressed : null,
+              ]}
+            >
+              <Text style={styles.linkText}>使用条款</Text>
+              <ExternalLink size={16} color={theme.colors.textSecondary} />
+            </Pressable>
+            <View style={styles.linkDivider} />
+            <Pressable
+              accessibilityRole="link"
+              onPress={onOpenSupport}
+              style={({ pressed }) => [
+                styles.linkRow,
+                pressed ? styles.linkRowPressed : null,
+              ]}
+            >
+              <Text style={styles.linkText}>问题反馈</Text>
+              <ExternalLink size={16} color={theme.colors.textSecondary} />
+            </Pressable>
+          </View>
         </View>
       ) : null}
     </ScrollView>
   )
 }
 
-const styles = StyleSheet.create({
-  content: {
-    paddingTop: 14,
-    paddingBottom: 96,
-    gap: 14,
-  },
-  panel: {
-    gap: 13,
-    marginHorizontal: 16,
-    padding: 15,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#dbe6e1',
-    backgroundColor: '#ffffff',
-  },
-  actionPanel: {
-    flexDirection: 'row',
-    gap: 10,
-    marginHorizontal: 16,
-  },
-  primaryAction: {
-    flex: 1,
-    minHeight: 56,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: '#0f766e',
-  },
-  primaryActionDisabled: {
-    backgroundColor: '#8fb9b2',
-  },
-  primaryActionText: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '900',
-  },
-  secondaryAction: {
-    flex: 1,
-    minHeight: 56,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#bcd4cc',
-    backgroundColor: '#ffffff',
-  },
-  secondaryActionText: {
-    color: '#0f5f58',
-    fontSize: 15,
-    fontWeight: '900',
-  },
-  sectionHeader: {
-    minHeight: 28,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  sectionTitleGroup: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  sectionTitle: {
-    color: '#13231f',
-    fontSize: 17,
-    fontWeight: '900',
-  },
-  sectionMeta: {
-    color: '#63716c',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  nodeErrorBanner: {
-    minHeight: 46,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#fef2f2',
-  },
-  nodeErrorText: {
-    flex: 1,
-    color: '#991b1b',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  retryButton: {
-    minHeight: 30,
-    justifyContent: 'center',
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    backgroundColor: '#991b1b',
-  },
-  retryButtonDisabled: {
-    backgroundColor: '#f0b4b4',
-  },
-  retryButtonText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  retryButtonTextDisabled: {
-    color: '#fee2e2',
-  },
-  metricsRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  metric: {
-    flex: 1,
-    minHeight: 88,
-    justifyContent: 'center',
-    gap: 5,
-    padding: 12,
-    borderRadius: 8,
-    backgroundColor: '#f8fbf9',
-  },
-  metricIcon: {
-    width: 28,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 8,
-    backgroundColor: '#edf6f2',
-  },
-  metricValue: {
-    color: '#12211d',
-    fontSize: 23,
-    fontWeight: '900',
-  },
-  metricLabel: {
-    color: '#63716c',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  holdingList: {
-    gap: 12,
-  },
-  holdingItem: {
-    gap: 11,
-    padding: 13,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#dbe6e1',
-    backgroundColor: '#fbfdfc',
-  },
-  holdingTopRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-  },
-  fileIcon: {
-    width: 38,
-    height: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 8,
-    backgroundColor: '#edfdf7',
-  },
-  holdingMain: {
-    flex: 1,
-    gap: 3,
-  },
-  fileName: {
-    color: '#13231f',
-    fontSize: 15,
-    fontWeight: '900',
-  },
-  fileMeta: {
-    color: '#63716c',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  badge: {
-    minHeight: 27,
-    justifyContent: 'center',
-    paddingHorizontal: 9,
-    borderRadius: 8,
-    backgroundColor: '#e7ece9',
-  },
-  badgeText: {
-    color: '#5b6b66',
-    fontSize: 11,
-    fontWeight: '900',
-  },
-  successBadge: {
-    backgroundColor: '#dff8ec',
-  },
-  dangerBadge: {
-    backgroundColor: '#fee2e2',
-  },
-  pendingBadge: {
-    backgroundColor: '#fef3c7',
-  },
-  mutedBadge: {
-    backgroundColor: '#e7ece9',
-  },
-  successBadgeText: {
-    color: '#116149',
-  },
-  dangerBadgeText: {
-    color: '#991b1b',
-  },
-  pendingBadgeText: {
-    color: '#92400e',
-  },
-  mutedBadgeText: {
-    color: '#5b6b66',
-  },
-  cidBlock: {
-    gap: 4,
-    padding: 10,
-    borderRadius: 8,
-    backgroundColor: '#eef4f1',
-  },
-  cidLabel: {
-    color: '#63716c',
-    fontSize: 10,
-    fontWeight: '900',
-  },
-  cidText: {
-    color: '#13231f',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  topicRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  topicText: {
-    color: '#63716c',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  holdingActions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  smallAction: {
-    flex: 1,
-    minWidth: 128,
-    minHeight: 40,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#d5e3dd',
-    backgroundColor: '#f8fbf9',
-  },
-  smallActionDanger: {
-    borderColor: '#fecaca',
-    backgroundColor: '#fff1f2',
-  },
-  smallActionDisabled: {
-    borderColor: '#d9e2de',
-    backgroundColor: '#edf2ef',
-  },
-  smallActionText: {
-    color: '#13231f',
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  smallActionDangerText: {
-    color: '#b91c1c',
-  },
-  disabledText: {
-    color: '#94a3a0',
-  },
-  linkRow: {
-    minHeight: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#dbe6e1',
-    backgroundColor: '#f8fbf9',
-  },
-  linkText: {
-    color: '#13231f',
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  transferList: {
-    gap: 10,
-  },
-  transferItem: {
-    gap: 10,
-    paddingVertical: 2,
-  },
-  transferTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  transferTitleGroup: {
-    flex: 1,
-    gap: 3,
-  },
-  transferName: {
-    color: '#13231f',
-    fontSize: 14,
-    fontWeight: '900',
-  },
-  transferMeta: {
-    color: '#63716c',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  progressTrack: {
-    height: 7,
-    overflow: 'hidden',
-    borderRadius: 8,
-    backgroundColor: '#e6eee9',
-  },
-  progressFill: {
-    minWidth: 3,
-    height: '100%',
-    backgroundColor: '#2563eb',
-  },
-  logList: {
-    gap: 11,
-  },
-  logItem: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  logTime: {
-    width: 42,
-    color: '#63716c',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  logBody: {
-    flex: 1,
-    gap: 2,
-  },
-  logLevel: {
-    color: '#0f766e',
-    fontSize: 11,
-    fontWeight: '900',
-  },
-  logLevelWarn: {
-    color: '#b45309',
-  },
-  logLevelError: {
-    color: '#b91c1c',
-  },
-  logMessage: {
-    color: '#44514d',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  emptyState: {
-    gap: 4,
-    paddingVertical: 14,
-  },
-  emptyTitle: {
-    color: '#13231f',
-    fontSize: 14,
-    fontWeight: '900',
-  },
-  emptyBody: {
-    color: '#63716c',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-})
+function createNodeStyles(theme: MostBoxTheme) {
+  const { colors, radii } = theme
+  const cardShadow =
+    Platform.select<ViewStyle>({
+      ios: {
+        shadowColor: colors.shadow,
+        shadowOffset: { width: 0, height: 5 },
+        shadowOpacity: theme.mode === 'dark' ? 0.28 : 0.07,
+        shadowRadius: 16,
+      },
+      android: {
+        elevation: theme.mode === 'dark' ? 1 : 2,
+        shadowColor: colors.shadow,
+      },
+    }) ?? {}
+
+  return StyleSheet.create({
+    content: {
+      paddingTop: 16,
+      paddingBottom: 28,
+      gap: 24,
+    },
+    section: {
+      gap: 12,
+      marginHorizontal: 16,
+    },
+    actionPanel: {
+      gap: 10,
+      marginHorizontal: 16,
+    },
+    actionCard: {
+      minHeight: 68,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 9,
+      paddingHorizontal: 16,
+      borderRadius: radii.large,
+      borderWidth: 1.5,
+      borderStyle: 'dashed',
+      borderColor: colors.borderStrong,
+      backgroundColor: colors.surfaceSubtle,
+    },
+    actionCardDisabled: {
+      opacity: 0.42,
+    },
+    actionCardPressed: {
+      borderColor: colors.accent,
+      backgroundColor: colors.accentSoft,
+    },
+    actionLabel: {
+      color: colors.accent,
+      fontSize: 14,
+      fontWeight: '500',
+    },
+    actionLabelInfo: {
+      color: colors.info,
+    },
+    sectionHeader: {
+      minHeight: 28,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+    },
+    sectionTitleGroup: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    sectionTitle: {
+      color: colors.text,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    sectionMeta: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '500',
+    },
+    nodeErrorBanner: {
+      minHeight: 48,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderRadius: radii.medium,
+      borderWidth: 1,
+      borderColor: colors.dangerSoft,
+      backgroundColor: colors.dangerSoft,
+    },
+    nodeErrorText: {
+      flex: 1,
+      color: colors.danger,
+      fontSize: 12,
+      lineHeight: 17,
+      fontWeight: '500',
+    },
+    retryButton: {
+      minHeight: 32,
+      justifyContent: 'center',
+      paddingHorizontal: 11,
+      borderRadius: radii.small,
+      backgroundColor: colors.danger,
+    },
+    retryButtonDisabled: {
+      backgroundColor: colors.surfaceMuted,
+    },
+    retryButtonText: {
+      color: colors.onAccent,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    retryButtonTextDisabled: {
+      color: colors.textMuted,
+    },
+    metricsRow: {
+      flexDirection: 'row',
+      gap: 8,
+    },
+    metric: {
+      flex: 1,
+      minWidth: 0,
+      minHeight: 96,
+      justifyContent: 'center',
+      gap: 5,
+      padding: 11,
+      borderRadius: radii.medium,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceSolid,
+      ...cardShadow,
+    },
+    metricIcon: {
+      width: 30,
+      height: 30,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: radii.small,
+      backgroundColor: colors.accentSoft,
+    },
+    metricValue: {
+      color: colors.text,
+      fontSize: 22,
+      fontWeight: '600',
+    },
+    metricLabel: {
+      color: colors.textSecondary,
+      fontSize: 10,
+      fontWeight: '500',
+    },
+    holdingList: {
+      gap: 12,
+    },
+    holdingItem: {
+      gap: 12,
+      padding: 14,
+      borderRadius: radii.large,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceSolid,
+      ...cardShadow,
+    },
+    holdingTopRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 10,
+    },
+    fileIcon: {
+      width: 40,
+      height: 40,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: radii.medium,
+      backgroundColor: colors.accentSoft,
+    },
+    holdingMain: {
+      flex: 1,
+      minWidth: 0,
+      gap: 3,
+    },
+    fileName: {
+      color: colors.text,
+      fontSize: 15,
+      lineHeight: 20,
+      fontWeight: '600',
+    },
+    fileMeta: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '400',
+    },
+    badge: {
+      minHeight: 26,
+      justifyContent: 'center',
+      paddingHorizontal: 9,
+      borderRadius: radii.full,
+    },
+    badgeText: {
+      fontSize: 11,
+      fontWeight: '600',
+    },
+    successBadge: {
+      backgroundColor: colors.successSoft,
+    },
+    dangerBadge: {
+      backgroundColor: colors.dangerSoft,
+    },
+    pendingBadge: {
+      backgroundColor: colors.warningSoft,
+    },
+    mutedBadge: {
+      backgroundColor: colors.surfaceMuted,
+    },
+    successBadgeText: {
+      color: colors.success,
+    },
+    dangerBadgeText: {
+      color: colors.danger,
+    },
+    pendingBadgeText: {
+      color: colors.warning,
+    },
+    mutedBadgeText: {
+      color: colors.textSecondary,
+    },
+    cidBlock: {
+      gap: 4,
+      padding: 10,
+      borderRadius: radii.small,
+      backgroundColor: colors.surfaceMuted,
+    },
+    cidLabel: {
+      color: colors.textMuted,
+      fontSize: 10,
+      fontWeight: '600',
+    },
+    cidText: {
+      color: colors.textSecondary,
+      fontFamily: Platform.select({
+        ios: 'Menlo',
+        android: 'monospace',
+      }),
+      fontSize: 12,
+      fontWeight: '500',
+    },
+    topicRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      gap: 10,
+    },
+    topicText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '500',
+    },
+    holdingActions: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      gap: 8,
+    },
+    smallAction: {
+      width: 42,
+      height: 42,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: radii.full,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceSubtle,
+    },
+    smallActionDanger: {
+      borderColor: colors.dangerSoft,
+      backgroundColor: colors.dangerSoft,
+    },
+    smallActionDisabled: {
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceMuted,
+      opacity: 0.52,
+    },
+    pressablePressed: {
+      opacity: 0.62,
+    },
+    linkList: {
+      overflow: 'hidden',
+      borderRadius: radii.medium,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceSolid,
+      ...cardShadow,
+    },
+    linkRow: {
+      minHeight: 52,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 14,
+    },
+    linkRowPressed: {
+      backgroundColor: colors.accentSoft,
+    },
+    linkDivider: {
+      height: 1,
+      marginLeft: 14,
+      backgroundColor: colors.border,
+    },
+    linkText: {
+      color: colors.text,
+      fontSize: 14,
+      fontWeight: '500',
+    },
+    transferList: {
+      gap: 10,
+    },
+    transferItem: {
+      gap: 12,
+      padding: 14,
+      borderRadius: radii.medium,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceSolid,
+      ...cardShadow,
+    },
+    transferTopRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    transferTitleGroup: {
+      flex: 1,
+      minWidth: 0,
+      gap: 3,
+    },
+    transferName: {
+      color: colors.text,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    transferMeta: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      lineHeight: 17,
+      fontWeight: '400',
+    },
+    progressTrack: {
+      height: 5,
+      overflow: 'hidden',
+      borderRadius: radii.full,
+      backgroundColor: colors.surfaceMuted,
+    },
+    progressFill: {
+      minWidth: 3,
+      height: '100%',
+      borderRadius: radii.full,
+      backgroundColor: colors.accent,
+    },
+    logList: {
+      gap: 12,
+      padding: 14,
+      borderRadius: radii.medium,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceSolid,
+      ...cardShadow,
+    },
+    logItem: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+    logTime: {
+      width: 42,
+      color: colors.textMuted,
+      fontSize: 11,
+      fontWeight: '500',
+    },
+    logBody: {
+      flex: 1,
+      minWidth: 0,
+      gap: 2,
+    },
+    logLevel: {
+      color: colors.accent,
+      fontSize: 11,
+      fontWeight: '600',
+    },
+    logLevelWarn: {
+      color: colors.warning,
+    },
+    logLevelError: {
+      color: colors.danger,
+    },
+    logMessage: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      lineHeight: 17,
+      fontWeight: '400',
+    },
+    emptyState: {
+      alignItems: 'center',
+      gap: 5,
+      paddingHorizontal: 20,
+      paddingVertical: 32,
+      borderRadius: radii.large,
+      borderWidth: 1,
+      borderStyle: 'dashed',
+      borderColor: colors.borderStrong,
+      backgroundColor: colors.surfaceSubtle,
+    },
+    emptyTitle: {
+      color: colors.text,
+      fontSize: 14,
+      fontWeight: '600',
+      textAlign: 'center',
+    },
+    emptyBody: {
+      maxWidth: 280,
+      color: colors.textSecondary,
+      fontSize: 12,
+      lineHeight: 18,
+      fontWeight: '400',
+      textAlign: 'center',
+    },
+  })
+}
+
+const nodeStyles = {
+  light: createNodeStyles(lightTheme),
+  dark: createNodeStyles(darkTheme),
+} as const
+
+function useNodeStyles() {
+  const theme = useMostBoxTheme()
+  return nodeStyles[theme.mode]
+}
 
 const progressWidthStyles = StyleSheet.create(
   Object.fromEntries(

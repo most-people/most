@@ -2,10 +2,12 @@ import './src/polyfills/eventTarget'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Alert,
+  KeyboardAvoidingView,
   Linking,
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -28,6 +30,12 @@ import {
 } from 'lucide-react-native'
 import { NodeStatusScreen } from './src/features/node/NodeStatusScreen'
 import { createMostBoxCore } from './src/mobileCore/createMostBoxCore'
+import {
+  darkTheme,
+  lightTheme,
+  type MostBoxTheme,
+  useMostBoxTheme,
+} from './src/ui/theme'
 import {
   hasExplicitMostLinkFilename,
   parseIncomingMostLink,
@@ -140,6 +148,8 @@ function shortCid(cid: string) {
 }
 
 export default function App() {
+  const theme = useMostBoxTheme()
+  const styles = appStyles[theme.mode]
   const coreRef = useRef<MostBoxMobileCore | null>(null)
   const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [snapshot, setSnapshot] = useState<MobileCoreSnapshot | null>(null)
@@ -479,6 +489,24 @@ export default function App() {
         : nodeStatus === 'starting'
           ? '启动中'
           : '离线'
+  const statusPillStyle =
+    nodeStatus === 'ready'
+      ? styles.statusPillReady
+      : nodeStatus === 'error'
+        ? styles.statusPillError
+        : styles.statusPillPending
+  const statusDotStyle =
+    nodeStatus === 'ready'
+      ? styles.statusDotReady
+      : nodeStatus === 'error'
+        ? styles.statusDotError
+        : styles.statusDotPending
+  const statusTextStyle =
+    nodeStatus === 'ready'
+      ? styles.statusTextReady
+      : nodeStatus === 'error'
+        ? styles.statusTextError
+        : styles.statusTextPending
 
   return (
     <SafeAreaProvider>
@@ -486,30 +514,25 @@ export default function App() {
         edges={['top', 'right', 'bottom', 'left']}
         style={styles.screen}
       >
-        <StatusBar barStyle="dark-content" backgroundColor="#f4f7f5" />
+        <StatusBar
+          barStyle={theme.statusBarStyle}
+          backgroundColor={theme.colors.background}
+        />
         <View style={styles.header}>
           <View style={styles.brandRow}>
             <View style={styles.brandMark}>
-              <ShieldCheck size={22} color="#ffffff" />
+              <ShieldCheck size={19} color={theme.colors.accent} />
             </View>
             <View style={styles.brandTextGroup}>
               <Text style={styles.brandName}>MostBox</Text>
               <Text style={styles.pageTitle}>{TAB_LABELS[activeTab]}</Text>
             </View>
           </View>
-          <View
-            style={[
-              styles.statusPill,
-              isReady ? styles.statusPillReady : styles.statusPillPending,
-            ]}
-          >
-            <View
-              style={[
-                styles.statusDot,
-                isReady ? styles.statusDotReady : styles.statusDotPending,
-              ]}
-            />
-            <Text style={styles.statusText}>{statusLabel}</Text>
+          <View style={[styles.statusPill, statusPillStyle]}>
+            <View style={[styles.statusDot, statusDotStyle]} />
+            <Text style={[styles.statusText, statusTextStyle]}>
+              {statusLabel}
+            </Text>
           </View>
         </View>
 
@@ -541,7 +564,11 @@ export default function App() {
             icon={
               <Files
                 size={21}
-                color={activeTab === 'files' ? '#0f766e' : '#63716c'}
+                color={
+                  activeTab === 'files'
+                    ? theme.colors.accent
+                    : theme.colors.textSecondary
+                }
               />
             }
             label="文件"
@@ -552,7 +579,11 @@ export default function App() {
             icon={
               <ArrowLeftRight
                 size={21}
-                color={activeTab === 'transfers' ? '#0f766e' : '#63716c'}
+                color={
+                  activeTab === 'transfers'
+                    ? theme.colors.accent
+                    : theme.colors.textSecondary
+                }
               />
             }
             label="传输"
@@ -563,7 +594,11 @@ export default function App() {
             icon={
               <Settings
                 size={21}
-                color={activeTab === 'settings' ? '#0f766e' : '#63716c'}
+                color={
+                  activeTab === 'settings'
+                    ? theme.colors.accent
+                    : theme.colors.textSecondary
+                }
               />
             }
             label="设置"
@@ -578,100 +613,137 @@ export default function App() {
           visible={downloadModalOpen}
         >
           <View style={styles.modalOverlay}>
-            <View style={styles.modalCard}>
-              <View style={styles.modalHeader}>
-                <View style={styles.modalTitleGroup}>
-                  <ListChecks size={20} color="#0f766e" />
-                  <Text style={styles.modalTitle}>接收文件</Text>
-                </View>
-                <Pressable
-                  accessibilityLabel="关闭"
-                  accessibilityRole="button"
-                  disabled={Boolean(downloadingCid)}
-                  onPress={closeDownloadModal}
-                  style={styles.closeButton}
-                >
-                  <X size={20} color="#465650" />
-                </Pressable>
-              </View>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              style={styles.modalKeyboard}
+            >
+              <ScrollView
+                bounces={false}
+                contentContainerStyle={styles.modalScrollContent}
+                keyboardShouldPersistTaps="handled"
+              >
+                <View style={styles.modalCard}>
+                  <View style={styles.modalHeader}>
+                    <View style={styles.modalTitleGroup}>
+                      <ListChecks size={20} color={theme.colors.accent} />
+                      <Text style={styles.modalTitle}>接收文件</Text>
+                    </View>
+                    <Pressable
+                      accessibilityLabel="关闭"
+                      accessibilityRole="button"
+                      disabled={Boolean(downloadingCid)}
+                      hitSlop={8}
+                      onPress={closeDownloadModal}
+                      style={({ pressed }) => [
+                        styles.closeButton,
+                        pressed ? styles.pressablePressed : null,
+                      ]}
+                    >
+                      <X size={20} color={theme.colors.textSecondary} />
+                    </Pressable>
+                  </View>
 
-              <TextInput
-                autoCapitalize="none"
-                autoCorrect={false}
-                editable={!downloadingCid}
-                multiline
-                onChangeText={handleDownloadLinkChange}
-                placeholder="most://CID?filename=..."
-                placeholderTextColor="#94a3a0"
-                style={styles.linkInput}
-                value={downloadLinkInput}
-              />
+                  <TextInput
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    editable={!downloadingCid}
+                    multiline
+                    onChangeText={handleDownloadLinkChange}
+                    placeholder="most://CID?filename=..."
+                    placeholderTextColor={theme.colors.textMuted}
+                    selectionColor={theme.colors.accent}
+                    style={styles.linkInput}
+                    value={downloadLinkInput}
+                  />
 
-              {downloadIntent ? (
-                <View style={styles.downloadPreview}>
-                  <Text numberOfLines={2} style={styles.previewFileName}>
-                    {downloadIntent.fileName}
-                  </Text>
-                  <Text style={styles.previewLabel}>CID</Text>
-                  <Text selectable style={styles.previewCid}>
-                    {shortCid(downloadIntent.cid)}
-                  </Text>
-                </View>
-              ) : null}
+                  {downloadIntent ? (
+                    <View style={styles.downloadPreview}>
+                      <Text numberOfLines={2} style={styles.previewFileName}>
+                        {downloadIntent.fileName}
+                      </Text>
+                      <Text style={styles.previewLabel}>CID</Text>
+                      <Text selectable style={styles.previewCid}>
+                        {shortCid(downloadIntent.cid)}
+                      </Text>
+                    </View>
+                  ) : null}
 
-              {downloadLinkError ? (
-                <Text accessibilityRole="alert" style={styles.errorText}>
-                  {downloadLinkError}
-                </Text>
-              ) : null}
-
-              <Text style={styles.consentText}>
-                仅接收你信任且有权下载的文件。下载完成后将校验
-                CID，并在应用前台继续做种。
-              </Text>
-
-              <View style={styles.modalActions}>
-                <Pressable
-                  accessibilityRole="button"
-                  disabled={Boolean(downloadingCid)}
-                  onPress={closeDownloadModal}
-                  style={styles.cancelButton}
-                >
-                  <Text style={styles.cancelButtonText}>取消</Text>
-                </Pressable>
-                {downloadIntent ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    disabled={!isReady || Boolean(downloadingCid)}
-                    onPress={handleConfirmDownload}
-                    style={[
-                      styles.confirmButton,
-                      !isReady || downloadingCid
-                        ? styles.confirmButtonDisabled
-                        : null,
-                    ]}
-                  >
-                    <Text style={styles.confirmButtonText}>
-                      {downloadingCid ? '下载并校验中' : '确认下载'}
+                  {downloadLinkError ? (
+                    <Text accessibilityRole="alert" style={styles.errorText}>
+                      {downloadLinkError}
                     </Text>
-                  </Pressable>
-                ) : (
-                  <Pressable
-                    accessibilityRole="button"
-                    disabled={!downloadLinkInput.trim()}
-                    onPress={handleInspectDownload}
-                    style={[
-                      styles.confirmButton,
-                      !downloadLinkInput.trim()
-                        ? styles.confirmButtonDisabled
-                        : null,
-                    ]}
-                  >
-                    <Text style={styles.confirmButtonText}>检查链接</Text>
-                  </Pressable>
-                )}
-              </View>
-            </View>
+                  ) : null}
+
+                  <Text style={styles.consentText}>
+                    仅接收你信任且有权下载的文件。下载完成后将校验
+                    CID，并在应用前台继续做种。
+                  </Text>
+
+                  <View style={styles.modalActions}>
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={Boolean(downloadingCid)}
+                      onPress={closeDownloadModal}
+                      style={({ pressed }) => [
+                        styles.cancelButton,
+                        pressed ? styles.pressablePressed : null,
+                      ]}
+                    >
+                      <Text style={styles.cancelButtonText}>取消</Text>
+                    </Pressable>
+                    {downloadIntent ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        disabled={!isReady || Boolean(downloadingCid)}
+                        onPress={handleConfirmDownload}
+                        style={({ pressed }) => [
+                          styles.confirmButton,
+                          !isReady || downloadingCid
+                            ? styles.confirmButtonDisabled
+                            : null,
+                          pressed ? styles.confirmButtonPressed : null,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.confirmButtonText,
+                            !isReady || downloadingCid
+                              ? styles.confirmButtonTextDisabled
+                              : null,
+                          ]}
+                        >
+                          {downloadingCid ? '下载并校验中' : '确认下载'}
+                        </Text>
+                      </Pressable>
+                    ) : (
+                      <Pressable
+                        accessibilityRole="button"
+                        disabled={!downloadLinkInput.trim()}
+                        onPress={handleInspectDownload}
+                        style={({ pressed }) => [
+                          styles.confirmButton,
+                          !downloadLinkInput.trim()
+                            ? styles.confirmButtonDisabled
+                            : null,
+                          pressed ? styles.confirmButtonPressed : null,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.confirmButtonText,
+                            !downloadLinkInput.trim()
+                              ? styles.confirmButtonTextDisabled
+                              : null,
+                          ]}
+                        >
+                          检查链接
+                        </Text>
+                      </Pressable>
+                    )}
+                  </View>
+                </View>
+              </ScrollView>
+            </KeyboardAvoidingView>
           </View>
         </Modal>
       </SafeAreaView>
@@ -687,12 +759,19 @@ type TabButtonProps = {
 }
 
 function TabButton({ active, icon, label, onPress }: TabButtonProps) {
+  const theme = useMostBoxTheme()
+  const styles = appStyles[theme.mode]
+
   return (
     <Pressable
       accessibilityRole="tab"
       accessibilityState={{ selected: active }}
       onPress={onPress}
-      style={[styles.tabButton, active ? styles.tabButtonActive : null]}
+      style={({ pressed }) => [
+        styles.tabButton,
+        active ? styles.tabButtonActive : null,
+        pressed ? styles.pressablePressed : null,
+      ]}
     >
       {icon}
       <Text style={[styles.tabText, active ? styles.tabTextActive : null]}>
@@ -702,228 +781,302 @@ function TabButton({ active, icon, label, onPress }: TabButtonProps) {
   )
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: '#f4f7f5',
-  },
-  header: {
-    minHeight: 76,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#0d3b35',
-  },
-  brandRow: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 11,
-  },
-  brandMark: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 8,
-    backgroundColor: '#0f766e',
-  },
-  brandTextGroup: {
-    flex: 1,
-    gap: 2,
-  },
-  brandName: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: '900',
-  },
-  pageTitle: {
-    color: '#b8d6cf',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  statusPill: {
-    minHeight: 32,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    paddingHorizontal: 11,
-    borderRadius: 8,
-  },
-  statusPillReady: {
-    backgroundColor: '#dff8ec',
-  },
-  statusPillPending: {
-    backgroundColor: '#fef3c7',
-  },
-  statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-  },
-  statusDotReady: {
-    backgroundColor: '#16815f',
-  },
-  statusDotPending: {
-    backgroundColor: '#b45309',
-  },
-  statusText: {
-    color: '#20302b',
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  content: {
-    flex: 1,
-  },
-  tabBar: {
-    minHeight: 68,
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingTop: 7,
-    borderTopWidth: 1,
-    borderTopColor: '#d8e3de',
-    backgroundColor: '#ffffff',
-  },
-  tabButton: {
-    flex: 1,
-    minHeight: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    borderRadius: 8,
-  },
-  tabButtonActive: {
-    backgroundColor: '#edf6f2',
-  },
-  tabText: {
-    color: '#63716c',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  tabTextActive: {
-    color: '#0f766e',
-  },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: 'center',
-    padding: 20,
-    backgroundColor: 'rgba(7, 25, 22, 0.58)',
-  },
-  modalCard: {
-    gap: 14,
-    padding: 18,
-    borderRadius: 8,
-    backgroundColor: '#ffffff',
-  },
-  modalHeader: {
-    minHeight: 36,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  modalTitleGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  modalTitle: {
-    color: '#13231f',
-    fontSize: 18,
-    fontWeight: '900',
-  },
-  closeButton: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 8,
-    backgroundColor: '#eef3f0',
-  },
-  linkInput: {
-    minHeight: 92,
-    paddingHorizontal: 12,
-    paddingVertical: 11,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#bdd1c9',
-    color: '#13231f',
-    backgroundColor: '#fbfdfc',
-    fontSize: 13,
-    textAlignVertical: 'top',
-  },
-  downloadPreview: {
-    gap: 5,
-    padding: 12,
-    borderRadius: 8,
-    backgroundColor: '#edf6f2',
-  },
-  previewFileName: {
-    color: '#13231f',
-    fontSize: 15,
-    fontWeight: '900',
-  },
-  previewLabel: {
-    marginTop: 4,
-    color: '#63716c',
-    fontSize: 10,
-    fontWeight: '900',
-  },
-  previewCid: {
-    color: '#23423a',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  errorText: {
-    color: '#b91c1c',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  consentText: {
-    color: '#63716c',
-    fontSize: 12,
-    lineHeight: 18,
-    fontWeight: '600',
-  },
-  modalActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 10,
-  },
-  cancelButton: {
-    minWidth: 84,
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#d5e3dd',
-    backgroundColor: '#ffffff',
-  },
-  cancelButtonText: {
-    color: '#465650',
-    fontSize: 14,
-    fontWeight: '900',
-  },
-  confirmButton: {
-    minWidth: 120,
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 14,
-    borderRadius: 8,
-    backgroundColor: '#0f766e',
-  },
-  confirmButtonDisabled: {
-    backgroundColor: '#8fb9b2',
-  },
-  confirmButtonText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '900',
-  },
-})
+function createStyles(theme: MostBoxTheme) {
+  const { colors, radii } = theme
+
+  return StyleSheet.create({
+    screen: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    header: {
+      minHeight: 64,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+      paddingHorizontal: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    brandRow: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    brandMark: {
+      width: 36,
+      height: 36,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: radii.medium,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.accentSoft,
+    },
+    brandTextGroup: {
+      flex: 1,
+      gap: 1,
+    },
+    brandName: {
+      color: colors.accent,
+      fontSize: 11,
+      fontWeight: '600',
+    },
+    pageTitle: {
+      color: colors.text,
+      fontSize: 18,
+      fontWeight: '600',
+    },
+    statusPill: {
+      minHeight: 28,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 10,
+      borderRadius: radii.full,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    statusPillReady: {
+      backgroundColor: colors.successSoft,
+    },
+    statusPillPending: {
+      backgroundColor: colors.warningSoft,
+    },
+    statusPillError: {
+      backgroundColor: colors.dangerSoft,
+    },
+    statusDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+    },
+    statusDotReady: {
+      backgroundColor: colors.success,
+    },
+    statusDotPending: {
+      backgroundColor: colors.warning,
+    },
+    statusDotError: {
+      backgroundColor: colors.danger,
+    },
+    statusText: {
+      fontSize: 11,
+      fontWeight: '600',
+    },
+    statusTextReady: {
+      color: colors.success,
+    },
+    statusTextPending: {
+      color: colors.warning,
+    },
+    statusTextError: {
+      color: colors.danger,
+    },
+    content: {
+      flex: 1,
+    },
+    tabBar: {
+      minHeight: 64,
+      flexDirection: 'row',
+      alignItems: 'stretch',
+      gap: 4,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    tabButton: {
+      flex: 1,
+      minHeight: 48,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 3,
+      borderRadius: radii.medium,
+    },
+    tabButtonActive: {
+      backgroundColor: colors.accentSoft,
+    },
+    tabText: {
+      color: colors.textSecondary,
+      fontSize: 11,
+      fontWeight: '500',
+    },
+    tabTextActive: {
+      color: colors.accent,
+      fontWeight: '600',
+    },
+    pressablePressed: {
+      opacity: 0.68,
+    },
+    modalOverlay: {
+      flex: 1,
+      padding: 16,
+      backgroundColor: colors.overlay,
+    },
+    modalKeyboard: {
+      flex: 1,
+    },
+    modalScrollContent: {
+      flexGrow: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 16,
+    },
+    modalCard: {
+      width: '100%',
+      maxWidth: 520,
+      gap: 16,
+      padding: 20,
+      borderRadius: radii.large,
+      borderWidth: 1,
+      borderColor: colors.borderStrong,
+      backgroundColor: colors.surfaceSolid,
+      ...(Platform.select({
+        ios: {
+          shadowColor: colors.shadow,
+          shadowOffset: { width: 0, height: 12 },
+          shadowOpacity: theme.mode === 'dark' ? 0.5 : 0.16,
+          shadowRadius: 30,
+        },
+        android: {
+          elevation: 8,
+          shadowColor: colors.shadow,
+        },
+      }) ?? {}),
+    },
+    modalHeader: {
+      minHeight: 36,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+    },
+    modalTitleGroup: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    modalTitle: {
+      color: colors.text,
+      fontSize: 18,
+      fontWeight: '600',
+    },
+    closeButton: {
+      width: 36,
+      height: 36,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: radii.full,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceMuted,
+    },
+    linkInput: {
+      minHeight: 96,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      borderRadius: radii.medium,
+      borderWidth: 1,
+      borderColor: colors.borderStrong,
+      color: colors.text,
+      backgroundColor: colors.surfaceMuted,
+      fontSize: 14,
+      lineHeight: 20,
+      textAlignVertical: 'top',
+    },
+    downloadPreview: {
+      gap: 5,
+      padding: 14,
+      borderRadius: radii.medium,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.accentSoft,
+    },
+    previewFileName: {
+      color: colors.text,
+      fontSize: 15,
+      fontWeight: '600',
+    },
+    previewLabel: {
+      marginTop: 4,
+      color: colors.textMuted,
+      fontSize: 10,
+      fontWeight: '600',
+    },
+    previewCid: {
+      color: colors.textSecondary,
+      fontFamily: Platform.select({
+        ios: 'Menlo',
+        android: 'monospace',
+      }),
+      fontSize: 12,
+      fontWeight: '500',
+    },
+    errorText: {
+      color: colors.danger,
+      fontSize: 12,
+      lineHeight: 17,
+      fontWeight: '600',
+    },
+    consentText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      lineHeight: 18,
+      fontWeight: '400',
+    },
+    modalActions: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      gap: 10,
+    },
+    cancelButton: {
+      flex: 1,
+      minHeight: 46,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 14,
+      borderRadius: radii.medium,
+      borderWidth: 1,
+      borderColor: colors.borderStrong,
+      backgroundColor: colors.surfaceSubtle,
+    },
+    cancelButtonText: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    confirmButton: {
+      flex: 1.35,
+      minHeight: 46,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 14,
+      borderRadius: radii.medium,
+      backgroundColor: colors.accent,
+    },
+    confirmButtonPressed: {
+      backgroundColor: colors.accentPressed,
+    },
+    confirmButtonDisabled: {
+      backgroundColor: colors.surfaceMuted,
+    },
+    confirmButtonText: {
+      color: colors.onAccent,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    confirmButtonTextDisabled: {
+      color: colors.textMuted,
+    },
+  })
+}
+
+const appStyles = {
+  light: createStyles(lightTheme),
+  dark: createStyles(darkTheme),
+} as const
