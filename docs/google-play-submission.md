@@ -6,7 +6,7 @@
 
 - 包名：`most.box`
 - 版本名：与根包和 `mobile/app/package.json` 一致
-- 版本码：`mobile/app/app.json` 中的 `android.versionCode`，由版本号按 `major * 10000 + minor * 100 + patch` 同步（例如 `0.4.7` 对应 `407`），每次上传必须递增
+- 版本码：`mobile/app/app.json` 中的 `android.versionCode`，由版本号按 `major * 10000 + minor * 100 + patch` 同步（例如 `0.4.8` 对应 `408`），每次上传必须递增
 - 最低版本：Android 10 / API 29
 - 目标版本：Android 16 / API 36
 - 正式产物：Android App Bundle（`.aab`），当前只分发 `arm64-v8a`

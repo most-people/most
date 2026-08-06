@@ -2,13 +2,13 @@
   "expo": {
     "name": "MostBox",
     "slug": "mostbox-android",
-    "version": "0.4.7",
+    "version": "0.4.8",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "most",
     "userInterfaceStyle": "automatic",
     "android": {
-      "versionCode": 407,
+      "versionCode": 408,
       "allowBackup": false,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon-foreground.png",

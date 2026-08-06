@@ -221,7 +221,7 @@ npm test              # 运行 Android 子包协议、Channel 和 IPC 测试
 ```yaml
 services:
   mostbox:
-    image: ghcr.io/most-people/most-box:0.4.7
+    image: ghcr.io/most-people/most-box:0.4.8
     container_name: mostbox
     network_mode: host
     restart: unless-stopped
@@ -396,7 +396,7 @@ npx most-box@latest
 
 ## CI/CD
 
-发布前先完成发版提交，再推送 tag 触发自动构建。每次发版必须更新 `CHANGELOG.md`，并将版本号同步到根目录 `package.json` / `package-lock.json`、`mobile/app/package.json` / `mobile/app/package-lock.json`、`mobile/app/app.json` 和文档里的 Docker 示例 tag；`mobile/app/app.json` 的 Android `versionCode` 也必须与版本号同步，例如 `0.4.7` 对应 `407`。Android APK 文件名虽然由发布 tag 驱动，但移动端子包版本和 Expo 可见版本也要每次一起更新。`npm run check:versions -- --tag vx.x.x` 会检查这些版本和 Android `versionCode` 是否一致。
+发布前先完成发版提交，再推送 tag 触发自动构建。每次发版必须更新 `CHANGELOG.md`，并将版本号同步到根目录 `package.json` / `package-lock.json`、`mobile/app/package.json` / `mobile/app/package-lock.json`、`mobile/app/app.json` 和文档里的 Docker 示例 tag；`mobile/app/app.json` 的 Android `versionCode` 也必须与版本号同步，例如 `0.4.8` 对应 `408`。Android APK 文件名虽然由发布 tag 驱动，但移动端子包版本和 Expo 可见版本也要每次一起更新。`npm run check:versions -- --tag vx.x.x` 会检查这些版本和 Android `versionCode` 是否一致。
 
 ### Code signing policy
 

@@ -4,6 +4,26 @@ All notable changes to MostBox are documented in this file.
 
 ## [Unreleased]
 
+## [0.4.8] - 2026-08-07
+
+### Added
+
+- Added a receiver-focused CID page with platform-aware client downloads and static deep-link routing.
+- Added a separate Future page for longer-term product direction and improved GitHub contribution templates and support documentation.
+- Added strict public R2 CORS verification and signed Android store APK build support.
+
+### Changed
+
+- Refreshed the About page and separated shipped MostBox capabilities from future plans.
+- Upgraded Electron, React Table, Hypercore, Hyperdrive, Corestore, and related frontend dependencies.
+- Improved release download platform detection, fallback behavior, and static application shell handling.
+
+### Fixed
+
+- Removed folder paths from user-facing share-link filenames.
+- Increased the full engine integration-suite timeout while retaining short per-operation network timeouts.
+- Kept R2 release verification read-only instead of requiring bucket configuration writes.
+
 ## [0.4.7] - 2026-08-03
 
 ### Added
