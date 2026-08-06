@@ -1,197 +1,206 @@
 export const zhCNAboutMessages = {
-  'about.meta.title': 'MostBox｜下载后接力分享的 P2P 文件工具',
+  'about.meta.title': 'MostBox｜由在线的人共同传播的 P2P 文件工具',
   'about.meta.desc':
-    'MostBox 通过 most:// 链接在人与人之间分享文件。接收方下载后自动校验内容并继续提供下载。',
-  'about.hero.kicker': 'P2P 文件分享',
-  'about.hero.title': '让文件在人与人之间接力传播。',
+    '发布文件并分享 most:// 链接。接收者完成下载和 CID 校验后，会成为新的种子继续传播。',
+  'about.hero.kicker': '由在线的人共同保存与传播',
+  'about.hero.title': '文件离开发布者，也能继续传下去',
   'about.hero.desc':
-    '选择文件，发送 most:// 链接。对方下载并校验成功后，会自动成为新的分享者。',
-  'about.hero.signal.noCloud': '不用先上传网盘',
-  'about.hero.signal.verify': '下载完成自动校验',
-  'about.hero.signal.relay': '下载者继续提供文件',
-  'about.cta.download': '下载 MostBox',
-  'about.cta.files': '已有节点？打开文件库',
-  'about.flow.kicker': '一次分享，三步完成',
-  'about.flow.title': '文件如何接力传播',
+    '发布文件，分享一条 most:// 链接。收到文件的人完成校验后会成为新的种子，只要仍有人在线，下一位就能继续下载。',
+  'about.cta.download': '下载客户端',
+  'about.cta.files': '打开文件库',
+  'about.flow.kicker': '一次分享，一条清楚的路径',
+  'about.flow.title': '从链接到新的种子',
   'about.flow.intro':
-    '发布者和下载者都运行自己的节点，文件直接从仍在线的完整副本传播。',
-  'about.flow.publish.title': '选择文件，生成链接',
+    'MostBox 的文件主线只有三个动作，没有云端上传、存储订单或钱包前置条件。',
+  'about.flow.publish.title': '发布并分享',
   'about.flow.publish.body':
-    'MostBox 根据文件内容生成 CID，并给出一个 most:// 分享链接。',
-  'about.flow.verify.title': '凭链接下载，自动校验',
+    '选择本机文件，MostBox 计算内容 CID，并生成原生 most:// 分享链接。',
+  'about.flow.verify.title': '发现、下载、校验',
   'about.flow.verify.body':
-    '接收方从在线设备下载完整文件，完成后重新计算 CID。',
-  'about.flow.relay.title': '下载完成，接力分享',
-  'about.flow.relay.body':
-    '校验通过后，下载者默认继续提供同一文件，成为新的种子。',
-  'about.cid.kicker': '内容决定身份',
-  'about.cid.title': '下载的不只是同名文件，而是同一份内容。',
-  'about.cid.body':
-    'CID 像文件内容的指纹。MostBox 会在下载完成后重新计算，只有结果与链接一致，才会把下载标记为成功。',
-  'about.cid.filename':
-    '文件名只用于展示和保存位置，不会替代 CID 判断内容是否可信。',
-  'about.cid.visualLabel': '文件内容生成 CID，并在下载后校验一致',
-  'about.cid.fileLabel': '文件内容',
-  'about.cid.fileValue': '完整副本',
-  'about.cid.linkLabel': '内容链接',
-  'about.cid.match': '下载内容与链接一致',
-  'about.boundaries.kicker': '使用前需要知道',
-  'about.boundaries.title': '它不是云盘，也不承诺永久在线。',
-  'about.boundaries.intro':
-    'MostBox 帮助在线用户传播文件。可用性来自当前在线的完整副本，而不是中心服务器。',
-  'about.boundaries.cloud.title': '不存进中心网盘',
-  'about.boundaries.cloud.body':
-    '文件由发布者和后续下载者自己保存，MostBox 不提供永久托管承诺。',
-  'about.boundaries.online.title': '有种子在线才能下载',
-  'about.boundaries.online.body':
-    '只要至少一个持有完整文件的节点在线，其他人就可以继续获取内容。',
-  'about.boundaries.link.title': '链接就是访问凭证',
-  'about.boundaries.link.body':
-    '知道 most:// 链接的人即可尝试下载。分享敏感文件时，请妥善保管链接。',
-  'about.boundaries.stop.title': '你可以停止提供文件',
-  'about.boundaries.stop.body':
-    '暂停做种、删除文件或关闭应用后，本机就不再向其他人提供这份内容。',
-  'about.close.kicker': '开始使用',
-  'about.close.title': '分享第一个文件。',
-  'about.close.body':
-    '桌面客户端会在本机运行完整节点，负责发布、下载、校验和持续做种。',
-  'about.next.kicker': '从今天走向未来',
-  'about.next.title': '接力传播只是起点。',
-  'about.next.body':
+    '接收者凭链接寻找在线种子，下载完整文件，并重新计算 CID 确认内容一致。',
+  'about.flow.seed.title': '继续做种',
+  'about.flow.seed.body':
+    '校验成功后，本机默认持有完整副本并继续传播；重启应用也会恢复做种。',
+  'about.difference.kicker': '为什么不同',
+  'about.difference.title': '内容属于网络中的人，不属于一个云端账户',
+  'about.difference.intro':
+    'MostBox 不替你托管文件。它让每台持有完整副本的设备，都能直接参与下一次传输。',
+  'about.difference.boundary':
+    '重要数据仍需自己保存；没有在线种子时，MostBox 不承诺文件可下载。',
+  'about.difference.cid.title': 'CID 是唯一内容身份',
+  'about.difference.cid.body':
+    '文件名只负责展示。下载、已有判断和完整性校验都以 CID 为准。',
+  'about.difference.copy.title': '每个种子持有完整副本',
+  'about.difference.copy.body':
+    '不分片、不做纠删码。任何在线种子都能独立提供完整文件。',
+  'about.difference.people.title': '可用性来自在线的人',
+  'about.difference.people.body':
+    '发布者退出后，只要下载者仍在线做种，文件就能继续传播。',
+  'about.toolbox.kicker': '独立工具箱',
+  'about.toolbox.title': '需要时打开，不成为分享文件的门槛',
+  'about.toolbox.intro':
+    '聊天、知识库、MCP 和 Web3 保留为独立工具；知识库的 Git 历史只管理本地笔记，使用 most:// 下载与做种不依赖它们。',
+  'about.toolbox.chat.title': '聊天',
+  'about.toolbox.chat.body':
+    '为私域沟通、小团队消息、多人语音和文件附件提供独立房间。',
+  'about.toolbox.note.title': '知识库与 Git',
+  'about.toolbox.note.body':
+    '用 Markdown 整理本地笔记，通过内置 Git 查看差异、提交版本和恢复文件。',
+  'about.toolbox.mcp.title': 'MCP（AI 客户端）',
+  'about.toolbox.mcp.body':
+    '通过受限、可过期的本机凭证，让 AI 客户端读取节点状态并调用文件能力。',
+  'about.toolbox.web3.title': 'Web3 工具箱',
+  'about.toolbox.web3.body':
+    '本地账户、签名和钱包工具独立存在，不参与文件发现、校验或做种。',
+  'about.opensource.kicker': '开放源代码',
+  'about.opensource.title': 'MostBox 是一个开源项目',
+  'about.opensource.body':
+    '源代码与开发过程公开，并采用 MIT License。你可以检查实现、提出问题，或参与改进这个由用户共同运行的网络。',
+  'about.opensource.cta': '查看源代码',
+  'about.related.kicker': '向同行者致意',
+  'about.related.title': '这些项目也在把通信交还给用户',
+  'about.future.kicker': '从今天走向未来',
+  'about.future.title': '接力传播只是起点',
+  'about.future.body':
     '我们正在探索个人节点如何成为由用户掌控的长期上下文和 Agent 协作基础。',
-  'about.next.future': '看看 MostBox 想走向哪里',
-  'about.next.source': '查看源代码',
+  'about.future.cta': '看看 MostBox 想走向哪里',
 } as const
 
 export const zhTWAboutMessages = {
-  'about.meta.title': 'MostBox｜下載後接力分享的 P2P 檔案工具',
+  'about.meta.title': 'MostBox｜由在線的人共同傳播的 P2P 檔案工具',
   'about.meta.desc':
-    'MostBox 透過 most:// 連結在人與人之間分享檔案。接收方下載後自動校驗內容並繼續提供下載。',
-  'about.hero.kicker': 'P2P 檔案分享',
-  'about.hero.title': '讓檔案在人與人之間接力傳播。',
+    '發佈檔案並分享 most:// 連結。接收者完成下載和 CID 校驗後，會成為新的種子繼續傳播。',
+  'about.hero.kicker': '由在線的人共同保存與傳播',
+  'about.hero.title': '檔案離開發佈者，也能繼續傳下去',
   'about.hero.desc':
-    '選擇檔案，傳送 most:// 連結。對方下載並校驗成功後，會自動成為新的分享者。',
-  'about.hero.signal.noCloud': '不用先上傳網路硬碟',
-  'about.hero.signal.verify': '下載完成自動校驗',
-  'about.hero.signal.relay': '下載者繼續提供檔案',
-  'about.cta.download': '下載 MostBox',
-  'about.cta.files': '已有節點？開啟檔案庫',
-  'about.flow.kicker': '一次分享，三步完成',
-  'about.flow.title': '檔案如何接力傳播',
+    '發佈檔案，分享一條 most:// 連結。收到檔案的人完成校驗後會成為新的種子，只要仍有人在線，下一位就能繼續下載。',
+  'about.cta.download': '下載客戶端',
+  'about.cta.files': '開啟檔案庫',
+  'about.flow.kicker': '一次分享，一條清楚的路徑',
+  'about.flow.title': '從連結到新的種子',
   'about.flow.intro':
-    '發布者和下載者都執行自己的節點，檔案直接從仍在線的完整副本傳播。',
-  'about.flow.publish.title': '選擇檔案，生成連結',
+    'MostBox 的檔案主線只有三個動作，沒有雲端上傳、儲存訂單或錢包前置條件。',
+  'about.flow.publish.title': '發佈並分享',
   'about.flow.publish.body':
-    'MostBox 根據檔案內容生成 CID，並給出一個 most:// 分享連結。',
-  'about.flow.verify.title': '憑連結下載，自動校驗',
+    '選擇本機檔案，MostBox 計算內容 CID，並生成原生 most:// 分享連結。',
+  'about.flow.verify.title': '發現、下載、校驗',
   'about.flow.verify.body':
-    '接收方從在線裝置下載完整檔案，完成後重新計算 CID。',
-  'about.flow.relay.title': '下載完成，接力分享',
-  'about.flow.relay.body':
-    '校驗通過後，下載者預設繼續提供同一檔案，成為新的種子。',
-  'about.cid.kicker': '內容決定身份',
-  'about.cid.title': '下載的不只是同名檔案，而是同一份內容。',
-  'about.cid.body':
-    'CID 像檔案內容的指紋。MostBox 會在下載完成後重新計算，只有結果與連結一致，才會把下載標記為成功。',
-  'about.cid.filename':
-    '檔案名稱只用於顯示和儲存位置，不會取代 CID 判斷內容是否可信。',
-  'about.cid.visualLabel': '檔案內容生成 CID，並在下載後校驗一致',
-  'about.cid.fileLabel': '檔案內容',
-  'about.cid.fileValue': '完整副本',
-  'about.cid.linkLabel': '內容連結',
-  'about.cid.match': '下載內容與連結一致',
-  'about.boundaries.kicker': '使用前需要知道',
-  'about.boundaries.title': '它不是網路硬碟，也不承諾永久在線。',
-  'about.boundaries.intro':
-    'MostBox 幫助在線使用者傳播檔案。可用性來自目前在線的完整副本，而不是中心伺服器。',
-  'about.boundaries.cloud.title': '不存進中心網路硬碟',
-  'about.boundaries.cloud.body':
-    '檔案由發布者和後續下載者自己保存，MostBox 不提供永久託管承諾。',
-  'about.boundaries.online.title': '有種子在線才能下載',
-  'about.boundaries.online.body':
-    '只要至少一個持有完整檔案的節點在線，其他人就可以繼續取得內容。',
-  'about.boundaries.link.title': '連結就是存取憑證',
-  'about.boundaries.link.body':
-    '知道 most:// 連結的人即可嘗試下載。分享敏感檔案時，請妥善保管連結。',
-  'about.boundaries.stop.title': '你可以停止提供檔案',
-  'about.boundaries.stop.body':
-    '暫停做種、刪除檔案或關閉應用程式後，本機就不再向其他人提供這份內容。',
-  'about.close.kicker': '開始使用',
-  'about.close.title': '分享第一個檔案。',
-  'about.close.body':
-    '桌面用戶端會在本機執行完整節點，負責發布、下載、校驗和持續做種。',
-  'about.next.kicker': '從今天走向未來',
-  'about.next.title': '接力傳播只是起點。',
-  'about.next.body':
+    '接收者憑連結尋找在線種子，下載完整檔案，並重新計算 CID 確認內容一致。',
+  'about.flow.seed.title': '繼續做種',
+  'about.flow.seed.body':
+    '校驗成功後，本機預設持有完整副本並繼續傳播；重新啟動應用程式也會恢復做種。',
+  'about.difference.kicker': '為什麼不同',
+  'about.difference.title': '內容屬於網路中的人，不屬於一個雲端帳戶',
+  'about.difference.intro':
+    'MostBox 不替你託管檔案。它讓每台持有完整副本的裝置，都能直接參與下一次傳輸。',
+  'about.difference.boundary':
+    '重要資料仍需自己保存；沒有在線種子時，MostBox 不承諾檔案可下載。',
+  'about.difference.cid.title': 'CID 是唯一內容身分',
+  'about.difference.cid.body':
+    '檔案名稱只負責顯示。下載、已有判斷和完整性校驗都以 CID 為準。',
+  'about.difference.copy.title': '每個種子持有完整副本',
+  'about.difference.copy.body':
+    '不分片、不做糾刪碼。任何在線種子都能獨立提供完整檔案。',
+  'about.difference.people.title': '可用性來自在線的人',
+  'about.difference.people.body':
+    '發佈者退出後，只要下載者仍在線做種，檔案就能繼續傳播。',
+  'about.toolbox.kicker': '獨立工具箱',
+  'about.toolbox.title': '需要時開啟，不成為分享檔案的門檻',
+  'about.toolbox.intro':
+    '聊天、知識庫、MCP 和 Web3 保留為獨立工具；知識庫的 Git 歷史只管理本機筆記，使用 most:// 下載與做種不依賴它們。',
+  'about.toolbox.chat.title': '聊天',
+  'about.toolbox.chat.body':
+    '為私域溝通、小團隊訊息、多人語音和檔案附件提供獨立房間。',
+  'about.toolbox.note.title': '知識庫與 Git',
+  'about.toolbox.note.body':
+    '用 Markdown 整理本機筆記，透過內建 Git 查看差異、提交版本和恢復檔案。',
+  'about.toolbox.mcp.title': 'MCP（AI 客戶端）',
+  'about.toolbox.mcp.body':
+    '透過受限、可過期的本機憑證，讓 AI 客戶端讀取節點狀態並調用檔案能力。',
+  'about.toolbox.web3.title': 'Web3 工具箱',
+  'about.toolbox.web3.body':
+    '本機帳戶、簽名和錢包工具獨立存在，不參與檔案發現、校驗或做種。',
+  'about.opensource.kicker': '開放原始碼',
+  'about.opensource.title': 'MostBox 是一個開源專案',
+  'about.opensource.body':
+    '原始碼與開發過程公開，並採用 MIT License。你可以檢查實作、提出問題，或參與改進這個由使用者共同運行的網路。',
+  'about.opensource.cta': '查看原始碼',
+  'about.related.kicker': '向同行者致意',
+  'about.related.title': '這些專案也在把通訊交還給使用者',
+  'about.future.kicker': '從今天走向未來',
+  'about.future.title': '接力傳播只是起點',
+  'about.future.body':
     '我們正在探索個人節點如何成為由使用者掌控的長期脈絡和 Agent 協作基礎。',
-  'about.next.future': '看看 MostBox 想走向哪裡',
-  'about.next.source': '查看原始碼',
+  'about.future.cta': '看看 MostBox 想走向哪裡',
 } as const
 
 export const enAboutMessages = {
-  'about.meta.title': 'MostBox | P2P file sharing that keeps moving',
+  'about.meta.title': 'MostBox | P2P files shared by people who are online',
   'about.meta.desc':
-    'Share files with most:// links. MostBox verifies every download and lets recipients keep the file available to others.',
-  'about.hero.kicker': 'P2P file sharing',
-  'about.hero.title': 'Let files move from person to person.',
+    'Publish a file and share a most:// link. After downloading and verifying its CID, recipients become new seeders.',
+  'about.hero.kicker': 'Stored and shared by people who are online',
+  'about.hero.title': 'Files can keep moving after the publisher leaves.',
   'about.hero.desc':
-    'Choose a file and send a most:// link. After a recipient downloads and verifies it, they automatically become another sharer.',
-  'about.hero.signal.noCloud': 'No cloud upload first',
-  'about.hero.signal.verify': 'Downloads verify automatically',
-  'about.hero.signal.relay': 'Recipients keep files available',
-  'about.cta.download': 'Download MostBox',
-  'about.cta.files': 'Already have a node? Open files',
-  'about.flow.kicker': 'One share, three steps',
-  'about.flow.title': 'How a file keeps moving',
+    'Publish a file and share a most:// link. After recipients verify the download, they become new seeders. As long as someone remains online, the next person can download it.',
+  'about.cta.download': 'Download the app',
+  'about.cta.files': 'Open files',
+  'about.flow.kicker': 'One share, one clear path',
+  'about.flow.title': 'From a link to a new seeder',
   'about.flow.intro':
-    'Publishers and recipients run their own nodes, and files move directly from complete copies that are still online.',
-  'about.flow.publish.title': 'Choose a file and create a link',
+    'The MostBox file flow has only three actions, with no cloud upload, storage order, or wallet prerequisite.',
+  'about.flow.publish.title': 'Publish and share',
   'about.flow.publish.body':
-    'MostBox creates a CID from the file contents and gives you a most:// share link.',
-  'about.flow.verify.title': 'Download and verify',
+    'Choose a local file. MostBox calculates its content CID and creates a native most:// share link.',
+  'about.flow.verify.title': 'Discover, download, verify',
   'about.flow.verify.body':
-    'The recipient downloads the complete file from an online device, then recalculates its CID.',
-  'about.flow.relay.title': 'Finish and pass it on',
-  'about.flow.relay.body':
-    'After verification, the recipient keeps the same file available by default and becomes a new seeder.',
-  'about.cid.kicker': 'Content defines identity',
-  'about.cid.title':
-    'You receive the same content, not merely the same filename.',
-  'about.cid.body':
-    'A CID works like a fingerprint of the file contents. MostBox recalculates it after downloading and only marks the download successful when it matches the link.',
-  'about.cid.filename':
-    'The filename is only for display and the save location. It never replaces the CID as proof of content.',
-  'about.cid.visualLabel':
-    'File contents create a CID that is verified after download',
-  'about.cid.fileLabel': 'File contents',
-  'about.cid.fileValue': 'Complete copy',
-  'about.cid.linkLabel': 'Content link',
-  'about.cid.match': 'Downloaded content matches the link',
-  'about.boundaries.kicker': 'Know before you share',
-  'about.boundaries.title':
-    'It is not cloud storage, and it is not permanently online.',
-  'about.boundaries.intro':
-    'MostBox helps people who are online distribute files. Availability comes from complete copies that are currently online, not a central server.',
-  'about.boundaries.cloud.title': 'No central cloud copy',
-  'about.boundaries.cloud.body':
-    'Publishers and later recipients keep their own files. MostBox does not promise permanent hosting.',
-  'about.boundaries.online.title': 'A seeder must be online',
-  'about.boundaries.online.body':
-    'As long as one node with the complete file is online, other people can keep downloading it.',
-  'about.boundaries.link.title': 'The link is the access credential',
-  'about.boundaries.link.body':
-    'Anyone who knows the most:// link can try to download. Protect links to sensitive files.',
-  'about.boundaries.stop.title': 'You can stop providing a file',
-  'about.boundaries.stop.body':
-    'Pausing seeding, deleting the file, or closing the app stops this device from providing it.',
-  'about.close.kicker': 'Get started',
-  'about.close.title': 'Share your first file.',
-  'about.close.body':
-    'The desktop client runs a complete node on your device for publishing, downloading, verification, and continuous seeding.',
-  'about.next.kicker': 'From today to tomorrow',
-  'about.next.title': 'Relay sharing is only the beginning.',
-  'about.next.body':
+    'The recipient uses the link to find an online seeder, downloads the complete file, and recalculates its CID to verify the contents.',
+  'about.flow.seed.title': 'Keep seeding',
+  'about.flow.seed.body':
+    'After verification, the device keeps a complete copy available by default and resumes seeding when the app restarts.',
+  'about.difference.kicker': 'Why it is different',
+  'about.difference.title':
+    'The content belongs to people in the network, not a cloud account.',
+  'about.difference.intro':
+    'MostBox does not host files for you. Every device with a complete copy can take part in the next transfer.',
+  'about.difference.boundary':
+    'Keep your own backups of important data. MostBox does not promise availability when no seeder is online.',
+  'about.difference.cid.title': 'The CID is the content identity',
+  'about.difference.cid.body':
+    'Filenames are only for display. Downloads, local availability, and integrity checks all use the CID.',
+  'about.difference.copy.title': 'Every seeder has a complete copy',
+  'about.difference.copy.body':
+    'There is no sharding or erasure coding. Any online seeder can provide the complete file independently.',
+  'about.difference.people.title': 'Availability comes from people online',
+  'about.difference.people.body':
+    'After the publisher leaves, the file keeps moving as long as a recipient remains online and seeds it.',
+  'about.toolbox.kicker': 'Independent toolbox',
+  'about.toolbox.title':
+    'Open tools when needed, never as a sharing prerequisite.',
+  'about.toolbox.intro':
+    'Chat, notes, MCP, and Web3 remain separate tools. Git history only manages local notes; most:// downloads and seeding do not depend on any of them.',
+  'about.toolbox.chat.title': 'Chat',
+  'about.toolbox.chat.body':
+    'Separate rooms support private conversations, small-team messages, group voice, and file attachments.',
+  'about.toolbox.note.title': 'Notes and Git',
+  'about.toolbox.note.body':
+    'Organize local Markdown notes and use built-in Git to inspect changes, commit versions, and restore files.',
+  'about.toolbox.mcp.title': 'MCP for AI clients',
+  'about.toolbox.mcp.body':
+    'Limited, expiring local credentials let AI clients read node status and use file capabilities.',
+  'about.toolbox.web3.title': 'Web3 toolbox',
+  'about.toolbox.web3.body':
+    'Local accounts, signatures, and wallet tools remain separate from file discovery, verification, and seeding.',
+  'about.opensource.kicker': 'Open source',
+  'about.opensource.title': 'MostBox is an open-source project.',
+  'about.opensource.body':
+    'The source code and development process are public under the MIT License. Inspect the implementation, raise issues, or help improve this user-run network.',
+  'about.opensource.cta': 'View source code',
+  'about.related.kicker': 'With respect to fellow travelers',
+  'about.related.title':
+    'These projects are also returning communication to users.',
+  'about.future.kicker': 'From today to tomorrow',
+  'about.future.title': 'Relay sharing is only the beginning.',
+  'about.future.body':
     'We are exploring how personal nodes can become user-controlled long-term context and a foundation for agent collaboration.',
-  'about.next.future': 'See where MostBox may go',
-  'about.next.source': 'View source code',
+  'about.future.cta': 'See where MostBox may go',
 } as const

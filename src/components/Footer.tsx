@@ -11,15 +11,22 @@ const footerLinks = [
 
 const version = packageJson.version
 
-export function Footer() {
+interface FooterProps {
+  hideFutureLink?: boolean
+}
+
+export function Footer({ hideFutureLink = false }: FooterProps) {
   const { t } = useI18n()
+  const visibleLinks = hideFutureLink
+    ? footerLinks.filter(link => link.to !== '/future/')
+    : footerLinks
 
   return (
     <footer className="mkt-footer">
       <div className="mkt-container">
         <div className="mkt-footer-inner">
           <div className="mkt-footer-links">
-            {footerLinks.map(link => (
+            {visibleLinks.map(link => (
               <Link key={link.to} to={link.to}>
                 {t(link.labelKey)}
               </Link>

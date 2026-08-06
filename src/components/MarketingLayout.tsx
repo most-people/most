@@ -13,14 +13,19 @@ import { useI18n } from '~/lib/i18n'
 interface MarketingLayoutProps {
   children: ReactNode
   header?: ReactNode
+  hideFutureLink?: boolean
 }
 
-export function MarketingLayout({ children, header }: MarketingLayoutProps) {
+export function MarketingLayout({
+  children,
+  header,
+  hideFutureLink = false,
+}: MarketingLayoutProps) {
   return (
     <div className="mkt-layout">
       {header ?? <DefaultMarketingHeader />}
       <main className="mkt-layout-main">{children}</main>
-      <Footer />
+      <Footer hideFutureLink={hideFutureLink} />
     </div>
   )
 }

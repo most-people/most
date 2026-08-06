@@ -3,19 +3,21 @@ import '~/styles/about.css'
 import type { LucideIcon } from 'lucide-react'
 import {
   ArrowRight,
+  Bot,
   CheckCircle2,
-  CloudOff,
   Code2,
   Download,
+  ExternalLink,
   FileCheck2,
-  FileUp,
+  Fingerprint,
   FolderOpen,
-  KeyRound,
-  Link2,
+  HardDrive,
+  MessagesSquare,
   Network,
-  PauseCircle,
-  Radio,
-  ShieldCheck,
+  NotebookPen,
+  Share2,
+  Users,
+  Wallet,
 } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 
@@ -24,15 +26,20 @@ import { MarketingLayout } from '~/components/MarketingLayout'
 import { useIsDesktopClient } from '~/hooks'
 import { useI18n, type MessageKey } from '~/lib/i18n'
 
-interface ContentItem {
+interface StoryItem {
   icon: LucideIcon
   titleKey: MessageKey
   bodyKey: MessageKey
 }
 
-const shareSteps: ContentItem[] = [
+interface RelatedProject {
+  name: string
+  href: string
+}
+
+const shareSteps: StoryItem[] = [
   {
-    icon: FileUp,
+    icon: Share2,
     titleKey: 'about.flow.publish.title',
     bodyKey: 'about.flow.publish.body',
   },
@@ -42,39 +49,58 @@ const shareSteps: ContentItem[] = [
     bodyKey: 'about.flow.verify.body',
   },
   {
-    icon: Network,
-    titleKey: 'about.flow.relay.title',
-    bodyKey: 'about.flow.relay.body',
+    icon: Users,
+    titleKey: 'about.flow.seed.title',
+    bodyKey: 'about.flow.seed.body',
   },
 ]
 
-const heroSignals = [
-  ['about.hero.signal.noCloud', CloudOff],
-  ['about.hero.signal.verify', ShieldCheck],
-  ['about.hero.signal.relay', Radio],
-] as const satisfies ReadonlyArray<readonly [MessageKey, LucideIcon]>
+const differences: StoryItem[] = [
+  {
+    icon: Fingerprint,
+    titleKey: 'about.difference.cid.title',
+    bodyKey: 'about.difference.cid.body',
+  },
+  {
+    icon: HardDrive,
+    titleKey: 'about.difference.copy.title',
+    bodyKey: 'about.difference.copy.body',
+  },
+  {
+    icon: Network,
+    titleKey: 'about.difference.people.title',
+    bodyKey: 'about.difference.people.body',
+  },
+]
 
-const boundaries: ContentItem[] = [
+const toolboxItems: StoryItem[] = [
   {
-    icon: CloudOff,
-    titleKey: 'about.boundaries.cloud.title',
-    bodyKey: 'about.boundaries.cloud.body',
+    icon: MessagesSquare,
+    titleKey: 'about.toolbox.chat.title',
+    bodyKey: 'about.toolbox.chat.body',
   },
   {
-    icon: Radio,
-    titleKey: 'about.boundaries.online.title',
-    bodyKey: 'about.boundaries.online.body',
+    icon: NotebookPen,
+    titleKey: 'about.toolbox.note.title',
+    bodyKey: 'about.toolbox.note.body',
   },
   {
-    icon: KeyRound,
-    titleKey: 'about.boundaries.link.title',
-    bodyKey: 'about.boundaries.link.body',
+    icon: Bot,
+    titleKey: 'about.toolbox.mcp.title',
+    bodyKey: 'about.toolbox.mcp.body',
   },
   {
-    icon: PauseCircle,
-    titleKey: 'about.boundaries.stop.title',
-    bodyKey: 'about.boundaries.stop.body',
+    icon: Wallet,
+    titleKey: 'about.toolbox.web3.title',
+    bodyKey: 'about.toolbox.web3.body',
   },
+]
+
+const relatedProjects: RelatedProject[] = [
+  { name: 'Jami', href: 'https://jami.net/' },
+  { name: 'Keet', href: 'https://keet.io/' },
+  { name: 'Briar', href: 'https://briarproject.org/' },
+  { name: 'RetroShare', href: 'https://retroshare.cc/' },
 ]
 
 export default function AboutPage() {
@@ -82,137 +108,17 @@ export default function AboutPage() {
   const isDesktopClient = useIsDesktopClient()
 
   return (
-    <MarketingLayout header={<MarketingHeader />}>
+    <MarketingLayout header={<MarketingHeader />} hideFutureLink>
       <div className="about-page">
         <section className="about-hero">
-          <div className="about-container about-hero-inner">
-            <div className="about-hero-copy">
-              <p className="about-kicker about-kicker-light">
-                <Network size={16} />
-                {t('about.hero.kicker')}
-              </p>
-              <h1>{t('about.hero.title')}</h1>
-              <p className="about-hero-lede">{t('about.hero.desc')}</p>
-              <div className="about-hero-actions">
-                {!isDesktopClient && (
-                  <Link to="/download/" className="btn btn-primary">
-                    <Download size={16} />
-                    {t('about.cta.download')}
-                  </Link>
-                )}
-                <Link to="/file/" className="btn btn-secondary">
-                  <FolderOpen size={16} />
-                  {t('about.cta.files')}
-                </Link>
-              </div>
-              <div className="about-hero-signals">
-                {heroSignals.map(([messageKey, Icon]) => (
-                  <span key={messageKey}>
-                    <Icon size={16} />
-                    {t(messageKey)}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            <div className="about-flow-heading">
-              <p>{t('about.flow.kicker')}</p>
-              <h2>{t('about.flow.title')}</h2>
-              <span>{t('about.flow.intro')}</span>
-            </div>
-            <ol className="about-share-flow">
-              {shareSteps.map((step, index) => {
-                const Icon = step.icon
-                return (
-                  <li key={step.titleKey}>
-                    <div className="about-step-number">0{index + 1}</div>
-                    <Icon size={25} />
-                    <h3>{t(step.titleKey)}</h3>
-                    <p>{t(step.bodyKey)}</p>
-                    {index < shareSteps.length - 1 && (
-                      <ArrowRight
-                        className="about-step-arrow"
-                        size={20}
-                        aria-hidden="true"
-                      />
-                    )}
-                  </li>
-                )
-              })}
-            </ol>
+          <div className="about-hero-media" aria-hidden="true">
+            <img src="/about-artemis.webp" alt="" />
           </div>
-        </section>
-
-        <section className="about-section about-cid">
-          <div className="about-container about-cid-inner">
-            <div className="about-section-copy">
-              <p className="about-kicker">{t('about.cid.kicker')}</p>
-              <h2>{t('about.cid.title')}</h2>
-              <p>{t('about.cid.body')}</p>
-              <p className="about-cid-note">{t('about.cid.filename')}</p>
-            </div>
-
-            <div
-              className="about-cid-proof"
-              aria-label={t('about.cid.visualLabel')}
-            >
-              <div className="about-cid-file">
-                <FileUp size={24} />
-                <div>
-                  <span>{t('about.cid.fileLabel')}</span>
-                  <strong>{t('about.cid.fileValue')}</strong>
-                </div>
-              </div>
-              <ArrowRight size={20} aria-hidden="true" />
-              <div className="about-cid-link">
-                <Link2 size={22} />
-                <div>
-                  <span>{t('about.cid.linkLabel')}</span>
-                  <code>most://bafy...</code>
-                </div>
-              </div>
-              <div className="about-cid-result">
-                <CheckCircle2 size={20} />
-                <strong>{t('about.cid.match')}</strong>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="about-section about-boundaries">
-          <div className="about-container">
-            <header className="about-section-heading">
-              <p className="about-kicker">{t('about.boundaries.kicker')}</p>
-              <h2>{t('about.boundaries.title')}</h2>
-              <p>{t('about.boundaries.intro')}</p>
-            </header>
-            <div className="about-boundary-grid">
-              {boundaries.map(item => {
-                const Icon = item.icon
-                return (
-                  <article key={item.titleKey}>
-                    <Icon size={23} />
-                    <div>
-                      <h3>{t(item.titleKey)}</h3>
-                      <p>{t(item.bodyKey)}</p>
-                    </div>
-                  </article>
-                )
-              })}
-            </div>
-          </div>
-        </section>
-
-        <section className="about-close">
-          <div className="about-container about-close-inner">
-            <div>
-              <p className="about-kicker about-kicker-light">
-                {t('about.close.kicker')}
-              </p>
-              <h2>{t('about.close.title')}</h2>
-              <p>{t('about.close.body')}</p>
-            </div>
-            <div className="about-close-actions">
+          <div className="about-container about-hero-content">
+            <p className="about-kicker">{t('about.hero.kicker')}</p>
+            <h1 className="about-title">{t('about.hero.title')}</h1>
+            <p className="about-lede">{t('about.hero.desc')}</p>
+            <div className="about-actions">
               {!isDesktopClient && (
                 <Link to="/download/" className="btn btn-primary">
                   <Download size={16} />
@@ -224,31 +130,152 @@ export default function AboutPage() {
                 {t('about.cta.files')}
               </Link>
             </div>
+            <code className="about-link-example" translate="no">
+              most://&lt;cid&gt;?filename=...
+            </code>
           </div>
         </section>
 
-        <section className="about-next">
-          <div className="about-container about-next-inner">
+        <section className="about-flow-band">
+          <div className="about-container">
+            <header className="about-section-heading">
+              <p className="about-kicker">{t('about.flow.kicker')}</p>
+              <h2>{t('about.flow.title')}</h2>
+              <p>{t('about.flow.intro')}</p>
+            </header>
+            <ol className="about-flow">
+              {shareSteps.map((item, index) => {
+                const Icon = item.icon
+                return (
+                  <li key={item.titleKey} className="about-flow-step">
+                    <div className="about-flow-marker">
+                      <Icon size={24} />
+                      <strong>{index + 1}</strong>
+                    </div>
+                    <h3>{t(item.titleKey)}</h3>
+                    <p>{t(item.bodyKey)}</p>
+                  </li>
+                )
+              })}
+            </ol>
+          </div>
+        </section>
+
+        <section className="about-difference-band">
+          <div className="about-container about-difference-layout">
+            <header className="about-section-heading about-difference-heading">
+              <p className="about-kicker">{t('about.difference.kicker')}</p>
+              <h2>{t('about.difference.title')}</h2>
+              <p>{t('about.difference.intro')}</p>
+              <div className="about-boundary">
+                <CheckCircle2 size={20} />
+                <span>{t('about.difference.boundary')}</span>
+              </div>
+            </header>
+            <div className="about-difference-list">
+              {differences.map(item => {
+                const Icon = item.icon
+                return (
+                  <article
+                    key={item.titleKey}
+                    className="about-difference-item"
+                  >
+                    <span className="about-topic-icon">
+                      <Icon size={22} />
+                    </span>
+                    <div>
+                      <h3>{t(item.titleKey)}</h3>
+                      <p>{t(item.bodyKey)}</p>
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+          </div>
+        </section>
+
+        <section className="about-toolbox-band">
+          <div className="about-container">
+            <header className="about-section-heading">
+              <p className="about-kicker">{t('about.toolbox.kicker')}</p>
+              <h2>{t('about.toolbox.title')}</h2>
+              <p>{t('about.toolbox.intro')}</p>
+            </header>
+            <div className="about-toolbox-list">
+              {toolboxItems.map(item => {
+                const Icon = item.icon
+                return (
+                  <article key={item.titleKey} className="about-toolbox-item">
+                    <span className="about-topic-icon">
+                      <Icon size={22} />
+                    </span>
+                    <h3>{t(item.titleKey)}</h3>
+                    <p>{t(item.bodyKey)}</p>
+                  </article>
+                )
+              })}
+            </div>
+          </div>
+        </section>
+
+        <section className="about-open-source-band">
+          <div className="about-container about-open-source-layout">
+            <div className="about-open-source-mark" aria-hidden="true">
+              <Code2 size={32} />
+            </div>
+            <div className="about-open-source-copy">
+              <p className="about-kicker">{t('about.opensource.kicker')}</p>
+              <h2>{t('about.opensource.title')}</h2>
+              <p>{t('about.opensource.body')}</p>
+            </div>
+            <a
+              className="btn btn-secondary"
+              href="https://github.com/most-people/most"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <Code2 size={16} />
+              {t('about.opensource.cta')}
+            </a>
+          </div>
+        </section>
+
+        <section className="about-related-band">
+          <div className="about-container about-related-layout">
             <div>
-              <p className="about-kicker">{t('about.next.kicker')}</p>
-              <h2>{t('about.next.title')}</h2>
-              <p>{t('about.next.body')}</p>
+              <p className="about-kicker">{t('about.related.kicker')}</p>
+              <h2>{t('about.related.title')}</h2>
             </div>
-            <div className="about-next-links">
-              <Link to="/future/" className="btn btn-secondary">
-                {t('about.next.future')}
-                <ArrowRight size={16} />
-              </Link>
-              <a
-                href="https://github.com/most-people/most"
-                className="about-source-link"
-                target="_blank"
-                rel="noreferrer"
-              >
-                <Code2 size={16} />
-                {t('about.next.source')}
-              </a>
+            <nav
+              className="about-related-links"
+              aria-label={t('about.related.title')}
+            >
+              {relatedProjects.map(project => (
+                <a
+                  key={project.name}
+                  href={project.href}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {project.name}
+                  <ExternalLink size={14} />
+                </a>
+              ))}
+            </nav>
+          </div>
+        </section>
+
+        <section className="about-future-band">
+          <div className="about-container about-future-layout">
+            <div>
+              <p className="about-kicker">{t('about.future.kicker')}</p>
+              <h2>{t('about.future.title')}</h2>
+              <p>{t('about.future.body')}</p>
             </div>
+            <Link to="/future/" className="btn btn-secondary">
+              {t('about.future.cta')}
+              <ArrowRight size={16} />
+            </Link>
           </div>
         </section>
       </div>

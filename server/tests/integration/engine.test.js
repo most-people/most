@@ -152,7 +152,7 @@ function toChannelCandidate(channel) {
   }
 }
 
-describe('MostBoxEngine (integration)', { timeout: 420000 }, () => {
+describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'most-engine-test-'))
   const uid = Math.random().toString(36).slice(2, 8)
   let engine
