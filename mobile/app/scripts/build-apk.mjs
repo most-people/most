@@ -11,6 +11,11 @@ const androidDir = path.join(projectDir, 'android')
 const outputDir = path.join(projectDir, 'dist')
 const releaseArchitecture = 'arm64-v8a'
 const buildAppBundle = process.argv.includes('--aab')
+const buildStoreApk = process.argv.includes('--store-apk')
+if (buildAppBundle && buildStoreApk) {
+  throw new Error('Choose either --aab or --store-apk')
+}
+const releaseSigningRequired = buildAppBundle || buildStoreApk
 const packageJson = JSON.parse(
   fs.readFileSync(path.join(projectDir, 'package.json'), 'utf8')
 )
@@ -40,7 +45,9 @@ const packageSource = buildAppBundle
 const legacyApkTarget = path.join(outputDir, 'mostbox-android-release.apk')
 const packageTarget = path.join(
   outputDir,
-  `mostbox-android-${version}-release.${packageExtension}`
+  buildStoreApk
+    ? `mostbox-android-${version}-store-release.apk`
+    : `mostbox-android-${version}-release.${packageExtension}`
 )
 const gradleCommand = process.platform === 'win32' ? 'gradlew.bat' : './gradlew'
 const npxCommand = process.platform === 'win32' ? 'npx.cmd' : 'npx'
@@ -109,8 +116,8 @@ function ensureAndroidProject() {
   run(npxCommand, ['expo', 'prebuild', '--platform', 'android', '--no-install'])
 }
 
-function getPlaySigningEnvironment() {
-  if (!buildAppBundle) return null
+function getReleaseSigningEnvironment() {
+  if (!releaseSigningRequired) return null
 
   const signing = {
     storeFile: process.env.MOSTBOX_ANDROID_KEYSTORE,
@@ -123,24 +130,24 @@ function getPlaySigningEnvironment() {
     .map(([key]) => key)
   if (missing.length) {
     throw new Error(
-      `Google Play AAB requires release signing values: ${missing.join(', ')}`
+      `${buildAppBundle ? 'Google Play AAB' : 'Store APK'} requires release signing values: ${missing.join(', ')}`
     )
   }
 
   const storeFile = path.resolve(signing.storeFile)
   if (!fs.existsSync(storeFile)) {
-    throw new Error(`Android upload keystore was not found: ${storeFile}`)
+    throw new Error(`Android release keystore was not found: ${storeFile}`)
   }
 
   return { ...signing, storeFile }
 }
 
-const playSigning = getPlaySigningEnvironment()
+const releaseSigning = getReleaseSigningEnvironment()
 console.log(`[android] release version: ${version}`)
 ensureAndroidProject()
 syncNativeAndroidProject({
   version,
-  playSigningRequired: buildAppBundle,
+  playSigningRequired: releaseSigningRequired,
 })
 console.log('[android] bundling Bare Worklet core...')
 run(process.execPath, [
@@ -169,12 +176,12 @@ run(
     cwd: androidDir,
     env: {
       NODE_ENV: 'production',
-      ...(playSigning
+      ...(releaseSigning
         ? {
-            MOSTBOX_ANDROID_KEYSTORE: playSigning.storeFile,
-            MOSTBOX_ANDROID_KEYSTORE_PASSWORD: playSigning.storePassword,
-            MOSTBOX_ANDROID_KEY_ALIAS: playSigning.keyAlias,
-            MOSTBOX_ANDROID_KEY_PASSWORD: playSigning.keyPassword,
+            MOSTBOX_ANDROID_KEYSTORE: releaseSigning.storeFile,
+            MOSTBOX_ANDROID_KEYSTORE_PASSWORD: releaseSigning.storePassword,
+            MOSTBOX_ANDROID_KEY_ALIAS: releaseSigning.keyAlias,
+            MOSTBOX_ANDROID_KEY_PASSWORD: releaseSigning.keyPassword,
           }
         : {}),
     },

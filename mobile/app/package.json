@@ -12,6 +12,7 @@
     "start:ios": "npm run bundle:ios && expo start --dev-client --host lan",
     "ios": "npm run bundle:ios && expo run:ios",
     "build": "node scripts/build-apk.mjs",
+    "build:store": "node scripts/build-apk.mjs --store-apk",
     "build:play": "node scripts/build-apk.mjs --aab",
     "bundle:android": "node scripts/bundle-bare.mjs --platform android",
     "bundle:ios": "node scripts/bundle-bare.mjs --platform ios",

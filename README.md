@@ -63,6 +63,7 @@ npm start      # 启动 Expo Dev Client 并打开 Android 真机/模拟器
 npm test       # 运行移动端 CID、most://、Channel 和 Bare Worklet IPC 测试
 npm run typecheck
 npm run build  # 生成内部 Alpha APK 和 SHA256 校验文件
+npm run build:store # 使用永久 App Signing Key 生成应用商店 APK
 npm run build:play # 使用独立 upload key 生成 Google Play AAB
 ```
 

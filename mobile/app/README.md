@@ -36,6 +36,25 @@ npm run build
 
 该 APK 使用本地 Alpha 签名配置，不能上传 Google Play。
 
+## 应用商店 APK
+
+Google Play 以外、接受 APK 的应用商店使用永久 App Signing Key 构建：
+
+```powershell
+$env:MOSTBOX_ANDROID_KEYSTORE='C:\secure\mostbox-app-signing.p12'
+$env:MOSTBOX_ANDROID_KEYSTORE_PASSWORD='<keystore password>'
+$env:MOSTBOX_ANDROID_KEY_ALIAS='mostbox-app-signing'
+$env:MOSTBOX_ANDROID_KEY_PASSWORD='<key password>'
+npm run build:store
+```
+
+产物：
+
+- `dist/mostbox-android-<version>-store-release.apk`
+- `dist/mostbox-android-<version>-store-release.apk.sha256.txt`
+
+永久 App Signing Key 必须跨版本、跨应用商店保持不变；不得改用 debug key 或 Play Upload Key。
+
 ## Google Play AAB
 
 本地 AAB 构建必须提供独立 upload key；缺少任一变量时脚本会在构建前失败，不会回退到 debug key：

@@ -10,7 +10,7 @@
 - 最低版本：Android 10 / API 29
 - 目标版本：Android 16 / API 36
 - 正式产物：Android App Bundle（`.aab`），当前只分发 `arm64-v8a`
-- Play App Signing：使用 Google 管理的 app signing key，本机只保管独立 upload key
+- Play App Signing：在 Play Console 选择使用现有 App Signing Key，由 Google 托管其受保护副本；本机永久保管原始 App Signing Key，并用独立 Play Upload Key 签署上传的 AAB
 
 本地构建正式 AAB 前设置以下环境变量；脚本不接受 debug key：
 
