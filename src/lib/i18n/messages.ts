@@ -13,6 +13,7 @@ import {
   zhCNFutureMessages,
   zhTWFutureMessages,
 } from './messages/future'
+import { enHiMessages, zhCNHiMessages, zhTWHiMessages } from './messages/hi'
 import {
   enDownloadMessages,
   zhCNDownloadMessages,
@@ -97,6 +98,7 @@ export const zhCNMessages = {
   ...zhCNCoreMessages,
   ...zhCNAboutMessages,
   ...zhCNFutureMessages,
+  ...zhCNHiMessages,
   ...zhCNDownloadMessages,
   ...zhCNDocsMessages,
   ...zhCNCidMessages,
@@ -119,6 +121,7 @@ export const enMessages = {
   ...enCoreMessages,
   ...enAboutMessages,
   ...enFutureMessages,
+  ...enHiMessages,
   ...enDownloadMessages,
   ...enDocsMessages,
   ...enCidMessages,
@@ -139,6 +142,7 @@ export const zhTWMessages = {
   ...zhTWCoreMessages,
   ...zhTWAboutMessages,
   ...zhTWFutureMessages,
+  ...zhTWHiMessages,
   ...zhTWDownloadMessages,
   ...zhTWDocsMessages,
   ...zhTWCidMessages,
