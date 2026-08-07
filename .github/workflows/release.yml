@@ -265,7 +265,7 @@ jobs:
           java-version: '17'
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4.0.1
 
       - name: Install Android dependencies
         run: npm ci --prefix mobile/app

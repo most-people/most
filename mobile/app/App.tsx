@@ -489,12 +489,6 @@ export default function App() {
         : nodeStatus === 'starting'
           ? '启动中'
           : '离线'
-  const statusPillStyle =
-    nodeStatus === 'ready'
-      ? styles.statusPillReady
-      : nodeStatus === 'error'
-        ? styles.statusPillError
-        : styles.statusPillPending
   const statusDotStyle =
     nodeStatus === 'ready'
       ? styles.statusDotReady
@@ -528,7 +522,7 @@ export default function App() {
               <Text style={styles.pageTitle}>{TAB_LABELS[activeTab]}</Text>
             </View>
           </View>
-          <View style={[styles.statusPill, statusPillStyle]}>
+          <View style={styles.statusPill}>
             <View style={[styles.statusDot, statusDotStyle]} />
             <Text style={[styles.statusText, statusTextStyle]}>
               {statusLabel}
@@ -607,7 +601,7 @@ export default function App() {
         </View>
 
         <Modal
-          animationType="fade"
+          animationType="slide"
           onRequestClose={closeDownloadModal}
           transparent
           visible={downloadModalOpen}
@@ -790,69 +784,53 @@ function createStyles(theme: MostBoxTheme) {
       backgroundColor: colors.background,
     },
     header: {
-      minHeight: 64,
+      minHeight: 72,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      gap: 12,
-      paddingHorizontal: 16,
+      gap: 16,
+      paddingHorizontal: 20,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
-      backgroundColor: colors.surface,
+      backgroundColor: colors.background,
     },
     brandRow: {
       flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 10,
+      gap: 8,
     },
     brandMark: {
-      width: 36,
-      height: 36,
+      width: 24,
+      height: 32,
       alignItems: 'center',
       justifyContent: 'center',
-      borderRadius: radii.medium,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.accentSoft,
     },
     brandTextGroup: {
       flex: 1,
-      gap: 1,
+      gap: 0,
     },
     brandName: {
       color: colors.accent,
-      fontSize: 11,
+      fontSize: 10,
       fontWeight: '600',
     },
     pageTitle: {
       color: colors.text,
-      fontSize: 18,
-      fontWeight: '600',
+      fontSize: 22,
+      fontWeight: '700',
     },
     statusPill: {
-      minHeight: 28,
+      minHeight: 32,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 6,
-      paddingHorizontal: 10,
-      borderRadius: radii.full,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    statusPillReady: {
-      backgroundColor: colors.successSoft,
-    },
-    statusPillPending: {
-      backgroundColor: colors.warningSoft,
-    },
-    statusPillError: {
-      backgroundColor: colors.dangerSoft,
+      gap: 7,
+      paddingVertical: 4,
     },
     statusDot: {
-      width: 6,
-      height: 6,
-      borderRadius: 3,
+      width: 7,
+      height: 7,
+      borderRadius: 4,
     },
     statusDotReady: {
       backgroundColor: colors.success,
@@ -864,7 +842,7 @@ function createStyles(theme: MostBoxTheme) {
       backgroundColor: colors.danger,
     },
     statusText: {
-      fontSize: 11,
+      fontSize: 12,
       fontWeight: '600',
     },
     statusTextReady: {
@@ -880,12 +858,10 @@ function createStyles(theme: MostBoxTheme) {
       flex: 1,
     },
     tabBar: {
-      minHeight: 64,
+      minHeight: 62,
       flexDirection: 'row',
       alignItems: 'stretch',
-      gap: 4,
-      paddingHorizontal: 10,
-      paddingVertical: 6,
+      paddingHorizontal: 8,
       borderTopWidth: 1,
       borderTopColor: colors.border,
       backgroundColor: colors.surface,
@@ -895,15 +871,16 @@ function createStyles(theme: MostBoxTheme) {
       minHeight: 48,
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 3,
-      borderRadius: radii.medium,
+      gap: 2,
+      borderTopWidth: 2,
+      borderTopColor: 'transparent',
     },
     tabButtonActive: {
-      backgroundColor: colors.accentSoft,
+      borderTopColor: colors.accent,
     },
     tabText: {
       color: colors.textSecondary,
-      fontSize: 11,
+      fontSize: 10,
       fontWeight: '500',
     },
     tabTextActive: {
@@ -915,7 +892,6 @@ function createStyles(theme: MostBoxTheme) {
     },
     modalOverlay: {
       flex: 1,
-      padding: 16,
       backgroundColor: colors.overlay,
     },
     modalKeyboard: {
@@ -924,30 +900,20 @@ function createStyles(theme: MostBoxTheme) {
     modalScrollContent: {
       flexGrow: 1,
       alignItems: 'center',
-      justifyContent: 'center',
-      paddingVertical: 16,
+      justifyContent: 'flex-end',
     },
     modalCard: {
       width: '100%',
       maxWidth: 520,
-      gap: 16,
-      padding: 20,
-      borderRadius: radii.large,
-      borderWidth: 1,
-      borderColor: colors.borderStrong,
+      gap: 18,
+      paddingHorizontal: 20,
+      paddingTop: 18,
+      paddingBottom: 24,
+      borderTopLeftRadius: 16,
+      borderTopRightRadius: 16,
+      borderTopWidth: 1,
+      borderTopColor: colors.borderStrong,
       backgroundColor: colors.surfaceSolid,
-      ...(Platform.select({
-        ios: {
-          shadowColor: colors.shadow,
-          shadowOffset: { width: 0, height: 12 },
-          shadowOpacity: theme.mode === 'dark' ? 0.5 : 0.16,
-          shadowRadius: 30,
-        },
-        android: {
-          elevation: 8,
-          shadowColor: colors.shadow,
-        },
-      }) ?? {}),
     },
     modalHeader: {
       minHeight: 36,
@@ -963,39 +929,34 @@ function createStyles(theme: MostBoxTheme) {
     },
     modalTitle: {
       color: colors.text,
-      fontSize: 18,
-      fontWeight: '600',
+      fontSize: 20,
+      fontWeight: '700',
     },
     closeButton: {
-      width: 36,
-      height: 36,
+      width: 44,
+      height: 44,
       alignItems: 'center',
       justifyContent: 'center',
-      borderRadius: radii.full,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.surfaceMuted,
     },
     linkInput: {
       minHeight: 96,
       paddingHorizontal: 14,
       paddingVertical: 12,
-      borderRadius: radii.medium,
-      borderWidth: 1,
+      borderBottomWidth: 1,
       borderColor: colors.borderStrong,
       color: colors.text,
-      backgroundColor: colors.surfaceMuted,
+      backgroundColor: colors.surfaceSubtle,
       fontSize: 14,
       lineHeight: 20,
       textAlignVertical: 'top',
     },
     downloadPreview: {
       gap: 5,
-      padding: 14,
-      borderRadius: radii.medium,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.accentSoft,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderLeftWidth: 3,
+      borderLeftColor: colors.accent,
+      backgroundColor: colors.surfaceSubtle,
     },
     previewFileName: {
       color: colors.text,
@@ -1043,7 +1004,7 @@ function createStyles(theme: MostBoxTheme) {
       borderRadius: radii.medium,
       borderWidth: 1,
       borderColor: colors.borderStrong,
-      backgroundColor: colors.surfaceSubtle,
+      backgroundColor: 'transparent',
     },
     cancelButtonText: {
       color: colors.textSecondary,

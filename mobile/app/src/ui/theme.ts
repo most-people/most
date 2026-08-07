@@ -29,7 +29,6 @@ export type MostBoxTheme = {
     danger: string
     dangerSoft: string
     overlay: string
-    shadow: string
   }
   radii: {
     small: number
@@ -40,9 +39,9 @@ export type MostBoxTheme = {
 }
 
 const sharedRadii = {
-  small: 8,
-  medium: 14,
-  large: 20,
+  small: 4,
+  medium: 8,
+  large: 12,
   full: 999,
 } as const
 
@@ -51,29 +50,28 @@ export const lightTheme: MostBoxTheme = {
   statusBarStyle: 'dark-content',
   colors: {
     background: '#f5f5f7',
-    surface: 'rgba(255, 255, 255, 0.72)',
+    surface: '#ffffff',
     surfaceSolid: '#ffffff',
-    surfaceSubtle: 'rgba(255, 255, 255, 0.46)',
-    surfaceMuted: '#f0f0f3',
+    surfaceSubtle: '#fafafd',
+    surfaceMuted: '#eeeef2',
     text: '#1d1d1f',
     textSecondary: '#6e6e73',
     textMuted: '#86868b',
-    border: 'rgba(0, 0, 0, 0.07)',
-    borderStrong: 'rgba(0, 0, 0, 0.14)',
+    border: '#e3e3e8',
+    borderStrong: '#c9c9d0',
     accent: '#5e6ad2',
     accentPressed: '#4f5bc2',
-    accentSoft: 'rgba(94, 106, 210, 0.12)',
+    accentSoft: '#ebeefe',
     onAccent: '#ffffff',
     info: '#32a9d6',
-    infoSoft: 'rgba(90, 200, 250, 0.14)',
+    infoSoft: '#e8f7fc',
     success: '#248a3d',
-    successSoft: 'rgba(52, 199, 89, 0.14)',
+    successSoft: '#e5f5e9',
     warning: '#c46200',
-    warningSoft: 'rgba(255, 149, 0, 0.15)',
+    warningSoft: '#fff1dc',
     danger: '#d70015',
-    dangerSoft: 'rgba(255, 59, 48, 0.12)',
+    dangerSoft: '#fde8ea',
     overlay: 'rgba(15, 15, 18, 0.42)',
-    shadow: '#15151a',
   },
   radii: sharedRadii,
 }
@@ -83,29 +81,28 @@ export const darkTheme: MostBoxTheme = {
   statusBarStyle: 'light-content',
   colors: {
     background: '#000000',
-    surface: 'rgba(28, 28, 30, 0.78)',
-    surfaceSolid: '#1c1c1e',
-    surfaceSubtle: 'rgba(28, 28, 30, 0.5)',
-    surfaceMuted: '#141416',
+    surface: '#0a0a0a',
+    surfaceSolid: '#111113',
+    surfaceSubtle: '#141416',
+    surfaceMuted: '#1c1c1f',
     text: '#f5f5f7',
     textSecondary: '#a1a1a6',
     textMuted: '#808080',
-    border: 'rgba(255, 255, 255, 0.09)',
-    borderStrong: 'rgba(255, 255, 255, 0.17)',
+    border: '#29292d',
+    borderStrong: '#3a3a40',
     accent: '#7d88e7',
     accentPressed: '#6e7ae0',
-    accentSoft: 'rgba(94, 106, 210, 0.2)',
+    accentSoft: '#20243d',
     onAccent: '#ffffff',
     info: '#64d2ff',
-    infoSoft: 'rgba(100, 210, 255, 0.15)',
+    infoSoft: '#142a33',
     success: '#30d158',
-    successSoft: 'rgba(48, 209, 88, 0.16)',
+    successSoft: '#14291a',
     warning: '#ff9f0a',
-    warningSoft: 'rgba(255, 159, 10, 0.16)',
+    warningSoft: '#30230f',
     danger: '#ff453a',
-    dangerSoft: 'rgba(255, 69, 58, 0.16)',
+    dangerSoft: '#331817',
     overlay: 'rgba(0, 0, 0, 0.68)',
-    shadow: '#000000',
   },
   radii: sharedRadii,
 }
