@@ -5,16 +5,16 @@ import {
   getStoreFilePolicyError,
 } from './storeFilePolicy'
 
-describe('Google Play file policy', () => {
+describe('store file policy', () => {
   it('blocks application packages and executable files', () => {
-    assert.match(getStoreFilePolicyError('update.APK'), /Google Play/)
-    assert.match(getStoreFilePolicyError('tool.exe'), /Google Play/)
+    assert.match(getStoreFilePolicyError('update.APK'), /当前商店版本/)
+    assert.match(getStoreFilePolicyError('tool.exe'), /当前商店版本/)
     assert.match(
       getStoreFilePolicyError(
         'download',
         'application/vnd.android.package-archive'
       ),
-      /Google Play/
+      /当前商店版本/
     )
   })
 
@@ -27,6 +27,9 @@ describe('Google Play file policy', () => {
   it('requires an explicit filename before accepting a download', () => {
     assert.match(getStoreDownloadPolicyError('bafkreicid', false), /filename/)
     assert.equal(getStoreDownloadPolicyError('report.pdf', true), '')
-    assert.match(getStoreDownloadPolicyError('update.apk', true), /Google Play/)
+    assert.match(
+      getStoreDownloadPolicyError('update.apk', true),
+      /当前商店版本/
+    )
   })
 })

@@ -12,6 +12,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native'
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
@@ -24,7 +25,7 @@ import {
   ArrowLeftRight,
   Files,
   ListChecks,
-  Settings,
+  Radio,
   ShieldCheck,
   X,
 } from 'lucide-react-native'
@@ -46,10 +47,15 @@ import {
   getStoreDownloadPolicyError,
   getStoreFilePolicyError,
 } from './src/mobileCore/storeFilePolicy'
+import {
+  getFriendlyCoreError,
+  usesAccessibilityLayout,
+} from './src/ui/presentation'
 import type { DocumentPickerAsset } from 'expo-document-picker'
 import type {
   MobileCoreSnapshot,
   MobileHolding,
+  MobileTransfer,
   MostBoxMobileCore,
 } from './src/mobileCore/types'
 
@@ -73,12 +79,12 @@ const MIME_BY_EXTENSION: Record<string, string> = {
   zip: 'application/zip',
 }
 
-type RootTab = 'files' | 'transfers' | 'settings'
+type RootTab = 'files' | 'transfers' | 'node'
 
 const TAB_LABELS: Record<RootTab, string> = {
   files: '文件',
   transfers: '传输',
-  settings: '设置',
+  node: '节点',
 }
 
 async function readDevCidBytes(file: DocumentPickerAsset) {
@@ -150,6 +156,8 @@ function shortCid(cid: string) {
 export default function App() {
   const theme = useMostBoxTheme()
   const styles = appStyles[theme.mode]
+  const { fontScale } = useWindowDimensions()
+  const accessibilityLayout = usesAccessibilityLayout(fontScale)
   const coreRef = useRef<MostBoxMobileCore | null>(null)
   const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [snapshot, setSnapshot] = useState<MobileCoreSnapshot | null>(null)
@@ -165,6 +173,9 @@ export default function App() {
   )
   const [downloadLinkError, setDownloadLinkError] = useState('')
   const [downloadingCid, setDownloadingCid] = useState<string | null>(null)
+  const [retryingTransferId, setRetryingTransferId] = useState<string | null>(
+    null
+  )
 
   if (!coreRef.current) {
     coreRef.current = createMostBoxCore({ storagePath: getCoreStoragePath() })
@@ -179,10 +190,7 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = core.subscribe(setSnapshot)
     void core.start().catch(error => {
-      Alert.alert(
-        'P2P 核心启动失败',
-        error instanceof Error ? error.message : '无法启动 P2P 核心'
-      )
+      Alert.alert('P2P 核心启动失败', getFriendlyCoreError(error))
     })
 
     return () => {
@@ -252,10 +260,7 @@ export default function App() {
     try {
       await core.start()
     } catch (error) {
-      Alert.alert(
-        'P2P 核心启动失败',
-        error instanceof Error ? error.message : '无法启动 P2P 核心'
-      )
+      Alert.alert('P2P 核心启动失败', getFriendlyCoreError(error))
     }
   }
 
@@ -320,6 +325,21 @@ export default function App() {
     setDownloadLinkError('')
   }
 
+  const handlePasteDownloadLink = async () => {
+    try {
+      const value = await Clipboard.getStringAsync()
+      handleDownloadLinkChange(value.trim())
+    } catch {
+      setDownloadLinkError('无法读取剪贴板，请手动输入分享链接。')
+    }
+  }
+
+  const handleEditDownloadLink = () => {
+    if (downloadingCid) return
+    setDownloadIntent(null)
+    setDownloadLinkError('')
+  }
+
   const handleInspectDownload = () => {
     try {
       const link = downloadLinkInput.trim()
@@ -353,12 +373,36 @@ export default function App() {
       setDownloadLinkError('')
       Alert.alert('下载完成', '文件已通过 CID 校验并开始前台做种。')
     } catch (error) {
-      setDownloadLinkError(
-        error instanceof Error ? error.message : '请检查链接或等待种子上线'
-      )
+      setDownloadLinkError(getFriendlyCoreError(error))
     } finally {
       setDownloadingCid(null)
     }
+  }
+
+  const handleRetryTransfer = async (transfer: MobileTransfer) => {
+    if (!guardReady()) return
+    if (transfer.kind === 'publish') {
+      await handlePublishFile()
+      return
+    }
+    if (!transfer.link) {
+      Alert.alert('无法重试', '这条下载记录缺少分享链接。')
+      return
+    }
+
+    setRetryingTransferId(transfer.id)
+    try {
+      await core.downloadLink({ link: transfer.link })
+      Alert.alert('下载完成', '文件已通过 CID 校验并开始前台做种。')
+    } catch (error) {
+      Alert.alert('重试失败', getFriendlyCoreError(error))
+    } finally {
+      setRetryingTransferId(null)
+    }
+  }
+
+  const handleShowTransferDetails = (transfer: MobileTransfer) => {
+    Alert.alert('传输错误详情', transfer.message || '没有更多错误信息')
   }
 
   const handleDeleteHolding = (holding: MobileHolding) => {
@@ -483,12 +527,12 @@ export default function App() {
 
   const statusLabel =
     nodeStatus === 'ready'
-      ? '在线'
+      ? '节点在线'
       : nodeStatus === 'error'
-        ? '异常'
+        ? '节点异常'
         : nodeStatus === 'starting'
-          ? '启动中'
-          : '离线'
+          ? '节点启动中'
+          : '节点离线'
   const statusDotStyle =
     nodeStatus === 'ready'
       ? styles.statusDotReady
@@ -512,22 +556,48 @@ export default function App() {
           barStyle={theme.statusBarStyle}
           backgroundColor={theme.colors.background}
         />
-        <View style={styles.header}>
-          <View style={styles.brandRow}>
+        <View
+          style={[
+            styles.header,
+            accessibilityLayout ? styles.headerAccessibility : null,
+          ]}
+        >
+          <View
+            style={[
+              styles.brandRow,
+              accessibilityLayout ? styles.brandRowAccessibility : null,
+            ]}
+          >
             <View style={styles.brandMark}>
               <ShieldCheck size={19} color={theme.colors.accent} />
             </View>
             <View style={styles.brandTextGroup}>
-              <Text style={styles.brandName}>MostBox</Text>
-              <Text style={styles.pageTitle}>{TAB_LABELS[activeTab]}</Text>
+              <Text maxFontSizeMultiplier={1.4} style={styles.brandName}>
+                MostBox
+              </Text>
+              <Text maxFontSizeMultiplier={1.8} style={styles.pageTitle}>
+                {TAB_LABELS[activeTab]}
+              </Text>
             </View>
           </View>
-          <View style={styles.statusPill}>
+          <Pressable
+            accessibilityLabel={`${statusLabel}，查看节点状态`}
+            accessibilityRole="button"
+            onPress={() => setActiveTab('node')}
+            style={({ pressed }) => [
+              styles.statusPill,
+              accessibilityLayout ? styles.statusPillAccessibility : null,
+              pressed ? styles.pressablePressed : null,
+            ]}
+          >
             <View style={[styles.statusDot, statusDotStyle]} />
-            <Text style={[styles.statusText, statusTextStyle]}>
+            <Text
+              maxFontSizeMultiplier={1.6}
+              style={[styles.statusText, statusTextStyle]}
+            >
               {statusLabel}
             </Text>
-          </View>
+          </Pressable>
         </View>
 
         <View style={styles.content}>
@@ -537,6 +607,7 @@ export default function App() {
             copiedCid={copiedCid}
             deletingCid={deletingCid}
             exportingCid={exportingCid}
+            retryingTransferId={retryingTransferId}
             actionDisabled={!isReady || publishing}
             onPublishFile={handlePublishFile}
             onReceiveLink={openDownloadModal}
@@ -547,6 +618,8 @@ export default function App() {
             onOpenPrivacy={() => openExternalUrl(PRIVACY_URL)}
             onOpenTerms={() => openExternalUrl(TERMS_URL)}
             onOpenSupport={() => openExternalUrl(SUPPORT_URL)}
+            onRetryTransfer={handleRetryTransfer}
+            onShowTransferDetails={handleShowTransferDetails}
             onRetryStartCore={handleStartCore}
             retryStartDisabled={isCoreBusy}
           />
@@ -584,19 +657,19 @@ export default function App() {
             onPress={() => setActiveTab('transfers')}
           />
           <TabButton
-            active={activeTab === 'settings'}
+            active={activeTab === 'node'}
             icon={
-              <Settings
+              <Radio
                 size={21}
                 color={
-                  activeTab === 'settings'
+                  activeTab === 'node'
                     ? theme.colors.accent
                     : theme.colors.textSecondary
                 }
               />
             }
-            label="设置"
-            onPress={() => setActiveTab('settings')}
+            label="节点"
+            onPress={() => setActiveTab('node')}
           />
         </View>
 
@@ -616,11 +689,22 @@ export default function App() {
                 contentContainerStyle={styles.modalScrollContent}
                 keyboardShouldPersistTaps="handled"
               >
-                <View style={styles.modalCard}>
+                <View
+                  style={[
+                    styles.modalCard,
+                    accessibilityLayout ? styles.modalCardAccessibility : null,
+                  ]}
+                >
                   <View style={styles.modalHeader}>
                     <View style={styles.modalTitleGroup}>
                       <ListChecks size={20} color={theme.colors.accent} />
-                      <Text style={styles.modalTitle}>接收文件</Text>
+                      <Text
+                        maxFontSizeMultiplier={1.5}
+                        numberOfLines={2}
+                        style={styles.modalTitle}
+                      >
+                        {downloadIntent ? '确认接收' : '接收文件'}
+                      </Text>
                     </View>
                     <Pressable
                       accessibilityLabel="关闭"
@@ -637,53 +721,144 @@ export default function App() {
                     </Pressable>
                   </View>
 
-                  <TextInput
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    editable={!downloadingCid}
-                    multiline
-                    onChangeText={handleDownloadLinkChange}
-                    placeholder="most://CID?filename=..."
-                    placeholderTextColor={theme.colors.textMuted}
-                    selectionColor={theme.colors.accent}
-                    style={styles.linkInput}
-                    value={downloadLinkInput}
-                  />
-
                   {downloadIntent ? (
                     <View style={styles.downloadPreview}>
-                      <Text numberOfLines={2} style={styles.previewFileName}>
-                        {downloadIntent.fileName}
+                      <View
+                        style={[
+                          styles.previewTopRow,
+                          accessibilityLayout
+                            ? styles.previewTopRowAccessibility
+                            : null,
+                        ]}
+                      >
+                        <Text
+                          maxFontSizeMultiplier={2}
+                          numberOfLines={2}
+                          style={styles.previewFileName}
+                        >
+                          {downloadIntent.fileName}
+                        </Text>
+                        <Pressable
+                          accessibilityRole="button"
+                          disabled={Boolean(downloadingCid)}
+                          onPress={handleEditDownloadLink}
+                          style={({ pressed }) => [
+                            styles.editLinkButton,
+                            accessibilityLayout
+                              ? styles.editLinkButtonAccessibility
+                              : null,
+                            pressed ? styles.pressablePressed : null,
+                          ]}
+                        >
+                          <Text
+                            maxFontSizeMultiplier={1.6}
+                            style={styles.editLinkText}
+                          >
+                            修改链接
+                          </Text>
+                        </Pressable>
+                      </View>
+                      <Text
+                        maxFontSizeMultiplier={1.6}
+                        style={styles.previewLabel}
+                      >
+                        CID
                       </Text>
-                      <Text style={styles.previewLabel}>CID</Text>
-                      <Text selectable style={styles.previewCid}>
+                      <Text
+                        maxFontSizeMultiplier={1.4}
+                        selectable
+                        style={styles.previewCid}
+                      >
                         {shortCid(downloadIntent.cid)}
                       </Text>
                     </View>
-                  ) : null}
+                  ) : (
+                    <View style={styles.linkInputGroup}>
+                      <View style={styles.inputLabelRow}>
+                        <Text
+                          maxFontSizeMultiplier={1.8}
+                          style={styles.inputLabel}
+                        >
+                          分享链接
+                        </Text>
+                        <Pressable
+                          accessibilityRole="button"
+                          onPress={handlePasteDownloadLink}
+                          style={({ pressed }) => [
+                            styles.pasteButton,
+                            pressed ? styles.pressablePressed : null,
+                          ]}
+                        >
+                          <Text
+                            maxFontSizeMultiplier={1.6}
+                            style={styles.pasteButtonText}
+                          >
+                            粘贴
+                          </Text>
+                        </Pressable>
+                      </View>
+                      <TextInput
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        editable={!downloadingCid}
+                        maxFontSizeMultiplier={1.5}
+                        multiline
+                        onChangeText={handleDownloadLinkChange}
+                        placeholder="most://CID?filename=..."
+                        placeholderTextColor={theme.colors.textMuted}
+                        selectionColor={theme.colors.accent}
+                        style={styles.linkInput}
+                        value={downloadLinkInput}
+                      />
+                    </View>
+                  )}
 
                   {downloadLinkError ? (
-                    <Text accessibilityRole="alert" style={styles.errorText}>
+                    <Text
+                      accessibilityRole="alert"
+                      maxFontSizeMultiplier={1.6}
+                      style={styles.errorText}
+                    >
                       {downloadLinkError}
                     </Text>
                   ) : null}
 
-                  <Text style={styles.consentText}>
-                    仅接收你信任且有权下载的文件。下载完成后将校验
-                    CID，并在应用前台继续做种。
-                  </Text>
+                  {downloadIntent ? (
+                    <Text
+                      maxFontSizeMultiplier={1.6}
+                      style={styles.consentText}
+                    >
+                      仅接收你信任且有权下载的文件。下载完成后将校验
+                      CID，并在应用前台继续做种。
+                    </Text>
+                  ) : null}
 
-                  <View style={styles.modalActions}>
+                  <View
+                    style={[
+                      styles.modalActions,
+                      accessibilityLayout
+                        ? styles.modalActionsAccessibility
+                        : null,
+                    ]}
+                  >
                     <Pressable
                       accessibilityRole="button"
                       disabled={Boolean(downloadingCid)}
                       onPress={closeDownloadModal}
                       style={({ pressed }) => [
                         styles.cancelButton,
+                        accessibilityLayout
+                          ? styles.modalButtonAccessibility
+                          : null,
                         pressed ? styles.pressablePressed : null,
                       ]}
                     >
-                      <Text style={styles.cancelButtonText}>取消</Text>
+                      <Text
+                        maxFontSizeMultiplier={1.5}
+                        style={styles.cancelButtonText}
+                      >
+                        取消
+                      </Text>
                     </Pressable>
                     {downloadIntent ? (
                       <Pressable
@@ -692,6 +867,9 @@ export default function App() {
                         onPress={handleConfirmDownload}
                         style={({ pressed }) => [
                           styles.confirmButton,
+                          accessibilityLayout
+                            ? styles.modalButtonAccessibility
+                            : null,
                           !isReady || downloadingCid
                             ? styles.confirmButtonDisabled
                             : null,
@@ -699,6 +877,7 @@ export default function App() {
                         ]}
                       >
                         <Text
+                          maxFontSizeMultiplier={1.5}
                           style={[
                             styles.confirmButtonText,
                             !isReady || downloadingCid
@@ -716,6 +895,9 @@ export default function App() {
                         onPress={handleInspectDownload}
                         style={({ pressed }) => [
                           styles.confirmButton,
+                          accessibilityLayout
+                            ? styles.modalButtonAccessibility
+                            : null,
                           !downloadLinkInput.trim()
                             ? styles.confirmButtonDisabled
                             : null,
@@ -723,6 +905,7 @@ export default function App() {
                         ]}
                       >
                         <Text
+                          maxFontSizeMultiplier={1.5}
                           style={[
                             styles.confirmButtonText,
                             !downloadLinkInput.trim()
@@ -768,7 +951,11 @@ function TabButton({ active, icon, label, onPress }: TabButtonProps) {
       ]}
     >
       {icon}
-      <Text style={[styles.tabText, active ? styles.tabTextActive : null]}>
+      <Text
+        maxFontSizeMultiplier={1.6}
+        numberOfLines={1}
+        style={[styles.tabText, active ? styles.tabTextActive : null]}
+      >
         {label}
       </Text>
     </Pressable>
@@ -794,11 +981,20 @@ function createStyles(theme: MostBoxTheme) {
       borderBottomColor: colors.border,
       backgroundColor: colors.background,
     },
+    headerAccessibility: {
+      flexDirection: 'column',
+      alignItems: 'stretch',
+      gap: 4,
+      paddingVertical: 10,
+    },
     brandRow: {
       flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
       gap: 8,
+    },
+    brandRowAccessibility: {
+      flex: 0,
     },
     brandMark: {
       width: 24,
@@ -826,6 +1022,10 @@ function createStyles(theme: MostBoxTheme) {
       alignItems: 'center',
       gap: 7,
       paddingVertical: 4,
+    },
+    statusPillAccessibility: {
+      alignSelf: 'flex-start',
+      marginLeft: 32,
     },
     statusDot: {
       width: 7,
@@ -862,6 +1062,7 @@ function createStyles(theme: MostBoxTheme) {
       flexDirection: 'row',
       alignItems: 'stretch',
       paddingHorizontal: 8,
+      paddingVertical: 3,
       borderTopWidth: 1,
       borderTopColor: colors.border,
       backgroundColor: colors.surface,
@@ -915,6 +1116,10 @@ function createStyles(theme: MostBoxTheme) {
       borderTopColor: colors.borderStrong,
       backgroundColor: colors.surfaceSolid,
     },
+    modalCardAccessibility: {
+      gap: 14,
+      paddingBottom: 16,
+    },
     modalHeader: {
       minHeight: 36,
       flexDirection: 'row',
@@ -923,11 +1128,14 @@ function createStyles(theme: MostBoxTheme) {
       gap: 12,
     },
     modalTitleGroup: {
+      flex: 1,
+      minWidth: 0,
       flexDirection: 'row',
       alignItems: 'center',
       gap: 8,
     },
     modalTitle: {
+      flexShrink: 1,
       color: colors.text,
       fontSize: 20,
       fontWeight: '700',
@@ -938,8 +1146,37 @@ function createStyles(theme: MostBoxTheme) {
       alignItems: 'center',
       justifyContent: 'center',
     },
+    linkInputGroup: {
+      gap: 8,
+    },
+    inputLabelRow: {
+      minHeight: 36,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+    },
+    inputLabel: {
+      flex: 1,
+      color: colors.text,
+      fontSize: 13,
+      fontWeight: '600',
+    },
+    pasteButton: {
+      minHeight: 36,
+      justifyContent: 'center',
+      paddingHorizontal: 10,
+      borderRadius: radii.small,
+      backgroundColor: colors.accentSoft,
+    },
+    pasteButtonText: {
+      color: colors.accent,
+      fontSize: 13,
+      fontWeight: '600',
+    },
     linkInput: {
       minHeight: 96,
+      maxHeight: 164,
       paddingHorizontal: 14,
       paddingVertical: 12,
       borderBottomWidth: 1,
@@ -958,9 +1195,33 @@ function createStyles(theme: MostBoxTheme) {
       borderLeftColor: colors.accent,
       backgroundColor: colors.surfaceSubtle,
     },
+    previewTopRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 12,
+    },
+    previewTopRowAccessibility: {
+      flexDirection: 'column',
+      gap: 4,
+    },
     previewFileName: {
+      flex: 1,
+      minWidth: 0,
       color: colors.text,
       fontSize: 15,
+      fontWeight: '600',
+    },
+    editLinkButton: {
+      minHeight: 36,
+      justifyContent: 'center',
+      paddingHorizontal: 6,
+    },
+    editLinkButtonAccessibility: {
+      alignSelf: 'flex-start',
+    },
+    editLinkText: {
+      color: colors.accent,
+      fontSize: 12,
       fontWeight: '600',
     },
     previewLabel: {
@@ -994,6 +1255,14 @@ function createStyles(theme: MostBoxTheme) {
       flexDirection: 'row',
       justifyContent: 'flex-end',
       gap: 10,
+    },
+    modalActionsAccessibility: {
+      flexDirection: 'column-reverse',
+    },
+    modalButtonAccessibility: {
+      flex: 0,
+      width: '100%',
+      minHeight: 56,
     },
     cancelButton: {
       flex: 1,

@@ -35,7 +35,7 @@ export function getStoreFilePolicyError(fileName: string, mimeType?: string) {
     BLOCKED_EXTENSIONS.has(extension) ||
     BLOCKED_MIME_TYPES.has(normalizedMimeType)
   ) {
-    return 'Google Play 版本不接收应用安装包、脚本或其他可执行文件。'
+    return '当前商店版本不接收应用安装包、脚本或其他可执行文件。'
   }
 
   return ''
@@ -46,7 +46,7 @@ export function getStoreDownloadPolicyError(
   hasExplicitFileName: boolean
 ) {
   if (!hasExplicitFileName) {
-    return 'Google Play 版本只接收带有明确 filename 的 most:// 链接。'
+    return '当前商店版本只接收带有明确 filename 的 most:// 链接。'
   }
 
   return getStoreFilePolicyError(fileName)

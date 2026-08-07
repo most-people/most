@@ -1,15 +1,18 @@
-import { type ReactNode } from 'react'
+import { type ReactNode, useState } from 'react'
 import {
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   type ViewStyle,
   View,
 } from 'react-native'
 import {
   Activity,
+  ChevronDown,
+  ChevronUp,
   CircleCheck,
   Copy,
   Download,
@@ -17,9 +20,11 @@ import {
   FileCheck,
   FileText,
   HardDrive,
+  Info,
   ListChecks,
   Loader,
   Radio,
+  RotateCcw,
   Save,
   Share2,
   ShieldCheck,
@@ -42,13 +47,20 @@ import {
   type MostBoxTheme,
   useMostBoxTheme,
 } from '../../ui/theme'
+import {
+  getFriendlyCoreError,
+  getTransferDisplayMessage,
+  partitionTransfers,
+  usesAccessibilityLayout,
+} from '../../ui/presentation'
 
 export type NodeStatusScreenProps = {
-  section: 'files' | 'transfers' | 'settings'
+  section: 'files' | 'transfers' | 'node'
   snapshot: MobileCoreSnapshot
   copiedCid: string | null
   deletingCid: string | null
   exportingCid: string | null
+  retryingTransferId: string | null
   actionDisabled: boolean
   onPublishFile: () => void | Promise<void>
   onReceiveLink: () => void
@@ -59,6 +71,8 @@ export type NodeStatusScreenProps = {
   onOpenPrivacy: () => void | Promise<void>
   onOpenTerms: () => void | Promise<void>
   onOpenSupport: () => void | Promise<void>
+  onRetryTransfer: (transfer: MobileTransfer) => void | Promise<void>
+  onShowTransferDetails: (transfer: MobileTransfer) => void
   onRetryStartCore: () => void | Promise<void>
   retryStartDisabled: boolean
 }
@@ -156,12 +170,23 @@ type MetricProps = {
 
 function Metric({ icon, label, value }: MetricProps) {
   const styles = useNodeStyles()
+  const { fontScale } = useWindowDimensions()
+  const accessibilityLayout = usesAccessibilityLayout(fontScale)
 
   return (
-    <View style={styles.metric}>
+    <View
+      style={[
+        styles.metric,
+        accessibilityLayout ? styles.metricAccessibility : null,
+      ]}
+    >
       <View style={styles.metricIcon}>{icon}</View>
-      <Text style={styles.metricValue}>{value}</Text>
-      <Text style={styles.metricLabel}>{label}</Text>
+      <Text maxFontSizeMultiplier={2} style={styles.metricValue}>
+        {value}
+      </Text>
+      <Text maxFontSizeMultiplier={2} style={styles.metricLabel}>
+        {label}
+      </Text>
     </View>
   )
 }
@@ -188,7 +213,9 @@ function StatusBadge({ label, tone }: StatusBadgeProps) {
 
   return (
     <View style={[styles.badge, badgeStyle]}>
-      <Text style={[styles.badgeText, textStyle]}>{label}</Text>
+      <Text maxFontSizeMultiplier={1.8} style={[styles.badgeText, textStyle]}>
+        {label}
+      </Text>
     </View>
   )
 }
@@ -243,14 +270,27 @@ type SectionHeaderProps = {
 
 function SectionHeader({ icon, title, meta }: SectionHeaderProps) {
   const styles = useNodeStyles()
+  const { fontScale } = useWindowDimensions()
+  const accessibilityLayout = usesAccessibilityLayout(fontScale)
 
   return (
-    <View style={styles.sectionHeader}>
+    <View
+      style={[
+        styles.sectionHeader,
+        accessibilityLayout ? styles.sectionHeaderAccessibility : null,
+      ]}
+    >
       <View style={styles.sectionTitleGroup}>
         {icon}
-        <Text style={styles.sectionTitle}>{title}</Text>
+        <Text maxFontSizeMultiplier={2} style={styles.sectionTitle}>
+          {title}
+        </Text>
       </View>
-      {meta ? <Text style={styles.sectionMeta}>{meta}</Text> : null}
+      {meta ? (
+        <Text maxFontSizeMultiplier={2} style={styles.sectionMeta}>
+          {meta}
+        </Text>
+      ) : null}
     </View>
   )
 }
@@ -258,15 +298,28 @@ function SectionHeader({ icon, title, meta }: SectionHeaderProps) {
 type EmptyStateProps = {
   title: string
   body: string
+  centered?: boolean
 }
 
-function EmptyState({ title, body }: EmptyStateProps) {
+function EmptyState({ title, body, centered = false }: EmptyStateProps) {
   const styles = useNodeStyles()
 
   return (
-    <View style={styles.emptyState}>
-      <Text style={styles.emptyTitle}>{title}</Text>
-      <Text style={styles.emptyBody}>{body}</Text>
+    <View
+      style={[styles.emptyState, centered ? styles.emptyStateCentered : null]}
+    >
+      <Text
+        maxFontSizeMultiplier={2}
+        style={[styles.emptyTitle, centered ? styles.emptyTextCentered : null]}
+      >
+        {title}
+      </Text>
+      <Text
+        maxFontSizeMultiplier={2}
+        style={[styles.emptyBody, centered ? styles.emptyTextCentered : null]}
+      >
+        {body}
+      </Text>
     </View>
   )
 }
@@ -290,12 +343,106 @@ function getProgressWidthStyle(progress: number) {
   return progressWidthStyles[`progressWidth${width}` as ProgressWidthStyleName]
 }
 
+type TransferItemProps = {
+  transfer: MobileTransfer
+  isReady: boolean
+  retrying: boolean
+  onRetry: (transfer: MobileTransfer) => void | Promise<void>
+  onShowDetails: (transfer: MobileTransfer) => void
+}
+
+function TransferItem({
+  transfer,
+  isReady,
+  retrying,
+  onRetry,
+  onShowDetails,
+}: TransferItemProps) {
+  const theme = useMostBoxTheme()
+  const styles = nodeStyles[theme.mode]
+  const { fontScale } = useWindowDimensions()
+  const accessibilityLayout = usesAccessibilityLayout(fontScale)
+  const failed = transfer.status === 'failed'
+
+  return (
+    <View style={styles.transferItem}>
+      <View
+        style={[
+          styles.transferTopRow,
+          accessibilityLayout ? styles.transferTopRowAccessibility : null,
+        ]}
+      >
+        <View style={styles.transferTitleGroup}>
+          <Text
+            maxFontSizeMultiplier={2}
+            numberOfLines={accessibilityLayout ? undefined : 1}
+            style={styles.transferName}
+          >
+            {transfer.fileName || TRANSFER_KIND_LABELS[transfer.kind]}
+          </Text>
+          <Text maxFontSizeMultiplier={2} style={styles.transferMeta}>
+            {TRANSFER_KIND_LABELS[transfer.kind]} ·{' '}
+            {getTransferDisplayMessage(transfer.message, transfer.status)}
+          </Text>
+        </View>
+        <StatusBadge
+          label={TRANSFER_STATUS_LABELS[transfer.status]}
+          tone={getTransferTone(transfer.status)}
+        />
+      </View>
+      <ProgressBar progress={transfer.progress} />
+      {failed ? (
+        <View style={styles.transferActions}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => onShowDetails(transfer)}
+            style={({ pressed }) => [
+              styles.transferDetailButton,
+              pressed ? styles.pressablePressed : null,
+            ]}
+          >
+            <Info size={16} color={theme.colors.textSecondary} />
+            <Text maxFontSizeMultiplier={1.8} style={styles.transferDetailText}>
+              错误详情
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ disabled: retrying || !isReady }}
+            disabled={retrying || !isReady}
+            onPress={() => onRetry(transfer)}
+            style={({ pressed }) => [
+              styles.transferRetryButton,
+              retrying || !isReady ? styles.transferRetryButtonDisabled : null,
+              pressed ? styles.pressablePressed : null,
+            ]}
+          >
+            {retrying ? (
+              <Loader size={16} color={theme.colors.textMuted} />
+            ) : (
+              <RotateCcw size={16} color={theme.colors.accent} />
+            )}
+            <Text maxFontSizeMultiplier={1.8} style={styles.transferRetryText}>
+              {retrying
+                ? '重试中'
+                : transfer.kind === 'download'
+                  ? '重新下载'
+                  : '重新选择文件'}
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
+    </View>
+  )
+}
+
 export function NodeStatusScreen({
   section,
   snapshot,
   copiedCid,
   deletingCid,
   exportingCid,
+  retryingTransferId,
   actionDisabled,
   onPublishFile,
   onReceiveLink,
@@ -306,59 +453,86 @@ export function NodeStatusScreen({
   onOpenPrivacy,
   onOpenTerms,
   onOpenSupport,
+  onRetryTransfer,
+  onShowTransferDetails,
   onRetryStartCore,
   retryStartDisabled,
 }: NodeStatusScreenProps) {
   const theme = useMostBoxTheme()
   const styles = nodeStyles[theme.mode]
+  const { fontScale } = useWindowDimensions()
+  const accessibilityLayout = usesAccessibilityLayout(fontScale)
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
   const isReady = snapshot.node.status === 'ready'
-  const latestTransfers = snapshot.transfers
   const recentLogs = snapshot.logs.slice(0, 6)
-  const activeTransfers = snapshot.transfers.filter(
-    transfer =>
-      transfer.status === 'queued' ||
-      transfer.status === 'running' ||
-      transfer.status === 'waitingCore'
-  )
+  const {
+    active: activeTransfers,
+    failed: failedTransfers,
+    completed: completedTransfers,
+  } = partitionTransfers(snapshot.transfers)
 
   return (
     <ScrollView
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[
+        styles.content,
+        section === 'files' && snapshot.holdings.length === 0
+          ? styles.contentWithEmptyFiles
+          : null,
+      ]}
       showsVerticalScrollIndicator={false}
     >
       {section === 'files' ? (
-        <View style={styles.actionPanel}>
+        <View
+          style={[
+            styles.actionPanel,
+            accessibilityLayout ? styles.actionPanelAccessibility : null,
+          ]}
+        >
           <Pressable
             accessibilityRole="button"
             accessibilityState={{ disabled: actionDisabled }}
             disabled={actionDisabled}
             onPress={onPublishFile}
             style={({ pressed }) => [
-              styles.actionCard,
+              styles.actionButton,
+              styles.actionButtonPrimary,
+              accessibilityLayout ? styles.actionButtonAccessibility : null,
               actionDisabled ? styles.actionCardDisabled : null,
               pressed ? styles.actionCardPressed : null,
             ]}
           >
-            <Upload size={21} color={theme.colors.accent} />
-            <Text style={styles.actionLabel}>发布文件</Text>
+            <Upload size={19} color={theme.colors.onAccent} />
+            <Text
+              maxFontSizeMultiplier={2}
+              numberOfLines={1}
+              style={[styles.actionLabel, styles.actionLabelPrimary]}
+            >
+              发布文件
+            </Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
             onPress={onReceiveLink}
             style={({ pressed }) => [
-              styles.actionCard,
+              styles.actionButton,
+              styles.actionButtonSecondary,
+              accessibilityLayout ? styles.actionButtonAccessibility : null,
               pressed ? styles.actionCardPressed : null,
             ]}
           >
-            <Download size={21} color={theme.colors.info} />
-            <Text style={[styles.actionLabel, styles.actionLabelInfo]}>
+            <Download size={19} color={theme.colors.accent} />
+            <Text
+              maxFontSizeMultiplier={2}
+              numberOfLines={1}
+              style={styles.actionLabel}
+            >
               接收文件
             </Text>
           </Pressable>
         </View>
       ) : null}
 
-      {section === 'settings' ? (
+      {section === 'node' ? (
         <View style={[styles.section, styles.topSection]}>
           <SectionHeader
             icon={<Radio size={18} color={theme.colors.accent} />}
@@ -367,8 +541,17 @@ export function NodeStatusScreen({
           />
 
           {snapshot.node.error ? (
-            <View style={styles.nodeErrorBanner}>
-              <Text style={styles.nodeErrorText}>{snapshot.node.error}</Text>
+            <View
+              style={[
+                styles.nodeErrorBanner,
+                accessibilityLayout
+                  ? styles.nodeErrorBannerAccessibility
+                  : null,
+              ]}
+            >
+              <Text maxFontSizeMultiplier={2} style={styles.nodeErrorText}>
+                {getFriendlyCoreError(snapshot.node.error)}
+              </Text>
               <Pressable
                 disabled={retryStartDisabled}
                 onPress={onRetryStartCore}
@@ -379,6 +562,7 @@ export function NodeStatusScreen({
                 ]}
               >
                 <Text
+                  maxFontSizeMultiplier={1.8}
                   style={[
                     styles.retryButtonText,
                     retryStartDisabled ? styles.retryButtonTextDisabled : null,
@@ -390,7 +574,12 @@ export function NodeStatusScreen({
             </View>
           ) : null}
 
-          <View style={styles.metricsRow}>
+          <View
+            style={[
+              styles.metricsRow,
+              accessibilityLayout ? styles.metricsRowAccessibility : null,
+            ]}
+          >
             <Metric
               icon={<Activity size={17} color={theme.colors.accent} />}
               label="在线 Peer"
@@ -411,7 +600,12 @@ export function NodeStatusScreen({
       ) : null}
 
       {section === 'files' ? (
-        <View style={styles.section}>
+        <View
+          style={[
+            styles.section,
+            snapshot.holdings.length === 0 ? styles.emptyFilesSection : null,
+          ]}
+        >
           <SectionHeader
             icon={<Wifi size={18} color={theme.colors.accent} />}
             title="正在做种"
@@ -428,15 +622,33 @@ export function NodeStatusScreen({
 
                 return (
                   <View key={holding.cid} style={styles.holdingItem}>
-                    <View style={styles.holdingTopRow}>
+                    <View
+                      style={[
+                        styles.holdingTopRow,
+                        accessibilityLayout
+                          ? styles.holdingTopRowAccessibility
+                          : null,
+                      ]}
+                    >
                       <View style={styles.fileIcon}>
                         <FileCheck size={20} color={theme.colors.accent} />
                       </View>
-                      <View style={styles.holdingMain}>
-                        <Text style={styles.fileName} numberOfLines={2}>
+                      <View
+                        style={[
+                          styles.holdingMain,
+                          accessibilityLayout
+                            ? styles.holdingMainAccessibility
+                            : null,
+                        ]}
+                      >
+                        <Text
+                          maxFontSizeMultiplier={2}
+                          numberOfLines={accessibilityLayout ? undefined : 2}
+                          style={styles.fileName}
+                        >
                           {holding.fileName}
                         </Text>
-                        <Text style={styles.fileMeta}>
+                        <Text maxFontSizeMultiplier={2} style={styles.fileMeta}>
                           {formatBytes(holding.size)} ·{' '}
                           {holding.source === 'published' ? '已发布' : '已下载'}
                         </Text>
@@ -448,19 +660,28 @@ export function NodeStatusScreen({
                     </View>
 
                     <View style={styles.cidBlock}>
-                      <Text style={styles.cidLabel}>CID</Text>
-                      <Text style={styles.cidText}>
+                      <Text maxFontSizeMultiplier={1.6} style={styles.cidLabel}>
+                        CID
+                      </Text>
+                      <Text maxFontSizeMultiplier={1.6} style={styles.cidText}>
                         {shortCid(holding.cid, 16, 10)}
                       </Text>
                     </View>
 
-                    <View style={styles.topicRow}>
-                      <Text style={styles.topicText}>
+                    <View
+                      style={[
+                        styles.topicRow,
+                        accessibilityLayout
+                          ? styles.topicRowAccessibility
+                          : null,
+                      ]}
+                    >
+                      <Text maxFontSizeMultiplier={2} style={styles.topicText}>
                         {holding.topicJoined
                           ? 'Topic 已加入'
                           : '等待加入 topic'}
                       </Text>
-                      <Text style={styles.topicText}>
+                      <Text maxFontSizeMultiplier={2} style={styles.topicText}>
                         {holding.peerCount} peer
                       </Text>
                     </View>
@@ -537,96 +758,171 @@ export function NodeStatusScreen({
             </View>
           ) : (
             <EmptyState
-              title="还没有本机附件"
-              body="发送或下载附件完成后，文件会自动加入做种列表。"
+              centered
+              title="还没有本机文件"
+              body="发布或下载完成后，文件会自动加入做种列表。"
             />
           )}
         </View>
       ) : null}
 
       {section === 'transfers' ? (
-        <View style={[styles.section, styles.topSection]}>
-          <SectionHeader
-            icon={<ListChecks size={18} color={theme.colors.warning} />}
-            title="传输活动"
-            meta={
-              activeTransfers.length
-                ? `${activeTransfers.length} 个进行中`
-                : '空闲'
-            }
-          />
-
-          {latestTransfers.length ? (
-            <View style={styles.transferList}>
-              {latestTransfers.map(transfer => (
-                <View key={transfer.id} style={styles.transferItem}>
-                  <View style={styles.transferTopRow}>
-                    <View style={styles.transferTitleGroup}>
-                      <Text style={styles.transferName} numberOfLines={1}>
-                        {transfer.fileName ||
-                          TRANSFER_KIND_LABELS[transfer.kind]}
-                      </Text>
-                      <Text style={styles.transferMeta}>
-                        {TRANSFER_KIND_LABELS[transfer.kind]} ·{' '}
-                        {transfer.message}
-                      </Text>
-                    </View>
-                    <StatusBadge
-                      label={TRANSFER_STATUS_LABELS[transfer.status]}
-                      tone={getTransferTone(transfer.status)}
-                    />
-                  </View>
-                  <ProgressBar progress={transfer.progress} />
-                </View>
-              ))}
-            </View>
-          ) : (
-            <EmptyState
-              title="暂无传输"
-              body="文件发布和下载进度会显示在这里。"
+        <View style={styles.transferPage}>
+          <View style={[styles.section, styles.topSection]}>
+            <SectionHeader
+              icon={<ListChecks size={18} color={theme.colors.accent} />}
+              title="进行中"
+              meta={`${activeTransfers.length} 个任务`}
             />
-          )}
+            {activeTransfers.length ? (
+              <View style={styles.transferList}>
+                {activeTransfers.map(transfer => (
+                  <TransferItem
+                    key={transfer.id}
+                    isReady={isReady}
+                    retrying={retryingTransferId === transfer.id}
+                    transfer={transfer}
+                    onRetry={onRetryTransfer}
+                    onShowDetails={onShowTransferDetails}
+                  />
+                ))}
+              </View>
+            ) : (
+              <EmptyState
+                title="当前没有传输"
+                body="新的发布和下载任务会显示在这里。"
+              />
+            )}
+          </View>
+
+          {failedTransfers.length ? (
+            <View style={styles.section}>
+              <SectionHeader
+                icon={<Info size={18} color={theme.colors.danger} />}
+                title="需要处理"
+                meta={`${failedTransfers.length} 个失败任务`}
+              />
+              <View style={styles.transferList}>
+                {failedTransfers.map(transfer => (
+                  <TransferItem
+                    key={transfer.id}
+                    isReady={isReady}
+                    retrying={retryingTransferId === transfer.id}
+                    transfer={transfer}
+                    onRetry={onRetryTransfer}
+                    onShowDetails={onShowTransferDetails}
+                  />
+                ))}
+              </View>
+            </View>
+          ) : null}
+
+          {completedTransfers.length ? (
+            <View style={styles.section}>
+              <SectionHeader
+                icon={<CircleCheck size={18} color={theme.colors.success} />}
+                title="最近完成"
+                meta={`${completedTransfers.length} 条记录`}
+              />
+              <View style={styles.transferList}>
+                {completedTransfers.map(transfer => (
+                  <TransferItem
+                    key={transfer.id}
+                    isReady={isReady}
+                    retrying={retryingTransferId === transfer.id}
+                    transfer={transfer}
+                    onRetry={onRetryTransfer}
+                    onShowDetails={onShowTransferDetails}
+                  />
+                ))}
+              </View>
+            </View>
+          ) : null}
         </View>
       ) : null}
 
-      {section === 'settings' ? (
+      {section === 'node' ? (
         <View style={styles.section}>
-          <SectionHeader
-            icon={<Radio size={18} color={theme.colors.accent} />}
-            title="节点日志"
-            meta={recentLogs.length ? `最近 ${recentLogs.length} 条` : '暂无'}
-          />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: diagnosticsOpen }}
+            onPress={() => setDiagnosticsOpen(value => !value)}
+            style={({ pressed }) => [
+              styles.diagnosticsToggle,
+              pressed ? styles.linkRowPressed : null,
+            ]}
+          >
+            <View style={styles.diagnosticsTitleGroup}>
+              <Radio size={18} color={theme.colors.accent} />
+              <View style={styles.diagnosticsTextGroup}>
+                <Text maxFontSizeMultiplier={2} style={styles.sectionTitle}>
+                  诊断详情
+                </Text>
+                <Text maxFontSizeMultiplier={2} style={styles.diagnosticsMeta}>
+                  {recentLogs.length
+                    ? `最近 ${recentLogs.length} 条日志`
+                    : '暂无日志'}
+                </Text>
+              </View>
+            </View>
+            {diagnosticsOpen ? (
+              <ChevronUp size={18} color={theme.colors.textSecondary} />
+            ) : (
+              <ChevronDown size={18} color={theme.colors.textSecondary} />
+            )}
+          </Pressable>
 
-          {recentLogs.length ? (
-            <View style={styles.logList}>
-              {recentLogs.map(log => (
-                <View key={log.id} style={styles.logItem}>
-                  <Text style={styles.logTime}>{formatLogTime(log.time)}</Text>
-                  <View style={styles.logBody}>
+          {diagnosticsOpen ? (
+            recentLogs.length ? (
+              <View style={styles.logList}>
+                {recentLogs.map(log => (
+                  <View
+                    key={log.id}
+                    style={[
+                      styles.logItem,
+                      accessibilityLayout ? styles.logItemAccessibility : null,
+                    ]}
+                  >
                     <Text
+                      maxFontSizeMultiplier={1.8}
                       style={[
-                        styles.logLevel,
-                        log.level === 'error' ? styles.logLevelError : null,
-                        log.level === 'warn' ? styles.logLevelWarn : null,
+                        styles.logTime,
+                        accessibilityLayout
+                          ? styles.logTimeAccessibility
+                          : null,
                       ]}
                     >
-                      {LOG_LEVEL_LABELS[log.level]}
+                      {formatLogTime(log.time)}
                     </Text>
-                    <Text style={styles.logMessage}>{log.message}</Text>
+                    <View style={styles.logBody}>
+                      <Text
+                        maxFontSizeMultiplier={1.8}
+                        style={[
+                          styles.logLevel,
+                          log.level === 'error' ? styles.logLevelError : null,
+                          log.level === 'warn' ? styles.logLevelWarn : null,
+                        ]}
+                      >
+                        {LOG_LEVEL_LABELS[log.level]}
+                      </Text>
+                      <Text maxFontSizeMultiplier={2} style={styles.logMessage}>
+                        {log.message}
+                      </Text>
+                    </View>
                   </View>
-                </View>
-              ))}
-            </View>
-          ) : (
-            <EmptyState
-              title="日志为空"
-              body="核心状态变化和传输事件会记录在这里。"
-            />
-          )}
+                ))}
+              </View>
+            ) : (
+              <EmptyState
+                title="日志为空"
+                body="核心状态变化和传输事件会记录在这里。"
+              />
+            )
+          ) : null}
         </View>
       ) : null}
 
-      {section === 'settings' ? (
+      {section === 'node' ? (
         <View style={styles.section}>
           <SectionHeader
             icon={<FileText size={18} color={theme.colors.info} />}
@@ -641,7 +937,9 @@ export function NodeStatusScreen({
                 pressed ? styles.linkRowPressed : null,
               ]}
             >
-              <Text style={styles.linkText}>隐私政策</Text>
+              <Text maxFontSizeMultiplier={2} style={styles.linkText}>
+                隐私政策
+              </Text>
               <ExternalLink size={16} color={theme.colors.textSecondary} />
             </Pressable>
             <View style={styles.linkDivider} />
@@ -653,7 +951,9 @@ export function NodeStatusScreen({
                 pressed ? styles.linkRowPressed : null,
               ]}
             >
-              <Text style={styles.linkText}>使用条款</Text>
+              <Text maxFontSizeMultiplier={2} style={styles.linkText}>
+                使用条款
+              </Text>
               <ExternalLink size={16} color={theme.colors.textSecondary} />
             </Pressable>
             <View style={styles.linkDivider} />
@@ -665,7 +965,9 @@ export function NodeStatusScreen({
                 pressed ? styles.linkRowPressed : null,
               ]}
             >
-              <Text style={styles.linkText}>问题反馈</Text>
+              <Text maxFontSizeMultiplier={2} style={styles.linkText}>
+                问题反馈
+              </Text>
               <ExternalLink size={16} color={theme.colors.textSecondary} />
             </Pressable>
           </View>
@@ -680,8 +982,12 @@ function createNodeStyles(theme: MostBoxTheme) {
 
   return StyleSheet.create({
     content: {
+      flexGrow: 1,
       paddingBottom: 32,
       gap: 32,
+    },
+    contentWithEmptyFiles: {
+      minHeight: '100%',
     },
     section: {
       gap: 10,
@@ -692,33 +998,49 @@ function createNodeStyles(theme: MostBoxTheme) {
     },
     actionPanel: {
       flexDirection: 'row',
-      gap: 1,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-      backgroundColor: colors.border,
+      gap: 10,
+      marginHorizontal: 20,
+      marginTop: 16,
     },
-    actionCard: {
+    actionPanelAccessibility: {
+      flexDirection: 'column',
+    },
+    actionButton: {
       flex: 1,
-      minHeight: 88,
+      minHeight: 52,
+      flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
       gap: 8,
       paddingHorizontal: 12,
+      borderRadius: radii.medium,
+    },
+    actionButtonPrimary: {
+      backgroundColor: colors.accent,
+    },
+    actionButtonSecondary: {
+      borderWidth: 1,
+      borderColor: colors.borderStrong,
       backgroundColor: colors.surface,
+    },
+    actionButtonAccessibility: {
+      flex: 0,
+      width: '100%',
+      minHeight: 64,
     },
     actionCardDisabled: {
       opacity: 0.42,
     },
     actionCardPressed: {
-      backgroundColor: colors.accentSoft,
+      opacity: 0.7,
     },
     actionLabel: {
       color: colors.accent,
       fontSize: 14,
-      fontWeight: '500',
+      fontWeight: '600',
     },
-    actionLabelInfo: {
-      color: colors.info,
+    actionLabelPrimary: {
+      color: colors.onAccent,
     },
     sectionHeader: {
       minHeight: 32,
@@ -726,6 +1048,11 @@ function createNodeStyles(theme: MostBoxTheme) {
       alignItems: 'center',
       justifyContent: 'space-between',
       gap: 12,
+    },
+    sectionHeaderAccessibility: {
+      alignItems: 'flex-start',
+      flexDirection: 'column',
+      gap: 4,
     },
     sectionTitleGroup: {
       flex: 1,
@@ -753,6 +1080,10 @@ function createNodeStyles(theme: MostBoxTheme) {
       borderLeftWidth: 3,
       borderLeftColor: colors.danger,
       backgroundColor: colors.dangerSoft,
+    },
+    nodeErrorBannerAccessibility: {
+      alignItems: 'stretch',
+      flexDirection: 'column',
     },
     nodeErrorText: {
       flex: 1,
@@ -787,6 +1118,9 @@ function createNodeStyles(theme: MostBoxTheme) {
       borderColor: colors.border,
       backgroundColor: colors.border,
     },
+    metricsRowAccessibility: {
+      flexDirection: 'column',
+    },
     metric: {
       flex: 1,
       minWidth: 0,
@@ -795,7 +1129,10 @@ function createNodeStyles(theme: MostBoxTheme) {
       gap: 5,
       paddingHorizontal: 10,
       paddingVertical: 14,
-      backgroundColor: colors.background,
+      backgroundColor: colors.surfaceSubtle,
+    },
+    metricAccessibility: {
+      flex: 0,
     },
     metricIcon: {
       width: 24,
@@ -827,6 +1164,9 @@ function createNodeStyles(theme: MostBoxTheme) {
       alignItems: 'flex-start',
       gap: 10,
     },
+    holdingTopRowAccessibility: {
+      flexDirection: 'column',
+    },
     fileIcon: {
       width: 28,
       height: 32,
@@ -837,6 +1177,10 @@ function createNodeStyles(theme: MostBoxTheme) {
       flex: 1,
       minWidth: 0,
       gap: 3,
+    },
+    holdingMainAccessibility: {
+      flex: 0,
+      width: '100%',
     },
     fileName: {
       color: colors.text,
@@ -908,6 +1252,11 @@ function createNodeStyles(theme: MostBoxTheme) {
       justifyContent: 'space-between',
       gap: 10,
     },
+    topicRowAccessibility: {
+      alignItems: 'flex-start',
+      flexDirection: 'column',
+      gap: 4,
+    },
     topicText: {
       color: colors.textSecondary,
       fontSize: 12,
@@ -960,6 +1309,9 @@ function createNodeStyles(theme: MostBoxTheme) {
       fontSize: 14,
       fontWeight: '500',
     },
+    transferPage: {
+      gap: 32,
+    },
     transferList: {
       borderTopWidth: 1,
       borderTopColor: colors.border,
@@ -974,6 +1326,10 @@ function createNodeStyles(theme: MostBoxTheme) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 10,
+    },
+    transferTopRowAccessibility: {
+      alignItems: 'flex-start',
+      flexDirection: 'column',
     },
     transferTitleGroup: {
       flex: 1,
@@ -1001,6 +1357,70 @@ function createNodeStyles(theme: MostBoxTheme) {
       height: '100%',
       backgroundColor: colors.accent,
     },
+    transferActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 10,
+    },
+    transferDetailButton: {
+      minHeight: 44,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 6,
+    },
+    transferDetailText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    transferRetryButton: {
+      minHeight: 44,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      paddingHorizontal: 12,
+      borderRadius: radii.medium,
+      backgroundColor: colors.accentSoft,
+    },
+    transferRetryButtonDisabled: {
+      backgroundColor: colors.surfaceMuted,
+      opacity: 0.55,
+    },
+    transferRetryText: {
+      color: colors.accent,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    diagnosticsToggle: {
+      minHeight: 64,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+      paddingVertical: 8,
+      borderTopWidth: 1,
+      borderBottomWidth: 1,
+      borderColor: colors.border,
+    },
+    diagnosticsTitleGroup: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    diagnosticsTextGroup: {
+      flex: 1,
+      minWidth: 0,
+      gap: 3,
+    },
+    diagnosticsMeta: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '400',
+    },
     logList: {
       borderTopWidth: 1,
       borderTopColor: colors.border,
@@ -1012,11 +1432,18 @@ function createNodeStyles(theme: MostBoxTheme) {
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
     },
+    logItemAccessibility: {
+      flexDirection: 'column',
+      gap: 4,
+    },
     logTime: {
       width: 42,
       color: colors.textMuted,
       fontSize: 11,
       fontWeight: '500',
+    },
+    logTimeAccessibility: {
+      width: 'auto',
     },
     logBody: {
       flex: 1,
@@ -1047,6 +1474,20 @@ function createNodeStyles(theme: MostBoxTheme) {
       borderTopWidth: 1,
       borderBottomWidth: 1,
       borderColor: colors.border,
+    },
+    emptyFilesSection: {
+      flex: 1,
+    },
+    emptyStateCentered: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 20,
+      borderTopWidth: 0,
+      borderBottomWidth: 0,
+    },
+    emptyTextCentered: {
+      textAlign: 'center',
     },
     emptyTitle: {
       color: colors.text,
