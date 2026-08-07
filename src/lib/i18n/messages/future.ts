@@ -73,8 +73,6 @@ export const zhCNFutureMessages = {
   'future.close.body':
     '现在的 MostBox 已经可以发布文件、校验下载并让接收者继续做种。未来会从这个可验证的基础继续生长。',
   'future.close.about': '了解现在的 MostBox',
-  'future.close.download': '下载客户端',
-  'future.close.source': '查看源代码',
 } as const
 
 export const zhTWFutureMessages = {
@@ -152,8 +150,6 @@ export const zhTWFutureMessages = {
   'future.close.body':
     '現在的 MostBox 已經可以發布檔案、校驗下載並讓接收者繼續做種。未來會從這個可驗證的基礎繼續生長。',
   'future.close.about': '了解現在的 MostBox',
-  'future.close.download': '下載用戶端',
-  'future.close.source': '查看原始碼',
 } as const
 
 export const enFutureMessages = {
@@ -244,6 +240,4 @@ export const enFutureMessages = {
   'future.close.body':
     'MostBox can already publish files, verify downloads, and let recipients keep seeding. The future grows from this testable foundation.',
   'future.close.about': 'Learn about MostBox today',
-  'future.close.download': 'Download client',
-  'future.close.source': 'View source code',
 } as const

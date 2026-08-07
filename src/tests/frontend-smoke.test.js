@@ -1717,7 +1717,6 @@ describe('frontend smoke checks', () => {
     assert.match(aboutSource, /about\.toolbox\.web3\.title/)
     assert.match(aboutSource, /about\.opensource\.title/)
     assert.match(aboutSource, /about-artemis\.webp/)
-    assert.match(aboutSource, /hideFutureLink/)
     assert.match(aboutSource, /to="\/future\/"/)
     assert.doesNotMatch(aboutSource, /about\.architecture/)
     assert.doesNotMatch(aboutMessages, /Personal Knowledge OS/)
@@ -1736,7 +1735,9 @@ describe('frontend smoke checks', () => {
     assert.match(futureSource, /future\.hero\.disclaimer/)
     assert.match(futureMessages, /这是探索方向，不代表功能已经上线。/)
     assert.match(futureMessages, /These directions have no public timeline\./)
-    assert.match(footerSource, /to: '\/future\/'/)
+    assert.doesNotMatch(footerSource, /to: '\/future\/'/)
+    assert.doesNotMatch(futureSource, /future\.close\.download/)
+    assert.doesNotMatch(futureSource, /future\.close\.source/)
   })
 
   it('keeps the file selection toolbar grouped and compact', () => {

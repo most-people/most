@@ -407,20 +407,6 @@
   gap: 12px;
 }
 
-.future-source-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  color: var(--text-secondary);
-  font-size: 14px;
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.future-source-link:hover {
-  color: var(--text-primary);
-}
-
 @media (max-width: 960px) {
   .future-foundation-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));

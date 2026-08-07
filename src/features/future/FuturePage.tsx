@@ -6,7 +6,6 @@ import {
   Bot,
   CheckCircle2,
   Code2,
-  Download,
   FileCheck2,
   Files,
   History,
@@ -25,7 +24,6 @@ import { Link } from '@tanstack/react-router'
 
 import { MarketingHeader } from '~/components/MarketingHeader'
 import { MarketingLayout } from '~/components/MarketingLayout'
-import { useIsDesktopClient } from '~/hooks'
 import { useI18n, type MessageKey } from '~/lib/i18n'
 
 interface FutureItem {
@@ -123,7 +121,6 @@ const principles: FutureItem[] = [
 
 export default function FuturePage() {
   const { t } = useI18n()
-  const isDesktopClient = useIsDesktopClient()
 
   return (
     <MarketingLayout header={<MarketingHeader />}>
@@ -275,21 +272,6 @@ export default function FuturePage() {
               <Link to="/about/" className="btn btn-secondary">
                 {t('future.close.about')}
               </Link>
-              {!isDesktopClient && (
-                <Link to="/download/" className="btn btn-primary">
-                  <Download size={16} />
-                  {t('future.close.download')}
-                </Link>
-              )}
-              <a
-                href="https://github.com/most-people/most"
-                className="future-source-link"
-                target="_blank"
-                rel="noreferrer"
-              >
-                <Code2 size={16} />
-                {t('future.close.source')}
-              </a>
             </div>
           </div>
         </section>

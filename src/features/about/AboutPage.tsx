@@ -108,7 +108,7 @@ export default function AboutPage() {
   const isDesktopClient = useIsDesktopClient()
 
   return (
-    <MarketingLayout header={<MarketingHeader />} hideFutureLink>
+    <MarketingLayout header={<MarketingHeader />}>
       <div className="about-page">
         <section className="about-hero">
           <div className="about-hero-media" aria-hidden="true">
