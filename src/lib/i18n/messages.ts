@@ -8,11 +8,6 @@ import {
   zhCNCoreMessages,
   zhTWCoreMessages,
 } from './messages/core'
-import {
-  enFutureMessages,
-  zhCNFutureMessages,
-  zhTWFutureMessages,
-} from './messages/future'
 import { enHiMessages, zhCNHiMessages, zhTWHiMessages } from './messages/hi'
 import {
   enDownloadMessages,
@@ -97,7 +92,6 @@ export const localeNames: Record<Locale, string> = {
 export const zhCNMessages = {
   ...zhCNCoreMessages,
   ...zhCNAboutMessages,
-  ...zhCNFutureMessages,
   ...zhCNHiMessages,
   ...zhCNDownloadMessages,
   ...zhCNDocsMessages,
@@ -120,7 +114,6 @@ export type MessageKey = keyof typeof zhCNMessages
 export const enMessages = {
   ...enCoreMessages,
   ...enAboutMessages,
-  ...enFutureMessages,
   ...enHiMessages,
   ...enDownloadMessages,
   ...enDocsMessages,
@@ -141,7 +134,6 @@ export const enMessages = {
 export const zhTWMessages = {
   ...zhTWCoreMessages,
   ...zhTWAboutMessages,
-  ...zhTWFutureMessages,
   ...zhTWHiMessages,
   ...zhTWDownloadMessages,
   ...zhTWDocsMessages,

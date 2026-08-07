@@ -272,7 +272,7 @@ export default function AboutPage() {
               <h2>{t('about.future.title')}</h2>
               <p>{t('about.future.body')}</p>
             </div>
-            <Link to="/future/" className="btn btn-secondary">
+            <Link to="/hi/" className="btn btn-secondary">
               {t('about.future.cta')}
               <ArrowRight size={16} />
             </Link>

@@ -29,7 +29,6 @@ const SOURCE_PATHS = {
   openApiReference: 'src/features/docs/OpenApiReference.tsx',
   openApiRequest: 'src/features/docs/openapiRequest.js',
   about: 'src/features/about/AboutPage.tsx',
-  future: 'src/features/future/FuturePage.tsx',
   hi: 'src/features/hi/HiPage.tsx',
   footer: 'src/components/Footer.tsx',
   cid: 'src/features/cid/CidPage.tsx',
@@ -439,7 +438,6 @@ describe('frontend smoke checks', () => {
     assert.deepEqual(routes, [
       '/',
       '/about/',
-      '/future/',
       '/hi/',
       '/admin/',
       '/app/',
@@ -1719,27 +1717,28 @@ describe('frontend smoke checks', () => {
     assert.match(aboutSource, /about\.toolbox\.web3\.title/)
     assert.match(aboutSource, /about\.opensource\.title/)
     assert.match(aboutSource, /about-artemis\.webp/)
-    assert.match(aboutSource, /to="\/future\/"/)
+    assert.match(aboutSource, /to="\/hi\/"/)
     assert.doesNotMatch(aboutSource, /about\.architecture/)
     assert.doesNotMatch(aboutMessages, /Personal Knowledge OS/)
     assert.doesNotMatch(aboutMessages, /Knowledge Graph/)
     assert.doesNotMatch(aboutMessages, /Scoped MCP Interface/)
   })
 
-  it('separates shipped foundations from the Future vision', () => {
-    const futureSource = readSource(SOURCE_PATHS.future)
-    const futureMessages = readSource('src/lib/i18n/messages/future.ts')
+  it('separates shipped foundations from future directions on the Hi page', () => {
+    const hiSource = readSource(SOURCE_PATHS.hi)
+    const hiMessages = readSource('src/lib/i18n/messages/hi.ts')
     const footerSource = readSource(SOURCE_PATHS.footer)
 
-    assert.match(futureSource, /about-artemis\.webp/)
-    assert.match(futureSource, /future\.foundation\.kicker/)
-    assert.match(futureSource, /future\.direction\.kicker/)
-    assert.match(futureSource, /future\.hero\.disclaimer/)
-    assert.match(futureMessages, /这是探索方向，不代表功能已经上线。/)
-    assert.match(futureMessages, /These directions have no public timeline\./)
+    assert.match(hiSource, /hi\.common\.future/)
+    assert.match(hiSource, /hi\.status\.available/)
+    assert.match(hiSource, /hi\.status\.future/)
+    assert.match(hiSource, /hi\.ai\.note/)
+    assert.match(hiMessages, /知识库读取、整理和写回仍是未来方向。/)
+    assert.match(
+      hiMessages,
+      /Knowledge-base reading, organization, and writing remain future directions\./
+    )
     assert.doesNotMatch(footerSource, /to: '\/future\/'/)
-    assert.doesNotMatch(futureSource, /future\.close\.download/)
-    assert.doesNotMatch(futureSource, /future\.close\.source/)
   })
 
   it('keeps the file selection toolbar grouped and compact', () => {
