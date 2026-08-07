@@ -9,12 +9,18 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 const projectDir = path.resolve(scriptDir, '..')
 const androidDir = path.join(projectDir, 'android')
 const outputDir = path.join(projectDir, 'dist')
-const releaseArchitecture = 'arm64-v8a'
 const buildAppBundle = process.argv.includes('--aab')
+const buildEmulatorApk = process.argv.includes('--emulator-apk')
 const buildStoreApk = process.argv.includes('--store-apk')
-if (buildAppBundle && buildStoreApk) {
-  throw new Error('Choose either --aab or --store-apk')
+const selectedBuildTargets = [
+  buildAppBundle,
+  buildEmulatorApk,
+  buildStoreApk,
+].filter(Boolean)
+if (selectedBuildTargets.length > 1) {
+  throw new Error('Choose only one of --aab, --emulator-apk, or --store-apk')
 }
+const releaseArchitecture = buildEmulatorApk ? 'x86_64' : 'arm64-v8a'
 const releaseSigningRequired = buildAppBundle || buildStoreApk
 const packageJson = JSON.parse(
   fs.readFileSync(path.join(projectDir, 'package.json'), 'utf8')
@@ -45,9 +51,11 @@ const packageSource = buildAppBundle
 const legacyApkTarget = path.join(outputDir, 'mostbox-android-release.apk')
 const packageTarget = path.join(
   outputDir,
-  buildStoreApk
-    ? `mostbox-android-${version}-store-release.apk`
-    : `mostbox-android-${version}-release.${packageExtension}`
+  buildEmulatorApk
+    ? `mostbox-android-${version}-emulator-x86_64.apk`
+    : buildStoreApk
+      ? `mostbox-android-${version}-store-release.apk`
+      : `mostbox-android-${version}-release.${packageExtension}`
 )
 const gradleCommand = process.platform === 'win32' ? 'gradlew.bat' : './gradlew'
 const npxCommand = process.platform === 'win32' ? 'npx.cmd' : 'npx'

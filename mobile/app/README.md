@@ -36,6 +36,21 @@ npm run build
 
 该 APK 使用本地 Alpha 签名配置，不能上传 Google Play。
 
+## 模拟器 APK
+
+x86_64 Android 模拟器使用独立构建，避免通过 ARM 转译层运行 Bare Worklet 原生扩展：
+
+```bash
+npm run build:emulator
+```
+
+产物：
+
+- `dist/mostbox-android-<version>-emulator-x86_64.apk`
+- `dist/mostbox-android-<version>-emulator-x86_64.apk.sha256.txt`
+
+该 APK 仅用于本地 x86_64 模拟器验证；真机内测和应用商店构建仍使用 arm64。
+
 ## 应用商店 APK
 
 Google Play 以外、接受 APK 的应用商店使用永久 App Signing Key 构建：
