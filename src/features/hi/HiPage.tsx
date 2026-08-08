@@ -238,7 +238,7 @@ function KnowledgeNetwork() {
   const { t } = useI18n()
 
   return (
-    <div className="hi-network-visual" aria-label={t('hi.organization.visual')}>
+    <div className="hi-network-visual">
       <div className="hi-network-person hi-network-person-a">
         <span>01</span>
         <strong>{t('hi.organization.person.a')}</strong>
@@ -366,34 +366,48 @@ export default function HiPage() {
               <h2>{t('hi.organization.title')}</h2>
               <p>{t('hi.organization.body')}</p>
             </header>
-            <KnowledgeNetwork />
+            <div
+              className="hi-diagram-scroll"
+              role="region"
+              aria-label={t('hi.organization.visual')}
+              tabIndex={0}
+            >
+              <KnowledgeNetwork />
+            </div>
           </div>
         </section>
 
         <section className="hi-foundation">
           <div className="hi-container hi-foundation-layout">
-            <div className="hi-foundation-visual" aria-hidden="true">
-              <div className="hi-foundation-note">
-                <FileText size={21} />
-                <span>{t('hi.foundation.note')}</span>
-              </div>
-              <span className="hi-foundation-arrow">+</span>
-              <div className="hi-foundation-cid">
-                <FileCheck2 size={25} />
-                <span>CID</span>
-                <small translate="no">most://bafy...</small>
-              </div>
-              <span className="hi-foundation-arrow">→</span>
-              <div className="hi-foundation-nodes">
-                <span>
-                  <Network size={18} />
-                </span>
-                <span>
-                  <Network size={18} />
-                </span>
-                <span>
-                  <Network size={18} />
-                </span>
+            <div
+              className="hi-diagram-scroll hi-foundation-diagram-scroll"
+              role="region"
+              aria-label={t('hi.foundation.title')}
+              tabIndex={0}
+            >
+              <div className="hi-foundation-visual" aria-hidden="true">
+                <div className="hi-foundation-note">
+                  <FileText size={21} />
+                  <span>{t('hi.foundation.note')}</span>
+                </div>
+                <span className="hi-foundation-arrow">+</span>
+                <div className="hi-foundation-cid">
+                  <FileCheck2 size={25} />
+                  <span>CID</span>
+                  <small translate="no">most://bafy...</small>
+                </div>
+                <span className="hi-foundation-arrow">→</span>
+                <div className="hi-foundation-nodes">
+                  <span>
+                    <Network size={18} />
+                  </span>
+                  <span>
+                    <Network size={18} />
+                  </span>
+                  <span>
+                    <Network size={18} />
+                  </span>
+                </div>
               </div>
             </div>
             <header className="hi-heading hi-heading-light">
