@@ -27,6 +27,10 @@ test('getFriendlyCoreError hides internal download failures', () => {
     '文件校验失败，内容与分享链接不一致。'
   )
   assert.equal(
+    getFriendlyCoreError(new Error('Download cancelled')),
+    '下载已取消。'
+  )
+  assert.equal(
     getFriendlyCoreError(new Error('unexpected internal failure')),
     '操作未完成，请稍后重试。'
   )

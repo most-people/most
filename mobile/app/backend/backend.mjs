@@ -80,6 +80,12 @@ async function handleCommand(command) {
       return
     }
 
+    if (command.type === COMMANDS.FILE_CANCEL_DOWNLOAD) {
+      const result = await getCore().cancelDownload(payload)
+      send(EVENTS.DOWNLOAD_CANCELLED, result, requestId)
+      return
+    }
+
     if (command.type === COMMANDS.FILE_EXPORT) {
       const result = await getCore().exportHolding(payload, requestId)
       send(EVENTS.FILE_EXPORT_SUCCESS, result, requestId)

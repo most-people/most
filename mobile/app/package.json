@@ -19,7 +19,7 @@
     "bundle:ios": "node scripts/bundle-bare.mjs --platform ios",
     "eas-build-post-install": "node scripts/bundle-bare.mjs",
     "sync:native": "node scripts/sync-native-android.mjs",
-    "test": "node --import tsx --test src/mobileCore/cid.test.ts src/mobileCore/protocol.test.ts src/mobileCore/storeFilePolicy.test.ts src/features/chat/chatState.test.ts src/ui/presentation.test.ts && node --test backend/protocol.test.mjs backend/holding-records.test.mjs backend/mobile-core.test.mjs backend/node-crypto-shim.test.mjs scripts/sync-native-android.test.mjs",
+    "test": "node --import tsx --test src/mobileCore/cid.test.ts src/mobileCore/protocol.test.ts src/mobileCore/storeFilePolicy.test.ts src/features/chat/chatState.test.ts src/features/knowledge/knowledgeModel.test.ts src/features/knowledge/knowledgeRepository.test.ts src/ui/presentation.test.ts && node --test backend/protocol.test.mjs backend/holding-records.test.mjs backend/mobile-core.test.mjs backend/node-crypto-shim.test.mjs scripts/sync-native-android.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -32,6 +32,7 @@
     "expo-dev-client": "~57.0.10",
     "expo-document-picker": "~57.0.1",
     "expo-file-system": "~57.0.1",
+    "expo-intent-launcher": "~57.0.1",
     "expo-sharing": "~57.0.8",
     "hyperdrive": "13.3.3",
     "hyperswarm": "4.17.0",
@@ -41,6 +42,7 @@
     "react": "19.2.3",
     "react-native": "0.86.2",
     "react-native-bare-kit": "0.15.0",
+    "react-native-enriched-markdown": "0.7.4",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-svg": "15.15.4"
   },

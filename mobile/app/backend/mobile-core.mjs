@@ -62,7 +62,7 @@ const path =
 const GLOBAL_SHARED_SEED_STRING = 'most-box-global-shared-seed-v1'
 const MAX_PEERS = 64
 const CONNECTION_TIMEOUT = 120000
-const DOWNLOAD_TIMEOUT = 900000
+const DOWNLOAD_DISCOVERY_TIMEOUT = 30000
 const STREAM_READ_TIMEOUT = 10000
 const FILE_WRITE_CHUNK_SIZE = 64 * 1024
 const DOWNLOAD_POLL_INTERVAL_MIN = 500
@@ -422,6 +422,7 @@ export class MobileP2PCore {
   #drives = new Map()
   #drivePromises = new Map()
   #discoveries = new Map()
+  #cancelledDownloads = new Set()
   #channels = []
   #channelCores = new Map()
   #channelLocalCoreKey = new Map()
@@ -979,7 +980,9 @@ export class MobileP2PCore {
     const fileName = sanitizeFilename(parsed.fileName)
     const { driveName } = getCidInfo(cid)
     const driveKey = `/${cid}`
+    let tempPath = ''
 
+    this.#cancelledDownloads.delete(requestId)
     const transfer = this.#upsertTransfer({
       id: requestId,
       kind: 'download',
@@ -1028,7 +1031,7 @@ export class MobileP2PCore {
       const entry = await this.#waitForDriveEntry(
         drive,
         driveKey,
-        input.timeout || DOWNLOAD_TIMEOUT,
+        input.timeout || DOWNLOAD_DISCOVERY_TIMEOUT,
         requestId
       )
 
@@ -1038,7 +1041,7 @@ export class MobileP2PCore {
 
       const totalBytes = Number(entry?.value?.blob?.byteLength) || 0
       const savePath = uniqueSavePath(this.#downloadPath, fileName)
-      const tempPath = `${savePath}.part`
+      tempPath = `${savePath}.part`
       safeRm(tempPath)
 
       this.#upsertTransfer({
@@ -1052,6 +1055,7 @@ export class MobileP2PCore {
       await pipeDriveToFile(readStream, tempPath, {
         timeout: STREAM_READ_TIMEOUT,
         onProgress: nextLoaded => {
+          this.#assertDownloadActive(requestId)
           loaded = nextLoaded
           if (totalBytes > 0) {
             const progress = 20 + Math.round((loaded / totalBytes) * 60)
@@ -1064,6 +1068,8 @@ export class MobileP2PCore {
         },
       })
 
+      this.#assertDownloadActive(requestId)
+
       this.#upsertTransfer({
         ...transfer,
         progress: 85,
@@ -1071,6 +1077,7 @@ export class MobileP2PCore {
       })
 
       const downloaded = await calculateCid({ filePath: tempPath })
+      this.#assertDownloadActive(requestId)
       if (downloaded.cid !== cid) {
         safeRm(tempPath)
         throw new Error(
@@ -1106,6 +1113,10 @@ export class MobileP2PCore {
         savedPath: savePath,
       }
     } catch (err) {
+      if (tempPath) safeRm(tempPath)
+      if (!this.#holdings.some(holding => holding.cid === cid)) {
+        await this.#leaveCidTopic(cid)
+      }
       const failed = this.#upsertTransfer({
         ...transfer,
         status: 'failed',
@@ -1114,7 +1125,32 @@ export class MobileP2PCore {
       })
       this.#log('error', failed.message)
       throw err
+    } finally {
+      this.#cancelledDownloads.delete(requestId)
     }
+  }
+
+  async cancelDownload(input = {}) {
+    this.#ensureReady()
+    const { cid } = getCidInfo(input.cid)
+    const transfers = this.#transfers.filter(
+      transfer =>
+        transfer.kind === 'download' &&
+        transfer.cid === cid &&
+        transfer.status === 'running'
+    )
+
+    for (const transfer of transfers) {
+      this.#cancelledDownloads.add(transfer.id)
+      this.#patchTransfer(transfer.id, {
+        status: 'failed',
+        progress: 0,
+        message: 'Download cancelled',
+      })
+    }
+
+    if (transfers.length > 0) await this.#leaveCidTopic(cid)
+    return { cid, snapshot: this.getSnapshot() }
   }
 
   async deleteHolding(input = {}) {
@@ -2744,6 +2780,7 @@ export class MobileP2PCore {
     let lastDriveUpdate = 0
 
     while (Date.now() - startedAt < timeout) {
+      this.#assertDownloadActive(transferId)
       const now = Date.now()
       if (now - lastDriveUpdate > DRIVE_UPDATE_INTERVAL) {
         lastDriveUpdate = now
@@ -2768,8 +2805,15 @@ export class MobileP2PCore {
       await sleep(pollInterval)
     }
 
+    this.#assertDownloadActive(transferId)
     await drive.update().catch(() => {})
     return drive.entry(driveKey).catch(() => null)
+  }
+
+  #assertDownloadActive(transferId) {
+    if (this.#cancelledDownloads.has(transferId)) {
+      throw new Error('Download cancelled')
+    }
   }
 
   async #leaveCidTopic(cid) {

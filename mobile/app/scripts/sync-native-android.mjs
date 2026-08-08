@@ -585,11 +585,26 @@ function syncNativeHelperShim() {
 
 function ensureExternalNativeBuildConfig() {
   const buildGradle = fs.readFileSync(buildGradlePath, 'utf8')
-  if (buildGradle.includes('path "src/main/jni/CMakeLists.txt"')) return
+  const nextBuildGradle = applyExternalNativeBuildConfig(buildGradle)
+  writeIfChanged(buildGradlePath, nextBuildGradle)
+}
+
+export function applyExternalNativeBuildConfig(buildGradle) {
+  const cmakePath = 'path "src/main/jni/CMakeLists.txt"'
+  const stagingLine =
+    '            buildStagingDirectory new File(System.getProperty("java.io.tmpdir"), "mostbox-cxx-${Integer.toUnsignedString(projectRoot.hashCode(), 36)}")'
+  if (buildGradle.includes(cmakePath)) {
+    if (buildGradle.includes(stagingLine.trim())) return buildGradle
+    return buildGradle.replace(
+      /^(\s*path "src\/main\/jni\/CMakeLists\.txt")(\r?\n)/m,
+      `$1$2${stagingLine}$2`
+    )
+  }
 
   const config = `    externalNativeBuild {
         cmake {
             path "src/main/jni/CMakeLists.txt"
+${stagingLine}
         }
     }
 `
@@ -602,7 +617,7 @@ function ensureExternalNativeBuildConfig() {
     throw new Error('Unable to insert Android externalNativeBuild config')
   }
 
-  fs.writeFileSync(buildGradlePath, nextBuildGradle)
+  return nextBuildGradle
 }
 
 function ensureNativeHelperLoaded() {

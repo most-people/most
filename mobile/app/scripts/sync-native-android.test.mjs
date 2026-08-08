@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import { describe, it } from 'node:test'
 
 import {
+  applyExternalNativeBuildConfig,
   applyAndroidManifestPolicy,
   applyAndroidPackageConfig,
   applyKotlinPackageDeclaration,
@@ -57,6 +58,23 @@ describe('Android native project synchronization', () => {
     )
     assert.equal(isStaleAndroidPackage('box.most.android', 'most.box'), true)
     assert.equal(isStaleAndroidPackage('most.box', 'most.box'), false)
+  })
+
+  it('keeps native build output in a short project-specific directory', () => {
+    const buildGradle = [
+      'android {',
+      '    androidResources {',
+      "        ignoreAssetsPattern '!.git'",
+      '    }',
+      '}',
+      '',
+    ].join('\n')
+
+    const result = applyExternalNativeBuildConfig(buildGradle)
+    assert.match(result, /path "src\/main\/jni\/CMakeLists\.txt"/)
+    assert.match(result, /buildStagingDirectory new File/)
+    assert.match(result, /mostbox-cxx-/)
+    assert.equal(applyExternalNativeBuildConfig(result), result)
   })
 
   it('removes a release Gradle apply when its script is missing', () => {

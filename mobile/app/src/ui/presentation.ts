@@ -25,6 +25,9 @@ export function getFriendlyCoreError(error: unknown) {
   ) {
     return '暂未发现在线种子，请稍后重试。'
   }
+  if (normalized.includes('download cancelled')) {
+    return '下载已取消。'
+  }
   if (normalized.includes('cid mismatch')) {
     return '文件校验失败，内容与分享链接不一致。'
   }

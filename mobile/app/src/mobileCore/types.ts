@@ -116,6 +116,15 @@ export type DownloadLinkInput = {
   link: string
 }
 
+export type CancelDownloadInput = {
+  cid: string
+}
+
+export type CancelDownloadResult = {
+  cid: string
+  snapshot: MobileCoreSnapshot
+}
+
 export type ExportHoldingInput = {
   cid: string
   fileName?: string
@@ -187,6 +196,7 @@ export type MostBoxMobileCore = {
   stop: () => Promise<void>
   publishFile: (input: PublishFileInput) => Promise<MobileTransfer>
   downloadLink: (input: DownloadLinkInput) => Promise<MobileTransfer>
+  cancelDownload: (input: CancelDownloadInput) => Promise<CancelDownloadResult>
   exportHolding: (input: ExportHoldingInput) => Promise<ExportHoldingResult>
   deleteHolding: (input: DeleteHoldingInput) => Promise<DeleteHoldingResult>
   listHoldings: () => Promise<MobileHolding[]>

@@ -2,6 +2,8 @@ import b4a from 'b4a'
 import { Worklet } from 'react-native-bare-kit'
 import { COMMANDS, EVENTS } from '../../rpc-commands.mjs'
 import type {
+  CancelDownloadInput,
+  CancelDownloadResult,
   CoreListener,
   CreateChannelInput,
   DeleteHoldingInput,
@@ -117,6 +119,11 @@ function isDeleteHoldingResult(value: unknown): value is DeleteHoldingResult {
   return typeof record.cid === 'string' && Boolean(record.snapshot)
 }
 
+function isCancelDownloadResult(value: unknown): value is CancelDownloadResult {
+  const record = asRecord(value)
+  return typeof record.cid === 'string' && Boolean(record.snapshot)
+}
+
 function isChannel(value: unknown): value is MobileChannel {
   const record = asRecord(value)
   return (
@@ -197,6 +204,11 @@ function extractExportResult(payload: unknown) {
 function extractDeleteResult(payload: unknown) {
   if (isDeleteHoldingResult(payload)) return payload
   throw new Error('P2P core returned an invalid delete payload')
+}
+
+function extractCancelDownloadResult(payload: unknown) {
+  if (isCancelDownloadResult(payload)) return payload
+  throw new Error('P2P core returned an invalid cancel download payload')
 }
 
 function extractChannel(payload: unknown) {
@@ -339,6 +351,19 @@ export class BareWorkletMostBoxCore implements MostBoxMobileCore {
       900000
     )
     return extractTransfer(result)
+  }
+
+  async cancelDownload(
+    input: CancelDownloadInput
+  ): Promise<CancelDownloadResult> {
+    await this.#ensureStarted()
+    const result = await this.#request(
+      COMMANDS.FILE_CANCEL_DOWNLOAD,
+      { cid: input.cid },
+      [EVENTS.DOWNLOAD_CANCELLED],
+      10000
+    )
+    return extractCancelDownloadResult(result)
   }
 
   async exportHolding(input: ExportHoldingInput): Promise<ExportHoldingResult> {

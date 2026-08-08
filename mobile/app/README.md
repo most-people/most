@@ -4,11 +4,13 @@ MostBox 的 Android 商店版和共享 Bare Worklet P2P 核心。移动工程与
 
 ## 当前状态
 
-- Android 使用原生 React Native 文件工具界面，包含“文件 / 传输 / 设置”三个入口。
+- Android 使用原生 React Native 工具界面，包含“文件 / 知识库 / 传输 / 节点”四个入口，默认进入“文件”。
 - 用户可选择文件发布，得到 `most://<cid>?filename=...` 链接并在前台做种。
 - 外部 `most://` 深链只打开下载确认页，不会自动开始下载。
 - 下载完成后重算 UnixFS CID v1，校验通过才写入 holding 并加入 CID topic。
 - holding 支持复制链接、系统分享、保存副本和删除；删除 holding 后停止本机做种。
+- 知识库以 UTF-8 `.md` 明文保存在 App 文档目录的 `mostbox-knowledge/`，支持目录、搜索、编辑、预览、单篇导入导出和整库快照替换恢复。
+- 知识库附件只在 Markdown 中保存 `most://` 引用；发布、确认下载、CID 校验和自动做种仍复用文件模块。
 - Google Play 版本不暴露聊天、账号、广告、付费、Web3、公开内容目录或后台常驻能力。
 - 已知应用安装包、脚本和可执行文件类型会在发布或下载前被拒绝。
 
@@ -22,6 +24,8 @@ npm install
 npm start
 npm test
 npm run typecheck
+npm run bundle:android
+npm run bundle:ios
 npm run build
 ```
 
@@ -107,8 +111,11 @@ node scripts/android-real-p2p-seed.mjs --handoff-check
 
 - Android 只承诺前台做种，返回前台后恢复节点和 topic。
 - 保存或分享产生的是用户可见副本；MostBox 内部 holding 副本用于 CID 校验和做种。
+- 移动端知识库与桌面/Web 知识库独立，不接入账号、云同步、Git 或 daemon；迁移只通过单篇 Markdown 或整库 JSON 快照手工完成。
+- 整库恢复会在完整校验和用户确认后完全替换当前知识库，不自动合并；失败时保留恢复前的数据。
+- 笔记本身不发布到 Hyperdrive，也不生成分享链接；只有用户主动选择的附件进入文件发布流程。
 - CID 即权限，链接泄露后无法从 P2P 网络统一撤回。
-- 本轮不测试或发布 iOS。
+- iOS 本轮只要求共享代码类型检查和 bundle 成功，不做签名、真机或 TestFlight 验收。
 
 ## 协议不变量
 

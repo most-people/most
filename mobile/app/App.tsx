@@ -19,16 +19,19 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 import * as Clipboard from 'expo-clipboard'
 import * as DocumentPicker from 'expo-document-picker'
 import * as FileSystem from 'expo-file-system/legacy'
+import * as IntentLauncher from 'expo-intent-launcher'
 import * as Sharing from 'expo-sharing'
 import b4a from 'b4a'
 import {
   ArrowLeftRight,
+  BookOpen,
   Files,
   ListChecks,
   Radio,
   ShieldCheck,
   X,
 } from 'lucide-react-native'
+import { KnowledgeBaseScreen } from './src/features/knowledge/KnowledgeBaseScreen'
 import { NodeStatusScreen } from './src/features/node/NodeStatusScreen'
 import { createMostBoxCore } from './src/mobileCore/createMostBoxCore'
 import {
@@ -79,10 +82,11 @@ const MIME_BY_EXTENSION: Record<string, string> = {
   zip: 'application/zip',
 }
 
-type RootTab = 'files' | 'transfers' | 'node'
+type RootTab = 'files' | 'knowledge' | 'transfers' | 'node'
 
 const TAB_LABELS: Record<RootTab, string> = {
   files: '文件',
+  knowledge: '知识库',
   transfers: '传输',
   node: '节点',
 }
@@ -163,6 +167,7 @@ export default function App() {
   const [snapshot, setSnapshot] = useState<MobileCoreSnapshot | null>(null)
   const [activeTab, setActiveTab] = useState<RootTab>('files')
   const [publishing, setPublishing] = useState(false)
+  const [knowledgeDirty, setKnowledgeDirty] = useState(false)
   const [exportingCid, setExportingCid] = useState<string | null>(null)
   const [deletingCid, setDeletingCid] = useState<string | null>(null)
   const [copiedCid, setCopiedCid] = useState<string | null>(null)
@@ -173,6 +178,9 @@ export default function App() {
   )
   const [downloadLinkError, setDownloadLinkError] = useState('')
   const [downloadingCid, setDownloadingCid] = useState<string | null>(null)
+  const [cancellingDownload, setCancellingDownload] = useState(false)
+  const [openDownloadAfterComplete, setOpenDownloadAfterComplete] =
+    useState(false)
   const [retryingTransferId, setRetryingTransferId] = useState<string | null>(
     null
   )
@@ -200,17 +208,20 @@ export default function App() {
     }
   }, [core])
 
-  const openDownloadIntent = useCallback((intent: IncomingMostLink) => {
-    const policyError = getStoreDownloadPolicyError(
-      intent.fileName,
-      hasExplicitMostLinkFilename(intent.link)
-    )
-    setActiveTab('files')
-    setDownloadModalOpen(true)
-    setDownloadLinkInput(intent.link)
-    setDownloadIntent(policyError ? null : intent)
-    setDownloadLinkError(policyError || '')
-  }, [])
+  const openDownloadIntent = useCallback(
+    (intent: IncomingMostLink, openAfterComplete = false) => {
+      const policyError = getStoreDownloadPolicyError(
+        intent.fileName,
+        hasExplicitMostLinkFilename(intent.link)
+      )
+      setDownloadModalOpen(true)
+      setDownloadLinkInput(intent.link)
+      setDownloadIntent(policyError ? null : intent)
+      setDownloadLinkError(policyError || '')
+      setOpenDownloadAfterComplete(openAfterComplete && !policyError)
+    },
+    []
+  )
 
   useEffect(() => {
     let active = true
@@ -247,6 +258,26 @@ export default function App() {
     return false
   }
 
+  const handleKnowledgeDirtyChange = useCallback((dirty: boolean) => {
+    setKnowledgeDirty(dirty)
+  }, [])
+
+  const changeTab = (nextTab: RootTab) => {
+    if (nextTab === activeTab) return
+    if (activeTab === 'knowledge' && knowledgeDirty) {
+      Alert.alert('放弃未保存修改？', '当前知识库内容尚未保存。', [
+        { text: '继续编辑', style: 'cancel' },
+        {
+          text: '放弃修改',
+          style: 'destructive',
+          onPress: () => setActiveTab(nextTab),
+        },
+      ])
+      return
+    }
+    setActiveTab(nextTab)
+  }
+
   const markCopied = (cid: string) => {
     setCopiedCid(cid)
     if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current)
@@ -264,7 +295,7 @@ export default function App() {
     }
   }
 
-  const handlePublishFile = async () => {
+  const publishPickedFile = async () => {
     if (!guardReady()) return
 
     setPublishing(true)
@@ -274,14 +305,14 @@ export default function App() {
         multiple: false,
         type: '*/*',
       })
-      if (result.canceled) return
+      if (result.canceled) return null
 
       const file = result.assets[0]
-      if (!file) return
+      if (!file) return null
       const policyError = getStoreFilePolicyError(file.name, file.mimeType)
       if (policyError) {
         Alert.alert('不支持此文件', policyError)
-        return
+        return null
       }
 
       const transfer = await core.publishFile({
@@ -293,15 +324,33 @@ export default function App() {
       })
 
       if (!transfer.link) throw new Error('未生成分享链接')
-      await Clipboard.setStringAsync(transfer.link)
+      return { file, link: transfer.link, transfer }
+    } finally {
+      setPublishing(false)
+    }
+  }
+
+  const handlePublishFile = async () => {
+    try {
+      const result = await publishPickedFile()
+      if (!result) return
+      await Clipboard.setStringAsync(result.link)
       Alert.alert('发布完成', '分享链接已复制，文件正在前台做种。')
     } catch (error) {
       Alert.alert(
         '发布失败',
         error instanceof Error ? error.message : '请选择可读取的文件'
       )
-    } finally {
-      setPublishing(false)
+    }
+  }
+
+  const handlePublishKnowledgeAttachment = async () => {
+    const result = await publishPickedFile()
+    if (!result) return null
+    return {
+      fileName: result.file.name,
+      link: result.link,
+      mimeType: result.file.mimeType,
     }
   }
 
@@ -317,12 +366,34 @@ export default function App() {
     setDownloadModalOpen(false)
     setDownloadIntent(null)
     setDownloadLinkError('')
+    setOpenDownloadAfterComplete(false)
+  }
+
+  const handleCancelDownload = async () => {
+    if (!downloadingCid) {
+      closeDownloadModal()
+      return
+    }
+
+    setCancellingDownload(true)
+    try {
+      await core.cancelDownload({ cid: downloadingCid })
+      setDownloadModalOpen(false)
+      setDownloadIntent(null)
+      setDownloadLinkError('')
+      setOpenDownloadAfterComplete(false)
+    } catch (error) {
+      setDownloadLinkError(getFriendlyCoreError(error))
+    } finally {
+      setCancellingDownload(false)
+    }
   }
 
   const handleDownloadLinkChange = (value: string) => {
     setDownloadLinkInput(value)
     setDownloadIntent(null)
     setDownloadLinkError('')
+    setOpenDownloadAfterComplete(false)
   }
 
   const handlePasteDownloadLink = async () => {
@@ -338,6 +409,7 @@ export default function App() {
     if (downloadingCid) return
     setDownloadIntent(null)
     setDownloadLinkError('')
+    setOpenDownloadAfterComplete(false)
   }
 
   const handleInspectDownload = () => {
@@ -368,10 +440,28 @@ export default function App() {
     setDownloadingCid(downloadIntent.cid)
     try {
       await core.downloadLink({ link: downloadIntent.link })
+      const completedCid = downloadIntent.cid
+      const shouldOpen = openDownloadAfterComplete
       setDownloadModalOpen(false)
       setDownloadIntent(null)
       setDownloadLinkError('')
-      Alert.alert('下载完成', '文件已通过 CID 校验并开始前台做种。')
+      setOpenDownloadAfterComplete(false)
+      const holding = core
+        .getSnapshot()
+        .holdings.find(item => item.cid === completedCid)
+      if (shouldOpen && holding) {
+        Alert.alert('下载完成', '文件已通过 CID 校验并开始前台做种。', [
+          { text: '稍后' },
+          {
+            text: '用其他应用打开',
+            onPress: () => {
+              void handleOpenHolding(holding)
+            },
+          },
+        ])
+      } else {
+        Alert.alert('下载完成', '文件已通过 CID 校验并开始前台做种。')
+      }
     } catch (error) {
       setDownloadLinkError(getFriendlyCoreError(error))
     } finally {
@@ -475,6 +565,40 @@ export default function App() {
     }
   }
 
+  const handleOpenHolding = async (holding: MobileHolding) => {
+    if (!guardReady()) return
+    setExportingCid(holding.cid)
+    try {
+      const exported = await prepareHoldingFile(holding)
+      if (Platform.OS === 'android') {
+        const contentUri = exported.fileUri.startsWith('content://')
+          ? exported.fileUri
+          : await FileSystem.getContentUriAsync(exported.fileUri)
+        await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+          data: contentUri,
+          flags: 1,
+          type: exported.mimeType,
+        })
+        return
+      }
+
+      if (!(await Sharing.isAvailableAsync())) {
+        throw new Error('当前设备不支持打开文件')
+      }
+      await Sharing.shareAsync(exported.fileUri, {
+        mimeType: exported.mimeType,
+        dialogTitle: `打开 ${exported.fileName}`,
+      })
+    } catch (error) {
+      Alert.alert(
+        '打开失败',
+        error instanceof Error ? error.message : '无法打开文件'
+      )
+    } finally {
+      setExportingCid(null)
+    }
+  }
+
   const handleSaveHolding = async (holding: MobileHolding) => {
     if (!guardReady()) return
     setExportingCid(holding.cid)
@@ -515,6 +639,25 @@ export default function App() {
     } finally {
       setExportingCid(null)
     }
+  }
+
+  const handleOpenKnowledgeLink = async (link: string) => {
+    if (!isReady) throw new Error('P2P 核心未就绪')
+    const parsed = parseMostLink(link)
+    const policyError = getStoreDownloadPolicyError(
+      parsed.fileName,
+      hasExplicitMostLinkFilename(link)
+    )
+    if (policyError) throw new Error(policyError)
+
+    const holding = core
+      .getSnapshot()
+      .holdings.find(item => item.cid === parsed.cid)
+    if (holding) {
+      await handleOpenHolding(holding)
+      return
+    }
+    openDownloadIntent({ link, ...parsed }, true)
   }
 
   const openExternalUrl = async (url: string) => {
@@ -583,7 +726,7 @@ export default function App() {
           <Pressable
             accessibilityLabel={`${statusLabel}，查看节点状态`}
             accessibilityRole="button"
-            onPress={() => setActiveTab('node')}
+            onPress={() => changeTab('node')}
             style={({ pressed }) => [
               styles.statusPill,
               accessibilityLayout ? styles.statusPillAccessibility : null,
@@ -601,28 +744,37 @@ export default function App() {
         </View>
 
         <View style={styles.content}>
-          <NodeStatusScreen
-            section={activeTab}
-            snapshot={currentSnapshot}
-            copiedCid={copiedCid}
-            deletingCid={deletingCid}
-            exportingCid={exportingCid}
-            retryingTransferId={retryingTransferId}
-            actionDisabled={!isReady || publishing}
-            onPublishFile={handlePublishFile}
-            onReceiveLink={openDownloadModal}
-            onCopyHoldingLink={handleCopyHoldingLink}
-            onDeleteHolding={handleDeleteHolding}
-            onSaveHolding={handleSaveHolding}
-            onShareHolding={handleShareHolding}
-            onOpenPrivacy={() => openExternalUrl(PRIVACY_URL)}
-            onOpenTerms={() => openExternalUrl(TERMS_URL)}
-            onOpenSupport={() => openExternalUrl(SUPPORT_URL)}
-            onRetryTransfer={handleRetryTransfer}
-            onShowTransferDetails={handleShowTransferDetails}
-            onRetryStartCore={handleStartCore}
-            retryStartDisabled={isCoreBusy}
-          />
+          {activeTab === 'knowledge' ? (
+            <KnowledgeBaseScreen
+              isCoreReady={isReady}
+              onDirtyChange={handleKnowledgeDirtyChange}
+              onOpenMostLink={handleOpenKnowledgeLink}
+              onPublishAttachment={handlePublishKnowledgeAttachment}
+            />
+          ) : (
+            <NodeStatusScreen
+              section={activeTab}
+              snapshot={currentSnapshot}
+              copiedCid={copiedCid}
+              deletingCid={deletingCid}
+              exportingCid={exportingCid}
+              retryingTransferId={retryingTransferId}
+              actionDisabled={!isReady || publishing}
+              onPublishFile={handlePublishFile}
+              onReceiveLink={openDownloadModal}
+              onCopyHoldingLink={handleCopyHoldingLink}
+              onDeleteHolding={handleDeleteHolding}
+              onSaveHolding={handleSaveHolding}
+              onShareHolding={handleShareHolding}
+              onOpenPrivacy={() => openExternalUrl(PRIVACY_URL)}
+              onOpenTerms={() => openExternalUrl(TERMS_URL)}
+              onOpenSupport={() => openExternalUrl(SUPPORT_URL)}
+              onRetryTransfer={handleRetryTransfer}
+              onShowTransferDetails={handleShowTransferDetails}
+              onRetryStartCore={handleStartCore}
+              retryStartDisabled={isCoreBusy}
+            />
+          )}
         </View>
 
         <View style={styles.tabBar}>
@@ -639,7 +791,22 @@ export default function App() {
               />
             }
             label="文件"
-            onPress={() => setActiveTab('files')}
+            onPress={() => changeTab('files')}
+          />
+          <TabButton
+            active={activeTab === 'knowledge'}
+            icon={
+              <BookOpen
+                size={21}
+                color={
+                  activeTab === 'knowledge'
+                    ? theme.colors.accent
+                    : theme.colors.textSecondary
+                }
+              />
+            }
+            label="知识库"
+            onPress={() => changeTab('knowledge')}
           />
           <TabButton
             active={activeTab === 'transfers'}
@@ -654,7 +821,7 @@ export default function App() {
               />
             }
             label="传输"
-            onPress={() => setActiveTab('transfers')}
+            onPress={() => changeTab('transfers')}
           />
           <TabButton
             active={activeTab === 'node'}
@@ -669,7 +836,7 @@ export default function App() {
               />
             }
             label="节点"
-            onPress={() => setActiveTab('node')}
+            onPress={() => changeTab('node')}
           />
         </View>
 
@@ -709,9 +876,9 @@ export default function App() {
                     <Pressable
                       accessibilityLabel="关闭"
                       accessibilityRole="button"
-                      disabled={Boolean(downloadingCid)}
+                      disabled={cancellingDownload}
                       hitSlop={8}
-                      onPress={closeDownloadModal}
+                      onPress={() => void handleCancelDownload()}
                       style={({ pressed }) => [
                         styles.closeButton,
                         pressed ? styles.pressablePressed : null,
@@ -843,8 +1010,8 @@ export default function App() {
                   >
                     <Pressable
                       accessibilityRole="button"
-                      disabled={Boolean(downloadingCid)}
-                      onPress={closeDownloadModal}
+                      disabled={cancellingDownload}
+                      onPress={() => void handleCancelDownload()}
                       style={({ pressed }) => [
                         styles.cancelButton,
                         accessibilityLayout
@@ -857,7 +1024,7 @@ export default function App() {
                         maxFontSizeMultiplier={1.5}
                         style={styles.cancelButtonText}
                       >
-                        取消
+                        {cancellingDownload ? '正在取消' : '取消'}
                       </Text>
                     </Pressable>
                     {downloadIntent ? (

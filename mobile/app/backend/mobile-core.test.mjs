@@ -263,6 +263,77 @@ describe('mobile file downloads', () => {
     assert.equal(result.transfer.status, 'completed')
     assert.equal(await fs.readFile(result.savedPath, 'utf8'), content)
   })
+
+  it('fails peer discovery cleanly when no seed comes online', async t => {
+    const storagePath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mostbox-mobile-no-seed-')
+    )
+    const swarms = []
+    const core = new MobileP2PCore({
+      storagePath,
+      createSwarm: createRecordingSwarmFactory(swarms),
+    })
+    const cid = 'bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e'
+
+    t.after(async () => {
+      await core.stop()
+      await fs.rm(storagePath, { recursive: true, force: true })
+    })
+
+    await core.start()
+    await assert.rejects(
+      core.downloadLink({
+        link: `most://${cid}?filename=missing.txt`,
+        timeout: 20,
+      }),
+      /No online seed was found/
+    )
+
+    const transfer = core.getSnapshot().transfers.find(item => item.cid === cid)
+    assert.equal(transfer?.status, 'failed')
+    assert.equal(swarms[0].leaves.length, 1)
+  })
+
+  it('cancels active peer discovery and leaves the CID topic', async t => {
+    const storagePath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mostbox-mobile-cancel-download-')
+    )
+    const swarms = []
+    const core = new MobileP2PCore({
+      storagePath,
+      createSwarm: createRecordingSwarmFactory(swarms),
+    })
+    const cid = 'bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e'
+    const requestId = 'cancel-download-test'
+
+    t.after(async () => {
+      await core.stop()
+      await fs.rm(storagePath, { recursive: true, force: true })
+    })
+
+    await core.start()
+    const download = core.downloadLink(
+      { link: `most://${cid}?filename=missing.txt`, timeout: 5000 },
+      requestId
+    )
+    await waitFor(
+      () =>
+        core.getSnapshot().transfers.find(transfer => transfer.id === requestId)
+          ?.status === 'running',
+      'download to enter running state'
+    )
+
+    const cancelled = await core.cancelDownload({ cid })
+    assert.equal(cancelled.cid, cid)
+    await assert.rejects(download, /Download cancelled/)
+
+    const transfer = core
+      .getSnapshot()
+      .transfers.find(item => item.id === requestId)
+    assert.equal(transfer?.status, 'failed')
+    assert.equal(transfer?.message, 'Download cancelled')
+    assert.equal(swarms[0].leaves.length, 1)
+  })
 })
 
 describe('mobile local holding deletion', () => {

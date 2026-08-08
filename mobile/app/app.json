@@ -45,6 +45,12 @@
     "plugins": [
       "expo-document-picker",
       [
+        "react-native-enriched-markdown",
+        {
+          "enableMath": false
+        }
+      ],
+      [
         "expo-build-properties",
         {
           "android": {
