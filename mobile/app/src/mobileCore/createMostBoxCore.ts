@@ -1,4 +1,4 @@
-import backendBundle from '../../app.bundle.js'
+import backendBundle from '../../appBundle'
 import { BareWorkletMostBoxCore } from './workletClient'
 import type { MostBoxMobileCore } from './types'
 

@@ -146,6 +146,28 @@ describe('mobile knowledge repository', () => {
     assert.equal((await restarted.read('导入/说明 (1).md')).content, 'imported')
   })
 
+  it('keeps note paths unique regardless of letter casing', async () => {
+    const storage = new MemoryKnowledgeStorage()
+    const repository = createKnowledgeRepository(storage)
+    await repository.create('A.md', 'original')
+
+    await assert.rejects(() => repository.create('a.md', 'duplicate'))
+    const overwritten = await repository.write('a.md', 'updated')
+    assert.equal(overwritten.path, 'A.md')
+    assert.equal(overwritten.content, 'updated')
+
+    const renamed = await repository.move('A.md', 'a.md')
+    assert.equal(renamed.path, 'a.md')
+    assert.deepEqual(
+      (await repository.list()).map(note => note.path),
+      ['a.md']
+    )
+
+    const snapshot = await repository.exportSnapshot()
+    await repository.restoreSnapshot(snapshot)
+    assert.equal((await repository.read('a.md')).content, 'updated')
+  })
+
   it('moves and deletes inferred directories without collisions', async () => {
     const storage = new MemoryKnowledgeStorage()
     const repository = createKnowledgeRepository(storage)
@@ -203,5 +225,38 @@ describe('mobile knowledge repository', () => {
     )
     assert.equal((await repository.read('safe.md')).content, 'keep me')
     await assert.rejects(() => repository.read('lost.md'))
+  })
+
+  it('rolls back when the activated vault cannot be verified', async () => {
+    const storage = new MemoryKnowledgeStorage()
+    const repository = createKnowledgeRepository(storage)
+    await repository.create('safe.md', 'keep me')
+    const originalMove = storage.move.bind(storage)
+    const originalRead = storage.read.bind(storage)
+    let failActivatedRead = false
+    storage.move = async (from, to) => {
+      await originalMove(from, to)
+      if (from.includes('.import-')) failActivatedRead = true
+    }
+    storage.read = async path => {
+      if (failActivatedRead && path.endsWith('/replacement.md')) {
+        failActivatedRead = false
+        throw new Error('injected post-activation read failure')
+      }
+      return originalRead(path)
+    }
+
+    await assert.rejects(() =>
+      repository.restoreSnapshot({
+        format: 'mostbox-knowledge',
+        version: 1,
+        exportedAt: '2026-08-08T00:00:00.000Z',
+        files: [
+          { path: 'replacement.md', content: 'new', size: 3, mtimeMs: 1 },
+        ],
+      })
+    )
+    assert.equal((await repository.read('safe.md')).content, 'keep me')
+    await assert.rejects(() => repository.read('replacement.md'))
   })
 })

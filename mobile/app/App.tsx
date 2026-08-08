@@ -736,7 +736,11 @@ export default function App() {
             <View style={[styles.statusDot, statusDotStyle]} />
             <Text
               maxFontSizeMultiplier={1.6}
-              style={[styles.statusText, statusTextStyle]}
+              style={[
+                styles.statusText,
+                accessibilityLayout ? styles.statusTextAccessibility : null,
+                statusTextStyle,
+              ]}
             >
               {statusLabel}
             </Text>
@@ -1191,7 +1195,7 @@ function createStyles(theme: MostBoxTheme) {
       paddingVertical: 4,
     },
     statusPillAccessibility: {
-      alignSelf: 'flex-start',
+      alignSelf: 'stretch',
       marginLeft: 32,
     },
     statusDot: {
@@ -1211,6 +1215,9 @@ function createStyles(theme: MostBoxTheme) {
     statusText: {
       fontSize: 12,
       fontWeight: '600',
+    },
+    statusTextAccessibility: {
+      flex: 1,
     },
     statusTextReady: {
       color: colors.success,
@@ -1247,9 +1254,11 @@ function createStyles(theme: MostBoxTheme) {
       borderTopColor: colors.accent,
     },
     tabText: {
+      alignSelf: 'stretch',
       color: colors.textSecondary,
       fontSize: 10,
       fontWeight: '500',
+      textAlign: 'center',
     },
     tabTextActive: {
       color: colors.accent,

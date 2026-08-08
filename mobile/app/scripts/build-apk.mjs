@@ -158,17 +158,29 @@ syncNativeAndroidProject({
   playSigningRequired: releaseSigningRequired,
 })
 console.log('[android] bundling Bare Worklet core...')
-run(process.execPath, [
-  path.join(projectDir, 'node_modules', 'bare-pack', 'bin.js'),
-  '--preset',
-  'android',
-  '--linked',
-  '--imports',
-  'bare-pack-imports.cjs',
-  'backend/backend.mjs',
-  '--out',
-  'app.bundle.js',
-])
+const bareBundleTemporary = path.join(
+  projectDir,
+  '.appBundle-android-release.bundle.js'
+)
+try {
+  run(process.execPath, [
+    path.join(projectDir, 'node_modules', 'bare-pack', 'bin.js'),
+    '--preset',
+    'android',
+    '--linked',
+    '--imports',
+    'bare-pack-imports.cjs',
+    'backend/backend.mjs',
+    '--out',
+    path.basename(bareBundleTemporary),
+  ])
+  fs.copyFileSync(
+    bareBundleTemporary,
+    path.join(projectDir, 'appBundle.android.js')
+  )
+} finally {
+  safeRm(bareBundleTemporary)
+}
 
 console.log(
   `[android] building release ${buildAppBundle ? 'App Bundle' : 'APK'}...`

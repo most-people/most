@@ -44,6 +44,8 @@ mobile/app/android/
 mobile/app/ios/
 mobile/app/app.bundle.mjs
 mobile/app/app.bundle.js
+mobile/app/appBundle.android.js
+mobile/app/appBundle.ios.js
 
 # macOS
 *.dmg

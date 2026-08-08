@@ -13,7 +13,10 @@ import {
   repairMissingReleaseGradleConfig,
   resolveVersionCode,
 } from './sync-native-android.mjs'
-import { shouldSyncEasAndroidNativeProject } from './bundle-bare.mjs'
+import {
+  getBareBundleFileName,
+  shouldSyncEasAndroidNativeProject,
+} from './bundle-bare.mjs'
 
 describe('Android native project synchronization', () => {
   it('uses the configured version code and only syncs EAS Android builds', () => {
@@ -22,6 +25,9 @@ describe('Android native project synchronization', () => {
     assert.equal(shouldSyncEasAndroidNativeProject('android', 'android'), true)
     assert.equal(shouldSyncEasAndroidNativeProject('ios', 'ios'), false)
     assert.equal(shouldSyncEasAndroidNativeProject('android', undefined), false)
+    assert.equal(getBareBundleFileName('android'), 'appBundle.android.js')
+    assert.equal(getBareBundleFileName('ios'), 'appBundle.ios.js')
+    assert.throws(() => getBareBundleFileName('web'))
   })
 
   it('keeps the Expo version code synchronized with the release version', () => {

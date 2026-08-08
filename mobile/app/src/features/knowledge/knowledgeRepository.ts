@@ -113,9 +113,19 @@ export function createKnowledgeRepository(
 
   async function writeNew(path: string, content: string, overwrite: boolean) {
     const normalizedPath = normalizeKnowledgeFilePath(path)
+    const existingPath = (await listNotes()).find(
+      note => note.path.toLowerCase() === normalizedPath.toLowerCase()
+    )?.path
+    if (existingPath) {
+      if (!overwrite) throw new Error('同名笔记已存在')
+      await storage.write(
+        storagePath(normalizedRoot, existingPath),
+        String(content ?? '')
+      )
+      return readNote(existingPath)
+    }
     const target = storagePath(normalizedRoot, normalizedPath)
     const info = await storage.getInfo(target)
-    if (info.exists && !overwrite) throw new Error('同名笔记已存在')
     if (info.exists && info.isDirectory) throw new Error('笔记路径与目录冲突')
     await ensureParents(normalizedPath)
     await storage.write(target, String(content ?? ''))
@@ -131,10 +141,31 @@ export function createKnowledgeRepository(
     const sourceInfo = await storage.getInfo(source)
     if (!sourceInfo.exists || sourceInfo.isDirectory)
       throw new Error('笔记不存在')
-    if ((await storage.getInfo(target)).exists)
+    const caseOnlyMove = sourcePath.toLowerCase() === targetPath.toLowerCase()
+    const conflictingPath = (await listNotes()).find(
+      note =>
+        note.path !== sourcePath &&
+        note.path.toLowerCase() === targetPath.toLowerCase()
+    )?.path
+    if (
+      conflictingPath ||
+      (!caseOnlyMove && (await storage.getInfo(target)).exists)
+    )
       throw new Error('目标笔记已存在')
     await ensureParents(targetPath)
-    await storage.move(source, target)
+    if (caseOnlyMove) {
+      const nonce = `${Date.now()}-${Math.random().toString(16).slice(2)}`
+      const temporary = `${source}.mostbox-move-${nonce}`
+      await storage.move(source, temporary)
+      try {
+        await storage.move(temporary, target)
+      } catch (error) {
+        await storage.move(temporary, source).catch(() => {})
+        throw error
+      }
+    } else {
+      await storage.move(source, target)
+    }
     await pruneEmptyDirectories(getKnowledgeDirectory(sourcePath))
     return readNote(targetPath)
   }
@@ -209,6 +240,7 @@ export function createKnowledgeRepository(
     const stageRoot = `${normalizedRoot}.import-${nonce}`
     const backupRoot = `${normalizedRoot}.backup-${nonce}`
     let activeMoved = false
+    let stageActivated = false
 
     try {
       await storage.mkdir(stageRoot)
@@ -222,13 +254,20 @@ export function createKnowledgeRepository(
         activeMoved = true
       }
       await storage.move(stageRoot, normalizedRoot)
+      stageActivated = true
+      const restored = await exportSnapshot()
       if (activeMoved) await storage.remove(backupRoot).catch(() => {})
-      return exportSnapshot()
+      return restored
     } catch (error) {
       const activeInfo = await storage.getInfo(normalizedRoot)
       const backupInfo = await storage.getInfo(backupRoot)
-      if (!activeInfo.exists && backupInfo.exists) {
+      if (backupInfo.exists) {
+        if (activeInfo.exists) {
+          await storage.remove(normalizedRoot).catch(() => {})
+        }
         await storage.move(backupRoot, normalizedRoot).catch(() => {})
+      } else if (stageActivated && activeInfo.exists) {
+        await storage.remove(normalizedRoot).catch(() => {})
       }
       await storage.remove(stageRoot).catch(() => {})
       throw error

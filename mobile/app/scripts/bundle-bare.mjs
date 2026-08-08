@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
@@ -14,12 +15,18 @@ export function shouldSyncEasAndroidNativeProject(
   return platform === 'android' && easPlatform === 'android'
 }
 
-export async function bundleBareCore(platform = requestedPlatform) {
+export function getBareBundleFileName(platform) {
   if (platform !== 'android' && platform !== 'ios') {
     throw new Error(
       'Bare bundle platform must be android or ios. Pass --platform or set EAS_BUILD_PLATFORM.'
     )
   }
+  return `appBundle.${platform}.js`
+}
+
+export async function bundleBareCore(platform = requestedPlatform) {
+  const outputFile = getBareBundleFileName(platform)
+  const temporaryOutputFile = `.appBundle-${platform}-${process.pid}.bundle.js`
 
   if (shouldSyncEasAndroidNativeProject(platform)) {
     const { syncNativeAndroidProject } =
@@ -29,28 +36,36 @@ export async function bundleBareCore(platform = requestedPlatform) {
 
   console.log(`[mobile] bundling Bare Worklet core for ${platform}...`)
 
-  const result = spawnSync(
-    process.execPath,
-    [
-      path.join(projectDir, 'node_modules', 'bare-pack', 'bin.js'),
-      '--preset',
-      platform,
-      '--linked',
-      '--imports',
-      'bare-pack-imports.cjs',
-      'backend/backend.mjs',
-      '--out',
-      'app.bundle.js',
-    ],
-    {
-      cwd: projectDir,
-      stdio: 'inherit',
-    }
-  )
+  try {
+    const result = spawnSync(
+      process.execPath,
+      [
+        path.join(projectDir, 'node_modules', 'bare-pack', 'bin.js'),
+        '--preset',
+        platform,
+        '--linked',
+        '--imports',
+        'bare-pack-imports.cjs',
+        'backend/backend.mjs',
+        '--out',
+        temporaryOutputFile,
+      ],
+      {
+        cwd: projectDir,
+        stdio: 'inherit',
+      }
+    )
 
-  if (result.error) throw result.error
-  if (result.status !== 0) {
-    throw new Error(`Bare bundle failed for ${platform}`)
+    if (result.error) throw result.error
+    if (result.status !== 0) {
+      throw new Error(`Bare bundle failed for ${platform}`)
+    }
+    fs.copyFileSync(
+      path.join(projectDir, temporaryOutputFile),
+      path.join(projectDir, outputFile)
+    )
+  } finally {
+    fs.rmSync(path.join(projectDir, temporaryOutputFile), { force: true })
   }
 }
 

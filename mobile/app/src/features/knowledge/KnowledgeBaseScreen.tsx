@@ -1135,11 +1135,24 @@ export function KnowledgeBaseScreen({
             ]}
           >
             <FilePlus2 size={19} color={theme.colors.onAccent} />
-            <Text maxFontSizeMultiplier={1.8} style={styles.primaryActionText}>
+            <Text
+              maxFontSizeMultiplier={1.8}
+              style={[
+                styles.primaryActionText,
+                accessibilityLayout
+                  ? styles.primaryActionTextAccessibility
+                  : null,
+              ]}
+            >
               新建笔记
             </Text>
           </Pressable>
-          <View style={styles.utilityActions}>
+          <View
+            style={[
+              styles.utilityActions,
+              accessibilityLayout ? styles.utilityActionsAccessibility : null,
+            ]}
+          >
             <Pressable
               accessibilityLabel="导入 Markdown"
               accessibilityRole="button"
@@ -1148,6 +1161,7 @@ export function KnowledgeBaseScreen({
               onPress={() => void importNote()}
               style={({ pressed }) => [
                 styles.utilityAction,
+                accessibilityLayout ? styles.utilityActionAccessibility : null,
                 working ? styles.disabled : null,
                 pressed ? styles.pressed : null,
               ]}
@@ -1168,6 +1182,7 @@ export function KnowledgeBaseScreen({
               onPress={() => void exportVault()}
               style={({ pressed }) => [
                 styles.utilityAction,
+                accessibilityLayout ? styles.utilityActionAccessibility : null,
                 working ? styles.disabled : null,
                 pressed ? styles.pressed : null,
               ]}
@@ -1188,6 +1203,7 @@ export function KnowledgeBaseScreen({
               onPress={() => void restoreVault()}
               style={({ pressed }) => [
                 styles.utilityAction,
+                accessibilityLayout ? styles.utilityActionAccessibility : null,
                 working ? styles.disabled : null,
                 pressed ? styles.pressed : null,
               ]}
@@ -1227,7 +1243,7 @@ export function KnowledgeBaseScreen({
           ) : null}
         </View>
 
-        {!searchQuery ? (
+        {!searchQuery && currentDirectory ? (
           <ScrollView
             horizontal
             contentContainerStyle={styles.breadcrumbContent}
@@ -1301,7 +1317,7 @@ export function KnowledgeBaseScreen({
                         pressed ? styles.pressed : null,
                       ]}
                     >
-                      <View style={styles.itemIcon}>
+                      <View style={[styles.itemIcon, styles.folderItemIcon]}>
                         <Folder size={20} color={theme.colors.warning} />
                       </View>
                       <View style={styles.itemTextGroup}>
@@ -1353,7 +1369,7 @@ export function KnowledgeBaseScreen({
                     pressed ? styles.pressed : null,
                   ]}
                 >
-                  <View style={styles.itemIcon}>
+                  <View style={[styles.itemIcon, styles.noteItemIcon]}>
                     <FileText size={20} color={theme.colors.accent} />
                   </View>
                   <View style={styles.itemTextGroup}>
@@ -1397,7 +1413,7 @@ export function KnowledgeBaseScreen({
                 <Text maxFontSizeMultiplier={2} style={styles.emptyBody}>
                   {searchQuery
                     ? '换一个关键词继续搜索'
-                    : '新建或导入一篇 Markdown 笔记'}
+                    : '新建或导入 Markdown 笔记'}
                 </Text>
               </View>
             ) : null}
@@ -1488,7 +1504,11 @@ export function KnowledgeBaseScreen({
 function createKnowledgeStyles(theme: MostBoxTheme) {
   return StyleSheet.create({
     screen: { flex: 1, minHeight: 0 },
-    browserContent: { paddingBottom: 28 },
+    browserContent: {
+      paddingBottom: 28,
+      paddingHorizontal: 16,
+      paddingTop: 2,
+    },
     actionRow: {
       alignItems: 'center',
       flexDirection: 'row',
@@ -1503,7 +1523,9 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
       borderRadius: theme.radii.medium,
       flexDirection: 'row',
       gap: 8,
+      justifyContent: 'center',
       minHeight: 44,
+      minWidth: 120,
       paddingHorizontal: 16,
     },
     primaryActionText: {
@@ -1511,7 +1533,9 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
       fontSize: 15,
       fontWeight: '700',
     },
+    primaryActionTextAccessibility: { flex: 1, textAlign: 'center' },
     utilityActions: { flexDirection: 'row', gap: 6 },
+    utilityActionsAccessibility: { alignSelf: 'stretch' },
     utilityAction: {
       alignItems: 'center',
       borderColor: theme.colors.border,
@@ -1523,7 +1547,13 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
       minWidth: 54,
       paddingHorizontal: 8,
     },
-    utilityActionText: { color: theme.colors.textSecondary, fontSize: 11 },
+    utilityActionAccessibility: { flex: 1 },
+    utilityActionText: {
+      alignSelf: 'stretch',
+      color: theme.colors.textSecondary,
+      fontSize: 11,
+      textAlign: 'center',
+    },
     searchBox: {
       alignItems: 'center',
       backgroundColor: theme.colors.surface,
@@ -1547,7 +1577,7 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
       justifyContent: 'center',
       width: 32,
     },
-    breadcrumb: { marginVertical: 12 },
+    breadcrumb: { marginBottom: 2, marginTop: 10 },
     breadcrumbContent: { alignItems: 'center', minHeight: 32 },
     breadcrumbItem: { alignItems: 'center', flexDirection: 'row', gap: 4 },
     breadcrumbText: {
@@ -1556,7 +1586,11 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
       padding: 6,
     },
     breadcrumbTextActive: { color: theme.colors.text, fontWeight: '700' },
-    itemList: { borderTopColor: theme.colors.border, borderTopWidth: 1 },
+    itemList: {
+      borderTopColor: theme.colors.border,
+      borderTopWidth: 1,
+      marginTop: 12,
+    },
     itemRow: {
       alignItems: 'center',
       borderBottomColor: theme.colors.border,
@@ -1574,12 +1608,13 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
     },
     itemIcon: {
       alignItems: 'center',
-      backgroundColor: theme.colors.surfaceSubtle,
       borderRadius: theme.radii.small,
       height: 38,
       justifyContent: 'center',
       width: 38,
     },
+    folderItemIcon: { backgroundColor: theme.colors.warningSoft },
+    noteItemIcon: { backgroundColor: theme.colors.accentSoft },
     itemTextGroup: { flex: 1, gap: 4, minWidth: 0 },
     itemTitle: { color: theme.colors.text, fontSize: 15, fontWeight: '700' },
     itemMeta: { color: theme.colors.textMuted, fontSize: 12 },
@@ -1593,16 +1628,20 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
     emptyState: {
       alignItems: 'center',
       gap: 8,
+      justifyContent: 'center',
+      minHeight: 260,
       paddingHorizontal: 20,
-      paddingVertical: 48,
+      paddingVertical: 36,
     },
     emptyTitle: {
+      alignSelf: 'stretch',
       color: theme.colors.text,
       fontSize: 17,
       fontWeight: '700',
       textAlign: 'center',
     },
     emptyBody: {
+      alignSelf: 'stretch',
       color: theme.colors.textMuted,
       fontSize: 14,
       lineHeight: 21,
@@ -1623,6 +1662,7 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
       gap: 8,
       minHeight: 54,
       paddingBottom: 8,
+      paddingHorizontal: 8,
     },
     detailTitleGroup: { flex: 1, minWidth: 0 },
     detailTitle: { color: theme.colors.text, fontSize: 17, fontWeight: '700' },
@@ -1647,10 +1687,16 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
       flexDirection: 'row',
       justifyContent: 'space-between',
       minHeight: 44,
+      paddingHorizontal: 16,
     },
     metaText: { color: theme.colors.textMuted, fontSize: 12 },
     previewScroll: { flex: 1 },
-    previewContent: { flexGrow: 1, paddingBottom: 32, paddingTop: 14 },
+    previewContent: {
+      flexGrow: 1,
+      paddingBottom: 32,
+      paddingHorizontal: 16,
+      paddingTop: 14,
+    },
     saveButton: {
       alignItems: 'center',
       backgroundColor: theme.colors.accent,
@@ -1666,7 +1712,7 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
       fontWeight: '700',
     },
     unsavedLabel: { color: theme.colors.warning, fontSize: 11, marginTop: 2 },
-    editorFields: { gap: 8, paddingVertical: 10 },
+    editorFields: { gap: 8, paddingHorizontal: 16, paddingVertical: 10 },
     titleInput: {
       backgroundColor: theme.colors.surface,
       borderColor: theme.colors.border,
@@ -1695,6 +1741,7 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
       flexDirection: 'row',
       justifyContent: 'center',
       marginBottom: 8,
+      paddingHorizontal: 16,
     },
     segmentedControl: {
       backgroundColor: theme.colors.surfaceMuted,
@@ -1727,7 +1774,7 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
       alignItems: 'center',
       gap: 4,
       minHeight: 48,
-      paddingHorizontal: 2,
+      paddingHorizontal: 12,
     },
     toolButton: {
       alignItems: 'center',
@@ -1743,7 +1790,7 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
       fontSize: 15,
       lineHeight: 23,
       minHeight: 180,
-      paddingHorizontal: 4,
+      paddingHorizontal: 16,
       paddingVertical: 14,
     },
     secondaryButton: {
