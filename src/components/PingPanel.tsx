@@ -307,7 +307,7 @@ export function PingPanel() {
   }, [runAllTests])
 
   return (
-    <div className="ping-page">
+    <div className="ping-internet-panel">
       <div className="ping-header">
         <div className="ping-title-wrap">
           <Wifi size={28} className="ping-title-icon" />

@@ -181,6 +181,50 @@ function deferred() {
   return { promise, resolve, reject }
 }
 
+describe('mobile P2P Ping snapshot and RPC events', () => {
+  it('starts, reports, cancels, and destroys one temporary Ping swarm', async t => {
+    const storagePath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mostbox-mobile-p2p-ping-')
+    )
+    const swarms = []
+    const events = []
+    const core = new MobileP2PCore({
+      storagePath,
+      createSwarm: createRecordingSwarmFactory(swarms),
+      send: (type, payload) => events.push({ type, payload }),
+    })
+
+    t.after(async () => {
+      await core.stop()
+      await fs.rm(storagePath, { recursive: true, force: true })
+    })
+
+    await core.start()
+    assert.equal(swarms.length, 2)
+    assert.equal(core.getSnapshot().p2pPing, null)
+
+    const ping = await core.startP2PPing({ role: 'host' })
+    assert.match(ping.code, /^\d{6}$/)
+    await waitFor(
+      () => core.getSnapshot().p2pPing?.status === 'waiting',
+      'P2P Ping to start waiting'
+    )
+    assert.equal(swarms.length, 3)
+    assert.deepEqual(swarms[2].joins[0].options, {
+      server: true,
+      client: false,
+    })
+    assert.equal(core.getP2PPing({ id: ping.id }).id, ping.id)
+    assert.equal(events.at(-1).type, 'p2p.ping.status')
+    assert.equal(events.at(-1).payload.snapshot.p2pPing.id, ping.id)
+
+    const cancelled = core.cancelP2PPing({ id: ping.id })
+    assert.equal(cancelled.status, 'cancelled')
+    await waitFor(() => swarms[2].destroyed, 'temporary Ping swarm cleanup')
+    assert.equal(core.getSnapshot().p2pPing.errorCode, 'CANCELLED')
+  })
+})
+
 describe('mobile file downloads', () => {
   it('recreates the downloads directory before writing a temporary file', async t => {
     const storagePath = await fs.mkdtemp(

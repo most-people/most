@@ -8,6 +8,185 @@
   padding: 40px 24px 80px;
 }
 
+.ping-mode-control {
+  width: min(100%, 360px);
+  margin-bottom: 34px;
+}
+
+.ping-internet-panel,
+.p2p-ping-workspace {
+  width: 100%;
+}
+
+.p2p-ping-workspace {
+  max-width: 720px;
+}
+
+.p2p-ping-role {
+  width: min(100%, 420px);
+  margin-bottom: 30px;
+}
+
+.p2p-ping-primary {
+  min-height: 150px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 18px;
+  padding: 28px 0;
+  border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.p2p-ping-code {
+  color: var(--text-primary);
+  font-size: 52px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.p2p-ping-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.p2p-ping-join {
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.p2p-ping-join label {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.p2p-ping-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  gap: 8px;
+}
+
+.p2p-ping-input {
+  height: 54px;
+  font-size: 28px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  text-align: center;
+}
+
+.p2p-ping-result {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding-top: 26px;
+}
+
+.p2p-ping-status {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--accent);
+}
+
+.p2p-ping-status strong {
+  flex: 1;
+  color: var(--text-primary);
+  font-size: 16px;
+}
+
+.p2p-ping-status span {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.p2p-ping-status.is-success {
+  color: var(--success);
+}
+
+.p2p-ping-status.is-failed,
+.p2p-ping-status.is-expired {
+  color: var(--danger);
+}
+
+.p2p-ping-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--border-color);
+  border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.p2p-ping-steps > div {
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background: var(--bg-primary);
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.p2p-ping-steps > div.is-done {
+  color: var(--success);
+}
+
+.p2p-ping-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 24px;
+  margin: 0;
+}
+
+.p2p-ping-details > div {
+  min-width: 0;
+}
+
+.p2p-ping-details dt {
+  margin-bottom: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.p2p-ping-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.p2p-ping-details .is-error {
+  grid-column: 1 / -1;
+}
+
+.p2p-ping-details .is-error dd,
+.p2p-ping-error {
+  color: var(--danger);
+}
+
+.p2p-ping-cancel {
+  align-self: flex-start;
+  color: var(--danger);
+}
+
+.p2p-ping-error {
+  margin-top: 16px;
+  font-size: 13px;
+}
+
 .ping-header {
   display: flex;
   align-items: flex-start;
@@ -287,5 +466,24 @@
 
   .ping-page {
     padding: 24px 16px 60px;
+  }
+
+  .ping-mode-control,
+  .p2p-ping-role {
+    width: 100%;
+  }
+
+  .p2p-ping-code {
+    font-size: 42px;
+    text-align: center;
+  }
+
+  .p2p-ping-actions .btn {
+    flex: 1 1 calc(50% - 5px);
+  }
+
+  .p2p-ping-steps,
+  .p2p-ping-details {
+    grid-template-columns: 1fr;
   }
 }

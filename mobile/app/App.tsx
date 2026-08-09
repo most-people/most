@@ -46,6 +46,7 @@ import { KnowledgeBaseScreen } from './src/features/knowledge/KnowledgeBaseScree
 import { createExpoKnowledgeRepository } from './src/features/knowledge/expoKnowledgeRepository'
 import { validateKnowledgeSnapshot } from './src/features/knowledge/knowledgeModel'
 import { NodeStatusScreen } from './src/features/node/NodeStatusScreen'
+import { P2PPingScreen } from './src/features/node/P2PPingScreen'
 import {
   I18nProvider,
   LOCALES,
@@ -226,6 +227,7 @@ function MostBoxApp() {
   )
   const [snapshot, setSnapshot] = useState<MobileCoreSnapshot | null>(null)
   const [activeTab, setActiveTab] = useState<RootTab>('files')
+  const [nodeRoute, setNodeRoute] = useState<'status' | 'p2pPing'>('status')
   const [chatRoute, setChatRoute] = useState<ChatRoute>({ name: 'list' })
   const [channelName, setChannelName] = useState('')
   const [channelSearchInput, setChannelSearchInput] = useState('')
@@ -404,6 +406,7 @@ function MostBoxApp() {
       ])
       return
     }
+    if (nextTab !== 'node') setNodeRoute('status')
     setActiveTab(nextTab)
   }
 
@@ -426,6 +429,13 @@ function MostBoxApp() {
       )
     }
   }
+
+  const handleStartP2PPing = (role: 'host' | 'join', code?: string) => {
+    if (!isReady) return Promise.reject(new Error(t('app.core.notReadyBody')))
+    return core.startP2PPing({ role, code })
+  }
+
+  const handleCancelP2PPing = (id?: string) => core.cancelP2PPing({ id })
 
   const publishPickedFile = async () => {
     if (!guardReady()) return
@@ -1204,7 +1214,9 @@ function MostBoxApp() {
                 MostBox
               </Text>
               <Text maxFontSizeMultiplier={1.8} style={styles.pageTitle}>
-                {t(TAB_LABEL_KEYS[activeTab])}
+                {activeTab === 'node' && nodeRoute === 'p2pPing'
+                  ? t('p2pPing.title')
+                  : t(TAB_LABEL_KEYS[activeTab])}
               </Text>
             </View>
           </View>
@@ -1332,6 +1344,14 @@ function MostBoxApp() {
               onOpenMostLink={handleOpenKnowledgeLink}
               onPublishAttachment={handlePublishKnowledgeAttachment}
             />
+          ) : activeTab === 'node' && nodeRoute === 'p2pPing' ? (
+            <P2PPingScreen
+              ping={currentSnapshot.p2pPing}
+              ready={isReady}
+              onBack={() => setNodeRoute('status')}
+              onStart={handleStartP2PPing}
+              onCancel={handleCancelP2PPing}
+            />
           ) : (
             <NodeStatusScreen
               section={activeTab}
@@ -1356,6 +1376,7 @@ function MostBoxApp() {
               onRetryTransfer={handleRetryTransfer}
               onShowTransferDetails={handleShowTransferDetails}
               onRetryStartCore={handleStartCore}
+              onOpenP2PPing={() => setNodeRoute('p2pPing')}
               retryStartDisabled={isCoreBusy}
             />
           )}

@@ -45,6 +45,7 @@ import {
   uniqueStrings,
   verifyChannelTopicProof,
 } from './channel-protocol.mjs'
+import { P2PPingManager } from './p2p-ping.mjs'
 import {
   getInternalHoldingCleanupPaths,
   removeHoldingRecord,
@@ -443,6 +444,8 @@ export class MobileP2PCore {
   #transfers = []
   #logs = []
   #createSwarm
+  #p2pPingManager = null
+  #p2pPing = null
   #node = {
     status: 'idle',
     peerCount: 0,
@@ -472,6 +475,7 @@ export class MobileP2PCore {
       channelMessages: this.#snapshotChannelMessages(),
       channelPresence: this.#snapshotChannelPresence(),
       logs: this.#logs.map(log => ({ ...log })),
+      p2pPing: this.#p2pPing ? { ...this.#p2pPing } : null,
     }
   }
 
@@ -539,6 +543,25 @@ export class MobileP2PCore {
       this.#log('warn', message)
     })
 
+    this.#p2pPingManager = new P2PPingManager({
+      createSwarm: this.#createSwarm,
+      swarmOptions: {
+        maxPeers: 4,
+        bootstrap: SWARM_BOOTSTRAP,
+        firewall: () => false,
+        connectionKeepAlive: 5000,
+        randomPunchInterval: 20000,
+        handshakeTimeout: CONNECTION_TIMEOUT,
+      },
+      onUpdate: ping => {
+        this.#p2pPing = ping
+        this.#send('p2p.ping.status', {
+          ping,
+          snapshot: this.getSnapshot(),
+        })
+      },
+    })
+
     this.#holdings = this.#loadHoldings()
     for (const holding of this.#holdings) {
       this.#seedStates.set(holding.cid, {
@@ -581,6 +604,11 @@ export class MobileP2PCore {
     this.#node = { ...this.#node, status: 'stopping' }
     this.#emitSnapshot()
     this.#clearChannelPresenceRuntime({ broadcast: true })
+
+    if (this.#p2pPingManager) {
+      await this.#p2pPingManager.destroy()
+      this.#p2pPingManager = null
+    }
 
     if (this.#swarm) {
       await this.#swarm.destroy()
@@ -628,6 +656,23 @@ export class MobileP2PCore {
 
   listHoldings() {
     return this.getSnapshot().holdings
+  }
+
+  async startP2PPing(input = {}) {
+    this.#ensureReady()
+    return this.#p2pPingManager.start(input)
+  }
+
+  getP2PPing(input = {}) {
+    this.#ensureReady()
+    const id = String(input.id || '')
+    return id ? this.#p2pPingManager.get(id) : this.#p2pPing
+  }
+
+  cancelP2PPing(input = {}) {
+    this.#ensureReady()
+    const id = String(input.id || this.#p2pPing?.id || '')
+    return id ? this.#p2pPingManager.cancel(id) : null
   }
 
   listChannels() {

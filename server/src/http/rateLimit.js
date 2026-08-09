@@ -14,6 +14,7 @@ const EXPENSIVE_WRITE_PATHS = new Set([
   '/api/folder/share',
   '/api/download',
   '/api/p2p/pull',
+  '/api/p2p/ping',
   '/api/user/import',
   '/api/note-vault/restore',
   '/api/note-vault/git/init',

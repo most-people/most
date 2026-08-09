@@ -4,11 +4,13 @@ import { chatMessages } from './messages/chat'
 import { coreMessages } from './messages/core'
 import { knowledgeMessages } from './messages/knowledge'
 import { nodeMessages } from './messages/node'
+import { p2pPingMessages } from './messages/p2pPing'
 
 export const messageDefinitions = {
   ...coreMessages,
   ...appMessages,
   ...nodeMessages,
+  ...p2pPingMessages,
   ...knowledgeMessages,
   ...chatMessages,
 } as const

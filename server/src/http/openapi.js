@@ -361,6 +361,84 @@ const schemas = {
       holdings: { type: 'array', items: ref('NodeHolding') },
     },
   },
+  P2PPing: {
+    type: 'object',
+    required: [
+      'id',
+      'role',
+      'code',
+      'status',
+      'phase',
+      'createdAt',
+      'expiresAt',
+      'discoveredPeers',
+    ],
+    properties: {
+      id: { type: 'string', pattern: '^[0-9a-f]{32}$' },
+      role: { type: 'string', enum: ['host', 'join'] },
+      code: { type: 'string', pattern: '^\\d{6}$' },
+      status: {
+        type: 'string',
+        enum: [
+          'preparing',
+          'waiting',
+          'discovering',
+          'connecting',
+          'verifying',
+          'success',
+          'failed',
+          'cancelled',
+          'expired',
+        ],
+      },
+      phase: { type: 'string' },
+      createdAt: { type: 'string', format: 'date-time' },
+      expiresAt: { type: 'string', format: 'date-time' },
+      completedAt: {
+        oneOf: [{ type: 'string', format: 'date-time' }, { type: 'null' }],
+      },
+      elapsedMs: { oneOf: [{ type: 'integer', minimum: 0 }, { type: 'null' }] },
+      discoveredPeers: { type: 'integer', minimum: 0 },
+      localPeerKey: { oneOf: [{ type: 'string' }, { type: 'null' }] },
+      remotePeerKey: { oneOf: [{ type: 'string' }, { type: 'null' }] },
+      errorCode: {
+        oneOf: [
+          {
+            type: 'string',
+            enum: [
+              'ANNOUNCE_FAILED',
+              'PEER_NOT_FOUND',
+              'CONNECTION_FAILED',
+              'PING_FAILED',
+              'TIMEOUT',
+              'CANCELLED',
+            ],
+          },
+          { type: 'null' },
+        ],
+      },
+      errorMessage: { oneOf: [{ type: 'string' }, { type: 'null' }] },
+    },
+  },
+  P2PPingStartRequest: {
+    type: 'object',
+    required: ['role'],
+    properties: {
+      role: { type: 'string', enum: ['host', 'join'] },
+      code: { type: 'string', pattern: '^\\d{6}$' },
+    },
+    additionalProperties: false,
+  },
+  P2PPingResponse: {
+    allOf: [
+      successSchema,
+      {
+        type: 'object',
+        required: ['ping'],
+        properties: { ping: ref('P2PPing') },
+      },
+    ],
+  },
   PublishedFile: {
     type: 'object',
     required: ['cid', 'fileName'],
@@ -1197,6 +1275,49 @@ export function createOpenApiSpec({
               200: jsonResponse('Pull task result', ref('DownloadResult')),
             },
             [400, 401, 403, 404, 413, 429, 500]
+          ),
+        }),
+      },
+      '/api/p2p/ping': {
+        post: operation({
+          tag: 'Node',
+          operationId: 'startP2PPing',
+          summary: 'Start a temporary direct peer-to-peer connectivity test',
+          description:
+            'Available on loopback and to the LAN node administrator. Remote management requests are rejected.',
+          sideEffect: 'write',
+          security: localAdminSecurity,
+          requestBody: jsonRequest(ref('P2PPingStartRequest')),
+          responses: responses(
+            {
+              202: jsonResponse('P2P Ping accepted', ref('P2PPingResponse')),
+            },
+            [400, 401, 403, 409, 429, 500]
+          ),
+        }),
+      },
+      '/api/p2p/ping/{id}': {
+        get: operation({
+          tag: 'Node',
+          operationId: 'getP2PPing',
+          summary: 'Read a P2P Ping stage and result',
+          security: localAdminSecurity,
+          parameters: [pathParameter('id', 'P2P Ping identifier.')],
+          responses: responses(
+            { 200: jsonResponse('P2P Ping status', ref('P2PPingResponse')) },
+            [401, 403, 404, 429, 500]
+          ),
+        }),
+        delete: operation({
+          tag: 'Node',
+          operationId: 'cancelP2PPing',
+          summary: 'Cancel a P2P Ping and release its temporary swarm',
+          sideEffect: 'write',
+          security: localAdminSecurity,
+          parameters: [pathParameter('id', 'P2P Ping identifier.')],
+          responses: responses(
+            { 200: jsonResponse('P2P Ping cancelled', ref('P2PPingResponse')) },
+            [401, 403, 404, 429, 500]
           ),
         }),
       },

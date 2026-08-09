@@ -10,6 +10,8 @@ export function getApiErrorStatus(err) {
       return 422
     case 'CONFLICT':
       return 409
+    case 'NOT_FOUND':
+      return 404
     case 'PERMISSION_ERROR':
       return 403
     case 'ENGINE_NOT_INITIALIZED':

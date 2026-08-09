@@ -137,6 +137,10 @@ describe('request rate limit policies', () => {
       ['global', 'expensiveWrite']
     )
     assert.deepStrictEqual(
+      getRequestRateLimitPolicies('POST', '/api/p2p/ping'),
+      ['global', 'expensiveWrite']
+    )
+    assert.deepStrictEqual(
       getRequestRateLimitPolicies('POST', '/api/node/config'),
       ['global', 'adminWrite']
     )

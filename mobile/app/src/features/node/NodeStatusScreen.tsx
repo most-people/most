@@ -15,6 +15,7 @@ import {
   BookOpen,
   ChevronDown,
   ChevronUp,
+  ChevronRight,
   CircleCheck,
   Copy,
   Download,
@@ -34,6 +35,7 @@ import {
   Trash2,
   Upload,
   Wifi,
+  RadioTower,
 } from 'lucide-react-native'
 import type {
   LogLevel,
@@ -81,6 +83,7 @@ export type NodeStatusScreenProps = {
   onRetryTransfer: (transfer: MobileTransfer) => void | Promise<void>
   onShowTransferDetails: (transfer: MobileTransfer) => void
   onRetryStartCore: () => void | Promise<void>
+  onOpenP2PPing: () => void
   retryStartDisabled: boolean
 }
 
@@ -471,6 +474,7 @@ export function NodeStatusScreen({
   onRetryTransfer,
   onShowTransferDetails,
   onRetryStartCore,
+  onOpenP2PPing,
   retryStartDisabled,
 }: NodeStatusScreenProps) {
   const { locale, t } = useI18n()
@@ -612,6 +616,20 @@ export function NodeStatusScreen({
               value={t('node.metric.enabled')}
             />
           </View>
+          <Pressable
+            accessibilityRole="button"
+            onPress={onOpenP2PPing}
+            style={({ pressed }) => [
+              styles.p2pPingRow,
+              pressed ? styles.linkRowPressed : null,
+            ]}
+          >
+            <RadioTower size={18} color={theme.colors.accent} />
+            <View style={styles.p2pPingText}>
+              <Text style={styles.p2pPingTitle}>{t('p2pPing.title')}</Text>
+            </View>
+            <ChevronRight size={18} color={theme.colors.textSecondary} />
+          </Pressable>
         </View>
       ) : null}
 
@@ -1270,6 +1288,17 @@ function createNodeStyles(theme: MostBoxTheme) {
       borderColor: colors.border,
       backgroundColor: colors.border,
     },
+    p2pPingRow: {
+      alignItems: 'center',
+      borderBottomColor: colors.border,
+      borderBottomWidth: 1,
+      flexDirection: 'row',
+      gap: 10,
+      minHeight: 56,
+      paddingHorizontal: 4,
+    },
+    p2pPingText: { flex: 1, gap: 2 },
+    p2pPingTitle: { color: colors.text, fontSize: 14, fontWeight: '600' },
     metricsRowAccessibility: {
       flexDirection: 'column',
     },

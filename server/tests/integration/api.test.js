@@ -233,6 +233,73 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     })
   })
 
+  describe('P2P Ping API', () => {
+    it('creates, reads, cancels, and validates a six-digit Ping', async () => {
+      const invalid = await fetch(`${baseUrl}/api/p2p/ping`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: 'join', code: '12345' }),
+      })
+      assert.strictEqual(invalid.status, 400)
+
+      const created = await fetch(`${baseUrl}/api/p2p/ping`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: 'host' }),
+      })
+      const createdData = await created.json()
+      assert.strictEqual(created.status, 202)
+      assert.match(createdData.ping.code, /^\d{6}$/)
+      assert.strictEqual(typeof createdData.ping.code, 'string')
+
+      const conflict = await fetch(`${baseUrl}/api/p2p/ping`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: 'host' }),
+      })
+      assert.strictEqual(conflict.status, 409)
+
+      const status = await fetch(
+        `${baseUrl}/api/p2p/ping/${createdData.ping.id}`
+      )
+      const statusData = await status.json()
+      assert.strictEqual(status.status, 200)
+      assert.strictEqual(statusData.ping.id, createdData.ping.id)
+
+      const cancelled = await fetch(
+        `${baseUrl}/api/p2p/ping/${createdData.ping.id}`,
+        { method: 'DELETE' }
+      )
+      const cancelledData = await cancelled.json()
+      assert.strictEqual(cancelled.status, 200)
+      assert.strictEqual(cancelledData.ping.status, 'cancelled')
+      assert.strictEqual(cancelledData.ping.errorCode, 'CANCELLED')
+
+      const missing = await fetch(`${baseUrl}/api/p2p/ping/missing`)
+      assert.strictEqual(missing.status, 404)
+    })
+
+    it('rejects P2P Ping through remote management mode', async () => {
+      const { app } = createApp(engine, {
+        port: TEST_PORT + 31,
+        configStore,
+        nodeLogger,
+        remoteInvites: ['invite-ok'],
+      })
+      const response = await app.request('/api/p2p/ping', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-mostbox-invite': 'invite-ok',
+        },
+        body: JSON.stringify({ role: 'host' }),
+      })
+      const data = await response.json()
+      assert.strictEqual(response.status, 403)
+      assert.strictEqual(data.code, 'REMOTE_ADMIN_FORBIDDEN')
+    })
+  })
+
   describe('node daemon management API', () => {
     it('returns node status for the Web admin console', async () => {
       const res = await fetch(`${baseUrl}/api/node/status`)
@@ -495,11 +562,11 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
           )
           .map(([, operation]) => operation)
       )
-      assert.strictEqual(documentedOperations.length, 44)
+      assert.strictEqual(documentedOperations.length, 47)
       assert.strictEqual(
         new Set(documentedOperations.map(operation => operation.operationId))
           .size,
-        44
+        47
       )
       assert.ok(
         documentedOperations.every(

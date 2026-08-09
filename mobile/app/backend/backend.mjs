@@ -56,6 +56,36 @@ async function handleCommand(command) {
       return
     }
 
+    if (command.type === COMMANDS.P2P_PING_START) {
+      const ping = await getCore().startP2PPing(payload)
+      send(
+        EVENTS.P2P_PING_STATUS,
+        { ping, snapshot: getCore().getSnapshot() },
+        requestId
+      )
+      return
+    }
+
+    if (command.type === COMMANDS.P2P_PING_CANCEL) {
+      const ping = getCore().cancelP2PPing(payload)
+      send(
+        EVENTS.P2P_PING_STATUS,
+        { ping, snapshot: getCore().getSnapshot() },
+        requestId
+      )
+      return
+    }
+
+    if (command.type === COMMANDS.P2P_PING_STATUS) {
+      const ping = getCore().getP2PPing(payload)
+      send(
+        EVENTS.P2P_PING_STATUS,
+        { ping, snapshot: getCore().getSnapshot() },
+        requestId
+      )
+      return
+    }
+
     if (command.type === COMMANDS.FILE_LIST_HOLDINGS) {
       send(
         EVENTS.SNAPSHOT,
@@ -258,6 +288,7 @@ async function handleCommand(command) {
       EVENTS.ERROR,
       {
         message: error instanceof Error ? error.message : 'Command failed',
+        code: error?.code || 'UNKNOWN',
         command: command.type,
       },
       requestId
@@ -294,5 +325,6 @@ send(EVENTS.SNAPSHOT, {
   channels: [],
   channelMessages: {},
   channelPresence: {},
+  p2pPing: null,
   logs: [],
 })

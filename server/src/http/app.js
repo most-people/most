@@ -39,6 +39,7 @@ import { registerNodeRoutes } from './routes/nodeRoutes.js'
 import { registerMcpRoutes } from './routes/mcpRoutes.js'
 import { registerNoteGitRoutes } from './routes/noteGitRoutes.js'
 import { registerNoteVaultRoutes } from './routes/noteVaultRoutes.js'
+import { registerP2PPingRoutes } from './routes/p2pPingRoutes.js'
 import { registerSeedRoutes } from './routes/seedRoutes.js'
 import { createDownloadTaskRegistry } from './downloadTasks.js'
 
@@ -459,6 +460,7 @@ export function createApp(engine, options = {}) {
     appendNodeLog,
   })
   registerSeedRoutes(app, { engine, appendNodeLog, broadcastNodeStatus })
+  registerP2PPingRoutes(app, { engine })
   registerFileRoutes(app, {
     engine,
     configStore,

@@ -49,6 +49,7 @@ import {
 } from './core/channelHello.js'
 import { normalizeChannelVoiceEvent } from './core/channelVoice.js'
 import { getCidInfo } from './core/cidTopic.js'
+import { P2PPingManager } from './core/p2pPing.js'
 import {
   CHANNEL_DISCOVERY_TIMEOUT,
   CHANNEL_CANDIDATE_TTL,
@@ -357,6 +358,7 @@ export class MostBoxEngine extends EventEmitter {
   #accountMetadata = { profiles: {} }
 
   #chatSwarm = null
+  #p2pPingManager = null
 
   /**
    * 创建新的 MostBoxEngine 实例
@@ -385,6 +387,7 @@ export class MostBoxEngine extends EventEmitter {
       localContentProbeTimeout:
         options.localContentProbeTimeout ?? LOCAL_CONTENT_PROBE_TIMEOUT,
       disableNetwork: options.disableNetwork === true,
+      createP2PPingSwarm: options.createP2PPingSwarm,
     }
   }
 
@@ -746,6 +749,24 @@ export class MostBoxEngine extends EventEmitter {
       })
     }
 
+    this.#p2pPingManager = new P2PPingManager({
+      createSwarm:
+        this.#options.createP2PPingSwarm ||
+        (swarmOptions =>
+          this.#options.disableNetwork
+            ? createOfflineSwarm()
+            : new Hyperswarm(swarmOptions)),
+      swarmOptions: {
+        maxPeers: 4,
+        bootstrap: SWARM_BOOTSTRAP,
+        firewall: () => false,
+        connectionKeepAlive: SWARM_KEEP_ALIVE_INTERVAL,
+        randomPunchInterval: SWARM_RANDOM_PUNCH_INTERVAL,
+        handshakeTimeout: CONNECTION_TIMEOUT,
+      },
+      onUpdate: ping => this.emit('p2p:ping', ping),
+    })
+
     this.#chatSwarm.on('error', err => {
       if (
         err.code === 'SSL_ERROR' ||
@@ -830,7 +851,8 @@ export class MostBoxEngine extends EventEmitter {
       !this.#initialized &&
       !this.#store &&
       !this.#swarm &&
-      !this.#chatSwarm
+      !this.#chatSwarm &&
+      !this.#p2pPingManager
     ) {
       return
     }
@@ -852,6 +874,11 @@ export class MostBoxEngine extends EventEmitter {
     this.#activePublishes.clear()
     this.#seedStates.clear()
     this.#holdingResumeTask = null
+
+    if (this.#p2pPingManager) {
+      await this.#p2pPingManager.destroy()
+      this.#p2pPingManager = null
+    }
 
     if (this.#swarm) {
       await this.#swarm.destroy()
@@ -919,6 +946,21 @@ export class MostBoxEngine extends EventEmitter {
       chatPeers: chatConnections,
       status: total > 0 ? 'connected' : 'waiting',
     }
+  }
+
+  startP2PPing(input) {
+    this.#ensureInitialized()
+    return this.#p2pPingManager.start(input)
+  }
+
+  getP2PPing(id) {
+    this.#ensureInitialized()
+    return this.#p2pPingManager.get(id)
+  }
+
+  cancelP2PPing(id) {
+    this.#ensureInitialized()
+    return this.#p2pPingManager.cancel(id)
   }
 
   /**

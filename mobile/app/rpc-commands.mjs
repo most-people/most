@@ -1,6 +1,9 @@
 export const COMMANDS = Object.freeze({
   NODE_START: 'node.start',
   NODE_STOP: 'node.stop',
+  P2P_PING_START: 'p2p.ping.start',
+  P2P_PING_CANCEL: 'p2p.ping.cancel',
+  P2P_PING_STATUS: 'p2p.ping.status',
   FILE_PUBLISH: 'file.publish',
   FILE_DOWNLOAD: 'file.download',
   FILE_CANCEL_DOWNLOAD: 'file.cancelDownload',
@@ -24,6 +27,7 @@ export const COMMANDS = Object.freeze({
 
 export const EVENTS = Object.freeze({
   NODE_READY: 'node.ready',
+  P2P_PING_STATUS: 'p2p.ping.status',
   NETWORK_STATUS: 'network.status',
   SEED_STATUS: 'seed.status',
   PUBLISH_PROGRESS: 'publish.progress',

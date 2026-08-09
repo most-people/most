@@ -23,9 +23,12 @@ import type {
   MobileTransfer,
   MostBoxMobileCore,
   PublishFileInput,
+  P2PPing,
   SendChannelMessageInput,
   SetChannelPinnedInput,
   SetChannelRemarkInput,
+  StartP2PPingInput,
+  CancelP2PPingInput,
 } from './types'
 
 type BareWorkletMostBoxCoreOptions = {
@@ -60,6 +63,7 @@ function createInitialSnapshot(storagePath: string): MobileCoreSnapshot {
     channels: [],
     channelMessages: {},
     channelPresence: {},
+    p2pPing: null,
     logs: [],
   }
 }
@@ -88,6 +92,9 @@ function isSnapshot(value: unknown): value is MobileCoreSnapshot {
       typeof record.channelMessages === 'object') &&
     (record.channelPresence === undefined ||
       typeof record.channelPresence === 'object') &&
+    (record.p2pPing === undefined ||
+      record.p2pPing === null ||
+      isP2PPing(record.p2pPing)) &&
     Array.isArray(record.logs)
   )
 }
@@ -101,6 +108,17 @@ function isTransfer(value: unknown): value is MobileTransfer {
     typeof record.fileName === 'string' &&
     typeof record.progress === 'number' &&
     typeof record.message === 'string'
+  )
+}
+
+function isP2PPing(value: unknown): value is P2PPing {
+  const record = asRecord(value)
+  return (
+    typeof record.id === 'string' &&
+    (record.role === 'host' || record.role === 'join') &&
+    typeof record.code === 'string' &&
+    typeof record.status === 'string' &&
+    typeof record.phase === 'string'
   )
 }
 
@@ -194,6 +212,13 @@ function extractTransfer(payload: unknown) {
   if (isTransfer(record.transfer)) return record.transfer
   if (isTransfer(payload)) return payload
   throw new Error('P2P core returned an invalid transfer payload')
+}
+
+function extractP2PPing(payload: unknown): P2PPing | null {
+  const record = asRecord(payload)
+  const ping = record.ping === null ? null : record.ping || payload
+  if (ping === null || isP2PPing(ping)) return ping
+  throw new Error('P2P core returned an invalid Ping payload')
 }
 
 function extractExportResult(payload: unknown) {
@@ -318,6 +343,41 @@ export class BareWorkletMostBoxCore implements MostBoxMobileCore {
       this.#snapshot.node.peerCount = 0
       this.#emit()
     }
+  }
+
+  async startP2PPing(input: StartP2PPingInput): Promise<P2PPing> {
+    await this.#ensureStarted()
+    const result = await this.#request(
+      COMMANDS.P2P_PING_START,
+      input,
+      [EVENTS.P2P_PING_STATUS],
+      10000
+    )
+    const ping = extractP2PPing(result)
+    if (!ping) throw new Error('P2P core did not create a Ping')
+    return ping
+  }
+
+  async cancelP2PPing(input: CancelP2PPingInput = {}): Promise<P2PPing | null> {
+    await this.#ensureStarted()
+    const result = await this.#request(
+      COMMANDS.P2P_PING_CANCEL,
+      input,
+      [EVENTS.P2P_PING_STATUS],
+      10000
+    )
+    return extractP2PPing(result)
+  }
+
+  async getP2PPingStatus(id?: string): Promise<P2PPing | null> {
+    await this.#ensureStarted()
+    const result = await this.#request(
+      COMMANDS.P2P_PING_STATUS,
+      { id },
+      [EVENTS.P2P_PING_STATUS],
+      10000
+    )
+    return extractP2PPing(result)
   }
 
   async publishFile(input: PublishFileInput): Promise<MobileTransfer> {
@@ -663,7 +723,9 @@ export class BareWorkletMostBoxCore implements MostBoxMobileCore {
         if (pending) {
           clearTimeout(pending.timer)
           this.#pending.delete(event.requestId)
-          pending.reject(new Error(message))
+          const error = new Error(message) as Error & { code?: string }
+          if (typeof record.code === 'string') error.code = record.code
+          pending.reject(error)
         }
       }
       return
@@ -729,6 +791,7 @@ export class BareWorkletMostBoxCore implements MostBoxMobileCore {
           ]
         )
       ),
+      p2pPing: this.#snapshot.p2pPing ? { ...this.#snapshot.p2pPing } : null,
       logs: this.#snapshot.logs.map(log => ({ ...log })),
     }
   }

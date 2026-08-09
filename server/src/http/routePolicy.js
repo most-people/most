@@ -48,6 +48,8 @@ export function isAdminApi(path) {
     path === '/api/node/holdings' ||
     path === '/api/node/policy' ||
     path === '/api/node/logs' ||
+    path === '/api/p2p/ping' ||
+    path.startsWith('/api/p2p/ping/') ||
     path === '/api/shutdown'
   )
 }
