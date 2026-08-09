@@ -304,4 +304,49 @@ export const chatMessages = {
     'zh-TW': '未同步時間',
     en: 'Time not synced',
   },
+  'chat.action.openFailed': {
+    'zh-CN': '打开频道失败',
+    'zh-TW': '開啟頻道失敗',
+    en: 'Could not open channel',
+  },
+  'chat.action.generateFailed': {
+    'zh-CN': '生成频道 ID 失败',
+    'zh-TW': '產生頻道 ID 失敗',
+    en: 'Could not generate channel ID',
+  },
+  'chat.action.updateFailed': {
+    'zh-CN': '更新频道失败',
+    'zh-TW': '更新頻道失敗',
+    en: 'Could not update channel',
+  },
+  'chat.action.leaveTitle': {
+    'zh-CN': '退出频道',
+    'zh-TW': '退出頻道',
+    en: 'Leave channel',
+  },
+  'chat.action.leaveBody': {
+    'zh-CN': '确定退出 {channel} 吗？本机将不再同步这个频道。',
+    'zh-TW': '確定退出 {channel} 嗎？本機將不再同步這個頻道。',
+    en: 'Leave {channel}? This device will stop syncing the channel.',
+  },
+  'chat.action.leaveFailed': {
+    'zh-CN': '退出频道失败',
+    'zh-TW': '退出頻道失敗',
+    en: 'Could not leave channel',
+  },
+  'chat.action.sendFailed': {
+    'zh-CN': '发送消息失败',
+    'zh-TW': '傳送訊息失敗',
+    en: 'Could not send message',
+  },
+  'chat.action.attachmentFailed': {
+    'zh-CN': '发送附件失败',
+    'zh-TW': '傳送附件失敗',
+    en: 'Could not send attachment',
+  },
+  'chat.action.downloadFailed': {
+    'zh-CN': '下载附件失败',
+    'zh-TW': '下載附件失敗',
+    en: 'Could not download attachment',
+  },
 } as const
