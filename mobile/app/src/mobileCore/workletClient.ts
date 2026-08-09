@@ -113,10 +113,23 @@ function isTransfer(value: unknown): value is MobileTransfer {
 
 function isP2PPing(value: unknown): value is P2PPing {
   const record = asRecord(value)
+  const directions = asRecord(record.directions)
   return (
     typeof record.id === 'string' &&
     (record.role === 'host' || record.role === 'join') &&
     typeof record.code === 'string' &&
+    typeof record.status === 'string' &&
+    typeof record.phase === 'string' &&
+    isP2PPingDirection(directions.hostToJoin) &&
+    isP2PPingDirection(directions.joinToHost)
+  )
+}
+
+function isP2PPingDirection(value: unknown) {
+  const record = asRecord(value)
+  return (
+    (record.direction === 'hostToJoin' || record.direction === 'joinToHost') &&
+    (record.initiatorRole === 'host' || record.initiatorRole === 'join') &&
     typeof record.status === 'string' &&
     typeof record.phase === 'string'
   )
@@ -791,7 +804,19 @@ export class BareWorkletMostBoxCore implements MostBoxMobileCore {
           ]
         )
       ),
-      p2pPing: this.#snapshot.p2pPing ? { ...this.#snapshot.p2pPing } : null,
+      p2pPing: this.#snapshot.p2pPing
+        ? {
+            ...this.#snapshot.p2pPing,
+            directions: {
+              hostToJoin: {
+                ...this.#snapshot.p2pPing.directions.hostToJoin,
+              },
+              joinToHost: {
+                ...this.#snapshot.p2pPing.directions.joinToHost,
+              },
+            },
+          }
+        : null,
       logs: this.#snapshot.logs.map(log => ({ ...log })),
     }
   }

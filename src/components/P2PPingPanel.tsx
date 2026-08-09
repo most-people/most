@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
+  CircleAlert,
   CheckCircle2,
   ClipboardPaste,
   Copy,
@@ -22,9 +23,23 @@ type P2PPingStatus =
   | 'connecting'
   | 'verifying'
   | 'success'
+  | 'partial'
   | 'failed'
   | 'cancelled'
   | 'expired'
+
+type P2PPingDirection = {
+  direction: 'hostToJoin' | 'joinToHost'
+  initiatorRole: P2PPingRole
+  status: Exclude<P2PPingStatus, 'partial'>
+  phase: Exclude<P2PPingStatus, 'partial'>
+  elapsedMs: number | null
+  discoveredPeers: number
+  localPeerKey: string | null
+  remotePeerKey: string | null
+  errorCode: string | null
+  errorMessage: string | null
+}
 
 type P2PPing = {
   id: string
@@ -41,6 +56,7 @@ type P2PPing = {
   remotePeerKey: string | null
   errorCode: string | null
   errorMessage: string | null
+  directions: Record<'hostToJoin' | 'joinToHost', P2PPingDirection>
 }
 
 type P2PPingResponse = { success: boolean; ping: P2PPing }
@@ -60,6 +76,7 @@ const STATUS_KEYS: Record<P2PPingStatus, MessageKey> = {
   connecting: 'ping.p2p.status.connecting',
   verifying: 'ping.p2p.status.verifying',
   success: 'ping.p2p.status.success',
+  partial: 'ping.p2p.status.partial',
   failed: 'ping.p2p.status.failed',
   cancelled: 'ping.p2p.status.cancelled',
   expired: 'ping.p2p.status.expired',
@@ -151,7 +168,7 @@ export function P2PPingPanel() {
     }
   }
 
-  const cancel = async () => {
+  const cancelRequest = async () => {
     if (!ping) return false
     setWorking(true)
     try {
@@ -171,8 +188,16 @@ export function P2PPingPanel() {
   }
 
   const regenerate = async () => {
-    if (active && !(await cancel())) return
+    if (active && !(await cancelRequest())) return
+    setPing(null)
     await start('host')
+  }
+
+  const reset = async () => {
+    if (active && !(await cancelRequest())) return
+    setPing(null)
+    setCode('')
+    setError('')
   }
 
   const copyCode = async () => {
@@ -194,14 +219,6 @@ export function P2PPingPanel() {
     const value = await navigator.clipboard.readText()
     setCode(value.replace(/\D/g, '').slice(0, 6))
   }
-
-  const dhtComplete = Boolean(
-    ping && ping.status !== 'preparing' && ping.status !== 'failed'
-  )
-  const connectionComplete = Boolean(
-    ping && ['verifying', 'success'].includes(ping.status)
-  )
-  const proofComplete = ping?.status === 'success'
 
   return (
     <section className="p2p-ping-workspace">
@@ -316,6 +333,8 @@ export function P2PPingPanel() {
           <div className={`p2p-ping-status is-${ping.status}`}>
             {ping.status === 'success' ? (
               <CheckCircle2 size={21} />
+            ) : ping.status === 'partial' ? (
+              <CircleAlert size={21} />
             ) : ['failed', 'expired'].includes(ping.status) ? (
               <XCircle size={21} />
             ) : (
@@ -325,20 +344,23 @@ export function P2PPingPanel() {
             {active ? <span>{formatNumber(remainingSeconds)}s</span> : null}
           </div>
 
-          <div className="p2p-ping-steps">
-            <PingStep
-              done={dhtComplete}
-              label={t(
-                ping.role === 'host'
-                  ? 'ping.p2p.step.announce'
-                  : 'ping.p2p.step.discovery'
-              )}
+          <div className="p2p-ping-directions">
+            <PingDirection
+              candidatesLabel={t('ping.p2p.candidates')}
+              elapsedLabel={t('ping.p2p.elapsed')}
+              label={t('ping.p2p.direction.hostToJoin')}
+              result={ping.directions.hostToJoin}
+              statusLabel={t(STATUS_KEYS[ping.directions.hostToJoin.status])}
+              formatNumber={formatNumber}
             />
-            <PingStep
-              done={connectionComplete}
-              label={t('ping.p2p.step.connection')}
+            <PingDirection
+              candidatesLabel={t('ping.p2p.candidates')}
+              elapsedLabel={t('ping.p2p.elapsed')}
+              label={t('ping.p2p.direction.joinToHost')}
+              result={ping.directions.joinToHost}
+              statusLabel={t(STATUS_KEYS[ping.directions.joinToHost.status])}
+              formatNumber={formatNumber}
             />
-            <PingStep done={proofComplete} label={t('ping.p2p.step.proof')} />
           </div>
 
           <dl className="p2p-ping-details">
@@ -368,17 +390,15 @@ export function P2PPingPanel() {
             ) : null}
           </dl>
 
-          {active ? (
-            <button
-              type="button"
-              className="btn btn-ghost p2p-ping-cancel"
-              disabled={working}
-              onClick={cancel}
-            >
-              <X size={17} />
-              {t('ping.p2p.cancel')}
-            </button>
-          ) : null}
+          <button
+            type="button"
+            className={`btn btn-ghost p2p-ping-cancel${active ? '' : ' is-reset'}`}
+            disabled={working}
+            onClick={reset}
+          >
+            {active ? <X size={17} /> : <RefreshCw size={17} />}
+            {t(active ? 'ping.p2p.cancel' : 'ping.p2p.reset')}
+          </button>
         </div>
       ) : null}
 
@@ -387,11 +407,50 @@ export function P2PPingPanel() {
   )
 }
 
-function PingStep({ done, label }: { done: boolean; label: string }) {
+function PingDirection({
+  candidatesLabel,
+  elapsedLabel,
+  formatNumber,
+  label,
+  result,
+  statusLabel,
+}: {
+  candidatesLabel: string
+  elapsedLabel: string
+  formatNumber: (value: number) => string
+  label: string
+  result: P2PPingDirection
+  statusLabel: string
+}) {
   return (
-    <div className={done ? 'is-done' : ''}>
-      {done ? <CheckCircle2 size={17} /> : <LoaderCircle size={17} />}
-      <span>{label}</span>
+    <div className={`p2p-ping-direction is-${result.status}`}>
+      <div className="p2p-ping-direction-title">
+        {result.status === 'success' ? (
+          <CheckCircle2 size={17} />
+        ) : ['failed', 'expired'].includes(result.status) ? (
+          <XCircle size={17} />
+        ) : (
+          <LoaderCircle size={17} className="ping-spin" />
+        )}
+        <strong>{label}</strong>
+        <span>{statusLabel}</span>
+      </div>
+      <div className="p2p-ping-direction-meta">
+        <span>
+          {candidatesLabel} {formatNumber(result.discoveredPeers)}
+        </span>
+        <span>
+          {elapsedLabel}{' '}
+          {result.elapsedMs === null
+            ? '-'
+            : `${formatNumber(result.elapsedMs)} ms`}
+        </span>
+      </div>
+      {result.errorCode ? (
+        <code>
+          {result.phase} / {result.errorCode}
+        </code>
+      ) : null}
     </div>
   )
 }

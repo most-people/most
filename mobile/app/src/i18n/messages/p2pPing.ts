@@ -44,6 +44,16 @@ export const p2pPingMessages = {
     'zh-TW': '重新產生',
     en: 'Regenerate',
   },
+  'p2pPing.cancel': {
+    'zh-CN': '取消检测',
+    'zh-TW': '取消檢測',
+    en: 'Cancel test',
+  },
+  'p2pPing.reset': {
+    'zh-CN': '重置检测',
+    'zh-TW': '重設檢測',
+    en: 'Reset test',
+  },
   'p2pPing.paste': {
     'zh-CN': '粘贴代码',
     'zh-TW': '貼上代碼',
@@ -84,6 +94,11 @@ export const p2pPingMessages = {
     'zh-TW': 'P2P 直連成功',
     en: 'Direct P2P succeeded',
   },
+  'p2pPing.status.partial': {
+    'zh-CN': '仅一个方向可建立直连',
+    'zh-TW': '僅一個方向可建立直連',
+    en: 'Only one connection direction succeeded',
+  },
   'p2pPing.status.failed': {
     'zh-CN': 'P2P 直连失败',
     'zh-TW': 'P2P 直連失敗',
@@ -118,6 +133,16 @@ export const p2pPingMessages = {
     'zh-CN': '双向 Ping/Pong',
     'zh-TW': '雙向 Ping/Pong',
     en: 'Two-way Ping/Pong',
+  },
+  'p2pPing.direction.hostToJoin': {
+    'zh-CN': '创建端 → 加入端',
+    'zh-TW': '建立端 → 加入端',
+    en: 'Creator → Joiner',
+  },
+  'p2pPing.direction.joinToHost': {
+    'zh-CN': '加入端 → 创建端',
+    'zh-TW': '加入端 → 建立端',
+    en: 'Joiner → Creator',
   },
   'p2pPing.candidates': {
     'zh-CN': '发现候选数',

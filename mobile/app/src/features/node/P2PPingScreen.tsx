@@ -12,6 +12,7 @@ import {
 } from 'react-native'
 import {
   ArrowLeft,
+  CircleAlert,
   CircleCheck,
   CircleX,
   ClipboardPaste,
@@ -23,7 +24,11 @@ import {
   X,
 } from 'lucide-react-native'
 import { useI18n, type MessageKey } from '../../i18n'
-import type { P2PPing, P2PPingRole } from '../../mobileCore/types'
+import type {
+  P2PPing,
+  P2PPingDirection,
+  P2PPingRole,
+} from '../../mobileCore/types'
 import { useMostBoxTheme, type MostBoxTheme } from '../../ui/theme'
 
 type P2PPingScreenProps = {
@@ -49,6 +54,7 @@ const STATUS_KEYS: Record<P2PPing['status'], MessageKey> = {
   connecting: 'p2pPing.status.connecting',
   verifying: 'p2pPing.status.verifying',
   success: 'p2pPing.status.success',
+  partial: 'p2pPing.status.partial',
   failed: 'p2pPing.status.failed',
   cancelled: 'p2pPing.status.cancelled',
   expired: 'p2pPing.status.expired',
@@ -128,8 +134,16 @@ export function P2PPingScreen({
 
   const cancel = async () => {
     setBusy(true)
+    setError('')
     try {
       await onCancel(ping?.id)
+      setCode('')
+    } catch (cancelError) {
+      setError(
+        cancelError instanceof Error
+          ? cancelError.message
+          : t('p2pPing.error.start')
+      )
     } finally {
       setBusy(false)
     }
@@ -150,16 +164,6 @@ export function P2PPingScreen({
   const copy = async () => {
     if (visiblePing) await Clipboard.setStringAsync(visiblePing.code)
   }
-
-  const dhtComplete = Boolean(
-    visiblePing &&
-    visiblePing.status !== 'preparing' &&
-    visiblePing.status !== 'failed'
-  )
-  const connectionComplete = Boolean(
-    visiblePing && ['verifying', 'success'].includes(visiblePing.status)
-  )
-  const proofComplete = visiblePing?.status === 'success'
 
   return (
     <ScrollView
@@ -293,6 +297,8 @@ export function P2PPingScreen({
           <View style={styles.statusRow}>
             {visiblePing.status === 'success' ? (
               <CircleCheck size={21} color={theme.colors.success} />
+            ) : visiblePing.status === 'partial' ? (
+              <CircleAlert size={21} color={theme.colors.warning} />
             ) : visiblePing.status === 'failed' ||
               visiblePing.status === 'expired' ? (
               <CircleX size={21} color={theme.colors.danger} />
@@ -307,19 +313,22 @@ export function P2PPingScreen({
             ) : null}
           </View>
 
-          <ResultStep
-            done={dhtComplete}
-            label={t(
-              visiblePing.role === 'host'
-                ? 'p2pPing.step.announce'
-                : 'p2pPing.step.discovery'
-            )}
-          />
-          <ResultStep
-            done={connectionComplete}
-            label={t('p2pPing.step.connection')}
-          />
-          <ResultStep done={proofComplete} label={t('p2pPing.step.proof')} />
+          <View style={styles.directions}>
+            <DirectionResult
+              label={t('p2pPing.direction.hostToJoin')}
+              result={visiblePing.directions.hostToJoin}
+              statusLabel={t(
+                STATUS_KEYS[visiblePing.directions.hostToJoin.status]
+              )}
+            />
+            <DirectionResult
+              label={t('p2pPing.direction.joinToHost')}
+              result={visiblePing.directions.joinToHost}
+              statusLabel={t(
+                STATUS_KEYS[visiblePing.directions.joinToHost.status]
+              )}
+            />
+          </View>
 
           <View style={styles.details}>
             <Detail
@@ -347,16 +356,22 @@ export function P2PPingScreen({
             ) : null}
           </View>
 
-          {active ? (
-            <Pressable
-              disabled={busy}
-              onPress={cancel}
-              style={styles.cancelButton}
-            >
+          <Pressable
+            disabled={busy}
+            onPress={cancel}
+            style={styles.cancelButton}
+          >
+            {active ? (
               <X size={18} color={theme.colors.danger} />
-              <Text style={styles.cancelText}>{t('common.cancel')}</Text>
-            </Pressable>
-          ) : null}
+            ) : (
+              <RefreshCw size={18} color={theme.colors.accent} />
+            )}
+            <Text
+              style={[styles.cancelText, !active ? styles.resetText : null]}
+            >
+              {t(active ? 'p2pPing.cancel' : 'p2pPing.reset')}
+            </Text>
+          </Pressable>
         </View>
       ) : null}
 
@@ -384,17 +399,51 @@ function IconAction({
   )
 }
 
-function ResultStep({ done, label }: { done: boolean; label: string }) {
+function DirectionResult({
+  label,
+  result,
+  statusLabel,
+}: {
+  label: string
+  result: P2PPingDirection
+  statusLabel: string
+}) {
+  const { t } = useI18n()
   const theme = useMostBoxTheme()
   const styles = useMemo(() => createStyles(theme), [theme])
+  const statusColor =
+    result.status === 'success'
+      ? theme.colors.success
+      : result.status === 'failed' || result.status === 'expired'
+        ? theme.colors.danger
+        : theme.colors.textMuted
   return (
-    <View style={styles.step}>
-      {done ? (
-        <CircleCheck size={17} color={theme.colors.success} />
-      ) : (
-        <LoaderCircle size={17} color={theme.colors.textMuted} />
-      )}
-      <Text style={styles.stepText}>{label}</Text>
+    <View style={styles.direction}>
+      <View style={styles.directionHeader}>
+        {result.status === 'success' ? (
+          <CircleCheck size={17} color={statusColor} />
+        ) : result.status === 'failed' || result.status === 'expired' ? (
+          <CircleX size={17} color={statusColor} />
+        ) : (
+          <LoaderCircle size={17} color={statusColor} />
+        )}
+        <Text style={styles.directionLabel}>{label}</Text>
+        <Text style={styles.directionStatus}>{statusLabel}</Text>
+      </View>
+      <View style={styles.directionMeta}>
+        <Text style={styles.directionMetaText}>
+          {t('p2pPing.candidates')} {result.discoveredPeers}
+        </Text>
+        <Text style={styles.directionMetaText}>
+          {t('p2pPing.elapsed')}{' '}
+          {result.elapsedMs === null ? '-' : `${result.elapsedMs} ms`}
+        </Text>
+      </View>
+      {result.errorCode ? (
+        <Text selectable style={styles.directionError}>
+          {result.phase} / {result.errorCode}
+        </Text>
+      ) : null}
     </View>
   )
 }
@@ -536,8 +585,39 @@ function createStyles(theme: MostBoxTheme) {
       fontSize: 13,
       fontVariant: ['tabular-nums'],
     },
-    step: { alignItems: 'center', flexDirection: 'row', gap: 9, minHeight: 28 },
-    stepText: { color: colors.textSecondary, fontSize: 13 },
+    directions: { gap: 10 },
+    direction: {
+      backgroundColor: colors.surfaceSubtle,
+      borderColor: colors.border,
+      borderRadius: radii.medium,
+      borderWidth: 1,
+      gap: 8,
+      minHeight: 92,
+      padding: 12,
+    },
+    directionHeader: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: 8,
+    },
+    directionLabel: {
+      color: colors.text,
+      flex: 1,
+      fontSize: 13,
+      fontWeight: '700',
+    },
+    directionStatus: { color: colors.textSecondary, fontSize: 11 },
+    directionMeta: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      gap: 10,
+    },
+    directionMetaText: { color: colors.textMuted, fontSize: 11 },
+    directionError: {
+      color: colors.danger,
+      fontFamily: Platform.select({ android: 'monospace', default: undefined }),
+      fontSize: 11,
+    },
     details: {
       borderTopColor: colors.border,
       borderTopWidth: 1,
@@ -560,6 +640,7 @@ function createStyles(theme: MostBoxTheme) {
       paddingHorizontal: 6,
     },
     cancelText: { color: colors.danger, fontSize: 14, fontWeight: '600' },
+    resetText: { color: colors.accent },
     error: { color: colors.danger, fontSize: 12 },
   })
 }

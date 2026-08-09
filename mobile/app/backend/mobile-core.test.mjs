@@ -182,7 +182,7 @@ function deferred() {
 }
 
 describe('mobile P2P Ping snapshot and RPC events', () => {
-  it('starts, reports, cancels, and destroys one temporary Ping swarm', async t => {
+  it('starts, reports, resets, and destroys both direction swarms', async t => {
     const storagePath = await fs.mkdtemp(
       path.join(os.tmpdir(), 'mostbox-mobile-p2p-ping-')
     )
@@ -209,8 +209,12 @@ describe('mobile P2P Ping snapshot and RPC events', () => {
       () => core.getSnapshot().p2pPing?.status === 'waiting',
       'P2P Ping to start waiting'
     )
-    assert.equal(swarms.length, 3)
+    assert.equal(swarms.length, 4)
     assert.deepEqual(swarms[2].joins[0].options, {
+      server: false,
+      client: true,
+    })
+    assert.deepEqual(swarms[3].joins[0].options, {
       server: true,
       client: false,
     })
@@ -219,9 +223,16 @@ describe('mobile P2P Ping snapshot and RPC events', () => {
     assert.equal(events.at(-1).payload.snapshot.p2pPing.id, ping.id)
 
     const cancelled = core.cancelP2PPing({ id: ping.id })
-    assert.equal(cancelled.status, 'cancelled')
-    await waitFor(() => swarms[2].destroyed, 'temporary Ping swarm cleanup')
-    assert.equal(core.getSnapshot().p2pPing.errorCode, 'CANCELLED')
+    assert.equal(cancelled, null)
+    await waitFor(
+      () => swarms[2].destroyed && swarms[3].destroyed,
+      'temporary Ping swarm cleanup'
+    )
+    assert.equal(core.getSnapshot().p2pPing, null)
+
+    const next = await core.startP2PPing({ role: 'host' })
+    assert.notEqual(next.id, ping.id)
+    assert.equal(swarms.length, 6)
   })
 })
 

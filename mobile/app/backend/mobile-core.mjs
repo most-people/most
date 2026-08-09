@@ -475,7 +475,16 @@ export class MobileP2PCore {
       channelMessages: this.#snapshotChannelMessages(),
       channelPresence: this.#snapshotChannelPresence(),
       logs: this.#logs.map(log => ({ ...log })),
-      p2pPing: this.#p2pPing ? { ...this.#p2pPing } : null,
+      p2pPing: this.#p2pPing
+        ? {
+            ...this.#p2pPing,
+            directions: Object.fromEntries(
+              Object.entries(this.#p2pPing.directions || {}).map(
+                ([direction, result]) => [direction, { ...result }]
+              )
+            ),
+          }
+        : null,
     }
   }
 
@@ -609,6 +618,7 @@ export class MobileP2PCore {
       await this.#p2pPingManager.destroy()
       this.#p2pPingManager = null
     }
+    this.#p2pPing = null
 
     if (this.#swarm) {
       await this.#swarm.destroy()
@@ -672,7 +682,9 @@ export class MobileP2PCore {
   cancelP2PPing(input = {}) {
     this.#ensureReady()
     const id = String(input.id || this.#p2pPing?.id || '')
-    return id ? this.#p2pPingManager.cancel(id) : null
+    if (id) this.#p2pPingManager.cancel(id)
+    this.#p2pPing = null
+    return null
   }
 
   listChannels() {

@@ -251,6 +251,10 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(created.status, 202)
       assert.match(createdData.ping.code, /^\d{6}$/)
       assert.strictEqual(typeof createdData.ping.code, 'string')
+      assert.deepStrictEqual(Object.keys(createdData.ping.directions).sort(), [
+        'hostToJoin',
+        'joinToHost',
+      ])
 
       const conflict = await fetch(`${baseUrl}/api/p2p/ping`, {
         method: 'POST',

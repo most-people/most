@@ -361,6 +361,59 @@ const schemas = {
       holdings: { type: 'array', items: ref('NodeHolding') },
     },
   },
+  P2PPingDirection: {
+    type: 'object',
+    required: [
+      'direction',
+      'initiatorRole',
+      'status',
+      'phase',
+      'discoveredPeers',
+    ],
+    properties: {
+      direction: {
+        type: 'string',
+        enum: ['hostToJoin', 'joinToHost'],
+      },
+      initiatorRole: { type: 'string', enum: ['host', 'join'] },
+      status: {
+        type: 'string',
+        enum: [
+          'preparing',
+          'waiting',
+          'discovering',
+          'connecting',
+          'verifying',
+          'success',
+          'failed',
+          'cancelled',
+          'expired',
+        ],
+      },
+      phase: { type: 'string' },
+      elapsedMs: { oneOf: [{ type: 'integer', minimum: 0 }, { type: 'null' }] },
+      discoveredPeers: { type: 'integer', minimum: 0 },
+      localPeerKey: { oneOf: [{ type: 'string' }, { type: 'null' }] },
+      remotePeerKey: { oneOf: [{ type: 'string' }, { type: 'null' }] },
+      errorCode: {
+        oneOf: [
+          {
+            type: 'string',
+            enum: [
+              'ANNOUNCE_FAILED',
+              'PEER_NOT_FOUND',
+              'CONNECTION_FAILED',
+              'PING_FAILED',
+              'TIMEOUT',
+              'CANCELLED',
+            ],
+          },
+          { type: 'null' },
+        ],
+      },
+      errorMessage: { oneOf: [{ type: 'string' }, { type: 'null' }] },
+    },
+  },
   P2PPing: {
     type: 'object',
     required: [
@@ -372,6 +425,7 @@ const schemas = {
       'createdAt',
       'expiresAt',
       'discoveredPeers',
+      'directions',
     ],
     properties: {
       id: { type: 'string', pattern: '^[0-9a-f]{32}$' },
@@ -386,6 +440,7 @@ const schemas = {
           'connecting',
           'verifying',
           'success',
+          'partial',
           'failed',
           'cancelled',
           'expired',
@@ -418,6 +473,15 @@ const schemas = {
         ],
       },
       errorMessage: { oneOf: [{ type: 'string' }, { type: 'null' }] },
+      directions: {
+        type: 'object',
+        required: ['hostToJoin', 'joinToHost'],
+        properties: {
+          hostToJoin: ref('P2PPingDirection'),
+          joinToHost: ref('P2PPingDirection'),
+        },
+        additionalProperties: false,
+      },
     },
   },
   P2PPingStartRequest: {

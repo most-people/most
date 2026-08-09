@@ -12,6 +12,8 @@ export type LogLevel = 'info' | 'warn' | 'error'
 
 export type P2PPingRole = 'host' | 'join'
 
+export type P2PPingDirectionName = 'hostToJoin' | 'joinToHost'
+
 export type P2PPingStatus =
   | 'preparing'
   | 'waiting'
@@ -19,6 +21,7 @@ export type P2PPingStatus =
   | 'connecting'
   | 'verifying'
   | 'success'
+  | 'partial'
   | 'failed'
   | 'cancelled'
   | 'expired'
@@ -30,6 +33,19 @@ export type P2PPingErrorCode =
   | 'PING_FAILED'
   | 'TIMEOUT'
   | 'CANCELLED'
+
+export type P2PPingDirection = {
+  direction: P2PPingDirectionName
+  initiatorRole: P2PPingRole
+  status: Exclude<P2PPingStatus, 'partial'>
+  phase: Exclude<P2PPingStatus, 'partial'>
+  elapsedMs: number | null
+  discoveredPeers: number
+  localPeerKey: string | null
+  remotePeerKey: string | null
+  errorCode: P2PPingErrorCode | null
+  errorMessage: string | null
+}
 
 export type P2PPing = {
   id: string
@@ -46,6 +62,7 @@ export type P2PPing = {
   remotePeerKey: string | null
   errorCode: P2PPingErrorCode | null
   errorMessage: string | null
+  directions: Record<P2PPingDirectionName, P2PPingDirection>
 }
 
 export type MobileHolding = {

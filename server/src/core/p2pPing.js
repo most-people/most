@@ -7,15 +7,32 @@ import {
 import Hyperswarm from 'hyperswarm'
 
 export const P2P_PING_CODE_PATTERN = /^\d{6}$/
-export const P2P_PING_TOPIC_DOMAIN = 'most-box-p2p-ping-v1'
+export const P2P_PING_TOPIC_DOMAIN = 'most-box-p2p-ping-v2'
 export const P2P_PING_HOST_TTL_MS = 2 * 60 * 1000
 export const P2P_PING_JOIN_TIMEOUT_MS = 45 * 1000
+export const P2P_PING_DIRECTIONS = ['hostToJoin', 'joinToHost']
 
-const PROOF_KEY_DOMAIN = 'most-box-p2p-ping-proof-key-v1'
-const PROOF_DOMAIN = 'most-box-p2p-ping-proof-v1'
+const DIRECTION_INITIATOR_ROLE = {
+  hostToJoin: 'host',
+  joinToHost: 'join',
+}
+const PROOF_KEY_DOMAIN = 'most-box-p2p-ping-proof-key-v2'
+const PROOF_DOMAIN = 'most-box-p2p-ping-proof-v2'
 const MAX_FRAME_BYTES = 4096
 const MAX_RECORDS = 20
-const TERMINAL_STATUSES = new Set(['success', 'failed', 'cancelled', 'expired'])
+const TERMINAL_STATUSES = new Set([
+  'success',
+  'partial',
+  'failed',
+  'cancelled',
+  'expired',
+])
+const DIRECTION_TERMINAL_STATUSES = new Set([
+  'success',
+  'failed',
+  'cancelled',
+  'expired',
+])
 
 function createError(message, code) {
   const error = new Error(message)
@@ -36,6 +53,17 @@ function isTerminal(status) {
   return TERMINAL_STATUSES.has(status)
 }
 
+function isDirectionTerminal(status) {
+  return DIRECTION_TERMINAL_STATUSES.has(status)
+}
+
+function validateDirection(direction) {
+  if (!P2P_PING_DIRECTIONS.includes(direction)) {
+    throw createError('Invalid P2P Ping direction', 'VALIDATION_ERROR')
+  }
+  return direction
+}
+
 function proofKey(code) {
   return createHash('sha256')
     .update(PROOF_KEY_DOMAIN)
@@ -44,9 +72,11 @@ function proofKey(code) {
     .digest()
 }
 
-function createProof(code, type, nonce) {
+function createProof(code, direction, type, nonce) {
   return createHmac('sha256', proofKey(code))
     .update(PROOF_DOMAIN)
+    .update('\0')
+    .update(direction)
     .update('\0')
     .update(type)
     .update('\0')
@@ -54,24 +84,41 @@ function createProof(code, type, nonce) {
     .digest('hex')
 }
 
-function createFrame(code, type, nonce) {
+function createFrame(code, direction, type, nonce) {
   return {
     type,
-    version: 1,
+    version: 2,
+    direction,
     nonce,
-    proof: createProof(code, type, nonce),
+    proof: createProof(code, direction, type, nonce),
   }
 }
 
-function isValidFrame(code, frame, expectedType, expectedNonce) {
+function isValidFrame(code, direction, frame, expectedType, expectedNonce) {
   return (
     frame &&
     frame.type === expectedType &&
-    frame.version === 1 &&
+    frame.version === 2 &&
+    frame.direction === direction &&
     frame.nonce === expectedNonce &&
     typeof frame.proof === 'string' &&
-    frame.proof === createProof(code, expectedType, expectedNonce)
+    frame.proof === createProof(code, direction, expectedType, expectedNonce)
   )
+}
+
+function createDirectionRecord(direction) {
+  return {
+    direction,
+    initiatorRole: DIRECTION_INITIATOR_ROLE[direction],
+    status: 'preparing',
+    phase: 'preparing',
+    elapsedMs: null,
+    discoveredPeers: 0,
+    localPeerKey: null,
+    remotePeerKey: null,
+    errorCode: null,
+    errorMessage: null,
+  }
 }
 
 export function validateP2PPingCode(code) {
@@ -97,17 +144,21 @@ export function generateP2PPingCode(randomBytes = nodeRandomBytes) {
   return String(value % 1000000).padStart(6, '0')
 }
 
-export function deriveP2PPingTopic(code) {
+export function deriveP2PPingTopic(code, direction) {
   validateP2PPingCode(code)
+  validateDirection(direction)
   return createHash('sha256')
     .update(P2P_PING_TOPIC_DOMAIN)
     .update('\0')
     .update(code)
+    .update('\0')
+    .update(direction)
     .digest()
 }
 
-export function encodeP2PPingFrame(code, type, nonce) {
-  return `${JSON.stringify(createFrame(code, type, nonce))}\n`
+export function encodeP2PPingFrame(code, direction, type, nonce) {
+  validateDirection(direction)
+  return `${JSON.stringify(createFrame(code, direction, type, nonce))}\n`
 }
 
 export function createP2PPingFrameDecoder(onFrame, onError) {
@@ -173,6 +224,7 @@ export class P2PPingManager {
         : validateP2PPingCode(input.code)
     const createdAtMs = this.#now()
     const id = this.#randomBytes(16).toString('hex')
+    const timeoutMs = role === 'host' ? this.#hostTtlMs : this.#joinTimeoutMs
     const record = {
       id,
       role,
@@ -180,9 +232,7 @@ export class P2PPingManager {
       status: 'preparing',
       phase: 'preparing',
       createdAt: new Date(createdAtMs).toISOString(),
-      expiresAt: new Date(
-        createdAtMs + (role === 'host' ? this.#hostTtlMs : this.#joinTimeoutMs)
-      ).toISOString(),
+      expiresAt: new Date(createdAtMs + timeoutMs).toISOString(),
       completedAt: null,
       elapsedMs: null,
       discoveredPeers: 0,
@@ -190,29 +240,44 @@ export class P2PPingManager {
       remotePeerKey: null,
       errorCode: null,
       errorMessage: null,
+      directions: Object.fromEntries(
+        P2P_PING_DIRECTIONS.map(direction => [
+          direction,
+          createDirectionRecord(direction),
+        ])
+      ),
     }
     const session = {
       record,
       createdAtMs,
-      swarm: null,
-      discovery: null,
-      stream: null,
-      candidateStreams: new Map(),
       timer: null,
       cleanupTimer: null,
-      nonce: null,
       cleanedUp: false,
+      testingStarted: role === 'join',
+      directions: new Map(),
+    }
+
+    for (const direction of P2P_PING_DIRECTIONS) {
+      session.directions.set(direction, {
+        name: direction,
+        record: record.directions[direction],
+        client: DIRECTION_INITIATOR_ROLE[direction] === role,
+        swarm: null,
+        discovery: null,
+        candidates: new Map(),
+        stream: null,
+        hadConnection: false,
+      })
     }
 
     this.#activeSession = session
     this.#records.set(id, session)
     this.#trimRecords()
     this.#emit(session)
-    session.timer = setTimeout(
-      () => this.#handleTimeout(session),
-      role === 'host' ? this.#hostTtlMs : this.#joinTimeoutMs
-    )
-    void this.#run(session)
+    this.#setTimer(session, timeoutMs)
+    for (const runtime of session.directions.values()) {
+      void this.#runDirection(session, runtime)
+    }
     return cloneRecord(record)
   }
 
@@ -225,6 +290,16 @@ export class P2PPingManager {
     const session = this.#records.get(id)
     if (!session) return null
     if (!isTerminal(session.record.status)) {
+      for (const runtime of session.directions.values()) {
+        this.#finishDirection(
+          session,
+          runtime,
+          'cancelled',
+          'CANCELLED',
+          'P2P Ping was cancelled',
+          false
+        )
+      }
       this.#finish(session, 'cancelled', 'CANCELLED', 'P2P Ping was cancelled')
     }
     return cloneRecord(session.record)
@@ -234,6 +309,16 @@ export class P2PPingManager {
     const sessions = [...this.#records.values()]
     for (const session of sessions) {
       if (!isTerminal(session.record.status)) {
+        for (const runtime of session.directions.values()) {
+          this.#finishDirection(
+            session,
+            runtime,
+            'cancelled',
+            'CANCELLED',
+            'P2P Ping stopped with the node',
+            false
+          )
+        }
         this.#finish(
           session,
           'cancelled',
@@ -246,253 +331,380 @@ export class P2PPingManager {
     this.#activeSession = null
   }
 
-  async #run(session) {
+  async #runDirection(session, runtime) {
     try {
       const swarm = this.#createSwarm(this.#swarmOptions)
-      session.swarm = swarm
-      session.record.localPeerKey = toHex(swarm.keyPair?.publicKey)
+      runtime.swarm = swarm
+      runtime.record.localPeerKey = toHex(swarm.keyPair?.publicKey)
+      if (!session.record.localPeerKey) {
+        session.record.localPeerKey = runtime.record.localPeerKey
+      }
       swarm.on('connection', (connection, info) =>
-        this.#handleConnection(session, connection, info)
+        this.#handleConnection(session, runtime, connection, info)
       )
-      swarm.on('update', () => this.#handleUpdate(session))
-      swarm.on('error', error => this.#handleSwarmError(session, error))
+      swarm.on('update', () => this.#handleUpdate(session, runtime))
+      swarm.on('error', error =>
+        this.#handleSwarmError(session, runtime, error)
+      )
 
-      session.discovery = swarm.join(deriveP2PPingTopic(session.record.code), {
-        server: session.record.role === 'host',
-        client: session.record.role === 'join',
-      })
-      const announced = await session.discovery.flushed()
-      if (announced === false) throw new Error('DHT announce did not flush')
+      runtime.discovery = swarm.join(
+        deriveP2PPingTopic(session.record.code, runtime.name),
+        {
+          server: !runtime.client,
+          client: runtime.client,
+        }
+      )
+      const flushed = await runtime.discovery.flushed()
+      if (flushed === false) throw new Error('DHT setup did not flush')
       if (
         isTerminal(session.record.status) ||
-        session.stream ||
-        session.candidateStreams.size > 0
-      )
+        isDirectionTerminal(runtime.record.status) ||
+        runtime.candidates.size > 0
+      ) {
         return
+      }
 
-      this.#setStatus(
+      this.#setDirectionStatus(
         session,
-        session.record.role === 'host' ? 'waiting' : 'discovering'
+        runtime,
+        runtime.client ? 'discovering' : 'waiting'
       )
     } catch (error) {
-      this.#finish(
+      this.#finishDirection(
         session,
+        runtime,
         'failed',
         'ANNOUNCE_FAILED',
-        error.message || 'DHT announce failed'
+        error.message || 'DHT setup failed'
       )
     }
   }
 
-  #handleUpdate(session) {
-    if (isTerminal(session.record.status) || !session.swarm) return
-    const discoveredPeers = session.swarm.peers?.size || 0
-    if (discoveredPeers !== session.record.discoveredPeers) {
-      session.record.discoveredPeers = discoveredPeers
-      if (
-        session.record.role === 'join' &&
-        discoveredPeers > 0 &&
-        session.record.status === 'discovering'
-      ) {
-        this.#setStatus(session, 'connecting')
-      } else {
-        this.#emit(session)
-      }
-    }
-  }
-
-  #handleSwarmError(session, error) {
-    if (isTerminal(session.record.status)) return
-    if (session.record.status === 'preparing') {
-      this.#finish(
-        session,
-        'failed',
-        'ANNOUNCE_FAILED',
-        error.message || 'DHT announce failed'
-      )
-    }
-  }
-
-  #handleConnection(session, connection, info = {}) {
+  #handleUpdate(session, runtime) {
     if (
       isTerminal(session.record.status) ||
-      (session.record.role === 'join' && session.stream)
+      isDirectionTerminal(runtime.record.status) ||
+      !runtime.swarm
+    ) {
+      return
+    }
+    const discoveredPeers = runtime.swarm.peers?.size || 0
+    if (discoveredPeers > runtime.record.discoveredPeers) {
+      runtime.record.discoveredPeers = discoveredPeers
+      this.#markTestingStarted(session)
+      if (runtime.client && runtime.record.status === 'discovering') {
+        runtime.record.status = 'connecting'
+        runtime.record.phase = 'connecting'
+      }
+      this.#refreshAggregate(session)
+    }
+  }
+
+  #handleSwarmError(session, runtime, error) {
+    if (
+      isTerminal(session.record.status) ||
+      isDirectionTerminal(runtime.record.status)
+    ) {
+      return
+    }
+    if (runtime.record.status === 'preparing') {
+      this.#finishDirection(
+        session,
+        runtime,
+        'failed',
+        'ANNOUNCE_FAILED',
+        error.message || 'DHT setup failed'
+      )
+    }
+  }
+
+  #handleConnection(session, runtime, connection, info = {}) {
+    if (
+      isTerminal(session.record.status) ||
+      isDirectionTerminal(runtime.record.status)
     ) {
       connection.destroy()
       return
     }
 
-    const remotePeerKey = toHex(connection.remotePublicKey || info.publicKey)
+    this.#markTestingStarted(session)
+    runtime.hadConnection = true
     const candidate = {
-      nonce:
-        session.record.role === 'host'
-          ? this.#randomBytes(16).toString('hex')
-          : null,
-      remotePeerKey,
+      nonce: runtime.client ? this.#randomBytes(16).toString('hex') : null,
+      remotePeerKey: toHex(connection.remotePublicKey || info.publicKey),
     }
-    if (session.record.role === 'host') {
-      session.candidateStreams.set(connection, candidate)
-    } else {
-      session.stream = connection
-      session.record.remotePeerKey = remotePeerKey
-    }
-    session.record.discoveredPeers = Math.max(1, session.record.discoveredPeers)
-    this.#setStatus(session, 'verifying')
+    runtime.candidates.set(connection, candidate)
+    runtime.record.discoveredPeers = Math.max(1, runtime.record.discoveredPeers)
+    this.#setDirectionStatus(session, runtime, 'verifying')
 
     const decode = createP2PPingFrameDecoder(
-      frame => this.#handleFrame(session, connection, candidate, frame),
-      error => this.#handleConnectionFailure(session, connection, error)
+      frame =>
+        this.#handleFrame(session, runtime, connection, candidate, frame),
+      () => this.#rejectCandidate(session, runtime, connection)
     )
     connection.on('data', decode)
-    connection.on('error', error => {
-      this.#handleConnectionFailure(session, connection, error)
+    connection.on('error', () => {
+      this.#rejectCandidate(session, runtime, connection)
     })
     connection.on('close', () => {
-      if (session.record.role === 'host') {
-        session.candidateStreams.delete(connection)
-        if (
-          !isTerminal(session.record.status) &&
-          session.candidateStreams.size === 0
-        ) {
-          this.#setStatus(session, 'waiting')
-        }
-      } else if (!isTerminal(session.record.status)) {
-        this.#finish(
+      if (runtime.stream === connection) runtime.stream = null
+      if (isDirectionTerminal(runtime.record.status)) return
+      runtime.candidates.delete(connection)
+      if (runtime.candidates.size === 0) {
+        this.#setDirectionStatus(
           session,
-          'failed',
-          'PING_FAILED',
-          'P2P Ping stream closed before verification'
+          runtime,
+          runtime.client ? 'discovering' : 'waiting'
         )
       }
     })
 
-    if (session.record.role === 'host') {
-      this.#writeFrame(session, connection, 'p2p-ping', candidate.nonce)
-    }
-  }
-
-  #handleFrame(session, connection, candidate, frame) {
-    if (isTerminal(session.record.status)) return
-    const { code, role } = session.record
-
-    if (role === 'join' && !session.nonce) {
-      if (
-        !frame ||
-        frame.type !== 'p2p-ping' ||
-        typeof frame.nonce !== 'string' ||
-        !/^[0-9a-f]{32}$/.test(frame.nonce) ||
-        !isValidFrame(code, frame, 'p2p-ping', frame.nonce)
-      ) {
-        this.#finish(session, 'failed', 'PING_FAILED', 'Ping proof is invalid')
-        return
-      }
-      session.nonce = frame.nonce
-      this.#writeFrame(session, connection, 'p2p-pong', session.nonce)
-      return
-    }
-
-    if (
-      role === 'host' &&
-      isValidFrame(code, frame, 'p2p-pong', candidate.nonce)
-    ) {
-      session.record.remotePeerKey = candidate.remotePeerKey
-      this.#writeFrame(session, connection, 'p2p-ack', candidate.nonce)
-      this.#finish(session, 'success')
-      return
-    }
-
-    if (
-      role === 'join' &&
-      isValidFrame(code, frame, 'p2p-ack', session.nonce)
-    ) {
-      this.#finish(session, 'success')
-      return
-    }
-
-    if (role === 'host') {
-      this.#rejectCandidate(session, connection)
-    } else {
-      this.#finish(
+    if (runtime.client) {
+      this.#writeFrame(
         session,
-        'failed',
-        'PING_FAILED',
-        'Ping/Pong proof is invalid'
+        runtime,
+        connection,
+        'p2p-ping',
+        candidate.nonce
       )
     }
   }
 
-  #writeFrame(session, connection, type, nonce) {
-    try {
-      connection.write(encodeP2PPingFrame(session.record.code, type, nonce))
-    } catch (error) {
-      this.#handleConnectionFailure(session, connection, error)
-    }
-  }
-
-  #handleConnectionFailure(session, connection, error) {
-    if (isTerminal(session.record.status)) return
-    if (session.record.role === 'host') {
-      this.#rejectCandidate(session, connection)
+  #handleFrame(session, runtime, connection, candidate, frame) {
+    if (
+      isTerminal(session.record.status) ||
+      isDirectionTerminal(runtime.record.status)
+    ) {
       return
     }
-    this.#finish(
-      session,
-      'failed',
-      'PING_FAILED',
-      error.message || 'P2P Ping stream failed'
-    )
+    const code = session.record.code
+
+    if (
+      !runtime.client &&
+      !candidate.nonce &&
+      frame?.direction === runtime.name &&
+      typeof frame.nonce === 'string' &&
+      /^[0-9a-f]{32}$/.test(frame.nonce) &&
+      isValidFrame(code, runtime.name, frame, 'p2p-ping', frame.nonce)
+    ) {
+      candidate.nonce = frame.nonce
+      this.#writeFrame(
+        session,
+        runtime,
+        connection,
+        'p2p-pong',
+        candidate.nonce
+      )
+      return
+    }
+
+    if (
+      runtime.client &&
+      isValidFrame(code, runtime.name, frame, 'p2p-pong', candidate.nonce)
+    ) {
+      this.#writeFrame(session, runtime, connection, 'p2p-ack', candidate.nonce)
+      this.#completeDirection(session, runtime, connection, candidate)
+      return
+    }
+
+    if (
+      !runtime.client &&
+      candidate.nonce &&
+      isValidFrame(code, runtime.name, frame, 'p2p-ack', candidate.nonce)
+    ) {
+      this.#completeDirection(session, runtime, connection, candidate)
+      return
+    }
+
+    this.#rejectCandidate(session, runtime, connection)
   }
 
-  #rejectCandidate(session, connection) {
-    if (!session.candidateStreams.has(connection)) return
-    session.candidateStreams.delete(connection)
+  #writeFrame(session, runtime, connection, type, nonce) {
+    try {
+      connection.write(
+        encodeP2PPingFrame(session.record.code, runtime.name, type, nonce)
+      )
+    } catch {
+      this.#rejectCandidate(session, runtime, connection)
+    }
+  }
+
+  #completeDirection(session, runtime, connection, candidate) {
+    runtime.stream = connection
+    runtime.record.remotePeerKey = candidate.remotePeerKey
+    for (const otherConnection of runtime.candidates.keys()) {
+      if (otherConnection !== connection) otherConnection.destroy()
+    }
+    runtime.candidates.clear()
+    runtime.candidates.set(connection, candidate)
+    this.#finishDirection(session, runtime, 'success')
+  }
+
+  #rejectCandidate(session, runtime, connection) {
+    if (!runtime.candidates.has(connection)) return
+    runtime.candidates.delete(connection)
     connection.destroy()
     if (
       !isTerminal(session.record.status) &&
-      session.candidateStreams.size === 0
+      !isDirectionTerminal(runtime.record.status) &&
+      runtime.candidates.size === 0
     ) {
-      this.#setStatus(session, 'waiting')
+      this.#setDirectionStatus(
+        session,
+        runtime,
+        runtime.client ? 'discovering' : 'waiting'
+      )
     }
+  }
+
+  #markTestingStarted(session) {
+    if (session.testingStarted || session.record.role !== 'host') return
+    session.testingStarted = true
+    session.record.expiresAt = new Date(
+      this.#now() + this.#joinTimeoutMs
+    ).toISOString()
+    this.#setTimer(session, this.#joinTimeoutMs)
+  }
+
+  #setTimer(session, timeoutMs) {
+    clearTimeout(session.timer)
+    session.timer = setTimeout(() => this.#handleTimeout(session), timeoutMs)
   }
 
   #handleTimeout(session) {
     if (isTerminal(session.record.status)) return
-    if (session.record.role === 'host') {
+
+    if (session.record.role === 'host' && !session.testingStarted) {
+      for (const runtime of session.directions.values()) {
+        this.#finishDirection(
+          session,
+          runtime,
+          'expired',
+          'TIMEOUT',
+          'Ping code expired before another device started testing',
+          false
+        )
+      }
       this.#finish(
         session,
         'expired',
         'TIMEOUT',
-        'Ping code expired before a peer connected'
+        'Ping code expired before another device started testing'
       )
       return
     }
 
-    if (session.record.discoveredPeers === 0) {
-      this.#finish(
-        session,
-        'failed',
-        'PEER_NOT_FOUND',
-        'No peer was discovered for this Ping code'
-      )
-    } else if (!session.stream) {
-      this.#finish(
-        session,
-        'failed',
-        'CONNECTION_FAILED',
-        'A peer was found but a connection was not established'
-      )
-    } else {
-      this.#finish(
-        session,
-        'failed',
-        'TIMEOUT',
-        'Ping/Pong verification timed out'
-      )
+    for (const runtime of session.directions.values()) {
+      if (isDirectionTerminal(runtime.record.status)) continue
+      if (runtime.record.discoveredPeers === 0 && !runtime.hadConnection) {
+        this.#finishDirection(
+          session,
+          runtime,
+          'failed',
+          'PEER_NOT_FOUND',
+          'No peer was discovered for this connection direction',
+          false
+        )
+      } else if (!runtime.hadConnection) {
+        this.#finishDirection(
+          session,
+          runtime,
+          'failed',
+          'CONNECTION_FAILED',
+          'A peer was found but a connection was not established',
+          false
+        )
+      } else {
+        this.#finishDirection(
+          session,
+          runtime,
+          'failed',
+          'PING_FAILED',
+          'The connection opened but Ping/Pong proof did not complete',
+          false
+        )
+      }
     }
+    this.#refreshAggregate(session)
   }
 
-  #setStatus(session, status) {
+  #setDirectionStatus(session, runtime, status) {
+    if (
+      isTerminal(session.record.status) ||
+      isDirectionTerminal(runtime.record.status)
+    ) {
+      return
+    }
+    runtime.record.status = status
+    runtime.record.phase = status
+    this.#refreshAggregate(session)
+  }
+
+  #finishDirection(
+    session,
+    runtime,
+    status,
+    errorCode = null,
+    errorMessage = null,
+    refresh = true
+  ) {
+    if (isDirectionTerminal(runtime.record.status)) return
+    const completedPhase = runtime.record.phase
+    runtime.record.status = status
+    runtime.record.phase = status === 'success' ? 'success' : completedPhase
+    runtime.record.elapsedMs = Math.max(0, this.#now() - session.createdAtMs)
+    runtime.record.errorCode = errorCode
+    runtime.record.errorMessage = errorMessage
+    if (refresh) this.#refreshAggregate(session)
+  }
+
+  #refreshAggregate(session) {
     if (isTerminal(session.record.status)) return
+    const directions = [...session.directions.values()]
+    const records = directions.map(runtime => runtime.record)
+    session.record.discoveredPeers = records.reduce(
+      (total, record) => total + record.discoveredPeers,
+      0
+    )
+    session.record.localPeerKey =
+      records.find(record => record.localPeerKey)?.localPeerKey || null
+    session.record.remotePeerKey =
+      records.find(record => record.remotePeerKey)?.remotePeerKey || null
+
+    if (records.every(record => record.status === 'success')) {
+      this.#finish(session, 'success')
+      return
+    }
+
+    if (records.every(record => isDirectionTerminal(record.status))) {
+      const succeeded = records.filter(record => record.status === 'success')
+      if (succeeded.length > 0) {
+        this.#finish(session, 'partial')
+        return
+      }
+      const errors = records.filter(record => record.errorCode)
+      const sharedCode = errors.every(
+        record => record.errorCode === errors[0]?.errorCode
+      )
+        ? errors[0]?.errorCode
+        : 'TIMEOUT'
+      this.#finish(
+        session,
+        'failed',
+        sharedCode || 'TIMEOUT',
+        'Neither connection direction completed Ping/Pong proof'
+      )
+      return
+    }
+
+    const statuses = new Set(records.map(record => record.status))
+    let status = 'discovering'
+    if (statuses.has('verifying')) status = 'verifying'
+    else if (statuses.has('connecting')) status = 'connecting'
+    else if (statuses.has('preparing')) status = 'preparing'
+    else if (session.record.role === 'host' && !session.testingStarted) {
+      status = 'waiting'
+    }
     session.record.status = status
     session.record.phase = status
     this.#emit(session)
@@ -504,7 +716,8 @@ export class P2PPingManager {
     session.timer = null
     const completedPhase = session.record.phase
     session.record.status = status
-    session.record.phase = status === 'success' ? 'success' : completedPhase
+    session.record.phase =
+      status === 'success' || status === 'partial' ? status : completedPhase
     session.record.completedAt = new Date(this.#now()).toISOString()
     session.record.elapsedMs = Math.max(0, this.#now() - session.createdAtMs)
     session.record.errorCode = errorCode
@@ -513,7 +726,7 @@ export class P2PPingManager {
     this.#emit(session)
     session.cleanupTimer = setTimeout(
       () => void this.#cleanup(session),
-      status === 'success' ? 500 : 0
+      status === 'success' || status === 'partial' ? 500 : 0
     )
   }
 
@@ -523,14 +736,16 @@ export class P2PPingManager {
     clearTimeout(session.timer)
     clearTimeout(session.cleanupTimer)
     const tasks = []
-    if (session.discovery?.destroy)
-      tasks.push(Promise.resolve(session.discovery.destroy()))
-    if (session.stream?.destroy) session.stream.destroy()
-    for (const connection of session.candidateStreams.keys())
-      connection.destroy()
-    session.candidateStreams.clear()
-    if (session.swarm?.destroy)
-      tasks.push(Promise.resolve(session.swarm.destroy()))
+    for (const runtime of session.directions.values()) {
+      if (runtime.discovery?.destroy) {
+        tasks.push(Promise.resolve(runtime.discovery.destroy()))
+      }
+      for (const connection of runtime.candidates.keys()) connection.destroy()
+      runtime.candidates.clear()
+      if (runtime.swarm?.destroy) {
+        tasks.push(Promise.resolve(runtime.swarm.destroy()))
+      }
+    }
     await Promise.allSettled(tasks)
   }
 

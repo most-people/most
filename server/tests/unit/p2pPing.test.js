@@ -6,6 +6,7 @@ import {
   createP2PPingFrameDecoder,
   deriveP2PPingTopic,
   generateP2PPingCode,
+  P2P_PING_DIRECTIONS,
   P2PPingManager,
   validateP2PPingCode,
 } from '../../src/core/p2pPing.js'
@@ -38,8 +39,9 @@ class MemoryConnection extends EventEmitter {
   write(chunk) {
     if (this.destroyed) throw new Error('Connection is closed')
     const data = Buffer.from(chunk)
+    const peer = this.peer
     queueMicrotask(() => {
-      if (!this.peer?.destroyed) this.peer.emit('data', data)
+      if (peer && !peer.destroyed) peer.emit('data', data)
     })
     return true
   }
@@ -56,7 +58,8 @@ class MemoryConnection extends EventEmitter {
 }
 
 class MemoryPingNetwork {
-  constructor() {
+  constructor({ blockedTopics = [] } = {}) {
+    this.blockedTopics = new Set(blockedTopics)
     this.entries = []
     this.swarms = []
     this.nextKey = 1
@@ -98,6 +101,7 @@ class MemoryPingNetwork {
   connectEligible() {
     for (const host of this.entries) {
       if (host.destroyed || !host.options.server || host.connected) continue
+      if (this.blockedTopics.has(host.topic.toString('hex'))) continue
       const join = this.entries.find(
         candidate =>
           !candidate.destroyed &&
@@ -141,9 +145,19 @@ describe('P2P Ping protocol', () => {
   })
 
   it('matches the topic golden sample', () => {
-    assert.equal(
-      deriveP2PPingTopic('000042').toString('hex'),
-      '76181be378cb3cdeb40c42254fb657e576699291c53ae3add926c5c051d2b19a'
+    assert.deepEqual(
+      Object.fromEntries(
+        P2P_PING_DIRECTIONS.map(direction => [
+          direction,
+          deriveP2PPingTopic('000042', direction).toString('hex'),
+        ])
+      ),
+      {
+        hostToJoin:
+          '595b7f72e315d0c570af73109bcd8b33a2cbd6cb38f2f8382c3afc0d1689abab',
+        joinToHost:
+          'c3c6d17566c66a652ffdba88ed5768c5a3c83dc9bf30d87565d522e0d1ec83c9',
+      }
     )
   })
 
@@ -158,12 +172,13 @@ describe('P2P Ping protocol', () => {
     assert.equal(errors.length, 2)
   })
 
-  it('completes encrypted-stream Ping, Pong, and Ack in both directions', async () => {
+  it('completes Ping, Pong, and Ack for both connection directions', async () => {
     const network = new MemoryPingNetwork()
     const host = new P2PPingManager({
       createSwarm: network.createSwarm,
       randomBytes: deterministicRandomBytes,
       hostTtlMs: 500,
+      joinTimeoutMs: 500,
     })
     const join = new P2PPingManager({
       createSwarm: network.createSwarm,
@@ -181,19 +196,64 @@ describe('P2P Ping protocol', () => {
 
     assert.equal(
       host.get(hostRecord.id).remotePeerKey,
-      Buffer.alloc(32, 2).toString('hex')
+      Buffer.alloc(32, 3).toString('hex')
     )
     assert.equal(
       join.get(joinRecord.id).remotePeerKey,
       Buffer.alloc(32, 1).toString('hex')
     )
+    assert.equal(
+      host.get(hostRecord.id).directions.hostToJoin.status,
+      'success'
+    )
+    assert.equal(
+      host.get(hostRecord.id).directions.joinToHost.status,
+      'success'
+    )
     assert.deepEqual(
       network.entries.map(entry => entry.options),
       [
+        { server: false, client: true },
+        { server: true, client: false },
         { server: true, client: false },
         { server: false, client: true },
       ]
     )
+    await host.destroy()
+    await join.destroy()
+  })
+
+  it('reports partial connectivity when only one role direction works', async () => {
+    const network = new MemoryPingNetwork({
+      blockedTopics: [
+        deriveP2PPingTopic('000042', 'joinToHost').toString('hex'),
+      ],
+    })
+    const host = new P2PPingManager({
+      createSwarm: network.createSwarm,
+      randomBytes: deterministicRandomBytes,
+      hostTtlMs: 500,
+      joinTimeoutMs: 35,
+    })
+    const join = new P2PPingManager({
+      createSwarm: network.createSwarm,
+      randomBytes: deterministicRandomBytes,
+      joinTimeoutMs: 35,
+    })
+
+    const hostRecord = await host.start({ role: 'host' })
+    const joinRecord = await join.start({ role: 'join', code: hostRecord.code })
+    await waitFor(
+      () =>
+        host.get(hostRecord.id)?.status === 'partial' &&
+        join.get(joinRecord.id)?.status === 'partial'
+    )
+
+    for (const result of [host.get(hostRecord.id), join.get(joinRecord.id)]) {
+      assert.equal(result.directions.hostToJoin.status, 'success')
+      assert.equal(result.directions.joinToHost.status, 'failed')
+      assert.equal(result.directions.joinToHost.errorCode, 'PEER_NOT_FOUND')
+    }
     await host.destroy()
     await join.destroy()
   })
@@ -295,7 +355,7 @@ describe('P2P Ping protocol', () => {
     })
     assert.equal(
       await waitFor(() => handshakeManager.get(verifying.id)?.errorCode),
-      'TIMEOUT'
+      'PING_FAILED'
     )
   })
 
@@ -311,7 +371,7 @@ describe('P2P Ping protocol', () => {
     const cancelled = manager.cancel(record.id)
     assert.equal(cancelled.status, 'cancelled')
     assert.equal(cancelled.errorCode, 'CANCELLED')
-    await waitFor(() => network.swarms[0]?.destroyed)
+    await waitFor(() => network.swarms.every(swarm => swarm.destroyed))
 
     const next = await manager.start({ role: 'join', code: '000042' })
     assert.equal(next.status, 'preparing')
