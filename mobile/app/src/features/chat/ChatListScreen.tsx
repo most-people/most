@@ -34,6 +34,15 @@ import {
   parseChannelJoinInput,
   type ChannelLastReadMap,
 } from './chatState'
+import { useI18n, type MessageKey } from '../../i18n'
+
+const VALIDATION_MESSAGE_KEYS: Record<string, MessageKey> = {
+  '频道 ID 至少 3 个字符': 'chat.validation.tooShort',
+  '频道 ID 最多 30 个字符': 'chat.validation.tooLong',
+  '点号为系统保留，不能用于手动频道 ID': 'chat.validation.reservedDot',
+  '频道 ID 只能包含字母、数字、下划线和连字符':
+    'chat.validation.invalidCharacters',
+}
 
 export type ChatListScreenProps = {
   channels: MobileChannel[]
@@ -68,6 +77,7 @@ export function ChatListScreen({
   onRename,
   onLeave,
 }: ChatListScreenProps) {
+  const { t } = useI18n()
   const [editingChannelKey, setEditingChannelKey] = useState('')
   const [remarkDraft, setRemarkDraft] = useState('')
 
@@ -81,7 +91,11 @@ export function ChatListScreen({
   const handleOpenPress = () => {
     const validation = validateChannelName(parseChannelJoinInput(channelInput))
     if (!validation.valid) {
-      Alert.alert('无法打开聊天', validation.message)
+      const messageKey = VALIDATION_MESSAGE_KEYS[validation.message]
+      Alert.alert(
+        t('chat.list.openFailed'),
+        messageKey ? t(messageKey) : validation.message
+      )
       return
     }
 
@@ -122,22 +136,22 @@ export function ChatListScreen({
     >
       <View style={styles.hero}>
         <Text style={styles.brand}>MostBox</Text>
-        <Text style={styles.title}>聊天频道</Text>
-        <Text style={styles.subtitle}>
-          选择已有频道，或按频道 ID 打开频道。
-        </Text>
+        <Text style={styles.title}>{t('chat.list.title')}</Text>
+        <Text style={styles.subtitle}>{t('chat.list.subtitle')}</Text>
       </View>
 
       <View style={styles.panel}>
         <View style={styles.inputHeader}>
           <Search size={18} color="#0f766e" />
-          <Text style={styles.inputHeaderText}>搜索频道</Text>
+          <Text style={styles.inputHeaderText}>
+            {t('chat.list.searchTitle')}
+          </Text>
         </View>
         <View style={styles.inputShell}>
           <TextInput
             value={searchInput}
             onChangeText={onSearchInputChange}
-            placeholder="输入频道名、备注或 key"
+            placeholder={t('chat.list.searchPlaceholder')}
             placeholderTextColor="#7b8c86"
             autoCapitalize="none"
             autoCorrect={false}
@@ -149,17 +163,15 @@ export function ChatListScreen({
       <View style={styles.panel}>
         <View style={styles.inputHeader}>
           <Hash size={18} color="#2563eb" />
-          <Text style={styles.inputHeaderText}>打开频道</Text>
+          <Text style={styles.inputHeaderText}>{t('chat.list.openTitle')}</Text>
         </View>
-        <Text style={styles.inputHint}>
-          自定义短 ID 更容易被猜到；知道频道 ID 的人即可进入。
-        </Text>
+        <Text style={styles.inputHint}>{t('chat.list.openHint')}</Text>
         <View style={styles.joinRow}>
           <View style={styles.joinInputShell}>
             <TextInput
               value={channelInput}
               onChangeText={onChannelInputChange}
-              placeholder="频道 ID 或 /chat/# 分享链接"
+              placeholder={t('chat.list.openPlaceholder')}
               placeholderTextColor="#7b8c86"
               autoCapitalize="none"
               autoCorrect={false}
@@ -168,7 +180,7 @@ export function ChatListScreen({
           </View>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="生成随机频道 ID"
+            accessibilityLabel={t('chat.list.randomId')}
             disabled={busy}
             onPress={() => {
               void onGenerateChannelId()
@@ -189,15 +201,22 @@ export function ChatListScreen({
                 busy ? styles.actionDisabledText : null,
               ]}
             >
-              打开
+              {t('chat.list.openAction')}
             </Text>
           </Pressable>
         </View>
       </View>
 
       <View style={styles.listHeader}>
-        <Text style={styles.listTitle}>频道列表</Text>
-        <Text style={styles.listMeta}>{visibleChannels.length} 个频道</Text>
+        <Text style={styles.listTitle}>{t('chat.list.section')}</Text>
+        <Text style={styles.listMeta}>
+          {t(
+            visibleChannels.length === 1
+              ? 'chat.list.count.one'
+              : 'chat.list.count',
+            { count: visibleChannels.length }
+          )}
+        </Text>
       </View>
 
       {visibleChannels.length ? (
@@ -207,7 +226,8 @@ export function ChatListScreen({
             const messages = messagesByChannel[channelKey] || []
             const latestMessage = messages[messages.length - 1]
             const summary =
-              getMessageSummary(latestMessage) || '暂无消息，开始聊天吧'
+              getMessageSummary(latestMessage, t('chat.room.unknownAuthor')) ||
+              t('chat.list.noMessages')
             const unread = hasUnreadChannel(channel, lastReadAt)
             const editing = editingChannelKey === channelKey
 
@@ -226,7 +246,9 @@ export function ChatListScreen({
                     {channel.pinned ? (
                       <View style={styles.pinnedBadge}>
                         <Pin size={12} color="#92400e" />
-                        <Text style={styles.pinnedBadgeText}>置顶</Text>
+                        <Text style={styles.pinnedBadgeText}>
+                          {t('chat.list.pinned')}
+                        </Text>
                       </View>
                     ) : null}
                     <Text numberOfLines={1} style={styles.channelTitle}>
@@ -277,7 +299,9 @@ export function ChatListScreen({
                         busy ? styles.actionDisabledText : null,
                       ]}
                     >
-                      {channel.pinned ? '取消' : '置顶'}
+                      {channel.pinned
+                        ? t('chat.list.unpin')
+                        : t('chat.list.pinned')}
                     </Text>
                   </Pressable>
 
@@ -299,7 +323,7 @@ export function ChatListScreen({
                         busy ? styles.actionDisabledText : null,
                       ]}
                     >
-                      改名
+                      {t('chat.list.rename')}
                     </Text>
                   </Pressable>
 
@@ -321,19 +345,21 @@ export function ChatListScreen({
                         busy ? styles.actionDisabledText : null,
                       ]}
                     >
-                      退出
+                      {t('chat.list.leave')}
                     </Text>
                   </Pressable>
                 </View>
 
                 {editing ? (
                   <View style={styles.remarkEditor}>
-                    <Text style={styles.remarkLabel}>备注</Text>
+                    <Text style={styles.remarkLabel}>
+                      {t('chat.list.remark')}
+                    </Text>
                     <View style={styles.remarkInputShell}>
                       <TextInput
                         value={remarkDraft}
                         onChangeText={setRemarkDraft}
-                        placeholder="留空则使用频道名"
+                        placeholder={t('chat.list.remarkPlaceholder')}
                         placeholderTextColor="#7b8c86"
                         autoCapitalize="none"
                         autoCorrect={false}
@@ -359,7 +385,7 @@ export function ChatListScreen({
                             busy ? styles.actionDisabledText : null,
                           ]}
                         >
-                          保存
+                          {t('common.save')}
                         </Text>
                       </Pressable>
                       <Pressable
@@ -377,7 +403,7 @@ export function ChatListScreen({
                             busy ? styles.actionDisabledText : null,
                           ]}
                         >
-                          取消
+                          {t('common.cancel')}
                         </Text>
                       </Pressable>
                     </View>
@@ -390,10 +416,8 @@ export function ChatListScreen({
       ) : (
         <View style={styles.emptyState}>
           <MessageCircle size={28} color="#0f766e" />
-          <Text style={styles.emptyTitle}>还没有可显示的频道</Text>
-          <Text style={styles.emptyBody}>
-            可以清空搜索条件，或按频道 ID 打开频道。
-          </Text>
+          <Text style={styles.emptyTitle}>{t('chat.list.emptyTitle')}</Text>
+          <Text style={styles.emptyBody}>{t('chat.list.emptyBody')}</Text>
         </View>
       )}
     </ScrollView>

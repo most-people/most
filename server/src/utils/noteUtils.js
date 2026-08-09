@@ -103,6 +103,23 @@ export function validateNoteName(name) {
   return { valid: true, name: value }
 }
 
+export function getNoteBackupFileName(name) {
+  const baseName = String(name || '')
+    .trim()
+    .replace(/\.md$/i, '')
+    .replace(/\.txt$/i, '')
+  const validation = validateNoteName(baseName)
+  return validation.valid ? `${validation.name}.txt` : 'note.txt'
+}
+
+export function getImportedNoteStorageName(fileName) {
+  const value = String(fileName || '').trim()
+  if (!value.toLowerCase().endsWith('.txt')) return ''
+
+  const validation = validateNoteName(value.replace(/\.txt$/i, ''))
+  return validation.valid ? `${validation.name}.md` : ''
+}
+
 export async function calculateNoteCid(content = '') {
   const bytes = new TextEncoder().encode(String(content))
   const hash = await sha256.digest(bytes)

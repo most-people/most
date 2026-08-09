@@ -4,6 +4,8 @@ import {
   applyMarkdownTool,
   createAttachmentMarkdown,
   createUniqueKnowledgeFilePath,
+  getKnowledgeImportPathFromTextFile,
+  getKnowledgeNoteBackupFileName,
   insertMarkdownAtSelection,
   joinKnowledgePath,
   normalizeKnowledgeDirectory,
@@ -36,6 +38,16 @@ describe('mobile knowledge model', () => {
     assert.throws(() => normalizeKnowledgeFilePath('C:/secret.md'))
     assert.throws(() => normalizeKnowledgeFilePath('.private/secret.md'))
     assert.throws(() => normalizeKnowledgeFilePath('secret.txt'))
+  })
+
+  it('maps Markdown notes to and from .txt transfer files', () => {
+    assert.equal(getKnowledgeNoteBackupFileName('周报'), '周报.txt')
+    assert.equal(getKnowledgeNoteBackupFileName('周报.md'), '周报.txt')
+    assert.equal(
+      getKnowledgeImportPathFromTextFile('项目', '周报.txt'),
+      '项目/周报.md'
+    )
+    assert.throws(() => getKnowledgeImportPathFromTextFile('项目', '周报.md'))
   })
 
   it('searches note names, paths, and Markdown content', () => {

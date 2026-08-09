@@ -90,6 +90,21 @@ export function joinKnowledgePath(directory: string, name: string) {
   )
 }
 
+export function getKnowledgeNoteBackupFileName(input: string) {
+  return normalizeKnowledgeNoteName(input).replace(/\.md$/i, '.txt')
+}
+
+export function getKnowledgeImportPathFromTextFile(
+  directory: string,
+  fileName: string
+) {
+  const value = String(fileName || '').trim()
+  if (!value.toLowerCase().endsWith('.txt')) {
+    throw new Error('请选择 .txt 笔记文件')
+  }
+  return joinKnowledgePath(directory, value.replace(/\.txt$/i, ''))
+}
+
 export function getKnowledgeDirectory(path: string) {
   const normalizedPath = normalizeKnowledgeFilePath(path)
   const index = normalizedPath.lastIndexOf('/')

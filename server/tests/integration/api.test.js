@@ -2008,6 +2008,11 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
           body: JSON.stringify({
             displayName: 'Backed Up API User',
             avatar: '/avatars/default/panda.svg',
+            tag: {
+              'zh-CN': '测试用户',
+              'zh-TW': '測試使用者',
+              en: 'Test user',
+            },
             updatedAt,
           }),
         }
@@ -2017,6 +2022,11 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(putData.success, true)
       assert.strictEqual(putData.profile.displayName, 'Backed Up API User')
       assert.strictEqual(putData.profile.avatar, '/avatars/default/panda.svg')
+      assert.deepStrictEqual(putData.profile.tag, {
+        'zh-CN': '测试用户',
+        'zh-TW': '測試使用者',
+        en: 'Test user',
+      })
       assert.strictEqual(putData.profile.updatedAt, updatedAt)
 
       const getRes = await fetchAs(TEST_IDENTITY, `${baseUrl}/api/user/profile`)
@@ -2024,7 +2034,30 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(getRes.status, 200)
       assert.strictEqual(getData.displayName, 'Backed Up API User')
       assert.strictEqual(getData.avatar, '/avatars/default/panda.svg')
+      assert.deepStrictEqual(getData.tag, {
+        'zh-CN': '测试用户',
+        'zh-TW': '測試使用者',
+        en: 'Test user',
+      })
       assert.strictEqual(getData.updatedAt, updatedAt)
+
+      const clearRes = await fetchAs(
+        TEST_IDENTITY,
+        `${baseUrl}/api/user/profile`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            displayName: 'Backed Up API User',
+            avatar: '/avatars/default/panda.svg',
+            tag: null,
+            updatedAt: updatedAt + 1,
+          }),
+        }
+      )
+      const clearData = await clearRes.json()
+      assert.strictEqual(clearRes.status, 200)
+      assert.strictEqual(clearData.profile.tag, null)
     })
 
     it('exports sanitized account metadata for encrypted backup', async () => {
@@ -2069,6 +2102,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         profile: {
           displayName: 'Imported API User',
           avatar: '',
+          tag: { 'zh-CN': '导入用户', en: 'Imported user' },
           updatedAt,
         },
         files: [
@@ -2106,6 +2140,10 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
         engine.getUserProfile(TEST_IDENTITY.address).displayName,
         'Imported API User'
       )
+      assert.deepStrictEqual(engine.getUserProfile(TEST_IDENTITY.address).tag, {
+        'zh-CN': '导入用户',
+        en: 'Imported user',
+      })
     })
 
     it('restores backup profile through the API even when local profile is newer', async () => {
@@ -2114,6 +2152,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       engine.saveUserProfile(TEST_IDENTITY.address, {
         displayName: 'Newer Local API User',
         avatar: '/avatars/default/turtle.svg',
+        tag: { default: 'Keep this legacy-safe tag' },
         updatedAt: localUpdatedAt,
       })
 
@@ -2142,6 +2181,9 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(data.result.profileUpdated, true)
       const profile = engine.getUserProfile(TEST_IDENTITY.address)
       assert.strictEqual(profile.displayName, 'Restored Older API User')
+      assert.deepStrictEqual(profile.tag, {
+        default: 'Keep this legacy-safe tag',
+      })
       assert.strictEqual(profile.updatedAt, backupUpdatedAt)
     })
 

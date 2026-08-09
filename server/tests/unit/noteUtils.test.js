@@ -4,6 +4,8 @@ import {
   calculateNoteCid,
   filterNotesByPath,
   findNoteByIdentity,
+  getImportedNoteStorageName,
+  getNoteBackupFileName,
   getNoteFullPath,
   normalizeNotePath,
   removeNotesByIdentity,
@@ -124,6 +126,14 @@ describe('noteUtils', () => {
     assert.strictEqual(validateNoteName('hello').valid, true)
     assert.strictEqual(validateNoteName('').valid, false)
     assert.strictEqual(validateNoteName('a/b').valid, false)
+  })
+
+  it('maps stored Markdown notes to and from .txt transfer files', () => {
+    assert.strictEqual(getNoteBackupFileName('weekly.md'), 'weekly.txt')
+    assert.strictEqual(getNoteBackupFileName('weekly'), 'weekly.txt')
+    assert.strictEqual(getImportedNoteStorageName('weekly.txt'), 'weekly.md')
+    assert.strictEqual(getImportedNoteStorageName('weekly.md'), '')
+    assert.strictEqual(getImportedNoteStorageName('../weekly.txt'), '')
   })
 })
 

@@ -28,6 +28,11 @@ import { ConfirmModal, ModalOverlay } from '~/components/ui'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import { useI18n, type MessageKey } from '~/lib/i18n'
+import {
+  normalizeLocalizedTag,
+  selectExactLocalizedTag,
+  selectLocalizedTag,
+} from '~/lib/localizedTag'
 import { useAccountBackup } from '~/features/profile/useAccountBackup'
 import { ProfileAppearanceSettings } from '~/features/profile/ProfileAppearanceSettings'
 import {
@@ -116,7 +121,7 @@ function AccountBackupStatusIcon({
 }
 
 export default function ProfilePage() {
-  const { formatNumber, t } = useI18n()
+  const { formatNumber, locale, localeName, t } = useI18n()
   const addToast = useAppStore(s => s.addToast)
   const hasBackend = useAppStore(s => s.hasBackend)
   const identity = useUserStore(s => s.identity)
@@ -125,6 +130,8 @@ export default function ProfilePage() {
   const logoutUser = useUserStore(s => s.logoutUser)
   const accountBackup = useAccountBackup()
   const [displayNameDraft, setDisplayNameDraft] = useState('')
+  const [tagDraft, setTagDraft] = useState('')
+  const [tagError, setTagError] = useState('')
   const [avatarUrlDraft, setAvatarUrlDraft] = useState('')
   const [avatarUrlError, setAvatarUrlError] = useState('')
   const [avatarUploadFile, setAvatarUploadFile] = useState<File | null>(null)
@@ -149,6 +156,11 @@ export default function ProfilePage() {
     )
     setAvatarUrlError('')
   }, [identity])
+
+  useEffect(() => {
+    setTagDraft(selectExactLocalizedTag(identity?.tag, locale))
+    setTagError('')
+  }, [identity?.tag, locale])
 
   useEffect(() => {
     if (!identity) return
@@ -204,6 +216,7 @@ export default function ProfilePage() {
     ...avatarOptions.slice(1),
   ]
   const avatarSrc = generateAvatar(identity.address, identity.avatar)
+  const displayTag = selectLocalizedTag(identity.tag, locale)
   const canSaveAvatarUrl = avatarUrlDraft.trim().length > 0
   const canUploadAvatar = Boolean(avatarUploadFile) && !avatarUploading
   const backupStatusClass = getBackupStatusClass(accountBackup.status)
@@ -350,6 +363,7 @@ export default function ProfilePage() {
           json: {
             displayName: nextIdentity.displayName || nextIdentity.username,
             avatar: nextIdentity.avatar || '',
+            tag: nextIdentity.tag,
             updatedAt: nextIdentity.profileUpdatedAt || Date.now(),
           },
         })
@@ -390,6 +404,33 @@ export default function ProfilePage() {
     void saveBackendProfile(nextIdentity)
     setDisplayNameDraft(displayName)
     addToast(t('profile.toast.saved'), 'success')
+  }
+
+  function handleSaveTag() {
+    if (!identity) return
+    const normalizedDraft = normalizeLocalizedTag(tagDraft)
+    if (tagDraft.trim() && !normalizedDraft?.default) {
+      setTagError(t('profile.tag.invalid'))
+      return
+    }
+
+    const nextTagValues = Object.fromEntries(
+      Object.entries(identity.tag || {}).filter(
+        ([key]) => key.toLowerCase() !== locale.toLowerCase()
+      )
+    )
+    if (normalizedDraft?.default) {
+      nextTagValues[locale] = normalizedDraft.default
+    }
+    const nextIdentity = {
+      ...identity,
+      tag: normalizeLocalizedTag(nextTagValues) || null,
+      profileUpdatedAt: Date.now(),
+    }
+    setUserIdentity(nextIdentity)
+    void saveBackendProfile(nextIdentity)
+    setTagError('')
+    addToast(t('profile.toast.tagUpdated'), 'success')
   }
 
   function handleSaveAvatarUrl() {
@@ -524,7 +565,14 @@ export default function ProfilePage() {
             />
             <div className="profile-heading">
               <p className="profile-kicker">{t('profile.kicker')}</p>
-              <h1>{identity.displayName || identity.username}</h1>
+              <div className="profile-name-line">
+                <h1>{identity.displayName || identity.username}</h1>
+                {displayTag && (
+                  <span className="profile-user-tag" translate="no">
+                    {displayTag}
+                  </span>
+                )}
+              </div>
               <div className="profile-address-line">
                 <code translate="no">{address}</code>
                 <CopyButton text={address} />
@@ -575,6 +623,53 @@ export default function ProfilePage() {
                     {t('profile.action.save')}
                   </button>
                 </div>
+              </label>
+              <label className="profile-field profile-tag-field">
+                <span>{t('profile.label.tag', { locale: localeName })}</span>
+                <div className="profile-field-row">
+                  <div className="profile-tag-input-control">
+                    <input
+                      className="input"
+                      value={tagDraft}
+                      onChange={event => {
+                        setTagDraft(event.target.value)
+                        setTagError('')
+                      }}
+                      placeholder={t('profile.tag.placeholder')}
+                      aria-invalid={Boolean(tagError)}
+                      aria-describedby={
+                        tagError ? 'profile-tag-error' : undefined
+                      }
+                    />
+                    {tagDraft && (
+                      <button
+                        type="button"
+                        className="profile-tag-input-clear"
+                        onClick={() => {
+                          setTagDraft('')
+                          setTagError('')
+                        }}
+                        aria-label={t('profile.action.clearTagInput')}
+                        title={t('profile.action.clearTagInput')}
+                      >
+                        <X size={16} />
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={handleSaveTag}
+                  >
+                    <Save size={16} />
+                    {t('profile.action.save')}
+                  </button>
+                </div>
+                {tagError && (
+                  <span id="profile-tag-error" className="profile-error">
+                    {tagError}
+                  </span>
+                )}
               </label>
               <div className="profile-facts">
                 <ProfileFact

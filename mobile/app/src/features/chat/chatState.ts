@@ -278,10 +278,13 @@ export function getAttachmentFromMessage(
   }
 }
 
-export function getMessageSummary(message?: MobileChannelMessage) {
+export function getMessageSummary(
+  message?: MobileChannelMessage,
+  unknownAuthor = '未知'
+) {
   if (!message) return ''
 
-  const authorName = message.authorName || '未知'
+  const authorName = message.authorName || unknownAuthor
   const attachment = getAttachmentFromMessage(message)
   if (attachment) return `${authorName}: ${attachment.fileName}`
 

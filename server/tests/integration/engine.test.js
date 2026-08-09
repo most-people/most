@@ -3330,6 +3330,7 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         sourceEngine.saveUserProfile(syncOwner, {
           displayName: 'Backup Name',
           avatar: 'old.png',
+          tag: { 'zh-CN': '备份标签', en: 'Backup tag' },
           updatedAt: 1000,
         })
         await targetEngine.importUserData(
@@ -3345,10 +3346,15 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
           targetEngine.getUserProfile(syncOwner).avatar,
           'old.png'
         )
+        assert.deepStrictEqual(targetEngine.getUserProfile(syncOwner).tag, {
+          'zh-CN': '备份标签',
+          en: 'Backup tag',
+        })
 
         sourceEngine.saveUserProfile(syncOwner, {
           displayName: 'Fresh Name',
           avatar: '/avatars/default/panda.svg',
+          tag: { 'zh-CN': '新标签', en: 'Fresh tag' },
           updatedAt: 2000,
         })
         await targetEngine.importUserData(
@@ -3358,15 +3364,21 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         const freshProfile = targetEngine.getUserProfile(syncOwner)
         assert.strictEqual(freshProfile.displayName, 'Fresh Name')
         assert.strictEqual(freshProfile.avatar, '/avatars/default/panda.svg')
+        assert.deepStrictEqual(freshProfile.tag, {
+          'zh-CN': '新标签',
+          en: 'Fresh tag',
+        })
 
         targetEngine.saveUserProfile(syncOwner, {
           displayName: 'Newest Local',
           avatar: 'newest.png',
+          tag: { default: 'Newest local tag' },
           updatedAt: 3000,
         })
         sourceEngine.saveUserProfile(syncOwner, {
           displayName: 'Stale Remote',
           avatar: 'stale.png',
+          tag: { default: 'Stale remote tag' },
           updatedAt: 2500,
         })
         await targetEngine.importUserData(
@@ -3381,6 +3393,9 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
           targetEngine.getUserProfile(syncOwner).avatar,
           'newest.png'
         )
+        assert.deepStrictEqual(targetEngine.getUserProfile(syncOwner).tag, {
+          default: 'Newest local tag',
+        })
       } finally {
         if (sourceEngine) await sourceEngine.stop().catch(() => {})
         if (targetEngine) await targetEngine.stop().catch(() => {})

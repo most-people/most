@@ -1,5 +1,6 @@
 import {
   Suspense,
+  type ChangeEvent,
   type ReactNode,
   lazy,
   useCallback,
@@ -12,6 +13,8 @@ import { useLocation, useNavigate } from '@tanstack/react-router'
 import {
   ChevronDown,
   ChevronRight,
+  FileDown,
+  FileUp,
   PencilRuler,
   GitBranch,
   MoreHorizontal,
@@ -32,6 +35,8 @@ import { useAppStore, type NoteItem } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import {
   findNoteByIdentity,
+  getImportedNoteStorageName,
+  getNoteBackupFileName,
   getNoteFullPath,
   normalizeNotePath,
 } from '~server/src/utils/noteUtils.js'
@@ -189,6 +194,18 @@ function getDisplayMarkdownName(input = '') {
 function getStorageMarkdownName(input: string) {
   const name = getDisplayMarkdownName(input)
   return name ? `${name}.md` : ''
+}
+
+function downloadTextExport(fileName: string, content: string) {
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = fileName
+  document.body.appendChild(anchor)
+  anchor.click()
+  document.body.removeChild(anchor)
+  URL.revokeObjectURL(url)
 }
 
 function getUniqueStorageMarkdownName(
@@ -1419,6 +1436,7 @@ function VaultNotePageContent() {
   const searchStr = useLocation({ select: location => location.searchStr })
   const params = useMemo(() => getNoteSearch(searchStr), [searchStr])
   const editorRef = useRef<MostMarkdownEditorRef>(null)
+  const noteImportInputRef = useRef<HTMLInputElement>(null)
 
   const addToast = useAppStore(s => s.addToast)
   const wallet = useUserStore(s => s.wallet)
@@ -1446,6 +1464,7 @@ function VaultNotePageContent() {
   const [fileError, setFileError] = useState('')
   const [isPublishingAttachment, setIsPublishingAttachment] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [importingNote, setImportingNote] = useState(false)
   const [expandedTreePaths, setExpandedTreePaths] = useState<Set<string>>(
     () => new Set(getDirectoryPathAncestors(vaultFolderPath))
   )
@@ -1718,6 +1737,65 @@ function VaultNotePageContent() {
       return false
     }
     return true
+  }
+
+  function handleExportCurrentNote() {
+    if (!selectedFile) {
+      addToast(t('note.toast.notFound'), 'error')
+      return
+    }
+
+    try {
+      downloadTextExport(
+        getNoteBackupFileName(selectedFile.name),
+        selectedFile.content
+      )
+      addToast(t('note.toast.exported'), 'success')
+    } catch {
+      addToast(t('note.toast.exportFailed'), 'error')
+    }
+  }
+
+  async function handleImportNote(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget
+    const file = input.files?.[0]
+    input.value = ''
+    if (!file || !ensureVaultReady()) return
+
+    const storageName = getImportedNoteStorageName(file.name)
+    if (!storageName) {
+      addToast(t('note.error.txtRequired'), 'warning')
+      return
+    }
+
+    setImportingNote(true)
+    try {
+      const uniqueName = getUniqueStorageMarkdownName(
+        storageName,
+        t('note.untitled'),
+        candidate =>
+          vaultFiles.some(
+            vaultFile =>
+              normalizeNotePath(vaultFile.directory) ===
+                normalizeNotePath(vaultFolderPath) &&
+              vaultFile.name.toLowerCase() === candidate.toLowerCase()
+          )
+      )
+      const targetPath = normalizeNotePath(
+        vaultFolderPath ? `${vaultFolderPath}/${uniqueName}` : uniqueName
+      )
+      const imported = await createNoteVaultFile(targetPath, await file.text())
+      await refreshVault()
+      navigateToVault({ file: imported.path })
+      addToast(t('note.toast.imported'), 'success')
+    } catch (err: unknown) {
+      addToast(
+        await getApiErrorMessage(err, t('note.toast.importFailed')),
+        'error'
+      )
+    } finally {
+      setImportingNote(false)
+    }
   }
 
   async function importChatDraftToVault(draft: ChatNoteDraft) {
@@ -2033,6 +2111,26 @@ function VaultNotePageContent() {
             <Plus size={16} />
             {t('note.newNote')}
           </button>
+          <input
+            ref={noteImportInputRef}
+            accept=".txt,text/plain"
+            className="note-import-input"
+            onChange={handleImportNote}
+            type="file"
+          />
+          <button
+            className="btn btn-secondary"
+            disabled={importingNote}
+            onClick={() => noteImportInputRef.current?.click()}
+            type="button"
+          >
+            {importingNote ? (
+              <Loader size={16} className="ui-spinner" />
+            ) : (
+              <FileUp size={16} />
+            )}
+            {t('note.action.importNote')}
+          </button>
         </div>
       )}
     </section>
@@ -2124,17 +2222,28 @@ function VaultNotePageContent() {
                       </button>
                     ) : (
                       selectedNote && (
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-primary"
-                          onClick={openEditor}
-                          disabled={!!fileError || !selectedFile}
-                          title={t('note.action.edit')}
-                          aria-label={t('note.action.edit')}
-                        >
-                          <PencilRuler size={16} />
-                          {t('note.action.edit')}
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-secondary"
+                            onClick={handleExportCurrentNote}
+                            disabled={!!fileError || !selectedFile}
+                          >
+                            <FileDown size={16} />
+                            {t('note.action.exportNote')}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-primary"
+                            onClick={openEditor}
+                            disabled={!!fileError || !selectedFile}
+                            title={t('note.action.edit')}
+                            aria-label={t('note.action.edit')}
+                          >
+                            <PencilRuler size={16} />
+                            {t('note.action.edit')}
+                          </button>
+                        </>
                       )
                     )}
                   </div>

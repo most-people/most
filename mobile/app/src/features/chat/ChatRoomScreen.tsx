@@ -27,6 +27,7 @@ import {
   getChannelTitle,
   sortMessagesForDisplay,
 } from './chatState'
+import { useI18n } from '../../i18n'
 
 export type ChatRoomScreenProps = {
   channel: MobileChannel
@@ -59,6 +60,7 @@ export function ChatRoomScreen({
   onPickAttachment,
   onDownloadAttachment,
 }: ChatRoomScreenProps) {
+  const { t } = useI18n()
   const sortedMessages = useMemo(
     () => sortMessagesForDisplay(messages),
     [messages]
@@ -81,7 +83,7 @@ export function ChatRoomScreen({
       <View style={styles.header}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="返回频道列表"
+          accessibilityLabel={t('chat.room.back')}
           onPress={onBack}
           style={styles.headerIconButton}
         >
@@ -99,7 +101,7 @@ export function ChatRoomScreen({
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="频道设置"
+          accessibilityLabel={t('chat.room.settings')}
           onPress={onOpenSettings}
           style={styles.headerIconButton}
         >
@@ -138,7 +140,8 @@ export function ChatRoomScreen({
                       local ? styles.messageMetaLocal : null,
                     ]}
                   >
-                    {getDisplayAuthor(message)} · {formatMessageTime(message)}
+                    {getDisplayAuthor(message, t('chat.room.unknownAuthor'))} ·{' '}
+                    {formatMessageTime(message)}
                   </Text>
 
                   {attachment ? (
@@ -165,10 +168,8 @@ export function ChatRoomScreen({
           })
         ) : (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>还没有聊天消息</Text>
-            <Text style={styles.emptyBody}>
-              发送一条消息，或用附件按钮分享 most:// 文件。
-            </Text>
+            <Text style={styles.emptyTitle}>{t('chat.room.emptyTitle')}</Text>
+            <Text style={styles.emptyBody}>{t('chat.room.emptyBody')}</Text>
           </View>
         )}
       </ScrollView>
@@ -176,7 +177,7 @@ export function ChatRoomScreen({
       <View style={styles.composer}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="发送附件"
+          accessibilityLabel={t('chat.room.attach')}
           accessibilityState={{ disabled: busy }}
           disabled={busy}
           onPress={handlePickAttachment}
@@ -192,7 +193,7 @@ export function ChatRoomScreen({
           <TextInput
             value={draft}
             onChangeText={onDraftChange}
-            placeholder="输入聊天消息"
+            placeholder={t('chat.room.messagePlaceholder')}
             placeholderTextColor="#7b8c86"
             autoCapitalize="none"
             autoCorrect={false}
@@ -205,7 +206,7 @@ export function ChatRoomScreen({
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="发送消息"
+          accessibilityLabel={t('chat.room.send')}
           accessibilityState={{ disabled: sendDisabled }}
           disabled={sendDisabled}
           onPress={handleSend}
@@ -236,6 +237,7 @@ function AttachmentCard({
   local,
   onDownload,
 }: AttachmentCardProps) {
+  const { t } = useI18n()
   const handlePress = () => {
     if (downloadBusy) return
     void onDownload(attachment)
@@ -265,12 +267,15 @@ function AttachmentCard({
             local ? styles.attachmentMetaLocal : null,
           ]}
         >
-          {formatAttachmentSize(attachment.size)}
+          {formatAttachmentSize(
+            attachment.size,
+            t('chat.room.attachmentFallback')
+          )}
         </Text>
       </View>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="下载附件"
+        accessibilityLabel={t('chat.room.downloadAttachment')}
         accessibilityState={{ disabled: downloadBusy }}
         disabled={downloadBusy}
         onPress={handlePress}
@@ -286,7 +291,11 @@ function AttachmentCard({
             downloadBusy ? styles.attachmentButtonTextDisabled : null,
           ]}
         >
-          {downloading ? '下载中' : downloadBusy ? '请稍候' : '下载'}
+          {downloading
+            ? t('chat.room.downloading')
+            : downloadBusy
+              ? t('chat.room.wait')
+              : t('chat.room.download')}
         </Text>
       </Pressable>
     </View>
@@ -307,8 +316,8 @@ function isLocalMessage(
   )
 }
 
-function getDisplayAuthor(message: MobileChannelMessage) {
-  return message.authorName.trim() || message.author.trim() || '未知'
+function getDisplayAuthor(message: MobileChannelMessage, fallback: string) {
+  return message.authorName.trim() || message.author.trim() || fallback
 }
 
 function formatMessageTime(message: MobileChannelMessage) {
@@ -320,8 +329,8 @@ function formatMessageTime(message: MobileChannelMessage) {
   return `${hours}:${minutes}`
 }
 
-function formatAttachmentSize(size?: number) {
-  if (!Number.isFinite(size) || !size || size <= 0) return 'most:// 附件'
+function formatAttachmentSize(size: number | undefined, fallback: string) {
+  if (!Number.isFinite(size) || !size || size <= 0) return fallback
 
   if (size < 1024) return `${size} B`
   const kib = size / 1024

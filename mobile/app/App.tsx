@@ -26,13 +26,23 @@ import {
   ArrowLeftRight,
   BookOpen,
   Files,
+  Languages,
   ListChecks,
   Radio,
   ShieldCheck,
   X,
 } from 'lucide-react-native'
 import { KnowledgeBaseScreen } from './src/features/knowledge/KnowledgeBaseScreen'
+import { createExpoKnowledgeRepository } from './src/features/knowledge/expoKnowledgeRepository'
+import { validateKnowledgeSnapshot } from './src/features/knowledge/knowledgeModel'
 import { NodeStatusScreen } from './src/features/node/NodeStatusScreen'
+import {
+  I18nProvider,
+  LOCALES,
+  localeNames,
+  useI18n,
+  type MessageKey,
+} from './src/i18n'
 import { createMostBoxCore } from './src/mobileCore/createMostBoxCore'
 import {
   darkTheme,
@@ -84,11 +94,11 @@ const MIME_BY_EXTENSION: Record<string, string> = {
 
 type RootTab = 'files' | 'knowledge' | 'transfers' | 'node'
 
-const TAB_LABELS: Record<RootTab, string> = {
-  files: '文件',
-  knowledge: '知识库',
-  transfers: '传输',
-  node: '节点',
+const TAB_LABEL_KEYS: Record<RootTab, MessageKey> = {
+  files: 'nav.files',
+  knowledge: 'nav.knowledge',
+  transfers: 'nav.transfers',
+  node: 'nav.node',
 }
 
 async function readDevCidBytes(file: DocumentPickerAsset) {
@@ -158,16 +168,29 @@ function shortCid(cid: string) {
 }
 
 export default function App() {
+  return (
+    <I18nProvider>
+      <MostBoxApp />
+    </I18nProvider>
+  )
+}
+
+function MostBoxApp() {
+  const { locale, setLocale, t } = useI18n()
   const theme = useMostBoxTheme()
   const styles = appStyles[theme.mode]
   const { fontScale } = useWindowDimensions()
   const accessibilityLayout = usesAccessibilityLayout(fontScale)
   const coreRef = useRef<MostBoxMobileCore | null>(null)
+  const knowledgeRepositoryRef = useRef<ReturnType<
+    typeof createExpoKnowledgeRepository
+  > | null>(null)
   const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [snapshot, setSnapshot] = useState<MobileCoreSnapshot | null>(null)
   const [activeTab, setActiveTab] = useState<RootTab>('files')
   const [publishing, setPublishing] = useState(false)
   const [knowledgeDirty, setKnowledgeDirty] = useState(false)
+  const [knowledgeBackupWorking, setKnowledgeBackupWorking] = useState(false)
   const [exportingCid, setExportingCid] = useState<string | null>(null)
   const [deletingCid, setDeletingCid] = useState<string | null>(null)
   const [copiedCid, setCopiedCid] = useState<string | null>(null)
@@ -188,8 +211,12 @@ export default function App() {
   if (!coreRef.current) {
     coreRef.current = createMostBoxCore({ storagePath: getCoreStoragePath() })
   }
+  if (!knowledgeRepositoryRef.current) {
+    knowledgeRepositoryRef.current = createExpoKnowledgeRepository()
+  }
 
   const core = coreRef.current
+  const knowledgeRepository = knowledgeRepositoryRef.current
   const currentSnapshot = snapshot ?? core.getSnapshot()
   const nodeStatus = currentSnapshot.node.status
   const isReady = nodeStatus === 'ready'
@@ -198,7 +225,10 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = core.subscribe(setSnapshot)
     void core.start().catch(error => {
-      Alert.alert('P2P 核心启动失败', getFriendlyCoreError(error))
+      Alert.alert(
+        t('app.core.startFailed'),
+        getFriendlyCoreError(error, locale)
+      )
     })
 
     return () => {
@@ -206,7 +236,7 @@ export default function App() {
       if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current)
       void core.stop()
     }
-  }, [core])
+  }, [core, locale, t])
 
   const openDownloadIntent = useCallback(
     (intent: IncomingMostLink, openAfterComplete = false) => {
@@ -231,8 +261,8 @@ export default function App() {
         if (intent) openDownloadIntent(intent)
       } catch (error) {
         Alert.alert(
-          '分享链接无效',
-          error instanceof Error ? error.message : '请输入有效的 most:// 链接'
+          t('app.link.invalidTitle'),
+          error instanceof Error ? error.message : t('app.link.invalid')
         )
       }
     }
@@ -250,11 +280,11 @@ export default function App() {
       active = false
       subscription.remove()
     }
-  }, [openDownloadIntent])
+  }, [openDownloadIntent, t])
 
   const guardReady = () => {
     if (isReady) return true
-    Alert.alert('P2P 核心未就绪', '请等待状态变为“在线”后再继续。')
+    Alert.alert(t('app.core.notReadyTitle'), t('app.core.notReadyBody'))
     return false
   }
 
@@ -265,10 +295,10 @@ export default function App() {
   const changeTab = (nextTab: RootTab) => {
     if (nextTab === activeTab) return
     if (activeTab === 'knowledge' && knowledgeDirty) {
-      Alert.alert('放弃未保存修改？', '当前知识库内容尚未保存。', [
-        { text: '继续编辑', style: 'cancel' },
+      Alert.alert(t('app.discard.title'), t('app.discard.body'), [
+        { text: t('app.discard.continue'), style: 'cancel' },
         {
-          text: '放弃修改',
+          text: t('app.discard.confirm'),
           style: 'destructive',
           onPress: () => setActiveTab(nextTab),
         },
@@ -291,7 +321,10 @@ export default function App() {
     try {
       await core.start()
     } catch (error) {
-      Alert.alert('P2P 核心启动失败', getFriendlyCoreError(error))
+      Alert.alert(
+        t('app.core.startFailed'),
+        getFriendlyCoreError(error, locale)
+      )
     }
   }
 
@@ -311,7 +344,7 @@ export default function App() {
       if (!file) return null
       const policyError = getStoreFilePolicyError(file.name, file.mimeType)
       if (policyError) {
-        Alert.alert('不支持此文件', policyError)
+        Alert.alert(t('app.file.unsupported'), policyError)
         return null
       }
 
@@ -323,7 +356,7 @@ export default function App() {
         contentBytes: await readDevCidBytes(file),
       })
 
-      if (!transfer.link) throw new Error('未生成分享链接')
+      if (!transfer.link) throw new Error(t('app.file.linkMissing'))
       return { file, link: transfer.link, transfer }
     } finally {
       setPublishing(false)
@@ -335,11 +368,11 @@ export default function App() {
       const result = await publishPickedFile()
       if (!result) return
       await Clipboard.setStringAsync(result.link)
-      Alert.alert('发布完成', '分享链接已复制，文件正在前台做种。')
+      Alert.alert(t('app.publish.completeTitle'), t('app.publish.completeBody'))
     } catch (error) {
       Alert.alert(
-        '发布失败',
-        error instanceof Error ? error.message : '请选择可读取的文件'
+        t('app.publish.failedTitle'),
+        error instanceof Error ? error.message : t('app.publish.failedBody')
       )
     }
   }
@@ -383,7 +416,7 @@ export default function App() {
       setDownloadLinkError('')
       setOpenDownloadAfterComplete(false)
     } catch (error) {
-      setDownloadLinkError(getFriendlyCoreError(error))
+      setDownloadLinkError(getFriendlyCoreError(error, locale))
     } finally {
       setCancellingDownload(false)
     }
@@ -401,7 +434,7 @@ export default function App() {
       const value = await Clipboard.getStringAsync()
       handleDownloadLinkChange(value.trim())
     } catch {
-      setDownloadLinkError('无法读取剪贴板，请手动输入分享链接。')
+      setDownloadLinkError(t('app.clipboard.failed'))
     }
   }
 
@@ -429,7 +462,7 @@ export default function App() {
     } catch (error) {
       setDownloadIntent(null)
       setDownloadLinkError(
-        error instanceof Error ? error.message : '请输入有效的 most:// 链接'
+        error instanceof Error ? error.message : t('app.link.invalid')
       )
     }
   }
@@ -450,20 +483,27 @@ export default function App() {
         .getSnapshot()
         .holdings.find(item => item.cid === completedCid)
       if (shouldOpen && holding) {
-        Alert.alert('下载完成', '文件已通过 CID 校验并开始前台做种。', [
-          { text: '稍后' },
-          {
-            text: '用其他应用打开',
-            onPress: () => {
-              void handleOpenHolding(holding)
+        Alert.alert(
+          t('app.download.completeTitle'),
+          t('app.download.completeBody'),
+          [
+            { text: t('app.download.later') },
+            {
+              text: t('app.download.openOther'),
+              onPress: () => {
+                void handleOpenHolding(holding)
+              },
             },
-          },
-        ])
+          ]
+        )
       } else {
-        Alert.alert('下载完成', '文件已通过 CID 校验并开始前台做种。')
+        Alert.alert(
+          t('app.download.completeTitle'),
+          t('app.download.completeBody')
+        )
       }
     } catch (error) {
-      setDownloadLinkError(getFriendlyCoreError(error))
+      setDownloadLinkError(getFriendlyCoreError(error, locale))
     } finally {
       setDownloadingCid(null)
     }
@@ -476,34 +516,46 @@ export default function App() {
       return
     }
     if (!transfer.link) {
-      Alert.alert('无法重试', '这条下载记录缺少分享链接。')
+      Alert.alert(
+        t('app.download.retryUnavailableTitle'),
+        t('app.download.retryUnavailableBody')
+      )
       return
     }
 
     setRetryingTransferId(transfer.id)
     try {
       await core.downloadLink({ link: transfer.link })
-      Alert.alert('下载完成', '文件已通过 CID 校验并开始前台做种。')
+      Alert.alert(
+        t('app.download.completeTitle'),
+        t('app.download.completeBody')
+      )
     } catch (error) {
-      Alert.alert('重试失败', getFriendlyCoreError(error))
+      Alert.alert(
+        t('app.download.retryFailed'),
+        getFriendlyCoreError(error, locale)
+      )
     } finally {
       setRetryingTransferId(null)
     }
   }
 
   const handleShowTransferDetails = (transfer: MobileTransfer) => {
-    Alert.alert('传输错误详情', transfer.message || '没有更多错误信息')
+    Alert.alert(
+      t('app.transfer.errorTitle'),
+      transfer.message || t('app.transfer.noDetails')
+    )
   }
 
   const handleDeleteHolding = (holding: MobileHolding) => {
     if (!guardReady()) return
     Alert.alert(
-      '删除本机文件',
-      `将移除 ${holding.fileName} 并停止为这个 CID 做种。已另存的副本不会被删除。`,
+      t('app.holding.deleteTitle'),
+      t('app.holding.deleteBody', { fileName: holding.fileName }),
       [
-        { text: '取消', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: '删除',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: () => {
             setDeletingCid(holding.cid)
@@ -511,8 +563,10 @@ export default function App() {
               .deleteHolding({ cid: holding.cid })
               .catch(error => {
                 Alert.alert(
-                  '删除失败',
-                  error instanceof Error ? error.message : '无法删除本机文件'
+                  t('app.holding.deleteFailedTitle'),
+                  error instanceof Error
+                    ? error.message
+                    : t('app.holding.deleteFailedBody')
                 )
               })
               .finally(() => setDeletingCid(null))
@@ -534,7 +588,7 @@ export default function App() {
     })
     const fileUri = toFileUri(exported.filePath)
     const info = await FileSystem.getInfoAsync(fileUri)
-    if (!info.exists) throw new Error('导出的文件不存在，请重新下载后再试')
+    if (!info.exists) throw new Error(t('app.file.exportMissing'))
 
     return {
       ...exported,
@@ -548,17 +602,19 @@ export default function App() {
     setExportingCid(holding.cid)
     try {
       if (!(await Sharing.isAvailableAsync())) {
-        throw new Error('当前设备不支持系统分享')
+        throw new Error(t('app.device.shareUnavailable'))
       }
       const exported = await prepareHoldingFile(holding)
       await Sharing.shareAsync(exported.fileUri, {
         mimeType: exported.mimeType,
-        dialogTitle: `分享 ${exported.fileName}`,
+        dialogTitle: t('app.file.shareDialog', {
+          fileName: exported.fileName,
+        }),
       })
     } catch (error) {
       Alert.alert(
-        '分享失败',
-        error instanceof Error ? error.message : '无法分享文件'
+        t('app.file.shareFailedTitle'),
+        error instanceof Error ? error.message : t('app.file.shareFailedBody')
       )
     } finally {
       setExportingCid(null)
@@ -583,16 +639,18 @@ export default function App() {
       }
 
       if (!(await Sharing.isAvailableAsync())) {
-        throw new Error('当前设备不支持打开文件')
+        throw new Error(t('app.device.openUnavailable'))
       }
       await Sharing.shareAsync(exported.fileUri, {
         mimeType: exported.mimeType,
-        dialogTitle: `打开 ${exported.fileName}`,
+        dialogTitle: t('app.file.openDialog', {
+          fileName: exported.fileName,
+        }),
       })
     } catch (error) {
       Alert.alert(
-        '打开失败',
-        error instanceof Error ? error.message : '无法打开文件'
+        t('app.file.openFailedTitle'),
+        error instanceof Error ? error.message : t('app.file.openFailedBody')
       )
     } finally {
       setExportingCid(null)
@@ -606,11 +664,13 @@ export default function App() {
       const exported = await prepareHoldingFile(holding)
       if (Platform.OS !== 'android') {
         if (!(await Sharing.isAvailableAsync())) {
-          throw new Error('当前设备不支持导出文件')
+          throw new Error(t('app.device.exportUnavailable'))
         }
         await Sharing.shareAsync(exported.fileUri, {
           mimeType: exported.mimeType,
-          dialogTitle: `存储 ${exported.fileName}`,
+          dialogTitle: t('app.file.saveDialog', {
+            fileName: exported.fileName,
+          }),
         })
         return
       }
@@ -630,11 +690,14 @@ export default function App() {
         exported.mimeType
       )
       await writeSafFileFromLocalFile(exported.fileUri, targetUri)
-      Alert.alert('保存成功', `已保存 ${saveFileName}`)
+      Alert.alert(
+        t('app.file.saveSuccessTitle'),
+        t('app.file.saveSuccessBody', { fileName: saveFileName })
+      )
     } catch (error) {
       Alert.alert(
-        '保存失败',
-        error instanceof Error ? error.message : '无法保存文件'
+        t('app.file.saveFailedTitle'),
+        error instanceof Error ? error.message : t('app.file.saveFailedBody')
       )
     } finally {
       setExportingCid(null)
@@ -642,7 +705,7 @@ export default function App() {
   }
 
   const handleOpenKnowledgeLink = async (link: string) => {
-    if (!isReady) throw new Error('P2P 核心未就绪')
+    if (!isReady) throw new Error(t('app.core.notReadyTitle'))
     const parsed = parseMostLink(link)
     const policyError = getStoreDownloadPolicyError(
       parsed.fileName,
@@ -664,24 +727,127 @@ export default function App() {
     try {
       await Linking.openURL(url)
     } catch {
-      Alert.alert('无法打开链接', url)
+      Alert.alert(t('app.link.openFailed'), url)
     }
+  }
+
+  const handleBackupKnowledge = async () => {
+    if (!FileSystem.cacheDirectory) {
+      Alert.alert(
+        t('app.knowledge.backupFailedTitle'),
+        t('app.knowledge.tempUnavailable')
+      )
+      return
+    }
+
+    setKnowledgeBackupWorking(true)
+    try {
+      if (!(await Sharing.isAvailableAsync())) {
+        throw new Error(t('app.device.shareUnavailable'))
+      }
+      const backup = await knowledgeRepository.exportSnapshot()
+      const stamp = backup.exportedAt.replace(/[:.]/g, '-').replace('T', '_')
+      const fileName = `mostbox-knowledge-${stamp}.json`
+      const target = `${FileSystem.cacheDirectory}${fileName}`
+      await FileSystem.writeAsStringAsync(
+        target,
+        JSON.stringify(backup, null, 2),
+        { encoding: FileSystem.EncodingType.UTF8 }
+      )
+      await Sharing.shareAsync(target, {
+        dialogTitle: t('app.knowledge.backupDialog'),
+        mimeType: 'application/json',
+      })
+    } catch (error) {
+      Alert.alert(
+        t('app.knowledge.backupFailedTitle'),
+        error instanceof Error
+          ? error.message
+          : t('app.knowledge.backupFailedBody')
+      )
+    } finally {
+      setKnowledgeBackupWorking(false)
+    }
+  }
+
+  const handleRestoreKnowledge = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        copyToCacheDirectory: true,
+        multiple: false,
+        type: 'application/json',
+      })
+      if (result.canceled) return
+      const file = result.assets[0]
+      if (!file) return
+      const raw = await FileSystem.readAsStringAsync(file.uri, {
+        encoding: FileSystem.EncodingType.UTF8,
+      })
+      const backup = validateKnowledgeSnapshot(JSON.parse(raw) as unknown)
+      Alert.alert(
+        t('app.knowledge.restoreTitle'),
+        t('app.knowledge.restoreBody', { count: backup.files.length }),
+        [
+          { text: t('common.cancel'), style: 'cancel' },
+          {
+            text: t('app.knowledge.restoreAction'),
+            style: 'destructive',
+            onPress: () => {
+              setKnowledgeBackupWorking(true)
+              void knowledgeRepository
+                .restoreSnapshot(backup)
+                .then(() => {
+                  Alert.alert(
+                    t('app.knowledge.restoreCompleteTitle'),
+                    t('app.knowledge.restoreCompleteBody')
+                  )
+                })
+                .catch(error => {
+                  Alert.alert(
+                    t('app.knowledge.restoreFailedTitle'),
+                    error instanceof Error
+                      ? error.message
+                      : t('app.knowledge.restoreFailedBody')
+                  )
+                })
+                .finally(() => setKnowledgeBackupWorking(false))
+            },
+          },
+        ]
+      )
+    } catch (error) {
+      Alert.alert(
+        t('app.knowledge.invalidBackupTitle'),
+        error instanceof Error
+          ? error.message
+          : t('app.knowledge.invalidBackupBody')
+      )
+    }
+  }
+
+  const openLanguageMenu = () => {
+    Alert.alert(
+      t('common.language.choose'),
+      undefined,
+      LOCALES.map(item => ({
+        text:
+          item === locale
+            ? t('common.language.current', { language: localeNames[item] })
+            : localeNames[item],
+        onPress: () => setLocale(item),
+      })),
+      { cancelable: true }
+    )
   }
 
   const statusLabel =
     nodeStatus === 'ready'
-      ? '节点在线'
+      ? t('app.node.online')
       : nodeStatus === 'error'
-        ? '节点异常'
+        ? t('app.node.error')
         : nodeStatus === 'starting'
-          ? '节点启动中'
-          : '节点离线'
-  const statusDotStyle =
-    nodeStatus === 'ready'
-      ? styles.statusDotReady
-      : nodeStatus === 'error'
-        ? styles.statusDotError
-        : styles.statusDotPending
+          ? t('app.node.starting')
+          : t('app.node.offline')
   const statusTextStyle =
     nodeStatus === 'ready'
       ? styles.statusTextReady
@@ -719,32 +885,52 @@ export default function App() {
                 MostBox
               </Text>
               <Text maxFontSizeMultiplier={1.8} style={styles.pageTitle}>
-                {TAB_LABELS[activeTab]}
+                {t(TAB_LABEL_KEYS[activeTab])}
               </Text>
             </View>
           </View>
-          <Pressable
-            accessibilityLabel={`${statusLabel}，查看节点状态`}
-            accessibilityRole="button"
-            onPress={() => changeTab('node')}
-            style={({ pressed }) => [
-              styles.statusPill,
-              accessibilityLayout ? styles.statusPillAccessibility : null,
-              pressed ? styles.pressablePressed : null,
+          <View
+            style={[
+              styles.headerActions,
+              accessibilityLayout ? styles.headerActionsAccessibility : null,
             ]}
           >
-            <View style={[styles.statusDot, statusDotStyle]} />
-            <Text
-              maxFontSizeMultiplier={1.6}
-              style={[
-                styles.statusText,
-                accessibilityLayout ? styles.statusTextAccessibility : null,
-                statusTextStyle,
+            <Pressable
+              accessibilityLabel={t('common.language.choose')}
+              accessibilityRole="button"
+              onPress={openLanguageMenu}
+              style={({ pressed }) => [
+                styles.languageButton,
+                pressed ? styles.pressablePressed : null,
               ]}
             >
-              {statusLabel}
-            </Text>
-          </Pressable>
+              <Languages size={18} color={theme.colors.textSecondary} />
+            </Pressable>
+            <Pressable
+              accessibilityLabel={t('app.node.openStatus', {
+                status: statusLabel,
+              })}
+              accessibilityRole="button"
+              onPress={() => changeTab('node')}
+              style={({ pressed }) => [
+                styles.statusPill,
+                accessibilityLayout ? styles.statusPillAccessibility : null,
+                pressed ? styles.pressablePressed : null,
+              ]}
+            >
+              <Radio size={16} color={theme.colors.accent} />
+              <Text
+                maxFontSizeMultiplier={1.6}
+                style={[
+                  styles.statusText,
+                  accessibilityLayout ? styles.statusTextAccessibility : null,
+                  statusTextStyle,
+                ]}
+              >
+                {statusLabel}
+              </Text>
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.content}>
@@ -764,8 +950,11 @@ export default function App() {
               exportingCid={exportingCid}
               retryingTransferId={retryingTransferId}
               actionDisabled={!isReady || publishing}
+              knowledgeBackupWorking={knowledgeBackupWorking}
               onPublishFile={handlePublishFile}
               onReceiveLink={openDownloadModal}
+              onBackupKnowledge={handleBackupKnowledge}
+              onRestoreKnowledge={handleRestoreKnowledge}
               onCopyHoldingLink={handleCopyHoldingLink}
               onDeleteHolding={handleDeleteHolding}
               onSaveHolding={handleSaveHolding}
@@ -794,7 +983,7 @@ export default function App() {
                 }
               />
             }
-            label="文件"
+            label={t('nav.files')}
             onPress={() => changeTab('files')}
           />
           <TabButton
@@ -809,7 +998,7 @@ export default function App() {
                 }
               />
             }
-            label="知识库"
+            label={t('nav.knowledge')}
             onPress={() => changeTab('knowledge')}
           />
           <TabButton
@@ -824,23 +1013,8 @@ export default function App() {
                 }
               />
             }
-            label="传输"
+            label={t('nav.transfers')}
             onPress={() => changeTab('transfers')}
-          />
-          <TabButton
-            active={activeTab === 'node'}
-            icon={
-              <Radio
-                size={21}
-                color={
-                  activeTab === 'node'
-                    ? theme.colors.accent
-                    : theme.colors.textSecondary
-                }
-              />
-            }
-            label="节点"
-            onPress={() => changeTab('node')}
           />
         </View>
 
@@ -874,11 +1048,13 @@ export default function App() {
                         numberOfLines={2}
                         style={styles.modalTitle}
                       >
-                        {downloadIntent ? '确认接收' : '接收文件'}
+                        {downloadIntent
+                          ? t('app.receive.confirmTitle')
+                          : t('app.receive.title')}
                       </Text>
                     </View>
                     <Pressable
-                      accessibilityLabel="关闭"
+                      accessibilityLabel={t('common.close')}
                       accessibilityRole="button"
                       disabled={cancellingDownload}
                       hitSlop={8}
@@ -925,7 +1101,7 @@ export default function App() {
                             maxFontSizeMultiplier={1.6}
                             style={styles.editLinkText}
                           >
-                            修改链接
+                            {t('app.receive.changeLink')}
                           </Text>
                         </Pressable>
                       </View>
@@ -950,7 +1126,7 @@ export default function App() {
                           maxFontSizeMultiplier={1.8}
                           style={styles.inputLabel}
                         >
-                          分享链接
+                          {t('app.receive.shareLink')}
                         </Text>
                         <Pressable
                           accessibilityRole="button"
@@ -964,7 +1140,7 @@ export default function App() {
                             maxFontSizeMultiplier={1.6}
                             style={styles.pasteButtonText}
                           >
-                            粘贴
+                            {t('app.receive.paste')}
                           </Text>
                         </Pressable>
                       </View>
@@ -999,8 +1175,7 @@ export default function App() {
                       maxFontSizeMultiplier={1.6}
                       style={styles.consentText}
                     >
-                      仅接收你信任且有权下载的文件。下载完成后将校验
-                      CID，并在应用前台继续做种。
+                      {t('app.receive.trustHint')}
                     </Text>
                   ) : null}
 
@@ -1028,7 +1203,9 @@ export default function App() {
                         maxFontSizeMultiplier={1.5}
                         style={styles.cancelButtonText}
                       >
-                        {cancellingDownload ? '正在取消' : '取消'}
+                        {cancellingDownload
+                          ? t('app.receive.cancelling')
+                          : t('common.cancel')}
                       </Text>
                     </Pressable>
                     {downloadIntent ? (
@@ -1056,7 +1233,9 @@ export default function App() {
                               : null,
                           ]}
                         >
-                          {downloadingCid ? '下载并校验中' : '确认下载'}
+                          {downloadingCid
+                            ? t('app.receive.downloading')
+                            : t('app.receive.confirmDownload')}
                         </Text>
                       </Pressable>
                     ) : (
@@ -1084,7 +1263,7 @@ export default function App() {
                               : null,
                           ]}
                         >
-                          检查链接
+                          {t('app.receive.checkLink')}
                         </Text>
                       </Pressable>
                     )}
@@ -1187,30 +1366,39 @@ function createStyles(theme: MostBoxTheme) {
       fontSize: 22,
       fontWeight: '700',
     },
-    statusPill: {
-      minHeight: 32,
+    headerActions: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 7,
-      paddingVertical: 4,
+      gap: 8,
     },
-    statusPillAccessibility: {
+    headerActionsAccessibility: {
       alignSelf: 'stretch',
       marginLeft: 32,
     },
-    statusDot: {
-      width: 7,
-      height: 7,
-      borderRadius: 4,
+    languageButton: {
+      width: 38,
+      height: 38,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.borderStrong,
+      borderRadius: radii.medium,
+      backgroundColor: colors.surface,
     },
-    statusDotReady: {
-      backgroundColor: colors.success,
+    statusPill: {
+      minHeight: 38,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderWidth: 1,
+      borderColor: colors.borderStrong,
+      borderRadius: radii.medium,
+      backgroundColor: colors.surface,
     },
-    statusDotPending: {
-      backgroundColor: colors.warning,
-    },
-    statusDotError: {
-      backgroundColor: colors.danger,
+    statusPillAccessibility: {
+      flex: 1,
     },
     statusText: {
       fontSize: 12,

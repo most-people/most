@@ -533,14 +533,21 @@
 .note-sidebar-list .note-create-btn {
   margin: 8px 6px 0;
   display: flex;
+  gap: 6px;
   justify-content: stretch;
 }
 
 .note-sidebar-list .note-create-btn .btn {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
+  width: auto;
   min-height: 34px;
   justify-content: center;
   padding: 7px 10px;
+}
+
+.note-import-input {
+  display: none;
 }
 
 .note-sidebar-list .note-breadcrumbs {

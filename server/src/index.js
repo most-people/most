@@ -2616,6 +2616,13 @@ export class MostBoxEngine extends EventEmitter {
     if (!profile) {
       throw new ValidationError('valid profile is required')
     }
+    if (
+      existing &&
+      !hasOwnProperty(profile, 'tag') &&
+      hasOwnProperty(existing, 'tag')
+    ) {
+      profile.tag = existing.tag
+    }
     if (existing && profile.updatedAt <= existing.updatedAt) {
       return { ...existing }
     }
@@ -5411,15 +5418,21 @@ export class MostBoxEngine extends EventEmitter {
   #normalizeAccountProfileRecord(ownerAddress, record, timestamp = Date.now()) {
     const owner = normalizeOwnerAddress(ownerAddress)
     if (!owner || !record || typeof record !== 'object') return null
+    const hasTag = hasOwnProperty(record, 'tag')
+    const tagPatch = normalizeChatMemberTagPatch(record.tag, hasTag)
+    if (tagPatch.action === 'invalid') return null
     const updatedAt = getSyncTimestamp(
       record.updatedAt || record.syncUpdatedAt,
       timestamp
     )
-    return {
+    const profile = {
       displayName: normalizeChannelDisplayName(record.displayName, owner),
       avatar: normalizeChannelAvatar(record.avatar),
       updatedAt,
     }
+    if (tagPatch.action === 'set') profile.tag = tagPatch.tag
+    if (tagPatch.action === 'clear') profile.tag = null
+    return profile
   }
 
   #mergeAccountProfileRecord(ownerAddress, record, options = {}) {
@@ -5427,6 +5440,13 @@ export class MostBoxEngine extends EventEmitter {
     const profile = this.#normalizeAccountProfileRecord(owner, record)
     if (!profile) return { changed: false, skipped: true }
     const existing = this.#accountMetadata.profiles?.[owner]
+    if (
+      existing &&
+      !hasOwnProperty(profile, 'tag') &&
+      hasOwnProperty(existing, 'tag')
+    ) {
+      profile.tag = existing.tag
+    }
     if (
       existing &&
       !options.overwrite &&
@@ -5438,6 +5458,7 @@ export class MostBoxEngine extends EventEmitter {
       existing &&
       existing.displayName === profile.displayName &&
       existing.avatar === profile.avatar &&
+      JSON.stringify(existing.tag) === JSON.stringify(profile.tag) &&
       getSyncTimestamp(existing.updatedAt, 0) === profile.updatedAt
     ) {
       return { changed: false, skipped: true }
@@ -5616,6 +5637,9 @@ export class MostBoxEngine extends EventEmitter {
         ownerAddress: owner,
         displayName: record.member?.displayName || record.remark || '',
         avatar: record.member?.avatar || '',
+        ...(hasOwnProperty(record.member, 'tag')
+          ? { tag: record.member.tag }
+          : {}),
       })
     ) {
       changed = true
@@ -5656,6 +5680,7 @@ export class MostBoxEngine extends EventEmitter {
           ownerAddress: owner,
           displayName: profile.displayName,
           avatar: profile.avatar,
+          ...(hasOwnProperty(profile, 'tag') ? { tag: profile.tag } : {}),
         }) || changed
     }
     return changed

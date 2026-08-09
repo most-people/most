@@ -5,6 +5,7 @@ type AccountBackupProfile =
   | {
       displayName?: string
       avatar?: string
+      tag?: UserIdentity['tag']
       updatedAt?: number
     }
   | null

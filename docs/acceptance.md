@@ -325,16 +325,17 @@ CID:
 
 Android Alpha 默认进入文件工具，并提供独立的本地知识库入口；文件协议不变量保持不变，真机仍以前台完整种子能力为基础验收。
 
-| 检查项          | 通过标准                                                                             | 入口                           |
-| --------------- | ------------------------------------------------------------------------------------ | ------------------------------ |
-| 四标签入口      | 默认进入文件，底部依次显示“文件 / 知识库 / 传输 / 节点”                              | Android App                    |
-| P2P core        | Android 前台能启动真实 P2P core，并显示 ready 状态                                   | Android App                    |
-| 附件/文件互通   | Android 与桌面节点能完成发布、下载、CID 校验和前台做种互通                           | Android App、桌面端            |
-| holding 管理    | Android holding 删除只移除内部做种副本，不删除用户另存副本                           | Android App                    |
-| 知识库数据边界  | Markdown 只保存在 App 文档目录，不依赖账号、云同步、Git、桌面/Web 知识库或 daemon    | Android App                    |
-| 导入导出与恢复  | 单篇 Markdown 可导入导出；整库快照完整校验、确认后替换，失败保留原数据               | Android App、系统分享面板      |
-| 知识库 CID 附件 | 笔记只保存 `most://` 引用；附件经确认、CID 校验和 holding 做种后才能交给其他应用打开 | Android App、桌面端            |
-| 真机记录        | 内测记录写明设备、系统、网络、CID、知识库操作、耗时和日志摘要                        | `docs/mobile-android-alpha.md` |
+| 检查项          | 通过标准                                                                                                              | 入口                           |
+| --------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| 节点入口        | 默认进入文件，底部依次显示“文件 / 知识库 / 传输”；点击顶部节点状态进入节点页                                          | Android App                    |
+| 多语言          | 顶部语言按钮可切换简体中文、繁體中文和 English；标题、操作、状态及弹窗立即更新，重启后保留选择                        | Android App                    |
+| P2P core        | Android 前台能启动真实 P2P core，并显示 ready 状态                                                                    | Android App                    |
+| 附件/文件互通   | Android 与桌面节点能完成发布、下载、CID 校验和前台做种互通                                                            | Android App、桌面端            |
+| holding 管理    | Android holding 删除只移除内部做种副本，不删除用户另存副本                                                            | Android App                    |
+| 知识库数据边界  | Markdown 只保存在 App 文档目录，不依赖账号、云同步、Git、桌面/Web 知识库或 daemon                                     | Android App                    |
+| 备份与还原      | 单篇使用 UTF-8 `.txt` 导出和导入，内容为 Markdown；节点页提供整库快照备份与还原，完整校验、确认后替换，失败保留原数据 | Android App、系统分享面板      |
+| 知识库 CID 附件 | 笔记只保存 `most://` 引用；附件经确认、CID 校验和 holding 做种后才能交给其他应用打开                                  | Android App、桌面端            |
+| 真机记录        | 内测记录写明设备、系统、网络、CID、知识库操作、耗时和日志摘要                                                         | `docs/mobile-android-alpha.md` |
 
 推荐检查：
 
@@ -357,12 +358,13 @@ npm run build
 | Markdown 明文存储    | 新建、读取和保存文章均直接使用普通 Markdown，不提供逐篇加密或公开/私密切换                                                            | `/note`、`NoteItem`                             |
 | Git 本地版本管理     | 桌面知识库可初始化仓库、查看 Markdown diff、手动提交、浏览历史并按文件恢复，不依赖系统 Git                                            | `/note`、`/api/note-vault/git/*`                |
 | 备份恢复             | 账号备份整体保持加密；云端缺失、冲突、失败、本地导入导出都有反馈                                                                      | `useNoteBackupSync()`                           |
+| 单篇笔记迁移         | Android 和桌面端均可将单篇笔记导出为 UTF-8 `.txt` 并重新导入，文件内容保持原始 Markdown                                               | `KnowledgeBaseScreen.tsx`、`NotePage.tsx`       |
 | 资源管理             | 新建、重命名、移动、删除文件夹、搜索不丢数据                                                                                          | `noteUtils`、`src/features/note/NotePage.tsx`   |
 | 桌面 Markdown 笔记库 | Electron + 本地 daemon 自动使用 `Documents/MostBox/Notes/<登录地址>`；不同地址的 Markdown 和 Git 仓库相互隔离；Web 端仍使用 IndexedDB | `/note`、`/api/note-vault/*`                    |
 | CID 边界             | `calculateNoteCid()` 只用于笔记 raw CID，不进入 `most://` 文件分享协议                                                                | `server/src/core/cid.js`、笔记测试              |
 | Markdown CID 引用    | 图片和文件引用只保存标准 Markdown `most://<cid>?filename=...`；不保存本地路径或复制附件                                               | `/note`、`/api/publish`、`/api/download`        |
-| 移动端本地知识库     | App 文档目录保存 UTF-8 `.md`；空目录不持久化；移动端与桌面/Web 只能通过 Markdown 或版本化 JSON 快照手工迁移                           | `mobile/app/src/features/knowledge/`            |
-| 移动端快照恢复       | 快照格式、版本、路径和重复项先完整校验；用户确认后完全替换，失败时回滚并保留恢复前知识库                                              | `knowledgeRepository.ts`                        |
+| 移动端本地知识库     | App 文档目录保存 UTF-8 `.md`；空目录不持久化；跨端单篇迁移使用 `.txt` Markdown，整库迁移使用版本化 JSON 快照                          | `mobile/app/src/features/knowledge/`            |
+| 移动端快照导入       | 快照格式、版本、路径和重复项先完整校验；用户确认后完全替换，失败时回滚并保留导入前知识库                                              | `knowledgeRepository.ts`                        |
 | 移动端附件确认       | 预览不自动加载 `most://` 图片；点击附件后才确认下载，CID 校验成功并加入 holding 后提供打开操作，失败不修改 Markdown                   | `KnowledgeBaseScreen.tsx`、`mobile/app/App.tsx` |
 | Web3 独立            | 钱包、PEM、地址和签名工具不参与聊天、附件或知识库主流程                                                                               | `/web3/`                                        |
 
@@ -400,7 +402,7 @@ Markdown 与 CID 附件联动验收：
 
 1. 在 Android 新建、编辑并显式保存多级目录中的 Markdown；重启 App 后目录、内容和搜索结果保持一致，空目录不单独出现。
 2. 修改笔记后切换标签、返回或打开其他笔记，必须先出现未保存确认；分别验证继续编辑和放弃修改。
-3. 导入单篇 UTF-8 `.md`，分别验证同名时取消、覆盖和生成副本；导出后由系统分享面板接收原始 Markdown。
-4. 导出整库 JSON，新增临时笔记后恢复快照，确认当前知识库被完全替换；再导入含非法路径、重复项和错误版本的快照，确认原数据不变。
+3. 导入单篇 UTF-8 `.txt`，分别验证同名时取消、覆盖和生成副本；导出后由系统分享面板接收 `.txt`，文件内容保持原始 Markdown。
+4. 备份整库 JSON，新增临时笔记后导入该备份，确认当前知识库被完全替换；再导入含非法路径、重复项和错误版本的备份，确认原数据不变。
 5. 在编辑器发布图片和普通附件，Markdown 分别插入图片和链接语法；预览中点击附件必须先确认，不能由渲染器自动下载。
 6. 下载附件并通过 CID 校验后确认 holding 正在做种且可交给其他应用打开；原发布者退出后，由移动端 holding 向第三节点继续传播同一 CID。

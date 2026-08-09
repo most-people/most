@@ -81,6 +81,13 @@ function getLocaleCandidateKeys(locale: Locale) {
   return Array.from(new Set([locale, base, ...aliases, 'default', 'en']))
 }
 
+export function selectExactLocalizedTag(
+  tag: LocalizedTag | undefined | null,
+  locale: Locale
+) {
+  return tag ? getTagValue(tag, locale) : ''
+}
+
 export function selectLocalizedTag(
   tag: LocalizedTag | undefined | null,
   locale: Locale

@@ -25,6 +25,7 @@ import type {
 } from '../../mobileCore/types'
 import { getChannelKey, getChannelTitle } from './chatState'
 import { shortAddress } from '../../../shared/format-address.mjs'
+import { useI18n } from '../../i18n'
 
 export type ChatSettingsScreenProps = {
   channel: MobileChannel
@@ -49,6 +50,7 @@ export function ChatSettingsScreen({
   onTogglePin,
   onLeave,
 }: ChatSettingsScreenProps) {
+  const { compareStrings, formatDateTime, t } = useI18n()
   const channelKey = getChannelKey(channel)
   const title = getChannelTitle(channel)
   const trimmedRemark = remarkInput.trim()
@@ -58,7 +60,7 @@ export function ChatSettingsScreen({
   const sortedPresence = [...presence].sort((left, right) => {
     if (left.local !== right.local) return left.local ? -1 : 1
     if (left.online !== right.online) return left.online ? -1 : 1
-    return getPresenceName(left).localeCompare(getPresenceName(right))
+    return compareStrings(getPresenceName(left), getPresenceName(right))
   })
 
   const handleSaveRemark = () => {
@@ -83,7 +85,7 @@ export function ChatSettingsScreen({
       <View style={styles.header}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="返回聊天房间"
+          accessibilityLabel={t('chat.settings.back')}
           onPress={onBack}
           style={styles.headerIconButton}
         >
@@ -91,7 +93,7 @@ export function ChatSettingsScreen({
         </Pressable>
 
         <View style={styles.headerTitleGroup}>
-          <Text style={styles.headerKicker}>聊天设置</Text>
+          <Text style={styles.headerKicker}>{t('chat.settings.title')}</Text>
           <Text numberOfLines={1} style={styles.headerTitle}>
             {title}
           </Text>
@@ -106,10 +108,15 @@ export function ChatSettingsScreen({
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleGroup}>
               <Users size={18} color="#0f766e" />
-              <Text style={styles.sectionTitle}>成员</Text>
+              <Text style={styles.sectionTitle}>
+                {t('chat.settings.members')}
+              </Text>
             </View>
             <Text style={styles.sectionMeta}>
-              {onlineCount}/{presence.length} 在线
+              {t('chat.settings.onlineCount', {
+                online: onlineCount,
+                total: presence.length,
+              })}
             </Text>
           </View>
 
@@ -139,13 +146,22 @@ export function ChatSettingsScreen({
                       </Text>
                       {member.local ? (
                         <View style={styles.localBadge}>
-                          <Text style={styles.localBadgeText}>本机</Text>
+                          <Text style={styles.localBadgeText}>
+                            {t('chat.settings.local')}
+                          </Text>
                         </View>
                       ) : null}
                     </View>
                     <Text numberOfLines={1} style={styles.memberMeta}>
-                      {member.online ? '在线' : '离线'} ·{' '}
-                      {formatPresenceLastSeen(member.lastSeen)}
+                      {member.online
+                        ? t('chat.settings.online')
+                        : t('chat.settings.offline')}{' '}
+                      ·{' '}
+                      {formatPresenceLastSeen(
+                        member.lastSeen,
+                        formatDateTime,
+                        t('chat.settings.unsyncedTime')
+                      )}
                     </Text>
                   </View>
                 </View>
@@ -153,9 +169,11 @@ export function ChatSettingsScreen({
             </View>
           ) : (
             <View style={styles.emptyMembers}>
-              <Text style={styles.emptyTitle}>暂无在线成员</Text>
+              <Text style={styles.emptyTitle}>
+                {t('chat.settings.noMembers')}
+              </Text>
               <Text style={styles.emptyBody}>
-                进入房间后会通过 presence 显示本机和在线 peer。
+                {t('chat.settings.noMembersBody')}
               </Text>
             </View>
           )}
@@ -165,21 +183,37 @@ export function ChatSettingsScreen({
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleGroup}>
               <Hash size={18} color="#2563eb" />
-              <Text style={styles.sectionTitle}>频道信息</Text>
+              <Text style={styles.sectionTitle}>
+                {t('chat.settings.channelInfo')}
+              </Text>
             </View>
           </View>
 
-          <InfoRow label="Room ID" value={channel.channelId || channel.name} />
-          <InfoRow label="Channel key" value={channelKey} />
           <InfoRow
-            label="Writers"
+            fallback={t('common.unknown')}
+            label={t('chat.settings.roomId')}
+            value={channel.channelId || channel.name}
+          />
+          <InfoRow
+            fallback={t('common.unknown')}
+            label={t('chat.settings.channelKey')}
+            value={channelKey}
+          />
+          <InfoRow
+            fallback={t('common.unknown')}
+            label={t('chat.settings.writers')}
             value={String(channel.writerCoreKeys.length)}
           />
-          <InfoRow label="Peers" value={String(channel.peerCount)} />
+          <InfoRow
+            fallback={t('common.unknown')}
+            label={t('chat.settings.peers')}
+            value={String(channel.peerCount)}
+          />
           {channel.createdAt ? (
             <InfoRow
               icon={<Clock size={14} color="#63716c" />}
-              label="创建时间"
+              fallback={t('common.unknown')}
+              label={t('chat.settings.createdAt')}
               value={formatDateTime(channel.createdAt)}
             />
           ) : null}
@@ -189,7 +223,9 @@ export function ChatSettingsScreen({
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleGroup}>
               <Save size={18} color="#0f766e" />
-              <Text style={styles.sectionTitle}>备注</Text>
+              <Text style={styles.sectionTitle}>
+                {t('chat.settings.remark')}
+              </Text>
             </View>
             <Text style={styles.sectionMeta}>{remarkInput.length}/50</Text>
           </View>
@@ -198,7 +234,7 @@ export function ChatSettingsScreen({
             <TextInput
               value={remarkInput}
               onChangeText={onRemarkChange}
-              placeholder="留空则使用房间 ID"
+              placeholder={t('chat.settings.remarkPlaceholder')}
               placeholderTextColor="#7b8c86"
               autoCapitalize="none"
               autoCorrect={false}
@@ -227,7 +263,7 @@ export function ChatSettingsScreen({
                 saveDisabled ? styles.actionDisabledText : null,
               ]}
             >
-              保存备注
+              {t('chat.settings.saveRemark')}
             </Text>
           </Pressable>
         </View>
@@ -256,7 +292,9 @@ export function ChatSettingsScreen({
                 busy ? styles.actionDisabledText : null,
               ]}
             >
-              {channel.pinned ? '取消置顶' : '置顶频道'}
+              {channel.pinned
+                ? t('chat.settings.unpin')
+                : t('chat.settings.pin')}
             </Text>
           </Pressable>
 
@@ -279,7 +317,7 @@ export function ChatSettingsScreen({
                 busy ? styles.actionDisabledText : null,
               ]}
             >
-              退出频道
+              {t('chat.settings.leave')}
             </Text>
           </Pressable>
         </View>
@@ -292,9 +330,10 @@ type InfoRowProps = {
   icon?: ReactNode
   label: string
   value: string
+  fallback: string
 }
 
-function InfoRow({ icon, label, value }: InfoRowProps) {
+function InfoRow({ icon, label, value, fallback }: InfoRowProps) {
   return (
     <View style={styles.infoRow}>
       <View style={styles.infoLabelGroup}>
@@ -302,7 +341,7 @@ function InfoRow({ icon, label, value }: InfoRowProps) {
         <Text style={styles.infoLabel}>{label}</Text>
       </View>
       <Text selectable numberOfLines={2} style={styles.infoValue}>
-        {value || '未知'}
+        {value || fallback}
       </Text>
     </View>
   )
@@ -314,25 +353,17 @@ function getPresenceName(presence: MobileChannelPresence) {
   )
 }
 
-function formatPresenceLastSeen(value: number) {
-  if (!Number.isFinite(value) || value <= 0) return '未同步时间'
+function formatPresenceLastSeen(
+  value: number,
+  formatDateTime: (value: Date | string | number) => string,
+  fallback: string
+) {
+  if (!Number.isFinite(value) || value <= 0) return fallback
 
   const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '未同步时间'
+  if (Number.isNaN(date.getTime())) return fallback
 
-  return formatDateTime(date.toISOString())
-}
-
-function formatDateTime(value: string) {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '未知'
-
-  const year = date.getFullYear()
-  const month = (date.getMonth() + 1).toString().padStart(2, '0')
-  const day = date.getDate().toString().padStart(2, '0')
-  const hours = date.getHours().toString().padStart(2, '0')
-  const minutes = date.getMinutes().toString().padStart(2, '0')
-  return `${year}-${month}-${day} ${hours}:${minutes}`
+  return formatDateTime(date)
 }
 
 const styles = StyleSheet.create({

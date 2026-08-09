@@ -11,6 +11,8 @@ import {
 } from 'react-native'
 import {
   Activity,
+  ArchiveRestore,
+  BookOpen,
   ChevronDown,
   ChevronUp,
   CircleCheck,
@@ -18,6 +20,7 @@ import {
   Download,
   ExternalLink,
   FileCheck,
+  FileDown,
   FileText,
   HardDrive,
   Info,
@@ -53,6 +56,7 @@ import {
   partitionTransfers,
   usesAccessibilityLayout,
 } from '../../ui/presentation'
+import { useI18n, type MessageKey } from '../../i18n'
 
 export type NodeStatusScreenProps = {
   section: 'files' | 'transfers' | 'node'
@@ -62,8 +66,11 @@ export type NodeStatusScreenProps = {
   exportingCid: string | null
   retryingTransferId: string | null
   actionDisabled: boolean
+  knowledgeBackupWorking: boolean
   onPublishFile: () => void | Promise<void>
   onReceiveLink: () => void
+  onBackupKnowledge: () => void | Promise<void>
+  onRestoreKnowledge: () => void | Promise<void>
   onCopyHoldingLink: (holding: MobileHolding) => void | Promise<void>
   onDeleteHolding: (holding: MobileHolding) => void
   onSaveHolding: (holding: MobileHolding) => void | Promise<void>
@@ -77,39 +84,39 @@ export type NodeStatusScreenProps = {
   retryStartDisabled: boolean
 }
 
-const NODE_STATUS_LABELS: Record<NodeRuntimeStatus, string> = {
-  idle: '未启动',
-  starting: '启动中',
-  ready: '在线',
-  stopping: '停止中',
-  error: '异常',
+const NODE_STATUS_LABELS: Record<NodeRuntimeStatus, MessageKey> = {
+  idle: 'node.status.idle',
+  starting: 'node.status.starting',
+  ready: 'node.status.ready',
+  stopping: 'node.status.stopping',
+  error: 'node.status.error',
 }
 
-const SEED_STATUS_LABELS: Record<SeedStatus, string> = {
-  queued: '排队中',
-  joining: '加入中',
-  active: '做种中',
-  paused: '已暂停',
-  error: '异常',
+const SEED_STATUS_LABELS: Record<SeedStatus, MessageKey> = {
+  queued: 'node.seed.queued',
+  joining: 'node.seed.joining',
+  active: 'node.seed.active',
+  paused: 'node.seed.paused',
+  error: 'node.seed.error',
 }
 
-const TRANSFER_STATUS_LABELS: Record<TransferStatus, string> = {
-  queued: '排队中',
-  running: '传输中',
-  completed: '已完成',
-  failed: '失败',
-  waitingCore: '等待核心',
+const TRANSFER_STATUS_LABELS: Record<TransferStatus, MessageKey> = {
+  queued: 'node.transfer.queued',
+  running: 'node.transfer.running',
+  completed: 'node.transfer.completed',
+  failed: 'node.transfer.failed',
+  waitingCore: 'node.transfer.waitingCore',
 }
 
-const TRANSFER_KIND_LABELS: Record<MobileTransfer['kind'], string> = {
-  publish: '发布',
-  download: '下载',
+const TRANSFER_KIND_LABELS: Record<MobileTransfer['kind'], MessageKey> = {
+  publish: 'node.transfer.publish',
+  download: 'node.transfer.download',
 }
 
-const LOG_LEVEL_LABELS: Record<LogLevel, string> = {
-  info: '信息',
-  warn: '提醒',
-  error: '错误',
+const LOG_LEVEL_LABELS: Record<LogLevel, MessageKey> = {
+  info: 'node.log.info',
+  warn: 'node.log.warn',
+  error: 'node.log.error',
 }
 
 const PROGRESS_WIDTH_VALUES = Array.from({ length: 101 }, (_, value) => value)
@@ -358,6 +365,7 @@ function TransferItem({
   onRetry,
   onShowDetails,
 }: TransferItemProps) {
+  const { locale, t } = useI18n()
   const theme = useMostBoxTheme()
   const styles = nodeStyles[theme.mode]
   const { fontScale } = useWindowDimensions()
@@ -378,15 +386,19 @@ function TransferItem({
             numberOfLines={accessibilityLayout ? undefined : 1}
             style={styles.transferName}
           >
-            {transfer.fileName || TRANSFER_KIND_LABELS[transfer.kind]}
+            {transfer.fileName || t(TRANSFER_KIND_LABELS[transfer.kind])}
           </Text>
           <Text maxFontSizeMultiplier={2} style={styles.transferMeta}>
-            {TRANSFER_KIND_LABELS[transfer.kind]} ·{' '}
-            {getTransferDisplayMessage(transfer.message, transfer.status)}
+            {t(TRANSFER_KIND_LABELS[transfer.kind])} ·{' '}
+            {getTransferDisplayMessage(
+              transfer.message,
+              transfer.status,
+              locale
+            )}
           </Text>
         </View>
         <StatusBadge
-          label={TRANSFER_STATUS_LABELS[transfer.status]}
+          label={t(TRANSFER_STATUS_LABELS[transfer.status])}
           tone={getTransferTone(transfer.status)}
         />
       </View>
@@ -403,7 +415,7 @@ function TransferItem({
           >
             <Info size={16} color={theme.colors.textSecondary} />
             <Text maxFontSizeMultiplier={1.8} style={styles.transferDetailText}>
-              错误详情
+              {t('node.transfer.errorDetails')}
             </Text>
           </Pressable>
           <Pressable
@@ -424,10 +436,10 @@ function TransferItem({
             )}
             <Text maxFontSizeMultiplier={1.8} style={styles.transferRetryText}>
               {retrying
-                ? '重试中'
+                ? t('node.transfer.retrying')
                 : transfer.kind === 'download'
-                  ? '重新下载'
-                  : '重新选择文件'}
+                  ? t('node.transfer.redownload')
+                  : t('node.transfer.reselect')}
             </Text>
           </Pressable>
         </View>
@@ -444,8 +456,11 @@ export function NodeStatusScreen({
   exportingCid,
   retryingTransferId,
   actionDisabled,
+  knowledgeBackupWorking,
   onPublishFile,
   onReceiveLink,
+  onBackupKnowledge,
+  onRestoreKnowledge,
   onCopyHoldingLink,
   onDeleteHolding,
   onSaveHolding,
@@ -458,6 +473,7 @@ export function NodeStatusScreen({
   onRetryStartCore,
   retryStartDisabled,
 }: NodeStatusScreenProps) {
+  const { locale, t } = useI18n()
   const theme = useMostBoxTheme()
   const styles = nodeStyles[theme.mode]
   const { fontScale } = useWindowDimensions()
@@ -507,7 +523,7 @@ export function NodeStatusScreen({
               numberOfLines={1}
               style={[styles.actionLabel, styles.actionLabelPrimary]}
             >
-              发布文件
+              {t('node.action.publish')}
             </Text>
           </Pressable>
           <Pressable
@@ -526,7 +542,7 @@ export function NodeStatusScreen({
               numberOfLines={1}
               style={styles.actionLabel}
             >
-              接收文件
+              {t('node.action.receive')}
             </Text>
           </Pressable>
         </View>
@@ -536,8 +552,8 @@ export function NodeStatusScreen({
         <View style={[styles.section, styles.topSection]}>
           <SectionHeader
             icon={<Radio size={18} color={theme.colors.accent} />}
-            title="节点状态"
-            meta={NODE_STATUS_LABELS[snapshot.node.status]}
+            title={t('node.section.status')}
+            meta={t(NODE_STATUS_LABELS[snapshot.node.status])}
           />
 
           {snapshot.node.error ? (
@@ -550,7 +566,7 @@ export function NodeStatusScreen({
               ]}
             >
               <Text maxFontSizeMultiplier={2} style={styles.nodeErrorText}>
-                {getFriendlyCoreError(snapshot.node.error)}
+                {getFriendlyCoreError(snapshot.node.error, locale)}
               </Text>
               <Pressable
                 disabled={retryStartDisabled}
@@ -568,7 +584,7 @@ export function NodeStatusScreen({
                     retryStartDisabled ? styles.retryButtonTextDisabled : null,
                   ]}
                 >
-                  重试
+                  {t('common.retry')}
                 </Text>
               </Pressable>
             </View>
@@ -582,19 +598,83 @@ export function NodeStatusScreen({
           >
             <Metric
               icon={<Activity size={17} color={theme.colors.accent} />}
-              label="在线 Peer"
+              label={t('node.metric.onlinePeers')}
               value={String(snapshot.node.peerCount)}
             />
             <Metric
               icon={<HardDrive size={17} color={theme.colors.info} />}
-              label="本机做种"
+              label={t('node.metric.localSeeds')}
               value={String(snapshot.holdings.length)}
             />
             <Metric
               icon={<ShieldCheck size={17} color={theme.colors.warning} />}
-              label="附件校验"
-              value="开启"
+              label={t('node.metric.attachmentVerification')}
+              value={t('node.metric.enabled')}
             />
+          </View>
+        </View>
+      ) : null}
+
+      {section === 'node' ? (
+        <View style={styles.section}>
+          <SectionHeader
+            icon={<BookOpen size={18} color={theme.colors.accent} />}
+            title={t('node.section.knowledge')}
+          />
+          <View
+            style={[
+              styles.knowledgeActions,
+              accessibilityLayout ? styles.knowledgeActionsAccessibility : null,
+            ]}
+          >
+            <Pressable
+              accessibilityLabel={t('node.knowledge.backupA11y')}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: knowledgeBackupWorking }}
+              disabled={knowledgeBackupWorking}
+              onPress={onBackupKnowledge}
+              style={({ pressed }) => [
+                styles.knowledgeAction,
+                accessibilityLayout
+                  ? styles.knowledgeActionAccessibility
+                  : null,
+                knowledgeBackupWorking ? styles.actionCardDisabled : null,
+                pressed ? styles.actionCardPressed : null,
+              ]}
+            >
+              <FileDown size={18} color={theme.colors.accent} />
+              <Text
+                maxFontSizeMultiplier={1.8}
+                numberOfLines={1}
+                style={styles.knowledgeActionText}
+              >
+                {t('node.knowledge.backup')}
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityLabel={t('node.knowledge.restoreA11y')}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: knowledgeBackupWorking }}
+              disabled={knowledgeBackupWorking}
+              onPress={onRestoreKnowledge}
+              style={({ pressed }) => [
+                styles.knowledgeAction,
+                accessibilityLayout
+                  ? styles.knowledgeActionAccessibility
+                  : null,
+                knowledgeBackupWorking ? styles.actionCardDisabled : null,
+                pressed ? styles.actionCardPressed : null,
+              ]}
+            >
+              <ArchiveRestore size={18} color={theme.colors.accent} />
+              <Text
+                maxFontSizeMultiplier={1.8}
+                numberOfLines={1}
+                style={styles.knowledgeActionText}
+              >
+                {t('node.knowledge.restore')}
+              </Text>
+            </Pressable>
           </View>
         </View>
       ) : null}
@@ -608,8 +688,13 @@ export function NodeStatusScreen({
         >
           <SectionHeader
             icon={<Wifi size={18} color={theme.colors.accent} />}
-            title="正在做种"
-            meta={`${snapshot.holdings.length} 个文件`}
+            title={t('node.section.seeding')}
+            meta={t(
+              snapshot.holdings.length === 1
+                ? 'node.fileCount.one'
+                : 'node.fileCount',
+              { count: snapshot.holdings.length }
+            )}
           />
 
           {snapshot.holdings.length ? (
@@ -650,11 +735,13 @@ export function NodeStatusScreen({
                         </Text>
                         <Text maxFontSizeMultiplier={2} style={styles.fileMeta}>
                           {formatBytes(holding.size)} ·{' '}
-                          {holding.source === 'published' ? '已发布' : '已下载'}
+                          {holding.source === 'published'
+                            ? t('node.holding.published')
+                            : t('node.holding.downloaded')}
                         </Text>
                       </View>
                       <StatusBadge
-                        label={SEED_STATUS_LABELS[holding.status]}
+                        label={t(SEED_STATUS_LABELS[holding.status])}
                         tone={seedTone}
                       />
                     </View>
@@ -678,8 +765,8 @@ export function NodeStatusScreen({
                     >
                       <Text maxFontSizeMultiplier={2} style={styles.topicText}>
                         {holding.topicJoined
-                          ? 'Topic 已加入'
-                          : '等待加入 topic'}
+                          ? t('node.holding.topicJoined')
+                          : t('node.holding.topicWaiting')}
                       </Text>
                       <Text maxFontSizeMultiplier={2} style={styles.topicText}>
                         {holding.peerCount} peer
@@ -688,8 +775,12 @@ export function NodeStatusScreen({
 
                     <View style={styles.holdingActions}>
                       <SmallAction
-                        label={isCopied ? '已复制' : '复制链接'}
-                        accessibilityLabel="复制链接"
+                        label={
+                          isCopied
+                            ? t('node.action.copied')
+                            : t('node.action.copyLink')
+                        }
+                        accessibilityLabel={t('node.action.copyLink')}
                         testID={`holding-${holding.cid}-copy-link`}
                         onPress={() => onCopyHoldingLink(holding)}
                         icon={
@@ -704,8 +795,12 @@ export function NodeStatusScreen({
                         }
                       />
                       <SmallAction
-                        label={isExporting ? '处理中' : '分享'}
-                        accessibilityLabel="分享"
+                        label={
+                          isExporting
+                            ? t('node.action.processing')
+                            : t('common.share')
+                        }
+                        accessibilityLabel={t('common.share')}
                         testID={`holding-${holding.cid}-share`}
                         disabled={isExporting || isDeleting || !isReady}
                         onPress={() => onShareHolding(holding)}
@@ -718,9 +813,15 @@ export function NodeStatusScreen({
                         }
                       />
                       <SmallAction
-                        label={Platform.OS === 'ios' ? '存到文件' : '保存'}
+                        label={
+                          Platform.OS === 'ios'
+                            ? t('node.action.saveToFiles')
+                            : t('common.save')
+                        }
                         accessibilityLabel={
-                          Platform.OS === 'ios' ? '存到文件' : '保存'
+                          Platform.OS === 'ios'
+                            ? t('node.action.saveToFiles')
+                            : t('common.save')
                         }
                         testID={`holding-${holding.cid}-save`}
                         disabled={isExporting || isDeleting || !isReady}
@@ -738,8 +839,12 @@ export function NodeStatusScreen({
                       />
                       <SmallAction
                         danger
-                        label={isDeleting ? '删除中' : '删除'}
-                        accessibilityLabel="删除"
+                        label={
+                          isDeleting
+                            ? t('node.action.deleting')
+                            : t('common.delete')
+                        }
+                        accessibilityLabel={t('common.delete')}
                         testID={`holding-${holding.cid}-delete`}
                         disabled={isDeleting || isExporting || !isReady}
                         onPress={() => onDeleteHolding(holding)}
@@ -759,8 +864,8 @@ export function NodeStatusScreen({
           ) : (
             <EmptyState
               centered
-              title="还没有本机文件"
-              body="发布或下载完成后，文件会自动加入做种列表。"
+              title={t('node.empty.filesTitle')}
+              body={t('node.empty.filesBody')}
             />
           )}
         </View>
@@ -771,8 +876,13 @@ export function NodeStatusScreen({
           <View style={[styles.section, styles.topSection]}>
             <SectionHeader
               icon={<ListChecks size={18} color={theme.colors.accent} />}
-              title="进行中"
-              meta={`${activeTransfers.length} 个任务`}
+              title={t('node.section.activeTransfers')}
+              meta={t(
+                activeTransfers.length === 1
+                  ? 'node.taskCount.one'
+                  : 'node.taskCount',
+                { count: activeTransfers.length }
+              )}
             />
             {activeTransfers.length ? (
               <View style={styles.transferList}>
@@ -789,8 +899,8 @@ export function NodeStatusScreen({
               </View>
             ) : (
               <EmptyState
-                title="当前没有传输"
-                body="新的发布和下载任务会显示在这里。"
+                title={t('node.empty.transfersTitle')}
+                body={t('node.empty.transfersBody')}
               />
             )}
           </View>
@@ -799,8 +909,13 @@ export function NodeStatusScreen({
             <View style={styles.section}>
               <SectionHeader
                 icon={<Info size={18} color={theme.colors.danger} />}
-                title="需要处理"
-                meta={`${failedTransfers.length} 个失败任务`}
+                title={t('node.section.failedTransfers')}
+                meta={t(
+                  failedTransfers.length === 1
+                    ? 'node.failedTaskCount.one'
+                    : 'node.failedTaskCount',
+                  { count: failedTransfers.length }
+                )}
               />
               <View style={styles.transferList}>
                 {failedTransfers.map(transfer => (
@@ -821,8 +936,13 @@ export function NodeStatusScreen({
             <View style={styles.section}>
               <SectionHeader
                 icon={<CircleCheck size={18} color={theme.colors.success} />}
-                title="最近完成"
-                meta={`${completedTransfers.length} 条记录`}
+                title={t('node.section.completedTransfers')}
+                meta={t(
+                  completedTransfers.length === 1
+                    ? 'node.recordCount.one'
+                    : 'node.recordCount',
+                  { count: completedTransfers.length }
+                )}
               />
               <View style={styles.transferList}>
                 {completedTransfers.map(transfer => (
@@ -856,12 +976,14 @@ export function NodeStatusScreen({
               <Radio size={18} color={theme.colors.accent} />
               <View style={styles.diagnosticsTextGroup}>
                 <Text maxFontSizeMultiplier={2} style={styles.sectionTitle}>
-                  诊断详情
+                  {t('node.diagnostics.title')}
                 </Text>
                 <Text maxFontSizeMultiplier={2} style={styles.diagnosticsMeta}>
                   {recentLogs.length
-                    ? `最近 ${recentLogs.length} 条日志`
-                    : '暂无日志'}
+                    ? t('node.diagnostics.recentLogs', {
+                        count: recentLogs.length,
+                      })
+                    : t('node.diagnostics.noLogs')}
                 </Text>
               </View>
             </View>
@@ -903,7 +1025,7 @@ export function NodeStatusScreen({
                           log.level === 'warn' ? styles.logLevelWarn : null,
                         ]}
                       >
-                        {LOG_LEVEL_LABELS[log.level]}
+                        {t(LOG_LEVEL_LABELS[log.level])}
                       </Text>
                       <Text maxFontSizeMultiplier={2} style={styles.logMessage}>
                         {log.message}
@@ -914,8 +1036,8 @@ export function NodeStatusScreen({
               </View>
             ) : (
               <EmptyState
-                title="日志为空"
-                body="核心状态变化和传输事件会记录在这里。"
+                title={t('node.diagnostics.emptyTitle')}
+                body={t('node.diagnostics.emptyBody')}
               />
             )
           ) : null}
@@ -926,7 +1048,7 @@ export function NodeStatusScreen({
         <View style={styles.section}>
           <SectionHeader
             icon={<FileText size={18} color={theme.colors.info} />}
-            title="关于与政策"
+            title={t('node.about.title')}
           />
           <View style={styles.linkList}>
             <Pressable
@@ -938,7 +1060,7 @@ export function NodeStatusScreen({
               ]}
             >
               <Text maxFontSizeMultiplier={2} style={styles.linkText}>
-                隐私政策
+                {t('node.about.privacy')}
               </Text>
               <ExternalLink size={16} color={theme.colors.textSecondary} />
             </Pressable>
@@ -952,7 +1074,7 @@ export function NodeStatusScreen({
               ]}
             >
               <Text maxFontSizeMultiplier={2} style={styles.linkText}>
-                使用条款
+                {t('node.about.terms')}
               </Text>
               <ExternalLink size={16} color={theme.colors.textSecondary} />
             </Pressable>
@@ -966,7 +1088,7 @@ export function NodeStatusScreen({
               ]}
             >
               <Text maxFontSizeMultiplier={2} style={styles.linkText}>
-                问题反馈
+                {t('node.about.support')}
               </Text>
               <ExternalLink size={16} color={theme.colors.textSecondary} />
             </Pressable>
@@ -1041,6 +1163,36 @@ function createNodeStyles(theme: MostBoxTheme) {
     },
     actionLabelPrimary: {
       color: colors.onAccent,
+    },
+    knowledgeActions: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+    knowledgeActionsAccessibility: {
+      flexDirection: 'column',
+    },
+    knowledgeAction: {
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderColor: colors.borderStrong,
+      borderRadius: radii.medium,
+      borderWidth: 1,
+      flex: 1,
+      flexDirection: 'row',
+      gap: 8,
+      justifyContent: 'center',
+      minHeight: 50,
+      paddingHorizontal: 12,
+    },
+    knowledgeActionAccessibility: {
+      flex: 0,
+      minHeight: 64,
+      width: '100%',
+    },
+    knowledgeActionText: {
+      color: colors.accent,
+      fontSize: 14,
+      fontWeight: '600',
     },
     sectionHeader: {
       minHeight: 32,

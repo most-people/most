@@ -204,6 +204,48 @@ describe('frontend smoke checks', () => {
     assert.match(rootRouteSource, /data-theme-preference/)
   })
 
+  it('edits and renders the current locale profile tag', async () => {
+    const profileSource = readSource(SOURCE_PATHS.profile)
+    const profileCssSource = readSource('src/styles/profile.css')
+    const accountBackupSource = readSource(SOURCE_PATHS.accountBackup)
+    const { messages } = await importBundledSource('src/lib/i18n/messages.ts')
+    const { selectExactLocalizedTag, selectLocalizedTag } =
+      await importBundledSource('src/lib/localizedTag.ts')
+    const tag = {
+      'zh-CN': '测试用户',
+      'zh-TW': '測試使用者',
+      en: 'Test user',
+    }
+
+    assert.equal(selectLocalizedTag(tag, 'zh-CN'), '测试用户')
+    assert.equal(selectLocalizedTag(tag, 'zh-TW'), '測試使用者')
+    assert.equal(selectLocalizedTag(tag, 'en'), 'Test user')
+    assert.equal(selectLocalizedTag({ en: 'Test user' }, 'zh-CN'), 'Test user')
+    assert.equal(selectExactLocalizedTag({ en: 'Test user' }, 'zh-CN'), '')
+    assert.equal(selectExactLocalizedTag(tag, 'zh-CN'), '测试用户')
+    assert.match(profileSource, /selectLocalizedTag\(identity\.tag, locale\)/)
+    assert.match(
+      profileSource,
+      /selectExactLocalizedTag\(identity\?\.tag, locale\)/
+    )
+    assert.match(profileSource, /normalizeLocalizedTag\(nextTagValues\)/)
+    assert.match(profileSource, /nextTagValues\[locale\]/)
+    assert.doesNotMatch(profileSource, /handleClearTag/)
+    assert.doesNotMatch(profileSource, /profile\.action\.clearTag['"]/)
+    assert.match(profileSource, /profile-tag-input-clear/)
+    assert.match(profileSource, /setTagDraft\(''\)/)
+    assert.match(profileSource, /profile-user-tag/)
+    assert.match(profileSource, /profile\.label\.tag/)
+    assert.match(profileCssSource, /\.profile-user-tag/)
+    assert.match(profileCssSource, /\.profile-tag-input-clear/)
+    assert.match(accountBackupSource, /tag:\s*currentIdentity\.tag/)
+    assert.match(accountBackupSource, /hasOwnProperty\.call\(profile, 'tag'\)/)
+    for (const locale of ['zh-CN', 'zh-TW', 'en']) {
+      assert.ok(messages[locale]['profile.label.tag'].includes('{locale}'))
+      assert.ok(messages[locale]['profile.action.clearTagInput'])
+    }
+  })
+
   it('uses an automatic address-scoped note vault in Electron', async () => {
     const accountBackupSource = readSource(SOURCE_PATHS.accountBackup)
     const appGlobalsSource = readSource(SOURCE_PATHS.appGlobals)

@@ -20,16 +20,15 @@ import * as FileSystem from 'expo-file-system/legacy'
 import * as Sharing from 'expo-sharing'
 import { EnrichedMarkdownText } from 'react-native-enriched-markdown'
 import {
-  ArchiveRestore,
   Bold,
   BookOpen,
   ChevronLeft,
   ChevronRight,
   Code,
-  Download,
   FileDown,
   FilePlus2,
   FileText,
+  FileUp,
   Folder,
   Heading2,
   Italic,
@@ -41,7 +40,6 @@ import {
   Pencil,
   Save,
   Search,
-  Share2,
   Trash2,
   Upload,
   X,
@@ -51,14 +49,14 @@ import {
   applyMarkdownTool,
   createAttachmentMarkdown,
   createUniqueKnowledgeFilePath,
+  getKnowledgeImportPathFromTextFile,
+  getKnowledgeNoteBackupFileName,
   insertMarkdownAtSelection,
   joinKnowledgePath,
   normalizeKnowledgeDirectory,
   normalizeKnowledgeFilePath,
-  normalizeKnowledgeNoteName,
   prepareMarkdownPreview,
   searchKnowledgeNotes,
-  validateKnowledgeSnapshot,
 } from './knowledgeModel'
 import type {
   KnowledgeRepository,
@@ -72,6 +70,7 @@ import {
   useMostBoxTheme,
 } from '../../ui/theme'
 import { usesAccessibilityLayout } from '../../ui/presentation'
+import { useI18n, type Locale } from '../../i18n'
 
 type PublishedKnowledgeAttachment = {
   fileName: string
@@ -108,12 +107,6 @@ function formatBytes(size: number) {
   return `${value.toFixed(index === 0 ? 0 : 1)} ${units[index]}`
 }
 
-function formatDate(value: number) {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
-  return date.toLocaleString()
-}
-
 function getSafeExportName(input: string, fallback: string) {
   const value = input
     .trim()
@@ -122,7 +115,11 @@ function getSafeExportName(input: string, fallback: string) {
   return value || fallback
 }
 
-function getCurrentItems(notes: MobileKnowledgeNote[], directory: string) {
+function getCurrentItems(
+  notes: MobileKnowledgeNote[],
+  directory: string,
+  compareStrings: (left: string, right: string) => number
+) {
   const directories = new Set<string>()
   const files: MobileKnowledgeNote[] = []
 
@@ -139,11 +136,13 @@ function getCurrentItems(notes: MobileKnowledgeNote[], directory: string) {
   }
 
   return {
-    directories: [...directories].sort((left, right) =>
-      left.localeCompare(right)
-    ),
+    directories: [...directories].sort(compareStrings),
     files: files.sort((left, right) => right.mtimeMs - left.mtimeMs),
   }
+}
+
+function getErrorMessage(error: unknown, locale: Locale, fallback: string) {
+  return locale === 'zh-CN' && error instanceof Error ? error.message : fallback
 }
 
 function appendImportedNote(
@@ -163,6 +162,7 @@ export function KnowledgeBaseScreen({
   onOpenMostLink,
   onDirtyChange,
 }: KnowledgeBaseScreenProps) {
+  const { compareStrings, formatDateTime, locale, t } = useI18n()
   const theme = useMostBoxTheme()
   const styles = knowledgeStyles[theme.mode]
   const { fontScale } = useWindowDimensions()
@@ -217,15 +217,11 @@ export function KnowledgeBaseScreen({
     try {
       setNotes(await repository.list())
     } catch (refreshError) {
-      setError(
-        refreshError instanceof Error
-          ? refreshError.message
-          : '无法读取本地知识库'
-      )
+      setError(getErrorMessage(refreshError, locale, t('knowledge.error.load')))
     } finally {
       setLoading(false)
     }
-  }, [repository])
+  }, [locale, repository, t])
 
   useEffect(() => {
     void refresh()
@@ -237,12 +233,16 @@ export function KnowledgeBaseScreen({
         onConfirm()
         return
       }
-      Alert.alert('放弃未保存修改？', '当前编辑内容尚未保存。', [
-        { text: '继续编辑', style: 'cancel' },
-        { text: '放弃修改', style: 'destructive', onPress: onConfirm },
+      Alert.alert(t('knowledge.discard.title'), t('knowledge.discard.body'), [
+        { text: t('knowledge.discard.continue'), style: 'cancel' },
+        {
+          text: t('knowledge.discard.confirm'),
+          style: 'destructive',
+          onPress: onConfirm,
+        },
       ])
     },
-    [dirty]
+    [dirty, t]
   )
 
   useEffect(() => {
@@ -264,19 +264,19 @@ export function KnowledgeBaseScreen({
     [notes, searchQuery]
   )
   const currentItems = useMemo(
-    () => getCurrentItems(notes, currentDirectory),
-    [currentDirectory, notes]
+    () => getCurrentItems(notes, currentDirectory, compareStrings),
+    [compareStrings, currentDirectory, notes]
   )
   const breadcrumb = useMemo(() => {
     const parts = currentDirectory.split('/').filter(Boolean)
     return [
-      { label: '知识库', path: '' },
+      { label: t('knowledge.root'), path: '' },
       ...parts.map((part, index) => ({
         label: part,
         path: parts.slice(0, index + 1).join('/'),
       })),
     ]
-  }, [currentDirectory])
+  }, [currentDirectory, t])
 
   function openNote(note: MobileKnowledgeNote) {
     setSelectedPath(note.path)
@@ -326,9 +326,7 @@ export function KnowledgeBaseScreen({
             try {
               await repository.move(targetPath, normalizedOriginal)
             } catch {
-              throw new Error(
-                '保存失败且无法撤销文件移动，请返回列表刷新后检查文件位置'
-              )
+              throw new Error(t('knowledge.error.rollback'))
             }
             throw writeError
           }
@@ -347,7 +345,7 @@ export function KnowledgeBaseScreen({
       setEditorContent(saved.content)
       setMode('preview')
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : '保存笔记失败')
+      setError(getErrorMessage(saveError, locale, t('knowledge.error.save')))
     } finally {
       setWorking(false)
     }
@@ -363,7 +361,10 @@ export function KnowledgeBaseScreen({
 
   async function attachFile() {
     if (!isCoreReady) {
-      Alert.alert('P2P 核心未就绪', '节点在线后才能发布知识库附件。')
+      Alert.alert(
+        t('knowledge.attachment.coreTitle'),
+        t('knowledge.attachment.coreBody')
+      )
       return
     }
     setAttaching(true)
@@ -384,8 +385,12 @@ export function KnowledgeBaseScreen({
       setEditorSelection(result.selection)
     } catch (attachError) {
       Alert.alert(
-        '附件发布失败',
-        attachError instanceof Error ? attachError.message : '无法发布附件'
+        t('knowledge.attachment.publishFailed'),
+        getErrorMessage(
+          attachError,
+          locale,
+          t('knowledge.attachment.publishFailedBody')
+        )
       )
     } finally {
       setAttaching(false)
@@ -398,60 +403,45 @@ export function KnowledgeBaseScreen({
       return
     }
     if (!/^(https?:|mailto:)/i.test(url)) {
-      Alert.alert('不支持的链接', url)
+      Alert.alert(t('knowledge.link.unsupported'), url)
       return
     }
     if (!(await Linking.canOpenURL(url))) {
-      throw new Error('当前设备无法打开此链接')
+      throw new Error(t('knowledge.link.openUnavailable'))
     }
     await Linking.openURL(url)
   }
 
   async function shareFile(fileUri: string, mimeType: string, title: string) {
     if (!(await Sharing.isAvailableAsync())) {
-      throw new Error('当前设备不支持系统分享')
+      throw new Error(t('knowledge.share.unavailable'))
     }
     await Sharing.shareAsync(fileUri, { mimeType, dialogTitle: title })
   }
 
   async function exportNote(note: MobileKnowledgeNote) {
-    if (!FileSystem.cacheDirectory) throw new Error('临时目录不可用')
+    if (!FileSystem.cacheDirectory) {
+      throw new Error(t('knowledge.temp.unavailable'))
+    }
     setWorking(true)
     try {
-      const fileName = getSafeExportName(`${note.name}.md`, 'note.md')
+      const fileName = getSafeExportName(
+        getKnowledgeNoteBackupFileName(note.name),
+        'note.txt'
+      )
       const target = `${FileSystem.cacheDirectory}${encodeURIComponent(fileName)}`
       await FileSystem.writeAsStringAsync(target, note.content, {
         encoding: FileSystem.EncodingType.UTF8,
       })
-      await shareFile(target, 'text/markdown', `导出 ${fileName}`)
-    } catch (exportError) {
-      Alert.alert(
-        '导出失败',
-        exportError instanceof Error ? exportError.message : '无法导出笔记'
-      )
-    } finally {
-      setWorking(false)
-    }
-  }
-
-  async function exportVault() {
-    if (!FileSystem.cacheDirectory) throw new Error('临时目录不可用')
-    setWorking(true)
-    try {
-      const snapshot = await repository.exportSnapshot()
-      const stamp = snapshot.exportedAt.replace(/[:.]/g, '-').replace('T', '_')
-      const fileName = `mostbox-knowledge-${stamp}.json`
-      const target = `${FileSystem.cacheDirectory}${fileName}`
-      await FileSystem.writeAsStringAsync(
+      await shareFile(
         target,
-        JSON.stringify(snapshot, null, 2),
-        { encoding: FileSystem.EncodingType.UTF8 }
+        'text/plain',
+        t('knowledge.export.dialog', { fileName })
       )
-      await shareFile(target, 'application/json', '导出知识库快照')
     } catch (exportError) {
       Alert.alert(
-        '导出失败',
-        exportError instanceof Error ? exportError.message : '无法导出知识库'
+        t('knowledge.export.failed'),
+        getErrorMessage(exportError, locale, t('knowledge.export.failedBody'))
       )
     } finally {
       setWorking(false)
@@ -476,8 +466,8 @@ export function KnowledgeBaseScreen({
       openNote(imported)
     } catch (importError) {
       Alert.alert(
-        '导入失败',
-        importError instanceof Error ? importError.message : '无法导入笔记'
+        t('knowledge.import.failed'),
+        getErrorMessage(importError, locale, t('knowledge.import.failedBody'))
       )
     } finally {
       setWorking(false)
@@ -489,16 +479,15 @@ export function KnowledgeBaseScreen({
       const result = await DocumentPicker.getDocumentAsync({
         copyToCacheDirectory: true,
         multiple: false,
-        type: '*/*',
+        type: 'text/plain',
       })
       if (result.canceled) return
       const file = result.assets[0]
       if (!file) return
-      if (!file.name.toLowerCase().endsWith('.md')) {
-        throw new Error('请选择 .md Markdown 文件')
-      }
-      const fileName = normalizeKnowledgeNoteName(file.name)
-      const targetPath = joinKnowledgePath(currentDirectory, fileName)
+      const targetPath = getKnowledgeImportPathFromTextFile(
+        currentDirectory,
+        file.name
+      )
       const content = await FileSystem.readAsStringAsync(file.uri, {
         encoding: FileSystem.EncodingType.UTF8,
       })
@@ -509,10 +498,10 @@ export function KnowledgeBaseScreen({
         await finishImport(targetPath, content, false)
         return
       }
-      Alert.alert('同名笔记已存在', targetPath, [
-        { text: '取消', style: 'cancel' },
+      Alert.alert(t('knowledge.import.conflict'), targetPath, [
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: '保留两份',
+          text: t('knowledge.import.keepBoth'),
           onPress: () => {
             void finishImport(
               createUniqueKnowledgeFilePath(
@@ -525,7 +514,7 @@ export function KnowledgeBaseScreen({
           },
         },
         {
-          text: '覆盖',
+          text: t('knowledge.import.overwrite'),
           style: 'destructive',
           onPress: () => {
             void finishImport(targetPath, content, true)
@@ -534,76 +523,17 @@ export function KnowledgeBaseScreen({
       ])
     } catch (importError) {
       Alert.alert(
-        '导入失败',
-        importError instanceof Error
-          ? importError.message
-          : '请选择 Markdown 文件'
-      )
-    }
-  }
-
-  async function restoreVault() {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        copyToCacheDirectory: true,
-        multiple: false,
-        type: 'application/json',
-      })
-      if (result.canceled) return
-      const file = result.assets[0]
-      if (!file) return
-      const raw = await FileSystem.readAsStringAsync(file.uri, {
-        encoding: FileSystem.EncodingType.UTF8,
-      })
-      const parsed = JSON.parse(raw) as unknown
-      const snapshot = validateKnowledgeSnapshot(parsed)
-      Alert.alert(
-        '恢复整个知识库？',
-        `快照包含 ${snapshot.files.length} 篇笔记，将完全替换当前知识库。`,
-        [
-          { text: '取消', style: 'cancel' },
-          {
-            text: '恢复',
-            style: 'destructive',
-            onPress: () => {
-              setWorking(true)
-              void repository
-                .restoreSnapshot(snapshot)
-                .then(async () => {
-                  setMode('browse')
-                  setSelectedPath('')
-                  setCurrentDirectory('')
-                  await refresh()
-                  Alert.alert('恢复完成', '本地知识库已替换为所选快照。')
-                })
-                .catch(restoreError => {
-                  Alert.alert(
-                    '恢复失败',
-                    restoreError instanceof Error
-                      ? restoreError.message
-                      : '原知识库已保留'
-                  )
-                })
-                .finally(() => setWorking(false))
-            },
-          },
-        ]
-      )
-    } catch (restoreError) {
-      Alert.alert(
-        '快照无效',
-        restoreError instanceof Error
-          ? restoreError.message
-          : '无法读取知识库快照'
+        t('knowledge.import.failed'),
+        getErrorMessage(importError, locale, t('knowledge.import.chooseTxt'))
       )
     }
   }
 
   function confirmDeleteNote(note: MobileKnowledgeNote) {
-    Alert.alert('删除笔记？', note.path, [
-      { text: '取消', style: 'cancel' },
+    Alert.alert(t('knowledge.delete.noteTitle'), note.path, [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: '删除',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: () => {
           setWorking(true)
@@ -616,10 +546,12 @@ export function KnowledgeBaseScreen({
             })
             .catch(deleteError => {
               Alert.alert(
-                '删除失败',
-                deleteError instanceof Error
-                  ? deleteError.message
-                  : '无法删除笔记'
+                t('knowledge.delete.noteFailed'),
+                getErrorMessage(
+                  deleteError,
+                  locale,
+                  t('knowledge.delete.noteFailedBody')
+                )
               )
             })
             .finally(() => setWorking(false))
@@ -630,15 +562,15 @@ export function KnowledgeBaseScreen({
 
   function openDirectoryActions(directory: string) {
     Alert.alert(directory.slice(directory.lastIndexOf('/') + 1), directory, [
-      { text: '取消', style: 'cancel' },
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: '移动',
+        text: t('knowledge.move.directoryAction'),
         onPress: () => {
           const promptState: PromptState = {
-            title: '移动目录',
-            placeholder: '新目录路径',
+            title: t('knowledge.move.directoryTitle'),
+            placeholder: t('knowledge.move.directoryPlaceholder'),
             value: directory,
-            confirmText: '移动',
+            confirmText: t('knowledge.move.directoryAction'),
             onConfirm: async value => {
               const target = normalizeKnowledgeDirectory(value)
               await repository.moveDirectory(directory, target)
@@ -651,31 +583,37 @@ export function KnowledgeBaseScreen({
         },
       },
       {
-        text: '删除',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: () => {
-          Alert.alert('删除目录？', '目录中的全部笔记都会被删除。', [
-            { text: '取消', style: 'cancel' },
-            {
-              text: '删除',
-              style: 'destructive',
-              onPress: () => {
-                setWorking(true)
-                void repository
-                  .deleteDirectory(directory)
-                  .then(refresh)
-                  .catch(deleteError => {
-                    Alert.alert(
-                      '删除失败',
-                      deleteError instanceof Error
-                        ? deleteError.message
-                        : '无法删除目录'
-                    )
-                  })
-                  .finally(() => setWorking(false))
+          Alert.alert(
+            t('knowledge.delete.directoryTitle'),
+            t('knowledge.delete.directoryBody'),
+            [
+              { text: t('common.cancel'), style: 'cancel' },
+              {
+                text: t('common.delete'),
+                style: 'destructive',
+                onPress: () => {
+                  setWorking(true)
+                  void repository
+                    .deleteDirectory(directory)
+                    .then(refresh)
+                    .catch(deleteError => {
+                      Alert.alert(
+                        t('knowledge.delete.noteFailed'),
+                        getErrorMessage(
+                          deleteError,
+                          locale,
+                          t('knowledge.delete.directoryFailedBody')
+                        )
+                      )
+                    })
+                    .finally(() => setWorking(false))
+                },
               },
-            },
-          ])
+            ]
+          )
         },
       },
     ])
@@ -683,10 +621,9 @@ export function KnowledgeBaseScreen({
 
   function openNoteActions(note: MobileKnowledgeNote) {
     Alert.alert(note.name, note.path, [
-      { text: '取消', style: 'cancel' },
-      { text: '导出', onPress: () => void exportNote(note) },
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: '删除',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: () => confirmDeleteNote(note),
       },
@@ -701,8 +638,8 @@ export function KnowledgeBaseScreen({
       setPrompt(null)
     } catch (promptError) {
       Alert.alert(
-        '操作失败',
-        promptError instanceof Error ? promptError.message : '无法完成操作'
+        t('knowledge.action.failed'),
+        getErrorMessage(promptError, locale, t('knowledge.action.failedBody'))
       )
     } finally {
       setPromptWorking(false)
@@ -765,7 +702,7 @@ export function KnowledgeBaseScreen({
       >
         <View style={styles.detailHeader}>
           <Pressable
-            accessibilityLabel="返回"
+            accessibilityLabel={t('knowledge.editor.back')}
             accessibilityRole="button"
             onPress={leaveEditor}
             style={({ pressed }) => [
@@ -777,16 +714,18 @@ export function KnowledgeBaseScreen({
           </Pressable>
           <View style={styles.detailTitleGroup}>
             <Text maxFontSizeMultiplier={1.8} style={styles.detailTitle}>
-              {editorOriginalPath ? '编辑笔记' : '新建笔记'}
+              {editorOriginalPath
+                ? t('knowledge.editor.editTitle')
+                : t('knowledge.editor.newTitle')}
             </Text>
             {dirty ? (
               <Text maxFontSizeMultiplier={1.6} style={styles.unsavedLabel}>
-                未保存
+                {t('knowledge.editor.unsaved')}
               </Text>
             ) : null}
           </View>
           <Pressable
-            accessibilityLabel="保存笔记"
+            accessibilityLabel={t('knowledge.editor.saveA11y')}
             accessibilityRole="button"
             accessibilityState={{ disabled: working }}
             disabled={working}
@@ -803,27 +742,27 @@ export function KnowledgeBaseScreen({
               <Save size={17} color={theme.colors.onAccent} />
             )}
             <Text maxFontSizeMultiplier={1.6} style={styles.saveButtonText}>
-              保存
+              {t('common.save')}
             </Text>
           </Pressable>
         </View>
 
         <View style={styles.editorFields}>
           <TextInput
-            accessibilityLabel="笔记名称"
+            accessibilityLabel={t('knowledge.editor.name')}
             maxFontSizeMultiplier={1.8}
             onChangeText={setEditorName}
-            placeholder="笔记名称"
+            placeholder={t('knowledge.editor.name')}
             placeholderTextColor={theme.colors.textMuted}
             style={styles.titleInput}
             value={editorName}
           />
           <TextInput
-            accessibilityLabel="目录路径"
+            accessibilityLabel={t('knowledge.editor.directory')}
             autoCapitalize="none"
             maxFontSizeMultiplier={1.8}
             onChangeText={setEditorDirectory}
-            placeholder="目录路径（可留空）"
+            placeholder={t('knowledge.editor.directoryPlaceholder')}
             placeholderTextColor={theme.colors.textMuted}
             style={styles.pathInput}
             value={editorDirectory}
@@ -848,7 +787,7 @@ export function KnowledgeBaseScreen({
                   editorView === 'edit' ? styles.segmentTextActive : null,
                 ]}
               >
-                编辑
+                {t('common.edit')}
               </Text>
             </Pressable>
             <Pressable
@@ -870,7 +809,7 @@ export function KnowledgeBaseScreen({
                   editorView === 'preview' ? styles.segmentTextActive : null,
                 ]}
               >
-                预览
+                {t('common.preview')}
               </Text>
             </Pressable>
           </View>
@@ -886,12 +825,12 @@ export function KnowledgeBaseScreen({
               style={styles.toolbar}
             >
               {[
-                ['heading', '标题', Heading2],
-                ['bold', '粗体', Bold],
-                ['italic', '斜体', Italic],
-                ['list', '列表', List],
-                ['code', '代码', Code],
-                ['link', '链接', Link2],
+                ['heading', t('knowledge.tool.heading'), Heading2],
+                ['bold', t('knowledge.tool.bold'), Bold],
+                ['italic', t('knowledge.tool.italic'), Italic],
+                ['list', t('knowledge.tool.list'), List],
+                ['code', t('knowledge.tool.code'), Code],
+                ['link', t('knowledge.tool.link'), Link2],
               ].map(([tool, label, Icon]) => (
                 <Pressable
                   key={String(tool)}
@@ -912,7 +851,7 @@ export function KnowledgeBaseScreen({
                 </Pressable>
               ))}
               <Pressable
-                accessibilityLabel="发布并插入附件"
+                accessibilityLabel={t('knowledge.attachment.insert')}
                 accessibilityRole="button"
                 accessibilityState={{ disabled: attaching || !isCoreReady }}
                 disabled={attaching || !isCoreReady}
@@ -931,14 +870,14 @@ export function KnowledgeBaseScreen({
               </Pressable>
             </ScrollView>
             <TextInput
-              accessibilityLabel="Markdown 正文"
+              accessibilityLabel={t('knowledge.editor.bodyA11y')}
               autoCapitalize="sentences"
               multiline
               onChangeText={setEditorContent}
               onSelectionChange={event =>
                 setEditorSelection(event.nativeEvent.selection)
               }
-              placeholder="开始记录..."
+              placeholder={t('knowledge.editor.bodyPlaceholder')}
               placeholderTextColor={theme.colors.textMuted}
               selection={editorSelection}
               style={styles.editorInput}
@@ -955,9 +894,12 @@ export function KnowledgeBaseScreen({
             {editorContent ? (
               <EnrichedMarkdownText
                 accessibilityLabels={{
-                  list: { bulletPoint: '项目符号', orderedItem: '列表项 {n}' },
-                  blockquote: { quote: '引用' },
-                  table: { row: '第 {n} 行：{content}' },
+                  list: {
+                    bulletPoint: t('knowledge.markdown.bullet'),
+                    orderedItem: t('knowledge.markdown.ordered'),
+                  },
+                  blockquote: { quote: t('knowledge.markdown.quote') },
+                  table: { row: t('knowledge.markdown.row') },
                 }}
                 flavor="github"
                 markdown={prepareMarkdownPreview(editorContent)}
@@ -967,22 +909,27 @@ export function KnowledgeBaseScreen({
                 onLinkPress={({ url }) => {
                   void handlePreviewLink(url).catch(linkError => {
                     Alert.alert(
-                      '打开失败',
-                      linkError instanceof Error
-                        ? linkError.message
-                        : '无法打开链接'
+                      t('knowledge.link.openFailed'),
+                      getErrorMessage(
+                        linkError,
+                        locale,
+                        t('knowledge.link.openFailedBody')
+                      )
                     )
                   })
                 }}
                 selectable
                 selectionMenuConfig={{
-                  copy: { label: '复制' },
-                  copyAsMarkdown: { enabled: true, label: '复制 Markdown' },
+                  copy: { label: t('knowledge.markdown.copy') },
+                  copyAsMarkdown: {
+                    enabled: true,
+                    label: t('knowledge.markdown.copyMarkdown'),
+                  },
                 }}
               />
             ) : (
               <Text maxFontSizeMultiplier={2} style={styles.emptyBody}>
-                暂无内容
+                {t('knowledge.empty.content')}
               </Text>
             )}
           </ScrollView>
@@ -1001,7 +948,7 @@ export function KnowledgeBaseScreen({
       <View style={styles.screen}>
         <View style={styles.detailHeader}>
           <Pressable
-            accessibilityLabel="返回知识库"
+            accessibilityLabel={t('knowledge.preview.back')}
             accessibilityRole="button"
             onPress={() => setMode('browse')}
             style={({ pressed }) => [
@@ -1028,7 +975,7 @@ export function KnowledgeBaseScreen({
             </Text>
           </View>
           <Pressable
-            accessibilityLabel="编辑笔记"
+            accessibilityLabel={t('knowledge.preview.edit')}
             accessibilityRole="button"
             onPress={() => openEditor(selectedNote)}
             style={({ pressed }) => [
@@ -1042,22 +989,28 @@ export function KnowledgeBaseScreen({
         <View style={styles.previewMetaRow}>
           <Text maxFontSizeMultiplier={1.8} style={styles.metaText}>
             {formatBytes(selectedNote.size)} ·{' '}
-            {formatDate(selectedNote.mtimeMs)}
+            {formatDateTime(selectedNote.mtimeMs)}
           </Text>
           <View style={styles.inlineActions}>
             <Pressable
-              accessibilityLabel="导出笔记"
+              accessibilityLabel={t('knowledge.preview.exportA11y')}
               accessibilityRole="button"
               onPress={() => void exportNote(selectedNote)}
               style={({ pressed }) => [
-                styles.iconButtonSmall,
+                styles.previewExportButton,
                 pressed ? styles.pressed : null,
               ]}
             >
-              <Share2 size={17} color={theme.colors.textSecondary} />
+              <FileDown size={16} color={theme.colors.textSecondary} />
+              <Text
+                maxFontSizeMultiplier={1.5}
+                style={styles.previewExportButtonText}
+              >
+                {t('knowledge.preview.export')}
+              </Text>
             </Pressable>
             <Pressable
-              accessibilityLabel="删除笔记"
+              accessibilityLabel={t('knowledge.preview.delete')}
               accessibilityRole="button"
               onPress={() => confirmDeleteNote(selectedNote)}
               style={({ pressed }) => [
@@ -1077,9 +1030,12 @@ export function KnowledgeBaseScreen({
           {selectedNote.content ? (
             <EnrichedMarkdownText
               accessibilityLabels={{
-                list: { bulletPoint: '项目符号', orderedItem: '列表项 {n}' },
-                blockquote: { quote: '引用' },
-                table: { row: '第 {n} 行：{content}' },
+                list: {
+                  bulletPoint: t('knowledge.markdown.bullet'),
+                  orderedItem: t('knowledge.markdown.ordered'),
+                },
+                blockquote: { quote: t('knowledge.markdown.quote') },
+                table: { row: t('knowledge.markdown.row') },
               }}
               flavor="github"
               markdown={prepareMarkdownPreview(selectedNote.content)}
@@ -1089,22 +1045,27 @@ export function KnowledgeBaseScreen({
               onLinkPress={({ url }) => {
                 void handlePreviewLink(url).catch(linkError => {
                   Alert.alert(
-                    '打开失败',
-                    linkError instanceof Error
-                      ? linkError.message
-                      : '无法打开链接'
+                    t('knowledge.link.openFailed'),
+                    getErrorMessage(
+                      linkError,
+                      locale,
+                      t('knowledge.link.openFailedBody')
+                    )
                   )
                 })
               }}
               selectable
               selectionMenuConfig={{
-                copy: { label: '复制' },
-                copyAsMarkdown: { enabled: true, label: '复制 Markdown' },
+                copy: { label: t('knowledge.markdown.copy') },
+                copyAsMarkdown: {
+                  enabled: true,
+                  label: t('knowledge.markdown.copyMarkdown'),
+                },
               }}
             />
           ) : (
             <Text maxFontSizeMultiplier={2} style={styles.emptyBody}>
-              暂无内容
+              {t('knowledge.empty.content')}
             </Text>
           )}
         </ScrollView>
@@ -1120,100 +1081,53 @@ export function KnowledgeBaseScreen({
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View
-          style={[
-            styles.actionRow,
-            accessibilityLayout ? styles.actionRowAccessibility : null,
-          ]}
-        >
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => openEditor()}
-            style={({ pressed }) => [
-              styles.primaryAction,
-              pressed ? styles.pressed : null,
-            ]}
-          >
-            <FilePlus2 size={19} color={theme.colors.onAccent} />
-            <Text
-              maxFontSizeMultiplier={1.8}
-              style={[
-                styles.primaryActionText,
-                accessibilityLayout
-                  ? styles.primaryActionTextAccessibility
-                  : null,
-              ]}
-            >
-              新建笔记
-            </Text>
-          </Pressable>
+        <View style={styles.actionSection}>
           <View
             style={[
-              styles.utilityActions,
-              accessibilityLayout ? styles.utilityActionsAccessibility : null,
+              styles.noteActions,
+              accessibilityLayout ? styles.noteActionsAccessibility : null,
             ]}
           >
             <Pressable
-              accessibilityLabel="导入 Markdown"
+              accessibilityRole="button"
+              onPress={() => openEditor()}
+              style={({ pressed }) => [
+                styles.noteAction,
+                styles.noteActionPrimary,
+                accessibilityLayout ? styles.noteActionAccessibility : null,
+                pressed ? styles.pressed : null,
+              ]}
+            >
+              <FilePlus2 size={19} color={theme.colors.onAccent} />
+              <Text
+                maxFontSizeMultiplier={1.8}
+                numberOfLines={1}
+                style={[styles.noteActionText, styles.noteActionTextPrimary]}
+              >
+                {t('knowledge.action.new')}
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityLabel={t('knowledge.action.import')}
               accessibilityRole="button"
               accessibilityState={{ disabled: working }}
               disabled={working}
               onPress={() => void importNote()}
               style={({ pressed }) => [
-                styles.utilityAction,
-                accessibilityLayout ? styles.utilityActionAccessibility : null,
+                styles.noteAction,
+                styles.noteActionSecondary,
+                accessibilityLayout ? styles.noteActionAccessibility : null,
                 working ? styles.disabled : null,
                 pressed ? styles.pressed : null,
               ]}
             >
-              <Download size={19} color={theme.colors.textSecondary} />
+              <FileUp size={19} color={theme.colors.accent} />
               <Text
-                maxFontSizeMultiplier={1.6}
-                style={styles.utilityActionText}
+                maxFontSizeMultiplier={1.8}
+                numberOfLines={1}
+                style={styles.noteActionText}
               >
-                导入
-              </Text>
-            </Pressable>
-            <Pressable
-              accessibilityLabel="导出知识库快照"
-              accessibilityRole="button"
-              accessibilityState={{ disabled: working }}
-              disabled={working}
-              onPress={() => void exportVault()}
-              style={({ pressed }) => [
-                styles.utilityAction,
-                accessibilityLayout ? styles.utilityActionAccessibility : null,
-                working ? styles.disabled : null,
-                pressed ? styles.pressed : null,
-              ]}
-            >
-              <FileDown size={19} color={theme.colors.textSecondary} />
-              <Text
-                maxFontSizeMultiplier={1.6}
-                style={styles.utilityActionText}
-              >
-                备份
-              </Text>
-            </Pressable>
-            <Pressable
-              accessibilityLabel="恢复知识库快照"
-              accessibilityRole="button"
-              accessibilityState={{ disabled: working }}
-              disabled={working}
-              onPress={() => void restoreVault()}
-              style={({ pressed }) => [
-                styles.utilityAction,
-                accessibilityLayout ? styles.utilityActionAccessibility : null,
-                working ? styles.disabled : null,
-                pressed ? styles.pressed : null,
-              ]}
-            >
-              <ArchiveRestore size={19} color={theme.colors.textSecondary} />
-              <Text
-                maxFontSizeMultiplier={1.6}
-                style={styles.utilityActionText}
-              >
-                恢复
+                {t('knowledge.action.import')}
               </Text>
             </Pressable>
           </View>
@@ -1222,18 +1136,18 @@ export function KnowledgeBaseScreen({
         <View style={styles.searchBox}>
           <Search size={18} color={theme.colors.textMuted} />
           <TextInput
-            accessibilityLabel="搜索知识库"
+            accessibilityLabel={t('knowledge.search.a11y')}
             autoCapitalize="none"
             maxFontSizeMultiplier={1.8}
             onChangeText={setSearchQuery}
-            placeholder="搜索标题、路径或正文"
+            placeholder={t('knowledge.search.placeholder')}
             placeholderTextColor={theme.colors.textMuted}
             style={styles.searchInput}
             value={searchQuery}
           />
           {searchQuery ? (
             <Pressable
-              accessibilityLabel="清除搜索"
+              accessibilityLabel={t('knowledge.search.clear')}
               accessibilityRole="button"
               onPress={() => setSearchQuery('')}
               style={styles.searchClear}
@@ -1280,7 +1194,7 @@ export function KnowledgeBaseScreen({
           <View style={styles.loadingState}>
             <Loader size={24} color={theme.colors.accent} />
             <Text maxFontSizeMultiplier={2} style={styles.emptyBody}>
-              正在读取知识库...
+              {t('knowledge.loading')}
             </Text>
           </View>
         ) : error ? (
@@ -1300,7 +1214,7 @@ export function KnowledgeBaseScreen({
                 maxFontSizeMultiplier={1.8}
                 style={styles.secondaryButtonText}
               >
-                重试
+                {t('common.retry')}
               </Text>
             </Pressable>
           </View>
@@ -1333,17 +1247,22 @@ export function KnowledgeBaseScreen({
                           numberOfLines={1}
                           style={styles.itemMeta}
                         >
-                          {
-                            notes.filter(note =>
+                          {(() => {
+                            const count = notes.filter(note =>
                               note.path.startsWith(`${directory}/`)
                             ).length
-                          }{' '}
-                          篇笔记
+                            return t(
+                              count === 1
+                                ? 'knowledge.noteCount.one'
+                                : 'knowledge.noteCount',
+                              { count }
+                            )
+                          })()}
                         </Text>
                       </View>
                     </Pressable>
                     <Pressable
-                      accessibilityLabel="目录操作"
+                      accessibilityLabel={t('knowledge.directory.actions')}
                       accessibilityRole="button"
                       onPress={() => openDirectoryActions(directory)}
                       style={({ pressed }) => [
@@ -1385,13 +1304,13 @@ export function KnowledgeBaseScreen({
                       numberOfLines={1}
                       style={styles.itemMeta}
                     >
-                      {searchQuery ? note.path : formatDate(note.mtimeMs)} ·{' '}
+                      {searchQuery ? note.path : formatDateTime(note.mtimeMs)} ·{' '}
                       {formatBytes(note.size)}
                     </Text>
                   </View>
                 </Pressable>
                 <Pressable
-                  accessibilityLabel="笔记操作"
+                  accessibilityLabel={t('knowledge.note.actions')}
                   accessibilityRole="button"
                   onPress={() => openNoteActions(note)}
                   style={({ pressed }) => [
@@ -1408,12 +1327,14 @@ export function KnowledgeBaseScreen({
               <View style={styles.emptyState}>
                 <BookOpen size={34} color={theme.colors.textMuted} />
                 <Text maxFontSizeMultiplier={2} style={styles.emptyTitle}>
-                  {searchQuery ? '没有匹配结果' : '这里还没有笔记'}
+                  {searchQuery
+                    ? t('knowledge.empty.searchTitle')
+                    : t('knowledge.empty.listTitle')}
                 </Text>
                 <Text maxFontSizeMultiplier={2} style={styles.emptyBody}>
                   {searchQuery
-                    ? '换一个关键词继续搜索'
-                    : '新建或导入 Markdown 笔记'}
+                    ? t('knowledge.empty.searchBody')
+                    : t('knowledge.empty.listBody')}
                 </Text>
               </View>
             ) : null}
@@ -1438,7 +1359,7 @@ export function KnowledgeBaseScreen({
                   {prompt?.title}
                 </Text>
                 <Pressable
-                  accessibilityLabel="关闭"
+                  accessibilityLabel={t('common.close')}
                   accessibilityRole="button"
                   disabled={promptWorking}
                   onPress={() => setPrompt(null)}
@@ -1468,7 +1389,7 @@ export function KnowledgeBaseScreen({
                     maxFontSizeMultiplier={1.8}
                     style={styles.secondaryButtonText}
                   >
-                    取消
+                    {t('common.cancel')}
                   </Text>
                 </Pressable>
                 <Pressable
@@ -1507,53 +1428,44 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
     browserContent: {
       paddingBottom: 28,
       paddingHorizontal: 16,
-      paddingTop: 2,
+      paddingTop: 16,
     },
-    actionRow: {
-      alignItems: 'center',
-      flexDirection: 'row',
-      gap: 10,
-      justifyContent: 'space-between',
+    actionSection: {
+      gap: 8,
       marginBottom: 14,
     },
-    actionRowAccessibility: { alignItems: 'stretch', flexDirection: 'column' },
-    primaryAction: {
+    noteActions: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+    noteActionsAccessibility: { flexDirection: 'column' },
+    noteAction: {
       alignItems: 'center',
-      backgroundColor: theme.colors.accent,
       borderRadius: theme.radii.medium,
+      flex: 1,
       flexDirection: 'row',
       gap: 8,
       justifyContent: 'center',
-      minHeight: 44,
-      minWidth: 120,
-      paddingHorizontal: 16,
+      minHeight: 52,
+      paddingHorizontal: 12,
     },
-    primaryActionText: {
-      color: theme.colors.onAccent,
-      fontSize: 15,
-      fontWeight: '700',
+    noteActionAccessibility: {
+      flex: 0,
+      minHeight: 64,
+      width: '100%',
     },
-    primaryActionTextAccessibility: { flex: 1, textAlign: 'center' },
-    utilityActions: { flexDirection: 'row', gap: 6 },
-    utilityActionsAccessibility: { alignSelf: 'stretch' },
-    utilityAction: {
-      alignItems: 'center',
-      borderColor: theme.colors.border,
-      borderRadius: theme.radii.medium,
+    noteActionPrimary: { backgroundColor: theme.colors.accent },
+    noteActionSecondary: {
+      backgroundColor: theme.colors.surface,
+      borderColor: theme.colors.borderStrong,
       borderWidth: 1,
-      gap: 3,
-      justifyContent: 'center',
-      minHeight: 44,
-      minWidth: 54,
-      paddingHorizontal: 8,
     },
-    utilityActionAccessibility: { flex: 1 },
-    utilityActionText: {
-      alignSelf: 'stretch',
-      color: theme.colors.textSecondary,
-      fontSize: 11,
-      textAlign: 'center',
+    noteActionText: {
+      color: theme.colors.accent,
+      fontSize: 14,
+      fontWeight: '600',
     },
+    noteActionTextPrimary: { color: theme.colors.onAccent },
     searchBox: {
       alignItems: 'center',
       backgroundColor: theme.colors.surface,
@@ -1680,6 +1592,19 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
       height: 36,
       justifyContent: 'center',
       width: 36,
+    },
+    previewExportButton: {
+      alignItems: 'center',
+      borderRadius: theme.radii.small,
+      flexDirection: 'row',
+      gap: 5,
+      minHeight: 36,
+      paddingHorizontal: 10,
+    },
+    previewExportButtonText: {
+      color: theme.colors.textSecondary,
+      fontSize: 13,
+      fontWeight: '600',
     },
     inlineActions: { flexDirection: 'row', gap: 2 },
     previewMetaRow: {

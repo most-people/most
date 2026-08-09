@@ -14,6 +14,7 @@ import {
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore, type UserIdentity } from '~/stores/userStore'
 import { isLocale, useI18n, type Locale, type MessageKey } from '~/lib/i18n'
+import { normalizeLocalizedTag, type LocalizedTag } from '~/lib/localizedTag'
 import {
   isAppearancePreference,
   type AppearancePreference,
@@ -76,6 +77,7 @@ interface AccountBackupPayload {
   profile?: {
     displayName?: string
     avatar?: string
+    tag?: LocalizedTag | null
     updatedAt?: number
   } | null
   preferences?: {
@@ -268,10 +270,16 @@ function applyProfileToIdentity(
 ) {
   if (!profile) return identity
   const updatedAt = Number(profile.updatedAt)
+  const hasTag = Object.prototype.hasOwnProperty.call(profile, 'tag')
+  const normalizedTag =
+    profile.tag === null ? null : normalizeLocalizedTag(profile.tag)
   return {
     ...identity,
     displayName: profile.displayName || identity.username,
     avatar: profile.avatar || undefined,
+    ...(hasTag && (profile.tag === null || normalizedTag)
+      ? { tag: normalizedTag }
+      : {}),
     profileUpdatedAt:
       Number.isFinite(updatedAt) && updatedAt > 0
         ? Math.floor(updatedAt)
@@ -358,6 +366,7 @@ export function useAccountBackup() {
       ? {
           displayName: currentIdentity.displayName || currentIdentity.username,
           avatar: currentIdentity.avatar || '',
+          tag: currentIdentity.tag,
           updatedAt: Number(currentIdentity.profileUpdatedAt) || Date.now(),
         }
       : metadata.profile
