@@ -2,13 +2,7 @@
 
 import './text-encoding-shim.mjs'
 import { COMMANDS, EVENTS } from '../rpc-commands.mjs'
-import sodium from 'sodium-native'
-import {
-  createEvent,
-  createJsonLineParser,
-  createRandomChannelId,
-  encodeEvent,
-} from './protocol.mjs'
+import { createEvent, createJsonLineParser, encodeEvent } from './protocol.mjs'
 import { MobileP2PCore } from './mobile-core.mjs'
 
 const { IPC } = BareKit
@@ -128,151 +122,6 @@ async function handleCommand(command) {
       return
     }
 
-    if (command.type === COMMANDS.CHANNEL_CREATE) {
-      const channel = await getCore().createChannel(payload)
-      send(
-        EVENTS.CHANNEL_JOINED,
-        {
-          channel,
-          snapshot: getCore().getSnapshot(),
-        },
-        requestId
-      )
-      return
-    }
-
-    if (command.type === COMMANDS.CHANNEL_ID_CREATE) {
-      send(
-        EVENTS.CHANNEL_ID_CREATED,
-        { channelId: createRandomChannelId(sodium.randombytes_buf) },
-        requestId
-      )
-      return
-    }
-
-    if (command.type === COMMANDS.CHANNEL_LIST) {
-      send(
-        EVENTS.CHANNEL_STATUS,
-        {
-          channels: getCore().listChannels(),
-          snapshot: getCore().getSnapshot(),
-        },
-        requestId
-      )
-      return
-    }
-
-    if (command.type === COMMANDS.CHANNEL_MESSAGES) {
-      const messages = await getCore().getChannelMessages(payload)
-      send(
-        EVENTS.CHANNEL_STATUS,
-        {
-          messages,
-          snapshot: getCore().getSnapshot(),
-        },
-        requestId
-      )
-      return
-    }
-
-    if (command.type === COMMANDS.CHANNEL_SEND) {
-      const message = await getCore().sendChannelMessage(payload)
-      send(
-        EVENTS.CHANNEL_MESSAGE,
-        {
-          channel: payload.channelName,
-          message,
-          snapshot: getCore().getSnapshot(),
-        },
-        requestId
-      )
-      return
-    }
-
-    if (command.type === COMMANDS.CHANNEL_LEAVE) {
-      const result = await getCore().leaveChannel(payload)
-      send(EVENTS.CHANNEL_LEFT, result, requestId)
-      return
-    }
-
-    if (command.type === COMMANDS.CHANNEL_REMARK_SET) {
-      const channel = await getCore().setChannelRemark(payload)
-      send(
-        EVENTS.CHANNEL_UPDATED,
-        {
-          channel,
-          snapshot: getCore().getSnapshot(),
-        },
-        requestId
-      )
-      return
-    }
-
-    if (command.type === COMMANDS.CHANNEL_PIN_SET) {
-      const channel = await getCore().setChannelPinned(payload)
-      send(
-        EVENTS.CHANNEL_UPDATED,
-        {
-          channel,
-          snapshot: getCore().getSnapshot(),
-        },
-        requestId
-      )
-      return
-    }
-
-    if (command.type === COMMANDS.CHANNEL_PRESENCE_GET) {
-      const presences = getCore().getChannelPresence(payload)
-      send(
-        EVENTS.CHANNEL_PRESENCE,
-        {
-          presences,
-          snapshot: getCore().getSnapshot(),
-        },
-        requestId
-      )
-      return
-    }
-
-    if (command.type === COMMANDS.CHANNEL_PRESENCE_JOIN) {
-      const presences = getCore().joinChannelPresence(payload)
-      send(
-        EVENTS.CHANNEL_PRESENCE,
-        {
-          presences,
-          snapshot: getCore().getSnapshot(),
-        },
-        requestId
-      )
-      return
-    }
-
-    if (command.type === COMMANDS.CHANNEL_PRESENCE_HEARTBEAT) {
-      const presences = getCore().heartbeatChannelPresence(payload)
-      send(
-        EVENTS.CHANNEL_PRESENCE,
-        {
-          presences,
-          snapshot: getCore().getSnapshot(),
-        },
-        requestId
-      )
-      return
-    }
-
-    if (command.type === COMMANDS.CHANNEL_PRESENCE_LEAVE) {
-      const presences = getCore().leaveChannelPresence(payload)
-      send(
-        EVENTS.CHANNEL_PRESENCE,
-        {
-          presences,
-          snapshot: getCore().getSnapshot(),
-        },
-        requestId
-      )
-      return
-    }
-
     if (command.type === COMMANDS.LOG_LIST) {
       send(EVENTS.SNAPSHOT, getCore().getSnapshot(), requestId)
       return
@@ -322,9 +171,6 @@ send(EVENTS.SNAPSHOT, {
   },
   holdings: [],
   transfers: [],
-  channels: [],
-  channelMessages: {},
-  channelPresence: {},
   p2pPing: null,
   logs: [],
 })

@@ -95,53 +95,6 @@ export type MobileLogEntry = {
   message: string
 }
 
-export type MobileChannelAttachment = {
-  kind: 'image' | 'video' | 'audio' | 'text' | 'file'
-  cid: string
-  fileName: string
-  link: string
-  mimeType?: string
-  size?: number
-}
-
-export type MobileChannel = {
-  name: string
-  channelId: string
-  channelKey: string
-  key: string
-  type: string
-  remark: string
-  pinned: boolean
-  createdAt: string
-  lastMessageAt: string
-  localWriterCoreKey: string
-  writerCoreKeys: string[]
-  peerCount: number
-}
-
-export type MobileChannelMessage = {
-  type?: string
-  author: string
-  authorName: string
-  content: string
-  timestamp: number
-  attachment?: MobileChannelAttachment
-}
-
-export type MobileChannelPresence = {
-  channelKey: string
-  channelId: string
-  address: string
-  displayName?: string
-  avatar?: string
-  profileUpdatedAt?: number
-  lastSeen: number
-  online: boolean
-  local?: boolean
-  status?: string
-  sessionId?: string
-}
-
 export type NodeState = {
   status: NodeRuntimeStatus
   peerCount: number
@@ -153,9 +106,6 @@ export type MobileCoreSnapshot = {
   node: NodeState
   holdings: MobileHolding[]
   transfers: MobileTransfer[]
-  channels: MobileChannel[]
-  channelMessages: Record<string, MobileChannelMessage[]>
-  channelPresence: Record<string, MobileChannelPresence[]>
   p2pPing: P2PPing | null
   logs: MobileLogEntry[]
 }
@@ -204,49 +154,6 @@ export type DeleteHoldingResult = {
   snapshot: MobileCoreSnapshot
 }
 
-export type CreateChannelInput = {
-  name: string
-  type?: string
-}
-
-export type LeaveChannelInput = {
-  channelName: string
-}
-
-export type ChannelMetadataInput = {
-  channelName: string
-}
-
-export type SetChannelRemarkInput = ChannelMetadataInput & {
-  remark: string
-}
-
-export type SetChannelPinnedInput = ChannelMetadataInput & {
-  pinned: boolean
-}
-
-export type LeaveChannelResult = {
-  channelKey: string
-  snapshot: MobileCoreSnapshot
-}
-
-export type SendChannelMessageInput = {
-  channelName: string
-  content: string
-  author?: string
-  authorName?: string
-  attachment?: MobileChannelAttachment
-}
-
-export type ChannelPresenceInput = {
-  channelName: string
-  address?: string
-  displayName?: string
-  avatar?: string
-  profileUpdatedAt?: number
-  sessionId?: string
-}
-
 export type ExportHoldingResult = {
   filePath: string
   fileName: string
@@ -268,26 +175,6 @@ export type MostBoxMobileCore = {
   exportHolding: (input: ExportHoldingInput) => Promise<ExportHoldingResult>
   deleteHolding: (input: DeleteHoldingInput) => Promise<DeleteHoldingResult>
   listHoldings: () => Promise<MobileHolding[]>
-  createChannel: (input: CreateChannelInput) => Promise<MobileChannel>
-  createRandomChannelId: () => Promise<string>
-  leaveChannel: (input: LeaveChannelInput) => Promise<LeaveChannelResult>
-  setChannelRemark: (input: SetChannelRemarkInput) => Promise<MobileChannel>
-  setChannelPinned: (input: SetChannelPinnedInput) => Promise<MobileChannel>
-  listChannels: () => Promise<MobileChannel[]>
-  getChannelMessages: (channelName: string) => Promise<MobileChannelMessage[]>
-  sendChannelMessage: (
-    input: SendChannelMessageInput
-  ) => Promise<MobileChannelMessage>
-  getChannelPresence: (channelName: string) => Promise<MobileChannelPresence[]>
-  joinChannelPresence: (
-    input: ChannelPresenceInput
-  ) => Promise<MobileChannelPresence[]>
-  heartbeatChannelPresence: (
-    input: ChannelPresenceInput
-  ) => Promise<MobileChannelPresence[]>
-  leaveChannelPresence: (
-    input: ChannelPresenceInput
-  ) => Promise<MobileChannelPresence[]>
   getSnapshot: () => MobileCoreSnapshot
   subscribe: (listener: CoreListener) => () => void
 }

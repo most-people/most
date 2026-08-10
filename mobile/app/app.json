@@ -39,7 +39,7 @@
       "buildNumber": "1",
       "supportsTablet": false,
       "infoPlist": {
-        "NSLocalNetworkUsageDescription": "MostBox 使用本地网络发现并连接其他设备，以传输消息和文件。"
+        "NSLocalNetworkUsageDescription": "MostBox 使用本地网络发现并连接其他设备，以传输文件。"
       }
     },
     "plugins": [

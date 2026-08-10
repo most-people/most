@@ -8,8 +8,8 @@ import {
 } from './node-crypto-shim.mjs'
 
 test('createHmac matches Node.js HMAC-SHA256', () => {
-  const key = 'mostbox-mobile-channel-proof-key'
-  const chunks = ['mostbox-channel-proof-v1', '\0', 'payload']
+  const key = 'mostbox-mobile-p2p-ping-proof-key'
+  const chunks = ['mostbox-p2p-ping-proof-v1', '\0', 'payload']
   const expected = chunks
     .reduce((hmac, chunk) => hmac.update(chunk), createNodeHmac('sha256', key))
     .digest('hex')

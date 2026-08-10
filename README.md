@@ -60,7 +60,7 @@ Android 使用“P2P 核心端 + 平台 UI 壳”分层，并以文件传输工�
 cd mobile/app
 npm install
 npm start      # 启动 Expo Dev Client 并打开 Android 真机/模拟器
-npm test       # 运行移动端 CID、most://、Channel 和 Bare Worklet IPC 测试
+npm test       # 运行移动端 CID、most://、P2P Ping 和 Bare Worklet IPC 测试
 npm run typecheck
 npm run build  # 生成内部 Alpha APK 和 SHA256 校验文件
 npm run build:release # 使用永久 App Signing Key 生成 GitHub Release APK
@@ -190,7 +190,7 @@ npm run test:unit     # 只运行后端单元测试
 npm run test:protocol # 运行 CID / 发布 / 下载 / P2P 接力协议回归
 
 cd mobile/app
-npm test              # 运行 Android 子包协议、Channel 和 IPC 测试
+npm test              # 运行 Android 子包协议、P2P Ping 和 IPC 测试
 ```
 
 ## 访问场景

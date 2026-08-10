@@ -69,11 +69,6 @@ export const coreMessages = {
     'zh-TW': '知識庫',
     en: 'Knowledge',
   },
-  'nav.chat': {
-    'zh-CN': '频道',
-    'zh-TW': '頻道',
-    en: 'Channels',
-  },
   'nav.transfers': {
     'zh-CN': '传输',
     'zh-TW': '傳輸',

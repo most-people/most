@@ -28,20 +28,10 @@ import {
   Files,
   Languages,
   ListChecks,
-  MessageCircle,
   Radio,
   ShieldCheck,
   X,
 } from 'lucide-react-native'
-import { ChatListScreen } from './src/features/chat/ChatListScreen'
-import { ChatRoomScreen } from './src/features/chat/ChatRoomScreen'
-import { ChatSettingsScreen } from './src/features/chat/ChatSettingsScreen'
-import {
-  getChannelKey,
-  getChannelTitle,
-  markChannelRead,
-  type ChannelLastReadMap,
-} from './src/features/chat/chatState'
 import { KnowledgeBaseScreen } from './src/features/knowledge/KnowledgeBaseScreen'
 import { createExpoKnowledgeRepository } from './src/features/knowledge/expoKnowledgeRepository'
 import { validateKnowledgeSnapshot } from './src/features/knowledge/knowledgeModel'
@@ -78,16 +68,12 @@ import {
 import type { DocumentPickerAsset } from 'expo-document-picker'
 import type {
   MobileCoreSnapshot,
-  MobileChannel,
-  MobileChannelAttachment,
   MobileHolding,
   MobileTransfer,
   MostBoxMobileCore,
 } from './src/mobileCore/types'
 
 const DEV_CID_MAX_BYTES = 20 * 1024 * 1024
-const CHANNEL_PRESENCE_HEARTBEAT_MS = 15 * 1000
-const MOBILE_PLATFORM_LABEL = Platform.OS === 'ios' ? 'iOS' : 'Android'
 const PRIVACY_URL = 'https://most.box/privacy/'
 const TERMS_URL = 'https://most.box/terms/'
 const SUPPORT_URL = 'https://github.com/most-people/most/issues'
@@ -107,31 +93,13 @@ const MIME_BY_EXTENSION: Record<string, string> = {
   zip: 'application/zip',
 }
 
-type RootTab = 'files' | 'knowledge' | 'chat' | 'transfers' | 'node'
-
-type ChatRoute =
-  | { name: 'list' }
-  | { name: 'room'; channelKey: string }
-  | { name: 'settings'; channelKey: string }
+type RootTab = 'files' | 'knowledge' | 'transfers' | 'node'
 
 const TAB_LABEL_KEYS: Record<RootTab, MessageKey> = {
   files: 'nav.files',
   knowledge: 'nav.knowledge',
-  chat: 'nav.chat',
   transfers: 'nav.transfers',
   node: 'nav.node',
-}
-
-function getAttachmentKind(
-  fileName: string,
-  mimeType?: string
-): MobileChannelAttachment['kind'] {
-  const normalizedMimeType = mimeType?.toLowerCase() || ''
-  if (normalizedMimeType.startsWith('image/')) return 'image'
-  if (normalizedMimeType.startsWith('video/')) return 'video'
-  if (normalizedMimeType.startsWith('audio/')) return 'audio'
-  if (normalizedMimeType.startsWith('text/')) return 'text'
-  return fileName.toLowerCase().endsWith('.txt') ? 'text' : 'file'
 }
 
 async function readDevCidBytes(file: DocumentPickerAsset) {
@@ -219,27 +187,9 @@ function MostBoxApp() {
     typeof createExpoKnowledgeRepository
   > | null>(null)
   const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const downloadingAttachmentCidRef = useRef<string | null>(null)
-  const settingsRemarkChannelKeyRef = useRef('')
-  const settingsRemarkBaselineRef = useRef('')
-  const channelPresenceSessionRef = useRef(
-    `${Platform.OS}-${Date.now()}-${Math.random().toString(36).slice(2)}`
-  )
   const [snapshot, setSnapshot] = useState<MobileCoreSnapshot | null>(null)
   const [activeTab, setActiveTab] = useState<RootTab>('files')
   const [nodeRoute, setNodeRoute] = useState<'status' | 'p2pPing'>('status')
-  const [chatRoute, setChatRoute] = useState<ChatRoute>({ name: 'list' })
-  const [channelName, setChannelName] = useState('')
-  const [channelSearchInput, setChannelSearchInput] = useState('')
-  const [channelOpenInput, setChannelOpenInput] = useState('')
-  const [channelLastReadAt, setChannelLastReadAt] =
-    useState<ChannelLastReadMap>({})
-  const [channelDraft, setChannelDraft] = useState('')
-  const [settingsRemarkInput, setSettingsRemarkInput] = useState('')
-  const [channelBusy, setChannelBusy] = useState(false)
-  const [downloadingAttachmentCid, setDownloadingAttachmentCid] = useState<
-    string | null
-  >(null)
   const [publishing, setPublishing] = useState(false)
   const [knowledgeDirty, setKnowledgeDirty] = useState(false)
   const [knowledgeBackupWorking, setKnowledgeBackupWorking] = useState(false)
@@ -273,24 +223,6 @@ function MostBoxApp() {
   const nodeStatus = currentSnapshot.node.status
   const isReady = nodeStatus === 'ready'
   const isCoreBusy = nodeStatus === 'starting' || nodeStatus === 'stopping'
-  const routeChannelKey =
-    chatRoute.name === 'room' || chatRoute.name === 'settings'
-      ? chatRoute.channelKey
-      : ''
-  const selectedChannel =
-    currentSnapshot.channels.find(channel => {
-      const channelKey = getChannelKey(channel)
-      return (
-        channelKey === routeChannelKey || channel.channelId === routeChannelKey
-      )
-    }) || null
-  const selectedChannelKey = selectedChannel
-    ? getChannelKey(selectedChannel)
-    : routeChannelKey
-  const channelMessages =
-    (currentSnapshot.channelMessages || {})[selectedChannelKey] || []
-  const channelPresence =
-    (currentSnapshot.channelPresence || {})[selectedChannelKey] || []
 
   useEffect(() => {
     const unsubscribe = core.subscribe(setSnapshot)
@@ -307,37 +239,6 @@ function MostBoxApp() {
       void core.stop()
     }
   }, [core, locale, t])
-
-  useEffect(() => {
-    if (chatRoute.name !== 'settings' || !selectedChannel) return
-    const channelKey = getChannelKey(selectedChannel)
-    const channelChanged = settingsRemarkChannelKeyRef.current !== channelKey
-    const remarkClean =
-      settingsRemarkInput === settingsRemarkBaselineRef.current
-    if (channelChanged || remarkClean) {
-      setSettingsRemarkInput(selectedChannel.remark)
-      settingsRemarkBaselineRef.current = selectedChannel.remark
-    }
-    settingsRemarkChannelKeyRef.current = channelKey
-  }, [chatRoute.name, selectedChannel, settingsRemarkInput])
-
-  useEffect(() => {
-    if (!isReady || !selectedChannelKey) return
-    const sessionId = channelPresenceSessionRef.current
-    const payload = { channelName: selectedChannelKey, sessionId }
-    void core
-      .joinChannelPresence({ ...payload, displayName: MOBILE_PLATFORM_LABEL })
-      .catch(() => {})
-    const timer = setInterval(() => {
-      void core.heartbeatChannelPresence(payload).catch(() => {})
-    }, CHANNEL_PRESENCE_HEARTBEAT_MS)
-    return () => {
-      clearInterval(timer)
-      if (core.getSnapshot().node.status === 'ready') {
-        void core.leaveChannelPresence(payload).catch(() => {})
-      }
-    }
-  }, [core, isReady, selectedChannelKey])
 
   const openDownloadIntent = useCallback(
     (intent: IncomingMostLink, openAfterComplete = false) => {
@@ -493,226 +394,6 @@ function MostBoxApp() {
       fileName: result.file.name,
       link: result.link,
       mimeType: result.file.mimeType,
-    }
-  }
-
-  const openChannel = async (name: string) => {
-    if (!guardReady()) return false
-    setChannelBusy(true)
-    try {
-      const channel = await core.createChannel({ name, type: 'public' })
-      const channelKey = getChannelKey(channel)
-      await core.getChannelMessages(channelKey)
-      setChannelName(channelKey)
-      setChannelDraft('')
-      setChatRoute({ name: 'room', channelKey })
-      setChannelLastReadAt(value => markChannelRead(value, channelKey))
-      return true
-    } catch (error) {
-      Alert.alert(
-        t('chat.action.openFailed'),
-        getFriendlyCoreError(error, locale)
-      )
-      return false
-    } finally {
-      setChannelBusy(false)
-    }
-  }
-
-  const handleOpenChannelId = async (name: string) => {
-    if (await openChannel(name.trim())) setChannelOpenInput('')
-  }
-
-  const handleGenerateChannelId = async () => {
-    if (!guardReady()) return
-    setChannelBusy(true)
-    try {
-      setChannelOpenInput(await core.createRandomChannelId())
-    } catch (error) {
-      Alert.alert(
-        t('chat.action.generateFailed'),
-        getFriendlyCoreError(error, locale)
-      )
-    } finally {
-      setChannelBusy(false)
-    }
-  }
-
-  const handleOpenSavedChannel = (channel: MobileChannel) => {
-    const channelKey = getChannelKey(channel)
-    if (!channelKey) return
-    setChannelName(channelKey)
-    setChannelDraft('')
-    setChatRoute({ name: 'room', channelKey })
-    setChannelLastReadAt(value => markChannelRead(value, channelKey))
-    if (isReady) void core.getChannelMessages(channelKey).catch(() => {})
-  }
-
-  const handleToggleChannelPin = async (channel: MobileChannel) => {
-    if (!guardReady()) return
-    setChannelBusy(true)
-    try {
-      await core.setChannelPinned({
-        channelName: channel.channelKey,
-        pinned: !channel.pinned,
-      })
-    } catch (error) {
-      Alert.alert(
-        t('chat.action.updateFailed'),
-        getFriendlyCoreError(error, locale)
-      )
-    } finally {
-      setChannelBusy(false)
-    }
-  }
-
-  const handleRenameChannel = async (channel: MobileChannel) => {
-    if (!guardReady()) throw new Error('P2P core is not ready')
-    setChannelBusy(true)
-    try {
-      await core.setChannelRemark({
-        channelName: channel.channelKey,
-        remark: channel.remark,
-      })
-    } catch (error) {
-      Alert.alert(
-        t('chat.action.updateFailed'),
-        getFriendlyCoreError(error, locale)
-      )
-      throw error
-    } finally {
-      setChannelBusy(false)
-    }
-  }
-
-  const handleSaveChannelRemark = async () => {
-    if (!selectedChannel) return
-    const remark = settingsRemarkInput.trim()
-    await handleRenameChannel({ ...selectedChannel, remark })
-    settingsRemarkBaselineRef.current = remark
-    setSettingsRemarkInput(remark)
-  }
-
-  const handleLeaveChannel = (channel: MobileChannel) => {
-    const channelKey = getChannelKey(channel)
-    Alert.alert(
-      t('chat.action.leaveTitle'),
-      t('chat.action.leaveBody', { channel: getChannelTitle(channel) }),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('chat.list.leave'),
-          style: 'destructive',
-          onPress: () => {
-            setChannelBusy(true)
-            void core
-              .leaveChannel({ channelName: channel.channelKey })
-              .then(() => {
-                setChannelLastReadAt(value => {
-                  const next = { ...value }
-                  delete next[channelKey]
-                  return next
-                })
-                if (selectedChannelKey === channelKey) {
-                  setChannelName('')
-                  setChatRoute({ name: 'list' })
-                }
-              })
-              .catch(error =>
-                Alert.alert(
-                  t('chat.action.leaveFailed'),
-                  getFriendlyCoreError(error, locale)
-                )
-              )
-              .finally(() => setChannelBusy(false))
-          },
-        },
-      ]
-    )
-  }
-
-  const ensureActiveChannel = async () => {
-    if (selectedChannel) return selectedChannel
-    return core.createChannel({
-      name: channelName || routeChannelKey,
-      type: 'public',
-    })
-  }
-
-  const handleSendChannelMessage = async () => {
-    if (!guardReady()) return
-    const content = channelDraft.trim()
-    if (!content) return
-    setChannelBusy(true)
-    try {
-      const channel = await ensureActiveChannel()
-      const channelKey = getChannelKey(channel)
-      await core.sendChannelMessage({
-        channelName: channelKey,
-        content,
-        author: channel.localWriterCoreKey,
-        authorName: MOBILE_PLATFORM_LABEL,
-      })
-      setChannelDraft('')
-      setChannelLastReadAt(value => markChannelRead(value, channelKey))
-      await core.getChannelMessages(channelKey)
-    } catch (error) {
-      Alert.alert(
-        t('chat.action.sendFailed'),
-        getFriendlyCoreError(error, locale)
-      )
-    } finally {
-      setChannelBusy(false)
-    }
-  }
-
-  const handlePickChannelAttachment = async () => {
-    try {
-      const result = await publishPickedFile()
-      if (!result) return
-      const channel = await ensureActiveChannel()
-      const channelKey = getChannelKey(channel)
-      const parsed = parseMostLink(result.link)
-      const attachment: MobileChannelAttachment = {
-        kind: getAttachmentKind(result.file.name, result.file.mimeType),
-        cid: result.transfer.cid || parsed.cid,
-        fileName: result.file.name,
-        link: result.link,
-        mimeType: result.file.mimeType,
-        size: result.file.size || 0,
-      }
-      await core.sendChannelMessage({
-        channelName: channelKey,
-        content: result.link,
-        author: channel.localWriterCoreKey,
-        authorName: MOBILE_PLATFORM_LABEL,
-        attachment,
-      })
-      await core.getChannelMessages(channelKey)
-    } catch (error) {
-      Alert.alert(
-        t('chat.action.attachmentFailed'),
-        getFriendlyCoreError(error, locale)
-      )
-    }
-  }
-
-  const handleDownloadChannelAttachment = async (
-    attachment: MobileChannelAttachment
-  ) => {
-    if (!guardReady() || downloadingAttachmentCidRef.current) return
-    downloadingAttachmentCidRef.current = attachment.cid
-    setDownloadingAttachmentCid(attachment.cid)
-    try {
-      await core.downloadLink({ link: attachment.link })
-    } catch (error) {
-      Alert.alert(
-        t('chat.action.downloadFailed'),
-        getFriendlyCoreError(error, locale)
-      )
-    } finally {
-      downloadingAttachmentCidRef.current = null
-      setDownloadingAttachmentCid(null)
     }
   }
 
@@ -1265,79 +946,7 @@ function MostBoxApp() {
         </View>
 
         <View style={styles.content}>
-          {activeTab === 'chat' && chatRoute.name === 'list' ? (
-            <ChatListScreen
-              channels={currentSnapshot.channels}
-              messagesByChannel={currentSnapshot.channelMessages || {}}
-              lastReadAt={channelLastReadAt}
-              searchInput={channelSearchInput}
-              channelInput={channelOpenInput}
-              busy={!isReady || channelBusy}
-              onSearchInputChange={setChannelSearchInput}
-              onChannelInputChange={setChannelOpenInput}
-              onGenerateChannelId={handleGenerateChannelId}
-              onOpenChannel={handleOpenSavedChannel}
-              onOpenChannelId={handleOpenChannelId}
-              onTogglePin={handleToggleChannelPin}
-              onRename={handleRenameChannel}
-              onLeave={handleLeaveChannel}
-            />
-          ) : activeTab === 'chat' &&
-            chatRoute.name === 'room' &&
-            selectedChannel ? (
-            <ChatRoomScreen
-              channel={selectedChannel}
-              messages={channelMessages}
-              localWriterCoreKey={selectedChannel.localWriterCoreKey}
-              draft={channelDraft}
-              busy={!isReady || channelBusy}
-              downloadingCid={downloadingAttachmentCid}
-              onBack={() => setChatRoute({ name: 'list' })}
-              onOpenSettings={() =>
-                setChatRoute({
-                  name: 'settings',
-                  channelKey: selectedChannelKey,
-                })
-              }
-              onDraftChange={setChannelDraft}
-              onSend={handleSendChannelMessage}
-              onPickAttachment={handlePickChannelAttachment}
-              onDownloadAttachment={handleDownloadChannelAttachment}
-            />
-          ) : activeTab === 'chat' &&
-            chatRoute.name === 'settings' &&
-            selectedChannel ? (
-            <ChatSettingsScreen
-              channel={selectedChannel}
-              presence={channelPresence}
-              remarkInput={settingsRemarkInput}
-              busy={!isReady || channelBusy}
-              onBack={() =>
-                setChatRoute({ name: 'room', channelKey: selectedChannelKey })
-              }
-              onRemarkChange={setSettingsRemarkInput}
-              onSaveRemark={handleSaveChannelRemark}
-              onTogglePin={() => handleToggleChannelPin(selectedChannel)}
-              onLeave={() => handleLeaveChannel(selectedChannel)}
-            />
-          ) : activeTab === 'chat' ? (
-            <ChatListScreen
-              channels={currentSnapshot.channels}
-              messagesByChannel={currentSnapshot.channelMessages || {}}
-              lastReadAt={channelLastReadAt}
-              searchInput={channelSearchInput}
-              channelInput={channelOpenInput}
-              busy={!isReady || channelBusy}
-              onSearchInputChange={setChannelSearchInput}
-              onChannelInputChange={setChannelOpenInput}
-              onGenerateChannelId={handleGenerateChannelId}
-              onOpenChannel={handleOpenSavedChannel}
-              onOpenChannelId={handleOpenChannelId}
-              onTogglePin={handleToggleChannelPin}
-              onRename={handleRenameChannel}
-              onLeave={handleLeaveChannel}
-            />
-          ) : activeTab === 'knowledge' ? (
+          {activeTab === 'knowledge' ? (
             <KnowledgeBaseScreen
               isCoreReady={isReady}
               onDirtyChange={handleKnowledgeDirtyChange}
@@ -1412,24 +1021,6 @@ function MostBoxApp() {
             }
             label={t('nav.knowledge')}
             onPress={() => changeTab('knowledge')}
-          />
-          <TabButton
-            active={activeTab === 'chat'}
-            icon={
-              <MessageCircle
-                size={21}
-                color={
-                  activeTab === 'chat'
-                    ? theme.colors.accent
-                    : theme.colors.textSecondary
-                }
-              />
-            }
-            label={t('nav.chat')}
-            onPress={() => {
-              changeTab('chat')
-              setChatRoute({ name: 'list' })
-            }}
           />
           <TabButton
             active={activeTab === 'transfers'}

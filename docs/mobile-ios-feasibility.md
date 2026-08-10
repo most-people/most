@@ -1,6 +1,6 @@
 # MostBox iOS 可行性验证计划
 
-本文用于验证 MostBox 的完整前台 P2P 节点能否在真实 iPhone 上成立。iOS 验证通过前，不开始大规模移动端跨平台重构，也不把举报、审核后台等完整商店合规建设作为前置工作。
+本文用于验证 MostBox 的完整前台 P2P 节点能否在真实 iPhone 上成立。iOS 验证通过前，不开始大规模移动端跨平台重构；技术验证通过也不等于已经满足正式商店合规要求。
 
 当前实现状态：iOS Expo 配置、EAS development/preview/production 构建档位、iOS Bare bundle 脚本和平台感知 UI 已加入源码；尚未使用 Apple 签名在真实 iPhone 上完成首次云构建，因此本计划仍处于第 1 阶段。
 
@@ -14,7 +14,7 @@ iOS 技术验证只有同时满足以下条件才算通过：
 
 - 签名的开发版和 Release 版均可安装到真实 iPhone，不能只在模拟器或 Debug 环境运行。
 - Bare Worklet 启动，P2P 核心进入 ready 状态，所需原生 addon 均成功链接。
-- iPhone 能加入桌面端频道并双向收发消息。
+- iPhone 能与桌面节点完成双向 P2P Ping，验证真实发现与连接。
 - iPhone 能凭 `most://` 链接下载文件、重算同一个 UnixFS CID，并写入 holding。
 - iPhone 在前台做种时，原桌面发布者退出后，新的干净桌面节点仍能从 iPhone 下载并通过 CID 校验。
 - App 重启后恢复 holding，并重新 join 对应 CID topic。
@@ -102,13 +102,13 @@ node scripts/android-real-p2p-seed.mjs --handoff-check
 
 通过标准：P2P 核心进入 ready，应用重启后可重新读取本地节点数据，不出现原生链接缺失或启动崩溃。
 
-### 3. 验证频道与真实网络
+### 3. 验证 P2P Ping 与真实网络
 
-- iPhone 加入由桌面端创建的私有频道。
-- 桌面向 iPhone 发送一条文本消息，iPhone 再回复一条。
+- iPhone 与桌面节点分别作为 host 和 join 运行 P2P Ping。
+- 确认两个方向都能发现、连接并完成挑战校验。
 - 分别在同一 Wi-Fi、不同网络和 iPhone 蜂窝网络下测试发现与传输。
 
-通过标准：双向消息只通过现有 Channel 协议完成；失败时能区分构建问题、发现问题、NAT/网络问题和生命周期问题。
+通过标准：双向 P2P Ping 通过现有 Hyperswarm 连接完成；失败时能区分构建问题、发现问题、NAT/网络问题和生命周期问题。
 
 ### 4. 验证 CID 下载与前台做种交接
 
@@ -144,7 +144,7 @@ node scripts/android-real-p2p-seed.mjs --handoff-check
 
 - 生成签名 Release 构建并上传 App Store Connect。
 - 完成自动验证，不存在禁止使用的私有 API、无效签名或缺失架构。
-- 通过内部 TestFlight 安装，再复跑频道、CID 下载和前台做种交接。
+- 通过内部 TestFlight 安装，再复跑 P2P Ping、CID 下载和前台做种交接。
 
 通过标准：从 TestFlight 安装的实际 Release 包通过最高验收场景。只上传成功但真机闭环失败，不算通过。
 
@@ -153,7 +153,7 @@ node scripts/android-real-p2p-seed.mjs --handoff-check
 满足以下全部条件后，iOS 路线进入 Go：
 
 - 真实 iPhone 上的完整 P2P 核心无需改变 MostBox 协议即可运行。
-- TestFlight Release 包完成频道、CID 下载校验、前台做种交接和重启恢复。
+- TestFlight Release 包完成 P2P Ping、CID 下载校验、前台做种交接和重启恢复。
 - Wi-Fi 与蜂窝网络结果已记录，已知限制可通过产品边界而不是私有 API 或后台规避手段处理。
 - 文件选择、分享、导出和沙箱存储使用公开 iOS API。
 - 原生依赖的构建方式可重复，不依赖手工修改未记录的 Xcode 工程状态。
@@ -195,7 +195,7 @@ EAS build ID:
 CID:
 most:// 链接:
 Worklet ready:
-频道双向消息:
+双向 P2P Ping:
 iPhone 下载并校验:
 iPhone holding 状态:
 iPhone topic join 状态:
