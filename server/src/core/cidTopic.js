@@ -10,6 +10,11 @@ const CID_INFO_ERROR_MESSAGES = {
   [MOST_LINK_ERROR_CODES.CID_DIGEST_LENGTH]: 'CID digest must be 32 bytes',
 }
 
+export const CID_TOPIC_JOIN_OPTIONS = Object.freeze({
+  server: true,
+  client: true,
+})
+
 function cidValidationError(errorCode) {
   return new ValidationError(
     CID_INFO_ERROR_MESSAGES[errorCode] || errorCode,

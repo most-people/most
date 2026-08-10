@@ -71,6 +71,10 @@ const DOWNLOAD_POLL_INTERVAL_MAX = 2000
 const DRIVE_UPDATE_INTERVAL = 2000
 const PROGRESS_THROTTLE = 500
 const HOLDINGS_FILE = 'node-holdings.json'
+const CID_TOPIC_JOIN_OPTIONS = Object.freeze({
+  server: true,
+  client: true,
+})
 
 const SWARM_BOOTSTRAP = [
   '88.99.3.86@node1.hyperdht.org:49737',
@@ -596,14 +600,12 @@ export class MobileP2PCore {
     this.#emitSnapshot()
 
     for (const holding of [...this.#holdings]) {
-      this.#joinCidTopic(holding.cid, { server: true, client: false }).catch(
-        err => {
-          this.#setSeedState(holding.cid, {
-            status: 'error',
-            error: err.message,
-          })
-        }
-      )
+      this.#joinCidTopic(holding.cid).catch(err => {
+        this.#setSeedState(holding.cid, {
+          status: 'error',
+          error: err.message,
+        })
+      })
     }
 
     return this.getSnapshot()
@@ -994,7 +996,7 @@ export class MobileP2PCore {
         }
       }
 
-      await this.#joinCidTopic(cid, { server: true, client: false })
+      await this.#joinCidTopic(cid)
       const holding = this.#upsertHolding({
         cid,
         fileName,
@@ -1061,7 +1063,7 @@ export class MobileP2PCore {
         : null
 
       if (existingHolding && existingEntry) {
-        await this.#joinCidTopic(cid, { server: true, client: false })
+        await this.#joinCidTopic(cid)
         const completed = this.#upsertTransfer({
           ...transfer,
           status: 'completed',
@@ -1077,7 +1079,7 @@ export class MobileP2PCore {
         }
       }
 
-      await this.#joinCidTopic(cid, { server: false, client: true })
+      await this.#joinCidTopic(cid)
 
       this.#upsertTransfer({
         ...transfer,
@@ -1144,7 +1146,7 @@ export class MobileP2PCore {
 
       fs.renameSync(tempPath, savePath)
 
-      await this.#joinCidTopic(cid, { server: true, client: false })
+      await this.#joinCidTopic(cid)
       const savedSize =
         downloaded.size || totalBytes || fs.statSync(savePath).size || 0
       const holding = this.#upsertHolding({
@@ -2772,10 +2774,8 @@ export class MobileP2PCore {
     }
   }
 
-  async #joinCidTopic(cid, options = {}) {
+  async #joinCidTopic(cid) {
     const { topic, topicHex, driveName } = getCidInfo(cid)
-    const requestedServer = options.server !== false
-    const requestedClient = options.client === true
 
     this.#setSeedState(cid, {
       status: 'joining',
@@ -2788,32 +2788,22 @@ export class MobileP2PCore {
 
     const existing = this.#discoveries.get(cid)
     if (existing) {
-      const nextServer = existing.server || requestedServer
-      const nextClient = existing.client || requestedClient
-      if (nextServer === existing.server && nextClient === existing.client) {
-        this.#setSeedState(cid, {
-          status: 'active',
-          topic: topicHex,
-          driveName,
-          error: '',
-        })
-        return existing
-      }
-
-      await this.#swarm.leave(topic).catch(() => {})
-      this.#discoveries.delete(cid)
+      this.#setSeedState(cid, {
+        status: 'active',
+        topic: topicHex,
+        driveName,
+        error: '',
+      })
+      return existing
     }
 
-    const discovery = this.#swarm.join(topic, {
-      server: existing?.server || requestedServer,
-      client: existing?.client || requestedClient,
-    })
+    const discovery = this.#swarm.join(topic, CID_TOPIC_JOIN_OPTIONS)
     const record = {
       discovery,
       topic: topicHex,
       driveName,
-      server: existing?.server || requestedServer,
-      client: existing?.client || requestedClient,
+      server: true,
+      client: true,
     }
     this.#discoveries.set(cid, record)
     this.#setSeedState(cid, {

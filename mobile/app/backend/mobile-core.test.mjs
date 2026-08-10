@@ -346,6 +346,10 @@ describe('mobile file downloads', () => {
 
     const transfer = core.getSnapshot().transfers.find(item => item.cid === cid)
     assert.equal(transfer?.status, 'failed')
+    assert.deepEqual(swarms[0].joins.at(-1).options, {
+      server: true,
+      client: true,
+    })
     assert.equal(swarms[0].leaves.length, 1)
   })
 
@@ -417,6 +421,10 @@ describe('mobile local holding deletion', () => {
     const published = await core.publishFile({
       name: 'local-delete.txt',
       contentBase64: b4a.toString(b4a.from('local content'), 'base64'),
+    })
+    assert.deepEqual(swarms[0].joins.at(-1).options, {
+      server: true,
+      client: true,
     })
 
     Hyperdrive.prototype.del = async function (...args) {

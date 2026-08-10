@@ -48,7 +48,7 @@ import {
   verifyChannelTopicProof,
 } from './core/channelHello.js'
 import { normalizeChannelVoiceEvent } from './core/channelVoice.js'
-import { getCidInfo } from './core/cidTopic.js'
+import { CID_TOPIC_JOIN_OPTIONS, getCidInfo } from './core/cidTopic.js'
 import { P2PPingManager } from './core/p2pPing.js'
 import {
   CHANNEL_DISCOVERY_TIMEOUT,
@@ -1072,10 +1072,7 @@ export class MostBoxEngine extends EventEmitter {
       if (existingIndex !== -1) {
         const existing = publishedBucket[existingIndex]
         if (existingContent) {
-          await this.#joinCidTopicInternal(cidString, {
-            server: true,
-            client: false,
-          })
+          await this.#joinCidTopicInternal(cidString)
           this.#upsertHolding({
             cid: cidString,
             fileName: existing.fileName,
@@ -1178,10 +1175,7 @@ export class MostBoxEngine extends EventEmitter {
           cid: cidString,
           size: fileSize,
         })
-        await this.#joinCidTopicInternal(cidString, {
-          server: true,
-          client: false,
-        })
+        await this.#joinCidTopicInternal(cidString)
         this.emit('publish:progress', {
           stage: 'saving-metadata',
           file: safeFileName,
@@ -1307,10 +1301,7 @@ export class MostBoxEngine extends EventEmitter {
         allowHoldingFallback: true,
       })
       if (existingContent) {
-        await this.#joinCidTopicInternal(cidString, {
-          server: true,
-          client: false,
-        })
+        await this.#joinCidTopicInternal(cidString)
         this.#upsertHolding({
           cid: cidString,
           fileName: publishedBucket[existingIndex].fileName,
@@ -1383,10 +1374,7 @@ export class MostBoxEngine extends EventEmitter {
           client: false,
         })
       }
-      await this.#joinCidTopicInternal(cidString, {
-        server: true,
-        client: false,
-      })
+      await this.#joinCidTopicInternal(cidString)
 
       for (const [blockCid, block] of directory.blocks.entries()) {
         const driveKey =
@@ -1588,10 +1576,7 @@ export class MostBoxEngine extends EventEmitter {
           })
           this.#savePublishedMetadata()
         }
-        await this.#joinCidTopicInternal(cidString, {
-          server: true,
-          client: false,
-        })
+        await this.#joinCidTopicInternal(cidString)
         this.#upsertHolding({
           cid: cidString,
           fileName:
@@ -1635,10 +1620,7 @@ export class MostBoxEngine extends EventEmitter {
       } else {
         console.log(`[MostBox] Using existing drive: ${name}`)
       }
-      await this.#joinCidTopicInternal(cidString, {
-        server: false,
-        client: true,
-      })
+      await this.#joinCidTopicInternal(cidString)
 
       if (taskState.aborted) throw new Error('Download cancelled')
 
@@ -1891,10 +1873,7 @@ export class MostBoxEngine extends EventEmitter {
               `Failed to write file to Hyperdrive for seeding: ${driveKey}`
             )
           }
-          await this.#joinCidTopicInternal(cidString, {
-            server: true,
-            client: false,
-          })
+          await this.#joinCidTopicInternal(cidString)
 
           const result = {
             taskId,
@@ -2121,10 +2100,7 @@ export class MostBoxEngine extends EventEmitter {
       })
     }
 
-    await this.#joinCidTopicInternal(cidString, {
-      server: false,
-      client: true,
-    })
+    await this.#joinCidTopicInternal(cidString)
 
     const driveKey = '/' + cidString
     const entry = await this.#waitForDriveEntry(drive, driveKey, timeout)
@@ -2515,10 +2491,7 @@ export class MostBoxEngine extends EventEmitter {
   async addHolding(record) {
     this.#ensureInitialized()
     const holding = this.#normalizeHolding(record)
-    await this.#joinCidTopicInternal(holding.cid, {
-      server: true,
-      client: false,
-    })
+    await this.#joinCidTopicInternal(holding.cid)
     return this.#upsertHolding(holding)
   }
 
@@ -2575,11 +2548,10 @@ export class MostBoxEngine extends EventEmitter {
   /**
    * 按 CID digest 加入文件 topic
    * @param {string} cid - 文件 CID
-   * @param {object} [options] - Hyperswarm join 选项
    */
-  async joinCidTopic(cid, options = {}) {
+  async joinCidTopic(cid) {
     this.#ensureInitialized()
-    return this.#joinCidTopicInternal(cid, options)
+    return this.#joinCidTopicInternal(cid)
   }
 
   /**
@@ -3288,10 +3260,7 @@ export class MostBoxEngine extends EventEmitter {
 
     throwIfCancelled()
 
-    await this.#joinCidTopicInternal(collection.cid, {
-      server: true,
-      client: false,
-    })
+    await this.#joinCidTopicInternal(collection.cid)
     this.#upsertHolding({
       cid: collection.cid,
       fileName: collectionName,
@@ -5864,10 +5833,7 @@ export class MostBoxEngine extends EventEmitter {
               })
               return
             }
-            await this.#joinCidTopicInternal(holding.cid, {
-              server: true,
-              client: false,
-            })
+            await this.#joinCidTopicInternal(holding.cid)
             console.log(`[MostBox] Rejoined CID topic: ${holding.cid}`)
           })
         )
@@ -5966,10 +5932,8 @@ export class MostBoxEngine extends EventEmitter {
     this.#clearSeedState(cid)
   }
 
-  async #joinCidTopicInternal(cid, options = {}) {
+  async #joinCidTopicInternal(cid) {
     const { topic, topicHex, driveName } = this.#getCidInfo(cid)
-    const requestedServer = options.server !== false
-    const requestedClient = options.client === true
     this.#setSeedState(cid, {
       status: 'joining',
       topic: topicHex,
@@ -5982,56 +5946,36 @@ export class MostBoxEngine extends EventEmitter {
 
       const existing = this.#fileDiscoveries.get(cid)
       if (existing) {
-        const nextServer = existing.server || requestedServer
-        const nextClient = existing.client || requestedClient
-        const needsRoleUpgrade =
-          nextServer !== existing.server || nextClient !== existing.client
-
-        if (!needsRoleUpgrade) {
-          if (this.#holdings.some(holding => holding.cid === cid)) {
-            this.#ensureFileMonitor(cid, drive).catch(err => {
-              this.#setSeedState(cid, {
-                status: 'error',
-                error: err.message,
-              })
+        if (this.#holdings.some(holding => holding.cid === cid)) {
+          this.#ensureFileMonitor(cid, drive).catch(err => {
+            this.#setSeedState(cid, {
+              status: 'error',
+              error: err.message,
             })
-          }
-          this.#setSeedState(cid, {
-            status: 'active',
-            topic: topicHex,
-            driveName,
-            error: undefined,
           })
-          return {
-            cid,
-            topic: topicHex,
-            driveName,
-            joined: true,
-          }
         }
-
-        await this.#swarm.leave(topic).catch(err => {
-          console.warn(
-            `[MostBox] Failed to upgrade CID topic role for ${cid}:`,
-            err.message
-          )
+        this.#setSeedState(cid, {
+          status: 'active',
+          topic: topicHex,
+          driveName,
+          error: undefined,
         })
-        this.#fileDiscoveries.delete(cid)
+        return {
+          cid,
+          topic: topicHex,
+          driveName,
+          joined: true,
+        }
       }
 
-      const server = existing?.server || requestedServer
-      const client = existing?.client || requestedClient
-      const discovery = this.#swarm.join(topic, {
-        server,
-        client,
-      })
+      const discovery = this.#swarm.join(topic, CID_TOPIC_JOIN_OPTIONS)
 
       this.#fileDiscoveries.set(cid, {
         discovery,
         topic: topicHex,
         driveName,
-        server,
-        client,
+        server: true,
+        client: true,
       })
       this.#setSeedState(cid, {
         status: 'active',
