@@ -64,7 +64,6 @@ const SOURCE_PATHS = {
   chatJoin: 'src/features/chat/ChatJoinPage.tsx',
   chatRoom: 'src/lib/chatRoom.js',
   inputModal: 'src/components/ui/InputModal.tsx',
-  mobileChatList: 'mobile/app/src/features/chat/ChatListScreen.tsx',
   featurePortal: 'src/components/FeaturePortal.tsx',
   hooks: 'src/hooks/index.ts',
   appCss: 'src/styles/app.css',
@@ -1617,12 +1616,11 @@ describe('frontend smoke checks', () => {
     )
   })
 
-  it('uses one open-channel flow for hash-based chat capabilities', () => {
+  it('uses one open-channel flow for hash-based desktop chat capabilities', () => {
     const chatSource = readSource(SOURCE_PATHS.chat)
     const chatJoinSource = readSource(SOURCE_PATHS.chatJoin)
     const chatRoomSource = readSource(SOURCE_PATHS.chatRoom)
     const inputModalSource = readSource(SOURCE_PATHS.inputModal)
-    const mobileChatListSource = readSource(SOURCE_PATHS.mobileChatList)
 
     assert.match(chatRoomSource, /new Uint8Array\(16\)/)
     assert.match(chatRoomSource, /buildChatSharePath/)
@@ -1638,10 +1636,8 @@ describe('frontend smoke checks', () => {
     assert.match(chatSource, /parseChatChannelInput/)
     assert.match(chatSource, /chat\.openChannel/)
     assert.match(inputModalSource, /onGenerateValue/)
-    assert.match(mobileChatListSource, /onGenerateChannelId/)
-    assert.match(mobileChatListSource, /onOpenChannelId/)
     assert.doesNotMatch(
-      `${chatSource}\n${mobileChatListSource}`,
+      chatSource,
       /chat\.createChannel|chat\.joinChannel|onCreateChannel|onJoinChannel/
     )
     assert.doesNotMatch(`${chatSource}\n${chatJoinSource}`, /\?channel=/)

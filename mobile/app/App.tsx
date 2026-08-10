@@ -1,5 +1,5 @@
 import './src/polyfills/eventTarget'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
 import {
   Alert,
   KeyboardAvoidingView,
@@ -223,22 +223,20 @@ function MostBoxApp() {
   const nodeStatus = currentSnapshot.node.status
   const isReady = nodeStatus === 'ready'
   const isCoreBusy = nodeStatus === 'starting' || nodeStatus === 'stopping'
+  const showCoreStartError = useEffectEvent((error: unknown) => {
+    Alert.alert(t('app.core.startFailed'), getFriendlyCoreError(error, locale))
+  })
 
   useEffect(() => {
     const unsubscribe = core.subscribe(setSnapshot)
-    void core.start().catch(error => {
-      Alert.alert(
-        t('app.core.startFailed'),
-        getFriendlyCoreError(error, locale)
-      )
-    })
+    void core.start().catch(showCoreStartError)
 
     return () => {
       unsubscribe()
       if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current)
       void core.stop()
     }
-  }, [core, locale, t])
+  }, [core])
 
   const openDownloadIntent = useCallback(
     (intent: IncomingMostLink, openAfterComplete = false) => {

@@ -4,7 +4,7 @@ All notable changes to MostBox are documented in this file.
 
 ## [Unreleased]
 
-## [0.4.9] - 2026-08-10
+## [0.4.9] - 2026-08-11
 
 ### Added
 
@@ -14,7 +14,7 @@ All notable changes to MostBox are documented in this file.
 
 ### Changed
 
-- Redesigned the Android file, chat, transfer, and node interfaces, including explicit download cancellation and holding actions.
+- Redesigned the Android file, transfer, and node interfaces, including explicit download cancellation and holding actions, and removed chat from the mobile app.
 - Replaced the Future page with the `/hi/` knowledge direction page and separated available capabilities from future plans.
 - Expanded desktop note import and export flows and localized chat member tags.
 
@@ -22,6 +22,7 @@ All notable changes to MostBox are documented in this file.
 
 - Made CID topic peers announce and look up simultaneously so either peer can initiate a file connection.
 - Generated platform-specific Bare Worklet bundles for Android and iOS and hardened mobile knowledge snapshot restoration.
+- Kept the mobile P2P core online when restoring or switching the interface language.
 - Required GitHub Android release APKs to use a persistent app-signing key and fail closed when signing credentials are unavailable.
 
 ## [0.4.8] - 2026-08-07
