@@ -21,7 +21,7 @@ describe('Android command documentation', () => {
     const rootPackage = readJson('../../../package.json')
     const mobilePackage = readJson('../../../mobile/app/package.json')
 
-    for (const scriptName of ['start', 'test', 'build']) {
+    for (const scriptName of ['start', 'test', 'build', 'build:release']) {
       assert.ok(
         mobilePackage.scripts?.[scriptName],
         `mobile/app/package.json must define ${scriptName}`
@@ -86,5 +86,44 @@ describe('Android command documentation', () => {
         `${fileName} should document the Android build command`
       )
     }
+  })
+
+  it('requires persistent signing for GitHub Android release APKs', () => {
+    const workflow = readText('../../../.github/workflows/release.yml')
+    const mobilePackage = readJson('../../../mobile/app/package.json')
+    const buildScript = readText('../../../mobile/app/scripts/build-apk.mjs')
+
+    assert.strictEqual(
+      mobilePackage.scripts?.['build:release'],
+      'node scripts/build-apk.mjs --signed-release-apk'
+    )
+    assert.match(workflow, /npm run build:release --prefix mobile\/app/)
+    assert.doesNotMatch(workflow, /run: npm run build --prefix mobile\/app/)
+
+    for (const secretName of [
+      'MOSTBOX_ANDROID_KEYSTORE_BASE64',
+      'MOSTBOX_ANDROID_KEYSTORE_PASSWORD',
+      'MOSTBOX_ANDROID_KEY_ALIAS',
+      'MOSTBOX_ANDROID_KEY_PASSWORD',
+    ]) {
+      assert.match(
+        workflow,
+        new RegExp(`secrets\\.${secretName}`),
+        `release workflow must use ${secretName}`
+      )
+    }
+
+    assert.doesNotMatch(workflow, /MOSTBOX_ANDROID_SIGNING_LINEAGE/)
+    assert.doesNotMatch(buildScript, /MOSTBOX_ANDROID_SIGNING_LINEAGE/)
+    assert.doesNotMatch(buildScript, /androiddebugkey/)
+    assert.match(buildScript, /'verify'[\s\S]*'--print-certs'/)
+    assert.match(
+      buildScript,
+      /476989ca590dc9b87f80d0ed19effb649376d6aa5180bb45f3ac79e5f2306233/
+    )
+    assert.match(buildScript, /Number of signers/)
+    assert.match(buildScript, /Unexpected Android release certificate SHA-256/)
+    assert.match(buildScript, /apksigner\.jar/)
+    assert.match(buildScript, /command: 'java'/)
   })
 })

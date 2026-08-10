@@ -276,10 +276,26 @@ jobs:
       - name: Typecheck Android package
         run: npm run typecheck --prefix mobile/app
 
+      - name: Prepare Android release signing
+        shell: bash
+        env:
+          MOSTBOX_ANDROID_KEYSTORE_BASE64: ${{ secrets.MOSTBOX_ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$MOSTBOX_ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::error::MOSTBOX_ANDROID_KEYSTORE_BASE64 is required for Android release signing"
+            exit 1
+          fi
+          printf '%s' "$MOSTBOX_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/mostbox-app-signing.keystore"
+          chmod 600 "$RUNNER_TEMP/mostbox-app-signing.keystore"
+
       - name: Build Android APK
-        run: npm run build --prefix mobile/app
+        run: npm run build:release --prefix mobile/app
         env:
           MOST_ANDROID_RELEASE_VERSION: ${{ github.ref_name }}
+          MOSTBOX_ANDROID_KEYSTORE: ${{ runner.temp }}/mostbox-app-signing.keystore
+          MOSTBOX_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.MOSTBOX_ANDROID_KEYSTORE_PASSWORD }}
+          MOSTBOX_ANDROID_KEY_ALIAS: ${{ secrets.MOSTBOX_ANDROID_KEY_ALIAS }}
+          MOSTBOX_ANDROID_KEY_PASSWORD: ${{ secrets.MOSTBOX_ANDROID_KEY_PASSWORD }}
 
       - name: Upload Android assets
         run: |

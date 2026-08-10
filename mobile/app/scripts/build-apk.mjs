@@ -9,19 +9,26 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 const projectDir = path.resolve(scriptDir, '..')
 const androidDir = path.join(projectDir, 'android')
 const outputDir = path.join(projectDir, 'dist')
+const githubReleaseCertificateSha256 =
+  '476989ca590dc9b87f80d0ed19effb649376d6aa5180bb45f3ac79e5f2306233'
 const buildAppBundle = process.argv.includes('--aab')
 const buildEmulatorApk = process.argv.includes('--emulator-apk')
 const buildStoreApk = process.argv.includes('--store-apk')
+const buildSignedReleaseApk = process.argv.includes('--signed-release-apk')
 const selectedBuildTargets = [
   buildAppBundle,
   buildEmulatorApk,
   buildStoreApk,
+  buildSignedReleaseApk,
 ].filter(Boolean)
 if (selectedBuildTargets.length > 1) {
-  throw new Error('Choose only one of --aab, --emulator-apk, or --store-apk')
+  throw new Error(
+    'Choose only one of --aab, --emulator-apk, --store-apk, or --signed-release-apk'
+  )
 }
 const releaseArchitecture = buildEmulatorApk ? 'x86_64' : 'arm64-v8a'
-const releaseSigningRequired = buildAppBundle || buildStoreApk
+const releaseSigningRequired =
+  buildAppBundle || buildStoreApk || buildSignedReleaseApk
 const packageJson = JSON.parse(
   fs.readFileSync(path.join(projectDir, 'package.json'), 'utf8')
 )
@@ -62,12 +69,14 @@ const npxCommand = process.platform === 'win32' ? 'npx.cmd' : 'npx'
 
 function run(command, args, options = {}) {
   const useCmd = process.platform === 'win32' && /\.(bat|cmd)$/i.test(command)
+  const captureOutput = options.captureOutput === true
   const result = spawnSync(
     useCmd ? 'cmd.exe' : command,
     useCmd ? ['/d', '/s', '/c', [command, ...args].join(' ')] : args,
     {
       cwd: options.cwd || projectDir,
-      stdio: 'inherit',
+      stdio: captureOutput ? ['ignore', 'pipe', 'pipe'] : 'inherit',
+      encoding: captureOutput ? 'utf8' : undefined,
       windowsHide: true,
       env: {
         ...process.env,
@@ -77,9 +86,15 @@ function run(command, args, options = {}) {
   )
 
   if (result.error) throw result.error
+  if (captureOutput) {
+    if (result.stdout) process.stdout.write(result.stdout)
+    if (result.stderr) process.stderr.write(result.stderr)
+  }
   if (result.status !== 0) {
     throw new Error(`${command} ${args.join(' ')} failed`)
   }
+
+  return captureOutput ? `${result.stdout || ''}${result.stderr || ''}` : ''
 }
 
 function resolveReleaseVersion(value) {
@@ -133,12 +148,23 @@ function getReleaseSigningEnvironment() {
     keyAlias: process.env.MOSTBOX_ANDROID_KEY_ALIAS,
     keyPassword: process.env.MOSTBOX_ANDROID_KEY_PASSWORD,
   }
-  const missing = Object.entries(signing)
-    .filter(([, value]) => !value)
-    .map(([key]) => key)
+  const requiredSigningValues = [
+    ['storeFile', 'MOSTBOX_ANDROID_KEYSTORE'],
+    ['storePassword', 'MOSTBOX_ANDROID_KEYSTORE_PASSWORD'],
+    ['keyAlias', 'MOSTBOX_ANDROID_KEY_ALIAS'],
+    ['keyPassword', 'MOSTBOX_ANDROID_KEY_PASSWORD'],
+  ]
+  const missing = requiredSigningValues
+    .filter(([field]) => !signing[field])
+    .map(([, environmentName]) => environmentName)
   if (missing.length) {
+    const releaseSigningLabel = buildAppBundle
+      ? 'Google Play AAB'
+      : buildStoreApk
+        ? 'Store APK'
+        : 'GitHub release APK'
     throw new Error(
-      `${buildAppBundle ? 'Google Play AAB' : 'Store APK'} requires release signing values: ${missing.join(', ')}`
+      `${releaseSigningLabel} requires release signing values: ${missing.join(', ')}`
     )
   }
 
@@ -148,6 +174,69 @@ function getReleaseSigningEnvironment() {
   }
 
   return { ...signing, storeFile }
+}
+
+function resolveApkSigner() {
+  const executable =
+    process.platform === 'win32' ? 'apksigner.jar' : 'apksigner'
+  const sdkRoots = [
+    process.env.ANDROID_HOME,
+    process.env.ANDROID_SDK_ROOT,
+  ].filter(Boolean)
+
+  for (const sdkRoot of sdkRoots) {
+    const buildToolsDir = path.join(sdkRoot, 'build-tools')
+    if (!fs.existsSync(buildToolsDir)) continue
+
+    const versions = fs
+      .readdirSync(buildToolsDir, { withFileTypes: true })
+      .filter(entry => entry.isDirectory())
+      .map(entry => entry.name)
+      .sort((left, right) =>
+        right.localeCompare(left, undefined, { numeric: true })
+      )
+    for (const versionName of versions) {
+      const candidate = path.join(
+        buildToolsDir,
+        versionName,
+        ...(process.platform === 'win32' ? ['lib'] : []),
+        executable
+      )
+      if (!fs.existsSync(candidate)) continue
+      return process.platform === 'win32'
+        ? { command: 'java', args: ['-jar', candidate] }
+        : { command: candidate, args: [] }
+    }
+  }
+
+  return {
+    command: process.platform === 'win32' ? 'apksigner.bat' : 'apksigner',
+    args: [],
+  }
+}
+
+function verifySignedReleasePackage(packagePath) {
+  if (!buildSignedReleaseApk) return
+
+  const apkSigner = resolveApkSigner()
+  console.log('[android] verifying release APK signature...')
+  const verificationOutput = run(
+    apkSigner.command,
+    [...apkSigner.args, 'verify', '--verbose', '--print-certs', packagePath],
+    { captureOutput: true }
+  )
+  const signerCount = verificationOutput.match(/Number of signers:\s*(\d+)/i)
+  const certificateDigest = verificationOutput.match(
+    /Signer #1 certificate SHA-256 digest:\s*([0-9a-f]+)/i
+  )
+  if (signerCount?.[1] !== '1' || !certificateDigest) {
+    throw new Error('Unable to verify the Android release signing identity')
+  }
+  if (certificateDigest[1].toLowerCase() !== githubReleaseCertificateSha256) {
+    throw new Error(
+      `Unexpected Android release certificate SHA-256: ${certificateDigest[1]}`
+    )
+  }
 }
 
 const releaseSigning = getReleaseSigningEnvironment()
@@ -213,6 +302,7 @@ if (!fs.existsSync(packageSource)) {
     `${buildAppBundle ? 'AAB' : 'APK'} was not created at ${packageSource}`
   )
 }
+verifySignedReleasePackage(packageSource)
 
 fs.mkdirSync(outputDir, { recursive: true })
 if (!buildAppBundle) {

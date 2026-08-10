@@ -63,6 +63,7 @@ npm start      # 启动 Expo Dev Client 并打开 Android 真机/模拟器
 npm test       # 运行移动端 CID、most://、Channel 和 Bare Worklet IPC 测试
 npm run typecheck
 npm run build  # 生成内部 Alpha APK 和 SHA256 校验文件
+npm run build:release # 使用永久 App Signing Key 生成 GitHub Release APK
 npm run build:store # 使用永久 App Signing Key 生成应用商店 APK
 npm run build:play # 使用独立 upload key 生成 Google Play AAB
 ```
@@ -221,7 +222,7 @@ npm test              # 运行 Android 子包协议、Channel 和 IPC 测试
 ```yaml
 services:
   mostbox:
-    image: ghcr.io/most-people/most-box:0.4.8
+    image: ghcr.io/most-people/most-box:0.4.9
     container_name: mostbox
     network_mode: host
     restart: unless-stopped
@@ -416,7 +417,7 @@ git push origin main vx.x.x
 2. **Windows 打包** — 分别构建 `.exe` 安装包（x64 / arm64）并上传 Release
 3. **macOS 打包** — 构建 `.dmg` 安装包（x64 + arm64）并上传 Release
 4. **Linux 打包** — 构建 `.AppImage` 安装包（x64 + arm64）并上传 Release
-5. **Android 打包** — 构建 Android Alpha `.apk` 和 SHA256 校验文件并上传 Release
+5. **Android 打包** — 使用固定的永久 App Signing Key 构建 Android `.apk` 和 SHA256 校验文件并上传 Release
 6. **下载镜像** — 将 Release 资产同步到 Cloudflare R2，并生成 `releases/latest.json`
 
 GitHub Release 是可信备用源；下载页优先读取 R2 的 `releases/latest.json` 并使用 R2 下载链接。
@@ -440,14 +441,18 @@ macOS `.dmg`、Linux `.AppImage`、Android `.apk`），不再发布 updater / bl
 
 在仓库 Settings → Secrets and variables → Actions 中添加：
 
-| Secret                 | 说明                                    |
-| ---------------------- | --------------------------------------- |
-| `NPM_TOKEN`            | npm 发布令牌（`npm token create` 生成） |
-| `R2_ACCOUNT_ID`        | Cloudflare 账户 ID                      |
-| `R2_ACCESS_KEY_ID`     | R2 S3 API Access Key ID                 |
-| `R2_SECRET_ACCESS_KEY` | R2 S3 API Secret Access Key             |
-| `R2_BUCKET`            | 可选；默认 `most-box-releases`          |
-| `R2_PUBLIC_BASE_URL`   | 可选；默认 `https://download.most.box`  |
+| Secret                              | 说明                                        |
+| ----------------------------------- | ------------------------------------------- |
+| `NPM_TOKEN`                         | npm 发布令牌（`npm token create` 生成）     |
+| `MOSTBOX_ANDROID_KEYSTORE_BASE64`   | 永久 Android App Signing Key 的 Base64 内容 |
+| `MOSTBOX_ANDROID_KEYSTORE_PASSWORD` | Android keystore 密码                       |
+| `MOSTBOX_ANDROID_KEY_ALIAS`         | Android App Signing Key alias               |
+| `MOSTBOX_ANDROID_KEY_PASSWORD`      | Android App Signing Key 密码                |
+| `R2_ACCOUNT_ID`                     | Cloudflare 账户 ID                          |
+| `R2_ACCESS_KEY_ID`                  | R2 S3 API Access Key ID                     |
+| `R2_SECRET_ACCESS_KEY`              | R2 S3 API Secret Access Key                 |
+| `R2_BUCKET`                         | 可选；默认 `most-box-releases`              |
+| `R2_PUBLIC_BASE_URL`                | 可选；默认 `https://download.most.box`      |
 
 下载页默认读取 `https://download.most.box/releases/latest.json`。部署环境可额外配置
 `VITE_R2_PUBLIC_BASE_URL` 覆盖公开域名，或直接配置

@@ -40,6 +40,27 @@ npm run build
 
 该 APK 使用本地 Alpha 签名配置，不能上传 Google Play。
 
+## GitHub Release APK
+
+GitHub Release APK 必须使用跨版本不变的永久 App Signing Key。发布构建缺少任一签名变量时会在构建前失败，不会回退到 debug key：
+
+```powershell
+$env:MOSTBOX_ANDROID_KEYSTORE='C:\secure\mostbox-app-signing.p12'
+$env:MOSTBOX_ANDROID_KEYSTORE_PASSWORD='<keystore password>'
+$env:MOSTBOX_ANDROID_KEY_ALIAS='mostbox-app-signing'
+$env:MOSTBOX_ANDROID_KEY_PASSWORD='<key password>'
+npm run build:release
+```
+
+产物：
+
+- `dist/mostbox-android-<version>-release.apk`
+- `dist/mostbox-android-<version>-release.apk.sha256.txt`
+
+构建脚本会使用 Android SDK Build Tools 的 `apksigner` 验证最终 APK，并要求唯一 signer 的证书 SHA-256 为 `476989ca590dc9b87f80d0ed19effb649376d6aa5180bb45f3ac79e5f2306233`。永久 Key 必须长期保管且每个版本复用，否则 Android 无法覆盖升级。
+
+GitHub Release workflow 使用同一组签名值，并从 `MOSTBOX_ANDROID_KEYSTORE_BASE64` Secret 还原 keystore。
+
 ## 模拟器 APK
 
 x86_64 Android 模拟器使用独立构建，避免通过 ARM 转译层运行 Bare Worklet 原生扩展：

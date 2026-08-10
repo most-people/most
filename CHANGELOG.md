@@ -4,6 +4,26 @@ All notable changes to MostBox are documented in this file.
 
 ## [Unreleased]
 
+## [0.4.9] - 2026-08-10
+
+### Added
+
+- Added a local Markdown knowledge base on Android with single-note transfer, versioned snapshot backup and restore, and verified `most://` attachments.
+- Added simplified Chinese, traditional Chinese, and English Android interfaces, plus x86_64 emulator builds.
+- Added bidirectional P2P Ping diagnostics on desktop and Android.
+
+### Changed
+
+- Redesigned the Android file, chat, transfer, and node interfaces, including explicit download cancellation and holding actions.
+- Replaced the Future page with the `/hi/` knowledge direction page and separated available capabilities from future plans.
+- Expanded desktop note import and export flows and localized chat member tags.
+
+### Fixed
+
+- Made CID topic peers announce and look up simultaneously so either peer can initiate a file connection.
+- Generated platform-specific Bare Worklet bundles for Android and iOS and hardened mobile knowledge snapshot restoration.
+- Required GitHub Android release APKs to use a persistent app-signing key and fail closed when signing credentials are unavailable.
+
 ## [0.4.8] - 2026-08-07
 
 ### Added
