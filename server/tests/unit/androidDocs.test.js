@@ -92,6 +92,9 @@ describe('Android command documentation', () => {
     const workflow = readText('../../../.github/workflows/release.yml')
     const mobilePackage = readJson('../../../mobile/app/package.json')
     const buildScript = readText('../../../mobile/app/scripts/build-apk.mjs')
+    const signatureVerifier = readText(
+      '../../../mobile/app/scripts/verify-apk-signature.mjs'
+    )
 
     assert.strictEqual(
       mobilePackage.scripts?.['build:release'],
@@ -117,12 +120,16 @@ describe('Android command documentation', () => {
     assert.doesNotMatch(buildScript, /MOSTBOX_ANDROID_SIGNING_LINEAGE/)
     assert.doesNotMatch(buildScript, /androiddebugkey/)
     assert.match(buildScript, /'verify'[\s\S]*'--print-certs'/)
+    assert.match(buildScript, /verifyApkSigningIdentity\(verificationOutput\)/)
     assert.match(
-      buildScript,
+      signatureVerifier,
       /476989ca590dc9b87f80d0ed19effb649376d6aa5180bb45f3ac79e5f2306233/
     )
-    assert.match(buildScript, /Number of signers/)
-    assert.match(buildScript, /Unexpected Android release certificate SHA-256/)
+    assert.match(signatureVerifier, /Number of signers/)
+    assert.match(
+      signatureVerifier,
+      /Unexpected Android release certificate SHA-256/
+    )
     assert.match(buildScript, /apksigner\.jar/)
     assert.match(buildScript, /command: 'java'/)
   })

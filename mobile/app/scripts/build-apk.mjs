@@ -4,13 +4,12 @@ import crypto from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { syncNativeAndroidProject } from './sync-native-android.mjs'
+import { verifyApkSigningIdentity } from './verify-apk-signature.mjs'
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 const projectDir = path.resolve(scriptDir, '..')
 const androidDir = path.join(projectDir, 'android')
 const outputDir = path.join(projectDir, 'dist')
-const githubReleaseCertificateSha256 =
-  '476989ca590dc9b87f80d0ed19effb649376d6aa5180bb45f3ac79e5f2306233'
 const buildAppBundle = process.argv.includes('--aab')
 const buildEmulatorApk = process.argv.includes('--emulator-apk')
 const buildStoreApk = process.argv.includes('--store-apk')
@@ -225,18 +224,7 @@ function verifySignedReleasePackage(packagePath) {
     [...apkSigner.args, 'verify', '--verbose', '--print-certs', packagePath],
     { captureOutput: true }
   )
-  const signerCount = verificationOutput.match(/Number of signers:\s*(\d+)/i)
-  const certificateDigest = verificationOutput.match(
-    /Signer #1 certificate SHA-256 digest:\s*([0-9a-f]+)/i
-  )
-  if (signerCount?.[1] !== '1' || !certificateDigest) {
-    throw new Error('Unable to verify the Android release signing identity')
-  }
-  if (certificateDigest[1].toLowerCase() !== githubReleaseCertificateSha256) {
-    throw new Error(
-      `Unexpected Android release certificate SHA-256: ${certificateDigest[1]}`
-    )
-  }
+  verifyApkSigningIdentity(verificationOutput)
 }
 
 const releaseSigning = getReleaseSigningEnvironment()

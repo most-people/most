@@ -58,5 +58,13 @@ describe('release CORS verification', () => {
     assert.match(verifyWorkflow, /Verify public release CORS/)
     assert.match(releaseWorkflow, /verify-release-cors\.mjs/)
     assert.match(verifyWorkflow, /verify-release-cors\.mjs/)
+    assert.match(verifyWorkflow, /release_tag:/)
+    assert.match(verifyWorkflow, /gh release download "\$RELEASE_TAG"/)
+    assert.match(verifyWorkflow, /create-release-manifest\.mjs/)
+    assert.match(verifyWorkflow, /Expected 7 release installers/)
+    assert.doesNotMatch(
+      verifyWorkflow,
+      /s3 rm|Delete previous R2 release assets/
+    )
   })
 })
