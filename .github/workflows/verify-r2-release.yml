@@ -3,6 +3,10 @@ name: Verify R2 Release
 on:
   workflow_dispatch:
     inputs:
+      release_tag:
+        description: GitHub release tag to mirror before verification
+        required: false
+        default: ''
       manifest_url:
         description: Public release manifest URL to verify
         required: false
@@ -37,6 +41,48 @@ jobs:
         with:
           node-version: '24'
 
+      - name: Configure verification target
+        run: |
+          release_tag="$INPUT_RELEASE_TAG"
+          bucket="${INPUT_BUCKET:-most-box-releases}"
+          manifest_url="$INPUT_MANIFEST_URL"
+
+          if [ -n "$release_tag" ]; then
+            if [[ ! "$release_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
+              echo "::error::Invalid release tag: $release_tag"
+              exit 1
+            fi
+            if [ "$bucket" = "most-box-backup" ]; then
+              echo "::error::The backup bucket cannot be used for public release assets"
+              exit 1
+            fi
+
+            public_base_url="${SECRET_R2_PUBLIC_BASE_URL:-}"
+            if [ -z "$public_base_url" ]; then
+              case "$manifest_url" in
+                */releases/latest.json)
+                  public_base_url="${manifest_url%/releases/latest.json}"
+                  ;;
+                *)
+                  echo "::error::manifest_url must end with /releases/latest.json when R2_PUBLIC_BASE_URL is unset"
+                  exit 1
+                  ;;
+              esac
+            fi
+            public_base_url="${public_base_url%/}"
+            manifest_url="$public_base_url/releases/latest.json"
+            echo "R2_PUBLIC_BASE_URL=$public_base_url" >> "$GITHUB_ENV"
+          fi
+
+          echo "RELEASE_TAG=$release_tag" >> "$GITHUB_ENV"
+          echo "R2_RELEASE_BUCKET=$bucket" >> "$GITHUB_ENV"
+          echo "MANIFEST_URL=$manifest_url" >> "$GITHUB_ENV"
+        env:
+          INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
+          INPUT_BUCKET: ${{ inputs.bucket }}
+          INPUT_MANIFEST_URL: ${{ inputs.manifest_url }}
+          SECRET_R2_PUBLIC_BASE_URL: ${{ secrets.R2_PUBLIC_BASE_URL }}
+
       - name: Validate R2 credentials
         run: |
           missing=0
@@ -54,20 +100,101 @@ jobs:
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
 
+      - name: Install project dependencies
+        if: ${{ inputs.release_tag != '' }}
+        run: npm ci
+
+      - name: Download GitHub release assets
+        if: ${{ inputs.release_tag != '' }}
+        run: gh release download "$RELEASE_TAG" --dir release-assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+
+      - name: Create release manifest
+        if: ${{ inputs.release_tag != '' }}
+        run: |
+          node scripts/create-release-manifest.mjs \
+            --assets release-assets \
+            --tag "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --base-url "$R2_PUBLIC_BASE_URL"
+
       - name: Install AWS CLI
         run: |
           python -m pip install --user awscli
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - name: Download public release manifest
-        run: curl --fail --location --silent --show-error "$MANIFEST_URL" --output release-manifest.json
+      - name: Upload release assets to R2
+        if: ${{ inputs.release_tag != '' }}
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          endpoint="https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
+
+          node - <<'NODE' > release-asset-files.txt
+          const fs = require('fs')
+          const manifest = JSON.parse(fs.readFileSync('release-assets/latest.json', 'utf8'))
+          const files = [...new Set(manifest.assets.map(item => item.filename))]
+          if (files.length !== 7) {
+            throw new Error(`Expected 7 release installers, found ${files.length}`)
+          }
+          process.stdout.write(`${files.join('\n')}\n`)
+          NODE
+
+          while IFS= read -r asset_file; do
+            aws --endpoint-url "$endpoint" s3 cp \
+              "release-assets/$asset_file" \
+              "s3://$R2_RELEASE_BUCKET/releases/$RELEASE_TAG/$asset_file" \
+              --storage-class STANDARD \
+              --cache-control "$EXPECTED_ASSET_CACHE_CONTROL"
+          done < release-asset-files.txt
+
+          aws --endpoint-url "$endpoint" s3 cp \
+            release-assets/latest.json \
+            "s3://$R2_RELEASE_BUCKET/releases/latest.json" \
+            --storage-class STANDARD \
+            --content-type "application/json; charset=utf-8" \
+            --cache-control "$EXPECTED_LATEST_CACHE_CONTROL"
         env:
-          MANIFEST_URL: ${{ inputs.manifest_url }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          EXPECTED_LATEST_CACHE_CONTROL: ${{ inputs.expected_latest_cache_control }}
+          EXPECTED_ASSET_CACHE_CONTROL: ${{ inputs.expected_asset_cache_control }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+
+      - name: Wait for public release manifest
+        if: ${{ inputs.release_tag != '' }}
+        run: |
+          expected_version="${RELEASE_TAG#v}"
+          for attempt in $(seq 1 30); do
+            if curl \
+              --fail \
+              --location \
+              --silent \
+              --show-error \
+              --header "Cache-Control: no-cache" \
+              "$MANIFEST_URL" \
+              --output release-manifest-candidate.json; then
+              manifest_state="$(node -e "const fs = require('fs'); const manifest = JSON.parse(fs.readFileSync('release-manifest-candidate.json', 'utf8')); process.stdout.write(String(manifest.version || '') + ':' + String(Array.isArray(manifest.assets) ? manifest.assets.length : 0))")"
+              if [ "$manifest_state" = "${expected_version}:7" ]; then
+                mv release-manifest-candidate.json release-manifest.json
+                exit 0
+              fi
+              echo "Attempt $attempt: expected ${expected_version}:7, received ${manifest_state:-unknown}"
+            fi
+            sleep 10
+          done
+
+          echo "::error::Public release manifest did not refresh to $expected_version"
+          exit 1
+
+      - name: Download public release manifest
+        if: ${{ inputs.release_tag == '' }}
+        run: curl --fail --location --silent --show-error "$MANIFEST_URL" --output release-manifest.json
 
       - name: Verify public release CORS
         run: node scripts/verify-release-cors.mjs --url "$MANIFEST_URL"
-        env:
-          MANIFEST_URL: ${{ inputs.manifest_url }}
 
       - name: Verify R2 storage class and cache metadata
         run: |
@@ -189,7 +316,6 @@ jobs:
         env:
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
-          R2_RELEASE_BUCKET: ${{ inputs.bucket }}
           EXPECTED_LATEST_CACHE_CONTROL: ${{ inputs.expected_latest_cache_control }}
           EXPECTED_ASSET_CACHE_CONTROL: ${{ inputs.expected_asset_cache_control }}
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
