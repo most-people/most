@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "MostBox",
-    "slug": "mostbox-android",
+    "slug": "mostbox",
     "version": "0.4.9",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -36,10 +36,28 @@
     },
     "ios": {
       "bundleIdentifier": "most.box",
-      "buildNumber": "1",
+      "buildNumber": "409",
       "supportsTablet": false,
       "infoPlist": {
         "NSLocalNetworkUsageDescription": "MostBox 使用本地网络发现并连接其他设备，以传输文件。"
+      },
+      "privacyManifests": {
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": ["CA92.1"]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryFileTimestamp",
+            "NSPrivacyAccessedAPITypeReasons": ["C617.1"]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategorySystemBootTime",
+            "NSPrivacyAccessedAPITypeReasons": ["35F9.1"]
+          }
+        ],
+        "NSPrivacyCollectedDataTypes": [],
+        "NSPrivacyTracking": false
       }
     },
     "plugins": [
@@ -53,6 +71,9 @@
       [
         "expo-build-properties",
         {
+          "ios": {
+            "deploymentTarget": "16.4"
+          },
           "android": {
             "minSdkVersion": 29,
             "compileSdkVersion": 36,

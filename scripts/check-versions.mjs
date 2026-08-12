@@ -75,6 +75,19 @@ if (mobileApp.expo.android?.versionCode !== expectedAndroidVersionCode) {
   )
 }
 
+const actualIosBuildNumber = mobileApp.expo.ios?.buildNumber
+const parsedIosBuildNumber = Number(actualIosBuildNumber)
+if (!/^[1-9]\d*$/.test(actualIosBuildNumber ?? '')) {
+  throw new Error(
+    `Expected iOS buildNumber to be a positive integer string, received ${actualIosBuildNumber}`
+  )
+}
+if (parsedIosBuildNumber < expectedAndroidVersionCode) {
+  throw new Error(
+    `Expected iOS buildNumber to be at least ${expectedAndroidVersionCode} for ${rootVersion}, received ${actualIosBuildNumber}`
+  )
+}
+
 const tag = getTagArgument()
 if (tag) {
   if (!/^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(tag)) {

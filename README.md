@@ -52,7 +52,7 @@ MostBox 不要求先把文件上传到中心化网盘。发布者发送一个 `m
 
 ### Android
 
-Android 使用“P2P 核心端 + 平台 UI 壳”分层，并以文件传输工具身份准备 Google Play 分发。商店版不包含聊天、账号、广告、付费、Web3、公开内容目录或长期后台做种；下载必须由用户在确认页明确触发。Android 验收范围见 [docs/mobile-android-alpha.md](docs/mobile-android-alpha.md)，Google Play 提交清单见 [docs/google-play-submission.md](docs/google-play-submission.md)。iOS 当前不进入本轮测试和上架范围。
+iOS / Android 使用“P2P 核心端 + 平台 UI 壳”分层，并以文件传输工具身份准备应用商店分发。商店版不包含聊天、账号、广告、付费、Web3、公开内容目录或长期后台做种；下载必须由用户在确认页明确触发。Android 验收范围见 [docs/mobile-android-alpha.md](docs/mobile-android-alpha.md)，Google Play 提交清单见 [docs/google-play-submission.md](docs/google-play-submission.md)；iOS 真机验收范围见 [docs/mobile-ios-feasibility.md](docs/mobile-ios-feasibility.md)，App Store 提交清单见 [docs/app-store-submission.md](docs/app-store-submission.md)。
 
 移动端工程入口以 `mobile/app/` 子包为准，Android 与 iOS 共享 React Native UI 和 Bare Worklet P2P 核心。仓库根目录不提供 `android:start`、`android:test` 或 `android:build` 包装脚本，本地开发、测试和打包命令统一在子包目录执行：
 

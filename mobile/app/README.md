@@ -1,10 +1,10 @@
 # MostBox Mobile
 
-MostBox 的 Android 商店版和共享 Bare Worklet P2P 核心。移动工程与桌面/Web UI 分离，但保持相同的 `most://`、CID、Hyperdrive 和做种协议。
+MostBox 的 iOS / Android 商店版和共享 Bare Worklet P2P 核心。移动工程与桌面/Web UI 分离，但保持相同的 `most://`、CID、Hyperdrive 和做种协议。
 
 ## 当前状态
 
-- Android 使用原生 React Native 工具界面，包含“文件 / 知识库 / 传输 / 节点”四个入口，默认进入“文件”。
+- iOS / Android 使用原生 React Native 工具界面，底部包含“文件 / 知识库 / 传输”三个入口，节点状态从页面右上角进入，默认打开“文件”。
 - 用户可选择文件发布，得到 `most://<cid>?filename=...` 链接并在前台做种。
 - 外部 `most://` 深链只打开下载确认页，不会自动开始下载。
 - 下载完成后重算 UnixFS CID v1，校验通过才写入 holding 并加入 CID topic。
@@ -136,7 +136,7 @@ node scripts/android-real-p2p-seed.mjs --handoff-check
 - 整库恢复会在完整校验和用户确认后完全替换当前知识库，不自动合并；失败时保留恢复前的数据。
 - 笔记本身不发布到 Hyperdrive，也不生成分享链接；只有用户主动选择的附件进入文件发布流程。
 - CID 即权限，链接泄露后无法从 P2P 网络统一撤回。
-- iOS 本轮只要求共享代码类型检查和 bundle 成功，不做签名、真机或 TestFlight 验收。
+- iOS 模拟器 Release 和无签名 `iphoneos` arm64 Release 已构建通过；正式发布仍以签名真机和内部 TestFlight 完成 P2P 闭环为准。
 
 ## 协议不变量
 

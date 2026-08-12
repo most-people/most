@@ -4,6 +4,8 @@
 
 当前实现状态：iOS Expo 配置、EAS development/preview/production 构建档位、iOS Bare bundle 脚本和平台感知 UI 已加入源码；尚未使用 Apple 签名在真实 iPhone 上完成首次云构建，因此本计划仍处于第 1 阶段。
 
+2026-08-12 macOS 预检结果：已使用 Xcode 26.5 完成干净 prebuild、Release 模拟器构建，以及未签名的 `iphoneos` arm64 Release 构建。当前剩余门槛是 Apple Developer 签名、iPhone 真机运行和真机 P2P 闭环。
+
 2026-07-18 Windows 侧预检结果：基于 Expo 57 / React Native 0.86 的 iOS Bare bundle 和 Metro/Hermes production bundle 均已生成；Bare Kit 成功链接 19 个含 `ios-arm64` 真机架构的 addon XCFramework；移动端测试、TypeScript 和 Expo 依赖兼容性检查通过；Android Release APK 回归构建通过。以上结果不能替代 EAS macOS、CocoaPods、Xcode 签名和 iPhone 真机运行验证。
 
 ## 决策与成功标准

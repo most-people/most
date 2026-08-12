@@ -32,7 +32,6 @@
       "environment": "preview"
     },
     "ios-production": {
-      "autoIncrement": true,
       "environment": "production"
     }
   }
