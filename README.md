@@ -418,7 +418,7 @@ git push origin main vx.x.x
 3. **macOS 打包** — 构建 `.dmg` 安装包（x64 + arm64）并上传 Release
 4. **Linux 打包** — 构建 `.AppImage` 安装包（x64 + arm64）并上传 Release
 5. **Android 打包** — 使用固定的永久 App Signing Key 构建 Android `.apk` 和 SHA256 校验文件并上传 Release
-6. **下载镜像** — 将 Release 资产同步到 Cloudflare R2，并生成 `releases/latest.json`
+6. **下载镜像** — 将 Release 资产同步到 Cloudflare R2，生成 `releases/latest.json`，并在新版本校验成功后删除旧版本安装包
 
 GitHub Release 是可信备用源；下载页优先读取 R2 的 `releases/latest.json` 并使用 R2 下载链接。
 
@@ -430,6 +430,9 @@ Release workflow 不设置 Infrequent Access，R2 对象保持默认 Standard �
 `head-object` 校验存储层与缓存头。版本化安装包使用
 `public, max-age=31536000, immutable`；`releases/latest.json` 使用
 `public, max-age=60, stale-while-revalidate=300`。
+R2 只保留最新版本：新版本安装包和 manifest 上传并校验成功后，Release workflow 会删除
+`releases/` 下除当前版本目录和 `latest.json` 以外的对象。GitHub Release 仍保留历史版本，
+可作为回退下载源。
 桶级 CORS 是持久基础设施配置，只在规则变更时使用具备 `PutBucketCors` 权限的管理密钥运行
 `npm run r2:cors`。Release workflow 不需要桶级管理权限，而是在上传完成后严格验证公开域名对
 `https://most.box` 和 `https://most-people.com` 的 GET 与 OPTIONS 响应；也可以随时运行

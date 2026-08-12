@@ -492,6 +492,21 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: auto
 
+      - name: Delete previous R2 release assets
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          endpoint="https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
+
+          aws --endpoint-url "$endpoint" s3 rm "s3://$R2_RELEASE_BUCKET/releases/" \
+            --recursive \
+            --exclude "$GITHUB_REF_NAME/*" \
+            --exclude "latest.json"
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+
       - name: Verify public R2 CORS
         run: >-
           node scripts/verify-release-cors.mjs
