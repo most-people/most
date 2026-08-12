@@ -1,4 +1,66 @@
 export const appMessages = {
+  'app.privacy.checking': {
+    'zh-CN': '正在检查隐私设置',
+    'zh-TW': '正在檢查隱私設定',
+    en: 'Checking privacy settings',
+  },
+  'app.privacy.title': {
+    'zh-CN': '隐私保护与使用条款',
+    'zh-TW': '隱私保護與使用條款',
+    en: 'Privacy and Terms',
+  },
+  'app.privacy.body': {
+    'zh-CN':
+      '使用前请阅读并同意隐私政策和使用条款。同意后，MostBox 才会启动 P2P 核心。P2P 连接会让其他节点和网络基础设施处理建立连接所需的 IP 地址、连接时间和网络元数据。',
+    'zh-TW':
+      '使用前請閱讀並同意隱私政策和使用條款。同意後，MostBox 才會啟動 P2P 核心。P2P 連線會讓其他節點和網路基礎設施處理建立連線所需的 IP 位址、連線時間和網路中繼資料。',
+    en: 'Before using MostBox, read and accept the Privacy Policy and Terms of Use. The P2P core starts only after you accept. Other peers and network infrastructure process the IP address, connection time, and network metadata required to establish P2P connections.',
+  },
+  'app.privacy.openPrivacy': {
+    'zh-CN': '查看隐私政策',
+    'zh-TW': '查看隱私政策',
+    en: 'View Privacy Policy',
+  },
+  'app.privacy.openTerms': {
+    'zh-CN': '查看使用条款',
+    'zh-TW': '查看使用條款',
+    en: 'View Terms of Use',
+  },
+  'app.privacy.accept': {
+    'zh-CN': '同意并继续',
+    'zh-TW': '同意並繼續',
+    en: 'Accept and Continue',
+  },
+  'app.privacy.decline': {
+    'zh-CN': '不同意',
+    'zh-TW': '不同意',
+    en: 'Decline',
+  },
+  'app.privacy.declineAndExit': {
+    'zh-CN': '不同意并退出',
+    'zh-TW': '不同意並退出',
+    en: 'Decline and Exit',
+  },
+  'app.privacy.declineTitle': {
+    'zh-CN': '尚未同意隐私政策',
+    'zh-TW': '尚未同意隱私政策',
+    en: 'Privacy Policy not accepted',
+  },
+  'app.privacy.declineBody': {
+    'zh-CN': 'MostBox 不会启动 P2P 核心。你可以关闭应用。',
+    'zh-TW': 'MostBox 不會啟動 P2P 核心。你可以關閉應用程式。',
+    en: 'MostBox will not start the P2P core. You can close the app.',
+  },
+  'app.privacy.saveFailedTitle': {
+    'zh-CN': '无法保存隐私设置',
+    'zh-TW': '無法儲存隱私設定',
+    en: 'Could not save privacy setting',
+  },
+  'app.privacy.saveFailedBody': {
+    'zh-CN': '请检查设备存储后重试。P2P 核心尚未启动。',
+    'zh-TW': '請檢查裝置儲存空間後重試。P2P 核心尚未啟動。',
+    en: 'Check device storage and try again. The P2P core has not started.',
+  },
   'app.core.startFailed': {
     'zh-CN': 'P2P 核心启动失败',
     'zh-TW': 'P2P 核心啟動失敗',

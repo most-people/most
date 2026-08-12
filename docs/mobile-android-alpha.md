@@ -69,7 +69,8 @@ node scripts/android-real-p2p-seed.mjs --handoff-check
 - `targetSdkVersion` 和 `compileSdkVersion` 均为 36。
 - AAB 使用独立 upload key 签名，不是 Android debug key。
 - Play App Signing 已启用。
-- `https://most.box/privacy/` 和 `https://most.box/terms/` 可从公网无登录访问。
+- 首次安装或政策版本更新后，未同意隐私政策前不创建或启动 P2P 核心；拒绝后退出应用。
+- `https://most.red/privacy/`、`https://most.red/terms/` 和 `https://most.red/support/` 可从公网无登录访问。
 - 提供至少两个有在线种子的审核测试链接，并在审核期间保持可下载。
 - 商店截图只展示当前 AAB 实际存在的文件、知识库、传输和节点能力。
 

@@ -34,11 +34,13 @@ eas build --platform android --profile android-production
 
 简短说明（80 字以内）：
 
-> 通过 most:// 链接直接传输文件，完成 CID 校验后在前台继续做种。
+> 本地整理知识与文件，通过 most:// 链接传输并完成 CID 校验。
 
 完整说明：
 
-> MostBox 是一个 CID 优先的 P2P 文件传输工具。选择文件即可生成 most:// 分享链接；接收方确认链接后，从在线节点下载文件并重新计算 CID，校验通过后保存到本机。
+> MostBox 是一个本地知识库和 CID 优先的 P2P 文件传输工具。无需注册即可在本机创建、编辑、搜索、导入、导出和备份 Markdown 笔记；知识库默认只保存在本机。
+>
+> 选择文件即可生成 most:// 分享链接；接收方确认链接后，从在线节点下载文件并重新计算 CID，校验通过后保存到本机。
 >
 > 下载完成的设备会在应用前台继续做种。原发布者离线后，只要仍有其他种子在线，文件仍可继续传播。
 >
@@ -52,7 +54,7 @@ eas build --platform android --profile android-production
 
 | 项目               | 当前商店版建议                                          |
 | ------------------ | ------------------------------------------------------- |
-| 隐私政策           | `https://most.box/privacy/`                             |
+| 隐私政策           | `https://most.red/privacy/`                             |
 | 广告               | 不包含广告                                              |
 | App access         | 无登录、无受限入口，不需要审核账号                      |
 | Target audience    | 18 岁及以上；不以儿童为目标用户                         |
@@ -65,7 +67,7 @@ eas build --platform android --profile android-production
 
 ## Data Safety 预审结论
 
-当前代码不包含账号、广告、分析、崩溃上报或中心化文件服务器。本机文件、CID、holding 和日志保存在设备内；文件只在用户明确发布或确认下载时通过加密 P2P 连接传输。根据 Google 对用户主动传输和端到端加密数据的例外，初步答案可为“不收集或共享 Google Data Safety 表中要求披露的数据”。
+当前代码不包含账号、广告、分析、崩溃上报或中心化文件服务器。本机笔记、知识库备份、文件、CID、holding 和日志保存在设备内；文件只在用户明确发布或确认下载时通过加密 P2P 连接传输。根据 Google 对用户主动传输和端到端加密数据的例外，初步答案可为“不收集或共享 Google Data Safety 表中要求披露的数据”。
 
 正式提交前仍需完成一次 release AAB 的依赖和网络流量审计，确认 Expo、Bare、Hyperswarm 及其 bootstrap/DHT 行为没有把设备标识、诊断信息或其他用户数据发送给开发者或第三方服务。只要增加 analytics、crash reporting、推送、账号或中心服务，就必须重填 Data Safety 并同步更新隐私政策。
 
@@ -74,6 +76,8 @@ eas build --platform android --profile android-production
 可在审核备注中说明：
 
 > MostBox is a user-initiated peer-to-peer file transfer utility. It has no public content catalog, account, chat, ads, payments, or background seeding service. Opening a most:// link only presents a confirmation screen; no download starts until the reviewer taps Confirm Download. Every completed download is recalculated and verified against its UnixFS CID before it is stored. The Play build requires an explicit filename and blocks known application packages, scripts, and executable file types declared by the selected file or link.
+
+首次启动时，应用会先展示隐私政策和使用条款；只有审核人员点击“同意并继续”并成功保存同意记录后，应用才创建并启动 P2P 核心。拒绝时不会启动 P2P 网络。
 
 为审核人员准备两个在线种子链接：一个小型 TXT 文件和一个 PNG 文件。审核期间必须保证至少一个对应种子在线；不要提供私密或版权不明的测试文件。
 
@@ -87,7 +91,7 @@ eas build --platform android --profile android-production
 
 ## 发布顺序
 
-1. 验证隐私政策和使用条款公网可访问。
+1. 验证 `https://most.red/privacy/`、`https://most.red/terms/` 和 `https://most.red/support/` 可从公网无登录访问。
 2. 创建 Play 应用并启用 Play App Signing。
 3. 先上传 Internal testing，检查 Pre-launch report、权限和设备兼容性。
 4. 完成 Data Safety、内容分级、目标受众、商店页和审核说明。

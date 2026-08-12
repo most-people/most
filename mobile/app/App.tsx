@@ -65,6 +65,8 @@ import {
   getFriendlyCoreError,
   usesAccessibilityLayout,
 } from './src/ui/presentation'
+import { PrivacyConsentGate } from './src/privacy/PrivacyConsentGate'
+import { PRIVACY_URL, SUPPORT_URL, TERMS_URL } from './src/privacy/legalUrls'
 import type { DocumentPickerAsset } from 'expo-document-picker'
 import type {
   MobileCoreSnapshot,
@@ -74,9 +76,6 @@ import type {
 } from './src/mobileCore/types'
 
 const DEV_CID_MAX_BYTES = 20 * 1024 * 1024
-const PRIVACY_URL = 'https://most.box/privacy/'
-const TERMS_URL = 'https://most.box/terms/'
-const SUPPORT_URL = 'https://github.com/most-people/most/issues'
 const MIME_BY_EXTENSION: Record<string, string> = {
   csv: 'text/csv',
   gif: 'image/gif',
@@ -171,7 +170,9 @@ function shortCid(cid: string) {
 export default function App() {
   return (
     <I18nProvider>
-      <MostBoxApp />
+      <PrivacyConsentGate>
+        <MostBoxApp />
+      </PrivacyConsentGate>
     </I18nProvider>
   )
 }
