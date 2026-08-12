@@ -4,6 +4,11 @@ export const p2pPingMessages = {
     'zh-TW': '裝置 P2P Ping',
     en: 'Device P2P Ping',
   },
+  'p2pPing.back': {
+    'zh-CN': '返回节点页面',
+    'zh-TW': '返回節點頁面',
+    en: 'Back to node',
+  },
   'p2pPing.subtitle': {
     'zh-CN': '测试两台设备当前能否直接连接',
     'zh-TW': '測試兩台裝置目前能否直接連線',
@@ -43,6 +48,11 @@ export const p2pPingMessages = {
     'zh-CN': '重新生成',
     'zh-TW': '重新產生',
     en: 'Regenerate',
+  },
+  'p2pPing.copied': {
+    'zh-CN': '已复制',
+    'zh-TW': '已複製',
+    en: 'Copied',
   },
   'p2pPing.cancel': {
     'zh-CN': '取消检测',

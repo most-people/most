@@ -283,24 +283,36 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(missing.status, 404)
     })
 
-    it('rejects P2P Ping through remote management mode', async () => {
+    it('allows P2P Ping through remote management mode', async () => {
       const { app } = createApp(engine, {
         port: TEST_PORT + 31,
         configStore,
         nodeLogger,
         remoteInvites: ['invite-ok'],
       })
-      const response = await app.request('/api/p2p/ping', {
+      const remoteHeaders = {
+        'Content-Type': 'application/json',
+        'x-mostbox-invite': 'invite-ok',
+      }
+      const created = await app.request('/api/p2p/ping', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-mostbox-invite': 'invite-ok',
-        },
+        headers: remoteHeaders,
         body: JSON.stringify({ role: 'host' }),
       })
-      const data = await response.json()
-      assert.strictEqual(response.status, 403)
-      assert.strictEqual(data.code, 'REMOTE_ADMIN_FORBIDDEN')
+      const createdData = await created.json()
+      assert.strictEqual(created.status, 202)
+
+      const status = await app.request(`/api/p2p/ping/${createdData.ping.id}`, {
+        headers: remoteHeaders,
+      })
+      assert.strictEqual(status.status, 200)
+
+      const cancelled = await app.request(
+        `/api/p2p/ping/${createdData.ping.id}`,
+        { method: 'DELETE', headers: remoteHeaders }
+      )
+      assert.strictEqual(cancelled.status, 200)
+      assert.strictEqual((await cancelled.json()).ping.status, 'cancelled')
     })
   })
 

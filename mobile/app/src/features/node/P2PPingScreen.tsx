@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import * as Clipboard from 'expo-clipboard'
 import {
-  Pressable,
+  ActivityIndicator,
   Platform,
+  Pressable,
   ScrollView,
   Share,
   StyleSheet,
@@ -12,12 +13,13 @@ import {
 } from 'react-native'
 import {
   ArrowLeft,
+  Check,
   CircleAlert,
   CircleCheck,
+  CircleMinus,
   CircleX,
   ClipboardPaste,
   Copy,
-  LoaderCircle,
   RadioTower,
   RefreshCw,
   Share2,
@@ -39,7 +41,7 @@ type P2PPingScreenProps = {
   onCancel: (id?: string) => Promise<P2PPing | null>
 }
 
-const ACTIVE_STATUSES = new Set([
+const ACTIVE_STATUSES = new Set<P2PPing['status']>([
   'preparing',
   'waiting',
   'discovering',
@@ -81,8 +83,10 @@ export function P2PPingScreen({
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [copiedCode, setCopiedCode] = useState('')
   const [now, setNow] = useState(Date.now())
   const active = Boolean(ping && ACTIVE_STATUSES.has(ping.status))
+  const visiblePing = ping?.role === role ? ping : null
 
   useEffect(() => {
     if (!active) return
@@ -94,10 +98,16 @@ export function P2PPingScreen({
     if (ping) setRole(ping.role)
   }, [ping])
 
+  useEffect(() => {
+    if (!copiedCode) return
+    const timer = setTimeout(() => setCopiedCode(''), 1600)
+    return () => clearTimeout(timer)
+  }, [copiedCode])
+
   const remainingSeconds = ping
     ? Math.max(0, Math.ceil((new Date(ping.expiresAt).getTime() - now) / 1000))
     : 0
-  const visiblePing = ping?.role === role ? ping : null
+  const validCode = /^\d{6}$/.test(code)
 
   const start = async (nextRole: P2PPingRole) => {
     setBusy(true)
@@ -162,204 +172,260 @@ export function P2PPingScreen({
   }
 
   const copy = async () => {
-    if (visiblePing) await Clipboard.setStringAsync(visiblePing.code)
+    if (!visiblePing) return
+    await Clipboard.setStringAsync(visiblePing.code)
+    setCopiedCode(visiblePing.code)
   }
+
+  const primaryDisabled = !ready || busy
 
   return (
     <ScrollView
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
     >
       <View style={styles.header}>
         <Pressable
+          accessibilityLabel={t('p2pPing.back')}
           accessibilityRole="button"
           onPress={onBack}
-          style={styles.iconButton}
+          style={({ pressed }) => [
+            styles.backButton,
+            pressed ? styles.buttonPressed : null,
+          ]}
         >
-          <ArrowLeft size={20} color={theme.colors.text} />
+          <ArrowLeft size={22} color={theme.colors.text} />
         </Pressable>
-        <View style={styles.headerText}>
-          <Text maxFontSizeMultiplier={1.6} style={styles.title}>
-            {t('p2pPing.title')}
-          </Text>
-        </View>
+        <Text maxFontSizeMultiplier={1.6} style={styles.title}>
+          {t('p2pPing.title')}
+        </Text>
+        <View style={styles.headerSpacer} />
       </View>
 
-      <View style={styles.segmented}>
-        {(['host', 'join'] as const).map(item => (
-          <Pressable
-            accessibilityRole="tab"
-            accessibilityState={{ selected: role === item }}
-            disabled={active}
-            key={item}
-            onPress={() => setRole(item)}
-            style={[
-              styles.segment,
-              role === item ? styles.segmentActive : null,
-            ]}
-          >
-            <Text
-              style={[
-                styles.segmentText,
-                role === item ? styles.segmentTextActive : null,
+      <View accessibilityRole="tablist" style={styles.segmented}>
+        {(['host', 'join'] as const).map(item => {
+          const selected = role === item
+          return (
+            <Pressable
+              accessibilityRole="tab"
+              accessibilityState={{
+                disabled: active || busy,
+                selected,
+              }}
+              disabled={active || busy}
+              key={item}
+              onPress={() => {
+                setRole(item)
+                setError('')
+              }}
+              style={({ pressed }) => [
+                styles.segment,
+                selected ? styles.segmentActive : null,
+                pressed ? styles.buttonPressed : null,
               ]}
             >
-              {t(item === 'host' ? 'p2pPing.host' : 'p2pPing.join')}
-            </Text>
-          </Pressable>
-        ))}
+              <Text
+                maxFontSizeMultiplier={1.6}
+                style={[
+                  styles.segmentText,
+                  selected ? styles.segmentTextActive : null,
+                ]}
+              >
+                {t(item === 'host' ? 'p2pPing.host' : 'p2pPing.join')}
+              </Text>
+            </Pressable>
+          )
+        })}
       </View>
 
-      {role === 'host' ? (
-        <View style={styles.panel}>
-          {visiblePing ? (
+      <View style={styles.primarySection}>
+        {role === 'host' ? (
+          visiblePing ? (
             <>
-              <Text style={styles.code}>{visiblePing.code}</Text>
+              <Text style={styles.fieldLabel}>{t('p2pPing.code')}</Text>
+              <Text
+                adjustsFontSizeToFit
+                maxFontSizeMultiplier={1.4}
+                minimumFontScale={0.75}
+                numberOfLines={1}
+                selectable
+                style={styles.code}
+              >
+                {visiblePing.code}
+              </Text>
               <View style={styles.actions}>
                 <IconAction
-                  icon={<Copy size={18} color={theme.colors.accent} />}
-                  label={t('common.copy')}
+                  disabled={busy}
+                  icon={
+                    copiedCode === visiblePing.code ? (
+                      <Check size={18} color={theme.colors.success} />
+                    ) : (
+                      <Copy size={18} color={theme.colors.accent} />
+                    )
+                  }
+                  label={
+                    copiedCode === visiblePing.code
+                      ? t('p2pPing.copied')
+                      : t('common.copy')
+                  }
                   onPress={copy}
+                  styles={styles}
+                  success={copiedCode === visiblePing.code}
                 />
                 <IconAction
+                  disabled={busy}
                   icon={<Share2 size={18} color={theme.colors.accent} />}
                   label={t('common.share')}
                   onPress={share}
+                  styles={styles}
                 />
                 <IconAction
+                  disabled={busy}
                   icon={<RefreshCw size={18} color={theme.colors.accent} />}
                   label={t('p2pPing.regenerate')}
                   onPress={regenerate}
+                  styles={styles}
                 />
               </View>
             </>
           ) : (
-            <Pressable
-              disabled={!ready || busy}
+            <PrimaryButton
+              busy={busy}
+              disabled={primaryDisabled}
+              label={t('p2pPing.create')}
               onPress={() => start('host')}
-              style={[
-                styles.primaryButton,
-                !ready || busy ? styles.disabled : null,
-              ]}
-            >
-              <RadioTower size={19} color={theme.colors.onAccent} />
-              <Text style={styles.primaryButtonText}>
-                {t('p2pPing.create')}
-              </Text>
-            </Pressable>
-          )}
-        </View>
-      ) : (
-        <View style={styles.panel}>
-          <View style={styles.codeInputRow}>
-            <TextInput
-              accessibilityLabel={t('p2pPing.code')}
-              editable={!active && !busy}
-              keyboardType="number-pad"
-              maxLength={6}
-              onChangeText={value =>
-                setCode(value.replace(/\D/g, '').slice(0, 6))
-              }
-              placeholder="000000"
-              placeholderTextColor={theme.colors.textMuted}
-              style={styles.codeInput}
-              value={visiblePing?.code || code}
+              styles={styles}
+              theme={theme}
             />
-            <Pressable
-              accessibilityLabel={t('p2pPing.paste')}
-              disabled={active}
-              onPress={paste}
-              style={styles.iconButton}
-            >
-              <ClipboardPaste size={20} color={theme.colors.accent} />
-            </Pressable>
-          </View>
-          {!visiblePing ? (
-            <Pressable
-              disabled={!ready || busy || !/^\d{6}$/.test(code)}
-              onPress={() => start('join')}
-              style={[
-                styles.primaryButton,
-                !ready || busy || !/^\d{6}$/.test(code)
-                  ? styles.disabled
-                  : null,
-              ]}
-            >
-              <RadioTower size={19} color={theme.colors.onAccent} />
-              <Text style={styles.primaryButtonText}>{t('p2pPing.start')}</Text>
-            </Pressable>
-          ) : null}
-        </View>
-      )}
+          )
+        ) : (
+          <>
+            <Text style={styles.fieldLabel}>{t('p2pPing.code')}</Text>
+            <View style={styles.codeInputRow}>
+              <TextInput
+                accessibilityLabel={t('p2pPing.code')}
+                editable={!active && !busy}
+                keyboardType="number-pad"
+                maxFontSizeMultiplier={1.4}
+                maxLength={6}
+                onChangeText={value =>
+                  setCode(value.replace(/\D/g, '').slice(0, 6))
+                }
+                placeholder="000000"
+                placeholderTextColor={theme.colors.textMuted}
+                returnKeyType="done"
+                style={styles.codeInput}
+                value={visiblePing?.code || code}
+              />
+              <Pressable
+                accessibilityLabel={t('p2pPing.paste')}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: active || busy }}
+                disabled={active || busy}
+                onPress={paste}
+                style={({ pressed }) => [
+                  styles.pasteButton,
+                  active || busy ? styles.disabled : null,
+                  pressed ? styles.buttonPressed : null,
+                ]}
+              >
+                <ClipboardPaste size={20} color={theme.colors.accent} />
+              </Pressable>
+            </View>
+            {!visiblePing ? (
+              <PrimaryButton
+                busy={busy}
+                disabled={primaryDisabled || !validCode}
+                label={t('p2pPing.start')}
+                onPress={() => start('join')}
+                styles={styles}
+                theme={theme}
+              />
+            ) : null}
+          </>
+        )}
+      </View>
 
       {visiblePing ? (
-        <View style={styles.result}>
-          <View style={styles.statusRow}>
-            {visiblePing.status === 'success' ? (
-              <CircleCheck size={21} color={theme.colors.success} />
-            ) : visiblePing.status === 'partial' ? (
-              <CircleAlert size={21} color={theme.colors.warning} />
-            ) : visiblePing.status === 'failed' ||
-              visiblePing.status === 'expired' ? (
-              <CircleX size={21} color={theme.colors.danger} />
-            ) : (
-              <LoaderCircle size={21} color={theme.colors.accent} />
-            )}
+        <View accessibilityLiveRegion="polite" style={styles.result}>
+          <View
+            style={[
+              styles.statusBanner,
+              getStatusBackgroundStyle(styles, visiblePing.status),
+            ]}
+          >
+            <StatusIcon
+              active={active}
+              status={visiblePing.status}
+              theme={theme}
+            />
             <Text style={styles.statusText}>
               {t(STATUS_KEYS[visiblePing.status])}
             </Text>
-            {active ? (
-              <Text style={styles.countdown}>{remainingSeconds}s</Text>
-            ) : null}
+            <Text style={styles.statusMeta}>
+              {active
+                ? `${remainingSeconds}s`
+                : visiblePing.elapsedMs === null
+                  ? '-'
+                  : `${visiblePing.elapsedMs} ms`}
+            </Text>
           </View>
 
-          <View style={styles.directions}>
+          <View style={styles.directionList}>
             <DirectionResult
               label={t('p2pPing.direction.hostToJoin')}
               result={visiblePing.directions.hostToJoin}
               statusLabel={t(
                 STATUS_KEYS[visiblePing.directions.hostToJoin.status]
               )}
+              styles={styles}
+              theme={theme}
             />
+            <View style={styles.directionDivider} />
             <DirectionResult
               label={t('p2pPing.direction.joinToHost')}
               result={visiblePing.directions.joinToHost}
               statusLabel={t(
                 STATUS_KEYS[visiblePing.directions.joinToHost.status]
               )}
+              styles={styles}
+              theme={theme}
             />
           </View>
 
           <View style={styles.details}>
             <Detail
               label={t('p2pPing.candidates')}
+              styles={styles}
               value={String(visiblePing.discoveredPeers)}
             />
             <Detail
-              label={t('p2pPing.elapsed')}
-              value={
-                visiblePing.elapsedMs === null
-                  ? '-'
-                  : `${visiblePing.elapsedMs} ms`
-              }
-            />
-            <Detail
               label={t('p2pPing.peerKey')}
+              styles={styles}
               value={shortKey(visiblePing.remotePeerKey)}
             />
             {visiblePing.errorCode ? (
               <Detail
-                label={t('p2pPing.failure')}
-                value={`${visiblePing.phase} / ${visiblePing.errorCode}: ${visiblePing.errorMessage || ''}`}
                 danger
+                label={t('p2pPing.failure')}
+                styles={styles}
+                value={`${visiblePing.phase} / ${visiblePing.errorCode}${visiblePing.errorMessage ? `: ${visiblePing.errorMessage}` : ''}`}
               />
             ) : null}
           </View>
 
           <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ disabled: busy }}
             disabled={busy}
             onPress={cancel}
-            style={styles.cancelButton}
+            style={({ pressed }) => [
+              styles.cancelButton,
+              active ? styles.cancelButtonActive : styles.resetButton,
+              busy ? styles.disabled : null,
+              pressed ? styles.buttonPressed : null,
+            ]}
           >
             {active ? (
               <X size={18} color={theme.colors.danger} />
@@ -375,96 +441,196 @@ export function P2PPingScreen({
         </View>
       ) : null}
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? (
+        <View accessibilityLiveRegion="assertive" style={styles.errorBanner}>
+          <CircleAlert size={17} color={theme.colors.danger} />
+          <Text selectable style={styles.errorText}>
+            {error}
+          </Text>
+        </View>
+      ) : null}
     </ScrollView>
   )
 }
 
+type P2PPingStyles = ReturnType<typeof createStyles>
+
+function PrimaryButton({
+  busy,
+  disabled,
+  label,
+  onPress,
+  styles,
+  theme,
+}: {
+  busy: boolean
+  disabled: boolean
+  label: string
+  onPress: () => void
+  styles: P2PPingStyles
+  theme: MostBoxTheme
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.primaryButton,
+        disabled ? styles.disabled : null,
+        pressed ? styles.primaryButtonPressed : null,
+      ]}
+    >
+      {busy ? (
+        <ActivityIndicator color={theme.colors.onAccent} size="small" />
+      ) : (
+        <RadioTower size={19} color={theme.colors.onAccent} />
+      )}
+      <Text maxFontSizeMultiplier={1.8} style={styles.primaryButtonText}>
+        {label}
+      </Text>
+    </Pressable>
+  )
+}
+
 function IconAction({
+  disabled,
   icon,
   label,
   onPress,
+  styles,
+  success = false,
 }: {
+  disabled: boolean
   icon: ReactNode
   label: string
   onPress: () => void | Promise<void>
+  styles: P2PPingStyles
+  success?: boolean
 }) {
-  const theme = useMostBoxTheme()
-  const styles = useMemo(() => createStyles(theme), [theme])
   return (
-    <Pressable onPress={onPress} style={styles.iconAction}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.iconAction,
+        disabled ? styles.disabled : null,
+        pressed ? styles.buttonPressed : null,
+      ]}
+    >
       {icon}
-      <Text style={styles.iconActionText}>{label}</Text>
+      <Text
+        maxFontSizeMultiplier={1.6}
+        numberOfLines={1}
+        style={[
+          styles.iconActionText,
+          success ? styles.iconActionTextSuccess : null,
+        ]}
+      >
+        {label}
+      </Text>
     </Pressable>
   )
+}
+
+function StatusIcon({
+  active,
+  status,
+  theme,
+}: {
+  active: boolean
+  status: P2PPing['status']
+  theme: MostBoxTheme
+}) {
+  if (active)
+    return <ActivityIndicator color={theme.colors.accent} size="small" />
+  if (status === 'success') {
+    return <CircleCheck size={21} color={theme.colors.success} />
+  }
+  if (status === 'partial') {
+    return <CircleAlert size={21} color={theme.colors.warning} />
+  }
+  if (status === 'failed' || status === 'expired') {
+    return <CircleX size={21} color={theme.colors.danger} />
+  }
+  return <CircleMinus size={21} color={theme.colors.textMuted} />
 }
 
 function DirectionResult({
   label,
   result,
   statusLabel,
+  styles,
+  theme,
 }: {
   label: string
   result: P2PPingDirection
   statusLabel: string
+  styles: P2PPingStyles
+  theme: MostBoxTheme
 }) {
   const { t } = useI18n()
-  const theme = useMostBoxTheme()
-  const styles = useMemo(() => createStyles(theme), [theme])
-  const statusColor =
-    result.status === 'success'
-      ? theme.colors.success
-      : result.status === 'failed' || result.status === 'expired'
-        ? theme.colors.danger
-        : theme.colors.textMuted
+  const directionActive = ACTIVE_STATUSES.has(result.status)
   return (
     <View style={styles.direction}>
-      <View style={styles.directionHeader}>
-        {result.status === 'success' ? (
-          <CircleCheck size={17} color={statusColor} />
-        ) : result.status === 'failed' || result.status === 'expired' ? (
-          <CircleX size={17} color={statusColor} />
-        ) : (
-          <LoaderCircle size={17} color={statusColor} />
-        )}
-        <Text style={styles.directionLabel}>{label}</Text>
-        <Text style={styles.directionStatus}>{statusLabel}</Text>
+      <View style={styles.directionIcon}>
+        <StatusIcon
+          active={directionActive}
+          status={result.status}
+          theme={theme}
+        />
       </View>
-      <View style={styles.directionMeta}>
-        <Text style={styles.directionMetaText}>
-          {t('p2pPing.candidates')} {result.discoveredPeers}
-        </Text>
-        <Text style={styles.directionMetaText}>
-          {t('p2pPing.elapsed')}{' '}
-          {result.elapsedMs === null ? '-' : `${result.elapsedMs} ms`}
-        </Text>
+      <View style={styles.directionContent}>
+        <View style={styles.directionHeading}>
+          <Text maxFontSizeMultiplier={1.7} style={styles.directionLabel}>
+            {label}
+          </Text>
+          <Text maxFontSizeMultiplier={1.7} style={styles.directionStatus}>
+            {statusLabel}
+          </Text>
+        </View>
+        <View style={styles.directionMeta}>
+          <Text style={styles.directionMetaText}>
+            {t('p2pPing.candidates')} {result.discoveredPeers}
+          </Text>
+          <Text style={styles.directionMetaText}>
+            {t('p2pPing.elapsed')}{' '}
+            {result.elapsedMs === null ? '-' : `${result.elapsedMs} ms`}
+          </Text>
+        </View>
+        {result.errorCode ? (
+          <Text selectable style={styles.directionError}>
+            {result.phase} / {result.errorCode}
+          </Text>
+        ) : null}
       </View>
-      {result.errorCode ? (
-        <Text selectable style={styles.directionError}>
-          {result.phase} / {result.errorCode}
-        </Text>
-      ) : null}
     </View>
   )
 }
 
 function Detail({
-  label,
-  value,
   danger = false,
+  label,
+  styles,
+  value,
 }: {
-  label: string
-  value: string
   danger?: boolean
+  label: string
+  styles: P2PPingStyles
+  value: string
 }) {
-  const theme = useMostBoxTheme()
-  const styles = useMemo(() => createStyles(theme), [theme])
   return (
     <View style={styles.detail}>
-      <Text style={styles.detailLabel}>{label}</Text>
+      <Text maxFontSizeMultiplier={1.7} style={styles.detailLabel}>
+        {label}
+      </Text>
       <Text
+        maxFontSizeMultiplier={1.7}
         selectable
-        style={[styles.detailValue, danger ? styles.error : null]}
+        style={[styles.detailValue, danger ? styles.detailDanger : null]}
       >
         {value}
       </Text>
@@ -472,21 +638,44 @@ function Detail({
   )
 }
 
+function getStatusBackgroundStyle(
+  styles: P2PPingStyles,
+  status: P2PPing['status']
+) {
+  if (status === 'success') return styles.statusSuccess
+  if (status === 'partial') return styles.statusWarning
+  if (status === 'failed' || status === 'expired') return styles.statusDanger
+  if (status === 'cancelled') return styles.statusNeutral
+  return styles.statusActive
+}
+
 function createStyles(theme: MostBoxTheme) {
   const { colors, radii } = theme
   return StyleSheet.create({
-    content: { gap: 20, padding: 20, paddingBottom: 40 },
-    header: { alignItems: 'flex-start', flexDirection: 'row', gap: 12 },
-    headerText: { flex: 1, gap: 3 },
-    title: { color: colors.text, fontSize: 20, fontWeight: '700' },
-    iconButton: {
+    content: {
+      gap: 18,
+      paddingBottom: 40,
+      paddingHorizontal: 20,
+      paddingTop: 12,
+    },
+    header: {
       alignItems: 'center',
-      borderColor: colors.border,
-      borderRadius: radii.medium,
-      borderWidth: 1,
+      flexDirection: 'row',
+      minHeight: 44,
+    },
+    backButton: {
+      alignItems: 'center',
       height: 44,
       justifyContent: 'center',
       width: 44,
+    },
+    headerSpacer: { width: 44 },
+    title: {
+      color: colors.text,
+      flex: 1,
+      fontSize: 19,
+      fontWeight: '700',
+      textAlign: 'center',
     },
     segmented: {
       backgroundColor: colors.surfaceMuted,
@@ -498,23 +687,44 @@ function createStyles(theme: MostBoxTheme) {
       alignItems: 'center',
       borderRadius: 6,
       flex: 1,
-      minHeight: 40,
       justifyContent: 'center',
+      minHeight: 40,
+      paddingHorizontal: 8,
     },
-    segmentActive: { backgroundColor: colors.surface },
+    segmentActive: {
+      backgroundColor: colors.surfaceSolid,
+      shadowColor: '#000000',
+      shadowOffset: { height: 1, width: 0 },
+      shadowOpacity: theme.mode === 'dark' ? 0.24 : 0.08,
+      shadowRadius: 2,
+    },
     segmentText: {
       color: colors.textSecondary,
       fontSize: 14,
       fontWeight: '600',
     },
     segmentTextActive: { color: colors.text },
-    panel: { gap: 16 },
+    primarySection: {
+      backgroundColor: colors.surface,
+      borderColor: colors.border,
+      borderRadius: radii.medium,
+      borderWidth: 1,
+      gap: 14,
+      padding: 16,
+    },
+    fieldLabel: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '600',
+      textAlign: 'center',
+    },
     code: {
       color: colors.text,
-      fontSize: 48,
+      fontSize: 46,
       fontVariant: ['tabular-nums'],
       fontWeight: '700',
       letterSpacing: 0,
+      lineHeight: 54,
       textAlign: 'center',
     },
     actions: { flexDirection: 'row', gap: 8 },
@@ -524,20 +734,22 @@ function createStyles(theme: MostBoxTheme) {
       borderRadius: radii.medium,
       borderWidth: 1,
       flex: 1,
-      gap: 5,
+      flexDirection: 'row',
+      gap: 6,
       justifyContent: 'center',
-      minHeight: 58,
-      paddingHorizontal: 6,
+      minHeight: 44,
+      paddingHorizontal: 8,
     },
     iconActionText: {
       color: colors.accent,
+      flexShrink: 1,
       fontSize: 12,
       fontWeight: '600',
-      textAlign: 'center',
     },
+    iconActionTextSuccess: { color: colors.success },
     codeInputRow: { alignItems: 'center', flexDirection: 'row', gap: 10 },
     codeInput: {
-      backgroundColor: colors.surface,
+      backgroundColor: colors.surfaceSolid,
       borderColor: colors.borderStrong,
       borderRadius: radii.medium,
       borderWidth: 1,
@@ -548,8 +760,17 @@ function createStyles(theme: MostBoxTheme) {
       fontWeight: '700',
       height: 58,
       letterSpacing: 0,
-      paddingHorizontal: 14,
+      paddingHorizontal: 12,
       textAlign: 'center',
+    },
+    pasteButton: {
+      alignItems: 'center',
+      borderColor: colors.border,
+      borderRadius: radii.medium,
+      borderWidth: 1,
+      height: 48,
+      justifyContent: 'center',
+      width: 48,
     },
     primaryButton: {
       alignItems: 'center',
@@ -561,56 +782,73 @@ function createStyles(theme: MostBoxTheme) {
       minHeight: 50,
       paddingHorizontal: 16,
     },
+    primaryButtonPressed: { backgroundColor: colors.accentPressed },
     primaryButtonText: {
       color: colors.onAccent,
+      flexShrink: 1,
       fontSize: 15,
       fontWeight: '700',
+      textAlign: 'center',
     },
+    buttonPressed: { opacity: 0.7 },
     disabled: { opacity: 0.4 },
-    result: {
-      borderTopColor: colors.border,
-      borderTopWidth: 1,
-      gap: 12,
-      paddingTop: 18,
+    result: { gap: 12 },
+    statusBanner: {
+      alignItems: 'center',
+      borderRadius: radii.medium,
+      flexDirection: 'row',
+      gap: 10,
+      minHeight: 52,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
     },
-    statusRow: { alignItems: 'center', flexDirection: 'row', gap: 8 },
+    statusActive: { backgroundColor: colors.accentSoft },
+    statusSuccess: { backgroundColor: colors.successSoft },
+    statusWarning: { backgroundColor: colors.warningSoft },
+    statusDanger: { backgroundColor: colors.dangerSoft },
+    statusNeutral: { backgroundColor: colors.surfaceMuted },
     statusText: {
       color: colors.text,
       flex: 1,
-      fontSize: 15,
+      fontSize: 14,
       fontWeight: '700',
     },
-    countdown: {
+    statusMeta: {
       color: colors.textSecondary,
-      fontSize: 13,
+      fontSize: 12,
       fontVariant: ['tabular-nums'],
     },
-    directions: { gap: 10 },
-    direction: {
-      backgroundColor: colors.surfaceSubtle,
+    directionList: {
+      backgroundColor: colors.surface,
       borderColor: colors.border,
       borderRadius: radii.medium,
       borderWidth: 1,
-      gap: 8,
-      minHeight: 92,
-      padding: 12,
+      paddingHorizontal: 14,
     },
-    directionHeader: {
-      alignItems: 'center',
+    direction: {
       flexDirection: 'row',
-      gap: 8,
+      gap: 10,
+      minHeight: 82,
+      paddingVertical: 12,
     },
+    directionIcon: {
+      alignItems: 'center',
+      paddingTop: 1,
+      width: 22,
+    },
+    directionContent: { flex: 1, gap: 7 },
+    directionHeading: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
     directionLabel: {
       color: colors.text,
-      flex: 1,
+      flexGrow: 1,
       fontSize: 13,
       fontWeight: '700',
     },
-    directionStatus: { color: colors.textSecondary, fontSize: 11 },
+    directionStatus: { color: colors.textSecondary, fontSize: 12 },
     directionMeta: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
-      gap: 10,
+      flexWrap: 'wrap',
+      gap: 12,
     },
     directionMetaText: { color: colors.textMuted, fontSize: 11 },
     directionError: {
@@ -618,29 +856,54 @@ function createStyles(theme: MostBoxTheme) {
       fontFamily: Platform.select({ android: 'monospace', default: undefined }),
       fontSize: 11,
     },
+    directionDivider: { backgroundColor: colors.border, height: 1 },
     details: {
+      borderBottomColor: colors.border,
+      borderBottomWidth: 1,
       borderTopColor: colors.border,
       borderTopWidth: 1,
-      gap: 10,
-      paddingTop: 12,
+      paddingVertical: 4,
     },
-    detail: { gap: 3 },
-    detailLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '600' },
+    detail: {
+      flexDirection: 'row',
+      gap: 14,
+      justifyContent: 'space-between',
+      paddingVertical: 7,
+    },
+    detailLabel: {
+      color: colors.textMuted,
+      fontSize: 12,
+      fontWeight: '600',
+    },
     detailValue: {
       color: colors.textSecondary,
+      flex: 1,
       fontFamily: Platform.select({ android: 'monospace', default: undefined }),
       fontSize: 12,
+      textAlign: 'right',
     },
+    detailDanger: { color: colors.danger },
     cancelButton: {
       alignItems: 'center',
-      alignSelf: 'flex-start',
+      borderRadius: radii.medium,
       flexDirection: 'row',
-      gap: 6,
+      gap: 7,
+      justifyContent: 'center',
       minHeight: 44,
-      paddingHorizontal: 6,
+      paddingHorizontal: 12,
     },
+    cancelButtonActive: { backgroundColor: colors.dangerSoft },
+    resetButton: { backgroundColor: colors.accentSoft },
     cancelText: { color: colors.danger, fontSize: 14, fontWeight: '600' },
     resetText: { color: colors.accent },
-    error: { color: colors.danger, fontSize: 12 },
+    errorBanner: {
+      alignItems: 'flex-start',
+      backgroundColor: colors.dangerSoft,
+      borderRadius: radii.medium,
+      flexDirection: 'row',
+      gap: 8,
+      padding: 12,
+    },
+    errorText: { color: colors.danger, flex: 1, fontSize: 12 },
   })
 }
