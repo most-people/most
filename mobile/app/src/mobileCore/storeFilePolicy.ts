@@ -27,7 +27,15 @@ const BLOCKED_MIME_TYPES = new Set([
   'application/x-msdownload',
 ])
 
-export function getStoreFilePolicyError(fileName: string, mimeType?: string) {
+export const STORE_FILE_POLICY_ERROR_KEYS = {
+  blockedExecutable: 'app.file.blockedExecutable',
+  filenameRequired: 'app.file.filenameRequired',
+} as const
+
+export function getStoreFilePolicyErrorKey(
+  fileName: string,
+  mimeType?: string
+) {
   const extension = fileName.trim().split('.').pop()?.toLowerCase() || ''
   const normalizedMimeType = mimeType?.trim().toLowerCase() || ''
 
@@ -35,19 +43,19 @@ export function getStoreFilePolicyError(fileName: string, mimeType?: string) {
     BLOCKED_EXTENSIONS.has(extension) ||
     BLOCKED_MIME_TYPES.has(normalizedMimeType)
   ) {
-    return '当前商店版本不接收应用安装包、脚本或其他可执行文件。'
+    return STORE_FILE_POLICY_ERROR_KEYS.blockedExecutable
   }
 
-  return ''
+  return null
 }
 
-export function getStoreDownloadPolicyError(
+export function getStoreDownloadPolicyErrorKey(
   fileName: string,
   hasExplicitFileName: boolean
 ) {
   if (!hasExplicitFileName) {
-    return '当前商店版本只接收带有明确 filename 的 most:// 链接。'
+    return STORE_FILE_POLICY_ERROR_KEYS.filenameRequired
   }
 
-  return getStoreFilePolicyError(fileName)
+  return getStoreFilePolicyErrorKey(fileName)
 }

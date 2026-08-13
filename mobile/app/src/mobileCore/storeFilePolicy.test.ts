@@ -1,35 +1,45 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  getStoreDownloadPolicyError,
-  getStoreFilePolicyError,
+  getStoreDownloadPolicyErrorKey,
+  getStoreFilePolicyErrorKey,
+  STORE_FILE_POLICY_ERROR_KEYS,
 } from './storeFilePolicy'
 
 describe('store file policy', () => {
   it('blocks application packages and executable files', () => {
-    assert.match(getStoreFilePolicyError('update.APK'), /当前商店版本/)
-    assert.match(getStoreFilePolicyError('tool.exe'), /当前商店版本/)
-    assert.match(
-      getStoreFilePolicyError(
+    assert.equal(
+      getStoreFilePolicyErrorKey('update.APK'),
+      STORE_FILE_POLICY_ERROR_KEYS.blockedExecutable
+    )
+    assert.equal(
+      getStoreFilePolicyErrorKey('tool.exe'),
+      STORE_FILE_POLICY_ERROR_KEYS.blockedExecutable
+    )
+    assert.equal(
+      getStoreFilePolicyErrorKey(
         'download',
         'application/vnd.android.package-archive'
       ),
-      /当前商店版本/
+      STORE_FILE_POLICY_ERROR_KEYS.blockedExecutable
     )
   })
 
   it('allows regular documents, media, and archives', () => {
-    assert.equal(getStoreFilePolicyError('report.pdf'), '')
-    assert.equal(getStoreFilePolicyError('photo.png', 'image/png'), '')
-    assert.equal(getStoreFilePolicyError('archive.zip'), '')
+    assert.equal(getStoreFilePolicyErrorKey('report.pdf'), null)
+    assert.equal(getStoreFilePolicyErrorKey('photo.png', 'image/png'), null)
+    assert.equal(getStoreFilePolicyErrorKey('archive.zip'), null)
   })
 
   it('requires an explicit filename before accepting a download', () => {
-    assert.match(getStoreDownloadPolicyError('bafkreicid', false), /filename/)
-    assert.equal(getStoreDownloadPolicyError('report.pdf', true), '')
-    assert.match(
-      getStoreDownloadPolicyError('update.apk', true),
-      /当前商店版本/
+    assert.equal(
+      getStoreDownloadPolicyErrorKey('bafkreicid', false),
+      STORE_FILE_POLICY_ERROR_KEYS.filenameRequired
+    )
+    assert.equal(getStoreDownloadPolicyErrorKey('report.pdf', true), null)
+    assert.equal(
+      getStoreDownloadPolicyErrorKey('update.apk', true),
+      STORE_FILE_POLICY_ERROR_KEYS.blockedExecutable
     )
   })
 })

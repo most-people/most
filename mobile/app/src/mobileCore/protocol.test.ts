@@ -5,6 +5,7 @@ import {
   createProtocolSummary,
   getHyperdriveCidPath,
   hasExplicitMostLinkFilename,
+  MOST_LINK_ERROR_CODES,
   parseIncomingMostLink,
   parseMostLink,
 } from './protocol'
@@ -58,9 +59,12 @@ describe('mobile most link protocol', () => {
   it('rejects unsupported query parameters and extra paths', () => {
     assert.throws(
       () => parseMostLink(`most://${VALID_CID}?filename=a.txt&foo=bar`),
-      /只支持 filename/
+      new Error(MOST_LINK_ERROR_CODES.unsupportedQuery)
     )
-    assert.throws(() => parseMostLink(`most://${VALID_CID}/extra`), /额外路径/)
+    assert.throws(
+      () => parseMostLink(`most://${VALID_CID}/extra`),
+      new Error(MOST_LINK_ERROR_CODES.unsupportedPath)
+    )
   })
 
   it('accepts native most link intents and ignores unrelated app URLs', () => {
@@ -81,7 +85,7 @@ describe('mobile most link protocol', () => {
   it('rejects malformed native most link intents', () => {
     assert.throws(
       () => parseIncomingMostLink('most://not-a-cid?filename=a.txt'),
-      /CID 无效/
+      new Error(MOST_LINK_ERROR_CODES.invalidCid)
     )
   })
 

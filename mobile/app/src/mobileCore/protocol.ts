@@ -10,15 +10,15 @@ export type IncomingMostLink = ParsedMostLink & {
 }
 
 export const MOST_LINK_PROTOCOL = 'most:'
-export const MOST_LINK_ERROR_MESSAGES = {
-  linkEmpty: '请输入 most:// 分享链接',
-  invalidUrl: '请输入有效的 most:// 分享链接',
-  invalidProtocol: '链接必须以 most:// 开头',
-  unsupportedPath: 'most:// 链接不能包含额外路径',
-  unsupportedQuery: 'most:// 链接只支持 filename 参数',
-  invalidCid: '链接中的 CID 无效',
-  cidV1Required: '链接中的 CID 必须是 CID v1',
-  cidDigestLength: 'CID digest 必须是 32 字节',
+export const MOST_LINK_ERROR_CODES = {
+  linkEmpty: 'MOST_LINK_EMPTY',
+  invalidUrl: 'MOST_LINK_INVALID_URL',
+  invalidProtocol: 'MOST_LINK_INVALID_PROTOCOL',
+  unsupportedPath: 'MOST_LINK_UNSUPPORTED_PATH',
+  unsupportedQuery: 'MOST_LINK_UNSUPPORTED_QUERY',
+  invalidCid: 'MOST_LINK_INVALID_CID',
+  cidV1Required: 'MOST_LINK_CID_V1_REQUIRED',
+  cidDigestLength: 'MOST_LINK_CID_DIGEST_LENGTH',
 } as const
 
 export function buildMostLink(cid: string, filename: string) {
@@ -69,27 +69,27 @@ function parseMostLinkQuery(search: string) {
 
 export function parseMostLink(link: string): ParsedMostLink {
   if (!link || typeof link !== 'string') {
-    throw new Error(MOST_LINK_ERROR_MESSAGES.linkEmpty)
+    throw new Error(MOST_LINK_ERROR_CODES.linkEmpty)
   }
 
   let url: URL
   try {
     url = new URL(link)
   } catch {
-    throw new Error(MOST_LINK_ERROR_MESSAGES.invalidUrl)
+    throw new Error(MOST_LINK_ERROR_CODES.invalidUrl)
   }
 
   if (url.protocol !== MOST_LINK_PROTOCOL) {
-    throw new Error(MOST_LINK_ERROR_MESSAGES.invalidProtocol)
+    throw new Error(MOST_LINK_ERROR_CODES.invalidProtocol)
   }
 
   if (url.pathname && url.pathname !== '/') {
-    throw new Error(MOST_LINK_ERROR_MESSAGES.unsupportedPath)
+    throw new Error(MOST_LINK_ERROR_CODES.unsupportedPath)
   }
 
   const query = parseMostLinkQuery(url.search)
   if (query.unsupportedQuery) {
-    throw new Error(MOST_LINK_ERROR_MESSAGES.unsupportedQuery)
+    throw new Error(MOST_LINK_ERROR_CODES.unsupportedQuery)
   }
 
   const cid = url.hostname
@@ -97,15 +97,15 @@ export function parseMostLink(link: string): ParsedMostLink {
   try {
     parsedCid = CID.parse(cid)
   } catch {
-    throw new Error(MOST_LINK_ERROR_MESSAGES.invalidCid)
+    throw new Error(MOST_LINK_ERROR_CODES.invalidCid)
   }
 
   if (parsedCid.version !== 1) {
-    throw new Error(MOST_LINK_ERROR_MESSAGES.cidV1Required)
+    throw new Error(MOST_LINK_ERROR_CODES.cidV1Required)
   }
 
   if (parsedCid.multihash.digest.length !== 32) {
-    throw new Error(MOST_LINK_ERROR_MESSAGES.cidDigestLength)
+    throw new Error(MOST_LINK_ERROR_CODES.cidDigestLength)
   }
 
   const fileName = query.fileName || cid
@@ -134,7 +134,7 @@ export function parseIncomingMostLink(
     url = new URL(link)
   } catch {
     if (!link.toLowerCase().startsWith(MOST_LINK_PROTOCOL)) return null
-    throw new Error(MOST_LINK_ERROR_MESSAGES.invalidUrl)
+    throw new Error(MOST_LINK_ERROR_CODES.invalidUrl)
   }
 
   if (url.protocol !== MOST_LINK_PROTOCOL) return null

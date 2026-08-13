@@ -14,6 +14,7 @@ All notable changes to MostBox are documented in this file.
 ### Changed
 
 - Refined mobile P2P Ping diagnostics and moved first-launch consent to the maintained safe-area implementation.
+- Localized mobile share-link and store file-policy validation errors.
 
 ### Removed
 

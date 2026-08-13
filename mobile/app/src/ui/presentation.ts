@@ -1,4 +1,5 @@
 import type { MobileTransfer } from '../mobileCore/types'
+import { MOST_LINK_ERROR_CODES } from '../mobileCore/protocol'
 import { DEFAULT_LOCALE, type Locale } from '../i18n/locales'
 import type { MessageKey } from '../i18n/messages'
 import { translateMessage } from '../i18n/translate'
@@ -14,8 +15,30 @@ const TRANSFER_MESSAGE_KEYS: Record<string, MessageKey> = {
   'Verifying CID': 'core.transfer.verifying',
 }
 
+const MOST_LINK_MESSAGE_KEYS: Record<string, MessageKey> = {
+  [MOST_LINK_ERROR_CODES.linkEmpty]: 'app.link.empty',
+  [MOST_LINK_ERROR_CODES.invalidUrl]: 'app.link.invalid',
+  [MOST_LINK_ERROR_CODES.invalidProtocol]: 'app.link.invalid',
+  [MOST_LINK_ERROR_CODES.unsupportedPath]: 'app.link.unsupportedPath',
+  [MOST_LINK_ERROR_CODES.unsupportedQuery]: 'app.link.unsupportedQuery',
+  [MOST_LINK_ERROR_CODES.invalidCid]: 'app.link.invalid',
+  [MOST_LINK_ERROR_CODES.cidV1Required]: 'app.link.invalid',
+  [MOST_LINK_ERROR_CODES.cidDigestLength]: 'app.link.invalid',
+}
+
 export function usesAccessibilityLayout(fontScale: number) {
   return Number.isFinite(fontScale) && fontScale >= 1.6
+}
+
+export function getMostLinkErrorMessage(
+  error: unknown,
+  locale: Locale = DEFAULT_LOCALE
+) {
+  const code = error instanceof Error ? error.message : ''
+  return translateMessage(
+    MOST_LINK_MESSAGE_KEYS[code] || 'app.link.invalid',
+    locale
+  )
 }
 
 export function getFriendlyCoreError(

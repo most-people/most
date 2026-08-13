@@ -2,11 +2,13 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   getFriendlyCoreError,
+  getMostLinkErrorMessage,
   getTransferDisplayMessage,
   partitionTransfers,
   usesAccessibilityLayout,
 } from './presentation'
 import type { MobileTransfer } from '../mobileCore/types'
+import { MOST_LINK_ERROR_CODES } from '../mobileCore/protocol'
 
 test('usesAccessibilityLayout only for large accessibility scales', () => {
   assert.equal(usesAccessibilityLayout(1), false)
@@ -33,6 +35,27 @@ test('getFriendlyCoreError hides internal download failures', () => {
   assert.equal(
     getFriendlyCoreError(new Error('unexpected internal failure')),
     '操作未完成，请稍后重试。'
+  )
+})
+
+test('getMostLinkErrorMessage localizes protocol error codes', () => {
+  assert.equal(
+    getMostLinkErrorMessage(
+      new Error(MOST_LINK_ERROR_CODES.unsupportedQuery),
+      'en'
+    ),
+    'A most:// link only supports the filename parameter'
+  )
+  assert.equal(
+    getMostLinkErrorMessage(
+      new Error(MOST_LINK_ERROR_CODES.unsupportedPath),
+      'zh-TW'
+    ),
+    'most:// 分享連結不能包含額外路徑'
+  )
+  assert.equal(
+    getMostLinkErrorMessage(new Error('unexpected'), 'en'),
+    'Enter a valid most:// link'
   )
 })
 

@@ -1,0 +1,5 @@
+MostBox Google Play review file
+Version: 0.5.0
+
+This small text file is provided only for reviewer-initiated P2P transfer testing.
+After download, MostBox recalculates the UnixFS CID before saving the file.

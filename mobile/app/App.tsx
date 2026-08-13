@@ -58,11 +58,12 @@ import {
   type IncomingMostLink,
 } from './src/mobileCore/protocol'
 import {
-  getStoreDownloadPolicyError,
-  getStoreFilePolicyError,
+  getStoreDownloadPolicyErrorKey,
+  getStoreFilePolicyErrorKey,
 } from './src/mobileCore/storeFilePolicy'
 import {
   getFriendlyCoreError,
+  getMostLinkErrorMessage,
   usesAccessibilityLayout,
 } from './src/ui/presentation'
 import { PrivacyConsentGate } from './src/privacy/PrivacyConsentGate'
@@ -241,17 +242,18 @@ function MostBoxApp() {
 
   const openDownloadIntent = useCallback(
     (intent: IncomingMostLink, openAfterComplete = false) => {
-      const policyError = getStoreDownloadPolicyError(
+      const policyErrorKey = getStoreDownloadPolicyErrorKey(
         intent.fileName,
         hasExplicitMostLinkFilename(intent.link)
       )
+      const policyError = policyErrorKey ? t(policyErrorKey) : ''
       setDownloadModalOpen(true)
       setDownloadLinkInput(intent.link)
       setDownloadIntent(policyError ? null : intent)
       setDownloadLinkError(policyError || '')
       setOpenDownloadAfterComplete(openAfterComplete && !policyError)
     },
-    []
+    [t]
   )
 
   useEffect(() => {
@@ -263,7 +265,7 @@ function MostBoxApp() {
       } catch (error) {
         Alert.alert(
           t('app.link.invalidTitle'),
-          error instanceof Error ? error.message : t('app.link.invalid')
+          getMostLinkErrorMessage(error, locale)
         )
       }
     }
@@ -281,7 +283,7 @@ function MostBoxApp() {
       active = false
       subscription.remove()
     }
-  }, [openDownloadIntent, t])
+  }, [locale, openDownloadIntent, t])
 
   const guardReady = () => {
     if (isReady) return true
@@ -351,9 +353,12 @@ function MostBoxApp() {
 
       const file = result.assets[0]
       if (!file) return null
-      const policyError = getStoreFilePolicyError(file.name, file.mimeType)
-      if (policyError) {
-        Alert.alert(t('app.file.unsupported'), policyError)
+      const policyErrorKey = getStoreFilePolicyErrorKey(
+        file.name,
+        file.mimeType
+      )
+      if (policyErrorKey) {
+        Alert.alert(t('app.file.unsupported'), t(policyErrorKey))
         return null
       }
 
@@ -458,21 +463,19 @@ function MostBoxApp() {
     try {
       const link = downloadLinkInput.trim()
       const parsed = parseMostLink(link)
-      const policyError = getStoreDownloadPolicyError(
+      const policyErrorKey = getStoreDownloadPolicyErrorKey(
         parsed.fileName,
         hasExplicitMostLinkFilename(link)
       )
-      if (policyError) {
-        setDownloadLinkError(policyError)
+      if (policyErrorKey) {
+        setDownloadLinkError(t(policyErrorKey))
         return
       }
       setDownloadIntent({ link, ...parsed })
       setDownloadLinkError('')
     } catch (error) {
       setDownloadIntent(null)
-      setDownloadLinkError(
-        error instanceof Error ? error.message : t('app.link.invalid')
-      )
+      setDownloadLinkError(getMostLinkErrorMessage(error, locale))
     }
   }
 
@@ -715,12 +718,17 @@ function MostBoxApp() {
 
   const handleOpenKnowledgeLink = async (link: string) => {
     if (!isReady) throw new Error(t('app.core.notReadyTitle'))
-    const parsed = parseMostLink(link)
-    const policyError = getStoreDownloadPolicyError(
+    let parsed: ReturnType<typeof parseMostLink>
+    try {
+      parsed = parseMostLink(link)
+    } catch (error) {
+      throw new Error(getMostLinkErrorMessage(error, locale))
+    }
+    const policyErrorKey = getStoreDownloadPolicyErrorKey(
       parsed.fileName,
       hasExplicitMostLinkFilename(link)
     )
-    if (policyError) throw new Error(policyError)
+    if (policyErrorKey) throw new Error(t(policyErrorKey))
 
     const holding = core
       .getSnapshot()
