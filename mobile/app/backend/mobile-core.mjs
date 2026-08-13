@@ -556,19 +556,9 @@ export class MobileP2PCore {
     this.#emitSnapshot()
   }
 
-  listHoldings() {
-    return this.getSnapshot().holdings
-  }
-
   async startP2PPing(input = {}) {
     this.#ensureReady()
     return this.#p2pPingManager.start(input)
-  }
-
-  getP2PPing(input = {}) {
-    this.#ensureReady()
-    const id = String(input.id || '')
-    return id ? this.#p2pPingManager.get(id) : this.#p2pPing
   }
 
   cancelP2PPing(input = {}) {
@@ -1214,10 +1204,6 @@ export class MobileP2PCore {
 
   #emitNetworkStatus() {
     this.#node.peerCount = this.#peerCount()
-    this.#send('network.status', {
-      peerCount: this.#node.peerCount,
-      snapshot: this.getSnapshot(),
-    })
     this.#emitSnapshot()
   }
 

@@ -117,17 +117,6 @@ export function getKnowledgeDisplayName(path: string) {
   return fileName.replace(/\.md$/i, '')
 }
 
-export function getKnowledgeDirectories(notes: MobileKnowledgeNote[]) {
-  const directories = new Set<string>()
-  for (const note of notes) {
-    const parts = note.directory.split('/').filter(Boolean)
-    for (let index = 1; index <= parts.length; index += 1) {
-      directories.add(parts.slice(0, index).join('/'))
-    }
-  }
-  return [...directories].sort((left, right) => left.localeCompare(right))
-}
-
 export function searchKnowledgeNotes(
   notes: MobileKnowledgeNote[],
   query: string

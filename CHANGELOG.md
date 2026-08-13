@@ -4,6 +4,21 @@ All notable changes to MostBox are documented in this file.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-13
+
+### Added
+
+- Added explicit first-launch privacy consent before the mobile P2P core starts.
+- Added iOS release configuration and App Store submission guidance.
+
+### Changed
+
+- Refined mobile P2P Ping diagnostics and moved first-launch consent to the maintained safe-area implementation.
+
+### Removed
+
+- Removed unused mobile RPC polling commands, redundant event declarations, and an unreferenced knowledge-directory helper.
+
 ## [0.4.9] - 2026-08-11
 
 ### Added

@@ -281,11 +281,6 @@ export class P2PPingManager {
     return cloneRecord(record)
   }
 
-  get(id) {
-    const session = this.#records.get(id)
-    return session ? cloneRecord(session.record) : null
-  }
-
   cancel(id) {
     const session = this.#records.get(id)
     if (!session) return null

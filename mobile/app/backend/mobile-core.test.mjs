@@ -96,7 +96,6 @@ describe('mobile P2P Ping snapshot and RPC events', () => {
       server: true,
       client: false,
     })
-    assert.equal(core.getP2PPing({ id: ping.id }).id, ping.id)
     assert.equal(events.at(-1).type, 'p2p.ping.status')
     assert.equal(events.at(-1).payload.snapshot.p2pPing.id, ping.id)
 

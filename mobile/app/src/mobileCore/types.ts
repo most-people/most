@@ -168,13 +168,11 @@ export type MostBoxMobileCore = {
   stop: () => Promise<void>
   startP2PPing: (input: StartP2PPingInput) => Promise<P2PPing>
   cancelP2PPing: (input?: CancelP2PPingInput) => Promise<P2PPing | null>
-  getP2PPingStatus: (id?: string) => Promise<P2PPing | null>
   publishFile: (input: PublishFileInput) => Promise<MobileTransfer>
   downloadLink: (input: DownloadLinkInput) => Promise<MobileTransfer>
   cancelDownload: (input: CancelDownloadInput) => Promise<CancelDownloadResult>
   exportHolding: (input: ExportHoldingInput) => Promise<ExportHoldingResult>
   deleteHolding: (input: DeleteHoldingInput) => Promise<DeleteHoldingResult>
-  listHoldings: () => Promise<MobileHolding[]>
   getSnapshot: () => MobileCoreSnapshot
   subscribe: (listener: CoreListener) => () => void
 }

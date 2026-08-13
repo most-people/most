@@ -11,7 +11,6 @@ import type {
   ExportHoldingInput,
   ExportHoldingResult,
   MobileCoreSnapshot,
-  MobileHolding,
   MobileLogEntry,
   MobileTransfer,
   MostBoxMobileCore,
@@ -281,17 +280,6 @@ export class BareWorkletMostBoxCore implements MostBoxMobileCore {
     return extractP2PPing(result)
   }
 
-  async getP2PPingStatus(id?: string): Promise<P2PPing | null> {
-    await this.#ensureStarted()
-    const result = await this.#request(
-      COMMANDS.P2P_PING_STATUS,
-      { id },
-      [EVENTS.P2P_PING_STATUS],
-      10000
-    )
-    return extractP2PPing(result)
-  }
-
   async publishFile(input: PublishFileInput): Promise<MobileTransfer> {
     await this.#ensureStarted()
     const payload = {
@@ -358,17 +346,6 @@ export class BareWorkletMostBoxCore implements MostBoxMobileCore {
       30000
     )
     return extractDeleteResult(result)
-  }
-
-  async listHoldings(): Promise<MobileHolding[]> {
-    if (!this.#worklet) return this.#snapshot.holdings
-    await this.#request(
-      COMMANDS.FILE_LIST_HOLDINGS,
-      {},
-      [EVENTS.SNAPSHOT],
-      10000
-    )
-    return this.#snapshot.holdings
   }
 
   getSnapshot() {

@@ -70,28 +70,6 @@ async function handleCommand(command) {
       return
     }
 
-    if (command.type === COMMANDS.P2P_PING_STATUS) {
-      const ping = getCore().getP2PPing(payload)
-      send(
-        EVENTS.P2P_PING_STATUS,
-        { ping, snapshot: getCore().getSnapshot() },
-        requestId
-      )
-      return
-    }
-
-    if (command.type === COMMANDS.FILE_LIST_HOLDINGS) {
-      send(
-        EVENTS.SNAPSHOT,
-        {
-          ...getCore().getSnapshot(),
-          holdings: getCore().listHoldings(),
-        },
-        requestId
-      )
-      return
-    }
-
     if (command.type === COMMANDS.FILE_PUBLISH) {
       const result = await getCore().publishFile(payload, requestId)
       send(EVENTS.PUBLISH_SUCCESS, result, requestId)
@@ -119,11 +97,6 @@ async function handleCommand(command) {
     if (command.type === COMMANDS.FILE_DELETE_HOLDING) {
       const result = await getCore().deleteHolding(payload, requestId)
       send(EVENTS.FILE_DELETE_HOLDING_SUCCESS, result, requestId)
-      return
-    }
-
-    if (command.type === COMMANDS.LOG_LIST) {
-      send(EVENTS.SNAPSHOT, getCore().getSnapshot(), requestId)
       return
     }
 

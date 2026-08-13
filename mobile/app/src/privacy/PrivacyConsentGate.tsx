@@ -6,12 +6,13 @@ import {
   Linking,
   Platform,
   Pressable,
-  SafeAreaView,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   View,
 } from 'react-native'
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 import { Languages, ShieldCheck } from 'lucide-react-native'
 import { LOCALES, localeNames, useI18n } from '../i18n'
 import {
@@ -97,8 +98,11 @@ export function PrivacyConsentGate({ children }: PrivacyConsentGateProps) {
 
   if (consentState === 'accepted') return children
 
-  return (
-    <SafeAreaView style={styles.screen}>
+  const consentScreen = (
+    <SafeAreaView
+      edges={['top', 'right', 'bottom', 'left']}
+      style={styles.screen}
+    >
       <StatusBar
         barStyle={theme.statusBarStyle}
         backgroundColor={theme.colors.background}
@@ -109,7 +113,7 @@ export function PrivacyConsentGate({ children }: PrivacyConsentGateProps) {
           <Text style={styles.loadingText}>{t('app.privacy.checking')}</Text>
         </View>
       ) : (
-        <View style={styles.content}>
+        <ScrollView bounces={false} contentContainerStyle={styles.content}>
           <View style={styles.topBar}>
             <View style={styles.brand}>
               <ShieldCheck size={22} color={theme.colors.accent} />
@@ -198,10 +202,12 @@ export function PrivacyConsentGate({ children }: PrivacyConsentGateProps) {
               </Text>
             </Pressable>
           </View>
-        </View>
+        </ScrollView>
       )}
     </SafeAreaView>
   )
+
+  return <SafeAreaProvider>{consentScreen}</SafeAreaProvider>
 }
 
 function createStyles(theme: MostBoxTheme) {
@@ -223,7 +229,7 @@ function createStyles(theme: MostBoxTheme) {
       fontSize: 14,
     },
     content: {
-      flex: 1,
+      flexGrow: 1,
       width: '100%',
       maxWidth: 640,
       alignSelf: 'center',
