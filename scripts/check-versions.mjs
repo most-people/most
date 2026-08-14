@@ -20,6 +20,7 @@ const rootPackageLock = readJson('package-lock.json')
 const mobilePackageLock = readJson('mobile/app/package-lock.json')
 const mobileApp = readJson('mobile/app/app.json')
 const rootVersion = readJson('package.json').version
+const nativeIosInfoPlistPath = 'mobile/app/ios/MostBox/Info.plist'
 const versions = new Map([
   [
     'CHANGELOG.md latest release',
@@ -56,6 +57,17 @@ const versions = new Map([
   ],
 ])
 
+if (fs.existsSync(nativeIosInfoPlistPath)) {
+  versions.set(
+    nativeIosInfoPlistPath,
+    readMatch(
+      nativeIosInfoPlistPath,
+      /<key>CFBundleShortVersionString<\/key>\s*<string>([^<]+)<\/string>/,
+      'iOS native version'
+    )
+  )
+}
+
 const mismatches = [...versions].filter(
   ([, version]) => version !== rootVersion
 )
@@ -86,6 +98,19 @@ if (parsedIosBuildNumber < expectedAndroidVersionCode) {
   throw new Error(
     `Expected iOS buildNumber to be at least ${expectedAndroidVersionCode} for ${rootVersion}, received ${actualIosBuildNumber}`
   )
+}
+
+if (fs.existsSync(nativeIosInfoPlistPath)) {
+  const nativeIosBuildNumber = readMatch(
+    nativeIosInfoPlistPath,
+    /<key>CFBundleVersion<\/key>\s*<string>([^<]+)<\/string>/,
+    'iOS native build number'
+  )
+  if (nativeIosBuildNumber !== actualIosBuildNumber) {
+    throw new Error(
+      `Expected iOS native build number ${actualIosBuildNumber}, received ${nativeIosBuildNumber}`
+    )
+  }
 }
 
 const tag = getTagArgument()

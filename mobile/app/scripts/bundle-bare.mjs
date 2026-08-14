@@ -28,6 +28,11 @@ export async function bundleBareCore(platform = requestedPlatform) {
   const outputFile = getBareBundleFileName(platform)
   const temporaryOutputFile = `.appBundle-${platform}-${process.pid}.bundle.js`
 
+  if (platform === 'ios') {
+    const { syncNativeIosProject } = await import('./sync-native-ios.mjs')
+    syncNativeIosProject()
+  }
+
   if (shouldSyncEasAndroidNativeProject(platform)) {
     const { syncNativeAndroidProject } =
       await import('./sync-native-android.mjs')

@@ -397,7 +397,7 @@ npx most-box@latest
 
 ## CI/CD
 
-发布前先完成发版提交，再推送 tag 触发自动构建。每次发版必须更新 `CHANGELOG.md`，并将版本号同步到根目录 `package.json` / `package-lock.json`、`mobile/app/package.json` / `mobile/app/package-lock.json`、`mobile/app/app.json` 和文档里的 Docker 示例 tag；`mobile/app/app.json` 的 Android `versionCode` 也必须与版本号同步，例如 `0.4.8` 对应 `408`。Android APK 文件名虽然由发布 tag 驱动，但移动端子包版本和 Expo 可见版本也要每次一起更新。`npm run check:versions -- --tag vx.x.x` 会检查这些版本和 Android `versionCode` 是否一致。
+发布前先完成发版提交，再推送 tag 触发自动构建。每次发版必须更新 `CHANGELOG.md`，并将版本号同步到根目录 `package.json` / `package-lock.json`、`mobile/app/package.json` / `mobile/app/package-lock.json`、`mobile/app/app.json` 和文档里的 Docker 示例 tag；`mobile/app/app.json` 的 Android `versionCode` 与 iOS `buildNumber` 也必须同步，例如 `0.4.8` 对应 `408`。Android APK 文件名虽然由发布 tag 驱动，但移动端子包版本和 Expo 可见版本也要每次一起更新。`npm run check:versions -- --tag vx.x.x` 会检查这些版本和移动端构建号；本地 iOS 原生工程存在时也会校验其版本，并由 `mobile/app` 下的 `npm run bundle:ios` 自动同步。
 
 ### Code signing policy
 

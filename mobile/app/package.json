@@ -20,7 +20,7 @@
     "bundle:ios": "node scripts/bundle-bare.mjs --platform ios",
     "eas-build-post-install": "node scripts/bundle-bare.mjs",
     "sync:native": "node scripts/sync-native-android.mjs",
-    "test": "node --import tsx --test src/mobileCore/cid.test.ts src/mobileCore/protocol.test.ts src/mobileCore/storeFilePolicy.test.ts src/features/knowledge/knowledgeModel.test.ts src/features/knowledge/knowledgeRepository.test.ts src/i18n/messages.test.ts src/privacy/privacyConsent.test.ts src/ui/presentation.test.ts && node --test backend/protocol.test.mjs backend/p2p-ping.test.mjs backend/holding-records.test.mjs backend/mobile-core.test.mjs backend/node-crypto-shim.test.mjs scripts/sync-native-android.test.mjs scripts/verify-apk-signature.test.mjs",
+    "test": "node --import tsx --test src/mobileCore/cid.test.ts src/mobileCore/protocol.test.ts src/mobileCore/storeFilePolicy.test.ts src/features/knowledge/knowledgeModel.test.ts src/features/knowledge/knowledgeRepository.test.ts src/i18n/messages.test.ts src/privacy/privacyConsent.test.ts src/ui/presentation.test.ts && node --test backend/protocol.test.mjs backend/p2p-ping.test.mjs backend/holding-records.test.mjs backend/mobile-core.test.mjs backend/node-crypto-shim.test.mjs scripts/sync-native-android.test.mjs scripts/sync-native-ios.test.mjs scripts/verify-apk-signature.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
