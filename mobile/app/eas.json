@@ -32,6 +32,7 @@
       "environment": "preview"
     },
     "ios-production": {
+      "distribution": "store",
       "environment": "production"
     }
   }
