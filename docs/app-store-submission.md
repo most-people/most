@@ -31,7 +31,8 @@ npx expo run:ios --configuration Release
 - iPhone 17 / 17 Pro Max 模拟器 Release 可独立启动，节点进入在线状态，`most://` scheme 可被系统识别。
 - 2026-08-14 使用 Xcode 26.5 对 `0.5.0 (500)` 生成无签名 Release Archive 成功；Archive 中 Bundle ID 为 `most.box`，最低系统为 iOS 16.4，设备范围仅 iPhone，主程序和 Bare Kit 原生依赖均为 arm64，并已完成 `-validate-for-store`。
 - Archive 已包含应用主隐私清单和依赖隐私清单；应用主清单声明不跟踪、不收集数据，并包含当前使用的 Required Reason API 声明。
-- 尚未完成 Apple 签名、真实 iPhone 运行和内部 TestFlight 验收；完成前不得提交正式审核。
+- 负责人于 2026-08-15 确认真实 iPhone 功能和 P2P 传播闭环已通过；设备型号、iOS 版本、候选包来源和原始记录待归档。
+- 尚未完成 Apple 正式签名、内部 TestFlight 上传，以及从 TestFlight 安装同一候选包后的复跑验收；完成前不得提交正式审核。
 
 ## 商店文案
 

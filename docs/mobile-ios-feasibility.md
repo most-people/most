@@ -2,9 +2,11 @@
 
 本文用于验证 MostBox 的完整前台 P2P 节点能否在真实 iPhone 上成立。iOS 验证通过前，不开始大规模移动端跨平台重构；技术验证通过也不等于已经满足正式商店合规要求。
 
-当前实现状态：iOS Expo 配置、EAS development/preview/production 构建档位、iOS Bare bundle 脚本和平台感知 UI 已加入源码；尚未使用 Apple 签名在真实 iPhone 上完成首次云构建，因此本计划仍处于第 1 阶段。
+当前实现状态：iOS Expo 配置、EAS development/preview/production 构建档位、iOS Bare bundle 脚本和平台感知 UI 已加入源码。负责人于 2026-08-15 确认 iPhone 真机功能和 P2P 传播闭环测试通过；设备型号、iOS 版本、候选包来源和原始测试记录仍需归档。
 
-2026-08-12 macOS 预检结果：已使用 Xcode 26.5 完成干净 prebuild、Release 模拟器构建，以及未签名的 `iphoneos` arm64 Release 构建。当前剩余门槛是 Apple Developer 签名、iPhone 真机运行和真机 P2P 闭环。
+上述确认不能替代正式商店候选包证据。当前剩余门槛是取得 Apple Developer 组织资格后，使用正式签名生成内部 TestFlight build，从 TestFlight 安装同一候选包并复跑本计划的完整闭环，记录 build ID、设备和结果后才能提交审核。
+
+2026-08-12 macOS 预检结果：已使用 Xcode 26.5 完成干净 prebuild、Release 模拟器构建，以及未签名的 `iphoneos` arm64 Release 构建。2026-08-15 已由负责人补充确认 iPhone 真机功能闭环通过，但 Apple 正式签名和内部 TestFlight 候选包证据仍未完成。
 
 2026-07-18 Windows 侧预检结果：基于 Expo 57 / React Native 0.86 的 iOS Bare bundle 和 Metro/Hermes production bundle 均已生成；Bare Kit 成功链接 19 个含 `ios-arm64` 真机架构的 addon XCFramework；移动端测试、TypeScript 和 Expo 依赖兼容性检查通过；Android Release APK 回归构建通过。以上结果不能替代 EAS macOS、CocoaPods、Xcode 签名和 iPhone 真机运行验证。
 

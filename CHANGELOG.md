@@ -4,7 +4,7 @@ All notable changes to MostBox are documented in this file.
 
 ## [Unreleased]
 
-## [0.5.0] - 2026-08-13
+## [0.5.0] - 2026-08-15
 
 ### Added
 
