@@ -66,9 +66,9 @@ npx expo run:ios --configuration Release
 
 | 项目             | 当前建议或状态                                                                                            |
 | ---------------- | --------------------------------------------------------------------------------------------------------- |
-| 隐私政策         | `https://most.box/privacy/`                                                                               |
-| 使用条款         | `https://most.box/terms/`，App 内可访问                                                                   |
-| 支持 URL         | `https://github.com/most-people/most/issues`；提交前确认满足所选地区的联系信息要求                        |
+| 隐私政策         | `https://most.red/privacy/`                                                                               |
+| 使用条款         | `https://most.red/terms/`，App 内可访问                                                                   |
+| 支持 URL         | `https://most.red/support/`；提交前确认满足所选地区的联系信息要求                                         |
 | 登录             | 无账号、无受限入口，不需要审核账号                                                                        |
 | 广告与跟踪       | 不包含广告或跟踪                                                                                          |
 | App Privacy      | 初步为开发者不收集数据；必须按最终 Release 网络流量和全部第三方依赖复核后填写                             |
