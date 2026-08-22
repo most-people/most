@@ -4316,19 +4316,22 @@ export class MostBoxEngine extends EventEmitter {
     if (nextKeys.length === 0) return false
 
     const previous = new Set(channel.writerCoreKeys || [])
+    const newRemoteKeys = []
     let changed = false
     for (const writerCoreKey of nextKeys) {
-      if (!previous.has(writerCoreKey)) {
-        previous.add(writerCoreKey)
-        changed = true
-      }
+      if (previous.has(writerCoreKey)) continue
+      previous.add(writerCoreKey)
+      changed = true
       if (writerCoreKey !== this.#channelLocalCoreKey.get(channel.channelKey)) {
-        await this.#openRemoteChannelCore(channel.channelKey, writerCoreKey)
+        newRemoteKeys.push(writerCoreKey)
       }
     }
     if (changed) {
       channel.writerCoreKeys = [...previous]
       this.#saveChannelsMetadata()
+    }
+    for (const writerCoreKey of newRemoteKeys) {
+      await this.#openRemoteChannelCore(channel.channelKey, writerCoreKey)
     }
     return changed
   }
@@ -7233,6 +7236,7 @@ export class MostBoxEngine extends EventEmitter {
     }
     if (remoteChannels.length === 0) return null
 
+    let writerKeysChanged = false
     for (const remoteChannel of remoteChannels) {
       this.#cacheChannelCandidate({
         ...remoteChannel,
@@ -7260,19 +7264,17 @@ export class MostBoxEngine extends EventEmitter {
         memberAddresses: remoteChannel.memberAddresses,
       })
 
-      for (const writerCoreKey of remoteChannel.writerCoreKeys) {
-        if (
-          writerCoreKey &&
-          writerCoreKey !==
-            this.#channelLocalCoreKey.get(localChannel.channelKey)
-        ) {
-          await this.#openRemoteChannelCore(
-            localChannel.channelKey,
-            writerCoreKey
-          )
-        }
+      if (
+        await this.#mergeChannelWriterCoreKeys(
+          localChannel,
+          remoteChannel.writerCoreKeys
+        )
+      ) {
+        writerKeysChanged = true
       }
     }
+
+    if (writerKeysChanged) this.#broadcastChannelHello()
 
     this.emit('channel:peer:online', {
       peerId,
@@ -7457,6 +7459,8 @@ export class MostBoxEngine extends EventEmitter {
     taskState = null
   ) {
     const startTime = Date.now()
+    const timeoutMs = Math.max(0, Number(timeout) || 0)
+    const deadline = startTime + timeoutMs
     let pollInterval = DOWNLOAD_POLL_INTERVAL_MIN
     let lastPeerCount = 0
     let lastStatus = ''
@@ -7464,7 +7468,10 @@ export class MostBoxEngine extends EventEmitter {
     let lastUpdateTime = 0
 
     try {
-      const localEntry = await drive.entry(key)
+      const localEntry = await drive.entry(key, {
+        update: false,
+        wait: false,
+      })
       if (localEntry) {
         console.log(`[MostBox] Found expected entry ${key} locally`)
         if (taskId) this.emit('download:status', { taskId, status: 'syncing' })
@@ -7476,13 +7483,19 @@ export class MostBoxEngine extends EventEmitter {
       const now = Date.now()
       if (now - lastUpdateTime > DRIVE_UPDATE_INTERVAL) {
         lastUpdateTime = now
+        const remaining = deadline - now
+        if (remaining <= 0) return
         try {
-          await drive.update()
+          await this.#withTimeout(
+            drive.update({ timeout: remaining, wait: true }),
+            remaining,
+            `Drive update timed out while waiting for ${key}`
+          )
         } catch {}
       }
     }
 
-    while (Date.now() - startTime < timeout) {
+    while (Date.now() < deadline) {
       if (taskState && taskState.aborted) {
         throw new Error('Download cancelled')
       }
@@ -7502,8 +7515,18 @@ export class MostBoxEngine extends EventEmitter {
 
       await tryUpdateDrive()
 
+      const remaining = deadline - Date.now()
+      if (remaining <= 0) break
+
       try {
-        const entry = await drive.entry(key)
+        const entry = await this.#withTimeout(
+          drive.entry(key, {
+            update: false,
+            timeout: remaining,
+          }),
+          remaining,
+          `Drive entry lookup timed out for ${key}`
+        )
         if (entry) {
           console.log(`[MostBox] Found ${key} after ${elapsed}s`)
           if (taskId) {
@@ -7534,7 +7557,7 @@ export class MostBoxEngine extends EventEmitter {
 
         if (elapsed % 30 === 0 && elapsed > 0) {
           console.log(
-            `[MostBox] Still waiting for peers... (elapsed: ${elapsed}s, timeout: ${timeout / 1000}s)`
+            `[MostBox] Still waiting for peers... (elapsed: ${elapsed}s, timeout: ${timeoutMs / 1000}s)`
           )
 
           if (!bootstrapNodesChecked && elapsed >= 60) {
@@ -7552,17 +7575,22 @@ export class MostBoxEngine extends EventEmitter {
         }
       }
 
-      await new Promise(resolve => setTimeout(resolve, pollInterval))
+      const remainingAfterLookup = deadline - Date.now()
+      if (remainingAfterLookup <= 0) break
+      await new Promise(resolve =>
+        setTimeout(resolve, Math.min(pollInterval, remainingAfterLookup))
+      )
     }
 
     console.log(
-      `[MostBox] Timeout reached after ${timeout / 1000}s, making final attempt...`
+      `[MostBox] Timeout reached after ${timeoutMs / 1000}s, making final attempt...`
     )
 
-    await tryUpdateDrive()
-
     try {
-      const entry = await drive.entry(key)
+      const entry = await drive.entry(key, {
+        update: false,
+        wait: false,
+      })
       if (entry) {
         console.log(`[MostBox] Found ${key} on final attempt`)
         return entry
@@ -7576,7 +7604,7 @@ export class MostBoxEngine extends EventEmitter {
     console.log(`[MostBox] - Expected key: ${key}`)
     console.log(`[MostBox] - Peer count: ${peerCount}`)
     console.log(`[MostBox] - Bootstrap nodes: ${SWARM_BOOTSTRAP.length}`)
-    console.log(`[MostBox] - Timeout: ${timeout / 1000}s`)
+    console.log(`[MostBox] - Timeout: ${timeoutMs / 1000}s`)
 
     if (peerCount === 0) {
       console.log(

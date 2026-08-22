@@ -5,7 +5,7 @@ import tseslint from 'typescript-eslint'
 export default [
   {
     ignores: [
-      'dist/**',
+      '**/dist/**',
       'out/**',
       '.tmp/**',
       '.tanstack/tmp/**',

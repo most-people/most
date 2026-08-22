@@ -31,7 +31,7 @@
     "test:unit": "node --test server/tests/unit/*.test.js",
     "test:desktop": "node --test electron/*.test.js",
     "test:frontend": "node --test src/tests/*.test.js",
-    "test:protocol": "node --test --test-name-pattern \"extracts CID and filename|matches golden CID samples|publishes a file from Buffer|lists published files|pulls through local seed nodes\" server/tests/unit/cid.test.js server/tests/integration/cid.test.js server/tests/integration/engine.test.js",
+    "test:protocol": "node --test --test-name-pattern \"extracts CID and filename|matches golden CID samples|publishes a file from Buffer|lists published files|pulls through local seed nodes|fails within timeout when a connected topic peer has no content|relays text messages bidirectionally across a three-node line\" server/tests/unit/cid.test.js server/tests/integration/cid.test.js server/tests/integration/engine.test.js",
     "typecheck": "tsc -p tsconfig.typecheck.json",
     "typecheck:strict-router": "tsc -p tsconfig.strict-router.json",
     "check:static-output": "node scripts/check-static-output.mjs",

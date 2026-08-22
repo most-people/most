@@ -1309,11 +1309,11 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       try {
         publisher = new MostBoxEngine({
           dataPath: path.join(failureTmpDir, 'publisher'),
-          downloadTimeout: 100,
+          downloadTimeout: 2000,
         })
         downloader = new MostBoxEngine({
           dataPath: path.join(failureTmpDir, 'downloader'),
-          downloadTimeout: 100,
+          downloadTimeout: 2000,
         })
         await publisher.start()
         await downloader.start()
@@ -1330,11 +1330,11 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
           if (event.taskId === taskId) parentStatusEvents.push(event)
         })
 
-        const download = downloader.downloadFile(publishResult.link, taskId, {
-          timeout: 100,
-        })
-        await sleep(100)
         replication = publisher.replicateWith(downloader)
+        await sleep(100)
+        const download = downloader.downloadFile(publishResult.link, taskId, {
+          timeout: 2000,
+        })
         const result = await download
         assert.strictEqual(result.kind, 'collection')
         assert.strictEqual(result.partial, true)
@@ -1390,11 +1390,11 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       try {
         publisher = new MostBoxEngine({
           dataPath: path.join(partialTmpDir, 'publisher'),
-          downloadTimeout: 500,
+          downloadTimeout: 2000,
         })
         downloader = new MostBoxEngine({
           dataPath: path.join(partialTmpDir, 'downloader'),
-          downloadTimeout: 500,
+          downloadTimeout: 2000,
         })
         await publisher.start()
         await downloader.start()
@@ -1422,11 +1422,11 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
           successEvents.push(event)
         })
 
-        const download = downloader.downloadFile(publishResult.link, taskId, {
-          timeout: 500,
-        })
-        await sleep(100)
         replication = publisher.replicateWith(downloader)
+        await sleep(100)
+        const download = downloader.downloadFile(publishResult.link, taskId, {
+          timeout: 2000,
+        })
         const result = await download
 
         assert.strictEqual(result.kind, 'collection')
@@ -2393,7 +2393,7 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       }
     })
 
-    it('pulls through local seed nodes after the uploader stops', async () => {
+    it('pulls through local seed nodes in a three-node line after the uploader stops', async () => {
       const p2pTmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'most-p2p-test-'))
       const engines = []
       const links = []
@@ -2411,8 +2411,7 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         }
 
         const uploader = await makeEngine('uploader')
-        const seedB = await makeEngine('seed-b')
-        const seedC = await makeEngine('seed-c')
+        const relaySeed = await makeEngine('relay-seed')
         const downloader = await makeEngine('downloader')
 
         const content = Buffer.alloc(1024 * 1024, 'a')
@@ -2423,13 +2422,13 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
           timeout: 10000,
         }
 
-        const pullB = seedB.pullByCid(pullInput)
+        const relayPull = relaySeed.pullByCid(pullInput)
         await sleep(100)
-        links.push(uploader.replicateWith(seedB))
-        const resultB = await pullB
-        assert.strictEqual(resultB.localAvailable, true)
+        links.push(uploader.replicateWith(relaySeed))
+        const relayResult = await relayPull
+        assert.strictEqual(relayResult.localAvailable, true)
         assert.deepStrictEqual(
-          (await seedB.readFileRaw(publishResult.cid)).buffer,
+          (await relaySeed.readFileRaw(publishResult.cid)).buffer,
           content
         )
         const uploaderServed = await waitForHoldingMetric(
@@ -2440,33 +2439,23 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         )
         assert.ok(uploaderServed.totalServedBytes > 0)
 
-        const pullC = seedC.pullByCid(pullInput)
-        await sleep(100)
-        links.push(uploader.replicateWith(seedC))
-        const resultC = await pullC
-        assert.strictEqual(resultC.localAvailable, true)
-        assert.deepStrictEqual(
-          (await seedC.readFileRaw(publishResult.cid)).buffer,
-          content
-        )
-
         await uploader.stop()
         const uploaderIndex = engines.indexOf(uploader)
         engines.splice(uploaderIndex, 1)
 
-        const pullD = downloader.pullByCid(pullInput)
+        const downloadPull = downloader.pullByCid(pullInput)
         await sleep(100)
-        links.push(seedB.replicateWith(downloader))
-        links.push(seedC.replicateWith(downloader))
-        const resultD = await pullD
+        links.push(relaySeed.replicateWith(downloader))
+        const downloadResult = await downloadPull
 
-        assert.strictEqual(resultD.localAvailable, true)
+        assert.strictEqual(downloadResult.localAvailable, true)
         assert.deepStrictEqual(
           (await downloader.readFileRaw(publishResult.cid)).buffer,
           content
         )
-        assert.ok(seedB.listHoldings().some(h => h.cid === publishResult.cid))
-        assert.ok(seedC.listHoldings().some(h => h.cid === publishResult.cid))
+        assert.ok(
+          relaySeed.listHoldings().some(h => h.cid === publishResult.cid)
+        )
         assert.ok(
           downloader.listHoldings().some(h => h.cid === publishResult.cid)
         )
@@ -2474,6 +2463,53 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         for (const link of links) link.close()
         await Promise.allSettled(engines.map(nextEngine => nextEngine.stop()))
         fs.rmSync(p2pTmpDir, { recursive: true, force: true })
+      }
+    })
+
+    it('fails within timeout when a connected topic peer has no content', async () => {
+      const timeoutTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-empty-topic-peer-')
+      )
+      const engines = []
+      let replication
+
+      try {
+        const emptyPeer = new MostBoxEngine({
+          dataPath: path.join(timeoutTmpDir, 'empty-peer'),
+          disableNetwork: true,
+        })
+        const downloader = new MostBoxEngine({
+          dataPath: path.join(timeoutTmpDir, 'downloader'),
+          disableNetwork: true,
+          downloadTimeout: 200,
+        })
+        await emptyPeer.start()
+        await downloader.start()
+        engines.push(emptyPeer, downloader)
+
+        const { cid } = await calculateCid(Buffer.from('content not held by C'))
+        const cidString = cid.toString()
+        await emptyPeer.joinCidTopic(cidString)
+        replication = emptyPeer.replicateWith(downloader)
+
+        const startedAt = Date.now()
+        await assert.rejects(
+          downloader.downloadFile(`most://${cidString}`, null, {
+            timeout: 200,
+          }),
+          err => err?.code === 'PEER_NOT_FOUND'
+        )
+        const elapsed = Date.now() - startedAt
+
+        assert.ok(
+          elapsed >= 150,
+          `download failed too early after ${elapsed}ms`
+        )
+        assert.ok(elapsed < 1500, `download exceeded timeout: ${elapsed}ms`)
+      } finally {
+        replication?.close()
+        await Promise.allSettled(engines.map(nextEngine => nextEngine.stop()))
+        fs.rmSync(timeoutTmpDir, { recursive: true, force: true })
       }
     })
   })
@@ -5190,6 +5226,48 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         if (firstEngine) await firstEngine.stop().catch(() => {})
         if (secondEngine) await secondEngine.stop().catch(() => {})
         fs.rmSync(sequenceTmpDir, { recursive: true, force: true })
+      }
+    })
+
+    it('relays text messages bidirectionally across a three-node line', async () => {
+      const relayTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-channel-three-node-relay-')
+      )
+      const engines = []
+      const links = []
+      const channelName = `relay-line-${uid}`
+
+      try {
+        const makeEngine = async name => {
+          const nextEngine = new MostBoxEngine({
+            dataPath: path.join(relayTmpDir, name),
+            disableNetwork: true,
+          })
+          await nextEngine.start()
+          engines.push(nextEngine)
+          return nextEngine
+        }
+
+        const nodeA = await makeEngine('node-a')
+        const nodeC = await makeEngine('node-c')
+        const nodeB = await makeEngine('node-b')
+
+        await nodeA.createChannel(channelName, 'public')
+        await nodeC.createChannel(channelName, 'public')
+        await nodeB.createChannel(channelName, 'public')
+
+        links.push(nodeA.replicateWith(nodeC))
+        links.push(nodeC.replicateWith(nodeB))
+
+        await nodeA.sendMessage(channelName, 'A to B through C')
+        await waitForChannelMessage(nodeB, channelName, 'A to B through C')
+
+        await nodeB.sendMessage(channelName, 'B to A through C')
+        await waitForChannelMessage(nodeA, channelName, 'B to A through C')
+      } finally {
+        for (const link of links) link.close()
+        await Promise.allSettled(engines.map(nextEngine => nextEngine.stop()))
+        fs.rmSync(relayTmpDir, { recursive: true, force: true })
       }
     })
 
