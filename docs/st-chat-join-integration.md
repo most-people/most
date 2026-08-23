@@ -18,7 +18,6 @@ ST 后端只需要生成一个链接，不需要调用 MostBox API，也不需�
    import nacl from 'tweetnacl'
 
    interface STInvitePayload {
-     expires_at: number
      uid: string
      channels: Array<{ id: string; name?: string }>
      [key: string]: unknown
@@ -26,12 +25,12 @@ ST 后端只需要生成一个链接，不需要调用 MostBox API，也不需�
 
    export function createMostBoxInviteLink(payload: STInvitePayload) {
      if (!payload.uid.trim()) throw new Error('uid is required')
-     if (!payload.channels.length) throw new Error('channels is required')
+     const channelIdPattern = /^[a-zA-Z0-9_-]{3,30}$/
      if (
-       !Number.isSafeInteger(payload.expires_at) ||
-       payload.expires_at <= Date.now()
+       !payload.channels.length ||
+       payload.channels.some(channel => !channelIdPattern.test(channel.id))
      ) {
-       throw new Error('expires_at must be a future Unix millisecond timestamp')
+       throw new Error('channels contains an invalid id')
      }
 
      const key = nacl.randomBytes(32)
@@ -52,7 +51,6 @@ ST 后端只需要生成一个链接，不需要调用 MostBox API，也不需�
 
    ```ts
    const link = createMostBoxInviteLink({
-     expires_at: Date.now() + 24 * 60 * 60 * 1000,
      uid: 'demo-user',
      name: 'Demo User',
      locale: 'zh-CN',
@@ -71,7 +69,6 @@ ST 后端只需要生成一个链接，不需要调用 MostBox API，也不需�
 
 必填：
 
-- `expires_at`：过期时间，Unix 毫秒时间戳，必须晚于当前时间。
 - `uid`：ST 用户 ID。
 - `channels`：至少一个频道；频道 `id` 使用 3-30 位字母、数字、下划线或连字符。
 
@@ -88,6 +85,7 @@ MostBox 会按 `uid` 创建或切换本地身份，并用邀请中提供的昵�
 - 每次生成链接都必须使用新的随机 key 和 nonce。
 - 只生成 `/chat/join#<token>`，不要使用旧的 `?token=...&pub=...` 格式。
 - 完整链接就是加入凭证，不要把链接或 token 写入日志、统计系统或客服工单。
+- 当前协议没有客户端可验证的过期字段；需要限制有效期时，由目标节点轮换或撤销 `node_invite`。
 - 需要让泄露的邀请强制失效时，轮换 `node_invite` 和频道 ID。
 
 非 Node.js 后端按同一格式实现：`Base64URL(key[32] + nonce[24] + secretbox(JSON))`，不保留 `=` 填充。

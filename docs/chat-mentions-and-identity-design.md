@@ -112,7 +112,6 @@ type MemberTag = LocalizedTag | null
 
 ```ts
 interface ChatJoinInvitePayload {
-  expires_at: number
   uid: string
   node_url?: string
   node_invite?: string
@@ -133,7 +132,6 @@ interface ChatJoinInvitePayload {
 
 ```json
 {
-  "expires_at": 1893456000000,
   "uid": "demo-user",
   "name": "Demo User",
   "locale": "zh-CN",

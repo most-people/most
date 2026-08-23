@@ -16,7 +16,6 @@ import { channelApi } from '~/lib/channelApi'
 import { getUserChannelProfile } from '~/lib/userProfile'
 import { translateMessage, useI18n } from '~/lib/i18n'
 import {
-  isChatJoinInviteExpired,
   normalizeChatJoinInvitePayload,
   type ChatJoinInvitePayload,
 } from '~/lib/chatJoinInvite'
@@ -180,10 +179,6 @@ function ChatJoinContent() {
         )
         if (!invite) {
           setError(t('chatJoin.error.invalidInvite'))
-          return
-        }
-        if (isChatJoinInviteExpired(invite)) {
-          setError(t('chatJoin.error.expired'))
           return
         }
         await runJoinFlow(invite)

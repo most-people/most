@@ -6,8 +6,9 @@ export interface ChatJoinInviteChannel {
   name?: string
 }
 
+export const CHAT_JOIN_CHANNEL_ID_PATTERN = /^[a-zA-Z0-9_-]{3,30}$/
+
 export interface ChatJoinInvitePayload {
-  expires_at: number
   node_url?: string
   node_invite?: string
   locale?: Locale
@@ -69,29 +70,22 @@ export function normalizeChatJoinInvitePayload(
   const value = parseNestedJsonText(input)
   if (!isRecord(value)) return null
 
-  const expiresAt = value.expires_at
   const uid = normalizeOptionalString(value.uid)
   const rawChannels = Array.isArray(value.channels) ? value.channels : []
-  const channels = rawChannels
-    .filter(isRecord)
-    .map(channel => ({
-      id: normalizeOptionalString(channel.id),
-      name: normalizeOptionalString(channel.name) || undefined,
-    }))
-    .filter(channel => channel.id)
+  if (!uid || rawChannels.length === 0) return null
 
-  if (
-    typeof expiresAt !== 'number' ||
-    !Number.isSafeInteger(expiresAt) ||
-    expiresAt <= 0 ||
-    !uid ||
-    channels.length === 0
-  ) {
-    return null
+  const channels: ChatJoinInviteChannel[] = []
+  for (const channel of rawChannels) {
+    if (!isRecord(channel)) return null
+    const id = normalizeOptionalString(channel.id)
+    if (!CHAT_JOIN_CHANNEL_ID_PATTERN.test(id)) return null
+    channels.push({
+      id,
+      name: normalizeOptionalString(channel.name) || undefined,
+    })
   }
 
   return {
-    expires_at: expiresAt,
     node_url: normalizeOptionalString(value.node_url) || undefined,
     node_invite: normalizeOptionalString(value.node_invite) || undefined,
     locale: normalizeChatJoinInviteLocale(value.locale),
@@ -106,11 +100,4 @@ export function normalizeChatJoinInvitePayload(
     name: normalizeOptionalString(value.name) || undefined,
     channels,
   }
-}
-
-export function isChatJoinInviteExpired(
-  invite: Pick<ChatJoinInvitePayload, 'expires_at'>,
-  now = Date.now()
-) {
-  return invite.expires_at <= now
 }

@@ -66,7 +66,6 @@ test('packs a locally decryptable chat invite into one fragment token', async ()
   let call = 0
   const token = encryptChatJoinToken(
     {
-      expires_at: 1893456000000,
       uid: 'demo-user',
       channels: [{ id: 'abcdefghijklmnopqrstuvwxyz' }],
       node_url: 'https://node.example.com',
@@ -88,7 +87,6 @@ test('packs a locally decryptable chat invite into one fragment token', async ()
     ''
   )
   assert.deepEqual(decryptChatJoinToken(token), {
-    expires_at: 1893456000000,
     uid: 'demo-user',
     channels: [{ id: 'abcdefghijklmnopqrstuvwxyz' }],
     node_url: 'https://node.example.com',
@@ -101,7 +99,6 @@ test('rejects malformed or modified chat invite tokens', async () => {
     await importTokenModule()
   const token = encryptChatJoinToken(
     {
-      expires_at: 1893456000000,
       uid: 'demo-user',
       channels: [{ id: 'room' }],
     },
@@ -120,7 +117,6 @@ test('matches the documented ST compatibility vector', async () => {
   const { decryptChatJoinToken, encryptChatJoinToken } =
     await importTokenModule()
   const payload = {
-    expires_at: 1893456000000,
     uid: 'demo-user',
     locale: 'zh-CN',
     channels: [
@@ -139,22 +135,19 @@ test('matches the documented ST compatibility vector', async () => {
 
   assert.equal(
     token,
-    'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njfc5MOP_2K-ihkZ5XjjSUMEinso3T1OKPN6ajQaLnKGzICBib7HKRNEjEYDvuBuxZmVMfKnnsQW4tYdNvnX8Vw-3LXLpW0Uzt3TM1LY1ztgI8snfq8495hVOa48ACO9RZ9-qCDT_uw6LIIGJmSoqsVWpxlnxB_-xX4sofrfYZo00i21v01X0OblX48XhTjU'
+    'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1NjdTw5O8PkR1vIw8CciGCbHsins4zCkFYLRtUDgBIT3EkcuQkamddkAV0BMRqOBhxND0RfLv2coRrs0ANueG_0QJyPTDrSoM1pzBOgvx9nAiXts6b7E54IAEN7YJGmyxA4dmySva67gaLIIGWVO4t9obqDA4'
   )
   assert.deepEqual(decryptChatJoinToken(token), payload)
 })
 
-test('requires an authenticated expiry and detects expired invites', async () => {
-  const { isChatJoinInviteExpired, normalizeChatJoinInvitePayload } =
-    await importInviteModule()
+test('requires a uid and rejects every invalid channel id', async () => {
+  const { normalizeChatJoinInvitePayload } = await importInviteModule()
   const invite = normalizeChatJoinInvitePayload({
-    expires_at: 2000,
     uid: 'demo-user',
     channels: [{ id: 'room' }],
   })
 
   assert.deepEqual(invite, {
-    expires_at: 2000,
     uid: 'demo-user',
     channels: [{ id: 'room', name: undefined }],
     node_url: undefined,
@@ -169,36 +162,32 @@ test('requires an authenticated expiry and detects expired invites', async () =>
     tag: undefined,
     name: undefined,
   })
-  assert.equal(isChatJoinInviteExpired(invite, 1999), false)
-  assert.equal(isChatJoinInviteExpired(invite, 2000), true)
   assert.equal(
     normalizeChatJoinInvitePayload({
-      uid: 'demo-user',
       channels: [{ id: 'room' }],
     }),
     null
   )
-  assert.equal(
-    normalizeChatJoinInvitePayload({
-      expires_at: 2000,
-      channels: [{ id: 'room' }],
-    }),
-    null
-  )
-  assert.equal(
-    normalizeChatJoinInvitePayload({
-      expires_at: '2000',
-      uid: 'demo-user',
-      channels: [{ id: 'room' }],
-    }),
-    null
-  )
+  for (const channel of [
+    { id: 'ab' },
+    { id: 'a'.repeat(31) },
+    { id: 'bad.name' },
+    { id: 'bad!' },
+    null,
+  ]) {
+    assert.equal(
+      normalizeChatJoinInvitePayload({
+        uid: 'demo-user',
+        channels: [{ id: 'valid-room' }, channel],
+      }),
+      null
+    )
+  }
 })
 
 test('creates and overrides the local identity from invite fields', async () => {
   const { createChatJoinInviteIdentity } = await importInviteIdentityModule()
   const identity = createChatJoinInviteIdentity({
-    expires_at: 1893456000000,
     uid: 'demo-user',
     name: 'Demo User',
     avatar: 'https://example.com/avatar.png',

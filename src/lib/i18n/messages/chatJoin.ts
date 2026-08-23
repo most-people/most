@@ -4,8 +4,7 @@ export const zhCNChatJoinMessages = {
   'chatJoin.error.remoteConnectFailed': '远程节点连接失败',
   'chatJoin.error.noBackend': '未连接后端，邀请中也没有 node_url',
   'chatJoin.error.invalidInvite':
-    '邀请内容无效或缺少 expires_at、uid、channels[].id',
-  'chatJoin.error.expired': '邀请链接已过期，请让发送者重新生成',
+    '邀请内容无效，或缺少 uid、有效的 channels[].id',
   'chatJoin.error.request': '加入失败: {message}',
   'chatJoin.action.retry': '重试',
   'chatJoin.demo.title': '聊天邀请 Demo',
@@ -15,7 +14,7 @@ export const zhCNChatJoinMessages = {
   'chatJoin.demo.guide.stepLabel': '第 {number} 步',
   'chatJoin.demo.guide.step.configure.title': '填写邀请内容',
   'chatJoin.demo.guide.step.configure.description':
-    '用户 ID、频道 ID 和过期时间必填；昵称、头像、品牌、节点和界面偏好均为可选项。',
+    '用户 ID 和频道 ID 必填；昵称、头像、品牌、节点和界面偏好均为可选项。',
   'chatJoin.demo.guide.step.share.title': '生成并发送链接',
   'chatJoin.demo.guide.step.share.description':
     '点击生成链接，把完整的 /chat/join#token 链接发送给预期接收者。',
@@ -29,7 +28,7 @@ export const zhCNChatJoinMessages = {
   'chatJoin.demo.guide.security.fragment':
     '#token 由浏览器本地处理，不会随普通 HTTP 请求发送给官网或 CDN。',
   'chatJoin.demo.guide.security.capability':
-    '完整链接在过期前即代表加入能力；它不绑定收件人，请只发给预期接收者。',
+    '完整链接代表加入能力；它不绑定收件人，请只发给预期接收者。',
   'chatJoin.demo.guide.security.identity':
     '邀请会创建或切换本地身份，并覆盖昵称、头像、Logo、主题和标签；只打开可信来源的链接。',
   'chatJoin.demo.guide.security.legacy':
@@ -40,7 +39,6 @@ export const zhCNChatJoinMessages = {
   'chatJoin.demo.field.existingLink': '现有邀请链接',
   'chatJoin.demo.field.origin': '链接域名',
   'chatJoin.demo.field.locale': '语言',
-  'chatJoin.demo.field.expiresAt': '过期时间（本地时间）',
   'chatJoin.demo.field.uid': '本地身份用户 ID',
   'chatJoin.demo.field.displayName': '显示昵称',
   'chatJoin.demo.field.avatar': '头像 URL 或 data URL',
@@ -67,7 +65,6 @@ export const zhCNChatJoinMessages = {
   'chatJoin.demo.error.channelInvalid':
     '频道 ID 需要是 3-30 位字母、数字、_ 或 -',
   'chatJoin.demo.error.uidRequired': '用户 ID 不能为空',
-  'chatJoin.demo.error.expiresAtInvalid': '过期时间必须晚于当前时间',
   'chatJoin.demo.error.encryptFailed': '加密失败，请检查 payload',
 } as const
 
@@ -77,8 +74,7 @@ export const zhTWChatJoinMessages = {
   'chatJoin.error.remoteConnectFailed': '遠端節點連線失敗',
   'chatJoin.error.noBackend': '未連線後端，邀請中也沒有 node_url',
   'chatJoin.error.invalidInvite':
-    '邀請內容無效或缺少 expires_at、uid、channels[].id',
-  'chatJoin.error.expired': '邀請連結已過期，請讓傳送者重新生成',
+    '邀請內容無效，或缺少 uid、有效的 channels[].id',
   'chatJoin.error.request': '加入失敗: {message}',
   'chatJoin.action.retry': '重試',
   'chatJoin.demo.title': '聊天邀請 Demo',
@@ -88,7 +84,7 @@ export const zhTWChatJoinMessages = {
   'chatJoin.demo.guide.stepLabel': '第 {number} 步',
   'chatJoin.demo.guide.step.configure.title': '填寫邀請內容',
   'chatJoin.demo.guide.step.configure.description':
-    '使用者 ID、頻道 ID 和到期時間必填；暱稱、頭像、品牌、節點和介面偏好均為選填項目。',
+    '使用者 ID 和頻道 ID 必填；暱稱、頭像、品牌、節點和介面偏好均為選填項目。',
   'chatJoin.demo.guide.step.share.title': '生成並傳送連結',
   'chatJoin.demo.guide.step.share.description':
     '點擊生成連結，把完整的 /chat/join#token 連結傳送給預期接收者。',
@@ -102,7 +98,7 @@ export const zhTWChatJoinMessages = {
   'chatJoin.demo.guide.security.fragment':
     '#token 由瀏覽器本機處理，不會隨一般 HTTP 請求傳送給官網或 CDN。',
   'chatJoin.demo.guide.security.capability':
-    '完整連結在到期前即代表加入能力；它不綁定收件者，請只傳給預期接收者。',
+    '完整連結代表加入能力；它不綁定收件者，請只傳給預期接收者。',
   'chatJoin.demo.guide.security.identity':
     '邀請會建立或切換本機身分，並覆蓋暱稱、頭像、Logo、主題和標籤；只開啟可信來源的連結。',
   'chatJoin.demo.guide.security.legacy':
@@ -113,7 +109,6 @@ export const zhTWChatJoinMessages = {
   'chatJoin.demo.field.existingLink': '現有邀請連結',
   'chatJoin.demo.field.origin': '連結域名',
   'chatJoin.demo.field.locale': '語言',
-  'chatJoin.demo.field.expiresAt': '到期時間（本機時間）',
   'chatJoin.demo.field.uid': '本機身分使用者 ID',
   'chatJoin.demo.field.displayName': '顯示暱稱',
   'chatJoin.demo.field.avatar': '頭像 URL 或 data URL',
@@ -140,7 +135,6 @@ export const zhTWChatJoinMessages = {
   'chatJoin.demo.error.channelInvalid':
     '頻道 ID 需要是 3-30 位字母、數字、_ 或 -',
   'chatJoin.demo.error.uidRequired': '使用者 ID 不可為空',
-  'chatJoin.demo.error.expiresAtInvalid': '到期時間必須晚於目前時間',
   'chatJoin.demo.error.encryptFailed': '加密失敗，請檢查 payload',
 } as const
 
@@ -151,9 +145,7 @@ export const enChatJoinMessages = {
   'chatJoin.error.noBackend':
     'No backend is connected and the invite has no node_url',
   'chatJoin.error.invalidInvite':
-    'Invite is invalid or missing expires_at, uid, or channels[].id',
-  'chatJoin.error.expired':
-    'This invite link has expired. Ask the sender to generate a new one.',
+    'Invite is invalid or missing uid or a valid channels[].id',
   'chatJoin.error.request': 'Join failed: {message}',
   'chatJoin.action.retry': 'Retry',
   'chatJoin.demo.title': 'Chat invite demo',
@@ -163,7 +155,7 @@ export const enChatJoinMessages = {
   'chatJoin.demo.guide.stepLabel': 'Step {number}',
   'chatJoin.demo.guide.step.configure.title': 'Configure the invite',
   'chatJoin.demo.guide.step.configure.description':
-    'User ID, channel ID, and expiry are required. Name, avatar, branding, node connection, and appearance are optional.',
+    'User ID and channel ID are required. Name, avatar, branding, node connection, and appearance are optional.',
   'chatJoin.demo.guide.step.share.title': 'Generate and share',
   'chatJoin.demo.guide.step.share.description':
     'Generate the link, then send the complete /chat/join#token URL to the intended recipient.',
@@ -177,7 +169,7 @@ export const enChatJoinMessages = {
   'chatJoin.demo.guide.security.fragment':
     'The browser processes #token locally; ordinary HTTP requests do not send it to the website or CDN.',
   'chatJoin.demo.guide.security.capability':
-    'The complete link grants join capability until it expires. It is not recipient-bound, so share it only with intended recipients.',
+    'The complete link grants join capability. It is not recipient-bound, so share it only with intended recipients.',
   'chatJoin.demo.guide.security.identity':
     'An invite creates or switches the local identity and replaces its name, avatar, logos, theme, and tag. Open links only from trusted sources.',
   'chatJoin.demo.guide.security.legacy':
@@ -188,7 +180,6 @@ export const enChatJoinMessages = {
   'chatJoin.demo.field.existingLink': 'Existing invite link',
   'chatJoin.demo.field.origin': 'Link origin',
   'chatJoin.demo.field.locale': 'Locale',
-  'chatJoin.demo.field.expiresAt': 'Expiry (local time)',
   'chatJoin.demo.field.uid': 'Local identity user ID',
   'chatJoin.demo.field.displayName': 'Display name',
   'chatJoin.demo.field.avatar': 'Avatar URL or data URL',
@@ -215,7 +206,5 @@ export const enChatJoinMessages = {
   'chatJoin.demo.error.channelInvalid':
     'Channel ID must be 3-30 letters, numbers, _ or -',
   'chatJoin.demo.error.uidRequired': 'User ID is required',
-  'chatJoin.demo.error.expiresAtInvalid':
-    'Expiry must be later than the current time',
   'chatJoin.demo.error.encryptFailed': 'Encryption failed. Check the payload.',
 } as const

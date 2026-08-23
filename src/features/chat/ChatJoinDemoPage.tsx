@@ -15,7 +15,7 @@ import { AppTop } from '~/components/AppTop'
 import { SelectControl } from '~/components/ui'
 import { useI18n, type Locale } from '~/lib/i18n'
 import {
-  isChatJoinInviteExpired,
+  CHAT_JOIN_CHANNEL_ID_PATTERN,
   normalizeChatJoinInvitePayload,
   type ChatJoinInvitePayload,
 } from '~/lib/chatJoinInvite'
@@ -28,8 +28,6 @@ import {
 
 const DEFAULT_CHANNEL_ID = 'chatjoin_support'
 const DEFAULT_CHANNEL_NAME = 'Chat Join Demo'
-const DEFAULT_INVITE_DURATION_MS = 24 * 60 * 60 * 1000
-const CHANNEL_ID_PATTERN = /^[a-zA-Z0-9_-]{3,30}$/
 
 const APPEARANCE_OPTIONS: Array<{
   value: NonNullable<ChatJoinInvitePayload['appearance']>
@@ -65,18 +63,6 @@ function getLinkOrigin(value: string, fallback: string) {
   } catch {
     return normalizeLinkOrigin(fallback)
   }
-}
-
-function formatLocalDateTime(timestamp: number) {
-  const date = new Date(timestamp)
-  if (!Number.isFinite(date.getTime())) return ''
-  const localTimestamp = timestamp - date.getTimezoneOffset() * 60 * 1000
-  return new Date(localTimestamp).toISOString().slice(0, 16)
-}
-
-function parseLocalDateTime(value: string) {
-  const timestamp = new Date(value).getTime()
-  return Number.isSafeInteger(timestamp) && timestamp > 0 ? timestamp : 0
 }
 
 function DemoFieldLabel({
@@ -120,9 +106,6 @@ export default function ChatJoinDemoPage() {
   const [displayName, setDisplayName] = useState('Demo User')
   const [channelId, setChannelId] = useState(DEFAULT_CHANNEL_ID)
   const [channelName, setChannelName] = useState(DEFAULT_CHANNEL_NAME)
-  const [expiresAt, setExpiresAt] = useState(() =>
-    formatLocalDateTime(Date.now() + DEFAULT_INVITE_DURATION_MS)
-  )
   const [locale, setLocale] = useState<Locale>('zh-CN')
   const [theme, setTheme] = useState<ChatJoinInvitePayload['theme']>('st')
   const [appearance, setAppearance] =
@@ -142,7 +125,6 @@ export default function ChatJoinDemoPage() {
 
   const payload = useMemo<ChatJoinInvitePayload>(() => {
     const invite: ChatJoinInvitePayload = {
-      expires_at: parseLocalDateTime(expiresAt),
       uid: uid.trim(),
       locale,
       channels: [
@@ -170,7 +152,6 @@ export default function ChatJoinDemoPage() {
     channelName,
     data,
     displayName,
-    expiresAt,
     locale,
     logo,
     logoDark,
@@ -206,7 +187,6 @@ export default function ChatJoinDemoPage() {
 
   function applyInvitePayload(invite: ChatJoinInvitePayload) {
     const firstChannel = invite.channels[0]
-    setExpiresAt(formatLocalDateTime(invite.expires_at))
     setUid(invite.uid)
     setLocale(invite.locale || 'zh-CN')
     setTheme(invite.theme)
@@ -247,9 +227,7 @@ export default function ChatJoinDemoPage() {
 
     applyInvitePayload(invite)
     setParseMessage(t('chatJoin.demo.status.linkDecrypted'))
-    setParseError(
-      isChatJoinInviteExpired(invite) ? t('chatJoin.error.expired') : ''
-    )
+    setParseError('')
   }
 
   function handleGenerateLink() {
@@ -260,13 +238,8 @@ export default function ChatJoinDemoPage() {
       return
     }
 
-    if (!CHANNEL_ID_PATTERN.test(cleanedChannelId)) {
+    if (!CHAT_JOIN_CHANNEL_ID_PATTERN.test(cleanedChannelId)) {
       setError(t('chatJoin.demo.error.channelInvalid'))
-      return
-    }
-
-    if (isChatJoinInviteExpired(payload)) {
-      setError(t('chatJoin.demo.error.expiresAtInvalid'))
       return
     }
 
@@ -406,18 +379,6 @@ export default function ChatJoinDemoPage() {
                   options={LOCALE_OPTIONS}
                   onChange={setLocale}
                   size="compact"
-                />
-              </DemoField>
-              <DemoField
-                name="expires_at"
-                description={t('chatJoin.demo.field.expiresAt')}
-              >
-                <input
-                  className="input input-compact"
-                  type="datetime-local"
-                  value={expiresAt}
-                  onChange={event => setExpiresAt(event.target.value)}
-                  step="60"
                 />
               </DemoField>
               <DemoField name="uid" description={t('chatJoin.demo.field.uid')}>
