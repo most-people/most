@@ -4316,21 +4316,22 @@ export class MostBoxEngine extends EventEmitter {
     if (nextKeys.length === 0) return false
 
     const previous = new Set(channel.writerCoreKeys || [])
-    const newRemoteKeys = []
+    const remoteKeysToOpen = []
     let changed = false
     for (const writerCoreKey of nextKeys) {
-      if (previous.has(writerCoreKey)) continue
-      previous.add(writerCoreKey)
-      changed = true
+      if (!previous.has(writerCoreKey)) {
+        previous.add(writerCoreKey)
+        changed = true
+      }
       if (writerCoreKey !== this.#channelLocalCoreKey.get(channel.channelKey)) {
-        newRemoteKeys.push(writerCoreKey)
+        remoteKeysToOpen.push(writerCoreKey)
       }
     }
     if (changed) {
       channel.writerCoreKeys = [...previous]
       this.#saveChannelsMetadata()
     }
-    for (const writerCoreKey of newRemoteKeys) {
+    for (const writerCoreKey of remoteKeysToOpen) {
       await this.#openRemoteChannelCore(channel.channelKey, writerCoreKey)
     }
     return changed

@@ -3504,6 +3504,79 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         fs.rmSync(syncTmpDir, { recursive: true, force: true })
       }
     })
+
+    it('opens imported writer cores without restarting the target', async () => {
+      const syncTmpDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'most-user-import-writer-core-')
+      )
+      const sourcePath = path.join(syncTmpDir, 'source')
+      const targetPath = path.join(syncTmpDir, 'target')
+      const syncOwner = '0x4545454545454545454545454545454545454545'
+      const channelName = `sync-writer-${uid}`
+      let sourceEngine
+      let targetEngine
+      let replication
+
+      try {
+        sourceEngine = new MostBoxEngine({
+          dataPath: sourcePath,
+          disableNetwork: true,
+        })
+        targetEngine = new MostBoxEngine({
+          dataPath: targetPath,
+          disableNetwork: true,
+        })
+        await sourceEngine.start()
+        await targetEngine.start()
+
+        await targetEngine.createChannel(channelName, 'personal', {
+          ownerAddress: syncOwner,
+        })
+        const sourceChannel = await sourceEngine.createChannel(
+          channelName,
+          'personal',
+          { ownerAddress: syncOwner }
+        )
+        await sourceEngine.sendMessage(
+          sourceChannel.channelKey,
+          'from imported writer',
+          syncOwner,
+          'Backup Writer',
+          { ownerAddress: syncOwner }
+        )
+
+        const backup = sourceEngine.exportUserData(syncOwner)
+        const backupChannel = backup.channels.find(
+          channel => channel.channelKey === sourceChannel.channelKey
+        )
+        assert.ok(backupChannel)
+        backupChannel.updatedAt = Date.now() + 1000
+
+        const importResult = await targetEngine.importUserData(
+          syncOwner,
+          backup
+        )
+        assert.strictEqual(importResult.channelsUpdated, 1)
+        assert.ok(
+          targetEngine
+            .listChannels({ ownerAddress: syncOwner })
+            .find(channel => channel.channelKey === sourceChannel.channelKey)
+            .writerCoreKeys.includes(sourceChannel.localWriterCoreKey)
+        )
+
+        replication = sourceEngine.replicateWith(targetEngine)
+        await waitForChannelMessage(
+          targetEngine,
+          sourceChannel.channelKey,
+          'from imported writer'
+        )
+      } finally {
+        replication?.close()
+        if (sourceEngine) await sourceEngine.stop().catch(() => {})
+        if (targetEngine) await targetEngine.stop().catch(() => {})
+        fs.rmSync(syncTmpDir, { recursive: true, force: true })
+      }
+    })
   })
 
   describe('listPublishedFiles() starred filter', () => {
