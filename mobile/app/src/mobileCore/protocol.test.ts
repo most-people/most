@@ -27,14 +27,36 @@ describe('mobile most link protocol', () => {
   })
 
   it('uses CID as file name when filename is omitted', () => {
-    const parsed = parseMostLink(`most://${VALID_CID}`)
-    assert.equal(parsed.cid, VALID_CID)
-    assert.equal(parsed.fileName, VALID_CID)
+    for (const link of [`most://${VALID_CID}`, VALID_CID]) {
+      const parsed = parseMostLink(link)
+      assert.equal(parsed.cid, VALID_CID)
+      assert.equal(parsed.fileName, VALID_CID)
+    }
     assert.equal(hasExplicitMostLinkFilename(`most://${VALID_CID}`), false)
     assert.equal(
       hasExplicitMostLinkFilename(`most://${VALID_CID}?filename=%20`),
       false
     )
+  })
+
+  it('parses web entry links and bare CID inputs like the desktop client', () => {
+    const fileName = 'phone file.txt'
+    const encodedFileName = encodeURIComponent(fileName)
+    const inputs = [
+      `https://most.box/cid/${VALID_CID}?filename=${encodedFileName}`,
+      `http://localhost:3000/cid/${VALID_CID}/?filename=${encodedFileName}`,
+      `${VALID_CID}?filename=${encodedFileName}`,
+      `${VALID_CID}/?filename=${encodedFileName}`,
+      `https://example.com/share/${VALID_CID}?filename=${encodedFileName}`,
+    ]
+
+    for (const input of inputs) {
+      assert.deepEqual(parseMostLink(input), {
+        cid: VALID_CID,
+        fileName,
+      })
+      assert.equal(hasExplicitMostLinkFilename(input), true)
+    }
   })
 
   it('parses links when URLSearchParams.keys is unavailable', () => {
@@ -56,14 +78,18 @@ describe('mobile most link protocol', () => {
     }
   })
 
-  it('rejects unsupported query parameters and extra paths', () => {
+  it('rejects unsupported query parameters and invalid CID tails', () => {
     assert.throws(
       () => parseMostLink(`most://${VALID_CID}?filename=a.txt&foo=bar`),
       new Error(MOST_LINK_ERROR_CODES.unsupportedQuery)
     )
     assert.throws(
       () => parseMostLink(`most://${VALID_CID}/extra`),
-      new Error(MOST_LINK_ERROR_CODES.unsupportedPath)
+      new Error(MOST_LINK_ERROR_CODES.invalidCid)
+    )
+    assert.throws(
+      () => parseMostLink(`most://${VALID_CID}///`),
+      new Error(MOST_LINK_ERROR_CODES.invalidCid)
     )
   })
 

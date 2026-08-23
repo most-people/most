@@ -72,14 +72,14 @@ export const appMessages = {
     en: 'Invalid share link',
   },
   'app.link.invalid': {
-    'zh-CN': '请输入有效的 most:// 链接',
-    'zh-TW': '請輸入有效的 most:// 連結',
-    en: 'Enter a valid most:// link',
+    'zh-CN': '请输入有效的 most:// 链接、网页链接或 CID',
+    'zh-TW': '請輸入有效的 most:// 連結、網頁連結或 CID',
+    en: 'Enter a valid most:// link, web link, or CID',
   },
   'app.link.empty': {
-    'zh-CN': '请输入 most:// 分享链接',
-    'zh-TW': '請輸入 most:// 分享連結',
-    en: 'Enter a most:// share link',
+    'zh-CN': '请输入 most:// 链接、网页链接或 CID',
+    'zh-TW': '請輸入 most:// 連結、網頁連結或 CID',
+    en: 'Enter a most:// link, web link, or CID',
   },
   'app.link.unsupportedPath': {
     'zh-CN': 'most:// 链接不能包含额外路径',
@@ -87,9 +87,9 @@ export const appMessages = {
     en: 'A most:// link cannot contain an extra path',
   },
   'app.link.unsupportedQuery': {
-    'zh-CN': 'most:// 链接只支持 filename 参数',
-    'zh-TW': 'most:// 分享連結僅支援 filename 參數',
-    en: 'A most:// link only supports the filename parameter',
+    'zh-CN': '分享链接只支持 filename 参数',
+    'zh-TW': '分享連結僅支援 filename 參數',
+    en: 'A share link only supports the filename parameter',
   },
   'app.core.notReadyTitle': {
     'zh-CN': 'P2P 核心未就绪',
@@ -130,11 +130,6 @@ export const appMessages = {
     'zh-CN': '当前商店版本不接收应用安装包、脚本或其他可执行文件。',
     'zh-TW': '目前商店版本不接收應用程式安裝包、指令碼或其他可執行檔。',
     en: 'This store build does not accept app packages, scripts, or other executable files.',
-  },
-  'app.file.filenameRequired': {
-    'zh-CN': '当前商店版本只接收带有明确 filename 的 most:// 链接。',
-    'zh-TW': '目前商店版本僅接收包含明確 filename 的 most:// 分享連結。',
-    en: 'This store build only accepts most:// links with an explicit filename.',
   },
   'app.file.linkMissing': {
     'zh-CN': '未生成分享链接',
@@ -421,6 +416,11 @@ export const appMessages = {
     'zh-CN': '分享链接',
     'zh-TW': '分享連結',
     en: 'Share link',
+  },
+  'app.receive.linkPlaceholder': {
+    'zh-CN': '粘贴 most://、网页链接或 CID',
+    'zh-TW': '貼上 most://、網頁連結或 CID',
+    en: 'Paste most://, a web link, or a CID',
   },
   'app.receive.paste': {
     'zh-CN': '粘贴',

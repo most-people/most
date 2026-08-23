@@ -52,7 +52,6 @@ import {
   useMostBoxTheme,
 } from './src/ui/theme'
 import {
-  hasExplicitMostLinkFilename,
   parseIncomingMostLink,
   parseMostLink,
   type IncomingMostLink,
@@ -242,10 +241,7 @@ function MostBoxApp() {
 
   const openDownloadIntent = useCallback(
     (intent: IncomingMostLink, openAfterComplete = false) => {
-      const policyErrorKey = getStoreDownloadPolicyErrorKey(
-        intent.fileName,
-        hasExplicitMostLinkFilename(intent.link)
-      )
+      const policyErrorKey = getStoreDownloadPolicyErrorKey(intent.fileName)
       const policyError = policyErrorKey ? t(policyErrorKey) : ''
       setDownloadModalOpen(true)
       setDownloadLinkInput(intent.link)
@@ -463,10 +459,7 @@ function MostBoxApp() {
     try {
       const link = downloadLinkInput.trim()
       const parsed = parseMostLink(link)
-      const policyErrorKey = getStoreDownloadPolicyErrorKey(
-        parsed.fileName,
-        hasExplicitMostLinkFilename(link)
-      )
+      const policyErrorKey = getStoreDownloadPolicyErrorKey(parsed.fileName)
       if (policyErrorKey) {
         setDownloadLinkError(t(policyErrorKey))
         return
@@ -724,10 +717,7 @@ function MostBoxApp() {
     } catch (error) {
       throw new Error(getMostLinkErrorMessage(error, locale))
     }
-    const policyErrorKey = getStoreDownloadPolicyErrorKey(
-      parsed.fileName,
-      hasExplicitMostLinkFilename(link)
-    )
+    const policyErrorKey = getStoreDownloadPolicyErrorKey(parsed.fileName)
     if (policyErrorKey) throw new Error(t(policyErrorKey))
 
     const holding = core
@@ -1179,7 +1169,7 @@ function MostBoxApp() {
                         maxFontSizeMultiplier={1.5}
                         multiline
                         onChangeText={handleDownloadLinkChange}
-                        placeholder="most://CID?filename=..."
+                        placeholder={t('app.receive.linkPlaceholder')}
                         placeholderTextColor={theme.colors.textMuted}
                         selectionColor={theme.colors.accent}
                         style={styles.linkInput}

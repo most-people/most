@@ -10,6 +10,7 @@ export type IncomingMostLink = ParsedMostLink & {
 }
 
 export const MOST_LINK_PROTOCOL = 'most:'
+const LINK_PARSE_BASE_URL = 'https://most.box/'
 export const MOST_LINK_ERROR_CODES = {
   linkEmpty: 'MOST_LINK_EMPTY',
   invalidUrl: 'MOST_LINK_INVALID_URL',
@@ -48,6 +49,7 @@ function parseMostLinkQuery(search: string) {
   if (!query) return { fileName: '', unsupportedQuery: false }
 
   let fileName = ''
+  let hasFileName = false
   for (const part of query.split('&')) {
     if (!part) continue
 
@@ -59,12 +61,42 @@ function parseMostLinkQuery(search: string) {
       return { fileName: '', unsupportedQuery: true }
     }
 
-    if (!fileName) {
+    if (!hasFileName) {
       fileName = decodeQueryPart(rawValue).trim()
+      hasFileName = true
     }
   }
 
   return { fileName, unsupportedQuery: false }
+}
+
+function parseLinkUrl(value: string) {
+  try {
+    return new URL(value)
+  } catch {
+    try {
+      return new URL(value, LINK_PARSE_BASE_URL)
+    } catch {
+      return null
+    }
+  }
+}
+
+function extractTailTarget(value: string) {
+  const url = parseLinkUrl(value)
+  if (!url) return value
+
+  if (
+    url.protocol === MOST_LINK_PROTOCOL &&
+    (!url.pathname || (url.search && /^\/+$/u.test(url.pathname)))
+  ) {
+    return `${url.hostname}${url.search}`
+  }
+
+  const pathName = url.search ? url.pathname.replace(/\/+$/u, '') : url.pathname
+  const tailPath = pathName.split('/').filter(Boolean).at(-1) || ''
+
+  return `${tailPath}${url.search}`
 }
 
 export function parseMostLink(link: string): ParsedMostLink {
@@ -72,27 +104,18 @@ export function parseMostLink(link: string): ParsedMostLink {
     throw new Error(MOST_LINK_ERROR_CODES.linkEmpty)
   }
 
-  let url: URL
-  try {
-    url = new URL(link)
-  } catch {
-    throw new Error(MOST_LINK_ERROR_CODES.invalidUrl)
-  }
+  const value = link.trim()
+  if (!value) throw new Error(MOST_LINK_ERROR_CODES.linkEmpty)
 
-  if (url.protocol !== MOST_LINK_PROTOCOL) {
-    throw new Error(MOST_LINK_ERROR_CODES.invalidProtocol)
-  }
-
-  if (url.pathname && url.pathname !== '/') {
-    throw new Error(MOST_LINK_ERROR_CODES.unsupportedPath)
-  }
-
-  const query = parseMostLinkQuery(url.search)
+  const tailTarget = extractTailTarget(value)
+  const queryStart = tailTarget.indexOf('?')
+  const cid = queryStart === -1 ? tailTarget : tailTarget.slice(0, queryStart)
+  const search = queryStart === -1 ? '' : tailTarget.slice(queryStart + 1)
+  const query = parseMostLinkQuery(search)
   if (query.unsupportedQuery) {
     throw new Error(MOST_LINK_ERROR_CODES.unsupportedQuery)
   }
 
-  const cid = url.hostname
   let parsedCid: ReturnType<typeof CID.parse>
   try {
     parsedCid = CID.parse(cid)
@@ -114,13 +137,15 @@ export function parseMostLink(link: string): ParsedMostLink {
 }
 
 export function hasExplicitMostLinkFilename(link: string) {
-  try {
-    const url = new URL(link)
-    const query = parseMostLinkQuery(url.search)
-    return !query.unsupportedQuery && Boolean(query.fileName)
-  } catch {
-    return false
-  }
+  const value = String(link || '').trim()
+  if (!value) return false
+
+  const tailTarget = extractTailTarget(value)
+  const queryStart = tailTarget.indexOf('?')
+  if (queryStart === -1) return false
+
+  const query = parseMostLinkQuery(tailTarget.slice(queryStart + 1))
+  return !query.unsupportedQuery && Boolean(query.fileName)
 }
 
 export function parseIncomingMostLink(

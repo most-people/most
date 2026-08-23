@@ -114,6 +114,41 @@ describe('mobile P2P Ping snapshot and RPC events', () => {
 })
 
 describe('mobile file downloads', () => {
+  it('accepts native links, web entry links, and bare CIDs', async t => {
+    const storagePath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mostbox-mobile-download-links-')
+    )
+    const core = new MobileP2PCore({
+      storagePath,
+      createSwarm: createRecordingSwarmFactory([]),
+    })
+
+    t.after(async () => {
+      await core.stop()
+      await fs.rm(storagePath, { recursive: true, force: true })
+    })
+
+    await core.start()
+    const published = await core.publishFile({
+      name: 'link-formats.txt',
+      contentBase64: b4a.toString(b4a.from('same CID'), 'base64'),
+    })
+    const { cid } = published.transfer
+    const fileNameQuery = `filename=${encodeURIComponent('copy.txt')}`
+    const inputs = [
+      `most://${cid}?${fileNameQuery}`,
+      `https://most.box/cid/${cid}?${fileNameQuery}`,
+      `${cid}?${fileNameQuery}`,
+      cid,
+    ]
+
+    for (const link of inputs) {
+      const result = await core.downloadLink({ link })
+      assert.equal(result.transfer.cid, cid)
+      assert.equal(result.transfer.status, 'completed')
+    }
+  })
+
   it('recreates the downloads directory before writing a temporary file', async t => {
     const storagePath = await fs.mkdtemp(
       path.join(os.tmpdir(), 'mostbox-mobile-download-dir-')

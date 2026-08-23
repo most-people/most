@@ -7,6 +7,7 @@ MostBox 的 iOS / Android 商店版和共享 Bare Worklet P2P 核心。移动工
 - iOS / Android 使用原生 React Native 工具界面，底部包含“文件 / 知识库 / 传输”三个入口，节点状态从页面右上角进入，默认打开“文件”。
 - 用户可选择文件发布，得到 `most://<cid>?filename=...` 链接并在前台做种。
 - 外部 `most://` 深链只打开下载确认页，不会自动开始下载。
+- 手工下载输入与桌面端一致，支持 `most://`、尾部为 CID 的网页入口和裸 CID。
 - 下载完成后重算 UnixFS CID v1，校验通过才写入 holding 并加入 CID topic。
 - holding 支持复制链接、系统分享、保存副本和删除；删除 holding 后停止本机做种。
 - 知识库以 UTF-8 `.md` 明文保存在 App 文档目录的 `mostbox-knowledge/`，支持目录、搜索、编辑、预览、单篇导入导出和整库快照替换恢复。

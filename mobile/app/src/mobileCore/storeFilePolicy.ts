@@ -29,7 +29,6 @@ const BLOCKED_MIME_TYPES = new Set([
 
 export const STORE_FILE_POLICY_ERROR_KEYS = {
   blockedExecutable: 'app.file.blockedExecutable',
-  filenameRequired: 'app.file.filenameRequired',
 } as const
 
 export function getStoreFilePolicyErrorKey(
@@ -49,13 +48,6 @@ export function getStoreFilePolicyErrorKey(
   return null
 }
 
-export function getStoreDownloadPolicyErrorKey(
-  fileName: string,
-  hasExplicitFileName: boolean
-) {
-  if (!hasExplicitFileName) {
-    return STORE_FILE_POLICY_ERROR_KEYS.filenameRequired
-  }
-
+export function getStoreDownloadPolicyErrorKey(fileName: string) {
   return getStoreFilePolicyErrorKey(fileName)
 }

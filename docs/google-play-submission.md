@@ -114,7 +114,7 @@ eas build --platform android --profile android-production
 
 可在审核备注中说明：
 
-> MostBox is a user-initiated peer-to-peer file transfer utility. It has no public content catalog, account, chat, ads, payments, or background seeding service. Opening a most:// link only presents a confirmation screen; no download starts until the reviewer taps Confirm Download. Every completed download is recalculated and verified against its UnixFS CID before it is stored. The Play build requires an explicit filename and blocks known application packages, scripts, and executable file types declared by the selected file or link.
+> MostBox is a user-initiated peer-to-peer file transfer utility. It has no public content catalog, account, chat, ads, payments, or background seeding service. Opening a most:// link only presents a confirmation screen; no download starts until the reviewer taps Confirm Download. Every completed download is recalculated and verified against its UnixFS CID before it is stored. The Play build blocks known application packages, scripts, and executable file types declared by the selected file or link.
 
 首次启动时，应用会先展示隐私政策和使用条款；只有审核人员点击“同意并继续”并成功保存同意记录后，应用才创建并启动 P2P 核心。拒绝时不会启动 P2P 网络。
 

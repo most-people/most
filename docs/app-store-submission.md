@@ -83,7 +83,7 @@ npx expo run:ios --configuration Release
 
 可在 App Review Notes 中填写：
 
-> On first launch, MostBox displays its Privacy Policy and Terms of Use. The P2P core starts only after the reviewer taps Accept and Continue. MostBox is a user-initiated peer-to-peer file transfer utility. It has no public content catalog, account, chat, ads, payments, or background seeding service. Opening a most:// link only presents a confirmation screen; no download starts until the reviewer confirms it. Every completed download is recalculated and verified against its UnixFS CID before it is stored. The app requires an explicit filename and blocks known application packages, scripts, and executable file types declared by the selected file or link. Seeding is only promised while the app is in the foreground.
+> On first launch, MostBox displays its Privacy Policy and Terms of Use. The P2P core starts only after the reviewer taps Accept and Continue. MostBox is a user-initiated peer-to-peer file transfer utility. It has no public content catalog, account, chat, ads, payments, or background seeding service. Opening a most:// link only presents a confirmation screen; no download starts until the reviewer confirms it. Every completed download is recalculated and verified against its UnixFS CID before it is stored. The app blocks known application packages, scripts, and executable file types declared by the selected file or link. Seeding is only promised while the app is in the foreground.
 
 提交审核时补充两个无版权争议且持续在线的测试种子：一个小型 TXT 文件和一个 PNG 文件。备注中写明每条 `most://` 链接、预期文件名、CID 和操作步骤；审核完成前保持至少一个对应种子在线。
 

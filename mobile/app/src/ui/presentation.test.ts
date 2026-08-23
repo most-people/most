@@ -44,7 +44,7 @@ test('getMostLinkErrorMessage localizes protocol error codes', () => {
       new Error(MOST_LINK_ERROR_CODES.unsupportedQuery),
       'en'
     ),
-    'A most:// link only supports the filename parameter'
+    'A share link only supports the filename parameter'
   )
   assert.equal(
     getMostLinkErrorMessage(
@@ -55,7 +55,7 @@ test('getMostLinkErrorMessage localizes protocol error codes', () => {
   )
   assert.equal(
     getMostLinkErrorMessage(new Error('unexpected'), 'en'),
-    'Enter a valid most:// link'
+    'Enter a valid most:// link, web link, or CID'
   )
 })
 

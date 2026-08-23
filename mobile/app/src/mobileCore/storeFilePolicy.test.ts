@@ -31,14 +31,11 @@ describe('store file policy', () => {
     assert.equal(getStoreFilePolicyErrorKey('archive.zip'), null)
   })
 
-  it('requires an explicit filename before accepting a download', () => {
+  it('allows downloads without an explicit filename', () => {
+    assert.equal(getStoreDownloadPolicyErrorKey('bafkreicid'), null)
+    assert.equal(getStoreDownloadPolicyErrorKey('report.pdf'), null)
     assert.equal(
-      getStoreDownloadPolicyErrorKey('bafkreicid', false),
-      STORE_FILE_POLICY_ERROR_KEYS.filenameRequired
-    )
-    assert.equal(getStoreDownloadPolicyErrorKey('report.pdf', true), null)
-    assert.equal(
-      getStoreDownloadPolicyErrorKey('update.apk', true),
+      getStoreDownloadPolicyErrorKey('update.apk'),
       STORE_FILE_POLICY_ERROR_KEYS.blockedExecutable
     )
   })

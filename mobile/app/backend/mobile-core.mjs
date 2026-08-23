@@ -18,6 +18,10 @@ const path =
   typeof globalThis.Bare === 'undefined'
     ? (await import('node:path')).default
     : (await import('bare-path')).default
+const RuntimeURL =
+  typeof globalThis.Bare === 'undefined'
+    ? globalThis.URL
+    : (await import('bare-url')).default
 
 const GLOBAL_SHARED_SEED_STRING = 'most-box-global-shared-seed-v1'
 const MAX_PEERS = 64
@@ -104,36 +108,65 @@ function sanitizeFilename(name) {
   return cleaned || 'mostbox-file'
 }
 
+function parseLinkUrl(value) {
+  try {
+    return new RuntimeURL(value)
+  } catch {
+    try {
+      return new RuntimeURL(value, 'https://most.box/')
+    } catch {
+      return null
+    }
+  }
+}
+
+function extractTailTarget(value) {
+  const url = parseLinkUrl(value)
+  if (!url) return value
+
+  if (
+    url.protocol === 'most:' &&
+    (!url.pathname || (url.search && /^\/+$/u.test(url.pathname)))
+  ) {
+    return `${url.hostname}${url.search}`
+  }
+
+  const pathName = url.search ? url.pathname.replace(/\/+$/u, '') : url.pathname
+  const tailPath = pathName.split('/').filter(Boolean).at(-1) || ''
+
+  return `${tailPath}${url.search}`
+}
+
 function splitMostLink(link) {
   const value = String(link || '').trim()
-  if (!value) throw new Error('most:// link is required')
-  if (!value.startsWith('most://')) {
-    throw new Error('Link must start with most://')
-  }
+  if (!value) throw new Error('Share link or CID is required')
 
-  const rest = value.slice('most://'.length)
-  const queryIndex = rest.indexOf('?')
-  const authorityAndPath = queryIndex === -1 ? rest : rest.slice(0, queryIndex)
-  const query = queryIndex === -1 ? '' : rest.slice(queryIndex + 1)
-
-  const slashIndex = authorityAndPath.indexOf('/')
-  if (slashIndex !== -1 && slashIndex !== authorityAndPath.length - 1) {
-    throw new Error('most:// link cannot contain an extra path')
-  }
-
-  const cid = authorityAndPath.replace(/\/$/, '')
+  const tailTarget = extractTailTarget(value)
+  const queryIndex = tailTarget.indexOf('?')
+  const cid = queryIndex === -1 ? tailTarget : tailTarget.slice(0, queryIndex)
+  const query = queryIndex === -1 ? '' : tailTarget.slice(queryIndex + 1)
   let fileName = cid
+  let hasFileName = false
 
   if (query) {
     for (const part of query.split('&')) {
       if (!part) continue
-      const [rawKey, rawValue = ''] = part.split('=')
+      const separatorIndex = part.indexOf('=')
+      const rawKey =
+        separatorIndex === -1 ? part : part.slice(0, separatorIndex)
+      const rawValue =
+        separatorIndex === -1 ? '' : part.slice(separatorIndex + 1)
       const key = decodeURIComponent(rawKey)
       if (key !== 'filename') {
-        throw new Error('most:// link only supports filename query')
+        throw new Error('Share links only support the filename query')
       }
-      const decoded = decodeURIComponent(rawValue.replace(/\+/g, '%20')).trim()
-      if (decoded) fileName = decoded
+      if (!hasFileName) {
+        const decoded = decodeURIComponent(
+          rawValue.replace(/\+/g, '%20')
+        ).trim()
+        if (decoded) fileName = decoded
+        hasFileName = true
+      }
     }
   }
 
