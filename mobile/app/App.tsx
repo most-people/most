@@ -11,7 +11,6 @@ import {
   StatusBar,
   StyleSheet,
   Text,
-  TextInput,
   useWindowDimensions,
   View,
 } from 'react-native'
@@ -65,6 +64,13 @@ import {
   getMostLinkErrorMessage,
   usesAccessibilityLayout,
 } from './src/ui/presentation'
+import {
+  BottomSheetCard,
+  IconButton,
+  MostButton,
+  MostTextInput,
+  getGlassSurfaceStyle,
+} from './src/ui/components'
 import { PrivacyConsentGate } from './src/privacy/PrivacyConsentGate'
 import { PRIVACY_URL, SUPPORT_URL, TERMS_URL } from './src/privacy/legalUrls'
 import type { DocumentPickerAsset } from 'expo-document-picker'
@@ -904,17 +910,13 @@ function MostBoxApp() {
               accessibilityLayout ? styles.headerActionsAccessibility : null,
             ]}
           >
-            <Pressable
+            <IconButton
               accessibilityLabel={t('common.language.choose')}
-              accessibilityRole="button"
               onPress={openLanguageMenu}
-              style={({ pressed }) => [
-                styles.languageButton,
-                pressed ? styles.pressablePressed : null,
-              ]}
+              style={styles.languageButton}
             >
               <Languages size={18} color={theme.colors.textSecondary} />
-            </Pressable>
+            </IconButton>
             <Pressable
               accessibilityLabel={t('app.node.openStatus', {
                 status: statusLabel,
@@ -1052,7 +1054,7 @@ function MostBoxApp() {
                 contentContainerStyle={styles.modalScrollContent}
                 keyboardShouldPersistTaps="handled"
               >
-                <View
+                <BottomSheetCard
                   style={[
                     styles.modalCard,
                     accessibilityLayout ? styles.modalCardAccessibility : null,
@@ -1071,19 +1073,16 @@ function MostBoxApp() {
                           : t('app.receive.title')}
                       </Text>
                     </View>
-                    <Pressable
+                    <IconButton
                       accessibilityLabel={t('common.close')}
-                      accessibilityRole="button"
                       disabled={cancellingDownload}
                       hitSlop={8}
                       onPress={() => void handleCancelDownload()}
-                      style={({ pressed }) => [
-                        styles.closeButton,
-                        pressed ? styles.pressablePressed : null,
-                      ]}
+                      style={styles.closeButton}
+                      variant="ghost"
                     >
                       <X size={20} color={theme.colors.textSecondary} />
-                    </Pressable>
+                    </IconButton>
                   </View>
 
                   {downloadIntent ? (
@@ -1162,7 +1161,7 @@ function MostBoxApp() {
                           </Text>
                         </Pressable>
                       </View>
-                      <TextInput
+                      <MostTextInput
                         autoCapitalize="none"
                         autoCorrect={false}
                         editable={!downloadingCid}
@@ -1205,33 +1204,31 @@ function MostBoxApp() {
                         : null,
                     ]}
                   >
-                    <Pressable
-                      accessibilityRole="button"
+                    <MostButton
                       disabled={cancellingDownload}
                       onPress={() => void handleCancelDownload()}
-                      style={({ pressed }) => [
+                      style={[
                         styles.cancelButton,
                         accessibilityLayout
                           ? styles.modalButtonAccessibility
                           : null,
-                        pressed ? styles.pressablePressed : null,
                       ]}
+                      variant="ghost"
                     >
-                      <Text
-                        maxFontSizeMultiplier={1.5}
-                        style={styles.cancelButtonText}
-                      >
-                        {cancellingDownload
-                          ? t('app.receive.cancelling')
-                          : t('common.cancel')}
-                      </Text>
-                    </Pressable>
+                      {cancellingDownload
+                        ? t('app.receive.cancelling')
+                        : t('common.cancel')}
+                    </MostButton>
                     {downloadIntent ? (
-                      <Pressable
-                        accessibilityRole="button"
+                      <MostButton
                         disabled={!isReady || Boolean(downloadingCid)}
                         onPress={handleConfirmDownload}
-                        style={({ pressed }) => [
+                        labelStyle={[
+                          !isReady || downloadingCid
+                            ? styles.confirmButtonTextDisabled
+                            : null,
+                        ]}
+                        style={[
                           styles.confirmButton,
                           accessibilityLayout
                             ? styles.modalButtonAccessibility
@@ -1239,29 +1236,23 @@ function MostBoxApp() {
                           !isReady || downloadingCid
                             ? styles.confirmButtonDisabled
                             : null,
-                          pressed ? styles.confirmButtonPressed : null,
                         ]}
+                        variant="primary"
                       >
-                        <Text
-                          maxFontSizeMultiplier={1.5}
-                          style={[
-                            styles.confirmButtonText,
-                            !isReady || downloadingCid
-                              ? styles.confirmButtonTextDisabled
-                              : null,
-                          ]}
-                        >
-                          {downloadingCid
-                            ? t('app.receive.downloading')
-                            : t('app.receive.confirmDownload')}
-                        </Text>
-                      </Pressable>
+                        {downloadingCid
+                          ? t('app.receive.downloading')
+                          : t('app.receive.confirmDownload')}
+                      </MostButton>
                     ) : (
-                      <Pressable
-                        accessibilityRole="button"
+                      <MostButton
                         disabled={!downloadLinkInput.trim()}
                         onPress={handleInspectDownload}
-                        style={({ pressed }) => [
+                        labelStyle={[
+                          !downloadLinkInput.trim()
+                            ? styles.confirmButtonTextDisabled
+                            : null,
+                        ]}
+                        style={[
                           styles.confirmButton,
                           accessibilityLayout
                             ? styles.modalButtonAccessibility
@@ -1269,24 +1260,14 @@ function MostBoxApp() {
                           !downloadLinkInput.trim()
                             ? styles.confirmButtonDisabled
                             : null,
-                          pressed ? styles.confirmButtonPressed : null,
                         ]}
+                        variant="primary"
                       >
-                        <Text
-                          maxFontSizeMultiplier={1.5}
-                          style={[
-                            styles.confirmButtonText,
-                            !downloadLinkInput.trim()
-                              ? styles.confirmButtonTextDisabled
-                              : null,
-                          ]}
-                        >
-                          {t('app.receive.checkLink')}
-                        </Text>
-                      </Pressable>
+                        {t('app.receive.checkLink')}
+                      </MostButton>
                     )}
                   </View>
-                </View>
+                </BottomSheetCard>
               </ScrollView>
             </KeyboardAvoidingView>
           </View>
@@ -1339,15 +1320,18 @@ function createStyles(theme: MostBoxTheme) {
       backgroundColor: colors.background,
     },
     header: {
+      ...getGlassSurfaceStyle(theme, 'subtle'),
       minHeight: 72,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
       gap: 16,
       paddingHorizontal: 20,
+      borderRadius: 0,
+      borderWidth: 0,
       borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-      backgroundColor: colors.background,
+      borderBottomColor: colors.borderStrong,
+      backgroundColor: colors.glass,
     },
     headerAccessibility: {
       flexDirection: 'column',
@@ -1365,10 +1349,14 @@ function createStyles(theme: MostBoxTheme) {
       flex: 0,
     },
     brandMark: {
-      width: 24,
+      width: 32,
       height: 32,
       alignItems: 'center',
       justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.medium,
+      backgroundColor: colors.accentSoft,
     },
     brandTextGroup: {
       flex: 1,
@@ -1399,9 +1387,9 @@ function createStyles(theme: MostBoxTheme) {
       alignItems: 'center',
       justifyContent: 'center',
       borderWidth: 1,
-      borderColor: colors.borderStrong,
+      borderColor: colors.border,
       borderRadius: radii.medium,
-      backgroundColor: colors.surface,
+      backgroundColor: colors.glassSubtle,
     },
     statusPill: {
       minHeight: 38,
@@ -1411,9 +1399,9 @@ function createStyles(theme: MostBoxTheme) {
       paddingHorizontal: 10,
       paddingVertical: 5,
       borderWidth: 1,
-      borderColor: colors.borderStrong,
+      borderColor: colors.border,
       borderRadius: radii.medium,
-      backgroundColor: colors.surface,
+      backgroundColor: colors.glassSubtle,
     },
     statusPillAccessibility: {
       flex: 1,
@@ -1438,14 +1426,17 @@ function createStyles(theme: MostBoxTheme) {
       flex: 1,
     },
     tabBar: {
+      ...getGlassSurfaceStyle(theme, 'elevated'),
       minHeight: 62,
       flexDirection: 'row',
       alignItems: 'stretch',
       paddingHorizontal: 8,
-      paddingVertical: 3,
+      paddingVertical: 5,
+      borderRadius: 0,
+      borderWidth: 0,
       borderTopWidth: 1,
-      borderTopColor: colors.border,
-      backgroundColor: colors.surface,
+      borderTopColor: colors.borderStrong,
+      backgroundColor: colors.glassSolid,
     },
     tabButton: {
       flex: 1,
@@ -1453,11 +1444,13 @@ function createStyles(theme: MostBoxTheme) {
       alignItems: 'center',
       justifyContent: 'center',
       gap: 2,
+      borderRadius: radii.medium,
       borderTopWidth: 2,
       borderTopColor: 'transparent',
     },
     tabButtonActive: {
       borderTopColor: colors.accent,
+      backgroundColor: colors.accentSoft,
     },
     tabText: {
       alignSelf: 'stretch',
@@ -1492,11 +1485,11 @@ function createStyles(theme: MostBoxTheme) {
       paddingHorizontal: 20,
       paddingTop: 18,
       paddingBottom: 24,
-      borderTopLeftRadius: 16,
-      borderTopRightRadius: 16,
+      borderTopLeftRadius: radii.large,
+      borderTopRightRadius: radii.large,
       borderTopWidth: 1,
       borderTopColor: colors.borderStrong,
-      backgroundColor: colors.surfaceSolid,
+      backgroundColor: colors.glassHeavy,
     },
     modalCardAccessibility: {
       gap: 14,
@@ -1561,10 +1554,11 @@ function createStyles(theme: MostBoxTheme) {
       maxHeight: 164,
       paddingHorizontal: 14,
       paddingVertical: 12,
-      borderBottomWidth: 1,
-      borderColor: colors.borderStrong,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.medium,
       color: colors.text,
-      backgroundColor: colors.surfaceSubtle,
+      backgroundColor: colors.glassSubtle,
       fontSize: 14,
       lineHeight: 20,
       textAlignVertical: 'top',
@@ -1573,9 +1567,12 @@ function createStyles(theme: MostBoxTheme) {
       gap: 5,
       paddingHorizontal: 12,
       paddingVertical: 10,
+      borderWidth: 1,
       borderLeftWidth: 3,
       borderLeftColor: colors.accent,
-      backgroundColor: colors.surfaceSubtle,
+      borderColor: colors.border,
+      borderRadius: radii.medium,
+      backgroundColor: colors.glassSubtle,
     },
     previewTopRow: {
       flexDirection: 'row',

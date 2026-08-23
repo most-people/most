@@ -32,6 +32,7 @@ import type {
   P2PPingRole,
 } from '../../mobileCore/types'
 import { useMostBoxTheme, type MostBoxTheme } from '../../ui/theme'
+import { getGlassSurfaceStyle, getToneColor } from '../../ui/components'
 
 type P2PPingScreenProps = {
   ping: P2PPing | null
@@ -678,8 +679,10 @@ function createStyles(theme: MostBoxTheme) {
       textAlign: 'center',
     },
     segmented: {
-      backgroundColor: colors.surfaceMuted,
-      borderRadius: radii.medium,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.glassSubtle,
+      borderRadius: 12,
       flexDirection: 'row',
       padding: 3,
     },
@@ -692,11 +695,12 @@ function createStyles(theme: MostBoxTheme) {
       paddingHorizontal: 8,
     },
     segmentActive: {
-      backgroundColor: colors.surfaceSolid,
-      shadowColor: '#000000',
-      shadowOffset: { height: 1, width: 0 },
-      shadowOpacity: theme.mode === 'dark' ? 0.24 : 0.08,
-      shadowRadius: 2,
+      backgroundColor: colors.accentSoft,
+      shadowColor: theme.shadow.color,
+      shadowOffset: { height: 2, width: 0 },
+      shadowOpacity: theme.shadow.opacity,
+      shadowRadius: 8,
+      elevation: 2,
     },
     segmentText: {
       color: colors.textSecondary,
@@ -705,10 +709,7 @@ function createStyles(theme: MostBoxTheme) {
     },
     segmentTextActive: { color: colors.text },
     primarySection: {
-      backgroundColor: colors.surface,
-      borderColor: colors.border,
-      borderRadius: radii.medium,
-      borderWidth: 1,
+      ...getGlassSurfaceStyle(theme, 'subtle'),
       gap: 14,
       padding: 16,
     },
@@ -739,6 +740,7 @@ function createStyles(theme: MostBoxTheme) {
       justifyContent: 'center',
       minHeight: 44,
       paddingHorizontal: 8,
+      backgroundColor: colors.glassSubtle,
     },
     iconActionText: {
       color: colors.accent,
@@ -749,8 +751,8 @@ function createStyles(theme: MostBoxTheme) {
     iconActionTextSuccess: { color: colors.success },
     codeInputRow: { alignItems: 'center', flexDirection: 'row', gap: 10 },
     codeInput: {
-      backgroundColor: colors.surfaceSolid,
-      borderColor: colors.borderStrong,
+      backgroundColor: colors.glassSubtle,
+      borderColor: colors.border,
       borderRadius: radii.medium,
       borderWidth: 1,
       color: colors.text,
@@ -771,11 +773,14 @@ function createStyles(theme: MostBoxTheme) {
       height: 48,
       justifyContent: 'center',
       width: 48,
+      backgroundColor: colors.glassSubtle,
     },
     primaryButton: {
       alignItems: 'center',
       backgroundColor: colors.accent,
+      borderColor: colors.accent,
       borderRadius: radii.medium,
+      borderWidth: 1,
       flexDirection: 'row',
       gap: 8,
       justifyContent: 'center',
@@ -795,6 +800,8 @@ function createStyles(theme: MostBoxTheme) {
     result: { gap: 12 },
     statusBanner: {
       alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
       borderRadius: radii.medium,
       flexDirection: 'row',
       gap: 10,
@@ -802,11 +809,26 @@ function createStyles(theme: MostBoxTheme) {
       paddingHorizontal: 14,
       paddingVertical: 10,
     },
-    statusActive: { backgroundColor: colors.accentSoft },
-    statusSuccess: { backgroundColor: colors.successSoft },
-    statusWarning: { backgroundColor: colors.warningSoft },
-    statusDanger: { backgroundColor: colors.dangerSoft },
-    statusNeutral: { backgroundColor: colors.surfaceMuted },
+    statusActive: {
+      backgroundColor: colors.accentSoft,
+      borderColor: getToneColor(theme, 'accent'),
+    },
+    statusSuccess: {
+      backgroundColor: colors.successSoft,
+      borderColor: getToneColor(theme, 'success'),
+    },
+    statusWarning: {
+      backgroundColor: colors.warningSoft,
+      borderColor: getToneColor(theme, 'warning'),
+    },
+    statusDanger: {
+      backgroundColor: colors.dangerSoft,
+      borderColor: getToneColor(theme, 'danger'),
+    },
+    statusNeutral: {
+      backgroundColor: colors.glassSubtle,
+      borderColor: colors.border,
+    },
     statusText: {
       color: colors.text,
       flex: 1,
@@ -819,10 +841,7 @@ function createStyles(theme: MostBoxTheme) {
       fontVariant: ['tabular-nums'],
     },
     directionList: {
-      backgroundColor: colors.surface,
-      borderColor: colors.border,
-      borderRadius: radii.medium,
-      borderWidth: 1,
+      ...getGlassSurfaceStyle(theme, 'subtle'),
       paddingHorizontal: 14,
     },
     direction: {
@@ -858,11 +877,12 @@ function createStyles(theme: MostBoxTheme) {
     },
     directionDivider: { backgroundColor: colors.border, height: 1 },
     details: {
-      borderBottomColor: colors.border,
-      borderBottomWidth: 1,
-      borderTopColor: colors.border,
-      borderTopWidth: 1,
-      paddingVertical: 4,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.medium,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      backgroundColor: colors.glassSubtle,
     },
     detail: {
       flexDirection: 'row',
@@ -885,6 +905,8 @@ function createStyles(theme: MostBoxTheme) {
     detailDanger: { color: colors.danger },
     cancelButton: {
       alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
       borderRadius: radii.medium,
       flexDirection: 'row',
       gap: 7,
@@ -899,6 +921,8 @@ function createStyles(theme: MostBoxTheme) {
     errorBanner: {
       alignItems: 'flex-start',
       backgroundColor: colors.dangerSoft,
+      borderWidth: 1,
+      borderColor: getToneColor(theme, 'danger'),
       borderRadius: radii.medium,
       flexDirection: 'row',
       gap: 8,

@@ -53,6 +53,11 @@ import {
   useMostBoxTheme,
 } from '../../ui/theme'
 import {
+  getGlassSurfaceStyle,
+  getToneColor,
+  getToneSoftColor,
+} from '../../ui/components'
+import {
   getFriendlyCoreError,
   getTransferDisplayMessage,
   partitionTransfers,
@@ -1124,14 +1129,16 @@ function createNodeStyles(theme: MostBoxTheme) {
     content: {
       flexGrow: 1,
       paddingBottom: 32,
-      gap: 32,
+      gap: 16,
     },
     contentWithEmptyFiles: {
       minHeight: '100%',
     },
     section: {
-      gap: 10,
+      ...getGlassSurfaceStyle(theme, 'subtle'),
+      gap: 12,
       marginHorizontal: 20,
+      padding: 14,
     },
     topSection: {
       marginTop: 20,
@@ -1146,6 +1153,7 @@ function createNodeStyles(theme: MostBoxTheme) {
       flexDirection: 'column',
     },
     actionButton: {
+      borderWidth: 1,
       flex: 1,
       minHeight: 52,
       flexDirection: 'row',
@@ -1157,11 +1165,11 @@ function createNodeStyles(theme: MostBoxTheme) {
     },
     actionButtonPrimary: {
       backgroundColor: colors.accent,
+      borderColor: colors.accent,
     },
     actionButtonSecondary: {
-      borderWidth: 1,
-      borderColor: colors.borderStrong,
-      backgroundColor: colors.surface,
+      borderColor: colors.border,
+      backgroundColor: colors.glassSubtle,
     },
     actionButtonAccessibility: {
       flex: 0,
@@ -1191,8 +1199,8 @@ function createNodeStyles(theme: MostBoxTheme) {
     },
     knowledgeAction: {
       alignItems: 'center',
-      backgroundColor: colors.surface,
-      borderColor: colors.borderStrong,
+      backgroundColor: colors.glassSubtle,
+      borderColor: colors.border,
       borderRadius: radii.medium,
       borderWidth: 1,
       flex: 1,
@@ -1247,8 +1255,11 @@ function createNodeStyles(theme: MostBoxTheme) {
       gap: 10,
       paddingHorizontal: 12,
       paddingVertical: 10,
+      borderWidth: 1,
       borderLeftWidth: 3,
       borderLeftColor: colors.danger,
+      borderColor: getToneColor(theme, 'danger'),
+      borderRadius: radii.medium,
       backgroundColor: colors.dangerSoft,
     },
     nodeErrorBannerAccessibility: {
@@ -1282,20 +1293,19 @@ function createNodeStyles(theme: MostBoxTheme) {
     },
     metricsRow: {
       flexDirection: 'row',
-      gap: 1,
-      borderTopWidth: 1,
-      borderBottomWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.border,
+      gap: 8,
+      backgroundColor: 'transparent',
     },
     p2pPingRow: {
       alignItems: 'center',
-      borderBottomColor: colors.border,
-      borderBottomWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.medium,
+      borderWidth: 1,
       flexDirection: 'row',
       gap: 10,
       minHeight: 56,
-      paddingHorizontal: 4,
+      paddingHorizontal: 12,
+      backgroundColor: colors.glassSubtle,
     },
     p2pPingText: { flex: 1, gap: 2 },
     p2pPingTitle: { color: colors.text, fontSize: 14, fontWeight: '600' },
@@ -1310,7 +1320,10 @@ function createNodeStyles(theme: MostBoxTheme) {
       gap: 5,
       paddingHorizontal: 10,
       paddingVertical: 14,
-      backgroundColor: colors.surfaceSubtle,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.medium,
+      backgroundColor: colors.glassSubtle,
     },
     metricAccessibility: {
       flex: 0,
@@ -1331,14 +1344,15 @@ function createNodeStyles(theme: MostBoxTheme) {
       fontWeight: '500',
     },
     holdingList: {
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
+      gap: 10,
     },
     holdingItem: {
       gap: 14,
-      paddingVertical: 16,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
+      padding: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.medium,
+      backgroundColor: colors.glassSubtle,
     },
     holdingTopRow: {
       flexDirection: 'row',
@@ -1349,10 +1363,12 @@ function createNodeStyles(theme: MostBoxTheme) {
       flexDirection: 'column',
     },
     fileIcon: {
-      width: 28,
-      height: 32,
+      width: 38,
+      height: 38,
       alignItems: 'center',
       justifyContent: 'center',
+      borderRadius: radii.medium,
+      backgroundColor: colors.accentSoft,
     },
     holdingMain: {
       flex: 1,
@@ -1375,25 +1391,31 @@ function createNodeStyles(theme: MostBoxTheme) {
       fontWeight: '400',
     },
     badge: {
-      minHeight: 22,
+      minHeight: 24,
       justifyContent: 'center',
-      paddingHorizontal: 0,
+      paddingHorizontal: 9,
+      borderRadius: radii.full,
+      borderWidth: 1,
     },
     badgeText: {
       fontSize: 11,
       fontWeight: '600',
     },
     successBadge: {
-      backgroundColor: 'transparent',
+      backgroundColor: getToneSoftColor(theme, 'success'),
+      borderColor: getToneColor(theme, 'success'),
     },
     dangerBadge: {
-      backgroundColor: 'transparent',
+      backgroundColor: getToneSoftColor(theme, 'danger'),
+      borderColor: getToneColor(theme, 'danger'),
     },
     pendingBadge: {
-      backgroundColor: 'transparent',
+      backgroundColor: getToneSoftColor(theme, 'warning'),
+      borderColor: getToneColor(theme, 'warning'),
     },
     mutedBadge: {
-      backgroundColor: 'transparent',
+      backgroundColor: getToneSoftColor(theme, 'muted'),
+      borderColor: colors.border,
     },
     successBadgeText: {
       color: colors.success,
@@ -1409,10 +1431,12 @@ function createNodeStyles(theme: MostBoxTheme) {
     },
     cidBlock: {
       gap: 3,
-      paddingVertical: 8,
-      borderTopWidth: 1,
-      borderBottomWidth: 1,
+      paddingHorizontal: 10,
+      paddingVertical: 9,
+      borderWidth: 1,
       borderColor: colors.border,
+      borderRadius: radii.small,
+      backgroundColor: colors.glassSubtle,
     },
     cidLabel: {
       color: colors.textMuted,
@@ -1453,11 +1477,14 @@ function createNodeStyles(theme: MostBoxTheme) {
       height: 44,
       alignItems: 'center',
       justifyContent: 'center',
-      borderRadius: radii.small,
-      backgroundColor: 'transparent',
+      borderRadius: radii.medium,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.glassSubtle,
     },
     smallActionDanger: {
-      backgroundColor: 'transparent',
+      backgroundColor: colors.dangerSoft,
+      borderColor: getToneColor(theme, 'danger'),
     },
     smallActionDisabled: {
       backgroundColor: colors.surfaceMuted,
@@ -1467,23 +1494,25 @@ function createNodeStyles(theme: MostBoxTheme) {
       opacity: 0.62,
     },
     linkList: {
-      borderTopWidth: 1,
-      borderBottomWidth: 1,
-      borderColor: colors.border,
+      gap: 8,
     },
     linkRow: {
       minHeight: 56,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingHorizontal: 0,
+      paddingHorizontal: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.medium,
+      backgroundColor: colors.glassSubtle,
     },
     linkRowPressed: {
       backgroundColor: colors.accentSoft,
     },
     linkDivider: {
-      height: 1,
-      backgroundColor: colors.border,
+      height: 0,
+      backgroundColor: 'transparent',
     },
     linkText: {
       color: colors.text,
@@ -1494,14 +1523,15 @@ function createNodeStyles(theme: MostBoxTheme) {
       gap: 32,
     },
     transferList: {
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
+      gap: 10,
     },
     transferItem: {
       gap: 12,
-      paddingVertical: 16,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
+      padding: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.medium,
+      backgroundColor: colors.glassSubtle,
     },
     transferTopRow: {
       flexDirection: 'row',
@@ -1529,8 +1559,9 @@ function createNodeStyles(theme: MostBoxTheme) {
       fontWeight: '400',
     },
     progressTrack: {
-      height: 3,
+      height: 6,
       overflow: 'hidden',
+      borderRadius: radii.full,
       backgroundColor: colors.surfaceMuted,
     },
     progressFill: {
@@ -1564,6 +1595,8 @@ function createNodeStyles(theme: MostBoxTheme) {
       gap: 6,
       paddingHorizontal: 12,
       borderRadius: radii.medium,
+      borderWidth: 1,
+      borderColor: colors.border,
       backgroundColor: colors.accentSoft,
     },
     transferRetryButtonDisabled: {
@@ -1581,10 +1614,11 @@ function createNodeStyles(theme: MostBoxTheme) {
       alignItems: 'center',
       justifyContent: 'space-between',
       gap: 12,
-      paddingVertical: 8,
-      borderTopWidth: 1,
-      borderBottomWidth: 1,
+      padding: 12,
+      borderWidth: 1,
       borderColor: colors.border,
+      borderRadius: radii.medium,
+      backgroundColor: colors.glassSubtle,
     },
     diagnosticsTitleGroup: {
       flex: 1,
@@ -1603,15 +1637,16 @@ function createNodeStyles(theme: MostBoxTheme) {
       fontWeight: '400',
     },
     logList: {
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
+      gap: 8,
     },
     logItem: {
       flexDirection: 'row',
       gap: 10,
-      paddingVertical: 12,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
+      padding: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.small,
+      backgroundColor: colors.glassSubtle,
     },
     logItemAccessibility: {
       flexDirection: 'column',
@@ -1651,10 +1686,11 @@ function createNodeStyles(theme: MostBoxTheme) {
     emptyState: {
       alignItems: 'flex-start',
       gap: 5,
-      paddingVertical: 28,
-      borderTopWidth: 1,
-      borderBottomWidth: 1,
+      padding: 16,
+      borderWidth: 1,
       borderColor: colors.border,
+      borderRadius: radii.medium,
+      backgroundColor: colors.glassSubtle,
     },
     emptyFilesSection: {
       flex: 1,

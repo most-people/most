@@ -69,6 +69,7 @@ import {
   type MostBoxTheme,
   useMostBoxTheme,
 } from '../../ui/theme'
+import { getGlassSurfaceStyle } from '../../ui/components'
 import { usesAccessibilityLayout } from '../../ui/presentation'
 import { useI18n, type Locale } from '../../i18n'
 
@@ -1441,6 +1442,8 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
     noteActionsAccessibility: { flexDirection: 'column' },
     noteAction: {
       alignItems: 'center',
+      borderWidth: 1,
+      borderColor: theme.colors.border,
       borderRadius: theme.radii.medium,
       flex: 1,
       flexDirection: 'row',
@@ -1454,11 +1457,12 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
       minHeight: 64,
       width: '100%',
     },
-    noteActionPrimary: { backgroundColor: theme.colors.accent },
+    noteActionPrimary: {
+      backgroundColor: theme.colors.accent,
+      borderColor: theme.colors.accent,
+    },
     noteActionSecondary: {
-      backgroundColor: theme.colors.surface,
-      borderColor: theme.colors.borderStrong,
-      borderWidth: 1,
+      backgroundColor: theme.colors.glassSubtle,
     },
     noteActionText: {
       color: theme.colors.accent,
@@ -1467,11 +1471,8 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
     },
     noteActionTextPrimary: { color: theme.colors.onAccent },
     searchBox: {
+      ...getGlassSurfaceStyle(theme, 'subtle'),
       alignItems: 'center',
-      backgroundColor: theme.colors.surface,
-      borderColor: theme.colors.border,
-      borderRadius: theme.radii.medium,
-      borderWidth: 1,
       flexDirection: 'row',
       gap: 8,
       minHeight: 46,
@@ -1499,16 +1500,18 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
     },
     breadcrumbTextActive: { color: theme.colors.text, fontWeight: '700' },
     itemList: {
-      borderTopColor: theme.colors.border,
-      borderTopWidth: 1,
+      gap: 10,
       marginTop: 12,
     },
     itemRow: {
       alignItems: 'center',
-      borderBottomColor: theme.colors.border,
-      borderBottomWidth: 1,
+      borderColor: theme.colors.border,
+      borderRadius: theme.radii.medium,
+      borderWidth: 1,
       flexDirection: 'row',
       minHeight: 66,
+      paddingHorizontal: 10,
+      backgroundColor: theme.colors.glassSubtle,
     },
     itemMain: {
       alignItems: 'center',
@@ -1520,7 +1523,7 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
     },
     itemIcon: {
       alignItems: 'center',
-      borderRadius: theme.radii.small,
+      borderRadius: theme.radii.medium,
       height: 38,
       justifyContent: 'center',
       width: 38,
@@ -1532,12 +1535,14 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
     itemMeta: { color: theme.colors.textMuted, fontSize: 12 },
     rowAction: {
       alignItems: 'center',
+      borderRadius: theme.radii.medium,
       height: 44,
       justifyContent: 'center',
       width: 44,
     },
     loadingState: { alignItems: 'center', gap: 12, paddingVertical: 54 },
     emptyState: {
+      ...getGlassSurfaceStyle(theme, 'subtle'),
       alignItems: 'center',
       gap: 8,
       justifyContent: 'center',
@@ -1567,8 +1572,11 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
       textAlign: 'center',
     },
     detailHeader: {
+      ...getGlassSurfaceStyle(theme, 'subtle'),
       alignItems: 'center',
-      borderBottomColor: theme.colors.border,
+      borderRadius: 0,
+      borderWidth: 0,
+      borderBottomColor: theme.colors.borderStrong,
       borderBottomWidth: 1,
       flexDirection: 'row',
       gap: 8,
@@ -1581,25 +1589,28 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
     detailPath: { color: theme.colors.textMuted, fontSize: 11, marginTop: 2 },
     iconButton: {
       alignItems: 'center',
-      borderRadius: theme.radii.small,
+      borderRadius: theme.radii.medium,
       height: 42,
       justifyContent: 'center',
       width: 42,
+      backgroundColor: theme.colors.glassSubtle,
     },
     iconButtonSmall: {
       alignItems: 'center',
-      borderRadius: theme.radii.small,
+      borderRadius: theme.radii.medium,
       height: 36,
       justifyContent: 'center',
       width: 36,
+      backgroundColor: theme.colors.glassSubtle,
     },
     previewExportButton: {
       alignItems: 'center',
-      borderRadius: theme.radii.small,
+      borderRadius: theme.radii.medium,
       flexDirection: 'row',
       gap: 5,
       minHeight: 36,
       paddingHorizontal: 10,
+      backgroundColor: theme.colors.glassSubtle,
     },
     previewExportButtonText: {
       color: theme.colors.textSecondary,
@@ -1639,7 +1650,7 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
     unsavedLabel: { color: theme.colors.warning, fontSize: 11, marginTop: 2 },
     editorFields: { gap: 8, paddingHorizontal: 16, paddingVertical: 10 },
     titleInput: {
-      backgroundColor: theme.colors.surface,
+      backgroundColor: theme.colors.glassSubtle,
       borderColor: theme.colors.border,
       borderRadius: theme.radii.medium,
       borderWidth: 1,
@@ -1651,7 +1662,7 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
       paddingVertical: 8,
     },
     pathInput: {
-      backgroundColor: theme.colors.surface,
+      backgroundColor: theme.colors.glassSubtle,
       borderColor: theme.colors.border,
       borderRadius: theme.radii.medium,
       borderWidth: 1,
@@ -1669,8 +1680,10 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
       paddingHorizontal: 16,
     },
     segmentedControl: {
-      backgroundColor: theme.colors.surfaceMuted,
-      borderRadius: theme.radii.medium,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.glassSubtle,
+      borderRadius: 12,
       flexDirection: 'row',
       padding: 3,
     },
@@ -1681,7 +1694,14 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
       paddingHorizontal: 12,
       paddingVertical: 7,
     },
-    segmentActive: { backgroundColor: theme.colors.surface },
+    segmentActive: {
+      backgroundColor: theme.colors.accentSoft,
+      shadowColor: theme.shadow.color,
+      shadowOffset: { height: 2, width: 0 },
+      shadowOpacity: theme.shadow.opacity,
+      shadowRadius: 8,
+      elevation: 2,
+    },
     segmentText: {
       color: theme.colors.textSecondary,
       fontSize: 13,
@@ -1689,6 +1709,7 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
     },
     segmentTextActive: { color: theme.colors.text },
     toolbar: {
+      backgroundColor: theme.colors.glassSubtle,
       borderBottomColor: theme.colors.border,
       borderBottomWidth: 1,
       borderTopColor: theme.colors.border,
@@ -1703,7 +1724,7 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
     },
     toolButton: {
       alignItems: 'center',
-      borderRadius: theme.radii.small,
+      borderRadius: theme.radii.medium,
       height: 38,
       justifyContent: 'center',
       width: 40,
@@ -1726,6 +1747,7 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
       justifyContent: 'center',
       minHeight: 42,
       paddingHorizontal: 16,
+      backgroundColor: theme.colors.glassSubtle,
     },
     secondaryButtonText: {
       color: theme.colors.textSecondary,
@@ -1735,7 +1757,9 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
     primarySmallButton: {
       alignItems: 'center',
       backgroundColor: theme.colors.accent,
+      borderColor: theme.colors.accent,
       borderRadius: theme.radii.medium,
+      borderWidth: 1,
       flexDirection: 'row',
       gap: 6,
       justifyContent: 'center',
@@ -1755,10 +1779,8 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
     },
     modalKeyboard: { width: '100%' },
     promptCard: {
-      backgroundColor: theme.colors.surfaceSolid,
-      borderColor: theme.colors.border,
-      borderRadius: theme.radii.large,
-      borderWidth: 1,
+      ...getGlassSurfaceStyle(theme, 'elevated'),
+      backgroundColor: theme.colors.glassHeavy,
       gap: 14,
       padding: 18,
     },
@@ -1774,7 +1796,7 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
       fontWeight: '700',
     },
     promptInput: {
-      backgroundColor: theme.colors.surface,
+      backgroundColor: theme.colors.glassSubtle,
       borderColor: theme.colors.border,
       borderRadius: theme.radii.medium,
       borderWidth: 1,

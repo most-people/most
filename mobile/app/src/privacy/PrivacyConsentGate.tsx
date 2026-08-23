@@ -21,6 +21,7 @@ import {
   type MostBoxTheme,
   useMostBoxTheme,
 } from '../ui/theme'
+import { getGlassSurfaceStyle } from '../ui/components'
 import { PRIVACY_URL, TERMS_URL } from './legalUrls'
 import {
   persistPrivacyConsent,
@@ -261,12 +262,15 @@ function createStyles(theme: MostBoxTheme) {
       alignItems: 'center',
       justifyContent: 'center',
       borderWidth: 1,
-      borderColor: colors.borderStrong,
+      borderColor: colors.border,
       borderRadius: radii.medium,
-      backgroundColor: colors.surface,
+      backgroundColor: colors.glassSubtle,
     },
     notice: {
+      ...getGlassSurfaceStyle(theme, 'elevated'),
       gap: 20,
+      padding: 22,
+      backgroundColor: colors.glassHeavy,
     },
     title: {
       color: colors.text,
@@ -287,7 +291,11 @@ function createStyles(theme: MostBoxTheme) {
     linkButton: {
       minHeight: 44,
       justifyContent: 'center',
-      paddingHorizontal: 4,
+      paddingHorizontal: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.medium,
+      backgroundColor: colors.glassSubtle,
     },
     linkText: {
       color: colors.accent,
@@ -302,6 +310,8 @@ function createStyles(theme: MostBoxTheme) {
       alignItems: 'center',
       justifyContent: 'center',
       paddingHorizontal: 18,
+      borderWidth: 1,
+      borderColor: colors.accent,
       borderRadius: radii.medium,
       backgroundColor: colors.accent,
     },
@@ -318,6 +328,10 @@ function createStyles(theme: MostBoxTheme) {
       alignItems: 'center',
       justifyContent: 'center',
       paddingHorizontal: 18,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.medium,
+      backgroundColor: colors.glassSubtle,
     },
     declineButtonText: {
       color: colors.textSecondary,
