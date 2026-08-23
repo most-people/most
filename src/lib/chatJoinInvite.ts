@@ -7,11 +7,12 @@ export interface ChatJoinInviteChannel {
 }
 
 export interface ChatJoinInvitePayload {
+  expires_at: number
   node_url?: string
   node_invite?: string
   locale?: Locale
-  uid?: string
-  theme?: 'sparkbit'
+  uid: string
+  theme?: 'st'
   appearance?: 'dark' | 'light'
   logo?: string
   logo_dark?: string
@@ -50,7 +51,7 @@ function normalizeOptionalString(value: unknown) {
 
 function normalizeInviteTheme(value: unknown): ChatJoinInvitePayload['theme'] {
   const theme = normalizeOptionalString(value)
-  return theme === 'sparkbit' ? 'sparkbit' : undefined
+  return theme === 'st' ? 'st' : undefined
 }
 
 function normalizeInviteAppearance(
@@ -68,6 +69,7 @@ export function normalizeChatJoinInvitePayload(
   const value = parseNestedJsonText(input)
   if (!isRecord(value)) return null
 
+  const expiresAt = value.expires_at
   const uid = normalizeOptionalString(value.uid)
   const rawChannels = Array.isArray(value.channels) ? value.channels : []
   const channels = rawChannels
@@ -78,13 +80,22 @@ export function normalizeChatJoinInvitePayload(
     }))
     .filter(channel => channel.id)
 
-  if (channels.length === 0) return null
+  if (
+    typeof expiresAt !== 'number' ||
+    !Number.isSafeInteger(expiresAt) ||
+    expiresAt <= 0 ||
+    !uid ||
+    channels.length === 0
+  ) {
+    return null
+  }
 
   return {
+    expires_at: expiresAt,
     node_url: normalizeOptionalString(value.node_url) || undefined,
     node_invite: normalizeOptionalString(value.node_invite) || undefined,
     locale: normalizeChatJoinInviteLocale(value.locale),
-    uid: uid || undefined,
+    uid,
     theme: normalizeInviteTheme(value.theme),
     appearance: normalizeInviteAppearance(value.appearance),
     logo: normalizeOptionalString(value.logo) || undefined,
@@ -95,4 +106,11 @@ export function normalizeChatJoinInvitePayload(
     name: normalizeOptionalString(value.name) || undefined,
     channels,
   }
+}
+
+export function isChatJoinInviteExpired(
+  invite: Pick<ChatJoinInvitePayload, 'expires_at'>,
+  now = Date.now()
+) {
+  return invite.expires_at <= now
 }

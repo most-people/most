@@ -6,7 +6,7 @@
 [![Node.js version](https://img.shields.io/badge/node-%3E%3D22.12-brightgreen)](https://nodejs.org)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-[下载客户端](https://most.box/download) · [在线入口](https://most.box) · [验收指南](docs/acceptance.md) · [参与贡献](CONTRIBUTING.md) · [问题讨论](https://github.com/most-people/most/discussions)
+[下载客户端](https://most.box/download) · [在线入口](https://most.box) · [验收指南](docs/acceptance.md) · [ST 邀请集成](docs/st-chat-join-integration.md) · [参与贡献](CONTRIBUTING.md) · [问题讨论](https://github.com/most-people/most/discussions)
 
 MostBox 不要求先把文件上传到中心化网盘。发布者发送一个 `most://` 链接，接收者从在线节点下载完整文件并重算 CID；校验通过后，接收者默认继续做种。
 

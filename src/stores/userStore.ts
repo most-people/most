@@ -95,7 +95,7 @@ function normalizeIdentity(input: unknown): UserIdentity | null {
       Number.isFinite(profileUpdatedAt) && profileUpdatedAt > 0
         ? Math.floor(profileUpdatedAt)
         : undefined,
-    theme: value.theme === 'sparkbit' ? value.theme : undefined,
+    theme: value.theme === 'st' ? value.theme : undefined,
   }
 }
 

@@ -5,7 +5,6 @@ import { AppEmpty } from '~/components/AppEmpty'
 import { ChatRestoringIndicator } from '~/features/chat/ChatRestoringIndicator'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
-import { createLoginIdentity } from '~server/src/utils/userIdentity.js'
 import {
   checkBackendConnectionTarget,
   configureBackend,
@@ -17,6 +16,7 @@ import { channelApi } from '~/lib/channelApi'
 import { getUserChannelProfile } from '~/lib/userProfile'
 import { translateMessage, useI18n } from '~/lib/i18n'
 import {
+  isChatJoinInviteExpired,
   normalizeChatJoinInvitePayload,
   type ChatJoinInvitePayload,
 } from '~/lib/chatJoinInvite'
@@ -24,6 +24,7 @@ import {
   decryptChatJoinToken,
   getChatJoinTokenFromHash,
 } from '~/lib/chatJoinToken'
+import { createChatJoinInviteIdentity } from '~/lib/chatJoinIdentity'
 import { shouldConnectChatJoinInviteNode } from '~/lib/chatJoinRemote'
 import { getChatJoinTestInvite } from '~/lib/chatJoinTestData.js'
 import { buildChatSharePath } from '~/lib/chatRoom.js'
@@ -52,7 +53,6 @@ function ChatJoinContent() {
       : getChatJoinTokenFromHash(window.location.hash)
   const hasBackend = useAppStore(s => s.hasBackend)
   const setAppearance = useAppStore(s => s.setAppearance)
-  const identity = useUserStore(s => s.identity)
   const setUserIdentity = useUserStore(s => s.setUserIdentity)
 
   const [error, setError] = useState('')
@@ -86,9 +86,7 @@ function ChatJoinContent() {
       return
     }
 
-    const flowKey = fixtureInvite
-      ? `fixture:${fixture}`
-      : `${token}:${identity?.address || ''}`
+    const flowKey = fixtureInvite ? `fixture:${fixture}` : token
     if (flowKeyRef.current === flowKey) return
     flowKeyRef.current = flowKey
     setError('')
@@ -146,24 +144,8 @@ function ChatJoinContent() {
         throw new Error(translateForInvite('chatJoin.error.noBackend'))
       }
 
-      let nextIdentity = useUserStore.getState().identity
-      if (fixtureInvite?.uid) {
-        const fixtureIdentity = createLoginIdentity(fixtureInvite.uid, '')
-        nextIdentity = {
-          ...fixtureIdentity,
-          theme: invite.theme,
-          displayName: invite.name || fixtureIdentity.displayName,
-          logo: invite.logo,
-          logo_dark: invite.logo_dark,
-          data: invite.data,
-          avatar: invite.avatar,
-          tag: invite.tag,
-        }
-        setUserIdentity(nextIdentity)
-      } else if (!nextIdentity) {
-        useUserStore.getState().openLoginModal()
-        throw new Error(translateForInvite('chatJoin.error.loginRequired'))
-      }
+      const nextIdentity = createChatJoinInviteIdentity(invite)
+      setUserIdentity(nextIdentity)
 
       let firstJoinedChannelKey = ''
       for (const channel of invite.channels) {
@@ -200,6 +182,10 @@ function ChatJoinContent() {
           setError(t('chatJoin.error.invalidInvite'))
           return
         }
+        if (isChatJoinInviteExpired(invite)) {
+          setError(t('chatJoin.error.expired'))
+          return
+        }
         await runJoinFlow(invite)
       } catch (err) {
         setError(
@@ -216,7 +202,6 @@ function ChatJoinContent() {
   }, [
     fixture,
     hasBackend,
-    identity?.address,
     retryAttempt,
     setAppearance,
     setLocale,

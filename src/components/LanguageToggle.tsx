@@ -2,7 +2,7 @@ import { Check, Languages, Earth } from 'lucide-react'
 import { ActionMenu } from '~/components/ui'
 import { LOCALES, localeNames, useI18n, type Locale } from '~/lib/i18n'
 
-export type LanguageToggleTheme = 'sparkbit'
+export type LanguageToggleTheme = 'st'
 
 interface LanguageToggleProps {
   theme?: LanguageToggleTheme
@@ -11,7 +11,7 @@ interface LanguageToggleProps {
 export function getLanguageToggleLocales(
   theme?: LanguageToggleTheme
 ): Locale[] {
-  return theme === 'sparkbit'
+  return theme === 'st'
     ? LOCALES.filter(item => item !== 'zh-CN')
     : [...LOCALES]
 }
@@ -45,7 +45,7 @@ export function LanguageToggle({ theme }: LanguageToggleProps) {
           title={label}
           aria-label={label}
         >
-          {theme === 'sparkbit' ? <Earth size={16} /> : <Languages size={16} />}
+          {theme === 'st' ? <Earth size={16} /> : <Languages size={16} />}
         </button>
       )}
     />

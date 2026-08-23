@@ -376,7 +376,7 @@ function ChatPage() {
   >([])
   const [channelMemberProfilesLoadedKey, setChannelMemberProfilesLoadedKey] =
     useState('')
-  const isInviteUser = userIdentity?.theme === 'sparkbit'
+  const isInviteUser = userIdentity?.theme === 'st'
   const inviteTicketUrl =
     isInviteUser && userIdentity?.data ? userIdentity.data : ''
   const inviteBaseLogo = isInviteUser ? userIdentity?.logo || '' : ''
@@ -2429,13 +2429,11 @@ function ChatPage() {
     (!activeChannel || isLoadingActiveChannelMessages)
   const chatLayoutClassName = [
     'chat-app-layout',
-    isInviteUser ? 'sparkbit-chat-layout' : '',
+    isInviteUser ? 'st-chat-layout' : '',
   ]
     .filter(Boolean)
     .join(' ')
-  const sparkbitActionMenuClassName = isInviteUser
-    ? 'sparkbit-chat-action-menu'
-    : undefined
+  const stActionMenuClassName = isInviteUser ? 'st-chat-action-menu' : undefined
 
   const chatHeaderTitle = activeChannel ? (
     <h2 className="header-title" translate="no">
@@ -2508,7 +2506,7 @@ function ChatPage() {
       className={chatLayoutClassName}
       defaultHide={isInviteUser}
       hideAccountMenu={isInviteUser}
-      languageTheme={isInviteUser ? 'sparkbit' : undefined}
+      languageTheme={isInviteUser ? 'st' : undefined}
       sidebar={({ closeSidebar }) => (
         <>
           <AppTop onNavigate={closeSidebar} />
@@ -2553,7 +2551,7 @@ function ChatPage() {
                     channelMentionUnreadPreview[getChannelKey(channel)]
                   )}
                   title={getChannelTitle(channel)}
-                  menuClassName={sparkbitActionMenuClassName}
+                  menuClassName={stActionMenuClassName}
                   onSelect={() => {
                     handleOpenChannel(channel)
                     closeSidebar()
@@ -2713,7 +2711,7 @@ function ChatPage() {
             attachmentInputRef={attachmentInputRef}
             inputRef={channelComposerInputRef}
             mentionMenu={mentionMenu}
-            attachmentMenuClassName={sparkbitActionMenuClassName}
+            attachmentMenuClassName={stActionMenuClassName}
             showVoiceRoom={!isInviteUser}
             onMessageChange={handleChannelInputChange}
             onSelectionChange={handleComposerSelectionChange}

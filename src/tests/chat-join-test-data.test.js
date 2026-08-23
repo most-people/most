@@ -15,9 +15,10 @@ describe('chat join test data', () => {
     )
     assert.deepEqual(
       CHAT_JOIN_TEST_INVITES.map(invite => invite.theme),
-      ['sparkbit', undefined]
+      ['st', undefined]
     )
     for (const invite of CHAT_JOIN_TEST_INVITES) {
+      assert.equal(invite.expires_at, 4102444800000)
       assert.ok(invite.name)
       assert.ok(invite.avatar.startsWith('data:image/svg+xml,'))
       assert.deepEqual(invite.channels, [CHAT_JOIN_TEST_CHANNEL])

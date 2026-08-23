@@ -12,7 +12,7 @@ export const CHAT_JOIN_TEST_CHANNEL = Object.freeze({
 export const CHAT_JOIN_TEST_ACCOUNTS = Object.freeze([
   Object.freeze({
     uid: 'user',
-    theme: 'sparkbit',
+    theme: 'st',
     name: '测试用户',
     avatar: USER_AVATAR,
   }),
@@ -26,6 +26,7 @@ export const CHAT_JOIN_TEST_ACCOUNTS = Object.freeze([
 export const CHAT_JOIN_TEST_INVITES = Object.freeze(
   CHAT_JOIN_TEST_ACCOUNTS.map(account =>
     Object.freeze({
+      expires_at: 4102444800000,
       locale: 'zh-CN',
       uid: account.uid,
       theme: account.theme,

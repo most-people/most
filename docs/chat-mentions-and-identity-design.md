@@ -108,13 +108,22 @@ type MemberTag = LocalizedTag | null
 
 ### Join Invite
 
-当前 join payload 只描述节点、频道和界面偏好，不创建或覆盖接收者身份。接收者使用已经登录的本地身份加入频道，因此第三方不能通过邀请链接注入昵称、头像或 `tag`：
+当前 join payload 会按 `uid` 创建或切换接收者的本地身份，并覆盖邀请提供的昵称、头像、品牌和 `tag`。因此完整邀请链接必须只从可信来源打开：
 
 ```ts
 interface ChatJoinInvitePayload {
+  expires_at: number
+  uid: string
   node_url?: string
   node_invite?: string
   locale?: Locale
+  name?: string
+  avatar?: string
+  tag?: LocalizedTag
+  logo?: string
+  logo_dark?: string
+  theme?: 'st'
+  data?: string
   appearance?: 'dark' | 'light'
   channels: Array<{ id: string; name?: string }>
 }
@@ -124,12 +133,15 @@ interface ChatJoinInvitePayload {
 
 ```json
 {
+  "expires_at": 1893456000000,
+  "uid": "demo-user",
+  "name": "Demo User",
   "locale": "zh-CN",
   "channels": [{ "id": "support", "name": "客服频道" }]
 }
 ```
 
-邀请使用单个 URL fragment capability token：`https://most.box/chat/join#<token>`。token 在浏览器本地解密，fragment 不会随 HTTP 请求发送到官网或 CDN；持有完整链接的人仍然具备使用邀请的能力。
+邀请使用单个 URL fragment capability token：`https://most.box/chat/join#<token>`。token 在浏览器本地解密，fragment 不会随 HTTP 请求发送到官网或 CDN；持有完整链接的人具备切换邀请身份和加入频道的能力。
 
 ### UserIdentity
 

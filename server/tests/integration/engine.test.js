@@ -4706,14 +4706,14 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
 
       await engine.createChannel(channelName, 'personal', {
         ownerAddress: service,
-        displayName: 'SparkBit AI Support',
+        displayName: 'ST AI Support',
       })
 
       await withMockedDateNow(now, async () => {
         engine.joinChannelPresence(channelName, {
           ownerAddress: service,
           sessionId: 'service-ai',
-          displayName: 'SparkBit AI Support',
+          displayName: 'ST AI Support',
           avatar: 'https://example.test/service.png',
         })
       })
@@ -4722,7 +4722,7 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         ownerAddress: service,
       })
       assert.strictEqual(presence.length, 1)
-      assert.strictEqual(presence[0].displayName, 'SparkBit AI Support')
+      assert.strictEqual(presence[0].displayName, 'ST AI Support')
       assert.strictEqual(presence[0].avatar, 'https://example.test/service.png')
       assert.strictEqual(presence[0].profileUpdatedAt, now)
     })
