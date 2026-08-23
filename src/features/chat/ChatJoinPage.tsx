@@ -17,42 +17,18 @@ import { channelApi } from '~/lib/channelApi'
 import { getUserChannelProfile } from '~/lib/userProfile'
 import { translateMessage, useI18n } from '~/lib/i18n'
 import {
-  CHAT_JOIN_DEFAULT_API_BASE,
   normalizeChatJoinInvitePayload,
   type ChatJoinInvitePayload,
 } from '~/lib/chatJoinInvite'
+import {
+  decryptChatJoinToken,
+  getChatJoinTokenFromHash,
+} from '~/lib/chatJoinToken'
 import { shouldConnectChatJoinInviteNode } from '~/lib/chatJoinRemote'
 import { getChatJoinTestInvite } from '~/lib/chatJoinTestData.js'
 import { buildChatSharePath } from '~/lib/chatRoom.js'
 
 const CHANNEL_REMARK_MAX_LENGTH = 50
-const CHAT_JOIN_API_BASE =
-  import.meta.env.VITE_CHAT_JOIN_API_BASE || CHAT_JOIN_DEFAULT_API_BASE
-
-function parseJsonText(text: string): unknown | null {
-  try {
-    return JSON.parse(text) as unknown
-  } catch {
-    return null
-  }
-}
-
-function getDecryptError(
-  text: string,
-  parsed: unknown | null,
-  fallback: string
-) {
-  if (parsed && typeof parsed === 'object' && 'error' in parsed) {
-    const error = parsed.error
-
-    if (typeof error === 'string') {
-      return error
-    }
-  }
-
-  return text || fallback
-}
-
 function getJoinChannelUrl(channelId: string) {
   return buildChatSharePath(channelId)
 }
@@ -66,16 +42,17 @@ function normalizeChannelRemark(value?: string) {
 function ChatJoinContent() {
   const { t, setLocale } = useI18n()
   const searchStr = useLocation({ select: location => location.searchStr })
-  const { token, pub, fixture } = useMemo(() => {
+  const fixture = useMemo(() => {
     const searchParams = new URLSearchParams(searchStr)
-    return {
-      token: searchParams.get('token') || '',
-      pub: searchParams.get('pub') || '',
-      fixture: searchParams.get('fixture') || '',
-    }
+    return searchParams.get('fixture') || ''
   }, [searchStr])
+  const token =
+    typeof window === 'undefined'
+      ? ''
+      : getChatJoinTokenFromHash(window.location.hash)
   const hasBackend = useAppStore(s => s.hasBackend)
   const setAppearance = useAppStore(s => s.setAppearance)
+  const identity = useUserStore(s => s.identity)
   const setUserIdentity = useUserStore(s => s.setUserIdentity)
 
   const [error, setError] = useState('')
@@ -105,19 +82,17 @@ function ChatJoinContent() {
       return
     }
 
-    if (!fixtureInvite && !pub) {
-      setError(t('chatJoin.error.missingPub'))
-      setLoading(false)
-      return
-    }
-
     if (hasBackend === null) {
       return
     }
 
-    const flowKey = fixtureInvite ? `fixture:${fixture}` : `${token}:${pub}`
+    const flowKey = fixtureInvite
+      ? `fixture:${fixture}`
+      : `${token}:${identity?.address || ''}`
     if (flowKeyRef.current === flowKey) return
     flowKeyRef.current = flowKey
+    setError('')
+    setLoading(true)
 
     async function runJoinFlow(invite: ChatJoinInvitePayload) {
       const translateForInvite: typeof t = (key, params) =>
@@ -171,19 +146,24 @@ function ChatJoinContent() {
         throw new Error(translateForInvite('chatJoin.error.noBackend'))
       }
 
-      const identity = createLoginIdentity(invite.uid, '')
-      const displayName = invite.name || identity.displayName
-      const nextIdentity = {
-        ...identity,
-        theme: invite.theme,
-        displayName,
-        logo: invite.logo,
-        logo_dark: invite.logo_dark,
-        data: invite.data,
-        avatar: invite.avatar,
-        tag: invite.tag,
+      let nextIdentity = useUserStore.getState().identity
+      if (fixtureInvite?.uid) {
+        const fixtureIdentity = createLoginIdentity(fixtureInvite.uid, '')
+        nextIdentity = {
+          ...fixtureIdentity,
+          theme: invite.theme,
+          displayName: invite.name || fixtureIdentity.displayName,
+          logo: invite.logo,
+          logo_dark: invite.logo_dark,
+          data: invite.data,
+          avatar: invite.avatar,
+          tag: invite.tag,
+        }
+        setUserIdentity(nextIdentity)
+      } else if (!nextIdentity) {
+        useUserStore.getState().openLoginModal()
+        throw new Error(translateForInvite('chatJoin.error.loginRequired'))
       }
-      setUserIdentity(nextIdentity)
 
       let firstJoinedChannelKey = ''
       for (const channel of invite.channels) {
@@ -213,30 +193,14 @@ function ChatJoinContent() {
           return
         }
 
-        const response = await fetch(
-          `${CHAT_JOIN_API_BASE}/api/chat.join.decrypt`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token, pub }),
-          }
+        const invite = normalizeChatJoinInvitePayload(
+          decryptChatJoinToken(token)
         )
-
-        const responseText = await response.text()
-        const parsed = parseJsonText(responseText)
-
-        if (!response.ok) {
-          setError(
-            getDecryptError(responseText, parsed, t('chatJoin.error.decrypt'))
-          )
-        } else {
-          const invite = normalizeChatJoinInvitePayload(parsed)
-          if (!invite) {
-            setError(t('chatJoin.error.invalidInvite'))
-            return
-          }
-          await runJoinFlow(invite)
+        if (!invite) {
+          setError(t('chatJoin.error.invalidInvite'))
+          return
         }
+        await runJoinFlow(invite)
       } catch (err) {
         setError(
           t('chatJoin.error.request', {
@@ -252,7 +216,7 @@ function ChatJoinContent() {
   }, [
     fixture,
     hasBackend,
-    pub,
+    identity?.address,
     retryAttempt,
     setAppearance,
     setLocale,

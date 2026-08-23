@@ -7,9 +7,7 @@ import {
 import { decryptLegacyAccountBackupNotes } from '~server/src/utils/noteMigration.js'
 import {
   decryptAccountBackup,
-  downloadAccountBackup,
   encryptAccountBackup,
-  uploadAccountBackup,
 } from '~server/src/utils/accountBackup.js'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore, type UserIdentity } from '~/stores/userStore'
@@ -25,20 +23,11 @@ import {
   restoreNoteVaultSnapshot,
   type NoteVaultSnapshot,
 } from '~/features/note/noteVaultApi'
-import {
-  hasDifferentAccountData,
-  shouldRestoreCloudProfile,
-} from '~/features/profile/accountBackupSync'
-
-type AccountBackupAction = 'backup' | 'restore' | 'export' | 'import' | null
+type AccountBackupAction = 'export' | 'import' | null
 type AccountBackupStatus = 'idle' | 'disabled' | 'working' | 'synced' | 'error'
 type AccountBackupProfile = AccountBackupPayload['profile']
 type AccountBackupPreferences = AccountBackupPayload['preferences']
 type AccountBackupTheme = AppearancePreference
-type RestoreFromCloudOptions = {
-  confirm?: boolean
-  requestConfirm?: RestoreConfirmRequest
-}
 type RestoreConfirmRequest = () => boolean | Promise<boolean>
 type RestorePayloadOptions = {
   confirm?: boolean
@@ -53,10 +42,6 @@ type AccountBackupSummary = {
   loading: boolean
 }
 
-type LoginCloudRestoreState = {
-  payload: AccountBackupPayload | null
-  checking: boolean
-}
 type BackupNoteRecord = {
   name: string
   cid: string
@@ -102,8 +87,6 @@ function getStatusLabel(
   if (status === 'disabled') return t('profile.backup.status.disabled')
   if (status === 'error') return t('profile.backup.status.error')
   if (status === 'synced') return t('profile.backup.status.done')
-  if (action === 'backup') return t('profile.backup.status.backingUp')
-  if (action === 'restore') return t('profile.backup.status.restoring')
   if (action === 'export') return t('profile.backup.status.exporting')
   if (action === 'import') return t('profile.backup.status.importing')
   return t('profile.backup.status.idle')
@@ -307,8 +290,6 @@ export function useAccountBackup() {
     channelsCount: null,
     loading: false,
   })
-  const [loginCloudRestore, setLoginCloudRestore] =
-    useState<LoginCloudRestoreState>({ payload: null, checking: false })
   const refreshBackupSummary = useCallback(async () => {
     const currentWallet = useUserStore.getState().wallet
     if (!currentWallet) {
@@ -484,177 +465,6 @@ export function useAccountBackup() {
     ]
   )
 
-  const backupToCloud = useCallback(async () => {
-    const currentWallet = requireWallet()
-    if (!currentWallet || !requireBackend()) return false
-    setAction('backup')
-    setStatus('working')
-    try {
-      const payload = await buildPayload()
-      await uploadAccountBackup(currentWallet, payload)
-      void refreshBackupSummary()
-      setStatus('synced')
-      addToast(t('profile.backup.toast.cloudUpdated'), 'success')
-      return true
-    } catch (err: unknown) {
-      setStatus('error')
-      addToast(
-        getErrorMessage(err, t('profile.backup.error.backupFailed')),
-        'error'
-      )
-      return false
-    } finally {
-      setAction(null)
-    }
-  }, [
-    addToast,
-    buildPayload,
-    refreshBackupSummary,
-    requireBackend,
-    requireWallet,
-    t,
-  ])
-
-  const restoreFromCloud = useCallback(
-    async (options: RestoreFromCloudOptions = {}) => {
-      const currentWallet = requireWallet()
-      if (!currentWallet || !requireBackend()) return false
-      setAction('restore')
-      setStatus('working')
-      try {
-        const backup = await downloadAccountBackup(currentWallet)
-        if (!backup.found || !backup.payload) {
-          addToast(t('profile.backup.toast.noCloudBackup'), 'info')
-          setStatus('idle')
-          return false
-        }
-        const payload = backup.payload as AccountBackupPayload
-        const restored = await restorePayload(payload, {
-          confirm: options.confirm,
-          requestConfirm: options.requestConfirm,
-        })
-        if (restored) {
-          setStatus('synced')
-          addToast(t('profile.backup.toast.restoredCloud'), 'success')
-        } else {
-          setStatus('idle')
-        }
-        return restored
-      } catch (err: unknown) {
-        setStatus('error')
-        addToast(
-          getErrorMessage(err, t('profile.backup.error.restoreFailed')),
-          'error'
-        )
-        return false
-      } finally {
-        setAction(null)
-      }
-    },
-    [addToast, buildPayload, requireBackend, requireWallet, restorePayload, t]
-  )
-
-  const checkCloudBackupAfterLogin = useCallback(async () => {
-    const currentWallet = useUserStore.getState().wallet
-    if (!currentWallet || useAppStore.getState().hasBackend !== true) return
-
-    setLoginCloudRestore({ payload: null, checking: true })
-    try {
-      const backup = await downloadAccountBackup(currentWallet)
-      if (!backup.found || !backup.payload) return
-
-      const legacyMigration = await decryptLegacyAccountBackupNotes(
-        backup.payload,
-        currentWallet.danger
-      )
-      const payload = legacyMigration.payload as AccountBackupPayload
-      if (
-        payload.ownerAddress.toLowerCase() !==
-        currentWallet.address.toLowerCase()
-      ) {
-        return
-      }
-
-      const activeWallet = useUserStore.getState().wallet
-      if (
-        !activeWallet ||
-        activeWallet.address.toLowerCase() !==
-          currentWallet.address.toLowerCase()
-      ) {
-        return
-      }
-
-      const localPayload = await buildPayload()
-      const currentIdentity = useUserStore.getState().identity
-      if (
-        !currentIdentity ||
-        currentIdentity.address.toLowerCase() !==
-          currentWallet.address.toLowerCase()
-      ) {
-        return
-      }
-      if (shouldRestoreCloudProfile(currentIdentity, payload.profile)) {
-        setUserIdentity(
-          applyProfileToIdentity(currentIdentity, payload.profile)
-        )
-      }
-
-      const accountDataDiffers = await hasDifferentAccountData(
-        localPayload,
-        payload
-      )
-      const activeWalletAfterCid = useUserStore.getState().wallet
-      if (
-        !activeWalletAfterCid ||
-        activeWalletAfterCid.address.toLowerCase() !==
-          currentWallet.address.toLowerCase()
-      ) {
-        return
-      }
-      if (accountDataDiffers) {
-        setLoginCloudRestore({ payload, checking: false })
-      }
-    } catch {
-      // Login must remain usable when cloud backup is unavailable.
-    } finally {
-      setLoginCloudRestore(state => ({ ...state, checking: false }))
-    }
-  }, [buildPayload, setUserIdentity])
-
-  const dismissLoginCloudRestore = useCallback(() => {
-    setLoginCloudRestore({ payload: null, checking: false })
-  }, [])
-
-  const confirmLoginCloudRestore = useCallback(async () => {
-    const payload = loginCloudRestore.payload
-    if (!payload) return false
-
-    setLoginCloudRestore({ payload: null, checking: false })
-    setAction('restore')
-    setStatus('working')
-    try {
-      const restored = await restorePayload(payload, {
-        confirm: false,
-      })
-      if (restored) {
-        setStatus('synced')
-        addToast(t('profile.backup.toast.restoredCloud'), 'success')
-      } else {
-        setStatus('idle')
-      }
-      return restored
-    } catch (err: unknown) {
-      setStatus('error')
-      addToast(
-        getErrorMessage(err, t('profile.backup.error.restoreFailed')),
-        'error'
-      )
-      return false
-    } finally {
-      setAction(null)
-    }
-  }, [addToast, loginCloudRestore.payload, restorePayload, t])
-
   const exportLocalBackup = useCallback(async () => {
     const currentWallet = requireWallet()
     if (!currentWallet || !requireBackend()) return
@@ -746,13 +556,6 @@ export function useAccountBackup() {
     busy: action !== null,
     status: effectiveStatus,
     statusLabel,
-    backupToCloud,
-    restoreFromCloud,
-    checkCloudBackupAfterLogin,
-    confirmLoginCloudRestore,
-    dismissLoginCloudRestore,
-    loginCloudRestorePending: Boolean(loginCloudRestore.payload),
-    loginCloudRestoreChecking: loginCloudRestore.checking,
     exportLocalBackup,
     importLocalBackup,
     hasBackend,

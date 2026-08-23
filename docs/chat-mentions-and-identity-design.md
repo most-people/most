@@ -108,15 +108,15 @@ type MemberTag = LocalizedTag | null
 
 ### Join Invite
 
-第三方 join payload 新增 `tag`：
+当前 join payload 只描述节点、频道和界面偏好，不创建或覆盖接收者身份。接收者使用已经登录的本地身份加入频道，因此第三方不能通过邀请链接注入昵称、头像或 `tag`：
 
 ```ts
 interface ChatJoinInvitePayload {
-  uid: string
-  name?: string
-  avatar?: string
+  node_url?: string
+  node_invite?: string
   locale?: Locale
-  tag?: string | Record<string, string>
+  appearance?: 'dark' | 'light'
+  channels: Array<{ id: string; name?: string }>
 }
 ```
 
@@ -124,43 +124,12 @@ interface ChatJoinInvitePayload {
 
 ```json
 {
-  "uid": "service-10086",
-  "name": "小叶子",
   "locale": "zh-CN",
-  "tag": {
-    "zh-CN": "客服",
-    "zh-TW": "客服",
-    "en": "Support"
-  }
+  "channels": [{ "id": "support", "name": "客服频道" }]
 }
 ```
 
-单语言简写：
-
-```json
-{
-  "uid": "operator-01",
-  "name": "Mia",
-  "tag": "Operator"
-}
-```
-
-单语言简写会规范化为：
-
-```json
-{
-  "tag": {
-    "default": "Operator"
-  }
-}
-```
-
-接入建议：
-
-- 第三方能提供多语言时，应一次传完整 `tag` map，例如 `zh-CN`、`zh-TW`、`en` 和 `default`。
-- 聊天中切换语言时，前端直接从已保存的 `tag` map 选择展示值，不需要重新 join、不需要重新请求第三方。
-- 第三方只能提供单语言时，可以传字符串或只传 `default`。这种情况仍可展示，但切换语言后会继续显示同一个兜底标签。
-- 不建议第三方只按当前 invite locale 传一个已翻译字符串，因为用户进入聊天后可能切换语言，群成员也可能使用不同语言。
+邀请使用单个 URL fragment capability token：`https://most.box/chat/join#<token>`。token 在浏览器本地解密，fragment 不会随 HTTP 请求发送到官网或 CDN；持有完整链接的人仍然具备使用邀请的能力。
 
 ### UserIdentity
 
@@ -376,9 +345,7 @@ function selectLocalizedTag(
 ## 数据流
 
 ```text
-third party join payload tag
-  -> normalizeChatJoinInvitePayload()
-  -> UserIdentity.tag
+local UserIdentity.tag
   -> getUserChannelProfile(identity).tag
   -> create/join channel members[].tag
   -> channel.member.profile.updated event

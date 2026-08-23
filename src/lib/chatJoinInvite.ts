@@ -1,10 +1,6 @@
 import { isLocale, type Locale } from '~/lib/i18n'
 import { normalizeLocalizedTag, type LocalizedTag } from '~/lib/localizedTag'
 
-export const CHAT_JOIN_EA_PUBLIC_KEY =
-  '0x955fe80bdb8312165471fcacd6a8f83df88a770dda6f38657ca4e62ec28d5b54'
-export const CHAT_JOIN_DEFAULT_API_BASE = 'https://api.most.box'
-
 export interface ChatJoinInviteChannel {
   id: string
   name?: string
@@ -14,7 +10,7 @@ export interface ChatJoinInvitePayload {
   node_url?: string
   node_invite?: string
   locale?: Locale
-  uid: string
+  uid?: string
   theme?: 'sparkbit'
   appearance?: 'dark' | 'light'
   logo?: string
@@ -82,13 +78,13 @@ export function normalizeChatJoinInvitePayload(
     }))
     .filter(channel => channel.id)
 
-  if (!uid || channels.length === 0) return null
+  if (channels.length === 0) return null
 
   return {
     node_url: normalizeOptionalString(value.node_url) || undefined,
     node_invite: normalizeOptionalString(value.node_invite) || undefined,
     locale: normalizeChatJoinInviteLocale(value.locale),
-    uid,
+    uid: uid || undefined,
     theme: normalizeInviteTheme(value.theme),
     appearance: normalizeInviteAppearance(value.appearance),
     logo: normalizeOptionalString(value.logo) || undefined,

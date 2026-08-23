@@ -37,7 +37,6 @@ interface UserState {
   hasPreviewedAvatar: boolean
   loginLoading: boolean
   loginError: MessageKey | ''
-  pendingCloudRestoreAddress: string | null
   setFirstPath: (path: string) => void
   initializeUser: () => void
   openLoginModal: () => void
@@ -48,7 +47,6 @@ interface UserState {
   previewLoginIdentity: () => UserIdentity | null
   loginUser: () => UserIdentity | null
   setUserIdentity: (identity: UserIdentity) => void
-  consumePendingCloudRestore: (address: string) => boolean
   logoutUser: () => void
 }
 
@@ -125,7 +123,6 @@ export const useUserStore = create<UserState>((set, get) => ({
   hasPreviewedAvatar: false,
   loginLoading: false,
   loginError: '',
-  pendingCloudRestoreAddress: null,
 
   setFirstPath: path => {
     set({ firstPath: path || '/' })
@@ -205,7 +202,6 @@ export const useUserStore = create<UserState>((set, get) => ({
       set({
         identity: nextIdentity,
         wallet: nextIdentity,
-        pendingCloudRestoreAddress: nextIdentity.address,
         showLoginModal: false,
         ...resetLoginForm(),
       })
@@ -226,16 +222,8 @@ export const useUserStore = create<UserState>((set, get) => ({
     set({ identity: nextIdentity, wallet: nextIdentity })
   },
 
-  consumePendingCloudRestore: address => {
-    const pendingAddress = get().pendingCloudRestoreAddress
-    if (!pendingAddress) return false
-    if (pendingAddress.toLowerCase() !== address.toLowerCase()) return false
-    set({ pendingCloudRestoreAddress: null })
-    return true
-  },
-
   logoutUser: () => {
     clearIdentity()
-    set({ identity: null, wallet: undefined, pendingCloudRestoreAddress: null })
+    set({ identity: null, wallet: undefined })
   },
 }))

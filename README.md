@@ -344,9 +344,9 @@ mostbox.example.com {
 
 这里的登录是本地身份，不是云端账号注册。MostBox 用它隔离同一节点上的不同用户文件列表，并为本地 HTTP API 请求生成短期签名；知道 `most://` 链接的人仍然可以尝试下载对应 CID 内容。
 
-### 知识库云备份和文件分享是什么关系？
+### 本地账号备份和文件分享是什么关系？
 
-知识库、笔记和账号备份仍属于独立工具箱能力；云备份只覆盖对应工具箱数据，不会把 MostBox 发布的文件上传成云盘。Markdown 可以用标准图片或链接语法保存 `most://<cid>?filename=...` 引用，例如 `![照片](most://<cid>?filename=photo.jpg)` 或 `[附件](most://<cid>?filename=file.pdf)`。附件仍由文件模块发布、下载、CID 校验和持续做种，不会复制进知识库目录。
+知识库、笔记和账号备份仍属于独立工具箱能力；账号备份只导出到用户选择的本地文件，不会上传到 MostBox 官方服务器，也不会把 MostBox 发布的文件变成云盘内容。Markdown 可以用标准图片或链接语法保存 `most://<cid>?filename=...` 引用，例如 `![照片](most://<cid>?filename=photo.jpg)` 或 `[附件](most://<cid>?filename=file.pdf)`。附件仍由文件模块发布、下载、CID 校验和持续做种，不会复制进知识库目录。
 
 ### 支持大文件吗？
 
@@ -425,7 +425,7 @@ GitHub Release 是可信备用源；下载页优先读取 R2 的 `releases/lates
 ### 配置 Secrets
 
 R2 发布资产使用独立公开桶，默认 bucket 为 `most-box-releases`，默认公开域名为
-`https://download.most.box`。不要复用 `api.most.box` 项目的 `most-box-backup` 备份桶。
+`https://download.most.box`。该桶只存放公开的版本安装包和 manifest。
 Release workflow 不设置 Infrequent Access，R2 对象保持默认 Standard 存储层，并在上传后用
 `head-object` 校验存储层与缓存头。版本化安装包使用
 `public, max-age=31536000, immutable`；`releases/latest.json` 使用

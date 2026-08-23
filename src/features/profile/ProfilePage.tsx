@@ -1,12 +1,10 @@
-import type { ChangeEvent, ReactNode } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import {
   Check,
   CheckCircle2,
   CircleAlert,
-  CloudDownload,
-  CloudUpload,
   Download,
   ExternalLink,
   Fingerprint,
@@ -35,14 +33,6 @@ import {
 } from '~/lib/localizedTag'
 import { useAccountBackup } from '~/features/profile/useAccountBackup'
 import { ProfileAppearanceSettings } from '~/features/profile/ProfileAppearanceSettings'
-import {
-  getAccountAvatarUrl,
-  uploadAccountAvatar,
-} from '~/lib/avatarCloudUpload.js'
-import {
-  AvatarUploadSizeError,
-  prepareAvatarUploadFile,
-} from '~/lib/avatarUpload.js'
 import { api, getApiErrorMessage } from '~server/src/utils/api'
 import {
   generateAvatar,
@@ -88,7 +78,6 @@ const avatarOptions: AvatarOption[] = [
 
 function isSupportedAvatarValue(value: string) {
   if (isDefaultAvatarValue(value)) return true
-  if (value.startsWith('/avatar/')) return true
   try {
     const url = new URL(value)
     return url.protocol === 'http:' || url.protocol === 'https:'
@@ -134,11 +123,8 @@ export default function ProfilePage() {
   const [tagError, setTagError] = useState('')
   const [avatarUrlDraft, setAvatarUrlDraft] = useState('')
   const [avatarUrlError, setAvatarUrlError] = useState('')
-  const [avatarUploadFile, setAvatarUploadFile] = useState<File | null>(null)
-  const [avatarUploading, setAvatarUploading] = useState(false)
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const [backupConfirm, setBackupConfirm] = useState<BackupConfirm | null>(null)
-  const avatarFileInputRef = useRef<HTMLInputElement | null>(null)
   const header = <MarketingHeader />
 
   useEffect(() => {
@@ -146,8 +132,6 @@ export default function ProfilePage() {
       setDisplayNameDraft('')
       setAvatarUrlDraft('')
       setAvatarUrlError('')
-      setAvatarUploadFile(null)
-      if (avatarFileInputRef.current) avatarFileInputRef.current.value = ''
       return
     }
     setDisplayNameDraft(identity.displayName || identity.username)
@@ -203,25 +187,20 @@ export default function ProfilePage() {
     normalizeDefaultAvatarValue(identity.avatar) || identity.avatar || ''
   const address = identity.address.toLowerCase()
   const customAvatarValue =
-    activeAvatar && !isDefaultAvatarValue(activeAvatar)
-      ? activeAvatar
-      : getAccountAvatarUrl(identity.address)
+    activeAvatar && !isDefaultAvatarValue(activeAvatar) ? activeAvatar : ''
   const customAvatarOption = {
     value: customAvatarValue,
     labelKey: 'profile.avatar.custom' as MessageKey,
   }
   const displayedAvatarOptions = [
     avatarOptions[0],
-    customAvatarOption,
+    ...(customAvatarValue ? [customAvatarOption] : []),
     ...avatarOptions.slice(1),
   ]
   const avatarSrc = generateAvatar(identity.address, identity.avatar)
   const displayTag = selectLocalizedTag(identity.tag, locale)
   const canSaveAvatarUrl = avatarUrlDraft.trim().length > 0
-  const canUploadAvatar = Boolean(avatarUploadFile) && !avatarUploading
   const backupStatusClass = getBackupStatusClass(accountBackup.status)
-  const cloudBackupWorking = accountBackup.action === 'backup'
-  const cloudRestoreWorking = accountBackup.action === 'restore'
   const exportWorking = accountBackup.action === 'export'
   const importWorking = accountBackup.action === 'import'
   const backupSummaryItems = [
@@ -241,30 +220,6 @@ export default function ProfilePage() {
       value: accountBackup.backupSummary.channelsCount,
     },
   ]
-
-  function openCloudBackupConfirm() {
-    setBackupConfirm({
-      title: t('profile.backup.confirm.backupTitle'),
-      message: t('profile.backup.confirm.backupMessage'),
-      confirmText: t('profile.backup.action.cloudBackup'),
-      onConfirm: async () => {
-        setBackupConfirm(null)
-        await accountBackup.backupToCloud()
-      },
-    })
-  }
-
-  function openCloudRestoreConfirm() {
-    setBackupConfirm({
-      title: t('profile.backup.confirm.restoreTitle'),
-      message: t('profile.backup.confirm.restoreMessage'),
-      confirmText: t('profile.backup.action.cloudRestore'),
-      onConfirm: async () => {
-        setBackupConfirm(null)
-        await accountBackup.restoreFromCloud({ confirm: false })
-      },
-    })
-  }
 
   function requestImportBackupConfirm() {
     return new Promise<boolean>(resolve => {
@@ -289,32 +244,6 @@ export default function ProfilePage() {
   }
 
   const backupActions = [
-    {
-      key: 'cloud-backup',
-      tone: 'cloud-backup',
-      label: cloudBackupWorking
-        ? t('profile.backup.status.backingUp')
-        : t('profile.backup.action.cloudBackup'),
-      icon: cloudBackupWorking ? (
-        <Loader size={16} className="ui-spinner" />
-      ) : (
-        <CloudUpload size={16} />
-      ),
-      onClick: openCloudBackupConfirm,
-    },
-    {
-      key: 'cloud-restore',
-      tone: 'cloud-restore',
-      label: cloudRestoreWorking
-        ? t('profile.backup.status.restoring')
-        : t('profile.backup.action.cloudRestore'),
-      icon: cloudRestoreWorking ? (
-        <Loader size={16} className="ui-spinner" />
-      ) : (
-        <CloudDownload size={16} />
-      ),
-      onClick: openCloudRestoreConfirm,
-    },
     {
       key: 'export-local',
       tone: 'export-local',
@@ -344,14 +273,9 @@ export default function ProfilePage() {
   ]
   const backupActionGroups = [
     {
-      key: 'cloud',
-      label: t('profile.backup.group.cloud'),
-      actions: backupActions.slice(0, 2),
-    },
-    {
       key: 'local',
       label: t('profile.backup.group.local'),
-      actions: backupActions.slice(2),
+      actions: backupActions,
     },
   ]
 
@@ -444,41 +368,6 @@ export default function ProfilePage() {
       return
     }
     updateAvatar(nextUrl)
-  }
-
-  function handleAvatarFileChange(event: ChangeEvent<HTMLInputElement>) {
-    setAvatarUploadFile(event.target.files?.[0] || null)
-    setAvatarUrlError('')
-  }
-
-  async function handleUploadAvatar() {
-    if (!avatarUploadFile) return
-    setAvatarUploading(true)
-    setAvatarUrlError('')
-    try {
-      const prepared = await prepareAvatarUploadFile(avatarUploadFile)
-      const data = await uploadAccountAvatar(identity, prepared.file)
-      setAvatarUrlDraft(data.url)
-      updateAvatar(data.url)
-      setAvatarUploadFile(null)
-      if (avatarFileInputRef.current) avatarFileInputRef.current.value = ''
-    } catch (err) {
-      if (err instanceof AvatarUploadSizeError) {
-        addToast(t('profile.avatar.tooLarge'), 'error')
-        return
-      }
-      if (err?.code === 'AVATAR_COMPRESSION_FAILED') {
-        addToast(t('profile.avatar.compressionFailed'), 'error')
-        return
-      }
-      const message = await getApiErrorMessage(
-        err,
-        t('profile.avatar.uploadFailed')
-      )
-      addToast(message, 'error')
-    } finally {
-      setAvatarUploading(false)
-    }
   }
 
   function handleLogout() {
@@ -746,42 +635,6 @@ export default function ProfilePage() {
                 {avatarUrlError && (
                   <p className="profile-error">{avatarUrlError}</p>
                 )}
-                <div className="profile-field">
-                  <span>{t('profile.label.uploadAvatar')}</span>
-                  <div className="profile-field-row">
-                    <label
-                      className="profile-avatar-file-control"
-                      htmlFor="profile-avatar-file"
-                    >
-                      <input
-                        id="profile-avatar-file"
-                        ref={avatarFileInputRef}
-                        className="profile-avatar-file-input"
-                        type="file"
-                        accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
-                        onChange={handleAvatarFileChange}
-                      />
-                      <Upload size={16} />
-                      <span className="profile-avatar-file-name">
-                        {avatarUploadFile?.name ||
-                          t('profile.action.chooseAvatar')}
-                      </span>
-                    </label>
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      onClick={handleUploadAvatar}
-                      disabled={!canUploadAvatar}
-                    >
-                      {avatarUploading && (
-                        <Loader size={16} className="ui-spinner" />
-                      )}
-                      {avatarUploading
-                        ? t('profile.action.uploadingAvatar')
-                        : t('profile.action.uploadAvatar')}
-                    </button>
-                  </div>
-                </div>
               </div>
             </section>
           </div>
@@ -851,15 +704,6 @@ export default function ProfilePage() {
               {t('profile.logout.backupReminder')}
             </p>
             <div className="profile-logout-backup-actions">
-              <button
-                type="button"
-                className="btn btn-secondary"
-                disabled={accountBackup.busy}
-                onClick={() => void accountBackup.backupToCloud()}
-              >
-                <CloudUpload size={16} />
-                {t('profile.backup.action.cloudBackup')}
-              </button>
               <button
                 type="button"
                 className="btn btn-secondary"

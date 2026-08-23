@@ -1,39 +1,23 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import {
-  ExternalLink,
-  KeyRound,
-  Link as LinkIcon,
-  RefreshCw,
-} from 'lucide-react'
+import { ExternalLink, Link as LinkIcon } from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import { CopyButton } from '~/components/CopyButton'
 import { AppTop } from '~/components/AppTop'
 import { SelectControl } from '~/components/ui'
 import { useI18n, type Locale } from '~/lib/i18n'
 import {
-  CHAT_JOIN_DEFAULT_API_BASE,
-  CHAT_JOIN_EA_PUBLIC_KEY,
   normalizeChatJoinInvitePayload,
   type ChatJoinInvitePayload,
 } from '~/lib/chatJoinInvite'
 import {
-  most25519,
-  mostBoxEncrypt,
-  mostWallet,
-} from '~server/src/utils/mostWallet.js'
+  buildChatJoinUrl,
+  decryptChatJoinToken,
+  encryptChatJoinToken,
+  parseChatJoinTokenInput,
+} from '~/lib/chatJoinToken'
 
-const DEFAULT_SENDER_USERNAME = 'chat-join-demo'
-const DEFAULT_SENDER_PASSWORD = ''
 const DEFAULT_CHANNEL_ID = 'chatjoin_support'
 const CHANNEL_ID_PATTERN = /^[a-zA-Z0-9_-]{3,30}$/
-const PUBLIC_KEY_PATTERN = /^0x[a-fA-F0-9]{64}$/
-const CHAT_JOIN_API_BASE =
-  import.meta.env.VITE_CHAT_JOIN_API_BASE || CHAT_JOIN_DEFAULT_API_BASE
-
-type SenderKeys = {
-  publicKey: string
-  privateKey: string
-}
 
 const APPEARANCE_OPTIONS: Array<{
   value: NonNullable<ChatJoinInvitePayload['appearance']>
@@ -49,12 +33,6 @@ const LOCALE_OPTIONS: Array<{ value: Locale; label: string }> = [
   { value: 'en', label: 'en' },
 ]
 
-type ParsedInviteLink = {
-  token: string
-  pub: string
-  origin?: string
-}
-
 function getDefaultLinkOrigin() {
   if (typeof window === 'undefined') return 'https://most.box'
   return window.location.origin
@@ -64,51 +42,17 @@ function normalizeLinkOrigin(value: string) {
   return (value.trim() || getDefaultLinkOrigin()).replace(/\/+$/, '')
 }
 
-function createSenderKeys(username: string, password: string): SenderKeys {
-  const wallet = mostWallet(
-    username.trim() || DEFAULT_SENDER_USERNAME,
-    password
-  )
-  const keys = most25519(wallet.danger)
-  return {
-    publicKey: keys.public_key,
-    privateKey: keys.private_key,
-  }
-}
-
 function optionalTrim(value: string) {
   const trimmed = value.trim()
   return trimmed || undefined
 }
 
-function parseJsonText(text: string): unknown | null {
+function getLinkOrigin(value: string, fallback: string) {
   try {
-    return JSON.parse(text) as unknown
+    return new URL(value, normalizeLinkOrigin(fallback)).origin
   } catch {
-    return null
+    return normalizeLinkOrigin(fallback)
   }
-}
-
-function parseInviteLinkInput(value: string): ParsedInviteLink | null {
-  const input = value.trim()
-  if (!input) return null
-
-  let params: URLSearchParams
-  let origin: string | undefined
-
-  try {
-    const url = new URL(input, getDefaultLinkOrigin())
-    params = url.searchParams
-    origin = url.origin
-  } catch {
-    params = new URLSearchParams(input.replace(/^\?/, ''))
-  }
-
-  const token = params.get('token')?.trim() || ''
-  const pub = params.get('pub')?.trim() || ''
-  if (!token || !pub) return null
-
-  return { token, pub, origin }
 }
 
 function DemoFieldLabel({
@@ -148,8 +92,6 @@ function DemoField({
 export default function ChatJoinDemoPage() {
   const { t } = useI18n()
   const [linkOrigin, setLinkOrigin] = useState(getDefaultLinkOrigin)
-  const [uid, setUid] = useState('demo-user')
-  const [displayName, setDisplayName] = useState('Demo User')
   const [channelId, setChannelId] = useState(DEFAULT_CHANNEL_ID)
   const [channelName, setChannelName] = useState('Chat Join Demo')
   const [locale, setLocale] = useState<Locale>('zh-CN')
@@ -158,30 +100,18 @@ export default function ChatJoinDemoPage() {
     useState<ChatJoinInvitePayload['appearance']>()
   const [logo, setLogo] = useState('')
   const [logoDark, setLogoDark] = useState('')
-  const [avatar, setAvatar] = useState('')
   const [data, setData] = useState('')
   const [nodeUrl, setNodeUrl] = useState('')
   const [nodeInvite, setNodeInvite] = useState('')
-  const [recipientPublicKey, setRecipientPublicKey] = useState(
-    CHAT_JOIN_EA_PUBLIC_KEY
-  )
-  const [senderUsername, setSenderUsername] = useState(DEFAULT_SENDER_USERNAME)
-  const [senderPassword, setSenderPassword] = useState(DEFAULT_SENDER_PASSWORD)
-  const [senderKeys, setSenderKeys] = useState(() =>
-    createSenderKeys(DEFAULT_SENDER_USERNAME, DEFAULT_SENDER_PASSWORD)
-  )
   const [existingLink, setExistingLink] = useState('')
   const [parseMessage, setParseMessage] = useState('')
   const [parseError, setParseError] = useState('')
-  const [isParsingLink, setIsParsingLink] = useState(false)
   const [generatedToken, setGeneratedToken] = useState('')
-  const [generatedPub, setGeneratedPub] = useState('')
   const [generatedLink, setGeneratedLink] = useState('')
   const [error, setError] = useState('')
 
   const payload = useMemo<ChatJoinInvitePayload>(() => {
     const invite: ChatJoinInvitePayload = {
-      uid: uid.trim(),
       locale,
       channels: [
         {
@@ -198,38 +128,24 @@ export default function ChatJoinDemoPage() {
     invite.logo = optionalTrim(logo)
     invite.logo_dark = optionalTrim(logoDark)
     invite.data = optionalTrim(data)
-    invite.avatar = optionalTrim(avatar)
-    invite.name = optionalTrim(displayName)
     return invite
   }, [
     appearance,
-    avatar,
     channelId,
     channelName,
     data,
-    displayName,
     locale,
     logo,
     logoDark,
     nodeInvite,
     nodeUrl,
     theme,
-    uid,
   ])
 
   const payloadText = useMemo(() => JSON.stringify(payload, null, 2), [payload])
 
-  function handleDeriveSenderKeys() {
-    setSenderKeys(createSenderKeys(senderUsername, senderPassword))
-    setGeneratedToken('')
-    setGeneratedPub('')
-    setGeneratedLink('')
-    setError('')
-  }
-
   function applyInvitePayload(invite: ChatJoinInvitePayload) {
     const firstChannel = invite.channels[0]
-    setUid(invite.uid)
     setLocale(invite.locale || 'zh-CN')
     setTheme(invite.theme)
     setAppearance(invite.appearance)
@@ -238,114 +154,50 @@ export default function ChatJoinDemoPage() {
     setLogo(invite.logo || '')
     setLogoDark(invite.logo_dark || '')
     setData(invite.data || '')
-    setAvatar(invite.avatar || '')
-    setDisplayName(invite.name || '')
     setChannelId(firstChannel?.id || DEFAULT_CHANNEL_ID)
     setChannelName(firstChannel?.name || '')
   }
 
-  async function handleParseExistingLink() {
-    const parsedLink = parseInviteLinkInput(existingLink)
-    if (!parsedLink) {
+  function handleParseExistingLink() {
+    const token = parseChatJoinTokenInput(
+      existingLink,
+      normalizeLinkOrigin(linkOrigin)
+    )
+    if (!token) {
       setParseMessage('')
       setParseError(t('chatJoin.demo.error.linkInvalid'))
       return
     }
 
-    const nextOrigin = parsedLink.origin || normalizeLinkOrigin(linkOrigin)
-    const nextLink = `${nextOrigin}/chat/join?token=${encodeURIComponent(parsedLink.token)}&pub=${encodeURIComponent(parsedLink.pub)}`
+    const nextOrigin = getLinkOrigin(existingLink, linkOrigin)
+    const nextLink = buildChatJoinUrl(token, nextOrigin)
     setLinkOrigin(nextOrigin)
-    setGeneratedToken(parsedLink.token)
-    setGeneratedPub(parsedLink.pub)
+    setGeneratedToken(token)
     setGeneratedLink(nextLink)
-    setParseMessage(t('chatJoin.demo.status.linkParsed'))
-    setParseError('')
-    setIsParsingLink(true)
-
-    try {
-      const response = await fetch(
-        `${CHAT_JOIN_API_BASE}/api/chat.join.decrypt`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            token: parsedLink.token,
-            pub: parsedLink.pub,
-          }),
-        }
-      )
-      const responseText = await response.text()
-      const parsedPayload = parseJsonText(responseText)
-
-      if (!response.ok) {
-        const error =
-          parsedPayload &&
-          typeof parsedPayload === 'object' &&
-          'error' in parsedPayload &&
-          typeof parsedPayload.error === 'string'
-            ? parsedPayload.error
-            : responseText
-        throw new Error(error || t('chatJoin.error.decrypt'))
-      }
-
-      const invite = normalizeChatJoinInvitePayload(parsedPayload)
-      if (!invite) {
-        setParseError(t('chatJoin.demo.error.parseInvalidPayload'))
-        setParseMessage(t('chatJoin.demo.status.linkParsed'))
-        return
-      }
-
-      applyInvitePayload(invite)
-      setParseMessage(t('chatJoin.demo.status.linkDecrypted'))
-      setParseError('')
-    } catch (err) {
-      setParseError(
-        t('chatJoin.demo.error.parseDecryptFailed', {
-          message: err instanceof Error ? err.message : String(err),
-        })
-      )
-    } finally {
-      setIsParsingLink(false)
+    const invite = normalizeChatJoinInvitePayload(decryptChatJoinToken(token))
+    if (!invite) {
+      setParseMessage(t('chatJoin.demo.status.linkParsed'))
+      setParseError(t('chatJoin.demo.error.parseInvalidPayload'))
+      return
     }
+
+    applyInvitePayload(invite)
+    setParseMessage(t('chatJoin.demo.status.linkDecrypted'))
+    setParseError('')
   }
 
   function handleGenerateLink() {
-    const cleanedUid = uid.trim()
     const cleanedChannelId = channelId.trim()
-    const cleanedRecipientPublicKey = recipientPublicKey.trim()
-
-    if (!cleanedUid) {
-      setError(t('chatJoin.demo.error.uidRequired'))
-      return
-    }
 
     if (!CHANNEL_ID_PATTERN.test(cleanedChannelId)) {
       setError(t('chatJoin.demo.error.channelInvalid'))
       return
     }
 
-    if (!PUBLIC_KEY_PATTERN.test(cleanedRecipientPublicKey)) {
-      setError(t('chatJoin.demo.error.recipientPublicInvalid'))
-      return
-    }
-
-    if (
-      !PUBLIC_KEY_PATTERN.test(senderKeys.publicKey) ||
-      !PUBLIC_KEY_PATTERN.test(senderKeys.privateKey)
-    ) {
-      setError(t('chatJoin.demo.error.senderKeysInvalid'))
-      return
-    }
-
     try {
-      const token = mostBoxEncrypt(payloadText, {
-        senderPrivateKey: senderKeys.privateKey,
-        recipientPublicKey: cleanedRecipientPublicKey,
-      })
-      const pub = senderKeys.publicKey
-      const link = `${normalizeLinkOrigin(linkOrigin)}/chat/join?token=${encodeURIComponent(token)}&pub=${encodeURIComponent(pub)}`
+      const token = encryptChatJoinToken(payload)
+      const link = buildChatJoinUrl(token, normalizeLinkOrigin(linkOrigin))
       setGeneratedToken(token)
-      setGeneratedPub(pub)
       setGeneratedLink(link)
       setError('')
     } catch {
@@ -385,12 +237,9 @@ export default function ChatJoinDemoPage() {
                 className="btn btn-secondary"
                 type="button"
                 onClick={handleParseExistingLink}
-                disabled={isParsingLink}
               >
                 <LinkIcon size={16} />
-                {isParsingLink
-                  ? t('chatJoin.demo.action.parsing')
-                  : t('chatJoin.demo.action.parseLink')}
+                {t('chatJoin.demo.action.parseLink')}
               </button>
             </div>
 
@@ -418,26 +267,6 @@ export default function ChatJoinDemoPage() {
                   autoCapitalize="off"
                   autoCorrect="off"
                   spellCheck="false"
-                />
-              </DemoField>
-              <DemoField name="uid" description={t('chatJoin.demo.field.uid')}>
-                <input
-                  className="input input-compact"
-                  value={uid}
-                  onChange={event => setUid(event.target.value)}
-                  autoCapitalize="off"
-                  autoCorrect="off"
-                  spellCheck="false"
-                />
-              </DemoField>
-              <DemoField
-                name="name"
-                description={t('chatJoin.demo.field.name')}
-              >
-                <input
-                  className="input input-compact"
-                  value={displayName}
-                  onChange={event => setDisplayName(event.target.value)}
                 />
               </DemoField>
               <DemoField
@@ -527,19 +356,6 @@ export default function ChatJoinDemoPage() {
                   spellCheck="false"
                 />
               </DemoField>
-              <DemoField
-                name="avatar"
-                description={t('chatJoin.demo.field.avatar')}
-              >
-                <input
-                  className="input input-compact"
-                  value={avatar}
-                  onChange={event => setAvatar(event.target.value)}
-                  autoCapitalize="off"
-                  autoCorrect="off"
-                  spellCheck="false"
-                />
-              </DemoField>
               <div className="chat-join-demo-field">
                 <DemoFieldLabel
                   name="theme"
@@ -600,84 +416,15 @@ export default function ChatJoinDemoPage() {
                 />
               </DemoField>
             </div>
-          </section>
-
-          <section className="chat-join-demo-section">
-            <div className="chat-join-helper-title">
-              <KeyRound size={18} />
-              <h3>{t('chatJoin.demo.cryptoSection')}</h3>
-            </div>
-
-            <div className="chat-join-demo-grid">
-              <DemoField
-                name="recipientPublicKey"
-                description={t('chatJoin.demo.field.recipientPublicKey')}
-                wide
+            <div className="chat-join-demo-actions">
+              <button
+                className="btn btn-primary"
+                type="button"
+                onClick={handleGenerateLink}
               >
-                <input
-                  className="input input-compact"
-                  value={recipientPublicKey}
-                  onChange={event => setRecipientPublicKey(event.target.value)}
-                  autoCapitalize="off"
-                  autoCorrect="off"
-                  spellCheck="false"
-                  translate="no"
-                />
-              </DemoField>
-              <DemoField
-                name="senderUsername"
-                description={t('chatJoin.demo.field.senderUsername')}
-              >
-                <input
-                  className="input input-compact"
-                  value={senderUsername}
-                  onChange={event => setSenderUsername(event.target.value)}
-                  autoCapitalize="off"
-                  autoCorrect="off"
-                  spellCheck="false"
-                />
-              </DemoField>
-              <DemoField
-                name="senderPassword"
-                description={t('chatJoin.demo.field.senderPassword')}
-              >
-                <input
-                  className="input input-compact"
-                  value={senderPassword}
-                  onChange={event => setSenderPassword(event.target.value)}
-                  type="password"
-                />
-              </DemoField>
-              <div className="chat-join-demo-actions">
-                <button
-                  className="btn btn-secondary"
-                  type="button"
-                  onClick={handleDeriveSenderKeys}
-                >
-                  <RefreshCw size={16} />
-                  {t('chatJoin.demo.action.deriveSender')}
-                </button>
-                <button
-                  className="btn btn-primary"
-                  type="button"
-                  onClick={handleGenerateLink}
-                >
-                  <LinkIcon size={16} />
-                  {t('chatJoin.demo.action.generate')}
-                </button>
-              </div>
-              <DemoField
-                name="pub"
-                description={t('chatJoin.demo.field.senderPublicKey')}
-                wide
-              >
-                <input
-                  className="input input-compact"
-                  value={senderKeys.publicKey}
-                  readOnly
-                  translate="no"
-                />
-              </DemoField>
+                <LinkIcon size={16} />
+                {t('chatJoin.demo.action.generate')}
+              </button>
             </div>
 
             {error && <p className="chat-join-demo-error">{error}</p>}
@@ -713,19 +460,6 @@ export default function ChatJoinDemoPage() {
                 value={generatedToken}
                 readOnly
                 rows={4}
-                translate="no"
-              />
-            </DemoField>
-
-            <DemoField
-              name="pub"
-              description={t('chatJoin.demo.field.pub')}
-              wide
-            >
-              <input
-                className="input input-compact"
-                value={generatedPub}
-                readOnly
                 translate="no"
               />
             </DemoField>

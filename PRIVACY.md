@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Last updated: July 30, 2026
+Last updated: August 23, 2026
 
 MostBox is an open-source, peer-to-peer application. This policy describes the
 data flows implemented by the software in this repository. It does not make
@@ -36,24 +36,12 @@ Downloading an update sends the ordinary information associated with an HTTPS
 request, such as the requesting IP address and user-agent information, to the
 download host and its infrastructure providers.
 
-The account backup and avatar tools are separate from the P2P file-sharing
-flow. The application contacts `api.most.box` in the following cases:
-
-- After a user completes a login, the application automatically sends a signed
-  request to check whether an account backup exists and may offer to restore
-  it. This check does not upload local backup content, but the service receives
-  the wallet address, signature, request time, and ordinary connection metadata.
-- When a user creates or updates a cloud backup, account backup uploads a
-  wallet-address-authenticated encrypted payload and its content identifier.
-  The service receives the encrypted payload and the authentication and
-  connection data described above.
-- Avatar upload sends the selected image together with wallet-address
-  authentication and ordinary connection metadata. Published avatar URLs are
-  intended to be retrievable by other users.
-
-Private wallet or recovery material is used locally to create authentication
-signatures and is not intentionally uploaded by these features. Users should
-review the source and keep independent backups of important data.
+Account backups are encrypted and exported to a file selected by the user. The
+application does not upload account backups or avatar images to a MostBox
+service. Custom avatar URLs are fetched from the host selected by the user, so
+that host receives the ordinary information associated with an HTTPS request.
+Private wallet or recovery material remains local. Users should review the
+source and keep independent backups of important data.
 
 ## Third-party services
 
