@@ -6,7 +6,7 @@
 [![Node.js version](https://img.shields.io/badge/node-%3E%3D22.12-brightgreen)](https://nodejs.org)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-[下载客户端](https://most.box/download) · [在线入口](https://most.box) · [验收指南](docs/acceptance.md) · [ST 邀请集成](docs/st-chat-join-integration.md) · [参与贡献](CONTRIBUTING.md) · [问题讨论](https://github.com/most-people/most/discussions)
+[下载客户端](https://most.box/download) · [在线入口](https://most.box) · [验收指南](docs/acceptance.md) · [P2P 风险红线](docs/p2p-risk-boundaries.md) · [ST 邀请集成](docs/st-chat-join-integration.md) · [参与贡献](CONTRIBUTING.md) · [问题讨论](https://github.com/most-people/most/discussions)
 
 MostBox 不要求先把文件上传到中心化网盘。发布者发送一个 `most://` 链接，接收者从在线节点下载完整文件并重算 CID；校验通过后，接收者默认继续做种。
 
@@ -19,6 +19,8 @@ MostBox 不要求先把文件上传到中心化网盘。发布者发送一个 `m
 > CID 是 MostBox 唯一的内容身份。文件名和目录只用于展示与本地保存，不替代 CID 判断内容是否存在或可信。
 >
 > MostBox 不承诺永久保存或离线可用；可用性来自当前在线种子。知道 `most://` 链接的人即可尝试下载对应内容。
+>
+> 开发和上架边界见 [P2P 风险红线](docs/p2p-risk-boundaries.md)：MostBox 不做公开资源目录、内容搜索、推荐、官方种子库或侵权用途宣传。
 
 ## 验证核心闭环
 
