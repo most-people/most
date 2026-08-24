@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   getFriendlyCoreError,
+  getFriendlyRemoteConnectionError,
   getMostLinkErrorMessage,
   getTransferDisplayMessage,
   partitionTransfers,
@@ -59,6 +60,22 @@ test('getMostLinkErrorMessage localizes protocol error codes', () => {
   )
 })
 
+test('getFriendlyRemoteConnectionError localizes connection failures', () => {
+  assert.equal(
+    getFriendlyRemoteConnectionError(
+      Object.assign(new Error('Forbidden'), { code: 'INVALID_INVITE' })
+    ),
+    '邀请码无效或远程访问未启用'
+  )
+  assert.equal(
+    getFriendlyRemoteConnectionError(
+      new Error('Finish or cancel active transfers before switching nodes'),
+      'en'
+    ),
+    'Finish or cancel active transfers before switching nodes'
+  )
+})
+
 test('getTransferDisplayMessage localizes stable core states', () => {
   assert.equal(getTransferDisplayMessage('Finding peers'), '正在查找在线种子')
   assert.equal(
@@ -68,6 +85,14 @@ test('getTransferDisplayMessage localizes stable core states', () => {
   assert.equal(
     getTransferDisplayMessage('unexpected internal failure', 'failed'),
     '操作未完成，请稍后重试。'
+  )
+  assert.equal(
+    getTransferDisplayMessage(
+      'Downloaded and seeding on remote node',
+      'completed',
+      'zh-CN'
+    ),
+    '下载完成，远程节点正在做种'
   )
 })
 

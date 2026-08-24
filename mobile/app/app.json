@@ -39,7 +39,11 @@
       "buildNumber": "500",
       "supportsTablet": false,
       "infoPlist": {
-        "NSLocalNetworkUsageDescription": "MostBox 使用本地网络发现并连接其他设备，以传输文件。"
+        "NSLocalNetworkUsageDescription": "MostBox 使用本地网络发现并连接其他设备，以传输文件。",
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true,
+          "NSAllowsLocalNetworking": true
+        }
       },
       "privacyManifests": {
         "NSPrivacyAccessedAPITypes": [
@@ -62,6 +66,7 @@
     },
     "plugins": [
       "expo-document-picker",
+      "expo-secure-store",
       [
         "react-native-enriched-markdown",
         {
@@ -77,7 +82,8 @@
           "android": {
             "minSdkVersion": 29,
             "compileSdkVersion": 36,
-            "targetSdkVersion": 36
+            "targetSdkVersion": 36,
+            "usesCleartextTraffic": true
           }
         }
       ],

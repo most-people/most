@@ -156,6 +156,13 @@ describe('MostBox OpenAPI contract', () => {
     )
   })
 
+  it('documents file seeding fields used by remote clients', () => {
+    const publishedFile = spec.components.schemas.PublishedFile.properties
+    assert.deepEqual(publishedFile.source.enum, ['published', 'downloaded'])
+    assert.equal(publishedFile.joined.type, 'boolean')
+    assert.equal(publishedFile.peerCount.type, 'integer')
+  })
+
   it('matches concrete request paths back to their operation metadata', () => {
     assert.equal(
       findOpenApiOperation(

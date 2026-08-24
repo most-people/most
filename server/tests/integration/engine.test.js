@@ -1640,6 +1640,10 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
 
       const files = engine.listPublishedFiles()
       assert.strictEqual(files.length, initialCount + 1)
+      const listed = files.find(file => file.fileName === 'listed.txt')
+      assert.strictEqual(listed.source, 'published')
+      assert.strictEqual(listed.joined, true)
+      assert.strictEqual(typeof listed.peerCount, 'number')
     })
 
     it('keeps listing when one file availability probe fails', async () => {

@@ -11,16 +11,26 @@ function createDummyBlockstore() {
   }
 }
 
-export async function calculateUnixfsCidFromBytes(bytes: Uint8Array) {
+export async function calculateUnixfsCidFromContent(
+  content: Iterable<Uint8Array> | AsyncIterable<Uint8Array>
+) {
   const blockstore = createDummyBlockstore()
   let rootCid: CID | null = null
+  let size = 0
+
+  async function* trackSize() {
+    for await (const chunk of content) {
+      size += chunk.byteLength
+      yield chunk
+    }
+  }
 
   try {
     for await (const entry of importer(
       [
         {
           path: 'file',
-          content: [bytes],
+          content: trackSize(),
         },
       ],
       blockstore,
@@ -46,6 +56,10 @@ export async function calculateUnixfsCidFromBytes(bytes: Uint8Array) {
 
   return {
     cid: rootCid.toString(),
-    size: bytes.byteLength,
+    size,
   }
+}
+
+export async function calculateUnixfsCidFromBytes(bytes: Uint8Array) {
+  return calculateUnixfsCidFromContent([bytes])
 }

@@ -146,6 +146,11 @@ export const appMessages = {
     'zh-TW': '分享連結已複製，檔案正在前景做種。',
     en: 'The share link was copied and the file is seeding in the foreground.',
   },
+  'app.publish.remoteCompleteBody': {
+    'zh-CN': '分享链接已复制，文件正在远程节点做种。',
+    'zh-TW': '分享連結已複製，檔案正在遠端節點做種。',
+    en: 'The share link was copied and the file is seeding on the remote node.',
+  },
   'app.publish.failedTitle': {
     'zh-CN': '发布失败',
     'zh-TW': '發佈失敗',
@@ -170,6 +175,11 @@ export const appMessages = {
     'zh-CN': '文件已通过 CID 校验并开始前台做种。',
     'zh-TW': '檔案已通過 CID 驗證並開始在前景做種。',
     en: 'The file passed CID verification and is now seeding in the foreground.',
+  },
+  'app.download.remoteCompleteBody': {
+    'zh-CN': '文件已通过 CID 校验并由远程节点持续做种。',
+    'zh-TW': '檔案已通過 CID 驗證並由遠端節點持續做種。',
+    en: 'The file passed CID verification and is now seeding on the remote node.',
   },
   'app.download.later': {
     'zh-CN': '稍后',

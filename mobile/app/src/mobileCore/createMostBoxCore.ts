@@ -1,6 +1,6 @@
 import backendBundle from '../../appBundle'
-import { BareWorkletMostBoxCore } from './workletClient'
-import type { MostBoxMobileCore } from './types'
+import { MobileNodeClient } from './mobileClient'
+import type { MostBoxMobileClient } from './types'
 
 type CreateMostBoxCoreOptions = {
   storagePath: string
@@ -8,8 +8,8 @@ type CreateMostBoxCoreOptions = {
 
 export function createMostBoxCore({
   storagePath,
-}: CreateMostBoxCoreOptions): MostBoxMobileCore {
-  return new BareWorkletMostBoxCore({
+}: CreateMostBoxCoreOptions): MostBoxMobileClient {
+  return new MobileNodeClient({
     bundle: backendBundle,
     storagePath,
   })

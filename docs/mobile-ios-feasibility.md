@@ -2,7 +2,7 @@
 
 本文用于验证 MostBox 的完整前台 P2P 节点能否在真实 iPhone 上成立。iOS 验证通过前，不开始大规模移动端跨平台重构；技术验证通过也不等于已经满足正式商店合规要求。
 
-当前实现状态：iOS Expo 配置、EAS development/preview/production 构建档位、iOS Bare bundle 脚本和平台感知 UI 已加入源码。负责人于 2026-08-15 确认 iPhone 真机功能和 P2P 传播闭环测试通过；设备型号、iOS 版本、候选包来源和原始测试记录仍需归档。
+当前实现状态：iOS Expo 配置、EAS development/preview/production 构建档位、iOS Bare bundle 脚本和平台感知 UI 已加入源码。移动端同时支持内置 Bare Worklet 节点与用户远程 daemon；远程模式由 daemon 持续下载和做种，iPhone 导出时仍按 CID 分块校验。负责人于 2026-08-15 确认 iPhone 真机本机 P2P 传播闭环测试通过；远程节点真机记录和正式 TestFlight 证据仍需归档。
 
 上述确认不能替代正式商店候选包证据。当前剩余门槛是取得 Apple Developer 组织资格后，使用正式签名生成内部 TestFlight build，从 TestFlight 安装同一候选包并复跑本计划的完整闭环，记录 build ID、设备和结果后才能提交审核。
 
@@ -24,6 +24,8 @@ iOS 技术验证只有同时满足以下条件才算通过：
 - App 重启后恢复 holding，并重新 join 对应 CID topic。
 - iOS 文件选择、打开、分享和导出流程使用公开系统 API 正常工作。
 - Wi-Fi 和蜂窝网络分别完成至少一次真实发现与传输测试。
+- iPhone 能连接 HTTP、HTTPS 和带路径反向代理的远程 daemon，完成登录、发布、下载、取消、导出校验、知识库附件和 P2P Ping。
+- 远程连接中断时不切换到本机节点；回到前台或网络恢复后重建 WebSocket 并恢复状态。
 
 验证通过只代表技术路线可继续推进，不代表已经满足 App Store 审核、内容治理、隐私披露或特定地区的法律要求。
 
@@ -151,6 +153,16 @@ node scripts/android-real-p2p-seed.mjs --handoff-check
 - 通过内部 TestFlight 安装，再复跑 P2P Ping、CID 下载和前台做种交接。
 
 通过标准：从 TestFlight 安装的实际 Release 包通过最高验收场景。只上传成功但真机闭环失败，不算通过。
+
+### 8. 验证远程 daemon 模式
+
+- 未登录连接后只读取公开状态；登录后文件列表按签名身份隔离。
+- 使用 HTTP、HTTPS 和带路径反向代理地址完成流式发布与远程下载，并确认 daemon 完成 CID 校验和做种。
+- 通过保存、分享和知识库附件打开触发手机缓存下载；复用正确缓存，拒绝并删除 CID 不匹配缓存。
+- 关闭原发布者后，由远程 daemon 继续向干净 verifier 提供相同 CID。
+- 测试启动远程失败后的本机会话回退，以及运行中断线、前后台切换后的远程重连。
+
+通过标准：远程模式下手机不创建 holding、不承担后台做种；节点归属、登录状态、错误与完成提示均与本机模式清楚区分。公网 HTTP 仅验证兼容性，部署仍推荐 HTTPS。
 
 ## Go / No-Go 条件
 

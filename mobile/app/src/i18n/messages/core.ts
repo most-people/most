@@ -154,4 +154,29 @@ export const coreMessages = {
     'zh-TW': '下載完成，正在做種',
     en: 'Downloaded and seeding',
   },
+  'core.transfer.remoteUploading': {
+    'zh-CN': '正在上传到远程节点',
+    'zh-TW': '正在上傳到遠端節點',
+    en: 'Uploading to remote node',
+  },
+  'core.transfer.remotePublishedSeeding': {
+    'zh-CN': '发布完成，远程节点正在做种',
+    'zh-TW': '發佈完成，遠端節點正在做種',
+    en: 'Published and seeding on remote node',
+  },
+  'core.transfer.remoteStartingDownload': {
+    'zh-CN': '正在远程节点启动下载',
+    'zh-TW': '正在遠端節點啟動下載',
+    en: 'Starting remote download',
+  },
+  'core.transfer.remoteDownloadedSeeding': {
+    'zh-CN': '下载完成，远程节点正在做种',
+    'zh-TW': '下載完成，遠端節點正在做種',
+    en: 'Downloaded and seeding on remote node',
+  },
+  'core.transfer.remoteCancelling': {
+    'zh-CN': '正在取消远程下载',
+    'zh-TW': '正在取消遠端下載',
+    en: 'Cancelling remote download',
+  },
 } as const

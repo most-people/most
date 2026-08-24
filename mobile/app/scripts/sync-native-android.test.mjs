@@ -39,6 +39,10 @@ describe('Android native project synchronization', () => {
       appJson.android.versionCode,
       resolveVersionCode(undefined, appJson.version)
     )
+    const buildProperties = appJson.plugins.find(
+      plugin => Array.isArray(plugin) && plugin[0] === 'expo-build-properties'
+    )
+    assert.equal(buildProperties?.[1]?.android?.usesCleartextTraffic, true)
   })
 
   it('synchronizes the application ID, namespace, and Kotlin package', () => {

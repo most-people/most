@@ -2181,6 +2181,7 @@ export class MostBoxEngine extends EventEmitter {
       const holding = this.#holdings.find(item => item.cid === f.cid)
       const seedState = this.#seedStates.get(f.cid)
       const seedStatus = seedState?.status || ''
+      const runtimeStats = this.#getFileRuntimeStats(f.cid)
       return {
         kind: f.kind || 'file',
         fileName: f.fileName,
@@ -2189,10 +2190,13 @@ export class MostBoxEngine extends EventEmitter {
         publishedAt: f.publishedAt,
         size: Number(f.size) || 0,
         fileCount: Number(f.fileCount) || undefined,
+        source: f.source === 'downloaded' ? 'downloaded' : 'published',
         starred: f.starred || false,
         ownerAddress: ownerAddress || '',
         localAvailable: this.#isLocalHoldingAvailable(f.cid),
         seedStatus,
+        joined: seedStatus === 'active' && this.#fileDiscoveries.has(f.cid),
+        peerCount: runtimeStats.peerCount,
         seedError: seedState?.error,
         holdingSize: Number(holding?.size) || 0,
       }

@@ -13,6 +13,13 @@ const TRANSFER_MESSAGE_KEYS: Record<string, MessageKey> = {
   'Finding peers': 'core.transfer.findingPeers',
   'Downloading file': 'core.transfer.downloading',
   'Verifying CID': 'core.transfer.verifying',
+  'Uploading to remote node': 'core.transfer.remoteUploading',
+  'Published and seeding on remote node':
+    'core.transfer.remotePublishedSeeding',
+  'Starting remote download': 'core.transfer.remoteStartingDownload',
+  'Downloaded and seeding on remote node':
+    'core.transfer.remoteDownloadedSeeding',
+  'Cancelling remote download': 'core.transfer.remoteCancelling',
 }
 
 const MOST_LINK_MESSAGE_KEYS: Record<string, MessageKey> = {
@@ -75,6 +82,41 @@ export function getFriendlyCoreError(
     return translateMessage('core.error.network', locale)
   }
   return translateMessage('core.error.generic', locale)
+}
+
+export function getFriendlyRemoteConnectionError(
+  error: unknown,
+  locale: Locale = DEFAULT_LOCALE
+) {
+  const message = error instanceof Error ? error.message : String(error || '')
+  const code =
+    error && typeof error === 'object' && 'code' in error
+      ? String(error.code || '')
+      : ''
+  const normalized = message.toLowerCase()
+
+  let key: MessageKey = 'node.connection.error.generic'
+  if (normalized.includes('valid http or https')) {
+    key = 'node.connection.error.invalidUrl'
+  } else if (code === 'INVALID_INVITE' || normalized.includes('invite')) {
+    key = 'node.connection.error.invalidInvite'
+  } else if (
+    code === 'REMOTE_LOGIN_REQUIRED' ||
+    code === 'UNAUTHORIZED' ||
+    normalized.includes('signed identity')
+  ) {
+    key = 'node.connection.error.identity'
+  } else if (normalized.includes('active transfers')) {
+    key = 'node.connection.error.switchBlocked'
+  } else if (
+    code.startsWith('REMOTE_') ||
+    normalized.includes('connection') ||
+    normalized.includes('unreachable') ||
+    normalized.includes('reconnecting')
+  ) {
+    key = 'node.connection.error.unreachable'
+  }
+  return translateMessage(key, locale)
 }
 
 export function getTransferDisplayMessage(

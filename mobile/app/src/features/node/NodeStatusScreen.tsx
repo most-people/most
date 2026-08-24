@@ -42,6 +42,7 @@ import type {
   MobileCoreSnapshot,
   MobileHolding,
   MobileTransfer,
+  MostBoxMobileClient,
   NodeRuntimeStatus,
   SeedStatus,
   TransferStatus,
@@ -59,13 +60,16 @@ import {
 } from '../../ui/components'
 import {
   getFriendlyCoreError,
+  getFriendlyRemoteConnectionError,
   getTransferDisplayMessage,
   partitionTransfers,
   usesAccessibilityLayout,
 } from '../../ui/presentation'
 import { useI18n, type MessageKey } from '../../i18n'
+import { NodeConnectionPanel } from './NodeConnectionPanel'
 
 export type NodeStatusScreenProps = {
+  client: MostBoxMobileClient
   section: 'files' | 'transfers' | 'node'
   snapshot: MobileCoreSnapshot
   copiedCid: string | null
@@ -457,6 +461,7 @@ function TransferItem({
 }
 
 export function NodeStatusScreen({
+  client,
   section,
   snapshot,
   copiedCid,
@@ -489,6 +494,7 @@ export function NodeStatusScreen({
   const accessibilityLayout = usesAccessibilityLayout(fontScale)
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
   const isReady = snapshot.node.status === 'ready'
+  const isRemote = snapshot.node.mode === 'remote'
   const recentLogs = snapshot.logs.slice(0, 6)
   const {
     active: activeTransfers,
@@ -537,11 +543,14 @@ export function NodeStatusScreen({
           </Pressable>
           <Pressable
             accessibilityRole="button"
+            accessibilityState={{ disabled: actionDisabled }}
+            disabled={actionDisabled}
             onPress={onReceiveLink}
             style={({ pressed }) => [
               styles.actionButton,
               styles.actionButtonSecondary,
               accessibilityLayout ? styles.actionButtonAccessibility : null,
+              actionDisabled ? styles.actionCardDisabled : null,
               pressed ? styles.actionCardPressed : null,
             ]}
           >
@@ -558,7 +567,11 @@ export function NodeStatusScreen({
       ) : null}
 
       {section === 'node' ? (
-        <View style={[styles.section, styles.topSection]}>
+        <NodeConnectionPanel client={client} snapshot={snapshot} />
+      ) : null}
+
+      {section === 'node' ? (
+        <View style={styles.section}>
           <SectionHeader
             icon={<Radio size={18} color={theme.colors.accent} />}
             title={t('node.section.status')}
@@ -575,7 +588,12 @@ export function NodeStatusScreen({
               ]}
             >
               <Text maxFontSizeMultiplier={2} style={styles.nodeErrorText}>
-                {getFriendlyCoreError(snapshot.node.error, locale)}
+                {snapshot.node.mode === 'remote'
+                  ? getFriendlyRemoteConnectionError(
+                      snapshot.node.error,
+                      locale
+                    )
+                  : getFriendlyCoreError(snapshot.node.error, locale)}
               </Text>
               <Pressable
                 disabled={retryStartDisabled}
@@ -612,7 +630,9 @@ export function NodeStatusScreen({
             />
             <Metric
               icon={<HardDrive size={17} color={theme.colors.info} />}
-              label={t('node.metric.localSeeds')}
+              label={t(
+                isRemote ? 'node.metric.remoteSeeds' : 'node.metric.localSeeds'
+              )}
               value={String(snapshot.holdings.length)}
             />
             <Metric
@@ -711,7 +731,9 @@ export function NodeStatusScreen({
         >
           <SectionHeader
             icon={<Wifi size={18} color={theme.colors.accent} />}
-            title={t('node.section.seeding')}
+            title={t(
+              isRemote ? 'node.section.remoteSeeding' : 'node.section.seeding'
+            )}
             meta={t(
               snapshot.holdings.length === 1
                 ? 'node.fileCount.one'

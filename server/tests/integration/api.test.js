@@ -798,8 +798,12 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
 
       const firstRes = await fetch(`${baseUrl}/api/files`)
       const firstData = await firstRes.json()
+      const firstFile = firstData.find(file => file.cid === first.cid)
       assert.strictEqual(firstRes.status, 200)
-      assert.ok(firstData.some(file => file.cid === first.cid))
+      assert.ok(firstFile)
+      assert.strictEqual(firstFile.source, 'published')
+      assert.strictEqual(firstFile.joined, true)
+      assert.strictEqual(typeof firstFile.peerCount, 'number')
       assert.ok(!firstData.some(file => file.cid === second.cid))
 
       const secondRes = await fetchAs(SECOND_IDENTITY, `${baseUrl}/api/files`)

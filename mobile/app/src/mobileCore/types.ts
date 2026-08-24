@@ -10,6 +10,26 @@ export type TransferKind = 'publish' | 'download'
 
 export type LogLevel = 'info' | 'warn' | 'error'
 
+export type NodeMode = 'local' | 'remote'
+
+export type MobileIdentity = {
+  username: string
+  address: string
+  danger: string
+}
+
+export type RemoteNodeConfig = {
+  url: string
+  invite: string
+}
+
+export type NodeHistoryItem = RemoteNodeConfig & {
+  local: boolean
+  preferred: boolean
+  current: boolean
+  updatedAt: number
+}
+
 export type P2PPingRole = 'host' | 'join'
 
 export type P2PPingDirectionName = 'hostToJoin' | 'joinToHost'
@@ -100,6 +120,12 @@ export type NodeState = {
   peerCount: number
   storagePath: string
   error: string
+  mode?: NodeMode
+  endpoint?: string
+  authenticated?: boolean
+  userAddress?: string
+  username?: string
+  fallbackFrom?: string
 }
 
 export type MobileCoreSnapshot = {
@@ -175,4 +201,15 @@ export type MostBoxMobileCore = {
   deleteHolding: (input: DeleteHoldingInput) => Promise<DeleteHoldingResult>
   getSnapshot: () => MobileCoreSnapshot
   subscribe: (listener: CoreListener) => () => void
+}
+
+export type MostBoxMobileClient = MostBoxMobileCore & {
+  connectRemote: (input: RemoteNodeConfig) => Promise<void>
+  switchToLocal: () => Promise<void>
+  signIn: (input: {
+    username: string
+    password: string
+  }) => Promise<MobileIdentity>
+  signOut: () => Promise<void>
+  getNodeHistory: () => NodeHistoryItem[]
 }

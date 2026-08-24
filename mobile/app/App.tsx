@@ -2,6 +2,7 @@ import './src/polyfills/eventTarget'
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
 import {
   Alert,
+  AppState,
   KeyboardAvoidingView,
   Linking,
   Modal,
@@ -78,7 +79,7 @@ import type {
   MobileCoreSnapshot,
   MobileHolding,
   MobileTransfer,
-  MostBoxMobileCore,
+  MostBoxMobileClient,
 } from './src/mobileCore/types'
 
 const DEV_CID_MAX_BYTES = 20 * 1024 * 1024
@@ -189,7 +190,7 @@ function MostBoxApp() {
   const styles = appStyles[theme.mode]
   const { fontScale } = useWindowDimensions()
   const accessibilityLayout = usesAccessibilityLayout(fontScale)
-  const coreRef = useRef<MostBoxMobileCore | null>(null)
+  const coreRef = useRef<MostBoxMobileClient | null>(null)
   const knowledgeRepositoryRef = useRef<ReturnType<
     typeof createExpoKnowledgeRepository
   > | null>(null)
@@ -228,7 +229,10 @@ function MostBoxApp() {
   const knowledgeRepository = knowledgeRepositoryRef.current
   const currentSnapshot = snapshot ?? core.getSnapshot()
   const nodeStatus = currentSnapshot.node.status
-  const isReady = nodeStatus === 'ready'
+  const isNodeOnline = nodeStatus === 'ready'
+  const isRemote = currentSnapshot.node.mode === 'remote'
+  const isReady =
+    isNodeOnline && (!isRemote || currentSnapshot.node.authenticated === true)
   const isCoreBusy = nodeStatus === 'starting' || nodeStatus === 'stopping'
   const showCoreStartError = useEffectEvent((error: unknown) => {
     Alert.alert(t('app.core.startFailed'), getFriendlyCoreError(error, locale))
@@ -243,6 +247,15 @@ function MostBoxApp() {
       if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current)
       void core.stop()
     }
+  }, [core])
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active') {
+        void core.start().catch(showCoreStartError)
+      }
+    })
+    return () => subscription.remove()
   }, [core])
 
   const openDownloadIntent = useCallback(
@@ -289,6 +302,10 @@ function MostBoxApp() {
 
   const guardReady = () => {
     if (isReady) return true
+    if (isNodeOnline && isRemote) {
+      Alert.alert(t('node.account.title'), t('node.account.required'))
+      return false
+    }
     Alert.alert(t('app.core.notReadyTitle'), t('app.core.notReadyBody'))
     return false
   }
@@ -335,7 +352,9 @@ function MostBoxApp() {
   }
 
   const handleStartP2PPing = (role: 'host' | 'join', code?: string) => {
-    if (!isReady) return Promise.reject(new Error(t('app.core.notReadyBody')))
+    if (!isNodeOnline) {
+      return Promise.reject(new Error(t('app.core.notReadyBody')))
+    }
     return core.startP2PPing({ role, code })
   }
 
@@ -384,7 +403,14 @@ function MostBoxApp() {
       const result = await publishPickedFile()
       if (!result) return
       await Clipboard.setStringAsync(result.link)
-      Alert.alert(t('app.publish.completeTitle'), t('app.publish.completeBody'))
+      Alert.alert(
+        t('app.publish.completeTitle'),
+        t(
+          isRemote
+            ? 'app.publish.remoteCompleteBody'
+            : 'app.publish.completeBody'
+        )
+      )
     } catch (error) {
       Alert.alert(
         t('app.publish.failedTitle'),
@@ -496,7 +522,11 @@ function MostBoxApp() {
       if (shouldOpen && holding) {
         Alert.alert(
           t('app.download.completeTitle'),
-          t('app.download.completeBody'),
+          t(
+            isRemote
+              ? 'app.download.remoteCompleteBody'
+              : 'app.download.completeBody'
+          ),
           [
             { text: t('app.download.later') },
             {
@@ -510,7 +540,11 @@ function MostBoxApp() {
       } else {
         Alert.alert(
           t('app.download.completeTitle'),
-          t('app.download.completeBody')
+          t(
+            isRemote
+              ? 'app.download.remoteCompleteBody'
+              : 'app.download.completeBody'
+          )
         )
       }
     } catch (error) {
@@ -539,7 +573,11 @@ function MostBoxApp() {
       await core.downloadLink({ link: transfer.link })
       Alert.alert(
         t('app.download.completeTitle'),
-        t('app.download.completeBody')
+        t(
+          isRemote
+            ? 'app.download.remoteCompleteBody'
+            : 'app.download.completeBody'
+        )
       )
     } catch (error) {
       Alert.alert(
@@ -716,7 +754,13 @@ function MostBoxApp() {
   }
 
   const handleOpenKnowledgeLink = async (link: string) => {
-    if (!isReady) throw new Error(t('app.core.notReadyTitle'))
+    if (!isReady) {
+      throw new Error(
+        isNodeOnline && isRemote
+          ? t('node.account.required')
+          : t('app.core.notReadyTitle')
+      )
+    }
     let parsed: ReturnType<typeof parseMostLink>
     try {
       parsed = parseMostLink(link)
@@ -955,13 +999,14 @@ function MostBoxApp() {
           ) : activeTab === 'node' && nodeRoute === 'p2pPing' ? (
             <P2PPingScreen
               ping={currentSnapshot.p2pPing}
-              ready={isReady}
+              ready={isNodeOnline}
               onBack={() => setNodeRoute('status')}
               onStart={handleStartP2PPing}
               onCancel={handleCancelP2PPing}
             />
           ) : (
             <NodeStatusScreen
+              client={core}
               section={activeTab}
               snapshot={currentSnapshot}
               copiedCid={copiedCid}

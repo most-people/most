@@ -32,6 +32,19 @@ export function applyIosVersionInfo(infoPlist, version, buildNumber) {
   )
 }
 
+export function applyIosNetworkPolicy(infoPlist, allowsArbitraryLoads) {
+  const pattern = new RegExp(
+    '(<key>NSAllowsArbitraryLoads</key>\\s*)<(?:true|false)\\s*/>'
+  )
+  if (!pattern.test(infoPlist)) {
+    throw new Error('Unable to update NSAllowsArbitraryLoads in iOS Info.plist')
+  }
+  return infoPlist.replace(
+    pattern,
+    `$1<${allowsArbitraryLoads ? 'true' : 'false'}/>`
+  )
+}
+
 export function syncNativeIosProject({
   version = appJson.version,
   buildNumber = appJson.ios?.buildNumber,
@@ -45,7 +58,16 @@ export function syncNativeIosProject({
   }
 
   const infoPlist = fs.readFileSync(infoPlistPath, 'utf8')
-  const nextInfoPlist = applyIosVersionInfo(infoPlist, version, buildNumber)
+  const versionedInfoPlist = applyIosVersionInfo(
+    infoPlist,
+    version,
+    buildNumber
+  )
+  const nextInfoPlist = applyIosNetworkPolicy(
+    versionedInfoPlist,
+    appJson.ios?.infoPlist?.NSAppTransportSecurity?.NSAllowsArbitraryLoads ===
+      true
+  )
   if (nextInfoPlist !== infoPlist) {
     fs.writeFileSync(infoPlistPath, nextInfoPlist)
   }
