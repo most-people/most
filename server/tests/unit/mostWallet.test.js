@@ -2,6 +2,9 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert'
 import { verifyMessage } from 'ethers'
 import {
+  DEFAULT_PBKDF2_ITERATIONS,
+  MAX_PBKDF2_ITERATIONS,
+  MIN_PBKDF2_ITERATIONS,
   mostBoxDecrypt,
   mostBoxEncrypt,
   mostDecode,
@@ -37,6 +40,41 @@ describe('mostWallet', () => {
   it('returns valid ethereum address format', () => {
     const w = mostWallet('test', 'pass')
     assert.match(w.address, /^0x[a-fA-F0-9]{40}$/)
+  })
+
+  it('keeps the default address when the default iteration count is explicit', () => {
+    const implicit = mostWallet('testuser', 'password123')
+    const explicit = mostWallet(
+      'testuser',
+      'password123',
+      DEFAULT_PBKDF2_ITERATIONS
+    )
+
+    assert.deepStrictEqual(explicit, implicit)
+  })
+
+  it('derives a different address with a custom iteration count', () => {
+    const defaultWallet = mostWallet('testuser', 'password123')
+    const customWallet = mostWallet(
+      'testuser',
+      'password123',
+      MIN_PBKDF2_ITERATIONS
+    )
+
+    assert.notStrictEqual(customWallet.address, defaultWallet.address)
+  })
+
+  it('rejects invalid iteration counts', () => {
+    for (const iterations of [
+      MIN_PBKDF2_ITERATIONS - 1,
+      MAX_PBKDF2_ITERATIONS + 1,
+      1.5,
+    ]) {
+      assert.throws(
+        () => mostWallet('testuser', 'password123', iterations),
+        RangeError
+      )
+    }
   })
 })
 

@@ -10,6 +10,9 @@ import { useI18n, type MessageKey } from '~/lib/i18n'
 import {
   mostBoxDecrypt,
   mostBoxEncrypt,
+  DEFAULT_PBKDF2_ITERATIONS,
+  MAX_PBKDF2_ITERATIONS,
+  MIN_PBKDF2_ITERATIONS,
   mostWallet,
   mostMnemonic,
   most25519,
@@ -49,6 +52,9 @@ export default function Web3Page() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [pbkdf2Iterations, setPbkdf2Iterations] = useState(
+    String(DEFAULT_PBKDF2_ITERATIONS)
+  )
   const [walletResult, setWalletResult] = useState<WalletResult | null>(null)
   const [keys, setKeys] = useState<MostKeySet | null>(null)
   const [privatePem, setPrivatePem] = useState('')
@@ -101,6 +107,14 @@ export default function Web3Page() {
   const [boxEncryptShowPrivateKey, setBoxEncryptShowPrivateKey] =
     useState(false)
 
+  const parsedPbkdf2Iterations = /^\d+$/.test(pbkdf2Iterations)
+    ? Number(pbkdf2Iterations)
+    : Number.NaN
+  const pbkdf2IterationsValid =
+    Number.isSafeInteger(parsedPbkdf2Iterations) &&
+    parsedPbkdf2Iterations >= MIN_PBKDF2_ITERATIONS &&
+    parsedPbkdf2Iterations <= MAX_PBKDF2_ITERATIONS
+
   useEffect(() => {
     setCurrentView(getHashView())
     const onHashChange = () => setCurrentView(getHashView())
@@ -114,10 +128,10 @@ export default function Web3Page() {
   }
 
   const handleGenerate = useCallback(async () => {
-    if (!username.trim()) return
+    if (!username.trim() || !pbkdf2IterationsValid) return
     setGenerating(true)
     await new Promise(resolve => setTimeout(resolve, 0))
-    const result = mostWallet(username.trim(), password)
+    const result = mostWallet(username.trim(), password, parsedPbkdf2Iterations)
     const displayName = `${result.username}#${result.address.slice(-4).toUpperCase()}`
     setWalletResult(result)
     setUserIdentity({ ...result, displayName })
@@ -138,7 +152,15 @@ export default function Web3Page() {
     setShowMnemonicQr(false)
     setShowX25519Private(false)
     setGenerating(false)
-  }, [addToast, password, setUserIdentity, t, username])
+  }, [
+    addToast,
+    parsedPbkdf2Iterations,
+    password,
+    pbkdf2IterationsValid,
+    setUserIdentity,
+    t,
+    username,
+  ])
 
   function generateBoxAccount(
     nextUsername: string,
@@ -350,9 +372,12 @@ export default function Web3Page() {
               username={username}
               password={password}
               showPassword={showPassword}
+              pbkdf2Iterations={pbkdf2Iterations}
+              pbkdf2IterationsValid={pbkdf2IterationsValid}
               generating={generating}
               onUsernameChange={setUsername}
               onPasswordChange={setPassword}
+              onPbkdf2IterationsChange={setPbkdf2Iterations}
               onTogglePassword={() => setShowPassword(!showPassword)}
               onGenerate={handleGenerate}
             />

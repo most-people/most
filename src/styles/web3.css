@@ -28,6 +28,36 @@
   max-width: 720px;
 }
 
+.web3-login-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.web3-login-settings-toggle {
+  align-self: flex-end;
+  margin-bottom: var(--space-3);
+}
+
+.web3-login-settings {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(120px, 180px);
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.web3-login-settings label {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.web3-login-settings-error {
+  grid-column: 1 / -1;
+  color: var(--danger);
+  font-size: 12px;
+}
+
 .web3-login-card {
   background: var(--glass-bg);
   backdrop-filter: var(--blur-lg);
@@ -125,6 +155,10 @@
 }
 
 @media (max-width: 640px) {
+  .web3-login-settings {
+    grid-template-columns: 1fr;
+  }
+
   .web3-key-grid {
     grid-template-columns: 1fr;
   }
