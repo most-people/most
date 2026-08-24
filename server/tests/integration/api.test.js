@@ -73,6 +73,16 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     )
   }
 
+  async function waitForNodeLog(predicate, timeout = 1000) {
+    const start = Date.now()
+    while (Date.now() - start < timeout) {
+      const log = nodeLogger.list(200).find(predicate)
+      if (log) return log
+      await sleep(25)
+    }
+    throw new Error('Expected node log was not written')
+  }
+
   async function requestAsWithContext(
     identity,
     app,
@@ -735,8 +745,15 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
     })
 
     it('exports a sanitized diagnostics snapshot', async () => {
+      const published = await engine.publishFile(
+        Buffer.from('diagnostics holding'),
+        'diagnostics.txt'
+      )
       const res = await fetch(`${baseUrl}/api/node/diagnostics`)
       const data = await res.json()
+      const holding = data.status.holdings.find(
+        item => item.cid === published.cid
+      )
 
       assert.strictEqual(res.status, 200)
       assert.ok(data.generatedAt)
@@ -744,6 +761,13 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(data.status.status, 'online')
       assert.ok(Array.isArray(data.status.holdings))
       assert.ok(Array.isArray(data.logs))
+      assert.ok(holding)
+      assert.strictEqual(holding.seedStatus, 'active')
+      assert.strictEqual(holding.joined, true)
+      assert.match(holding.topic, /^[0-9a-f]{64}$/)
+      assert.strictEqual(typeof holding.peerCount, 'number')
+      assert.strictEqual(holding.lastServedAt, null)
+      assert.strictEqual(holding.totalServedBytes, 0)
       assert.strictEqual('remoteInvites' in data.status.config, false)
     })
   })
@@ -1526,6 +1550,46 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.deepStrictEqual(await completedRes.json(), [])
     })
 
+    it('logs background download failures with CID diagnostics', async () => {
+      nodeLogger.clear()
+      const fakeEngine = new EventEmitter()
+      Object.assign(fakeEngine, {
+        getLocalCidAvailability: async () => null,
+        downloadFile: async () => {
+          const err = new Error('simulated download failure')
+          err.code = 'PEER_NOT_FOUND'
+          throw err
+        },
+      })
+      const { app } = createApp(fakeEngine, {
+        port: TEST_PORT + 41,
+        configStore,
+        nodeLogger,
+      })
+
+      const res = await requestWithAuth(app, '/api/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          link: `most://${VALID_MISSING_CID}?filename=missing.bin`,
+          background: true,
+        }),
+      })
+      const data = await res.json()
+      assert.strictEqual(res.status, 200)
+      assert.ok(data.taskId)
+
+      const log = await waitForNodeLog(
+        item =>
+          item.event === 'node:download:error' &&
+          item.data?.taskId === data.taskId
+      )
+      assert.strictEqual(log.level, 'error')
+      assert.strictEqual(log.data.cid, VALID_MISSING_CID)
+      assert.match(log.data.topic, /^[0-9a-f]{64}$/)
+      assert.strictEqual(log.data.code, 'PEER_NOT_FOUND')
+    })
+
     it('requires login to list active background downloads', async () => {
       const res = await fetchWithoutAuth(`${baseUrl}/api/download/tasks`)
       assert.strictEqual(res.status, 401)
@@ -1606,6 +1670,40 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.match(data.holding.driveName, /^drive-[0-9a-f]{64}$/)
       assert.notStrictEqual(data.holding.driveName, 'drive-not-from-cid')
       assert.strictEqual(data.holding.driveName, `drive-${data.holding.topic}`)
+    })
+
+    it('logs P2P pull link failures with CID diagnostics', async () => {
+      nodeLogger.clear()
+      const fakeEngine = {
+        pullByCid: async () => {
+          const err = new Error('simulated pull failure')
+          err.code = 'PEER_NOT_FOUND'
+          throw err
+        },
+      }
+      const { app } = createApp(fakeEngine, {
+        port: TEST_PORT + 42,
+        configStore,
+        nodeLogger,
+      })
+      const link = `most://${VALID_MISSING_CID}?filename=missing.bin`
+
+      const res = await requestWithAuth(app, '/api/p2p/pull', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ link, taskId: 'pull-log-test' }),
+      })
+      assert.strictEqual(res.status, 503)
+
+      const log = await waitForNodeLog(
+        item =>
+          item.event === 'node:pull:error' &&
+          item.data?.taskId === 'pull-log-test'
+      )
+      assert.strictEqual(log.level, 'error')
+      assert.strictEqual(log.data.cid, VALID_MISSING_CID)
+      assert.match(log.data.topic, /^[0-9a-f]{64}$/)
+      assert.strictEqual(log.data.code, 'PEER_NOT_FOUND')
     })
 
     it('passes the authenticated user to P2P pull downloads', async () => {

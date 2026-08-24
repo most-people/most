@@ -466,6 +466,7 @@ export function createApp(engine, options = {}) {
     configStore,
     wsBroadcast,
     downloadTasks,
+    appendNodeLog,
   })
   registerChannelRoutes(app, { engine })
   registerNoteVaultRoutes(app, { noteVaultRoot, isRemoteRequest })

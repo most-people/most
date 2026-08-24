@@ -2211,6 +2211,8 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         firstEngine = null
 
         secondEngine = new MostBoxEngine({ dataPath })
+        const resumeEvents = []
+        secondEngine.on('holding:resume', event => resumeEvents.push(event))
         await secondEngine.start()
         const queued = secondEngine
           .listHoldings()
@@ -2227,6 +2229,14 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         assert.ok(restored)
         assert.strictEqual(restored.joined, true)
         assert.strictEqual(restored.topic, holding.topic)
+        assert.ok(
+          resumeEvents.some(
+            event =>
+              event.cid === publishResult.cid &&
+              event.topic === holding.topic &&
+              event.status === 'active'
+          )
+        )
       } finally {
         if (firstEngine) await firstEngine.stop().catch(() => {})
         if (secondEngine) await secondEngine.stop().catch(() => {})
@@ -2279,6 +2289,8 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
           disableNetwork: true,
           downloadTimeout: 100,
         })
+        const resumeEvents = []
+        missingEngine.on('holding:resume', event => resumeEvents.push(event))
         await missingEngine.start()
 
         const missing = await waitForHoldingStatus(
@@ -2289,6 +2301,14 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
         )
         assert.strictEqual(missing.joined, false)
         assert.match(missing.seedError, /Local CID content missing/)
+        assert.ok(
+          resumeEvents.some(
+            event =>
+              event.cid === cidString &&
+              event.status === 'error' &&
+              event.code === 'LOCAL_CONTENT_MISSING'
+          )
+        )
       } finally {
         if (setupEngine) await setupEngine.stop().catch(() => {})
         if (missingEngine) await missingEngine.stop().catch(() => {})

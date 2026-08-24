@@ -1,11 +1,37 @@
 import fs from 'node:fs'
 import { stream as streamResponse } from 'hono/streaming'
 import { parseMostLink, validateCidString } from '../../core/cid.js'
+import { getCidInfo } from '../../core/cidTopic.js'
 import { sanitizeFilename } from '../../utils/security.js'
 import { badRequestOrAppError, errorJson } from '../errors.js'
 import { validationErrorPayload } from '../routePolicy.js'
 import { parseMultipartBusboy } from '../uploads.js'
 import { getMimeType } from '../staticFiles.js'
+
+function getLogTopic(cid) {
+  try {
+    return getCidInfo(cid).topicHex
+  } catch {
+    return undefined
+  }
+}
+
+function appendDownloadErrorLog(appendNodeLog, err, context = {}) {
+  if (typeof appendNodeLog !== 'function') return
+  appendNodeLog({
+    level: 'error',
+    event: 'node:download:error',
+    message: err.message,
+    data: {
+      taskId: context.taskId,
+      cid: context.cid,
+      topic: context.topic || getLogTopic(context.cid),
+      code: err.code || 'UNKNOWN',
+      errorCode: err.errorCode,
+      details: err.details,
+    },
+  })
+}
 
 function startDownloadTask(
   engine,
@@ -13,7 +39,9 @@ function startDownloadTask(
   taskId,
   options,
   wsBroadcast,
-  downloadTasks
+  downloadTasks,
+  appendNodeLog,
+  context = {}
 ) {
   Promise.resolve()
     .then(() => engine.downloadFile(link, taskId, options))
@@ -23,6 +51,7 @@ function startDownloadTask(
       if (err.message === 'Download cancelled') {
         wsBroadcast('download:cancelled', { taskId })
       } else {
+        appendDownloadErrorLog(appendNodeLog, err, { ...context, taskId })
         wsBroadcast('download:error', {
           taskId,
           error: err.message,
@@ -59,7 +88,7 @@ function unlinkUploadTempFile(filePath, attempt = 0) {
 
 export function registerFileRoutes(
   app,
-  { engine, configStore, wsBroadcast, downloadTasks }
+  { engine, configStore, wsBroadcast, downloadTasks, appendNodeLog }
 ) {
   app.get('/api/files', async c => {
     return c.json(
@@ -217,6 +246,11 @@ export function registerFileRoutes(
     }
 
     const ownerAddress = c.get('userAddress')
+    const downloadLogContext = {
+      taskId,
+      cid: parsed.cid,
+      topic: getLogTopic(parsed.cid),
+    }
     const registerDownloadTask = input => {
       downloadTasks.register({
         taskId,
@@ -249,7 +283,9 @@ export function registerFileRoutes(
             selectedPaths: body.selectedPaths,
           },
           wsBroadcast,
-          downloadTasks
+          downloadTasks,
+          appendNodeLog,
+          downloadLogContext
         )
         return c.json({
           success: true,
@@ -267,6 +303,7 @@ export function registerFileRoutes(
         })
         return c.json({ success: true, ...result })
       } catch (err) {
+        appendDownloadErrorLog(appendNodeLog, err, downloadLogContext)
         return errorJson(c, err)
       }
     }
@@ -281,7 +318,9 @@ export function registerFileRoutes(
         selectedPaths: body.selectedPaths,
       },
       wsBroadcast,
-      downloadTasks
+      downloadTasks,
+      appendNodeLog,
+      downloadLogContext
     )
 
     return c.json({ success: true, taskId })

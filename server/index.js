@@ -62,14 +62,38 @@ function bindEngineEvents({
   broadcastNodeStatus,
 }) {
   let engineReadyForStatus = false
+  const loggedSeedStates = new Map()
   const safeBroadcastNodeStatus = () => {
     if (engineReadyForStatus) {
       broadcastNodeStatus()
     }
   }
 
+  const getSeedStateLogEvent = status => {
+    if (status === 'queued') return 'node:seed:queued'
+    if (status === 'joining') return 'node:topic:joining'
+    if (status === 'active') return 'node:seed:active'
+    if (status === 'paused') return 'node:seed:paused'
+    if (status === 'error') return 'node:seed:error'
+    return 'node:seed:state'
+  }
+
   engine.on('download:progress', data => wsBroadcast('download:progress', data))
-  engine.on('download:status', data => wsBroadcast('download:status', data))
+  engine.on('download:status', data => {
+    wsBroadcast('download:status', data)
+    if (data?.status === 'verifying') {
+      appendNodeLog({
+        event: 'node:download:verifying',
+        message: 'Download CID verification started',
+        data: {
+          taskId: data.taskId,
+          cid: data.cid,
+          topic: data.topic,
+          status: data.status,
+        },
+      })
+    }
+  })
   engine.on('download:success', data => {
     wsBroadcast('download:success', data)
     appendNodeLog({
@@ -132,8 +156,67 @@ function bindEngineEvents({
     })
     safeBroadcastNodeStatus()
   })
+  engine.on('holding:resume', data => {
+    appendNodeLog({
+      level: data.status === 'error' ? 'error' : 'info',
+      event: `node:holding:resume:${data.status || 'state'}`,
+      message:
+        data.status === 'active'
+          ? 'Holding resumed and joined CID topic'
+          : data.status === 'error'
+            ? 'Holding resume failed'
+            : 'Holding resume check started',
+      data: {
+        cid: data.cid,
+        topic: data.topic,
+        driveName: data.driveName,
+        status: data.status,
+        error: data.error,
+        code: data.code,
+      },
+    })
+    safeBroadcastNodeStatus()
+  })
+  engine.on('seed:state', data => {
+    const status = data?.status || 'unknown'
+    const cid = data?.cid || ''
+    const signature = [
+      status,
+      data?.topic || '',
+      data?.driveName || '',
+      data?.error || '',
+    ].join('|')
+    if (loggedSeedStates.get(cid) === signature) return
+    loggedSeedStates.set(cid, signature)
+    appendNodeLog({
+      level: status === 'error' ? 'error' : 'info',
+      event: getSeedStateLogEvent(status),
+      message:
+        status === 'error'
+          ? 'CID seed state changed to error'
+          : `CID seed state changed to ${status}`,
+      data: {
+        cid,
+        topic: data?.topic,
+        driveName: data?.driveName,
+        status,
+        error: data?.error,
+      },
+    })
+    safeBroadcastNodeStatus()
+  })
   engine.on('seed:metrics', data => {
     wsBroadcast('seed:metrics', data)
+    appendNodeLog({
+      event: 'node:seed:metrics',
+      message: 'Seed metrics updated',
+      data: {
+        cid: data.cid,
+        peerCount: data.peerCount,
+        lastServedAt: data.lastServedAt,
+        totalServedBytes: data.totalServedBytes,
+      },
+    })
     safeBroadcastNodeStatus()
   })
   engine.on('channel:message', data =>

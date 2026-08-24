@@ -301,14 +301,27 @@ const schemas = {
       cid: { type: 'string' },
       fileName: { type: 'string' },
       size: { type: 'integer', minimum: 0 },
+      topic: {
+        type: 'string',
+        description: 'Hex CID digest topic joined for seeding.',
+      },
       driveName: { type: 'string' },
+      source: { type: 'string' },
+      link: { type: 'string' },
       joined: { type: 'boolean' },
       seedStatus: {
         type: 'string',
         enum: ['queued', 'joining', 'active', 'paused', 'error'],
       },
       seedError: { type: 'string' },
+      seedStatusUpdatedAt: { type: 'string', format: 'date-time' },
       peerCount: { type: 'integer', minimum: 0 },
+      lastServedAt: {
+        type: 'string',
+        format: 'date-time',
+        nullable: true,
+      },
+      totalServedBytes: { type: 'integer', minimum: 0 },
       updatedAt: { type: 'string', format: 'date-time' },
     },
     additionalProperties: true,
@@ -1251,7 +1264,7 @@ export function createOpenApiSpec({
             queryParameter(
               'filter',
               { type: 'string', default: 'all' },
-              'Log level or event filter.'
+              'Log level or event filter. Common diagnostic filters: join, pull, verify, serve, error.'
             ),
             queryParameter(
               'q',

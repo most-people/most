@@ -1455,7 +1455,7 @@ export class MostBoxEngine extends EventEmitter {
    * @param {object} [options] - 下载选项
    * @param {number} [options.timeout] - 等待 P2P 内容的超时时间（毫秒）
    * @param {number} [options.streamReadTimeout] - 下载流无进度超时时间（毫秒）
-   * @returns {Promise<{ taskId: string, fileName: string, savedPath?: string, localAvailable?: boolean, alreadyExists?: boolean }>}
+   * @returns {Promise<{ taskId: string, cid?: string, fileName: string, savedPath?: string, localAvailable?: boolean, alreadyExists?: boolean }>}
    */
   async downloadFile(link, taskId = null, options = {}) {
     this.#ensureInitialized()
@@ -1491,7 +1491,7 @@ export class MostBoxEngine extends EventEmitter {
       }
       const cidString = parsed.cid
       console.log(`[MostBox] Parsed CID: ${cidString}`)
-      const { driveName: name } = this.#getCidInfo(cidString)
+      const { driveName: name, topicHex } = this.#getCidInfo(cidString)
       const linkFileName = sanitizeFilename(parsed.fileName)
 
       const localContent = await this.#getLocalCidContent(cidString, {
@@ -1592,6 +1592,7 @@ export class MostBoxEngine extends EventEmitter {
         })
         return {
           taskId,
+          cid: cidString,
           fileName: linkFileName,
           localAvailable: true,
           alreadyExists: alreadyInOwnerLibrary,
@@ -1616,7 +1617,12 @@ export class MostBoxEngine extends EventEmitter {
           client: true,
         })
 
-        this.emit('download:status', { taskId, status: 'connecting' })
+        this.emit('download:status', {
+          taskId,
+          cid: cidString,
+          topic: topicHex,
+          status: 'connecting',
+        })
       } else {
         console.log(`[MostBox] Using existing drive: ${name}`)
       }
@@ -1624,7 +1630,12 @@ export class MostBoxEngine extends EventEmitter {
 
       if (taskState.aborted) throw new Error('Download cancelled')
 
-      this.emit('download:status', { taskId, status: 'finding-peers' })
+      this.emit('download:status', {
+        taskId,
+        cid: cidString,
+        topic: topicHex,
+        status: 'finding-peers',
+      })
 
       console.log(
         `[MostBox] Waiting for drive entry /${cidString} (timeout: ${downloadTimeout / 1000}s)...`
@@ -1743,6 +1754,8 @@ export class MostBoxEngine extends EventEmitter {
         try {
           this.emit('download:status', {
             taskId,
+            cid: cidString,
+            topic: topicHex,
             status: 'downloading',
             file: sanitizedFileName,
             size: totalBytes ? formatFileSize(totalBytes) : null,
@@ -1841,7 +1854,12 @@ export class MostBoxEngine extends EventEmitter {
 
           if (taskState.aborted) throw new Error('Download cancelled')
 
-          this.emit('download:status', { taskId, status: 'verifying' })
+          this.emit('download:status', {
+            taskId,
+            cid: cidString,
+            topic: topicHex,
+            status: 'verifying',
+          })
 
           const { cid: downloadedCid, size: downloadedSize } =
             await calculateCid(tempPath)
@@ -1877,6 +1895,7 @@ export class MostBoxEngine extends EventEmitter {
 
           const result = {
             taskId,
+            cid: cidString,
             fileName: sanitizedFileName,
             localAvailable: true,
           }
@@ -5824,21 +5843,58 @@ export class MostBoxEngine extends EventEmitter {
             if (!this.#holdings.some(current => current.cid === holding.cid)) {
               return
             }
-            const localContent = await this.#getLocalCidContent(holding.cid, {
-              public: true,
-              allowHoldingFallback: true,
+            this.emit('holding:resume', {
+              cid: holding.cid,
+              topic: holding.topic,
+              driveName: holding.driveName,
+              status: 'checking',
             })
-            if (!localContent) {
+            try {
+              const localContent = await this.#getLocalCidContent(holding.cid, {
+                public: true,
+                allowHoldingFallback: true,
+              })
+              if (!localContent) {
+                this.#setSeedState(holding.cid, {
+                  status: 'error',
+                  topic: holding.topic,
+                  driveName: holding.driveName,
+                  error: 'Local CID content missing',
+                })
+                this.emit('holding:resume', {
+                  cid: holding.cid,
+                  topic: holding.topic,
+                  driveName: holding.driveName,
+                  status: 'error',
+                  error: 'Local CID content missing',
+                  code: 'LOCAL_CONTENT_MISSING',
+                })
+                return
+              }
+              await this.#joinCidTopicInternal(holding.cid)
+              this.emit('holding:resume', {
+                cid: holding.cid,
+                topic: holding.topic,
+                driveName: holding.driveName,
+                status: 'active',
+              })
+              console.log(`[MostBox] Rejoined CID topic: ${holding.cid}`)
+            } catch (err) {
               this.#setSeedState(holding.cid, {
                 status: 'error',
                 topic: holding.topic,
                 driveName: holding.driveName,
-                error: 'Local CID content missing',
+                error: err.message,
               })
-              return
+              this.emit('holding:resume', {
+                cid: holding.cid,
+                topic: holding.topic,
+                driveName: holding.driveName,
+                status: 'error',
+                error: err.message,
+                code: err.code || 'UNKNOWN',
+              })
             }
-            await this.#joinCidTopicInternal(holding.cid)
-            console.log(`[MostBox] Rejoined CID topic: ${holding.cid}`)
           })
         )
 

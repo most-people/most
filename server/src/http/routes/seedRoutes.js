@@ -1,4 +1,22 @@
+import { parseMostLink } from '../../core/cid.js'
+import { getCidInfo } from '../../core/cidTopic.js'
 import { errorJson } from '../errors.js'
+
+function getLogCid(input = {}) {
+  if (input.cid) return input.cid
+  if (!input.link) return undefined
+
+  const parsed = parseMostLink(input.link)
+  return parsed.errorCode ? undefined : parsed.cid
+}
+
+function getLogTopic(cid) {
+  try {
+    return getCidInfo(cid).topicHex
+  } catch {
+    return undefined
+  }
+}
 
 export function registerSeedRoutes(
   app,
@@ -19,7 +37,11 @@ export function registerSeedRoutes(
       appendNodeLog({
         event: 'node:holding:added',
         message: 'Node holding added',
-        data: { cid: holding.cid, size: holding.size },
+        data: {
+          cid: holding.cid,
+          topic: holding.topic,
+          size: holding.size,
+        },
       })
       await broadcastNodeStatus()
       return c.json({ success: true, holding })
@@ -29,8 +51,9 @@ export function registerSeedRoutes(
   })
 
   app.post('/api/p2p/pull', async c => {
+    let body = {}
     try {
-      const body = await c.req.json()
+      body = await c.req.json()
       const timeout =
         body.timeout === undefined ? undefined : Number(body.timeout)
       const result = await engine.pullByCid({
@@ -41,16 +64,26 @@ export function registerSeedRoutes(
       appendNodeLog({
         event: 'node:pull:success',
         message: 'P2P pull completed',
-        data: { cid: result.cid, taskId: result.taskId },
+        data: {
+          cid: result.cid,
+          topic: getLogTopic(result.cid),
+          taskId: result.taskId,
+        },
       })
       await broadcastNodeStatus()
       return c.json({ success: true, ...result })
     } catch (err) {
+      const cid = getLogCid(body)
       appendNodeLog({
         level: 'error',
         event: 'node:pull:error',
         message: err.message,
-        data: { code: err.code || 'UNKNOWN' },
+        data: {
+          cid,
+          topic: getLogTopic(cid),
+          taskId: body?.taskId,
+          code: err.code || 'UNKNOWN',
+        },
       })
       return errorJson(c, err)
     }
