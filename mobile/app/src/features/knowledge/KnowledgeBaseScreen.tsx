@@ -756,6 +756,7 @@ export function KnowledgeBaseScreen({
             placeholder={t('knowledge.editor.name')}
             placeholderTextColor={theme.colors.textMuted}
             style={styles.titleInput}
+            underlineColorAndroid="transparent"
             value={editorName}
           />
           <TextInput
@@ -766,6 +767,7 @@ export function KnowledgeBaseScreen({
             placeholder={t('knowledge.editor.directoryPlaceholder')}
             placeholderTextColor={theme.colors.textMuted}
             style={styles.pathInput}
+            underlineColorAndroid="transparent"
             value={editorDirectory}
           />
         </View>
@@ -883,6 +885,7 @@ export function KnowledgeBaseScreen({
               selection={editorSelection}
               style={styles.editorInput}
               textAlignVertical="top"
+              underlineColorAndroid="transparent"
               value={editorContent}
             />
           </>
@@ -1139,18 +1142,24 @@ export function KnowledgeBaseScreen({
           <TextInput
             accessibilityLabel={t('knowledge.search.a11y')}
             autoCapitalize="none"
+            autoCorrect={false}
             maxFontSizeMultiplier={1.8}
             onChangeText={setSearchQuery}
             placeholder={t('knowledge.search.placeholder')}
             placeholderTextColor={theme.colors.textMuted}
+            returnKeyType="search"
             style={styles.searchInput}
+            underlineColorAndroid={theme.colors.surfaceSolid}
             value={searchQuery}
           />
           {searchQuery ? (
             <Pressable
               accessibilityLabel={t('knowledge.search.clear')}
               accessibilityRole="button"
-              onPress={() => setSearchQuery('')}
+              onPress={() => {
+                setSearchQuery('')
+                Keyboard.dismiss()
+              }}
               style={styles.searchClear}
             >
               <X size={17} color={theme.colors.textMuted} />
@@ -1377,6 +1386,7 @@ export function KnowledgeBaseScreen({
                 placeholder={prompt?.placeholder}
                 placeholderTextColor={theme.colors.textMuted}
                 style={styles.promptInput}
+                underlineColorAndroid="transparent"
                 value={promptValue}
               />
               <View style={styles.promptActions}>
@@ -1473,16 +1483,24 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
     searchBox: {
       ...getGlassSurfaceStyle(theme, 'subtle'),
       alignItems: 'center',
+      backgroundColor: theme.colors.surfaceSolid,
       flexDirection: 'row',
       gap: 8,
       minHeight: 46,
       paddingHorizontal: 12,
     },
     searchInput: {
+      backgroundColor: 'transparent',
+      borderWidth: 0,
       color: theme.colors.text,
       flex: 1,
       fontSize: 15,
-      paddingVertical: 9,
+      height: 30,
+      includeFontPadding: false,
+      minWidth: 0,
+      padding: 0,
+      paddingVertical: 0,
+      width: '100%',
     },
     searchClear: {
       alignItems: 'center',

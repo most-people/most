@@ -194,6 +194,7 @@ export function MostTextInput({
       placeholderTextColor={theme.colors.textMuted}
       selectionColor={theme.colors.accent}
       style={[styles.textInput, style]}
+      underlineColorAndroid="transparent"
       {...props}
     />
   )

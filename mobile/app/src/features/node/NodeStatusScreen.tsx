@@ -1699,9 +1699,10 @@ function createNodeStyles(theme: MostBoxTheme) {
       flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
+      borderWidth: 0,
+      borderRadius: 0,
+      backgroundColor: 'transparent',
       paddingHorizontal: 20,
-      borderTopWidth: 0,
-      borderBottomWidth: 0,
     },
     emptyTextCentered: {
       textAlign: 'center',
