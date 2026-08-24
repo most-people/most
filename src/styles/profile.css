@@ -389,6 +389,7 @@
 
 .profile-backup-action-group {
   display: grid;
+  grid-column: 1 / -1;
   gap: var(--space-3);
   min-width: 0;
   padding: 12px;

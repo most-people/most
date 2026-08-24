@@ -99,7 +99,10 @@ export default function RemoteNodeConnectPanel({
       }
       configureBackend({ url: nextUrl, invite: nextInvite })
       refreshNodes()
-      useAppStore.setState({ hasBackend: true })
+      useAppStore.setState({
+        hasBackend: true,
+        activeBackendUrl: nextUrl,
+      })
       addToast(t('remote.connected'), 'success')
     } catch {
       addToast(t('remote.connectFailed'), 'error')

@@ -75,8 +75,17 @@ function getPortalBackendStatus(hasBackend: boolean | null) {
   return 'checking'
 }
 
+function formatBackendHost(backendUrl: string) {
+  try {
+    return new URL(backendUrl).host
+  } catch {
+    return ''
+  }
+}
+
 export default function FeaturePortal() {
   const hasBackend = useAppStore(s => s.hasBackend)
+  const activeBackendUrl = useAppStore(s => s.activeBackendUrl)
   const openConnectModal = useAppStore(s => s.openConnectModal)
   const { t } = useI18n()
   const isDesktopClient = useIsDesktopClient()
@@ -84,9 +93,10 @@ export default function FeaturePortal() {
     .map(id => features.find(f => f.id === id))
     .filter((feature): feature is FeatureDef => Boolean(feature))
   const backendStatus: PortalBackendStatus = getPortalBackendStatus(hasBackend)
+  const connectedNodeHost = formatBackendHost(activeBackendUrl)
   const backendStatusLabel =
     backendStatus === 'connected'
-      ? t('common.status.connected')
+      ? connectedNodeHost || t('common.status.connected')
       : backendStatus === 'disconnected'
         ? t('common.status.needsConnection')
         : t('common.status.checking')

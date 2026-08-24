@@ -138,7 +138,10 @@ function ChatJoinContent() {
           url: invite.node_url,
           invite: invite.node_invite || '',
         })
-        useAppStore.setState({ hasBackend: true })
+        useAppStore.setState({
+          hasBackend: true,
+          activeBackendUrl: invite.node_url,
+        })
       } else if (!hasBackend) {
         throw new Error(translateForInvite('chatJoin.error.noBackend'))
       }

@@ -164,6 +164,23 @@ describe('frontend smoke checks', () => {
     assert.match(readSource(SOURCE_PATHS.acceptance), /npm run test:frontend/)
   })
 
+  it('shows the connected node host and keeps local backup actions full width', () => {
+    const portalSource = readSource(SOURCE_PATHS.featurePortal)
+    const appStoreSource = readSource(SOURCE_PATHS.appStore)
+    const profileCssSource = readSource('src/styles/profile.css')
+
+    assert.match(portalSource, /new URL\(backendUrl\)\.host/)
+    assert.match(
+      portalSource,
+      /connectedNodeHost \|\| t\('common\.status\.connected'\)/
+    )
+    assert.match(appStoreSource, /activeBackendUrl: string/)
+    assert.match(
+      profileCssSource,
+      /\.profile-backup-action-group \{[\s\S]*?grid-column: 1 \/ -1;/
+    )
+  })
+
   it('keeps persisted dark, light, and system appearance preferences in profile', async () => {
     const profileAppearanceSource = readSource(SOURCE_PATHS.profileAppearance)
     const appStoreSource = readSource(SOURCE_PATHS.appStore)

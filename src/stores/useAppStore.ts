@@ -55,6 +55,7 @@ export interface NoteItem {
 interface AppState {
   // Backend
   hasBackend: boolean | null
+  activeBackendUrl: string
   checkBackend: () => Promise<void>
 
   // Theme
@@ -159,6 +160,7 @@ let notesLoadRevision = 0
 export const useAppStore = create<AppState>((set, get) => ({
   // Backend
   hasBackend: null,
+  activeBackendUrl: '',
   checkBackend: async () => {
     const remoteUrl = getRemoteUrlExport()
     if (remoteUrl) {
@@ -172,7 +174,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           url: remoteUrl,
           invite: remoteInvite,
         })
-        set({ hasBackend: true })
+        set({ hasBackend: true, activeBackendUrl: remoteUrl })
         return
       }
     }
@@ -181,7 +183,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (localhost) {
       setBackendUrl('http://localhost:1976')
       setBackendInvite('')
-      set({ hasBackend: true })
+      set({
+        hasBackend: true,
+        activeBackendUrl: 'http://localhost:1976',
+      })
       return
     }
 
@@ -191,7 +196,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (ok) {
         setBackendUrl('')
         setBackendInvite('')
-        set({ hasBackend: true })
+        set({ hasBackend: true, activeBackendUrl: sameOrigin })
         return
       }
     }
@@ -200,7 +205,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       setBackendUrl('')
       setBackendInvite('')
     }
-    set({ hasBackend: false })
+    set({ hasBackend: false, activeBackendUrl: '' })
   },
 
   // Theme
