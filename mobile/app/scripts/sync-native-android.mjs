@@ -299,9 +299,33 @@ function syncAndroidManifestPolicy() {
   const androidManifest = fs.readFileSync(androidManifestPath, 'utf8')
   const nextAndroidManifest = applyAndroidManifestPolicy(
     androidManifest,
-    appJson.android || {}
+    resolveAndroidManifestPolicy(appJson)
   )
   writeIfChanged(androidManifestPath, nextAndroidManifest)
+}
+
+function resolveAndroidManifestPolicy(expoConfig) {
+  const androidConfig = { ...(expoConfig.android || {}) }
+  const buildProperties = resolveExpoBuildProperties(expoConfig)
+  const usesCleartextTraffic = buildProperties?.android?.usesCleartextTraffic
+
+  if (typeof usesCleartextTraffic === 'boolean') {
+    androidConfig.usesCleartextTraffic = usesCleartextTraffic
+  }
+
+  return androidConfig
+}
+
+function resolveExpoBuildProperties(expoConfig) {
+  const plugins = Array.isArray(expoConfig.plugins) ? expoConfig.plugins : []
+
+  for (const plugin of plugins) {
+    if (Array.isArray(plugin) && plugin[0] === 'expo-build-properties') {
+      return plugin[1] || {}
+    }
+  }
+
+  return {}
 }
 
 export function applyAndroidManifestPolicy(androidManifest, androidConfig) {
@@ -339,6 +363,23 @@ export function applyAndroidManifestPolicy(androidManifest, androidConfig) {
       nextAndroidManifest = nextAndroidManifest.replace(
         /<application\b/,
         `<application android:allowBackup="${value}"`
+      )
+    }
+  }
+
+  if (typeof androidConfig.usesCleartextTraffic === 'boolean') {
+    const value = String(androidConfig.usesCleartextTraffic)
+    if (
+      /android:usesCleartextTraffic=["'][^"']*["']/.test(nextAndroidManifest)
+    ) {
+      nextAndroidManifest = nextAndroidManifest.replace(
+        /android:usesCleartextTraffic=["'][^"']*["']/,
+        `android:usesCleartextTraffic="${value}"`
+      )
+    } else {
+      nextAndroidManifest = nextAndroidManifest.replace(
+        /<application\b/,
+        `<application android:usesCleartextTraffic="${value}"`
       )
     }
   }

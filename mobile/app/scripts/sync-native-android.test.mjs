@@ -222,6 +222,7 @@ describe('Android native project synchronization', () => {
         'android.permission.READ_EXTERNAL_STORAGE',
         'android.permission.SYSTEM_ALERT_WINDOW',
       ],
+      usesCleartextTraffic: true,
     })
 
     assert.match(result, /android\.permission\.INTERNET/)
@@ -235,5 +236,6 @@ describe('Android native project synchronization', () => {
     )
     assert.doesNotMatch(result, /READ_EXTERNAL_STORAGE[^>]*maxSdkVersion/)
     assert.match(result, /android:allowBackup="false"/)
+    assert.match(result, /android:usesCleartextTraffic="true"/)
   })
 })
