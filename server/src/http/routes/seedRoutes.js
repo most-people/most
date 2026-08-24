@@ -1,8 +1,12 @@
 import { parseMostLink } from '../../core/cid.js'
 import { getCidInfo } from '../../core/cidTopic.js'
+import { ValidationError } from '../../utils/errors.js'
 import { errorJson } from '../errors.js'
 
 function getLogCid(input = {}) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    return undefined
+  }
   if (input.cid) return input.cid
   if (!input.link) return undefined
 
@@ -54,6 +58,9 @@ export function registerSeedRoutes(
     let body = {}
     try {
       body = await c.req.json()
+      if (!body || typeof body !== 'object' || Array.isArray(body)) {
+        throw new ValidationError('Request body must be an object')
+      }
       const timeout =
         body.timeout === undefined ? undefined : Number(body.timeout)
       const result = await engine.pullByCid({

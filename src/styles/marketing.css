@@ -108,8 +108,39 @@
   font-size: var(--font-size-xs, 0.75rem);
   color: var(--text-muted);
 }
+.mkt-footer-meta {
+  display: flex;
+  max-width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+}
+.mkt-footer-node-status {
+  display: inline-flex;
+  flex: 0 1 auto;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 24px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 9px;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  font-size: var(--font-size-xs, 0.75rem);
+  color: var(--text-muted);
+}
+.mkt-footer-node-status-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.mkt-footer-node-status .status-dot {
+  flex: 0 0 auto;
+}
 .mkt-footer-build {
   display: inline-flex;
+  flex: 0 0 auto;
   min-height: 24px;
   align-items: center;
   padding: 0 9px;

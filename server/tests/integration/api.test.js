@@ -1706,6 +1706,35 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(log.data.code, 'PEER_NOT_FOUND')
     })
 
+    it('rejects non-object P2P pull bodies without losing diagnostics', async () => {
+      nodeLogger.clear()
+      let pullCalled = false
+      const fakeEngine = {
+        pullByCid: async () => {
+          pullCalled = true
+        },
+      }
+      const { app } = createApp(fakeEngine, {
+        port: TEST_PORT + 43,
+        configStore,
+        nodeLogger,
+      })
+
+      const res = await requestWithAuth(app, '/api/p2p/pull', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: 'null',
+      })
+      const data = await res.json()
+
+      assert.strictEqual(res.status, 400)
+      assert.strictEqual(data.code, 'VALIDATION_ERROR')
+      assert.strictEqual(pullCalled, false)
+      const log = await waitForNodeLog(item => item.event === 'node:pull:error')
+      assert.strictEqual(log.data.code, 'VALIDATION_ERROR')
+      assert.strictEqual(log.data.cid, undefined)
+    })
+
     it('passes the authenticated user to P2P pull downloads', async () => {
       const originalPullByCid = engine.pullByCid
       let capturedInput = null

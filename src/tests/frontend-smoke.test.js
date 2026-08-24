@@ -164,17 +164,44 @@ describe('frontend smoke checks', () => {
     assert.match(readSource(SOURCE_PATHS.acceptance), /npm run test:frontend/)
   })
 
-  it('shows the connected node host and keeps local backup actions full width', () => {
+  it('shows the connected node host in the shared footer and keeps local backup actions full width', () => {
     const portalSource = readSource(SOURCE_PATHS.featurePortal)
+    const footerSource = readSource(SOURCE_PATHS.footer)
     const appStoreSource = readSource(SOURCE_PATHS.appStore)
+    const marketingCssSource = readSource('src/styles/marketing.css')
     const profileCssSource = readSource('src/styles/profile.css')
 
-    assert.match(portalSource, /new URL\(backendUrl\)\.host/)
     assert.match(
       portalSource,
+      /backendStatus === 'connected'\s*\? t\('common\.status\.connected'\)/
+    )
+    assert.doesNotMatch(portalSource, /activeBackendUrl/)
+    assert.doesNotMatch(portalSource, /connectedNodeHost/)
+    assert.match(footerSource, /new URL\(backendUrl\)\.host/)
+    assert.match(
+      footerSource,
       /connectedNodeHost \|\| t\('common\.status\.connected'\)/
     )
+    assert.match(footerSource, /aria-label=\{backendStatusAriaLabel\}/)
+    assert.match(footerSource, /className="mkt-footer-meta"/)
+    assert.match(footerSource, /className="mkt-footer-node-status-label"/)
     assert.match(appStoreSource, /activeBackendUrl: string/)
+    assert.match(
+      marketingCssSource,
+      /\.mkt-footer-node-status-label \{[^}]*overflow-wrap: anywhere;/
+    )
+    assert.match(
+      marketingCssSource,
+      /\.mkt-footer-meta \{[^}]*display: flex;[^}]*max-width: 100%;/
+    )
+    assert.match(
+      marketingCssSource,
+      /\.mkt-footer-build \{[^}]*flex: 0 0 auto;/
+    )
+    assert.doesNotMatch(
+      marketingCssSource,
+      /\.mkt-footer-node-status-label \{[^}]*text-overflow:/
+    )
     assert.match(
       profileCssSource,
       /\.profile-backup-action-group \{[\s\S]*?grid-column: 1 \/ -1;/

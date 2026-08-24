@@ -14,6 +14,8 @@ import { UPLOAD_TMP_DIR, createApp, getDataPath } from './src/http/app.js'
 
 export { createApp } from './src/http/app.js'
 
+const SEED_METRICS_LOG_INTERVAL_MS = 60_000
+
 export function parseRuntimeArgs(argv = process.argv.slice(2)) {
   const options = {}
 
@@ -54,7 +56,7 @@ function cleanUploadTempDir() {
   console.log(`[MostBox] Cleaned ${staleFiles.length} stale upload temp files`)
 }
 
-function bindEngineEvents({
+export function bindEngineEvents({
   engine,
   wsBroadcast,
   wsSendToChannel,
@@ -63,6 +65,7 @@ function bindEngineEvents({
 }) {
   let engineReadyForStatus = false
   const loggedSeedStates = new Map()
+  const lastSeedMetricsLogAt = new Map()
   const safeBroadcastNodeStatus = () => {
     if (engineReadyForStatus) {
       broadcastNodeStatus()
@@ -205,18 +208,30 @@ function bindEngineEvents({
     })
     safeBroadcastNodeStatus()
   })
+  engine.on('seed:state:removed', data => {
+    const cid = data?.cid
+    if (!cid) return
+    loggedSeedStates.delete(cid)
+    lastSeedMetricsLogAt.delete(cid)
+  })
   engine.on('seed:metrics', data => {
     wsBroadcast('seed:metrics', data)
-    appendNodeLog({
-      event: 'node:seed:metrics',
-      message: 'Seed metrics updated',
-      data: {
-        cid: data.cid,
-        peerCount: data.peerCount,
-        lastServedAt: data.lastServedAt,
-        totalServedBytes: data.totalServedBytes,
-      },
-    })
+    const cid = data?.cid
+    const now = Date.now()
+    const lastLoggedAt = lastSeedMetricsLogAt.get(cid) || 0
+    if (cid && now - lastLoggedAt >= SEED_METRICS_LOG_INTERVAL_MS) {
+      lastSeedMetricsLogAt.set(cid, now)
+      appendNodeLog({
+        event: 'node:seed:metrics',
+        message: 'Seed metrics updated',
+        data: {
+          cid,
+          peerCount: data.peerCount,
+          lastServedAt: data.lastServedAt,
+          totalServedBytes: data.totalServedBytes,
+        },
+      })
+    }
     safeBroadcastNodeStatus()
   })
   engine.on('channel:message', data =>
