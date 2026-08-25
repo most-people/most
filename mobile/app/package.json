@@ -11,7 +11,7 @@
     "start": "npm run bundle:android && node scripts/start-dev-client.mjs",
     "web": "expo start --web",
     "start:ios": "npm run bundle:ios && expo start --dev-client --host lan",
-    "ios": "npm run bundle:ios && expo run:ios",
+    "ios": "npm run bundle:ios && node scripts/ensure-ios-debug-rncore.mjs && expo run:ios",
     "build": "node scripts/build-apk.mjs",
     "build:release": "node scripts/build-apk.mjs --signed-release-apk",
     "build:emulator": "node scripts/build-apk.mjs --emulator-apk",
@@ -22,7 +22,7 @@
     "bundle:ios": "node scripts/bundle-bare.mjs --platform ios",
     "preflight:ios": "npm run bundle:ios && node scripts/check-ios-release.mjs",
     "eas-build-post-install": "node scripts/bundle-bare.mjs",
-    "test": "node --import tsx --test src/mobileCore/cid.test.ts src/mobileCore/nodeSelection.test.ts src/mobileCore/protocol.test.ts src/mobileCore/storeFilePolicy.test.ts src/remoteNode/connectionHistory.test.ts src/remoteNode/identity.test.ts src/remoteNode/protocol.test.ts src/remoteNode/remoteCache.test.ts src/remoteNode/remoteState.test.ts src/features/knowledge/knowledgeModel.test.ts src/features/knowledge/knowledgeRepository.test.ts src/i18n/messages.test.ts src/passkey/passkeyIdentity.test.ts src/passkey/passkeyBridge.test.ts src/privacy/privacyConsent.test.ts src/ui/presentation.test.ts && node --test backend/protocol.test.mjs backend/p2p-ping.test.mjs backend/holding-records.test.mjs backend/mobile-core.test.mjs backend/node-crypto-shim.test.mjs scripts/check-ios-release.test.mjs scripts/sync-native-android.test.mjs scripts/sync-native-ios.test.mjs scripts/verify-apk-signature.test.mjs",
+    "test": "node --import tsx --test src/mobileCore/cid.test.ts src/mobileCore/nodeSelection.test.ts src/mobileCore/protocol.test.ts src/mobileCore/storeFilePolicy.test.ts src/remoteNode/connectionHistory.test.ts src/remoteNode/identity.test.ts src/remoteNode/protocol.test.ts src/remoteNode/remoteCache.test.ts src/remoteNode/remoteState.test.ts src/features/knowledge/knowledgeModel.test.ts src/features/knowledge/knowledgeRepository.test.ts src/i18n/messages.test.ts src/passkey/passkeyIdentity.test.ts src/passkey/passkeyBridge.test.ts src/privacy/privacyConsent.test.ts src/ui/presentation.test.ts && node --test backend/protocol.test.mjs backend/p2p-ping.test.mjs backend/holding-records.test.mjs backend/mobile-core.test.mjs backend/node-crypto-shim.test.mjs scripts/check-ios-release.test.mjs scripts/ensure-ios-debug-rncore.test.mjs scripts/sync-native-android.test.mjs scripts/sync-native-ios.test.mjs scripts/verify-apk-signature.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
