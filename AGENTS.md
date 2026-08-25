@@ -90,9 +90,8 @@ MVP 成功标准：
 ## 常用命令
 
 ```bash
-npm run dev            # Vite / TanStack Start 前端，端口 3000
-node server/index.js   # 后端，默认端口 1976
-npm start              # 同 npm run dev
+npm start              # Vite / TanStack Start 前端，端口 3000
+npm run server         # 后端，默认端口 1976
 npm run serve          # 构建并由后端 serve
 npm test
 npm run test:unit

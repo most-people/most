@@ -97,11 +97,11 @@ npx most-box@latest
 git clone https://github.com/most-people/most.git
 cd most
 npm i
-npm run dev
-node server/index.js
+npm start
+npm run server
 ```
 
-开发模式需要两个进程：`npm run dev` 启动 TanStack Start 前端，默认访问 `http://localhost:3000`；`node server/index.js` 启动本地 daemon，默认监听 `http://localhost:1976`。
+开发模式需要两个进程：`npm start` 启动 TanStack Start 前端，默认访问 `http://localhost:3000`；`npm run server` 启动本地 daemon，默认监听 `http://localhost:1976`。
 
 ## MCP（AI 客户端）
 

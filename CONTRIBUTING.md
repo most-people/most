@@ -15,13 +15,13 @@
 
 ```bash
 npm install
-node server/index.js
+npm run server
 ```
 
 另开一个终端运行：
 
 ```bash
-npm run dev
+npm start
 ```
 
 前端默认运行在 `http://localhost:3000`，daemon 默认运行在 `http://localhost:1976`。

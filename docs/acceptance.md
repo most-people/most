@@ -10,13 +10,13 @@
 
 ```bash
 npm install
-node server/index.js
+npm run server
 ```
 
 另开一个终端：
 
 ```bash
-npm run dev
+npm start
 ```
 
 打开：
