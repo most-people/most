@@ -696,11 +696,6 @@ function createStyles(theme: MostBoxTheme) {
     },
     segmentActive: {
       backgroundColor: colors.accentSoft,
-      shadowColor: theme.shadow.color,
-      shadowOffset: { height: 2, width: 0 },
-      shadowOpacity: theme.shadow.opacity,
-      shadowRadius: 8,
-      elevation: 2,
     },
     segmentText: {
       color: colors.textSecondary,

@@ -1525,7 +1525,7 @@ function createStyles(theme: MostBoxTheme) {
       flex: 1,
     },
     tabBar: {
-      ...getGlassSurfaceStyle(theme, 'elevated'),
+      ...getGlassSurfaceStyle(theme, 'subtle'),
       minHeight: 62,
       flexDirection: 'row',
       alignItems: 'stretch',

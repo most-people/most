@@ -25,12 +25,12 @@ export function getGlassSurfaceStyle(
   theme: MostBoxTheme,
   variant: 'default' | 'subtle' | 'elevated' = 'default'
 ): ViewStyle {
-  const backgroundColor =
-    variant === 'elevated'
-      ? theme.colors.glassSolid
-      : variant === 'subtle'
-        ? theme.colors.glassSubtle
-        : theme.colors.glass
+  const isElevated = variant === 'elevated'
+  const backgroundColor = isElevated
+    ? theme.colors.surfaceElevated
+    : variant === 'subtle'
+      ? theme.colors.surfaceSubtle
+      : theme.colors.surface
 
   return {
     backgroundColor,
@@ -39,12 +39,10 @@ export function getGlassSurfaceStyle(
     borderRadius: theme.radii.large,
     borderWidth: 1,
     shadowColor: theme.shadow.color,
-    shadowOffset: { height: theme.shadow.offsetY, width: 0 },
-    shadowOpacity:
-      variant === 'subtle' ? theme.shadow.opacity * 0.45 : theme.shadow.opacity,
-    shadowRadius:
-      variant === 'subtle' ? theme.shadow.radius * 0.55 : theme.shadow.radius,
-    elevation: variant === 'subtle' ? 1 : theme.shadow.elevation,
+    shadowOffset: { height: isElevated ? theme.shadow.offsetY : 0, width: 0 },
+    shadowOpacity: isElevated ? theme.shadow.opacity : 0,
+    shadowRadius: isElevated ? theme.shadow.radius : 0,
+    elevation: isElevated ? theme.shadow.elevation : 0,
   }
 }
 
@@ -303,6 +301,7 @@ function createSharedStyles(theme: MostBoxTheme) {
   const { colors, radii } = theme
   const glass = getGlassSurfaceStyle(theme)
   const subtleGlass = getGlassSurfaceStyle(theme, 'subtle')
+  const elevatedGlass = getGlassSurfaceStyle(theme, 'elevated')
 
   return StyleSheet.create({
     button: {
@@ -420,7 +419,7 @@ function createSharedStyles(theme: MostBoxTheme) {
       backgroundColor: colors.glassSubtle,
     },
     bottomSheet: {
-      ...glass,
+      ...elevatedGlass,
       width: '100%',
       maxWidth: 520,
       gap: 18,

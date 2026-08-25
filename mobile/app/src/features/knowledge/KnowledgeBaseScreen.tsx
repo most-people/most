@@ -1714,11 +1714,6 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
     },
     segmentActive: {
       backgroundColor: theme.colors.accentSoft,
-      shadowColor: theme.shadow.color,
-      shadowOffset: { height: 2, width: 0 },
-      shadowOpacity: theme.shadow.opacity,
-      shadowRadius: 8,
-      elevation: 2,
     },
     segmentText: {
       color: theme.colors.textSecondary,
