@@ -228,7 +228,7 @@ function attachEngineLogs(engine, label, getTargetCid = () => '') {
     )
   })
   engine.on('download:success', data => {
-    console.log(`[${label}] download success: ${data.savedPath}`)
+    console.log(`[${label}] download success: /${data.cid}`)
   })
 }
 
@@ -282,8 +282,9 @@ async function waitForAndroidHandoffConfirmation({ input, result }) {
   }
 }
 
-async function verifyDownloadedCid(savedPath, expectedCid) {
-  const { cid } = await calculateCid(savedPath)
+async function verifyDownloadedCid(engine, expectedCid) {
+  const { stream } = await engine.openFileReadStream(expectedCid)
+  const { cid } = await calculateCid(stream)
   const actualCid = cid.toString()
   if (actualCid !== expectedCid) {
     throw new Error(
@@ -372,7 +373,7 @@ function printHandoffPassSummary({
   console.log(`- verifiedCid: ${verifiedCid}`)
   console.log(`- link: ${result.link}`)
   console.log(`- fixture: ${input.filePath}`)
-  console.log(`- downloaded: ${downloadResult.savedPath}`)
+  console.log(`- downloaded: /${downloadResult.cid}`)
   console.log(`- size: ${formatBytes(input.size)}`)
   console.log(`- elapsed: ${(elapsedMs / 1000).toFixed(1)}s`)
   console.log(`- verifierDataPath: ${verifierDataPath}`)
@@ -463,10 +464,7 @@ async function main() {
       timeout: options.verifyTimeoutMs,
     })
     const elapsedMs = Date.now() - startedAt
-    const verifiedCid = await verifyDownloadedCid(
-      downloadResult.savedPath,
-      result.cid
-    )
+    const verifiedCid = await verifyDownloadedCid(verifier, result.cid)
     const holding = await waitForActiveHolding(
       verifier,
       result.cid,
