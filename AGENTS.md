@@ -75,7 +75,7 @@ MVP 成功标准：
 - 移动端：Expo 57, React Native 0.86, react-native-bare-kit / Bare Worklet
 - 测试：Node.js built-in test runner
 
-根项目本地开发建议 Node.js >= 22.12；Expo 57 移动端子包建议 Node.js >= 22.13。
+根项目本地开发建议 Node.js >= 24；Expo 57 移动端子包建议 Node.js >= 24。
 
 ## 核心实现约束
 

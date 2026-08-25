@@ -3,7 +3,7 @@
 [![CI](https://github.com/most-people/most/actions/workflows/ci.yml/badge.svg)](https://github.com/most-people/most/actions/workflows/ci.yml)
 [![GitHub release](https://img.shields.io/github/v/release/most-people/most)](https://github.com/most-people/most/releases/latest)
 [![npm version](https://img.shields.io/npm/v/most-box)](https://npmjs.com/package/most-box)
-[![Node.js version](https://img.shields.io/badge/node-%3E%3D22.12-brightgreen)](https://nodejs.org)
+[![Node.js version](https://img.shields.io/badge/node-%3E%3D24-brightgreen)](https://nodejs.org)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 [下载客户端](https://most.box/download) · [在线入口](https://most.box) · [验收指南](docs/acceptance.md) · [P2P 风险红线](docs/p2p-risk-boundaries.md) · [ST 邀请集成](docs/st-chat-join-integration.md) · [参与贡献](CONTRIBUTING.md) · [问题讨论](https://github.com/most-people/most/discussions)
@@ -70,11 +70,11 @@ npm run build:store # 使用永久 App Signing Key 生成应用商店 APK
 npm run build:play # 使用独立 upload key 生成 Google Play AAB
 ```
 
-Expo 57 移动端子包建议使用 Node.js >= 22.13。
+Expo 57 移动端子包建议使用 Node.js >= 24。
 
 ### 方式二：npm 包
 
-适合开发、自托管或临时启动本机节点。请先安装 Node.js >= 22.12，然后运行：
+适合开发、自托管或临时启动本机节点。请先安装 Node.js >= 24，然后运行：
 
 ```bash
 npx most-box@latest
@@ -87,7 +87,7 @@ npx most-box@latest
 ## 需求
 
 - 使用桌面客户端：无需单独安装 Node.js。
-- 使用 `npx most-box@latest` 或本地源码开发：建议 Node.js >= 22.12。当前 TanStack Start static prerender 前端和 Electron 43 开发/打包都建议 Node.js >= 22.12。
+- 使用 `npx most-box@latest` 或本地源码开发：建议 Node.js >= 24。当前 TanStack Start static prerender 前端和 Electron 43 开发/打包都建议 Node.js >= 24。
 - MostBox Web 界面只连接已有节点；在线入口或单独打开的浏览器页面不会替你启动 P2P 节点。
 - MostBox 会创建本地身份用于本机数据隔离和 API 签名；这不是云端注册账号。
 
@@ -378,7 +378,7 @@ mostbox.example.com {
 
 优先安装桌面客户端；桌面端内置完整 P2P 节点，无需 Node.js。
 
-如果要用 npm 入口，请确保设备已安装 Node.js >= 22.12 后运行：
+如果要用 npm 入口，请确保设备已安装 Node.js >= 24 后运行：
 
 ```bash
 npx most-box@latest

@@ -11,7 +11,7 @@
 
 ## 本地开发
 
-根项目建议使用 Node.js >= 22.12：
+根项目建议使用 Node.js >= 24：
 
 ```bash
 npm install
@@ -26,7 +26,7 @@ npm start
 
 前端默认运行在 `http://localhost:3000`，daemon 默认运行在 `http://localhost:1976`。
 
-Android 子包建议使用 Node.js >= 22.13，并在 `mobile/app/` 目录中执行安装、测试和构建命令。
+Android 子包建议使用 Node.js >= 24，并在 `mobile/app/` 目录中执行安装、测试和构建命令。
 
 ## 修改要求
 

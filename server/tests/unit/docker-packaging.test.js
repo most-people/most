@@ -15,8 +15,8 @@ describe('Docker packaging', () => {
   test('builds an amd64 runtime image that starts the daemon without npm at runtime', () => {
     const dockerfile = readRepoFile('Dockerfile')
 
-    assert.match(dockerfile, /^FROM node:22-bookworm AS build/m)
-    assert.match(dockerfile, /^FROM node:22-bookworm AS runtime/m)
+    assert.match(dockerfile, /^FROM node:24-bookworm AS build/m)
+    assert.match(dockerfile, /^FROM node:24-bookworm AS runtime/m)
     assert.match(dockerfile, /RUN npm ci\b/)
     assert.match(dockerfile, /RUN npm run build\b/)
     assert.match(dockerfile, /RUN npm ci --omit=dev\b/)

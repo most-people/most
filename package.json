@@ -3,6 +3,9 @@
   "version": "0.5.0",
   "description": "MostBox - CID-first P2P file sharing, seeding, chat, and notes",
   "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
   "main": "electron/main.js",
   "bin": {
     "most-box": "server/cli.js"
