@@ -5,6 +5,7 @@ import {
   createCidRoutePathFromMostLink,
   createMostDeepLinkTarget,
   findMostDeepLinkArg,
+  isPasskeyCallbackLink,
 } from '../../../electron/deepLink.js'
 
 const VALID_CID = 'bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e'
@@ -38,6 +39,17 @@ describe('Electron most:// deep links', () => {
         'http://localhost:1976'
       ),
       `http://localhost:1976/cid/${VALID_CID}?filename=a.txt`
+    )
+  })
+
+  it('handles passkey callbacks before CID routing', () => {
+    const callback =
+      'most://passkey-callback?v=1&state=abc&senderPublicKey=def&token=ghi'
+    assert.equal(isPasskeyCallbackLink(callback), true)
+    assert.equal(createCidRoutePathFromMostLink(callback), '')
+    assert.equal(
+      createCidRoutePathFromMostLink(`most://${VALID_CID}`),
+      `/cid/${VALID_CID}`
     )
   })
 })

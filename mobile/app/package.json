@@ -22,7 +22,7 @@
     "bundle:ios": "node scripts/bundle-bare.mjs --platform ios",
     "preflight:ios": "npm run bundle:ios && node scripts/check-ios-release.mjs",
     "eas-build-post-install": "node scripts/bundle-bare.mjs",
-    "test": "node --import tsx --test src/mobileCore/cid.test.ts src/mobileCore/nodeSelection.test.ts src/mobileCore/protocol.test.ts src/mobileCore/storeFilePolicy.test.ts src/remoteNode/connectionHistory.test.ts src/remoteNode/identity.test.ts src/remoteNode/protocol.test.ts src/remoteNode/remoteCache.test.ts src/remoteNode/remoteState.test.ts src/features/knowledge/knowledgeModel.test.ts src/features/knowledge/knowledgeRepository.test.ts src/i18n/messages.test.ts src/privacy/privacyConsent.test.ts src/ui/presentation.test.ts && node --test backend/protocol.test.mjs backend/p2p-ping.test.mjs backend/holding-records.test.mjs backend/mobile-core.test.mjs backend/node-crypto-shim.test.mjs scripts/check-ios-release.test.mjs scripts/sync-native-android.test.mjs scripts/sync-native-ios.test.mjs scripts/verify-apk-signature.test.mjs",
+    "test": "node --import tsx --test src/mobileCore/cid.test.ts src/mobileCore/nodeSelection.test.ts src/mobileCore/protocol.test.ts src/mobileCore/storeFilePolicy.test.ts src/remoteNode/connectionHistory.test.ts src/remoteNode/identity.test.ts src/remoteNode/protocol.test.ts src/remoteNode/remoteCache.test.ts src/remoteNode/remoteState.test.ts src/features/knowledge/knowledgeModel.test.ts src/features/knowledge/knowledgeRepository.test.ts src/i18n/messages.test.ts src/passkey/passkeyIdentity.test.ts src/passkey/passkeyBridge.test.ts src/privacy/privacyConsent.test.ts src/ui/presentation.test.ts && node --test backend/protocol.test.mjs backend/p2p-ping.test.mjs backend/holding-records.test.mjs backend/mobile-core.test.mjs backend/node-crypto-shim.test.mjs scripts/check-ios-release.test.mjs scripts/sync-native-android.test.mjs scripts/sync-native-ios.test.mjs scripts/verify-apk-signature.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -35,6 +35,7 @@
     "expo": "~57.0.10",
     "expo-build-properties": "~57.0.8",
     "expo-clipboard": "~57.0.1",
+    "expo-crypto": "~57.0.1",
     "expo-dev-client": "~57.0.10",
     "expo-document-picker": "~57.0.1",
     "expo-file-system": "~57.0.1",
@@ -53,7 +54,8 @@
     "react-native-enriched-markdown": "0.7.4",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-svg": "15.15.4",
-    "react-native-web": "~0.21.0"
+    "react-native-web": "~0.21.0",
+    "tweetnacl": "^1.0.3"
   },
   "devDependencies": {
     "@types/b4a": "1.6.5",

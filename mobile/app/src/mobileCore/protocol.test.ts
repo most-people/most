@@ -106,6 +106,12 @@ describe('mobile most link protocol', () => {
       null
     )
     assert.equal(parseIncomingMostLink('https://most.box/download'), null)
+    assert.equal(
+      parseIncomingMostLink(
+        'most://passkey-callback?v=1&state=x&senderPublicKey=y&token=z'
+      ),
+      null
+    )
   })
 
   it('rejects malformed native most link intents', () => {

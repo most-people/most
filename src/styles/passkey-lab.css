@@ -1,0 +1,127 @@
+.passkey-lab-page {
+  min-height: 100dvh;
+  padding: clamp(32px, 8vh, 88px) 24px 48px;
+  background: var(--bg-primary);
+}
+
+.passkey-lab-workspace {
+  width: min(100%, 680px);
+  margin: 0 auto;
+}
+
+.passkey-lab-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.passkey-lab-icon {
+  display: grid;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: var(--radius-md);
+}
+
+.passkey-lab-header h1 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 24px;
+  line-height: 1.25;
+}
+
+.passkey-lab-header p {
+  margin: 6px 0 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.passkey-lab-status {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  padding: 22px 0;
+  gap: 20px 28px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.passkey-lab-status > div {
+  min-width: 0;
+}
+
+.passkey-lab-status dt {
+  margin-bottom: 7px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.passkey-lab-status dd {
+  display: flex;
+  min-height: 22px;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.passkey-lab-status dd svg {
+  flex: 0 0 auto;
+  color: var(--success);
+}
+
+.passkey-lab-status dd.is-error,
+.passkey-lab-status dd.is-error svg {
+  color: var(--danger);
+}
+
+.passkey-lab-mono {
+  font-family: var(--font-mono);
+  font-size: 12px !important;
+}
+
+.passkey-lab-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-top: 24px;
+}
+
+.passkey-lab-bridge-note {
+  margin: 16px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.passkey-lab-spinner {
+  animation: passkey-lab-spin 0.9s linear infinite;
+}
+
+@keyframes passkey-lab-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 560px) {
+  .passkey-lab-page {
+    padding: 28px 18px 40px;
+  }
+
+  .passkey-lab-status {
+    grid-template-columns: 1fr;
+  }
+
+  .passkey-lab-actions .btn {
+    width: 100%;
+  }
+}

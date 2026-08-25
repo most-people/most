@@ -75,6 +75,11 @@ import {
   zhCNProfileMessages,
   zhTWProfileMessages,
 } from './messages/profile'
+import {
+  enPasskeyLabMessages,
+  zhCNPasskeyLabMessages,
+  zhTWPasskeyLabMessages,
+} from './messages/passkeyLab'
 
 export const DEFAULT_LOCALE = 'zh-CN'
 export const LOCALE_STORAGE_KEY = 'mostbox.locale'
@@ -107,6 +112,7 @@ export const zhCNMessages = {
   ...zhCNWeb3Messages,
   ...zhCNAdminMessages,
   ...zhCNProfileMessages,
+  ...zhCNPasskeyLabMessages,
 } as const
 
 export type MessageKey = keyof typeof zhCNMessages
@@ -129,6 +135,7 @@ export const enMessages = {
   ...enWeb3Messages,
   ...enAdminMessages,
   ...enProfileMessages,
+  ...enPasskeyLabMessages,
 } satisfies Record<MessageKey, string>
 
 export const zhTWMessages = {
@@ -149,6 +156,7 @@ export const zhTWMessages = {
   ...zhTWWeb3Messages,
   ...zhTWAdminMessages,
   ...zhTWProfileMessages,
+  ...zhTWPasskeyLabMessages,
 } satisfies Record<MessageKey, string>
 
 export const messages = {

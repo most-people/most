@@ -14,6 +14,7 @@ export const requiredStaticRoutes = [
   '/docs/api/',
   '/note/',
   '/ping/',
+  '/passkey-lab/',
   '/profile/',
   '/web3/',
 ]

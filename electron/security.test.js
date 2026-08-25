@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 
 import {
   isAllowedExternalHost,
+  isPasskeyLabExternalUrl,
   isSafeExternalUrl,
   isTrustedAppUrl,
 } from './security.js'
@@ -45,6 +46,23 @@ describe('desktop URL security', () => {
         'https://github.com.evil.test/payload',
         allowedHosts
       ),
+      false
+    )
+  })
+
+  it('allows only the canonical passkey lab page', () => {
+    assert.equal(
+      isPasskeyLabExternalUrl(
+        'https://most.box/passkey-lab/?bridge=native&state=test'
+      ),
+      true
+    )
+    assert.equal(
+      isPasskeyLabExternalUrl('https://most.box/passkey-lab.evil/'),
+      false
+    )
+    assert.equal(
+      isPasskeyLabExternalUrl('https://evil.test/passkey-lab/'),
       false
     )
   })

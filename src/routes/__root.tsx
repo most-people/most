@@ -10,6 +10,7 @@ import '~/styles/chat.css'
 import '~/styles/ping.css'
 import '~/styles/web3.css'
 import '~/styles/cid.css'
+import '~/styles/passkey-lab.css'
 import '@milkdown/crepe/theme/common/style.css'
 import '@milkdown/crepe/theme/frame.css'
 

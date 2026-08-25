@@ -74,6 +74,20 @@ import {
 } from './src/ui/components'
 import { PrivacyConsentGate } from './src/privacy/PrivacyConsentGate'
 import { PRIVACY_URL, SUPPORT_URL, TERMS_URL } from './src/privacy/legalUrls'
+import {
+  buildPasskeyLabBridgeUrl,
+  consumePasskeyBridgeCallback,
+  createPasskeyBridgeRequest,
+  isPasskeyCallbackUrl,
+  type PasskeyBridgeMode,
+  type PasskeyBridgePending,
+} from './src/passkey/passkeyBridge'
+import {
+  createPasskeyIdentityFromDanger,
+  getPasskeyCredentialFingerprint,
+  verifyPasskeyIdentity,
+} from './src/passkey/passkeyIdentity'
+import { fillPasskeySecureRandom } from './src/passkey/passkeySecureRandom'
 import type { DocumentPickerAsset } from 'expo-document-picker'
 import type {
   MobileCoreSnapshot,
@@ -226,6 +240,7 @@ function MostBoxApp() {
     typeof createExpoKnowledgeRepository
   > | null>(null)
   const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const passkeyPendingRef = useRef<PasskeyBridgePending | null>(null)
   const [snapshot, setSnapshot] = useState<MobileCoreSnapshot | null>(null)
   const [activeTab, setActiveTab] = useState<RootTab>(
     Platform.OS === 'web' ? 'node' : 'files'
@@ -304,9 +319,36 @@ function MostBoxApp() {
     [t]
   )
 
+  const handlePasskeyCallback = useEffectEvent(async (url: string) => {
+    try {
+      const pending = passkeyPendingRef.current
+      if (!pending) throw new Error('PASSKEY_BRIDGE_INVALID_CALLBACK')
+      const payload = consumePasskeyBridgeCallback(url, pending)
+      const identity = createPasskeyIdentityFromDanger(payload.danger)
+      const proof = await verifyPasskeyIdentity(identity)
+      if (!proof.verified) throw new Error('PASSKEY_BRIDGE_INVALID_PAYLOAD')
+
+      passkeyPendingRef.current = null
+      Alert.alert(
+        t('passkey.lab.verifiedTitle'),
+        t('passkey.lab.verifiedBody', {
+          name: identity.username,
+          address: identity.address,
+          fingerprint: getPasskeyCredentialFingerprint(payload.credentialId),
+        })
+      )
+    } catch {
+      Alert.alert(t('passkey.lab.failedTitle'), t('passkey.lab.failedBody'))
+    }
+  })
+
   useEffect(() => {
     let active = true
     const handleUrl = (url: string) => {
+      if (isPasskeyCallbackUrl(url)) {
+        void handlePasskeyCallback(url)
+        return
+      }
       try {
         const intent = parseIncomingMostLink(url)
         if (intent) openDownloadIntent(intent)
@@ -331,7 +373,21 @@ function MostBoxApp() {
       active = false
       subscription.remove()
     }
-  }, [locale, openDownloadIntent, t])
+  }, [handlePasskeyCallback, locale, openDownloadIntent, t])
+
+  const handleStartPasskeyLab = async (mode: PasskeyBridgeMode) => {
+    const pending = createPasskeyBridgeRequest(
+      Date.now(),
+      fillPasskeySecureRandom
+    )
+    passkeyPendingRef.current = pending
+    try {
+      await Linking.openURL(buildPasskeyLabBridgeUrl(pending, mode))
+    } catch {
+      passkeyPendingRef.current = null
+      Alert.alert(t('passkey.lab.failedTitle'), t('passkey.lab.openFailed'))
+    }
+  }
 
   const guardReady = () => {
     if (isReady) return true
@@ -1084,6 +1140,7 @@ function MostBoxApp() {
               onShowTransferDetails={handleShowTransferDetails}
               onRetryStartCore={handleStartCore}
               onOpenP2PPing={() => setNodeRoute('p2pPing')}
+              onStartPasskeyLab={handleStartPasskeyLab}
               retryStartDisabled={isCoreBusy}
             />
           )}
