@@ -19,7 +19,6 @@ export const zhCNPasskeyLabMessages = {
   'passkey.signature.valid': '恢复地址一致',
   'passkey.bridge.waiting': '等待 most.box 返回加密结果',
   'passkey.bridge.native': '结果只会通过加密回调返回当前应用',
-  'passkey.bridge.opener': '结果只会返回发起验证的本地窗口',
   'passkey.error.unavailable': '当前浏览器没有可用的 WebAuthn 能力。',
   'passkey.error.wrongOrigin': '通行密钥操作必须在 https://most.box 完成。',
   'passkey.error.cancelled': '操作已取消，未产生账号。',
@@ -50,7 +49,6 @@ export const zhTWPasskeyLabMessages = {
   'passkey.signature.valid': '恢復地址一致',
   'passkey.bridge.waiting': '等待 most.box 返回加密結果',
   'passkey.bridge.native': '結果只會透過加密回呼返回目前應用程式',
-  'passkey.bridge.opener': '結果只會返回發起驗證的本機視窗',
   'passkey.error.unavailable': '目前瀏覽器沒有可用的 WebAuthn 能力。',
   'passkey.error.wrongOrigin': '通行密鑰操作必須在 https://most.box 完成。',
   'passkey.error.cancelled': '操作已取消，未產生帳號。',
@@ -83,8 +81,6 @@ export const enPasskeyLabMessages = {
   'passkey.bridge.waiting': 'Waiting for the encrypted result from most.box',
   'passkey.bridge.native':
     'The result returns only through an encrypted callback to this app',
-  'passkey.bridge.opener':
-    'The result returns only to the local window that started it',
   'passkey.error.unavailable':
     'This browser does not provide usable WebAuthn support.',
   'passkey.error.wrongOrigin':

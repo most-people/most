@@ -16,6 +16,7 @@ import {
   verifyPasskeyIdentity,
 } from '~server/src/utils/passkeyIdentity.js'
 import {
+  PASSKEY_LAB_URL,
   buildPasskeyLabBridgeUrl,
   consumePasskeyBridgeCallback,
   createPasskeyBridgeCallback,
@@ -29,41 +30,13 @@ import {
   type PasskeyCeremonyMode,
 } from '~/lib/passkeyWebAuthn'
 
-const OPENER_READY = 'mostbox-passkey-lab-ready-v1'
-const OPENER_REQUEST = 'mostbox-passkey-lab-request-v1'
-const OPENER_RESPONSE = 'mostbox-passkey-lab-response-v1'
-const ALLOWED_OPENER_ORIGINS = new Set([
-  'http://localhost:1976',
-  'http://127.0.0.1:1976',
-  'http://localhost:3000',
-  'http://127.0.0.1:3000',
-])
-
 type LabResult = {
   address: string
   fingerprint: string
 }
 
-type OpenerBridgeRequest = {
-  version: string
-  mode: PasskeyCeremonyMode
-  state: string
-  recipientPublicKey: string
-  opener: Window
-  openerOrigin: string
-}
-
 type LabStatus =
   'ready' | 'working' | 'waiting' | 'returning' | 'verified' | 'failed'
-
-function isMessage(value: unknown, type: string) {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'type' in value &&
-    value.type === type
-  )
-}
 
 function getErrorMessageKey(error: unknown): MessageKey {
   const code = error instanceof Error ? error.message : ''
@@ -100,27 +73,12 @@ export default function PasskeyLabPage() {
         : null,
     [canonicalOrigin]
   )
-  const openerMode =
-    canonicalOrigin && typeof window !== 'undefined'
-      ? new URLSearchParams(window.location.search).get('bridge') === 'opener'
-      : false
-  const requestedOpenerMode =
-    canonicalOrigin && typeof window !== 'undefined'
-      ? new URLSearchParams(window.location.search).get('mode')
-      : ''
-  const [openerBridge, setOpenerBridge] = useState<OpenerBridgeRequest | null>(
-    null
-  )
-  const [status, setStatus] = useState<LabStatus>(
-    canonicalOrigin && openerMode ? 'waiting' : 'ready'
-  )
+  const [status, setStatus] = useState<LabStatus>('ready')
   const [result, setResult] = useState<LabResult | null>(null)
   const [errorKey, setErrorKey] = useState<MessageKey | null>(null)
   const pendingRef = useRef<ReturnType<
     typeof createPasskeyBridgeRequest
   > | null>(null)
-  const popupRef = useRef<Window | null>(null)
-  const pendingModeRef = useRef<PasskeyCeremonyMode | null>(null)
 
   const consumeCallback = useCallback(async (callbackUrl: string) => {
     const pending = pendingRef.current
@@ -136,94 +94,11 @@ export default function PasskeyLabPage() {
     })
     setErrorKey(null)
     setStatus('verified')
-    popupRef.current?.close()
-    popupRef.current = null
   }, [])
-
-  useEffect(() => {
-    if (!openerMode || !window.opener) return
-
-    const requestedMode =
-      requestedOpenerMode === 'authenticate' ? 'authenticate' : 'create'
-    const handleMessage = (event: MessageEvent) => {
-      if (
-        !ALLOWED_OPENER_ORIGINS.has(event.origin) ||
-        event.source !== window.opener ||
-        !isMessage(event.data, OPENER_REQUEST)
-      ) {
-        return
-      }
-      const data = event.data as {
-        type: string
-        v?: unknown
-        mode?: unknown
-        state?: unknown
-        recipientPublicKey?: unknown
-      }
-      const url = new URL('https://most.box/passkey-lab/')
-      url.searchParams.set('bridge', 'native')
-      url.searchParams.set('mode', String(data.mode || ''))
-      url.searchParams.set('v', String(data.v || ''))
-      url.searchParams.set('state', String(data.state || ''))
-      url.searchParams.set(
-        'recipientPublicKey',
-        String(data.recipientPublicKey || '')
-      )
-      const request = parsePasskeyLabBridgeRequest(url.toString())
-      if (!request || request.mode !== requestedMode) return
-
-      setOpenerBridge({
-        ...request,
-        mode: request.mode as PasskeyCeremonyMode,
-        opener: window.opener,
-        openerOrigin: event.origin,
-      })
-      setStatus('ready')
-    }
-
-    window.addEventListener('message', handleMessage)
-    window.opener.postMessage({ type: OPENER_READY }, '*')
-    return () => window.removeEventListener('message', handleMessage)
-  }, [openerMode, requestedOpenerMode])
 
   useEffect(() => {
     if (canonicalOrigin) return
 
-    const handleMessage = (event: MessageEvent) => {
-      if (
-        event.origin !== 'https://most.box' ||
-        event.source !== popupRef.current
-      ) {
-        return
-      }
-      if (isMessage(event.data, OPENER_READY)) {
-        const pending = pendingRef.current
-        const popup = popupRef.current
-        if (!pending || !popup) return
-        const mode = pendingModeRef.current
-        if (!mode) return
-        popup.postMessage(
-          {
-            type: OPENER_REQUEST,
-            v: pending.version,
-            mode,
-            state: pending.state,
-            recipientPublicKey: pending.recipientPublicKey,
-          },
-          'https://most.box'
-        )
-        return
-      }
-      if (isMessage(event.data, OPENER_RESPONSE)) {
-        const data = event.data as { callbackUrl?: unknown }
-        if (typeof data.callbackUrl !== 'string') return
-        void consumeCallback(data.callbackUrl).catch(error => {
-          setErrorKey(getErrorMessageKey(error))
-          setStatus('failed')
-        })
-      }
-    }
-    window.addEventListener('message', handleMessage)
     const unsubscribe = window.electronAPI?.onPasskeyLabCallback?.(
       callbackUrl => {
         void consumeCallback(callbackUrl).catch(error => {
@@ -232,10 +107,7 @@ export default function PasskeyLabPage() {
         })
       }
     )
-    return () => {
-      window.removeEventListener('message', handleMessage)
-      unsubscribe?.()
-    }
+    return () => unsubscribe?.()
   }, [canonicalOrigin, consumeCallback])
 
   const runCanonicalCeremony = async (mode: PasskeyCeremonyMode) => {
@@ -249,24 +121,15 @@ export default function PasskeyLabPage() {
       const proof = await verifyPasskeyIdentity(identity)
       if (!proof.verified) throw new Error('PASSKEY_SIGNATURE_INVALID')
 
-      const bridge = nativeBridge || openerBridge
-      if (bridge) {
+      if (nativeBridge) {
         const callbackUrl = createPasskeyBridgeCallback({
-          state: bridge.state,
-          recipientPublicKey: bridge.recipientPublicKey,
+          state: nativeBridge.state,
+          recipientPublicKey: nativeBridge.recipientPublicKey,
           danger: identity.danger,
           credentialId,
         })
         setStatus('returning')
-        if (openerBridge && bridge === openerBridge) {
-          openerBridge.opener.postMessage(
-            { type: OPENER_RESPONSE, callbackUrl },
-            openerBridge.openerOrigin
-          )
-          window.close()
-        } else {
-          window.location.replace(callbackUrl)
-        }
+        window.location.replace(callbackUrl)
         return
       }
 
@@ -282,32 +145,22 @@ export default function PasskeyLabPage() {
   }
 
   const startExternalCeremony = async (mode: PasskeyCeremonyMode) => {
+    if (!window.electronAPI?.isElectron) {
+      window.location.assign(PASSKEY_LAB_URL)
+      return
+    }
+
     const pending = createPasskeyBridgeRequest()
-    popupRef.current?.close()
     pendingRef.current = pending
-    pendingModeRef.current = mode
     setResult(null)
     setErrorKey(null)
     setStatus('waiting')
 
     try {
-      if (window.electronAPI?.isElectron) {
-        const opened = await window.electronAPI.openPasskeyLab?.(
-          buildPasskeyLabBridgeUrl(pending, mode)
-        )
-        if (!opened) {
-          setErrorKey('passkey.error.bridge')
-          setStatus('failed')
-        }
-        return
-      }
-
-      const url = new URL('https://most.box/passkey-lab/')
-      url.searchParams.set('bridge', 'opener')
-      url.searchParams.set('mode', mode)
-      const popupName = `mostbox-passkey-${mode}`
-      popupRef.current = window.open(url, popupName)
-      if (!popupRef.current) {
+      const opened = await window.electronAPI.openPasskeyLab?.(
+        buildPasskeyLabBridgeUrl(pending, mode)
+      )
+      if (!opened) {
         setErrorKey('passkey.error.bridge')
         setStatus('failed')
       }
@@ -317,8 +170,7 @@ export default function PasskeyLabPage() {
     }
   }
 
-  const activeBridge = nativeBridge || openerBridge
-  const forcedMode = activeBridge?.mode as PasskeyCeremonyMode | undefined
+  const forcedMode = nativeBridge?.mode as PasskeyCeremonyMode | undefined
   const working = status === 'working' || status === 'returning'
   const statusKey: MessageKey =
     status === 'verified'
@@ -382,7 +234,7 @@ export default function PasskeyLabPage() {
           {forcedMode ? (
             <button
               className="btn btn-primary"
-              disabled={working || (openerMode && !openerBridge)}
+              disabled={working}
               onClick={() => void run(forcedMode)}
               type="button"
             >
@@ -421,11 +273,9 @@ export default function PasskeyLabPage() {
           )}
         </div>
 
-        {activeBridge ? (
+        {nativeBridge ? (
           <p className="passkey-lab-bridge-note">
-            {t(
-              openerBridge ? 'passkey.bridge.opener' : 'passkey.bridge.native'
-            )}
+            {t('passkey.bridge.native')}
           </p>
         ) : null}
       </section>
