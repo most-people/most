@@ -1,6 +1,7 @@
 out
 .next
 node_modules
+mobile/app/web-dist/
 package-lock.json
 public/bundle.js
 public/bundle.js.map

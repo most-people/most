@@ -10,6 +10,7 @@ export default [
       '.tmp/**',
       '.tanstack/tmp/**',
       'mobile/app/appBundle.*.js',
+      'mobile/app/web-dist/**',
       'node_modules/**',
     ],
   },

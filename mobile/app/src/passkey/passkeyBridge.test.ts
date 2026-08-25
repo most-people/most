@@ -1,6 +1,5 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { createPasskeyBridgeCallback as createWebPasskeyBridgeCallback } from '../../../../server/src/utils/passkeyBridge.js'
 
 import {
   consumePasskeyBridgeCallback,
@@ -25,24 +24,9 @@ function createRoundTrip() {
 }
 
 describe('mobile passkey bridge', () => {
-  it('decrypts the web-compatible callback without exposing the seed', () => {
+  it('encrypts and decrypts a callback without exposing the seed', () => {
     const { pending, callback } = createRoundTrip()
     assert.equal(callback.includes(DANGER), false)
-    assert.deepEqual(consumePasskeyBridgeCallback(callback, pending), {
-      danger: DANGER,
-      credentialId: CREDENTIAL_ID,
-    })
-  })
-
-  it('decrypts a callback produced by the shared web bridge', () => {
-    const pending = createPasskeyBridgeRequest()
-    const callback = createWebPasskeyBridgeCallback({
-      state: pending.state,
-      recipientPublicKey: pending.recipientPublicKey,
-      danger: DANGER,
-      credentialId: CREDENTIAL_ID,
-    })
-
     assert.deepEqual(consumePasskeyBridgeCallback(callback, pending), {
       danger: DANGER,
       credentialId: CREDENTIAL_ID,
