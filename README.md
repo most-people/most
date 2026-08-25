@@ -401,6 +401,8 @@ npx most-box@latest
 
 发布前先完成发版提交，再推送 tag 触发自动构建。每次发版必须更新 `CHANGELOG.md`，并将版本号同步到根目录 `package.json` / `package-lock.json`、`mobile/app/package.json` / `mobile/app/package-lock.json`、`mobile/app/app.json` 和文档里的 Docker 示例 tag；`mobile/app/app.json` 的 Android `versionCode` 与 iOS `buildNumber` 也必须同步，例如 `0.4.8` 对应 `408`。Android APK 文件名虽然由发布 tag 驱动，但移动端子包版本和 Expo 可见版本也要每次一起更新。`npm run check:versions -- --tag vx.x.x` 会检查这些版本和移动端构建号；本地 iOS 原生工程存在时也会校验其版本，并由 `mobile/app` 下的 `npm run bundle:ios` 自动同步。
 
+Expo Web 生产入口由 Cloudflare Pages 直接连接 `most-people/most` 仓库：production branch 为 `pre`，Root directory 为 `mobile/app`，Build command 为 `npm run build:web`，Build output directory 为 `web-dist`。推送到 `pre` 后由 Pages 自动构建并发布到 `https://app.most.box`，不使用 GitHub Actions 或 Cloudflare API Token。
+
 ### Code signing policy
 
 MostBox 的 Windows 发布签名按 [代码签名政策](CODE_SIGNING_POLICY.md) 管理。项目正在申请 SignPath Foundation 开源代码签名；只有带有有效 Authenticode 签名的产物才会标记为已签名。Free code signing provided by SignPath.io, certificate by SignPath Foundation.

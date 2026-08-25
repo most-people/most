@@ -44,14 +44,13 @@ npm run build:web
 
 Expo Web 生产入口部署在 `https://app.most.box`。浏览器不运行 Bare Worklet，也不直接参与 Hyperswarm；它只连接已有 MostBox daemon，由 daemon 完成发布、下载、CID 校验与做种。首次打开会进入节点页，连接远程节点并登录后即可使用文件和传输功能。
 
-本地导出与 Cloudflare Workers Static Assets 部署：
+本地导出：
 
 ```bash
 npm run build:web
-npm run deploy:web
 ```
 
-Web 导出固定写入 `web-dist/`，不会覆盖 `dist/` 下的 Android、iOS 构建产物。`wrangler.jsonc` 为未知路径提供 SPA fallback，并将生产 Custom Domain 固定为 `app.most.box`。
+Web 导出固定写入 `web-dist/`，不会覆盖 `dist/` 下的 Android、iOS 构建产物。生产环境由 Cloudflare Pages 直接连接 `most-people/most` 仓库，production branch 为 `pre`，Root directory 为 `mobile/app`，Build command 为 `npm run build:web`，Build output directory 为 `web-dist`。推送到 `pre` 后 Pages 自动发布到 `app.most.box`，不需要 Cloudflare API Token。
 
 ## 内部 APK
 
