@@ -151,6 +151,7 @@ export type PublishFileInput = {
   size: number
   mimeType?: string
   contentBytes?: Uint8Array
+  webFile?: Blob
 }
 
 export type DownloadLinkInput = {

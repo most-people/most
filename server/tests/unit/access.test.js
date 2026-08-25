@@ -70,6 +70,14 @@ describe('HTTP access boundary', () => {
       }),
       false
     )
+    assert.strictEqual(
+      isRemoteAccessRequest({
+        origin: 'https://app.most.box',
+        local: true,
+        allowedOrigins,
+      }),
+      false
+    )
   })
 
   it('allows a browser origin that exactly matches the trusted request Host', () => {

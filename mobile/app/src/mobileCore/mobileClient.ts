@@ -34,6 +34,7 @@ import { hasActiveTransfers, startPreferredOrLocal } from './nodeSelection'
 type MobileNodeClientOptions = {
   bundle: string | Uint8Array
   storagePath: string
+  remoteOnly?: boolean
 }
 
 export class MobileNodeClient implements MostBoxMobileClient {
@@ -46,10 +47,13 @@ export class MobileNodeClient implements MostBoxMobileClient {
   #nodes: StoredRemoteNode[] = []
   #mode: 'local' | 'remote' = 'local'
   #remoteConfig: RemoteNodeConfig | null = null
+  #remoteOnly: boolean
   #started = false
   #fallbackFrom = ''
 
   constructor(options: MobileNodeClientOptions) {
+    this.#remoteOnly = options.remoteOnly === true
+    this.#mode = this.#remoteOnly ? 'remote' : 'local'
     this.#local = new BareWorkletMostBoxCore(options)
     this.#active = this.#local
     this.#snapshot = this.#decorateSnapshot(this.#local.getSnapshot())
@@ -67,6 +71,11 @@ export class MobileNodeClient implements MostBoxMobileClient {
       loadRemoteNodes(),
     ])
     const preferred = this.#nodes.find(node => node.preferred) || null
+    if (this.#remoteOnly && !preferred) {
+      await this.#local.start()
+      await this.#activate(this.#local, 'remote', null)
+      return
+    }
     const selection = await startPreferredOrLocal<MostBoxMobileCore>({
       preferred,
       startRemote: async config => {
@@ -84,6 +93,11 @@ export class MobileNodeClient implements MostBoxMobileClient {
         return this.#local
       },
     })
+    if (this.#remoteOnly && selection.mode === 'local') {
+      this.#fallbackFrom = ''
+      await this.#activate(this.#local, 'remote', preferred)
+      return
+    }
     this.#fallbackFrom = selection.fallbackFrom
     await this.#activate(selection.node, selection.mode, selection.config)
   }
@@ -113,6 +127,13 @@ export class MobileNodeClient implements MostBoxMobileClient {
   }
 
   async switchToLocal() {
+    if (this.#remoteOnly) {
+      const error = new Error(
+        'The Web app requires a connection to an existing MostBox node'
+      ) as Error & { code?: string }
+      error.code = 'WEB_REMOTE_REQUIRED'
+      throw error
+    }
     this.#assertSwitchAllowed()
     if (this.#mode === 'local') return
     await this.#local.start()

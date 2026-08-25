@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "mostbox-app",
+  "compatibility_date": "2026-08-25",
+  "assets": {
+    "directory": "./web-dist",
+    "not_found_handling": "single-page-application",
+  },
+  "routes": [
+    {
+      "pattern": "app.most.box/*",
+      "zone_name": "most.box",
+    },
+  ],
+  "workers_dev": true,
+  "preview_urls": true,
+}

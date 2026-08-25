@@ -96,7 +96,12 @@ export function getFriendlyRemoteConnectionError(
   const normalized = message.toLowerCase()
 
   let key: MessageKey = 'node.connection.error.generic'
-  if (normalized.includes('valid http or https')) {
+  if (
+    code === 'WEB_REMOTE_REQUIRED' ||
+    normalized.includes('web app requires a connection')
+  ) {
+    key = 'node.connection.error.required'
+  } else if (normalized.includes('valid http or https')) {
     key = 'node.connection.error.invalidUrl'
   } else if (code === 'INVALID_INVITE' || normalized.includes('invite')) {
     key = 'node.connection.error.invalidInvite'

@@ -9,6 +9,7 @@
   "main": "expo/AppEntry.js",
   "scripts": {
     "start": "npm run bundle:android && node scripts/start-dev-client.mjs",
+    "web": "expo start --web",
     "start:ios": "npm run bundle:ios && expo start --dev-client --host lan",
     "ios": "npm run bundle:ios && expo run:ios",
     "build": "node scripts/build-apk.mjs",
@@ -16,6 +17,8 @@
     "build:emulator": "node scripts/build-apk.mjs --emulator-apk",
     "build:store": "node scripts/build-apk.mjs --store-apk",
     "build:play": "node scripts/build-apk.mjs --aab",
+    "build:web": "expo export --platform web --output-dir web-dist",
+    "deploy:web": "npm run build:web && wrangler deploy",
     "bundle:android": "node scripts/bundle-bare.mjs --platform android",
     "bundle:ios": "node scripts/bundle-bare.mjs --platform ios",
     "check:ios-release": "node scripts/check-ios-release.mjs",
@@ -27,6 +30,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@expo/metro-runtime": "~57.0.8",
     "b4a": "1.8.1",
     "bare-fs": "4.8.0",
     "bare-url": "2.4.5",
@@ -47,17 +51,20 @@
     "lucide-react-native": "1.28.0",
     "multiformats": "14.0.5",
     "react": "19.2.3",
+    "react-dom": "19.2.3",
     "react-native": "0.86.2",
     "react-native-bare-kit": "0.15.0",
     "react-native-enriched-markdown": "0.7.4",
     "react-native-safe-area-context": "~5.7.0",
-    "react-native-svg": "15.15.4"
+    "react-native-svg": "15.15.4",
+    "react-native-web": "~0.21.0"
   },
   "devDependencies": {
     "@types/b4a": "1.6.5",
     "@types/react": "19.2.18",
     "bare-pack": "^2.2.1",
     "tsx": "4.23.5",
-    "typescript": "6.0.3"
+    "typescript": "6.0.3",
+    "wrangler": "4.125.0"
   }
 }

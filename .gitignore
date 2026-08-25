@@ -40,12 +40,14 @@ NUL
 
 # Mobile app local outputs
 mobile/app/.expo/
+mobile/app/.wrangler/
 mobile/app/android/
 mobile/app/ios/
 mobile/app/app.bundle.mjs
 mobile/app/app.bundle.js
 mobile/app/appBundle.android.js
 mobile/app/appBundle.ios.js
+mobile/app/web-dist/
 
 # macOS
 *.dmg

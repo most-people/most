@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from 'react'
 import * as FileSystem from 'expo-file-system/legacy'
+import { Platform } from 'react-native'
 import {
   DEFAULT_LOCALE,
   isLocale,
@@ -35,6 +36,7 @@ const I18nContext = createContext<I18nContextValue | null>(null)
 const localePreferencePath = FileSystem.documentDirectory
   ? `${FileSystem.documentDirectory}mostbox-locale.txt`
   : ''
+const WEB_LOCALE_KEY = 'mostbox.web.locale'
 
 export {
   DEFAULT_LOCALE,
@@ -47,6 +49,14 @@ export {
 export { interpolateMessage, translateMessage, type TranslationParams }
 
 async function readStoredLocale() {
+  if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
+    try {
+      const value = localStorage.getItem(WEB_LOCALE_KEY)
+      return isLocale(value) ? value : DEFAULT_LOCALE
+    } catch {
+      return DEFAULT_LOCALE
+    }
+  }
   if (!localePreferencePath) return DEFAULT_LOCALE
   try {
     const value = await FileSystem.readAsStringAsync(localePreferencePath, {
@@ -60,6 +70,14 @@ async function readStoredLocale() {
 }
 
 async function persistLocale(locale: Locale) {
+  if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
+    try {
+      localStorage.setItem(WEB_LOCALE_KEY, locale)
+    } catch {
+      // Keep the in-memory locale when browser storage is unavailable.
+    }
+    return
+  }
   if (!localePreferencePath) return
   try {
     await FileSystem.writeAsStringAsync(localePreferencePath, locale, {

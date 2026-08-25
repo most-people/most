@@ -67,7 +67,7 @@ export function NodeConnectionPanel({
   const theme = useMostBoxTheme()
   const styles = connectionStyles[theme.mode]
   const node = snapshot.node
-  const remote = node.mode === 'remote'
+  const remote = Platform.OS === 'web' || node.mode === 'remote'
   const [open, setOpen] = useState(false)
   const [url, setUrl] = useState(node.endpoint || '')
   const [invite, setInvite] = useState('')
@@ -307,15 +307,17 @@ export function NodeConnectionPanel({
                         ? t('node.connection.connecting')
                         : t('node.connection.connect')}
                     </MostButton>
-                    <MostButton
-                      disabled={working || !remote}
-                      icon={
-                        <Smartphone size={16} color={theme.colors.accent} />
-                      }
-                      onPress={() => void switchLocal()}
-                    >
-                      {t('node.connection.switchLocal')}
-                    </MostButton>
+                    {Platform.OS !== 'web' ? (
+                      <MostButton
+                        disabled={working || !remote}
+                        icon={
+                          <Smartphone size={16} color={theme.colors.accent} />
+                        }
+                        onPress={() => void switchLocal()}
+                      >
+                        {t('node.connection.switchLocal')}
+                      </MostButton>
+                    ) : null}
                   </View>
                 </View>
 

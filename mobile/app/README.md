@@ -26,17 +26,32 @@ MostBox 的 iOS / Android 商店版和共享 Bare Worklet P2P 核心。移动工
 cd mobile/app
 npm install
 npm start
+npm run web
 npm test
 npm run typecheck
 npm run bundle:android
 npm run bundle:ios
 npm run preflight:ios
 npm run build
+npm run build:web
 ```
 
 `npm start` 会打包 Bare Worklet、启动 Expo 开发服务器并打开已连接的 Android 设备或模拟器。
 
 `npm run preflight:ios` 会同步 iOS 原生版本、生成 iOS Bare bundle，并检查 App Store 分发档位、Bundle ID、iPhone 设备范围、最低系统版本、隐私清单和 1024 × 1024 无透明通道图标。它不执行 Apple 签名、Archive 上传或 TestFlight 验收。
+
+## Web
+
+Expo Web 生产入口部署在 `https://app.most.box`。浏览器不运行 Bare Worklet，也不直接参与 Hyperswarm；它只连接已有 MostBox daemon，由 daemon 完成发布、下载、CID 校验与做种。首次打开会进入节点页，连接远程节点并登录后即可使用文件和传输功能。
+
+本地导出与 Cloudflare Workers Static Assets 部署：
+
+```bash
+npm run build:web
+npm run deploy:web
+```
+
+Web 导出固定写入 `web-dist/`，不会覆盖 `dist/` 下的 Android、iOS 构建产物。`wrangler.jsonc` 为未知路径提供 SPA fallback，并将生产 Custom Domain 固定为 `app.most.box`。
 
 ## 内部 APK
 

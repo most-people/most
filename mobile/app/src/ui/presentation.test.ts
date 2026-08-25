@@ -74,6 +74,18 @@ test('getFriendlyRemoteConnectionError localizes connection failures', () => {
     ),
     'Finish or cancel active transfers before switching nodes'
   )
+  assert.equal(
+    getFriendlyRemoteConnectionError(
+      Object.assign(
+        new Error(
+          'The Web app requires a connection to an existing MostBox node'
+        ),
+        { code: 'WEB_REMOTE_REQUIRED' }
+      ),
+      'en'
+    ),
+    'Connect to a remote MostBox node first'
+  )
 })
 
 test('getTransferDisplayMessage localizes stable core states', () => {

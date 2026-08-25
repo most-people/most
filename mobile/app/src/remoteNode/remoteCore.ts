@@ -1,5 +1,6 @@
 import * as FileSystem from 'expo-file-system/legacy'
 import b4a from 'b4a'
+import { Platform } from 'react-native'
 import { calculateUnixfsCidFromContent } from '../mobileCore/cid'
 import { parseMostLink } from '../mobileCore/protocol'
 import type {
@@ -257,11 +258,15 @@ export class RemoteMostBoxCore implements MostBoxMobileCore {
         path: '/api/publish',
       })
       const body = new FormData()
-      body.append('file', {
-        uri: input.uri,
-        name: input.name,
-        type: input.mimeType || 'application/octet-stream',
-      } as unknown as Blob)
+      if (input.webFile) {
+        body.append('file', input.webFile, input.name)
+      } else {
+        body.append('file', {
+          uri: input.uri,
+          name: input.name,
+          type: input.mimeType || 'application/octet-stream',
+        } as unknown as Blob)
+      }
       const response = await this.#fetchWithTimeout(
         buildRemoteApiUrl(this.#config.url, '/api/publish'),
         { method: 'POST', headers, body },
@@ -368,6 +373,40 @@ export class RemoteMostBoxCore implements MostBoxMobileCore {
     await this.#ensureAuthenticated()
     const holding = this.#snapshot.holdings.find(item => item.cid === input.cid)
     if (!holding) throw createRemoteError('File not found', 'NOT_FOUND')
+    if (Platform.OS === 'web') {
+      const path = `/api/files/${encodeURIComponent(input.cid)}/download`
+      const headers = await buildRemoteHeaders({
+        baseUrl: this.#config.url,
+        invite: this.#config.invite,
+        identity: this.#identity,
+        method: 'GET',
+        path,
+      })
+      const response = await this.#fetchWithTimeout(
+        buildRemoteApiUrl(this.#config.url, path),
+        { method: 'GET', headers },
+        DOWNLOAD_TIMEOUT_MS
+      )
+      if (!response.ok) await this.#parseResponse(response)
+
+      const bytes = new Uint8Array(await response.arrayBuffer())
+      const verified = await calculateUnixfsCidFromContent([bytes])
+      if (!cacheMatchesCid(input.cid, verified.cid)) {
+        throw createRemoteError(
+          `File content CID mismatch. Expected ${input.cid}, got ${verified.cid}.`,
+          'INTEGRITY_ERROR'
+        )
+      }
+      const blob = new Blob([bytes], {
+        type: 'application/octet-stream',
+      })
+      return {
+        filePath: URL.createObjectURL(blob),
+        fileName: input.fileName || holding.fileName,
+        size: verified.size,
+        holding,
+      }
+    }
     if (!FileSystem.cacheDirectory) {
       throw createRemoteError(
         'Temporary storage is unavailable',

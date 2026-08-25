@@ -112,6 +112,10 @@ async function readDevCidBytes(file: DocumentPickerAsset) {
   const size = file.size || 0
   if (size > DEV_CID_MAX_BYTES) return undefined
 
+  if (Platform.OS === 'web' && file.file) {
+    return new Uint8Array(await file.file.arrayBuffer())
+  }
+
   const base64 = await FileSystem.readAsStringAsync(file.uri, {
     encoding: FileSystem.EncodingType.Base64,
   })
@@ -136,7 +140,14 @@ function getMimeType(fileName: string) {
 
 function toFileUri(filePath: string) {
   const value = filePath.trim()
-  if (value.startsWith('file://') || value.startsWith('content://')) {
+  if (
+    value.startsWith('file://') ||
+    value.startsWith('content://') ||
+    value.startsWith('blob:') ||
+    value.startsWith('data:') ||
+    value.startsWith('https://') ||
+    value.startsWith('http://')
+  ) {
     return value
   }
   const normalized = value.replace(/\\/g, '/')
@@ -174,6 +185,26 @@ function shortCid(cid: string) {
   return `${cid.slice(0, 20)}...${cid.slice(-10)}`
 }
 
+function triggerWebFile(fileUri: string, fileName: string, open = false) {
+  if (typeof document === 'undefined') {
+    throw new Error('Browser file actions are unavailable')
+  }
+  const link = document.createElement('a')
+  link.href = fileUri
+  if (open) {
+    link.target = '_blank'
+    link.rel = 'noopener noreferrer'
+  } else {
+    link.download = fileName
+  }
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  if (fileUri.startsWith('blob:')) {
+    setTimeout(() => URL.revokeObjectURL(fileUri), open ? 60_000 : 1_000)
+  }
+}
+
 export default function App() {
   return (
     <I18nProvider>
@@ -196,7 +227,9 @@ function MostBoxApp() {
   > | null>(null)
   const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [snapshot, setSnapshot] = useState<MobileCoreSnapshot | null>(null)
-  const [activeTab, setActiveTab] = useState<RootTab>('files')
+  const [activeTab, setActiveTab] = useState<RootTab>(
+    Platform.OS === 'web' ? 'node' : 'files'
+  )
   const [nodeRoute, setNodeRoute] = useState<'status' | 'p2pPing'>('status')
   const [publishing, setPublishing] = useState(false)
   const [knowledgeDirty, setKnowledgeDirty] = useState(false)
@@ -389,6 +422,7 @@ function MostBoxApp() {
         size: file.size || 0,
         mimeType: file.mimeType,
         contentBytes: await readDevCidBytes(file),
+        webFile: file.file,
       })
 
       if (!transfer.link) throw new Error(t('app.file.linkMissing'))
@@ -636,6 +670,13 @@ function MostBoxApp() {
       fileName: holding.fileName,
     })
     const fileUri = toFileUri(exported.filePath)
+    if (Platform.OS === 'web') {
+      return {
+        ...exported,
+        fileUri,
+        mimeType: getMimeType(exported.fileName),
+      }
+    }
     const info = await FileSystem.getInfoAsync(fileUri)
     if (!info.exists) throw new Error(t('app.file.exportMissing'))
 
@@ -675,6 +716,10 @@ function MostBoxApp() {
     setExportingCid(holding.cid)
     try {
       const exported = await prepareHoldingFile(holding)
+      if (Platform.OS === 'web') {
+        triggerWebFile(exported.fileUri, exported.fileName, true)
+        return
+      }
       if (Platform.OS === 'android') {
         const contentUri = exported.fileUri.startsWith('content://')
           ? exported.fileUri
@@ -711,6 +756,10 @@ function MostBoxApp() {
     setExportingCid(holding.cid)
     try {
       const exported = await prepareHoldingFile(holding)
+      if (Platform.OS === 'web') {
+        triggerWebFile(exported.fileUri, exported.fileName)
+        return
+      }
       if (Platform.OS !== 'android') {
         if (!(await Sharing.isAvailableAsync())) {
           throw new Error(t('app.device.exportUnavailable'))
@@ -789,22 +838,24 @@ function MostBoxApp() {
   }
 
   const handleBackupKnowledge = async () => {
-    if (!FileSystem.cacheDirectory) {
-      Alert.alert(
-        t('app.knowledge.backupFailedTitle'),
-        t('app.knowledge.tempUnavailable')
-      )
-      return
-    }
-
     setKnowledgeBackupWorking(true)
     try {
-      if (!(await Sharing.isAvailableAsync())) {
-        throw new Error(t('app.device.shareUnavailable'))
-      }
       const backup = await knowledgeRepository.exportSnapshot()
       const stamp = backup.exportedAt.replace(/[:.]/g, '-').replace('T', '_')
       const fileName = `mostbox-knowledge-${stamp}.json`
+      if (Platform.OS === 'web') {
+        const blob = new Blob([JSON.stringify(backup, null, 2)], {
+          type: 'application/json',
+        })
+        triggerWebFile(URL.createObjectURL(blob), fileName)
+        return
+      }
+      if (!FileSystem.cacheDirectory) {
+        throw new Error(t('app.knowledge.tempUnavailable'))
+      }
+      if (!(await Sharing.isAvailableAsync())) {
+        throw new Error(t('app.device.shareUnavailable'))
+      }
       const target = `${FileSystem.cacheDirectory}${fileName}`
       await FileSystem.writeAsStringAsync(
         target,
@@ -837,9 +888,12 @@ function MostBoxApp() {
       if (result.canceled) return
       const file = result.assets[0]
       if (!file) return
-      const raw = await FileSystem.readAsStringAsync(file.uri, {
-        encoding: FileSystem.EncodingType.UTF8,
-      })
+      const raw =
+        Platform.OS === 'web' && file.file
+          ? await file.file.text()
+          : await FileSystem.readAsStringAsync(file.uri, {
+              encoding: FileSystem.EncodingType.UTF8,
+            })
       const backup = validateKnowledgeSnapshot(JSON.parse(raw) as unknown)
       Alert.alert(
         t('app.knowledge.restoreTitle'),

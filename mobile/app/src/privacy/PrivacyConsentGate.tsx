@@ -138,7 +138,11 @@ export function PrivacyConsentGate({ children }: PrivacyConsentGateProps) {
               {t('app.privacy.title')}
             </Text>
             <Text maxFontSizeMultiplier={1.8} style={styles.body}>
-              {t('app.privacy.body')}
+              {t(
+                Platform.OS === 'web'
+                  ? 'app.privacy.bodyWeb'
+                  : 'app.privacy.body'
+              )}
             </Text>
             <View style={styles.links}>
               <Pressable

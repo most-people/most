@@ -429,6 +429,11 @@ export const nodeMessages = {
     'zh-TW': '請輸入有效的 HTTP 或 HTTPS 節點地址',
     en: 'Enter a valid HTTP or HTTPS node URL',
   },
+  'node.connection.error.required': {
+    'zh-CN': '请先连接一个远程 MostBox 节点',
+    'zh-TW': '請先連線一個遠端 MostBox 節點',
+    en: 'Connect to a remote MostBox node first',
+  },
   'node.connection.error.invalidInvite': {
     'zh-CN': '邀请码无效或远程访问未启用',
     'zh-TW': '邀請碼無效或遠端存取未啟用',

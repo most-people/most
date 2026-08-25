@@ -7,6 +7,11 @@
     "icon": "./assets/icon.png",
     "scheme": "most",
     "userInterfaceStyle": "automatic",
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/icon.png",
+      "output": "single"
+    },
     "android": {
       "versionCode": 500,
       "allowBackup": false,
