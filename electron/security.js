@@ -40,10 +40,3 @@ export function isAllowedExternalHost(value, allowedHosts) {
   )
   return normalizedHosts.has(url.hostname.toLowerCase())
 }
-
-export function isPasskeyLabExternalUrl(value) {
-  if (!isSafeExternalUrl(value)) return false
-
-  const url = new URL(value)
-  return url.origin === 'https://most.box' && url.pathname === '/passkey-lab/'
-}

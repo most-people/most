@@ -356,7 +356,6 @@ describe('frontend smoke checks', () => {
       '/docs/api/',
       '/note/',
       '/ping/',
-      '/passkey-lab/',
       '/profile/',
       '/web3/',
     ])

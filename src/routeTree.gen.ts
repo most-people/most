@@ -19,7 +19,6 @@ import { Route as DownloadIndexRouteImport } from './routes/download/index'
 import { Route as FileIndexRouteImport } from './routes/file/index'
 import { Route as HiIndexRouteImport } from './routes/hi/index'
 import { Route as NoteIndexRouteImport } from './routes/note/index'
-import { Route as PasskeyLabIndexRouteImport } from './routes/passkey-lab/index'
 import { Route as PingIndexRouteImport } from './routes/ping/index'
 import { Route as ProfileIndexRouteImport } from './routes/profile/index'
 import { Route as Web3IndexRouteImport } from './routes/web3/index'
@@ -81,13 +80,6 @@ const NoteIndexRoute = NoteIndexRouteImport.update({
   path: '/note/',
   getParentRoute: () => rootRouteImport,
 } as any).lazy(() => import('./routes/note/index.lazy').then((d) => d.Route))
-const PasskeyLabIndexRoute = PasskeyLabIndexRouteImport.update({
-  id: '/passkey-lab/',
-  path: '/passkey-lab/',
-  getParentRoute: () => rootRouteImport,
-} as any).lazy(() =>
-  import('./routes/passkey-lab/index.lazy').then((d) => d.Route),
-)
 const PingIndexRoute = PingIndexRouteImport.update({
   id: '/ping/',
   path: '/ping/',
@@ -150,7 +142,6 @@ export interface FileRoutesByFullPath {
   '/file/': typeof FileIndexRoute
   '/hi/': typeof HiIndexRoute
   '/note/': typeof NoteIndexRoute
-  '/passkey-lab/': typeof PasskeyLabIndexRoute
   '/ping/': typeof PingIndexRoute
   '/profile/': typeof ProfileIndexRoute
   '/web3/': typeof Web3IndexRoute
@@ -171,7 +162,6 @@ export interface FileRoutesByTo {
   '/file': typeof FileIndexRoute
   '/hi': typeof HiIndexRoute
   '/note': typeof NoteIndexRoute
-  '/passkey-lab': typeof PasskeyLabIndexRoute
   '/ping': typeof PingIndexRoute
   '/profile': typeof ProfileIndexRoute
   '/web3': typeof Web3IndexRoute
@@ -193,7 +183,6 @@ export interface FileRoutesById {
   '/file/': typeof FileIndexRoute
   '/hi/': typeof HiIndexRoute
   '/note/': typeof NoteIndexRoute
-  '/passkey-lab/': typeof PasskeyLabIndexRoute
   '/ping/': typeof PingIndexRoute
   '/profile/': typeof ProfileIndexRoute
   '/web3/': typeof Web3IndexRoute
@@ -216,7 +205,6 @@ export interface FileRouteTypes {
     | '/file/'
     | '/hi/'
     | '/note/'
-    | '/passkey-lab/'
     | '/ping/'
     | '/profile/'
     | '/web3/'
@@ -237,7 +225,6 @@ export interface FileRouteTypes {
     | '/file'
     | '/hi'
     | '/note'
-    | '/passkey-lab'
     | '/ping'
     | '/profile'
     | '/web3'
@@ -258,7 +245,6 @@ export interface FileRouteTypes {
     | '/file/'
     | '/hi/'
     | '/note/'
-    | '/passkey-lab/'
     | '/ping/'
     | '/profile/'
     | '/web3/'
@@ -280,7 +266,6 @@ export interface RootRouteChildren {
   FileIndexRoute: typeof FileIndexRoute
   HiIndexRoute: typeof HiIndexRoute
   NoteIndexRoute: typeof NoteIndexRoute
-  PasskeyLabIndexRoute: typeof PasskeyLabIndexRoute
   PingIndexRoute: typeof PingIndexRoute
   ProfileIndexRoute: typeof ProfileIndexRoute
   Web3IndexRoute: typeof Web3IndexRoute
@@ -363,13 +348,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NoteIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/passkey-lab/': {
-      id: '/passkey-lab/'
-      path: '/passkey-lab'
-      fullPath: '/passkey-lab/'
-      preLoaderRoute: typeof PasskeyLabIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/ping/': {
       id: '/ping/'
       path: '/ping'
@@ -440,7 +418,6 @@ const rootRouteChildren: RootRouteChildren = {
   FileIndexRoute: FileIndexRoute,
   HiIndexRoute: HiIndexRoute,
   NoteIndexRoute: NoteIndexRoute,
-  PasskeyLabIndexRoute: PasskeyLabIndexRoute,
   PingIndexRoute: PingIndexRoute,
   ProfileIndexRoute: ProfileIndexRoute,
   Web3IndexRoute: Web3IndexRoute,

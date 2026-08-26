@@ -1,7 +1,6 @@
 import {
   app,
   BrowserWindow,
-  ipcMain,
   Menu,
   Tray,
   dialog,
@@ -19,16 +18,8 @@ import {
   getCurrentPlatform,
   getReleaseManifestUrl,
 } from './updateChecker.js'
-import {
-  createMostDeepLinkTarget,
-  findMostDeepLinkArg,
-  isPasskeyCallbackLink,
-} from './deepLink.js'
-import {
-  isPasskeyLabExternalUrl,
-  isSafeExternalUrl,
-  isTrustedAppUrl,
-} from './security.js'
+import { createMostDeepLinkTarget, findMostDeepLinkArg } from './deepLink.js'
+import { isSafeExternalUrl, isTrustedAppUrl } from './security.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = 1976
@@ -116,13 +107,6 @@ function registerMostProtocolClient() {
 }
 
 function openMostDeepLink(link) {
-  if (isPasskeyCallbackLink(link)) {
-    if (!mainWindow) return
-    showMainWindow()
-    mainWindow.webContents.send('passkey-lab:callback', link)
-    return
-  }
-
   const targetUrl = createMostDeepLinkTarget(link, `http://localhost:${PORT}`)
   if (!targetUrl) return
 
@@ -135,23 +119,6 @@ function openMostDeepLink(link) {
   mainWindow.loadURL(targetUrl)
   pendingDeepLinkUrl = ''
 }
-
-ipcMain.handle('passkey-lab:open', async (event, url) => {
-  if (
-    !isTrustedAppUrl(event.senderFrame?.url || '', PORT) ||
-    !isPasskeyLabExternalUrl(url)
-  ) {
-    return false
-  }
-
-  try {
-    await shell.openExternal(url)
-    return true
-  } catch {
-    console.warn('[Electron] Failed to open passkey lab')
-    return false
-  }
-})
 
 function quitFromTray() {
   isQuitting = true

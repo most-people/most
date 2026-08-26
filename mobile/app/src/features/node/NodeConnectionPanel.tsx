@@ -11,9 +11,7 @@ import {
 } from 'react-native'
 import {
   CheckCircle2,
-  Fingerprint,
   History,
-  KeyRound,
   LogIn,
   LogOut,
   Server,
@@ -45,7 +43,6 @@ import {
 export type NodeConnectionPanelProps = {
   client: MostBoxMobileClient
   snapshot: MobileCoreSnapshot
-  onStartPasskeyLab: (mode: 'create' | 'authenticate') => void | Promise<void>
 }
 
 function shortAddress(value: string) {
@@ -65,7 +62,6 @@ function displayNodeName(node: NodeHistoryItem) {
 export function NodeConnectionPanel({
   client,
   snapshot,
-  onStartPasskeyLab,
 }: NodeConnectionPanelProps) {
   const { locale, t } = useI18n()
   const theme = useMostBoxTheme()
@@ -223,35 +219,6 @@ export function NodeConnectionPanel({
                     <X size={20} color={theme.colors.textSecondary} />
                   </IconButton>
                 </View>
-
-                {Platform.OS !== 'web' ? (
-                  <View style={styles.formSection}>
-                    <Text style={styles.formTitle}>
-                      {t('passkey.lab.title')}
-                    </Text>
-                    <View style={styles.passkeyActions}>
-                      <MostButton
-                        icon={
-                          <KeyRound size={16} color={theme.colors.onAccent} />
-                        }
-                        onPress={() => void onStartPasskeyLab('create')}
-                        style={styles.passkeyButton}
-                        variant="primary"
-                      >
-                        {t('passkey.lab.create')}
-                      </MostButton>
-                      <MostButton
-                        icon={
-                          <Fingerprint size={16} color={theme.colors.accent} />
-                        }
-                        onPress={() => void onStartPasskeyLab('authenticate')}
-                        style={styles.passkeyButton}
-                      >
-                        {t('passkey.lab.authenticate')}
-                      </MostButton>
-                    </View>
-                  </View>
-                ) : null}
 
                 <View style={styles.formSection}>
                   <Text style={styles.formTitle}>
@@ -476,8 +443,6 @@ function createConnectionStyles(theme: MostBoxTheme) {
     formSection: { gap: 10 },
     formTitle: { color: colors.text, fontSize: 13, fontWeight: '700' },
     formFields: { gap: 9 },
-    passkeyActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 },
-    passkeyButton: { flexGrow: 1, minWidth: 180 },
     signedInRow: { alignItems: 'center', flexDirection: 'row', gap: 10 },
     signedInText: { flex: 1, gap: 2, minWidth: 0 },
     primaryText: { color: colors.text, fontSize: 14, fontWeight: '600' },

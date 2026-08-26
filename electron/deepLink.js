@@ -1,5 +1,4 @@
 const MOST_PROTOCOL_PREFIX = /^most:\/\//i
-const PASSKEY_CALLBACK_HOST = 'passkey-callback'
 
 export function findMostDeepLinkArg(argv = []) {
   return (
@@ -19,30 +18,9 @@ export function createCidRoutePathFromMostLink(link) {
     return ''
   }
 
-  if (
-    url.protocol !== 'most:' ||
-    !url.hostname ||
-    url.hostname === PASSKEY_CALLBACK_HOST
-  ) {
-    return ''
-  }
+  if (url.protocol !== 'most:' || !url.hostname) return ''
 
   return `/cid/${encodeURIComponent(url.hostname)}${url.search}`
-}
-
-export function isPasskeyCallbackLink(link) {
-  if (!link || typeof link !== 'string') return false
-
-  try {
-    const url = new URL(link)
-    return (
-      url.protocol === 'most:' &&
-      url.hostname === PASSKEY_CALLBACK_HOST &&
-      (url.pathname === '' || url.pathname === '/')
-    )
-  } catch {
-    return false
-  }
 }
 
 export function createMostDeepLinkTarget(link, baseUrl) {

@@ -93,7 +93,6 @@ export type NodeStatusScreenProps = {
   onShowTransferDetails: (transfer: MobileTransfer) => void
   onRetryStartCore: () => void | Promise<void>
   onOpenP2PPing: () => void
-  onStartPasskeyLab: (mode: 'create' | 'authenticate') => void | Promise<void>
   retryStartDisabled: boolean
 }
 
@@ -486,7 +485,6 @@ export function NodeStatusScreen({
   onShowTransferDetails,
   onRetryStartCore,
   onOpenP2PPing,
-  onStartPasskeyLab,
   retryStartDisabled,
 }: NodeStatusScreenProps) {
   const { locale, t } = useI18n()
@@ -569,11 +567,7 @@ export function NodeStatusScreen({
       ) : null}
 
       {section === 'node' ? (
-        <NodeConnectionPanel
-          client={client}
-          snapshot={snapshot}
-          onStartPasskeyLab={onStartPasskeyLab}
-        />
+        <NodeConnectionPanel client={client} snapshot={snapshot} />
       ) : null}
 
       {section === 'node' ? (

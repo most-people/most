@@ -26,9 +26,6 @@
       ],
       "~/features/note/NotePage": ["./src/typecheck-stubs/route-component.tsx"],
       "~/features/ping/PingPage": ["./src/typecheck-stubs/route-component.tsx"],
-      "~/features/passkey/PasskeyLabPage": [
-        "./src/typecheck-stubs/route-component.tsx"
-      ],
       "~/features/profile/ProfilePage": [
         "./src/typecheck-stubs/route-component.tsx"
       ],

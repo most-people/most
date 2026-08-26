@@ -5,8 +5,6 @@ declare global {
     electronAPI?: {
       platform?: string
       isElectron?: boolean
-      openPasskeyLab?: (url: string) => Promise<boolean>
-      onPasskeyLabCallback?: (callback: (url: string) => void) => () => void
     }
   }
 }

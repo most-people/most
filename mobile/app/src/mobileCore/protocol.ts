@@ -10,7 +10,6 @@ export type IncomingMostLink = ParsedMostLink & {
 }
 
 export const MOST_LINK_PROTOCOL = 'most:'
-const PASSKEY_CALLBACK_HOST = 'passkey-callback'
 const LINK_PARSE_BASE_URL = 'https://most.box/'
 export const MOST_LINK_ERROR_CODES = {
   linkEmpty: 'MOST_LINK_EMPTY',
@@ -164,8 +163,6 @@ export function parseIncomingMostLink(
   }
 
   if (url.protocol !== MOST_LINK_PROTOCOL) return null
-  if (url.hostname === PASSKEY_CALLBACK_HOST) return null
-
   return {
     link,
     ...parseMostLink(link),
