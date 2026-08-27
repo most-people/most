@@ -10,12 +10,11 @@ MostBox 的 iOS / Android 商店版和共享 Bare Worklet P2P 核心。移动工
 - 手工下载输入与桌面端一致，支持 `most://`、尾部为 CID 的网页入口和裸 CID。
 - 下载完成后重算 UnixFS CID v1，校验通过才写入 holding 并加入 CID topic。
 - holding 支持复制链接、系统分享、保存副本和删除；删除 holding 后停止本机做种。
-- 节点页可在内置节点与一个远程 daemon 间切换，保存最近 8 个远程地址；启动时优先连接上次选中的远程节点，失败则仅在本次会话回退本机。
-- 远程模式使用与 Web 端相同的用户名/密码派生身份和请求签名。密码不保存，派生身份与节点邀请码只存入系统安全存储。
-- 远程发布、下载、校验和做种都由 daemon 完成；打开、保存、分享或知识库读取附件时，手机按 CID 拉取缓存并重新校验，导出副本不会成为本机 holding。
+- iOS / Android 原生构建只启动内置 Bare Worklet 节点，不包含远程 daemon 切换、远程身份或登录入口。
+- Expo Web 使用平台专用入口连接用户已有的 MostBox daemon；远程地址、邀请码和签名身份只属于 Web 构建。
 - 知识库以 UTF-8 `.md` 明文保存在 App 文档目录的 `mostbox-knowledge/`，支持目录、搜索、编辑、预览、单篇导入导出和整库快照替换恢复。
 - 知识库附件只在 Markdown 中保存 `most://` 引用；发布、确认下载、CID 校验和自动做种仍复用文件模块。
-- 移动端不包含聊天、广告、付费、Web3、公开内容目录、远程管理后台或后台常驻能力；账号只用于隔离远程 daemon 上的用户文件。
+- 原生移动端不包含聊天、账号、广告、付费、Web3、公开内容目录、远程管理后台或后台常驻能力。
 - 已知应用安装包、脚本和可执行文件类型会在发布或下载前被拒绝。
 
 ## 命令
@@ -42,7 +41,7 @@ npm run build:web
 
 ## Web
 
-Expo Web 生产入口部署在 `https://app.most.box`。浏览器不运行 Bare Worklet，也不直接参与 Hyperswarm；它只连接已有 MostBox daemon，由 daemon 完成发布、下载、CID 校验与做种。首次打开会进入节点页，连接远程节点并登录后即可使用文件和传输功能。
+Expo Web 生产入口部署在 `https://app.most.box`。浏览器不运行 Bare Worklet，也不直接参与 Hyperswarm；它只连接已有 MostBox daemon，由 daemon 完成发布、下载、CID 校验与做种。首次打开会进入节点页，连接远程节点并验证签名身份后即可使用文件和传输功能。该远程控制能力只存在于 Web 构建，不进入 iOS / Android 商店二进制。
 
 本地导出：
 
@@ -149,14 +148,12 @@ Android 真机验收清单见 `../../docs/mobile-android-alpha.md`。最高优�
 node scripts/android-real-p2p-seed.mjs --handoff-check
 ```
 
-远程节点还需分别验收 HTTP、HTTPS 和带路径的反向代理地址。HTTP 会明文传输邀请码和文件内容，仅为兼容桌面端节点，公网部署应使用 HTTPS。
-
 ## 边界
 
 - Android 只承诺前台做种，返回前台后恢复节点和 topic。
 - 保存或分享产生的是用户可见副本；MostBox 内部 holding 副本用于 CID 校验和做种。
 - 移动端知识库正文与桌面/Web 知识库独立，不接入云同步或 Git；迁移只通过单篇 Markdown 或整库 JSON 快照手工完成。附件可复用当前活动节点的文件闭环。
-- 远程节点断线时保持远程模式并指数退避重连，不把文件操作静默交给本机节点；切回本机也不会停止远程 daemon 已有的下载或做种。
+- Expo Web 的远程节点断线与重连只属于 Web 控制台，不进入原生商店包验收范围。
 - 整库恢复会在完整校验和用户确认后完全替换当前知识库，不自动合并；失败时保留恢复前的数据。
 - 笔记本身不发布到 Hyperdrive，也不生成分享链接；只有用户主动选择的附件进入文件发布流程。
 - CID 即权限，链接泄露后无法从 P2P 网络统一撤回。

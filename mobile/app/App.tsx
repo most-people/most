@@ -25,6 +25,7 @@ import b4a from 'b4a'
 import {
   ArrowLeftRight,
   BookOpen,
+  Check,
   Files,
   Languages,
   ListChecks,
@@ -79,7 +80,7 @@ import type {
   MobileCoreSnapshot,
   MobileHolding,
   MobileTransfer,
-  MostBoxMobileClient,
+  MostBoxMobileCore,
 } from './src/mobileCore/types'
 
 const DEV_CID_MAX_BYTES = 20 * 1024 * 1024
@@ -221,7 +222,7 @@ function MostBoxApp() {
   const styles = appStyles[theme.mode]
   const { fontScale } = useWindowDimensions()
   const accessibilityLayout = usesAccessibilityLayout(fontScale)
-  const coreRef = useRef<MostBoxMobileClient | null>(null)
+  const coreRef = useRef<MostBoxMobileCore | null>(null)
   const knowledgeRepositoryRef = useRef<ReturnType<
     typeof createExpoKnowledgeRepository
   > | null>(null)
@@ -238,6 +239,7 @@ function MostBoxApp() {
   const [deletingCid, setDeletingCid] = useState<string | null>(null)
   const [copiedCid, setCopiedCid] = useState<string | null>(null)
   const [downloadModalOpen, setDownloadModalOpen] = useState(false)
+  const [languageModalOpen, setLanguageModalOpen] = useState(false)
   const [downloadLinkInput, setDownloadLinkInput] = useState('')
   const [downloadIntent, setDownloadIntent] = useState<IncomingMostLink | null>(
     null
@@ -937,6 +939,10 @@ function MostBoxApp() {
   }
 
   const openLanguageMenu = () => {
+    if (Platform.OS === 'web') {
+      setLanguageModalOpen(true)
+      return
+    }
     Alert.alert(
       t('common.language.choose'),
       undefined,
@@ -1138,6 +1144,63 @@ function MostBoxApp() {
             onPress={() => changeTab('transfers')}
           />
         </View>
+
+        <Modal
+          animationType="fade"
+          onRequestClose={() => setLanguageModalOpen(false)}
+          transparent
+          visible={languageModalOpen}
+        >
+          <View style={styles.languageModalOverlay}>
+            <BottomSheetCard style={styles.languageModalCard}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.languageModalTitle}>
+                  {t('common.language.choose')}
+                </Text>
+                <IconButton
+                  accessibilityLabel={t('common.close')}
+                  onPress={() => setLanguageModalOpen(false)}
+                  variant="ghost"
+                >
+                  <X size={20} color={theme.colors.textSecondary} />
+                </IconButton>
+              </View>
+              <View style={styles.languageOptions}>
+                {LOCALES.map(item => {
+                  const selected = item === locale
+                  return (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                      key={item}
+                      onPress={() => {
+                        setLocale(item)
+                        setLanguageModalOpen(false)
+                      }}
+                      style={({ pressed }) => [
+                        styles.languageOption,
+                        selected ? styles.languageOptionSelected : null,
+                        pressed ? styles.pressablePressed : null,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.languageOptionText,
+                          selected ? styles.languageOptionTextSelected : null,
+                        ]}
+                      >
+                        {localeNames[item]}
+                      </Text>
+                      {selected ? (
+                        <Check size={18} color={theme.colors.accent} />
+                      ) : null}
+                    </Pressable>
+                  )
+                })}
+              </View>
+            </BottomSheetCard>
+          </View>
+        </Modal>
 
         <Modal
           animationType="slide"
@@ -1571,6 +1634,51 @@ function createStyles(theme: MostBoxTheme) {
     modalOverlay: {
       flex: 1,
       backgroundColor: colors.overlay,
+    },
+    languageModalOverlay: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 20,
+      backgroundColor: colors.overlay,
+    },
+    languageModalCard: {
+      maxWidth: 420,
+      gap: 14,
+      borderBottomLeftRadius: radii.large,
+      borderBottomRightRadius: radii.large,
+    },
+    languageModalTitle: {
+      color: colors.text,
+      fontSize: 18,
+      fontWeight: '700',
+    },
+    languageOptions: {
+      gap: 8,
+    },
+    languageOption: {
+      minHeight: 48,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.medium,
+      backgroundColor: colors.glassSubtle,
+    },
+    languageOptionSelected: {
+      borderColor: colors.accent,
+      backgroundColor: colors.accentSoft,
+    },
+    languageOptionText: {
+      color: colors.text,
+      fontSize: 14,
+      fontWeight: '500',
+    },
+    languageOptionTextSelected: {
+      color: colors.accent,
+      fontWeight: '600',
     },
     modalKeyboard: {
       flex: 1,

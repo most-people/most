@@ -28,7 +28,7 @@ import {
   loadRemoteNodes,
   saveMobileIdentity,
   saveRemoteNodes,
-} from '../remoteNode/storage'
+} from '../remoteNode/storage.web'
 import { hasActiveTransfers, startPreferredOrLocal } from './nodeSelection'
 
 type MobileNodeClientOptions = {

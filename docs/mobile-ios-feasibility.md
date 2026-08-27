@@ -2,7 +2,7 @@
 
 本文用于验证 MostBox 的完整前台 P2P 节点能否在真实 iPhone 上成立。iOS 验证通过前，不开始大规模移动端跨平台重构；技术验证通过也不等于已经满足正式商店合规要求。
 
-当前实现状态：iOS Expo 配置、EAS development/preview/production 构建档位、iOS Bare bundle 脚本和平台感知 UI 已加入源码。移动端同时支持内置 Bare Worklet 节点与用户远程 daemon；远程模式由 daemon 持续下载和做种，iPhone 导出时仍按 CID 分块校验。负责人于 2026-08-15 确认 iPhone 真机本机 P2P 传播闭环测试通过；远程节点真机记录和正式 TestFlight 证据仍需归档。
+当前实现状态：iOS Expo 配置、EAS development/preview/production 构建档位、iOS Bare bundle 脚本和平台感知 UI 已加入源码。iOS 商店构建只运行内置 Bare Worklet 节点，不包含远程 daemon、邀请码或登录入口；Expo Web 的远程控制能力通过平台专用文件隔离。负责人于 2026-08-15 确认 iPhone 真机本机 P2P 传播闭环测试通过；正式 TestFlight 证据仍需归档。
 
 上述确认不能替代正式商店候选包证据。当前剩余门槛是取得 Apple Developer 组织资格后，使用正式签名生成内部 TestFlight build，从 TestFlight 安装同一候选包并复跑本计划的完整闭环，记录 build ID、设备和结果后才能提交审核。
 
@@ -24,8 +24,7 @@ iOS 技术验证只有同时满足以下条件才算通过：
 - App 重启后恢复 holding，并重新 join 对应 CID topic。
 - iOS 文件选择、打开、分享和导出流程使用公开系统 API 正常工作。
 - Wi-Fi 和蜂窝网络分别完成至少一次真实发现与传输测试。
-- iPhone 能连接 HTTP、HTTPS 和带路径反向代理的远程 daemon，完成登录、发布、下载、取消、导出校验、知识库附件和 P2P Ping。
-- 远程连接中断时不切换到本机节点；回到前台或网络恢复后重建 WebSocket 并恢复状态。
+- 节点页不出现远程地址、邀请码或登录入口；发布、下载、知识库附件和 P2P Ping 都由本机节点完成。
 
 验证通过只代表技术路线可继续推进，不代表已经满足 App Store 审核、内容治理、隐私披露或特定地区的法律要求。
 
@@ -154,16 +153,6 @@ node scripts/android-real-p2p-seed.mjs --handoff-check
 
 通过标准：从 TestFlight 安装的实际 Release 包通过最高验收场景。只上传成功但真机闭环失败，不算通过。
 
-### 8. 验证远程 daemon 模式
-
-- 未登录连接后只读取公开状态；登录后文件列表按签名身份隔离。
-- 使用 HTTP、HTTPS 和带路径反向代理地址完成流式发布与远程下载，并确认 daemon 完成 CID 校验和做种。
-- 通过保存、分享和知识库附件打开触发手机缓存下载；复用正确缓存，拒绝并删除 CID 不匹配缓存。
-- 关闭原发布者后，由远程 daemon 继续向干净 verifier 提供相同 CID。
-- 测试启动远程失败后的本机会话回退，以及运行中断线、前后台切换后的远程重连。
-
-通过标准：远程模式下手机不创建 holding、不承担后台做种；节点归属、登录状态、错误与完成提示均与本机模式清楚区分。公网 HTTP 仅验证兼容性，部署仍推荐 HTTPS。
-
 ## Go / No-Go 条件
 
 满足以下全部条件后，iOS 路线进入 Go：
@@ -174,14 +163,14 @@ node scripts/android-real-p2p-seed.mjs --handoff-check
 - 文件选择、分享、导出和沙箱存储使用公开 iOS API。
 - 原生依赖的构建方式可重复，不依赖手工修改未记录的 Xcode 工程状态。
 
-出现以下任一情况时暂停完整 iOS 节点路线，评估“iOS 薄客户端连接用户远程节点”：
+出现以下任一情况时暂停 iOS 商店版路线并重新评估原生 P2P 可行性；不以加入远程账号或远程 daemon 模式绕过商店包的本机节点边界：
 
 - Bare Worklet 或核心 native addon 无法为 iPhone Release 架构稳定链接和启动。
 - 真实网络中的发现或传输持续失败，且不能在现有协议边界内解决。
 - 产品成立必须依赖 iOS 不允许的长期后台执行或私有 API。
 - 只有 Debug/模拟器构建可运行，签名 Release 或 TestFlight 包无法完成闭环。
 
-No-Go 不是放弃 iOS App，而是将 iOS App 限定为连接用户自有远程节点的前端，完整做种继续由桌面端、NAS 或 Android 节点承担。
+No-Go 不改变 Expo Web：用户仍可在浏览器中连接自有 daemon；但该能力不作为 iOS 商店包的降级路径。
 
 ## 验证产物
 

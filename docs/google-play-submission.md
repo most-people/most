@@ -5,6 +5,8 @@
 
 本清单适用于不含聊天、账号、广告、付费、Web3 和长期后台做种的 Android 商店版。
 
+Android 原生入口只创建本机 Bare Worklet 节点，不包含远程 daemon、邀请码或登录界面。`app.most.box` 的 Expo Web 远程控制台是独立 Web 构建，不进入 AAB。
+
 ## 构建基线
 
 - 包名：`most.box`
@@ -127,6 +129,7 @@ eas build --platform android --profile android-production
 - 手机截图：`mobile/app/store-assets/screenshots/` 中 6 张 1080 × 1920 PNG
 - 截图内容：文件列表、下载确认、传输记录、知识库列表、知识库笔记详情、节点状态
 - 商店素材不得出现聊天、Web3、后台常驻或其他当前 AAB 中不存在的能力
+- 静态检查确认 AAB 不包含远程节点连接页、邀请码或登录入口
 
 建议上传顺序：
 

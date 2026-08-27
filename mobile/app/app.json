@@ -71,7 +71,6 @@
     },
     "plugins": [
       "expo-document-picker",
-      "expo-secure-store",
       [
         "react-native-enriched-markdown",
         {

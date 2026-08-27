@@ -2,6 +2,8 @@
 
 本清单适用于不含聊天、账号、广告、付费、Web3、公开内容目录和长期后台做种的 iOS 商店版。真机技术验收仍以 `docs/mobile-ios-feasibility.md` 为准。
 
+iOS 原生入口只创建本机 Bare Worklet 节点，不包含远程 daemon、邀请码或登录界面。`app.most.box` 的 Expo Web 远程控制台是独立 Web 构建，不进入 IPA。
+
 ## 构建基线
 
 - Bundle ID：`most.box`
@@ -94,6 +96,7 @@ npx expo run:ios --configuration Release
 - App Store 截图不能带 Alpha 通道；模拟器原始 PNG 提交前必须转换为无透明通道的 PNG 或 JPEG。
 - 至少准备隐私同意页、文件首页、下载确认、CID 校验完成、知识库和节点/传输状态画面。
 - 截图和文案不得宣称长期后台做种、永久存储、公开内容目录或其他当前 iOS 包中不存在的能力。
+- 静态检查确认 IPA 不包含远程节点连接页、邀请码或登录入口。
 
 ## 发布顺序
 

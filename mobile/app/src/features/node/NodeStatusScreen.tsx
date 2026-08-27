@@ -42,7 +42,7 @@ import type {
   MobileCoreSnapshot,
   MobileHolding,
   MobileTransfer,
-  MostBoxMobileClient,
+  MostBoxMobileCore,
   NodeRuntimeStatus,
   SeedStatus,
   TransferStatus,
@@ -69,7 +69,7 @@ import { useI18n, type MessageKey } from '../../i18n'
 import { NodeConnectionPanel } from './NodeConnectionPanel'
 
 export type NodeStatusScreenProps = {
-  client: MostBoxMobileClient
+  client: MostBoxMobileCore
   section: 'files' | 'transfers' | 'node'
   snapshot: MobileCoreSnapshot
   copiedCid: string | null
