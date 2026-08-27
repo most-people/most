@@ -114,6 +114,16 @@
   background: linear-gradient(180deg, var(--accent), var(--success));
 }
 
+.download-current-card.is-unavailable::before {
+  background: var(--text-muted);
+}
+
+.download-current-card.is-unavailable .download-current-icon {
+  color: var(--text-muted);
+  border-color: var(--glass-border-strong);
+  background: var(--glass-bg-subtle);
+}
+
 .download-current-main,
 .download-current-actions {
   position: relative;

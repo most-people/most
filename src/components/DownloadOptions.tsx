@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router'
 import {
   Apple,
   CheckCircle2,
+  CircleHelp,
   Cloud,
   Code,
   Download,
@@ -70,6 +71,12 @@ const PLATFORM_META = {
 
 const MOBILE_PLATFORMS = [
   {
+    key: 'android',
+    nameKey: 'download.platform.android.name',
+    descKey: 'download.platform.android.desc',
+    icon: TabletSmartphone,
+  },
+  {
     key: 'ios',
     nameKey: 'download.platform.ios.name',
     descKey: 'download.platform.ios.desc',
@@ -78,14 +85,15 @@ const MOBILE_PLATFORMS = [
 ] as const
 
 function detectCurrentKey() {
-  if (typeof navigator === 'undefined') return 'windows:x64'
+  if (typeof navigator === 'undefined') return null
 
   const navigatorWithData = navigator as Navigator & {
-    userAgentData?: { platform?: string }
+    userAgentData?: { platform?: string; mobile?: boolean }
   }
 
   return detectDownloadPlatformKey({
     userAgentDataPlatform: navigatorWithData.userAgentData?.platform,
+    userAgentDataMobile: navigatorWithData.userAgentData?.mobile,
     navigatorPlatform: navigator.platform,
     userAgent: navigator.userAgent,
     maxTouchPoints: navigator.maxTouchPoints,
@@ -97,11 +105,13 @@ function useDownloadOptionsController() {
   const [status, setStatus] = useState<DownloadStatus>(
     RELEASE_MANIFEST_URL ? 'loading' : 'fallback'
   )
-  const [currentKey, setCurrentKey] = useState('windows:x64')
+  const [currentKey, setCurrentKey] = useState<string | null>(null)
+  const [isDetectionReady, setIsDetectionReady] = useState(false)
   const [downloadSource, setDownloadSource] = useState<DownloadSource>('r2')
 
   useEffect(() => {
     setCurrentKey(detectCurrentKey())
+    setIsDetectionReady(true)
   }, [])
 
   useEffect(() => {
@@ -155,6 +165,7 @@ function useDownloadOptionsController() {
     currentAsset,
     currentKey,
     hasR2Assets,
+    isDetectionReady,
     manifest,
     otherAssets,
     setDownloadSource,
@@ -234,6 +245,7 @@ export default function DownloadOptions() {
     currentAsset,
     currentKey,
     hasR2Assets,
+    isDetectionReady,
     manifest,
     otherAssets,
     setDownloadSource,
@@ -300,6 +312,59 @@ export default function DownloadOptions() {
             {t('download.platform.action', { ext: meta.ext })}
           </a>
           <p>{getAssetSourceLabel(asset)}</p>
+        </div>
+      </article>
+    )
+  }
+
+  const renderUnavailableCurrent = () => {
+    const platformKey = currentKey?.split(':')[0]
+    const mobilePlatform = MOBILE_PLATFORMS.find(
+      platform => platform.key === platformKey
+    )
+    const detectedPlatform = currentKey
+      ? PLATFORM_META[platformKey as keyof typeof PLATFORM_META]
+      : null
+    const Icon = mobilePlatform?.icon || detectedPlatform?.icon || CircleHelp
+    const isComingSoon = Boolean(mobilePlatform)
+    const title = mobilePlatform
+      ? t(mobilePlatform.nameKey)
+      : detectedPlatform
+        ? detectedPlatform.name
+        : t('download.platform.unavailable')
+    const description = mobilePlatform
+      ? t(mobilePlatform.descKey)
+      : detectedPlatform
+        ? t('download.platform.unavailableDesc')
+        : t('download.platform.unmatchedDesc')
+    const statusLabel = isComingSoon
+      ? t('download.platform.comingSoon')
+      : t('download.platform.unavailable')
+
+    return (
+      <article className="download-current-card is-unavailable">
+        <div className="download-current-main">
+          <div className="download-current-icon">
+            <Icon size={34} />
+          </div>
+          <div className="download-current-copy">
+            <div className="download-current-labels">
+              <span className="download-current-kicker">
+                <CheckCircle2 size={14} />
+                {t('download.platform.currentSystem')}
+              </span>
+              <span className="download-current-recommended">
+                {statusLabel}
+              </span>
+            </div>
+            <div className="download-current-heading">
+              <h3>{title}</h3>
+            </div>
+            <p>{description}</p>
+          </div>
+        </div>
+        <div className="download-current-actions">
+          <span>{statusLabel}</span>
         </div>
       </article>
     )
@@ -442,6 +507,13 @@ export default function DownloadOptions() {
           aria-label={t('download.platform.currentSystem')}
         >
           {renderCurrentAsset(currentAsset)}
+        </div>
+      ) : isDetectionReady ? (
+        <div
+          className="download-current-platform"
+          aria-label={t('download.platform.currentSystem')}
+        >
+          {renderUnavailableCurrent()}
         </div>
       ) : null}
 

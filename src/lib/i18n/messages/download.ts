@@ -59,11 +59,16 @@ export const zhCNDownloadMessages = {
   'download.platform.otherPlatforms': '其他可下载客户端',
   'download.platform.mobilePlatforms': '移动端',
   'download.platform.comingSoon': '敬请期待',
+  'download.platform.unavailable': '暂无',
+  'download.platform.unmatchedDesc':
+    '未能可靠识别当前设备，请从下方手动选择可用客户端。',
+  'download.platform.unavailableDesc':
+    '当前设备暂无可用安装包，请从下方查看其他平台。',
   'download.platform.ios.name': 'iOS',
-  'download.platform.ios.desc': 'iPhone / iPad 客户端规划中',
+  'download.platform.ios.desc': 'iOS 客户端正在上架中，目前功能仍在完善。',
   'download.platform.android.name': '安卓',
   'download.platform.android.desc':
-    'Android Alpha APK，支持前台聊天附件、下载校验和做种',
+    'Android 客户端正在上架中，目前功能仍在完善。',
 } as const
 
 export const zhTWDownloadMessages = {
@@ -127,11 +132,16 @@ export const zhTWDownloadMessages = {
   'download.platform.otherPlatforms': '其他可下載用戶端',
   'download.platform.mobilePlatforms': '行動端',
   'download.platform.comingSoon': '敬請期待',
+  'download.platform.unavailable': '暫無',
+  'download.platform.unmatchedDesc':
+    '未能可靠識別目前裝置，請從下方手動選擇可用用戶端。',
+  'download.platform.unavailableDesc':
+    '目前裝置暫無可用安裝包，請從下方查看其他平臺。',
   'download.platform.ios.name': 'iOS',
-  'download.platform.ios.desc': 'iPhone / iPad 用戶端規劃中',
+  'download.platform.ios.desc': 'iOS 用戶端正在上架中，目前功能仍在完善。',
   'download.platform.android.name': 'Android',
   'download.platform.android.desc':
-    'Android Alpha APK，支援前台聊天附件、下載校驗和做種',
+    'Android 用戶端正在上架中，目前功能仍在完善。',
 } as const
 
 export const enDownloadMessages = {
@@ -196,9 +206,15 @@ export const enDownloadMessages = {
   'download.platform.otherPlatforms': 'Other downloads',
   'download.platform.mobilePlatforms': 'Mobile',
   'download.platform.comingSoon': 'Coming soon',
+  'download.platform.unavailable': 'Unavailable',
+  'download.platform.unmatchedDesc':
+    'This device could not be identified reliably. Choose an available client below.',
+  'download.platform.unavailableDesc':
+    'No installer is available for this device. See the other platforms below.',
   'download.platform.ios.name': 'iOS',
-  'download.platform.ios.desc': 'iPhone and iPad client is planned.',
+  'download.platform.ios.desc':
+    'The iOS client is being prepared for release and is still under development.',
   'download.platform.android.name': 'Android',
   'download.platform.android.desc':
-    'Android Alpha APK with foreground chat attachments, download verification, and seeding.',
+    'The Android client is being prepared for release and is still under development.',
 } as const

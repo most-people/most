@@ -972,7 +972,11 @@ function MostBoxApp() {
         ? styles.statusTextError
         : styles.statusTextPending
   const statusIconColor =
-    nodeStatus === 'error' ? theme.colors.danger : theme.colors.accent
+    nodeStatus === 'ready'
+      ? theme.colors.success
+      : nodeStatus === 'error'
+        ? theme.colors.danger
+        : theme.colors.warning
 
   return (
     <SafeAreaProvider>

@@ -40,6 +40,7 @@ export type DownloadOptionsState = {
 
 export type DownloadPlatformDetectionInput = {
   userAgentDataPlatform?: string
+  userAgentDataMobile?: boolean
   navigatorPlatform?: string
   userAgent?: string
   maxTouchPoints?: number
@@ -52,22 +53,39 @@ export const DEFAULT_R2_PUBLIC_BASE_URL = 'https://download.most.box'
 
 export function detectDownloadPlatformKey({
   userAgentDataPlatform = '',
+  userAgentDataMobile = false,
   navigatorPlatform = '',
   userAgent = '',
   maxTouchPoints = 0,
-}: DownloadPlatformDetectionInput) {
-  const platform = [userAgentDataPlatform, navigatorPlatform, userAgent]
+}: DownloadPlatformDetectionInput): string | null {
+  const platformHints = [userAgentDataPlatform, navigatorPlatform]
     .filter(Boolean)
     .join(' ')
     .toLowerCase()
-  const arch = /arm|aarch64/.test(platform) ? 'arm64' : 'x64'
-  const isIpadOs = /mac/.test(platform) && maxTouchPoints > 1
+  const userAgentHint = userAgent.toLowerCase()
+  const allHints = `${platformHints} ${userAgentHint}`.trim()
+  const preferredPlatform =
+    userAgentDataPlatform.toLowerCase() ||
+    navigatorPlatform.toLowerCase() ||
+    userAgentHint
+  const isArm = /aarch64|arm64|armv\d/.test(allHints)
+  const arch = isArm ? 'arm64' : 'x64'
+  const isIpadOs = /mac/.test(platformHints) && maxTouchPoints > 1
+  const isAndroid =
+    /android/.test(allHints) ||
+    (userAgentDataMobile && /linux/.test(allHints)) ||
+    (maxTouchPoints > 0 &&
+      /linux/.test(platformHints) &&
+      /aarch64|arm64|armv\d/.test(platformHints))
 
-  if (/iphone|ipad|ipod/.test(platform) || isIpadOs) return 'ios:universal'
-  if (/android/.test(platform)) return 'android:universal'
-  if (/mac|darwin/.test(platform)) return `macos:${arch}`
-  if (/linux/.test(platform)) return `linux:${arch}`
-  return `windows:${arch}`
+  if (/iphone|ipad|ipod/.test(allHints) || isIpadOs) return 'ios:universal'
+  if (isAndroid) return 'android:universal'
+  if (/windows|win32|win64/.test(preferredPlatform)) {
+    return `windows:${arch}`
+  }
+  if (/mac|darwin/.test(preferredPlatform)) return `macos:${arch}`
+  if (/linux/.test(preferredPlatform)) return `linux:${arch}`
+  return null
 }
 
 export const FALLBACK_DOWNLOAD_ASSETS: DownloadAsset[] = [
@@ -113,13 +131,6 @@ export const FALLBACK_DOWNLOAD_ASSETS: DownloadAsset[] = [
     filename: 'GitHub Releases',
     githubUrl: GITHUB_LATEST_URL,
   },
-  {
-    platform: 'android',
-    arch: 'universal',
-    kind: 'installer',
-    filename: 'GitHub Releases',
-    githubUrl: GITHUB_LATEST_URL,
-  },
 ]
 
 export function getReleaseManifestUrl(env: {
@@ -141,11 +152,13 @@ export function getDownloadOptionsState({
   requestedSource,
 }: {
   manifest: DownloadManifest | null
-  currentKey: string
+  currentKey: string | null
   requestedSource: DownloadSource
 }): DownloadOptionsState {
   const installerAssets = manifest
-    ? (getInstallerReleaseAssets(manifest) as DownloadAsset[])
+    ? (getInstallerReleaseAssets(manifest) as DownloadAsset[]).filter(
+        asset => asset.platform !== 'android'
+      )
     : []
   const assets = installerAssets.length
     ? installerAssets

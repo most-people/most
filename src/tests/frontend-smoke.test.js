@@ -1224,9 +1224,7 @@ describe('frontend smoke checks', () => {
       'https://download.most.box/releases/latest.json'
     )
     assert.ok(
-      FALLBACK_DOWNLOAD_ASSETS.some(
-        asset => asset.platform === 'android' && asset.arch === 'universal'
-      )
+      FALLBACK_DOWNLOAD_ASSETS.every(asset => asset.platform !== 'android')
     )
     assert.equal(
       detectDownloadPlatformKey({ userAgent: 'Mozilla/5.0 (iPhone)' }),
@@ -1242,6 +1240,32 @@ describe('frontend smoke checks', () => {
     assert.equal(
       detectDownloadPlatformKey({ userAgent: 'Android 16; Linux arm64' }),
       'android:universal'
+    )
+    assert.equal(
+      detectDownloadPlatformKey({
+        userAgentDataPlatform: 'Linux',
+        userAgentDataMobile: true,
+      }),
+      'android:universal'
+    )
+    assert.equal(
+      detectDownloadPlatformKey({
+        navigatorPlatform: 'Linux armv8l',
+        userAgent: 'Mozilla/5.0 (X11; Linux armv8l)',
+        maxTouchPoints: 10,
+      }),
+      'android:universal'
+    )
+    assert.equal(
+      detectDownloadPlatformKey({
+        navigatorPlatform: 'Linux armv8l',
+        userAgent: 'Mozilla/5.0 (X11; Linux armv8l)',
+      }),
+      'linux:arm64'
+    )
+    assert.equal(
+      detectDownloadPlatformKey({ userAgent: 'Unknown browser' }),
+      null
     )
     assert.equal(
       detectDownloadPlatformKey({ userAgentDataPlatform: 'macOS arm64' }),
@@ -1267,6 +1291,28 @@ describe('frontend smoke checks', () => {
       }).activeSource,
       'github'
     )
+
+    const androidManifest = {
+      ...manifest,
+      assets: [
+        ...manifest.assets,
+        {
+          platform: 'android',
+          arch: 'universal',
+          kind: 'installer',
+          filename: 'MostBox.apk',
+          githubUrl:
+            'https://github.com/most-people/most/releases/download/v0.4.0/MostBox.apk',
+        },
+      ],
+    }
+    const androidState = getDownloadOptionsState({
+      manifest: androidManifest,
+      currentKey: 'android:universal',
+      requestedSource: 'github',
+    })
+    assert.equal(androidState.currentAsset, null)
+    assert.ok(androidState.assets.every(asset => asset.platform !== 'android'))
   })
 
   it('keeps desktop, npm, and Docker deployment methods on the download page', () => {
