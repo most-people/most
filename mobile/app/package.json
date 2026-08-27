@@ -9,7 +9,7 @@
   "main": "expo/AppEntry.js",
   "scripts": {
     "start": "npm run bundle:android && node scripts/start-dev-client.mjs",
-    "web": "expo start --web",
+    "web": "expo start --web --port 3000",
     "start:ios": "npm run bundle:ios && expo start --dev-client --host lan",
     "ios": "npm run bundle:ios && node scripts/ensure-ios-debug-rncore.mjs && expo run:ios",
     "build": "node scripts/build-apk.mjs",

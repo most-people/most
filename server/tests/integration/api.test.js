@@ -200,25 +200,27 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(/^[0-9a-f]+$/i.test(data.id))
     })
 
-    it('allows private network preflight from most.box', async () => {
-      const res = await fetchWithoutAuth(`${baseUrl}/api/node-id`, {
-        method: 'OPTIONS',
-        headers: {
-          Origin: 'https://most.box',
-          'Access-Control-Request-Method': 'GET',
-          'Access-Control-Request-Private-Network': 'true',
-        },
-      })
+    it('allows private network preflight from MostBox web apps', async () => {
+      for (const origin of ['https://most.box', 'https://app.most.box']) {
+        const res = await fetchWithoutAuth(`${baseUrl}/api/node-id`, {
+          method: 'OPTIONS',
+          headers: {
+            Origin: origin,
+            'Access-Control-Request-Method': 'GET',
+            'Access-Control-Request-Private-Network': 'true',
+          },
+        })
 
-      assert.strictEqual(res.status, 204)
-      assert.strictEqual(
-        res.headers.get('access-control-allow-origin'),
-        'https://most.box'
-      )
-      assert.strictEqual(
-        res.headers.get('access-control-allow-private-network'),
-        'true'
-      )
+        assert.strictEqual(res.status, 204)
+        assert.strictEqual(
+          res.headers.get('access-control-allow-origin'),
+          origin
+        )
+        assert.strictEqual(
+          res.headers.get('access-control-allow-private-network'),
+          'true'
+        )
+      }
     })
 
     it('allows private network preflight from most-people.com', async () => {
