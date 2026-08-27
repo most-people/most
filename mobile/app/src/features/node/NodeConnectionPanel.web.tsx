@@ -25,6 +25,7 @@ import type {
   NodeHistoryItem,
 } from '../../mobileCore/types'
 import { useI18n } from '../../i18n'
+import { useFeedback } from '../../ui/feedback'
 import { getFriendlyRemoteConnectionError } from '../../ui/presentation'
 import {
   BottomSheetCard,
@@ -41,6 +42,7 @@ import {
 } from '../../ui/theme'
 
 export type NodeConnectionPanelProps = {
+  autoOpen?: boolean
   client: MostBoxMobileClient
   snapshot: MobileCoreSnapshot
 }
@@ -60,10 +62,12 @@ function displayNodeName(node: NodeHistoryItem) {
 }
 
 export function NodeConnectionPanel({
+  autoOpen = false,
   client,
   snapshot,
 }: NodeConnectionPanelProps) {
   const { locale, t } = useI18n()
+  const { alert } = useFeedback()
   const theme = useMostBoxTheme()
   const styles = connectionStyles[theme.mode]
   const node = snapshot.node
@@ -82,6 +86,10 @@ export function NodeConnectionPanel({
     history.find(item => item.preferred && !item.local)
   const accountName = node.username || ''
   const accountAddress = node.userAddress || ''
+
+  useEffect(() => {
+    if (autoOpen) setOpen(true)
+  }, [autoOpen])
 
   useEffect(() => {
     if (!open) return
@@ -105,7 +113,7 @@ export function NodeConnectionPanel({
   const connect = async (nextUrl = url, nextInvite = invite) => {
     await run(async () => {
       await client.connectRemote({ url: nextUrl, invite: nextInvite })
-      setOpen(false)
+      setOpen(client.getSnapshot().node.authenticated !== true)
     })
   }
 
@@ -128,6 +136,21 @@ export function NodeConnectionPanel({
     await run(async () => {
       await client.signOut()
     })
+  }
+
+  const confirmSignOut = () => {
+    alert(
+      t('node.account.signOutConfirmTitle'),
+      t('node.account.signOutConfirmBody'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('node.account.signOut'),
+          style: 'destructive',
+          onPress: () => void signOut(),
+        },
+      ]
+    )
   }
 
   return (
@@ -235,7 +258,7 @@ export function NodeConnectionPanel({
                       <MostButton
                         disabled={working}
                         icon={<LogOut size={16} color={theme.colors.danger} />}
-                        onPress={() => void signOut()}
+                        onPress={confirmSignOut}
                         variant="ghost"
                       >
                         {t('node.account.signOut')}
@@ -340,7 +363,6 @@ export function NodeConnectionPanel({
                             onPress={() => {
                               setUrl(item.url)
                               setInvite(item.invite)
-                              void connect(item.url, item.invite)
                             }}
                             style={({ pressed }) => [
                               styles.historyRow,

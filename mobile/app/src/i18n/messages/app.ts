@@ -153,6 +153,11 @@ export const appMessages = {
     'zh-TW': '分享連結已複製，檔案正在前景做種。',
     en: 'The share link was copied and the file is seeding in the foreground.',
   },
+  'app.publish.view': {
+    'zh-CN': '查看',
+    'zh-TW': '查看',
+    en: 'View',
+  },
   'app.publish.remoteCompleteBody': {
     'zh-CN': '分享链接已复制，文件正在远程节点做种。',
     'zh-TW': '分享連結已複製，檔案正在遠端節點做種。',
@@ -233,6 +238,11 @@ export const appMessages = {
       '将移除 {fileName} 并停止为这个 CID 做种。已另存的副本不会被删除。',
     'zh-TW': '將移除 {fileName} 並停止為此 CID 做種。已另存的副本不會被刪除。',
     en: 'This removes {fileName} and stops seeding this CID. Copies saved elsewhere will not be deleted.',
+  },
+  'app.holding.deleted': {
+    'zh-CN': '已删除本机文件并停止做种',
+    'zh-TW': '已刪除本機檔案並停止做種',
+    en: 'Local file deleted and seeding stopped',
   },
   'app.holding.deleteFailedTitle': {
     'zh-CN': '删除失败',

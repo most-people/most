@@ -1,7 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import {
   ActivityIndicator,
-  Alert,
   BackHandler,
   Linking,
   Platform,
@@ -22,6 +21,7 @@ import {
   useMostBoxTheme,
 } from '../ui/theme'
 import { getGlassSurfaceStyle } from '../ui/components'
+import { useFeedback } from '../ui/feedback'
 import { PRIVACY_URL, TERMS_URL } from './legalUrls'
 import {
   persistPrivacyConsent,
@@ -36,6 +36,7 @@ type ConsentState = 'checking' | 'required' | 'accepted'
 
 export function PrivacyConsentGate({ children }: PrivacyConsentGateProps) {
   const { locale, setLocale, t } = useI18n()
+  const { alert } = useFeedback()
   const theme = useMostBoxTheme()
   const styles = consentStyles[theme.mode]
   const [consentState, setConsentState] = useState<ConsentState>('checking')
@@ -55,12 +56,12 @@ export function PrivacyConsentGate({ children }: PrivacyConsentGateProps) {
     try {
       await Linking.openURL(url)
     } catch {
-      Alert.alert(t('app.link.openFailed'), url)
+      alert(t('app.link.openFailed'), url)
     }
   }
 
   const openLanguageMenu = () => {
-    Alert.alert(
+    alert(
       t('common.language.choose'),
       undefined,
       LOCALES.map(item => ({
@@ -80,10 +81,7 @@ export function PrivacyConsentGate({ children }: PrivacyConsentGateProps) {
       await persistPrivacyConsent()
       setConsentState('accepted')
     } catch {
-      Alert.alert(
-        t('app.privacy.saveFailedTitle'),
-        t('app.privacy.saveFailedBody')
-      )
+      alert(t('app.privacy.saveFailedTitle'), t('app.privacy.saveFailedBody'))
     } finally {
       setAccepting(false)
     }
@@ -94,7 +92,7 @@ export function PrivacyConsentGate({ children }: PrivacyConsentGateProps) {
       BackHandler.exitApp()
       return
     }
-    Alert.alert(t('app.privacy.declineTitle'), t('app.privacy.declineBody'))
+    alert(t('app.privacy.declineTitle'), t('app.privacy.declineBody'))
   }
 
   if (consentState === 'accepted') return children

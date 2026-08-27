@@ -209,6 +209,31 @@ export const knowledgeMessages = {
     'zh-TW': '筆記名稱',
     en: 'Note name',
   },
+  'knowledge.editor.nameRequired': {
+    'zh-CN': '请输入笔记名称',
+    'zh-TW': '請輸入筆記名稱',
+    en: 'Enter a note name',
+  },
+  'knowledge.editor.nameInvalid': {
+    'zh-CN': '名称不能包含路径或特殊字符',
+    'zh-TW': '名稱不能包含路徑或特殊字元',
+    en: 'The name cannot contain paths or special characters',
+  },
+  'knowledge.actions.title': {
+    'zh-CN': '知识库操作',
+    'zh-TW': '知識庫操作',
+    en: 'Knowledge base actions',
+  },
+  'knowledge.actions.backup': {
+    'zh-CN': '备份整个知识库',
+    'zh-TW': '備份整個知識庫',
+    en: 'Back up knowledge base',
+  },
+  'knowledge.actions.restore': {
+    'zh-CN': '恢复整个知识库',
+    'zh-TW': '還原整個知識庫',
+    en: 'Restore knowledge base',
+  },
   'knowledge.editor.directory': {
     'zh-CN': '目录路径',
     'zh-TW': '目錄路徑',

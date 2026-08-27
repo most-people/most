@@ -494,9 +494,134 @@ export const nodeMessages = {
     'zh-TW': '登出',
     en: 'Sign out',
   },
+  'node.account.signOutConfirmTitle': {
+    'zh-CN': '退出远程节点账号？',
+    'zh-TW': '登出遠端節點帳號？',
+    en: 'Sign out of the remote node?',
+  },
+  'node.account.signOutConfirmBody': {
+    'zh-CN': '退出后需要重新登录才能继续使用受保护的节点操作。',
+    'zh-TW': '登出後需要重新登入才能繼續使用受保護的節點操作。',
+    en: 'You will need to sign in again to use protected node operations.',
+  },
   'node.account.required': {
     'zh-CN': '登录后可使用远程文件',
     'zh-TW': '登入後可使用遠端檔案',
     en: 'Sign in to use remote files',
+  },
+  'files.search.a11y': {
+    'zh-CN': '搜索文件',
+    'zh-TW': '搜尋檔案',
+    en: 'Search files',
+  },
+  'files.search.placeholder': {
+    'zh-CN': '搜索名称或 CID',
+    'zh-TW': '搜尋名稱或 CID',
+    en: 'Search name or CID',
+  },
+  'files.search.clear': {
+    'zh-CN': '清除文件搜索',
+    'zh-TW': '清除檔案搜尋',
+    en: 'Clear file search',
+  },
+  'files.filter.all': {
+    'zh-CN': '全部',
+    'zh-TW': '全部',
+    en: 'All',
+  },
+  'files.filter.active': {
+    'zh-CN': '做种中',
+    'zh-TW': '做種中',
+    en: 'Seeding',
+  },
+  'files.filter.attention': {
+    'zh-CN': '需处理',
+    'zh-TW': '需處理',
+    en: 'Attention',
+  },
+  'files.details.hint': {
+    'zh-CN': '打开文件详情和操作',
+    'zh-TW': '開啟檔案詳情和操作',
+    en: 'Open file details and actions',
+  },
+  'files.details.peers': {
+    'zh-CN': '{count} 个 Peer',
+    'zh-TW': '{count} 個 Peer',
+    en: '{count} peers',
+  },
+  'files.action.open': {
+    'zh-CN': '打开',
+    'zh-TW': '開啟',
+    en: 'Open',
+  },
+  'files.empty.searchTitle': {
+    'zh-CN': '没有匹配的文件',
+    'zh-TW': '沒有符合的檔案',
+    en: 'No matching files',
+  },
+  'files.empty.searchBody': {
+    'zh-CN': '调整搜索内容或筛选条件。',
+    'zh-TW': '調整搜尋內容或篩選條件。',
+    en: 'Change the search or filter.',
+  },
+  'transfers.view.active': {
+    'zh-CN': '进行中',
+    'zh-TW': '進行中',
+    en: 'Active',
+  },
+  'transfers.view.completed': {
+    'zh-CN': '已完成',
+    'zh-TW': '已完成',
+    en: 'Completed',
+  },
+  'transfers.view.failed': {
+    'zh-CN': '失败',
+    'zh-TW': '失敗',
+    en: 'Failed',
+  },
+  'transfers.cancel': {
+    'zh-CN': '取消下载',
+    'zh-TW': '取消下載',
+    en: 'Cancel download',
+  },
+  'transfers.cancelling': {
+    'zh-CN': '正在取消',
+    'zh-TW': '正在取消',
+    en: 'Cancelling',
+  },
+  'transfers.openFile': {
+    'zh-CN': '点击查看文件详情',
+    'zh-TW': '點擊查看檔案詳情',
+    en: 'Tap to view file details',
+  },
+  'transfers.empty.activeTitle': {
+    'zh-CN': '当前没有传输',
+    'zh-TW': '目前沒有傳輸',
+    en: 'No active transfers',
+  },
+  'transfers.empty.activeBody': {
+    'zh-CN': '新的发布和下载任务会显示在这里。',
+    'zh-TW': '新的發佈和下載任務會顯示在這裡。',
+    en: 'New publishes and downloads will appear here.',
+  },
+  'transfers.empty.completedTitle': {
+    'zh-CN': '还没有完成记录',
+    'zh-TW': '尚無完成記錄',
+    en: 'No completed transfers',
+  },
+  'transfers.empty.completedBody': {
+    'zh-CN': '校验完成的发布和下载会保留在这里。',
+    'zh-TW': '驗證完成的發佈和下載會保留在這裡。',
+    en: 'Verified publishes and downloads will remain here.',
+  },
+  'transfers.empty.failedTitle': {
+    'zh-CN': '没有失败任务',
+    'zh-TW': '沒有失敗任務',
+    en: 'No failed transfers',
+  },
+  'transfers.empty.failedBody': {
+    'zh-CN': '需要重试的任务会显示在这里。',
+    'zh-TW': '需要重試的任務會顯示在這裡。',
+    en: 'Transfers that need a retry will appear here.',
   },
 } as const

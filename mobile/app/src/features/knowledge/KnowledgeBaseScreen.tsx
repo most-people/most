@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Alert,
   BackHandler,
   Keyboard,
   KeyboardAvoidingView,
@@ -70,6 +69,7 @@ import {
   useMostBoxTheme,
 } from '../../ui/theme'
 import { getGlassSurfaceStyle } from '../../ui/components'
+import { useFeedback } from '../../ui/feedback'
 import { usesAccessibilityLayout } from '../../ui/presentation'
 import { useI18n, type Locale } from '../../i18n'
 
@@ -80,10 +80,16 @@ type PublishedKnowledgeAttachment = {
 }
 
 export type KnowledgeBaseScreenProps = {
+  backRequestToken: number
+  backupWorking: boolean
   isCoreReady: boolean
+  reselectToken: number
+  onBackup: () => void | Promise<void>
   onPublishAttachment: () => Promise<PublishedKnowledgeAttachment | null>
   onOpenMostLink: (link: string) => void | Promise<void>
   onDirtyChange: (dirty: boolean) => void
+  onPresentationChange: (mode: ScreenMode) => void
+  onRestore: () => void | Promise<void>
 }
 
 type ScreenMode = 'browse' | 'preview' | 'edit'
@@ -158,17 +164,25 @@ function appendImportedNote(
 }
 
 export function KnowledgeBaseScreen({
+  backRequestToken,
+  backupWorking,
   isCoreReady,
+  reselectToken,
+  onBackup,
   onPublishAttachment,
   onOpenMostLink,
   onDirtyChange,
+  onPresentationChange,
+  onRestore,
 }: KnowledgeBaseScreenProps) {
   const { compareStrings, formatDateTime, locale, t } = useI18n()
+  const { alert } = useFeedback()
   const theme = useMostBoxTheme()
   const styles = knowledgeStyles[theme.mode]
   const { fontScale } = useWindowDimensions()
   const accessibilityLayout = usesAccessibilityLayout(fontScale)
   const repositoryRef = useRef<KnowledgeRepository | null>(null)
+  const browserScrollRef = useRef<ScrollView>(null)
   const [notes, setNotes] = useState<MobileKnowledgeNote[]>([])
   const [mode, setMode] = useState<ScreenMode>('browse')
   const [editorView, setEditorView] = useState<EditorView>('edit')
@@ -208,10 +222,25 @@ export function KnowledgeBaseScreen({
     (editorName !== editorOriginalName ||
       editorDirectory !== editorOriginalDirectory ||
       editorContent !== editorOriginalContent)
+  const editorNameError = useMemo(() => {
+    if (!editorName.trim()) return t('knowledge.editor.nameRequired')
+    try {
+      joinKnowledgePath('', editorName)
+      return ''
+    } catch {
+      return t('knowledge.editor.nameInvalid')
+    }
+  }, [editorName, t])
 
   useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange])
   useEffect(() => () => onDirtyChange(false), [onDirtyChange])
-
+  useEffect(() => onPresentationChange(mode), [mode, onPresentationChange])
+  useEffect(() => () => onPresentationChange('browse'), [onPresentationChange])
+  useEffect(() => {
+    if (mode === 'browse' && reselectToken > 0) {
+      browserScrollRef.current?.scrollTo({ y: 0, animated: true })
+    }
+  }, [mode, reselectToken])
   const refresh = useCallback(async () => {
     setLoading(true)
     setError('')
@@ -234,7 +263,7 @@ export function KnowledgeBaseScreen({
         onConfirm()
         return
       }
-      Alert.alert(t('knowledge.discard.title'), t('knowledge.discard.body'), [
+      alert(t('knowledge.discard.title'), t('knowledge.discard.body'), [
         { text: t('knowledge.discard.continue'), style: 'cancel' },
         {
           text: t('knowledge.discard.confirm'),
@@ -302,10 +331,33 @@ export function KnowledgeBaseScreen({
     setMode('edit')
   }
 
-  function leaveEditor() {
+  const leaveEditor = useCallback(() => {
     confirmDiscard(() => {
       setMode(editorOriginalPath ? 'preview' : 'browse')
     })
+  }, [confirmDiscard, editorOriginalPath])
+
+  useEffect(() => {
+    if (backRequestToken <= 0) return
+    if (mode === 'edit') {
+      leaveEditor()
+      return
+    }
+    if (mode === 'preview') setMode('browse')
+  }, [backRequestToken, leaveEditor, mode])
+
+  function openKnowledgeActions() {
+    alert(t('knowledge.actions.title'), undefined, [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('knowledge.actions.backup'),
+        onPress: () => void onBackup(),
+      },
+      {
+        text: t('knowledge.actions.restore'),
+        onPress: () => void onRestore(),
+      },
+    ])
   }
 
   async function saveEditor() {
@@ -362,7 +414,7 @@ export function KnowledgeBaseScreen({
 
   async function attachFile() {
     if (!isCoreReady) {
-      Alert.alert(
+      alert(
         t('knowledge.attachment.coreTitle'),
         t('knowledge.attachment.coreBody')
       )
@@ -385,7 +437,7 @@ export function KnowledgeBaseScreen({
       setEditorContent(result.content)
       setEditorSelection(result.selection)
     } catch (attachError) {
-      Alert.alert(
+      alert(
         t('knowledge.attachment.publishFailed'),
         getErrorMessage(
           attachError,
@@ -404,7 +456,7 @@ export function KnowledgeBaseScreen({
       return
     }
     if (!/^(https?:|mailto:)/i.test(url)) {
-      Alert.alert(t('knowledge.link.unsupported'), url)
+      alert(t('knowledge.link.unsupported'), url)
       return
     }
     if (!(await Linking.canOpenURL(url))) {
@@ -440,7 +492,7 @@ export function KnowledgeBaseScreen({
         t('knowledge.export.dialog', { fileName })
       )
     } catch (exportError) {
-      Alert.alert(
+      alert(
         t('knowledge.export.failed'),
         getErrorMessage(exportError, locale, t('knowledge.export.failedBody'))
       )
@@ -466,7 +518,7 @@ export function KnowledgeBaseScreen({
       setCurrentDirectory(imported.directory)
       openNote(imported)
     } catch (importError) {
-      Alert.alert(
+      alert(
         t('knowledge.import.failed'),
         getErrorMessage(importError, locale, t('knowledge.import.failedBody'))
       )
@@ -499,7 +551,7 @@ export function KnowledgeBaseScreen({
         await finishImport(targetPath, content, false)
         return
       }
-      Alert.alert(t('knowledge.import.conflict'), targetPath, [
+      alert(t('knowledge.import.conflict'), targetPath, [
         { text: t('common.cancel'), style: 'cancel' },
         {
           text: t('knowledge.import.keepBoth'),
@@ -523,7 +575,7 @@ export function KnowledgeBaseScreen({
         },
       ])
     } catch (importError) {
-      Alert.alert(
+      alert(
         t('knowledge.import.failed'),
         getErrorMessage(importError, locale, t('knowledge.import.chooseTxt'))
       )
@@ -531,7 +583,7 @@ export function KnowledgeBaseScreen({
   }
 
   function confirmDeleteNote(note: MobileKnowledgeNote) {
-    Alert.alert(t('knowledge.delete.noteTitle'), note.path, [
+    alert(t('knowledge.delete.noteTitle'), note.path, [
       { text: t('common.cancel'), style: 'cancel' },
       {
         text: t('common.delete'),
@@ -546,7 +598,7 @@ export function KnowledgeBaseScreen({
               await refresh()
             })
             .catch(deleteError => {
-              Alert.alert(
+              alert(
                 t('knowledge.delete.noteFailed'),
                 getErrorMessage(
                   deleteError,
@@ -562,7 +614,7 @@ export function KnowledgeBaseScreen({
   }
 
   function openDirectoryActions(directory: string) {
-    Alert.alert(directory.slice(directory.lastIndexOf('/') + 1), directory, [
+    alert(directory.slice(directory.lastIndexOf('/') + 1), directory, [
       { text: t('common.cancel'), style: 'cancel' },
       {
         text: t('knowledge.move.directoryAction'),
@@ -587,7 +639,7 @@ export function KnowledgeBaseScreen({
         text: t('common.delete'),
         style: 'destructive',
         onPress: () => {
-          Alert.alert(
+          alert(
             t('knowledge.delete.directoryTitle'),
             t('knowledge.delete.directoryBody'),
             [
@@ -601,7 +653,7 @@ export function KnowledgeBaseScreen({
                     .deleteDirectory(directory)
                     .then(refresh)
                     .catch(deleteError => {
-                      Alert.alert(
+                      alert(
                         t('knowledge.delete.noteFailed'),
                         getErrorMessage(
                           deleteError,
@@ -621,7 +673,7 @@ export function KnowledgeBaseScreen({
   }
 
   function openNoteActions(note: MobileKnowledgeNote) {
-    Alert.alert(note.name, note.path, [
+    alert(note.name, note.path, [
       { text: t('common.cancel'), style: 'cancel' },
       {
         text: t('common.delete'),
@@ -638,7 +690,7 @@ export function KnowledgeBaseScreen({
       await prompt.onConfirm(promptValue)
       setPrompt(null)
     } catch (promptError) {
-      Alert.alert(
+      alert(
         t('knowledge.action.failed'),
         getErrorMessage(promptError, locale, t('knowledge.action.failedBody'))
       )
@@ -728,12 +780,12 @@ export function KnowledgeBaseScreen({
           <Pressable
             accessibilityLabel={t('knowledge.editor.saveA11y')}
             accessibilityRole="button"
-            accessibilityState={{ disabled: working }}
-            disabled={working}
+            accessibilityState={{ disabled: working || !!editorNameError }}
+            disabled={working || !!editorNameError}
             onPress={() => void saveEditor()}
             style={({ pressed }) => [
               styles.saveButton,
-              working ? styles.disabled : null,
+              working || editorNameError ? styles.disabled : null,
               pressed ? styles.pressed : null,
             ]}
           >
@@ -755,10 +807,18 @@ export function KnowledgeBaseScreen({
             onChangeText={setEditorName}
             placeholder={t('knowledge.editor.name')}
             placeholderTextColor={theme.colors.textMuted}
-            style={styles.titleInput}
+            style={[
+              styles.titleInput,
+              editorNameError ? styles.inputError : null,
+            ]}
             underlineColorAndroid="transparent"
             value={editorName}
           />
+          {editorNameError ? (
+            <Text accessibilityRole="alert" style={styles.fieldErrorText}>
+              {editorNameError}
+            </Text>
+          ) : null}
           <TextInput
             accessibilityLabel={t('knowledge.editor.directory')}
             autoCapitalize="none"
@@ -912,7 +972,7 @@ export function KnowledgeBaseScreen({
                 md4cFlags={{ latexMath: false }}
                 onLinkPress={({ url }) => {
                   void handlePreviewLink(url).catch(linkError => {
-                    Alert.alert(
+                    alert(
                       t('knowledge.link.openFailed'),
                       getErrorMessage(
                         linkError,
@@ -1048,7 +1108,7 @@ export function KnowledgeBaseScreen({
               md4cFlags={{ latexMath: false }}
               onLinkPress={({ url }) => {
                 void handlePreviewLink(url).catch(linkError => {
-                  Alert.alert(
+                  alert(
                     t('knowledge.link.openFailed'),
                     getErrorMessage(
                       linkError,
@@ -1081,6 +1141,7 @@ export function KnowledgeBaseScreen({
   return (
     <View style={styles.screen}>
       <ScrollView
+        ref={browserScrollRef}
         contentContainerStyle={styles.browserContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -1133,6 +1194,24 @@ export function KnowledgeBaseScreen({
               >
                 {t('knowledge.action.import')}
               </Text>
+            </Pressable>
+            <Pressable
+              accessibilityLabel={t('knowledge.actions.title')}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: backupWorking }}
+              disabled={backupWorking}
+              onPress={openKnowledgeActions}
+              style={({ pressed }) => [
+                styles.noteActionIcon,
+                backupWorking ? styles.disabled : null,
+                pressed ? styles.pressed : null,
+              ]}
+            >
+              {backupWorking ? (
+                <Loader size={19} color={theme.colors.accent} />
+              ) : (
+                <MoreHorizontal size={20} color={theme.colors.accent} />
+              )}
             </Pressable>
           </View>
         </View>
@@ -1450,6 +1529,16 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
       gap: 10,
     },
     noteActionsAccessibility: { flexDirection: 'column' },
+    noteActionIcon: {
+      alignItems: 'center',
+      backgroundColor: theme.colors.glassSubtle,
+      borderColor: theme.colors.border,
+      borderRadius: theme.radii.medium,
+      borderWidth: 1,
+      height: 52,
+      justifyContent: 'center',
+      width: 52,
+    },
     noteAction: {
       alignItems: 'center',
       borderWidth: 1,
@@ -1678,6 +1767,15 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
       minHeight: 44,
       paddingHorizontal: 12,
       paddingVertical: 8,
+    },
+    inputError: {
+      borderColor: theme.colors.danger,
+    },
+    fieldErrorText: {
+      color: theme.colors.danger,
+      fontSize: 12,
+      lineHeight: 17,
+      marginTop: -4,
     },
     pathInput: {
       backgroundColor: theme.colors.glassSubtle,

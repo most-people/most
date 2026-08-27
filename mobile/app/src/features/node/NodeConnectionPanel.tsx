@@ -4,6 +4,7 @@ import type {
 } from '../../mobileCore/types'
 
 export type NodeConnectionPanelProps = {
+  autoOpen?: boolean
   client: MostBoxMobileCore
   snapshot: MobileCoreSnapshot
 }

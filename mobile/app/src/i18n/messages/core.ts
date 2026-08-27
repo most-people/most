@@ -1,4 +1,9 @@
 export const coreMessages = {
+  'common.ok': {
+    'zh-CN': '确定',
+    'zh-TW': '確定',
+    en: 'OK',
+  },
   'common.cancel': {
     'zh-CN': '取消',
     'zh-TW': '取消',

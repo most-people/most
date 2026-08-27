@@ -1,13 +1,14 @@
 import './src/polyfills/eventTarget'
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
 import {
-  Alert,
   AppState,
+  BackHandler,
   KeyboardAvoidingView,
   Linking,
   Modal,
   Platform,
   Pressable,
+  Share,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -27,17 +28,25 @@ import {
   BookOpen,
   Check,
   Files,
-  Languages,
   ListChecks,
+  Loader,
   Radio,
   ShieldCheck,
   X,
 } from 'lucide-react-native'
+import { FilesScreen } from './src/features/files/FilesScreen'
 import { KnowledgeBaseScreen } from './src/features/knowledge/KnowledgeBaseScreen'
 import { createExpoKnowledgeRepository } from './src/features/knowledge/expoKnowledgeRepository'
 import { validateKnowledgeSnapshot } from './src/features/knowledge/knowledgeModel'
-import { NodeStatusScreen } from './src/features/node/NodeStatusScreen'
+import {
+  getRootBackAction,
+  getTabPressAction,
+  type RootTab,
+} from './src/navigation/rootNavigation'
+import { NodeScreen } from './src/features/node/NodeScreen'
+import { NodeConnectionPanel } from './src/features/node/NodeConnectionPanel'
 import { P2PPingScreen } from './src/features/node/P2PPingScreen'
+import { TransfersScreen } from './src/features/transfers/TransfersScreen'
 import {
   I18nProvider,
   LOCALES,
@@ -57,6 +66,7 @@ import {
   parseMostLink,
   type IncomingMostLink,
 } from './src/mobileCore/protocol'
+import { inspectReceiveLink } from './src/mobileCore/receiveFlow'
 import {
   getStoreDownloadPolicyErrorKey,
   getStoreFilePolicyErrorKey,
@@ -73,6 +83,7 @@ import {
   MostTextInput,
   getGlassSurfaceStyle,
 } from './src/ui/components'
+import { FeedbackProvider, useFeedback } from './src/ui/feedback'
 import { PrivacyConsentGate } from './src/privacy/PrivacyConsentGate'
 import { PRIVACY_URL, SUPPORT_URL, TERMS_URL } from './src/privacy/legalUrls'
 import type { DocumentPickerAsset } from 'expo-document-picker'
@@ -99,8 +110,6 @@ const MIME_BY_EXTENSION: Record<string, string> = {
   webp: 'image/webp',
   zip: 'application/zip',
 }
-
-type RootTab = 'files' | 'knowledge' | 'transfers' | 'node'
 
 const TAB_LABEL_KEYS: Record<RootTab, MessageKey> = {
   files: 'nav.files',
@@ -209,15 +218,18 @@ function triggerWebFile(fileUri: string, fileName: string, open = false) {
 export default function App() {
   return (
     <I18nProvider>
-      <PrivacyConsentGate>
-        <MostBoxApp />
-      </PrivacyConsentGate>
+      <FeedbackProvider>
+        <PrivacyConsentGate>
+          <MostBoxApp />
+        </PrivacyConsentGate>
+      </FeedbackProvider>
     </I18nProvider>
   )
 }
 
 function MostBoxApp() {
   const { locale, setLocale, t } = useI18n()
+  const { alert, toast } = useFeedback()
   const theme = useMostBoxTheme()
   const styles = appStyles[theme.mode]
   const { fontScale } = useWindowDimensions()
@@ -228,9 +240,8 @@ function MostBoxApp() {
   > | null>(null)
   const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [snapshot, setSnapshot] = useState<MobileCoreSnapshot | null>(null)
-  const [activeTab, setActiveTab] = useState<RootTab>(
-    Platform.OS === 'web' ? 'node' : 'files'
-  )
+  const [startupComplete, setStartupComplete] = useState(false)
+  const [activeTab, setActiveTab] = useState<RootTab>('files')
   const [nodeRoute, setNodeRoute] = useState<'status' | 'p2pPing'>('status')
   const [publishing, setPublishing] = useState(false)
   const [knowledgeDirty, setKnowledgeDirty] = useState(false)
@@ -238,6 +249,10 @@ function MostBoxApp() {
   const [exportingCid, setExportingCid] = useState<string | null>(null)
   const [deletingCid, setDeletingCid] = useState<string | null>(null)
   const [copiedCid, setCopiedCid] = useState<string | null>(null)
+  const [holdingDetailRequest, setHoldingDetailRequest] = useState<{
+    cid: string
+    token: number
+  } | null>(null)
   const [downloadModalOpen, setDownloadModalOpen] = useState(false)
   const [languageModalOpen, setLanguageModalOpen] = useState(false)
   const [downloadLinkInput, setDownloadLinkInput] = useState('')
@@ -251,6 +266,16 @@ function MostBoxApp() {
     useState(false)
   const [retryingTransferId, setRetryingTransferId] = useState<string | null>(
     null
+  )
+  const [cancellingTransferCid, setCancellingTransferCid] = useState<
+    string | null
+  >(null)
+  const [knowledgeMode, setKnowledgeMode] = useState<
+    'browse' | 'preview' | 'edit'
+  >('browse')
+  const [knowledgeBackToken, setKnowledgeBackToken] = useState(0)
+  const [reselectTokens, setReselectTokens] = useState<Record<RootTab, number>>(
+    { files: 0, knowledge: 0, transfers: 0, node: 0 }
   )
 
   if (!coreRef.current) {
@@ -270,12 +295,15 @@ function MostBoxApp() {
     isNodeOnline && (!isRemote || currentSnapshot.node.authenticated === true)
   const isCoreBusy = nodeStatus === 'starting' || nodeStatus === 'stopping'
   const showCoreStartError = useEffectEvent((error: unknown) => {
-    Alert.alert(t('app.core.startFailed'), getFriendlyCoreError(error, locale))
+    alert(t('app.core.startFailed'), getFriendlyCoreError(error, locale))
   })
 
   useEffect(() => {
     const unsubscribe = core.subscribe(setSnapshot)
-    void core.start().catch(showCoreStartError)
+    void core
+      .start()
+      .catch(showCoreStartError)
+      .finally(() => setStartupComplete(true))
 
     return () => {
       unsubscribe()
@@ -313,7 +341,7 @@ function MostBoxApp() {
         const intent = parseIncomingMostLink(url)
         if (intent) openDownloadIntent(intent)
       } catch (error) {
-        Alert.alert(
+        alert(
           t('app.link.invalidTitle'),
           getMostLinkErrorMessage(error, locale)
         )
@@ -338,10 +366,10 @@ function MostBoxApp() {
   const guardReady = () => {
     if (isReady) return true
     if (isNodeOnline && isRemote) {
-      Alert.alert(t('node.account.title'), t('node.account.required'))
+      alert(t('node.account.title'), t('node.account.required'))
       return false
     }
-    Alert.alert(t('app.core.notReadyTitle'), t('app.core.notReadyBody'))
+    alert(t('app.core.notReadyTitle'), t('app.core.notReadyBody'))
     return false
   }
 
@@ -350,9 +378,16 @@ function MostBoxApp() {
   }, [])
 
   const changeTab = (nextTab: RootTab) => {
-    if (nextTab === activeTab) return
-    if (activeTab === 'knowledge' && knowledgeDirty) {
-      Alert.alert(t('app.discard.title'), t('app.discard.body'), [
+    const action = getTabPressAction(activeTab, nextTab, knowledgeDirty)
+    if (action === 'scrollTop') {
+      setReselectTokens(current => ({
+        ...current,
+        [nextTab]: current[nextTab] + 1,
+      }))
+      return
+    }
+    if (action === 'confirmDiscard') {
+      alert(t('app.discard.title'), t('app.discard.body'), [
         { text: t('app.discard.continue'), style: 'cancel' },
         {
           text: t('app.discard.confirm'),
@@ -375,14 +410,32 @@ function MostBoxApp() {
     }, 1600)
   }
 
+  const showHoldingDetails = (holding: MobileHolding) => {
+    setActiveTab('files')
+    setHoldingDetailRequest({ cid: holding.cid, token: Date.now() })
+  }
+
+  const showHoldingDetailsByCid = (cid: string) => {
+    const holding = core.getSnapshot().holdings.find(item => item.cid === cid)
+    if (holding) showHoldingDetails(holding)
+  }
+
+  const shareMostLink = async (link: string) => {
+    try {
+      await Share.share({ message: link })
+    } catch (error) {
+      alert(
+        t('app.file.shareFailedTitle'),
+        error instanceof Error ? error.message : t('app.file.shareFailedBody')
+      )
+    }
+  }
+
   const handleStartCore = async () => {
     try {
       await core.start()
     } catch (error) {
-      Alert.alert(
-        t('app.core.startFailed'),
-        getFriendlyCoreError(error, locale)
-      )
+      alert(t('app.core.startFailed'), getFriendlyCoreError(error, locale))
     }
   }
 
@@ -414,7 +467,7 @@ function MostBoxApp() {
         file.mimeType
       )
       if (policyErrorKey) {
-        Alert.alert(t('app.file.unsupported'), t(policyErrorKey))
+        alert(t('app.file.unsupported'), t(policyErrorKey))
         return null
       }
 
@@ -439,16 +492,27 @@ function MostBoxApp() {
       const result = await publishPickedFile()
       if (!result) return
       await Clipboard.setStringAsync(result.link)
-      Alert.alert(
-        t('app.publish.completeTitle'),
+      const publishedCid = result.transfer.cid || parseMostLink(result.link).cid
+      toast(
         t(
           isRemote
             ? 'app.publish.remoteCompleteBody'
             : 'app.publish.completeBody'
-        )
+        ),
+        'success',
+        [
+          {
+            label: t('app.publish.view'),
+            onPress: () => showHoldingDetailsByCid(publishedCid),
+          },
+          {
+            label: t('common.share'),
+            onPress: () => void shareMostLink(result.link),
+          },
+        ]
       )
     } catch (error) {
-      Alert.alert(
+      alert(
         t('app.publish.failedTitle'),
         error instanceof Error ? error.message : t('app.publish.failedBody')
       )
@@ -500,6 +564,42 @@ function MostBoxApp() {
     }
   }
 
+  const handleHardwareBack = useEffectEvent(() => {
+    const action = getRootBackAction({
+      activeTab,
+      downloadModalOpen,
+      knowledgeMode,
+      languageModalOpen,
+      nodeRoute,
+    })
+    if (action === 'closeLanguage') {
+      setLanguageModalOpen(false)
+      return true
+    }
+    if (action === 'closeReceive') {
+      void handleCancelDownload()
+      return true
+    }
+    if (action === 'closeNodeChild') {
+      setNodeRoute('status')
+      return true
+    }
+    if (action === 'closeKnowledgeChild') {
+      setKnowledgeBackToken(value => value + 1)
+      return true
+    }
+    return false
+  })
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return
+    const subscription = BackHandler.addEventListener(
+      'hardwareBackPress',
+      handleHardwareBack
+    )
+    return () => subscription.remove()
+  }, [])
+
   const handleDownloadLinkChange = (value: string) => {
     setDownloadLinkInput(value)
     setDownloadIntent(null)
@@ -525,14 +625,12 @@ function MostBoxApp() {
 
   const handleInspectDownload = () => {
     try {
-      const link = downloadLinkInput.trim()
-      const parsed = parseMostLink(link)
-      const policyErrorKey = getStoreDownloadPolicyErrorKey(parsed.fileName)
-      if (policyErrorKey) {
-        setDownloadLinkError(t(policyErrorKey))
+      const inspection = inspectReceiveLink(downloadLinkInput)
+      if (inspection.kind === 'blocked') {
+        setDownloadLinkError(t(inspection.errorKey as MessageKey))
         return
       }
-      setDownloadIntent({ link, ...parsed })
+      setDownloadIntent(inspection.intent)
       setDownloadLinkError('')
     } catch (error) {
       setDownloadIntent(null)
@@ -543,20 +641,20 @@ function MostBoxApp() {
   const handleConfirmDownload = async () => {
     if (!downloadIntent || !guardReady()) return
 
-    setDownloadingCid(downloadIntent.cid)
+    const intent = downloadIntent
+    const shouldOpen = openDownloadAfterComplete
+    setDownloadingCid(intent.cid)
+    setDownloadModalOpen(false)
+    setDownloadIntent(null)
+    setDownloadLinkError('')
+    setOpenDownloadAfterComplete(false)
     try {
-      await core.downloadLink({ link: downloadIntent.link })
-      const completedCid = downloadIntent.cid
-      const shouldOpen = openDownloadAfterComplete
-      setDownloadModalOpen(false)
-      setDownloadIntent(null)
-      setDownloadLinkError('')
-      setOpenDownloadAfterComplete(false)
+      await core.downloadLink({ link: intent.link })
       const holding = core
         .getSnapshot()
-        .holdings.find(item => item.cid === completedCid)
+        .holdings.find(item => item.cid === intent.cid)
       if (shouldOpen && holding) {
-        Alert.alert(
+        alert(
           t('app.download.completeTitle'),
           t(
             isRemote
@@ -574,17 +672,17 @@ function MostBoxApp() {
           ]
         )
       } else {
-        Alert.alert(
-          t('app.download.completeTitle'),
+        toast(
           t(
             isRemote
               ? 'app.download.remoteCompleteBody'
               : 'app.download.completeBody'
-          )
+          ),
+          'success'
         )
       }
     } catch (error) {
-      setDownloadLinkError(getFriendlyCoreError(error, locale))
+      alert(t('app.download.retryFailed'), getFriendlyCoreError(error, locale))
     } finally {
       setDownloadingCid(null)
     }
@@ -597,7 +695,7 @@ function MostBoxApp() {
       return
     }
     if (!transfer.link) {
-      Alert.alert(
+      alert(
         t('app.download.retryUnavailableTitle'),
         t('app.download.retryUnavailableBody')
       )
@@ -607,26 +705,23 @@ function MostBoxApp() {
     setRetryingTransferId(transfer.id)
     try {
       await core.downloadLink({ link: transfer.link })
-      Alert.alert(
-        t('app.download.completeTitle'),
+      toast(
         t(
           isRemote
             ? 'app.download.remoteCompleteBody'
             : 'app.download.completeBody'
-        )
+        ),
+        'success'
       )
     } catch (error) {
-      Alert.alert(
-        t('app.download.retryFailed'),
-        getFriendlyCoreError(error, locale)
-      )
+      alert(t('app.download.retryFailed'), getFriendlyCoreError(error, locale))
     } finally {
       setRetryingTransferId(null)
     }
   }
 
   const handleShowTransferDetails = (transfer: MobileTransfer) => {
-    Alert.alert(
+    alert(
       t('app.transfer.errorTitle'),
       transfer.message || t('app.transfer.noDetails')
     )
@@ -634,7 +729,7 @@ function MostBoxApp() {
 
   const handleDeleteHolding = (holding: MobileHolding) => {
     if (!guardReady()) return
-    Alert.alert(
+    alert(
       t('app.holding.deleteTitle'),
       t('app.holding.deleteBody', { fileName: holding.fileName }),
       [
@@ -646,8 +741,9 @@ function MostBoxApp() {
             setDeletingCid(holding.cid)
             void core
               .deleteHolding({ cid: holding.cid })
+              .then(() => toast(t('app.holding.deleted'), 'success'))
               .catch(error => {
-                Alert.alert(
+                alert(
                   t('app.holding.deleteFailedTitle'),
                   error instanceof Error
                     ? error.message
@@ -664,6 +760,20 @@ function MostBoxApp() {
   const handleCopyHoldingLink = async (holding: MobileHolding) => {
     await Clipboard.setStringAsync(holding.shareLink)
     markCopied(holding.cid)
+    toast(t('node.action.copied'), 'success')
+  }
+
+  const handleCancelTransfer = async (transfer: MobileTransfer) => {
+    if (!transfer.cid || transfer.kind !== 'download') return
+    setCancellingTransferCid(transfer.cid)
+    try {
+      await core.cancelDownload({ cid: transfer.cid })
+      toast(t('core.error.downloadCancelled'))
+    } catch (error) {
+      alert(t('app.download.retryFailed'), getFriendlyCoreError(error, locale))
+    } finally {
+      setCancellingTransferCid(null)
+    }
   }
 
   const prepareHoldingFile = async (holding: MobileHolding) => {
@@ -704,7 +814,7 @@ function MostBoxApp() {
         }),
       })
     } catch (error) {
-      Alert.alert(
+      alert(
         t('app.file.shareFailedTitle'),
         error instanceof Error ? error.message : t('app.file.shareFailedBody')
       )
@@ -744,7 +854,7 @@ function MostBoxApp() {
         }),
       })
     } catch (error) {
-      Alert.alert(
+      alert(
         t('app.file.openFailedTitle'),
         error instanceof Error ? error.message : t('app.file.openFailedBody')
       )
@@ -790,12 +900,12 @@ function MostBoxApp() {
         exported.mimeType
       )
       await writeSafFileFromLocalFile(exported.fileUri, targetUri)
-      Alert.alert(
+      alert(
         t('app.file.saveSuccessTitle'),
         t('app.file.saveSuccessBody', { fileName: saveFileName })
       )
     } catch (error) {
-      Alert.alert(
+      alert(
         t('app.file.saveFailedTitle'),
         error instanceof Error ? error.message : t('app.file.saveFailedBody')
       )
@@ -835,7 +945,7 @@ function MostBoxApp() {
     try {
       await Linking.openURL(url)
     } catch {
-      Alert.alert(t('app.link.openFailed'), url)
+      alert(t('app.link.openFailed'), url)
     }
   }
 
@@ -869,7 +979,7 @@ function MostBoxApp() {
         mimeType: 'application/json',
       })
     } catch (error) {
-      Alert.alert(
+      alert(
         t('app.knowledge.backupFailedTitle'),
         error instanceof Error
           ? error.message
@@ -897,7 +1007,7 @@ function MostBoxApp() {
               encoding: FileSystem.EncodingType.UTF8,
             })
       const backup = validateKnowledgeSnapshot(JSON.parse(raw) as unknown)
-      Alert.alert(
+      alert(
         t('app.knowledge.restoreTitle'),
         t('app.knowledge.restoreBody', { count: backup.files.length }),
         [
@@ -910,13 +1020,13 @@ function MostBoxApp() {
               void knowledgeRepository
                 .restoreSnapshot(backup)
                 .then(() => {
-                  Alert.alert(
+                  alert(
                     t('app.knowledge.restoreCompleteTitle'),
                     t('app.knowledge.restoreCompleteBody')
                   )
                 })
                 .catch(error => {
-                  Alert.alert(
+                  alert(
                     t('app.knowledge.restoreFailedTitle'),
                     error instanceof Error
                       ? error.message
@@ -929,7 +1039,7 @@ function MostBoxApp() {
         ]
       )
     } catch (error) {
-      Alert.alert(
+      alert(
         t('app.knowledge.invalidBackupTitle'),
         error instanceof Error
           ? error.message
@@ -939,44 +1049,60 @@ function MostBoxApp() {
   }
 
   const openLanguageMenu = () => {
-    if (Platform.OS === 'web') {
-      setLanguageModalOpen(true)
-      return
-    }
-    Alert.alert(
-      t('common.language.choose'),
-      undefined,
-      LOCALES.map(item => ({
-        text:
-          item === locale
-            ? t('common.language.current', { language: localeNames[item] })
-            : localeNames[item],
-        onPress: () => setLocale(item),
-      })),
-      { cancelable: true }
+    setLanguageModalOpen(true)
+  }
+
+  const immersiveRoute =
+    (activeTab === 'knowledge' && knowledgeMode === 'edit') ||
+    (activeTab === 'node' && nodeRoute === 'p2pPing')
+
+  if (!startupComplete) {
+    return (
+      <SafeAreaProvider>
+        <SafeAreaView
+          edges={['top', 'right', 'bottom', 'left']}
+          style={styles.startupScreen}
+        >
+          <Loader size={28} color={theme.colors.accent} />
+          <Text style={styles.startupTitle}>{t('app.node.starting')}</Text>
+        </SafeAreaView>
+      </SafeAreaProvider>
     )
   }
 
-  const statusLabel =
-    nodeStatus === 'ready'
-      ? t('app.node.online')
-      : nodeStatus === 'error'
-        ? t('app.node.error')
-        : nodeStatus === 'starting'
-          ? t('app.node.starting')
-          : t('app.node.offline')
-  const statusTextStyle =
-    nodeStatus === 'ready'
-      ? styles.statusTextReady
-      : nodeStatus === 'error'
-        ? styles.statusTextError
-        : styles.statusTextPending
-  const statusIconColor =
-    nodeStatus === 'ready'
-      ? theme.colors.success
-      : nodeStatus === 'error'
-        ? theme.colors.danger
-        : theme.colors.warning
+  if (Platform.OS === 'web' && !isReady) {
+    return (
+      <SafeAreaProvider>
+        <SafeAreaView
+          edges={['top', 'right', 'bottom', 'left']}
+          style={styles.onboardingScreen}
+        >
+          <StatusBar
+            barStyle={theme.statusBarStyle}
+            backgroundColor={theme.colors.background}
+          />
+          <View style={styles.onboardingHeader}>
+            <View style={styles.brandMark}>
+              <ShieldCheck size={19} color={theme.colors.accent} />
+            </View>
+            <View style={styles.brandTextGroup}>
+              <Text style={styles.brandName}>MostBox</Text>
+              <Text style={styles.pageTitle}>
+                {t('node.connection.modalTitle')}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.onboardingContent}>
+            <NodeConnectionPanel
+              autoOpen
+              client={core}
+              snapshot={currentSnapshot}
+            />
+          </View>
+        </SafeAreaView>
+      </SafeAreaProvider>
+    )
+  }
 
   return (
     <SafeAreaProvider>
@@ -988,166 +1114,178 @@ function MostBoxApp() {
           barStyle={theme.statusBarStyle}
           backgroundColor={theme.colors.background}
         />
-        <View
-          style={[
-            styles.header,
-            accessibilityLayout ? styles.headerAccessibility : null,
-          ]}
-        >
+        {!immersiveRoute ? (
           <View
             style={[
-              styles.brandRow,
-              accessibilityLayout ? styles.brandRowAccessibility : null,
+              styles.header,
+              accessibilityLayout ? styles.headerAccessibility : null,
             ]}
           >
-            <View style={styles.brandMark}>
-              <ShieldCheck size={19} color={theme.colors.accent} />
-            </View>
-            <View style={styles.brandTextGroup}>
-              <Text maxFontSizeMultiplier={1.4} style={styles.brandName}>
-                MostBox
-              </Text>
-              <Text maxFontSizeMultiplier={1.8} style={styles.pageTitle}>
-                {activeTab === 'node' && nodeRoute === 'p2pPing'
-                  ? t('p2pPing.title')
-                  : t(TAB_LABEL_KEYS[activeTab])}
-              </Text>
-            </View>
-          </View>
-          <View
-            style={[
-              styles.headerActions,
-              accessibilityLayout ? styles.headerActionsAccessibility : null,
-            ]}
-          >
-            <IconButton
-              accessibilityLabel={t('common.language.choose')}
-              onPress={openLanguageMenu}
-              style={styles.languageButton}
+            <Text
+              maxFontSizeMultiplier={1.8}
+              numberOfLines={1}
+              style={styles.mainHeaderTitle}
             >
-              <Languages size={18} color={theme.colors.textSecondary} />
-            </IconButton>
-            <Pressable
-              accessibilityLabel={t('app.node.openStatus', {
-                status: statusLabel,
-              })}
-              accessibilityRole="button"
-              onPress={() => changeTab('node')}
-              style={({ pressed }) => [
-                styles.statusPill,
-                accessibilityLayout ? styles.statusPillAccessibility : null,
-                pressed ? styles.pressablePressed : null,
-              ]}
-            >
-              <Radio size={16} color={statusIconColor} />
-              <Text
-                maxFontSizeMultiplier={1.6}
-                style={[
-                  styles.statusText,
-                  accessibilityLayout ? styles.statusTextAccessibility : null,
-                  statusTextStyle,
-                ]}
-              >
-                {statusLabel}
-              </Text>
-            </Pressable>
+              {t(TAB_LABEL_KEYS[activeTab])}
+            </Text>
           </View>
-        </View>
+        ) : null}
 
         <View style={styles.content}>
-          {activeTab === 'knowledge' ? (
-            <KnowledgeBaseScreen
-              isCoreReady={isReady}
-              onDirtyChange={handleKnowledgeDirtyChange}
-              onOpenMostLink={handleOpenKnowledgeLink}
-              onPublishAttachment={handlePublishKnowledgeAttachment}
-            />
-          ) : activeTab === 'node' && nodeRoute === 'p2pPing' ? (
-            <P2PPingScreen
-              ping={currentSnapshot.p2pPing}
-              ready={isNodeOnline}
-              onBack={() => setNodeRoute('status')}
-              onStart={handleStartP2PPing}
-              onCancel={handleCancelP2PPing}
-            />
-          ) : (
-            <NodeStatusScreen
-              client={core}
-              section={activeTab}
-              snapshot={currentSnapshot}
+          <View
+            style={[
+              styles.tabPanel,
+              activeTab !== 'files' ? styles.tabPanelHidden : null,
+            ]}
+          >
+            <FilesScreen
+              actionDisabled={!isReady || publishing}
               copiedCid={copiedCid}
               deletingCid={deletingCid}
+              detailRequest={holdingDetailRequest}
               exportingCid={exportingCid}
-              retryingTransferId={retryingTransferId}
-              actionDisabled={!isReady || publishing}
-              knowledgeBackupWorking={knowledgeBackupWorking}
-              onPublishFile={handlePublishFile}
-              onReceiveLink={openDownloadModal}
-              onBackupKnowledge={handleBackupKnowledge}
-              onRestoreKnowledge={handleRestoreKnowledge}
+              reselectToken={reselectTokens.files}
+              snapshot={currentSnapshot}
               onCopyHoldingLink={handleCopyHoldingLink}
               onDeleteHolding={handleDeleteHolding}
+              onOpenHolding={handleOpenHolding}
+              onPublishFile={handlePublishFile}
+              onReceiveLink={openDownloadModal}
               onSaveHolding={handleSaveHolding}
               onShareHolding={handleShareHolding}
-              onOpenPrivacy={() => openExternalUrl(PRIVACY_URL)}
-              onOpenTerms={() => openExternalUrl(TERMS_URL)}
-              onOpenSupport={() => openExternalUrl(SUPPORT_URL)}
+            />
+          </View>
+          <View
+            style={[
+              styles.tabPanel,
+              activeTab !== 'knowledge' ? styles.tabPanelHidden : null,
+            ]}
+          >
+            <KnowledgeBaseScreen
+              backupWorking={knowledgeBackupWorking}
+              backRequestToken={knowledgeBackToken}
+              isCoreReady={isReady}
+              reselectToken={reselectTokens.knowledge}
+              onBackup={handleBackupKnowledge}
+              onDirtyChange={handleKnowledgeDirtyChange}
+              onOpenMostLink={handleOpenKnowledgeLink}
+              onPresentationChange={setKnowledgeMode}
+              onPublishAttachment={handlePublishKnowledgeAttachment}
+              onRestore={handleRestoreKnowledge}
+            />
+          </View>
+          <View
+            style={[
+              styles.tabPanel,
+              activeTab !== 'transfers' ? styles.tabPanelHidden : null,
+            ]}
+          >
+            <TransfersScreen
+              cancellingCid={cancellingTransferCid}
+              reselectToken={reselectTokens.transfers}
+              retryingTransferId={retryingTransferId}
+              snapshot={currentSnapshot}
+              onCancelDownload={handleCancelTransfer}
+              onOpenHolding={showHoldingDetails}
               onRetryTransfer={handleRetryTransfer}
               onShowTransferDetails={handleShowTransferDetails}
-              onRetryStartCore={handleStartCore}
-              onOpenP2PPing={() => setNodeRoute('p2pPing')}
-              retryStartDisabled={isCoreBusy}
             />
-          )}
+          </View>
+          <View
+            style={[
+              styles.tabPanel,
+              activeTab !== 'node' ? styles.tabPanelHidden : null,
+            ]}
+          >
+            {nodeRoute === 'p2pPing' ? (
+              <P2PPingScreen
+                ping={currentSnapshot.p2pPing}
+                ready={isNodeOnline}
+                onBack={() => setNodeRoute('status')}
+                onStart={handleStartP2PPing}
+                onCancel={handleCancelP2PPing}
+              />
+            ) : (
+              <NodeScreen
+                client={core}
+                reselectToken={reselectTokens.node}
+                retryStartDisabled={isCoreBusy}
+                snapshot={currentSnapshot}
+                onOpenP2PPing={() => setNodeRoute('p2pPing')}
+                onChooseLanguage={openLanguageMenu}
+                onOpenPrivacy={() => openExternalUrl(PRIVACY_URL)}
+                onOpenSupport={() => openExternalUrl(SUPPORT_URL)}
+                onOpenTerms={() => openExternalUrl(TERMS_URL)}
+                onRetryStartCore={handleStartCore}
+              />
+            )}
+          </View>
         </View>
 
-        <View style={styles.tabBar}>
-          <TabButton
-            active={activeTab === 'files'}
-            icon={
-              <Files
-                size={21}
-                color={
-                  activeTab === 'files'
-                    ? theme.colors.accent
-                    : theme.colors.textSecondary
-                }
-              />
-            }
-            label={t('nav.files')}
-            onPress={() => changeTab('files')}
-          />
-          <TabButton
-            active={activeTab === 'knowledge'}
-            icon={
-              <BookOpen
-                size={21}
-                color={
-                  activeTab === 'knowledge'
-                    ? theme.colors.accent
-                    : theme.colors.textSecondary
-                }
-              />
-            }
-            label={t('nav.knowledge')}
-            onPress={() => changeTab('knowledge')}
-          />
-          <TabButton
-            active={activeTab === 'transfers'}
-            icon={
-              <ArrowLeftRight
-                size={21}
-                color={
-                  activeTab === 'transfers'
-                    ? theme.colors.accent
-                    : theme.colors.textSecondary
-                }
-              />
-            }
-            label={t('nav.transfers')}
-            onPress={() => changeTab('transfers')}
-          />
-        </View>
+        {!immersiveRoute ? (
+          <View style={styles.tabBar}>
+            <TabButton
+              active={activeTab === 'files'}
+              icon={
+                <Files
+                  size={21}
+                  color={
+                    activeTab === 'files'
+                      ? theme.colors.accent
+                      : theme.colors.textSecondary
+                  }
+                />
+              }
+              label={t('nav.files')}
+              onPress={() => changeTab('files')}
+            />
+            <TabButton
+              active={activeTab === 'knowledge'}
+              icon={
+                <BookOpen
+                  size={21}
+                  color={
+                    activeTab === 'knowledge'
+                      ? theme.colors.accent
+                      : theme.colors.textSecondary
+                  }
+                />
+              }
+              label={t('nav.knowledge')}
+              onPress={() => changeTab('knowledge')}
+            />
+            <TabButton
+              active={activeTab === 'transfers'}
+              icon={
+                <ArrowLeftRight
+                  size={21}
+                  color={
+                    activeTab === 'transfers'
+                      ? theme.colors.accent
+                      : theme.colors.textSecondary
+                  }
+                />
+              }
+              label={t('nav.transfers')}
+              onPress={() => changeTab('transfers')}
+            />
+            <TabButton
+              active={activeTab === 'node'}
+              icon={
+                <Radio
+                  size={21}
+                  color={
+                    activeTab === 'node'
+                      ? theme.colors.accent
+                      : theme.colors.textSecondary
+                  }
+                />
+              }
+              label={t('nav.node')}
+              onPress={() => changeTab('node')}
+            />
+          </View>
+        ) : null}
 
         <Modal
           animationType="fade"
@@ -1487,13 +1625,41 @@ function createStyles(theme: MostBoxTheme) {
       flex: 1,
       backgroundColor: colors.background,
     },
+    startupScreen: {
+      alignItems: 'center',
+      backgroundColor: colors.background,
+      flex: 1,
+      gap: 10,
+      justifyContent: 'center',
+    },
+    startupTitle: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    onboardingScreen: {
+      backgroundColor: colors.background,
+      flex: 1,
+    },
+    onboardingHeader: {
+      alignItems: 'center',
+      borderBottomColor: colors.borderStrong,
+      borderBottomWidth: 1,
+      flexDirection: 'row',
+      gap: 10,
+      minHeight: 58,
+      paddingHorizontal: 16,
+    },
+    onboardingContent: {
+      flex: 1,
+      justifyContent: 'center',
+      paddingBottom: 24,
+    },
     header: {
       ...getGlassSurfaceStyle(theme, 'subtle'),
-      minHeight: 72,
-      flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: 16,
+      justifyContent: 'center',
+      minHeight: 56,
       paddingHorizontal: 20,
       borderRadius: 0,
       borderWidth: 0,
@@ -1502,19 +1668,15 @@ function createStyles(theme: MostBoxTheme) {
       backgroundColor: colors.glass,
     },
     headerAccessibility: {
-      flexDirection: 'column',
-      alignItems: 'stretch',
-      gap: 4,
+      minHeight: 64,
       paddingVertical: 10,
     },
-    brandRow: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-    },
-    brandRowAccessibility: {
-      flex: 0,
+    mainHeaderTitle: {
+      color: colors.text,
+      fontSize: 18,
+      fontWeight: '700',
+      textAlign: 'center',
+      width: '100%',
     },
     brandMark: {
       width: 32,
@@ -1540,58 +1702,14 @@ function createStyles(theme: MostBoxTheme) {
       fontSize: 22,
       fontWeight: '700',
     },
-    headerActions: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-    },
-    headerActionsAccessibility: {
-      alignSelf: 'stretch',
-      marginLeft: 32,
-    },
-    languageButton: {
-      width: 38,
-      height: 38,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: radii.medium,
-      backgroundColor: colors.glassSubtle,
-    },
-    statusPill: {
-      minHeight: 38,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      paddingHorizontal: 10,
-      paddingVertical: 5,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: radii.medium,
-      backgroundColor: colors.glassSubtle,
-    },
-    statusPillAccessibility: {
-      flex: 1,
-    },
-    statusText: {
-      fontSize: 12,
-      fontWeight: '600',
-    },
-    statusTextAccessibility: {
-      flex: 1,
-    },
-    statusTextReady: {
-      color: colors.success,
-    },
-    statusTextPending: {
-      color: colors.warning,
-    },
-    statusTextError: {
-      color: colors.danger,
-    },
     content: {
       flex: 1,
+    },
+    tabPanel: {
+      flex: 1,
+    },
+    tabPanelHidden: {
+      display: 'none',
     },
     tabBar: {
       ...getGlassSurfaceStyle(theme, 'subtle'),
