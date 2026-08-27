@@ -965,6 +965,8 @@ function MostBoxApp() {
       : nodeStatus === 'error'
         ? styles.statusTextError
         : styles.statusTextPending
+  const statusIconColor =
+    nodeStatus === 'error' ? theme.colors.danger : theme.colors.accent
 
   return (
     <SafeAreaProvider>
@@ -1027,7 +1029,7 @@ function MostBoxApp() {
                 pressed ? styles.pressablePressed : null,
               ]}
             >
-              <Radio size={16} color={theme.colors.accent} />
+              <Radio size={16} color={statusIconColor} />
               <Text
                 maxFontSizeMultiplier={1.6}
                 style={[
@@ -1394,10 +1396,10 @@ function TabButton({ active, icon, label, onPress }: TabButtonProps) {
       onPress={onPress}
       style={({ pressed }) => [
         styles.tabButton,
-        active ? styles.tabButtonActive : null,
         pressed ? styles.pressablePressed : null,
       ]}
     >
+      {active ? <View style={styles.tabActiveIndicator} /> : null}
       {icon}
       <Text
         maxFontSizeMultiplier={1.6}
@@ -1543,13 +1545,14 @@ function createStyles(theme: MostBoxTheme) {
       alignItems: 'center',
       justifyContent: 'center',
       gap: 2,
-      borderRadius: radii.medium,
-      borderTopWidth: 2,
-      borderTopColor: 'transparent',
     },
-    tabButtonActive: {
-      borderTopColor: colors.accent,
-      backgroundColor: colors.accentSoft,
+    tabActiveIndicator: {
+      position: 'absolute',
+      top: 0,
+      width: 28,
+      height: 3,
+      borderRadius: radii.full,
+      backgroundColor: colors.accent,
     },
     tabText: {
       alignSelf: 'stretch',
@@ -1667,8 +1670,6 @@ function createStyles(theme: MostBoxTheme) {
       paddingHorizontal: 12,
       paddingVertical: 10,
       borderWidth: 1,
-      borderLeftWidth: 3,
-      borderLeftColor: colors.accent,
       borderColor: colors.border,
       borderRadius: radii.medium,
       backgroundColor: colors.glassSubtle,

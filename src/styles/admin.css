@@ -319,7 +319,7 @@
 .admin-mcp-credential {
   margin-bottom: 16px;
   padding: 12px 14px;
-  border-left: 3px solid var(--warning);
+  border-left: 1px solid var(--warning);
   background: rgba(255, 149, 0, 0.08);
 }
 

@@ -1278,8 +1278,6 @@ function createNodeStyles(theme: MostBoxTheme) {
       paddingHorizontal: 12,
       paddingVertical: 10,
       borderWidth: 1,
-      borderLeftWidth: 3,
-      borderLeftColor: colors.danger,
       borderColor: getToneColor(theme, 'danger'),
       borderRadius: radii.medium,
       backgroundColor: colors.dangerSoft,

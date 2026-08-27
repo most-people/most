@@ -765,7 +765,7 @@
   max-width: 960px;
   margin-top: 24px;
   padding-left: 16px;
-  border-left: 3px solid var(--accent);
+  border-left: 1px solid var(--accent);
   color: var(--text-primary);
   font-size: 18px;
   font-weight: 650;
