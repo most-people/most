@@ -27,7 +27,9 @@ import {
   ArrowLeftRight,
   BookOpen,
   Check,
+  ChevronLeft,
   Files,
+  Languages,
   ListChecks,
   Loader,
   Radio,
@@ -1052,9 +1054,30 @@ function MostBoxApp() {
     setLanguageModalOpen(true)
   }
 
-  const immersiveRoute =
-    (activeTab === 'knowledge' && knowledgeMode === 'edit') ||
-    (activeTab === 'node' && nodeRoute === 'p2pPing')
+  const isKnowledgeChild =
+    activeTab === 'knowledge' && knowledgeMode !== 'browse'
+  const isNodeChild = activeTab === 'node' && nodeRoute === 'p2pPing'
+  const isSecondaryPage = isKnowledgeChild || isNodeChild
+  const hideTabBar =
+    (activeTab === 'knowledge' && knowledgeMode === 'edit') || isNodeChild
+  const headerTitle = isNodeChild
+    ? t('p2pPing.title')
+    : t(TAB_LABEL_KEYS[activeTab])
+  const headerBackLabel = isNodeChild
+    ? t('p2pPing.back')
+    : knowledgeMode === 'edit'
+      ? t('knowledge.editor.back')
+      : t('knowledge.preview.back')
+
+  const handleHeaderBack = () => {
+    if (isNodeChild) {
+      setNodeRoute('status')
+      return
+    }
+    if (isKnowledgeChild) {
+      setKnowledgeBackToken(value => value + 1)
+    }
+  }
 
   if (!startupComplete) {
     return (
@@ -1114,22 +1137,39 @@ function MostBoxApp() {
           barStyle={theme.statusBarStyle}
           backgroundColor={theme.colors.background}
         />
-        {!immersiveRoute ? (
-          <View
-            style={[
-              styles.header,
-              accessibilityLayout ? styles.headerAccessibility : null,
-            ]}
-          >
+        <View
+          style={[
+            styles.header,
+            accessibilityLayout ? styles.headerAccessibility : null,
+          ]}
+        >
+          <View style={styles.headerLeft}>
+            {isSecondaryPage ? (
+              <IconButton
+                accessibilityLabel={headerBackLabel}
+                onPress={handleHeaderBack}
+                style={styles.headerIconButton}
+                variant="ghost"
+              >
+                <ChevronLeft size={22} color={theme.colors.text} />
+              </IconButton>
+            ) : null}
             <Text
               maxFontSizeMultiplier={1.8}
               numberOfLines={1}
               style={styles.mainHeaderTitle}
             >
-              {t(TAB_LABEL_KEYS[activeTab])}
+              {headerTitle}
             </Text>
           </View>
-        ) : null}
+          <IconButton
+            accessibilityLabel={t('common.language.choose')}
+            onPress={openLanguageMenu}
+            style={styles.headerIconButton}
+          >
+            <Languages size={19} color={theme.colors.textSecondary} />
+          </IconButton>
+        </View>
 
         <View style={styles.content}>
           <View
@@ -1201,7 +1241,6 @@ function MostBoxApp() {
               <P2PPingScreen
                 ping={currentSnapshot.p2pPing}
                 ready={isNodeOnline}
-                onBack={() => setNodeRoute('status')}
                 onStart={handleStartP2PPing}
                 onCancel={handleCancelP2PPing}
               />
@@ -1212,7 +1251,6 @@ function MostBoxApp() {
                 retryStartDisabled={isCoreBusy}
                 snapshot={currentSnapshot}
                 onOpenP2PPing={() => setNodeRoute('p2pPing')}
-                onChooseLanguage={openLanguageMenu}
                 onOpenPrivacy={() => openExternalUrl(PRIVACY_URL)}
                 onOpenSupport={() => openExternalUrl(SUPPORT_URL)}
                 onOpenTerms={() => openExternalUrl(TERMS_URL)}
@@ -1222,7 +1260,7 @@ function MostBoxApp() {
           </View>
         </View>
 
-        {!immersiveRoute ? (
+        {!hideTabBar ? (
           <View style={styles.tabBar}>
             <TabButton
               active={activeTab === 'files'}
@@ -1658,7 +1696,9 @@ function createStyles(theme: MostBoxTheme) {
     header: {
       ...getGlassSurfaceStyle(theme, 'subtle'),
       alignItems: 'center',
-      justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 12,
+      justifyContent: 'space-between',
       minHeight: 56,
       paddingHorizontal: 20,
       borderRadius: 0,
@@ -1671,12 +1711,22 @@ function createStyles(theme: MostBoxTheme) {
       minHeight: 64,
       paddingVertical: 10,
     },
+    headerLeft: {
+      alignItems: 'center',
+      flex: 1,
+      flexDirection: 'row',
+      gap: 8,
+      minWidth: 0,
+    },
+    headerIconButton: {
+      height: 40,
+      width: 40,
+    },
     mainHeaderTitle: {
       color: colors.text,
+      flex: 1,
       fontSize: 18,
       fontWeight: '700',
-      textAlign: 'center',
-      width: '100%',
     },
     brandMark: {
       width: 32,

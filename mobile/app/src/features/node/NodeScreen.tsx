@@ -15,7 +15,6 @@ import {
   ExternalLink,
   FileText,
   HardDrive,
-  Languages,
   Radio,
   RadioTower,
   ShieldCheck,
@@ -46,7 +45,6 @@ export type NodeScreenProps = {
   reselectToken: number
   retryStartDisabled: boolean
   snapshot: MobileCoreSnapshot
-  onChooseLanguage: () => void
   onOpenP2PPing: () => void
   onOpenPrivacy: () => void | Promise<void>
   onOpenSupport: () => void | Promise<void>
@@ -133,7 +131,6 @@ export function NodeScreen({
   reselectToken,
   retryStartDisabled,
   snapshot,
-  onChooseLanguage,
   onOpenP2PPing,
   onOpenPrivacy,
   onOpenSupport,
@@ -311,11 +308,6 @@ export function NodeScreen({
           title={t('node.about.title')}
         />
         <View style={styles.linkList}>
-          <LinkRow
-            icon={<Languages size={17} color={theme.colors.accent} />}
-            label={t('common.language.choose')}
-            onPress={onChooseLanguage}
-          />
           <LinkRow
             external
             label={t('node.about.privacy')}

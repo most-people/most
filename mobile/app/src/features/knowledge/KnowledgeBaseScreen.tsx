@@ -21,7 +21,6 @@ import { EnrichedMarkdownText } from 'react-native-enriched-markdown'
 import {
   Bold,
   BookOpen,
-  ChevronLeft,
   ChevronRight,
   Code,
   FileDown,
@@ -754,17 +753,6 @@ export function KnowledgeBaseScreen({
         style={styles.screen}
       >
         <View style={styles.detailHeader}>
-          <Pressable
-            accessibilityLabel={t('knowledge.editor.back')}
-            accessibilityRole="button"
-            onPress={leaveEditor}
-            style={({ pressed }) => [
-              styles.iconButton,
-              pressed ? styles.pressed : null,
-            ]}
-          >
-            <ChevronLeft size={22} color={theme.colors.text} />
-          </Pressable>
           <View style={styles.detailTitleGroup}>
             <Text maxFontSizeMultiplier={1.8} style={styles.detailTitle}>
               {editorOriginalPath
@@ -1011,17 +999,6 @@ export function KnowledgeBaseScreen({
     return (
       <View style={styles.screen}>
         <View style={styles.detailHeader}>
-          <Pressable
-            accessibilityLabel={t('knowledge.preview.back')}
-            accessibilityRole="button"
-            onPress={() => setMode('browse')}
-            style={({ pressed }) => [
-              styles.iconButton,
-              pressed ? styles.pressed : null,
-            ]}
-          >
-            <ChevronLeft size={22} color={theme.colors.text} />
-          </Pressable>
           <View style={styles.detailTitleGroup}>
             <Text
               maxFontSizeMultiplier={1.8}

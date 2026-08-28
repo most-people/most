@@ -12,7 +12,6 @@ import {
   View,
 } from 'react-native'
 import {
-  ArrowLeft,
   Check,
   CircleAlert,
   CircleCheck,
@@ -37,7 +36,6 @@ import { getGlassSurfaceStyle, getToneColor } from '../../ui/components'
 type P2PPingScreenProps = {
   ping: P2PPing | null
   ready: boolean
-  onBack: () => void
   onStart: (role: P2PPingRole, code?: string) => Promise<P2PPing>
   onCancel: (id?: string) => Promise<P2PPing | null>
 }
@@ -73,7 +71,6 @@ function shortKey(value: string | null) {
 export function P2PPingScreen({
   ping,
   ready,
-  onBack,
   onStart,
   onCancel,
 }: P2PPingScreenProps) {
@@ -186,24 +183,6 @@ export function P2PPingScreen({
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
-      <View style={styles.header}>
-        <Pressable
-          accessibilityLabel={t('p2pPing.back')}
-          accessibilityRole="button"
-          onPress={onBack}
-          style={({ pressed }) => [
-            styles.backButton,
-            pressed ? styles.buttonPressed : null,
-          ]}
-        >
-          <ArrowLeft size={22} color={theme.colors.text} />
-        </Pressable>
-        <Text maxFontSizeMultiplier={1.6} style={styles.title}>
-          {t('p2pPing.title')}
-        </Text>
-        <View style={styles.headerSpacer} />
-      </View>
-
       <View accessibilityRole="tablist" style={styles.segmented}>
         {(['host', 'join'] as const).map(item => {
           const selected = role === item
@@ -658,25 +637,6 @@ function createStyles(theme: MostBoxTheme) {
       paddingBottom: 40,
       paddingHorizontal: 20,
       paddingTop: 12,
-    },
-    header: {
-      alignItems: 'center',
-      flexDirection: 'row',
-      minHeight: 44,
-    },
-    backButton: {
-      alignItems: 'center',
-      height: 44,
-      justifyContent: 'center',
-      width: 44,
-    },
-    headerSpacer: { width: 44 },
-    title: {
-      color: colors.text,
-      flex: 1,
-      fontSize: 19,
-      fontWeight: '700',
-      textAlign: 'center',
     },
     segmented: {
       borderWidth: 1,

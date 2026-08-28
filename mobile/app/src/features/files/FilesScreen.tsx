@@ -144,6 +144,11 @@ export function FilesScreen({
 
   const closeDetails = () => setSelectedCid('')
 
+  const requestDelete = (holding: MobileHolding) => {
+    closeDetails()
+    onDeleteHolding(holding)
+  }
+
   return (
     <>
       <ScrollView
@@ -419,6 +424,7 @@ export function FilesScreen({
                         <ExternalLink size={17} color={theme.colors.accent} />
                       }
                       onPress={() => onOpenHolding(selectedHolding)}
+                      style={styles.detailAction}
                     >
                       {t('files.action.open')}
                     </MostButton>
@@ -431,6 +437,7 @@ export function FilesScreen({
                         )
                       }
                       onPress={() => onCopyHoldingLink(selectedHolding)}
+                      style={styles.detailAction}
                     >
                       {t(
                         copiedCid === selectedHolding.cid
@@ -442,6 +449,7 @@ export function FilesScreen({
                       disabled={exportingCid === selectedHolding.cid}
                       icon={<Share2 size={17} color={theme.colors.accent} />}
                       onPress={() => onShareHolding(selectedHolding)}
+                      style={styles.detailAction}
                     >
                       {t('common.share')}
                     </MostButton>
@@ -449,6 +457,7 @@ export function FilesScreen({
                       disabled={exportingCid === selectedHolding.cid}
                       icon={<Save size={17} color={theme.colors.accent} />}
                       onPress={() => onSaveHolding(selectedHolding)}
+                      style={styles.detailAction}
                     >
                       {Platform.OS === 'ios'
                         ? t('node.action.saveToFiles')
@@ -462,7 +471,8 @@ export function FilesScreen({
                       exportingCid === selectedHolding.cid
                     }
                     icon={<Trash2 size={17} color={theme.colors.danger} />}
-                    onPress={() => onDeleteHolding(selectedHolding)}
+                    labelStyle={styles.deleteButtonLabel}
+                    onPress={() => requestDelete(selectedHolding)}
                     style={styles.deleteButton}
                     variant="ghost"
                   >
@@ -670,6 +680,7 @@ function createStyles(theme: MostBoxTheme) {
       borderBottomRightRadius: 0,
       borderRadius: theme.radii.small,
       maxHeight: '88%',
+      maxWidth: '100%',
       padding: 18,
     },
     detailsHeader: {
@@ -760,9 +771,17 @@ function createStyles(theme: MostBoxTheme) {
       flexWrap: 'wrap',
       gap: 10,
     },
+    detailAction: {
+      flexBasis: 120,
+      flexGrow: 1,
+      minWidth: 0,
+    },
     deleteButton: {
       borderColor: theme.colors.danger,
       borderWidth: 1,
+    },
+    deleteButtonLabel: {
+      color: theme.colors.danger,
     },
     pressed: {
       opacity: 0.7,
