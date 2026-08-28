@@ -1266,9 +1266,18 @@ export class MostBoxEngine extends EventEmitter {
       })
     }
 
+    const existingShare = this.#getPublishedBucket(ownerAddress).find(
+      file =>
+        file.libraryVisible === false &&
+        (file.kind || 'file') === 'collection' &&
+        sanitizeFilename(file.fileName || '') === safeFolderPath
+    )
+
     return this.publishCollection(files, safeFolderPath, {
       ownerAddress,
-      addToLibrary: false,
+      addToLibrary: true,
+      libraryVisible: false,
+      replaceCid: existingShare?.cid,
       seedChildFiles: false,
     })
   }
@@ -1277,6 +1286,7 @@ export class MostBoxEngine extends EventEmitter {
     this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
     const addToLibrary = options.addToLibrary !== false
+    const libraryVisible = options.libraryVisible !== false
     const seedChildFiles = options.seedChildFiles !== false
     if (!Array.isArray(files) || files.length === 0) {
       throw new ValidationError('collection files are required')
@@ -1293,6 +1303,15 @@ export class MostBoxEngine extends EventEmitter {
       : []
     const existingIndex = publishedBucket.findIndex(f => f.cid === cidString)
     const repairingMissingContent = existingIndex !== -1
+    const replacementIndex =
+      existingIndex === -1 && options.replaceCid
+        ? publishedBucket.findIndex(f => f.cid === options.replaceCid)
+        : -1
+    const excludedCid = repairingMissingContent
+      ? cidString
+      : replacementIndex !== -1
+        ? options.replaceCid
+        : undefined
 
     if (existingIndex !== -1) {
       const existingContent = await this.#getLocalCidContent(cidString, {
@@ -1329,7 +1348,7 @@ export class MostBoxEngine extends EventEmitter {
     if (addToLibrary) {
       this.#assertDisplayNameAvailable(safeCollectionName, {
         ownerAddress,
-        excludeCid: repairingMissingContent ? cidString : undefined,
+        excludeCid: excludedCid,
       })
     }
 
@@ -1394,10 +1413,13 @@ export class MostBoxEngine extends EventEmitter {
         publishedAt: new Date(now).toISOString(),
         starred: false,
         syncUpdatedAt: now,
+        ...(libraryVisible ? {} : { libraryVisible: false }),
       }
       if (addToLibrary) {
         if (repairingMissingContent) {
           publishedBucket[existingIndex] = fileRecord
+        } else if (replacementIndex !== -1) {
+          publishedBucket[replacementIndex] = fileRecord
         } else {
           publishedBucket.push(fileRecord)
         }
@@ -1420,6 +1442,10 @@ export class MostBoxEngine extends EventEmitter {
         size: directory.totalSize,
         fileCount: directory.files.length,
         files: directory.files,
+      }
+
+      if (replacementIndex !== -1 && options.replaceCid !== cidString) {
+        await this.#cleanupUnreferencedCids(new Set([options.replaceCid]))
       }
 
       this.emit('publish:success', result)
@@ -2173,6 +2199,12 @@ export class MostBoxEngine extends EventEmitter {
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
     let files = this.#getPublishedBucket(ownerAddress)
 
+    files = files.filter(file =>
+      options.hiddenOnly === true
+        ? file.libraryVisible === false
+        : file.libraryVisible !== false
+    )
+
     if (options.starred === true) {
       files = files.filter(f => f.starred === true)
     }
@@ -2199,6 +2231,7 @@ export class MostBoxEngine extends EventEmitter {
         peerCount: runtimeStats.peerCount,
         seedError: seedState?.error,
         holdingSize: Number(holding?.size) || 0,
+        ...(f.libraryVisible === false ? { folderShare: true } : {}),
       }
     })
   }
@@ -2227,6 +2260,13 @@ export class MostBoxEngine extends EventEmitter {
         }
       })
     )
+  }
+
+  async listFolderSharesWithAvailability(options = {}) {
+    return this.listPublishedFilesWithAvailability({
+      ...options,
+      hiddenOnly: true,
+    })
   }
 
   /**
@@ -5418,6 +5458,7 @@ export class MostBoxEngine extends EventEmitter {
           : new Date(updatedAt).toISOString(),
       starred: Boolean(file.starred),
       updatedAt,
+      ...(file.libraryVisible === false ? { libraryVisible: false } : {}),
     }
     if (file.kind === 'collection') {
       record.kind = 'collection'
@@ -5543,6 +5584,7 @@ export class MostBoxEngine extends EventEmitter {
           : new Date(updatedAt).toISOString(),
       starred: Boolean(record.starred),
       updatedAt,
+      ...(record.libraryVisible === false ? { libraryVisible: false } : {}),
     }
     if (record.kind === 'collection') {
       normalized.kind = 'collection'
@@ -5594,6 +5636,7 @@ export class MostBoxEngine extends EventEmitter {
       publishedAt: normalized.publishedAt,
       starred: normalized.starred,
       syncUpdatedAt: normalized.updatedAt,
+      ...(normalized.libraryVisible === false ? { libraryVisible: false } : {}),
     }
     if (normalized.kind === 'collection') {
       nextRecord.kind = 'collection'

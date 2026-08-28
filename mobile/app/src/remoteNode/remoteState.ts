@@ -60,6 +60,7 @@ export function normalizeRemoteHolding(value: unknown): MobileHolding | null {
     cid,
     fileName,
     kind,
+    ...(record.folderShare === true ? { folderShare: true } : {}),
     ...(kind === 'collection'
       ? {
           fileCount: readNumber(record, 'fileCount'),

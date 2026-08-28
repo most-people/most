@@ -133,6 +133,16 @@ export const appMessages = {
     'zh-TW': '不支援此檔案',
     en: 'Unsupported file',
   },
+  'app.file.previewLoading': {
+    'zh-CN': '正在加载预览',
+    'zh-TW': '正在載入預覽',
+    en: 'Loading preview',
+  },
+  'app.file.previewFailed': {
+    'zh-CN': '无法显示文件预览',
+    'zh-TW': '無法顯示檔案預覽',
+    en: 'Could not display the file preview',
+  },
   'app.file.blockedExecutable': {
     'zh-CN': '当前商店版本不接收应用安装包、脚本或其他可执行文件。',
     'zh-TW': '目前商店版本不接收應用程式安裝包、指令碼或其他可執行檔。',

@@ -526,6 +526,7 @@ const schemas = {
       link: { type: 'string' },
       path: { type: 'string' },
       kind: { type: 'string', enum: ['file', 'collection'] },
+      folderShare: { type: 'boolean' },
       source: { type: 'string', enum: ['published', 'downloaded'] },
       starred: { type: 'boolean' },
       localAvailable: { type: 'boolean' },
@@ -1569,6 +1570,23 @@ export function createOpenApiSpec({
               ),
             },
             [400, 401, 403, 413, 429, 500]
+          ),
+        }),
+      },
+      '/api/folder/shares': {
+        get: operation({
+          tag: 'Files',
+          operationId: 'listFolderShares',
+          summary: 'List folder shares for the authenticated user',
+          security: signedSecurity,
+          responses: responses(
+            {
+              200: jsonResponse('Folder share list', {
+                type: 'array',
+                items: ref('PublishedFile'),
+              }),
+            },
+            [401, 403, 429, 500]
           ),
         }),
       },

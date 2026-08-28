@@ -539,6 +539,11 @@ export const nodeMessages = {
     'zh-TW': '分享資料夾 {name}',
     en: 'Share folder {name}',
   },
+  'files.folder.shareDetailsLabel': {
+    'zh-CN': '管理文件夹 {name} 的分享',
+    'zh-TW': '管理資料夾 {name} 的分享',
+    en: 'Manage the share for folder {name}',
+  },
   'files.folder.shared': {
     'zh-CN': '文件夹分享链接已复制',
     'zh-TW': '資料夾分享連結已複製',

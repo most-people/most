@@ -121,6 +121,22 @@ function getSafeExportName(input: string, fallback: string) {
   return value || fallback
 }
 
+function downloadWebTextFile(content: string, fileName: string) {
+  if (typeof document === 'undefined') {
+    throw new Error('Browser file actions are unavailable')
+  }
+  const fileUri = URL.createObjectURL(
+    new Blob([content], { type: 'text/plain;charset=utf-8' })
+  )
+  const link = document.createElement('a')
+  link.href = fileUri
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  setTimeout(() => URL.revokeObjectURL(fileUri), 1_000)
+}
+
 function getCurrentItems(
   notes: MobileKnowledgeNote[],
   directory: string,
@@ -182,6 +198,7 @@ export function KnowledgeBaseScreen({
   const accessibilityLayout = usesAccessibilityLayout(fontScale)
   const repositoryRef = useRef<KnowledgeRepository | null>(null)
   const browserScrollRef = useRef<ScrollView>(null)
+  const handledBackRequestTokenRef = useRef(0)
   const [notes, setNotes] = useState<MobileKnowledgeNote[]>([])
   const [mode, setMode] = useState<ScreenMode>('browse')
   const [editorView, setEditorView] = useState<EditorView>('edit')
@@ -338,6 +355,8 @@ export function KnowledgeBaseScreen({
 
   useEffect(() => {
     if (backRequestToken <= 0) return
+    if (handledBackRequestTokenRef.current === backRequestToken) return
+    handledBackRequestTokenRef.current = backRequestToken
     if (mode === 'edit') {
       leaveEditor()
       return
@@ -472,15 +491,19 @@ export function KnowledgeBaseScreen({
   }
 
   async function exportNote(note: MobileKnowledgeNote) {
-    if (!FileSystem.cacheDirectory) {
-      throw new Error(t('knowledge.temp.unavailable'))
-    }
     setWorking(true)
     try {
       const fileName = getSafeExportName(
         getKnowledgeNoteBackupFileName(note.name),
         'note.txt'
       )
+      if (Platform.OS === 'web') {
+        downloadWebTextFile(note.content, fileName)
+        return
+      }
+      if (!FileSystem.cacheDirectory) {
+        throw new Error(t('knowledge.temp.unavailable'))
+      }
       const target = `${FileSystem.cacheDirectory}${encodeURIComponent(fileName)}`
       await FileSystem.writeAsStringAsync(target, note.content, {
         encoding: FileSystem.EncodingType.UTF8,
@@ -540,9 +563,12 @@ export function KnowledgeBaseScreen({
         currentDirectory,
         file.name
       )
-      const content = await FileSystem.readAsStringAsync(file.uri, {
-        encoding: FileSystem.EncodingType.UTF8,
-      })
+      const content =
+        Platform.OS === 'web' && file.file
+          ? await file.file.text()
+          : await FileSystem.readAsStringAsync(file.uri, {
+              encoding: FileSystem.EncodingType.UTF8,
+            })
       const conflict = notes.some(
         note => note.path.toLowerCase() === targetPath.toLowerCase()
       )

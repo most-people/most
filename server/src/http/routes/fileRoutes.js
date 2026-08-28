@@ -98,6 +98,14 @@ export function registerFileRoutes(
     )
   })
 
+  app.get('/api/folder/shares', async c => {
+    return c.json(
+      await engine.listFolderSharesWithAvailability({
+        ownerAddress: c.get('userAddress'),
+      })
+    )
+  })
+
   app.post('/api/publish', async c => {
     const req = c.env.incoming
     let result

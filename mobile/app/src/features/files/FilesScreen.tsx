@@ -133,11 +133,20 @@ export function FilesScreen({
   const theme = useMostBoxTheme()
   const styles = fileStyles[theme.mode]
   const scrollRef = useRef<ScrollView | null>(null)
+  const handledDetailRequestTokenRef = useRef(0)
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<FileFilter>('all')
   const [currentPath, setCurrentPath] = useState('')
   const [selectedCid, setSelectedCid] = useState('')
   const isRemote = snapshot.node.mode === 'remote'
+  const libraryHoldings = useMemo(
+    () => snapshot.holdings.filter(holding => !holding.folderShare),
+    [snapshot.holdings]
+  )
+  const folderShares = useMemo(
+    () => snapshot.holdings.filter(holding => holding.folderShare),
+    [snapshot.holdings]
+  )
 
   useEffect(() => {
     if (reselectToken > 0) {
@@ -146,12 +155,12 @@ export function FilesScreen({
   }, [reselectToken])
 
   useEffect(() => {
-    if (
-      detailRequest &&
-      snapshot.holdings.some(item => item.cid === detailRequest.cid)
-    ) {
-      setSelectedCid(detailRequest.cid)
-    }
+    if (!detailRequest) return
+    if (handledDetailRequestTokenRef.current === detailRequest.token) return
+    if (!snapshot.holdings.some(item => item.cid === detailRequest.cid)) return
+
+    handledDetailRequestTokenRef.current = detailRequest.token
+    setSelectedCid(detailRequest.cid)
   }, [detailRequest, snapshot.holdings])
 
   const selectedHolding = useMemo(
@@ -162,16 +171,16 @@ export function FilesScreen({
     isRemote && selectedHolding?.localAvailable === false
   const selectedFileIsCollection = selectedHolding?.kind === 'collection'
   const allFolders = useMemo(
-    () => getFileFolders(snapshot.holdings),
-    [snapshot.holdings]
+    () => getFileFolders(libraryHoldings),
+    [libraryHoldings]
   )
   const currentFolders = useMemo(
     () => getChildFolders(allFolders, currentPath),
     [allFolders, currentPath]
   )
   const filteredHoldings = useMemo(
-    () => filterHoldings(snapshot.holdings, query, isRemote ? 'all' : filter),
-    [filter, isRemote, query, snapshot.holdings]
+    () => filterHoldings(libraryHoldings, query, isRemote ? 'all' : filter),
+    [filter, isRemote, libraryHoldings, query]
   )
   const visibleHoldings = useMemo(
     () =>
@@ -187,6 +196,24 @@ export function FilesScreen({
       folder.name.toLocaleLowerCase().includes(normalizedQuery)
     )
   }, [currentFolders, query])
+  const folderSharesByPath = useMemo(
+    () => new Map(folderShares.map(holding => [holding.fileName, holding])),
+    [folderShares]
+  )
+  const orphanFolderShares = useMemo(() => {
+    if (currentPath) return []
+    const normalizedQuery = query.trim().toLocaleLowerCase()
+    return folderShares.filter(
+      holding =>
+        !allFolders.includes(holding.fileName) &&
+        (!normalizedQuery ||
+          holding.fileName.toLocaleLowerCase().includes(normalizedQuery))
+    )
+  }, [allFolders, currentPath, folderShares, query])
+  const displayedHoldings = useMemo(
+    () => [...visibleHoldings, ...orphanFolderShares],
+    [orphanFolderShares, visibleHoldings]
+  )
   const breadcrumbs = useMemo(
     () => getFileBreadcrumbs(currentPath, t('files.section.library')),
     [currentPath, t]
@@ -237,10 +264,12 @@ export function FilesScreen({
         <View
           style={[
             styles.section,
-            snapshot.holdings.length === 0 ? styles.emptyFilesSection : null,
+            libraryHoldings.length + folderShares.length === 0
+              ? styles.emptyFilesSection
+              : null,
           ]}
         >
-          {snapshot.holdings.length ? (
+          {libraryHoldings.length + folderShares.length ? (
             <View style={styles.finder}>
               <View style={styles.searchRow}>
                 <View style={styles.searchBox}>
@@ -347,69 +376,67 @@ export function FilesScreen({
             </ScrollView>
           ) : null}
 
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionTitleGroup}>
-              {isRemote ? (
-                <Files size={18} color={theme.colors.accent} />
-              ) : (
-                <Wifi size={18} color={theme.colors.accent} />
-              )}
-              <Text style={styles.sectionTitle}>
-                {t(isRemote ? 'files.section.library' : 'node.section.seeding')}
-              </Text>
-            </View>
-            <Text style={styles.sectionMeta}>
-              {t(
-                visibleHoldings.length + visibleFolders.length === 1
-                  ? 'files.entryCount.one'
-                  : 'files.entryCount',
-                { count: visibleHoldings.length + visibleFolders.length }
-              )}
-            </Text>
-          </View>
-
-          {visibleHoldings.length || visibleFolders.length ? (
+          {displayedHoldings.length || visibleFolders.length ? (
             <View style={styles.fileList}>
-              {visibleFolders.map(folder => (
-                <View key={folder.path} style={styles.fileRow}>
-                  <Pressable
-                    accessibilityHint={t('files.folder.openHint')}
-                    accessibilityRole="button"
-                    onPress={() => setCurrentPath(folder.path)}
-                    style={({ pressed }) => [
-                      styles.folderPressTarget,
-                      pressed ? styles.pressed : null,
-                    ]}
-                  >
-                    <View style={styles.folderIcon}>
-                      <Folder size={21} color={theme.colors.accent} />
-                    </View>
-                    <View style={styles.fileMain}>
-                      <Text numberOfLines={2} style={styles.fileName}>
-                        {folder.name}
-                      </Text>
-                      <Text style={styles.fileMeta}>
-                        {t('files.folder.type')}
-                      </Text>
-                    </View>
-                    <ChevronRight size={18} color={theme.colors.textMuted} />
-                  </Pressable>
-                  {isRemote ? (
-                    <IconButton
-                      accessibilityLabel={t('files.folder.shareLabel', {
-                        name: folder.name,
-                      })}
-                      disabled={sharingFolderPath === folder.path}
-                      onPress={() => onShareFolder(folder)}
-                      style={styles.folderShareButton}
-                      variant="ghost"
+              {visibleFolders.map(folder => {
+                const folderShare = folderSharesByPath.get(folder.path)
+                return (
+                  <View key={folder.path} style={styles.fileRow}>
+                    <Pressable
+                      accessibilityHint={t('files.folder.openHint')}
+                      accessibilityRole="button"
+                      onPress={() => setCurrentPath(folder.path)}
+                      style={({ pressed }) => [
+                        styles.folderPressTarget,
+                        pressed ? styles.pressed : null,
+                      ]}
                     >
-                      <Share2 size={17} color={theme.colors.accent} />
-                    </IconButton>
-                  ) : null}
-                </View>
-              ))}
-              {visibleHoldings.map(holding => (
+                      <View style={styles.folderIcon}>
+                        <Folder size={21} color={theme.colors.accent} />
+                      </View>
+                      <View style={styles.fileMain}>
+                        <Text numberOfLines={2} style={styles.fileName}>
+                          {folder.name}
+                        </Text>
+                        <Text style={styles.fileMeta}>
+                          {t('files.folder.type')}
+                        </Text>
+                      </View>
+                      <ChevronRight size={18} color={theme.colors.textMuted} />
+                    </Pressable>
+                    {isRemote ? (
+                      <IconButton
+                        accessibilityLabel={t('files.folder.shareLabel', {
+                          name: folder.name,
+                        })}
+                        disabled={sharingFolderPath === folder.path}
+                        onPress={() => onShareFolder(folder)}
+                        style={styles.folderActionButton}
+                        variant="ghost"
+                      >
+                        <Share2 size={17} color={theme.colors.accent} />
+                      </IconButton>
+                    ) : null}
+                    {folderShare ? (
+                      <IconButton
+                        accessibilityLabel={t(
+                          'files.folder.shareDetailsLabel',
+                          { name: folder.name }
+                        )}
+                        onPress={() => setSelectedCid(folderShare.cid)}
+                        style={styles.folderActionButton}
+                        variant="ghost"
+                      >
+                        <MoreHorizontal
+                          size={18}
+                          color={theme.colors.textMuted}
+                        />
+                      </IconButton>
+                    ) : null}
+                  </View>
+                )
+              })}
+              {displayedHoldings.map(holding => (
                 <Pressable
                   accessibilityHint={t('files.details.hint')}
                   accessibilityRole="button"
@@ -454,14 +481,14 @@ export function FilesScreen({
             </View>
           ) : (
             <View style={styles.emptyState}>
-              {snapshot.holdings.length ? (
+              {libraryHoldings.length + folderShares.length ? (
                 <Search size={28} color={theme.colors.textMuted} />
               ) : (
                 <HardDriveDownload size={28} color={theme.colors.textMuted} />
               )}
               <Text style={styles.emptyTitle}>
                 {t(
-                  snapshot.holdings.length
+                  libraryHoldings.length + folderShares.length
                     ? 'files.empty.searchTitle'
                     : isRemote
                       ? 'files.empty.libraryTitle'
@@ -470,7 +497,7 @@ export function FilesScreen({
               </Text>
               <Text style={styles.emptyBody}>
                 {t(
-                  snapshot.holdings.length
+                  libraryHoldings.length + folderShares.length
                     ? 'files.empty.searchBody'
                     : isRemote
                       ? 'files.empty.libraryBody'
@@ -836,30 +863,6 @@ function createStyles(theme: MostBoxTheme) {
     filterTextActive: {
       color: colors.accent,
     },
-    sectionHeader: {
-      alignItems: 'center',
-      flexDirection: 'row',
-      gap: 12,
-      justifyContent: 'space-between',
-      minHeight: 32,
-    },
-    sectionTitleGroup: {
-      alignItems: 'center',
-      flex: 1,
-      flexDirection: 'row',
-      gap: 9,
-    },
-    sectionTitle: {
-      color: colors.text,
-      flex: 1,
-      fontSize: 15,
-      fontWeight: '700',
-    },
-    sectionMeta: {
-      color: colors.textSecondary,
-      fontSize: 12,
-      fontWeight: '500',
-    },
     fileList: {
       gap: 10,
     },
@@ -897,7 +900,7 @@ function createStyles(theme: MostBoxTheme) {
       gap: 10,
       minWidth: 0,
     },
-    folderShareButton: {
+    folderActionButton: {
       borderWidth: 0,
       height: 42,
       width: 42,

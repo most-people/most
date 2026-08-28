@@ -590,11 +590,11 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
           )
           .map(([, operation]) => operation)
       )
-      assert.strictEqual(documentedOperations.length, 47)
+      assert.strictEqual(documentedOperations.length, 48)
       assert.strictEqual(
         new Set(documentedOperations.map(operation => operation.operationId))
           .size,
-        47
+        48
       )
       assert.ok(
         documentedOperations.every(
@@ -776,10 +776,12 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
 
   describe('GET /api/files', () => {
     it('requires login for file APIs', async () => {
-      const res = await fetchWithoutAuth(`${baseUrl}/api/files`)
-      const data = await res.json()
-      assert.strictEqual(res.status, 401)
-      assert.strictEqual(data.code, 'LOGIN_REQUIRED')
+      for (const pathname of ['/api/files', '/api/folder/shares']) {
+        const res = await fetchWithoutAuth(`${baseUrl}${pathname}`)
+        const data = await res.json()
+        assert.strictEqual(res.status, 401)
+        assert.strictEqual(data.code, 'LOGIN_REQUIRED')
+      }
     })
 
     it('returns empty array initially', async () => {
@@ -987,6 +989,16 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(publishData.kind, 'collection')
       assert.strictEqual(publishData.fileName, 'Show')
       assert.strictEqual(publishData.fileCount, 2)
+
+      const folderSharesRes = await fetch(`${baseUrl}/api/folder/shares`)
+      const folderShares = await folderSharesRes.json()
+
+      assert.strictEqual(folderSharesRes.status, 200)
+      assert.ok(
+        folderShares.some(
+          file => file.cid === publishData.cid && file.folderShare === true
+        )
+      )
 
       const collectionRes = await fetch(
         `${baseUrl}/api/collections/${publishData.cid}`

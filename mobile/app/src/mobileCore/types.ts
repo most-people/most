@@ -89,6 +89,7 @@ export type MobileHolding = {
   cid: string
   fileName: string
   kind?: 'file' | 'collection'
+  folderShare?: boolean
   fileCount?: number
   size: number
   status: SeedStatus
@@ -183,6 +184,7 @@ export type CancelDownloadResult = {
 export type ExportHoldingInput = {
   cid: string
   fileName?: string
+  mimeType?: string
 }
 
 export type DeleteHoldingInput = {

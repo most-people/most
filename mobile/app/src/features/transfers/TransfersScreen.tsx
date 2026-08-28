@@ -174,11 +174,14 @@ export function TransfersScreen({
               return (
                 <Pressable
                   accessibilityRole={canOpen ? 'button' : undefined}
-                  disabled={!canOpen}
                   key={transfer.id}
-                  onPress={() => {
-                    if (holding) void onOpenHolding(holding)
-                  }}
+                  onPress={
+                    canOpen
+                      ? () => {
+                          if (holding) void onOpenHolding(holding)
+                        }
+                      : undefined
+                  }
                   style={({ pressed }) => [
                     styles.transferItem,
                     pressed ? styles.pressed : null,
@@ -241,6 +244,7 @@ export function TransfersScreen({
                         )
                       }
                       onPress={() => onCancelDownload(transfer)}
+                      labelStyle={styles.cancelButtonLabel}
                       style={styles.cancelButton}
                       variant="ghost"
                     >
@@ -272,7 +276,7 @@ export function TransfersScreen({
                               size={16}
                               color={
                                 isReady
-                                  ? theme.colors.accent
+                                  ? theme.colors.textSecondary
                                   : theme.colors.textMuted
                               }
                             />
@@ -440,6 +444,9 @@ function createStyles(theme: MostBoxTheme) {
       borderColor: colors.danger,
       borderWidth: 1,
       minHeight: 40,
+    },
+    cancelButtonLabel: {
+      color: colors.danger,
     },
     failureActions: {
       flexDirection: 'row',

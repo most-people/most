@@ -824,6 +824,15 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
       assert.ok(holdings.some(holding => holding.cid === result.cid))
       assert.ok(holdings.some(holding => holding.cid === first.cid))
       assert.ok(holdings.some(holding => holding.cid === second.cid))
+      assert.ok(
+        !engine.listPublishedFiles().some(file => file.cid === result.cid)
+      )
+
+      const folderShares = await engine.listFolderSharesWithAvailability()
+      assert.strictEqual(folderShares.length, 1)
+      assert.strictEqual(folderShares[0].cid, result.cid)
+      assert.strictEqual(folderShares[0].folderShare, true)
+      assert.strictEqual(folderShares[0].localAvailable, true)
 
       const collection = await engine.getCollection(result.cid)
       assert.ok(collection.files.every(file => file.localAvailable === true))

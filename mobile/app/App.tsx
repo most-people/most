@@ -38,6 +38,10 @@ import {
 } from 'lucide-react-native'
 import { FilesScreen } from './src/features/files/FilesScreen'
 import {
+  WebFilePreview,
+  type WebFilePreviewFile,
+} from './src/features/files/WebFilePreview'
+import {
   getFolderShareState,
   normalizeFileDisplayPath,
   type FileFolder,
@@ -257,6 +261,8 @@ function MostBoxApp() {
   const [knowledgeDirty, setKnowledgeDirty] = useState(false)
   const [knowledgeBackupWorking, setKnowledgeBackupWorking] = useState(false)
   const [exportingCid, setExportingCid] = useState<string | null>(null)
+  const [webFilePreview, setWebFilePreview] =
+    useState<WebFilePreviewFile | null>(null)
   const [deletingCid, setDeletingCid] = useState<string | null>(null)
   const [copiedCid, setCopiedCid] = useState<string | null>(null)
   const [holdingDetailRequest, setHoldingDetailRequest] = useState<{
@@ -820,16 +826,18 @@ function MostBoxApp() {
   }
 
   const prepareHoldingFile = async (holding: MobileHolding) => {
+    const mimeType = getMimeType(holding.fileName)
     const exported = await core.exportHolding({
       cid: holding.cid,
       fileName: holding.fileName,
+      mimeType,
     })
     const fileUri = toFileUri(exported.filePath)
     if (Platform.OS === 'web') {
       return {
         ...exported,
         fileUri,
-        mimeType: getMimeType(exported.fileName),
+        mimeType,
       }
     }
     const info = await FileSystem.getInfoAsync(fileUri)
@@ -872,7 +880,11 @@ function MostBoxApp() {
     try {
       const exported = await prepareHoldingFile(holding)
       if (Platform.OS === 'web') {
-        triggerWebFile(exported.fileUri, exported.fileName, true)
+        setWebFilePreview({
+          fileName: exported.fileName,
+          fileUri: exported.fileUri,
+          mimeType: exported.mimeType,
+        })
         return
       }
       if (Platform.OS === 'android') {
@@ -955,6 +967,13 @@ function MostBoxApp() {
     } finally {
       setExportingCid(null)
     }
+  }
+
+  const closeWebFilePreview = () => {
+    if (webFilePreview?.fileUri.startsWith('blob:')) {
+      URL.revokeObjectURL(webFilePreview.fileUri)
+    }
+    setWebFilePreview(null)
   }
 
   const handleOpenKnowledgeLink = async (link: string) => {
@@ -1397,6 +1416,8 @@ function MostBoxApp() {
             />
           </View>
         ) : null}
+
+        <WebFilePreview file={webFilePreview} onClose={closeWebFilePreview} />
 
         <Modal
           animationType="fade"

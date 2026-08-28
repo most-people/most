@@ -307,6 +307,7 @@ export class RemoteMostBoxCore implements MostBoxMobileCore {
         'REMOTE_INVALID_RESPONSE'
       )
     }
+    await this.#refreshFiles()
     return {
       cid,
       fileName,
@@ -422,7 +423,7 @@ export class RemoteMostBoxCore implements MostBoxMobileCore {
         )
       }
       const blob = new Blob([bytes], {
-        type: 'application/octet-stream',
+        type: input.mimeType || 'application/octet-stream',
       })
       return {
         filePath: URL.createObjectURL(blob),
@@ -606,8 +607,21 @@ export class RemoteMostBoxCore implements MostBoxMobileCore {
 
   async #refreshFiles() {
     if (!this.#identity) return
-    const response = await this.#requestJson('GET', '/api/files')
-    const values = Array.isArray(response) ? response : []
+    const [filesResponse, folderSharesResponse] = await Promise.all([
+      this.#requestJson('GET', '/api/files'),
+      this.#requestJson('GET', '/api/folder/shares').catch(error => {
+        const code =
+          error && typeof error === 'object' && 'code' in error
+            ? String(error.code || '')
+            : ''
+        if (code === 'HTTP_404') return []
+        throw error
+      }),
+    ])
+    const values = [
+      ...(Array.isArray(filesResponse) ? filesResponse : []),
+      ...(Array.isArray(folderSharesResponse) ? folderSharesResponse : []),
+    ]
     this.#snapshot.holdings = values
       .map(normalizeRemoteHolding)
       .filter((holding): holding is MobileHolding => holding !== null)
