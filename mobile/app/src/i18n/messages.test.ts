@@ -34,4 +34,13 @@ test('message interpolation uses the selected locale', () => {
 test('simplified Chinese remains the default presentation locale', () => {
   assert.equal(translateMessage('nav.knowledge'), '知识库')
   assert.equal(translateMessage('node.knowledge.restore'), '还原')
+  assert.equal(translateMessage('node.seed.queued'), '队列中')
+  assert.equal(translateMessage('node.seed.error'), '错误')
+  assert.equal(translateMessage('files.section.library'), '文件库')
+  assert.equal(
+    translateMessage('files.action.downloadToLibrary'),
+    '下载到文件库'
+  )
+  assert.equal(translateMessage('files.folder.type'), '文件夹')
+  assert.equal(translateMessage('node.metric.remoteFiles'), '远程文件')
 })

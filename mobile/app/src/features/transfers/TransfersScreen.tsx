@@ -38,6 +38,7 @@ type ProgressWidthStyles = Record<ProgressWidthName, ViewStyle>
 
 export type TransfersScreenProps = {
   snapshot: MobileCoreSnapshot
+  isReady: boolean
   retryingTransferId: string | null
   cancellingCid: string | null
   reselectToken: number
@@ -71,6 +72,7 @@ function getProgressWidthStyle(progress: number) {
 
 export function TransfersScreen({
   snapshot,
+  isReady,
   retryingTransferId,
   cancellingCid,
   reselectToken,
@@ -261,12 +263,19 @@ export function TransfersScreen({
                         {t('node.transfer.errorDetails')}
                       </MostButton>
                       <MostButton
-                        disabled={retrying}
+                        disabled={retrying || !isReady}
                         icon={
                           retrying ? (
                             <Loader size={16} color={theme.colors.textMuted} />
                           ) : (
-                            <RotateCcw size={16} color={theme.colors.accent} />
+                            <RotateCcw
+                              size={16}
+                              color={
+                                isReady
+                                  ? theme.colors.accent
+                                  : theme.colors.textMuted
+                              }
+                            />
                           )
                         }
                         onPress={() => onRetryTransfer(transfer)}

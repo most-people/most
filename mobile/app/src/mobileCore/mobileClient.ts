@@ -11,6 +11,7 @@ import type {
   MostBoxMobileCore,
   PublishFileInput,
   RemoteNodeConfig,
+  ShareFolderInput,
   StartP2PPingInput,
 } from './types'
 import { BareWorkletMostBoxCore } from './workletClient'
@@ -204,6 +205,10 @@ export class MobileNodeClient implements MostBoxMobileClient {
 
   publishFile(input: PublishFileInput) {
     return this.#active.publishFile(input)
+  }
+
+  shareFolder(input: ShareFolderInput) {
+    return this.#active.shareFolder(input)
   }
 
   downloadLink(input: DownloadLinkInput) {

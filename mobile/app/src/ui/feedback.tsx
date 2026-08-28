@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { CircleAlert, CircleCheck, Info, X } from 'lucide-react-native'
 import { useI18n } from '../i18n'
 import {
@@ -17,6 +17,7 @@ import {
   useMostBoxTheme,
 } from './theme'
 import { BottomSheetCard, IconButton } from './components'
+import { FeedbackLayer } from './FeedbackLayer'
 import { runFeedbackAction } from './feedbackModel'
 
 export type FeedbackButton = {
@@ -144,12 +145,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     <FeedbackContext.Provider value={{ alert, toast }}>
       {children}
 
-      <Modal
-        animationType="fade"
-        onRequestClose={dismissDialog}
-        transparent
-        visible={Boolean(dialog)}
-      >
+      <FeedbackLayer onRequestClose={dismissDialog} visible={Boolean(dialog)}>
         <View style={styles.overlay}>
           <Pressable
             accessibilityLabel={t('common.close')}
@@ -211,7 +207,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
             </View>
           </BottomSheetCard>
         </View>
-      </Modal>
+      </FeedbackLayer>
 
       {toastState ? (
         <View accessibilityLiveRegion="polite" style={styles.toastWrap}>

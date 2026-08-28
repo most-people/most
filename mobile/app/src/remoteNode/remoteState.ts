@@ -52,13 +52,19 @@ export function normalizeRemoteHolding(value: unknown): MobileHolding | null {
   const record = asRecord(value)
   const cid = readString(record, 'cid')
   const fileName = readString(record, 'fileName')
-  if (!cid || !fileName || readString(record, 'kind') === 'collection') {
-    return null
-  }
+  if (!cid || !fileName) return null
   const seedStatus = readString(record, 'seedStatus')
+  const kind =
+    readString(record, 'kind') === 'collection' ? 'collection' : 'file'
   return {
     cid,
     fileName,
+    kind,
+    ...(kind === 'collection'
+      ? {
+          fileCount: readNumber(record, 'fileCount'),
+        }
+      : {}),
     size: readNumber(record, 'size') || readNumber(record, 'holdingSize'),
     status:
       seedStatus === 'queued' ||
@@ -75,6 +81,9 @@ export function normalizeRemoteHolding(value: unknown): MobileHolding | null {
         ? 'downloaded'
         : 'published',
     shareLink: readString(record, 'link') || buildMostLink(cid, fileName),
+    ...(typeof record.localAvailable === 'boolean'
+      ? { localAvailable: record.localAvailable }
+      : {}),
   }
 }
 

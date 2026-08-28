@@ -14,33 +14,63 @@ test('maps remote single-file state into the mobile holding model', () => {
     normalizeRemoteHolding({
       cid: CID,
       fileName: 'report.txt',
+      kind: 'file',
       size: 42,
       source: 'downloaded',
       seedStatus: 'active',
       joined: true,
       peerCount: 3,
+      localAvailable: true,
     }),
     {
       cid: CID,
       fileName: 'report.txt',
+      kind: 'file',
       size: 42,
       source: 'downloaded',
       status: 'active',
       topicJoined: true,
       peerCount: 3,
       shareLink: `most://${CID}?filename=report.txt`,
+      localAvailable: true,
     }
   )
 })
 
-test('ignores directory collections and maps active remote downloads', () => {
+test('preserves missing local content state for remote library files', () => {
   assert.equal(
+    normalizeRemoteHolding({
+      cid: CID,
+      fileName: 'report.txt',
+      localAvailable: false,
+    })?.localAvailable,
+    false
+  )
+})
+
+test('maps directory collections and active remote downloads', () => {
+  assert.deepEqual(
     normalizeRemoteHolding({
       cid: CID,
       fileName: 'folder',
       kind: 'collection',
+      fileCount: 3,
+      size: 64,
+      localAvailable: false,
     }),
-    null
+    {
+      cid: CID,
+      fileCount: 3,
+      fileName: 'folder',
+      kind: 'collection',
+      localAvailable: false,
+      peerCount: 0,
+      shareLink: `most://${CID}?filename=folder`,
+      size: 64,
+      source: 'published',
+      status: 'queued',
+      topicJoined: false,
+    }
   )
   assert.deepEqual(
     normalizeRemoteDownloadTask({

@@ -2,7 +2,7 @@ import * as FileSystem from 'expo-file-system/legacy'
 import b4a from 'b4a'
 import { Platform } from 'react-native'
 import { calculateUnixfsCidFromContent } from '../mobileCore/cid'
-import { parseMostLink } from '../mobileCore/protocol'
+import { buildMostLink, parseMostLink } from '../mobileCore/protocol'
 import type {
   CancelDownloadInput,
   CancelDownloadResult,
@@ -21,6 +21,8 @@ import type {
   MostBoxMobileCore,
   PublishFileInput,
   P2PPing,
+  ShareFolderInput,
+  ShareFolderResult,
   StartP2PPingInput,
 } from '../mobileCore/types'
 import {
@@ -287,6 +289,28 @@ export class RemoteMostBoxCore implements MostBoxMobileCore {
         error instanceof Error ? error.message : 'Publish failed'
       this.#emit()
       throw error
+    }
+  }
+
+  async shareFolder(input: ShareFolderInput): Promise<ShareFolderResult> {
+    await this.#ensureAuthenticated()
+    const result = asRecord(
+      await this.#requestJson('POST', '/api/folder/share', {
+        path: input.path,
+      })
+    )
+    const cid = readString(result, 'cid')
+    const fileName = readString(result, 'fileName')
+    if (!cid || !fileName) {
+      throw createRemoteError(
+        'Remote node returned an invalid folder share',
+        'REMOTE_INVALID_RESPONSE'
+      )
+    }
+    return {
+      cid,
+      fileName,
+      link: readString(result, 'link') || buildMostLink(cid, fileName),
     }
   }
 

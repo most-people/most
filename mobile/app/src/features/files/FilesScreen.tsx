@@ -12,11 +12,14 @@ import {
 import {
   CircleAlert,
   CircleCheck,
+  ChevronRight,
   Copy,
   Download,
   ExternalLink,
   FileCheck,
   Filter,
+  Files,
+  Folder,
   HardDriveDownload,
   MoreHorizontal,
   Save,
@@ -47,7 +50,16 @@ import {
   type MostBoxTheme,
   useMostBoxTheme,
 } from '../../ui/theme'
-import { filterHoldings, type FileFilter } from './filesModel'
+import {
+  filterHoldings,
+  getChildFolders,
+  getFileBreadcrumbs,
+  getFileFolders,
+  getHoldingsForPath,
+  parseFileDisplayPath,
+  type FileFilter,
+  type FileFolder,
+} from './filesModel'
 
 export type FilesScreenProps = {
   detailRequest: { cid: string; token: number } | null
@@ -56,12 +68,16 @@ export type FilesScreenProps = {
   deletingCid: string | null
   exportingCid: string | null
   actionDisabled: boolean
+  receiveDisabled: boolean
+  sharingFolderPath: string | null
   reselectToken: number
-  onPublishFile: () => void | Promise<void>
+  onPublishFile: (targetPath?: string) => void | Promise<void>
   onReceiveLink: () => void
   onOpenHolding: (holding: MobileHolding) => void | Promise<void>
   onCopyHoldingLink: (holding: MobileHolding) => void | Promise<void>
   onDeleteHolding: (holding: MobileHolding) => void
+  onDownloadHolding: (holding: MobileHolding) => void
+  onShareFolder: (folder: FileFolder) => void | Promise<void>
   onSaveHolding: (holding: MobileHolding) => void | Promise<void>
   onShareHolding: (holding: MobileHolding) => void | Promise<void>
 }
@@ -100,12 +116,16 @@ export function FilesScreen({
   deletingCid,
   exportingCid,
   actionDisabled,
+  receiveDisabled,
+  sharingFolderPath,
   reselectToken,
   onPublishFile,
   onReceiveLink,
   onOpenHolding,
   onCopyHoldingLink,
   onDeleteHolding,
+  onDownloadHolding,
+  onShareFolder,
   onSaveHolding,
   onShareHolding,
 }: FilesScreenProps) {
@@ -115,6 +135,7 @@ export function FilesScreen({
   const scrollRef = useRef<ScrollView | null>(null)
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<FileFilter>('all')
+  const [currentPath, setCurrentPath] = useState('')
   const [selectedCid, setSelectedCid] = useState('')
   const isRemote = snapshot.node.mode === 'remote'
 
@@ -137,15 +158,51 @@ export function FilesScreen({
     () => snapshot.holdings.find(item => item.cid === selectedCid) || null,
     [selectedCid, snapshot.holdings]
   )
-  const visibleHoldings = useMemo(
-    () => filterHoldings(snapshot.holdings, query, filter),
-    [filter, query, snapshot.holdings]
+  const selectedFileNeedsDownload =
+    isRemote && selectedHolding?.localAvailable === false
+  const selectedFileIsCollection = selectedHolding?.kind === 'collection'
+  const allFolders = useMemo(
+    () => getFileFolders(snapshot.holdings),
+    [snapshot.holdings]
   )
+  const currentFolders = useMemo(
+    () => getChildFolders(allFolders, currentPath),
+    [allFolders, currentPath]
+  )
+  const filteredHoldings = useMemo(
+    () => filterHoldings(snapshot.holdings, query, isRemote ? 'all' : filter),
+    [filter, isRemote, query, snapshot.holdings]
+  )
+  const visibleHoldings = useMemo(
+    () =>
+      query.trim()
+        ? filteredHoldings
+        : getHoldingsForPath(filteredHoldings, currentPath),
+    [currentPath, filteredHoldings, query]
+  )
+  const visibleFolders = useMemo(() => {
+    const normalizedQuery = query.trim().toLocaleLowerCase()
+    if (!normalizedQuery) return currentFolders
+    return currentFolders.filter(folder =>
+      folder.name.toLocaleLowerCase().includes(normalizedQuery)
+    )
+  }, [currentFolders, query])
+  const breadcrumbs = useMemo(
+    () => getFileBreadcrumbs(currentPath, t('files.section.library')),
+    [currentPath, t]
+  )
+
+  useEffect(() => {
+    setCurrentPath('')
+  }, [isRemote])
+
+  useEffect(() => {
+    if (currentPath && !allFolders.includes(currentPath)) setCurrentPath('')
+  }, [allFolders, currentPath])
 
   const closeDetails = () => setSelectedCid('')
 
   const requestDelete = (holding: MobileHolding) => {
-    closeDetails()
     onDeleteHolding(holding)
   }
 
@@ -161,14 +218,14 @@ export function FilesScreen({
           <MostButton
             disabled={actionDisabled}
             icon={<Upload size={19} color={theme.colors.onAccent} />}
-            onPress={onPublishFile}
+            onPress={() => onPublishFile(isRemote ? currentPath : '')}
             style={styles.primaryAction}
             variant="primary"
           >
             {t('node.action.publish')}
           </MostButton>
           <MostButton
-            disabled={actionDisabled}
+            disabled={actionDisabled || receiveDisabled}
             icon={<Download size={19} color={theme.colors.accent} />}
             onPress={onReceiveLink}
             style={styles.primaryAction}
@@ -209,62 +266,149 @@ export function FilesScreen({
                     </IconButton>
                   ) : null}
                 </View>
-                <View style={styles.filterIcon}>
-                  <Filter size={18} color={theme.colors.accent} />
-                </View>
+                {!isRemote ? (
+                  <View style={styles.filterIcon}>
+                    <Filter size={18} color={theme.colors.accent} />
+                  </View>
+                ) : null}
               </View>
 
-              <View accessibilityRole="tablist" style={styles.filters}>
-                {(['all', 'active', 'attention'] as const).map(item => (
-                  <Pressable
-                    accessibilityRole="tab"
-                    accessibilityState={{ selected: filter === item }}
-                    key={item}
-                    onPress={() => setFilter(item)}
-                    style={({ pressed }) => [
-                      styles.filter,
-                      filter === item ? styles.filterActive : null,
-                      pressed ? styles.pressed : null,
-                    ]}
-                  >
-                    <Text
-                      numberOfLines={1}
-                      style={[
-                        styles.filterText,
-                        filter === item ? styles.filterTextActive : null,
+              {!isRemote ? (
+                <View accessibilityRole="tablist" style={styles.filters}>
+                  {(['all', 'active', 'attention'] as const).map(item => (
+                    <Pressable
+                      accessibilityRole="tab"
+                      accessibilityState={{ selected: filter === item }}
+                      key={item}
+                      onPress={() => setFilter(item)}
+                      style={({ pressed }) => [
+                        styles.filter,
+                        filter === item ? styles.filterActive : null,
+                        pressed ? styles.pressed : null,
                       ]}
                     >
-                      {t(`files.filter.${item}` as MessageKey)}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
+                      <Text
+                        numberOfLines={1}
+                        style={[
+                          styles.filterText,
+                          filter === item ? styles.filterTextActive : null,
+                        ]}
+                      >
+                        {t(`files.filter.${item}` as MessageKey)}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
             </View>
+          ) : null}
+
+          {breadcrumbs.length ? (
+            <ScrollView
+              contentContainerStyle={styles.breadcrumbs}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+            >
+              {breadcrumbs.map((breadcrumb, index) => {
+                const current = index === breadcrumbs.length - 1
+                return (
+                  <View
+                    key={breadcrumb.path || 'root'}
+                    style={styles.crumbItem}
+                  >
+                    {index ? (
+                      <ChevronRight size={14} color={theme.colors.textMuted} />
+                    ) : null}
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={current}
+                      onPress={() => setCurrentPath(breadcrumb.path)}
+                      style={({ pressed }) => [
+                        styles.crumbButton,
+                        pressed ? styles.pressed : null,
+                      ]}
+                    >
+                      {index === 0 ? (
+                        <Files size={15} color={theme.colors.accent} />
+                      ) : null}
+                      <Text
+                        numberOfLines={1}
+                        style={[
+                          styles.crumbText,
+                          current ? styles.crumbTextCurrent : null,
+                        ]}
+                      >
+                        {breadcrumb.name}
+                      </Text>
+                    </Pressable>
+                  </View>
+                )
+              })}
+            </ScrollView>
           ) : null}
 
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleGroup}>
-              <Wifi size={18} color={theme.colors.accent} />
+              {isRemote ? (
+                <Files size={18} color={theme.colors.accent} />
+              ) : (
+                <Wifi size={18} color={theme.colors.accent} />
+              )}
               <Text style={styles.sectionTitle}>
-                {t(
-                  isRemote
-                    ? 'node.section.remoteSeeding'
-                    : 'node.section.seeding'
-                )}
+                {t(isRemote ? 'files.section.library' : 'node.section.seeding')}
               </Text>
             </View>
             <Text style={styles.sectionMeta}>
               {t(
-                visibleHoldings.length === 1
-                  ? 'node.fileCount.one'
-                  : 'node.fileCount',
-                { count: visibleHoldings.length }
+                visibleHoldings.length + visibleFolders.length === 1
+                  ? 'files.entryCount.one'
+                  : 'files.entryCount',
+                { count: visibleHoldings.length + visibleFolders.length }
               )}
             </Text>
           </View>
 
-          {visibleHoldings.length ? (
+          {visibleHoldings.length || visibleFolders.length ? (
             <View style={styles.fileList}>
+              {visibleFolders.map(folder => (
+                <View key={folder.path} style={styles.fileRow}>
+                  <Pressable
+                    accessibilityHint={t('files.folder.openHint')}
+                    accessibilityRole="button"
+                    onPress={() => setCurrentPath(folder.path)}
+                    style={({ pressed }) => [
+                      styles.folderPressTarget,
+                      pressed ? styles.pressed : null,
+                    ]}
+                  >
+                    <View style={styles.folderIcon}>
+                      <Folder size={21} color={theme.colors.accent} />
+                    </View>
+                    <View style={styles.fileMain}>
+                      <Text numberOfLines={2} style={styles.fileName}>
+                        {folder.name}
+                      </Text>
+                      <Text style={styles.fileMeta}>
+                        {t('files.folder.type')}
+                      </Text>
+                    </View>
+                    <ChevronRight size={18} color={theme.colors.textMuted} />
+                  </Pressable>
+                  {isRemote ? (
+                    <IconButton
+                      accessibilityLabel={t('files.folder.shareLabel', {
+                        name: folder.name,
+                      })}
+                      disabled={sharingFolderPath === folder.path}
+                      onPress={() => onShareFolder(folder)}
+                      style={styles.folderShareButton}
+                      variant="ghost"
+                    >
+                      <Share2 size={17} color={theme.colors.accent} />
+                    </IconButton>
+                  ) : null}
+                </View>
+              ))}
               {visibleHoldings.map(holding => (
                 <Pressable
                   accessibilityHint={t('files.details.hint')}
@@ -277,26 +421,32 @@ export function FilesScreen({
                   ]}
                 >
                   <View style={styles.fileIcon}>
-                    <FileCheck size={20} color={theme.colors.accent} />
+                    {holding.kind === 'collection' ? (
+                      <Folder size={21} color={theme.colors.accent} />
+                    ) : (
+                      <FileCheck size={20} color={theme.colors.accent} />
+                    )}
                   </View>
                   <View style={styles.fileMain}>
                     <Text numberOfLines={2} style={styles.fileName}>
-                      {holding.fileName}
+                      {parseFileDisplayPath(holding.fileName).name}
                     </Text>
                     <Text numberOfLines={1} style={styles.fileMeta}>
-                      {formatBytes(holding.size)} ·{' '}
-                      {t(
-                        holding.source === 'published'
-                          ? 'node.holding.published'
-                          : 'node.holding.downloaded'
-                      )}
+                      {holding.kind === 'collection'
+                        ? t('files.collection.meta', {
+                            count: holding.fileCount || 0,
+                            size: formatBytes(holding.size),
+                          })
+                        : formatBytes(holding.size)}
                     </Text>
                   </View>
                   <View style={styles.fileTrailing}>
-                    <StatusBadge
-                      label={t(SEED_LABELS[holding.status])}
-                      tone={getSeedTone(holding.status)}
-                    />
+                    {!isRemote ? (
+                      <StatusBadge
+                        label={t(SEED_LABELS[holding.status])}
+                        tone={getSeedTone(holding.status)}
+                      />
+                    ) : null}
                     <MoreHorizontal size={18} color={theme.colors.textMuted} />
                   </View>
                 </Pressable>
@@ -313,14 +463,18 @@ export function FilesScreen({
                 {t(
                   snapshot.holdings.length
                     ? 'files.empty.searchTitle'
-                    : 'node.empty.filesTitle'
+                    : isRemote
+                      ? 'files.empty.libraryTitle'
+                      : 'node.empty.filesTitle'
                 )}
               </Text>
               <Text style={styles.emptyBody}>
                 {t(
                   snapshot.holdings.length
                     ? 'files.empty.searchBody'
-                    : 'node.empty.filesBody'
+                    : isRemote
+                      ? 'files.empty.libraryBody'
+                      : 'node.empty.filesBody'
                 )}
               </Text>
             </View>
@@ -344,9 +498,15 @@ export function FilesScreen({
           <BottomSheetCard style={styles.detailsCard}>
             <View style={styles.detailsHeader}>
               <View style={styles.detailsTitleGroup}>
-                <FileCheck size={20} color={theme.colors.accent} />
+                {selectedFileIsCollection ? (
+                  <Folder size={21} color={theme.colors.accent} />
+                ) : (
+                  <FileCheck size={20} color={theme.colors.accent} />
+                )}
                 <Text numberOfLines={2} style={styles.detailsTitle}>
-                  {selectedHolding?.fileName}
+                  {selectedHolding
+                    ? parseFileDisplayPath(selectedHolding.fileName).name
+                    : ''}
                 </Text>
               </View>
               <IconButton
@@ -363,17 +523,19 @@ export function FilesScreen({
                 <View style={styles.detailsBody}>
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryText}>
-                      {formatBytes(selectedHolding.size)} ·{' '}
-                      {t(
-                        selectedHolding.source === 'published'
-                          ? 'node.holding.published'
-                          : 'node.holding.downloaded'
-                      )}
+                      {selectedFileIsCollection
+                        ? t('files.collection.meta', {
+                            count: selectedHolding.fileCount || 0,
+                            size: formatBytes(selectedHolding.size),
+                          })
+                        : formatBytes(selectedHolding.size)}
                     </Text>
-                    <StatusBadge
-                      label={t(SEED_LABELS[selectedHolding.status])}
-                      tone={getSeedTone(selectedHolding.status)}
-                    />
+                    {!isRemote ? (
+                      <StatusBadge
+                        label={t(SEED_LABELS[selectedHolding.status])}
+                        tone={getSeedTone(selectedHolding.status)}
+                      />
+                    ) : null}
                   </View>
 
                   <View style={styles.cidBlock}>
@@ -382,87 +544,152 @@ export function FilesScreen({
                       {selectedHolding.cid}
                     </Text>
                   </View>
-                  <View style={styles.cidBlock}>
-                    <Text style={styles.fieldLabel}>Topic</Text>
-                    <Text selectable style={styles.topicText}>
-                      {Array.from(
-                        getCidTopicDigest(selectedHolding.cid),
-                        byte => byte.toString(16).padStart(2, '0')
-                      ).join('')}
-                    </Text>
-                  </View>
+                  {parseFileDisplayPath(selectedHolding.fileName).folder ? (
+                    <View style={styles.cidBlock}>
+                      <Text style={styles.fieldLabel}>
+                        {t('files.details.path')}
+                      </Text>
+                      <Text selectable style={styles.topicText}>
+                        {parseFileDisplayPath(selectedHolding.fileName).folder}
+                      </Text>
+                    </View>
+                  ) : null}
+                  {!isRemote ? (
+                    <>
+                      <View style={styles.cidBlock}>
+                        <Text style={styles.fieldLabel}>Topic</Text>
+                        <Text selectable style={styles.topicText}>
+                          {Array.from(
+                            getCidTopicDigest(selectedHolding.cid),
+                            byte => byte.toString(16).padStart(2, '0')
+                          ).join('')}
+                        </Text>
+                      </View>
 
-                  <View style={styles.networkGrid}>
-                    <View style={styles.networkItem}>
-                      {selectedHolding.topicJoined ? (
-                        <CircleCheck size={18} color={theme.colors.success} />
-                      ) : (
-                        <CircleAlert size={18} color={theme.colors.warning} />
-                      )}
-                      <Text style={styles.networkLabel}>
-                        {t(
-                          selectedHolding.topicJoined
-                            ? 'node.holding.topicJoined'
-                            : 'node.holding.topicWaiting'
-                        )}
-                      </Text>
-                    </View>
-                    <View style={styles.networkItem}>
-                      <Wifi size={18} color={theme.colors.info} />
-                      <Text style={styles.networkLabel}>
-                        {t('files.details.peers', {
-                          count: selectedHolding.peerCount,
-                        })}
-                      </Text>
-                    </View>
-                  </View>
+                      <View style={styles.networkGrid}>
+                        <View style={styles.networkItem}>
+                          {selectedHolding.topicJoined ? (
+                            <CircleCheck
+                              size={18}
+                              color={theme.colors.success}
+                            />
+                          ) : (
+                            <CircleAlert
+                              size={18}
+                              color={theme.colors.warning}
+                            />
+                          )}
+                          <Text style={styles.networkLabel}>
+                            {t(
+                              selectedHolding.topicJoined
+                                ? 'node.holding.topicJoined'
+                                : 'node.holding.topicWaiting'
+                            )}
+                          </Text>
+                        </View>
+                        <View style={styles.networkItem}>
+                          <Wifi size={18} color={theme.colors.info} />
+                          <Text style={styles.networkLabel}>
+                            {t('files.details.peers', {
+                              count: selectedHolding.peerCount,
+                            })}
+                          </Text>
+                        </View>
+                      </View>
+                    </>
+                  ) : null}
 
                   <View style={styles.actionGrid}>
-                    <MostButton
-                      disabled={exportingCid === selectedHolding.cid}
-                      icon={
-                        <ExternalLink size={17} color={theme.colors.accent} />
-                      }
-                      onPress={() => onOpenHolding(selectedHolding)}
-                      style={styles.detailAction}
-                    >
-                      {t('files.action.open')}
-                    </MostButton>
-                    <MostButton
-                      icon={
-                        copiedCid === selectedHolding.cid ? (
-                          <CircleCheck size={17} color={theme.colors.success} />
-                        ) : (
-                          <Copy size={17} color={theme.colors.accent} />
-                        )
-                      }
-                      onPress={() => onCopyHoldingLink(selectedHolding)}
-                      style={styles.detailAction}
-                    >
-                      {t(
-                        copiedCid === selectedHolding.cid
-                          ? 'node.action.copied'
-                          : 'node.action.copyLink'
-                      )}
-                    </MostButton>
-                    <MostButton
-                      disabled={exportingCid === selectedHolding.cid}
-                      icon={<Share2 size={17} color={theme.colors.accent} />}
-                      onPress={() => onShareHolding(selectedHolding)}
-                      style={styles.detailAction}
-                    >
-                      {t('common.share')}
-                    </MostButton>
-                    <MostButton
-                      disabled={exportingCid === selectedHolding.cid}
-                      icon={<Save size={17} color={theme.colors.accent} />}
-                      onPress={() => onSaveHolding(selectedHolding)}
-                      style={styles.detailAction}
-                    >
-                      {Platform.OS === 'ios'
-                        ? t('node.action.saveToFiles')
-                        : t('common.save')}
-                    </MostButton>
+                    {selectedFileNeedsDownload ? (
+                      <MostButton
+                        disabled={actionDisabled || receiveDisabled}
+                        icon={
+                          <Download size={17} color={theme.colors.onAccent} />
+                        }
+                        onPress={() => onDownloadHolding(selectedHolding)}
+                        style={styles.detailAction}
+                        variant="primary"
+                      >
+                        {t('files.action.downloadToLibrary')}
+                      </MostButton>
+                    ) : selectedFileIsCollection ? (
+                      <MostButton
+                        icon={
+                          copiedCid === selectedHolding.cid ? (
+                            <CircleCheck
+                              size={17}
+                              color={theme.colors.success}
+                            />
+                          ) : (
+                            <Copy size={17} color={theme.colors.accent} />
+                          )
+                        }
+                        onPress={() => onCopyHoldingLink(selectedHolding)}
+                        style={styles.detailAction}
+                      >
+                        {t(
+                          copiedCid === selectedHolding.cid
+                            ? 'node.action.copied'
+                            : 'node.action.copyLink'
+                        )}
+                      </MostButton>
+                    ) : (
+                      <>
+                        <MostButton
+                          disabled={exportingCid === selectedHolding.cid}
+                          icon={
+                            <ExternalLink
+                              size={17}
+                              color={theme.colors.accent}
+                            />
+                          }
+                          onPress={() => onOpenHolding(selectedHolding)}
+                          style={styles.detailAction}
+                        >
+                          {t('files.action.open')}
+                        </MostButton>
+                        <MostButton
+                          icon={
+                            copiedCid === selectedHolding.cid ? (
+                              <CircleCheck
+                                size={17}
+                                color={theme.colors.success}
+                              />
+                            ) : (
+                              <Copy size={17} color={theme.colors.accent} />
+                            )
+                          }
+                          onPress={() => onCopyHoldingLink(selectedHolding)}
+                          style={styles.detailAction}
+                        >
+                          {t(
+                            copiedCid === selectedHolding.cid
+                              ? 'node.action.copied'
+                              : 'node.action.copyLink'
+                          )}
+                        </MostButton>
+                        <MostButton
+                          disabled={exportingCid === selectedHolding.cid}
+                          icon={
+                            <Share2 size={17} color={theme.colors.accent} />
+                          }
+                          onPress={() => onShareHolding(selectedHolding)}
+                          style={styles.detailAction}
+                        >
+                          {t('common.share')}
+                        </MostButton>
+                        <MostButton
+                          disabled={exportingCid === selectedHolding.cid}
+                          icon={<Save size={17} color={theme.colors.accent} />}
+                          onPress={() => onSaveHolding(selectedHolding)}
+                          style={styles.detailAction}
+                        >
+                          {Platform.OS === 'ios'
+                            ? t('node.action.saveToFiles')
+                            : t('common.save')}
+                        </MostButton>
+                      </>
+                    )}
                   </View>
 
                   <MostButton
@@ -564,6 +791,32 @@ function createStyles(theme: MostBoxTheme) {
       flexDirection: 'row',
       padding: 3,
     },
+    breadcrumbs: {
+      alignItems: 'center',
+      minHeight: 34,
+      paddingRight: 8,
+    },
+    crumbItem: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: 3,
+    },
+    crumbButton: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: 5,
+      minHeight: 34,
+      paddingHorizontal: 6,
+    },
+    crumbText: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      maxWidth: 180,
+    },
+    crumbTextCurrent: {
+      color: colors.text,
+      fontWeight: '700',
+    },
     filter: {
       alignItems: 'center',
       borderRadius: radii.small,
@@ -628,6 +881,26 @@ function createStyles(theme: MostBoxTheme) {
       height: 38,
       justifyContent: 'center',
       width: 38,
+    },
+    folderIcon: {
+      alignItems: 'center',
+      backgroundColor: colors.accentSoft,
+      borderRadius: radii.medium,
+      height: 38,
+      justifyContent: 'center',
+      width: 38,
+    },
+    folderPressTarget: {
+      alignItems: 'center',
+      flex: 1,
+      flexDirection: 'row',
+      gap: 10,
+      minWidth: 0,
+    },
+    folderShareButton: {
+      borderWidth: 0,
+      height: 42,
+      width: 42,
     },
     fileMain: {
       flex: 1,

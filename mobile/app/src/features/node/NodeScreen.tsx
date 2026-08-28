@@ -208,7 +208,7 @@ export function NodeScreen({
           <Metric
             icon={<HardDrive size={17} color={theme.colors.info} />}
             label={t(
-              isRemote ? 'node.metric.remoteSeeds' : 'node.metric.localSeeds'
+              isRemote ? 'node.metric.remoteFiles' : 'node.metric.localSeeds'
             )}
             value={String(snapshot.holdings.length)}
           />

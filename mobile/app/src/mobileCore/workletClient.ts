@@ -15,6 +15,8 @@ import type {
   MobileTransfer,
   MostBoxMobileCore,
   PublishFileInput,
+  ShareFolderInput,
+  ShareFolderResult,
   P2PPing,
   StartP2PPingInput,
   CancelP2PPingInput,
@@ -300,6 +302,14 @@ export class BareWorkletMostBoxCore implements MostBoxMobileCore {
       900000
     )
     return extractTransfer(result)
+  }
+
+  async shareFolder(_input: ShareFolderInput): Promise<ShareFolderResult> {
+    const error = new Error(
+      'Folder sharing requires a connected desktop MostBox node'
+    ) as Error & { code?: string }
+    error.code = 'REMOTE_NODE_REQUIRED'
+    throw error
   }
 
   async downloadLink(input: DownloadLinkInput): Promise<MobileTransfer> {

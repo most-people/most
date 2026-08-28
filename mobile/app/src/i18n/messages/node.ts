@@ -25,8 +25,8 @@ export const nodeMessages = {
     en: 'Error',
   },
   'node.seed.queued': {
-    'zh-CN': '排队中',
-    'zh-TW': '排隊中',
+    'zh-CN': '队列中',
+    'zh-TW': '佇列中',
     en: 'Queued',
   },
   'node.seed.joining': {
@@ -45,8 +45,8 @@ export const nodeMessages = {
     en: 'Paused',
   },
   'node.seed.error': {
-    'zh-CN': '异常',
-    'zh-TW': '異常',
+    'zh-CN': '错误',
+    'zh-TW': '錯誤',
     en: 'Error',
   },
   'node.transfer.queued': {
@@ -144,10 +144,10 @@ export const nodeMessages = {
     'zh-TW': '本機做種',
     en: 'Local seeds',
   },
-  'node.metric.remoteSeeds': {
-    'zh-CN': '远程做种',
-    'zh-TW': '遠端做種',
-    en: 'Remote seeds',
+  'node.metric.remoteFiles': {
+    'zh-CN': '远程文件',
+    'zh-TW': '遠端檔案',
+    en: 'Remote files',
   },
   'node.metric.attachmentVerification': {
     'zh-CN': '附件校验',
@@ -189,11 +189,6 @@ export const nodeMessages = {
     'zh-TW': '正在做種',
     en: 'Seeding',
   },
-  'node.section.remoteSeeding': {
-    'zh-CN': '远程节点正在做种',
-    'zh-TW': '遠端節點正在做種',
-    en: 'Seeding on remote node',
-  },
   'node.fileCount': {
     'zh-CN': '{count} 个文件',
     'zh-TW': '{count} 個檔案',
@@ -203,16 +198,6 @@ export const nodeMessages = {
     'zh-CN': '{count} 个文件',
     'zh-TW': '{count} 個檔案',
     en: '{count} file',
-  },
-  'node.holding.published': {
-    'zh-CN': '已发布',
-    'zh-TW': '已發佈',
-    en: 'Published',
-  },
-  'node.holding.downloaded': {
-    'zh-CN': '已下载',
-    'zh-TW': '已下載',
-    en: 'Downloaded',
   },
   'node.holding.topicJoined': {
     'zh-CN': 'Topic 已加入',
@@ -524,6 +509,61 @@ export const nodeMessages = {
     'zh-TW': '清除檔案搜尋',
     en: 'Clear file search',
   },
+  'files.section.library': {
+    'zh-CN': '文件库',
+    'zh-TW': '檔案庫',
+    en: 'File library',
+  },
+  'files.entryCount': {
+    'zh-CN': '{count} 项',
+    'zh-TW': '{count} 項',
+    en: '{count} items',
+  },
+  'files.entryCount.one': {
+    'zh-CN': '{count} 项',
+    'zh-TW': '{count} 項',
+    en: '{count} item',
+  },
+  'files.folder.type': {
+    'zh-CN': '文件夹',
+    'zh-TW': '資料夾',
+    en: 'Folder',
+  },
+  'files.folder.openHint': {
+    'zh-CN': '进入文件夹',
+    'zh-TW': '進入資料夾',
+    en: 'Open folder',
+  },
+  'files.folder.shareLabel': {
+    'zh-CN': '分享文件夹 {name}',
+    'zh-TW': '分享資料夾 {name}',
+    en: 'Share folder {name}',
+  },
+  'files.folder.shared': {
+    'zh-CN': '文件夹分享链接已复制',
+    'zh-TW': '資料夾分享連結已複製',
+    en: 'Folder share link copied',
+  },
+  'files.folder.shareFailedTitle': {
+    'zh-CN': '无法分享文件夹',
+    'zh-TW': '無法分享資料夾',
+    en: 'Could not share folder',
+  },
+  'files.folder.shareRequiresLocalFiles': {
+    'zh-CN': '文件夹中有尚未下载到远程节点本机的文件，请先下载后再分享。',
+    'zh-TW': '資料夾中有尚未下載到遠端節點本機的檔案，請先下載後再分享。',
+    en: 'Download every file in this folder to the remote node before sharing it.',
+  },
+  'files.folder.shareEmpty': {
+    'zh-CN': '这个文件夹里没有可分享的本地文件。',
+    'zh-TW': '這個資料夾裡沒有可分享的本機檔案。',
+    en: 'This folder has no local files to share.',
+  },
+  'files.collection.meta': {
+    'zh-CN': '{count} 个文件 · {size}',
+    'zh-TW': '{count} 個檔案 · {size}',
+    en: '{count} files · {size}',
+  },
   'files.filter.all': {
     'zh-CN': '全部',
     'zh-TW': '全部',
@@ -549,10 +589,20 @@ export const nodeMessages = {
     'zh-TW': '{count} 個 Peer',
     en: '{count} peers',
   },
+  'files.details.path': {
+    'zh-CN': '路径',
+    'zh-TW': '路徑',
+    en: 'Path',
+  },
   'files.action.open': {
     'zh-CN': '打开',
     'zh-TW': '開啟',
     en: 'Open',
+  },
+  'files.action.downloadToLibrary': {
+    'zh-CN': '下载到文件库',
+    'zh-TW': '下載到檔案庫',
+    en: 'Download to file library',
   },
   'files.empty.searchTitle': {
     'zh-CN': '没有匹配的文件',
@@ -563,6 +613,16 @@ export const nodeMessages = {
     'zh-CN': '调整搜索内容或筛选条件。',
     'zh-TW': '調整搜尋內容或篩選條件。',
     en: 'Change the search or filter.',
+  },
+  'files.empty.libraryTitle': {
+    'zh-CN': '文件库暂无文件',
+    'zh-TW': '檔案庫暫無檔案',
+    en: 'No files in the library',
+  },
+  'files.empty.libraryBody': {
+    'zh-CN': '发布或下载文件后会显示在这里。',
+    'zh-TW': '發佈或下載檔案後會顯示在這裡。',
+    en: 'Published and downloaded files appear here.',
   },
   'transfers.view.active': {
     'zh-CN': '进行中',

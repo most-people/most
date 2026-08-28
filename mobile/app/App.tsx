@@ -37,6 +37,11 @@ import {
   X,
 } from 'lucide-react-native'
 import { FilesScreen } from './src/features/files/FilesScreen'
+import {
+  getFolderShareState,
+  normalizeFileDisplayPath,
+  type FileFolder,
+} from './src/features/files/filesModel'
 import { KnowledgeBaseScreen } from './src/features/knowledge/KnowledgeBaseScreen'
 import { createExpoKnowledgeRepository } from './src/features/knowledge/expoKnowledgeRepository'
 import { validateKnowledgeSnapshot } from './src/features/knowledge/knowledgeModel'
@@ -246,6 +251,9 @@ function MostBoxApp() {
   const [activeTab, setActiveTab] = useState<RootTab>('files')
   const [nodeRoute, setNodeRoute] = useState<'status' | 'p2pPing'>('status')
   const [publishing, setPublishing] = useState(false)
+  const [sharingFolderPath, setSharingFolderPath] = useState<string | null>(
+    null
+  )
   const [knowledgeDirty, setKnowledgeDirty] = useState(false)
   const [knowledgeBackupWorking, setKnowledgeBackupWorking] = useState(false)
   const [exportingCid, setExportingCid] = useState<string | null>(null)
@@ -263,7 +271,6 @@ function MostBoxApp() {
   )
   const [downloadLinkError, setDownloadLinkError] = useState('')
   const [downloadingCid, setDownloadingCid] = useState<string | null>(null)
-  const [cancellingDownload, setCancellingDownload] = useState(false)
   const [openDownloadAfterComplete, setOpenDownloadAfterComplete] =
     useState(false)
   const [retryingTransferId, setRetryingTransferId] = useState<string | null>(
@@ -403,6 +410,11 @@ function MostBoxApp() {
     setActiveTab(nextTab)
   }
 
+  const openNodeStatus = () => {
+    setNodeRoute('status')
+    changeTab('node')
+  }
+
   const markCopied = (cid: string) => {
     setCopiedCid(cid)
     if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current)
@@ -450,7 +462,7 @@ function MostBoxApp() {
 
   const handleCancelP2PPing = (id?: string) => core.cancelP2PPing({ id })
 
-  const publishPickedFile = async () => {
+  const publishPickedFile = async (targetPath = '') => {
     if (!guardReady()) return
 
     setPublishing(true)
@@ -472,10 +484,14 @@ function MostBoxApp() {
         alert(t('app.file.unsupported'), t(policyErrorKey))
         return null
       }
+      const normalizedTargetPath = normalizeFileDisplayPath(targetPath)
+      const publishName = normalizedTargetPath
+        ? `${normalizedTargetPath}/${file.name}`
+        : file.name
 
       const transfer = await core.publishFile({
         uri: file.uri,
-        name: file.name,
+        name: publishName,
         size: file.size || 0,
         mimeType: file.mimeType,
         contentBytes: await readDevCidBytes(file),
@@ -489,9 +505,9 @@ function MostBoxApp() {
     }
   }
 
-  const handlePublishFile = async () => {
+  const handlePublishFile = async (targetPath = '') => {
     try {
-      const result = await publishPickedFile()
+      const result = await publishPickedFile(targetPath)
       if (!result) return
       await Clipboard.setStringAsync(result.link)
       const publishedCid = result.transfer.cid || parseMostLink(result.link).cid
@@ -539,31 +555,10 @@ function MostBoxApp() {
   }
 
   const closeDownloadModal = () => {
-    if (downloadingCid) return
     setDownloadModalOpen(false)
     setDownloadIntent(null)
     setDownloadLinkError('')
     setOpenDownloadAfterComplete(false)
-  }
-
-  const handleCancelDownload = async () => {
-    if (!downloadingCid) {
-      closeDownloadModal()
-      return
-    }
-
-    setCancellingDownload(true)
-    try {
-      await core.cancelDownload({ cid: downloadingCid })
-      setDownloadModalOpen(false)
-      setDownloadIntent(null)
-      setDownloadLinkError('')
-      setOpenDownloadAfterComplete(false)
-    } catch (error) {
-      setDownloadLinkError(getFriendlyCoreError(error, locale))
-    } finally {
-      setCancellingDownload(false)
-    }
   }
 
   const handleHardwareBack = useEffectEvent(() => {
@@ -579,7 +574,7 @@ function MostBoxApp() {
       return true
     }
     if (action === 'closeReceive') {
-      void handleCancelDownload()
+      closeDownloadModal()
       return true
     }
     if (action === 'closeNodeChild') {
@@ -763,6 +758,52 @@ function MostBoxApp() {
     await Clipboard.setStringAsync(holding.shareLink)
     markCopied(holding.cid)
     toast(t('node.action.copied'), 'success')
+  }
+
+  const handleDownloadHolding = (holding: MobileHolding) => {
+    openDownloadIntent({
+      cid: holding.cid,
+      fileName: holding.fileName,
+      link: holding.shareLink,
+    })
+  }
+
+  const handleShareFolder = async (folder: FileFolder) => {
+    if (!guardReady() || !isRemote) return
+    const shareState = getFolderShareState(
+      currentSnapshot.holdings,
+      folder.path
+    )
+    if (!shareState.canShare) {
+      alert(
+        t('files.folder.shareFailedTitle'),
+        t(
+          shareState.reason === 'missingLocalFiles'
+            ? 'files.folder.shareRequiresLocalFiles'
+            : 'files.folder.shareEmpty'
+        )
+      )
+      return
+    }
+
+    setSharingFolderPath(folder.path)
+    try {
+      const result = await core.shareFolder({ path: folder.path })
+      await Clipboard.setStringAsync(result.link)
+      toast(t('files.folder.shared'), 'success', [
+        {
+          label: t('common.share'),
+          onPress: () => void shareMostLink(result.link),
+        },
+      ])
+    } catch (error) {
+      alert(
+        t('files.folder.shareFailedTitle'),
+        error instanceof Error ? error.message : t('app.file.shareFailedBody')
+      )
+    } finally {
+      setSharingFolderPath(null)
+    }
   }
 
   const handleCancelTransfer = async (transfer: MobileTransfer) => {
@@ -1068,6 +1109,26 @@ function MostBoxApp() {
     : knowledgeMode === 'edit'
       ? t('knowledge.editor.back')
       : t('knowledge.preview.back')
+  const statusLabel =
+    nodeStatus === 'ready'
+      ? t('app.node.online')
+      : nodeStatus === 'error'
+        ? t('app.node.error')
+        : nodeStatus === 'starting'
+          ? t('app.node.starting')
+          : t('app.node.offline')
+  const statusTextStyle =
+    nodeStatus === 'ready'
+      ? styles.statusTextReady
+      : nodeStatus === 'error'
+        ? styles.statusTextError
+        : styles.statusTextPending
+  const statusColor =
+    nodeStatus === 'ready'
+      ? theme.colors.success
+      : nodeStatus === 'error'
+        ? theme.colors.danger
+        : theme.colors.warning
 
   const handleHeaderBack = () => {
     if (isNodeChild) {
@@ -1162,13 +1223,35 @@ function MostBoxApp() {
               {headerTitle}
             </Text>
           </View>
-          <IconButton
-            accessibilityLabel={t('common.language.choose')}
-            onPress={openLanguageMenu}
-            style={styles.headerIconButton}
-          >
-            <Languages size={19} color={theme.colors.textSecondary} />
-          </IconButton>
+          <View style={styles.headerActions}>
+            <IconButton
+              accessibilityLabel={t('common.language.choose')}
+              onPress={openLanguageMenu}
+              style={styles.headerIconButton}
+            >
+              <Languages size={19} color={theme.colors.textSecondary} />
+            </IconButton>
+            <Pressable
+              accessibilityLabel={t('app.node.openStatus', {
+                status: statusLabel,
+              })}
+              accessibilityRole="button"
+              onPress={openNodeStatus}
+              style={({ pressed }) => [
+                styles.statusPill,
+                pressed ? styles.pressablePressed : null,
+              ]}
+            >
+              <Radio size={16} color={statusColor} />
+              <Text
+                maxFontSizeMultiplier={1.4}
+                numberOfLines={1}
+                style={[styles.statusText, statusTextStyle]}
+              >
+                {statusLabel}
+              </Text>
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.content}>
@@ -1184,15 +1267,19 @@ function MostBoxApp() {
               deletingCid={deletingCid}
               detailRequest={holdingDetailRequest}
               exportingCid={exportingCid}
+              receiveDisabled={Boolean(downloadingCid)}
+              sharingFolderPath={sharingFolderPath}
               reselectToken={reselectTokens.files}
               snapshot={currentSnapshot}
               onCopyHoldingLink={handleCopyHoldingLink}
               onDeleteHolding={handleDeleteHolding}
+              onDownloadHolding={handleDownloadHolding}
               onOpenHolding={handleOpenHolding}
               onPublishFile={handlePublishFile}
               onReceiveLink={openDownloadModal}
               onSaveHolding={handleSaveHolding}
               onShareHolding={handleShareHolding}
+              onShareFolder={handleShareFolder}
             />
           </View>
           <View
@@ -1222,6 +1309,7 @@ function MostBoxApp() {
           >
             <TransfersScreen
               cancellingCid={cancellingTransferCid}
+              isReady={isReady}
               reselectToken={reselectTokens.transfers}
               retryingTransferId={retryingTransferId}
               snapshot={currentSnapshot}
@@ -1306,21 +1394,6 @@ function MostBoxApp() {
               }
               label={t('nav.transfers')}
               onPress={() => changeTab('transfers')}
-            />
-            <TabButton
-              active={activeTab === 'node'}
-              icon={
-                <Radio
-                  size={21}
-                  color={
-                    activeTab === 'node'
-                      ? theme.colors.accent
-                      : theme.colors.textSecondary
-                  }
-                />
-              }
-              label={t('nav.node')}
-              onPress={() => changeTab('node')}
             />
           </View>
         ) : null}
@@ -1419,9 +1492,8 @@ function MostBoxApp() {
                     </View>
                     <IconButton
                       accessibilityLabel={t('common.close')}
-                      disabled={cancellingDownload}
                       hitSlop={8}
-                      onPress={() => void handleCancelDownload()}
+                      onPress={closeDownloadModal}
                       style={styles.closeButton}
                       variant="ghost"
                     >
@@ -1549,8 +1621,7 @@ function MostBoxApp() {
                     ]}
                   >
                     <MostButton
-                      disabled={cancellingDownload}
-                      onPress={() => void handleCancelDownload()}
+                      onPress={closeDownloadModal}
                       style={[
                         styles.cancelButton,
                         accessibilityLayout
@@ -1559,9 +1630,7 @@ function MostBoxApp() {
                       ]}
                       variant="ghost"
                     >
-                      {cancellingDownload
-                        ? t('app.receive.cancelling')
-                        : t('common.cancel')}
+                      {t('common.cancel')}
                     </MostButton>
                     {downloadIntent ? (
                       <MostButton
@@ -1721,6 +1790,37 @@ function createStyles(theme: MostBoxTheme) {
     headerIconButton: {
       height: 40,
       width: 40,
+    },
+    headerActions: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: 8,
+    },
+    statusPill: {
+      alignItems: 'center',
+      backgroundColor: colors.glassSubtle,
+      borderColor: colors.border,
+      borderRadius: radii.medium,
+      borderWidth: 1,
+      flexDirection: 'row',
+      gap: 6,
+      minHeight: 40,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+    },
+    statusText: {
+      fontSize: 12,
+      fontWeight: '600',
+      maxWidth: 92,
+    },
+    statusTextReady: {
+      color: colors.success,
+    },
+    statusTextPending: {
+      color: colors.warning,
+    },
+    statusTextError: {
+      color: colors.danger,
     },
     mainHeaderTitle: {
       color: colors.text,

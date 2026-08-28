@@ -11,6 +11,8 @@ import type {
   MobileCoreSnapshot,
   MobileTransfer,
   PublishFileInput,
+  ShareFolderInput,
+  ShareFolderResult,
   P2PPing,
   StartP2PPingInput,
 } from './types'
@@ -70,6 +72,10 @@ export class BareWorkletMostBoxCore {
   }
 
   async publishFile(_input: PublishFileInput): Promise<MobileTransfer> {
+    throw createRemoteRequiredError()
+  }
+
+  async shareFolder(_input: ShareFolderInput): Promise<ShareFolderResult> {
     throw createRemoteRequiredError()
   }
 

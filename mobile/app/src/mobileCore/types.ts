@@ -88,12 +88,15 @@ export type P2PPing = {
 export type MobileHolding = {
   cid: string
   fileName: string
+  kind?: 'file' | 'collection'
+  fileCount?: number
   size: number
   status: SeedStatus
   topicJoined: boolean
   peerCount: number
   source: 'published' | 'downloaded'
   shareLink: string
+  localAvailable?: boolean
   localPath?: string
 }
 
@@ -158,6 +161,16 @@ export type DownloadLinkInput = {
   link: string
 }
 
+export type ShareFolderInput = {
+  path: string
+}
+
+export type ShareFolderResult = {
+  cid: string
+  fileName: string
+  link: string
+}
+
 export type CancelDownloadInput = {
   cid: string
 }
@@ -196,6 +209,7 @@ export type MostBoxMobileCore = {
   startP2PPing: (input: StartP2PPingInput) => Promise<P2PPing>
   cancelP2PPing: (input?: CancelP2PPingInput) => Promise<P2PPing | null>
   publishFile: (input: PublishFileInput) => Promise<MobileTransfer>
+  shareFolder: (input: ShareFolderInput) => Promise<ShareFolderResult>
   downloadLink: (input: DownloadLinkInput) => Promise<MobileTransfer>
   cancelDownload: (input: CancelDownloadInput) => Promise<CancelDownloadResult>
   exportHolding: (input: ExportHoldingInput) => Promise<ExportHoldingResult>
