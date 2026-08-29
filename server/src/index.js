@@ -1303,6 +1303,15 @@ export class MostBoxEngine extends EventEmitter {
       : []
     const existingIndex = publishedBucket.findIndex(f => f.cid === cidString)
     const repairingMissingContent = existingIndex !== -1
+    if (
+      !libraryVisible &&
+      existingIndex !== -1 &&
+      options.replaceCid !== cidString
+    ) {
+      throw new ConflictError(
+        `目录内容已被其他文件库记录使用: ${safeCollectionName}`
+      )
+    }
     const replacementIndex =
       existingIndex === -1 && options.replaceCid
         ? publishedBucket.findIndex(f => f.cid === options.replaceCid)
@@ -3188,6 +3197,7 @@ export class MostBoxEngine extends EventEmitter {
   async #hasPublishedCollectionChildReference(cid, options = {}) {
     for (const fileRecord of this.#allPublishedRecords()) {
       if ((fileRecord.kind || 'file') !== 'collection') continue
+      if (fileRecord.libraryVisible === false) continue
       if (options.excludeCid && fileRecord.cid === options.excludeCid) continue
       if (await this.#collectionRecordIncludesCid(fileRecord, cid)) {
         return true
