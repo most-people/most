@@ -7,7 +7,7 @@ export type StoredRemoteNode = RemoteNodeConfig & {
   updatedAt: number
 }
 
-export function normalizeRemoteUrl(value: string) {
+function normalizeExplicitRemoteUrl(value: string) {
   const input = value.trim().replace(/\/+$/, '')
   if (!input) return ''
   try {
@@ -19,6 +19,31 @@ export function normalizeRemoteUrl(value: string) {
   } catch {
     return ''
   }
+}
+
+function hasExplicitUrlProtocol(value: string) {
+  return /^[a-z][a-z\d+.-]*:\/\//i.test(value.trim())
+}
+
+export function getRemoteUrlCandidates(value: string) {
+  const input = value.trim().replace(/\/+$/, '')
+  if (!input) return []
+
+  const candidates = hasExplicitUrlProtocol(input)
+    ? [input]
+    : [`https://${input}`, `http://${input}`]
+
+  return [
+    ...new Set(candidates.map(normalizeExplicitRemoteUrl).filter(Boolean)),
+  ]
+}
+
+export function hasExplicitRemoteUrlProtocol(value: string) {
+  return hasExplicitUrlProtocol(value)
+}
+
+export function normalizeRemoteUrl(value: string) {
+  return getRemoteUrlCandidates(value)[0] || ''
 }
 
 function normalizeStoredNode(input: Partial<StoredRemoteNode>) {
@@ -62,7 +87,7 @@ export function saveRemoteNode(
   now = Date.now()
 ) {
   const url = normalizeRemoteUrl(input.url)
-  if (!url) throw new Error('Enter a valid HTTP or HTTPS node URL')
+  if (!url) throw new Error('Enter a valid node URL')
 
   return normalizeRemoteNodes([
     {

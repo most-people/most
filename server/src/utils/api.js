@@ -208,11 +208,41 @@ function getNodeHistory() {
 }
 
 function normalizeBackendUrl(url) {
-  return (url || '').trim().replace(/\/+$/, '')
+  const input = String(url || '')
+    .trim()
+    .replace(/\/+$/, '')
+  if (!input) return ''
+
+  try {
+    const parsed = new URL(input)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return ''
+    parsed.hash = ''
+    parsed.search = ''
+    return parsed.toString().replace(/\/+$/, '')
+  } catch {
+    return ''
+  }
+}
+
+function hasExplicitUrlProtocol(value) {
+  return /^[a-z][a-z\d+.-]*:\/\//i.test(String(value || '').trim())
+}
+
+export function getBackendConnectionCandidates(value) {
+  const input = String(value || '')
+    .trim()
+    .replace(/\/+$/, '')
+  if (!input) return []
+
+  const candidates = hasExplicitUrlProtocol(input)
+    ? [input]
+    : [`https://${input}`, `http://${input}`]
+
+  return [...new Set(candidates.map(normalizeBackendUrl).filter(Boolean))]
 }
 
 function isLocalBackendUrl(url) {
-  const value = normalizeBackendUrl(url)
+  const value = String(url || '').trim()
   if (!value) return false
   try {
     const { hostname } = new URL(value)
@@ -562,6 +592,37 @@ async function probeHttp(cleanedUrl, invite, identity) {
   }
 }
 
+function isMostBoxCapabilities(data) {
+  return (
+    data &&
+    typeof data === 'object' &&
+    typeof data.remoteAccess === 'boolean' &&
+    typeof data.inviteRequired === 'boolean' &&
+    typeof data.adminAvailable === 'boolean' &&
+    typeof data.listenHost === 'string'
+  )
+}
+
+async function probeMostBoxEndpoint(cleanedUrl) {
+  try {
+    const res = await fetch(`${cleanedUrl}/api/remote/capabilities`, {
+      method: 'GET',
+      signal: AbortSignal.timeout(3000),
+    })
+    const data = await res
+      .clone()
+      .json()
+      .catch(() => null)
+
+    return (
+      isMostBoxCapabilities(data) ||
+      (res.status === 403 && data?.code === 'INVALID_INVITE')
+    )
+  } catch {
+    return false
+  }
+}
+
 async function probeWebSocket(cleanedUrl, invite, identity) {
   if (typeof WebSocket === 'undefined') return { ok: true }
   if (!identity?.danger) return { ok: true }
@@ -617,8 +678,20 @@ async function probeWebSocket(cleanedUrl, invite, identity) {
 }
 
 export async function checkBackendConnectionTarget({ url, invite = '' }) {
-  const cleanedUrl = normalizeBackendUrl(url)
-  if (!cleanedUrl) return { ok: false, reason: 'http' }
+  const candidates = getBackendConnectionCandidates(url)
+  if (candidates.length === 0) return { ok: false, reason: 'http' }
+
+  let cleanedUrl = candidates[0]
+  if (!hasExplicitUrlProtocol(url)) {
+    cleanedUrl = ''
+    for (const candidate of candidates) {
+      if (await probeMostBoxEndpoint(candidate)) {
+        cleanedUrl = candidate
+        break
+      }
+    }
+    if (!cleanedUrl) return { ok: false, reason: 'http' }
+  }
 
   const identity = getStoredIdentity()
 
@@ -629,7 +702,7 @@ export async function checkBackendConnectionTarget({ url, invite = '' }) {
 
   if (!httpResult.ok) return httpResult
   if (!wsResult.ok) return wsResult
-  return { ok: true }
+  return { ok: true, url: cleanedUrl }
 }
 
 export async function detectLocalhostBackend() {

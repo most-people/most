@@ -8,6 +8,7 @@ import {
   getAuthenticatedWebSocketUrl,
   getApiErrorMessage,
   getApiErrorPayload,
+  getBackendConnectionCandidates,
   getBackendUrlExport,
   getNodeHistoryExport,
   getRemoteInviteExport,
@@ -131,6 +132,34 @@ describe('api browser helpers', () => {
     } else {
       globalThis.WebSocket = originalWebSocket
     }
+  })
+
+  describe('getBackendConnectionCandidates()', () => {
+    it('builds secure-first candidates for an address without a protocol', () => {
+      assert.deepStrictEqual(
+        getBackendConnectionCandidates(' x.most.red:1976/base/ '),
+        ['https://x.most.red:1976/base', 'http://x.most.red:1976/base']
+      )
+    })
+
+    it('keeps an explicit HTTP or HTTPS protocol', () => {
+      assert.deepStrictEqual(
+        getBackendConnectionCandidates('http://node.example.com/base/'),
+        ['http://node.example.com/base']
+      )
+      assert.deepStrictEqual(
+        getBackendConnectionCandidates('https://node.example.com'),
+        ['https://node.example.com']
+      )
+    })
+
+    it('rejects invalid addresses and unsupported protocols', () => {
+      assert.deepStrictEqual(getBackendConnectionCandidates('not a host'), [])
+      assert.deepStrictEqual(
+        getBackendConnectionCandidates('ftp://node.example.com'),
+        []
+      )
+    })
   })
 
   describe('getWebSocketUrl()', () => {
@@ -475,7 +504,10 @@ describe('api browser helpers', () => {
         url: 'https://node.example.com/base',
       })
 
-      assert.deepStrictEqual(result, { ok: true })
+      assert.deepStrictEqual(result, {
+        ok: true,
+        url: 'https://node.example.com/base',
+      })
     })
 
     it('skips the signed WebSocket probe before login', async () => {
@@ -488,7 +520,10 @@ describe('api browser helpers', () => {
         invite: 'invite-code',
       })
 
-      assert.deepStrictEqual(result, { ok: true })
+      assert.deepStrictEqual(result, {
+        ok: true,
+        url: 'https://node.example.com/base',
+      })
       assert.deepStrictEqual(wsUrls, [])
     })
 
@@ -500,7 +535,10 @@ describe('api browser helpers', () => {
         url: 'https://node.example.com/base',
       })
 
-      assert.deepStrictEqual(result, { ok: true })
+      assert.deepStrictEqual(result, {
+        ok: true,
+        url: 'https://node.example.com/base',
+      })
     })
 
     it('rejects non-MostBox HTTP responses', async () => {
@@ -515,6 +553,112 @@ describe('api browser helpers', () => {
       })
 
       assert.deepStrictEqual(result, { ok: false, reason: 'http' })
+    })
+
+    it('detects HTTPS without sending credentials during protocol selection', async () => {
+      const requests = []
+      globalThis.fetch = async (input, init) => {
+        requests.push({
+          url: String(input),
+          invite: new Headers(init?.headers).get('x-mostbox-invite'),
+          authorization: new Headers(init?.headers).get('authorization'),
+        })
+        return capabilitiesResponse()
+      }
+
+      const result = await checkBackendConnectionTarget({
+        url: 'node.example.com/base/',
+        invite: 'invite-code',
+      })
+
+      assert.deepStrictEqual(result, {
+        ok: true,
+        url: 'https://node.example.com/base',
+      })
+      assert.deepStrictEqual(requests, [
+        {
+          url: 'https://node.example.com/base/api/remote/capabilities',
+          invite: null,
+          authorization: null,
+        },
+        {
+          url: 'https://node.example.com/base/api/remote/capabilities',
+          invite: 'invite-code',
+          authorization: null,
+        },
+      ])
+    })
+
+    it('falls back to HTTP only when HTTPS is not a MostBox endpoint', async () => {
+      const urls = []
+      globalThis.fetch = async input => {
+        const url = String(input)
+        urls.push(url)
+        if (url.startsWith('https://')) {
+          throw new TypeError('TLS unavailable')
+        }
+        return capabilitiesResponse()
+      }
+
+      const result = await checkBackendConnectionTarget({
+        url: 'node.example.com:1976/base',
+      })
+
+      assert.deepStrictEqual(result, {
+        ok: true,
+        url: 'http://node.example.com:1976/base',
+      })
+      assert.deepStrictEqual(urls, [
+        'https://node.example.com:1976/base/api/remote/capabilities',
+        'http://node.example.com:1976/base/api/remote/capabilities',
+        'http://node.example.com:1976/base/api/remote/capabilities',
+      ])
+    })
+
+    it('does not downgrade after HTTPS identifies a protected MostBox node', async () => {
+      const urls = []
+      globalThis.fetch = async input => {
+        urls.push(String(input))
+        return new Response(
+          JSON.stringify({
+            error: 'Remote node invite required',
+            code: 'INVALID_INVITE',
+          }),
+          {
+            status: 403,
+            headers: { 'content-type': 'application/json' },
+          }
+        )
+      }
+
+      const result = await checkBackendConnectionTarget({
+        url: 'node.example.com',
+        invite: 'wrong-invite',
+      })
+
+      assert.deepStrictEqual(result, { ok: false, reason: 'http' })
+      assert.strictEqual(urls.length, 2)
+      assert.ok(urls.every(url => url.startsWith('https://')))
+    })
+
+    it('does not downgrade after the HTTPS WebSocket probe fails', async () => {
+      const fetchUrls = []
+      const wsUrls = []
+      globalThis.fetch = async input => {
+        fetchUrls.push(String(input))
+        return capabilitiesResponse()
+      }
+      installStoredIdentity()
+      installWebSocketProbe({ opens: false, urls: wsUrls })
+
+      const result = await checkBackendConnectionTarget({
+        url: 'node.example.com/base',
+        invite: 'invite-code',
+      })
+
+      assert.deepStrictEqual(result, { ok: false, reason: 'ws' })
+      assert.ok(fetchUrls.every(url => url.startsWith('https://')))
+      assert.ok(wsUrls.every(url => url.startsWith('wss://')))
     })
   })
 })

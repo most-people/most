@@ -67,7 +67,7 @@ export function NodeConnectionPanel({
   snapshot,
 }: NodeConnectionPanelProps) {
   const { locale, t } = useI18n()
-  const { alert } = useFeedback()
+  const { alert, toast } = useFeedback()
   const theme = useMostBoxTheme()
   const styles = connectionStyles[theme.mode]
   const node = snapshot.node
@@ -78,7 +78,6 @@ export function NodeConnectionPanel({
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [working, setWorking] = useState(false)
-  const [error, setError] = useState('')
 
   const history = client.getNodeHistory()
   const selectedRemote =
@@ -93,18 +92,16 @@ export function NodeConnectionPanel({
 
   useEffect(() => {
     if (!open) return
-    setError('')
     setUrl(selectedRemote?.url || node.endpoint || '')
     setInvite(selectedRemote?.invite || '')
   }, [open, node.endpoint, selectedRemote?.invite, selectedRemote?.url])
 
   const run = async (action: () => Promise<void>) => {
     setWorking(true)
-    setError('')
     try {
       await action()
     } catch (nextError) {
-      setError(getFriendlyRemoteConnectionError(nextError, locale))
+      toast(getFriendlyRemoteConnectionError(nextError, locale), 'error')
     } finally {
       setWorking(false)
     }
@@ -308,7 +305,7 @@ export function NodeConnectionPanel({
                       editable={!working}
                       keyboardType="url"
                       onChangeText={setUrl}
-                      placeholder="https://node.example.com"
+                      placeholder="node.example.com"
                       value={url}
                     />
                     <MostTextInput
@@ -317,7 +314,6 @@ export function NodeConnectionPanel({
                       editable={!working}
                       onChangeText={setInvite}
                       placeholder={t('node.connection.invite')}
-                      secureTextEntry
                       value={invite}
                     />
                     <MostButton
@@ -389,8 +385,6 @@ export function NodeConnectionPanel({
                     </View>
                   </View>
                 ) : null}
-
-                {error ? <Text style={styles.error}>{error}</Text> : null}
               </BottomSheetCard>
             </ScrollView>
           </KeyboardAvoidingView>
@@ -492,14 +486,6 @@ function createConnectionStyles(theme: MostBoxTheme) {
     currentBadge: { alignItems: 'center', flexDirection: 'row', gap: 4 },
     currentText: { color: colors.success, fontSize: 11, fontWeight: '600' },
     pressed: { opacity: 0.65 },
-    error: {
-      backgroundColor: colors.dangerSoft,
-      borderRadius: radii.small,
-      color: colors.danger,
-      fontSize: 12,
-      lineHeight: 17,
-      padding: 10,
-    },
   })
 }
 

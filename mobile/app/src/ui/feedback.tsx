@@ -124,6 +124,14 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     if (dialog?.cancelable) setDialog(null)
   }
 
+  const dismissToast = useCallback(() => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current)
+      toastTimerRef.current = null
+    }
+    setToastState(null)
+  }, [])
+
   const runButton = (button: FeedbackButton) => {
     runFeedbackAction(() => setDialog(null), button.onPress)
   }
@@ -209,32 +217,39 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
         </View>
       </FeedbackLayer>
 
-      {toastState ? (
-        <View accessibilityLiveRegion="polite" style={styles.toastWrap}>
-          <View style={styles.toast}>
-            <ToastIcon size={18} color={toastColor} />
-            <Text maxFontSizeMultiplier={1.8} style={styles.toastText}>
-              {toastState.message}
-            </Text>
-            {toastState.actions.map(action => (
-              <Pressable
-                accessibilityRole="button"
-                key={action.label}
-                onPress={() => {
-                  setToastState(null)
-                  action.onPress()
-                }}
-                style={({ pressed }) => [
-                  styles.toastAction,
-                  pressed ? styles.pressed : null,
-                ]}
-              >
-                <Text style={styles.toastActionText}>{action.label}</Text>
-              </Pressable>
-            ))}
-          </View>
+      <FeedbackLayer
+        onRequestClose={dismissToast}
+        visible={Boolean(toastState)}
+      >
+        <View pointerEvents="box-none" style={styles.toastLayer}>
+          {toastState ? (
+            <View accessibilityLiveRegion="polite" style={styles.toastWrap}>
+              <View style={styles.toast}>
+                <ToastIcon size={18} color={toastColor} />
+                <Text maxFontSizeMultiplier={1.8} style={styles.toastText}>
+                  {toastState.message}
+                </Text>
+                {toastState.actions.map(action => (
+                  <Pressable
+                    accessibilityRole="button"
+                    key={action.label}
+                    onPress={() => {
+                      dismissToast()
+                      action.onPress()
+                    }}
+                    style={({ pressed }) => [
+                      styles.toastAction,
+                      pressed ? styles.pressed : null,
+                    ]}
+                  >
+                    <Text style={styles.toastActionText}>{action.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          ) : null}
         </View>
-      ) : null}
+      </FeedbackLayer>
     </FeedbackContext.Provider>
   )
 }
@@ -322,6 +337,10 @@ function createStyles(theme: MostBoxTheme) {
     },
     pressed: {
       opacity: 0.7,
+    },
+    toastLayer: {
+      flex: 1,
+      pointerEvents: 'box-none',
     },
     toastWrap: {
       alignItems: 'center',

@@ -101,7 +101,10 @@ export function getFriendlyRemoteConnectionError(
     normalized.includes('web app requires a connection')
   ) {
     key = 'node.connection.error.required'
-  } else if (normalized.includes('valid http or https')) {
+  } else if (
+    normalized.includes('valid node url') ||
+    normalized.includes('valid http or https')
+  ) {
     key = 'node.connection.error.invalidUrl'
   } else if (code === 'INVALID_INVITE' || normalized.includes('invite')) {
     key = 'node.connection.error.invalidInvite'

@@ -19,11 +19,11 @@ import { RemoteMostBoxCore } from '../remoteNode/remoteCore'
 import {
   buildNodeHistory,
   clearPreferredRemote,
-  normalizeRemoteUrl,
   saveRemoteNode,
   type StoredRemoteNode,
 } from '../remoteNode/connectionHistory'
 import { createMobileIdentity } from '../remoteNode/identity'
+import { resolveRemoteUrl } from '../remoteNode/protocol'
 import {
   loadMobileIdentity,
   loadRemoteNodes,
@@ -110,8 +110,7 @@ export class MobileNodeClient implements MostBoxMobileClient {
 
   async connectRemote(input: RemoteNodeConfig) {
     this.#assertSwitchAllowed()
-    const url = normalizeRemoteUrl(input.url)
-    if (!url) throw new Error('Enter a valid HTTP or HTTPS node URL')
+    const url = await resolveRemoteUrl(input.url)
     const config = { url, invite: input.invite.trim() }
     const remote = new RemoteMostBoxCore(config, this.#identity)
     try {

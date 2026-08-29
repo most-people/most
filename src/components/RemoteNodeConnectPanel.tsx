@@ -5,6 +5,7 @@ import {
   checkBackendConnectionTarget,
   clearBackendConnection,
   configureBackend,
+  getBackendConnectionCandidates,
   getBackendUrlExport,
   getRemoteInviteExport,
   getNodeHistoryExport,
@@ -24,15 +25,6 @@ interface RemoteNode {
 
 function normalizeRemoteUrlInput(value: string) {
   return value.trim().replace(/\/+$/, '')
-}
-
-function isHttpUrl(value: string) {
-  try {
-    const url = new URL(value)
-    return url.protocol === 'http:' || url.protocol === 'https:'
-  } catch {
-    return false
-  }
 }
 
 function formatRemoteNodeHost(value: string) {
@@ -71,32 +63,34 @@ export default function RemoteNodeConnectPanel({
   }
 
   async function connectRemote(url: string, invite: string) {
-    const nextUrl = normalizeRemoteUrlInput(url)
+    const nextInput = normalizeRemoteUrlInput(url)
     const nextInvite = invite.trim()
 
-    setUrlInput(nextUrl)
+    setUrlInput(nextInput)
     setInviteInput(nextInvite)
 
-    if (!isHttpUrl(nextUrl)) {
+    if (getBackendConnectionCandidates(nextInput).length === 0) {
       addToast(t('remote.error.invalidUrl'), 'warning')
       return
     }
     setIsConnecting(true)
     try {
-      const { ok, reason } = await checkBackendConnectionTarget({
-        url: nextUrl,
+      const result = await checkBackendConnectionTarget({
+        url: nextInput,
         invite: nextInvite,
       })
-      if (!ok) {
-        if (reason === 'http') {
+      if (!result.ok) {
+        if (result.reason === 'http') {
           addToast(t('remote.error.http'), 'error')
-        } else if (reason === 'ws') {
+        } else if (result.reason === 'ws') {
           addToast(t('remote.error.ws'), 'error')
         } else {
           addToast(t('remote.error.failed'), 'error')
         }
         return
       }
+      const nextUrl = result.url
+      setUrlInput(nextUrl)
       configureBackend({ url: nextUrl, invite: nextInvite })
       refreshNodes()
       useAppStore.setState({
@@ -148,13 +142,14 @@ export default function RemoteNodeConnectPanel({
       <div className="remote-node-form">
         <input
           className="input input-compact"
-          placeholder="https://node.example.com"
+          placeholder="node.example.com"
           value={urlInput}
           onChange={event => setUrlInput(event.target.value)}
         />
         <input
           className="input input-compact"
           placeholder={t('remote.invite.placeholder')}
+          type="text"
           value={inviteInput}
           onChange={event => setInviteInput(event.target.value)}
         />

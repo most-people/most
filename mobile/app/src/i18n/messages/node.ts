@@ -410,9 +410,9 @@ export const nodeMessages = {
     en: 'Remote node unavailable; using the local node',
   },
   'node.connection.error.invalidUrl': {
-    'zh-CN': '请输入有效的 HTTP 或 HTTPS 节点地址',
-    'zh-TW': '請輸入有效的 HTTP 或 HTTPS 節點地址',
-    en: 'Enter a valid HTTP or HTTPS node URL',
+    'zh-CN': '请输入有效的节点地址',
+    'zh-TW': '請輸入有效的節點地址',
+    en: 'Enter a valid node URL',
   },
   'node.connection.error.required': {
     'zh-CN': '请先连接一个远程 MostBox 节点',
