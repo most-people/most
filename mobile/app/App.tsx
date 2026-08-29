@@ -32,8 +32,11 @@ import {
   Languages,
   ListChecks,
   Loader,
+  Monitor,
+  Moon,
   Radio,
   ShieldCheck,
+  Sun,
   X,
 } from 'lucide-react-native'
 import { FilesScreen } from './src/features/files/FilesScreen'
@@ -68,9 +71,13 @@ import {
 import { createMostBoxCore } from './src/mobileCore/createMostBoxCore'
 import {
   darkTheme,
+  getNextThemePreference,
   lightTheme,
+  ThemeProvider,
   type MostBoxTheme,
+  type ThemePreference,
   useMostBoxTheme,
+  useThemePreference,
 } from './src/ui/theme'
 import {
   parseIncomingMostLink,
@@ -128,6 +135,12 @@ const TAB_LABEL_KEYS: Record<RootTab, MessageKey> = {
   transfers: 'nav.transfers',
   node: 'nav.node',
 }
+
+const THEME_LABEL_KEYS = {
+  dark: 'common.theme.dark',
+  light: 'common.theme.light',
+  system: 'common.theme.system',
+} as const satisfies Record<ThemePreference, MessageKey>
 
 async function readDevCidBytes(file: DocumentPickerAsset) {
   const size = file.size || 0
@@ -228,19 +241,22 @@ function triggerWebFile(fileUri: string, fileName: string, open = false) {
 
 export default function App() {
   return (
-    <I18nProvider>
-      <FeedbackProvider>
-        <PrivacyConsentGate>
-          <MostBoxApp />
-        </PrivacyConsentGate>
-      </FeedbackProvider>
-    </I18nProvider>
+    <ThemeProvider>
+      <I18nProvider>
+        <FeedbackProvider>
+          <PrivacyConsentGate>
+            <MostBoxApp />
+          </PrivacyConsentGate>
+        </FeedbackProvider>
+      </I18nProvider>
+    </ThemeProvider>
   )
 }
 
 function MostBoxApp() {
   const { locale, setLocale, t } = useI18n()
   const { alert, toast } = useFeedback()
+  const { cyclePreference, preference } = useThemePreference()
   const theme = useMostBoxTheme()
   const styles = appStyles[theme.mode]
   const { fontScale } = useWindowDimensions()
@@ -1148,6 +1164,7 @@ function MostBoxApp() {
       : nodeStatus === 'error'
         ? theme.colors.danger
         : theme.colors.warning
+  const nextThemePreference = getNextThemePreference(preference)
 
   const handleHeaderBack = () => {
     if (isNodeChild) {
@@ -1243,6 +1260,22 @@ function MostBoxApp() {
             </Text>
           </View>
           <View style={styles.headerActions}>
+            <IconButton
+              accessibilityLabel={t('common.theme.switch', {
+                current: t(THEME_LABEL_KEYS[preference]),
+                next: t(THEME_LABEL_KEYS[nextThemePreference]),
+              })}
+              onPress={cyclePreference}
+              style={styles.headerIconButton}
+            >
+              {preference === 'dark' ? (
+                <Moon size={18} color={theme.colors.info} />
+              ) : preference === 'light' ? (
+                <Sun size={19} color={theme.colors.warning} />
+              ) : (
+                <Monitor size={18} color={theme.colors.textSecondary} />
+              )}
+            </IconButton>
             <IconButton
               accessibilityLabel={t('common.language.choose')}
               onPress={openLanguageMenu}

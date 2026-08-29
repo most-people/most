@@ -64,6 +64,26 @@ export const coreMessages = {
     'zh-TW': '{language}（目前）',
     en: '{language} (Current)',
   },
+  'common.theme.dark': {
+    'zh-CN': '深色模式',
+    'zh-TW': '深色模式',
+    en: 'Dark mode',
+  },
+  'common.theme.light': {
+    'zh-CN': '浅色模式',
+    'zh-TW': '淺色模式',
+    en: 'Light mode',
+  },
+  'common.theme.system': {
+    'zh-CN': '跟随系统',
+    'zh-TW': '跟隨系統',
+    en: 'System theme',
+  },
+  'common.theme.switch': {
+    'zh-CN': '当前为{current}，点击切换到{next}',
+    'zh-TW': '目前為{current}，點擊切換到{next}',
+    en: '{current}. Switch to {next}',
+  },
   'nav.files': {
     'zh-CN': '文件',
     'zh-TW': '檔案',

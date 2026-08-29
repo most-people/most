@@ -1,6 +1,18 @@
-import { useColorScheme } from 'react-native'
+import {
+  createContext,
+  createElement,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react'
+import * as FileSystem from 'expo-file-system/legacy'
+import { Platform, useColorScheme } from 'react-native'
 
 export type ThemeMode = 'light' | 'dark'
+export type ThemePreference = ThemeMode | 'system'
 
 export type MostBoxTheme = {
   mode: ThemeMode
@@ -79,6 +91,68 @@ const sharedSpacing = {
   large: 16,
   xlarge: 24,
 } as const
+
+const WEB_THEME_PREFERENCE_KEY = 'mostbox.web.theme'
+const themePreferencePath = FileSystem.documentDirectory
+  ? `${FileSystem.documentDirectory}mostbox-theme.txt`
+  : ''
+
+function isThemePreference(value: unknown): value is ThemePreference {
+  return value === 'dark' || value === 'light' || value === 'system'
+}
+
+function getInitialThemePreference(): ThemePreference {
+  if (Platform.OS !== 'web' || typeof localStorage === 'undefined') {
+    return 'system'
+  }
+  try {
+    const value = localStorage.getItem(WEB_THEME_PREFERENCE_KEY)
+    return isThemePreference(value) ? value : 'system'
+  } catch {
+    return 'system'
+  }
+}
+
+async function readStoredThemePreference() {
+  if (Platform.OS === 'web') return getInitialThemePreference()
+  if (!themePreferencePath) return 'system' as const
+  try {
+    const value = await FileSystem.readAsStringAsync(themePreferencePath, {
+      encoding: FileSystem.EncodingType.UTF8,
+    })
+    const normalized = value.trim()
+    return isThemePreference(normalized) ? normalized : 'system'
+  } catch {
+    return 'system' as const
+  }
+}
+
+async function persistThemePreference(preference: ThemePreference) {
+  if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
+    try {
+      localStorage.setItem(WEB_THEME_PREFERENCE_KEY, preference)
+    } catch {
+      // Keep the in-memory theme when browser storage is unavailable.
+    }
+    return
+  }
+  if (!themePreferencePath) return
+  try {
+    await FileSystem.writeAsStringAsync(themePreferencePath, preference, {
+      encoding: FileSystem.EncodingType.UTF8,
+    })
+  } catch {
+    // Keep the in-memory theme when preference storage is unavailable.
+  }
+}
+
+export function getNextThemePreference(
+  preference: ThemePreference
+): ThemePreference {
+  if (preference === 'system') return 'dark'
+  if (preference === 'dark') return 'light'
+  return 'system'
+}
 
 export const lightTheme: MostBoxTheme = {
   mode: 'light',
@@ -176,6 +250,64 @@ export const darkTheme: MostBoxTheme = {
   spacing: sharedSpacing,
 }
 
+type ThemeContextValue = {
+  preference: ThemePreference
+  cyclePreference: () => void
+  theme: MostBoxTheme
+}
+
+const ThemeContext = createContext<ThemeContextValue | null>(null)
+
+export function ThemeProvider({ children }: { children: ReactNode }) {
+  const systemColorScheme = useColorScheme()
+  const [preference, setPreferenceState] = useState<ThemePreference>(
+    getInitialThemePreference
+  )
+
+  useEffect(() => {
+    let active = true
+    void readStoredThemePreference().then(storedPreference => {
+      if (active) setPreferenceState(storedPreference)
+    })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const cyclePreference = useCallback(() => {
+    setPreferenceState(currentPreference => {
+      const nextPreference = getNextThemePreference(currentPreference)
+      void persistThemePreference(nextPreference)
+      return nextPreference
+    })
+  }, [])
+
+  const resolvedMode =
+    preference === 'system'
+      ? systemColorScheme === 'dark'
+        ? 'dark'
+        : 'light'
+      : preference
+  const theme = resolvedMode === 'dark' ? darkTheme : lightTheme
+  const value = useMemo<ThemeContextValue>(
+    () => ({ preference, cyclePreference, theme }),
+    [cyclePreference, preference, theme]
+  )
+
+  return createElement(ThemeContext.Provider, { value }, children)
+}
+
+export function useThemePreference() {
+  const value = useContext(ThemeContext)
+  if (!value) {
+    throw new Error('useThemePreference must be used within ThemeProvider')
+  }
+  return value
+}
+
 export function useMostBoxTheme() {
-  return useColorScheme() === 'dark' ? darkTheme : lightTheme
+  const value = useContext(ThemeContext)
+  const systemColorScheme = useColorScheme()
+  if (value) return value.theme
+  return systemColorScheme === 'dark' ? darkTheme : lightTheme
 }
