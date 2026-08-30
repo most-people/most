@@ -22,11 +22,11 @@ type DownloadDocument = Pick<Document, 'createElement'> & {
   body: Pick<Document['body'], 'appendChild' | 'removeChild'>
 }
 
-export type SaveFileToLocalResult = {
+type SaveFileToLocalResult = {
   method: 'picker' | 'download'
 }
 
-export type SaveFileToLocalOptions = {
+type SaveFileToLocalOptions = {
   cid: string
   fileName: string
   getFileDownloadUrl: (cid: string) => string

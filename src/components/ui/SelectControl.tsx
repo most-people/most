@@ -1,12 +1,12 @@
 import { ChevronDown } from 'lucide-react'
 
-export interface SelectControlOption<TValue extends string | number> {
+interface SelectControlOption<TValue extends string | number> {
   value: TValue
   label: string
   disabled?: boolean
 }
 
-export interface SelectControlProps<TValue extends string | number> {
+interface SelectControlProps<TValue extends string | number> {
   options: readonly SelectControlOption<TValue>[]
   value: TValue
   onChange: (value: TValue) => void

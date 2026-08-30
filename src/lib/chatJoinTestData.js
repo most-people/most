@@ -9,7 +9,7 @@ export const CHAT_JOIN_TEST_CHANNEL = Object.freeze({
   name: 'User / Service 测试频道',
 })
 
-export const CHAT_JOIN_TEST_ACCOUNTS = Object.freeze([
+const CHAT_JOIN_TEST_ACCOUNTS = Object.freeze([
   Object.freeze({
     uid: 'user',
     theme: 'st',

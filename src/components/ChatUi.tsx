@@ -18,9 +18,9 @@ import { SafeImage } from '~/components/SafeImage'
 import { ActionMenu } from '~/components/ui'
 import { useI18n, type MessageKey } from '~/lib/i18n'
 
-export type ChatMessageVariant = 'self' | 'other'
+type ChatMessageVariant = 'self' | 'other'
 
-export type ChannelMemberView = {
+type ChannelMemberView = {
   id: string
   name: string
   tag?: string

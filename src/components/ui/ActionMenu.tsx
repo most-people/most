@@ -14,10 +14,10 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 
-export type ActionMenuPlacement =
+type ActionMenuPlacement =
   'top-start' | 'top-end' | 'bottom-start' | 'bottom-end'
 
-export type ActionMenuItem = {
+type ActionMenuItem = {
   key: string
   label: ReactNode
   description?: ReactNode
@@ -27,11 +27,11 @@ export type ActionMenuItem = {
   onSelect: () => void
 }
 
-export type ActionMenuContentProps = {
+type ActionMenuContentProps = {
   closeMenu: () => void
 }
 
-export type ActionMenuTriggerProps = {
+type ActionMenuTriggerProps = {
   ref: Ref<HTMLButtonElement>
   type: 'button'
   disabled: boolean
@@ -42,7 +42,7 @@ export type ActionMenuTriggerProps = {
   'aria-controls': string
 }
 
-export type ActionMenuProps = {
+type ActionMenuProps = {
   ariaLabel: string
   items?: ActionMenuItem[]
   renderContent?: (props: ActionMenuContentProps) => ReactNode

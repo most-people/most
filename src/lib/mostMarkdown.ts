@@ -1,12 +1,12 @@
 import { parseMostLink } from '~server/src/core/mostLink.js'
 
-export interface MostMarkdownReference {
+interface MostMarkdownReference {
   cid: string
   fileName: string
   link: string
 }
 
-export interface BuildMostMarkdownAttachmentOptions {
+interface BuildMostMarkdownAttachmentOptions {
   link: string
   fileName: string
   image: boolean

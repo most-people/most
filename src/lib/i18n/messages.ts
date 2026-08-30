@@ -111,7 +111,7 @@ export const zhCNMessages = {
 
 export type MessageKey = keyof typeof zhCNMessages
 
-export const enMessages = {
+const enMessages = {
   ...enCoreMessages,
   ...enAboutMessages,
   ...enHiMessages,
@@ -131,7 +131,7 @@ export const enMessages = {
   ...enProfileMessages,
 } satisfies Record<MessageKey, string>
 
-export const zhTWMessages = {
+const zhTWMessages = {
   ...zhTWCoreMessages,
   ...zhTWAboutMessages,
   ...zhTWHiMessages,

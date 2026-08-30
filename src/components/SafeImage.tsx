@@ -1,6 +1,6 @@
 import type { ImgHTMLAttributes, SyntheticEvent } from 'react'
 
-export const DEFAULT_IMAGE_FALLBACK = '/avatars/fallback-broken.svg'
+const DEFAULT_IMAGE_FALLBACK = '/avatars/fallback-broken.svg'
 
 type SafeImageProps = ImgHTMLAttributes<HTMLImageElement> & {
   fallbackSrc?: string

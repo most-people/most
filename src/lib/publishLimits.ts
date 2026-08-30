@@ -34,7 +34,7 @@ function normalizeLimit(value: unknown) {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null
 }
 
-export function getPublishFileTooLargeMessage(
+function getPublishFileTooLargeMessage(
   details: PublishFileSizeDetails,
   t: Translate
 ) {

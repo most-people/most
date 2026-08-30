@@ -5,7 +5,7 @@ import {
 } from '../server/src/core/releaseManifest.js'
 import { isAllowedExternalHost } from './security.js'
 
-export const DEFAULT_RELEASE_MANIFEST_URL =
+const DEFAULT_RELEASE_MANIFEST_URL =
   'https://download.most.box/releases/latest.json'
 
 const DEFAULT_RELEASE_DOWNLOAD_HOSTS = ['download.most.box', 'github.com']

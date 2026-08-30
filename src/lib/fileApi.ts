@@ -13,7 +13,7 @@ import {
 import type { MessageKey } from '~/lib/i18n'
 import type { ActiveDownloadTask } from '~/lib/downloadTasks'
 
-export interface MostFileRecord {
+interface MostFileRecord {
   cid: string
   fileName: string
   kind?: 'file' | 'collection'
@@ -26,24 +26,24 @@ export interface MostFileRecord {
   [key: string]: unknown
 }
 
-export interface DataPathResponse {
+interface DataPathResponse {
   dataPath: string
   isDefault: boolean
 }
 
-export interface NetworkAddress {
+interface NetworkAddress {
   type: string
   ip: string
   label: string
   iface: string
 }
 
-export interface NetworkResponse {
+interface NetworkResponse {
   port: number
   addresses: NetworkAddress[]
 }
 
-export interface ToggleStarResponse {
+interface ToggleStarResponse {
   success: boolean
   cid: string
   starred: boolean
@@ -65,13 +65,13 @@ export interface DownloadCheckResponse {
   alreadyExists?: boolean
 }
 
-export interface FilePublishResult extends MostFileRecord {
+interface FilePublishResult extends MostFileRecord {
   cid: string
   fileName: string
   link: string
 }
 
-export interface DownloadFileResult {
+interface DownloadFileResult {
   success?: boolean
   taskId?: string
   kind?: 'file' | 'collection'
@@ -91,7 +91,7 @@ export interface CollectionFileRecord {
   seedError?: string
 }
 
-export interface CheckDownloadOptions {
+interface CheckDownloadOptions {
   timeout?: number
   requestTimeout?: number
 }

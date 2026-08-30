@@ -36,7 +36,7 @@ export interface NoteVaultSnapshot {
   files: NoteVaultSnapshotFile[]
 }
 
-export interface NoteVaultRestoreResult {
+interface NoteVaultRestoreResult {
   created: number
   updated: number
   deleted: number
@@ -44,7 +44,7 @@ export interface NoteVaultRestoreResult {
   files: number
 }
 
-export type NoteGitChangeStatus = 'added' | 'modified' | 'deleted'
+type NoteGitChangeStatus = 'added' | 'modified' | 'deleted'
 
 export interface NoteGitAuthor {
   name: string

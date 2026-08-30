@@ -1,9 +1,10 @@
-import { existsSync, readdirSync } from 'node:fs'
+import { existsSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { requiredStaticEntries, staticShellFile } from './static-routes.mjs'
 
 const requiredDirectories = ['assets']
+const maxClientChunkBytes = 500_000
 const allowedTopLevelEntries = new Set(requiredDirectories)
 allowedTopLevelEntries.add(staticShellFile)
 
@@ -19,6 +20,7 @@ if (existsSync('public')) {
 
 const missing = []
 const unexpected = []
+const oversizedChunks = []
 
 if (!existsSync(join('out', staticShellFile))) {
   missing.push(`out/${staticShellFile}`)
@@ -44,12 +46,28 @@ if (existsSync('out')) {
   }
 }
 
-if (missing.length || unexpected.length) {
+const assetsPath = join('out', 'assets')
+if (existsSync(assetsPath)) {
+  for (const entry of readdirSync(assetsPath, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith('.js')) continue
+    const size = statSync(join(assetsPath, entry.name)).size
+    if (size > maxClientChunkBytes) {
+      oversizedChunks.push(`${entry.name} (${size} bytes)`)
+    }
+  }
+}
+
+if (missing.length || unexpected.length || oversizedChunks.length) {
   if (missing.length) {
     console.error(`Missing static output: ${missing.join(', ')}`)
   }
   if (unexpected.length) {
     console.error(`Unexpected static output entries: ${unexpected.join(', ')}`)
+  }
+  if (oversizedChunks.length) {
+    console.error(
+      `Client chunks exceed ${maxClientChunkBytes} bytes: ${oversizedChunks.join(', ')}`
+    )
   }
   process.exit(1)
 }

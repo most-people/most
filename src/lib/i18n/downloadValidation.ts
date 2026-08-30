@@ -6,10 +6,7 @@ import type { MessageKey } from '~/lib/i18n'
 
 type TranslationParams = Record<string, string | number>
 
-export type I18nTranslate = (
-  key: MessageKey,
-  params?: TranslationParams
-) => string
+type I18nTranslate = (key: MessageKey, params?: TranslationParams) => string
 
 type DownloadValidationMessage = {
   key: MessageKey
@@ -29,7 +26,7 @@ const downloadValidationErrorKeys: Record<string, MessageKey> = {
     'app.download.validation.cidDigest',
 }
 
-export function getMostLinkValidationMessageKey(
+function getMostLinkValidationMessageKey(
   link: string
 ): DownloadValidationMessage | null {
   if (!link) return { key: 'app.download.validation.empty' }

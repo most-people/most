@@ -10,7 +10,7 @@ import {
 import { getFileSubtype, type FileSubtype } from '~/lib/filePreview'
 import { formatBytes } from '~/lib/format'
 
-export interface AppFileItem {
+interface AppFileItem {
   cid: string
   fileName: string
   kind?: 'file' | 'collection'
@@ -22,7 +22,7 @@ export interface AppFileItem {
   [key: string]: unknown
 }
 
-export interface AppFolderItem {
+interface AppFolderItem {
   name: string
   path: string
 }

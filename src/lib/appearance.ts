@@ -1,7 +1,7 @@
 export const APPEARANCE_PREFERENCES = ['dark', 'light', 'system'] as const
 
 export type AppearancePreference = (typeof APPEARANCE_PREFERENCES)[number]
-export type ResolvedAppearance = Exclude<AppearancePreference, 'system'>
+type ResolvedAppearance = Exclude<AppearancePreference, 'system'>
 
 export function isAppearancePreference(
   value: unknown

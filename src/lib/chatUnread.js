@@ -1,6 +1,6 @@
 import { messageMentionsAddress } from './chatMentions.js'
 
-export const CHAT_READ_STORAGE_PREFIX = 'mostbox.chat.lastReadAt'
+const CHAT_READ_STORAGE_PREFIX = 'mostbox.chat.lastReadAt'
 
 export function getChannelActivityTime(channel) {
   return (
@@ -19,7 +19,7 @@ export function getChatReadStorageKey(address) {
     : ''
 }
 
-export function getChannelReadTimestamp(timestamp, now = Date.now()) {
+function getChannelReadTimestamp(timestamp, now = Date.now()) {
   const value = Number(timestamp)
   const nextValue = Number.isFinite(value) && value > 0 ? value : now
   return Math.max(0, Math.floor(nextValue))

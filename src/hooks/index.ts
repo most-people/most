@@ -7,7 +7,7 @@ type ElectronRuntimeWindow = Window & {
   }
 }
 
-export function isDesktopClientRuntime() {
+function isDesktopClientRuntime() {
   if (typeof window === 'undefined') return false
   if ((window as ElectronRuntimeWindow).electronAPI?.isElectron === true) {
     return true

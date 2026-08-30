@@ -44,7 +44,7 @@ interface UseChannelMessagesOptions {
   presenceProfile?: ChannelPresenceProfile
 }
 
-export interface SendChannelMessageOptions {
+interface SendChannelMessageOptions {
   channelName?: string
   content: string
   mentions?: ChannelMention[]

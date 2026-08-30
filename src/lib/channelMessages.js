@@ -1,4 +1,4 @@
-export const CHANNEL_MEMBER_JOINED_EVENT = 'channel.member.joined'
+const CHANNEL_MEMBER_JOINED_EVENT = 'channel.member.joined'
 
 export function isChannelMemberJoinedSystemMessage(message) {
   return (

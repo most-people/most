@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-export interface SegmentedControlOption<TValue extends string | number> {
+interface SegmentedControlOption<TValue extends string | number> {
   value: TValue
   label: ReactNode
   ariaLabel?: string
@@ -8,7 +8,7 @@ export interface SegmentedControlOption<TValue extends string | number> {
   disabled?: boolean
 }
 
-export interface SegmentedControlProps<TValue extends string | number> {
+interface SegmentedControlProps<TValue extends string | number> {
   options: readonly SegmentedControlOption<TValue>[]
   value: TValue
   onChange: (value: TValue) => void

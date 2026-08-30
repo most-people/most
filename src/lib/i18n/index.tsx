@@ -44,11 +44,9 @@ interface I18nContextValue {
 const I18nContext = createContext<I18nContextValue | null>(null)
 
 export {
-  DEFAULT_LOCALE,
   LOCALE_STORAGE_KEY,
   LOCALES,
   localeNames,
-  messages,
   type Locale,
   type MessageKey,
 }
@@ -61,16 +59,13 @@ export function normalizeLocale(value: unknown): Locale {
   return isLocale(value) ? value : DEFAULT_LOCALE
 }
 
-export function getNextLocale(locale: Locale): Locale {
+function getNextLocale(locale: Locale): Locale {
   const currentIndex = LOCALES.indexOf(locale)
   const nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % LOCALES.length
   return LOCALES[nextIndex] ?? DEFAULT_LOCALE
 }
 
-export function interpolateMessage(
-  template: string,
-  params?: TranslationParams
-) {
+function interpolateMessage(template: string, params?: TranslationParams) {
   if (!params) return template
   return template.replace(/\{(\w+)\}/g, (_, key) =>
     params[key] === undefined ? `{${key}}` : String(params[key])
@@ -88,7 +83,7 @@ export function translateMessage(
   )
 }
 
-export function formatLocalizedTime(locale: Locale, formattedTime: string) {
+function formatLocalizedTime(locale: Locale, formattedTime: string) {
   if (locale !== 'zh-TW') return formattedTime
   return formattedTime.replace(/(上午|下午)(?=\d)/, '$1 ')
 }

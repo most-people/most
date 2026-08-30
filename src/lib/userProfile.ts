@@ -1,7 +1,7 @@
 import type { UserIdentity } from '~/stores/userStore'
 import type { LocalizedTag } from '~/lib/localizedTag'
 
-export function getUserDisplayName(identity: UserIdentity) {
+function getUserDisplayName(identity: UserIdentity) {
   return identity.displayName || identity.username
 }
 

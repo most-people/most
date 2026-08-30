@@ -8,9 +8,7 @@ interface LanguageToggleProps {
   theme?: LanguageToggleTheme
 }
 
-export function getLanguageToggleLocales(
-  theme?: LanguageToggleTheme
-): Locale[] {
+function getLanguageToggleLocales(theme?: LanguageToggleTheme): Locale[] {
   return theme === 'st'
     ? LOCALES.filter(item => item !== 'zh-CN')
     : [...LOCALES]

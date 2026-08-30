@@ -1,4 +1,4 @@
-export interface ChatJoinInviteNodeSelection {
+interface ChatJoinInviteNodeSelection {
   inviteNodeUrl?: string
   inviteNodeInvite?: string
   hasBackend: boolean | null
@@ -7,7 +7,7 @@ export interface ChatJoinInviteNodeSelection {
   activeRemoteInvite?: string
 }
 
-export function normalizeChatJoinBackendCandidate(value?: string) {
+function normalizeChatJoinBackendCandidate(value?: string) {
   return String(value || '')
     .trim()
     .replace(/\/+$/, '')
@@ -17,7 +17,7 @@ function normalizeChatJoinInviteCode(value?: string) {
   return String(value || '').trim()
 }
 
-export function isUsingChatJoinInviteNode({
+function isUsingChatJoinInviteNode({
   inviteNodeUrl,
   inviteNodeInvite,
   hasBackend,

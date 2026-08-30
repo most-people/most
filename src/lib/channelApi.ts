@@ -49,7 +49,7 @@ export interface Channel {
   pinned?: boolean
 }
 
-export interface ChannelPeer {
+interface ChannelPeer {
   peerId: string
   authorName?: string
   memberAddresses?: string[]
@@ -75,15 +75,15 @@ export interface ChannelMemberProfile {
   joinedAt?: string
 }
 
-export interface SendMessageResult {
+interface SendMessageResult {
   message: ChannelMessage
 }
 
-export interface GetChannelsOptions {
+interface GetChannelsOptions {
   type?: string
 }
 
-export interface SendChannelMessageInput {
+interface SendChannelMessageInput {
   channelName: string
   content: string
   clientMessageId?: string
@@ -95,34 +95,34 @@ export interface SendChannelMessageInput {
   attachment?: ChannelAttachment
 }
 
-export interface ChannelProfileInput {
+interface ChannelProfileInput {
   displayName?: string
   avatar?: string
   tag?: MemberTag
 }
 
-export interface UpdateMemberProfileInput extends ChannelProfileInput {
+interface UpdateMemberProfileInput extends ChannelProfileInput {
   channelName: string
   author: string
 }
 
-export interface UpdateMemberProfileResult {
+interface UpdateMemberProfileResult {
   success: boolean
   member?: ChannelMemberProfile
   event?: ChannelMessage
 }
 
-export interface SetChannelRemarkResult {
+interface SetChannelRemarkResult {
   success: boolean
   remark: string
 }
 
-export interface SetChannelPinnedResult {
+interface SetChannelPinnedResult {
   success: boolean
   pinned: boolean
 }
 
-export interface CreateChannelResult extends Channel {
+interface CreateChannelResult extends Channel {
   success?: boolean
   key?: string
 }

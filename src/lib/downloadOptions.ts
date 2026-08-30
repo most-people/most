@@ -26,7 +26,7 @@ export type DownloadManifest = {
   assets: DownloadAsset[]
 }
 
-export type DownloadOptionsState = {
+type DownloadOptionsState = {
   assets: DownloadAsset[]
   currentAsset: DownloadAsset | null
   otherAssets: DownloadAsset[]
@@ -38,7 +38,7 @@ export type DownloadOptionsState = {
   } | null
 }
 
-export type DownloadPlatformDetectionInput = {
+type DownloadPlatformDetectionInput = {
   userAgentDataPlatform?: string
   userAgentDataMobile?: boolean
   navigatorPlatform?: string
@@ -46,10 +46,9 @@ export type DownloadPlatformDetectionInput = {
   maxTouchPoints?: number
 }
 
-export const GITHUB_LATEST_URL =
-  'https://github.com/most-people/most/releases/latest'
+const GITHUB_LATEST_URL = 'https://github.com/most-people/most/releases/latest'
 
-export const DEFAULT_R2_PUBLIC_BASE_URL = 'https://download.most.box'
+const DEFAULT_R2_PUBLIC_BASE_URL = 'https://download.most.box'
 
 export function detectDownloadPlatformKey({
   userAgentDataPlatform = '',

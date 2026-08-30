@@ -20,7 +20,7 @@ export type NoteMoveTarget =
       updated_at: number
     }
 
-export type NoteDirectoryOption = {
+type NoteDirectoryOption = {
   path: string
   name: string
   parentPath: string

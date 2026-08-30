@@ -12,7 +12,7 @@ import type { ChannelAttachment } from '~/lib/channelApi'
 import { formatBytes } from '~/lib/format'
 import { useI18n } from '~/lib/i18n'
 
-export type ChatAttachmentStatus =
+type ChatAttachmentStatus =
   'idle' | 'checking' | 'ready' | 'downloading' | 'available' | 'error'
 
 export function getAttachmentBaseFileName(fileName: string) {

@@ -20,7 +20,7 @@ import { getUserPresenceProfile } from '~/lib/userProfile'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 
-export interface VoiceRoomInfo {
+interface VoiceRoomInfo {
   channelName: string
   title: string
 }

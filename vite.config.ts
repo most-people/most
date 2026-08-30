@@ -39,5 +39,29 @@ export default defineConfig({
   build: {
     outDir: 'out',
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              name: 'scalar',
+              test: /node_modules[\\/]@scalar[\\/]/,
+              priority: 20,
+              minSize: 40 * 1024,
+              maxSize: 400 * 1024,
+              includeDependenciesRecursively: false,
+            },
+            {
+              name: 'editor',
+              test: /node_modules[\\/](?:@milkdown|@codemirror|codemirror|katex|prosemirror-)/,
+              priority: 10,
+              minSize: 40 * 1024,
+              maxSize: 400 * 1024,
+              includeDependenciesRecursively: false,
+            },
+          ],
+        },
+      },
+    },
   },
 })

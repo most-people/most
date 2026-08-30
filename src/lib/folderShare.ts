@@ -1,11 +1,11 @@
-export interface FolderShareFile {
+interface FolderShareFile {
   fileName?: string
   kind?: string
   localAvailable?: boolean
   seedStatus?: string
 }
 
-export interface FolderShareState {
+interface FolderShareState {
   canShare: boolean
   reason: '' | 'empty' | 'missingLocalFiles'
   fileCount: number
