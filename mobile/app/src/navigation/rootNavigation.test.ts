@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
 import test from 'node:test'
 import { getRootBackAction, getTabPressAction } from './rootNavigation'
 
@@ -51,5 +53,36 @@ test('back action closes overlays and child routes before exiting', () => {
       languageModalOpen: false,
     }),
     'exit'
+  )
+})
+
+test('confirmed tab changes force the dirty knowledge editor to exit', async () => {
+  const [appSource, knowledgeSource] = await Promise.all([
+    readFile(path.resolve('App.tsx'), 'utf8'),
+    readFile(
+      path.resolve('src/features/knowledge/KnowledgeBaseScreen.tsx'),
+      'utf8'
+    ),
+  ])
+
+  assert.equal(
+    appSource.includes('setKnowledgeDiscardToken(current => current + 1)'),
+    true
+  )
+  assert.equal(
+    appSource.includes('discardRequestToken={knowledgeDiscardToken}'),
+    true
+  )
+  assert.equal(
+    knowledgeSource.includes(
+      'handledDiscardRequestTokenRef.current === discardRequestToken'
+    ),
+    true
+  )
+  assert.equal(
+    knowledgeSource.includes(
+      "setMode(editorOriginalPath ? 'preview' : 'browse')"
+    ),
+    true
   )
 })

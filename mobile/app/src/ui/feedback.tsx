@@ -218,6 +218,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
       </FeedbackLayer>
 
       <FeedbackLayer
+        modal={false}
         onRequestClose={dismissToast}
         visible={Boolean(toastState)}
       >

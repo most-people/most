@@ -81,6 +81,7 @@ type PublishedKnowledgeAttachment = {
 export type KnowledgeBaseScreenProps = {
   backRequestToken: number
   backupWorking: boolean
+  discardRequestToken: number
   isCoreReady: boolean
   reselectToken: number
   onBackup: () => void | Promise<void>
@@ -181,6 +182,7 @@ function appendImportedNote(
 export function KnowledgeBaseScreen({
   backRequestToken,
   backupWorking,
+  discardRequestToken,
   isCoreReady,
   reselectToken,
   onBackup,
@@ -199,6 +201,7 @@ export function KnowledgeBaseScreen({
   const repositoryRef = useRef<KnowledgeRepository | null>(null)
   const browserScrollRef = useRef<ScrollView>(null)
   const handledBackRequestTokenRef = useRef(0)
+  const handledDiscardRequestTokenRef = useRef(0)
   const [notes, setNotes] = useState<MobileKnowledgeNote[]>([])
   const [mode, setMode] = useState<ScreenMode>('browse')
   const [editorView, setEditorView] = useState<EditorView>('edit')
@@ -363,6 +366,15 @@ export function KnowledgeBaseScreen({
     }
     if (mode === 'preview') setMode('browse')
   }, [backRequestToken, leaveEditor, mode])
+
+  useEffect(() => {
+    if (discardRequestToken <= 0) return
+    if (handledDiscardRequestTokenRef.current === discardRequestToken) return
+    handledDiscardRequestTokenRef.current = discardRequestToken
+    if (mode === 'edit') {
+      setMode(editorOriginalPath ? 'preview' : 'browse')
+    }
+  }, [discardRequestToken, editorOriginalPath, mode])
 
   function openKnowledgeActions() {
     alert(t('knowledge.actions.title'), undefined, [

@@ -22,6 +22,17 @@ test('mobile production code does not call the unsupported Alert.alert API', asy
   }
 })
 
+test('native toast feedback uses the non-modal layer', async () => {
+  const [feedbackSource, nativeLayerSource] = await Promise.all([
+    readFile(path.resolve('src/ui/feedback.tsx'), 'utf8'),
+    readFile(path.resolve('src/ui/FeedbackLayer.tsx'), 'utf8'),
+  ])
+
+  assert.equal(feedbackSource.includes('modal={false}'), true)
+  assert.equal(nativeLayerSource.includes('if (!modal)'), true)
+  assert.equal(nativeLayerSource.includes('<Modal'), true)
+})
+
 async function collectSourceFiles(directory: string): Promise<string[]> {
   const entries = await readdir(directory, { withFileTypes: true })
   const files = await Promise.all(

@@ -305,6 +305,7 @@ function MostBoxApp() {
     'browse' | 'preview' | 'edit'
   >('browse')
   const [knowledgeBackToken, setKnowledgeBackToken] = useState(0)
+  const [knowledgeDiscardToken, setKnowledgeDiscardToken] = useState(0)
   const [reselectTokens, setReselectTokens] = useState<Record<RootTab, number>>(
     { files: 0, knowledge: 0, transfers: 0, node: 0 }
   )
@@ -423,7 +424,11 @@ function MostBoxApp() {
         {
           text: t('app.discard.confirm'),
           style: 'destructive',
-          onPress: () => setActiveTab(nextTab),
+          onPress: () => {
+            setKnowledgeDiscardToken(current => current + 1)
+            if (nextTab !== 'node') setNodeRoute('status')
+            setActiveTab(nextTab)
+          },
         },
       ])
       return
@@ -1343,6 +1348,7 @@ function MostBoxApp() {
             <KnowledgeBaseScreen
               backupWorking={knowledgeBackupWorking}
               backRequestToken={knowledgeBackToken}
+              discardRequestToken={knowledgeDiscardToken}
               isCoreReady={isReady}
               reselectToken={reselectTokens.knowledge}
               onBackup={handleBackupKnowledge}
