@@ -60,6 +60,7 @@ const SOURCE_PATHS = {
   noteCss: 'src/styles/note.css',
   files: 'src/features/files/AppPage.tsx',
   chat: 'src/features/chat/ChatPage.tsx',
+  chatPageModel: 'src/features/chat/chatPageModel.ts',
   chatJoin: 'src/features/chat/ChatJoinPage.tsx',
   chatRoom: 'src/lib/chatRoom.js',
   inputModal: 'src/components/ui/InputModal.tsx',
@@ -1392,6 +1393,48 @@ describe('frontend smoke checks', () => {
     )
   })
 
+  it('keeps chat page event and mention normalization in a testable model', async () => {
+    const {
+      formatMentionCandidateLabel,
+      getSocketEventChannelKeys,
+      normalizeMemberAddress,
+      shouldShowChannelMentionUnread,
+    } = await importBundledSource(SOURCE_PATHS.chatPageModel)
+    const address = `0x${'ab'.repeat(20)}`
+
+    assert.deepEqual(
+      getSocketEventChannelKeys({
+        channelKey: 'primary',
+        channels: [
+          { channel: 'secondary' },
+          { name: 'primary' },
+          { channelKey: 'third' },
+        ],
+      }),
+      ['primary', 'secondary', 'third']
+    )
+    assert.equal(normalizeMemberAddress(address.toUpperCase()), address)
+    assert.equal(
+      formatMentionCandidateLabel({
+        name: 'Alice',
+        address,
+        duplicateName: true,
+      }),
+      `Alice#${address.slice(-4).toUpperCase()}`
+    )
+    assert.equal(
+      shouldShowChannelMentionUnread(
+        'primary',
+        {
+          author: `0x${'cd'.repeat(20)}`,
+          mentions: [{ address, label: 'Alice', start: 0, end: 6 }],
+        },
+        address
+      ),
+      true
+    )
+  })
+
   it('renders localized chat member tags from member profiles', async () => {
     const chatSource = readSource(SOURCE_PATHS.chat)
     const chatUiSource = readSource('src/components/ChatUi.tsx')
@@ -1528,6 +1571,7 @@ describe('frontend smoke checks', () => {
 
   it('uses one open-channel flow for hash-based desktop chat capabilities', () => {
     const chatSource = readSource(SOURCE_PATHS.chat)
+    const chatPageModelSource = readSource(SOURCE_PATHS.chatPageModel)
     const chatJoinSource = readSource(SOURCE_PATHS.chatJoin)
     const chatRoomSource = readSource(SOURCE_PATHS.chatRoom)
     const inputModalSource = readSource(SOURCE_PATHS.inputModal)
@@ -1538,7 +1582,10 @@ describe('frontend smoke checks', () => {
       chatRoomSource,
       /`\/chat\/#\$\{encodeURIComponent\(normalizeChatChannelId\(channelId\)\)\}`/
     )
-    assert.match(chatSource, /getChannelIdFromHash\(window\.location\.hash\)/)
+    assert.match(
+      chatPageModelSource,
+      /getChannelIdFromHash\(window\.location\.hash\)/
+    )
     assert.match(chatSource, /window\.addEventListener\('hashchange'/)
     assert.match(chatSource, /createRandomChannelId\(\)/)
     assert.match(chatSource, /setOpenChatDefaultValue\(generatedChatId\)/)

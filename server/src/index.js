@@ -73,6 +73,12 @@ import {
   normalizeClientMessageId,
 } from './core/channelMessage.js'
 import { ChannelPresenceManager } from './core/channelPresence.js'
+import {
+  createChannelPresenceMessage,
+  createChannelVoiceMessage,
+  normalizeRemoteChannelFrame,
+  normalizeRemoteChannelPresence,
+} from './core/channelWire.js'
 import { getPathBaseName, getDisplayPathFolder } from './core/displayPath.js'
 import {
   normalizeOwnerAddress,
@@ -87,6 +93,13 @@ import {
   readMetadataFile,
   writeMetadataFile,
 } from './node/metadataFile.js'
+import {
+  getChannelConfigPath,
+  getChannelsMetadataPath,
+  loadChannelConfig,
+  loadChannelsMetadata,
+  serializeChannelsMetadata,
+} from './node/channelMetadata.js'
 import {
   ensureNodeSeedPersisted,
   loadOrCreateNodeSeed,
@@ -709,7 +722,7 @@ export class MostBoxEngine extends EventEmitter {
 
       await this.#migrateLegacyTrashMetadata()
 
-      this.#channels = this.#loadChannelsMetadata()
+      this.#channels = loadChannelsMetadata(this.#options.dataPath)
       console.log(`[MostBox] Loaded ${this.#channels.length} channels`)
 
       for (const channel of this.#channels) {
@@ -4074,7 +4087,7 @@ export class MostBoxEngine extends EventEmitter {
    */
   getDisplayName() {
     try {
-      const config = this.#loadChannelConfig()
+      const config = loadChannelConfig(this.#options.dataPath)
       return config.displayName || null
     } catch {}
     return null
@@ -4086,8 +4099,8 @@ export class MostBoxEngine extends EventEmitter {
    */
   setDisplayName(name) {
     try {
-      const configPath = this.#getConfigPath()
-      const config = this.#loadChannelConfig()
+      const configPath = getChannelConfigPath(this.#options.dataPath)
+      const config = loadChannelConfig(this.#options.dataPath)
       config.displayName = name.trim()
       writeMetadataFile(configPath, JSON.stringify(config, null, 2))
       return true
@@ -6261,79 +6274,11 @@ export class MostBoxEngine extends EventEmitter {
     )
   }
 
-  #getChannelsMetadataPath() {
-    return path.join(this.#options.dataPath, 'channels.json')
-  }
-
-  #getConfigPath() {
-    return path.join(this.#options.dataPath, 'channel-config.json')
-  }
-
-  #loadChannelConfig() {
-    return readMetadataFile(this.#getConfigPath(), {
-      label: 'channel config',
-      fallback: () => ({}),
-      parse: data => parseMetadataObject(data, 'channel config'),
-    })
-  }
-
-  #loadChannelsMetadata() {
-    return readMetadataFile(this.#getChannelsMetadataPath(), {
-      label: 'channels',
-      fallback: () => [],
-      parse: data => {
-        const channels = JSON.parse(data)
-        if (!Array.isArray(channels)) {
-          throw new TypeError('channels metadata must be an array')
-        }
-        return channels
-          .filter(channel => channel && typeof channel === 'object')
-          .map(channel => {
-            const channelId = normalizeChannelId(channel.channelId)
-            const channelKey = normalizeChannelKey(channel.channelKey)
-            const expectedChannelKey = buildChannelKey(channelId)
-            return {
-              ...channel,
-              channelId,
-              channelKey,
-              expectedChannelKey,
-              name: channelId,
-              writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
-            }
-          })
-          .filter(
-            channel =>
-              CHANNEL_NAME_REGEX.test(channel.channelId) &&
-              channel.channelKey === channel.expectedChannelKey &&
-              channel.writerId &&
-              channel.localWriterCoreKey
-          )
-          .map(
-            ({ expectedChannelKey: _expectedChannelKey, ...channel }) => channel
-          )
-      },
-    })
-  }
-
   #saveChannelsMetadata() {
-    const persistentChannels = this.#channels.map(channel => ({
-      channelId: channel.channelId,
-      channelKey: channel.channelKey,
-      name: channel.channelId,
-      type: channel.type,
-      createdAt: channel.createdAt,
-      lastMessageAt: channel.lastMessageAt || '',
-      writerId: channel.writerId,
-      localWriterCoreKey: channel.localWriterCoreKey,
-      writerCoreKeys: uniqueStrings(channel.writerCoreKeys),
-      members: Array.isArray(channel.members) ? channel.members : [],
-      remarks: channel.remarks,
-      pinnedBy: channel.pinnedBy,
-    }))
     this.#saveMetadataFile(
       'channels',
-      this.#getChannelsMetadataPath(),
-      JSON.stringify(persistentChannels, null, 2)
+      getChannelsMetadataPath(this.#options.dataPath),
+      serializeChannelsMetadata(this.#channels)
     )
   }
 
@@ -6705,19 +6650,9 @@ export class MostBoxEngine extends EventEmitter {
     if (!this.#isChannelAllowedForStream(stream, channelId)) return true
     try {
       stream.write(
-        `${JSON.stringify({
-          type: 'channel-presence',
-          peerId: this.getNodeId(),
-          channelId: event.channelId,
-          channelKey: event.channelKey,
-          address: event.address,
-          status: event.status,
-          displayName: event.displayName,
-          avatar: event.avatar,
-          profileUpdatedAt: event.profileUpdatedAt,
-          lastSeen: event.lastSeen || Date.now(),
-          sessionId: event.sessionId || 'default',
-        })}\n`
+        `${JSON.stringify(
+          createChannelPresenceMessage(this.getNodeId(), event)
+        )}\n`
       )
       return true
     } catch {
@@ -6747,11 +6682,9 @@ export class MostBoxEngine extends EventEmitter {
     if (!this.#isChannelAllowedForStream(stream, channelId)) return true
     try {
       stream.write(
-        `${JSON.stringify({
-          type: 'channel-voice',
-          peerId: this.getNodeId(),
-          ...event,
-        })}\n`
+        `${JSON.stringify(
+          createChannelVoiceMessage(this.getNodeId(), event)
+        )}\n`
       )
       return true
     } catch {
@@ -6946,58 +6879,38 @@ export class MostBoxEngine extends EventEmitter {
   }
 
   #processChannelPresenceMessage(stream, msg) {
-    if (msg.type !== 'channel-presence') return null
-    const peerId = String(msg.peerId || '').trim()
-    if (!peerId || peerId === this.getNodeId()) return null
-    const channelId = normalizeChannelId(msg.channelId || msg.channelKey)
-    const channelKey = buildChannelKey(channelId)
+    const presence = normalizeRemoteChannelPresence(msg, this.getNodeId())
+    if (!presence) return null
     const localChannel = this.#channels.find(
-      channel => channel.channelKey === channelKey
+      channel => channel.channelKey === presence.channelKey
     )
     if (!localChannel) return null
     if (!this.#isChannelAllowedForStream(stream, localChannel.channelId)) {
       return null
     }
 
-    const address = normalizeOwnerAddress(msg.address)
-    if (!address) return null
-
-    const status = String(msg.status || '').trim()
-    const options = {
-      address,
-      sessionId: msg.sessionId,
-      sourcePeerId: peerId,
-      local: false,
-      displayName: msg.displayName,
-      avatar: msg.avatar,
-      profileUpdatedAt: msg.profileUpdatedAt,
-      lastSeen: Number(msg.lastSeen) || Date.now(),
-    }
-
-    let processed = true
-    if (status === 'online') {
-      this.#channelPresence.join(localChannel, options)
-    } else if (status === 'heartbeat') {
-      this.#channelPresence.heartbeat(localChannel, options)
-    } else if (status === 'profile') {
-      this.#channelPresence.updateProfile(localChannel, options)
-    } else if (status === 'offline') {
-      this.#channelPresence.leave(localChannel.channelKey, options)
+    if (presence.status === 'online') {
+      this.#channelPresence.join(localChannel, presence.options)
+    } else if (presence.status === 'heartbeat') {
+      this.#channelPresence.heartbeat(localChannel, presence.options)
+    } else if (presence.status === 'profile') {
+      this.#channelPresence.updateProfile(localChannel, presence.options)
     } else {
-      processed = false
+      this.#channelPresence.leave(localChannel.channelKey, presence.options)
     }
 
-    return processed ? peerId : null
+    return presence.peerId
   }
 
   #processChannelVoiceMessage(stream, msg) {
-    if (msg.type !== 'channel-voice') return null
-    const peerId = String(msg.peerId || '').trim()
-    if (!peerId || peerId === this.getNodeId()) return null
-    const channelId = normalizeChannelId(msg.channelId || msg.channelKey)
-    const channelKey = buildChannelKey(channelId)
+    const context = normalizeRemoteChannelFrame(
+      msg,
+      this.getNodeId(),
+      'channel-voice'
+    )
+    if (!context) return null
     const localChannel = this.#channels.find(
-      channel => channel.channelKey === channelKey
+      channel => channel.channelKey === context.channelKey
     )
     if (!localChannel) return null
     if (!this.#isChannelAllowedForStream(stream, localChannel.channelId)) {
@@ -7005,11 +6918,11 @@ export class MostBoxEngine extends EventEmitter {
     }
 
     try {
-      const event = normalizeChannelVoiceEvent(channelKey, msg, {
+      const event = normalizeChannelVoiceEvent(context.channelKey, msg, {
         timestamp: msg.timestamp,
       })
       this.emit('channel:voice', event)
-      return peerId
+      return context.peerId
     } catch {
       return null
     }

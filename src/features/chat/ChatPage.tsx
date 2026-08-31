@@ -60,7 +60,7 @@ import {
   getUserChannelProfile,
   getUserPresenceProfile,
 } from '~/lib/userProfile'
-import { selectLocalizedTag, type MemberTag } from '~/lib/localizedTag'
+import { selectLocalizedTag } from '~/lib/localizedTag'
 import { isChannelMemberJoinedSystemMessage } from '~/lib/channelMessages.js'
 import { useGlobalVoiceRoom } from '~/features/chat/GlobalVoiceRoom'
 import { ChatRestoringIndicator } from '~/features/chat/ChatRestoringIndicator'
@@ -101,215 +101,42 @@ import {
   buildChatSharePath,
   buildChatShareUrl,
   createRandomChannelId,
-  getChannelIdFromHash,
   parseChatChannelInput,
 } from '~/lib/chatRoom.js'
+import {
+  CHAT_FILE_ROOT,
+  formatChannelMentionPreviewText,
+  formatChannelMentionUnreadPreview,
+  formatMentionCandidateLabel,
+  getAttachmentKind,
+  getBrowserAudioContextConstructor,
+  getChannelId,
+  getChannelKey,
+  getChannelTitle,
+  getLatestUnreadMentionMessage,
+  getMentionCandidateBaseName,
+  getRequestedChannelNameFromLocation,
+  getSocketEventChannelKeys,
+  hasAddressSuffix,
+  normalizeMemberAddress,
+  shouldShowChannelMentionUnread,
+  stringifyMemberTag,
+  type AttachmentDownloadState,
+  type ChannelLastReadMap,
+  type ChannelMentionUnreadMap,
+  type ChannelMentionUnreadPreviewMap,
+  type ComposerSelection,
+  type DisplayedChannelMemberProfile,
+  type MentionCandidate,
+  type MentionDraft,
+  type MentionTarget,
+} from './chatPageModel'
 
 const ATTACHMENT_CHECK_TIMEOUT_MS = 10000
 const ATTACHMENT_CHECK_REQUEST_TIMEOUT_MS = ATTACHMENT_CHECK_TIMEOUT_MS + 2000
 const CHAT_NOTIFICATION_SOUND_MIN_INTERVAL_MS = 1200
 const CHANNEL_HISTORY_SYNC_DEBOUNCE_MS = 800
 const CHANNEL_MENTION_UNREAD_SCAN_PAGE_SIZE = 100
-
-function getChannelKey(channel?: Pick<Channel, 'channelKey' | 'name'> | null) {
-  return channel?.channelKey || channel?.name || ''
-}
-
-function getChannelId(channel?: Pick<Channel, 'channelId' | 'name'> | null) {
-  return channel?.channelId || channel?.name || ''
-}
-
-function getObjectRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object'
-    ? (value as Record<string, unknown>)
-    : {}
-}
-
-function getSocketEventChannelKeys(data: unknown) {
-  const record = getObjectRecord(data)
-  const keys = new Set<string>()
-  const addKey = (value: unknown) => {
-    const key = String(value || '').trim()
-    if (key) keys.add(key)
-  }
-
-  addKey(record.channelKey)
-  addKey(record.channel)
-  if (Array.isArray(record.channels)) {
-    record.channels.forEach(channel => {
-      const channelRecord = getObjectRecord(channel)
-      addKey(channelRecord.channelKey)
-      addKey(channelRecord.channel)
-      addKey(channelRecord.name)
-    })
-  }
-
-  return [...keys]
-}
-
-function getChannelTitle(
-  channel?: Pick<Channel, 'remark' | 'channelId' | 'name'> | null
-) {
-  return channel?.remark || getChannelId(channel)
-}
-
-function getRequestedChannelNameFromLocation() {
-  if (typeof window === 'undefined') return ''
-  return getChannelIdFromHash(window.location.hash)
-}
-
-const CHAT_FILE_ROOT = 'chat-file'
-
-function getAttachmentKind(file: File, fileName: string): FileSubtype {
-  if (file.type.startsWith('image/')) return 'image'
-  if (file.type.startsWith('video/')) return 'video'
-  if (file.type.startsWith('audio/')) return 'audio'
-  if (file.type.startsWith('text/')) return 'text'
-  return getFileSubtype(fileName)
-}
-
-function hasAddressSuffix(name?: string) {
-  return /#[a-fA-F0-9]{4}$/.test(String(name || '').trim())
-}
-
-function normalizeMemberAddress(address?: string) {
-  return String(address || '')
-    .trim()
-    .toLowerCase()
-}
-
-function getMentionCandidateBaseName(name?: string, address?: string) {
-  const displayName = String(name || '')
-    .trim()
-    .replace(/#[a-fA-F0-9]{4}$/, '')
-  return displayName || shortAddress(address) || 'Unknown'
-}
-
-type ChannelMentionUnreadPreview = {
-  authorName: string
-  content: string
-  timestamp: number
-}
-type ChannelMentionUnreadPreviewMap = Record<
-  string,
-  ChannelMentionUnreadPreview
->
-
-function formatMentionCandidateLabel({
-  name,
-  address,
-  duplicateName = false,
-}: {
-  name?: string
-  address?: string
-  duplicateName?: boolean
-}) {
-  const baseName = getMentionCandidateBaseName(name, address)
-  if (!duplicateName || !address || hasAddressSuffix(baseName)) {
-    return baseName
-  }
-  return `${baseName}#${address.slice(-4).toUpperCase()}`
-}
-
-function formatChannelMentionUnreadPreview(message?: ChannelMessage | null) {
-  if (!message) return null
-  const content = String(message.content || '').trim()
-  if (!content) return null
-  const authorName = String(message.authorName || '').trim()
-  return {
-    authorName: authorName || shortAddress(message.author) || 'Unknown',
-    content,
-    timestamp: Number(message.timestamp) || Date.now(),
-  }
-}
-
-function shouldShowChannelMentionUnread(
-  channelKey: string,
-  message: ChannelMessage | undefined,
-  userAddress?: string
-) {
-  if (!channelKey || !message) return false
-  const isSelfMessage =
-    normalizeMemberAddress(message.author) ===
-    normalizeMemberAddress(userAddress)
-  return !isSelfMessage && messageMentionsAddress(message, userAddress)
-}
-
-function getLatestUnreadMentionMessage(
-  messages: ChannelMessage[],
-  readAt: number,
-  userAddress?: string
-) {
-  return messages.reduce<ChannelMessage | null>((latest, message) => {
-    const timestamp = Number(message?.timestamp)
-    if (!Number.isFinite(timestamp) || timestamp <= readAt) return latest
-    const isSelfMessage =
-      normalizeMemberAddress(message.author) ===
-      normalizeMemberAddress(userAddress)
-    if (isSelfMessage || !messageMentionsAddress(message, userAddress)) {
-      return latest
-    }
-    if (!latest || timestamp > (Number(latest.timestamp) || 0)) return message
-    return latest
-  }, null)
-}
-
-function formatChannelMentionPreviewText(
-  preview?: ChannelMentionUnreadPreview
-) {
-  if (!preview) return ''
-  return `${preview.authorName}: ${preview.content}`
-}
-
-function stringifyMemberTag(tag: MemberTag | undefined) {
-  if (tag === null) return 'null'
-  if (!tag) return 'undefined'
-  return JSON.stringify(
-    Object.keys(tag)
-      .sort((a, b) => a.localeCompare(b))
-      .map(key => [key, tag[key]])
-  )
-}
-
-type AttachmentDownloadState = {
-  status: 'checking' | 'ready' | 'downloading' | 'available' | 'error'
-  message?: string
-}
-
-type ChannelLastReadMap = Record<string, number>
-type ChannelMentionUnreadMap = Record<string, boolean>
-type ComposerSelection = { start: number; end: number }
-type MentionDraft = { content: string; mentions: ChannelMention[] }
-type MentionTarget = { address: string; label: string }
-type DisplayedChannelMemberProfile = {
-  address: string
-  displayName: string
-  avatar?: string
-  tag?: MemberTag
-  hasPersistedProfile?: boolean
-  profileUpdatedAt?: number
-  firstSeenAt: number
-  lastSeenAt: number
-  index: number
-}
-type MentionCandidate = {
-  address: string
-  label: string
-  tag?: string
-  avatarSrc: string
-  online: boolean
-}
-type BrowserAudioContextConstructor = typeof AudioContext
-
-function getBrowserAudioContextConstructor():
-  BrowserAudioContextConstructor | undefined {
-  if (typeof window === 'undefined') return undefined
-  const audioWindow = window as Window &
-    typeof globalThis & {
-      webkitAudioContext?: BrowserAudioContextConstructor
-    }
-  return audioWindow.AudioContext || audioWindow.webkitAudioContext
-}
 
 function ChatPage() {
   const hasBackend = useAppStore(s => s.hasBackend)
