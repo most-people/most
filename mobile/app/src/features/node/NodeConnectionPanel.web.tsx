@@ -314,6 +314,7 @@ export function NodeConnectionPanel({
                       editable={!working}
                       onChangeText={setInvite}
                       placeholder={t('node.connection.invite')}
+                      secureTextEntry
                       value={invite}
                     />
                     <MostButton

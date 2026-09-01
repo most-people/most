@@ -46,6 +46,10 @@ test('Expo Web keeps its remote node client and connection controls', () => {
   assert.match(clientSource, /from '\.\.\/remoteNode\/storage\.web'/)
   assert.match(panelSource, /client\.connectRemote/)
   assert.match(panelSource, /client\.signIn/)
+  assert.match(
+    panelSource,
+    /placeholder=\{t\('node\.connection\.invite'\)\}\s+secureTextEntry\s+value=\{invite\}/
+  )
   assert.match(storageSource, /localStorage/)
   assert.equal(
     fs.existsSync(path.join(projectDir, 'src/remoteNode/storage.ts')),
