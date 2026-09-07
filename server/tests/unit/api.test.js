@@ -53,21 +53,29 @@ function installBrowserEnv({
   globalThis.localStorage = new MemoryStorage()
 }
 
-function installWebSocketProbe({ opens = true, urls = [] } = {}) {
+function installWebSocketProbe({
+  opens = true,
+  urls = [],
+  instances = [],
+} = {}) {
   globalThis.WebSocket = class FakeWebSocket {
     constructor(url) {
       this.url = url
+      this.closeCount = 0
       urls.push(url)
+      instances.push(this)
       queueMicrotask(() => {
         if (opens) {
           this.onopen?.()
-        } else {
+        } else if (opens === false) {
           this.onerror?.(new Error('failed'))
         }
       })
     }
 
-    close() {}
+    close() {
+      this.closeCount += 1
+    }
   }
 }
 
@@ -460,7 +468,12 @@ describe('api browser helpers', () => {
         invite: 'invite-code',
       })
 
-      assert.deepStrictEqual(result, { ok: false, reason: 'http' })
+      assert.deepStrictEqual(result, {
+        ok: false,
+        reason: 'http',
+        retryable: true,
+        status: 503,
+      })
       assert.strictEqual(wsUrls.length, 1)
       assert.strictEqual(new URL(wsUrls[0]).pathname, '/base/ws')
       assert.strictEqual(
@@ -486,7 +499,11 @@ describe('api browser helpers', () => {
         invite: 'invite-code',
       })
 
-      assert.deepStrictEqual(result, { ok: false, reason: 'ws' })
+      assert.deepStrictEqual(result, {
+        ok: false,
+        reason: 'ws',
+        retryable: true,
+      })
       assert.strictEqual(wsUrls.length, 1)
       assert.strictEqual(new URL(wsUrls[0]).pathname, '/base/ws')
       assert.strictEqual(
@@ -552,7 +569,12 @@ describe('api browser helpers', () => {
         url: 'https://node.example.com/base',
       })
 
-      assert.deepStrictEqual(result, { ok: false, reason: 'http' })
+      assert.deepStrictEqual(result, {
+        ok: false,
+        reason: 'http',
+        retryable: false,
+        status: 200,
+      })
     })
 
     it('detects HTTPS without sending credentials during protocol selection', async () => {
@@ -636,7 +658,12 @@ describe('api browser helpers', () => {
         invite: 'wrong-invite',
       })
 
-      assert.deepStrictEqual(result, { ok: false, reason: 'http' })
+      assert.deepStrictEqual(result, {
+        ok: false,
+        reason: 'http',
+        retryable: false,
+        status: 403,
+      })
       assert.strictEqual(urls.length, 2)
       assert.ok(urls.every(url => url.startsWith('https://')))
     })
@@ -656,9 +683,309 @@ describe('api browser helpers', () => {
         invite: 'invite-code',
       })
 
-      assert.deepStrictEqual(result, { ok: false, reason: 'ws' })
+      assert.deepStrictEqual(result, {
+        ok: false,
+        reason: 'ws',
+        retryable: true,
+      })
       assert.ok(fetchUrls.every(url => url.startsWith('https://')))
       assert.ok(wsUrls.every(url => url.startsWith('wss://')))
+    })
+
+    for (const status of [408, 429, 500, 502, 503, 504]) {
+      it(`allows retrying HTTP ${status} without retrying inside the probe`, async () => {
+        let requests = 0
+        globalThis.fetch = async () => {
+          requests += 1
+          return new Response('{}', { status })
+        }
+
+        const result = await checkBackendConnectionTarget({
+          url: 'https://node.example.com',
+        })
+
+        assert.deepStrictEqual(result, {
+          ok: false,
+          reason: 'http',
+          retryable: true,
+          status,
+        })
+        assert.strictEqual(requests, 1)
+      })
+    }
+
+    for (const status of [400, 401, 403, 404, 413, 501]) {
+      it(`does not retry HTTP ${status}`, async () => {
+        globalThis.fetch = async () => new Response('{}', { status })
+
+        assert.deepStrictEqual(
+          await checkBackendConnectionTarget({
+            url: 'https://node.example.com',
+          }),
+          { ok: false, reason: 'http', retryable: false, status }
+        )
+      })
+    }
+
+    it('rejects invalid addresses without a network request', async () => {
+      globalThis.fetch = async () => assert.fail('Unexpected request')
+
+      assert.deepStrictEqual(
+        await checkBackendConnectionTarget({ url: 'not a host' }),
+        { ok: false, reason: 'http', retryable: false }
+      )
+    })
+
+    it('allows retrying network errors', async () => {
+      globalThis.fetch = async () => {
+        throw new TypeError('Failed to fetch')
+      }
+
+      assert.deepStrictEqual(
+        await checkBackendConnectionTarget({ url: 'https://node.example.com' }),
+        { ok: false, reason: 'http', retryable: true }
+      )
+    })
+
+    it('allows retrying the existing HTTP timeout', async context => {
+      const timeoutController = new AbortController()
+      context.mock.method(AbortSignal, 'timeout', milliseconds => {
+        assert.strictEqual(milliseconds, 3000)
+        return timeoutController.signal
+      })
+      globalThis.fetch = async (_, { signal }) => {
+        timeoutController.abort(new DOMException('Timed out', 'TimeoutError'))
+        signal.throwIfAborted()
+      }
+
+      assert.deepStrictEqual(
+        await checkBackendConnectionTarget({ url: 'https://node.example.com' }),
+        { ok: false, reason: 'http', retryable: true }
+      )
+    })
+
+    for (const error of [
+      new TypeError('Response body interrupted'),
+      new DOMException('Timed out', 'TimeoutError'),
+    ]) {
+      it(`allows retrying a response body ${error.name}`, async () => {
+        globalThis.fetch = async () => ({
+          ok: true,
+          status: 200,
+          json: async () => {
+            throw error
+          },
+        })
+
+        assert.deepStrictEqual(
+          await checkBackendConnectionTarget({
+            url: 'https://node.example.com',
+          }),
+          { ok: false, reason: 'http', retryable: true, status: 200 }
+        )
+      })
+    }
+
+    it('rejects valid JSON that is not a MostBox capabilities response', async () => {
+      globalThis.fetch = async () => new Response('{}')
+
+      assert.deepStrictEqual(
+        await checkBackendConnectionTarget({ url: 'https://node.example.com' }),
+        { ok: false, reason: 'http', retryable: false, status: 200 }
+      )
+    })
+
+    it('keeps a transient candidate failure when neither protocol identifies a node', async () => {
+      globalThis.fetch = async input => {
+        if (String(input).startsWith('https:')) {
+          throw new TypeError('Temporarily unreachable')
+        }
+        return new Response('<html>Not MostBox</html>')
+      }
+
+      assert.deepStrictEqual(
+        await checkBackendConnectionTarget({ url: 'node.example.com' }),
+        { ok: false, reason: 'http', retryable: true }
+      )
+    })
+
+    it('classifies permanent protocol-selection failures without sending credentials', async () => {
+      globalThis.fetch = async (_, init) => {
+        assert.strictEqual(init.headers, undefined)
+        return new Response('<html>Not MostBox</html>')
+      }
+
+      assert.deepStrictEqual(
+        await checkBackendConnectionTarget({
+          url: 'node.example.com',
+          invite: 'must-not-be-sent',
+        }),
+        { ok: false, reason: 'http', retryable: false, status: 200 }
+      )
+    })
+
+    it('allows retrying protocol-selection response body interruptions', async () => {
+      globalThis.fetch = async () => ({
+        ok: true,
+        status: 200,
+        json: async () => {
+          throw new TypeError('Response interrupted')
+        },
+      })
+
+      assert.deepStrictEqual(
+        await checkBackendConnectionTarget({ url: 'node.example.com' }),
+        { ok: false, reason: 'http', retryable: true, status: 200 }
+      )
+    })
+
+    it('propagates cancellation before starting a probe', async () => {
+      const controller = new AbortController()
+      const reason = new Error('Cancelled join')
+      controller.abort(reason)
+      globalThis.fetch = async () => assert.fail('Unexpected request')
+
+      await assert.rejects(
+        checkBackendConnectionTarget({
+          url: 'https://node.example.com',
+          signal: controller.signal,
+        }),
+        error => error === reason
+      )
+    })
+
+    it('propagates cancellation during protocol selection without trying HTTP', async () => {
+      const controller = new AbortController()
+      const requests = []
+      globalThis.fetch = async (input, { signal }) => {
+        requests.push(String(input))
+        controller.abort()
+        signal.throwIfAborted()
+      }
+
+      await assert.rejects(
+        checkBackendConnectionTarget({
+          url: 'node.example.com',
+          signal: controller.signal,
+        }),
+        { name: 'AbortError' }
+      )
+      assert.deepStrictEqual(requests, [
+        'https://node.example.com/api/remote/capabilities',
+      ])
+    })
+
+    it('propagates cancellation while reading a successful response body', async () => {
+      const controller = new AbortController()
+      globalThis.fetch = async () => ({
+        ok: true,
+        status: 200,
+        json: async () => {
+          controller.abort()
+          return capabilitiesResponse().json()
+        },
+      })
+
+      await assert.rejects(
+        checkBackendConnectionTarget({
+          url: 'https://node.example.com',
+          signal: controller.signal,
+        }),
+        { name: 'AbortError' }
+      )
+    })
+
+    for (const opens of [true, false]) {
+      it(`closes and detaches the WebSocket after ${opens ? 'success' : 'failure'}`, async context => {
+        context.mock.timers.enable({ apis: ['setTimeout'] })
+        const instances = []
+        globalThis.fetch = async () => capabilitiesResponse()
+        installWebSocketProbe({ opens, instances })
+        installStoredIdentity()
+
+        await checkBackendConnectionTarget({ url: 'https://node.example.com' })
+        const [ws] = instances
+        assert.strictEqual(ws.closeCount, 1)
+        assert.strictEqual(ws.onopen, null)
+        assert.strictEqual(ws.onerror, null)
+        assert.strictEqual(ws.onclose, null)
+        context.mock.timers.tick(4000)
+        assert.strictEqual(ws.closeCount, 1)
+      })
+    }
+
+    it('cleans up HTTP and WebSocket probes when cancelled during connection', async context => {
+      context.mock.timers.enable({ apis: ['setTimeout'] })
+      const controller = new AbortController()
+      const wsCreated = Promise.withResolvers()
+      const reason = new Error('Join no longer active')
+      let httpSignal
+      let closeCount = 0
+      globalThis.fetch = async (_, { signal }) => {
+        httpSignal = signal
+        return new Promise((_, reject) => {
+          signal.addEventListener('abort', () => reject(signal.reason), {
+            once: true,
+          })
+        })
+      }
+      globalThis.WebSocket = class {
+        constructor() {
+          wsCreated.resolve(this)
+        }
+
+        close() {
+          closeCount += 1
+        }
+      }
+      installStoredIdentity()
+      const probe = checkBackendConnectionTarget({
+        url: 'https://node.example.com',
+        signal: controller.signal,
+      })
+      const ws = await wsCreated.promise
+      controller.abort(reason)
+
+      await assert.rejects(probe, error => error === reason)
+      assert.strictEqual(httpSignal.aborted, true)
+      assert.strictEqual(closeCount, 1)
+      assert.strictEqual(ws.onopen, null)
+      assert.strictEqual(ws.onerror, null)
+      assert.strictEqual(ws.onclose, null)
+      context.mock.timers.tick(4000)
+      assert.strictEqual(closeCount, 1)
+    })
+
+    it('closes a timed-out WebSocket after the existing four-second limit', async context => {
+      context.mock.timers.enable({ apis: ['setTimeout'] })
+      const wsCreated = Promise.withResolvers()
+      let closeCount = 0
+      globalThis.fetch = async () => capabilitiesResponse()
+      globalThis.WebSocket = class {
+        constructor() {
+          wsCreated.resolve(this)
+        }
+
+        close() {
+          closeCount += 1
+        }
+      }
+      installStoredIdentity()
+      const probe = checkBackendConnectionTarget({
+        url: 'https://node.example.com',
+      })
+      const ws = await wsCreated.promise
+      context.mock.timers.tick(3999)
+      assert.strictEqual(closeCount, 0)
+      context.mock.timers.tick(1)
+
+      assert.deepStrictEqual(await probe, {
+        ok: false,
+        reason: 'ws',
+        retryable: true,
+      })
+      assert.strictEqual(closeCount, 1)
+      assert.strictEqual(ws.onclose, null)
     })
   })
 })

@@ -555,8 +555,35 @@ export async function getAuthenticatedWebSocketUrl(path = '/ws') {
   return url.toString()
 }
 
-async function probeHttp(cleanedUrl, invite, identity) {
+/**
+ * @typedef {{ ok: false, reason: 'http' | 'ws', retryable: boolean, status?: number }} BackendConnectionFailure
+ * @typedef {{ ok: true } | BackendConnectionFailure} BackendProbeResult
+ */
+
+/**
+ * @param {'http' | 'ws'} reason
+ * @param {boolean} retryable
+ * @param {number} [status]
+ * @returns {BackendConnectionFailure}
+ */
+function backendProbeFailure(reason, retryable, status) {
+  return {
+    ok: false,
+    reason,
+    retryable,
+    ...(status === undefined ? {} : { status }),
+  }
+}
+
+function isRetryableBackendStatus(status) {
+  return [408, 429, 500, 502, 503, 504].includes(status)
+}
+
+/** @returns {Promise<BackendProbeResult>} */
+async function probeHttp(cleanedUrl, invite, identity, signal) {
+  let status
   try {
+    signal?.throwIfAborted()
     const headers = {}
     if (invite) headers['x-mostbox-invite'] = invite
     try {
@@ -567,28 +594,31 @@ async function probeHttp(cleanedUrl, invite, identity) {
     } catch {
       // Backend detection should still work when old identity data is invalid.
     }
+    signal?.throwIfAborted()
+    const timeoutSignal = AbortSignal.timeout(3000)
     const res = await fetch(`${cleanedUrl}/api/remote/capabilities`, {
       method: 'GET',
       headers,
-      signal: AbortSignal.timeout(3000),
+      signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal,
     })
-    if (!res.ok) return { ok: false, reason: 'http' }
-    const data = await res
-      .clone()
-      .json()
-      .catch(() => null)
-    if (
-      !data ||
-      typeof data.remoteAccess !== 'boolean' ||
-      typeof data.inviteRequired !== 'boolean' ||
-      typeof data.adminAvailable !== 'boolean' ||
-      typeof data.listenHost !== 'string'
-    ) {
-      return { ok: false, reason: 'http' }
+    signal?.throwIfAborted()
+    status = res.status
+    if (!res.ok) {
+      return backendProbeFailure(
+        'http',
+        isRetryableBackendStatus(status),
+        status
+      )
+    }
+    const data = await res.json()
+    signal?.throwIfAborted()
+    if (!isMostBoxCapabilities(data)) {
+      return backendProbeFailure('http', false, status)
     }
     return { ok: true }
-  } catch {
-    return { ok: false, reason: 'http' }
+  } catch (error) {
+    signal?.throwIfAborted()
+    return backendProbeFailure('http', !(error instanceof SyntaxError), status)
   }
 }
 
@@ -603,27 +633,48 @@ function isMostBoxCapabilities(data) {
   )
 }
 
-async function probeMostBoxEndpoint(cleanedUrl) {
+/** @returns {Promise<BackendProbeResult>} */
+async function probeMostBoxEndpoint(cleanedUrl, signal) {
+  let status
   try {
+    signal?.throwIfAborted()
+    const timeoutSignal = AbortSignal.timeout(3000)
     const res = await fetch(`${cleanedUrl}/api/remote/capabilities`, {
       method: 'GET',
-      signal: AbortSignal.timeout(3000),
+      signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal,
     })
-    const data = await res
-      .clone()
-      .json()
-      .catch(() => null)
-
-    return (
+    signal?.throwIfAborted()
+    status = res.status
+    let data
+    try {
+      data = await res.json()
+    } catch (error) {
+      signal?.throwIfAborted()
+      return backendProbeFailure(
+        'http',
+        res.ok
+          ? !(error instanceof SyntaxError)
+          : isRetryableBackendStatus(status),
+        status
+      )
+    }
+    signal?.throwIfAborted()
+    if (
       isMostBoxCapabilities(data) ||
       (res.status === 403 && data?.code === 'INVALID_INVITE')
-    )
-  } catch {
-    return false
+    ) {
+      return { ok: true }
+    }
+    return backendProbeFailure('http', isRetryableBackendStatus(status), status)
+  } catch (error) {
+    signal?.throwIfAborted()
+    return backendProbeFailure('http', !(error instanceof SyntaxError), status)
   }
 }
 
-async function probeWebSocket(cleanedUrl, invite, identity) {
+/** @returns {Promise<BackendProbeResult>} */
+async function probeWebSocket(cleanedUrl, invite, identity, signal) {
+  signal?.throwIfAborted()
   if (typeof WebSocket === 'undefined') return { ok: true }
   if (!identity?.danger) return { ok: true }
 
@@ -654,52 +705,84 @@ async function probeWebSocket(cleanedUrl, invite, identity) {
       }
     }
 
-    return await new Promise(resolve => {
+    signal?.throwIfAborted()
+    return await new Promise((resolve, reject) => {
       const ws = new WebSocket(wsUrl.toString())
-      const timeout = setTimeout(() => {
-        ws.close()
-        resolve({ ok: false, reason: 'ws' })
-      }, 4000)
-
-      ws.onopen = () => {
+      let settled = false
+      let timeout
+      const cleanup = () => {
         clearTimeout(timeout)
-        ws.close()
-        resolve({ ok: true })
+        signal?.removeEventListener('abort', onAbort)
+        ws.onopen = null
+        ws.onerror = null
+        ws.onclose = null
+        try {
+          ws.close()
+        } catch {
+          // Some browsers reject closing a socket during its handshake.
+        }
       }
-
-      ws.onerror = () => {
-        clearTimeout(timeout)
-        resolve({ ok: false, reason: 'ws' })
+      const finish = result => {
+        if (settled) return
+        settled = true
+        cleanup()
+        resolve(result)
       }
+      const onAbort = () => {
+        if (settled) return
+        settled = true
+        cleanup()
+        reject(signal.reason)
+      }
+      timeout = setTimeout(() => finish(backendProbeFailure('ws', true)), 4000)
+      ws.onopen = () => finish({ ok: true })
+      ws.onerror = () => finish(backendProbeFailure('ws', true))
+      ws.onclose = () => finish(backendProbeFailure('ws', true))
+      signal?.addEventListener('abort', onAbort, { once: true })
+      if (signal?.aborted) onAbort()
     })
   } catch {
-    return { ok: false, reason: 'ws' }
+    signal?.throwIfAborted()
+    return backendProbeFailure('ws', true)
   }
 }
 
-export async function checkBackendConnectionTarget({ url, invite = '' }) {
+/**
+ * @param {{ url: string, invite?: string, signal?: AbortSignal }} options
+ * @returns {Promise<{ ok: true, url: string, reason?: never, retryable?: never, status?: never } | BackendConnectionFailure>}
+ */
+export async function checkBackendConnectionTarget({
+  url,
+  invite = '',
+  signal,
+}) {
+  signal?.throwIfAborted()
   const candidates = getBackendConnectionCandidates(url)
-  if (candidates.length === 0) return { ok: false, reason: 'http' }
+  if (candidates.length === 0) return backendProbeFailure('http', false)
 
   let cleanedUrl = candidates[0]
   if (!hasExplicitUrlProtocol(url)) {
     cleanedUrl = ''
+    let failure = backendProbeFailure('http', false)
     for (const candidate of candidates) {
-      if (await probeMostBoxEndpoint(candidate)) {
+      const result = await probeMostBoxEndpoint(candidate, signal)
+      if (result.ok) {
         cleanedUrl = candidate
         break
       }
+      if (!failure.retryable || result.retryable) failure = result
     }
-    if (!cleanedUrl) return { ok: false, reason: 'http' }
+    if (!cleanedUrl) return failure
   }
 
   const identity = getStoredIdentity()
 
   const [httpResult, wsResult] = await Promise.all([
-    probeHttp(cleanedUrl, invite, identity),
-    probeWebSocket(cleanedUrl, invite, identity),
+    probeHttp(cleanedUrl, invite, identity, signal),
+    probeWebSocket(cleanedUrl, invite, identity, signal),
   ])
 
+  signal?.throwIfAborted()
   if (!httpResult.ok) return httpResult
   if (!wsResult.ok) return wsResult
   return { ok: true, url: cleanedUrl }

@@ -1,4 +1,4 @@
-import { useState, useEffect, Suspense, useMemo, useRef } from 'react'
+import { useState, useEffect, Suspense, useMemo } from 'react'
 import { useLocation } from '@tanstack/react-router'
 import { AlertCircle, RefreshCw } from 'lucide-react'
 import { AppEmpty } from '~/components/AppEmpty'
@@ -14,21 +14,28 @@ import {
 } from '~server/src/utils/api'
 import { channelApi } from '~/lib/channelApi'
 import { getUserChannelProfile } from '~/lib/userProfile'
-import { translateMessage, useI18n } from '~/lib/i18n'
-import {
-  normalizeChatJoinInvitePayload,
-  type ChatJoinInvitePayload,
-} from '~/lib/chatJoinInvite'
+import { translateMessage, useI18n, type MessageKey } from '~/lib/i18n'
+import { normalizeChatJoinInvitePayload } from '~/lib/chatJoinInvite'
 import {
   decryptChatJoinToken,
   getChatJoinTokenFromHash,
 } from '~/lib/chatJoinToken'
 import { createChatJoinInviteIdentity } from '~/lib/chatJoinIdentity'
-import { shouldConnectChatJoinInviteNode } from '~/lib/chatJoinRemote'
+import {
+  retryChatJoinConnection,
+  shouldConnectChatJoinInviteNode,
+} from '~/lib/chatJoinRemote'
 import { getChatJoinTestInvite } from '~/lib/chatJoinTestData.js'
 import { buildChatSharePath } from '~/lib/chatRoom.js'
 
 const CHANNEL_REMARK_MAX_LENGTH = 50
+
+interface ChatJoinError {
+  key: MessageKey
+  params?: Record<string, string | number>
+  request?: boolean
+}
+
 function getJoinChannelUrl(channelId: string) {
   return buildChatSharePath(channelId)
 }
@@ -40,171 +47,183 @@ function normalizeChannelRemark(value?: string) {
 }
 
 function ChatJoinContent() {
-  const { t, setLocale } = useI18n()
+  const { locale, setLocale } = useI18n()
   const searchStr = useLocation({ select: location => location.searchStr })
+  const hash = useLocation({ select: location => location.hash })
   const fixture = useMemo(() => {
     const searchParams = new URLSearchParams(searchStr)
     return searchParams.get('fixture') || ''
   }, [searchStr])
-  const token =
-    typeof window === 'undefined'
-      ? ''
-      : getChatJoinTokenFromHash(window.location.hash)
-  const hasBackend = useAppStore(s => s.hasBackend)
+  const token = getChatJoinTokenFromHash(hash)
+  const invite = useMemo(
+    () =>
+      normalizeChatJoinInvitePayload(
+        fixture ? getChatJoinTestInvite(fixture) : decryptChatJoinToken(token)
+      ),
+    [fixture, token]
+  )
+  const backendReady = useAppStore(s => s.hasBackend !== null)
   const setAppearance = useAppStore(s => s.setAppearance)
   const setUserIdentity = useUserStore(s => s.setUserIdentity)
 
-  const [error, setError] = useState('')
+  const [error, setError] = useState<ChatJoinError | null>(null)
   const [loading, setLoading] = useState(true)
   const [retryAttempt, setRetryAttempt] = useState(0)
-  const flowKeyRef = useRef('')
+
+  const t = (key: MessageKey, params?: Record<string, string | number>) =>
+    translateMessage(key, invite?.locale ?? locale, params)
+  const errorMessage = error
+    ? error.request
+      ? t('chatJoin.error.request', { message: t(error.key, error.params) })
+      : t(error.key, error.params)
+    : ''
 
   function retryJoin() {
-    flowKeyRef.current = ''
-    setError('')
+    setError(null)
     setLoading(true)
     setRetryAttempt(attempt => attempt + 1)
   }
 
   useEffect(() => {
-    const fixtureInvite = getChatJoinTestInvite(fixture)
-
-    if (fixture && !fixtureInvite) {
-      setError(t('chatJoin.error.unknownFixture', { fixture }))
-      setLoading(false)
-      return
-    }
-
-    if (!fixtureInvite && !token) {
-      setError(t('chatJoin.error.missingToken'))
-      setLoading(false)
-      return
-    }
-
-    if (hasBackend === null) {
-      return
-    }
-
-    const flowKey = fixtureInvite ? `fixture:${fixture}` : token
-    if (flowKeyRef.current === flowKey) return
-    flowKeyRef.current = flowKey
-    setError('')
+    setError(null)
     setLoading(true)
 
-    async function runJoinFlow(invite: ChatJoinInvitePayload) {
-      const translateForInvite: typeof t = (key, params) =>
-        invite.locale
-          ? translateMessage(key, invite.locale, params)
-          : t(key, params)
+    if (fixture && !invite) {
+      setError({ key: 'chatJoin.error.unknownFixture', params: { fixture } })
+      setLoading(false)
+      return
+    }
 
-      if (invite.locale) {
-        setLocale(invite.locale)
+    if (!fixture && !token) {
+      setError({ key: 'chatJoin.error.missingToken' })
+      setLoading(false)
+      return
+    }
+
+    if (!invite) {
+      setError({ key: 'chatJoin.error.invalidInvite' })
+      setLoading(false)
+      return
+    }
+
+    if (!backendReady) return
+
+    const controller = new AbortController()
+    const { signal } = controller
+    const activeInvite = invite
+
+    async function runJoinFlow() {
+      if (activeInvite.locale) {
+        setLocale(activeInvite.locale)
       }
 
-      if (invite.appearance === 'dark') {
+      if (activeInvite.appearance === 'dark') {
         setAppearance('dark')
       }
 
-      if (invite.appearance === 'light') {
+      if (activeInvite.appearance === 'light') {
         setAppearance('light')
       }
 
       const remoteUrl = getRemoteUrlExport()
       const remoteInvite = getRemoteInviteExport()
       const activeBackendUrl = getBackendUrlExport()
+      const hasBackend = useAppStore.getState().hasBackend
 
       if (
         shouldConnectChatJoinInviteNode({
-          inviteNodeUrl: invite.node_url,
-          inviteNodeInvite: invite.node_invite,
+          inviteNodeUrl: activeInvite.node_url,
+          inviteNodeInvite: activeInvite.node_invite,
           hasBackend,
           activeBackendUrl,
           activeRemoteUrl: remoteUrl,
           activeRemoteInvite: remoteInvite,
         })
       ) {
-        const result = await checkBackendConnectionTarget({
-          url: invite.node_url,
-          invite: invite.node_invite || '',
-        })
+        const result = await retryChatJoinConnection(
+          () =>
+            checkBackendConnectionTarget({
+              url: activeInvite.node_url || '',
+              invite: activeInvite.node_invite || '',
+              signal,
+            }),
+          signal
+        )
+        signal.throwIfAborted()
 
         if (!result.ok) {
-          throw new Error(
-            translateForInvite('chatJoin.error.remoteConnectFailed')
-          )
+          setError({ key: 'chatJoin.error.remoteConnectFailed', request: true })
+          return
         }
 
+        const connectedUrl = result.url
         configureBackend({
-          url: invite.node_url,
-          invite: invite.node_invite || '',
+          url: connectedUrl,
+          invite: activeInvite.node_invite || '',
         })
         useAppStore.setState({
           hasBackend: true,
-          activeBackendUrl: invite.node_url,
+          activeBackendUrl: connectedUrl,
         })
       } else if (!hasBackend) {
-        throw new Error(translateForInvite('chatJoin.error.noBackend'))
+        setError({ key: 'chatJoin.error.noBackend', request: true })
+        return
       }
 
-      const nextIdentity = createChatJoinInviteIdentity(invite)
+      signal.throwIfAborted()
+      const nextIdentity = createChatJoinInviteIdentity(activeInvite)
       setUserIdentity(nextIdentity)
 
       let firstJoinedChannelKey = ''
-      for (const channel of invite.channels) {
+      for (const channel of activeInvite.channels) {
+        signal.throwIfAborted()
         const result = await channelApi.createChannel(
           channel.id,
           'public',
           getUserChannelProfile(nextIdentity)
         )
+        signal.throwIfAborted()
         const joinedChannelKey = result.channelKey || result.key || channel.id
         if (!firstJoinedChannelKey) firstJoinedChannelKey = joinedChannelKey
         const remark = normalizeChannelRemark(channel.name)
         if (remark) {
           await channelApi.setChannelRemark(joinedChannelKey, remark)
+          signal.throwIfAborted()
         }
       }
 
-      const firstChannel = invite.channels[0]
+      signal.throwIfAborted()
+      const firstChannel = activeInvite.channels[0]
       window.location.href = getJoinChannelUrl(
         firstJoinedChannelKey || firstChannel.id
       )
     }
 
-    async function decrypt() {
+    async function join() {
       try {
-        if (fixtureInvite) {
-          await runJoinFlow(fixtureInvite)
-          return
+        // Let effect cleanup cancel before any joining side effects start.
+        await Promise.resolve()
+        signal.throwIfAborted()
+        await runJoinFlow()
+      } catch {
+        if (!signal.aborted) {
+          setError({ key: 'chatJoin.error.unexpected', request: true })
         }
-
-        const invite = normalizeChatJoinInvitePayload(
-          decryptChatJoinToken(token)
-        )
-        if (!invite) {
-          setError(t('chatJoin.error.invalidInvite'))
-          return
-        }
-        await runJoinFlow(invite)
-      } catch (err) {
-        setError(
-          t('chatJoin.error.request', {
-            message: err instanceof Error ? err.message : String(err),
-          })
-        )
       } finally {
-        setLoading(false)
+        if (!signal.aborted) setLoading(false)
       }
     }
 
-    decrypt()
+    void join()
+    return () => controller.abort()
   }, [
     fixture,
-    hasBackend,
+    invite,
+    backendReady,
     retryAttempt,
     setAppearance,
     setLocale,
     setUserIdentity,
-    t,
     token,
   ])
 
@@ -216,7 +235,7 @@ function ChatJoinContent() {
         ) : error ? (
           <div className="chat-join-error">
             <AlertCircle size={32} />
-            <p>{error}</p>
+            <p>{errorMessage}</p>
             <div className="chat-join-actions">
               <button
                 type="button"

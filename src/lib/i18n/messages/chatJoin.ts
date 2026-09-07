@@ -1,11 +1,11 @@
 export const zhCNChatJoinMessages = {
   'chatJoin.error.unknownFixture': '未知预设邀请：{fixture}',
-  'chatJoin.error.missingToken': '邀请链接缺少 fragment token',
+  'chatJoin.error.missingToken': '邀请链接不完整',
   'chatJoin.error.remoteConnectFailed': '远程节点连接失败',
-  'chatJoin.error.noBackend': '未连接后端，邀请中也没有 node_url',
-  'chatJoin.error.invalidInvite':
-    '邀请内容无效，或缺少 uid、有效的 channels[].id',
-  'chatJoin.error.request': '加入失败: {message}',
+  'chatJoin.error.noBackend': '未连接节点，邀请中也没有提供节点地址',
+  'chatJoin.error.invalidInvite': '邀请内容无效，或缺少有效的用户或频道信息',
+  'chatJoin.error.unexpected': '暂时无法加入频道，请稍后重试',
+  'chatJoin.error.request': '加入失败：{message}',
   'chatJoin.action.retry': '重试',
   'chatJoin.demo.title': '聊天邀请 Demo',
   'chatJoin.demo.guide.title': '如何生成并使用邀请链接',
@@ -70,12 +70,12 @@ export const zhCNChatJoinMessages = {
 
 export const zhTWChatJoinMessages = {
   'chatJoin.error.unknownFixture': '未知預設邀請：{fixture}',
-  'chatJoin.error.missingToken': '邀請連結缺少 fragment token',
+  'chatJoin.error.missingToken': '邀請連結不完整',
   'chatJoin.error.remoteConnectFailed': '遠端節點連線失敗',
-  'chatJoin.error.noBackend': '未連線後端，邀請中也沒有 node_url',
-  'chatJoin.error.invalidInvite':
-    '邀請內容無效，或缺少 uid、有效的 channels[].id',
-  'chatJoin.error.request': '加入失敗: {message}',
+  'chatJoin.error.noBackend': '未連線節點，邀請中也沒有提供節點位址',
+  'chatJoin.error.invalidInvite': '邀請內容無效，或缺少有效的使用者或頻道資訊',
+  'chatJoin.error.unexpected': '暫時無法加入頻道，請稍後重試',
+  'chatJoin.error.request': '加入失敗：{message}',
   'chatJoin.action.retry': '重試',
   'chatJoin.demo.title': '聊天邀請 Demo',
   'chatJoin.demo.guide.title': '如何生成並使用邀請連結',
@@ -140,12 +140,14 @@ export const zhTWChatJoinMessages = {
 
 export const enChatJoinMessages = {
   'chatJoin.error.unknownFixture': 'Unknown preset invite: {fixture}',
-  'chatJoin.error.missingToken': 'Invite link is missing its fragment token',
+  'chatJoin.error.missingToken': 'The invite link is incomplete',
   'chatJoin.error.remoteConnectFailed': 'Failed to connect to remote node',
   'chatJoin.error.noBackend':
-    'No backend is connected and the invite has no node_url',
+    'No node is connected and the invite has no node address',
   'chatJoin.error.invalidInvite':
-    'Invite is invalid or missing uid or a valid channels[].id',
+    'The invite is invalid or missing valid user or channel information',
+  'chatJoin.error.unexpected':
+    'Unable to join the channel. Please try again later.',
   'chatJoin.error.request': 'Join failed: {message}',
   'chatJoin.action.retry': 'Retry',
   'chatJoin.demo.title': 'Chat invite demo',
