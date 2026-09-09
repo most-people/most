@@ -590,11 +590,11 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
           )
           .map(([, operation]) => operation)
       )
-      assert.strictEqual(documentedOperations.length, 48)
+      assert.strictEqual(documentedOperations.length, 49)
       assert.strictEqual(
         new Set(documentedOperations.map(operation => operation.operationId))
           .size,
-        48
+        49
       )
       assert.ok(
         documentedOperations.every(
@@ -620,6 +620,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(spec.paths['/api/channels'])
       assert.ok(spec.paths['/api/channels'].get)
       assert.ok(spec.paths['/api/channels'].post)
+      assert.ok(spec.paths['/api/channels/{name}/history'].get)
       assert.ok(spec.paths['/api/channels'].delete)
       assert.ok(spec.paths['/api/channels/{name}/messages'])
       assert.ok(spec.paths['/api/channels/{name}/messages'].get)

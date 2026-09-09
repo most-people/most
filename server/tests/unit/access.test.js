@@ -20,6 +20,23 @@ function createContext({ host = 'localhost:1976', remoteAddress = '' } = {}) {
 }
 
 describe('HTTP access boundary', () => {
+  it('allows only the explicit Popper production and local browser origins', () => {
+    const origins = getAllowedOrigins(1976)
+    for (const origin of [
+      'https://popper.trade',
+      'http://localhost:8081',
+      'http://127.0.0.1:8081',
+    ]) {
+      assert.equal(isAllowedRequestOrigin(origin, origins), true)
+    }
+    for (const origin of [
+      'https://popper.trade.attacker.example',
+      'http://popper.trade',
+      'http://localhost:8082',
+    ]) {
+      assert.equal(isAllowedRequestOrigin(origin, origins), false)
+    }
+  })
   it('requires both a loopback socket and a loopback Host header', () => {
     assert.strictEqual(
       isLocalRequest(createContext({ remoteAddress: '::ffff:127.0.0.1' })),

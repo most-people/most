@@ -345,6 +345,15 @@ export function createApp(engine, options = {}) {
   function validateWebSocketRequest(req) {
     const url = new URL(req.url, `http://localhost:${appPort}`)
     const invite = String(url.searchParams.get('invite') || '').trim()
+    if (
+      !isAllowedRequestOrigin(
+        req.headers.origin,
+        allowedOrigins,
+        req.headers.host
+      )
+    ) {
+      return false
+    }
     const remote = isRemoteAccessRequest({
       origin: req.headers.origin,
       host: req.headers.host,

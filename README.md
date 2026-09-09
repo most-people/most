@@ -224,7 +224,7 @@ npm test              # 运行 Android 子包协议、P2P Ping 和 IPC 测试
 ```yaml
 services:
   mostbox:
-    image: ghcr.io/most-people/most-box:0.5.0
+    image: ghcr.io/most-people/most-box:0.5.1
     container_name: mostbox
     network_mode: host
     restart: unless-stopped
@@ -316,6 +316,7 @@ mostbox.example.com {
    - 通过 `/chat/#<channelId>` 分享，知道频道 ID 的人即可读取历史、发送消息和加入语音
    - peer 必须先完成绑定当前连接的频道 ID 挑战证明；仅知道派生 topic 不能获取频道 metadata 或 writer core key
    - 消息、附件和语音信令通过 P2P Channel 明文复制，不提供应用层端到端加密
+   - 原生或自定义客户端接入见 [HTTP/WebSocket 聊天协议](docs/native-chat-protocol.md)，包括稳定历史分页、发送幂等和订阅确认
 
 6. **网络连通性测试**
    - 内置 Ping 工具检测 P2P 网络状态

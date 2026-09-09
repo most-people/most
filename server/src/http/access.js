@@ -1,6 +1,9 @@
 const DEFAULT_ALLOWED_ORIGINS = [
   'http://localhost:3000',
   'http://127.0.0.1:3000',
+  'http://localhost:8081',
+  'http://127.0.0.1:8081',
+  'https://popper.trade',
   'https://most.box',
   'https://app.most.box',
   'https://most-people.com',

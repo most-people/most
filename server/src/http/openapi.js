@@ -749,6 +749,14 @@ const schemas = {
     },
     additionalProperties: true,
   },
+  ChannelHistoryPage: {
+    type: 'object',
+    required: ['messages', 'nextCursor'],
+    properties: {
+      messages: { type: 'array', items: ref('ChannelMessage') },
+      nextCursor: { oneOf: [{ type: 'string' }, { type: 'null' }] },
+    },
+  },
   ChannelMemberProfile: {
     type: 'object',
     required: ['address', 'displayName'],
@@ -1799,6 +1807,38 @@ export function createOpenApiSpec({
           ),
         }),
       },
+      '/api/channels/{name}/history': {
+        get: operation({
+          tag: 'Channels',
+          operationId: 'listChannelHistory',
+          summary: 'Read a stable page of channel history',
+          description:
+            'Messages are returned oldest first. Pass nextCursor as before to read older messages. Cursors are exclusive and bound to the channel; newly appended messages do not move the page boundary.',
+          security: signedSecurity,
+          parameters: [
+            channelNameParameter,
+            queryParameter(
+              'limit',
+              { type: 'integer', minimum: 1, maximum: 100, default: 50 },
+              'Maximum messages to return.'
+            ),
+            queryParameter(
+              'before',
+              { type: 'string' },
+              'Opaque nextCursor from the previous page. Omit for the newest page.'
+            ),
+          ],
+          responses: responses(
+            {
+              200: jsonResponse(
+                'Channel history page',
+                ref('ChannelHistoryPage')
+              ),
+            },
+            [400, 401, 403, 404, 429, 500]
+          ),
+        }),
+      },
       '/api/channels/{name}/messages': {
         get: operation({
           tag: 'Channels',
@@ -1832,6 +1872,8 @@ export function createOpenApiSpec({
           tag: 'Channels',
           operationId: 'sendChannelMessage',
           summary: 'Send a P2P channel message',
+          description:
+            'A UUID v4 clientMessageId makes retries idempotent for one author in one channel on this node, including after restart. The same id with different content, attachment or mentions returns 409. Omit clientMessageId for legacy append behavior.',
           sideEffect: 'write',
           security: signedSecurity,
           parameters: [channelNameParameter],
@@ -1848,7 +1890,7 @@ export function createOpenApiSpec({
                 ],
               }),
             },
-            [400, 401, 403, 404, 429, 500]
+            [400, 401, 403, 404, 409, 429, 500]
           ),
         }),
       },

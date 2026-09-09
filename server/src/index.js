@@ -30,6 +30,7 @@ import {
   buildMostLink,
 } from './core/cid.js'
 import { normalizeChannelAttachment } from './core/channelAttachment.js'
+import { paginateChannelHistory } from './core/channelHistory.js'
 import {
   MAX_CHANNEL_FRAME_BYTES,
   consumeChannelFrames,
@@ -258,6 +259,8 @@ export class MostBoxEngine extends EventEmitter {
   #channelCandidateCache = new Map()
   #channelStreams = new Map()
   #channelPresence = null
+  #channelCreationQueues = new Map()
+  #channelMessageQueues = new Map()
 
   #accountMetadata = { profiles: {} }
 
@@ -3507,6 +3510,28 @@ export class MostBoxEngine extends EventEmitter {
    */
   async createChannel(channelIdInput, type = 'personal', options = {}) {
     this.#ensureInitialized()
+    const channelId = normalizeChannelId(channelIdInput)
+    const previous =
+      this.#channelCreationQueues.get(channelId) || Promise.resolve()
+    const pending = previous.then(() =>
+      this.#createChannel(channelId, type, options)
+    )
+    const completed = pending.then(
+      () => undefined,
+      () => undefined
+    )
+    this.#channelCreationQueues.set(channelId, completed)
+    try {
+      return await pending
+    } finally {
+      if (this.#channelCreationQueues.get(channelId) === completed) {
+        this.#channelCreationQueues.delete(channelId)
+      }
+    }
+  }
+
+  async #createChannel(channelIdInput, type, options) {
+    this.#ensureInitialized()
     const ownerAddress = normalizeOwnerAddress(options.ownerAddress)
     const channelId = normalizeChannelId(channelIdInput)
     const channelType = String(type || 'personal').trim() || 'personal'
@@ -3844,6 +3869,33 @@ export class MostBoxEngine extends EventEmitter {
 
     const { limit = CHANNEL_MESSAGE_LIMIT, offset = 0 } = options
 
+    const unique = await this.#readChannelHistory(channel)
+    const total = unique.length
+    const start = Math.max(0, total - offset - limit)
+    const end = total - offset
+
+    return unique
+      .slice(start, end)
+      .map(({ _coreKey, _index, ...msg }) =>
+        this.#normalizeChannelMessageForResponse(channel.channelKey, msg)
+      )
+  }
+
+  async getChannelHistory(channelKeyInput, options = {}) {
+    this.#ensureInitialized()
+    this.#assertChannelMember(channelKeyInput, options.ownerAddress)
+    const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
+    const entries = await this.#readChannelHistory(channel)
+    const page = paginateChannelHistory(entries, channel.channelKey, options)
+    return {
+      messages: page.messages.map(({ _coreKey, _index, ...message }) =>
+        this.#normalizeChannelMessageForResponse(channel.channelKey, message)
+      ),
+      nextCursor: page.nextCursor,
+    }
+  }
+
+  async #readChannelHistory(channel, { strict = false } = {}) {
     const coresMap = this.#channelCores.get(channel.channelKey)
     if (!coresMap || coresMap.size === 0) {
       throw new Error('频道未初始化')
@@ -3861,7 +3913,8 @@ export class MostBoxEngine extends EventEmitter {
               _index: i,
             })
           }
-        } catch {
+        } catch (error) {
+          if (strict) throw error
           break
         }
       }
@@ -3879,18 +3932,7 @@ export class MostBoxEngine extends EventEmitter {
 
     this.#applyChannelMemberProfileEntries(channel, unique, { save: true })
 
-    const visibleMessages = unique.filter(
-      message => !isChannelMemberProfileEventEntry(message)
-    )
-    const total = visibleMessages.length
-    const start = Math.max(0, total - offset - limit)
-    const end = total - offset
-
-    return visibleMessages
-      .slice(start, end)
-      .map(({ _coreKey, _index, ...msg }) =>
-        this.#normalizeChannelMessageForResponse(channel.channelKey, msg)
-      )
+    return unique.filter(message => !isChannelMemberProfileEventEntry(message))
   }
 
   /**
@@ -3908,6 +3950,35 @@ export class MostBoxEngine extends EventEmitter {
     author,
     authorName,
     options = {}
+  ) {
+    this.#ensureInitialized()
+    this.#assertChannelMember(channelKeyInput, options.ownerAddress)
+    const channel = this.#resolveChannel(channelKeyInput, options.ownerAddress)
+    const key = channel.channelKey
+    const previous = this.#channelMessageQueues.get(key) || Promise.resolve()
+    const pending = previous.then(() =>
+      this.#sendChannelMessage(key, content, author, authorName, options)
+    )
+    const completed = pending.then(
+      () => {},
+      () => {}
+    )
+    this.#channelMessageQueues.set(key, completed)
+    try {
+      return await pending
+    } finally {
+      if (this.#channelMessageQueues.get(key) === completed) {
+        this.#channelMessageQueues.delete(key)
+      }
+    }
+  }
+
+  async #sendChannelMessage(
+    channelKeyInput,
+    content,
+    author,
+    authorName,
+    options
   ) {
     this.#ensureInitialized()
     this.#assertChannelMember(channelKeyInput, options.ownerAddress)
@@ -3939,6 +4010,36 @@ export class MostBoxEngine extends EventEmitter {
     })
     if (attachment && trimmed !== attachment.link) {
       throw new ValidationError('attachment content must match link')
+    }
+    if (clientMessageId) {
+      const existing = (
+        await this.#readChannelHistory(channel, { strict: true })
+      ).find(
+        message =>
+          normalizeOwnerAddress(message.author) === authorAddress &&
+          message.clientMessageId === clientMessageId
+      )
+      if (existing) {
+        const samePayload =
+          existing.content === trimmed &&
+          JSON.stringify(existing.attachment || null) ===
+            JSON.stringify(attachment) &&
+          JSON.stringify(existing.mentions || []) ===
+            JSON.stringify(mentions) &&
+          existing.type === (options.type === 'system' ? 'system' : 'message')
+        if (!samePayload) {
+          throw new ConflictError(
+            'clientMessageId already identifies another message'
+          )
+        }
+        const message = { ...existing }
+        delete message._coreKey
+        delete message._index
+        return this.#normalizeChannelMessageForResponse(
+          channel.channelKey,
+          message
+        )
+      }
     }
     const existingMember = Array.isArray(channel?.members)
       ? channel.members.find(

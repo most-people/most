@@ -310,10 +310,17 @@ export function createWebSocketServer({
           case 'channel:subscribe':
             if (data.channel && ws.userAddress) {
               try {
-                engine.getChannelPeers(data.channel, {
+                const channel = String(data.channel).trim().toLowerCase()
+                engine.getChannelPeers(channel, {
                   ownerAddress: ws.userAddress,
                 })
-                subscribeToChannel(ws, data.channel)
+                subscribeToChannel(ws, channel)
+                ws.send(
+                  JSON.stringify({
+                    event: 'channel:subscribed',
+                    data: { channel },
+                  })
+                )
               } catch {}
             }
             break

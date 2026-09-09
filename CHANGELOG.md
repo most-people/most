@@ -4,6 +4,17 @@ All notable changes to MostBox are documented in this file.
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-09-09
+
+### Added
+
+- Added channel-bound cursor history and WebSocket subscription acknowledgements for native chat clients.
+- Added explicit HTTP and WebSocket origin support for Popper Web and its local development preview.
+
+### Fixed
+
+- Made concurrent channel joins retain every member and message retries idempotent across node restarts, with conflicts returning HTTP 409.
+
 ## [0.5.0] - 2026-08-15
 
 ### Added

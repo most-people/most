@@ -75,6 +75,19 @@ export function registerChannelRoutes(app, { engine }) {
     }
   })
 
+  app.get('/api/channels/:name/history', async c => {
+    try {
+      const page = await engine.getChannelHistory(c.req.param('name'), {
+        limit: c.req.query('limit'),
+        before: c.req.query('before'),
+        ownerAddress: c.get('userAddress'),
+      })
+      return c.json(page)
+    } catch (err) {
+      return badRequestOrAppError(c, err)
+    }
+  })
+
   app.post('/api/channels/:name/messages', async c => {
     const name = c.req.param('name')
     const body = await c.req.json()
