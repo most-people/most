@@ -1169,7 +1169,8 @@ export function createOpenApiSpec({
         get: operation({
           tag: 'Node',
           operationId: 'getNodePolicy',
-          summary: 'Get local storage limits',
+          summary:
+            'Get storage limits (signed remote users or local administrators)',
           security: localAdminSecurity,
           responses: responses(
             {

@@ -100,7 +100,8 @@ Origin header still require remote invite and signature authentication.
 
 ## Attachments
 
-1. Read `GET /api/node/policy` for the node's actual file-size limit.
+1. Read `GET /api/node/policy` with the remote invite and signature for the
+   node's actual file-size limit. Updating policy remains local administration.
 2. Upload a multipart `file` field to `POST /api/publish`. Native FormData uses
    a URI, filename and MIME type; browser FormData uses a File. Do not override
    the multipart Content-Type boundary.

@@ -4,6 +4,12 @@ All notable changes to MostBox are documented in this file.
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-09-09
+
+### Fixed
+
+- Allow authenticated remote clients to read the attachment size limit while keeping policy updates restricted to local node administrators.
+
 ## [0.5.1] - 2026-09-09
 
 ### Added

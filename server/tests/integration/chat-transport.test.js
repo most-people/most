@@ -84,6 +84,28 @@ function message(content, options = {}) {
 }
 
 describe('native chat transport (integration)', { timeout: 30000 }, () => {
+  it('allows signed remote users to read upload limits while keeping updates local', async t => {
+    const fixture = await createFixture(t)
+    const response = await request(fixture, '/api/node/policy')
+    assert.equal(response.status, 200)
+    assert.equal(
+      response.headers.get('access-control-allow-origin'),
+      'https://popper.trade'
+    )
+    assert.deepEqual(Object.keys(await response.json()), ['maxFileSizeBytes'])
+    const update = await request(fixture, '/api/node/policy', {
+      maxFileSizeBytes: 1024,
+    })
+    assert.equal(update.status, 403)
+    const anonymous = await fixture.runtime.app.request(
+      '/api/node/policy',
+      { headers: { host: 'chat.example', 'x-mostbox-invite': invite } },
+      { incoming: { socket: { remoteAddress: '203.0.113.1' } } }
+    )
+    assert.equal(anonymous.status, 401)
+    assert.equal((await anonymous.json()).code, 'LOGIN_REQUIRED')
+  })
+
   it('preserves all memberships when users join a new channel concurrently', async t => {
     const fixture = await createFixture(t)
     const identities = [wallet, otherWallet, new Wallet('0x' + '33'.repeat(32))]

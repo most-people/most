@@ -173,6 +173,23 @@ export function createApp(engine, options = {}) {
         c.set('userAddress', auth.address)
       }
 
+      if (
+        accessMode === 'remote' &&
+        path === '/api/node/policy' &&
+        c.req.method === 'GET'
+      ) {
+        if (!c.get('userAddress')) {
+          const limited = rateLimitGuard.enforce(c, ['authFailure'])
+          if (limited) return limited
+          return c.json(
+            { error: 'Login required', code: 'LOGIN_REQUIRED' },
+            401
+          )
+        }
+        await next()
+        return
+      }
+
       if (isAdminApi(path)) {
         if (isAdminAccessApi(path) && c.req.method === 'GET') {
           await next()
