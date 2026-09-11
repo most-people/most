@@ -1405,6 +1405,7 @@ function MostBoxApp() {
             ]}
           >
             <KnowledgeBaseScreen
+              client={core}
               backupWorking={knowledgeBackupWorking}
               backRequestToken={knowledgeBackToken}
               discardRequestToken={knowledgeDiscardToken}

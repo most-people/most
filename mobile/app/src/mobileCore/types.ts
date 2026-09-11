@@ -230,4 +230,6 @@ export type MostBoxMobileClient = MostBoxMobileCore & {
   }) => Promise<MobileIdentity>
   signOut: () => Promise<void>
   getNodeHistory: () => NodeHistoryItem[]
+  /** Read-only knowledge-base Git endpoints exposed by an authenticated remote daemon. */
+  requestKnowledgeGit: (method: 'GET', path: string) => Promise<unknown>
 }

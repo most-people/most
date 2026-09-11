@@ -43,6 +43,7 @@ import {
   X,
 } from 'lucide-react-native'
 import { createExpoKnowledgeRepository } from './expoKnowledgeRepository'
+import { KnowledgeGitPanel } from './KnowledgeGitPanel'
 import {
   applyMarkdownTool,
   buildKnowledgeWikiIndex,
@@ -62,6 +63,7 @@ import type {
   MarkdownSelection,
   MobileKnowledgeNote,
 } from './types'
+import type { MostBoxMobileClient } from '../../mobileCore/types'
 import {
   darkTheme,
   lightTheme,
@@ -80,6 +82,7 @@ type PublishedKnowledgeAttachment = {
 }
 
 export type KnowledgeBaseScreenProps = {
+  client: MostBoxMobileClient
   backRequestToken: number
   backupWorking: boolean
   discardRequestToken: number
@@ -181,6 +184,7 @@ function appendImportedNote(
 }
 
 export function KnowledgeBaseScreen({
+  client,
   backRequestToken,
   backupWorking,
   discardRequestToken,
@@ -227,6 +231,7 @@ export function KnowledgeBaseScreen({
     end: 0,
   })
   const [attaching, setAttaching] = useState(false)
+  const [gitPanelVisible, setGitPanelVisible] = useState(false)
 
   if (!repositoryRef.current) {
     repositoryRef.current = createExpoKnowledgeRepository()
@@ -396,6 +401,10 @@ export function KnowledgeBaseScreen({
       {
         text: t('knowledge.actions.restore'),
         onPress: () => void onRestore(),
+      },
+      {
+        text: t('knowledge.git.title'),
+        onPress: () => setGitPanelVisible(true),
       },
     ])
   }
@@ -1236,6 +1245,11 @@ export function KnowledgeBaseScreen({
   const displayNotes = searchQuery ? searchResults : currentItems.files
   return (
     <View style={styles.screen}>
+      <KnowledgeGitPanel
+        client={client}
+        onClose={() => setGitPanelVisible(false)}
+        visible={gitPanelVisible}
+      />
       <ScrollView
         ref={browserScrollRef}
         contentContainerStyle={styles.browserContent}

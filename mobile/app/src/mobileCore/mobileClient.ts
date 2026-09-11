@@ -206,6 +206,20 @@ export class MobileNodeClient implements MostBoxMobileClient {
     )
   }
 
+  requestKnowledgeGit(method: 'GET', path: string) {
+    const remote = this.#active as MostBoxMobileCore & {
+      requestKnowledgeGit?: (method: 'GET', path: string) => Promise<unknown>
+    }
+    if (!remote.requestKnowledgeGit) {
+      const error = new Error(
+        'Knowledge-base Git requires a connected remote node'
+      ) as Error & { code?: string }
+      error.code = 'KNOWLEDGE_GIT_REMOTE_REQUIRED'
+      return Promise.reject(error)
+    }
+    return remote.requestKnowledgeGit(method, path)
+  }
+
   getIdentity() {
     return this.#identity
   }

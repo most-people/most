@@ -1,4 +1,56 @@
 export const knowledgeMessages = {
+  'knowledge.git.title': {
+    'zh-CN': '知识库版本历史',
+    'zh-TW': '知識庫版本歷史',
+    en: 'Knowledge base history',
+  },
+  'knowledge.git.changes': {
+    'zh-CN': '当前变更',
+    'zh-TW': '目前變更',
+    en: 'Changes',
+  },
+  'knowledge.git.history': {
+    'zh-CN': '提交历史',
+    'zh-TW': '提交歷史',
+    en: 'History',
+  },
+  'knowledge.git.added': { 'zh-CN': '新增', 'zh-TW': '新增', en: 'Added' },
+  'knowledge.git.modified': {
+    'zh-CN': '修改',
+    'zh-TW': '修改',
+    en: 'Modified',
+  },
+  'knowledge.git.deleted': { 'zh-CN': '删除', 'zh-TW': '刪除', en: 'Deleted' },
+  'knowledge.git.uninitialized': {
+    'zh-CN': '远程节点尚未初始化知识库 Git。请先在桌面端管理台初始化。',
+    'zh-TW': '遠端節點尚未初始化知識庫 Git。請先在桌面端管理台初始化。',
+    en: 'Knowledge-base Git is not initialized on this remote node. Initialize it from the desktop admin console first.',
+  },
+  'knowledge.git.clean': {
+    'zh-CN': '当前没有未提交变更',
+    'zh-TW': '目前沒有未提交變更',
+    en: 'Working tree is clean',
+  },
+  'knowledge.git.noHistory': {
+    'zh-CN': '暂无提交历史',
+    'zh-TW': '暫無提交歷史',
+    en: 'No commit history',
+  },
+  'knowledge.git.selectFile': {
+    'zh-CN': '选择文件查看差异',
+    'zh-TW': '選擇檔案查看差異',
+    en: 'Select a file to view its diff',
+  },
+  'knowledge.git.loadFailed': {
+    'zh-CN': '无法读取版本信息',
+    'zh-TW': '無法讀取版本資訊',
+    en: 'Could not load version information',
+  },
+  'knowledge.git.diffFailed': {
+    'zh-CN': '无法读取文件差异',
+    'zh-TW': '無法讀取檔案差異',
+    en: 'Could not load file diff',
+  },
   'knowledge.wiki.outgoing': {
     'zh-CN': '关联笔记',
     'zh-TW': '關聯筆記',
