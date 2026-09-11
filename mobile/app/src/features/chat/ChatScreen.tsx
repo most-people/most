@@ -74,6 +74,26 @@ export function ChatScreen({ client, snapshot }: ChatScreenProps) {
 
   useEffect(() => () => socketRef.current?.close(), [])
 
+  useEffect(() => {
+    if (!api) return
+    let active = true
+    void api
+      .listChannels()
+      .then(items => {
+        if (!active) return
+        const names = items
+          .map(item =>
+            String(item.channelKey || item.channelId || item.name || '').trim()
+          )
+          .filter(Boolean)
+        setChannels(names)
+      })
+      .catch(() => {})
+    return () => {
+      active = false
+    }
+  }, [api])
+
   const loadChannel = async (name: string) => {
     if (!api || !name) return
     setLoading(true)

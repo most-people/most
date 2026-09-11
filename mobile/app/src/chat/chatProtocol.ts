@@ -293,6 +293,17 @@ export class ChatApiClient {
     return asRecord(payload)
   }
 
+  async listChannels() {
+    const payload = await this.#request('GET', '/api/channels')
+    const record = asRecord(payload)
+    const values = Array.isArray(payload)
+      ? payload
+      : Array.isArray(record.channels)
+        ? record.channels
+        : []
+    return values.map(asRecord)
+  }
+
   async getHistory(
     channel: string,
     options: { limit?: number; before?: string } = {}
