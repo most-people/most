@@ -352,6 +352,7 @@ function MostBoxApp() {
     // this explicit boundary until the platform modules are shipped.
     hasNativeForegroundService: false,
     nodeMode: currentSnapshot.node.mode,
+    nodeReady: isReady,
   })
   const transferRuntimeStatus = getTransferRuntimeStatus(
     currentSnapshot.transfers,

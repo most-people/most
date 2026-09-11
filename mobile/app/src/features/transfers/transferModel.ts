@@ -26,8 +26,9 @@ export function getTransferRuntimePolicy(input: {
   backgroundSeedingEnabled: boolean
   hasNativeForegroundService: boolean
   nodeMode?: 'local' | 'remote'
+  nodeReady?: boolean
 }): TransferRuntimePolicy {
-  if (input.nodeMode === 'remote') {
+  if (input.nodeMode === 'remote' && input.nodeReady !== false) {
     return {
       canContinueInBackground: true,
       requiresForegroundService: false,
