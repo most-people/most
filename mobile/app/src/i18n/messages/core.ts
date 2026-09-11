@@ -104,6 +104,11 @@ export const coreMessages = {
     'zh-TW': '節點',
     en: 'Node',
   },
+  'nav.chat': {
+    'zh-CN': '聊天',
+    'zh-TW': '聊天',
+    en: 'Chat',
+  },
   'core.error.seedUnavailable': {
     'zh-CN': '暂未发现在线种子，请稍后重试。',
     'zh-TW': '暫未發現在線種子，請稍後重試。',

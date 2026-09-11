@@ -221,6 +221,7 @@ export type MostBoxMobileCore = {
 }
 
 export type MostBoxMobileClient = MostBoxMobileCore & {
+  getIdentity?: () => MobileIdentity | null
   connectRemote: (input: RemoteNodeConfig) => Promise<void>
   switchToLocal: () => Promise<void>
   signIn: (input: {

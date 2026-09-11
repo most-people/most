@@ -1,4 +1,4 @@
-export type RootTab = 'files' | 'knowledge' | 'transfers' | 'node'
+export type RootTab = 'files' | 'knowledge' | 'transfers' | 'chat' | 'node'
 export type KnowledgePresentation = 'browse' | 'preview' | 'edit'
 
 export type TabPressAction = 'scrollTop' | 'switch' | 'confirmDiscard'

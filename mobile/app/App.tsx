@@ -34,6 +34,7 @@ import {
   Loader,
   Monitor,
   Moon,
+  MessageCircle,
   Radio,
   ShieldCheck,
   Sun,
@@ -61,6 +62,7 @@ import { NodeScreen } from './src/features/node/NodeScreen'
 import { NodeConnectionPanel } from './src/features/node/NodeConnectionPanel'
 import { P2PPingScreen } from './src/features/node/P2PPingScreen'
 import { TransfersScreen } from './src/features/transfers/TransfersScreen'
+import { ChatScreen } from './src/features/chat/ChatScreen'
 import {
   I18nProvider,
   LOCALES,
@@ -110,6 +112,7 @@ import type {
   MobileCoreSnapshot,
   MobileHolding,
   MobileTransfer,
+  MostBoxMobileClient,
   MostBoxMobileCore,
 } from './src/mobileCore/types'
 
@@ -134,6 +137,7 @@ const TAB_LABEL_KEYS: Record<RootTab, MessageKey> = {
   files: 'nav.files',
   knowledge: 'nav.knowledge',
   transfers: 'nav.transfers',
+  chat: 'nav.chat',
   node: 'nav.node',
 }
 
@@ -262,7 +266,7 @@ function MostBoxApp() {
   const styles = appStyles[theme.mode]
   const { fontScale } = useWindowDimensions()
   const accessibilityLayout = usesAccessibilityLayout(fontScale)
-  const coreRef = useRef<MostBoxMobileCore | null>(null)
+  const coreRef = useRef<MostBoxMobileClient | null>(null)
   const knowledgeRepositoryRef = useRef<ReturnType<
     typeof createExpoKnowledgeRepository
   > | null>(null)
@@ -308,7 +312,7 @@ function MostBoxApp() {
   const [knowledgeBackToken, setKnowledgeBackToken] = useState(0)
   const [knowledgeDiscardToken, setKnowledgeDiscardToken] = useState(0)
   const [reselectTokens, setReselectTokens] = useState<Record<RootTab, number>>(
-    { files: 0, knowledge: 0, transfers: 0, node: 0 }
+    { files: 0, knowledge: 0, transfers: 0, chat: 0, node: 0 }
   )
 
   if (!coreRef.current) {
@@ -1380,6 +1384,16 @@ function MostBoxApp() {
               onShowTransferDetails={handleShowTransferDetails}
             />
           </View>
+          {PRODUCT_PROFILE.features.chat ? (
+            <View
+              style={[
+                styles.tabPanel,
+                activeTab !== 'chat' ? styles.tabPanelHidden : null,
+              ]}
+            >
+              <ChatScreen client={core} snapshot={currentSnapshot} />
+            </View>
+          ) : null}
           <View
             style={[
               styles.tabPanel,
@@ -1456,6 +1470,23 @@ function MostBoxApp() {
               label={t('nav.transfers')}
               onPress={() => changeTab('transfers')}
             />
+            {PRODUCT_PROFILE.features.chat ? (
+              <TabButton
+                active={activeTab === 'chat'}
+                icon={
+                  <MessageCircle
+                    size={21}
+                    color={
+                      activeTab === 'chat'
+                        ? theme.colors.accent
+                        : theme.colors.textSecondary
+                    }
+                  />
+                }
+                label={t('nav.chat')}
+                onPress={() => changeTab('chat')}
+              />
+            ) : null}
           </View>
         ) : null}
 
