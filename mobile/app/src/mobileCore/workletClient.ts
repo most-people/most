@@ -11,6 +11,11 @@ import type {
   ExportHoldingInput,
   ExportHoldingResult,
   MobileCoreSnapshot,
+  CreateChannelInput,
+  MobileChannel,
+  MobileChannelAttachment,
+  MobileChannelMessage,
+  SendChannelMessageInput,
   MobileLogEntry,
   MobileTransfer,
   MostBoxMobileCore,
@@ -51,6 +56,9 @@ function createInitialSnapshot(storagePath: string): MobileCoreSnapshot {
     },
     holdings: [],
     transfers: [],
+    channels: [],
+    channelMessages: {},
+    channelPresence: {},
     p2pPing: null,
     logs: [],
   }
@@ -75,6 +83,11 @@ function isSnapshot(value: unknown): value is MobileCoreSnapshot {
     Boolean(record.node) &&
     Array.isArray(record.holdings) &&
     Array.isArray(record.transfers) &&
+    (record.channels === undefined || Array.isArray(record.channels)) &&
+    (record.channelMessages === undefined ||
+      typeof record.channelMessages === 'object') &&
+    (record.channelPresence === undefined ||
+      typeof record.channelPresence === 'object') &&
     (record.p2pPing === undefined ||
       record.p2pPing === null ||
       isP2PPing(record.p2pPing)) &&
@@ -136,6 +149,60 @@ function isDeleteHoldingResult(value: unknown): value is DeleteHoldingResult {
 function isCancelDownloadResult(value: unknown): value is CancelDownloadResult {
   const record = asRecord(value)
   return typeof record.cid === 'string' && Boolean(record.snapshot)
+}
+
+function isChannel(value: unknown): value is MobileChannel {
+  const record = asRecord(value)
+  return (
+    typeof record.channelId === 'string' &&
+    typeof record.channelKey === 'string' &&
+    Array.isArray(record.writerCoreKeys) &&
+    typeof record.remark === 'string' &&
+    typeof record.pinned === 'boolean'
+  )
+}
+
+function isChannelAttachment(value: unknown): value is MobileChannelAttachment {
+  const record = asRecord(value)
+  return (
+    ['image', 'video', 'audio', 'text', 'file'].includes(String(record.kind)) &&
+    typeof record.cid === 'string' &&
+    typeof record.fileName === 'string' &&
+    typeof record.link === 'string'
+  )
+}
+
+function isChannelMessage(value: unknown): value is MobileChannelMessage {
+  const record = asRecord(value)
+  return (
+    typeof record.author === 'string' &&
+    typeof record.authorName === 'string' &&
+    typeof record.content === 'string' &&
+    typeof record.timestamp === 'number' &&
+    (record.attachment === undefined || isChannelAttachment(record.attachment))
+  )
+}
+
+function extractChannel(payload: unknown): MobileChannel {
+  const record = asRecord(payload)
+  const channel = record.channel || payload
+  if (isChannel(channel)) return channel
+  throw new Error('P2P core returned an invalid channel payload')
+}
+
+function extractChannelMessages(payload: unknown): MobileChannelMessage[] {
+  const record = asRecord(payload)
+  const messages = record.messages || payload
+  if (Array.isArray(messages) && messages.every(isChannelMessage))
+    return messages
+  throw new Error('P2P core returned invalid channel messages')
+}
+
+function extractChannelMessage(payload: unknown): MobileChannelMessage {
+  const record = asRecord(payload)
+  const message = record.message || payload
+  if (isChannelMessage(message)) return message
+  throw new Error('P2P core returned an invalid channel message')
 }
 
 function normalizeFileUri(uri: string) {
@@ -358,6 +425,62 @@ export class BareWorkletMostBoxCore implements MostBoxMobileCore {
     return extractDeleteResult(result)
   }
 
+  async createChannel(input: CreateChannelInput): Promise<MobileChannel> {
+    await this.#ensureStarted()
+    return extractChannel(
+      await this.#request(
+        COMMANDS.CHANNEL_CREATE,
+        input,
+        [EVENTS.CHANNEL_JOINED],
+        30000
+      )
+    )
+  }
+
+  async listChannels(): Promise<MobileChannel[]> {
+    await this.#ensureStarted()
+    const result = await this.#request(
+      COMMANDS.CHANNEL_LIST,
+      {},
+      [EVENTS.CHANNEL_STATUS],
+      10000
+    )
+    const snapshot = extractSnapshot(result)
+    if (snapshot) return snapshot.channels || []
+    const records = asRecord(result)
+    return Array.isArray(records.channels) && records.channels.every(isChannel)
+      ? records.channels
+      : []
+  }
+
+  async getChannelMessages(
+    channelName: string
+  ): Promise<MobileChannelMessage[]> {
+    await this.#ensureStarted()
+    return extractChannelMessages(
+      await this.#request(
+        COMMANDS.CHANNEL_MESSAGES,
+        { channelName },
+        [EVENTS.CHANNEL_STATUS],
+        30000
+      )
+    )
+  }
+
+  async sendChannelMessage(
+    input: SendChannelMessageInput
+  ): Promise<MobileChannelMessage> {
+    await this.#ensureStarted()
+    return extractChannelMessage(
+      await this.#request(
+        COMMANDS.CHANNEL_SEND,
+        input,
+        [EVENTS.CHANNEL_MESSAGE],
+        30000
+      )
+    )
+  }
+
   getSnapshot() {
     return this.#clone()
   }
@@ -498,6 +621,26 @@ export class BareWorkletMostBoxCore implements MostBoxMobileCore {
       node: { ...this.#snapshot.node },
       holdings: this.#snapshot.holdings.map(holding => ({ ...holding })),
       transfers: this.#snapshot.transfers.map(transfer => ({ ...transfer })),
+      channels: (this.#snapshot.channels || []).map(channel => ({
+        ...channel,
+        writerCoreKeys: [...channel.writerCoreKeys],
+      })),
+      channelMessages: Object.fromEntries(
+        Object.entries(this.#snapshot.channelMessages || {}).map(
+          ([key, items]) => [
+            key,
+            items.map(item => ({
+              ...item,
+              attachment: item.attachment ? { ...item.attachment } : undefined,
+            })),
+          ]
+        )
+      ),
+      channelPresence: Object.fromEntries(
+        Object.entries(this.#snapshot.channelPresence || {}).map(
+          ([key, items]) => [key, items.map(item => ({ ...item }))]
+        )
+      ),
       p2pPing: this.#snapshot.p2pPing
         ? {
             ...this.#snapshot.p2pPing,

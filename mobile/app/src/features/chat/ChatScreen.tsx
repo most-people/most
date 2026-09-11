@@ -20,6 +20,8 @@ import { ChatWebSocketSession } from '../../chat/chatWebSocket'
 import type {
   MobileCoreSnapshot,
   MobileIdentity,
+  MobileChannelMessage,
+  SendChannelMessageInput,
   MostBoxMobileCore,
 } from '../../mobileCore/types'
 import { useI18n } from '../../i18n'
@@ -38,6 +40,14 @@ type ChatBridge = MostBoxMobileCore & {
     invite: string
     current?: boolean
   }>
+  listChannels?: () => Promise<
+    Array<{ channelKey?: string; channelId?: string; name?: string }>
+  >
+  createChannel?: (input: { name: string; type?: string }) => Promise<unknown>
+  getChannelMessages?: (name: string) => Promise<MobileChannelMessage[]>
+  sendChannelMessage?: (
+    input: SendChannelMessageInput
+  ) => Promise<MobileChannelMessage>
 }
 
 export type ChatScreenProps = {
@@ -56,6 +66,7 @@ export function ChatScreen({
   const styles = chatStyles(theme)
   const { toast } = useFeedback()
   const bridge = client as ChatBridge
+  const localMode = snapshot.node.mode !== 'remote'
   const endpoint = snapshot.node.endpoint || ''
   const identity = bridge.getIdentity?.() || null
   const invite =
@@ -81,10 +92,12 @@ export function ChatScreen({
   useEffect(() => () => socketRef.current?.close(), [])
 
   useEffect(() => {
-    if (!api) return
+    if (!api && !localMode) return
     let active = true
-    void api
-      .listChannels()
+    const request = localMode
+      ? bridge.listChannels?.() || Promise.resolve([])
+      : api?.listChannels() || Promise.resolve([])
+    void request
       .then(items => {
         if (!active) return
         const names = items
@@ -98,27 +111,42 @@ export function ChatScreen({
     return () => {
       active = false
     }
-  }, [api])
+  }, [api, bridge, localMode])
+
+  useEffect(() => {
+    if (!localMode || !channel) return
+    const items = snapshot.channelMessages?.[channel]
+    if (items) setMessages(items)
+  }, [channel, localMode, snapshot.channelMessages])
 
   const loadChannel = async (name: string) => {
-    if (!api || !name) return
+    if ((!api && !localMode) || !name) return
     setLoading(true)
     try {
-      const page = await api.getHistory(name, { limit: 100 })
+      const localMessages = localMode
+        ? await bridge.getChannelMessages?.(name)
+        : null
+      const page = localMode
+        ? null
+        : await api?.getHistory(name, { limit: 100 })
       setChannel(name)
-      setMessages(page.messages)
+      setMessages(localMode ? localMessages || [] : page?.messages || [])
       socketRef.current?.close()
-      const session = new ChatWebSocketSession({
-        baseUrl: endpoint,
-        invite,
-        identity,
-        onEvent: event => {
-          if (event.event === 'channel:message' && event.channel === name)
-            setMessages(current => mergeChatMessages(current, [event.message]))
-        },
-      })
-      socketRef.current = session
-      await session.subscribe(name)
+      if (!localMode && api) {
+        const session = new ChatWebSocketSession({
+          baseUrl: endpoint,
+          invite,
+          identity,
+          onEvent: event => {
+            if (event.event === 'channel:message' && event.channel === name)
+              setMessages(current =>
+                mergeChatMessages(current, [event.message])
+              )
+          },
+        })
+        socketRef.current = session
+        await session.subscribe(name)
+      }
       if (!channels.includes(name)) setChannels(current => [...current, name])
     } catch (error) {
       toast(
@@ -132,10 +160,11 @@ export function ChatScreen({
 
   const joinChannel = async () => {
     const name = channelInput.trim().replace(/^#/, '')
-    if (!name || !api) return
+    if (!name || (!api && !localMode)) return
     setLoading(true)
     try {
-      await api.createOrJoinChannel({ name, displayName: name })
+      if (localMode) await bridge.createChannel?.({ name, type: 'public' })
+      else await api?.createOrJoinChannel({ name, displayName: name })
       setChannelInput('')
       await loadChannel(name)
     } catch (error) {
@@ -149,14 +178,28 @@ export function ChatScreen({
 
   const send = async () => {
     const content = draft.trim()
-    if (!api || !channel || !content || !identity) return
+    if (
+      (!api && !localMode) ||
+      !channel ||
+      !content ||
+      (!identity && !localMode)
+    )
+      return
     setSending(true)
     try {
-      const message = await api.sendMessage(channel, {
-        content,
-        author: identity.address,
-        authorName: identity.username,
-      })
+      const message = localMode
+        ? await bridge.sendChannelMessage?.({
+            channelName: channel,
+            content,
+            author: identity?.address,
+            authorName: identity?.username,
+          })
+        : await api?.sendMessage(channel, {
+            content,
+            author: identity?.address || '',
+            authorName: identity?.username || '',
+          })
+      if (!message) throw new Error(t('chat.sendFailed'))
       setMessages(current => mergeChatMessages(current, [message]))
       setDraft('')
     } catch (error) {
@@ -170,17 +213,26 @@ export function ChatScreen({
   }
 
   const sendAttachment = async () => {
-    if (!api || !channel || !identity) return
+    if ((!api && !localMode) || !channel || (!identity && !localMode)) return
     setSending(true)
     try {
       const attachment = await onPublishAttachment()
       if (!attachment) return
-      const message = await api.sendMessage(channel, {
-        content: attachment.link,
-        author: identity.address,
-        authorName: identity.username,
-        attachment,
-      })
+      const message = localMode
+        ? await bridge.sendChannelMessage?.({
+            channelName: channel,
+            content: attachment.link,
+            author: identity?.address,
+            authorName: identity?.username,
+            attachment,
+          })
+        : await api?.sendMessage(channel, {
+            content: attachment.link,
+            author: identity?.address || '',
+            authorName: identity?.username || '',
+            attachment,
+          })
+      if (!message) throw new Error(t('chat.attachmentFailed'))
       setMessages(current => mergeChatMessages(current, [message]))
     } catch (error) {
       toast(
@@ -192,7 +244,7 @@ export function ChatScreen({
     }
   }
 
-  if (!endpoint)
+  if (!localMode && !endpoint)
     return (
       <View style={styles.empty}>
         <MessageCircle size={32} color={theme.colors.textMuted} />
@@ -200,7 +252,7 @@ export function ChatScreen({
         <Text style={styles.emptyBody}>{t('chat.remoteRequiredBody')}</Text>
       </View>
     )
-  if (!identity)
+  if (!localMode && !identity)
     return (
       <View style={styles.empty}>
         <MessageCircle size={32} color={theme.colors.textMuted} />
@@ -282,7 +334,7 @@ export function ChatScreen({
             <View
               style={[
                 styles.message,
-                item.author === identity.address ? styles.messageMine : null,
+                item.author === identity?.address ? styles.messageMine : null,
               ]}
             >
               <Text style={styles.author}>{item.authorName}</Text>

@@ -10,6 +10,10 @@ import type {
   MostBoxMobileClient,
   MostBoxMobileCore,
   PublishFileInput,
+  CreateChannelInput,
+  MobileChannel,
+  MobileChannelMessage,
+  SendChannelMessageInput,
   RemoteNodeConfig,
   ShareFolderInput,
   StartP2PPingInput,
@@ -256,6 +260,31 @@ export class MobileNodeClient implements MostBoxMobileClient {
     return this.#active.deleteHolding(input)
   }
 
+  createChannel(input: CreateChannelInput) {
+    if (!this.#active.createChannel)
+      return Promise.reject(new Error('Local chat is unavailable on this node'))
+    return this.#active.createChannel(input)
+  }
+
+  listChannels(): Promise<MobileChannel[]> {
+    if (!this.#active.listChannels)
+      return Promise.resolve(this.#snapshot.channels || [])
+    return this.#active.listChannels()
+  }
+
+  getChannelMessages(channelName: string): Promise<MobileChannelMessage[]> {
+    if (!this.#active.getChannelMessages) return Promise.resolve([])
+    return this.#active.getChannelMessages(channelName)
+  }
+
+  sendChannelMessage(
+    input: SendChannelMessageInput
+  ): Promise<MobileChannelMessage> {
+    if (!this.#active.sendChannelMessage)
+      return Promise.reject(new Error('Chat is unavailable on this node'))
+    return this.#active.sendChannelMessage(input)
+  }
+
   getSnapshot() {
     return this.#clone(this.#snapshot)
   }
@@ -324,6 +353,25 @@ export class MobileNodeClient implements MostBoxMobileClient {
       node: { ...snapshot.node },
       holdings: snapshot.holdings.map(item => ({ ...item })),
       transfers: snapshot.transfers.map(item => ({ ...item })),
+      channels: (snapshot.channels || []).map(item => ({
+        ...item,
+        writerCoreKeys: [...item.writerCoreKeys],
+      })),
+      channelMessages: Object.fromEntries(
+        Object.entries(snapshot.channelMessages || {}).map(([key, items]) => [
+          key,
+          items.map(item => ({
+            ...item,
+            attachment: item.attachment ? { ...item.attachment } : undefined,
+          })),
+        ])
+      ),
+      channelPresence: Object.fromEntries(
+        Object.entries(snapshot.channelPresence || {}).map(([key, items]) => [
+          key,
+          items.map(item => ({ ...item })),
+        ])
+      ),
       p2pPing: snapshot.p2pPing
         ? {
             ...snapshot.p2pPing,

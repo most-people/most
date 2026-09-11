@@ -300,6 +300,11 @@ export class P2PPingManager {
     return cloneRecord(session.record)
   }
 
+  get(id) {
+    const session = this.#records.get(id)
+    return session ? cloneRecord(session.record) : null
+  }
+
   async destroy() {
     const sessions = [...this.#records.values()]
     for (const session of sessions) {
