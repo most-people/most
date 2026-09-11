@@ -4,6 +4,23 @@
 
 iOS 原生入口只创建本机 Bare Worklet 节点，不包含远程 daemon、邀请码或登录界面。`app.most.box` 的 Expo Web 远程控制台是独立 Web 构建，不进入 IPA。
 
+## 本次首发决定（2026-09-10）
+
+- 使用负责人本人的个人 Apple Developer 账号，会员尚未开通；个人注册不需要 D-U-N-S 编号。
+- iOS 先在中国大陆以外发行，不选择中国大陆；具体国家和地区名单待确定，不能将本决定理解为已经选择所有海外地区。
+- 先准备 `en-US` 商店材料，保留简体中文文案；商店本地化语言与发行国家和地区分别设置。
+- 保持免费、无 App 内购买，并采用手动发布。会员激活、正式签名、TestFlight 验收和 App Review 通过后才能公开。
+
+### 个人会员开通
+
+负责人在同一台 iPhone 上使用 Apple Developer App，进入“账户 → 现在注册”，使用已开启双重认证的 Apple 账户，按提示填写真实姓名、身份证信息、联系方式和地址，完成自拍身份验证，实体类型选择“个人”。随后阅读协议并完成会员购买。中国大陆官方页面当前列示每年 ¥688、自动续订，以实际购买页为准。
+
+个人法定姓名会显示为 App Store 供应商，App 名称仍可填写 `MostBox`。注册完成后记录会员激活状态和 Team ID；签名所用 Team 必须是该已激活会员的 Team。
+
+个人作为商店卖方时，仍需确认其拥有或获得 App 发行权，以及法律页面披露的实际运营方、隐私责任方和联系方式是否准确。现有法律页面列示公司运营，不能仅因改用个人会员就擅自替换为个人。
+
+官方依据：[个人注册流程](https://developer.apple.com/cn/help/account/membership/enrolling-in-the-app/)、[D-U-N-S 要求](https://developer.apple.com/help/account/membership/D-U-N-S/)、[发行地区设置](https://developer.apple.com/help/app-store-connect/manage-your-apps-availability/manage-availability-for-your-app-on-the-app-store/)。
+
 ## 构建基线
 
 - Bundle ID：`most.box`
@@ -29,7 +46,8 @@ npx expo run:ios --configuration Release
 
 ## 当前验证状态
 
-- 移动端测试、TypeScript 和 iOS Bare bundle 已通过。
+- 2026-09-10 在 Windows 上运行 `npm run preflight:ios` 通过，生成 iOS Bare bundle，并校验当前 `0.5.2 (502)`、`most.box` 和 App Store 配置；本机没有 iOS 原生工程，本次检查不包含 Xcode、签名或真机执行。
+- 既有验收记录中，移动端测试、TypeScript 和 iOS Bare bundle 已通过；本次预检不代表重新完成这些历史版本的全部验收。
 - iPhone 17 / 17 Pro Max 模拟器 Release 可独立启动，节点进入在线状态，`most://` scheme 可被系统识别。
 - 2026-08-14 使用 Xcode 26.5 对 `0.5.0 (500)` 生成无签名 Release Archive 成功；Archive 中 Bundle ID 为 `most.box`，最低系统为 iOS 16.4，设备范围仅 iPhone，主程序和 Bare Kit 原生依赖均为 arm64，并已完成 `-validate-for-store`。
 - Archive 已包含应用主隐私清单和依赖隐私清单；应用主清单声明不跟踪、不收集数据，并包含当前使用的 Required Reason API 声明。
@@ -63,6 +81,45 @@ npx expo run:ios --configuration Release
 > P2P,文件传输,CID,点对点,知识库,Markdown,完整性校验
 
 建议主分类：`工具`。
+
+### 英文商店文案（en-US）
+
+应用名称（7 / 30 字符）：
+
+> MostBox
+
+副标题（30 / 30 字符）：
+
+> P2P File Sharing, CID Verified
+
+推广文本（167 / 170 字符）：
+
+> Share files with most:// links, verify each download by CID, and help others download while MostBox stays open. Keep Markdown notes and file references on your device.
+
+完整说明：
+
+```text
+Share files directly between online peers with MostBox.
+
+Choose a file to create a most:// share link. The recipient opens the link, confirms the download, and receives the file from an online peer. MostBox recalculates the file's UnixFS content identifier (CID) and saves the file only if it matches the link.
+
+Keep files available
+After publishing or completing a verified download, your device automatically seeds the file while MostBox is in the foreground. Even if the original sender leaves, another online peer with a complete copy can continue sharing it.
+
+Organize local notes
+Create and organize Markdown notes in a knowledge base stored on your device. Keep most:// file references alongside your notes, and export your notes or knowledge base when needed.
+
+Stay in control
+View your local files, transfers, and node status. Each download requires your confirmation. No account is required.
+
+Availability depends on online peers. MostBox does not provide cloud storage or guaranteed permanent access. Keep your own copies of important files. Share and download only content you have the right to use, and remember that anyone with a share link can attempt to download its file.
+
+On iPhone, keep MostBox open in the foreground for transfers and seeding.
+```
+
+关键词（70 / 100 字节）：
+
+> p2p,transfer,sharing,cid,integrity,peer,markdown,notes,local,documents
 
 ## App Store Connect 字段
 
