@@ -31,6 +31,7 @@ import {
   useMostBoxTheme,
 } from '../../ui/theme'
 import { getTransferActions, getTransferQueueSummary } from './transferModel'
+import type { TransferRuntimeStatus } from './transferModel'
 
 type TransferView = 'active' | 'completed' | 'failed'
 type ProgressWidthName = `progressWidth${number}`
@@ -46,6 +47,7 @@ export type TransfersScreenProps = {
   onShowTransferDetails: (transfer: MobileTransfer) => void
   onCancelDownload: (transfer: MobileTransfer) => void | Promise<void>
   onOpenHolding: (holding: MobileHolding) => void | Promise<void>
+  runtimeStatus?: TransferRuntimeStatus
 }
 
 const TRANSFER_STATUS_KEYS: Record<TransferStatus, MessageKey> = {
@@ -80,6 +82,7 @@ export function TransfersScreen({
   onShowTransferDetails,
   onCancelDownload,
   onOpenHolding,
+  runtimeStatus = 'active',
 }: TransfersScreenProps) {
   const { locale, t } = useI18n()
   const theme = useMostBoxTheme()
@@ -177,6 +180,22 @@ export function TransfersScreen({
             </View>
             <Text style={styles.queueSummaryProgress}>
               {queueSummary.progress}%
+            </Text>
+          </View>
+        ) : null}
+
+        {runtimeStatus === 'background-waiting' ? (
+          <View accessibilityRole="alert" style={styles.backgroundNotice}>
+            <Info size={16} color={theme.colors.warning} />
+            <Text style={styles.backgroundNoticeText}>
+              {t('transfers.background.waiting')}
+            </Text>
+          </View>
+        ) : runtimeStatus === 'background-running' ? (
+          <View accessibilityRole="summary" style={styles.backgroundNotice}>
+            <CircleCheck size={16} color={theme.colors.success} />
+            <Text style={styles.backgroundNoticeText}>
+              {t('transfers.background.running')}
             </Text>
           </View>
         ) : null}
@@ -397,6 +416,22 @@ function createStyles(theme: MostBoxTheme) {
       color: colors.accent,
       fontSize: 18,
       fontWeight: '700',
+    },
+    backgroundNotice: {
+      alignItems: 'center',
+      backgroundColor: colors.warningSoft,
+      borderColor: colors.border,
+      borderRadius: radii.medium,
+      borderWidth: 1,
+      flexDirection: 'row',
+      gap: 8,
+      padding: 10,
+    },
+    backgroundNoticeText: {
+      color: colors.textSecondary,
+      flex: 1,
+      fontSize: 12,
+      lineHeight: 17,
     },
     segment: {
       alignItems: 'center',

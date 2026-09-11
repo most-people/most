@@ -1,5 +1,86 @@
 import type { MobileTransfer } from '../../mobileCore/types'
 
+export type TransferRuntimePlatform =
+  'android' | 'ios' | 'web' | 'windows' | 'macos' | 'unknown'
+
+export type TransferRuntimePolicy = {
+  canContinueInBackground: boolean
+  requiresForegroundService: boolean
+  transport:
+    | 'remote-daemon'
+    | 'android-foreground-service'
+    | 'ios-background-task'
+    | 'foreground-only'
+}
+
+export type TransferRuntimeStatus =
+  'active' | 'background-running' | 'background-waiting' | 'idle'
+
+/**
+ * Describes the background contract without claiming that Expo keeps a local
+ * Bare Worklet alive. A remote daemon can continue independently; a local
+ * node needs a native background service/task before this is enabled.
+ */
+export function getTransferRuntimePolicy(input: {
+  platform: TransferRuntimePlatform
+  backgroundSeedingEnabled: boolean
+  hasNativeForegroundService: boolean
+  nodeMode?: 'local' | 'remote'
+}): TransferRuntimePolicy {
+  if (input.nodeMode === 'remote') {
+    return {
+      canContinueInBackground: true,
+      requiresForegroundService: false,
+      transport: 'remote-daemon',
+    }
+  }
+
+  if (
+    input.platform === 'android' &&
+    input.backgroundSeedingEnabled &&
+    input.hasNativeForegroundService
+  ) {
+    return {
+      canContinueInBackground: true,
+      requiresForegroundService: true,
+      transport: 'android-foreground-service',
+    }
+  }
+
+  if (
+    input.platform === 'ios' &&
+    input.backgroundSeedingEnabled &&
+    input.hasNativeForegroundService
+  ) {
+    return {
+      canContinueInBackground: true,
+      requiresForegroundService: false,
+      transport: 'ios-background-task',
+    }
+  }
+
+  return {
+    canContinueInBackground: false,
+    requiresForegroundService: false,
+    transport: 'foreground-only',
+  }
+}
+
+export function getTransferRuntimeStatus(
+  transfers: MobileTransfer[],
+  appState: 'active' | 'background' | 'inactive',
+  policy: TransferRuntimePolicy
+): TransferRuntimeStatus {
+  const hasActiveTransfers = transfers.some(transfer =>
+    ACTIVE_TRANSFER_STATUSES.has(transfer.status)
+  )
+  if (!hasActiveTransfers) return 'idle'
+  if (appState === 'active') return 'active'
+  return policy.canContinueInBackground
+    ? 'background-running'
+    : 'background-waiting'
+}
+
 export type TransferQueueSummary = {
   total: number
   active: number

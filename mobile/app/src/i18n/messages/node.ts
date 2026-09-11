@@ -654,6 +654,16 @@ export const nodeMessages = {
     'zh-TW': '進行中 {active} · 已完成 {completed} · 失敗 {failed}',
     en: '{active} active · {completed} completed · {failed} failed',
   },
+  'transfers.background.waiting': {
+    'zh-CN': '应用进入后台后，本机节点会暂停传输；返回应用即可继续。',
+    'zh-TW': '應用程式進入背景後，本機節點會暫停傳輸；返回應用程式即可繼續。',
+    en: 'Local transfers wait while the app is in the background. Return to continue.',
+  },
+  'transfers.background.running': {
+    'zh-CN': '远程节点正在后台继续传输。',
+    'zh-TW': '遠端節點正在背景繼續傳輸。',
+    en: 'The remote node is continuing transfers in the background.',
+  },
   'transfers.cancel': {
     'zh-CN': '取消下载',
     'zh-TW': '取消下載',

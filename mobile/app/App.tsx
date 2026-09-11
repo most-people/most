@@ -62,6 +62,11 @@ import { NodeScreen } from './src/features/node/NodeScreen'
 import { NodeConnectionPanel } from './src/features/node/NodeConnectionPanel'
 import { P2PPingScreen } from './src/features/node/P2PPingScreen'
 import { TransfersScreen } from './src/features/transfers/TransfersScreen'
+import {
+  getTransferRuntimePolicy,
+  getTransferRuntimeStatus,
+  type TransferRuntimePlatform,
+} from './src/features/transfers/transferModel'
 import { ChatScreen } from './src/features/chat/ChatScreen'
 import type { ChatAttachment } from './src/chat/chatProtocol'
 import {
@@ -273,6 +278,9 @@ function MostBoxApp() {
   const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [snapshot, setSnapshot] = useState<MobileCoreSnapshot | null>(null)
   const [startupComplete, setStartupComplete] = useState(false)
+  const [appVisibility, setAppVisibility] = useState<
+    'active' | 'background' | 'inactive'
+  >('active')
   const [activeTab, setActiveTab] = useState<RootTab>('files')
   const [nodeRoute, setNodeRoute] = useState<'status' | 'p2pPing'>('status')
   const [publishing, setPublishing] = useState(false)
@@ -331,6 +339,25 @@ function MostBoxApp() {
   const isReady =
     isNodeOnline && (!isRemote || currentSnapshot.node.authenticated === true)
   const isCoreBusy = nodeStatus === 'starting' || nodeStatus === 'stopping'
+  const transferRuntimePolicy = getTransferRuntimePolicy({
+    platform: (Platform.OS === 'android' ||
+    Platform.OS === 'ios' ||
+    Platform.OS === 'web' ||
+    Platform.OS === 'windows' ||
+    Platform.OS === 'macos'
+      ? Platform.OS
+      : 'unknown') as TransferRuntimePlatform,
+    backgroundSeedingEnabled: PRODUCT_PROFILE.features.backgroundSeeding,
+    // Native foreground service/task integration is intentionally kept behind
+    // this explicit boundary until the platform modules are shipped.
+    hasNativeForegroundService: false,
+    nodeMode: currentSnapshot.node.mode,
+  })
+  const transferRuntimeStatus = getTransferRuntimeStatus(
+    currentSnapshot.transfers,
+    appVisibility,
+    transferRuntimePolicy
+  )
   const showCoreStartError = useEffectEvent((error: unknown) => {
     alert(t('app.core.startFailed'), getFriendlyCoreError(error, locale))
   })
@@ -351,6 +378,13 @@ function MostBoxApp() {
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', state => {
+      setAppVisibility(
+        state === 'active'
+          ? 'active'
+          : state === 'background'
+            ? 'background'
+            : 'inactive'
+      )
       if (state === 'active') {
         void core.start().catch(showCoreStartError)
       }
@@ -1396,6 +1430,7 @@ function MostBoxApp() {
               reselectToken={reselectTokens.transfers}
               retryingTransferId={retryingTransferId}
               snapshot={currentSnapshot}
+              runtimeStatus={transferRuntimeStatus}
               onCancelDownload={handleCancelTransfer}
               onOpenHolding={showHoldingDetails}
               onRetryTransfer={handleRetryTransfer}

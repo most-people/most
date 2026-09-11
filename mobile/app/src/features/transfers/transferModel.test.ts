@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { getTransferActions, getTransferQueueSummary } from './transferModel'
+import {
+  getTransferActions,
+  getTransferQueueSummary,
+  getTransferRuntimePolicy,
+  getTransferRuntimeStatus,
+} from './transferModel'
 import type { MobileTransfer } from '../../mobileCore/types'
 
 function transfer(
@@ -68,5 +73,56 @@ test('empty transfer queues report zero progress', () => {
     completed: 0,
     failed: 0,
     progress: 0,
+  })
+})
+
+test('remote daemon transfers can continue while the app is backgrounded', () => {
+  const policy = getTransferRuntimePolicy({
+    platform: 'ios',
+    backgroundSeedingEnabled: false,
+    hasNativeForegroundService: false,
+    nodeMode: 'remote',
+  })
+
+  assert.deepEqual(policy, {
+    canContinueInBackground: true,
+    requiresForegroundService: false,
+    transport: 'remote-daemon',
+  })
+  assert.equal(
+    getTransferRuntimeStatus([transfer('running')], 'background', policy),
+    'background-running'
+  )
+})
+
+test('local mobile transfers wait for resume until a native background service exists', () => {
+  const policy = getTransferRuntimePolicy({
+    platform: 'android',
+    backgroundSeedingEnabled: true,
+    hasNativeForegroundService: false,
+    nodeMode: 'local',
+  })
+
+  assert.equal(policy.canContinueInBackground, false)
+  assert.equal(policy.transport, 'foreground-only')
+  assert.equal(
+    getTransferRuntimeStatus([transfer('queued')], 'background', policy),
+    'background-waiting'
+  )
+  assert.equal(getTransferRuntimeStatus([], 'background', policy), 'idle')
+})
+
+test('android foreground service is opt-in and explicit', () => {
+  const policy = getTransferRuntimePolicy({
+    platform: 'android',
+    backgroundSeedingEnabled: true,
+    hasNativeForegroundService: true,
+    nodeMode: 'local',
+  })
+
+  assert.deepEqual(policy, {
+    canContinueInBackground: true,
+    requiresForegroundService: true,
+    transport: 'android-foreground-service',
   })
 })
