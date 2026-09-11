@@ -27,6 +27,19 @@ export function resolveIosReleaseProfile(value) {
   return profiles[id]
 }
 
+export function applyIosReleaseProfile(expo, value) {
+  const profile = resolveIosReleaseProfile(value)
+  return {
+    ...expo,
+    name: profile.appName,
+    scheme: profile.scheme,
+    ios: {
+      ...expo?.ios,
+      bundleIdentifier: profile.iosBundleIdentifier,
+    },
+  }
+}
+
 export function expectedIosBuildNumber(version) {
   const match = String(version || '').match(/^(\d+)\.(\d+)\.(\d+)$/)
   if (!match) throw new Error(`Invalid iOS release version: ${version}`)
@@ -214,7 +227,11 @@ export function checkIosRelease(projectDir = defaultProjectDir) {
   const rootPackage = readJson(
     path.resolve(projectDir, '..', '..', 'package.json')
   )
-  const expo = readJson(path.join(projectDir, 'app.json')).expo
+  const baseExpo = readJson(path.join(projectDir, 'app.json')).expo
+  const expo = applyIosReleaseProfile(
+    baseExpo,
+    process.env.MOST_PRODUCT || process.env.EXPO_PUBLIC_MOST_PRODUCT
+  )
   const eas = readJson(path.join(projectDir, 'eas.json'))
   const iconPath = path.resolve(projectDir, expo.icon)
   const iconMetadata = readPngMetadata(fs.readFileSync(iconPath))

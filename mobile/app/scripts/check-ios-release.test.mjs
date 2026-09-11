@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { describe, it } from 'node:test'
 
 import {
+  applyIosReleaseProfile,
   checkIosRelease,
   collectIosReleaseIssues,
   expectedIosBuildNumber,
@@ -29,6 +30,19 @@ describe('iOS release profile selection', () => {
       resolveIosReleaseProfile('mohe').iosBundleIdentifier,
       'red.most.mohe'
     )
+  })
+
+  it('applies the selected profile to the Expo config', () => {
+    const configured = applyIosReleaseProfile(
+      {
+        name: 'MostBox',
+        scheme: 'most',
+        ios: { bundleIdentifier: 'most.box' },
+      },
+      'inkbox'
+    )
+    assert.equal(configured.name, '墨盒')
+    assert.equal(configured.ios.bundleIdentifier, 'red.most.mohe')
   })
 })
 const packageVersion = JSON.parse(
