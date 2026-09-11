@@ -9,7 +9,7 @@ import {
   Text,
   View,
 } from 'react-native'
-import { MessageCircle, Plus, RefreshCw, Send } from 'lucide-react-native'
+import { MessageCircle, Plus, Send } from 'lucide-react-native'
 import {
   ChatApiClient,
   mergeChatMessages,
