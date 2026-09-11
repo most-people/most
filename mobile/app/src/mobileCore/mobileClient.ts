@@ -29,13 +29,14 @@ import {
   loadRemoteNodes,
   saveMobileIdentity,
   saveRemoteNodes,
-} from '../remoteNode/storage.web'
+} from '../remoteNode/storage'
 import { hasActiveTransfers, startPreferredOrLocal } from './nodeSelection'
 
 type MobileNodeClientOptions = {
   bundle: string | Uint8Array
   storagePath: string
   remoteOnly?: boolean
+  remoteEnabled?: boolean
 }
 
 export class MobileNodeClient implements MostBoxMobileClient {
@@ -49,11 +50,13 @@ export class MobileNodeClient implements MostBoxMobileClient {
   #mode: 'local' | 'remote' = 'local'
   #remoteConfig: RemoteNodeConfig | null = null
   #remoteOnly: boolean
+  #remoteEnabled: boolean
   #started = false
   #fallbackFrom = ''
 
   constructor(options: MobileNodeClientOptions) {
     this.#remoteOnly = options.remoteOnly === true
+    this.#remoteEnabled = options.remoteEnabled !== false
     this.#mode = this.#remoteOnly ? 'remote' : 'local'
     this.#local = new BareWorkletMostBoxCore(options)
     this.#active = this.#local
@@ -71,7 +74,9 @@ export class MobileNodeClient implements MostBoxMobileClient {
       loadMobileIdentity(),
       loadRemoteNodes(),
     ])
-    const preferred = this.#nodes.find(node => node.preferred) || null
+    const preferred = this.#remoteEnabled
+      ? this.#nodes.find(node => node.preferred) || null
+      : null
     if (this.#remoteOnly && !preferred) {
       await this.#local.start()
       await this.#activate(this.#local, 'remote', null)
@@ -109,6 +114,13 @@ export class MobileNodeClient implements MostBoxMobileClient {
   }
 
   async connectRemote(input: RemoteNodeConfig) {
+    if (!this.#remoteEnabled) {
+      const error = new Error(
+        'Remote nodes are unavailable in this product'
+      ) as Error & { code?: string }
+      error.code = 'REMOTE_DISABLED'
+      throw error
+    }
     this.#assertSwitchAllowed()
     const url = await resolveRemoteUrl(input.url)
     const config = { url, invite: input.invite.trim() }
@@ -192,6 +204,10 @@ export class MobileNodeClient implements MostBoxMobileClient {
       this.#mode,
       this.#remoteConfig?.url || ''
     )
+  }
+
+  getIdentity() {
+    return this.#identity
   }
 
   startP2PPing(input: StartP2PPingInput) {

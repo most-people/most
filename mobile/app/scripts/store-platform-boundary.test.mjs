@@ -13,18 +13,19 @@ function read(relativePath) {
   return fs.readFileSync(path.join(projectDir, relativePath), 'utf8')
 }
 
-test('native store entry only creates the local Bare Worklet core', () => {
+test('native store entry creates the profile-aware mobile node client', () => {
   const source = read('src/mobileCore/createMostBoxCore.ts')
 
-  assert.match(source, /from '\.\/workletClient'/)
-  assert.doesNotMatch(source, /mobileClient|remoteNode|RemoteMostBoxCore/)
+  assert.match(source, /from '\.\/mobileClient'/)
+  assert.match(source, /remoteEnabled: PRODUCT_PROFILE\.features\.remoteNode/)
 })
 
-test('native node connection panel exposes no remote controls', () => {
+test('native node connection panel exposes profile-gated remote controls', () => {
   const source = read('src/features/node/NodeConnectionPanel.tsx')
 
-  assert.match(source, /return null/)
-  assert.doesNotMatch(source, /connectRemote|signIn|invite|username|password/)
+  assert.match(source, /PRODUCT_PROFILE\.features\.remoteNode/)
+  assert.match(source, /client\.connectRemote/)
+  assert.match(source, /client\.signIn/)
 })
 
 test('native app configuration contains no remote identity storage plugin', () => {
@@ -43,7 +44,7 @@ test('Expo Web keeps its remote node client and connection controls', () => {
 
   assert.match(coreSource, /from '\.\/mobileClient'/)
   assert.match(coreSource, /remoteOnly: true/)
-  assert.match(clientSource, /from '\.\.\/remoteNode\/storage\.web'/)
+  assert.match(clientSource, /from '\.\.\/remoteNode\/storage'/)
   assert.match(panelSource, /client\.connectRemote/)
   assert.match(panelSource, /client\.signIn/)
   assert.match(
@@ -53,6 +54,6 @@ test('Expo Web keeps its remote node client and connection controls', () => {
   assert.match(storageSource, /localStorage/)
   assert.equal(
     fs.existsSync(path.join(projectDir, 'src/remoteNode/storage.ts')),
-    false
+    true
   )
 })

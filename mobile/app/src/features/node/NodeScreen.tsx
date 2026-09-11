@@ -23,7 +23,7 @@ import { useI18n, type MessageKey } from '../../i18n'
 import type {
   LogLevel,
   MobileCoreSnapshot,
-  MostBoxMobileCore,
+  MostBoxMobileClient,
   NodeRuntimeStatus,
 } from '../../mobileCore/types'
 import { getGlassSurfaceStyle } from '../../ui/components'
@@ -41,7 +41,7 @@ import {
 import { NodeConnectionPanel } from './NodeConnectionPanel'
 
 export type NodeScreenProps = {
-  client: MostBoxMobileCore
+  client: MostBoxMobileClient
   reselectToken: number
   retryStartDisabled: boolean
   snapshot: MobileCoreSnapshot
