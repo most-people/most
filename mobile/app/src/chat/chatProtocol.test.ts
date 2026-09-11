@@ -256,7 +256,9 @@ test('ChatApiClient preserves canonical most:// attachment metadata', async () =
       size: 42,
     },
   })
-  assert.deepEqual(requestBody?.attachment, {
+  assert.ok(requestBody)
+  const sentBody = requestBody as Record<string, unknown>
+  assert.deepEqual(sentBody.attachment, {
     kind: 'image',
     cid: CID,
     fileName: 'photo.png',
@@ -264,5 +266,6 @@ test('ChatApiClient preserves canonical most:// attachment metadata', async () =
     mimeType: 'image/png',
     size: 42,
   })
-  assert.equal(requestBody?.content, LINK)
+  assert.equal(sentBody.content, LINK)
 })
+
