@@ -70,9 +70,10 @@ export class ChatWebSocketSession {
   async subscribe(channel: string) {
     const normalized = String(channel || '').trim()
     if (!normalized) throw new Error('channel is required')
+    const wasConnected = this.connected
     this.#channels.add(normalized)
     await this.connect()
-    this.#send(buildChannelSubscribeFrame(normalized))
+    if (wasConnected) this.#send(buildChannelSubscribeFrame(normalized))
   }
 
   unsubscribe(channel: string) {
