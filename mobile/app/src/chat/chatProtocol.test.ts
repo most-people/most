@@ -163,6 +163,14 @@ test('ChatApiClient uses signed remote protocol and paginates history', async ()
   const requests: Array<{ url: string; init?: RequestInit }> = []
   const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
     requests.push({ url: String(input), init })
+    if (String(input).endsWith('/api/channels')) {
+      return new Response(
+        JSON.stringify({ channels: [{ channelId: 'room' }] }),
+        {
+          status: 200,
+        }
+      )
+    }
     if (String(input).includes('/history')) {
       return new Response(JSON.stringify({ messages: [], nextCursor: null }), {
         status: 200,
@@ -186,6 +194,7 @@ test('ChatApiClient uses signed remote protocol and paginates history', async ()
     identity: null,
     fetchImpl,
   })
+  assert.deepEqual(await client.listChannels(), [{ channelId: 'room' }])
   await client.getHistory('room', { limit: 20, before: 'cursor' })
   await client.sendMessage('room', {
     content: 'hello',
@@ -193,14 +202,14 @@ test('ChatApiClient uses signed remote protocol and paginates history', async ()
     authorName: 'Alice',
   })
   assert.match(
-    requests[0].url,
+    requests[1].url,
     /\/base\/api\/channels\/room\/history\?limit=20&before=cursor/
   )
   assert.equal(
-    requests[0].init?.headers &&
-      new Headers(requests[0].init.headers).get('x-mostbox-invite'),
+    requests[1].init?.headers &&
+      new Headers(requests[1].init.headers).get('x-mostbox-invite'),
     'invite'
   )
-  const body = JSON.parse(String(requests[1].init?.body))
+  const body = JSON.parse(String(requests[2].init?.body))
   assert.match(body.clientMessageId, /^[0-9a-f]{8}-[0-9a-f]{4}-4/)
 })
