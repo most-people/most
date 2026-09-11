@@ -95,6 +95,22 @@ test('remote daemon transfers can continue while the app is backgrounded', () =>
   )
 })
 
+test('a disconnected remote node cannot be advertised as background-running', () => {
+  const policy = getTransferRuntimePolicy({
+    platform: 'android',
+    backgroundSeedingEnabled: true,
+    hasNativeForegroundService: false,
+    nodeMode: 'remote',
+    nodeReady: false,
+  })
+
+  assert.equal(policy.canContinueInBackground, false)
+  assert.equal(
+    getTransferRuntimeStatus([transfer('running')], 'background', policy),
+    'background-waiting'
+  )
+})
+
 test('local mobile transfers wait for resume until a native background service exists', () => {
   const policy = getTransferRuntimePolicy({
     platform: 'android',
