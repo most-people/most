@@ -63,6 +63,7 @@ import { NodeConnectionPanel } from './src/features/node/NodeConnectionPanel'
 import { P2PPingScreen } from './src/features/node/P2PPingScreen'
 import { TransfersScreen } from './src/features/transfers/TransfersScreen'
 import { ChatScreen } from './src/features/chat/ChatScreen'
+import type { ChatAttachment } from './src/chat/chatProtocol'
 import {
   I18nProvider,
   LOCALES,
@@ -577,6 +578,24 @@ function MostBoxApp() {
       mimeType: result.file.mimeType,
     }
   }
+
+  const handlePublishChatAttachment =
+    async (): Promise<ChatAttachment | null> => {
+      const result = await publishPickedFile()
+      if (!result) return null
+      const cid = result.transfer.cid || parseMostLink(result.link).cid
+      const mimeType = result.file.mimeType || undefined
+      return {
+        kind: mimeType?.startsWith('image/') ? 'image' : 'file',
+        cid,
+        fileName: result.file.name,
+        link: result.link,
+        ...(mimeType ? { mimeType } : {}),
+        ...(typeof result.file.size === 'number'
+          ? { size: result.file.size }
+          : {}),
+      }
+    }
 
   const openDownloadModal = () => {
     setDownloadLinkInput('')
@@ -1390,7 +1409,11 @@ function MostBoxApp() {
                 activeTab !== 'chat' ? styles.tabPanelHidden : null,
               ]}
             >
-              <ChatScreen client={core} snapshot={currentSnapshot} />
+              <ChatScreen
+                client={core}
+                onPublishAttachment={handlePublishChatAttachment}
+                snapshot={currentSnapshot}
+              />
             </View>
           ) : null}
           <View

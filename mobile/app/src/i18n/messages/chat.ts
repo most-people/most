@@ -36,6 +36,21 @@ export const chatMessages = {
     en: 'Write a message',
   },
   'chat.send': { 'zh-CN': '发送消息', 'zh-TW': '傳送訊息', en: 'Send message' },
+  'chat.attach': {
+    'zh-CN': '发送文件附件',
+    'zh-TW': '傳送檔案附件',
+    en: 'Send file attachment',
+  },
+  'chat.attachmentLabel': {
+    'zh-CN': '附件：{fileName}',
+    'zh-TW': '附件：{fileName}',
+    en: 'Attachment: {fileName}',
+  },
+  'chat.attachmentFailed': {
+    'zh-CN': '发送附件失败',
+    'zh-TW': '傳送附件失敗',
+    en: 'Could not send attachment',
+  },
   'chat.loadFailed': {
     'zh-CN': '加载频道失败',
     'zh-TW': '載入頻道失敗',

@@ -9,10 +9,11 @@ import {
   Text,
   View,
 } from 'react-native'
-import { MessageCircle, Plus, Send } from 'lucide-react-native'
+import { MessageCircle, Paperclip, Plus, Send } from 'lucide-react-native'
 import {
   ChatApiClient,
   mergeChatMessages,
+  type ChatAttachment,
   type ChatMessage,
 } from '../../chat/chatProtocol'
 import { ChatWebSocketSession } from '../../chat/chatWebSocket'
@@ -42,9 +43,14 @@ type ChatBridge = MostBoxMobileCore & {
 export type ChatScreenProps = {
   client: MostBoxMobileCore
   snapshot: MobileCoreSnapshot
+  onPublishAttachment: () => Promise<ChatAttachment | null>
 }
 
-export function ChatScreen({ client, snapshot }: ChatScreenProps) {
+export function ChatScreen({
+  client,
+  snapshot,
+  onPublishAttachment,
+}: ChatScreenProps) {
   const { t, formatDateTime } = useI18n()
   const theme = useMostBoxTheme()
   const styles = chatStyles(theme)
@@ -163,6 +169,29 @@ export function ChatScreen({ client, snapshot }: ChatScreenProps) {
     }
   }
 
+  const sendAttachment = async () => {
+    if (!api || !channel || !identity) return
+    setSending(true)
+    try {
+      const attachment = await onPublishAttachment()
+      if (!attachment) return
+      const message = await api.sendMessage(channel, {
+        content: attachment.link,
+        author: identity.address,
+        authorName: identity.username,
+        attachment,
+      })
+      setMessages(current => mergeChatMessages(current, [message]))
+    } catch (error) {
+      toast(
+        error instanceof Error ? error.message : t('chat.attachmentFailed'),
+        'error'
+      )
+    } finally {
+      setSending(false)
+    }
+  }
+
   if (!endpoint)
     return (
       <View style={styles.empty}>
@@ -257,6 +286,13 @@ export function ChatScreen({ client, snapshot }: ChatScreenProps) {
               ]}
             >
               <Text style={styles.author}>{item.authorName}</Text>
+              {item.attachment ? (
+                <Text style={styles.attachmentName}>
+                  {t('chat.attachmentLabel', {
+                    fileName: item.attachment.fileName,
+                  })}
+                </Text>
+              ) : null}
               <Text style={styles.content}>{item.content}</Text>
               {item.timestamp ? (
                 <Text style={styles.timestamp}>
@@ -267,6 +303,18 @@ export function ChatScreen({ client, snapshot }: ChatScreenProps) {
           )}
         />
         <View style={styles.composer}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('chat.attach')}
+            disabled={sending || !channel}
+            onPress={() => void sendAttachment()}
+            style={[
+              styles.attachButton,
+              sending || !channel ? styles.disabled : null,
+            ]}
+          >
+            <Paperclip size={18} color={theme.colors.accent} />
+          </Pressable>
           <MostTextInput
             value={draft}
             onChangeText={setDraft}
@@ -330,6 +378,12 @@ function chatStyles(theme: ReturnType<typeof useMostBoxTheme>) {
     },
     messageMine: { alignSelf: 'flex-end', backgroundColor: colors.accentSoft },
     author: { color: colors.textSecondary, fontSize: 11, fontWeight: '600' },
+    attachmentName: {
+      color: colors.text,
+      fontSize: 13,
+      fontWeight: '600',
+      marginTop: 3,
+    },
     content: { color: colors.text, fontSize: 15, marginTop: 2 },
     timestamp: { color: colors.textMuted, fontSize: 10, marginTop: 4 },
     composer: {
@@ -341,6 +395,15 @@ function chatStyles(theme: ReturnType<typeof useMostBoxTheme>) {
       padding: 10,
     },
     draft: { flex: 1, maxHeight: 100 },
+    attachButton: {
+      alignItems: 'center',
+      borderColor: colors.border,
+      borderRadius: radii.full,
+      borderWidth: 1,
+      height: 40,
+      justifyContent: 'center',
+      width: 40,
+    },
     sendButton: {
       alignItems: 'center',
       backgroundColor: colors.accent,

@@ -213,3 +213,56 @@ test('ChatApiClient uses signed remote protocol and paginates history', async ()
   const body = JSON.parse(String(requests[2].init?.body))
   assert.match(body.clientMessageId, /^[0-9a-f]{8}-[0-9a-f]{4}-4/)
 })
+
+test('ChatApiClient preserves canonical most:// attachment metadata', async () => {
+  let requestBody: Record<string, unknown> | null = null
+  const fetchImpl = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>
+    return new Response(
+      JSON.stringify({
+        message: {
+          content: LINK,
+          author: AUTHOR,
+          authorName: 'Alice',
+          attachment: {
+            kind: 'image',
+            cid: CID,
+            fileName: 'photo.png',
+            link: LINK,
+            mimeType: 'image/png',
+            size: 42,
+          },
+        },
+      }),
+      { status: 200 }
+    )
+  }) as typeof fetch
+  const client = new ChatApiClient({
+    baseUrl: 'https://node.example',
+    invite: 'invite',
+    identity: null,
+    fetchImpl,
+  })
+  await client.sendMessage('room', {
+    content: LINK,
+    author: AUTHOR,
+    authorName: 'Alice',
+    attachment: {
+      kind: 'image',
+      cid: CID,
+      fileName: 'photo.png',
+      link: LINK,
+      mimeType: 'image/png',
+      size: 42,
+    },
+  })
+  assert.deepEqual(requestBody?.attachment, {
+    kind: 'image',
+    cid: CID,
+    fileName: 'photo.png',
+    link: LINK,
+    mimeType: 'image/png',
+    size: 42,
+  })
+  assert.equal(requestBody?.content, LINK)
+})
