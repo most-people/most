@@ -113,7 +113,6 @@ import type {
   MobileHolding,
   MobileTransfer,
   MostBoxMobileClient,
-  MostBoxMobileCore,
 } from './src/mobileCore/types'
 
 const DEV_CID_MAX_BYTES = 20 * 1024 * 1024
