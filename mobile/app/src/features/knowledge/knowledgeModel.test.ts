@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
   applyMarkdownTool,
+  buildKnowledgeWikiIndex,
   createAttachmentMarkdown,
   createUniqueKnowledgeFilePath,
   getKnowledgeImportPathFromTextFile,
@@ -10,6 +11,7 @@ import {
   joinKnowledgePath,
   normalizeKnowledgeDirectory,
   normalizeKnowledgeFilePath,
+  parseKnowledgeWikiLinks,
   prepareMarkdownPreview,
   searchKnowledgeNotes,
   validateKnowledgeSnapshot,
@@ -58,6 +60,48 @@ describe('mobile knowledge model', () => {
     assert.deepEqual(searchKnowledgeNotes(notes, '路线'), [notes[0]])
     assert.deepEqual(searchKnowledgeNotes(notes, 'cid'), [notes[1]])
     assert.deepEqual(searchKnowledgeNotes(notes, '资料'), [notes[1]])
+  })
+
+  it('parses wiki links with aliases and anchors', () => {
+    const links = parseKnowledgeWikiLinks(
+      '参见 [[路线图]]、[[资料/会议|会议记录]] 和 [[路线图#下一步]]',
+      '项目/今天.md'
+    )
+    assert.deepEqual(
+      links.map(link => ({
+        target: link.target,
+        label: link.label,
+        anchor: link.anchor,
+      })),
+      [
+        { target: '路线图', label: '路线图', anchor: '' },
+        { target: '资料/会议', label: '会议记录', anchor: '' },
+        { target: '路线图#下一步', label: '路线图#下一步', anchor: '下一步' },
+      ]
+    )
+    assert.equal(links[0].start, 3)
+    assert.equal(links[0].targetPath, '项目/路线图.md')
+  })
+
+  it('builds resolved outgoing links and reverse backlinks', () => {
+    const notes = [
+      note('项目/路线图.md', '下一步见 [[资料/会议]]'),
+      note('项目/资料/会议.md', '回看 [[路线图]]'),
+      note('孤立.md', '[[路线图]]'),
+    ]
+    const index = buildKnowledgeWikiIndex(notes)
+    assert.equal(
+      index.outgoing.get('项目/路线图.md')?.[0].targetPath,
+      '项目/资料/会议.md'
+    )
+    assert.deepEqual(index.backlinks.get('项目/路线图.md'), [
+      '孤立.md',
+      '项目/资料/会议.md',
+    ])
+    assert.equal(
+      index.outgoing.get('孤立.md')?.[0].targetPath,
+      '项目/路线图.md'
+    )
   })
 
   it('generates a copy name for case-insensitive import conflicts', () => {

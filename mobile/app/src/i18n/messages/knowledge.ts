@@ -1,4 +1,14 @@
 export const knowledgeMessages = {
+  'knowledge.wiki.outgoing': {
+    'zh-CN': '关联笔记',
+    'zh-TW': '關聯筆記',
+    en: 'Linked notes',
+  },
+  'knowledge.wiki.backlinks': {
+    'zh-CN': '反向链接',
+    'zh-TW': '反向連結',
+    en: 'Backlinks',
+  },
   'knowledge.error.load': {
     'zh-CN': '无法读取本地知识库',
     'zh-TW': '無法讀取本機知識庫',

@@ -45,6 +45,7 @@ import {
 import { createExpoKnowledgeRepository } from './expoKnowledgeRepository'
 import {
   applyMarkdownTool,
+  buildKnowledgeWikiIndex,
   createAttachmentMarkdown,
   createUniqueKnowledgeFilePath,
   getKnowledgeImportPathFromTextFile,
@@ -236,6 +237,15 @@ export function KnowledgeBaseScreen({
     () => notes.find(note => note.path === selectedPath) || null,
     [notes, selectedPath]
   )
+  const wikiIndex = useMemo(() => buildKnowledgeWikiIndex(notes), [notes])
+  const selectedWiki = useMemo(() => {
+    if (!selectedNote) return { outgoing: [], backlinks: [] }
+    const outgoing = wikiIndex.outgoing.get(selectedNote.path) || []
+    const backlinks = (wikiIndex.backlinks.get(selectedNote.path) || [])
+      .map(path => notes.find(note => note.path === path))
+      .filter((note): note is MobileKnowledgeNote => !!note)
+    return { outgoing, backlinks }
+  }, [notes, selectedNote, wikiIndex])
   const dirty =
     mode === 'edit' &&
     (editorName !== editorOriginalName ||
@@ -1106,6 +1116,77 @@ export function KnowledgeBaseScreen({
           showsVerticalScrollIndicator={false}
           style={styles.previewScroll}
         >
+          {selectedWiki.outgoing.length || selectedWiki.backlinks.length ? (
+            <View style={styles.wikiSection}>
+              {selectedWiki.outgoing.length ? (
+                <>
+                  <Text maxFontSizeMultiplier={1.8} style={styles.wikiTitle}>
+                    {t('knowledge.wiki.outgoing')}
+                  </Text>
+                  <View style={styles.wikiList}>
+                    {selectedWiki.outgoing.map((link, index) => {
+                      const target = link.targetPath
+                        ? notes.find(note => note.path === link.targetPath)
+                        : null
+                      return target ? (
+                        <Pressable
+                          key={`${link.start}-${index}`}
+                          accessibilityRole="button"
+                          onPress={() => openNote(target)}
+                          style={({ pressed }) => [
+                            styles.wikiItem,
+                            pressed ? styles.pressed : null,
+                          ]}
+                        >
+                          <Text
+                            maxFontSizeMultiplier={1.8}
+                            style={styles.wikiLink}
+                          >
+                            {link.label}
+                          </Text>
+                        </Pressable>
+                      ) : (
+                        <Text
+                          key={`${link.start}-${index}`}
+                          maxFontSizeMultiplier={1.8}
+                          style={styles.wikiUnresolved}
+                        >
+                          {link.label}
+                        </Text>
+                      )
+                    })}
+                  </View>
+                </>
+              ) : null}
+              {selectedWiki.backlinks.length ? (
+                <>
+                  <Text maxFontSizeMultiplier={1.8} style={styles.wikiTitle}>
+                    {t('knowledge.wiki.backlinks')}
+                  </Text>
+                  <View style={styles.wikiList}>
+                    {selectedWiki.backlinks.map(note => (
+                      <Pressable
+                        key={note.path}
+                        accessibilityRole="button"
+                        onPress={() => openNote(note)}
+                        style={({ pressed }) => [
+                          styles.wikiItem,
+                          pressed ? styles.pressed : null,
+                        ]}
+                      >
+                        <Text
+                          maxFontSizeMultiplier={1.8}
+                          style={styles.wikiLink}
+                        >
+                          {note.name}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </>
+              ) : null}
+            </View>
+          ) : null}
           {selectedNote.content ? (
             <EnrichedMarkdownText
               accessibilityLabels={{
@@ -1754,6 +1835,35 @@ function createKnowledgeStyles(theme: MostBoxTheme) {
       paddingBottom: 32,
       paddingHorizontal: 16,
       paddingTop: 14,
+    },
+    wikiSection: {
+      backgroundColor: theme.colors.glassSubtle,
+      borderColor: theme.colors.border,
+      borderRadius: theme.radii.medium,
+      borderWidth: 1,
+      gap: 8,
+      marginBottom: 14,
+      padding: 12,
+    },
+    wikiTitle: {
+      color: theme.colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '700',
+      marginTop: 2,
+    },
+    wikiList: { gap: 6 },
+    wikiItem: {
+      backgroundColor: theme.colors.accentSoft,
+      borderRadius: theme.radii.small,
+      paddingHorizontal: 9,
+      paddingVertical: 7,
+    },
+    wikiLink: { color: theme.colors.accent, fontSize: 13 },
+    wikiUnresolved: {
+      color: theme.colors.textMuted,
+      fontSize: 13,
+      paddingHorizontal: 9,
+      paddingVertical: 7,
     },
     saveButton: {
       alignItems: 'center',

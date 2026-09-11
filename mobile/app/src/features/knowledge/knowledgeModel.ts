@@ -9,6 +9,20 @@ const INVALID_PATH_CHARACTER = /[\u0000-\u001f:*?"<>|]/
 const WINDOWS_ABSOLUTE_PATH = /^[A-Za-z]:/
 const EXCLUDED_DIRECTORY_NAMES = new Set(['node_modules'])
 
+export type KnowledgeWikiLink = {
+  target: string
+  label: string
+  anchor: string
+  start: number
+  end: number
+  targetPath: string | null
+}
+
+export type KnowledgeWikiIndex = {
+  outgoing: Map<string, KnowledgeWikiLink[]>
+  backlinks: Map<string, string[]>
+}
+
 export function compareKnowledgePaths(left: string, right: string) {
   if (left === right) return 0
   return left < right ? -1 : 1
@@ -128,6 +142,106 @@ export function searchKnowledgeNotes(
       .toLocaleLowerCase()
       .includes(normalizedQuery)
   )
+}
+
+function normalizeWikiTarget(target: string, sourcePath: string) {
+  const value = target.trim()
+  if (!value) return null
+  const [pathPart] = value.split('#', 1)
+  const path = pathPart.trim()
+  if (!path) return null
+  const withExtension = path.toLowerCase().endsWith('.md') ? path : `${path}.md`
+  const sourceDirectory = sourcePath.includes('/')
+    ? sourcePath.slice(0, sourcePath.lastIndexOf('/'))
+    : ''
+  const candidates =
+    sourceDirectory && !path.includes('/')
+      ? [`${sourceDirectory}/${withExtension}`, withExtension]
+      : [withExtension]
+  for (const candidate of candidates) {
+    try {
+      return normalizeKnowledgeFilePath(candidate)
+    } catch {
+      // Ignore malformed targets. They remain visible as unresolved links.
+    }
+  }
+  return null
+}
+
+/** Parses Obsidian-style wiki links such as [[Note]] and [[folder/Note|label]]. */
+export function parseKnowledgeWikiLinks(
+  content: string,
+  sourcePath = ''
+): KnowledgeWikiLink[] {
+  const links: KnowledgeWikiLink[] = []
+  const pattern = /\[\[([^\]\n]+)\]\]/g
+  let match: RegExpExecArray | null
+  while ((match = pattern.exec(content))) {
+    const raw = match[1].trim()
+    const [targetPart, labelPart] = raw.split('|', 2)
+    const target = targetPart.trim()
+    const anchorIndex = target.indexOf('#')
+    const anchor = anchorIndex >= 0 ? target.slice(anchorIndex + 1).trim() : ''
+    links.push({
+      target,
+      label: (labelPart || targetPart).trim(),
+      anchor,
+      start: match.index,
+      end: match.index + match[0].length,
+      targetPath: normalizeWikiTarget(target, sourcePath),
+    })
+  }
+  return links
+}
+
+function resolveWikiTarget(
+  link: KnowledgeWikiLink,
+  sourcePath: string,
+  pathMap: Map<string, string>,
+  nameMap: Map<string, string[]>
+) {
+  const normalized = normalizeWikiTarget(link.target, sourcePath)
+  if (normalized) {
+    const exact = pathMap.get(normalized.toLowerCase())
+    if (exact) return exact
+  }
+  const targetName = link.target.split('#', 1)[0].split('/').at(-1)?.trim()
+  if (!targetName) return null
+  const matches =
+    nameMap.get(targetName.replace(/\.md$/i, '').toLowerCase()) || []
+  return matches.length === 1 ? matches[0] : null
+}
+
+export function buildKnowledgeWikiIndex(
+  notes: MobileKnowledgeNote[]
+): KnowledgeWikiIndex {
+  const pathMap = new Map(
+    notes.map(note => [note.path.toLowerCase(), note.path])
+  )
+  const nameMap = new Map<string, string[]>()
+  for (const note of notes) {
+    const key = note.name.toLowerCase()
+    nameMap.set(key, [...(nameMap.get(key) || []), note.path])
+  }
+  const outgoing = new Map<string, KnowledgeWikiLink[]>()
+  const backlinks = new Map<string, string[]>()
+  for (const note of notes) {
+    const links = parseKnowledgeWikiLinks(note.content, note.path).map(
+      link => ({
+        ...link,
+        targetPath: resolveWikiTarget(link, note.path, pathMap, nameMap),
+      })
+    )
+    outgoing.set(note.path, links)
+    for (const link of links) {
+      if (!link.targetPath) continue
+      const sources = backlinks.get(link.targetPath) || []
+      if (!sources.includes(note.path))
+        backlinks.set(link.targetPath, [...sources, note.path])
+    }
+  }
+  for (const sources of backlinks.values()) sources.sort(compareKnowledgePaths)
+  return { outgoing, backlinks }
 }
 
 export function createUniqueKnowledgeFilePath(
