@@ -13,6 +13,13 @@
         "buildType": "app-bundle"
       }
     },
+    "android-production-mohe": {
+      "extends": "android-production",
+      "env": {
+        "MOST_PRODUCT": "inkbox",
+        "EXPO_PUBLIC_MOST_PRODUCT": "inkbox"
+      }
+    },
     "ios-development": {
       "developmentClient": true,
       "distribution": "internal",
@@ -34,6 +41,13 @@
     "ios-production": {
       "distribution": "store",
       "environment": "production"
+    },
+    "ios-production-mohe": {
+      "extends": "ios-production",
+      "env": {
+        "MOST_PRODUCT": "inkbox",
+        "EXPO_PUBLIC_MOST_PRODUCT": "inkbox"
+      }
     }
   }
 }

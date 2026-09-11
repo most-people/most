@@ -644,6 +644,16 @@ export const nodeMessages = {
     'zh-TW': '失敗',
     en: 'Failed',
   },
+  'transfers.summary.title': {
+    'zh-CN': '传输队列',
+    'zh-TW': '傳輸佇列',
+    en: 'Transfer queue',
+  },
+  'transfers.summary.body': {
+    'zh-CN': '进行中 {active} · 已完成 {completed} · 失败 {failed}',
+    'zh-TW': '進行中 {active} · 已完成 {completed} · 失敗 {failed}',
+    en: '{active} active · {completed} completed · {failed} failed',
+  },
   'transfers.cancel': {
     'zh-CN': '取消下载',
     'zh-TW': '取消下載',

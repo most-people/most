@@ -11,6 +11,7 @@ import {
   isStaleAndroidPackage,
   removePlayReleaseSigningConfig,
   repairMissingReleaseGradleConfig,
+  resolveProductProfile,
   resolveVersionCode,
 } from './sync-native-android.mjs'
 import {
@@ -19,6 +20,14 @@ import {
 } from './bundle-bare.mjs'
 
 describe('Android native project synchronization', () => {
+  it('resolves shared Most and 墨盒 build profiles', () => {
+    assert.equal(resolveProductProfile('most').appName, 'MostBox')
+    assert.equal(resolveProductProfile('most').androidPackage, 'most.box')
+    assert.equal(resolveProductProfile('inkbox').appName, '墨盒')
+    assert.equal(resolveProductProfile('mohe').androidPackage, 'red.most.mohe')
+    assert.equal(resolveProductProfile('invalid').id, 'most')
+  })
+
   it('uses the configured version code and only syncs EAS Android builds', () => {
     assert.equal(resolveVersionCode(407, '0.4.6'), 407)
     assert.equal(resolveVersionCode(undefined, '0.4.6'), 406)

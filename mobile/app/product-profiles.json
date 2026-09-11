@@ -1,0 +1,44 @@
+{
+  "most": {
+    "id": "most",
+    "displayName": "MostBox",
+    "appName": "MostBox",
+    "scheme": "most",
+    "androidPackage": "most.box",
+    "iosBundleIdentifier": "most.box",
+    "legalUrls": {
+      "privacy": "https://most.red/privacy/",
+      "terms": "https://most.red/terms/",
+      "support": "https://most.red/support/"
+    },
+    "features": {
+      "chat": true,
+      "voice": true,
+      "remoteNode": true,
+      "mcp": true,
+      "web3": true,
+      "backgroundSeeding": true
+    }
+  },
+  "inkbox": {
+    "id": "inkbox",
+    "displayName": "墨盒",
+    "appName": "墨盒",
+    "scheme": "most",
+    "androidPackage": "red.most.mohe",
+    "iosBundleIdentifier": "red.most.mohe",
+    "legalUrls": {
+      "privacy": "https://most.red/mohe/privacy/",
+      "terms": "https://most.red/mohe/terms/",
+      "support": "https://most.red/mohe/support/"
+    },
+    "features": {
+      "chat": false,
+      "voice": false,
+      "remoteNode": false,
+      "mcp": false,
+      "web3": false,
+      "backgroundSeeding": false
+    }
+  }
+}

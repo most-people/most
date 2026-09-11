@@ -6,6 +6,9 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "most",
+    "extra": {
+      "product": "most"
+    },
     "userInterfaceStyle": "automatic",
     "web": {
       "bundler": "metro",

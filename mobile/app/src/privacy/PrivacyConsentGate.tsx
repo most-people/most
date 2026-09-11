@@ -23,6 +23,7 @@ import {
 import { getGlassSurfaceStyle } from '../ui/components'
 import { useFeedback } from '../ui/feedback'
 import { PRIVACY_URL, TERMS_URL } from './legalUrls'
+import { PRODUCT_PROFILE } from '../product/productProfile'
 import {
   persistPrivacyConsent,
   readPrivacyConsent,
@@ -116,7 +117,9 @@ export function PrivacyConsentGate({ children }: PrivacyConsentGateProps) {
           <View style={styles.topBar}>
             <View style={styles.brand}>
               <ShieldCheck size={22} color={theme.colors.accent} />
-              <Text style={styles.brandName}>MostBox</Text>
+              <Text style={styles.brandName}>
+                {PRODUCT_PROFILE.displayName}
+              </Text>
             </View>
             <Pressable
               accessibilityLabel={t('common.language.choose')}

@@ -11,17 +11,17 @@ export const appMessages = {
   },
   'app.privacy.body': {
     'zh-CN':
-      '使用前请阅读并同意隐私政策和使用条款。同意后，MostBox 才会启动 P2P 核心。P2P 连接会让其他节点和网络基础设施处理建立连接所需的 IP 地址、连接时间和网络元数据。',
+      '使用前请阅读并同意隐私政策和使用条款。同意后，{brand} 才会启动 P2P 核心。P2P 连接会让其他节点和网络基础设施处理建立连接所需的 IP 地址、连接时间和网络元数据。',
     'zh-TW':
-      '使用前請閱讀並同意隱私政策和使用條款。同意後，MostBox 才會啟動 P2P 核心。P2P 連線會讓其他節點和網路基礎設施處理建立連線所需的 IP 位址、連線時間和網路中繼資料。',
-    en: 'Before using MostBox, read and accept the Privacy Policy and Terms of Use. The P2P core starts only after you accept. Other peers and network infrastructure process the IP address, connection time, and network metadata required to establish P2P connections.',
+      '使用前請閱讀並同意隱私政策和使用條款。同意後，{brand} 才會啟動 P2P 核心。P2P 連線會讓其他節點和網路基礎設施處理建立連線所需的 IP 位址、連線時間和網路中繼資料。',
+    en: 'Before using {brand}, read and accept the Privacy Policy and Terms of Use. The P2P core starts only after you accept. Other peers and network infrastructure process the IP address, connection time, and network metadata required to establish P2P connections.',
   },
   'app.privacy.bodyWeb': {
     'zh-CN':
-      '使用前请阅读并同意隐私政策和使用条款。Web 版只连接你指定的 MostBox 节点，不在浏览器中运行 P2P 核心或做种。远程节点会处理文件操作、账号签名和建立连接所需的网络元数据。',
+      '使用前请阅读并同意隐私政策和使用条款。Web 版只连接你指定的 {brand} 节点，不在浏览器中运行 P2P 核心或做种。远程节点会处理文件操作、账号签名和建立连接所需的网络元数据。',
     'zh-TW':
-      '使用前請閱讀並同意隱私政策和使用條款。Web 版只連線你指定的 MostBox 節點，不在瀏覽器中執行 P2P 核心或做種。遠端節點會處理檔案操作、帳號簽章和建立連線所需的網路中繼資料。',
-    en: 'Before using MostBox, read and accept the Privacy Policy and Terms of Use. The Web app only connects to the MostBox node you choose; it does not run the P2P core or seed files in your browser. The remote node processes file operations, account signatures, and the network metadata needed to establish connections.',
+      '使用前請閱讀並同意隱私政策和使用條款。Web 版只連線你指定的 {brand} 節點，不在瀏覽器中執行 P2P 核心或做種。遠端節點會處理檔案操作、帳號簽章和建立連線所需的網路中繼資料。',
+    en: 'Before using {brand}, read and accept the Privacy Policy and Terms of Use. The Web app only connects to the {brand} node you choose; it does not run the P2P core or seed files in your browser. The remote node processes file operations, account signatures, and the network metadata needed to establish connections.',
   },
   'app.privacy.openPrivacy': {
     'zh-CN': '查看隐私政策',
@@ -54,9 +54,9 @@ export const appMessages = {
     en: 'Privacy Policy not accepted',
   },
   'app.privacy.declineBody': {
-    'zh-CN': 'MostBox 不会启动 P2P 核心。你可以关闭应用。',
-    'zh-TW': 'MostBox 不會啟動 P2P 核心。你可以關閉應用程式。',
-    en: 'MostBox will not start the P2P core. You can close the app.',
+    'zh-CN': '{brand} 不会启动 P2P 核心。你可以关闭应用。',
+    'zh-TW': '{brand} 不會啟動 P2P 核心。你可以關閉應用程式。',
+    en: '{brand} will not start the P2P core. You can close the app.',
   },
   'app.privacy.saveFailedTitle': {
     'zh-CN': '无法保存隐私设置',

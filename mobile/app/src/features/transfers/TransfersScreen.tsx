@@ -30,7 +30,7 @@ import {
   type MostBoxTheme,
   useMostBoxTheme,
 } from '../../ui/theme'
-import { getTransferActions } from './transferModel'
+import { getTransferActions, getTransferQueueSummary } from './transferModel'
 
 type TransferView = 'active' | 'completed' | 'failed'
 type ProgressWidthName = `progressWidth${number}`
@@ -88,6 +88,10 @@ export function TransfersScreen({
   const [view, setView] = useState<TransferView>('active')
   const { active, completed, failed } = useMemo(
     () => partitionTransfers(snapshot.transfers),
+    [snapshot.transfers]
+  )
+  const queueSummary = useMemo(
+    () => getTransferQueueSummary(snapshot.transfers),
     [snapshot.transfers]
   )
 
@@ -156,6 +160,26 @@ export function TransfersScreen({
             </Pressable>
           ))}
         </View>
+
+        {queueSummary.total ? (
+          <View accessibilityRole="summary" style={styles.queueSummary}>
+            <View style={styles.queueSummaryText}>
+              <Text style={styles.queueSummaryTitle}>
+                {t('transfers.summary.title')}
+              </Text>
+              <Text style={styles.queueSummaryBody}>
+                {t('transfers.summary.body', {
+                  active: queueSummary.active,
+                  completed: queueSummary.completed,
+                  failed: queueSummary.failed,
+                })}
+              </Text>
+            </View>
+            <Text style={styles.queueSummaryProgress}>
+              {queueSummary.progress}%
+            </Text>
+          </View>
+        ) : null}
 
         {transfers.length ? (
           <View style={styles.transferList}>
@@ -343,6 +367,36 @@ function createStyles(theme: MostBoxTheme) {
       borderWidth: 1,
       flexDirection: 'row',
       padding: 3,
+    },
+    queueSummary: {
+      alignItems: 'center',
+      backgroundColor: colors.accentSoft,
+      borderColor: colors.border,
+      borderRadius: radii.medium,
+      borderWidth: 1,
+      flexDirection: 'row',
+      gap: 12,
+      justifyContent: 'space-between',
+      padding: 12,
+    },
+    queueSummaryText: {
+      flex: 1,
+      gap: 3,
+    },
+    queueSummaryTitle: {
+      color: colors.text,
+      fontSize: 13,
+      fontWeight: '700',
+    },
+    queueSummaryBody: {
+      color: colors.textSecondary,
+      fontSize: 11,
+      lineHeight: 16,
+    },
+    queueSummaryProgress: {
+      color: colors.accent,
+      fontSize: 18,
+      fontWeight: '700',
     },
     segment: {
       alignItems: 'center',

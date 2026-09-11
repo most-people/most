@@ -11,7 +11,26 @@ const packageJson = JSON.parse(
 const appJson = JSON.parse(
   fs.readFileSync(path.join(projectDir, 'app.json'), 'utf8')
 ).expo
-const appName = String(appJson.name || 'MostBox').trim() || 'MostBox'
+const productProfiles = JSON.parse(
+  fs.readFileSync(path.join(projectDir, 'product-profiles.json'), 'utf8')
+)
+export function resolveProductProfile(value) {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
+  const id =
+    normalized === 'inkbox' || normalized === 'mohe' || normalized === '墨盒'
+      ? 'inkbox'
+      : 'most'
+  return productProfiles[id]
+}
+
+const productProfile = resolveProductProfile(
+  process.env.MOST_PRODUCT || process.env.EXPO_PUBLIC_MOST_PRODUCT
+)
+const appName =
+  String(productProfile.appName || appJson.name || 'MostBox').trim() ||
+  'MostBox'
 const iconSource = resolveProjectAsset(appJson.icon || './assets/icon.png')
 const adaptiveIcon = appJson.android?.adaptiveIcon || {}
 const adaptiveForegroundSource = resolveProjectAsset(
@@ -19,7 +38,9 @@ const adaptiveForegroundSource = resolveProjectAsset(
 )
 const iconBackgroundColor =
   String(adaptiveIcon.backgroundColor || '#FFFFFF').trim() || '#FFFFFF'
-const androidPackage = resolveAndroidPackage(appJson.android?.package)
+const androidPackage = resolveAndroidPackage(
+  productProfile.androidPackage || appJson.android?.package
+)
 const androidJavaDir = path.join(androidDir, 'app', 'src', 'main', 'java')
 const androidPackageDir = path.join(
   androidJavaDir,

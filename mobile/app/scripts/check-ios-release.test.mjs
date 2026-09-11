@@ -9,6 +9,7 @@ import {
   collectIosReleaseIssues,
   expectedIosBuildNumber,
   readPngMetadata,
+  resolveIosReleaseProfile,
 } from './check-ios-release.mjs'
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))
@@ -16,6 +17,20 @@ const projectDir = path.resolve(scriptDir, '..')
 const expo = JSON.parse(
   fs.readFileSync(path.join(projectDir, 'app.json'), 'utf8')
 ).expo
+
+describe('iOS release profile selection', () => {
+  it('resolves independent identities for Most and 墨盒', () => {
+    assert.equal(
+      resolveIosReleaseProfile('most').iosBundleIdentifier,
+      'most.box'
+    )
+    assert.equal(resolveIosReleaseProfile('inkbox').appName, '墨盒')
+    assert.equal(
+      resolveIosReleaseProfile('mohe').iosBundleIdentifier,
+      'red.most.mohe'
+    )
+  })
+})
 const packageVersion = JSON.parse(
   fs.readFileSync(path.join(projectDir, 'package.json'), 'utf8')
 ).version

@@ -4,12 +4,28 @@ import { fileURLToPath } from 'node:url'
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 const defaultProjectDir = path.resolve(scriptDir, '..')
+const productProfilesPath = path.join(
+  defaultProjectDir,
+  'product-profiles.json'
+)
 const PNG_SIGNATURE = Buffer.from('89504e470d0a1a0a', 'hex')
 const REQUIRED_PRIVACY_API_CATEGORIES = [
   'NSPrivacyAccessedAPICategoryUserDefaults',
   'NSPrivacyAccessedAPICategoryFileTimestamp',
   'NSPrivacyAccessedAPICategorySystemBootTime',
 ]
+
+export function resolveIosReleaseProfile(value) {
+  const profiles = JSON.parse(fs.readFileSync(productProfilesPath, 'utf8'))
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
+  const id =
+    normalized === 'inkbox' || normalized === 'mohe' || normalized === '墨盒'
+      ? 'inkbox'
+      : 'most'
+  return profiles[id]
+}
 
 export function expectedIosBuildNumber(version) {
   const match = String(version || '').match(/^(\d+)\.(\d+)\.(\d+)$/)
@@ -72,13 +88,19 @@ export function collectIosReleaseIssues({
   rootVersion,
   eas,
   iconMetadata,
+  profile = resolveIosReleaseProfile(
+    process.env.MOST_PRODUCT || process.env.EXPO_PUBLIC_MOST_PRODUCT
+  ),
 }) {
   const issues = []
   const requireValue = (condition, message) => {
     if (!condition) issues.push(message)
   }
 
-  requireValue(expo?.name === 'MostBox', 'Expo app name must be MostBox')
+  requireValue(
+    expo?.name === profile.appName,
+    `Expo app name must be ${profile.appName}`
+  )
   requireValue(
     expo?.version === packageVersion,
     `Expo version ${expo?.version} must match package version ${packageVersion}`
@@ -96,10 +118,13 @@ export function collectIosReleaseIssues({
     expo?.orientation === 'portrait',
     'iOS must remain portrait-only'
   )
-  requireValue(expo?.scheme === 'most', 'iOS URL scheme must be most')
   requireValue(
-    expo?.ios?.bundleIdentifier === 'most.box',
-    'iOS bundle identifier must be most.box'
+    expo?.scheme === profile.scheme,
+    `iOS URL scheme must be ${profile.scheme}`
+  )
+  requireValue(
+    expo?.ios?.bundleIdentifier === profile.iosBundleIdentifier,
+    `iOS bundle identifier must be ${profile.iosBundleIdentifier}`
   )
   requireValue(
     expo?.ios?.supportsTablet === false,

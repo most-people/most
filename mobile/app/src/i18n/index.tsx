@@ -17,6 +17,7 @@ import {
   type Locale,
 } from './locales'
 import { messages, type MessageKey } from './messages'
+import { PRODUCT_PROFILE } from '../product/productProfile'
 import {
   interpolateMessage,
   translateMessage,
@@ -117,7 +118,11 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     return {
       locale,
       setLocale,
-      t: (key, params) => translateMessage(key, locale, params),
+      t: (key, params) =>
+        translateMessage(key, locale, {
+          brand: PRODUCT_PROFILE.displayName,
+          ...params,
+        }),
       formatDateTime: value => {
         const date = value instanceof Date ? value : new Date(value)
         return Number.isNaN(date.getTime())

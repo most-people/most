@@ -104,6 +104,7 @@ import {
 import { FeedbackProvider, useFeedback } from './src/ui/feedback'
 import { PrivacyConsentGate } from './src/privacy/PrivacyConsentGate'
 import { PRIVACY_URL, SUPPORT_URL, TERMS_URL } from './src/privacy/legalUrls'
+import { PRODUCT_PROFILE } from './src/product/productProfile'
 import type { DocumentPickerAsset } from 'expo-document-picker'
 import type {
   MobileCoreSnapshot,
@@ -1211,7 +1212,9 @@ function MostBoxApp() {
               <ShieldCheck size={19} color={theme.colors.accent} />
             </View>
             <View style={styles.brandTextGroup}>
-              <Text style={styles.brandName}>MostBox</Text>
+              <Text style={styles.brandName}>
+                {PRODUCT_PROFILE.displayName}
+              </Text>
               <Text style={styles.pageTitle}>
                 {t('node.connection.modalTitle')}
               </Text>

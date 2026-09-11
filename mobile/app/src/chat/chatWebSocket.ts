@@ -120,8 +120,10 @@ export class ChatWebSocketSession {
       socket.onerror = () => {
         if (!settled) {
           settled = true
+          if (this.#socket === socket) this.#socket = null
           reject(new Error('Chat WebSocket is unreachable'))
         }
+        if (this.#started) this.#scheduleReconnect()
       }
       socket.onclose = () => {
         if (this.#socket === socket) this.#socket = null
