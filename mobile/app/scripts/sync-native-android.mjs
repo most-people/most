@@ -185,6 +185,7 @@ export function syncNativeAndroidProject({
   syncAppName()
   syncIconBackgroundColor()
   syncGradleJvmArgs()
+  syncAndroidMinSdkVersion()
   syncNativeHelperShim()
   cleanupPlatformConstantsPackage()
   cleanupNativeHelperManifestDeclaration()
@@ -621,6 +622,38 @@ function syncGradleJvmArgs() {
   if (nextGradleProperties !== gradleProperties) {
     fs.writeFileSync(gradlePropertiesPath, nextGradleProperties)
   }
+}
+
+function syncAndroidMinSdkVersion() {
+  const minSdkVersion =
+    resolveExpoBuildProperties(appJson).android?.minSdkVersion
+  if (minSdkVersion === undefined) return
+
+  const gradleProperties = fs.readFileSync(gradlePropertiesPath, 'utf8')
+  writeIfChanged(
+    gradlePropertiesPath,
+    applyAndroidMinSdkVersionConfig(gradleProperties, minSdkVersion)
+  )
+}
+
+export function applyAndroidMinSdkVersionConfig(
+  gradleProperties,
+  minSdkVersion
+) {
+  if (!Number.isInteger(minSdkVersion) || minSdkVersion <= 0) {
+    throw new Error(`Invalid Android minimum SDK version: ${minSdkVersion}`)
+  }
+
+  const property = `android.minSdkVersion=${minSdkVersion}`
+  const propertyPattern = /^android\.minSdkVersion=[^\r\n]*/m
+  if (propertyPattern.test(gradleProperties)) {
+    return gradleProperties.replace(propertyPattern, property)
+  }
+
+  const newline = gradleProperties.includes('\r\n') ? '\r\n' : '\n'
+  const separator =
+    gradleProperties && !gradleProperties.endsWith('\n') ? newline : ''
+  return `${gradleProperties}${separator}${property}${newline}`
 }
 
 function cleanupPlatformConstantsPackage() {

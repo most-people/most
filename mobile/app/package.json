@@ -49,7 +49,7 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.2",
-    "react-native-bare-kit": "0.14.5",
+    "react-native-bare-kit": "0.15.0",
     "react-native-enriched-markdown": "0.7.4",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-svg": "15.15.4",

@@ -53,6 +53,8 @@ Web 导出固定写入 `web-dist/`，不会覆盖 `dist/` 下的 Android、iOS �
 
 ## 内部 APK
 
+Android 最低支持 Android 12（API 31），与 `react-native-bare-kit 0.15.0` 的原生运行时要求一致。升级 Bare Kit 前需在最低支持版本真机验证冷启动和本机节点。
+
 `npm run build` 生成用于真机内测的 arm64 APK 和 SHA256：
 
 - `dist/mostbox-android-<version>-release.apk`

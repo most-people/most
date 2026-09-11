@@ -5,6 +5,7 @@ import { describe, it } from 'node:test'
 import {
   applyExternalNativeBuildConfig,
   applyAndroidManifestPolicy,
+  applyAndroidMinSdkVersionConfig,
   applyAndroidPackageConfig,
   applyKotlinPackageDeclaration,
   applyPlayReleaseSigningConfig,
@@ -77,6 +78,45 @@ describe('Android native project synchronization', () => {
     )
     assert.equal(isStaleAndroidPackage('box.most.android', 'most.box'), true)
     assert.equal(isStaleAndroidPackage('most.box', 'most.box'), false)
+  })
+
+  it('updates the minimum SDK in an existing native project', () => {
+    const properties =
+      'org.gradle.jvmargs=-Xmx3072m\r\nandroid.minSdkVersion=29\r\n'
+    const result = applyAndroidMinSdkVersionConfig(properties, 31)
+
+    assert.equal(
+      result,
+      'org.gradle.jvmargs=-Xmx3072m\r\nandroid.minSdkVersion=31\r\n'
+    )
+    assert.equal(applyAndroidMinSdkVersionConfig(result, 31), result)
+  })
+
+  it('adds a missing minimum SDK property without changing other settings', () => {
+    for (const properties of [
+      '',
+      'android.useAndroidX=true',
+      'android.useAndroidX=true\n',
+      'android.useAndroidX=true\r\n',
+    ]) {
+      const result = applyAndroidMinSdkVersionConfig(properties, 31)
+      const newline = properties.includes('\r\n') ? '\r\n' : '\n'
+      const prefix =
+        properties && !properties.endsWith('\n')
+          ? `${properties}${newline}`
+          : properties
+      assert.equal(result, `${prefix}android.minSdkVersion=31${newline}`)
+      assert.equal(applyAndroidMinSdkVersionConfig(result, 31), result)
+    }
+  })
+
+  it('rejects invalid minimum SDK versions', () => {
+    for (const version of [0, -1, 31.5, NaN, Infinity, '31', null]) {
+      assert.throws(
+        () => applyAndroidMinSdkVersionConfig('', version),
+        /Invalid Android minimum SDK version/
+      )
+    }
   })
 
   it('keeps native build output in a short project-specific directory', () => {
