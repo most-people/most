@@ -2,6 +2,8 @@
 
 本文是 0.5.x 之后的实施基线。`V0.5.0` 的商店材料保留为历史证据，不再作为完整版功能边界。
 
+墨盒大陆版的构建、功能收敛和备案材料见 [`docs/mohe-release-checklist.md`](mohe-release-checklist.md)。
+
 ## 当前已落地
 
 - `mobile/app` 已支持 Most/墨盒 product profile，可按构建环境切换名称、包标识、法律入口和 EAS profile；两者继续使用 `most://`。

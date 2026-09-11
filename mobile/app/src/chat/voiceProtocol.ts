@@ -1,11 +1,6 @@
 import type { MobileIdentity } from '../mobileCore/types'
 
-export type VoiceEventName =
-  | 'join'
-  | 'state'
-  | 'heartbeat'
-  | 'leave'
-  | 'signal'
+export type VoiceEventName = 'join' | 'state' | 'heartbeat' | 'leave' | 'signal'
 
 export type VoiceSignalType = 'offer' | 'answer' | 'candidate'
 
@@ -53,11 +48,7 @@ const EVENT_NAMES = new Set<VoiceEventName>([
   'leave',
   'signal',
 ])
-const SIGNAL_TYPES = new Set<VoiceSignalType>([
-  'offer',
-  'answer',
-  'candidate',
-])
+const SIGNAL_TYPES = new Set<VoiceSignalType>(['offer', 'answer', 'candidate'])
 
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -101,7 +92,9 @@ export function buildVoiceEventFrame(
       ? {}
       : { profileUpdatedAt: input.profile.profileUpdatedAt }),
     ...(input.micMuted === undefined ? {} : { micMuted: input.micMuted }),
-    ...(input.targetSessionId ? { targetSessionId: input.targetSessionId } : {}),
+    ...(input.targetSessionId
+      ? { targetSessionId: input.targetSessionId }
+      : {}),
     ...(input.signal ? { signal: input.signal } : {}),
   }
   return JSON.stringify({ event: `channel:voice:${event}`, data })
@@ -153,7 +146,11 @@ export function parseVoiceWebSocketMessage(raw: string): VoiceEvent | null {
           sender: {
             address: senderAddress,
             ...(string(senderRecord.displayName || data.displayName)
-              ? { displayName: string(senderRecord.displayName || data.displayName) }
+              ? {
+                  displayName: string(
+                    senderRecord.displayName || data.displayName
+                  ),
+                }
               : {}),
             ...(string(senderRecord.avatar || data.avatar)
               ? { avatar: string(senderRecord.avatar || data.avatar) }
@@ -166,7 +163,8 @@ export function parseVoiceWebSocketMessage(raw: string): VoiceEvent | null {
       : {}),
     ...(typeof data.micMuted === 'boolean' ? { micMuted: data.micMuted } : {}),
     ...(signal ? { signal } : {}),
-    timestamp: Number.isFinite(timestamp) && timestamp > 0 ? timestamp : Date.now(),
+    timestamp:
+      Number.isFinite(timestamp) && timestamp > 0 ? timestamp : Date.now(),
   }
 }
 
@@ -190,12 +188,18 @@ export function reduceVoiceEvent(
     sessionId: event.sessionId,
     address: sender?.address || current?.address || '',
     displayName:
-      sender?.displayName || current?.displayName || sender?.address || event.sessionId,
+      sender?.displayName ||
+      current?.displayName ||
+      sender?.address ||
+      event.sessionId,
     ...(sender?.avatar || current?.avatar
       ? { avatar: sender?.avatar || current?.avatar }
       : {}),
     ...(sender?.profileUpdatedAt || current?.profileUpdatedAt
-      ? { profileUpdatedAt: sender?.profileUpdatedAt || current?.profileUpdatedAt }
+      ? {
+          profileUpdatedAt:
+            sender?.profileUpdatedAt || current?.profileUpdatedAt,
+        }
       : {}),
     micMuted:
       typeof event.micMuted === 'boolean'
@@ -219,7 +223,8 @@ export function createVoiceRoomState(
 ): VoiceRoomState {
   const normalized = string(channel)
   if (!normalized) throw new Error('channel is required')
-  if (!localSessionId || !localAddress) return { channel: normalized, participants: {} }
+  if (!localSessionId || !localAddress)
+    return { channel: normalized, participants: {} }
   const now = Date.now()
   return {
     channel: normalized,
@@ -280,9 +285,12 @@ export class VoiceWebSocketSession {
 
   async connect() {
     if (this.connected) return
-    const { buildAuthenticatedWebSocketUrl } = await import('../remoteNode/protocol')
+    const { buildAuthenticatedWebSocketUrl } =
+      await import('../remoteNode/protocol')
     const url = await buildAuthenticatedWebSocketUrl(this.#options)
-    const factory = this.#options.webSocketFactory || (value => new WebSocket(value) as unknown as VoiceSocket)
+    const factory =
+      this.#options.webSocketFactory ||
+      (value => new WebSocket(value) as unknown as VoiceSocket)
     this.#started = true
     await new Promise<void>((resolve, reject) => {
       const socket = factory(url)
@@ -290,7 +298,12 @@ export class VoiceWebSocketSession {
       this.#socket = socket
       socket.onopen = () => {
         settled = true
-        socket.send(JSON.stringify({ event: 'channel:subscribe', data: { channel: this.#options.channel } }))
+        socket.send(
+          JSON.stringify({
+            event: 'channel:subscribe',
+            data: { channel: this.#options.channel },
+          })
+        )
         if (this.#joined) this.#send('join')
         resolve()
       }
@@ -347,7 +360,10 @@ export class VoiceWebSocketSession {
     socket?.close()
   }
 
-  #send(event: VoiceEventName, extra: { targetSessionId?: string; signal?: VoiceSignal } = {}) {
+  #send(
+    event: VoiceEventName,
+    extra: { targetSessionId?: string; signal?: VoiceSignal } = {}
+  ) {
     if (!this.connected || !this.#socket) return
     this.#socket.send(
       buildVoiceEventFrame(this.#options.channel, event, {
