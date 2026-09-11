@@ -271,7 +271,6 @@ export class VoiceWebSocketSession {
   #socket: VoiceSocket | null = null
   #joined = false
   #muted = false
-  #started = false
   readonly sessionId: string
 
   constructor(options: VoiceWebSocketSessionOptions) {
@@ -291,7 +290,6 @@ export class VoiceWebSocketSession {
     const factory =
       this.#options.webSocketFactory ||
       (value => new WebSocket(value) as unknown as VoiceSocket)
-    this.#started = true
     await new Promise<void>((resolve, reject) => {
       const socket = factory(url)
       let settled = false
@@ -354,7 +352,6 @@ export class VoiceWebSocketSession {
 
   close() {
     this.leave()
-    this.#started = false
     const socket = this.#socket
     this.#socket = null
     socket?.close()
