@@ -9,14 +9,31 @@ import {
   Text,
   View,
 } from 'react-native'
-import { MessageCircle, Paperclip, Plus, Send } from 'lucide-react-native'
+import {
+  MessageCircle,
+  Mic,
+  MicOff,
+  Paperclip,
+  Phone,
+  PhoneOff,
+  Plus,
+  Send,
+  Users,
+} from 'lucide-react-native'
 import {
   ChatApiClient,
   mergeChatMessages,
+  normalizeChatChannel,
   type ChatAttachment,
   type ChatMessage,
 } from '../../chat/chatProtocol'
 import { ChatWebSocketSession } from '../../chat/chatWebSocket'
+import {
+  createVoiceRoomState,
+  VoiceWebSocketSession,
+  reduceVoiceEvent,
+  type VoiceRoomState,
+} from '../../chat/voiceProtocol'
 import type {
   MobileCoreSnapshot,
   MobileIdentity,
@@ -81,6 +98,7 @@ export function ChatScreen({
     [endpoint, invite, identity]
   )
   const socketRef = useRef<ChatWebSocketSession | null>(null)
+  const voiceSessionRef = useRef<VoiceWebSocketSession | null>(null)
   const [channelInput, setChannelInput] = useState('')
   const [channel, setChannel] = useState('')
   const [channels, setChannels] = useState<string[]>([])
@@ -88,8 +106,67 @@ export function ChatScreen({
   const [draft, setDraft] = useState('')
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
+  const [voiceState, setVoiceState] = useState<VoiceRoomState | null>(null)
+  const [voiceJoined, setVoiceJoined] = useState(false)
+  const [voiceMuted, setVoiceMuted] = useState(false)
+  const [voiceConnecting, setVoiceConnecting] = useState(false)
+  const [voiceError, setVoiceError] = useState('')
 
-  useEffect(() => () => socketRef.current?.close(), [])
+  useEffect(
+    () => () => {
+      socketRef.current?.close()
+      voiceSessionRef.current?.close()
+    },
+    []
+  )
+
+  useEffect(() => {
+    voiceSessionRef.current?.close()
+    voiceSessionRef.current = null
+    setVoiceJoined(false)
+    setVoiceMuted(false)
+    setVoiceConnecting(false)
+    setVoiceError('')
+    if (!channel || localMode || !endpoint) {
+      setVoiceState(null)
+      return
+    }
+    const session = new VoiceWebSocketSession({
+      baseUrl: endpoint,
+      invite,
+      identity,
+      channel,
+      profile: identity?.username ? { displayName: identity.username } : {},
+      onEvent: event => {
+        setVoiceState(current =>
+          reduceVoiceEvent(
+            current || createVoiceRoomState(channel),
+            event,
+            session.sessionId
+          )
+        )
+      },
+    })
+    voiceSessionRef.current = session
+    setVoiceState(
+      createVoiceRoomState(channel, session.sessionId, identity?.address, {
+        displayName: identity?.username,
+      })
+    )
+    return () => {
+      session.close()
+      if (voiceSessionRef.current === session) voiceSessionRef.current = null
+    }
+  }, [channel, endpoint, identity, invite, localMode])
+
+  useEffect(() => {
+    if (!voiceJoined) return
+    const timer = setInterval(
+      () => voiceSessionRef.current?.heartbeat(),
+      10_000
+    )
+    return () => clearInterval(timer)
+  }, [voiceJoined])
 
   useEffect(() => {
     if (!api && !localMode) return
@@ -100,11 +177,17 @@ export function ChatScreen({
     void request
       .then(items => {
         if (!active) return
-        const names = items
-          .map(item =>
-            String(item.channelKey || item.channelId || item.name || '').trim()
-          )
-          .filter(Boolean)
+        const names = [
+          ...new Set(
+            items
+              .map(item =>
+                normalizeChatChannel(
+                  String(item.channelKey || item.channelId || item.name || '')
+                )
+              )
+              .filter(Boolean)
+          ),
+        ]
         setChannels(names)
       })
       .catch(() => {})
@@ -120,16 +203,17 @@ export function ChatScreen({
   }, [channel, localMode, snapshot.channelMessages])
 
   const loadChannel = async (name: string) => {
-    if ((!api && !localMode) || !name) return
+    const normalizedName = normalizeChatChannel(name)
+    if ((!api && !localMode) || !normalizedName) return
     setLoading(true)
     try {
       const localMessages = localMode
-        ? await bridge.getChannelMessages?.(name)
+        ? await bridge.getChannelMessages?.(normalizedName)
         : null
       const page = localMode
         ? null
-        : await api?.getHistory(name, { limit: 100 })
-      setChannel(name)
+        : await api?.getHistory(normalizedName, { limit: 100 })
+      setChannel(normalizedName)
       setMessages(localMode ? localMessages || [] : page?.messages || [])
       socketRef.current?.close()
       if (!localMode && api) {
@@ -138,16 +222,20 @@ export function ChatScreen({
           invite,
           identity,
           onEvent: event => {
-            if (event.event === 'channel:message' && event.channel === name)
+            if (
+              event.event === 'channel:message' &&
+              normalizeChatChannel(event.channel) === normalizedName
+            )
               setMessages(current =>
                 mergeChatMessages(current, [event.message])
               )
           },
         })
         socketRef.current = session
-        await session.subscribe(name)
+        await session.subscribe(normalizedName)
       }
-      if (!channels.includes(name)) setChannels(current => [...current, name])
+      if (!channels.includes(normalizedName))
+        setChannels(current => [...current, normalizedName])
     } catch (error) {
       toast(
         error instanceof Error ? error.message : t('chat.loadFailed'),
@@ -159,7 +247,7 @@ export function ChatScreen({
   }
 
   const joinChannel = async () => {
-    const name = channelInput.trim().replace(/^#/, '')
+    const name = normalizeChatChannel(channelInput)
     if (!name || (!api && !localMode)) return
     setLoading(true)
     try {
@@ -244,6 +332,52 @@ export function ChatScreen({
     }
   }
 
+  const toggleVoice = async () => {
+    const session = voiceSessionRef.current
+    if (!session || !channel) return
+    setVoiceError('')
+    if (voiceJoined) {
+      session.leave()
+      setVoiceJoined(false)
+      setVoiceState(
+        createVoiceRoomState(channel, session.sessionId, identity?.address, {
+          displayName: identity?.username,
+        })
+      )
+      return
+    }
+    setVoiceConnecting(true)
+    try {
+      await session.join()
+      setVoiceJoined(true)
+    } catch (error) {
+      setVoiceError(
+        error instanceof Error ? error.message : t('chat.voiceFailed')
+      )
+    } finally {
+      setVoiceConnecting(false)
+    }
+  }
+
+  const toggleVoiceMute = () => {
+    const next = !voiceMuted
+    setVoiceMuted(next)
+    voiceSessionRef.current?.setMuted(next)
+    setVoiceState(current => {
+      if (!current || !voiceSessionRef.current) return current
+      const participant =
+        current.participants[voiceSessionRef.current.sessionId]
+      if (!participant) return current
+      return {
+        ...current,
+        participants: {
+          ...current.participants,
+          [participant.sessionId]: { ...participant, micMuted: next },
+        },
+      }
+    })
+  }
+
   if (!localMode && !endpoint)
     return (
       <View style={styles.empty}>
@@ -289,6 +423,7 @@ export function ChatScreen({
           horizontal
           data={channels}
           keyExtractor={item => item}
+          style={styles.channelListView}
           contentContainerStyle={styles.channelList}
           renderItem={({ item }) => (
             <Pressable
@@ -309,6 +444,78 @@ export function ChatScreen({
             </Pressable>
           )}
         />
+      ) : null}
+      {!localMode && channel ? (
+        <View style={styles.voiceCard}>
+          <View style={styles.voiceHeader}>
+            <View style={styles.voiceTitleRow}>
+              <Phone size={17} color={theme.colors.accent} />
+              <Text style={styles.voiceTitle}>{t('chat.voiceTitle')}</Text>
+              {voiceState ? (
+                <View style={styles.voiceCount}>
+                  <Users size={13} color={theme.colors.textSecondary} />
+                  <Text style={styles.voiceCountText}>
+                    {Object.keys(voiceState.participants).length}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+            <View style={styles.voiceActions}>
+              {voiceJoined ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    voiceMuted ? t('chat.voiceUnmute') : t('chat.voiceMute')
+                  }
+                  onPress={toggleVoiceMute}
+                  style={styles.voiceIconButton}
+                >
+                  {voiceMuted ? (
+                    <MicOff size={17} color={theme.colors.warning} />
+                  ) : (
+                    <Mic size={17} color={theme.colors.accent} />
+                  )}
+                </Pressable>
+              ) : null}
+              <MostButton
+                disabled={voiceConnecting}
+                onPress={() => void toggleVoice()}
+                variant={voiceJoined ? 'danger' : 'primary'}
+                icon={
+                  voiceJoined ? (
+                    <PhoneOff size={15} color={theme.colors.onAccent} />
+                  ) : (
+                    <Phone size={15} color={theme.colors.onAccent} />
+                  )
+                }
+              >
+                {voiceConnecting
+                  ? t('chat.voiceConnecting')
+                  : voiceJoined
+                    ? t('chat.voiceLeave')
+                    : t('chat.voiceJoin')}
+              </MostButton>
+            </View>
+          </View>
+          {voiceError ? (
+            <Text style={styles.voiceError}>{voiceError}</Text>
+          ) : null}
+          {voiceJoined && voiceState ? (
+            <View style={styles.voiceParticipants}>
+              {Object.values(voiceState.participants).map(participant => (
+                <Text
+                  key={participant.sessionId}
+                  style={styles.voiceParticipant}
+                >
+                  {participant.displayName || participant.address}
+                  {participant.micMuted ? ` · ${t('chat.voiceMuted')}` : ''}
+                </Text>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.voiceHint}>{t('chat.voiceHint')}</Text>
+          )}
+        </View>
       ) : null}
       <View style={styles.messagesCard}>
         {loading ? (
@@ -402,7 +609,36 @@ function chatStyles(theme: ReturnType<typeof useMostBoxTheme>) {
     container: { flex: 1, padding: 14, gap: 10 },
     joinRow: { flexDirection: 'row', gap: 8 },
     channelInput: { flex: 1 },
+    channelListView: { flexGrow: 0, height: 42 },
     channelList: { gap: 8 },
+    voiceCard: {
+      ...getGlassSurfaceStyle(theme, 'subtle'),
+      gap: 7,
+      padding: 10,
+    },
+    voiceHeader: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+    },
+    voiceTitleRow: { alignItems: 'center', flexDirection: 'row', gap: 6 },
+    voiceTitle: { color: colors.text, fontSize: 14, fontWeight: '700' },
+    voiceCount: { alignItems: 'center', flexDirection: 'row', gap: 3 },
+    voiceCountText: { color: colors.textSecondary, fontSize: 12 },
+    voiceActions: { alignItems: 'center', flexDirection: 'row', gap: 6 },
+    voiceIconButton: {
+      alignItems: 'center',
+      borderColor: colors.border,
+      borderRadius: radii.full,
+      borderWidth: 1,
+      height: 34,
+      justifyContent: 'center',
+      width: 34,
+    },
+    voiceParticipants: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+    voiceParticipant: { color: colors.textSecondary, fontSize: 12 },
+    voiceHint: { color: colors.textMuted, fontSize: 12 },
+    voiceError: { color: colors.danger, fontSize: 12 },
     channelChip: {
       ...getGlassSurfaceStyle(theme, 'subtle'),
       paddingHorizontal: 12,

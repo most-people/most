@@ -45,6 +45,15 @@ export type ChatWebSocketEvent =
   | { event: 'channel:subscribed'; channel: string }
   | { event: 'channel:message'; channel: string; message: ChatMessage }
 
+/** Normalize the user-facing channel input to the canonical channel ID. */
+export function normalizeChatChannel(value?: string | null) {
+  return String(value || '')
+    .trim()
+    .replace(/^#/, '')
+    .trim()
+    .toLowerCase()
+}
+
 export type ChatMessageInput = {
   content: string
   author: string

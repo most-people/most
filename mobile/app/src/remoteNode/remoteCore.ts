@@ -259,22 +259,52 @@ export class RemoteMostBoxCore implements MostBoxMobileCore {
         method: 'POST',
         path: '/api/publish',
       })
-      const body = new FormData()
-      if (input.webFile) {
-        body.append('file', input.webFile, input.name)
+      let result: JsonRecord
+      if (input.webFile || Platform.OS === 'web') {
+        const body = new FormData()
+        if (input.webFile) {
+          body.append('file', input.webFile, input.name)
+        } else {
+          body.append('file', {
+            uri: input.uri,
+            name: input.name,
+            type: input.mimeType || 'application/octet-stream',
+          } as unknown as Blob)
+        }
+        const response = await this.#fetchWithTimeout(
+          buildRemoteApiUrl(this.#config.url, '/api/publish'),
+          { method: 'POST', headers, body },
+          DOWNLOAD_TIMEOUT_MS
+        )
+        result = asRecord(await this.#parseResponse(response))
       } else {
-        body.append('file', {
-          uri: input.uri,
-          name: input.name,
-          type: input.mimeType || 'application/octet-stream',
-        } as unknown as Blob)
+        // Expo Winter's fetch rejects React Native's `{ uri, name, type }`
+        // FormData parts. The native upload API builds the multipart body
+        // without going through that incompatible FormData implementation.
+        const upload = await FileSystem.uploadAsync(
+          buildRemoteApiUrl(this.#config.url, '/api/publish'),
+          input.uri,
+          {
+            uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+            fieldName: 'file',
+            mimeType: input.mimeType || 'application/octet-stream',
+            headers,
+          }
+        )
+        if (upload.status < 200 || upload.status >= 300) {
+          throw createRemoteError(
+            'Remote node publish failed',
+            `HTTP_${upload.status}`
+          )
+        }
+        let payload: unknown = {}
+        try {
+          payload = upload.body ? JSON.parse(upload.body) : {}
+        } catch {
+          payload = {}
+        }
+        result = asRecord(payload)
       }
-      const response = await this.#fetchWithTimeout(
-        buildRemoteApiUrl(this.#config.url, '/api/publish'),
-        { method: 'POST', headers, body },
-        DOWNLOAD_TIMEOUT_MS
-      )
-      const result = asRecord(await this.#parseResponse(response))
       transfer.status = 'completed'
       transfer.progress = 100
       transfer.message = 'Published and seeding on remote node'

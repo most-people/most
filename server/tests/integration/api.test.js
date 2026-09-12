@@ -590,11 +590,11 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
           )
           .map(([, operation]) => operation)
       )
-      assert.strictEqual(documentedOperations.length, 49)
+      assert.strictEqual(documentedOperations.length, 50)
       assert.strictEqual(
         new Set(documentedOperations.map(operation => operation.operationId))
           .size,
-        49
+        50
       )
       assert.ok(
         documentedOperations.every(
@@ -2017,6 +2017,31 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
 
       const downloadRes = await fetch(`${baseUrl}/api/files/${cid}/download`)
       assert.strictEqual(downloadRes.status, 404)
+    })
+
+    it('removes an orphaned holding when its library record is missing', async () => {
+      const content = Buffer.from('orphaned holding delete-test')
+      const { cid } = await calculateCid(content)
+      await engine.addHolding({
+        cid: cid.toString(),
+        fileName: 'orphaned.txt',
+        size: content.length,
+      })
+
+      const before = await fetch(`${baseUrl}/api/node/holdings`)
+      assert.ok(
+        (await before.json()).some(holding => holding.cid === cid.toString())
+      )
+
+      const res = await fetch(`${baseUrl}/api/files/${cid}`, {
+        method: 'DELETE',
+      })
+      assert.strictEqual(res.status, 200)
+
+      const after = await fetch(`${baseUrl}/api/node/holdings`)
+      assert.ok(
+        !(await after.json()).some(holding => holding.cid === cid.toString())
+      )
     })
   })
 

@@ -50,11 +50,11 @@ MostBox 不要求先把文件上传到中心化网盘。发布者发送一个 `m
 
 ### 方式一：桌面客户端（推荐）与 Android App
 
-前往 [MostBox 下载页](https://Most.Box/download) 下载客户端，支持 Windows、macOS、Linux 和 Android。桌面端内置本地 MostBox 节点，提供完整 P2P 文件分享、下载校验和持续做种能力，无需单独安装 Node.js；Android 商店版聚焦用户主动的文件发布、`most://` 链接接收、CID 校验和前台做种。
+前往 [MostBox 下载页](https://Most.Box/download) 下载客户端，支持 Windows、macOS、Linux 和 Android。桌面端与 Android 商店版都提供完整 MostBox 工具箱：文件发布、`most://` 链接接收、CID 校验、持续做种、知识库、频道聊天和 Web3 工具，并可按需连接远程 MostBox 节点。
 
 ### Android
 
-iOS / Android 使用“P2P 核心端 + 平台 UI 壳”分层，并以文件传输工具身份准备应用商店分发。商店版只运行本机 Bare Worklet 节点，不包含远程节点登录、聊天、账号、广告、付费、Web3、公开内容目录或长期后台做种；下载必须由用户在确认页明确触发。Expo Web 是独立的自托管节点控制台：浏览器不能运行 Bare Worklet，因此只在 Web 构建中保留远程 daemon、邀请码和签名身份。Android 验收范围见 [docs/mobile-android-alpha.md](docs/mobile-android-alpha.md)，Google Play 提交清单见 [docs/google-play-submission.md](docs/google-play-submission.md)；iOS 真机验收范围见 [docs/mobile-ios-feasibility.md](docs/mobile-ios-feasibility.md)，App Store 提交清单见 [docs/app-store-submission.md](docs/app-store-submission.md)。
+iOS / Android 使用“P2P 核心端 + 平台 UI 壳”分层。Most profile 的 Android 商店版是完整功能应用，提供本机 Bare Worklet 节点、远程节点连接、文件传输与做种、知识库、频道聊天、Web3 工具和相关身份能力；各工具箱可以独立使用，不构成文件分享前置条件。连接远程节点时可使用节点地址、邀请码和签名身份；本机功能无需云端注册账号。远程 daemon 可以独立持续工作，本机节点的做种和下载受 Android 生命周期影响，当前保证应用在前台时持续运行，回到前台后自动恢复。Expo Web 仍是独立的自托管节点控制台。Android 验收范围见 [docs/mobile-android-alpha.md](docs/mobile-android-alpha.md)，Google Play 提交清单见 [docs/google-play-submission.md](docs/google-play-submission.md)；iOS 真机验收范围见 [docs/mobile-ios-feasibility.md](docs/mobile-ios-feasibility.md)，App Store 提交清单见 [docs/app-store-submission.md](docs/app-store-submission.md)。
 
 移动端工程入口以 `mobile/app/` 子包为准，Android 与 iOS 共享 React Native UI 和 Bare Worklet P2P 核心。仓库根目录不提供 `android:start`、`android:test` 或 `android:build` 包装脚本，本地开发、测试和打包命令统一在子包目录执行：
 

@@ -2236,6 +2236,11 @@ export class MostBoxEngine extends EventEmitter {
       this.#savePublishedMetadata()
 
       await this.#cleanupUnreferencedCids(affectedCids)
+    } else if (this.#holdings.some(holding => holding.cid === cid)) {
+      // A node holding can outlive its user-library record (for example after
+      // a partial sync or an older client). Remove the orphaned replica too,
+      // while preserving it when another published record still references it.
+      await this.#cleanupUnreferencedCids(new Set([cid]))
     }
     return this.listPublishedFiles({ ownerAddress })
   }

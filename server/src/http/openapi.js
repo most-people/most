@@ -1511,6 +1511,25 @@ export function createOpenApiSpec({
           ),
         }),
       },
+      '/api/files/{cid}': {
+        delete: operation({
+          tag: 'Files',
+          operationId: 'deleteFile',
+          summary: 'Delete a published file and stop local seeding',
+          sideEffect: 'write',
+          security: signedSecurity,
+          parameters: [cidParameter],
+          responses: responses(
+            {
+              200: jsonResponse('Updated published file list', {
+                type: 'array',
+                items: ref('PublishedFile'),
+              }),
+            },
+            [400, 401, 403, 404, 429, 500]
+          ),
+        }),
+      },
       '/api/files/{cid}/cache': {
         post: operation({
           tag: 'Downloads',
