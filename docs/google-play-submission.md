@@ -1,6 +1,6 @@
 # MostBox Google Play 提交清单
 
-> 当前提交验收基线：2026-09-12；Android `0.5.2`（versionCode `502`）。`docs/google-play-aab-audit.md` 中的 `0.5.0` 记录保留为历史审计证据。
+> 当前提交验收基线：2026-09-13；Android `0.5.3`（versionCode `503`）。`docs/google-play-aab-audit.md` 中的 `0.5.0` 记录保留为历史审计证据。
 > 本文中的公司主体信息只用于 Google Play 账号核验、法律页面和审核材料，**不要求在 `most.box` 官网公开展示企业归属**。
 
 本清单适用于 Most profile 的完整 Android 商店版。应用包含文件传输与做种、知识库、频道聊天、远程节点连接、Web3 工具及相关本地身份能力；不包含广告、付费或公开内容目录。远程 daemon 可独立持续工作，本机 Bare Worklet 的持续做种和下载受 Android 生命周期影响，当前以应用前台运行和返回前台自动恢复为保证范围。

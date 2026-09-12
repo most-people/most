@@ -4,6 +4,18 @@ All notable changes to MostBox are documented in this file.
 
 ## [Unreleased]
 
+## [0.5.3] - 2026-09-13
+
+### Added
+
+- Added full Android chat entry as the first tab, including remote channel voice signaling controls.
+
+### Fixed
+
+- Fixed Android remote multipart publishing on Expo Winter fetch.
+- Added a Hermes-compatible SHA-256/SHA-512 fallback for mobile CID calculation.
+- Removed orphaned downloaded holdings correctly when their library record is deleted.
+
 ## [0.5.2] - 2026-09-09
 
 ### Fixed

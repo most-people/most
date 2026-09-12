@@ -1484,6 +1484,23 @@ function MostBoxApp() {
 
         {!hideTabBar ? (
           <View style={styles.tabBar}>
+            {PRODUCT_PROFILE.features.chat ? (
+              <TabButton
+                active={activeTab === 'chat'}
+                icon={
+                  <MessageCircle
+                    size={21}
+                    color={
+                      activeTab === 'chat'
+                        ? theme.colors.accent
+                        : theme.colors.textSecondary
+                    }
+                  />
+                }
+                label={t('nav.chat')}
+                onPress={() => changeTab('chat')}
+              />
+            ) : null}
             <TabButton
               active={activeTab === 'files'}
               icon={
@@ -1529,23 +1546,6 @@ function MostBoxApp() {
               label={t('nav.transfers')}
               onPress={() => changeTab('transfers')}
             />
-            {PRODUCT_PROFILE.features.chat ? (
-              <TabButton
-                active={activeTab === 'chat'}
-                icon={
-                  <MessageCircle
-                    size={21}
-                    color={
-                      activeTab === 'chat'
-                        ? theme.colors.accent
-                        : theme.colors.textSecondary
-                    }
-                  />
-                }
-                label={t('nav.chat')}
-                onPress={() => changeTab('chat')}
-              />
-            ) : null}
           </View>
         ) : null}
 
