@@ -4,7 +4,7 @@ import { buildRemoteApiUrl, buildRemoteHeaders } from '../remoteNode/protocol'
 import { parseMostLink } from '../mobileCore/protocol'
 
 export type ChatAttachment = {
-  kind: 'file' | 'image'
+  kind: 'file' | 'image' | 'video' | 'audio' | 'text'
   cid: string
   fileName: string
   link: string
@@ -44,6 +44,15 @@ export type ChatHistoryPage = {
 export type ChatWebSocketEvent =
   | { event: 'channel:subscribed'; channel: string }
   | { event: 'channel:message'; channel: string; message: ChatMessage }
+
+/** Normalize the user-facing channel input to the canonical channel ID. */
+export function normalizeChatChannel(value?: string | null) {
+  return String(value || '')
+    .trim()
+    .replace(/^#/, '')
+    .trim()
+    .toLowerCase()
+}
 
 export type ChatMessageInput = {
   content: string
@@ -100,7 +109,12 @@ export function normalizeChatAttachment(value: unknown): ChatAttachment | null {
   const cid = readString(record, 'cid')
   const fileName = readString(record, 'fileName')
   const link = readString(record, 'link')
-  if ((kind !== 'file' && kind !== 'image') || !cid || !fileName || !link) {
+  if (
+    !['file', 'image', 'video', 'audio', 'text'].includes(kind) ||
+    !cid ||
+    !fileName ||
+    !link
+  ) {
     throw new Error('Invalid chat attachment')
   }
   try {
@@ -115,7 +129,7 @@ export function normalizeChatAttachment(value: unknown): ChatAttachment | null {
     throw new Error('Invalid attachment size')
   }
   return {
-    kind,
+    kind: kind as ChatAttachment['kind'],
     cid,
     fileName,
     link,

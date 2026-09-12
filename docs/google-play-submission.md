@@ -1,11 +1,11 @@
 # MostBox Google Play 提交清单
 
-> 已审计产物基线：2026-08-13；Android `0.5.0`（versionCode `500`）。
+> 当前提交验收基线：2026-09-13；Android `0.5.3`（versionCode `503`）。`docs/google-play-aab-audit.md` 中的 `0.5.0` 记录保留为历史审计证据。
 > 本文中的公司主体信息只用于 Google Play 账号核验、法律页面和审核材料，**不要求在 `most.box` 官网公开展示企业归属**。
 
-本清单适用于不含聊天、账号、广告、付费、Web3 和长期后台做种的 Android 商店版。
+本清单适用于 Most profile 的完整 Android 商店版。应用包含文件传输与做种、知识库、频道聊天、远程节点连接、Web3 工具及相关本地身份能力；不包含广告、付费或公开内容目录。远程 daemon 可独立持续工作，本机 Bare Worklet 的持续做种和下载受 Android 生命周期影响，当前以应用前台运行和返回前台自动恢复为保证范围。
 
-Android 原生入口只创建本机 Bare Worklet 节点，不包含远程 daemon、邀请码或登录界面。`app.most.box` 的 Expo Web 远程控制台是独立 Web 构建，不进入 AAB。
+Android 原生入口默认创建本机 Bare Worklet 节点，也可通过节点地址、邀请码和签名身份连接远程 daemon；基础本机功能无需云端注册账号。`app.most.box` 的 Expo Web 远程控制台是独立 Web 构建，不进入 AAB。
 
 ## 构建基线
 
@@ -39,17 +39,17 @@ eas build --platform android --profile android-production
 
 简短说明（80 字以内）：
 
-> 本地整理知识与文件，通过 most:// 链接传输并完成 CID 校验。
+> 文件、知识库与频道聊天，通过 most:// 传输并完成 CID 校验。
 
 完整说明：
 
-> MostBox 是一个本地知识库和 CID 优先的 P2P 文件传输工具。无需注册即可在本机创建、编辑、搜索、导入、导出和备份 Markdown 笔记；知识库默认只保存在本机。
+> MostBox 是一个包含本地知识库、频道聊天、语音信令、远程节点和 Web3 工具的 CID 优先 P2P 应用。无需云端注册即可在本机创建、编辑、搜索、导入、导出和备份 Markdown 笔记；知识库默认只保存在本机。
 >
 > 选择文件即可生成 most:// 分享链接；接收方确认链接后，从在线节点下载文件并重新计算 CID，校验通过后保存到本机。
 >
 > 下载完成的设备会在应用前台继续做种。原发布者离线后，只要仍有其他种子在线，文件仍可继续传播。
 >
-> MostBox 不提供云端存储、永久可用性、公开内容目录、账号或付费服务。请自行保管重要文件，只接收你信任且有权下载的内容。
+> MostBox 不提供云端文件存储、永久可用性、公开内容目录、广告或付费服务。远程节点连接使用用户自己的节点和签名身份；请自行保管重要文件，只接收你信任且有权下载的内容。
 
 建议分类：`工具`。
 
@@ -57,18 +57,18 @@ eas build --platform android --profile android-production
 
 提交前必须按最终 AAB 和实际运营方式复核，不要直接照抄未验证答案。
 
-| 项目               | 当前商店版建议                                          |
-| ------------------ | ------------------------------------------------------- |
-| 隐私政策           | `https://most.red/privacy/`                             |
-| 广告               | 不包含广告                                              |
-| App access         | 无登录、无受限入口，不需要审核账号                      |
-| Target audience    | 18 岁及以上；不以儿童为目标用户                         |
-| Content rating     | 工具；包含用户主动的文件交换，不包含聊天或公共 UGC 浏览 |
-| News app           | 否                                                      |
-| COVID-19 / health  | 否                                                      |
-| Financial features | 否                                                      |
-| Government         | 否                                                      |
-| Account deletion   | 不适用，应用不创建账号                                  |
+| 项目               | 当前商店版建议                                                   |
+| ------------------ | ---------------------------------------------------------------- |
+| 隐私政策           | `https://most.red/privacy/`                                      |
+| 广告               | 不包含广告                                                       |
+| App access         | 本机功能无需登录；远程节点为用户自有地址、邀请码和签名身份，可选 |
+| Target audience    | 18 岁及以上；不以儿童为目标用户                                  |
+| Content rating     | 工具；包含用户主动的文件交换和频道聊天，不包含公开 UGC 浏览      |
+| News app           | 否                                                               |
+| COVID-19 / health  | 否                                                               |
+| Financial features | 否                                                               |
+| Government         | 否                                                               |
+| Account deletion   | 不适用，应用不创建云端账号；本地身份可在设备内清除               |
 
 ### 可直接照填的顺序
 
@@ -79,7 +79,7 @@ eas build --platform android --profile android-production
 5. **News apps**：`No`
 6. **COVID-19 contact tracing or status apps**：`No`
 7. **Data safety**：按下方“Data Safety 最终建议”填写
-8. **Content rating**：选择工具/生产力类应用；按实际情况回答无暴力、色情、赌博、毒品、粗俗语言、恐怖内容。应用没有公开内容目录、聊天或用户资料流，但允许用户主动选择并通过链接传输文件；若问卷询问用户交换数字内容，应如实选择对应选项
+8. **Content rating**：选择工具/生产力类应用；按实际情况回答无暴力、色情、赌博、毒品、粗俗语言、恐怖内容。应用包含用户主动的频道聊天和文件交换，但没有公开内容目录或用户资料流；若问卷询问用户交换数字内容，应如实选择对应选项
 9. **Financial features**：`No financial features`
 10. **Health apps**：`Not a health app`
 11. **Government apps**：`No`
@@ -98,7 +98,7 @@ eas build --platform android --profile android-production
 
 ## Data Safety 最终建议
 
-当前代码不包含账号、广告、分析、崩溃上报、推送或中心化文件服务器。本机笔记、知识库备份、文件、CID、holding 和日志保存在设备内；文件只在用户明确发布或确认下载时通过加密 P2P 连接传输。P2P 节点和 DHT 基础设施会处理建立连接所需的 IP 地址、连接时间、派生 topic 和网络元数据；这些行为已在首次启动同意页和隐私政策中披露。
+当前代码不包含广告、分析、崩溃上报、推送或中心化文件服务器。应用支持本地签名身份、远程节点连接、频道聊天和 Web3 工具；本机笔记、知识库备份、文件、CID、holding 和日志保存在设备内，远程节点的身份和数据由用户自行管理。文件和聊天消息只在用户明确操作后通过 P2P 或用户指定的远程节点传输。P2P 节点和 DHT 基础设施会处理建立连接所需的 IP 地址、连接时间、派生 topic 和网络元数据；这些行为已在首次启动同意页和隐私政策中披露。
 
 按 2026-08-13 的代码与 AAB 审计结果，建议填写：
 
@@ -108,15 +108,15 @@ eas build --platform android --profile android-production
 | Is all of the user data collected by your app encrypted in transit?   | 不出现；仅在声明收集数据后出现                 |
 | Do you provide a way for users to request that their data is deleted? | 不适用；应用不创建账号且不由开发者保存用户数据 |
 
-依据是：本机处理不属于收集；文件传输由用户明确发起且通过 Hyperswarm/Noise 加密的节点连接完成，开发者无法读取或保存传输内容；用户主动向其指定接收方传输也属于 Google 的 sharing 例外。IP 和临时连接元数据不被开发者记录、用于定位、广告、分析或用户画像。若后续加入 analytics、crash reporting、推送、账号、中心化服务，或运营方开始保存 IP/连接日志，必须重新填写 Data Safety 并同步更新隐私政策。
+依据是：本机处理和用户自建远程节点不属于开发者收集；文件与聊天传输由用户明确发起，并通过 Hyperswarm/Noise 加密的节点连接完成，开发者无法读取或保存传输内容；用户主动向其指定接收方传输也属于 Google 的 sharing 例外。IP 和临时连接元数据不被开发者记录、用于定位、广告、分析或用户画像。若后续加入 analytics、crash reporting、推送、云端账号、中心化服务，或运营方开始保存 IP/连接日志，必须重新填写 Data Safety 并同步更新隐私政策。
 
-本轮已完成 `0.5.0` release AAB 的依赖、manifest、签名和静态网络行为审计，记录见 `docs/google-play-aab-audit.md`。只要增加 analytics、crash reporting、推送、账号或中心服务，就必须重填 Data Safety 并同步更新隐私政策。
+本轮已完成 `0.5.0` release AAB 的依赖、manifest、签名和静态网络行为审计，记录见 `docs/google-play-aab-audit.md`。只要增加 analytics、crash reporting、推送、云端账号或中心服务，就必须重填 Data Safety 并同步更新隐私政策。
 
 ## 审核说明
 
 可在审核备注中说明：
 
-> MostBox is a user-initiated peer-to-peer file transfer utility. It has no public content catalog, account, chat, ads, payments, or background seeding service. Opening a most:// link only presents a confirmation screen; no download starts until the reviewer taps Confirm Download. Every completed download is recalculated and verified against its UnixFS CID before it is stored. The Play build blocks known application packages, scripts, and executable file types declared by the selected file or link.
+> MostBox is a user-initiated peer-to-peer utility with file transfer, local knowledge, channel chat, voice signaling, remote node connectivity, and Web3 tools. It has no public content catalog, advertising, or paid service. Basic local functions work without a cloud account; remote node access uses the user's own endpoint, invite, and signing identity. Opening a most:// link only presents a confirmation screen; no download starts until the reviewer taps Confirm Download. Every completed download is recalculated and verified against its UnixFS CID before it is stored. The Play build blocks known application packages, scripts, and executable file types declared by the selected file or link. Local-node seeding is guaranteed while the app is in the foreground and resumes when the app returns to the foreground; a remote daemon can continue independently.
 
 首次启动时，应用会先展示隐私政策和使用条款；只有审核人员点击“同意并继续”并成功保存同意记录后，应用才创建并启动 P2P 核心。拒绝时不会启动 P2P 网络。
 
@@ -128,8 +128,8 @@ eas build --platform android --profile android-production
 - Feature graphic：`mobile/app/store-assets/feature-graphic-1024x500.png`，1024 × 500 RGB PNG，不带透明通道
 - 手机截图：`mobile/app/store-assets/screenshots/` 中 6 张 1080 × 1920 PNG
 - 截图内容：文件列表、下载确认、传输记录、知识库列表、知识库笔记详情、节点状态
-- 商店素材不得出现聊天、Web3、后台常驻或其他当前 AAB 中不存在的能力
-- 静态检查确认 AAB 不包含远程节点连接页、邀请码或登录入口
+- 商店素材应如实展示当前 AAB 已提供的文件、知识库、聊天、远程节点和 Web3 能力，不得承诺 Android 平台尚未实现的长期后台常驻
+- 静态检查确认 Most profile 的 AAB 含远程节点连接、邀请码和签名身份入口，且未误用墨盒 profile 的关闭配置
 
 建议上传顺序：
 

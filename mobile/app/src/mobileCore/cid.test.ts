@@ -75,4 +75,21 @@ describe('mobile UnixFS CID', () => {
     assert.equal(result.size, totalBytes)
     assert.equal(largestChunk, 64 * 1024)
   })
+
+  it('calculates CIDs when WebCrypto is unavailable', async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'crypto')
+    if (!descriptor?.configurable) return
+    delete (globalThis as { crypto?: Crypto }).crypto
+    try {
+      const result = await calculateUnixfsCidFromBytes(
+        Buffer.from('hello world')
+      )
+      assert.equal(
+        result.cid,
+        'bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e'
+      )
+    } finally {
+      Object.defineProperty(globalThis, 'crypto', descriptor)
+    }
+  })
 })

@@ -66,4 +66,49 @@ export const chatMessages = {
     'zh-TW': '傳送訊息失敗',
     en: 'Could not send message',
   },
+  'chat.voiceTitle': {
+    'zh-CN': '语音信令',
+    'zh-TW': '語音信令',
+    en: 'Voice signaling',
+  },
+  'chat.voiceJoin': {
+    'zh-CN': '加入语音',
+    'zh-TW': '加入語音',
+    en: 'Join voice',
+  },
+  'chat.voiceLeave': {
+    'zh-CN': '离开语音',
+    'zh-TW': '離開語音',
+    en: 'Leave voice',
+  },
+  'chat.voiceMute': {
+    'zh-CN': '切换静音',
+    'zh-TW': '切換靜音',
+    en: 'Toggle mute',
+  },
+  'chat.voiceUnmute': {
+    'zh-CN': '取消静音',
+    'zh-TW': '取消靜音',
+    en: 'Unmute',
+  },
+  'chat.voiceMuted': {
+    'zh-CN': '已静音',
+    'zh-TW': '已靜音',
+    en: 'muted',
+  },
+  'chat.voiceConnecting': {
+    'zh-CN': '连接中',
+    'zh-TW': '連線中',
+    en: 'Connecting',
+  },
+  'chat.voiceHint': {
+    'zh-CN': '仅交换语音信令，不采集麦克风音频。',
+    'zh-TW': '僅交換語音信令，不擷取麥克風音訊。',
+    en: 'Signaling only; microphone audio is not captured.',
+  },
+  'chat.voiceFailed': {
+    'zh-CN': '语音连接失败',
+    'zh-TW': '語音連線失敗',
+    en: 'Could not connect to voice signaling',
+  },
 } as const

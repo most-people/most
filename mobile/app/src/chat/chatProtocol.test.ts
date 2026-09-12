@@ -6,6 +6,7 @@ import {
   buildChatMessagePayload,
   createClientMessageId,
   mergeChatMessages,
+  normalizeChatChannel,
   normalizeChatAttachment,
   parseChatHistoryResponse,
   parseChatWebSocketMessage,
@@ -14,6 +15,12 @@ import {
 const CID = 'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
 const LINK = `most://${CID}?filename=photo.png`
 const AUTHOR = '0x1111111111111111111111111111111111111111'
+
+test('normalizes channel IDs consistently for local and remote chat', () => {
+  assert.equal(normalizeChatChannel(' #ABC '), 'abc')
+  assert.equal(normalizeChatChannel('Room_42'), 'room_42')
+  assert.equal(normalizeChatChannel('   '), '')
+})
 
 test('creates and normalizes UUID v4 client ids for retry idempotency', () => {
   const id = createClientMessageId(() => '550e8400-e29b-41d4-a716-446655440000')
@@ -268,4 +275,3 @@ test('ChatApiClient preserves canonical most:// attachment metadata', async () =
   })
   assert.equal(sentBody.content, LINK)
 })
-

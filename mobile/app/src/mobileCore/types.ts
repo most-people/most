@@ -119,6 +119,53 @@ export type MobileLogEntry = {
   message: string
 }
 
+export type MobileChannelAttachment = {
+  kind: 'image' | 'video' | 'audio' | 'text' | 'file'
+  cid: string
+  fileName: string
+  link: string
+  mimeType?: string
+  size?: number
+}
+
+export type MobileChannel = {
+  name: string
+  channelId: string
+  channelKey: string
+  key: string
+  type: string
+  remark: string
+  pinned: boolean
+  createdAt: string
+  lastMessageAt: string
+  localWriterCoreKey: string
+  writerCoreKeys: string[]
+  peerCount: number
+}
+
+export type MobileChannelMessage = {
+  type?: string
+  author: string
+  authorName: string
+  content: string
+  timestamp: number
+  attachment?: MobileChannelAttachment
+}
+
+export type MobileChannelPresence = {
+  channelKey: string
+  channelId: string
+  address: string
+  displayName?: string
+  avatar?: string
+  profileUpdatedAt?: number
+  lastSeen: number
+  online: boolean
+  local?: boolean
+  status?: string
+  sessionId?: string
+}
+
 export type NodeState = {
   status: NodeRuntimeStatus
   peerCount: number
@@ -138,6 +185,9 @@ export type MobileCoreSnapshot = {
   transfers: MobileTransfer[]
   p2pPing: P2PPing | null
   logs: MobileLogEntry[]
+  channels?: MobileChannel[]
+  channelMessages?: Record<string, MobileChannelMessage[]>
+  channelPresence?: Record<string, MobileChannelPresence[]>
 }
 
 export type StartP2PPingInput = {
@@ -203,6 +253,30 @@ export type ExportHoldingResult = {
   holding: MobileHolding
 }
 
+export type CreateChannelInput = { name: string; type?: string }
+export type LeaveChannelInput = { channelName: string }
+export type SetChannelRemarkInput = { channelName: string; remark: string }
+export type SetChannelPinnedInput = { channelName: string; pinned: boolean }
+export type LeaveChannelResult = {
+  channelKey: string
+  snapshot: MobileCoreSnapshot
+}
+export type SendChannelMessageInput = {
+  channelName: string
+  content: string
+  author?: string
+  authorName?: string
+  attachment?: MobileChannelAttachment
+}
+export type ChannelPresenceInput = {
+  channelName: string
+  address?: string
+  displayName?: string
+  avatar?: string
+  profileUpdatedAt?: number
+  sessionId?: string
+}
+
 export type CoreListener = (snapshot: MobileCoreSnapshot) => void
 
 export type MostBoxMobileCore = {
@@ -218,6 +292,12 @@ export type MostBoxMobileCore = {
   deleteHolding: (input: DeleteHoldingInput) => Promise<DeleteHoldingResult>
   getSnapshot: () => MobileCoreSnapshot
   subscribe: (listener: CoreListener) => () => void
+  createChannel?: (input: CreateChannelInput) => Promise<MobileChannel>
+  listChannels?: () => Promise<MobileChannel[]>
+  getChannelMessages?: (channelName: string) => Promise<MobileChannelMessage[]>
+  sendChannelMessage?: (
+    input: SendChannelMessageInput
+  ) => Promise<MobileChannelMessage>
 }
 
 export type MostBoxMobileClient = MostBoxMobileCore & {
