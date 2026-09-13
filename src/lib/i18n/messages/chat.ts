@@ -1,4 +1,8 @@
 export const zhCNChatMessages = {
+  'chat.tab.chat': '聊天',
+  'chat.tab.contacts': '通讯录',
+  'chat.tab.discover': '发现',
+  'chat.tab.settings': '设置',
   'chat.unread': '有新消息',
   'chat.mentionUnread': '有人 @ 你',
   'chat.mentionUnreadTag': '有人@我',
@@ -6,6 +10,8 @@ export const zhCNChatMessages = {
   'chat.channelActions': '聊天操作',
   'chat.pin': '置顶',
   'chat.unpin': '取消置顶',
+  'chat.mute': '免打扰',
+  'chat.unmute': '取消免打扰',
   'chat.rename': '重命名',
   'chat.delete': '删除',
   'chat.noMembers': '暂无成员',
@@ -108,6 +114,10 @@ export const zhCNChatMessages = {
 } as const
 
 export const zhTWChatMessages = {
+  'chat.tab.chat': '聊天',
+  'chat.tab.contacts': '通訊錄',
+  'chat.tab.discover': '發現',
+  'chat.tab.settings': '設定',
   'chat.unread': '有新訊息',
   'chat.mentionUnread': '有人 @ 你',
   'chat.mentionUnreadTag': '有人@我',
@@ -115,6 +125,8 @@ export const zhTWChatMessages = {
   'chat.channelActions': '聊天操作',
   'chat.pin': '置頂',
   'chat.unpin': '取消置頂',
+  'chat.mute': '免打擾',
+  'chat.unmute': '取消免打擾',
   'chat.rename': '重新命名',
   'chat.delete': '刪除',
   'chat.noMembers': '暫無成員',
@@ -217,6 +229,10 @@ export const zhTWChatMessages = {
 } as const
 
 export const enChatMessages = {
+  'chat.tab.chat': 'Chats',
+  'chat.tab.contacts': 'Contacts',
+  'chat.tab.discover': 'Discover',
+  'chat.tab.settings': 'Settings',
   'chat.unread': 'New messages',
   'chat.mentionUnread': 'Someone mentioned you',
   'chat.mentionUnreadTag': '有人@我',
@@ -224,6 +240,8 @@ export const enChatMessages = {
   'chat.channelActions': 'Chat actions',
   'chat.pin': 'Pin',
   'chat.unpin': 'Unpin',
+  'chat.mute': 'Mute notifications',
+  'chat.unmute': 'Unmute notifications',
   'chat.rename': 'Rename',
   'chat.delete': 'Delete',
   'chat.noMembers': 'No members yet',

@@ -12,6 +12,10 @@ import {
   Plus,
   Settings,
   Search,
+  MessageCircle,
+  Users,
+  Compass,
+  MoreHorizontal,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
 import {
@@ -67,6 +71,14 @@ import { ChatRestoringIndicator } from '~/features/chat/ChatRestoringIndicator'
 import { getLocalizedDownloadLinkValidationMessage } from '~/lib/i18n/downloadValidation'
 import { shortAddress } from '~/lib/format'
 import { saveFileToLocal } from '~/lib/saveLocalFile'
+import {
+  getChatUiPreferences,
+  getChatUiPreferencesStorageKey,
+  readStoredChatUiPreferences,
+  updateChatUiPreferences,
+  writeStoredChatUiPreferences,
+  type ChatUiPreferencesMap,
+} from '~/lib/chatUiPreferences'
 import {
   applyHistoricalChannelMentionUnreadState,
   applyIncomingChannelMentionUnreadState,
@@ -155,7 +167,12 @@ function ChatPage() {
   const [requestedChannelName, setRequestedChannelName] = useState('')
   const [hasLoadedChannels, setHasLoadedChannels] = useState(false)
   const [channelSearchInput, setChannelSearchInput] = useState('')
+  const [chatView, setChatView] = useState<
+    'chat' | 'contacts' | 'discover' | 'settings'
+  >('chat')
   const [channelInput, setChannelInput] = useState('')
+  const [chatUiPreferences, setChatUiPreferences] =
+    useState<ChatUiPreferencesMap>({})
   const [channelMentions, setChannelMentions] = useState<ChannelMention[]>([])
   const [composerSelection, setComposerSelection] = useState<ComposerSelection>(
     { start: 0, end: 0 }
@@ -595,6 +612,29 @@ function ChatPage() {
     [channels]
   )
   const activeChannelKey = getChannelKey(activeChannel)
+  const chatUiPreferencesStorageKey = getChatUiPreferencesStorageKey(
+    userIdentity?.address
+  )
+
+  useEffect(() => {
+    setChatUiPreferences(
+      readStoredChatUiPreferences(chatUiPreferencesStorageKey)
+    )
+  }, [chatUiPreferencesStorageKey])
+
+  useEffect(() => {
+    if (!chatUiPreferencesStorageKey) return
+    writeStoredChatUiPreferences(chatUiPreferencesStorageKey, chatUiPreferences)
+  }, [chatUiPreferences, chatUiPreferencesStorageKey])
+
+  useEffect(() => {
+    if (!activeChannelKey) return
+    const storedDraft = getChatUiPreferences(
+      chatUiPreferences,
+      activeChannelKey
+    ).draft
+    setChannelInput(current => (current ? current : storedDraft))
+  }, [activeChannelKey, chatUiPreferences])
   const presenceProfile = useMemo(() => {
     if (!userIdentity) return {}
     return {
@@ -621,6 +661,9 @@ function ChatPage() {
     sendMessage: sendSharedChannelMessage,
     syncedChannelName: syncedChannelMessagesName,
     syncMessages,
+    loadOlder,
+    hasOlder,
+    loadingOlder,
   } = useChannelMessages({
     isReady: isBackendReady,
     enabled: Boolean(userIdentity),
@@ -1567,12 +1610,24 @@ function ChatPage() {
           ? { ...prev, pinned: result.pinned }
           : prev
       )
+      setChatUiPreferences(previous =>
+        updateChatUiPreferences(previous, channelKey, { pinned: result.pinned })
+      )
     } catch (err) {
       await showApiError(
         err,
         nextPinned ? t('chat.error.pin') : t('chat.error.unpin')
       )
     }
+  }
+
+  function handleToggleChannelMute(channel: Channel) {
+    const channelKey = getChannelKey(channel)
+    if (!channelKey) return
+    const current = getChatUiPreferences(chatUiPreferences, channelKey)
+    setChatUiPreferences(previous =>
+      updateChatUiPreferences(previous, channelKey, { muted: !current.muted })
+    )
   }
 
   async function handleOpenChannelId(
@@ -1727,6 +1782,11 @@ function ChatPage() {
       )
       if (!sent) return
       setChannelInput('')
+      if (activeChannelKey) {
+        setChatUiPreferences(previous =>
+          updateChatUiPreferences(previous, activeChannelKey, { draft: '' })
+        )
+      }
       setChannelMentions([])
       setComposerSelection({ start: 0, end: 0 })
       setDismissedMentionTriggerKey('')
@@ -1954,6 +2014,13 @@ function ChatPage() {
     ) as MentionDraft
     setChannelInput(draft.content)
     setChannelMentions(draft.mentions)
+    if (activeChannelKey) {
+      setChatUiPreferences(previous =>
+        updateChatUiPreferences(previous, activeChannelKey, {
+          draft: draft.content,
+        })
+      )
+    }
     setComposerSelection({ start: selectionStart, end: selectionEnd })
     setDismissedMentionTriggerKey('')
   }
@@ -2256,6 +2323,7 @@ function ChatPage() {
     (!activeChannel || isLoadingActiveChannelMessages)
   const chatLayoutClassName = [
     'chat-app-layout',
+    'wechat-chat-shell',
     isInviteUser ? 'st-chat-layout' : '',
   ]
     .filter(Boolean)
@@ -2306,7 +2374,15 @@ function ChatPage() {
           Number(hasUnreadChannelMessage(a, channelLastReadAt))
         if (unreadDiff !== 0) return unreadDiff
 
-        const pinnedDiff = Number(Boolean(b.pinned)) - Number(Boolean(a.pinned))
+        const pinnedDiff =
+          Number(
+            Boolean(b.pinned) ||
+              getChatUiPreferences(chatUiPreferences, getChannelKey(b)).pinned
+          ) -
+          Number(
+            Boolean(a.pinned) ||
+              getChatUiPreferences(chatUiPreferences, getChannelKey(a)).pinned
+          )
         if (pinnedDiff !== 0) return pinnedDiff
 
         const activityDiff =
@@ -2315,7 +2391,13 @@ function ChatPage() {
 
         return compareStrings(getChannelTitle(a), getChannelTitle(b))
       }),
-    [channelLastReadAt, channelMentionUnread, channels, compareStrings]
+    [
+      channelLastReadAt,
+      channelMentionUnread,
+      channels,
+      chatUiPreferences,
+      compareStrings,
+    ]
   )
   const filteredChannels = channelSearchQuery
     ? sortedChannels.filter(channel => {
@@ -2328,6 +2410,71 @@ function ChatPage() {
       })
     : sortedChannels
 
+  const renderDesktopPanel = () => {
+    if (chatView === 'contacts') {
+      return (
+        <section className="chat-desktop-panel">
+          <div className="chat-desktop-panel-heading">
+            <h2>{t('chat.tab.contacts')}</h2>
+            <span>{t('chat.details.members', { count: channels.length })}</span>
+          </div>
+          <div className="chat-contact-list">
+            {channels.map(channel => (
+              <button
+                key={getChannelKey(channel)}
+                className="chat-contact-row"
+                onClick={() => {
+                  setChatView('chat')
+                  void handleOpenChannel(channel)
+                }}
+              >
+                <img src={generateAvatar(getChannelId(channel))} alt="" />
+                <span>
+                  <strong translate="no">{getChannelTitle(channel)}</strong>
+                  <small translate="no">{getChannelId(channel)}</small>
+                </span>
+                <ChevronRight size={16} />
+              </button>
+            ))}
+          </div>
+        </section>
+      )
+    }
+    if (chatView === 'discover') {
+      return (
+        <section className="chat-desktop-panel">
+          <div className="chat-desktop-panel-heading">
+            <h2>{t('chat.tab.discover')}</h2>
+          </div>
+          <div className="chat-desktop-panel-empty">
+            <Compass size={32} />
+            <p>{t('chat.select.desc')}</p>
+          </div>
+        </section>
+      )
+    }
+    if (chatView === 'settings') {
+      return (
+        <section className="chat-desktop-panel">
+          <div className="chat-desktop-panel-heading">
+            <h2>{t('chat.tab.settings')}</h2>
+          </div>
+          <div className="chat-desktop-settings">
+            <button
+              className="chat-desktop-setting-row"
+              onClick={() => setShowChannelDetail(true)}
+            >
+              <Settings size={18} />
+              <span>{t('chat.channelSettings')}</span>
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        </section>
+      )
+    }
+    return null
+  }
+
   return (
     <AppShell
       className={chatLayoutClassName}
@@ -2336,71 +2483,136 @@ function ChatPage() {
       languageTheme={isInviteUser ? 'st' : undefined}
       sidebar={({ closeSidebar }) => (
         <>
-          <AppTop onNavigate={closeSidebar} />
-
-          <div className="chat-channel-search">
-            <div className="ui-input-control">
-              <Search className="ui-input-icon" size={15} />
-              <input
-                type="search"
-                className="input input-compact"
-                placeholder={t('chat.search.placeholder')}
-                value={channelSearchInput}
-                onChange={e => setChannelSearchInput(e.target.value)}
-                aria-label={t('chat.search.placeholder')}
+          <div className="chat-desktop-rail" aria-label={t('chat.title')}>
+            <button
+              className="chat-desktop-rail-avatar"
+              title={
+                userIdentity?.displayName || userIdentity?.username || 'Most'
+              }
+            >
+              <img
+                src={
+                  userIdentity?.avatar ||
+                  generateAvatar(userIdentity?.address || 'most')
+                }
+                alt=""
               />
-            </div>
+            </button>
+            <button
+              className={chatView === 'chat' ? 'active' : ''}
+              onClick={() => setChatView('chat')}
+              title={t('chat.tab.chat')}
+            >
+              <MessageCircle size={20} />
+            </button>
+            <button
+              className={chatView === 'contacts' ? 'active' : ''}
+              onClick={() => setChatView('contacts')}
+              title={t('chat.tab.contacts')}
+            >
+              <Users size={20} />
+            </button>
+            <button
+              className={chatView === 'discover' ? 'active' : ''}
+              onClick={() => setChatView('discover')}
+              title={t('chat.tab.discover')}
+            >
+              <Compass size={20} />
+            </button>
+            <span className="chat-desktop-rail-spacer" />
+            <button
+              className={chatView === 'settings' ? 'active' : ''}
+              onClick={() => setChatView('settings')}
+              title={t('chat.tab.settings')}
+            >
+              <MoreHorizontal size={20} />
+            </button>
           </div>
+          <div className="chat-desktop-sidebar">
+            <AppTop onNavigate={closeSidebar} />
 
-          <nav className="sidebar-nav">
-            {channels.length === 0 ? (
-              <div className="sidebar-empty-state">
-                <p>{t('chat.empty.noChannels')}</p>
-              </div>
-            ) : filteredChannels.length === 0 ? (
-              <div className="sidebar-empty-state">
-                <p>{t('chat.empty.noMatches')}</p>
-              </div>
-            ) : (
-              filteredChannels.map(channel => (
-                <ChatChannelNavItem
-                  key={getChannelKey(channel)}
-                  active={
-                    getChannelKey(activeChannel) === getChannelKey(channel)
-                  }
-                  pinned={Boolean(channel.pinned)}
-                  unread={hasUnreadChannelMessage(channel, channelLastReadAt)}
-                  mentionUnread={hasUnreadChannelMention(
-                    channel,
-                    channelMentionUnread
-                  )}
-                  mentionPreview={formatChannelMentionPreviewText(
-                    channelMentionUnreadPreview[getChannelKey(channel)]
-                  )}
-                  title={getChannelTitle(channel)}
-                  menuClassName={stActionMenuClassName}
-                  onSelect={() => {
-                    handleOpenChannel(channel)
-                    closeSidebar()
-                  }}
-                  onTogglePin={() => void handleToggleChannelPin(channel)}
-                  onRename={() => setChannelToRename(channel)}
-                  onLeave={() => {
-                    setChannelToLeave(channel)
-                    leaveChannelModal.open()
-                  }}
+            <div className="chat-channel-search">
+              <div className="ui-input-control">
+                <Search className="ui-input-icon" size={15} />
+                <input
+                  type="search"
+                  className="input input-compact"
+                  placeholder={t('chat.search.placeholder')}
+                  value={channelSearchInput}
+                  onChange={e => setChannelSearchInput(e.target.value)}
+                  aria-label={t('chat.search.placeholder')}
                 />
-              ))
-            )}
-          </nav>
+              </div>
+            </div>
 
-          <button
-            className="ui-action-dashed create-channel-btn"
-            onClick={handleShowOpenChatModal}
-          >
-            <Plus size={16} />
-            {t('chat.joinChat')}
-          </button>
+            <nav className="sidebar-nav">
+              {channels.length === 0 ? (
+                <div className="sidebar-empty-state">
+                  <p>{t('chat.empty.noChannels')}</p>
+                </div>
+              ) : filteredChannels.length === 0 ? (
+                <div className="sidebar-empty-state">
+                  <p>{t('chat.empty.noMatches')}</p>
+                </div>
+              ) : (
+                filteredChannels.map(channel => (
+                  <ChatChannelNavItem
+                    key={getChannelKey(channel)}
+                    active={
+                      getChannelKey(activeChannel) === getChannelKey(channel)
+                    }
+                    pinned={Boolean(channel.pinned)}
+                    muted={
+                      getChatUiPreferences(
+                        chatUiPreferences,
+                        getChannelKey(channel)
+                      ).muted
+                    }
+                    unread={hasUnreadChannelMessage(channel, channelLastReadAt)}
+                    mentionUnread={hasUnreadChannelMention(
+                      channel,
+                      channelMentionUnread
+                    )}
+                    mentionPreview={formatChannelMentionPreviewText(
+                      channelMentionUnreadPreview[getChannelKey(channel)]
+                    )}
+                    title={getChannelTitle(channel)}
+                    avatarSrc={generateAvatar(getChannelId(channel))}
+                    preview={getChannelId(channel)}
+                    time={
+                      channel.lastMessageAt
+                        ? formatTime(
+                            Number.isFinite(Number(channel.lastMessageAt))
+                              ? Number(channel.lastMessageAt)
+                              : Date.parse(channel.lastMessageAt)
+                          )
+                        : ''
+                    }
+                    menuClassName={stActionMenuClassName}
+                    onSelect={() => {
+                      handleOpenChannel(channel)
+                      closeSidebar()
+                    }}
+                    onTogglePin={() => void handleToggleChannelPin(channel)}
+                    onToggleMute={() => handleToggleChannelMute(channel)}
+                    onRename={() => setChannelToRename(channel)}
+                    onLeave={() => {
+                      setChannelToLeave(channel)
+                      leaveChannelModal.open()
+                    }}
+                  />
+                ))
+              )}
+            </nav>
+
+            <button
+              className="ui-action-dashed create-channel-btn"
+              onClick={handleShowOpenChatModal}
+            >
+              <Plus size={16} />
+              {t('chat.joinChat')}
+            </button>
+          </div>
         </>
       )}
       headerTitle={chatHeaderTitle}
@@ -2440,7 +2652,9 @@ function ChatPage() {
         </div>
       }
     >
-      {shouldShowChatRestoring ? (
+      {chatView !== 'chat' ? (
+        renderDesktopPanel()
+      ) : shouldShowChatRestoring ? (
         <ChatRestoringIndicator />
       ) : activeChannel ? (
         <>
@@ -2460,7 +2674,28 @@ function ChatPage() {
               <ChevronRight size={18} />
             </button>
           )}
-          <div className="chat-messages">
+          <div
+            className="chat-messages"
+            onScroll={event => {
+              if (
+                event.currentTarget.scrollTop < 48 &&
+                hasOlder &&
+                !loadingOlder
+              ) {
+                void loadOlder()
+              }
+            }}
+          >
+            {hasOlder && (
+              <button
+                className="chat-load-older"
+                type="button"
+                onClick={() => void loadOlder()}
+                disabled={loadingOlder}
+              >
+                {loadingOlder ? t('chat.open.opening') : t('chat.open.confirm')}
+              </button>
+            )}
             {channelMessages.length === 0 ? (
               <div className="ui-empty-state chat-messages-empty">
                 <div className="ui-empty-icon empty-icon">

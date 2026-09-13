@@ -115,6 +115,8 @@ export function useChannelMessages({
   const [messages, setMessages] = useState<ChannelMessage[]>([])
   const [connected, setConnected] = useState(false)
   const [syncedChannelName, setSyncedChannelName] = useState('')
+  const [hasOlder, setHasOlder] = useState(false)
+  const [loadingOlder, setLoadingOlder] = useState(false)
   const extraSubscribedChannelNamesKey = useMemo(
     () => getChannelSubscriptionKey(extraSubscribedChannelNames),
     [extraSubscribedChannelNames]
@@ -136,6 +138,9 @@ export function useChannelMessages({
   const presenceProfileRef = useRef(presenceProfile)
   const presenceSessionIdRef = useRef(createPresenceSessionId())
   const joinedPresenceChannelRef = useRef('')
+  const historyCursorRef = useRef<string | null>(null)
+  const loadingOlderRef = useRef(false)
+  const historyLoadSequenceRef = useRef(0)
 
   useEffect(() => {
     extraSubscribedChannelNamesRef.current = extraSubscribedChannelNamesKey
@@ -280,21 +285,24 @@ export function useChannelMessages({
     ) => {
       if (!name || !isReady) return []
       try {
-        const result = filterMessages(
-          await channelApi.getChannelMessages(name, limit)
-        )
+        const page = await channelApi.getChannelHistory(name, { limit })
+        const result = filterMessages(page.messages)
         setMessages(prev =>
           options.replace
             ? sortMessagesForDisplay(dedupeChannelMessages(result))
             : mergeMessages(prev, result, false)
         )
         if (options.replace && channelNameRef.current === name) {
+          historyCursorRef.current = page.nextCursor
+          setHasOlder(Boolean(page.nextCursor))
           setSyncedChannelName(name)
         }
         return result
       } catch (err) {
         if (options.replace) {
           setMessages([])
+          historyCursorRef.current = null
+          setHasOlder(false)
           if (channelNameRef.current === name) {
             setSyncedChannelName(name)
           }
@@ -304,6 +312,51 @@ export function useChannelMessages({
       }
     },
     [filterMessages, isReady, limit, mergeMessages]
+  )
+
+  const loadOlder = useCallback(
+    async (name = channelNameRef.current) => {
+      const cursor = historyCursorRef.current
+      if (
+        !name ||
+        !isReady ||
+        !cursor ||
+        loadingOlderRef.current ||
+        name !== channelNameRef.current
+      ) {
+        return []
+      }
+
+      loadingOlderRef.current = true
+      setLoadingOlder(true)
+      const sequence = ++historyLoadSequenceRef.current
+      try {
+        const page = await channelApi.getChannelHistory(name, {
+          limit,
+          before: cursor,
+        })
+        if (
+          historyLoadSequenceRef.current !== sequence ||
+          channelNameRef.current !== name ||
+          historyCursorRef.current !== cursor
+        ) {
+          return []
+        }
+        setMessages(prev => mergeMessages(page.messages, prev, false))
+        historyCursorRef.current = page.nextCursor
+        setHasOlder(Boolean(page.nextCursor))
+        return page.messages
+      } catch (err) {
+        await onSyncErrorRef.current?.(err)
+        return []
+      } finally {
+        if (historyLoadSequenceRef.current === sequence) {
+          loadingOlderRef.current = false
+          setLoadingOlder(false)
+        }
+      }
+    },
+    [isReady, limit, mergeMessages]
   )
 
   useEffect(() => {
@@ -328,6 +381,11 @@ export function useChannelMessages({
   const clearMessages = useCallback(() => {
     setMessages([])
     setSyncedChannelName('')
+    historyLoadSequenceRef.current += 1
+    loadingOlderRef.current = false
+    setLoadingOlder(false)
+    historyCursorRef.current = null
+    setHasOlder(false)
   }, [])
 
   const sendMessage = useCallback(
@@ -388,6 +446,11 @@ export function useChannelMessages({
 
   useEffect(() => {
     channelNameRef.current = channelName
+    historyLoadSequenceRef.current += 1
+    loadingOlderRef.current = false
+    setLoadingOlder(false)
+    historyCursorRef.current = null
+    setHasOlder(false)
     if (!isReady || !enabled) return
     if (channelName) {
       void syncMessages(channelName, { replace: true })
@@ -572,6 +635,9 @@ export function useChannelMessages({
   return {
     clearMessages,
     connected,
+    hasOlder,
+    loadOlder,
+    loadingOlder,
     messages,
     sendMessage,
     setMessages,

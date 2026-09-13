@@ -1,6 +1,7 @@
 import type { ChangeEvent, KeyboardEvent, ReactNode, RefObject } from 'react'
 import {
   ArrowRight,
+  BellOff,
   Edit2,
   FileText,
   Film,
@@ -146,30 +147,40 @@ export function ChatMessageItem({
 export function ChatChannelNavItem({
   active = false,
   pinned = false,
+  muted = false,
   unread = false,
   mentionUnread = false,
   mentionPreview = '',
   title,
+  avatarSrc,
+  preview = '',
+  time = '',
   menuClassName,
   onSelect,
   onTogglePin,
+  onToggleMute,
   onRename,
   onLeave,
 }: {
   active?: boolean
   pinned?: boolean
+  muted?: boolean
   unread?: boolean
   mentionUnread?: boolean
   mentionPreview?: string
   title: string
+  avatarSrc?: string
+  preview?: string
+  time?: string
   menuClassName?: string
   onSelect?: () => void
   onTogglePin?: () => void
+  onToggleMute?: () => void
   onRename?: () => void
   onLeave?: () => void
 }) {
   const { t } = useI18n()
-  const hasActions = Boolean(onTogglePin || onRename || onLeave)
+  const hasActions = Boolean(onTogglePin || onToggleMute || onRename || onLeave)
   const className = [
     'sidebar-nav-btn',
     active ? 'active' : '',
@@ -193,7 +204,11 @@ export function ChatChannelNavItem({
       }}
     >
       <span className="chat-channel-icon-wrap">
-        <MessagesSquare size={16} />
+        {avatarSrc ? (
+          <SafeImage className="chat-channel-avatar" src={avatarSrc} alt="" />
+        ) : (
+          <MessagesSquare size={16} />
+        )}
         {unread ? (
           <span
             className="chat-channel-unread-dot"
@@ -218,7 +233,17 @@ export function ChatChannelNavItem({
             )}
           </span>
         )}
+        {!mentionUnread && preview && (
+          <span
+            className="chat-channel-subtitle chat-channel-preview"
+            translate="no"
+          >
+            {preview}
+          </span>
+        )}
       </span>
+      {time && <time className="chat-channel-time">{time}</time>}
+      {muted && <BellOff className="chat-channel-muted" size={13} />}
       {hasActions && (
         <ActionMenu
           ariaLabel={t('chat.channelActions')}
@@ -232,6 +257,16 @@ export function ChatChannelNavItem({
               icon: pinned ? <PinOff size={16} /> : <Pin size={16} />,
               onSelect: () => onTogglePin?.(),
             },
+            ...(onToggleMute
+              ? [
+                  {
+                    key: 'mute',
+                    label: muted ? t('chat.unmute') : t('chat.mute'),
+                    icon: <BellOff size={16} />,
+                    onSelect: () => onToggleMute?.(),
+                  },
+                ]
+              : []),
             {
               key: 'rename',
               label: t('chat.rename'),

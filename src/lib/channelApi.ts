@@ -34,6 +34,11 @@ export interface ChannelMessage {
   attachment?: ChannelAttachment
 }
 
+export interface ChannelHistoryPage {
+  messages: ChannelMessage[]
+  nextCursor: string | null
+}
+
 export interface Channel {
   name: string
   channelId?: string
@@ -81,6 +86,11 @@ interface SendMessageResult {
 
 interface GetChannelsOptions {
   type?: string
+}
+
+interface GetChannelHistoryOptions {
+  limit?: number
+  before?: string
 }
 
 interface SendChannelMessageInput {
@@ -157,6 +167,18 @@ export const channelApi = {
     return api
       .get<ChannelMessage[]>(
         `/api/channels/${encodeURIComponent(name)}/messages?limit=${limit}&offset=${offset}`
+      )
+      .json()
+  },
+
+  getChannelHistory(name: string, options: GetChannelHistoryOptions = {}) {
+    const params = new URLSearchParams()
+    if (options.limit !== undefined) params.set('limit', String(options.limit))
+    if (options.before) params.set('before', options.before)
+    const query = params.toString()
+    return api
+      .get<ChannelHistoryPage>(
+        `/api/channels/${encodeURIComponent(name)}/history${query ? `?${query}` : ''}`
       )
       .json()
   },
