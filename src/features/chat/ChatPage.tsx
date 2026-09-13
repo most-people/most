@@ -14,7 +14,6 @@ import {
   Search,
   MessageCircle,
   Users,
-  Compass,
   MoreHorizontal,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
@@ -167,9 +166,9 @@ function ChatPage() {
   const [requestedChannelName, setRequestedChannelName] = useState('')
   const [hasLoadedChannels, setHasLoadedChannels] = useState(false)
   const [channelSearchInput, setChannelSearchInput] = useState('')
-  const [chatView, setChatView] = useState<
-    'chat' | 'contacts' | 'discover' | 'settings'
-  >('chat')
+  const [chatView, setChatView] = useState<'chat' | 'contacts' | 'settings'>(
+    'chat'
+  )
   const [channelInput, setChannelInput] = useState('')
   const [chatUiPreferences, setChatUiPreferences] =
     useState<ChatUiPreferencesMap>({})
@@ -2324,6 +2323,7 @@ function ChatPage() {
   const chatLayoutClassName = [
     'chat-app-layout',
     'wechat-chat-shell',
+    chatView === 'contacts' ? 'chat-contacts-view' : '',
     isInviteUser ? 'st-chat-layout' : '',
   ]
     .filter(Boolean)
@@ -2411,48 +2411,6 @@ function ChatPage() {
     : sortedChannels
 
   const renderDesktopPanel = () => {
-    if (chatView === 'contacts') {
-      return (
-        <section className="chat-desktop-panel">
-          <div className="chat-desktop-panel-heading">
-            <h2>{t('chat.tab.contacts')}</h2>
-            <span>{t('chat.details.members', { count: channels.length })}</span>
-          </div>
-          <div className="chat-contact-list">
-            {channels.map(channel => (
-              <button
-                key={getChannelKey(channel)}
-                className="chat-contact-row"
-                onClick={() => {
-                  setChatView('chat')
-                  void handleOpenChannel(channel)
-                }}
-              >
-                <img src={generateAvatar(getChannelId(channel))} alt="" />
-                <span>
-                  <strong translate="no">{getChannelTitle(channel)}</strong>
-                  <small translate="no">{getChannelId(channel)}</small>
-                </span>
-                <ChevronRight size={16} />
-              </button>
-            ))}
-          </div>
-        </section>
-      )
-    }
-    if (chatView === 'discover') {
-      return (
-        <section className="chat-desktop-panel">
-          <div className="chat-desktop-panel-heading">
-            <h2>{t('chat.tab.discover')}</h2>
-          </div>
-          <div className="chat-desktop-panel-empty">
-            <Compass size={32} />
-            <p>{t('chat.select.desc')}</p>
-          </div>
-        </section>
-      )
-    }
     if (chatView === 'settings') {
       return (
         <section className="chat-desktop-panel">
@@ -2475,61 +2433,140 @@ function ChatPage() {
     return null
   }
 
+  const renderContactsSidebar = (closeSidebar: () => void) => {
+    const contactChannels = channels
+      .filter(channel => {
+        if (!channelSearchQuery) return true
+        const values = [
+          getChannelTitle(channel),
+          getChannelId(channel),
+          getChannelKey(channel),
+        ]
+        return values.some(value =>
+          value.toLowerCase().includes(channelSearchQuery)
+        )
+      })
+      .sort((a, b) => {
+        const titleDiff = compareStrings(getChannelTitle(a), getChannelTitle(b))
+        return titleDiff || compareStrings(getChannelId(a), getChannelId(b))
+      })
+    const groupedChannels = new Map<string, typeof contactChannels>()
+    contactChannels.forEach(channel => {
+      const firstCharacter = getChannelTitle(channel).trim().charAt(0)
+      const groupKey = /^[A-Za-z]$/.test(firstCharacter)
+        ? firstCharacter.toUpperCase()
+        : '#'
+      const group = groupedChannels.get(groupKey) ?? []
+      group.push(channel)
+      groupedChannels.set(groupKey, group)
+    })
+    const groups = [...groupedChannels.entries()].sort(([a], [b]) => {
+      if (a === '#') return 1
+      if (b === '#') return -1
+      return compareStrings(a, b)
+    })
+
+    return (
+      <div className="chat-contacts-sidebar">
+        {renderSidebarTopbar(closeSidebar)}
+        <div className="chat-contacts-header">
+          <strong>{t('chat.tab.contacts')}</strong>
+          <span>{contactChannels.length}</span>
+        </div>
+        <div className="chat-channel-search">
+          <div className="ui-input-control">
+            <Search className="ui-input-icon" size={15} />
+            <input
+              type="search"
+              className="input input-compact"
+              placeholder={t('chat.search.placeholder')}
+              value={channelSearchInput}
+              onChange={event => setChannelSearchInput(event.target.value)}
+              aria-label={t('chat.search.placeholder')}
+            />
+          </div>
+        </div>
+        <nav className="chat-contacts-list" aria-label={t('chat.tab.contacts')}>
+          {contactChannels.length === 0 ? (
+            <div className="sidebar-empty-state">
+              <p>{t('chat.empty.noMatches')}</p>
+            </div>
+          ) : (
+            groups.map(([letter, group]) => (
+              <section className="chat-contact-group" key={letter}>
+                <h3>{letter}</h3>
+                {group.map(channel => (
+                  <button
+                    key={getChannelKey(channel)}
+                    className="chat-contact-row"
+                    onClick={() => {
+                      setChatView('chat')
+                      void handleOpenChannel(channel)
+                      closeSidebar()
+                    }}
+                  >
+                    <img src={generateAvatar(getChannelId(channel))} alt="" />
+                    <span>
+                      <strong translate="no">{getChannelTitle(channel)}</strong>
+                      <small translate="no">{getChannelId(channel)}</small>
+                    </span>
+                  </button>
+                ))}
+              </section>
+            ))
+          )}
+        </nav>
+      </div>
+    )
+  }
+
+  const renderSidebarTopbar = (closeSidebar: () => void) => (
+    <div className="chat-sidebar-topbar">
+      <AppTop onNavigate={closeSidebar} />
+      <div className="chat-sidebar-view-switcher" role="tablist">
+        <button
+          type="button"
+          className={chatView === 'chat' ? 'active' : ''}
+          onClick={() => setChatView('chat')}
+          title={t('chat.tab.chat')}
+          aria-label={t('chat.tab.chat')}
+        >
+          <MessageCircle size={16} />
+        </button>
+        <button
+          type="button"
+          className={chatView === 'contacts' ? 'active' : ''}
+          onClick={() => setChatView('contacts')}
+          title={t('chat.tab.contacts')}
+          aria-label={t('chat.tab.contacts')}
+        >
+          <Users size={16} />
+        </button>
+        <button
+          type="button"
+          className={chatView === 'settings' ? 'active' : ''}
+          onClick={() => setChatView('settings')}
+          title={t('chat.tab.settings')}
+          aria-label={t('chat.tab.settings')}
+        >
+          <MoreHorizontal size={16} />
+        </button>
+      </div>
+    </div>
+  )
+
   return (
     <AppShell
       className={chatLayoutClassName}
       defaultHide={isInviteUser}
       hideAccountMenu={isInviteUser}
       languageTheme={isInviteUser ? 'st' : undefined}
-      sidebar={({ closeSidebar }) => (
-        <>
-          <div className="chat-desktop-rail" aria-label={t('chat.title')}>
-            <button
-              className="chat-desktop-rail-avatar"
-              title={
-                userIdentity?.displayName || userIdentity?.username || 'Most'
-              }
-            >
-              <img
-                src={
-                  userIdentity?.avatar ||
-                  generateAvatar(userIdentity?.address || 'most')
-                }
-                alt=""
-              />
-            </button>
-            <button
-              className={chatView === 'chat' ? 'active' : ''}
-              onClick={() => setChatView('chat')}
-              title={t('chat.tab.chat')}
-            >
-              <MessageCircle size={20} />
-            </button>
-            <button
-              className={chatView === 'contacts' ? 'active' : ''}
-              onClick={() => setChatView('contacts')}
-              title={t('chat.tab.contacts')}
-            >
-              <Users size={20} />
-            </button>
-            <button
-              className={chatView === 'discover' ? 'active' : ''}
-              onClick={() => setChatView('discover')}
-              title={t('chat.tab.discover')}
-            >
-              <Compass size={20} />
-            </button>
-            <span className="chat-desktop-rail-spacer" />
-            <button
-              className={chatView === 'settings' ? 'active' : ''}
-              onClick={() => setChatView('settings')}
-              title={t('chat.tab.settings')}
-            >
-              <MoreHorizontal size={20} />
-            </button>
-          </div>
+      sidebar={({ closeSidebar }) =>
+        chatView === 'contacts' ? (
+          renderContactsSidebar(closeSidebar)
+        ) : (
           <div className="chat-desktop-sidebar">
-            <AppTop onNavigate={closeSidebar} />
+            {renderSidebarTopbar(closeSidebar)}
 
             <div className="chat-channel-search">
               <div className="ui-input-control">
@@ -2613,8 +2650,8 @@ function ChatPage() {
               {t('chat.joinChat')}
             </button>
           </div>
-        </>
-      )}
+        )
+      }
       headerTitle={chatHeaderTitle}
       sidebarToggleReplacement={
         isInviteUser ? (
@@ -2652,7 +2689,11 @@ function ChatPage() {
         </div>
       }
     >
-      {chatView !== 'chat' ? (
+      {chatView === 'contacts' ? (
+        <div className="chat-contact-empty-pane" aria-hidden="true">
+          <MessagesSquare size={72} />
+        </div>
+      ) : chatView !== 'chat' ? (
         renderDesktopPanel()
       ) : shouldShowChatRestoring ? (
         <ChatRestoringIndicator />
