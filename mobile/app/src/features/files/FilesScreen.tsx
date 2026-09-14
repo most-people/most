@@ -21,6 +21,7 @@ import {
   Files,
   Folder,
   HardDriveDownload,
+  ListChecks,
   MoreHorizontal,
   Save,
   Search,
@@ -73,6 +74,7 @@ export type FilesScreenProps = {
   reselectToken: number
   onPublishFile: (targetPath?: string) => void | Promise<void>
   onReceiveLink: () => void
+  onOpenTransfers?: () => void
   onOpenHolding: (holding: MobileHolding) => void | Promise<void>
   onCopyHoldingLink: (holding: MobileHolding) => void | Promise<void>
   onDeleteHolding: (holding: MobileHolding) => void
@@ -121,6 +123,7 @@ export function FilesScreen({
   reselectToken,
   onPublishFile,
   onReceiveLink,
+  onOpenTransfers,
   onOpenHolding,
   onCopyHoldingLink,
   onDeleteHolding,
@@ -259,6 +262,16 @@ export function FilesScreen({
           >
             {t('node.action.receive')}
           </MostButton>
+          {onOpenTransfers ? (
+            <IconButton
+              accessibilityLabel={t('nav.transfers')}
+              onPress={onOpenTransfers}
+              style={styles.transferButton}
+              variant="ghost"
+            >
+              <ListChecks size={20} color={theme.colors.accent} />
+            </IconButton>
+          ) : null}
         </View>
 
         <View
@@ -762,6 +775,14 @@ function createStyles(theme: MostBoxTheme) {
       flex: 1,
       minHeight: 52,
       minWidth: 0,
+    },
+    transferButton: {
+      alignSelf: 'stretch',
+      borderColor: colors.borderStrong,
+      borderRadius: radii.medium,
+      borderWidth: 1,
+      minHeight: 52,
+      width: 52,
     },
     section: {
       ...getGlassSurfaceStyle(theme, 'subtle'),

@@ -1,0 +1,344 @@
+/* Three-column workspace shell. Feature pages provide their own content styles. */
+.workspace-home {
+  min-height: calc(100dvh - 64px - 89px);
+}
+
+.workspace-home .workspace-shell {
+  min-height: calc(100dvh - 64px - 89px);
+}
+
+.workspace-home__links {
+  display: grid;
+  gap: 1px;
+  background: var(--border-color);
+}
+
+.workspace-home__link {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  padding: 0 var(--space-4);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.workspace-home__link:hover {
+  background: var(--bg-tertiary);
+}
+
+.workspace-shell {
+  --workspace-rail-width: 68px;
+  --workspace-list-width: 304px;
+  display: grid;
+  grid-template-columns:
+    var(--workspace-rail-width) var(--workspace-list-width)
+    minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  transition: grid-template-columns var(--transition);
+}
+
+.workspace-shell--list-collapsed {
+  grid-template-columns: var(--workspace-rail-width) 0 minmax(0, 1fr);
+}
+
+.workspace-shell__rail {
+  z-index: 2;
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  justify-content: space-between;
+  border-right: 1px solid var(--border-color);
+  background: color-mix(in srgb, var(--bg-secondary) 92%, var(--accent-soft));
+  padding: var(--space-3) var(--space-2);
+}
+
+.workspace-shell__rail-items,
+.workspace-shell__rail-bottom {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.workspace-shell__rail-item {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-height: 52px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font: inherit;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.workspace-shell__rail-item:hover:not(:disabled) {
+  background: var(--accent-soft);
+  color: var(--text-primary);
+}
+
+.workspace-shell__rail-item:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.workspace-shell__rail-item.is-active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.workspace-shell__rail-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.workspace-shell__rail-icon {
+  position: relative;
+  display: inline-flex;
+}
+
+.workspace-shell__rail-label {
+  max-width: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.workspace-shell__badge {
+  position: absolute;
+  top: -7px;
+  right: -10px;
+  min-width: 16px;
+  height: 16px;
+  border: 2px solid var(--bg-secondary);
+  border-radius: var(--radius-full);
+  background: var(--danger);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 12px;
+  padding: 0 3px;
+  text-align: center;
+}
+
+.workspace-shell__account {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+}
+
+.workspace-shell__account-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+}
+
+.workspace-shell__account-copy {
+  display: none;
+}
+
+.workspace-shell__list-pane {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  transition:
+    width var(--transition),
+    opacity var(--transition);
+}
+
+.workspace-shell--list-collapsed .workspace-shell__list-pane {
+  visibility: hidden;
+  opacity: 0;
+}
+
+.workspace-shell__list-header {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  border-bottom: 1px solid var(--border-color);
+  padding: var(--space-3) var(--space-4);
+}
+
+.workspace-shell__list-heading {
+  min-width: 0;
+}
+
+.workspace-shell__list-heading h1 {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 17px;
+  font-weight: 650;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-shell__list-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+}
+
+.workspace-shell__icon-button {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.workspace-shell__icon-button:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.workspace-shell__list-scroll {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.workspace-shell__content-pane {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  background: var(--bg-primary);
+}
+
+.workspace-shell__mobile-tabs {
+  display: none;
+}
+
+@media (max-width: 1100px) {
+  .workspace-shell {
+    --workspace-list-width: 272px;
+  }
+}
+
+@media (max-width: 820px) {
+  .workspace-shell {
+    --workspace-rail-width: 58px;
+    --workspace-list-width: 248px;
+  }
+
+  .workspace-shell__rail {
+    padding-inline: 5px;
+  }
+
+  .workspace-shell__rail-label {
+    font-size: 9px;
+  }
+}
+
+@media (max-width: 768px) {
+  .workspace-shell {
+    display: block;
+    height: 100%;
+    padding-bottom: 62px;
+  }
+
+  .workspace-shell__rail {
+    display: none;
+  }
+
+  .workspace-shell__list-pane {
+    display: flex;
+    height: 100%;
+    border-right: 0;
+  }
+
+  .workspace-shell__content-pane {
+    display: none;
+    height: 100%;
+  }
+
+  .workspace-shell--mobile-content .workspace-shell__content-pane {
+    display: block;
+  }
+
+  .workspace-shell--mobile-content .workspace-shell__list-pane,
+  .workspace-shell--list-collapsed .workspace-shell__list-pane {
+    display: none;
+  }
+
+  .workspace-shell__mobile-tabs {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 5;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    height: 62px;
+    border-top: 1px solid var(--border-color);
+    background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
+    backdrop-filter: var(--blur-md);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .workspace-shell__mobile-tab {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    border: 0;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font: inherit;
+    font-size: 10px;
+  }
+
+  .workspace-shell__mobile-tab.is-active {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .workspace-shell__collapse-button {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-shell__rail-item,
+  .workspace-shell__icon-button,
+  .workspace-shell__list-pane,
+  .workspace-shell {
+    transition: none;
+  }
+}

@@ -94,6 +94,11 @@ export const coreMessages = {
     'zh-TW': '知識庫',
     en: 'Knowledge',
   },
+  'nav.notes': {
+    'zh-CN': '笔记',
+    'zh-TW': '筆記',
+    en: 'Notes',
+  },
   'nav.transfers': {
     'zh-CN': '传输',
     'zh-TW': '傳輸',
@@ -108,6 +113,16 @@ export const coreMessages = {
     'zh-CN': '聊天',
     'zh-TW': '聊天',
     en: 'Chat',
+  },
+  'nav.messages': {
+    'zh-CN': '消息',
+    'zh-TW': '消息',
+    en: 'Messages',
+  },
+  'nav.me': {
+    'zh-CN': '我',
+    'zh-TW': '我',
+    en: 'Me',
   },
   'core.error.seedUnavailable': {
     'zh-CN': '暂未发现在线种子，请稍后重试。',

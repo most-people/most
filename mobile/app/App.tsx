@@ -24,7 +24,6 @@ import * as IntentLauncher from 'expo-intent-launcher'
 import * as Sharing from 'expo-sharing'
 import b4a from 'b4a'
 import {
-  ArrowLeftRight,
   BookOpen,
   Check,
   ChevronLeft,
@@ -38,6 +37,7 @@ import {
   Radio,
   ShieldCheck,
   Sun,
+  UserCircle,
   X,
 } from 'lucide-react-native'
 import { FilesScreen } from './src/features/files/FilesScreen'
@@ -140,9 +140,9 @@ const MIME_BY_EXTENSION: Record<string, string> = {
 
 const TAB_LABEL_KEYS: Record<RootTab, MessageKey> = {
   files: 'nav.files',
-  knowledge: 'nav.knowledge',
+  knowledge: 'nav.notes',
   transfers: 'nav.transfers',
-  chat: 'nav.chat',
+  chat: 'nav.messages',
   node: 'nav.node',
 }
 
@@ -1201,7 +1201,9 @@ function MostBoxApp() {
     (activeTab === 'knowledge' && knowledgeMode === 'edit') || isNodeChild
   const headerTitle = isNodeChild
     ? t('p2pPing.title')
-    : t(TAB_LABEL_KEYS[activeTab])
+    : activeTab === 'node'
+      ? t('nav.me')
+      : t(TAB_LABEL_KEYS[activeTab])
   const headerBackLabel = isNodeChild
     ? t('p2pPing.back')
     : knowledgeMode === 'edit'
@@ -1397,6 +1399,7 @@ function MostBoxApp() {
               onSaveHolding={handleSaveHolding}
               onShareHolding={handleShareHolding}
               onShareFolder={handleShareFolder}
+              onOpenTransfers={() => changeTab('transfers')}
             />
           </View>
           <View
@@ -1497,7 +1500,7 @@ function MostBoxApp() {
                     }
                   />
                 }
-                label={t('nav.chat')}
+                label={t('nav.messages')}
                 onPress={() => changeTab('chat')}
               />
             ) : null}
@@ -1528,23 +1531,23 @@ function MostBoxApp() {
                   }
                 />
               }
-              label={t('nav.knowledge')}
+              label={t('nav.notes')}
               onPress={() => changeTab('knowledge')}
             />
             <TabButton
-              active={activeTab === 'transfers'}
+              active={activeTab === 'node'}
               icon={
-                <ArrowLeftRight
+                <UserCircle
                   size={21}
                   color={
-                    activeTab === 'transfers'
+                    activeTab === 'node'
                       ? theme.colors.accent
                       : theme.colors.textSecondary
                   }
                 />
               }
-              label={t('nav.transfers')}
-              onPress={() => changeTab('transfers')}
+              label={t('nav.me')}
+              onPress={() => changeTab('node')}
             />
           </View>
         ) : null}
