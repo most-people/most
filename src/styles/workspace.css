@@ -17,14 +17,32 @@
   display: flex;
   min-height: 48px;
   align-items: center;
+  border-left: 3px solid transparent;
   padding: 0 var(--space-4);
   background: var(--bg-secondary);
   color: var(--text-primary);
   text-decoration: none;
 }
 
+.workspace-home__link-icon {
+  display: inline-flex;
+  margin-right: var(--space-3);
+  color: var(--text-muted);
+}
+
 .workspace-home__link:hover {
   background: var(--bg-tertiary);
+}
+
+.workspace-home__link.is-active {
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.workspace-home__link.is-active .workspace-home__link-icon {
+  color: var(--accent);
 }
 
 .workspace-shell {

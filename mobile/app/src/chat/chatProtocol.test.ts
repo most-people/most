@@ -5,6 +5,7 @@ import {
   buildChannelSubscribeFrame,
   buildChatMessagePayload,
   createClientMessageId,
+  getChatAttachmentKindFromMime,
   mergeChatMessages,
   normalizeChatChannel,
   normalizeChatAttachment,
@@ -90,6 +91,15 @@ test('validates attachment kind, CID and link before sending', () => {
       }),
     /attachment message content must equal attachment link/
   )
+})
+
+test('maps picker MIME types to chat attachment kinds', () => {
+  assert.equal(getChatAttachmentKindFromMime('image/jpeg'), 'image')
+  assert.equal(getChatAttachmentKindFromMime('video/mp4'), 'video')
+  assert.equal(getChatAttachmentKindFromMime('audio/mpeg'), 'audio')
+  assert.equal(getChatAttachmentKindFromMime('text/plain'), 'text')
+  assert.equal(getChatAttachmentKindFromMime('application/pdf'), 'file')
+  assert.equal(getChatAttachmentKindFromMime(), 'file')
 })
 
 test('parses history pages and ignores malformed messages', () => {

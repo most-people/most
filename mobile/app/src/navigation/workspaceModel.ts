@@ -43,6 +43,7 @@ export type WorkspaceAction =
   | { type: 'setDraft'; channelId: string; draft?: string }
   | { type: 'removeConversation'; channelId: string }
   | { type: 'reset' }
+  | { type: 'hydrate'; state: WorkspaceState }
 
 export const DEFAULT_WORKSPACE_TAB: WorkspaceTab = 'files'
 export const WORKSPACE_STORAGE_KEY = 'mostbox.workspace.v1'
@@ -262,6 +263,8 @@ export function workspaceReducer(
     }
     case 'reset':
       return createDefaultWorkspaceState()
+    case 'hydrate':
+      return normalizeState(action.state)
   }
 }
 

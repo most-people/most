@@ -67,8 +67,14 @@ import {
   getTransferRuntimeStatus,
   type TransferRuntimePlatform,
 } from './src/features/transfers/transferModel'
-import { ChatScreen } from './src/features/chat/ChatScreen'
-import type { ChatAttachment } from './src/chat/chatProtocol'
+import {
+  ChatScreen,
+  type ChatAttachmentPickerKind,
+} from './src/features/chat/ChatScreen'
+import {
+  getChatAttachmentKindFromMime,
+  type ChatAttachment,
+} from './src/chat/chatProtocol'
 import {
   I18nProvider,
   LOCALES,
@@ -282,6 +288,9 @@ function MostBoxApp() {
     'active' | 'background' | 'inactive'
   >('active')
   const [activeTab, setActiveTab] = useState<RootTab>('files')
+  const [chatDetailOpen, setChatDetailOpen] = useState(false)
+  const [chatDetailTitle, setChatDetailTitle] = useState('')
+  const [chatBackToken, setChatBackToken] = useState(0)
   const [nodeRoute, setNodeRoute] = useState<'status' | 'p2pPing'>('status')
   const [publishing, setPublishing] = useState(false)
   const [sharingFolderPath, setSharingFolderPath] = useState<string | null>(
@@ -529,7 +538,7 @@ function MostBoxApp() {
 
   const handleCancelP2PPing = (id?: string) => core.cancelP2PPing({ id })
 
-  const publishPickedFile = async (targetPath = '') => {
+  const publishPickedFile = async (targetPath = '', pickerType = '*/*') => {
     if (!guardReady()) return
 
     setPublishing(true)
@@ -537,7 +546,7 @@ function MostBoxApp() {
       const result = await DocumentPicker.getDocumentAsync({
         copyToCacheDirectory: true,
         multiple: false,
-        type: '*/*',
+        type: pickerType,
       })
       if (result.canceled) return null
 
@@ -614,23 +623,26 @@ function MostBoxApp() {
     }
   }
 
-  const handlePublishChatAttachment =
-    async (): Promise<ChatAttachment | null> => {
-      const result = await publishPickedFile()
-      if (!result) return null
-      const cid = result.transfer.cid || parseMostLink(result.link).cid
-      const mimeType = result.file.mimeType || undefined
-      return {
-        kind: mimeType?.startsWith('image/') ? 'image' : 'file',
-        cid,
-        fileName: result.file.name,
-        link: result.link,
-        ...(mimeType ? { mimeType } : {}),
-        ...(typeof result.file.size === 'number'
-          ? { size: result.file.size }
-          : {}),
-      }
+  const handlePublishChatAttachment = async (
+    kind: ChatAttachmentPickerKind
+  ): Promise<ChatAttachment | null> => {
+    const pickerType =
+      kind === 'image' ? 'image/*' : kind === 'video' ? 'video/*' : '*/*'
+    const result = await publishPickedFile('', pickerType)
+    if (!result) return null
+    const cid = result.transfer.cid || parseMostLink(result.link).cid
+    const mimeType = result.file.mimeType || undefined
+    return {
+      kind: getChatAttachmentKindFromMime(mimeType),
+      cid,
+      fileName: result.file.name,
+      link: result.link,
+      ...(mimeType ? { mimeType } : {}),
+      ...(typeof result.file.size === 'number'
+        ? { size: result.file.size }
+        : {}),
     }
+  }
 
   const openDownloadModal = () => {
     setDownloadLinkInput('')
@@ -652,6 +664,7 @@ function MostBoxApp() {
       downloadModalOpen,
       knowledgeMode,
       languageModalOpen,
+      chatDetailOpen,
       nodeRoute,
     })
     if (action === 'closeLanguage') {
@@ -664,6 +677,11 @@ function MostBoxApp() {
     }
     if (action === 'closeNodeChild') {
       setNodeRoute('status')
+      return true
+    }
+    if (action === 'closeChatChild') {
+      setChatBackToken(value => value + 1)
+      setChatDetailOpen(false)
       return true
     }
     if (action === 'closeKnowledgeChild') {
@@ -1196,19 +1214,26 @@ function MostBoxApp() {
   const isKnowledgeChild =
     activeTab === 'knowledge' && knowledgeMode !== 'browse'
   const isNodeChild = activeTab === 'node' && nodeRoute === 'p2pPing'
-  const isSecondaryPage = isKnowledgeChild || isNodeChild
+  const isChatChild = activeTab === 'chat' && chatDetailOpen
+  const isSecondaryPage = isKnowledgeChild || isNodeChild || isChatChild
   const hideTabBar =
-    (activeTab === 'knowledge' && knowledgeMode === 'edit') || isNodeChild
+    (activeTab === 'knowledge' && knowledgeMode === 'edit') ||
+    isNodeChild ||
+    isChatChild
   const headerTitle = isNodeChild
     ? t('p2pPing.title')
-    : activeTab === 'node'
-      ? t('nav.me')
-      : t(TAB_LABEL_KEYS[activeTab])
+    : isChatChild
+      ? chatDetailTitle
+      : activeTab === 'node'
+        ? t('nav.me')
+        : t(TAB_LABEL_KEYS[activeTab])
   const headerBackLabel = isNodeChild
     ? t('p2pPing.back')
-    : knowledgeMode === 'edit'
-      ? t('knowledge.editor.back')
-      : t('knowledge.preview.back')
+    : isChatChild
+      ? t('p2pPing.back')
+      : knowledgeMode === 'edit'
+        ? t('knowledge.editor.back')
+        : t('knowledge.preview.back')
   const statusLabel =
     nodeStatus === 'ready'
       ? t('app.node.online')
@@ -1234,6 +1259,11 @@ function MostBoxApp() {
   const handleHeaderBack = () => {
     if (isNodeChild) {
       setNodeRoute('status')
+      return
+    }
+    if (isChatChild) {
+      setChatBackToken(value => value + 1)
+      setChatDetailOpen(false)
       return
     }
     if (isKnowledgeChild) {
@@ -1301,77 +1331,81 @@ function MostBoxApp() {
           barStyle={theme.statusBarStyle}
           backgroundColor={theme.colors.background}
         />
-        <View
-          style={[
-            styles.header,
-            accessibilityLayout ? styles.headerAccessibility : null,
-          ]}
-        >
-          <View style={styles.headerLeft}>
-            {isSecondaryPage ? (
-              <IconButton
-                accessibilityLabel={headerBackLabel}
-                onPress={handleHeaderBack}
-                style={styles.headerIconButton}
-                variant="ghost"
-              >
-                <ChevronLeft size={22} color={theme.colors.text} />
-              </IconButton>
-            ) : null}
-            <Text
-              maxFontSizeMultiplier={1.8}
-              numberOfLines={1}
-              style={styles.mainHeaderTitle}
-            >
-              {headerTitle}
-            </Text>
-          </View>
-          <View style={styles.headerActions}>
-            <IconButton
-              accessibilityLabel={t('common.theme.switch', {
-                current: t(THEME_LABEL_KEYS[preference]),
-                next: t(THEME_LABEL_KEYS[nextThemePreference]),
-              })}
-              onPress={cyclePreference}
-              style={styles.headerIconButton}
-            >
-              {preference === 'dark' ? (
-                <Moon size={18} color={theme.colors.info} />
-              ) : preference === 'light' ? (
-                <Sun size={19} color={theme.colors.warning} />
-              ) : (
-                <Monitor size={18} color={theme.colors.textSecondary} />
-              )}
-            </IconButton>
-            <IconButton
-              accessibilityLabel={t('common.language.choose')}
-              onPress={openLanguageMenu}
-              style={styles.headerIconButton}
-            >
-              <Languages size={19} color={theme.colors.textSecondary} />
-            </IconButton>
-            <Pressable
-              accessibilityLabel={t('app.node.openStatus', {
-                status: statusLabel,
-              })}
-              accessibilityRole="button"
-              onPress={openNodeStatus}
-              style={({ pressed }) => [
-                styles.statusPill,
-                pressed ? styles.pressablePressed : null,
-              ]}
-            >
-              <Radio size={16} color={statusColor} />
+        {!isChatChild ? (
+          <View
+            style={[
+              styles.header,
+              accessibilityLayout ? styles.headerAccessibility : null,
+            ]}
+          >
+            <View style={styles.headerLeft}>
+              {isSecondaryPage ? (
+                <IconButton
+                  accessibilityLabel={headerBackLabel}
+                  onPress={handleHeaderBack}
+                  style={styles.headerIconButton}
+                  variant="ghost"
+                >
+                  <ChevronLeft size={22} color={theme.colors.text} />
+                </IconButton>
+              ) : null}
               <Text
-                maxFontSizeMultiplier={1.4}
+                maxFontSizeMultiplier={1.8}
                 numberOfLines={1}
-                style={[styles.statusText, statusTextStyle]}
+                style={styles.mainHeaderTitle}
               >
-                {statusLabel}
+                {headerTitle}
               </Text>
-            </Pressable>
+            </View>
+            {activeTab === 'node' ? (
+              <View style={styles.headerActions}>
+                <IconButton
+                  accessibilityLabel={t('common.theme.switch', {
+                    current: t(THEME_LABEL_KEYS[preference]),
+                    next: t(THEME_LABEL_KEYS[nextThemePreference]),
+                  })}
+                  onPress={cyclePreference}
+                  style={styles.headerIconButton}
+                >
+                  {preference === 'dark' ? (
+                    <Moon size={18} color={theme.colors.info} />
+                  ) : preference === 'light' ? (
+                    <Sun size={19} color={theme.colors.warning} />
+                  ) : (
+                    <Monitor size={18} color={theme.colors.textSecondary} />
+                  )}
+                </IconButton>
+                <IconButton
+                  accessibilityLabel={t('common.language.choose')}
+                  onPress={openLanguageMenu}
+                  style={styles.headerIconButton}
+                >
+                  <Languages size={19} color={theme.colors.textSecondary} />
+                </IconButton>
+                <Pressable
+                  accessibilityLabel={t('app.node.openStatus', {
+                    status: statusLabel,
+                  })}
+                  accessibilityRole="button"
+                  onPress={openNodeStatus}
+                  style={({ pressed }) => [
+                    styles.statusPill,
+                    pressed ? styles.pressablePressed : null,
+                  ]}
+                >
+                  <Radio size={16} color={statusColor} />
+                  <Text
+                    maxFontSizeMultiplier={1.4}
+                    numberOfLines={1}
+                    style={[styles.statusText, statusTextStyle]}
+                  >
+                    {statusLabel}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
           </View>
-        </View>
+        ) : null}
 
         <View style={styles.content}>
           <View
@@ -1452,7 +1486,23 @@ function MostBoxApp() {
               <ChatScreen
                 client={core}
                 onPublishAttachment={handlePublishChatAttachment}
+                onOpenAttachment={attachment => {
+                  try {
+                    const intent = parseIncomingMostLink(attachment.link)
+                    if (intent) openDownloadIntent(intent, true)
+                  } catch (error) {
+                    alert(
+                      t('app.link.invalidTitle'),
+                      getMostLinkErrorMessage(error, locale)
+                    )
+                  }
+                }}
                 snapshot={currentSnapshot}
+                backRequestToken={chatBackToken}
+                onDetailChange={(open, title) => {
+                  setChatDetailOpen(open)
+                  setChatDetailTitle(title || '')
+                }}
               />
             </View>
           ) : null}
