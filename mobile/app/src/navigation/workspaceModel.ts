@@ -153,6 +153,51 @@ export function getOrderedConversations(
   })
 }
 
+/** Format a conversation timestamp with the compact rules used by WeChat. */
+export function formatConversationTime(
+  value: Date | string | number,
+  locale: string,
+  now: Date | string | number = Date.now()
+): string {
+  const date = value instanceof Date ? value : new Date(value)
+  const current = now instanceof Date ? now : new Date(now)
+  if (Number.isNaN(date.getTime()) || Number.isNaN(current.getTime())) return ''
+
+  const time = new Intl.DateTimeFormat(locale, {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+  const startOfDay = (input: Date) =>
+    new Date(input.getFullYear(), input.getMonth(), input.getDate()).getTime()
+  const dayDifference = Math.floor(
+    (startOfDay(current) - startOfDay(date)) / 86400000
+  )
+  const isChinese = locale.toLowerCase().startsWith('zh')
+
+  if (dayDifference <= 0) return time
+  if (dayDifference === 1)
+    return isChinese ? `昨天 ${time}` : `Yesterday ${time}`
+  if (dayDifference === 2) return isChinese ? `前天 ${time}` : `2 days ago`
+  if (dayDifference < 7) {
+    if (isChinese) {
+      const weekdays = ['日', '一', '二', '三', '四', '五', '六']
+      return `星期${weekdays[date.getDay()]}`
+    }
+    return new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(date)
+  }
+  if (isChinese) {
+    if (date.getFullYear() === current.getFullYear()) {
+      return `${date.getMonth() + 1}月${date.getDate()}日`
+    }
+    return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`
+  }
+  return new Intl.DateTimeFormat(locale, {
+    year: date.getFullYear() === current.getFullYear() ? undefined : 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+  }).format(date)
+}
+
 export function workspaceReducer(
   state: WorkspaceState,
   action: WorkspaceAction

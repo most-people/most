@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   createDefaultWorkspaceState,
   deserializeWorkspaceState,
+  formatConversationTime,
   getOrderedConversations,
   serializeWorkspaceState,
   workspaceReducer,
@@ -147,4 +148,28 @@ test('reset clears preferences and conversations', () => {
     { type: 'reset' }
   )
   assert.deepEqual(state, createDefaultWorkspaceState())
+})
+
+test('conversation timestamps use compact relative display rules', () => {
+  const now = new Date(2026, 8, 14, 9, 27)
+  assert.equal(
+    formatConversationTime(new Date(2026, 8, 14, 8, 51), 'zh-CN', now),
+    '08:51'
+  )
+  assert.equal(
+    formatConversationTime(new Date(2026, 8, 13, 1, 50), 'zh-CN', now),
+    '昨天 01:50'
+  )
+  assert.equal(
+    formatConversationTime(new Date(2026, 8, 12, 1, 50), 'zh-CN', now),
+    '前天 01:50'
+  )
+  assert.equal(
+    formatConversationTime(new Date(2026, 8, 11, 1, 50), 'zh-CN', now),
+    '星期五'
+  )
+  assert.equal(
+    formatConversationTime(new Date(2026, 7, 21, 9, 53), 'zh-CN', now),
+    '8月21日'
+  )
 })

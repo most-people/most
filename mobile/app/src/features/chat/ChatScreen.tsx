@@ -9,6 +9,7 @@ import {
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -32,7 +33,6 @@ import {
   Users,
   Search,
   MoreVertical,
-  Pin,
   BellOff,
   ChevronLeft,
 } from 'lucide-react-native'
@@ -73,6 +73,7 @@ import {
   deserializeWorkspaceState,
   serializeWorkspaceState,
   type ConversationSummary,
+  formatConversationTime,
 } from '../../navigation/workspaceModel'
 
 type ChatBridge = MostBoxMobileCore & {
@@ -128,7 +129,7 @@ export function ChatScreen({
   onDetailChange,
   backRequestToken = 0,
 }: ChatScreenProps) {
-  const { t, formatDateTime } = useI18n()
+  const { locale, t, formatDateTime } = useI18n()
   const theme = useMostBoxTheme()
   const styles = chatStyles(theme)
   const { alert, toast } = useFeedback()
@@ -805,28 +806,30 @@ export function ChatScreen({
               onLongPress={() => showConversationMenu(item)}
               style={({ pressed }) => [
                 styles.conversationRow,
+                item.pinned ? styles.conversationPinned : null,
                 pressed ? styles.pressed : null,
               ]}
             >
               <View style={styles.avatar}>
-                <Text style={styles.avatarText}>
-                  {item.title.slice(0, 1).toUpperCase()}
-                </Text>
+                <Image
+                  accessibilityLabel={item.title}
+                  source={{
+                    uri: `https://api.dicebear.com/9.x/identicon/png?seed=${encodeURIComponent(item.channelId)}&size=96`,
+                  }}
+                  style={styles.avatarImage}
+                />
               </View>
               <View style={styles.conversationMain}>
                 <View style={styles.conversationTitleRow}>
                   <Text numberOfLines={1} style={styles.conversationTitle}>
                     {item.title}
                   </Text>
-                  {item.pinned ? (
-                    <Pin size={13} color={theme.colors.textMuted} />
-                  ) : null}
                   {item.muted ? (
                     <BellOff size={13} color={theme.colors.textMuted} />
                   ) : null}
                   <Text style={styles.conversationTime}>
                     {item.lastMessageAt
-                      ? formatDateTime(item.lastMessageAt)
+                      ? formatConversationTime(item.lastMessageAt, locale)
                       : ''}
                   </Text>
                 </View>
@@ -845,7 +848,6 @@ export function ChatScreen({
                   ) : null}
                 </View>
               </View>
-              <MoreVertical size={18} color={theme.colors.textMuted} />
             </Pressable>
           )}
         />
@@ -1185,6 +1187,7 @@ function chatStyles(theme: ReturnType<typeof useMostBoxTheme>) {
       paddingHorizontal: 4,
       paddingVertical: 10,
     },
+    conversationPinned: { backgroundColor: colors.surfaceSubtle },
     avatar: {
       alignItems: 'center',
       backgroundColor: colors.accentSoft,
@@ -1193,6 +1196,7 @@ function chatStyles(theme: ReturnType<typeof useMostBoxTheme>) {
       justifyContent: 'center',
       width: 46,
     },
+    avatarImage: { height: '100%', width: '100%' },
     avatarText: { color: colors.accent, fontSize: 19, fontWeight: '700' },
     conversationMain: { flex: 1, gap: 5, minWidth: 0 },
     conversationTitleRow: {
