@@ -451,7 +451,6 @@ macOS `.dmg`、Linux `.AppImage`、Android `.apk`），不再发布 updater / bl
 
 | Secret                              | 说明                                        |
 | ----------------------------------- | ------------------------------------------- |
-| `NPM_TOKEN`                         | npm 发布令牌（`npm token create` 生成）     |
 | `MOSTBOX_ANDROID_KEYSTORE_BASE64`   | 永久 Android App Signing Key 的 Base64 内容 |
 | `MOSTBOX_ANDROID_KEYSTORE_PASSWORD` | Android keystore 密码                       |
 | `MOSTBOX_ANDROID_KEY_ALIAS`         | Android App Signing Key alias               |
@@ -461,6 +460,10 @@ macOS `.dmg`、Linux `.AppImage`、Android `.apk`），不再发布 updater / bl
 | `R2_SECRET_ACCESS_KEY`              | R2 S3 API Secret Access Key                 |
 | `R2_BUCKET`                         | 可选；默认 `most-box-releases`              |
 | `R2_PUBLIC_BASE_URL`                | 可选；默认 `https://download.most.box`      |
+
+npm 发布不依赖任何 Secret：`publish-npm` 任务通过 npm OIDC Trusted Publishing 认证
+（npm 包设置 → Trusted Publisher，绑定 `most-people/most` 仓库与 `release.yml` 工作流），
+每次发布使用短期的 OIDC 交换令牌，无需长期维护 `NPM_TOKEN`。
 
 下载页默认读取 `https://download.most.box/releases/latest.json`。部署环境可额外配置
 `VITE_R2_PUBLIC_BASE_URL` 覆盖公开域名，或直接配置

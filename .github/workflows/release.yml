@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   test:
@@ -107,8 +108,6 @@ jobs:
       - name: Publish to npm
         if: steps.npm-version.outputs.exists != 'true'
         run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   build-win:
     name: Build Windows
