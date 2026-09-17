@@ -4,6 +4,12 @@ All notable changes to MostBox are documented in this file.
 
 ## [Unreleased]
 
+## [0.5.4] - 2026-09-17
+
+### Changed
+
+- npm 发布切换到 OIDC Trusted Publishing，发布不再依赖长期 `NPM_TOKEN`。
+
 ## [0.5.3] - 2026-09-13
 
 ### Added
