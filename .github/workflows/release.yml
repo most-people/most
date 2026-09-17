@@ -263,8 +263,16 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v4.0.1
+      - name: Set up Android SDK
+        run: |
+          sdk="${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}"
+          echo "ANDROID_HOME=$sdk" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$sdk" >> "$GITHUB_ENV"
+          if [ -d "$sdk/licenses" ]; then
+            echo "Android SDK licenses already accepted"
+          else
+            yes | "$sdk/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
+          fi
 
       - name: Install Android dependencies
         run: npm ci --prefix mobile/app
