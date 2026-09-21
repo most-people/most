@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMediaQuery } from '@mantine/hooks'
 import {
   ChevronRight,
@@ -107,7 +107,6 @@ import {
   formatChannelMentionUnreadPreview,
   formatMentionCandidateLabel,
   getAttachmentKind,
-  getBrowserAudioContextConstructor,
   getChannelId,
   getChannelKey,
   getChannelTitle,
@@ -133,10 +132,10 @@ import {
   getRenderableMentions,
   isMessageMentioningCurrentUser,
 } from './chatDisplay'
+import { useChatNotifications } from './useChatNotifications'
 
 const ATTACHMENT_CHECK_TIMEOUT_MS = 10000
 const ATTACHMENT_CHECK_REQUEST_TIMEOUT_MS = ATTACHMENT_CHECK_TIMEOUT_MS + 2000
-const CHAT_NOTIFICATION_SOUND_MIN_INTERVAL_MS = 1200
 const CHANNEL_HISTORY_SYNC_DEBOUNCE_MS = 800
 const CHANNEL_MENTION_UNREAD_SCAN_PAGE_SIZE = 100
 
@@ -232,9 +231,6 @@ function ChatPage() {
   const autoJoinChannelAttemptsRef = useRef(new Set<string>())
   const previousBackendReadyRef = useRef(false)
   const autoLoginPromptedChannelsRef = useRef(new Set<string>())
-  const notificationAudioContextRef = useRef<AudioContext | null>(null)
-  const notificationAudioUnlockedRef = useRef(false)
-  const lastNotificationSoundAtRef = useRef(0)
   const syncMessagesRef = useRef<
     (
       name?: string,
@@ -252,6 +248,7 @@ function ChatPage() {
   const isBackendReady = hasBackend === true
   const { t, compareStrings, formatDate, formatTime, locale } = useI18n()
   const voiceRoom = useGlobalVoiceRoom()
+  const { playNotificationSound } = useChatNotifications()
 
   const showApiError = useCallback(
     async (err: unknown, fallback: string) => {
@@ -293,68 +290,6 @@ function ChatPage() {
     },
     [channelReadStorageKey]
   )
-
-  const ensureNotificationAudioUnlocked = useCallback(() => {
-    if (notificationAudioUnlockedRef.current) return
-    if (typeof window === 'undefined') return
-    const AudioContextConstructor = getBrowserAudioContextConstructor()
-    if (!AudioContextConstructor) return
-
-    try {
-      const audioContext =
-        notificationAudioContextRef.current || new AudioContextConstructor()
-      notificationAudioContextRef.current = audioContext
-      if (audioContext.state === 'suspended') {
-        void audioContext.resume().catch(() => {})
-      }
-      notificationAudioUnlockedRef.current = true
-    } catch {}
-  }, [])
-
-  const playChannelNotificationSound = useCallback(() => {
-    if (!notificationAudioUnlockedRef.current) return
-    const now = Date.now()
-    if (
-      now - lastNotificationSoundAtRef.current <
-      CHAT_NOTIFICATION_SOUND_MIN_INTERVAL_MS
-    ) {
-      return
-    }
-    lastNotificationSoundAtRef.current = now
-
-    const AudioContextConstructor = getBrowserAudioContextConstructor()
-    if (!AudioContextConstructor) return
-
-    try {
-      const audioContext =
-        notificationAudioContextRef.current || new AudioContextConstructor()
-      notificationAudioContextRef.current = audioContext
-      if (audioContext.state === 'suspended') {
-        void audioContext.resume().catch(() => {})
-        return
-      }
-
-      const gain = audioContext.createGain()
-      gain.gain.setValueAtTime(0.0001, audioContext.currentTime)
-      gain.gain.exponentialRampToValueAtTime(
-        0.08,
-        audioContext.currentTime + 0.015
-      )
-      gain.gain.exponentialRampToValueAtTime(
-        0.0001,
-        audioContext.currentTime + 0.18
-      )
-      gain.connect(audioContext.destination)
-      ;[740, 980].forEach((frequency, index) => {
-        const oscillator = audioContext.createOscillator()
-        oscillator.type = 'sine'
-        oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime)
-        oscillator.connect(gain)
-        oscillator.start(audioContext.currentTime + index * 0.035)
-        oscillator.stop(audioContext.currentTime + 0.16 + index * 0.035)
-      })
-    } catch {}
-  }, [])
 
   const refreshChannelPresence = useCallback(
     async (channel = activeChannel) => {
@@ -481,7 +416,7 @@ function ChatPage() {
               writeStoredChannelLastReadAt(channelReadStorageKey, result.value)
             }
             if (result.notify) {
-              playChannelNotificationSound()
+              playNotificationSound()
             }
             return result.changed ? result.value : prev
           })
@@ -1154,25 +1089,6 @@ function ChatPage() {
       return result.changed ? result.value : prev
     })
   }, [channelReadStorageKey, channels])
-
-  useEffect(() => {
-    window.addEventListener('pointerdown', ensureNotificationAudioUnlocked, {
-      passive: true,
-    })
-    window.addEventListener('keydown', ensureNotificationAudioUnlocked)
-    return () => {
-      window.removeEventListener('pointerdown', ensureNotificationAudioUnlocked)
-      window.removeEventListener('keydown', ensureNotificationAudioUnlocked)
-    }
-  }, [ensureNotificationAudioUnlocked])
-
-  useEffect(() => {
-    return () => {
-      void notificationAudioContextRef.current?.close().catch(() => {})
-      notificationAudioContextRef.current = null
-      notificationAudioUnlockedRef.current = false
-    }
-  }, [])
 
   useEffect(() => {
     channelMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
