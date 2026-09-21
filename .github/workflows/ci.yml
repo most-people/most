@@ -33,8 +33,8 @@ jobs:
       - name: Check synchronized versions
         run: npm run check:versions
 
-      - name: Run frontend smoke tests
-        run: npm run test:frontend
+      - name: Run shared protocol vectors
+        run: npx vitest run packages/protocol
 
       - name: Run desktop tests
         run: npm run test:desktop

@@ -1,21 +1,22 @@
+/**
+ * Account derivation and the nacl-based wallet helpers.
+ *
+ * `mostWallet` / `mostMnemonic` / `mostSignMessage` live in
+ * `@most-box/protocol` because the mobile app must derive the same account
+ * address from the same username and password. The nacl helpers stay here: they
+ * are daemon-only and never run inside the Bare worklet.
+ */
 import {
-  decodeBase64,
-  encodeBase64,
-  pbkdf2,
-  sha256,
-  getBytes,
-  Mnemonic,
-  HDNodeWallet,
-  toUtf8Bytes,
-  hexlify,
-} from 'ethers'
+  DEFAULT_PBKDF2_ITERATIONS,
+  MAX_PBKDF2_ITERATIONS,
+  MIN_PBKDF2_ITERATIONS,
+  mostMnemonic,
+  mostSignMessage,
+  mostWallet,
+} from '@most-box/protocol'
+import { decodeBase64, encodeBase64, getBytes, hexlify } from 'ethers'
 import nacl from 'tweetnacl'
 
-const SALT_PREFIX = '/most.box/'
-export const DEFAULT_PBKDF2_ITERATIONS = 50_000
-export const MIN_PBKDF2_ITERATIONS = 1
-export const MAX_PBKDF2_ITERATIONS = 1_000_000
-const PBKDF2_KEY_LENGTH = 32
 const BOX_TOKEN_VERSION = 1
 const BOX_TIMESTAMP_BYTES = 8
 const BOX_TOKEN_HEADER_BYTES =
@@ -24,35 +25,13 @@ const BOX_TOKEN_MIN_BYTES =
   BOX_TOKEN_HEADER_BYTES + nacl.secretbox.overheadLength
 const BOX_LABEL = new TextEncoder().encode('MP-AE')
 
-export function mostWallet(
-  username,
-  password,
-  iterations = DEFAULT_PBKDF2_ITERATIONS
-) {
-  if (
-    !Number.isSafeInteger(iterations) ||
-    iterations < MIN_PBKDF2_ITERATIONS ||
-    iterations > MAX_PBKDF2_ITERATIONS
-  ) {
-    throw new RangeError(
-      `PBKDF2 iterations must be an integer between ${MIN_PBKDF2_ITERATIONS} and ${MAX_PBKDF2_ITERATIONS}`
-    )
-  }
-  const salt = toUtf8Bytes(SALT_PREFIX + username)
-  const p = toUtf8Bytes(password)
-  const kdf = pbkdf2(p, salt, iterations, PBKDF2_KEY_LENGTH, 'sha512')
-  const seed = getBytes(sha256(getBytes(kdf)))
-  const mnemonic = Mnemonic.entropyToPhrase(seed)
-  const account = HDNodeWallet.fromPhrase(mnemonic)
-  return {
-    username,
-    address: account.address,
-    danger: hexlify(seed),
-  }
-}
-
-export function mostMnemonic(danger) {
-  return Mnemonic.entropyToPhrase(getBytes(danger))
+export {
+  DEFAULT_PBKDF2_ITERATIONS,
+  MAX_PBKDF2_ITERATIONS,
+  MIN_PBKDF2_ITERATIONS,
+  mostMnemonic,
+  mostSignMessage,
+  mostWallet,
 }
 
 export function most25519(danger) {
@@ -62,14 +41,6 @@ export function most25519(danger) {
     public_key: hexlify(x25519KeyPair.publicKey),
     private_key: hexlify(x25519KeyPair.secretKey),
     ed_public_key: hexlify(ed25519KeyPair.publicKey),
-  }
-}
-
-export async function mostSignMessage(danger, message) {
-  const account = HDNodeWallet.fromPhrase(mostMnemonic(danger))
-  return {
-    address: account.address,
-    signature: await account.signMessage(message),
   }
 }
 

@@ -1,0 +1,24 @@
+{
+  "name": "@most-box/protocol",
+  "version": "0.5.4",
+  "private": true,
+  "description": "MostBox shared protocol primitives: most:// links, CID identity, topic derivation, account derivation, and auth message format",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js",
+    "./most-link": "./src/most-link.js",
+    "./cid-topic": "./src/cid-topic.js",
+    "./download-event": "./src/download-event.js",
+    "./address": "./src/address.js",
+    "./auth-message": "./src/auth-message.js",
+    "./codec": "./src/codec.js",
+    "./wallet": "./src/wallet.js"
+  },
+  "files": [
+    "src"
+  ],
+  "dependencies": {
+    "ethers": "^6.17.0",
+    "multiformats": "^14.0.5"
+  }
+}

@@ -888,11 +888,11 @@ describe('frontend smoke checks', () => {
       cidSource,
       /payload\.partial === true[\s\S]*\? 'partial'[\s\S]*: 'completed'/
     )
-    assert.match(tasksSource, /readDownloadEventPaths\(payloadRecord\.files\)/)
-    assert.match(
-      tasksSource,
-      /readDownloadEventPaths\(payloadRecord\.unavailableFiles\)/
-    )
+    // The payload parser moved into @most-box/protocol. Its path extraction is
+    // covered by behavioral tests there
+    // (packages/protocol/test/download-event.test.js), so assert the
+    // delegation instead of snapshotting the implementation source.
+    assert.match(tasksSource, /from '@most-box\/protocol\/download-event'/)
     assert.match(cidSource, /t\('cid\.retryUnavailableAction'\)/)
 
     for (const locale of ['zh-CN', 'zh-TW', 'en']) {
@@ -978,48 +978,18 @@ describe('frontend smoke checks', () => {
     const { excludeTerminalDownloadTasks, parseDownloadEvent } =
       await importBundledSource('src/lib/downloadTasks.ts')
 
-    assert.deepEqual(
-      parseDownloadEvent(
-        JSON.stringify({
-          event: 'download:progress',
-          data: {
-            taskId: 'task-1',
-            collection: true,
-            completedFiles: 2,
-            totalFiles: 4,
-            percent: 50,
-          },
-        })
-      ),
-      {
+    // The payload field table and its type guards are covered by behavioral
+    // tests in packages/protocol/test/download-event.test.js, so this smoke
+    // check only verifies the web import path still reaches the shared parser.
+    const progress = parseDownloadEvent(
+      JSON.stringify({
         event: 'download:progress',
-        payload: {
-          taskId: 'task-1',
-          collection: true,
-          completedFiles: 2,
-          totalFiles: 4,
-          percent: 50,
-          downloadedPaths: [],
-          unavailablePaths: [],
-          status: undefined,
-          kind: undefined,
-          code: undefined,
-          errorCode: undefined,
-          partial: undefined,
-          loaded: undefined,
-          total: undefined,
-          fileCount: undefined,
-          selectedFileCount: undefined,
-          downloadedFileCount: undefined,
-          unavailableFileCount: undefined,
-          processedFiles: undefined,
-          file: undefined,
-          fileName: undefined,
-          error: undefined,
-          details: undefined,
-        },
-      }
+        data: { taskId: 'task-1', percent: 50 },
+      })
     )
+    assert.equal(progress.event, 'download:progress')
+    assert.equal(progress.payload.taskId, 'task-1')
+    assert.equal(progress.payload.percent, 50)
 
     const completed = parseDownloadEvent(
       JSON.stringify({
@@ -1035,6 +1005,10 @@ describe('frontend smoke checks', () => {
     )
     assert.deepEqual(completed.payload.downloadedPaths, ['ready.txt'])
     assert.deepEqual(completed.payload.unavailablePaths, ['later.txt'])
+    assert.equal(completed.payload.partial, true)
+
+    const malformed = parseDownloadEvent('not json')
+    assert.equal(malformed, null)
 
     const activeTask = {
       taskId: 'task-active',
@@ -1610,9 +1584,11 @@ describe('frontend smoke checks', () => {
     const source = readSource(SOURCE_PATHS.admin)
 
     assert.match(source, /NodeHolding/)
+    // Seed-status wording and the log-filter terms moved into adminFormat.ts and
+    // are covered behaviorally by src/tests/adminFormat.test.ts, so assert the
+    // delegation instead of snapshotting the implementation source.
+    assert.match(source, /from '\.\/adminFormat'/)
     assert.match(source, /formatSeedStatus/)
-    assert.match(source, /admin\.seedStatus\.active/)
-    assert.match(source, /admin\.seedStatus\.queued/)
     assert.match(source, /\/api\/admin\/access/)
     assert.match(source, /claimAdminAccess/)
   })
@@ -1656,7 +1632,7 @@ describe('frontend smoke checks', () => {
     assert.match(adminMessages, /'创建 MCP 密钥'/)
     assert.match(adminMessages, /'Create MCP key'/)
     assert.match(adminMessages, /admin\.action\.deleteMcpClient/)
-    assert.match(source, /format\('YYYY-MM-DD HH:mm'\)/)
+    assert.match(source, /from '\.\/adminFormat'/)
     assert.match(source, /aria-label=\{t\('admin\.action\.deleteMcpClient'\)\}/)
     assert.match(source, /<Trash2 size=\{16\} \/>/)
     assert.doesNotMatch(source, /<Ban size=\{16\}/)

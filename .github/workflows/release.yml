@@ -36,8 +36,8 @@ jobs:
       - name: Run tests
         run: npm test
 
-      - name: Run frontend smoke tests
-        run: npm run test:frontend
+      - name: Run shared protocol vectors
+        run: npx vitest run packages/protocol
 
       - name: Run desktop update tests
         run: npm run test:desktop

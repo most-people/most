@@ -9,6 +9,9 @@ import {
 } from 'lucide-react'
 import { getFileSubtype, type FileSubtype } from '~/lib/filePreview'
 import { formatBytes } from '~/lib/format'
+import { parseAppFileName } from '~/features/files/fileTree'
+
+export { parseAppFileName }
 
 interface AppFileItem {
   cid: string
@@ -43,15 +46,6 @@ interface FolderCardProps {
   onClick: () => void
   onShare?: () => void
   shareLabel?: string
-}
-
-export function parseAppFileName(fullPath: string) {
-  const lastSlash = fullPath.lastIndexOf('/')
-  if (lastSlash === -1) return { folder: '', name: fullPath }
-  return {
-    folder: fullPath.substring(0, lastSlash),
-    name: fullPath.substring(lastSlash + 1),
-  }
 }
 
 export function FileCard({

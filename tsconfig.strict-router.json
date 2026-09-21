@@ -13,7 +13,6 @@
       "~/features/admin/AdminPage": [
         "./src/typecheck-stubs/route-component.tsx"
       ],
-      "~/features/files/AppPage": ["./src/typecheck-stubs/route-component.tsx"],
       "~/features/chat/ChatPage": ["./src/typecheck-stubs/route-component.tsx"],
       "~/features/chat/ChatJoinPage": [
         "./src/typecheck-stubs/route-component.tsx"

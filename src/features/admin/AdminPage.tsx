@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   type ColumnDef,
   type PaginationState,
@@ -12,10 +12,23 @@ import {
   tableFeatures,
   useTable,
 } from '@tanstack/react-table'
-import dayjs from 'dayjs'
-import relativeTime from 'dayjs/plugin/relativeTime'
-import 'dayjs/locale/zh-cn'
-import 'dayjs/locale/zh-tw'
+import {
+  LOG_FILTER_OPTIONS,
+  SEED_STATUS_HELP,
+  bytesToGiB,
+  formatDateTime as formatAdminDateTime,
+  formatRecentTime,
+  formatSeedStatus,
+  formatUptime,
+  getSortTitle,
+  gibToBytes,
+  nodeLogMatchesFilter,
+  parseInviteText,
+  parsePathText,
+  shortText,
+  type AdminTranslate,
+  type SortState,
+} from './adminFormat'
 import {
   Activity,
   ArrowDown,
@@ -54,7 +67,7 @@ import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import { MarketingHeader } from '~/components/MarketingHeader'
 import { ConfirmModal, SegmentedControl, SelectControl } from '~/components/ui'
-import { useI18n, type Locale, type MessageKey } from '~/lib/i18n'
+import { useI18n, type MessageKey } from '~/lib/i18n'
 import { formatBytes, shortAddress } from '~/lib/format'
 import {
   convertStorageLimitUnit,
@@ -62,8 +75,6 @@ import {
   storageLimitToBytes,
   type StorageLimitUnit,
 } from '~/lib/storageLimitInput'
-
-dayjs.extend(relativeTime)
 
 const ADMIN_TABLE_FEATURES = tableFeatures({
   rowSortingFeature,
@@ -93,7 +104,7 @@ interface NodeConfig {
   remoteInviteConfigured?: boolean
 }
 
-interface NodeLog {
+export interface NodeLog {
   id: string
   ts: string
   level: string
@@ -102,7 +113,7 @@ interface NodeLog {
   data?: Record<string, unknown>
 }
 
-interface NodeHolding {
+export interface NodeHolding {
   cid: string
   fileName: string
   size: number
@@ -217,195 +228,11 @@ const DEFAULT_MCP_SCOPES: McpScope[] = [
   'downloads:cancel',
 ]
 
-type AdminTranslate = (
-  key: MessageKey,
-  params?: Record<string, string | number>
-) => string
-
-function formatUptime(seconds: number, t: AdminTranslate) {
-  const total = Math.max(0, Number(seconds) || 0)
-  const days = Math.floor(total / 86400)
-  const hours = Math.floor((total % 86400) / 3600)
-  const minutes = Math.floor((total % 3600) / 60)
-  if (days > 0) return t('admin.uptime.daysHours', { days, hours })
-  if (hours > 0) return t('admin.uptime.hoursMinutes', { hours, minutes })
-  return t('admin.uptime.minutes', { minutes })
-}
-
-function bytesToGiB(bytes: number) {
-  if (!Number.isFinite(bytes)) return '0'
-  return String(Math.round((bytes / (1024 * 1024 * 1024)) * 100) / 100)
-}
-
-function gibToBytes(value: string) {
-  const parsed = Number(value)
-  if (!Number.isFinite(parsed) || parsed < 0) return 0
-  return Math.round(parsed * 1024 * 1024 * 1024)
-}
-
-function parseInviteText(value: string) {
-  return Array.from(
-    new Set(
-      String(value || '')
-        .split(/[\n,]/)
-        .map(item => item.trim())
-        .filter(Boolean)
-    )
-  )
-}
-
-function parsePathText(value: string) {
-  return Array.from(
-    new Set(
-      String(value || '')
-        .split('\n')
-        .map(item => item.trim())
-        .filter(Boolean)
-    )
-  )
-}
-
-function shortText(text: string, head = 12, tail = 8) {
-  if (!text) return '-'
-  if (text.length <= head + tail + 3) return text
-  return `${text.slice(0, head)}...${text.slice(-tail)}`
-}
-
-function formatSeedStatus(holding: NodeHolding, t: AdminTranslate) {
-  switch (holding.seedStatus) {
-    case 'queued':
-      return t('admin.seedStatus.queued')
-    case 'joining':
-      return t('admin.seedStatus.joining')
-    case 'active':
-      return t('admin.seedStatus.active')
-    case 'paused':
-      return t('admin.seedStatus.paused')
-    case 'error':
-      return holding.seedError
-        ? t('admin.seedStatus.errorWithMessage', {
-            message: holding.seedError,
-          })
-        : t('admin.seedStatus.error')
-    default:
-      return holding.joined
-        ? t('admin.seedStatus.active')
-        : t('admin.seedStatus.notJoined')
-  }
-}
-
-function getDayjsLocale(locale: Locale) {
-  const dayjsLocales: Record<Locale, string> = {
-    'zh-CN': 'zh-cn',
-    'zh-TW': 'zh-tw',
-    en: 'en',
-  }
-  return dayjsLocales[locale]
-}
-
-function formatRecentTime(
-  value: string | null | undefined,
-  t: (key: MessageKey) => string,
-  locale: Locale
-) {
-  if (!value) return t('admin.time.never')
-  const time = dayjs(value)
-  if (!time.isValid()) return t('admin.time.never')
-  if (time.isAfter(dayjs())) return t('admin.time.justNow')
-  const dayjsLocale = getDayjsLocale(locale)
-  return time.locale(dayjsLocale).from(dayjs().locale(dayjsLocale))
-}
-
-function formatDateTime(value: string | null | undefined, t: AdminTranslate) {
-  if (!value) return t('admin.time.never')
-  const time = dayjs(value)
-  return time.isValid()
-    ? time.format('YYYY-MM-DD HH:mm')
-    : t('admin.time.never')
-}
-
-const SEED_STATUS_HELP = [
-  {
-    labelKey: 'admin.seedHelp.active.label',
-    tone: 'active',
-    descKey: 'admin.seedHelp.active.desc',
-  },
-  {
-    labelKey: 'admin.seedHelp.pending.label',
-    tone: 'pending',
-    descKey: 'admin.seedHelp.pending.desc',
-  },
-  {
-    labelKey: 'admin.seedHelp.paused.label',
-    tone: 'muted',
-    descKey: 'admin.seedHelp.paused.desc',
-  },
-  {
-    labelKey: 'admin.seedHelp.error.label',
-    tone: 'error',
-    descKey: 'admin.seedHelp.error.desc',
-  },
-] satisfies Array<{ labelKey: MessageKey; tone: string; descKey: MessageKey }>
-
-const LOG_FILTER_OPTIONS = [
-  { value: 'all', labelKey: 'admin.logFilter.all' },
-  { value: 'join', labelKey: 'admin.logFilter.join' },
-  { value: 'pull', labelKey: 'admin.logFilter.pull' },
-  { value: 'verify', labelKey: 'admin.logFilter.verify' },
-  { value: 'serve', labelKey: 'admin.logFilter.serve' },
-  { value: 'error', labelKey: 'admin.logFilter.error' },
-] satisfies Array<{ value: string; labelKey: MessageKey }>
-
-const LOG_FILTER_TERMS: Record<string, string[]> = {
-  join: ['join', 'joined', 'topic'],
-  pull: ['pull', 'p2p'],
-  verify: ['verify', 'verified', 'integrity', 'download:success'],
-  serve: ['seed', 'seeding', 'holding', 'publish:success', 'topic:joined'],
-  error: ['error', 'failed', 'fail'],
-}
-
-function getNodeLogText(log: NodeLog) {
-  let dataText = ''
-  try {
-    dataText = JSON.stringify(log.data || {})
-  } catch {}
-
-  return [log.level, log.event, log.message, dataText]
-    .map(value => String(value || '').toLowerCase())
-    .join(' ')
-}
-
-function nodeLogMatchesFilter(log: NodeLog, filter: string) {
-  const normalized = String(filter || 'all')
-    .trim()
-    .toLowerCase()
-  if (!normalized || normalized === 'all') return true
-
-  const text = getNodeLogText(log)
-  if (normalized === 'error') {
-    return (
-      log.level === 'error' ||
-      LOG_FILTER_TERMS.error.some(term => text.includes(term))
-    )
-  }
-
-  const terms = LOG_FILTER_TERMS[normalized] || [normalized]
-  return terms.some(term => text.includes(term))
-}
-
-type SortState = false | 'asc' | 'desc'
-
 interface AdminDataTableProps<TData> {
   table: ReactTable<AdminTableFeatures, TData>
   className: string
   emptyText: string
   t: AdminTranslate
-}
-
-function getSortTitle(sort: SortState, t: AdminTranslate) {
-  if (sort === 'asc') return t('admin.table.sortDesc')
-  if (sort === 'desc') return t('admin.table.sortClear')
-  return t('admin.table.sortAsc')
 }
 
 function SortIcon({ sort }: { sort: SortState }) {
@@ -587,7 +414,7 @@ function AdminDataTable<TData>({
 }
 
 export default function AdminPage() {
-  const { t, locale, formatNumber, formatTime } = useI18n()
+  const { t, locale, formatNumber, formatDateTime } = useI18n()
   const hasBackend = useAppStore(s => s.hasBackend)
   const addToast = useAppStore(s => s.addToast)
   const userIdentity = useUserStore(s => s.identity)
@@ -601,6 +428,11 @@ export default function AdminPage() {
   const [isClearingLogs, setIsClearingLogs] = useState(false)
   const [isExportingDiagnostics, setIsExportingDiagnostics] = useState(false)
   const [logFilter, setLogFilter] = useState('all')
+  // The log websocket must survive a filter change: keep the live value in a
+  // ref so the message handler stays correct without re-subscribing the socket
+  // (which also re-fetched status, logs, users, and MCP clients).
+  const logFilterRef = useRef(logFilter)
+  logFilterRef.current = logFilter
   const [userSorting, setUserSorting] = useState<SortingState>([])
   const [userPagination, setUserPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -811,7 +643,11 @@ export default function AdminPage() {
         id: 'log-time',
         accessorFn: row => new Date(row.ts).getTime() || 0,
         header: t('admin.logs.time'),
-        cell: info => <time>{formatTime(info.row.original.ts)}</time>,
+        cell: info => (
+          <time dateTime={info.row.original.ts}>
+            {formatDateTime(info.row.original.ts)}
+          </time>
+        ),
       },
       {
         id: 'log-level',
@@ -839,7 +675,7 @@ export default function AdminPage() {
         cell: info => <span translate="no">{info.getValue<string>()}</span>,
       },
     ],
-    [formatTime, t]
+    [formatDateTime, t]
   )
   const userTable = useTable({
     features: ADMIN_TABLE_FEATURES,
@@ -1209,7 +1045,7 @@ export default function AdminPage() {
             setStatus(message.data)
           }
           if (message.event === 'node:log') {
-            if (nodeLogMatchesFilter(message.data, logFilter)) {
+            if (nodeLogMatchesFilter(message.data, logFilterRef.current)) {
               setLogs(prev => [message.data, ...prev].slice(0, LOG_LIMIT))
             }
           }
@@ -1230,7 +1066,7 @@ export default function AdminPage() {
       cancelled = true
       ws?.close()
     }
-  }, [isAdminAuthorized, isBackendReady, logFilter, userIdentity?.address])
+  }, [isAdminAuthorized, isBackendReady, userIdentity?.address])
 
   return (
     <>
@@ -1729,7 +1565,7 @@ export default function AdminPage() {
                             </code>
                             <span>
                               {t('admin.mcp.expiresAt')}:{' '}
-                              {formatDateTime(client.expiresAt, t)}
+                              {formatAdminDateTime(client.expiresAt, t)}
                               {' · '}
                               {t('admin.mcp.lastUsed')}:{' '}
                               {formatRecentTime(client.lastUsedAt, t, locale)}

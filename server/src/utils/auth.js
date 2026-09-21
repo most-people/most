@@ -1,21 +1,24 @@
+/**
+ * HTTP request authentication.
+ *
+ * The signed message format lives in `@most-box/protocol` because the mobile
+ * client must build the exact same string. This module keeps the daemon-side
+ * verification and header construction.
+ */
 import { verifyMessage } from 'ethers'
-import { normalizeAddress } from '../core/shared.js'
+import { AUTH_MAX_AGE_MS as SHARED_AUTH_MAX_AGE_MS } from '@most-box/protocol'
+import {
+  buildAuthMessage,
+  normalizeAddress,
+  normalizeAuthPath,
+} from '@most-box/protocol'
+
 import { mostSignMessage } from './mostWallet.js'
 
-export const AUTH_MAX_AGE_MS = 5 * 60 * 1000
+export const AUTH_MAX_AGE_MS = SHARED_AUTH_MAX_AGE_MS
 export { normalizeAddress }
 
-export function buildAuthMessage(timestamp, method, path) {
-  return `${timestamp}:${String(method || 'GET').toUpperCase()}:${normalizeAuthPath(path)}`
-}
-
-export function normalizeAuthPath(path) {
-  try {
-    return new URL(path, 'http://most.box').pathname
-  } catch {
-    return String(path || '').split('?')[0] || '/'
-  }
-}
+export { buildAuthMessage, normalizeAuthPath }
 
 export async function buildAuthHeaders(identity, method, path) {
   if (!identity?.danger) return {}

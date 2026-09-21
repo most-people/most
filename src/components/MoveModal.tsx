@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Folder, X } from 'lucide-react'
 import { ModalOverlay } from '~/components/ui'
 import { useI18n } from '~/lib/i18n'
+import { generateBreadcrumbs } from '~/features/files/fileTree'
 
 interface MoveItem {
   cid: string
@@ -19,20 +20,6 @@ interface MoveModalProps {
   currentPath: string
   onMove: (targetPath: string) => void
   onClose: () => void
-}
-
-function generateBreadcrumbs(currentPath: string, rootName: string) {
-  if (!currentPath) return []
-  return [
-    { path: '', name: rootName },
-    ...currentPath
-      .split('/')
-      .filter(Boolean)
-      .map((part, i, arr) => ({
-        path: arr.slice(0, i + 1).join('/'),
-        name: part,
-      })),
-  ]
 }
 
 export function MoveModal({

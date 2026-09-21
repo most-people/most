@@ -65,7 +65,6 @@ import { isChannelMemberJoinedSystemMessage } from '~/lib/channelMessages.js'
 import { useGlobalVoiceRoom } from '~/features/chat/GlobalVoiceRoom'
 import { ChatRestoringIndicator } from '~/features/chat/ChatRestoringIndicator'
 import { getLocalizedDownloadLinkValidationMessage } from '~/lib/i18n/downloadValidation'
-import { shortAddress } from '~/lib/format'
 import { saveFileToLocal } from '~/lib/saveLocalFile'
 import {
   applyHistoricalChannelMentionUnreadState,
@@ -86,7 +85,6 @@ import {
   finalizeMentionDraftForSend,
   getMentionTrigger,
   insertMentionIntoDraft,
-  messageMentionsAddress,
   updateMentionDraft,
 } from '~/lib/chatMentions.js'
 import {
@@ -117,7 +115,6 @@ import {
   getMentionCandidateBaseName,
   getRequestedChannelNameFromLocation,
   getSocketEventChannelKeys,
-  hasAddressSuffix,
   normalizeMemberAddress,
   shouldShowChannelMentionUnread,
   stringifyMemberTag,
@@ -131,6 +128,11 @@ import {
   type MentionDraft,
   type MentionTarget,
 } from './chatPageModel'
+import {
+  formatDisplayName,
+  getRenderableMentions,
+  isMessageMentioningCurrentUser,
+} from './chatDisplay'
 
 const ATTACHMENT_CHECK_TIMEOUT_MS = 10000
 const ATTACHMENT_CHECK_REQUEST_TIMEOUT_MS = ATTACHMENT_CHECK_TIMEOUT_MS + 2000
@@ -1891,16 +1893,6 @@ function ChatPage() {
     )
   }
 
-  function formatDisplayName(name?: string, address?: string) {
-    const displayName = String(name || '').trim()
-    if (!displayName) return shortAddress(address) || 'Unknown'
-    if (!showAddressSuffix) return displayName.replace(/#[a-fA-F0-9]{4}$/, '')
-    if (hasAddressSuffix(displayName)) return displayName
-    return address
-      ? `${displayName}#${address.slice(-4).toUpperCase()}`
-      : displayName
-  }
-
   function getMessageDisplayAuthor(message: ChannelMessage) {
     const address = normalizeMemberAddress(message.author)
     const presence = presenceByAddress.get(address)
@@ -1911,7 +1903,8 @@ function ChatPage() {
         persistedProfile?.displayName ||
         messageProfile?.displayName ||
         message.authorName,
-      message.author
+      message.author,
+      showAddressSuffix
     )
   }
 
@@ -2034,34 +2027,9 @@ function ChatPage() {
     return false
   }
 
-  function getRenderableMentions(msg: ChannelMessage) {
-    const content = String(msg.content || '')
-    const result: ChannelMention[] = []
-
-    if (Array.isArray(msg.mentions) && msg.mentions.length > 0) {
-      for (const mention of [...msg.mentions].sort(
-        (left, right) => left.start - right.start || left.end - right.end
-      )) {
-        if (mention.start < 0 || mention.end <= mention.start) continue
-        if (mention.start < (result[result.length - 1]?.end || 0)) continue
-        if (mention.end > content.length) continue
-        if (content.slice(mention.start, mention.end) !== `@${mention.label}`) {
-          continue
-        }
-        result.push(mention)
-      }
-      return result
-    }
-
-    return completeMentionDraftFromTargets(
-      { content, mentions: [] },
-      allMentionTargets
-    ).mentions
-  }
-
   function renderMessageTextContent(msg: ChannelMessage) {
     const content = String(msg.content || '')
-    const mentions = getRenderableMentions(msg)
+    const mentions = getRenderableMentions(msg, allMentionTargets)
     if (mentions.length === 0) return content
 
     const parts: React.ReactNode[] = []
@@ -2094,10 +2062,6 @@ function ChatPage() {
     }
 
     return parts
-  }
-
-  function isMessageMentioningCurrentUser(msg: ChannelMessage) {
-    return messageMentionsAddress(msg, userIdentity?.address)
   }
 
   const mentionTrigger =
@@ -2235,7 +2199,11 @@ function ChatPage() {
           const avatar = presence?.avatar || member.avatar
           return {
             id: member.address,
-            name: formatDisplayName(displayName, member.address),
+            name: formatDisplayName(
+              displayName,
+              member.address,
+              showAddressSuffix
+            ),
             tag: getMemberDisplayTag(member),
             avatarSrc: generateAvatar(member.address, avatar),
             online: onlineMemberAddressSet.has(
@@ -2514,7 +2482,10 @@ function ChatPage() {
                     avatarSrc={generateAvatar(msg.author, avatar)}
                     author={displayAuthor}
                     authorTag={displayTag}
-                    mentioned={!isSelf && isMessageMentioningCurrentUser(msg)}
+                    mentioned={
+                      !isSelf &&
+                      isMessageMentioningCurrentUser(msg, userIdentity?.address)
+                    }
                     time={formatTime(msg.timestamp)}
                   >
                     {renderMessageBubble(msg)}

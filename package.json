@@ -3,6 +3,9 @@
   "version": "0.5.4",
   "description": "MostBox - CID-first P2P file sharing, seeding, chat, and notes",
   "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
   "engines": {
     "node": ">=24"
   },
@@ -30,10 +33,11 @@
     "build": "vite build && node scripts/prepare-start-static.mjs",
     "preview": "vite preview",
     "serve": "npm run build && node server/index.js",
-    "test": "node --test server/tests/**/*.test.js",
+    "test": "node --test server/tests/**/*.test.js && npm run test:frontend && npm run test:ui",
     "test:unit": "node --test server/tests/unit/*.test.js",
     "test:desktop": "node --test electron/*.test.js",
     "test:frontend": "node --test src/tests/*.test.js",
+    "test:ui": "vitest run",
     "test:protocol": "node --test --test-name-pattern \"extracts CID and filename|matches golden CID samples|publishes a file from Buffer|lists published files|pulls through local seed nodes|fails within timeout when a connected topic peer has no content|relays text messages bidirectionally across a three-node line\" server/tests/unit/cid.test.js server/tests/integration/cid.test.js server/tests/integration/engine.test.js",
     "typecheck": "tsc -p tsconfig.typecheck.json",
     "typecheck:strict-router": "tsc -p tsconfig.strict-router.json",
@@ -101,6 +105,9 @@
     "@milkdown/kit": "^7.22.0",
     "@milkdown/utils": "^7.22.0",
     "@modelcontextprotocol/client": "^2.0.0",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.7",
     "@types/react": "^19.2.18",
     "@vitejs/plugin-react": "^6.0.5",
     "concurrently": "^10.0.4",
@@ -109,6 +116,7 @@
     "esbuild": "^0.28.1",
     "eslint": "^10.8.0",
     "globals": "^17.9.0",
+    "happy-dom": "^20.14.5",
     "hypercore": "^11.35.1",
     "hypercore-errors": "^1.5.0",
     "ky": "^2.0.2",
@@ -120,6 +128,7 @@
     "typescript": "6.0.3",
     "typescript-eslint": "^8.66.0",
     "vite": "^8.2.0",
+    "vitest": "^5.0.1",
     "wait-on": "^9.1.0",
     "zustand": "^5.0.14"
   },
