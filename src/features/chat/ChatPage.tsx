@@ -80,15 +80,7 @@ import {
   updateMentionDraft,
 } from '~/lib/chatMentions.js'
 import { fileApi } from '~/lib/fileApi'
-import {
-  CHANNEL_ID_MAX_LENGTH,
-  CHANNEL_ID_MIN_LENGTH,
-  CHANNEL_ID_REGEX,
-  buildChatSharePath,
-  buildChatShareUrl,
-  createRandomChannelId,
-  parseChatChannelInput,
-} from '~/lib/chatRoom.js'
+import { buildChatSharePath, buildChatShareUrl } from '~/lib/chatRoom.js'
 import {
   formatChannelMentionPreviewText,
   formatChannelMentionUnreadPreview,
@@ -119,6 +111,7 @@ import {
   isMessageMentioningCurrentUser,
 } from './chatDisplay'
 import { useChatNotifications } from './useChatNotifications'
+import { useChatChannels } from './useChatChannels'
 import {
   useChatAttachments,
   type ChatAttachmentPreviewItem,
@@ -537,6 +530,12 @@ function ChatPage() {
     }
   }, [activeChannel, activeChannelKey])
 
+  // Bridged both ways to break a cycle: useChannelMessages needs
+  // refreshChannels (from useChatChannels) for onReconnect, while
+  // useChatChannels needs clearMessages (from useChannelMessages) for leave.
+  const refreshChannelsRef = useRef<() => void>(() => {})
+  const clearChannelMessagesRef = useRef<() => void>(() => {})
+
   const {
     clearMessages: clearChannelMessages,
     messages: channelMessages,
@@ -553,7 +552,9 @@ function ChatPage() {
     onSyncError: err => showApiError(err, t('chat.error.messages')),
     onSocketEvent: handleChannelSocketEvent,
     onReconnect: () => {
-      refreshChannels()
+      // Bridged through a ref: refreshChannels comes from useChatChannels, which
+      // must be called after useChannelMessages because it needs clearMessages.
+      refreshChannelsRef.current?.()
       if (activeChannel) {
         void refreshChannelPresence(activeChannel)
         void refreshChannelMemberProfiles(activeChannel)
@@ -562,6 +563,52 @@ function ChatPage() {
     presenceEnabled: Boolean(activeChannel && userIdentity),
     presenceProfile,
   })
+
+  const {
+    getChannelNameValidationError,
+    getOpenChannelValidationError,
+    generateChannelId,
+    handleShowOpenChatModal,
+    refreshChannels,
+    handleOpenChannel,
+    handleLeaveChannel,
+    handleToggleChannelPin,
+    handleOpenChannelId,
+    handleSetRemark,
+    handleRenameChannel,
+  } = useChatChannels({
+    t,
+    addToast,
+    showApiError,
+    requireLogin,
+    requireBackendReady,
+    isBackendReady,
+    channels,
+    setChannels,
+    setActiveChannel,
+    setHasLoadedChannels,
+    setRequestedChannelName,
+    markChannelRead,
+    clearChannelMessagesRef,
+    isOpeningChannel,
+    setIsOpeningChannel,
+    isLeavingChannel,
+    setIsLeavingChannel,
+    isRenamingChannel,
+    setIsRenamingChannel,
+    activeChannel,
+    setChannelToLeave,
+    channelToRename,
+    setChannelToRename,
+    remarkInput,
+    userIdentity,
+    openChannelModal,
+    leaveChannelModal,
+    setOpenChatDefaultValue,
+  })
+
+  refreshChannelsRef.current = refreshChannels
+  clearChannelMessagesRef.current = clearChannelMessages
 
   useEffect(() => {
     syncMessagesRef.current = syncMessages
@@ -1224,212 +1271,6 @@ function ChatPage() {
     pendingAttachmentPreviewsRef.current.clear()
   }, [clearChannelMessages, userIdentity?.address])
 
-  function getChannelNameValidationError(name) {
-    if (name.length < CHANNEL_ID_MIN_LENGTH) {
-      return t('chat.validation.nameMin', {
-        count: CHANNEL_ID_MIN_LENGTH,
-      })
-    }
-    if (name.length > CHANNEL_ID_MAX_LENGTH) {
-      return t('chat.validation.nameMax', {
-        count: CHANNEL_ID_MAX_LENGTH,
-      })
-    }
-    if (name.includes('.')) {
-      return t('chat.validation.dotReserved')
-    }
-    if (!CHANNEL_ID_REGEX.test(name)) {
-      return t('chat.validation.allowedChars')
-    }
-    return ''
-  }
-
-  async function refreshChannels() {
-    if (!isBackendReady) {
-      setHasLoadedChannels(false)
-      return
-    }
-    try {
-      const result = await channelApi.getChannels()
-      setChannels(result)
-      setActiveChannel(prev => {
-        if (!prev) return prev
-        const updated = result.find(
-          channel => getChannelKey(channel) === getChannelKey(prev)
-        )
-        return updated || prev
-      })
-      setHasLoadedChannels(true)
-    } catch (err) {
-      setChannels([])
-      setHasLoadedChannels(false)
-      await showApiError(err, t('chat.error.channelList'))
-    }
-  }
-
-  async function handleOpenChannel(
-    channel: Channel,
-    options: { replaceHistory?: boolean } = {}
-  ) {
-    if (!requireLogin()) return
-    if (!requireBackendReady()) return
-    const channelKey = getChannelKey(channel)
-    markChannelRead(
-      channelKey,
-      Math.max(getChannelActivityTime(channel), Date.now())
-    )
-    setActiveChannel(channel)
-    const channelId = getChannelId(channel)
-    setRequestedChannelName(channelId)
-    if (options.replaceHistory) {
-      window.history.replaceState({}, '', buildChatSharePath(channelId))
-    } else {
-      window.history.pushState({}, '', buildChatSharePath(channelId))
-    }
-  }
-
-  async function handleLeaveChannel(
-    channelKey: string,
-    e?: React.MouseEvent<HTMLButtonElement>
-  ) {
-    if (e) e.stopPropagation()
-    if (!requireLogin()) return
-    if (!requireBackendReady()) return
-    if (isLeavingChannel) return
-    setIsLeavingChannel(true)
-    try {
-      await channelApi.leaveChannel(channelKey)
-      if (getChannelKey(activeChannel) === channelKey) {
-        setActiveChannel(null)
-        setRequestedChannelName('')
-        clearChannelMessages()
-        window.history.pushState({}, '', '/chat/')
-      }
-      refreshChannels()
-      leaveChannelModal.close()
-      setChannelToLeave(null)
-    } catch (err) {
-      await showApiError(err, t('chat.error.leave'))
-    } finally {
-      setIsLeavingChannel(false)
-    }
-  }
-
-  async function handleToggleChannelPin(channel: Channel) {
-    if (!requireLogin()) return
-    if (!requireBackendReady()) return
-    const nextPinned = !channel.pinned
-    const channelKey = getChannelKey(channel)
-    try {
-      const result = await channelApi.setChannelPinned(channelKey, nextPinned)
-      setChannels(prev =>
-        prev.map(item =>
-          getChannelKey(item) === channelKey
-            ? { ...item, pinned: result.pinned }
-            : item
-        )
-      )
-      setActiveChannel(prev =>
-        prev && getChannelKey(prev) === channelKey
-          ? { ...prev, pinned: result.pinned }
-          : prev
-      )
-    } catch (err) {
-      await showApiError(
-        err,
-        nextPinned ? t('chat.error.pin') : t('chat.error.unpin')
-      )
-    }
-  }
-
-  async function handleOpenChannelId(
-    channelName: string,
-    options: { replaceHistory?: boolean } = {}
-  ) {
-    const name = parseChatChannelInput(
-      channelName,
-      typeof window === 'undefined' ? undefined : window.location.origin
-    )
-    if (!name || isOpeningChannel) return
-    const validationError = getChannelNameValidationError(name)
-    if (validationError) {
-      addToast(validationError, 'error')
-      return
-    }
-    if (!requireLogin()) return
-    if (!requireBackendReady()) return
-    setIsOpeningChannel(true)
-    try {
-      const result = await channelApi.createChannel(
-        name,
-        'public',
-        getUserChannelProfile(userIdentity)
-      )
-      const resultKey = result.channelKey || result.key || result.name || name
-      const existingChannel = channels.find(
-        channel => getChannelKey(channel) === resultKey
-      )
-      const joinedChannel: Channel = {
-        ...existingChannel,
-        name: result.name || name,
-        channelId: result.channelId || result.name || name,
-        channelKey:
-          result.channelKey || result.key || existingChannel?.channelKey,
-        type: result.type || existingChannel?.type || 'public',
-        createdAt: result.createdAt || existingChannel?.createdAt,
-        coreKey: result.coreKey || result.key || existingChannel?.coreKey,
-        localWriterCoreKey:
-          result.localWriterCoreKey || existingChannel?.localWriterCoreKey,
-        writerCoreKeys:
-          result.writerCoreKeys || existingChannel?.writerCoreKeys,
-        remark: result.remark || existingChannel?.remark,
-      }
-      const joinedChannelKey = getChannelKey(joinedChannel)
-      setChannels(prev =>
-        prev.some(channel => getChannelKey(channel) === joinedChannelKey)
-          ? prev.map(channel =>
-              getChannelKey(channel) === joinedChannelKey
-                ? { ...channel, ...joinedChannel }
-                : channel
-            )
-          : [...prev, joinedChannel]
-      )
-      openChannelModal.close()
-      await handleOpenChannel(joinedChannel, options)
-      refreshChannels()
-    } catch (err) {
-      await showApiError(err, t('chat.error.open'))
-    } finally {
-      setIsOpeningChannel(false)
-    }
-  }
-
-  function getOpenChannelValidationError(value: string) {
-    const channelId = parseChatChannelInput(
-      value,
-      typeof window === 'undefined' ? undefined : window.location.origin
-    )
-    if (!channelId) return t('chat.validation.invalidShareLink')
-    return getChannelNameValidationError(channelId)
-  }
-
-  function generateChannelId() {
-    try {
-      return createRandomChannelId()
-    } catch {
-      addToast(t('chat.error.randomId'), 'error')
-      return ''
-    }
-  }
-
-  function handleShowOpenChatModal() {
-    if (!requireLogin() || !requireBackendReady()) return
-    const generatedChatId = generateChannelId()
-    if (!generatedChatId) return
-    setOpenChatDefaultValue(generatedChatId)
-    openChannelModal.open()
-  }
-
   async function sendChannelMessage(
     content: string,
     attachment?: ChannelAttachment,
@@ -1527,47 +1368,6 @@ function ChatPage() {
     pendingAttachmentPreviewsRef,
     activeAttachmentDownloadsRef,
   })
-
-  async function updateChannelRemark(channel: Channel, nextRemark: string) {
-    if (!requireLogin()) return
-    if (!requireBackendReady()) return
-
-    const channelKey = getChannelKey(channel)
-    const result = await channelApi.setChannelRemark(channelKey, nextRemark)
-    setChannels(prev =>
-      prev.map(c =>
-        getChannelKey(c) === channelKey ? { ...c, remark: result.remark } : c
-      )
-    )
-    setActiveChannel(prev =>
-      prev && getChannelKey(prev) === channelKey
-        ? { ...prev, remark: result.remark }
-        : prev
-    )
-    return result.remark
-  }
-
-  async function handleSetRemark() {
-    if (!activeChannel) return
-    try {
-      await updateChannelRemark(activeChannel, remarkInput)
-    } catch (err) {
-      await showApiError(err, t('chat.error.remark'))
-    }
-  }
-
-  async function handleRenameChannel(value: string) {
-    if (!channelToRename || isRenamingChannel) return
-    setIsRenamingChannel(true)
-    try {
-      await updateChannelRemark(channelToRename, value)
-      setChannelToRename(null)
-    } catch (err) {
-      await showApiError(err, t('chat.error.rename'))
-    } finally {
-      setIsRenamingChannel(false)
-    }
-  }
 
   function renderMessageBubble(msg: ChannelMessage) {
     if (!msg.attachment) {

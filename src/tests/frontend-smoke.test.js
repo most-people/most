@@ -60,6 +60,7 @@ const SOURCE_PATHS = {
   noteCss: 'src/styles/note.css',
   files: 'src/features/files/AppPage.tsx',
   chat: 'src/features/chat/ChatPage.tsx',
+  chatChannels: 'src/features/chat/useChatChannels.ts',
   chatAttachments: 'src/features/chat/useChatAttachments.ts',
   chatPageModel: 'src/features/chat/chatPageModel.ts',
   chatJoin: 'src/features/chat/ChatJoinPage.tsx',
@@ -1554,6 +1555,7 @@ describe('frontend smoke checks', () => {
 
   it('uses one open-channel flow for hash-based desktop chat capabilities', () => {
     const chatSource = readSource(SOURCE_PATHS.chat)
+    const chatChannelsSource = readSource(SOURCE_PATHS.chatChannels)
     const chatPageModelSource = readSource(SOURCE_PATHS.chatPageModel)
     const chatJoinSource = readSource(SOURCE_PATHS.chatJoin)
     const chatRoomSource = readSource(SOURCE_PATHS.chatRoom)
@@ -1570,10 +1572,15 @@ describe('frontend smoke checks', () => {
       /getChannelIdFromHash\(window\.location\.hash\)/
     )
     assert.match(chatSource, /window\.addEventListener\('hashchange'/)
-    assert.match(chatSource, /createRandomChannelId\(\)/)
-    assert.match(chatSource, /setOpenChatDefaultValue\(generatedChatId\)/)
+    // The open-channel flow lives in useChatChannels; ChatPage delegates to it.
+    assert.match(chatSource, /useChatChannels/)
+    assert.match(chatChannelsSource, /createRandomChannelId\(\)/)
+    assert.match(chatChannelsSource, /parseChatChannelInput/)
+    assert.match(
+      chatChannelsSource,
+      /setOpenChatDefaultValue\(generatedChatId\)/
+    )
     assert.match(chatSource, /defaultValue=\{openChatDefaultValue\}/)
-    assert.match(chatSource, /parseChatChannelInput/)
     assert.match(chatSource, /chat\.openChannel/)
     assert.match(inputModalSource, /onGenerateValue/)
     assert.doesNotMatch(
@@ -1582,7 +1589,8 @@ describe('frontend smoke checks', () => {
     )
     assert.doesNotMatch(`${chatSource}\n${chatJoinSource}`, /\?channel=/)
     assert.match(chatSource, /replaceHistory: true/)
-    assert.match(chatSource, /window\.history\.replaceState/)
+    // The history write itself moved into useChatChannels.
+    assert.match(chatChannelsSource, /window\.history\.replaceState/)
     assert.match(
       chatSource,
       /!previousBackendReadyRef\.current[\s\S]*autoJoinChannelAttemptsRef\.current\.clear\(\)/
