@@ -60,6 +60,7 @@ const SOURCE_PATHS = {
   noteCss: 'src/styles/note.css',
   files: 'src/features/files/AppPage.tsx',
   chat: 'src/features/chat/ChatPage.tsx',
+  chatAttachments: 'src/features/chat/useChatAttachments.ts',
   chatPageModel: 'src/features/chat/chatPageModel.ts',
   chatJoin: 'src/features/chat/ChatJoinPage.tsx',
   chatRoom: 'src/lib/chatRoom.js',
@@ -458,7 +459,6 @@ describe('frontend smoke checks', () => {
 
     const filesSource = readSource(SOURCE_PATHS.files)
     const cidSource = readSource(SOURCE_PATHS.cid)
-    const chatSource = readSource(SOURCE_PATHS.chat)
     assert.match(filesSource, /createCidRoutePathFromDownloadInput/)
     assert.match(filesSource, /buildCidSharePath\(file\.cid, file\.fileName\)/)
     assert.doesNotMatch(filesSource, /fileApi\.checkDownload/)
@@ -468,7 +468,12 @@ describe('frontend smoke checks', () => {
       cidSource,
       /fileApi\.downloadFileInBackground\(\s*mostLink,\s*isCollectionResult \? selectedCollectionPaths : undefined\s*\)/
     )
-    assert.match(chatSource, /fileApi\.downloadFile\(attachment\.link\)/)
+    // Chat attachment downloads moved into useChatAttachments; the assertion is
+    // that chat uses the foreground downloadFile path, not the background one.
+    assert.match(
+      readSource(SOURCE_PATHS.chatAttachments),
+      /fileApi\.downloadFile\(attachment\.link\)/
+    )
   })
 
   it('keeps knowledge-base attachments as parseable most:// Markdown references', async () => {
@@ -909,7 +914,6 @@ describe('frontend smoke checks', () => {
     const cidCssSource = readSource(SOURCE_PATHS.cidCss)
     const storeSource = readSource(SOURCE_PATHS.appStore)
     const appGlobalsSource = readSource(SOURCE_PATHS.appGlobals)
-    const chatSource = readSource(SOURCE_PATHS.chat)
     const { messages } = await importBundledSource('src/lib/i18n/messages.ts')
 
     assert.match(cidSource, /downloadTasksHydrated/)
@@ -957,7 +961,12 @@ describe('frontend smoke checks', () => {
     assert.match(cidCssSource, /env\(safe-area-inset-left\)/)
     assert.match(cidCssSource, /env\(safe-area-inset-bottom\)/)
     assert.match(appGlobalsSource, /<GlobalDownloadTasks \/>/)
-    assert.match(chatSource, /fileApi\.downloadFile\(attachment\.link\)/)
+    // Chat attachments use the foreground download path (see
+    // useChatAttachments), so the global tray must not claim them.
+    assert.match(
+      readSource(SOURCE_PATHS.chatAttachments),
+      /fileApi\.downloadFile\(attachment\.link\)/
+    )
 
     for (const locale of ['zh-CN', 'zh-TW', 'en']) {
       assert.equal(typeof messages[locale]['cid.tasks.title'], 'string')

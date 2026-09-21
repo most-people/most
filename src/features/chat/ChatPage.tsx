@@ -33,12 +33,7 @@ import { InputModal, ConfirmModal, ModalOverlay } from '~/components/ui'
 import OpenSidebarButton from '~/components/OpenSidebarButton'
 import { AppTop } from '~/components/AppTop'
 import { LogoIcon } from '~/components/icons/LogoIcon'
-import {
-  api,
-  getApiErrorMessage,
-  getApiRequestHeaders,
-} from '~server/src/utils/api'
-import { buildMostLink } from '~server/src/core/mostLink.js'
+import { api, getApiErrorMessage } from '~server/src/utils/api'
 import { getCachedAvatar } from '~/lib/avatarCache'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
@@ -53,7 +48,6 @@ import {
   type ChannelMessage,
   type ChannelPresence,
 } from '~/lib/channelApi'
-import { getFileSubtype, type FileSubtype } from '~/lib/filePreview'
 import { useI18n } from '~/lib/i18n'
 import { resolveAppearancePreference } from '~/lib/appearance'
 import {
@@ -64,8 +58,6 @@ import { selectLocalizedTag } from '~/lib/localizedTag'
 import { isChannelMemberJoinedSystemMessage } from '~/lib/channelMessages.js'
 import { useGlobalVoiceRoom } from '~/features/chat/GlobalVoiceRoom'
 import { ChatRestoringIndicator } from '~/features/chat/ChatRestoringIndicator'
-import { getLocalizedDownloadLinkValidationMessage } from '~/lib/i18n/downloadValidation'
-import { saveFileToLocal } from '~/lib/saveLocalFile'
 import {
   applyHistoricalChannelMentionUnreadState,
   applyIncomingChannelMentionUnreadState,
@@ -87,11 +79,7 @@ import {
   insertMentionIntoDraft,
   updateMentionDraft,
 } from '~/lib/chatMentions.js'
-import {
-  fileApi,
-  getPublishFileErrorMessage,
-  getPublishFileLimitViolation,
-} from '~/lib/fileApi'
+import { fileApi } from '~/lib/fileApi'
 import {
   CHANNEL_ID_MAX_LENGTH,
   CHANNEL_ID_MIN_LENGTH,
@@ -102,11 +90,9 @@ import {
   parseChatChannelInput,
 } from '~/lib/chatRoom.js'
 import {
-  CHAT_FILE_ROOT,
   formatChannelMentionPreviewText,
   formatChannelMentionUnreadPreview,
   formatMentionCandidateLabel,
-  getAttachmentKind,
   getChannelId,
   getChannelKey,
   getChannelTitle,
@@ -133,9 +119,11 @@ import {
   isMessageMentioningCurrentUser,
 } from './chatDisplay'
 import { useChatNotifications } from './useChatNotifications'
+import {
+  useChatAttachments,
+  type ChatAttachmentPreviewItem,
+} from './useChatAttachments'
 
-const ATTACHMENT_CHECK_TIMEOUT_MS = 10000
-const ATTACHMENT_CHECK_REQUEST_TIMEOUT_MS = ATTACHMENT_CHECK_TIMEOUT_MS + 2000
 const CHANNEL_HISTORY_SYNC_DEBOUNCE_MS = 800
 const CHANNEL_MENTION_UNREAD_SCAN_PAGE_SIZE = 100
 
@@ -176,11 +164,8 @@ function ChatPage() {
   const [showChannelDetail, setShowChannelDetail] = useState(false)
   const [remarkInput, setRemarkInput] = useState('')
   const [isRenamingChannel, setIsRenamingChannel] = useState(false)
-  const [previewItem, setPreviewItem] = useState<{
-    cid: string
-    fileName: string
-    subtype: FileSubtype
-  } | null>(null)
+  const [previewItem, setPreviewItem] =
+    useState<ChatAttachmentPreviewItem | null>(null)
   const [isSendingChannelMessage, setIsSendingChannelMessage] = useState(false)
   const [isPublishingAttachment, setIsPublishingAttachment] = useState(false)
   const [attachmentDownloadStatus, setAttachmentDownloadStatus] = useState<
@@ -1282,142 +1267,6 @@ function ChatPage() {
     }
   }
 
-  function openAttachmentPreview(
-    attachment: ChannelAttachment,
-    fileName = attachment.fileName
-  ) {
-    const subtype = getFileSubtype(fileName)
-    setPreviewItem({
-      cid: attachment.cid,
-      fileName,
-      subtype: subtype === 'file' ? attachment.kind : subtype,
-    })
-  }
-
-  async function handleSavePreviewItem(item: {
-    cid: string
-    fileName: string
-  }) {
-    if (!requireLogin()) return
-    if (!requireBackendReady()) return
-
-    try {
-      const result = await saveFileToLocal({
-        cid: item.cid,
-        fileName: item.fileName,
-        getFileDownloadUrl: fileApi.getFileDownloadUrl,
-        getRequestHeaders: getApiRequestHeaders,
-        loadFailedMessage: t('app.toast.getFileFailed'),
-      })
-      addToast(
-        result.method === 'picker'
-          ? t('app.toast.fileSaved')
-          : t('app.toast.fileDownloaded'),
-        'success'
-      )
-    } catch (err) {
-      if (err.name !== 'AbortError') {
-        addToast(t('app.saveFailedWithError', { error: err.message }), 'error')
-      }
-    }
-  }
-
-  async function checkAttachmentAvailability(attachment: ChannelAttachment) {
-    const validationMessage = getLocalizedDownloadLinkValidationMessage(
-      attachment.link,
-      t
-    )
-    if (validationMessage) {
-      setAttachmentDownloadStatus(prev => ({
-        ...prev,
-        [attachment.cid]: { status: 'error', message: validationMessage },
-      }))
-      return false
-    }
-
-    try {
-      setAttachmentDownloadStatus(prev => ({
-        ...prev,
-        [attachment.cid]: { status: 'checking' },
-      }))
-      const checkResult = await fileApi.checkDownload(attachment.link, {
-        timeout: ATTACHMENT_CHECK_TIMEOUT_MS,
-        requestTimeout: ATTACHMENT_CHECK_REQUEST_TIMEOUT_MS,
-      })
-      setAttachmentDownloadStatus(prev => ({
-        ...prev,
-        [attachment.cid]: {
-          status: checkResult.alreadyExists ? 'available' : 'ready',
-          message: checkResult.alreadyExists
-            ? t('chat.attachment.localAvailable')
-            : t('chat.attachment.downloadAvailable'),
-        },
-      }))
-      return true
-    } catch {
-      setAttachmentDownloadStatus(prev => ({
-        ...prev,
-        [attachment.cid]: {
-          status: 'error',
-          message: t('chat.attachment.noSeedsTitle'),
-        },
-      }))
-      return false
-    }
-  }
-
-  async function handleRetryAttachmentCheck(attachment: ChannelAttachment) {
-    setFailedAttachment(null)
-    const ok = await checkAttachmentAvailability(attachment)
-    if (ok) {
-      await startAttachmentDownload(attachment)
-    }
-  }
-
-  async function startAttachmentDownload(attachment: ChannelAttachment) {
-    if (activeAttachmentDownloadsRef.current.has(attachment.cid)) return
-    activeAttachmentDownloadsRef.current.add(attachment.cid)
-    setAttachmentDownloadStatus(prev => ({
-      ...prev,
-      [attachment.cid]: {
-        status: 'downloading',
-        message: t('chat.attachment.downloading'),
-      },
-    }))
-    try {
-      const result = await fileApi.downloadFile(attachment.link)
-      if (result.alreadyExists || result.fileName) {
-        activeAttachmentDownloadsRef.current.delete(attachment.cid)
-        setAttachmentDownloadStatus(prev => ({
-          ...prev,
-          [attachment.cid]: {
-            status: 'available',
-            message: t('chat.attachment.previewAvailable'),
-          },
-        }))
-        openAttachmentPreview(
-          { ...attachment, fileName: result.fileName || attachment.fileName },
-          result.fileName || attachment.fileName
-        )
-        return
-      }
-
-      if (result.taskId) {
-        pendingAttachmentPreviewsRef.current.set(result.taskId, attachment)
-        addToast(t('chat.attachment.downloadStarted'), 'success')
-      }
-    } catch {
-      activeAttachmentDownloadsRef.current.delete(attachment.cid)
-      setAttachmentDownloadStatus(prev => ({
-        ...prev,
-        [attachment.cid]: {
-          status: 'error',
-          message: t('chat.attachment.noSeedsTitle'),
-        },
-      }))
-    }
-  }
-
   async function handleOpenChannel(
     channel: Channel,
     options: { replaceHistory?: boolean } = {}
@@ -1655,96 +1504,29 @@ function ChatPage() {
     }
   }
 
-  function getChatAttachmentFileName(channelName: string, fileName: string) {
-    return `${CHAT_FILE_ROOT}/${channelName}/${fileName}`
-  }
-
-  async function handleSelectAttachmentFiles(files: FileList | File[] | null) {
-    if (!files || files.length === 0 || !activeChannel) return
-    if (!requireLogin()) return
-    if (!requireBackendReady()) return
-    if (isPublishingAttachment) return
-
-    setIsPublishingAttachment(true)
-    let activePublishFileName = ''
-    try {
-      const publishPolicy = await fileApi.getNodePolicy().catch(() => null)
-      for (const file of Array.from(files)) {
-        activePublishFileName = file.name
-        const limitMessage = getPublishFileLimitViolation(
-          file,
-          publishPolicy,
-          t
-        )
-        if (limitMessage) {
-          addToast(limitMessage, 'error')
-          continue
-        }
-
-        const targetFileName = getChatAttachmentFileName(
-          getChannelId(activeChannel),
-          file.name
-        )
-        const result = await fileApi.publishFile(file, targetFileName)
-        const fileName = result.fileName || targetFileName
-        const link = result.link || buildMostLink(result.cid, fileName)
-        const attachment: ChannelAttachment = {
-          kind: getAttachmentKind(file, fileName),
-          cid: result.cid,
-          fileName,
-          link,
-          mimeType: file.type || undefined,
-          size: file.size,
-        }
-        await sendChannelMessage(link, attachment)
-      }
-    } catch (err) {
-      addToast(
-        await getPublishFileErrorMessage(
-          err,
-          t('chat.error.attachmentSend'),
-          t,
-          activePublishFileName
-        ),
-        'error'
-      )
-    } finally {
-      setIsPublishingAttachment(false)
-    }
-  }
-
-  async function handleOpenAttachment(attachment: ChannelAttachment) {
-    if (!requireLogin()) return
-    if (!requireBackendReady()) return
-    const currentState = attachmentDownloadStatus[attachment.cid]
-    if (
-      currentState?.status === 'checking' ||
-      currentState?.status === 'downloading'
-    ) {
-      return
-    }
-
-    if (currentState?.status === 'error') {
-      setFailedAttachment(attachment)
-      return
-    }
-
-    if (
-      currentState?.status === 'ready' ||
-      currentState?.status === 'available'
-    ) {
-      await startAttachmentDownload(attachment)
-      return
-    }
-
-    if (!currentState) {
-      const ok = await checkAttachmentAvailability(attachment)
-      if (ok) {
-        await startAttachmentDownload(attachment)
-      }
-      return
-    }
-  }
+  const {
+    openAttachmentPreview,
+    handleSavePreviewItem,
+    handleRetryAttachmentCheck,
+    handleOpenAttachment,
+    handleSelectAttachmentFiles,
+  } = useChatAttachments({
+    t,
+    addToast,
+    requireLogin,
+    requireBackendReady,
+    // Read lazily so the hook always sees the current channel.
+    getActiveChannel: () => activeChannel,
+    sendChannelMessage,
+    setPreviewItem,
+    isPublishingAttachment,
+    setIsPublishingAttachment,
+    attachmentDownloadStatus,
+    setAttachmentDownloadStatus,
+    setFailedAttachment,
+    pendingAttachmentPreviewsRef,
+    activeAttachmentDownloadsRef,
+  })
 
   async function updateChannelRemark(channel: Channel, nextRemark: string) {
     if (!requireLogin()) return
