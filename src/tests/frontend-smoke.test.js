@@ -61,6 +61,7 @@ const SOURCE_PATHS = {
   files: 'src/features/files/AppPage.tsx',
   chat: 'src/features/chat/ChatPage.tsx',
   chatChannels: 'src/features/chat/useChatChannels.ts',
+  chatComposer: 'src/features/chat/useChatComposer.ts',
   chatAttachments: 'src/features/chat/useChatAttachments.ts',
   chatPageModel: 'src/features/chat/chatPageModel.ts',
   chatJoin: 'src/features/chat/ChatJoinPage.tsx',
@@ -1447,11 +1448,13 @@ describe('frontend smoke checks', () => {
     assert.match(chatSource, /getMessageDisplayTag/)
     assert.match(chatSource, /getMemberDisplayTag/)
     assert.match(chatSource, /useState\(-1\)/)
-    assert.match(chatSource, /if \(index < 0\) return false/)
+    // The mention-menu key handling moved into useChatComposer.
+    const composerSource = readSource(SOURCE_PATHS.chatComposer)
+    assert.match(composerSource, /if \(index < 0\) return false/)
     assert.match(chatSource, /setMentionSelectedIndex\(-1\)/)
-    assert.match(chatSource, /if \(mentionSelectedIndex < 0\) return false/)
+    assert.match(composerSource, /if \(mentionSelectedIndex < 0\) return false/)
     assert.match(
-      chatSource,
+      composerSource,
       /index < 0 \? 0 : \(index \+ 1\) % mentionCandidates\.length/
     )
     assert.match(chatUiSource, /authorTag\?: string/)
@@ -1515,10 +1518,17 @@ describe('frontend smoke checks', () => {
 
   it('locks the chat composer while a text message is being sent', () => {
     const chatSource = readSource(SOURCE_PATHS.chat)
+    const composerSource = readSource(SOURCE_PATHS.chatComposer)
     const componentSource = readSource('src/components/ChatUi.tsx')
-    const sendHandlerSource = chatSource.slice(
-      chatSource.indexOf('async function handleSendChannelMessage'),
-      chatSource.indexOf('async function handleSelectAttachmentFiles')
+    // The send handler lives in useChatComposer; asserting against that file
+    // avoids slicing by indexOf, which silently yields the wrong range when a
+    // boundary moves.
+    const sendHandlerSource = composerSource.slice(
+      composerSource.indexOf('const handleSendChannelMessage'),
+      composerSource.indexOf(
+        'return {',
+        composerSource.indexOf('const handleSendChannelMessage')
+      )
     )
 
     assert.match(chatSource, /const \[isSendingChannelMessage/)
