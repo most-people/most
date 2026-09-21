@@ -121,7 +121,16 @@ jobs:
         with:
           node-version: '24'
           cache: 'npm'
-          cache-dependency-path: mobile/app/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            mobile/app/package-lock.json
+
+      # The mobile app depends on the shared @most-box/protocol workspace through
+      # a `file:` link. Node resolves symlinked packages against their real path,
+      # so the package's own dependencies must exist above `packages/`, not only
+      # inside `mobile/app/node_modules`.
+      - name: Install root workspace dependencies
+        run: npm ci
 
       - name: Install Android package dependencies
         working-directory: mobile/app
