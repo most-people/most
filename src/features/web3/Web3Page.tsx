@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+﻿import type { ReactNode } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { HDNodeWallet } from 'ethers'
 import { KeyRound, Lock, User, Wallet } from 'lucide-react'
@@ -18,7 +18,7 @@ import {
   most25519,
 } from '~server/src/utils/mostWallet.js'
 import { getEdKeyPair } from '~server/src/utils/mp.js'
-import { generateAvatar } from '~server/src/utils/avatar.js'
+import { getCachedAvatar } from '~/lib/avatarCache'
 import { AsymmetricBoxView } from './components/AsymmetricBoxView'
 import { PemExportView } from './components/PemExportView'
 import { WalletExportView } from './components/WalletExportView'
@@ -314,7 +314,7 @@ export default function Web3Page() {
     setDeriveIndex(prev => prev + deriveBatch)
   }
 
-  const avatarSrc = generateAvatar(walletResult?.address || undefined)
+  const avatarSrc = getCachedAvatar(walletResult?.address || undefined)
   const viewTitleKey: MessageKey =
     currentView === 'wallet'
       ? 'web3.view.wallet'

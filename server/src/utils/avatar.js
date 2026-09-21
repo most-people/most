@@ -40,7 +40,13 @@ export function normalizeDefaultAvatarValue(avatar) {
   return id ? getDefaultAvatarPath(id) : ''
 }
 
-function createAddressAvatar(address) {
+/**
+ * Builds the deterministic DiceBear avatar for an address.
+ *
+ * Exported so the browser cache in `src/lib/avatarCache.ts` can be tested by
+ * asserting how often this expensive path actually runs.
+ */
+export function createAddressAvatar(address) {
   const avatar = new Avatar(new Style(botttsNeutralDefinition), {
     seed: 'most.box@' + address,
     flip: 'horizontal',

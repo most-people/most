@@ -35,11 +35,11 @@ import { useAccountBackup } from '~/features/profile/useAccountBackup'
 import { ProfileAppearanceSettings } from '~/features/profile/ProfileAppearanceSettings'
 import { api, getApiErrorMessage } from '~server/src/utils/api'
 import {
-  generateAvatar,
   getDefaultAvatarValue,
   isDefaultAvatarValue,
   normalizeDefaultAvatarValue,
 } from '~server/src/utils/avatar.js'
+import { getCachedAvatar } from '~/lib/avatarCache'
 import { most25519 } from '~server/src/utils/mostWallet.js'
 
 type AvatarOption = {
@@ -197,7 +197,7 @@ export default function ProfilePage() {
     ...(customAvatarValue ? [customAvatarOption] : []),
     ...avatarOptions.slice(1),
   ]
-  const avatarSrc = generateAvatar(identity.address, identity.avatar)
+  const avatarSrc = getCachedAvatar(identity.address, identity.avatar)
   const displayTag = selectLocalizedTag(identity.tag, locale)
   const canSaveAvatarUrl = avatarUrlDraft.trim().length > 0
   const backupStatusClass = getBackupStatusClass(accountBackup.status)
@@ -593,7 +593,7 @@ export default function ProfilePage() {
                       title={t(option.labelKey)}
                     >
                       <SafeImage
-                        src={generateAvatar(identity.address, option.value)}
+                        src={getCachedAvatar(identity.address, option.value)}
                         alt=""
                         referrerPolicy="no-referrer"
                       />

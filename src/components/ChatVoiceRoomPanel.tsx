@@ -1,4 +1,4 @@
-import {
+﻿import {
   Mic,
   MicOff,
   Minimize2,
@@ -7,7 +7,7 @@ import {
   Signal,
 } from 'lucide-react'
 import { SafeImage } from '~/components/SafeImage'
-import { generateAvatar } from '~server/src/utils/avatar.js'
+import { getCachedAvatar } from '~/lib/avatarCache'
 import { type VoiceParticipant } from '~/hooks/useVoiceRoom'
 import { useI18n } from '~/lib/i18n'
 
@@ -38,7 +38,7 @@ function VoiceMemberCard({ participant }: { participant: VoiceParticipant }) {
       <span className="chat-voice-avatar-wrap">
         <SafeImage
           className="chat-voice-avatar"
-          src={generateAvatar(participant.address, participant.avatar)}
+          src={getCachedAvatar(participant.address, participant.avatar)}
           alt="avatar"
           referrerPolicy="no-referrer"
         />

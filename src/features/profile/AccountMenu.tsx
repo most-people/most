@@ -1,14 +1,14 @@
-import { Link } from '@tanstack/react-router'
+﻿import { Link } from '@tanstack/react-router'
 import { User } from 'lucide-react'
 import { SafeImage } from '~/components/SafeImage'
 import { useI18n } from '~/lib/i18n'
 import { useUserStore } from '~/stores/userStore'
-import { generateAvatar } from '~server/src/utils/avatar.js'
+import { getCachedAvatar } from '~/lib/avatarCache'
 
 export function AccountMenuButton() {
   const { t } = useI18n()
   const identity = useUserStore(s => s.identity)
-  const avatarSrc = generateAvatar(identity?.address, identity?.avatar)
+  const avatarSrc = getCachedAvatar(identity?.address, identity?.avatar)
   const profileLabel = t('nav.profile')
 
   return (
