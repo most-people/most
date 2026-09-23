@@ -33,7 +33,12 @@ import { InputModal, ConfirmModal, ModalOverlay } from '~/components/ui'
 import OpenSidebarButton from '~/components/OpenSidebarButton'
 import { AppTop } from '~/components/AppTop'
 import { LogoIcon } from '~/components/icons/LogoIcon'
-import { api, getApiErrorMessage } from '~server/src/utils/api'
+import {
+  api,
+  getApiErrorMessage,
+  getApiRequestHeaders,
+} from '~server/src/utils/api'
+import { buildMostLink } from '~server/src/core/mostLink.js'
 import { getCachedAvatar } from '~/lib/avatarCache'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
@@ -48,6 +53,7 @@ import {
   type ChannelMessage,
   type ChannelPresence,
 } from '~/lib/channelApi'
+import { getFileSubtype, type FileSubtype } from '~/lib/filePreview'
 import { useI18n } from '~/lib/i18n'
 import { resolveAppearancePreference } from '~/lib/appearance'
 import {
@@ -58,6 +64,9 @@ import { selectLocalizedTag } from '~/lib/localizedTag'
 import { isChannelMemberJoinedSystemMessage } from '~/lib/channelMessages.js'
 import { useGlobalVoiceRoom } from '~/features/chat/GlobalVoiceRoom'
 import { ChatRestoringIndicator } from '~/features/chat/ChatRestoringIndicator'
+import { getLocalizedDownloadLinkValidationMessage } from '~/lib/i18n/downloadValidation'
+import { shortAddress } from '~/lib/format'
+import { saveFileToLocal } from '~/lib/saveLocalFile'
 import {
   applyHistoricalChannelMentionUnreadState,
   applyIncomingChannelMentionUnreadState,
@@ -72,13 +81,35 @@ import {
   readStoredChannelLastReadAt,
   writeStoredChannelLastReadAt,
 } from '~/lib/chatUnread.js'
-import { getMentionTrigger } from '~/lib/chatMentions.js'
-import { fileApi } from '~/lib/fileApi'
-import { buildChatSharePath, buildChatShareUrl } from '~/lib/chatRoom.js'
 import {
+  completeMentionDraftFromTargets,
+  finalizeMentionDraftForSend,
+  getMentionTrigger,
+  insertMentionIntoDraft,
+  messageMentionsAddress,
+  updateMentionDraft,
+} from '~/lib/chatMentions.js'
+import {
+  fileApi,
+  getPublishFileErrorMessage,
+  getPublishFileLimitViolation,
+} from '~/lib/fileApi'
+import {
+  CHANNEL_ID_MAX_LENGTH,
+  CHANNEL_ID_MIN_LENGTH,
+  CHANNEL_ID_REGEX,
+  buildChatSharePath,
+  buildChatShareUrl,
+  createRandomChannelId,
+  parseChatChannelInput,
+} from '~/lib/chatRoom.js'
+import {
+  CHAT_FILE_ROOT,
   formatChannelMentionPreviewText,
   formatChannelMentionUnreadPreview,
   formatMentionCandidateLabel,
+  getAttachmentKind,
+  getBrowserAudioContextConstructor,
   getChannelId,
   getChannelKey,
   getChannelTitle,
@@ -86,6 +117,7 @@ import {
   getMentionCandidateBaseName,
   getRequestedChannelNameFromLocation,
   getSocketEventChannelKeys,
+  hasAddressSuffix,
   normalizeMemberAddress,
   shouldShowChannelMentionUnread,
   stringifyMemberTag,
@@ -96,21 +128,13 @@ import {
   type ComposerSelection,
   type DisplayedChannelMemberProfile,
   type MentionCandidate,
+  type MentionDraft,
   type MentionTarget,
 } from './chatPageModel'
-import {
-  formatDisplayName,
-  getRenderableMentions,
-  isMessageMentioningCurrentUser,
-} from './chatDisplay'
-import { useChatNotifications } from './useChatNotifications'
-import { useChatChannels } from './useChatChannels'
-import { useChatComposer } from './useChatComposer'
-import {
-  useChatAttachments,
-  type ChatAttachmentPreviewItem,
-} from './useChatAttachments'
 
+const ATTACHMENT_CHECK_TIMEOUT_MS = 10000
+const ATTACHMENT_CHECK_REQUEST_TIMEOUT_MS = ATTACHMENT_CHECK_TIMEOUT_MS + 2000
+const CHAT_NOTIFICATION_SOUND_MIN_INTERVAL_MS = 1200
 const CHANNEL_HISTORY_SYNC_DEBOUNCE_MS = 800
 const CHANNEL_MENTION_UNREAD_SCAN_PAGE_SIZE = 100
 
@@ -151,8 +175,11 @@ function ChatPage() {
   const [showChannelDetail, setShowChannelDetail] = useState(false)
   const [remarkInput, setRemarkInput] = useState('')
   const [isRenamingChannel, setIsRenamingChannel] = useState(false)
-  const [previewItem, setPreviewItem] =
-    useState<ChatAttachmentPreviewItem | null>(null)
+  const [previewItem, setPreviewItem] = useState<{
+    cid: string
+    fileName: string
+    subtype: FileSubtype
+  } | null>(null)
   const [isSendingChannelMessage, setIsSendingChannelMessage] = useState(false)
   const [isPublishingAttachment, setIsPublishingAttachment] = useState(false)
   const [attachmentDownloadStatus, setAttachmentDownloadStatus] = useState<
@@ -203,6 +230,9 @@ function ChatPage() {
   const autoJoinChannelAttemptsRef = useRef(new Set<string>())
   const previousBackendReadyRef = useRef(false)
   const autoLoginPromptedChannelsRef = useRef(new Set<string>())
+  const notificationAudioContextRef = useRef<AudioContext | null>(null)
+  const notificationAudioUnlockedRef = useRef(false)
+  const lastNotificationSoundAtRef = useRef(0)
   const syncMessagesRef = useRef<
     (
       name?: string,
@@ -220,7 +250,6 @@ function ChatPage() {
   const isBackendReady = hasBackend === true
   const { t, compareStrings, formatDate, formatTime, locale } = useI18n()
   const voiceRoom = useGlobalVoiceRoom()
-  const { playNotificationSound } = useChatNotifications()
 
   const showApiError = useCallback(
     async (err: unknown, fallback: string) => {
@@ -262,6 +291,68 @@ function ChatPage() {
     },
     [channelReadStorageKey]
   )
+
+  const ensureNotificationAudioUnlocked = useCallback(() => {
+    if (notificationAudioUnlockedRef.current) return
+    if (typeof window === 'undefined') return
+    const AudioContextConstructor = getBrowserAudioContextConstructor()
+    if (!AudioContextConstructor) return
+
+    try {
+      const audioContext =
+        notificationAudioContextRef.current || new AudioContextConstructor()
+      notificationAudioContextRef.current = audioContext
+      if (audioContext.state === 'suspended') {
+        void audioContext.resume().catch(() => {})
+      }
+      notificationAudioUnlockedRef.current = true
+    } catch {}
+  }, [])
+
+  const playChannelNotificationSound = useCallback(() => {
+    if (!notificationAudioUnlockedRef.current) return
+    const now = Date.now()
+    if (
+      now - lastNotificationSoundAtRef.current <
+      CHAT_NOTIFICATION_SOUND_MIN_INTERVAL_MS
+    ) {
+      return
+    }
+    lastNotificationSoundAtRef.current = now
+
+    const AudioContextConstructor = getBrowserAudioContextConstructor()
+    if (!AudioContextConstructor) return
+
+    try {
+      const audioContext =
+        notificationAudioContextRef.current || new AudioContextConstructor()
+      notificationAudioContextRef.current = audioContext
+      if (audioContext.state === 'suspended') {
+        void audioContext.resume().catch(() => {})
+        return
+      }
+
+      const gain = audioContext.createGain()
+      gain.gain.setValueAtTime(0.0001, audioContext.currentTime)
+      gain.gain.exponentialRampToValueAtTime(
+        0.08,
+        audioContext.currentTime + 0.015
+      )
+      gain.gain.exponentialRampToValueAtTime(
+        0.0001,
+        audioContext.currentTime + 0.18
+      )
+      gain.connect(audioContext.destination)
+      ;[740, 980].forEach((frequency, index) => {
+        const oscillator = audioContext.createOscillator()
+        oscillator.type = 'sine'
+        oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime)
+        oscillator.connect(gain)
+        oscillator.start(audioContext.currentTime + index * 0.035)
+        oscillator.stop(audioContext.currentTime + 0.16 + index * 0.035)
+      })
+    } catch {}
+  }, [])
 
   const refreshChannelPresence = useCallback(
     async (channel = activeChannel) => {
@@ -388,7 +479,7 @@ function ChatPage() {
               writeStoredChannelLastReadAt(channelReadStorageKey, result.value)
             }
             if (result.notify) {
-              playNotificationSound()
+              playChannelNotificationSound()
             }
             return result.changed ? result.value : prev
           })
@@ -524,12 +615,6 @@ function ChatPage() {
     }
   }, [activeChannel, activeChannelKey])
 
-  // Bridged both ways to break a cycle: useChannelMessages needs
-  // refreshChannels (from useChatChannels) for onReconnect, while
-  // useChatChannels needs clearMessages (from useChannelMessages) for leave.
-  const refreshChannelsRef = useRef<() => void>(() => {})
-  const clearChannelMessagesRef = useRef<() => void>(() => {})
-
   const {
     clearMessages: clearChannelMessages,
     messages: channelMessages,
@@ -546,9 +631,7 @@ function ChatPage() {
     onSyncError: err => showApiError(err, t('chat.error.messages')),
     onSocketEvent: handleChannelSocketEvent,
     onReconnect: () => {
-      // Bridged through a ref: refreshChannels comes from useChatChannels, which
-      // must be called after useChannelMessages because it needs clearMessages.
-      refreshChannelsRef.current?.()
+      refreshChannels()
       if (activeChannel) {
         void refreshChannelPresence(activeChannel)
         void refreshChannelMemberProfiles(activeChannel)
@@ -557,52 +640,6 @@ function ChatPage() {
     presenceEnabled: Boolean(activeChannel && userIdentity),
     presenceProfile,
   })
-
-  const {
-    getChannelNameValidationError,
-    getOpenChannelValidationError,
-    generateChannelId,
-    handleShowOpenChatModal,
-    refreshChannels,
-    handleOpenChannel,
-    handleLeaveChannel,
-    handleToggleChannelPin,
-    handleOpenChannelId,
-    handleSetRemark,
-    handleRenameChannel,
-  } = useChatChannels({
-    t,
-    addToast,
-    showApiError,
-    requireLogin,
-    requireBackendReady,
-    isBackendReady,
-    channels,
-    setChannels,
-    setActiveChannel,
-    setHasLoadedChannels,
-    setRequestedChannelName,
-    markChannelRead,
-    clearChannelMessagesRef,
-    isOpeningChannel,
-    setIsOpeningChannel,
-    isLeavingChannel,
-    setIsLeavingChannel,
-    isRenamingChannel,
-    setIsRenamingChannel,
-    activeChannel,
-    setChannelToLeave,
-    channelToRename,
-    setChannelToRename,
-    remarkInput,
-    userIdentity,
-    openChannelModal,
-    leaveChannelModal,
-    setOpenChatDefaultValue,
-  })
-
-  refreshChannelsRef.current = refreshChannels
-  clearChannelMessagesRef.current = clearChannelMessages
 
   useEffect(() => {
     syncMessagesRef.current = syncMessages
@@ -1117,6 +1154,25 @@ function ChatPage() {
   }, [channelReadStorageKey, channels])
 
   useEffect(() => {
+    window.addEventListener('pointerdown', ensureNotificationAudioUnlocked, {
+      passive: true,
+    })
+    window.addEventListener('keydown', ensureNotificationAudioUnlocked)
+    return () => {
+      window.removeEventListener('pointerdown', ensureNotificationAudioUnlocked)
+      window.removeEventListener('keydown', ensureNotificationAudioUnlocked)
+    }
+  }, [ensureNotificationAudioUnlocked])
+
+  useEffect(() => {
+    return () => {
+      void notificationAudioContextRef.current?.close().catch(() => {})
+      notificationAudioContextRef.current = null
+      notificationAudioUnlockedRef.current = false
+    }
+  }, [])
+
+  useEffect(() => {
     channelMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [channelMessages])
 
@@ -1265,6 +1321,348 @@ function ChatPage() {
     pendingAttachmentPreviewsRef.current.clear()
   }, [clearChannelMessages, userIdentity?.address])
 
+  function getChannelNameValidationError(name) {
+    if (name.length < CHANNEL_ID_MIN_LENGTH) {
+      return t('chat.validation.nameMin', {
+        count: CHANNEL_ID_MIN_LENGTH,
+      })
+    }
+    if (name.length > CHANNEL_ID_MAX_LENGTH) {
+      return t('chat.validation.nameMax', {
+        count: CHANNEL_ID_MAX_LENGTH,
+      })
+    }
+    if (name.includes('.')) {
+      return t('chat.validation.dotReserved')
+    }
+    if (!CHANNEL_ID_REGEX.test(name)) {
+      return t('chat.validation.allowedChars')
+    }
+    return ''
+  }
+
+  async function refreshChannels() {
+    if (!isBackendReady) {
+      setHasLoadedChannels(false)
+      return
+    }
+    try {
+      const result = await channelApi.getChannels()
+      setChannels(result)
+      setActiveChannel(prev => {
+        if (!prev) return prev
+        const updated = result.find(
+          channel => getChannelKey(channel) === getChannelKey(prev)
+        )
+        return updated || prev
+      })
+      setHasLoadedChannels(true)
+    } catch (err) {
+      setChannels([])
+      setHasLoadedChannels(false)
+      await showApiError(err, t('chat.error.channelList'))
+    }
+  }
+
+  function openAttachmentPreview(
+    attachment: ChannelAttachment,
+    fileName = attachment.fileName
+  ) {
+    const subtype = getFileSubtype(fileName)
+    setPreviewItem({
+      cid: attachment.cid,
+      fileName,
+      subtype: subtype === 'file' ? attachment.kind : subtype,
+    })
+  }
+
+  async function handleSavePreviewItem(item: {
+    cid: string
+    fileName: string
+  }) {
+    if (!requireLogin()) return
+    if (!requireBackendReady()) return
+
+    try {
+      const result = await saveFileToLocal({
+        cid: item.cid,
+        fileName: item.fileName,
+        getFileDownloadUrl: fileApi.getFileDownloadUrl,
+        getRequestHeaders: getApiRequestHeaders,
+        loadFailedMessage: t('app.toast.getFileFailed'),
+      })
+      addToast(
+        result.method === 'picker'
+          ? t('app.toast.fileSaved')
+          : t('app.toast.fileDownloaded'),
+        'success'
+      )
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        addToast(t('app.saveFailedWithError', { error: err.message }), 'error')
+      }
+    }
+  }
+
+  async function checkAttachmentAvailability(attachment: ChannelAttachment) {
+    const validationMessage = getLocalizedDownloadLinkValidationMessage(
+      attachment.link,
+      t
+    )
+    if (validationMessage) {
+      setAttachmentDownloadStatus(prev => ({
+        ...prev,
+        [attachment.cid]: { status: 'error', message: validationMessage },
+      }))
+      return false
+    }
+
+    try {
+      setAttachmentDownloadStatus(prev => ({
+        ...prev,
+        [attachment.cid]: { status: 'checking' },
+      }))
+      const checkResult = await fileApi.checkDownload(attachment.link, {
+        timeout: ATTACHMENT_CHECK_TIMEOUT_MS,
+        requestTimeout: ATTACHMENT_CHECK_REQUEST_TIMEOUT_MS,
+      })
+      setAttachmentDownloadStatus(prev => ({
+        ...prev,
+        [attachment.cid]: {
+          status: checkResult.alreadyExists ? 'available' : 'ready',
+          message: checkResult.alreadyExists
+            ? t('chat.attachment.localAvailable')
+            : t('chat.attachment.downloadAvailable'),
+        },
+      }))
+      return true
+    } catch {
+      setAttachmentDownloadStatus(prev => ({
+        ...prev,
+        [attachment.cid]: {
+          status: 'error',
+          message: t('chat.attachment.noSeedsTitle'),
+        },
+      }))
+      return false
+    }
+  }
+
+  async function handleRetryAttachmentCheck(attachment: ChannelAttachment) {
+    setFailedAttachment(null)
+    const ok = await checkAttachmentAvailability(attachment)
+    if (ok) {
+      await startAttachmentDownload(attachment)
+    }
+  }
+
+  async function startAttachmentDownload(attachment: ChannelAttachment) {
+    if (activeAttachmentDownloadsRef.current.has(attachment.cid)) return
+    activeAttachmentDownloadsRef.current.add(attachment.cid)
+    setAttachmentDownloadStatus(prev => ({
+      ...prev,
+      [attachment.cid]: {
+        status: 'downloading',
+        message: t('chat.attachment.downloading'),
+      },
+    }))
+    try {
+      const result = await fileApi.downloadFile(attachment.link)
+      if (result.alreadyExists || result.fileName) {
+        activeAttachmentDownloadsRef.current.delete(attachment.cid)
+        setAttachmentDownloadStatus(prev => ({
+          ...prev,
+          [attachment.cid]: {
+            status: 'available',
+            message: t('chat.attachment.previewAvailable'),
+          },
+        }))
+        openAttachmentPreview(
+          { ...attachment, fileName: result.fileName || attachment.fileName },
+          result.fileName || attachment.fileName
+        )
+        return
+      }
+
+      if (result.taskId) {
+        pendingAttachmentPreviewsRef.current.set(result.taskId, attachment)
+        addToast(t('chat.attachment.downloadStarted'), 'success')
+      }
+    } catch {
+      activeAttachmentDownloadsRef.current.delete(attachment.cid)
+      setAttachmentDownloadStatus(prev => ({
+        ...prev,
+        [attachment.cid]: {
+          status: 'error',
+          message: t('chat.attachment.noSeedsTitle'),
+        },
+      }))
+    }
+  }
+
+  async function handleOpenChannel(
+    channel: Channel,
+    options: { replaceHistory?: boolean } = {}
+  ) {
+    if (!requireLogin()) return
+    if (!requireBackendReady()) return
+    const channelKey = getChannelKey(channel)
+    markChannelRead(
+      channelKey,
+      Math.max(getChannelActivityTime(channel), Date.now())
+    )
+    setActiveChannel(channel)
+    const channelId = getChannelId(channel)
+    setRequestedChannelName(channelId)
+    if (options.replaceHistory) {
+      window.history.replaceState({}, '', buildChatSharePath(channelId))
+    } else {
+      window.history.pushState({}, '', buildChatSharePath(channelId))
+    }
+  }
+
+  async function handleLeaveChannel(
+    channelKey: string,
+    e?: React.MouseEvent<HTMLButtonElement>
+  ) {
+    if (e) e.stopPropagation()
+    if (!requireLogin()) return
+    if (!requireBackendReady()) return
+    if (isLeavingChannel) return
+    setIsLeavingChannel(true)
+    try {
+      await channelApi.leaveChannel(channelKey)
+      if (getChannelKey(activeChannel) === channelKey) {
+        setActiveChannel(null)
+        setRequestedChannelName('')
+        clearChannelMessages()
+        window.history.pushState({}, '', '/chat/')
+      }
+      refreshChannels()
+      leaveChannelModal.close()
+      setChannelToLeave(null)
+    } catch (err) {
+      await showApiError(err, t('chat.error.leave'))
+    } finally {
+      setIsLeavingChannel(false)
+    }
+  }
+
+  async function handleToggleChannelPin(channel: Channel) {
+    if (!requireLogin()) return
+    if (!requireBackendReady()) return
+    const nextPinned = !channel.pinned
+    const channelKey = getChannelKey(channel)
+    try {
+      const result = await channelApi.setChannelPinned(channelKey, nextPinned)
+      setChannels(prev =>
+        prev.map(item =>
+          getChannelKey(item) === channelKey
+            ? { ...item, pinned: result.pinned }
+            : item
+        )
+      )
+      setActiveChannel(prev =>
+        prev && getChannelKey(prev) === channelKey
+          ? { ...prev, pinned: result.pinned }
+          : prev
+      )
+    } catch (err) {
+      await showApiError(
+        err,
+        nextPinned ? t('chat.error.pin') : t('chat.error.unpin')
+      )
+    }
+  }
+
+  async function handleOpenChannelId(
+    channelName: string,
+    options: { replaceHistory?: boolean } = {}
+  ) {
+    const name = parseChatChannelInput(
+      channelName,
+      typeof window === 'undefined' ? undefined : window.location.origin
+    )
+    if (!name || isOpeningChannel) return
+    const validationError = getChannelNameValidationError(name)
+    if (validationError) {
+      addToast(validationError, 'error')
+      return
+    }
+    if (!requireLogin()) return
+    if (!requireBackendReady()) return
+    setIsOpeningChannel(true)
+    try {
+      const result = await channelApi.createChannel(
+        name,
+        'public',
+        getUserChannelProfile(userIdentity)
+      )
+      const resultKey = result.channelKey || result.key || result.name || name
+      const existingChannel = channels.find(
+        channel => getChannelKey(channel) === resultKey
+      )
+      const joinedChannel: Channel = {
+        ...existingChannel,
+        name: result.name || name,
+        channelId: result.channelId || result.name || name,
+        channelKey:
+          result.channelKey || result.key || existingChannel?.channelKey,
+        type: result.type || existingChannel?.type || 'public',
+        createdAt: result.createdAt || existingChannel?.createdAt,
+        coreKey: result.coreKey || result.key || existingChannel?.coreKey,
+        localWriterCoreKey:
+          result.localWriterCoreKey || existingChannel?.localWriterCoreKey,
+        writerCoreKeys:
+          result.writerCoreKeys || existingChannel?.writerCoreKeys,
+        remark: result.remark || existingChannel?.remark,
+      }
+      const joinedChannelKey = getChannelKey(joinedChannel)
+      setChannels(prev =>
+        prev.some(channel => getChannelKey(channel) === joinedChannelKey)
+          ? prev.map(channel =>
+              getChannelKey(channel) === joinedChannelKey
+                ? { ...channel, ...joinedChannel }
+                : channel
+            )
+          : [...prev, joinedChannel]
+      )
+      openChannelModal.close()
+      await handleOpenChannel(joinedChannel, options)
+      refreshChannels()
+    } catch (err) {
+      await showApiError(err, t('chat.error.open'))
+    } finally {
+      setIsOpeningChannel(false)
+    }
+  }
+
+  function getOpenChannelValidationError(value: string) {
+    const channelId = parseChatChannelInput(
+      value,
+      typeof window === 'undefined' ? undefined : window.location.origin
+    )
+    if (!channelId) return t('chat.validation.invalidShareLink')
+    return getChannelNameValidationError(channelId)
+  }
+
+  function generateChannelId() {
+    try {
+      return createRandomChannelId()
+    } catch {
+      addToast(t('chat.error.randomId'), 'error')
+      return ''
+    }
+  }
+
+  function handleShowOpenChatModal() {
+    if (!requireLogin() || !requireBackendReady()) return
+    const generatedChatId = generateChannelId()
+    if (!generatedChatId) return
+    setOpenChatDefaultValue(generatedChatId)
+    openChannelModal.open()
+  }
+
   async function sendChannelMessage(
     content: string,
     attachment?: ChannelAttachment,
@@ -1308,29 +1706,168 @@ function ChatPage() {
     }
   }
 
-  const {
-    openAttachmentPreview,
-    handleSavePreviewItem,
-    handleRetryAttachmentCheck,
-    handleOpenAttachment,
-    handleSelectAttachmentFiles,
-  } = useChatAttachments({
-    t,
-    addToast,
-    requireLogin,
-    requireBackendReady,
-    // Read lazily so the hook always sees the current channel.
-    getActiveChannel: () => activeChannel,
-    sendChannelMessage,
-    setPreviewItem,
-    isPublishingAttachment,
-    setIsPublishingAttachment,
-    attachmentDownloadStatus,
-    setAttachmentDownloadStatus,
-    setFailedAttachment,
-    pendingAttachmentPreviewsRef,
-    activeAttachmentDownloadsRef,
-  })
+  async function handleSendChannelMessage() {
+    if (isSendingChannelMessageRef.current) return
+    const finalized = finalizeMentionDraftForSend({
+      content: channelInput,
+      mentions: channelMentions,
+    }) as MentionDraft
+    const completed = completeMentionDraftFromTargets(
+      finalized,
+      composerMentionTargets
+    ) as MentionDraft
+    if (!completed.content) return
+    isSendingChannelMessageRef.current = true
+    setIsSendingChannelMessage(true)
+    try {
+      const sent = await sendChannelMessage(
+        completed.content,
+        undefined,
+        completed.mentions
+      )
+      if (!sent) return
+      setChannelInput('')
+      setChannelMentions([])
+      setComposerSelection({ start: 0, end: 0 })
+      setDismissedMentionTriggerKey('')
+      setMentionSelectedIndex(0)
+    } finally {
+      isSendingChannelMessageRef.current = false
+      setIsSendingChannelMessage(false)
+    }
+  }
+
+  function getChatAttachmentFileName(channelName: string, fileName: string) {
+    return `${CHAT_FILE_ROOT}/${channelName}/${fileName}`
+  }
+
+  async function handleSelectAttachmentFiles(files: FileList | File[] | null) {
+    if (!files || files.length === 0 || !activeChannel) return
+    if (!requireLogin()) return
+    if (!requireBackendReady()) return
+    if (isPublishingAttachment) return
+
+    setIsPublishingAttachment(true)
+    let activePublishFileName = ''
+    try {
+      const publishPolicy = await fileApi.getNodePolicy().catch(() => null)
+      for (const file of Array.from(files)) {
+        activePublishFileName = file.name
+        const limitMessage = getPublishFileLimitViolation(
+          file,
+          publishPolicy,
+          t
+        )
+        if (limitMessage) {
+          addToast(limitMessage, 'error')
+          continue
+        }
+
+        const targetFileName = getChatAttachmentFileName(
+          getChannelId(activeChannel),
+          file.name
+        )
+        const result = await fileApi.publishFile(file, targetFileName)
+        const fileName = result.fileName || targetFileName
+        const link = result.link || buildMostLink(result.cid, fileName)
+        const attachment: ChannelAttachment = {
+          kind: getAttachmentKind(file, fileName),
+          cid: result.cid,
+          fileName,
+          link,
+          mimeType: file.type || undefined,
+          size: file.size,
+        }
+        await sendChannelMessage(link, attachment)
+      }
+    } catch (err) {
+      addToast(
+        await getPublishFileErrorMessage(
+          err,
+          t('chat.error.attachmentSend'),
+          t,
+          activePublishFileName
+        ),
+        'error'
+      )
+    } finally {
+      setIsPublishingAttachment(false)
+    }
+  }
+
+  async function handleOpenAttachment(attachment: ChannelAttachment) {
+    if (!requireLogin()) return
+    if (!requireBackendReady()) return
+    const currentState = attachmentDownloadStatus[attachment.cid]
+    if (
+      currentState?.status === 'checking' ||
+      currentState?.status === 'downloading'
+    ) {
+      return
+    }
+
+    if (currentState?.status === 'error') {
+      setFailedAttachment(attachment)
+      return
+    }
+
+    if (
+      currentState?.status === 'ready' ||
+      currentState?.status === 'available'
+    ) {
+      await startAttachmentDownload(attachment)
+      return
+    }
+
+    if (!currentState) {
+      const ok = await checkAttachmentAvailability(attachment)
+      if (ok) {
+        await startAttachmentDownload(attachment)
+      }
+      return
+    }
+  }
+
+  async function updateChannelRemark(channel: Channel, nextRemark: string) {
+    if (!requireLogin()) return
+    if (!requireBackendReady()) return
+
+    const channelKey = getChannelKey(channel)
+    const result = await channelApi.setChannelRemark(channelKey, nextRemark)
+    setChannels(prev =>
+      prev.map(c =>
+        getChannelKey(c) === channelKey ? { ...c, remark: result.remark } : c
+      )
+    )
+    setActiveChannel(prev =>
+      prev && getChannelKey(prev) === channelKey
+        ? { ...prev, remark: result.remark }
+        : prev
+    )
+    return result.remark
+  }
+
+  async function handleSetRemark() {
+    if (!activeChannel) return
+    try {
+      await updateChannelRemark(activeChannel, remarkInput)
+    } catch (err) {
+      await showApiError(err, t('chat.error.remark'))
+    }
+  }
+
+  async function handleRenameChannel(value: string) {
+    if (!channelToRename || isRenamingChannel) return
+    setIsRenamingChannel(true)
+    try {
+      await updateChannelRemark(channelToRename, value)
+      setChannelToRename(null)
+    } catch (err) {
+      await showApiError(err, t('chat.error.rename'))
+    } finally {
+      setIsRenamingChannel(false)
+    }
+  }
 
   function renderMessageBubble(msg: ChannelMessage) {
     if (!msg.attachment) {
@@ -1354,6 +1891,16 @@ function ChatPage() {
     )
   }
 
+  function formatDisplayName(name?: string, address?: string) {
+    const displayName = String(name || '').trim()
+    if (!displayName) return shortAddress(address) || 'Unknown'
+    if (!showAddressSuffix) return displayName.replace(/#[a-fA-F0-9]{4}$/, '')
+    if (hasAddressSuffix(displayName)) return displayName
+    return address
+      ? `${displayName}#${address.slice(-4).toUpperCase()}`
+      : displayName
+  }
+
   function getMessageDisplayAuthor(message: ChannelMessage) {
     const address = normalizeMemberAddress(message.author)
     const presence = presenceByAddress.get(address)
@@ -1364,8 +1911,7 @@ function ChatPage() {
         persistedProfile?.displayName ||
         messageProfile?.displayName ||
         message.authorName,
-      message.author,
-      showAddressSuffix
+      message.author
     )
   }
 
@@ -1397,9 +1943,125 @@ function ChatPage() {
     return selectLocalizedTag(message.authorTag, locale)
   }
 
+  function handleChannelInputChange(
+    value: string,
+    selectionStart = value.length,
+    selectionEnd = selectionStart
+  ) {
+    const draft = updateMentionDraft(
+      { content: channelInput, mentions: channelMentions },
+      value
+    ) as MentionDraft
+    setChannelInput(draft.content)
+    setChannelMentions(draft.mentions)
+    setComposerSelection({ start: selectionStart, end: selectionEnd })
+    setDismissedMentionTriggerKey('')
+  }
+
+  function handleComposerSelectionChange(
+    selectionStart: number,
+    selectionEnd: number
+  ) {
+    setComposerSelection({ start: selectionStart, end: selectionEnd })
+  }
+
+  function focusComposerAt(caret: number) {
+    window.requestAnimationFrame(() => {
+      channelComposerInputRef.current?.focus()
+      channelComposerInputRef.current?.setSelectionRange(caret, caret)
+      setComposerSelection({ start: caret, end: caret })
+    })
+  }
+
+  function selectMentionCandidate(index = mentionSelectedIndex) {
+    if (!mentionTrigger || mentionCandidates.length === 0) return false
+    if (index < 0) return false
+    const candidate =
+      mentionCandidates[
+        Math.max(0, Math.min(index, mentionCandidates.length - 1))
+      ]
+    if (!candidate) return false
+
+    const result = insertMentionIntoDraft(
+      { content: channelInput, mentions: channelMentions },
+      candidate,
+      mentionTrigger.start,
+      mentionTrigger.end
+    ) as { draft: MentionDraft; caret: number }
+    setChannelInput(result.draft.content)
+    setChannelMentions(result.draft.mentions)
+    setDismissedMentionTriggerKey('')
+    setMentionSelectedIndex(-1)
+    focusComposerAt(result.caret)
+    return true
+  }
+
+  function handleComposerKeyDown(
+    event: React.KeyboardEvent<HTMLTextAreaElement>
+  ) {
+    if (!isMentionMenuOpen) return false
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setMentionSelectedIndex(index =>
+        index < 0 ? 0 : (index + 1) % mentionCandidates.length
+      )
+      return true
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setMentionSelectedIndex(index =>
+        index < 0
+          ? mentionCandidates.length - 1
+          : (index - 1 + mentionCandidates.length) % mentionCandidates.length
+      )
+      return true
+    }
+
+    if (event.key === 'Enter' || event.key === 'Tab') {
+      if (mentionSelectedIndex < 0) return false
+      event.preventDefault()
+      return selectMentionCandidate()
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      setDismissedMentionTriggerKey(mentionTriggerKey)
+      return true
+    }
+
+    return false
+  }
+
+  function getRenderableMentions(msg: ChannelMessage) {
+    const content = String(msg.content || '')
+    const result: ChannelMention[] = []
+
+    if (Array.isArray(msg.mentions) && msg.mentions.length > 0) {
+      for (const mention of [...msg.mentions].sort(
+        (left, right) => left.start - right.start || left.end - right.end
+      )) {
+        if (mention.start < 0 || mention.end <= mention.start) continue
+        if (mention.start < (result[result.length - 1]?.end || 0)) continue
+        if (mention.end > content.length) continue
+        if (content.slice(mention.start, mention.end) !== `@${mention.label}`) {
+          continue
+        }
+        result.push(mention)
+      }
+      return result
+    }
+
+    return completeMentionDraftFromTargets(
+      { content, mentions: [] },
+      allMentionTargets
+    ).mentions
+  }
+
   function renderMessageTextContent(msg: ChannelMessage) {
     const content = String(msg.content || '')
-    const mentions = getRenderableMentions(msg, allMentionTargets)
+    const mentions = getRenderableMentions(msg)
     if (mentions.length === 0) return content
 
     const parts: React.ReactNode[] = []
@@ -1432,6 +2094,10 @@ function ChatPage() {
     }
 
     return parts
+  }
+
+  function isMessageMentioningCurrentUser(msg: ChannelMessage) {
+    return messageMentionsAddress(msg, userIdentity?.address)
   }
 
   const mentionTrigger =
@@ -1510,34 +2176,6 @@ function ChatPage() {
     setMentionSelectedIndex(-1)
   }, [mentionTriggerKey, mentionCandidates.length])
 
-  const {
-    handleChannelInputChange,
-    handleComposerSelectionChange,
-    selectMentionCandidate,
-    handleComposerKeyDown,
-    handleSendChannelMessage,
-  } = useChatComposer({
-    channelInput,
-    setChannelInput,
-    channelMentions,
-    setChannelMentions,
-    composerSelection,
-    setComposerSelection,
-    setDismissedMentionTriggerKey,
-    dismissedMentionTriggerKey,
-    mentionTriggerKey,
-    mentionSelectedIndex,
-    setMentionSelectedIndex,
-    isMentionMenuOpen,
-    mentionTrigger,
-    mentionCandidates,
-    composerMentionTargets,
-    composerInputRef: channelComposerInputRef,
-    isSendingChannelMessageRef,
-    setIsSendingChannelMessage,
-    sendChannelMessage,
-  })
-
   const mentionMenu = isMentionMenuOpen ? (
     <div
       className="chat-mention-menu ui-glass-surface ui-glass-surface-elevated"
@@ -1597,11 +2235,7 @@ function ChatPage() {
           const avatar = presence?.avatar || member.avatar
           return {
             id: member.address,
-            name: formatDisplayName(
-              displayName,
-              member.address,
-              showAddressSuffix
-            ),
+            name: formatDisplayName(displayName, member.address),
             tag: getMemberDisplayTag(member),
             avatarSrc: getCachedAvatar(member.address, avatar),
             online: onlineMemberAddressSet.has(
@@ -1880,10 +2514,7 @@ function ChatPage() {
                     avatarSrc={getCachedAvatar(msg.author, avatar)}
                     author={displayAuthor}
                     authorTag={displayTag}
-                    mentioned={
-                      !isSelf &&
-                      isMessageMentioningCurrentUser(msg, userIdentity?.address)
-                    }
+                    mentioned={!isSelf && isMessageMentioningCurrentUser(msg)}
                     time={formatTime(msg.timestamp)}
                   >
                     {renderMessageBubble(msg)}

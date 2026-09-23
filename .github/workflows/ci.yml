@@ -33,8 +33,8 @@ jobs:
       - name: Check synchronized versions
         run: npm run check:versions
 
-      - name: Run shared protocol vectors
-        run: npx vitest run packages/protocol
+      - name: Run frontend smoke tests
+        run: npm run test:frontend
 
       - name: Run desktop tests
         run: npm run test:desktop
@@ -121,16 +121,7 @@ jobs:
         with:
           node-version: '24'
           cache: 'npm'
-          cache-dependency-path: |
-            package-lock.json
-            mobile/app/package-lock.json
-
-      # The mobile app depends on the shared @most-box/protocol workspace through
-      # a `file:` link. Node resolves symlinked packages against their real path,
-      # so the package's own dependencies must exist above `packages/`, not only
-      # inside `mobile/app/node_modules`.
-      - name: Install root workspace dependencies
-        run: npm ci
+          cache-dependency-path: mobile/app/package-lock.json
 
       - name: Install Android package dependencies
         working-directory: mobile/app

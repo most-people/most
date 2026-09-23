@@ -25,39 +25,6 @@ export const chatMessages = {
     en: 'Channel name',
   },
   'chat.join': { 'zh-CN': '加入', 'zh-TW': '加入', en: 'Join' },
-  'chat.search': {
-    'zh-CN': '搜索会话',
-    'zh-TW': '搜尋會話',
-    en: 'Search chats',
-  },
-  'chat.newConversation': {
-    'zh-CN': '新建聊天',
-    'zh-TW': '新增聊天',
-    en: 'New chat',
-  },
-  'chat.create': {
-    'zh-CN': '创建频道',
-    'zh-TW': '建立頻道',
-    en: 'Create channel',
-  },
-  'chat.pin': { 'zh-CN': '置顶聊天', 'zh-TW': '置頂聊天', en: 'Pin chat' },
-  'chat.unpin': { 'zh-CN': '取消置顶', 'zh-TW': '取消置頂', en: 'Unpin chat' },
-  'chat.mute': {
-    'zh-CN': '消息免打扰',
-    'zh-TW': '訊息免打擾',
-    en: 'Mute notifications',
-  },
-  'chat.unmute': {
-    'zh-CN': '开启通知',
-    'zh-TW': '開啟通知',
-    en: 'Unmute notifications',
-  },
-  'chat.markRead': {
-    'zh-CN': '标为已读',
-    'zh-TW': '標為已讀',
-    en: 'Mark as read',
-  },
-  'chat.draft': { 'zh-CN': '[草稿] ', 'zh-TW': '[草稿] ', en: '[Draft] ' },
   'chat.chooseChannel': {
     'zh-CN': '加入或选择一个频道开始聊天',
     'zh-TW': '加入或選擇一個頻道開始聊天',
@@ -73,36 +40,6 @@ export const chatMessages = {
     'zh-CN': '发送文件附件',
     'zh-TW': '傳送檔案附件',
     en: 'Send file attachment',
-  },
-  'chat.attachmentType': {
-    'zh-CN': '选择发送内容',
-    'zh-TW': '選擇傳送內容',
-    en: 'Choose what to send',
-  },
-  'chat.attachment.image': {
-    'zh-CN': '图片',
-    'zh-TW': '圖片',
-    en: 'Image',
-  },
-  'chat.attachment.video': {
-    'zh-CN': '视频',
-    'zh-TW': '影片',
-    en: 'Video',
-  },
-  'chat.attachment.file': {
-    'zh-CN': '文件',
-    'zh-TW': '檔案',
-    en: 'File',
-  },
-  'chat.attachment.open': {
-    'zh-CN': '点击下载或预览',
-    'zh-TW': '點擊下載或預覽',
-    en: 'Tap to download or preview',
-  },
-  'chat.voice.menu': {
-    'zh-CN': '语音',
-    'zh-TW': '語音',
-    en: 'Voice',
   },
   'chat.attachmentLabel': {
     'zh-CN': '附件：{fileName}',

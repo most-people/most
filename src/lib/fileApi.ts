@@ -13,7 +13,7 @@ import {
 import type { MessageKey } from '~/lib/i18n'
 import type { ActiveDownloadTask } from '~/lib/downloadTasks'
 
-export interface MostFileRecord {
+interface MostFileRecord {
   cid: string
   fileName: string
   kind?: 'file' | 'collection'

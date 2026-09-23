@@ -3,10 +3,7 @@ import Corestore from 'corestore'
 import Hyperdrive from 'hyperdrive'
 import Hyperswarm from 'hyperswarm'
 import { importer } from 'ipfs-unixfs-importer'
-// Subpath imports on purpose: the package root also re-exports the ethers-based
-// account derivation, and ethers pulls in `node:net`, which Bare cannot resolve.
-import { getCidInfo as getSharedCidInfo } from '@most-box/protocol/cid-topic'
-import { buildMostLink } from '@most-box/protocol/most-link'
+import { CID } from 'multiformats/cid'
 import {
   CHANNEL_CANDIDATE_TTL,
   CHANNEL_DISCOVERY_TIMEOUT,
@@ -222,7 +219,35 @@ function splitMostLink(link) {
 }
 
 function getCidInfo(cid) {
-  return getSharedCidInfo(cid)
+  let parsed
+  try {
+    parsed = CID.parse(String(cid || ''))
+  } catch {
+    throw new Error('Invalid CID format')
+  }
+
+  if (parsed.version !== 1) {
+    throw new Error('CID v1 required')
+  }
+
+  const topic = b4a.from(parsed.multihash.digest)
+  if (topic.byteLength !== 32) {
+    throw new Error('CID digest must be 32 bytes')
+  }
+
+  const topicHex = b4a.toString(topic, 'hex')
+  return {
+    cid: parsed.toString(),
+    topic,
+    topicHex,
+    driveName: `drive-${topicHex}`,
+  }
+}
+
+function buildMostLink(cid, fileName) {
+  const cleanName = String(fileName || '').trim()
+  if (!cleanName) return `most://${cid}`
+  return `most://${cid}?filename=${encodeURIComponent(cleanName)}`
 }
 
 function normalizeFileUri(uri) {

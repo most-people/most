@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: write
-  id-token: write
 
 jobs:
   test:
@@ -36,8 +35,8 @@ jobs:
       - name: Run tests
         run: npm test
 
-      - name: Run shared protocol vectors
-        run: npx vitest run packages/protocol
+      - name: Run frontend smoke tests
+        run: npm run test:frontend
 
       - name: Run desktop update tests
         run: npm run test:desktop
@@ -108,6 +107,8 @@ jobs:
       - name: Publish to npm
         if: steps.npm-version.outputs.exists != 'true'
         run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   build-win:
     name: Build Windows
@@ -263,16 +264,8 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        run: |
-          sdk="${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}"
-          echo "ANDROID_HOME=$sdk" >> "$GITHUB_ENV"
-          echo "ANDROID_SDK_ROOT=$sdk" >> "$GITHUB_ENV"
-          if [ -d "$sdk/licenses" ]; then
-            echo "Android SDK licenses already accepted"
-          else
-            yes | "$sdk/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
-          fi
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4.0.1
 
       - name: Install Android dependencies
         run: npm ci --prefix mobile/app

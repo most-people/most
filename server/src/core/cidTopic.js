@@ -1,22 +1,48 @@
-/**
- * Derives the Hyperswarm topic and Hyperdrive namespace for a CID.
- *
- * The derivation is shared with the mobile app through `@most-box/protocol`.
- * This wrapper only injects the daemon's `ValidationError` subclass so HTTP
- * error mapping keeps working; the topic rules themselves are not duplicated.
- */
-import {
-  CID_TOPIC_JOIN_OPTIONS,
-  getCidInfo as getSharedCidInfo,
-} from '@most-box/protocol'
-
+import b4a from 'b4a'
+import { CID } from 'multiformats/cid'
+import { MOST_LINK_ERROR_CODES, validateCidString } from './cid.js'
 import { ValidationError } from '../utils/errors.js'
 
-export { CID_TOPIC_JOIN_OPTIONS }
+const CID_INFO_ERROR_MESSAGES = {
+  [MOST_LINK_ERROR_CODES.CID_EMPTY]: 'CID is required',
+  [MOST_LINK_ERROR_CODES.INVALID_CID_FORMAT]: 'Invalid CID format',
+  [MOST_LINK_ERROR_CODES.CID_V1_REQUIRED]: 'CID v1 required',
+  [MOST_LINK_ERROR_CODES.CID_DIGEST_LENGTH]: 'CID digest must be 32 bytes',
+}
+
+export const CID_TOPIC_JOIN_OPTIONS = Object.freeze({
+  server: true,
+  client: true,
+})
+
+function cidValidationError(errorCode) {
+  return new ValidationError(
+    CID_INFO_ERROR_MESSAGES[errorCode] || errorCode,
+    errorCode
+  )
+}
 
 export function getCidInfo(cid) {
-  return getSharedCidInfo(cid, {
-    createValidationError: (message, errorCode) =>
-      new ValidationError(message, errorCode),
-  })
+  try {
+    const validation = validateCidString(cid)
+    if (!validation.valid) {
+      throw cidValidationError(validation.errorCode)
+    }
+    const parsedCid = CID.parse(cid)
+    const topic = b4a.from(parsedCid.multihash.digest)
+    if (topic.length !== 32) {
+      throw cidValidationError(MOST_LINK_ERROR_CODES.CID_DIGEST_LENGTH)
+    }
+    const topicHex = b4a.toString(topic, 'hex')
+    return {
+      topic,
+      topicHex,
+      driveName: `drive-${topicHex}`,
+    }
+  } catch (err) {
+    if (err instanceof ValidationError) {
+      throw err
+    }
+    throw cidValidationError(MOST_LINK_ERROR_CODES.INVALID_CID_FORMAT)
+  }
 }

@@ -6,7 +6,6 @@ export type RootBackAction =
   | 'closeLanguage'
   | 'closeReceive'
   | 'closeNodeChild'
-  | 'closeChatChild'
   | 'closeKnowledgeChild'
   | 'exit'
 
@@ -25,16 +24,12 @@ export function getRootBackAction(input: {
   downloadModalOpen: boolean
   knowledgeMode: KnowledgePresentation
   languageModalOpen: boolean
-  chatDetailOpen?: boolean
   nodeRoute: 'status' | 'p2pPing'
 }): RootBackAction {
   if (input.languageModalOpen) return 'closeLanguage'
   if (input.downloadModalOpen) return 'closeReceive'
   if (input.activeTab === 'node' && input.nodeRoute === 'p2pPing') {
     return 'closeNodeChild'
-  }
-  if (input.activeTab === 'chat' && input.chatDetailOpen) {
-    return 'closeChatChild'
   }
   if (input.activeTab === 'knowledge' && input.knowledgeMode !== 'browse') {
     return 'closeKnowledgeChild'

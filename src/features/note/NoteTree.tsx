@@ -12,7 +12,6 @@ import { ActionMenu } from '~/components/ui'
 import { useI18n } from '~/lib/i18n'
 import type { NoteItem } from '~/stores/useAppStore'
 import { normalizeNotePath } from '~server/src/utils/noteUtils.js'
-import { getTreeNodeDisplayName } from './notePaths'
 
 export type ExplorerItem = NoteMoveTarget
 
@@ -42,6 +41,14 @@ type NoteTreeProps = {
 type NoteTreeNodeRowProps = Omit<NoteTreeProps, 'nodes' | 'searchQuery'> & {
   node: NoteTreeNode
   forceExpanded: boolean
+}
+
+function getDisplayMarkdownName(input = '') {
+  return String(input).trim().replace(/\.md$/i, '')
+}
+
+function getTreeNodeDisplayName(node: NoteTreeNode) {
+  return node.type === 'file' ? getDisplayMarkdownName(node.name) : node.name
 }
 
 function getDirectoryExplorerItem(node: NoteTreeNode): ExplorerItem {

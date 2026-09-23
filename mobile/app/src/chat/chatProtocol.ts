@@ -12,17 +12,6 @@ export type ChatAttachment = {
   size?: number
 }
 
-export function getChatAttachmentKindFromMime(
-  mimeType?: string
-): ChatAttachment['kind'] {
-  const normalized = String(mimeType || '').toLowerCase()
-  if (normalized.startsWith('image/')) return 'image'
-  if (normalized.startsWith('video/')) return 'video'
-  if (normalized.startsWith('audio/')) return 'audio'
-  if (normalized.startsWith('text/')) return 'text'
-  return 'file'
-}
-
 export type ChatMention = {
   address: string
   label: string

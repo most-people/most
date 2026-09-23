@@ -6,7 +6,6 @@ import React, {
   createContext,
   useContext,
 } from 'react'
-import { useLocation } from '@tanstack/react-router'
 import { useMediaQuery } from '@mantine/hooks'
 import { Menu } from 'lucide-react'
 import {
@@ -16,10 +15,6 @@ import {
 import { AccountMenuButton } from '~/features/profile/AccountMenu'
 import { useDisclosure } from '~/hooks'
 import { useI18n } from '~/lib/i18n'
-import {
-  useWorkspaceStore,
-  type WorkspaceTab,
-} from '~/stores/useWorkspaceStore'
 
 type CloseSidebarOptions = {
   collapse?: boolean
@@ -67,29 +62,11 @@ export default function AppShell({
   hideAccountMenu = false,
   children,
 }: AppShellProps) {
-  const location = useLocation()
-  const setWorkspaceTab = useWorkspaceStore(state => state.setActiveTab)
-  const setWorkspaceRoute = useWorkspaceStore(state => state.setLastRoute)
   const [isSidebarOpen, sidebarCtl] = useDisclosure(false)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(defaultHide)
   const previousDefaultHideRef = useRef(defaultHide)
   const isMobile = useMediaQuery('(max-width: 768px)')
   const { t } = useI18n()
-
-  useEffect(() => {
-    const tabByPrefix: Array<[string, WorkspaceTab]> = [
-      ['/chat', 'messages'],
-      ['/file', 'files'],
-      ['/note', 'notes'],
-      ['/admin', 'me'],
-    ]
-    const entry = tabByPrefix.find(([prefix]) =>
-      location.pathname.startsWith(prefix)
-    )
-    if (!entry) return
-    setWorkspaceTab(entry[1])
-    setWorkspaceRoute(location.pathname)
-  }, [location.pathname, setWorkspaceRoute, setWorkspaceTab])
 
   const handleCloseSidebar = useCallback<CloseSidebar>(
     (options = {}) => {

@@ -60,9 +60,6 @@ const SOURCE_PATHS = {
   noteCss: 'src/styles/note.css',
   files: 'src/features/files/AppPage.tsx',
   chat: 'src/features/chat/ChatPage.tsx',
-  chatChannels: 'src/features/chat/useChatChannels.ts',
-  chatComposer: 'src/features/chat/useChatComposer.ts',
-  chatAttachments: 'src/features/chat/useChatAttachments.ts',
   chatPageModel: 'src/features/chat/chatPageModel.ts',
   chatJoin: 'src/features/chat/ChatJoinPage.tsx',
   chatRoom: 'src/lib/chatRoom.js',
@@ -461,6 +458,7 @@ describe('frontend smoke checks', () => {
 
     const filesSource = readSource(SOURCE_PATHS.files)
     const cidSource = readSource(SOURCE_PATHS.cid)
+    const chatSource = readSource(SOURCE_PATHS.chat)
     assert.match(filesSource, /createCidRoutePathFromDownloadInput/)
     assert.match(filesSource, /buildCidSharePath\(file\.cid, file\.fileName\)/)
     assert.doesNotMatch(filesSource, /fileApi\.checkDownload/)
@@ -470,12 +468,7 @@ describe('frontend smoke checks', () => {
       cidSource,
       /fileApi\.downloadFileInBackground\(\s*mostLink,\s*isCollectionResult \? selectedCollectionPaths : undefined\s*\)/
     )
-    // Chat attachment downloads moved into useChatAttachments; the assertion is
-    // that chat uses the foreground downloadFile path, not the background one.
-    assert.match(
-      readSource(SOURCE_PATHS.chatAttachments),
-      /fileApi\.downloadFile\(attachment\.link\)/
-    )
+    assert.match(chatSource, /fileApi\.downloadFile\(attachment\.link\)/)
   })
 
   it('keeps knowledge-base attachments as parseable most:// Markdown references', async () => {
@@ -895,11 +888,11 @@ describe('frontend smoke checks', () => {
       cidSource,
       /payload\.partial === true[\s\S]*\? 'partial'[\s\S]*: 'completed'/
     )
-    // The payload parser moved into @most-box/protocol. Its path extraction is
-    // covered by behavioral tests there
-    // (packages/protocol/test/download-event.test.js), so assert the
-    // delegation instead of snapshotting the implementation source.
-    assert.match(tasksSource, /from '@most-box\/protocol\/download-event'/)
+    assert.match(tasksSource, /readDownloadEventPaths\(payloadRecord\.files\)/)
+    assert.match(
+      tasksSource,
+      /readDownloadEventPaths\(payloadRecord\.unavailableFiles\)/
+    )
     assert.match(cidSource, /t\('cid\.retryUnavailableAction'\)/)
 
     for (const locale of ['zh-CN', 'zh-TW', 'en']) {
@@ -916,6 +909,7 @@ describe('frontend smoke checks', () => {
     const cidCssSource = readSource(SOURCE_PATHS.cidCss)
     const storeSource = readSource(SOURCE_PATHS.appStore)
     const appGlobalsSource = readSource(SOURCE_PATHS.appGlobals)
+    const chatSource = readSource(SOURCE_PATHS.chat)
     const { messages } = await importBundledSource('src/lib/i18n/messages.ts')
 
     assert.match(cidSource, /downloadTasksHydrated/)
@@ -963,12 +957,7 @@ describe('frontend smoke checks', () => {
     assert.match(cidCssSource, /env\(safe-area-inset-left\)/)
     assert.match(cidCssSource, /env\(safe-area-inset-bottom\)/)
     assert.match(appGlobalsSource, /<GlobalDownloadTasks \/>/)
-    // Chat attachments use the foreground download path (see
-    // useChatAttachments), so the global tray must not claim them.
-    assert.match(
-      readSource(SOURCE_PATHS.chatAttachments),
-      /fileApi\.downloadFile\(attachment\.link\)/
-    )
+    assert.match(chatSource, /fileApi\.downloadFile\(attachment\.link\)/)
 
     for (const locale of ['zh-CN', 'zh-TW', 'en']) {
       assert.equal(typeof messages[locale]['cid.tasks.title'], 'string')
@@ -989,18 +978,48 @@ describe('frontend smoke checks', () => {
     const { excludeTerminalDownloadTasks, parseDownloadEvent } =
       await importBundledSource('src/lib/downloadTasks.ts')
 
-    // The payload field table and its type guards are covered by behavioral
-    // tests in packages/protocol/test/download-event.test.js, so this smoke
-    // check only verifies the web import path still reaches the shared parser.
-    const progress = parseDownloadEvent(
-      JSON.stringify({
+    assert.deepEqual(
+      parseDownloadEvent(
+        JSON.stringify({
+          event: 'download:progress',
+          data: {
+            taskId: 'task-1',
+            collection: true,
+            completedFiles: 2,
+            totalFiles: 4,
+            percent: 50,
+          },
+        })
+      ),
+      {
         event: 'download:progress',
-        data: { taskId: 'task-1', percent: 50 },
-      })
+        payload: {
+          taskId: 'task-1',
+          collection: true,
+          completedFiles: 2,
+          totalFiles: 4,
+          percent: 50,
+          downloadedPaths: [],
+          unavailablePaths: [],
+          status: undefined,
+          kind: undefined,
+          code: undefined,
+          errorCode: undefined,
+          partial: undefined,
+          loaded: undefined,
+          total: undefined,
+          fileCount: undefined,
+          selectedFileCount: undefined,
+          downloadedFileCount: undefined,
+          unavailableFileCount: undefined,
+          processedFiles: undefined,
+          file: undefined,
+          fileName: undefined,
+          error: undefined,
+          details: undefined,
+        },
+      }
     )
-    assert.equal(progress.event, 'download:progress')
-    assert.equal(progress.payload.taskId, 'task-1')
-    assert.equal(progress.payload.percent, 50)
 
     const completed = parseDownloadEvent(
       JSON.stringify({
@@ -1016,10 +1035,6 @@ describe('frontend smoke checks', () => {
     )
     assert.deepEqual(completed.payload.downloadedPaths, ['ready.txt'])
     assert.deepEqual(completed.payload.unavailablePaths, ['later.txt'])
-    assert.equal(completed.payload.partial, true)
-
-    const malformed = parseDownloadEvent('not json')
-    assert.equal(malformed, null)
 
     const activeTask = {
       taskId: 'task-active',
@@ -1448,13 +1463,11 @@ describe('frontend smoke checks', () => {
     assert.match(chatSource, /getMessageDisplayTag/)
     assert.match(chatSource, /getMemberDisplayTag/)
     assert.match(chatSource, /useState\(-1\)/)
-    // The mention-menu key handling moved into useChatComposer.
-    const composerSource = readSource(SOURCE_PATHS.chatComposer)
-    assert.match(composerSource, /if \(index < 0\) return false/)
+    assert.match(chatSource, /if \(index < 0\) return false/)
     assert.match(chatSource, /setMentionSelectedIndex\(-1\)/)
-    assert.match(composerSource, /if \(mentionSelectedIndex < 0\) return false/)
+    assert.match(chatSource, /if \(mentionSelectedIndex < 0\) return false/)
     assert.match(
-      composerSource,
+      chatSource,
       /index < 0 \? 0 : \(index \+ 1\) % mentionCandidates\.length/
     )
     assert.match(chatUiSource, /authorTag\?: string/)
@@ -1518,17 +1531,10 @@ describe('frontend smoke checks', () => {
 
   it('locks the chat composer while a text message is being sent', () => {
     const chatSource = readSource(SOURCE_PATHS.chat)
-    const composerSource = readSource(SOURCE_PATHS.chatComposer)
     const componentSource = readSource('src/components/ChatUi.tsx')
-    // The send handler lives in useChatComposer; asserting against that file
-    // avoids slicing by indexOf, which silently yields the wrong range when a
-    // boundary moves.
-    const sendHandlerSource = composerSource.slice(
-      composerSource.indexOf('const handleSendChannelMessage'),
-      composerSource.indexOf(
-        'return {',
-        composerSource.indexOf('const handleSendChannelMessage')
-      )
+    const sendHandlerSource = chatSource.slice(
+      chatSource.indexOf('async function handleSendChannelMessage'),
+      chatSource.indexOf('async function handleSelectAttachmentFiles')
     )
 
     assert.match(chatSource, /const \[isSendingChannelMessage/)
@@ -1565,7 +1571,6 @@ describe('frontend smoke checks', () => {
 
   it('uses one open-channel flow for hash-based desktop chat capabilities', () => {
     const chatSource = readSource(SOURCE_PATHS.chat)
-    const chatChannelsSource = readSource(SOURCE_PATHS.chatChannels)
     const chatPageModelSource = readSource(SOURCE_PATHS.chatPageModel)
     const chatJoinSource = readSource(SOURCE_PATHS.chatJoin)
     const chatRoomSource = readSource(SOURCE_PATHS.chatRoom)
@@ -1582,15 +1587,10 @@ describe('frontend smoke checks', () => {
       /getChannelIdFromHash\(window\.location\.hash\)/
     )
     assert.match(chatSource, /window\.addEventListener\('hashchange'/)
-    // The open-channel flow lives in useChatChannels; ChatPage delegates to it.
-    assert.match(chatSource, /useChatChannels/)
-    assert.match(chatChannelsSource, /createRandomChannelId\(\)/)
-    assert.match(chatChannelsSource, /parseChatChannelInput/)
-    assert.match(
-      chatChannelsSource,
-      /setOpenChatDefaultValue\(generatedChatId\)/
-    )
+    assert.match(chatSource, /createRandomChannelId\(\)/)
+    assert.match(chatSource, /setOpenChatDefaultValue\(generatedChatId\)/)
     assert.match(chatSource, /defaultValue=\{openChatDefaultValue\}/)
+    assert.match(chatSource, /parseChatChannelInput/)
     assert.match(chatSource, /chat\.openChannel/)
     assert.match(inputModalSource, /onGenerateValue/)
     assert.doesNotMatch(
@@ -1599,8 +1599,7 @@ describe('frontend smoke checks', () => {
     )
     assert.doesNotMatch(`${chatSource}\n${chatJoinSource}`, /\?channel=/)
     assert.match(chatSource, /replaceHistory: true/)
-    // The history write itself moved into useChatChannels.
-    assert.match(chatChannelsSource, /window\.history\.replaceState/)
+    assert.match(chatSource, /window\.history\.replaceState/)
     assert.match(
       chatSource,
       /!previousBackendReadyRef\.current[\s\S]*autoJoinChannelAttemptsRef\.current\.clear\(\)/
@@ -1611,11 +1610,9 @@ describe('frontend smoke checks', () => {
     const source = readSource(SOURCE_PATHS.admin)
 
     assert.match(source, /NodeHolding/)
-    // Seed-status wording and the log-filter terms moved into adminFormat.ts and
-    // are covered behaviorally by src/tests/adminFormat.test.ts, so assert the
-    // delegation instead of snapshotting the implementation source.
-    assert.match(source, /from '\.\/adminFormat'/)
     assert.match(source, /formatSeedStatus/)
+    assert.match(source, /admin\.seedStatus\.active/)
+    assert.match(source, /admin\.seedStatus\.queued/)
     assert.match(source, /\/api\/admin\/access/)
     assert.match(source, /claimAdminAccess/)
   })
@@ -1659,7 +1656,7 @@ describe('frontend smoke checks', () => {
     assert.match(adminMessages, /'创建 MCP 密钥'/)
     assert.match(adminMessages, /'Create MCP key'/)
     assert.match(adminMessages, /admin\.action\.deleteMcpClient/)
-    assert.match(source, /from '\.\/adminFormat'/)
+    assert.match(source, /format\('YYYY-MM-DD HH:mm'\)/)
     assert.match(source, /aria-label=\{t\('admin\.action\.deleteMcpClient'\)\}/)
     assert.match(source, /<Trash2 size=\{16\} \/>/)
     assert.doesNotMatch(source, /<Ban size=\{16\}/)

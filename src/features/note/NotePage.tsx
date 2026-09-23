@@ -36,7 +36,7 @@ import {
 } from '~server/src/utils/noteUtils.js'
 import { NoteMoveModal } from '~/components/NoteMoveModal'
 import { NoteSidebar } from '~/components/NoteSidebar'
-import { useI18n } from '~/lib/i18n'
+import { useI18n, type MessageKey } from '~/lib/i18n'
 import {
   deleteChatNoteDraft,
   readChatNoteDraft,
@@ -69,25 +69,6 @@ import {
   type ExplorerItem,
   type NoteTreeNode,
 } from './NoteTree'
-import {
-  formatMarkdownLink,
-  getDirectoryPathAncestors,
-  getDisplayMarkdownName,
-  getDisplayMarkdownPath,
-  getExplorerItemDisplayName,
-  getExplorerItemFullPath,
-  getNoteDisplayFullPath,
-  getNoteErrorMessage as getErrorMessage,
-  getStorageMarkdownName,
-  getStorageMarkdownPath,
-  getTreeNodeDisplayName,
-  getTreeNodeDisplayPath,
-  getUniqueStorageMarkdownName,
-  getWikiLinkLabel,
-  getWikiLinkTargetPath,
-  mergeExpandedPaths,
-  toggleExpandedPath,
-} from './notePaths'
 
 const MostMarkdownEditor = lazy(async () => {
   const mod = await import('./MostMarkdownEditor')
@@ -147,6 +128,44 @@ function getNoteSearchFromHref(href: string): NoteSearchParams {
   }
 }
 
+const noteErrorMessageKeys: Record<string, MessageKey> = {
+  'note.error.nameRequired': 'note.error.nameRequired',
+  'note.error.nameNoSlash': 'note.error.nameNoSlash',
+  'note.error.nameNoBackslash': 'note.error.nameNoBackslash',
+  'note.error.nameInvalid': 'note.error.nameInvalid',
+  'note.error.nameConflict': 'note.error.nameConflict',
+  'note.error.moveIntoSelf': 'note.error.moveIntoSelf',
+}
+
+function getErrorMessage(
+  error: unknown,
+  fallback: string,
+  t: (key: MessageKey) => string
+) {
+  const message = error instanceof Error ? error.message : ''
+  const messageKey = noteErrorMessageKeys[message]
+  if (messageKey) return t(messageKey)
+  return message || fallback
+}
+
+function getExplorerItemFullPath(item: ExplorerItem) {
+  if (item.type === 'directory') {
+    return normalizeNotePath(
+      item.path ? `${item.path}/${item.name}` : item.name
+    )
+  }
+  return getNoteFullPath(item)
+}
+
+function getDisplayMarkdownName(input = '') {
+  return String(input).trim().replace(/\.md$/i, '')
+}
+
+function getStorageMarkdownName(input: string) {
+  const name = getDisplayMarkdownName(input)
+  return name ? `${name}.md` : ''
+}
+
 function downloadTextExport(fileName: string, content: string) {
   const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
   const url = URL.createObjectURL(blob)
@@ -157,6 +176,74 @@ function downloadTextExport(fileName: string, content: string) {
   anchor.click()
   document.body.removeChild(anchor)
   URL.revokeObjectURL(url)
+}
+
+function getUniqueStorageMarkdownName(
+  title: string,
+  fallbackTitle: string,
+  exists: (name: string) => boolean
+) {
+  const baseName = getDisplayMarkdownName(title) || fallbackTitle
+
+  for (let index = 0; index < 1000; index += 1) {
+    const name =
+      index === 0
+        ? getStorageMarkdownName(baseName)
+        : getStorageMarkdownName(`${baseName} ${index + 1}`)
+    if (name && !exists(name)) return name
+  }
+
+  return getStorageMarkdownName(`${baseName} ${Date.now()}`)
+}
+
+function getStorageMarkdownPath(input = '') {
+  const path = normalizeNotePath(input)
+  const parts = path.split('/').filter(Boolean)
+  if (parts.length === 0) return ''
+
+  const lastIndex = parts.length - 1
+  parts[lastIndex] = getStorageMarkdownName(parts[lastIndex])
+  return parts.join('/')
+}
+
+function getDisplayMarkdownPath(input = '') {
+  const path = normalizeNotePath(input)
+  const parts = path.split('/').filter(Boolean)
+  if (parts.length === 0) return ''
+
+  const lastIndex = parts.length - 1
+  parts[lastIndex] = getDisplayMarkdownName(parts[lastIndex])
+  return parts.join('/')
+}
+
+function getNoteDisplayFullPath(note: NoteItem) {
+  return getDisplayMarkdownPath(getNoteFullPath(note))
+}
+
+function getWikiLinkTargetPath(input: string) {
+  const target = input.trim().replace(/^\/+/, '')
+  const anchorIndex = target.search(/[#^]/)
+  const notePath = anchorIndex >= 0 ? target.slice(0, anchorIndex) : target
+  return getDisplayMarkdownPath(notePath)
+}
+
+function getWikiLinkLabel(targetPath: string, alias?: string) {
+  const trimmedAlias = alias?.trim()
+  if (trimmedAlias) return trimmedAlias
+
+  const parts = targetPath.split('/').filter(Boolean)
+  return parts[parts.length - 1] || targetPath
+}
+
+function escapeMarkdownLinkLabel(label: string) {
+  return label
+    .replace(/\\/g, '\\\\')
+    .replace(/\[/g, '\\[')
+    .replace(/\]/g, '\\]')
+}
+
+function formatMarkdownLink(label: string, href: string) {
+  return `[${escapeMarkdownLinkLabel(label)}](<${href.replace(/>/g, '%3E')}>)`
 }
 
 function resolveWikiLinkNote(
@@ -242,6 +329,49 @@ function renderWikiNoteLinks(
       })
     })
     .join('')
+}
+
+function getTreeNodeDisplayName(node: NoteTreeNode) {
+  return node.type === 'file' ? getDisplayMarkdownName(node.name) : node.name
+}
+
+function getTreeNodeDisplayPath(node: NoteTreeNode) {
+  return node.type === 'file'
+    ? getDisplayMarkdownPath(node.fullPath)
+    : node.fullPath
+}
+
+function getExplorerItemDisplayName(item: ExplorerItem) {
+  return item.type === 'file' ? getDisplayMarkdownName(item.name) : item.name
+}
+
+function getDirectoryPathAncestors(path = '') {
+  const parts = normalizeNotePath(path).split('/').filter(Boolean)
+  return parts.map((_, index) => parts.slice(0, index + 1).join('/'))
+}
+
+function toggleExpandedPath(paths: Set<string>, path: string) {
+  const next = new Set(paths)
+  if (next.has(path)) {
+    next.delete(path)
+  } else {
+    next.add(path)
+  }
+  return next
+}
+
+function mergeExpandedPaths(paths: Set<string>, nextPaths: string[]) {
+  if (nextPaths.length === 0) return paths
+
+  let changed = false
+  const next = new Set(paths)
+  for (const path of nextPaths) {
+    if (!next.has(path)) {
+      next.add(path)
+      changed = true
+    }
+  }
+  return changed ? next : paths
 }
 
 function buildNoteTree(

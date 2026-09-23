@@ -33,13 +33,13 @@ import {
 } from '~/lib/localizedTag'
 import { useAccountBackup } from '~/features/profile/useAccountBackup'
 import { ProfileAppearanceSettings } from '~/features/profile/ProfileAppearanceSettings'
+import { getCachedAvatar } from '~/lib/avatarCache'
 import { api, getApiErrorMessage } from '~server/src/utils/api'
 import {
   getDefaultAvatarValue,
   isDefaultAvatarValue,
   normalizeDefaultAvatarValue,
 } from '~server/src/utils/avatar.js'
-import { getCachedAvatar } from '~/lib/avatarCache'
 import { most25519 } from '~server/src/utils/mostWallet.js'
 
 type AvatarOption = {

@@ -1,4 +1,4 @@
-﻿import { createPortal } from 'react-dom'
+import { createPortal } from 'react-dom'
 import { Eye, EyeOff, X } from 'lucide-react'
 import { useUserStore } from '~/stores/userStore'
 import { SafeImage } from '~/components/SafeImage'

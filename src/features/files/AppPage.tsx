@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import {
   Upload,
@@ -18,7 +18,11 @@ import {
   Loader2,
 } from 'lucide-react'
 import AppShell from '~/components/AppShell'
-import { FileCard, FolderCard } from '~/components/AppFileCards'
+import {
+  FileCard,
+  FolderCard,
+  parseAppFileName,
+} from '~/components/AppFileCards'
 import OpenSidebarButton from '~/components/OpenSidebarButton'
 import { AppTop } from '~/components/AppTop'
 import FilePreviewOverlay from '~/components/FilePreviewOverlay'
@@ -36,10 +40,8 @@ import {
   fileApi,
   getPublishFileErrorMessage,
   getPublishFileLimitViolation,
-  type MostFileRecord,
 } from '~/lib/fileApi'
 import { getFileSubtype } from '~/lib/filePreview'
-import type { FilePreviewItem } from '~/components/FilePreviewOverlay'
 import { useI18n } from '~/lib/i18n'
 import { getLocalizedDownloadLinkValidationMessage } from '~/lib/i18n/downloadValidation'
 import { saveFileToLocal } from '~/lib/saveLocalFile'
@@ -49,36 +51,55 @@ import {
   createCidRoutePathFromDownloadInput,
 } from '~/lib/shareLink'
 import { getFolderShareState } from '~/lib/folderShare'
-import { parseDownloadEvent } from '~/lib/downloadTasks'
-import {
-  generateBreadcrumbs,
-  getItemsForPath,
-  getUniqueFolders,
-  parseAppFileName as parseName,
-} from './fileTree'
 
-type UploadTransfer = {
-  id: string
-  fileName: string
-  progress: number
-  type: 'upload'
-  status: 'uploading' | 'completed' | 'error'
+function parseName(fullPath) {
+  return parseAppFileName(fullPath)
 }
 
-type ConfirmModalConfig = {
-  title: string
-  message: string
-  confirmText: string
-  danger?: boolean
-  onConfirm: () => void | Promise<void>
+function getUniqueFolders(files: { fileName: string }[]): string[] {
+  const folders = new Set<string>()
+  files.forEach(f => {
+    const { folder } = parseName(f.fileName)
+    let parts = folder.split('/').filter(Boolean)
+    let acc = ''
+    for (const part of parts) {
+      acc += (acc ? '/' : '') + part
+      folders.add(acc)
+    }
+  })
+  return [...folders].sort()
 }
 
-type InputModalConfig = {
-  title: string
-  placeholder: string
-  defaultValue: string
-  confirmText: string
-  onConfirm: (value: string) => void | Promise<void>
+function getCurrentFolders(allFolders, currentPath) {
+  const prefix = currentPath ? currentPath + '/' : ''
+  return allFolders
+    .filter(f => {
+      const isUnder = f.toLowerCase().startsWith(prefix.toLowerCase())
+      const remainder = f.substring(prefix.length)
+      return isUnder && !remainder.includes('/')
+    })
+    .map(f => ({ name: f.substring(prefix.length), path: f }))
+}
+
+function getItemsForPath(files, allFolders, currentPath) {
+  return {
+    folders: getCurrentFolders(allFolders, currentPath),
+    files: files.filter(f => parseName(f.fileName).folder === currentPath),
+  }
+}
+
+function generateBreadcrumbs(currentPath, rootName) {
+  if (!currentPath) return []
+  return [
+    { path: '', name: rootName },
+    ...currentPath
+      .split('/')
+      .filter(Boolean)
+      .map((part, i, arr) => ({
+        path: arr.slice(0, i + 1).join('/'),
+        name: part,
+      })),
+  ]
 }
 
 export default function App() {
@@ -91,35 +112,30 @@ export default function App() {
   const loadDownloadTasks = useAppStore(s => s.loadDownloadTasks)
   const userIdentity = useUserStore(s => s.identity)
   const openLoginModal = useUserStore(s => s.openLoginModal)
-  const [items, setItems] = useState<MostFileRecord[]>([])
+  const [items, setItems] = useState([])
   const [isFileListLoading, setIsFileListLoading] = useState(true)
-  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null)
+  const [currentFolderId, setCurrentFolderId] = useState(null)
   const [currentView, setCurrentView] = useState('all')
   const [isDraggingOverUpload, setIsDraggingOverUpload] = useState(false)
-  const [selectedIds, setSelectedIds] = useState<string[]>([])
-  const [previewItem, setPreviewItem] = useState<FilePreviewItem | null>(null)
+  const [selectedIds, setSelectedIds] = useState([])
+  const [previewItem, setPreviewItem] = useState(null)
   const [isDownloadModalOpen, downloadModal] = useDisclosure(false)
   const [downloadLink, setDownloadLink] = useState('')
   const [downloadLinkError, setDownloadLinkError] = useState('')
-  const [transfers, setTransfers] = useState<UploadTransfer[]>([])
+  const [transfers, setTransfers] = useState([])
   const [isTransferPanelOpen, transferPanel] = useDisclosure(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [isMoveModalOpen, moveModal] = useDisclosure(false)
-  const [confirmModal, setConfirmModal] = useState<ConfirmModalConfig | null>(
-    null
-  )
-  const [inputModal, setInputModal] = useState<InputModalConfig | null>(null)
+  const [confirmModal, setConfirmModal] = useState(null)
+  const [inputModal, setInputModal] = useState(null)
   const [inputLoading, setInputLoading] = useState(false)
   const previousActiveDownloadCountRef = useRef(activeDownloadCount)
   const { t } = useI18n()
   const isBackendReady = hasBackend === true
 
   const currentPath = currentFolderId || ''
-  const allFolders = useMemo(() => getUniqueFolders(items), [items])
-  const { folders, files } = useMemo(
-    () => getItemsForPath(items, allFolders, currentPath),
-    [items, allFolders, currentPath]
-  )
+  const allFolders = getUniqueFolders(items)
+  const { folders, files } = getItemsForPath(items, allFolders, currentPath)
   function requireBackendReady() {
     if (isBackendReady) return true
     openConnectModal()
@@ -140,7 +156,7 @@ export default function App() {
       )
     : files
 
-  const refreshFiles = useCallback(async () => {
+  const refreshFiles = async () => {
     if (!isBackendReady || !userIdentity) {
       setItems([])
       return
@@ -170,8 +186,7 @@ export default function App() {
     } catch {
       setItems([])
     }
-  }, [isBackendReady, userIdentity])
-
+  }
   const handleSelect = id => {
     setSelectedIds(prev =>
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
@@ -301,7 +316,7 @@ export default function App() {
     }
     if (!requireBackendReady()) return
     const prefix = currentPath ? currentPath + '/' : ''
-    const newTransfers: UploadTransfer[] = []
+    const newTransfers = []
     const publishPolicy = await fileApi.getNodePolicy().catch(() => null)
 
     for (const file of Array.from(files)) {
@@ -320,7 +335,7 @@ export default function App() {
       }
 
       const transferId = `upload_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-      const transfer: UploadTransfer = {
+      const transfer = {
         id: transferId,
         fileName: file.name,
         progress: 0,
@@ -526,46 +541,45 @@ export default function App() {
         return
       }
       ws.onmessage = e => {
-        // Shared, type-checked envelope parser: a daemon-side field rename or a
-        // malformed frame is reported instead of silently skipping the update.
-        const parsed = parseDownloadEvent(e.data)
-        if (!parsed) {
-          console.warn('[App WS] Ignored malformed message')
-          return
-        }
-        const { event, payload } = parsed
-
-        if (event === 'publish:success') {
-          refreshFiles()
-          const taskId = payload.taskId || payload.fileName
-          setTransfers(prev =>
-            prev.map(t =>
-              t.id === taskId || t.fileName === payload.fileName
-                ? { ...t, progress: 100, status: 'completed' }
-                : t
+        try {
+          const { event, data } = JSON.parse(e.data)
+          if (event === 'publish:success') {
+            refreshFiles()
+            const taskId = data.taskId || data.fileName
+            setTransfers(prev =>
+              prev.map(t =>
+                t.id === taskId || t.fileName === data.fileName
+                  ? { ...t, progress: 100, status: 'completed' }
+                  : t
+              )
             )
-          )
-        }
-        if (event === 'publish:progress') {
-          setTransfers(prev =>
-            prev.map(t => {
-              if (
-                payload.file &&
-                t.fileName === payload.file &&
-                t.type === 'upload'
-              ) {
-                let progress = 50
-                if (payload.stage === 'calculating-cid') progress = 25
-                else if (payload.stage === 'uploading') progress = 75
-                else if (payload.stage === 'complete') progress = 100
-                return { ...t, progress }
-              }
-              return t
-            })
-          )
-        }
-        if (event === 'download:success' || event === 'user:metadata:updated') {
-          refreshFiles()
+          }
+          if (event === 'publish:progress') {
+            setTransfers(prev =>
+              prev.map(t => {
+                if (
+                  data.file &&
+                  t.fileName === data.file &&
+                  t.type === 'upload'
+                ) {
+                  let progress = 50
+                  if (data.stage === 'calculating-cid') progress = 25
+                  else if (data.stage === 'uploading') progress = 75
+                  else if (data.stage === 'complete') progress = 100
+                  return { ...t, progress }
+                }
+                return t
+              })
+            )
+          }
+          if (
+            event === 'download:success' ||
+            event === 'user:metadata:updated'
+          ) {
+            refreshFiles()
+          }
+        } catch (err) {
+          console.warn('[App WS] Failed to parse message:', err.message)
         }
       }
     })()
@@ -886,10 +900,10 @@ export default function App() {
         <MoveModal
           items={selectedIds
             .map(id => items.find(i => i.cid === id))
-            .filter((item): item is MostFileRecord => Boolean(item))}
+            .filter(Boolean)}
           allFolders={allFolders.map(path => ({
             path,
-            name: path.split('/').pop() ?? path,
+            name: path.split('/').pop(),
           }))}
           currentPath={currentPath}
           onMove={handleMove}

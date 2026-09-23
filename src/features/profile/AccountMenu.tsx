@@ -1,4 +1,4 @@
-﻿import { Link } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router'
 import { User } from 'lucide-react'
 import { SafeImage } from '~/components/SafeImage'
 import { useI18n } from '~/lib/i18n'
