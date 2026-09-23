@@ -108,26 +108,6 @@ export const appMessages = {
     'zh-TW': '請等待狀態變為「在線」後再繼續。',
     en: 'Wait until the status changes to Online before continuing.',
   },
-  'app.discard.title': {
-    'zh-CN': '放弃未保存修改？',
-    'zh-TW': '放棄未儲存的修改？',
-    en: 'Discard unsaved changes?',
-  },
-  'app.discard.body': {
-    'zh-CN': '当前知识库内容尚未保存。',
-    'zh-TW': '目前的知識庫內容尚未儲存。',
-    en: 'The current knowledge base changes have not been saved.',
-  },
-  'app.discard.continue': {
-    'zh-CN': '继续编辑',
-    'zh-TW': '繼續編輯',
-    en: 'Keep editing',
-  },
-  'app.discard.confirm': {
-    'zh-CN': '放弃修改',
-    'zh-TW': '放棄修改',
-    en: 'Discard changes',
-  },
   'app.file.unsupported': {
     'zh-CN': '不支持此文件',
     'zh-TW': '不支援此檔案',
@@ -343,71 +323,6 @@ export const appMessages = {
     'zh-CN': '无法打开链接',
     'zh-TW': '無法開啟連結',
     en: 'Could not open link',
-  },
-  'app.knowledge.tempUnavailable': {
-    'zh-CN': '临时目录不可用',
-    'zh-TW': '暫存目錄無法使用',
-    en: 'The temporary directory is unavailable',
-  },
-  'app.knowledge.backupDialog': {
-    'zh-CN': '备份知识库',
-    'zh-TW': '備份知識庫',
-    en: 'Back up knowledge base',
-  },
-  'app.knowledge.backupFailedTitle': {
-    'zh-CN': '备份失败',
-    'zh-TW': '備份失敗',
-    en: 'Backup failed',
-  },
-  'app.knowledge.backupFailedBody': {
-    'zh-CN': '无法备份知识库',
-    'zh-TW': '無法備份知識庫',
-    en: 'Could not back up the knowledge base',
-  },
-  'app.knowledge.restoreTitle': {
-    'zh-CN': '还原整个知识库？',
-    'zh-TW': '還原整個知識庫？',
-    en: 'Restore the entire knowledge base?',
-  },
-  'app.knowledge.restoreBody': {
-    'zh-CN': '备份包含 {count} 篇笔记，将完全替换当前知识库。',
-    'zh-TW': '備份包含 {count} 篇筆記，將完全取代目前的知識庫。',
-    en: 'The backup contains {count} notes and will completely replace the current knowledge base.',
-  },
-  'app.knowledge.restoreAction': {
-    'zh-CN': '还原',
-    'zh-TW': '還原',
-    en: 'Restore',
-  },
-  'app.knowledge.restoreCompleteTitle': {
-    'zh-CN': '还原完成',
-    'zh-TW': '還原完成',
-    en: 'Restore complete',
-  },
-  'app.knowledge.restoreCompleteBody': {
-    'zh-CN': '本地知识库已替换为所选备份。',
-    'zh-TW': '本機知識庫已替換為所選備份。',
-    en: 'The local knowledge base was replaced with the selected backup.',
-  },
-  'app.knowledge.restoreFailedTitle': {
-    'zh-CN': '还原失败',
-    'zh-TW': '還原失敗',
-    en: 'Restore failed',
-  },
-  'app.knowledge.restoreFailedBody': {
-    'zh-CN': '原知识库已保留',
-    'zh-TW': '原知識庫已保留',
-    en: 'The original knowledge base was preserved',
-  },
-  'app.knowledge.invalidBackupTitle': {
-    'zh-CN': '备份无效',
-    'zh-TW': '備份無效',
-    en: 'Invalid backup',
-  },
-  'app.knowledge.invalidBackupBody': {
-    'zh-CN': '无法读取知识库备份',
-    'zh-TW': '無法讀取知識庫備份',
-    en: 'Could not read the knowledge base backup',
   },
   'app.node.online': {
     'zh-CN': '节点在线',

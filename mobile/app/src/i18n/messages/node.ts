@@ -159,31 +159,6 @@ export const nodeMessages = {
     'zh-TW': '開啟',
     en: 'On',
   },
-  'node.section.knowledge': {
-    'zh-CN': '知识库',
-    'zh-TW': '知識庫',
-    en: 'Knowledge base',
-  },
-  'node.knowledge.backup': {
-    'zh-CN': '备份',
-    'zh-TW': '備份',
-    en: 'Back up',
-  },
-  'node.knowledge.backupA11y': {
-    'zh-CN': '备份知识库',
-    'zh-TW': '備份知識庫',
-    en: 'Back up knowledge base',
-  },
-  'node.knowledge.restore': {
-    'zh-CN': '还原',
-    'zh-TW': '還原',
-    en: 'Restore',
-  },
-  'node.knowledge.restoreA11y': {
-    'zh-CN': '还原知识库',
-    'zh-TW': '還原知識庫',
-    en: 'Restore knowledge base',
-  },
   'node.section.seeding': {
     'zh-CN': '正在做种',
     'zh-TW': '正在做種',

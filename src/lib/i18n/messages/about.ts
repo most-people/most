@@ -39,13 +39,9 @@ export const zhCNAboutMessages = {
   'about.toolbox.kicker': '独立工具箱',
   'about.toolbox.title': '需要时打开，不成为分享文件的门槛',
   'about.toolbox.intro':
-    '聊天、知识库、MCP 和 Web3 保留为独立工具；知识库的 Git 历史只管理本地笔记，使用 most:// 下载与做种不依赖它们。',
+    'MostBox 以去中心化频道聊天为核心，文件传输、MCP 和 Web3 保持清晰边界。',
   'about.toolbox.chat.title': '聊天',
-  'about.toolbox.chat.body':
-    '为私域沟通、小团队消息、多人语音和文件附件提供独立房间。',
-  'about.toolbox.note.title': '知识库与 Git',
-  'about.toolbox.note.body':
-    '用 Markdown 整理本地笔记，通过内置 Git 查看差异、提交版本和恢复文件。',
+  'about.toolbox.chat.body': '以 P2P 频道提供私域沟通、多人语音和文件附件。',
   'about.toolbox.mcp.title': 'MCP（AI 客户端）',
   'about.toolbox.mcp.body':
     '通过受限、可过期的本机凭证，让 AI 客户端读取节点状态并调用文件能力。',
@@ -107,13 +103,9 @@ export const zhTWAboutMessages = {
   'about.toolbox.kicker': '獨立工具箱',
   'about.toolbox.title': '需要時開啟，不成為分享檔案的門檻',
   'about.toolbox.intro':
-    '聊天、知識庫、MCP 和 Web3 保留為獨立工具；知識庫的 Git 歷史只管理本機筆記，使用 most:// 下載與做種不依賴它們。',
+    'MostBox 以去中心化頻道聊天為核心，檔案傳輸、MCP 和 Web3 保持清晰邊界。',
   'about.toolbox.chat.title': '聊天',
-  'about.toolbox.chat.body':
-    '為私域溝通、小團隊訊息、多人語音和檔案附件提供獨立房間。',
-  'about.toolbox.note.title': '知識庫與 Git',
-  'about.toolbox.note.body':
-    '用 Markdown 整理本機筆記，透過內建 Git 查看差異、提交版本和恢復檔案。',
+  'about.toolbox.chat.body': '以 P2P 頻道提供私域溝通、多人語音和檔案附件。',
   'about.toolbox.mcp.title': 'MCP（AI 客戶端）',
   'about.toolbox.mcp.body':
     '透過受限、可過期的本機憑證，讓 AI 客戶端讀取節點狀態並調用檔案能力。',
@@ -177,13 +169,10 @@ export const enAboutMessages = {
   'about.toolbox.title':
     'Open tools when needed, never as a sharing prerequisite.',
   'about.toolbox.intro':
-    'Chat, notes, MCP, and Web3 remain separate tools. Git history only manages local notes; most:// downloads and seeding do not depend on any of them.',
+    'MostBox is centered on decentralized channel chat, with clear boundaries around file transfer, MCP, and Web3.',
   'about.toolbox.chat.title': 'Chat',
   'about.toolbox.chat.body':
-    'Separate rooms support private conversations, small-team messages, group voice, and file attachments.',
-  'about.toolbox.note.title': 'Notes and Git',
-  'about.toolbox.note.body':
-    'Organize local Markdown notes and use built-in Git to inspect changes, commit versions, and restore files.',
+    'P2P channels support private conversations, group voice, and file attachments.',
   'about.toolbox.mcp.title': 'MCP for AI clients',
   'about.toolbox.mcp.body':
     'Limited, expiring local credentials let AI clients read node status and use file capabilities.',

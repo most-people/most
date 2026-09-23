@@ -6,7 +6,6 @@ import {
   FolderOpen,
   HardDrive,
   MessagesSquare,
-  NotebookPen,
   Server,
   Wallet,
 } from 'lucide-react'
@@ -14,7 +13,7 @@ import { useIsDesktopClient } from '~/hooks'
 import { useAppStore } from '~/stores/useAppStore'
 import { useI18n, type MessageKey } from '~/lib/i18n'
 
-type InternalRoutePath = '/file/' | '/chat/' | '/note/' | '/web3/'
+type InternalRoutePath = '/file/' | '/chat/' | '/web3/'
 
 interface FeatureDef {
   id: string
@@ -46,15 +45,6 @@ const features: FeatureDef[] = [
     requiresBackend: true,
   },
   {
-    id: 'note',
-    titleKey: 'portal.feature.note.title',
-    subtitleKey: 'portal.feature.note.subtitle',
-    descKey: 'portal.feature.note.desc',
-    icon: <NotebookPen size={28} />,
-    path: '/note/',
-    requiresBackend: false,
-  },
-  {
     id: 'web3',
     titleKey: 'portal.feature.web3.title',
     subtitleKey: 'portal.feature.web3.subtitle',
@@ -65,7 +55,7 @@ const features: FeatureDef[] = [
   },
 ]
 
-const featureOrder = ['chat', 'app', 'note', 'web3']
+const featureOrder = ['chat', 'app', 'web3']
 
 type PortalBackendStatus = 'checking' | 'connected' | 'disconnected'
 

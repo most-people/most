@@ -1,6 +1,5 @@
 import '~/styles/globals.css'
 import '~/styles/app.css'
-import '~/styles/note.css'
 import '~/styles/marketing.css'
 import '~/styles/download.css'
 import '~/styles/portal.css'
@@ -10,8 +9,6 @@ import '~/styles/chat.css'
 import '~/styles/ping.css'
 import '~/styles/web3.css'
 import '~/styles/cid.css'
-import '@milkdown/crepe/theme/common/style.css'
-import '@milkdown/crepe/theme/frame.css'
 
 import type { ReactNode } from 'react'
 import {

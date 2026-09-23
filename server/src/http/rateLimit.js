@@ -16,10 +16,6 @@ const EXPENSIVE_WRITE_PATHS = new Set([
   '/api/p2p/pull',
   '/api/p2p/ping',
   '/api/user/import',
-  '/api/note-vault/restore',
-  '/api/note-vault/git/init',
-  '/api/note-vault/git/commit',
-  '/api/note-vault/git/restore',
 ])
 
 const ADMIN_WRITE_PATHS = new Set([

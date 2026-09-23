@@ -50,14 +50,6 @@ const SOURCE_PATHS = {
   appStore: 'src/stores/useAppStore.ts',
   cidCss: 'src/styles/cid.css',
   fileApi: 'src/lib/fileApi.ts',
-  milkdownEditor: 'src/components/MilkdownEditor.tsx',
-  mostMarkdown: 'src/lib/mostMarkdown.ts',
-  mostMarkdownEditor: 'src/features/note/MostMarkdownEditor.tsx',
-  note: 'src/features/note/NotePage.tsx',
-  noteGit: 'src/features/note/NoteGitModal.tsx',
-  noteVaultApi: 'src/features/note/noteVaultApi.ts',
-  noteMigration: 'server/src/utils/noteMigration.js',
-  noteCss: 'src/styles/note.css',
   files: 'src/features/files/AppPage.tsx',
   chat: 'src/features/chat/ChatPage.tsx',
   chatPageModel: 'src/features/chat/chatPageModel.ts',
@@ -289,55 +281,6 @@ describe('frontend smoke checks', () => {
     }
   })
 
-  it('uses an automatic address-scoped note vault in Electron', async () => {
-    const accountBackupSource = readSource(SOURCE_PATHS.accountBackup)
-    const appGlobalsSource = readSource(SOURCE_PATHS.appGlobals)
-    const profileSource = readSource(SOURCE_PATHS.profile)
-    const noteSource = readSource(SOURCE_PATHS.note)
-    const noteVaultApiSource = readSource(SOURCE_PATHS.noteVaultApi)
-    const electronMainSource = readSource(SOURCE_PATHS.electronMain)
-    const electronPreloadSource = readSource(SOURCE_PATHS.electronPreload)
-    const { messages } = await importBundledSource('src/lib/i18n/messages.ts')
-
-    assert.match(accountBackupSource, /isDesktopNoteVaultClient\(\)/)
-    assert.match(accountBackupSource, /await getNoteVaultStatus\(\)/)
-    assert.match(accountBackupSource, /await restoreNoteVaultSnapshot\(/)
-    assert.doesNotMatch(accountBackupSource, /requestNoteVaultDirectory/)
-    assert.doesNotMatch(appGlobalsSource, /NoteVaultLocationModal/)
-    assert.doesNotMatch(profileSource, /NoteVaultLocationModal/)
-    assert.doesNotMatch(noteSource, /selectNoteVaultDirectory/)
-    assert.match(
-      noteSource,
-      /vaultFiles\.some\(file => file\.path === currentFilePath\)/
-    )
-    assert.match(
-      noteSource,
-      /navigate\(\{ to: '\/note\/', search: \{\} as never, replace: true \}\)/
-    )
-    assert.doesNotMatch(noteVaultApiSource, /\/api\/note-vault\/config/)
-    assert.match(
-      electronMainSource,
-      /noteVaultRoot:\s*path\.join\(app\.getPath\('documents'\), 'MostBox', 'Notes'\)/
-    )
-    assert.doesNotMatch(electronMainSource, /note-vault:select-directory/)
-    assert.doesNotMatch(electronPreloadSource, /note-vault:/)
-
-    for (const locale of ['zh-CN', 'zh-TW', 'en']) {
-      assert.equal(
-        messages[locale]['profile.backup.noteVault.message'],
-        undefined
-      )
-      assert.equal(
-        messages[locale]['profile.backup.noteVault.useDefault'],
-        undefined
-      )
-      assert.equal(
-        messages[locale]['profile.backup.noteVault.selectFolder'],
-        undefined
-      )
-    }
-  })
-
   it('keeps the static web shell route list focused on public entry points', () => {
     const routes = getStaticRoutes()
 
@@ -355,7 +298,6 @@ describe('frontend smoke checks', () => {
       '/docs/',
       '/docs/mcp/',
       '/docs/api/',
-      '/note/',
       '/ping/',
       '/profile/',
       '/web3/',
@@ -471,197 +413,6 @@ describe('frontend smoke checks', () => {
     assert.match(chatSource, /fileApi\.downloadFile\(attachment\.link\)/)
   })
 
-  it('keeps knowledge-base attachments as parseable most:// Markdown references', async () => {
-    const {
-      buildNoteAttachmentFileName,
-      buildMostMarkdownAttachment,
-      parseMostMarkdownReference,
-    } = await importBundledSource(SOURCE_PATHS.mostMarkdown)
-    const cid = 'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
-    const imageName = '旅行(原图)[1].jpg'
-    const imageLink = `most://${cid}?filename=${encodeURIComponent(imageName)}`
-    const imageMarkdown = buildMostMarkdownAttachment({
-      link: imageLink,
-      fileName: imageName,
-      image: true,
-    })
-
-    assert.match(imageMarkdown, /^!\[旅行\(原图\)\\\[1\\\]\.jpg\]\(most:\/\//)
-    assert.match(imageMarkdown, /%28/)
-    assert.match(imageMarkdown, /%29/)
-    assert.equal(
-      parseMostMarkdownReference(
-        imageMarkdown.slice(imageMarkdown.indexOf('](') + 2, -1)
-      ).fileName,
-      imageName
-    )
-    assert.equal(
-      buildMostMarkdownAttachment({
-        link: `most://${cid}`,
-        fileName: 'GPS轨迹.gpx',
-        image: false,
-      }),
-      `[GPS轨迹.gpx](most://${cid})`
-    )
-    assert.equal(parseMostMarkdownReference(`most://${cid}`).cid, cid)
-    assert.equal(parseMostMarkdownReference('https://example.com/file'), null)
-    assert.equal(parseMostMarkdownReference('most://invalid'), null)
-
-    const noteFileName = buildNoteAttachmentFileName('photo.png', 'upload-one')
-    const repeatedName = buildNoteAttachmentFileName('photo.png', 'upload-two')
-    assert.equal(noteFileName, 'note-file/upload-one/photo.png')
-    assert.equal(repeatedName, 'note-file/upload-two/photo.png')
-    assert.notEqual(noteFileName, repeatedName)
-    const noteLink = `most://${cid}?filename=${encodeURIComponent(noteFileName)}`
-    assert.equal(
-      buildMostMarkdownAttachment({
-        link: noteLink,
-        fileName: 'photo.png',
-        image: false,
-      }),
-      `[photo.png](${noteLink})`
-    )
-    assert.equal(parseMostMarkdownReference(noteLink).fileName, noteFileName)
-  })
-
-  it('stores knowledge-base articles as plain Markdown without article encryption', () => {
-    const noteSource = readSource(SOURCE_PATHS.note)
-    const appStoreSource = readSource(SOURCE_PATHS.appStore)
-    const appGlobalsSource = readSource(SOURCE_PATHS.appGlobals)
-    const accountBackupSource = readSource(SOURCE_PATHS.accountBackup)
-    const noteMigrationSource = readSource(SOURCE_PATHS.noteMigration)
-    const noteVaultApiSource = readSource(SOURCE_PATHS.noteVaultApi)
-
-    assert.doesNotMatch(noteSource, /mostEncode|mostDecode|isSecret/)
-    assert.doesNotMatch(noteSource, /note\.privacy\.(?:public|secret)/)
-    assert.doesNotMatch(appStoreSource, /isSecret/)
-    assert.doesNotMatch(accountBackupSource, /mostDecode/)
-    assert.match(appStoreSource, /decryptLegacyBrowserNotes/)
-    assert.match(appGlobalsSource, /migrateLegacyNoteVault/)
-    assert.match(accountBackupSource, /decryptLegacyAccountBackupNotes/)
-    assert.match(noteMigrationSource, /tryMostDecode/)
-    assert.match(noteVaultApiSource, /inspectLegacyEncryptedNote/)
-    assert.match(
-      accountBackupSource,
-      /const content = String\(note\.content \|\| ''\)/
-    )
-  })
-
-  it('keeps local knowledge-base Git manual and Markdown-scoped', () => {
-    const noteSource = readSource(SOURCE_PATHS.note)
-    const gitSource = readSource(SOURCE_PATHS.noteGit)
-    const apiSource = readSource(SOURCE_PATHS.noteVaultApi)
-
-    assert.match(noteSource, /<NoteGitModal/)
-    assert.match(noteSource, /gitStatus\.changes\.length/)
-    assert.match(gitSource, /commitNoteGitChanges\(commitMessage\.trim\(\)\)/)
-    assert.match(gitSource, /restoreNoteGitFile/)
-    assert.match(gitSource, /note\.git\.stagedWarning/)
-    assert.doesNotMatch(gitSource, /push|pull|clone|remote/)
-    assert.match(apiSource, /\/api\/note-vault\/git\/history/)
-    assert.match(apiSource, /\/api\/note-vault\/git\/diff/)
-  })
-
-  it('reuses Markdown image URLs until the editor cache is disposed', async () => {
-    const { createMostMarkdownImageUrlCache } = await importBundledSource(
-      SOURCE_PATHS.mostMarkdown
-    )
-    const cid = 'bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
-
-    const createdUrls = []
-    const revokedUrls = []
-    const imageUrlCache = createMostMarkdownImageUrlCache({
-      createObjectURL() {
-        const url = `blob:test-${createdUrls.length + 1}`
-        createdUrls.push(url)
-        return url
-      },
-      revokeObjectURL(url) {
-        revokedUrls.push(url)
-      },
-    })
-    let blobLoads = 0
-    const loadBlob = async () => {
-      blobLoads += 1
-      return new Blob(['image'])
-    }
-
-    const [firstImageUrl, repeatedImageUrl] = await Promise.all([
-      imageUrlCache.getOrCreate(cid, loadBlob),
-      imageUrlCache.getOrCreate(cid, loadBlob),
-    ])
-    assert.equal(firstImageUrl, 'blob:test-1')
-    assert.equal(repeatedImageUrl, firstImageUrl)
-    assert.equal(await imageUrlCache.getOrCreate(cid, loadBlob), firstImageUrl)
-    assert.equal(blobLoads, 1)
-    assert.deepEqual(revokedUrls, [])
-
-    imageUrlCache.dispose()
-    assert.deepEqual(revokedUrls, [firstImageUrl])
-
-    let finishPendingLoad
-    const pendingCache = createMostMarkdownImageUrlCache({
-      createObjectURL() {
-        return 'blob:pending'
-      },
-      revokeObjectURL(url) {
-        revokedUrls.push(url)
-      },
-    })
-    const pendingImageUrl = pendingCache.getOrCreate(
-      'pending-cid',
-      () =>
-        new Promise(resolve => {
-          finishPendingLoad = resolve
-        })
-    )
-    pendingCache.dispose()
-    finishPendingLoad(new Blob(['pending-image']))
-    assert.equal(await pendingImageUrl, '')
-    assert.deepEqual(revokedUrls, [firstImageUrl, 'blob:pending'])
-  })
-
-  it('wires MostBox attachments into every knowledge-base editor', () => {
-    const milkdownSource = readSource(SOURCE_PATHS.milkdownEditor)
-    const mostEditorSource = readSource(SOURCE_PATHS.mostMarkdownEditor)
-    const noteSource = readSource(SOURCE_PATHS.note)
-    const noteCssSource = readSource(SOURCE_PATHS.noteCss)
-
-    assert.match(milkdownSource, /editor\.action\(insert\(markdown\)\)/)
-    assert.match(milkdownSource, /proxyDomURL:/)
-    assert.match(milkdownSource, /parseMostMarkdownReference\(href\)/)
-    assert.match(milkdownSource, /onInternalNoteLinkOpenRef/)
-    assert.match(
-      mostEditorSource,
-      /buildNoteAttachmentFileName\(\s*file\.name,\s*crypto\.randomUUID\(\)\s*\)/
-    )
-    assert.match(
-      mostEditorSource,
-      /fileApi\.publishFile\(file, targetFileName\)/
-    )
-    assert.match(mostEditorSource, /return \{ fileName: file\.name, link \}/)
-    assert.match(mostEditorSource, /openAttachmentPicker:/)
-    assert.match(noteSource, /editorRef\.current\?\.openAttachmentPicker\(\)/)
-    assert.equal(noteSource.match(/onAttachmentPublishingChange=/g)?.length, 2)
-    assert.equal(
-      noteSource.match(/className="note-editor-attachment-fab"/g)?.length,
-      2
-    )
-    assert.equal(noteSource.match(/note-editor-attachment-button/g)?.length, 2)
-    assert.match(mostEditorSource, /fileApi\.downloadFileInBackground/)
-    assert.match(mostEditorSource, /getApiRequestHeaders\('GET', requestPath\)/)
-    assert.match(mostEditorSource, /<FilePreviewOverlay/)
-    assert.equal(noteSource.match(/<MostMarkdownEditor\s/g)?.length, 3)
-    assert.match(noteSource, /resolveWikiNoteLink=\{resolvePreviewWikiLink\}/)
-    assert.match(noteSource, /resolveWikiNoteLink=\{/)
-    assert.match(noteCssSource, /container: note-editor \/ inline-size/)
-    assert.match(noteCssSource, /@container note-editor \(max-width: 820px\)/)
-    assert.match(
-      noteCssSource,
-      /\.note-editor-attachment-fab \{[\s\S]*?position: sticky/
-    )
-  })
-
   it('routes file share actions to the CID page and exposes web QR sharing there', async () => {
     const filesSource = readSource(SOURCE_PATHS.files)
     const cidSource = readSource(SOURCE_PATHS.cid)
@@ -679,7 +430,7 @@ describe('frontend smoke checks', () => {
       /navigate\(\{\s*href: buildCidSharePath\(shareResult\.cid, shareResult\.fileName\),?\s*\}\)/
     )
     assert.doesNotMatch(filesSource, /className="share-modal"/)
-    assert.match(acceptanceSource, /发布成功后确认仍停留在文件库/)
+    assert.match(acceptanceSource, /聊天附件/)
     const publishFlow = filesSource.match(
       /const result = await fileApi\.publishFile\(file, fileName\)[\s\S]*?\}\s*catch \(err\)/
     )
@@ -1719,20 +1470,18 @@ describe('frontend smoke checks', () => {
     assert.doesNotMatch(aboutMessages, /Scoped MCP Interface/)
   })
 
-  it('separates shipped foundations from future directions on the Hi page', () => {
+  it('keeps the Hi page focused on DChat and file transfer', () => {
     const hiSource = readSource(SOURCE_PATHS.hi)
     const hiMessages = readSource('src/lib/i18n/messages/hi.ts')
     const footerSource = readSource(SOURCE_PATHS.footer)
 
-    assert.match(hiSource, /hi\.common\.future/)
-    assert.match(hiSource, /hi\.status\.available/)
-    assert.match(hiSource, /hi\.status\.future/)
-    assert.match(hiSource, /hi\.ai\.note/)
-    assert.match(hiMessages, /知识库读取、整理和写回仍是未来方向。/)
-    assert.match(
-      hiMessages,
-      /Knowledge-base reading, organization, and writing remain future directions\./
-    )
+    assert.match(hiSource, /hi\.hero\.primary/)
+    assert.match(hiSource, /hi\.preview\.channel/)
+    assert.match(hiSource, /hi\.principles\.chat\.title/)
+    assert.match(hiSource, /to=\"\/chat\/\"/)
+    assert.match(hiMessages, /去中心化聊天与文件传输/)
+    assert.match(hiMessages, /Decentralized chat, with files sent directly/)
+    assert.doesNotMatch(hiSource, /knowledge|Knowledge|知识库/)
     assert.doesNotMatch(footerSource, /to: '\/future\/'/)
   })
 

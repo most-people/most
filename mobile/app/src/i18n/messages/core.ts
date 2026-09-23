@@ -89,11 +89,6 @@ export const coreMessages = {
     'zh-TW': '檔案',
     en: 'Files',
   },
-  'nav.knowledge': {
-    'zh-CN': '知识库',
-    'zh-TW': '知識庫',
-    en: 'Knowledge',
-  },
   'nav.transfers': {
     'zh-CN': '传输',
     'zh-TW': '傳輸',

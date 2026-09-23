@@ -3,7 +3,7 @@
 > 当前提交验收基线：2026-09-13；Android `0.5.3`（versionCode `503`）。`docs/google-play-aab-audit.md` 中的 `0.5.0` 记录保留为历史审计证据。
 > 本文中的公司主体信息只用于 Google Play 账号核验、法律页面和审核材料，**不要求在 `most.box` 官网公开展示企业归属**。
 
-本清单适用于 Most profile 的完整 Android 商店版。应用包含文件传输与做种、知识库、频道聊天、远程节点连接、Web3 工具及相关本地身份能力；不包含广告、付费或公开内容目录。远程 daemon 可独立持续工作，本机 Bare Worklet 的持续做种和下载受 Android 生命周期影响，当前以应用前台运行和返回前台自动恢复为保证范围。
+本清单适用于 Most profile 的完整 Android 商店版。应用包含去中心化频道聊天、文件传输与做种、远程节点连接、Web3 工具及相关本地身份能力；不包含广告、付费或公开内容目录。远程 daemon 可独立持续工作，本机 Bare Worklet 的持续做种和下载受 Android 生命周期影响，当前以应用前台运行和返回前台自动恢复为保证范围。
 
 Android 原生入口默认创建本机 Bare Worklet 节点，也可通过节点地址、邀请码和签名身份连接远程 daemon；基础本机功能无需云端注册账号。`app.most.box` 的 Expo Web 远程控制台是独立 Web 构建，不进入 AAB。
 
@@ -39,11 +39,11 @@ eas build --platform android --profile android-production
 
 简短说明（80 字以内）：
 
-> 文件、知识库与频道聊天，通过 most:// 传输并完成 CID 校验。
+> 去中心化频道聊天与文件传输，通过 most:// 分享并完成 CID 校验。
 
 完整说明：
 
-> MostBox 是一个包含本地知识库、频道聊天、语音信令、远程节点和 Web3 工具的 CID 优先 P2P 应用。无需云端注册即可在本机创建、编辑、搜索、导入、导出和备份 Markdown 笔记；知识库默认只保存在本机。
+> MostBox 是一个以去中心化频道聊天为核心、以文件传输为辅的 CID 优先 P2P 应用。无需云端注册即可创建频道、发送消息和分享文件；远程节点连接使用用户自己的地址、邀请码和签名身份。
 >
 > 选择文件即可生成 most:// 分享链接；接收方确认链接后，从在线节点下载文件并重新计算 CID，校验通过后保存到本机。
 >
@@ -98,7 +98,7 @@ eas build --platform android --profile android-production
 
 ## Data Safety 最终建议
 
-当前代码不包含广告、分析、崩溃上报、推送或中心化文件服务器。应用支持本地签名身份、远程节点连接、频道聊天和 Web3 工具；本机笔记、知识库备份、文件、CID、holding 和日志保存在设备内，远程节点的身份和数据由用户自行管理。文件和聊天消息只在用户明确操作后通过 P2P 或用户指定的远程节点传输。P2P 节点和 DHT 基础设施会处理建立连接所需的 IP 地址、连接时间、派生 topic 和网络元数据；这些行为已在首次启动同意页和隐私政策中披露。
+当前代码不包含广告、分析、崩溃上报、推送或中心化文件服务器。应用支持本地签名身份、远程节点连接、频道聊天、文件传输和 Web3 工具；身份、消息、文件、CID、holding 和日志保存在设备内，远程节点的身份和数据由用户自行管理。文件和聊天消息只在用户明确操作后通过 P2P 或用户指定的远程节点传输。P2P 节点和 DHT 基础设施会处理建立连接所需的 IP 地址、连接时间、派生 topic 和网络元数据；这些行为已在首次启动同意页和隐私政策中披露。
 
 按 2026-08-13 的代码与 AAB 审计结果，建议填写：
 
@@ -116,7 +116,7 @@ eas build --platform android --profile android-production
 
 可在审核备注中说明：
 
-> MostBox is a user-initiated peer-to-peer utility with file transfer, local knowledge, channel chat, voice signaling, remote node connectivity, and Web3 tools. It has no public content catalog, advertising, or paid service. Basic local functions work without a cloud account; remote node access uses the user's own endpoint, invite, and signing identity. Opening a most:// link only presents a confirmation screen; no download starts until the reviewer taps Confirm Download. Every completed download is recalculated and verified against its UnixFS CID before it is stored. The Play build blocks known application packages, scripts, and executable file types declared by the selected file or link. Local-node seeding is guaranteed while the app is in the foreground and resumes when the app returns to the foreground; a remote daemon can continue independently.
+> MostBox is a user-initiated peer-to-peer utility focused on decentralized channel chat and file transfer, with remote node connectivity and Web3 tools. It has no public content catalog, advertising, or paid service. Basic local functions work without a cloud account; remote node access uses the user's own endpoint, invite, and signing identity. Opening a most:// link only presents a confirmation screen; no download starts until the reviewer taps Confirm Download. Every completed download is recalculated and verified against its UnixFS CID before it is stored. The Play build blocks known application packages, scripts, and executable file types declared by the selected file or link. Local-node seeding is guaranteed while the app is in the foreground and resumes when the app returns to the foreground; a remote daemon can continue independently.
 
 首次启动时，应用会先展示隐私政策和使用条款；只有审核人员点击“同意并继续”并成功保存同意记录后，应用才创建并启动 P2P 核心。拒绝时不会启动 P2P 网络。
 
@@ -127,8 +127,8 @@ eas build --platform android --profile android-production
 - Play 图标：`mobile/app/store-assets/app-icon-512.png`，512 × 512 RGBA PNG
 - Feature graphic：`mobile/app/store-assets/feature-graphic-1024x500.png`，1024 × 500 RGB PNG，不带透明通道
 - 手机截图：`mobile/app/store-assets/screenshots/` 中 6 张 1080 × 1920 PNG
-- 截图内容：文件列表、下载确认、传输记录、知识库列表、知识库笔记详情、节点状态
-- 商店素材应如实展示当前 AAB 已提供的文件、知识库、聊天、远程节点和 Web3 能力，不得承诺 Android 平台尚未实现的长期后台常驻
+- 截图内容：聊天频道、文件列表、下载确认、传输记录、节点状态
+- 商店素材应如实展示当前 AAB 已提供的聊天、文件、远程节点和 Web3 能力，不得承诺 Android 平台尚未实现的长期后台常驻
 - 静态检查确认 Most profile 的 AAB 含远程节点连接、邀请码和签名身份入口，且未误用墨盒 profile 的关闭配置
 
 建议上传顺序：
@@ -136,9 +136,7 @@ eas build --platform android --profile android-production
 1. `files.png`
 2. `download-confirmation.png`
 3. `transfers.png`
-4. `knowledge-list.png`
-5. `knowledge-note.png`
-6. `node.png`
+4. `node.png`
 
 ## 审核测试材料
 

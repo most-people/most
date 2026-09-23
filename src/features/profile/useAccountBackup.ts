@@ -1,11 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import { api } from '~server/src/utils/api'
 import {
-  calculateNoteCid,
-  normalizeNotePath,
-} from '~server/src/utils/noteUtils.js'
-import { decryptLegacyAccountBackupNotes } from '~server/src/utils/noteMigration.js'
-import {
   decryptAccountBackup,
   encryptAccountBackup,
 } from '~server/src/utils/accountBackup.js'
@@ -17,12 +12,6 @@ import {
   isAppearancePreference,
   type AppearancePreference,
 } from '~/lib/appearance'
-import {
-  getNoteVaultSnapshot,
-  getNoteVaultStatus,
-  restoreNoteVaultSnapshot,
-  type NoteVaultSnapshot,
-} from '~/features/note/noteVaultApi'
 type AccountBackupAction = 'export' | 'import' | null
 type AccountBackupStatus = 'idle' | 'disabled' | 'working' | 'synced' | 'error'
 type AccountBackupProfile = AccountBackupPayload['profile']
@@ -42,23 +31,11 @@ type AccountBackupSummary = {
   loading: boolean
 }
 
-type BackupNoteRecord = {
-  name: string
-  cid: string
-  path: string
-  content: string
-  size: number
-  type: 'file'
-  created_at: number
-  updated_at: number
-}
-
 interface AccountBackupPayload {
   type: 'mostbox.account-backup'
-  schemaVersion: 1
+  schemaVersion: number
   ownerAddress: string
   exportedAt: string
-  notes: unknown[]
   profile?: {
     displayName?: string
     avatar?: string
@@ -72,7 +49,8 @@ interface AccountBackupPayload {
   files?: unknown[]
   trashFiles?: unknown[]
   channels?: unknown[]
-  noteVault?: NoteVaultSnapshot
+  notes?: unknown[]
+  noteVault?: unknown
 }
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -94,12 +72,10 @@ function getStatusLabel(
 
 function hasLocalData(payload: AccountBackupPayload) {
   return Boolean(
-    payload.notes.length ||
     payload.profile ||
     payload.preferences ||
     payload.files?.length ||
-    payload.channels?.length ||
-    payload.noteVault?.files.length
+    payload.channels?.length
   )
 }
 
@@ -116,16 +92,10 @@ function getComparablePayload(payload: AccountBackupPayload) {
     type: payload.type,
     schemaVersion: payload.schemaVersion,
     ownerAddress: payload.ownerAddress.toLowerCase(),
-    notes: payload.notes,
     profile: payload.profile || null,
     preferences: payload.preferences || null,
     files: sortByStringField(payload.files, 'cid'),
     channels: sortByStringField(payload.channels, 'channelKey'),
-    noteVault: payload.noteVault
-      ? {
-          files: sortByStringField(payload.noteVault.files, 'path'),
-        }
-      : null,
   }
 }
 
@@ -141,94 +111,6 @@ function hasDifferentBackupData(
 
 function countBackupItems(items: unknown[] | undefined) {
   return Array.isArray(items) ? items.length : 0
-}
-
-function isDesktopNoteVaultClient() {
-  return (
-    typeof window !== 'undefined' && window.electronAPI?.isElectron === true
-  )
-}
-
-function hasNoteVaultPayload(payload: AccountBackupPayload) {
-  return (
-    payload.noteVault !== undefined &&
-    payload.noteVault !== null &&
-    Array.isArray(payload.noteVault.files)
-  )
-}
-
-function ensureMarkdownFileName(input: unknown) {
-  const name = String(input || '').trim()
-  if (!name) return 'Untitled.md'
-  return name.toLowerCase().endsWith('.md') ? name : `${name}.md`
-}
-
-async function readDesktopNoteVaultSnapshot() {
-  try {
-    const status = await getNoteVaultStatus()
-    if (!status.configured) return undefined
-    return await getNoteVaultSnapshot()
-  } catch {
-    return undefined
-  }
-}
-
-async function createNotesFromNoteVaultSnapshot(snapshot: NoteVaultSnapshot) {
-  const notes: BackupNoteRecord[] = []
-
-  for (const file of snapshot.files) {
-    const normalizedPath = normalizeNotePath(file.path)
-    const lastSlash = normalizedPath.lastIndexOf('/')
-    const name =
-      lastSlash === -1 ? normalizedPath : normalizedPath.slice(lastSlash + 1)
-    const directory = lastSlash === -1 ? '' : normalizedPath.slice(0, lastSlash)
-    const content = String(file.content ?? '')
-    const timestamp = Number(file.mtimeMs) || Date.now()
-    notes.push({
-      name: name || 'Untitled.md',
-      cid: await calculateNoteCid(content),
-      path: directory,
-      content,
-      size: Number(file.size) || new TextEncoder().encode(content).length,
-      type: 'file',
-      created_at: timestamp,
-      updated_at: timestamp,
-    })
-  }
-
-  return notes
-}
-
-async function createNoteVaultSnapshotFromNotes(
-  notesInput: unknown[]
-): Promise<NoteVaultSnapshot> {
-  const files = new Map<string, NoteVaultSnapshot['files'][number]>()
-
-  for (const item of notesInput) {
-    if (!item || typeof item !== 'object') continue
-    const note = item as Record<string, unknown>
-    const name = ensureMarkdownFileName(note.name)
-    const directory = normalizeNotePath(String(note.path || ''))
-    const filePath = normalizeNotePath(
-      directory ? `${directory}/${name}` : name
-    )
-    if (!filePath) continue
-
-    const content = String(note.content || '')
-    const encodedSize = new TextEncoder().encode(content).length
-    files.set(filePath, {
-      path: filePath,
-      content,
-      size: Number(note.size) || encodedSize,
-      mtimeMs: Number(note.updated_at) || Number(note.created_at) || Date.now(),
-    })
-  }
-
-  return {
-    files: [...files.values()].sort((left, right) =>
-      left.path.localeCompare(right.path)
-    ),
-  }
 }
 
 async function readRestoredProfile(fallback: AccountBackupProfile) {
@@ -275,8 +157,6 @@ export function useAccountBackup() {
   const addToast = useAppStore(s => s.addToast)
   const hasBackend = useAppStore(s => s.hasBackend)
   const openConnectModal = useAppStore(s => s.openConnectModal)
-  const notes = useAppStore(s => s.notes)
-  const importNotes = useAppStore(s => s.importNotes)
   const setAppearance = useAppStore(s => s.setAppearance)
   const wallet = useUserStore(s => s.wallet)
   const openLoginModal = useUserStore(s => s.openLoginModal)
@@ -362,12 +242,6 @@ export function useAccountBackup() {
         theme: useAppStore.getState().appearance,
         locale,
       },
-      notes: useAppStore.getState().notes,
-    }
-    const noteVault = await readDesktopNoteVaultSnapshot()
-    if (noteVault) {
-      payload.noteVault = noteVault
-      payload.notes = await createNotesFromNoteVaultSnapshot(noteVault)
     }
     return payload
   }, [locale, requireBackend, t])
@@ -386,11 +260,9 @@ export function useAccountBackup() {
         throw new Error(t('profile.backup.error.ownerMismatch'))
       }
 
-      const legacyMigration = await decryptLegacyAccountBackupNotes(
-        payload,
-        currentWallet.danger
-      )
-      const migratedPayload = legacyMigration.payload as AccountBackupPayload
+      const migratedPayload: AccountBackupPayload = { ...payload }
+      delete migratedPayload.notes
+      delete migratedPayload.noteVault
 
       if (options.confirm !== false) {
         const localPayload = await buildPayload()
@@ -408,30 +280,11 @@ export function useAccountBackup() {
         }
       }
 
-      let restoredNotes = migratedPayload.notes
-      if (isDesktopNoteVaultClient()) {
-        const status = await getNoteVaultStatus()
-        if (!status.configured || !status.writable) {
-          throw new Error(t('profile.backup.error.restoreFailed'))
-        }
-        const vaultSnapshot = hasNoteVaultPayload(migratedPayload)
-          ? migratedPayload.noteVault
-          : await createNoteVaultSnapshotFromNotes(migratedPayload.notes)
-        const shouldRestoreVault =
-          hasNoteVaultPayload(migratedPayload) ||
-          Array.isArray(migratedPayload.notes)
-        if (shouldRestoreVault) {
-          await restoreNoteVaultSnapshot(vaultSnapshot)
-          restoredNotes = await createNotesFromNoteVaultSnapshot(vaultSnapshot)
-        }
-      }
-
       await api
         .post<{ success: boolean }>('/api/user/import', {
           json: migratedPayload,
         })
         .json()
-      importNotes(restoredNotes as Parameters<typeof importNotes>[0])
       const restoredPreferences = normalizeBackupPreferences(
         migratedPayload.preferences
       )
@@ -454,7 +307,6 @@ export function useAccountBackup() {
     [
       addToast,
       buildPayload,
-      importNotes,
       requireBackend,
       requireWallet,
       refreshBackupSummary,
@@ -561,6 +413,5 @@ export function useAccountBackup() {
     hasBackend,
     backupSummary,
     refreshBackupSummary,
-    notesCount: notes.length,
   }
 }

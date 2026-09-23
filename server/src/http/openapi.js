@@ -663,10 +663,6 @@ const schemas = {
       profile: ref('UserProfile'),
       files: { type: 'array', items: ref('PublishedFile') },
       channels: { type: 'array', items: ref('Channel') },
-      notes: {
-        type: 'array',
-        items: { type: 'object', additionalProperties: true },
-      },
       preferences: { type: 'object', additionalProperties: true },
     },
     additionalProperties: true,

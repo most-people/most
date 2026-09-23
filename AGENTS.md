@@ -13,11 +13,13 @@
 
 # Most.Box
 
-Most.Box 是一个 P2P 文件分享与做种工具：用户发布文件得到 `most://` 分享链接，其他人凭链接下载并校验；下载完成的人默认继续做种，让文件像 BitTorrent / 磁力链接一样传播。
+Most.Box 是一个以去中心化聊天为核心、文件传输为辅的 P2P 工具：用户加入频道交换消息，也可以发布文件得到 `most://` 分享链接；下载完成的人默认继续做种，让文件像 BitTorrent / 磁力链接一样传播。
 
 它不是云盘、备份服务或付费存储市场。用户需要自己保存好重要数据；MostBox 只帮助在线用户把文件传播出去，并在仍有种子在线时让其他人下载。
 
-Web3 产品入口和以太坊钱包工具保留为独立工具箱，不参与 MostBox 文件分享、下载或做种主流程。
+Web3 产品入口和以太坊钱包工具保留为独立工具箱，不参与 MostBox 聊天、文件传输或做种主流程。
+
+当前对外定位是 **MostBox · 去中心化聊天与文件传输**。DChat 是产品方向名称；当前聊天模型沿用 P2P 频道，不承诺端到端加密、无服务器或永久在线。
 
 ## 当前文档
 
@@ -33,7 +35,7 @@ Web3 产品入口和以太坊钱包工具保留为独立工具箱，不参与 Mo
 
 ## 当前 MVP 口径
 
-首版只验证一个闭环：
+首版优先验证两个相互连接的闭环：
 
 ```
 CID
@@ -42,6 +44,11 @@ CID
   → 下载者凭链接下载并重算 CID 校验
   → 下载者默认持续做种
   → 发布者退出后，只要还有下载者在线即可继续传播
+
+频道
+  → 创建或加入 P2P 频道
+  → 消息在在线节点间同步
+  → 聊天附件使用 most:// 链接并按 CID 校验
 ```
 
 MVP 成功标准：
@@ -50,6 +57,7 @@ MVP 成功标准：
 - 下载完成后，本机默认把该文件加入做种列表，应用/daemon 重启后自动重新 join 对应 CID topic。
 - 发布者退出后，只要至少一个下载者仍在线做种，新下载者仍能完成下载并校验。
 - 用户能看到本机正在做种的 CID、文件大小、topic join 状态和基础日志。
+- 用户能创建或加入频道、发送消息，并在重连后继续读取频道历史。
 
 ## 产品与协议不变量
 
@@ -149,11 +157,10 @@ npm run build
 
 ## 关键入口
 
-- 前端主应用：`src/features/files/AppPage.tsx`
+- 前端主应用：`src/features/chat/ChatPage.tsx`、`src/features/files/AppPage.tsx`
 - 前端路由壳：`src/routes/**/index.tsx`、`src/routes/**/index.lazy.tsx`
 - i18n 文案入口：`src/lib/i18n/messages.ts`、`src/lib/i18n/messages/*.ts`
 - Web3 工具箱：`src/features/web3/Web3Page.tsx`
-- 笔记模块：`src/features/note/NotePage.tsx`、`src/components/MilkdownEditor.tsx`
 - 管理后台：`src/features/admin/AdminPage.tsx`
 - 移动端应用：`mobile/app/`
 - 全局状态：`src/stores/useAppStore.ts`
@@ -166,7 +173,6 @@ npm run build
 - 配置：`server/src/config.js`
 - Electron：`electron/main.js`、`electron/preload.js`
 - 工具模块：
-  - 笔记工具：`server/src/utils/noteUtils.js`、`server/src/utils/noteBackup.js`
   - 钱包工具：`server/src/utils/mostWallet.js`
   - 安全工具：`server/src/utils/security.js`
   - 用户身份：`server/src/utils/userIdentity.js`

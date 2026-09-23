@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import { useLocation } from '@tanstack/react-router'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
@@ -6,26 +6,22 @@ import { Toast } from '~/components/ui'
 import UserLoginModal from '~/components/UserLoginModal'
 import ConnectModal from '~/components/ConnectModal'
 import GlobalDownloadTasks from '~/features/cid/GlobalDownloadTasks'
-import { migrateLegacyNoteVault } from '~/features/note/noteVaultApi'
+import { cleanupLegacyKnowledgeData } from '~/lib/legacyKnowledgeCleanup'
 
 export default function AppGlobals() {
   const pathname = useLocation({ select: location => location.pathname })
   const checkBackend = useAppStore(s => s.checkBackend)
-  const hasBackend = useAppStore(s => s.hasBackend)
   const initializeLocalData = useAppStore(s => s.initializeLocalData)
   const firstPath = useUserStore(s => s.firstPath)
   const initializeUser = useUserStore(s => s.initializeUser)
   const setFirstPath = useUserStore(s => s.setFirstPath)
-  const identity = useUserStore(s => s.identity)
-  const loadUserNotes = useAppStore(s => s.loadUserNotes)
-  const notesAddress = useAppStore(s => s.notesAddress)
-  const resetAppState = useAppStore(s => s.resetAppState)
   const toasts = useAppStore(s => s.toasts)
   const removeToast = useAppStore(s => s.removeToast)
-  const identityAddress = identity?.address || ''
-  const migratedVaultAddressRef = useRef('')
 
   useEffect(() => {
+    void cleanupLegacyKnowledgeData().catch(error => {
+      console.warn('[legacy-cleanup] failed:', error)
+    })
     initializeLocalData()
     initializeUser()
     checkBackend()
@@ -35,36 +31,6 @@ export default function AppGlobals() {
     if (firstPath) return
     setFirstPath(pathname || '/')
   }, [firstPath, pathname, setFirstPath])
-
-  useEffect(() => {
-    if (identity) {
-      loadUserNotes(identity.address, identity.danger)
-    } else {
-      resetAppState()
-    }
-  }, [identity?.address, identity?.danger, loadUserNotes, resetAppState])
-
-  useEffect(() => {
-    if (
-      !identity ||
-      hasBackend !== true ||
-      notesAddress.toLowerCase() !== identityAddress.toLowerCase() ||
-      typeof window === 'undefined' ||
-      window.electronAPI?.isElectron !== true ||
-      migratedVaultAddressRef.current === identityAddress.toLowerCase()
-    ) {
-      return
-    }
-
-    const address = identityAddress.toLowerCase()
-    migratedVaultAddressRef.current = address
-    void migrateLegacyNoteVault(identity.danger).catch(err => {
-      if (migratedVaultAddressRef.current === address) {
-        migratedVaultAddressRef.current = ''
-      }
-      console.warn('Failed to migrate legacy note vault content:', err)
-    })
-  }, [hasBackend, identity, identityAddress, notesAddress])
 
   return (
     <>

@@ -1,28 +1,19 @@
-export type RootTab = 'files' | 'knowledge' | 'transfers' | 'chat' | 'node'
-export type KnowledgePresentation = 'browse' | 'preview' | 'edit'
+export type RootTab = 'chat' | 'files' | 'transfers' | 'node'
 
-export type TabPressAction = 'scrollTop' | 'switch' | 'confirmDiscard'
+export type TabPressAction = 'scrollTop' | 'switch'
 export type RootBackAction =
-  | 'closeLanguage'
-  | 'closeReceive'
-  | 'closeNodeChild'
-  | 'closeKnowledgeChild'
-  | 'exit'
+  'closeLanguage' | 'closeReceive' | 'closeNodeChild' | 'exit'
 
 export function getTabPressAction(
   activeTab: RootTab,
-  nextTab: RootTab,
-  knowledgeDirty: boolean
+  nextTab: RootTab
 ): TabPressAction {
-  if (activeTab === nextTab) return 'scrollTop'
-  if (activeTab === 'knowledge' && knowledgeDirty) return 'confirmDiscard'
-  return 'switch'
+  return activeTab === nextTab ? 'scrollTop' : 'switch'
 }
 
 export function getRootBackAction(input: {
   activeTab: RootTab
   downloadModalOpen: boolean
-  knowledgeMode: KnowledgePresentation
   languageModalOpen: boolean
   nodeRoute: 'status' | 'p2pPing'
 }): RootBackAction {
@@ -30,9 +21,6 @@ export function getRootBackAction(input: {
   if (input.downloadModalOpen) return 'closeReceive'
   if (input.activeTab === 'node' && input.nodeRoute === 'p2pPing') {
     return 'closeNodeChild'
-  }
-  if (input.activeTab === 'knowledge' && input.knowledgeMode !== 'browse') {
-    return 'closeKnowledgeChild'
   }
   return 'exit'
 }

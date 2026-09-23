@@ -16,18 +16,10 @@ export function validateAccountBackupPayload(input) {
   if (!String(input.ownerAddress || '').trim()) {
     throw new Error('账号备份缺少 ownerAddress')
   }
-  if (!Array.isArray(input.notes)) {
-    throw new Error('账号备份缺少 notes')
-  }
-  if (
-    input.noteVault !== undefined &&
-    (!input.noteVault ||
-      typeof input.noteVault !== 'object' ||
-      !Array.isArray(input.noteVault.files))
-  ) {
-    throw new Error('账号备份 noteVault 格式无效')
-  }
-  return input
+  const normalized = { ...input }
+  delete normalized.notes
+  delete normalized.noteVault
+  return normalized
 }
 
 export function encryptAccountBackup(payload, danger) {

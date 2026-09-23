@@ -1,7 +1,7 @@
 {
   "name": "most-box",
   "version": "0.5.3",
-  "description": "MostBox - CID-first P2P file sharing, seeding, chat, and notes",
+  "description": "MostBox - decentralized P2P chat and file transfer",
   "type": "module",
   "engines": {
     "node": ">=24"
@@ -16,6 +16,7 @@
     "electron/afterPack.cjs",
     "electron/deepLink.js",
     "electron/main.js",
+    "electron/legacyKnowledgeCleanup.js",
     "electron/preload.cjs",
     "electron/security.js",
     "electron/updateChecker.js",
@@ -86,7 +87,6 @@
     "hyperswarm": "^4.17.0",
     "ipfs-unixfs": "^13.0.0",
     "ipfs-unixfs-importer": "^17.0.1",
-    "isomorphic-git": "^1.40.0",
     "multiformats": "^14.0.5",
     "tweetnacl": "^1.0.3",
     "ws": "^8.21.2",
@@ -97,9 +97,6 @@
     "@eslint/js": "^10.0.1",
     "@iconify/react": "^6.0.2",
     "@mantine/hooks": "^9.5.1",
-    "@milkdown/crepe": "^7.22.0",
-    "@milkdown/kit": "^7.22.0",
-    "@milkdown/utils": "^7.22.0",
     "@modelcontextprotocol/client": "^2.0.0",
     "@types/react": "^19.2.18",
     "@vitejs/plugin-react": "^6.0.5",

@@ -53,6 +53,13 @@ export function registerStaticRoutes(app) {
     return c.json({ error: 'Not found' }, 404)
   })
 
+  app.all('/note', c => {
+    return c.json({ error: 'Not found' }, 404)
+  })
+  app.all('/note/*', c => {
+    return c.json({ error: 'Not found' }, 404)
+  })
+
   app.get('*', async c => {
     const pathname = c.req.path
     const filePath = path.join(publicDir, pathname)

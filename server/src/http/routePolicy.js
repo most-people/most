@@ -31,7 +31,6 @@ export function requiresUserAuth(path) {
     path === '/api/folder/rename' ||
     path === '/api/folder/share' ||
     path === '/api/folder/shares' ||
-    path.startsWith('/api/note-vault') ||
     path.startsWith('/api/collections/') ||
     path.startsWith('/api/files/') ||
     path.startsWith('/api/channels')

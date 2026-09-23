@@ -1,10 +1,10 @@
 # MostBox Mobile
 
-MostBox 的 iOS / Android 商店版和共享 Bare Worklet P2P 核心。移动工程与桌面/Web UI 分离，但保持相同的 `most://`、CID、Hyperdrive 和做种协议。
+MostBox 的 iOS / Android 商店版和共享 Bare Worklet P2P 核心，产品定位为 DChat：去中心化频道聊天与文件传输。移动工程与桌面/Web UI 分离，但保持相同的 `most://`、CID、Hyperdrive 和做种协议。
 
 ## 当前状态
 
-- iOS / Android 使用原生 React Native 全功能界面，底部包含“文件 / 知识库 / 传输 / 聊天”四个入口，节点状态、本机/远程连接和账号从页面右上角进入，默认打开“文件”。
+- iOS / Android 使用原生 React Native 全功能界面，底部以“聊天 / 文件 / 传输”为主入口，节点状态、本机/远程连接和账号从页面右上角进入；MostBox 默认打开“聊天”，墨盒保持文件入口。
 - 用户可选择文件发布，得到 `most://<cid>?filename=...` 链接并在前台做种。
 - 外部 `most://` 深链只打开下载确认页，不会自动开始下载。
 - 手工下载输入与桌面端一致，支持 `most://`、尾部为 CID 的网页入口和裸 CID。
@@ -13,9 +13,7 @@ MostBox 的 iOS / Android 商店版和共享 Bare Worklet P2P 核心。移动工
 - iOS / Android 原生构建启动内置 Bare Worklet 节点，并支持连接远程 MostBox daemon、远程节点切换、远程身份和登录。原生与 Web 共享远程 API、WebSocket 和签名协议。
 - 聊天支持频道创建/加入、历史消息、文本与 `most://` 附件；语音信令支持加入、离开、静音和恢复状态，当前不采集麦克风音频。
 - Expo Web 使用平台专用入口连接用户已有的 MostBox daemon；浏览器不运行 Bare Worklet，本机 P2P 传输由远程 daemon 完成。
-- 知识库以 UTF-8 `.md` 明文保存在 App 文档目录的 `mostbox-knowledge/`，支持目录、搜索、编辑、预览、单篇导入导出和整库快照替换恢复。
-- 知识库附件只在 Markdown 中保存 `most://` 引用；发布、确认下载、CID 校验和自动做种仍复用文件模块。
-- 原生移动端提供聊天、语音、账号身份、远程节点、文件、知识库、传输和 P2P 诊断等完整 MostBox 能力；广告、付费和公开内容目录不属于当前产品功能。
+- 原生移动端提供聊天、语音、账号身份、远程节点、文件、传输和 P2P 诊断等完整 MostBox 能力；广告、付费和公开内容目录不属于当前产品功能。
 - 已知应用安装包、脚本和可执行文件类型会在发布或下载前被拒绝。
 
 ## 命令
@@ -155,10 +153,7 @@ node scripts/android-real-p2p-seed.mjs --handoff-check
 
 - 本机节点在应用进入后台时受系统调度限制，返回前台后恢复节点和 topic；远程节点可按 daemon 能力继续后台传输。
 - 保存或分享产生的是用户可见副本；MostBox 内部 holding 副本用于 CID 校验和做种。
-- 移动端知识库正文与桌面/Web 知识库独立，不接入云同步或 Git；迁移只通过单篇 Markdown 或整库 JSON 快照手工完成。附件可复用当前活动节点的文件闭环。
 - Android、iOS 和 Expo Web 均验收远程节点断线与重连、身份登录和节点切换；Web 仅额外受浏览器无法运行 Bare Worklet 的限制。
-- 整库恢复会在完整校验和用户确认后完全替换当前知识库，不自动合并；失败时保留恢复前的数据。
-- 笔记本身不发布到 Hyperdrive，也不生成分享链接；只有用户主动选择的附件进入文件发布流程。
 - CID 即权限，链接泄露后无法从 P2P 网络统一撤回。
 - iOS 模拟器 Release 和无签名 `iphoneos` arm64 Release 已构建通过；正式发布仍以签名真机和内部 TestFlight 完成 P2P 闭环为准。
 

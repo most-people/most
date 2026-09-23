@@ -542,11 +542,6 @@ export class RemoteMostBoxCore implements MostBoxMobileCore {
     return this.#clone()
   }
 
-  async requestKnowledgeGit(method: 'GET', path: string) {
-    await this.#ensureAuthenticated()
-    return this.#requestJson(method, path)
-  }
-
   subscribe(listener: CoreListener) {
     this.#listeners.add(listener)
     listener(this.#clone())

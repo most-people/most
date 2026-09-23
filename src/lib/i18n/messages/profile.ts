@@ -12,9 +12,8 @@ export const zhCNProfileMessages = {
   'profile.section.avatar.desc': '选择一个内置头像，或继续使用自己的头像 URL。',
   'profile.section.backup': '账号备份',
   'profile.section.backup.desc':
-    '手动备份或恢复加密账号数据，包括显示名称、头像、标签、偏好设置、知识库、文件目录和频道偏好。',
+    '手动备份或恢复加密账号数据，包括显示名称、头像、标签、偏好设置、文件目录和频道偏好。',
   'profile.backup.summary.label': '账号备份数据概览',
-  'profile.backup.summary.notes': '笔记',
   'profile.backup.summary.files': '文件',
   'profile.backup.summary.channels': '频道',
   'profile.backup.group.local': '本地文件',
@@ -40,7 +39,7 @@ export const zhCNProfileMessages = {
   'profile.backup.status.error': '操作失败',
   'profile.backup.confirm.importTitle': '确认导入备份',
   'profile.backup.confirm.restore':
-    '导入备份会合并账号元数据并替换本地知识库，继续吗？',
+    '导入备份会合并账号元数据、文件目录和频道偏好，继续吗？',
   'profile.backup.toast.exportedLocal': '账号备份已导出',
   'profile.backup.toast.restoredLocal': '已导入账号备份',
   'profile.backup.toast.cancelRestore': '已取消恢复',
@@ -81,9 +80,8 @@ export const zhTWProfileMessages = {
   'profile.section.avatar.desc': '選擇一個內建頭像，或繼續使用自己的頭像 URL。',
   'profile.section.backup': '帳號備份',
   'profile.section.backup.desc':
-    '手動備份或恢復加密帳號資料，包括顯示名稱、頭像、標籤、偏好設定、知識庫、檔案目錄和頻道偏好。',
+    '手動備份或恢復加密帳號資料，包括顯示名稱、頭像、標籤、偏好設定、檔案目錄和頻道偏好。',
   'profile.backup.summary.label': '帳號備份資料概覽',
-  'profile.backup.summary.notes': '筆記',
   'profile.backup.summary.files': '檔案',
   'profile.backup.summary.channels': '頻道',
   'profile.backup.group.local': '本機檔案',
@@ -109,7 +107,7 @@ export const zhTWProfileMessages = {
   'profile.backup.status.error': '操作失敗',
   'profile.backup.confirm.importTitle': '確認匯入備份',
   'profile.backup.confirm.restore':
-    '匯入備份會合併帳號元資料並取代本機知識庫，繼續嗎？',
+    '匯入備份會合併帳號元資料與頻道偏好，繼續嗎？',
   'profile.backup.toast.exportedLocal': '帳號備份已匯出',
   'profile.backup.toast.restoredLocal': '已匯入帳號備份',
   'profile.backup.toast.cancelRestore': '已取消恢復',
@@ -152,9 +150,8 @@ export const enProfileMessages = {
     'Choose a built-in avatar, or keep using your own avatar URL.',
   'profile.section.backup': 'Account backup',
   'profile.section.backup.desc':
-    'Manually back up or restore encrypted account data, including display name, avatar, tags, preferences, knowledge base, file directories, and channel preferences.',
+    'Manually back up or restore encrypted account data, including display name, avatar, tags, preferences, file directories, and channel preferences.',
   'profile.backup.summary.label': 'Account backup data overview',
-  'profile.backup.summary.notes': 'Notes',
   'profile.backup.summary.files': 'Files',
   'profile.backup.summary.channels': 'Channels',
   'profile.backup.group.local': 'Local file',
@@ -180,7 +177,7 @@ export const enProfileMessages = {
   'profile.backup.status.error': 'Failed',
   'profile.backup.confirm.importTitle': 'Confirm backup import',
   'profile.backup.confirm.restore':
-    'Importing a backup will merge account metadata and replace the local knowledge base. Continue?',
+    'Importing a backup will merge account metadata, file directories, and channel preferences. Continue?',
   'profile.backup.toast.exportedLocal': 'Account backup exported',
   'profile.backup.toast.restoredLocal': 'Account backup imported',
   'profile.backup.toast.cancelRestore': 'Restore cancelled',

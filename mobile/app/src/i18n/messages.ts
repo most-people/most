@@ -1,7 +1,6 @@
 import { LOCALES, type Locale } from './locales'
 import { appMessages } from './messages/app'
 import { coreMessages } from './messages/core'
-import { knowledgeMessages } from './messages/knowledge'
 import { nodeMessages } from './messages/node'
 import { p2pPingMessages } from './messages/p2pPing'
 import { chatMessages } from './messages/chat'
@@ -12,7 +11,6 @@ export const messageDefinitions = {
   ...nodeMessages,
   ...p2pPingMessages,
   ...chatMessages,
-  ...knowledgeMessages,
 } as const
 
 export type MessageKey = keyof typeof messageDefinitions

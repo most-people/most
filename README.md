@@ -1,4 +1,4 @@
-# MostBox：下载完成即接力做种的 P2P 文件分享
+# MostBox：去中心化聊天与文件传输
 
 [![CI](https://github.com/most-people/most/actions/workflows/ci.yml/badge.svg)](https://github.com/most-people/most/actions/workflows/ci.yml)
 [![GitHub release](https://img.shields.io/github/v/release/most-people/most)](https://github.com/most-people/most/releases/latest)
@@ -8,12 +8,12 @@
 
 [下载客户端](https://most.box/download) · [在线入口](https://most.box) · [移动完整版与墨盒路线图](docs/mobile-full-app-roadmap.md) · [验收指南](docs/acceptance.md) · [P2P 风险红线](docs/p2p-risk-boundaries.md) · [ST 邀请集成](docs/st-chat-join-integration.md) · [参与贡献](CONTRIBUTING.md) · [问题讨论](https://github.com/most-people/most/discussions)
 
-MostBox 不要求先把文件上传到中心化网盘。发布者发送一个 `most://` 链接，接收者从在线节点下载完整文件并重算 CID；校验通过后，接收者默认继续做种。
+MostBox 以去中心化 P2P 频道聊天为核心。用户加入频道交换消息，也可以发送 `most://` 文件链接；接收者从在线节点下载完整文件并重算 CID，校验通过后默认继续做种。
 
-因此，原发布者退出后，只要仍有至少一个下载者在线，新的接收者就可以继续下载同一份内容。
+因此，聊天保持在参与者之间传播；原发布者退出后，只要仍有至少一个下载者在线，新的接收者就可以继续下载同一份内容。
 
 ```text
-发布文件 -> most:// 链接 -> 下载并校验 CID -> 下载者继续做种 -> 接力传播
+加入 P2P 频道 -> 发送消息 -> 按需附加 most:// 文件 -> 下载并校验 CID -> 下载者继续做种
 ```
 
 > CID 是 MostBox 唯一的内容身份。文件名和目录只用于展示与本地保存，不替代 CID 判断内容是否存在或可信。
@@ -33,12 +33,11 @@ MostBox 不要求先把文件上传到中心化网盘。发布者发送一个 `m
 
 ## 核心能力与工具边界
 
-| 入口   | 用户理解                                              | 协议边界                                        |
-| ------ | ----------------------------------------------------- | ----------------------------------------------- |
-| 文件   | 发布文件、复制 `most://` 链接、下载校验并持续做种     | `most://` + CID 校验 + 下载后做种               |
-| 聊天   | 按频道 ID 打开聊天，以 `/chat/#<channelId>` 分享      | 频道 ID 即权限；Channel + WebSocket + Hypercore |
-| 知识库 | 记录想法、整理 Markdown、保留 Git 历史并引用 P2P 文件 | Markdown + 本地 Git + `most://` CID 引用        |
-| Web3   | 密钥、钱包和地址工具                                  | 独立工具箱，不是聊天、文件或知识库的前置条件    |
+| 入口 | 用户理解                                          | 协议边界                                        |
+| ---- | ------------------------------------------------- | ----------------------------------------------- |
+| 文件 | 发布文件、复制 `most://` 链接、下载校验并持续做种 | `most://` + CID 校验 + 下载后做种               |
+| 聊天 | 按频道 ID 打开聊天，以 `/chat/#<channelId>` 分享  | 频道 ID 即权限；Channel + WebSocket + Hypercore |
+| Web3 | 密钥、钱包和地址工具                              | 独立工具箱，不是聊天或文件传输的前置条件        |
 
 ## 在线入口
 
@@ -50,11 +49,11 @@ MostBox 不要求先把文件上传到中心化网盘。发布者发送一个 `m
 
 ### 方式一：桌面客户端（推荐）与 Android App
 
-前往 [MostBox 下载页](https://Most.Box/download) 下载客户端，支持 Windows、macOS、Linux 和 Android。桌面端与 Android 商店版都提供完整 MostBox 工具箱：文件发布、`most://` 链接接收、CID 校验、持续做种、知识库、频道聊天和 Web3 工具，并可按需连接远程 MostBox 节点。
+前往 [MostBox 下载页](https://Most.Box/download) 下载客户端，支持 Windows、macOS、Linux 和 Android。桌面端与 Android 商店版都提供完整 MostBox 工具箱：文件发布、`most://` 链接接收、CID 校验、持续做种、频道聊天和 Web3 工具，并可按需连接远程 MostBox 节点。
 
 ### Android
 
-iOS / Android 使用“P2P 核心端 + 平台 UI 壳”分层。Most profile 的 Android 商店版是完整功能应用，提供本机 Bare Worklet 节点、远程节点连接、文件传输与做种、知识库、频道聊天、Web3 工具和相关身份能力；各工具箱可以独立使用，不构成文件分享前置条件。连接远程节点时可使用节点地址、邀请码和签名身份；本机功能无需云端注册账号。远程 daemon 可以独立持续工作，本机节点的做种和下载受 Android 生命周期影响，当前保证应用在前台时持续运行，回到前台后自动恢复。Expo Web 仍是独立的自托管节点控制台。Android 验收范围见 [docs/mobile-android-alpha.md](docs/mobile-android-alpha.md)，Google Play 提交清单见 [docs/google-play-submission.md](docs/google-play-submission.md)；iOS 真机验收范围见 [docs/mobile-ios-feasibility.md](docs/mobile-ios-feasibility.md)，App Store 提交清单见 [docs/app-store-submission.md](docs/app-store-submission.md)。
+iOS / Android 使用“P2P 核心端 + 平台 UI 壳”分层。Most profile 的 Android 商店版是完整功能应用，提供本机 Bare Worklet 节点、远程节点连接、文件传输与做种、频道聊天、Web3 工具和相关身份能力；各工具箱可以独立使用，不构成文件分享前置条件。连接远程节点时可使用节点地址、邀请码和签名身份；本机功能无需云端注册账号。远程 daemon 可以独立持续工作，本机节点的做种和下载受 Android 生命周期影响，当前保证应用在前台时持续运行，回到前台后自动恢复。Expo Web 仍是独立的自托管节点控制台。Android 验收范围见 [docs/mobile-android-alpha.md](docs/mobile-android-alpha.md)，Google Play 提交清单见 [docs/google-play-submission.md](docs/google-play-submission.md)；iOS 真机验收范围见 [docs/mobile-ios-feasibility.md](docs/mobile-ios-feasibility.md)，App Store 提交清单见 [docs/app-store-submission.md](docs/app-store-submission.md)。
 
 移动端工程入口以 `mobile/app/` 子包为准，Android 与 iOS 共享 React Native UI 和 Bare Worklet P2P 核心。仓库根目录不提供 `android:start`、`android:test` 或 `android:build` 包装脚本，本地开发、测试和打包命令统一在子包目录执行：
 
@@ -174,7 +173,7 @@ VS Code 在用户配置或工作区 `.vscode/mcp.json` 中使用密码输入，�
 前端源码集中在 `src/`：
 
 - `src/routes/`：TanStack Router file-based routes。`index.tsx` 保留路由关键配置，`index.lazy.tsx` 加载页面组件。
-- `src/features/`：页面和业务实现，例如文件分享、聊天、知识库、管理台和 Web3 工具箱。
+- `src/features/`：页面和业务实现，例如聊天、文件分享、管理台和 Web3 工具箱。
 - `src/components/`：跨功能共享 UI。
 - `src/hooks/`、`src/lib/`、`src/stores/`、`src/styles/`：共享 hooks、工具、状态和样式。
 - `src/lib/i18n/messages/*.ts`：按域拆分的中英文文案 catalog，由 `src/lib/i18n/messages.ts` 聚合。
@@ -349,7 +348,7 @@ mostbox.example.com {
 
 ### 本地账号备份和文件分享是什么关系？
 
-知识库、笔记和账号备份仍属于独立工具箱能力；账号备份只导出到用户选择的本地文件，不会上传到 MostBox 官方服务器，也不会把 MostBox 发布的文件变成云盘内容。Markdown 可以用标准图片或链接语法保存 `most://<cid>?filename=...` 引用，例如 `![照片](most://<cid>?filename=photo.jpg)` 或 `[附件](most://<cid>?filename=file.pdf)`。附件仍由文件模块发布、下载、CID 校验和持续做种，不会复制进知识库目录。
+账号备份只导出到用户选择的本地文件，不会上传到 MostBox 官方服务器，也不会把 MostBox 发布的文件变成云盘内容。备份包含身份、偏好、文件目录和频道偏好；文件附件仍由文件模块发布、下载、CID 校验和持续做种。
 
 ### 支持大文件吗？
 

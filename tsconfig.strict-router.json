@@ -24,7 +24,6 @@
       "~/features/download/DownloadPage": [
         "./src/typecheck-stubs/route-component.tsx"
       ],
-      "~/features/note/NotePage": ["./src/typecheck-stubs/route-component.tsx"],
       "~/features/ping/PingPage": ["./src/typecheck-stubs/route-component.tsx"],
       "~/features/profile/ProfilePage": [
         "./src/typecheck-stubs/route-component.tsx"

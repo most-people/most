@@ -51,11 +51,6 @@ import {
   zhTWFilesMessages,
 } from './messages/files'
 import {
-  enNoteMessages,
-  zhCNNoteMessages,
-  zhTWNoteMessages,
-} from './messages/note'
-import {
   enIdentityMessages,
   zhCNIdentityMessages,
   zhTWIdentityMessages,
@@ -102,7 +97,6 @@ export const zhCNMessages = {
   ...zhCNChatMessages,
   ...zhCNChatJoinMessages,
   ...zhCNFilesMessages,
-  ...zhCNNoteMessages,
   ...zhCNIdentityMessages,
   ...zhCNWeb3Messages,
   ...zhCNAdminMessages,
@@ -124,7 +118,6 @@ const enMessages = {
   ...enChatMessages,
   ...enChatJoinMessages,
   ...enFilesMessages,
-  ...enNoteMessages,
   ...enIdentityMessages,
   ...enWeb3Messages,
   ...enAdminMessages,
@@ -144,7 +137,6 @@ const zhTWMessages = {
   ...zhTWChatMessages,
   ...zhTWChatJoinMessages,
   ...zhTWFilesMessages,
-  ...zhTWNoteMessages,
   ...zhTWIdentityMessages,
   ...zhTWWeb3Messages,
   ...zhTWAdminMessages,

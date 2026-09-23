@@ -14,7 +14,6 @@ import {
   HardDrive,
   MessagesSquare,
   Network,
-  NotebookPen,
   Share2,
   Users,
   Wallet,
@@ -78,11 +77,6 @@ const toolboxItems: StoryItem[] = [
     icon: MessagesSquare,
     titleKey: 'about.toolbox.chat.title',
     bodyKey: 'about.toolbox.chat.body',
-  },
-  {
-    icon: NotebookPen,
-    titleKey: 'about.toolbox.note.title',
-    bodyKey: 'about.toolbox.note.body',
   },
   {
     icon: Bot,

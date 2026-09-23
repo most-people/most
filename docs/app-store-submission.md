@@ -1,6 +1,6 @@
 # MostBox App Store 提交清单
 
-本清单适用于不含聊天、账号、广告、付费、Web3、公开内容目录和长期后台做种的 iOS 商店版。真机技术验收仍以 `docs/mobile-ios-feasibility.md` 为准。
+本清单适用于 MostBox 去中心化聊天与文件传输 iOS 商店版。真机技术验收仍以 `docs/mobile-ios-feasibility.md` 为准。
 
 iOS 原生入口只创建本机 Bare Worklet 节点，不包含远程 daemon、邀请码或登录界面。`app.most.box` 的 Expo Web 远程控制台是独立 Web 构建，不进入 IPA。
 
@@ -68,17 +68,15 @@ npx expo run:ios --configuration Release
 
 完整说明：
 
-> MostBox 是一个 CID 优先的 P2P 文件传输工具。选择文件即可生成 most:// 分享链接；接收方确认链接后，从在线节点下载文件并重新计算 CID，校验通过后保存到本机。
+> MostBox 是一个以去中心化频道聊天为核心、以 CID 优先文件传输为辅的 P2P 工具。用户可以创建频道、发送消息并分享 most:// 文件链接；接收方确认链接后，从在线节点下载文件并重新计算 CID，校验通过后保存到本机。
 >
 > 下载完成的设备会在应用前台继续做种。原发布者离线后，只要仍有其他种子在线，文件仍可继续传播。
->
-> 应用还提供保存在本机的 Markdown 知识库，用于整理笔记和 most:// 附件引用。
 >
 > MostBox 不提供云端存储、永久可用性、公开内容目录、账号或付费服务。请自行保管重要文件，只接收你信任且有权下载的内容。
 
 关键词（100 字节以内，提交时按 App Store Connect 实际计数复核）：
 
-> P2P,文件传输,CID,点对点,知识库,Markdown,完整性校验
+> P2P,聊天,文件传输,CID,点对点,频道,完整性校验
 
 建议主分类：`工具`。
 
@@ -94,23 +92,20 @@ npx expo run:ios --configuration Release
 
 推广文本（167 / 170 字符）：
 
-> Share files with most:// links, verify each download by CID, and help others download while MostBox stays open. Keep Markdown notes and file references on your device.
+> Chat in decentralized channels, share most:// links, verify each download by CID, and help other peers download while MostBox stays open.
 
 完整说明：
 
 ```text
-Share files directly between online peers with MostBox.
+Chat in decentralized channels and share files directly between online peers with MostBox.
 
 Choose a file to create a most:// share link. The recipient opens the link, confirms the download, and receives the file from an online peer. MostBox recalculates the file's UnixFS content identifier (CID) and saves the file only if it matches the link.
 
 Keep files available
 After publishing or completing a verified download, your device automatically seeds the file while MostBox is in the foreground. Even if the original sender leaves, another online peer with a complete copy can continue sharing it.
 
-Organize local notes
-Create and organize Markdown notes in a knowledge base stored on your device. Keep most:// file references alongside your notes, and export your notes or knowledge base when needed.
-
 Stay in control
-View your local files, transfers, and node status. Each download requires your confirmation. No account is required.
+View your channels, local files, transfers, and node status. Each download requires your confirmation. No account is required.
 
 Availability depends on online peers. MostBox does not provide cloud storage or guaranteed permanent access. Keep your own copies of important files. Share and download only content you have the right to use, and remember that anyone with a share link can attempt to download its file.
 
@@ -119,7 +114,7 @@ On iPhone, keep MostBox open in the foreground for transfers and seeding.
 
 关键词（70 / 100 字节）：
 
-> p2p,transfer,sharing,cid,integrity,peer,markdown,notes,local,documents
+> p2p,chat,channels,transfer,sharing,cid,integrity,peer,local,documents
 
 ## App Store Connect 字段
 
@@ -142,7 +137,7 @@ On iPhone, keep MostBox open in the foreground for transfers and seeding.
 
 可在 App Review Notes 中填写：
 
-> On first launch, MostBox displays its Privacy Policy and Terms of Use. The P2P core starts only after the reviewer taps Accept and Continue. MostBox is a user-initiated peer-to-peer file transfer utility. It has no public content catalog, account, chat, ads, payments, or background seeding service. Opening a most:// link only presents a confirmation screen; no download starts until the reviewer confirms it. Every completed download is recalculated and verified against its UnixFS CID before it is stored. The app blocks known application packages, scripts, and executable file types declared by the selected file or link. Seeding is only promised while the app is in the foreground.
+> On first launch, MostBox displays its Privacy Policy and Terms of Use. The P2P core starts only after the reviewer taps Accept and Continue. MostBox is a user-initiated peer-to-peer utility focused on decentralized channel chat and file transfer. It has no public content catalog, account, ads, payments, or background seeding service. Opening a most:// link only presents a confirmation screen; no download starts until the reviewer confirms it. Every completed download is recalculated and verified against its UnixFS CID before it is stored. The app blocks known application packages, scripts, and executable file types declared by the selected file or link. Seeding is only promised while the app is in the foreground.
 
 提交审核时补充两个无版权争议且持续在线的测试种子：一个小型 TXT 文件和一个 PNG 文件。备注中写明每条 `most://` 链接、预期文件名、CID 和操作步骤；审核完成前保持至少一个对应种子在线。
 
@@ -151,7 +146,7 @@ On iPhone, keep MostBox open in the foreground for transfers and seeding.
 - App 图标使用 `mobile/app/assets/icon.png`，1024 x 1024，不带透明通道。
 - iPhone 6.9 英寸主截图使用 Apple 接受的尺寸，当前模拟器可生成 1320 x 2868 竖屏图。
 - App Store 截图不能带 Alpha 通道；模拟器原始 PNG 提交前必须转换为无透明通道的 PNG 或 JPEG。
-- 至少准备隐私同意页、文件首页、下载确认、CID 校验完成、知识库和节点/传输状态画面。
+- 至少准备隐私同意页、聊天频道、文件首页、下载确认、CID 校验完成和节点/传输状态画面。
 - 截图和文案不得宣称长期后台做种、永久存储、公开内容目录或其他当前 iOS 包中不存在的能力。
 - 静态检查确认 IPA 不包含远程节点连接页、邀请码或登录入口。
 

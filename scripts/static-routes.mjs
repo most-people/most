@@ -12,7 +12,6 @@ export const requiredStaticRoutes = [
   '/docs/',
   '/docs/mcp/',
   '/docs/api/',
-  '/note/',
   '/ping/',
   '/profile/',
   '/web3/',

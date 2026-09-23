@@ -205,11 +205,6 @@ export default function ProfilePage() {
   const importWorking = accountBackup.action === 'import'
   const backupSummaryItems = [
     {
-      key: 'notes',
-      label: t('profile.backup.summary.notes'),
-      value: accountBackup.notesCount,
-    },
-    {
       key: 'files',
       label: t('profile.backup.summary.files'),
       value: accountBackup.backupSummary.filesCount,

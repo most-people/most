@@ -1,13 +1,3 @@
-import {
-  calculateNoteCid,
-  findNoteIndexByIdentity,
-  getNoteFullPath,
-  NOTE_NAME_ERROR_CODES,
-  normalizeNotePath,
-  removeNotesByIdentity,
-  renameNotesByPath,
-  validateNoteName,
-} from '~server/src/utils/noteUtils.js'
 import { create } from 'zustand'
 import {
   checkBackendConnectionTarget,
@@ -19,8 +9,6 @@ import {
   setBackendInvite,
   getSameOriginBackendUrlExport,
 } from '~server/src/utils/api'
-import { getNotes, putNotes } from '~/lib/notesDb'
-import { decryptLegacyBrowserNotes } from '~server/src/utils/noteMigration.js'
 import { fileApi } from '~/lib/fileApi'
 import type {
   ActiveDownloadStatus,
@@ -39,17 +27,6 @@ interface ToastItem {
   id: number
   message: string
   type: string
-}
-
-export interface NoteItem {
-  name: string
-  cid: string
-  path: string
-  content: string
-  size: number
-  type: 'file'
-  created_at: number
-  updated_at: number
 }
 
 interface AppState {
@@ -87,75 +64,10 @@ interface AppState {
   localDataReady: boolean
   initializeLocalData: () => void
 
-  // Notes
-  notes: NoteItem[]
-  notesPath: string
-  notesAddress: string
-  loadUserNotes: (address: string, danger?: string) => Promise<void>
   resetAppState: () => void
-  setNotesPath: (path: string) => void
-  saveNote: (input: {
-    cid?: string
-    existingPath?: string
-    name: string
-    path?: string
-    content?: string
-  }) => Promise<string>
-  deleteNote: (cid?: string, path?: string, name?: string) => void
-  renameNote: (oldFullPath: string, newPath: string, newName: string) => void
-  importNotes: (notes: NoteItem[]) => void
-}
-
-function normalizeNotes(input: unknown): NoteItem[] {
-  if (!Array.isArray(input)) return []
-  return input
-    .filter(note => {
-      if (!note || typeof note !== 'object') return false
-      const value = note as Partial<NoteItem>
-      return value.type === 'file' || value.content !== undefined
-    })
-    .map(note => ({
-      name: String((note as Partial<NoteItem>).name || 'Untitled'),
-      cid: String((note as Partial<NoteItem>).cid || ''),
-      path: normalizeNotePath((note as Partial<NoteItem>).path || ''),
-      content: String((note as Partial<NoteItem>).content || ''),
-      size: Number((note as Partial<NoteItem>).size || 0),
-      type: 'file' as const,
-      created_at: Number(
-        (note as Partial<NoteItem>).created_at ||
-          (note as Partial<NoteItem>).updated_at ||
-          Date.now()
-      ),
-      updated_at: Number(
-        (note as Partial<NoteItem>).updated_at ||
-          (note as Partial<NoteItem>).created_at ||
-          Date.now()
-      ),
-    }))
-}
-
-function persistNotes(address: string, notes: NoteItem[], notesPath: string) {
-  if (!address) return
-  putNotes(address, notes, normalizeNotePath(notesPath)).catch(err => {
-    console.warn('Failed to persist notes:', err)
-  })
-}
-
-function getNoteNameErrorKey(errorCode?: string) {
-  switch (errorCode) {
-    case NOTE_NAME_ERROR_CODES.EMPTY:
-      return 'note.error.nameRequired'
-    case NOTE_NAME_ERROR_CODES.SLASH:
-      return 'note.error.nameNoSlash'
-    case NOTE_NAME_ERROR_CODES.BACKSLASH:
-      return 'note.error.nameNoBackslash'
-    default:
-      return 'note.error.nameInvalid'
-  }
 }
 
 let downloadTasksRevision = 0
-let notesLoadRevision = 0
 
 export const useAppStore = create<AppState>((set, get) => ({
   // Backend
@@ -402,179 +314,17 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   localDataReady: false,
   initializeLocalData: () => {
-    set({
-      notes: [],
-      notesPath: '',
-      notesAddress: '',
-      localDataReady: true,
-    })
+    set({ localDataReady: true })
   },
 
-  // Notes
-  notes: [],
-  notesPath: '',
-  notesAddress: '',
-  loadUserNotes: async (address, danger = '') => {
-    const revision = ++notesLoadRevision
-    let data
-    try {
-      data = await getNotes(address)
-    } catch (err) {
-      console.warn('Failed to load notes from IndexedDB:', err)
-      if (revision === notesLoadRevision) {
-        set({ notes: [], notesPath: '', notesAddress: address })
-      }
-      return
-    }
-
-    const notes = data ? normalizeNotes(data.notes) : []
-    const notesPath = normalizeNotePath(data?.notesPath || '')
-    let nextNotes = notes
-
-    if (danger) {
-      try {
-        const migration = await decryptLegacyBrowserNotes(notes, danger)
-        if (migration.decryptedPaths.length > 0) {
-          await putNotes(address, migration.notes, notesPath)
-          nextNotes = normalizeNotes(migration.notes)
-        }
-      } catch (err) {
-        console.warn('Failed to migrate legacy note content:', err)
-      }
-    }
-
-    if (revision === notesLoadRevision) {
-      set({
-        notes: nextNotes,
-        notesPath,
-        notesAddress: address,
-      })
-    }
-  },
   resetAppState: () => {
-    notesLoadRevision += 1
     set({
-      notes: [],
-      notesPath: '',
-      notesAddress: '',
       toasts: [],
       showConnectModal: false,
       downloadTasks: [],
       downloadTaskOutcomes: [],
       downloadTasksHydrated: true,
     })
-  },
-  setNotesPath: path => {
-    const notesPath = normalizeNotePath(path)
-    set({ notesPath })
-    persistNotes(get().notesAddress, get().notes, notesPath)
-  },
-  saveNote: async input => {
-    const nameValidation = validateNoteName(input.name)
-    if (!nameValidation.valid) {
-      throw new Error(getNoteNameErrorKey(nameValidation.errorCode))
-    }
-    const validatedName = nameValidation.name || input.name
-
-    const path = normalizeNotePath(input.path || '')
-    const content = String(input.content || '')
-    const cid = await calculateNoteCid(content)
-    const size = new TextEncoder().encode(content).length
-    const now = Date.now()
-
-    const notes = get().notes
-    const existingIndex =
-      input.cid || input.existingPath
-        ? findNoteIndexByIdentity(notes, {
-            cid: input.cid,
-            path: input.existingPath,
-          })
-        : notes.findIndex(
-            note =>
-              normalizeNotePath(note.path) === path &&
-              note.name === validatedName
-          )
-    const targetFullPath = normalizeNotePath(
-      path ? `${path}/${validatedName}` : validatedName
-    )
-    const hasNameConflict = notes.some((note, index) => {
-      return index !== existingIndex && getNoteFullPath(note) === targetFullPath
-    })
-    if (hasNameConflict) {
-      throw new Error('note.error.nameConflict')
-    }
-
-    const existing = existingIndex >= 0 ? notes[existingIndex] : null
-    const nextNote: NoteItem = {
-      name: validatedName,
-      cid,
-      path,
-      content,
-      size,
-      type: 'file',
-      created_at: existing?.created_at || now,
-      updated_at: now,
-    }
-    const nextNotes =
-      existingIndex >= 0
-        ? notes.map((note, index) =>
-            index === existingIndex ? nextNote : note
-          )
-        : [...notes, nextNote]
-
-    set({ notes: nextNotes })
-    persistNotes(get().notesAddress, nextNotes, get().notesPath)
-    return cid
-  },
-  deleteNote: (cid, path, name) => {
-    const targetPath =
-      path !== undefined && name !== undefined
-        ? normalizeNotePath(`${path}/${name}`)
-        : ''
-    const nextNotes = removeNotesByIdentity(get().notes, {
-      cid,
-      path: targetPath,
-    })
-    set({ notes: nextNotes })
-    persistNotes(get().notesAddress, nextNotes, get().notesPath)
-  },
-  renameNote: (oldFullPath, newPath, newName) => {
-    const nameValidation = validateNoteName(newName)
-    if (!nameValidation.valid) {
-      throw new Error(getNoteNameErrorKey(nameValidation.errorCode))
-    }
-
-    const oldPath = normalizeNotePath(oldFullPath)
-    const targetPath = normalizeNotePath(newPath)
-    const targetFullPath = normalizeNotePath(
-      targetPath ? `${targetPath}/${nameValidation.name}` : nameValidation.name
-    )
-
-    if (targetFullPath.startsWith(`${oldPath}/`)) {
-      throw new Error('note.error.moveIntoSelf')
-    }
-
-    const conflict = get().notes.some(note => {
-      const fullPath = getNoteFullPath(note)
-      return fullPath !== oldPath && fullPath === targetFullPath
-    })
-    if (conflict) {
-      throw new Error('note.error.nameConflict')
-    }
-
-    const nextNotes = renameNotesByPath(
-      get().notes,
-      oldPath,
-      targetPath,
-      nameValidation.name
-    )
-    set({ notes: nextNotes })
-    persistNotes(get().notesAddress, nextNotes, get().notesPath)
-  },
-  importNotes: notes => {
-    const nextNotes = normalizeNotes(notes)
-    set({ notes: nextNotes })
-    persistNotes(get().notesAddress, nextNotes, get().notesPath)
   },
 }))
 

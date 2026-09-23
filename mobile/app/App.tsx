@@ -25,7 +25,6 @@ import * as Sharing from 'expo-sharing'
 import b4a from 'b4a'
 import {
   ArrowLeftRight,
-  BookOpen,
   Check,
   ChevronLeft,
   Files,
@@ -50,9 +49,6 @@ import {
   normalizeFileDisplayPath,
   type FileFolder,
 } from './src/features/files/filesModel'
-import { KnowledgeBaseScreen } from './src/features/knowledge/KnowledgeBaseScreen'
-import { createExpoKnowledgeRepository } from './src/features/knowledge/expoKnowledgeRepository'
-import { validateKnowledgeSnapshot } from './src/features/knowledge/knowledgeModel'
 import {
   getRootBackAction,
   getTabPressAction,
@@ -113,6 +109,7 @@ import { FeedbackProvider, useFeedback } from './src/ui/feedback'
 import { PrivacyConsentGate } from './src/privacy/PrivacyConsentGate'
 import { PRIVACY_URL, SUPPORT_URL, TERMS_URL } from './src/privacy/legalUrls'
 import { PRODUCT_PROFILE } from './src/product/productProfile'
+import { cleanupLegacyKnowledgeData } from './src/legacyKnowledgeCleanup'
 import type { DocumentPickerAsset } from 'expo-document-picker'
 import type {
   MobileCoreSnapshot,
@@ -140,7 +137,6 @@ const MIME_BY_EXTENSION: Record<string, string> = {
 
 const TAB_LABEL_KEYS: Record<RootTab, MessageKey> = {
   files: 'nav.files',
-  knowledge: 'nav.knowledge',
   transfers: 'nav.transfers',
   chat: 'nav.chat',
   node: 'nav.node',
@@ -272,23 +268,20 @@ function MostBoxApp() {
   const { fontScale } = useWindowDimensions()
   const accessibilityLayout = usesAccessibilityLayout(fontScale)
   const coreRef = useRef<MostBoxMobileClient | null>(null)
-  const knowledgeRepositoryRef = useRef<ReturnType<
-    typeof createExpoKnowledgeRepository
-  > | null>(null)
   const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [snapshot, setSnapshot] = useState<MobileCoreSnapshot | null>(null)
   const [startupComplete, setStartupComplete] = useState(false)
   const [appVisibility, setAppVisibility] = useState<
     'active' | 'background' | 'inactive'
   >('active')
-  const [activeTab, setActiveTab] = useState<RootTab>('files')
+  const [activeTab, setActiveTab] = useState<RootTab>(
+    PRODUCT_PROFILE.features.chat ? 'chat' : 'files'
+  )
   const [nodeRoute, setNodeRoute] = useState<'status' | 'p2pPing'>('status')
   const [publishing, setPublishing] = useState(false)
   const [sharingFolderPath, setSharingFolderPath] = useState<string | null>(
     null
   )
-  const [knowledgeDirty, setKnowledgeDirty] = useState(false)
-  const [knowledgeBackupWorking, setKnowledgeBackupWorking] = useState(false)
   const [exportingCid, setExportingCid] = useState<string | null>(null)
   const [webFilePreview, setWebFilePreview] =
     useState<WebFilePreviewFile | null>(null)
@@ -314,24 +307,14 @@ function MostBoxApp() {
   const [cancellingTransferCid, setCancellingTransferCid] = useState<
     string | null
   >(null)
-  const [knowledgeMode, setKnowledgeMode] = useState<
-    'browse' | 'preview' | 'edit'
-  >('browse')
-  const [knowledgeBackToken, setKnowledgeBackToken] = useState(0)
-  const [knowledgeDiscardToken, setKnowledgeDiscardToken] = useState(0)
   const [reselectTokens, setReselectTokens] = useState<Record<RootTab, number>>(
-    { files: 0, knowledge: 0, transfers: 0, chat: 0, node: 0 }
+    { files: 0, transfers: 0, chat: 0, node: 0 }
   )
 
   if (!coreRef.current) {
     coreRef.current = createMostBoxCore({ storagePath: getCoreStoragePath() })
   }
-  if (!knowledgeRepositoryRef.current) {
-    knowledgeRepositoryRef.current = createExpoKnowledgeRepository()
-  }
-
   const core = coreRef.current
-  const knowledgeRepository = knowledgeRepositoryRef.current
   const currentSnapshot = snapshot ?? core.getSnapshot()
   const nodeStatus = currentSnapshot.node.status
   const isNodeOnline = nodeStatus === 'ready'
@@ -365,6 +348,9 @@ function MostBoxApp() {
 
   useEffect(() => {
     const unsubscribe = core.subscribe(setSnapshot)
+    void cleanupLegacyKnowledgeData().catch(error => {
+      console.warn('[legacy-cleanup] failed:', error)
+    })
     void core
       .start()
       .catch(showCoreStartError)
@@ -445,32 +431,13 @@ function MostBoxApp() {
     return false
   }
 
-  const handleKnowledgeDirtyChange = useCallback((dirty: boolean) => {
-    setKnowledgeDirty(dirty)
-  }, [])
-
   const changeTab = (nextTab: RootTab) => {
-    const action = getTabPressAction(activeTab, nextTab, knowledgeDirty)
+    const action = getTabPressAction(activeTab, nextTab)
     if (action === 'scrollTop') {
       setReselectTokens(current => ({
         ...current,
         [nextTab]: current[nextTab] + 1,
       }))
-      return
-    }
-    if (action === 'confirmDiscard') {
-      alert(t('app.discard.title'), t('app.discard.body'), [
-        { text: t('app.discard.continue'), style: 'cancel' },
-        {
-          text: t('app.discard.confirm'),
-          style: 'destructive',
-          onPress: () => {
-            setKnowledgeDiscardToken(current => current + 1)
-            if (nextTab !== 'node') setNodeRoute('status')
-            setActiveTab(nextTab)
-          },
-        },
-      ])
       return
     }
     if (nextTab !== 'node') setNodeRoute('status')
@@ -604,16 +571,6 @@ function MostBoxApp() {
     }
   }
 
-  const handlePublishKnowledgeAttachment = async () => {
-    const result = await publishPickedFile()
-    if (!result) return null
-    return {
-      fileName: result.file.name,
-      link: result.link,
-      mimeType: result.file.mimeType,
-    }
-  }
-
   const handlePublishChatAttachment =
     async (): Promise<ChatAttachment | null> => {
       const result = await publishPickedFile()
@@ -650,7 +607,6 @@ function MostBoxApp() {
     const action = getRootBackAction({
       activeTab,
       downloadModalOpen,
-      knowledgeMode,
       languageModalOpen,
       nodeRoute,
     })
@@ -664,10 +620,6 @@ function MostBoxApp() {
     }
     if (action === 'closeNodeChild') {
       setNodeRoute('status')
-      return true
-    }
-    if (action === 'closeKnowledgeChild') {
-      setKnowledgeBackToken(value => value + 1)
       return true
     }
     return false
@@ -1055,33 +1007,6 @@ function MostBoxApp() {
     setWebFilePreview(null)
   }
 
-  const handleOpenKnowledgeLink = async (link: string) => {
-    if (!isReady) {
-      throw new Error(
-        isNodeOnline && isRemote
-          ? t('node.account.required')
-          : t('app.core.notReadyTitle')
-      )
-    }
-    let parsed: ReturnType<typeof parseMostLink>
-    try {
-      parsed = parseMostLink(link)
-    } catch (error) {
-      throw new Error(getMostLinkErrorMessage(error, locale))
-    }
-    const policyErrorKey = getStoreDownloadPolicyErrorKey(parsed.fileName)
-    if (policyErrorKey) throw new Error(t(policyErrorKey))
-
-    const holding = core
-      .getSnapshot()
-      .holdings.find(item => item.cid === parsed.cid)
-    if (holding) {
-      await handleOpenHolding(holding)
-      return
-    }
-    openDownloadIntent({ link, ...parsed }, true)
-  }
-
   const openExternalUrl = async (url: string) => {
     try {
       await Linking.openURL(url)
@@ -1090,123 +1015,17 @@ function MostBoxApp() {
     }
   }
 
-  const handleBackupKnowledge = async () => {
-    setKnowledgeBackupWorking(true)
-    try {
-      const backup = await knowledgeRepository.exportSnapshot()
-      const stamp = backup.exportedAt.replace(/[:.]/g, '-').replace('T', '_')
-      const fileName = `mostbox-knowledge-${stamp}.json`
-      if (Platform.OS === 'web') {
-        const blob = new Blob([JSON.stringify(backup, null, 2)], {
-          type: 'application/json',
-        })
-        triggerWebFile(URL.createObjectURL(blob), fileName)
-        return
-      }
-      if (!FileSystem.cacheDirectory) {
-        throw new Error(t('app.knowledge.tempUnavailable'))
-      }
-      if (!(await Sharing.isAvailableAsync())) {
-        throw new Error(t('app.device.shareUnavailable'))
-      }
-      const target = `${FileSystem.cacheDirectory}${fileName}`
-      await FileSystem.writeAsStringAsync(
-        target,
-        JSON.stringify(backup, null, 2),
-        { encoding: FileSystem.EncodingType.UTF8 }
-      )
-      await Sharing.shareAsync(target, {
-        dialogTitle: t('app.knowledge.backupDialog'),
-        mimeType: 'application/json',
-      })
-    } catch (error) {
-      alert(
-        t('app.knowledge.backupFailedTitle'),
-        error instanceof Error
-          ? error.message
-          : t('app.knowledge.backupFailedBody')
-      )
-    } finally {
-      setKnowledgeBackupWorking(false)
-    }
-  }
-
-  const handleRestoreKnowledge = async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        copyToCacheDirectory: true,
-        multiple: false,
-        type: 'application/json',
-      })
-      if (result.canceled) return
-      const file = result.assets[0]
-      if (!file) return
-      const raw =
-        Platform.OS === 'web' && file.file
-          ? await file.file.text()
-          : await FileSystem.readAsStringAsync(file.uri, {
-              encoding: FileSystem.EncodingType.UTF8,
-            })
-      const backup = validateKnowledgeSnapshot(JSON.parse(raw) as unknown)
-      alert(
-        t('app.knowledge.restoreTitle'),
-        t('app.knowledge.restoreBody', { count: backup.files.length }),
-        [
-          { text: t('common.cancel'), style: 'cancel' },
-          {
-            text: t('app.knowledge.restoreAction'),
-            style: 'destructive',
-            onPress: () => {
-              setKnowledgeBackupWorking(true)
-              void knowledgeRepository
-                .restoreSnapshot(backup)
-                .then(() => {
-                  alert(
-                    t('app.knowledge.restoreCompleteTitle'),
-                    t('app.knowledge.restoreCompleteBody')
-                  )
-                })
-                .catch(error => {
-                  alert(
-                    t('app.knowledge.restoreFailedTitle'),
-                    error instanceof Error
-                      ? error.message
-                      : t('app.knowledge.restoreFailedBody')
-                  )
-                })
-                .finally(() => setKnowledgeBackupWorking(false))
-            },
-          },
-        ]
-      )
-    } catch (error) {
-      alert(
-        t('app.knowledge.invalidBackupTitle'),
-        error instanceof Error
-          ? error.message
-          : t('app.knowledge.invalidBackupBody')
-      )
-    }
-  }
-
   const openLanguageMenu = () => {
     setLanguageModalOpen(true)
   }
 
-  const isKnowledgeChild =
-    activeTab === 'knowledge' && knowledgeMode !== 'browse'
   const isNodeChild = activeTab === 'node' && nodeRoute === 'p2pPing'
-  const isSecondaryPage = isKnowledgeChild || isNodeChild
-  const hideTabBar =
-    (activeTab === 'knowledge' && knowledgeMode === 'edit') || isNodeChild
+  const isSecondaryPage = isNodeChild
+  const hideTabBar = isNodeChild
   const headerTitle = isNodeChild
     ? t('p2pPing.title')
     : t(TAB_LABEL_KEYS[activeTab])
-  const headerBackLabel = isNodeChild
-    ? t('p2pPing.back')
-    : knowledgeMode === 'edit'
-      ? t('knowledge.editor.back')
-      : t('knowledge.preview.back')
+  const headerBackLabel = isNodeChild ? t('p2pPing.back') : ''
   const statusLabel =
     nodeStatus === 'ready'
       ? t('app.node.online')
@@ -1233,9 +1052,6 @@ function MostBoxApp() {
     if (isNodeChild) {
       setNodeRoute('status')
       return
-    }
-    if (isKnowledgeChild) {
-      setKnowledgeBackToken(value => value + 1)
     }
   }
 
@@ -1402,27 +1218,6 @@ function MostBoxApp() {
           <View
             style={[
               styles.tabPanel,
-              activeTab !== 'knowledge' ? styles.tabPanelHidden : null,
-            ]}
-          >
-            <KnowledgeBaseScreen
-              client={core}
-              backupWorking={knowledgeBackupWorking}
-              backRequestToken={knowledgeBackToken}
-              discardRequestToken={knowledgeDiscardToken}
-              isCoreReady={isReady}
-              reselectToken={reselectTokens.knowledge}
-              onBackup={handleBackupKnowledge}
-              onDirtyChange={handleKnowledgeDirtyChange}
-              onOpenMostLink={handleOpenKnowledgeLink}
-              onPresentationChange={setKnowledgeMode}
-              onPublishAttachment={handlePublishKnowledgeAttachment}
-              onRestore={handleRestoreKnowledge}
-            />
-          </View>
-          <View
-            style={[
-              styles.tabPanel,
               activeTab !== 'transfers' ? styles.tabPanelHidden : null,
             ]}
           >
@@ -1515,21 +1310,6 @@ function MostBoxApp() {
               }
               label={t('nav.files')}
               onPress={() => changeTab('files')}
-            />
-            <TabButton
-              active={activeTab === 'knowledge'}
-              icon={
-                <BookOpen
-                  size={21}
-                  color={
-                    activeTab === 'knowledge'
-                      ? theme.colors.accent
-                      : theme.colors.textSecondary
-                  }
-                />
-              }
-              label={t('nav.knowledge')}
-              onPress={() => changeTab('knowledge')}
             />
             <TabButton
               active={activeTab === 'transfers'}

@@ -37,8 +37,6 @@ import { registerChannelRoutes } from './routes/channelRoutes.js'
 import { registerFileRoutes } from './routes/fileRoutes.js'
 import { registerNodeRoutes } from './routes/nodeRoutes.js'
 import { registerMcpRoutes } from './routes/mcpRoutes.js'
-import { registerNoteGitRoutes } from './routes/noteGitRoutes.js'
-import { registerNoteVaultRoutes } from './routes/noteVaultRoutes.js'
 import { registerP2PPingRoutes } from './routes/p2pPingRoutes.js'
 import { registerSeedRoutes } from './routes/seedRoutes.js'
 import { createDownloadTaskRegistry } from './downloadTasks.js'
@@ -60,7 +58,6 @@ export function createApp(engine, options = {}) {
   const appPort = options.port || PORT
   const appHost = options.host || HOST
   const configStore = options.configStore || defaultConfigStore
-  const noteVaultRoot = options.noteVaultRoot
   const nodeLogger =
     options.nodeLogger || createNodeLogger(configStore.configDir || CONFIG_DIR)
   const mcpClientStore =
@@ -495,9 +492,6 @@ export function createApp(engine, options = {}) {
     appendNodeLog,
   })
   registerChannelRoutes(app, { engine })
-  registerNoteVaultRoutes(app, { noteVaultRoot, isRemoteRequest })
-  registerNoteGitRoutes(app, { noteVaultRoot, isRemoteRequest })
-
   registerStaticRoutes(app)
 
   return {

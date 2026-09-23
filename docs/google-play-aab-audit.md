@@ -42,7 +42,7 @@
 - 未发现 Firebase、AdMob、Sentry、Crashlytics、analytics、telemetry 或推送 SDK
 - P2P 基础：Hyperswarm、Hyperdrive、Corestore、Bare
 - DHT bootstrap：HyperDHT 公共引导节点
-- 文件和笔记默认存放于应用私有目录
+- 文件与频道数据默认存放于应用私有目录
 - 文件只在用户发布或确认下载后传输，并在保存前重新计算 UnixFS CID
 - P2P 连接会让对端和网络基础设施处理 IP 地址、连接时间、派生 topic 和连接元数据；开发者不运营文件中转/存储服务器，也不记录这些数据用于分析或画像
 

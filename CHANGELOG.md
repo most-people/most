@@ -47,26 +47,24 @@ All notable changes to MostBox are documented in this file.
 
 ### Removed
 
-- Removed unused mobile RPC polling commands, redundant event declarations, and an unreferenced knowledge-directory helper.
+- Removed unused mobile RPC polling commands, redundant event declarations, and an unreferenced storage helper.
 
 ## [0.4.9] - 2026-08-11
 
 ### Added
 
-- Added a local Markdown knowledge base on Android with single-note transfer, versioned snapshot backup and restore, and verified `most://` attachments.
 - Added simplified Chinese, traditional Chinese, and English Android interfaces, plus x86_64 emulator builds.
 - Added bidirectional P2P Ping diagnostics on desktop and Android.
 
 ### Changed
 
 - Redesigned the Android file, transfer, and node interfaces, including explicit download cancellation and holding actions, and removed chat from the mobile app.
-- Replaced the Future page with the `/hi/` knowledge direction page and separated available capabilities from future plans.
-- Expanded desktop note import and export flows and localized chat member tags.
+- Refined the `/hi/` product direction page and localized chat member tags.
 
 ### Fixed
 
 - Made CID topic peers announce and look up simultaneously so either peer can initiate a file connection.
-- Generated platform-specific Bare Worklet bundles for Android and iOS and hardened mobile knowledge snapshot restoration.
+- Generated platform-specific Bare Worklet bundles for Android and iOS and hardened mobile state restoration.
 - Kept the mobile P2P core online when restoring or switching the interface language.
 - Required GitHub Android release APKs to use a persistent app-signing key and fail closed when signing credentials are unavailable.
 
@@ -96,19 +94,17 @@ All notable changes to MostBox are documented in this file.
 
 - Added scoped, revocable MCP clients for node inspection, file publishing, and downloads, with management controls and dedicated documentation.
 - Added an interactive OpenAPI reference and separate product, MCP, and API documentation routes.
-- Added Git-backed history and restore workflows for desktop Markdown note vaults.
 - Added Google Play build configuration, store assets, privacy and terms pages, and Android release documentation.
 
 ### Changed
 
-- Stored knowledge-base articles as plain Markdown and automatically migrated decryptable legacy encrypted notes to plaintext.
-- Isolated desktop note vaults by account address and removed the manual vault-location workflow.
+- Isolated desktop application data by account address and removed the manual data-location workflow.
 - Reworked the About page around MostBox's agent-era product vision.
 - Enforced synchronized Android version codes and capped MCP client credentials at 365 days.
 
 ### Fixed
 
-- Hardened note-vault paths, Git operations, MCP authorization, and client lifecycle handling.
+- Hardened storage paths, MCP authorization, and client lifecycle handling.
 - Refined MCP key creation and deletion flows in the admin interface.
 - Switched the Anthropic connectivity check to a stable probe and corrected the portal node connection label.
 
@@ -116,7 +112,6 @@ All notable changes to MostBox are documented in this file.
 
 ### Added
 
-- Added CID-backed file and image attachments to Markdown notes.
 - Added grouped connectivity checks for MostBox services and external dependencies.
 - Added privacy, security, and code-signing policy documentation.
 
@@ -129,7 +124,7 @@ All notable changes to MostBox are documented in this file.
 ### Fixed
 
 - Restored deterministic DiceBear address avatars.
-- Prevented same-named note attachments from conflicting in the file library.
+- Prevented same-named attachments from conflicting in the file library.
 - Detected cloud channel backups that contain locally missing writer cores.
 - Documented the authenticated cloud-backup lookup performed after login.
 
@@ -139,7 +134,7 @@ All notable changes to MostBox are documented in this file.
 
 - Added Docker, npm, and desktop deployment choices to the download page.
 - Added native `most://` link handling and verified attachment downloads to Android.
-- Added a note-vault location prompt before the first desktop restore and profile theme controls.
+- Added a data-location prompt before the first desktop restore and profile theme controls.
 
 ### Changed
 

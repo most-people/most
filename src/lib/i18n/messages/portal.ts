@@ -1,14 +1,12 @@
 export const zhCNPortalMessages = {
   'portal.meta.description':
-    'MostBox 是用户自己运行的 P2P 节点，通过本地界面提供文件、聊天、知识库和 Web3 工具。',
+    'MostBox 是用户自己运行的 P2P 节点，以去中心化频道聊天为核心，文件传输为辅。',
   'portal.hero.kicker': '自己运行的 P2P 节点',
   'portal.hero.subtitle':
-    '安装、打开、分享链接，让设备直接参与 P2P 网络；文件、聊天、知识库和 Web3 各自独立。',
+    '安装、打开、加入频道，让设备直接参与 P2P 网络；聊天、文件传输和 Web3 工具各自独立。',
   'portal.nodeEntry': '节点入口',
   'portal.webConnectNode': '连接节点',
   'portal.nodeAdmin': '节点管理',
-  'portal.status.note':
-    'Web 入口只连接已有 MostBox 节点；桌面端内置完整 P2P 能力。知识库是独立工具，不再从聊天设置导入聊天记录。',
   'portal.enterFeature': '进入 {title}',
   'portal.openFeature': '打开{title}',
   'portal.feature.app.title': '文件',
@@ -51,22 +49,6 @@ export const zhCNPortalMessages = {
     '输入已有频道 ID，或生成随机 ID 打开新频道。',
   'portal.feature.chat.step.send.title': '开始聊天',
   'portal.feature.chat.step.send.desc': '发送消息，也可按需发送附件。',
-  'portal.feature.note.title': '知识库',
-  'portal.feature.note.subtitle': 'Markdown 本地知识库',
-  'portal.feature.note.hero': '整理本地资料和笔记',
-  'portal.feature.note.desc': '整理本地资料、笔记和 Markdown 文档。',
-  'portal.feature.note.bullet.markdown': 'Markdown 块编辑器',
-  'portal.feature.note.bullet.privacy': '普通 Markdown 文件存储',
-  'portal.feature.note.bullet.folders': '文件夹、搜索和 Git 版本历史',
-  'portal.feature.note.bullet.web3': '本地身份用于数据隔离',
-  'portal.feature.note.bullet.backup': '按需备份与恢复',
-  'portal.feature.note.bullet.independent': '知识库不是云盘，也不承诺永久同步',
-  'portal.feature.note.step.account.title': '生成 Web3 账号',
-  'portal.feature.note.step.account.desc': '用用户名和密码派生本地密钥。',
-  'portal.feature.note.step.create.title': '创建笔记',
-  'portal.feature.note.step.create.desc': '使用普通 Markdown 编写和整理内容。',
-  'portal.feature.note.step.backup.title': '备份恢复',
-  'portal.feature.note.step.backup.desc': '登录后可使用整体加密备份知识库。',
   'portal.feature.web3.title': 'Web3',
   'portal.feature.web3.subtitle': '开源账户系统',
   'portal.feature.web3.hero': '确定性密钥派生工具箱',
@@ -87,15 +69,13 @@ export const zhCNPortalMessages = {
 
 export const zhTWPortalMessages = {
   'portal.meta.description':
-    'MostBox 是使用者自己執行的 P2P 節點，透過本機介面提供檔案、聊天、知識庫和 Web3 工具。',
+    'MostBox 是使用者自己執行的 P2P 節點，以去中心化頻道聊天為核心，檔案傳輸為輔。',
   'portal.hero.kicker': '自己執行的 P2P 節點',
   'portal.hero.subtitle':
-    '安裝、開啟、分享連結，讓裝置直接參與 P2P 網路；檔案、聊天、知識庫和 Web3 各自獨立。',
+    '安裝、開啟、加入頻道，讓裝置直接參與 P2P 網路；聊天、檔案傳輸和 Web3 工具各自獨立。',
   'portal.nodeEntry': '節點入口',
   'portal.webConnectNode': '連線節點',
   'portal.nodeAdmin': '節點管理',
-  'portal.status.note':
-    'Web 入口只連線已有 MostBox 節點；桌面端內建完整 P2P 能力。知識庫是獨立工具，不再從聊天設定匯入聊天記錄。',
   'portal.enterFeature': '進入 {title}',
   'portal.openFeature': '開啟{title}',
   'portal.feature.app.title': '檔案',
@@ -138,22 +118,6 @@ export const zhTWPortalMessages = {
     '輸入既有頻道 ID，或產生隨機 ID 開啟新頻道。',
   'portal.feature.chat.step.send.title': '開始聊天',
   'portal.feature.chat.step.send.desc': '傳送訊息，也可按需傳送附件。',
-  'portal.feature.note.title': '知識庫',
-  'portal.feature.note.subtitle': 'Markdown 本地知識庫',
-  'portal.feature.note.hero': '整理本地資料和筆記',
-  'portal.feature.note.desc': '整理本地資料、筆記和 Markdown 文件。',
-  'portal.feature.note.bullet.markdown': 'Markdown 塊編輯器',
-  'portal.feature.note.bullet.privacy': '普通 Markdown 文件儲存',
-  'portal.feature.note.bullet.folders': '資料夾、搜尋和 Git 版本歷史',
-  'portal.feature.note.bullet.web3': '本機身份用於資料隔離',
-  'portal.feature.note.bullet.backup': '按需備份與恢復',
-  'portal.feature.note.bullet.independent': '知識庫不是雲盤，也不承諾永久同步',
-  'portal.feature.note.step.account.title': '生成 Web3 帳號',
-  'portal.feature.note.step.account.desc': '用使用者名稱和密碼派生本機金鑰。',
-  'portal.feature.note.step.create.title': '建立筆記',
-  'portal.feature.note.step.create.desc': '使用普通 Markdown 編寫和整理內容。',
-  'portal.feature.note.step.backup.title': '備份恢復',
-  'portal.feature.note.step.backup.desc': '登入後可使用整體加密備份知識庫。',
   'portal.feature.web3.title': 'Web3',
   'portal.feature.web3.subtitle': '開源帳戶系統',
   'portal.feature.web3.hero': '確定性金鑰派生工具箱',
@@ -175,15 +139,13 @@ export const zhTWPortalMessages = {
 
 export const enPortalMessages = {
   'portal.meta.description':
-    'MostBox is a P2P node you run yourself, with local tools for files, chat, notes, and Web3.',
+    'MostBox is a P2P node you run yourself, centered on decentralized channel chat with file transfer as a supporting capability.',
   'portal.hero.kicker': 'Run your own P2P node',
   'portal.hero.subtitle':
     'Install it, open it, share a link, and let your device participate directly in the P2P network.',
   'portal.nodeEntry': 'Node entry',
   'portal.webConnectNode': 'Connect node',
   'portal.nodeAdmin': 'Node admin',
-  'portal.status.note':
-    'The Web entry connects to existing MostBox nodes; the desktop app includes full P2P capability. The Knowledge Base is independent and no longer imports chat history from chat settings.',
   'portal.enterFeature': 'Open {title}',
   'portal.openFeature': 'Open {title}',
   'portal.feature.app.title': 'Files',
@@ -238,27 +200,6 @@ export const enPortalMessages = {
   'portal.feature.chat.step.send.title': 'Start chatting',
   'portal.feature.chat.step.send.desc':
     'Send messages and attach files when needed.',
-  'portal.feature.note.title': 'Knowledge Base',
-  'portal.feature.note.subtitle': 'Local Markdown knowledge base',
-  'portal.feature.note.hero': 'Organize local notes and references',
-  'portal.feature.note.desc':
-    'Organize local references, notes, and Markdown docs.',
-  'portal.feature.note.bullet.markdown': 'Markdown block editor',
-  'portal.feature.note.bullet.privacy': 'Plain Markdown file storage',
-  'portal.feature.note.bullet.folders': 'Folders, search, and Git history',
-  'portal.feature.note.bullet.web3': 'Local identity keeps data separated',
-  'portal.feature.note.bullet.backup': 'Backup and restore when needed',
-  'portal.feature.note.bullet.independent':
-    'The knowledge base is not cloud storage and does not promise permanent sync',
-  'portal.feature.note.step.account.title': 'Generate Web3 account',
-  'portal.feature.note.step.account.desc':
-    'Derive local keys from a username and password.',
-  'portal.feature.note.step.create.title': 'Create note',
-  'portal.feature.note.step.create.desc':
-    'Write and organize content as plain Markdown.',
-  'portal.feature.note.step.backup.title': 'Backup and restore',
-  'portal.feature.note.step.backup.desc':
-    'After login, back up the knowledge base as one encrypted archive.',
   'portal.feature.web3.title': 'Web3',
   'portal.feature.web3.subtitle': 'Open-source account system',
   'portal.feature.web3.hero': 'Deterministic key derivation toolbox',

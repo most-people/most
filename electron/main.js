@@ -20,6 +20,7 @@ import {
 } from './updateChecker.js'
 import { createMostDeepLinkTarget, findMostDeepLinkArg } from './deepLink.js'
 import { isSafeExternalUrl, isTrustedAppUrl } from './security.js'
+import { cleanupLegacyKnowledgeData } from './legacyKnowledgeCleanup.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = 1976
@@ -82,7 +83,7 @@ function getLocalAppUrl(routePath = '/') {
 }
 
 function getInitialWindowUrl() {
-  const initialUrl = pendingDeepLinkUrl || getLocalAppUrl('/')
+  const initialUrl = pendingDeepLinkUrl || getLocalAppUrl('/chat/')
   pendingDeepLinkUrl = ''
   return initialUrl
 }
@@ -203,9 +204,11 @@ async function startServer() {
   process.env.ELECTRON_APP = 'true'
 
   const { main } = await import('../server/index.js')
-  engine = await main({
-    noteVaultRoot: path.join(app.getPath('documents'), 'MostBox', 'Notes'),
+  void cleanupLegacyKnowledgeData({
+    documentsPath: app.getPath('documents'),
+    userDataPath: app.getPath('userData'),
   })
+  engine = await main()
 }
 
 async function fetchReleaseManifest(manifestUrl) {
