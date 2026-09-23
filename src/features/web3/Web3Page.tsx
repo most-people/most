@@ -7,6 +7,7 @@ import { AppTop } from '~/components/AppTop'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import { useI18n, type MessageKey } from '~/lib/i18n'
+import { getCachedAvatar } from '~/lib/avatarCache'
 import {
   mostBoxDecrypt,
   mostBoxEncrypt,
@@ -18,7 +19,6 @@ import {
   most25519,
 } from '~server/src/utils/mostWallet.js'
 import { getEdKeyPair } from '~server/src/utils/mp.js'
-import { generateAvatar } from '~server/src/utils/avatar.js'
 import { AsymmetricBoxView } from './components/AsymmetricBoxView'
 import { PemExportView } from './components/PemExportView'
 import { WalletExportView } from './components/WalletExportView'
@@ -314,7 +314,7 @@ export default function Web3Page() {
     setDeriveIndex(prev => prev + deriveBatch)
   }
 
-  const avatarSrc = generateAvatar(walletResult?.address || undefined)
+  const avatarSrc = getCachedAvatar(walletResult?.address || undefined)
   const viewTitleKey: MessageKey =
     currentView === 'wallet'
       ? 'web3.view.wallet'

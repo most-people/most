@@ -40,7 +40,7 @@ export function normalizeDefaultAvatarValue(avatar) {
   return id ? getDefaultAvatarPath(id) : ''
 }
 
-function createAddressAvatar(address) {
+export function createAddressAvatar(address) {
   const avatar = new Avatar(new Style(botttsNeutralDefinition), {
     seed: 'most.box@' + address,
     flip: 'horizontal',

@@ -5,7 +5,7 @@ import { SafeImage } from '~/components/SafeImage'
 import { ModalOverlay } from '~/components/ui'
 import { useI18n } from '~/lib/i18n'
 import { shortAddress } from '~/lib/format'
-import { generateAvatar } from '~server/src/utils/avatar.js'
+import { getCachedAvatar } from '~/lib/avatarCache'
 
 export default function UserLoginModal() {
   const { t } = useI18n()
@@ -60,7 +60,7 @@ export default function UserLoginModal() {
             className="login-avatar-preview"
             src={
               loginPreviewAddress
-                ? generateAvatar(loginPreviewAddress)
+                ? getCachedAvatar(loginPreviewAddress)
                 : '/avatar.png'
             }
             alt="avatar"

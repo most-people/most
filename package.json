@@ -60,6 +60,10 @@
     "hyperdrive"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/most-people/most.git"
+  },
   "dependencies": {
     "@dicebear/core": "^10.4.0",
     "@dicebear/styles": "^10.3.0",

@@ -39,7 +39,7 @@ import {
   getApiRequestHeaders,
 } from '~server/src/utils/api'
 import { buildMostLink } from '~server/src/core/mostLink.js'
-import { generateAvatar } from '~server/src/utils/avatar.js'
+import { getCachedAvatar } from '~/lib/avatarCache'
 import { useAppStore } from '~/stores/useAppStore'
 import { useUserStore } from '~/stores/userStore'
 import { useDisclosure } from '~/hooks'
@@ -2148,7 +2148,7 @@ function ChatPage() {
                 1,
             }),
             tag,
-            avatarSrc: generateAvatar(
+            avatarSrc: getCachedAvatar(
               member.address,
               presence?.avatar || member.avatar
             ),
@@ -2237,7 +2237,7 @@ function ChatPage() {
             id: member.address,
             name: formatDisplayName(displayName, member.address),
             tag: getMemberDisplayTag(member),
-            avatarSrc: generateAvatar(member.address, avatar),
+            avatarSrc: getCachedAvatar(member.address, avatar),
             online: onlineMemberAddressSet.has(
               normalizeMemberAddress(member.address)
             ),
@@ -2511,7 +2511,7 @@ function ChatPage() {
                     variant={isSelf ? 'self' : 'other'}
                     pending={msg.pending}
                     isOnline={isOnline}
-                    avatarSrc={generateAvatar(msg.author, avatar)}
+                    avatarSrc={getCachedAvatar(msg.author, avatar)}
                     author={displayAuthor}
                     authorTag={displayTag}
                     mentioned={!isSelf && isMessageMentioningCurrentUser(msg)}
