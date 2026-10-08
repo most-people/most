@@ -40,7 +40,13 @@ import type {
   MobileChannelMessage,
   SendChannelMessageInput,
   MostBoxMobileCore,
+  MobileHolding,
 } from '../../mobileCore/types'
+import {
+  formatAttachmentSize,
+  getAttachmentState,
+  getMessageAttachment,
+} from './attachmentModel'
 import { useI18n } from '../../i18n'
 import {
   MostButton,
@@ -71,12 +77,16 @@ export type ChatScreenProps = {
   client: MostBoxMobileCore
   snapshot: MobileCoreSnapshot
   onPublishAttachment: () => Promise<ChatAttachment | null>
+  onReceiveAttachment: (attachment: ChatAttachment) => void
+  onOpenAttachment: (holding: MobileHolding) => void | Promise<void>
 }
 
 export function ChatScreen({
   client,
   snapshot,
   onPublishAttachment,
+  onReceiveAttachment,
+  onOpenAttachment,
 }: ChatScreenProps) {
   const { t, formatDateTime } = useI18n()
   const theme = useMostBoxTheme()
@@ -537,29 +547,68 @@ export function ChatScreen({
             `${item.author}-${item.timestamp}-${index}`
           }
           contentContainerStyle={styles.messages}
-          renderItem={({ item }) => (
-            <View
-              style={[
-                styles.message,
-                item.author === identity?.address ? styles.messageMine : null,
-              ]}
-            >
-              <Text style={styles.author}>{item.authorName}</Text>
-              {item.attachment ? (
-                <Text style={styles.attachmentName}>
-                  {t('chat.attachmentLabel', {
-                    fileName: item.attachment.fileName,
-                  })}
-                </Text>
-              ) : null}
-              <Text style={styles.content}>{item.content}</Text>
-              {item.timestamp ? (
-                <Text style={styles.timestamp}>
-                  {formatDateTime(item.timestamp)}
-                </Text>
-              ) : null}
-            </View>
-          )}
+          renderItem={({ item }) => {
+            const attachment = getMessageAttachment(item)
+            const state = attachment
+              ? getAttachmentState(
+                  attachment.cid,
+                  snapshot.holdings,
+                  snapshot.transfers
+                )
+              : null
+            const action =
+              state?.status === 'available'
+                ? 'chat.openAttachment'
+                : state?.status === 'running'
+                  ? 'chat.receivingAttachment'
+                  : state?.status === 'failed'
+                    ? 'chat.retryAttachment'
+                    : 'chat.receiveAttachment'
+            const actionLabel = t(action, {
+              progress: Math.round(state?.transfer?.progress || 0),
+            })
+            return (
+              <View
+                style={[
+                  styles.message,
+                  item.author === identity?.address ? styles.messageMine : null,
+                ]}
+              >
+                <Text style={styles.author}>{item.authorName}</Text>
+                {attachment ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${attachment.fileName}, ${actionLabel}`}
+                    disabled={state?.status === 'running'}
+                    onPress={() => {
+                      if (state?.holding) void onOpenAttachment(state.holding)
+                      else onReceiveAttachment(attachment)
+                    }}
+                    style={styles.attachmentButton}
+                  >
+                    <Text style={styles.attachmentName}>
+                      {t('chat.attachmentLabel', {
+                        fileName: attachment.fileName,
+                      })}
+                    </Text>
+                    {typeof attachment.size === 'number' ? (
+                      <Text style={styles.attachmentDetails}>
+                        {formatAttachmentSize(attachment.size)}
+                      </Text>
+                    ) : null}
+                    <Text style={styles.attachmentAction}>{actionLabel}</Text>
+                  </Pressable>
+                ) : (
+                  <Text style={styles.content}>{item.content}</Text>
+                )}
+                {item.timestamp ? (
+                  <Text style={styles.timestamp}>
+                    {formatDateTime(item.timestamp)}
+                  </Text>
+                ) : null}
+              </View>
+            )
+          }}
         />
         <View style={styles.composer}>
           <Pressable
@@ -671,6 +720,18 @@ function chatStyles(theme: ReturnType<typeof useMostBoxTheme>) {
       fontSize: 13,
       fontWeight: '600',
       marginTop: 3,
+    },
+    attachmentButton: { paddingVertical: 7, paddingHorizontal: 3 },
+    attachmentDetails: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      marginTop: 4,
+    },
+    attachmentAction: {
+      color: colors.accent,
+      fontSize: 12,
+      fontWeight: '600',
+      marginTop: 5,
     },
     content: { color: colors.text, fontSize: 15, marginTop: 2 },
     timestamp: { color: colors.textMuted, fontSize: 10, marginTop: 4 },

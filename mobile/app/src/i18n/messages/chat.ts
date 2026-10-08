@@ -51,6 +51,26 @@ export const chatMessages = {
     'zh-TW': '傳送附件失敗',
     en: 'Could not send attachment',
   },
+  'chat.receiveAttachment': {
+    'zh-CN': '接收文件',
+    'zh-TW': '接收檔案',
+    en: 'Receive file',
+  },
+  'chat.receivingAttachment': {
+    'zh-CN': '接收中 {progress}%',
+    'zh-TW': '接收中 {progress}%',
+    en: 'Receiving {progress}%',
+  },
+  'chat.retryAttachment': {
+    'zh-CN': '重试接收',
+    'zh-TW': '重試接收',
+    en: 'Retry receiving',
+  },
+  'chat.openAttachment': {
+    'zh-CN': '打开文件',
+    'zh-TW': '開啟檔案',
+    en: 'Open file',
+  },
   'chat.loadFailed': {
     'zh-CN': '加载频道失败',
     'zh-TW': '載入頻道失敗',

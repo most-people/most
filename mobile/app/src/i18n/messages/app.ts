@@ -319,6 +319,11 @@ export const appMessages = {
     'zh-TW': '無法儲存檔案',
     en: 'Could not save the file',
   },
+  'app.file.saveIncompleteBody': {
+    'zh-CN': '保存失败，所选目录中可能残留不完整文件。请检查并删除后重试。',
+    'zh-TW': '儲存失敗，所選目錄中可能殘留不完整檔案。請檢查並刪除後重試。',
+    en: 'Saving failed and an incomplete file may remain in the selected folder. Check and remove it before retrying.',
+  },
   'app.link.openFailed': {
     'zh-CN': '无法打开链接',
     'zh-TW': '無法開啟連結',

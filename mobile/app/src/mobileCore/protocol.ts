@@ -7,6 +7,7 @@ export type ParsedMostLink = {
 
 export type IncomingMostLink = ParsedMostLink & {
   link: string
+  size?: number
 }
 
 export const MOST_LINK_PROTOCOL = 'most:'

@@ -22,6 +22,7 @@ import * as DocumentPicker from 'expo-document-picker'
 import * as FileSystem from 'expo-file-system/legacy'
 import * as IntentLauncher from 'expo-intent-launcher'
 import * as Sharing from 'expo-sharing'
+import { saveFileToDirectory } from './src/files/nativeFileExport'
 import b4a from 'b4a'
 import {
   ArrowLeftRight,
@@ -64,6 +65,7 @@ import {
   type TransferRuntimePlatform,
 } from './src/features/transfers/transferModel'
 import { ChatScreen } from './src/features/chat/ChatScreen'
+import { formatAttachmentSize } from './src/features/chat/attachmentModel'
 import type { ChatAttachment } from './src/chat/chatProtocol'
 import {
   I18nProvider,
@@ -204,20 +206,6 @@ function getSafeSaveFileName(fileName: string, cid: string) {
     .replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_')
     .replace(/\s+/g, ' ')
   return safeName || `${cid}.bin`
-}
-
-async function writeSafFileFromLocalFile(
-  sourceFileUri: string,
-  targetUri: string
-) {
-  const base64 = await FileSystem.readAsStringAsync(sourceFileUri, {
-    encoding: FileSystem.EncodingType.Base64,
-  })
-  await FileSystem.StorageAccessFramework.writeAsStringAsync(
-    targetUri,
-    base64,
-    { encoding: FileSystem.EncodingType.Base64 }
-  )
 }
 
 function shortCid(cid: string) {
@@ -980,20 +968,25 @@ function MostBoxApp() {
       if (!permission.granted) return
 
       const saveFileName = getSafeSaveFileName(exported.fileName, holding.cid)
-      const targetUri = await FileSystem.StorageAccessFramework.createFileAsync(
+      const saved = await saveFileToDirectory(
+        exported.fileUri,
         permission.directoryUri,
         saveFileName,
-        exported.mimeType
+        exported.mimeType,
+        exported.size
       )
-      await writeSafFileFromLocalFile(exported.fileUri, targetUri)
       alert(
         t('app.file.saveSuccessTitle'),
-        t('app.file.saveSuccessBody', { fileName: saveFileName })
+        t('app.file.saveSuccessBody', { fileName: saved.fileName })
       )
     } catch (error) {
       alert(
         t('app.file.saveFailedTitle'),
-        error instanceof Error ? error.message : t('app.file.saveFailedBody')
+        error instanceof Error &&
+          'code' in error &&
+          error.code === 'ERR_EXPORT_INCOMPLETE'
+          ? t('app.file.saveIncompleteBody')
+          : t('app.file.saveFailedBody')
       )
     } finally {
       setExportingCid(null)
@@ -1244,6 +1237,21 @@ function MostBoxApp() {
               <ChatScreen
                 client={core}
                 onPublishAttachment={handlePublishChatAttachment}
+                onReceiveAttachment={attachment => {
+                  const inspection = inspectReceiveLink(attachment.link)
+                  if (inspection.kind === 'blocked') {
+                    alert(
+                      t('app.download.retryFailed'),
+                      t(inspection.errorKey as MessageKey)
+                    )
+                    return
+                  }
+                  openDownloadIntent(
+                    { ...inspection.intent, size: attachment.size },
+                    true
+                  )
+                }}
+                onOpenAttachment={handleOpenHolding}
                 snapshot={currentSnapshot}
               />
             </View>
@@ -1471,6 +1479,11 @@ function MostBoxApp() {
                           </Text>
                         </Pressable>
                       </View>
+                      {typeof downloadIntent.size === 'number' ? (
+                        <Text style={styles.previewLabel}>
+                          {formatAttachmentSize(downloadIntent.size)}
+                        </Text>
+                      ) : null}
                       <Text
                         maxFontSizeMultiplier={1.6}
                         style={styles.previewLabel}

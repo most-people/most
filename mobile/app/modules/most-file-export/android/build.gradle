@@ -1,0 +1,17 @@
+apply plugin: 'com.android.library'
+apply plugin: 'expo-module-gradle-plugin'
+
+group = 'expo.modules.mostfileexport'
+version = '1.0.0'
+
+android {
+  namespace 'expo.modules.mostfileexport'
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+}
+
+dependencies {
+  testImplementation 'junit:junit:4.13.2'
+}
