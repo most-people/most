@@ -1,0 +1,221 @@
+
+> @most-box/app@0.5.3 test
+> node --import tsx --test src/chat/chatProtocol.test.ts src/chat/chatWebSocket.test.ts src/chat/voiceProtocol.test.ts src/product/productProfile.test.ts src/mobileCore/cid.test.ts src/mobileCore/nodeSelection.test.ts src/mobileCore/protocol.test.ts src/mobileCore/receiveFlow.test.ts src/mobileCore/storeFilePolicy.test.ts src/remoteNode/connectionHistory.test.ts src/remoteNode/identity.test.ts src/remoteNode/protocol.test.ts src/remoteNode/remoteCache.test.ts src/remoteNode/remoteState.test.ts src/features/files/filesModel.test.ts src/features/chat/attachmentModel.test.ts src/features/transfers/transferModel.test.ts src/i18n/messages.test.ts src/navigation/rootNavigation.test.ts src/privacy/privacyConsent.test.ts src/ui/feedbackModel.test.ts src/ui/presentation.test.ts src/legacyKnowledgeStorage.test.ts && node --test backend/protocol.test.mjs backend/p2p-ping.test.mjs backend/holding-records.test.mjs backend/mobile-core.test.mjs backend/node-crypto-shim.test.mjs scripts/check-ios-release.test.mjs scripts/ensure-ios-debug-rncore.test.mjs scripts/store-platform-boundary.test.mjs scripts/sync-native-android.test.mjs scripts/sync-native-ios.test.mjs scripts/verify-apk-signature.test.mjs
+
+✔ normalizes channel IDs consistently for local and remote chat (1.1255ms)
+✔ creates and normalizes UUID v4 client ids for retry idempotency (1.4416ms)
+✔ validates attachment kind, CID and link before sending (2.8107ms)
+✔ parses history pages and ignores malformed messages (0.352ms)
+✔ parses subscribe acknowledgements and channel message WebSocket frames (0.4086ms)
+✔ merges history, HTTP response and live events by clientMessageId (0.3008ms)
+✔ ChatApiClient uses signed remote protocol and paginates history (6.8355ms)
+✔ ChatApiClient preserves canonical most:// attachment metadata (1.3668ms)
+✔ connects, subscribes and parses channel events (5.5148ms)
+✔ reconnects with backoff and replays subscriptions (41.3223ms)
+✔ rejects empty channel names (0.8359ms)
+✔ builds and parses a voice join frame (1.2378ms)
+✔ normalizes server sender and applies room state updates (0.4184ms)
+✔ voice session subscribes, joins, updates state and leaves (913.6582ms)
+✔ recognizes structured attachments and legacy most links (3.5233ms)
+✔ opens only complete content identified by CID (0.2909ms)
+✔ shows active download progress and retries failures instead of duplicate downloads (0.1991ms)
+✔ file search matches names and CIDs case-insensitively (1.701ms)
+✔ file filters isolate healthy and attention-required holdings (0.2416ms)
+✔ builds nested virtual folders and breadcrumbs from display paths (20.7991ms)
+✔ folder sharing requires every regular file to be local and healthy (0.8748ms)
+✔ download actions expose cancel, retry, and open only in valid states (2.1672ms)
+✔ publish transfers cannot use download cancellation (0.2224ms)
+✔ transfer queue summary counts active work and clamps aggregate progress (0.2847ms)
+✔ empty transfer queues report zero progress (0.1451ms)
+✔ remote daemon transfers can continue while the app is backgrounded (0.4006ms)
+✔ a disconnected remote node cannot be advertised as background-running (0.1691ms)
+✔ local mobile transfers wait for resume until a native background service exists (0.2938ms)
+✔ android foreground service is opt-in and explicit (0.1774ms)
+✔ all supported locales define every message (1.9992ms)
+✔ message interpolation uses the selected locale (0.3584ms)
+✔ simplified Chinese remains the default presentation locale (0.1442ms)
+✔ cleans legacy mobile data once while preserving other files (1.4517ms)
+✔ an empty directory completes and a failed deletion retries next startup (0.3995ms)
+✔ rejects escaping entries before deleting any data (0.3857ms)
+▶ mobile UnixFS CID
+  ✔ encodes unsigned file sizes across the 2GiB boundary (6.936ms)
+  ✔ matches protocol golden samples (27.3425ms)
+  ✔ keeps the same CID when content arrives in uneven chunks (25.1593ms)
+  ✔ consumes a multi-megabyte file as bounded chunks (93.6448ms)
+  ✔ calculates CIDs when WebCrypto is unavailable (0.6842ms)
+✔ mobile UnixFS CID (155.3788ms)
+✔ prefers a saved remote node and keeps local stopped on success (1.0022ms)
+✔ falls back for the session while retaining the failed remote URL (0.3215ms)
+✔ treats queued, running and waiting transfers as switch blockers (0.2406ms)
+▶ mobile most link protocol
+  ✔ builds and parses most links (2.1491ms)
+  ✔ uses CID as file name when filename is omitted (0.4482ms)
+  ✔ parses web entry links and bare CID inputs like the desktop client (1.8077ms)
+  ✔ parses links when URLSearchParams.keys is unavailable (0.3564ms)
+  ✔ rejects unsupported query parameters and invalid CID tails (0.7738ms)
+  ✔ accepts native most link intents and ignores unrelated app URLs (0.4256ms)
+  ✔ rejects malformed native most link intents (0.3314ms)
+  ✔ derives protocol paths and topic digest details from CID (0.2934ms)
+✔ mobile most link protocol (8.8955ms)
+✔ receive inspection creates a confirmed intent only after parsing (1.9841ms)
+✔ receive inspection blocks restricted executable names (1.1019ms)
+▶ store file policy
+  ✔ blocks application packages and executable files (0.9182ms)
+  ✔ allows regular documents, media, and archives (0.334ms)
+  ✔ allows downloads without an explicit filename (0.2185ms)
+✔ store file policy (2.8393ms)
+✔ root tabs scroll to top on reselection and switch cleanly (0.861ms)
+✔ back action closes overlays and node child routes before exiting (0.3142ms)
+✔ serializes a current explicit privacy consent record (7.1288ms)
+✔ requires explicit consent for the current policy version (0.2983ms)
+✔ resolves the international and mainland product profiles (0.9679ms)
+✔ defaults to MostBox profile for invalid build values (0.2155ms)
+▶ remote node history
+  ✔ builds HTTPS-first candidates for addresses without a protocol (2.0181ms)
+  ✔ preserves explicit protocols and rejects invalid node addresses (0.3385ms)
+  ✔ normalizes, deduplicates, and caps history at eight nodes (0.5943ms)
+  ✔ deduplicates a bare hostname against its normalized HTTPS URL (0.276ms)
+  ✔ switches the preferred node and preserves the local entry (0.5743ms)
+✔ remote node history (5.305ms)
+▶ mobile remote identity
+  ✔ matches the desktop identity golden sample (98.8737ms)
+  ✔ creates a signature accepted for the canonical request path (62.7281ms)
+✔ mobile remote identity (162.8015ms)
+▶ remote node protocol
+  ✔ keeps reverse proxy prefixes in transport URLs but not auth paths (1.3811ms)
+  ✔ attaches invite and signed WebSocket credentials (124.9784ms)
+  ✔ resolves a bare address to HTTPS without sending credentials (5.1378ms)
+  ✔ falls back to HTTP when HTTPS does not identify a MostBox node (1.5837ms)
+  ✔ does not downgrade after HTTPS identifies a protected MostBox node (0.7028ms)
+  ✔ does not probe another protocol when one is explicit (0.2358ms)
+✔ remote node protocol (135.2461ms)
+✔ reuses only cache content that matches the requested CID (0.8317ms)
+✔ maps remote single-file state into the mobile holding model (3.7017ms)
+✔ preserves missing local content state for remote library files (0.3708ms)
+✔ maps directory collections and active remote downloads (0.4271ms)
+✔ maps WebSocket progress and terminal download events (0.2643ms)
+✔ feedback actions dismiss before running the selected callback (1.8114ms)
+✔ mobile production code does not call the unsupported Alert.alert API (177.631ms)
+✔ native toast feedback uses the non-modal layer (2.9203ms)
+✔ usesAccessibilityLayout only for large accessibility scales (1.0147ms)
+✔ getFriendlyCoreError hides internal download failures (0.3569ms)
+✔ getMostLinkErrorMessage localizes protocol error codes (0.2218ms)
+✔ getFriendlyRemoteConnectionError localizes connection failures (0.2554ms)
+✔ getTransferDisplayMessage localizes stable core states (0.3107ms)
+✔ partitionTransfers separates current work from history (1.0429ms)
+ℹ tests 89
+ℹ suites 6
+ℹ pass 89
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1821.9795
+▶ mobile holding deletion records
+  ✔ only schedules app-internal downloaded holding copies for deletion (2.7074ms)
+  ✔ compares Windows-style paths case-insensitively for local tests (1.2653ms)
+  ✔ removes only the target CID so the same link can be downloaded again (0.3977ms)
+✔ mobile holding deletion records (5.5819ms)
+▶ mobile P2P Ping snapshot and RPC events
+  ✔ starts, reports, resets, and destroys both direction swarms (85.6117ms)
+✔ mobile P2P Ping snapshot and RPC events (86.7041ms)
+▶ mobile file downloads
+  ✔ exports CID content when the cached file path contains different bytes (79.2107ms)
+  ✔ rejects missing blobs after restart and repairs them on republication (10155.9743ms)
+  ✔ recognizes complete zero-byte files after restart (68.413ms)
+  ✔ recreates the downloads directory before writing a temporary file (72.9545ms)
+  ✔ does not treat holding metadata alone as local content (40.1521ms)
+  ✔ fails peer discovery cleanly when no seed comes online (540.0855ms)
+  ✔ cancels active peer discovery and leaves the CID topic (33.0451ms)
+✔ mobile file downloads (10990.4464ms)
+▶ mobile local holding deletion
+  ✔ clears local Hyperdrive content without publishing a tombstone (33.106ms)
+✔ mobile local holding deletion (33.2408ms)
+▶ mobile channel core restart recovery
+  ✔ restores persisted channels, rejoins topics, keeps writer cores, and continues messaging (67.9259ms)
+✔ mobile channel core restart recovery (68.0663ms)
+▶ mobile channel presence
+  ✔ joins, heartbeats, leaves, and broadcasts Android presence (37.7842ms)
+  ✔ tracks remote presence, clears it on disconnect, and expires stale sessions (186.073ms)
+✔ mobile channel presence (224.1034ms)
+▶ mobile channel connection scoping
+  ✔ does not exchange unrelated channel metadata or presence (111.0289ms)
+  ✔ does not let an unauthorized stream clear accepted presence (91.5098ms)
+✔ mobile channel connection scoping (202.741ms)
+▶ mobile channel metadata management
+  ✔ sets remark, pins, leaves, and persists metadata across restart (97.0257ms)
+  ✔ round-trips structured attachment messages through the core (36.5685ms)
+  ✔ rejects local attachment sends when content does not match the link (32.5116ms)
+  ✔ drops malformed remote attachment payloads when reading messages (99.9688ms)
+  ✔ ignores append messages that resume after a channel is left (44.1181ms)
+  ✔ returns empty history when getChannelMessages resumes after leave (62.3367ms)
+  ✔ does not reuse cached local candidates after leaving a channel (49.9425ms)
+✔ mobile channel metadata management (422.9497ms)
+✔ createHmac matches Node.js HMAC-SHA256 (2.9106ms)
+✔ randomBytes and timingSafeEqual expose the required Node.js behavior (1.758ms)
+▶ mobile P2P Ping protocol
+  ✔ keeps six-digit codes and the desktop topic golden sample identical (2.4141ms)
+  ✔ rejects invalid framed input (0.3907ms)
+✔ mobile P2P Ping protocol (4.0021ms)
+▶ backend JSON line parser
+  ✔ waits for a full newline-delimited command across IPC chunks (2.5776ms)
+  ✔ parses multiple commands delivered in one IPC chunk (0.9356ms)
+  ✔ reports malformed lines without dropping the next complete command (0.2622ms)
+✔ backend JSON line parser (4.957ms)
+iOS release preflight passed: 0.5.3 (503), most.box
+▶ iOS release profile selection
+  ✔ resolves independent identities for Most and 墨盒 (2.9148ms)
+  ✔ applies the selected profile to the Expo config (1.0094ms)
+✔ iOS release profile selection (5.1546ms)
+▶ iOS release preflight
+  ✔ accepts the repository release configuration (9.1029ms)
+  ✔ rejects store distribution and privacy regressions (1.2277ms)
+  ✔ rejects invalid release versions and PNG input (0.3953ms)
+✔ iOS release preflight (11.0732ms)
+▶ Intel iOS simulator React Native Core repair
+  ✔ recognizes a Debug renderer binary (2.0323ms)
+  ✔ leaves a matching Debug Core unchanged (0.2732ms)
+  ✔ marks and replaces a stale Release Core (6.7539ms)
+  ✔ fails if the Debug Core still lacks renderer symbols (1.7401ms)
+✔ Intel iOS simulator React Native Core repair (12.7473ms)
+✔ native store entry creates the profile-aware mobile node client (5.298ms)
+✔ native node connection panel exposes profile-gated remote controls (4.7917ms)
+✔ native app configuration contains no remote identity storage plugin (1.6317ms)
+✔ Expo Web keeps its remote node client and connection controls (4.3975ms)
+▶ Android native project synchronization
+  ✔ resolves shared Most and 墨盒 build profiles (1.1791ms)
+  ✔ uses the configured version code and only syncs EAS Android builds (0.8288ms)
+  ✔ keeps the Expo version code synchronized with the release version (0.4904ms)
+  ✔ synchronizes the application ID, namespace, and Kotlin package (0.5842ms)
+  ✔ updates the minimum SDK in an existing native project (0.3059ms)
+  ✔ adds a missing minimum SDK property without changing other settings (0.1976ms)
+  ✔ rejects invalid minimum SDK versions (0.523ms)
+  ✔ keeps native build output in a short project-specific directory (0.3669ms)
+  ✔ removes a release Gradle apply when its script is missing (1.4621ms)
+  ✔ restores the Expo alpha signing config when the script is missing (1.6ms)
+  ✔ preserves an inline release signing config (0.4175ms)
+  ✔ preserves the release Gradle apply when its script exists (0.1304ms)
+  ✔ uses environment-backed release signing for Google Play builds (1.5514ms)
+  ✔ restores debug signing after a Google Play build (1.1077ms)
+  ✔ removes blocked permissions and disables Android backup (0.6263ms)
+✔ Android native project synchronization (15.7432ms)
+▶ iOS native project synchronization
+  ✔ synchronizes the native version and build number (5.7669ms)
+  ✔ rejects invalid release values and missing plist keys (0.4341ms)
+  ✔ synchronizes the cleartext network policy from app config (0.7901ms)
+✔ iOS native project synchronization (8.786ms)
+▶ verifyApkSigningIdentity
+  ✔ accepts Windows apksigner output (1.1513ms)
+  ✔ accepts Linux apksigner output and deduplicates scheme digests (0.2689ms)
+  ✔ rejects output without a signer count (1.2711ms)
+  ✔ rejects multiple distinct certificate digests (0.2728ms)
+  ✔ rejects an unexpected certificate digest (0.2231ms)
+✔ verifyApkSigningIdentity (4.4801ms)
+ℹ tests 67
+ℹ suites 16
+ℹ pass 67
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 12498.3008

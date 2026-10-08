@@ -1,0 +1,8 @@
+{
+  "mode": "real public-DHT discovery; no forced replication",
+  "cid": "bafybeiduy7keuqt3cymnh6zxx2xa5lvhnivv57za4zumvxgujpxb76xepu",
+  "publisherExpectedStopped": true,
+  "status": "failed",
+  "error": "PeerNotFoundError: Expected file /bafybeiduy7keuqt3cymnh6zxx2xa5lvhnivv57za4zumvxgujpxb76xepu was not found. Could not connect to any peers. This may be due to:\n1. Network firewall blocking P2P connections\n2. DHT bootstrap nodes unreachable\n3. NAT traversal failed (try port forwarding)\n4. No peers are currently sharing this file\n    at MostBoxEngine.downloadFile (file:///C:/Users/4u/Documents/GitHub/most/server/src/index.js:1620:15)\n    at runNextTicks (node:internal/process/task_queues:65:5)\n    at process.processTimers (node:internal/timers:538:9)\n    at async MostBoxEngine.pullByCid (file:///C:/Users/4u/Documents/GitHub/most/server/src/index.js:2527:20)\n    at async file:///C:/Users/4u/AppData/Local/Temp/mostbox-qa-20261007/real-network-verifier.mjs:14:15",
+  "elapsedMs": 60133
+}

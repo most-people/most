@@ -1,0 +1,152 @@
+
+> most-box@0.5.3 test:protocol
+> node --test --test-name-pattern "extracts CID and filename|matches golden CID samples|encodes unsigned file sizes|patches the importer runtime|publishes a file from Buffer|lists published files|pulls through local seed nodes|fails within timeout when a connected topic peer has no content|relays text messages bidirectionally across a three-node line" server/tests/unit/cid.test.js server/tests/unit/unixfsEncoding.test.js server/tests/unit/unixfsPatch.test.js server/tests/integration/cid.test.js server/tests/integration/engine.test.js
+
+▶ calculateCid (real file I/O)
+  ✔ matches golden CID samples for protocol stability (23.439ms)
+✔ calculateCid (real file I/O) (25.0056ms)
+[MostBox] Initializing engine...
+[MostBox] Storage path: C:\Users\4u\AppData\Local\Temp\most-engine-test-bO04cL\data
+[MostBox] Corestore ready
+[MostBox] Initializing Hyperswarm...
+[MostBox] Loaded 0 published files
+[MostBox] Loaded 0 node holdings
+[MostBox] Loaded 0 channels
+[MostBox] Engine initialized successfully
+▶ MostBoxEngine (integration)
+  ▶ publishFile()
+    ✔ publishes a file from Buffer and returns CID (37.116ms)
+  ✔ publishFile() (37.9269ms)
+[MostBox] Initializing engine...
+[MostBox] Storage path: C:\Users\4u\AppData\Local\Temp\most-p2p-test-TOxgIk\uploader
+  ▶ listPublishedFiles()
+    ✔ lists published files (18.142ms)
+  ✔ listPublishedFiles() (18.4791ms)
+[MostBox] Corestore ready
+[MostBox] Initializing Hyperswarm...
+[MostBox] Loaded 0 published files
+[MostBox] Loaded 0 node holdings
+[MostBox] Loaded 0 channels
+[MostBox] Engine initialized successfully
+[MostBox] Initializing engine...
+[MostBox] Storage path: C:\Users\4u\AppData\Local\Temp\most-p2p-test-TOxgIk\relay-seed
+[MostBox] Corestore ready
+[MostBox] Initializing Hyperswarm...
+[MostBox] Loaded 0 published files
+[MostBox] Loaded 0 node holdings
+[MostBox] Loaded 0 channels
+[MostBox] Engine initialized successfully
+[MostBox] Initializing engine...
+[MostBox] Storage path: C:\Users\4u\AppData\Local\Temp\most-p2p-test-TOxgIk\downloader
+[MostBox] Corestore ready
+[MostBox] Initializing Hyperswarm...
+[MostBox] Loaded 0 published files
+[MostBox] Loaded 0 node holdings
+[MostBox] Loaded 0 channels
+[MostBox] Engine initialized successfully
+[MostBox] Starting download for link: most://bafybeigak7tvm4bb2et73p52j33zy2v6hgy46nijsjflrqih4keafnvdra?filename=seed.bin (taskId: dl_1791424107573_ky10p8)
+[MostBox] Parsed CID: bafybeigak7tvm4bb2et73p52j33zy2v6hgy46nijsjflrqih4keafnvdra
+[MostBox] Using existing drive: drive-c057e7567021d127fdbfba4ef79c6abe39b1cf3509924ab8c107e28802b6a388
+[MostBox] Waiting for drive entry /bafybeigak7tvm4bb2et73p52j33zy2v6hgy46nijsjflrqih4keafnvdra (timeout: 10s)...
+[MostBox] Found /bafybeigak7tvm4bb2et73p52j33zy2v6hgy46nijsjflrqih4keafnvdra after 1s
+[MostBox] Found expected entry /bafybeigak7tvm4bb2et73p52j33zy2v6hgy46nijsjflrqih4keafnvdra, starting download...
+[MostBox] Found expected entry /bafybeigak7tvm4bb2et73p52j33zy2v6hgy46nijsjflrqih4keafnvdra locally
+[MostBox] Starting download for link: most://bafybeigak7tvm4bb2et73p52j33zy2v6hgy46nijsjflrqih4keafnvdra?filename=seed.bin (taskId: dl_1791424115230_069bh1)
+[MostBox] Parsed CID: bafybeigak7tvm4bb2et73p52j33zy2v6hgy46nijsjflrqih4keafnvdra
+[MostBox] Using existing drive: drive-c057e7567021d127fdbfba4ef79c6abe39b1cf3509924ab8c107e28802b6a388
+[MostBox] Waiting for drive entry /bafybeigak7tvm4bb2et73p52j33zy2v6hgy46nijsjflrqih4keafnvdra (timeout: 10s)...
+[MostBox] Found /bafybeigak7tvm4bb2et73p52j33zy2v6hgy46nijsjflrqih4keafnvdra after 1s
+[MostBox] Found expected entry /bafybeigak7tvm4bb2et73p52j33zy2v6hgy46nijsjflrqih4keafnvdra, starting download...
+[MostBox] Found expected entry /bafybeigak7tvm4bb2et73p52j33zy2v6hgy46nijsjflrqih4keafnvdra locally
+[MostBox] Initializing engine...
+[MostBox] Storage path: C:\Users\4u\AppData\Local\Temp\most-empty-topic-peer-kkCRwE\empty-peer
+  ▶ node holdings and CID topic pull
+    ✔ pulls through local seed nodes in a three-node line after the uploader stops (12705.7016ms)
+[MostBox] Corestore ready
+[MostBox] Initializing Hyperswarm...
+[MostBox] Loaded 0 published files
+[MostBox] Loaded 0 node holdings
+[MostBox] Loaded 0 channels
+[MostBox] Engine initialized successfully
+[MostBox] Initializing engine...
+[MostBox] Storage path: C:\Users\4u\AppData\Local\Temp\most-empty-topic-peer-kkCRwE\downloader
+[MostBox] Corestore ready
+[MostBox] Initializing Hyperswarm...
+[MostBox] Loaded 0 published files
+[MostBox] Loaded 0 node holdings
+[MostBox] Loaded 0 channels
+[MostBox] Engine initialized successfully
+[MostBox] Starting download for link: most://bafkreienurb7xnh2qoizslh6teicmtp77q3hnxo4nfsj4gtyrfhhv725yi (taskId: dl_1791424120170_3xrb79)
+[MostBox] Parsed CID: bafkreienurb7xnh2qoizslh6teicmtp77q3hnxo4nfsj4gtyrfhhv725yi
+[MostBox] Using existing drive: drive-8da443fbb4fa8391992cfe9910264dfffc3676dddc69649e1a78894e7aff5dc2
+[MostBox] Waiting for drive entry /bafkreienurb7xnh2qoizslh6teicmtp77q3hnxo4nfsj4gtyrfhhv725yi (timeout: 0.2s)...
+[MostBox] Timeout reached after 0.2s, making final attempt...
+[MostBox] Diagnostic information:
+[MostBox] - Expected key: /bafkreienurb7xnh2qoizslh6teicmtp77q3hnxo4nfsj4gtyrfhhv725yi
+[MostBox] - Peer count: 0
+[MostBox] - Bootstrap nodes: 3
+[MostBox] - Timeout: 0.2s
+[MostBox] Suggestion: Check network connectivity and firewall settings
+[MostBox] Expected drive entry /bafkreienurb7xnh2qoizslh6teicmtp77q3hnxo4nfsj4gtyrfhhv725yi not found
+[MostBox] Initializing engine...
+[MostBox] Storage path: C:\Users\4u\AppData\Local\Temp\most-channel-three-node-relay-rlqYy0\node-a
+    ✔ fails within timeout when a connected topic peer has no content (289.2434ms)
+  ✔ node holdings and CID topic pull (12995.3136ms)
+[MostBox] Corestore ready
+[MostBox] Initializing Hyperswarm...
+[MostBox] Loaded 0 published files
+[MostBox] Loaded 0 node holdings
+[MostBox] Loaded 0 channels
+[MostBox] Engine initialized successfully
+[MostBox] Initializing engine...
+[MostBox] Storage path: C:\Users\4u\AppData\Local\Temp\most-channel-three-node-relay-rlqYy0\node-c
+[MostBox] Corestore ready
+[MostBox] Initializing Hyperswarm...
+[MostBox] Loaded 0 published files
+[MostBox] Loaded 0 node holdings
+[MostBox] Loaded 0 channels
+[MostBox] Engine initialized successfully
+[MostBox] Initializing engine...
+[MostBox] Storage path: C:\Users\4u\AppData\Local\Temp\most-channel-three-node-relay-rlqYy0\node-b
+[MostBox] Corestore ready
+[MostBox] Initializing Hyperswarm...
+[MostBox] Loaded 0 published files
+[MostBox] Loaded 0 node holdings
+[MostBox] Loaded 0 channels
+[MostBox] Engine initialized successfully
+[MostBox] Channel created: relay-line-hrglrl
+[MostBox] Channel created: relay-line-hrglrl
+[MostBox] Channel created: relay-line-hrglrl
+[MostBox] Opened remote channel core cd9dea68... for relay-line-hrglrl
+[MostBox] Opened remote channel core cd9dea68... for relay-line-hrglrl
+[MostBox] Opened remote channel core 3f4ad653... for relay-line-hrglrl
+[MostBox] Opened remote channel core 3f4ad653... for relay-line-hrglrl
+[MostBox] Opened remote channel core 9ac279fc... for relay-line-hrglrl
+[MostBox] Opened remote channel core 3f4ad653... for relay-line-hrglrl
+[MostBox] Opened remote channel core 3f4ad653... for relay-line-hrglrl
+[MostBox] Opened remote channel core 3f4ad653... for relay-line-hrglrl
+[MostBox] Opened remote channel core 9ac279fc... for relay-line-hrglrl
+[MostBox] Opened remote channel core 9ac279fc... for relay-line-hrglrl
+  ▶ joinChannel()
+    ✔ relays text messages bidirectionally across a three-node line (252.7907ms)
+  ✔ joinChannel() (253.2143ms)
+✔ MostBoxEngine (integration) (15690.7467ms)
+▶ parseMostLink
+  ✔ extracts CID and filename from most:// link (1.7415ms)
+  ✔ extracts CID and filename from web entry links (0.2445ms)
+  ✔ extracts CID and filename from web entry links with path trailing slash (0.4882ms)
+  ✔ extracts CID and filename from bare CID input with filename query (0.2055ms)
+  ✔ extracts CID and filename from bare CID path with filename query (0.1806ms)
+✔ parseMostLink (3.9188ms)
+▶ UnixFS file size encoding
+  ✔ encodes unsigned file sizes consistently across 32-bit boundaries (2.8322ms)
+✔ UnixFS file size encoding (3.7999ms)
+✔ patches the importer runtime when an unrelated version is hoisted (138.982ms)
+ℹ tests 13
+ℹ suites 8
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 19099.2257

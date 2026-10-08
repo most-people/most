@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="expo.modules.mostfileexport.VerifiedStreamCopyTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-10-08T01:41:38.173Z" hostname="4U" time="2.282">
+  <properties/>
+  <testcase name="acceptsEmptyFiles" classname="expo.modules.mostfileexport.VerifiedStreamCopyTest" time="0.007"/>
+  <testcase name="countsMoreThan2GiBWithoutAllocatingAWholeFile" classname="expo.modules.mostfileexport.VerifiedStreamCopyTest" time="2.248"/>
+  <testcase name="copiesAndVerifiesWithBoundedReads" classname="expo.modules.mostfileexport.VerifiedStreamCopyTest" time="0.015"/>
+  <testcase name="closesStreamsWhenTheProviderFailsWriting" classname="expo.modules.mostfileexport.VerifiedStreamCopyTest" time="0.003"/>
+  <testcase name="rejectsCorruptionAtTheSameSize" classname="expo.modules.mostfileexport.VerifiedStreamCopyTest" time="0.001"/>
+  <testcase name="rejectsChangedSourceSize" classname="expo.modules.mostfileexport.VerifiedStreamCopyTest" time="0.001"/>
+  <testcase name="rejectsTruncatedDocuments" classname="expo.modules.mostfileexport.VerifiedStreamCopyTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

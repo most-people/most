@@ -1,0 +1,14 @@
+{
+  "expectedCid": "bafkreiasxrhirfw4dmnjbknsz3p2tjkpwaiipxt6nq4qae4phffwjz4yfm",
+  "sourceSha256": "12bc4e8896dc1b1a90a9b2cedfa9a54fb01087de7e6c3900138f394b64e7982b",
+  "publisherStopped": true,
+  "download": {
+    "taskId": "dl_1791480970928_03ywnf",
+    "cid": "bafkreiasxrhirfw4dmnjbknsz3p2tjkpwaiipxt6nq4qae4phffwjz4yfm",
+    "fileName": "physical-attachment.png",
+    "localAvailable": true
+  },
+  "cid": "bafkreiasxrhirfw4dmnjbknsz3p2tjkpwaiipxt6nq4qae4phffwjz4yfm",
+  "elapsedMs": 6234,
+  "status": "passed"
+}

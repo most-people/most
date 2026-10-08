@@ -1,0 +1,102 @@
+[
+  {
+    "sizeMiB": 1,
+    "bytes": 1048576,
+    "sha256": "92bbc339b375fd565755f63c6027326b0cb2a7b7cce35302660db24fea1c7482",
+    "stable": true,
+    "values": [
+      {
+        "cid": "bafybeid7qnyylefv77a72hfdwunduhy4io7w2mk7masnn7uomnzpbvfznm",
+        "elapsedMs": 6
+      },
+      {
+        "cid": "bafybeid7qnyylefv77a72hfdwunduhy4io7w2mk7masnn7uomnzpbvfznm",
+        "elapsedMs": 3
+      },
+      {
+        "cid": "bafybeid7qnyylefv77a72hfdwunduhy4io7w2mk7masnn7uomnzpbvfznm",
+        "elapsedMs": 3
+      }
+    ]
+  },
+  {
+    "sizeMiB": 32,
+    "bytes": 33554432,
+    "sha256": "2a3f86b8872582b9308592d9bfacb20a3e2379053eb2b114c855771843132d12",
+    "stable": true,
+    "values": [
+      {
+        "cid": "bafybeiduy7keuqt3cymnh6zxx2xa5lvhnivv57za4zumvxgujpxb76xepu",
+        "elapsedMs": 60
+      },
+      {
+        "cid": "bafybeiduy7keuqt3cymnh6zxx2xa5lvhnivv57za4zumvxgujpxb76xepu",
+        "elapsedMs": 59
+      },
+      {
+        "cid": "bafybeiduy7keuqt3cymnh6zxx2xa5lvhnivv57za4zumvxgujpxb76xepu",
+        "elapsedMs": 55
+      }
+    ]
+  },
+  {
+    "sizeMiB": 64,
+    "bytes": 67108864,
+    "sha256": "6bc6ae99e460760fb6c901266654f99fb28d2dac7946af2c5230dd2bdc14dee6",
+    "stable": true,
+    "values": [
+      {
+        "cid": "bafybeiahunsn4quvtymfls47oj6cdwucaf6toog6f4tw2sj7wnm2nv6oxm",
+        "elapsedMs": 115
+      },
+      {
+        "cid": "bafybeiahunsn4quvtymfls47oj6cdwucaf6toog6f4tw2sj7wnm2nv6oxm",
+        "elapsedMs": 114
+      },
+      {
+        "cid": "bafybeiahunsn4quvtymfls47oj6cdwucaf6toog6f4tw2sj7wnm2nv6oxm",
+        "elapsedMs": 108
+      }
+    ]
+  },
+  {
+    "sizeMiB": 256,
+    "bytes": 268435456,
+    "sha256": "cfd3e4a1d97eb239411afb13aa317f34b71c5ac7a2f7cc250c6cd9d6517cf367",
+    "stable": true,
+    "values": [
+      {
+        "cid": "bafybeibwclgn2dorhzpkyf6za25ihhcjn7pt2t6dsnlfkrgoed2dg5vnga",
+        "elapsedMs": 445
+      },
+      {
+        "cid": "bafybeibwclgn2dorhzpkyf6za25ihhcjn7pt2t6dsnlfkrgoed2dg5vnga",
+        "elapsedMs": 439
+      },
+      {
+        "cid": "bafybeibwclgn2dorhzpkyf6za25ihhcjn7pt2t6dsnlfkrgoed2dg5vnga",
+        "elapsedMs": 402
+      }
+    ]
+  },
+  {
+    "sizeMiB": 2112,
+    "bytes": 2214592512,
+    "sha256": "e8b3f6eac38b4c516c09ef47b639f4f0edb479ca9dcf3c9227b8f1dd08bc87b1",
+    "stable": false,
+    "values": [
+      {
+        "cid": "bafybeieovbe4qwuiq6xgx7bp7uvlhafh3b42a3s2w5r637sb65bi5wamvq",
+        "elapsedMs": 3344
+      },
+      {
+        "cid": "bafybeih3yfrj7jj7lfxub2cmlc4pbndxth32uxhmvylddwksy66i5d5ydu",
+        "elapsedMs": 3118
+      },
+      {
+        "cid": "bafybeieovbe4qwuiq6xgx7bp7uvlhafh3b42a3s2w5r637sb65bi5wamvq",
+        "elapsedMs": 3175
+      }
+    ]
+  }
+]

@@ -1,0 +1,69 @@
+{
+  "mode": "mobile production core on Node; local blob removed while metadata retained",
+  "cid": "bafkreierpyldwgurb365z44vi747pufnc276st72b2g7wq763ebchmqnnq",
+  "hasBeforeClear": true,
+  "entryStillExists": true,
+  "hasAfterClear": false,
+  "holdingAfterRestart": {
+    "cid": "bafkreierpyldwgurb365z44vi747pufnc276st72b2g7wq763ebchmqnnq",
+    "fileName": "synthetic-test.txt",
+    "size": 27,
+    "status": "joining",
+    "topicJoined": false,
+    "peerCount": 0,
+    "source": "published",
+    "shareLink": "most://bafkreierpyldwgurb365z44vi747pufnc276st72b2g7wq763ebchmqnnq?filename=synthetic-test.txt",
+    "localPath": ""
+  },
+  "download": {
+    "transfer": {
+      "id": "download_1791387163532_cjd8pf",
+      "kind": "download",
+      "status": "completed",
+      "fileName": "synthetic-test.txt",
+      "cid": "bafkreierpyldwgurb365z44vi747pufnc276st72b2g7wq763ebchmqnnq",
+      "link": "most://bafkreierpyldwgurb365z44vi747pufnc276st72b2g7wq763ebchmqnnq?filename=synthetic-test.txt",
+      "progress": 100,
+      "message": "Already available in local holdings"
+    },
+    "holding": {
+      "cid": "bafkreierpyldwgurb365z44vi747pufnc276st72b2g7wq763ebchmqnnq",
+      "fileName": "synthetic-test.txt",
+      "size": 27,
+      "status": "active",
+      "topicJoined": true,
+      "peerCount": 0,
+      "source": "published",
+      "shareLink": "most://bafkreierpyldwgurb365z44vi747pufnc276st72b2g7wq763ebchmqnnq?filename=synthetic-test.txt",
+      "localPath": ""
+    },
+    "savedPath": "",
+    "alreadyExists": true
+  },
+  "falsePositive": true,
+  "largeExistingCorrectCid": {
+    "transfer": {
+      "id": "download_1791387163570_u9eqo6",
+      "kind": "download",
+      "status": "completed",
+      "fileName": "large-2112MiB.bin",
+      "cid": "bafybeiff6u2cxpquq474elnlccq6et43xz25tbv46twitcrpahhjo2ap3i",
+      "link": "most://bafybeiff6u2cxpquq474elnlccq6et43xz25tbv46twitcrpahhjo2ap3i?filename=large-2112MiB.bin",
+      "progress": 100,
+      "message": "Already available in local holdings"
+    },
+    "holding": {
+      "cid": "bafybeiff6u2cxpquq474elnlccq6et43xz25tbv46twitcrpahhjo2ap3i",
+      "fileName": "large-2112MiB.bin",
+      "size": 2214592512,
+      "status": "active",
+      "topicJoined": true,
+      "peerCount": 0,
+      "source": "published",
+      "shareLink": "most://bafybeiff6u2cxpquq474elnlccq6et43xz25tbv46twitcrpahhjo2ap3i?filename=large-2112MiB.bin",
+      "localPath": "C:\\Users\\4u\\AppData\\Local\\Temp\\mostbox-qa-20261007\\large-2112MiB.bin"
+    },
+    "savedPath": "C:\\Users\\4u\\AppData\\Local\\Temp\\mostbox-qa-20261007\\large-2112MiB.bin",
+    "alreadyExists": true
+  }
+}

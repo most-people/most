@@ -1,0 +1,47 @@
+{
+  "date": "2026-10-08",
+  "scope": "Android streaming export and mobile chat attachments",
+  "mobileTests": {
+    "backend": 67,
+    "total": 156,
+    "typescript": 89,
+    "failed": 0
+  },
+  "nativeStreamTests": {
+    "greaterThan2GiB": "Generated JVM streams only, not actual Android disk I/O",
+    "total": 7,
+    "failed": 0
+  },
+  "protocolTests": {
+    "failed": 0,
+    "total": 13
+  },
+  "checks": {
+    "androidEmulatorBuild": "passed",
+    "apkInstallAndInitialChatRender": "passed",
+    "iosBareBundle": "passed",
+    "lint": "passed",
+    "mobileTypecheck": "passed",
+    "strictRouterTypecheck": "passed",
+    "rootTypecheck": "passed"
+  },
+  "apk": {
+    "sha256": "cfdc85876a32444ac57b5902c905e9b10a13549382e9d46eb27560ef11475c70",
+    "path": "mobile/app/dist/mostbox-android-0.5.3-emulator-x86_64.apk"
+  },
+  "emulator": {
+    "maxHeap": "576m",
+    "heapGrowthLimit": "192m",
+    "avd": "mp_peer_api36"
+  },
+  "manualExportAndAttachmentAcceptance": "32MiB system save, duplicate save, and cancellation passed; chat attachment UI and provider faults pending after user stopped Computer Use",
+  "androidExport": {
+    "outputSizesAndHashes": "matched source",
+    "memorySampleDalvikHeapAllocatedKiB": 8194,
+    "cancellation": "passed; no added files or success alert; buttons restored",
+    "memoryIsPeakMeasurement": false,
+    "outputs": ["fixture-32MiB (1).bin", "fixture-32MiB (2).bin"],
+    "sizeBytes": 33554432,
+    "sourceSha256": "2a3f86b8872582b9308592d9bfacb20a3e2379053eb2b114c855771843132d12"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "size": 2214592512,
+  "mode": "local forced replication; mobile core runs on Node, not Android",
+  "stages": [
+    {
+      "name": "generate-file",
+      "elapsedMs": 2143,
+      "peakRssBytes": 88387584
+    },
+    {
+      "name": "desktop-publish",
+      "elapsedMs": 17004,
+      "peakRssBytes": 284385280
+    }
+  ],
+  "cid": "bafybeigmics4lc7drdmfrri6t2zu77jdzkbhozw2mm2yr7tocgnussrpmq",
+  "status": "failed",
+  "error": "IntegrityError: File content CID mismatch. Expected bafybeigmics4lc7drdmfrri6t2zu77jdzkbhozw2mm2yr7tocgnussrpmq, got bafybeigzu4ncfxfv5myo74pk6v6eexywlcl7lwx5un2sprkqxnwsmz4qt4.\n    at MostBoxEngine.downloadFile (file:///C:/Users/4u/Documents/GitHub/most/server/src/index.js:1817:19)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async MostBoxEngine.pullByCid (file:///C:/Users/4u/Documents/GitHub/most/server/src/index.js:2527:20)\n    at async stage (file:///C:/Users/4u/AppData/Local/Temp/mostbox-qa-20261007/large-file-probe.mjs:21:17)\n    at async file:///C:/Users/4u/AppData/Local/Temp/mostbox-qa-20261007/large-file-probe.mjs:59:22",
+  "peakRssBytes": 1206853632
+}

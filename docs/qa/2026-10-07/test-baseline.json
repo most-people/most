@@ -1,0 +1,18 @@
+{
+  "ios": "bundle only",
+  "version": "0.5.3",
+  "protocolSubsetTests": 11,
+  "androidDevice": "API36 x86_64 emulator; not physical device",
+  "date": "2026-10-07",
+  "completedDate": "2026-10-08",
+  "mobileTests": 149,
+  "rootTests": 664,
+  "timezone": "Asia/Shanghai",
+  "desktopTests": 15,
+  "productionCodeChanged": false,
+  "frontendTests": 92,
+  "actualHandoff": "failed in this environment",
+  "sourceCommit": "48c58dd064de86c48c3ba529bfc2b69232141efd",
+  "mainTestExecutions": 920,
+  "productionDesktop": "failed"
+}

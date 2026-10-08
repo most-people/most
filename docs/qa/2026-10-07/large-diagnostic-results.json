@@ -1,0 +1,67 @@
+{
+  "results": [
+    {
+      "name": "original-sha256",
+      "elapsedMs": 3544,
+      "value": {
+        "bytes": 2214592512,
+        "sha256": "e8b3f6eac38b4c516c09ef47b639f4f0edb479ca9dcf3c9227b8f1dd08bc87b1"
+      }
+    },
+    {
+      "name": "original-cid-again",
+      "elapsedMs": 5087,
+      "value": {
+        "cid": "bafybeih3yfrj7jj7lfxub2cmlc4pbndxth32uxhmvylddwksy66i5d5ydu"
+      }
+    },
+    {
+      "name": "large-publisher-drive-sha256",
+      "elapsedMs": 7487,
+      "value": {
+        "totalSize": 2214592512,
+        "bytes": 2214592512,
+        "sha256": "e8b3f6eac38b4c516c09ef47b639f4f0edb479ca9dcf3c9227b8f1dd08bc87b1"
+      }
+    },
+    {
+      "name": "large-seed-drive-sha256",
+      "error": "Error: File not found\n    at MostBoxEngine.openFileReadStream (file:///C:/Users/4u/Documents/GitHub/most/server/src/index.js:2931:13)\n    at async file:///C:/Users/4u/AppData/Local/Temp/mostbox-qa-20261007/large-diagnostic.mjs:42:20\n    at async run (file:///C:/Users/4u/AppData/Local/Temp/mostbox-qa-20261007/large-diagnostic.mjs:31:23)\n    at async file:///C:/Users/4u/AppData/Local/Temp/mostbox-qa-20261007/large-diagnostic.mjs:41:5"
+    },
+    {
+      "name": "mobile-publish-large-file-on-host",
+      "elapsedMs": 24882,
+      "value": {
+        "transfer": {
+          "id": "publish_1791386248785_fjvdzi",
+          "kind": "publish",
+          "status": "completed",
+          "fileName": "large-2112MiB.bin",
+          "cid": "bafybeiff6u2cxpquq474elnlccq6et43xz25tbv46twitcrpahhjo2ap3i",
+          "link": "most://bafybeiff6u2cxpquq474elnlccq6et43xz25tbv46twitcrpahhjo2ap3i?filename=large-2112MiB.bin",
+          "progress": 100,
+          "message": "Published and seeding"
+        },
+        "holding": {
+          "cid": "bafybeiff6u2cxpquq474elnlccq6et43xz25tbv46twitcrpahhjo2ap3i",
+          "fileName": "large-2112MiB.bin",
+          "size": 2214592512,
+          "status": "active",
+          "topicJoined": true,
+          "peerCount": 0,
+          "source": "published",
+          "shareLink": "most://bafybeiff6u2cxpquq474elnlccq6et43xz25tbv46twitcrpahhjo2ap3i?filename=large-2112MiB.bin",
+          "localPath": "C:\\Users\\4u\\AppData\\Local\\Temp\\mostbox-qa-20261007\\large-2112MiB.bin"
+        }
+      }
+    },
+    {
+      "name": "mobile-existing-large-file-after-restart",
+      "error": "Error: No online seed was found for this CID\n    at MobileP2PCore.downloadLink (file:///C:/Users/4u/Documents/GitHub/most/mobile/app/backend/mobile-core.mjs:1132:15)\n    at async run (file:///C:/Users/4u/AppData/Local/Temp/mostbox-qa-20261007/large-diagnostic.mjs:31:23)\n    at async file:///C:/Users/4u/AppData/Local/Temp/mostbox-qa-20261007/large-diagnostic.mjs:51:3"
+    },
+    {
+      "name": "default-file-limit",
+      "error": "FileSizeError: File size exceeds limit of 10 GB\n    at MostBoxEngine.publishFile (file:///C:/Users/4u/Documents/GitHub/most/server/src/index.js:937:15)\n    at async run (file:///C:/Users/4u/AppData/Local/Temp/mostbox-qa-20261007/large-diagnostic.mjs:31:23)\n    at async file:///C:/Users/4u/AppData/Local/Temp/mostbox-qa-20261007/large-diagnostic.mjs:56:3"
+    }
+  ]
+}
