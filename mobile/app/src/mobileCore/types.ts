@@ -102,6 +102,9 @@ export type MobileHolding = {
 }
 
 export type MobileTransfer = {
+  phase?: 'downloading' | 'verifying' | 'completed'
+  totalBytes?: number
+  completedBytes?: number
   id: string
   kind: TransferKind
   status: TransferStatus

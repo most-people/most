@@ -412,6 +412,14 @@ describe('mobile file downloads', () => {
         assert.equal(await fs.readFile(result.savedPath, 'utf8'), content)
         assert.equal(result.holding.cid, published.holding.cid)
         assert.equal(result.holding.localAvailable, true)
+        assert.equal(result.transfer.phase, 'completed')
+        assert.equal(result.transfer.completedBytes, content.length)
+        assert.equal(result.transfer.totalBytes, content.length)
+        const persisted = JSON.parse(
+          await fs.readFile(path.join(storagePath, 'transfers.json'), 'utf8')
+        ).find(item => item.id === result.transfer.id)
+        assert.equal(persisted.phase, 'completed')
+        assert.equal(persisted.completedBytes, content.length)
       }
     })
   }

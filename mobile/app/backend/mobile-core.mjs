@@ -1156,6 +1156,9 @@ export class MobileP2PCore {
       this.#upsertTransfer({
         ...transfer,
         progress: 20,
+        phase: 'downloading',
+        totalBytes,
+        completedBytes: resumeBytes,
         message: resumeBytes ? 'Resuming downloaded bytes' : 'Downloading file',
       })
 
@@ -1174,6 +1177,7 @@ export class MobileP2PCore {
             this.#upsertTransfer({
               ...transfer,
               progress: Math.min(progress, 80),
+              completedBytes: loaded,
               message: 'Downloading file',
             })
           }
@@ -1185,6 +1189,8 @@ export class MobileP2PCore {
       this.#upsertTransfer({
         ...transfer,
         progress: 85,
+        phase: 'verifying',
+        completedBytes: totalBytes,
         message: 'Verifying CID',
       })
 
@@ -1220,6 +1226,9 @@ export class MobileP2PCore {
         status: 'completed',
         progress: 100,
         message: `Downloaded to ${savePath}`,
+        phase: 'completed',
+        completedBytes: savedSize,
+        totalBytes: savedSize,
       })
 
       this.#log('info', `Downloaded and seeding ${cid.slice(0, 16)}`)
@@ -3089,6 +3098,10 @@ export class MobileP2PCore {
       link: transfer.link,
       progress: transfer.progress,
       message: transfer.message,
+      phase: transfer.phase ?? this.#transfers[index]?.phase,
+      totalBytes: transfer.totalBytes ?? this.#transfers[index]?.totalBytes,
+      completedBytes:
+        transfer.completedBytes ?? this.#transfers[index]?.completedBytes,
     }
 
     if (index === -1) {
@@ -3164,6 +3177,20 @@ export class MobileP2PCore {
             kind: record.kind,
             status: interrupted ? 'failed' : record.status,
             fileName: sanitizeFilename(record.fileName),
+            phase: ['downloading', 'verifying', 'completed'].includes(
+              record.phase
+            )
+              ? record.phase
+              : undefined,
+            totalBytes:
+              Number.isSafeInteger(record.totalBytes) && record.totalBytes >= 0
+                ? record.totalBytes
+                : undefined,
+            completedBytes:
+              Number.isSafeInteger(record.completedBytes) &&
+              record.completedBytes >= 0
+                ? record.completedBytes
+                : undefined,
             cid: typeof record.cid === 'string' ? record.cid : undefined,
             link: typeof record.link === 'string' ? record.link : undefined,
             progress: interrupted
