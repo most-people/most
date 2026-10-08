@@ -237,6 +237,136 @@ describe('mobile P2P Ping snapshot and RPC events', () => {
 })
 
 describe('mobile file downloads', () => {
+  it('exports CID content when the cached file path contains different bytes', async t => {
+    const storagePath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mostbox-mobile-export-cid-')
+    )
+    const core = new MobileP2PCore({
+      storagePath,
+      createSwarm: createRecordingSwarmFactory([]),
+    })
+    t.after(async () => {
+      await core.stop()
+      await fs.rm(storagePath, { recursive: true, force: true })
+    })
+    await core.start()
+    const filePath = path.join(storagePath, 'source.txt')
+    await fs.writeFile(filePath, 'original CID content')
+    const published = await core.publishFile({ filePath, name: 'source.txt' })
+    await fs.writeFile(filePath, 'different bytes at the same path')
+    const exported = await core.exportHolding({ cid: published.holding.cid })
+    assert.equal(
+      await fs.readFile(exported.filePath, 'utf8'),
+      'original CID content'
+    )
+    assert.equal(
+      await fs.readFile(filePath, 'utf8'),
+      'different bytes at the same path'
+    )
+    assert.notEqual(exported.filePath, filePath)
+  })
+
+  it('rejects missing blobs after restart and repairs them on republication', async t => {
+    const storagePath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mostbox-mobile-missing-blobs-')
+    )
+    const swarms = []
+    const core = new MobileP2PCore({
+      storagePath,
+      createSwarm: createRecordingSwarmFactory(swarms),
+    })
+    t.after(async () => {
+      await core.stop()
+      await fs.rm(storagePath, { recursive: true, force: true })
+    })
+
+    const input = {
+      name: 'missing-content.txt',
+      contentBase64: b4a.toString(
+        b4a.from('real local blob content'),
+        'base64'
+      ),
+    }
+    await core.start()
+    const published = await core.publishFile(input)
+    const cid = published.holding.cid
+    await core.stop()
+
+    const [holding] = JSON.parse(
+      await fs.readFile(path.join(storagePath, 'node-holdings.json'), 'utf8')
+    )
+    const store = new Corestore(storagePath, {
+      primaryKey: b4a.alloc(32).fill('most-box-global-shared-seed-v1'),
+      unsafe: true,
+    })
+    const drive = new Hyperdrive(store.namespace(holding.driveName))
+    try {
+      await drive.ready()
+      assert.equal(await drive.has(`/${cid}`), true)
+      await drive.clear(`/${cid}`)
+      assert.ok(await drive.entry(`/${cid}`))
+      assert.equal(await drive.has(`/${cid}`), false)
+    } finally {
+      await drive.close()
+      await store.close()
+    }
+
+    await core.start()
+    await waitFor(
+      () => core.getSnapshot().holdings[0]?.status === 'error',
+      'missing local content to require attention'
+    )
+    const unavailable = core.getSnapshot().holdings[0]
+    assert.equal(unavailable.localAvailable, false)
+    assert.equal(unavailable.topicJoined, false)
+    assert.equal(swarms[2].joins.length, 0)
+    await assert.rejects(
+      core.exportHolding({ cid }),
+      /not available for export/
+    )
+    await assert.rejects(
+      core.downloadLink({ link: published.transfer.link }),
+      /timeout|timed out|stalled/i
+    )
+    assert.equal(core.getSnapshot().transfers[0].status, 'failed')
+    assert.equal(core.getSnapshot().holdings[0].status, 'error')
+    assert.equal(core.getSnapshot().holdings[0].topicJoined, false)
+
+    const repaired = await core.publishFile(input)
+    assert.equal(repaired.holding.cid, cid)
+    assert.equal(repaired.holding.localAvailable, true)
+    assert.equal(repaired.holding.status, 'active')
+    const available = await core.downloadLink({ link: published.transfer.link })
+    assert.equal(available.alreadyExists, true)
+    assert.equal(available.transfer.status, 'completed')
+  })
+
+  it('recognizes complete zero-byte files after restart', async t => {
+    const storagePath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mostbox-mobile-empty-file-')
+    )
+    const core = new MobileP2PCore({
+      storagePath,
+      createSwarm: createRecordingSwarmFactory([]),
+    })
+    t.after(async () => {
+      await core.stop()
+      await fs.rm(storagePath, { recursive: true, force: true })
+    })
+    const filePath = path.join(storagePath, 'empty.txt')
+    await core.start()
+    await fs.writeFile(filePath, '')
+    const published = await core.publishFile({ filePath, name: 'empty.txt' })
+    assert.equal(published.holding.localAvailable, true)
+    assert.equal(published.holding.size, 0)
+    await core.stop()
+    await core.start()
+    const result = await core.downloadLink({ link: published.transfer.link })
+    assert.equal(result.alreadyExists, true)
+    assert.equal(result.holding.localAvailable, true)
+    assert.equal(result.holding.status, 'active')
+  })
+
   it('recreates the downloads directory before writing a temporary file', async t => {
     const storagePath = await fs.mkdtemp(
       path.join(os.tmpdir(), 'mostbox-mobile-download-dir-')

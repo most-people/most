@@ -8,6 +8,7 @@
   },
   "main": "expo/AppEntry.js",
   "scripts": {
+    "postinstall": "node ../../scripts/patch-unixfs-runtime.mjs",
     "start": "npm run bundle:android && node scripts/start-dev-client.mjs",
     "web": "expo start --web --port 3000",
     "start:ios": "npm run bundle:ios && expo start --dev-client --host lan",

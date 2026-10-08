@@ -41,6 +41,7 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       output: {
+        strictExecutionOrder: true,
         codeSplitting: {
           groups: [
             {

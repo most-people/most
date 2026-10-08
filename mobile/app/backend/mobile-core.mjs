@@ -634,9 +634,10 @@ export class MobileP2PCore {
     this.#emitSnapshot()
 
     for (const holding of [...this.#holdings]) {
-      this.#joinCidTopic(holding.cid).catch(err => {
+      this.#restoreHolding(holding.cid).catch(err => {
         this.#setSeedState(holding.cid, {
           status: 'error',
+          localAvailable: false,
           error: err.message,
         })
       })
@@ -1021,8 +1022,7 @@ export class MobileP2PCore {
         message: 'Writing file into Hyperdrive',
       })
 
-      const existingEntry = await drive.entry(driveKey).catch(() => null)
-      if (!existingEntry) {
+      if (!(await this.#hasLocalCidContent(drive, driveKey))) {
         if (source.buffer) {
           await writeBufferToDrive(drive, driveKey, source.buffer)
         } else {
@@ -1092,11 +1092,10 @@ export class MobileP2PCore {
       const existingHolding = this.#holdings.find(
         holding => holding.cid === cid
       )
-      const existingEntry = existingHolding
-        ? await drive.entry(driveKey).catch(() => null)
-        : null
-
-      if (existingHolding && existingEntry) {
+      if (
+        existingHolding &&
+        (await this.#hasLocalCidContent(drive, driveKey))
+      ) {
         await this.#joinCidTopic(cid)
         const completed = this.#upsertTransfer({
           ...transfer,
@@ -1180,6 +1179,10 @@ export class MobileP2PCore {
 
       fs.renameSync(tempPath, savePath)
 
+      if (!(await this.#hasLocalCidContent(drive, driveKey))) {
+        await pipeFileToDrive(savePath, drive, driveKey)
+      }
+
       await this.#joinCidTopic(cid)
       const savedSize =
         downloaded.size || totalBytes || fs.statSync(savePath).size || 0
@@ -1207,8 +1210,16 @@ export class MobileP2PCore {
       }
     } catch (err) {
       if (tempPath) safeRm(tempPath)
-      if (!this.#holdings.some(holding => holding.cid === cid)) {
+      const drive = this.#drives.get(driveName)
+      if (!drive || !(await this.#hasLocalCidContent(drive, driveKey))) {
         await this.#leaveCidTopic(cid)
+        if (this.#holdings.some(holding => holding.cid === cid)) {
+          this.#setSeedState(cid, {
+            status: 'error',
+            localAvailable: false,
+            error: 'Local CID content is missing; publish or download it again',
+          })
+        }
       }
       const failed = this.#upsertTransfer({
         ...transfer,
@@ -1289,17 +1300,23 @@ export class MobileP2PCore {
     )
     let exportPath = existing.localPath || ''
     let holding = existing
+    const drive = await this.#getOrCreateDrive(existing.driveName || driveName)
+    const driveKey = `/${cid}`
+    if (!(await this.#hasLocalCidContent(drive, driveKey))) {
+      await this.#leaveCidTopic(cid)
+      this.#setSeedState(cid, {
+        status: 'error',
+        localAvailable: false,
+        error: 'Local CID content is missing; publish or download it again',
+      })
+      throw new Error('Local Hyperdrive content is not available for export')
+    }
 
-    if (!fileExists(exportPath)) {
-      const drive = await this.#getOrCreateDrive(
-        existing.driveName || driveName
-      )
-      const driveKey = `/${cid}`
-      const entry = await drive.entry(driveKey).catch(() => null)
-      if (!entry) {
-        throw new Error('Local Hyperdrive content is not available for export')
-      }
+    const cachedContent = fileExists(exportPath)
+      ? await calculateCid({ filePath: exportPath }).catch(() => null)
+      : null
 
+    if (cachedContent?.cid !== cid) {
       exportPath = uniqueSavePath(this.#downloadPath, fileName)
       const tempPath = `${exportPath}.part`
       safeRm(tempPath)
@@ -2808,6 +2825,29 @@ export class MobileP2PCore {
     }
   }
 
+  async #hasLocalCidContent(drive, driveKey) {
+    try {
+      const entry = await drive.entry(driveKey, { wait: false })
+      return Boolean(entry?.value?.blob) && (await drive.has(driveKey))
+    } catch {
+      return false
+    }
+  }
+
+  async #restoreHolding(cid) {
+    const { driveName } = getCidInfo(cid)
+    const drive = await this.#getOrCreateDrive(driveName)
+    if (!(await this.#hasLocalCidContent(drive, `/${cid}`))) {
+      this.#setSeedState(cid, {
+        status: 'error',
+        localAvailable: false,
+        error: 'Local CID content is missing; publish or download it again',
+      })
+      return
+    }
+    await this.#joinCidTopic(cid)
+  }
+
   async #joinCidTopic(cid) {
     const { topic, topicHex, driveName } = getCidInfo(cid)
 
@@ -2818,12 +2858,14 @@ export class MobileP2PCore {
       error: '',
     })
 
-    await this.#getOrCreateDrive(driveName)
+    const drive = await this.#getOrCreateDrive(driveName)
+    const localAvailable = await this.#hasLocalCidContent(drive, `/${cid}`)
 
     const existing = this.#discoveries.get(cid)
     if (existing) {
       this.#setSeedState(cid, {
-        status: 'active',
+        status: localAvailable ? 'active' : 'joining',
+        localAvailable,
         topic: topicHex,
         driveName,
         error: '',
@@ -2841,7 +2883,8 @@ export class MobileP2PCore {
     }
     this.#discoveries.set(cid, record)
     this.#setSeedState(cid, {
-      status: 'active',
+      status: localAvailable ? 'active' : 'joining',
+      localAvailable,
       topic: topicHex,
       driveName,
       error: '',
@@ -2969,6 +3012,7 @@ export class MobileP2PCore {
       fileName: holding.fileName,
       size: holding.size,
       status,
+      localAvailable: seedState?.localAvailable === true,
       topicJoined: status === 'active' && this.#discoveries.has(holding.cid),
       peerCount: this.#peerCount(),
       source: holding.source,

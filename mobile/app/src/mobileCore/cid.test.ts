@@ -1,11 +1,30 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { UnixFS } from 'ipfs-unixfs'
 import {
   calculateUnixfsCidFromBytes,
   calculateUnixfsCidFromContent,
 } from './cid'
 
 describe('mobile UnixFS CID', () => {
+  it('encodes unsigned file sizes across the 2GiB boundary', () => {
+    for (const [size, encoded] of [
+      [2147483647n, 'ffffffff07'],
+      [2147483648n, '8080808008'],
+      [2214592512n, '808080a008'],
+      [4294967295n, 'ffffffff0f'],
+      [4294967296n, '8080808010'],
+      [10737418240n, '8080808028'],
+    ] as const) {
+      const bytes = new UnixFS({ type: 'file', blockSizes: [size] }).marshal()
+      assert.equal(
+        Buffer.from(bytes).toString('hex'),
+        `080218${encoded}20${encoded}`
+      )
+      assert.equal(UnixFS.unmarshal(bytes).fileSize(), size)
+    }
+  })
+
   it('matches protocol golden samples', async () => {
     const samples = [
       {
