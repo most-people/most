@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events'
+import { Readable } from 'node:stream'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -342,6 +343,122 @@ describe('mobile P2P Ping snapshot and RPC events', () => {
 })
 
 describe('mobile file downloads', () => {
+  it('preserves partial bytes after a stream failure and verifies a retry', async t => {
+    const storagePath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mostbox-stream-retry-')
+    )
+    const options = {
+      storagePath,
+      createSwarm: createRecordingSwarmFactory([]),
+    }
+    const first = new MobileP2PCore(options)
+    const restarted = new MobileP2PCore(options)
+    const originalReadStream = Hyperdrive.prototype.createReadStream
+    t.after(async () => {
+      Hyperdrive.prototype.createReadStream = originalReadStream
+      await first.stop()
+      await restarted.stop()
+      await fs.rm(storagePath, { recursive: true, force: true })
+    })
+    await first.start()
+    const content = 'network interrupted after a verified cached prefix'
+    const published = await first.publishFile({
+      name: 'retry.txt',
+      contentBase64: b4a.toString(b4a.from(content), 'base64'),
+    })
+    await first.stop()
+    await fs.rm(path.join(storagePath, 'node-holdings.json'))
+    await restarted.start()
+    Hyperdrive.prototype.createReadStream = () =>
+      Readable.from(
+        (async function* () {
+          yield b4a.from(content.slice(0, 10))
+          await new Promise(resolve => setTimeout(resolve, 50))
+          throw new Error('Injected connection lost')
+        })()
+      )
+    await assert.rejects(
+      restarted.downloadLink({ link: published.transfer.link }),
+      /connection lost/
+    )
+    const tempPath = path.join(
+      storagePath,
+      'downloads',
+      `${published.holding.cid}.part`
+    )
+    assert.equal(await fs.readFile(tempPath, 'utf8'), content.slice(0, 10))
+    assert.equal(restarted.getSnapshot().holdings.length, 0)
+    Hyperdrive.prototype.createReadStream = originalReadStream
+    const result = await restarted.downloadLink({
+      link: published.transfer.link,
+    })
+    assert.equal(await fs.readFile(result.savedPath, 'utf8'), content)
+    assert.equal(result.transfer.status, 'completed')
+    assert.equal(result.holding.cid, published.holding.cid)
+  })
+
+  it('cancels during CID verification without saving or recording a holding', async t => {
+    const storagePath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mostbox-verify-cancel-')
+    )
+    const first = new MobileP2PCore({
+      storagePath,
+      createSwarm: createRecordingSwarmFactory([]),
+    })
+    let cancelAtVerification = false
+    let cancellation
+    const restarted = new MobileP2PCore({
+      storagePath,
+      createSwarm: createRecordingSwarmFactory([]),
+      send: (_type, payload) => {
+        if (
+          cancelAtVerification &&
+          payload?.transfers?.some(
+            transfer =>
+              transfer.phase === 'verifying' && transfer.progress >= 90
+          )
+        ) {
+          cancelAtVerification = false
+          cancellation = restarted.cancelDownload({ cid })
+        }
+      },
+    })
+    let cid
+    t.after(async () => {
+      await first.stop()
+      await restarted.stop()
+      await fs.rm(storagePath, { recursive: true, force: true })
+    })
+    await first.start()
+    const published = await first.publishFile({
+      name: 'cancel.txt',
+      contentBase64: b4a.toString(
+        b4a.from('cancel during verification'),
+        'base64'
+      ),
+    })
+    cid = published.holding.cid
+    await first.stop()
+    await fs.rm(path.join(storagePath, 'node-holdings.json'))
+    await restarted.start()
+    cancelAtVerification = true
+    await assert.rejects(
+      restarted.downloadLink({ link: published.transfer.link }),
+      /Download cancelled/
+    )
+    await cancellation
+    assert.equal(cancelAtVerification, false)
+    assert.equal(restarted.getSnapshot().holdings.length, 0)
+    await assert.rejects(
+      fs.stat(path.join(storagePath, 'downloads', `${cid}.part`)),
+      { code: 'ENOENT' }
+    )
+    const result = await restarted.downloadLink({
+      link: published.transfer.link,
+    })
+    assert.equal(result.transfer.status, 'completed')
+  })
+
   for (const cache of ['partial', 'complete', 'oversized', 'corrupt']) {
     it(`handles ${cache} persisted bytes with complete CID verification`, async t => {
       const storagePath = await fs.mkdtemp(
