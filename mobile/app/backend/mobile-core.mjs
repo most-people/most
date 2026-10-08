@@ -76,6 +76,7 @@ const DOWNLOAD_POLL_INTERVAL_MAX = 2000
 const DRIVE_UPDATE_INTERVAL = 2000
 const PROGRESS_THROTTLE = 500
 const HOLDINGS_FILE = 'node-holdings.json'
+const TRANSFERS_FILE = 'transfers.json'
 const CID_TOPIC_JOIN_OPTIONS = Object.freeze({
   server: true,
   client: true,
@@ -609,6 +610,7 @@ export class MobileP2PCore {
       },
     })
 
+    this.#transfers = this.#loadTransfers()
     this.#holdings = this.#loadHoldings()
     for (const holding of this.#holdings) {
       this.#seedStates.set(holding.cid, {
@@ -3072,7 +3074,9 @@ export class MobileP2PCore {
 
     if (index === -1) {
       this.#transfers.unshift(next)
-      this.#transfers = this.#transfers.slice(0, 20)
+      const active = this.#transfers.filter(item => item.status === 'running')
+      const history = this.#transfers.filter(item => item.status !== 'running')
+      this.#transfers = [...active, ...history.slice(0, 20)]
     } else {
       this.#transfers[index] = {
         ...this.#transfers[index],
@@ -3080,6 +3084,10 @@ export class MobileP2PCore {
       }
     }
 
+    atomicWrite(
+      path.join(this.#storagePath, TRANSFERS_FILE),
+      JSON.stringify(this.#transfers, null, 2)
+    )
     this.#emitSnapshot()
     return this.#transfers.find(item => item.id === transfer.id)
   }
@@ -3106,6 +3114,54 @@ export class MobileP2PCore {
   #clearSeedState(cid) {
     this.#seedStates.delete(cid)
     this.#emitSnapshot()
+  }
+
+  #loadTransfers() {
+    const filePath = path.join(this.#storagePath, TRANSFERS_FILE)
+    try {
+      if (!fs.existsSync(filePath)) return []
+      const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'))
+      if (!Array.isArray(parsed)) return []
+      const transfers = parsed
+        .filter(
+          record =>
+            record &&
+            typeof record.id === 'string' &&
+            ['publish', 'download'].includes(record.kind) &&
+            [
+              'running',
+              'queued',
+              'waitingCore',
+              'completed',
+              'failed',
+            ].includes(record.status)
+        )
+        .map(record => {
+          const interrupted = ['running', 'queued', 'waitingCore'].includes(
+            record.status
+          )
+          return {
+            id: record.id,
+            kind: record.kind,
+            status: interrupted ? 'failed' : record.status,
+            fileName: sanitizeFilename(record.fileName),
+            cid: typeof record.cid === 'string' ? record.cid : undefined,
+            link: typeof record.link === 'string' ? record.link : undefined,
+            progress: interrupted
+              ? 0
+              : Math.max(0, Math.min(100, Number(record.progress) || 0)),
+            message: interrupted
+              ? 'Transfer interrupted by core restart; retry to continue'
+              : String(record.message || ''),
+          }
+        })
+        .slice(0, 20)
+      atomicWrite(filePath, JSON.stringify(transfers, null, 2))
+      return transfers
+    } catch (err) {
+      this.#log('warn', `Failed to load transfers: ${err.message}`)
+      return []
+    }
   }
 
   #loadHoldings() {

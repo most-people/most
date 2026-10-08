@@ -181,6 +181,111 @@ function deferred() {
   return { promise, resolve, reject }
 }
 
+describe('mobile durable transfer history', () => {
+  it('persists a real publish and restores it in a new core instance', async t => {
+    const storagePath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mostbox-transfer-publish-')
+    )
+    const options = {
+      storagePath,
+      createSwarm: createRecordingSwarmFactory([]),
+    }
+    const first = new MobileP2PCore(options)
+    const second = new MobileP2PCore(options)
+    t.after(async () => {
+      await first.stop()
+      await second.stop()
+      await fs.rm(storagePath, { recursive: true, force: true })
+    })
+    await first.start()
+    const published = await first.publishFile({
+      name: 'history.txt',
+      contentBase64: b4a.toString(b4a.from('durable task'), 'base64'),
+    })
+    await first.stop()
+    await second.start()
+    const restored = second
+      .getSnapshot()
+      .transfers.find(transfer => transfer.id === published.transfer.id)
+    assert.equal(restored.status, 'completed')
+    assert.equal(restored.cid, published.holding.cid)
+    assert.equal(restored.progress, 100)
+  })
+
+  it('restores interrupted downloads as retryable failures without claiming completion', async t => {
+    const storagePath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mostbox-transfer-history-')
+    )
+    const transfersPath = path.join(storagePath, 'transfers.json')
+    const core = new MobileP2PCore({
+      storagePath,
+      createSwarm: createRecordingSwarmFactory([]),
+    })
+    await core.start()
+    await core.stop()
+    await fs.writeFile(
+      transfersPath,
+      JSON.stringify([
+        {
+          id: 'interrupted',
+          kind: 'download',
+          status: 'running',
+          fileName: 'partial.bin',
+          progress: 65,
+          message: 'Downloading file',
+        },
+        {
+          id: 'finished',
+          kind: 'publish',
+          status: 'completed',
+          fileName: 'complete.bin',
+          progress: 100,
+          message: 'Published',
+        },
+        { id: 'invalid', kind: 'other', status: 'completed' },
+      ])
+    )
+    t.after(async () => {
+      await core.stop()
+      await fs.rm(storagePath, { recursive: true, force: true })
+    })
+    await core.start()
+    const transfers = core.getSnapshot().transfers
+    assert.equal(transfers.length, 2)
+    assert.equal(transfers[0].status, 'failed')
+    assert.equal(transfers[0].progress, 0)
+    assert.match(transfers[0].message, /interrupted/)
+    assert.equal(transfers[1].status, 'completed')
+    assert.equal(core.getSnapshot().holdings.length, 0)
+    assert.deepEqual(
+      JSON.parse(await fs.readFile(transfersPath, 'utf8')),
+      JSON.parse(JSON.stringify(transfers))
+    )
+    await core.stop()
+    await core.start()
+    assert.deepEqual(core.getSnapshot().transfers, transfers)
+  })
+
+  it('starts safely with malformed history', async t => {
+    const storagePath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mostbox-transfer-malformed-')
+    )
+    const core = new MobileP2PCore({
+      storagePath,
+      createSwarm: createRecordingSwarmFactory([]),
+    })
+    await core.start()
+    await core.stop()
+    await fs.writeFile(path.join(storagePath, 'transfers.json'), '{broken')
+    t.after(async () => {
+      await core.stop()
+      await fs.rm(storagePath, { recursive: true, force: true })
+    })
+    await core.start()
+    assert.deepEqual(core.getSnapshot().transfers, [])
+  })
+})
+
 describe('mobile P2P Ping snapshot and RPC events', () => {
   it('starts, reports, resets, and destroys both direction swarms', async t => {
     const storagePath = await fs.mkdtemp(
