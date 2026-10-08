@@ -12,6 +12,9 @@ const TRANSFER_MESSAGE_KEYS: Record<string, MessageKey> = {
   'Already available in local holdings': 'core.transfer.localAvailable',
   'Finding peers': 'core.transfer.findingPeers',
   'Downloading file': 'core.transfer.downloading',
+  'Resuming downloaded bytes': 'core.transfer.resuming',
+  'Transfer interrupted by core restart; retry to continue':
+    'core.transfer.interrupted',
   'Verifying CID': 'core.transfer.verifying',
   'Uploading to remote node': 'core.transfer.remoteUploading',
   'Published and seeding on remote node':

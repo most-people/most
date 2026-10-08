@@ -174,6 +174,16 @@ export const coreMessages = {
     'zh-TW': '正在驗證 CID',
     en: 'Verifying CID',
   },
+  'core.transfer.resuming': {
+    'zh-CN': '正在从已有缓存继续下载',
+    'zh-TW': '正在從已有快取繼續下載',
+    en: 'Resuming from downloaded bytes',
+  },
+  'core.transfer.interrupted': {
+    'zh-CN': '任务因应用重启中断，请重试；下载缓存会复用',
+    'zh-TW': '工作因應用程式重新啟動中斷，請重試；下載快取會重用',
+    en: 'Interrupted by app restart. Retry to reuse download cache.',
+  },
   'core.transfer.downloadedSeeding': {
     'zh-CN': '下载完成，正在做种',
     'zh-TW': '下載完成，正在做種',

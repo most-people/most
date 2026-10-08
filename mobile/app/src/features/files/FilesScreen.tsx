@@ -36,6 +36,7 @@ import type {
   SeedStatus,
 } from '../../mobileCore/types'
 import { getCidTopicDigest } from '../../mobileCore/protocol'
+import { getTransferDisplayMessage } from '../../ui/presentation'
 import { useI18n, type MessageKey } from '../../i18n'
 import {
   BottomSheetCard,
@@ -129,7 +130,7 @@ export function FilesScreen({
   onSaveHolding,
   onShareHolding,
 }: FilesScreenProps) {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const theme = useMostBoxTheme()
   const styles = fileStyles[theme.mode]
   const scrollRef = useRef<ScrollView | null>(null)
@@ -260,6 +261,23 @@ export function FilesScreen({
             {t('node.action.receive')}
           </MostButton>
         </View>
+
+        {snapshot.transfers
+          .filter(transfer => transfer.status === 'running')
+          .map(transfer => (
+            <Text
+              key={transfer.id}
+              style={styles.emptyBody}
+              accessibilityLiveRegion="polite"
+            >
+              {transfer.fileName}:{' '}
+              {getTransferDisplayMessage(
+                transfer.message,
+                transfer.status,
+                locale
+              )}
+            </Text>
+          ))}
 
         <View
           style={[
