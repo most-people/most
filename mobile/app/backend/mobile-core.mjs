@@ -372,7 +372,9 @@ async function pipeFileToDrive(filePath, drive, driveKey) {
 
 async function pipeDriveToFile(stream, targetPath, options = {}) {
   ensureDirectory(path.dirname(targetPath))
-  const ws = fs.createWriteStream(targetPath)
+  const ws = fs.createWriteStream(targetPath, {
+    flags: options.append ? 'a' : 'w',
+  })
   const timeout = options.timeout ?? STREAM_READ_TIMEOUT
   const onProgress = options.onProgress || (() => {})
 
@@ -426,7 +428,11 @@ async function pipeDriveToFile(stream, targetPath, options = {}) {
       const now = Date.now()
       if (now - lastProgressAt > PROGRESS_THROTTLE) {
         lastProgressAt = now
-        onProgress(loaded)
+        try {
+          onProgress(loaded)
+        } catch (err) {
+          fail(err)
+        }
       }
     })
 
@@ -481,6 +487,7 @@ export class MobileP2PCore {
   #holdings = []
   #seedStates = new Map()
   #transfers = []
+  #activeDownloadCids = new Set()
   #logs = []
   #createSwarm
   #p2pPingManager = null
@@ -1075,7 +1082,11 @@ export class MobileP2PCore {
     const fileName = sanitizeFilename(parsed.fileName)
     const { driveName } = getCidInfo(cid)
     const driveKey = `/${cid}`
-    let tempPath = ''
+    const tempPath = path.join(this.#downloadPath, `${cid}.part`)
+
+    if (this.#activeDownloadCids.has(cid)) {
+      throw new Error('A download for this CID is already running')
+    }
 
     this.#cancelledDownloads.delete(requestId)
     const transfer = this.#upsertTransfer({
@@ -1089,6 +1100,7 @@ export class MobileP2PCore {
       message: 'Connecting to CID topic',
     })
 
+    this.#activeDownloadCids.add(cid)
     try {
       const drive = await this.#getOrCreateDrive(driveName)
       const existingHolding = this.#holdings.find(
@@ -1135,22 +1147,28 @@ export class MobileP2PCore {
 
       const totalBytes = Number(entry?.value?.blob?.byteLength) || 0
       const savePath = uniqueSavePath(this.#downloadPath, fileName)
-      tempPath = `${savePath}.part`
-      safeRm(tempPath)
+      let resumeBytes = fileExists(tempPath) ? fs.statSync(tempPath).size : 0
+      if (resumeBytes > totalBytes) {
+        safeRm(tempPath)
+        resumeBytes = 0
+      }
 
       this.#upsertTransfer({
         ...transfer,
         progress: 20,
-        message: 'Downloading file',
+        message: resumeBytes ? 'Resuming downloaded bytes' : 'Downloading file',
       })
 
-      const readStream = drive.createReadStream(driveKey)
+      const readStream = drive.createReadStream(driveKey, {
+        start: resumeBytes,
+      })
       let loaded = 0
       await pipeDriveToFile(readStream, tempPath, {
         timeout: STREAM_READ_TIMEOUT,
+        append: resumeBytes > 0,
         onProgress: nextLoaded => {
           this.#assertDownloadActive(requestId)
-          loaded = nextLoaded
+          loaded = resumeBytes + nextLoaded
           if (totalBytes > 0) {
             const progress = 20 + Math.round((loaded / totalBytes) * 60)
             this.#upsertTransfer({
@@ -1211,7 +1229,7 @@ export class MobileP2PCore {
         savedPath: savePath,
       }
     } catch (err) {
-      if (tempPath) safeRm(tempPath)
+      if (tempPath && this.#cancelledDownloads.has(requestId)) safeRm(tempPath)
       const drive = this.#drives.get(driveName)
       if (!drive || !(await this.#hasLocalCidContent(drive, driveKey))) {
         await this.#leaveCidTopic(cid)
@@ -1233,6 +1251,7 @@ export class MobileP2PCore {
       throw err
     } finally {
       this.#cancelledDownloads.delete(requestId)
+      this.#activeDownloadCids.delete(cid)
     }
   }
 

@@ -342,6 +342,80 @@ describe('mobile P2P Ping snapshot and RPC events', () => {
 })
 
 describe('mobile file downloads', () => {
+  for (const cache of ['partial', 'complete', 'oversized', 'corrupt']) {
+    it(`handles ${cache} persisted bytes with complete CID verification`, async t => {
+      const storagePath = await fs.mkdtemp(
+        path.join(os.tmpdir(), 'mostbox-resume-')
+      )
+      const options = {
+        storagePath,
+        createSwarm: createRecordingSwarmFactory([]),
+      }
+      const first = new MobileP2PCore(options)
+      const restarted = new MobileP2PCore(options)
+      const originalReadStream = Hyperdrive.prototype.createReadStream
+      t.after(async () => {
+        Hyperdrive.prototype.createReadStream = originalReadStream
+        await first.stop()
+        await restarted.stop()
+        await fs.rm(storagePath, { recursive: true, force: true })
+      })
+      await first.start()
+      const content = 'persistent cached prefix and remaining CID content'
+      const published = await first.publishFile({
+        name: 'resume.txt',
+        contentBase64: b4a.toString(b4a.from(content), 'base64'),
+      })
+      await first.stop()
+      await fs.rm(path.join(storagePath, 'node-holdings.json'))
+      const tempPath = path.join(
+        storagePath,
+        'downloads',
+        `${published.holding.cid}.part`
+      )
+      await fs.mkdir(path.dirname(tempPath), { recursive: true })
+      const cachedContent =
+        cache === 'corrupt'
+          ? 'XXXXXXXXXX'
+          : cache === 'complete'
+            ? content
+            : cache === 'oversized'
+              ? content + 'extra'
+              : content.slice(0, 10)
+      await fs.writeFile(tempPath, cachedContent)
+      await restarted.start()
+      let offset
+      Hyperdrive.prototype.createReadStream = function (name, opts) {
+        offset = opts?.start
+        return originalReadStream.call(this, name, opts)
+      }
+      if (cache === 'corrupt') {
+        await assert.rejects(
+          restarted.downloadLink({ link: published.transfer.link }),
+          /CID mismatch/
+        )
+        assert.equal(restarted.getSnapshot().holdings.length, 0)
+        await assert.rejects(fs.stat(tempPath), { code: 'ENOENT' })
+        const repaired = await restarted.downloadLink({
+          link: published.transfer.link,
+        })
+        assert.equal(await fs.readFile(repaired.savedPath, 'utf8'), content)
+        assert.equal(offset, 0)
+      } else {
+        const result = await restarted.downloadLink({
+          link: published.transfer.link,
+        })
+        assert.equal(
+          offset,
+          cache === 'complete' ? content.length : cache === 'oversized' ? 0 : 10
+        )
+        assert.equal(await fs.readFile(result.savedPath, 'utf8'), content)
+        assert.equal(result.holding.cid, published.holding.cid)
+        assert.equal(result.holding.localAvailable, true)
+      }
+    })
+  }
+
   it('exports CID content when the cached file path contains different bytes', async t => {
     const storagePath = await fs.mkdtemp(
       path.join(os.tmpdir(), 'mostbox-mobile-export-cid-')
@@ -606,6 +680,9 @@ describe('mobile file downloads', () => {
     })
 
     await core.start()
+    const tempPath = path.join(storagePath, 'downloads', `${cid}.part`)
+    await fs.mkdir(path.dirname(tempPath), { recursive: true })
+    await fs.writeFile(tempPath, 'previous interrupted bytes')
     const download = core.downloadLink(
       { link: `most://${cid}?filename=missing.txt`, timeout: 5000 },
       requestId
@@ -617,9 +694,14 @@ describe('mobile file downloads', () => {
       'download to enter running state'
     )
 
+    await assert.rejects(
+      core.downloadLink({ link: `most://${cid}?filename=renamed.txt` }),
+      /already running/
+    )
     const cancelled = await core.cancelDownload({ cid })
     assert.equal(cancelled.cid, cid)
     await assert.rejects(download, /Download cancelled/)
+    await assert.rejects(fs.stat(tempPath), { code: 'ENOENT' })
 
     const transfer = core
       .getSnapshot()
