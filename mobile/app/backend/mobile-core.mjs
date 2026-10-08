@@ -259,7 +259,7 @@ function normalizeFileUri(uri) {
   return value
 }
 
-async function calculateCid(input) {
+async function calculateCid(input, onProgress) {
   const blockstore = createDummyBlockstore()
   let rootCid = null
   let size = 0
@@ -277,11 +277,28 @@ async function calculateCid(input) {
     throw new Error('File content is required')
   }
 
+  async function* trackedContent() {
+    let loaded = 0
+    let lastProgressAt = 0
+    for await (const chunk of content) {
+      loaded += chunk.byteLength
+      const now = Date.now()
+      if (
+        onProgress &&
+        (now - lastProgressAt >= PROGRESS_THROTTLE || loaded === size)
+      ) {
+        lastProgressAt = now
+        onProgress(loaded, size)
+      }
+      yield chunk
+    }
+  }
+
   for await (const entry of importer(
     [
       {
         path: 'file',
-        content,
+        content: onProgress ? trackedContent() : content,
       },
     ],
     blockstore,
@@ -1016,7 +1033,12 @@ export class MobileP2PCore {
 
     try {
       const source = this.#createFileSource(input)
-      const result = await calculateCid(source)
+      const result = await calculateCid(source, (loaded, total) => {
+        this.#patchTransfer(requestId, {
+          progress: total > 0 ? 5 + Math.round((loaded / total) * 20) : 25,
+          message: 'Calculating UnixFS CID',
+        })
+      })
       const cid = result.cid
       const size = result.size || Number(input.size) || 0
       const { driveName } = getCidInfo(cid)
@@ -1194,7 +1216,16 @@ export class MobileP2PCore {
         message: 'Verifying CID',
       })
 
-      const downloaded = await calculateCid({ filePath: tempPath })
+      const downloaded = await calculateCid(
+        { filePath: tempPath },
+        (loaded, total) => {
+          this.#assertDownloadActive(requestId)
+          this.#patchTransfer(requestId, {
+            progress: total > 0 ? 85 + Math.round((loaded / total) * 10) : 95,
+            message: 'Verifying CID',
+          })
+        }
+      )
       this.#assertDownloadActive(requestId)
       if (downloaded.cid !== cid) {
         safeRm(tempPath)
