@@ -862,6 +862,7 @@ export class MostBoxEngine extends EventEmitter {
       peers: total,
       appPeers: appConnections,
       chatPeers: chatConnections,
+      relayConfigured: Boolean(this.#options.relayThrough),
       status: total > 0 ? 'connected' : 'waiting',
     }
   }

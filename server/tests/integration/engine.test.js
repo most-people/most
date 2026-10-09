@@ -287,6 +287,7 @@ describe('MostBoxEngine (integration)', { timeout: 900000 }, () => {
     it('getNetworkStatus returns correct structure', () => {
       const status = engine.getNetworkStatus()
       assert.strictEqual(typeof status.peers, 'number')
+      assert.strictEqual(status.relayConfigured, false)
       assert.strictEqual(typeof status.status, 'string')
       assert.ok(['connected', 'waiting'].includes(status.status))
     })
