@@ -1,0 +1,25 @@
+{
+  "status": "passed",
+  "serial": "14cdba73",
+  "model": "M2007J3SC",
+  "androidVersion": "12",
+  "cid": "bafybeigp2unp4kr3qcg6px75praywz45ko5qk25wphl5r5ouizlskauqfq",
+  "filename": "background-512-test.bin",
+  "sizeBytes": 536870912,
+  "publisher": "local synthetic publisher",
+  "pidBefore": "29953",
+  "pidDuringBackground": "29953",
+  "pidAfterResume": "29953",
+  "backgroundSeconds": 15,
+  "activityDuringBackground": "com.miui.home/.launcher.Launcher",
+  "foregroundActivityAfterResume": "most.box/.MainActivity",
+  "completedCountBefore": 6,
+  "completedCountAfter": 7,
+  "activeCountAfter": 0,
+  "observedAt": "2026-10-09T09:21:23.9712575Z",
+  "scope": "Wi-Fi short activity-background survival",
+  "limitations": [
+    "No public relay or real NAT path was used",
+    "No cellular handoff, Doze, system reclaim, force-stop, or long-running foreground-service guarantee was tested"
+  ]
+}

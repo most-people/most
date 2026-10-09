@@ -89,3 +89,9 @@
 - Android 核心新增透传回归测试；移动后端 31 项测试、桌面引擎 162 项集成测试、移动类型检查和 ARM64 Release APK 构建均通过。
 - APK 已用 `adb -s 14cdba73 install -r` 覆盖安装并保留数据，最新 SHA256 为 `ee7f1e5daa0b2019345472ec7c31c4b6e8731d5baee480d789de96aa08cc5fdb`。
 - 本批次只提供上层注入点，不包含中继服务配置、凭据、自动切换或真实 NAT/UDP 禁用验证；对应限制见 `docs/reliability-upgrade.md`。本地提交为 `fde7407`。
+
+## 2026-10-09 夜间后续批次
+
+- Android 真机 512MiB 短时后台证据：[background-512-home-resume.json](qa/2026-10-09/android-physical/background-512-home-resume.json)。
+- 本地 blind-relay 证据：[local-relay-loopback.json](qa/2026-10-09/android-physical/local-relay-loopback.json)。
+- 公网 NAT、中继部署、蜂窝/Doze/系统回收场景因缺少外部服务器和受控网络环境暂未验证。

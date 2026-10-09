@@ -1,0 +1,20 @@
+{
+  "status": "passed",
+  "command": "node scripts/check-local-relay.mjs",
+  "scope": "loopback HyperDHT blind-relay with direct punching disabled",
+  "receivedBytes": 1048576,
+  "sha256": "bf63d8a95fcc2e64619813aae35fdcbe871fdd9264caa3f365eb3aed0f679129",
+  "relaySessions": 2,
+  "relayReceivedBytes": 1077082,
+  "receiverRelaying": {
+    "attempts": 1,
+    "successes": 1,
+    "aborts": 0
+  },
+  "limitations": [
+    "In-memory local experiment only; no public service deployment",
+    "Not an Android NAT or UDP-disabled network result",
+    "Not connected to product automatic fallback or billing"
+  ],
+  "observedAt": "2026-10-09T09:25:02.9016259Z"
+}

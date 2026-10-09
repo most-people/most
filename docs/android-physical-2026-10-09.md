@@ -41,3 +41,15 @@
 5. 按现有可靠性计划继续任务恢复、切网、进程重启和后台生命周期。iOS 真机仍需独立验证。
 
 本轮没有修改生产代码；沿用上一批已通过的移动 156 项、原生 7 项和协议 13 项检查，新增 ARM64 构建与上述真实设备验收。阶段 2 的恢复和异常场景仍未全部达标。
+
+## Android 后台 Wi-Fi 短任务验证（2026-10-09）
+
+- 真机 `14cdba73`（M2007J3SC，Android 12）接收新 CID `bafybeigp2unp4kr3qcg6px75praywz45ko5qk25wphl5r5ouizlskauqfq` 的 512MiB 合成文件。
+- 文件进入 CID 校验阶段后，将应用切到系统 Home 15 秒；进程 PID 始终为 `29953`。恢复 `most.box/.MainActivity` 后，Transfers 页面显示已完成任务从 6 增至 7，进行中为 0。
+- 该结果证明当前 Wi-Fi 下短时间 Activity 后台期间任务能够继续完成。证据：[后台恢复 JSON](qa/2026-10-09/android-physical/background-512-home-resume.json)。
+- 本次没有走公网中继或真实 NAT；未覆盖蜂窝切换、锁屏 Doze、系统回收、force-stop、权限撤销和长时间前台服务限制，不能据此宣称 Android 后台能力已完成。
+
+## 中继验证边界（2026-10-09）
+
+- 本轮重新运行本地隔离 blind-relay 实验，1MiB 内容和 SHA-256 校验通过，2 个 relay session、接收端 relaying success 1 次。证据：[本地中继 JSON](qa/2026-10-09/android-physical/local-relay-loopback.json)。
+- 这是桌面依赖层的回环验证，不是公网中继服务部署，也没有接入 Android NAT 故障转移。当前环境没有可用的公网服务器、SSH 凭据或 UDP 受限网络，因此真实 NAT、中继服务部署和 Android 经中继传输仍待外部环境提供后验证。
