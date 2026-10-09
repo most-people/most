@@ -48,6 +48,23 @@
 - 在完整 CID 校验读取进度达到 90% 后取消，确认任务失败、临时文件清理、没有 holding；随后重试仍可完成。
 - 两项定向测试通过。这些是 Node 宿主移动核心的故障注入测试，不是 Android 真机切网、force-stop 或内存峰值验收。本批次只增加回归测试，手机 APK 无需更新。
 
+## 批次：真机连续内存采样工具
+
+- 新增只读脚本 `mobile/app/scripts/sample-physical-memory.mjs`，要求明确的已授权真机 serial，拒绝模拟器；每约 2 秒记录时间、MostBox PID 和完整 `dumpsys meminfo`。每个样本立即保存，采样错误也保留，便于区分进程消失与正常内存变化。
+- 已在 `14cdba73` 运行 5 秒采样并保存 3 个样本：`docs/qa/2026-10-09/android-physical/idle-memory-samples.json`。这是待机基线，不是 256MiB / 2112MiB 下载峰值结论。
+- 大文件验收时在 `mobile/app` 运行：`node scripts/sample-physical-memory.mjs --serial 14cdba73 --seconds 600 --output ../../docs/qa/2026-10-09/android-physical/download-memory-samples.json`，然后在手机开始下载新 CID；结束后结合任务阶段分析内存，不能把已持有 CID 的快速完成当作网络下载。
+
+## 晨间真机测试清单
+
+当前手机已安装包含持久化恢复、字节偏移重试、阶段提示、CID 校验进度的 APK；未清除用户数据。APK 在 `mobile/app/dist/mostbox-android-0.5.3-release.apk`，SHA256 见上面的最新构建记录。
+
+1. 发布大文件，确认文件页展示计算 CID / 写入内容阶段，传输页进度更新；完成后再保存并校验实际输出。
+2. 下载手机从未持有的新 CID，分别在约 10%、50%、90% 断网或停止应用；恢复并重试，确认完整文件最终校验成功。重启后需要手动重试，当前没有后台服务或自动恢复承诺。
+3. 在校验阶段取消，确认没有新增成功文件或 holding，重新下载能成功。
+4. 保留一个手机已完成的下载种子，退出原始发布者，用干净第三节点继续下载并重算 CID。
+
+大文件真实网络下载、连续内存峰值、严格 NAT / UDP 禁用、手机后台服务、中继多供应商与 iPhone 验收仍未完成。阶段 2–5 不能宣布完成。
+
 ## 后续顺序
 
 1. 以不同于手机已有文件的新 CID 验证 256MiB / 2112MiB 网络下载，连续采样内存。
