@@ -148,7 +148,7 @@ describe('frontend smoke checks', () => {
   it('keeps the documented frontend commands wired to package scripts', () => {
     const packageJson = JSON.parse(readSource(SOURCE_PATHS.packageJson))
 
-    assert.equal(packageJson.scripts.start, 'vite')
+    assert.equal(packageJson.scripts.start, 'vite --port 2020')
     assert.equal(
       packageJson.scripts['test:frontend'],
       'node --test src/tests/*.test.js'

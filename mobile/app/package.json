@@ -9,8 +9,8 @@
   "main": "expo/AppEntry.js",
   "scripts": {
     "postinstall": "node ../../scripts/patch-unixfs-runtime.mjs",
-    "start": "npm run bundle:android && node scripts/start-dev-client.mjs",
-    "web": "expo start --web --port 3000",
+    "start": "expo start --web --port 2021",
+    "web": "expo start --web --port 2021",
     "start:ios": "npm run bundle:ios && expo start --dev-client --host lan",
     "ios": "npm run bundle:ios && node scripts/ensure-ios-debug-rncore.mjs && expo run:ios",
     "build": "node scripts/build-apk.mjs",

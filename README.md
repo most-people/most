@@ -60,7 +60,7 @@ iOS / Android 使用“P2P 核心端 + 平台 UI 壳”分层。Most profile 的
 ```bash
 cd mobile/app
 npm install
-npm start      # 启动 Expo Dev Client 并打开 Android 真机/模拟器
+npm start      # 启动 Expo Web，默认访问 http://localhost:2021
 npm test       # 运行移动端 CID、most://、P2P Ping 和 Bare Worklet IPC 测试
 npm run typecheck
 npm run build  # 生成内部 Alpha APK 和 SHA256 校验文件
@@ -100,7 +100,7 @@ npm start
 npm run server
 ```
 
-开发模式需要两个进程：`npm start` 启动 TanStack Start 前端，默认访问 `http://localhost:3000`；`npm run server` 启动本地 daemon，默认监听 `http://localhost:1976`。
+开发模式需要两个进程：`npm start` 启动 TanStack Start 前端，默认访问 `http://localhost:2020`；`npm run server` 启动本地 daemon，默认监听 `http://localhost:1976`。Expo Web 在 `mobile/app/` 中运行 `npm run web`，默认访问 `http://localhost:2021`。
 
 ## MCP（AI 客户端）
 

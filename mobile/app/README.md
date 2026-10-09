@@ -34,7 +34,7 @@ npm run build
 npm run build:web
 ```
 
-`npm start` 会打包 Bare Worklet、启动 Expo 开发服务器并打开已连接的 Android 设备或模拟器。
+`npm start` 启动 Expo Web，默认访问 `http://localhost:2021`。Android Dev Client 请使用对应的原生 bundle 和设备启动脚本。
 
 `npm run preflight:ios` 会同步 iOS 原生版本、生成 iOS Bare bundle，并检查 App Store 分发档位、Bundle ID、iPhone 设备范围、最低系统版本、隐私清单和 1024 × 1024 无透明通道图标。它不执行 Apple 签名、Archive 上传或 TestFlight 验收。
 

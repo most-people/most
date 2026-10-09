@@ -27,7 +27,7 @@
   ],
   "scripts": {
     "postinstall": "node scripts/patch-unixfs-runtime.mjs",
-    "start": "vite",
+    "start": "vite --port 2020",
     "server": "node --watch server/index.js",
     "desktop": "npm run electron:dev",
     "build": "vite build && node scripts/prepare-start-static.mjs",
