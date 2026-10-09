@@ -101,5 +101,5 @@
 - 本地 `dev` 已执行 `git fetch` 和 `git pull --ff-only origin dev`，保持在 `155a6e7`，无远端新提交。
 - `root@192.168.31.52`（N150）SSH 成功，NAS Docker 28.5.2 / Compose v2.40.3；当前代码已传到 `/opt/mostbox-src`。
 - NAS 构建因其 Docker registry mirror `docker.fnnas.com` 对 `node:24-bookworm` 返回 401 而阻断，未启动或覆盖任何服务。
-- `roo@x.most.red` SSH 认证失败（`Permission denied (publickey,password)`），公网节点尚未验收。
+- `root@x.most.red` SSH 成功；当前提交已构建并切换 PM2 到 `/opt/mostbox/releases/0.5.3-155a6e7`，PID `2855223`，数据路径仍为 `/root/most-data`。本机 API 返回 online，外部 `https://x.most.red` 返回 HTTP 200。
 - 证据：[远程验收前置 JSON](qa/2026-10-09/remote-acceptance.json)。

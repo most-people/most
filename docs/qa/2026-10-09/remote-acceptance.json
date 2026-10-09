@@ -8,8 +8,17 @@
   },
   "publicHost": {
     "target": "roo@x.most.red",
-    "ssh": "blocked",
-    "error": "Permission denied (publickey,password)"
+    "targetUsed": "root@x.most.red",
+    "ssh": "passed",
+    "hostname": "x.most.red",
+    "runtime": "PM2 + Node 24.20.0",
+    "sourcePath": "/opt/mostbox/releases/0.5.3-155a6e7",
+    "build": "passed",
+    "serviceStarted": true,
+    "processId": 2855223,
+    "health": "https://x.most.red returned HTTP 200; /api/node/status online",
+    "dataPath": "/root/most-data",
+    "previousProcessPreservedData": true
   },
   "nasHost": {
     "target": "root@192.168.31.52",
@@ -23,5 +32,5 @@
     "buildError": "NAS Docker registry mirror docker.fnnas.com returned 401 while resolving node:24-bookworm",
     "serviceStarted": false
   },
-  "scope": "code update and remote preflight; no existing NAS service was changed"
+  "scope": "code update and public-node deployment; NAS source staged but service not started"
 }
