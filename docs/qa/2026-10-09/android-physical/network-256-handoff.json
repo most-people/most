@@ -1,0 +1,14 @@
+{
+  "expectedCid": "bafybeigil7hdw6ohtorfparlp4xztipfb64ben6y3woymu36ocyro5yavm",
+  "startedAt": "2026-10-09T02:42:05.251Z",
+  "publisherStopped": true,
+  "download": {
+    "taskId": "dl_1791513725307_yqbqqb",
+    "cid": "bafybeigil7hdw6ohtorfparlp4xztipfb64ben6y3woymu36ocyro5yavm",
+    "fileName": "network-256MiB.bin",
+    "localAvailable": true
+  },
+  "cid": "bafybeigil7hdw6ohtorfparlp4xztipfb64ben6y3woymu36ocyro5yavm",
+  "status": "passed",
+  "completedAt": "2026-10-09T02:42:50.893Z"
+}
