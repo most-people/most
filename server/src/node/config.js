@@ -31,6 +31,7 @@ export function getDefaultNodeConfig() {
     capacityBytes: DEFAULT_CAPACITY_BYTES,
     maxFileSizeBytes: MAX_FILE_SIZE,
     remoteInvites: [],
+    relayPublicKey: '',
     adminAddress: '',
   }
 }
@@ -57,6 +58,9 @@ export function normalizeNodeConfig(raw = {}) {
   const remoteInvites = normalizeRemoteInvites(
     rawNode.remoteInvites ?? defaults.remoteInvites
   )
+  const relayPublicKey = normalizeRelayPublicKey(
+    rawNode.relayPublicKey ?? defaults.relayPublicKey
+  )
   const host = normalizeHost(rawNode.host, defaults.host)
   const adminAddress = normalizeAddress(rawNode.adminAddress)
   return {
@@ -69,6 +73,7 @@ export function normalizeNodeConfig(raw = {}) {
     capacityBytes,
     maxFileSizeBytes,
     remoteInvites,
+    relayPublicKey,
     adminAddress,
   }
 }
@@ -246,6 +251,10 @@ export function createNodeConfigStore(
           patch.remoteInvites === undefined
             ? current.remoteInvites
             : patch.remoteInvites,
+        relayPublicKey:
+          patch.relayPublicKey === undefined
+            ? current.relayPublicKey
+            : patch.relayPublicKey,
         adminAddress:
           adminAddressOverride === undefined
             ? current.adminAddress
@@ -263,6 +272,7 @@ export function createNodeConfigStore(
         capacityBytes: next.capacityBytes,
         maxFileSizeBytes: next.maxFileSizeBytes,
         remoteInvites: next.remoteInvites,
+        relayPublicKey: next.relayPublicKey,
         adminAddress: next.adminAddress,
         updatedAt: new Date().toISOString(),
       },
@@ -376,4 +386,10 @@ function normalizePositiveInteger(value, fallback) {
 function normalizeHost(value, fallback) {
   const host = String(value || '').trim()
   return host || fallback
+}
+
+function normalizeRelayPublicKey(value) {
+  if (typeof value !== 'string') return ''
+  const key = value.trim()
+  return key.length > 0 && key.length <= 128 ? key : ''
 }

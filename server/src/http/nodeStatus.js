@@ -71,6 +71,7 @@ export async function buildNodeStatus(
   const publicConfig = { ...config }
   delete publicConfig.remoteInvites
   delete publicConfig.adminAddress
+  delete publicConfig.relayPublicKey
   const remoteInviteCount = remoteInvites.length
   const storage = await engine.getStorageStats()
   const network = engine.getNetworkStatus()
@@ -89,6 +90,7 @@ export async function buildNodeStatus(
       ...publicConfig,
       remoteInviteCount,
       remoteInviteConfigured: remoteInviteCount > 0,
+      relayConfigured: Boolean(config.relayPublicKey),
     },
     policy: {
       maxFileSizeBytes: config.maxFileSizeBytes,

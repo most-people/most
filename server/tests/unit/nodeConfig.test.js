@@ -55,6 +55,7 @@ describe('normalizeNodeConfig', () => {
         capacityBytes: 123,
         maxFileSizeBytes: 45,
         remoteInvites: ['one', 'one', 'two'],
+        relayPublicKey: ' relay-key-1 ',
         adminAddress: '0x1111111111111111111111111111111111111111',
       },
     })
@@ -65,6 +66,7 @@ describe('normalizeNodeConfig', () => {
     assert.strictEqual(config.capacityBytes, 123)
     assert.strictEqual(config.maxFileSizeBytes, 45)
     assert.deepStrictEqual(config.remoteInvites, ['one', 'two'])
+    assert.strictEqual(config.relayPublicKey, 'relay-key-1')
     assert.strictEqual(
       config.adminAddress,
       '0x1111111111111111111111111111111111111111'
@@ -83,6 +85,7 @@ describe('normalizeNodeConfig', () => {
     assert.strictEqual(config.capacityBytes, 100 * 1024 * 1024 * 1024)
     assert.strictEqual(config.maxFileSizeBytes, MAX_FILE_SIZE)
     assert.deepStrictEqual(config.remoteInvites, [])
+    assert.strictEqual(config.relayPublicKey, '')
     assert.strictEqual(config.adminAddress, '')
   })
 
@@ -96,6 +99,23 @@ describe('normalizeNodeConfig', () => {
 
     assert.strictEqual(config.capacityBytes, 100 * 1024 * 1024 * 1024)
     assert.strictEqual(config.maxFileSizeBytes, MAX_FILE_SIZE)
+  })
+
+  it('keeps an optional bounded relay public key', () => {
+    assert.strictEqual(
+      normalizeNodeConfig({ node: { relayPublicKey: '  relay-key  ' } })
+        .relayPublicKey,
+      'relay-key'
+    )
+    assert.strictEqual(
+      normalizeNodeConfig({ node: { relayPublicKey: 'x'.repeat(129) } })
+        .relayPublicKey,
+      ''
+    )
+    assert.strictEqual(
+      normalizeNodeConfig({ node: { relayPublicKey: 123 } }).relayPublicKey,
+      ''
+    )
   })
 
   it('claims one administrator and preserves it across config patches', () => {

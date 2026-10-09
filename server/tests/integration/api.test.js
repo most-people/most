@@ -351,6 +351,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.ok(Array.isArray(data.holdings))
       assert.strictEqual('remoteInvites' in data.config, false)
       assert.strictEqual(typeof data.config.remoteInviteCount, 'number')
+      assert.strictEqual(data.config.relayConfigured, false)
       assert.deepStrictEqual(Object.keys(data.policy).sort(), [
         'maxFileSizeBytes',
       ])
@@ -373,6 +374,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
           capacityBytes: 1024 * 1024 * 1024,
           maxFileSizeBytes: 1024 * 1024,
           remoteInvites: ['invite-one', 'invite-two', 'invite-one'],
+          relayPublicKey: 'relay-key-for-local-node',
         }),
       })
       const data = await res.json()
@@ -385,6 +387,7 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(data.capacityBytes, 1024 * 1024 * 1024)
       assert.strictEqual(data.maxFileSizeBytes, 1024 * 1024)
       assert.deepStrictEqual(data.remoteInvites, ['invite-one', 'invite-two'])
+      assert.strictEqual(data.relayPublicKey, 'relay-key-for-local-node')
       assertNoLegacyNodeSettingFields(data)
       assert.strictEqual('allowOrders' in data, false)
       assert.strictEqual('minimumPriceUsdtPerGbMonth' in data, false)
