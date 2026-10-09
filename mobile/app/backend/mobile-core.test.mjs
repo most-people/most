@@ -56,8 +56,9 @@ class RecordingSwarm extends EventEmitter {
 }
 
 function createRecordingSwarmFactory(swarms) {
-  return () => {
+  return options => {
     const swarm = new RecordingSwarm(swarms.length + 1)
+    swarm.createOptions = { ...options }
     swarms.push(swarm)
     return swarm
   }
@@ -288,6 +289,34 @@ describe('mobile durable transfer history', () => {
 })
 
 describe('mobile P2P Ping snapshot and RPC events', () => {
+  it('passes an opt-in relay public key to data, chat, and ping swarms', async t => {
+    const storagePath = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mostbox-mobile-relay-config-')
+    )
+    const swarms = []
+    const relayThrough = b4a.alloc(32, 0x7a)
+    const core = new MobileP2PCore({
+      storagePath,
+      relayThrough,
+      createSwarm: createRecordingSwarmFactory(swarms),
+    })
+
+    t.after(async () => {
+      await core.stop()
+      await fs.rm(storagePath, { recursive: true, force: true })
+    })
+
+    await core.start()
+    assert.equal(swarms.length, 2)
+    assert.equal(swarms[0].createOptions.relayThrough, relayThrough)
+    assert.equal(swarms[1].createOptions.relayThrough, relayThrough)
+
+    await core.startP2PPing({ role: 'host' })
+    await waitFor(() => swarms.length === 4, 'relay ping swarms to start')
+    assert.equal(swarms[2].createOptions.relayThrough, relayThrough)
+    assert.equal(swarms[3].createOptions.relayThrough, relayThrough)
+  })
+
   it('starts, reports, resets, and destroys both direction swarms', async t => {
     const storagePath = await fs.mkdtemp(
       path.join(os.tmpdir(), 'mostbox-mobile-p2p-ping-')

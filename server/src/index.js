@@ -274,6 +274,7 @@ export class MostBoxEngine extends EventEmitter {
    * @param {number} [options.maxFileSize] - 最大文件大小（字节）（默认：10GB）
    * @param {number} [options.capacityBytes] - 节点存储容量上限（字节）（默认：100GB）
    * @param {boolean} [options.disableNetwork] - 测试用：跳过真实 Hyperswarm 网络
+   * @param {string|Buffer|null} [options.relayThrough] - 可选的 Hyperswarm 数据中继公钥
    */
   constructor(options) {
     super()
@@ -294,6 +295,7 @@ export class MostBoxEngine extends EventEmitter {
       localContentProbeTimeout:
         options.localContentProbeTimeout ?? LOCAL_CONTENT_PROBE_TIMEOUT,
       disableNetwork: options.disableNetwork === true,
+      relayThrough: options.relayThrough || null,
       createP2PPingSwarm: options.createP2PPingSwarm,
     }
     this.#channelPresence = new ChannelPresenceManager({
@@ -624,6 +626,7 @@ export class MostBoxEngine extends EventEmitter {
         connectionKeepAlive: SWARM_KEEP_ALIVE_INTERVAL,
         randomPunchInterval: SWARM_RANDOM_PUNCH_INTERVAL,
         handshakeTimeout: CONNECTION_TIMEOUT,
+        relayThrough: this.#options.relayThrough,
       })
     }
 
@@ -659,6 +662,7 @@ export class MostBoxEngine extends EventEmitter {
         connectionKeepAlive: SWARM_KEEP_ALIVE_INTERVAL,
         randomPunchInterval: SWARM_RANDOM_PUNCH_INTERVAL,
         handshakeTimeout: CONNECTION_TIMEOUT,
+        relayThrough: this.#options.relayThrough,
       })
     }
 
@@ -676,6 +680,7 @@ export class MostBoxEngine extends EventEmitter {
         connectionKeepAlive: SWARM_KEEP_ALIVE_INTERVAL,
         randomPunchInterval: SWARM_RANDOM_PUNCH_INTERVAL,
         handshakeTimeout: CONNECTION_TIMEOUT,
+        relayThrough: this.#options.relayThrough,
       },
       onUpdate: ping => this.emit('p2p:ping', ping),
     })

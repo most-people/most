@@ -507,6 +507,7 @@ export class MobileP2PCore {
   #activeDownloadCids = new Set()
   #logs = []
   #createSwarm
+  #relayThrough = null
   #p2pPingManager = null
   #p2pPing = null
   #node = {
@@ -522,6 +523,7 @@ export class MobileP2PCore {
     this.#send = options.send || (() => {})
     this.#createSwarm =
       options.createSwarm || (swarmOptions => new Hyperswarm(swarmOptions))
+    this.#relayThrough = options.relayThrough || null
     this.#channelPresenceTimeoutMs =
       options.channelPresenceTimeoutMs || CHANNEL_PRESENCE_TIMEOUT_MS
     this.#channelPresenceSweepMs =
@@ -582,6 +584,7 @@ export class MobileP2PCore {
       connectionKeepAlive: 5000,
       randomPunchInterval: 20000,
       handshakeTimeout: CONNECTION_TIMEOUT,
+      relayThrough: this.#relayThrough,
     })
 
     this.#swarm.on('connection', conn => {
@@ -602,6 +605,7 @@ export class MobileP2PCore {
       connectionKeepAlive: 5000,
       randomPunchInterval: 20000,
       handshakeTimeout: CONNECTION_TIMEOUT,
+      relayThrough: this.#relayThrough,
     })
 
     this.#chatSwarm.on('connection', (conn, info) => {
@@ -624,6 +628,7 @@ export class MobileP2PCore {
         connectionKeepAlive: 5000,
         randomPunchInterval: 20000,
         handshakeTimeout: CONNECTION_TIMEOUT,
+        relayThrough: this.#relayThrough,
       },
       onUpdate: ping => {
         this.#p2pPing = ping

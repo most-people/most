@@ -65,6 +65,8 @@ flowchart LR
 
 2026-10-09 本地实验：`node scripts/check-local-relay.mjs` 创建隔离的回环 DHT 网络与 blind-relay；双方禁用直接打洞及本地直连，发送 1MiB 并核对 SHA256，同时断言双端 relay session、接收端 relaying success 与中继数据字节数。实测 passed，中继接收 1076662 字节（含协议开销）。这只是桌面依赖层的数据通路验证，尚未接入产品连接策略、凭据或供应商配置，不代表 Android、真实 NAT 或 UDP 禁用验收通过。
 
+2026-10-09 接入准备：桌面 `MostBoxEngine` 与 Android `MobileP2PCore` 现在接受可选 `relayThrough` 公钥，并把它传给文件、聊天和 P2P Ping 的 Hyperswarm 实例；默认值为空，保持现有直连行为。该参数是上层注入点，不包含持久化服务配置、凭据、自动故障切换或供应商选择，因此仍不能宣称产品中继策略已完成。
+
 直连尝试使用有限时间预算；失败后自动连接用户允许的服务，并允许后来恢复直连。最小状态包括发现中、直连中、中继中、等待种子、暂停和失败。记录建立连接耗时、传输路径、字节数和可理解的失败原因，通过现有 HTTP API / WebSocket 对外提供，管理界面只展示用户需要的信息。
 
 UDP 完全不可用必须单独验证。若现有 relay 仍依赖不可达的 UDP 路径，再评估 TCP / TLS 443 的连接桥接，不能假设启用 relayThrough 就覆盖所有防火墙。适配仍要完成对端身份与内容校验，不把 TLS 服务端可信替代为 CID 可信。
