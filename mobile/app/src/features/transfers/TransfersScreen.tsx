@@ -30,7 +30,11 @@ import {
   type MostBoxTheme,
   useMostBoxTheme,
 } from '../../ui/theme'
-import { getTransferActions, getTransferQueueSummary } from './transferModel'
+import {
+  getDownloadByteProgress,
+  getTransferActions,
+  getTransferQueueSummary,
+} from './transferModel'
 import type { TransferRuntimeStatus } from './transferModel'
 
 type TransferView = 'active' | 'completed' | 'failed'
@@ -203,6 +207,7 @@ export function TransfersScreen({
         {transfers.length ? (
           <View style={styles.transferList}>
             {transfers.map(transfer => {
+              const byteProgress = getDownloadByteProgress(transfer)
               const retrying = retryingTransferId === transfer.id
               const cancelling =
                 Boolean(transfer.cid) && cancellingCid === transfer.cid
@@ -247,6 +252,11 @@ export function TransfersScreen({
                           locale
                         )}
                       </Text>
+                      {byteProgress ? (
+                        <Text style={styles.transferMessage}>
+                          {t('transfers.receivedBytes', byteProgress)}
+                        </Text>
+                      ) : null}
                     </View>
                     <StatusBadge
                       label={t(TRANSFER_STATUS_KEYS[transfer.status])}

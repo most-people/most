@@ -96,6 +96,25 @@ const ACTIVE_TRANSFER_STATUSES = new Set<MobileTransfer['status']>([
   'waitingCore',
 ])
 
+export function getDownloadByteProgress(transfer: MobileTransfer) {
+  const { totalBytes, completedBytes } = transfer
+  if (
+    transfer.kind !== 'download' ||
+    totalBytes === undefined ||
+    completedBytes === undefined ||
+    !Number.isFinite(totalBytes) ||
+    !Number.isFinite(completedBytes) ||
+    totalBytes <= 0 ||
+    completedBytes < 0
+  )
+    return null
+
+  return {
+    completed: (Math.min(completedBytes, totalBytes) / 1048576).toFixed(1),
+    total: (totalBytes / 1048576).toFixed(1),
+  }
+}
+
 /**
  * Returns a stable queue summary for the transfers screen.
  * Progress includes completed work (100%) and failed work (its last known

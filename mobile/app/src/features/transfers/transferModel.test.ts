@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  getDownloadByteProgress,
   getTransferActions,
   getTransferQueueSummary,
   getTransferRuntimePolicy,
@@ -74,6 +75,46 @@ test('empty transfer queues report zero progress', () => {
     failed: 0,
     progress: 0,
   })
+})
+
+test('download byte counts remain visible after interruption and during verification', () => {
+  for (const status of ['failed', 'running', 'completed'] as const) {
+    assert.deepEqual(
+      getDownloadByteProgress({
+        ...transfer(status),
+        totalBytes: 2112 * 1048576,
+        completedBytes: 1056 * 1048576,
+      }),
+      { completed: '1056.0', total: '2112.0' }
+    )
+  }
+  assert.equal(getDownloadByteProgress(transfer('running')), null)
+  assert.equal(
+    getDownloadByteProgress({
+      ...transfer('running', 'publish'),
+      totalBytes: 10,
+      completedBytes: 5,
+    }),
+    null
+  )
+  for (const totalBytes of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+    assert.equal(
+      getDownloadByteProgress({
+        ...transfer('running'),
+        totalBytes,
+        completedBytes: 5,
+      }),
+      null
+    )
+  }
+  assert.deepEqual(
+    getDownloadByteProgress({
+      ...transfer('running'),
+      totalBytes: 1048576,
+      completedBytes: 2097152,
+    }),
+    { completed: '1.0', total: '1.0' }
+  )
 })
 
 test('remote daemon transfers can continue while the app is backgrounded', () => {
