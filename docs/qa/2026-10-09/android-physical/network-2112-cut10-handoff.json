@@ -1,0 +1,14 @@
+{
+  "expectedCid": "bafybeidi2rrvghzjbbdbhdfioevc73wseqomna7uho2fxqv46ev2oec2ce",
+  "startedAt": "2026-10-09T06:15:26.991Z",
+  "publisherStopped": true,
+  "download": {
+    "taskId": "dl_1791526527047_nfi9bt",
+    "cid": "bafybeidi2rrvghzjbbdbhdfioevc73wseqomna7uho2fxqv46ev2oec2ce",
+    "fileName": "network-2112MiB-cut10.bin",
+    "localAvailable": true
+  },
+  "cid": "bafybeidi2rrvghzjbbdbhdfioevc73wseqomna7uho2fxqv46ev2oec2ce",
+  "status": "passed",
+  "completedAt": "2026-10-09T06:19:06.428Z"
+}
