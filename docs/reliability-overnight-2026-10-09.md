@@ -56,6 +56,10 @@
 
 ## 晨间真机测试清单
 
+2026-10-09 09:30 左右交付前复核：工作区干净，完整移动回归通过（前端 89、后端 76），当前 APK SHA256 与最新构建记录一致，真机 `14cdba73` 授权连接且 MostBox 进程存在。没有推送或发版。
+
+中继接入前的本地源码检查确认：`hyperswarm/index.js` 接收并转换 `relayThrough`，连接失败时存在强制 relaying 分支；`hyperdht/lib/connect.js` 有数据 relay 连接逻辑，`hyperdht/lib/server.js` 使用 `blind-relay`。这仅确认锁定依赖的可接入入口，不证明 Bare 真机兼容、UDP 禁用时可用或已部署中继。尚未修改产品连接策略、接入第三方服务或启用付费流量。
+
 当前手机已安装包含持久化恢复、字节偏移重试、阶段提示、CID 校验进度的 APK；未清除用户数据。APK 在 `mobile/app/dist/mostbox-android-0.5.3-release.apk`，SHA256 见上面的最新构建记录。
 
 1. 发布大文件，确认文件页展示计算 CID / 写入内容阶段，传输页进度更新；完成后再保存并校验实际输出。
