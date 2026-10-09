@@ -82,3 +82,10 @@
 ## 用户恢复推进后的真机验收（10 月 9 日上午）
 
 上述“仍未完成”为夜间结束时的记录。之后已完成不同 CID 的 256MiB / 2112MiB 真机网络下载与内存采样，以及原发布者退出后的手机种子接力；2112MiB 还覆盖任务进度约 50% 时 force-stop、重启、手动重试和最终 CID 校验。详细证据与采样限制见 `docs/android-network-large-2026-10-09.md`。精确字节阶段切网、导出故障、严格 NAT、中继、后台及 iOS 验收仍未完成，阶段 2–5 仍不能宣布完成。
+
+## 后续推进：中继注入点（10 月 9 日）
+
+- 桌面 `MostBoxEngine` 与 Android `MobileP2PCore` 接受可选 `relayThrough` 公钥，并透传给文件、聊天和 P2P Ping 的 Hyperswarm 实例；默认为空，保持原有直连行为。
+- Android 核心新增透传回归测试；移动后端 31 项测试、桌面引擎 162 项集成测试、移动类型检查和 ARM64 Release APK 构建均通过。
+- APK 已用 `adb -s 14cdba73 install -r` 覆盖安装并保留数据，最新 SHA256 为 `ee7f1e5daa0b2019345472ec7c31c4b6e8731d5baee480d789de96aa08cc5fdb`。
+- 本批次只提供上层注入点，不包含中继服务配置、凭据、自动切换或真实 NAT/UDP 禁用验证；对应限制见 `docs/reliability-upgrade.md`。本地提交为 `fde7407`。
