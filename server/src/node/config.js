@@ -391,5 +391,5 @@ function normalizeHost(value, fallback) {
 function normalizeRelayPublicKey(value) {
   if (typeof value !== 'string') return ''
   const key = value.trim()
-  return key.length > 0 && key.length <= 128 ? key : ''
+  return /^[0-9a-f]{64}$/i.test(key) ? key.toLowerCase() : ''
 }

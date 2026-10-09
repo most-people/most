@@ -456,7 +456,9 @@ export async function main() {
     dataPath,
     maxFileSize: nodeConfig.maxFileSizeBytes,
     capacityBytes: nodeConfig.capacityBytes,
-    relayThrough: nodeConfig.relayPublicKey || null,
+    relayThrough: nodeConfig.relayPublicKey
+      ? Buffer.from(nodeConfig.relayPublicKey, 'hex')
+      : null,
   })
 
   const wssRef = { current: null }

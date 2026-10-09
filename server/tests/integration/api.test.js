@@ -374,7 +374,8 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
           capacityBytes: 1024 * 1024 * 1024,
           maxFileSizeBytes: 1024 * 1024,
           remoteInvites: ['invite-one', 'invite-two', 'invite-one'],
-          relayPublicKey: 'relay-key-for-local-node',
+          relayPublicKey:
+            'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
         }),
       })
       const data = await res.json()
@@ -387,7 +388,10 @@ describe('HTTP API (integration)', { timeout: 180000 }, () => {
       assert.strictEqual(data.capacityBytes, 1024 * 1024 * 1024)
       assert.strictEqual(data.maxFileSizeBytes, 1024 * 1024)
       assert.deepStrictEqual(data.remoteInvites, ['invite-one', 'invite-two'])
-      assert.strictEqual(data.relayPublicKey, 'relay-key-for-local-node')
+      assert.strictEqual(
+        data.relayPublicKey,
+        'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc'
+      )
       assertNoLegacyNodeSettingFields(data)
       assert.strictEqual('allowOrders' in data, false)
       assert.strictEqual('minimumPriceUsdtPerGbMonth' in data, false)
