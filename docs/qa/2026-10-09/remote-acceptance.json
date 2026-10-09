@@ -1,0 +1,27 @@
+{
+  "sourceRevision": "155a6e7",
+  "localUpdate": {
+    "status": "passed",
+    "branch": "dev",
+    "remote": "origin/dev",
+    "result": "Already up to date"
+  },
+  "publicHost": {
+    "target": "roo@x.most.red",
+    "ssh": "blocked",
+    "error": "Permission denied (publickey,password)"
+  },
+  "nasHost": {
+    "target": "root@192.168.31.52",
+    "ssh": "passed",
+    "hostname": "N150",
+    "docker": "28.5.2",
+    "compose": "v2.40.3",
+    "sourceTransfer": "passed",
+    "sourcePath": "/opt/mostbox-src",
+    "build": "blocked",
+    "buildError": "NAS Docker registry mirror docker.fnnas.com returned 401 while resolving node:24-bookworm",
+    "serviceStarted": false
+  },
+  "scope": "code update and remote preflight; no existing NAS service was changed"
+}

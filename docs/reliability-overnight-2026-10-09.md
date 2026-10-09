@@ -95,3 +95,11 @@
 - Android 真机 512MiB 短时后台证据：[background-512-home-resume.json](qa/2026-10-09/android-physical/background-512-home-resume.json)。
 - 本地 blind-relay 证据：[local-relay-loopback.json](qa/2026-10-09/android-physical/local-relay-loopback.json)。
 - 公网 NAT、中继部署、蜂窝/Doze/系统回收场景因缺少外部服务器和受控网络环境暂未验证。
+
+## 远程节点验收前置（2026-10-09）
+
+- 本地 `dev` 已执行 `git fetch` 和 `git pull --ff-only origin dev`，保持在 `155a6e7`，无远端新提交。
+- `root@192.168.31.52`（N150）SSH 成功，NAS Docker 28.5.2 / Compose v2.40.3；当前代码已传到 `/opt/mostbox-src`。
+- NAS 构建因其 Docker registry mirror `docker.fnnas.com` 对 `node:24-bookworm` 返回 401 而阻断，未启动或覆盖任何服务。
+- `roo@x.most.red` SSH 认证失败（`Permission denied (publickey,password)`），公网节点尚未验收。
+- 证据：[远程验收前置 JSON](qa/2026-10-09/remote-acceptance.json)。
