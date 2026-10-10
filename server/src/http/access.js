@@ -1,18 +1,20 @@
 const DEFAULT_ALLOWED_ORIGINS = [
-  'http://localhost:3000',
-  'http://127.0.0.1:3000',
-  'http://localhost:8081',
-  'http://127.0.0.1:8081',
-  'https://popper.trade',
-  'https://most.box',
-  'https://app.most.box',
-  'https://most-people.com',
+  'http://localhost:2020',
+  'http://127.0.0.1:2020',
+  'http://localhost:2021',
+  'http://127.0.0.1:2021',
 ]
 
-export function getAllowedOrigins(appPort) {
+function normalizeConfiguredOrigins(value) {
+  const values = Array.isArray(value) ? value : String(value || '').split(',')
+  return values.map(origin => String(origin).trim()).filter(Boolean)
+}
+
+export function getAllowedOrigins(appPort, configuredOrigins = '') {
   return [
     ...new Set([
       ...DEFAULT_ALLOWED_ORIGINS,
+      ...normalizeConfiguredOrigins(configuredOrigins),
       `http://localhost:${appPort}`,
       `http://127.0.0.1:${appPort}`,
     ]),

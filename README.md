@@ -102,6 +102,25 @@ npm run server
 
 开发模式需要两个进程：`npm start` 启动 TanStack Start 前端，默认访问 `http://localhost:2020`；`npm run server` 启动本地 daemon，默认监听 `http://localhost:1976`。Expo Web 在 `mobile/app/` 中运行 `npm run web`，默认访问 `http://localhost:2021`。
 
+### 浏览器来源白名单
+
+daemon 默认允许 `localhost` 和 `127.0.0.1` 的 HTTP 开发来源（端口 `2020`、`2021`），以及 daemon 自身端口的本地来源；与请求 Host 完全匹配的同源页面也可访问。其他部署域名需要在启动 daemon 时通过 `MOSTBOX_ALLOWED_ORIGINS` 配置，多个来源用英文逗号分隔。每项填写完整的来源（协议、域名和可选端口），不带路径，不使用通配符。
+
+PowerShell：
+
+```powershell
+$env:MOSTBOX_ALLOWED_ORIGINS = 'https://web.example.com,https://admin.example.com'
+npm run server
+```
+
+Linux / macOS：
+
+```bash
+MOSTBOX_ALLOWED_ORIGINS='https://web.example.com,https://admin.example.com' npm run server
+```
+
+该配置同时用于 HTTP 和 WebSocket 的来源检查，修改后需要重启 daemon。生产部署请在服务进程或容器的环境变量中设置；来源白名单不替代远程访问所需的邀请码和请求签名。
+
 ## MCP（AI 客户端）
 
 公开使用指南见 [MCP 文档](https://most.box/docs/mcp/)，交互式接口参考见

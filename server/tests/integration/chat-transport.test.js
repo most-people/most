@@ -57,7 +57,7 @@ async function request(fixture, requestPath, body, identity = wallet) {
       method,
       headers: {
         host: 'chat.example',
-        origin: 'https://popper.trade',
+        origin: 'http://localhost:2020',
         'x-mostbox-invite': invite,
         authorization: `${identity.address},${timestamp},${signature}`,
         ...(body === undefined ? {} : { 'content-type': 'application/json' }),
@@ -90,7 +90,7 @@ describe('native chat transport (integration)', { timeout: 30000 }, () => {
     assert.equal(response.status, 200)
     assert.equal(
       response.headers.get('access-control-allow-origin'),
-      'https://popper.trade'
+      'http://localhost:2020'
     )
     assert.deepEqual(Object.keys(await response.json()), ['maxFileSizeBytes'])
     const update = await request(fixture, '/api/node/policy', {
@@ -345,9 +345,9 @@ describe('native chat transport (integration)', { timeout: 30000 }, () => {
     )
     const url = `/ws?${new URLSearchParams({ invite, address: wallet.address, timestamp, signature })}`
     for (const origin of [
-      'https://popper.trade',
-      'http://localhost:8081',
-      'http://127.0.0.1:8081',
+      'http://localhost:2020',
+      'http://127.0.0.1:2020',
+      'http://localhost:2021',
     ]) {
       const response = await fixture.runtime.app.request('/api/channels', {
         method: 'OPTIONS',
@@ -418,7 +418,7 @@ describe('native chat transport (integration)', { timeout: 30000 }, () => {
     })
     const socket = new WebSocket(
       `ws://127.0.0.1:${server.address().port}/ws?${query}`,
-      { origin: 'https://popper.trade' }
+      { origin: 'http://localhost:2020' }
     )
     await once(socket, 'open')
     const subscribed = once(socket, 'message')

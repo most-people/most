@@ -27,7 +27,6 @@ All notable changes to MostBox are documented in this file.
 ### Added
 
 - Added channel-bound cursor history and WebSocket subscription acknowledgements for native chat clients.
-- Added explicit HTTP and WebSocket origin support for Popper Web and its local development preview.
 
 ### Fixed
 

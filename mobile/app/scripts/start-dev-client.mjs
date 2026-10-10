@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 const projectDir = path.resolve(scriptDir, '..')
-const port = Number(process.env.EXPO_PORT || 8081)
+const port = Number(process.env.EXPO_PORT || 2022)
 const emulatorWaitTimeoutMs = Number(
   process.env.ANDROID_EMULATOR_TIMEOUT_MS || 180000
 )

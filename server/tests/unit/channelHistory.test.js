@@ -5,7 +5,7 @@ import {
   paginateChannelHistory,
 } from '../../src/core/channelHistory.js'
 
-const channel = 'popper-history'
+const channel = 'most-history'
 const entries = [
   { content: 'a0', timestamp: 100, _coreKey: 'a'.repeat(64), _index: 0 },
   { content: 'a1', timestamp: 100, _coreKey: 'a'.repeat(64), _index: 1 },

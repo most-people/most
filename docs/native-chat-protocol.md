@@ -124,11 +124,10 @@ clients must use their own authorized conversation directory to select
 channels and map message author addresses to their users. Message bodies and
 attachments can remain entirely on the MostBox node.
 
-The node allows these explicit Popper browser origins for HTTP and WebSocket:
-
-- `https://popper.trade`
-- `http://localhost:8081`
-- `http://127.0.0.1:8081`
+The node allows the local Web development origins `http://localhost:2020`,
+`http://127.0.0.1:2020`, `http://localhost:2021`, and
+`http://127.0.0.1:2021`. Configure deployed browser origins with the
+`MOSTBOX_ALLOWED_ORIGINS` environment variable as a comma-separated list.
 
 Node deployment must include the history endpoint, send deduplication,
 subscription acknowledgement and origin changes together before a client

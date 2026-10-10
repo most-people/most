@@ -67,7 +67,10 @@ export function createApp(engine, options = {}) {
   const serverInstanceRef = options.serverInstanceRef || { current: null }
   const trustPrivateNetwork =
     options.trustPrivateNetwork ?? isPublicListenHost(appHost)
-  const allowedOrigins = getAllowedOrigins(appPort)
+  const allowedOrigins = getAllowedOrigins(
+    appPort,
+    options.allowedOrigins ?? process.env.MOSTBOX_ALLOWED_ORIGINS
+  )
   const rateLimitGuard =
     options.rateLimitGuard || createRateLimitGuard(options.rateLimit)
   const downloadTasks = createDownloadTaskRegistry(engine)
