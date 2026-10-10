@@ -17,7 +17,7 @@ const runtimePath = dirname(
 const { version } = JSON.parse(
   await readFile(join(runtimePath, 'package.json'), 'utf8')
 )
-if (!version.startsWith('7.')) {
+if (!version.startsWith('7.') && !version.startsWith('8.')) {
   throw new Error(
     `Revalidate the UnixFS uint64 patch for protons-runtime ${version}`
   )

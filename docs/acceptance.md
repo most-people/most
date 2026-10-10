@@ -75,7 +75,7 @@ npm run build
 - 移动本地可用性：保留 holding 和 Hyperdrive entry，清除实际 blob；重启后状态为 error、`localAvailable: false`，不恢复种子 topic，不返回 `alreadyExists / completed`，也不能导出。重新发布同一内容后恢复完整副本和默认做种。零字节文件仍算有效完整内容。
 - 缓存路径：导出时校验路径中的内容是否属于该 CID；路径内容被替换后，从 `/<cid>` 重建正确副本，不覆盖用户原路径。
 
-UnixFS 的 `protons-runtime` 7.x 整数编码补丁由根项目和移动子包的 `postinstall` 自动应用。使用 `--ignore-scripts` 安装后，必须分别运行 `npm run postinstall` 和 `npm --prefix mobile/app run postinstall`，再计算 CID 或生成 Bare bundle。升级该依赖时必须重新验收补丁和黄金样本。
+UnixFS 的 `protons-runtime` 7.x / 8.x 整数编码补丁由根项目和移动子包的 `postinstall` 自动应用。使用 `--ignore-scripts` 安装后，必须分别运行 `npm run postinstall` 和 `npm --prefix mobile/app run postinstall`，再计算 CID 或生成 Bare bundle。升级该依赖时必须重新验收补丁和黄金样本。
 
 大文件专用回归需安装两个包的依赖，并预留至少 20GiB 临时磁盘空间：
 
