@@ -1,5 +1,5 @@
 import { Avatar, Style } from '@dicebear/core'
-import botttsNeutralDefinition from '@dicebear/styles/bottts-neutral.json' with { type: 'json' }
+import planetsDefinition from '@dicebear/styles/planets.json' with { type: 'json' }
 
 export const defaultAvatarIds = [
   'panda',
@@ -41,9 +41,8 @@ export function normalizeDefaultAvatarValue(avatar) {
 }
 
 export function createAddressAvatar(address) {
-  const avatar = new Avatar(new Style(botttsNeutralDefinition), {
+  const avatar = new Avatar(new Style(planetsDefinition), {
     seed: 'most.box@' + address,
-    flip: 'horizontal',
   })
   return avatar.toDataUri()
 }
