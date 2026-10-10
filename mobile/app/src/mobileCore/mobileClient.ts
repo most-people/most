@@ -34,7 +34,15 @@ import {
   saveMobileIdentity,
   saveRemoteNodes,
 } from '../remoteNode/storage'
-import { hasActiveTransfers, startPreferredOrLocal } from './nodeSelection'
+import {
+  hasActiveTransfers,
+  startLocalOrPreferred,
+} from './nodeSelection'
+
+const LOCAL_DAEMON_CONFIG: RemoteNodeConfig = {
+  url: 'http://localhost:1976',
+  invite: '',
+}
 
 type MobileNodeClientOptions = {
   bundle: string | Uint8Array
@@ -81,13 +89,9 @@ export class MobileNodeClient implements MostBoxMobileClient {
     const preferred = this.#remoteEnabled
       ? this.#nodes.find(node => node.preferred) || null
       : null
-    if (this.#remoteOnly && !preferred) {
-      await this.#local.start()
-      await this.#activate(this.#local, 'remote', null)
-      return
-    }
-    const selection = await startPreferredOrLocal<MostBoxMobileCore>({
+    const selection = await startLocalOrPreferred<MostBoxMobileCore>({
       preferred,
+      localConfig: this.#remoteOnly ? LOCAL_DAEMON_CONFIG : null,
       startRemote: async config => {
         const remote = new RemoteMostBoxCore(config, this.#identity)
         try {
@@ -99,15 +103,13 @@ export class MobileNodeClient implements MostBoxMobileClient {
         }
       },
       startLocal: async () => {
+        if (this.#remoteOnly) {
+          return this.#startRemoteCore(LOCAL_DAEMON_CONFIG)
+        }
         await this.#local.start()
         return this.#local
       },
     })
-    if (this.#remoteOnly && selection.mode === 'local') {
-      this.#fallbackFrom = ''
-      await this.#activate(this.#local, 'remote', preferred)
-      return
-    }
     this.#fallbackFrom = selection.fallbackFrom
     await this.#activate(selection.node, selection.mode, selection.config)
   }
@@ -212,6 +214,17 @@ export class MobileNodeClient implements MostBoxMobileClient {
 
   getIdentity() {
     return this.#identity
+  }
+
+  async #startRemoteCore(config: RemoteNodeConfig) {
+    const remote = new RemoteMostBoxCore(config, this.#identity)
+    try {
+      await remote.start()
+      return remote
+    } catch (error) {
+      await remote.stop()
+      throw error
+    }
   }
 
   startP2PPing(input: StartP2PPingInput) {

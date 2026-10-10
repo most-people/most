@@ -74,6 +74,19 @@ export const useAppStore = create<AppState>((set, get) => ({
   hasBackend: null,
   activeBackendUrl: '',
   checkBackend: async () => {
+    const localhost = await detectLocalhostBackend()
+    if (localhost) {
+      configureBackend({
+        url: 'http://localhost:1976',
+        invite: '',
+      })
+      set({
+        hasBackend: true,
+        activeBackendUrl: 'http://localhost:1976',
+      })
+      return
+    }
+
     const remoteUrl = getRemoteUrlExport()
     if (remoteUrl) {
       const remoteInvite = getRemoteInviteExport()
@@ -89,17 +102,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         set({ hasBackend: true, activeBackendUrl: remoteUrl })
         return
       }
-    }
-
-    const localhost = await detectLocalhostBackend()
-    if (localhost) {
-      setBackendUrl('http://localhost:1976')
-      setBackendInvite('')
-      set({
-        hasBackend: true,
-        activeBackendUrl: 'http://localhost:1976',
-      })
-      return
     }
 
     const sameOrigin = getSameOriginBackendUrlExport()

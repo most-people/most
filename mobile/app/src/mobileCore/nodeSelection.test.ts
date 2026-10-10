@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { hasActiveTransfers, startPreferredOrLocal } from './nodeSelection'
+import {
+  hasActiveTransfers,
+  startLocalOrPreferred,
+  startPreferredOrLocal,
+} from './nodeSelection'
 import type { MobileCoreSnapshot } from './types'
 
 function snapshotWithStatus(
@@ -53,6 +57,53 @@ test('falls back for the session while retaining the failed remote URL', async (
   assert.equal(result.mode, 'local')
   assert.equal(result.node, 'local-node')
   assert.equal(result.fallbackFrom, 'http://desktop.local:1976/base')
+})
+
+test('prefers the local node while retaining the saved remote config', async () => {
+  let remoteStarts = 0
+  const preferred = { url: 'https://node.example.com', invite: 'invite' }
+  const result = await startLocalOrPreferred({
+    preferred,
+    startLocal: async () => 'local-node',
+    startRemote: async () => {
+      remoteStarts += 1
+      return 'remote-node'
+    },
+  })
+
+  assert.equal(result.mode, 'local')
+  assert.equal(result.node, 'local-node')
+  assert.equal(result.config, null)
+  assert.equal(remoteStarts, 0)
+})
+
+test('uses the saved remote node when local startup fails', async () => {
+  const preferred = { url: 'https://node.example.com', invite: 'invite' }
+  const result = await startLocalOrPreferred({
+    preferred,
+    startLocal: async () => {
+      throw new Error('local unavailable')
+    },
+    startRemote: async config => config.url,
+  })
+
+  assert.equal(result.mode, 'remote')
+  assert.equal(result.node, preferred.url)
+  assert.deepEqual(result.config, preferred)
+})
+
+test('can treat a local daemon as the preferred remote endpoint on Web', async () => {
+  const localConfig = { url: 'http://localhost:1976', invite: '' }
+  const result = await startLocalOrPreferred({
+    preferred: { url: 'https://node.example.com', invite: 'invite' },
+    localConfig,
+    startLocal: async () => 'local-daemon',
+    startRemote: async () => 'remote-node',
+  })
+
+  assert.equal(result.mode, 'remote')
+  assert.equal(result.node, 'local-daemon')
+  assert.deepEqual(result.config, localConfig)
 })
 
 test('treats queued, running and waiting transfers as switch blockers', () => {
